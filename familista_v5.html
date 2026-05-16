@@ -1552,6 +1552,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 const API_BASE = 'https://familista-backend.onrender.com/api/v1';
 const WS_URL   = 'wss://familista-backend.onrender.com/ws/live';
 
+// Hardcoded absolute base for Players CRUD — guarantees fetches go to the
+// live API regardless of any environment override of API_BASE. Do NOT
+// shorten to a relative URL.
+const PLAYERS_API = 'https://familista-backend.onrender.com/api/v1/players';
+
 // ── STATE ──
 const State = {
   token:        null,
@@ -1640,6 +1645,43 @@ async function tryRefreshToken() {
     }
   } catch {}
   return false;
+}
+
+// ── PLAYER API (absolute URL, no relative fallback) ──
+// Always hits https://familista-backend.onrender.com/api/v1/players to
+// survive any environment override or accidental relative-path drift.
+async function playerApi(path = '', options = {}) {
+  const url = PLAYERS_API + (path || '');
+  const headers = {
+    'Accept': 'application/json',
+    ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...(State.token ? { Authorization: `Bearer ${State.token}` } : {}),
+    ...(options.headers || {}),
+  };
+  const init = {
+    method: options.method || 'GET',
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  };
+
+  let res = await fetch(url, init);
+  // Try refresh on 401 once
+  if (res.status === 401 && State.refreshToken && !options._retry) {
+    const ok = await tryRefreshToken();
+    if (ok) return playerApi(path, { ...options, _retry: true });
+  }
+  if (res.status === 204) return null;
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { body = { message: text }; }
+  if (!res.ok) {
+    const msg = (body && (body.message || body.error)) || `HTTP ${res.status}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body   = body;
+    throw err;
+  }
+  return body;
 }
 
 // ── AUTH ──
@@ -1756,7 +1798,7 @@ async function loadAllData() {
   try {
     const [analytics, players, matches, tourns, training] = await Promise.allSettled([
       api('/analytics/overview'),
-      api('/players?limit=50'),
+      playerApi('?limit=50'),
       api('/matches?limit=20'),
       api('/training?limit=10'),
       api('/training/form'),
@@ -2286,9 +2328,9 @@ function filterSquad(pos, el) {
 async function openPlayerModal(id) {
   State.activePlayer = State.players.find(p => p.id === id);
   if (!State.activePlayer) {
-    // Try loading from API
+    // Try loading from API (absolute URL)
     try {
-      const res = await api(`/players/${id}`);
+      const res = await playerApi(`/${id}`);
       if (res?.data) State.activePlayer = res.data;
     } catch {}
   }
@@ -2568,7 +2610,7 @@ async function submitPlayerForm(ev) {
   try {
     let saved = null;
     if (id) {
-      const res = await api(`/players/${id}`, { method: 'PUT', body });
+      const res = await playerApi(`/${id}`, { method: 'PUT', body });
       saved = res?.data;
       if (saved) {
         const idx = State.players.findIndex(p => p.id === id);
@@ -2576,7 +2618,7 @@ async function submitPlayerForm(ev) {
         if (State.activePlayer?.id === id) State.activePlayer = { ...State.activePlayer, ...saved };
       }
     } else {
-      const res = await api('/players', { method: 'POST', body });
+      const res = await playerApi('', { method: 'POST', body });
       saved = res?.data;
       if (saved) State.players.unshift(saved);
     }
@@ -2600,7 +2642,7 @@ async function confirmDeletePlayer(id) {
   if (!confirm(`Delete ${name}? This permanently removes the player and cannot be undone.`)) return;
 
   try {
-    await api(`/players/${id}`, { method: 'DELETE' });
+    await playerApi(`/${id}`, { method: 'DELETE' });
     State.players = (State.players || []).filter(x => x.id !== id);
     if (State.activePlayer?.id === id) State.activePlayer = null;
     closeModal('player-modal');
