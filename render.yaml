@@ -1,0 +1,133 @@
+# Familista — Render Blueprint
+# Apply via: Render dashboard → New → Blueprint → connect this repo.
+# Secret env vars (sync: false) must be set manually in the dashboard after
+# the blueprint applies — they're never committed to git.
+
+services:
+  - type: web
+    name: familista-backend
+    runtime: node
+    region: frankfurt
+    plan: standard
+    branch: main
+    autoDeploy: true
+    buildCommand: npm install && npx prisma migrate deploy && npx prisma generate && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      # ── Core ────────────────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: API_VERSION
+        value: v1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: familista-postgres
+          property: connectionString
+
+      # ── Auth / JWT ──────────────────────────────────────────────────────
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: JWT_ISSUER
+        value: familista
+
+      # ── Rate limit ──────────────────────────────────────────────────────
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX
+        value: "300"
+
+      # ── Stripe ──────────────────────────────────────────────────────────
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # ── Mail ────────────────────────────────────────────────────────────
+      - key: MAIL_DEFAULT_FROM
+        value: no-reply@familista.app
+
+      # ── AI Decision Engine (optional Claude narratives) ─────────────────
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_LLM_MODEL
+        value: claude-sonnet-4-20250514
+      - key: AI_LLM_MAX_TOKENS
+        value: "1024"
+      - key: AI_LLM_TIMEOUT_MS
+        value: "20000"
+
+      # ── White-label assets ──────────────────────────────────────────────
+      - key: WL_ASSETS_BACKEND
+        value: LOCAL
+      - key: WL_ASSETS_DIR
+        value: /var/data/uploads
+      - key: WL_ASSETS_PUBLIC_PREFIX
+        value: /uploads
+      - key: WL_ASSETS_PUBLIC_BASE_URL
+        sync: false
+      # When switching to S3, set these and change backend to S3:
+      - key: WL_ASSETS_S3_BUCKET
+        sync: false
+      - key: WL_ASSETS_S3_REGION
+        value: eu-central-1
+      - key: WL_ASSETS_S3_ENDPOINT
+        sync: false
+      - key: WL_ASSETS_S3_ACCESS_KEY_ID
+        sync: false
+      - key: WL_ASSETS_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: WL_ASSETS_S3_FORCE_PATH_STYLE
+        value: "false"
+
+      # ── Franchise revenue payouts ───────────────────────────────────────
+      - key: WL_PAYOUT_BACKEND
+        value: LEDGER_ONLY
+      # When switching to STRIPE_CONNECT, set this:
+      # - key: STRIPE_CONNECT_*
+
+      # ── Vision Intelligence ─────────────────────────────────────────────
+      - key: VISION_INFERENCE_BACKEND
+        value: STUB
+      - key: VISION_WORKER_URL
+        sync: false
+      - key: VISION_WORKER_CALLBACK_URL
+        sync: false
+      - key: VISION_WORKER_TOKEN
+        sync: false
+      - key: VISION_WEBHOOK_TOKEN
+        sync: false
+      - key: VISION_CLIP_BACKEND
+        value: STUB
+      - key: VISION_CLIP_WORKER_URL
+        sync: false
+      - key: VISION_CLIP_WORKER_CALLBACK_URL
+        sync: false
+      - key: VISION_CLIP_WORKER_TOKEN
+        sync: false
+      - key: VISION_CLIP_WEBHOOK_TOKEN
+        sync: false
+      - key: VISION_FUSION_DISTANCE_WEIGHT
+        value: "0.5"
+      - key: VISION_FUSION_TOPSPEED_WEIGHT
+        value: "0.3"
+
+    disk:
+      name: familista-uploads
+      mountPath: /var/data
+      sizeGB: 10
+
+databases:
+  - name: familista-postgres
+    plan: standard
+    region: frankfurt
+    postgresMajorVersion: 16
+    ipAllowList: []          # private network only

@@ -1,0 +1,24 @@
+src/middleware/ai-access.middleware.ts(81,42): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/middleware/ai-access.middleware.ts(97,46): error TS7006: Parameter 'i' implicitly has an 'any' type.
+src/middleware/ai-access.middleware.ts(97,82): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/middleware/ai-access.middleware.ts(105,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, AIActorRole>'.
+src/middleware/franchise-access.middleware.ts(85,55): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/middleware/franchise-access.middleware.ts(86,59): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/middleware/franchise-access.middleware.ts(86,83): error TS7006: Parameter 'o' implicitly has an 'any' type.
+src/middleware/franchise-access.middleware.ts(89,50): error TS2345: Argument of type 'Set<unknown>' is not assignable to parameter of type 'Iterable<string>'.
+  The types returned by '[Symbol.iterator]().next(...)' are incompatible between these types.
+    Type 'IteratorResult<unknown, undefined>' is not assignable to type 'IteratorResult<string, any>'.
+      Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorResult<string, any>'.
+        Type 'IteratorYieldResult<unknown>' is not assignable to type 'IteratorYieldResult<string>'.
+          Type 'unknown' is not assignable to type 'string'.
+src/middleware/franchise-access.middleware.ts(95,5): error TS2322: Type 'Set<unknown>' is not assignable to type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/middleware/franchise-access.middleware.ts(96,5): error TS2322: Type 'Set<unknown>' is not assignable to type 'Set<string>'.
+  Type 'unknown' is not assignable to type 'string'.
+src/middleware/vision-access.middleware.ts(71,22): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type 'Record<UserRole, VisionActorRole>'.
+src/services/admin-asset.service.ts(136,51): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/services/admin-audit.service.ts(74,52): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/services/admin-audit.service.ts(75,48): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/services/admin-branding.service.ts(102,51): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/services/admin-branding.service.ts(151,51): error TS7006: Parameter 'tx' implicitly has an 'any' type.
+src/services/admin-domain.service.t

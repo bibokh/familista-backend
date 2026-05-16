@@ -1,0 +1,141 @@
+// Familista — White-label Engine
+// Additive Prisma fragment. Merge into the main schema.prisma.
+//
+// Required edit to existing Club model — add this relation field:
+//   whiteLabel WhiteLabelConfig?
+//
+// Run: npx prisma migrate dev --name whitelabel_engine
+
+enum WhiteLabelDomainStatus {
+  PENDING
+  VERIFYING
+  ACTIVE
+  FAILED
+  DISABLED
+}
+
+enum WhiteLabelAuditAction {
+  CONFIG_CREATED
+  CONFIG_UPDATED
+  CONFIG_RESET
+  DOMAIN_ADDED
+  DOMAIN_REMOVED
+  DOMAIN_VERIFIED
+  DOMAIN_FAILED
+  DOMAIN_PROMOTED
+  ASSET_REPLACED
+}
+
+model WhiteLabelConfig {
+  id          String   @id @default(uuid())
+  clubId      String   @unique
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  // Brand identity
+  productName String?
+  tagline     String?
+  logoUrl     String?
+  logoDarkUrl String?
+  faviconUrl  String?
+  ogImageUrl  String?
+
+  // Color tokens (validated as #RRGGBB or #RRGGBBAA)
+  primaryColor    String  @default("#0f172a")
+  secondaryColor  String  @default("#64748b")
+  accentColor     String  @default("#22c55e")
+  backgroundColor String  @default("#ffffff")
+  surfaceColor    String  @default("#f8fafc")
+  textColor       String  @default("#0f172a")
+  mutedTextColor  String  @default("#64748b")
+  borderColor     String  @default("#e2e8f0")
+  errorColor      String  @default("#ef4444")
+  successColor    String  @default("#22c55e")
+  warningColor    String  @default("#f59e0b")
+
+  // Typography
+  fontFamily      String  @default("Inter, system-ui, -apple-system, sans-serif")
+  fontHeadingUrl  String?
+  fontBodyUrl     String?
+
+  // Public links
+  supportEmail    String?
+  supportUrl      String?
+  termsUrl        String?
+  privacyUrl      String?
+  marketingUrl    String?
+
+  // Email branding
+  emailFromName   String?
+  emailFromEmail  String?
+  emailReplyTo    String?
+  emailHeaderHtml String? @db.Text
+  emailFooterHtml String? @db.Text
+
+  // Behavior toggles
+  hidePoweredBy   Boolean @default(false)
+  hideInvestor    Boolean @default(true)
+  hideMarketplace Boolean @default(false)
+
+  // Advanced
+  customCss       String? @db.Text
+  customHeadHtml  String? @db.Text
+  defaultLocale   String  @default("en")
+  metadata        Json?
+
+  // Versioning / lifecycle
+  isActive        Boolean  @default(true)
+  version         Int      @default(1)
+  publishedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  domains   WhiteLabelDomain[]
+  audits    WhiteLabelAudit[]
+
+  @@index([clubId])
+  @@index([isActive])
+}
+
+model WhiteLabelDomain {
+  id          String @id @default(uuid())
+  configId    String
+  config      WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  hostname     String  @unique
+  isPrimary    Boolean @default(false)
+  status       WhiteLabelDomainStatus @default(PENDING)
+  verifyToken  String  @unique
+  verifyHost   String?
+  verifiedAt   DateTime?
+  lastCheckedAt DateTime?
+  failureReason String?
+  sslIssuedAt   DateTime?
+  sslExpiresAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId])
+  @@index([status])
+  @@index([hostname])
+}
+
+model WhiteLabelAudit {
+  id        String @id @default(uuid())
+  configId  String
+  config    WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  userId    String?
+  action    WhiteLabelAuditAction
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([configId])
+  @@index([createdAt])
+  @@index([action])
+}

@@ -1,0 +1,808 @@
+// Familista — Global Investor Layer
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// franchise fragment.
+//
+// Required edits to existing models:
+//
+//   model User {
+//     ...
+//     investorProfile InvestorProfile?
+//   }
+//
+//   model FranchiseUnit {
+//     ...
+//     investmentEntity InvestmentEntity?
+//   }
+//
+//   model Club {
+//     ...
+//     investmentEntity InvestmentEntity?
+//   }
+//
+// Run: npx prisma migrate dev --name investor_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum InvestorType {
+  PRIVATE
+  ANGEL
+  STRATEGIC
+  INSTITUTIONAL
+  VENTURE_CAPITAL
+  SOVEREIGN
+  SPORTS_HOLDING
+}
+
+enum InvestorEntityType {
+  PERSON
+  COMPANY
+  FUND
+  FAMILY_OFFICE
+  SOVEREIGN_FUND
+  HOLDING
+}
+
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum InvestmentEntityType {
+  PLATFORM
+  FRANCHISE_UNIT
+  CLUB
+  ACADEMY
+}
+
+enum InvestmentRoundType {
+  PRE_SEED
+  SEED
+  SERIES_A
+  SERIES_B
+  SERIES_C
+  SERIES_D
+  GROWTH
+  BRIDGE
+  EXPANSION
+  STRATEGIC
+  ACQUISITION
+}
+
+enum InvestmentRoundStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum InstrumentType {
+  EQUITY
+  SAFE
+  CONVERTIBLE_NOTE
+  REVENUE_SHARE
+  FRANCHISE
+  ACADEMY
+  DIRECT_DEBT
+}
+
+enum InvestmentStatus {
+  COMMITTED
+  FUNDED
+  CONVERTED
+  EXITED
+  DEFAULTED
+  CANCELLED
+}
+
+enum ShareClassCategory {
+  COMMON
+  PREFERRED
+  FOUNDER
+  OPTION_POOL
+  WARRANT
+}
+
+enum AntiDilutionType {
+  NONE
+  FULL_RATCHET
+  WEIGHTED_AVERAGE_BROAD
+  WEIGHTED_AVERAGE_NARROW
+}
+
+enum CapTableAcquisitionType {
+  FOUNDING
+  ROUND_PURCHASE
+  CONVERSION
+  TRANSFER_IN
+  EXERCISE
+  GRANT
+  EXIT_PROCEEDS
+  REMAINDER
+}
+
+enum ShareTransferStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  CANCELLED
+  REJECTED
+}
+
+enum ShareTransferReason {
+  SECONDARY_SALE
+  INHERITANCE
+  COURT_ORDER
+  CORPORATE_RESTRUCTURE
+  EXERCISE
+  REPURCHASE
+}
+
+enum InvestorRightType {
+  BOARD_SEAT
+  OBSERVER_SEAT
+  PRO_RATA
+  ROFR
+  DRAG_ALONG
+  TAG_ALONG
+  INFORMATION
+  VETO
+  LIQUIDATION_PREFERENCE
+  ANTI_DILUTION
+  REDEMPTION
+  MFN
+}
+
+enum BoardSeatRole {
+  CHAIR
+  DIRECTOR
+  OBSERVER
+  INDEPENDENT
+}
+
+enum AgreementType {
+  TERM_SHEET
+  SAFE
+  CONVERTIBLE_NOTE
+  STOCK_PURCHASE_AGREEMENT
+  SHAREHOLDER_AGREEMENT
+  INVESTORS_RIGHTS
+  VOTING_AGREEMENT
+  ROFR_AGREEMENT
+  SIDE_LETTER
+  EXIT_AGREEMENT
+  REVENUE_SHARE_AGREEMENT
+}
+
+enum AgreementStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  EXECUTED
+  TERMINATED
+  SUPERSEDED
+}
+
+enum ExitEventType {
+  IPO
+  ACQUISITION
+  MERGER
+  BUYBACK
+  SECONDARY_SALE
+  DIVIDEND
+  DISTRIBUTION
+  LIQUIDATION
+  RECAPITALIZATION
+}
+
+enum ExitStatus {
+  PROPOSED
+  APPROVED
+  EXECUTED
+  CANCELLED
+}
+
+enum InvestorDistributionType {
+  REVENUE_SHARE
+  DIVIDEND
+  INTEREST
+  EXIT_PROCEEDS
+  RETURN_OF_CAPITAL
+}
+
+enum InvestorDistributionStatus {
+  PENDING
+  COMPUTED
+  PAID
+  FAILED
+  REVERSED
+}
+
+enum InvestorAuditCategory {
+  PROFILE
+  ENTITY
+  ROUND
+  INVESTMENT
+  CAP_TABLE
+  TRANSFER
+  GOVERNANCE
+  AGREEMENT
+  EXIT
+  DISTRIBUTION
+  OTHER
+}
+
+enum InvestorAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investor profiles
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorProfile {
+  id                     String              @id @default(uuid())
+  type                   InvestorType
+  entityType             InvestorEntityType
+  displayName            String
+  legalName              String?
+
+  userId                 String?             @unique
+  user                   User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  linkedFranchiseOwnerId String?             @unique
+
+  contactName            String?
+  contactEmail           String?
+  contactPhone           String?
+  countryCode            String?
+  taxId                  String?
+  legalAddress           String?             @db.Text
+
+  accredited             Boolean             @default(false)
+  kycStatus              KycStatus           @default(PENDING)
+  kycVerifiedAt          DateTime?
+  kycExpiresAt           DateTime?
+
+  aumUsd                 Float?
+  targetSectors          String[]            @default([])
+  targetGeographies      String[]            @default([])
+  notes                  String?             @db.Text
+  metadata               Json?
+
+  isActive               Boolean             @default(true)
+
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  investments            Investment[]
+  capTableEntries        CapTableEntry[]
+  rights                 InvestorRight[]
+  boardSeats             BoardSeat[]
+  agreements             InvestmentAgreement[]
+  transfersOut           ShareTransfer[]     @relation("ShareTransferFrom")
+  transfersIn            ShareTransfer[]     @relation("ShareTransferTo")
+  exitDistributions      ExitDistribution[]
+  distributions          InvestorDistribution[]
+
+  @@index([type])
+  @@index([kycStatus])
+  @@index([isActive])
+  @@index([countryCode])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investment targets (platform, franchise unit, club, academy)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentEntity {
+  id                  String                  @id @default(uuid())
+  type                InvestmentEntityType
+  name                String
+  code                String?                 @unique
+  description         String?                 @db.Text
+
+  franchiseUnitId     String?                 @unique
+  franchiseUnit       FranchiseUnit?          @relation(fields: [franchiseUnitId], references: [id], onDelete: SetNull)
+
+  clubId              String?                 @unique
+  club                Club?                   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  currency            String                  @default("EUR")
+  currentValuation    Float?
+  lastValuationAt     DateTime?
+  totalSharesIssued   Int                     @default(0)
+  fullyDilutedShares  Int                     @default(0)
+
+  metadata            Json?
+  isActive            Boolean                 @default(true)
+
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  shareClasses        ShareClass[]
+  rounds              InvestmentRound[]
+  investments         Investment[]
+  capTableEntries     CapTableEntry[]
+  rights              InvestorRight[]
+  boardSeats          BoardSeat[]
+  agreements          InvestmentAgreement[]
+  shareTransfers      ShareTransfer[]
+  exitEvents          ExitEvent[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share classes (per investment entity)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShareClass {
+  id                    String              @id @default(uuid())
+  entityId              String
+  entity                InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  name                  String
+  code                  String
+  category              ShareClassCategory
+  seniority             Int                 @default(0)
+
+  liquidationPreference Float               @default(1.0)
+  participating         Boolean             @default(false)
+  participationCap      Float?
+
+  votingMultiple        Float               @default(1.0)
+  dividendRate          Float?
+  cumulativeDividends   Boolean             @default(false)
+
+  convertibleToCode     String?
+  antiDilutionType      AntiDilutionType    @default(NONE)
+
+  totalAuthorized       Int                 @default(0)
+  totalIssued           Int                 @default(0)
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  capTableEntries       CapTableEntry[]
+  shareTransfers        ShareTransfer[]
+  rounds                InvestmentRound[]
+
+  @@unique([entityId, code])
+  @@index([entityId])
+  @@index([seniority])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investment rounds
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentRound {
+  id                  String                  @id @default(uuid())
+  entityId            String
+  entity              InvestmentEntity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type                InvestmentRoundType
+  name                String
+  status              InvestmentRoundStatus   @default(DRAFT)
+
+  currency            String                  @default("EUR")
+  targetRaise         Float
+  actualRaise         Float                   @default(0)
+
+  preMoneyValuation   Float?
+  postMoneyValuation  Float?
+  pricePerShare       Float?
+  sharesAuthorized    Int?
+  sharesIssued        Int                     @default(0)
+
+  shareClassId        String?
+  shareClass          ShareClass?             @relation(fields: [shareClassId], references: [id], onDelete: SetNull)
+
+  openedAt            DateTime?
+  closedAt            DateTime?
+
+  leadInvestorId      String?
+
+  terms               Json?
+  notes               String?                 @db.Text
+
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  investments         Investment[]
+  agreements          InvestmentAgreement[]
+
+  @@index([entityId])
+  @@index([status])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investments
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Investment {
+  id                      String              @id @default(uuid())
+  investorId              String
+  investor                InvestorProfile     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  entityId                String
+  entity                  InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  roundId                 String?
+  round                   InvestmentRound?    @relation(fields: [roundId], references: [id], onDelete: SetNull)
+
+  instrumentType          InstrumentType
+  status                  InvestmentStatus    @default(COMMITTED)
+
+  committedAmount         Float
+  fundedAmount            Float               @default(0)
+  currency                String              @default("EUR")
+
+  shareClassId            String?
+  sharesIssued            Int?
+  pricePerShare           Float?
+
+  valuationCap            Float?
+  discountPercent         Float?
+  mostFavoredNation       Boolean             @default(false)
+  interestRate            Float?
+  maturityDate            DateTime?
+
+  revenueSharePercent     Float?
+  revenueShareCap         Float?
+  revenueShareUntil       DateTime?
+  revenueCategories       String[]            @default([])
+
+  originalInvestmentId    String?
+  convertedToInvestmentId String?             @unique
+
+  linkedFranchiseUnitId   String?
+  linkedClubId            String?
+
+  commitDate              DateTime            @default(now())
+  fundedDate              DateTime?
+  convertedDate           DateTime?
+  exitDate                DateTime?
+
+  notes                   String?             @db.Text
+  metadata                Json?
+
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  capTableEntries         CapTableEntry[]
+  agreements              InvestmentAgreement[]
+  distributions           InvestorDistribution[]
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([roundId])
+  @@index([instrumentType])
+  @@index([status])
+  @@index([linkedFranchiseUnitId])
+  @@index([linkedClubId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cap table — time-effective share holdings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CapTableEntry {
+  id                   String                  @id @default(uuid())
+  entityId             String
+  entity               InvestmentEntity        @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investorId           String
+  investor             InvestorProfile         @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  shareClassId         String
+  shareClass           ShareClass              @relation(fields: [shareClassId], references: [id], onDelete: Restrict)
+
+  shares               Int
+  pricePerShare        Float?
+  totalCost            Float?
+  currency             String                  @default("EUR")
+
+  effectiveFrom        DateTime                @default(now())
+  effectiveTo          DateTime?
+
+  acquisitionType      CapTableAcquisitionType
+  originalInvestmentId String?
+  originalInvestment   Investment?             @relation(fields: [originalInvestmentId], references: [id], onDelete: SetNull)
+
+  transferInId         String?                 @unique
+  transferIn           ShareTransfer?          @relation("TransferInToEntry", fields: [transferInId], references: [id], onDelete: SetNull)
+
+  notes                String?
+
+  createdAt            DateTime                @default(now())
+
+  @@index([entityId, effectiveTo])
+  @@index([investorId])
+  @@index([shareClassId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share transfers (secondary)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShareTransfer {
+  id              String              @id @default(uuid())
+  entityId        String
+  entity          InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  fromInvestorId  String
+  fromInvestor    InvestorProfile     @relation("ShareTransferFrom", fields: [fromInvestorId], references: [id])
+  toInvestorId    String
+  toInvestor      InvestorProfile     @relation("ShareTransferTo", fields: [toInvestorId], references: [id])
+
+  shareClassId    String
+  shareClass      ShareClass          @relation(fields: [shareClassId], references: [id], onDelete: Restrict)
+
+  shares          Int
+  pricePerShare   Float?
+  totalAmount     Float?
+  currency        String              @default("EUR")
+
+  reason          ShareTransferReason
+  status          ShareTransferStatus @default(PENDING)
+
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  notes           String?             @db.Text
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  newCapTableEntry CapTableEntry?     @relation("TransferInToEntry")
+
+  @@index([entityId])
+  @@index([fromInvestorId])
+  @@index([toInvestorId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Governance — rights + board seats
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorRight {
+  id            String              @id @default(uuid())
+  investorId    String
+  investor      InvestorProfile     @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  entityId      String
+  entity        InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type          InvestorRightType
+  terms         Json?
+
+  effectiveFrom DateTime            @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean             @default(true)
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([type])
+  @@index([isActive])
+}
+
+model BoardSeat {
+  id           String              @id @default(uuid())
+  entityId     String
+  entity       InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investorId   String?
+  investor     InvestorProfile?    @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
+  holderName   String
+  holderEmail  String?
+  holderUserId String?
+
+  role         BoardSeatRole
+  votingPower  Float               @default(1.0)
+
+  appointedAt  DateTime            @default(now())
+  departedAt   DateTime?
+  isActive     Boolean             @default(true)
+
+  notes        String?             @db.Text
+
+  createdAt    DateTime            @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([entityId])
+  @@index([investorId])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentAgreement {
+  id               String              @id @default(uuid())
+  entityId         String
+  entity           InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investmentId     String?
+  investment       Investment?         @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  roundId          String?
+  round            InvestmentRound?    @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  investorId       String?
+  investor         InvestorProfile?    @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
+  type             AgreementType
+  status           AgreementStatus     @default(DRAFT)
+  version          Int                 @default(1)
+
+  documentUrl      String?
+  documentChecksum String?
+
+  effectiveFrom    DateTime?
+  effectiveTo      DateTime?
+
+  signedAt         DateTime?
+  signedByName     String?
+  signedByTitle    String?
+
+  terms            Json?
+  governingLaw     String?
+  jurisdiction     String?
+
+  notes            String?             @db.Text
+
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([entityId])
+  @@index([investmentId])
+  @@index([investorId])
+  @@index([type])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exits + distributions
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExitEvent {
+  id              String              @id @default(uuid())
+  entityId        String
+  entity          InvestmentEntity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type            ExitEventType
+  status          ExitStatus          @default(PROPOSED)
+
+  eventDate       DateTime?
+  proceedsAmount  Float?
+  currency        String              @default("EUR")
+  pricePerShare   Float?
+  acquirerName    String?
+
+  terms           Json?
+  notes           String?             @db.Text
+
+  createdBy       String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  distributions   ExitDistribution[]
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([entityId])
+  @@index([status])
+  @@index([type])
+}
+
+model ExitDistribution {
+  id                    String                       @id @default(uuid())
+  exitId                String
+  exit                  ExitEvent                    @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  investorId            String
+  investor              InvestorProfile              @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  sharesPaidOut         Int                          @default(0)
+  liquidationPrefAmount Float                        @default(0)
+  participationAmount   Float                        @default(0)
+  commonAmount          Float                        @default(0)
+  grossAmount           Float
+  netAmount             Float
+  currency              String                       @default("EUR")
+
+  status                InvestorDistributionStatus   @default(PENDING)
+  paidAt                DateTime?
+  paymentRef            String?
+  failureReason         String?
+
+  createdAt             DateTime                     @default(now())
+
+  @@index([exitId])
+  @@index([investorId])
+  @@index([status])
+}
+
+model InvestorDistribution {
+  id              String                         @id @default(uuid())
+  investorId      String
+  investor        InvestorProfile                @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  investmentId    String?
+  investment      Investment?                    @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+
+  type            InvestorDistributionType
+  status          InvestorDistributionStatus     @default(PENDING)
+
+  period          String?
+  periodStartAt   DateTime?
+  periodEndAt     DateTime?
+
+  amount          Float
+  currency        String                         @default("EUR")
+  sourceRef       String?
+
+  computedAt      DateTime                       @default(now())
+  paidAt          DateTime?
+  paymentMethod   String?
+  paymentRef      String?
+  failureReason   String?
+
+  notes           String?                        @db.Text
+
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([type])
+  @@index([status])
+  @@index([period])
+  @@index([sourceRef])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorAudit {
+  id           String                @id @default(uuid())
+  investorId   String?
+  entityId     String?
+  userId       String?
+
+  action       String
+  category     InvestorAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+
+  result       InvestorAuditResult   @default(SUCCESS)
+  message      String?               @db.Text
+
+  createdAt    DateTime              @default(now())
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}

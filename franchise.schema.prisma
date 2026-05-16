@@ -1,0 +1,870 @@
+// Familista — Franchise Expansion Engine
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// previous fragments (whitelabel.schema.prisma, admin-whitelabel.schema.prisma).
+//
+// Required edits to existing models:
+//
+//   model Club {
+//     ...
+//     franchiseUnitId      String?
+//     franchiseUnit        FranchiseUnit? @relation(fields: [franchiseUnitId], references: [id], onDelete: SetNull)
+//     revenueDistributions RevenueDistribution[]
+//
+//     @@index([franchiseUnitId])
+//   }
+//
+//   model User {
+//     ...
+//     franchiseOwner FranchiseOwner?
+//   }
+//
+// Run: npx prisma migrate dev --name franchise_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TerritoryType {
+  COUNTRY
+  STATE
+  REGION
+  CITY
+  DISTRICT
+}
+
+enum FranchiseLevel {
+  MASTER
+  REGIONAL
+  LOCAL
+  ACADEMY
+}
+
+enum FranchiseStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  IN_RENEWAL
+  TERMINATED
+}
+
+enum OwnershipModel {
+  SINGLE_OWNER
+  MULTI_OWNER
+  INVESTOR_GROUP
+  HOLDING_COMPANY
+  JOINT_VENTURE
+}
+
+enum OwnerType {
+  INDIVIDUAL
+  ENTITY
+  INVESTOR_GROUP
+}
+
+enum TerritoryRightType {
+  EXCLUSIVE
+  NON_EXCLUSIVE
+  FIRST_REFUSAL
+}
+
+enum ExpansionRequestStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ESCALATED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum AcquisitionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  CANCELLED
+  REJECTED
+}
+
+enum TransferReason {
+  VOLUNTARY
+  ACQUISITION
+  INHERITANCE
+  COURT_ORDER
+  DEFAULT
+  CORPORATE_RESTRUCTURE
+}
+
+enum RevenueCategory {
+  SUBSCRIPTION
+  TRANSFER
+  SPONSORSHIP
+  MERCHANDISE
+  ACADEMY_FEE
+  MATCH_REVENUE
+  BROADCAST
+  OTHER
+  ALL
+}
+
+enum RevenueTrigger {
+  PAYMENT_RECEIVED
+  INVOICE_ISSUED
+  MANUAL
+}
+
+enum RevenueRecipientType {
+  HEADQUARTERS
+  MASTER
+  REGIONAL
+  LOCAL
+  ACADEMY
+  INVESTOR
+  SPONSOR
+  OTHER
+}
+
+enum DistributionStatus {
+  COMPUTED
+  EXECUTING
+  EXECUTED
+  FAILED
+  REVERSED
+}
+
+enum AllocationStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum ContractType {
+  FRANCHISE_AGREEMENT
+  AREA_DEVELOPMENT
+  OPERATING_AGREEMENT
+  SUB_FRANCHISE
+  AMENDMENT
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  ACTIVE
+  RENEWED
+  EXPIRED
+  TERMINATED
+}
+
+enum RenewalStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+enum TerminationReason {
+  VOLUNTARY
+  BREACH
+  NON_PAYMENT
+  PERFORMANCE
+  MUTUAL
+  EXPIRATION
+}
+
+enum TerminationStatus {
+  REQUESTED
+  APPROVED
+  EXECUTED
+  CANCELLED
+}
+
+enum ViolationSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum ViolationStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  ESCALATED
+  WAIVED
+}
+
+enum ComplianceCategory {
+  FINANCIAL
+  OPERATIONAL
+  LEGAL
+  BRAND
+  TRAINING
+  LICENSING
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  AT_RISK
+  NON_COMPLIANT
+  NOT_ASSESSED
+}
+
+enum FranchiseAuditCategory {
+  HIERARCHY
+  OWNERSHIP
+  TRANSFER
+  ACQUISITION
+  TERRITORY
+  EXPANSION
+  REVENUE
+  CONTRACT
+  COMPLIANCE
+  PERFORMANCE
+  OTHER
+}
+
+enum FranchiseAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Geography — Territory hierarchy (country → region → city → district)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Territory {
+  id           String        @id @default(uuid())
+  type         TerritoryType
+  code         String?
+  name         String
+  fullPath     String        @unique
+  parentId     String?
+  parent       Territory?    @relation("TerritoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children     Territory[]   @relation("TerritoryHierarchy")
+
+  population   Int?
+  currency     String?
+  timezone     String?
+  metadata     Json?
+
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  units              FranchiseUnit[]
+  territoryRights    TerritoryRight[]
+  expansionRequests  ExpansionRequest[]
+
+  @@index([parentId])
+  @@index([type])
+  @@index([code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FranchiseUnit — the core node in the franchise hierarchy
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseUnit {
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  level           FranchiseLevel
+  status          FranchiseStatus  @default(PENDING)
+  ownershipModel  OwnershipModel   @default(SINGLE_OWNER)
+
+  parentUnitId    String?
+  parentUnit      FranchiseUnit?   @relation("FranchiseUnitHierarchy", fields: [parentUnitId], references: [id], onDelete: SetNull)
+  childUnits      FranchiseUnit[]  @relation("FranchiseUnitHierarchy")
+
+  territoryId     String?
+  territory       Territory?       @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+
+  legalName       String?
+  taxId           String?
+  registrationNo  String?
+  address         String?
+  countryCode     String?
+  currency        String           @default("EUR")
+
+  foundedAt       DateTime?
+  launchedAt      DateTime?
+  metadata        Json?
+
+  clubs                  Club[]
+  ownerships             FranchiseOwnership[]
+  territoryRights        TerritoryRight[]
+  contracts              FranchiseContract[]
+  violations             FranchiseViolation[]
+  complianceChecks       ComplianceCheck[]
+  revenueSplitRules      RevenueSplitRule[]
+  revenueDistributions   RevenueDistribution[]
+  expansionRequestsMade  ExpansionRequest[]              @relation("ExpansionRequester")
+  ownershipTransfers     FranchiseOwnershipTransfer[]
+  acquisitionsAsTarget   FranchiseAcquisitionRequest[]   @relation("AcquisitionTarget")
+  performanceSnapshots   FranchisePerformanceSnapshot[]
+  auditLogs              FranchiseAudit[]
+
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([level])
+  @@index([status])
+  @@index([territoryId])
+  @@index([parentUnitId])
+  @@index([code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ownership — owners + time-effective ownership records
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseOwner {
+  id            String              @id @default(uuid())
+  type          OwnerType
+  displayName   String
+
+  userId        String?             @unique
+  user          User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  contactEmail  String?
+  contactPhone  String?
+  legalName     String?
+  taxId         String?
+  legalAddress  String?
+  countryCode   String?
+  notes         String?             @db.Text
+
+  isActive      Boolean             @default(true)
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  ownerships         FranchiseOwnership[]
+  transfersOut       FranchiseOwnershipTransfer[]      @relation("TransferFromOwner")
+  transfersIn        FranchiseOwnershipTransfer[]      @relation("TransferToOwner")
+  acquisitionsAsBuyer FranchiseAcquisitionRequest[]
+  revenueAllocations RevenueDistributionAllocation[]
+
+  @@index([type])
+  @@index([isActive])
+  @@index([countryCode])
+}
+
+model FranchiseOwnership {
+  id                   String           @id @default(uuid())
+  unitId               String
+  unit                 FranchiseUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  ownerId              String
+  owner                FranchiseOwner   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  equityPercent        Float
+  controlPercent       Float?
+  isPrimary            Boolean          @default(false)
+
+  effectiveFrom        DateTime         @default(now())
+  effectiveTo          DateTime?
+
+  acquiredVia          String?
+  acquisitionRequestId String?
+  transferInId         String?          @unique
+
+  createdAt            DateTime         @default(now())
+
+  @@index([unitId, effectiveTo])
+  @@index([ownerId])
+  @@index([isPrimary])
+}
+
+model FranchiseOwnershipTransfer {
+  id                   String           @id @default(uuid())
+  unitId               String
+  unit                 FranchiseUnit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  fromOwnerId          String
+  fromOwner            FranchiseOwner   @relation("TransferFromOwner", fields: [fromOwnerId], references: [id])
+  toOwnerId            String
+  toOwner              FranchiseOwner   @relation("TransferToOwner", fields: [toOwnerId], references: [id])
+
+  equityPercent        Float
+  controlPercent       Float?
+
+  amount               Float?
+  currency             String           @default("EUR")
+
+  reason               TransferReason
+  status               TransferStatus   @default(PENDING)
+
+  acquisitionRequestId String?
+
+  approvedBy           String?
+  approvedAt           DateTime?
+  executedAt           DateTime?
+  cancelledAt          DateTime?
+  cancelledReason      String?
+
+  notes                String?          @db.Text
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  @@index([unitId])
+  @@index([fromOwnerId])
+  @@index([toOwnerId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Territory rights — exclusivity and protection
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TerritoryRight {
+  id            String              @id @default(uuid())
+  unitId        String
+  unit          FranchiseUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  territoryId   String
+  territory     Territory           @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+
+  type          TerritoryRightType  @default(NON_EXCLUSIVE)
+  level         FranchiseLevel?
+
+  effectiveFrom DateTime            @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean             @default(true)
+
+  notes         String?             @db.Text
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([unitId])
+  @@index([territoryId])
+  @@index([type, isActive])
+  @@index([level])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Expansion + acquisition workflow
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExpansionRequest {
+  id                  String                  @id @default(uuid())
+
+  requestingUnitId    String
+  requestingUnit      FranchiseUnit           @relation("ExpansionRequester", fields: [requestingUnitId], references: [id], onDelete: Cascade)
+
+  targetTerritoryId   String
+  targetTerritory     Territory               @relation(fields: [targetTerritoryId], references: [id])
+
+  targetLevel         FranchiseLevel
+  proposedName        String?
+  proposedCode        String?
+
+  businessPlan        Json?
+  financialProjection Json?
+
+  status              ExpansionRequestStatus  @default(PENDING)
+  submittedBy         String
+  reviewedBy          String?
+  decisionAt          DateTime?
+  decisionNotes       String?                 @db.Text
+
+  createdUnitId       String?
+
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([requestingUnitId])
+  @@index([targetTerritoryId])
+  @@index([status])
+}
+
+model FranchiseAcquisitionRequest {
+  id                 String              @id @default(uuid())
+
+  targetUnitId       String
+  targetUnit         FranchiseUnit       @relation("AcquisitionTarget", fields: [targetUnitId], references: [id], onDelete: Cascade)
+
+  acquirerOwnerId    String?
+  acquirerOwner      FranchiseOwner?     @relation(fields: [acquirerOwnerId], references: [id])
+  acquirerName       String?
+  acquirerEmail      String?
+
+  proposedEquity     Float
+  proposedAmount     Float
+  currency           String              @default("EUR")
+
+  status             AcquisitionStatus   @default(DRAFT)
+
+  dueDiligence       Json?
+  decisionAt         DateTime?
+  decisionBy         String?
+  decisionNotes      String?             @db.Text
+
+  executedAt         DateTime?
+  transferId         String?
+
+  submittedAt        DateTime?
+  submittedBy        String?
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([targetUnitId])
+  @@index([status])
+  @@index([acquirerOwnerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Revenue distribution engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RevenueSplitRule {
+  id              String                  @id @default(uuid())
+  unitId          String
+  unit            FranchiseUnit           @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?                 @db.Text
+
+  category        RevenueCategory         @default(ALL)
+  trigger         RevenueTrigger          @default(PAYMENT_RECEIVED)
+
+  priority        Int                     @default(0)
+
+  effectiveFrom   DateTime                @default(now())
+  effectiveTo     DateTime?
+  isActive        Boolean                 @default(true)
+
+  createdBy       String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  recipients      RevenueSplitRecipient[]
+  distributions   RevenueDistribution[]
+
+  @@index([unitId])
+  @@index([category])
+  @@index([priority])
+  @@index([isActive])
+}
+
+model RevenueSplitRecipient {
+  id              String                @id @default(uuid())
+  ruleId          String
+  rule            RevenueSplitRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  type            RevenueRecipientType
+  recipientUnitId String?
+  recipientOwnerId String?
+  recipientLabel  String?
+
+  percent         Float
+
+  @@index([ruleId])
+  @@index([recipientUnitId])
+  @@index([recipientOwnerId])
+}
+
+model RevenueDistribution {
+  id                String              @id @default(uuid())
+  unitId            String
+  unit              FranchiseUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  ruleId            String?
+  rule              RevenueSplitRule?   @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  clubId            String?
+  club              Club?               @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  category          RevenueCategory
+
+  sourceAmount      Float
+  sourceCurrency    String              @default("EUR")
+  sourceFinancialId String?
+  sourceRef         String?
+
+  status            DistributionStatus  @default(COMPUTED)
+  computedAt        DateTime            @default(now())
+  executedAt        DateTime?
+  reversedAt        DateTime?
+  reversalReason    String?
+
+  notes             String?             @db.Text
+
+  allocations       RevenueDistributionAllocation[]
+
+  @@index([unitId])
+  @@index([clubId])
+  @@index([status])
+  @@index([computedAt])
+  @@index([sourceRef])
+}
+
+model RevenueDistributionAllocation {
+  id              String                @id @default(uuid())
+  distributionId  String
+  distribution    RevenueDistribution   @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  recipientType   RevenueRecipientType
+  recipientUnitId String?
+  recipientOwnerId String?
+  recipientOwner  FranchiseOwner?       @relation(fields: [recipientOwnerId], references: [id], onDelete: SetNull)
+  recipientLabel  String?
+
+  percent         Float
+  amount          Float
+  currency        String                @default("EUR")
+
+  status          AllocationStatus      @default(PENDING)
+  paidAt          DateTime?
+  paymentMethod   String?
+  paymentRef      String?
+  failureReason   String?
+
+  createdAt       DateTime              @default(now())
+
+  @@index([distributionId])
+  @@index([recipientUnitId])
+  @@index([recipientOwnerId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal layer — contracts, renewals, terminations, violations, compliance
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseContract {
+  id                  String                          @id @default(uuid())
+  unitId              String
+  unit                FranchiseUnit                   @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  type                ContractType
+  version             Int                             @default(1)
+  status              ContractStatus                  @default(DRAFT)
+
+  documentUrl         String?
+  documentChecksum    String?
+
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  autoRenew           Boolean                         @default(false)
+  renewalNoticeMonths Int                             @default(6)
+
+  governingLaw        String?
+  jurisdiction        String?
+
+  signedAt            DateTime?
+  signedByName        String?
+  signedByTitle       String?
+
+  terms               Json?
+
+  createdBy           String?
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+
+  renewals            FranchiseContractRenewal[]     @relation("ContractRenewals")
+  renewedTo           FranchiseContractRenewal[]     @relation("ContractRenewedTo")
+  terminations        FranchiseContractTermination[]
+  violations          FranchiseViolation[]
+
+  @@index([unitId])
+  @@index([type])
+  @@index([status])
+  @@index([effectiveTo])
+}
+
+model FranchiseContractRenewal {
+  id                   String              @id @default(uuid())
+  contractId           String
+  contract             FranchiseContract   @relation("ContractRenewals", fields: [contractId], references: [id], onDelete: Cascade)
+
+  renewedToContractId  String?
+  renewedToContract    FranchiseContract?  @relation("ContractRenewedTo", fields: [renewedToContractId], references: [id])
+
+  requestedAt          DateTime            @default(now())
+  approvedAt           DateTime?
+  executedAt           DateTime?
+  effectiveFrom        DateTime?
+  effectiveTo          DateTime?
+  status               RenewalStatus       @default(REQUESTED)
+
+  termsDelta           Json?
+  notes                String?             @db.Text
+
+  decisionBy           String?
+
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([contractId])
+  @@index([status])
+}
+
+model FranchiseContractTermination {
+  id            String              @id @default(uuid())
+  contractId    String
+  contract      FranchiseContract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  reason        TerminationReason
+  noticeDate    DateTime            @default(now())
+  effectiveDate DateTime?
+  status        TerminationStatus   @default(REQUESTED)
+
+  severance     Float?
+  currency      String              @default("EUR")
+
+  initiatedBy   String
+  approvedBy    String?
+
+  notes         String?             @db.Text
+
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([contractId])
+  @@index([status])
+}
+
+model FranchiseViolation {
+  id          String              @id @default(uuid())
+  unitId      String
+  unit        FranchiseUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  contractId  String?
+  contract    FranchiseContract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  clauseRef   String?
+  severity    ViolationSeverity
+  category    String
+  title       String
+  description String              @db.Text
+
+  status      ViolationStatus     @default(OPEN)
+
+  reportedBy  String?
+  assignedTo  String?
+  dueByAt     DateTime?
+  resolvedAt  DateTime?
+  resolution  String?             @db.Text
+
+  evidence    Json?
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([unitId])
+  @@index([status])
+  @@index([severity])
+  @@index([dueByAt])
+}
+
+model ComplianceCheck {
+  id              String              @id @default(uuid())
+  unitId          String
+  unit            FranchiseUnit       @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  category        ComplianceCategory
+  period          String
+  periodStartAt   DateTime
+  periodEndAt     DateTime
+
+  status          ComplianceStatus    @default(NOT_ASSESSED)
+  score           Float?
+  findings        Json?
+  remediation     String?             @db.Text
+
+  dueByAt         DateTime?
+  completedAt     DateTime?
+  completedBy     String?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([unitId, category, period])
+  @@index([unitId])
+  @@index([category])
+  @@index([period])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance snapshots (time series for dashboards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchisePerformanceSnapshot {
+  id                  String         @id @default(uuid())
+  unitId              String
+  unit                FranchiseUnit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  period              String
+  periodStartAt       DateTime
+  periodEndAt         DateTime
+
+  revenueTotal        Float          @default(0)
+  revenuePriorPeriod  Float?
+  revenueGrowthPct    Float?
+
+  expensesTotal       Float?         @default(0)
+  netMargin           Float?
+
+  clubsActive         Int            @default(0)
+  clubsTotal          Int            @default(0)
+  playersTotal        Int            @default(0)
+  usersTotal          Int            @default(0)
+
+  complianceScore     Float?
+  licensingHealth     Float?
+
+  violationsOpen      Int            @default(0)
+  contractsActive     Int            @default(0)
+
+  metadata            Json?
+
+  generatedAt         DateTime       @default(now())
+  generatedBy         String?
+
+  @@unique([unitId, period])
+  @@index([unitId])
+  @@index([period])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Franchise audit log (separate from PlatformAuditLog — domain-scoped)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseAudit {
+  id            String                  @id @default(uuid())
+  unitId        String?
+  unit          FranchiseUnit?          @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  userId        String?
+  ownerId       String?
+
+  action        String
+  category      FranchiseAuditCategory
+  resourceType  String?
+  resourceId    String?
+
+  metadata      Json?
+  ipAddress     String?
+  userAgent     String?
+
+  result        FranchiseAuditResult   @default(SUCCESS)
+  message       String?                @db.Text
+
+  createdAt     DateTime               @default(now())
+
+  @@index([unitId])
+  @@index([userId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}

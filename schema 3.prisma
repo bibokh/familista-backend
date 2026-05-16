@@ -1,0 +1,458 @@
+// Familista - Production Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  CLUB_ADMIN
+  HEAD_COACH
+  ASSISTANT_COACH
+  ANALYST
+  MEDICAL_STAFF
+  SCOUT
+}
+
+enum SubscriptionPlan {
+  BASIC
+  PRO
+  ACADEMY
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  INCOMPLETE
+}
+
+enum PlayerPosition {
+  GK
+  DC
+  DL
+  DR
+  DMC
+  ML
+  MR
+  MC
+  AMC
+  AML
+  AMR
+  ST
+}
+
+enum Foot {
+  RIGHT
+  LEFT
+  BOTH
+}
+
+enum MatchResult {
+  WIN
+  DRAW
+  LOSS
+}
+
+enum CompetitionType {
+  LEAGUE
+  CUP
+  FRIENDLY
+  ELITE
+  ASSOCIATION
+}
+
+enum InjurySeverity {
+  MINOR
+  MODERATE
+  SERIOUS
+  CRITICAL
+}
+
+enum DrillType {
+  TECHNICAL_PASSING
+  SPRINT_INTERVALS
+  SHOOTING_PRACTICE
+  DEFENSIVE_SHAPE
+  TRANSITION_PLAY
+  RECOVERY
+  SET_PIECES
+  POSSESSION
+  PRESSING
+  CUSTOM
+}
+
+enum ScoutRecommendation {
+  SIGN
+  MONITOR
+  SKIP
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Club {
+  id          String   @id @default(uuid())
+  name        String
+  shortName   String?
+  emblem      String?
+  city        String
+  country     String   @default("Germany")
+  founded     DateTime?
+  stadium     String?
+  capacity    Int?
+  level       Int      @default(1)
+  overallRating Float  @default(70.0)
+  leaguePosition Int?
+  fanClub     String?
+
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  plan                 SubscriptionPlan   @default(BASIC)
+  subscriptionStatus   SubscriptionStatus @default(TRIALING)
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+
+  users        User[]
+  players      Player[]
+  matches      Match[]
+  tournaments  Tournament[]
+  trainingSessions TrainingSession[]
+  financials   Financial[]
+  devices      GpsDevice[]
+  scoutReports ScoutReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stripeCustomerId])
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         UserRole @default(HEAD_COACH)
+  avatar       String?
+  isActive     Boolean  @default(true)
+
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  refreshTokens RefreshToken[]
+
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([email])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model Player {
+  id           String         @id @default(uuid())
+  firstName    String
+  lastName     String
+  number       Int
+  position     PlayerPosition
+  nationality  String
+  flag         String
+  dateOfBirth  DateTime
+  height       Int
+  weight       Int
+  preferredFoot Foot          @default(RIGHT)
+  overallRating Int           @default(70)
+  potential    Int            @default(70)
+  condition    Int            @default(100)
+  isInjured    Boolean        @default(false)
+  marketValue  Float          @default(1000000)
+  weeklyWage   Int            @default(10000)
+  contractUntil DateTime?
+  avatar       String?
+
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  attributes     PlayerAttribute[]
+  gpsData        PlayerGpsData[]
+  matchStats     PlayerMatchStat[]
+  trainingStats  PlayerTrainingStat[]
+  injuries       PlayerInjury[]
+  device         GpsDevice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([position])
+}
+
+model PlayerAttribute {
+  id       String @id @default(uuid())
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  reflexes      Int?
+  gkPositioning Int?
+  handling      Int?
+  kicking       Int?
+  tackling      Int?
+  marking       Int?
+  heading       Int?
+  defPositioning Int?
+  interceptions Int?
+  pace     Int?
+  shooting Int?
+  passing  Int?
+  dribbling Int?
+  crossing Int?
+  strength Int?
+  stamina  Int?
+  agility  Int?
+  balance  Int?
+
+  recordedAt DateTime @default(now())
+
+  @@index([playerId])
+}
+
+model PlayerGpsData {
+  id         String   @id @default(uuid())
+  playerId   String
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  sessionId  String?
+  sessionType String?
+
+  topSpeed      Float
+  avgSpeed      Float
+  distance      Float
+  sprintCount   Int
+  heartRateAvg  Int
+  heartRateMax  Int
+  playerLoad    Float
+  riskScore     Float @default(0)
+
+  recordedAt DateTime @default(now())
+
+  @@index([playerId])
+  @@index([recordedAt])
+}
+
+model PlayerInjury {
+  id         String         @id @default(uuid())
+  playerId   String
+  player     Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  bodyPart   String
+  injuryType String
+  severity   InjurySeverity
+  injuredAt  DateTime       @default(now())
+  expectedReturn DateTime?
+  returnedAt DateTime?
+  notes      String?
+
+  @@index([playerId])
+}
+
+model Match {
+  id              String          @id @default(uuid())
+  clubId          String
+  club            Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  homeTeam        String
+  awayTeam        String
+  homeScore       Int?
+  awayScore       Int?
+  isHome          Boolean         @default(true)
+  competition     CompetitionType @default(LEAGUE)
+  competitionName String?
+  result          MatchResult?
+
+  venue           String?
+  scheduledAt     DateTime
+  playedAt        DateTime?
+
+  possession      Float?
+  shots           Int?
+  shotsOnTarget   Int?
+  corners         Int?
+  fouls           Int?
+  yellowCards     Int?
+  redCards        Int?
+
+  playerStats     PlayerMatchStat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([scheduledAt])
+}
+
+model PlayerMatchStat {
+  id       String @id @default(uuid())
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  minutesPlayed Int    @default(0)
+  goals         Int    @default(0)
+  assists       Int    @default(0)
+  shots         Int    @default(0)
+  passes        Int    @default(0)
+  passAccuracy  Float  @default(0)
+  tackles       Int    @default(0)
+  rating        Float?
+
+  @@unique([matchId, playerId])
+  @@index([matchId])
+  @@index([playerId])
+}
+
+model Tournament {
+  id        String          @id @default(uuid())
+  clubId    String
+  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  name      String
+  type      CompetitionType
+  season    String          @default("2024-25")
+  teams     Int             @default(16)
+  position  Int?
+  points    Int?
+  played    Int             @default(0)
+  won       Int             @default(0)
+  drawn     Int             @default(0)
+  lost      Int             @default(0)
+  goalsFor  Int             @default(0)
+  goalsAgainst Int          @default(0)
+  isActive  Boolean         @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+}
+
+model TrainingSession {
+  id          String   @id @default(uuid())
+  clubId      String
+  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  scheduledAt DateTime
+  duration    Int
+  drills      DrillType[]
+  attackForm  Int      @default(12)
+  defenseForm Int      @default(14)
+  possession  Int      @default(11)
+  conditionForm Int    @default(13)
+
+  playerStats PlayerTrainingStat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([scheduledAt])
+}
+
+model PlayerTrainingStat {
+  id        String          @id @default(uuid())
+  sessionId String
+  session   TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  playerId  String
+  player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  attended    Boolean @default(true)
+  rating      Float?
+  notes       String?
+
+  @@unique([sessionId, playerId])
+  @@index([sessionId])
+  @@index([playerId])
+}
+
+model GpsDevice {
+  id           String  @id @default(uuid())
+  serialNumber String  @unique
+  firmware     String  @default("v1.2")
+  isOnline     Boolean @default(false)
+  batteryLevel Int     @default(100)
+  signalQuality Int    @default(100)
+
+  clubId   String
+  club     Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId String? @unique
+  player   Player? @relation(fields: [playerId], references: [id])
+
+  lastSeenAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([clubId])
+}
+
+model ScoutReport {
+  id         String              @id @default(uuid())
+  clubId     String
+  club       Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  targetName String
+  targetClub String
+  position   PlayerPosition
+  age        Int
+  nationality String
+  flag       String
+  marketValue Float
+  rating     Float
+  recommendation ScoutRecommendation
+  notes      String?
+  isActive   Boolean             @default(true)
+
+  createdAt  DateTime            @default(now())
+
+  @@index([clubId])
+}
+
+model Financial {
+  id          String          @id @default(uuid())
+  clubId      String
+  club        Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  type        TransactionType
+  category    String
+  amount      Float
+  currency    String          @default("EUR")
+  description String?
+  date        DateTime        @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([clubId])
+  @@index([date])
+  @@index([type])
+}
+

@@ -1,0 +1,61 @@
+src/services/admin-asset.service.ts(30,34): error TS2307: Cannot find module 'sharp' or its corresponding type declarations.
+src/services/admin-branding.service.ts(65,5): error TS2322: Type '{ readonly domains: { readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }; readonly assets: { readonly where: { readonly isActive: true; }; }; }' is not assignable to type 'WhiteLabelConfigInclude<DefaultArgs>'.
+  Types of property 'domains' are incompatible.
+    Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'boolean | WhiteLabelConfig$domainsArgs<DefaultArgs> | undefined'.
+      Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'WhiteLabelConfig$domainsArgs<DefaultArgs>'.
+        Types of property 'orderBy' are incompatible.
+          Type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is not assignable to type 'WhiteLabelDomainOrderByWithRelationInput | WhiteLabelDomainOrderByWithRelationInput[] | undefined'.
+            The type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is 'readonly' and cannot be assigned to the mutable type 'WhiteLabelDomainOrderByWithRelationInput[]'.
+src/services/admin-branding.service.ts(77,3): error TS2322: Type '{ id: string; clubId: string; productName: string | null; tagline: string | null; logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null; ogImageUrl: string | null; ... 36 more ...; updatedBy: string | null; }' is not assignable to type '{ id: string; clubId: string; productName: string | null; tagline: string | null; logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null; ogImageUrl: string | null; ... 36 more ...; updatedBy: string | null; } & { ...; }'.
+  Type '{ id: string; clubId: string; productName: string | null; tagline: string | null; logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null; ogImageUrl: string | null; ... 36 more ...; updatedBy: string | null; }' is missing the following properties from type '{ domains: unknown; assets: unknown; }': domains, assets
+src/services/admin-branding.service.ts(79,5): error TS2322: Type '{ readonly domains: { readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }; readonly assets: { readonly where: { readonly isActive: true; }; }; }' is not assignable to type 'WhiteLabelConfigInclude<DefaultArgs>'.
+  Types of property 'domains' are incompatible.
+    Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'boolean | WhiteLabelConfig$domainsArgs<DefaultArgs> | undefined'.
+      Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'WhiteLabelConfig$domainsArgs<DefaultArgs>'.
+        Types of property 'orderBy' are incompatible.
+          Type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is not assignable to type 'WhiteLabelDomainOrderByWithRelationInput | WhiteLabelDomainOrderByWithRelationInput[] | undefined'.
+            The type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is 'readonly' and cannot be assigned to the mutable type 'WhiteLabelDomainOrderByWithRelationInput[]'.
+src/services/admin-branding.service.ts(112,9): error TS2322: Type '{ readonly domains: { readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }; readonly assets: { readonly where: { readonly isActive: true; }; }; }' is not assignable to type 'WhiteLabelConfigInclude<DefaultArgs>'.
+  Types of property 'domains' are incompatible.
+    Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'boolean | WhiteLabelConfig$domainsArgs<DefaultArgs> | undefined'.
+      Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'WhiteLabelConfig$domainsArgs<DefaultArgs>'.
+        Types of property 'orderBy' are incompatible.
+          Type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is not assignable to type 'WhiteLabelDomainOrderByWithRelationInput | WhiteLabelDomainOrderByWithRelationInput[] | undefined'.
+            The type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is 'readonly' and cannot be assigned to the mutable type 'WhiteLabelDomainOrderByWithRelationInput[]'.
+src/services/admin-branding.service.ts(120,7): error TS2322: Type '{ readonly domains: { readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }; readonly assets: { readonly where: { readonly isActive: true; }; }; }' is not assignable to type 'WhiteLabelConfigInclude<DefaultArgs>'.
+  Types of property 'domains' are incompatible.
+    Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'boolean | WhiteLabelConfig$domainsArgs<DefaultArgs> | undefined'.
+      Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'WhiteLabelConfig$domainsArgs<DefaultArgs>'.
+        Types of property 'orderBy' are incompatible.
+          Type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is not assignable to type 'WhiteLabelDomainOrderByWithRelationInput | WhiteLabelDomainOrderByWithRelationInput[] | undefined'.
+            The type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is 'readonly' and cannot be assigned to the mutable type 'WhiteLabelDomainOrderByWithRelationInput[]'.
+src/services/admin-branding.service.ts(155,7): error TS2322: Type '{ readonly domains: { readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }; readonly assets: { readonly where: { readonly isActive: true; }; }; }' is not assignable to type 'WhiteLabelConfigInclude<DefaultArgs>'.
+  Types of property 'domains' are incompatible.
+    Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'boolean | WhiteLabelConfig$domainsArgs<DefaultArgs> | undefined'.
+      Type '{ readonly orderBy: readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]; }' is not assignable to type 'WhiteLabelConfig$domainsArgs<DefaultArgs>'.
+        Types of property 'orderBy' are incompatible.
+          Type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is not assignable to type 'WhiteLabelDomainOrderByWithRelationInput | WhiteLabelDomainOrderByWithRelationInput[] | undefined'.
+            The type 'readonly [{ readonly isPrimary: "desc"; }, { readonly createdAt: "asc"; }]' is 'readonly' and cannot be assigned to the mutable type 'WhiteLabelDomainOrderByWithRelationInput[]'.
+src/services/ai-llm.adapter.ts(173,17): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/services/franchise-revenue.service.ts(227,31): error TS2339: Property 'allocations' does not exist on type '{ id: string; clubId: string | null; status: DistributionStatus; notes: string | null; category: RevenueCategory; unitId: string; sourceAmount: number; ... 7 more ...; reversalReason: string | null; }'.
+src/services/franchise-revenue.service.ts(266,21): error TS2339: Property 'recipients' does not exist on type '{ name: string; id: string; isActive: boolean; createdAt: Date; updatedAt: Date; description: string | null; category: RevenueCategory; createdBy: string | null; ... 4 more ...; unitId: string; }'.
+src/services/franchise-revenue.service.ts(279,10): error TS2339: Property 'recipients' does not exist on type '{ name: string; id: string; isActive: boolean; createdAt: Date; updatedAt: Date; description: string | null; category: RevenueCategory; createdBy: string | null; ... 4 more ...; unitId: string; }'.
+src/services/franchise-revenue.service.ts(279,26): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/services/franchise-revenue.service.ts(329,21): error TS2339: Property 'recipients' does not exist on type '{ name: string; id: string; isActive: boolean; createdAt: Date; updatedAt: Date; description: string | null; category: RevenueCategory; createdBy: string | null; ... 4 more ...; unitId: string; }'.
+src/services/franchise-revenue.service.ts(334,10): error TS2339: Property 'recipients' does not exist on type '{ name: string; id: string; isActive: boolean; createdAt: Date; updatedAt: Date; description: string | null; category: RevenueCategory; createdBy: string | null; ... 4 more ...; unitId: string; }'.
+src/services/franchise-revenue.service.ts(334,26): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/services/franchise-unit.service.ts(370,32): error TS18047: 'node' is possibly 'null'.
+src/services/franchise-unit.service.ts(384,18): error TS18047: 'node' is possibly 'null'.
+src/services/franchise-unit.service.ts(385,21): error TS18047: 'node' is possibly 'null'.
+src/services/franchise-unit.service.ts(386,19): error TS18047: 'node' is possibly 'null'.
+src/services/franchise-unit.service.ts(387,25): error TS18047: 'node' is possibly 'null'.
+src/services/investor-investment.service.ts(162,18): error TS2353: Object literal may only specify known properties, and 'shareClass' does not exist in type 'InvestmentInclude<DefaultArgs>'.
+src/services/investor-investment.service.ts(182,22): error TS2551: Property 'shareClass' does not exist on type '{ id: string; metadata: JsonValue; createdAt: Date; updatedAt: Date; status: InvestmentStatus; notes: string | null; currency: string; pricePerShare: number | null; ... 24 more ...; exitDate: Date | null; }'. Did you mean 'shareClassId'?
+src/services/investor-investment.service.ts(291,18): error TS2353: Object literal may only specify known properties, and 'shareClass' does not exist in type 'InvestmentInclude<DefaultArgs>'.
+src/services/investor-investment.service.ts(463,7): error TS2353: Object literal may only specify known properties, and 'shareClass' does not exist in type 'InvestmentInclude<DefaultArgs>'.
+src/services/investor-investment.service.ts(480,7): error TS2353: Object literal may only specify known properties, and 'shareClass' does not exist in type 'InvestmentInclude<DefaultArgs>'.
+src/services/investor-performance.service.ts(66,7): error TS2353: Object literal may only specify known properties, and 'shareClass' does not exist in type 'InvestmentInclude<DefaultArgs>'.
+src/services/investor-performance.service.ts(109,23): error TS2551: Property 'entity' does not exist on type '{ id: string; metadata: JsonValue; createdAt: Date; updatedAt: Date; status: InvestmentStatus; notes: string | null; currency: string; pricePerShare: number | null; ... 24 more ...; exitDate: Date | null; }'. Did you mean 'entityId'?
+src/services/investor-performance.service.ts(110,23): error TS2551: Property 'entity' does not exist on type '{ id: string; metadata: JsonValue; createdAt: Date; updatedAt: Date; status: InvestmentStatus; notes: string | null; currency: string; pricePerShare: number | null; ... 24 more ...; exitDate: Date | null; }'. Did you mean 'entityId'?
+src/services/investor-performance.service.ts(122,23): error TS2551: Property 'shareClass' does not exist on type '{ id: string; metadata: JsonValue; createdAt: Date; updatedAt: Date; status: InvestmentStatus; notes: string | null; currency: string; pricePerShare: number | null; ... 24 more ...; exitDate: Date | null; }'. Did you mean 'shareClassId'?
+src/services/investor-performance.service.ts(280,1): error TS2352: Conversion of type 'undefined' to type 'InvestorActor' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.

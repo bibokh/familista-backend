@@ -1,0 +1,550 @@
+// Familista — Executive OS · Integration Layer
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER all
+// previous engine fragments. This layer DOES NOT duplicate operational data:
+// every WorkflowStep references the existing engines via plain string
+// (engine, action) tuples, and reads composite views by calling the existing
+// services — never by mirroring their tables.
+//
+// Run: npx prisma migrate dev --name executive_integration
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ExecutiveRole {
+  CEO
+  CFO
+  COO
+  CHAIR
+  BOARD_MEMBER
+  INVESTOR_LEAD
+  COUNSEL
+  STRATEGIC_ADVISOR
+}
+
+enum ExecutiveWorkflowKind {
+  SPONSOR_ONBOARDING
+  ACQUISITION
+  TERRITORY_EXPANSION
+  CAPITAL_DEPLOYMENT
+  RISK_INTERVENTION
+  PARTNERSHIP
+  PLATFORM_LAUNCH
+  STRATEGIC_INITIATIVE
+  GOVERNANCE_ACTION
+  CUSTOM
+}
+
+enum ExecutiveWorkflowStatus {
+  DRAFT
+  IN_REVIEW
+  AWAITING_APPROVAL
+  APPROVED
+  IN_EXECUTION
+  COMPLETED
+  REJECTED
+  CANCELLED
+  STALLED
+}
+
+enum ExecutivePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ExecutiveStepStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  SKIPPED
+  BLOCKED
+  REQUIRES_HUMAN
+}
+
+enum AttestationDecision {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+enum BoardResolutionStatus {
+  DRAFT
+  CIRCULATING
+  VOTING
+  PASSED
+  FAILED
+  WITHDRAWN
+}
+
+enum BoardVoteDecision {
+  FOR
+  AGAINST
+  ABSTAIN
+}
+
+enum SponsorTier {
+  PRINCIPAL
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+  COMMUNITY
+}
+
+enum SponsorPipelineStage {
+  PROSPECT
+  QUALIFIED
+  PROPOSAL_SENT
+  IN_NEGOTIATION
+  CONTRACT_SIGNED
+  ACTIVE
+  RENEWAL
+  CHURNED
+  REJECTED
+}
+
+enum RiskCategory {
+  FINANCIAL
+  OPERATIONAL
+  LEGAL
+  REPUTATIONAL
+  STRATEGIC
+  TECHNICAL
+  REGULATORY
+}
+
+enum RiskSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  MITIGATING
+  RESOLVED
+  WAIVED
+  ESCALATED
+}
+
+enum ForecastScope {
+  PLATFORM
+  FRANCHISE_UNIT
+  CLUB
+  INVESTMENT_ENTITY
+}
+
+enum ForecastScenario {
+  BASE
+  OPTIMISTIC
+  PESSIMISTIC
+  STRESS
+}
+
+enum ExecutiveAuditCategory {
+  WORKFLOW
+  ATTESTATION
+  BOARD
+  SPONSOR
+  FORECAST
+  RISK
+  ACCESS
+  AGGREGATE
+  OTHER
+}
+
+enum ExecutiveAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Executive RBAC — strategic roles, parallel to PlatformAdmin (operator roles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveAssignment {
+  id            String         @id @default(uuid())
+  userId        String         @unique
+  role          ExecutiveRole
+  voteWeight    Float          @default(1.0)
+  isActive      Boolean        @default(true)
+
+  effectiveFrom DateTime       @default(now())
+  effectiveTo   DateTime?
+
+  assignedBy    String?
+  notes         String?        @db.Text
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  attestations  WorkflowAttestation[]
+  boardVotes    BoardVote[]
+
+  @@index([role])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow orchestration — multi-step, cross-engine, attestation-gated
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveWorkflow {
+  id              String                  @id @default(uuid())
+  kind            ExecutiveWorkflowKind
+  templateSlug    String?
+  title           String
+  description     String?                 @db.Text
+
+  status          ExecutiveWorkflowStatus @default(DRAFT)
+  priority        ExecutivePriority       @default(NORMAL)
+
+  // Soft cross-engine references
+  clubId          String?
+  franchiseUnitId String?
+  investorId      String?
+  entityId        String?
+  sponsorOpportunityId String?
+  matchId         String?
+
+  // Linked AI decisions that justify this workflow (soft refs)
+  decisionIds     String[]                @default([])
+
+  // Required attestation roles, computed from template at creation
+  requiredAttestations  ExecutiveRole[]   @default([])
+
+  payload         Json
+  outcome         Json?
+
+  initiatedBy     String
+  ownedBy         String?
+
+  dueByAt         DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?                 @db.Text
+
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  steps           WorkflowStep[]
+  attestations    WorkflowAttestation[]
+  resolutions     BoardResolution[]
+  riskAlerts      RiskAlert[]
+
+  @@index([kind])
+  @@index([status])
+  @@index([priority])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+  @@index([dueByAt])
+}
+
+model WorkflowStep {
+  id              String              @id @default(uuid())
+  workflowId      String
+  workflow        ExecutiveWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  order           Int
+  name            String
+  description     String?             @db.Text
+
+  // (engine, action) tuple resolved by the step executor
+  engine          String
+  action          String
+  params          Json
+
+  status          ExecutiveStepStatus @default(PENDING)
+
+  startedAt       DateTime?
+  completedAt     DateTime?
+  result          Json?
+  error           String?             @db.Text
+
+  startedBy       String?
+  completedBy     String?
+
+  blockedReason   String?             @db.Text
+  attemptCount    Int                 @default(0)
+  maxAttempts     Int                 @default(3)
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([workflowId, order])
+  @@index([status])
+}
+
+model WorkflowAttestation {
+  id              String              @id @default(uuid())
+  workflowId      String
+  workflow        ExecutiveWorkflow   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  attesterUserId  String
+  attesterAssignmentId String?
+  assignment      ExecutiveAssignment? @relation(fields: [attesterAssignmentId], references: [id], onDelete: SetNull)
+
+  role            ExecutiveRole
+  decision        AttestationDecision
+
+  notes           String?             @db.Text
+  signatureRef    String?
+
+  attestedAt      DateTime            @default(now())
+
+  @@unique([workflowId, attesterUserId])
+  @@index([workflowId])
+  @@index([role])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Board resolutions + voting
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BoardResolution {
+  id              String                  @id @default(uuid())
+  workflowId      String?
+  workflow        ExecutiveWorkflow?      @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  title           String
+  resolutionText  String                  @db.Text
+  status          BoardResolutionStatus   @default(DRAFT)
+
+  quorumRequired  Int                     @default(3)
+  passingMajority Float                   @default(0.5)
+
+  votesFor        Int                     @default(0)
+  votesAgainst    Int                     @default(0)
+  votesAbstain    Int                     @default(0)
+  totalWeight     Float                   @default(0)
+
+  circulationOpenedAt DateTime?
+  votingOpenedAt  DateTime?
+  votingClosesAt  DateTime?
+  decidedAt       DateTime?
+  effectiveAt     DateTime?
+  withdrawnAt     DateTime?
+  withdrawnReason String?                 @db.Text
+
+  initiatedBy     String
+
+  metadata        Json?
+
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  votes           BoardVote[]
+
+  @@index([status])
+  @@index([votingClosesAt])
+}
+
+model BoardVote {
+  id              String              @id @default(uuid())
+  resolutionId    String
+  resolution      BoardResolution     @relation(fields: [resolutionId], references: [id], onDelete: Cascade)
+
+  voterUserId     String
+  assignmentId   String?
+  assignment      ExecutiveAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  role            ExecutiveRole
+  decision        BoardVoteDecision
+  weight          Float               @default(1.0)
+
+  rationale       String?             @db.Text
+  signatureRef    String?
+
+  votedAt         DateTime            @default(now())
+
+  @@unique([resolutionId, voterUserId])
+  @@index([resolutionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sponsor pipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SponsorOpportunity {
+  id              String                @id @default(uuid())
+  name            String
+  tier            SponsorTier
+  stage           SponsorPipelineStage  @default(PROSPECT)
+
+  clubId          String?
+  franchiseUnitId String?
+  workflowId      String?
+
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  websiteUrl      String?
+  industry        String?
+  countryCode     String?
+
+  proposedValue   Float?
+  contractedValue Float?
+  currency        String                @default("EUR")
+
+  termMonths      Int?
+  startsAt        DateTime?
+  endsAt          DateTime?
+
+  agreementUrl    String?
+  agreementChecksum String?
+
+  ownedBy         String?
+  metadata        Json?
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  events          SponsorPipelineEvent[]
+
+  @@index([stage])
+  @@index([tier])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([ownedBy])
+}
+
+model SponsorPipelineEvent {
+  id              String                @id @default(uuid())
+  opportunityId   String
+  opportunity     SponsorOpportunity    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  fromStage       SponsorPipelineStage
+  toStage         SponsorPipelineStage
+
+  notes           String?               @db.Text
+  changedBy       String?
+
+  createdAt       DateTime              @default(now())
+
+  @@index([opportunityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Revenue forecasting
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RevenueForecast {
+  id              String              @id @default(uuid())
+  scope           ForecastScope
+  scopeId         String?
+
+  periodKey       String
+  periodStartAt   DateTime
+  periodEndAt     DateTime
+
+  scenario        ForecastScenario    @default(BASE)
+
+  totalRevenue    Float
+  totalExpenses   Float?
+  netCashFlow     Float?
+  currency        String              @default("EUR")
+
+  confidence      Float               @default(0.6)
+  modelVersion    String              @default("1.0.0")
+  assumptions     Json
+  breakdown       Json
+
+  generatedBy     String?
+  generatedAt     DateTime            @default(now())
+
+  @@unique([scope, scopeId, periodKey, scenario, modelVersion])
+  @@index([scope, scopeId])
+  @@index([periodKey])
+  @@index([scenario])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Risk alerts — composite signals from every engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RiskAlert {
+  id              String              @id @default(uuid())
+  category        RiskCategory
+  severity        RiskSeverity
+  status          RiskAlertStatus     @default(OPEN)
+
+  title           String
+  description     String              @db.Text
+
+  clubId          String?
+  franchiseUnitId String?
+  investorId      String?
+  entityId        String?
+
+  sourceEngine    String
+  sourceRef       String?
+  fingerprint     String              @unique
+
+  score           Float?
+
+  acknowledgedBy  String?
+  acknowledgedAt  DateTime?
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  resolution      String?             @db.Text
+  dueByAt         DateTime?
+
+  workflowId      String?
+  workflow        ExecutiveWorkflow?  @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  metadata        Json?
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, severity])
+  @@index([category])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Executive audit — board-grade, cross-engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveAudit {
+  id              String                  @id @default(uuid())
+  workflowId      String?
+  resolutionId    String?
+  alertId         String?
+  forecastId      String?
+  opportunityId   String?
+
+  userId          String?
+  action          String
+  category        ExecutiveAuditCategory
+  resourceType    String?
+  resourceId      String?
+
+  metadata        Json?
+  ipAddress       String?
+  userAgent       String?
+
+  result          ExecutiveAuditResult    @default(SUCCESS)
+  message         String?                 @db.Text
+
+  createdAt       DateTime                @default(now())
+
+  @@index([workflowId])
+  @@index([resolutionId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}

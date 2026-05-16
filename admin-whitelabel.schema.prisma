@@ -1,0 +1,319 @@
+// Familista — Super Admin White-label Control Panel
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// white-label engine fragment (`whitelabel.schema.prisma`).
+//
+// Required edits to existing models:
+//
+//   model Club {
+//     ...
+//     limits              OrganizationLimits?
+//     subscriptionOverrides SubscriptionOverride[]
+//     platformAuditLogs   PlatformAuditLog[]
+//
+//     // Source-of-truth for plan resolution. When set to OVERRIDE the
+//     // Stripe webhook MUST NOT mutate Club.plan / subscriptionStatus.
+//     planSource          PlanSource @default(STRIPE)
+//   }
+//
+//   model User {
+//     ...
+//     platformAdmin       PlatformAdmin?
+//     impersonations      ImpersonationSession[] @relation("ImpersonationTarget")
+//   }
+//
+//   model WhiteLabelConfig {
+//     ...
+//     assets              WhiteLabelAsset[]
+//   }
+//
+// Run: npx prisma migrate dev --name admin_whitelabel_panel
+
+enum PlanSource {
+  STRIPE
+  OVERRIDE
+}
+
+enum PlatformRole {
+  PLATFORM_OWNER
+  PLATFORM_ADMIN
+  PLATFORM_SUPPORT
+  PLATFORM_BILLING
+  PLATFORM_READ_ONLY
+}
+
+enum AssetType {
+  LOGO_LIGHT
+  LOGO_DARK
+  FAVICON
+  OG_IMAGE
+  PDF_HEADER
+  PDF_FOOTER
+  EMAIL_HEADER_BG
+}
+
+enum AssetStorage {
+  LOCAL
+  S3
+  EXTERNAL_URL
+}
+
+enum PlatformAuditCategory {
+  BRANDING
+  DOMAIN
+  ASSET
+  PALETTE
+  BILLING
+  LICENSE
+  LIMITS
+  ACCESS
+  IMPERSONATION
+  FEATURE_FLAG
+  PLATFORM_ADMIN
+  OTHER
+}
+
+enum PlatformAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+enum ImpersonationStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+  REVOKED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform admin RBAC
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformAdmin {
+  id           String       @id @default(uuid())
+  userId       String       @unique
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role         PlatformRole
+  ipAllowlist  String[]     @default([])      // CIDRs or exact IPs
+  mfaEnforced  Boolean      @default(true)
+  isActive     Boolean      @default(true)
+
+  invitedBy    String?
+  acceptedAt   DateTime?
+  lastSeenAt   DateTime?
+  notes        String?      @db.Text
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  auditLogs    PlatformAuditLog[]
+  impersonations ImpersonationSession[]
+
+  @@index([role])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// White-label assets (logos, favicons, OG images, PDF/email assets)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WhiteLabelAsset {
+  id           String        @id @default(uuid())
+  configId     String
+  config       WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  type         AssetType
+  storage      AssetStorage  @default(LOCAL)
+  bucket       String?
+  storageKey   String?
+  url          String
+
+  contentType  String
+  bytes        Int
+  width        Int?
+  height       Int?
+  checksum     String
+
+  uploadedBy   String?
+  isActive     Boolean       @default(true)
+
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([configId, type])
+  @@index([type])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Color palette templates (system presets + custom saved palettes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ColorPaletteTemplate {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+
+  isSystem    Boolean  @default(false)
+  isPublic    Boolean  @default(true)
+  category    String   @default("custom")  // "system", "league", "club", "custom"
+
+  tokens      Json
+  preview     String?                       // optional preview image url
+
+  createdBy   String?
+  usageCount  Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isSystem])
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-organization limits (quotas) and feature overrides
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OrganizationLimits {
+  id                    String   @id @default(uuid())
+  clubId                String   @unique
+  club                  Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  maxUsers              Int?
+  maxPlayers            Int?
+  maxGpsDevices         Int?
+  maxStorageMb          Int?
+  maxApiCallsPerDay     Int?
+  maxAiInsightsPerMonth Int?
+  maxCustomDomains      Int?
+  maxPdfReportsPerMonth Int?
+  maxImpersonationsPerDay Int?
+
+  featuresEnabled       String[] @default([])
+  featuresDisabled      String[] @default([])
+
+  notes                 String?  @db.Text
+  setBy                 String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([clubId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription overrides (operator-granted plan/status, audited)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SubscriptionOverride {
+  id           String              @id @default(uuid())
+  clubId       String
+  club         Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  plan         SubscriptionPlan
+  status       SubscriptionStatus
+  reason       String              @db.Text
+  expiresAt    DateTime?
+  bypassStripe Boolean             @default(false)
+
+  appliedBy    String
+  revokedBy    String?
+  revokedAt    DateTime?
+  revokedReason String?            @db.Text
+
+  isActive     Boolean             @default(true)
+
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([clubId])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature flag definitions and plan matrix
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id              String             @id @default(uuid())
+  key             String             @unique
+  name            String
+  description     String?            @db.Text
+  defaultEnabled  Boolean            @default(false)
+  enabledForPlans SubscriptionPlan[] @default([])
+  isInternal      Boolean            @default(false)
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Impersonation sessions
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ImpersonationSession {
+  id            String              @id @default(uuid())
+  adminId       String
+  admin         PlatformAdmin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  targetUserId  String
+  targetUser    User                @relation("ImpersonationTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetClubId  String
+
+  tokenHash     String              @unique
+  reason        String              @db.Text
+  expiresAt     DateTime
+  endedAt       DateTime?
+  endedReason   String?
+  status        ImpersonationStatus @default(ACTIVE)
+
+  ipAddress     String?
+  userAgent     String?
+
+  createdAt     DateTime            @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([targetClubId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-tenant platform audit log
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformAuditLog {
+  id          String                @id @default(uuid())
+  adminId     String?
+  admin       PlatformAdmin?        @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  userId      String?
+  clubId      String?
+  club        Club?                 @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  action      String
+  category    PlatformAuditCategory
+  resourceType String?
+  resourceId  String?
+
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+
+  result      PlatformAuditResult   @default(SUCCESS)
+  message     String?               @db.Text
+
+  createdAt   DateTime              @default(now())
+
+  @@index([adminId])
+  @@index([clubId])
+  @@index([action])
+  @@index([category])
+  @@index([result])
+  @@index([createdAt])
+}

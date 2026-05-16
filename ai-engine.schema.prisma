@@ -1,0 +1,294 @@
+// Familista — AI Decision Engine
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER all
+// previous fragments (whitelabel, admin-whitelabel, franchise, investor).
+//
+// No required edits to existing models — AIDecision uses soft references
+// (plain String IDs) to subjects so decisions outlive their subjects and the
+// audit trail stays intact even after deletions.
+//
+// Run: npx prisma migrate dev --name ai_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AIDomain {
+  PLAYER
+  COACH
+  CLUB
+  FRANCHISE
+  INVESTOR
+  EXECUTIVE
+}
+
+enum AIDecisionType {
+  // Player
+  PLAYER_GROWTH
+  TALENT_DETECTION
+  INJURY_RISK
+  FATIGUE_PREDICTION
+  TRANSFER_RECOMMENDATION
+  TRAINING_OPTIMIZATION
+  LINEUP_RECOMMENDATION
+
+  // Coach
+  TACTICAL_RECOMMENDATION
+  FORMATION_OPTIMIZATION
+  OPPONENT_ANALYSIS
+  MATCH_PREPARATION
+  SUBSTITUTION_RECOMMENDATION
+  TRAINING_PLAN_GENERATION
+
+  // Club
+  FINANCIAL_HEALTH_PREDICTION
+  BUDGET_OPTIMIZATION
+  SALARY_RISK_ALERT
+  SPONSORSHIP_RECOMMENDATION
+  TRANSFER_MARKET_SUPPORT
+
+  // Franchise
+  REGIONAL_EXPANSION_RECOMMENDATION
+  ACADEMY_PROFITABILITY_PREDICTION
+  TERRITORY_RISK_ANALYSIS
+  OPERATOR_PERFORMANCE_SCORING
+  FRANCHISE_INVESTMENT_SCORING
+
+  // Investor
+  INVESTOR_ROI_PREDICTION
+  INVESTMENT_RISK_SCORING
+  VALUATION_ENGINE
+  CAPITAL_ALLOCATION_OPTIMIZATION
+  ACQUISITION_RECOMMENDATION
+
+  // Executive
+  CEO_DASHBOARD_RECOMMENDATION
+  BOARD_STRATEGIC_SUGGESTION
+  EXPANSION_OPPORTUNITY
+  MARKET_ENTRY_PREDICTION
+  ACQUISITION_TARGET
+}
+
+enum AIDecisionStatus {
+  GENERATED
+  REVIEWED
+  ACCEPTED
+  REJECTED
+  OVERRIDDEN
+  EXPIRED
+}
+
+enum AIUrgency {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AIOutcome {
+  PENDING
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  UNKNOWN
+}
+
+enum AIModelProvider {
+  RULE_BASED
+  CLAUDE
+  HYBRID
+  EXTERNAL
+}
+
+enum AIDecisionVisibility {
+  CLUB
+  FRANCHISE
+  PLATFORM
+  INVESTOR
+}
+
+enum AIFeedbackType {
+  ACCEPTANCE
+  OVERRIDE
+  CORRECTION
+  OUTCOME_REPORT
+  RATING
+}
+
+enum AIAuditCategory {
+  MODEL
+  DECISION
+  REVIEW
+  FEEDBACK
+  INFRA
+  ACCESS
+}
+
+enum AIAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model registry — versioned, governed
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIModel {
+  id           String           @id @default(uuid())
+  slug         String
+  name         String
+  domain       AIDomain
+  decisionType AIDecisionType
+  version      String
+  provider     AIModelProvider
+  description  String?          @db.Text
+
+  inputSchema  Json
+  outputSchema Json
+  parameters   Json
+
+  isActive     Boolean          @default(false)
+  releasedAt   DateTime?
+  deprecatedAt DateTime?
+
+  createdBy    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  decisions    AIDecision[]
+
+  @@unique([slug, version])
+  @@index([domain, decisionType, isActive])
+  @@index([slug])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Decisions — immutable audit-grade records
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIDecision {
+  id              String                @id @default(uuid())
+  domain          AIDomain
+  decisionType    AIDecisionType
+
+  modelId         String
+  model           AIModel               @relation(fields: [modelId], references: [id])
+  modelSlug       String
+  modelVersion    String
+
+  subjectType     String
+  subjectId       String
+
+  clubId          String?
+  franchiseUnitId String?
+  investorId      String?
+  entityId        String?
+
+  // Frozen inputs
+  features        Json
+  inputHash       String
+
+  // Outputs
+  score           Float
+  confidence      Float
+  urgency         AIUrgency             @default(MEDIUM)
+
+  recommendation  Json
+  evidence        Json
+  rationale       String                @db.Text
+  alternatives    Json?
+  warnings        String[]              @default([])
+
+  // Lifecycle
+  status          AIDecisionStatus      @default(GENERATED)
+  visibility      AIDecisionVisibility  @default(CLUB)
+
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewNotes     String?               @db.Text
+
+  // Outcome (set later by feedback loop)
+  outcome         AIOutcome             @default(PENDING)
+  outcomeAt       DateTime?
+  outcomeNotes    String?               @db.Text
+
+  expiresAt       DateTime?
+
+  // Provenance
+  generatedByUserId String?
+  generatedByRole   String?
+
+  llmTokensIn     Int?
+  llmTokensOut    Int?
+  llmDurationMs   Int?
+
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  feedbacks       AIDecisionFeedback[]
+
+  @@index([domain, decisionType])
+  @@index([subjectType, subjectId])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+  @@index([status])
+  @@index([outcome])
+  @@index([urgency])
+  @@index([createdAt])
+  @@index([inputHash])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feedback — closes the loop for model improvement
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIDecisionFeedback {
+  id              String          @id @default(uuid())
+  decisionId      String
+  decision        AIDecision      @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  type            AIFeedbackType
+  rating          Int?
+  notes           String?         @db.Text
+
+  correctedAction Json?
+
+  userId          String?
+  createdAt       DateTime        @default(now())
+
+  @@index([decisionId])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI audit log — separate from the decisions table so admin queries don't
+// trip over millions of audit rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIAudit {
+  id           String           @id @default(uuid())
+  decisionId   String?
+  modelId      String?
+
+  userId       String?
+  action       String
+  category     AIAuditCategory
+
+  metadata     Json?
+  ipAddress    String?
+  userAgent    String?
+
+  result       AIAuditResult    @default(SUCCESS)
+  message      String?          @db.Text
+
+  createdAt    DateTime         @default(now())
+
+  @@index([decisionId])
+  @@index([modelId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
