@@ -1424,7 +1424,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
   <div class="modal">
     <div class="modal-hdr">
       <div class="modal-title" id="player-modal-title">Player Profile</div>
-      <button class="modal-close" onclick="closeModal('player-modal')">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-outline btn-xs"  id="player-modal-edit-btn"   onclick="openEditPlayerModal(State.activePlayer?.id)" style="display:none;">Edit</button>
+        <button class="btn btn-danger  btn-xs"  id="player-modal-delete-btn" onclick="confirmDeletePlayer(State.activePlayer?.id)" style="display:none;">Delete</button>
+        <button class="modal-close" onclick="closeModal('player-modal')">✕</button>
+      </div>
     </div>
     <div class="modal-body">
       <div style="display:grid;grid-template-columns:180px 1fr;">
@@ -1434,6 +1438,106 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
         </div>
         <div id="player-modal-content" style="overflow-y:auto;min-height:360px;"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add / Edit Player Modal -->
+<div class="modal-bg" id="player-edit-modal">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-hdr">
+      <div class="modal-title" id="player-edit-title">Add Player</div>
+      <button class="modal-close" onclick="closeModal('player-edit-modal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:18px;">
+      <form id="player-edit-form" onsubmit="submitPlayerForm(event)" autocomplete="off">
+        <input type="hidden" id="pe-id" />
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div>
+            <label class="login-label">First Name</label>
+            <input class="login-input" id="pe-firstName" required maxlength="100" />
+          </div>
+          <div>
+            <label class="login-label">Last Name</label>
+            <input class="login-input" id="pe-lastName" required maxlength="100" />
+          </div>
+          <div>
+            <label class="login-label">Shirt Number</label>
+            <input class="login-input" id="pe-number" type="number" min="1" max="99" required />
+          </div>
+          <div>
+            <label class="login-label">Position</label>
+            <select class="login-input" id="pe-position" required>
+              <option value="">Choose…</option>
+              <option value="GK">GK · Goalkeeper</option>
+              <option value="DC">DC · Centre back</option>
+              <option value="DL">DL · Left back</option>
+              <option value="DR">DR · Right back</option>
+              <option value="DMC">DMC · Defensive mid</option>
+              <option value="MC">MC · Central mid</option>
+              <option value="ML">ML · Left mid</option>
+              <option value="MR">MR · Right mid</option>
+              <option value="AMC">AMC · Attacking mid</option>
+              <option value="AML">AML · Left wing</option>
+              <option value="AMR">AMR · Right wing</option>
+              <option value="ST">ST · Striker</option>
+            </select>
+          </div>
+          <div>
+            <label class="login-label">Nationality</label>
+            <input class="login-input" id="pe-nationality" required maxlength="100" />
+          </div>
+          <div>
+            <label class="login-label">Flag (emoji)</label>
+            <input class="login-input" id="pe-flag" placeholder="🇩🇪" required maxlength="16" />
+          </div>
+          <div>
+            <label class="login-label">Date of Birth</label>
+            <input class="login-input" id="pe-dob" type="date" required />
+          </div>
+          <div>
+            <label class="login-label">Preferred Foot</label>
+            <select class="login-input" id="pe-foot">
+              <option value="RIGHT">Right</option>
+              <option value="LEFT">Left</option>
+              <option value="BOTH">Both</option>
+            </select>
+          </div>
+          <div>
+            <label class="login-label">Height (cm)</label>
+            <input class="login-input" id="pe-height" type="number" min="140" max="220" required />
+          </div>
+          <div>
+            <label class="login-label">Weight (kg)</label>
+            <input class="login-input" id="pe-weight" type="number" min="50" max="130" required />
+          </div>
+          <div>
+            <label class="login-label">Overall (40–140)</label>
+            <input class="login-input" id="pe-overall" type="number" min="40" max="140" />
+          </div>
+          <div>
+            <label class="login-label">Potential (40–140)</label>
+            <input class="login-input" id="pe-potential" type="number" min="40" max="140" />
+          </div>
+          <div>
+            <label class="login-label">Market Value (€)</label>
+            <input class="login-input" id="pe-mvalue" type="number" min="0" step="1000" />
+          </div>
+          <div>
+            <label class="login-label">Weekly Wage (€)</label>
+            <input class="login-input" id="pe-wage" type="number" min="0" step="100" />
+          </div>
+          <div style="grid-column:1/-1;">
+            <label class="login-label">Contract Until</label>
+            <input class="login-input" id="pe-contract" type="date" />
+          </div>
+        </div>
+        <div id="pe-error" style="margin-top:12px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--bd);padding-top:14px;">
+          <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('player-edit-modal')">Cancel</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="pe-submit">Create player</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -2104,7 +2208,7 @@ function renderSquadHTML() {
           <button class="filter-btn" onclick="filterSquad('MID',this)">MID</button>
           <button class="filter-btn" onclick="filterSquad('ATT',this)">ATT</button>
         </div>
-        <button class="btn btn-primary btn-sm">+ Add Player</button>
+        <button class="btn btn-primary btn-sm" id="squad-add-btn" onclick="openAddPlayerModal()" style="display:none;">+ Add Player</button>
       </div>
     </div>
     <div style="overflow-y:auto;flex:1;">
@@ -2118,6 +2222,10 @@ function renderSquad(filterPos = 'ALL') {
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
   if (!grid) return;
+
+  // Surface the + Add Player button only for roles that can manage the squad.
+  const addBtn = document.getElementById('squad-add-btn');
+  if (addBtn) addBtn.style.display = canManagePlayers() ? '' : 'none';
 
   let players = State.players || [];
   if (filterPos !== 'ALL') {
@@ -2189,6 +2297,12 @@ async function openPlayerModal(id) {
   if (!p) return;
 
   document.getElementById('player-modal-title').textContent = `${p.firstName} ${p.lastName} · #${p.number}`;
+
+  // Reveal Edit / Delete header actions only for permitted roles.
+  const editBtn = document.getElementById('player-modal-edit-btn');
+  const delBtn  = document.getElementById('player-modal-delete-btn');
+  if (editBtn) editBtn.style.display = canManagePlayers()                 ? '' : 'none';
+  if (delBtn)  delBtn.style.display  = canManagePlayers({ deleteOnly:true }) ? '' : 'none';
 
   document.getElementById('player-modal-sidebar').innerHTML = `
     <div style="margin-bottom:10px;">${playerSVG(p,68,84)}</div>
@@ -2355,6 +2469,145 @@ async function loadPlayerAIAnalysis(playerId) {
     }
   } catch (err) {
     el.innerHTML = `<div style="color:var(--red);font-size:12px;">Analysis failed — ${err.message}</div>`;
+  }
+}
+
+// ── PLAYER CRUD (Phase 1) ────────────────────────────────────────────────
+
+function canManagePlayers(opts = {}) {
+  const role = State.user?.role;
+  if (opts.deleteOnly) return role === 'CLUB_ADMIN' || role === 'SUPER_ADMIN';
+  return role === 'CLUB_ADMIN' || role === 'HEAD_COACH' || role === 'SUPER_ADMIN';
+}
+
+function openAddPlayerModal() {
+  if (!canManagePlayers()) { showToast('Not authorized to add players', 'error'); return; }
+  document.getElementById('player-edit-title').textContent = 'Add Player';
+  document.getElementById('pe-submit').textContent = 'Create player';
+  const form = document.getElementById('player-edit-form');
+  form.reset();
+  document.getElementById('pe-id').value = '';
+  document.getElementById('pe-foot').value = 'RIGHT';
+  const err = document.getElementById('pe-error');
+  err.style.display = 'none'; err.textContent = '';
+  document.getElementById('player-edit-modal').classList.add('open');
+  setTimeout(() => document.getElementById('pe-firstName').focus(), 60);
+}
+
+function openEditPlayerModal(id) {
+  if (!id) return;
+  if (!canManagePlayers()) { showToast('Not authorized to edit players', 'error'); return; }
+  const p = (State.players || []).find(x => x.id === id) || State.activePlayer;
+  if (!p) { showToast('Player not loaded', 'error'); return; }
+
+  document.getElementById('player-edit-title').textContent = `Edit · ${p.firstName} ${p.lastName}`;
+  document.getElementById('pe-submit').textContent = 'Save changes';
+  const form = document.getElementById('player-edit-form');
+  form.reset();
+
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+  const toDateInput = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
+
+  setVal('pe-id',           p.id);
+  setVal('pe-firstName',    p.firstName);
+  setVal('pe-lastName',     p.lastName);
+  setVal('pe-number',       p.number);
+  setVal('pe-position',     p.position);
+  setVal('pe-nationality',  p.nationality);
+  setVal('pe-flag',         p.flag);
+  setVal('pe-dob',          toDateInput(p.dateOfBirth));
+  setVal('pe-foot',         p.preferredFoot || 'RIGHT');
+  setVal('pe-height',       p.height);
+  setVal('pe-weight',       p.weight);
+  setVal('pe-overall',      p.overallRating);
+  setVal('pe-potential',    p.potential);
+  setVal('pe-mvalue',       p.marketValue);
+  setVal('pe-wage',         p.weeklyWage);
+  setVal('pe-contract',     toDateInput(p.contractUntil));
+
+  const err = document.getElementById('pe-error');
+  err.style.display = 'none'; err.textContent = '';
+  closeModal('player-modal');
+  document.getElementById('player-edit-modal').classList.add('open');
+}
+
+async function submitPlayerForm(ev) {
+  ev.preventDefault();
+  const id    = document.getElementById('pe-id').value;
+  const errEl = document.getElementById('pe-error');
+  const btn   = document.getElementById('pe-submit');
+
+  const numOrUndef = (v) => v === '' || v == null ? undefined : Number(v);
+  const trim       = (v) => (v ?? '').toString().trim();
+
+  const body = {
+    firstName:     trim(document.getElementById('pe-firstName').value),
+    lastName:      trim(document.getElementById('pe-lastName').value),
+    number:        Number(document.getElementById('pe-number').value),
+    position:      document.getElementById('pe-position').value,
+    nationality:   trim(document.getElementById('pe-nationality').value),
+    flag:          trim(document.getElementById('pe-flag').value),
+    dateOfBirth:   document.getElementById('pe-dob').value,
+    preferredFoot: document.getElementById('pe-foot').value || 'RIGHT',
+    height:        Number(document.getElementById('pe-height').value),
+    weight:        Number(document.getElementById('pe-weight').value),
+    overallRating: numOrUndef(document.getElementById('pe-overall').value),
+    potential:     numOrUndef(document.getElementById('pe-potential').value),
+    marketValue:   numOrUndef(document.getElementById('pe-mvalue').value),
+    weeklyWage:    numOrUndef(document.getElementById('pe-wage').value),
+  };
+  const contract = document.getElementById('pe-contract').value;
+  if (contract) body.contractUntil = contract;
+  Object.keys(body).forEach(k => (body[k] === undefined || body[k] === '' || Number.isNaN(body[k])) && delete body[k]);
+
+  errEl.style.display = 'none';
+  errEl.textContent   = '';
+  btn.disabled  = true;
+  btn.textContent = id ? 'Saving…' : 'Creating…';
+
+  try {
+    let saved = null;
+    if (id) {
+      const res = await api(`/players/${id}`, { method: 'PUT', body });
+      saved = res?.data;
+      if (saved) {
+        const idx = State.players.findIndex(p => p.id === id);
+        if (idx !== -1) State.players[idx] = { ...State.players[idx], ...saved };
+        if (State.activePlayer?.id === id) State.activePlayer = { ...State.activePlayer, ...saved };
+      }
+    } else {
+      const res = await api('/players', { method: 'POST', body });
+      saved = res?.data;
+      if (saved) State.players.unshift(saved);
+    }
+    closeModal('player-edit-modal');
+    renderSquad();
+    showToast(id ? 'Player updated' : 'Player created', 'success');
+  } catch (err) {
+    errEl.textContent   = err?.message || 'Save failed';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = id ? 'Save changes' : 'Create player';
+  }
+}
+
+async function confirmDeletePlayer(id) {
+  if (!id) return;
+  if (!canManagePlayers({ deleteOnly: true })) { showToast('Not authorized to delete players', 'error'); return; }
+  const p = (State.players || []).find(x => x.id === id) || State.activePlayer;
+  const name = p ? `${p.firstName} ${p.lastName}` : 'this player';
+  if (!confirm(`Delete ${name}? This permanently removes the player and cannot be undone.`)) return;
+
+  try {
+    await api(`/players/${id}`, { method: 'DELETE' });
+    State.players = (State.players || []).filter(x => x.id !== id);
+    if (State.activePlayer?.id === id) State.activePlayer = null;
+    closeModal('player-modal');
+    renderSquad();
+    showToast('Player deleted', 'success');
+  } catch (err) {
+    showToast(err?.message || 'Delete failed', 'error');
   }
 }
 
