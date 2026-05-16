@@ -1,0 +1,33 @@
+# ============================================================
+# FAMILISTA BACKEND — Environment Variables
+# Copy this file to .env and fill in your values
+# ============================================================
+
+# Server
+NODE_ENV=development
+PORT=4000
+API_VERSION=v1
+
+"postgresql://neondb_owner:npg_F9hHCGiWSNQ4@ep-small-bread-alhxjrqb-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+ JWT_REFRESH_SECRET="familista-refresh-2024-different"
+
+# Anthropic (Claude AI)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_BASIC=price_...
+STRIPE_PRICE_PRO=price_...
+STRIPE_PRICE_ACADEMY=price_...
+
+# CORS
+FRONTEND_URL=http://localhost:3000
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX=100
+
+# Logging
+LOG_LEVEL=debug

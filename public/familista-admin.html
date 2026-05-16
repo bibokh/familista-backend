@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Familista — Admin Control Center</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23d4af37'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Inter,sans-serif' font-weight='800' font-size='34' fill='%230d0a02'%3EF%3C/text%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
+
+  <link rel="stylesheet" href="/familista-admin.css" />
+  <script src="/familista-api-client.js" defer></script>
+  <script src="/familista-admin-ui.js" defer></script>
+  <script src="/familista-admin-pages.js" defer></script>
+  <script src="/familista-admin-app.js" defer></script>
+</head>
+<body>
+
+<!-- ── Login screen (visible only when no token) ──────────────────────── -->
+<div id="login-view" class="login hidden">
+  <div class="login-card">
+    <div class="brand-big">
+      <div class="mark">F</div>
+      <div>
+        <h1>Familista</h1>
+        <div class="sub">Admin Control Center</div>
+      </div>
+    </div>
+    <form id="login-form" autocomplete="on">
+      <label for="login-email">Email</label>
+      <input id="login-email" class="input full" type="email" autocomplete="username" required />
+      <label for="login-password">Password</label>
+      <input id="login-password" class="input full" type="password" autocomplete="current-password" required />
+      <div id="login-err" class="err hidden"></div>
+      <button type="submit" class="btn primary">Sign in</button>
+    </form>
+    <p style="font-size:11.5px;color:var(--text-3);margin-top:18px;text-align:center;letter-spacing:0.3px;">
+      Restricted area — Platform staff only. All activity is audited.
+    </p>
+  </div>
+</div>
+
+<!-- ── App shell (visible only after login) ───────────────────────────── -->
+<div id="app-view" class="shell hidden">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">F</div>
+      <div>
+        <div class="title">Familista</div>
+        <div class="sub">Control Center</div>
+      </div>
+    </div>
+
+    <div class="nav-section">Overview</div>
+    <a class="nav-link" data-route="overview"><span class="ico">◆</span>Dashboard</a>
+    <a class="nav-link" data-route="alerts"><span class="ico">▲</span>Alerts</a>
+
+    <div class="nav-section">Tenants</div>
+    <a class="nav-link" data-route="organizations" data-cap="org:read"><span class="ico">▣</span>Organizations</a>
+    <a class="nav-link" data-route="clubs"         data-cap="org:read"><span class="ico">▣</span>Clubs</a>
+    <a class="nav-link" data-route="academies"     data-cap="org:read"><span class="ico">▣</span>Academies</a>
+
+    <div class="nav-section">People</div>
+    <a class="nav-link" data-route="players"  data-cap="players:read"><span class="ico">●</span>Players</a>
+    <a class="nav-link" data-route="coaches"  data-cap="coaches:read"><span class="ico">●</span>Coaches</a>
+    <a class="nav-link" data-route="managers" data-cap="managers:read"><span class="ico">●</span>Managers</a>
+    <a class="nav-link" data-route="investors" data-cap="investor-profile:read"><span class="ico">●</span>Investors</a>
+
+    <div class="nav-section">Billing</div>
+    <a class="nav-link" data-route="subscriptions" data-cap="subscription:read"><span class="ico">$</span>Subscriptions</a>
+    <a class="nav-link" data-route="payments"      data-cap="payment:read"><span class="ico">$</span>Payments</a>
+
+    <div class="nav-section">Network</div>
+    <a class="nav-link" data-route="franchise-units" data-cap="franchise-unit:read"><span class="ico">▼</span>Franchise Units</a>
+
+    <div class="nav-section">Engines</div>
+    <a class="nav-link" data-route="ai-engine"     data-cap="ai-engine:read"><span class="ico">◇</span>AI Engine</a>
+    <a class="nav-link" data-route="vision-engine" data-cap="vision-engine:read"><span class="ico">◇</span>Vision Engine</a>
+
+    <div class="nav-section">Compliance</div>
+    <a class="nav-link" data-route="audit-logs" data-cap="audit:read"><span class="ico">∎</span>Audit Logs</a>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span class="prev">Familista</span>
+        <span class="sep">/</span>
+        <span class="now" id="crumb-now">Dashboard</span>
+      </div>
+      <div class="actor">
+        <span class="pill" id="actor-role">—</span>
+        <span class="who"  id="actor-who">—</span>
+        <button class="logout" id="logout-btn" type="button">Sign out</button>
+      </div>
+    </header>
+
+    <main id="content" class="content">
+      <div class="empty"><div class="em-title">Loading control center…</div></div>
+    </main>
+  </div>
+</div>
+
+<!-- ── Detail drawer ──────────────────────────────────────────────────── -->
+<div id="drawer-backdrop" class="drawer-backdrop"></div>
+<aside id="drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+  <div class="drawer-head">
+    <h3 id="drawer-title">Detail</h3>
+    <button class="logout" id="drawer-close" type="button">Close</button>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+  <div class="drawer-foot" id="drawer-foot"></div>
+</aside>
+
+<!-- ── Toast holder ───────────────────────────────────────────────────── -->
+<div id="toast-host"></div>
+
+</body>
+</html>
