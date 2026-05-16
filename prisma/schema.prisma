@@ -1,7 +1,4 @@
-// ============================================================
-// FAMILISTA — Prisma Schema
-// Multi-tenant Football Intelligence Platform
-// ============================================================
+// Familista - Production Schema
 
 generator client {
   provider = "prisma-client-js"
@@ -11,8 +8,6 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
-
-// ── ENUMS ──────────────────────────────────────────────────
 
 enum UserRole {
   SUPER_ADMIN
@@ -105,48 +100,55 @@ enum TransactionType {
   EXPENSE
 }
 
-// ── CLUB (Tenant Root) ─────────────────────────────────────
-
 model Club {
-  id          String   @id @default(uuid())
-  name        String
-  shortName   String?
-  emblem      String?  // emoji or URL
-  city        String
-  country     String   @default("Germany")
-  founded     DateTime?
-  stadium     String?
-  capacity    Int?
-  level       Int      @default(1)
-  overallRating Float  @default(70.0)
+  id             String    @id @default(uuid())
+  name           String
+  shortName      String?
+  emblem         String?
+  city           String
+  country        String    @default("Germany")
+  founded        DateTime?
+  stadium        String?
+  capacity       Int?
+  level          Int       @default(1)
+  overallRating  Float     @default(70.0)
   leaguePosition Int?
-  fanClub     String?
+  fanClub        String?
 
-  // Subscription
-  stripeCustomerId     String?  @unique
-  stripeSubscriptionId String?  @unique
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
   plan                 SubscriptionPlan   @default(BASIC)
   subscriptionStatus   SubscriptionStatus @default(TRIALING)
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
 
-  // Relations
-  users        User[]
-  players      Player[]
-  matches      Match[]
-  tournaments  Tournament[]
+  users            User[]
+  players          Player[]
+  matches          Match[]
+  tournaments      Tournament[]
   trainingSessions TrainingSession[]
-  financials   Financial[]
-  devices      GpsDevice[]
-  aiInsights   AiInsight[]
+  financials       Financial[]
+  devices          GpsDevice[]
+  aiInsights       AiInsight[]
+  scoutReports     ScoutReport[]
+
+  // ── Cross-engine bridges (additive go-live merge) ──
+  whiteLabel            WhiteLabelConfig?
+  limits                OrganizationLimits?
+  subscriptionOverrides SubscriptionOverride[]
+  platformAuditLogs     PlatformAuditLog[]
+  planSource            PlanSource             @default(STRIPE)
+  franchiseUnitId       String?
+  franchiseUnit         FranchiseUnit?         @relation(fields: [franchiseUnitId], references: [id], onDelete: SetNull)
+  revenueDistributions  RevenueDistribution[]
+  investmentEntity      InvestmentEntity?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([stripeCustomerId])
+  @@index([franchiseUnitId])
 }
-
-// ── USER ───────────────────────────────────────────────────
 
 model User {
   id           String   @id @default(uuid())
@@ -164,9 +166,15 @@ model User {
   refreshTokens RefreshToken[]
   aiInsights    AiInsight[]
 
+  // ── Cross-engine bridges (additive go-live merge) ──
+  platformAdmin   PlatformAdmin?
+  impersonations  ImpersonationSession[] @relation("ImpersonationTarget")
+  franchiseOwner  FranchiseOwner?
+  investorProfile InvestorProfile?
+
   lastLoginAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([clubId])
   @@index([email])
@@ -184,40 +192,36 @@ model RefreshToken {
   @@index([token])
 }
 
-// ── PLAYER ─────────────────────────────────────────────────
-
 model Player {
-  id           String         @id @default(uuid())
-  firstName    String
-  lastName     String
-  number       Int
-  position     PlayerPosition
-  nationality  String
-  flag         String         // emoji
-  dateOfBirth  DateTime
-  height       Int            // cm
-  weight       Int            // kg
-  preferredFoot Foot          @default(RIGHT)
-  overallRating Int           @default(70)
-  potential    Int            @default(70)
-  condition    Int            @default(100) // 0-100
-  isInjured    Boolean        @default(false)
-  marketValue  Float          @default(1000000) // EUR
-  weeklyWage   Int            @default(10000)   // game coins
+  id            String         @id @default(uuid())
+  firstName     String
+  lastName      String
+  number        Int
+  position      PlayerPosition
+  nationality   String
+  flag          String
+  dateOfBirth   DateTime
+  height        Int
+  weight        Int
+  preferredFoot Foot           @default(RIGHT)
+  overallRating Int            @default(70)
+  potential     Int            @default(70)
+  condition     Int            @default(100)
+  isInjured     Boolean        @default(false)
+  marketValue   Float          @default(1000000)
+  weeklyWage    Int            @default(10000)
   contractUntil DateTime?
-  avatar       String?
+  avatar        String?
 
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
-  // Relations
-  attributes     PlayerAttribute[]
-  gpsData        PlayerGpsData[]
-  matchStats     PlayerMatchStat[]
-  trainingStats  PlayerTrainingStat[]
-  injuries       PlayerInjury[]
-  scoutReports   ScoutReport[]       @relation("ScoutTarget")
-  device         GpsDevice?
+  attributes    PlayerAttribute[]
+  gpsData       PlayerGpsData[]
+  matchStats    PlayerMatchStat[]
+  trainingStats PlayerTrainingStat[]
+  injuries      PlayerInjury[]
+  device        GpsDevice?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -231,29 +235,24 @@ model PlayerAttribute {
   playerId String
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  // Defense
-  reflexes      Int? // GK
-  gkPositioning Int? // GK
-  handling      Int? // GK
-  kicking       Int? // GK
-  tackling      Int?
-  marking       Int?
-  heading       Int?
+  reflexes       Int?
+  gkPositioning  Int?
+  handling       Int?
+  kicking        Int?
+  tackling       Int?
+  marking        Int?
+  heading        Int?
   defPositioning Int?
-  interceptions Int?
-
-  // Attack
-  pace     Int?
-  shooting Int?
-  passing  Int?
-  dribbling Int?
-  crossing Int?
-
-  // Physical
-  strength Int?
-  stamina  Int?
-  agility  Int?
-  balance  Int?
+  interceptions  Int?
+  pace           Int?
+  shooting       Int?
+  passing        Int?
+  dribbling      Int?
+  crossing       Int?
+  strength       Int?
+  stamina        Int?
+  agility        Int?
+  balance        Int?
 
   recordedAt DateTime @default(now())
 
@@ -261,20 +260,20 @@ model PlayerAttribute {
 }
 
 model PlayerGpsData {
-  id         String   @id @default(uuid())
-  playerId   String
-  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  sessionId  String?
-  sessionType String? // match | training | live
+  id          String  @id @default(uuid())
+  playerId    String
+  player      Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  sessionId   String?
+  sessionType String?
 
-  topSpeed      Float // km/h
-  avgSpeed      Float // km/h
-  distance      Float // km
-  sprintCount   Int
-  heartRateAvg  Int
-  heartRateMax  Int
-  playerLoad    Float
-  riskScore     Float @default(0) // 0-100
+  topSpeed     Float
+  avgSpeed     Float
+  distance     Float
+  sprintCount  Int
+  heartRateAvg Int
+  heartRateMax Int
+  playerLoad   Float
+  riskScore    Float @default(0)
 
   recordedAt DateTime @default(now())
 
@@ -283,26 +282,24 @@ model PlayerGpsData {
 }
 
 model PlayerInjury {
-  id         String         @id @default(uuid())
-  playerId   String
-  player     Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
-  bodyPart   String
-  injuryType String
-  severity   InjurySeverity
-  injuredAt  DateTime       @default(now())
+  id             String         @id @default(uuid())
+  playerId       String
+  player         Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  bodyPart       String
+  injuryType     String
+  severity       InjurySeverity
+  injuredAt      DateTime       @default(now())
   expectedReturn DateTime?
-  returnedAt DateTime?
-  notes      String?
+  returnedAt     DateTime?
+  notes          String?
 
   @@index([playerId])
 }
 
-// ── MATCH ──────────────────────────────────────────────────
-
 model Match {
-  id              String          @id @default(uuid())
-  clubId          String
-  club            Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   homeTeam        String
   awayTeam        String
@@ -313,21 +310,19 @@ model Match {
   competitionName String?
   result          MatchResult?
 
-  venue           String?
-  scheduledAt     DateTime
-  playedAt        DateTime?
+  venue       String?
+  scheduledAt DateTime
+  playedAt    DateTime?
 
-  // Aggregate stats
-  possession      Float?   // %
-  shots           Int?
-  shotsOnTarget   Int?
-  corners         Int?
-  fouls           Int?
-  yellowCards     Int?
-  redCards        Int?
+  possession    Float?
+  shots         Int?
+  shotsOnTarget Int?
+  corners       Int?
+  fouls         Int?
+  yellowCards   Int?
+  redCards      Int?
 
-  playerStats     PlayerMatchStat[]
-  gpsSession      GpsSession?
+  playerStats PlayerMatchStat[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -350,33 +345,31 @@ model PlayerMatchStat {
   passes        Int    @default(0)
   passAccuracy  Float  @default(0)
   tackles       Int    @default(0)
-  rating        Float? // 1-10
+  rating        Float?
 
   @@unique([matchId, playerId])
   @@index([matchId])
   @@index([playerId])
 }
 
-// ── TOURNAMENT ─────────────────────────────────────────────
-
 model Tournament {
-  id        String          @id @default(uuid())
-  clubId    String
-  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
-  name      String
-  type      CompetitionType
-  season    String          @default("2024-25")
-  teams     Int             @default(16)
-  position  Int?
-  points    Int?
-  played    Int             @default(0)
-  won       Int             @default(0)
-  drawn     Int             @default(0)
-  lost      Int             @default(0)
-  goalsFor  Int             @default(0)
-  goalsAgainst Int          @default(0)
-  isActive  Boolean         @default(true)
+  name         String
+  type         CompetitionType
+  season       String          @default("2024-25")
+  teams        Int             @default(16)
+  position     Int?
+  points       Int?
+  played       Int             @default(0)
+  won          Int             @default(0)
+  drawn        Int             @default(0)
+  lost         Int             @default(0)
+  goalsFor     Int             @default(0)
+  goalsAgainst Int             @default(0)
+  isActive     Boolean         @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -384,25 +377,22 @@ model Tournament {
   @@index([clubId])
 }
 
-// ── TRAINING ───────────────────────────────────────────────
-
 model TrainingSession {
-  id          String   @id @default(uuid())
-  clubId      String
-  club        Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
-  title       String
-  description String?
-  scheduledAt DateTime
-  duration    Int      // minutes
-  drills      DrillType[]
-  attackForm  Int      @default(12) // /16
-  defenseForm Int      @default(14) // /16
-  possession  Int      @default(11) // /16
-  conditionForm Int    @default(13) // /16
+  title         String
+  description   String?
+  scheduledAt   DateTime
+  duration      Int
+  drills        DrillType[]
+  attackForm    Int         @default(12)
+  defenseForm   Int         @default(14)
+  possession    Int         @default(11)
+  conditionForm Int         @default(13)
 
   playerStats PlayerTrainingStat[]
-  gpsSession  GpsSession?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -418,82 +408,59 @@ model PlayerTrainingStat {
   playerId  String
   player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  attended    Boolean @default(true)
-  rating      Float?
-  notes       String?
+  attended Boolean @default(true)
+  rating   Float?
+  notes    String?
 
   @@unique([sessionId, playerId])
   @@index([sessionId])
   @@index([playerId])
 }
 
-// ── GPS DEVICE & SESSION ───────────────────────────────────
-
 model GpsDevice {
-  id           String  @id @default(uuid())
-  serialNumber String  @unique
-  firmware     String  @default("v1.2")
-  isOnline     Boolean @default(false)
-  batteryLevel Int     @default(100) // 0-100
-  signalQuality Int    @default(100) // 0-100
+  id            String  @id @default(uuid())
+  serialNumber  String  @unique
+  firmware      String  @default("v1.2")
+  isOnline      Boolean @default(false)
+  batteryLevel  Int     @default(100)
+  signalQuality Int     @default(100)
 
   clubId   String
-  club     Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club     Club    @relation(fields: [clubId], references: [id], onDelete: Cascade)
   playerId String? @unique
   player   Player? @relation(fields: [playerId], references: [id])
 
   lastSeenAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([clubId])
 }
-
-model GpsSession {
-  id        String  @id @default(uuid())
-  matchId   String? @unique
-  match     Match?  @relation(fields: [matchId], references: [id])
-  sessionId String? @unique
-  session   TrainingSession? @relation(fields: [sessionId], references: [id])
-  isLive    Boolean @default(false)
-  startedAt DateTime @default(now())
-  endedAt   DateTime?
-
-  @@index([isLive])
-}
-
-// ── SCOUT REPORT ───────────────────────────────────────────
 
 model ScoutReport {
-  id         String              @id @default(uuid())
-  clubId     String
-  targetName String
-  targetClub String
-  position   PlayerPosition
-  age        Int
-  nationality String
-  flag       String
-  marketValue Float
-  rating     Float               // 1-5
+  id             String              @id @default(uuid())
+  clubId         String
+  club           Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  targetName     String
+  targetClub     String
+  position       PlayerPosition
+  age            Int
+  nationality    String
+  flag           String
+  marketValue    Float
+  rating         Float
   recommendation ScoutRecommendation
-  notes      String?
-  isActive   Boolean             @default(true)
+  notes          String?
+  isActive       Boolean             @default(true)
 
-  player     Player?             @relation("ScoutTarget", fields: [playerId], references: [id])
-  playerId   String?
-
-  club       Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
-
-  createdAt  DateTime            @default(now())
+  createdAt DateTime @default(now())
 
   @@index([clubId])
 }
 
-// ── FINANCIAL ──────────────────────────────────────────────
-
 model Financial {
-  id          String          @id @default(uuid())
-  clubId      String
-  club        Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   type        TransactionType
   category    String
@@ -509,16 +476,14 @@ model Financial {
   @@index([type])
 }
 
-// ── AI INSIGHTS ────────────────────────────────────────────
-
 model AiInsight {
-  id       String @id @default(uuid())
-  clubId   String
-  club     Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type     String  // performance | medical | tactical | transfer | training
+  type     String
   prompt   String  @db.Text
   response String  @db.Text
   model    String  @default("claude-sonnet-4-20250514")
@@ -530,4 +495,3565 @@ model AiInsight {
   @@index([clubId])
   @@index([userId])
   @@index([type])
+}
+
+// Familista — White-label Engine
+// Additive Prisma fragment. Merge into the main schema.prisma.
+//
+// Required edit to existing Club model — add this relation field:
+//   whiteLabel WhiteLabelConfig?
+//
+// Run: npx prisma migrate dev --name whitelabel_engine
+
+enum WhiteLabelDomainStatus {
+  PENDING
+  VERIFYING
+  ACTIVE
+  FAILED
+  DISABLED
+}
+
+enum WhiteLabelAuditAction {
+  CONFIG_CREATED
+  CONFIG_UPDATED
+  CONFIG_RESET
+  DOMAIN_ADDED
+  DOMAIN_REMOVED
+  DOMAIN_VERIFIED
+  DOMAIN_FAILED
+  DOMAIN_PROMOTED
+  ASSET_REPLACED
+}
+
+model WhiteLabelConfig {
+  id     String @id @default(uuid())
+  clubId String @unique
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  // Brand identity
+  productName String?
+  tagline     String?
+  logoUrl     String?
+  logoDarkUrl String?
+  faviconUrl  String?
+  ogImageUrl  String?
+
+  // Color tokens (validated as #RRGGBB or #RRGGBBAA)
+  primaryColor    String @default("#0f172a")
+  secondaryColor  String @default("#64748b")
+  accentColor     String @default("#22c55e")
+  backgroundColor String @default("#ffffff")
+  surfaceColor    String @default("#f8fafc")
+  textColor       String @default("#0f172a")
+  mutedTextColor  String @default("#64748b")
+  borderColor     String @default("#e2e8f0")
+  errorColor      String @default("#ef4444")
+  successColor    String @default("#22c55e")
+  warningColor    String @default("#f59e0b")
+
+  // Typography
+  fontFamily     String  @default("Inter, system-ui, -apple-system, sans-serif")
+  fontHeadingUrl String?
+  fontBodyUrl    String?
+
+  // Public links
+  supportEmail String?
+  supportUrl   String?
+  termsUrl     String?
+  privacyUrl   String?
+  marketingUrl String?
+
+  // Email branding
+  emailFromName   String?
+  emailFromEmail  String?
+  emailReplyTo    String?
+  emailHeaderHtml String? @db.Text
+  emailFooterHtml String? @db.Text
+
+  // Behavior toggles
+  hidePoweredBy   Boolean @default(false)
+  hideInvestor    Boolean @default(true)
+  hideMarketplace Boolean @default(false)
+
+  // Advanced
+  customCss      String? @db.Text
+  customHeadHtml String? @db.Text
+  defaultLocale  String  @default("en")
+  metadata       Json?
+
+  // Versioning / lifecycle
+  isActive    Boolean   @default(true)
+  version     Int       @default(1)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  domains WhiteLabelDomain[]
+  audits  WhiteLabelAudit[]
+  assets  WhiteLabelAsset[]
+
+  @@index([clubId])
+  @@index([isActive])
+}
+
+model WhiteLabelDomain {
+  id       String           @id @default(uuid())
+  configId String
+  config   WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  hostname      String                 @unique
+  isPrimary     Boolean                @default(false)
+  status        WhiteLabelDomainStatus @default(PENDING)
+  verifyToken   String                 @unique
+  verifyHost    String?
+  verifiedAt    DateTime?
+  lastCheckedAt DateTime?
+  failureReason String?
+  sslIssuedAt   DateTime?
+  sslExpiresAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId])
+  @@index([status])
+  @@index([hostname])
+}
+
+model WhiteLabelAudit {
+  id       String           @id @default(uuid())
+  configId String
+  config   WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  userId    String?
+  action    WhiteLabelAuditAction
+  changes   Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([configId])
+  @@index([createdAt])
+  @@index([action])
+}
+
+// Familista — Super Admin White-label Control Panel
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// white-label engine fragment (`whitelabel.schema.prisma`).
+//
+// Required edits to existing models:
+//
+//   model Club {
+//     ...
+//     limits              OrganizationLimits?
+//     subscriptionOverrides SubscriptionOverride[]
+//     platformAuditLogs   PlatformAuditLog[]
+//
+//     // Source-of-truth for plan resolution. When set to OVERRIDE the
+//     // Stripe webhook MUST NOT mutate Club.plan / subscriptionStatus.
+//     planSource          PlanSource @default(STRIPE)
+//   }
+//
+//   model User {
+//     ...
+//     platformAdmin       PlatformAdmin?
+//     impersonations      ImpersonationSession[] @relation("ImpersonationTarget")
+//   }
+//
+//   model WhiteLabelConfig {
+//     ...
+//     assets              WhiteLabelAsset[]
+//   }
+//
+// Run: npx prisma migrate dev --name admin_whitelabel_panel
+
+enum PlanSource {
+  STRIPE
+  OVERRIDE
+}
+
+enum PlatformRole {
+  PLATFORM_OWNER
+  PLATFORM_ADMIN
+  PLATFORM_SUPPORT
+  PLATFORM_BILLING
+  PLATFORM_READ_ONLY
+}
+
+enum AssetType {
+  LOGO_LIGHT
+  LOGO_DARK
+  FAVICON
+  OG_IMAGE
+  PDF_HEADER
+  PDF_FOOTER
+  EMAIL_HEADER_BG
+}
+
+enum AssetStorage {
+  LOCAL
+  S3
+  EXTERNAL_URL
+}
+
+enum PlatformAuditCategory {
+  BRANDING
+  DOMAIN
+  ASSET
+  PALETTE
+  BILLING
+  LICENSE
+  LIMITS
+  ACCESS
+  IMPERSONATION
+  FEATURE_FLAG
+  PLATFORM_ADMIN
+  OTHER
+}
+
+enum PlatformAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+enum ImpersonationStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+  REVOKED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Platform admin RBAC
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformAdmin {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role        PlatformRole
+  ipAllowlist String[]     @default([]) // CIDRs or exact IPs
+  mfaEnforced Boolean      @default(true)
+  isActive    Boolean      @default(true)
+
+  invitedBy  String?
+  acceptedAt DateTime?
+  lastSeenAt DateTime?
+  notes      String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs      PlatformAuditLog[]
+  impersonations ImpersonationSession[]
+
+  @@index([role])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// White-label assets (logos, favicons, OG images, PDF/email assets)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WhiteLabelAsset {
+  id       String           @id @default(uuid())
+  configId String
+  config   WhiteLabelConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  type       AssetType
+  storage    AssetStorage @default(LOCAL)
+  bucket     String?
+  storageKey String?
+  url        String
+
+  contentType String
+  bytes       Int
+  width       Int?
+  height      Int?
+  checksum    String
+
+  uploadedBy String?
+  isActive   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId, type])
+  @@index([type])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Color palette templates (system presets + custom saved palettes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ColorPaletteTemplate {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  description String?
+
+  isSystem Boolean @default(false)
+  isPublic Boolean @default(true)
+  category String  @default("custom") // "system", "league", "club", "custom"
+
+  tokens  Json
+  preview String? // optional preview image url
+
+  createdBy  String?
+  usageCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isSystem])
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Per-organization limits (quotas) and feature overrides
+// ─────────────────────────────────────────────────────────────────────────────
+
+model OrganizationLimits {
+  id     String @id @default(uuid())
+  clubId String @unique
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  maxUsers                Int?
+  maxPlayers              Int?
+  maxGpsDevices           Int?
+  maxStorageMb            Int?
+  maxApiCallsPerDay       Int?
+  maxAiInsightsPerMonth   Int?
+  maxCustomDomains        Int?
+  maxPdfReportsPerMonth   Int?
+  maxImpersonationsPerDay Int?
+
+  featuresEnabled  String[] @default([])
+  featuresDisabled String[] @default([])
+
+  notes String? @db.Text
+  setBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription overrides (operator-granted plan/status, audited)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SubscriptionOverride {
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  plan         SubscriptionPlan
+  status       SubscriptionStatus
+  reason       String             @db.Text
+  expiresAt    DateTime?
+  bypassStripe Boolean            @default(false)
+
+  appliedBy     String
+  revokedBy     String?
+  revokedAt     DateTime?
+  revokedReason String?   @db.Text
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([isActive])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature flag definitions and plan matrix
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id              String             @id @default(uuid())
+  key             String             @unique
+  name            String
+  description     String?            @db.Text
+  defaultEnabled  Boolean            @default(false)
+  enabledForPlans SubscriptionPlan[] @default([])
+  isInternal      Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Impersonation sessions
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ImpersonationSession {
+  id      String        @id @default(uuid())
+  adminId String
+  admin   PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  targetUserId String
+  targetUser   User   @relation("ImpersonationTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetClubId String
+
+  tokenHash   String              @unique
+  reason      String              @db.Text
+  expiresAt   DateTime
+  endedAt     DateTime?
+  endedReason String?
+  status      ImpersonationStatus @default(ACTIVE)
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([targetClubId])
+  @@index([expiresAt])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-tenant platform audit log
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PlatformAuditLog {
+  id      String         @id @default(uuid())
+  adminId String?
+  admin   PlatformAdmin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  userId String?
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  action       String
+  category     PlatformAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  PlatformAuditResult @default(SUCCESS)
+  message String?             @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([clubId])
+  @@index([action])
+  @@index([category])
+  @@index([result])
+  @@index([createdAt])
+}
+
+// Familista — Franchise Expansion Engine
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// previous fragments (whitelabel.schema.prisma, admin-whitelabel.schema.prisma).
+//
+// Required edits to existing models:
+//
+//   model Club {
+//     ...
+//     franchiseUnitId      String?
+//     franchiseUnit        FranchiseUnit? @relation(fields: [franchiseUnitId], references: [id], onDelete: SetNull)
+//     revenueDistributions RevenueDistribution[]
+//
+//     @@index([franchiseUnitId])
+//   }
+//
+//   model User {
+//     ...
+//     franchiseOwner FranchiseOwner?
+//   }
+//
+// Run: npx prisma migrate dev --name franchise_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum TerritoryType {
+  COUNTRY
+  STATE
+  REGION
+  CITY
+  DISTRICT
+}
+
+enum FranchiseLevel {
+  MASTER
+  REGIONAL
+  LOCAL
+  ACADEMY
+}
+
+enum FranchiseStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  IN_RENEWAL
+  TERMINATED
+}
+
+enum OwnershipModel {
+  SINGLE_OWNER
+  MULTI_OWNER
+  INVESTOR_GROUP
+  HOLDING_COMPANY
+  JOINT_VENTURE
+}
+
+enum OwnerType {
+  INDIVIDUAL
+  ENTITY
+  INVESTOR_GROUP
+}
+
+enum TerritoryRightType {
+  EXCLUSIVE
+  NON_EXCLUSIVE
+  FIRST_REFUSAL
+}
+
+enum ExpansionRequestStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  ESCALATED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum AcquisitionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  COMPLETED
+  WITHDRAWN
+}
+
+enum TransferStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  CANCELLED
+  REJECTED
+}
+
+enum TransferReason {
+  VOLUNTARY
+  ACQUISITION
+  INHERITANCE
+  COURT_ORDER
+  DEFAULT
+  CORPORATE_RESTRUCTURE
+}
+
+enum RevenueCategory {
+  SUBSCRIPTION
+  TRANSFER
+  SPONSORSHIP
+  MERCHANDISE
+  ACADEMY_FEE
+  MATCH_REVENUE
+  BROADCAST
+  OTHER
+  ALL
+}
+
+enum RevenueTrigger {
+  PAYMENT_RECEIVED
+  INVOICE_ISSUED
+  MANUAL
+}
+
+enum RevenueRecipientType {
+  HEADQUARTERS
+  MASTER
+  REGIONAL
+  LOCAL
+  ACADEMY
+  INVESTOR
+  SPONSOR
+  OTHER
+}
+
+enum DistributionStatus {
+  COMPUTED
+  EXECUTING
+  EXECUTED
+  FAILED
+  REVERSED
+}
+
+enum AllocationStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
+enum ContractType {
+  FRANCHISE_AGREEMENT
+  AREA_DEVELOPMENT
+  OPERATING_AGREEMENT
+  SUB_FRANCHISE
+  AMENDMENT
+}
+
+enum ContractStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  ACTIVE
+  RENEWED
+  EXPIRED
+  TERMINATED
+}
+
+enum RenewalStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+enum TerminationReason {
+  VOLUNTARY
+  BREACH
+  NON_PAYMENT
+  PERFORMANCE
+  MUTUAL
+  EXPIRATION
+}
+
+enum TerminationStatus {
+  REQUESTED
+  APPROVED
+  EXECUTED
+  CANCELLED
+}
+
+enum ViolationSeverity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum ViolationStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  ESCALATED
+  WAIVED
+}
+
+enum ComplianceCategory {
+  FINANCIAL
+  OPERATIONAL
+  LEGAL
+  BRAND
+  TRAINING
+  LICENSING
+}
+
+enum ComplianceStatus {
+  COMPLIANT
+  AT_RISK
+  NON_COMPLIANT
+  NOT_ASSESSED
+}
+
+enum FranchiseAuditCategory {
+  HIERARCHY
+  OWNERSHIP
+  TRANSFER
+  ACQUISITION
+  TERRITORY
+  EXPANSION
+  REVENUE
+  CONTRACT
+  COMPLIANCE
+  PERFORMANCE
+  OTHER
+}
+
+enum FranchiseAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Geography — Territory hierarchy (country → region → city → district)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Territory {
+  id       String        @id @default(uuid())
+  type     TerritoryType
+  code     String?
+  name     String
+  fullPath String        @unique
+  parentId String?
+  parent   Territory?    @relation("TerritoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children Territory[]   @relation("TerritoryHierarchy")
+
+  population Int?
+  currency   String?
+  timezone   String?
+  metadata   Json?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  units             FranchiseUnit[]
+  territoryRights   TerritoryRight[]
+  expansionRequests ExpansionRequest[]
+
+  @@index([parentId])
+  @@index([type])
+  @@index([code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FranchiseUnit — the core node in the franchise hierarchy
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseUnit {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  level          FranchiseLevel
+  status         FranchiseStatus @default(PENDING)
+  ownershipModel OwnershipModel  @default(SINGLE_OWNER)
+
+  parentUnitId String?
+  parentUnit   FranchiseUnit?  @relation("FranchiseUnitHierarchy", fields: [parentUnitId], references: [id], onDelete: SetNull)
+  childUnits   FranchiseUnit[] @relation("FranchiseUnitHierarchy")
+
+  territoryId String?
+  territory   Territory? @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+
+  legalName      String?
+  taxId          String?
+  registrationNo String?
+  address        String?
+  countryCode    String?
+  currency       String  @default("EUR")
+
+  foundedAt  DateTime?
+  launchedAt DateTime?
+  metadata   Json?
+
+  clubs                 Club[]
+  ownerships            FranchiseOwnership[]
+  territoryRights       TerritoryRight[]
+  contracts             FranchiseContract[]
+  violations            FranchiseViolation[]
+  complianceChecks      ComplianceCheck[]
+  revenueSplitRules     RevenueSplitRule[]
+  revenueDistributions  RevenueDistribution[]
+  expansionRequestsMade ExpansionRequest[]             @relation("ExpansionRequester")
+  ownershipTransfers    FranchiseOwnershipTransfer[]
+  acquisitionsAsTarget  FranchiseAcquisitionRequest[]  @relation("AcquisitionTarget")
+  performanceSnapshots  FranchisePerformanceSnapshot[]
+  auditLogs             FranchiseAudit[]
+
+  // ── Cross-engine bridge (additive go-live merge) ──
+  investmentEntity InvestmentEntity?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([level])
+  @@index([status])
+  @@index([territoryId])
+  @@index([parentUnitId])
+  @@index([code])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ownership — owners + time-effective ownership records
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseOwner {
+  id          String    @id @default(uuid())
+  type        OwnerType
+  displayName String
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  contactEmail String?
+  contactPhone String?
+  legalName    String?
+  taxId        String?
+  legalAddress String?
+  countryCode  String?
+  notes        String? @db.Text
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ownerships          FranchiseOwnership[]
+  transfersOut        FranchiseOwnershipTransfer[]    @relation("TransferFromOwner")
+  transfersIn         FranchiseOwnershipTransfer[]    @relation("TransferToOwner")
+  acquisitionsAsBuyer FranchiseAcquisitionRequest[]
+  revenueAllocations  RevenueDistributionAllocation[]
+
+  @@index([type])
+  @@index([isActive])
+  @@index([countryCode])
+}
+
+model FranchiseOwnership {
+  id      String         @id @default(uuid())
+  unitId  String
+  unit    FranchiseUnit  @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  ownerId String
+  owner   FranchiseOwner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  equityPercent  Float
+  controlPercent Float?
+  isPrimary      Boolean @default(false)
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+
+  acquiredVia          String?
+  acquisitionRequestId String?
+  transferInId         String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([unitId, effectiveTo])
+  @@index([ownerId])
+  @@index([isPrimary])
+}
+
+model FranchiseOwnershipTransfer {
+  id     String        @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  fromOwnerId String
+  fromOwner   FranchiseOwner @relation("TransferFromOwner", fields: [fromOwnerId], references: [id])
+  toOwnerId   String
+  toOwner     FranchiseOwner @relation("TransferToOwner", fields: [toOwnerId], references: [id])
+
+  equityPercent  Float
+  controlPercent Float?
+
+  amount   Float?
+  currency String @default("EUR")
+
+  reason TransferReason
+  status TransferStatus @default(PENDING)
+
+  acquisitionRequestId String?
+
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId])
+  @@index([fromOwnerId])
+  @@index([toOwnerId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Territory rights — exclusivity and protection
+// ─────────────────────────────────────────────────────────────────────────────
+
+model TerritoryRight {
+  id          String        @id @default(uuid())
+  unitId      String
+  unit        FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  territoryId String
+  territory   Territory     @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+
+  type  TerritoryRightType @default(NON_EXCLUSIVE)
+  level FranchiseLevel?
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId])
+  @@index([territoryId])
+  @@index([type, isActive])
+  @@index([level])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Expansion + acquisition workflow
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExpansionRequest {
+  id String @id @default(uuid())
+
+  requestingUnitId String
+  requestingUnit   FranchiseUnit @relation("ExpansionRequester", fields: [requestingUnitId], references: [id], onDelete: Cascade)
+
+  targetTerritoryId String
+  targetTerritory   Territory @relation(fields: [targetTerritoryId], references: [id])
+
+  targetLevel  FranchiseLevel
+  proposedName String?
+  proposedCode String?
+
+  businessPlan        Json?
+  financialProjection Json?
+
+  status        ExpansionRequestStatus @default(PENDING)
+  submittedBy   String
+  reviewedBy    String?
+  decisionAt    DateTime?
+  decisionNotes String?                @db.Text
+
+  createdUnitId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([requestingUnitId])
+  @@index([targetTerritoryId])
+  @@index([status])
+}
+
+model FranchiseAcquisitionRequest {
+  id String @id @default(uuid())
+
+  targetUnitId String
+  targetUnit   FranchiseUnit @relation("AcquisitionTarget", fields: [targetUnitId], references: [id], onDelete: Cascade)
+
+  acquirerOwnerId String?
+  acquirerOwner   FranchiseOwner? @relation(fields: [acquirerOwnerId], references: [id])
+  acquirerName    String?
+  acquirerEmail   String?
+
+  proposedEquity Float
+  proposedAmount Float
+  currency       String @default("EUR")
+
+  status AcquisitionStatus @default(DRAFT)
+
+  dueDiligence  Json?
+  decisionAt    DateTime?
+  decisionBy    String?
+  decisionNotes String?   @db.Text
+
+  executedAt DateTime?
+  transferId String?
+
+  submittedAt DateTime?
+  submittedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([targetUnitId])
+  @@index([status])
+  @@index([acquirerOwnerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Revenue distribution engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RevenueSplitRule {
+  id     String        @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String? @db.Text
+
+  category RevenueCategory @default(ALL)
+  trigger  RevenueTrigger  @default(PAYMENT_RECEIVED)
+
+  priority Int @default(0)
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recipients    RevenueSplitRecipient[]
+  distributions RevenueDistribution[]
+
+  @@index([unitId])
+  @@index([category])
+  @@index([priority])
+  @@index([isActive])
+}
+
+model RevenueSplitRecipient {
+  id     String           @id @default(uuid())
+  ruleId String
+  rule   RevenueSplitRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  type             RevenueRecipientType
+  recipientUnitId  String?
+  recipientOwnerId String?
+  recipientLabel   String?
+
+  percent Float
+
+  @@index([ruleId])
+  @@index([recipientUnitId])
+  @@index([recipientOwnerId])
+}
+
+model RevenueDistribution {
+  id     String            @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  ruleId String?
+  rule   RevenueSplitRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  clubId   String?
+  club     Club?           @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  category RevenueCategory
+
+  sourceAmount      Float
+  sourceCurrency    String  @default("EUR")
+  sourceFinancialId String?
+  sourceRef         String?
+
+  status         DistributionStatus @default(COMPUTED)
+  computedAt     DateTime           @default(now())
+  executedAt     DateTime?
+  reversedAt     DateTime?
+  reversalReason String?
+
+  notes String? @db.Text
+
+  allocations RevenueDistributionAllocation[]
+
+  @@index([unitId])
+  @@index([clubId])
+  @@index([status])
+  @@index([computedAt])
+  @@index([sourceRef])
+}
+
+model RevenueDistributionAllocation {
+  id             String              @id @default(uuid())
+  distributionId String
+  distribution   RevenueDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  recipientType    RevenueRecipientType
+  recipientUnitId  String?
+  recipientOwnerId String?
+  recipientOwner   FranchiseOwner?      @relation(fields: [recipientOwnerId], references: [id], onDelete: SetNull)
+  recipientLabel   String?
+
+  percent  Float
+  amount   Float
+  currency String @default("EUR")
+
+  status        AllocationStatus @default(PENDING)
+  paidAt        DateTime?
+  paymentMethod String?
+  paymentRef    String?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([distributionId])
+  @@index([recipientUnitId])
+  @@index([recipientOwnerId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal layer — contracts, renewals, terminations, violations, compliance
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseContract {
+  id     String        @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  type    ContractType
+  version Int            @default(1)
+  status  ContractStatus @default(DRAFT)
+
+  documentUrl      String?
+  documentChecksum String?
+
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  autoRenew           Boolean   @default(false)
+  renewalNoticeMonths Int       @default(6)
+
+  governingLaw String?
+  jurisdiction String?
+
+  signedAt      DateTime?
+  signedByName  String?
+  signedByTitle String?
+
+  terms Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  renewals     FranchiseContractRenewal[]     @relation("ContractRenewals")
+  renewedTo    FranchiseContractRenewal[]     @relation("ContractRenewedTo")
+  terminations FranchiseContractTermination[]
+  violations   FranchiseViolation[]
+
+  @@index([unitId])
+  @@index([type])
+  @@index([status])
+  @@index([effectiveTo])
+}
+
+model FranchiseContractRenewal {
+  id         String            @id @default(uuid())
+  contractId String
+  contract   FranchiseContract @relation("ContractRenewals", fields: [contractId], references: [id], onDelete: Cascade)
+
+  renewedToContractId String?
+  renewedToContract   FranchiseContract? @relation("ContractRenewedTo", fields: [renewedToContractId], references: [id])
+
+  requestedAt   DateTime      @default(now())
+  approvedAt    DateTime?
+  executedAt    DateTime?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  status        RenewalStatus @default(REQUESTED)
+
+  termsDelta Json?
+  notes      String? @db.Text
+
+  decisionBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contractId])
+  @@index([status])
+}
+
+model FranchiseContractTermination {
+  id         String            @id @default(uuid())
+  contractId String
+  contract   FranchiseContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  reason        TerminationReason
+  noticeDate    DateTime          @default(now())
+  effectiveDate DateTime?
+  status        TerminationStatus @default(REQUESTED)
+
+  severance Float?
+  currency  String @default("EUR")
+
+  initiatedBy String
+  approvedBy  String?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contractId])
+  @@index([status])
+}
+
+model FranchiseViolation {
+  id         String             @id @default(uuid())
+  unitId     String
+  unit       FranchiseUnit      @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  contractId String?
+  contract   FranchiseContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  clauseRef   String?
+  severity    ViolationSeverity
+  category    String
+  title       String
+  description String            @db.Text
+
+  status ViolationStatus @default(OPEN)
+
+  reportedBy String?
+  assignedTo String?
+  dueByAt    DateTime?
+  resolvedAt DateTime?
+  resolution String?   @db.Text
+
+  evidence Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId])
+  @@index([status])
+  @@index([severity])
+  @@index([dueByAt])
+}
+
+model ComplianceCheck {
+  id     String        @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  category      ComplianceCategory
+  period        String
+  periodStartAt DateTime
+  periodEndAt   DateTime
+
+  status      ComplianceStatus @default(NOT_ASSESSED)
+  score       Float?
+  findings    Json?
+  remediation String?          @db.Text
+
+  dueByAt     DateTime?
+  completedAt DateTime?
+  completedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([unitId, category, period])
+  @@index([unitId])
+  @@index([category])
+  @@index([period])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Performance snapshots (time series for dashboards)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchisePerformanceSnapshot {
+  id     String        @id @default(uuid())
+  unitId String
+  unit   FranchiseUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  period        String
+  periodStartAt DateTime
+  periodEndAt   DateTime
+
+  revenueTotal       Float  @default(0)
+  revenuePriorPeriod Float?
+  revenueGrowthPct   Float?
+
+  expensesTotal Float? @default(0)
+  netMargin     Float?
+
+  clubsActive  Int @default(0)
+  clubsTotal   Int @default(0)
+  playersTotal Int @default(0)
+  usersTotal   Int @default(0)
+
+  complianceScore Float?
+  licensingHealth Float?
+
+  violationsOpen  Int @default(0)
+  contractsActive Int @default(0)
+
+  metadata Json?
+
+  generatedAt DateTime @default(now())
+  generatedBy String?
+
+  @@unique([unitId, period])
+  @@index([unitId])
+  @@index([period])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Franchise audit log (separate from PlatformAuditLog — domain-scoped)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FranchiseAudit {
+  id     String         @id @default(uuid())
+  unitId String?
+  unit   FranchiseUnit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  userId  String?
+  ownerId String?
+
+  action       String
+  category     FranchiseAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  FranchiseAuditResult @default(SUCCESS)
+  message String?              @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([unitId])
+  @@index([userId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// Familista — Global Investor Layer
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// franchise fragment.
+//
+// Required edits to existing models:
+//
+//   model User {
+//     ...
+//     investorProfile InvestorProfile?
+//   }
+//
+//   model FranchiseUnit {
+//     ...
+//     investmentEntity InvestmentEntity?
+//   }
+//
+//   model Club {
+//     ...
+//     investmentEntity InvestmentEntity?
+//   }
+//
+// Run: npx prisma migrate dev --name investor_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum InvestorType {
+  PRIVATE
+  ANGEL
+  STRATEGIC
+  INSTITUTIONAL
+  VENTURE_CAPITAL
+  SOVEREIGN
+  SPORTS_HOLDING
+}
+
+enum InvestorEntityType {
+  PERSON
+  COMPANY
+  FUND
+  FAMILY_OFFICE
+  SOVEREIGN_FUND
+  HOLDING
+}
+
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+}
+
+enum InvestmentEntityType {
+  PLATFORM
+  FRANCHISE_UNIT
+  CLUB
+  ACADEMY
+}
+
+enum InvestmentRoundType {
+  PRE_SEED
+  SEED
+  SERIES_A
+  SERIES_B
+  SERIES_C
+  SERIES_D
+  GROWTH
+  BRIDGE
+  EXPANSION
+  STRATEGIC
+  ACQUISITION
+}
+
+enum InvestmentRoundStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum InstrumentType {
+  EQUITY
+  SAFE
+  CONVERTIBLE_NOTE
+  REVENUE_SHARE
+  FRANCHISE
+  ACADEMY
+  DIRECT_DEBT
+}
+
+enum InvestmentStatus {
+  COMMITTED
+  FUNDED
+  CONVERTED
+  EXITED
+  DEFAULTED
+  CANCELLED
+}
+
+enum ShareClassCategory {
+  COMMON
+  PREFERRED
+  FOUNDER
+  OPTION_POOL
+  WARRANT
+}
+
+enum AntiDilutionType {
+  NONE
+  FULL_RATCHET
+  WEIGHTED_AVERAGE_BROAD
+  WEIGHTED_AVERAGE_NARROW
+}
+
+enum CapTableAcquisitionType {
+  FOUNDING
+  ROUND_PURCHASE
+  CONVERSION
+  TRANSFER_IN
+  EXERCISE
+  GRANT
+  EXIT_PROCEEDS
+  REMAINDER
+}
+
+enum ShareTransferStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  CANCELLED
+  REJECTED
+}
+
+enum ShareTransferReason {
+  SECONDARY_SALE
+  INHERITANCE
+  COURT_ORDER
+  CORPORATE_RESTRUCTURE
+  EXERCISE
+  REPURCHASE
+}
+
+enum InvestorRightType {
+  BOARD_SEAT
+  OBSERVER_SEAT
+  PRO_RATA
+  ROFR
+  DRAG_ALONG
+  TAG_ALONG
+  INFORMATION
+  VETO
+  LIQUIDATION_PREFERENCE
+  ANTI_DILUTION
+  REDEMPTION
+  MFN
+}
+
+enum BoardSeatRole {
+  CHAIR
+  DIRECTOR
+  OBSERVER
+  INDEPENDENT
+}
+
+enum AgreementType {
+  TERM_SHEET
+  SAFE
+  CONVERTIBLE_NOTE
+  STOCK_PURCHASE_AGREEMENT
+  SHAREHOLDER_AGREEMENT
+  INVESTORS_RIGHTS
+  VOTING_AGREEMENT
+  ROFR_AGREEMENT
+  SIDE_LETTER
+  EXIT_AGREEMENT
+  REVENUE_SHARE_AGREEMENT
+}
+
+enum AgreementStatus {
+  DRAFT
+  PENDING_SIGNATURE
+  EXECUTED
+  TERMINATED
+  SUPERSEDED
+}
+
+enum ExitEventType {
+  IPO
+  ACQUISITION
+  MERGER
+  BUYBACK
+  SECONDARY_SALE
+  DIVIDEND
+  DISTRIBUTION
+  LIQUIDATION
+  RECAPITALIZATION
+}
+
+enum ExitStatus {
+  PROPOSED
+  APPROVED
+  EXECUTED
+  CANCELLED
+}
+
+enum InvestorDistributionType {
+  REVENUE_SHARE
+  DIVIDEND
+  INTEREST
+  EXIT_PROCEEDS
+  RETURN_OF_CAPITAL
+}
+
+enum InvestorDistributionStatus {
+  PENDING
+  COMPUTED
+  PAID
+  FAILED
+  REVERSED
+}
+
+enum InvestorAuditCategory {
+  PROFILE
+  ENTITY
+  ROUND
+  INVESTMENT
+  CAP_TABLE
+  TRANSFER
+  GOVERNANCE
+  AGREEMENT
+  EXIT
+  DISTRIBUTION
+  OTHER
+}
+
+enum InvestorAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investor profiles
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorProfile {
+  id          String             @id @default(uuid())
+  type        InvestorType
+  entityType  InvestorEntityType
+  displayName String
+  legalName   String?
+
+  userId String? @unique
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  linkedFranchiseOwnerId String? @unique
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  countryCode  String?
+  taxId        String?
+  legalAddress String? @db.Text
+
+  accredited    Boolean   @default(false)
+  kycStatus     KycStatus @default(PENDING)
+  kycVerifiedAt DateTime?
+  kycExpiresAt  DateTime?
+
+  aumUsd            Float?
+  targetSectors     String[] @default([])
+  targetGeographies String[] @default([])
+  notes             String?  @db.Text
+  metadata          Json?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  investments       Investment[]
+  capTableEntries   CapTableEntry[]
+  rights            InvestorRight[]
+  boardSeats        BoardSeat[]
+  agreements        InvestmentAgreement[]
+  transfersOut      ShareTransfer[]        @relation("ShareTransferFrom")
+  transfersIn       ShareTransfer[]        @relation("ShareTransferTo")
+  exitDistributions ExitDistribution[]
+  distributions     InvestorDistribution[]
+
+  @@index([type])
+  @@index([kycStatus])
+  @@index([isActive])
+  @@index([countryCode])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investment targets (platform, franchise unit, club, academy)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentEntity {
+  id          String               @id @default(uuid())
+  type        InvestmentEntityType
+  name        String
+  code        String?              @unique
+  description String?              @db.Text
+
+  franchiseUnitId String?        @unique
+  franchiseUnit   FranchiseUnit? @relation(fields: [franchiseUnitId], references: [id], onDelete: SetNull)
+
+  clubId String? @unique
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  currency           String    @default("EUR")
+  currentValuation   Float?
+  lastValuationAt    DateTime?
+  totalSharesIssued  Int       @default(0)
+  fullyDilutedShares Int       @default(0)
+
+  metadata Json?
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shareClasses    ShareClass[]
+  rounds          InvestmentRound[]
+  investments     Investment[]
+  capTableEntries CapTableEntry[]
+  rights          InvestorRight[]
+  boardSeats      BoardSeat[]
+  agreements      InvestmentAgreement[]
+  shareTransfers  ShareTransfer[]
+  exitEvents      ExitEvent[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share classes (per investment entity)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShareClass {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  name      String
+  code      String
+  category  ShareClassCategory
+  seniority Int                @default(0)
+
+  liquidationPreference Float   @default(1.0)
+  participating         Boolean @default(false)
+  participationCap      Float?
+
+  votingMultiple      Float   @default(1.0)
+  dividendRate        Float?
+  cumulativeDividends Boolean @default(false)
+
+  convertibleToCode String?
+  antiDilutionType  AntiDilutionType @default(NONE)
+
+  totalAuthorized Int @default(0)
+  totalIssued     Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capTableEntries CapTableEntry[]
+  shareTransfers  ShareTransfer[]
+  rounds          InvestmentRound[]
+  investments     Investment[]
+
+  @@unique([entityId, code])
+  @@index([entityId])
+  @@index([seniority])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investment rounds
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentRound {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type   InvestmentRoundType
+  name   String
+  status InvestmentRoundStatus @default(DRAFT)
+
+  currency    String @default("EUR")
+  targetRaise Float
+  actualRaise Float  @default(0)
+
+  preMoneyValuation  Float?
+  postMoneyValuation Float?
+  pricePerShare      Float?
+  sharesAuthorized   Int?
+  sharesIssued       Int    @default(0)
+
+  shareClassId String?
+  shareClass   ShareClass? @relation(fields: [shareClassId], references: [id], onDelete: SetNull)
+
+  openedAt DateTime?
+  closedAt DateTime?
+
+  leadInvestorId String?
+
+  terms Json?
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  investments Investment[]
+  agreements  InvestmentAgreement[]
+
+  @@index([entityId])
+  @@index([status])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Investments
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Investment {
+  id         String          @id @default(uuid())
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  roundId String?
+  round   InvestmentRound? @relation(fields: [roundId], references: [id], onDelete: SetNull)
+
+  instrumentType InstrumentType
+  status         InvestmentStatus @default(COMMITTED)
+
+  committedAmount Float
+  fundedAmount    Float  @default(0)
+  currency        String @default("EUR")
+
+  shareClassId  String?
+  shareClass    ShareClass? @relation(fields: [shareClassId], references: [id], onDelete: SetNull)
+  sharesIssued  Int?
+  pricePerShare Float?
+
+  valuationCap      Float?
+  discountPercent   Float?
+  mostFavoredNation Boolean   @default(false)
+  interestRate      Float?
+  maturityDate      DateTime?
+
+  revenueSharePercent Float?
+  revenueShareCap     Float?
+  revenueShareUntil   DateTime?
+  revenueCategories   String[]  @default([])
+
+  originalInvestmentId    String?
+  convertedToInvestmentId String? @unique
+
+  linkedFranchiseUnitId String?
+  linkedClubId          String?
+
+  commitDate    DateTime  @default(now())
+  fundedDate    DateTime?
+  convertedDate DateTime?
+  exitDate      DateTime?
+
+  notes    String? @db.Text
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  capTableEntries CapTableEntry[]
+  agreements      InvestmentAgreement[]
+  distributions   InvestorDistribution[]
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([roundId])
+  @@index([instrumentType])
+  @@index([status])
+  @@index([linkedFranchiseUnitId])
+  @@index([linkedClubId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cap table — time-effective share holdings
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CapTableEntry {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  shareClassId String
+  shareClass   ShareClass @relation(fields: [shareClassId], references: [id], onDelete: Restrict)
+
+  shares        Int
+  pricePerShare Float?
+  totalCost     Float?
+  currency      String @default("EUR")
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+
+  acquisitionType      CapTableAcquisitionType
+  originalInvestmentId String?
+  originalInvestment   Investment?             @relation(fields: [originalInvestmentId], references: [id], onDelete: SetNull)
+
+  transferInId String?        @unique
+  transferIn   ShareTransfer? @relation("TransferInToEntry", fields: [transferInId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityId, effectiveTo])
+  @@index([investorId])
+  @@index([shareClassId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Share transfers (secondary)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ShareTransfer {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  fromInvestorId String
+  fromInvestor   InvestorProfile @relation("ShareTransferFrom", fields: [fromInvestorId], references: [id])
+  toInvestorId   String
+  toInvestor     InvestorProfile @relation("ShareTransferTo", fields: [toInvestorId], references: [id])
+
+  shareClassId String
+  shareClass   ShareClass @relation(fields: [shareClassId], references: [id], onDelete: Restrict)
+
+  shares        Int
+  pricePerShare Float?
+  totalAmount   Float?
+  currency      String @default("EUR")
+
+  reason ShareTransferReason
+  status ShareTransferStatus @default(PENDING)
+
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  newCapTableEntry CapTableEntry? @relation("TransferInToEntry")
+
+  @@index([entityId])
+  @@index([fromInvestorId])
+  @@index([toInvestorId])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Governance — rights + board seats
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorRight {
+  id         String           @id @default(uuid())
+  investorId String
+  investor   InvestorProfile  @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  entityId   String
+  entity     InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type  InvestorRightType
+  terms Json?
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([type])
+  @@index([isActive])
+}
+
+model BoardSeat {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investorId String?
+  investor   InvestorProfile? @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
+  holderName   String
+  holderEmail  String?
+  holderUserId String?
+
+  role        BoardSeatRole
+  votingPower Float         @default(1.0)
+
+  appointedAt DateTime  @default(now())
+  departedAt  DateTime?
+  isActive    Boolean   @default(true)
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([investorId])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal layer
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestmentAgreement {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  investmentId String?
+  investment   Investment?      @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+  roundId      String?
+  round        InvestmentRound? @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  investorId   String?
+  investor     InvestorProfile? @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
+  type    AgreementType
+  status  AgreementStatus @default(DRAFT)
+  version Int             @default(1)
+
+  documentUrl      String?
+  documentChecksum String?
+
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+
+  signedAt      DateTime?
+  signedByName  String?
+  signedByTitle String?
+
+  terms        Json?
+  governingLaw String?
+  jurisdiction String?
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([investmentId])
+  @@index([investorId])
+  @@index([type])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Exits + distributions
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExitEvent {
+  id       String           @id @default(uuid())
+  entityId String
+  entity   InvestmentEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  type   ExitEventType
+  status ExitStatus    @default(PROPOSED)
+
+  eventDate      DateTime?
+  proceedsAmount Float?
+  currency       String    @default("EUR")
+  pricePerShare  Float?
+  acquirerName   String?
+
+  terms Json?
+  notes String? @db.Text
+
+  createdBy       String?
+  approvedBy      String?
+  approvedAt      DateTime?
+  executedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?
+
+  distributions ExitDistribution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId])
+  @@index([status])
+  @@index([type])
+}
+
+model ExitDistribution {
+  id         String          @id @default(uuid())
+  exitId     String
+  exit       ExitEvent       @relation(fields: [exitId], references: [id], onDelete: Cascade)
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  sharesPaidOut         Int    @default(0)
+  liquidationPrefAmount Float  @default(0)
+  participationAmount   Float  @default(0)
+  commonAmount          Float  @default(0)
+  grossAmount           Float
+  netAmount             Float
+  currency              String @default("EUR")
+
+  status        InvestorDistributionStatus @default(PENDING)
+  paidAt        DateTime?
+  paymentRef    String?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([exitId])
+  @@index([investorId])
+  @@index([status])
+}
+
+model InvestorDistribution {
+  id         String          @id @default(uuid())
+  investorId String
+  investor   InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  investmentId String?
+  investment   Investment? @relation(fields: [investmentId], references: [id], onDelete: SetNull)
+
+  type   InvestorDistributionType
+  status InvestorDistributionStatus @default(PENDING)
+
+  period        String?
+  periodStartAt DateTime?
+  periodEndAt   DateTime?
+
+  amount    Float
+  currency  String  @default("EUR")
+  sourceRef String?
+
+  computedAt    DateTime  @default(now())
+  paidAt        DateTime?
+  paymentMethod String?
+  paymentRef    String?
+  failureReason String?
+
+  notes String? @db.Text
+
+  @@index([investorId])
+  @@index([investmentId])
+  @@index([type])
+  @@index([status])
+  @@index([period])
+  @@index([sourceRef])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InvestorAudit {
+  id         String  @id @default(uuid())
+  investorId String?
+  entityId   String?
+  userId     String?
+
+  action       String
+  category     InvestorAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  InvestorAuditResult @default(SUCCESS)
+  message String?             @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([investorId])
+  @@index([entityId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// Familista — AI Decision Engine
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER all
+// previous fragments (whitelabel, admin-whitelabel, franchise, investor).
+//
+// No required edits to existing models — AIDecision uses soft references
+// (plain String IDs) to subjects so decisions outlive their subjects and the
+// audit trail stays intact even after deletions.
+//
+// Run: npx prisma migrate dev --name ai_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AIDomain {
+  PLAYER
+  COACH
+  CLUB
+  FRANCHISE
+  INVESTOR
+  EXECUTIVE
+}
+
+enum AIDecisionType {
+  // Player
+  PLAYER_GROWTH
+  TALENT_DETECTION
+  INJURY_RISK
+  FATIGUE_PREDICTION
+  TRANSFER_RECOMMENDATION
+  TRAINING_OPTIMIZATION
+  LINEUP_RECOMMENDATION
+
+  // Coach
+  TACTICAL_RECOMMENDATION
+  FORMATION_OPTIMIZATION
+  OPPONENT_ANALYSIS
+  MATCH_PREPARATION
+  SUBSTITUTION_RECOMMENDATION
+  TRAINING_PLAN_GENERATION
+
+  // Club
+  FINANCIAL_HEALTH_PREDICTION
+  BUDGET_OPTIMIZATION
+  SALARY_RISK_ALERT
+  SPONSORSHIP_RECOMMENDATION
+  TRANSFER_MARKET_SUPPORT
+
+  // Franchise
+  REGIONAL_EXPANSION_RECOMMENDATION
+  ACADEMY_PROFITABILITY_PREDICTION
+  TERRITORY_RISK_ANALYSIS
+  OPERATOR_PERFORMANCE_SCORING
+  FRANCHISE_INVESTMENT_SCORING
+
+  // Investor
+  INVESTOR_ROI_PREDICTION
+  INVESTMENT_RISK_SCORING
+  VALUATION_ENGINE
+  CAPITAL_ALLOCATION_OPTIMIZATION
+  ACQUISITION_RECOMMENDATION
+
+  // Executive
+  CEO_DASHBOARD_RECOMMENDATION
+  BOARD_STRATEGIC_SUGGESTION
+  EXPANSION_OPPORTUNITY
+  MARKET_ENTRY_PREDICTION
+  ACQUISITION_TARGET
+}
+
+enum AIDecisionStatus {
+  GENERATED
+  REVIEWED
+  ACCEPTED
+  REJECTED
+  OVERRIDDEN
+  EXPIRED
+}
+
+enum AIUrgency {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AIOutcome {
+  PENDING
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  UNKNOWN
+}
+
+enum AIModelProvider {
+  RULE_BASED
+  CLAUDE
+  HYBRID
+  EXTERNAL
+}
+
+enum AIDecisionVisibility {
+  CLUB
+  FRANCHISE
+  PLATFORM
+  INVESTOR
+}
+
+enum AIFeedbackType {
+  ACCEPTANCE
+  OVERRIDE
+  CORRECTION
+  OUTCOME_REPORT
+  RATING
+}
+
+enum AIAuditCategory {
+  MODEL
+  DECISION
+  REVIEW
+  FEEDBACK
+  INFRA
+  ACCESS
+}
+
+enum AIAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Model registry — versioned, governed
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIModel {
+  id           String          @id @default(uuid())
+  slug         String
+  name         String
+  domain       AIDomain
+  decisionType AIDecisionType
+  version      String
+  provider     AIModelProvider
+  description  String?         @db.Text
+
+  inputSchema  Json
+  outputSchema Json
+  parameters   Json
+
+  isActive     Boolean   @default(false)
+  releasedAt   DateTime?
+  deprecatedAt DateTime?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  decisions AIDecision[]
+
+  @@unique([slug, version])
+  @@index([domain, decisionType, isActive])
+  @@index([slug])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Decisions — immutable audit-grade records
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIDecision {
+  id           String         @id @default(uuid())
+  domain       AIDomain
+  decisionType AIDecisionType
+
+  modelId      String
+  model        AIModel @relation(fields: [modelId], references: [id])
+  modelSlug    String
+  modelVersion String
+
+  subjectType String
+  subjectId   String
+
+  clubId          String?
+  franchiseUnitId String?
+  investorId      String?
+  entityId        String?
+
+  // Frozen inputs
+  features  Json
+  inputHash String
+
+  // Outputs
+  score      Float
+  confidence Float
+  urgency    AIUrgency @default(MEDIUM)
+
+  recommendation Json
+  evidence       Json
+  rationale      String   @db.Text
+  alternatives   Json?
+  warnings       String[] @default([])
+
+  // Lifecycle
+  status     AIDecisionStatus     @default(GENERATED)
+  visibility AIDecisionVisibility @default(CLUB)
+
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNotes String?   @db.Text
+
+  // Outcome (set later by feedback loop)
+  outcome      AIOutcome @default(PENDING)
+  outcomeAt    DateTime?
+  outcomeNotes String?   @db.Text
+
+  expiresAt DateTime?
+
+  // Provenance
+  generatedByUserId String?
+  generatedByRole   String?
+
+  llmTokensIn   Int?
+  llmTokensOut  Int?
+  llmDurationMs Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  feedbacks AIDecisionFeedback[]
+
+  @@index([domain, decisionType])
+  @@index([subjectType, subjectId])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+  @@index([status])
+  @@index([outcome])
+  @@index([urgency])
+  @@index([createdAt])
+  @@index([inputHash])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feedback — closes the loop for model improvement
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIDecisionFeedback {
+  id         String     @id @default(uuid())
+  decisionId String
+  decision   AIDecision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
+
+  type   AIFeedbackType
+  rating Int?
+  notes  String?        @db.Text
+
+  correctedAction Json?
+
+  userId    String?
+  createdAt DateTime @default(now())
+
+  @@index([decisionId])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI audit log — separate from the decisions table so admin queries don't
+// trip over millions of audit rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model AIAudit {
+  id         String  @id @default(uuid())
+  decisionId String?
+  modelId    String?
+
+  userId   String?
+  action   String
+  category AIAuditCategory
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  AIAuditResult @default(SUCCESS)
+  message String?       @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([decisionId])
+  @@index([modelId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// Familista — Vision Intelligence Engine
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER the
+// ai-engine fragment. No required edits to existing models — VideoAsset and
+// downstream rows reference subjects via plain String IDs so the audit trail
+// outlives the underlying Player / Match rows.
+//
+// Run: npx prisma migrate dev --name vision_engine
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum VideoSource {
+  UPLOAD
+  STREAM_URL
+  HLS
+  RTMP
+  EXTERNAL_PROVIDER
+}
+
+enum VideoFormat {
+  MP4
+  MKV
+  MOV
+  HLS
+  RTMP
+  WEBM
+}
+
+enum IngestStage {
+  UPLOADED
+  DEMUXED
+  INFERRED
+  TRACKED
+  EVENTS_DETECTED
+  ANALYTICS_COMPUTED
+  FUSED
+  COMPLETED
+  FAILED
+}
+
+enum IngestStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum VisionEventType {
+  PASS
+  SHOT
+  SAVE
+  TACKLE
+  INTERCEPTION
+  CLEARANCE
+  DRIBBLE
+  FOUL
+  OFFSIDE
+  YELLOW_CARD
+  RED_CARD
+  GOAL
+  THROW_IN
+  CORNER
+  FREE_KICK
+  PENALTY
+  SUBSTITUTION
+  POSSESSION_CHANGE
+  PRESSING_TRIGGER
+  COUNTER_ATTACK
+  SET_PIECE
+  HEADER
+  CROSS
+  SPRINT
+  ACCELERATION
+  DECELERATION
+  OTHER
+}
+
+enum TeamSide {
+  HOME
+  AWAY
+  UNKNOWN
+}
+
+enum AnalyticsKind {
+  HEATMAP
+  PASSING_NETWORK
+  FORMATION_SNAPSHOT
+  PRESSING_EVENT
+  POSSESSION_BLOCK
+  ZONE_OCCUPATION
+  SHAPE_COMPACTNESS
+  DEFENSIVE_LINE
+  TRANSITION_SPEED
+  BUILD_UP_PATTERN
+  SPRINT_PROFILE
+  TECHNICAL_EXECUTION
+  REPETITION_QUALITY
+  OFF_BALL_MOVEMENT
+}
+
+enum ClipPurpose {
+  HIGHLIGHT
+  COACH_REVIEW
+  PLAYER_FEEDBACK
+  OPPONENT_SCOUTING
+  TALENT_DETECTION
+  TACTICAL_REFERENCE
+  INCIDENT
+}
+
+enum ClipStatus {
+  REQUESTED
+  RENDERING
+  READY
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum LiveStreamStatus {
+  IDLE
+  LIVE
+  PAUSED
+  ENDED
+}
+
+enum FusionVerdict {
+  CONSISTENT
+  MINOR_DRIFT
+  MAJOR_DRIFT
+  CONTRADICTION
+  VISION_ONLY
+  SENSOR_ONLY
+  INSUFFICIENT_DATA
+}
+
+enum ScoutingKind {
+  OPPONENT_BRIEF
+  TALENT_SCAN
+  RECRUITMENT_BRIEF
+  ACADEMY_PROSPECT
+  MATCH_REPORT
+}
+
+enum VisionAuditCategory {
+  INGEST
+  INFERENCE
+  TRACKING
+  EVENTS
+  ANALYTICS
+  FUSION
+  CLIP
+  SCOUTING
+  REALTIME
+  OVERRIDE
+  ACCESS
+  OTHER
+}
+
+enum VisionAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Source video + ingest pipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+model VideoAsset {
+  id         String      @id @default(uuid())
+  source     VideoSource
+  format     VideoFormat
+  url        String
+  durationMs Int?
+  fps        Float?
+  width      Int?
+  height     Int?
+  fileBytes  Int?
+  checksum   String?
+
+  clubId            String?
+  matchId           String?
+  trainingSessionId String?
+
+  title       String?
+  description String? @db.Text
+  metadata    Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ingestJobs VideoIngestJob[]
+  analyses   VisionAnalysisRun[]
+  clips      Clip[]
+
+  @@index([clubId])
+  @@index([matchId])
+  @@index([trainingSessionId])
+  @@index([source])
+}
+
+model VideoIngestJob {
+  id           String     @id @default(uuid())
+  videoAssetId String
+  videoAsset   VideoAsset @relation(fields: [videoAssetId], references: [id], onDelete: Cascade)
+
+  stage    IngestStage  @default(UPLOADED)
+  status   IngestStatus @default(QUEUED)
+  progress Float        @default(0)
+
+  inferenceProvider String?
+  externalJobId     String?
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  error      String?   @db.Text
+  notes      String?   @db.Text
+  metadata   Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([videoAssetId])
+  @@index([stage])
+  @@index([status])
+  @@index([externalJobId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analysis runs + outputs
+// ─────────────────────────────────────────────────────────────────────────────
+
+model VisionAnalysisRun {
+  id           String     @id @default(uuid())
+  videoAssetId String
+  videoAsset   VideoAsset @relation(fields: [videoAssetId], references: [id], onDelete: Cascade)
+
+  matchId           String?
+  trainingSessionId String?
+  clubId            String?
+
+  modelProvider String
+  modelVersion  String
+  status        IngestStatus @default(QUEUED)
+  confidence    Float?
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  durationMs Int?
+
+  framesProcessed Int  @default(0)
+  framesTotal     Int?
+
+  warningsCount Int @default(0)
+  errorsCount   Int @default(0)
+
+  metadata  Json?
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  playerTracks     PlayerTrack[]
+  ballTracks       BallTrack[]
+  events           MatchEvent[]
+  analyticsResults AnalyticsResult[]
+
+  @@index([videoAssetId])
+  @@index([matchId])
+  @@index([clubId])
+  @@index([status])
+}
+
+model PlayerTrack {
+  id         String            @id @default(uuid())
+  analysisId String
+  analysis   VisionAnalysisRun @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  playerId     String?
+  jerseyNumber Int?
+  teamSide     TeamSide @default(UNKNOWN)
+
+  startMs Int
+  endMs   Int
+  avgX    Float
+  avgY    Float
+
+  topSpeedKmh    Float?
+  avgSpeedKmh    Float?
+  totalDistanceM Float?
+  sprintCount    Int?
+  accelerations  Int?
+  decelerations  Int?
+
+  pathUrl    String?
+  confidence Float   @default(1.0)
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisId, playerId])
+  @@index([analysisId, teamSide])
+  @@index([startMs])
+}
+
+model BallTrack {
+  id         String            @id @default(uuid())
+  analysisId String
+  analysis   VisionAnalysisRun @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  startMs     Int
+  endMs       Int
+  pathUrl     String?
+  avgSpeedKmh Float?
+  topSpeedKmh Float?
+  inPlayMs    Int?
+  confidence  Float   @default(1.0)
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisId])
+}
+
+model MatchEvent {
+  id         String            @id @default(uuid())
+  analysisId String
+  analysis   VisionAnalysisRun @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  matchId    String?
+
+  type         VisionEventType
+  occurredAtMs Int
+  frame        Int?
+  durationMs   Int?
+
+  primaryPlayerId   String?
+  secondaryPlayerId String?
+  teamSide          TeamSide @default(UNKNOWN)
+
+  pitchX Float?
+  pitchY Float?
+
+  confidence Float @default(1.0)
+  payload    Json?
+
+  overrideReason String?
+  overriddenBy   String?
+  overriddenAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisId, type])
+  @@index([matchId, occurredAtMs])
+  @@index([primaryPlayerId])
+  @@index([secondaryPlayerId])
+}
+
+model AnalyticsResult {
+  id         String            @id @default(uuid())
+  analysisId String
+  analysis   VisionAnalysisRun @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  matchId           String?
+  trainingSessionId String?
+  playerId          String?
+  teamSide          TeamSide @default(UNKNOWN)
+
+  kind          AnalyticsKind
+  windowStartMs Int?
+  windowEndMs   Int?
+
+  payload    Json
+  confidence Float   @default(1.0)
+  notes      String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisId, kind])
+  @@index([matchId, kind])
+  @@index([playerId])
+  @@index([trainingSessionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sensor + vision fusion
+// ─────────────────────────────────────────────────────────────────────────────
+
+model FusedPlayerSample {
+  id                String  @id @default(uuid())
+  matchId           String?
+  trainingSessionId String?
+  playerId          String
+
+  windowStartMs Int
+  windowEndMs   Int
+
+  visionDistanceM   Float?
+  visionTopSpeedKmh Float?
+  visionAvgSpeedKmh Float?
+  visionSprintCount Int?
+
+  sensorDistanceM    Float?
+  sensorTopSpeedKmh  Float?
+  sensorPlayerLoad   Float?
+  sensorHeartRateAvg Int?
+  sensorRiskScore    Float?
+
+  fusedDistanceM   Float?
+  fusedTopSpeedKmh Float?
+  fusedSprintCount Int?
+
+  verdict         FusionVerdict @default(INSUFFICIENT_DATA)
+  agreementScore  Float?
+  conflictReasons String[]      @default([])
+
+  createdAt DateTime @default(now())
+
+  @@index([matchId, playerId])
+  @@index([trainingSessionId, playerId])
+  @@index([playerId, windowStartMs])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Clips + scouting + real-time
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Clip {
+  id           String     @id @default(uuid())
+  videoAssetId String
+  videoAsset   VideoAsset @relation(fields: [videoAssetId], references: [id], onDelete: Cascade)
+
+  matchId           String?
+  trainingSessionId String?
+  playerId          String?
+  sourceEventId     String?
+
+  purpose ClipPurpose
+  status  ClipStatus  @default(REQUESTED)
+  startMs Int
+  endMs   Int
+
+  renderProvider   String?
+  externalRenderId String?
+  url              String?
+  thumbnailUrl     String?
+  durationMs       Int?
+  bytes            Int?
+
+  title       String?
+  description String?  @db.Text
+  tags        String[] @default([])
+
+  requestedBy String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([videoAssetId])
+  @@index([matchId])
+  @@index([playerId])
+  @@index([purpose])
+  @@index([status])
+}
+
+model LiveMatchStream {
+  id          String           @id @default(uuid())
+  matchId     String           @unique
+  status      LiveStreamStatus @default(IDLE)
+  streamUrl   String?
+  ingestJobId String?
+
+  startedAt   DateTime?
+  endedAt     DateTime?
+  lastEventAt DateTime?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  liveEvents LiveEvent[]
+
+  @@index([status])
+}
+
+model LiveEvent {
+  id       String          @id @default(uuid())
+  streamId String
+  stream   LiveMatchStream @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  matchId  String
+
+  type              VisionEventType
+  occurredAtMs      Int
+  primaryPlayerId   String?
+  secondaryPlayerId String?
+  teamSide          TeamSide        @default(UNKNOWN)
+  pitchX            Float?
+  pitchY            Float?
+
+  payload    Json?
+  confidence Float @default(1.0)
+
+  createdAt DateTime @default(now())
+
+  @@index([streamId, occurredAtMs])
+  @@index([matchId])
+  @@index([type])
+}
+
+model ScoutingReport {
+  id   String       @id @default(uuid())
+  kind ScoutingKind
+
+  matchId        String?
+  opponentName   String?
+  targetPlayerId String?
+  targetClubId   String?
+
+  title   String
+  summary String @db.Text
+  payload Json
+
+  confidence Float @default(0.7)
+
+  generatedFromAnalysisId String?
+  generatedBy             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([matchId])
+  @@index([targetPlayerId])
+  @@index([kind])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit
+// ─────────────────────────────────────────────────────────────────────────────
+
+model VisionAudit {
+  id           String  @id @default(uuid())
+  analysisId   String?
+  videoAssetId String?
+  matchId      String?
+  userId       String?
+
+  action       String
+  category     VisionAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  VisionAuditResult @default(SUCCESS)
+  message String?           @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisId])
+  @@index([matchId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// Familista — Executive OS · Integration Layer
+// Additive Prisma fragment. Merge into the main schema.prisma AFTER all
+// previous engine fragments. This layer DOES NOT duplicate operational data:
+// every WorkflowStep references the existing engines via plain string
+// (engine, action) tuples, and reads composite views by calling the existing
+// services — never by mirroring their tables.
+//
+// Run: npx prisma migrate dev --name executive_integration
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ExecutiveRole {
+  CEO
+  CFO
+  COO
+  CHAIR
+  BOARD_MEMBER
+  INVESTOR_LEAD
+  COUNSEL
+  STRATEGIC_ADVISOR
+}
+
+enum ExecutiveWorkflowKind {
+  SPONSOR_ONBOARDING
+  ACQUISITION
+  TERRITORY_EXPANSION
+  CAPITAL_DEPLOYMENT
+  RISK_INTERVENTION
+  PARTNERSHIP
+  PLATFORM_LAUNCH
+  STRATEGIC_INITIATIVE
+  GOVERNANCE_ACTION
+  CUSTOM
+}
+
+enum ExecutiveWorkflowStatus {
+  DRAFT
+  IN_REVIEW
+  AWAITING_APPROVAL
+  APPROVED
+  IN_EXECUTION
+  COMPLETED
+  REJECTED
+  CANCELLED
+  STALLED
+}
+
+enum ExecutivePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum ExecutiveStepStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  SKIPPED
+  BLOCKED
+  REQUIRES_HUMAN
+}
+
+enum AttestationDecision {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+enum BoardResolutionStatus {
+  DRAFT
+  CIRCULATING
+  VOTING
+  PASSED
+  FAILED
+  WITHDRAWN
+}
+
+enum BoardVoteDecision {
+  FOR
+  AGAINST
+  ABSTAIN
+}
+
+enum SponsorTier {
+  PRINCIPAL
+  PLATINUM
+  GOLD
+  SILVER
+  BRONZE
+  COMMUNITY
+}
+
+enum SponsorPipelineStage {
+  PROSPECT
+  QUALIFIED
+  PROPOSAL_SENT
+  IN_NEGOTIATION
+  CONTRACT_SIGNED
+  ACTIVE
+  RENEWAL
+  CHURNED
+  REJECTED
+}
+
+enum RiskCategory {
+  FINANCIAL
+  OPERATIONAL
+  LEGAL
+  REPUTATIONAL
+  STRATEGIC
+  TECHNICAL
+  REGULATORY
+}
+
+enum RiskSeverity {
+  INFO
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  MITIGATING
+  RESOLVED
+  WAIVED
+  ESCALATED
+}
+
+enum ForecastScope {
+  PLATFORM
+  FRANCHISE_UNIT
+  CLUB
+  INVESTMENT_ENTITY
+}
+
+enum ForecastScenario {
+  BASE
+  OPTIMISTIC
+  PESSIMISTIC
+  STRESS
+}
+
+enum ExecutiveAuditCategory {
+  WORKFLOW
+  ATTESTATION
+  BOARD
+  SPONSOR
+  FORECAST
+  RISK
+  ACCESS
+  AGGREGATE
+  OTHER
+}
+
+enum ExecutiveAuditResult {
+  SUCCESS
+  FAILURE
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Executive RBAC — strategic roles, parallel to PlatformAdmin (operator roles)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveAssignment {
+  id         String        @id @default(uuid())
+  userId     String        @unique
+  role       ExecutiveRole
+  voteWeight Float         @default(1.0)
+  isActive   Boolean       @default(true)
+
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+
+  assignedBy String?
+  notes      String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attestations WorkflowAttestation[]
+  boardVotes   BoardVote[]
+
+  @@index([role])
+  @@index([isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workflow orchestration — multi-step, cross-engine, attestation-gated
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveWorkflow {
+  id           String                @id @default(uuid())
+  kind         ExecutiveWorkflowKind
+  templateSlug String?
+  title        String
+  description  String?               @db.Text
+
+  status   ExecutiveWorkflowStatus @default(DRAFT)
+  priority ExecutivePriority       @default(NORMAL)
+
+  // Soft cross-engine references
+  clubId               String?
+  franchiseUnitId      String?
+  investorId           String?
+  entityId             String?
+  sponsorOpportunityId String?
+  matchId              String?
+
+  // Linked AI decisions that justify this workflow (soft refs)
+  decisionIds String[] @default([])
+
+  // Required attestation roles, computed from template at creation
+  requiredAttestations ExecutiveRole[] @default([])
+
+  payload Json
+  outcome Json?
+
+  initiatedBy String
+  ownedBy     String?
+
+  dueByAt         DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelledReason String?   @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps        WorkflowStep[]
+  attestations WorkflowAttestation[]
+  resolutions  BoardResolution[]
+  riskAlerts   RiskAlert[]
+
+  @@index([kind])
+  @@index([status])
+  @@index([priority])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+  @@index([dueByAt])
+}
+
+model WorkflowStep {
+  id         String            @id @default(uuid())
+  workflowId String
+  workflow   ExecutiveWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  order       Int
+  name        String
+  description String? @db.Text
+
+  // (engine, action) tuple resolved by the step executor
+  engine String
+  action String
+  params Json
+
+  status ExecutiveStepStatus @default(PENDING)
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  result      Json?
+  error       String?   @db.Text
+
+  startedBy   String?
+  completedBy String?
+
+  blockedReason String? @db.Text
+  attemptCount  Int     @default(0)
+  maxAttempts   Int     @default(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workflowId, order])
+  @@index([status])
+}
+
+model WorkflowAttestation {
+  id         String            @id @default(uuid())
+  workflowId String
+  workflow   ExecutiveWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  attesterUserId       String
+  attesterAssignmentId String?
+  assignment           ExecutiveAssignment? @relation(fields: [attesterAssignmentId], references: [id], onDelete: SetNull)
+
+  role     ExecutiveRole
+  decision AttestationDecision
+
+  notes        String? @db.Text
+  signatureRef String?
+
+  attestedAt DateTime @default(now())
+
+  @@unique([workflowId, attesterUserId])
+  @@index([workflowId])
+  @@index([role])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Board resolutions + voting
+// ─────────────────────────────────────────────────────────────────────────────
+
+model BoardResolution {
+  id         String             @id @default(uuid())
+  workflowId String?
+  workflow   ExecutiveWorkflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  title          String
+  resolutionText String                @db.Text
+  status         BoardResolutionStatus @default(DRAFT)
+
+  quorumRequired  Int   @default(3)
+  passingMajority Float @default(0.5)
+
+  votesFor     Int   @default(0)
+  votesAgainst Int   @default(0)
+  votesAbstain Int   @default(0)
+  totalWeight  Float @default(0)
+
+  circulationOpenedAt DateTime?
+  votingOpenedAt      DateTime?
+  votingClosesAt      DateTime?
+  decidedAt           DateTime?
+  effectiveAt         DateTime?
+  withdrawnAt         DateTime?
+  withdrawnReason     String?   @db.Text
+
+  initiatedBy String
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  votes BoardVote[]
+
+  @@index([status])
+  @@index([votingClosesAt])
+}
+
+model BoardVote {
+  id           String          @id @default(uuid())
+  resolutionId String
+  resolution   BoardResolution @relation(fields: [resolutionId], references: [id], onDelete: Cascade)
+
+  voterUserId  String
+  assignmentId String?
+  assignment   ExecutiveAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  role     ExecutiveRole
+  decision BoardVoteDecision
+  weight   Float             @default(1.0)
+
+  rationale    String? @db.Text
+  signatureRef String?
+
+  votedAt DateTime @default(now())
+
+  @@unique([resolutionId, voterUserId])
+  @@index([resolutionId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sponsor pipeline
+// ─────────────────────────────────────────────────────────────────────────────
+
+model SponsorOpportunity {
+  id    String               @id @default(uuid())
+  name  String
+  tier  SponsorTier
+  stage SponsorPipelineStage @default(PROSPECT)
+
+  clubId          String?
+  franchiseUnitId String?
+  workflowId      String?
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  websiteUrl   String?
+  industry     String?
+  countryCode  String?
+
+  proposedValue   Float?
+  contractedValue Float?
+  currency        String @default("EUR")
+
+  termMonths Int?
+  startsAt   DateTime?
+  endsAt     DateTime?
+
+  agreementUrl      String?
+  agreementChecksum String?
+
+  ownedBy  String?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events SponsorPipelineEvent[]
+
+  @@index([stage])
+  @@index([tier])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([ownedBy])
+}
+
+model SponsorPipelineEvent {
+  id            String             @id @default(uuid())
+  opportunityId String
+  opportunity   SponsorOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  fromStage SponsorPipelineStage
+  toStage   SponsorPipelineStage
+
+  notes     String? @db.Text
+  changedBy String?
+
+  createdAt DateTime @default(now())
+
+  @@index([opportunityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Revenue forecasting
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RevenueForecast {
+  id      String        @id @default(uuid())
+  scope   ForecastScope
+  scopeId String?
+
+  periodKey     String
+  periodStartAt DateTime
+  periodEndAt   DateTime
+
+  scenario ForecastScenario @default(BASE)
+
+  totalRevenue  Float
+  totalExpenses Float?
+  netCashFlow   Float?
+  currency      String @default("EUR")
+
+  confidence   Float  @default(0.6)
+  modelVersion String @default("1.0.0")
+  assumptions  Json
+  breakdown    Json
+
+  generatedBy String?
+  generatedAt DateTime @default(now())
+
+  @@unique([scope, scopeId, periodKey, scenario, modelVersion])
+  @@index([scope, scopeId])
+  @@index([periodKey])
+  @@index([scenario])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Risk alerts — composite signals from every engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model RiskAlert {
+  id       String          @id @default(uuid())
+  category RiskCategory
+  severity RiskSeverity
+  status   RiskAlertStatus @default(OPEN)
+
+  title       String
+  description String @db.Text
+
+  clubId          String?
+  franchiseUnitId String?
+  investorId      String?
+  entityId        String?
+
+  sourceEngine String
+  sourceRef    String?
+  fingerprint  String  @unique
+
+  score Float?
+
+  acknowledgedBy String?
+  acknowledgedAt DateTime?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  resolution     String?   @db.Text
+  dueByAt        DateTime?
+
+  workflowId String?
+  workflow   ExecutiveWorkflow? @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, severity])
+  @@index([category])
+  @@index([clubId])
+  @@index([franchiseUnitId])
+  @@index([investorId])
+  @@index([entityId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Executive audit — board-grade, cross-engine
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ExecutiveAudit {
+  id            String  @id @default(uuid())
+  workflowId    String?
+  resolutionId  String?
+  alertId       String?
+  forecastId    String?
+  opportunityId String?
+
+  userId       String?
+  action       String
+  category     ExecutiveAuditCategory
+  resourceType String?
+  resourceId   String?
+
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  result  ExecutiveAuditResult @default(SUCCESS)
+  message String?              @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([workflowId])
+  @@index([resolutionId])
+  @@index([action])
+  @@index([category])
+  @@index([createdAt])
 }
