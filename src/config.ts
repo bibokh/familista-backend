@@ -22,3 +22,6 @@ export const config = {
     level: process.env.LOG_LEVEL || 'info',
   },
 };
+anthropic: {
+  apiKey: process.env.ANTHROPIC_API_KEY || ""
+},
