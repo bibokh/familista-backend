@@ -18,10 +18,11 @@ export const config = {
     refreshTtl:    process.env.JWT_REFRESH_TTL    ?? '7d',
     issuer:        process.env.JWT_ISSUER         ?? 'familista',
   },
-  log: {
+   log: {
     level: process.env.LOG_LEVEL || 'info',
   },
+
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+  },
 };
-anthropic: {
-  apiKey: process.env.ANTHROPIC_API_KEY || ""
-},
