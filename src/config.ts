@@ -2,17 +2,23 @@
 // In production this file exists at src/config.ts and exports the full config.
 
 export const config = {
-  isDev: process.env.NODE_ENV !== 'production',
+  env:    process.env.NODE_ENV ?? 'development',
+  isDev:  process.env.NODE_ENV !== 'production',
+  isProd: process.env.NODE_ENV === 'production',
+  port:   Number(process.env.PORT ?? 4000),
   apiVersion: process.env.API_VERSION ?? 'v1',
   rateLimit: {
     windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60_000),
-    max: Number(process.env.RATE_LIMIT_MAX ?? 300),
+    max:      Number(process.env.RATE_LIMIT_MAX        ?? 300),
   },
   jwt: {
-    accessSecret: process.env.JWT_ACCESS_SECRET ?? 'dev-secret-change-me',
+    accessSecret:  process.env.JWT_ACCESS_SECRET  ?? 'dev-secret-change-me',
     refreshSecret: process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-change-me',
-    accessTtl: process.env.JWT_ACCESS_TTL ?? '15m',
-    refreshTtl: process.env.JWT_REFRESH_TTL ?? '7d',
-    issuer: process.env.JWT_ISSUER ?? 'familista',
+    accessTtl:     process.env.JWT_ACCESS_TTL     ?? '15m',
+    refreshTtl:    process.env.JWT_REFRESH_TTL    ?? '7d',
+    issuer:        process.env.JWT_ISSUER         ?? 'familista',
+  },
+  log: {
+    level: process.env.LOG_LEVEL || 'info',
   },
 };
