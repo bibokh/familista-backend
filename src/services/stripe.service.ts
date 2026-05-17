@@ -1,17 +1,75 @@
+// Familista — Stripe service (boot-safe)
+//
+// Rebuilt from zero. Reads Stripe configuration directly from process.env so a
+// missing or malformed `config.stripe` cannot crash the server at startup.
+// Stripe is optional: if STRIPE_SECRET_KEY is unset, every Stripe-touching
+// function returns a clean 400 ("Stripe disabled") instead of throwing at
+// module load. The default export shape is unchanged so billing.controller.ts
+// keeps working without modification.
+
 import Stripe from 'stripe';
 import { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { prisma } from '../config/database';
-import { config } from '../config';
-import { NotFoundError, AppError, BadRequestError } from '../utils/errors';
+import { NotFoundError, BadRequestError, AppError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
-const stripe = new Stripe(config.stripe.secretKey, { apiVersion: '2024-12-18.acacia' });
+// ─────────────────────────────────────────────────────────────────────────────
+// Env-driven configuration (no dependency on config.stripe.*)
+// ─────────────────────────────────────────────────────────────────────────────
 
-const PLAN_PRICES: Record<string, string> = {
-  BASIC:   config.stripe.prices.basic,
-  PRO:     config.stripe.prices.pro,
-  ACADEMY: config.stripe.prices.academy,
-};
+const STRIPE_API_VERSION = '2024-12-18.acacia' as const;
+
+function envStr(key: string): string {
+  const v = process.env[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+function getSecretKey():      string { return envStr('STRIPE_SECRET_KEY'); }
+function getWebhookSecret():  string { return envStr('STRIPE_WEBHOOK_SECRET'); }
+function getPriceId(plan: SubscriptionPlan): string {
+  // Each plan has its own env var: STRIPE_PRICE_BASIC / STRIPE_PRICE_PRO / STRIPE_PRICE_ACADEMY
+  return envStr(`STRIPE_PRICE_${plan}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lazy Stripe client — never instantiated at module load
+// ─────────────────────────────────────────────────────────────────────────────
+
+let _stripe: Stripe | null = null;
+let _warned = false;
+
+export function isStripeEnabled(): boolean {
+  return getSecretKey().length > 0;
+}
+
+function getStripe(): Stripe | null {
+  if (_stripe) return _stripe;
+  const key = getSecretKey();
+  if (!key) {
+    if (!_warned) {
+      logger.warn('Stripe disabled — STRIPE_SECRET_KEY missing. Billing endpoints will return 400 until configured.');
+      _warned = true;
+    }
+    return null;
+  }
+  try {
+    _stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
+    return _stripe;
+  } catch (err) {
+    logger.error('Failed to initialise Stripe client', { err });
+    return null;
+  }
+}
+
+function requireStripe(): Stripe {
+  const s = getStripe();
+  if (!s) throw new BadRequestError('Billing is not configured on this environment.');
+  return s;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Static plan catalogue (does not depend on Stripe at all)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const PLAN_FEATURES = {
   BASIC: {
@@ -41,23 +99,28 @@ export const PLAN_FEATURES = {
     aiInsights: -1, // unlimited
     features: ['Everything in Pro', 'Multi-team', '50 GPS Devices', 'Priority Support', 'Custom Reports'],
   },
-};
+} as const;
 
-// ── Create checkout session ───────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Checkout session
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function createCheckoutSession(
   clubId: string,
   plan: SubscriptionPlan,
   successUrl: string,
-  cancelUrl: string
+  cancelUrl: string,
 ): Promise<{ url: string; sessionId: string }> {
+  const stripe = requireStripe();
+
   const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) throw new NotFoundError('Club');
 
-  const priceId = PLAN_PRICES[plan];
-  if (!priceId) throw new BadRequestError(`No price configured for plan: ${plan}`);
+  const priceId = getPriceId(plan);
+  if (!priceId) {
+    throw new BadRequestError(`No Stripe price configured for plan: ${plan} (set STRIPE_PRICE_${plan})`);
+  }
 
-  // Get or create Stripe customer
   let customerId = club.stripeCustomerId;
   if (!customerId) {
     const customer = await stripe.customers.create({
@@ -65,10 +128,7 @@ export async function createCheckoutSession(
       name: club.name,
     });
     customerId = customer.id;
-    await prisma.club.update({
-      where: { id: clubId },
-      data: { stripeCustomerId: customerId },
-    });
+    await prisma.club.update({ where: { id: clubId }, data: { stripeCustomerId: customerId } });
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -85,15 +145,20 @@ export async function createCheckoutSession(
     },
   });
 
-  return { url: session.url!, sessionId: session.id };
+  if (!session.url) throw new AppError('Stripe checkout session returned no URL', 502);
+  return { url: session.url, sessionId: session.id };
 }
 
-// ── Create billing portal session ────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Billing portal
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function createPortalSession(
   clubId: string,
-  returnUrl: string
+  returnUrl: string,
 ): Promise<{ url: string }> {
+  const stripe = requireStripe();
+
   const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club?.stripeCustomerId) throw new BadRequestError('No billing info found');
 
@@ -105,7 +170,9 @@ export async function createPortalSession(
   return { url: session.url };
 }
 
-// ── Get subscription info ─────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Subscription info — works WITHOUT Stripe (reads only DB)
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getSubscriptionInfo(clubId: string) {
   const club = await prisma.club.findUnique({
@@ -118,33 +185,38 @@ export async function getSubscriptionInfo(clubId: string) {
       stripeSubscriptionId: true,
     },
   });
-
   if (!club) throw new NotFoundError('Club');
 
+  const features =
+    (PLAN_FEATURES as Record<string, typeof PLAN_FEATURES.BASIC>)[club.plan] ?? PLAN_FEATURES.BASIC;
+
   return {
-    plan: club.plan,
-    status: club.subscriptionStatus,
-    trialEndsAt: club.trialEndsAt,
+    plan:             club.plan,
+    status:           club.subscriptionStatus,
+    trialEndsAt:      club.trialEndsAt,
     currentPeriodEnd: club.currentPeriodEnd,
-    features: PLAN_FEATURES[club.plan] ?? PLAN_FEATURES.BASIC,
-    isActive: ['ACTIVE', 'TRIALING'].includes(club.subscriptionStatus),
+    features,
+    isActive:         (['ACTIVE', 'TRIALING'] as SubscriptionStatus[]).includes(club.subscriptionStatus),
+    billingEnabled:   isStripeEnabled(),
   };
 }
 
-// ── Handle Stripe webhooks ────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhook handler — short-circuits cleanly if Stripe disabled
+// ─────────────────────────────────────────────────────────────────────────────
 
-export async function handleWebhook(
-  rawBody: Buffer,
-  signature: string
-): Promise<void> {
+export async function handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
+  const stripe = getStripe();
+  const secret = getWebhookSecret();
+
+  if (!stripe || !secret) {
+    logger.warn('Stripe webhook received but Stripe is disabled — ignoring');
+    return;
+  }
+
   let event: Stripe.Event;
-
   try {
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      config.stripe.webhookSecret
-    );
+    event = stripe.webhooks.constructEvent(rawBody, signature, secret);
   } catch (err) {
     logger.warn('Webhook signature verification failed', { err });
     throw new AppError('Invalid webhook signature', 400);
@@ -155,29 +227,30 @@ export async function handleWebhook(
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
-      if (session.mode === 'subscription' && session.metadata?.clubId) {
+      const clubId  = session.metadata?.clubId;
+      if (session.mode === 'subscription' && clubId) {
         await prisma.club.update({
-          where: { id: session.metadata.clubId },
+          where: { id: clubId },
           data: {
             stripeSubscriptionId: session.subscription as string,
-            subscriptionStatus: SubscriptionStatus.ACTIVE,
-            plan: (session.metadata.plan as SubscriptionPlan) ?? 'BASIC',
+            subscriptionStatus:   SubscriptionStatus.ACTIVE,
+            plan: (session.metadata?.plan as SubscriptionPlan) ?? SubscriptionPlan.BASIC,
           },
         });
-        logger.info('Subscription activated', { clubId: session.metadata.clubId });
+        logger.info('Subscription activated', { clubId });
       }
       break;
     }
 
     case 'customer.subscription.updated': {
-      const sub = event.data.object as Stripe.Subscription;
+      const sub    = event.data.object as Stripe.Subscription;
       const clubId = sub.metadata?.clubId;
       if (clubId) {
         await prisma.club.update({
           where: { id: clubId },
           data: {
             subscriptionStatus: mapStripeStatus(sub.status),
-            currentPeriodEnd: new Date(sub.current_period_end * 1000),
+            currentPeriodEnd:   new Date(sub.current_period_end * 1000),
           },
         });
       }
@@ -185,7 +258,7 @@ export async function handleWebhook(
     }
 
     case 'customer.subscription.deleted': {
-      const sub = event.data.object as Stripe.Subscription;
+      const sub    = event.data.object as Stripe.Subscription;
       const clubId = sub.metadata?.clubId;
       if (clubId) {
         await prisma.club.update({
@@ -198,12 +271,14 @@ export async function handleWebhook(
     }
 
     case 'invoice.payment_failed': {
-      const invoice = event.data.object as Stripe.Invoice;
-      const customerId = invoice.customer as string;
-      await prisma.club.updateMany({
-        where: { stripeCustomerId: customerId },
-        data: { subscriptionStatus: SubscriptionStatus.PAST_DUE },
-      });
+      const invoice    = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string | null;
+      if (customerId) {
+        await prisma.club.updateMany({
+          where: { stripeCustomerId: customerId },
+          data:  { subscriptionStatus: SubscriptionStatus.PAST_DUE },
+        });
+      }
       break;
     }
 
@@ -214,13 +289,13 @@ export async function handleWebhook(
 
 function mapStripeStatus(status: string): SubscriptionStatus {
   const map: Record<string, SubscriptionStatus> = {
-    active:            SubscriptionStatus.ACTIVE,
-    past_due:          SubscriptionStatus.PAST_DUE,
-    canceled:          SubscriptionStatus.CANCELED,
-    trialing:          SubscriptionStatus.TRIALING,
-    incomplete:        SubscriptionStatus.INCOMPLETE,
-    incomplete_expired:SubscriptionStatus.CANCELED,
-    unpaid:            SubscriptionStatus.PAST_DUE,
+    active:             SubscriptionStatus.ACTIVE,
+    past_due:           SubscriptionStatus.PAST_DUE,
+    canceled:           SubscriptionStatus.CANCELED,
+    trialing:           SubscriptionStatus.TRIALING,
+    incomplete:         SubscriptionStatus.INCOMPLETE,
+    incomplete_expired: SubscriptionStatus.CANCELED,
+    unpaid:             SubscriptionStatus.PAST_DUE,
   };
   return map[status] ?? SubscriptionStatus.INCOMPLETE;
 }
