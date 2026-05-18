@@ -1,0 +1,3 @@
+# Render rewrite rules — 200 = serve in place (not 30x redirect).
+/familista_v5.html   /index.html   200
+/*                   /index.html   200
