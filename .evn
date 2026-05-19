@@ -8,7 +8,7 @@ NODE_ENV=development
 PORT=4000
 API_VERSION=v1
 
-"postgresql://neondb_owner:npg_F9hHCGiWSNQ4@ep-small-bread-alhxjrqb-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+ DATABASE_URL="postgresql://..."//neondb_owner:npg_F9hHCGiWSNQ4@ep-small-bread-alhxjrqb-pooler.c-3.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
  JWT_REFRESH_SECRET="familista-refresh-2024-different"
 

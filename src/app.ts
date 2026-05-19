@@ -19,12 +19,36 @@ export function createApp(): express.Application {
   }));
 
   // ── CORS
-  app.use(cors({
-    origin: config.cors.origin,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-club-id'],
-  }));
+  // Multi-origin allowlist so the SPA can sit on its own Render host
+  // while still reaching the backend. The single-string config.cors.origin
+  // could only allow ONE host; that's why every other origin saw
+  // "Failed to fetch" in the browser console. Comma-separated overrides
+  // via FRONTEND_URL still work.
+  const corsAllowlist = new Set<string>([
+    'https://familista-v5.onrender.com',
+    'https://familista-backend.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    ...((config.cors.origin || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)),
+  ]);
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // No-Origin requests (curl, Postman, server-to-server) — allow.
+        if (!origin) return callback(null, true);
+        if (corsAllowlist.has(origin)) return callback(null, origin);
+        return callback(new Error(`CORS: origin ${origin} not allowed`));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-club-id'],
+    })
+  );
 
   // ── Compression
   app.use(compression());

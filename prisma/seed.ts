@@ -31,8 +31,10 @@ async function main() {
   });
   console.log(`✅ Club: ${club.name}`);
 
-  // ── Admin user ────────────────────────────────────────────
+  // ── Admin user(s) ─────────────────────────────────────────
   const adminHash = await bcrypt.hash('Familista2024!', 12);
+
+  // Original owner account (kept).
   const admin = await prisma.user.upsert({
     where: { email: 'khatab@familista.io' },
     update: {},
@@ -46,6 +48,22 @@ async function main() {
     },
   });
   console.log(`✅ Admin: ${admin.email}`);
+
+  // Public demo account — same password as the owner so docs can list one
+  // canonical credential pair for screenshots / first-time testers.
+  const demoAdmin = await prisma.user.upsert({
+    where: { email: 'admin@familista.io' },
+    update: { passwordHash: adminHash, isActive: true },
+    create: {
+      email:        'admin@familista.io',
+      passwordHash: adminHash,
+      firstName:    'Admin',
+      lastName:     'Familista',
+      role:         UserRole.CLUB_ADMIN,
+      clubId:       club.id,
+    },
+  });
+  console.log(`✅ Demo admin: ${demoAdmin.email}`);
 
   // Coach
   const coachHash = await bcrypt.hash('Coach2024!', 12);

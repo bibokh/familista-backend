@@ -113,6 +113,17 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  logger.error('Bootstrap failed', { err });
+  // Winston JSON-serialises Error to {}. Print the real fields explicitly so
+  // the cause is visible in Render logs.
+  const e = err as { message?: string; stack?: string; name?: string; code?: string | number };
+  logger.error('Bootstrap failed', {
+    name:    e?.name,
+    code:    e?.code,
+    message: e?.message,
+    stack:   e?.stack,
+  });
+  // Mirror to console so even if winston is misconfigured the error escapes.
+  // eslint-disable-next-line no-console
+  console.error('[bootstrap-failed]', err);
   process.exit(1);
 });
