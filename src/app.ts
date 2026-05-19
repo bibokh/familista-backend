@@ -74,6 +74,19 @@ export function createApp(): express.Application {
   // ── Trust proxy (for Railway / Render / Vercel)
   app.set('trust proxy', 1);
 
+  // ── Cold-start / liveness probes (no auth, no body)
+  // Two paths for resilience: /api/health (frontend ping) + /healthz (Render).
+  const healthPayload = () => ({
+    status: 'ok',
+    server: 'Familista Backend',
+    version: config.apiVersion || 'v1',
+    env: config.env,
+    uptimeSec: Math.round(process.uptime()),
+    ts: new Date().toISOString(),
+  });
+  app.get('/api/health', (_req, res) => res.json(healthPayload()));
+  app.get('/healthz',    (_req, res) => res.json(healthPayload()));
+
   // ── Routes
   app.use(`/api/${config.apiVersion}`, routes);
 

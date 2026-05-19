@@ -419,6 +419,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .toast-success{background:#166534;color:#BBF7D0;border:1px solid #16A34A;}
 .toast-error{background:#7F1D1D;color:#FECACA;border:1px solid #DC2626;}
 .toast-info{background:#1E3A5F;color:#BFDBFE;border:1px solid #2563EB;}
+
+/* ── Backend health / cold-start banner ───────────────────────────── */
+.backend-banner{
+  position:fixed;left:50%;transform:translate(-50%,-20px);top:12px;
+  display:none;align-items:center;gap:10px;
+  padding:9px 14px;border-radius:999px;
+  background:rgba(217,119,6,0.12);
+  border:1px solid rgba(217,119,6,0.45);
+  color:#FDBA74;font-size:12.5px;font-weight:500;
+  box-shadow:0 6px 20px rgba(0,0,0,0.35);
+  z-index:9500;backdrop-filter:blur(8px);
+  transition:transform .25s ease,opacity .25s ease;
+  opacity:0;
+}
+.backend-banner.show{display:flex;opacity:1;transform:translate(-50%,0);}
+.backend-banner.info{background:rgba(37,99,235,0.12);border-color:rgba(37,99,235,0.45);color:#93C5FD;}
+.backend-banner.warn{background:rgba(217,119,6,0.12);border-color:rgba(217,119,6,0.45);color:#FDBA74;}
+.backend-banner.crit{background:rgba(220,38,38,0.12);border-color:rgba(220,38,38,0.45);color:#FCA5A5;}
+.backend-banner .dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:badgePulse 1.4s ease infinite;}
+.backend-banner .msg{white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis;}
+.backend-banner .retry{
+  background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.18);
+  color:inherit;font-family:inherit;font-size:11.5px;font-weight:600;
+  padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.3px;
+}
+.backend-banner .retry:hover{background:rgba(255,255,255,0.12);}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
 /* ── PAGE-SPECIFIC LAYOUTS ── */
@@ -1548,14 +1574,56 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
    Full Backend Integration — Live API Data
    ============================================================ */
 
-// ── CONFIG ──
-const API_BASE = 'https://familista-backend.onrender.com/api/v1';
-const WS_URL   = 'wss://familista-backend.onrender.com/ws/live';
+// ════════════════════════════════════════════════════════════════════════
+// FAMILISTA — Network layer (config + API wrapper + health monitor)
+// ════════════════════════════════════════════════════════════════════════
+// Single source of truth for every fetch in the SPA. Lives ABOVE all
+// feature code so nothing can shadow it.
+//
+//   FAM_CONFIG       — environment-aware URLs + timeouts
+//   FamilistaAPI     — wrapper: timeout, retry on cold-start, refresh on 401,
+//                      structured Error subclass with .code / .userMessage
+//   BackendHealth    — periodic /api/health ping + cold-start banner + UI hooks
+//   api(...)         — legacy alias; delegates to FamilistaAPI for back-compat
+//   tryRefreshToken  — kept; uses FamilistaAPI internally
+// ════════════════════════════════════════════════════════════════════════
 
-// Hardcoded absolute base for Players CRUD — guarantees fetches go to the
-// live API regardless of any environment override of API_BASE. Do NOT
-// shorten to a relative URL.
-const PLAYERS_API = 'https://familista-backend.onrender.com/api/v1/players';
+const FAM_CONFIG = (function () {
+  // Environment-aware base — same host as the SPA when local, Render in prod.
+  // Override at runtime via  window.FAMILISTA_API_BASE  or  ?api=…  query.
+  const fromQuery = (new URLSearchParams(location.search)).get('api');
+  const fromGlobal = (typeof window !== 'undefined' && window.FAMILISTA_API_BASE) || null;
+  const isLocal = /^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname);
+  const inferred = isLocal
+    ? 'http://' + location.hostname + ':' + (location.port || '4000') + '/api/v1'
+    : 'https://familista-backend.onrender.com/api/v1';
+  const apiBase  = (fromQuery || fromGlobal || inferred).replace(/\/+$/, '');
+  const apiRoot  = apiBase.replace(/\/api\/v\d+$/, '');   // …/api/v1  →  …
+  const wsBase   = apiRoot.replace(/^http/, 'ws') + '/ws/live';
+
+  return Object.freeze({
+    API_BASE:               apiBase,
+    HEALTH_URL:             apiRoot + '/api/health',
+    WS_URL:                 wsBase,
+
+    // Network behaviour
+    REQUEST_TIMEOUT_MS:     20000,     // normal request
+    COLD_START_TIMEOUT_MS:  60000,     // first request after wake (Render free tier)
+    RETRY_COUNT:            2,         // 1 + 2 = 3 total attempts
+    RETRY_BACKOFF_MS:       1500,      // 1.5s, then 3s, then 4.5s
+    HEALTH_PING_INTERVAL:   30000,
+    HEALTH_BOOT_TIMEOUT_MS: 8000,
+    HEALTH_PING_TIMEOUT_MS: 4000,
+
+    // Retry on these transport-level errors
+    RETRYABLE_STATUSES:     [0, 408, 425, 429, 502, 503, 504],
+  });
+})();
+
+// Back-compat exports — used by older code paths in the file
+const API_BASE    = FAM_CONFIG.API_BASE;
+const WS_URL      = FAM_CONFIG.WS_URL;
+const PLAYERS_API = FAM_CONFIG.API_BASE + '/players';
 
 // ── STATE ──
 const State = {
@@ -1583,69 +1651,305 @@ const State = {
   sidebarCollapsed: false,
   isDark:       true,
   charts:       {},
+  // Network state
+  backendHealthy: null,            // null = unknown, true/false after first ping
+  coldStartInFlight: false,
 };
 
-// ── API CLIENT ──
-async function api(endpoint, options = {}) {
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(State.token ? { Authorization: `Bearer ${State.token}` } : {}),
-    ...options.headers,
-  };
-
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-
-    // Token expired — try refresh
-    if (res.status === 401 && State.refreshToken) {
-      const refreshed = await tryRefreshToken();
-      if (refreshed) {
-        headers.Authorization = `Bearer ${State.token}`;
-        const retry = await fetch(`${API_BASE}${endpoint}`, {
-          ...options,
-          headers,
-          body: options.body ? JSON.stringify(options.body) : undefined,
-        });
-        const data = await retry.json();
-        if (!retry.ok) throw new Error(data.message || 'Request failed');
-        return data;
-      } else {
-        doLogout();
-        return null;
-      }
-    }
-
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
-    return data;
-  } catch (err) {
-    console.error(`API error [${endpoint}]:`, err);
-    throw err;
+// ── Structured network error ─────────────────────────────────────────────
+class ApiError extends Error {
+  constructor(opts) {
+    super(opts.message || 'Request failed');
+    this.name        = 'ApiError';
+    this.code        = opts.code        || 'UNKNOWN';      // e.g. NETWORK, TIMEOUT, AUTH, RATE_LIMIT, SERVER, VALIDATION
+    this.status      = opts.status      || 0;
+    this.userMessage = opts.userMessage || this.message;
+    this.cause       = opts.cause       || null;
+    this.url         = opts.url         || null;
   }
 }
 
-async function tryRefreshToken() {
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: State.refreshToken }),
+function mapApiError(err, ctx) {
+  // Already an ApiError → pass through
+  if (err instanceof ApiError) return err;
+
+  // AbortError (timeout)
+  if (err && err.name === 'AbortError') {
+    return new ApiError({
+      code: 'TIMEOUT', status: 0, url: ctx.url, cause: err,
+      message: 'Request timed out',
+      userMessage: 'Connection timeout. The server is taking too long to respond.',
     });
-    const data = await res.json();
-    if (data.success) {
-      State.token = data.data.accessToken;
-      State.refreshToken = data.data.refreshToken;
-      localStorage.setItem('fam_token', State.token);
-      localStorage.setItem('fam_refresh', State.refreshToken);
-      return true;
-    }
-  } catch {}
-  return false;
+  }
+  // Native fetch failure → network/CORS/DNS
+  if (err instanceof TypeError) {
+    return new ApiError({
+      code: 'NETWORK', status: 0, url: ctx.url, cause: err,
+      message: err.message || 'Network error',
+      userMessage: navigator.onLine === false
+        ? 'You appear to be offline. Check your internet connection.'
+        : 'Backend waking up… Please retry in a few seconds.',
+    });
+  }
+  return new ApiError({
+    code: 'UNKNOWN', status: 0, url: ctx.url, cause: err,
+    message: (err && err.message) || 'Unknown error',
+    userMessage: 'Something went wrong. Please retry.',
+  });
 }
+
+function mapHttpStatus(status, body, url) {
+  const apiMsg = body && (body.message || body.error);
+  if (status === 0)                 return new ApiError({ code: 'NETWORK',    status, url, message: 'Network error',                userMessage: 'Backend waking up… Please retry in a few seconds.' });
+  if (status === 401)               return new ApiError({ code: 'AUTH',       status, url, message: apiMsg || 'Unauthorized',       userMessage: apiMsg || 'Authentication failed. Please sign in again.' });
+  if (status === 403)               return new ApiError({ code: 'FORBIDDEN',  status, url, message: apiMsg || 'Forbidden',          userMessage: apiMsg || 'You do not have permission to do that.' });
+  if (status === 404)               return new ApiError({ code: 'NOT_FOUND',  status, url, message: apiMsg || 'Not found',          userMessage: apiMsg || 'The requested resource was not found.' });
+  if (status === 408 || status === 504) return new ApiError({ code: 'TIMEOUT', status, url, message: apiMsg || 'Timeout',           userMessage: 'Connection timeout. Please retry.' });
+  if (status === 429)               return new ApiError({ code: 'RATE_LIMIT', status, url, message: apiMsg || 'Too many requests',  userMessage: 'Too many requests. Slow down and retry shortly.' });
+  if (status >= 500)                return new ApiError({ code: 'SERVER',     status, url, message: apiMsg || 'Server error',       userMessage: status === 502 || status === 503 ? 'Server unavailable. The backend may be restarting — please retry in 30s.' : 'Server error. Please retry shortly.' });
+  if (status === 400 || status === 422) return new ApiError({ code: 'VALIDATION', status, url, message: apiMsg || 'Validation error', userMessage: apiMsg || 'Some fields are invalid.' });
+  return new ApiError({ code: 'HTTP_' + status, status, url, message: apiMsg || ('HTTP ' + status), userMessage: apiMsg || ('Unexpected error (HTTP ' + status + ')') });
+}
+
+// ── Network logger (structured groups) ────────────────────────────────────
+function netLog(kind, payload) {
+  try {
+    const stamp = new Date().toISOString().slice(11, 23);
+    if (kind === 'req')  console.log('%c[net→] ' + stamp + '  ' + payload.method + ' ' + payload.url, 'color:#22C55E;font-weight:600;');
+    else if (kind === 'res') console.log('%c[net✓] ' + stamp + '  ' + payload.status + ' ' + payload.method + ' ' + payload.url + '  (' + payload.dt + 'ms)', 'color:#16A34A;');
+    else if (kind === 'err') console.warn('%c[net✗] ' + stamp + '  ' + payload.code + ' ' + payload.method + ' ' + payload.url + '  — ' + payload.message, 'color:#DC2626;font-weight:600;');
+    else if (kind === 'retry') console.warn('%c[net⟳] ' + stamp + '  retry ' + payload.attempt + '/' + payload.total + ' after ' + payload.delay + 'ms  ' + payload.method + ' ' + payload.url, 'color:#D97706;');
+  } catch (_) {}
+}
+
+// ── FamilistaAPI — the wrapper ───────────────────────────────────────────
+const FamilistaAPI = (function () {
+  let _refreshing = null; // Promise — coalesces concurrent refreshes
+
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  function withTimeout(promise, ms, controller) {
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        try { controller && controller.abort(); } catch (_) {}
+        const e = new Error('AbortError'); e.name = 'AbortError';
+        reject(e);
+      }, ms);
+      promise.then(
+        (v) => { clearTimeout(t); resolve(v); },
+        (e) => { clearTimeout(t); reject(e); }
+      );
+    });
+  }
+
+  async function rawFetch(method, url, opts) {
+    opts = opts || {};
+    const controller = new AbortController();
+    const headers = Object.assign(
+      { 'Accept': 'application/json' },
+      opts.body !== undefined && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {},
+      opts.headers || {},
+      opts.auth !== false && State.token ? { 'Authorization': 'Bearer ' + State.token } : {}
+    );
+
+    const init = {
+      method,
+      headers,
+      signal: controller.signal,
+      credentials: 'include',
+      body: opts.body === undefined ? undefined : (opts.body instanceof FormData ? opts.body : JSON.stringify(opts.body)),
+    };
+
+    const timeoutMs = opts.timeoutMs ||
+      (State.backendHealthy === false ? FAM_CONFIG.COLD_START_TIMEOUT_MS : FAM_CONFIG.REQUEST_TIMEOUT_MS);
+
+    const started = Date.now();
+    netLog('req', { method, url });
+
+    let res;
+    try {
+      res = await withTimeout(fetch(url, init), timeoutMs, controller);
+    } catch (err) {
+      const apiErr = mapApiError(err, { url });
+      netLog('err', { code: apiErr.code, method, url, message: apiErr.message });
+      throw apiErr;
+    }
+
+    const dt = Date.now() - started;
+    let body = null;
+    if (res.status !== 204) {
+      const text = await res.text().catch(() => '');
+      if (text) { try { body = JSON.parse(text); } catch (_) { body = { message: text }; } }
+    }
+
+    if (!res.ok) {
+      const apiErr = mapHttpStatus(res.status, body, url);
+      apiErr.body = body;
+      netLog('err', { code: apiErr.code, method, url, message: apiErr.message + ' (' + dt + 'ms)' });
+      throw apiErr;
+    }
+
+    netLog('res', { status: res.status, method, url, dt });
+    return body;
+  }
+
+  function refreshTokens() {
+    if (!State.refreshToken) return Promise.resolve(false);
+    if (_refreshing) return _refreshing;
+    _refreshing = (async () => {
+      try {
+        const body = await rawFetch('POST', FAM_CONFIG.API_BASE + '/auth/refresh',
+          { body: { refreshToken: State.refreshToken }, auth: false });
+        const data = body && (body.data || body);
+        const at   = data && (data.accessToken || (data.tokens && data.tokens.accessToken));
+        const rt   = data && (data.refreshToken || (data.tokens && data.tokens.refreshToken));
+        if (!at) return false;
+        State.token        = at;
+        if (rt) State.refreshToken = rt;
+        localStorage.setItem('fam_token',   State.token);
+        if (rt) localStorage.setItem('fam_refresh', State.refreshToken);
+        return true;
+      } catch (_) {
+        return false;
+      } finally {
+        _refreshing = null;
+      }
+    })();
+    return _refreshing;
+  }
+
+  async function request(method, urlOrPath, opts) {
+    opts = opts || {};
+    const url = /^https?:/.test(urlOrPath) ? urlOrPath : (FAM_CONFIG.API_BASE + (urlOrPath.startsWith('/') ? '' : '/') + urlOrPath);
+    const retryable = FAM_CONFIG.RETRYABLE_STATUSES;
+    const maxAttempts = (opts.noRetry ? 0 : FAM_CONFIG.RETRY_COUNT) + 1;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await rawFetch(method, url, opts);
+      } catch (err) {
+        // 401 → one transparent refresh attempt
+        if (err.status === 401 && !opts._refreshed && opts.auth !== false && State.refreshToken) {
+          const ok = await refreshTokens();
+          if (ok) return request(method, url, Object.assign({}, opts, { _refreshed: true }));
+        }
+
+        const isRetryable = retryable.indexOf(err.status) !== -1 || err.code === 'NETWORK' || err.code === 'TIMEOUT';
+        if (!isRetryable || attempt >= maxAttempts) throw err;
+
+        // Cold-start banner on first failure
+        if (err.code === 'NETWORK' || err.code === 'TIMEOUT' || err.status >= 502) {
+          State.backendHealthy = false;
+          BackendHealth.notifyOffline(err);
+        }
+
+        const delay = FAM_CONFIG.RETRY_BACKOFF_MS * attempt;
+        netLog('retry', { attempt, total: maxAttempts, delay, method, url });
+        await sleep(delay);
+      }
+    }
+    // unreachable — the loop either returns or throws
+    throw new ApiError({ code: 'UNKNOWN', message: 'unreachable' });
+  }
+
+  return {
+    request,
+    get:    (path, opts) => request('GET',    path, opts),
+    post:   (path, body, opts) => request('POST',   path, Object.assign({ body }, opts || {})),
+    put:    (path, body, opts) => request('PUT',    path, Object.assign({ body }, opts || {})),
+    patch:  (path, body, opts) => request('PATCH',  path, Object.assign({ body }, opts || {})),
+    delete: (path, opts) => request('DELETE', path, opts),
+    refreshTokens,
+    rawFetch,
+  };
+})();
+
+// ── Backend health monitor ───────────────────────────────────────────────
+const BackendHealth = (function () {
+  let pollTimer = null;
+  let lastState = null;          // 'up' | 'down' | null
+
+  function banner() { return document.getElementById('backend-banner'); }
+
+  function show(text, kind) {
+    let el = banner();
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'backend-banner';
+      el.className = 'backend-banner';
+      document.body.appendChild(el);
+    }
+    el.className = 'backend-banner ' + (kind || 'warn') + ' show';
+    el.innerHTML =
+      '<span class="dot"></span>' +
+      '<span class="msg">' + (text || '') + '</span>' +
+      '<button class="retry" onclick="BackendHealth.retryNow()">Retry now</button>';
+  }
+  function hide() {
+    const el = banner();
+    if (el) el.classList.remove('show');
+  }
+
+  async function ping(timeoutMs) {
+    timeoutMs = timeoutMs || FAM_CONFIG.HEALTH_PING_TIMEOUT_MS;
+    try {
+      const r = await FamilistaAPI.rawFetch('GET', FAM_CONFIG.HEALTH_URL, { auth: false, timeoutMs });
+      if (r && r.status === 'ok') return true;
+      return false;
+    } catch (_) { return false; }
+  }
+
+  async function check(initial) {
+    const ok = await ping(initial ? FAM_CONFIG.HEALTH_BOOT_TIMEOUT_MS : undefined);
+    if (ok) {
+      State.backendHealthy = true;
+      if (lastState !== 'up') {
+        hide();
+        if (lastState === 'down') showToast('Backend is back online ✓', 'success');
+      }
+      lastState = 'up';
+    } else {
+      State.backendHealthy = false;
+      if (lastState !== 'down') {
+        show('Backend waking up… retrying automatically.', 'warn');
+      }
+      lastState = 'down';
+    }
+    return ok;
+  }
+
+  function start() {
+    stop();
+    check(true);
+    pollTimer = setInterval(check, FAM_CONFIG.HEALTH_PING_INTERVAL);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online',  () => { show('Network restored. Checking backend…', 'info'); check(); });
+      window.addEventListener('offline', () => { State.backendHealthy = false; show('You are offline.', 'warn'); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    }
+  }
+  function stop() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+
+  function notifyOffline(err) {
+    const msg = err && err.userMessage || 'Backend is unreachable. Retrying…';
+    show(msg, 'warn');
+  }
+  function retryNow() { check(); }
+
+  return { start, stop, ping, check, notifyOffline, retryNow };
+})();
+
+// ── Legacy helpers — kept so the rest of the file works unchanged ────────
+async function api(endpoint, options) {
+  options = options || {};
+  return FamilistaAPI.request(options.method || 'GET', endpoint, {
+    body:    options.body,
+    headers: options.headers,
+  });
+}
+
+async function tryRefreshToken() { return FamilistaAPI.refreshTokens(); }
 
 // ── AUTH ──
 async function doLogin() {
@@ -1654,75 +1958,55 @@ async function doLogin() {
   const btn      = document.getElementById('login-btn');
   const errEl    = document.getElementById('login-error');
 
-  if (!email || !password) {
-    errEl.textContent = 'Please enter email and password';
+  function err(msg) {
+    errEl.textContent = msg;
     errEl.classList.add('show');
-    return;
   }
 
+  if (!email || !password) return err('Please enter email and password');
+
   btn.disabled = true;
-  btn.textContent = 'Signing in...';
+  btn.textContent = 'Signing in…';
   errEl.classList.remove('show');
 
+  // Optional pre-flight: if backend is known-down, hint the user.
+  if (State.backendHealthy === false) {
+    btn.textContent = 'Waking backend…';
+    await BackendHealth.check();
+  }
+
   try {
-    console.log('[Login] Attempting:', API_BASE + '/auth/login');
+    // FamilistaAPI handles: timeout, retry on 502/503/504, cold-start,
+    // banner, structured errors with .userMessage.
+    const data = await FamilistaAPI.post('/auth/login', { email, password }, { auth: false });
 
-    const res = await fetch(API_BASE + '/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    // Response envelope: { success, data: { user, tokens: { accessToken, refreshToken } } }
+    const payload = (data && data.data) || data;
+    const tokens  = (payload && (payload.tokens || payload)) || {};
+    const user    = (payload && payload.user) || null;
+    const at      = tokens.accessToken;
+    const rt      = tokens.refreshToken;
 
-    console.log('[Login] Response status:', res.status);
-
-    let data;
-    try {
-      data = await res.json();
-    } catch (parseErr) {
-      const text = await res.text().catch(() => 'No response body');
-      console.error('[Login] Parse error, raw response:', text);
-      errEl.textContent = 'Server returned invalid response. Check console.';
-      errEl.classList.add('show');
-      return;
-    }
-
-    console.log('[Login] Response data:', data);
-
-    if (!res.ok || !data.success) {
-      errEl.textContent = data.message || 'Invalid credentials';
-      errEl.classList.add('show');
-      return;
-    }
-
-    // Handle both response structures
-    const tokens = data.data?.tokens || data.tokens || data.data;
-    const user   = data.data?.user   || data.user;
-
-    if (!tokens?.accessToken) {
+    if (!at) {
       console.error('[Login] No accessToken in response:', data);
-      errEl.textContent = 'Login succeeded but token missing. Check console.';
-      errEl.classList.add('show');
-      return;
+      return err('Login succeeded but token missing — please retry.');
     }
 
-    State.token        = tokens.accessToken;
-    State.refreshToken = tokens.refreshToken;
+    State.token        = at;
+    State.refreshToken = rt || null;
     State.user         = user;
 
     localStorage.setItem('fam_token',   State.token);
-    localStorage.setItem('fam_refresh', State.refreshToken);
-    localStorage.setItem('fam_user',    JSON.stringify(State.user));
+    if (rt)   localStorage.setItem('fam_refresh', State.refreshToken);
+    if (user) localStorage.setItem('fam_user',    JSON.stringify(State.user));
 
-    console.log('[Login] Success! User:', user);
+    console.log('[Login] Success →', user && user.email);
     await bootApp();
-
-  } catch (err) {
-    console.error('[Login] Fetch error:', err);
-    errEl.textContent = 'Connection error: ' + err.message + '. Check that backend is running.';
-    errEl.classList.add('show');
+  } catch (e) {
+    // ApiError has .code + .userMessage; fall back to generic
+    const msg = (e && e.userMessage) || (e && e.message) || 'Sign-in failed. Please retry.';
+    console.error('[Login] Failed:', e);
+    err(msg);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Sign In';
@@ -4328,16 +4612,22 @@ async function exportQuantumReport() {
 
 // ── INIT ──
 window.addEventListener('DOMContentLoaded', () => {
+  // Expose globals used by the cold-start banner's onclick attributes
+  window.BackendHealth = BackendHealth;
+  window.FamilistaAPI  = FamilistaAPI;
+  window.FAM_CONFIG    = FAM_CONFIG;
+
   // Enter key for login
-  document.getElementById('login-password').addEventListener('keydown', e => {
-    if (e.key === 'Enter') doLogin();
-  });
+  const pw = document.getElementById('login-password');
+  if (pw) pw.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-  // Test backend connection on load
-  testBackendConnection();
+  // Boot the backend health monitor — pings /api/health, shows the
+  // "Backend waking up…" banner on cold start, retries on its own.
+  BackendHealth.start();
 
-  // Try auto-login from stored tokens
-  tryAutoLogin();
+  // Legacy hooks (kept)
+  if (typeof testBackendConnection === 'function') testBackendConnection();
+  if (typeof tryAutoLogin === 'function')          tryAutoLogin();
 });
 
 async function testBackendConnection() {
