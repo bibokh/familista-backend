@@ -5,4 +5,5 @@ dist/
 logs/
 .DS_Store
 coverage/
-prisma/migrations/
+# NOTE: prisma/migrations IS version-controlled (was previously ignored which
+# left production schema state unreproducible — see prisma/migrations/README.md).
