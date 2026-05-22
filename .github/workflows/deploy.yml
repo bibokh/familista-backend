@@ -1,0 +1,46 @@
+# Familista — Deploy: trigger Render deploy after CI passes on main.
+# Render autoDeploy is enabled in render.yaml, so this workflow is mainly a
+# safety net for explicit manual deploys / rollbacks via deploy hook.
+#
+# Required secrets (set under repo Settings → Secrets and variables → Actions):
+#   • RENDER_DEPLOY_HOOK_URL  — full URL from Render → Service → Settings → Deploy Hook
+#   • RENDER_API_TOKEN        — (optional) for listing deploy history
+
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why is this deploy being triggered manually?'
+        required: false
+        default: 'manual-redeploy'
+  workflow_run:
+    workflows: ['ci']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  trigger-render:
+    name: Trigger Render deploy
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL not set; skipping (Render autoDeploy will handle it)"
+            exit 0
+          fi
+          echo "Triggering Render deploy (reason: ${{ github.event.inputs.reason || 'ci-success' }})"
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL" \
+            -H 'content-type: application/json' \
+            -d '{"reason":"${{ github.event.inputs.reason || 'ci-success' }}","ref":"${{ github.sha }}"}'

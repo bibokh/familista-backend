@@ -53,7 +53,7 @@ function getStripe(): Stripe | null {
     return null;
   }
   try {
-    _stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
+    _stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION as unknown as Stripe.LatestApiVersion });
     return _stripe;
   } catch (err) {
     logger.error('Failed to initialise Stripe client', { err });
@@ -188,7 +188,7 @@ export async function getSubscriptionInfo(clubId: string) {
   if (!club) throw new NotFoundError('Club');
 
   const features =
-    (PLAN_FEATURES as Record<string, typeof PLAN_FEATURES.BASIC>)[club.plan] ?? PLAN_FEATURES.BASIC;
+    (PLAN_FEATURES as unknown as Record<string, typeof PLAN_FEATURES.BASIC>)[club.plan] ?? PLAN_FEATURES.BASIC;
 
   return {
     plan:             club.plan,

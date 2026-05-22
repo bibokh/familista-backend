@@ -1,0 +1,72 @@
+# Familista — CI: type-check + prisma format + boot probe on every PR.
+# Production deploys go through render.yaml → autoDeploy on main.
+# This workflow only validates the change; it never touches infra.
+
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    name: validate (tsc + prisma + boot probe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: familista_ci
+          POSTGRES_USER: familista_ci
+          POSTGRES_PASSWORD: familista_ci_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U familista_ci -d familista_ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      NODE_ENV:           test
+      DATABASE_URL:       postgresql://familista_ci:familista_ci_pw@localhost:5432/familista_ci
+      JWT_ACCESS_SECRET:  ci-secret-do-not-use
+      JWT_REFRESH_SECRET: ci-secret-do-not-use-refresh
+      JWT_ACCESS_TTL:     15m
+      JWT_REFRESH_TTL:    7d
+      JWT_ISSUER:         familista
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prisma format (verify schema)
+        run: npx prisma format --schema=prisma/schema.prisma
+
+      - name: Prisma generate
+        run: npx prisma generate --schema=prisma/schema.prisma
+
+      - name: Prisma migrate deploy
+        run: npx prisma migrate deploy --schema=prisma/schema.prisma
+
+      - name: TypeScript build
+        run: npm run build
+
+      - name: Boot probe (verify route registration)
+        run: node scripts/boot-probe.js
+
+      - name: Audit (informational)
+        run: npm audit --audit-level=high || true

@@ -1,0 +1,70 @@
+# Familista — local docker-compose for development / staging parity.
+# Spins up:
+#   • postgres  (data persisted to a named volume)
+#   • backend   (built from Dockerfile, depends on postgres)
+#
+# Usage:
+#   cp .env.example .env             # set secrets
+#   docker compose up --build        # bring stack up
+#   docker compose exec backend node scripts/boot-probe.js
+#   docker compose down              # stop (data persists in named volume)
+#   docker compose down -v           # stop AND wipe data
+#
+# Production (Render) does NOT use this compose file — see render.yaml.
+
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: familista-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-familista}
+      POSTGRES_USER:     ${POSTGRES_USER:-familista}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-familista_local_pw}
+    ports:
+      - "5432:5432"
+    volumes:
+      - familista_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-familista} -d ${POSTGRES_DB:-familista}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: familista-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV:           production
+      PORT:               "10000"
+      API_VERSION:        v1
+      DATABASE_URL:       postgresql://${POSTGRES_USER:-familista}:${POSTGRES_PASSWORD:-familista_local_pw}@postgres:5432/${POSTGRES_DB:-familista}
+      JWT_ACCESS_SECRET:  ${JWT_ACCESS_SECRET:-change-me-local}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-local-refresh}
+      JWT_ACCESS_TTL:     15m
+      JWT_REFRESH_TTL:    7d
+      JWT_ISSUER:         familista
+      RATE_LIMIT_WINDOW_MS: "60000"
+      RATE_LIMIT_MAX:       "300"
+      WL_ASSETS_BACKEND:    LOCAL
+      WL_ASSETS_DIR:        /var/data/uploads
+      WL_ASSETS_PUBLIC_PREFIX: /uploads
+    ports:
+      - "10000:10000"
+    volumes:
+      - familista_uploads:/var/data
+    command: >
+      sh -c "node node_modules/prisma/build/index.js migrate deploy --schema=prisma/schema.prisma
+             && node dist/server.js"
+
+volumes:
+  familista_pgdata:
+  familista_uploads:

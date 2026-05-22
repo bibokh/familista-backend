@@ -37,6 +37,11 @@ const USER_TO_VISION_ROLE: Record<UserRole, VisionActorRole> = {
   ANALYST: 'ANALYST',
   MEDICAL_STAFF: 'MEDICAL_STAFF',
   SCOUT: 'SCOUT',
+  // Phase O additions — map to the closest existing vision access role.
+  MANAGER: 'CLUB_ADMIN',
+  COACH: 'ASSISTANT_COACH',
+  PARENT: 'ANALYST',
+  PLAYER: 'ANALYST',
 };
 
 function clientIp(req: Request): string | null {

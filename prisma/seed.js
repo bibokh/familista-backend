@@ -63,6 +63,48 @@ async function main() {
         },
     });
     console.log(`✅ Demo admin: ${demoAdmin.email}`);
+    // ── Phase A — default Senior team + Memberships for demo users ─────────
+    const seniorTeam = await prisma.team.upsert({
+        where: { clubId_name: { clubId: club.id, name: 'Senior' } },
+        update: {},
+        create: {
+            clubId: club.id,
+            name: 'Senior',
+            shortName: '1ST',
+            kind: client_1.TeamKind.SENIOR,
+            gender: client_1.Gender.MEN,
+            color: '#16A34A',
+        },
+    });
+    console.log(`✅ Team:  ${seniorTeam.name} (${seniorTeam.id})`);
+    // Memberships mirror legacy roles so the Phase A tenant middleware
+    // accepts these users immediately after deploy.
+    const membershipSpecs = [
+        { userId: admin.id, role: client_1.MembershipRole.CLUB_OWNER },
+        { userId: demoAdmin.id, role: client_1.MembershipRole.CLUB_ADMIN },
+        { userId: coach.id, role: client_1.MembershipRole.HEAD_COACH },
+    ];
+    for (const m of membershipSpecs) {
+        const row = await prisma.membership.upsert({
+            where: { userId_clubId_teamId_role: { userId: m.userId, clubId: club.id, teamId: null, role: m.role } },
+            update: { isActive: true, leftAt: null },
+            create: { userId: m.userId, clubId: club.id, teamId: null, role: m.role, isActive: true },
+        });
+        console.log(`✅ Membership: ${m.role} (${row.id})`);
+    }
+    // Set the active context for the demo accounts so the UI is pre-tenanted.
+    await prisma.user.updateMany({
+        where: { id: { in: [admin.id, demoAdmin.id, coach.id] } },
+        data: { currentClubId: club.id, currentTeamId: seniorTeam.id },
+    });
+    // Backfill: assign any existing players in this club without a team to Senior.
+    // Idempotent — only touches rows where teamId IS NULL.
+    const backfill = await prisma.player.updateMany({
+        where: { clubId: club.id, teamId: null },
+        data: { teamId: seniorTeam.id },
+    });
+    if (backfill.count > 0)
+        console.log(`✅ Backfilled ${backfill.count} player(s) → Senior team`);
     // Coach
     const coachHash = await bcryptjs_1.default.hash('Coach2024!', 12);
     const coach = await prisma.user.upsert({

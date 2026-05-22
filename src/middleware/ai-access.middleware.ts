@@ -39,6 +39,11 @@ const USER_TO_AI_ROLE: Record<UserRole, AIActorRole> = {
   ANALYST: 'ANALYST',
   MEDICAL_STAFF: 'MEDICAL_STAFF',
   SCOUT: 'SCOUT',
+  // Phase O additions — map to the closest existing AI access role.
+  MANAGER: 'CLUB_ADMIN',
+  COACH: 'ASSISTANT_COACH',
+  PARENT: 'ANALYST',
+  PLAYER: 'ANALYST',
 };
 
 function clientIp(req: Request): string | null {

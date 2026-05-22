@@ -37,20 +37,33 @@ export async function authenticate(
     // Verify user still exists and is active
     const user = await prisma.user.findFirst({
       where: { id: payload.sub, isActive: true },
-      select: { id: true, email: true, role: true, clubId: true, isActive: true },
+      select: {
+        id: true, email: true, role: true, clubId: true, isActive: true,
+        // Phase A: active multi-tenant context
+        currentClubId: true,
+        currentTeamId: true,
+      },
     });
 
     if (!user) {
       throw new UnauthorizedError('User not found or deactivated');
     }
 
+    // Effective tenant: whatever the user picked in their context, falling
+    // back to their legacy primary clubId. Existing code keeps working.
+    const effectiveClubId = user.currentClubId ?? user.clubId;
+
     req.user = {
       id: user.id,
       email: user.email,
       role: user.role,
-      clubId: user.clubId,
-    };
-    req.clubId = user.clubId;
+      clubId: effectiveClubId,
+      // Phase A extensions (typed loosely so legacy callers ignore them)
+      primaryClubId: user.clubId,
+      currentClubId: user.currentClubId ?? null,
+      currentTeamId: user.currentTeamId ?? null,
+    } as Express.Request['user'];
+    req.clubId = effectiveClubId;
 
     next();
   } catch (err) {

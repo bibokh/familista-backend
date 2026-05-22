@@ -17,6 +17,11 @@ enum UserRole {
   ANALYST
   MEDICAL_STAFF
   SCOUT
+  // Phase O additions — additive only.
+  MANAGER
+  COACH
+  PARENT
+  PLAYER
 }
 
 enum SubscriptionPlan {
@@ -143,6 +148,12 @@ model Club {
   revenueDistributions  RevenueDistribution[]
   investmentEntity      InvestmentEntity?
 
+  // ── Phase A: multi-tenant teams + memberships ──
+  teams            Team[]
+  memberships      Membership[]
+  membershipAudits MembershipAuditLog[]
+  currentUsers     User[]               @relation("UserCurrentClub")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -172,12 +183,22 @@ model User {
   franchiseOwner  FranchiseOwner?
   investorProfile InvestorProfile?
 
+  // ── Phase A: multi-tenant Memberships + active context ──
+  memberships      Membership[]
+  currentClubId    String?
+  currentClub      Club?                @relation("UserCurrentClub", fields: [currentClubId], references: [id], onDelete: SetNull)
+  currentTeamId    String?
+  currentTeam      Team?                @relation("UserCurrentTeam", fields: [currentTeamId], references: [id], onDelete: SetNull)
+  membershipAudits MembershipAuditLog[] @relation("MembershipAuditActor")
+
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([clubId])
   @@index([email])
+  @@index([currentClubId])
+  @@index([currentTeamId])
 }
 
 model RefreshToken {
@@ -213,8 +234,23 @@ model Player {
   contractUntil DateTime?
   avatar        String?
 
+  // ── Phase 2 additions (all default-valued so the migration is safe) ──
+  email         String?
+  parentName    String?
+  parentEmail   String?
+  parentPhone   String?
+  medicalStatus MedicalStatus @default(HEALTHY)
+  paymentStatus PaymentStatus @default(PAID)
+  isActive      Boolean       @default(true)
+  notes         String?       @db.Text
+  joinedAt      DateTime      @default(now())
+
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  // ── Phase A: optional team scoping ──
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   attributes    PlayerAttribute[]
   gpsData       PlayerGpsData[]
@@ -222,12 +258,202 @@ model Player {
   trainingStats PlayerTrainingStat[]
   injuries      PlayerInjury[]
   device        GpsDevice?
+  auditLogs     PlayerAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clubId])
   @@index([position])
+  @@index([isActive])
+  @@index([medicalStatus])
+  @@index([paymentStatus])
+}
+
+// Audit trail of every privileged write against a Player.
+// Soft-delete + status transitions all leave a row here.
+model PlayerAuditLog {
+  id        String            @id @default(uuid())
+  playerId  String
+  player    Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  clubId    String
+  userId    String?
+  action    PlayerAuditAction
+  before    Json?
+  after     Json?
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime          @default(now())
+
+  @@index([playerId])
+  @@index([clubId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum MedicalStatus {
+  HEALTHY
+  INJURED
+  RECOVERING
+  SUSPENDED
+  UNAVAILABLE
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  UNPAID
+  OVERDUE
+  EXEMPT
+}
+
+enum PlayerAuditAction {
+  CREATE
+  UPDATE
+  DEACTIVATE
+  REACTIVATE
+  MEDICAL_STATUS_CHANGED
+  PAYMENT_STATUS_CHANGED
+  DELETE
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase A · Global SaaS Foundation
+// ─────────────────────────────────────────────────────────────────────────
+
+// A Team is a squad inside a Club: Senior, U17, Women, Reserves, Futsal…
+// The Club is the tenant root; the Team is the access-control scope under it.
+model Team {
+  id        String   @id @default(uuid())
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  name      String
+  shortName String?
+  kind      TeamKind @default(SENIOR)
+  gender    Gender   @default(MIXED)
+  ageMin    Int?
+  ageMax    Int?
+  color     String? // hex like #16A34A
+  emblem    String? // url or data uri
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true)
+
+  players      Player[]
+  memberships  Membership[]
+  currentUsers User[]       @relation("UserCurrentTeam")
+  matches      Match[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clubId, name])
+  @@index([clubId])
+  @@index([kind])
+  @@index([isActive])
+}
+
+// A Membership is the ONLY thing that grants access to a Club / Team.
+// teamId == null  ⇢  club-wide membership (covers every team)
+// teamId != null  ⇢  scoped to that single team
+model Membership {
+  id       String         @id @default(uuid())
+  userId   String
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId   String
+  club     Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  teamId   String?
+  team     Team?          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  role     MembershipRole
+  isActive Boolean        @default(true)
+  joinedAt DateTime       @default(now())
+  leftAt   DateTime?
+
+  audits MembershipAuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, clubId, teamId, role])
+  @@index([userId])
+  @@index([clubId])
+  @@index([teamId])
+  @@index([role])
+  @@index([isActive])
+}
+
+model MembershipAuditLog {
+  id           String                @id @default(uuid())
+  membershipId String?
+  membership   Membership?           @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  clubId       String
+  club         Club                  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  actorUserId  String?
+  actor        User?                 @relation("MembershipAuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action       MembershipAuditAction
+  before       Json?
+  after        Json?
+  reason       String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime              @default(now())
+
+  @@index([membershipId])
+  @@index([clubId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum TeamKind {
+  SENIOR
+  RESERVES
+  ACADEMY_U23
+  ACADEMY_U21
+  ACADEMY_U19
+  ACADEMY_U17
+  ACADEMY_U15
+  ACADEMY_U13
+  ACADEMY_U11
+  ACADEMY_U9
+  ACADEMY_U7
+  WOMEN
+  WOMEN_U19
+  WOMEN_U17
+  FUTSAL
+  OTHER
+}
+
+enum Gender {
+  MEN
+  WOMEN
+  MIXED
+}
+
+// Superset of the legacy UserRole, scope-aware and per-Membership.
+// Existing User.role stays as legacy whole-club role for back-compat;
+// new code reads MembershipRole.
+enum MembershipRole {
+  CLUB_OWNER
+  CLUB_ADMIN
+  HEAD_COACH
+  ASSISTANT_COACH
+  ANALYST
+  MEDICAL_STAFF
+  PHYSIO
+  SCOUT
+  FINANCE_MANAGER
+  PARENT
+  PLAYER
+  DEVICE
+}
+
+enum MembershipAuditAction {
+  GRANT
+  REVOKE
+  ROLE_CHANGED
+  TEAM_CHANGED
+  REACTIVATE
+  CONTEXT_SWITCH
 }
 
 model PlayerAttribute {
@@ -301,6 +527,20 @@ model Match {
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
+  // ── Phase B: scope by team + live state ──
+  teamId          String?
+  team            Team?          @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  status          MatchStatus    @default(SCHEDULED)
+  periodNow       Int? // 1=H1, 2=H2, 3=ET1, 4=ET2, 5=PEN
+  liveStartedAt   DateTime?
+  liveMinute      Int? // last reported clock minute when LIVE
+  formationHome   String? // e.g. "4-3-3"
+  formationAway   String?
+  opponentNotes   String?        @db.Text
+  aiInsights      Json?
+  deviceSessionId String?        @unique
+  deviceSession   DeviceSession? @relation("MatchDeviceSession", fields: [deviceSessionId], references: [id], onDelete: SetNull)
+
   homeTeam        String
   awayTeam        String
   homeScore       Int?
@@ -324,10 +564,18 @@ model Match {
 
   playerStats PlayerMatchStat[]
 
+  // ── Phase B relations ──
+  lineups           MatchLineup[]
+  timeline          MatchTimeline[]
+  tacticalSnapshots MatchTacticalSnapshot[]
+  auditLogs         MatchAuditLog[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([clubId])
+  @@index([teamId])
+  @@index([status])
   @@index([scheduledAt])
 }
 
@@ -350,6 +598,4117 @@ model PlayerMatchStat {
   @@unique([matchId, playerId])
   @@index([matchId])
   @@index([playerId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase B · Match Intelligence System
+// ─────────────────────────────────────────────────────────────────────────
+
+// One row per side per match: starters, bench, formation, position grid.
+model MatchLineup {
+  id        String    @id @default(uuid())
+  matchId   String
+  match     Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  side      MatchSide
+  formation String? // "4-3-3", "3-5-2"
+  notes     String?   @db.Text
+  // Compact position grid for our team:
+  //   [{ playerId, position, x, y, isStarter, captainBand, jerseyNumber }, ...]
+  // Opponent side: [{ name, position, x, y, isStarter }, ...]
+  positions Json
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([matchId, side])
+  @@index([matchId])
+}
+
+// Live human-entered events. SEPARATE from VisionAnalysisRun's MatchEvent
+// (which is machine-derived from vision). Both join on matchId.
+model MatchTimeline {
+  id                String            @id @default(uuid())
+  matchId           String
+  match             Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  occurredAtMin     Int // clock minute (0-130)
+  occurredAtSec     Int? // optional sub-minute precision
+  period            Int               @default(1)
+  kind              MatchTimelineKind
+  side              MatchSide
+  primaryPlayerId   String? // own player (if scoped to our team)
+  secondaryPlayerId String? // for assists / sub-out
+  opponentName      String? // free-text for opponent-side events
+  pitchX            Float? // 0..100
+  pitchY            Float? // 0..100
+  notes             String?           @db.Text
+  payload           Json? // shot-on-target, card colour, sub direction, etc.
+  enteredByUserId   String?
+  isDeleted         Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([matchId, occurredAtMin])
+  @@index([matchId, kind])
+  @@index([primaryPlayerId])
+}
+
+// Tactical snapshot — frozen state of pitch + formation + notes.
+// Taken manually by coach or every N minutes by an automation.
+model MatchTacticalSnapshot {
+  id           String             @id @default(uuid())
+  matchId      String
+  match        Match              @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  takenAtMin   Int
+  period       Int                @default(1)
+  phase        MatchTacticalPhase @default(OPEN_PLAY)
+  formation    String? // "4-3-3"
+  possession   Float? // 0..100
+  // [{ playerId|opponentName, side, x, y, role }, ...]
+  positions    Json
+  notes        String?            @db.Text
+  source       TacticalSource     @default(MANUAL)
+  authorUserId String?
+  createdAt    DateTime           @default(now())
+
+  @@index([matchId, takenAtMin])
+  @@index([matchId, phase])
+}
+
+// Audit trail per Match. Reuses the Phase 2 PlayerAuditLog pattern.
+model MatchAuditLog {
+  id        String           @id @default(uuid())
+  matchId   String
+  match     Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  clubId    String
+  userId    String?
+  action    MatchAuditAction
+  before    Json?
+  after     Json?
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime         @default(now())
+
+  @@index([matchId])
+  @@index([clubId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  HALFTIME
+  FT
+  POSTPONED
+  ABANDONED
+  CANCELLED
+}
+
+enum MatchSide {
+  HOME
+  AWAY
+}
+
+enum MatchTimelineKind {
+  GOAL
+  OWN_GOAL
+  ASSIST
+  SHOT
+  SHOT_ON_TARGET
+  SHOT_OFF_TARGET
+  SAVE
+  YELLOW_CARD
+  SECOND_YELLOW
+  RED_CARD
+  SUBSTITUTION
+  INJURY
+  FOUL
+  CORNER
+  OFFSIDE
+  PENALTY_AWARDED
+  PENALTY_SCORED
+  PENALTY_MISSED
+  POSSESSION_TICK // periodic sampling
+  TACTICAL_NOTE
+  AI_INSIGHT
+  CUSTOM
+}
+
+enum MatchTacticalPhase {
+  OPEN_PLAY
+  ATTACKING_TRANSITION
+  DEFENSIVE_TRANSITION
+  ATTACKING_ORGANIZATION
+  DEFENSIVE_ORGANIZATION
+  SET_PIECE_FOR
+  SET_PIECE_AGAINST
+}
+
+enum TacticalSource {
+  MANUAL
+  AUTO_INTERVAL
+  AI_AGENT
+  VISION
+}
+
+enum MatchAuditAction {
+  CREATE
+  UPDATE
+  STATUS_CHANGED
+  LINEUP_SET
+  TIMELINE_ADDED
+  TIMELINE_EDITED
+  TIMELINE_DELETED
+  SNAPSHOT_TAKEN
+  DELETE
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase B · Hardware / PCB ecosystem (placeholder data plane)
+// ─────────────────────────────────────────────────────────────────────────
+
+// One row per device usage interval. SensorPacket(s) ALWAYS reference a session,
+// never the device directly. Tenant lives on the session — never the packet.
+model DeviceSession {
+  id                String    @id @default(uuid())
+  clubId            String
+  teamId            String?
+  matchId           String?   @unique
+  trainingSessionId String?   @unique
+  deviceModel       String // FAMILISTA_WEARABLE_V1, FAMILISTA_TURF_NODE_V1, FAMILISTA_AI_CAM_V1
+  deviceSerial      String
+  edgeFwVersion     String?
+  sessionKey        String? // HMAC seed (server-issued at session open; nullable for legacy)
+  startedAt         DateTime
+  endedAt           DateTime?
+  metadata          Json?
+
+  packets SensorPacket[]
+  match   Match?         @relation("MatchDeviceSession")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([teamId])
+  @@index([deviceModel])
+  @@index([deviceSerial])
+  @@index([startedAt])
+}
+
+// Append-only sensor stream. One row per packet; partition + archive later.
+model SensorPacket {
+  id              String           @id @default(uuid())
+  deviceSessionId String
+  deviceSession   DeviceSession    @relation(fields: [deviceSessionId], references: [id], onDelete: Cascade)
+  kind            SensorPacketKind
+  capturedAt      DateTime
+  receivedAt      DateTime         @default(now())
+  payload         Json
+  sigB64          String? // HMAC(sha256, sessionKey, capturedAt|payload)
+
+  @@index([deviceSessionId, capturedAt])
+  @@index([kind])
+}
+
+enum SensorPacketKind {
+  GPS
+  IMU
+  ECG
+  HEART_RATE
+  HEALTH_BUNDLE
+  EVENT
+  VISION_FRAME
+  TURF_NODE
+  POWER
+  DIAGNOSTIC
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase B · Automation + AI Agent framework (data plane only; workers later)
+// ─────────────────────────────────────────────────────────────────────────
+
+model AutomationTask {
+  id          String            @id @default(uuid())
+  clubId      String
+  teamId      String?
+  kind        AutomationKind
+  name        String
+  schedule    String? // cron expression OR ISO interval OR null=manual
+  isActive    Boolean           @default(true)
+  budgetCents Int               @default(0)
+  params      Json?
+  lastRunAt   DateTime?
+  lastStatus  AutomationStatus?
+  createdBy   String?
+
+  runs AutomationRun[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([teamId])
+  @@index([kind])
+  @@index([isActive])
+}
+
+model AutomationRun {
+  id         String           @id @default(uuid())
+  taskId     String
+  task       AutomationTask   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  startedAt  DateTime         @default(now())
+  finishedAt DateTime?
+  status     AutomationStatus @default(PENDING)
+  output     Json?
+  error      String?          @db.Text
+  costCents  Int              @default(0)
+  costTokens Int              @default(0)
+
+  @@index([taskId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model AIAgentJob {
+  id          String           @id @default(uuid())
+  clubId      String
+  teamId      String?
+  agent       AIAgent
+  kind        String // free-text within agent: e.g. TACTICAL.MATCH_REVIEW, MEDICAL.FATIGUE_SCAN
+  input       Json
+  output      Json?
+  status      AutomationStatus @default(PENDING)
+  model       String? // claude-sonnet-4-…, gpt-…
+  costTokens  Int              @default(0)
+  costCents   Int              @default(0)
+  error       String?          @db.Text
+  triggeredBy String? // userId or taskId
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@index([clubId])
+  @@index([agent, status])
+  @@index([createdAt])
+}
+
+enum AutomationKind {
+  SCHEDULE_REPORT
+  INJURY_RISK_SCAN
+  TRAINING_PLAN
+  MATCH_PREVIEW
+  MATCH_RECAP
+  FATIGUE_SCAN
+  FINANCE_SUMMARY
+  COMMS_BROADCAST
+  DEVICE_HEALTHCHECK
+  DATA_PIPELINE
+  CUSTOM
+}
+
+enum AutomationStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum AIAgent {
+  CLUB_MANAGER
+  TACTICAL
+  MEDICAL
+  SCOUTING
+  FINANCE
+  TRAINING
+  MATCH_OPS
+  COMMS
+  DEVICE_MGMT
+  BIG_DATA
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase E — Realtime Tactical Twin + AI Operations
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No relations on existing Club/Match/Player/Team — IDs are
+// stored as String columns so this migration cannot break historical rows.
+
+enum AlertSeverity {
+  INFO
+  WARN
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACK
+  RESOLVED
+  MUTED
+}
+
+/// AIAlert — push-style notifications from rules engine / agents.
+/// Append-only stream; status mutated via ACK/RESOLVE actions.
+model AIAlert {
+  id         String        @id @default(uuid())
+  clubId     String
+  matchId    String?
+  teamId     String?
+  playerId   String?
+  agent      AIAgent?
+  kind       String // free-text: FATIGUE | FORMATION_DRIFT | DEVICE_STALE | DISCIPLINE | RECOVERY | …
+  severity   AlertSeverity @default(INFO)
+  title      String        @default("")
+  message    String?       @db.Text
+  payload    Json?
+  status     AlertStatus   @default(OPEN)
+  createdAt  DateTime      @default(now())
+  ackedAt    DateTime?
+  ackedBy    String?
+  resolvedAt DateTime?
+
+  @@index([clubId, createdAt])
+  @@index([clubId, status])
+  @@index([matchId, createdAt])
+  @@index([kind, severity])
+}
+
+/// AIRecommendation — proactive suggestions a coach/manager can accept.
+/// Deterministic placeholder generators (rules-engine + AI agents) write here.
+model AIRecommendation {
+  id        String      @id @default(uuid())
+  clubId    String
+  matchId   String?
+  teamId    String?
+  playerId  String?
+  agent     AIAgent
+  kind      String // SUBSTITUTION | FORMATION_SHIFT | PRESS_TRIGGER | REST | …
+  title     String      @default("")
+  content   Json
+  score     Float? // 0..1 confidence (optional)
+  status    AlertStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+  ackedAt   DateTime?
+  ackedBy   String?
+
+  @@index([clubId, createdAt])
+  @@index([matchId, createdAt])
+  @@index([agent, status])
+}
+
+/// AIReport — generated long-form briefs (match summary, weekly health, …).
+/// Stored as text so we can render markdown in the panel without parsing.
+model AIReport {
+  id        String   @id @default(uuid())
+  clubId    String
+  matchId   String?
+  teamId    String?
+  agent     AIAgent
+  kind      String // MATCH_SUMMARY | WEEKLY_HEALTH | OPPONENT_DOSSIER | …
+  title     String
+  content   String   @db.Text
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([matchId, createdAt])
+  @@index([agent, kind])
+}
+
+/// DigitalTwinFrame — snapshot of TacticalState at a point in time.
+/// Append-only; matchId + takenAtMs is the natural sort key for replay.
+/// `state` is the full TacticalState JSON; size-bounded by the engine.
+model DigitalTwinFrame {
+  id        String   @id @default(uuid())
+  clubId    String
+  matchId   String
+  takenAtMs BigInt
+  kind      String   @default("TACTICAL") // TACTICAL | FUSION | EVENT | ANNOTATION
+  version   Int      @default(1)
+  state     Json
+  createdAt DateTime @default(now())
+
+  @@index([matchId, takenAtMs])
+  @@index([clubId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase F — Device PCB Infrastructure + Big Data Foundation
+// ─────────────────────────────────────────────────────────────────────────
+// Strict rules:
+//  - All additive. NO FK back-relations on Club/Team/Match → existing rows
+//    cannot be touched by `prisma migrate deploy`.
+//  - Indexes only on hot read paths (tenant prefix + sort key).
+
+enum DeviceProvisionStatus {
+  REGISTERED
+  PROVISIONED
+  ACTIVE
+  RETIRED
+  REVOKED
+}
+
+/// Device — per-PCB registry. ONE row per physical board (FAMILISTA_WEARABLE_V1,
+/// TURF_NODE, AI_CAM, SMART_BALL). Stores the long-lived HMAC secret that
+/// signs sessionKey rotations. The board ships with this secret burned into
+/// its eFuse + the matching row created via /api/v1/devices/register.
+model Device {
+  id               String                @id @default(uuid())
+  clubId           String
+  teamId           String?
+  /// Stable serial baked into the PCB at manufacture.
+  serial           String                @unique
+  model            String // FAMILISTA_WEARABLE_V1 | …
+  hwRevision       String? // PCB rev: R1A, R2B, …
+  hmacSecret       String // long-lived HMAC root key (b64)
+  /// Last-known eFuse fingerprint reported by the device. If it changes
+  /// we revoke the device — likely tampering or board swap.
+  efuseFingerprint String?
+  status           DeviceProvisionStatus @default(REGISTERED)
+  registeredAt     DateTime              @default(now())
+  activatedAt      DateTime?
+  retiredAt        DateTime?
+  revokedAt        DateTime?
+  notes            String?
+  metadata         Json?
+
+  @@index([clubId])
+  @@index([clubId, status])
+  @@index([model])
+}
+
+/// DeviceFirmware — OTA channel pin. One row per (model, channel). Devices
+/// poll GET /devices/:id/firmware to discover the version they should run.
+/// We never push — pull-only avoids hostile mid-match flashes.
+model DeviceFirmware {
+  id          String   @id @default(uuid())
+  model       String // FAMILISTA_WEARABLE_V1 | …
+  channel     String   @default("stable") // stable | beta | dev
+  version     String // semver: 1.4.0
+  /// SHA-256 of the firmware blob (the device verifies after download).
+  sha256      String
+  /// CDN URL or signed S3 link the device fetches.
+  downloadUrl String
+  /// Minimum-allowed hwRevision; anything older is told NOT to upgrade.
+  minHwRev    String?
+  notes       String?  @db.Text
+  publishedAt DateTime @default(now())
+  publishedBy String?
+  isActive    Boolean  @default(true)
+
+  @@unique([model, channel, version])
+  @@index([model, channel, isActive])
+}
+
+/// DeviceCalibration — per-device, per-sensor calibration row. Append-only
+/// (versioned) so we can replay historical packets against the calibration
+/// they were captured with.
+model DeviceCalibration {
+  id         String   @id @default(uuid())
+  deviceId   String
+  sensorKind String // GPS | IMU | ECG | HEART_RATE | …
+  /// Calibration version — monotonically increasing per (deviceId, sensorKind).
+  version    Int      @default(1)
+  /// Calibration coefficients (e.g. accelerometer bias/scale, GPS offset).
+  payload    Json
+  /// Operator who performed/uploaded the calibration.
+  appliedBy  String?
+  appliedAt  DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  @@index([deviceId, sensorKind, version])
+  @@index([deviceId, isActive])
+}
+
+/// EventOutbox — deterministic event-source log. Every state-changing
+/// publish() goes here BEFORE it fans out (in-proc / Redis / Kafka).
+///   - `seq` is monotonic per matchId via a transactional bump
+///   - `idempotencyKey` is unique → safe to retry publishers
+///   - Once big-data adapters consume, they set `publishedAt`
+///
+/// This is the durability anchor for "deterministic replay": even if a
+/// downstream consumer is offline for hours, the full ordered timeline
+/// can be replayed from this table.
+model EventOutbox {
+  id             String    @id @default(uuid())
+  clubId         String
+  matchId        String?
+  seq            BigInt // monotonic per matchId; 0 when matchId is null
+  kind           String // MATCH_EVENT | FUSION_PACKET | AI_ALERT | …
+  /// External idempotency key (caller-supplied or hash of body). Lets
+  /// at-least-once producers dedupe without coordination.
+  idempotencyKey String    @unique
+  payload        Json
+  /// Source service name — useful for replay debugging.
+  source         String? // match-intel | rules-engine | …
+  createdAt      DateTime  @default(now())
+  publishedAt    DateTime? // set when fanned out to all configured adapters
+  adapters       String? // csv of adapters that have ack'd (REDIS,KAFKA,IN_PROC)
+
+  @@index([matchId, seq])
+  @@index([clubId, createdAt])
+  @@index([publishedAt])
+}
+
+/// MatchEventSequence — internal counter table backing EventOutbox.seq.
+/// One row per matchId; updated inside the same transaction as the outbox
+/// insert, so seq is strictly monotonic and gap-free per match.
+model MatchEventSequence {
+  matchId String @id
+  next    BigInt @default(0)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase G — Vision Intelligence + Multi-Sport Twin + Predictive Layer
+// ─────────────────────────────────────────────────────────────────────────
+// Strict rules (same as F):
+//  - All additive. NO FK back-relations on existing models.
+//  - Replay-safe: any state-changing write also lands in EventOutbox.
+//  - Pixel/video bytes NEVER stored in Postgres — only detections + metadata.
+
+enum SportKind {
+  FOOTBALL
+  BASKETBALL
+  TENNIS
+  HANDBALL
+  ATHLETICS
+  // Phase N additions — additive only; existing sports unchanged.
+  FUTSAL
+  VOLLEYBALL
+  CUSTOM
+}
+
+enum CameraStatus {
+  REGISTERED
+  CALIBRATED
+  ACTIVE
+  OFFLINE
+  RETIRED
+}
+
+enum CameraKind {
+  RGB
+  DEPTH
+  EVENT
+  PANORAMIC
+  AERIAL
+}
+
+enum PredictionKind {
+  TACTICAL_COLLAPSE
+  INJURY_RISK
+  FATIGUE_TRAJECTORY
+  POSITIONING_DEGRADATION
+  MOMENTUM_SHIFT
+  SUBSTITUTION_WINDOW
+}
+
+/// Camera — per-physical-rig registry. Analogous to Device.
+model Camera {
+  id              String       @id @default(uuid())
+  clubId          String
+  teamId          String?
+  serial          String       @unique
+  label           String
+  kind            CameraKind   @default(RGB)
+  vendor          String?
+  model           String?
+  hwRevision      String?
+  hmacSecret      String
+  status          CameraStatus @default(REGISTERED)
+  lastClockSkewMs Int?
+  registeredAt    DateTime     @default(now())
+  calibratedAt    DateTime?
+  retiredAt       DateTime?
+  metadata        Json?
+
+  @@index([clubId])
+  @@index([clubId, status])
+  @@index([kind])
+}
+
+/// CameraCalibration — append-only versioned intrinsics + extrinsics.
+model CameraCalibration {
+  id                  String   @id @default(uuid())
+  cameraId            String
+  version             Int      @default(1)
+  intrinsics          Json
+  extrinsics          Json
+  frameOfReference    String   @default("PITCH")
+  reprojectionErrorPx Float?
+  appliedBy           String?
+  appliedAt           DateTime @default(now())
+  isActive            Boolean  @default(true)
+
+  @@index([cameraId, version])
+  @@index([cameraId, isActive])
+}
+
+/// VisionFrame — per-camera, per-instant detection bundle. Pixels NEVER
+/// land in Postgres; only the detected objects produced by the edge node.
+model VisionFrame {
+  id                 String  @id @default(uuid())
+  clubId             String
+  matchId            String?
+  cameraId           String
+  monotonicMs        BigInt
+  cameraTsUs         BigInt
+  kind               String  @default("RGB")
+  detections         Json
+  calibrationVersion Int?
+  sigB64             String?
+
+  @@index([matchId, monotonicMs])
+  @@index([cameraId, monotonicMs])
+  @@index([clubId, monotonicMs])
+}
+
+/// SpatialFrame — fused multi-sensor cognitive state. Persisted sparingly
+/// (≤2 Hz typical) so replay has anchor points; interpolation fills gaps.
+model SpatialFrame {
+  id          String    @id @default(uuid())
+  clubId      String
+  matchId     String
+  monotonicMs BigInt
+  sport       SportKind @default(FOOTBALL)
+  players     Json
+  object      Json?
+  geometry    Json?
+  sources     Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([matchId, monotonicMs])
+  @@index([clubId, createdAt])
+}
+
+/// TacticalAnnotation — coach-authored markers on the timeline.
+model TacticalAnnotation {
+  id         String   @id @default(uuid())
+  clubId     String
+  matchId    String
+  authorId   String
+  atMs       BigInt
+  kind       String // ARROW | ZONE | NOTE | DRAW | TAG_PLAYER
+  payload    Json
+  visibility String   @default("CLUB") // CLUB | COACHES | PRIVATE
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  @@index([matchId, atMs])
+  @@index([clubId, createdAt])
+}
+
+/// Prediction — output of the Predictive Intelligence Layer. Append-only.
+model Prediction {
+  id           String         @id @default(uuid())
+  clubId       String
+  matchId      String?
+  teamId       String?
+  playerId     String?
+  kind         PredictionKind
+  score        Float
+  horizonMs    Int            @default(300000)
+  components   Json
+  rationale    String?        @db.Text
+  modelVersion String         @default("v1")
+  createdAt    DateTime       @default(now())
+
+  @@index([clubId, kind, createdAt])
+  @@index([matchId, kind])
+  @@index([playerId, kind])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase I — Zero-Trust + Blockchain-Inspired Audit Integrity
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models.
+//
+// Design rules:
+//  - SecurityAuditEvent is the tamper-resistant chain. Per-club ledger.
+//    SHA-256 of (previousHash + actorId + clubId + action + entityType +
+//    entityId + payloadHash + timestamp). Modifying any row invalidates
+//    every subsequent currentHash.
+//  - SecurityChainHead holds the last hash + next position per clubId, so
+//    appends are O(1) without scanning the chain.
+//  - LoginAttempt stores SHA-256(email) — we never persist the raw email.
+
+enum SecurityEventKind {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGIN_LOCKED
+  TENANT_MISMATCH
+  RATE_LIMITED
+  SUSPICIOUS_PAYLOAD
+  DEVICE_REJECTED
+  DEVICE_REPLAY
+  DEVICE_TS_SKEW
+  PROMPT_INJECTION_SUSPECT
+  UNAUTHORIZED_AI_ATTEMPT
+  AUDIT_CHAIN_VERIFIED
+  AUDIT_CHAIN_BROKEN
+  APPROVAL_REQUESTED
+  APPROVAL_GRANTED
+  APPROVAL_REJECTED
+  APPROVAL_EXPIRED
+  CUSTOM
+}
+
+enum SecuritySeverity {
+  INFO
+  WARN
+  CRITICAL
+}
+
+enum AIApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  EXECUTED
+}
+
+enum AIApprovalKind {
+  DELETE_DATA
+  CHANGE_TACTICS_LIVE
+  MASS_MESSAGE
+  APPROVE_TRANSFER
+  MEDICAL_RECOMMENDATION
+  PAYMENT_ACTION
+  OTHER
+}
+
+/// SecurityAuditEvent — tamper-resistant blockchain-inspired audit log.
+/// One chain per clubId. Append-only.
+model SecurityAuditEvent {
+  id            String   @id @default(uuid())
+  clubId        String
+  chainPosition BigInt
+  actorId       String?
+  teamId        String?
+  action        String
+  entityType    String?
+  entityId      String?
+  /// SHA-256 hex of canonical-stringified payload.
+  payloadHash   String
+  /// Hash of the previous chain row; "GENESIS" for position 0.
+  previousHash  String
+  /// SHA-256(previousHash + actorId + clubId + action + entityType +
+  ///          entityId + payloadHash + timestamp).
+  currentHash   String
+  /// Captured at append time.
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@unique([clubId, chainPosition])
+  @@index([clubId, createdAt])
+  @@index([currentHash])
+}
+
+/// SecurityChainHead — per-club counter + lastHash, bumped atomically with
+/// every SecurityAuditEvent insert. Makes appends O(1).
+model SecurityChainHead {
+  clubId       String   @id
+  nextPosition BigInt   @default(0)
+  lastHash     String   @default("GENESIS")
+  updatedAt    DateTime @updatedAt
+}
+
+/// SecurityEvent — general-purpose security log. NOT chained — those are
+/// SecurityAuditEvent rows. SecurityEvent is the "things noticed" feed:
+/// failed logins, replay attempts, rate-limit hits, prompt-injection suspects.
+model SecurityEvent {
+  id        String            @id @default(uuid())
+  clubId    String?
+  actorId   String?
+  kind      SecurityEventKind
+  severity  SecuritySeverity  @default(INFO)
+  ipAddress String?
+  userAgent String?
+  payload   Json?
+  createdAt DateTime          @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([kind, createdAt])
+  @@index([actorId, createdAt])
+}
+
+/// LoginAttempt — failed/successful login records. Email is hashed
+/// (SHA-256) so we can rate-limit without storing PII.
+model LoginAttempt {
+  id        String   @id @default(uuid())
+  emailHash String
+  success   Boolean
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([emailHash, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+/// AIApprovalRequest — high-risk AI actions awaiting human approval.
+/// Worker parks AIAgentJob until status=APPROVED.
+model AIApprovalRequest {
+  id             String           @id @default(uuid())
+  clubId         String
+  requesterId    String
+  agent          AIAgent
+  kind           AIApprovalKind
+  /// Reference to the AIAgentJob (if any) this request gates.
+  jobId          String?
+  payload        Json
+  status         AIApprovalStatus @default(PENDING)
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectedReason String?
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+
+  @@index([clubId, status])
+  @@index([status, expiresAt])
+  @@index([jobId])
+}
+
+/// DeviceSecurityEvent — device-side security signals (replay rejected,
+/// HMAC failure, clock skew). Separate from SecurityEvent so device
+/// volume doesn't drown human-facing security signals.
+model DeviceSecurityEvent {
+  id              String            @id @default(uuid())
+  clubId          String?
+  deviceSessionId String?
+  cameraId        String?
+  kind            SecurityEventKind
+  severity        SecuritySeverity  @default(WARN)
+  payload         Json?
+  createdAt       DateTime          @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([deviceSessionId, createdAt])
+  @@index([cameraId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase J — Global Distributed Sports Cloud
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models.
+
+// ── Distributed infrastructure ──────────────────────────────────────────
+
+enum RegionStatus {
+  ACTIVE
+  STANDBY
+  DEGRADED
+  OFFLINE
+}
+
+enum RegionNodeKind {
+  API
+  REALTIME
+  WORKER
+  EDGE_GATEWAY
+}
+
+model Region {
+  id           String       @id @default(uuid())
+  code         String       @unique
+  label        String
+  anchorCity   String?
+  countries    Json?
+  status       RegionStatus @default(ACTIVE)
+  primary      Boolean      @default(false)
+  failoverCode String?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status])
+}
+
+model RegionNode {
+  id         String         @id @default(uuid())
+  regionId   String
+  nodeId     String         @unique
+  kind       RegionNodeKind
+  url        String?
+  version    String?
+  startedAt  DateTime       @default(now())
+  lastSeenAt DateTime       @default(now())
+  status     RegionStatus   @default(ACTIVE)
+  metadata   Json?
+
+  @@index([regionId, kind])
+  @@index([lastSeenAt])
+}
+
+model RegionHeartbeat {
+  id          String   @id @default(uuid())
+  regionId    String
+  nodeId      String
+  healthScore Float    @default(1.0)
+  cpuLoad     Float?
+  memMb       Int?
+  activeSubs  Int?     @default(0)
+  queueDepth  Int?     @default(0)
+  capturedAt  DateTime @default(now())
+
+  @@index([regionId, capturedAt])
+  @@index([nodeId, capturedAt])
+}
+
+model RegionHealth {
+  regionId       String    @id
+  healthyNodes   Int       @default(0)
+  totalNodes     Int       @default(0)
+  meanScore      Float     @default(0)
+  lastIncidentAt DateTime?
+  updatedAt      DateTime  @updatedAt
+}
+
+model DistributedEventCursor {
+  id        String    @id @default(uuid())
+  regionId  String
+  adapter   String
+  topic     String?
+  lastSeq   BigInt    @default(0)
+  lastTs    DateTime?
+  updatedAt DateTime  @updatedAt
+
+  @@unique([regionId, adapter, topic])
+}
+
+// ── AI agent decision (Phase J audit hook) ──────────────────────────────
+
+enum AIDecisionImpact {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model AIAgentDecision {
+  id                String           @id @default(uuid())
+  clubId            String
+  matchId           String?
+  teamId            String?
+  agent             AIAgent
+  kind              String
+  jobId             String?
+  rationale         String           @db.Text
+  sourceTelemetry   Json
+  confidence        Float            @default(0.5)
+  tacticalImpact    AIDecisionImpact @default(LOW)
+  approvalRequestId String?
+  payload           Json?
+  payloadHash       String?
+  modelVersion      String           @default("v1")
+  backend           String?
+  createdAt         DateTime         @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([matchId, agent])
+  @@index([agent, kind])
+  @@index([jobId])
+}
+
+// ── Distributed digital twin ────────────────────────────────────────────
+
+model TacticalGhost {
+  id                   String   @id @default(uuid())
+  clubId               String
+  matchId              String
+  sourceSpatialFrameId String?
+  kind                 String
+  payload              Json
+  createdById          String?
+  createdAt            DateTime @default(now())
+
+  @@index([matchId, createdAt])
+  @@index([clubId, createdAt])
+}
+
+model ReplayCursor {
+  id        String   @id @default(uuid())
+  userId    String
+  matchId   String
+  atMs      BigInt
+  rate      Float    @default(1.0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, matchId])
+  @@index([matchId])
+}
+
+// ── Vision intelligence ─────────────────────────────────────────────────
+
+model PoseSkeleton {
+  id            String   @id @default(uuid())
+  clubId        String
+  matchId       String?
+  visionFrameId String?
+  playerId      String?
+  monotonicMs   BigInt
+  joints        Json
+  confidence    Float    @default(0.5)
+  createdAt     DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+  @@index([playerId, monotonicMs])
+}
+
+model BallTrajectory {
+  id             String   @id @default(uuid())
+  clubId         String
+  matchId        String
+  points         Json
+  fromMs         BigInt
+  toMs           BigInt
+  confidence     Float    @default(0.5)
+  sourceFrameIds Json?
+  createdAt      DateTime @default(now())
+
+  @@index([matchId, fromMs])
+}
+
+model SpatialMap {
+  id        String   @id @default(uuid())
+  clubId    String
+  matchId   String?
+  kind      String
+  payload   Json
+  windowMs  Int?
+  createdAt DateTime @default(now())
+
+  @@index([matchId, kind])
+  @@index([clubId, createdAt])
+}
+
+// ── Edge compute ────────────────────────────────────────────────────────
+
+enum EdgeNodeKind {
+  CAMERA
+  WEARABLE
+  TURF
+  SMART_BALL
+  BIOCHEM
+  EDGE_BOX
+}
+
+enum CompressionStrategy {
+  NONE
+  ZSTD
+  LZ4
+  DELTA
+}
+
+model EdgeNode {
+  id          String              @id @default(uuid())
+  clubId      String
+  teamId      String?
+  kind        EdgeNodeKind
+  deviceId    String?
+  cameraId    String?
+  label       String?
+  fwVersion   String?
+  compression CompressionStrategy @default(NONE)
+  status      RegionStatus        @default(ACTIVE)
+  lastSyncAt  DateTime?
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([clubId, kind])
+  @@index([deviceId])
+  @@index([cameraId])
+}
+
+model EdgeBuffer {
+  id          String              @id @default(uuid())
+  edgeNodeId  String
+  payloadHash String
+  sizeBytes   Int
+  capturedAt  DateTime
+  syncedAt    DateTime?
+  packetCount Int                 @default(1)
+  compression CompressionStrategy @default(NONE)
+
+  @@index([edgeNodeId, capturedAt])
+  @@index([syncedAt])
+}
+
+model SyncWindow {
+  id           String   @id @default(uuid())
+  edgeNodeId   String
+  fromMs       BigInt
+  toMs         BigInt
+  packetsTotal Int      @default(0)
+  packetsOk    Int      @default(0)
+  ok           Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([edgeNodeId, fromMs])
+}
+
+model EdgeInferenceResult {
+  id         String   @id @default(uuid())
+  edgeNodeId String
+  clubId     String?
+  matchId    String?
+  kind       String
+  payload    Json
+  confidence Float    @default(0.5)
+  capturedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([edgeNodeId, capturedAt])
+  @@index([matchId, kind])
+}
+
+// ── Provisioning pipeline ───────────────────────────────────────────────
+
+enum ProvisioningStatus {
+  CREATED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model ProvisioningBatch {
+  id          String             @id @default(uuid())
+  clubId      String?
+  factoryRef  String?
+  model       String
+  hwRevision  String?
+  serials     Json
+  status      ProvisioningStatus @default(CREATED)
+  startedAt   DateTime?
+  completedAt DateTime?
+  manifestId  String?
+  createdById String?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+
+  @@index([clubId, status])
+  @@index([model, status])
+}
+
+model DeviceCertificate {
+  id          String    @id @default(uuid())
+  deviceId    String
+  fingerprint String
+  issuer      String?
+  validFrom   DateTime  @default(now())
+  validUntil  DateTime?
+  revokedAt   DateTime?
+  metadata    Json?
+
+  @@unique([deviceId, fingerprint])
+  @@index([deviceId])
+  @@index([revokedAt])
+}
+
+model FirmwareManifest {
+  id           String   @id @default(uuid())
+  model        String
+  channel      String   @default("stable")
+  version      String
+  files        Json
+  releaseNotes String?  @db.Text
+  minHwRev     String?
+  publishedBy  String?
+  publishedAt  DateTime @default(now())
+  isActive     Boolean  @default(true)
+
+  @@unique([model, channel, version])
+  @@index([model, channel, isActive])
+}
+
+model DeviceActivation {
+  id          String             @id @default(uuid())
+  deviceId    String             @unique
+  batchId     String?
+  serial      String
+  activatedAt DateTime?
+  ipAddress   String?
+  fingerprint String?
+  status      ProvisioningStatus @default(CREATED)
+  notes       String?
+  createdAt   DateTime           @default(now())
+
+  @@index([batchId])
+  @@index([status])
+}
+
+model OTARelease {
+  id          String             @id @default(uuid())
+  manifestId  String
+  model       String
+  channel     String             @default("stable")
+  version     String
+  rolloutPct  Int                @default(0)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  status      ProvisioningStatus @default(CREATED)
+  notes       String?
+
+  @@index([model, channel, status])
+  @@index([manifestId])
+}
+
+// ── Enterprise billing (architecture only — no gateway) ─────────────────
+
+enum BillingPlanKind {
+  CLUB
+  FEDERATION
+  ACADEMY
+  DEVICE_HW
+  DEVICE_AI
+  ANALYTICS
+  CUSTOM
+}
+
+enum BillingAccountStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  PAUSED
+}
+
+model BillingPlanTier {
+  id           String          @id @default(uuid())
+  code         String          @unique
+  kind         BillingPlanKind
+  label        String
+  monthlyCents Int             @default(0)
+  features     Json?
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([kind, isActive])
+}
+
+model BillingAccount {
+  id          String               @id @default(uuid())
+  clubId      String               @unique
+  planTierId  String
+  status      BillingAccountStatus @default(TRIAL)
+  startedAt   DateTime             @default(now())
+  renewsAt    DateTime?
+  canceledAt  DateTime?
+  externalRef String?
+  metadata    Json?
+
+  @@index([status])
+}
+
+model DevicePlanAssignment {
+  id         String               @id @default(uuid())
+  deviceId   String
+  planTierId String
+  status     BillingAccountStatus @default(ACTIVE)
+  startedAt  DateTime             @default(now())
+  endedAt    DateTime?
+
+  @@index([deviceId])
+  @@index([planTierId])
+}
+
+model UsageMeter {
+  id         String   @id @default(uuid())
+  clubId     String
+  kind       String
+  count      BigInt   @default(0)
+  period     String
+  capturedAt DateTime @default(now())
+  metadata   Json?
+
+  @@index([clubId, period])
+  @@index([kind, period])
+}
+
+model InvoiceDraft {
+  id               String               @id @default(uuid())
+  billingAccountId String
+  periodFrom       DateTime
+  periodTo         DateTime
+  amountCents      Int                  @default(0)
+  currency         String               @default("EUR")
+  status           BillingAccountStatus @default(TRIAL)
+  lineItems        Json?
+  createdAt        DateTime             @default(now())
+
+  @@index([billingAccountId, periodFrom])
+}
+
+// ── Enterprise observability ────────────────────────────────────────────
+
+enum MetricKind {
+  COUNTER
+  GAUGE
+  HISTOGRAM
+}
+
+model SystemMetric {
+  id         String     @id @default(uuid())
+  regionId   String?
+  name       String
+  kind       MetricKind @default(GAUGE)
+  value      Float
+  label      String?
+  capturedAt DateTime   @default(now())
+
+  @@index([name, capturedAt])
+  @@index([regionId, capturedAt])
+}
+
+model DeviceHealth {
+  id           String    @id @default(uuid())
+  deviceId     String
+  score        Float     @default(1.0)
+  lastPacketAt DateTime?
+  batteryPct   Int?
+  signalDbm    Int?
+  notes        String?
+  capturedAt   DateTime  @default(now())
+
+  @@index([deviceId, capturedAt])
+}
+
+model RealtimeHealth {
+  id         String   @id @default(uuid())
+  regionId   String?
+  kind       String
+  activeSubs Int      @default(0)
+  queueDepth Int      @default(0)
+  errors1m   Int      @default(0)
+  capturedAt DateTime @default(now())
+
+  @@index([regionId, capturedAt])
+  @@index([kind, capturedAt])
+}
+
+model AIWorkerHealth {
+  id             String    @id @default(uuid())
+  workerId       String
+  regionId       String?
+  lastTickAt     DateTime?
+  jobsPerMin     Float     @default(0)
+  failuresPerMin Float     @default(0)
+  capturedAt     DateTime  @default(now())
+
+  @@index([workerId, capturedAt])
+}
+
+model ReplayIntegrityMetric {
+  id          String   @id @default(uuid())
+  matchId     String
+  expectedSeq BigInt
+  actualSeq   BigInt
+  ok          Boolean  @default(true)
+  brokenAt    BigInt?
+  capturedAt  DateTime @default(now())
+
+  @@index([matchId, capturedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase K — Autonomous Cognitive Vision + Neuromorphic Sports Intelligence
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models. Anchored to
+// Phase G Camera / Phase F Device by id-string only.
+
+enum VisionStreamStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum CameraRigSyncStrategy {
+  NTP
+  PTP
+  EVENT_BEACON
+  MANUAL
+}
+
+enum CameraRigRole {
+  CORNER
+  FENCE
+  OVERHEAD
+  WEARABLE
+  PANORAMIC
+  AERIAL
+  GENERIC
+}
+
+enum TacticalSignalKind {
+  FORMATION
+  PRESSING
+  DEFENSIVE_LINE
+  OVERLOAD_ZONE
+  SPACE_CREATION
+  TRANSITION_MOMENT
+  COUNTERATTACK
+  POSITIONAL_COLLAPSE
+}
+
+enum VisionSubjectKind {
+  PLAYER
+  BALL
+  OBJECT
+  UNKNOWN
+}
+
+enum EdgeVisionRuntimeStatus {
+  PROVISIONED
+  ACTIVE
+  DEGRADED
+  OFFLINE
+  RETIRED
+}
+
+// ── Neuromorphic event streams ──────────────────────────────────────────
+
+/// EventCameraStream — long-lived stream identifier per (camera, match,
+/// sessionRef). One row per "let's open the camera for this match"
+/// session. Append-only event batches reference streamId.
+model EventCameraStream {
+  id           String             @id @default(uuid())
+  clubId       String
+  cameraId     String
+  matchId      String?
+  sessionRef   String // operator-provided correlation id (e.g. "match-2026-Q1-leg1")
+  status       VisionStreamStatus @default(ACTIVE)
+  openedAt     DateTime           @default(now())
+  closedAt     DateTime?
+  packetsTotal BigInt             @default(0)
+  eventsTotal  BigInt             @default(0)
+  syncVersion  Int                @default(0)
+  metadata     Json?
+
+  @@unique([cameraId, sessionRef])
+  @@index([clubId, openedAt])
+  @@index([matchId, openedAt])
+  @@index([status])
+}
+
+/// VisionEventBatch — HIGH-RATE append-only. ONE row per ingest call,
+/// carrying up to 5_000 pre-aggregated events. NEVER one row per event —
+/// individual events live INSIDE the `events` JSON tuple array.
+model VisionEventBatch {
+  id          String  @id @default(uuid())
+  streamId    String
+  clubId      String
+  matchId     String?
+  /// Server-set on receipt (monotonic across the API instance).
+  monotonicMs BigInt
+  /// Device frame in microseconds; the camera's clock.
+  cameraTsUs  BigInt
+  /// "RAW" | "AGGREGATED" | "DOWNSAMPLED" — declared by edge node.
+  kind        String  @default("AGGREGATED")
+  /// Tuple array [[tMicros, x, y, polarity, extra?], …]. Capped 5_000.
+  events      Json
+  eventCount  Int     @default(0)
+  /// HMAC-SHA256(camera.hmacSecret, cameraTsUs|nonce|sha256(events-json)).
+  sigB64      String?
+  nonce       String?
+
+  @@index([streamId, monotonicMs])
+  @@index([matchId, monotonicMs])
+  @@index([clubId, monotonicMs])
+}
+
+/// EventPoseEstimate — pose keypoints derived from event clusters.
+/// Distinct from Phase J PoseSkeleton because the source is event-based.
+model EventPoseEstimate {
+  id          String   @id @default(uuid())
+  streamId    String
+  clubId      String
+  matchId     String?
+  playerId    String?
+  monotonicMs BigInt
+  joints      Json
+  confidence  Float    @default(0.5)
+  createdAt   DateTime @default(now())
+
+  @@index([streamId, monotonicMs])
+  @@index([playerId, monotonicMs])
+}
+
+/// EventMotionCluster — spatial cluster of events that the edge node
+/// determined represent one subject (player / ball burst).
+model EventMotionCluster {
+  id          String            @id @default(uuid())
+  streamId    String
+  clubId      String
+  matchId     String?
+  monotonicMs BigInt
+  centroidX   Float
+  centroidY   Float
+  radius      Float
+  density     Float             @default(0)
+  /// +1 / -1 / 0 if events were ON/OFF/mixed events.
+  polarity    Int               @default(0)
+  subjectKind VisionSubjectKind @default(UNKNOWN)
+  subjectId   String?
+  /// Latency from cameraTsUs to detection (μs).
+  latencyUs   BigInt?
+  createdAt   DateTime          @default(now())
+
+  @@index([streamId, monotonicMs])
+  @@index([subjectKind, subjectId])
+}
+
+/// VisionTimestampSync — per-camera clock-skew anchor. Multiple rows per
+/// camera over time; the active one is the latest by version per session.
+model VisionTimestampSync {
+  id         String   @id @default(uuid())
+  cameraId   String
+  sessionRef String
+  /// Camera-local device microseconds at the anchor.
+  deviceUs   BigInt
+  /// Server epoch ms at the anchor.
+  serverRxMs BigInt
+  skewMs     Float    @default(0)
+  jitterMs   Float?
+  version    Int      @default(1)
+  isActive   Boolean  @default(true)
+  capturedAt DateTime @default(now())
+
+  @@unique([cameraId, sessionRef, version])
+  @@index([cameraId, isActive])
+}
+
+// ── Multi-camera tactical perception ────────────────────────────────────
+
+/// CameraRig — a logical group of physical Cameras locked together.
+model CameraRig {
+  id           String                @id @default(uuid())
+  clubId       String
+  label        String
+  syncStrategy CameraRigSyncStrategy @default(NTP)
+  /// Pitch geometry (origin + axis) so triangulation can land in pitch metres.
+  geometry     Json?
+  metadata     Json?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  @@index([clubId])
+}
+
+/// CameraRigMember — M:N Camera ↔ CameraRig with assigned role.
+model CameraRigMember {
+  id       String        @id @default(uuid())
+  rigId    String
+  cameraId String
+  role     CameraRigRole @default(GENERIC)
+  position Json? // pitch-anchor metres { x, y, z, azimuth, pitch }
+  isActive Boolean       @default(true)
+  joinedAt DateTime      @default(now())
+
+  @@unique([rigId, cameraId])
+  @@index([cameraId])
+}
+
+/// CameraSyncSession — one row per "lock the rig" event.
+model CameraSyncSession {
+  id         String    @id @default(uuid())
+  rigId      String
+  matchId    String?
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  /// Common monotonic base across the rig (μs).
+  anchorTsUs BigInt?
+  /// Per-camera skew snapshot { cameraId → skewMs }.
+  skews      Json?
+  ok         Boolean   @default(true)
+  notes      String?
+
+  @@index([rigId, startedAt])
+  @@index([matchId, startedAt])
+}
+
+/// MultiCameraObservation — fused per-subject observation at one window.
+model MultiCameraObservation {
+  id                    String            @id @default(uuid())
+  syncSessionId         String
+  clubId                String
+  matchId               String?
+  monotonicMs           BigInt
+  subjectKind           VisionSubjectKind @default(UNKNOWN)
+  subjectId             String? // playerId or "ball"
+  contributingCameras   Json // string[]
+  /// Reference to the SpatialTriangulationResult (by id-string).
+  triangulationResultId String?
+  createdAt             DateTime          @default(now())
+
+  @@index([syncSessionId, monotonicMs])
+  @@index([matchId, subjectKind])
+}
+
+/// SpatialTriangulationResult — 3D consensus point with vote diagnostics.
+model SpatialTriangulationResult {
+  id            String            @id @default(uuid())
+  syncSessionId String
+  clubId        String
+  matchId       String?
+  monotonicMs   BigInt
+  subjectKind   VisionSubjectKind @default(UNKNOWN)
+  subjectId     String?
+  x             Float
+  y             Float
+  z             Float             @default(0)
+  confidence    Float             @default(0.5)
+  votes         Int               @default(0)
+  residualMeanM Float?
+  createdAt     DateTime          @default(now())
+
+  @@index([syncSessionId, monotonicMs])
+  @@index([matchId, subjectId])
+}
+
+// ── Autonomous visual tactical engine ───────────────────────────────────
+
+/// VisualTacticalSignal — raw signal row produced by the autonomous engine.
+model VisualTacticalSignal {
+  id              String             @id @default(uuid())
+  clubId          String
+  matchId         String
+  signalKind      TacticalSignalKind
+  monotonicMs     BigInt
+  /// Side the signal pertains to ('HOME' | 'AWAY' | 'NEUTRAL').
+  side            String             @default("NEUTRAL")
+  /// 0..1 intensity / confidence.
+  intensity       Float              @default(0.5)
+  /// Compact JSON the engine produced (positions, vectors, etc.).
+  payload         Json
+  detectorVersion String             @default("v1")
+  createdAt       DateTime           @default(now())
+
+  @@index([matchId, signalKind, monotonicMs])
+  @@index([clubId, createdAt])
+}
+
+/// TacticalPatternDetection — composite of multiple VisualTacticalSignal
+/// rows into a higher-order pattern (e.g. "high-press + overload-right").
+model TacticalPatternDetection {
+  id                    String   @id @default(uuid())
+  clubId                String
+  matchId               String
+  monotonicMs           BigInt
+  patternKind           String // free-text composite tag
+  contributingSignalIds Json // string[]
+  intensity             Float    @default(0.5)
+  rationale             String?  @db.Text
+  detectorVersion       String   @default("v1")
+  createdAt             DateTime @default(now())
+
+  @@index([matchId, patternKind, monotonicMs])
+}
+
+/// VisualFormationState — autonomously detected formation snapshot.
+model VisualFormationState {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  side            String   @default("HOME")
+  formation       String // "4-3-3" | "5-1" | …
+  spotsPayload    Json // [{ role, x, y }, …]
+  confidence      Float    @default(0.5)
+  detectorVersion String   @default("v1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, side, monotonicMs])
+}
+
+/// PressingIntensityEstimate — derived from event clusters + player density.
+model PressingIntensityEstimate {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  side            String   @default("HOME")
+  intensity       Float    @default(0) // 0..1
+  synchronyIndex  Float? // see neuro-metrics
+  pressureMass    Float?
+  detectorVersion String   @default("v1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, side, monotonicMs])
+}
+
+/// DefensiveLineEstimate — back-line height + spread + stability.
+model DefensiveLineEstimate {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  side            String   @default("HOME")
+  lineX           Float
+  spreadY         Float
+  stabilityIndex  Float    @default(0.5)
+  detectorVersion String   @default("v1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, side, monotonicMs])
+}
+
+/// OverloadZoneEstimate — local numerical superiority detection.
+model OverloadZoneEstimate {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  /// Cell centroid in pitch metres.
+  zoneX           Float
+  zoneY           Float
+  homeCount       Int      @default(0)
+  awayCount       Int      @default(0)
+  delta           Int      @default(0)
+  intensity       Float    @default(0.5)
+  detectorVersion String   @default("v1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+}
+
+// ── Edge AI vision runtime ──────────────────────────────────────────────
+
+/// EdgeVisionRuntime — the vision-AI runtime hosted by a Phase J EdgeNode.
+/// Distinct from EdgeNode because a single box can host multiple runtimes
+/// (different model bundles).
+model EdgeVisionRuntime {
+  id         String                  @id @default(uuid())
+  clubId     String
+  edgeNodeId String?
+  cameraId   String?
+  label      String
+  fwVersion  String?
+  os         String?
+  hwClass    String? // "JETSON_ORIN" | "RPI5" | "X86_GPU" | …
+  status     EdgeVisionRuntimeStatus @default(PROVISIONED)
+  lastSeenAt DateTime?
+  metadata   Json?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  @@index([clubId, status])
+  @@index([edgeNodeId])
+  @@index([cameraId])
+}
+
+/// EdgeModelManifest — catalog of available vision-AI models.
+model EdgeModelManifest {
+  id          String   @id @default(uuid())
+  code        String   @unique // "PLAYER_DETECT_V1" | "POSE_LITE_V2" | …
+  label       String
+  family      String // "detect" | "pose" | "ball" | "tactical"
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// EdgeModelVersion — versioned binary for one EdgeModelManifest.
+model EdgeModelVersion {
+  id          String   @id @default(uuid())
+  manifestId  String
+  version     String // semver
+  sha256      String // 64-char hex
+  sizeBytes   Int      @default(0)
+  downloadUrl String?
+  publishedAt DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  @@unique([manifestId, version])
+  @@index([manifestId, isActive])
+}
+
+/// EdgeVisionInference — per-packet inference result from an edge runtime.
+/// Distinct from Phase J EdgeInferenceResult: this row carries an HMAC sig
+/// from the runtime and references the model VERSION used.
+model EdgeVisionInference {
+  id             String   @id @default(uuid())
+  runtimeId      String
+  clubId         String
+  matchId        String?
+  cameraId       String?
+  modelVersionId String?
+  monotonicMs    BigInt
+  kind           String // "DETECT" | "POSE" | "BALL" | …
+  payload        Json
+  confidence     Float    @default(0.5)
+  latencyMs      Int?
+  sigB64         String?
+  nonce          String?
+  createdAt      DateTime @default(now())
+
+  @@index([runtimeId, monotonicMs])
+  @@index([matchId, kind])
+}
+
+/// EdgeVisionHealth — rolling health snapshot per runtime.
+model EdgeVisionHealth {
+  id             String   @id @default(uuid())
+  runtimeId      String
+  score          Float    @default(1.0)
+  latencyP95Ms   Int?
+  jobsPerMin     Float    @default(0)
+  failuresPerMin Float    @default(0)
+  capturedAt     DateTime @default(now())
+
+  @@index([runtimeId, capturedAt])
+}
+
+// ── Biomechanical patches ───────────────────────────────────────────────
+
+/// BiomechanicalPacket — biochem / wearable patch data. Higher-level than
+/// SensorPacket so we can preserve patentable fields (lactate, glucose,
+/// hydration, cortisol proxy). Anchored to a Phase F Device.
+model BiomechanicalPacket {
+  id            String   @id @default(uuid())
+  clubId        String
+  matchId       String?
+  playerId      String?
+  deviceId      String?
+  /// Server epoch ms.
+  monotonicMs   BigInt
+  /// Device frame ms (patch clock).
+  deviceTsMs    BigInt
+  lactateMmol   Float?
+  glucoseMg     Float?
+  hydrationPct  Float?
+  cortisolProxy Float?
+  /// Raw extra fields (per-device payload).
+  payload       Json?
+  sigB64        String?
+  nonce         String?
+  createdAt     DateTime @default(now())
+
+  @@index([playerId, monotonicMs])
+  @@index([matchId, monotonicMs])
+  @@index([clubId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase L — Federated Cognition + Real Hardware + Simulation + Game Graph
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models.
+
+enum HardwareProvisioningStatus {
+  CREATED
+  IN_PROGRESS
+  ACTIVATED
+  SEALED
+  FAILED
+}
+
+enum FederatedJobStatus {
+  PENDING
+  RUNNING
+  AGGREGATING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum AttestationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  REVOKED
+}
+
+enum SimulationStatus {
+  DRAFT
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum CoachRecommendationKind {
+  TACTICAL
+  INJURY_RISK
+  SUBSTITUTION
+  TACTICAL_ADAPTATION
+  MATCH_ADJUSTMENT
+  FORMATION_OPTIMIZATION
+  CUSTOM
+}
+
+enum GraphSnapshotKind {
+  PRESSURE
+  PASSING
+  THREAT
+  INFLUENCE
+  CUSTOM
+}
+
+// ── 1. Real device abstraction ──────────────────────────────────────────
+
+/// HardwareProvisioningSession — per-device provisioning lifecycle.
+/// Lives ABOVE Phase J ProvisioningBatch + DeviceActivation: tracks the
+/// step-by-step sequence (cert install, secure-boot enroll, OTA pin).
+model HardwareProvisioningSession {
+  id          String                     @id @default(uuid())
+  clubId      String
+  batchId     String?
+  deviceId    String?
+  serial      String
+  status      HardwareProvisioningStatus @default(CREATED)
+  /// Ordered checkpoint markers: [{ name, at, ok, payload? }, …]
+  steps       Json
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@index([clubId, status])
+  @@index([deviceId])
+  @@index([serial])
+}
+
+/// DeviceCapabilityProfile — what the hardware CAN do (sensors, AI,
+/// network). Catalogued per device model & revision.
+model DeviceCapabilityProfile {
+  id           String   @id @default(uuid())
+  model        String
+  hwRevision   String?
+  /// Capabilities as JSON for forward-compat:
+  ///   { cpuClass, memMB, hasGPU, hasNPU, networks, sensors, edgeAI }
+  capabilities Json
+  isActive     Boolean  @default(true)
+  publishedBy  String?
+  publishedAt  DateTime @default(now())
+
+  @@unique([model, hwRevision])
+  @@index([model, isActive])
+}
+
+/// DeviceSensorMatrix — per-device wiring of which sensors are present +
+/// calibrated. Differs from CameraCalibration (Phase G) in that it covers
+/// ALL sensors (GPS / IMU / ECG / biochem / vision).
+model DeviceSensorMatrix {
+  id          String   @id @default(uuid())
+  deviceId    String
+  /// Matrix shape: [{ sensorKind, slot, calibratedAt, version, ok }, …]
+  matrix      Json
+  publishedBy String?
+  publishedAt DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  @@index([deviceId, isActive])
+}
+
+/// DeviceClockDiscipline — strategy + last-known skew per device. Lets us
+/// trust packets even when devices vary in their time source (PTP/NTP/
+/// VisionTimestampSync).
+model DeviceClockDiscipline {
+  id         String   @id @default(uuid())
+  deviceId   String
+  strategy   String // "NTP" | "PTP" | "VISION_SYNC" | "EVENT_BEACON" | "MANUAL"
+  lastSkewMs Float?
+  jitterMs   Float?
+  source     String? // hostname / cameraId / etc.
+  capturedAt DateTime @default(now())
+
+  @@index([deviceId, capturedAt])
+}
+
+/// DeviceTrustAnchor — cryptographic identity anchor. Pairs the device's
+/// hardware-bound certificate + secure-boot fingerprint. Append-only.
+model DeviceTrustAnchor {
+  id                    String            @id @default(uuid())
+  deviceId              String
+  /// Public-key fingerprint (sha256 hex).
+  certFingerprint       String
+  /// Secure-boot ROM hash reported on attestation.
+  secureBootHash        String?
+  hwSerial              String?
+  issuer                String?
+  validFrom             DateTime          @default(now())
+  validUntil            DateTime?
+  revokedAt             DateTime?
+  /// Last attestation outcome — denormalised for fast revocation checks.
+  lastAttestationStatus AttestationStatus @default(PENDING)
+
+  @@unique([deviceId, certFingerprint])
+  @@index([deviceId])
+}
+
+/// DeviceAttestation — per-boot attestation record. The device proves it
+/// is running unmodified firmware + still has its trust anchor.
+model DeviceAttestation {
+  id             String            @id @default(uuid())
+  deviceId       String
+  trustAnchorId  String?
+  fwVersion      String?
+  secureBootHash String?
+  /// Nonce returned by the device, signed with its hmacSecret.
+  nonce          String
+  sigB64         String
+  status         AttestationStatus @default(PENDING)
+  reason         String?
+  capturedAt     DateTime          @default(now())
+
+  @@index([deviceId, capturedAt])
+  @@index([status])
+}
+
+// ── 2. Federated sports intelligence ────────────────────────────────────
+
+/// FederatedTrainingJob — one row per (sport, model family, round).
+model FederatedTrainingJob {
+  id                String             @id @default(uuid())
+  /// Optional initiator club (null = platform-initiated round).
+  initiatorClubId   String?
+  sport             SportKind          @default(FOOTBALL)
+  modelFamily       String // "tactical_press_v1" | "injury_risk_v2" | …
+  roundNumber       Int                @default(0)
+  /// Deterministic seed so aggregation is replayable.
+  aggregationSeed   BigInt
+  /// Privacy boundary applied to this round.
+  privacyBoundaryId String?
+  /// Clipping norm + dp epsilon for safety bounds.
+  clippingNormMax   Float?
+  status            FederatedJobStatus @default(PENDING)
+  startedAt         DateTime?
+  closedAt          DateTime?
+  metadata          Json?
+  createdAt         DateTime           @default(now())
+
+  @@index([modelFamily, roundNumber])
+  @@index([status, sport])
+}
+
+/// FederatedGradientEnvelope — one club's submission for a round.
+model FederatedGradientEnvelope {
+  id             String    @id @default(uuid())
+  jobId          String
+  clubId         String
+  /// SHA-256 of the gradient payload (we don't store the raw tensor).
+  payloadHash    String
+  /// Optional encrypted blob (downstream-managed; we just keep the ref).
+  blobRef        String?
+  /// Anti-replay nonce.
+  nonce          String
+  sigB64         String?
+  /// Norm of the submission (post-clip).
+  normValue      Float?
+  acceptedAt     DateTime?
+  rejectedReason String?
+  createdAt      DateTime  @default(now())
+
+  @@unique([jobId, clubId, nonce])
+  @@index([jobId])
+  @@index([clubId, createdAt])
+}
+
+/// FederatedModelCheckpoint — aggregated checkpoint emitted by the round.
+model FederatedModelCheckpoint {
+  id               String   @id @default(uuid())
+  jobId            String
+  version          String
+  payloadHash      String // sha256 of the aggregated model
+  blobRef          String?
+  participants     Int      @default(0)
+  /// Deterministic order in which gradients were folded — JSON club ids.
+  participantOrder Json
+  publishedAt      DateTime @default(now())
+
+  @@unique([jobId, version])
+  @@index([jobId])
+}
+
+/// ClubModelPartition — which slice of which model belongs to which club.
+/// Lets us scope privacy: a club's data only flows into partitions it owns.
+model ClubModelPartition {
+  id           String   @id @default(uuid())
+  clubId       String
+  modelFamily  String
+  partitionKey String // arbitrary tag (e.g. "EU/U21/possession")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@unique([clubId, modelFamily, partitionKey])
+  @@index([modelFamily, active])
+}
+
+/// PrivacyBoundary — DP epsilon, k-anonymity, aggregation-only flags.
+model PrivacyBoundary {
+  id              String   @id @default(uuid())
+  modelFamily     String
+  /// Differential-privacy epsilon (lower = stronger).
+  dpEpsilon       Float    @default(1.0)
+  /// k-anonymity floor.
+  kAnonymity      Int      @default(5)
+  aggregationOnly Boolean  @default(true)
+  notes           String?
+  publishedAt     DateTime @default(now())
+  isActive        Boolean  @default(true)
+
+  @@unique([modelFamily])
+  @@index([modelFamily, isActive])
+}
+
+/// AggregatedSportsModel — versioned global model output, read-only to clubs.
+model AggregatedSportsModel {
+  id          String   @id @default(uuid())
+  modelFamily String
+  version     String
+  sha256      String
+  downloadUrl String?
+  publishedAt DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  @@unique([modelFamily, version])
+  @@index([modelFamily, isActive])
+}
+
+/// FederatedTrustBoundary — which clubs may participate in which family.
+model FederatedTrustBoundary {
+  id          String   @id @default(uuid())
+  modelFamily String
+  clubId      String
+  trusted     Boolean  @default(true)
+  reason      String?
+  publishedAt DateTime @default(now())
+
+  @@unique([modelFamily, clubId])
+  @@index([modelFamily, trusted])
+}
+
+// ── 3. Autonomous coaching agents ───────────────────────────────────────
+
+/// CoachAgent — a configured coaching persona. One row per (club, persona).
+model CoachAgent {
+  id        String   @id @default(uuid())
+  clubId    String
+  label     String
+  agentKind AIAgent
+  config    Json? // weights, thresholds, etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId, isActive])
+}
+
+/// CoachRecommendation — unified table for all coaching outputs. The
+/// `kind` enum carries the specific recommendation type the user asked
+/// for (Tactical / InjuryRisk / Substitution / TacticalAdaptation /
+/// MatchAdjustment / FormationOptimization / Custom).
+model CoachRecommendation {
+  id                String                  @id @default(uuid())
+  clubId            String
+  matchId           String?
+  teamId            String?
+  playerId          String?
+  agentId           String?
+  kind              CoachRecommendationKind
+  title             String                  @default("")
+  rationale         String                  @db.Text
+  /// Compact payload the panel renders.
+  payload           Json
+  confidence        Float                   @default(0.5)
+  tacticalImpact    AIDecisionImpact        @default(LOW)
+  /// Optional Phase I approval gate link.
+  approvalRequestId String?
+  /// Hash of the canonical payload — anchor for audit chain.
+  payloadHash       String?
+  detectorVersion   String                  @default("l1")
+  status            AlertStatus             @default(OPEN)
+  createdAt         DateTime                @default(now())
+  ackedAt           DateTime?
+  ackedBy           String?
+
+  @@index([clubId, kind, createdAt])
+  @@index([matchId, kind])
+  @@index([playerId, kind])
+}
+
+// ── 4. Digital twin simulation engine ───────────────────────────────────
+
+/// TwinSimulationSession — one row per "let's simulate alternate history".
+model TwinSimulationSession {
+  id            String           @id @default(uuid())
+  clubId        String
+  matchId       String?
+  label         String
+  /// Deterministic seed for branching.
+  seed          BigInt
+  status        SimulationStatus @default(DRAFT)
+  /// Reference to the source SpatialFrame the sim branched from.
+  sourceFrameId String?
+  rootBranchId  String?
+  createdById   String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  notes         String?
+  createdAt     DateTime         @default(now())
+
+  @@index([clubId, status])
+  @@index([matchId, status])
+}
+
+/// MatchSimulationState — snapshot of the simulated game at a tick.
+model MatchSimulationState {
+  id        String   @id @default(uuid())
+  sessionId String
+  branchId  String?
+  /// Sim-clock tick (ms since branch start).
+  tickMs    BigInt
+  /// Compact spatial + score + possession snapshot.
+  state     Json
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, tickMs])
+  @@index([branchId, tickMs])
+}
+
+/// TacticalBranch — node in the simulation branching tree.
+model TacticalBranch {
+  id                String   @id @default(uuid())
+  sessionId         String
+  parentBranchId    String?
+  label             String
+  /// What changed at the divergence point.
+  divergencePayload Json
+  createdAt         DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([parentBranchId])
+}
+
+/// PredictedPossessionFlow — derived per-branch possession over time.
+model PredictedPossessionFlow {
+  id        String   @id @default(uuid())
+  sessionId String
+  branchId  String
+  /// [{ tickMs, ourPct, awayPct, lastSide }, …]
+  series    Json
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, branchId])
+}
+
+/// PredictedFatigueCurve — per-player projected fatigue over time.
+model PredictedFatigueCurve {
+  id        String   @id @default(uuid())
+  sessionId String
+  branchId  String
+  playerId  String
+  /// [{ tickMs, fatigue, sprint, hr }, …]
+  series    Json
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, branchId])
+  @@index([playerId])
+}
+
+/// CounterfactualScenario — a named what-if (e.g. "what if we sub Salah at 60'").
+model CounterfactualScenario {
+  id          String   @id @default(uuid())
+  sessionId   String
+  branchId    String?
+  label       String
+  description String?  @db.Text
+  outcome     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+// ── 5. Realtime cognitive game graph ────────────────────────────────────
+
+/// GameGraph — per-match per-timestamp graph snapshot. nodes + edges as JSON
+/// keeps cardinality bounded; specialised graphs below for fast reads.
+model GameGraph {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  /// [{ id, kind, ref, x, y, weight }, …]
+  nodes           Json
+  /// [{ from, to, kind, weight }, …]
+  edges           Json
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+}
+
+/// SpatialPressureGraph — pressure diffusion field.
+model SpatialPressureGraph {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  /// 2D grid + per-cell pressure value.
+  field           Json
+  windowMs        Int      @default(5000)
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+}
+
+/// PassingNetworkGraph — passing network from timeline + spatial state.
+model PassingNetworkGraph {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  /// { nodes: [{ playerId, weight }], edges: [{ from, to, count }] }
+  network         Json
+  windowMs        Int      @default(300000)
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+}
+
+/// DynamicThreatMap — opp threat magnitude over the field.
+model DynamicThreatMap {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  monotonicMs     BigInt
+  /// 2D threat field [{ x, y, threat }, …]
+  field           Json
+  windowMs        Int      @default(60000)
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+}
+
+/// CognitiveInfluenceScore — per-player influence in a snapshot.
+model CognitiveInfluenceScore {
+  id              String   @id @default(uuid())
+  clubId          String
+  matchId         String
+  playerId        String
+  monotonicMs     BigInt
+  score           Float    @default(0)
+  components      Json?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([matchId, monotonicMs])
+  @@index([playerId, monotonicMs])
+}
+
+// ── 6. Biomechanical + biochemical expansion ────────────────────────────
+
+/// BiochemicalSignal — generic biochem signal (one row per (player, kind)).
+model BiochemicalSignal {
+  id              String   @id @default(uuid())
+  clubId          String
+  playerId        String?
+  matchId         String?
+  kind            String // "SWEAT" | "GLUCOSE" | "LACTATE" | "CORTISOL" | …
+  value           Float
+  unit            String? // "mmol/L" | "mg/dL" | …
+  monotonicMs     BigInt
+  sourceDeviceId  String?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, kind, monotonicMs])
+  @@index([matchId, kind])
+}
+
+/// HydrationEstimate — per-player hydration trend.
+model HydrationEstimate {
+  id              String   @id @default(uuid())
+  clubId          String
+  playerId        String
+  matchId         String?
+  monotonicMs     BigInt
+  estimatePct     Float    @default(100)
+  components      Json?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, monotonicMs])
+}
+
+/// StressIndex — cortisol + HRV-driven composite stress score.
+model StressIndex {
+  id              String   @id @default(uuid())
+  clubId          String
+  playerId        String
+  matchId         String?
+  monotonicMs     BigInt
+  index           Float    @default(0)
+  components      Json?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, monotonicMs])
+}
+
+/// NeuromuscularLoad — IMU-derived muscular load estimate.
+model NeuromuscularLoad {
+  id              String   @id @default(uuid())
+  clubId          String
+  playerId        String
+  matchId         String?
+  monotonicMs     BigInt
+  load            Float    @default(0)
+  asymmetry       Float?
+  components      Json?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, monotonicMs])
+}
+
+/// TendonRiskEstimate — composite tendon-strain risk.
+model TendonRiskEstimate {
+  id              String   @id @default(uuid())
+  clubId          String
+  playerId        String
+  matchId         String?
+  monotonicMs     BigInt
+  risk            Float    @default(0)
+  region          String? // "ACHILLES" | "HAMSTRING" | "ADDUCTOR" | …
+  components      Json?
+  detectorVersion String   @default("l1")
+  createdAt       DateTime @default(now())
+
+  @@index([playerId, monotonicMs])
+  @@index([region])
+}
+
+// ── 7. Global sports abstraction (catalog-level) ────────────────────────
+
+/// SportPlugin — admin-registerable sport extension. The Phase G adapter
+/// (in code) is the immutable core; these rows extend it at runtime.
+model SportPlugin {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  code        String // "football_5aside" | "tennis_doubles" | …
+  label       String
+  isActive    Boolean   @default(true)
+  publishedBy String?
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, code])
+  @@index([sport, isActive])
+}
+
+/// TacticalDomain — domain ontology (e.g. "press / counter / set-piece").
+model TacticalDomain {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  code        String
+  label       String
+  parentCode  String? // tree-like ontology
+  isActive    Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, code])
+}
+
+/// SportFieldGeometry — overrides Phase G geometry per (sport, plugin).
+model SportFieldGeometry {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  pluginCode  String?
+  widthM      Float
+  heightM     Float
+  zones       Json?
+  targets     Json?
+  isActive    Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, pluginCode])
+}
+
+/// SportEventTaxonomy — catalog of event kinds per sport.
+model SportEventTaxonomy {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  eventKind   String // "GOAL" | "ACE" | "TURNOVER" | …
+  polarity    String // "OFFENSE" | "DEFENSE" | "NEUTRAL"
+  scoreDelta  Int       @default(0)
+  isActive    Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, eventKind])
+}
+
+/// SportSpatialRules — per-sport spatial constraints (offside lines, etc.).
+model SportSpatialRules {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  pluginCode  String?
+  rules       Json
+  isActive    Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, pluginCode])
+}
+
+// ── 11. Observability extensions ────────────────────────────────────────
+
+/// RegionalHealthSnapshot — rolling per-region snapshot blob.
+model RegionalHealthSnapshot {
+  id         String   @id @default(uuid())
+  regionId   String
+  snapshot   Json
+  capturedAt DateTime @default(now())
+
+  @@index([regionId, capturedAt])
+}
+
+/// DeviceFleetHealth — fleet-wide aggregate (per (clubId, model)).
+model DeviceFleetHealth {
+  id            String   @id @default(uuid())
+  clubId        String?
+  model         String
+  totalDevices  Int      @default(0)
+  activeDevices Int      @default(0)
+  staleDevices  Int      @default(0)
+  meanScore     Float    @default(1.0)
+  capturedAt    DateTime @default(now())
+
+  @@index([clubId, capturedAt])
+  @@index([model, capturedAt])
+}
+
+/// AIConsensusHealth — agreement rate across deterministic + LLM paths.
+model AIConsensusHealth {
+  id              String   @id @default(uuid())
+  matchId         String?
+  agreementRate   Float    @default(1)
+  divergenceCount Int      @default(0)
+  windowMs        Int      @default(300000)
+  capturedAt      DateTime @default(now())
+
+  @@index([matchId, capturedAt])
+}
+
+/// FederatedAggregationHealth — per-round health.
+model FederatedAggregationHealth {
+  id            String   @id @default(uuid())
+  jobId         String
+  participants  Int      @default(0)
+  rejectedCount Int      @default(0)
+  acceptedCount Int      @default(0)
+  meanNorm      Float?
+  capturedAt    DateTime @default(now())
+
+  @@index([jobId])
+}
+
+/// SimulationQueueHealth — twin simulation throughput.
+model SimulationQueueHealth {
+  id          String   @id @default(uuid())
+  pending     Int      @default(0)
+  running     Int      @default(0)
+  completed1h Int      @default(0)
+  failed1h    Int      @default(0)
+  capturedAt  DateTime @default(now())
+
+  @@index([capturedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase M — Autonomous Sports Ecosystem
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models.
+
+enum ExecAgentRole {
+  SPORTING_DIRECTOR
+  RECRUITMENT
+  MEDICAL_EXEC
+  FINANCE_EXEC
+  MARKETING
+  ACADEMY_HEAD
+  PERFORMANCE
+}
+
+enum CouncilStatus {
+  OPEN
+  VOTING
+  CLOSED
+}
+
+enum CouncilVoteType {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+enum RecruitmentStatus {
+  LEAD
+  SCOUTED
+  EVALUATED
+  TARGETED
+  OFFERED
+  SIGNED
+  REJECTED
+  LOST
+}
+
+enum TrainingPlanStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
+enum MarketplaceItemKind {
+  TRANSFER_LISTING
+  DEVICE_LISTING
+  SERVICE_LISTING
+  ACADEMY_PROGRAM
+  GENERIC
+}
+
+enum MarketplaceItemStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum KnowledgeNodeKind {
+  TACTICAL
+  MEDICAL
+  ECONOMIC
+  SCOUTING
+  GENERAL
+}
+
+// ── 1. Organization digital twin ────────────────────────────────────────
+
+model OrganizationTwin {
+  id         String   @id @default(uuid())
+  clubId     String
+  snapshot   Json
+  capturedAt DateTime @default(now())
+
+  @@index([clubId, capturedAt])
+}
+
+model ClubTwin {
+  id             String   @id @default(uuid())
+  clubId         String
+  sportingState  Json?
+  financialState Json?
+  staffingState  Json?
+  hardwareState  Json?
+  playerState    Json?
+  trainingState  Json?
+  capturedAt     DateTime @default(now())
+
+  @@index([clubId, capturedAt])
+}
+
+model AcademyTwin {
+  id               String   @id @default(uuid())
+  clubId           String
+  academyName      String
+  ageGroups        Json?
+  playerCount      Int      @default(0)
+  staffCount       Int      @default(0)
+  performanceScore Float    @default(0)
+  financialFlow    Json?
+  capturedAt       DateTime @default(now())
+
+  @@index([clubId, capturedAt])
+}
+
+model DepartmentTwin {
+  id          String   @id @default(uuid())
+  clubId      String
+  department  String
+  headStaffId String?
+  payload     Json
+  capturedAt  DateTime @default(now())
+
+  @@index([clubId, department])
+}
+
+model StaffTwin {
+  id          String   @id @default(uuid())
+  clubId      String
+  staffUserId String?
+  staffKind   String
+  payload     Json
+  capturedAt  DateTime @default(now())
+
+  @@index([clubId, staffKind])
+}
+
+// ── 2. AI executive agents ──────────────────────────────────────────────
+
+model ExecutiveAgent {
+  id        String        @id @default(uuid())
+  clubId    String
+  role      ExecAgentRole
+  label     String
+  config    Json?
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([clubId, role])
+}
+
+model ExecutiveDecision {
+  id                String           @id @default(uuid())
+  clubId            String
+  agentId           String?
+  kind              String
+  rationale         String           @db.Text
+  payload           Json
+  confidence        Float            @default(0.5)
+  tacticalImpact    AIDecisionImpact @default(LOW)
+  approvalRequestId String?
+  payloadHash       String?
+  modelVersion      String           @default("m1")
+  status            AlertStatus      @default(OPEN)
+  createdAt         DateTime         @default(now())
+  ackedAt           DateTime?
+  ackedBy           String?
+
+  @@index([clubId, kind, createdAt])
+}
+
+// ── 8. Multi-agent decision council ─────────────────────────────────────
+
+model DecisionCouncil {
+  id               String        @id @default(uuid())
+  clubId           String
+  topic            String
+  status           CouncilStatus @default(OPEN)
+  agentIds         Json
+  votesCount       Int           @default(0)
+  approvalsCount   Int           @default(0)
+  rejectionsCount  Int           @default(0)
+  abstentionsCount Int           @default(0)
+  consensusScore   Float         @default(0)
+  conflictCount    Int           @default(0)
+  payload          Json
+  createdAt        DateTime      @default(now())
+  closedAt         DateTime?
+
+  @@index([clubId, status])
+}
+
+model CouncilVote {
+  id         String          @id @default(uuid())
+  councilId  String
+  voterId    String
+  voterKind  String
+  vote       CouncilVoteType
+  confidence Float           @default(0.5)
+  rationale  String?         @db.Text
+  createdAt  DateTime        @default(now())
+
+  @@unique([councilId, voterId])
+  @@index([councilId])
+}
+
+// ── 3. Autonomous recruitment engine ────────────────────────────────────
+
+model PlayerTarget {
+  id            String            @id @default(uuid())
+  clubId        String
+  playerId      String?
+  externalRef   String?
+  playerName    String
+  position      String?
+  age           Int?
+  currentClub   String?
+  marketValue   Float?
+  contractUntil DateTime?
+  status        RecruitmentStatus @default(LEAD)
+  priority      Int               @default(50)
+  notes         String?           @db.Text
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([clubId, status])
+  @@index([clubId, position])
+}
+
+model RecruitmentScoutReport {
+  id             String   @id @default(uuid())
+  clubId         String
+  playerTargetId String?
+  playerId       String?
+  scoutUserId    String?
+  reportKind     String
+  payload        Json
+  score          Float    @default(0)
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([playerTargetId])
+  @@index([playerId])
+  @@index([clubId, createdAt])
+}
+
+model RecruitmentScore {
+  id             String   @id @default(uuid())
+  clubId         String
+  playerTargetId String?
+  playerId       String?
+  score          Float
+  components     Json
+  modelVersion   String   @default("m1")
+  createdAt      DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([playerTargetId])
+  @@index([playerId])
+}
+
+model TransferProbability {
+  id             String   @id @default(uuid())
+  clubId         String
+  playerTargetId String?
+  playerId       String?
+  probability    Float
+  horizonDays    Int      @default(90)
+  components     Json
+  modelVersion   String   @default("m1")
+  createdAt      DateTime @default(now())
+
+  @@index([clubId, createdAt])
+}
+
+model TalentProjection {
+  id             String   @id @default(uuid())
+  clubId         String
+  playerTargetId String?
+  playerId       String?
+  horizonYears   Int      @default(3)
+  projectedOVR   Int
+  components     Json
+  modelVersion   String   @default("m1")
+  createdAt      DateTime @default(now())
+
+  @@index([clubId, createdAt])
+}
+
+// ── 4. Autonomous training engine ───────────────────────────────────────
+
+model TrainingOptimizationPlan {
+  id          String             @id @default(uuid())
+  clubId      String
+  teamId      String?
+  weekStart   DateTime
+  payload     Json
+  status      TrainingPlanStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([clubId, weekStart])
+}
+
+model RecoveryPlan {
+  id          String             @id @default(uuid())
+  clubId      String
+  playerId    String
+  fromDate    DateTime
+  toDate      DateTime
+  payload     Json
+  status      TrainingPlanStatus @default(DRAFT)
+  createdById String?
+  createdAt   DateTime           @default(now())
+
+  @@index([clubId, playerId, fromDate])
+}
+
+model LoadDistributionPlan {
+  id        String             @id @default(uuid())
+  clubId    String
+  teamId    String?
+  weekStart DateTime
+  payload   Json
+  status    TrainingPlanStatus @default(DRAFT)
+  createdAt DateTime           @default(now())
+
+  @@index([clubId, weekStart])
+}
+
+model MicrocyclePlan {
+  id           String             @id @default(uuid())
+  clubId       String
+  teamId       String?
+  weekStart    DateTime
+  dailyPayload Json
+  status       TrainingPlanStatus @default(DRAFT)
+  createdAt    DateTime           @default(now())
+
+  @@index([clubId, weekStart])
+}
+
+model SeasonPlan {
+  id        String             @id @default(uuid())
+  clubId    String
+  season    String
+  payload   Json
+  status    TrainingPlanStatus @default(DRAFT)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([clubId, season])
+}
+
+// ── 5. Performance economics ────────────────────────────────────────────
+
+model PlayerAssetValue {
+  id           String    @id @default(uuid())
+  clubId       String
+  playerId     String
+  valueCents   Int       @default(0)
+  components   Json
+  modelVersion String    @default("m1")
+  validUntil   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([clubId, playerId, createdAt])
+}
+
+model ContractRisk {
+  id           String    @id @default(uuid())
+  clubId       String
+  playerId     String
+  riskScore    Float
+  expiryDate   DateTime?
+  components   Json
+  modelVersion String    @default("m1")
+  createdAt    DateTime  @default(now())
+
+  @@index([clubId, playerId, createdAt])
+}
+
+model SponsorImpact {
+  id          String   @id @default(uuid())
+  clubId      String
+  sponsorName String?
+  channelKind String
+  valueCents  Int      @default(0)
+  components  Json
+  createdAt   DateTime @default(now())
+
+  @@index([clubId, channelKind])
+}
+
+model CommercialScore {
+  id         String   @id @default(uuid())
+  clubId     String
+  scope      String
+  refId      String?
+  score      Float
+  components Json
+  createdAt  DateTime @default(now())
+
+  @@index([clubId, scope, refId])
+}
+
+model AcademyROI {
+  id                String   @id @default(uuid())
+  clubId            String
+  academyName       String
+  season            String
+  investmentCents   Int      @default(0)
+  valueCreatedCents Int      @default(0)
+  roi               Float    @default(0)
+  components        Json
+  createdAt         DateTime @default(now())
+
+  @@unique([clubId, academyName, season])
+}
+
+// ── 6. Global scouting graph ────────────────────────────────────────────
+
+model TalentGraph {
+  id           String   @id @default(uuid())
+  clubId       String
+  snapshot     Json
+  modelVersion String   @default("m1")
+  monotonicMs  BigInt
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, monotonicMs])
+}
+
+model ScoutNetwork {
+  id           String   @id @default(uuid())
+  clubId       String
+  scoutUserId  String
+  regionCode   String?
+  languages    Json?
+  specialities Json?
+  ratings      Json?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, isActive])
+  @@index([scoutUserId])
+}
+
+model PlayerSimilarityGraph {
+  id             String   @id @default(uuid())
+  clubId         String
+  sourcePlayerId String
+  snapshot       Json
+  modelVersion   String   @default("m1")
+  createdAt      DateTime @default(now())
+
+  @@index([sourcePlayerId])
+}
+
+model CareerProjectionGraph {
+  id           String   @id @default(uuid())
+  clubId       String
+  playerId     String
+  snapshot     Json
+  modelVersion String   @default("m1")
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, playerId])
+}
+
+// ── 7. Digital marketplace ──────────────────────────────────────────────
+
+model MarketplaceItem {
+  id          String                @id @default(uuid())
+  clubId      String
+  kind        MarketplaceItemKind
+  title       String
+  description String?               @db.Text
+  payload     Json
+  status      MarketplaceItemStatus @default(DRAFT)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  createdById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([clubId, kind, status])
+  @@index([status, validFrom])
+}
+
+// ── 9. Sports knowledge engine ──────────────────────────────────────────
+
+model KnowledgeDocument {
+  id          String            @id @default(uuid())
+  clubId      String?
+  kind        KnowledgeNodeKind
+  title       String
+  body        String            @db.Text
+  tags        Json?
+  embedding   Json?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  isActive    Boolean           @default(true)
+
+  @@index([clubId, kind, isActive])
+}
+
+model KnowledgeGraph {
+  id        String   @id @default(uuid())
+  clubId    String
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@index([clubId, createdAt])
+}
+
+model TacticalPatternLibrary {
+  id          String    @id @default(uuid())
+  sport       SportKind
+  pluginCode  String?
+  patternName String
+  payload     Json
+  tags        Json?
+  isActive    Boolean   @default(true)
+  publishedAt DateTime  @default(now())
+
+  @@unique([sport, pluginCode, patternName])
+  @@index([sport, isActive])
+}
+
+model MedicalKnowledgeNode {
+  id          String   @id @default(uuid())
+  clubId      String?
+  kind        String
+  title       String
+  body        String   @db.Text
+  tags        Json?
+  isActive    Boolean  @default(true)
+  publishedAt DateTime @default(now())
+
+  @@index([clubId, kind, isActive])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase N — Global Sports Knowledge Graph + Universal Identity
+// ─────────────────────────────────────────────────────────────────────────
+// All additive. No FK back-relations on existing models.
+
+enum KnowledgeNodeType {
+  PLAYER
+  CLUB
+  COACH
+  SCOUT
+  AGENT
+  TOURNAMENT
+  STADIUM
+  COMPETITION
+  COUNTRY
+  ACADEMY
+}
+
+enum KnowledgeEdgeType {
+  PLAYS_FOR
+  COACHES
+  REPRESENTS
+  HOSTS
+  IN_COMPETITION
+  BELONGS_TO
+  DEVELOPS
+  NATIVE_OF
+  SCOUTED_BY
+  SIGNED_WITH
+  CUSTOM
+}
+
+enum DiscoveryStatus {
+  PROSPECT
+  EVALUATING
+  CONFIRMED
+  RECOMMENDED
+  REJECTED
+  ARCHIVED
+}
+
+enum ReasoningKind {
+  RECRUITMENT
+  TACTICAL
+  MEDICAL
+  ECONOMIC
+  DEVELOPMENT
+  CUSTOM
+}
+
+// ── Global knowledge graph ──────────────────────────────────────────────
+
+/// GlobalKnowledgeNode — polymorphic node. clubId=null means a global /
+/// platform-wide node (e.g. a FIFA tournament). Tenant nodes carry clubId.
+model GlobalKnowledgeNode {
+  id          String            @id @default(uuid())
+  clubId      String?
+  nodeKind    KnowledgeNodeType
+  /// External identifier (FIFA player id, transfermarkt id, etc.).
+  externalRef String?
+  label       String
+  payload     Json
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([clubId, nodeKind])
+  @@index([nodeKind, isActive])
+  @@index([externalRef])
+}
+
+/// GlobalKnowledgeEdge — typed relation between two nodes.
+model GlobalKnowledgeEdge {
+  id         String            @id @default(uuid())
+  clubId     String?
+  fromNodeId String
+  toNodeId   String
+  edgeKind   KnowledgeEdgeType
+  weight     Float             @default(1.0)
+  metadata   Json?
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+
+  @@unique([fromNodeId, toNodeId, edgeKind])
+  @@index([clubId, edgeKind])
+  @@index([fromNodeId])
+  @@index([toNodeId])
+}
+
+// ── Universal athlete identity ──────────────────────────────────────────
+
+/// UniversalAthleteId — privacy-preserving athlete fingerprint.
+/// idHash = SHA-256(firstName_lower | lastName_lower | dateOfBirth_ISO | sport)
+/// Never stores raw PII; lets multiple clubs reconcile the same athlete.
+model UniversalAthleteId {
+  id        String    @id @default(uuid())
+  idHash    String    @unique
+  sport     SportKind @default(FOOTBALL)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([sport])
+}
+
+/// AthleteIdentityLink — per-club Player ↔ universal id mapping.
+model AthleteIdentityLink {
+  id         String   @id @default(uuid())
+  athleteId  String // UniversalAthleteId.id
+  playerId   String // Phase B Player.id (string ref)
+  clubId     String
+  confidence Float    @default(1.0)
+  linkedById String?
+  linkedAt   DateTime @default(now())
+
+  @@unique([athleteId, playerId])
+  @@index([playerId])
+  @@index([clubId])
+}
+
+/// AthletePerformanceHistory — longitudinal performance summary.
+model AthletePerformanceHistory {
+  id         String   @id @default(uuid())
+  athleteId  String
+  season     String
+  payload    Json
+  capturedAt DateTime @default(now())
+
+  @@index([athleteId, season])
+}
+
+/// AthleteMedicalHistory — k-anonymised medical timeline.
+/// PII fields hashed; never stored in plain.
+model AthleteMedicalHistory {
+  id          String   @id @default(uuid())
+  athleteId   String
+  /// "INJURY" | "SURGERY" | "RECOVERY_MILESTONE" | "ASSESSMENT".
+  recordKind  String
+  payloadHash String // sha256 of plain payload (audit anchor only)
+  payload     Json // k-anonymised body
+  capturedAt  DateTime @default(now())
+
+  @@index([athleteId, recordKind])
+}
+
+/// AthleteTransferHistory — append-only transfer chain.
+model AthleteTransferHistory {
+  id          String   @id @default(uuid())
+  athleteId   String
+  fromClubRef String?
+  toClubRef   String?
+  feeCents    BigInt?
+  currency    String?  @default("EUR")
+  occurredAt  DateTime
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([athleteId, occurredAt])
+}
+
+/// TalentEvolutionGraph — per-athlete development trajectory snapshot.
+model TalentEvolutionGraph {
+  id           String   @id @default(uuid())
+  athleteId    String
+  snapshot     Json
+  modelVersion String   @default("n1")
+  capturedAt   DateTime @default(now())
+
+  @@index([athleteId, capturedAt])
+}
+
+// ── Global scouting intelligence ────────────────────────────────────────
+
+/// WorldwideScoutingNode — a scouting hub (per region or per agency).
+model WorldwideScoutingNode {
+  id           String   @id @default(uuid())
+  /// null = platform-wide federated scouting node.
+  clubId       String?
+  label        String
+  regionCode   String? // EU | MEA | NORAM | …
+  countryCodes Json? // ISO codes covered
+  specialities Json?
+  isActive     Boolean  @default(true)
+  publishedAt  DateTime @default(now())
+
+  @@index([regionCode, isActive])
+  @@index([clubId, isActive])
+}
+
+/// TalentDiscoveryEvent — append-only pipeline row per discovered prospect.
+model TalentDiscoveryEvent {
+  id             String          @id @default(uuid())
+  clubId         String?
+  scoutingNodeId String?
+  athleteIdHash  String? // optional link to UniversalAthleteId.idHash
+  externalRef    String?
+  prospectName   String
+  position       String?
+  age            Int?
+  region         String?
+  status         DiscoveryStatus @default(PROSPECT)
+  payload        Json
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([clubId, status])
+  @@index([scoutingNodeId])
+  @@index([athleteIdHash])
+}
+
+/// GlobalRecommendationRanking — cross-club recommendation rankings.
+/// Each row is HMAC-signed (Phase N security extension).
+model GlobalRecommendationRanking {
+  id            String   @id @default(uuid())
+  clubId        String
+  discoveryId   String?
+  athleteIdHash String?
+  position      String?
+  score         Float // 0..1
+  components    Json
+  modelVersion  String   @default("n1")
+  /// HMAC-SHA256(jwt.secret | "rec-rank" | clubId, canonical-stringified-payload)
+  signatureB64  String?
+  createdAt     DateTime @default(now())
+
+  @@index([clubId, position, createdAt])
+  @@index([discoveryId])
+}
+
+/// ConfidenceScore — versioned confidence per source/observation.
+model ConfidenceScore {
+  id           String   @id @default(uuid())
+  clubId       String?
+  sourceKind   String // "SCOUT" | "AI_AGENT" | "DATA_PROVIDER"
+  sourceRef    String
+  score        Float // 0..1
+  components   Json?
+  modelVersion String   @default("n1")
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, sourceKind])
+  @@index([sourceRef])
+}
+
+/// ScoutingEvaluation — replay-safe evaluation entry.
+model ScoutingEvaluation {
+  id            String   @id @default(uuid())
+  clubId        String
+  discoveryId   String?
+  athleteIdHash String?
+  evaluatorId   String?
+  payload       Json
+  score         Float    @default(0)
+  modelVersion  String   @default("n1")
+  createdAt     DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([discoveryId])
+}
+
+// ── Autonomous market intelligence ──────────────────────────────────────
+
+/// MarketTransferPrediction — global market prediction (extends Phase M
+/// TransferProbability with market-wide context).
+model MarketTransferPrediction {
+  id               String   @id @default(uuid())
+  clubId           String?
+  athleteIdHash    String?
+  fromClubRef      String?
+  toClubRef        String?
+  probability      Float
+  expectedFeeCents BigInt?
+  horizonDays      Int      @default(180)
+  components       Json
+  modelVersion     String   @default("n1")
+  createdAt        DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([athleteIdHash])
+}
+
+/// ContractIntelligenceSnapshot — market-wide contract negotiation signals.
+model ContractIntelligenceSnapshot {
+  id            String   @id @default(uuid())
+  clubId        String?
+  athleteIdHash String?
+  /// "EXPIRY_SOON" | "RENEWAL_LIKELY" | "BOSMAN_RISK" | "TRANSFER_CANDIDATE"
+  signal        String
+  payload       Json
+  modelVersion  String   @default("n1")
+  createdAt     DateTime @default(now())
+
+  @@index([clubId, signal, createdAt])
+}
+
+/// AcademyDevelopmentForecast — forward-looking academy ROI projection.
+model AcademyDevelopmentForecast {
+  id                  String   @id @default(uuid())
+  clubId              String
+  academyName         String
+  horizonYears        Int      @default(5)
+  projectedValueCents BigInt   @default(0)
+  components          Json
+  modelVersion        String   @default("n1")
+  createdAt           DateTime @default(now())
+
+  @@index([clubId, academyName, createdAt])
+}
+
+// ── Knowledge reasoning layer ───────────────────────────────────────────
+
+/// ReasoningTrace — every reasoning call leaves a trace. Replay-safe.
+model ReasoningTrace {
+  id           String        @id @default(uuid())
+  clubId       String
+  kind         ReasoningKind
+  question     String        @db.Text
+  /// Ordered list of rule ids + intermediate results.
+  steps        Json
+  conclusion   Json
+  modelVersion String        @default("n1")
+  createdAt    DateTime      @default(now())
+
+  @@index([clubId, kind, createdAt])
+}
+
+/// ExplainableDecision — the audit-anchored final decision row.
+model ExplainableDecision {
+  id           String   @id @default(uuid())
+  clubId       String
+  /// Reference to the ReasoningTrace that produced this decision.
+  traceId      String?
+  topic        String
+  decision     String
+  rationale    String   @db.Text
+  /// Sources / evidence pointers (e.g. ["GlobalKnowledgeNode:abc", "ScoutingEvaluation:xyz"]).
+  sources      Json
+  payloadHash  String?
+  /// HMAC signature of the canonical decision body.
+  signatureB64 String?
+  modelVersion String   @default("n1")
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, createdAt])
+  @@index([traceId])
+}
+
+/// DeterministicReasoningRule — rule library used by the reasoner.
+/// Append-only versioning; old rules remain queryable for replay.
+model DeterministicReasoningRule {
+  id          String        @id @default(uuid())
+  /// null = global rule.
+  clubId      String?
+  code        String
+  label       String
+  kind        ReasoningKind
+  /// Rule expression in JSON: { when: [...], then: [...] }
+  rule        Json
+  version     Int           @default(1)
+  isActive    Boolean       @default(true)
+  publishedBy String?
+  publishedAt DateTime      @default(now())
+
+  @@unique([clubId, code, version])
+  @@index([kind, isActive])
+}
+
+// ── Security extensions ─────────────────────────────────────────────────
+
+/// CryptographicGraphAnchor — sha256 anchor of a graph snapshot pinned
+/// into the Phase I audit chain. Lets replay verify the graph hasn't
+/// been tampered with between snapshot and now.
+model CryptographicGraphAnchor {
+  id          String   @id @default(uuid())
+  clubId      String
+  /// "KNOWLEDGE_GRAPH" | "RECOMMENDATION_CHAIN" | "TALENT_EVOLUTION"
+  anchorKind  String
+  /// Sha256 over the canonical snapshot content.
+  sha256      String
+  /// Number of nodes / rows participating.
+  cardinality Int      @default(0)
+  asOf        DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([clubId, anchorKind, asOf])
+  @@index([sha256])
+}
+
+/// RecommendationSignature — durable HMAC signature record per signed
+/// recommendation. Lets us re-verify a signature offline.
+model RecommendationSignature {
+  id                 String   @id @default(uuid())
+  clubId             String
+  /// FK by id-string to GlobalRecommendationRanking or ExplainableDecision.
+  recommendationId   String
+  recommendationKind String // "GLOBAL_RANKING" | "EXPLAINABLE_DECISION"
+  signatureB64       String
+  payloadHash        String
+  signerVersion      String   @default("n1")
+  createdAt          DateTime @default(now())
+
+  @@unique([recommendationId, recommendationKind])
+  @@index([clubId, createdAt])
+}
+
+/// TrustScore — running trust score per source. Updated on every
+/// evaluation outcome with a deterministic rule.
+model TrustScore {
+  id           String   @id @default(uuid())
+  clubId       String?
+  sourceKind   String // "SCOUT" | "AGENT" | "DATA_PROVIDER" | "AI_AGENT"
+  sourceRef    String
+  score        Float    @default(0.5) // 0..1
+  observations Int      @default(0)
+  components   Json?
+  modelVersion String   @default("n1")
+  updatedAt    DateTime @updatedAt
+
+  @@unique([clubId, sourceKind, sourceRef])
+  @@index([sourceKind])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase O — Production Reality Layer
+// ─────────────────────────────────────────────────────────────────────────
+// Additive only. No FK back-relations on existing models. Hardens the
+// platform for real-world deployment: auth sessions, MFA, club operations,
+// player lifecycle, hardware deployment, governance, monitoring, backups.
+
+enum AuthSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum MfaMethod {
+  NONE
+  TOTP
+  EMAIL
+  BACKUP_CODE
+}
+
+enum AttendanceMark {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum OperationsPaymentState {
+  PENDING
+  PAID
+  OVERDUE
+  REFUNDED
+  CANCELED
+}
+
+enum ClubEventKind {
+  TRAINING
+  MATCH
+  MEDICAL
+  MEETING
+  TRAVEL
+  OTHER
+}
+
+enum PlayerContractState {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum GdprRequestKind {
+  EXPORT
+  DELETE
+  RECTIFICATION
+  PORTABILITY
+}
+
+enum GdprRequestState {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum ConsentScope {
+  MEDICAL
+  MARKETING
+  DATA_SHARING
+  RESEARCH
+  IMAGE_USE
+  CUSTOM
+}
+
+enum HealthCheckState {
+  OK
+  DEGRADED
+  DOWN
+}
+
+enum AlertRuleState {
+  ACTIVE
+  MUTED
+  ARCHIVED
+}
+
+enum BackupKind {
+  SCHEDULED
+  MANUAL
+  PRE_DEPLOY
+  RESTORE_POINT
+}
+
+enum DeviceInventoryState {
+  STOCK
+  DEPLOYED
+  RMA
+  RETIRED
+}
+
+// ── Auth production ─────────────────────────────────────────────────────
+
+/// AuthSession — refresh token rotation + device fingerprint + revocation.
+model AuthSession {
+  id              String            @id @default(uuid())
+  userId          String
+  /// SHA-256 hash of the refresh token (never stored raw).
+  refreshHash     String            @unique
+  deviceLabel     String?
+  ipAddress       String?
+  userAgent       String?
+  status          AuthSessionStatus @default(ACTIVE)
+  /// MFA challenge requirement satisfied at session start.
+  mfaSatisfied    Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  lastUsedAt      DateTime          @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  revokedReason   String?
+  /// Parent session id when this row is a rotated refresh token.
+  parentSessionId String?
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+/// MFASetting — per-user MFA enrollment state. Secret is stored encrypted
+/// (HMAC-derived envelope from jwt.secret).
+model MFASetting {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  method          MfaMethod @default(NONE)
+  secretEncrypted String?
+  backupCodesHash Json?
+  enabledAt       DateTime?
+  lastVerifiedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+/// MFAChallenge — short-lived one-time challenge for verification.
+model MFAChallenge {
+  id            String    @id @default(uuid())
+  userId        String
+  /// SHA-256 of the challenge code; the user provides the plain code.
+  challengeHash String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  attempts      Int       @default(0)
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+// ── Club operations ─────────────────────────────────────────────────────
+
+/// PlayerGuardianLink — parent / legal guardian ↔ player.
+model PlayerGuardianLink {
+  id             String   @id @default(uuid())
+  clubId         String
+  playerId       String
+  guardianUserId String
+  relationship   String // "PARENT" | "GUARDIAN" | "OTHER"
+  isPrimary      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@unique([playerId, guardianUserId])
+  @@index([clubId, playerId])
+  @@index([guardianUserId])
+}
+
+/// TrainingAttendanceRecord — one per (session, player).
+model TrainingAttendanceRecord {
+  id                String         @id @default(uuid())
+  clubId            String
+  trainingSessionId String
+  playerId          String
+  mark              AttendanceMark @default(PRESENT)
+  notes             String?
+  recordedById      String?
+  recordedAt        DateTime       @default(now())
+
+  @@unique([trainingSessionId, playerId])
+  @@index([clubId, recordedAt])
+}
+
+/// MatchAttendanceRecord — one per (match, player).
+model MatchAttendanceRecord {
+  id             String         @id @default(uuid())
+  clubId         String
+  matchId        String
+  playerId       String
+  mark           AttendanceMark @default(PRESENT)
+  minutesOnPitch Int?
+  notes          String?
+  recordedById   String?
+  recordedAt     DateTime       @default(now())
+
+  @@unique([matchId, playerId])
+  @@index([clubId, matchId])
+}
+
+/// OperationsPayment — payment ledger (no external gateway in Phase O).
+model OperationsPayment {
+  id            String                 @id @default(uuid())
+  clubId        String
+  payerUserId   String?
+  payerPlayerId String?
+  amountCents   Int
+  currency      String                 @default("EUR")
+  state         OperationsPaymentState @default(PENDING)
+  /// "MEMBERSHIP" | "TRAINING_FEE" | "MERCHANDISE" | "ACADEMY_TUITION" | "OTHER"
+  category      String
+  dueDate       DateTime?
+  paidAt        DateTime?
+  invoiceRef    String?
+  notes         String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([clubId, state, dueDate])
+  @@index([payerPlayerId])
+}
+
+/// OperationsInvoiceLine — line items on Phase J InvoiceDraft.
+model OperationsInvoiceLine {
+  id             String   @id @default(uuid())
+  invoiceDraftId String
+  label          String
+  quantity       Int      @default(1)
+  unitCents      Int      @default(0)
+  totalCents     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([invoiceDraftId])
+}
+
+/// ClubCalendarEntry — unified calendar event row.
+model ClubCalendarEntry {
+  id          String        @id @default(uuid())
+  clubId      String
+  teamId      String?
+  kind        ClubEventKind @default(OTHER)
+  title       String
+  startsAt    DateTime
+  endsAt      DateTime?
+  location    String?
+  payload     Json?
+  /// e.g. trainingSessionId | matchId | etc. (id-string ref only)
+  externalRef String?
+  createdById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([clubId, startsAt])
+  @@index([teamId, startsAt])
+}
+
+// ── Player lifecycle ────────────────────────────────────────────────────
+
+model PlayerOnboardingStep {
+  id          String    @id @default(uuid())
+  clubId      String
+  playerId    String
+  step        String // "REGISTRATION" | "MEDICAL_FORM" | "PHOTO" | "PARENT_CONSENT" | "KIT_FIT"
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  payload     Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([playerId, step])
+  @@index([clubId, completed])
+}
+
+model PlayerEvaluationRecord {
+  id          String   @id @default(uuid())
+  clubId      String
+  playerId    String
+  evaluatorId String?
+  /// "MID_SEASON" | "END_SEASON" | "PRE_SIGNING" | "POST_INJURY" | "AD_HOC"
+  kind        String
+  score       Float?
+  payload     Json
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([playerId, kind, createdAt])
+  @@index([clubId, createdAt])
+}
+
+model PlayerContractRecord {
+  id                 String              @id @default(uuid())
+  clubId             String
+  playerId           String
+  state              PlayerContractState @default(DRAFT)
+  startsAt           DateTime
+  endsAt             DateTime?
+  weeklyWageCents    Int                 @default(0)
+  signingBonusCents  Int                 @default(0)
+  releaseClauseCents Int?
+  payload            Json?
+  signedAt           DateTime?
+  terminatedAt       DateTime?
+  payloadHash        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([clubId, playerId, state])
+  @@index([endsAt])
+}
+
+// ── Hardware deployment ─────────────────────────────────────────────────
+
+model DeviceInventoryEntry {
+  id         String               @id @default(uuid())
+  clubId     String?
+  deviceId   String?
+  serial     String
+  state      DeviceInventoryState @default(STOCK)
+  location   String?
+  shippedAt  DateTime?
+  receivedAt DateTime?
+  rmaReason  String?
+  notes      String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@unique([serial])
+  @@index([clubId, state])
+}
+
+model DeviceDiagnosticReport {
+  id         String   @id @default(uuid())
+  deviceId   String
+  /// "BATTERY" | "SIGNAL" | "TEMPERATURE" | "STORAGE" | "FULL"
+  reportKind String
+  payload    Json
+  score      Float    @default(1.0)
+  capturedAt DateTime @default(now())
+
+  @@index([deviceId, capturedAt])
+  @@index([reportKind])
+}
+
+// ── Notifications + reports ─────────────────────────────────────────────
+
+model UserNotificationChannel {
+  id          String   @id @default(uuid())
+  userId      String
+  /// "EMAIL" | "SMS" | "PUSH" | "IN_APP" | "WEBHOOK"
+  channel     String
+  target      String // email / phone / endpoint URL
+  isVerified  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  preferences Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, channel, target])
+  @@index([userId, isActive])
+}
+
+model OpsReportTemplate {
+  id          String   @id @default(uuid())
+  clubId      String? // null = global template
+  code        String
+  label       String
+  /// Definition for a deterministic report; JSON includes sources + filters.
+  definition  Json
+  isActive    Boolean  @default(true)
+  publishedBy String?
+  publishedAt DateTime @default(now())
+
+  @@unique([clubId, code])
+  @@index([code, isActive])
+}
+
+model OpsReportRun {
+  id         String    @id @default(uuid())
+  clubId     String
+  templateId String
+  parameters Json
+  /// Final rendered output (CSV/JSON).
+  output     Json
+  /// SHA-256 of the canonical output — replay-anchor.
+  outputHash String
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([clubId, startedAt])
+  @@index([templateId])
+}
+
+// ── Data governance ─────────────────────────────────────────────────────
+
+model DataRetentionPolicy {
+  id            String   @id @default(uuid())
+  clubId        String? // null = global default
+  entityType    String // "MatchTimeline" | "SensorPacket" | "AIAlert" | …
+  retentionDays Int // 0 = forever (audit chain exception)
+  isActive      Boolean  @default(true)
+  publishedBy   String?
+  publishedAt   DateTime @default(now())
+
+  @@unique([clubId, entityType])
+  @@index([entityType, isActive])
+}
+
+/// Unified GDPR request (export / delete / rectification / portability).
+model GdprDataRequest {
+  id               String           @id @default(uuid())
+  clubId           String?
+  requestingUserId String
+  subjectUserId    String?
+  subjectPlayerId  String?
+  kind             GdprRequestKind
+  state            GdprRequestState @default(PENDING)
+  scope            Json? // entity types in scope
+  payloadHash      String?
+  completedAt      DateTime?
+  /// Download URL when state=COMPLETED for EXPORT.
+  resultRef        String?
+  /// Reason if REJECTED.
+  rejectedReason   String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([clubId, kind, state])
+  @@index([subjectUserId])
+  @@index([subjectPlayerId])
+}
+
+model UserConsentRecord {
+  id        String       @id @default(uuid())
+  clubId    String?
+  userId    String?
+  playerId  String?
+  scope     ConsentScope
+  granted   Boolean      @default(true)
+  payload   Json?
+  grantedAt DateTime     @default(now())
+  revokedAt DateTime?
+
+  @@index([userId, scope])
+  @@index([playerId, scope])
+  @@index([clubId, scope])
+}
+
+// ── Monitoring ──────────────────────────────────────────────────────────
+
+model ProductionHealthCheck {
+  id         String           @id @default(uuid())
+  service    String // "db" | "redis" | "outbox" | "worker" | …
+  state      HealthCheckState @default(OK)
+  latencyMs  Int?
+  payload    Json?
+  capturedAt DateTime         @default(now())
+
+  @@index([service, capturedAt])
+  @@index([state, capturedAt])
+}
+
+model ProductionAlertRule {
+  id             String         @id @default(uuid())
+  clubId         String? // null = global rule
+  code           String
+  label          String
+  expression     String         @db.Text // free-text rule body
+  threshold      Float?
+  channelTargets Json?
+  state          AlertRuleState @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([clubId, code])
+  @@index([state])
+}
+
+// ── Deployment automation ──────────────────────────────────────────────
+
+model BackupRecord {
+  id         String     @id @default(uuid())
+  kind       BackupKind @default(SCHEDULED)
+  /// Backup ref (S3 URL, Render snapshot id, etc.).
+  ref        String?
+  sizeBytes  BigInt?
+  sha256     String?
+  notes      String?
+  startedAt  DateTime   @default(now())
+  finishedAt DateTime?
+  ok         Boolean    @default(true)
+
+  @@index([kind, startedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase P · Real Launch — in-app notification inbox
+// ─────────────────────────────────────────────────────────────────────────
+// Single additive model used by the in-app inbox. Dispatch to email/SMS/push
+// is intentionally out of scope; channels are registered via Phase O
+// `UserNotificationChannel` and dispatched by a future worker.
+
+model UserNotification {
+  id        String               @id @default(uuid())
+  clubId    String
+  userId    String
+  kind      UserNotificationKind @default(SYSTEM)
+  title     String
+  body      String?              @db.Text
+  payload   Json?
+  readAt    DateTime?
+  archived  Boolean              @default(false)
+  createdAt DateTime             @default(now())
+
+  @@index([clubId])
+  @@index([userId, archived, readAt])
+  @@index([createdAt])
+}
+
+enum UserNotificationKind {
+  SYSTEM
+  ATTENDANCE_REMINDER
+  PAYMENT_REMINDER
+  TRAINING_UPDATE
+  INJURY_ALERT
+  DEVICE_ALERT
+  GDPR_UPDATE
 }
 
 model Tournament {

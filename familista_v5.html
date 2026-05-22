@@ -445,6 +445,23 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
   padding:4px 10px;border-radius:999px;cursor:pointer;letter-spacing:.3px;
 }
 .backend-banner .retry:hover{background:rgba(255,255,255,0.12);}
+
+/* ── Tenant context switcher (Phase A) ─────────────────────────────── */
+.ctx-switcher{
+  display:flex;align-items:center;gap:6px;
+  padding:4px 10px;
+  background:var(--bg-3);border:1px solid var(--bd);border-radius:999px;
+}
+.ctx-select{
+  background:transparent;border:none;outline:none;
+  color:var(--tx);font-family:inherit;font-size:12px;font-weight:600;
+  padding:4px 18px 4px 6px;border-radius:6px;cursor:pointer;
+  appearance:none;
+  background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2352525B'%3e%3cpath d='M5.516 7.548L10 12.032l4.484-4.484L16 9.064l-6 6-6-6z'/%3e%3c/svg%3e");
+  background-repeat:no-repeat;background-position:right 2px center;background-size:14px;
+}
+.ctx-select:hover{background-color:rgba(255,255,255,0.04);}
+.ctx-select option{background:var(--card);color:var(--tx);}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
 
 /* ── PAGE-SPECIFIC LAYOUTS ── */
@@ -1232,6 +1249,243 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
   .mh-body { gap: 8px; }
 }
 
+/* ════════════════════════════════════════════════════════════════════════
+   Phase H — Tactical OS theme (scoped to .tactical-os, additive only)
+   ════════════════════════════════════════════════════════════════════════ */
+.tactical-os {
+  --tos-bg-1:        #050709;
+  --tos-bg-2:        #0b1015;
+  --tos-bg-3:        #11161d;
+  --tos-bd:          rgba(255,255,255,.06);
+  --tos-bd-hot:      rgba(34,197,94,.35);
+  --tos-tx:          #e6edf3;
+  --tos-tx-2:        #9aa7b5;
+  --tos-tx-3:        #586676;
+  --tos-mono:        ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --tos-neon-green:  #22d39a;
+  --tos-neon-cyan:   #34c8ff;
+  --tos-neon-amber:  #f5b144;
+  --tos-neon-red:    #ff5b6e;
+  --tos-neon-violet: #a285ff;
+  --tos-card-bg:     linear-gradient(180deg, rgba(255,255,255,.018), rgba(255,255,255,.002));
+  --tos-card-bd:     rgba(255,255,255,.07);
+  --tos-glow-cyan:   0 0 18px rgba(52,200,255,.35);
+  --tos-glow-green:  0 0 14px rgba(34,211,154,.35);
+  --tos-glow-red:    0 0 14px rgba(255,91,110,.42);
+  --tos-radius:      10px;
+
+  position: relative;
+  background:
+    radial-gradient(1100px 600px at 8% -10%, rgba(34,200,255,.10), transparent 60%),
+    radial-gradient(900px 500px at 92% 110%, rgba(124,58,237,.10), transparent 60%),
+    var(--tos-bg-1);
+  color: var(--tos-tx);
+  font-family: var(--mono, ui-monospace), system-ui, sans-serif;
+}
+.tactical-os::before {
+  content: "";
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none; opacity: .35;
+}
+
+.tactical-os .tos-shell{
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 320px minmax(0,1fr) 360px;
+  gap: 14px;
+  padding: 14px;
+  min-height: calc(100vh - 64px);
+}
+@media (max-width: 1280px){ .tactical-os .tos-shell{ grid-template-columns: 280px minmax(0,1fr); }
+  .tactical-os .tos-rail-right{ display:none; }
+}
+@media (max-width: 900px){ .tactical-os .tos-shell{ grid-template-columns: 1fr; }
+  .tactical-os .tos-rail-left{ display:none; }
+}
+
+.tactical-os .tos-card{
+  background: var(--tos-card-bg);
+  border: 1px solid var(--tos-card-bd);
+  border-radius: var(--tos-radius);
+  padding: 12px;
+  box-shadow: 0 1px 0 rgba(255,255,255,.015) inset;
+}
+.tactical-os .tos-card.hot{ border-color: var(--tos-bd-hot); box-shadow: var(--tos-glow-green); }
+
+.tactical-os .tos-hdr{
+  display:flex; align-items:center; justify-content:space-between;
+  gap: 10px; margin-bottom: 10px;
+}
+.tactical-os .tos-title{
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--tos-tx-3); font-weight: 600;
+}
+.tactical-os .tos-h1{
+  font-size: 22px; font-weight: 700; color: var(--tos-tx); letter-spacing: -0.01em;
+  display:flex; align-items:center; gap: 10px;
+}
+.tactical-os .tos-h1 .tos-pulse{
+  display:inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--tos-neon-green); box-shadow: var(--tos-glow-green);
+  animation: tos-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tos-pulse {
+  0%   { transform: scale(1);   opacity: 1; }
+  50%  { transform: scale(1.3); opacity: .55; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+.tactical-os .tos-pill{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family: var(--tos-mono); font-size: 10px;
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid var(--tos-bd); color: var(--tos-tx-2);
+  background: rgba(255,255,255,.02);
+}
+.tactical-os .tos-pill.green{  color: var(--tos-neon-green);  border-color: rgba(34,211,154,.35); background: rgba(34,211,154,.06); }
+.tactical-os .tos-pill.cyan{   color: var(--tos-neon-cyan);   border-color: rgba(52,200,255,.35); background: rgba(52,200,255,.06); }
+.tactical-os .tos-pill.amber{  color: var(--tos-neon-amber);  border-color: rgba(245,177,68,.35); background: rgba(245,177,68,.06); }
+.tactical-os .tos-pill.red{    color: var(--tos-neon-red);    border-color: rgba(255,91,110,.40); background: rgba(255,91,110,.07); }
+.tactical-os .tos-pill.violet{ color: var(--tos-neon-violet); border-color: rgba(162,133,255,.35); background: rgba(162,133,255,.06); }
+
+.tactical-os .tos-grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tactical-os .tos-grid-3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+.tactical-os .tos-grid-4{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+
+.tactical-os .tos-kpi{
+  display:flex; flex-direction: column; gap: 4px;
+  padding: 10px; border-radius: 8px;
+  background: rgba(255,255,255,.015); border: 1px solid var(--tos-bd);
+}
+.tactical-os .tos-kpi .v{ font-family: var(--tos-mono); font-size: 20px; font-weight: 700; color: var(--tos-tx); }
+.tactical-os .tos-kpi .l{ font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--tos-tx-3); }
+.tactical-os .tos-kpi.green  .v{ color: var(--tos-neon-green); }
+.tactical-os .tos-kpi.cyan   .v{ color: var(--tos-neon-cyan); }
+.tactical-os .tos-kpi.amber  .v{ color: var(--tos-neon-amber); }
+.tactical-os .tos-kpi.red    .v{ color: var(--tos-neon-red); }
+.tactical-os .tos-kpi.violet .v{ color: var(--tos-neon-violet); }
+
+.tactical-os .tos-bar{ height:5px; background:rgba(255,255,255,.05); border-radius:3px; overflow:hidden; }
+.tactical-os .tos-bar > i{ display:block; height:100%; background:var(--tos-neon-cyan); transition: width .35s ease; }
+.tactical-os .tos-bar.green > i{ background: var(--tos-neon-green); }
+.tactical-os .tos-bar.amber > i{ background: var(--tos-neon-amber); }
+.tactical-os .tos-bar.red   > i{ background: var(--tos-neon-red); }
+
+.tactical-os .tos-list{ list-style:none; padding:0; margin:0; }
+.tactical-os .tos-list li{
+  display:flex; align-items:center; gap:8px;
+  padding: 8px 10px; border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.tactical-os .tos-list li:hover{ background: rgba(255,255,255,.025); border-color: var(--tos-bd); }
+.tactical-os .tos-list li.active{ background: rgba(34,200,255,.06); border-color: rgba(52,200,255,.35); }
+
+.tactical-os .tos-pitch-wrap{
+  position: relative;
+  background: radial-gradient(110% 75% at 50% 50%, rgba(16,98,76,.25), rgba(8,18,18,.6)), #0a1612;
+  border: 1px solid var(--tos-bd); border-radius: var(--tos-radius);
+  overflow: hidden;
+}
+.tactical-os .tos-pitch-wrap.cyan{ box-shadow: var(--tos-glow-cyan); }
+
+.tactical-os .tos-chip{
+  display:inline-flex; align-items:center; gap:5px;
+  padding: 3px 8px; border-radius: 8px;
+  font-size: 10px; font-family: var(--tos-mono);
+  background: rgba(255,255,255,.04); border:1px solid var(--tos-bd); color: var(--tos-tx-2);
+}
+
+.tactical-os .tos-btn{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family: var(--tos-mono); font-size: 11px; letter-spacing: .04em;
+  padding: 6px 11px; border-radius: 7px;
+  background: rgba(34,200,255,.08); color: var(--tos-neon-cyan);
+  border: 1px solid rgba(52,200,255,.35); cursor: pointer;
+  transition: background .15s, transform .12s, box-shadow .15s;
+}
+.tactical-os .tos-btn:hover{ background: rgba(34,200,255,.14); box-shadow: var(--tos-glow-cyan); }
+.tactical-os .tos-btn.green{ background: rgba(34,211,154,.08); color: var(--tos-neon-green); border-color: rgba(34,211,154,.35); }
+.tactical-os .tos-btn.green:hover{ box-shadow: var(--tos-glow-green); }
+.tactical-os .tos-btn.ghost{ background: transparent; color: var(--tos-tx-2); border-color: var(--tos-bd); }
+.tactical-os .tos-btn.ghost:hover{ color: var(--tos-tx); }
+.tactical-os .tos-btn:active{ transform: translateY(1px); }
+.tactical-os .tos-btn[disabled]{ opacity:.4; cursor:not-allowed; }
+
+.tactical-os .tos-input,
+.tactical-os .tos-select{
+  width:100%; padding: 8px 10px; border-radius: 7px;
+  background: rgba(255,255,255,.03); color: var(--tos-tx);
+  border: 1px solid var(--tos-bd); font-family: var(--tos-mono); font-size: 12px;
+  outline: none; transition: border-color .15s, background .15s;
+}
+.tactical-os .tos-input:focus,
+.tactical-os .tos-select:focus{ border-color: var(--tos-neon-cyan); background: rgba(34,200,255,.04); }
+
+.tactical-os .tos-chat{
+  display:flex; flex-direction: column; gap: 8px;
+  max-height: 480px; overflow-y: auto;
+  scrollbar-width: thin;
+}
+.tactical-os .tos-chat::-webkit-scrollbar{ width:6px; }
+.tactical-os .tos-chat::-webkit-scrollbar-thumb{ background: rgba(255,255,255,.08); border-radius: 4px; }
+.tactical-os .tos-msg{ padding: 10px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.55; }
+.tactical-os .tos-msg.user{ background: rgba(52,200,255,.06); border:1px solid rgba(52,200,255,.2); align-self: flex-end; max-width: 88%; }
+.tactical-os .tos-msg.agent{ background: rgba(255,255,255,.025); border:1px solid var(--tos-bd); align-self: flex-start; max-width: 92%; }
+.tactical-os .tos-msg .who{ display:block; font-size: 9px; letter-spacing:.15em; text-transform: uppercase; color: var(--tos-tx-3); margin-bottom: 4px; }
+.tactical-os .tos-msg.thinking{ opacity:.7; font-style: italic; }
+
+.tactical-os .tos-feed{ display:flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y:auto; }
+.tactical-os .tos-feed .row{
+  display:flex; gap: 8px; align-items:flex-start;
+  padding: 6px 8px; border-radius: 7px; border: 1px solid var(--tos-bd);
+  background: rgba(255,255,255,.012); font-size: 11.5px;
+}
+.tactical-os .tos-feed .row .dot{ width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex:none; }
+.tactical-os .tos-feed .row .body{ flex:1; min-width: 0; }
+.tactical-os .tos-feed .row .ts{ font-family: var(--tos-mono); font-size: 9.5px; color: var(--tos-tx-3); }
+
+.tactical-os .tos-gauge{
+  position: relative; height: 86px; border-radius: 8px;
+  background: rgba(255,255,255,.018); border:1px solid var(--tos-bd); overflow:hidden;
+}
+.tactical-os .tos-gauge .fill{
+  position: absolute; left: 50%; top: 0; bottom: 0; width: 0;
+  background: linear-gradient(90deg, rgba(34,211,154,.25), rgba(34,211,154,.55));
+  transition: width .35s ease, left .35s ease, background .35s;
+}
+.tactical-os .tos-gauge .fill.neg{ background: linear-gradient(90deg, rgba(255,91,110,.55), rgba(255,91,110,.25)); }
+.tactical-os .tos-gauge .label{
+  position: absolute; inset: 0; display:flex; align-items:center; justify-content:center;
+  font-family: var(--tos-mono); font-size: 22px; font-weight: 700; color: var(--tos-tx);
+  text-shadow: 0 1px 14px rgba(0,0,0,.4);
+}
+.tactical-os .tos-gauge .axis{ position: absolute; left:50%; top:0; bottom:0; width:1px; background: rgba(255,255,255,.1); }
+
+.tactical-os .tos-spark{ width:100%; height: 28px; display:block; }
+
+.tactical-os .tos-scrub{
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  background: rgba(255,255,255,.08); border-radius: 3px; outline: none;
+}
+.tactical-os .tos-scrub::-webkit-slider-thumb{
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--tos-neon-cyan); box-shadow: var(--tos-glow-cyan); cursor: pointer; border: 0;
+}
+.tactical-os .tos-scrub::-moz-range-thumb{
+  width: 14px; height: 14px; border-radius: 50%; background: var(--tos-neon-cyan);
+  box-shadow: var(--tos-glow-cyan); cursor: pointer; border: 0;
+}
+
+.tactical-os .tos-annot-toolbar{ display:flex; gap:6px; flex-wrap:wrap; }
+.tactical-os .tos-annot-toolbar .tos-btn.active{ background: rgba(34,200,255,.18); box-shadow: var(--tos-glow-cyan); }
+.tactical-os .tos-player-chip{ cursor: grab; }
+.tactical-os .tos-player-chip:active{ cursor: grabbing; }
+
 </style>
 </head>
 <body>
@@ -1341,6 +1595,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zM3 12a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
         <span class="nav-label">Dashboard</span>
       </div>
+      <div class="nav-item" onclick="navTo('tactical-os',this)" data-page="tactical-os">
+        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+        <span class="nav-label">Tactical OS</span>
+        <span class="nav-badge" style="background:rgba(34,211,154,.18);color:#22d39a;border-color:rgba(34,211,154,.4);">ELITE</span>
+      </div>
       <div class="nav-item" onclick="navTo('live',this)" data-page="live">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Live Tracking</span>
@@ -1431,6 +1690,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
       </div>
       <div class="header-spacer"></div>
       <div class="header-actions">
+        <!-- Phase A: tenant context switcher (Club + Team) -->
+        <div class="ctx-switcher" id="ctx-switcher" style="display:none;">
+          <select class="ctx-select" id="ctx-club"  onchange="onContextClubChange()"></select>
+          <span style="color:var(--tx-3);font-size:11px;">·</span>
+          <select class="ctx-select" id="ctx-team"  onchange="onContextTeamChange()"></select>
+        </div>
         <div class="status-chip chip-live"><div class="chip-dot chip-dot-live"></div><span id="gps-count">11 GPS Active</span></div>
         <div class="status-chip chip-ai"><div class="chip-dot chip-dot-ai"></div>ARIA Online</div>
         <button class="hdr-btn notif">
@@ -1558,12 +1823,127 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
             <input class="login-input" id="pe-contract" type="date" />
           </div>
         </div>
+
+        <!-- ── Phase 2: Contact + status (always visible) ─────────────── -->
+        <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--bd-2);">
+          <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Contact &amp; Status</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+            <div>
+              <label class="login-label">Player Email</label>
+              <input class="login-input" id="pe-email" type="email" placeholder="optional" />
+            </div>
+            <div>
+              <label class="login-label">Joined Date</label>
+              <input class="login-input" id="pe-joined" type="date" />
+            </div>
+            <div>
+              <label class="login-label">Parent / Guardian Name</label>
+              <input class="login-input" id="pe-parent-name" maxlength="200" placeholder="optional" />
+            </div>
+            <div>
+              <label class="login-label">Parent / Guardian Email</label>
+              <input class="login-input" id="pe-parent-email" type="email" placeholder="optional" />
+            </div>
+            <div>
+              <label class="login-label">Parent / Guardian Phone</label>
+              <input class="login-input" id="pe-parent-phone" type="tel" maxlength="40" placeholder="optional" />
+            </div>
+            <div>
+              <label class="login-label">Medical Status</label>
+              <select class="login-input" id="pe-medical">
+                <option value="HEALTHY">Healthy</option>
+                <option value="INJURED">Injured</option>
+                <option value="RECOVERING">Recovering</option>
+                <option value="SUSPENDED">Suspended</option>
+                <option value="UNAVAILABLE">Unavailable</option>
+              </select>
+            </div>
+            <div>
+              <label class="login-label">Payment Status</label>
+              <select class="login-input" id="pe-payment">
+                <option value="PAID">Paid</option>
+                <option value="PARTIAL">Partial</option>
+                <option value="UNPAID">Unpaid</option>
+                <option value="OVERDUE">Overdue</option>
+                <option value="EXEMPT">Exempt</option>
+              </select>
+            </div>
+            <div>
+              <label class="login-label">Active</label>
+              <select class="login-input" id="pe-isactive">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label class="login-label">Team</label>
+              <select class="login-input" id="pe-team">
+                <option value="">— Unassigned —</option>
+              </select>
+            </div>
+            <div style="grid-column:1/-1;">
+              <label class="login-label">Notes</label>
+              <textarea class="login-input" id="pe-notes" rows="3" maxlength="2000" placeholder="optional internal notes" style="resize:vertical;"></textarea>
+            </div>
+          </div>
+        </div>
+
         <div id="pe-error" style="margin-top:12px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--bd);padding-top:14px;">
           <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('player-edit-modal')">Cancel</button>
           <button type="submit" class="btn btn-primary btn-sm" id="pe-submit">Create player</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Phase C: Match Detail drawer -->
+<div class="modal-bg" id="match-modal">
+  <div class="modal" style="max-width:980px;">
+    <div class="modal-hdr">
+      <div class="modal-title" id="match-modal-title">Match</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span id="match-modal-live-chip" class="badge badge-red" style="display:none;animation:badgePulse 1.4s ease infinite;font-size:9px;">● LIVE</span>
+        <span id="match-modal-status"    style="font-size:11.5px;color:var(--tx-3);"></span>
+        <button class="modal-close" onclick="closeMatchModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;">
+      <!-- Scoreboard -->
+      <div style="padding:18px 22px;border-bottom:1px solid var(--bd);background:var(--bg-2);">
+        <div style="display:flex;align-items:center;gap:18px;">
+          <div style="flex:1;text-align:right;font-size:16px;font-weight:700;" id="match-modal-home">—</div>
+          <div style="font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;color:var(--tx);" id="match-modal-score">— : —</div>
+          <div style="flex:1;font-size:16px;font-weight:700;" id="match-modal-away">—</div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;font-size:11px;color:var(--tx-3);">
+          <span id="match-modal-comp">—</span>
+          <span>·</span>
+          <span id="match-modal-when">—</span>
+          <span>·</span>
+          <span id="match-modal-venue">—</span>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div id="match-tabs-nav" style="display:flex;gap:4px;padding:8px 16px;border-bottom:1px solid var(--bd);background:var(--bg);">
+        <button class="filter-btn active" onclick="setMatchModalTab('overview',this)">Overview</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('lineup',this)">Lineup</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('timeline',this)">Timeline</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('tactical',this)">Tactical</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('live',this)">Live <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#94a3b8;margin-left:4px;" id="match-modal-sse-dot"></span></button>
+        <button class="filter-btn"        onclick="setMatchModalTab('fusion',this)">Fusion</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('brain',this)">Brain</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('spatial',this)">Spatial</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('predict',this)">Predict</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('replay',this)">Replay</button>
+        <button class="filter-btn"        onclick="setMatchModalTab('ai',this)">AI Insights</button>
+        <div id="match-modal-controls" style="margin-left:auto;display:flex;gap:6px;"></div>
+      </div>
+
+      <!-- Tab content -->
+      <div id="match-modal-content" style="overflow-y:auto;flex:1;min-height:340px;max-height:60vh;"></div>
     </div>
   </div>
 </div>
@@ -2030,6 +2410,10 @@ async function bootApp() {
   // Render all pages
   renderAllPages();
 
+  // Phase A — hydrate tenant context (Club + Team) BEFORE list loads,
+  // so SquadAPI can be scoped by the active team.
+  try { await AppContext.load(); } catch (_) {}
+
   // Load data in parallel
   showToast('Loading your club data...', 'info');
   await loadAllData();
@@ -2045,7 +2429,7 @@ async function loadAllData() {
   try {
     const [analytics, players, matches, tourns, training] = await Promise.allSettled([
       api('/analytics/overview'),
-      SquadAPI.list('limit=50'),
+      SquadAPI.list('limit=50' + (State.context && State.context.teamId ? '&teamId=' + encodeURIComponent(State.context.teamId) : '')),
       api('/matches?limit=20'),
       api('/training?limit=10'),
       api('/training/form'),
@@ -2170,7 +2554,7 @@ function navTo(page, el) {
     dashboard:'Dashboard', squad:'Squad', matches:'Matches', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', scouting:'Scouting', finances:'Finances', devices:'GPS Devices',
-    club:'Club', settings:'Settings'
+    club:'Club', settings:'Settings', 'tactical-os':'Tactical OS'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -2182,6 +2566,7 @@ function navTo(page, el) {
   if (page === 'devices')     loadDevicesData();
   if (page === 'club')        loadClubData();
   if (page === 'tournaments') renderTournContent('overview');
+  if (page === 'tactical-os') loadTacticalOS();
 }
 
 function toggleSidebar() {
@@ -2295,6 +2680,7 @@ function renderAllPages() {
     ${renderClubHTML()}
     ${renderSettingsHTML()}
     ${renderQuantumHTML()}
+    ${renderTacticalOSHTML()}
   `;
 
   // Init live pitch
@@ -2510,6 +2896,83 @@ function renderDashboard() {
 
 const SQUAD_API_BASE = 'https://familista-backend.onrender.com/api/v1/players';
 
+// ════════════════════════════════════════════════════════════════════════
+// Phase A · Tenant context (Club + Team) — uses FamilistaAPI under the hood
+// ════════════════════════════════════════════════════════════════════════
+const AppContext = (function () {
+  let _ctx   = null;      // { availableClubs, currentClubId, currentTeamId, currentClub, currentTeam, ... }
+  let _teams = [];        // teams for the active club (from /api/v1/teams)
+
+  async function load() {
+    try {
+      const r = await FamilistaAPI.get('/me/context');
+      _ctx = (r && r.data) || r || null;
+      if (_ctx) State.context = { clubId: _ctx.currentClubId || _ctx.legacyClubId, teamId: _ctx.currentTeamId || null };
+      await loadTeams();
+      renderSwitcher();
+      return _ctx;
+    } catch (e) {
+      console.warn('[ctx] failed to load /me/context:', e?.userMessage || e?.message);
+      return null;
+    }
+  }
+
+  async function loadTeams() {
+    try {
+      const r = await FamilistaAPI.get('/teams?isActive=true&limit=200');
+      _teams = (r && r.data) || [];
+    } catch (_) { _teams = []; }
+  }
+
+  function renderSwitcher() {
+    const wrap = document.getElementById('ctx-switcher');
+    const cs   = document.getElementById('ctx-club');
+    const ts   = document.getElementById('ctx-team');
+    if (!wrap || !cs || !ts || !_ctx) return;
+
+    cs.innerHTML = (_ctx.availableClubs || []).map(c =>
+      '<option value="' + c.id + '"' + (c.id === _ctx.currentClubId ? ' selected' : '') + '>' + (c.shortName || c.name) + '</option>'
+    ).join('');
+
+    ts.innerHTML = '<option value="">All teams</option>' + _teams.map(t =>
+      '<option value="' + t.id + '"' + (t.id === _ctx.currentTeamId ? ' selected' : '') + '>' + (t.shortName || t.name) + '</option>'
+    ).join('');
+
+    wrap.style.display = (cs.options.length > 0) ? '' : 'none';
+  }
+
+  async function switchClub(clubId) {
+    try {
+      const r = await FamilistaAPI.post('/me/context', { clubId, teamId: null });
+      _ctx = (r && r.data) || r || _ctx;
+      State.context = { clubId, teamId: null };
+      await loadTeams();
+      renderSwitcher();
+      // Re-hydrate the squad page after tenant change
+      if (typeof loadAllData === 'function') await loadAllData();
+      showToast('Switched club', 'success');
+    } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
+  }
+  async function switchTeam(teamId) {
+    try {
+      const r = await FamilistaAPI.post('/me/context', { clubId: State.context.clubId, teamId: teamId || null });
+      _ctx = (r && r.data) || r || _ctx;
+      State.context = { clubId: State.context.clubId, teamId: teamId || null };
+      renderSwitcher();
+      if (typeof loadAllData === 'function') await loadAllData();
+    } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
+  }
+
+  function teams() { return _teams; }
+  function activeTeamId() { return State.context && State.context.teamId; }
+
+  return { load, switchClub, switchTeam, teams, activeTeamId, renderSwitcher };
+})();
+
+// Wired to the <select> onchange attributes
+function onContextClubChange() { const v = document.getElementById('ctx-club').value; AppContext.switchClub(v); }
+function onContextTeamChange() { const v = document.getElementById('ctx-team').value; AppContext.switchTeam(v); }
+
 const SquadAPI = {
   list(query) {
     const url = SQUAD_API_BASE + (query ? '?' + query : '');
@@ -2638,6 +3101,9 @@ function renderSquad(filterPos) {
           '<div style="margin-top:4px;display:flex;gap:4px;align-items:center;">' +
             '<span class="pos-pill ' + posClass(p.position) + '">' + (p.position || '—') + '</span>' +
             (p.isInjured ? '<span class="badge badge-red" style="font-size:9px;">INJURED</span>' : '') +
+            (p.medicalStatus && p.medicalStatus !== 'HEALTHY' && !p.isInjured ? '<span class="badge" style="background:rgba(217,119,6,.12);color:#FDBA74;border:1px solid rgba(217,119,6,.3);font-size:9px;">' + p.medicalStatus + '</span>' : '') +
+            (p.paymentStatus && p.paymentStatus !== 'PAID' && p.paymentStatus !== 'EXEMPT' ? '<span class="badge" style="background:rgba(220,38,38,.12);color:#FCA5A5;border:1px solid rgba(220,38,38,.3);font-size:9px;">' + p.paymentStatus + '</span>' : '') +
+            (p.isActive === false ? '<span class="badge badge-gray" style="font-size:9px;">INACTIVE</span>' : '') +
           '</div>' +
         '</div>' +
         '<div class="pc-rating">' + ovr + '</div>' +
@@ -2875,13 +3341,30 @@ async function loadPlayerAIAnalysis(playerId) {
   }
 }
 
+// Populate the <select id="pe-team"> from AppContext.teams() each time the
+// modal opens. Defaults to the currently active team (if any).
+function populatePlayerTeamSelect(selectedTeamId) {
+  const sel = document.getElementById('pe-team');
+  if (!sel) return;
+  const teams = (typeof AppContext !== 'undefined' && AppContext.teams()) || [];
+  sel.innerHTML = '<option value="">— Unassigned —</option>' + teams.map(t =>
+    '<option value="' + t.id + '">' + (t.shortName ? t.shortName + ' · ' : '') + t.name + '</option>'
+  ).join('');
+  const target = selectedTeamId || (typeof AppContext !== 'undefined' && AppContext.activeTeamId()) || '';
+  sel.value = target || '';
+}
+
 function openAddPlayerModal() {
   if (!canManagePlayers()) { showToast('Not authorized to add players', 'error'); return; }
   document.getElementById('player-edit-title').textContent = 'Add Player';
   document.getElementById('pe-submit').textContent = 'Create player';
   document.getElementById('player-edit-form').reset();
-  document.getElementById('pe-id').value   = '';
-  document.getElementById('pe-foot').value = 'RIGHT';
+  document.getElementById('pe-id').value       = '';
+  document.getElementById('pe-foot').value     = 'RIGHT';
+  document.getElementById('pe-medical').value  = 'HEALTHY';
+  document.getElementById('pe-payment').value  = 'PAID';
+  document.getElementById('pe-isactive').value = 'true';
+  populatePlayerTeamSelect(null);
   const err = document.getElementById('pe-error');
   err.style.display = 'none'; err.textContent = '';
   document.getElementById('player-edit-modal').classList.add('open');
@@ -2901,22 +3384,34 @@ function openEditPlayerModal(id) {
   const set = (eid, v) => { const el = document.getElementById(eid); if (el) el.value = (v == null ? '' : v); };
   const isoDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
 
-  set('pe-id',          p.id);
-  set('pe-firstName',   p.firstName);
-  set('pe-lastName',    p.lastName);
-  set('pe-number',      p.number);
-  set('pe-position',    p.position);
-  set('pe-nationality', p.nationality);
-  set('pe-flag',        p.flag);
-  set('pe-dob',         isoDate(p.dateOfBirth));
-  set('pe-foot',        p.preferredFoot || 'RIGHT');
-  set('pe-height',      p.height);
-  set('pe-weight',      p.weight);
-  set('pe-overall',     p.overallRating);
-  set('pe-potential',   p.potential);
-  set('pe-mvalue',      p.marketValue);
-  set('pe-wage',        p.weeklyWage);
-  set('pe-contract',    isoDate(p.contractUntil));
+  set('pe-id',           p.id);
+  set('pe-firstName',    p.firstName);
+  set('pe-lastName',     p.lastName);
+  set('pe-number',       p.number);
+  set('pe-position',     p.position);
+  set('pe-nationality',  p.nationality);
+  set('pe-flag',         p.flag);
+  set('pe-dob',          isoDate(p.dateOfBirth));
+  set('pe-foot',         p.preferredFoot || 'RIGHT');
+  set('pe-height',       p.height);
+  set('pe-weight',       p.weight);
+  set('pe-overall',      p.overallRating);
+  set('pe-potential',    p.potential);
+  set('pe-mvalue',       p.marketValue);
+  set('pe-wage',         p.weeklyWage);
+  set('pe-contract',     isoDate(p.contractUntil));
+
+  // Phase 2 fields
+  set('pe-email',        p.email);
+  set('pe-joined',       isoDate(p.joinedAt));
+  set('pe-parent-name',  p.parentName);
+  set('pe-parent-email', p.parentEmail);
+  set('pe-parent-phone', p.parentPhone);
+  set('pe-medical',      p.medicalStatus || 'HEALTHY');
+  set('pe-payment',      p.paymentStatus || 'PAID');
+  set('pe-isactive',     (p.isActive === false ? 'false' : 'true'));
+  set('pe-notes',        p.notes);
+  populatePlayerTeamSelect(p.teamId || null);
 
   const err = document.getElementById('pe-error');
   err.style.display = 'none'; err.textContent = '';
@@ -2948,10 +3443,27 @@ async function submitPlayerForm(ev) {
     potential:     num(document.getElementById('pe-potential').value),
     marketValue:   num(document.getElementById('pe-mvalue').value),
     weeklyWage:    num(document.getElementById('pe-wage').value),
+
+    // Phase 2 — optional contact + status fields
+    email:         str(document.getElementById('pe-email').value),
+    parentName:    str(document.getElementById('pe-parent-name').value),
+    parentEmail:   str(document.getElementById('pe-parent-email').value),
+    parentPhone:   str(document.getElementById('pe-parent-phone').value),
+    medicalStatus: document.getElementById('pe-medical').value || 'HEALTHY',
+    paymentStatus: document.getElementById('pe-payment').value || 'PAID',
+    isActive:      document.getElementById('pe-isactive').value === 'false' ? false : true,
+    notes:         str(document.getElementById('pe-notes').value),
   };
   const contract = document.getElementById('pe-contract').value;
   if (contract) body.contractUntil = contract;
-  Object.keys(body).forEach(k => { if (body[k] === undefined || body[k] === '' || Number.isNaN(body[k])) delete body[k]; });
+  const joined = document.getElementById('pe-joined').value;
+  if (joined)   body.joinedAt = joined;
+  // Phase A — team assignment ('' = unassigned → send explicit null)
+  const teamSel = document.getElementById('pe-team');
+  if (teamSel) body.teamId = teamSel.value || null;
+  Object.keys(body).forEach(k => {
+    if (body[k] === undefined || (typeof body[k] === 'string' && body[k] === '') || Number.isNaN(body[k])) delete body[k];
+  });
 
   errEl.style.display = 'none'; errEl.textContent = '';
   btn.disabled = true;
@@ -3007,18 +3519,60 @@ async function confirmDeletePlayer(id) {
 }
 
 // ── MATCHES ──
+// ════════════════════════════════════════════════════════════════════════
+// Phase B · Match Center — additive sub-tabs (Upcoming / Live / Tactical /
+// Statistics) wired to /api/v1/matches/* via FamilistaAPI. No layout redesign.
+// ════════════════════════════════════════════════════════════════════════
+
+const MATCHES_API_BASE = (typeof FAM_CONFIG !== 'undefined' ? FAM_CONFIG.API_BASE : 'https://familista-backend.onrender.com/api/v1') + '/matches';
+
+const MatchAPI = {
+  list(query) {
+    const q = query ? '?' + query : '';
+    return FamilistaAPI.get('/matches' + q);
+  },
+  get(id)                     { return FamilistaAPI.get('/matches/' + id); },
+  create(body)                { console.log('CREATE_MATCH_URL', MATCHES_API_BASE); return FamilistaAPI.post('/matches', body); },
+  update(id, body)            { return FamilistaAPI.patch('/matches/' + id, body); },
+  remove(id, reason)          { return FamilistaAPI.delete('/matches/' + id, { body: reason ? { reason } : undefined }); },
+  // Live state
+  startLive(id)               { return FamilistaAPI.post('/matches/' + id + '/live/start', {}); },
+  halftime(id)                { return FamilistaAPI.post('/matches/' + id + '/live/halftime', {}); },
+  resume(id)                  { return FamilistaAPI.post('/matches/' + id + '/live/resume', {}); },
+  finalize(id, home, away)    { return FamilistaAPI.post('/matches/' + id + '/live/finalize', { homeScore: home, awayScore: away }); },
+  abandon(id, reason)         { return FamilistaAPI.post('/matches/' + id + '/live/abandon', reason ? { reason } : {}); },
+  // Sub-resources
+  getLineups(id)              { return FamilistaAPI.get('/matches/' + id + '/lineups'); },
+  setLineup(id, body)         { return FamilistaAPI.put('/matches/' + id + '/lineups', body); },
+  listTimeline(id, query)     { return FamilistaAPI.get('/matches/' + id + '/timeline' + (query ? '?' + query : '')); },
+  addTimeline(id, body)       { return FamilistaAPI.post('/matches/' + id + '/timeline', body); },
+  editTimeline(id, eid, body) { return FamilistaAPI.patch('/matches/' + id + '/timeline/' + eid, body); },
+  delTimeline(id, eid, reason){ return FamilistaAPI.delete('/matches/' + id + '/timeline/' + eid, { body: reason ? { reason } : undefined }); },
+  listSnapshots(id)           { return FamilistaAPI.get('/matches/' + id + '/tactical'); },
+  takeSnapshot(id, body)      { return FamilistaAPI.post('/matches/' + id + '/tactical', body); },
+  featureBundle(id)           { return FamilistaAPI.get('/matches/' + id + '/ai-features'); },
+};
+
+// Current sub-tab. 'all' | 'upcoming' | 'live' | 'tactical' | 'stats'
+let _matchTab = 'all';
+
 function renderMatchesHTML() {
   return `<div class="page" id="pg-matches">
   <div style="display:flex;flex-direction:column;height:100%;">
     <div class="squad-toolbar">
-      <div><div style="font-size:15px;font-weight:700;color:var(--tx);">Matches</div><div style="font-size:12px;color:var(--tx-3);" id="matches-sub">All competitions</div></div>
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);">Match Center</div>
+        <div style="font-size:12px;color:var(--tx-3);" id="matches-sub">All competitions</div>
+      </div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-        <div class="filter-group" id="match-filters">
-          <button class="filter-btn active" onclick="filterMatches('ALL',this)">All</button>
-          <button class="filter-btn" onclick="filterMatches('UPCOMING',this)">Upcoming</button>
-          <button class="filter-btn" onclick="filterMatches('PLAYED',this)">Played</button>
+        <div class="filter-group" id="match-tabs">
+          <button class="filter-btn active" onclick="setMatchTab('all',this)">All</button>
+          <button class="filter-btn"        onclick="setMatchTab('upcoming',this)">Upcoming</button>
+          <button class="filter-btn"        onclick="setMatchTab('live',this)">Live</button>
+          <button class="filter-btn"        onclick="setMatchTab('tactical',this)">Tactical</button>
+          <button class="filter-btn"        onclick="setMatchTab('stats',this)">Statistics</button>
         </div>
-        <button class="btn btn-primary btn-sm">+ Schedule</button>
+        <button class="btn btn-primary btn-sm" id="match-schedule-btn" onclick="openScheduleMatchPrompt()">+ Schedule</button>
       </div>
     </div>
     <div style="overflow-y:auto;flex:1;padding:16px 20px;" id="matches-list">
@@ -3028,44 +3582,1130 @@ function renderMatchesHTML() {
 </div>`;
 }
 
-function renderMatches(filter = 'ALL') {
-  const el = document.getElementById('matches-list');
+// Top-level orchestrator: paints the right view depending on sub-tab.
+function renderMatches() {
+  const tab = _matchTab;
+  if (tab === 'live')     return renderLiveSubTab();
+  if (tab === 'tactical') return renderTacticalSubTab();
+  if (tab === 'stats')    return renderStatsSubTab();
+  return renderMatchListSubTab(tab);
+}
+
+function setMatchTab(tab, el) {
+  _matchTab = tab;
+  document.querySelectorAll('#match-tabs .filter-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderMatches();
+}
+
+// ── Sub-tab: list (All / Upcoming) ──────────────────────────────────────
+function renderMatchListSubTab(tab) {
+  const el  = document.getElementById('matches-list');
   const sub = document.getElementById('matches-sub');
   if (!el) return;
 
   let matches = State.matches || [];
-  if (filter === 'UPCOMING') matches = matches.filter(m => !m.result);
-  if (filter === 'PLAYED')   matches = matches.filter(m => !!m.result);
+  if (tab === 'upcoming') matches = matches.filter(m => m.status === 'SCHEDULED' || (!m.status && !m.result));
 
-  if (sub) sub.textContent = `${matches.length} matches · Season 207`;
+  if (sub) sub.textContent = `${matches.length} match${matches.length === 1 ? '' : 'es'} · Season 207`;
 
   if (matches.length === 0) {
-    el.innerHTML = '<div class="empty"><div class="empty-ico">📅</div><div class="empty-ttl">No matches found</div></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-ico">📅</div><div class="empty-ttl">No matches yet</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Click <strong>+ Schedule</strong> to add the first match.</div></div>';
     return;
   }
 
   el.innerHTML = matches.map(m => {
-    const mine_home = m.homeTeam?.includes('Familista');
-    const badge = m.result === 'WIN' ? 'badge-green' : m.result === 'LOSS' ? 'badge-red' : m.result === 'DRAW' ? 'badge-amber' : 'badge-purple';
-    const label = m.result || 'Upcoming';
-    return `<div class="match-row">
+    const mineHome = !!m.isHome;
+    const status   = m.status || 'SCHEDULED';
+    const statusBadge =
+      status === 'LIVE'      ? '<span class="badge badge-red" style="font-size:9px;animation:badgePulse 1.4s ease infinite;">● LIVE</span>' :
+      status === 'HALFTIME'  ? '<span class="badge badge-amber" style="font-size:9px;">HALFTIME</span>' :
+      status === 'FT'        ? '<span class="badge badge-gray" style="font-size:9px;">FT</span>' :
+      status === 'POSTPONED' ? '<span class="badge badge-amber" style="font-size:9px;">POSTPONED</span>' :
+                               '<span class="badge badge-purple" style="font-size:9px;">SCHEDULED</span>';
+    const resultBadge =
+      m.result === 'WIN'  ? '<span class="badge badge-green" style="font-size:9px;">WIN</span>' :
+      m.result === 'LOSS' ? '<span class="badge badge-red"   style="font-size:9px;">LOSS</span>' :
+      m.result === 'DRAW' ? '<span class="badge badge-amber" style="font-size:9px;">DRAW</span>' : '';
+    return `<div class="match-row" onclick="openMatchDetail('${m.id}')">
       <div class="match-date">${fmtDate(m.scheduledAt)}</div>
-      <span class="badge badge-${m.competition==='LEAGUE'?'red':m.competition==='ELITE'?'green':'amber'}" style="font-size:9px;">${m.competition}</span>
+      <span class="badge badge-${m.competition==='LEAGUE'?'red':m.competition==='CUP'?'amber':'green'}" style="font-size:9px;">${m.competition}</span>
       <div style="flex:1;display:flex;align-items:center;gap:9px;">
-        <div style="flex:1;text-align:right;font-size:13px;font-weight:600;color:${mine_home?'var(--green-l)':'var(--tx-2)'};">${m.homeTeam}</div>
+        <div style="flex:1;text-align:right;font-size:13px;font-weight:600;color:${mineHome?'var(--green-l)':'var(--tx-2)'};">${m.homeTeam}</div>
         <div class="match-score">${m.homeScore!=null?m.homeScore:'?'} — ${m.awayScore!=null?m.awayScore:'?'}</div>
-        <div style="flex:1;font-size:13px;font-weight:600;color:${!mine_home?'var(--green-l)':'var(--tx-2)'};">${m.awayTeam}</div>
+        <div style="flex:1;font-size:13px;font-weight:600;color:${!mineHome?'var(--green-l)':'var(--tx-2)'};">${m.awayTeam}</div>
       </div>
-      <span class="badge ${badge}">${label}</span>
-      <button class="btn btn-ghost btn-xs">Details</button>
+      ${statusBadge}
+      ${resultBadge}
+      <button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();openMatchDetail('${m.id}')">Details</button>
     </div>`;
   }).join('');
 }
 
-function filterMatches(filter, el) {
-  document.querySelectorAll('#match-filters .filter-btn').forEach(b => b.classList.remove('active'));
+// ── Sub-tab: Live ────────────────────────────────────────────────────────
+function renderLiveSubTab() {
+  const el  = document.getElementById('matches-list');
+  const sub = document.getElementById('matches-sub');
+  if (!el) return;
+  const live = (State.matches || []).filter(m => m.status === 'LIVE' || m.status === 'HALFTIME');
+  if (sub) sub.textContent = `${live.length} live match${live.length === 1 ? '' : 'es'}`;
+  if (live.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">🟢</div><div class="empty-ttl">No live matches right now</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Start a scheduled match from the All tab to see it here.</div></div>';
+    return;
+  }
+  el.innerHTML = live.map(m => `
+    <div class="card" style="padding:16px;margin-bottom:12px;cursor:pointer;" onclick="openMatchDetail('${m.id}')">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span class="badge badge-red" style="animation:badgePulse 1.4s ease infinite;">● LIVE</span>
+        <span style="color:var(--tx-3);font-size:12px;">${m.competition}${m.competitionName ? ' · ' + m.competitionName : ''}</span>
+        <span style="margin-left:auto;color:var(--tx-3);font-size:12px;">${(m.status === 'HALFTIME') ? 'Halftime' : ((m.liveMinute != null) ? "Min " + m.liveMinute + "'" : '')}</span>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:18px;">
+        <div style="font-size:18px;font-weight:700;color:${m.isHome?'var(--green-l)':'var(--tx-2)'};">${m.homeTeam}</div>
+        <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--tx);letter-spacing:-1px;">${m.homeScore ?? 0} — ${m.awayScore ?? 0}</div>
+        <div style="font-size:18px;font-weight:700;color:${!m.isHome?'var(--green-l)':'var(--tx-2)'};">${m.awayTeam}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Sub-tab: Tactical ────────────────────────────────────────────────────
+function renderTacticalSubTab() {
+  const el  = document.getElementById('matches-list');
+  const sub = document.getElementById('matches-sub');
+  if (!el) return;
+  const matchesWithFormation = (State.matches || []).filter(m => m.formationHome || m.formationAway);
+  if (sub) sub.textContent = `${matchesWithFormation.length} match${matchesWithFormation.length === 1 ? '' : 'es'} with formations`;
+  if (matchesWithFormation.length === 0) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">⚙️</div><div class="empty-ttl">No tactical data yet</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Open a match detail to set the formation and lineup.</div></div>';
+    return;
+  }
+  el.innerHTML = matchesWithFormation.map(m => `
+    <div class="card" style="padding:14px;margin-bottom:10px;cursor:pointer;" onclick="openMatchDetail('${m.id}')">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span class="badge badge-purple" style="font-size:9px;">TACTICAL</span>
+        <span style="font-size:13px;font-weight:600;color:var(--tx);">${m.homeTeam} vs ${m.awayTeam}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--tx-3);">${fmtDate(m.scheduledAt)}</span>
+      </div>
+      <div style="display:flex;gap:14px;font-size:12px;color:var(--tx-2);">
+        <div>Home formation: <strong style="color:var(--green-l);font-family:var(--mono);">${m.formationHome || '—'}</strong></div>
+        <div>Away formation: <strong style="color:var(--amber);font-family:var(--mono);">${m.formationAway || '—'}</strong></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Sub-tab: Statistics ──────────────────────────────────────────────────
+function renderStatsSubTab() {
+  const el  = document.getElementById('matches-list');
+  const sub = document.getElementById('matches-sub');
+  if (!el) return;
+  const matches = State.matches || [];
+  const played  = matches.filter(m => m.status === 'FT' || m.result);
+  const wins    = played.filter(m => m.result === 'WIN').length;
+  const draws   = played.filter(m => m.result === 'DRAW').length;
+  const losses  = played.filter(m => m.result === 'LOSS').length;
+  const gf      = played.reduce((s,m) => s + (m.isHome ? (m.homeScore ?? 0) : (m.awayScore ?? 0)), 0);
+  const ga      = played.reduce((s,m) => s + (m.isHome ? (m.awayScore ?? 0) : (m.homeScore ?? 0)), 0);
+  const ppg     = played.length === 0 ? 0 : ((wins * 3 + draws) / played.length).toFixed(2);
+
+  if (sub) sub.textContent = `${played.length} played · ${matches.length - played.length} remaining`;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px;">
+      ${[
+        ['Played',  played.length, 'var(--tx)'],
+        ['Wins',    wins,          'var(--green-l)'],
+        ['Draws',   draws,         'var(--amber)'],
+        ['Losses',  losses,        'var(--red)'],
+        ['Goals For',     gf,      'var(--green-l)'],
+        ['Goals Against', ga,      'var(--red)'],
+        ['Goal Diff',     (gf - ga), (gf - ga) >= 0 ? 'var(--green-l)' : 'var(--red)'],
+        ['Points / Game', ppg,     'var(--blue)'],
+      ].map(([lbl, val, col]) => `
+        <div class="card" style="padding:14px;text-align:center;">
+          <div style="font-size:24px;font-weight:800;color:${col};font-family:var(--mono);letter-spacing:-1px;">${val}</div>
+          <div style="font-size:11px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;margin-top:4px;">${lbl}</div>
+        </div>`).join('')}
+    </div>
+  `;
+}
+
+// ── Schedule prompt (minimal — uses native prompts; full modal in Phase C) ──
+async function openScheduleMatchPrompt() {
+  const role = State.user && State.user.role;
+  if (!['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(role)) {
+    showToast('Not authorized to schedule matches', 'error'); return;
+  }
+  const opponent = window.prompt('Opponent team name?');
+  if (!opponent) return;
+  const isHome = window.confirm('Are we the HOME team? (Cancel = away)');
+  const dateStr = window.prompt('Date + time (YYYY-MM-DD HH:MM, local)', new Date().toISOString().slice(0,16).replace('T',' '));
+  if (!dateStr) return;
+  const compChoice = (window.prompt('Competition: LEAGUE / CUP / FRIENDLY / CHAMPIONS_LEAGUE / EUROPA_LEAGUE / TOURNAMENT', 'LEAGUE') || 'LEAGUE').toUpperCase();
+  const ourName = (State.club && State.club.name) || 'Familista HSR';
+  const body = {
+    homeTeam:    isHome ? ourName : opponent,
+    awayTeam:    isHome ? opponent : ourName,
+    isHome:      isHome,
+    competition: compChoice,
+    scheduledAt: new Date(dateStr.replace(' ', 'T')).toISOString(),
+  };
+  // Pass current team context if any
+  if (State.context && State.context.teamId) body.teamId = State.context.teamId;
+  try {
+    const res = await MatchAPI.create(body);
+    const created = res && res.data;
+    if (created) { State.matches = [created, ...(State.matches || [])]; }
+    showToast('Match scheduled', 'success');
+    renderMatches();
+  } catch (e) {
+    showToast(e && e.userMessage || 'Could not schedule match', 'error');
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase C — Match Detail drawer with live WebSocket subscription
+// ────────────────────────────────────────────────────────────────────────
+
+let _matchModalTab    = 'overview';
+let _matchModalWS     = null;     // active WebSocket
+let _matchModalWSPing = null;     // keepalive timer
+
+async function openMatchDetail(id) {
+  if (!id) return;
+  try {
+    const res = await MatchAPI.get(id);
+    const m   = res && res.data;
+    if (!m) { showToast('Match not loaded', 'error'); return; }
+    State.activeMatch = m;
+    paintMatchModalHeader(m);
+    _matchModalTab = 'overview';
+    document.querySelectorAll('#match-tabs-nav .filter-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+    renderMatchModalTab();
+    paintMatchModalControls();
+    document.getElementById('match-modal').classList.add('open');
+    openMatchModalWS(id);
+    openMatchModalSSE(id);
+  } catch (e) {
+    showToast(e && e.userMessage || 'Could not load match', 'error');
+  }
+}
+
+function closeMatchModal() {
+  document.getElementById('match-modal').classList.remove('open');
+  if (_matchModalWS)     { try { _matchModalWS.close(1000, 'closed by user'); } catch(_){} _matchModalWS = null; }
+  if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
+  closeMatchModalSSE();
+  State.activeMatch = null;
+}
+
+function paintMatchModalHeader(m) {
+  document.getElementById('match-modal-title').textContent = `${m.homeTeam} vs ${m.awayTeam}`;
+  document.getElementById('match-modal-home').textContent  = m.homeTeam || '—';
+  document.getElementById('match-modal-away').textContent  = m.awayTeam || '—';
+  document.getElementById('match-modal-score').textContent = `${m.homeScore ?? '—'} : ${m.awayScore ?? '—'}`;
+  document.getElementById('match-modal-comp').textContent  = m.competition + (m.competitionName ? ' · ' + m.competitionName : '');
+  document.getElementById('match-modal-when').textContent  = fmtDate(m.scheduledAt);
+  document.getElementById('match-modal-venue').textContent = m.venue || '—';
+  const liveChip = document.getElementById('match-modal-live-chip');
+  const statusEl = document.getElementById('match-modal-status');
+  const live = (m.status === 'LIVE' || m.status === 'HALFTIME');
+  liveChip.style.display = live ? '' : 'none';
+  statusEl.textContent   = (m.status || 'SCHEDULED') + (m.liveMinute != null ? "  ·  " + m.liveMinute + "'" : '');
+}
+
+function paintMatchModalControls() {
+  const m   = State.activeMatch;
+  const box = document.getElementById('match-modal-controls');
+  if (!m || !box) return;
+  const role = State.user && State.user.role;
+  const can  = ['CLUB_ADMIN','HEAD_COACH','ANALYST','SUPER_ADMIN'].includes(role);
+  if (!can) { box.innerHTML = ''; return; }
+  const status = m.status || 'SCHEDULED';
+  const btns = [];
+  if (status === 'SCHEDULED')                              btns.push(`<button class="btn btn-primary btn-xs" onclick="liveAction('start')">Kick off</button>`);
+  if (status === 'LIVE')                                   btns.push(`<button class="btn btn-outline btn-xs" onclick="liveAction('halftime')">Halftime</button>`);
+  if (status === 'HALFTIME')                               btns.push(`<button class="btn btn-primary btn-xs" onclick="liveAction('resume')">Resume H2</button>`);
+  if (status === 'LIVE' || status === 'HALFTIME')          btns.push(`<button class="btn btn-outline btn-xs" onclick="liveAction('finalize')">Full time</button>`);
+  if (status === 'LIVE' || status === 'HALFTIME')          btns.push(`<button class="btn btn-danger btn-xs" onclick="liveAction('abandon')">Abandon</button>`);
+  if (status === 'LIVE' || status === 'HALFTIME')          btns.push(`<button class="btn btn-primary btn-xs" onclick="openAddTimelinePrompt()">+ Event</button>`);
+  box.innerHTML = btns.join('');
+}
+
+async function liveAction(kind) {
+  const id = State.activeMatch && State.activeMatch.id;
+  if (!id) return;
+  try {
+    let res;
+    if (kind === 'start')        res = await MatchAPI.startLive(id);
+    else if (kind === 'halftime') res = await MatchAPI.halftime(id);
+    else if (kind === 'resume')   res = await MatchAPI.resume(id);
+    else if (kind === 'finalize') res = await MatchAPI.finalize(id);
+    else if (kind === 'abandon') {
+      const reason = window.prompt('Reason for abandoning?'); if (reason === null) return;
+      await MatchAPI.abandon(id, reason);
+      showToast('Match abandoned', 'success'); await refreshActiveMatch(); return;
+    }
+    if (res && res.data) State.activeMatch = res.data;
+    paintMatchModalHeader(State.activeMatch);
+    paintMatchModalControls();
+    showToast('Status updated', 'success');
+  } catch (e) {
+    showToast(e && e.userMessage || 'Action failed', 'error');
+  }
+}
+
+async function refreshActiveMatch() {
+  const id = State.activeMatch && State.activeMatch.id; if (!id) return;
+  try {
+    const res = await MatchAPI.get(id);
+    State.activeMatch = (res && res.data) || State.activeMatch;
+    paintMatchModalHeader(State.activeMatch);
+    paintMatchModalControls();
+    renderMatchModalTab();
+  } catch (_) {}
+}
+
+function setMatchModalTab(tab, el) {
+  _matchModalTab = tab;
+  document.querySelectorAll('#match-tabs-nav .filter-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
-  renderMatches(filter);
+  renderMatchModalTab();
+}
+
+function renderMatchModalTab() {
+  const c = document.getElementById('match-modal-content');
+  const m = State.activeMatch;
+  if (!c || !m) return;
+  const tab = _matchModalTab;
+  if (tab === 'overview') return paintOverviewTab(c, m);
+  if (tab === 'lineup')   return paintLineupTab(c, m);
+  if (tab === 'timeline') return paintTimelineTab(c, m);
+  if (tab === 'tactical') return paintTacticalTab(c, m);
+  if (tab === 'live')     return paintLiveTab(c, m);
+  if (tab === 'fusion')   return paintFusionTab(c, m);
+  if (tab === 'brain')    return paintBrainTab(c, m);
+  if (tab === 'spatial')  return paintSpatialTab(c, m);
+  if (tab === 'predict')  return paintPredictTab(c, m);
+  if (tab === 'replay')   return paintReplayTab(c, m);
+  if (tab === 'ai')       return paintAITab(c, m);
+}
+
+function paintOverviewTab(c, m) {
+  const tiles = [
+    ['Possession',    m.possession != null ? Math.round(m.possession) + '%' : '—',  'var(--green-l)'],
+    ['Shots',         m.shots ?? '—',         'var(--blue)'],
+    ['On target',     m.shotsOnTarget ?? '—', 'var(--blue)'],
+    ['Corners',       m.corners ?? '—',       'var(--amber)'],
+    ['Fouls',         m.fouls ?? '—',         'var(--red)'],
+    ['Yellow cards',  m.yellowCards ?? '—',   'var(--amber)'],
+    ['Red cards',     m.redCards ?? '—',      'var(--red)'],
+    ['Timeline events', (m.timeline||[]).length, 'var(--tx)'],
+  ];
+  c.innerHTML = `<div style="padding:18px;">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      ${tiles.map(([l,v,col])=>`<div class="card" style="padding:14px;text-align:center;">
+        <div style="font-size:22px;font-weight:800;color:${col};font-family:var(--mono);">${v}</div>
+        <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">${l}</div>
+      </div>`).join('')}
+    </div>
+    ${m.opponentNotes ? `<div class="card" style="margin-top:14px;padding:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Opposition notes</div>
+      <div style="font-size:13px;color:var(--tx-2);line-height:1.6;">${(m.opponentNotes||'').replace(/</g,'&lt;')}</div>
+    </div>` : ''}
+  </div>`;
+}
+
+function paintLineupTab(c, m) {
+  const lineups = m.lineups || [];
+  if (lineups.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-ico">📋</div><div class="empty-ttl">No lineup yet</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Set the lineup via PUT /matches/:id/lineups (UI coming in Phase D)</div></div>';
+    return;
+  }
+  c.innerHTML = '<div style="padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">' +
+    lineups.map(l => {
+      const positions = Array.isArray(l.positions) ? l.positions : [];
+      const starters  = positions.filter(p => p.isStarter);
+      const bench     = positions.filter(p => !p.isStarter);
+      return `<div class="card" style="padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:700;color:${l.side==='HOME'?'var(--green-l)':'var(--amber)'};">${l.side}</div>
+          <div style="font-size:11px;color:var(--tx-3);font-family:var(--mono);">${l.formation || '—'}</div>
+        </div>
+        <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Starting XI (${starters.length})</div>
+        <div style="font-size:12px;color:var(--tx-2);line-height:1.6;">
+          ${starters.map(p => `${p.jerseyNumber ?? '?'} · ${p.position || ''} · ${p.playerId || p.name || ''}${p.captainBand?' (C)':''}`).join('<br>') || '<span style="color:var(--tx-3);">No starters listed</span>'}
+        </div>
+        ${bench.length ? `<div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 4px;">Bench (${bench.length})</div>
+        <div style="font-size:12px;color:var(--tx-2);line-height:1.6;">${bench.map(p => `${p.jerseyNumber ?? '?'} · ${p.position || ''} · ${p.playerId || p.name || ''}`).join('<br>')}</div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+}
+
+const KIND_ICON = {
+  GOAL:'⚽', OWN_GOAL:'⚽', ASSIST:'🅰️', SHOT:'🎯', SHOT_ON_TARGET:'🎯', SHOT_OFF_TARGET:'⤴️',
+  SAVE:'🧤', YELLOW_CARD:'🟨', SECOND_YELLOW:'🟨🟨', RED_CARD:'🟥', SUBSTITUTION:'🔄',
+  INJURY:'🚑', FOUL:'⚠️', CORNER:'🚩', OFFSIDE:'⛳', PENALTY_AWARDED:'🥅',
+  PENALTY_SCORED:'✅', PENALTY_MISSED:'❌', POSSESSION_TICK:'📊', TACTICAL_NOTE:'📝',
+  AI_INSIGHT:'🤖', CUSTOM:'•',
+};
+
+function paintTimelineTab(c, m) {
+  const events = (m.timeline || []).slice().sort((a,b) =>
+    (a.occurredAtMin - b.occurredAtMin) || ((a.occurredAtSec||0) - (b.occurredAtSec||0)) || (new Date(a.createdAt) - new Date(b.createdAt))
+  );
+  if (events.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-ico">⏱️</div><div class="empty-ttl">No events yet</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Add the first event from the toolbar above.</div></div>';
+    return;
+  }
+  c.innerHTML = '<div style="padding:18px 22px;">' +
+    events.map(e => `<div style="display:grid;grid-template-columns:60px 24px 1fr auto;gap:12px;padding:8px 0;border-bottom:1px dashed var(--bd);">
+      <div style="font-family:var(--mono);font-size:12px;color:var(--tx-3);">${e.occurredAtMin}'${e.occurredAtSec ? ('+' + e.occurredAtSec) : ''}</div>
+      <div style="font-size:16px;text-align:center;">${KIND_ICON[e.kind] || '•'}</div>
+      <div style="font-size:13px;color:var(--tx);">
+        <strong>${e.kind}</strong> <span style="color:var(--tx-3);font-size:11px;">${e.side}</span>
+        ${e.primaryPlayerId ? `<span style="color:var(--tx-2);font-size:12px;margin-left:6px;">${e.primaryPlayerId}</span>` : ''}
+        ${e.notes ? `<div style="color:var(--tx-3);font-size:12px;margin-top:2px;">${(e.notes||'').replace(/</g,'&lt;')}</div>` : ''}
+      </div>
+      <div style="font-size:10px;color:var(--tx-3);">P${e.period || '?'}</div>
+    </div>`).join('') + '</div>';
+}
+
+function paintTacticalTab(c, m) {
+  const snapshots = m.tacticalSnapshots || [];
+  // SVG pitch with the latest snapshot's positions if available.
+  const latest = snapshots[snapshots.length - 1];
+  const positions = latest && Array.isArray(latest.positions) ? latest.positions : [];
+
+  // Phase F heatmap — aggregate ALL snapshot positions for our team into
+  // a 20×12 density grid. Renders behind the player chips.
+  const heatmapCells = computeHeatmap(snapshots);
+
+  c.innerHTML = `<div style="padding:18px;">
+    <div style="display:flex;gap:14px;font-size:11px;color:var(--tx-3);margin-bottom:10px;align-items:center;">
+      <div>Snapshots: <strong style="color:var(--tx);">${snapshots.length}</strong></div>
+      <div>Phase: <strong style="color:var(--tx);">${latest && latest.phase ? latest.phase : '—'}</strong></div>
+      <div>Formation: <strong style="color:var(--tx);font-family:var(--mono);">${latest && latest.formation ? latest.formation : (m.formationHome || '—')}</strong></div>
+      <label style="margin-left:auto;font-size:11px;display:flex;align-items:center;gap:5px;color:var(--tx-2);">
+        <input type="checkbox" id="tactical-heat-toggle" ${heatmapCells.length > 0 ? 'checked' : ''} onchange="toggleHeatmapOverlay(this.checked)" />
+        Heatmap overlay
+      </label>
+    </div>
+    <div style="position:relative;background:linear-gradient(180deg,rgba(22,163,74,.10),rgba(22,163,74,.04));border:1px solid var(--bd);border-radius:var(--radius-lg);aspect-ratio:5/3;overflow:hidden;">
+      <svg viewBox="0 0 100 60" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;">
+        <g id="tactical-heatmap-layer" style="opacity:0.55;">
+          ${heatmapCells.map(c => `<rect x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" fill="rgba(220,38,38,${c.alpha})"/>`).join('')}
+        </g>
+        <rect x="2" y="2" width="96" height="56" fill="none" stroke="rgba(255,255,255,.15)" stroke-width=".2"/>
+        <line x1="50" y1="2" x2="50" y2="58" stroke="rgba(255,255,255,.10)" stroke-width=".15"/>
+        <circle cx="50" cy="30" r="7" fill="none" stroke="rgba(255,255,255,.10)" stroke-width=".15"/>
+        ${positions.map(p => {
+          const x = (p.x ?? 50), y = (p.y ?? 30);
+          const isOpp = p.side === 'AWAY' || (!p.playerId && p.name);
+          return `<g><circle cx="${x}" cy="${y}" r="1.5" fill="${isOpp?'#FCA5A5':'#22C55E'}" stroke="rgba(0,0,0,.6)" stroke-width=".2"/>
+            <text x="${x}" y="${y+0.5}" font-size="1.5" text-anchor="middle" fill="#0a0a0a" font-weight="700">${p.jerseyNumber ?? '?'}</text></g>`;
+        }).join('')}
+      </svg>
+    </div>
+    <div style="font-size:11px;color:var(--tx-3);text-align:center;margin-top:8px;">Heatmap density built from ${snapshots.length} snapshot(s) · drag-drop formation arrives via /lineups PUT.</div>
+  </div>`;
+}
+
+function computeHeatmap(snapshots) {
+  // 20 × 12 grid covering 0..100 × 0..60 pitch coords.
+  const GX = 20, GY = 12;
+  const grid = new Array(GX * GY).fill(0);
+  let total = 0;
+  for (const s of (snapshots || [])) {
+    const positions = Array.isArray(s.positions) ? s.positions : [];
+    for (const p of positions) {
+      const x = typeof p.x === 'number' ? p.x : null;
+      const y = typeof p.y === 'number' ? p.y : null;
+      const isOpp = p.side === 'AWAY' || (!p.playerId && p.name);
+      if (x == null || y == null || isOpp) continue;
+      const cx = Math.min(GX - 1, Math.max(0, Math.floor(x / (100 / GX))));
+      const cy = Math.min(GY - 1, Math.max(0, Math.floor(y / (60 / GY))));
+      grid[cy * GX + cx]++;
+      total++;
+    }
+  }
+  if (total === 0) return [];
+  const max = Math.max(...grid);
+  const cells = [];
+  const cellW = 100 / GX, cellH = 60 / GY;
+  for (let yi = 0; yi < GY; yi++) {
+    for (let xi = 0; xi < GX; xi++) {
+      const v = grid[yi * GX + xi];
+      if (v === 0) continue;
+      cells.push({
+        x: xi * cellW,
+        y: yi * cellH,
+        w: cellW,
+        h: cellH,
+        alpha: Math.min(0.85, 0.15 + (v / max) * 0.7),
+      });
+    }
+  }
+  return cells;
+}
+
+function toggleHeatmapOverlay(on) {
+  const layer = document.getElementById('tactical-heatmap-layer');
+  if (layer) layer.style.opacity = on ? '0.55' : '0';
+}
+
+function paintAITab(c, m) {
+  const ai = m.aiInsights || null;
+  c.innerHTML = `<div style="padding:18px;">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+      <span class="badge badge-purple" style="font-size:9px;">🤖 AI</span>
+      <button class="btn btn-primary btn-sm" onclick="enqueueTacticalAI()">Generate match recap</button>
+    </div>
+    <div class="card" style="padding:14px;background:var(--green-bg);border:1px solid var(--green-bd);">
+      ${ai ? `<pre style="margin:0;font-family:var(--mono);font-size:12px;color:var(--tx-2);white-space:pre-wrap;">${JSON.stringify(ai, null, 2)}</pre>` : '<div style="font-size:13px;color:var(--tx-2);">No AI insights yet. Click <strong>Generate match recap</strong> to enqueue an AIAgentJob. The worker drains the queue every ~4s.</div>'}
+    </div>
+  </div>`;
+}
+
+async function enqueueTacticalAI() {
+  const m = State.activeMatch; if (!m) return;
+  try {
+    await FamilistaAPI.post('/automation/agents/jobs', {
+      agent: 'MATCH_OPS',
+      kind:  'MATCH_RECAP',
+      input: { matchId: m.id, homeTeam: m.homeTeam, awayTeam: m.awayTeam, score: { home: m.homeScore, away: m.awayScore } },
+    });
+    showToast('Match recap enqueued — check back shortly', 'success');
+  } catch (e) {
+    showToast(e && e.userMessage || 'Could not enqueue job', 'error');
+  }
+}
+
+// Minimal native prompt — full structured form lands in Phase D.
+async function openAddTimelinePrompt() {
+  const m = State.activeMatch; if (!m) return;
+  const kindList = 'GOAL / OWN_GOAL / ASSIST / SHOT / SHOT_ON_TARGET / SAVE / YELLOW_CARD / RED_CARD / SUBSTITUTION / FOUL / CORNER / TACTICAL_NOTE';
+  const kind = (window.prompt('Event kind?\n\n' + kindList) || '').trim().toUpperCase();
+  if (!kind) return;
+  const side = (window.prompt('Side? HOME or AWAY', 'HOME') || 'HOME').trim().toUpperCase();
+  const minStr = window.prompt('Minute?', String(m.liveMinute ?? 0));
+  if (minStr === null) return;
+  const min = parseInt(minStr, 10);
+  if (Number.isNaN(min)) { showToast('Minute must be a number', 'error'); return; }
+  const notes = window.prompt('Notes (optional)') || '';
+  try {
+    await MatchAPI.addTimeline(m.id, {
+      occurredAtMin: min,
+      kind, side,
+      notes: notes || null,
+      period: m.periodNow || 1,
+    });
+    // The WS will deliver TIMELINE_ADDED / SCORE_CHANGED — refresh the active match.
+    await refreshActiveMatch();
+  } catch (e) {
+    showToast(e && e.userMessage || 'Could not add event', 'error');
+  }
+}
+
+// ── Live WebSocket subscription ─────────────────────────────────────────
+function openMatchModalWS(matchId) {
+  if (_matchModalWS) { try { _matchModalWS.close(); } catch(_){} _matchModalWS = null; }
+  if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
+  if (!State.token) return;
+  // Derive ws:// or wss:// from API_BASE
+  const wsBase = FAM_CONFIG.API_BASE
+    .replace(/^https/, 'wss')
+    .replace(/^http/,  'ws')
+    .replace(/\/api\/v\d+$/, '');
+  const url = wsBase + '/ws/match/' + encodeURIComponent(matchId) + '?token=' + encodeURIComponent(State.token);
+  try {
+    _matchModalWS = new WebSocket(url);
+  } catch (e) { console.warn('[match-ws] connect failed', e); return; }
+
+  _matchModalWS.onopen = () => {
+    console.log('%c[match-ws]', 'color:#22C55E;', 'connected', matchId);
+    _matchModalWSPing = setInterval(() => {
+      try { _matchModalWS.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+    }, 25000);
+  };
+  _matchModalWS.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type === 'event' && m.event) onMatchWSEvent(m.event);
+    } catch (_) {}
+  };
+  _matchModalWS.onerror = (e) => {
+    console.warn('[match-ws] error', e);
+  };
+  _matchModalWS.onclose = () => {
+    console.log('%c[match-ws]', 'color:#DC2626;', 'closed');
+    if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
+  };
+}
+
+function onMatchWSEvent(evt) {
+  const m = State.activeMatch; if (!m || evt.matchId !== m.id) return;
+  if (evt.kind === 'TIMELINE_ADDED' || evt.kind === 'TIMELINE_EDITED' || evt.kind === 'TIMELINE_DELETED'
+      || evt.kind === 'SCORE_CHANGED' || evt.kind === 'STATUS_CHANGED'
+      || evt.kind === 'LINEUP_SET'    || evt.kind === 'SNAPSHOT_TAKEN') {
+    // Cheapest correct strategy: refetch the match. Phase D may diff-patch.
+    refreshActiveMatch();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Phase E — Live Intelligence (SSE)
+// ════════════════════════════════════════════════════════════════════════
+// EventSource on /api/v1/matches/:id/live?token=<jwt> populates _matchLive
+// in memory. The "Live" and "Fusion" tab renderers read from _matchLive
+// and re-paint on every push. Closing the modal tears down the stream.
+
+let _matchModalSSE = null;
+let _matchLive = {
+  state:           null,   // TacticalState envelope
+  alerts:          [],     // last 10 push events
+  recommendations: [],
+  events:          [],
+  deviceStatuses:  [],
+  fusion:          null,   // GET /fusion snapshot (refreshed on Fusion tab open)
+  connected:       false,
+  lastEventAt:     null,
+};
+
+function openMatchModalSSE(matchId) {
+  closeMatchModalSSE();
+  if (!State.token) return;
+  const base = (FAM_CONFIG.API_BASE || '').replace(/\/$/, '');
+  const url  = base + '/matches/' + encodeURIComponent(matchId) + '/live?token=' + encodeURIComponent(State.token);
+  let es;
+  try { es = new EventSource(url, { withCredentials: false }); }
+  catch (e) { console.warn('[match-sse] failed to open', e); return; }
+
+  _matchModalSSE = es;
+  setSSEDot('connecting');
+
+  es.addEventListener('hello', (e) => {
+    setSSEDot('ok');
+    _matchLive.connected   = true;
+    _matchLive.lastEventAt = Date.now();
+    repaintLivePanelsIfVisible();
+  });
+  es.addEventListener('LIVE_STATE_UPDATE', (e) => {
+    try { _matchLive.state = JSON.parse(e.data); _matchLive.lastEventAt = Date.now(); repaintLivePanelsIfVisible(); }
+    catch (_) {}
+  });
+  es.addEventListener('RULES_ALERT', (e) => {
+    pushIntoBuffer(_matchLive.alerts, parseSSEDataSafe(e), 10); repaintLivePanelsIfVisible();
+  });
+  es.addEventListener('AI_RECOMMENDATION', (e) => {
+    pushIntoBuffer(_matchLive.recommendations, parseSSEDataSafe(e), 10); repaintLivePanelsIfVisible();
+  });
+  es.addEventListener('AI_REPORT', (e) => {
+    pushIntoBuffer(_matchLive.recommendations, parseSSEDataSafe(e), 10); repaintLivePanelsIfVisible();
+  });
+  es.addEventListener('DEVICE_STATUS', (e) => {
+    pushIntoBuffer(_matchLive.deviceStatuses, parseSSEDataSafe(e), 10); repaintLivePanelsIfVisible();
+  });
+  es.addEventListener('TIMELINE_ADDED', (e) => {
+    pushIntoBuffer(_matchLive.events, parseSSEDataSafe(e), 10); repaintLivePanelsIfVisible();
+    refreshActiveMatch();
+  });
+
+  es.onerror = () => {
+    setSSEDot('error');
+    _matchLive.connected = false;
+    repaintLivePanelsIfVisible();
+    // EventSource will auto-reconnect; we don't tear it down on transient errors.
+  };
+}
+
+function closeMatchModalSSE() {
+  if (_matchModalSSE) { try { _matchModalSSE.close(); } catch (_) {} _matchModalSSE = null; }
+  _matchLive = { state: null, alerts: [], recommendations: [], events: [], deviceStatuses: [], fusion: null, connected: false, lastEventAt: null };
+  setSSEDot('idle');
+}
+
+function setSSEDot(state) {
+  const d = document.getElementById('match-modal-sse-dot');
+  if (!d) return;
+  const colors = { idle: '#94a3b8', connecting: '#f59e0b', ok: '#22c55e', error: '#ef4444' };
+  d.style.background = colors[state] || colors.idle;
+  d.title = 'Live stream: ' + state;
+}
+
+function pushIntoBuffer(buf, item, max) {
+  if (!item) return;
+  buf.unshift(item);
+  if (buf.length > max) buf.length = max;
+}
+
+function parseSSEDataSafe(e) {
+  try { return JSON.parse(e.data); } catch (_) { return null; }
+}
+
+function repaintLivePanelsIfVisible() {
+  if (_matchModalTab === 'live'   || _matchModalTab === 'fusion') renderMatchModalTab();
+}
+
+// ── Live tab ────────────────────────────────────────────────────────────
+function paintLiveTab(c, m) {
+  const s = _matchLive.state;
+  const conn = _matchLive.connected ? '🟢 Streaming' : '🔴 Disconnected';
+  const lastAge = _matchLive.lastEventAt ? Math.round((Date.now() - _matchLive.lastEventAt) / 1000) + 's ago' : '—';
+  const phaseLine = s
+    ? `<b>${escapeHTML(s.phase.phase)}</b> · ${escapeHTML(s.phase.formation || '—')} · possession ${s.phase.possession ?? '—'}%`
+    : '—';
+
+  const players = (s && s.players) ? s.players : [];
+  const playersHTML = players.length === 0
+    ? `<div class="empty"><div class="empty-ico">📡</div><div class="empty-ttl">No live player data yet</div><div style="font-size:12px;color:var(--tx-3);margin-top:6px;">Open a device session to start streaming.</div></div>`
+    : players.slice(0, 16).map(p => {
+        const color = p.alert === 'CRITICAL' ? 'var(--red)' : p.alert === 'CAUTION' ? 'var(--amber)' : 'var(--green-l)';
+        const tai = p.tai != null ? p.tai.toFixed(2) : '—';
+        const hr  = p.hr ?? '—';
+        const sp  = p.sprint ? '🏃' : '·';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--bd);">
+          <div style="width:24px;height:24px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:600;">${p.number ?? '?'}</div>
+          <div style="flex:1;min-width:0;"><div style="font-size:13px;font-weight:600;color:var(--tx);">${escapeHTML(p.name)}</div><div style="font-size:11px;color:var(--tx-3);">${escapeHTML(p.position || '—')}</div></div>
+          <div style="font-size:11px;color:var(--tx-2);text-align:right;">HR ${hr} · TAI ${tai} ${sp}</div>
+        </div>`;
+      }).join('');
+
+  const alerts = (s && s.openAlerts) ? s.openAlerts : _matchLive.alerts;
+  const alertsHTML = alerts.length === 0
+    ? '<div style="font-size:12px;color:var(--tx-3);padding:6px 0;">No open alerts.</div>'
+    : alerts.slice(0, 5).map(a => {
+        const sev   = a.severity || 'INFO';
+        const color = sev === 'CRITICAL' ? 'var(--red)' : sev === 'WARN' ? 'var(--amber)' : 'var(--blue)';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--bd);">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};"></span>
+          <div style="flex:1;font-size:12px;color:var(--tx);">${escapeHTML(a.title || a.kind)}</div>
+          <div style="font-size:10px;color:var(--tx-3);">${sev}</div>
+        </div>`;
+      }).join('');
+
+  const devices = (s && s.devices) ? s.devices : [];
+  const devicesHTML = devices.length === 0
+    ? '<div style="font-size:12px;color:var(--tx-3);padding:6px 0;">No device sessions.</div>'
+    : devices.map(d => {
+        const color = d.health === 'OK' ? 'var(--green-l)' : d.health === 'STALE' ? 'var(--amber)' : 'var(--red)';
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--bd);">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};"></span>
+          <div style="flex:1;font-size:12px;color:var(--tx);">${escapeHTML(d.deviceModel)}</div>
+          <div style="font-size:11px;color:var(--tx-3);">${d.health}</div>
+        </div>`;
+      }).join('');
+
+  const shape = (s && s.teamShape) ? s.teamShape : {};
+  const shapeHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;font-size:12px;color:var(--tx-2);">
+      <div><div style="color:var(--tx-3);font-size:10px;">Centroid</div><div>${shape.centroidX != null ? `${shape.centroidX}, ${shape.centroidY}` : '—'}</div></div>
+      <div><div style="color:var(--tx-3);font-size:10px;">Defensive line X</div><div>${shape.defensiveLineX ?? '—'}</div></div>
+      <div><div style="color:var(--tx-3);font-size:10px;">Pressing index</div><div>${shape.pressingIndex ?? '—'}</div></div>
+      <div><div style="color:var(--tx-3);font-size:10px;">Spread X</div><div>${shape.spreadX ?? '—'}</div></div>
+      <div><div style="color:var(--tx-3);font-size:10px;">Spread Y</div><div>${shape.spreadY ?? '—'}</div></div>
+      <div><div style="color:var(--tx-3);font-size:10px;">Players w/ pos</div><div>${players.filter(p => p.x != null).length}</div></div>
+    </div>`;
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div><div style="font-size:13px;font-weight:700;color:var(--tx);">Live Tactical State</div><div style="font-size:11px;color:var(--tx-3);">${phaseLine}</div></div>
+        <div style="text-align:right;"><div style="font-size:11px;color:var(--tx-2);">${conn}</div><div style="font-size:10px;color:var(--tx-3);">last event ${lastAge}</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px;">
+        <div class="card" style="padding:10px;">
+          <div style="font-size:12px;color:var(--tx-3);margin-bottom:6px;">Players</div>
+          ${playersHTML}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="card" style="padding:10px;">
+            <div style="font-size:12px;color:var(--tx-3);margin-bottom:6px;">AI Alerts</div>
+            ${alertsHTML}
+          </div>
+          <div class="card" style="padding:10px;">
+            <div style="font-size:12px;color:var(--tx-3);margin-bottom:6px;">Team Shape</div>
+            ${shapeHTML}
+          </div>
+          <div class="card" style="padding:10px;">
+            <div style="font-size:12px;color:var(--tx-3);margin-bottom:6px;">Devices</div>
+            ${devicesHTML}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Fusion tab ─────────────────────────────────────────────────────────
+async function paintFusionTab(c, m) {
+  c.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--tx-3);">Loading fusion frame…</div>`;
+  let frame = _matchLive.fusion;
+  try {
+    if (!frame) {
+      const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/fusion');
+      frame = (res && res.data) || null;
+      _matchLive.fusion = frame;
+    }
+  } catch (e) {
+    c.innerHTML = `<div style="padding:16px;color:var(--red);">Fusion frame unavailable: ${escapeHTML(e && e.userMessage || 'error')}</div>`;
+    return;
+  }
+  if (!frame) {
+    c.innerHTML = `<div class="empty"><div class="empty-ico">🧬</div><div class="empty-ttl">No fusion data</div></div>`;
+    return;
+  }
+
+  const counts = frame.packetCounts || {};
+  const countLine = Object.keys(counts).length === 0
+    ? '<span style="color:var(--tx-3);">No packets ingested</span>'
+    : Object.keys(counts).map(k => `<span style="margin-right:10px;"><b>${escapeHTML(k)}</b>: ${counts[k]}</span>`).join('');
+
+  const rows = (frame.rows || []).slice(0, 30);
+  const rowsHTML = rows.length === 0
+    ? '<div style="font-size:12px;color:var(--tx-3);padding:6px 0;">No per-player rows yet.</div>'
+    : rows.map(r => {
+        const tai = (r.tai && typeof r.tai.value === 'number') ? r.tai.value.toFixed(3) : '—';
+        const bli = (r.bli && typeof r.bli.value === 'number') ? r.bli.value.toFixed(3) : '—';
+        const speed = (r.state && typeof r.state.distM === 'number') ? r.state.distM.toFixed(0) + ' m' : '—';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:12px;">
+          <div style="flex:1;color:var(--tx);">#${r.player.number ?? '?'} ${escapeHTML(r.player.firstName)} ${escapeHTML(r.player.lastName)}</div>
+          <div style="color:var(--tx-2);">BLI ${bli}</div>
+          <div style="color:var(--tx-2);">TAI ${tai}</div>
+          <div style="color:var(--tx-3);min-width:60px;text-align:right;">${speed}</div>
+        </div>`;
+      }).join('');
+
+  const notes = (frame.diagnostics && frame.diagnostics.notes) || [];
+  const notesHTML = notes.length === 0 ? '' : `<details style="margin-top:10px;"><summary style="font-size:11px;color:var(--tx-3);cursor:pointer;">Diagnostics (${notes.length})</summary><ul style="font-size:11px;color:var(--tx-2);padding-left:18px;margin-top:6px;">${notes.map(n => `<li>${escapeHTML(n)}</li>`).join('')}</ul></details>`;
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div><div style="font-size:13px;font-weight:700;color:var(--tx);">Fusion Frame</div><div style="font-size:11px;color:var(--tx-3);">${frame.teamMetrics?.players ?? 0} players · ${frame.teamMetrics?.sessions ?? 0} sessions · ${frame.teamMetrics?.totalPackets ?? 0} packets</div></div>
+        <button class="btn btn-outline btn-xs" onclick="_matchLive.fusion=null;renderMatchModalTab();">↻ Refresh</button>
+      </div>
+      <div class="card" style="padding:10px;margin-bottom:10px;font-size:11px;color:var(--tx-2);">${countLine}</div>
+      <div class="card" style="padding:10px;">${rowsHTML}</div>
+      ${notesHTML}
+    </div>`;
+}
+
+function escapeHTML(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Phase F — Match Brain + Replay + Heatmap
+// ════════════════════════════════════════════════════════════════════════
+
+let _matchBrain = null;
+let _replayState = { events: [], cursor: 0, playing: false, timer: null };
+
+async function paintBrainTab(c, m) {
+  c.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--tx-3);">Loading match brain…</div>`;
+  let b;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/brain');
+    b = (res && res.data) || null;
+    _matchBrain = b;
+  } catch (e) {
+    c.innerHTML = `<div style="padding:16px;color:var(--red);">Match brain unavailable: ${escapeHTML(e && e.userMessage || 'error')}</div>`;
+    return;
+  }
+  if (!b) { c.innerHTML = `<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No brain state</div></div>`; return; }
+
+  const momentumPct = Math.round((b.momentum.index + 1) * 50);    // -1..1 → 0..100
+  const momentumColor = b.momentum.index > 0.2 ? 'var(--green-l)' : b.momentum.index < -0.2 ? 'var(--red)' : 'var(--amber)';
+  const possOurs = b.possession.ourPct ?? 50;
+
+  const lastChain = (b.graph.lastChain || []).map(id => {
+    const node = (b.graph.nodes || []).find(n => n.id === id);
+    return node ? `<span style="font-size:11px;padding:3px 7px;border-radius:10px;background:var(--bg);border:1px solid var(--bd);">${node.minute}' ${escapeHTML(node.kind)}</span>` : '';
+  }).join('<span style="color:var(--tx-3);">→</span>');
+
+  const zones = b.pressureZones || [];
+  const zonesHTML = renderPressureZones(zones);
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;">
+        <div class="card" style="padding:12px;">
+          <div style="font-size:11px;color:var(--tx-3);">Tactical Momentum</div>
+          <div style="font-size:22px;font-weight:700;color:${momentumColor};">${(b.momentum.index >= 0 ? '+' : '') + b.momentum.index.toFixed(2)}</div>
+          <div style="height:6px;background:var(--bg);border-radius:3px;margin-top:6px;overflow:hidden;">
+            <div style="height:100%;width:${momentumPct}%;background:${momentumColor};transition:width 0.3s;"></div>
+          </div>
+          <div style="font-size:11px;color:var(--tx-2);margin-top:6px;">${(b.momentum.notes || []).map(escapeHTML).join(' · ')}</div>
+        </div>
+        <div class="card" style="padding:12px;">
+          <div style="font-size:11px;color:var(--tx-3);">Possession (window ${Math.round(b.possession.windowSec/60)}m)</div>
+          <div style="font-size:22px;font-weight:700;color:var(--tx);">${possOurs}% : ${100 - possOurs}%</div>
+          <div style="height:6px;background:var(--red);border-radius:3px;margin-top:6px;overflow:hidden;display:flex;">
+            <div style="height:100%;width:${possOurs}%;background:var(--green-l);"></div>
+          </div>
+          <div style="font-size:11px;color:var(--tx-2);margin-top:6px;">${b.possession.transitions} possession transitions</div>
+        </div>
+        <div class="card" style="padding:12px;">
+          <div style="font-size:11px;color:var(--tx-3);">Recent Chain of Play</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:6px;">${lastChain || '<span style="font-size:11px;color:var(--tx-3);">—</span>'}</div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:12px;margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--tx-3);margin-bottom:8px;">Opposition Pressure Zones</div>
+        ${zonesHTML}
+      </div>
+    </div>`;
+}
+
+function renderPressureZones(zones) {
+  if (!zones || zones.length === 0) {
+    return '<div style="font-size:12px;color:var(--tx-3);">No opposition events in window.</div>';
+  }
+  const maxDensity = Math.max(...zones.map(z => z.density), 1);
+  // 100x68 pitch SVG with zone circles.
+  const circles = zones.map(z => {
+    const r = 4 + (z.density / maxDensity) * 18;
+    const opacity = Math.min(1, 0.3 + (z.density / maxDensity) * 0.7);
+    const fresh = Math.max(0.3, 1 - z.recencyS / 300);
+    return `<circle cx="${z.x}" cy="${(z.y / 100) * 68}" r="${r}" fill="rgba(220,38,38,${opacity * fresh})" stroke="rgba(220,38,38,0.7)" stroke-width="0.4"/>`;
+  }).join('');
+  return `
+    <svg viewBox="0 0 100 68" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:280px;background:#1d2b1d;border-radius:6px;">
+      <rect x="0" y="0" width="100" height="68" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.3"/>
+      <line x1="50" y1="0" x2="50" y2="68" stroke="rgba(255,255,255,0.4)" stroke-width="0.3"/>
+      <circle cx="50" cy="34" r="6" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.3"/>
+      ${circles}
+    </svg>
+    <div style="font-size:11px;color:var(--tx-3);margin-top:6px;">${zones.length} cells · max density ${maxDensity} · brighter = more recent</div>`;
+}
+
+// ── Replay tab ──────────────────────────────────────────────────────────
+async function paintReplayTab(c, m) {
+  if (_replayState.events.length === 0) {
+    c.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--tx-3);">Loading replay timeline…</div>`;
+    try {
+      const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/replay?limit=500');
+      _replayState.events = (res && res.data && res.data.events) || [];
+      _replayState.cursor = _replayState.events.length;
+    } catch (e) {
+      c.innerHTML = `<div style="padding:16px;color:var(--red);">Replay unavailable: ${escapeHTML(e && e.userMessage || 'error')}</div>`;
+      return;
+    }
+  }
+  renderReplayTab(c);
+}
+
+function renderReplayTab(c) {
+  const events = _replayState.events;
+  if (events.length === 0) {
+    c.innerHTML = `<div class="empty"><div class="empty-ico">🎬</div><div class="empty-ttl">No replayable events</div></div>`;
+    return;
+  }
+  const cur = Math.min(events.length, Math.max(0, _replayState.cursor));
+  const visible = events.slice(0, cur);
+  const now = events[Math.max(0, cur - 1)] || events[0];
+  const kindIcon = (k) => k === 'TIMELINE' ? '⚽' : k === 'SNAPSHOT' ? '📸' : k === 'ALERT' ? '🚨' : k === 'TWIN_FRAME' ? '🧬' : '·';
+  const eventList = visible.slice(-20).reverse().map(e => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bd);font-size:12px;">
+      <div style="font-size:14px;">${kindIcon(e.kind)}</div>
+      <div style="flex:1;color:var(--tx);">${escapeHTML(e.kind)} · ${e.matchMin != null ? e.matchMin + "'" : ''}</div>
+      <div style="font-size:10px;color:var(--tx-3);">${new Date(e.atMs).toLocaleTimeString()}</div>
+    </div>`).join('');
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <div><div style="font-size:13px;font-weight:700;color:var(--tx);">Replay Timeline</div><div style="font-size:11px;color:var(--tx-3);">${events.length} events</div></div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-xs" onclick="replayScrub(-10)">«10</button>
+          <button class="btn btn-outline btn-xs" onclick="replayScrub(-1)">‹</button>
+          <button class="btn btn-primary btn-xs" id="replay-play-btn" onclick="replayToggle()">${_replayState.playing ? '⏸' : '▶'}</button>
+          <button class="btn btn-outline btn-xs" onclick="replayScrub(1)">›</button>
+          <button class="btn btn-outline btn-xs" onclick="replayScrub(10)">10»</button>
+          <button class="btn btn-ghost btn-xs" onclick="replayReset()">↻</button>
+        </div>
+      </div>
+
+      <input type="range" min="0" max="${events.length}" value="${cur}" oninput="replaySeek(this.value)" style="width:100%;margin-bottom:12px;" />
+
+      <div class="card" style="padding:10px;margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--tx-3);">Cursor</div>
+        <div style="font-size:14px;color:var(--tx);">${cur} / ${events.length} · ${now ? new Date(now.atMs).toLocaleString() : '—'}</div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <div style="font-size:11px;color:var(--tx-3);margin-bottom:6px;">Recent events (most recent first)</div>
+        ${eventList || '<div style="font-size:12px;color:var(--tx-3);">—</div>'}
+      </div>
+    </div>`;
+}
+
+function replaySeek(v) {
+  _replayState.cursor = parseInt(v, 10) || 0;
+  if (_matchModalTab === 'replay') renderReplayTab(document.getElementById('match-modal-content'));
+}
+
+function replayScrub(delta) {
+  _replayState.cursor = Math.max(0, Math.min(_replayState.events.length, _replayState.cursor + delta));
+  if (_matchModalTab === 'replay') renderReplayTab(document.getElementById('match-modal-content'));
+}
+
+function replayToggle() {
+  _replayState.playing = !_replayState.playing;
+  if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
+  if (_replayState.playing) {
+    _replayState.timer = setInterval(() => {
+      if (_replayState.cursor >= _replayState.events.length) {
+        _replayState.playing = false;
+        if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
+      } else {
+        _replayState.cursor++;
+      }
+      if (_matchModalTab === 'replay') renderReplayTab(document.getElementById('match-modal-content'));
+    }, 600);
+  }
+  if (_matchModalTab === 'replay') renderReplayTab(document.getElementById('match-modal-content'));
+}
+
+function replayReset() {
+  _replayState = { events: [], cursor: 0, playing: false, timer: null };
+  if (_matchModalTab === 'replay') paintReplayTab(document.getElementById('match-modal-content'), State.activeMatch);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Phase G — Spatial frame + Predictive intelligence
+// ════════════════════════════════════════════════════════════════════════
+
+let _spatialFrame  = null;
+let _predictions   = [];
+
+async function paintSpatialTab(c, m) {
+  c.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--tx-3);">Loading cognitive spatial frame…</div>`;
+  let frame;
+  try {
+    const res = await FamilistaAPI.get('/spatial/matches/' + encodeURIComponent(m.id) + '/frame');
+    frame = (res && res.data) || null;
+    _spatialFrame = frame;
+  } catch (e) {
+    c.innerHTML = `<div style="padding:16px;color:var(--red);">Spatial frame unavailable: ${escapeHTML(e && e.userMessage || 'error')}</div>`;
+    return;
+  }
+  if (!frame) { c.innerHTML = `<div class="empty"><div class="empty-ico">🛰️</div><div class="empty-ttl">No spatial data</div></div>`; return; }
+  renderSpatialFrame(c, frame);
+}
+
+function renderSpatialFrame(c, frame) {
+  const g = frame.geometry || { widthM: 105, heightM: 68 };
+  const players = frame.players || [];
+  const positioned = players.filter(p => p.x != null && p.y != null);
+  const interpolated = !!(frame.sources && frame.sources.interpolated);
+  const stale = positioned.filter(p => (p.staleMs ?? 0) > 5000).length;
+
+  // SVG projection — geometry-aware (works for any sport).
+  const VBX = g.widthM, VBY = g.heightM;
+  const dots = positioned.map(p => {
+    const isOpp   = p.side !== 'HOME';
+    const color   = p.alert === 'CRITICAL' ? '#DC2626' : p.alert === 'CAUTION' ? '#F59E0B' : (isOpp ? '#FCA5A5' : '#22C55E');
+    const radius  = 1 + Math.min(2.5, (g.widthM / 60));   // scale dot to pitch
+    return `<g>
+      <circle cx="${p.x}" cy="${p.y}" r="${radius}" fill="${color}" stroke="rgba(0,0,0,.55)" stroke-width="0.25"/>
+      <text x="${p.x}" y="${p.y + radius * 0.5}" font-size="${radius * 1.0}" text-anchor="middle" fill="#0a0a0a" font-weight="700">${p.number ?? '?'}</text>
+    </g>`;
+  }).join('');
+
+  const sources = frame.sources || {};
+  const srcLine = `cameras ${sources.visionCameras ?? 0} · wearables ${sources.wearables ?? 0} · sensors ${sources.sensorPackets ?? 0} · biochem ${sources.biochemPatches ?? 0}${interpolated ? ' · interpolated' : ''}`;
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--tx);">Cognitive Spatial Frame</div>
+          <div style="font-size:11px;color:var(--tx-3);">sport ${escapeHTML(frame.sport)} · ${positioned.length} positioned · ${stale} stale · ${srcLine}</div>
+        </div>
+        <button class="btn btn-outline btn-xs" onclick="paintSpatialTab(document.getElementById('match-modal-content'), State.activeMatch);">↻ Refresh</button>
+      </div>
+      <div style="position:relative;background:linear-gradient(180deg,rgba(22,163,74,.12),rgba(22,163,74,.05));border:1px solid var(--bd);border-radius:var(--radius-lg);overflow:hidden;">
+        <svg viewBox="0 0 ${VBX} ${VBY}" preserveAspectRatio="xMidYMid meet" style="width:100%;display:block;background:#1d2b1d;">
+          <rect x="0" y="0" width="${VBX}" height="${VBY}" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="0.25"/>
+          <line x1="${VBX / 2}" y1="0" x2="${VBX / 2}" y2="${VBY}" stroke="rgba(255,255,255,0.3)" stroke-width="0.15"/>
+          ${dots}
+        </svg>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px;font-size:11px;color:var(--tx-3);">
+        <div><div style="color:var(--tx-2);">Pitch</div>${g.widthM}×${g.heightM} m</div>
+        <div><div style="color:var(--tx-2);">Players/side</div>${g.playersPerSide ?? '—'}</div>
+        <div><div style="color:var(--tx-2);">Shared object</div>${g.hasSharedObject ? 'yes' : 'no'}</div>
+        <div><div style="color:var(--tx-2);">Flip at half</div>${g.sidesFlipAtHalf ? 'yes' : 'no'}</div>
+      </div>
+    </div>`;
+}
+
+async function paintPredictTab(c, m) {
+  c.innerHTML = `<div style="padding:16px;font-size:12px;color:var(--tx-3);">Running deterministic predictors…</div>`;
+  let predictions;
+  try {
+    const res = await FamilistaAPI.post('/predictive/matches/' + encodeURIComponent(m.id) + '/run', { dryRun: true });
+    predictions = (res && res.data) || [];
+    _predictions = predictions;
+  } catch (e) {
+    c.innerHTML = `<div style="padding:16px;color:var(--red);">Predictive layer unavailable: ${escapeHTML(e && e.userMessage || 'error')}</div>`;
+    return;
+  }
+
+  // Group by kind.
+  const groups = {};
+  for (const p of predictions) { (groups[p.kind] ?? (groups[p.kind] = [])).push(p); }
+  const order = ['TACTICAL_COLLAPSE','POSITIONING_DEGRADATION','INJURY_RISK','FATIGUE_TRAJECTORY','MOMENTUM_SHIFT','SUBSTITUTION_WINDOW'];
+
+  const scoreColor = (s) => s >= 0.75 ? 'var(--red)' : s >= 0.50 ? 'var(--amber)' : 'var(--green-l)';
+  const scoreLabel = (s) => s >= 0.75 ? 'CRITICAL'   : s >= 0.50 ? 'CAUTION'      : 'OK';
+
+  const renderGroup = (kind) => {
+    const items = groups[kind] || [];
+    if (items.length === 0) return '';
+    if (items.length === 1 && items[0].playerId === null) {
+      const p = items[0];
+      return `<div class="card" style="padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:12px;color:var(--tx-3);">${escapeHTML(kind)}</div>
+          <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${scoreColor(p.score)};color:#fff;">${scoreLabel(p.score)} · ${(p.score * 100).toFixed(0)}%</span>
+        </div>
+        <div style="font-size:13px;color:var(--tx);margin-top:6px;">${escapeHTML(p.rationale)}</div>
+      </div>`;
+    }
+    // Per-player rows — sort by score descending and cap at 8.
+    const top = items.sort((a,b) => b.score - a.score).slice(0, 8);
+    return `<div class="card" style="padding:12px;">
+      <div style="font-size:12px;color:var(--tx-3);margin-bottom:6px;">${escapeHTML(kind)} — top ${top.length}</div>
+      ${top.map(p => `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--bd);font-size:12px;">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${scoreColor(p.score)};"></span>
+        <div style="flex:1;color:var(--tx);">${escapeHTML(p.rationale)}</div>
+        <div style="font-size:11px;color:var(--tx-2);">${(p.score * 100).toFixed(0)}%</div>
+      </div>`).join('')}
+    </div>`;
+  };
+
+  c.innerHTML = `
+    <div style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--tx);">Predictive Intelligence</div>
+          <div style="font-size:11px;color:var(--tx-3);">${predictions.length} predictions · deterministic v1 · dry-run (won't persist)</div>
+        </div>
+        <button class="btn btn-primary btn-xs" onclick="paintPredictTab(document.getElementById('match-modal-content'), State.activeMatch);">↻ Re-run</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+        ${order.map(renderGroup).join('')}
+      </div>
+    </div>`;
+}
+
+// Back-compat shim — older code may still call filterMatches('UPCOMING', el).
+function filterMatches(filter, el) {
+  setMatchTab(filter === 'UPCOMING' ? 'upcoming' : filter === 'PLAYED' ? 'stats' : 'all', el);
 }
 
 // ── LIVE TRACKING ──
@@ -4688,6 +6328,813 @@ document.addEventListener('click', (e) => {
     setTimeout(loadSettingsData, 100);
   }
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// Phase H — TACTICAL OS (elite cognitive frontend)
+// ════════════════════════════════════════════════════════════════════════
+// Self-contained module. Reads from existing Phase B/C/D/E/F/G endpoints.
+// All DOM is scoped to .tactical-os so the legacy pages are untouched.
+
+const TOS = {
+  state: {
+    sport:        'FOOTBALL',
+    matches:      [],
+    activeMatch:  null,
+    brain:        null,
+    spatial:      null,
+    predictions:  [],
+    annotations:  [],
+    sse:          null,
+    pollTimer:    null,
+    twin:         { cursorMs: null, anchors: [], playing: false, timer: null },
+    chat:         { agent: 'TACTICAL', history: [] },
+    board:        { selected: null, drag: null, mode: 'select' },
+    annotMode:    null,   // null | 'ARROW' | 'ZONE' | 'NOTE'
+  },
+  // Geometry per sport — mirrors backend SportAdapter for rendering only.
+  sport: {
+    FOOTBALL:   { widthM:105,    heightM:68,   players:11, hasObject:true,  flip:true,  name:'Football' },
+    BASKETBALL: { widthM:28,     heightM:15,   players:5,  hasObject:true,  flip:false, name:'Basketball' },
+    TENNIS:     { widthM:23.77,  heightM:10.97,players:1,  hasObject:true,  flip:false, name:'Tennis' },
+    HANDBALL:   { widthM:40,     heightM:20,   players:7,  hasObject:true,  flip:true,  name:'Handball' },
+    ATHLETICS:  { widthM:84.39,  heightM:36.5, players:8,  hasObject:false, flip:false, name:'Athletics' },
+  },
+};
+
+function renderTacticalOSHTML() {
+  return `<div class="page tactical-os" id="pg-tactical-os">
+    <div class="tos-shell">
+
+      <!-- LEFT RAIL: LIVE MATCHES -->
+      <aside class="tos-rail-left">
+        <div class="tos-card" style="margin-bottom:10px;">
+          <div class="tos-hdr">
+            <div>
+              <div class="tos-title">Sport Engine</div>
+              <div style="font-size:13px;color:var(--tos-tx);margin-top:2px;">Multi-sport adapter</div>
+            </div>
+          </div>
+          <select id="tos-sport-select" class="tos-select" onchange="tosOnSportChange(this.value)">
+            <option value="FOOTBALL">⚽ Football</option>
+            <option value="BASKETBALL">🏀 Basketball</option>
+            <option value="TENNIS">🎾 Tennis</option>
+            <option value="HANDBALL">🤾 Handball</option>
+            <option value="ATHLETICS">🏃 Athletics</option>
+          </select>
+        </div>
+
+        <div class="tos-card">
+          <div class="tos-hdr">
+            <div>
+              <div class="tos-title">Live Matches</div>
+              <div class="tos-h1" style="font-size:16px;"><span class="tos-pulse"></span><span id="tos-live-count">—</span> active</div>
+            </div>
+            <button class="tos-btn ghost" onclick="tosRefreshMatches()" title="Refresh">↻</button>
+          </div>
+          <ul class="tos-list" id="tos-match-list"></ul>
+        </div>
+      </aside>
+
+      <!-- CENTER: COGNITIVE MATCH CENTER -->
+      <section class="tos-center" style="display:flex;flex-direction:column;gap:12px;min-width:0;">
+        <!-- Active match header -->
+        <div class="tos-card hot" id="tos-match-hdr">
+          <div class="tos-hdr">
+            <div>
+              <div class="tos-title">Cognitive Match Center</div>
+              <div class="tos-h1" id="tos-match-title">Select a match</div>
+              <div class="tos-chip" id="tos-match-sub" style="margin-top:6px;">—</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+              <span id="tos-sse-pill" class="tos-pill amber">CONNECTING</span>
+              <span id="tos-sport-pill" class="tos-pill cyan">FOOTBALL</span>
+            </div>
+          </div>
+
+          <!-- KPI strip -->
+          <div class="tos-grid-4" id="tos-kpis">
+            <div class="tos-kpi cyan"><span class="v" id="tos-kpi-poss">—</span><span class="l">Possession</span></div>
+            <div class="tos-kpi green"><span class="v" id="tos-kpi-momentum">—</span><span class="l">Momentum</span></div>
+            <div class="tos-kpi amber"><span class="v" id="tos-kpi-fatigue">—</span><span class="l">Fatigue (crit/caution)</span></div>
+            <div class="tos-kpi violet"><span class="v" id="tos-kpi-threats">—</span><span class="l">Opp Threats (5m)</span></div>
+          </div>
+        </div>
+
+        <!-- TWIN BOARD: pitch + annotations + drag/drop -->
+        <div class="tos-card">
+          <div class="tos-hdr">
+            <div>
+              <div class="tos-title">Digital Twin · Tactical Board</div>
+              <div style="font-size:11px;color:var(--tos-tx-3);" id="tos-board-sub">Live spatial frame</div>
+            </div>
+            <div class="tos-annot-toolbar">
+              <button class="tos-btn ghost" onclick="tosSetMode('select')"  id="tos-mode-select">↖ Select</button>
+              <button class="tos-btn ghost" onclick="tosSetMode('drag')"    id="tos-mode-drag">✥ Drag</button>
+              <button class="tos-btn ghost" onclick="tosSetAnnotMode('ARROW')" id="tos-mode-arrow">→ Arrow</button>
+              <button class="tos-btn ghost" onclick="tosSetAnnotMode('ZONE')"  id="tos-mode-zone">◭ Zone</button>
+              <button class="tos-btn ghost" onclick="tosSetAnnotMode('NOTE')"  id="tos-mode-note">✎ Note</button>
+              <button class="tos-btn green"  onclick="tosBoardSnapshot()" title="Save snapshot">⤓ Snapshot</button>
+              <button class="tos-btn"        onclick="tosLoadSpatial()" title="Refresh">↻</button>
+            </div>
+          </div>
+          <div class="tos-pitch-wrap cyan" id="tos-pitch-wrap" style="aspect-ratio: 16 / 9;">
+            <svg id="tos-pitch" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;"></svg>
+          </div>
+
+          <!-- Replay scrubber -->
+          <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+            <button class="tos-btn ghost" onclick="tosTwinStep(-1000)">«1s</button>
+            <button class="tos-btn"       onclick="tosTwinToggle()" id="tos-twin-toggle">▶</button>
+            <button class="tos-btn ghost" onclick="tosTwinStep(1000)">1s»</button>
+            <input type="range" class="tos-scrub" id="tos-twin-range" min="0" max="100" value="100" oninput="tosTwinSeek(this.value)" />
+            <span class="tos-chip" id="tos-twin-ts">LIVE</span>
+          </div>
+        </div>
+
+        <!-- HEATMAP + POSSESSION FLOW + PRESSURE -->
+        <div class="tos-grid-3">
+          <div class="tos-card">
+            <div class="tos-hdr"><div class="tos-title">Heatmap</div></div>
+            <div class="tos-pitch-wrap" style="aspect-ratio: 16 / 11;">
+              <svg id="tos-heatmap" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;"></svg>
+            </div>
+          </div>
+          <div class="tos-card">
+            <div class="tos-hdr"><div class="tos-title">Possession Flow</div></div>
+            <svg id="tos-poss-flow" viewBox="0 0 200 110" preserveAspectRatio="none" style="width:100%;height:110px;display:block;"></svg>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tos-tx-3);font-family:var(--tos-mono);">
+              <span>HOME <b id="tos-poss-home" style="color:var(--tos-neon-green);">—</b></span>
+              <span><b id="tos-poss-away" style="color:var(--tos-neon-red);">—</b> AWAY</span>
+            </div>
+          </div>
+          <div class="tos-card">
+            <div class="tos-hdr"><div class="tos-title">Pressure Zones</div></div>
+            <div class="tos-pitch-wrap" style="aspect-ratio: 16 / 11;">
+              <svg id="tos-pressure" viewBox="0 0 105 68" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;"></svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT RAIL: AI COACH + ALERTS -->
+      <aside class="tos-rail-right" style="display:flex;flex-direction:column;gap:12px;">
+
+        <!-- Momentum gauge -->
+        <div class="tos-card">
+          <div class="tos-hdr">
+            <div class="tos-title">Tactical Momentum</div>
+            <span class="tos-chip" id="tos-momentum-band">—</span>
+          </div>
+          <div class="tos-gauge">
+            <div class="axis"></div>
+            <div class="fill" id="tos-momentum-fill" style="width:0%;"></div>
+            <div class="label" id="tos-momentum-label">0.00</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tos-tx-3);font-family:var(--tos-mono);margin-top:4px;">
+            <span>OPP</span><span>NEUTRAL</span><span>OURS</span>
+          </div>
+        </div>
+
+        <!-- Predictive intelligence -->
+        <div class="tos-card">
+          <div class="tos-hdr">
+            <div class="tos-title">Predictive Alerts</div>
+            <button class="tos-btn ghost" onclick="tosRunPredictors()" title="Re-run">↻</button>
+          </div>
+          <div class="tos-feed" id="tos-predict-feed"></div>
+        </div>
+
+        <!-- AI Coach Chat -->
+        <div class="tos-card" style="flex:1;display:flex;flex-direction:column;min-height:380px;">
+          <div class="tos-hdr">
+            <div>
+              <div class="tos-title">AI Coach</div>
+              <div style="font-size:12px;color:var(--tos-tx);">Conversational tactical assistant</div>
+            </div>
+            <select id="tos-chat-agent" class="tos-select" style="width:auto;font-size:10px;padding:5px 8px;" onchange="TOS.state.chat.agent=this.value">
+              <option value="TACTICAL">Tactical</option>
+              <option value="MATCH_OPS">Match Ops</option>
+              <option value="MEDICAL">Medical</option>
+              <option value="SCOUTING">Scouting</option>
+              <option value="TRAINING">Training</option>
+              <option value="DEVICE_MGMT">Device</option>
+              <option value="BIG_DATA">Big Data</option>
+              <option value="CLUB_MANAGER">Club Mgr</option>
+            </select>
+          </div>
+          <div class="tos-chat" id="tos-chat-stream"></div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <input id="tos-chat-input" class="tos-input" placeholder="Ask the agent…" onkeydown="if(event.key==='Enter') tosChatSend()" />
+            <button class="tos-btn green" onclick="tosChatSend()">SEND</button>
+          </div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="tos-btn ghost" onclick="tosChatQuick('Generate a tactical brief.')">Tactical brief</button>
+            <button class="tos-btn ghost" onclick="tosChatQuick('Suggest a substitution.')">Sub suggestion</button>
+            <button class="tos-btn ghost" onclick="tosChatQuick('Summarise this match so far.')">Match summary</button>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+  </div>`;
+}
+
+// ── Entry point ────────────────────────────────────────────────────────
+async function loadTacticalOS() {
+  // Kick-off: load matches, hydrate state, attach listeners.
+  await tosRefreshMatches();
+  // Wire pitch event handlers once (idempotent).
+  const pitch = document.getElementById('tos-pitch');
+  if (pitch && !pitch.dataset.wired) {
+    pitch.addEventListener('mousedown', tosPitchMouseDown);
+    pitch.addEventListener('mousemove', tosPitchMouseMove);
+    pitch.addEventListener('mouseup',   tosPitchMouseUp);
+    pitch.addEventListener('mouseleave',tosPitchMouseUp);
+    pitch.dataset.wired = '1';
+  }
+}
+
+function tosOnSportChange(s) {
+  TOS.state.sport = s;
+  const pill = document.getElementById('tos-sport-pill');
+  if (pill) pill.textContent = s;
+  // Re-render pitch with new geometry.
+  if (TOS.state.activeMatch) {
+    tosRenderPitch();
+    tosRenderHeatmap();
+    tosRenderPressure();
+  }
+}
+
+// ── Live matches list ───────────────────────────────────────────────────
+async function tosRefreshMatches() {
+  let matches = [];
+  try {
+    const res = await FamilistaAPI.get('/matches?status=LIVE,HALFTIME,SCHEDULED&limit=30');
+    matches = (res && res.data && (res.data.items || res.data)) || [];
+  } catch (_) { matches = []; }
+
+  // Fallback: pull all matches if the status filter is unsupported.
+  if (!matches.length) {
+    try {
+      const res = await FamilistaAPI.get('/matches?limit=30');
+      matches = (res && res.data && (res.data.items || res.data)) || [];
+    } catch (_) {}
+  }
+
+  // Prioritise LIVE / HALFTIME / SCHEDULED.
+  const order = { LIVE: 0, HALFTIME: 1, SCHEDULED: 2, FINISHED: 3, ABANDONED: 4 };
+  matches.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+  TOS.state.matches = matches;
+
+  const liveCount = matches.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME').length;
+  document.getElementById('tos-live-count').textContent = liveCount;
+  document.getElementById('tos-match-list').innerHTML = matches.slice(0, 10).map(m => {
+    const isLive = m.status === 'LIVE' || m.status === 'HALFTIME';
+    return `<li onclick="tosSelectMatch('${m.id}')" data-id="${m.id}">
+      <div style="width:6px;height:6px;border-radius:50%;background:${isLive ? 'var(--tos-neon-green)' : 'var(--tos-tx-3)'};${isLive ? 'box-shadow:var(--tos-glow-green);' : ''}"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;color:var(--tos-tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHTML(m.homeTeam)} vs ${escapeHTML(m.awayTeam)}</div>
+        <div style="font-size:10px;color:var(--tos-tx-3);font-family:var(--tos-mono);">${escapeHTML(m.status || 'SCHEDULED')} · ${m.homeScore ?? '—'}-${m.awayScore ?? '—'}</div>
+      </div>
+    </li>`;
+  }).join('') || '<li style="color:var(--tos-tx-3);font-size:11px;">No matches found.</li>';
+
+  // Auto-pick the first live match if none selected.
+  if (!TOS.state.activeMatch && matches[0]) tosSelectMatch(matches[0].id);
+}
+
+async function tosSelectMatch(id) {
+  if (!id) return;
+  // Highlight in list.
+  document.querySelectorAll('#tos-match-list li').forEach(li => li.classList.toggle('active', li.dataset.id === id));
+
+  // Tear down any prior SSE / poll / twin.
+  tosTearDownLive();
+
+  let m;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(id));
+    m = (res && res.data) || null;
+  } catch (e) { showToast(e?.userMessage || 'Could not load match', 'error'); return; }
+  if (!m) return;
+
+  TOS.state.activeMatch = m;
+  document.getElementById('tos-match-title').textContent = `${m.homeTeam} vs ${m.awayTeam}`;
+  document.getElementById('tos-match-sub').textContent =
+    `${m.status || 'SCHEDULED'} · ${m.competition || ''} · ${m.homeScore ?? '—'}–${m.awayScore ?? '—'}`;
+
+  // Initial hydration.
+  await Promise.all([ tosLoadBrain(), tosLoadSpatial(), tosLoadAnnotations() ]);
+  tosRunPredictors();
+  tosOpenSSE(id);
+}
+
+function tosTearDownLive() {
+  if (TOS.state.sse) { try { TOS.state.sse.close(); } catch (_) {} TOS.state.sse = null; }
+  if (TOS.state.pollTimer) { clearInterval(TOS.state.pollTimer); TOS.state.pollTimer = null; }
+  if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
+  TOS.state.twin.playing = false;
+  TOS.state.twin.cursorMs = null;
+  TOS.state.brain = null; TOS.state.spatial = null;
+  TOS.state.predictions = []; TOS.state.annotations = [];
+}
+
+// ── SSE: realtime stream ───────────────────────────────────────────────
+function tosOpenSSE(matchId) {
+  if (!State.token) return;
+  const base = (FAM_CONFIG.API_BASE || '').replace(/\/$/, '');
+  const url  = `${base}/matches/${encodeURIComponent(matchId)}/live?token=${encodeURIComponent(State.token)}`;
+  let es;
+  try { es = new EventSource(url); } catch (_) { tosSetSSE('error'); return; }
+  TOS.state.sse = es;
+  tosSetSSE('connecting');
+  es.addEventListener('hello', () => tosSetSSE('ok'));
+  es.addEventListener('LIVE_STATE_UPDATE', () => { tosLoadBrain(); tosLoadSpatial(); });
+  es.addEventListener('RULES_ALERT', (e) => {
+    const a = (function(){ try { return JSON.parse(e.data); } catch(_) { return null; } })();
+    if (!a) return;
+    tosPushPredict({ kind: a.kind || 'RULES_ALERT', severity: a.severity || 'INFO', rationale: a.title || a.kind, score: a.severity === 'CRITICAL' ? 0.9 : a.severity === 'WARN' ? 0.65 : 0.4 });
+  });
+  es.addEventListener('TIMELINE_ADDED', () => tosLoadBrain());
+  es.onerror = () => tosSetSSE('error');
+}
+
+function tosSetSSE(s) {
+  const p = document.getElementById('tos-sse-pill');
+  if (!p) return;
+  const cls = { ok:'green', connecting:'amber', error:'red' }[s] || 'amber';
+  p.className = 'tos-pill ' + cls;
+  p.textContent = ({ ok:'STREAMING', connecting:'CONNECTING', error:'OFFLINE' }[s]) || s.toUpperCase();
+}
+
+// ── Data loaders ────────────────────────────────────────────────────────
+async function tosLoadBrain() {
+  const m = TOS.state.activeMatch; if (!m) return;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/brain');
+    TOS.state.brain = (res && res.data) || null;
+  } catch (_) { return; }
+  tosRenderBrainWidgets();
+  tosRenderPressure();
+}
+
+async function tosLoadSpatial() {
+  const m = TOS.state.activeMatch; if (!m) return;
+  try {
+    const res = await FamilistaAPI.get('/spatial/matches/' + encodeURIComponent(m.id) + '/frame');
+    TOS.state.spatial = (res && res.data) || null;
+  } catch (_) { return; }
+  tosRenderPitch();
+  tosRenderHeatmap();
+}
+
+async function tosLoadAnnotations() {
+  const m = TOS.state.activeMatch; if (!m) return;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/annotations');
+    TOS.state.annotations = (res && res.data) || [];
+  } catch (_) { TOS.state.annotations = []; }
+  tosRenderPitch();
+}
+
+async function tosRunPredictors() {
+  const m = TOS.state.activeMatch; if (!m) return;
+  try {
+    const res = await FamilistaAPI.post('/predictive/matches/' + encodeURIComponent(m.id) + '/run', { dryRun: true });
+    TOS.state.predictions = (res && res.data) || [];
+  } catch (_) { TOS.state.predictions = []; }
+  tosRenderPredictFeed();
+}
+
+function tosPushPredict(p) {
+  TOS.state.predictions.unshift({ ...p, id: 'live-' + Date.now(), atMs: Date.now() });
+  if (TOS.state.predictions.length > 30) TOS.state.predictions.length = 30;
+  tosRenderPredictFeed();
+}
+
+// ── Brain widgets ───────────────────────────────────────────────────────
+function tosRenderBrainWidgets() {
+  const b = TOS.state.brain; if (!b) return;
+  // Momentum gauge.
+  const idx = Math.max(-1, Math.min(1, b.momentum?.index ?? 0));
+  const fill = document.getElementById('tos-momentum-fill');
+  const label = document.getElementById('tos-momentum-label');
+  const band = document.getElementById('tos-momentum-band');
+  if (fill && label) {
+    const widthPct = Math.abs(idx) * 50;
+    fill.style.left = idx >= 0 ? '50%' : (50 - widthPct) + '%';
+    fill.style.width = widthPct + '%';
+    fill.classList.toggle('neg', idx < 0);
+    label.textContent = (idx >= 0 ? '+' : '') + idx.toFixed(2);
+  }
+  if (band) {
+    band.textContent = idx > 0.3 ? 'OURS' : idx < -0.3 ? 'OPPONENT' : 'NEUTRAL';
+    band.className = 'tos-chip';
+  }
+
+  // KPIs
+  document.getElementById('tos-kpi-poss').textContent     = (b.possession?.ourPct ?? '—') + '%';
+  document.getElementById('tos-kpi-momentum').textContent = (idx >= 0 ? '+' : '') + idx.toFixed(2);
+  document.getElementById('tos-kpi-threats').textContent  = b.momentum?.threatAgainst ?? 0;
+  const crit = (b.players || []).filter(p => p.alert === 'CRITICAL').length;
+  const caut = (b.players || []).filter(p => p.alert === 'CAUTION').length;
+  document.getElementById('tos-kpi-fatigue').textContent  = `${crit} / ${caut}`;
+
+  // Possession flow — derive from recentEvents.
+  tosRenderPossessionFlow(b);
+}
+
+function tosRenderPossessionFlow(b) {
+  const svg = document.getElementById('tos-poss-flow');
+  if (!svg) return;
+  const events = (b.recentEvents || []).slice(-20).reverse();
+  document.getElementById('tos-poss-home').textContent = (b.possession?.ourPct ?? 0) + '%';
+  document.getElementById('tos-poss-away').textContent = (100 - (b.possession?.ourPct ?? 50)) + '%';
+
+  if (events.length === 0) { svg.innerHTML = ''; return; }
+  const W = 200, H = 110;
+  const stepX = W / Math.max(1, events.length - 1);
+  let path = '';
+  let lastSide = null;
+  events.forEach((e, i) => {
+    const side = e.side === 'HOME' ? 1 : -1;
+    const y = H / 2 - side * (H / 2 - 12);
+    path += (i === 0 ? `M ${i * stepX} ${y}` : ` L ${i * stepX} ${y}`);
+    lastSide = side;
+  });
+  svg.innerHTML = `
+    <line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="rgba(255,255,255,.08)" stroke-width=".5"/>
+    <path d="${path}" stroke="${lastSide >= 0 ? 'var(--tos-neon-green)' : 'var(--tos-neon-red)'}" stroke-width="1.5" fill="none" />
+  `;
+}
+
+// ── Pitch (digital twin) renderer ──────────────────────────────────────
+function tosRenderPitch() {
+  const svg = document.getElementById('tos-pitch'); if (!svg) return;
+  const g = TOS.sport[TOS.state.sport] || TOS.sport.FOOTBALL;
+  svg.setAttribute('viewBox', `0 0 ${g.widthM} ${g.heightM}`);
+
+  const players = (TOS.state.spatial?.players) || [];
+  const positioned = players.filter(p => p.x != null && p.y != null);
+
+  // Pitch frame.
+  const frame = `
+    <rect x="0" y="0" width="${g.widthM}" height="${g.heightM}" fill="none" stroke="rgba(255,255,255,.32)" stroke-width=".3"/>
+    <line x1="${g.widthM/2}" y1="0" x2="${g.widthM/2}" y2="${g.heightM}" stroke="rgba(255,255,255,.22)" stroke-width=".2"/>
+    <circle cx="${g.widthM/2}" cy="${g.heightM/2}" r="${Math.min(7, g.widthM*0.07)}" fill="none" stroke="rgba(255,255,255,.22)" stroke-width=".2"/>
+  `;
+
+  // Player dots.
+  const dotR = Math.max(0.9, Math.min(2.0, g.widthM / 60));
+  const dots = positioned.map(p => {
+    const isOpp = p.side !== 'HOME';
+    const baseColor = p.alert === 'CRITICAL' ? '#ff5b6e' :
+                      p.alert === 'CAUTION'  ? '#f5b144' :
+                      (isOpp ? 'rgba(255,91,110,.85)' : 'var(--tos-neon-green)');
+    const stroke = p.sprint ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.55)';
+    return `<g class="tos-player-chip" data-id="${escapeHTML(p.playerId)}" data-num="${p.number ?? ''}">
+      <circle cx="${p.x}" cy="${p.y}" r="${dotR}" fill="${baseColor}" stroke="${stroke}" stroke-width="${p.sprint ? 0.35 : 0.25}"/>
+      <text x="${p.x}" y="${p.y + dotR * 0.45}" font-size="${dotR * 1.0}" text-anchor="middle" font-weight="700" fill="#08110b">${p.number ?? '?'}</text>
+    </g>`;
+  }).join('');
+
+  // Annotations layer.
+  const annot = (TOS.state.annotations || []).map(a => {
+    const p = a.payload || {};
+    if (a.kind === 'ARROW' && typeof p.x1 === 'number' && typeof p.y1 === 'number' && typeof p.x2 === 'number' && typeof p.y2 === 'number') {
+      return `<line x1="${p.x1}" y1="${p.y1}" x2="${p.x2}" y2="${p.y2}" stroke="var(--tos-neon-cyan)" stroke-width=".5" marker-end="url(#tos-arrow)"/>`;
+    }
+    if (a.kind === 'ZONE' && typeof p.x === 'number' && typeof p.y === 'number' && typeof p.r === 'number') {
+      return `<circle cx="${p.x}" cy="${p.y}" r="${p.r}" fill="rgba(52,200,255,.15)" stroke="var(--tos-neon-cyan)" stroke-width=".3" stroke-dasharray=".5,.5"/>`;
+    }
+    if (a.kind === 'NOTE' && typeof p.x === 'number' && typeof p.y === 'number' && p.text) {
+      return `<g>
+        <circle cx="${p.x}" cy="${p.y}" r="0.8" fill="var(--tos-neon-amber)"/>
+        <text x="${p.x + 1}" y="${p.y - 0.5}" font-size="1.5" fill="var(--tos-neon-amber)">${escapeHTML((p.text || '').slice(0, 24))}</text>
+      </g>`;
+    }
+    return '';
+  }).join('');
+
+  svg.innerHTML = `
+    <defs>
+      <marker id="tos-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3" markerHeight="3" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="var(--tos-neon-cyan)"/>
+      </marker>
+    </defs>
+    ${frame}
+    ${annot}
+    ${dots}
+  `;
+
+  document.getElementById('tos-board-sub').textContent =
+    `${positioned.length}/${players.length} positioned · sport ${g.name} · ${TOS.state.spatial?.sources?.interpolated ? 'interpolated' : 'fresh'}`;
+}
+
+// ── Heatmap (player density 20×12) ──────────────────────────────────────
+function tosRenderHeatmap() {
+  const svg = document.getElementById('tos-heatmap'); if (!svg) return;
+  const g = TOS.sport[TOS.state.sport] || TOS.sport.FOOTBALL;
+  svg.setAttribute('viewBox', `0 0 ${g.widthM} ${g.heightM}`);
+  const players = (TOS.state.spatial?.players) || [];
+  const positioned = players.filter(p => p.x != null && p.y != null && p.side === 'HOME');
+  if (positioned.length === 0) { svg.innerHTML = ''; return; }
+
+  const GX = 20, GY = 12;
+  const grid = new Array(GX * GY).fill(0);
+  for (const p of positioned) {
+    const cx = Math.min(GX - 1, Math.max(0, Math.floor(p.x / (g.widthM / GX))));
+    const cy = Math.min(GY - 1, Math.max(0, Math.floor(p.y / (g.heightM / GY))));
+    grid[cy * GX + cx]++;
+  }
+  const max = Math.max(...grid, 1);
+  const cellW = g.widthM / GX, cellH = g.heightM / GY;
+  let cells = '';
+  for (let yi = 0; yi < GY; yi++) for (let xi = 0; xi < GX; xi++) {
+    const v = grid[yi * GX + xi]; if (v === 0) continue;
+    const a = 0.1 + (v / max) * 0.6;
+    cells += `<rect x="${xi * cellW}" y="${yi * cellH}" width="${cellW}" height="${cellH}" fill="rgba(34,200,255,${a})"/>`;
+  }
+  svg.innerHTML = `
+    <rect x="0" y="0" width="${g.widthM}" height="${g.heightM}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width=".25"/>
+    ${cells}
+  `;
+}
+
+// ── Pressure zones from brain ──────────────────────────────────────────
+function tosRenderPressure() {
+  const svg = document.getElementById('tos-pressure'); if (!svg) return;
+  const g = TOS.sport[TOS.state.sport] || TOS.sport.FOOTBALL;
+  svg.setAttribute('viewBox', `0 0 ${g.widthM} ${g.heightM}`);
+  const zones = (TOS.state.brain?.pressureZones) || [];
+  if (zones.length === 0) { svg.innerHTML = ''; return; }
+  const maxD = Math.max(...zones.map(z => z.density), 1);
+  const dots = zones.map(z => {
+    const r = 1 + (z.density / maxD) * (g.widthM * 0.05);
+    const fresh = Math.max(0.3, 1 - z.recencyS / 300);
+    const x = (z.x / 105) * g.widthM;     // backend grid is 105×68; scale to active sport
+    const y = (z.y / 100) * g.heightM;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(255,91,110,${0.35 * fresh})" stroke="rgba(255,91,110,.65)" stroke-width=".25"/>`;
+  }).join('');
+  svg.innerHTML = `
+    <rect x="0" y="0" width="${g.widthM}" height="${g.heightM}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width=".25"/>
+    ${dots}
+  `;
+}
+
+// ── Predictive feed ────────────────────────────────────────────────────
+function tosRenderPredictFeed() {
+  const el = document.getElementById('tos-predict-feed'); if (!el) return;
+  const items = (TOS.state.predictions || []).slice(0, 12);
+  if (items.length === 0) { el.innerHTML = '<div style="font-size:11px;color:var(--tos-tx-3);">No predictions yet.</div>'; return; }
+  el.innerHTML = items.map(p => {
+    const sev = (p.severity === 'CRITICAL') || (p.score >= 0.75) ? 'red' : (p.severity === 'WARN' || p.score >= 0.5 ? 'amber' : 'green');
+    const dot = { red:'var(--tos-neon-red)', amber:'var(--tos-neon-amber)', green:'var(--tos-neon-green)' }[sev];
+    const pct = typeof p.score === 'number' ? (p.score * 100).toFixed(0) + '%' : '';
+    return `<div class="row">
+      <div class="dot" style="background:${dot};"></div>
+      <div class="body">
+        <div style="color:var(--tos-tx);">${escapeHTML(p.kind || '—')}${pct ? ' · ' + pct : ''}</div>
+        <div class="ts" style="color:var(--tos-tx-3);">${escapeHTML(p.rationale || '')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── AI Coach chat ──────────────────────────────────────────────────────
+async function tosChatSend() {
+  const inp = document.getElementById('tos-chat-input'); if (!inp) return;
+  const text = inp.value.trim(); if (!text) return;
+  inp.value = '';
+  TOS.state.chat.history.push({ who: 'user', text });
+  tosRenderChat();
+  await tosChatRun(text);
+}
+function tosChatQuick(text) {
+  TOS.state.chat.history.push({ who: 'user', text });
+  tosRenderChat();
+  tosChatRun(text);
+}
+async function tosChatRun(text) {
+  const agent = TOS.state.chat.agent || 'TACTICAL';
+  const m = TOS.state.activeMatch;
+  // Thinking placeholder.
+  TOS.state.chat.history.push({ who: 'agent', text: '…thinking', pending: true });
+  tosRenderChat();
+  let jobId;
+  try {
+    const res = await FamilistaAPI.post('/ai-ops/agents/' + agent + '/run', {
+      kind: 'CHAT',
+      matchId: m?.id,
+      input: { prompt: text, matchId: m?.id, teamId: m?.teamId },
+    });
+    jobId = res?.data?.id;
+  } catch (e) {
+    tosChatReplace({ who: 'agent', text: 'Failed to enqueue job: ' + escapeHTML(e?.userMessage || 'error'), pending: false });
+    return;
+  }
+  if (!jobId) {
+    tosChatReplace({ who: 'agent', text: 'No job id returned.', pending: false });
+    return;
+  }
+  // Poll up to 30s (8 ticks × 4s).
+  for (let i = 0; i < 8; i++) {
+    await new Promise(r => setTimeout(r, 1200 + i * 400));
+    try {
+      const jr = await FamilistaAPI.get('/ai-ops/jobs/' + encodeURIComponent(jobId));
+      const j = jr?.data;
+      if (j && (j.status === 'SUCCESS' || j.status === 'FAILED')) {
+        const out = j.output || {};
+        const text = j.status === 'SUCCESS' ? (out.text || '_(empty response)_') : ('Error: ' + (j.error || 'unknown'));
+        tosChatReplace({ who: 'agent', text, pending: false, model: out.model, backend: out.backend });
+        return;
+      }
+    } catch (_) {}
+  }
+  tosChatReplace({ who: 'agent', text: 'Timed out waiting for agent.', pending: false });
+}
+function tosChatReplace(msg) {
+  for (let i = TOS.state.chat.history.length - 1; i >= 0; i--) {
+    if (TOS.state.chat.history[i].pending) { TOS.state.chat.history[i] = msg; tosRenderChat(); return; }
+  }
+  TOS.state.chat.history.push(msg);
+  tosRenderChat();
+}
+function tosRenderChat() {
+  const el = document.getElementById('tos-chat-stream'); if (!el) return;
+  el.innerHTML = TOS.state.chat.history.slice(-30).map(m => {
+    const cls = m.who === 'user' ? 'user' : 'agent';
+    const pending = m.pending ? ' thinking' : '';
+    const meta = m.who === 'agent' && m.model ? `<div class="ts" style="font-size:9px;color:var(--tos-tx-3);margin-top:5px;">${escapeHTML(m.model)} · ${escapeHTML(m.backend || '')}</div>` : '';
+    return `<div class="tos-msg ${cls}${pending}">
+      <span class="who">${m.who === 'user' ? 'You' : (TOS.state.chat.agent || 'AGENT')}</span>
+      <div>${tosMarkdown(m.text)}</div>
+      ${meta}
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function tosMarkdown(s) {
+  // Tiny safe markdown — bold, italic, line breaks, headings, lists.
+  let h = escapeHTML(s);
+  h = h.replace(/^### (.*)$/gm, '<div style="font-size:12.5px;font-weight:700;margin:6px 0 4px;">$1</div>');
+  h = h.replace(/^## (.*)$/gm,  '<div style="font-size:13.5px;font-weight:700;margin:8px 0 4px;">$1</div>');
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  h = h.replace(/_([^_]+)_/g,        '<i>$1</i>');
+  h = h.replace(/^- (.*)$/gm,        '• $1');
+  h = h.replace(/\n/g, '<br/>');
+  return h;
+}
+
+// ── Digital twin scrubber ──────────────────────────────────────────────
+async function tosTwinSeek(v) {
+  const m = TOS.state.activeMatch; if (!m) return;
+  // Range value 0..100 → look up against the anchors window. If we don't
+  // have anchors yet, fetch them (capped at 600).
+  if (TOS.state.twin.anchors.length === 0) {
+    try {
+      const res = await FamilistaAPI.get('/spatial/matches/' + encodeURIComponent(m.id) + '/twin/anchors?limit=600');
+      TOS.state.twin.anchors = (res?.data) || [];
+    } catch (_) { TOS.state.twin.anchors = []; }
+  }
+  if (TOS.state.twin.anchors.length === 0) return;
+  const idx = Math.min(TOS.state.twin.anchors.length - 1, Math.floor((v / 100) * (TOS.state.twin.anchors.length - 1)));
+  const atMs = Number(TOS.state.twin.anchors[idx].monotonicMs);
+  TOS.state.twin.cursorMs = atMs;
+  try {
+    const res = await FamilistaAPI.get('/spatial/matches/' + encodeURIComponent(m.id) + '/twin?atMs=' + atMs);
+    if (res?.data) { TOS.state.spatial = res.data; tosRenderPitch(); }
+  } catch (_) {}
+  document.getElementById('tos-twin-ts').textContent = new Date(atMs).toLocaleTimeString();
+}
+function tosTwinStep(deltaMs) {
+  const r = document.getElementById('tos-twin-range');
+  if (!r) return;
+  const next = Math.max(0, Math.min(100, parseInt(r.value, 10) + (deltaMs > 0 ? 2 : -2)));
+  r.value = next; tosTwinSeek(next);
+}
+function tosTwinToggle() {
+  TOS.state.twin.playing = !TOS.state.twin.playing;
+  document.getElementById('tos-twin-toggle').textContent = TOS.state.twin.playing ? '⏸' : '▶';
+  if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
+  if (TOS.state.twin.playing) {
+    TOS.state.twin.timer = setInterval(() => {
+      const r = document.getElementById('tos-twin-range'); if (!r) return;
+      const next = Math.min(100, parseInt(r.value, 10) + 1);
+      r.value = next; tosTwinSeek(next);
+      if (next >= 100) tosTwinToggle();
+    }, 700);
+  }
+}
+
+// ── Tactical board modes (select / drag / annotation) ─────────────────
+function tosSetMode(mode) {
+  TOS.state.board.mode = mode; TOS.state.annotMode = null;
+  ['select','drag','arrow','zone','note'].forEach(m => {
+    const b = document.getElementById('tos-mode-' + m);
+    if (b) b.classList.remove('active');
+  });
+  const b = document.getElementById('tos-mode-' + mode); if (b) b.classList.add('active');
+}
+function tosSetAnnotMode(kind) {
+  TOS.state.annotMode = kind; TOS.state.board.mode = 'annotate';
+  ['select','drag','arrow','zone','note'].forEach(m => {
+    const b = document.getElementById('tos-mode-' + m); if (b) b.classList.remove('active');
+  });
+  const b = document.getElementById('tos-mode-' + kind.toLowerCase()); if (b) b.classList.add('active');
+}
+
+function tosPitchEventToCoords(e) {
+  const svg = document.getElementById('tos-pitch');
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  const g = TOS.sport[TOS.state.sport] || TOS.sport.FOOTBALL;
+  return {
+    x: ((e.clientX - rect.left) / rect.width) * g.widthM,
+    y: ((e.clientY - rect.top)  / rect.height) * g.heightM,
+  };
+}
+
+function tosPitchMouseDown(e) {
+  const c = tosPitchEventToCoords(e); if (!c) return;
+  // Drag mode — find nearest player.
+  if (TOS.state.board.mode === 'drag') {
+    const players = (TOS.state.spatial?.players) || [];
+    let nearest = null, nd = Infinity;
+    for (const p of players) {
+      if (p.x == null || p.y == null) continue;
+      const d = Math.hypot(p.x - c.x, p.y - c.y);
+      if (d < nd) { nd = d; nearest = p; }
+    }
+    if (nearest && nd < 3) {
+      TOS.state.board.drag = { playerId: nearest.playerId, started: c };
+      return;
+    }
+  }
+  // Annotation modes — record start point.
+  if (TOS.state.board.mode === 'annotate' && TOS.state.annotMode) {
+    TOS.state.board.drag = { kind: TOS.state.annotMode, started: c };
+  }
+}
+
+function tosPitchMouseMove(e) {
+  if (!TOS.state.board.drag) return;
+  const c = tosPitchEventToCoords(e); if (!c) return;
+  const d = TOS.state.board.drag;
+
+  // Drag a player chip — update spatial in-memory and re-render.
+  if (d.playerId && TOS.state.spatial) {
+    const p = (TOS.state.spatial.players || []).find(x => x.playerId === d.playerId);
+    if (p) { p.x = c.x; p.y = c.y; tosRenderPitch(); }
+  }
+}
+
+async function tosPitchMouseUp(e) {
+  if (!TOS.state.board.drag) return;
+  const c = tosPitchEventToCoords(e) || TOS.state.board.drag.started;
+  const d = TOS.state.board.drag;
+  TOS.state.board.drag = null;
+  // Annotation commit.
+  if (d.kind) {
+    const payload = (function(){
+      if (d.kind === 'ARROW') return { x1: d.started.x, y1: d.started.y, x2: c.x, y2: c.y };
+      if (d.kind === 'ZONE')  return { x: d.started.x, y: d.started.y, r: Math.max(1, Math.hypot(c.x - d.started.x, c.y - d.started.y)) };
+      if (d.kind === 'NOTE')  { const text = window.prompt('Note text?', ''); if (!text) return null; return { x: c.x, y: c.y, text }; }
+      return null;
+    })();
+    if (!payload) return;
+    const m = TOS.state.activeMatch; if (!m) return;
+    try {
+      await FamilistaAPI.post('/matches/' + encodeURIComponent(m.id) + '/annotations', {
+        atMs: Date.now(), kind: d.kind, payload, visibility: 'CLUB',
+      });
+      tosLoadAnnotations();
+    } catch (e) {
+      showToast(e?.userMessage || 'Could not save annotation', 'error');
+    }
+  }
+}
+
+// Snapshot the current tactical board as a NOTE annotation (lightweight checkpoint).
+async function tosBoardSnapshot() {
+  const m = TOS.state.activeMatch; if (!m) return;
+  const players = (TOS.state.spatial?.players) || [];
+  const compact = players.filter(p => p.x != null && p.y != null).map(p => ({
+    playerId: p.playerId, number: p.number, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, side: p.side,
+  }));
+  try {
+    await FamilistaAPI.post('/matches/' + encodeURIComponent(m.id) + '/annotations', {
+      atMs: Date.now(), kind: 'TAG_PLAYER',
+      payload: { what: 'BOARD_SNAPSHOT', sport: TOS.state.sport, players: compact },
+      visibility: 'CLUB',
+    });
+    showToast('Snapshot saved', 'success');
+    tosLoadAnnotations();
+  } catch (e) {
+    showToast(e?.userMessage || 'Snapshot failed', 'error');
+  }
+}
 </script>
 </body>
 </html>

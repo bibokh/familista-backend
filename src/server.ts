@@ -4,6 +4,10 @@ import { createApp } from './app';
 import { config } from './config';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { logger } from './utils/logger';
+// Phase C — realtime + workers
+import { mountMatchWebSocket }       from './realtime/match-ws';
+import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
+import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
 
 // ── GPS Live Tracking via WebSocket ──────────────────────
 
@@ -54,13 +58,11 @@ async function bootstrap() {
   const app    = createApp();
   const server = http.createServer(app);
 
-  // WebSocket server for live GPS
+  // ── Legacy GPS demo WebSocket (kept for Phase 1 compatibility) ──────
   const wss = new WebSocketServer({ server, path: '/ws/live' });
-
   wss.on('connection', (ws, req) => {
-    // Expect: /ws/live?clubId=xxx&token=yyy
-    const url     = new URL(req.url ?? '', `http://localhost`);
-    const clubId  = url.searchParams.get('clubId') ?? 'unknown';
+    const url      = new URL(req.url ?? '', `http://localhost`);
+    const clubId   = url.searchParams.get('clubId') ?? 'unknown';
     const clientId = `${clubId}-${Date.now()}`;
 
     liveClients.set(clientId, { ws, clubId });
@@ -70,14 +72,31 @@ async function bootstrap() {
       liveClients.delete(clientId);
       logger.info('WebSocket client disconnected', { clubId, total: liveClients.size });
     });
-
     ws.on('error', (err) => {
       logger.warn('WebSocket error', { clubId, err: err.message });
       liveClients.delete(clientId);
     });
   });
-
   startGpsSimulator(wss);
+
+  // ── Phase C: tenant-aware match WebSocket at /ws/match/:id ───────────
+  mountMatchWebSocket(server);
+
+  // ── Phase C: background workers ──────────────────────────────────────
+  startAIAgentWorker();
+  startAutomationScheduler();
+
+  // ── Phase J: region presence + billing tier seed (idempotent, best-effort)
+  try {
+    const { ensureRegions, registerThisNode, startHeartbeat } = await import('./distributed/region.service');
+    const { ensureDefaultTiers } = await import('./billing/plans.service');
+    await ensureRegions();
+    await registerThisNode();
+    startHeartbeat();
+    await ensureDefaultTiers();
+  } catch (err) {
+    logger.warn('[phase-j] region/billing bootstrap failed (swallowed)', { err: (err as Error).message });
+  }
 
   server.listen(config.port, () => {
     logger.info(`🚀 Familista API running`, {
@@ -91,11 +110,14 @@ async function bootstrap() {
   // ── Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received — shutting down gracefully`);
+    // Stop workers BEFORE the HTTP server so in-flight loops finish cleanly.
+    try { await stopAIAgentWorker();      } catch (_) {}
+    try { await stopAutomationScheduler(); } catch (_) {}
     server.close(async () => {
       await disconnectDatabase();
       process.exit(0);
     });
-    setTimeout(() => process.exit(1), 10_000);
+    setTimeout(() => process.exit(1), 25_000);
   };
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
