@@ -1,8 +1,16 @@
-// Familista — Rate limit middleware (Phase I)
+// Familista — Rate limit middleware (Phase I + tenant-bucket extension)
 // ─────────────────────────────────────────────────────────────────────────
-// Two-tier token bucket:
-//   - Per-IP   : protects against unauthenticated abuse / scrapers
-//   - Per-user : protects against compromised tokens fanning out
+// Three-tier token bucket:
+//   - Per-IP     : protects against unauthenticated abuse / scrapers
+//   - Per-user   : protects against compromised tokens fanning out
+//   - Per-tenant : protects every OTHER club from a noisy-neighbour club —
+//                  a single misbehaving integration on one tenant can no
+//                  longer eat the global per-IP / per-user budget for
+//                  unrelated tenants.
+//
+// Tenant bucket capacity is intentionally larger than the per-user bucket
+// (default: 6000 req/min) because it's the sum of all sessions for one
+// club. Tune via RATE_TENANT_CAPACITY / RATE_TENANT_REFILL_MS.
 //
 // In-memory implementation (one process). Sub-millisecond per-request.
 // For multi-process or multi-region we drop in a Redis adapter — interface
@@ -16,17 +24,20 @@ import { logSecurityEvent } from '../security/security-event.service';
 
 interface Bucket { tokens: number; lastRefillMs: number; }
 
-const ipBuckets:   Map<string, Bucket> = new Map();
-const userBuckets: Map<string, Bucket> = new Map();
-const authBuckets: Map<string, Bucket> = new Map();
+const ipBuckets:     Map<string, Bucket> = new Map();
+const userBuckets:   Map<string, Bucket> = new Map();
+const tenantBuckets: Map<string, Bucket> = new Map();
+const authBuckets:   Map<string, Bucket> = new Map();
 
-const IP_CAPACITY      = parseInt(process.env.RATE_IP_CAPACITY     ?? '300', 10);
-const IP_REFILL_MS     = parseInt(process.env.RATE_IP_REFILL_MS    ?? '60000', 10);
-const USER_CAPACITY    = parseInt(process.env.RATE_USER_CAPACITY   ?? '1200', 10);
-const USER_REFILL_MS   = parseInt(process.env.RATE_USER_REFILL_MS  ?? '60000', 10);
-const AUTH_CAPACITY    = parseInt(process.env.RATE_AUTH_CAPACITY   ?? '20', 10);
-const AUTH_REFILL_MS   = parseInt(process.env.RATE_AUTH_REFILL_MS  ?? '60000', 10);
-const MAX_BUCKETS      = 50_000;
+const IP_CAPACITY       = parseInt(process.env.RATE_IP_CAPACITY       ?? '300',  10);
+const IP_REFILL_MS      = parseInt(process.env.RATE_IP_REFILL_MS      ?? '60000',10);
+const USER_CAPACITY     = parseInt(process.env.RATE_USER_CAPACITY     ?? '1200', 10);
+const USER_REFILL_MS    = parseInt(process.env.RATE_USER_REFILL_MS    ?? '60000',10);
+const TENANT_CAPACITY   = parseInt(process.env.RATE_TENANT_CAPACITY   ?? '6000', 10);
+const TENANT_REFILL_MS  = parseInt(process.env.RATE_TENANT_REFILL_MS  ?? '60000',10);
+const AUTH_CAPACITY     = parseInt(process.env.RATE_AUTH_CAPACITY     ?? '20',   10);
+const AUTH_REFILL_MS    = parseInt(process.env.RATE_AUTH_REFILL_MS    ?? '60000',10);
+const MAX_BUCKETS       = 50_000;
 
 function refill(bucket: Bucket, capacity: number, refillMs: number, now: number): void {
   const elapsed = now - bucket.lastRefillMs;
@@ -61,11 +72,13 @@ function ipOf(req: Request): string {
   return req.ip || 'unknown';
 }
 
-/** Generic per-IP + per-user limiter. */
+/** Generic per-IP + per-user + per-tenant limiter. */
 export function rateLimit(req: Request, res: Response, next: NextFunction): void {
   const ip = ipOf(req);
-  const userId = (req as Request & { user?: { id?: string; role?: string } }).user?.id;
-  const role   = (req as Request & { user?: { id?: string; role?: string } }).user?.role;
+  const user = (req as Request & { user?: { id?: string; role?: string; clubId?: string } }).user;
+  const userId   = user?.id;
+  const role     = user?.role;
+  const clubId   = user?.clubId ?? (req as Request & { clubId?: string }).clubId;
 
   if (role === 'SUPER_ADMIN') return next();
 
@@ -77,6 +90,13 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
   if (userId && !take(userBuckets, userId, USER_CAPACITY, USER_REFILL_MS)) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, payload: { bucket: 'user' } });
     res.status(429).json({ success: false, message: 'Too many requests (user)', retryAfterMs: USER_REFILL_MS });
+    return;
+  }
+  // Tenant bucket — protects other tenants from one noisy club.
+  // Only enforced once the request has been authenticated (clubId present).
+  if (clubId && !take(tenantBuckets, clubId, TENANT_CAPACITY, TENANT_REFILL_MS)) {
+    logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, clubId, payload: { bucket: 'tenant' } });
+    res.status(429).json({ success: false, message: 'Too many requests for this club', retryAfterMs: TENANT_REFILL_MS });
     return;
   }
   next();
@@ -96,10 +116,11 @@ export function rateLimitAuth(req: Request, res: Response, next: NextFunction): 
 /** Diagnostic for ops. */
 export function rateLimitStats() {
   return {
-    ipBuckets:   ipBuckets.size,
-    userBuckets: userBuckets.size,
-    authBuckets: authBuckets.size,
-    capacity:    { ip: IP_CAPACITY, user: USER_CAPACITY, auth: AUTH_CAPACITY },
-    refillMs:    { ip: IP_REFILL_MS, user: USER_REFILL_MS, auth: AUTH_REFILL_MS },
+    ipBuckets:     ipBuckets.size,
+    userBuckets:   userBuckets.size,
+    tenantBuckets: tenantBuckets.size,
+    authBuckets:   authBuckets.size,
+    capacity:    { ip: IP_CAPACITY,    user: USER_CAPACITY,    tenant: TENANT_CAPACITY,    auth: AUTH_CAPACITY    },
+    refillMs:    { ip: IP_REFILL_MS,   user: USER_REFILL_MS,   tenant: TENANT_REFILL_MS,   auth: AUTH_REFILL_MS   },
   };
 }
