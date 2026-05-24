@@ -9,6 +9,7 @@ import { mountMatchWebSocket }       from './realtime/match-ws';
 import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
 import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
 import { startRetentionWorker, stopRetentionWorker } from './workers/retention.worker';
+import { startNotificationDispatchWorker, stopNotificationDispatchWorker } from './workers/notification-dispatch.worker';
 
 // ── GPS Live Tracking via WebSocket ──────────────────────
 
@@ -115,6 +116,7 @@ async function bootstrap() {
     try { await stopAIAgentWorker();      } catch (_) {}
     try { await stopAutomationScheduler(); } catch (_) {}
     try {       stopRetentionWorker();    } catch (_) {}
+    try {       stopNotificationDispatchWorker(); } catch (_) {}
     server.close(async () => {
       await disconnectDatabase();
       process.exit(0);
