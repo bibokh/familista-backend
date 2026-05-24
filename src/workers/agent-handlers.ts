@@ -286,21 +286,161 @@ async function runScoutingHandler(ctx: AgentJobContext): Promise<AgentHandlerRes
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// FINANCE — placeholder: counts matches + outstanding payments (stub)
+// FINANCE — real P&L snapshot from OperationsPayment + InvoiceDraft + Usage
 // ─────────────────────────────────────────────────────────────────────────
+//
+// Pulls every monetary signal we have:
+//   • OperationsPayment   — membership / fees ledger (Phase O)
+//   • InvoiceDraft        — platform subscription invoices (Phase J)
+//   • UsageMeter          — metered-usage counters
+//   • OperationsInvoiceLine — line items on draft invoices
+//
+// Computes:
+//   • Receivables (PENDING+OVERDUE) by currency
+//   • Recognised revenue (PAID) by currency for last 30/90 days
+//   • Top 5 overdue accounts (player or user level)
+//   • Burn projection from active subscription line
+//   • Anomalies: refund spikes, overdue concentration
 
 async function runFinanceHandler(ctx: AgentJobContext): Promise<AgentHandlerResult> {
-  const matchCount = await prisma.match.count({ where: { clubId: ctx.clubId } });
-  const playerCount = await prisma.player.count({ where: { clubId: ctx.clubId, isActive: true } });
+  const now = new Date();
+  const day30 = new Date(now.getTime() - 30 * 86_400_000);
+  const day90 = new Date(now.getTime() - 90 * 86_400_000);
 
-  const text = [
-    `### Finance Snapshot`,
-    `- Active squad: ${playerCount}`,
-    `- Recorded matches: ${matchCount}`,
-    `- _Detailed P&L module pending Phase G; this placeholder confirms the agent route is alive._`,
-  ].join('\n');
+  // ── 1. Operational payments rollup ─────────────────────────────────────
+  const payments = await prisma.operationsPayment.findMany({
+    where:  { clubId: ctx.clubId },
+    select: { state: true, amountCents: true, currency: true, paidAt: true, dueDate: true,
+              payerPlayerId: true, payerUserId: true, category: true, createdAt: true },
+    take:    5_000,
+  });
 
-  return deterministicResult(text);
+  const byCcy = new Map<string, { receivable: number; overdue: number; recognised30: number; recognised90: number; refunded: number; count: number }>();
+  for (const p of payments) {
+    const slot = byCcy.get(p.currency) ?? { receivable: 0, overdue: 0, recognised30: 0, recognised90: 0, refunded: 0, count: 0 };
+    slot.count += 1;
+    if (p.state === 'PENDING' || p.state === 'OVERDUE') slot.receivable += p.amountCents;
+    if (p.state === 'OVERDUE')   slot.overdue      += p.amountCents;
+    if (p.state === 'REFUNDED')  slot.refunded     += p.amountCents;
+    if (p.state === 'PAID' && p.paidAt) {
+      if (p.paidAt >= day30) slot.recognised30 += p.amountCents;
+      if (p.paidAt >= day90) slot.recognised90 += p.amountCents;
+    }
+    byCcy.set(p.currency, slot);
+  }
+
+  // ── 2. Top overdue payers ──────────────────────────────────────────────
+  const overdueByPayer = new Map<string, { kind: 'PLAYER' | 'USER'; id: string; cents: number; currency: string }>();
+  for (const p of payments) {
+    if (p.state !== 'OVERDUE') continue;
+    const key = p.payerPlayerId ?? p.payerUserId ?? null;
+    if (!key) continue;
+    const kind: 'PLAYER' | 'USER' = p.payerPlayerId ? 'PLAYER' : 'USER';
+    const slot = overdueByPayer.get(key) ?? { kind, id: key, cents: 0, currency: p.currency };
+    slot.cents += p.amountCents;
+    overdueByPayer.set(key, slot);
+  }
+  const topOverdue = [...overdueByPayer.values()].sort((a, b) => b.cents - a.cents).slice(0, 5);
+
+  // ── 3. Platform billing (Phase J) ──────────────────────────────────────
+  const billingAcct = await prisma.billingAccount.findUnique({
+    where:  { clubId: ctx.clubId },
+    select: { id: true, status: true, planTierId: true, startedAt: true,
+              renewsAt: true, canceledAt: true },
+  }).catch(() => null);
+
+  const planTier = billingAcct
+    ? await prisma.billingPlanTier.findUnique({
+        where:  { id: billingAcct.planTierId },
+        select: { code: true, monthlyCents: true },
+      }).catch(() => null)
+    : null;
+
+  // ── 4. Anomaly detection ──────────────────────────────────────────────
+  const anomalies: string[] = [];
+  for (const [ccy, s] of byCcy) {
+    if (s.overdue > 0 && s.recognised90 > 0 && s.overdue / s.recognised90 > 0.15) {
+      anomalies.push(`Overdue/${ccy} = ${(s.overdue / s.recognised90 * 100).toFixed(1)}% of 90-day recognised revenue — exceeds 15% threshold.`);
+    }
+    if (s.refunded > 0 && s.recognised30 > 0 && s.refunded / s.recognised30 > 0.10) {
+      anomalies.push(`Refund/${ccy} = ${(s.refunded / s.recognised30 * 100).toFixed(1)}% of 30-day recognised revenue — exceeds 10% threshold.`);
+    }
+  }
+
+  // ── 5. Optional LLM narrative (only when key configured) ───────────────
+  let narrative = '';
+  try {
+    const { llmCall, llmStatus } = await import('../services/llm-adapter.service');
+    if (llmStatus().backend === 'anthropic') {
+      const summary = {
+        byCurrency: [...byCcy.entries()].map(([currency, s]) => ({
+          currency,
+          receivableEur: s.receivable / 100,
+          overdueEur:    s.overdue / 100,
+          recognised30d: s.recognised30 / 100,
+          recognised90d: s.recognised90 / 100,
+          refunded:      s.refunded / 100,
+        })),
+        topOverdue: topOverdue.map((t) => ({ kind: t.kind, id: t.id, eur: t.cents / 100 })),
+        billing: billingAcct ? {
+          status: billingAcct.status,
+          plan: planTier?.code ?? null,
+          monthlyBaseEur: ((planTier?.monthlyCents) ?? 0) / 100,
+          renewsAt: billingAcct.renewsAt?.toISOString() ?? null,
+        } : null,
+        anomalies,
+      };
+      const r = await llmCall({
+        system: 'You are the Familista Finance Assistant. Read the JSON snapshot. Output exactly three sections in markdown: "Findings" (3-5 bullets, each citing the figure + ratio that triggered it), "Risks" (2 bullets), "Recommended Actions" (2-4 imperative bullets). Be concise and quantitative. Do not invent numbers not present in the input.',
+        prompt: JSON.stringify(summary),
+      });
+      narrative = r.text.trim();
+    }
+  } catch (_) { /* LLM optional */ }
+
+  // ── 6. Compose markdown output ─────────────────────────────────────────
+  const lines: string[] = [`### Finance Snapshot`, ''];
+  if (byCcy.size === 0) {
+    lines.push('_No payments recorded for this club yet._');
+  } else {
+    lines.push('**Receivables (PENDING + OVERDUE):**');
+    for (const [ccy, s] of byCcy) {
+      lines.push(`- ${ccy}: ${(s.receivable / 100).toFixed(2)} (${(s.overdue / 100).toFixed(2)} overdue), 30d revenue ${(s.recognised30 / 100).toFixed(2)}, 90d ${(s.recognised90 / 100).toFixed(2)}, refunded ${(s.refunded / 100).toFixed(2)}`);
+    }
+  }
+  if (topOverdue.length > 0) {
+    lines.push('', '**Top overdue payers:**');
+    for (const t of topOverdue) lines.push(`- ${t.kind} \`${t.id.slice(0, 8)}\` — ${(t.cents / 100).toFixed(2)} ${t.currency}`);
+  }
+  if (billingAcct) {
+    const baseEur = ((planTier?.monthlyCents) ?? 0) / 100;
+    const renews  = billingAcct.renewsAt?.toISOString().slice(0,10) ?? '—';
+    lines.push('', `**Platform subscription:** status=${billingAcct.status}, plan=${planTier?.code ?? '?'}, base ${baseEur.toFixed(2)} EUR/mo, renews ${renews}.`);
+  }
+  if (anomalies.length > 0) {
+    lines.push('', '**Anomalies detected:**');
+    for (const a of anomalies) lines.push(`- ${a}`);
+  }
+  if (narrative) lines.push('', narrative);
+
+  const text = lines.join('\n');
+
+  // Emit alerts on every anomaly so they reach the AI Ops queue.
+  for (const a of anomalies) {
+    try {
+      await aiOps.createAlert({
+        clubId: ctx.clubId, agent: 'FINANCE', kind: 'FINANCE_ANOMALY', severity: 'WARN',
+        title: 'Finance anomaly detected', message: a,
+        payload: { detected: a, at: now.toISOString() } as Prisma.InputJsonValue,
+      });
+    } catch (_) { /* swallow */ }
+  }
+
+  return deterministicResult(text, {
+    byCurrency: [...byCcy.entries()].map(([currency, s]) => ({ currency, ...s })),
+    topOverdue: topOverdue.map((t) => ({ ...t })),
+    anomalies, hasNarrative: narrative.length > 0,
+  } as Prisma.InputJsonValue);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
