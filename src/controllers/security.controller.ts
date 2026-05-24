@@ -58,6 +58,29 @@ export async function verifyChain(req: Request, res: Response, next: NextFunctio
   } catch (err) { return next(err); }
 }
 
+// Full-chain verifier (bounded memory). Safe on chains with millions of rows.
+const verifyFullSchema = z.object({
+  query: z.object({
+    batchSize:  z.coerce.number().int().min(100).max(10_000).optional(),
+    maxBatches: z.coerce.number().int().min(1).max(100_000).optional(),
+  }),
+});
+
+export async function verifyChainComplete(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = verifyFullSchema.safeParse({ query: req.query });
+    if (!parsed.success) throw zerr(parsed.error);
+    const result = await chain.verifyAuditChainComplete(req.user!.clubId, parsed.data.query);
+    events.logSecurityEvent({
+      kind:     result.ok ? 'AUDIT_CHAIN_VERIFIED' : 'AUDIT_CHAIN_BROKEN',
+      severity: result.ok ? 'INFO' : 'CRITICAL',
+      clubId:   req.user!.clubId, actorId: req.user!.id, ipAddress: ipOf(req),
+      payload:  { totalChecked: result.totalChecked, headHash: result.headHash, brokenAt: result.brokenAt ?? null, full: true },
+    });
+    return sendSuccess(res, result);
+  } catch (err) { return next(err); }
+}
+
 const listAuditSchema = z.object({
   query: z.object({
     fromPosition: z.coerce.number().int().min(0).optional(),

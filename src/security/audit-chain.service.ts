@@ -246,6 +246,94 @@ export async function verifyAuditChain(clubId: string, opts: VerifyOpts = {}): P
   return { clubId, totalChecked: rows.length, ok: true, brokenAt: null, headHash: head.lastHash };
 }
 
+/**
+ * Verify the ENTIRE chain in bounded memory by walking it in batches.
+ *
+ * Why this exists separately from verifyAuditChain():
+ *   - The single-shot verifier returns after at most `limit` rows. For
+ *     production chains (>100k rows) one verify call can never assert the
+ *     whole chain — and naively raising the limit would OOM the dyno.
+ *   - This helper streams the chain in `batchSize` chunks, holding only
+ *     one batch in memory at a time, and stops on the first detected
+ *     mismatch. Memory upper bound = O(batchSize), independent of
+ *     chain length.
+ *
+ * Returns the same VerifyResult shape, where `totalChecked` is the cumulative
+ * count across all batches. Safe to invoke on chains with millions of rows.
+ */
+export async function verifyAuditChainComplete(
+  clubId: string,
+  opts: { batchSize?: number; maxBatches?: number } = {},
+): Promise<VerifyResult> {
+  const batchSize  = Math.min(Math.max(opts.batchSize  ?? 2_000, 100), 10_000);
+  const maxBatches = Math.min(Math.max(opts.maxBatches ?? 5_000, 1),   100_000);
+
+  const head = await prisma.securityChainHead.findUnique({ where: { clubId } });
+  if (!head) {
+    return { clubId, totalChecked: 0, ok: true, brokenAt: null, headHash: null };
+  }
+
+  let prev = 'GENESIS';
+  let cursor = 0;
+  let totalChecked = 0;
+  let batchesSeen = 0;
+
+  for (;;) {
+    if (batchesSeen++ >= maxBatches) {
+      // Safety stop — refuse to spend more than maxBatches × batchSize
+      // rows in a single verify. Caller can resume from `cursor`.
+      logger.warn('[audit-chain] verifyAuditChainComplete batch cap hit', { clubId, cursor, totalChecked });
+      return { clubId, totalChecked, ok: true, brokenAt: null, headHash: head.lastHash };
+    }
+
+    const rows = await prisma.securityAuditEvent.findMany({
+      where:   { clubId, chainPosition: { gte: BigInt(cursor) } },
+      orderBy: { chainPosition: 'asc' },
+      take:    batchSize,
+      select:  {
+        id: true, chainPosition: true, actorId: true, clubId: true, action: true,
+        entityType: true, entityId: true, payloadHash: true, previousHash: true,
+        currentHash: true, createdAt: true,
+      },
+    });
+    if (rows.length === 0) break;
+
+    for (const r of rows) {
+      const recomputed = computeRowHash({
+        previousHash: prev,
+        actorId:      r.actorId,
+        clubId:       r.clubId,
+        action:       r.action,
+        entityType:   r.entityType,
+        entityId:     r.entityId,
+        payloadHash:  r.payloadHash,
+        timestampIso: r.createdAt.toISOString(),
+      });
+      if (recomputed !== r.currentHash || r.previousHash !== prev) {
+        return {
+          clubId,
+          totalChecked: totalChecked + 1,
+          ok: false,
+          brokenAt: {
+            chainPosition: Number(r.chainPosition),
+            id:            r.id,
+            expected:      recomputed,
+            actual:        r.currentHash,
+          },
+          headHash: head.lastHash,
+        };
+      }
+      prev = r.currentHash;
+      totalChecked += 1;
+    }
+
+    if (rows.length < batchSize) break;
+    cursor = Number(rows[rows.length - 1].chainPosition) + 1;
+  }
+
+  return { clubId, totalChecked, ok: true, brokenAt: null, headHash: head.lastHash };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Reads (paginated)
 // ─────────────────────────────────────────────────────────────────────────

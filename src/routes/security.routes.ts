@@ -14,7 +14,8 @@ router.use(tenantGuard);
 // verify is the same: anyone with access to security logs can verify.
 router.get('/audit',          authorize('SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.listAudit);
 router.get('/audit/head',     authorize('SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.getAuditHead);
-router.get('/audit/verify',   authorize('SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.verifyChain);
+router.get('/audit/verify',         authorize('SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.verifyChain);
+router.get('/audit/verify/full',    authorize('SUPER_ADMIN','CLUB_ADMIN'),                         ctrl.verifyChainComplete);
 
 // Security events feed.
 router.get('/events',         authorize('SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','ANALYST'), ctrl.listEventsCtrl);
