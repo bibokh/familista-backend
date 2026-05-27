@@ -271,3 +271,48 @@ export async function analyzePlayer(req: Request, res: Response, next: NextFunct
     return sendSuccess(res, result, 'AI analysis complete');
   } catch (err) { return next(err); }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Performance / Player Attributes
+// ─────────────────────────────────────────────────────────────────────────
+
+const ATTR_INT = z.number().int().min(1).max(130).optional();
+
+const attributeSchema = z.object({
+  speed:     ATTR_INT,
+  agility:   ATTR_INT,
+  stamina:   ATTR_INT,
+  strength:  ATTR_INT,
+  balance:   ATTR_INT,
+  reaction:  ATTR_INT,
+  technique: ATTR_INT,
+  passing:   ATTR_INT,
+  shooting:  ATTR_INT,
+  defending: ATTR_INT,
+}).refine(
+  (b) => Object.values(b).some((v) => v !== undefined),
+  { message: 'At least one attribute is required' },
+);
+
+export async function recordAttributes(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = attributeSchema.safeParse(req.body);
+    if (!parsed.success) throw zerr(parsed.error);
+    const result = await playerService.recordPlayerAttributes(actorOf(req), req.params.id, parsed.data);
+    return sendCreated(res, result, 'Attributes recorded');
+  } catch (err) { return next(err); }
+}
+
+export async function getAttributeHistory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const history = await playerService.getPlayerAttributeHistory(actorOf(req), req.params.id);
+    return sendSuccess(res, history);
+  } catch (err) { return next(err); }
+}
+
+export async function getSquadPerformance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await playerService.getSquadPerformance(req.user!.clubId);
+    return sendSuccess(res, data);
+  } catch (err) { return next(err); }
+}

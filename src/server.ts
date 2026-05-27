@@ -1,5 +1,4 @@
 import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
 import { createApp } from './app';
 import { config } from './config';
 import { connectDatabase, disconnectDatabase } from './config/database';
@@ -10,49 +9,18 @@ import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.
 import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
 import { startRetentionWorker, stopRetentionWorker } from './workers/retention.worker';
 import { startNotificationDispatchWorker, stopNotificationDispatchWorker } from './workers/notification-dispatch.worker';
-
-// ── GPS Live Tracking via WebSocket ──────────────────────
-
-interface LiveClient {
-  ws: WebSocket;
-  clubId: string;
-}
-
-const liveClients = new Map<string, LiveClient>();
-
-function startGpsSimulator(wss: WebSocketServer) {
-  // Broadcast simulated GPS updates to connected clients every second
-  setInterval(() => {
-    liveClients.forEach(({ ws, clubId }) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-
-      const update = {
-        type: 'GPS_UPDATE',
-        clubId,
-        timestamp: new Date().toISOString(),
-        players: generateSimulatedGpsUpdate(),
-      };
-
-      ws.send(JSON.stringify(update));
-    });
-  }, 1000);
-}
-
-function generateSimulatedGpsUpdate() {
-  // In production this comes from real GPS devices via MQTT/API
-  return Array.from({ length: 11 }, (_, i) => ({
-    playerId: `player-${i + 1}`,
-    number: i + 1,
-    speed:      Math.max(0, Math.min(35, 15 + (Math.random() - 0.5) * 10)),
-    heartRate:  Math.floor(130 + Math.random() * 60),
-    distance:   parseFloat((8 + Math.random() * 5).toFixed(2)),
-    riskScore:  parseFloat((Math.random() * 100).toFixed(1)),
-    x: parseFloat((100 + Math.random() * 400).toFixed(1)),
-    y: parseFloat((50  + Math.random() * 280).toFixed(1)),
-  }));
-}
+// Phase Q — stats aggregator (drains EventOutbox → rebuilds PlayerMatchStats + season rollup)
+import { startStatsAggregatorWorker, stopStatsAggregatorWorker } from './workers/stats-aggregator.worker';
+// Phase S.1 — video transcode (polls VideoTranscodeJob QUEUED → FFmpeg HLS → S3)
+import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from './workers/video-transcode.worker';
 
 // ── Boot ──────────────────────────────────────────────────
+// NOTE: The legacy GPS demo WebSocket (/ws/live) and its associated
+// mock-data generator (generateSimulatedGpsUpdate / startGpsSimulator)
+// have been removed.  Real-time GPS data enters via:
+//   • POST /api/v1/sensor-ingest/:deviceId/packet  (device push)
+//   • POST /api/v1/device-sessions/:id/packet      (device session ingest)
+// Clients subscribe to live match state via /ws/match/:id (Phase C).
 
 async function bootstrap() {
   await connectDatabase();
@@ -60,33 +28,16 @@ async function bootstrap() {
   const app    = createApp();
   const server = http.createServer(app);
 
-  // ── Legacy GPS demo WebSocket (kept for Phase 1 compatibility) ──────
-  const wss = new WebSocketServer({ server, path: '/ws/live' });
-  wss.on('connection', (ws, req) => {
-    const url      = new URL(req.url ?? '', `http://localhost`);
-    const clubId   = url.searchParams.get('clubId') ?? 'unknown';
-    const clientId = `${clubId}-${Date.now()}`;
-
-    liveClients.set(clientId, { ws, clubId });
-    logger.info('WebSocket client connected', { clubId, total: liveClients.size });
-
-    ws.on('close', () => {
-      liveClients.delete(clientId);
-      logger.info('WebSocket client disconnected', { clubId, total: liveClients.size });
-    });
-    ws.on('error', (err) => {
-      logger.warn('WebSocket error', { clubId, err: err.message });
-      liveClients.delete(clientId);
-    });
-  });
-  startGpsSimulator(wss);
-
   // ── Phase C: tenant-aware match WebSocket at /ws/match/:id ───────────
   mountMatchWebSocket(server);
 
   // ── Phase C: background workers ──────────────────────────────────────
   startAIAgentWorker();
   startAutomationScheduler();
+  // ── Phase Q: stats aggregator (EventOutbox → PlayerMatchStats) ────────
+  startStatsAggregatorWorker();
+  // ── Phase S.1: video transcode (VideoTranscodeJob QUEUED → HLS) ───────
+  startVideoTranscodeWorker();
 
   // ── Phase J: region presence + billing tier seed (idempotent, best-effort)
   try {
@@ -113,10 +64,12 @@ async function bootstrap() {
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received — shutting down gracefully`);
     // Stop workers BEFORE the HTTP server so in-flight loops finish cleanly.
-    try { await stopAIAgentWorker();      } catch (_) {}
-    try { await stopAutomationScheduler(); } catch (_) {}
-    try {       stopRetentionWorker();    } catch (_) {}
+    try { await stopAIAgentWorker();        } catch (_) {}
+    try { await stopAutomationScheduler();  } catch (_) {}
+    try {       stopRetentionWorker();      } catch (_) {}
     try {       stopNotificationDispatchWorker(); } catch (_) {}
+    try {       stopStatsAggregatorWorker();  } catch (_) {}
+    try {       stopVideoTranscodeWorker();   } catch (_) {}
     server.close(async () => {
       await disconnectDatabase();
       process.exit(0);

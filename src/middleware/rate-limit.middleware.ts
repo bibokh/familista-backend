@@ -8,63 +8,52 @@
 //                  longer eat the global per-IP / per-user budget for
 //                  unrelated tenants.
 //
-// Tenant bucket capacity is intentionally larger than the per-user bucket
-// (default: 6000 req/min) because it's the sum of all sessions for one
-// club. Tune via RATE_TENANT_CAPACITY / RATE_TENANT_REFILL_MS.
-//
-// In-memory implementation (one process). Sub-millisecond per-request.
-// For multi-process or multi-region we drop in a Redis adapter — interface
-// is the same as Phase F's big-data adapters; not wired here to keep
-// Render-safe (single-process by default).
+// Store selection (evaluated once at startup):
+//   REDIS_URL set   → RedisRateLimitStore   (multi-process / multi-region)
+//   otherwise       → MemoryRateLimitStore   (single-process, zero deps)
 //
 // SUPER_ADMIN bypasses limits. Auth routes get a much tighter bucket.
 
 import type { Request, Response, NextFunction } from 'express';
 import { logSecurityEvent } from '../security/security-event.service';
+import type { RateLimitStore } from './rate-limit-store';
+import { memoryStore } from './rate-limit-memory.store';
 
-interface Bucket { tokens: number; lastRefillMs: number; }
+// ─── Store selection ──────────────────────────────────────────────────────────
 
-const ipBuckets:     Map<string, Bucket> = new Map();
-const userBuckets:   Map<string, Bucket> = new Map();
-const tenantBuckets: Map<string, Bucket> = new Map();
-const authBuckets:   Map<string, Bucket> = new Map();
-
-const IP_CAPACITY       = parseInt(process.env.RATE_IP_CAPACITY       ?? '300',  10);
-const IP_REFILL_MS      = parseInt(process.env.RATE_IP_REFILL_MS      ?? '60000',10);
-const USER_CAPACITY     = parseInt(process.env.RATE_USER_CAPACITY     ?? '1200', 10);
-const USER_REFILL_MS    = parseInt(process.env.RATE_USER_REFILL_MS    ?? '60000',10);
-const TENANT_CAPACITY   = parseInt(process.env.RATE_TENANT_CAPACITY   ?? '6000', 10);
-const TENANT_REFILL_MS  = parseInt(process.env.RATE_TENANT_REFILL_MS  ?? '60000',10);
-const AUTH_CAPACITY     = parseInt(process.env.RATE_AUTH_CAPACITY     ?? '20',   10);
-const AUTH_REFILL_MS    = parseInt(process.env.RATE_AUTH_REFILL_MS    ?? '60000',10);
-const MAX_BUCKETS       = 50_000;
-
-function refill(bucket: Bucket, capacity: number, refillMs: number, now: number): void {
-  const elapsed = now - bucket.lastRefillMs;
-  if (elapsed <= 0) return;
-  const tokensToAdd = (elapsed / refillMs) * capacity;
-  bucket.tokens = Math.min(capacity, bucket.tokens + tokensToAdd);
-  bucket.lastRefillMs = now;
-}
-
-function take(map: Map<string, Bucket>, key: string, capacity: number, refillMs: number): boolean {
-  const now = Date.now();
-  let b = map.get(key);
-  if (!b) {
-    b = { tokens: capacity, lastRefillMs: now };
-    if (map.size >= MAX_BUCKETS) {
-      // Evict oldest 5%
-      const drop = Math.floor(MAX_BUCKETS * 0.05);
-      let i = 0;
-      for (const k of map.keys()) { map.delete(k); if (++i >= drop) break; }
+function resolveStore(): RateLimitStore {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    try {
+      // Dynamic require so the Redis client is only loaded when REDIS_URL is set.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { RedisRateLimitStore } = require('./rate-limit-redis.store') as
+        typeof import('./rate-limit-redis.store');
+      const store = new RedisRateLimitStore(redisUrl);
+      console.log('[RateLimit] Using Redis store:', redisUrl.replace(/\/\/.*@/, '//***@'));
+      return store;
+    } catch (err) {
+      console.error('[RateLimit] Failed to init Redis store, falling back to memory:', (err as Error).message);
     }
-    map.set(key, b);
   }
-  refill(b, capacity, refillMs, now);
-  if (b.tokens < 1) return false;
-  b.tokens -= 1;
-  return true;
+  console.log('[RateLimit] Using in-memory store');
+  return memoryStore;
 }
+
+const store: RateLimitStore = resolveStore();
+
+// ─── Bucket capacities (env-configurable) ────────────────────────────────────
+
+const IP_CAPACITY      = parseInt(process.env.RATE_IP_CAPACITY       ?? '300',  10);
+const IP_REFILL_MS     = parseInt(process.env.RATE_IP_REFILL_MS      ?? '60000',10);
+const USER_CAPACITY    = parseInt(process.env.RATE_USER_CAPACITY     ?? '1200', 10);
+const USER_REFILL_MS   = parseInt(process.env.RATE_USER_REFILL_MS    ?? '60000',10);
+const TENANT_CAPACITY  = parseInt(process.env.RATE_TENANT_CAPACITY   ?? '6000', 10);
+const TENANT_REFILL_MS = parseInt(process.env.RATE_TENANT_REFILL_MS  ?? '60000',10);
+const AUTH_CAPACITY    = parseInt(process.env.RATE_AUTH_CAPACITY     ?? '20',   10);
+const AUTH_REFILL_MS   = parseInt(process.env.RATE_AUTH_REFILL_MS    ?? '60000',10);
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ipOf(req: Request): string {
   const xff = req.headers['x-forwarded-for'];
@@ -72,29 +61,31 @@ function ipOf(req: Request): string {
   return req.ip || 'unknown';
 }
 
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
 /** Generic per-IP + per-user + per-tenant limiter. */
-export function rateLimit(req: Request, res: Response, next: NextFunction): void {
+export async function rateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
   const ip = ipOf(req);
   const user = (req as Request & { user?: { id?: string; role?: string; clubId?: string } }).user;
-  const userId   = user?.id;
-  const role     = user?.role;
-  const clubId   = user?.clubId ?? (req as Request & { clubId?: string }).clubId;
+  const userId = user?.id;
+  const role   = user?.role;
+  const clubId = user?.clubId ?? (req as Request & { clubId?: string }).clubId;
 
   if (role === 'SUPER_ADMIN') return next();
 
-  if (!take(ipBuckets, ip, IP_CAPACITY, IP_REFILL_MS)) {
+  if (!await Promise.resolve(store.take(`ip:${ip}`, IP_CAPACITY, IP_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, payload: { bucket: 'ip' } });
     res.status(429).json({ success: false, message: 'Too many requests (ip)', retryAfterMs: IP_REFILL_MS });
     return;
   }
-  if (userId && !take(userBuckets, userId, USER_CAPACITY, USER_REFILL_MS)) {
+  if (userId && !await Promise.resolve(store.take(`user:${userId}`, USER_CAPACITY, USER_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, payload: { bucket: 'user' } });
     res.status(429).json({ success: false, message: 'Too many requests (user)', retryAfterMs: USER_REFILL_MS });
     return;
   }
   // Tenant bucket — protects other tenants from one noisy club.
   // Only enforced once the request has been authenticated (clubId present).
-  if (clubId && !take(tenantBuckets, clubId, TENANT_CAPACITY, TENANT_REFILL_MS)) {
+  if (clubId && !await Promise.resolve(store.take(`tenant:${clubId}`, TENANT_CAPACITY, TENANT_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'WARN', ipAddress: ip, actorId: userId, clubId, payload: { bucket: 'tenant' } });
     res.status(429).json({ success: false, message: 'Too many requests for this club', retryAfterMs: TENANT_REFILL_MS });
     return;
@@ -103,9 +94,9 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
 }
 
 /** Tight bucket for /auth/* — gives credential-stuffing very little room. */
-export function rateLimitAuth(req: Request, res: Response, next: NextFunction): void {
+export async function rateLimitAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const ip = ipOf(req);
-  if (!take(authBuckets, ip, AUTH_CAPACITY, AUTH_REFILL_MS)) {
+  if (!await Promise.resolve(store.take(`auth:${ip}`, AUTH_CAPACITY, AUTH_REFILL_MS))) {
     logSecurityEvent({ kind: 'RATE_LIMITED', severity: 'CRITICAL', ipAddress: ip, payload: { bucket: 'auth' } });
     res.status(429).json({ success: false, message: 'Too many auth attempts. Try again later.', retryAfterMs: AUTH_REFILL_MS });
     return;
@@ -113,14 +104,13 @@ export function rateLimitAuth(req: Request, res: Response, next: NextFunction): 
   next();
 }
 
-/** Diagnostic for ops. */
+/** Diagnostic for ops endpoints. */
 export function rateLimitStats() {
+  const isRedis = store !== memoryStore;
   return {
-    ipBuckets:     ipBuckets.size,
-    userBuckets:   userBuckets.size,
-    tenantBuckets: tenantBuckets.size,
-    authBuckets:   authBuckets.size,
-    capacity:    { ip: IP_CAPACITY,    user: USER_CAPACITY,    tenant: TENANT_CAPACITY,    auth: AUTH_CAPACITY    },
-    refillMs:    { ip: IP_REFILL_MS,   user: USER_REFILL_MS,   tenant: TENANT_REFILL_MS,   auth: AUTH_REFILL_MS   },
+    store:     isRedis ? 'redis' : 'memory',
+    buckets:   isRedis ? 'n/a' : (store as typeof memoryStore).size,
+    capacity:  { ip: IP_CAPACITY,    user: USER_CAPACITY,    tenant: TENANT_CAPACITY,    auth: AUTH_CAPACITY    },
+    refillMs:  { ip: IP_REFILL_MS,   user: USER_REFILL_MS,   tenant: TENANT_REFILL_MS,   auth: AUTH_REFILL_MS   },
   };
 }

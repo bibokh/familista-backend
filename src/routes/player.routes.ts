@@ -34,4 +34,11 @@ router.delete('/:id/hard',      authorize('CLUB_ADMIN'),              ctrl.delet
 router.post('/:id/gps',         ctrl.addGpsData);
 router.post('/:id/ai-analysis', ctrl.analyzePlayer);
 
+// ── Performance / Attributes ─────────────────────────────────────────────
+// IMPORTANT: /performance/squad must be registered before /:id to prevent
+// Express matching "performance" as a dynamic :id segment.
+router.get('/performance/squad',  ctrl.getSquadPerformance);
+router.post('/:id/attributes',    authorize('CLUB_ADMIN', 'HEAD_COACH'), ctrl.recordAttributes);
+router.get('/:id/attributes',     ctrl.getAttributeHistory);
+
 export default router;

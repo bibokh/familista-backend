@@ -126,6 +126,18 @@ const http = require('http');
     probe('/api/v1/phase-p/finance/club-summary'),
     probe('/api/v1/phase-p/notifications/inbox'),
     probe('/api/v1/phase-p/notifications/inbox/counts'),
+    // Phase Q — football intelligence core
+    probe('/api/v1/phase-q/events/match/__probe__'),
+    probe('/api/v1/phase-q/stats/matches/__probe__'),
+    probe('/api/v1/phase-q/workload/injuries'),
+    probe('/api/v1/phase-q/video/assets'),
+    probe('/api/v1/phase-q/video/clips'),
+    probe('/api/v1/phase-q/video/playlists'),
+    probe('/api/v1/phase-q/transfer/reports'),
+    probe('/api/v1/phase-q/transfer/targets'),
+    probe('/api/v1/phase-q/transfer/pipeline'),
+    probe('/api/v1/phase-q/transfer/contracts-expiring'),
+    probe('/api/v1/phase-q/competitions'),
   ]);
 
   for (const p of probes) console.log(`[${p.status}] ${p.path} — ${p.body}`);

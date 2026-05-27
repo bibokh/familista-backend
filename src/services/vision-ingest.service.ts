@@ -197,6 +197,7 @@ export async function startIngest(
 ): Promise<{ job: VideoIngestJob; analysis: VisionAnalysisRun }> {
   const video = await prisma.videoAsset.findUnique({ where: { id: videoAssetId } });
   if (!video) throw new NotFoundError('Video asset not found');
+  if (!video.url) throw new BadRequestError('Video asset has no source URL');
 
   // Prevent duplicate active jobs for the same video.
   const active = await prisma.videoIngestJob.findFirst({

@@ -8,7 +8,7 @@
 import { Router } from 'express';
 
 import * as ctrl from '../controllers/franchise.controller';
-import { authenticate } from '../middleware/auth.middleware';
+import { authenticate, authorize } from '../middleware/auth.middleware';
 import { attachFranchiseContext, requireFranchiseContext } from '../middleware/franchise-access.middleware';
 
 const router = Router();
@@ -113,7 +113,7 @@ router.get('/units/:id/compliance/summary', ctrl.getComplianceSummary);
 router.get('/units/:id/performance', ctrl.getLivePerformance);
 router.post('/units/:id/performance/snapshot', ctrl.generateSnapshot);
 router.get('/units/:id/performance/snapshots', ctrl.listSnapshots);
-router.get('/network/health', ctrl.getNetworkHealth);
+router.get('/network/health', authorize('SUPER_ADMIN'), ctrl.getNetworkHealth);
 
 // ── Audit ───────────────────────────────────────────────────────────────────
 router.get('/audit', ctrl.searchAudit);

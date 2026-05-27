@@ -1,6 +1,44 @@
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import * as trainingService from '../services/training.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
+import { BadRequestError } from '../utils/errors';
+
+// Matches the DrillType enum in prisma/schema.prisma — no runtime Prisma dependency.
+const DRILLS = [
+  'TECHNICAL_PASSING', 'SPRINT_INTERVALS', 'SHOOTING_PRACTICE', 'DEFENSIVE_SHAPE',
+  'TRANSITION_PLAY', 'RECOVERY', 'SET_PIECES', 'POSSESSION', 'PRESSING', 'CUSTOM',
+] as const;
+
+const DATE_OR_ISO = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}/));
+
+const createSchema = z.object({
+  body: z.object({
+    title:       z.string().trim().min(1).max(200),
+    description: z.string().max(4000).optional(),
+    scheduledAt: DATE_OR_ISO,
+    duration:    z.number().int().min(1).max(480),
+    drills:      z.array(z.enum(DRILLS)).optional(),
+    playerIds:   z.array(z.string().uuid()).optional(),
+  }),
+});
+
+const updateSchema = z.object({
+  body: z.object({
+    title:       z.string().trim().min(1).max(200).optional(),
+    description: z.string().max(4000).optional(),
+    scheduledAt: DATE_OR_ISO.optional(),
+    duration:    z.number().int().min(1).max(480).optional(),
+    drills:      z.array(z.enum(DRILLS)).optional(),
+    playerIds:   z.array(z.string().uuid()).optional(),
+  }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
+});
+
+function zerr(err: z.ZodError): BadRequestError {
+  return new BadRequestError(
+    err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
+  );
+}
 
 export async function getSessions(req: Request, res: Response, next: NextFunction) {
   try {
@@ -22,14 +60,18 @@ export async function getSession(req: Request, res: Response, next: NextFunction
 
 export async function createSession(req: Request, res: Response, next: NextFunction) {
   try {
-    const session = await trainingService.createTrainingSession(req.user!.clubId, req.body);
+    const parsed = createSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const session = await trainingService.createTrainingSession(req.user!.clubId, parsed.data.body);
     return sendCreated(res, session, 'Training session created');
   } catch (err) { return next(err); }
 }
 
 export async function updateSession(req: Request, res: Response, next: NextFunction) {
   try {
-    const session = await trainingService.updateTrainingSession(req.params.id, req.user!.clubId, req.body);
+    const parsed = updateSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const session = await trainingService.updateTrainingSession(req.params.id, req.user!.clubId, parsed.data.body);
     return sendSuccess(res, session, 'Training session updated');
   } catch (err) { return next(err); }
 }

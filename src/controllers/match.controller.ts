@@ -31,6 +31,15 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   body: z.object({
+    // Fixture details (editable post-creation)
+    homeTeam:        z.string().trim().min(1).max(120).optional(),
+    awayTeam:        z.string().trim().min(1).max(120).optional(),
+    isHome:          z.boolean().optional(),
+    competition:     z.enum(COMPETITION).optional(),
+    competitionName: z.string().trim().max(200).nullable().optional(),
+    venue:           z.string().trim().max(200).nullable().optional(),
+    scheduledAt:     DATE_OR_ISO.optional(),
+    // Live / post-match stats
     homeScore:     z.number().int().min(0).max(99).optional(),
     awayScore:     z.number().int().min(0).max(99).optional(),
     result:        z.enum(RESULT).optional(),
@@ -143,7 +152,7 @@ export async function updateMatch(req: Request, res: Response, next: NextFunctio
   try {
     const parsed = updateSchema.safeParse({ body: req.body });
     if (!parsed.success) throw zerr(parsed.error);
-    const m = await matchService.updateMatch(actorOf(req), req.params.id, parsed.data.body);
+    const m = await matchService.updateMatch(actorOf(req), req.params.id, parsed.data.body as matchService.UpdateMatchDto);
     return sendSuccess(res, m, 'Match updated');
   } catch (err) { return next(err); }
 }

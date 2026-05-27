@@ -60,12 +60,13 @@ export function errorHandler(
   }
 
   // Unknown / programming errors
+  // NOTE: req.body is intentionally omitted — it can contain plaintext passwords
+  // (e.g. a failed login when the DB is down) and must never reach the log sink.
   logger.error('Unexpected error', {
     message: err.message,
     stack: err.stack,
     path: req.path,
     method: req.method,
-    body: req.body,
   });
 
   res.status(500).json({

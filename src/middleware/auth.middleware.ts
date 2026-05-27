@@ -20,12 +20,19 @@ export async function authenticate(
   next: NextFunction
 ): Promise<void> {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    // Cookie-first: prefer HttpOnly access_token cookie (browser SPA).
+    // Fall back to Authorization: Bearer <token> for API clients and WebSocket.
+    const cookieToken = (req.cookies as Record<string, string> | undefined)?.access_token;
+    const authHeader  = req.headers.authorization;
+
+    let token: string;
+    if (cookieToken) {
+      token = cookieToken;
+    } else if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.slice(7);
+    } else {
       throw new UnauthorizedError('No token provided');
     }
-
-    const token = authHeader.slice(7);
     let payload: JwtPayload;
 
     try {

@@ -11,7 +11,7 @@ services:
     plan: standard
     branch: main
     autoDeploy: true
-    buildCommand: npm install && npx prisma migrate deploy && npx prisma generate && npm run build
+    buildCommand: npm install && npx prisma migrate deploy --schema=prisma/schema.prisma && npx prisma generate --schema=prisma/schema.prisma && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
@@ -39,6 +39,12 @@ services:
       - key: JWT_ISSUER
         value: familista
 
+      # ── MFA encryption ──────────────────────────────────────────────────
+      # Distinct from JWT secrets. Must be set before any user enables MFA.
+      # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
+
       # ── Rate limit ──────────────────────────────────────────────────────
       - key: RATE_LIMIT_WINDOW_MS
         value: "60000"
@@ -51,9 +57,23 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
 
-      # ── Mail ────────────────────────────────────────────────────────────
-      - key: MAIL_DEFAULT_FROM
-        value: no-reply@familista.app
+      # ── Mail / Password Reset ────────────────────────────────────────────
+      - key: EMAIL_FROM
+        value: noreply@familista.app
+      - key: EMAIL_FROM_NAME
+        value: Familista
+      - key: APP_URL
+        sync: false      # set to your public frontend URL, e.g. https://app.familista.com
+      - key: SENDGRID_API_KEY
+        sync: false      # set to enable transactional email via SendGrid
+      - key: SMTP_HOST
+        sync: false      # alternative: SMTP transport
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
 
       # ── AI Decision Engine (optional Claude narratives) ─────────────────
       - key: ANTHROPIC_API_KEY

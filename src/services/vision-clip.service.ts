@@ -24,6 +24,7 @@ export async function requestClip(
 ): Promise<Clip> {
   const video = await prisma.videoAsset.findUnique({ where: { id: input.videoAssetId } });
   if (!video) throw new NotFoundError('Video asset not found');
+  if (!video.url) throw new BadRequestError('Video asset has no source URL');
   if (input.endMs <= input.startMs) throw new BadRequestError('endMs must be greater than startMs');
 
   const adapter = getClipAdapter();
@@ -78,6 +79,7 @@ export async function generateHighlights(
 ): Promise<{ requested: number; clips: Clip[] }> {
   const video = await prisma.videoAsset.findUnique({ where: { id: input.videoAssetId } });
   if (!video) throw new NotFoundError('Video asset not found');
+  if (!video.url) throw new BadRequestError('Video asset has no source URL');
 
   const events = await prisma.matchEvent.findMany({
     where: {

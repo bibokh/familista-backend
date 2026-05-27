@@ -42,6 +42,12 @@ import phaseNRoutes       from './phase-n.routes';
 import phaseORoutes       from './phase-o.routes';
 // Phase P — Real-launch layer (status rollup + attendance reports + payer balance + in-app inbox + FC Familista seed)
 import phasePRoutes       from './phase-p.routes';
+// Phase Q — Football Intelligence Core (match events + xG + player stats + workload + video + transfer + competition)
+import phaseQRoutes       from './phase-q.routes';
+// Phase S — Enterprise Football Intelligence Platform (Video + AI + Realtime + Sensors + Multi-Club + Big Data)
+import intelligenceRoutes from './intelligence.routes';
+// Phase 7 — Scouting & Recruitment Center
+import scoutingRoutes from './scouting.routes';
 
 const router = Router();
 
@@ -78,6 +84,9 @@ router.use('/phase-m',     phaseMRoutes);
 router.use('/phase-n',     phaseNRoutes);
 router.use('/phase-o',     phaseORoutes);
 router.use('/phase-p',     phasePRoutes);
+router.use('/phase-q',     phaseQRoutes);
+router.use('/phase-s/intelligence', intelligenceRoutes);
+router.use('/scouting',            scoutingRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

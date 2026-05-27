@@ -14,6 +14,7 @@ import {
   MedicalStatus,
   PaymentStatus,
   PlayerAuditAction,
+  PlayerAttribute,
   Prisma,
 } from '@prisma/client';
 import { prisma } from '../config/database';
@@ -533,4 +534,109 @@ export async function getPlayerAudit(
     prisma.playerAuditLog.count({ where }),
   ]);
   return { items: rows, total, page, limit };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Performance / Player Attributes
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface AttributeDto {
+  speed?:     number; // stored as pace
+  agility?:   number;
+  stamina?:   number;
+  strength?:  number;
+  balance?:   number;
+  reaction?:  number; // stored as reflexes
+  technique?: number; // stored as dribbling
+  passing?:   number;
+  shooting?:  number;
+  defending?: number; // stored as tackling
+}
+
+function mapAttr(a: PlayerAttribute) {
+  return {
+    id:        a.id,
+    playerId:  a.playerId,
+    recordedAt:a.recordedAt,
+    speed:     a.pace,
+    agility:   a.agility,
+    stamina:   a.stamina,
+    strength:  a.strength,
+    balance:   a.balance,
+    reaction:  a.reflexes,
+    technique: a.dribbling,
+    passing:   a.passing,
+    shooting:  a.shooting,
+    defending: a.tackling,
+  };
+}
+
+export async function recordPlayerAttributes(
+  actor: PlayerActor,
+  playerId: string,
+  dto: AttributeDto,
+): Promise<ReturnType<typeof mapAttr>> {
+  const player = await prisma.player.findUnique({
+    where:  { id: playerId },
+    select: { clubId: true },
+  });
+  if (!player) throw new NotFoundError('Player');
+  if (player.clubId !== actor.clubId) throw new ForbiddenError();
+
+  const attr = await prisma.playerAttribute.create({
+    data: {
+      playerId,
+      pace:      dto.speed     ?? null,
+      agility:   dto.agility   ?? null,
+      stamina:   dto.stamina   ?? null,
+      strength:  dto.strength  ?? null,
+      balance:   dto.balance   ?? null,
+      reflexes:  dto.reaction  ?? null,
+      dribbling: dto.technique ?? null,
+      passing:   dto.passing   ?? null,
+      shooting:  dto.shooting  ?? null,
+      tackling:  dto.defending ?? null,
+    },
+  });
+  return mapAttr(attr);
+}
+
+export async function getPlayerAttributeHistory(
+  actor: PlayerActor,
+  playerId: string,
+): Promise<ReturnType<typeof mapAttr>[]> {
+  const player = await prisma.player.findUnique({
+    where:  { id: playerId },
+    select: { clubId: true },
+  });
+  if (!player) throw new NotFoundError('Player');
+  if (player.clubId !== actor.clubId) throw new ForbiddenError();
+
+  const attrs = await prisma.playerAttribute.findMany({
+    where:   { playerId },
+    orderBy: { recordedAt: 'desc' },
+  });
+  return attrs.map(mapAttr);
+}
+
+export async function getSquadPerformance(clubId: string) {
+  const players = await prisma.player.findMany({
+    where: { clubId, isActive: true },
+    select: {
+      id: true, firstName: true, lastName: true,
+      number: true, position: true, overallRating: true, avatar: true,
+      attributes: { orderBy: { recordedAt: 'desc' }, take: 1 },
+    },
+    orderBy: { overallRating: 'desc' },
+  });
+  return players.map((p) => ({
+    id:            p.id,
+    firstName:     p.firstName,
+    lastName:      p.lastName,
+    number:        p.number,
+    position:      p.position,
+    overallRating: p.overallRating,
+    avatar:        p.avatar,
+    attributes:    p.attributes[0] ? mapAttr(p.attributes[0]) : null,
+  }));
 }

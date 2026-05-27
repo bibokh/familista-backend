@@ -2,7 +2,8 @@
 // ─────────────────────────────────────────────────────────────────────────
 // RFC 6238 TOTP using built-in `crypto` (HMAC-SHA1, 30-sec step, 6 digits).
 // No external dependencies. Secret is base32-encoded, stored encrypted with
-// a key derived from `config.jwt.secret` (AES-GCM via createCipheriv).
+// a key derived from `config.mfa.encryptionKey` (AES-GCM via createCipheriv).
+// The encryption key MUST be distinct from JWT secrets — set MFA_ENCRYPTION_KEY.
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { MFAChallenge, MfaMethod, MFASetting, Prisma } from '@prisma/client';
@@ -95,11 +96,16 @@ function constantTimeEq(a: string, b: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Secret encryption (AES-256-GCM) — key derived from jwt.secret
+// Secret encryption (AES-256-GCM) — key derived from MFA_ENCRYPTION_KEY.
+// Deliberately separate from JWT secrets: rotating JWT_ACCESS_SECRET must
+// never corrupt stored TOTP seeds. Set MFA_ENCRYPTION_KEY before any user
+// enables MFA — the service throws at call time if the key is absent.
 // ─────────────────────────────────────────────────────────────────────────
 
 function deriveAesKey(): Buffer {
-  return createHash('sha256').update(config.jwt.secret + ':mfa:v1').digest();
+  const raw = config.mfa.encryptionKey;
+  if (!raw) throw new Error('Missing required env variable: MFA_ENCRYPTION_KEY');
+  return createHash('sha256').update(raw + ':mfa:v1').digest();
 }
 
 function encryptSecret(base32: string): string {

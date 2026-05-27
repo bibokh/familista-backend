@@ -1636,9 +1636,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Scouting</span>
       </div>
+      <div class="nav-item" onclick="navTo('video',this)" data-page="video">
+        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
+        <span class="nav-label">Video</span>
+      </div>
       <div class="nav-item" onclick="navTo('ai',this)" data-page="ai">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/><path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z"/></svg>
         <span class="nav-label">AI Analyst</span>
+      </div>
+      <div class="nav-item" onclick="navTo('transfer',this)" data-page="transfer">
+        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M8 5a1 1 0 000 2h5.586l-1.293 1.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L13.586 5H8zM12 15a1 1 0 100-2H6.414l1.293-1.293a1 1 0 10-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L6.414 15H12z"/></svg>
+        <span class="nav-label">Transfer Intel</span>
       </div>
       <div class="nav-section">Quantum Intelligence</div>
       <div class="nav-item" onclick="navTo('quantum',this)" data-page="quantum">
@@ -2553,7 +2561,7 @@ function navTo(page, el) {
   const titles = {
     dashboard:'Dashboard', squad:'Squad', matches:'Matches', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
-    medical:'Medical', scouting:'Scouting', finances:'Finances', devices:'GPS Devices',
+    medical:'Medical', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', finances:'Finances', devices:'GPS Devices',
     club:'Club', settings:'Settings', 'tactical-os':'Tactical OS'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
@@ -2562,6 +2570,8 @@ function navTo(page, el) {
   if (page === 'analytics')   renderAnalyticsPage();
   if (page === 'medical')     loadMedicalData();
   if (page === 'scouting')    loadScoutingData();
+  if (page === 'video')       loadVideoIntelData();
+  if (page === 'transfer')    loadTransferData();
   if (page === 'finances')    loadFinancesData();
   if (page === 'devices')     loadDevicesData();
   if (page === 'club')        loadClubData();
@@ -2675,6 +2685,8 @@ function renderAllPages() {
     ${renderTrainingHTML()}
     ${renderMedicalHTML()}
     ${renderScoutingHTML()}
+    ${renderVideoHTML()}
+    ${renderTransferHTML()}
     ${renderFinancesHTML()}
     ${renderDevicesHTML()}
     ${renderClubHTML()}
@@ -5456,77 +5468,2684 @@ async function loadMedicalData() {
   }
 }
 
-// ── SCOUTING ──
+// ── SCOUTING & RECRUITMENT CENTER ────────────────────────────────────────────
+
+const ScoutingAPI = {
+  dashboard()             { return FamilistaAPI.get('/scouting/dashboard'); },
+  list(params)            { const q = new URLSearchParams(params||{}).toString(); return FamilistaAPI.get('/scouting' + (q ? '?' + q : '')); },
+  get(id)                 { return FamilistaAPI.get('/scouting/' + id); },
+  create(body)            { return FamilistaAPI.post('/scouting', body); },
+  update(id, body)        { return FamilistaAPI.patch('/scouting/' + id, body); },
+  delete(id)              { return FamilistaAPI.delete('/scouting/' + id); },
+  pipeline()              { return FamilistaAPI.get('/scouting/pipeline'); },
+  advancePipeline(id, st) { return FamilistaAPI.patch('/scouting/' + id + '/pipeline', { status: st }); },
+  watchlist(cat)          { return FamilistaAPI.get('/scouting/watchlist' + (cat ? '?category=' + cat : '')); },
+  updateWatchlist(id, b)  { return FamilistaAPI.patch('/scouting/' + id + '/watchlist', b); },
+  compare(a, b)           { return FamilistaAPI.get('/scouting/compare?prospectA=' + a + '&prospectB=' + b); },
+};
+
+// State
+var _scoutTab        = 'dashboard';
+var _scoutDashboard  = null;
+var _scoutProspects  = [];
+var _scoutTotal      = 0;
+var _scoutPipeline   = {};
+var _scoutWatchlist  = [];
+var _scoutLoading    = false;
+var _scoutDetail     = null;   // currently open prospect
+var _scoutCompareA   = null;
+var _scoutCompareB   = null;
+var _scoutCompareResult = null;
+var _scoutModalMode  = 'create'; // 'create' | 'edit'
+var _scoutEditId     = null;
+
+const SCOUT_STAGES = ['IDENTIFIED','SCOUTED','REVIEWED','NEGOTIATION','TRIAL','APPROVED','SIGNED','REJECTED'];
+const SCOUT_STAGE_COLOR = {
+  IDENTIFIED:'var(--tx-3)', SCOUTED:'#60a5fa', REVIEWED:'var(--amber)',
+  NEGOTIATION:'#c084fc', TRIAL:'var(--orange)', APPROVED:'var(--green-l)',
+  SIGNED:'var(--green-l)', REJECTED:'var(--red)',
+};
+const SCOUT_REC_COLOR = {
+  PRIORITY_TARGET:'var(--green-l)', STRONG_TARGET:'#60a5fa',
+  INTERESTING:'var(--amber)', MONITOR:'var(--tx-2)', REJECT:'var(--red)',
+};
+
+function _scFmt(v, suffix) { return (v != null && v !== '') ? v + (suffix||'') : '—'; }
+function _scRating(v) {
+  if (v == null) return '<span style="color:var(--tx-3)">—</span>';
+  var c = v >= 80 ? 'var(--green-l)' : v >= 65 ? '#60a5fa' : v >= 50 ? 'var(--amber)' : 'var(--red)';
+  return '<span style="color:' + c + ';font-weight:700;font-family:var(--mono);">' + v + '</span>';
+}
+function _scRecBadge(rec) {
+  if (!rec) return '';
+  var c = SCOUT_REC_COLOR[rec] || 'var(--tx-3)';
+  var label = rec.replace(/_/g,' ');
+  return '<span style="font-size:9px;font-weight:700;font-family:var(--mono);color:' + c + ';text-transform:uppercase;letter-spacing:.5px;">' + label + '</span>';
+}
+function _scStageBadge(s) {
+  var c = SCOUT_STAGE_COLOR[s] || 'var(--tx-3)';
+  return '<span style="font-size:9px;font-weight:700;font-family:var(--mono);color:' + c + ';text-transform:uppercase;letter-spacing:.5px;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,.05);">' + s + '</span>';
+}
+function _scBar(v, color) {
+  if (v == null) return '<div style="height:4px;background:var(--bd);border-radius:2px;width:100%;"></div>';
+  var c = color || (v >= 80 ? 'var(--green-l)' : v >= 65 ? '#60a5fa' : v >= 50 ? 'var(--amber)' : 'var(--red)');
+  return '<div style="height:4px;background:var(--bd);border-radius:2px;width:100%;"><div style="height:4px;background:' + c + ';border-radius:2px;width:' + v + '%;"></div></div>';
+}
+
+// ── HTML skeleton ─────────────────────────────────────────────────────────────
+
 function renderScoutingHTML() {
   return `<div class="page" id="pg-scouting">
-  <div class="scout-layout">
-    <div class="scout-main">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-        <div><div style="font-size:15px;font-weight:700;color:var(--tx);">Transfer Targets</div><div style="font-size:12px;color:var(--tx-3);" id="scout-sub">Loading...</div></div>
-        <div style="display:flex;gap:7px;">
-          <input class="input" placeholder="Search players..." style="width:170px;">
-          <button class="btn btn-primary btn-sm">+ Add Target</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <div style="font-size:15px;font-weight:700;color:var(--tx);">Scouting &amp; Recruitment</div>
+      <div style="font-size:12px;color:var(--tx-3);" id="scout-sub">Loading...</div>
+    </div>
+    <div style="display:flex;gap:7px;align-items:center;">
+      <div class="filter-group" id="scout-tabs">
+        <button class="filter-btn active" data-action="scoutTab" data-tab="dashboard">Dashboard</button>
+        <button class="filter-btn" data-action="scoutTab" data-tab="prospects">Prospects</button>
+        <button class="filter-btn" data-action="scoutTab" data-tab="watchlist">Watchlist</button>
+        <button class="filter-btn" data-action="scoutTab" data-tab="pipeline">Pipeline</button>
+        <button class="filter-btn" data-action="scoutTab" data-tab="compare">Compare</button>
+      </div>
+      <button class="btn btn-primary btn-sm" data-action="openScoutModal">+ Add Prospect</button>
+    </div>
+  </div>
+  <div id="scout-body">${loadingHTML('Loading scouting data...')}</div>
+
+  <!-- Prospect modal -->
+  <div id="scout-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;align-items:center;justify-content:center;">
+    <div style="background:var(--card);border-radius:12px;padding:22px;width:540px;max-width:94vw;border:1px solid var(--bd);max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;color:var(--tx);" id="scout-modal-title">Add Prospect</div>
+        <button class="btn btn-ghost btn-xs" data-action="closeScoutModal">✕</button>
+      </div>
+      <form id="scout-form" data-form-submit="submitScoutForm">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Player Name *</label><input id="sp-name" class="input" placeholder="Full name" style="width:100%;" required></div>
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Position *</label>
+            <select id="sp-pos" class="input" style="width:100%;" required>
+              <option value="">Select...</option>
+              <option>GK</option><option>CB</option><option>LB</option><option>RB</option>
+              <option>DM</option><option>CM</option><option>AM</option><option>LW</option><option>RW</option><option>ST</option><option>CF</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Age</label><input id="sp-age" class="input" type="number" min="14" max="45" placeholder="23" style="width:100%;"></div>
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Nationality</label><input id="sp-nat" class="input" placeholder="e.g. Brazil" style="width:100%;"></div>
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Pref. Foot</label>
+            <select id="sp-foot" class="input" style="width:100%;"><option value="">—</option><option>RIGHT</option><option>LEFT</option><option>BOTH</option></select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Current Club</label><input id="sp-club" class="input" placeholder="e.g. FC Porto" style="width:100%;"></div>
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">League</label><input id="sp-league" class="input" placeholder="e.g. Primeira Liga" style="width:100%;"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Market Value (€)</label><input id="sp-val" class="input" type="number" min="0" placeholder="5000000" style="width:100%;"></div>
+          <div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Agent</label><input id="sp-agent" class="input" placeholder="Agent name" style="width:100%;"></div>
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin:14px 0 8px;">Technical Attributes (1–100)</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Pace</label><input id="sp-pace" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Acceleration</label><input id="sp-accel" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Agility</label><input id="sp-agility" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Dribbling</label><input id="sp-drib" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Ball Control</label><input id="sp-bc" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Passing</label><input id="sp-pass" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Vision</label><input id="sp-vision" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Finishing</label><input id="sp-fin" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Tackling</label><input id="sp-tack" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px;">Physical &amp; Mental</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Strength</label><input id="sp-str" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Stamina</label><input id="sp-stam" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Work Rate</label><input id="sp-wr" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Leadership</label><input id="sp-lead" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Discipline</label><input id="sp-disc" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+          <div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:2px;">Composure</label><input id="sp-comp" class="input" type="number" min="1" max="100" style="width:100%;"></div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Scout Notes / Comments</label>
+          <textarea id="sp-notes" class="input" rows="2" placeholder="Key observations..." style="width:100%;resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <div id="scout-form-err" style="display:none;padding:8px 10px;background:var(--red-bg);border-radius:6px;font-size:11px;color:var(--red);margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" class="btn btn-ghost btn-sm" data-action="closeScoutModal">Cancel</button>
+          <button type="submit" id="scout-submit-btn" class="btn btn-primary btn-sm">Save Prospect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>`;
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function setScoutTab(tab) {
+  _scoutTab = tab;
+  document.querySelectorAll('#scout-tabs .filter-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  _renderScoutBody();
+}
+
+function _renderScoutBody() {
+  var el = document.getElementById('scout-body');
+  if (!el) return;
+  if (_scoutTab === 'dashboard') _renderScoutDashboard(el);
+  else if (_scoutTab === 'prospects') _renderScoutProspects(el);
+  else if (_scoutTab === 'watchlist') _renderScoutWatchlist(el);
+  else if (_scoutTab === 'pipeline')  _renderScoutPipeline(el);
+  else if (_scoutTab === 'compare')   _renderScoutCompare(el);
+}
+
+// ── Dashboard tab ─────────────────────────────────────────────────────────────
+
+function _renderScoutDashboard(el) {
+  if (!_scoutDashboard) { el.innerHTML = loadingHTML('Loading dashboard...'); return; }
+  var d = _scoutDashboard;
+  var kpis = d.kpis || {};
+  var posDist  = d.positionDistribution  || [];
+  var recDist  = d.potentialDistribution || [];
+  var pipeline = d.pipeline              || {};
+
+  var kpiCards = [
+    { label:'Total Prospects', value: kpis.total || 0, icon:'👥', color:'#60a5fa' },
+    { label:'Priority Targets', value: kpis.priorityTargets || 0, icon:'🎯', color:'var(--green-l)' },
+    { label:'High Potential (80+)', value: kpis.highPotential || 0, icon:'⚡', color:'var(--amber)' },
+    { label:'Watchlist', value: kpis.watchlistCount || 0, icon:'⭐', color:'#c084fc' },
+    { label:'Active Pipeline', value: kpis.pipelineActive || 0, icon:'🔄', color:'var(--orange)' },
+    { label:'Signed', value: kpis.signed || 0, icon:'✅', color:'var(--green-l)' },
+  ].map(function(k) {
+    return '<div class="card" style="padding:13px 14px;">'
+      + '<div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;">' + k.icon + ' ' + k.label + '</div>'
+      + '<div style="font-size:22px;font-weight:700;color:' + k.color + ';font-family:var(--mono);">' + k.value + '</div>'
+      + '</div>';
+  }).join('');
+
+  var posHtml = posDist.length ? posDist.slice(0, 8).map(function(p) {
+    var pct = kpis.total ? Math.round(p.count / kpis.total * 100) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">'
+      + '<span class="pos-pill ' + posClass(p.position) + '" style="min-width:34px;text-align:center;">' + p.position + '</span>'
+      + '<div style="flex:1;">' + _scBar(pct, '#60a5fa') + '</div>'
+      + '<span style="font-size:10px;color:var(--tx-3);font-family:var(--mono);min-width:26px;text-align:right;">' + p.count + '</span>'
+      + '</div>';
+  }).join('') : '<div style="font-size:11px;color:var(--tx-3);">No data yet.</div>';
+
+  var recHtml = recDist.length ? recDist.map(function(r) {
+    var c = SCOUT_REC_COLOR[r.recommendation] || 'var(--tx-3)';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+      + '<span style="font-size:10px;color:' + c + ';font-weight:600;">' + (r.recommendation||'—').replace(/_/g,' ') + '</span>'
+      + '<span style="font-size:11px;font-weight:700;color:var(--tx);font-family:var(--mono);">' + r.count + '</span>'
+      + '</div>';
+  }).join('') : '<div style="font-size:11px;color:var(--tx-3);">No ratings yet.</div>';
+
+  var pipelineHtml = SCOUT_STAGES.filter(function(s){ return s !== 'REJECTED'; }).map(function(s) {
+    var cnt = pipeline[s] || 0;
+    var c   = SCOUT_STAGE_COLOR[s] || 'var(--tx-3)';
+    return '<div style="text-align:center;padding:8px 6px;border-radius:6px;background:var(--bg);border:1px solid var(--bd);">'
+      + '<div style="font-size:18px;font-weight:700;color:' + c + ';font-family:var(--mono);">' + cnt + '</div>'
+      + '<div style="font-size:8px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">' + s + '</div>'
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;">' + kpiCards + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;">Position Distribution</div>'
+    + posHtml + '</div>'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;">Recommendation Breakdown</div>'
+    + recHtml + '</div></div>'
+    + '<div class="card" style="padding:14px;margin-top:14px;">'
+    + '<div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;">Pipeline Stages</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">' + pipelineHtml + '</div>'
+    + '</div>';
+}
+
+// ── Prospects tab ─────────────────────────────────────────────────────────────
+
+function _renderScoutProspects(el) {
+  if (_scoutLoading) { el.innerHTML = loadingHTML('Loading prospects...'); return; }
+  var prospects = _scoutProspects;
+  var sub = document.getElementById('scout-sub');
+  if (sub) sub.textContent = _scoutTotal + ' prospect' + (_scoutTotal !== 1 ? 's' : '') + ' total';
+
+  if (!prospects.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">🔍</div><div class="empty-ttl">No prospects yet</div><div class="empty-sub">Click "+ Add Prospect" to start building your scouting database.</div></div>';
+    return;
+  }
+
+  var rows = prospects.map(function(p) {
+    var mv = p.marketValueEur != null ? '€' + (p.marketValueEur/1e6).toFixed(1) + 'M' : '—';
+    return '<tr style="cursor:pointer;" data-action="openScoutDetail" data-id="' + p.id + '">'
+      + '<td style="font-weight:600;color:var(--tx);">' + p.playerName + '</td>'
+      + '<td><span class="pos-pill ' + posClass(p.position) + '">' + p.position + '</span></td>'
+      + '<td style="color:var(--tx-2);">' + _scFmt(p.age) + '</td>'
+      + '<td style="color:var(--tx-2);">' + _scFmt(p.nationality) + '</td>'
+      + '<td style="color:var(--tx-3);font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _scFmt(p.currentClub) + '</td>'
+      + '<td>' + _scRating(p.currentRating) + '</td>'
+      + '<td>' + _scRating(p.potentialRating) + '</td>'
+      + '<td>' + _scRecBadge(p.recommendation) + '</td>'
+      + '<td>' + _scStageBadge(p.status) + '</td>'
+      + '<td style="color:var(--tx-3);font-family:var(--mono);font-size:11px;">' + mv + '</td>'
+      + '</tr>';
+  }).join('');
+
+  el.innerHTML = '<div class="card" style="overflow:hidden;">'
+    + '<table class="tbl" style="width:100%;">'
+    + '<thead><tr><th>Name</th><th>Pos</th><th>Age</th><th>Nationality</th><th>Club</th><th>Rating</th><th>Potential</th><th>Recommendation</th><th>Stage</th><th>Market Val</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── Prospect detail (inline drawer) ──────────────────────────────────────────
+
+async function openScoutDetail(prospectId) {
+  var bodyEl = document.getElementById('scout-body');
+  if (bodyEl) bodyEl.innerHTML = loadingHTML('Loading prospect...');
+  try {
+    var p = await ScoutingAPI.get(prospectId);
+    _scoutDetail = p;
+    _renderScoutDetailView(bodyEl, p);
+  } catch (err) {
+    if (bodyEl) bodyEl.innerHTML = '<div class="empty"><div class="empty-ico">⚠️</div><div class="empty-ttl">Could not load prospect</div></div>';
+  }
+}
+
+function _renderScoutDetailView(el, p) {
+  if (!el || !p) return;
+  var mv    = p.marketValueEur != null ? '€' + (p.marketValueEur/1e6).toFixed(1) + 'M' : '—';
+  var techAttrs = [
+    ['Pace',p.pace],['Acceleration',p.acceleration],['Agility',p.agility],
+    ['Dribbling',p.dribbling],['Ball Control',p.ballControl],['Passing',p.passing],
+    ['Vision',p.vision],['Finishing',p.finishing],['Tackling',p.tackling],
+    ['Heading',p.heading],['Shooting',p.shooting],['Composure',p.composure],
+    ['Decision Making',p.decisionMaking],['Positioning',p.positioning],['Crossing',p.crossing],
+  ];
+  var physAttrs = [
+    ['Strength',p.strength],['Stamina',p.stamina],['Endurance',p.endurance],
+    ['Balance',p.balance],['Mobility',p.mobility],['Explosiveness',p.explosiveness],
+  ];
+  var mentAttrs = [
+    ['Leadership',p.leadership],['Discipline',p.discipline],['Concentration',p.concentration],
+    ['Work Rate',p.workRate],['Determination',p.determination],['Professionalism',p.professionalism],['Coachability',p.coachability],
+  ];
+  var fitAttrs = [
+    ['GK',p.fitGK],['CB',p.fitCB],['FB',p.fitFB],['DM',p.fitDM],
+    ['CM',p.fitCM],['AM',p.fitAM],['Winger',p.fitWinger],['Striker',p.fitStriker],
+  ];
+
+  function attrBlock(attrs) {
+    return attrs.map(function(a) {
+      return '<div style="margin-bottom:6px;">'
+        + '<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+        + '<span style="font-size:10px;color:var(--tx-3);">' + a[0] + '</span>'
+        + '<span style="font-size:10px;font-family:var(--mono);color:var(--tx);">' + (a[1] != null ? a[1] : '—') + '</span>'
+        + '</div>'
+        + _scBar(a[1])
+        + '</div>';
+    }).join('');
+  }
+
+  var riskMap = { LOW:'var(--green-l)', MEDIUM:'var(--amber)', HIGH:'var(--red)' };
+  function riskPill(v) {
+    var c = riskMap[v] || 'var(--tx-3)';
+    return '<span style="font-size:9px;font-weight:700;color:' + c + ';font-family:var(--mono);">' + (v||'—') + '</span>';
+  }
+
+  var NEXT_STAGE_MAP = { IDENTIFIED:'SCOUTED', SCOUTED:'REVIEWED', REVIEWED:'NEGOTIATION', NEGOTIATION:'TRIAL', TRIAL:'APPROVED', APPROVED:'SIGNED' };
+  var nextStage = NEXT_STAGE_MAP[p.status];
+
+  el.innerHTML = '<div style="margin-bottom:14px;display:flex;align-items:center;gap:8px;">'
+    + '<button class="btn btn-ghost btn-sm" data-action="scoutTab" data-tab="prospects">← Back</button>'
+    + '<span style="color:var(--tx-3);">/</span>'
+    + '<span style="font-size:13px;font-weight:600;color:var(--tx);">' + p.playerName + '</span>'
+    + '<span style="margin-left:auto;display:flex;gap:6px;">'
+    + '<button class="btn btn-outline btn-sm" data-action="editScoutProspect" data-id="' + p.id + '">Edit</button>'
+    + (nextStage ? '<button class="btn btn-primary btn-sm" data-action="scoutAdvancePipeline" data-id="' + p.id + '" data-stage="' + nextStage + '">→ ' + nextStage + '</button>' : '')
+    + '<button class="btn btn-ghost btn-sm" data-action="toggleScoutWatchlist" data-id="' + p.id + '" data-current="' + p.isOnWatchlist + '">'
+    + (p.isOnWatchlist ? '⭐ On Watchlist' : '☆ Add to Watchlist') + '</button>'
+    + '</span>'
+    + '</div>'
+
+    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;">'
+    + '<div>'
+    + '<div class="card" style="padding:14px;margin-bottom:12px;">'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:4px;">'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Position</div><div style="font-size:13px;font-weight:700;color:var(--tx);">' + p.position + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Age</div><div style="font-size:13px;font-weight:700;color:var(--tx);">' + _scFmt(p.age) + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Nationality</div><div style="font-size:13px;font-weight:700;color:var(--tx);">' + _scFmt(p.nationality) + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Club</div><div style="font-size:13px;font-weight:700;color:var(--tx);">' + _scFmt(p.currentClub) + '</div></div>'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Rating</div><div>' + _scRating(p.currentRating) + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Potential</div><div>' + _scRating(p.potentialRating) + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Market Val</div><div style="font-size:13px;font-weight:700;color:var(--amber);font-family:var(--mono);">' + mv + '</div></div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;">Status</div><div>' + _scStageBadge(p.status) + '</div></div>'
+    + '</div></div>'
+
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">'
+    + '<div class="card" style="padding:12px;"><div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Technical</div>' + attrBlock(techAttrs) + '</div>'
+    + '<div class="card" style="padding:12px;"><div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Physical</div>' + attrBlock(physAttrs) + '</div>'
+    + '<div class="card" style="padding:12px;"><div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Mental</div>' + attrBlock(mentAttrs) + '</div>'
+    + '</div></div>'
+
+    + '<div>'
+    + '<div class="card" style="padding:14px;margin-bottom:12px;">'
+    + '<div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Recommendation</div>'
+    + '<div style="margin-bottom:6px;">' + _scRecBadge(p.recommendation) + '</div>'
+    + '<div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--tx);">' + (p.recommendationScore != null ? p.recommendationScore.toFixed(0) : '—') + '<span style="font-size:12px;color:var(--tx-3);">/100</span></div>'
+    + '</div>'
+
+    + '<div class="card" style="padding:14px;margin-bottom:12px;">'
+    + '<div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Position Fit</div>'
+    + attrBlock(fitAttrs)
+    + '</div>'
+
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Risk Assessment</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">'
+    + '<div><div style="font-size:9px;color:var(--tx-3);">Injury</div>' + riskPill(p.injuryRisk) + '</div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);">Adaptation</div>' + riskPill(p.adaptationRisk) + '</div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);">Discipline</div>' + riskPill(p.disciplineRisk) + '</div>'
+    + '<div><div style="font-size:9px;color:var(--tx-3);">Financial</div>' + riskPill(p.financialRisk) + '</div>'
+    + '</div></div>'
+    + (p.comments ? '<div class="card" style="padding:14px;margin-top:12px;"><div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Scout Notes</div><div style="font-size:12px;color:var(--tx-2);line-height:1.55;">' + p.comments + '</div></div>' : '')
+    + '</div>'
+    + '</div>';
+}
+
+// ── Watchlist tab ─────────────────────────────────────────────────────────────
+
+function _renderScoutWatchlist(el) {
+  var items = _scoutWatchlist;
+  if (!items.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">⭐</div><div class="empty-ttl">Watchlist is empty</div><div class="empty-sub">Open a prospect and click "Add to Watchlist".</div></div>';
+    return;
+  }
+  var catColors = { TRANSFER_TARGET:'var(--green-l)', FUTURE_PROSPECT:'#60a5fa', TRIAL_CANDIDATE:'var(--amber)', ACADEMY_PROSPECT:'#c084fc' };
+  var rows = items.map(function(p) {
+    var mv  = p.marketValueEur != null ? '€' + (p.marketValueEur/1e6).toFixed(1) + 'M' : '—';
+    var cat = p.watchlistCategory || '—';
+    var catC = catColors[p.watchlistCategory] || 'var(--tx-3)';
+    return '<tr style="cursor:pointer;" data-action="openScoutDetail" data-id="' + p.id + '">'
+      + '<td style="font-weight:600;color:var(--tx);">' + p.playerName + '</td>'
+      + '<td><span class="pos-pill ' + posClass(p.position) + '">' + p.position + '</span></td>'
+      + '<td>' + _scRating(p.currentRating) + '</td>'
+      + '<td>' + _scRecBadge(p.recommendation) + '</td>'
+      + '<td><span style="font-size:9px;font-weight:600;color:' + catC + ';">' + cat.replace(/_/g,' ') + '</span></td>'
+      + '<td style="font-family:var(--mono);font-size:11px;color:var(--tx-3);">' + p.watchlistPriority + '</td>'
+      + '<td style="color:var(--amber);font-family:var(--mono);font-size:11px;">' + mv + '</td>'
+      + '</tr>';
+  }).join('');
+
+  el.innerHTML = '<div class="card" style="overflow:hidden;">'
+    + '<table class="tbl" style="width:100%;">'
+    + '<thead><tr><th>Name</th><th>Pos</th><th>Rating</th><th>Recommendation</th><th>Category</th><th>Priority</th><th>Market Val</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── Pipeline tab ──────────────────────────────────────────────────────────────
+
+function _renderScoutPipeline(el) {
+  var board  = _scoutPipeline;
+  var stages = SCOUT_STAGES.filter(function(s){ return s !== 'REJECTED'; });
+  var html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;overflow-x:auto;">';
+  stages.forEach(function(stage) {
+    var cards = Array.isArray(board[stage]) ? board[stage] : [];
+    var c = SCOUT_STAGE_COLOR[stage];
+    html += '<div><div style="font-size:8px;font-weight:700;color:' + c + ';text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;padding:4px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--bd);">' + stage + ' (' + cards.length + ')</div>';
+    if (!cards.length) {
+      html += '<div style="padding:10px 6px;font-size:10px;color:var(--tx-3);text-align:center;border:1px dashed var(--bd);border-radius:6px;">—</div>';
+    } else {
+      var NEXT_MAP = { IDENTIFIED:'SCOUTED', SCOUTED:'REVIEWED', REVIEWED:'NEGOTIATION', NEGOTIATION:'TRIAL', TRIAL:'APPROVED', APPROVED:'SIGNED' };
+      cards.forEach(function(p) {
+        var nextSt = NEXT_MAP[p.status];
+        html += '<div style="padding:9px;border-radius:7px;border:1px solid var(--bd);background:var(--card);margin-bottom:7px;cursor:pointer;" data-action="openScoutDetail" data-id="' + p.id + '">'
+          + '<div style="font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + p.playerName + '</div>'
+          + '<span class="pos-pill ' + posClass(p.position) + '" style="font-size:8px;margin-top:3px;display:inline-block;">' + p.position + '</span>'
+          + (p.currentRating != null ? '<div style="font-size:10px;color:var(--tx-3);font-family:var(--mono);margin-top:3px;">' + p.currentRating + ' / 100</div>' : '')
+          + (nextSt ? '<button class="btn btn-ghost btn-xs" style="margin-top:5px;width:100%;justify-content:center;font-size:9px;" data-action="scoutAdvancePipeline" data-id="' + p.id + '" data-stage="' + nextSt + '">→ ' + nextSt + '</button>' : '')
+          + '</div>';
+      });
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// ── Compare tab ───────────────────────────────────────────────────────────────
+
+function _renderScoutCompare(el) {
+  var result = _scoutCompareResult;
+  var prospects = _scoutProspects;
+
+  var selA = '<select id="scout-cmp-a" class="input" style="width:100%;" data-change="onScoutCompareChange">'
+    + '<option value="">Select Prospect A...</option>'
+    + prospects.map(function(p){ return '<option value="' + p.id + '"' + (_scoutCompareA === p.id ? ' selected' : '') + '>' + p.playerName + ' (' + p.position + (p.age ? ', ' + p.age + 'y' : '') + ')</option>'; }).join('') + '</select>';
+  var selB = '<select id="scout-cmp-b" class="input" style="width:100%;" data-change="onScoutCompareChange">'
+    + '<option value="">Select Prospect B...</option>'
+    + prospects.map(function(p){ return '<option value="' + p.id + '"' + (_scoutCompareB === p.id ? ' selected' : '') + '>' + p.playerName + ' (' + p.position + (p.age ? ', ' + p.age + 'y' : '') + ')</option>'; }).join('') + '</select>';
+
+  var header = '<div style="display:grid;grid-template-columns:1fr 60px 1fr;gap:10px;align-items:end;margin-bottom:16px;">'
+    + '<div>' + selA + '</div>'
+    + '<div style="text-align:center;font-size:14px;font-weight:700;color:var(--tx-3);padding-bottom:7px;">vs</div>'
+    + '<div>' + selB + '</div>'
+    + '</div>';
+
+  if (!result) {
+    el.innerHTML = header + '<div style="text-align:center;padding:24px;color:var(--tx-3);font-size:12px;">Select two prospects to compare side-by-side.</div>';
+    return;
+  }
+
+  var pA = result.prospectA;
+  var pB = result.prospectB;
+
+  function compSection(title, data) {
+    var rows = Object.entries(data).map(function(entry) {
+      var k = entry[0]; var v = entry[1];
+      var av = v.a != null ? v.a : '—';
+      var bv = v.b != null ? v.b : '—';
+      var winA = v.winner === 'A' ? 'font-weight:700;color:var(--green-l);' : '';
+      var winB = v.winner === 'B' ? 'font-weight:700;color:var(--green-l);' : '';
+      return '<tr>'
+        + '<td style="font-family:var(--mono);font-size:11px;text-align:right;padding-right:4px;' + winA + '">' + av + '</td>'
+        + '<td style="font-size:10px;color:var(--tx-3);text-align:center;padding:0 6px;">' + k.replace(/([A-Z])/g,' $1').trim() + '</td>'
+        + '<td style="font-family:var(--mono);font-size:11px;' + winB + '">' + bv + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<div class="card" style="padding:12px;margin-bottom:10px;">'
+      + '<div style="font-size:9px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">' + title + '</div>'
+      + '<table style="width:100%;border-collapse:collapse;"><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  var verdictColor = result.verdict === 'A' ? 'var(--green-l)' : result.verdict === 'B' ? '#60a5fa' : 'var(--amber)';
+  var verdictName  = result.verdict === 'A' ? pA.playerName : result.verdict === 'B' ? pB.playerName : 'Even';
+
+  var verdictHtml = '<div class="card" style="padding:14px;margin-bottom:14px;text-align:center;">'
+    + '<div style="font-size:9px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Overall Verdict</div>'
+    + '<div style="font-size:22px;font-weight:700;color:' + verdictColor + ';">' + verdictName + '</div>'
+    + '<div style="font-size:11px;color:var(--tx-3);margin-top:4px;">Wins the most attribute comparisons</div>'
+    + '</div>';
+
+  el.innerHTML = header + verdictHtml
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<div>'
+    + compSection('Technical', result.technicalComparison)
+    + compSection('Overall', result.overallComparison)
+    + '</div>'
+    + '<div>'
+    + compSection('Physical', result.physicalComparison)
+    + compSection('Mental', result.mentalComparison)
+    + '</div>'
+    + '</div>';
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+
+function openScoutModal(mode, prospect) {
+  _scoutModalMode = mode || 'create';
+  _scoutEditId    = prospect ? prospect.id : null;
+  var modal = document.getElementById('scout-modal');
+  if (!modal) return;
+  var titleEl = document.getElementById('scout-modal-title');
+  if (titleEl) titleEl.textContent = mode === 'edit' ? 'Edit Prospect' : 'Add Prospect';
+  var errEl = document.getElementById('scout-form-err');
+  if (errEl) errEl.style.display = 'none';
+
+  // Reset form
+  var fields = ['sp-name','sp-pos','sp-age','sp-nat','sp-foot','sp-club','sp-league','sp-val','sp-agent',
+    'sp-pace','sp-accel','sp-agility','sp-drib','sp-bc','sp-pass','sp-vision','sp-fin','sp-tack',
+    'sp-str','sp-stam','sp-wr','sp-lead','sp-disc','sp-comp','sp-notes'];
+  fields.forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+
+  if (prospect) {
+    _setV('sp-name',  prospect.playerName);
+    _setV('sp-pos',   prospect.position);
+    _setV('sp-age',   prospect.age);
+    _setV('sp-nat',   prospect.nationality);
+    _setV('sp-foot',  prospect.preferredFoot);
+    _setV('sp-club',  prospect.currentClub);
+    _setV('sp-league',prospect.league);
+    _setV('sp-val',   prospect.marketValueEur);
+    _setV('sp-agent', prospect.agentName);
+    _setV('sp-pace',  prospect.pace);
+    _setV('sp-accel', prospect.acceleration);
+    _setV('sp-agility',prospect.agility);
+    _setV('sp-drib',  prospect.dribbling);
+    _setV('sp-bc',    prospect.ballControl);
+    _setV('sp-pass',  prospect.passing);
+    _setV('sp-vision',prospect.vision);
+    _setV('sp-fin',   prospect.finishing);
+    _setV('sp-tack',  prospect.tackling);
+    _setV('sp-str',   prospect.strength);
+    _setV('sp-stam',  prospect.stamina);
+    _setV('sp-wr',    prospect.workRate);
+    _setV('sp-lead',  prospect.leadership);
+    _setV('sp-disc',  prospect.discipline);
+    _setV('sp-comp',  prospect.composure);
+    _setV('sp-notes', prospect.comments);
+  }
+
+  modal.style.display = 'flex';
+}
+function _setV(id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; }
+function closeScoutModal() { var m = document.getElementById('scout-modal'); if (m) m.style.display = 'none'; }
+
+async function submitScoutForm(e) {
+  e.preventDefault();
+  var errEl  = document.getElementById('scout-form-err');
+  var btnEl  = document.getElementById('scout-submit-btn');
+  if (errEl) errEl.style.display = 'none';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Saving...'; }
+
+  function numOrUndef(id) { var v = parseInt(document.getElementById(id)?.value, 10); return isNaN(v) ? undefined : v; }
+  function floatOrUndef(id) { var v = parseFloat(document.getElementById(id)?.value); return isNaN(v) ? undefined : v; }
+  function strOrUndef(id)  { var v = (document.getElementById(id)?.value || '').trim(); return v || undefined; }
+
+  var body = {
+    playerName:     (document.getElementById('sp-name')?.value || '').trim(),
+    position:       document.getElementById('sp-pos')?.value || '',
+    age:            numOrUndef('sp-age'),
+    nationality:    strOrUndef('sp-nat'),
+    preferredFoot:  strOrUndef('sp-foot'),
+    currentClub:    strOrUndef('sp-club'),
+    league:         strOrUndef('sp-league'),
+    marketValueEur: floatOrUndef('sp-val'),
+    agentName:      strOrUndef('sp-agent'),
+    pace:           numOrUndef('sp-pace'),
+    acceleration:   numOrUndef('sp-accel'),
+    agility:        numOrUndef('sp-agility'),
+    dribbling:      numOrUndef('sp-drib'),
+    ballControl:    numOrUndef('sp-bc'),
+    passing:        numOrUndef('sp-pass'),
+    vision:         numOrUndef('sp-vision'),
+    finishing:      numOrUndef('sp-fin'),
+    tackling:       numOrUndef('sp-tack'),
+    strength:       numOrUndef('sp-str'),
+    stamina:        numOrUndef('sp-stam'),
+    workRate:       numOrUndef('sp-wr'),
+    leadership:     numOrUndef('sp-lead'),
+    discipline:     numOrUndef('sp-disc'),
+    composure:      numOrUndef('sp-comp'),
+    comments:       strOrUndef('sp-notes'),
+  };
+
+  try {
+    if (_scoutModalMode === 'edit' && _scoutEditId) {
+      await ScoutingAPI.update(_scoutEditId, body);
+    } else {
+      await ScoutingAPI.create(body);
+    }
+    closeScoutModal();
+    await loadScoutingData();
+    setScoutTab('prospects');
+  } catch (err) {
+    if (errEl) { errEl.textContent = (err && err.message) || 'Save failed. Check all attribute fields are 1–100.'; errEl.style.display = 'block'; }
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Save Prospect'; }
+  }
+}
+
+// ── Pipeline advance ──────────────────────────────────────────────────────────
+
+async function scoutAdvancePipeline(prospectId, newStage) {
+  try {
+    await ScoutingAPI.advancePipeline(prospectId, newStage);
+    await loadScoutingData();
+    if (_scoutDetail && _scoutDetail.id === prospectId) {
+      openScoutDetail(prospectId);
+    } else {
+      _renderScoutBody();
+    }
+  } catch (err) {
+    alert((err && err.message) || 'Could not advance pipeline stage.');
+  }
+}
+
+// ── Watchlist toggle ──────────────────────────────────────────────────────────
+
+async function toggleScoutWatchlist(prospectId, currentlyOn) {
+  var on = !(currentlyOn === true || currentlyOn === 'true');
+  try {
+    await ScoutingAPI.updateWatchlist(prospectId, { isOnWatchlist: on });
+    await loadScoutingData();
+    if (_scoutDetail && _scoutDetail.id === prospectId) {
+      openScoutDetail(prospectId);
+    }
+  } catch (err) {
+    alert((err && err.message) || 'Could not update watchlist.');
+  }
+}
+
+// ── Compare change ────────────────────────────────────────────────────────────
+
+async function onScoutCompareChange() {
+  var selA = document.getElementById('scout-cmp-a');
+  var selB = document.getElementById('scout-cmp-b');
+  _scoutCompareA = selA ? selA.value : null;
+  _scoutCompareB = selB ? selB.value : null;
+  _scoutCompareResult = null;
+  if (_scoutCompareA && _scoutCompareB && _scoutCompareA !== _scoutCompareB) {
+    try {
+      _scoutCompareResult = await ScoutingAPI.compare(_scoutCompareA, _scoutCompareB);
+    } catch (err) {
+      // comparison failed; result stays null
+    }
+  }
+  var el = document.getElementById('scout-body');
+  if (el) _renderScoutCompare(el);
+}
+
+// ── Data loader ───────────────────────────────────────────────────────────────
+
+async function loadScoutingData() {
+  if (_scoutLoading) return;
+  _scoutLoading = true;
+
+  var [dashRes, prospectsRes, watchRes, pipeRes] = await Promise.allSettled([
+    ScoutingAPI.dashboard(),
+    ScoutingAPI.list({ limit: 100, sortBy: 'createdAt', sortDir: 'desc' }),
+    ScoutingAPI.watchlist(),
+    ScoutingAPI.pipeline(),
+  ]);
+
+  _scoutDashboard = (dashRes.status === 'fulfilled' && dashRes.value) ? dashRes.value : null;
+
+  if (prospectsRes.status === 'fulfilled' && prospectsRes.value) {
+    _scoutProspects = Array.isArray(prospectsRes.value) ? prospectsRes.value : (prospectsRes.value.items || []);
+    _scoutTotal     = prospectsRes.value.meta ? (prospectsRes.value.meta.total || _scoutProspects.length) : _scoutProspects.length;
+  } else {
+    _scoutProspects = [];
+    _scoutTotal     = 0;
+  }
+
+  _scoutWatchlist = (watchRes.status === 'fulfilled' && Array.isArray(watchRes.value)) ? watchRes.value : [];
+  _scoutPipeline  = (pipeRes.status  === 'fulfilled' && pipeRes.value && typeof pipeRes.value === 'object') ? pipeRes.value : {};
+  _scoutLoading   = false;
+
+  var sub = document.getElementById('scout-sub');
+  if (sub) sub.textContent = _scoutTotal + ' prospect' + (_scoutTotal !== 1 ? 's' : '') + ' · ' + (_scoutWatchlist.length) + ' on watchlist';
+
+  _renderScoutBody();
+}
+
+// VIDEO ANALYSIS & MATCH INTELLIGENCE CENTER — Phase 8
+// APIs used (all /api/v1/ prefix handled by FamilistaAPI):
+//   GET  phase-q/video/dashboard                   — KPI aggregate (Phase 8)
+//   GET  phase-q/video/assets?matchId=&status=...  — video library
+//   POST phase-q/video/assets/request-upload       — step 1 of upload
+//   POST phase-q/video/assets/confirm-upload       — step 3 of upload
+//   GET  phase-q/video/assets/:id/stream           — HLS + thumb URLs
+//   DELETE phase-q/video/assets/:id               — delete asset
+//   GET  phase-q/video/clips?matchId=&playerId=   — player clips
+//   GET  phase-q/video/playlists                  — playlists
+//   GET  phase-q/video/match/:matchId/summary     — per-match aggregate (Phase 8)
+//   GET  phase-q/events/match/:matchId            — match timeline events
+//   GET  matches/:id/timeline?kind=TACTICAL_NOTE  — tactical notes
+//   POST matches/:id/timeline                     — add tactical note
+//   DELETE matches/:id/timeline/:evtId            — delete note
+//   GET  matches/:id/ai-features                  — AI feature bundle
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── API wrapper ───────────────────────────────────────────────────────────────
+var VideoIntelAPI = {
+  dashboard:       function()            { return FamilistaAPI.get('/phase-q/video/dashboard'); },
+  listAssets:      function(p)           { var q = new URLSearchParams(p||{}).toString(); return FamilistaAPI.get('/phase-q/video/assets' + (q ? '?' + q : '')); },
+  requestUpload:   function(body)        { return FamilistaAPI.post('/phase-q/video/assets/request-upload', body); },
+  confirmUpload:   function(body)        { return FamilistaAPI.post('/phase-q/video/assets/confirm-upload', body); },
+  deleteAsset:     function(id)          { return FamilistaAPI.delete('/phase-q/video/assets/' + id); },
+  streamUrl:       function(id)          { return FamilistaAPI.get('/phase-q/video/assets/' + id + '/stream'); },
+  listClips:       function(p)           { var q = new URLSearchParams(p||{}).toString(); return FamilistaAPI.get('/phase-q/video/clips' + (q ? '?' + q : '')); },
+  listPlaylists:   function(p)           { var q = new URLSearchParams(p||{}).toString(); return FamilistaAPI.get('/phase-q/video/playlists' + (q ? '?' + q : '')); },
+  matchSummary:    function(matchId)     { return FamilistaAPI.get('/phase-q/video/match/' + matchId + '/summary'); },
+  listEvents:      function(matchId, p)  { var q = new URLSearchParams(p||{}).toString(); return FamilistaAPI.get('/phase-q/events/match/' + matchId + (q ? '?' + q : '')); },
+  listNotes:       function(matchId)     { return FamilistaAPI.get('/matches/' + matchId + '/timeline?kind=TACTICAL_NOTE'); },
+  addNote:         function(matchId, b)  { return FamilistaAPI.post('/matches/' + matchId + '/timeline', b); },
+  deleteNote:      function(matchId, id) { return FamilistaAPI.delete('/matches/' + matchId + '/timeline/' + id); },
+  aiFeatures:      function(matchId)     { return FamilistaAPI.get('/matches/' + matchId + '/ai-features'); },
+};
+
+// ── module state ──────────────────────────────────────────────────────────────
+var _vidTab          = 'dashboard';
+var _vidDashboard    = null;
+var _vidAssets       = [];
+var _vidAssetsTotal  = 0;
+var _vidClips        = [];
+var _vidLoading      = false;
+var _vidMatchId      = '';
+var _vidTimelineItems = [];
+var _vidNotes        = [];
+var _vidOpponentData = null;
+var _vidSummaryData  = null;
+var _vidUploadFile   = null;
+var _vidUploadBusy   = false;
+
+// ── HTML shell ────────────────────────────────────────────────────────────────
+
+function renderVideoHTML() {
+  return `<div class="page" id="pg-video">
+  <div style="max-width:1200px;margin:0 auto;padding:0 4px;">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);">Video Analysis &amp; Match Intelligence</div>
+        <div style="font-size:12px;color:var(--tx-3);" id="vid-sub">Loading…</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" data-action="vidRefresh">↺ Refresh</button>
+        <button class="btn btn-primary btn-sm" data-action="vidSwitchTab" data-tab="upload">+ Upload Video</button>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px;border-bottom:1px solid var(--bd);padding-bottom:10px;" id="vid-tabbar">
+      <button class="filter-btn active" data-action="vidSwitchTab" data-tab="dashboard">Dashboard</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="library">Library</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="upload">Upload</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="timeline">Timeline</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="clips">Clips</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="notes">Tactical Notes</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="opponent">Opponent</button>
+      <button class="filter-btn" data-action="vidSwitchTab" data-tab="summary">Summary</button>
+    </div>
+
+    <!-- Tab body -->
+    <div id="vid-body"></div>
+
+  </div>
+
+  <!-- Stream modal -->
+  <div id="vid-stream-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-2);border-radius:12px;padding:20px;max-width:720px;width:95%;max-height:90vh;overflow:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:14px;font-weight:700;color:var(--tx);" id="vid-modal-title">Video</div>
+        <button class="btn btn-ghost btn-xs" data-action="vidCloseStream">✕</button>
+      </div>
+      <video id="vid-video-el" controls style="width:100%;border-radius:8px;background:#000;max-height:400px;display:none;"></video>
+      <div id="vid-stream-fallback" style="display:none;padding:16px;background:var(--bg-3);border-radius:8px;font-size:12px;color:var(--tx-3);text-align:center;">
+        <div style="font-size:20px;margin-bottom:8px;">📋</div>
+        <div style="margin-bottom:8px;color:var(--tx-2);">HLS stream URL (Safari or external player)</div>
+        <code id="vid-stream-url" style="word-break:break-all;font-size:11px;color:var(--green-l);"></code>
+        <div style="margin-top:12px;">
+          <button class="btn btn-outline btn-sm" data-action="vidCopyUrl">Copy URL</button>
         </div>
       </div>
-      <div id="scout-list">${loadingHTML('Loading scouting reports...')}</div>
-    </div>
-    <div class="scout-side">
-      <div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">ARIA Scout Report</div>
-      <div style="padding:11px;border-radius:8px;background:var(--green-bg);border:1px solid var(--green-bd);margin-bottom:14px;">
-        <div style="font-size:9px;font-weight:600;color:var(--green-l);font-family:var(--mono);margin-bottom:5px;">🤖 TOP PICK</div>
-        <div style="font-size:12px;color:var(--tx-2);line-height:1.55;" id="scout-aria">Loading recommendation...</div>
-      </div>
-      <div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Transfer Budget</div>
-      <div class="card" style="padding:14px;">
-        <div style="font-size:24px;font-weight:700;color:var(--amber);font-family:var(--mono);margin-bottom:3px;">€ 450M</div>
-        <div style="font-size:11px;color:var(--tx-3);">Available this window</div>
-        <div class="prog" style="height:4px;margin-top:9px;"><div class="prog-bar" style="width:35%;background:var(--green-l);"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);margin-top:3px;font-family:var(--mono);"><span>Spent €157M</span><span>Total €607M</span></div>
+      <div id="vid-stream-thumb" style="display:none;margin-top:10px;text-align:center;">
+        <img id="vid-thumb-img" style="max-height:140px;border-radius:6px;object-fit:contain;" alt="">
       </div>
     </div>
   </div>
 </div>`;
 }
 
-async function loadScoutingData() {
-  // Use cached or load static seed data
-  const SCOUTS = [
-    {targetName:'Marco Rodriguez',targetClub:'FC Valencia',position:'DMC',age:24,nationality:'Spain',flag:'🇪🇸',marketValue:2100000,rating:4.0,recommendation:'SIGN',notes:'94% pass completion under pressure.'},
-    {targetName:'Bartosz Kowalski',targetClub:'Lech Poznan',position:'DC',age:22,nationality:'Poland',flag:'🇵🇱',marketValue:1400000,rating:3.5,recommendation:'SIGN',notes:'Strong aerial ability. 78% duel success.'},
-    {targetName:'Yuto Tanaka',targetClub:'Gamba Osaka',position:'MC',age:25,nationality:'Japan',flag:'🇯🇵',marketValue:3200000,rating:4.0,recommendation:'MONITOR',notes:'Box-to-box quality. Needs European adaptation.'},
-    {targetName:'Lucas Santos',targetClub:'Benfica B',position:'ST',age:21,nationality:'Brazil',flag:'🇧🇷',marketValue:4800000,rating:4.5,recommendation:'MONITOR',notes:'0.68 xG per 90. Potential star signing.'},
-    {targetName:'Kevin Müller',targetClub:'Schalke 04',position:'GK',age:23,nationality:'Germany',flag:'🇩🇪',marketValue:1800000,rating:3.5,recommendation:'SKIP',notes:'Inconsistent shot-stopping.'},
-    {targetName:'Ahmed Ibrahim',targetClub:'Al Ahly',position:'ML',age:26,nationality:'Egypt',flag:'🇪🇬',marketValue:2600000,rating:4.0,recommendation:'SIGN',notes:'8.2 progressive carries per 90.'},
-  ];
+// ── tab switching ─────────────────────────────────────────────────────────────
 
-  const sub = document.getElementById('scout-sub');
-  if (sub) sub.textContent = `${SCOUTS.length} players on watchlist`;
+function setVidTab(tab) {
+  _vidTab = tab;
+  document.querySelectorAll('#vid-tabbar .filter-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  _renderVidBody();
+}
 
-  const el = document.getElementById('scout-list');
-  if (el) {
-    el.innerHTML = SCOUTS.map((s,i) => `
-      <div class="scout-row">
-        <div style="font-size:11px;color:var(--tx-3);min-width:14px;">${i+1}</div>
-        <div class="scout-flag">${s.flag}</div>
-        <div style="flex:1;">
-          <div class="scout-name">${s.targetName}</div>
-          <div class="scout-club">${s.targetClub} · Age ${s.age}</div>
-          <div style="display:flex;align-items:center;gap:5px;margin-top:3px;"><span class="pos-pill ${posClass(s.position)}">${s.position}</span></div>
-        </div>
-        <div style="text-align:right;">
-          <div class="scout-val">${fmtCurrency(s.marketValue)}</div>
-          <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:3px;">
-            <div class="rec-dot rec-${s.recommendation.toLowerCase()}"></div>
-            <span style="font-size:9px;font-family:var(--mono);font-weight:600;text-transform:uppercase;color:var(--tx-3);">${s.recommendation}</span>
+function _renderVidBody() {
+  var el = document.getElementById('vid-body');
+  if (!el) return;
+  if      (_vidTab === 'dashboard') el.innerHTML = _renderVidDashboard();
+  else if (_vidTab === 'library')   el.innerHTML = _renderVidLibrary();
+  else if (_vidTab === 'upload')    el.innerHTML = _renderVidUpload();
+  else if (_vidTab === 'timeline')  el.innerHTML = _renderVidTimeline();
+  else if (_vidTab === 'clips')     el.innerHTML = _renderVidClips();
+  else if (_vidTab === 'notes')     el.innerHTML = _renderVidNotes();
+  else if (_vidTab === 'opponent')  el.innerHTML = _renderVidOpponent();
+  else if (_vidTab === 'summary')   el.innerHTML = _renderVidSummary();
+}
+
+// ── Dashboard tab ─────────────────────────────────────────────────────────────
+
+function _renderVidDashboard() {
+  if (_vidLoading) return loadingHTML('Loading dashboard…');
+  if (!_vidDashboard) {
+    return '<div style="text-align:center;padding:60px 20px;">'
+      + '<div style="font-size:48px;opacity:.3;margin-bottom:12px;">🎬</div>'
+      + '<div style="font-size:13px;color:var(--tx-3);">Dashboard loading…</div></div>';
+  }
+  var d = _vidDashboard;
+  var byStatus = d.assetsByStatus || {};
+  var sCols = { READY:'var(--green-l)', UPLOADED:'#60a5fa', PENDING:'var(--amber)', QUEUED:'var(--amber)', FAILED:'var(--red)' };
+  var kpis = [
+    { label:'Total Videos',    value: d.totalAssets    || 0, icon:'🎬' },
+    { label:'Ready to Stream', value: d.readyAssets    || 0, icon:'▶',  color:'var(--green-l)' },
+    { label:'Clips',           value: d.totalClips     || 0, icon:'✂️' },
+    { label:'Playlists',       value: d.totalPlaylists || 0, icon:'🗂️' },
+  ].map(function(k) {
+    return '<div class="card" style="padding:14px;text-align:center;">'
+      + '<div style="font-size:22px;margin-bottom:4px;">' + k.icon + '</div>'
+      + '<div style="font-size:22px;font-weight:700;font-family:var(--mono);color:' + (k.color||'var(--tx)') + ';">' + k.value + '</div>'
+      + '<div style="font-size:11px;color:var(--tx-3);margin-top:2px;">' + k.label + '</div></div>';
+  }).join('');
+  var bars = Object.keys(byStatus).map(function(s) {
+    var pct = d.totalAssets > 0 ? Math.round(byStatus[s] / d.totalAssets * 100) : 0;
+    var col = sCols[s] || 'var(--tx-3)';
+    return '<div style="margin-bottom:8px;">'
+      + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx-2);margin-bottom:3px;">'
+      + '<span>' + _esc(s) + '</span><span style="font-family:var(--mono);color:' + col + ';">' + byStatus[s] + '</span></div>'
+      + '<div style="height:5px;border-radius:3px;background:var(--bg-3);overflow:hidden;">'
+      + '<div style="height:100%;width:' + pct + '%;background:' + col + ';transition:width .4s;"></div></div></div>';
+  }).join('') || '<div style="color:var(--tx-3);font-size:12px;">No data.</div>';
+  var recent = (d.recentAssets || []).map(function(a) {
+    var col = sCols[a.status] || 'var(--tx-3)';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);">'
+      + '<div style="width:28px;height:28px;border-radius:5px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">🎬</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.title||'Untitled') + '</div>'
+      + '<div style="font-size:10px;color:var(--tx-3);">' + _esc(a.sourceKind||'') + (a.createdAt ? ' · ' + new Date(a.createdAt).toLocaleDateString() : '') + '</div></div>'
+      + '<span style="font-size:9px;font-weight:700;font-family:var(--mono);color:' + col + ';">' + _esc(a.status) + '</span></div>';
+  }).join('') || '<div style="padding:16px;text-align:center;color:var(--tx-3);font-size:12px;">No recent videos.</div>';
+  return '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:18px;">' + kpis + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="card" style="padding:14px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">Status Breakdown</div>' + bars + '</div>'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;">Recent Videos</div>'
+    + '<button class="btn btn-ghost btn-xs" data-action="vidSwitchTab" data-tab="library">View all</button></div>'
+    + recent + '</div></div>';
+}
+
+// ── Library tab ───────────────────────────────────────────────────────────────
+
+function _renderVidLibrary() {
+  if (_vidLoading) return loadingHTML('Loading library…');
+  if (!_vidAssets.length) {
+    return '<div style="text-align:center;padding:60px 20px;">'
+      + '<div style="font-size:48px;margin-bottom:12px;opacity:.35;">🎬</div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx-2);margin-bottom:6px;">No videos yet</div>'
+      + '<div style="font-size:12px;color:var(--tx-3);margin-bottom:18px;">Upload match footage, training sessions and scouting clips.</div>'
+      + '<button class="btn btn-primary btn-sm" data-action="vidSwitchTab" data-tab="upload">Upload first video</button></div>';
+  }
+  var filterRow = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">'
+    + ['ALL','READY','UPLOADED','QUEUED','PENDING','FAILED'].map(function(s) {
+        return '<button class="btn btn-ghost btn-xs" style="font-size:10px;" data-action="vidFilterStatus" data-status="' + s + '">' + s + '</button>';
+      }).join('') + '</div>';
+  var grid = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;" id="vid-asset-grid">'
+    + _vidAssets.map(_vAssetCard).join('') + '</div>';
+  return filterRow + grid
+    + '<div style="margin-top:10px;font-size:11px;color:var(--tx-3);">' + _vidAssetsTotal + ' total · showing ' + _vidAssets.length + '</div>';
+}
+
+function _vAssetCard(a) {
+  var sCols = { READY:'var(--green-l)', UPLOADED:'#60a5fa', PENDING:'var(--amber)', QUEUED:'var(--amber)', FAILED:'var(--red)' };
+  var col = sCols[a.status] || 'var(--tx-3)';
+  var dur  = a.durationSec ? _vFmtDur(a.durationSec) : null;
+  var tags = (a.tags||[]).slice(0,2).map(function(t) {
+    return '<span style="background:var(--bg-3);padding:1px 5px;border-radius:4px;font-size:9px;">' + _esc(t) + '</span>';
+  }).join(' ');
+  return '<div class="card" style="overflow:hidden;">'
+    + '<div style="height:110px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;position:relative;">'
+    + '<div style="font-size:32px;opacity:.5;">🎬</div>'
+    + '<span style="position:absolute;top:6px;right:6px;font-size:9px;font-weight:700;font-family:var(--mono);color:' + col + ';background:var(--bg-2);padding:2px 5px;border-radius:3px;">' + _esc(a.status) + '</span></div>'
+    + '<div style="padding:10px;">'
+    + '<div style="font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;" title="' + _esc(a.title||'Untitled') + '">' + _esc(a.title||'Untitled') + '</div>'
+    + '<div style="font-size:10px;color:var(--tx-3);display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
+    + (dur ? '<span>⏱ ' + dur + '</span>' : '')
+    + (a.sourceKind ? '<span>' + _esc(a.sourceKind) + '</span>' : '')
+    + (a.createdAt  ? '<span>' + new Date(a.createdAt).toLocaleDateString() + '</span>' : '')
+    + tags + '</div>'
+    + '<div style="display:flex;gap:6px;">'
+    + (a.status === 'READY' ? '<button class="btn btn-primary btn-xs" data-action="vidStreamAsset" data-id="' + a.id + '" data-title="' + _esc(a.title||'Video') + '">▶ Stream</button>' : '')
+    + '<button class="btn btn-ghost btn-xs" style="color:var(--red);" data-action="vidDeleteAsset" data-id="' + a.id + '" data-title="' + _esc(a.title||'Video') + '">Delete</button>'
+    + '</div></div></div>';
+}
+
+// ── Upload tab ────────────────────────────────────────────────────────────────
+
+function _renderVidUpload() {
+  var matchOptions = _vMatchOptions();
+  return '<div style="max-width:540px;">'
+    + '<div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:16px;">Upload Video</div>'
+    + '<div id="vid-drop-zone" data-action="vidDropZoneClick" style="border:2px dashed var(--bd);border-radius:10px;padding:28px 20px;text-align:center;cursor:pointer;" ondragover="event.preventDefault();this.style.borderColor=\'var(--green)\'" ondragleave="this.style.borderColor=\'var(--bd)\'" ondrop="_vidHandleDrop(event)">'
+    + '<div style="font-size:28px;margin-bottom:8px;">🎬</div>'
+    + '<div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px;">Drop video here or click to browse</div>'
+    + '<div style="font-size:11px;color:var(--tx-3);">MP4 · MOV · AVI · MKV · WEBM · max 2 GB</div>'
+    + '<div id="vid-file-info" style="margin-top:8px;font-size:12px;color:var(--green-l);display:none;"></div></div>'
+    + '<input type="file" id="vid-file-input" accept="video/*,.mp4,.mov,.avi,.mkv,.webm" style="display:none" onchange="_vidFileSelect(this.files[0])">'
+    + '<div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">'
+    + '<div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Title *</label><input id="vid-title" class="input" placeholder="e.g. Match vs FC Berlin — 2025-05-18" style="width:100%;"></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Source Kind</label>'
+    + '<select id="vid-kind" class="input" style="width:100%;"><option value="MATCH">Match</option><option value="TRAINING">Training</option><option value="SCOUTING">Scouting</option><option value="HIGHLIGHT">Highlight</option><option value="ANALYSIS">Analysis</option></select></div>'
+    + '<div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Linked Match (optional)</label>'
+    + '<select id="vid-match" class="input" style="width:100%;"><option value="">— none —</option>' + matchOptions + '</select></div></div>'
+    + '<div><label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:3px;">Tags (comma separated)</label><input id="vid-tags" class="input" placeholder="e.g. goals, highlights, u21" style="width:100%;"></div>'
+    + '<div id="vid-upload-progress" style="display:none;">'
+    + '<div style="font-size:11px;color:var(--tx-3);margin-bottom:3px;" id="vid-prog-label">Uploading…</div>'
+    + '<div style="height:4px;border-radius:2px;background:var(--bg-3);overflow:hidden;"><div id="vid-prog-bar" style="height:100%;background:var(--green);width:0%;transition:width .3s;"></div></div></div>'
+    + '<div id="vid-upload-err" style="display:none;padding:8px 10px;background:var(--red-bg);border-radius:6px;font-size:11px;color:var(--red);"></div>'
+    + '<div id="vid-upload-ok" style="display:none;padding:10px 12px;background:var(--green-bg);border-radius:8px;border:1px solid var(--green-bd);font-size:12px;color:var(--green-l);"></div>'
+    + '<div style="display:flex;gap:8px;">'
+    + '<button class="btn btn-primary btn-sm" id="vid-submit-btn" data-action="vidSubmitUpload">Upload</button>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidSwitchTab" data-tab="library">Cancel</button></div>'
+    + '<div style="margin-top:14px;padding:10px 12px;background:var(--bg-3);border-radius:8px;font-size:11px;color:var(--tx-3);">'
+    + '<strong style="color:var(--tx-2);">How it works:</strong> Files upload directly to object storage via a presigned URL. Status: PENDING → UPLOADED → QUEUED → READY.</div>'
+    + '</div></div>';
+}
+
+// ── Timeline tab ──────────────────────────────────────────────────────────────
+
+function _renderVidTimeline() {
+  var evIcons = { GOAL:'⚽', OWN_GOAL:'🔴', ASSIST:'🅰️', SHOT:'👟', SHOT_ON_TARGET:'🎯', SHOT_OFF_TARGET:'💨', SAVE:'🧤', YELLOW_CARD:'🟡', SECOND_YELLOW:'🟡🔴', RED_CARD:'🔴', SUBSTITUTION:'🔄', INJURY:'🚑', FOUL:'⚠️', CORNER:'⛳', OFFSIDE:'🚩', PENALTY_AWARDED:'📍', PENALTY_SCORED:'⚽', PENALTY_MISSED:'❌' };
+  var header = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">'
+    + '<select class="input" id="vid-tl-match" data-change="vidLoadTimeline" style="min-width:200px;"><option value="">— Select match —</option>' + _vMatchOptions() + '</select>'
+    + '<select class="input" id="vid-tl-type" data-change="vidLoadTimeline" style="min-width:130px;">'
+    + '<option value="">All events</option>'
+    + ['GOAL','SHOT','SHOT_ON_TARGET','YELLOW_CARD','RED_CARD','SUBSTITUTION','CORNER','FOUL','OFFSIDE','PENALTY_AWARDED','PENALTY_SCORED'].map(function(t) {
+        return '<option value="' + t + '">' + t.replace(/_/g,' ') + '</option>';
+      }).join('') + '</select>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidRefreshTimeline">↺</button></div>';
+  if (!_vidMatchId) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">Select a match to view timeline events.</div>';
+  if (!_vidTimelineItems.length) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">No events found for this match.</div>';
+  var rows = _vidTimelineItems.map(function(ev) {
+    var icon = evIcons[ev.type] || '●';
+    return '<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--bd);">'
+      + '<div style="width:36px;text-align:right;font-size:11px;font-weight:700;color:var(--tx-3);font-family:var(--mono);flex-shrink:0;">' + (ev.minute != null ? ev.minute + '\'' : '—') + '</div>'
+      + '<div style="font-size:16px;flex-shrink:0;">' + icon + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--tx);">' + _esc(ev.type ? ev.type.replace(/_/g,' ') : 'EVENT') + '</div>'
+      + '<div style="font-size:10px;color:var(--tx-3);display:flex;gap:6px;flex-wrap:wrap;">'
+      + (ev.periodIndex ? '<span>P' + ev.periodIndex + '</span>' : '')
+      + (ev.outcome ? '<span>' + _esc(ev.outcome) + '</span>' : '')
+      + (ev.xg ? '<span>xG ' + Number(ev.xg).toFixed(2) + '</span>' : '')
+      + '</div></div></div>';
+  }).join('');
+  return header + '<div style="max-height:500px;overflow-y:auto;">' + rows + '</div>'
+    + '<div style="margin-top:8px;font-size:11px;color:var(--tx-3);">' + _vidTimelineItems.length + ' events</div>';
+}
+
+// ── Clips tab ─────────────────────────────────────────────────────────────────
+
+function _renderVidClips() {
+  var header = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">'
+    + '<select class="input" id="vid-clips-match" data-change="vidLoadClips" style="min-width:200px;"><option value="">All matches</option>' + _vMatchOptions() + '</select>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidRefreshClips">↺</button></div>';
+  if (!_vidClips.length) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">✂️ No clips found.</div>';
+  var rows = _vidClips.map(function(c) {
+    var dur = c.durationSec ? _vFmtDur(c.durationSec) : (c.startSec + 's–' + c.endSec + 's');
+    var tags = (c.tags||[]).slice(0,2).map(function(t) {
+      return '<span style="background:var(--bg-3);padding:1px 5px;border-radius:4px;font-size:9px;">' + _esc(t) + '</span>';
+    }).join(' ');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);">'
+      + '<div style="width:30px;height:30px;border-radius:6px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">✂️</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(c.title||'Clip') + '</div>'
+      + '<div style="font-size:10px;color:var(--tx-3);display:flex;gap:6px;flex-wrap:wrap;margin-top:2px;">'
+      + '<span>⏱ ' + dur + '</span>'
+      + (c.matchId ? '<span>⚽ Match</span>' : '')
+      + (c.shareToken ? '<span style="color:var(--green-l);">SHARED</span>' : '')
+      + tags + '</div></div></div>';
+  }).join('');
+  return header + rows + '<div style="margin-top:8px;font-size:11px;color:var(--tx-3);">' + _vidClips.length + ' clip' + (_vidClips.length !== 1 ? 's' : '') + '</div>';
+}
+
+// ── Tactical Notes tab ────────────────────────────────────────────────────────
+
+function _renderVidNotes() {
+  var header = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">'
+    + '<select class="input" id="vid-notes-match" data-change="vidLoadNotes" style="min-width:200px;"><option value="">— Select match —</option>' + _vMatchOptions() + '</select>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidRefreshNotes">↺</button></div>';
+  if (!_vidMatchId) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">Select a match to view and add tactical notes.</div>';
+  var addForm = '<div class="card" style="padding:14px;margin-bottom:14px;">'
+    + '<div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:10px;">Add Tactical Note</div>'
+    + '<div style="display:grid;grid-template-columns:80px 80px 1fr;gap:8px;margin-bottom:8px;">'
+    + '<div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:3px;">Minute</label><input type="number" id="vid-note-min" class="input" style="width:100%;" placeholder="45" min="0" max="130"></div>'
+    + '<div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:3px;">Side</label>'
+    + '<select id="vid-note-side" class="input" style="width:100%;"><option value="HOME">HOME</option><option value="AWAY">AWAY</option></select></div>'
+    + '<div><label style="font-size:10px;color:var(--tx-3);display:block;margin-bottom:3px;">Note *</label><input id="vid-note-text" class="input" style="width:100%;" placeholder="e.g. Switch to 4-3-3 after 60 min"></div></div>'
+    + '<button class="btn btn-primary btn-sm" data-action="vidAddNote">Add Note</button></div>';
+  if (!_vidNotes.length) return header + addForm + '<div style="text-align:center;padding:30px;color:var(--tx-3);font-size:12px;">No tactical notes for this match yet.</div>';
+  var rows = _vidNotes.map(function(n) {
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);">'
+      + '<div style="width:32px;text-align:right;font-size:11px;color:var(--tx-3);font-family:var(--mono);font-weight:700;flex-shrink:0;padding-top:2px;">' + (n.occurredAtMin != null ? n.occurredAtMin + '\'' : '—') + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;color:var(--tx);">' + _esc(n.notes||'') + '</div>'
+      + '<div style="font-size:10px;color:var(--tx-3);margin-top:2px;">' + _esc(n.side||'') + '</div></div>'
+      + '<button class="btn btn-ghost btn-xs" style="color:var(--red);flex-shrink:0;" data-action="vidDeleteNote" data-match="' + _esc(_vidMatchId) + '" data-id="' + _esc(n.id) + '">✕</button></div>';
+  }).join('');
+  return header + addForm + rows + '<div style="margin-top:8px;font-size:11px;color:var(--tx-3);">' + _vidNotes.length + ' note' + (_vidNotes.length !== 1 ? 's' : '') + '</div>';
+}
+
+// ── Opponent tab ──────────────────────────────────────────────────────────────
+
+function _renderVidOpponent() {
+  var header = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">'
+    + '<div><div style="font-size:11px;color:var(--tx-3);margin-bottom:4px;">Select match for opponent analysis:</div>'
+    + '<select class="input" id="vid-opp-match" data-change="vidLoadOpponent" style="min-width:220px;"><option value="">— Select match —</option>' + _vMatchOptions() + '</select></div>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidRefreshOpponent">↺</button></div>';
+  if (!_vidMatchId) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">Select a match to analyse opponent intelligence.</div>';
+  if (!_vidOpponentData) return header + loadingHTML('Loading opponent analysis…');
+  var d = _vidOpponentData;
+  var evSum = d.eventSummary || {};
+  var assets = (d.videoAssets && d.videoAssets.items) || [];
+  var clips  = (d.clips  && d.clips.items)  || [];
+  var sel = (State.matches || []).find(function(m) { return m.id === _vidMatchId; });
+  var opp = sel ? (sel.isHome ? (sel.awayTeam||'Opponent') : (sel.homeTeam||'Opponent')) : 'Opponent';
+  var score = sel && sel.homeScore != null ? (sel.homeScore + ' – ' + sel.awayScore) : '';
+  var evIcons = { GOAL:'⚽', SHOT:'👟', YELLOW_CARD:'🟡', RED_CARD:'🔴', CORNER:'⛳', FOUL:'⚠️', OFFSIDE:'🚩' };
+  var evRows = Object.keys(evSum).sort().map(function(type) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);">'
+      + '<span style="font-size:12px;color:var(--tx-2);">' + (evIcons[type]||'●') + ' ' + _esc(type.replace(/_/g,' ')) + '</span>'
+      + '<span style="font-size:12px;font-weight:700;font-family:var(--mono);color:var(--tx);">' + evSum[type] + '</span></div>';
+  }).join('') || '<div style="padding:14px;text-align:center;color:var(--tx-3);font-size:12px;">No events recorded.</div>';
+  return header
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;">Opponent</div>'
+    + '<div style="font-size:20px;font-weight:700;color:var(--tx);margin-bottom:4px;">' + _esc(opp) + '</div>'
+    + (score ? '<div style="font-size:14px;font-family:var(--mono);color:var(--amber);">' + score + '</div>' : '')
+    + '<div style="margin-top:10px;font-size:11px;color:var(--tx-3);">'
+    + '<div>' + assets.length + ' video' + (assets.length!==1?'s':'') + ' linked</div>'
+    + '<div>' + clips.length  + ' clip'  + (clips.length !==1?'s':'') + ' available</div></div>'
+    + '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">'
+    + '<button class="btn btn-ghost btn-xs" data-action="vidSwitchTab" data-tab="library">View Videos</button>'
+    + '<button class="btn btn-ghost btn-xs" data-action="vidSwitchTab" data-tab="clips">View Clips</button></div></div>'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Match Event Breakdown</div>'
+    + evRows + '</div></div>';
+}
+
+// ── Summary tab ───────────────────────────────────────────────────────────────
+
+function _renderVidSummary() {
+  var header = '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">'
+    + '<select class="input" id="vid-sum-match" data-change="vidLoadSummary" style="min-width:200px;"><option value="">— Select match —</option>' + _vMatchOptions() + '</select>'
+    + '<button class="btn btn-ghost btn-sm" data-action="vidRefreshSummary">↺</button></div>';
+  if (!_vidMatchId) return header + '<div style="text-align:center;padding:40px;color:var(--tx-3);font-size:13px;">Select a match to view the AI intelligence bundle.</div>';
+  if (!_vidSummaryData) return header + loadingHTML('Loading match summary…');
+  var d = _vidSummaryData;
+  var m  = d.match     || {};
+  var tl = d.timeline  || [];
+  var counts = d.counts || {};
+  var score  = m.homeScore != null ? (m.homeScore + ' – ' + m.awayScore) : '—';
+  var goals  = tl.filter(function(e) { return e.kind === 'GOAL' || e.kind === 'PENALTY_SCORED'; });
+  var cards  = tl.filter(function(e) { return e.kind === 'YELLOW_CARD' || e.kind === 'RED_CARD'; });
+  var subs   = tl.filter(function(e) { return e.kind === 'SUBSTITUTION'; });
+  var goalRows = goals.map(function(g) {
+    return '<div style="padding:4px 0;font-size:11px;color:var(--tx);">⚽ ' + (g.occurredAtMin||'?') + '\' — ' + _esc(g.side||'') + (g.notes ? ': ' + _esc(g.notes) : '') + '</div>';
+  }).join('') || '<div style="font-size:11px;color:var(--tx-3);">No goals recorded.</div>';
+  var noteRows = tl.filter(function(e) { return e.kind === 'TACTICAL_NOTE'; }).slice(0,5).map(function(n) {
+    return '<div style="padding:4px 0;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx-2);">' + (n.occurredAtMin||'?') + '\' · ' + _esc(n.notes||'') + '</div>';
+  }).join('') || '<div style="font-size:11px;color:var(--tx-3);">No tactical notes.</div>';
+  var statsGrid = [
+    { lbl:'Possession', val: m.possession ? m.possession + '%' : '—' },
+    { lbl:'Shots',      val: m.shots          || 0 },
+    { lbl:'On Target',  val: m.shotsOnTarget  || 0 },
+    { lbl:'Corners',    val: m.corners        || 0 },
+    { lbl:'Fouls',      val: m.fouls          || 0 },
+    { lbl:'Yellow ⬛', val: m.yellowCards    || 0 },
+  ].map(function(s) {
+    return '<div style="text-align:center;padding:8px;">'
+      + '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--tx);">' + s.val + '</div>'
+      + '<div style="font-size:10px;color:var(--tx-3);margin-top:2px;">' + s.lbl + '</div></div>';
+  }).join('');
+  var fmt = (m.formationHome && m.formationAway) ? m.formationHome + ' vs ' + m.formationAway : (m.formationHome || m.formationAway || 'N/A');
+  return header
+    + '<div class="card" style="padding:14px;margin-bottom:12px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">'
+    + '<div>'
+    + '<div style="font-size:18px;font-weight:700;color:var(--tx);">' + _esc(m.homeTeam||'Home') + ' vs ' + _esc(m.awayTeam||'Away') + '</div>'
+    + '<div style="font-size:13px;color:var(--tx-3);">' + _esc(m.competition||'') + (m.competitionName ? ' · ' + _esc(m.competitionName) : '') + '</div></div>'
+    + '<div style="text-align:right;">'
+    + '<div style="font-size:28px;font-weight:900;font-family:var(--mono);color:var(--tx);">' + score + '</div>'
+    + '<div style="font-size:11px;color:var(--tx-3);">Formation: ' + _esc(fmt) + (m.result ? ' · ' + _esc(m.result) : '') + '</div></div></div>'
+    + '<div style="display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--bd);margin-top:10px;">' + statsGrid + '</div></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">Goals &amp; Key Events</div>'
+    + goalRows
+    + '<div style="margin-top:8px;font-size:10px;color:var(--tx-3);">🟡 ' + cards.filter(function(c){return c.kind==='YELLOW_CARD';}).length + ' yellow · 🔴 ' + cards.filter(function(c){return c.kind==='RED_CARD';}).length + ' red · 🔄 ' + subs.length + ' subs</div></div>'
+    + '<div class="card" style="padding:14px;">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;">Tactical Notes</div>'
+    + '<button class="btn btn-ghost btn-xs" data-action="vidSwitchTab" data-tab="notes">Add note</button></div>'
+    + noteRows + '</div></div>'
+    + '<div style="margin-top:10px;padding:10px 12px;background:var(--bg-3);border-radius:8px;font-size:11px;color:var(--tx-3);">'
+    + '<strong style="color:var(--tx-2);">Data bundle:</strong> '
+    + (counts.timeline||0) + ' timeline events · ' + (counts.snapshots||0) + ' tactical snapshots · ' + (counts.lineups||0) + ' lineup entries</div>';
+}
+
+// ── data loading ──────────────────────────────────────────────────────────────
+
+async function loadVideoIntelData() {
+  if (_vidLoading) return;
+  _vidLoading = true;
+  var sub = document.getElementById('vid-sub');
+  if (sub) sub.textContent = 'Loading…';
+  try {
+    var results = await Promise.allSettled([
+      VideoIntelAPI.dashboard(),
+      VideoIntelAPI.listAssets({ limit: 50 }),
+    ]);
+    _vidDashboard   = results[0].status === 'fulfilled' ? results[0].value : null;
+    var ad          = results[1].status === 'fulfilled' ? results[1].value : { items: [], total: 0 };
+    _vidAssets      = ad.items || [];
+    _vidAssetsTotal = ad.total || 0;
+    if (sub) {
+      var ready = _vidAssets.filter(function(a) { return a.status === 'READY'; }).length;
+      sub.textContent = _vidAssetsTotal + ' video' + (_vidAssetsTotal !== 1 ? 's' : '') + ' · ' + ready + ' ready';
+    }
+  } catch (err) {
+    if (sub) sub.textContent = 'Error loading data';
+  }
+  _vidLoading = false;
+  _renderVidBody();
+}
+
+async function vidLoadTimeline() {
+  var selEl  = document.getElementById('vid-tl-match');
+  var typeEl = document.getElementById('vid-tl-type');
+  if (!selEl) return;
+  var matchId = selEl.value;
+  _vidMatchId = matchId;
+  if (!matchId) { _vidTimelineItems = []; _renderVidBody(); return; }
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Loading events…');
+  try {
+    var opts = { limit: '500' };
+    if (typeEl && typeEl.value) opts.type = typeEl.value;
+    var res = await VideoIntelAPI.listEvents(matchId, opts);
+    _vidTimelineItems = (res && res.items) || [];
+  } catch (e) { _vidTimelineItems = []; }
+  _renderVidBody();
+}
+
+async function vidLoadClips() {
+  var selEl = document.getElementById('vid-clips-match');
+  var opts = { limit: '100' };
+  if (selEl && selEl.value) opts.matchId = selEl.value;
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Loading clips…');
+  try {
+    var res = await VideoIntelAPI.listClips(opts);
+    _vidClips = (res && res.items) || [];
+  } catch (e) { _vidClips = []; }
+  _renderVidBody();
+}
+
+async function vidLoadNotes() {
+  var selEl = document.getElementById('vid-notes-match');
+  if (!selEl) return;
+  var matchId = selEl.value;
+  _vidMatchId = matchId;
+  if (!matchId) { _vidNotes = []; _renderVidBody(); return; }
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Loading notes…');
+  try {
+    var res = await VideoIntelAPI.listNotes(matchId);
+    _vidNotes = Array.isArray(res) ? res : ((res && res.data) ? res.data : []);
+  } catch (e) { _vidNotes = []; }
+  _renderVidBody();
+}
+
+async function _vidReloadNotes() {
+  if (!_vidMatchId) return;
+  try {
+    var res = await VideoIntelAPI.listNotes(_vidMatchId);
+    _vidNotes = Array.isArray(res) ? res : ((res && res.data) ? res.data : []);
+  } catch (e) { _vidNotes = []; }
+  _renderVidBody();
+}
+
+async function vidLoadOpponent() {
+  var selEl = document.getElementById('vid-opp-match');
+  if (!selEl) return;
+  var matchId = selEl.value;
+  _vidMatchId = matchId;
+  if (!matchId) { _vidOpponentData = null; _renderVidBody(); return; }
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Loading opponent analysis…');
+  try {
+    _vidOpponentData = await VideoIntelAPI.matchSummary(matchId);
+  } catch (e) { _vidOpponentData = {}; }
+  _renderVidBody();
+}
+
+async function vidLoadSummary() {
+  var selEl = document.getElementById('vid-sum-match');
+  if (!selEl) return;
+  var matchId = selEl.value;
+  _vidMatchId = matchId;
+  if (!matchId) { _vidSummaryData = null; _renderVidBody(); return; }
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Loading AI summary…');
+  try {
+    _vidSummaryData = await VideoIntelAPI.aiFeatures(matchId);
+  } catch (e) { _vidSummaryData = {}; }
+  _renderVidBody();
+}
+
+// ── upload flow ───────────────────────────────────────────────────────────────
+
+function _vidFileSelect(file) {
+  if (!file) return;
+  _vidUploadFile = file;
+  var info = document.getElementById('vid-file-info');
+  if (info) { info.textContent = file.name + '  (' + _vFmtBytes(file.size) + ')'; info.style.display = 'block'; }
+  var titleEl = document.getElementById('vid-title');
+  if (titleEl && !titleEl.value) titleEl.value = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+}
+
+function _vidHandleDrop(e) {
+  e.preventDefault();
+  var zone = document.getElementById('vid-drop-zone');
+  if (zone) zone.style.borderColor = 'var(--bd)';
+  var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) _vidFileSelect(file);
+}
+
+async function vidSubmitUpload() {
+  var titleEl = document.getElementById('vid-title');
+  var kindEl  = document.getElementById('vid-kind');
+  var matchEl = document.getElementById('vid-match');
+  var tagsEl  = document.getElementById('vid-tags');
+  var errEl   = document.getElementById('vid-upload-err');
+  var okEl    = document.getElementById('vid-upload-ok');
+  var progW   = document.getElementById('vid-upload-progress');
+  var progLbl = document.getElementById('vid-prog-label');
+  var progBar = document.getElementById('vid-prog-bar');
+  var btn     = document.getElementById('vid-submit-btn');
+  function showErr(msg) { if (errEl) { errEl.textContent = msg; errEl.style.display = 'block'; } }
+  function hideErr()    { if (errEl) errEl.style.display = 'none'; }
+  hideErr();
+  if (okEl) okEl.style.display = 'none';
+  var title = titleEl && titleEl.value.trim();
+  if (!title)          { showErr('Title is required.'); return; }
+  if (!_vidUploadFile) { showErr('Please select a video file.'); return; }
+  if (_vidUploadBusy)  return;
+  _vidUploadBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+  if (progW) progW.style.display = 'block';
+  var file      = _vidUploadFile;
+  var srcKind   = kindEl  && kindEl.value  ? kindEl.value  : 'MATCH';
+  var matchId   = matchEl && matchEl.value ? matchEl.value : undefined;
+  var tags      = tagsEl  && tagsEl.value  ? tagsEl.value.split(',').map(function(t) { return t.trim(); }).filter(Boolean) : [];
+  var sizeMb    = Math.round(file.size / 1024 / 1024 * 10) / 10;
+  try {
+    if (progLbl) progLbl.textContent = 'Requesting upload URL…';
+    if (progBar) progBar.style.width = '15%';
+    var res1 = await VideoIntelAPI.requestUpload({ title: title, sourceKind: srcKind, filename: file.name, fileSizeMb: sizeMb, matchId: matchId, tags: tags });
+    if (!res1 || !res1.asset || !res1.uploadUrl) throw new Error('Invalid response — missing asset or uploadUrl');
+    if (progLbl) progLbl.textContent = 'Uploading to storage…';
+    if (progBar) progBar.style.width = '40%';
+    var putRes = await fetch(res1.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'video/mp4' } });
+    if (!putRes.ok) throw new Error('Storage PUT failed (' + putRes.status + ')');
+    if (progBar) progBar.style.width = '80%';
+    if (progLbl) progLbl.textContent = 'Confirming upload…';
+    await VideoIntelAPI.confirmUpload({ assetId: res1.asset.id });
+    if (progBar) progBar.style.width = '100%';
+    if (progLbl) progLbl.textContent = 'Done!';
+    _vidUploadFile = null;
+    _vidUploadBusy = false;
+    if (okEl) { okEl.innerHTML = '✓ <strong>' + _esc(title) + '</strong> uploaded. Transcode job queued.'; okEl.style.display = 'block'; }
+    showToast('"' + title + '" uploaded — transcode queued', 'success');
+    await loadVideoIntelData();
+  } catch (err) {
+    _vidUploadBusy = false;
+    if (progW) progW.style.display = 'none';
+    showErr((err && (err.userMessage || err.message)) || 'Upload failed — check console.');
+    console.error('[vid-upload]', err);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Upload'; }
+}
+
+// ── stream modal ──────────────────────────────────────────────────────────────
+
+async function vidStreamAsset(assetId, title) {
+  var modal    = document.getElementById('vid-stream-modal');
+  var titleEl  = document.getElementById('vid-modal-title');
+  var videoEl  = document.getElementById('vid-video-el');
+  var fallback = document.getElementById('vid-stream-fallback');
+  var urlEl    = document.getElementById('vid-stream-url');
+  var thumbRow = document.getElementById('vid-stream-thumb');
+  var thumbImg = document.getElementById('vid-thumb-img');
+  if (!modal) return;
+  if (titleEl) titleEl.textContent = title || 'Video';
+  if (videoEl)  { videoEl.src = ''; videoEl.style.display = 'none'; }
+  if (fallback) fallback.style.display = 'none';
+  if (thumbRow) thumbRow.style.display = 'none';
+  modal.style.display = 'flex';
+  try {
+    var res = await VideoIntelAPI.streamUrl(assetId);
+    var hlsUrl  = res && res.hlsUrl  ? res.hlsUrl  : '';
+    var thumbUrl = res && res.thumbUrl ? res.thumbUrl : '';
+    if (!hlsUrl) throw new Error('No stream URL returned');
+    if (urlEl) urlEl.textContent = hlsUrl;
+    if (videoEl && videoEl.canPlayType && videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+      videoEl.src = hlsUrl;
+      videoEl.style.display = 'block';
+    } else {
+      if (fallback) fallback.style.display = 'block';
+    }
+    if (thumbUrl && thumbImg && thumbRow) { thumbImg.src = thumbUrl; thumbRow.style.display = 'block'; }
+  } catch (err) {
+    if (modal) modal.style.display = 'none';
+    showToast((err && err.userMessage) || 'Could not load stream URL', 'error');
+  }
+}
+
+function vidCloseStream() {
+  var modal   = document.getElementById('vid-stream-modal');
+  var videoEl = document.getElementById('vid-video-el');
+  if (videoEl) { videoEl.pause(); videoEl.src = ''; }
+  if (modal)   modal.style.display = 'none';
+}
+
+function vidCopyUrl() {
+  var urlEl = document.getElementById('vid-stream-url');
+  var url = urlEl ? urlEl.textContent : '';
+  if (!url) return;
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(function() { showToast('Stream URL copied', 'success'); });
+}
+
+// ── delete asset ──────────────────────────────────────────────────────────────
+
+async function vidDeleteAsset(assetId, title) {
+  if (!confirm('Delete "' + (title||'this video') + '"? This also removes all clips and transcode jobs.')) return;
+  try {
+    await VideoIntelAPI.deleteAsset(assetId);
+    showToast('"' + (title||'Video') + '" deleted', 'success');
+    _vidAssets = _vidAssets.filter(function(a) { return a.id !== assetId; });
+    _vidAssetsTotal = Math.max(0, _vidAssetsTotal - 1);
+    _renderVidBody();
+  } catch (err) { showToast((err && err.userMessage) || 'Delete failed', 'error'); }
+}
+
+// ── filter by status ──────────────────────────────────────────────────────────
+
+async function vidFilterStatus(status) {
+  var el = document.getElementById('vid-body');
+  if (el) el.innerHTML = loadingHTML('Filtering…');
+  try {
+    var opts = { limit: '50' };
+    if (status && status !== 'ALL') opts.status = status;
+    var res = await VideoIntelAPI.listAssets(opts);
+    _vidAssets      = (res && res.items) || [];
+    _vidAssetsTotal = (res && res.total) || 0;
+  } catch (e) { /* keep existing */ }
+  _renderVidBody();
+}
+
+// ── tactical note CRUD ────────────────────────────────────────────────────────
+
+async function vidAddNote() {
+  if (!_vidMatchId) return;
+  var minEl  = document.getElementById('vid-note-min');
+  var sideEl = document.getElementById('vid-note-side');
+  var txtEl  = document.getElementById('vid-note-text');
+  var min  = minEl  && minEl.value  ? parseInt(minEl.value, 10) : 0;
+  var side = sideEl && sideEl.value ? sideEl.value : 'HOME';
+  var text = txtEl  && txtEl.value.trim();
+  if (!text) { showToast('Note text is required', 'error'); return; }
+  try {
+    await VideoIntelAPI.addNote(_vidMatchId, { occurredAtMin: min, kind: 'TACTICAL_NOTE', side: side, notes: text });
+    showToast('Note added', 'success');
+    if (txtEl) txtEl.value = '';
+    await _vidReloadNotes();
+  } catch (err) { showToast((err && err.userMessage) || 'Failed to add note', 'error'); }
+}
+
+async function vidDeleteNote(matchId, evtId) {
+  if (!confirm('Delete this note?')) return;
+  try {
+    await VideoIntelAPI.deleteNote(matchId, evtId);
+    showToast('Note deleted', 'success');
+    _vidNotes = _vidNotes.filter(function(n) { return n.id !== evtId; });
+    _renderVidBody();
+  } catch (err) { showToast((err && err.userMessage) || 'Delete failed', 'error'); }
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function _vMatchOptions() {
+  return (State.matches || []).slice(0, 80).map(function(m) {
+    var opp = m.isHome ? (m.awayTeam || m.opponent || '') : (m.homeTeam || m.opponent || '');
+    var d   = m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : (m.date ? new Date(m.date).toLocaleDateString() : '');
+    return '<option value="' + m.id + '">' + _esc(opp || m.id.slice(0,8)) + (d ? ' · ' + d : '') + '</option>';
+  }).join('');
+}
+
+function _vFmtDur(sec) {
+  var s = Math.floor(sec), h = Math.floor(s/3600), mm = Math.floor((s%3600)/60), ss = s%60;
+  if (h > 0) return h + ':' + String(mm).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+  return mm + ':' + String(ss).padStart(2,'0');
+}
+
+function _vFmtBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes/1048576).toFixed(1) + ' MB';
+  return (bytes/1073741824).toFixed(2) + ' GB';
+}
+
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// END VIDEO ANALYSIS & MATCH INTELLIGENCE CENTER
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFER INTELLIGENCE CENTER — Phase 9
+// APIs (all under /api/v1/phase-q/transfer/):
+//   GET  targets?limit=200           — active + archived targets
+//   GET  pipeline                    — kanban board by stage
+//   GET  reports?limit=100           — scouting reports
+//   GET  contracts-expiring          — contracts expiring within 180d
+//   GET  market-values/squad         — squad valuation summary
+//   GET  intelligence/squad          — age/position/wage/valuation analysis
+//   GET  intelligence/player/:id     — cross-module player profile
+//   POST targets                     — add target
+//   POST targets/:id/advance         — advance pipeline stage
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── Helpers (hoisted — available to stats/workload sections above) ─────────────
+
+function _scoutPlayerName(playerId) {
+  var p = (State.players || []).find(function(pl) { return pl.id === playerId; });
+  return p ? (p.firstName + ' ' + p.lastName) : '';
+}
+function _scoutPlayerPos(playerId) {
+  var p = (State.players || []).find(function(pl) { return pl.id === playerId; });
+  return p ? (p.position || '') : '';
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+
+// State.transfer is initialised in the global State object elsewhere.
+// Keys used: targets, pipeline, reports, contracts, squadVal, squadIntel,
+//            _loading, _tab, _search, _stageFilter, _recFilter, _playerIntel
+
+// ── HTML Skeleton ─────────────────────────────────────────────────────────────
+
+function renderTransferHTML() {
+  return `<div class="page" id="pg-transfer">
+  <div class="ti-page">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);">Transfer Intelligence Center</div>
+        <div style="font-size:12px;color:var(--tx-3);" id="ti-sub">Loading…</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" data-action="tiRefresh">&#8635; Refresh</button>
+        <button class="btn btn-primary btn-sm" data-action="tiOpenAddTarget">+ Add Target</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="ti-tabs" style="display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;">
+      <button class="ti-tab active" id="titab-dashboard"  data-action="tiSwitchTab" data-tab="dashboard">Dashboard</button>
+      <button class="ti-tab"        id="titab-targets"    data-action="tiSwitchTab" data-tab="targets">Targets</button>
+      <button class="ti-tab"        id="titab-market"     data-action="tiSwitchTab" data-tab="market">Market Intel</button>
+      <button class="ti-tab"        id="titab-contracts"  data-action="tiSwitchTab" data-tab="contracts">Contracts</button>
+      <button class="ti-tab"        id="titab-pipeline"   data-action="tiSwitchTab" data-tab="pipeline">Pipeline</button>
+      <button class="ti-tab"        id="titab-video"      data-action="tiSwitchTab" data-tab="video">Video+Analytics</button>
+      <button class="ti-tab"        id="titab-compare"    data-action="tiSwitchTab" data-tab="compare">Compare</button>
+      <button class="ti-tab"        id="titab-intel"      data-action="tiSwitchTab" data-tab="intel">Intelligence</button>
+    </div>
+
+    <!-- Tab content -->
+    <div id="ti-content"></div>
+
+    <!-- Detail modal -->
+    <div id="ti-detail-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;overflow-y:auto;">
+      <div style="max-width:700px;margin:48px auto;background:var(--surface);border-radius:12px;padding:24px;position:relative;">
+        <button data-action="tiCloseDetail" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--tx-2);">&#x2715;</button>
+        <div id="ti-detail-name" style="font-size:16px;font-weight:700;color:var(--tx);margin-bottom:16px;"></div>
+        <div id="ti-detail-body" style="color:var(--tx-2);font-size:13px;"></div>
+      </div>
+    </div>
+
+    <!-- Add-target modal -->
+    <div id="ti-add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;overflow-y:auto;">
+      <div style="max-width:500px;margin:48px auto;background:var(--surface);border-radius:12px;padding:24px;position:relative;">
+        <button data-action="tiCloseAddTarget" style="position:absolute;top:14px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:var(--tx-2);">&#x2715;</button>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);margin-bottom:16px;">Add Transfer Target</div>
+        <form id="ti-add-form" data-form-submit="tiSubmitAddTarget">
+          <div style="display:grid;gap:12px;">
+            <div>
+              <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Player *</label>
+              <select id="tia-player" class="form-input" style="width:100%;" required>
+                <option value="">— select player —</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Current Club</label>
+                <input id="tia-club" class="form-input" placeholder="e.g. Real Madrid" style="width:100%;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Position</label>
+                <input id="tia-pos" class="form-input" placeholder="e.g. CM" style="width:100%;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Asking Price (M€)</label>
+                <input id="tia-price" type="number" step="0.1" min="0" class="form-input" placeholder="0.0" style="width:100%;">
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Priority (0–100)</label>
+                <input id="tia-priority" type="number" min="0" max="100" class="form-input" placeholder="50" style="width:100%;">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Nationality</label>
+              <input id="tia-nat" class="form-input" placeholder="e.g. Spanish" style="width:100%;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Notes</label>
+              <textarea id="tia-notes" class="form-input" rows="2" style="width:100%;resize:vertical;"></textarea>
+            </div>
+            <div id="tia-error" style="display:none;color:var(--red);font-size:12px;"></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;">
+              <button type="button" data-action="tiCloseAddTarget" class="btn btn-ghost btn-sm">Cancel</button>
+              <button type="submit" id="tia-submit" class="btn btn-primary btn-sm">Add to Pipeline</button>
+            </div>
           </div>
-        </div>
-      </div>`).join('');
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>`;
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+async function loadTransferData() {
+  if (State.transfer._loading) return;
+  State.transfer._loading = true;
+
+  const content = document.getElementById('ti-content');
+  if (content) content.innerHTML = loadingHTML('Loading transfer data…');
+
+  const [targRes, pipeRes, repRes, contrRes, valRes, sqRes, rankRes, depthRes, futureRes] = await Promise.allSettled([
+    FamilistaAPI.get('/phase-q/transfer/targets?limit=200'),
+    FamilistaAPI.get('/phase-q/transfer/pipeline'),
+    FamilistaAPI.get('/phase-q/transfer/reports?limit=100'),
+    FamilistaAPI.get('/phase-q/transfer/contracts-expiring'),
+    FamilistaAPI.get('/phase-q/transfer/market-values/squad'),
+    FamilistaAPI.get('/phase-q/transfer/intelligence/squad'),
+    FamilistaAPI.get('/phase-q/transfer/scoring/ranked'),
+    FamilistaAPI.get('/phase-q/transfer/scoring/squad-depth'),
+    FamilistaAPI.get('/phase-q/transfer/intelligence/squad-future'),
+  ]);
+
+  State.transfer.targets        = (targRes.status  === 'fulfilled' && Array.isArray(targRes.value?.items))  ? targRes.value.items  : [];
+  State.transfer.pipeline       = (pipeRes.status  === 'fulfilled' && pipeRes.value && typeof pipeRes.value === 'object') ? pipeRes.value : {};
+  State.transfer.reports        = (repRes.status   === 'fulfilled' && Array.isArray(repRes.value?.items))   ? repRes.value.items   : [];
+  State.transfer.contracts      = (contrRes.status === 'fulfilled' && Array.isArray(contrRes.value))        ? contrRes.value       : [];
+  State.transfer.squadVal       = (valRes.status   === 'fulfilled' && Array.isArray(valRes.value))          ? valRes.value         : [];
+  State.transfer.squadIntel     = (sqRes.status    === 'fulfilled' && sqRes.value)                          ? sqRes.value          : null;
+  State.transfer._rankedTargets = (rankRes.status  === 'fulfilled' && Array.isArray(rankRes.value?.items))  ? rankRes.value.items  : null;
+  State.transfer._squadDepth    = (depthRes.status === 'fulfilled' && depthRes.value)                       ? depthRes.value       : null;
+  State.transfer._futurePlan    = (futureRes.status === 'fulfilled' && futureRes.value)                     ? futureRes.value      : null;
+
+  const active = State.transfer.targets.filter(function(t) { return !t.archivedAt; }).length;
+  const subEl  = document.getElementById('ti-sub');
+  if (subEl) subEl.textContent = active + ' active target' + (active !== 1 ? 's' : '') + ' · ' + State.transfer.reports.length + ' scout reports';
+
+  State.transfer._loading = false;
+  tiRenderTab();
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+function tiSwitchTab(tab) {
+  State.transfer._tab = tab;
+  document.querySelectorAll('.ti-tab').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.tab === tab);
+  });
+  tiRenderTab();
+}
+
+function tiRenderTab() {
+  const el = document.getElementById('ti-content');
+  if (!el) return;
+  switch (State.transfer._tab) {
+    case 'dashboard': el.innerHTML = _tiDashboard();      break;
+    case 'targets':   el.innerHTML = _tiTargets();        break;
+    case 'market':    el.innerHTML = _tiMarket();         break;
+    case 'contracts': el.innerHTML = _tiContracts();      break;
+    case 'pipeline':  el.innerHTML = _tiPipeline();       break;
+    case 'video':     el.innerHTML = _tiVideoAnalytics(); break;
+    case 'compare':   el.innerHTML = _tiCompare();        break;
+    case 'intel':     el.innerHTML = _tiIntelligence();   break;
+    default:          el.innerHTML = _tiDashboard();
+  }
+}
+
+// ── SCREEN 1: Dashboard ───────────────────────────────────────────────────────
+
+function _tiDashboard() {
+  const T          = State.transfer;
+  const active     = T.targets.filter(function(t) { return !t.archivedAt; });
+  const pipe       = T.pipeline;
+  const totalVal   = T.squadVal.reduce(function(s, v) { return s + (v.latestValueMEur || 0); }, 0);
+  const expiringN  = T.contracts.filter(function(c) { return c.isExpiringSoon; }).length;
+  const si         = T.squadIntel;
+  const ranked     = T._rankedTargets || [];
+  const depth      = T._squadDepth;
+
+  // Market opportunity count
+  var mktOppN = ranked.filter(function(r) { return r.scorecard && r.scorecard.marketOpportunity; }).length;
+
+  const kpis = `<div class="ti-kpi-row">
+    <div class="ti-kpi"><div class="ti-kpi-val">${active.length}</div><div class="ti-kpi-label">Active Targets</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val">${totalVal.toFixed(1)}M€</div><div class="ti-kpi-label">Squad Value</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val">${T.reports.length}</div><div class="ti-kpi-label">Scout Reports</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val" style="color:${expiringN > 3 ? 'var(--red)' : expiringN > 0 ? 'var(--amber)' : 'var(--green-l)'}">${expiringN}</div><div class="ti-kpi-label">Expiring Contracts</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val" style="color:${mktOppN > 0 ? 'var(--green-l)' : 'var(--tx-3)'}">${mktOppN}</div><div class="ti-kpi-label">Market Opps</div></div>
+    ${si ? '<div class="ti-kpi"><div class="ti-kpi-val" style="color:' + (si.injuredCount > 3 ? 'var(--red)' : 'var(--amber)') + '">' + si.injuredCount + '</div><div class="ti-kpi-label">Squad Injured</div></div>' : ''}
+  </div>`;
+
+  // Pipeline mini
+  const STAGES = ['LONGLIST','SHORTLIST','APPROACH','NEGOTIATION'];
+  const pipeRows = STAGES.map(function(s) {
+    const items = (pipe[s] || []);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:12px;color:var(--tx-2);">${s}</span>
+      <span style="font-size:13px;font-weight:700;color:var(--tx);">${items.length}</span>
+    </div>`;
+  }).join('');
+  const pipeCard = `<div class="ti-card" style="margin-top:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;">Pipeline Summary</div>
+    ${pipeRows}
+    <div style="margin-top:10px;text-align:right;">
+      <button class="btn btn-ghost btn-xs" data-action="tiSwitchTab" data-tab="pipeline">Full Pipeline →</button>
+    </div>
+  </div>`;
+
+  // Top 5 scored targets (from ranking engine; fall back to priorityScore sort)
+  var scoreBadge = function(score) {
+    var c = score >= 80 ? 'var(--green-l)' : score >= 65 ? '#60a5fa' : score >= 50 ? 'var(--amber)' : 'var(--red)';
+    return '<span style="display:inline-block;min-width:30px;text-align:center;background:' + c + '22;color:' + c + ';font-size:10px;font-weight:700;border-radius:3px;padding:1px 4px;">' + Math.round(score) + '</span>';
+  };
+  var flagBadge = function(flag) {
+    var map = { CONTRACT_CRITICAL:'🔴 CRIT', CONTRACT_WARNING:'🟡 WARN', AVAILABLE_NOW:'🟢 AVAIL', UNDERVALUED:'💰 UNV', HIGH_POTENTIAL:'⬆ POT', NO_REPORTS:'📋 0REP', EXPIRING_SOON:'⏰ EXP' };
+    return map[flag] ? '<span style="font-size:9px;color:var(--tx-3);margin-left:3px;">' + map[flag] + '</span>' : '';
+  };
+
+  var topRows;
+  if (ranked.length > 0) {
+    topRows = ranked.slice(0, 5).map(function(r) {
+      var sc   = r.scorecard;
+      var tgt  = T.targets.find(function(t) { return t.id === r.targetId; }) || {};
+      var name = _esc(_scoutPlayerName(r.playerId));
+      var club = _esc(tgt.currentClubName || '—');
+      var flags = (sc.flags || []).slice(0, 2).map(flagBadge).join('');
+      return '<div class="ti-target-row" data-action="tiOpenDetail" data-id="' + _esc(r.targetId) + '"'
+        + ' style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+        + '<div>'
+        + '<div style="font-size:13px;font-weight:600;color:var(--tx);">' + (name || r.playerId.substring(0,8)+'…') + flags + '</div>'
+        + '<div style="font-size:11px;color:var(--tx-3);">' + club + ' • ' + _esc(r.stage) + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;">'
+        + '<div>' + scoreBadge(sc.transferPriority) + '</div>'
+        + '<div style="font-size:9px;color:var(--tx-3);margin-top:2px;">priority</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  } else {
+    const sorted = active.slice().sort(function(a, b) { return (b.priorityScore || 0) - (a.priorityScore || 0); });
+    topRows = sorted.slice(0, 5).map(function(t) {
+      var name = _esc(_scoutPlayerName(t.playerId));
+      var club = _esc(t.currentClubName || '—');
+      var pri  = t.priorityScore != null ? t.priorityScore : '?';
+      return '<div class="ti-target-row" data-action="tiOpenDetail" data-id="' + _esc(t.id) + '"'
+        + ' style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">'
+        + '<div><div style="font-size:13px;font-weight:600;color:var(--tx);">' + (name || t.playerId.substring(0,8)+'…') + '</div>'
+        + '<div style="font-size:11px;color:var(--tx-3);">' + club + ' • ' + _esc(t.stage) + '</div></div>'
+        + '<div style="font-size:13px;font-weight:700;color:var(--accent);">' + pri + '</div>'
+        + '</div>';
+    }).join('') || '<div style="color:var(--tx-3);font-size:13px;padding:12px 0;">No active targets yet.</div>';
   }
 
-  const ariaEl = document.getElementById('scout-aria');
-  const top = SCOUTS.find(s => s.recommendation === 'SIGN');
-  if (ariaEl && top) ariaEl.textContent = `${top.targetName} (${top.position}) — ${top.notes} Value: ${fmtCurrency(top.marketValue)}. Recommended signing.`;
+  const topCard = `<div class="ti-card" style="margin-top:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;">Top Ranked Targets</div>
+    ${topRows}
+    <div style="margin-top:10px;text-align:right;">
+      <button class="btn btn-ghost btn-xs" data-action="tiSwitchTab" data-tab="targets">All targets →</button>
+    </div>
+  </div>`;
+
+  // Squad depth alerts
+  var depthCard = '';
+  if (depth) {
+    var critSlots = depth.criticalSlots || [];
+    var shortages = depth.shortages || [];
+    var depthRows = shortages.map(function(s) {
+      var isCrit = critSlots.indexOf(s.position) !== -1;
+      var c = isCrit ? 'var(--red)' : 'var(--amber)';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">'
+        + '<span style="font-size:12px;font-weight:700;color:' + c + ';">' + _esc(s.position) + (isCrit ? ' ⚠' : '') + '</span>'
+        + '<span style="font-size:11px;color:var(--tx-3);">' + s.have + '/' + s.need + ' — deficit ' + s.deficit + '</span>'
+        + '</div>';
+    }).join('') || '<div style="font-size:12px;color:var(--green-l);padding:6px 0;">✓ All positions adequately covered</div>';
+    depthCard = '<div class="ti-card" style="margin-top:16px;">'
+      + '<div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;">Squad Depth'
+      + (critSlots.length ? ' <span style="color:var(--red);font-size:10px;">(' + critSlots.length + ' CRITICAL)</span>' : '') + '</div>'
+      + depthRows
+      + '<div style="margin-top:8px;text-align:right;"><button class="btn btn-ghost btn-xs" data-action="tiSwitchTab" data-tab="market">Full Analysis →</button></div>'
+      + '</div>';
+  }
+
+  // Recent reports
+  const recentReps = T.reports.slice(0, 4).map(function(r) {
+    var name = _esc(_scoutPlayerName(r.playerId));
+    var grade = r.overallGrade || '—';
+    var rec   = r.recommendation || '';
+    var gradeColor = grade.startsWith('A') ? 'var(--green-l)' : grade === 'B_PLUS' ? '#60a5fa' : grade === 'B' ? 'var(--amber)' : 'var(--tx-3)';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-size:13px;color:var(--tx);">${name || r.playerId.substring(0,8)+'…'}</div>
+        <div style="font-size:11px;color:var(--tx-3);">${_esc(rec)}</div>
+      </div>
+      <span style="font-size:12px;font-weight:700;color:${gradeColor};">${_esc(grade.replace('_PLUS','+'))}</span>
+    </div>`;
+  }).join('') || '<div style="color:var(--tx-3);font-size:13px;padding:8px 0;">No reports yet.</div>';
+
+  const repCard = `<div class="ti-card" style="margin-top:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;">Recent Scout Reports</div>
+    ${recentReps}
+    <div style="margin-top:10px;text-align:right;">
+      <button class="btn btn-ghost btn-xs" data-action="tiSwitchTab" data-tab="compare">Compare players →</button>
+    </div>
+  </div>`;
+
+  return kpis + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;">${pipeCard}${topCard}</div>` + depthCard + repCard;
 }
+
+// ── SCREEN 2: Targets ─────────────────────────────────────────────────────────
+
+function _tiTargets() {
+  const T     = State.transfer;
+  const q     = (T._search || '').toLowerCase();
+  const stage = T._stageFilter || '';
+  var items   = T.targets.filter(function(t) { return !t.archivedAt; });
+  if (q)     items = items.filter(function(t) { return (_scoutPlayerName(t.playerId)||'').toLowerCase().includes(q) || (t.currentClubName||'').toLowerCase().includes(q); });
+  if (stage) items = items.filter(function(t) { return t.stage === stage; });
+
+  // Build a lookup map from ranked targets so we can show scores inline
+  var ranked  = T._rankedTargets || [];
+  var scoreMap = {};
+  ranked.forEach(function(r) { scoreMap[r.targetId] = r.scorecard; });
+
+  // Sort by transferPriority if scoring data available, otherwise priorityScore
+  if (ranked.length > 0) {
+    items.sort(function(a, b) {
+      var sa = scoreMap[a.id] ? scoreMap[a.id].transferPriority : 0;
+      var sb = scoreMap[b.id] ? scoreMap[b.id].transferPriority : 0;
+      return sb - sa;
+    });
+  } else {
+    items.sort(function(a, b) { return (b.priorityScore || 0) - (a.priorityScore || 0); });
+  }
+
+  const STAGES = ['', 'LONGLIST','SHORTLIST','APPROACH','NEGOTIATION'];
+  const stageOpts = STAGES.map(function(s) {
+    return `<option value="${s}" ${stage === s ? 'selected' : ''}>${s || 'All Stages'}</option>`;
+  }).join('');
+
+  const controls = `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <input class="form-input" style="flex:1;min-width:180px;" placeholder="Search player or club…"
+      value="${_esc(T._search||'')}"
+      oninput="State.transfer._search=this.value;tiRenderTab();">
+    <select class="form-input" style="min-width:140px;" onchange="State.transfer._stageFilter=this.value;tiRenderTab();">${stageOpts}</select>
+  </div>`;
+
+  if (!items.length) return controls + '<div style="color:var(--tx-3);font-size:13px;padding:20px 0;text-align:center;">No targets match filter.</div>';
+
+  var _scorePill = function(score, label) {
+    var c = score >= 80 ? 'var(--green-l)' : score >= 65 ? '#60a5fa' : score >= 50 ? 'var(--amber)' : 'var(--red)';
+    return '<div style="text-align:center;">'
+      + '<div style="background:' + c + '22;color:' + c + ';font-size:11px;font-weight:700;border-radius:4px;padding:2px 6px;">' + Math.round(score) + '</div>'
+      + '<div style="font-size:9px;color:var(--tx-3);margin-top:1px;">' + label + '</div>'
+      + '</div>';
+  };
+  var _flagPills = function(flags) {
+    var abbr = { CONTRACT_CRITICAL:'🔴', CONTRACT_WARNING:'🟡', AVAILABLE_NOW:'🟢', UNDERVALUED:'💰', HIGH_POTENTIAL:'⬆', NO_REPORTS:'📋', EXPIRING_SOON:'⏰' };
+    return (flags || []).slice(0,3).map(function(f) {
+      return '<span title="' + _esc(f) + '" style="font-size:11px;cursor:default;">' + (abbr[f] || '') + '</span>';
+    }).join('');
+  };
+
+  const rows = items.map(function(t) {
+    var name     = _esc(_scoutPlayerName(t.playerId));
+    var pos      = _esc(t.position || _scoutPlayerPos(t.playerId) || '—');
+    var club     = _esc(t.currentClubName || '—');
+    var price    = t.askingPriceMEur != null ? t.askingPriceMEur + 'M€' : '—';
+    var valEntry = T.squadVal.find(function(v) { return v.playerId === t.playerId; });
+    var val      = valEntry ? valEntry.latestValueMEur + 'M€' : '—';
+    var stageColor = {LONGLIST:'var(--tx-3)',SHORTLIST:'#60a5fa',APPROACH:'var(--amber)',NEGOTIATION:'var(--green-l)'}[t.stage] || 'var(--tx-3)';
+    var sc       = scoreMap[t.id];
+
+    var scoreSection = sc
+      ? '<div style="display:flex;gap:8px;align-items:center;">'
+        + _scorePill(sc.compositeScore, 'score')
+        + _scorePill(sc.tacticalFitScore, 'fit')
+        + _scorePill(sc.contractRiskScore, 'risk')
+        + '<div style="font-size:13px;">' + _flagPills(sc.flags) + '</div>'
+        + '</div>'
+      : '<div style="font-size:11px;color:var(--tx-3);">pri ' + (t.priorityScore != null ? t.priorityScore : '?') + '</div>';
+
+    return '<div class="ti-target-row" data-action="tiOpenDetail" data-id="' + _esc(t.id) + '"'
+      + ' style="display:grid;grid-template-columns:1fr auto;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;transition:background .15s;"'
+      + ' onmouseover="this.style.background=\'var(--surface-2)\'" onmouseout="this.style.background=\'\'">'
+      + '<div>'
+      + '<div style="font-size:13px;font-weight:600;color:var(--tx);">' + (name || t.playerId.substring(0,8)+'…') + ' <span style="font-size:11px;color:var(--tx-3);">' + pos + '</span></div>'
+      + '<div style="font-size:11px;color:var(--tx-3);margin-top:2px;">' + club + ' • Ask: ' + price + ' • Mkt: ' + val + '</div>'
+      + '</div>'
+      + '<div style="text-align:right;">'
+      + '<div style="font-size:11px;font-weight:700;color:' + stageColor + ';margin-bottom:4px;">' + _esc(t.stage) + '</div>'
+      + scoreSection
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  return controls + `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;">${rows}</div>`;
+}
+
+// ── SCREEN 3: Market Intelligence ─────────────────────────────────────────────
+
+function _tiMarket() {
+  const si = State.transfer.squadIntel;
+  if (!si) {
+    return `<div style="color:var(--tx-3);font-size:13px;padding:32px;text-align:center;">
+      Squad intelligence not available. <button class="btn btn-ghost btn-xs" data-action="tiRefresh">Retry</button>
+    </div>`;
+  }
+
+  // Squad overview KPIs
+  const wageBillM = (si.annualWageBillEur / 1_000_000).toFixed(1);
+  const kpis = `<div class="ti-kpi-row" style="margin-bottom:16px;">
+    <div class="ti-kpi"><div class="ti-kpi-val">${si.squadSize}</div><div class="ti-kpi-label">Squad Size</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val">${si.totalSquadValueMEur.toFixed(1)}M€</div><div class="ti-kpi-label">Total Squad Value</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val">${wageBillM}M€</div><div class="ti-kpi-label">Annual Wage Bill</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val" style="color:${si.injuredCount > 3 ? 'var(--red)' : 'var(--amber)'}">${si.injuredCount}</div><div class="ti-kpi-label">Injured</div></div>
+    <div class="ti-kpi"><div class="ti-kpi-val" style="color:var(--red)">${si.expiringContracts.length}</div><div class="ti-kpi-label">Contracts Expiring (1yr)</div></div>
+  </div>`;
+
+  // Age distribution
+  const ageBands = si.ageBands || {};
+  const ageRows  = Object.entries(ageBands).map(function(entry) {
+    var band = entry[0]; var cnt = entry[1];
+    var pct = si.squadSize > 0 ? Math.round(cnt / si.squadSize * 100) : 0;
+    return `<div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-2);margin-bottom:3px;">
+        <span>${band}</span><span>${cnt} players (${pct}%)</span>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+  const ageCard = `<div class="ti-card">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;">Age Distribution</div>
+    ${ageRows}
+  </div>`;
+
+  // Position distribution
+  const posEntries = Object.entries(si.positionCounts || {});
+  posEntries.sort(function(a, b) { return b[1] - a[1]; });
+  const maxPos = posEntries.reduce(function(m, e) { return Math.max(m, e[1]); }, 0);
+  const posRows = posEntries.map(function(entry) {
+    var pos = entry[0]; var cnt = entry[1];
+    var pct = maxPos > 0 ? Math.round(cnt / maxPos * 100) : 0;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <div style="width:80px;font-size:11px;color:var(--tx-2);text-align:right;flex-shrink:0;">${pos}</div>
+      <div style="flex:1;height:14px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:var(--accent-2,#60a5fa);border-radius:3px;display:flex;align-items:center;padding-left:4px;">
+          <span style="font-size:10px;font-weight:700;color:#fff;">${cnt}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  const posCard = `<div class="ti-card">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;">Position Counts</div>
+    ${posRows || '<div style="color:var(--tx-3);font-size:12px;">No data.</div>'}
+  </div>`;
+
+  // Top valuations
+  const topVals = (si.valuations || []).slice(0,8).map(function(v) {
+    var name = _esc(_scoutPlayerName(v.playerId));
+    return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
+      <span style="color:var(--tx);">${name || v.playerId.substring(0,10)+'…'}</span>
+      <span style="font-weight:700;color:var(--green-l);">${(v.latestValueMEur||0).toFixed(1)}M€</span>
+    </div>`;
+  }).join('');
+  const valCard = `<div class="ti-card" style="margin-top:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em;">Top Valued Players</div>
+    ${topVals || '<div style="color:var(--tx-3);font-size:12px;">No valuations recorded.</div>'}
+  </div>`;
+
+  return kpis + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">${ageCard}${posCard}</div>` + valCard + mktOppCard + sqDepthCard;
+}
+
+// ── SCREEN 4: Contract Center ─────────────────────────────────────────────────
+
+function _tiContracts() {
+  const T = State.transfer;
+  const contracts = T.contracts.slice().sort(function(a, b) {
+    return new Date(a.contractExpiry) - new Date(b.contractExpiry);
+  });
+
+  if (!contracts.length) return '<div style="color:var(--tx-3);font-size:13px;padding:20px;text-align:center;">No expiring contracts found (within 180 days).</div>';
+
+  const today = new Date();
+  const rows = contracts.map(function(c) {
+    var name     = _esc(_scoutPlayerName(c.playerId));
+    var expiry   = new Date(c.contractExpiry);
+    var daysLeft = Math.floor((expiry - today) / 86400000);
+    var urgColor = daysLeft < 60 ? 'var(--red)' : daysLeft < 120 ? 'var(--amber)' : 'var(--tx-2)';
+    var expStr   = expiry.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+    var valStr   = c.contractValueEur ? '€' + (c.contractValueEur / 1000).toFixed(0) + 'k/yr' : '—';
+    var clauseStr = c.releaseClauseEur ? '€' + (c.releaseClauseEur / 1_000_000).toFixed(1) + 'M' : '—';
+    var agent    = _esc(c.agentName || '—');
+    var status   = c.isAvailableForTransfer ? '<span style="color:var(--green-l);font-size:10px;font-weight:700;">AVAILABLE</span>' :
+                   c.isExpiringSoon         ? '<span style="color:var(--amber);font-size:10px;font-weight:700;">EXPIRING SOON</span>' : '';
+    return `<tr>
+      <td style="padding:8px 6px;font-size:13px;font-weight:600;color:var(--tx);">${name || c.playerId.substring(0,8)+'…'}</td>
+      <td style="padding:8px 6px;font-size:12px;color:${urgColor};font-weight:700;">${expStr}</td>
+      <td style="padding:8px 6px;font-size:12px;color:${urgColor};font-weight:700;">${daysLeft}d</td>
+      <td style="padding:8px 6px;font-size:12px;color:var(--tx-2);">${valStr}</td>
+      <td style="padding:8px 6px;font-size:12px;color:var(--tx-2);">${clauseStr}</td>
+      <td style="padding:8px 6px;font-size:12px;color:var(--tx-3);">${agent}</td>
+      <td style="padding:8px 6px;">${status}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Player</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Expiry</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Days Left</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Value/yr</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Release Clause</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Agent</th>
+          <th style="text-align:left;padding:6px;color:var(--tx-3);font-weight:600;">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+// ── SCREEN 5: Pipeline (Kanban) ───────────────────────────────────────────────
+
+function _tiPipeline() {
+  const T      = State.transfer;
+  const pipe   = T.pipeline;
+  const STAGES = ['LONGLIST','SHORTLIST','APPROACH','NEGOTIATION'];
+  const STAGE_COLORS = { LONGLIST:'var(--tx-3)', SHORTLIST:'#60a5fa', APPROACH:'var(--amber)', NEGOTIATION:'var(--green-l)' };
+  const NEXT_STAGE   = { LONGLIST:'SHORTLIST', SHORTLIST:'APPROACH', APPROACH:'NEGOTIATION', NEGOTIATION:null };
+
+  const cols = STAGES.map(function(stage) {
+    var items  = (pipe[stage] || []);
+    var color  = STAGE_COLORS[stage];
+    var nextS  = NEXT_STAGE[stage];
+    var cards  = items.length
+      ? items.map(function(t) {
+          var name  = _esc(_scoutPlayerName(t.playerId));
+          var club  = _esc(t.currentClubName || '');
+          var price = t.askingPriceMEur != null ? t.askingPriceMEur + 'M€' : '';
+          var btns  = '';
+          if (nextS) btns += `<button class="btn btn-ghost btn-xs" data-action="tiAdvance" data-id="${_esc(t.id)}" style="font-size:10px;">⇒ ${nextS.substring(0,3)}</button> `;
+          btns += `<button class="btn btn-ghost btn-xs" data-action="tiReject" data-id="${_esc(t.id)}" style="font-size:10px;color:var(--red);">Reject</button>`;
+          return `<div style="background:var(--surface-2);border-radius:6px;padding:10px;margin-bottom:8px;border:1px solid var(--border);">
+            <div style="font-size:12px;font-weight:700;color:var(--tx);margin-bottom:3px;">${name || t.playerId.substring(0,8)+'…'}</div>
+            ${club ? '<div style="font-size:10px;color:var(--tx-3);margin-bottom:3px;">' + club + '</div>' : ''}
+            ${price ? '<div style="font-size:10px;color:var(--amber);">' + price + '</div>' : ''}
+            <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">${btns}</div>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--tx-3);font-size:11px;text-align:center;padding:16px;">Empty</div>';
+
+    return `<div style="flex:1;min-width:180px;">
+      <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid ${color};">
+        ${stage} <span style="font-weight:400;color:var(--tx-3);">(${items.length})</span>
+      </div>
+      ${cards}
+    </div>`;
+  }).join('');
+
+  return `<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;">${cols}</div>`;
+}
+
+// ── SCREEN 6: Video + Analytics ───────────────────────────────────────────────
+
+function _tiVideoAnalytics() {
+  const players = (State.players || []).slice().sort(function(a, b) {
+    return (a.firstName + ' ' + a.lastName).localeCompare(b.firstName + ' ' + b.lastName);
+  });
+  const opts = players.map(function(p) {
+    return `<option value="${_esc(p.id)}">${_esc(p.firstName + ' ' + p.lastName)} (${_esc(p.position || '?')})</option>`;
+  }).join('');
+
+  const intel = State.transfer._playerIntel;
+
+  var intelHTML = '';
+  if (intel && !intel._loading) {
+    // Scouting reports summary
+    var reps     = (intel.reports && intel.reports.items) ? intel.reports.items : [];
+    var avgScore = reps.length ? (reps.reduce(function(s, r) { return s + (r.compositeScore || 0); }, 0) / reps.length).toFixed(1) : null;
+    var recounts = {};
+    reps.forEach(function(r) { recounts[r.recommendation] = (recounts[r.recommendation] || 0) + 1; });
+    var recStr = Object.entries(recounts).map(function(e) { return e[0] + ': ' + e[1]; }).join(', ');
+
+    // Contract
+    var ct = intel.contract;
+    var ctHTML = ct
+      ? `<div class="ti-card" style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;">Contract</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+            <div style="color:var(--tx-2);">Expiry</div><div style="color:var(--tx);">${new Date(ct.contractExpiry).toLocaleDateString('en-GB')}</div>
+            <div style="color:var(--tx-2);">Annual Value</div><div style="color:var(--tx);">${ct.contractValueEur ? '€' + (ct.contractValueEur/1000).toFixed(0) + 'k' : '—'}</div>
+            <div style="color:var(--tx-2);">Release Clause</div><div style="color:var(--tx);">${ct.releaseClauseEur ? '€' + (ct.releaseClauseEur/1e6).toFixed(1) + 'M' : '—'}</div>
+            <div style="color:var(--tx-2);">Agent</div><div style="color:var(--tx);">${_esc(ct.agentName || '—')}</div>
+          </div>
+          ${ct.isExpiringSoon ? '<div style="margin-top:8px;padding:6px;background:rgba(251,191,36,.15);border-radius:4px;font-size:11px;color:var(--amber);font-weight:600;">⚠ Expiring Soon</div>' : ''}
+        </div>`
+      : '';
+
+    // Medical
+    var med = intel.medical;
+    var medHTML = med
+      ? `<div class="ti-card" style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;">Medical Profile</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+            <div style="color:var(--tx-2);">Active Injuries</div>
+            <div style="color:${(med.injuries||[]).filter(function(i){return !i.returnDate;}).length > 0 ? 'var(--red)' : 'var(--green-l)'};">${(med.injuries||[]).filter(function(i){return !i.returnDate;}).length}</div>
+            <div style="color:var(--tx-2);">Injury History</div>
+            <div style="color:var(--tx);">${(med.injuries||[]).length} recorded</div>
+          </div>
+        </div>`
+      : '';
+
+    // Video clips
+    var clips = (intel.clips && intel.clips.items) ? intel.clips.items.slice(0,5) : [];
+    var clipsHTML = clips.length
+      ? `<div class="ti-card" style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;">Video Clips (${intel.clips.total})</div>
+          ${clips.map(function(cl) {
+              return '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+                + '<span style="color:var(--tx);">' + _esc(cl.title || 'Clip') + '</span>'
+                + '<span style="color:var(--tx-3);">' + _esc(cl.clipType || '') + '</span>'
+                + '</div>';
+            }).join('')}
+        </div>`
+      : '';
+
+    // Market value history
+    var mvHistory = (intel.marketHistory || []).slice(-6);
+    var mvHTML = mvHistory.length
+      ? `<div class="ti-card" style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;">Market Value History</div>
+          ${mvHistory.map(function(h) {
+              return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+                + '<span style="color:var(--tx-2);">' + new Date(h.valuationDate).toLocaleDateString('en-GB', {month:'short',year:'2-digit'}) + '</span>'
+                + '<span style="font-weight:700;color:var(--green-l);">' + (h.valueMEur||0).toFixed(2) + 'M€</span>'
+                + '<span style="color:var(--tx-3);font-size:10px;">' + _esc(h.source||'') + '</span>'
+                + '</div>';
+            }).join('')}
+        </div>`
+      : '';
+
+    var scoutCard = `<div class="ti-card">
+      <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;">Scouting Intelligence</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <div class="ti-kpi" style="padding:8px;"><div class="ti-kpi-val">${reps.length}</div><div class="ti-kpi-label">Reports</div></div>
+        <div class="ti-kpi" style="padding:8px;"><div class="ti-kpi-val">${avgScore || '—'}</div><div class="ti-kpi-label">Avg Score</div></div>
+        <div class="ti-kpi" style="padding:8px;"><div class="ti-kpi-val" style="font-size:10px;">${recStr || '—'}</div><div class="ti-kpi-label">Recommendations</div></div>
+      </div>
+    </div>`;
+
+    intelHTML = scoutCard + ctHTML + medHTML + mvHTML + clipsHTML;
+  } else if (intel && intel._loading) {
+    intelHTML = loadingHTML('Loading player intelligence…');
+  }
+
+  return `<div style="margin-bottom:16px;">
+    <label style="font-size:12px;color:var(--tx-2);display:block;margin-bottom:6px;">Select player for cross-module intelligence card:</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select id="ti-intel-player" class="form-input" style="flex:1;">
+        <option value="">— select player —</option>
+        ${opts}
+      </select>
+      <button class="btn btn-primary btn-sm" data-action="tiLoadPlayerIntel">Load Profile</button>
+    </div>
+  </div>
+  ${intelHTML}`;
+}
+
+// ── SCREEN 7: Advanced Compare ────────────────────────────────────────────────
+
+function _tiCompare() {
+  const T       = State.transfer;
+  const players = (State.players || []).slice().sort(function(a, b) {
+    return (a.firstName + ' ' + a.lastName).localeCompare(b.firstName + ' ' + b.lastName);
+  });
+
+  const makeOpts = function(selectedId) {
+    return '<option value="">— select —</option>'
+      + players.map(function(p) {
+        return '<option value="' + _esc(p.id) + '"' + (p.id === selectedId ? ' selected' : '') + '>'
+          + _esc(p.firstName + ' ' + p.lastName) + ' (' + _esc(p.position || '?') + ')</option>';
+      }).join('');
+  };
+
+  var controls = `<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;margin-bottom:16px;">
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Player A</label>
+      <select id="ti-cmp-a" class="form-input" style="width:100%;">${makeOpts(T._compareA)}</select>
+    </div>
+    <div>
+      <label style="font-size:11px;color:var(--tx-3);display:block;margin-bottom:4px;">Player B</label>
+      <select id="ti-cmp-b" class="form-input" style="width:100%;">${makeOpts(T._compareB)}</select>
+    </div>
+    <button class="btn btn-primary btn-sm" data-action="tiRunCompare">Compare</button>
+  </div>`;
+
+  const result = T._compareResult;
+  if (!result) return controls + '<div style="color:var(--tx-3);font-size:13px;text-align:center;padding:24px 0;">Select two players and click Compare.</div>';
+
+  const ATTRS = ['technical','physical','mental','tactical','potential'];
+
+  const buildCol = function(label, reports, contracts, marketHistory) {
+    var reps = reports ? reports.items || [] : [];
+    var avgGrades = {};
+    ATTRS.forEach(function(k) {
+      var vals = reps.map(function(r) { return r[k]; }).filter(function(v) { return v != null; });
+      avgGrades[k] = vals.length ? vals.reduce(function(a, b) { return a + b; }, 0) / vals.length : null;
+    });
+    var composite = reps.length ? (reps.reduce(function(s, r) { return s + (r.compositeScore || 0); }, 0) / reps.length).toFixed(1) : null;
+
+    var bars = ATTRS.map(function(k) {
+      var v = avgGrades[k];
+      var pct = v != null ? Math.round(v / 10 * 100) : 0;
+      var c   = v >= 8 ? 'var(--green-l)' : v >= 6 ? '#60a5fa' : v >= 4 ? 'var(--amber)' : 'var(--red)';
+      return `<div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+          <span style="color:var(--tx-2);">${k}</span>
+          <span style="color:var(--tx);font-weight:700;">${v != null ? v.toFixed(1) : '—'}</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;">
+          <div style="height:100%;width:${pct}%;background:${c};border-radius:3px;transition:width .4s;"></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    var ct = contracts;
+    var latestVal = marketHistory && marketHistory.length ? marketHistory[marketHistory.length - 1].valueMEur : null;
+
+    return `<div style="flex:1;">
+      <div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--accent);">${label}</div>
+      <div class="ti-kpi-row" style="margin-bottom:16px;">
+        <div class="ti-kpi"><div class="ti-kpi-val">${reps.length}</div><div class="ti-kpi-label">Reports</div></div>
+        <div class="ti-kpi"><div class="ti-kpi-val">${composite || '—'}</div><div class="ti-kpi-label">Avg Score</div></div>
+        <div class="ti-kpi"><div class="ti-kpi-val">${latestVal != null ? latestVal.toFixed(1) + 'M€' : '—'}</div><div class="ti-kpi-label">Market Value</div></div>
+      </div>
+      ${bars}
+      ${ct ? `<div style="font-size:11px;color:var(--tx-3);margin-top:8px;">Contract until: ${new Date(ct.contractExpiry).toLocaleDateString('en-GB')} ${ct.isExpiringSoon ? '⚠ Expiring soon' : ''}</div>` : ''}
+    </div>`;
+  };
+
+  const a = result.a; const b = result.b;
+  const aCol = buildCol(_esc(_scoutPlayerName(a.playerId)), a.reports, a.contract, a.marketHistory);
+  const bCol = buildCol(_esc(_scoutPlayerName(b.playerId)), b.reports, b.contract, b.marketHistory);
+
+  return controls + `<div style="display:flex;gap:24px;">${aCol}${bCol}</div>`;
+}
+
+// ── SCREEN 8: Intelligence (Phase 11) ────────────────────────────────────────
+
+function _tiIntelligence() {
+  const T       = State.transfer;
+  const players = (State.players || []).slice().sort(function(a, b) {
+    return (a.firstName + ' ' + a.lastName).localeCompare(b.firstName + ' ' + b.lastName);
+  });
+  const opts = players.map(function(p) {
+    return '<option value="' + _esc(p.id) + '">' + _esc(p.firstName + ' ' + p.lastName) + ' (' + _esc(p.position || '?') + ')</option>';
+  }).join('');
+
+  var selector = '<div style="margin-bottom:16px;">'
+    + '<label style="font-size:12px;color:var(--tx-2);display:block;margin-bottom:6px;">Select player for unified intelligence report:</label>'
+    + '<div style="display:flex;gap:8px;align-items:center;">'
+    + '<select id="ti-intel-unified" class="form-input" style="flex:1;"><option value="">— select player —</option>' + opts + '</select>'
+    + '<button class="btn btn-primary btn-sm" data-action="tiLoadPlayerUnified">Load Report</button>'
+    + '</div></div>';
+
+  var reportHTML = '';
+  var intel = T._unifiedIntel;
+  if (intel && !intel._loading) {
+    // ── Confidence + recommendation badges ─────────────────────────────────
+    var recColor = { SIGN:'var(--green-l)', MONITOR:'var(--amber)', SKIP:'var(--red)' }[intel.recommendation] || 'var(--tx-3)';
+    var confColor = { HIGH:'var(--green-l)', MEDIUM:'var(--amber)', LOW:'var(--tx-3)', NONE:'var(--red)' }[intel.confidence] || 'var(--tx-3)';
+    var badges = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">'
+      + '<span style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:4px;background:' + recColor + '22;color:' + recColor + ';">' + _esc(intel.recommendation) + '</span>'
+      + '<span style="font-size:11px;padding:3px 8px;border-radius:4px;background:var(--surface-2);color:' + confColor + ';">Confidence: ' + _esc(intel.confidence) + '</span>'
+      + '<span style="font-size:12px;font-weight:700;color:var(--accent);">Score: ' + intel.overallScore.toFixed(0) + '/100</span>'
+      + '</div>';
+
+    // ── Score breakdown bars ────────────────────────────────────────────────
+    var bd = intel.breakdown || {};
+    var _bar = function(comp) {
+      var s = comp.rawScore; var w = comp.weight;
+      var c = s >= 75 ? 'var(--green-l)' : s >= 55 ? '#60a5fa' : s >= 35 ? 'var(--amber)' : 'var(--red)';
+      return '<div style="margin-bottom:8px;">'
+        + '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">'
+        + '<span style="color:var(--tx-2);">' + _esc(comp.label) + ' <span style="color:var(--tx-3);">×' + Math.round(w*100) + '%</span></span>'
+        + '<span style="font-weight:700;color:' + c + ';">' + Math.round(s) + '</span>'
+        + '</div>'
+        + '<div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">'
+        + '<div style="height:100%;width:' + Math.round(s) + '%;background:' + c + ';border-radius:3px;transition:width .4s;"></div>'
+        + '</div>'
+        + '<div style="font-size:10px;color:var(--tx-3);margin-top:2px;">' + _esc(comp.evidence) + '</div>'
+        + '</div>';
+    };
+    var breakdownHTML = '<div class="ti-card" style="margin-bottom:12px;">'
+      + '<div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Score Breakdown (6 Dimensions)</div>'
+      + (bd.scoutingQuality   ? _bar(bd.scoutingQuality)   : '')
+      + (bd.tacticalFit       ? _bar(bd.tacticalFit)       : '')
+      + (bd.contractSecurity  ? _bar(bd.contractSecurity)  : '')
+      + (bd.medicalFitness    ? _bar(bd.medicalFitness)    : '')
+      + (bd.videoEvidence     ? _bar(bd.videoEvidence)     : '')
+      + (bd.marketOpportunity ? _bar(bd.marketOpportunity) : '')
+      + '</div>';
+
+    // ── Explainable bullets ─────────────────────────────────────────────────
+    var bullets = (intel.explanation || []).map(function(line) {
+      return '<li style="font-size:12px;color:var(--tx-2);margin-bottom:5px;line-height:1.5;">' + _esc(line) + '</li>';
+    }).join('');
+    var explHTML = bullets
+      ? '<div class="ti-card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Explainable Insights</div><ul style="margin:0;padding-left:16px;">' + bullets + '</ul></div>'
+      : '';
+
+    // ── Flags ───────────────────────────────────────────────────────────────
+    var flagMap = { NO_REPORTS:'📋 No Reports', MEDICAL_RISK:'🔴 Medical Risk', CONTRACT_URGENT:'⏰ Contract Urgent', NO_VIDEO:'📹 No Video', LOW_CONFIDENCE:'⚠ Low Confidence', AVAILABLE:'🟢 Available', UNDERVALUED:'💰 Undervalued', FREE_AGENT_RISK:'⏰ Free-Agent Risk', HIGH_VALUE_CHEAP:'⬆ High Value' };
+    var flagsHTML = (intel.flags || []).length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px;">'
+        + (intel.flags || []).map(function(f) {
+            return '<span style="font-size:10px;padding:2px 7px;border-radius:3px;background:var(--surface-2);color:var(--tx-2);">' + (flagMap[f] || _esc(f)) + '</span>';
+          }).join('')
+        + '</div>'
+      : '';
+
+    // ── Tactical matrix (compact) ───────────────────────────────────────────
+    var matrix = intel.tacticalMatrix || [];
+    var matrixRows = matrix.map(function(f) {
+      var c = f.bestCompatibility === 100 ? 'var(--green-l)' : f.bestCompatibility >= 70 ? '#60a5fa' : f.bestCompatibility >= 40 ? 'var(--amber)' : 'var(--tx-3)';
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;">'
+        + '<span style="color:var(--tx-2);">' + _esc(f.formation) + '</span>'
+        + '<span style="color:var(--tx-3);">' + _esc(f.bestSlot) + '</span>'
+        + '<span style="font-weight:700;color:' + c + ';">' + f.bestCompatibility + '%</span>'
+        + '</div>';
+    }).join('');
+    var matrixHTML = matrixRows
+      ? '<div class="ti-card" style="margin-bottom:12px;">'
+        + '<div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Tactical Compatibility Matrix</div>'
+        + matrixRows + '</div>'
+      : '';
+
+    reportHTML = badges + breakdownHTML + explHTML + flagsHTML + matrixHTML;
+  } else if (intel && intel._loading) {
+    reportHTML = loadingHTML('Computing unified intelligence…');
+  }
+
+  // ── Squad Future Plan (always loaded with page data) ────────────────────
+  var fp = T._futurePlan;
+  var futurePlanHTML = '';
+  if (fp) {
+    var healthColor = fp.overallHealth >= 70 ? 'var(--green-l)' : fp.overallHealth >= 45 ? 'var(--amber)' : 'var(--red)';
+    var planRows = (fp.positionPlans || []).slice(0, 8).map(function(plan) {
+      var c = plan.atRisk ? 'var(--red)' : plan.successionCoverage >= 50 ? 'var(--green-l)' : 'var(--amber)';
+      return '<tr>'
+        + '<td style="padding:5px 6px;font-size:12px;font-weight:600;color:' + (plan.atRisk ? 'var(--red)' : 'var(--tx)') + ';">' + _esc(plan.group) + (plan.atRisk ? ' ⚠' : '') + '</td>'
+        + '<td style="padding:5px 6px;font-size:12px;color:var(--tx-2);">' + plan.currentCount + '</td>'
+        + '<td style="padding:5px 6px;font-size:12px;color:var(--tx-2);">' + (plan.avgAge != null ? plan.avgAge : '—') + '</td>'
+        + '<td style="padding:5px 6px;font-size:12px;color:' + (plan.expiringCount > 1 ? 'var(--red)' : 'var(--tx-2)') + ';">' + plan.expiringCount + '</td>'
+        + '<td style="padding:5px 6px;"><div style="display:flex;align-items:center;gap:6px;">'
+        + '<div style="flex:1;height:5px;background:var(--border);border-radius:3px;"><div style="height:100%;width:' + plan.successionCoverage + '%;background:' + c + ';border-radius:3px;"></div></div>'
+        + '<span style="font-size:11px;font-weight:700;color:' + c + ';">' + plan.successionCoverage + '</span>'
+        + '</div></td>'
+        + '</tr>';
+    }).join('');
+    var alertsHTML = (fp.criticalAlerts || []).length
+      ? '<div style="margin-top:10px;padding:8px;background:rgba(239,68,68,.08);border-radius:4px;">'
+        + (fp.criticalAlerts || []).map(function(a) {
+            return '<div style="font-size:11px;color:var(--red);margin-bottom:3px;">⚠ ' + _esc(a) + '</div>';
+          }).join('')
+        + '</div>'
+      : '';
+    futurePlanHTML = '<div class="ti-card" style="margin-top:16px;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+      + '<div style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.05em;">Squad Future Plan</div>'
+      + '<div style="font-size:12px;font-weight:700;color:' + healthColor + ';">Health: ' + fp.overallHealth + '/100</div>'
+      + '</div>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">'
+      + '<thead><tr style="border-bottom:2px solid var(--border);">'
+      + '<th style="text-align:left;padding:4px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Group</th>'
+      + '<th style="text-align:left;padding:4px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Count</th>'
+      + '<th style="text-align:left;padding:4px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Avg Age</th>'
+      + '<th style="text-align:left;padding:4px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Exp (2yr)</th>'
+      + '<th style="text-align:left;padding:4px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Succession</th>'
+      + '</tr></thead><tbody>' + planRows + '</tbody></table></div>'
+      + alertsHTML + '</div>';
+  }
+
+  return selector + reportHTML + futurePlanHTML;
+}
+
+async function tiLoadPlayerUnified() {
+  var playerId = document.getElementById('ti-intel-unified') ? document.getElementById('ti-intel-unified').value : '';
+  if (!playerId) return;
+  State.transfer._unifiedIntel = { _loading: true };
+  tiRenderTab();
+  try {
+    var result = await FamilistaAPI.get('/phase-q/transfer/intelligence/unified/' + playerId);
+    State.transfer._unifiedIntel = result;
+  } catch (err) {
+    State.transfer._unifiedIntel = { _loading: false, _error: err?.userMessage || 'Failed to load.' };
+  }
+  tiRenderTab();
+}
+
+// ── Modal: Player Detail ──────────────────────────────────────────────────────
+
+async function tiOpenDetail(targetId) {
+  const modal    = document.getElementById('ti-detail-modal');
+  const nameEl   = document.getElementById('ti-detail-name');
+  const bodyEl   = document.getElementById('ti-detail-body');
+  if (!modal || !bodyEl) return;
+
+  const target = State.transfer.targets.find(function(t) { return t.id === targetId; });
+  if (!target) return;
+
+  const playerName = _scoutPlayerName(target.playerId);
+  if (nameEl) nameEl.textContent = playerName || target.playerId;
+  bodyEl.innerHTML = loadingHTML('Loading player intelligence…');
+  modal.style.display = 'block';
+
+  try {
+    const intel = await FamilistaAPI.get('/phase-q/transfer/intelligence/player/' + target.playerId);
+    const reps       = intel.reports ? intel.reports.items || [] : [];
+    const history    = intel.marketHistory || [];
+    const contract   = intel.contract;
+
+    // Stage tracker
+    const STAGES = ['LONGLIST','SHORTLIST','APPROACH','NEGOTIATION'];
+    const currentIdx = STAGES.indexOf(target.stage);
+    const stageTrack = STAGES.map(function(s, i) {
+      var done = i < currentIdx; var current = i === currentIdx;
+      return `<div style="display:flex;align-items:center;gap:4px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${current ? 'var(--accent)' : done ? 'var(--green-l)' : 'var(--border)'};flex-shrink:0;"></div>
+        <span style="font-size:10px;color:${current ? 'var(--accent)' : done ? 'var(--green-l)' : 'var(--tx-3)'};">${s}</span>
+        ${i < STAGES.length - 1 ? '<div style="flex:1;height:1px;background:var(--border);margin:0 4px;"></div>' : ''}
+      </div>`;
+    }).join('');
+
+    // Key stats grid
+    var latestVal = history.length ? history[history.length - 1].valueMEur : null;
+    var statsGrid = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0;">
+      <div class="ti-kpi"><div class="ti-kpi-val">${target.askingPriceMEur != null ? target.askingPriceMEur + 'M€' : '—'}</div><div class="ti-kpi-label">Asking Price</div></div>
+      <div class="ti-kpi"><div class="ti-kpi-val">${latestVal != null ? latestVal.toFixed(1) + 'M€' : '—'}</div><div class="ti-kpi-label">Market Value</div></div>
+      <div class="ti-kpi"><div class="ti-kpi-val">${target.priorityScore != null ? target.priorityScore : '—'}</div><div class="ti-kpi-label">Priority</div></div>
+    </div>`;
+
+    // Market history table
+    var mvTable = history.length
+      ? `<div style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:6px;text-transform:uppercase;">Market Value History</div>
+          ${history.slice(-5).map(function(h) {
+            return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px;">'
+              + '<span style="color:var(--tx-2);">' + new Date(h.valuationDate).toLocaleDateString('en-GB',{month:'short',year:'numeric'}) + '</span>'
+              + '<span style="font-weight:700;color:var(--green-l);">' + (h.valueMEur||0).toFixed(2) + 'M€</span>'
+              + '<span style="color:var(--tx-3);font-size:10px;">' + _esc(h.source||'') + '</span>'
+              + '</div>';
+          }).join('')}
+        </div>`
+      : '';
+
+    // Scouting reports
+    var repsHTML = reps.length
+      ? `<div style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:6px;text-transform:uppercase;">Scout Reports (${reps.length})</div>
+          ${reps.slice(0,5).map(function(r) {
+            var gColor = (r.overallGrade||'').startsWith('A') ? 'var(--green-l)' : 'var(--amber)';
+            return '<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;display:flex;justify-content:space-between;">'
+              + '<span style="color:var(--tx);">' + new Date(r.observedAt).toLocaleDateString('en-GB') + ' • ' + _esc(r.recommendation||'') + '</span>'
+              + '<span style="font-weight:700;color:' + gColor + ';">' + _esc((r.overallGrade||'').replace('_PLUS','+')) + ' / ' + (r.compositeScore||0).toFixed(1) + '</span>'
+              + '</div>';
+          }).join('')}
+        </div>`
+      : '<div style="color:var(--tx-3);font-size:12px;margin-top:8px;">No scouting reports.</div>';
+
+    // Contract block
+    var ctBlock = '';
+    if (contract) {
+      ctBlock = `<div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+        <div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:6px;text-transform:uppercase;">Contract</div>
+        Expiry: <strong>${new Date(contract.contractExpiry).toLocaleDateString('en-GB')}</strong>
+        ${contract.isExpiringSoon ? ' <span style="color:var(--amber);">⚠ Expiring soon</span>' : ''}
+        ${contract.agentName ? ' &bull; Agent: ' + _esc(contract.agentName) : ''}
+      </div>`;
+    }
+
+    // Scorecard from ranking engine (already loaded, no extra API call)
+    var ranked   = State.transfer._rankedTargets || [];
+    var rankedEntry = ranked.find(function(r) { return r.targetId === targetId; });
+    var sc       = rankedEntry ? rankedEntry.scorecard : null;
+    var scorecardHTML = '';
+    if (sc) {
+      var _sBar = function(label, val, title) {
+        var c = val >= 80 ? 'var(--green-l)' : val >= 65 ? '#60a5fa' : val >= 50 ? 'var(--amber)' : 'var(--red)';
+        return '<div style="margin-bottom:6px;">'
+          + '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;">'
+          + '<span style="color:var(--tx-2);">' + label + '</span>'
+          + '<span style="font-weight:700;color:' + c + ';">' + Math.round(val) + '</span>'
+          + '</div>'
+          + '<div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;">'
+          + '<div style="height:100%;width:' + Math.round(val) + '%;background:' + c + ';border-radius:3px;transition:width .4s;"></div>'
+          + '</div>'
+          + '</div>';
+      };
+      var flagMap = { CONTRACT_CRITICAL:'🔴 Contract Critical', CONTRACT_WARNING:'🟡 Contract Warning', AVAILABLE_NOW:'🟢 Available Now', UNDERVALUED:'💰 Undervalued', HIGH_POTENTIAL:'⬆ High Potential', NO_REPORTS:'📋 No Reports', EXPIRING_SOON:'⏰ Expiring Soon' };
+      var flagsHTML = (sc.flags || []).map(function(f) {
+        return '<span style="display:inline-block;font-size:10px;margin-right:4px;margin-bottom:4px;background:var(--surface-2);border-radius:3px;padding:2px 6px;color:var(--tx-2);">' + (flagMap[f] || f) + '</span>';
+      }).join('');
+      var oppLabel = { UNDERVALUED:'💰 Undervalued', FREE_AGENT_RISK:'⏰ Free-Agent Risk', HIGH_VALUE_CHEAP:'⬆ High Value / Cheap', AVAILABLE:'🟢 Available Now' };
+      var oppHTML = sc.marketOpportunity
+        ? '<div style="margin-top:6px;padding:5px 8px;border-radius:4px;background:rgba(74,222,128,.1);font-size:11px;font-weight:600;color:var(--green-l);">' + (oppLabel[sc.marketOpportunity] || sc.marketOpportunity) + '</div>'
+        : '';
+      scorecardHTML = '<div style="margin-top:14px;padding:12px;border:1px solid var(--border);border-radius:6px;">'
+        + '<div style="font-size:11px;font-weight:600;color:var(--tx-3);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;">Intelligence Scorecard</div>'
+        + _sBar('Composite Score', sc.compositeScore, 'Scouting quality')
+        + _sBar('Tactical Fit', sc.tacticalFitScore, 'Positional fit')
+        + _sBar('Contract Risk', sc.contractRiskScore, 'Urgency')
+        + _sBar('Transfer Priority', sc.transferPriority, 'Overall rank')
+        + (flagsHTML ? '<div style="margin-top:8px;">' + flagsHTML + '</div>' : '')
+        + oppHTML
+        + (sc.scoutingSummary ? '<div style="margin-top:8px;font-size:11px;color:var(--tx-2);line-height:1.5;font-style:italic;">' + _esc(sc.scoutingSummary) + '</div>' : '')
+        + '</div>';
+    }
+
+    // Pipeline advance buttons
+    var advBtns = '';
+    var nextStageMap = { LONGLIST:'SHORTLIST', SHORTLIST:'APPROACH', APPROACH:'NEGOTIATION' };
+    var nextS = nextStageMap[target.stage];
+    if (nextS) advBtns = `<button class="btn btn-primary btn-sm" data-action="tiAdvance" data-id="${_esc(target.id)}" style="margin-top:12px;">⇒ Advance to ${nextS}</button> `;
+    advBtns += `<button class="btn btn-ghost btn-sm" data-action="tiReject" data-id="${_esc(target.id)}" style="margin-top:12px;color:var(--red);">Reject</button>`;
+
+    bodyEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">${stageTrack}</div>${statsGrid}${scorecardHTML}${mvTable}${repsHTML}${ctBlock}<div style="margin-top:12px;">${advBtns}</div>`;
+  } catch (err) {
+    bodyEl.innerHTML = '<div style="color:var(--red);font-size:13px;">Failed to load player intelligence.</div>';
+  }
+}
+
+function tiCloseDetail() {
+  const modal = document.getElementById('ti-detail-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ── Modal: Add Target ─────────────────────────────────────────────────────────
+
+function tiOpenAddTarget() {
+  const modal  = document.getElementById('ti-add-modal');
+  const select = document.getElementById('tia-player');
+  if (!modal) return;
+
+  if (select) {
+    select.innerHTML = '<option value="">— select player —</option>'
+      + (State.players || []).map(function(p) {
+        return '<option value="' + _esc(p.id) + '">'
+          + _esc(p.firstName + ' ' + p.lastName) + ' (' + _esc(p.position || '?') + ')</option>';
+      }).join('');
+  }
+
+  const errEl = document.getElementById('tia-error');
+  if (errEl) errEl.style.display = 'none';
+  modal.style.display = 'block';
+}
+
+function tiCloseAddTarget() {
+  const modal = document.getElementById('ti-add-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function tiSubmitAddTarget(e) {
+  if (e) e.preventDefault();
+  const errEl     = document.getElementById('tia-error');
+  const submitBtn = document.getElementById('tia-submit');
+  const playerId  = document.getElementById('tia-player')?.value;
+  if (!playerId) {
+    if (errEl) { errEl.textContent = 'Please select a player.'; errEl.style.display = 'block'; }
+    return;
+  }
+  const priceVal    = parseFloat(document.getElementById('tia-price')?.value);
+  const priorityVal = parseInt(document.getElementById('tia-priority')?.value, 10);
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Adding…'; }
+
+  const body = {
+    playerId,
+    currentClubName: document.getElementById('tia-club')?.value?.trim()     || undefined,
+    position:        document.getElementById('tia-pos')?.value?.trim()       || undefined,
+    nationality:     document.getElementById('tia-nat')?.value?.trim()       || undefined,
+    askingPriceMEur: isNaN(priceVal)    ? undefined : priceVal,
+    priorityScore:   isNaN(priorityVal) ? 50        : priorityVal,
+    notes:           document.getElementById('tia-notes')?.value?.trim()     || undefined,
+  };
+
+  try {
+    await FamilistaAPI.post('/phase-q/transfer/targets', body);
+    tiCloseAddTarget();
+    showToast(_scoutPlayerName(playerId) + ' added to pipeline', 'success');
+    await loadTransferData();
+  } catch (err) {
+    if (errEl) { errEl.textContent = err?.userMessage || err?.message || 'Failed to add target.'; errEl.style.display = 'block'; }
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add to Pipeline'; }
+  }
+}
+
+// ── Pipeline actions ──────────────────────────────────────────────────────────
+
+async function tiAdvance(targetId) {
+  const t = State.transfer.targets.find(function(x) { return x.id === targetId; });
+  if (!t) return;
+  const nextStage = { LONGLIST:'SHORTLIST', SHORTLIST:'APPROACH', APPROACH:'NEGOTIATION', NEGOTIATION:'SIGNED' }[t.stage];
+  if (!nextStage) return;
+  try {
+    await FamilistaAPI.post('/phase-q/transfer/targets/' + targetId + '/advance', { stage: nextStage });
+    showToast(_scoutPlayerName(t.playerId) + ' → ' + nextStage, 'success');
+    await loadTransferData();
+    tiCloseDetail();
+  } catch (err) {
+    showToast(err?.userMessage || 'Failed to advance stage', 'error');
+  }
+}
+
+async function tiReject(targetId) {
+  const t = State.transfer.targets.find(function(x) { return x.id === targetId; });
+  if (!t || !confirm('Mark ' + _scoutPlayerName(t.playerId) + ' as REJECTED?')) return;
+  try {
+    await FamilistaAPI.post('/phase-q/transfer/targets/' + targetId + '/advance', { stage: 'REJECTED' });
+    showToast(_scoutPlayerName(t.playerId) + ' rejected', 'success');
+    await loadTransferData();
+    tiCloseDetail();
+  } catch (err) {
+    showToast(err?.userMessage || 'Failed to reject', 'error');
+  }
+}
+
+// ── Player Intelligence loader ────────────────────────────────────────────────
+
+async function tiLoadPlayerIntel() {
+  const sel = document.getElementById('ti-intel-player');
+  if (!sel || !sel.value) { showToast('Select a player first', 'warning'); return; }
+  const playerId = sel.value;
+
+  State.transfer._playerIntel = { _loading: true, playerId };
+  tiRenderTab();
+
+  try {
+    const intel = await FamilistaAPI.get('/phase-q/transfer/intelligence/player/' + playerId);
+    State.transfer._playerIntel = Object.assign({ _loading: false, playerId }, intel);
+  } catch (err) {
+    State.transfer._playerIntel = { _loading: false, playerId, _error: true };
+  }
+  tiRenderTab();
+}
+
+// ── Compare runner ────────────────────────────────────────────────────────────
+
+async function tiRunCompare() {
+  const aSel = document.getElementById('ti-cmp-a');
+  const bSel = document.getElementById('ti-cmp-b');
+  const aId  = aSel ? aSel.value : null;
+  const bId  = bSel ? bSel.value : null;
+  if (!aId || !bId || aId === bId) { showToast('Select two different players', 'warning'); return; }
+
+  State.transfer._compareA      = aId;
+  State.transfer._compareB      = bId;
+  State.transfer._compareResult = null;
+
+  try {
+    const [iA, iB] = await Promise.all([
+      FamilistaAPI.get('/phase-q/transfer/intelligence/player/' + aId),
+      FamilistaAPI.get('/phase-q/transfer/intelligence/player/' + bId),
+    ]);
+    State.transfer._compareResult = {
+      a: { playerId: aId, reports: iA.reports, contract: iA.contract, marketHistory: iA.marketHistory },
+      b: { playerId: bId, reports: iB.reports, contract: iB.contract, marketHistory: iB.marketHistory },
+    };
+  } catch (err) {
+    showToast('Failed to load comparison data', 'error');
+  }
+  tiRenderTab();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// END TRANSFER INTELLIGENCE
+// ══════════════════════════════════════════════════════════════════════════════
 
 // ── FINANCES ──
 function renderFinancesHTML() {
@@ -5929,7 +8548,7 @@ function showQuantumTab(tab, el) {
           const signature = (energy + sprint + recovery + tactical) / 4;
           const sigColor = signature > 85 ? 'var(--green-l)' : signature > 70 ? 'var(--amber)' : 'var(--red)';
           return `
-          <div class="card" style="padding:16px;">
+          <div class="card" data-action="quantumOpenPlayerModal" data-id="${p.id}" style="padding:16px;cursor:pointer;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
               <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--purple));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">${p.firstName?.[0]}${p.lastName?.[0]}</div>
               <div style="flex:1;">
@@ -6112,7 +8731,7 @@ function showQuantumTab(tab, el) {
           const rColor = overall > 65 ? 'var(--red)' : overall > 40 ? 'var(--amber)' : 'var(--green-l)';
           const rLabel = overall > 65 ? 'HIGH RISK' : overall > 40 ? 'MONITOR' : 'SAFE';
           return `
-          <div class="card" style="padding:14px;border-left:3px solid ${rColor};">
+          <div class="card" data-action="quantumOpenPlayerModal" data-id="${p.id}" style="padding:14px;border-left:3px solid ${rColor};cursor:pointer;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
               <div>
                 <div style="font-size:13px;font-weight:700;color:var(--tx);">${p.firstName} ${p.lastName}</div>
@@ -6146,7 +8765,7 @@ function showQuantumTab(tab, el) {
           const duration = load > 120 ? 30 : load > 100 ? 60 : 90;
           const drills = load > 120 ? ['🧘 Mobility','🏊 Recovery Swim','🧊 Ice Bath Protocol'] : load > 100 ? ['⚽ Technical Passing','🎯 Low-intensity Shooting','🔄 Positional Play'] : ['🏃 Sprint Intervals','⚽ Tactical Shape','🎯 Set Pieces','💪 Strength Work'];
           return `
-          <div class="card" style="padding:16px;">
+          <div class="card" data-action="quantumOpenPlayerModal" data-id="${p.id}" style="padding:16px;cursor:pointer;">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
               <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--green),var(--blue));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;">${p.number}</div>
               <div>
@@ -6190,7 +8809,7 @@ function showQuantumTab(tab, el) {
           const bestPos = p.position;
           const tactics = ['4-3-3','4-2-3-1','3-5-2'].sort(() => Math.random()-.5)[0];
           return `
-          <div class="card quantum-card" style="padding:16px;">
+          <div class="card quantum-card" data-action="quantumOpenPlayerModal" data-id="${p.id}" style="padding:16px;cursor:pointer;">
             <div style="position:relative;z-index:1;">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
                 <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">🤖</div>
@@ -6223,6 +8842,11 @@ function showQuantumTab(tab, el) {
         }).join('')}
       </div>`;
   }
+}
+
+function quantumOpenPlayerModal(id) {
+  console.log("[Intelligence] open detail", id);
+  openPlayerModal(id);
 }
 
 async function loadQuantumData() {
@@ -7135,6 +9759,54 @@ async function tosBoardSnapshot() {
     showToast(e?.userMessage || 'Snapshot failed', 'error');
   }
 }
+
+// ── Scouting delegation (data-action / data-change / data-form-submit) ────────
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-action]');
+  if (!el) return;
+  switch (el.dataset.action) {
+    case 'scoutTab':             setScoutTab(el.dataset.tab);                                                break;
+    case 'openScoutModal':       openScoutModal('create');                                                   break;
+    case 'closeScoutModal':      closeScoutModal();                                                          break;
+    case 'openScoutDetail':      openScoutDetail(el.dataset.id);                                             break;
+    case 'editScoutProspect':    (async function(id){ var p = await ScoutingAPI.get(id); openScoutModal('edit',p); })(el.dataset.id); break;
+    case 'scoutAdvancePipeline': scoutAdvancePipeline(el.dataset.id, el.dataset.stage);                     break;
+    case 'toggleScoutWatchlist': toggleScoutWatchlist(el.dataset.id, el.dataset.current);                   break;
+  }
+});
+document.addEventListener('change', function(e) {
+  var el = e.target.closest('[data-change="onScoutCompareChange"]');
+  if (el) onScoutCompareChange();
+});
+document.addEventListener('submit', function(e) {
+  var el = e.target.closest('[data-form-submit="submitScoutForm"]');
+  if (el) submitScoutForm(e);
+});
+
+// ── Transfer Intelligence Center delegation ──────────────────────────────────
+document.addEventListener('click', function(e) {
+  var el = e.target.closest('[data-action]');
+  if (!el) return;
+  switch (el.dataset.action) {
+    case 'tiRefresh':          loadTransferData();                              break;
+    case 'tiSwitchTab':         tiSwitchTab(el.dataset.tab);                    break;
+    case 'tiOpenDetail':        tiOpenDetail(el.dataset.id);                    break;
+    case 'tiCloseDetail':       tiCloseDetail();                                break;
+    case 'tiOpenAddTarget':     tiOpenAddTarget();                              break;
+    case 'tiCloseAddTarget':    tiCloseAddTarget();                             break;
+    case 'tiSubmitAddTarget':   tiSubmitAddTarget(null);                        break;
+    case 'tiAdvance':           tiAdvance(el.dataset.id);                       break;
+    case 'tiReject':            tiReject(el.dataset.id);                        break;
+    case 'tiLoadPlayerIntel':   tiLoadPlayerIntel();                            break;
+    case 'tiRunCompare':        tiRunCompare();                                 break;
+    case 'tiLoadPlayerUnified': tiLoadPlayerUnified();                         break;
+    case 'quantumOpenPlayerModal': quantumOpenPlayerModal(el.dataset.id);           break;
+  }
+});
+document.addEventListener('submit', function(e) {
+  var el = e.target.closest('[data-form-submit="tiSubmitAddTarget"]');
+  if (el) tiSubmitAddTarget(e);
+});
 </script>
 </body>
 </html>

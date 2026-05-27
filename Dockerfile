@@ -31,12 +31,19 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=10000 \
     NPM_CONFIG_LOGLEVEL=warn
-# Install only the runtime deps Prisma/Postgres need.
+# Install runtime system deps:
+#   openssl     — Prisma binary engine
+#   ca-certs    — HTTPS to S3 / external services
+#   curl        — health-check probe
+#   tini        — PID 1 signal handling
+#   ffmpeg      — Phase S.1 video transcoding (libx264, aac, HLS muxer)
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssl ca-certificates curl tini \
+ && apt-get install -y --no-install-recommends \
+      openssl ca-certificates curl tini ffmpeg \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd -r app && useradd -r -g app -m -d /home/app app \
- && mkdir -p /var/data/uploads && chown -R app:app /var/data
+ && mkdir -p /var/data/uploads /var/data/video-tmp \
+ && chown -R app:app /var/data
 COPY --from=build --chown=app:app /app/dist          ./dist
 COPY --from=build --chown=app:app /app/node_modules  ./node_modules
 COPY --from=build --chown=app:app /app/prisma        ./prisma

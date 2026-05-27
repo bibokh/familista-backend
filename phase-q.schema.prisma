@@ -1,0 +1,974 @@
+// Familista — Phase Q schema fragment: Football Intelligence Core
+// ─────────────────────────────────────────────────────────────────────────────
+// Target: prisma/schema.prisma  (append after Phase P block)
+//
+// Domains shipped:
+//   1. Match Event Engine       — Opta/StatsBomb-level event taxonomy + coordinates
+//   2. Player Statistics        — per-match, season, career, positional benchmarks
+//   3. Workload Science         — GPS sessions, ATL/CTL/TSB, ACWR, injury records
+//   4. Video Intelligence       — asset lifecycle, clips, playlists, telestration
+//   5. Transfer Intelligence    — scouting reports, targets, market values
+//   6. Competition Engine       — league structure, fixtures, standings
+//
+// Migration:
+//   npx prisma migrate dev --name phase_q_football_intelligence_core
+//
+// EDITS TO EXISTING MODELS:
+//   • Player: add relations PlayerMatchStats[], PlayerSeasonStats[],
+//     GPSTrackingSession[], InjuryRecord[], WorkloadRecord[],
+//     PlayerMarketValue[], PlayerContractStatus?, ScoutingReport[],
+//     TransferTarget[], VideoClip[], PlayerCareerRecord[]
+//   • Match: add relations MatchEvent[], PlayerMatchStats[],
+//     VideoAsset[], Fixture[]
+//   • Team: add relations CompetitionTeam[], Fixture[] (home+away),
+//     StandingsEntry[], VideoAsset[]
+//   • Club: add relations Competition[], VideoAsset[], ScoutingReport[],
+//     TransferTarget[], GPSTrackingSession[], InjuryRecord[]
+//   • User: add relation ScoutingReport[] as scout
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 1. MATCH EVENT ENGINE
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum MatchEventType {
+  // ── Ball-in-play ──────────────────────────────────────────────────────────
+  PASS
+  CARRY
+  BALL_RECEIPT
+  MISCONTROL
+  DISPOSSESSED
+  // ── Shooting ──────────────────────────────────────────────────────────────
+  SHOT
+  GOAL
+  // ── Duels ─────────────────────────────────────────────────────────────────
+  TACKLE
+  AERIAL_DUEL
+  GROUND_DUEL
+  FIFTY_FIFTY
+  // ── Defensive ─────────────────────────────────────────────────────────────
+  CLEARANCE
+  INTERCEPTION
+  BLOCK
+  PRESSURE
+  // ── Goalkeeper ────────────────────────────────────────────────────────────
+  GOALKEEPER_SAVE
+  GOALKEEPER_CLAIM
+  GOALKEEPER_SWEEP
+  GOALKEEPER_PUNCHED_OUT
+  // ── Set pieces ────────────────────────────────────────────────────────────
+  CORNER_AWARDED
+  THROW_IN
+  GOAL_KICK
+  FREE_KICK
+  PENALTY_AWARDED
+  PENALTY_KICK
+  // ── Discipline ────────────────────────────────────────────────────────────
+  FOUL_COMMITTED
+  FOUL_WON
+  OFFSIDE
+  YELLOW_CARD
+  RED_CARD
+  SECOND_YELLOW
+  VAR_DECISION
+  // ── Match flow ────────────────────────────────────────────────────────────
+  SUBSTITUTION
+  STARTING_XI
+  HALF_START
+  HALF_END
+  MATCH_START
+  MATCH_END
+  INJURY_STOPPAGE
+  TACTICAL_SHIFT
+  DRIBBLE
+  SHIELD
+  ERROR
+}
+
+enum MatchEventOutcome {
+  COMPLETE
+  INCOMPLETE
+  GOAL
+  BLOCKED
+  OFF_TARGET
+  POST_BAR
+  SAVED
+  WON
+  LOST
+  SUCCESS
+  FAILURE
+  NO_TOUCH
+  UNKNOWN
+}
+
+enum MatchEventBodyPart {
+  HEAD
+  LEFT_FOOT
+  RIGHT_FOOT
+  CHEST
+  SHOULDER
+  KNEE
+  NO_TOUCH
+}
+
+enum PassHeight {
+  GROUND
+  LOW_PASS
+  HIGH_PASS
+}
+
+enum PassTechnique {
+  NORMAL
+  INSWINGING
+  OUTSWINGING
+  STRAIGHT
+  THROUGH_BALL
+  LAUNCH
+  NO_TOUCH
+}
+
+enum ShotTechnique {
+  NORMAL
+  VOLLEY
+  HALF_VOLLEY
+  OVERHEAD_KICK
+  LOB
+  DIVING_HEADER
+}
+
+enum DataProviderSource {
+  MANUAL
+  OPTA
+  STATSBOMB
+  WYSCOUT
+  HUDL
+  INSTAT
+  SECOND_SPECTRUM
+  TRACAB
+  SKILLCORNER
+  DEVICE_INGEST   // Familista hardware
+  AI_TAGGED       // auto-tagged by CV model
+}
+
+// The fundamental unit of football analytics.
+// Every xG model, passing network, pressing map, and tactical insight
+// is computed from this table. One match ≈ 1800–2800 rows.
+model MatchEvent {
+  id                  String              @id @default(cuid())
+  clubId              String              // tenant scope
+  matchId             String
+  match               Match               @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  // ── Temporal ──────────────────────────────────────────────────────────────
+  periodIndex         Int                 // 1=H1, 2=H2, 3=ET1, 4=ET2, 5=PEN
+  minuteMs            BigInt              // milliseconds from period kick-off
+  minute              Int                 // display minute
+  second              Int                 @default(0)
+  // ── Event identity ────────────────────────────────────────────────────────
+  type                MatchEventType
+  outcome             MatchEventOutcome?
+  // ── Actors ────────────────────────────────────────────────────────────────
+  playerId            String?
+  player              Player?             @relation("EventActor", fields: [playerId], references: [id])
+  relatedPlayerId     String?             // recipient for passes, tackled player, etc.
+  relatedPlayer       Player?             @relation("EventRelated", fields: [relatedPlayerId], references: [id])
+  teamId              String?
+  team                Team?               @relation(fields: [teamId], references: [id])
+  // ── Spatial (Opta 100×68m or StatsBomb 120×80m — normalised 0–1 at query) ─
+  x                   Float?              // start X (0=own goal, 120=opp goal)
+  y                   Float?              // start Y (0=left touchline, 80=right)
+  endX                Float?              // end location (passes, carries, shots)
+  endY                Float?
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  xg                  Float?              // pre-shot expected goals
+  xgot                Float?              // expected goals on target (post-save)
+  xa                  Float?              // expected assist (key pass → shot xG)
+  isPressured         Boolean             @default(false)
+  isUnderPressure     Boolean             @default(false)
+  isProgressivePass   Boolean             @default(false)
+  isKeyPass           Boolean             @default(false)
+  // ── Technique ─────────────────────────────────────────────────────────────
+  bodyPart            MatchEventBodyPart?
+  passHeight          PassHeight?
+  passTechnique       PassTechnique?
+  shotTechnique       ShotTechnique?
+  durationSec         Float?              // carry/action duration
+  // ── Source ────────────────────────────────────────────────────────────────
+  dataSource          DataProviderSource  @default(MANUAL)
+  externalId          String?             // provider's own event ID
+  externalMatchId     String?             // provider match reference
+  videoTimestampSec   Float?              // seconds into the match video
+  // ── Raw payload ───────────────────────────────────────────────────────────
+  payload             Json?               // full provider JSON (Opta F24 / StatsBomb)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([matchId, periodIndex, minuteMs])
+  @@index([matchId, type])
+  @@index([playerId, type])
+  @@index([clubId, type])
+  @@index([externalId])
+}
+
+// Provider feed session — one row per match ingestion job from a data partner.
+model DataProviderSession {
+  id              String             @id @default(cuid())
+  clubId          String
+  matchId         String
+  match           Match              @relation(fields: [matchId], references: [id])
+  source          DataProviderSource
+  externalMatchId String?
+  status          String             @default("PENDING") // PENDING|RUNNING|COMPLETE|FAILED
+  eventsIngested  Int                @default(0)
+  eventsRejected  Int                @default(0)
+  errorLog        Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime           @default(now())
+
+  @@index([matchId, source])
+  @@index([status])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 2. PLAYER STATISTICS ENGINE
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Computed once per player per match from MatchEvent rows.
+// Rebuilt on every event correction; version-stamped.
+model PlayerMatchStats {
+  id                    String   @id @default(cuid())
+  matchId               String
+  match                 Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId              String
+  player                Player   @relation("PlayerMatchStats", fields: [playerId], references: [id])
+  clubId                String
+  teamId                String?
+  // ── Participation ─────────────────────────────────────────────────────────
+  minutesPlayed         Int      @default(0)
+  isStarting            Boolean  @default(false)
+  positionPlayed        String?
+  // ── Attacking ─────────────────────────────────────────────────────────────
+  goals                 Int      @default(0)
+  assists               Int      @default(0)
+  shots                 Int      @default(0)
+  shotsOnTarget         Int      @default(0)
+  shotsBlocked          Int      @default(0)
+  xg                    Float    @default(0)
+  xgot                  Float    @default(0)
+  xa                    Float    @default(0)
+  keyPasses             Int      @default(0)
+  bigChancesCreated     Int      @default(0)
+  bigChancesMissed      Int      @default(0)
+  // ── Passing ───────────────────────────────────────────────────────────────
+  passes                Int      @default(0)
+  passesCompleted       Int      @default(0)
+  passAccuracy          Float    @default(0)  // 0..1
+  progressivePasses     Int      @default(0)
+  longBalls             Int      @default(0)
+  longBallsCompleted    Int      @default(0)
+  crosses               Int      @default(0)
+  crossesCompleted      Int      @default(0)
+  // ── Carrying & Dribbling ──────────────────────────────────────────────────
+  carries               Int      @default(0)
+  progressiveCarries    Int      @default(0)
+  dribbles              Int      @default(0)
+  dribblesCompleted     Int      @default(0)
+  // ── Pressing & Defending ──────────────────────────────────────────────────
+  pressures             Int      @default(0)
+  pressuresSuccessful   Int      @default(0)
+  tackles               Int      @default(0)
+  tacklesWon            Int      @default(0)
+  interceptions         Int      @default(0)
+  clearances            Int      @default(0)
+  blockedShots          Int      @default(0)
+  // ── Duels ─────────────────────────────────────────────────────────────────
+  aerialDuels           Int      @default(0)
+  aerialDuelsWon        Int      @default(0)
+  groundDuels           Int      @default(0)
+  groundDuelsWon        Int      @default(0)
+  // ── Discipline ────────────────────────────────────────────────────────────
+  foulsCommitted        Int      @default(0)
+  foulsSuffered         Int      @default(0)
+  yellowCards           Int      @default(0)
+  redCards              Int      @default(0)
+  offsides              Int      @default(0)
+  // ── Physical (GPS-enriched when session available) ─────────────────────────
+  distanceCoveredKm     Float    @default(0)
+  highSpeedDistanceKm   Float    @default(0)
+  sprintDistanceKm      Float    @default(0)
+  topSpeedKph           Float    @default(0)
+  // ── Composite ─────────────────────────────────────────────────────────────
+  heatmapGrid           Json?    // 16×12 positional density (JSON 2D array)
+  ratingFamilista       Float?   // composite 0..10
+  computedAt            DateTime @default(now())
+  computedVersion       Int      @default(1)
+
+  @@unique([matchId, playerId])
+  @@index([clubId, playerId])
+  @@index([playerId, computedAt])
+}
+
+// Season-level rollup per player.
+// Recomputed nightly by StatsAggregatorWorker.
+model PlayerSeasonStats {
+  id                  String   @id @default(cuid())
+  playerId            String
+  player              Player   @relation("PlayerSeasonStats", fields: [playerId], references: [id])
+  clubId              String
+  competitionId       String?
+  competition         Competition? @relation(fields: [competitionId], references: [id])
+  season              String   // "2024-25"
+  // ── Volume ────────────────────────────────────────────────────────────────
+  appearances         Int      @default(0)
+  starts              Int      @default(0)
+  minutesPlayed       Int      @default(0)
+  // ── Output ────────────────────────────────────────────────────────────────
+  goals               Int      @default(0)
+  assists             Int      @default(0)
+  xg                  Float    @default(0)
+  xa                  Float    @default(0)
+  xgPer90             Float    @default(0)
+  xaPer90             Float    @default(0)
+  goalsPer90          Float    @default(0)
+  assistsPer90        Float    @default(0)
+  // ── Quality ───────────────────────────────────────────────────────────────
+  passAccuracy        Float    @default(0)
+  pressureSuccessRate Float    @default(0)
+  aerialSuccessRate   Float    @default(0)
+  dribbleSuccessRate  Float    @default(0)
+  averageRating       Float    @default(0)
+  // ── Physical ──────────────────────────────────────────────────────────────
+  avgDistancePer90    Float    @default(0)
+  avgSprintsPer90     Float    @default(0)
+  computedAt          DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([playerId, clubId, season, competitionId])
+  @@index([clubId, season])
+  @@index([playerId, season])
+}
+
+// Career record — one row per club tenure. Source of truth for transfer history.
+model PlayerCareerRecord {
+  id             String   @id @default(cuid())
+  playerId       String
+  player         Player   @relation("PlayerCareer", fields: [playerId], references: [id])
+  clubId         String?  // null = external club
+  clubName       String   // display name (covers external clubs)
+  teamName       String?
+  season         String?
+  startDate      DateTime
+  endDate        DateTime?
+  isLoan         Boolean  @default(false)
+  appearances    Int      @default(0)
+  goals          Int      @default(0)
+  assists        Int      @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([playerId, startDate])
+}
+
+// Positional percentile benchmarks — updated when sufficient cohort data exists.
+model PlayerBenchmark {
+  id              String   @id @default(cuid())
+  playerId        String
+  player          Player   @relation("PlayerBenchmarks", fields: [playerId], references: [id])
+  position        String   // "CB", "CM", "ST", etc.
+  cohortSize      Int      // how many players in the reference cohort
+  season          String
+  // Percentile ranks 0..100 vs. position cohort
+  xgPer90Pct      Float?
+  xaPer90Pct      Float?
+  pressuresPct    Float?
+  aerialPct       Float?
+  passPct         Float?
+  distancePct     Float?
+  overallPct      Float?   // composite percentile
+  computedAt      DateTime @default(now())
+
+  @@unique([playerId, position, season])
+  @@index([position, season])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 3. WORKLOAD SCIENCE ENGINE  (Catapult-equivalent)
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum WorkloadZone {
+  Z1_WALK          // 0–6 km/h
+  Z2_JOG           // 6–11 km/h
+  Z3_RUN           // 11–14 km/h
+  Z4_HIGH_SPEED    // 14–19 km/h
+  Z5_SPRINT        // 19–23 km/h
+  Z6_MAX_SPRINT    // 23+ km/h
+}
+
+enum InjurySeverity {
+  MINIMAL          // 1–3 days absent
+  MINOR            // 4–7 days
+  MODERATE         // 8–28 days
+  SEVERE           // 29–84 days
+  CAREER_THREATENING  // 85+ days
+}
+
+enum InjuryMechanism {
+  NON_CONTACT
+  CONTACT
+  OVERUSE
+  UNKNOWN
+}
+
+// One row per GPS vest session (training or match).
+// Computes zone breakdowns and feeds the workload model.
+model GPSTrackingSession {
+  id                  String   @id @default(cuid())
+  clubId              String
+  playerId            String
+  player              Player   @relation("PlayerGPS", fields: [playerId], references: [id])
+  matchId             String?
+  match               Match?   @relation(fields: [matchId], references: [id])
+  trainingSessionId   String?
+  trainingSession     TrainingSession? @relation(fields: [trainingSessionId], references: [id])
+  deviceSerial        String?
+  startedAt           DateTime
+  endedAt             DateTime?
+  durationMin         Float    @default(0)
+  // ── Volume ────────────────────────────────────────────────────────────────
+  totalDistanceM      Float    @default(0)
+  highSpeedDistanceM  Float    @default(0)   // >14 km/h
+  veryHighSpeedDistM  Float    @default(0)   // >19 km/h
+  sprintDistanceM     Float    @default(0)   // >23 km/h
+  maxSpeedKph         Float    @default(0)
+  avgSpeedKph         Float    @default(0)
+  // ── Intensity ─────────────────────────────────────────────────────────────
+  accelerations       Int      @default(0)   // >3 m/s²
+  decelerations       Int      @default(0)   // <-3 m/s²
+  highAccelerations   Int      @default(0)   // >4 m/s²
+  playerLoad          Float    @default(0)   // ≈ Catapult PlayerLoad™: RMS of 3-axis acc
+  // ── Zones (JSON: { "Z1": metres, "Z2": metres, ... }) ─────────────────────
+  zoneBreakdown       Json?
+  // ── Cardiac (when HR strap present) ───────────────────────────────────────
+  heartRateAvg        Int?
+  heartRateMax        Int?
+  hrZoneBreakdown     Json?
+  // ── Storage ───────────────────────────────────────────────────────────────
+  rawDataRef          String?  // S3 key for full 10Hz track (GPSD / FIT / CSV)
+  createdAt           DateTime @default(now())
+
+  @@index([clubId, playerId, startedAt])
+  @@index([matchId])
+  @@index([trainingSessionId])
+}
+
+// Weekly ATL/CTL/TSB record — the core of load management science.
+// ATL  = 7-day exponentially weighted average (acute load)
+// CTL  = 28-day exponentially weighted average (chronic load / fitness)
+// TSB  = CTL − ATL (freshness; >5 = fresh, <−20 = overreaching)
+// ACWR = ATL / CTL (Acute:Chronic Workload Ratio; >1.5 = injury risk zone)
+model WorkloadRecord {
+  id                String   @id @default(cuid())
+  clubId            String
+  playerId          String
+  player            Player   @relation("PlayerWorkload", fields: [playerId], references: [id])
+  weekStart         DateTime // ISO Monday 00:00 UTC
+  // ── Load quantities (arbitrary units derived from playerLoad sum) ──────────
+  acuteLoad         Float    @default(0)   // ATL
+  chronicLoad       Float    @default(0)   // CTL
+  trainingStressBalance Float @default(0)  // TSB = CTL − ATL
+  acwr              Float    @default(0)   // ACWR = ATL / CTL
+  monotony          Float    @default(0)   // dailyMean / dailySD (1=varied, high=monotonous)
+  strain            Float    @default(0)   // weeklyLoad × monotony
+  // ── Risk flags ────────────────────────────────────────────────────────────
+  isHighRisk        Boolean  @default(false)  // ACWR > 1.5 or TSB < −20
+  injuryRiskScore   Float    @default(0)      // 0..1 (ML model output)
+  riskFlags         Json?    // { "acwr": true, "tsb": false, "recent_injury": false }
+  computedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([playerId, weekStart])
+  @@index([clubId, weekStart])
+  @@index([isHighRisk])
+}
+
+// OSICS-10 injury classification + return-to-play log.
+model InjuryRecord {
+  id               String           @id @default(cuid())
+  clubId           String
+  playerId         String
+  player           Player           @relation("PlayerInjuries", fields: [playerId], references: [id])
+  recordedBy       String?
+  recorder         User?            @relation("InjuryRecorder", fields: [recordedBy], references: [id])
+  injuryDate       DateTime
+  returnDate       DateTime?
+  estimatedReturnDate DateTime?
+  // ── Classification ────────────────────────────────────────────────────────
+  bodyLocation     String           // e.g. "LEFT_HAMSTRING", "RIGHT_ANKLE"
+  bodyLocationCode String?          // OSICS-10 code (e.g. "M35.1")
+  osicsCategory    String?          // "M"=Muscle, "J"=Joint, "B"=Bone, "N"=Nerve
+  mechanism        InjuryMechanism  @default(UNKNOWN)
+  severity         InjurySeverity?
+  daysAbsent       Int?             // filled on return
+  isContactInjury  Boolean          @default(false)
+  isRecurrence     Boolean          @default(false)
+  // ── Context ───────────────────────────────────────────────────────────────
+  matchId          String?          // injury in match?
+  trainingId       String?          // injury in training?
+  workloadAtInjury Float?           // ACWR at time of injury (risk correlation)
+  // ── Treatment ─────────────────────────────────────────────────────────────
+  treatmentLog     Json?            // array of { date, type, notes }
+  rtpStages        Json?            // return-to-play phase progression
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([clubId, playerId, injuryDate])
+  @@index([playerId, injuryDate])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4. VIDEO INTELLIGENCE PIPELINE
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum VideoAssetStatus {
+  AWAITING_UPLOAD
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+enum VideoSourceKind {
+  BROADCAST
+  TACTICAL_CAMERA
+  DRONE
+  BODY_CAM
+  PHONE_UPLOAD
+  DEVICE_STREAM     // Familista hardware
+  IMPORTED_HUDL
+  IMPORTED_WYSCOUT
+  IMPORTED_GENERIC
+}
+
+// Master video record. Transcoded to HLS for streaming.
+model VideoAsset {
+  id                  String           @id @default(cuid())
+  clubId              String
+  club                Club             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  matchId             String?
+  match               Match?           @relation(fields: [matchId], references: [id])
+  trainingSessionId   String?
+  trainingSession     TrainingSession? @relation(fields: [trainingSessionId], references: [id])
+  title               String
+  description         String?
+  sourceKind          VideoSourceKind  @default(PHONE_UPLOAD)
+  status              VideoAssetStatus @default(AWAITING_UPLOAD)
+  // ── Storage ───────────────────────────────────────────────────────────────
+  rawStorageKey       String?          // S3 key for original upload
+  hlsManifestKey      String?          // S3 key for HLS playlist (.m3u8)
+  thumbnailKey        String?          // S3 key for poster frame
+  storageProvider     String           @default("S3")
+  cdnBaseUrl          String?          // CloudFront / R2 public base
+  // ── Media metadata ────────────────────────────────────────────────────────
+  durationSec         Float?
+  fileSizeBytes       BigInt?
+  mimeType            String?
+  width               Int?
+  height              Int?
+  fps                 Float?
+  // ── Access ────────────────────────────────────────────────────────────────
+  isPublic            Boolean          @default(false)
+  shareToken          String?          @unique
+  tags                String[]
+  uploadedBy          String?
+  uploader            User?            @relation("VideoUploader", fields: [uploadedBy], references: [id])
+  // ── Relations ─────────────────────────────────────────────────────────────
+  clips               VideoClip[]
+  annotations         VideoAnnotation[]
+  playlistItems       VideoPlaylistItem[]
+  transcodeJobs       VideoTranscodeJob[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([clubId, matchId])
+  @@index([status])
+  @@index([shareToken])
+}
+
+// Clip: a time-window within an asset, optionally linked to a MatchEvent.
+model VideoClip {
+  id             String      @id @default(cuid())
+  clubId         String
+  assetId        String
+  asset          VideoAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  title          String?
+  description    String?
+  startSec       Float
+  endSec         Float
+  tags           String[]
+  // ── Optional links ────────────────────────────────────────────────────────
+  eventId        String?     // linked MatchEvent
+  playerId       String?
+  player         Player?     @relation("PlayerClips", fields: [playerId], references: [id])
+  teamId         String?
+  // ── Pre-cut storage (optional — generated lazily) ─────────────────────────
+  clipStorageKey String?
+  // ── Sharing ───────────────────────────────────────────────────────────────
+  shareToken     String?     @unique
+  isShared       Boolean     @default(false)
+  sharedWithIds  String[]    // user IDs who can view
+  createdBy      String?
+  creator        User?       @relation("ClipCreator", fields: [createdBy], references: [id])
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  playlistItems  VideoPlaylistItem[]
+
+  @@index([assetId])
+  @@index([clubId, playerId])
+  @@index([shareToken])
+}
+
+// Playlist: ordered collection of clips/assets for presentation.
+model VideoPlaylist {
+  id         String             @id @default(cuid())
+  clubId     String
+  title      String
+  description String?
+  playerId   String?
+  teamId     String?
+  createdBy  String?
+  creator    User?              @relation("PlaylistCreator", fields: [createdBy], references: [id])
+  items      VideoPlaylistItem[]
+  shareToken String?            @unique
+  isPublic   Boolean            @default(false)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  @@index([clubId])
+  @@index([shareToken])
+}
+
+model VideoPlaylistItem {
+  id         String         @id @default(cuid())
+  playlistId String
+  playlist   VideoPlaylist  @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  assetId    String
+  asset      VideoAsset     @relation(fields: [assetId], references: [id])
+  clipId     String?
+  clip       VideoClip?     @relation(fields: [clipId], references: [id])
+  position   Int
+  notes      String?
+
+  @@unique([playlistId, position])
+  @@index([assetId])
+}
+
+// Per-frame drawing overlays (arrows, circles, rectangles, freehand).
+model VideoAnnotation {
+  id             String     @id @default(cuid())
+  clubId         String
+  assetId        String
+  asset          VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  clipId         String?
+  timestampSec   Float
+  // ── Drawing ───────────────────────────────────────────────────────────────
+  shape          String     // "arrow" | "circle" | "rect" | "freehand" | "text"
+  x              Float      // 0..1 relative to frame width
+  y              Float      // 0..1 relative to frame height
+  x2             Float?     // end point for arrow/rect
+  y2             Float?
+  pathData       Json?      // SVG path points for freehand
+  color          String     @default("#FFDD00")
+  thickness      Float      @default(2)
+  text           String?
+  // ── Metadata ──────────────────────────────────────────────────────────────
+  createdBy      String?
+  creator        User?      @relation("AnnotationCreator", fields: [createdBy], references: [id])
+  createdAt      DateTime   @default(now())
+
+  @@index([assetId, timestampSec])
+  @@index([clubId])
+}
+
+// Transcode job — tracks FFmpeg HLS conversion status.
+model VideoTranscodeJob {
+  id          String     @id @default(cuid())
+  assetId     String
+  asset       VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  status      String     @default("QUEUED")  // QUEUED|RUNNING|DONE|FAILED
+  profile     String     @default("HLS_720P") // HLS_720P | HLS_1080P | THUMBNAIL
+  workerRef   String?    // background job ID
+  errorMsg    String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+
+  @@index([assetId, status])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 5. TRANSFER INTELLIGENCE  (Wyscout/Transfermarkt-equivalent)
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum TransferTargetStage {
+  LONGLIST
+  SHORTLIST
+  APPROACH
+  NEGOTIATION
+  SIGNED
+  LOAN
+  REJECTED
+}
+
+enum ScoutingGrade {
+  A_PLUS
+  A
+  B_PLUS
+  B
+  C
+  D
+  REJECT
+}
+
+enum ScoutRecommendation {
+  SIGN_NOW
+  SIGN_NEXT_WINDOW
+  LOAN
+  MONITOR
+  REJECT
+}
+
+// Market value snapshot — append-only, captures history.
+model PlayerMarketValue {
+  id           String   @id @default(cuid())
+  playerId     String
+  player       Player   @relation("PlayerMarketValues", fields: [playerId], references: [id])
+  valueEur     Decimal  @db.Decimal(14, 2)
+  valueLow     Decimal? @db.Decimal(14, 2)
+  valueHigh    Decimal? @db.Decimal(14, 2)
+  source       String   // "INTERNAL" | "TRANSFERMARKT" | "SCOUT_CONSENSUS" | "AI_MODEL"
+  methodology  String?
+  confidence   Float?   // 0..1
+  notes        String?
+  recordedAt   DateTime @default(now())
+  recordedBy   String?
+
+  @@index([playerId, recordedAt])
+}
+
+// Current contract and availability snapshot.
+model PlayerContractStatus {
+  id               String   @id @default(cuid())
+  playerId         String   @unique
+  player           Player   @relation("PlayerContractStatus", fields: [playerId], references: [id])
+  currentClubId    String?  // null = external club
+  currentClubName  String?
+  contractExpiry   DateTime?
+  grossSalaryEur   Decimal? @db.Decimal(12, 2)
+  releaseClause    Decimal? @db.Decimal(14, 2)
+  isOnLoan         Boolean  @default(false)
+  loanFromClubName String?
+  loanUntil        DateTime?
+  agentName        String?
+  agentContact     String?
+  nationality      String[]
+  passportNations  String[]
+  eligibleLeagues  String[]
+  expiryAlert      Boolean  @default(false) // set when expiry < 180 days
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@index([contractExpiry])
+  @@index([expiryAlert])
+}
+
+// Transfer pipeline per club.
+model TransferTarget {
+  id              String              @id @default(cuid())
+  clubId          String
+  club            Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId        String
+  player          Player              @relation("TransferTargets", fields: [playerId], references: [id])
+  addedBy         String?
+  adder           User?               @relation("TargetAdder", fields: [addedBy], references: [id])
+  stage           TransferTargetStage @default(LONGLIST)
+  priority        Int                 @default(3)  // 1=HOT, 2=WARM, 3=COLD
+  budgetEur       Decimal?            @db.Decimal(14, 2)
+  positionTarget  String?             // which position this player would fill
+  notes           String?
+  tags            String[]
+  lastActivity    DateTime?
+  reports         ScoutingReport[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@unique([clubId, playerId])
+  @@index([clubId, stage])
+  @@index([clubId, priority])
+}
+
+// Structured scouting report — the core deliverable of a scout.
+model ScoutingReport {
+  id               String              @id @default(cuid())
+  clubId           String
+  club             Club                @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  scoutId          String
+  scout            User                @relation("ScoutReports", fields: [scoutId], references: [id])
+  playerId         String
+  player           Player              @relation("PlayerScoutReports", fields: [playerId], references: [id])
+  targetId         String?
+  target           TransferTarget?     @relation(fields: [targetId], references: [id])
+  // ── Observation context ────────────────────────────────────────────────────
+  matchObservedId  String?
+  matchObservedRef String?             // free-text if external match
+  observationDate  DateTime?
+  // ── Grading (1–10 per dimension) ──────────────────────────────────────────
+  overall          ScoutingGrade?
+  technical        Int?                // 1–10
+  physical         Int?
+  mental           Int?
+  tactical         Int?
+  potential        Int?
+  compositeScore   Float?              // weighted average
+  // ── Qualitative ───────────────────────────────────────────────────────────
+  strengths        String?
+  weaknesses       String?
+  contextNotes     String?
+  recommendation   ScoutRecommendation?
+  // ── Media ─────────────────────────────────────────────────────────────────
+  videoClipIds     String[]
+  attachments      Json?
+  isConfidential   Boolean             @default(true)
+  submittedAt      DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([clubId, playerId])
+  @@index([scoutId])
+  @@index([targetId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 6. COMPETITION & LEAGUE ENGINE
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum CompetitionFormat {
+  LEAGUE
+  CUP_KNOCKOUT
+  CUP_WITH_GROUPS
+  ROUND_ROBIN
+  PLAYOFF
+  FRIENDLY_TOURNAMENT
+}
+
+enum FixtureStatus {
+  SCHEDULED
+  POSTPONED
+  CANCELLED
+  LIVE
+  PLAYED
+  AWARDED
+}
+
+// Competition (season-scoped): EPL 2024-25, UCL 2024-25, etc.
+model Competition {
+  id             String            @id @default(cuid())
+  name           String
+  shortName      String?
+  code           String            // "EPL", "UCL", "BUNDESLIGA"
+  country        String?
+  confederation  String?           // "UEFA", "CONMEBOL", etc.
+  level          Int               @default(1)
+  format         CompetitionFormat @default(LEAGUE)
+  season         String            // "2024-25"
+  gender         String            @default("MEN")
+  governingBody  String?
+  logoUrl        String?
+  isActive       Boolean           @default(true)
+  teams          CompetitionTeam[]
+  fixtures       Fixture[]
+  standings      StandingsEntry[]
+  playerStats    PlayerSeasonStats[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([code, season])
+  @@index([isActive, country])
+}
+
+// Roster of teams in a competition.
+model CompetitionTeam {
+  id              String      @id @default(cuid())
+  competitionId   String
+  competition     Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId          String
+  team            Team        @relation("CompetitionTeams", fields: [teamId], references: [id])
+  clubId          String
+  seededPosition  Int?
+  group           String?     // group stage label
+
+  @@unique([competitionId, teamId])
+  @@index([clubId])
+}
+
+// Fixture: a scheduled contest between two teams in a competition.
+// Linked to Match once the game is played.
+model Fixture {
+  id            String        @id @default(cuid())
+  competitionId String
+  competition   Competition   @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  homeTeamId    String
+  homeTeam      Team          @relation("HomeFixtures", fields: [homeTeamId], references: [id])
+  awayTeamId    String
+  awayTeam      Team          @relation("AwayFixtures", fields: [awayTeamId], references: [id])
+  matchId       String?       @unique
+  match         Match?        @relation(fields: [matchId], references: [id])
+  scheduledAt   DateTime
+  venue         String?
+  round         String?       // "R16", "QF", "SF", "F"
+  matchweek     Int?
+  leg           Int?          @default(1)  // 1st/2nd leg
+  status        FixtureStatus @default(SCHEDULED)
+  homeScore     Int?
+  awayScore     Int?
+  homeScoreAet  Int?          // after extra time
+  awayScoreAet  Int?
+  homePens      Int?          // penalties
+  awayPens      Int?
+  externalId    String?       // provider fixture ID
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([competitionId, scheduledAt])
+  @@index([homeTeamId])
+  @@index([awayTeamId])
+  @@index([status])
+}
+
+// Running standings table for a competition.
+// Rebuilt by StandingsComputeWorker on every Fixture result.
+model StandingsEntry {
+  id            String      @id @default(cuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          Team        @relation("Standings", fields: [teamId], references: [id])
+  position      Int
+  played        Int         @default(0)
+  won           Int         @default(0)
+  drawn         Int         @default(0)
+  lost          Int         @default(0)
+  goalsFor      Int         @default(0)
+  goalsAgainst  Int         @default(0)
+  goalDifference Int        @default(0)
+  points        Int         @default(0)
+  form          String?     // "WWDLW" (last 5 results)
+  homeWon       Int         @default(0)
+  awayWon       Int         @default(0)
+  computedAt    DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([competitionId, teamId])
+  @@index([competitionId, position])
+}

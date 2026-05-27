@@ -28,6 +28,10 @@ gray "▶ prisma format"
 npx prisma format --schema=prisma/schema.prisma >/dev/null
 ok "schema formats"
 
+gray "▶ prisma migrate status"
+npx prisma migrate status --schema=prisma/schema.prisma 2>&1 | grep -qiE "Database schema is up to date|already applied" \
+  || gray "  (pending migrations detected — run npm run db:migrate on deploy)"
+
 gray "▶ prisma generate"
 npx prisma generate --schema=prisma/schema.prisma >/dev/null
 ok "client generated"

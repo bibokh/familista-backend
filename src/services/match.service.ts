@@ -39,6 +39,15 @@ export interface CreateMatchDto {
 }
 
 export interface UpdateMatchDto {
+  // Fixture details — editable post-creation
+  homeTeam?:        string;
+  awayTeam?:        string;
+  isHome?:          boolean;
+  competition?:     CompetitionType;
+  competitionName?: string | null;
+  venue?:           string | null;
+  scheduledAt?:     string;
+  // Live / post-match stats
   homeScore?:      number;
   awayScore?:      number;
   result?:         MatchResult;
@@ -270,6 +279,15 @@ export async function updateMatch(actor: MatchActor, id: string, dto: UpdateMatc
 
   return prisma.$transaction(async (tx) => {
     const data: Prisma.MatchUpdateInput = {
+      // Fixture details
+      ...(dto.homeTeam        !== undefined && { homeTeam:        dto.homeTeam }),
+      ...(dto.awayTeam        !== undefined && { awayTeam:        dto.awayTeam }),
+      ...(dto.isHome          !== undefined && { isHome:          dto.isHome }),
+      ...(dto.competition     !== undefined && { competition:     dto.competition }),
+      ...(dto.competitionName !== undefined && { competitionName: dto.competitionName ?? null }),
+      ...(dto.venue           !== undefined && { venue:           dto.venue ?? null }),
+      ...(dto.scheduledAt     !== undefined && { scheduledAt:     new Date(dto.scheduledAt) }),
+      // Live / post-match stats
       ...(dto.homeScore     !== undefined && { homeScore:     dto.homeScore }),
       ...(dto.awayScore     !== undefined && { awayScore:     dto.awayScore }),
       ...(dto.result        !== undefined && { result:        dto.result }),

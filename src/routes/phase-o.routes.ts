@@ -96,7 +96,7 @@ router.get  ('/governance/consent',                      authorize('CLUB_ADMIN',
 
 // ── Monitoring ─────────────────────────────────────────────────────────
 router.post('/monitoring/health',                        authorize('CLUB_ADMIN','MANAGER','ANALYST','SUPER_ADMIN'), ctrl.recordHealth);
-router.get ('/monitoring/health/snapshot',                                                                          ctrl.healthSnapshot);
+router.get ('/monitoring/health/snapshot',                        authorize('SUPER_ADMIN'),                          ctrl.healthSnapshot);
 
 router.post ('/monitoring/alert-rules',                  authorize('CLUB_ADMIN','SUPER_ADMIN'),                   ctrl.upsertAlertRule);
 router.patch('/monitoring/alert-rules/:id/state',        authorize('CLUB_ADMIN','SUPER_ADMIN'),                   ctrl.setAlertRuleState);
