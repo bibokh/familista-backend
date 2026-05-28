@@ -90,6 +90,75 @@ export interface FatigueRow {
   riskLevel:       'HIGH' | 'MEDIUM' | 'LOW';
 }
 
+// ── Phase 17 — Spatial Analysis types ─────────────────────────────────────────
+
+/** Player density cell on a 10×10 grid (coords 0-100). */
+export interface HeatmapCell {
+  cx: number;           // cell-centre X, 0-100
+  cy: number;           // cell-centre Y, 0-100
+  homeDensity: number;  // 0-1 normalised
+  awayDensity: number;  // 0-1 normalised
+}
+
+/** Event-density cell for pressure visualisation. */
+export interface PressureCell {
+  cx: number;
+  cy: number;
+  intensity: number;   // 0-1
+  eventCount: number;
+}
+
+/** Proximity-based passing connection between two players. */
+export interface PassingEdge {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  weight: number;      // 0-1, inverse distance normalised
+  side: 'HOME' | 'AWAY';
+}
+
+/** Shape metrics for one team's starting XI. */
+export interface TeamShapeMetrics {
+  side: 'HOME' | 'AWAY';
+  centroidX: number;
+  centroidY: number;
+  compactness: number;   // 0-100; higher = more spread
+  width: number;         // forward-backward span (x-axis), 0-100
+  depth: number;         // side-to-side span (y-axis), 0-100
+  defensiveX: number;    // avg x of deepest 3 players (0=own goal)
+  attackingX: number;    // avg x of highest 3 players (100=opp goal)
+  spacingAnomalies: Array<{ name: string; x: number; y: number; gap: number }>;
+}
+
+/** Overload balance in one of 9 pitch zones (3 cols × 3 rows). */
+export interface OverloadZone {
+  col: 'LEFT' | 'CENTER' | 'RIGHT';
+  row: 'DEFENSIVE' | 'MIDDLE' | 'ATTACKING';
+  homeCount: number;
+  awayCount: number;
+  dominantSide: 'HOME' | 'AWAY' | 'BALANCED';
+  magnitude: number;   // |homeCount - awayCount|
+}
+
+/** Full spatial bundle attached to the intelligence payload. */
+export interface SpatialAnalysis {
+  heatmap: HeatmapCell[];
+  pressureMap: PressureCell[];
+  passingNetwork: PassingEdge[];
+  homeShape: TeamShapeMetrics;
+  awayShape: TeamShapeMetrics;
+  overloadZones: OverloadZone[];
+  /** Per-5-min-window event-activity proxy for formation shift. */
+  formationShiftSeries: Array<{
+    label: string;
+    homeWidth: number;
+    awayWidth: number;
+    homeCompactness: number;
+    awayCompactness: number;
+  }>;
+}
+
 export interface LiveIntelligenceBundle {
   matchId:              string;
   clubId:               string;
@@ -109,6 +178,7 @@ export interface LiveIntelligenceBundle {
   playerRatings:        PlayerRatingRow[];
   dominanceSeries:      DominanceWindow[];
   fatigueIndicators:    FatigueRow[];
+  spatialAnalysis:      SpatialAnalysis;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -208,6 +278,264 @@ export function buildDominanceSeries(
     const homeScore = Math.max(0, Math.min(100, 50 + net * 2));
     return { fromMin, toMin, homeScore, label: `${fromMin}'–${toMin}'` };
   });
+}
+
+// ── Phase 17 — Spatial computation (pure, no DB) ──────────────────────────────
+
+const HEATMAP_GRID = 10;           // 10×10 grid; each cell = 10×10 in 0-100 coords
+const HEATMAP_BLEED = 0.3;         // density contributed to adjacent cells
+
+/**
+ * Build player density heatmap from lineup positions.
+ * Both HOME and AWAY densities are returned per cell (0-1 normalised).
+ */
+export function computeHeatmap(positions: TacticalBoardData['positions']): HeatmapCell[] {
+  const N = HEATMAP_GRID;
+  const CW = 100 / N;
+  const homeGrid = new Float32Array(N * N);
+  const awayGrid = new Float32Array(N * N);
+
+  for (const p of positions) {
+    if (!p.isStarter) continue;
+    const col = Math.min(N - 1, Math.floor(p.x / CW));
+    const row = Math.min(N - 1, Math.floor(p.y / CW));
+    const grid = p.side === 'HOME' ? homeGrid : awayGrid;
+    grid[row * N + col] += 1;
+    // Bleed to 4-connected neighbours
+    for (const [dc, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as [number, number][]) {
+      const nc = col + dc, nr = row + dr;
+      if (nc >= 0 && nc < N && nr >= 0 && nr < N) grid[nr * N + nc] += HEATMAP_BLEED;
+    }
+  }
+
+  const maxH = Math.max(1, ...homeGrid);
+  const maxA = Math.max(1, ...awayGrid);
+  const cells: HeatmapCell[] = [];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const hd = homeGrid[r * N + c] / maxH;
+      const ad = awayGrid[r * N + c] / maxA;
+      if (hd < 0.05 && ad < 0.05) continue;
+      cells.push({ cx: c * CW + CW / 2, cy: r * CW + CW / 2, homeDensity: hd, awayDensity: ad });
+    }
+  }
+  return cells;
+}
+
+const PRESSURE_KINDS = new Set([
+  'SHOT', 'SHOT_ON_TARGET', 'SHOT_OFF_TARGET', 'CORNER', 'FOUL', 'YELLOW_CARD',
+]);
+
+/**
+ * Build pressure-intensity cells from timeline events that carry pitch coordinates.
+ * Events without pitchX/pitchY are silently skipped.
+ */
+export function computePressureMap(
+  events: Array<{ occurredAtMin: number; kind: string; side: string; pitchX: number | null; pitchY: number | null }>,
+  maxMinute: number,
+): PressureCell[] {
+  const N = HEATMAP_GRID;
+  const CW = 100 / N;
+  const grid = new Float32Array(N * N);
+  const count = new Int32Array(N * N);
+
+  for (const e of events) {
+    if (!PRESSURE_KINDS.has(e.kind)) continue;
+    if (e.pitchX == null || e.pitchY == null) continue;
+    const col = Math.min(N - 1, Math.floor(e.pitchX / CW));
+    const row = Math.min(N - 1, Math.floor(e.pitchY / CW));
+    const idx = row * N + col;
+    // Recency weight: later events weigh more
+    const recency = maxMinute > 0 ? 0.5 + (e.occurredAtMin / maxMinute) * 0.5 : 1;
+    grid[idx] += recency;
+    count[idx]++;
+  }
+
+  const max = Math.max(1, ...grid);
+  const cells: PressureCell[] = [];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const idx = r * N + c;
+      if (grid[idx] === 0) continue;
+      cells.push({
+        cx: c * CW + CW / 2, cy: r * CW + CW / 2,
+        intensity: grid[idx] / max,
+        eventCount: count[idx],
+      });
+    }
+  }
+  return cells;
+}
+
+/**
+ * Build proximity-based passing network edges for starters of each side.
+ * Each player is connected to their 2 nearest teammates. Duplicate edges pruned.
+ */
+export function computePassingNetwork(positions: TacticalBoardData['positions']): PassingEdge[] {
+  const edges: PassingEdge[] = [];
+  for (const side of ['HOME', 'AWAY'] as const) {
+    const players = positions.filter(p => p.side === side && p.isStarter);
+    if (players.length < 2) continue;
+
+    const seen = new Set<string>();
+    for (let i = 0; i < players.length; i++) {
+      const pi = players[i];
+      const sorted = players
+        .map((pj, j) => ({ j, dist: Math.hypot(pi.x - pj.x, pi.y - pj.y) }))
+        .filter(({ j }) => j !== i)
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 2);   // 2 nearest teammates
+
+      for (const { j, dist } of sorted) {
+        const key = [Math.min(i, j), Math.max(i, j)].join('-');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const pj = players[j];
+        const weight = Math.max(0, 1 - dist / 100);  // 100 = full pitch diagonal norm
+        edges.push({ fromX: pi.x, fromY: pi.y, toX: pj.x, toY: pj.y, weight, side });
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Compute shape metrics (compactness, width, depth, lines) for one team's starters.
+ */
+export function computeTeamShape(
+  positions: TacticalBoardData['positions'],
+  side: 'HOME' | 'AWAY',
+): TeamShapeMetrics {
+  const players = positions.filter(p => p.side === side && p.isStarter);
+  if (players.length === 0) {
+    return {
+      side, centroidX: 50, centroidY: 50, compactness: 0, width: 0, depth: 0,
+      defensiveX: 50, attackingX: 50, spacingAnomalies: [],
+    };
+  }
+
+  const xs   = players.map(p => p.x);
+  const ys   = players.map(p => p.y);
+  const cX   = xs.reduce((a, b) => a + b, 0) / players.length;
+  const cY   = ys.reduce((a, b) => a + b, 0) / players.length;
+  const width  = Math.max(...xs) - Math.min(...xs);
+  const depth  = Math.max(...ys) - Math.min(...ys);
+
+  const dists  = players.map(p => Math.hypot(p.x - cX, p.y - cY));
+  const mean   = dists.reduce((a, b) => a + b, 0) / dists.length;
+  const variance = dists.reduce((s, d) => s + (d - mean) ** 2, 0) / dists.length;
+  const stdDev = Math.sqrt(variance);
+  const compactness = Math.min(100, Math.round((mean / 50) * 100));
+
+  // Deepest 3 by x (most defensive = lowest x)
+  const sortedByX  = [...players].sort((a, b) => a.x - b.x);
+  const n3 = Math.min(3, sortedByX.length);
+  const defensiveX = sortedByX.slice(0, n3).reduce((s, p) => s + p.x, 0) / n3;
+  const attackingX = sortedByX.slice(-n3).reduce((s, p) => s + p.x, 0) / n3;
+
+  // Anomalies: > 1.5 std devs from centroid
+  const spacingAnomalies = players
+    .map((p, i) => ({ p, d: dists[i] }))
+    .filter(({ d }) => d > mean + 1.5 * stdDev)
+    .map(({ p, d }) => ({ name: p.playerName ?? '—', x: p.x, y: p.y, gap: Math.round(d) }))
+    .slice(0, 3);
+
+  return {
+    side,
+    centroidX: Math.round(cX * 10) / 10,
+    centroidY: Math.round(cY * 10) / 10,
+    compactness, width: Math.round(width * 10) / 10, depth: Math.round(depth * 10) / 10,
+    defensiveX: Math.round(defensiveX * 10) / 10,
+    attackingX: Math.round(attackingX * 10) / 10,
+    spacingAnomalies,
+  };
+}
+
+/**
+ * Detect overload zones across a 3×3 pitch grid (col=LEFT/CENTER/RIGHT, row=DEF/MID/ATK).
+ */
+export function computeOverloads(positions: TacticalBoardData['positions']): OverloadZone[] {
+  const COLS = ['LEFT', 'CENTER', 'RIGHT'] as const;
+  const ROWS = ['DEFENSIVE', 'MIDDLE', 'ATTACKING'] as const;
+  const CW = 100 / 3, CRow = 100 / 3;
+  const zones: OverloadZone[] = [];
+
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const xMin = c * CW, xMax = (c + 1) * CW;
+      const yMin = r * CRow, yMax = (r + 1) * CRow;
+      const inZone = (p: TacticalBoardData['positions'][number]) =>
+        p.isStarter && p.x >= xMin && p.x < xMax && p.y >= yMin && p.y < yMax;
+      const homeCount = positions.filter(p => p.side === 'HOME' && inZone(p)).length;
+      const awayCount = positions.filter(p => p.side === 'AWAY' && inZone(p)).length;
+      const diff      = homeCount - awayCount;
+      const magnitude = Math.abs(diff);
+      zones.push({
+        col: COLS[c], row: ROWS[r],
+        homeCount, awayCount,
+        dominantSide: diff > 1 ? 'HOME' : diff < -1 ? 'AWAY' : 'BALANCED',
+        magnitude,
+      });
+    }
+  }
+  return zones;
+}
+
+/**
+ * Build formation shift series: per-5-min event-activity proxy for shape change.
+ * Uses event distribution as a proxy (high activity bin → more open game).
+ */
+export function computeFormationShiftSeries(
+  events: Array<{ occurredAtMin: number; kind: string; side: string }>,
+  positions: TacticalBoardData['positions'],
+  maxMinute: number,
+): SpatialAnalysis['formationShiftSeries'] {
+  if (maxMinute <= 0) return [];
+  const BIN = 5;
+  const bins = Math.ceil(maxMinute / BIN);
+
+  const homePlayers = positions.filter(p => p.side === 'HOME' && p.isStarter);
+  const awayPlayers = positions.filter(p => p.side === 'AWAY' && p.isStarter);
+  const homeXs = homePlayers.map(p => p.x);
+  const awayXs = awayPlayers.map(p => p.x);
+  const homeWidth = homeXs.length > 1 ? Math.round(Math.max(...homeXs) - Math.min(...homeXs)) : 0;
+  const awayWidth = awayXs.length > 1 ? Math.round(Math.max(...awayXs) - Math.min(...awayXs)) : 0;
+
+  const homeEvt = new Array<number>(bins).fill(0);
+  const awayEvt = new Array<number>(bins).fill(0);
+  for (const e of events) {
+    const bin = Math.min(bins - 1, Math.floor(e.occurredAtMin / BIN));
+    if (e.side === 'HOME') homeEvt[bin]++;
+    else awayEvt[bin]++;
+  }
+  const maxEvt = Math.max(1, ...homeEvt, ...awayEvt);
+
+  return Array.from({ length: bins }, (_, i) => ({
+    label: `${i * BIN}'`,
+    homeWidth,
+    awayWidth,
+    homeCompactness: Math.round((1 - homeEvt[i] / maxEvt) * 100),
+    awayCompactness: Math.round((1 - awayEvt[i] / maxEvt) * 100),
+  }));
+}
+
+/**
+ * Top-level spatial bundle. Pure function — takes already-fetched data.
+ */
+export function computeSpatialAnalysis(
+  positions: TacticalBoardData['positions'],
+  events: Array<{ occurredAtMin: number; kind: string; side: string; pitchX: number | null; pitchY: number | null }>,
+  maxMinute: number,
+): SpatialAnalysis {
+  return {
+    heatmap:              computeHeatmap(positions),
+    pressureMap:          computePressureMap(events, maxMinute),
+    passingNetwork:       computePassingNetwork(positions),
+    homeShape:            computeTeamShape(positions, 'HOME'),
+    awayShape:            computeTeamShape(positions, 'AWAY'),
+    overloadZones:        computeOverloads(positions),
+    formationShiftSeries: computeFormationShiftSeries(events, positions, maxMinute),
+  };
 }
 
 // ── Deterministic coach recommendations from match data ─────────────────────
@@ -313,7 +641,8 @@ export async function getLiveIntelligence(
   const rawTimeline = await prisma.matchTimeline.findMany({
     where:   { matchId, isDeleted: false },
     orderBy: { occurredAtMin: 'asc' },
-    select:  { occurredAtMin: true, kind: true, side: true },
+    // Phase 17: pitchX/pitchY added for spatial pressure map
+    select:  { occurredAtMin: true, kind: true, side: true, pitchX: true, pitchY: true },
   });
 
   // ── 3. Phase Q PlayerMatchStats + player info ──────────────────────────
@@ -499,6 +828,13 @@ export async function getLiveIntelligence(
     timelineSummary, momentum, playerRatings, fatigueIndicators,
   );
 
+  // ── Phase 17: Spatial analysis ────────────────────────────────────────────
+  const spatialAnalysis = computeSpatialAnalysis(
+    boardPositions,
+    rawTimeline,          // now includes pitchX / pitchY
+    Math.max(maxMin, 45),
+  );
+
   return {
     matchId:  match.id, clubId, status: match.status, liveMinute: match.liveMinute,
     score:    { home: match.homeScore, away: match.awayScore },
@@ -507,5 +843,6 @@ export async function getLiveIntelligence(
     computedAt:    new Date().toISOString(),
     timelineSummary, momentum, possession,
     tacticalBoard, coachRecommendations, playerRatings, dominanceSeries, fatigueIndicators,
+    spatialAnalysis,
   };
 }
