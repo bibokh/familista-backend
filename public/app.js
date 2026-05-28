@@ -77,6 +77,7 @@ const State = {
   transfer:     { targets: [], pipeline: {}, reports: [], contracts: [], squadVal: [], squadIntel: null, _playerIntel: null, _compareResult: null, _compareA: null, _compareB: null, _rankedTargets: null, _squadDepth: null, _unifiedIntel: null, _futurePlan: null, _loading: false, _tab: 'dashboard', _search: '', _stageFilter: '', _recFilter: '' },
   stats:        { competitions: [], injuries: [], squadReadiness: null, matchStats: [], eventSummary: {}, playerProfile: null, playerSeasons: [], standings: [], fixtures: [], compareA: null, compareB: null, _loading: false, _tab: 'performance', _selectedMatchId: '', _selectedPlayerId: '', _selectedCompId: '', _selectedTeamId: '', _playerAId: '', _playerBId: '', _seasonFilter: '', _injSearch: '', _injActiveOnly: false, _comparing: false },
   admin:        { quality: null, health: null, auditLog: null, tab: 'quality', _loading: false },
+  tacticalAI:   { teamAnalysis: null, matchAnalysis: null, _loading: false, _tab: 'overview', _selectedMatchId: '' },
   // GPS simulator state removed — was: liveData, ws, liveTimer, liveRunning, liveInterval
   aiBusy:       false,
   aiHistory:    [],
@@ -601,7 +602,7 @@ function navTo(page, el) {
     dashboard:'Dashboard', squad:'Squad', matches:'Matches', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
-    devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center'
+    devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -619,6 +620,7 @@ function navTo(page, el) {
   if (page === 'tournaments') loadTournamentsData();
   if (page === 'tactical-os') loadTacticalOS();
   if (page === 'admin')      loadAdminData();
+  if (page === 'tactical-ai') loadTacticalAIData();
 }
 
 function toggleSidebar() {
@@ -737,6 +739,7 @@ function renderAllPages() {
     ${renderQuantumHTML()}
     ${renderTacticalOSHTML()}
     ${renderAdminHTML()}
+    ${renderTacticalAIHTML()}
   `;
 
   renderTournContent('overview');
@@ -6640,6 +6643,308 @@ async function loadAdminData() {
   renderAdminPage();
 }
 
+// ── TACTICAL AI ENGINE (Phase 13) ────────────────────────────────────────────
+// Formation analysis, AI tactical scores, training recommendations.
+// Data sourced from PlayerMatchStats, MatchLineup, WorkloadRecord.
+
+function renderTacticalAIHTML() {
+  return `<div class="page" id="pg-tactical-ai">
+  <div style="display:flex;flex-direction:column;height:100%;">
+    <div class="squad-toolbar">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);">Tactical AI Engine</div>
+        <div style="font-size:12px;color:var(--tx-3);" id="tai-sub">Formation analysis &amp; AI recommendations</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" data-action="taiRefresh">⟳ Refresh</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--bd);padding:0 20px;">
+      <button class="ti-tab active" id="taitab-overview"  data-action="taiTab" data-tab="overview">Team Overview</button>
+      <button class="ti-tab"        id="taitab-match"     data-action="taiTab" data-tab="match">Match Analysis</button>
+      <button class="ti-tab"        id="taitab-recs"      data-action="taiTab" data-tab="recs">Recommendations</button>
+      <button class="ti-tab"        id="taitab-workload"  data-action="taiTab" data-tab="workload">Workload Risk</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:20px;" id="tai-content">
+      ${loadingHTML('Loading tactical data...')}
+    </div>
+  </div>
+</div>`;
+}
+
+function _taiScoreColor(score) {
+  if (score >= 70) return 'var(--green-l)';
+  if (score >= 50) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function _taiScoreBar(score, color) {
+  return '<div style="background:var(--bg-4);border-radius:4px;height:6px;width:100%;margin-top:4px;overflow:hidden;">' +
+    '<div style="height:100%;width:' + score + '%;background:' + (color || _taiScoreColor(score)) + ';border-radius:4px;transition:width .4s;"></div>' +
+    '</div>';
+}
+
+function _taiPriorityBadge(priority) {
+  var map = { HIGH: 'red', MEDIUM: 'amber', LOW: 'gray' };
+  return '<span class="badge badge-' + (map[priority] || 'gray') + '" style="font-size:10px;">' + priority + '</span>';
+}
+
+function _taiTypeBadge(type) {
+  var map = { PRESSING:'blue', FORMATION:'purple', TRANSITION:'green', WIDTH:'amber', DISCIPLINE:'red', WORKLOAD:'orange' };
+  var c = map[type] || 'gray';
+  return '<span class="badge badge-' + c + '" style="font-size:10px;">' + _esc(type) + '</span>';
+}
+
+function _taiRenderScoreCard(label, score) {
+  return '<div class="card" style="padding:14px 16px;min-width:130px;">' +
+    '<div style="font-size:11px;color:var(--tx-3);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">' + _esc(label) + '</div>' +
+    '<div style="font-size:24px;font-weight:800;color:' + _taiScoreColor(score) + ';font-family:var(--mono);">' + score + '</div>' +
+    _taiScoreBar(score) +
+    '</div>';
+}
+
+function _taiRenderOverview() {
+  var tai = State.tacticalAI;
+  var d   = tai.teamAnalysis;
+  if (!d) return loadingHTML('No team data — navigate to a team page first.');
+
+  var s = d.avgScores;
+
+  var scoreCards = [
+    ['Attack', s.attackStructure],
+    ['Defence', s.defensiveStructure],
+    ['Transition', s.transitionQuality],
+    ['Pressing', s.pressingEfficiency],
+    ['Discipline', s.tacticalDiscipline],
+    ['Overall', s.overall],
+  ];
+
+  var html = '<div style="margin-bottom:16px;">' +
+    '<div style="font-size:13px;font-weight:600;color:var(--tx-2);margin-bottom:8px;">Avg Tactical Scores (' + d.matchesAnalyzed + ' match' + (d.matchesAnalyzed !== 1 ? 'es' : '') + ' analysed)</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:10px;">' +
+    scoreCards.map(function(c) { return _taiRenderScoreCard(c[0], c[1]); }).join('') +
+    '</div></div>';
+
+  // Formation trend
+  if (d.formationTrend && d.formationTrend.length > 0) {
+    html += '<div class="card" style="padding:14px 16px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--tx-2);margin-bottom:8px;">FORMATION TREND</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+      d.formationTrend.map(function(f) {
+        return '<span class="badge badge-blue" style="font-size:12px;padding:4px 10px;">' + _esc(f) + '</span>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  // Recent match list
+  if (d.recentMatches && d.recentMatches.length > 0) {
+    var rows = d.recentMatches.map(function(m) {
+      var ov = m.scores.overall;
+      return '<tr style="border-bottom:1px solid var(--bd);">' +
+        '<td style="padding:8px 10px;font-weight:500;color:var(--tx);">' + _esc(m.homeTeam) + ' vs ' + _esc(m.awayTeam) + '</td>' +
+        '<td style="padding:8px 10px;">' +
+          '<span style="font-size:18px;font-weight:800;color:' + _taiScoreColor(ov) + ';font-family:var(--mono);">' + ov + '</span>' +
+        '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--tx-3);">' + (m.formation ? _esc(m.formation.detectedFormation || '—') : '—') + '</td>' +
+        '<td style="padding:8px 10px;font-size:11px;color:var(--tx-3);">' + _esc(m.dataQuality) + '</td>' +
+        '<td style="padding:8px 10px;">' +
+          '<button class="btn btn-ghost btn-xs" data-action="taiSelectMatch" data-id="' + m.matchId + '">Analyse →</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    html += '<div class="card" style="overflow:hidden;">' +
+      '<table style="width:100%;border-collapse:collapse;">' +
+      '<thead><tr style="border-bottom:1px solid var(--bd);">' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">MATCH</th>' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">SCORE</th>' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">FORMATION</th>' +
+        '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">DATA</th>' +
+        '<th style="padding:8px 10px;"></th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody></table></div>';
+  }
+
+  return html;
+}
+
+function _taiRenderMatch() {
+  var tai = State.tacticalAI;
+  var d   = tai.matchAnalysis;
+  if (!d) {
+    if (!tai._selectedMatchId) return '<div class="card" style="padding:24px;text-align:center;color:var(--tx-3);">Select a match from Team Overview to view its analysis.</div>';
+    return loadingHTML('Loading match analysis...');
+  }
+
+  var s = d.scores;
+  var html = '<div style="margin-bottom:16px;">' +
+    '<div style="font-size:14px;font-weight:700;color:var(--tx);margin-bottom:4px;">' + _esc(d.homeTeam) + ' vs ' + _esc(d.awayTeam) + '</div>' +
+    '<div style="font-size:12px;color:var(--tx-3);">Data quality: <b>' + _esc(d.dataQuality) + '</b></div>' +
+    '</div>';
+
+  // Score cards grid
+  var scoreCards = [
+    ['Attack Structure', s.attackStructure],
+    ['Defensive Structure', s.defensiveStructure],
+    ['Transition Quality', s.transitionQuality],
+    ['Pressing Efficiency', s.pressingEfficiency],
+    ['Tactical Discipline', s.tacticalDiscipline],
+    ['Overall Score', s.overall],
+  ];
+  html += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">' +
+    scoreCards.map(function(c) { return _taiRenderScoreCard(c[0], c[1]); }).join('') +
+    '</div>';
+
+  // Formation analysis
+  if (d.formation) {
+    var f = d.formation;
+    html += '<div class="card" style="padding:14px 16px;margin-bottom:16px;">' +
+      '<div style="font-size:12px;font-weight:700;color:var(--tx-2);margin-bottom:10px;">FORMATION ANALYSIS' +
+        (f.detectedFormation ? ' — <span style="color:var(--blue);">' + _esc(f.detectedFormation) + '</span>' : '') +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">' +
+        _taiFormationStat('Width', f.width) +
+        _taiFormationStat('Compactness', f.compactness) +
+        _taiFormationStat('Left Balance', f.leftBalance + '%', null) +
+        _taiFormationStat('Center Balance', f.centerBalance + '%', null) +
+        _taiFormationStat('Right Balance', f.rightBalance + '%', null) +
+      '</div></div>';
+  }
+
+  return html;
+}
+
+function _taiFormationStat(label, value, score) {
+  return '<div style="background:var(--bg-4);border-radius:8px;padding:10px 12px;">' +
+    '<div style="font-size:11px;color:var(--tx-3);font-weight:600;">' + _esc(label) + '</div>' +
+    '<div style="font-size:18px;font-weight:700;color:var(--tx);margin-top:2px;">' + (typeof score === 'number' ? score : value) + '</div>' +
+    (typeof score === 'number' ? _taiScoreBar(score) : '') +
+    '</div>';
+}
+
+function _taiRenderRecs() {
+  var tai = State.tacticalAI;
+  var recs = (tai.matchAnalysis && tai.matchAnalysis.recommendations.length > 0)
+    ? tai.matchAnalysis.recommendations
+    : (tai.teamAnalysis ? tai.teamAnalysis.topRecommendations : null);
+
+  if (!recs || recs.length === 0) {
+    return '<div class="card" style="padding:24px;text-align:center;color:var(--tx-3);">No recommendations — load a team or match first.</div>';
+  }
+
+  var source = (tai.matchAnalysis && tai.matchAnalysis.recommendations.length > 0) ? 'Match' : 'Team';
+  var html = '<div style="font-size:12px;color:var(--tx-3);margin-bottom:12px;">' + source + ' recommendations (' + recs.length + ')</div>';
+
+  recs.forEach(function(r) {
+    html += '<div class="card" style="padding:14px 16px;margin-bottom:10px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+        _taiPriorityBadge(r.priority) +
+        _taiTypeBadge(r.type) +
+      '</div>' +
+      '<div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px;">' + _esc(r.finding) + '</div>' +
+      '<div style="font-size:12px;color:var(--tx-2);margin-bottom:' + (r.drill ? '6px' : '0') + ';">→ ' + _esc(r.action) + '</div>' +
+      (r.drill ? '<div style="font-size:11px;color:var(--green-l);padding:6px 10px;background:rgba(22,163,74,.08);border-radius:6px;margin-top:4px;">🏋️ ' + _esc(r.drill) + '</div>' : '') +
+      '</div>';
+  });
+
+  return html;
+}
+
+function _taiRenderWorkload() {
+  var tai = State.tacticalAI;
+  var risks = tai.teamAnalysis ? tai.teamAnalysis.playerWorkloadRisk : null;
+  if (!risks) return '<div class="card" style="padding:24px;text-align:center;color:var(--tx-3);">No workload data — load team analysis first.</div>';
+  if (risks.length === 0) return '<div class="card" style="padding:24px;text-align:center;color:var(--green-l);">✓ No players in high ACWR risk zone this week.</div>';
+
+  var rows = risks.map(function(p) {
+    var acwrColor = p.acwr > 1.5 ? 'var(--red)' : p.acwr > 1.3 ? 'var(--amber)' : 'var(--tx-2)';
+    return '<tr style="border-bottom:1px solid var(--bd);">' +
+      '<td style="padding:8px 10px;font-weight:500;color:var(--tx);">' + _esc(p.name) + '</td>' +
+      '<td style="padding:8px 10px;font-family:var(--mono);font-size:14px;color:' + acwrColor + ';font-weight:700;">' + p.acwr.toFixed(2) + '</td>' +
+      '<td style="padding:8px 10px;"><span class="badge badge-red" style="font-size:10px;">HIGH RISK</span></td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="card" style="overflow:hidden;">' +
+    '<div style="padding:10px 10px 8px;font-size:12px;font-weight:700;color:var(--red);">⚠ ' + risks.length + ' high-risk player' + (risks.length > 1 ? 's' : '') + ' this week</div>' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="border-bottom:1px solid var(--bd);">' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">PLAYER</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">ACWR</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);">STATUS</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div>';
+}
+
+function renderTacticalAIPage() {
+  var el = document.getElementById('tai-content');
+  if (!el) return;
+  if (State.tacticalAI._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
+  var tab = State.tacticalAI._tab;
+  if      (tab === 'overview')  el.innerHTML = _taiRenderOverview();
+  else if (tab === 'match')     el.innerHTML = _taiRenderMatch();
+  else if (tab === 'recs')      el.innerHTML = _taiRenderRecs();
+  else if (tab === 'workload')  el.innerHTML = _taiRenderWorkload();
+}
+
+function taiSwitchTab(tab) {
+  State.tacticalAI._tab = tab;
+  ['overview','match','recs','workload'].forEach(function(t) {
+    var btn = document.getElementById('taitab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  renderTacticalAIPage();
+}
+
+async function taiSelectMatch(matchId) {
+  State.tacticalAI._selectedMatchId = matchId;
+  State.tacticalAI.matchAnalysis    = null;
+  taiSwitchTab('match');
+  State.tacticalAI._loading = true;
+  renderTacticalAIPage();
+  try {
+    var result = await FamilistaAPI.get('/tactical-ai/matches/' + encodeURIComponent(matchId));
+    State.tacticalAI.matchAnalysis = result || null;
+  } catch (e) {
+    State.tacticalAI.matchAnalysis = null;
+  }
+  State.tacticalAI._loading = false;
+  renderTacticalAIPage();
+}
+
+async function loadTacticalAIData() {
+  // Derive the teamId from context (club's primary team) or squad selection
+  var teamId = (State.context && State.context.teamId) || null;
+  if (!teamId) {
+    // Fall back: use the first team from squad if available
+    var firstPlayer = State.players && State.players[0];
+    teamId = (firstPlayer && firstPlayer.teamId) || null;
+  }
+
+  State.tacticalAI._loading = true;
+  renderTacticalAIPage();
+
+  if (teamId) {
+    try {
+      var res = await FamilistaAPI.get('/tactical-ai/teams/' + encodeURIComponent(teamId) + '?matches=5');
+      State.tacticalAI.teamAnalysis = res || null;
+      // Update sub-label
+      var sub = document.getElementById('tai-sub');
+      if (sub && res) {
+        sub.textContent = res.matchesAnalyzed + ' matches analysed · ' +
+          res.topRecommendations.length + ' recommendations · ' +
+          res.playerWorkloadRisk.length + ' workload risk';
+      }
+    } catch (e) {
+      State.tacticalAI.teamAnalysis = null;
+    }
+  } else {
+    State.tacticalAI.teamAnalysis = null;
+  }
+
+  State.tacticalAI._loading = false;
+  renderTacticalAIPage();
+}
+
 // ══════════════════════════════════════════════════════════════
 // FAMILISTA QUANTUM FOOTBALL INTELLIGENCE LAYER
 // Proprietary System — Patent-Positioned — Investor-Ready
@@ -10927,6 +11232,10 @@ async function tosBoardSnapshot() {
         case 'adminTab':     adminSwitchTab(el.dataset.tab);                                               break;
         case 'adminRefresh': loadAdminData();                                                              break;
         case 'adminFixPlayer': openPlayerModal(el.dataset.id);                                             break;
+        // ── Tactical AI ──────────────────────────────────────────────────────────
+        case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
+        case 'taiRefresh':      loadTacticalAIData();                                                      break;
+        case 'taiSelectMatch':  taiSelectMatch(el.dataset.id);                                             break;
         default: console.warn('[delegate] Unknown action:', el.dataset.action);
       }
     } else if ('nav' in el.dataset) {
