@@ -23,12 +23,20 @@ export type MatchChannelEvent =
   | { kind: 'AI_REPORT';           matchId: string; clubId: string; payload: unknown }
   | { kind: 'LIVE_STATE_UPDATE';   matchId: string; clubId: string; payload: unknown }
   | { kind: 'DEVICE_STATUS';       matchId: string; clubId: string; payload: unknown }
-  | { kind: 'BIG_DATA_PUBLISH';    matchId: string; clubId: string; payload: unknown };
+  | { kind: 'BIG_DATA_PUBLISH';    matchId: string; clubId: string; payload: unknown }
+  // Phase 16 — live intelligence push (computed bundle → WS clients)
+  | { kind: 'INTEL_UPDATE';        matchId: string; clubId: string; payload: unknown }
+  // Phase 16 — sensor possession tick (high-frequency, throttled by intel-broadcaster)
+  | { kind: 'POSSESSION_TICK';     matchId: string; clubId: string; payload: unknown };
 
 type Subscriber = (event: MatchChannelEvent) => void;
 
 // matchId -> set of subscribers
 const subscribers: Map<string, Set<Subscriber>> = new Map();
+
+// Global subscribers — receive every event regardless of matchId.
+// Used by intel-broadcaster to intercept all significant match events.
+const globalSubscribers: Set<Subscriber> = new Set();
 
 export function subscribe(matchId: string, fn: Subscriber): () => void {
   let set = subscribers.get(matchId);
@@ -45,11 +53,21 @@ export function subscribe(matchId: string, fn: Subscriber): () => void {
   };
 }
 
+export function subscribeAll(fn: Subscriber): () => void {
+  globalSubscribers.add(fn);
+  return () => globalSubscribers.delete(fn);
+}
+
 export function publish(event: MatchChannelEvent): void {
   const set = subscribers.get(event.matchId);
-  if (!set || set.size === 0) return;
-  // Fan out — never let a single subscriber's exception poison the rest.
-  for (const fn of set) {
+  // Fan out to match-scoped subscribers — never let one exception poison the rest.
+  if (set && set.size > 0) {
+    for (const fn of set) {
+      try { fn(event); } catch (_err) { /* swallow */ }
+    }
+  }
+  // Fan out to global subscribers (intel-broadcaster et al.)
+  for (const fn of globalSubscribers) {
     try { fn(event); } catch (_err) { /* swallow */ }
   }
 }

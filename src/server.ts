@@ -5,6 +5,8 @@ import { connectDatabase, disconnectDatabase } from './config/database';
 import { logger } from './utils/logger';
 // Phase C — realtime + workers
 import { mountMatchWebSocket }       from './realtime/match-ws';
+// Phase 16 — real-time intelligence broadcaster
+import { startIntelBroadcaster, stopIntelBroadcaster } from './live-intelligence/intel-broadcaster';
 import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
 import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
 import { startRetentionWorker, stopRetentionWorker } from './workers/retention.worker';
@@ -30,6 +32,9 @@ async function bootstrap() {
 
   // ── Phase C: tenant-aware match WebSocket at /ws/match/:id ───────────
   mountMatchWebSocket(server);
+
+  // ── Phase 16: intel broadcaster (subscribes to MatchChannel globally) ──
+  startIntelBroadcaster();
 
   // ── Phase C: background workers ──────────────────────────────────────
   startAIAgentWorker();
@@ -64,6 +69,7 @@ async function bootstrap() {
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received — shutting down gracefully`);
     // Stop workers BEFORE the HTTP server so in-flight loops finish cleanly.
+    try {       stopIntelBroadcaster();      } catch (_) {}
     try { await stopAIAgentWorker();        } catch (_) {}
     try { await stopAutomationScheduler();  } catch (_) {}
     try {       stopRetentionWorker();      } catch (_) {}

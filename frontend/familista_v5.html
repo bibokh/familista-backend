@@ -3804,6 +3804,8 @@ async function openScheduleMatchPrompt() {
 let _matchModalTab    = 'overview';
 let _matchModalWS     = null;     // active WebSocket
 let _matchModalWSPing = null;     // keepalive timer
+let _intelPollTimer   = null;     // Phase 15 — intelligence 30s live poll
+let _lastIntelUpdate  = 0;        // Phase 16 — epoch ms of last WS-delivered intel update
 
 async function openMatchDetail(id) {
   if (!id) return;
@@ -3829,6 +3831,7 @@ function closeMatchModal() {
   document.getElementById('match-modal').classList.remove('open');
   if (_matchModalWS)     { try { _matchModalWS.close(1000, 'closed by user'); } catch(_){} _matchModalWS = null; }
   if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
+  if (_intelPollTimer)   { clearInterval(_intelPollTimer); _intelPollTimer = null; }
   closeMatchModalSSE();
   State.activeMatch = null;
 }
@@ -3902,6 +3905,7 @@ async function refreshActiveMatch() {
 
 function setMatchModalTab(tab, el) {
   _matchModalTab = tab;
+  if (tab !== 'intelligence' && _intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
   document.querySelectorAll('#match-tabs-nav .filter-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderMatchModalTab();
@@ -3921,8 +3925,9 @@ function renderMatchModalTab() {
   if (tab === 'brain')    return paintBrainTab(c, m);
   if (tab === 'spatial')  return paintSpatialTab(c, m);
   if (tab === 'predict')  return paintPredictTab(c, m);
-  if (tab === 'replay')   return paintReplayTab(c, m);
-  if (tab === 'ai')       return paintAITab(c, m);
+  if (tab === 'replay')        return paintReplayTab(c, m);
+  if (tab === 'ai')            return paintAITab(c, m);
+  if (tab === 'intelligence')  return paintIntelligenceTab(c, m);
 }
 
 function paintOverviewTab(c, m) {
@@ -4115,6 +4120,53 @@ async function enqueueTacticalAI() {
   }
 }
 
+// ── Phase 15+16 — Live Match Intelligence tab ────────────────────────────
+function _renderIntelligenceBundle(c, d) {
+  if (!c || !d) return;
+  const ts = d.timelineSummary || {};
+  const timelinePanelHTML = `<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Timeline Summary</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${[['Goals',ts.goals??0,'var(--green-l)'],['Shots on tgt',ts.shotsOnTarget??0,'var(--blue)'],['Shots',ts.shots??0,'var(--blue)'],['Corners',ts.corners??0,'var(--amber)'],['Fouls',ts.fouls??0,'var(--red)'],['Yellow',ts.yellowCards??0,'var(--amber)'],['Red',ts.redCards??0,'var(--red)'],['Total events',ts.totalEvents??0,'var(--tx)']].map(([l,v,col])=>`<div style="text-align:center;min-width:62px;"><div style="font-size:20px;font-weight:800;color:${col};font-family:var(--mono);">${v}</div><div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;">${l}</div></div>`).join('')}</div></div>`;
+  const mom=d.momentum||{index:0,notes:[]};const momPct=Math.round((mom.index+1)*50);const momColor=mom.index>0.2?'var(--green-l)':mom.index<-0.2?'var(--red)':'var(--amber)';const momLabel=mom.index>0.2?'Dominant':mom.index<-0.2?'Under pressure':'Balanced';const poss=d.possession||{ourPct:50};
+  const momentumPanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Momentum & Possession</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><div style="font-size:11px;color:var(--tx-3);margin-bottom:4px;">Tactical Momentum</div><div style="font-size:22px;font-weight:700;color:${momColor};font-family:var(--mono);">${(mom.index>=0?'+':'')+mom.index.toFixed(2)}</div><div style="height:5px;background:var(--bg);border-radius:3px;margin-top:5px;overflow:hidden;"><div style="height:100%;width:${momPct}%;background:${momColor};"></div></div><div style="font-size:11px;color:${momColor};margin-top:4px;font-weight:600;">${momLabel}</div><div style="font-size:10px;color:var(--tx-3);margin-top:3px;">${(mom.notes||[]).map(n=>n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join(' · ')}</div></div><div><div style="font-size:11px;color:var(--tx-3);margin-bottom:4px;">Possession</div><div style="font-size:22px;font-weight:700;color:var(--tx);font-family:var(--mono);">${poss.ourPct}%</div><div style="height:5px;background:var(--red);border-radius:3px;margin-top:5px;overflow:hidden;display:flex;"><div style="height:100%;width:${poss.ourPct}%;background:var(--green-l);"></div></div><div style="font-size:10px;color:var(--tx-3);margin-top:4px;">Home ${poss.ourPct}% · Away ${100-poss.ourPct}%</div></div></div></div>`;
+  const tb=d.tacticalBoard||{formationHome:null,formationAway:null,positions:[]};const hpls=(tb.positions||[]).filter(p=>p.side==='HOME'&&p.isStarter);const apls=(tb.positions||[]).filter(p=>p.side==='AWAY'&&p.isStarter);function _pd(p,ih){const cx=ih?(p.x/100)*52+4:100-((p.x/100)*52+4);const cy=(p.y/100)*68;const rc=p.rating==null?'#888':p.rating>=7.5?'#22c55e':p.rating>=6.5?'#eab308':'#ef4444';return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.5" fill="${ih?'#22c55e':'#3b82f6'}" stroke="#fff" stroke-width="0.5" opacity="0.9"/>${p.rating!=null?`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5" fill="none" stroke="${rc}" stroke-width="0.8" opacity="0.7"/>`:''}`;};
+  const tacticalPanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Tactical Board${tb.formationHome?` <span style="color:var(--green-l);">${tb.formationHome}</span>`:''} <span style="color:var(--tx-3);">vs</span>${tb.formationAway?` <span style="color:var(--blue);">${tb.formationAway}</span>`:''}</div><svg viewBox="0 0 100 68" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:260px;background:#1a2e1a;border-radius:6px;"><rect x="0" y="0" width="100" height="68" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/><line x1="50" y1="0" x2="50" y2="68" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/><circle cx="50" cy="34" r="6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/><rect x="0" y="22" width="12" height="24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/><rect x="88" y="22" width="12" height="24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>${hpls.map(p=>_pd(p,true)).join('')}${apls.map(p=>_pd(p,false)).join('')}</svg><div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--tx-3);"><span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>Home</span><span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>Away</span></div></div>`;
+  const recs=d.coachRecommendations||[];const rpc={HIGH:'var(--red)',MEDIUM:'var(--amber)',LOW:'var(--tx-3)'};const rpb={HIGH:'rgba(220,38,38,0.12)',MEDIUM:'rgba(234,179,8,0.1)',LOW:'rgba(255,255,255,0.04)'};const _e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const recsPanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Coach Recommendations</div>${recs.length===0?'<div style="font-size:12px;color:var(--tx-3);">No recommendations at this stage.</div>':recs.map(r=>`<div style="padding:10px 12px;border-radius:6px;margin-bottom:6px;background:${rpb[r.priority]||rpb.LOW};border-left:3px solid ${rpc[r.priority]||rpc.LOW};"><div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;"><span style="font-size:10px;font-weight:700;color:${rpc[r.priority]||rpc.LOW};text-transform:uppercase;">${_e(r.priority)}</span><span style="font-size:11px;font-weight:600;color:var(--tx);">${_e(r.area)}</span></div><div style="font-size:12px;color:var(--tx-2);margin-bottom:3px;">${_e(r.finding)}</div><div style="font-size:12px;color:var(--green-l);font-weight:500;">→ ${_e(r.action)}</div></div>`).join('')}</div>`;
+  const ratings=(d.playerRatings||[]).slice(0,20);const ratingsPanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Player Ratings</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="border-bottom:1px solid var(--bd);"><th style="text-align:left;padding:4px 8px 6px 0;font-size:10px;color:var(--tx-3);font-weight:600;">Player</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Pos</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Rating</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Mins</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">G/A</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">xG</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">xA</th></tr></thead><tbody>${ratings.length===0?'<tr><td colspan="7" style="color:var(--tx-3);padding:10px;text-align:center;">No player stats available</td></tr>':ratings.map(r=>{const rc2=r.rating>=7.5?'var(--green-l)':r.rating>=6.5?'var(--tx)':r.rating<5.5?'var(--red)':'var(--amber)';return `<tr><td style="font-size:12px;color:var(--tx);font-weight:600;">${_e(r.name)}</td><td style="font-size:11px;color:var(--tx-3);">${_e(r.position||'—')}</td><td style="font-size:13px;font-weight:800;color:${rc2};font-family:var(--mono);">${r.rating.toFixed(1)}</td><td style="font-size:12px;color:var(--tx-2);">${r.minutesPlayed}'</td><td style="font-size:12px;color:var(--tx-2);">${r.goals}g ${r.assists}a</td><td style="font-size:12px;color:var(--tx-2);">${r.xg!=null?r.xg.toFixed(2):'—'}</td><td style="font-size:12px;color:var(--tx-2);">${r.xa!=null?r.xa.toFixed(2):'—'}</td></tr>`;}).join('')}</tbody></table></div></div>`;
+  const dom=d.dominanceSeries||[];let dominancePanelHTML;if(dom.length===0){dominancePanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Dominance Timeline</div><div style="font-size:12px;color:var(--tx-3);">No events to build dominance series.</div></div>`;}else{const bw=Math.max(4,Math.floor(320/dom.length)-1);const tw=dom.length*(bw+1);const bars=dom.map((w,i)=>{const h=Math.round((Math.abs(w.homeScore-50)/50)*28);const ih=w.homeScore>=50;const y=ih?30-h:30;return `<rect x="${i*(bw+1)}" y="${y}" width="${bw}" height="${Math.max(1,h)}" fill="${ih?'#22c55e':'#ef4444'}" opacity="0.8"><title>${_e(w.label)} — ${ih?'Home':'Away'} +${Math.abs(w.homeScore-50)}</title></rect>`;}).join('');dominancePanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Dominance Timeline</div><svg viewBox="0 0 ${tw} 60" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:80px;overflow:visible;"><line x1="0" y1="30" x2="${tw}" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>${bars}</svg><div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--tx-3);"><span style="display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:2px;"></span>Home dominant</span><span style="display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px;"></span>Away dominant</span><span style="margin-left:auto;">${dom.length} windows · 5 min each</span></div></div>`;}
+  const fatigue=(d.fatigueIndicators||[]).slice(0,20);const frc={HIGH:'var(--red)',MEDIUM:'var(--amber)',LOW:'var(--green-l)'};const fatiguePanelHTML=`<div class="card" style="padding:12px;margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Fatigue & Pressure Indicators</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="border-bottom:1px solid var(--bd);"><th style="text-align:left;padding:4px 8px 6px 0;font-size:10px;color:var(--tx-3);font-weight:600;">Player</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Pos</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Mins</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Fatigue</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Press%</th><th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Risk</th></tr></thead><tbody>${fatigue.length===0?'<tr><td colspan="6" style="color:var(--tx-3);padding:10px;text-align:center;">No fatigue data available</td></tr>':fatigue.map(f=>`<tr><td style="font-size:12px;color:var(--tx);font-weight:600;">${_e(f.name)}</td><td style="font-size:11px;color:var(--tx-3);">${_e(f.position||'—')}</td><td style="font-size:12px;color:var(--tx-2);">${f.minutesPlayed}'</td><td><div style="display:flex;align-items:center;gap:5px;"><div style="width:52px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;"><div style="height:100%;width:${f.fatigueIndex}%;background:${f.fatigueIndex>=80?'var(--red)':f.fatigueIndex>=60?'var(--amber)':'var(--green-l)'}"></div></div><span style="font-size:12px;font-family:var(--mono);color:var(--tx-2);">${f.fatigueIndex}</span></div></td><td style="font-size:12px;color:var(--tx-2);">${f.pressureSuccess}%</td><td><span style="font-size:10px;font-weight:700;color:${frc[f.riskLevel]||'var(--tx-3)'};">${f.riskLevel}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+  const isLive2=(d.status==='LIVE'||d.status==='HALFTIME');const liveChipHTML2=isLive2?`<span class="badge badge-green" style="font-size:9px;margin-left:8px;">LIVE ${d.liveMinute!=null?d.liveMinute+"'":''}` + `</span>`:'';const scoreHTML2=`<span style="font-size:12px;font-family:var(--mono);color:var(--tx-2);margin-left:6px;">${_e(d.homeTeam)} ${d.score.home??'—'} : ${d.score.away??'—'} ${_e(d.awayTeam)}</span>`;
+  c.innerHTML=`<div style="padding:14px 16px;"><div style="display:flex;align-items:center;gap:4px;margin-bottom:12px;flex-wrap:wrap;"><span style="font-size:12px;font-weight:700;color:var(--tx);">Live Match Intelligence</span>${liveChipHTML2}${scoreHTML2}<button class="btn btn-ghost btn-xs" style="margin-left:auto;" onclick="paintIntelligenceTab(document.getElementById('match-modal-content'),State.activeMatch)">↻ Refresh</button></div>${timelinePanelHTML}${momentumPanelHTML}${tacticalPanelHTML}${recsPanelHTML}${ratingsPanelHTML}${dominancePanelHTML}${fatiguePanelHTML}<div style="font-size:10px;color:var(--tx-3);text-align:right;">Computed ${new Date(d.computedAt).toLocaleTimeString()}</div></div>`;
+}
+
+async function paintIntelligenceTab(c, m) {
+  if (_intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
+  c.innerHTML = '<div style="padding:16px;font-size:12px;color:var(--tx-3);">Loading live intelligence…</div>';
+  let d;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence');
+    d = (res && res.data) || null;
+  } catch (e) {
+    c.innerHTML = '<div style="padding:16px;color:var(--red);">Intelligence unavailable: ' + ((e && e.userMessage) || 'error') + '</div>';
+    return;
+  }
+  if (!d) { c.innerHTML = '<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No intelligence data</div></div>'; return; }
+  _lastIntelUpdate = Date.now();
+  _renderIntelligenceBundle(c, d);
+  const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
+  if (isLive) {
+    _intelPollTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
+      if (Date.now() - _lastIntelUpdate < 25_000) return;
+      const cont = document.getElementById('match-modal-content');
+      if (!cont) { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
+      FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence').then(res => {
+        if (res && res.data && _matchModalTab === 'intelligence') { _lastIntelUpdate = Date.now(); _renderIntelligenceBundle(cont, res.data); }
+      }).catch(() => {});
+    }, 30_000);
+  }
+}
+
 // Minimal native prompt — full structured form lands in Phase D.
 async function openAddTimelinePrompt() {
   const m = State.activeMatch; if (!m) return;
@@ -4179,10 +4231,17 @@ function openMatchModalWS(matchId) {
 
 function onMatchWSEvent(evt) {
   const m = State.activeMatch; if (!m || evt.matchId !== m.id) return;
+  if (evt.kind === 'INTEL_UPDATE' && evt.payload) {
+    _lastIntelUpdate = Date.now();
+    if (_matchModalTab === 'intelligence') {
+      const c = document.getElementById('match-modal-content');
+      if (c) _renderIntelligenceBundle(c, evt.payload);
+    }
+    return;
+  }
   if (evt.kind === 'TIMELINE_ADDED' || evt.kind === 'TIMELINE_EDITED' || evt.kind === 'TIMELINE_DELETED'
       || evt.kind === 'SCORE_CHANGED' || evt.kind === 'STATUS_CHANGED'
       || evt.kind === 'LINEUP_SET'    || evt.kind === 'SNAPSHOT_TAKEN') {
-    // Cheapest correct strategy: refetch the match. Phase D may diff-patch.
     refreshActiveMatch();
   }
 }

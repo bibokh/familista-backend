@@ -2010,6 +2010,7 @@ let _matchModalTab    = 'overview';
 let _matchModalWS     = null;     // active WebSocket
 let _matchModalWSPing = null;     // keepalive timer
 let _intelPollTimer   = null;     // Phase 15 — intelligence 30s live poll
+let _lastIntelUpdate  = 0;        // Phase 16 — epoch ms of last WS-delivered intel update
 
 async function openMatchDetail(id) {
   if (!id) return;
@@ -2314,19 +2315,11 @@ function paintAITab(c, m) {
   </div>`;
 }
 
-// ── Phase 15 — Live Match Intelligence tab ──────────────────────────────
-async function paintIntelligenceTab(c, m) {
-  if (_intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
-  c.innerHTML = loadingHTML('Loading live intelligence…');
-  let d;
-  try {
-    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence');
-    d = (res && res.data) || null;
-  } catch (e) {
-    c.innerHTML = '<div style="padding:16px;color:var(--red);">Intelligence unavailable: ' + escapeHTML((e && e.userMessage) || 'error') + '</div>';
-    return;
-  }
-  if (!d) { c.innerHTML = '<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No intelligence data</div></div>'; return; }
+// ── Phase 15+16 — Live Match Intelligence tab ────────────────────────────
+// _renderIntelligenceBundle: pure renderer — takes container + bundle, no fetch.
+// Called by paintIntelligenceTab (initial/poll) AND onMatchWSEvent (INTEL_UPDATE).
+function _renderIntelligenceBundle(c, d) {
+  if (!c || !d) return;
 
   // ── Panel 1: Timeline Summary ────────────────────────────────────────
   const ts = d.timelineSummary || {};
@@ -2572,15 +2565,36 @@ async function paintIntelligenceTab(c, m) {
     <div style="font-size:10px;color:var(--tx-3);text-align:right;">Computed ${new Date(d.computedAt).toLocaleTimeString()}</div>
   </div>`;
 
-  // Start 30-second polling for live matches
+}
+
+async function paintIntelligenceTab(c, m) {
+  if (_intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
+  c.innerHTML = loadingHTML('Loading live intelligence…');
+  let d;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence');
+    d = (res && res.data) || null;
+  } catch (e) {
+    c.innerHTML = '<div style="padding:16px;color:var(--red);">Intelligence unavailable: ' + escapeHTML((e && e.userMessage) || 'error') + '</div>';
+    return;
+  }
+  if (!d) { c.innerHTML = '<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No intelligence data</div></div>'; return; }
+  _lastIntelUpdate = Date.now();
+  _renderIntelligenceBundle(c, d);
+  // 30s poll fallback for live matches — skips if WS delivered an update recently
+  const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
   if (isLive) {
     _intelPollTimer = setInterval(() => {
       if (document.visibilityState !== 'visible') return;
       if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
+      if (Date.now() - _lastIntelUpdate < 25_000) return; // WS already delivered recently
       const cont = document.getElementById('match-modal-content');
       if (!cont) { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
       FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence').then(res => {
-        if (res && res.data && _matchModalTab === 'intelligence') paintIntelligenceTab(cont, State.activeMatch || m);
+        if (res && res.data && _matchModalTab === 'intelligence') {
+          _lastIntelUpdate = Date.now();
+          _renderIntelligenceBundle(cont, res.data);
+        }
       }).catch(() => {});
     }, 30_000);
   }
@@ -2664,6 +2678,15 @@ function openMatchModalWS(matchId) {
 
 function onMatchWSEvent(evt) {
   const m = State.activeMatch; if (!m || evt.matchId !== m.id) return;
+  // Phase 16 — intelligence push: render bundle directly without an HTTP round-trip
+  if (evt.kind === 'INTEL_UPDATE' && evt.payload) {
+    _lastIntelUpdate = Date.now();
+    if (_matchModalTab === 'intelligence') {
+      const c = document.getElementById('match-modal-content');
+      if (c) _renderIntelligenceBundle(c, evt.payload);
+    }
+    return;
+  }
   if (evt.kind === 'TIMELINE_ADDED' || evt.kind === 'TIMELINE_EDITED' || evt.kind === 'TIMELINE_DELETED'
       || evt.kind === 'SCORE_CHANGED' || evt.kind === 'STATUS_CHANGED'
       || evt.kind === 'LINEUP_SET'    || evt.kind === 'SNAPSHOT_TAKEN') {
