@@ -2009,6 +2009,7 @@ async function confirmDeleteMatch(id) {
 let _matchModalTab    = 'overview';
 let _matchModalWS     = null;     // active WebSocket
 let _matchModalWSPing = null;     // keepalive timer
+let _intelPollTimer   = null;     // Phase 15 — intelligence 30s live poll
 
 async function openMatchDetail(id) {
   if (!id) return;
@@ -2034,6 +2035,7 @@ function closeMatchModal() {
   document.getElementById('match-modal').classList.remove('open');
   if (_matchModalWS)     { try { _matchModalWS.close(1000, 'closed by user'); } catch(_){} _matchModalWS = null; }
   if (_matchModalWSPing) { clearInterval(_matchModalWSPing); _matchModalWSPing = null; }
+  if (_intelPollTimer)   { clearInterval(_intelPollTimer); _intelPollTimer = null; }
   closeMatchModalSSE();
   State.activeMatch = null;
 }
@@ -2111,6 +2113,7 @@ async function refreshActiveMatch() {
 
 function setMatchModalTab(tab, el) {
   _matchModalTab = tab;
+  if (tab !== 'intelligence' && _intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
   document.querySelectorAll('#match-tabs-nav .filter-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderMatchModalTab();
@@ -2130,8 +2133,9 @@ function renderMatchModalTab() {
   if (tab === 'brain')    return paintBrainTab(c, m);
   if (tab === 'spatial')  return paintSpatialTab(c, m);
   if (tab === 'predict')  return paintPredictTab(c, m);
-  if (tab === 'replay')   return paintReplayTab(c, m);
-  if (tab === 'ai')       return paintAITab(c, m);
+  if (tab === 'replay')        return paintReplayTab(c, m);
+  if (tab === 'ai')            return paintAITab(c, m);
+  if (tab === 'intelligence')  return paintIntelligenceTab(c, m);
 }
 
 function paintOverviewTab(c, m) {
@@ -2308,6 +2312,278 @@ function paintAITab(c, m) {
       ${ai ? `<pre style="margin:0;font-family:var(--mono);font-size:12px;color:var(--tx-2);white-space:pre-wrap;">${JSON.stringify(ai, null, 2)}</pre>` : '<div style="font-size:13px;color:var(--tx-2);">No AI insights yet. Click <strong>Generate match recap</strong> to enqueue an AIAgentJob. The worker drains the queue every ~4s.</div>'}
     </div>
   </div>`;
+}
+
+// ── Phase 15 — Live Match Intelligence tab ──────────────────────────────
+async function paintIntelligenceTab(c, m) {
+  if (_intelPollTimer) { clearInterval(_intelPollTimer); _intelPollTimer = null; }
+  c.innerHTML = loadingHTML('Loading live intelligence…');
+  let d;
+  try {
+    const res = await FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence');
+    d = (res && res.data) || null;
+  } catch (e) {
+    c.innerHTML = '<div style="padding:16px;color:var(--red);">Intelligence unavailable: ' + escapeHTML((e && e.userMessage) || 'error') + '</div>';
+    return;
+  }
+  if (!d) { c.innerHTML = '<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No intelligence data</div></div>'; return; }
+
+  // ── Panel 1: Timeline Summary ────────────────────────────────────────
+  const ts = d.timelineSummary || {};
+  const timelinePanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Timeline Summary</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${[
+          ['Goals', ts.goals ?? 0, 'var(--green-l)'],
+          ['Shots on tgt', ts.shotsOnTarget ?? 0, 'var(--blue)'],
+          ['Shots', ts.shots ?? 0, 'var(--blue)'],
+          ['Corners', ts.corners ?? 0, 'var(--amber)'],
+          ['Fouls', ts.fouls ?? 0, 'var(--red)'],
+          ['Yellow', ts.yellowCards ?? 0, 'var(--amber)'],
+          ['Red', ts.redCards ?? 0, 'var(--red)'],
+          ['Total events', ts.totalEvents ?? 0, 'var(--tx)'],
+        ].map(([l, v, col]) => `<div style="text-align:center;min-width:62px;">
+          <div style="font-size:20px;font-weight:800;color:${col};font-family:var(--mono);">${v}</div>
+          <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;">${l}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+
+  // ── Panel 2: Momentum gauge ──────────────────────────────────────────
+  const mom = d.momentum || { index: 0, notes: [] };
+  const momPct   = Math.round((mom.index + 1) * 50);
+  const momColor = mom.index > 0.2 ? 'var(--green-l)' : mom.index < -0.2 ? 'var(--red)' : 'var(--amber)';
+  const momLabel = mom.index > 0.2 ? 'Dominant' : mom.index < -0.2 ? 'Under pressure' : 'Balanced';
+  const poss = d.possession || { ourPct: 50 };
+  const momentumPanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Momentum & Possession</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div style="font-size:11px;color:var(--tx-3);margin-bottom:4px;">Tactical Momentum</div>
+          <div style="font-size:22px;font-weight:700;color:${momColor};font-family:var(--mono);">${(mom.index >= 0 ? '+' : '') + mom.index.toFixed(2)}</div>
+          <div style="height:5px;background:var(--bg);border-radius:3px;margin-top:5px;overflow:hidden;">
+            <div style="height:100%;width:${momPct}%;background:${momColor};"></div>
+          </div>
+          <div style="font-size:11px;color:${momColor};margin-top:4px;font-weight:600;">${momLabel}</div>
+          <div style="font-size:10px;color:var(--tx-3);margin-top:3px;">${(mom.notes || []).map(escapeHTML).join(' · ')}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--tx-3);margin-bottom:4px;">Possession</div>
+          <div style="font-size:22px;font-weight:700;color:var(--tx);font-family:var(--mono);">${poss.ourPct}%</div>
+          <div style="height:5px;background:var(--red);border-radius:3px;margin-top:5px;overflow:hidden;display:flex;">
+            <div style="height:100%;width:${poss.ourPct}%;background:var(--green-l);"></div>
+          </div>
+          <div style="font-size:10px;color:var(--tx-3);margin-top:4px;">Home ${poss.ourPct}% · Away ${100 - poss.ourPct}%</div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Panel 3: Tactical Board (formation SVG) ──────────────────────────
+  const tb = d.tacticalBoard || { formationHome: null, formationAway: null, positions: [] };
+  const homePlayers = (tb.positions || []).filter(p => p.side === 'HOME' && p.isStarter);
+  const awayPlayers = (tb.positions || []).filter(p => p.side === 'AWAY' && p.isStarter);
+  function _playerDot(p, isHome) {
+    const cx = isHome ? (p.x / 100) * 52 + 4 : 100 - ((p.x / 100) * 52 + 4);
+    const cy = (p.y / 100) * 68;
+    const ratingColor = p.rating == null ? '#888' : p.rating >= 7.5 ? '#22c55e' : p.rating >= 6.5 ? '#eab308' : '#ef4444';
+    const label = (p.jerseyNumber != null ? '#' + p.jerseyNumber + ' ' : '') + escapeHTML(p.playerName || '');
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3.5" fill="${isHome ? '#22c55e' : '#3b82f6'}" stroke="#fff" stroke-width="0.5" opacity="0.9"/>
+      ${p.rating != null ? `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="5" fill="none" stroke="${ratingColor}" stroke-width="0.8" opacity="0.7"/>` : ''}
+      <title>${label}${p.rating != null ? ' · ' + p.rating.toFixed(1) : ''}</title>`;
+  }
+  const homeDotsHTML = homePlayers.map(p => _playerDot(p, true)).join('');
+  const awayDotsHTML = awayPlayers.map(p => _playerDot(p, false)).join('');
+  const tacticalPanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">
+        Tactical Board
+        ${tb.formationHome ? `<span style="color:var(--green-l);margin-left:6px;">${escapeHTML(tb.formationHome)}</span>` : ''}
+        <span style="color:var(--tx-3);margin:0 4px;">vs</span>
+        ${tb.formationAway ? `<span style="color:var(--blue);">${escapeHTML(tb.formationAway)}</span>` : ''}
+      </div>
+      <svg viewBox="0 0 100 68" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:260px;background:#1a2e1a;border-radius:6px;">
+        <rect x="0" y="0" width="100" height="68" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>
+        <line x1="50" y1="0" x2="50" y2="68" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>
+        <circle cx="50" cy="34" r="6" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>
+        <rect x="0" y="22" width="12" height="24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>
+        <rect x="88" y="22" width="12" height="24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.3"/>
+        ${homeDotsHTML}
+        ${awayDotsHTML}
+      </svg>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--tx-3);">
+        <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;"></span>Home</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span>Away</span>
+        <span style="display:flex;align-items:center;gap:4px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:transparent;border:1px solid #22c55e;"></span>Rating ring (green=7.5+)</span>
+      </div>
+    </div>`;
+
+  // ── Panel 4: Coach Recommendations ──────────────────────────────────
+  const recs = d.coachRecommendations || [];
+  const recPriorityColor = { HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--tx-3)' };
+  const recPriorityBg   = { HIGH: 'rgba(220,38,38,0.12)', MEDIUM: 'rgba(234,179,8,0.1)', LOW: 'rgba(255,255,255,0.04)' };
+  const recHTML = recs.length === 0
+    ? '<div style="font-size:12px;color:var(--tx-3);">No recommendations at this stage.</div>'
+    : recs.map(r => `
+        <div style="padding:10px 12px;border-radius:6px;margin-bottom:6px;background:${recPriorityBg[r.priority] || recPriorityBg.LOW};border-left:3px solid ${recPriorityColor[r.priority] || recPriorityColor.LOW};">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+            <span style="font-size:10px;font-weight:700;color:${recPriorityColor[r.priority] || recPriorityColor.LOW};text-transform:uppercase;">${escapeHTML(r.priority)}</span>
+            <span style="font-size:11px;font-weight:600;color:var(--tx);">${escapeHTML(r.area)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--tx-2);margin-bottom:3px;">${escapeHTML(r.finding)}</div>
+          <div style="font-size:12px;color:var(--green-l);font-weight:500;">→ ${escapeHTML(r.action)}</div>
+        </div>`).join('');
+  const recsPanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Coach Recommendations</div>
+      ${recHTML}
+    </div>`;
+
+  // ── Panel 5: Player Ratings Table ────────────────────────────────────
+  const ratings = (d.playerRatings || []).slice(0, 20);
+  const ratingsRowsHTML = ratings.length === 0
+    ? '<tr><td colspan="7" style="color:var(--tx-3);padding:10px;text-align:center;">No player stats available</td></tr>'
+    : ratings.map(r => {
+        const rColor = r.rating >= 7.5 ? 'var(--green-l)' : r.rating >= 6.5 ? 'var(--tx)' : r.rating < 5.5 ? 'var(--red)' : 'var(--amber)';
+        return `<tr>
+          <td style="font-size:12px;color:var(--tx);font-weight:600;">${escapeHTML(r.name)}</td>
+          <td style="font-size:11px;color:var(--tx-3);">${escapeHTML(r.position || '—')}</td>
+          <td style="font-size:13px;font-weight:800;color:${rColor};font-family:var(--mono);">${r.rating.toFixed(1)}</td>
+          <td style="font-size:12px;color:var(--tx-2);">${r.minutesPlayed}'</td>
+          <td style="font-size:12px;color:var(--tx-2);">${r.goals}g ${r.assists}a</td>
+          <td style="font-size:12px;color:var(--tx-2);">${r.xg != null ? r.xg.toFixed(2) : '—'}</td>
+          <td style="font-size:12px;color:var(--tx-2);">${r.xa != null ? r.xa.toFixed(2) : '—'}</td>
+        </tr>`;
+      }).join('');
+  const ratingsPanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Player Ratings</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="border-bottom:1px solid var(--bd);">
+            <th style="text-align:left;padding:4px 8px 6px 0;font-size:10px;color:var(--tx-3);font-weight:600;">Player</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Pos</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Rating</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Mins</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">G/A</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">xG</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">xA</th>
+          </tr></thead>
+          <tbody>${ratingsRowsHTML}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // ── Panel 6: Dominance Graph (5-min SVG bar chart) ───────────────────
+  const dom = d.dominanceSeries || [];
+  let dominancePanelHTML;
+  if (dom.length === 0) {
+    dominancePanelHTML = `<div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Dominance Timeline</div>
+      <div style="font-size:12px;color:var(--tx-3);">No events to build dominance series.</div>
+    </div>`;
+  } else {
+    const barW = Math.max(4, Math.floor(320 / dom.length) - 1);
+    const totalW = dom.length * (barW + 1);
+    const bars = dom.map((w, i) => {
+      const h = Math.round((Math.abs(w.homeScore - 50) / 50) * 28);
+      const isHome = w.homeScore >= 50;
+      const y = isHome ? 30 - h : 30;
+      return `<rect x="${i * (barW + 1)}" y="${y}" width="${barW}" height="${Math.max(1, h)}"
+        fill="${isHome ? '#22c55e' : '#ef4444'}" opacity="0.8">
+        <title>${escapeHTML(w.label)} — ${isHome ? 'Home' : 'Away'} +${Math.abs(w.homeScore - 50)}</title>
+      </rect>`;
+    }).join('');
+    dominancePanelHTML = `
+      <div class="card" style="padding:12px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Dominance Timeline</div>
+        <svg viewBox="0 0 ${totalW} 60" preserveAspectRatio="xMidYMid meet" style="width:100%;max-height:80px;overflow:visible;">
+          <line x1="0" y1="30" x2="${totalW}" y2="30" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+          ${bars}
+        </svg>
+        <div style="display:flex;gap:10px;margin-top:4px;font-size:10px;color:var(--tx-3);">
+          <span style="display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:8px;height:8px;background:#22c55e;border-radius:2px;"></span>Home dominant</span>
+          <span style="display:flex;align-items:center;gap:3px;"><span style="display:inline-block;width:8px;height:8px;background:#ef4444;border-radius:2px;"></span>Away dominant</span>
+          <span style="margin-left:auto;">${dom.length} windows · 5 min each</span>
+        </div>
+      </div>`;
+  }
+
+  // ── Panel 7: Fatigue + Pressure Table ───────────────────────────────
+  const fatigue = (d.fatigueIndicators || []).slice(0, 20);
+  const fatRiskColor = { HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--green-l)' };
+  const fatigueRowsHTML = fatigue.length === 0
+    ? '<tr><td colspan="6" style="color:var(--tx-3);padding:10px;text-align:center;">No fatigue data available</td></tr>'
+    : fatigue.map(f => `<tr>
+        <td style="font-size:12px;color:var(--tx);font-weight:600;">${escapeHTML(f.name)}</td>
+        <td style="font-size:11px;color:var(--tx-3);">${escapeHTML(f.position || '—')}</td>
+        <td style="font-size:12px;color:var(--tx-2);">${f.minutesPlayed}'</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:52px;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;">
+              <div style="height:100%;width:${f.fatigueIndex}%;background:${f.fatigueIndex >= 80 ? 'var(--red)' : f.fatigueIndex >= 60 ? 'var(--amber)' : 'var(--green-l)'}"></div>
+            </div>
+            <span style="font-size:12px;font-family:var(--mono);color:var(--tx-2);">${f.fatigueIndex}</span>
+          </div>
+        </td>
+        <td style="font-size:12px;color:var(--tx-2);">${f.pressureSuccess}%</td>
+        <td><span style="font-size:10px;font-weight:700;color:${fatRiskColor[f.riskLevel] || 'var(--tx-3)'};">${f.riskLevel}</span></td>
+      </tr>`).join('');
+  const fatiguePanelHTML = `
+    <div class="card" style="padding:12px;margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Fatigue & Pressure Indicators</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="border-bottom:1px solid var(--bd);">
+            <th style="text-align:left;padding:4px 8px 6px 0;font-size:10px;color:var(--tx-3);font-weight:600;">Player</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Pos</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Mins</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Fatigue</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Press%</th>
+            <th style="text-align:left;padding:4px 8px 6px;font-size:10px;color:var(--tx-3);font-weight:600;">Risk</th>
+          </tr></thead>
+          <tbody>${fatigueRowsHTML}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // ── Assemble all panels ──────────────────────────────────────────────
+  const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
+  const liveChipHTML = isLive
+    ? `<span class="badge badge-green" style="font-size:9px;margin-left:8px;">LIVE ${d.liveMinute != null ? d.liveMinute + "'" : ''}</span>`
+    : '';
+  const scoreHTML = `<span style="font-size:12px;font-family:var(--mono);color:var(--tx-2);margin-left:6px;">${escapeHTML(d.homeTeam)} ${d.score.home ?? '—'} : ${d.score.away ?? '—'} ${escapeHTML(d.awayTeam)}</span>`;
+
+  c.innerHTML = `<div style="padding:14px 16px;">
+    <div style="display:flex;align-items:center;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
+      <span style="font-size:12px;font-weight:700;color:var(--tx);">Live Match Intelligence</span>
+      ${liveChipHTML}
+      ${scoreHTML}
+      <button class="btn btn-ghost btn-xs" style="margin-left:auto;" onclick="paintIntelligenceTab(document.getElementById('match-modal-content'),State.activeMatch)">↻ Refresh</button>
+    </div>
+    ${timelinePanelHTML}
+    ${momentumPanelHTML}
+    ${tacticalPanelHTML}
+    ${recsPanelHTML}
+    ${ratingsPanelHTML}
+    ${dominancePanelHTML}
+    ${fatiguePanelHTML}
+    <div style="font-size:10px;color:var(--tx-3);text-align:right;">Computed ${new Date(d.computedAt).toLocaleTimeString()}</div>
+  </div>`;
+
+  // Start 30-second polling for live matches
+  if (isLive) {
+    _intelPollTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
+      const cont = document.getElementById('match-modal-content');
+      if (!cont) { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
+      FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence').then(res => {
+        if (res && res.data && _matchModalTab === 'intelligence') paintIntelligenceTab(cont, State.activeMatch || m);
+      }).catch(() => {});
+    }, 30_000);
+  }
 }
 
 async function enqueueTacticalAI() {

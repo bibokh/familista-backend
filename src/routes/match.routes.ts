@@ -10,6 +10,7 @@ import * as rt     from '../controllers/realtime.controller';
 import * as ai     from '../controllers/ai-ops.controller';
 import * as si     from '../controllers/sensor-ingest.controller';
 import * as ann    from '../controllers/annotation.controller';
+import * as li     from '../controllers/live-intelligence.controller';
 import { matchLiveSse } from '../realtime/match-sse';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 
@@ -65,6 +66,9 @@ router.get('/:id/tactical-state', rt.getTacticalState);
 
 // Phase F · Match Brain — tactical state + event graph + momentum + pressure zones.
 router.get('/:id/brain',          rt.getMatchBrain);
+
+// Phase 15 · Live Match Intelligence — composite bundle (timeline + momentum + ratings + dominance + fatigue)
+router.get('/:id/live-intelligence', li.getLiveIntelligence);
 
 // Replay timeline — chronological join over timeline/snapshots/alerts/frames.
 router.get('/:id/replay',          rt.getReplay);
