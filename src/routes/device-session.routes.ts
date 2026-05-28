@@ -7,8 +7,9 @@
 //   3. Sensor packet ingest              USER JWT *or* DEVICE JWT.
 
 import { Router } from 'express';
-import * as ctrl     from '../controllers/device-session.controller';
-import * as authCtrl from '../controllers/device-auth.controller';
+import * as ctrl        from '../controllers/device-session.controller';
+import * as authCtrl    from '../controllers/device-auth.controller';
+import * as gpsCtrl     from '../controllers/gps-status.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { acceptUserOrDevice }      from '../middleware/device-auth.middleware';
 
@@ -33,6 +34,9 @@ router.post(
   acceptUserOrDevice,
   ctrl.ingestPacket,
 );
+
+// ── Phase 14: GPS fleet status (user auth, read-only) ────────────────────
+router.get('/gps-status',                authenticate, gpsCtrl.getFleetStatus);
 
 // ── 2. User-authenticated session lifecycle ──────────────────────────────
 router.get('/sessions',                  authenticate, ctrl.listSessions);
