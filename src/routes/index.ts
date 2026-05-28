@@ -48,6 +48,8 @@ import phaseQRoutes       from './phase-q.routes';
 import intelligenceRoutes from './intelligence.routes';
 // Phase 7 — Scouting & Recruitment Center
 import scoutingRoutes from './scouting.routes';
+// Phase 12 — Club Admin Control Center (data quality + system health + audit log)
+import clubAdminRoutes from './club-admin.routes';
 
 const router = Router();
 
@@ -87,6 +89,7 @@ router.use('/phase-p',     phasePRoutes);
 router.use('/phase-q',     phaseQRoutes);
 router.use('/phase-s/intelligence', intelligenceRoutes);
 router.use('/scouting',            scoutingRoutes);
+router.use('/club-admin',          clubAdminRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

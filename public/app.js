@@ -76,6 +76,7 @@ const State = {
   video:        { assets: [], clips: [], playlists: [], _loading: false, _tab: 'library' },
   transfer:     { targets: [], pipeline: {}, reports: [], contracts: [], squadVal: [], squadIntel: null, _playerIntel: null, _compareResult: null, _compareA: null, _compareB: null, _rankedTargets: null, _squadDepth: null, _unifiedIntel: null, _futurePlan: null, _loading: false, _tab: 'dashboard', _search: '', _stageFilter: '', _recFilter: '' },
   stats:        { competitions: [], injuries: [], squadReadiness: null, matchStats: [], eventSummary: {}, playerProfile: null, playerSeasons: [], standings: [], fixtures: [], compareA: null, compareB: null, _loading: false, _tab: 'performance', _selectedMatchId: '', _selectedPlayerId: '', _selectedCompId: '', _selectedTeamId: '', _playerAId: '', _playerBId: '', _seasonFilter: '', _injSearch: '', _injActiveOnly: false, _comparing: false },
+  admin:        { quality: null, health: null, auditLog: null, tab: 'quality', _loading: false },
   // GPS simulator state removed — was: liveData, ws, liveTimer, liveRunning, liveInterval
   aiBusy:       false,
   aiHistory:    [],
@@ -464,6 +465,13 @@ async function bootApp() {
   // GPS simulator removed — startLiveGPS / startLiveInterval decommissioned.
 
   showToast(`Welcome back, ${State.user?.firstName}! ✅`, 'success');
+
+  // Phase 12 — show Admin Center nav item only for CLUB_ADMIN / SUPER_ADMIN
+  var role = State.user?.role;
+  if (role === 'CLUB_ADMIN' || role === 'SUPER_ADMIN') {
+    var navAdmin = document.getElementById('nav-admin');
+    if (navAdmin) navAdmin.style.display = '';
+  }
 }
 
 async function loadAllData() {
@@ -593,7 +601,7 @@ function navTo(page, el) {
     dashboard:'Dashboard', squad:'Squad', matches:'Matches', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
-    devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS'
+    devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
 
@@ -610,6 +618,7 @@ function navTo(page, el) {
   if (page === 'club')        loadClubData();
   if (page === 'tournaments') loadTournamentsData();
   if (page === 'tactical-os') loadTacticalOS();
+  if (page === 'admin')      loadAdminData();
 }
 
 function toggleSidebar() {
@@ -727,6 +736,7 @@ function renderAllPages() {
     ${renderSettingsHTML()}
     ${renderQuantumHTML()}
     ${renderTacticalOSHTML()}
+    ${renderAdminHTML()}
   `;
 
   renderTournContent('overview');
@@ -6371,6 +6381,265 @@ document.addEventListener('click', (e) => {
 });
 
 
+// ── ADMIN CONTROL CENTER (Phase 12) ─────────────────────────────────────────
+// Club-level admin: data quality scores, system health, audit log.
+// Visible only to CLUB_ADMIN / SUPER_ADMIN (role guard applied in bootApp).
+
+function renderAdminHTML() {
+  return `<div class="page" id="pg-admin">
+  <div style="display:flex;flex-direction:column;height:100%;">
+    <div class="squad-toolbar">
+      <div>
+        <div style="font-size:15px;font-weight:700;color:var(--tx);">Admin Control Center</div>
+        <div style="font-size:12px;color:var(--tx-3);" id="admin-sub">Club data quality &amp; system health</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" data-action="adminRefresh">⟳ Refresh</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--bd);padding:0 20px;">
+      <button class="ti-tab active" id="admtab-quality"  data-action="adminTab" data-tab="quality">Data Quality</button>
+      <button class="ti-tab"        id="admtab-health"   data-action="adminTab" data-tab="health">System Health</button>
+      <button class="ti-tab"        id="admtab-audit"    data-action="adminTab" data-tab="audit">Audit Log</button>
+    </div>
+    <div style="overflow-y:auto;flex:1;padding:20px;" id="admin-content">
+      ${loadingHTML('Loading admin data...')}
+    </div>
+  </div>
+</div>`;
+}
+
+function _adminScoreColor(score) {
+  if (score >= 80) return 'var(--green-l)';
+  if (score >= 60) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function _adminFormatUptime(secs) {
+  if (secs < 60)   return secs + 's';
+  if (secs < 3600) return Math.floor(secs/60) + 'm ' + (secs%60) + 's';
+  var h = Math.floor(secs/3600);
+  var m = Math.floor((secs%3600)/60);
+  return h + 'h ' + m + 'm';
+}
+
+function _adminRelTime(iso) {
+  if (!iso) return '—';
+  var diff = Date.now() - new Date(iso).getTime();
+  var s = Math.floor(diff/1000);
+  if (s < 60)    return s + 's ago';
+  if (s < 3600)  return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+
+function _adminActionBadge(action) {
+  var colors = {
+    CREATE:'green', UPDATE:'blue', DEACTIVATE:'red', REACTIVATE:'green',
+    MEDICAL_STATUS_CHANGED:'amber', PAYMENT_STATUS_CHANGED:'amber', DELETE:'red'
+  };
+  var c = colors[action] || 'gray';
+  return '<span class="badge badge-' + c + '" style="font-size:10px;white-space:nowrap;">' + _esc(action.replace(/_/g,' ')) + '</span>';
+}
+
+function _adminRenderQuality() {
+  var q = State.admin.quality;
+  if (!q) return loadingHTML('Loading data quality...');
+  var s = q.summary;
+  var chips = [
+    ['Players', s.total, 'var(--tx-2)'],
+    ['Avg Score', s.avgScore + '%', _adminScoreColor(s.avgScore)],
+    ['No Email', s.missingEmail, s.missingEmail > 0 ? 'var(--amber)' : 'var(--green-l)'],
+    ['No Contract', s.missingContract, s.missingContract > 0 ? 'var(--amber)' : 'var(--green-l)'],
+    ['No GPS', s.missingDevice, s.missingDevice > 0 ? 'var(--amber)' : 'var(--green-l)'],
+    ['No Match Stats', s.missingMatchStats, s.missingMatchStats > 0 ? 'var(--amber)' : 'var(--green-l)'],
+    ['Below 60%', s.belowThreshold, s.belowThreshold > 0 ? 'var(--red)' : 'var(--green-l)'],
+  ];
+  var chipHTML = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">' +
+    chips.map(function(c) {
+      return '<div class="card" style="padding:10px 14px;display:flex;flex-direction:column;align-items:center;min-width:80px;">' +
+        '<div style="font-size:18px;font-weight:700;color:' + c[2] + ';">' + c[1] + '</div>' +
+        '<div style="font-size:11px;color:var(--tx-3);margin-top:2px;">' + c[0] + '</div>' +
+        '</div>';
+    }).join('') + '</div>';
+
+  if (q.rows.length === 0) {
+    return chipHTML + '<div class="card" style="padding:24px;text-align:center;color:var(--tx-3);">No active players found.</div>';
+  }
+
+  var rows = q.rows.map(function(p) {
+    var missingBadges = [];
+    if (p.missing.email)      missingBadges.push('<span class="badge badge-amber" style="font-size:10px;">📧 Email</span>');
+    if (p.missing.contract)   missingBadges.push('<span class="badge badge-amber" style="font-size:10px;">📄 Contract</span>');
+    if (p.missing.avatar)     missingBadges.push('<span class="badge badge-gray" style="font-size:10px;">🖼 Avatar</span>');
+    if (p.missing.device)     missingBadges.push('<span class="badge badge-amber" style="font-size:10px;">📡 GPS</span>');
+    if (p.missing.matchStats) missingBadges.push('<span class="badge badge-gray" style="font-size:10px;">📊 Stats</span>');
+    var col = _adminScoreColor(p.score);
+    return '<tr>' +
+      '<td style="padding:8px 10px;font-weight:500;color:var(--tx);">' + _esc(p.name) + '</td>' +
+      '<td style="padding:8px 10px;"><span class="pos-pill ' + posClass(p.position) + '">' + _esc(p.position) + '</span></td>' +
+      '<td style="padding:8px 10px;min-width:140px;">' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="flex:1;background:var(--bg-3);border-radius:4px;height:6px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + p.score + '%;background:' + col + ';border-radius:4px;"></div>' +
+          '</div>' +
+          '<span style="font-size:12px;color:' + col + ';font-weight:600;min-width:32px;">' + p.score + '%</span>' +
+        '</div>' +
+      '</td>' +
+      '<td style="padding:8px 10px;">' + (missingBadges.length ? missingBadges.join(' ') : '<span style="color:var(--green-l);font-size:12px;">✓ Complete</span>') + '</td>' +
+      '<td style="padding:8px 10px;">' +
+        '<button class="btn btn-ghost btn-xs" data-action="adminFixPlayer" data-id="' + p.id + '" title="Open player to edit">Fix →</button>' +
+      '</td>' +
+    '</tr>';
+  }).join('');
+
+  return chipHTML +
+    '<div class="card" style="overflow:hidden;">' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="border-bottom:1px solid var(--bd);">' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">PLAYER</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">POS</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">COMPLETENESS</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">MISSING</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;"></th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table></div>';
+}
+
+function _adminRenderHealth() {
+  var h = State.admin.health;
+  if (!h) return loadingHTML('Loading system health...');
+  var dbOk  = h.db && h.db.connected;
+  var cards = [
+    {
+      icon: dbOk ? '🟢' : '🔴',
+      label: 'Database',
+      value: dbOk ? 'Connected' : 'Offline',
+      sub:   'PostgreSQL',
+      color: dbOk ? 'var(--green-l)' : 'var(--red)',
+    },
+    {
+      icon: '📡',
+      label: 'GPS Devices',
+      value: h.gps.online + ' / ' + h.gps.total,
+      sub:   h.gps.lastSeenAt ? 'Last: ' + _adminRelTime(h.gps.lastSeenAt) : 'No active devices',
+      color: h.gps.online > 0 ? 'var(--green-l)' : 'var(--tx-3)',
+    },
+    {
+      icon: '⏱',
+      label: 'Uptime',
+      value: _adminFormatUptime(h.process.uptimeSeconds),
+      sub:   'Node ' + h.process.nodeVersion + ' · ' + h.process.env,
+      color: 'var(--blue)',
+    },
+    {
+      icon: '💾',
+      label: 'Memory',
+      value: h.process.memoryMb + ' MB',
+      sub:   'RSS',
+      color: 'var(--tx-2)',
+    },
+    {
+      icon: '👥',
+      label: 'Active Players',
+      value: h.players,
+      sub:   'In squad',
+      color: 'var(--tx)',
+    },
+    {
+      icon: '⚽',
+      label: 'Matches Logged',
+      value: h.matches,
+      sub:   'Total',
+      color: 'var(--tx)',
+    },
+  ];
+  var cardsHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px;">' +
+    cards.map(function(c) {
+      return '<div class="card" style="padding:16px;">' +
+        '<div style="font-size:22px;margin-bottom:8px;">' + c.icon + '</div>' +
+        '<div style="font-size:22px;font-weight:700;color:' + c.color + ';font-family:var(--mono);">' + c.value + '</div>' +
+        '<div style="font-size:13px;font-weight:600;color:var(--tx);margin-top:4px;">' + c.label + '</div>' +
+        '<div style="font-size:11px;color:var(--tx-3);margin-top:2px;">' + c.sub + '</div>' +
+        '</div>';
+    }).join('') +
+  '</div>';
+  var ts = h.timestamp ? '<div style="font-size:11px;color:var(--tx-3);text-align:right;margin-top:8px;">Last checked: ' + _adminRelTime(h.timestamp) + '</div>' : '';
+  return cardsHTML + ts;
+}
+
+function _adminRenderAudit() {
+  var a = State.admin.auditLog;
+  if (!a) return loadingHTML('Loading audit log...');
+  if (!a.length) {
+    return '<div class="card" style="padding:32px;text-align:center;color:var(--tx-3);">No audit entries yet for this club.</div>';
+  }
+  var rows = a.map(function(e) {
+    var pName = e.player ? _esc(e.player.firstName + ' ' + e.player.lastName) : '<span style="color:var(--tx-3);">—</span>';
+    return '<tr style="border-bottom:1px solid var(--bd);">' +
+      '<td style="padding:8px 10px;font-size:12px;color:var(--tx-3);white-space:nowrap;">' + _adminRelTime(e.createdAt) + '</td>' +
+      '<td style="padding:8px 10px;font-weight:500;color:var(--tx);">' + pName + '</td>' +
+      '<td style="padding:8px 10px;">' + _adminActionBadge(e.action) + '</td>' +
+      '<td style="padding:8px 10px;font-size:12px;color:var(--tx-2);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(e.reason || '—') + '</td>' +
+    '</tr>';
+  }).join('');
+  return '<div class="card" style="overflow:hidden;">' +
+    '<table style="width:100%;border-collapse:collapse;">' +
+    '<thead><tr style="border-bottom:1px solid var(--bd);">' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">WHEN</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">PLAYER</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">ACTION</th>' +
+      '<th style="padding:8px 10px;text-align:left;font-size:11px;color:var(--tx-3);font-weight:600;">REASON</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table></div>';
+}
+
+function renderAdminPage() {
+  var el = document.getElementById('admin-content');
+  if (!el) return;
+  if (State.admin._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
+  var tab = State.admin.tab;
+  if      (tab === 'quality') el.innerHTML = _adminRenderQuality();
+  else if (tab === 'health')  el.innerHTML = _adminRenderHealth();
+  else if (tab === 'audit')   el.innerHTML = _adminRenderAudit();
+}
+
+function adminSwitchTab(tab) {
+  State.admin.tab = tab;
+  ['quality','health','audit'].forEach(function(t) {
+    var btn = document.getElementById('admtab-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+  });
+  renderAdminPage();
+}
+
+async function loadAdminData() {
+  State.admin._loading = true;
+  renderAdminPage();
+
+  var [qRes, hRes, aRes] = await Promise.allSettled([
+    FamilistaAPI.get('/club-admin/data-quality'),
+    FamilistaAPI.get('/club-admin/system-health'),
+    FamilistaAPI.get('/club-admin/audit-log?limit=100'),
+  ]);
+
+  State.admin.quality  = (qRes.status === 'fulfilled' && qRes.value) ? qRes.value : null;
+  State.admin.health   = (hRes.status === 'fulfilled' && hRes.value) ? hRes.value : null;
+  State.admin.auditLog = (aRes.status === 'fulfilled' && Array.isArray(aRes.value)) ? aRes.value : null;
+  State.admin._loading = false;
+
+  // Update sub-label with quick stats
+  var sub = document.getElementById('admin-sub');
+  if (sub && State.admin.quality) {
+    var s = State.admin.quality.summary;
+    sub.textContent = s.total + ' players · avg ' + s.avgScore + '% complete · ' + s.belowThreshold + ' below threshold';
+  }
+
+  renderAdminPage();
+}
+
 // ══════════════════════════════════════════════════════════════
 // FAMILISTA QUANTUM FOOTBALL INTELLIGENCE LAYER
 // Proprietary System — Patent-Positioned — Investor-Ready
@@ -10654,6 +10923,10 @@ async function tosBoardSnapshot() {
         case 'tiRunCompare':        tiRunCompare();                                                        break;
         case 'tiLoadPlayerUnified':    tiLoadPlayerUnified();                                              break;
         case 'quantumOpenPlayerModal': quantumOpenPlayerModal(el.dataset.id);                              break;
+        // ── Admin Control Center ─────────────────────────────────────────────────
+        case 'adminTab':     adminSwitchTab(el.dataset.tab);                                               break;
+        case 'adminRefresh': loadAdminData();                                                              break;
+        case 'adminFixPlayer': openPlayerModal(el.dataset.id);                                             break;
         default: console.warn('[delegate] Unknown action:', el.dataset.action);
       }
     } else if ('nav' in el.dataset) {
