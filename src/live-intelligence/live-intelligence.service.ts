@@ -159,6 +159,45 @@ export interface SpatialAnalysis {
   }>;
 }
 
+// ── Phase 18 — Predictive Intelligence types ──────────────────────────────────
+
+export interface PredictiveIntelligence {
+  momentumForecast: {
+    direction:  'HOME' | 'AWAY' | 'STABLE';
+    confidence: number;   // 0-1
+    slope:      number;   // normalised dominance slope (-1…+1)
+    note:       string;
+  };
+  goalThreat: {
+    probability: number;               // 0-100
+    threatSide:  'HOME' | 'AWAY' | 'BALANCED';
+    windowMin:   number;               // prediction window (minutes)
+    drivers:     string[];
+  };
+  fatigueRisk: {
+    peakRisk:    'HIGH' | 'MEDIUM' | 'LOW';
+    riskyCount:  number;
+    riskPlayers: Array<{ name: string; fatigueIndex: number; minutesPlayed: number }>;
+    peakMinute:  number | null;
+  };
+  counterThreat: {
+    level:      'HIGH' | 'MEDIUM' | 'LOW';
+    likelyZone: 'LEFT' | 'CENTER' | 'RIGHT' | null;
+    note:       string;
+  };
+  shapeCollapse: {
+    risk:       'HIGH' | 'MEDIUM' | 'LOW';
+    score:      number;    // 0-100 composite
+    indicators: string[];
+  };
+  possessionSwing: {
+    currentPct:  number;
+    forecastPct: number;
+    trend:       'GAINING' | 'LOSING' | 'STABLE';
+    confidence:  number;   // 0-1
+  };
+}
+
 export interface LiveIntelligenceBundle {
   matchId:              string;
   clubId:               string;
@@ -179,6 +218,7 @@ export interface LiveIntelligenceBundle {
   dominanceSeries:      DominanceWindow[];
   fatigueIndicators:    FatigueRow[];
   spatialAnalysis:      SpatialAnalysis;
+  predictions:          PredictiveIntelligence;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -538,6 +578,310 @@ export function computeSpatialAnalysis(
   };
 }
 
+// ── Phase 18 — Predictive Intelligence (pure, no DB) ─────────────────────────
+
+/**
+ * Predict next-window momentum direction using dominance slope + current index.
+ * Returns normalised slope (-1…+1) and a direction call with confidence.
+ */
+export function predictMomentumShift(
+  momentum:        { index: number; notes: string[] },
+  dominanceSeries: DominanceWindow[],
+  liveMinute:      number | null,
+): PredictiveIntelligence['momentumForecast'] {
+  void liveMinute; // reserved for future minute-weighting
+  const recent = dominanceSeries.slice(-4);
+
+  if (recent.length < 2) {
+    return {
+      direction: 'STABLE', confidence: 0.3, slope: 0,
+      note: 'Insufficient match data for momentum forecast.',
+    };
+  }
+
+  // Least-squares slope on homeScore (0-100; 50 = level)
+  const n    = recent.length;
+  const xs   = recent.map((_, i) => i);
+  const ys   = recent.map(w => w.homeScore);
+  const sumX = xs.reduce((a, b) => a + b, 0);
+  const sumY = ys.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  const rawSlope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+
+  // Normalise: max expected change per bin ≈ 10 points
+  const normSlope    = Math.max(-1, Math.min(1, rawSlope / 10));
+  const effective    = normSlope + momentum.index * 0.2;
+  const direction: 'HOME' | 'AWAY' | 'STABLE' =
+    effective > 0.1 ? 'HOME' : effective < -0.1 ? 'AWAY' : 'STABLE';
+
+  const dataConf  = Math.min(1, n / 4);
+  const slopeConf = Math.min(1, Math.abs(normSlope) * 2);
+  const confidence = Math.min(0.95, Math.round((0.4 + dataConf * 0.3 + slopeConf * 0.3) * 100) / 100);
+
+  const noteMap: Record<string, string> = {
+    HOME:   `Home team building momentum — ${momentum.notes[0] ?? 'increasing pressure in recent minutes'}.`,
+    AWAY:   `Away team seizing control — ${momentum.notes[0] ?? 'momentum shifting toward visitors'}.`,
+    STABLE: 'Match is evenly contested with no clear momentum shift.',
+  };
+
+  return { direction, confidence, slope: Math.round(normSlope * 100) / 100, note: noteMap[direction] };
+}
+
+/**
+ * Predict goal probability (0-100) and which side is the likely scorer
+ * in the next window based on shots, corners, momentum, and game phase.
+ */
+export function predictGoalWindow(
+  timelineSummary: TimelineSummary,
+  momentum:        { index: number; notes: string[] },
+  liveMinute:      number | null,
+): PredictiveIntelligence['goalThreat'] {
+  const minute  = liveMinute ?? 45;
+  const drivers: string[] = [];
+  let prob = 20;
+
+  if (timelineSummary.shotsOnTarget > 0) {
+    prob += Math.min(25, timelineSummary.shotsOnTarget * 5);
+    drivers.push(`${timelineSummary.shotsOnTarget} shots on target`);
+  }
+  if (timelineSummary.corners >= 3) {
+    prob += Math.min(10, timelineSummary.corners * 2);
+    drivers.push(`${timelineSummary.corners} corners awarded`);
+  }
+
+  const momEffect = Math.abs(momentum.index) * 15;
+  prob += momEffect;
+  if (Math.abs(momentum.index) > 0.3) {
+    drivers.push(`Strong momentum index (${momentum.index.toFixed(2)})`);
+  }
+
+  if (minute >= 70) {
+    prob += 10;
+    drivers.push('Late-game pressure window');
+  } else if (minute >= 40 && minute <= 50) {
+    prob += 5;
+    drivers.push('End-of-half pressure zone');
+  }
+
+  if (timelineSummary.shots >= 5 && timelineSummary.goals === 0) {
+    prob += 8;
+    drivers.push('High shot volume with no conversion — due for breakthrough');
+  }
+
+  const threatSide: 'HOME' | 'AWAY' | 'BALANCED' =
+    momentum.index > 0.2 ? 'HOME' : momentum.index < -0.2 ? 'AWAY' : 'BALANCED';
+
+  const windowMin = Math.min(10, Math.max(1, 90 - minute));
+
+  return {
+    probability: Math.min(90, Math.max(5, Math.round(prob))),
+    threatSide,
+    windowMin,
+    drivers: drivers.slice(0, 4),
+  };
+}
+
+/**
+ * Forecast which players are approaching fatigue peak and when risk will crest.
+ */
+export function predictFatigueEscalation(
+  fatigueIndicators: FatigueRow[],
+  liveMinute:        number | null,
+): PredictiveIntelligence['fatigueRisk'] {
+  const minute = liveMinute ?? 45;
+
+  if (fatigueIndicators.length === 0) {
+    return { peakRisk: 'LOW', riskyCount: 0, riskPlayers: [], peakMinute: null };
+  }
+
+  const risky    = fatigueIndicators.filter(p => p.riskLevel !== 'LOW');
+  const highRisk = fatigueIndicators.filter(p => p.riskLevel === 'HIGH');
+
+  const riskPlayers = risky
+    .slice(0, 5)
+    .map(p => ({ name: p.name, fatigueIndex: p.fatigueIndex, minutesPlayed: p.minutesPlayed }));
+
+  const peakRisk: 'HIGH' | 'MEDIUM' | 'LOW' =
+    highRisk.length > 0 ? 'HIGH' : risky.length > 0 ? 'MEDIUM' : 'LOW';
+
+  let peakMinute: number | null = null;
+  if (peakRisk !== 'LOW' && minute > 0) {
+    if (minute < 70) {
+      const avgFatigue = fatigueIndicators.reduce((s, p) => s + p.fatigueIndex, 0) / fatigueIndicators.length;
+      const rate       = avgFatigue / minute;
+      const minsTo80   = rate > 0 ? (80 - avgFatigue) / rate : 30;
+      peakMinute = Math.min(90, Math.round(minute + Math.max(0, minsTo80)));
+    } else {
+      peakMinute = Math.min(90, minute + 5);
+    }
+  }
+
+  return { peakRisk, riskyCount: risky.length, riskPlayers, peakMinute };
+}
+
+/**
+ * Predict counter-attack threat based on spatial overloads,
+ * team shape depth, and transition event frequency.
+ */
+export function predictCounterThreat(
+  spatialAnalysis: SpatialAnalysis,
+  momentum:        { index: number; notes: string[] },
+  timelineSummary: TimelineSummary,
+): PredictiveIntelligence['counterThreat'] {
+  let score = 0;
+
+  // Dominant team pushed high → bigger space to counter into
+  const attackingShape = momentum.index >= 0 ? spatialAnalysis.homeShape : spatialAnalysis.awayShape;
+  if (attackingShape.centroidX > 60)      score += 30;
+  else if (attackingShape.centroidX > 50) score += 15;
+
+  // Defending shape width > 60 = stretched
+  const defendingShape = momentum.index >= 0 ? spatialAnalysis.awayShape : spatialAnalysis.homeShape;
+  if (defendingShape.width > 60) score += 20;
+  if (defendingShape.compactness < 30) score += 20;
+
+  // Fouls = quick restarts
+  if (timelineSummary.fouls > 8) score += 15;
+
+  // Direct attempts without corners = fast breaks
+  if (timelineSummary.shots > 4 && timelineSummary.corners < 3) score += 15;
+
+  score = Math.min(100, score);
+  const level: 'HIGH' | 'MEDIUM' | 'LOW' =
+    score >= 60 ? 'HIGH' : score >= 30 ? 'MEDIUM' : 'LOW';
+
+  // Weakest attacking overload zone → likely channel
+  let likelyZone: 'LEFT' | 'CENTER' | 'RIGHT' | null = null;
+  if (level !== 'LOW') {
+    const atkZones = spatialAnalysis.overloadZones.filter(z => z.row === 'ATTACKING');
+    const weakest  = atkZones.reduce<OverloadZone | null>((best, z) =>
+      best === null || z.magnitude < best.magnitude ? z : best, null);
+    if (weakest) likelyZone = weakest.col;
+  }
+
+  const noteMap: Record<string, string> = {
+    HIGH:   'High counter-attack risk — compressed defensive shape and forward-heavy deployment.',
+    MEDIUM: 'Moderate counter threat — monitor transition zones and defensive compactness.',
+    LOW:    'Counter-attack threat is minimal — solid defensive positioning.',
+  };
+
+  return { level, likelyZone, note: noteMap[level] };
+}
+
+/**
+ * Detect signs of tactical shape collapse: spacing anomalies, overloads,
+ * fatigue clusters, and compactness breakdown.
+ */
+export function detectShapeCollapse(
+  spatialAnalysis:   SpatialAnalysis,
+  momentum:          { index: number },
+  fatigueIndicators: FatigueRow[],
+): PredictiveIntelligence['shapeCollapse'] {
+  const indicators: string[] = [];
+  let score = 0;
+
+  const totalAnomalies = spatialAnalysis.homeShape.spacingAnomalies.length
+    + spatialAnalysis.awayShape.spacingAnomalies.length;
+  if (totalAnomalies > 0) {
+    score += totalAnomalies * 15;
+    indicators.push(`${totalAnomalies} spacing anomal${totalAnomalies === 1 ? 'y' : 'ies'} detected`);
+  }
+
+  if (spatialAnalysis.homeShape.width > 70 || spatialAnalysis.awayShape.width > 70) {
+    score += 20;
+    indicators.push('Overstretched team width (>70% of pitch)');
+  }
+
+  if (spatialAnalysis.homeShape.compactness < 25 || spatialAnalysis.awayShape.compactness < 25) {
+    score += 20;
+    indicators.push('Poor midfield compactness — gaps present');
+  }
+
+  const highFatigue = fatigueIndicators.filter(p => p.riskLevel === 'HIGH');
+  if (highFatigue.length >= 3) {
+    score += 20;
+    indicators.push(`${highFatigue.length} players at high fatigue — shape may fragment`);
+  } else if (highFatigue.length > 0) {
+    score += 10;
+    indicators.push(`${highFatigue.length} player(s) at high fatigue`);
+  }
+
+  if (Math.abs(momentum.index) > 0.4) {
+    score += 10;
+    indicators.push('Sustained pressure threatening shape integrity');
+  }
+
+  const bigOverloads = spatialAnalysis.overloadZones.filter(z => z.magnitude >= 3);
+  if (bigOverloads.length > 0) {
+    score += bigOverloads.length * 8;
+    indicators.push(`${bigOverloads.length} severe overload zone(s) being exploited`);
+  }
+
+  score = Math.min(100, score);
+  const risk: 'HIGH' | 'MEDIUM' | 'LOW' =
+    score >= 60 ? 'HIGH' : score >= 35 ? 'MEDIUM' : 'LOW';
+
+  return { risk, score, indicators: indicators.slice(0, 4) };
+}
+
+/**
+ * Forecast possession trajectory over the next few minutes using
+ * dominance trend as a leading indicator.
+ */
+export function predictPossessionSwing(
+  possession:      { ourPct: number },
+  dominanceSeries: DominanceWindow[],
+): PredictiveIntelligence['possessionSwing'] {
+  const currentPct = Math.round(possession.ourPct);
+  const recent     = dominanceSeries.slice(-3);
+
+  if (recent.length < 2) {
+    return { currentPct, forecastPct: currentPct, trend: 'STABLE', confidence: 0.3 };
+  }
+
+  const avgDom       = recent.reduce((s, w) => s + w.homeScore, 0) / recent.length;
+  const slope        = (recent[recent.length - 1].homeScore - recent[0].homeScore) / (recent.length - 1);
+  const dominanceBias = (avgDom - 50) / 50;  // -1…+1
+  const slopeBias     = slope / 20;            // normalised
+  const totalBias     = dominanceBias * 0.6 + slopeBias * 0.4;
+
+  const swingAmount  = Math.round(totalBias * 5);
+  const forecastPct  = Math.max(10, Math.min(90, currentPct + swingAmount));
+  const trend: 'GAINING' | 'LOSING' | 'STABLE' =
+    forecastPct > currentPct + 2 ? 'GAINING' :
+    forecastPct < currentPct - 2 ? 'LOSING' : 'STABLE';
+
+  const confidence = Math.min(0.9,
+    Math.round((0.3 + Math.min(1, recent.length / 3) * 0.3 + Math.min(1, Math.abs(totalBias)) * 0.4) * 100) / 100,
+  );
+
+  return { currentPct, forecastPct, trend, confidence };
+}
+
+/**
+ * Top-level predictive bundle combinator. Pure function — takes already-computed data.
+ */
+export function computePredictiveIntelligence(
+  momentum:          { index: number; notes: string[] },
+  possession:        { ourPct: number },
+  dominanceSeries:   DominanceWindow[],
+  timelineSummary:   TimelineSummary,
+  fatigueIndicators: FatigueRow[],
+  spatialAnalysis:   SpatialAnalysis,
+  liveMinute:        number | null,
+): PredictiveIntelligence {
+  return {
+    momentumForecast: predictMomentumShift(momentum, dominanceSeries, liveMinute),
+    goalThreat:       predictGoalWindow(timelineSummary, momentum, liveMinute),
+    fatigueRisk:      predictFatigueEscalation(fatigueIndicators, liveMinute),
+    counterThreat:    predictCounterThreat(spatialAnalysis, momentum, timelineSummary),
+    shapeCollapse:    detectShapeCollapse(spatialAnalysis, momentum, fatigueIndicators),
+    possessionSwing:  predictPossessionSwing(possession, dominanceSeries),
+  };
+}
+
 // ── Deterministic coach recommendations from match data ─────────────────────
 
 function buildCoachRecommendations(
@@ -835,6 +1179,12 @@ export async function getLiveIntelligence(
     Math.max(maxMin, 45),
   );
 
+  // ── Phase 18: Predictive intelligence ────────────────────────────────────
+  const predictions = computePredictiveIntelligence(
+    momentum, possession, dominanceSeries, timelineSummary,
+    fatigueIndicators, spatialAnalysis, match.liveMinute,
+  );
+
   return {
     matchId:  match.id, clubId, status: match.status, liveMinute: match.liveMinute,
     score:    { home: match.homeScore, away: match.awayScore },
@@ -843,6 +1193,6 @@ export async function getLiveIntelligence(
     computedAt:    new Date().toISOString(),
     timelineSummary, momentum, possession,
     tacticalBoard, coachRecommendations, playerRatings, dominanceSeries, fatigueIndicators,
-    spatialAnalysis,
+    spatialAnalysis, predictions,
   };
 }
