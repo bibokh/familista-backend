@@ -583,6 +583,53 @@ async function tryAutoLogin() {
   }
 }
 
+// ── Form-safe render guards ──────────────────────────────────────────────────
+// Prevents in-progress user input from being wiped by background re-renders.
+
+/** True while any .modal element has the 'open' class. */
+function _isModalOpen() {
+  return !!document.querySelector('.modal.open');
+}
+
+/** True while the user is focused in a text/select/textarea input. */
+function _isUserTyping() {
+  var ae = document.activeElement;
+  return !!(ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName) && !ae.readOnly && ae.type !== 'range');
+}
+
+/**
+ * Snapshot the currently focused element within `container`
+ * so we can restore it after an innerHTML replacement.
+ * Returns null if no editable element is focused inside container.
+ */
+function _saveFocusIn(container) {
+  var ae = document.activeElement;
+  if (!ae || !container.contains(ae)) return null;
+  var tag = ae.tagName;
+  if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return null;
+  return {
+    className: ae.className || '',
+    selStart: (tag !== 'SELECT') ? (ae.selectionStart || 0) : null,
+    selEnd:   (tag !== 'SELECT') ? (ae.selectionEnd   || 0) : null,
+  };
+}
+
+/**
+ * After container.innerHTML is replaced, restore focus to the first element
+ * whose class matches the snapshot. Restores cursor/selection too.
+ */
+function _restoreFocusIn(container, saved) {
+  if (!saved) return;
+  var cls = saved.className.trim().split(/\s+/).filter(Boolean)[0];
+  var el = cls ? container.querySelector('.' + cls) : container.querySelector('input,textarea,select');
+  if (!el) return;
+  el.focus();
+  if (saved.selStart !== null) {
+    try { el.setSelectionRange(saved.selStart, saved.selEnd); } catch (_) {}
+  }
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 // ── NAVIGATION ──
 function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1132,6 +1179,8 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
+  // Guard: don't replace the squad grid while a modal is open (prevents background flash)
+  if (_isModalOpen()) return;
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -4670,6 +4719,7 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
+  if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
   const el = document.getElementById('training-content');
   if (!el) return;
   if (_trainingTab === 'sessions')  renderTrainingSessions(el);
@@ -5095,6 +5145,7 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
+  if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
   const el = document.getElementById('medical-content');
   if (!el) return;
   if (_medTab === 'dashboard') _renderMedDashboard(el);
@@ -6862,6 +6913,7 @@ async function loadDevicesData() {
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
+    if (_isModalOpen() || _isUserTyping()) return;  // don't disrupt active user input
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
@@ -9178,16 +9230,20 @@ function siTab(tab) {
 function siRenderTab() {
   const body = document.getElementById('si-body');
   if (!body) return;
+  // Save focused input state — search/filter inputs live inside si-body and are
+  // destroyed on every innerHTML replacement. We restore focus+cursor after.
+  var _f = _saveFocusIn(body);
   var t = State.stats._tab;
-  if (t === 'performance')  body.innerHTML = _siDashboard();
-  else if (t === 'team')    body.innerHTML = _siTeam();
-  else if (t === 'player')  body.innerHTML = _siPlayer();
+  if (t === 'performance')   body.innerHTML = _siDashboard();
+  else if (t === 'team')     body.innerHTML = _siTeam();
+  else if (t === 'player')   body.innerHTML = _siPlayer();
   else if (t === 'workload') body.innerHTML = _siWorkload();
-  else if (t === 'injury')  body.innerHTML = _siInjury();
-  else if (t === 'match')   body.innerHTML = _siMatchAnalytics();
+  else if (t === 'injury')   body.innerHTML = _siInjury();
+  else if (t === 'match')    body.innerHTML = _siMatchAnalytics();
   else if (t === 'competition') body.innerHTML = _siCompetition();
-  else if (t === 'compare') body.innerHTML = _siCompare();
+  else if (t === 'compare')  body.innerHTML = _siCompare();
   else body.innerHTML = _siDashboard();
+  _restoreFocusIn(body, _f);  // restore focus + cursor position after re-render
 }
 
 // ── Performance Dashboard ──────────────────────────────────────────────────
@@ -9991,6 +10047,7 @@ function tiSwitchTab(tab) {
 function tiRenderTab() {
   const el = document.getElementById('ti-content');
   if (!el) return;
+  var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
   switch (State.transfer._tab) {
     case 'dashboard': el.innerHTML = _tiDashboard();      break;
     case 'targets':   el.innerHTML = _tiTargets();        break;
@@ -10002,6 +10059,7 @@ function tiRenderTab() {
     case 'intel':     el.innerHTML = _tiIntelligence();   break;
     default:          el.innerHTML = _tiDashboard();
   }
+  _restoreFocusIn(el, _f);  // restore focus + cursor position after re-render
 }
 
 // ── SCREEN 1: Dashboard ───────────────────────────────────────────────────────

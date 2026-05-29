@@ -2561,6 +2561,36 @@ async function tryAutoLogin() {
   }
 }
 
+// ── Form-safe render guards ──────────────────────────────────────────────────
+function _isModalOpen() {
+  return !!document.querySelector('.modal.open');
+}
+function _isUserTyping() {
+  var ae = document.activeElement;
+  return !!(ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName) && !ae.readOnly && ae.type !== 'range');
+}
+function _saveFocusIn(container) {
+  var ae = document.activeElement;
+  if (!ae || !container.contains(ae)) return null;
+  var tag = ae.tagName;
+  if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return null;
+  return {
+    className: ae.className || '',
+    selStart: (tag !== 'SELECT') ? (ae.selectionStart || 0) : null,
+    selEnd:   (tag !== 'SELECT') ? (ae.selectionEnd   || 0) : null,
+  };
+}
+function _restoreFocusIn(container, saved) {
+  if (!saved) return;
+  var cls = saved.className.trim().split(/\s+/).filter(Boolean)[0];
+  var el = cls ? container.querySelector('.' + cls) : container.querySelector('input,textarea,select');
+  if (!el) return;
+  el.focus();
+  if (saved.selStart !== null) {
+    try { el.setSelectionRange(saved.selStart, saved.selEnd); } catch (_) {}
+  }
+}
+
 // ── NAVIGATION ──
 function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -3091,6 +3121,7 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
+  if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -7565,6 +7596,7 @@ function tiSwitchTab(tab) {
 function tiRenderTab() {
   const el = document.getElementById('ti-content');
   if (!el) return;
+  var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
   switch (State.transfer._tab) {
     case 'dashboard': el.innerHTML = _tiDashboard();      break;
     case 'targets':   el.innerHTML = _tiTargets();        break;
@@ -7576,6 +7608,7 @@ function tiRenderTab() {
     case 'intel':     el.innerHTML = _tiIntelligence();   break;
     default:          el.innerHTML = _tiDashboard();
   }
+  _restoreFocusIn(el, _f);  // restore focus + cursor position after re-render
 }
 
 // ── SCREEN 1: Dashboard ───────────────────────────────────────────────────────
@@ -8693,6 +8726,7 @@ async function loadDevicesData() {
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
+    if (_isModalOpen() || _isUserTyping()) return;  // don't disrupt active user input
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
