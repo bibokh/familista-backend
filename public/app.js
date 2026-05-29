@@ -629,28 +629,61 @@ function _restoreFocusIn(container, saved) {
   }
 }
 // ── Render tracer ─────────────────────────────────────────────────────────────
-// Run `window.__RENDER_TRACE = false` in the console to silence.
-// RED  = render fired while modal is open OR user is typing (the flicker culprit)
+// Visible on-screen badge + console output.
+// RED  = render fired while a modal is open OR user is typing  ← flicker source
 // GREEN = safe render
+// Silence: window.__RENDER_TRACE = false  |  Remove badge: document.getElementById('__render_dbg').remove()
 function _traceRender(name) {
   if (window.__RENDER_TRACE === false) return;
   var modal   = _isModalOpen();
   var typing  = _isUserTyping();
   var ae      = document.activeElement;
   var focused = ae
-    ? (ae.tagName + (ae.id ? '#' + ae.id : '') + (ae.className ? '.' + String(ae.className).trim().split(/\s+/)[0] : ''))
+    ? (ae.tagName +
+       (ae.id      ? '#' + ae.id : '') +
+       (ae.name    ? '[' + ae.name + ']' : '') +
+       (ae.className ? '.' + String(ae.className).trim().split(/\s+/)[0] : ''))
     : 'none';
   var danger  = modal || typing;
-  var badge   = danger
-    ? 'background:#EF4444;color:#fff;font-weight:bold;padding:1px 5px;border-radius:3px;'
-    : 'background:#15803D;color:#fff;padding:1px 5px;border-radius:3px;';
-  var msg     = '%c[RENDER] ' + name + (danger ? '  ⚠️ FIRES DURING USER INPUT' : '');
-  var info    = { modal: modal, typing: typing, focused: focused, ts: new Date().toISOString().slice(11,23) };
-  var stack   = (new Error().stack || '').split('\n').slice(2, 6).map(function(l){ return l.trim(); }).join(' ← ');
+  var ts      = new Date().toISOString().slice(11, 23);
+  var stack   = (new Error().stack || '').split('\n').slice(2, 6)
+                  .map(function(l){ return l.trim(); }).join(' ← ');
+
+  // ── Console ──
+  var cs = danger
+    ? 'background:#DC2626;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px;'
+    : 'background:#15803D;color:#fff;padding:1px 6px;border-radius:3px;';
   if (danger) {
-    console.warn(msg, badge, info, '\ncall chain: ' + stack);
+    console.warn('%c[RENDER] ' + name + '  ⚠️ FIRES DURING USER INPUT', cs,
+      { modal: modal, typing: typing, focused: focused, ts: ts },
+      '\ncall chain: ' + stack);
   } else {
-    console.log(msg, badge, info);
+    console.log('%c[RENDER] ' + name, cs,
+      { modal: modal, typing: typing, focused: focused, ts: ts });
+  }
+
+  // ── On-screen badge (bottom-right, always visible) ──
+  var bd = document.getElementById('__render_dbg');
+  if (!bd && document.body) {
+    bd = document.createElement('div');
+    bd.id = '__render_dbg';
+    document.body.appendChild(bd);
+  }
+  if (bd) {
+    var bg  = danger ? '#DC2626' : '#166534';
+    var bdr = danger ? '#FCA5A5' : '#4ADE80';
+    bd.style.cssText =
+      'position:fixed;bottom:12px;right:12px;z-index:2147483647;' +
+      'font-family:monospace;font-size:11px;line-height:1.55;' +
+      'padding:8px 12px;border-radius:8px;max-width:360px;' +
+      'pointer-events:none;box-shadow:0 2px 12px rgba(0,0,0,.55);' +
+      'background:' + bg + ';color:#fff;border:1px solid ' + bdr + ';';
+    bd.innerHTML =
+      '<b style="font-size:12px;">' + (danger ? '🔴' : '🟢') + ' RENDER TRACE</b><br>' +
+      '<span style="color:#fef08a;">' + name + '</span><br>' +
+      'modalOpen=<b>' + modal + '</b> &nbsp; typing=<b>' + typing + '</b><br>' +
+      'focus: ' + focused + '<br>' +
+      '<span style="opacity:.65;font-size:10px;">' + ts + '</span>';
   }
 }
 // ────────────────────────────────────────────────────────────────────────────
