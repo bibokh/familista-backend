@@ -2563,7 +2563,8 @@ async function tryAutoLogin() {
 
 // ── Form-safe render guards ──────────────────────────────────────────────────
 function _isModalOpen() {
-  return !!document.querySelector('.modal.open');
+  // Outer container class is 'modal-bg', not 'modal' — that's what gets .open
+  return !!document.querySelector('.modal-bg.open');
 }
 function _isUserTyping() {
   var ae = document.activeElement;

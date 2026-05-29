@@ -588,7 +588,8 @@ async function tryAutoLogin() {
 
 /** True while any .modal element has the 'open' class. */
 function _isModalOpen() {
-  return !!document.querySelector('.modal.open');
+  // Outer container class is 'modal-bg', not 'modal' — that's what gets .open
+  return !!document.querySelector('.modal-bg.open');
 }
 
 /** True while the user is focused in a text/select/textarea input. */
