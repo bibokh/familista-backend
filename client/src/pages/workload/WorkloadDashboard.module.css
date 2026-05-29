@@ -1,0 +1,143 @@
+.kpiStrip { margin-bottom: var(--gap-md); }
+
+.teamSelect { flex-shrink: 0; }
+
+.select {
+  background: var(--card-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  color: var(--tx);
+  font-family: var(--font);
+  cursor: pointer;
+  min-width: 180px;
+}
+.select:focus { outline: none; border-color: var(--green); }
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-md);
+}
+
+.leftCol, .rightCol { display: flex; flex-direction: column; gap: var(--gap-md); }
+
+/* ── Squad grid ── */
+.squadGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: var(--gap-sm);
+}
+
+.playerCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+  border-width: 2px;
+}
+.playerCard:hover { transform: translateY(-1px); }
+.playerCardActive {}
+
+.playerCardAvatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.playerCardName {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tx);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playerCardPos {
+  font-size: 0.625rem;
+  color: var(--tx-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.riskScore {
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+/* ── Player workload detail ── */
+.playerDetailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--gap-md);
+  gap: var(--gap-md);
+}
+
+.riskGauge { flex-shrink: 0; }
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-sm);
+  margin-bottom: var(--gap-sm);
+}
+
+.metricBox {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--gap-sm);
+}
+
+.acwrZone {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--gap-sm) 10px;
+}
+
+/* ── Table ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--tx-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-2);
+  white-space: nowrap;
+}
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--tx-2);
+  white-space: nowrap;
+}
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--card-hover); }
+
+@media (max-width: 1000px) {
+  .mainGrid { grid-template-columns: 1fr; }
+}

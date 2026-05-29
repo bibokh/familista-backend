@@ -1,0 +1,211 @@
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+.select {
+  background: var(--card-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  padding: 7px 12px;
+  font-size: 0.875rem;
+  color: var(--tx);
+  font-family: var(--font);
+  cursor: pointer;
+  min-width: 200px;
+}
+.select:focus { outline: none; border-color: var(--green); }
+
+.viewToggle {
+  display: flex;
+  gap: 2px;
+  background: var(--card-2);
+  border-radius: var(--r-md);
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+.toggleBtn {
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tx-3);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+  font-family: var(--font);
+}
+.toggleBtn:hover { color: var(--tx-2); }
+.toggleActive { background: var(--card); color: var(--tx); box-shadow: var(--shadow-sm); }
+
+/* ── Standings ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.table th {
+  text-align: right;
+  padding: 8px 10px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--tx-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-2);
+  white-space: nowrap;
+}
+.table td {
+  text-align: right;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--tx-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--card-hover); }
+
+.posCol { width: 32px; text-align: center !important; }
+.posCell { text-align: center !important; }
+.pos {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tx-2);
+}
+.posTop {
+  background: rgba(22,163,74,0.15);
+  color: var(--green-bright);
+  border: 1px solid rgba(22,163,74,0.3);
+}
+.posBotStyle {
+  background: rgba(239,68,68,0.1);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,0.2);
+}
+
+.teamCell { text-align: left !important; color: var(--tx) !important; font-weight: 500 !important; min-width: 120px; }
+
+.won  { color: var(--green-bright) !important; font-weight: 600 !important; }
+.lost { color: var(--red) !important; }
+.gdPos { color: var(--green-bright) !important; font-weight: 600 !important; }
+.gdNeg { color: var(--red) !important; }
+.ptsCell { font-weight: 700 !important; color: var(--tx) !important; font-size: 0.9rem !important; }
+
+.rowPromotion td:first-child { border-left: 3px solid var(--green); }
+.rowRelegation td:first-child { border-left: 3px solid var(--red); }
+
+.form { display: flex; gap: 3px; justify-content: flex-end; }
+
+.ptBarCol { width: 80px; }
+.ptBar {
+  height: 4px;
+  background: var(--card-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ptBarFill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.5s var(--ease);
+}
+
+.legend {
+  display: flex;
+  gap: var(--gap-md);
+  padding: var(--gap-sm) var(--gap-md);
+  border-top: 1px solid var(--border);
+}
+.legendPromotion { font-size: 0.6875rem; color: var(--green); }
+.legendRelegation { font-size: 0.6875rem; color: var(--red); }
+
+/* ── Fixtures ── */
+.fixturesLayout { display: flex; flex-direction: column; gap: var(--gap-md); }
+
+.matchdayFilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.matchdayBtn {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--tx-3);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  font-family: var(--font);
+}
+.matchdayBtn:hover { background: var(--card-hover); color: var(--tx-2); }
+.matchdayActive { background: var(--green-dim); color: var(--green-bright); border-color: rgba(22,163,74,0.3); }
+
+.fixturesList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--gap-md);
+}
+
+.fixtureCard { transition: border-color var(--t-fast); }
+.fixtureCancelled { opacity: 0.5; }
+
+.fixtureHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--gap-sm);
+  flex-wrap: wrap;
+}
+.fixtureDate { font-size: 0.75rem; color: var(--tx-3); flex: 1; }
+.fixtureVenue { font-size: 0.6875rem; color: var(--tx-4); }
+
+.fixtureMatch {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+}
+.fixtureName {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--tx);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fixtureNameRight { text-align: right; }
+
+.fixtureScore {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px 12px;
+}
+.scoreNum {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--tx);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--mono);
+  min-width: 18px;
+  text-align: center;
+}
+.scoreDivider { font-size: 1rem; color: var(--tx-3); }
+.scoreVs { font-size: 0.8125rem; color: var(--tx-3); padding: 0 4px; }

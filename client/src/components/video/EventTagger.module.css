@@ -1,0 +1,124 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.heading {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tx-3, #71717a);
+  margin: 0 0 8px;
+}
+
+/* Add panel */
+.addPanel {
+  background: var(--card, #111115);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.select {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--tx, #fafafa);
+  font-size: 13px;
+  padding: 7px 10px;
+}
+.select:focus { outline: none; border-color: var(--green, #16a34a); }
+
+.tagBtn {
+  background: var(--green, #16a34a);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.tagBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.tagBtn:hover:not(:disabled) { opacity: 0.85; }
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  color: var(--tx, #fafafa);
+  font-size: 13px;
+  padding: 7px 10px;
+  font-family: inherit;
+}
+.input:focus { outline: none; border-color: var(--green, #16a34a); }
+
+/* List */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.empty {
+  font-size: 12px;
+  color: var(--tx-3, #71717a);
+  padding: 8px 0;
+  margin: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  transition: background 0.12s;
+}
+.item:hover { background: rgba(255,255,255,0.06); }
+
+.timeBtn {
+  background: none;
+  border: none;
+  color: var(--green, #16a34a);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.timeBtn:hover { opacity: 0.75; }
+
+.eventLabel {
+  flex: 1;
+  font-size: 13px;
+  color: var(--tx, #fafafa);
+}
+
+.delBtn {
+  background: none;
+  border: none;
+  color: var(--tx-3, #71717a);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.12s;
+}
+.delBtn:hover { color: #ef4444; }

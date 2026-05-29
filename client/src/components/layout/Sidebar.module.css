@@ -1,0 +1,201 @@
+.sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ── Logo ── */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px var(--gap-md) 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.logoMark {
+  width: 32px; height: 32px;
+  background: var(--green);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -0.05em;
+}
+
+.logoText { min-width: 0; }
+.logoName {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--tx);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.logoTagline {
+  font-size: 0.6875rem;
+  color: var(--tx-3);
+  letter-spacing: 0.02em;
+}
+
+/* ── Club chip ── */
+.clubChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: var(--gap-sm) var(--gap-md);
+  background: var(--green-dim);
+  border: 1px solid rgba(22,163,74,0.2);
+  border-radius: var(--r-full);
+  padding: 4px 10px;
+}
+.clubDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+.clubName {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--green-bright);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Navigation ── */
+.nav {
+  flex: 1;
+  padding: var(--gap-sm) var(--gap-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.navGroup { margin-top: var(--gap-md); }
+.navGroup:first-child { margin-top: 0; }
+
+.groupLabel {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--tx-4);
+  font-weight: 600;
+  padding: 0 8px 4px;
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tx-3);
+  text-decoration: none;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.navItem:hover {
+  background: var(--card-2);
+  color: var(--tx-2);
+}
+.navItem.active {
+  background: var(--green-dim);
+  color: var(--green-bright);
+  font-weight: 600;
+}
+
+.navIcon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.navLabel { flex: 1; }
+
+/* ── Footer ── */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: var(--gap-md);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.userAvatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--green-dim);
+  border: 1px solid rgba(22,163,74,0.3);
+  color: var(--green-bright);
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.userDetails { min-width: 0; }
+.userName {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tx-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.userRole {
+  font-size: 0.6875rem;
+  color: var(--tx-4);
+  text-transform: capitalize;
+}
+
+.logoutBtn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--tx-3);
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.logoutBtn:hover {
+  background: var(--red-dim);
+  color: var(--red);
+  border-color: rgba(239,68,68,0.3);
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform var(--t-base);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+}

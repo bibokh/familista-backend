@@ -1,0 +1,140 @@
+@import './tokens.css';
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--tx);
+  line-height: 1.5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: var(--r-full); }
+::-webkit-scrollbar-thumb:hover { background: var(--tx-4); }
+
+/* ── Focus ── */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* ── Typography ── */
+h1 { font-size: 1.5rem; font-weight: 600; line-height: 1.25; letter-spacing: -0.02em; }
+h2 { font-size: 1.2rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; }
+h3 { font-size: 1rem;   font-weight: 600; line-height: 1.4; }
+h4 { font-size: 0.875rem; font-weight: 500; }
+p  { font-size: 0.875rem; color: var(--tx-2); line-height: 1.6; }
+a  { color: var(--green); text-decoration: none; }
+a:hover { color: var(--green-bright); }
+
+code, .mono {
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  background: var(--card-2);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+
+/* ── Utils ── */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0);
+  white-space: nowrap; border-width: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Recharts overrides ── */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: var(--popover) !important;
+  border: 1px solid var(--border-2) !important;
+  border-radius: var(--r-md) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.recharts-default-tooltip .recharts-tooltip-label {
+  color: var(--tx) !important;
+  font-weight: 500;
+}
+.recharts-default-tooltip .recharts-tooltip-item {
+  color: var(--tx-2) !important;
+}
+.recharts-cartesian-axis-tick-value {
+  fill: var(--tx-3) !important;
+  font-size: 11px !important;
+}
+.recharts-cartesian-grid line {
+  stroke: var(--border) !important;
+}
+.recharts-legend-item-text {
+  color: var(--tx-2) !important;
+  font-size: 12px !important;
+}
+
+/* ── Page layout ── */
+.page {
+  padding: var(--gap-lg);
+  max-width: 1440px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-lg);
+  flex-wrap: wrap;
+}
+
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.page-subtitle {
+  font-size: 0.8125rem;
+  color: var(--tx-3);
+  margin-top: 2px;
+}
+
+/* ── Grid helpers ── */
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-md); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-md); }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-md); }
+
+@media (max-width: 1100px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+  .page { padding: var(--gap-md); }
+}

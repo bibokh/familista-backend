@@ -1,0 +1,125 @@
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--gap-xl);
+  gap: var(--gap-md);
+}
+
+.heroText {}
+.greeting {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--tx);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.heroSub {
+  font-size: 0.875rem;
+  color: var(--tx-3);
+}
+
+.heroBadge {
+  background: var(--green-dim);
+  border: 1px solid rgba(22,163,74,0.3);
+  color: var(--green-bright);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.modulesGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+
+.moduleLink {
+  text-decoration: none;
+}
+
+.moduleCard {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-md);
+  cursor: pointer;
+  transition: transform var(--t-fast), border-color var(--t-fast) !important;
+  border: 1px solid var(--border) !important;
+}
+.moduleCard:hover {
+  transform: translateX(4px);
+  border-color: var(--border-2) !important;
+}
+
+.moduleIcon {
+  width: 48px; height: 48px;
+  border-radius: var(--r-md);
+  border: 1px solid;
+  border-opacity: 0.3;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.375rem;
+  flex-shrink: 0;
+  background: transparent;
+  opacity: 0.9;
+}
+
+.moduleInfo { flex: 1; min-width: 0; }
+.moduleTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--tx);
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+.moduleDesc {
+  font-size: 0.8125rem;
+  color: var(--tx-3);
+  line-height: 1.5;
+}
+
+.moduleArrow {
+  font-size: 1.125rem;
+  color: var(--tx-4);
+  flex-shrink: 0;
+  transition: color var(--t-fast), transform var(--t-fast);
+}
+.moduleCard:hover .moduleArrow {
+  color: var(--tx-2);
+  transform: translateX(2px);
+}
+
+.statusRow {
+  display: flex;
+  gap: var(--gap-md);
+  margin-top: var(--gap-xl);
+  flex-wrap: wrap;
+}
+
+.statusChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--tx-3);
+}
+
+.statusDot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s infinite;
+}
+.statusDotAmber {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

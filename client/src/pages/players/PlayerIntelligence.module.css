@@ -1,0 +1,269 @@
+.layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--gap-md);
+  height: calc(100vh - var(--topbar-h) - 100px);
+  min-height: 600px;
+}
+
+/* ── List panel ── */
+.listPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.searchWrap {
+  padding: var(--gap-sm);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--card-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  font-size: 0.8125rem;
+  color: var(--tx);
+  font-family: var(--font);
+  transition: border-color var(--t-fast);
+}
+.searchInput:focus {
+  outline: none;
+  border-color: var(--green);
+}
+.searchInput::placeholder { color: var(--tx-4); }
+
+.playerList {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--gap-xs);
+}
+
+/* ── Player row ── */
+.playerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t-fast);
+}
+.playerRow:hover { background: var(--card-2); }
+.playerRowSelected { background: var(--green-dim) !important; }
+
+.playerAvatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--card-2);
+  border: 2px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.playerRowInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.playerRowName {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tx);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playerRowMeta {
+  font-size: 0.6875rem;
+  color: var(--tx-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playerNumber {
+  font-size: 0.75rem;
+  font-family: var(--mono);
+  color: var(--tx-4);
+  flex-shrink: 0;
+}
+
+/* ── Detail panel ── */
+.detailPanel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow-y: auto;
+}
+
+.emptyDetail, .loadingDetail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 300px;
+}
+
+/* ── Player detail ── */
+.detail { padding: var(--gap-md); }
+
+.playerHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gap-md);
+  padding-bottom: var(--gap-md);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+.playerHeaderAvatar {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: var(--card-2);
+  border: 3px solid;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--tx);
+  flex-shrink: 0;
+}
+
+.playerHeaderInfo { flex: 1; min-width: 0; }
+.playerName {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--tx);
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.playerMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.metaChip {
+  font-size: 0.75rem;
+  color: var(--tx-3);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 2px 8px;
+}
+
+.careerKpis {
+  display: flex;
+  gap: var(--gap-sm);
+  flex-wrap: wrap;
+}
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--card-2);
+  border-radius: var(--r-md);
+  padding: 3px;
+  margin-bottom: var(--gap-md);
+}
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--tx-3);
+  cursor: pointer;
+  transition: background var(--t-fast), color var(--t-fast);
+  font-family: var(--font);
+}
+.tab:hover { color: var(--tx-2); }
+.tabActive { background: var(--card); color: var(--tx); box-shadow: var(--shadow-sm); }
+
+.tabContent { display: flex; flex-direction: column; gap: var(--gap-md); }
+
+/* ── Stats tab ── */
+.statsTab { display: flex; flex-direction: column; gap: var(--gap-md); }
+.kpiStrip {}
+.chartsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-md);
+}
+.chartCard {}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+}
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.statRow:nth-child(even) { padding-left: 12px; }
+.statRowLabel { font-size: 0.8125rem; color: var(--tx-3); }
+.statRowValue { font-size: 0.8125rem; font-weight: 600; color: var(--tx); font-variant-numeric: tabular-nums; }
+
+/* ── Career tab ── */
+.careerTab { display: flex; flex-direction: column; gap: var(--gap-md); }
+
+/* ── Table ── */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.table th {
+  text-align: right;
+  padding: 8px 10px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--tx-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-2);
+  white-space: nowrap;
+}
+.table th:first-child { text-align: left; }
+.table td {
+  text-align: right;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--tx-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.table td:first-child { text-align: left; color: var(--tx); font-weight: 500; }
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background: var(--card-hover); }
+.highlight { color: var(--green-bright) !important; font-weight: 600 !important; }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; height: auto; }
+  .listPanel { max-height: 300px; }
+  .chartsRow { grid-template-columns: 1fr; }
+  .statGrid { grid-template-columns: 1fr; }
+}

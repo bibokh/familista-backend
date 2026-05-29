@@ -1,0 +1,598 @@
+// Familista — Phase O schema fragment
+// ─────────────────────────────────────────────────────────────────────────────
+// Target: prisma/schema.prisma   (append to the bottom)
+// Models: 23 new models, 13 new enums, UserRole extended (+MANAGER +COACH +PARENT +PLAYER)
+//
+// EDIT TO EXISTING MODEL UserRole in schema.prisma:
+//   Add these variants if not already present:
+//     MANAGER
+//     COACH
+//     PARENT
+//     PLAYER
+//   (SUPER_ADMIN, CLUB_ADMIN, CLUB_OWNER, HEAD_COACH, ASSISTANT_COACH,
+//    ANALYST, SCOUT, MEDICAL_STAFF, FINANCE_MANAGER are assumed existing)
+//
+// Prisma relations assume these existing models exist in schema.prisma:
+//   User, Club, Player, Match, Team, TrainingSession, Device,
+//   InvoiceDraft (Phase J), AIApprovalRequest (Phase I)
+//
+// Run after appending:
+//   npx prisma format --schema=prisma/schema.prisma
+//   npx prisma migrate dev --name phase_o_production_reality
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Enums ─────────────────────────────────────────────────────────────────
+
+enum AuthSessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum MfaMethod {
+  TOTP
+  BACKUP_CODE
+}
+
+enum AttendanceMark {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum ClubEventKind {
+  TRAINING
+  MATCH
+  MEDICAL
+  MEETING
+  TRAVEL
+  OTHER
+}
+
+enum OperationsPaymentState {
+  PENDING
+  PAID
+  OVERDUE
+  REFUNDED
+  CANCELED
+}
+
+enum DeviceInventoryState {
+  STOCK
+  DEPLOYED
+  RMA
+  RETIRED
+}
+
+enum PlayerContractState {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum GdprRequestKind {
+  EXPORT
+  DELETE
+  RECTIFICATION
+  PORTABILITY
+}
+
+enum GdprRequestState {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum ConsentScope {
+  MEDICAL
+  MARKETING
+  DATA_SHARING
+  RESEARCH
+  IMAGE_USE
+  CUSTOM
+}
+
+enum HealthCheckState {
+  OK
+  DEGRADED
+  DOWN
+}
+
+enum AlertRuleState {
+  ACTIVE
+  MUTED
+  ARCHIVED
+}
+
+enum BackupKind {
+  SCHEDULED
+  MANUAL
+  PRE_DEPLOY
+  RESTORE_POINT
+}
+
+// ── Auth: sessions ────────────────────────────────────────────────────────
+
+model AuthSession {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshHash     String            @unique
+  status          AuthSessionStatus @default(ACTIVE)
+  deviceLabel     String?
+  ipAddress       String?
+  userAgent       String?
+  mfaSatisfied    Boolean           @default(false)
+  parentSessionId String?
+  parentSession   AuthSession?      @relation("SessionChain", fields: [parentSessionId], references: [id])
+  childSessions   AuthSession[]     @relation("SessionChain")
+  expiresAt       DateTime
+  lastUsedAt      DateTime          @default(now())
+  revokedAt       DateTime?
+  revokedReason   String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+// ── Auth: MFA ─────────────────────────────────────────────────────────────
+
+model MFASetting {
+  id              String      @id @default(cuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  method          MfaMethod   @default(TOTP)
+  encryptedSecret String      // AES-256-GCM; base64
+  iv              String      // GCM IV; base64
+  enabledAt       DateTime?
+  disabledAt      DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model MFABackupCode {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  usedAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+model MFAChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  method    MfaMethod @default(TOTP)
+  attempts  Int      @default(0)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+// ── Operations: guardians ─────────────────────────────────────────────────
+
+model PlayerGuardianLink {
+  id              String   @id @default(cuid())
+  clubId          String
+  club            Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId        String
+  player          Player   @relation("PlayerGuardians", fields: [playerId], references: [id], onDelete: Cascade)
+  guardianUserId  String
+  guardian        User     @relation("UserGuardianLinks", fields: [guardianUserId], references: [id], onDelete: Cascade)
+  relationship    String   @default("PARENT")
+  isPrimary       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([playerId, guardianUserId])
+  @@index([clubId])
+  @@index([guardianUserId])
+}
+
+// ── Operations: attendance ────────────────────────────────────────────────
+
+model TrainingAttendanceRecord {
+  id                String         @id @default(cuid())
+  clubId            String
+  club              Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  trainingSessionId String
+  trainingSession   TrainingSession @relation(fields: [trainingSessionId], references: [id], onDelete: Cascade)
+  playerId          String
+  player            Player         @relation("PlayerTrainingAttendance", fields: [playerId], references: [id], onDelete: Cascade)
+  mark              AttendanceMark @default(PRESENT)
+  notes             String?
+  recordedById      String?
+  recordedBy        User?          @relation("AttendanceRecordedBy", fields: [recordedById], references: [id])
+  recordedAt        DateTime       @default(now())
+
+  @@unique([trainingSessionId, playerId])
+  @@index([clubId, recordedAt])
+  @@index([playerId])
+}
+
+model MatchAttendanceRecord {
+  id            String         @id @default(cuid())
+  clubId        String
+  club          Club           @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  matchId       String
+  match         Match          @relation("MatchAttendance", fields: [matchId], references: [id], onDelete: Cascade)
+  playerId      String
+  player        Player         @relation("PlayerMatchAttendance", fields: [playerId], references: [id], onDelete: Cascade)
+  mark          AttendanceMark @default(PRESENT)
+  minutesOnPitch Int?
+  notes         String?
+  recordedById  String?
+  recordedBy    User?          @relation("MatchAttendanceRecordedBy", fields: [recordedById], references: [id])
+  recordedAt    DateTime       @default(now())
+
+  @@unique([matchId, playerId])
+  @@index([clubId, recordedAt])
+  @@index([playerId])
+}
+
+// ── Operations: payments ──────────────────────────────────────────────────
+
+model OperationsPayment {
+  id             String                 @id @default(cuid())
+  clubId         String
+  club           Club                   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  payerUserId    String?
+  payerUser      User?                  @relation("UserPayments", fields: [payerUserId], references: [id])
+  payerPlayerId  String?
+  payerPlayer    Player?                @relation("PlayerPayments", fields: [payerPlayerId], references: [id])
+  amount         Decimal                @db.Decimal(12, 2)
+  currency       String                 @default("EUR")
+  state          OperationsPaymentState @default(PENDING)
+  dueDate        DateTime?
+  paidAt         DateTime?
+  invoiceRef     String?
+  notes          String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  invoiceLines   OperationsInvoiceLine[]
+
+  @@index([clubId, state])
+  @@index([payerPlayerId])
+  @@index([dueDate])
+}
+
+model OperationsInvoiceLine {
+  id          String             @id @default(cuid())
+  paymentId   String
+  payment     OperationsPayment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  clubId      String
+  description String
+  quantity    Decimal            @db.Decimal(10, 3) @default(1)
+  unitPrice   Decimal            @db.Decimal(12, 2)
+  amount      Decimal            @db.Decimal(12, 2)
+  createdAt   DateTime           @default(now())
+
+  @@index([paymentId])
+  @@index([clubId])
+}
+
+// ── Operations: calendar ──────────────────────────────────────────────────
+
+model ClubCalendarEntry {
+  id                String        @id @default(cuid())
+  clubId            String
+  club              Club          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  kind              ClubEventKind @default(TRAINING)
+  title             String
+  description       String?
+  startsAt          DateTime
+  endsAt            DateTime?
+  teamId            String?
+  team              Team?         @relation(fields: [teamId], references: [id])
+  matchId           String?
+  match             Match?        @relation("MatchCalendar", fields: [matchId], references: [id])
+  trainingSessionId String?
+  trainingSession   TrainingSession? @relation("TrainingCalendar", fields: [trainingSessionId], references: [id])
+  createdBy         String?
+  creator           User?         @relation("CalendarCreator", fields: [createdBy], references: [id])
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([clubId, startsAt])
+  @@index([teamId])
+}
+
+// ── Player lifecycle ──────────────────────────────────────────────────────
+
+model PlayerOnboardingStep {
+  id          String    @id @default(cuid())
+  clubId      String
+  club        Club      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId    String
+  player      Player    @relation("PlayerOnboarding", fields: [playerId], references: [id], onDelete: Cascade)
+  step        String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  payload     Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([playerId, step])
+  @@index([clubId])
+}
+
+model PlayerEvaluationRecord {
+  id           String   @id @default(cuid())
+  clubId       String
+  club         Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId     String
+  player       Player   @relation("PlayerEvaluations", fields: [playerId], references: [id], onDelete: Cascade)
+  evaluatorId  String
+  evaluator    User     @relation("EvaluatorRecords", fields: [evaluatorId], references: [id])
+  kind         String
+  score        Float?
+  payload      Json
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([clubId, playerId])
+  @@index([playerId, kind])
+}
+
+model PlayerContractRecord {
+  id           String               @id @default(cuid())
+  clubId       String
+  club         Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  playerId     String
+  player       Player               @relation("PlayerContracts", fields: [playerId], references: [id], onDelete: Cascade)
+  state        PlayerContractState  @default(DRAFT)
+  startsAt     DateTime
+  endsAt       DateTime?
+  grossSalary  Decimal?             @db.Decimal(12, 2)
+  currency     String               @default("EUR")
+  valueEur     Decimal?             @db.Decimal(14, 2)
+  payloadHash  String?
+  createdBy    String?
+  creator      User?                @relation("ContractCreator", fields: [createdBy], references: [id])
+  approvalId   String?              // links to AIApprovalRequest when high-value gate triggered
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@index([clubId, state])
+  @@index([playerId])
+}
+
+// ── Hardware deployment ───────────────────────────────────────────────────
+
+model DeviceInventoryEntry {
+  id          String               @id @default(cuid())
+  clubId      String
+  club        Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  deviceId    String?
+  device      Device?              @relation(fields: [deviceId], references: [id])
+  serial      String               @unique
+  state       DeviceInventoryState @default(STOCK)
+  location    String?
+  shippedAt   DateTime?
+  receivedAt  DateTime?
+  rmaReason   String?
+  notes       String?
+  diagnostics DeviceDiagnosticReport[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([clubId, state])
+}
+
+model DeviceDiagnosticReport {
+  id           String               @id @default(cuid())
+  clubId       String
+  club         Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  inventoryId  String
+  inventory    DeviceInventoryEntry @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  kind         String
+  payload      Json
+  sha256       String
+  submittedBy  String?
+  submitter    User?                @relation("DiagnosticSubmitter", fields: [submittedBy], references: [id])
+  createdAt    DateTime             @default(now())
+
+  @@index([inventoryId])
+  @@index([clubId])
+}
+
+// ── Notifications registry ────────────────────────────────────────────────
+
+model UserNotificationChannel {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserNotificationChannels", fields: [userId], references: [id], onDelete: Cascade)
+  channel     String
+  target      String
+  preferences Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, channel, target])
+  @@index([userId, isActive])
+}
+
+// ── Report templates + runs ───────────────────────────────────────────────
+
+model OpsReportTemplate {
+  id          String         @id @default(cuid())
+  clubId      String?        // null = global (SUPER_ADMIN only)
+  club        Club?          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  code        String
+  label       String
+  definition  Json
+  isActive    Boolean        @default(true)
+  publishedBy String?
+  publisher   User?          @relation("ReportTemplatePublisher", fields: [publishedBy], references: [id])
+  runs        OpsReportRun[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([clubId, code])
+  @@index([isActive])
+}
+
+model OpsReportRun {
+  id          String            @id @default(cuid())
+  clubId      String?
+  club        Club?             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  templateId  String
+  template    OpsReportTemplate @relation(fields: [templateId], references: [id])
+  parameters  Json
+  outputHash  String?
+  runBy       String?
+  runner      User?             @relation("ReportRunRunner", fields: [runBy], references: [id])
+  startedAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  @@index([templateId])
+  @@index([clubId, startedAt])
+}
+
+// ── Governance: retention ─────────────────────────────────────────────────
+
+model DataRetentionPolicy {
+  id            String   @id @default(cuid())
+  clubId        String?
+  club          Club?    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  entityType    String
+  retentionDays Int
+  isActive      Boolean  @default(true)
+  publishedBy   String?
+  publisher     User?    @relation("RetentionPolicyPublisher", fields: [publishedBy], references: [id])
+  publishedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([clubId, entityType])
+}
+
+// ── Governance: GDPR ──────────────────────────────────────────────────────
+
+model GdprDataRequest {
+  id                String          @id @default(cuid())
+  clubId            String
+  club              Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  requestingUserId  String
+  requestingUser    User            @relation("GdprRequester", fields: [requestingUserId], references: [id])
+  subjectUserId     String?
+  subjectUser       User?           @relation("GdprSubjectUser", fields: [subjectUserId], references: [id])
+  subjectPlayerId   String?
+  subjectPlayer     Player?         @relation("GdprSubjectPlayer", fields: [subjectPlayerId], references: [id])
+  kind              GdprRequestKind
+  state             GdprRequestState @default(PENDING)
+  scope             Json?
+  payloadHash       String
+  resultRef         String?
+  rejectedReason    String?
+  processedAt       DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([clubId, state])
+  @@index([subjectUserId])
+  @@index([subjectPlayerId])
+}
+
+// ── Governance: consent ───────────────────────────────────────────────────
+
+model UserConsentRecord {
+  id          String       @id @default(cuid())
+  clubId      String
+  club        Club         @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation("UserConsentRecords", fields: [userId], references: [id], onDelete: Cascade)
+  playerId    String?
+  player      Player?      @relation("PlayerConsentRecords", fields: [playerId], references: [id])
+  scope       ConsentScope
+  granted     Boolean
+  payload     Json?
+  grantedBy   String?
+  granter     User?        @relation("ConsentGranter", fields: [grantedBy], references: [id])
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime     @default(now())
+
+  @@index([userId, scope])
+  @@index([clubId])
+}
+
+// ── Monitoring: health checks ─────────────────────────────────────────────
+
+model ProductionHealthCheck {
+  id          String           @id @default(cuid())
+  service     String
+  state       HealthCheckState
+  latencyMs   Int?
+  payload     Json?
+  capturedAt  DateTime         @default(now())
+
+  @@index([service, capturedAt])
+  @@index([state])
+}
+
+// ── Monitoring: alert rules ───────────────────────────────────────────────
+
+model ProductionAlertRule {
+  id             String         @id @default(cuid())
+  clubId         String?
+  club           Club?          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  code           String
+  label          String
+  expression     String
+  threshold      Float?
+  channelTargets Json?
+  state          AlertRuleState @default(ACTIVE)
+  firings        AlertFiring[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([clubId, code])
+}
+
+model AlertFiring {
+  id          String              @id @default(cuid())
+  ruleId      String
+  rule        ProductionAlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  clubId      String?
+  payload     Json?
+  firedAt     DateTime            @default(now())
+  resolvedAt  DateTime?
+
+  @@index([ruleId, firedAt])
+  @@index([clubId])
+}
+
+// ── Monitoring: backups ───────────────────────────────────────────────────
+
+model BackupRecord {
+  id             String     @id @default(cuid())
+  clubId         String?
+  club           Club?      @relation(fields: [clubId], references: [id])
+  kind           BackupKind @default(SCHEDULED)
+  ref            String
+  sizeBytes      BigInt?
+  sha256         String?
+  encryptionInfo String?
+  notes          String?
+  createdBy      String?
+  creator        User?      @relation("BackupCreator", fields: [createdBy], references: [id])
+  createdAt      DateTime   @default(now())
+
+  @@index([clubId, kind])
+  @@index([createdAt])
+}

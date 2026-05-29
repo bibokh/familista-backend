@@ -1,0 +1,40 @@
+// Familista — Phase P schema fragment
+// ─────────────────────────────────────────────────────────────────────────────
+// Target: prisma/schema.prisma   (append after the Phase O block)
+// Adds:   1 enum + 1 model — the in-app notification inbox.
+//
+// Prisma relations assume User and Club models exist in schema.prisma.
+//
+// Run after appending:
+//   npx prisma format --schema=prisma/schema.prisma
+//   npx prisma migrate dev --name phase_p_real_launch
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum UserNotificationKind {
+  SYSTEM
+  ATTENDANCE_REMINDER
+  PAYMENT_REMINDER
+  TRAINING_UPDATE
+  INJURY_ALERT
+  DEVICE_ALERT
+  GDPR_UPDATE
+}
+
+model UserNotification {
+  id         String                @id @default(cuid())
+  clubId     String
+  club       Club                  @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                  @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  kind       UserNotificationKind  @default(SYSTEM)
+  title      String
+  body       String?
+  payload    Json?
+  readAt     DateTime?
+  archived   Boolean               @default(false)
+  archivedAt DateTime?
+  createdAt  DateTime              @default(now())
+
+  @@index([userId, archived, createdAt])
+  @@index([clubId, createdAt])
+}

@@ -1,0 +1,93 @@
+.stat {
+  display: flex;
+  gap: var(--gap-md);
+  align-items: flex-start;
+}
+
+.icon {
+  width: 40px; height: 40px;
+  border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.body { flex: 1; min-width: 0; }
+
+.label {
+  font-size: 0.75rem;
+  color: var(--tx-3);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--tx);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.size-sm .value { font-size: 1.25rem; }
+.size-lg .value { font-size: 2.25rem; }
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.trend {
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.trend-up   { color: var(--green-bright); }
+.trend-down { color: var(--red); }
+.trend-flat { color: var(--tx-3); }
+
+.sub {
+  font-size: 0.75rem;
+  color: var(--tx-3);
+}
+
+/* Accent top-border */
+.accent-green  { border-top: 2px solid var(--green); }
+.accent-amber  { border-top: 2px solid var(--amber); }
+.accent-red    { border-top: 2px solid var(--red); }
+.accent-blue   { border-top: 2px solid var(--blue); }
+.accent-purple { border-top: 2px solid var(--purple); }
+.accent-cyan   { border-top: 2px solid var(--cyan); }
+.accent-default { border-top: 2px solid var(--border-2); }
+
+/* Pill */
+.pill {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  gap: 1px;
+}
+.pillLabel {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tx-3);
+  font-weight: 500;
+}
+.pillValue {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tx);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,72 @@
+/* ── Familista Design Tokens — mirrors frontend/index.html variables exactly ── */
+
+:root {
+  /* Surfaces */
+  --bg: #09090b;
+  --card: #111115;
+  --card-2: #18181c;
+  --card-hover: #1c1c21;
+  --popover: #1a1a1f;
+
+  /* Brand */
+  --green: #16a34a;
+  --green-dim: rgba(22, 163, 74, 0.15);
+  --green-hover: #15803d;
+  --green-bright: #22c55e;
+
+  /* Accent / status */
+  --amber: #f59e0b;
+  --amber-dim: rgba(245, 158, 11, 0.15);
+  --red: #ef4444;
+  --red-dim: rgba(239, 68, 68, 0.15);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59, 130, 246, 0.15);
+  --purple: #a855f7;
+  --purple-dim: rgba(168, 85, 247, 0.15);
+  --cyan: #06b6d4;
+  --cyan-dim: rgba(6, 182, 212, 0.15);
+
+  /* Text */
+  --tx: #fafafa;
+  --tx-2: #a1a1aa;
+  --tx-3: #71717a;
+  --tx-4: #52525b;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-2: rgba(255, 255, 255, 0.10);
+  --border-focus: rgba(22, 163, 74, 0.5);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Spacing */
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap-md: 16px;
+  --gap-lg: 24px;
+  --gap-xl: 32px;
+  --gap-2xl: 48px;
+
+  /* Radius */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+  /* Sidebar */
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+
+  /* Transition */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-fast: 120ms var(--ease);
+  --t-base: 200ms var(--ease);
+}
