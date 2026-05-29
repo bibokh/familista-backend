@@ -586,16 +586,60 @@ async function tryAutoLogin() {
 // ── Form-safe render guards ──────────────────────────────────────────────────
 // Prevents in-progress user input from being wiped by background re-renders.
 
-/** True while any .modal element has the 'open' class. */
+/** True while any .modal-bg element has the 'open' class. */
 function _isModalOpen() {
-  // Outer container class is 'modal-bg', not 'modal' — that's what gets .open
   return !!document.querySelector('.modal-bg.open');
 }
 
-/** True while the user is focused in a text/select/textarea input. */
-function _isUserTyping() {
+/**
+ * Master guard — returns true while the user is actively editing a form
+ * OR any modal is open.  Every background render function (poll timers, WS
+ * callbacks, data-load completions) calls this before replacing innerHTML so
+ * user input is never destroyed mid-type.
+ */
+function _isAnyFormEditing() {
+  // 1. Focused text / select input
   var ae = document.activeElement;
-  return !!(ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName) && !ae.readOnly && ae.type !== 'range');
+  if (ae) {
+    var tag = ae.tagName;
+    if (['INPUT', 'TEXTAREA', 'SELECT'].indexOf(tag) !== -1 &&
+        ae.type !== 'range' && ae.type !== 'checkbox' && ae.type !== 'radio') {
+      return true;
+    }
+    if (ae.isContentEditable) return true;
+  }
+  // 2. Any open modal (player-edit, injury-edit, training-edit, match-edit, etc.)
+  if (document.querySelector('.modal-bg.open')) return true;
+  return false;
+}
+
+/**
+ * Set by a guarded render when it had to skip due to _isAnyFormEditing().
+ * Flushed automatically when editing ends so the page catches up.
+ */
+var _pendingRefresh = false;
+
+/**
+ * Re-render the currently visible page after editing ends.
+ * Called on focusout (with a 150 ms debounce) and on every closeModal().
+ */
+function _flushPendingRender() {
+  if (!_pendingRefresh) return;
+  if (_isAnyFormEditing()) return;
+  _pendingRefresh = false;
+  var active = document.querySelector('.page.active');
+  if (!active) return;
+  var id = active.id || '';
+  if      (id === 'pg-squad')       renderSquad();
+  else if (id === 'pg-dashboard')   renderDashboard();
+  else if (id === 'pg-matches')     renderMatches();
+  else if (id === 'pg-training')    renderTrainingPage();
+  else if (id === 'pg-medical')     renderMedicalPage();
+  else if (id === 'pg-performance') renderPerformancePage();
+  else if (id === 'pg-analytics')   renderAnalyticsPage();
+  else if (id === 'pg-admin')       renderAdminPage();
+  else if (id === 'pg-stats')       siRenderTab();
+  else if (id === 'pg-transfer')    tiRenderTab();
 }
 
 /**
@@ -629,69 +673,10 @@ function _restoreFocusIn(container, saved) {
     try { el.setSelectionRange(saved.selStart, saved.selEnd); } catch (_) {}
   }
 }
-// ── Render tracer ─────────────────────────────────────────────────────────────
-// Visible on-screen badge + console output.
-// RED  = render fired while a modal is open OR user is typing  ← flicker source
-// GREEN = safe render
-// Silence: window.__RENDER_TRACE = false  |  Remove badge: document.getElementById('__render_dbg').remove()
-function _traceRender(name) {
-  if (window.__RENDER_TRACE === false) return;
-  var modal   = _isModalOpen();
-  var typing  = _isUserTyping();
-  var ae      = document.activeElement;
-  var focused = ae
-    ? (ae.tagName +
-       (ae.id      ? '#' + ae.id : '') +
-       (ae.name    ? '[' + ae.name + ']' : '') +
-       (ae.className ? '.' + String(ae.className).trim().split(/\s+/)[0] : ''))
-    : 'none';
-  var danger  = modal || typing;
-  var ts      = new Date().toISOString().slice(11, 23);
-  var stack   = (new Error().stack || '').split('\n').slice(2, 6)
-                  .map(function(l){ return l.trim(); }).join(' ← ');
-
-  // ── Console ──
-  var cs = danger
-    ? 'background:#DC2626;color:#fff;font-weight:bold;padding:1px 6px;border-radius:3px;'
-    : 'background:#15803D;color:#fff;padding:1px 6px;border-radius:3px;';
-  if (danger) {
-    console.warn('%c[RENDER] ' + name + '  ⚠️ FIRES DURING USER INPUT', cs,
-      { modal: modal, typing: typing, focused: focused, ts: ts },
-      '\ncall chain: ' + stack);
-  } else {
-    console.log('%c[RENDER] ' + name, cs,
-      { modal: modal, typing: typing, focused: focused, ts: ts });
-  }
-
-  // ── On-screen badge (bottom-right, always visible) ──
-  var bd = document.getElementById('__render_dbg');
-  if (!bd && document.body) {
-    bd = document.createElement('div');
-    bd.id = '__render_dbg';
-    document.body.appendChild(bd);
-  }
-  if (bd) {
-    var bg  = danger ? '#DC2626' : '#166534';
-    var bdr = danger ? '#FCA5A5' : '#4ADE80';
-    bd.style.cssText =
-      'position:fixed;bottom:12px;right:12px;z-index:2147483647;' +
-      'font-family:monospace;font-size:11px;line-height:1.55;' +
-      'padding:8px 12px;border-radius:8px;max-width:360px;' +
-      'pointer-events:none;box-shadow:0 2px 12px rgba(0,0,0,.55);' +
-      'background:' + bg + ';color:#fff;border:1px solid ' + bdr + ';';
-    bd.innerHTML =
-      '<b style="font-size:12px;">' + (danger ? '🔴' : '🟢') + ' RENDER TRACE</b><br>' +
-      '<span style="color:#fef08a;">' + name + '</span><br>' +
-      'modalOpen=<b>' + modal + '</b> &nbsp; typing=<b>' + typing + '</b><br>' +
-      'focus: ' + focused + '<br>' +
-      '<span style="opacity:.65;font-size:10px;">' + ts + '</span>';
-  }
-}
 // ────────────────────────────────────────────────────────────────────────────
 
 // ── NAVIGATION ──
 function navTo(page, el) {
-  _traceRender('navTo[' + page + ']');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -741,7 +726,10 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', State.isDark ? 'dark' : 'light');
 }
 
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  setTimeout(_flushPendingRender, 100);
+}
 
 // ── HELPERS ──
 function posClass(pos) {
@@ -904,7 +892,7 @@ function renderDashboardHTML() {
 }
 
 function renderDashboard() {
-  _traceRender('renderDashboard');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const d = State.analytics;
   if (!d) return;
 
@@ -1240,9 +1228,7 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
-  _traceRender('renderSquad');
-  // Guard: don't replace the squad grid while a modal is open (prevents background flash)
-  if (_isModalOpen()) return;
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -1770,7 +1756,7 @@ function renderMatchesHTML() {
 
 // Top-level orchestrator: paints the right view depending on sub-tab.
 function renderMatches() {
-  _traceRender('renderMatches');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const tab = _matchTab;
   if (tab === 'live')     return renderLiveSubTab();
   if (tab === 'tactical') return renderTacticalSubTab();
@@ -2239,7 +2225,6 @@ function setMatchModalTab(tab, el) {
 }
 
 function renderMatchModalTab() {
-  _traceRender('renderMatchModalTab[' + _matchModalTab + ']');
   const c = document.getElementById('match-modal-content');
   const m = State.activeMatch;
   if (!c || !m) return;
@@ -2712,8 +2697,8 @@ async function paintIntelligenceTab(c, m) {
   const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
   if (isLive) {
     _intelPollTimer = setInterval(() => {
-      _traceRender('⏱ _intelPollTimer');
       if (document.visibilityState !== 'visible') return;
+      if (_isAnyFormEditing()) return;
       if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
       if (Date.now() - _lastIntelUpdate < 25_000) return; // WS already delivered recently
       const cont = document.getElementById('match-modal-content');
@@ -3148,7 +3133,6 @@ function openMatchModalWS(matchId) {
 }
 
 function onMatchWSEvent(evt) {
-  _traceRender('onMatchWSEvent[' + (evt && evt.kind) + ']');
   const m = State.activeMatch; if (!m || evt.matchId !== m.id) return;
   // Phase 16+17+18 — intelligence push: partial-patch containers or full re-render
   if (evt.kind === 'INTEL_UPDATE' && evt.payload) {
@@ -3590,7 +3574,6 @@ function replayToggle() {
   if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
   if (_replayState.playing) {
     _replayState.timer = setInterval(() => {
-      _traceRender('⏱ _replayState.timer');
       if (_replayState.cursor >= _replayState.events.length) {
         _replayState.playing = false;
         if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
@@ -4094,7 +4077,7 @@ function setAnalyticsTab(tab, el) {
 }
 
 function renderAnalyticsPage() {
-  _traceRender('renderAnalyticsPage');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('analytics-content');
   if (!el) return;
   if (_analyticsTab === 'dashboard') _renderAnalyticsDashboard(el);
@@ -4787,8 +4770,7 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
-  _traceRender('renderTrainingPage');
-  if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('training-content');
   if (!el) return;
   if (_trainingTab === 'sessions')  renderTrainingSessions(el);
@@ -5214,8 +5196,7 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
-  _traceRender('renderMedicalPage');
-  if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('medical-content');
   if (!el) return;
   if (_medTab === 'dashboard') _renderMedDashboard(el);
@@ -5739,7 +5720,7 @@ function setPerfTab(tab, el) {
 }
 
 function renderPerformancePage() {
-  _traceRender('renderPerformancePage');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('perf-content');
   if (!el) return;
   if (_perfTab === 'dashboard') _renderPerfDashboard(el);
@@ -6983,9 +6964,8 @@ async function loadDevicesData() {
   }
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
-    _traceRender('⏱ _devPollTimer');
     if (document.visibilityState !== 'visible') return;
-    if (_isModalOpen() || _isUserTyping()) return;  // don't disrupt active user input
+    if (_isAnyFormEditing()) return;
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
@@ -7444,7 +7424,7 @@ function _adminRenderAudit() {
 }
 
 function renderAdminPage() {
-  _traceRender('renderAdminPage');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   var el = document.getElementById('admin-content');
   if (!el) return;
   if (State.admin._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -7721,7 +7701,7 @@ function _taiRenderWorkload() {
 }
 
 function renderTacticalAIPage() {
-  _traceRender('renderTacticalAIPage');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   var el = document.getElementById('tai-content');
   if (!el) return;
   if (State.tacticalAI._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -9137,7 +9117,6 @@ function tosTwinToggle() {
   if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
   if (TOS.state.twin.playing) {
     TOS.state.twin.timer = setInterval(() => {
-      _traceRender('⏱ TOS.twin.timer');
       const r = document.getElementById('tos-twin-range'); if (!r) return;
       const next = Math.min(100, parseInt(r.value, 10) + 1);
       r.value = next; tosTwinSeek(next);
@@ -9303,7 +9282,7 @@ function siTab(tab) {
 }
 
 function siRenderTab() {
-  _traceRender('siRenderTab');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const body = document.getElementById('si-body');
   if (!body) return;
   // Save focused input state — search/filter inputs live inside si-body and are
@@ -10121,7 +10100,7 @@ function tiSwitchTab(tab) {
 }
 
 function tiRenderTab() {
-  _traceRender('tiRenderTab');
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('ti-content');
   if (!el) return;
   var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
@@ -12134,6 +12113,22 @@ async function tosBoardSnapshot() {
       case 'submitPerfForm':     submitPerfForm(e);     break;
       case 'submitScoutForm':    submitScoutForm(e);    break;
       case 'tiSubmitAddTarget':  tiSubmitAddTarget(e);  break;
+    }
+  });
+
+  // ── Pending-refresh flush ────────────────────────────────────────────────────
+  // When the user finishes editing (focusout from a form input, or a modal closes
+  // via Escape / overlay click), flush any render that was deferred by _isAnyFormEditing().
+  document.addEventListener('focusout', function() {
+    setTimeout(_flushPendingRender, 150);
+  });
+  // Escape key closes whichever modal is open — flush immediately after.
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-bg.open').forEach(function(m) {
+        m.classList.remove('open');
+      });
+      setTimeout(_flushPendingRender, 100);
     }
   });
 })();
