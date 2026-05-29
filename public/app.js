@@ -628,10 +628,36 @@ function _restoreFocusIn(container, saved) {
     try { el.setSelectionRange(saved.selStart, saved.selEnd); } catch (_) {}
   }
 }
+// ── Render tracer ─────────────────────────────────────────────────────────────
+// Run `window.__RENDER_TRACE = false` in the console to silence.
+// RED  = render fired while modal is open OR user is typing (the flicker culprit)
+// GREEN = safe render
+function _traceRender(name) {
+  if (window.__RENDER_TRACE === false) return;
+  var modal   = _isModalOpen();
+  var typing  = _isUserTyping();
+  var ae      = document.activeElement;
+  var focused = ae
+    ? (ae.tagName + (ae.id ? '#' + ae.id : '') + (ae.className ? '.' + String(ae.className).trim().split(/\s+/)[0] : ''))
+    : 'none';
+  var danger  = modal || typing;
+  var badge   = danger
+    ? 'background:#EF4444;color:#fff;font-weight:bold;padding:1px 5px;border-radius:3px;'
+    : 'background:#15803D;color:#fff;padding:1px 5px;border-radius:3px;';
+  var msg     = '%c[RENDER] ' + name + (danger ? '  ⚠️ FIRES DURING USER INPUT' : '');
+  var info    = { modal: modal, typing: typing, focused: focused, ts: new Date().toISOString().slice(11,23) };
+  var stack   = (new Error().stack || '').split('\n').slice(2, 6).map(function(l){ return l.trim(); }).join(' ← ');
+  if (danger) {
+    console.warn(msg, badge, info, '\ncall chain: ' + stack);
+  } else {
+    console.log(msg, badge, info);
+  }
+}
 // ────────────────────────────────────────────────────────────────────────────
 
 // ── NAVIGATION ──
 function navTo(page, el) {
+  _traceRender('navTo[' + page + ']');
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -844,6 +870,7 @@ function renderDashboardHTML() {
 }
 
 function renderDashboard() {
+  _traceRender('renderDashboard');
   const d = State.analytics;
   if (!d) return;
 
@@ -1179,6 +1206,7 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
+  _traceRender('renderSquad');
   // Guard: don't replace the squad grid while a modal is open (prevents background flash)
   if (_isModalOpen()) return;
   filterPos = filterPos || 'ALL';
@@ -1708,6 +1736,7 @@ function renderMatchesHTML() {
 
 // Top-level orchestrator: paints the right view depending on sub-tab.
 function renderMatches() {
+  _traceRender('renderMatches');
   const tab = _matchTab;
   if (tab === 'live')     return renderLiveSubTab();
   if (tab === 'tactical') return renderTacticalSubTab();
@@ -2176,6 +2205,7 @@ function setMatchModalTab(tab, el) {
 }
 
 function renderMatchModalTab() {
+  _traceRender('renderMatchModalTab[' + _matchModalTab + ']');
   const c = document.getElementById('match-modal-content');
   const m = State.activeMatch;
   if (!c || !m) return;
@@ -2648,6 +2678,7 @@ async function paintIntelligenceTab(c, m) {
   const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
   if (isLive) {
     _intelPollTimer = setInterval(() => {
+      _traceRender('⏱ _intelPollTimer');
       if (document.visibilityState !== 'visible') return;
       if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
       if (Date.now() - _lastIntelUpdate < 25_000) return; // WS already delivered recently
@@ -3083,6 +3114,7 @@ function openMatchModalWS(matchId) {
 }
 
 function onMatchWSEvent(evt) {
+  _traceRender('onMatchWSEvent[' + (evt && evt.kind) + ']');
   const m = State.activeMatch; if (!m || evt.matchId !== m.id) return;
   // Phase 16+17+18 — intelligence push: partial-patch containers or full re-render
   if (evt.kind === 'INTEL_UPDATE' && evt.payload) {
@@ -3524,6 +3556,7 @@ function replayToggle() {
   if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
   if (_replayState.playing) {
     _replayState.timer = setInterval(() => {
+      _traceRender('⏱ _replayState.timer');
       if (_replayState.cursor >= _replayState.events.length) {
         _replayState.playing = false;
         if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
@@ -4027,6 +4060,7 @@ function setAnalyticsTab(tab, el) {
 }
 
 function renderAnalyticsPage() {
+  _traceRender('renderAnalyticsPage');
   const el = document.getElementById('analytics-content');
   if (!el) return;
   if (_analyticsTab === 'dashboard') _renderAnalyticsDashboard(el);
@@ -4719,6 +4753,7 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
+  _traceRender('renderTrainingPage');
   if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
   const el = document.getElementById('training-content');
   if (!el) return;
@@ -5145,6 +5180,7 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
+  _traceRender('renderMedicalPage');
   if (_isModalOpen()) return;  // guard: don't re-render while a form modal is open
   const el = document.getElementById('medical-content');
   if (!el) return;
@@ -5669,6 +5705,7 @@ function setPerfTab(tab, el) {
 }
 
 function renderPerformancePage() {
+  _traceRender('renderPerformancePage');
   const el = document.getElementById('perf-content');
   if (!el) return;
   if (_perfTab === 'dashboard') _renderPerfDashboard(el);
@@ -6912,6 +6949,7 @@ async function loadDevicesData() {
   }
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
+    _traceRender('⏱ _devPollTimer');
     if (document.visibilityState !== 'visible') return;
     if (_isModalOpen() || _isUserTyping()) return;  // don't disrupt active user input
     const grid = document.getElementById('dev-grid');
@@ -7372,6 +7410,7 @@ function _adminRenderAudit() {
 }
 
 function renderAdminPage() {
+  _traceRender('renderAdminPage');
   var el = document.getElementById('admin-content');
   if (!el) return;
   if (State.admin._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -7648,6 +7687,7 @@ function _taiRenderWorkload() {
 }
 
 function renderTacticalAIPage() {
+  _traceRender('renderTacticalAIPage');
   var el = document.getElementById('tai-content');
   if (!el) return;
   if (State.tacticalAI._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -9063,6 +9103,7 @@ function tosTwinToggle() {
   if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
   if (TOS.state.twin.playing) {
     TOS.state.twin.timer = setInterval(() => {
+      _traceRender('⏱ TOS.twin.timer');
       const r = document.getElementById('tos-twin-range'); if (!r) return;
       const next = Math.min(100, parseInt(r.value, 10) + 1);
       r.value = next; tosTwinSeek(next);
@@ -9228,6 +9269,7 @@ function siTab(tab) {
 }
 
 function siRenderTab() {
+  _traceRender('siRenderTab');
   const body = document.getElementById('si-body');
   if (!body) return;
   // Save focused input state — search/filter inputs live inside si-body and are
@@ -10045,6 +10087,7 @@ function tiSwitchTab(tab) {
 }
 
 function tiRenderTab() {
+  _traceRender('tiRenderTab');
   const el = document.getElementById('ti-content');
   if (!el) return;
   var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
