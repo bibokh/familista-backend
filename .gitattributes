@@ -1,0 +1,4 @@
+# Shell scripts and SQL run on Render's Linux — force LF so a Windows
+# checkout (core.autocrlf=true) can never introduce CRLF that breaks them.
+*.sh  text eol=lf
+*.sql text eol=lf
