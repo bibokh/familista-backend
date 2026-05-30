@@ -329,10 +329,12 @@ const BackendHealth = (function () {
     } catch (_) { return false; }
   }
 
-  // Returns true while any modal overlay is visible — used to suppress health
-  // pings and banner DOM mutations that can steal focus from open forms.
+  // Delegates to the one global guard so health pings / banner mutations are
+  // suppressed whenever any editing UI is active (modal, drawer, focused field).
   function _modalIsOpen() {
-    return !!document.querySelector('.modal-bg.open');
+    return (typeof isEditingUIActive === 'function')
+      ? isEditingUIActive()
+      : !!document.querySelector('.modal-bg.open');
   }
 
   async function check(initial) {
@@ -602,23 +604,31 @@ async function tryAutoLogin() {
 // even during focus transitions, where document.activeElement briefly parks on
 // <body> and a naive .modal-bg.open / activeElement check would read false.
 
-/** True while any modal overlay is open. */
-function _isModalOpen() {
-  return document.body.classList.contains('app-editing')
-      || !!document.querySelector('.modal-bg.open');
-}
-
 /**
- * Master guard. True while a modal is open OR a form control is focused.
- * Every background render / poll / WS callback checks this before touching
- * the DOM, so typing is never interrupted by a re-render.
+ * ── THE single global guard ───────────────────────────────────────────────
+ * isEditingUIActive() — true whenever any editing UI is open OR the user is
+ * interacting with a form control. EVERY background render / navigation / poll
+ * / WS / SSE entry point checks this before replacing innerHTML, so nothing the
+ * user is looking at or typing into is ever torn down underneath them.
+ *
+ * Returns true when:
+ *   • any .modal-bg.open exists (every modal / card detail / edit drawer)
+ *   • body has the observer-maintained 'app-editing' flag
+ *   • any open edit panel / drawer (defensive, non-.modal-bg variants)
+ *   • activeElement is INPUT / TEXTAREA / SELECT / contenteditable
+ *
+ * NOTE: BUTTON is intentionally excluded from the focus check — filter pills,
+ * tab buttons and nav buttons are themselves the legitimate triggers of a
+ * re-render, so treating a focused button as "editing" would break them.
  */
-function isFormEditing() {
-  // 1. Explicit flag maintained by the modal observer (primary truth)
+function isEditingUIActive() {
+  // 1. Observer-maintained flag (primary truth, survives focus transitions)
   if (document.body.classList.contains('app-editing')) return true;
-  // 2. Direct query backstop (covers the first paint before the observer syncs)
+  // 2. Any modal / card detail / edit drawer overlay
   if (document.querySelector('.modal-bg.open')) return true;
-  // 3. Any focused form control anywhere (inline filters, search, AI chat…)
+  // 3. Defensive: any open edit panel / drawer that isn't a .modal-bg
+  if (document.querySelector('.drawer.open, .edit-panel.open, [id*="edit"][class*="open"], [id*="drawer"][class*="open"]')) return true;
+  // 4. Any focused text/select control (inline filters, search, AI chat, forms)
   var ae = document.activeElement;
   if (ae && ae !== document.body) {
     var tag = ae.tagName;
@@ -627,8 +637,11 @@ function isFormEditing() {
   }
   return false;
 }
-// Back-compat alias — used throughout the file.
-function _isAnyFormEditing() { return isFormEditing(); }
+
+// Aliases — all existing call sites delegate to the one central guard.
+function _isModalOpen()      { return isEditingUIActive(); }
+function isFormEditing()     { return isEditingUIActive(); }
+function _isAnyFormEditing() { return isEditingUIActive(); }
 
 /**
  * Keep document.body.classList('app-editing') synchronised with the real DOM.
@@ -719,6 +732,9 @@ function _restoreFocusIn(container, saved) {
 
 // ── NAVIGATION ──
 function navTo(page, el) {
+  // Global guard: never switch pages / rebuild containers while an editing UI
+  // (modal, card detail, edit drawer, or focused form control) is active.
+  if (isEditingUIActive()) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 

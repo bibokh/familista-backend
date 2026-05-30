@@ -2299,7 +2299,9 @@ const BackendHealth = (function () {
   }
 
   function _modalIsOpen() {
-    return !!document.querySelector('.modal-bg.open');
+    return (typeof isEditingUIActive === 'function')
+      ? isEditingUIActive()
+      : !!document.querySelector('.modal-bg.open');
   }
 
   async function check(initial) {
@@ -2570,13 +2572,11 @@ async function tryAutoLogin() {
 // body.app-editing is the single source of truth, kept in lock-step with the
 // DOM by a MutationObserver on every .modal-bg. Reliable even during focus
 // transitions where activeElement briefly parks on <body>.
-function _isModalOpen() {
-  return document.body.classList.contains('app-editing')
-      || !!document.querySelector('.modal-bg.open');
-}
-function isFormEditing() {
+// ── THE single global guard ───────────────────────────────────────────────
+function isEditingUIActive() {
   if (document.body.classList.contains('app-editing')) return true;
   if (document.querySelector('.modal-bg.open')) return true;
+  if (document.querySelector('.drawer.open, .edit-panel.open, [id*="edit"][class*="open"], [id*="drawer"][class*="open"]')) return true;
   var ae = document.activeElement;
   if (ae && ae !== document.body) {
     var tag = ae.tagName;
@@ -2585,7 +2585,9 @@ function isFormEditing() {
   }
   return false;
 }
-function _isAnyFormEditing() { return isFormEditing(); }
+function _isModalOpen()      { return isEditingUIActive(); }
+function isFormEditing()     { return isEditingUIActive(); }
+function _isAnyFormEditing() { return isEditingUIActive(); }
 (function _wireModalState() {
   function sync() {
     var open = !!document.querySelector('.modal-bg.open');
@@ -2642,6 +2644,7 @@ function _restoreFocusIn(container, saved) {
 
 // ── NAVIGATION ──
 function navTo(page, el) {
+  if (isEditingUIActive()) return;  // never rebuild a page while editing UI is active
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
