@@ -73,18 +73,17 @@ export interface ClubBrandPatch {
   accentColor?: string;
 }
 
-// NOTE: The Phase-R Club-profile columns (description, addressLine, region,
-// postalCode, contactEmail, contactPhone, websiteUrl, socialLinks) are NOT
-// present on the production Club table — the additive migration never ran. So
-// this service must only read/write the original Club columns; the Phase-R
-// fields are surfaced as null in the DTO and never selected or written, which
-// keeps the endpoint working until the migration is applied.
+// The Phase-R Club-profile columns now exist in production (migration
+// 20260531000000_club_profile_fields applied via the predeploy hook), so the
+// service reads and writes them normally.
 function toProfile(club: {
   id: string; name: string; shortName: string | null; emblem: string | null;
-  founded: Date | null; stadium: string | null;
+  description: string | null; founded: Date | null; stadium: string | null;
   capacity: number | null; city: string | null; country: string | null;
+  addressLine: string | null; region: string | null; postalCode: string | null;
   level: number; overallRating: number; leaguePosition: number | null;
-  fanClub: string | null;
+  fanClub: string | null; contactEmail: string | null; contactPhone: string | null;
+  websiteUrl: string | null; socialLinks: unknown;
   whiteLabel: {
     logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null;
     primaryColor: string | null; secondaryColor: string | null; accentColor: string | null;
@@ -95,24 +94,23 @@ function toProfile(club: {
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
+    description: club.description,
     founded: club.founded,
     stadium: club.stadium,
     capacity: club.capacity,
     city: club.city,
     country: club.country,
+    addressLine: club.addressLine,
+    region: club.region,
+    postalCode: club.postalCode,
     level: club.level,
     overallRating: club.overallRating,
     leaguePosition: club.leaguePosition,
     fanClub: club.fanClub,
-    // Phase-R columns absent in prod DB — always null until migration applied.
-    description: null,
-    addressLine: null,
-    region: null,
-    postalCode: null,
-    contactEmail: null,
-    contactPhone: null,
-    websiteUrl: null,
-    socialLinks: null,
+    contactEmail: club.contactEmail,
+    contactPhone: club.contactPhone,
+    websiteUrl: club.websiteUrl,
+    socialLinks: club.socialLinks ?? null,
     branding: {
       logoUrl: club.whiteLabel?.logoUrl ?? null,
       logoDarkUrl: club.whiteLabel?.logoDarkUrl ?? null,
@@ -125,14 +123,14 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  // Explicit select (NOT include) limited to columns that exist in production.
-  // The Phase-R columns are intentionally omitted (their migration never ran).
   const club = await prisma.club.findUnique({
     where: { id: clubId },
     select: {
-      id: true, name: true, shortName: true, emblem: true,
+      id: true, name: true, shortName: true, emblem: true, description: true,
       founded: true, stadium: true, capacity: true, city: true, country: true,
+      addressLine: true, region: true, postalCode: true,
       level: true, overallRating: true, leaguePosition: true, fanClub: true,
+      contactEmail: true, contactPhone: true, websiteUrl: true, socialLinks: true,
       whiteLabel: {
         select: {
           logoUrl: true, logoDarkUrl: true, faviconUrl: true,
@@ -161,16 +159,13 @@ export async function updateClubProfile(
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
   if (Object.keys(core).length > 0) {
-    const data = { ...core } as Record<string, unknown>;
-    // Phase-R columns are absent on the production Club table — never write
-    // them (their migration never ran). Strip all of them, including socialLinks.
-    for (const k of ['description', 'addressLine', 'region', 'postalCode',
-      'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']) {
-      delete data[k];
+    // Nullable JSON column needs Prisma.JsonNull, not literal null.
+    const { socialLinks, ...rest } = core;
+    const data: Prisma.ClubUpdateInput = { ...rest };
+    if (socialLinks !== undefined) {
+      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
     }
-    if (Object.keys(data).length > 0) {
-      ops.push(prisma.club.update({ where: { id: clubId }, data: data as Prisma.ClubUpdateInput }));
-    }
+    ops.push(prisma.club.update({ where: { id: clubId }, data }));
   }
 
   if (Object.keys(brand).length > 0) {
