@@ -457,11 +457,14 @@ async function bootApp() {
 
   // Update user info in sidebar
   if (State.user) {
-    const initials = (State.user.firstName[0] + State.user.lastName[0]).toUpperCase();
-    document.getElementById('user-av').textContent    = initials;
-    document.getElementById('user-name').textContent  = `${State.user.firstName} ${State.user.lastName}`;
-    document.getElementById('user-email').textContent = State.user.role.replace('_', ' ');
-    document.getElementById('nav-club-meta').textContent = `${State.user.clubId ? 'Berlin · Manager' : ''}`;
+    // /auth/me may return a user without firstName/lastName — fall back safely
+    // so bootApp never throws (which would abort renderAllPages below).
+    const initials = ((State.user?.firstName?.[0]) || (State.user?.lastName?.[0]) || (State.user?.email?.[0]) || 'U').toUpperCase();
+    const fullName = [State.user.firstName, State.user.lastName].filter(Boolean).join(' ').trim() || State.user.email || 'User';
+    const avEl   = document.getElementById('user-av');       if (avEl)   avEl.textContent   = initials;
+    const nameEl = document.getElementById('user-name');     if (nameEl) nameEl.textContent = fullName;
+    const roleEl = document.getElementById('user-email');    if (roleEl) roleEl.textContent = (State.user.role || '').replace('_', ' ');
+    const metaEl = document.getElementById('nav-club-meta'); if (metaEl) metaEl.textContent = State.user.clubId ? 'Berlin · Manager' : '';
   }
 
   // Render all pages
@@ -8920,19 +8923,13 @@ function tosOnSportChange(s) {
 
 // ── Live matches list ───────────────────────────────────────────────────
 async function tosRefreshMatches() {
+  // The backend validator rejects a comma-separated status list (400), so we
+  // fetch without a status filter and prioritise LIVE/HALFTIME/SCHEDULED below.
   let matches = [];
   try {
-    const res = await FamilistaAPI.get('/matches?status=LIVE,HALFTIME,SCHEDULED&limit=30');
+    const res = await FamilistaAPI.get('/matches?limit=30');
     matches = (res && res.data && (res.data.items || res.data)) || [];
   } catch (_) { matches = []; }
-
-  // Fallback: pull all matches if the status filter is unsupported.
-  if (!matches.length) {
-    try {
-      const res = await FamilistaAPI.get('/matches?limit=30');
-      matches = (res && res.data && (res.data.items || res.data)) || [];
-    } catch (_) {}
-  }
 
   // Prioritise LIVE / HALFTIME / SCHEDULED.
   const order = { LIVE: 0, HALFTIME: 1, SCHEDULED: 2, FINISHED: 3, ABANDONED: 4 };
@@ -8940,8 +8937,11 @@ async function tosRefreshMatches() {
   TOS.state.matches = matches;
 
   const liveCount = matches.filter(m => m.status === 'LIVE' || m.status === 'HALFTIME').length;
-  document.getElementById('tos-live-count').textContent = liveCount;
-  document.getElementById('tos-match-list').innerHTML = matches.slice(0, 10).map(m => {
+  const liveCountEl = document.getElementById('tos-live-count');
+  if (liveCountEl) liveCountEl.textContent = liveCount;
+  const matchListEl = document.getElementById('tos-match-list');
+  if (!matchListEl) return;
+  matchListEl.innerHTML = matches.slice(0, 10).map(m => {
     const isLive = m.status === 'LIVE' || m.status === 'HALFTIME';
     return `<li onclick="tosSelectMatch('${m.id}')" data-id="${m.id}">
       <div style="width:6px;height:6px;border-radius:50%;background:${isLive ? 'var(--tos-neon-green)' : 'var(--tos-tx-3)'};${isLive ? 'box-shadow:var(--tos-glow-green);' : ''}"></div>
