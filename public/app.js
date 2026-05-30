@@ -1589,6 +1589,12 @@ function openAddPlayerModal() {
 function openEditPlayerModal(id) {
   if (!id) return;
   if (!canManagePlayers()) { showToast('Not authorized to edit players', 'error'); return; }
+  // Re-entry guard: the only caller is the Edit button in the detail modal,
+  // which is closed during editing. If the edit modal is already open, a repeat
+  // invocation would reset the form (wiping in-progress input) and churn modal
+  // .open state. Make it a no-op so an active edit is never disturbed.
+  var _editM = document.getElementById('player-edit-modal');
+  if (_editM && _editM.classList.contains('open')) return;
   const p = (State.players || []).find(x => x.id === id) || State.activePlayer;
   if (!p) { showToast('Player not loaded', 'error'); return; }
 

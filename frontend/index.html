@@ -3493,6 +3493,10 @@ function openAddPlayerModal() {
 function openEditPlayerModal(id) {
   if (!id) return;
   if (!canManagePlayers()) { showToast('Not authorized to edit players', 'error'); return; }
+  // Re-entry guard: no-op if the edit modal is already open (prevents form reset
+  // and modal-state churn while an edit is in progress).
+  var _editM = document.getElementById('player-edit-modal');
+  if (_editM && _editM.classList.contains('open')) return;
   const p = (State.players || []).find(x => x.id === id) || State.activePlayer;
   if (!p) { showToast('Player not loaded', 'error'); return; }
 
