@@ -146,7 +146,9 @@ function mapHttpStatus(status, body, url) {
 }
 
 // ── Network logger (structured groups) ────────────────────────────────────
+// Silent by default. Enable in DevTools with:  window.__NET_LOG = true
 function netLog(kind, payload) {
+  if (!(typeof window !== 'undefined' && window.__NET_LOG)) return;
   try {
     const stamp = new Date().toISOString().slice(11, 23);
     if (kind === 'req')  console.log('%c[net→] ' + stamp + '  ' + payload.method + ' ' + payload.url, 'color:#22C55E;font-weight:600;');
@@ -1213,17 +1215,14 @@ const SquadAPI = {
   },
   create(body) {
     const url = SQUAD_API_BASE;
-    console.log('CREATE_PLAYER_URL', url);
     return SquadAPI._fetch('POST', url, body);
   },
   update(id, body) {
     const url = SQUAD_API_BASE + '/' + encodeURIComponent(id);
-    console.log('UPDATE_PLAYER_URL', url);
     return SquadAPI._fetch('PUT', url, body);
   },
   remove(id) {
     const url = SQUAD_API_BASE + '/' + encodeURIComponent(id);
-    console.log('DELETE_PLAYER_URL', url);
     return SquadAPI._fetch('DELETE', url);
   },
   async _fetch(method, url, body, _retried) {
@@ -1787,7 +1786,7 @@ const MatchAPI = {
     return FamilistaAPI.get('/matches' + q);
   },
   get(id)                     { return FamilistaAPI.get('/matches/' + id); },
-  create(body)                { console.log('CREATE_MATCH_URL', MATCHES_API_BASE); return FamilistaAPI.post('/matches', body); },
+  create(body)                { return FamilistaAPI.post('/matches', body); },
   update(id, body)            { return FamilistaAPI.patch('/matches/' + id, body); },
   remove(id, reason)          { return FamilistaAPI.delete('/matches/' + id, { body: reason ? { reason } : undefined }); },
   // Live state
@@ -8255,7 +8254,6 @@ function showQuantumTab(tab, el) {
 }
 
 function quantumOpenPlayerModal(id) {
-  console.log('[Intelligence] open detail', id);
   openPlayerModal(id);
 }
 
