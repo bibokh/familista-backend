@@ -1240,8 +1240,8 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
-  console.warn('[RENDER]', 'renderSquad', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderSquad'); _pendingRefresh = true; return; }
+  console.error('[SOURCE]', 'renderSquad', new Error().stack);
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -1769,8 +1769,8 @@ function renderMatchesHTML() {
 
 // Top-level orchestrator: paints the right view depending on sub-tab.
 function renderMatches() {
-  console.warn('[RENDER]', 'renderMatches', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderMatches'); _pendingRefresh = true; return; }
+  console.error('[SOURCE]', 'renderMatches', new Error().stack);
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const tab = _matchTab;
   if (tab === 'live')     return renderLiveSubTab();
   if (tab === 'tactical') return renderTacticalSubTab();
@@ -2218,6 +2218,7 @@ async function liveAction(kind) {
 }
 
 async function refreshActiveMatch() {
+  console.error('[SOURCE]', 'refreshActiveMatch', new Error().stack);
   const id = State.activeMatch && State.activeMatch.id; if (!id) return;
   try {
     const res = await MatchAPI.get(id);
@@ -2239,7 +2240,7 @@ function setMatchModalTab(tab, el) {
 }
 
 function renderMatchModalTab() {
-  console.warn('[RENDER]', 'renderMatchModalTab[' + _matchModalTab + ']', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  console.error('[SOURCE]', 'renderMatchModalTab[' + _matchModalTab + ']', new Error().stack);
   const c = document.getElementById('match-modal-content');
   const m = State.activeMatch;
   if (!c || !m) return;
@@ -3277,7 +3278,7 @@ function parseSSEDataSafe(e) {
 }
 
 function repaintLivePanelsIfVisible() {
-  console.warn('[TIMER]', 'repaintLivePanelsIfVisible', '| tab:', _matchModalTab, '| modal:', !!document.querySelector('.modal-bg.open'));
+  console.error('[SOURCE]', 'repaintLivePanelsIfVisible', new Error().stack);
   if (_matchModalTab === 'live'   || _matchModalTab === 'fusion') renderMatchModalTab();
 }
 
@@ -4789,8 +4790,8 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
-  console.warn('[RENDER]', 'renderTrainingPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderTrainingPage'); _pendingRefresh = true; return; }
+  console.error('[SOURCE]', 'renderTrainingPage', new Error().stack);
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('training-content');
   if (!el) return;
   if (_trainingTab === 'sessions')  renderTrainingSessions(el);
@@ -5216,8 +5217,8 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
-  console.warn('[RENDER]', 'renderMedicalPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderMedicalPage'); _pendingRefresh = true; return; }
+  console.error('[SOURCE]', 'renderMedicalPage', new Error().stack);
+  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('medical-content');
   if (!el) return;
   if (_medTab === 'dashboard') _renderMedDashboard(el);
