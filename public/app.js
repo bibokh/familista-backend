@@ -552,6 +552,16 @@ function doLogout() {
 // The access_token HttpOnly cookie is sent automatically; the server validates
 // it and returns the current user profile. No localStorage involved.
 async function tryAutoLogin() {
+  // One-time cleanup of orphaned tokens from the pre-cookie auth model.
+  // Older builds stored JWTs in localStorage (fam_token / fam_refresh / fam_user).
+  // This build authenticates via HttpOnly cookies + in-memory State.token and
+  // never reads them, so any lingering values are stale/expired. Purge them so
+  // they can never be mistaken for — or injected as — a live session.
+  try {
+    localStorage.removeItem('fam_token');
+    localStorage.removeItem('fam_refresh');
+    localStorage.removeItem('fam_user');
+  } catch (_) {}
   try {
     const res = await fetch(API_BASE + '/auth/me', {
       credentials: 'include',
