@@ -346,10 +346,10 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-hdr">
       <div class="modal-title" id="player-edit-title">Add Player</div>
-      <button class="modal-close" data-close-modal="player-edit-modal">✕</button>
+      <button class="modal-close" data-action="playerEditCancel">✕</button>
     </div>
     <div class="modal-body" style="padding:18px;">
-      <form id="player-edit-form" data-form-submit="submitPlayerForm" autocomplete="off">
+      <form id="player-edit-form" autocomplete="off">
         <input type="hidden" id="pe-id" />
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
           <div>
@@ -498,8 +498,8 @@
 
         <div id="pe-error" style="margin-top:12px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--bd);padding-top:14px;">
-          <button type="button" class="btn btn-outline btn-sm" data-close-modal="player-edit-modal">Cancel</button>
-          <button type="submit" class="btn btn-primary btn-sm" id="pe-submit">Create player</button>
+          <button type="button" class="btn btn-outline btn-sm" data-action="playerEditCancel">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="pe-submit" data-action="playerEditSave">Create player</button>
         </div>
       </form>
     </div>
@@ -863,6 +863,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260530b" defer></script>
+<script src="/app.js?v=20260530c" defer></script>
 </body>
 </html>

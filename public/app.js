@@ -1556,169 +1556,187 @@ async function loadPlayerAIAnalysis(playerId) {
   }
 }
 
-// Populate the <select id="pe-team"> from AppContext.teams() each time the
-// modal opens. Defaults to the currently active team (if any).
-function populatePlayerTeamSelect(selectedTeamId) {
-  const sel = document.getElementById('pe-team');
-  if (!sel) return;
-  const teams = (typeof AppContext !== 'undefined' && AppContext.teams()) || [];
-  sel.innerHTML = '<option value="">— Unassigned —</option>' + teams.map(t =>
-    '<option value="' + t.id + '">' + (t.shortName ? t.shortName + ' · ' : '') + t.name + '</option>'
-  ).join('');
-  const target = selectedTeamId || (typeof AppContext !== 'undefined' && AppContext.activeTeamId()) || '';
-  sel.value = target || '';
-}
+// ════════════════════════════════════════════════════════════════════════
+// PlayerEditModal — isolated add/edit player modal.
+//
+// Owns the form inputs as its draft. Field values are written exactly ONCE, in
+// open(), before the user can type — and are never touched again until close.
+// There is no form.reset(), no refill-on-render, and no reopen while already
+// open, so the cursor never jumps and typed input is never replaced. "Open" is
+// derived from the DOM (.open class) so every close path (Save / Cancel / ✕ /
+// Esc) stays consistent. Save is explicit; Cancel discards; after Save the
+// modal closes and the squad refreshes exactly once.
+// ════════════════════════════════════════════════════════════════════════
+const PlayerEditModal = (function () {
+  const MODAL_ID = 'player-edit-modal';
+  const $ = (id) => document.getElementById(id);
+  const isoDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
 
+  let _mode = null;       // 'create' | 'edit'
+  let _playerId = null;
+
+  function isOpen() {
+    const m = $(MODAL_ID);
+    return !!(m && m.classList.contains('open'));
+  }
+
+  function fillTeamSelect(selectedTeamId) {
+    const sel = $('pe-team');
+    if (!sel) return;
+    const teams = (typeof AppContext !== 'undefined' && AppContext.teams()) || [];
+    sel.innerHTML = '<option value="">— Unassigned —</option>' + teams.map(function (t) {
+      return '<option value="' + t.id + '">' + (t.shortName ? t.shortName + ' · ' : '') + _esc(t.name) + '</option>';
+    }).join('');
+    sel.value = selectedTeamId || (typeof AppContext !== 'undefined' && AppContext.activeTeamId()) || '';
+  }
+
+  // Write every field's initial value. Called ONLY from open(), before typing.
+  // p === null → create-mode defaults.
+  function populate(p) {
+    const set = (id, v) => { const el = $(id); if (el) el.value = (v == null ? '' : v); };
+    set('pe-id',           p ? p.id : '');
+    set('pe-firstName',    p && p.firstName);
+    set('pe-lastName',     p && p.lastName);
+    set('pe-number',       p && p.number);
+    set('pe-position',     p ? p.position : '');
+    set('pe-nationality',  p && p.nationality);
+    set('pe-flag',         p && p.flag);
+    set('pe-dob',          p ? isoDate(p.dateOfBirth) : '');
+    set('pe-foot',         (p && p.preferredFoot) || 'RIGHT');
+    set('pe-height',       p && p.height);
+    set('pe-weight',       p && p.weight);
+    set('pe-overall',      p && p.overallRating);
+    set('pe-potential',    p && p.potential);
+    set('pe-mvalue',       p && p.marketValue);
+    set('pe-wage',         p && p.weeklyWage);
+    set('pe-contract',     p ? isoDate(p.contractUntil) : '');
+    set('pe-email',        p && p.email);
+    set('pe-joined',       p ? isoDate(p.joinedAt) : '');
+    set('pe-parent-name',  p && p.parentName);
+    set('pe-parent-email', p && p.parentEmail);
+    set('pe-parent-phone', p && p.parentPhone);
+    set('pe-medical',      (p && p.medicalStatus) || 'HEALTHY');
+    set('pe-payment',      (p && p.paymentStatus) || 'PAID');
+    set('pe-isactive',     p ? (p.isActive === false ? 'false' : 'true') : 'true');
+    set('pe-notes',        p && p.notes);
+    fillTeamSelect(p && p.teamId);
+  }
+
+  function open(player) {
+    if (!canManagePlayers()) { showToast('Not authorized to manage players', 'error'); return; }
+    if (isOpen()) return;                                  // never reopen while open
+    const editing = !!(player && player.id);
+    _mode = editing ? 'edit' : 'create';
+    _playerId = editing ? player.id : null;
+
+    $('player-edit-title').textContent = editing
+      ? 'Edit · ' + ((player.firstName || '') + ' ' + (player.lastName || '')).trim()
+      : 'Add Player';
+    const sb = $('pe-submit');
+    if (sb) { sb.disabled = false; sb.textContent = editing ? 'Save changes' : 'Create player'; }
+    const err = $('pe-error'); if (err) { err.style.display = 'none'; err.textContent = ''; }
+
+    populate(editing ? player : null);                     // ← the ONLY place values are written
+
+    const detail = $('player-modal'); if (detail) detail.classList.remove('open'); // close the launch modal
+    $(MODAL_ID).classList.add('open');
+    setTimeout(function () { const f = $('pe-firstName'); if (f) f.focus(); }, 60);
+  }
+
+  function close() {
+    _mode = null; _playerId = null;
+    const m = $(MODAL_ID); if (m) m.classList.remove('open');
+  }
+
+  function cancel() { close(); }                            // discard, no save
+
+  async function save() {
+    if (!isOpen()) return;                                  // only the visible modal can save
+    const errEl = $('pe-error');
+    const btn   = $('pe-submit');
+    const val = (id) => { const el = $(id); return el ? el.value : ''; };
+    const num = (v) => v === '' || v == null ? undefined : Number(v);
+    const str = (v) => (v == null ? '' : String(v)).trim();
+
+    const body = {
+      firstName:     str(val('pe-firstName')),
+      lastName:      str(val('pe-lastName')),
+      number:        Number(val('pe-number')),
+      position:      val('pe-position'),
+      nationality:   str(val('pe-nationality')),
+      flag:          str(val('pe-flag')),
+      dateOfBirth:   val('pe-dob'),
+      preferredFoot: val('pe-foot') || 'RIGHT',
+      height:        Number(val('pe-height')),
+      weight:        Number(val('pe-weight')),
+      overallRating: num(val('pe-overall')),
+      potential:     num(val('pe-potential')),
+      marketValue:   num(val('pe-mvalue')),
+      weeklyWage:    num(val('pe-wage')),
+      email:         str(val('pe-email')),
+      parentName:    str(val('pe-parent-name')),
+      parentEmail:   str(val('pe-parent-email')),
+      parentPhone:   str(val('pe-parent-phone')),
+      medicalStatus: val('pe-medical') || 'HEALTHY',
+      paymentStatus: val('pe-payment') || 'PAID',
+      isActive:      val('pe-isactive') === 'false' ? false : true,
+      notes:         str(val('pe-notes')),
+    };
+    const contract = val('pe-contract'); if (contract) body.contractUntil = contract;
+    const joined   = val('pe-joined');   if (joined)   body.joinedAt = joined;
+    const teamSel  = $('pe-team');       if (teamSel)  body.teamId = teamSel.value || null;
+    Object.keys(body).forEach(function (k) {
+      if (body[k] === undefined || (typeof body[k] === 'string' && body[k] === '') || Number.isNaN(body[k])) delete body[k];
+    });
+
+    const editing = _mode === 'edit';
+    const id = _playerId;
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (btn) { btn.disabled = true; btn.textContent = editing ? 'Saving…' : 'Creating…'; }
+
+    try {
+      let saved = null;
+      if (editing) {
+        const res = await SquadAPI.update(id, body);
+        saved = res && res.data;
+        if (saved) {
+          const idx = (State.players || []).findIndex(function (x) { return x.id === id; });
+          if (idx !== -1) State.players[idx] = Object.assign({}, State.players[idx], saved);
+          if (State.activePlayer && State.activePlayer.id === id) State.activePlayer = Object.assign({}, State.activePlayer, saved);
+        }
+      } else {
+        const res = await SquadAPI.create(body);
+        saved = res && res.data;
+        if (saved) { if (!Array.isArray(State.players)) State.players = []; State.players.unshift(saved); }
+      }
+      close();                                              // close first…
+      renderSquad();                                        // …then refresh the squad once
+      showToast(editing ? 'Player updated' : 'Player created', 'success');
+    } catch (err) {
+      if (errEl) { errEl.textContent = (err && err.message) || 'Save failed'; errEl.style.display = 'block'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = editing ? 'Save changes' : 'Create player'; }
+    }
+  }
+
+  return { open: open, close: close, cancel: cancel, save: save, isOpen: isOpen };
+})();
+
+// Thin entry points kept for the existing triggers — all logic is in PlayerEditModal.
 function openAddPlayerModal() {
-  if (!canManagePlayers()) { showToast('Not authorized to add players', 'error'); return; }
-  document.getElementById('player-edit-title').textContent = 'Add Player';
-  document.getElementById('pe-submit').textContent = 'Create player';
-  document.getElementById('player-edit-form').reset();
-  document.getElementById('pe-id').value       = '';
-  document.getElementById('pe-foot').value     = 'RIGHT';
-  document.getElementById('pe-medical').value  = 'HEALTHY';
-  document.getElementById('pe-payment').value  = 'PAID';
-  document.getElementById('pe-isactive').value = 'true';
-  populatePlayerTeamSelect(null);
-  const err = document.getElementById('pe-error');
-  err.style.display = 'none'; err.textContent = '';
-  document.getElementById('player-edit-modal').classList.add('open');
-  setTimeout(() => document.getElementById('pe-firstName').focus(), 60);
+  PlayerEditModal.open(null);
 }
 
 function openEditPlayerModal(id) {
   if (!id) return;
-  if (!canManagePlayers()) { showToast('Not authorized to edit players', 'error'); return; }
-  // Re-entry guard: the only caller is the Edit button in the detail modal,
-  // which is closed during editing. If the edit modal is already open, a repeat
-  // invocation would reset the form (wiping in-progress input) and churn modal
-  // .open state. Make it a no-op so an active edit is never disturbed.
-  var _editM = document.getElementById('player-edit-modal');
-  if (_editM && _editM.classList.contains('open')) return;
-  const p = (State.players || []).find(x => x.id === id) || State.activePlayer;
+  const p = (State.players || []).find(function (x) { return x.id === id; }) || State.activePlayer;
   if (!p) { showToast('Player not loaded', 'error'); return; }
-
-  document.getElementById('player-edit-title').textContent = 'Edit · ' + (p.firstName || '') + ' ' + (p.lastName || '');
-  document.getElementById('pe-submit').textContent = 'Save changes';
-  document.getElementById('player-edit-form').reset();
-
-  const set = (eid, v) => { const el = document.getElementById(eid); if (el) el.value = (v == null ? '' : v); };
-  const isoDate = (d) => d ? new Date(d).toISOString().slice(0, 10) : '';
-
-  set('pe-id',           p.id);
-  set('pe-firstName',    p.firstName);
-  set('pe-lastName',     p.lastName);
-  set('pe-number',       p.number);
-  set('pe-position',     p.position);
-  set('pe-nationality',  p.nationality);
-  set('pe-flag',         p.flag);
-  set('pe-dob',          isoDate(p.dateOfBirth));
-  set('pe-foot',         p.preferredFoot || 'RIGHT');
-  set('pe-height',       p.height);
-  set('pe-weight',       p.weight);
-  set('pe-overall',      p.overallRating);
-  set('pe-potential',    p.potential);
-  set('pe-mvalue',       p.marketValue);
-  set('pe-wage',         p.weeklyWage);
-  set('pe-contract',     isoDate(p.contractUntil));
-
-  // Phase 2 fields
-  set('pe-email',        p.email);
-  set('pe-joined',       isoDate(p.joinedAt));
-  set('pe-parent-name',  p.parentName);
-  set('pe-parent-email', p.parentEmail);
-  set('pe-parent-phone', p.parentPhone);
-  set('pe-medical',      p.medicalStatus || 'HEALTHY');
-  set('pe-payment',      p.paymentStatus || 'PAID');
-  set('pe-isactive',     (p.isActive === false ? 'false' : 'true'));
-  set('pe-notes',        p.notes);
-  populatePlayerTeamSelect(p.teamId || null);
-
-  const err = document.getElementById('pe-error');
-  err.style.display = 'none'; err.textContent = '';
-  closeModal('player-modal');
-  document.getElementById('player-edit-modal').classList.add('open');
+  PlayerEditModal.open(p);
 }
 
-async function submitPlayerForm(ev) {
-  ev.preventDefault();
-  const id    = document.getElementById('pe-id').value;
-  const errEl = document.getElementById('pe-error');
-  const btn   = document.getElementById('pe-submit');
-
-  const num = (v) => v === '' || v == null ? undefined : Number(v);
-  const str = (v) => (v == null ? '' : String(v)).trim();
-
-  const body = {
-    firstName:     str(document.getElementById('pe-firstName').value),
-    lastName:      str(document.getElementById('pe-lastName').value),
-    number:        Number(document.getElementById('pe-number').value),
-    position:      document.getElementById('pe-position').value,
-    nationality:   str(document.getElementById('pe-nationality').value),
-    flag:          str(document.getElementById('pe-flag').value),
-    dateOfBirth:   document.getElementById('pe-dob').value,
-    preferredFoot: document.getElementById('pe-foot').value || 'RIGHT',
-    height:        Number(document.getElementById('pe-height').value),
-    weight:        Number(document.getElementById('pe-weight').value),
-    overallRating: num(document.getElementById('pe-overall').value),
-    potential:     num(document.getElementById('pe-potential').value),
-    marketValue:   num(document.getElementById('pe-mvalue').value),
-    weeklyWage:    num(document.getElementById('pe-wage').value),
-
-    // Phase 2 — optional contact + status fields
-    email:         str(document.getElementById('pe-email').value),
-    parentName:    str(document.getElementById('pe-parent-name').value),
-    parentEmail:   str(document.getElementById('pe-parent-email').value),
-    parentPhone:   str(document.getElementById('pe-parent-phone').value),
-    medicalStatus: document.getElementById('pe-medical').value || 'HEALTHY',
-    paymentStatus: document.getElementById('pe-payment').value || 'PAID',
-    isActive:      document.getElementById('pe-isactive').value === 'false' ? false : true,
-    notes:         str(document.getElementById('pe-notes').value),
-  };
-  const contract = document.getElementById('pe-contract').value;
-  if (contract) body.contractUntil = contract;
-  const joined = document.getElementById('pe-joined').value;
-  if (joined)   body.joinedAt = joined;
-  // Phase A — team assignment ('' = unassigned → send explicit null)
-  const teamSel = document.getElementById('pe-team');
-  if (teamSel) body.teamId = teamSel.value || null;
-  Object.keys(body).forEach(k => {
-    if (body[k] === undefined || (typeof body[k] === 'string' && body[k] === '') || Number.isNaN(body[k])) delete body[k];
-  });
-
-  errEl.style.display = 'none'; errEl.textContent = '';
-  btn.disabled = true;
-  btn.textContent = id ? 'Saving…' : 'Creating…';
-
-  try {
-    let saved = null;
-    if (id) {
-      const res = await SquadAPI.update(id, body);
-      saved = res && res.data;
-      if (saved) {
-        const idx = (State.players || []).findIndex(x => x.id === id);
-        if (idx !== -1) State.players[idx] = Object.assign({}, State.players[idx], saved);
-        if (State.activePlayer && State.activePlayer.id === id) State.activePlayer = Object.assign({}, State.activePlayer, saved);
-      }
-    } else {
-      const res = await SquadAPI.create(body);
-      saved = res && res.data;
-      if (saved) {
-        if (!Array.isArray(State.players)) State.players = [];
-        State.players.unshift(saved);
-      }
-    }
-    closeModal('player-edit-modal');
-    renderSquad();
-    showToast(id ? 'Player updated' : 'Player created', 'success');
-  } catch (err) {
-    errEl.textContent   = (err && err.message) || 'Save failed';
-    errEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = id ? 'Save changes' : 'Create player';
-  }
-}
+// Explicit Save / Cancel entry points (wired from the modal's buttons).
+function playerEditSave()   { PlayerEditModal.save(); }
+function playerEditCancel() { PlayerEditModal.cancel(); }
 
 async function confirmDeletePlayer(id) {
   if (!id) return;
@@ -12068,6 +12086,8 @@ async function tosBoardSnapshot() {
         // State-based: id resolved at click time from current State
         case 'openEditPlayerModal': openEditPlayerModal(State.activePlayer?.id); break;
         case 'confirmDeletePlayer': confirmDeletePlayer(State.activePlayer?.id); break;
+        case 'playerEditSave':      playerEditSave();   break;
+        case 'playerEditCancel':    playerEditCancel(); break;
         case 'openEditMatchModal':       openEditMatchModal(State.activeMatch?.id);                  break;
         case 'confirmDeleteMatch':       confirmDeleteMatch(State.activeMatch?.id);                  break;
         case 'openEditTrainingModal':    openEditTrainingModal(State.activeTrainingSession?.id);    break;
@@ -12152,10 +12172,12 @@ async function tosBoardSnapshot() {
 
   // ── Submit delegation ───────────────────────────────────────────────────────
   document.addEventListener('submit', function delegateSubmit(e) {
+    // Player edit form saves ONLY via the explicit Save button — never on submit.
+    // Swallow any Enter-key submit so the page can't reload mid-edit.
+    if (e.target && e.target.id === 'player-edit-form') { e.preventDefault(); return; }
     const el = e.target.closest('[data-form-submit]');
     if (!el) return;
     switch (el.dataset.formSubmit) {
-      case 'submitPlayerForm':   submitPlayerForm(e);   break;
       case 'submitMatchForm':    submitMatchForm(e);    break;
       case 'submitTrainingForm': submitTrainingForm(e); break;
       case 'submitInjuryForm':   submitInjuryForm(e);   break;
