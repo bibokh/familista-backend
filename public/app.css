@@ -1637,44 +1637,61 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .tactical-os .tos-player-chip:active{ cursor: grabbing; }
 
 /* ════════════════════════════════════════════════════════════════════════
-   FLICKER FIX — build 20260530g
-   Two-part targeted fix:
+   FLICKER FIX — permanent targeted CSS compositing fix
+   Root cause (confirmed by CSS isolation): backdrop-filter blur forces a
+   full GPU layer re-composition on every typing repaint.
 
-   Part 1 (permanent): Remove backdrop-filter from the three elements that
-   had it. Proved in isolation step 1 that this was one cause. Applied
-   unconditionally — the glass blur on these elements triggers GPU
-   re-composition on every typing repaint.
+   Part 1 — permanent: remove backdrop-filter from the three elements
+   that had it. Normal UI animations/transitions are otherwise untouched.
 
-   Part 2 (scoped): While any .modal-bg is open, kill transitions /
-   animations / transforms / will-change on the modal itself and on any
-   player/quantum card visible behind it. The :has() selector is supported
-   in all modern browsers (Chrome 105+, Firefox 121+, Safari 15.4+).
+   Part 2 — scoped to modal-open state only: while a .modal-bg is open,
+   disable the remaining expensive compositing on the modal content and
+   on the background cards that are still painted behind the overlay.
+   Specifically strips: box-shadow transition, transform, filter,
+   will-change, and animation from background cards/containers.
+   border-color transition (cheap, no repaint) is left intact on cards.
+   Normal effects resume automatically the moment the modal closes.
    ════════════════════════════════════════════════════════════════════════ */
 
-/* Part 1 — permanent: no backdrop-filter on these three elements */
-.modal-bg          { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-.header            { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-.backend-banner    { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+/* Part 1 — permanent: no backdrop-filter */
+.modal-bg       { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.header         { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.backend-banner { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
-/* Part 2 — scoped: freeze all compositing while a modal is open */
+/* Part 2 — modal content: freeze all compositing while open */
 .modal-bg.open,
 .modal-bg.open .modal,
 .modal-bg.open * {
-  transition: none !important;
-  animation: none !important;
-  transform: none !important;
+  transition:  none !important;
+  animation:   none !important;
+  transform:   none !important;
+  filter:      none !important;
   will-change: auto !important;
 }
 
-body:has(.modal-bg.open) .player-card,
+/* Part 2 — background cards: strip only the expensive effects
+   (box-shadow & transform transitions, filter, will-change, animation).
+   transition: border-color .2s ease is kept — it's paint-free.         */
+body:has(.modal-bg.open) .card,
 body:has(.modal-bg.open) .pc,
+body:has(.modal-bg.open) .player-card,
 body:has(.modal-bg.open) .q-card,
-body:has(.modal-bg.open) .quantum-card,
-body:has(.modal-bg.open) .card {
-  transition: none !important;
-  animation: none !important;
-  transform: none !important;
+body:has(.modal-bg.open) .quantum-card {
+  transition:  border-color .2s ease !important;
+  transform:   none !important;
+  filter:      none !important;
+  will-change: auto !important;
+  animation:   none !important;
+}
+
+/* Part 2 — page containers: no compositing while modal is on top */
+body:has(.modal-bg.open) .page,
+body:has(.modal-bg.open) #pages-container,
+body:has(.modal-bg.open) .content {
+  animation:   none !important;
+  transform:   none !important;
+  filter:      none !important;
   will-change: auto !important;
 }
-/* ════════════════════ END FLICKER FIX ════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════ */
 
