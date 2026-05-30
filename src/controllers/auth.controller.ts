@@ -7,11 +7,19 @@ import { config } from '../config';
 
 // ─── Cookie helpers ────────────────────────────────────────────────────────────
 
-/** 15-minute access-token cookie — HttpOnly, Secure in production. */
+// The SPA is hosted on its own origin (e.g. https://familista-v5.onrender.com)
+// while the API lives on https://familista-backend.onrender.com. Those are
+// cross-site, so the auth cookies must be SameSite=None to be sent on the
+// SPA's fetch() calls — and SameSite=None REQUIRES Secure (https). In local
+// dev (http, same-site) we fall back to Lax so cookies still work without TLS.
+const CROSS_SITE_SAME_SITE = config.isProd ? ('none' as const) : ('lax' as const);
+const COOKIE_SECURE        = config.isProd; // https on Render; required for SameSite=None
+
+/** 15-minute access-token cookie — HttpOnly, Secure + SameSite=None in production. */
 const ACCESS_COOKIE_OPTS = {
   httpOnly:  true,
-  secure:    config.isProd,
-  sameSite:  'strict' as const,
+  secure:    COOKIE_SECURE,
+  sameSite:  CROSS_SITE_SAME_SITE,
   maxAge:    15 * 60 * 1000,           // 15 min in ms
   path:      '/',
 };
@@ -19,8 +27,8 @@ const ACCESS_COOKIE_OPTS = {
 /** 7-day refresh-token cookie — path-restricted to auth endpoints. */
 const REFRESH_COOKIE_OPTS = {
   httpOnly:  true,
-  secure:    config.isProd,
-  sameSite:  'strict' as const,
+  secure:    COOKIE_SECURE,
+  sameSite:  CROSS_SITE_SAME_SITE,
   maxAge:    7 * 24 * 60 * 60 * 1000, // 7 days in ms
   path:      '/api',                   // sent on all /api/* paths
 };
