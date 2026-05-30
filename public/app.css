@@ -1637,20 +1637,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .tactical-os .tos-player-chip:active{ cursor: grabbing; }
 
 /* ════════════════════════════════════════════════════════════════════════
-   TEMPORARY CSS ISOLATION TEST (flicker diagnosis) — build 20260530e
-   Disables ALL transitions/animations/transforms/filters/backdrop-filters.
-   If the flicker disappears, the cause is CSS repaint (animation/backdrop/
-   transform); re-enable selectors one by one to find the exact culprit.
-   If the flicker remains, the cause is NOT CSS — revert this block.
+   CSS ISOLATION STEP 2 — build 20260530f
+   transition/animation/transform/filter/will-change all RE-ENABLED.
+   ONLY backdrop-filter remains disabled (prime suspect).
+   If flicker is still gone  =>  backdrop-filter is the root cause.
+   If flicker returns        =>  need to re-disable transitions/animations.
    REMOVE this block after diagnosis.
    ════════════════════════════════════════════════════════════════════════ */
-*,
-*::before,
-*::after {
-  transition: none !important;
-  animation: none !important;
-}
-
 .modal-bg,
 .modal,
 .player-card,
@@ -1663,12 +1656,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .content,
 .app,
 #main-app,
+.header,
 body {
-  transform: none !important;
-  filter: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  will-change: auto !important;
 }
-/* ════════════════════ END TEMPORARY ISOLATION TEST ════════════════════ */
+/* ════════════════════ END ISOLATION STEP 2 ════════════════════════════ */
 
