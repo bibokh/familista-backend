@@ -1635,4 +1635,40 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .tactical-os .tos-annot-toolbar .tos-btn.active{ background: rgba(34,200,255,.18); box-shadow: var(--tos-glow-cyan); }
 .tactical-os .tos-player-chip{ cursor: grab; }
 .tactical-os .tos-player-chip:active{ cursor: grabbing; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   TEMPORARY CSS ISOLATION TEST (flicker diagnosis) — build 20260530e
+   Disables ALL transitions/animations/transforms/filters/backdrop-filters.
+   If the flicker disappears, the cause is CSS repaint (animation/backdrop/
+   transform); re-enable selectors one by one to find the exact culprit.
+   If the flicker remains, the cause is NOT CSS — revert this block.
+   REMOVE this block after diagnosis.
+   ════════════════════════════════════════════════════════════════════════ */
+*,
+*::before,
+*::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+.modal-bg,
+.modal,
+.player-card,
+.pc,
+.q-card,
+.quantum-card,
+.card,
+.pages-container,
+#pages-container,
+.content,
+.app,
+#main-app,
+body {
+  transform: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  will-change: auto !important;
+}
+/* ════════════════════ END TEMPORARY ISOLATION TEST ════════════════════ */
 
