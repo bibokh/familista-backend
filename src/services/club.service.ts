@@ -1,0 +1,161 @@
+// Familista — Club System service (Phase R)
+// Reads/writes the existing Club model + its 1:1 WhiteLabelConfig (brand).
+// Logo + colors live ONLY in WhiteLabelConfig (no duplication on Club).
+
+import { Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
+import { NotFoundError } from '../utils/errors';
+
+export interface ClubBrand {
+  logoUrl: string | null;
+  logoDarkUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  accentColor: string | null;
+}
+
+export interface ClubProfile {
+  id: string;
+  name: string;
+  shortName: string | null;
+  emblem: string | null;
+  description: string | null;
+  founded: Date | null;
+  stadium: string | null;
+  capacity: number | null;
+  city: string | null;
+  country: string | null;
+  addressLine: string | null;
+  region: string | null;
+  postalCode: string | null;
+  level: number;
+  overallRating: number;
+  leaguePosition: number | null;
+  fanClub: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  websiteUrl: string | null;
+  socialLinks: unknown;
+  branding: ClubBrand;
+}
+
+// Fields the PATCH endpoint may write onto Club (after validation upstream).
+export interface ClubCorePatch {
+  name?: string;
+  shortName?: string | null;
+  description?: string | null;
+  founded?: Date | null;
+  stadium?: string | null;
+  capacity?: number | null;
+  city?: string;
+  country?: string;
+  addressLine?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  level?: number;
+  overallRating?: number;
+  leaguePosition?: number | null;
+  fanClub?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  websiteUrl?: string | null;
+  socialLinks?: Record<string, string> | null;
+}
+
+// Fields the PATCH endpoint may write onto WhiteLabelConfig (brand).
+export interface ClubBrandPatch {
+  logoUrl?: string | null;
+  logoDarkUrl?: string | null;
+  faviconUrl?: string | null;
+  primaryColor?: string;
+  secondaryColor?: string;
+  accentColor?: string;
+}
+
+function toProfile(club: {
+  id: string; name: string; shortName: string | null; emblem: string | null;
+  description: string | null; founded: Date | null; stadium: string | null;
+  capacity: number | null; city: string | null; country: string | null;
+  addressLine: string | null; region: string | null; postalCode: string | null;
+  level: number; overallRating: number; leaguePosition: number | null;
+  fanClub: string | null; contactEmail: string | null; contactPhone: string | null;
+  websiteUrl: string | null; socialLinks: unknown;
+  whiteLabel: {
+    logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null;
+    primaryColor: string | null; secondaryColor: string | null; accentColor: string | null;
+  } | null;
+}): ClubProfile {
+  return {
+    id: club.id,
+    name: club.name,
+    shortName: club.shortName,
+    emblem: club.emblem,
+    description: club.description,
+    founded: club.founded,
+    stadium: club.stadium,
+    capacity: club.capacity,
+    city: club.city,
+    country: club.country,
+    addressLine: club.addressLine,
+    region: club.region,
+    postalCode: club.postalCode,
+    level: club.level,
+    overallRating: club.overallRating,
+    leaguePosition: club.leaguePosition,
+    fanClub: club.fanClub,
+    contactEmail: club.contactEmail,
+    contactPhone: club.contactPhone,
+    websiteUrl: club.websiteUrl,
+    socialLinks: club.socialLinks ?? null,
+    branding: {
+      logoUrl: club.whiteLabel?.logoUrl ?? null,
+      logoDarkUrl: club.whiteLabel?.logoDarkUrl ?? null,
+      faviconUrl: club.whiteLabel?.faviconUrl ?? null,
+      primaryColor: club.whiteLabel?.primaryColor ?? null,
+      secondaryColor: club.whiteLabel?.secondaryColor ?? null,
+      accentColor: club.whiteLabel?.accentColor ?? null,
+    },
+  };
+}
+
+export async function getClubProfile(clubId: string): Promise<ClubProfile> {
+  const club = await prisma.club.findUnique({
+    where: { id: clubId },
+    include: { whiteLabel: true },
+  });
+  if (!club) throw new NotFoundError('Club not found');
+  return toProfile(club as Parameters<typeof toProfile>[0]);
+}
+
+export async function updateClubProfile(
+  clubId: string,
+  core: ClubCorePatch,
+  brand: ClubBrandPatch,
+): Promise<ClubProfile> {
+  const existing = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
+  if (!existing) throw new NotFoundError('Club not found');
+
+  const hasBrand = Object.keys(brand).length > 0;
+
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(core).length > 0) {
+      // Nullable JSON column needs Prisma.JsonNull, not literal null.
+      const { socialLinks, ...rest } = core;
+      const data: Prisma.ClubUpdateInput = { ...rest };
+      if (socialLinks !== undefined) {
+        data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
+      }
+      await tx.club.update({ where: { id: clubId }, data });
+    }
+    if (hasBrand) {
+      await tx.whiteLabelConfig.upsert({
+        where: { clubId },
+        create: { clubId, ...brand },
+        update: brand,
+      });
+    }
+  });
+
+  return getClubProfile(clubId);
+}

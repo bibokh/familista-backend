@@ -120,6 +120,16 @@ model Club {
   leaguePosition Int?
   fanClub        String?
 
+  // ── Club profile (Phase R — Club System). All nullable / additive. ──
+  description    String?   @db.Text
+  addressLine    String?
+  region         String?
+  postalCode     String?
+  contactEmail   String?
+  contactPhone   String?
+  websiteUrl     String?
+  socialLinks    Json?
+
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
   plan                 SubscriptionPlan   @default(BASIC)

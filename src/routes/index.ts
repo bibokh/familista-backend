@@ -52,6 +52,8 @@ import scoutingRoutes from './scouting.routes';
 import clubAdminRoutes from './club-admin.routes';
 // Phase 13 — Tactical AI Engine (formation analysis + tactical scores + recommendations)
 import tacticalAIRoutes from './tactical-ai.routes';
+// Phase R — Club System (club profile + branding, reuses Club + WhiteLabelConfig)
+import clubRoutes from './club.routes';
 
 const router = Router();
 
@@ -93,6 +95,7 @@ router.use('/phase-s/intelligence', intelligenceRoutes);
 router.use('/scouting',            scoutingRoutes);
 router.use('/club-admin',          clubAdminRoutes);
 router.use('/tactical-ai',         tacticalAIRoutes);
+router.use('/clubs',               clubRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

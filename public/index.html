@@ -506,6 +506,74 @@
   </div>
 </div>
 
+<!-- Phase R: Club edit modal (CLUB_ADMIN / SUPER_ADMIN) -->
+<div class="modal-bg" id="club-edit-modal">
+  <div class="modal" style="max-width:680px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Edit Club</div>
+      <button class="modal-close" data-action="clubEditCancel">✕</button>
+    </div>
+    <div class="modal-body" style="padding:18px;">
+      <form id="club-edit-form" autocomplete="off">
+        <div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Identity</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div><label class="login-label">Club Name</label><input class="login-input" id="ce-name" maxlength="120" required /></div>
+          <div><label class="login-label">Short Name</label><input class="login-input" id="ce-shortName" maxlength="40" /></div>
+          <div style="grid-column:1/-1;"><label class="login-label">Description</label><textarea class="login-input" id="ce-description" rows="3" maxlength="2000" style="resize:vertical;"></textarea></div>
+          <div><label class="login-label">Founded</label><input class="login-input" id="ce-founded" type="date" /></div>
+          <div><label class="login-label">Stadium</label><input class="login-input" id="ce-stadium" maxlength="160" /></div>
+          <div><label class="login-label">Capacity</label><input class="login-input" id="ce-capacity" type="number" min="0" max="500000" /></div>
+          <div><label class="login-label">Level</label><input class="login-input" id="ce-level" type="number" min="1" max="100" /></div>
+          <div><label class="login-label">Overall Rating</label><input class="login-input" id="ce-overall" type="number" min="0" max="200" step="0.1" /></div>
+          <div><label class="login-label">League Position</label><input class="login-input" id="ce-leaguePosition" type="number" min="1" max="100" /></div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Location</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div><label class="login-label">City</label><input class="login-input" id="ce-city" maxlength="120" /></div>
+          <div><label class="login-label">Country</label><input class="login-input" id="ce-country" maxlength="120" /></div>
+          <div style="grid-column:1/-1;"><label class="login-label">Address</label><input class="login-input" id="ce-addressLine" maxlength="200" /></div>
+          <div><label class="login-label">Region / State</label><input class="login-input" id="ce-region" maxlength="120" /></div>
+          <div><label class="login-label">Postal Code</label><input class="login-input" id="ce-postalCode" maxlength="32" /></div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Contact</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div><label class="login-label">Contact Email</label><input class="login-input" id="ce-contactEmail" type="email" maxlength="160" /></div>
+          <div><label class="login-label">Contact Phone</label><input class="login-input" id="ce-contactPhone" maxlength="40" /></div>
+          <div style="grid-column:1/-1;"><label class="login-label">Website (https://)</label><input class="login-input" id="ce-websiteUrl" type="url" placeholder="https://" maxlength="2048" /></div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Social (https:// only)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div><label class="login-label">X / Twitter</label><input class="login-input" id="ce-x" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">Instagram</label><input class="login-input" id="ce-instagram" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">Facebook</label><input class="login-input" id="ce-facebook" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">YouTube</label><input class="login-input" id="ce-youtube" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">TikTok</label><input class="login-input" id="ce-tiktok" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">LinkedIn</label><input class="login-input" id="ce-linkedin" type="url" placeholder="https://" /></div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--bd-2);font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Branding (https:// URLs · #RRGGBB colors)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;">
+          <div style="grid-column:1/-1;"><label class="login-label">Logo URL</label><input class="login-input" id="ce-logoUrl" type="url" placeholder="https://" maxlength="2048" /></div>
+          <div><label class="login-label">Logo (dark) URL</label><input class="login-input" id="ce-logoDarkUrl" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">Favicon URL</label><input class="login-input" id="ce-faviconUrl" type="url" placeholder="https://" /></div>
+          <div><label class="login-label">Primary Color</label><input class="login-input" id="ce-primaryColor" placeholder="#16A34A" maxlength="9" /></div>
+          <div><label class="login-label">Secondary Color</label><input class="login-input" id="ce-secondaryColor" placeholder="#64748b" maxlength="9" /></div>
+          <div><label class="login-label">Accent Color</label><input class="login-input" id="ce-accentColor" placeholder="#22c55e" maxlength="9" /></div>
+        </div>
+
+        <div id="ce-error" style="margin-top:12px;padding:9px 12px;border-radius:var(--radius);background:var(--red-bg);border:1px solid rgba(220,38,38,.25);color:#FCA5A5;font-size:12.5px;display:none;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;border-top:1px solid var(--bd);padding-top:14px;">
+          <button type="button" class="btn btn-outline btn-sm" data-action="clubEditCancel">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="ce-submit" data-action="clubEditSave">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Phase C: Match Detail drawer -->
 <div class="modal-bg" id="match-modal">
   <div class="modal" style="max-width:980px;">
@@ -863,6 +931,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260530i" defer></script>
+<script src="/app.js?v=20260531a" defer></script>
 </body>
 </html>

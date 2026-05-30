@@ -7107,6 +7107,8 @@ function _renderDeviceFleet(fleet, el, sub) {
 }
 
 // ── CLUB ──
+// Club page — real backend-connected profile (Phase R). All content is painted
+// by loadClubData() from GET /clubs/current; no hardcoded/mock values here.
 function renderClubHTML() {
   return `<div class="page" id="pg-club">
   <div class="club-layout">
@@ -7117,62 +7119,224 @@ function renderClubHTML() {
       <div class="info-grid2" id="club-info"></div>
     </div>
     <div class="club-right">
-      <div class="kit-shelf">
-        <div class="kit-item"><div class="kit-lbl">Home</div><div class="kit-shirt">👕</div></div>
-        <div class="kit-item"><div class="kit-shirt" style="font-size:58px;">🔴</div></div>
-        <div class="kit-item"><div class="kit-lbl">Away</div><div class="kit-shirt" style="filter:hue-rotate(180deg);">👕</div></div>
-      </div>
-      <div style="padding:16px 18px;">
-        <div style="font-size:11px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px;">Season 207 Achievements</div>
-        <div class="trophies-g">
-          ${[['🏆','League','1st Place','var(--amber)'],['🥈','Elite League','4th Place','var(--blue)'],['🥇','Cup','Round of 16','var(--tx-3)'],['🏅','Association','1st Place','var(--green-l)']].map(([ic,comp,res,c])=>`
-            <div class="card hover" style="padding:14px;text-align:center;cursor:pointer;">
-              <div style="font-size:34px;margin-bottom:5px;">${ic}</div>
-              <div style="font-size:9px;color:var(--tx-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">${comp}</div>
-              <div style="font-size:12px;font-weight:700;color:${c};">${res}</div>
-            </div>`).join('')}
-        </div>
-      </div>
+      <div id="club-brand"   style="padding:16px 18px;"></div>
+      <div id="club-contact" style="padding:0 18px 16px;"></div>
+      <div id="club-social"  style="padding:0 18px 18px;"></div>
     </div>
   </div>
 </div>`;
 }
 
-async function loadClubData() {
-  const d = State.analytics?.overview;
-  const heroEl = document.getElementById('club-hero');
-  const infoEl = document.getElementById('club-info');
+// ── Club System API + page loader (Phase R) ──────────────────────────────────
+const ClubAPI = {
+  current()        { return FamilistaAPI.get('/clubs/current'); },
+  get(id)          { return FamilistaAPI.get('/clubs/' + encodeURIComponent(id)); },
+  update(id, body) { return FamilistaAPI.patch('/clubs/' + encodeURIComponent(id), body); },
+};
 
-  if (heroEl) heroEl.innerHTML = `
-    <div class="club-emblem-lg">🔴</div>
-    <div class="club-title">FAMILISTA HSR</div>
-    <div class="club-rating-badge">OVR: ${d?.teamRating || 108.9}</div>
-    <div style="display:flex;gap:5px;">
-      <span class="badge badge-green">Level 33</span>
-      <span class="badge badge-amber">Berlin 🇩🇪</span>
-      <span class="badge badge-blue">Elite Plan</span>
-    </div>`;
+const _NOTSET = '<span style="color:var(--tx-3);font-style:italic;">Not set yet</span>';
+function _safeHttps(u) { return (u && /^https:\/\//i.test(String(u))) ? String(u) : null; }
+
+async function loadClubData() {
+  const heroEl    = document.getElementById('club-hero');
+  const infoEl    = document.getElementById('club-info');
+  const brandEl   = document.getElementById('club-brand');
+  const contactEl = document.getElementById('club-contact');
+  const socialEl  = document.getElementById('club-social');
+
+  let club = null;
+  try {
+    const res = await ClubAPI.current();
+    club = res && res.data;
+  } catch (e) {
+    if (heroEl) heroEl.innerHTML = '<div style="padding:20px;color:var(--red);font-size:12px;">Failed to load club data.</div>';
+    return;
+  }
+  if (!club) return;
+  State.activeClub = club;
+
+  const b   = club.branding || {};
+  const cell = (v) => (v == null || v === '') ? _NOTSET : _esc(String(v));
+  const canEdit = ['CLUB_ADMIN', 'SUPER_ADMIN'].includes(State.user && State.user.role);
+  const foundedYr = club.founded ? new Date(club.founded).getFullYear() : null;
+  const loc = [club.city, club.country].filter(Boolean).join(', ');
+
+  if (heroEl) {
+    const logoHttps = _safeHttps(b.logoUrl);
+    const logo = logoHttps
+      ? `<img src="${_esc(logoHttps)}" alt="club crest" style="width:74px;height:74px;object-fit:contain;border-radius:14px;background:var(--bg-2);" />`
+      : `<div class="club-emblem-lg">${_esc(club.emblem || '🛡️')}</div>`;
+    heroEl.innerHTML =
+      logo +
+      `<div class="club-title">${_esc(club.name || 'Unnamed Club')}</div>` +
+      `<div class="club-rating-badge">OVR: ${club.overallRating != null ? _esc(club.overallRating) : '—'}</div>` +
+      `<div style="display:flex;gap:5px;flex-wrap:wrap;justify-content:center;">` +
+        `<span class="badge badge-green">Level ${club.level != null ? _esc(club.level) : '—'}</span>` +
+        (loc ? `<span class="badge badge-amber">${_esc(loc)}</span>` : '') +
+        (club.leaguePosition != null ? `<span class="badge badge-blue">League #${_esc(club.leaguePosition)}</span>` : '') +
+      `</div>` +
+      (club.description ? `<div style="margin-top:10px;font-size:12.5px;color:var(--tx-2);line-height:1.6;text-align:center;">${_esc(club.description)}</div>` : '') +
+      (canEdit ? `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="openClubEdit()">✏️ Edit Club</button></div>` : '');
+  }
 
   if (infoEl) {
+    const addr = [club.addressLine, club.postalCode, club.region].filter(Boolean).join(', ');
     const info = [
-      {l:'Manager',v: State.user ? `${State.user.firstName} ${State.user.lastName}` : 'Khatab Atiya'},
-      {l:'Founded',v:'Oct 15, 2023'},
-      {l:'Stadium',v:'Herta Stadium Berlin'},
-      {l:'Capacity',v:'32,350'},
-      {l:'Division',v:'League 33'},
-      {l:'Country',v:'Germany 🇩🇪'},
-      {l:'Players',v:`${d?.playerCount || 11} players`},
-      {l:'GPS Platform',v:'Familista GPS v1.2 ✓'},
-      {l:'Plan',v:'ELITE'},
-      {l:'Status',v:'Active ✅'},
+      ['Founded',        foundedYr],
+      ['Stadium',        club.stadium],
+      ['Capacity',       club.capacity != null ? Number(club.capacity).toLocaleString() : null],
+      ['City',           club.city],
+      ['Country',        club.country],
+      ['Address',        addr || null],
+      ['Level',          club.level],
+      ['Overall Rating', club.overallRating],
+      ['League Position',club.leaguePosition],
     ];
-    infoEl.innerHTML = info.map(r=>`
-      <div class="info-cell">
-        <div class="info-lbl">${r.l}</div>
-        <div class="info-val">${r.v}</div>
-      </div>`).join('');
+    infoEl.innerHTML = info.map(([l, v]) =>
+      `<div class="info-cell"><div class="info-lbl">${l}</div><div class="info-val">${cell(v)}</div></div>`).join('');
+  }
+
+  if (brandEl) {
+    const sw = (label, hex) => hex
+      ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+           <span style="width:16px;height:16px;border-radius:4px;border:1px solid var(--bd);background:${/^#[0-9a-fA-F]{6,8}$/.test(hex) ? hex : 'transparent'};"></span>
+           <span style="font-size:11px;color:var(--tx-3);width:70px;">${label}</span>
+           <span style="font-size:11px;font-family:var(--mono);color:var(--tx-2);">${_esc(hex)}</span>
+         </div>` : '';
+    const colors = [sw('Primary', b.primaryColor), sw('Secondary', b.secondaryColor), sw('Accent', b.accentColor)].join('');
+    brandEl.innerHTML =
+      `<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Branding</div>` +
+      (colors || _NOTSET);
+  }
+
+  if (contactEl) {
+    const web = _safeHttps(club.websiteUrl);
+    const rows = [
+      ['Email',   club.contactEmail ? `<a href="mailto:${_esc(club.contactEmail)}" style="color:var(--green-l);">${_esc(club.contactEmail)}</a>` : null],
+      ['Phone',   club.contactPhone ? _esc(club.contactPhone) : null],
+      ['Website', web ? `<a href="${_esc(web)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);">${_esc(web)}</a>` : null],
+    ];
+    contactEl.innerHTML =
+      `<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Contact</div>` +
+      rows.map(([l, v]) => `<div style="font-size:12px;margin-bottom:5px;"><span style="color:var(--tx-3);">${l}: </span>${v || _NOTSET}</div>`).join('');
+  }
+
+  if (socialEl) {
+    const links = (club.socialLinks && typeof club.socialLinks === 'object') ? club.socialLinks : {};
+    const labels = { x: '𝕏 X', instagram: '📸 Instagram', facebook: '📘 Facebook', youtube: '▶️ YouTube', tiktok: '🎵 TikTok', linkedin: '💼 LinkedIn' };
+    const chips = Object.keys(labels)
+      .filter((k) => _safeHttps(links[k]))
+      .map((k) => `<a href="${_esc(links[k])}" target="_blank" rel="noopener noreferrer" class="badge badge-gray" style="text-decoration:none;margin:0 4px 4px 0;display:inline-block;">${labels[k]}</a>`)
+      .join('');
+    socialEl.innerHTML =
+      `<div style="font-size:11px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;">Social</div>` +
+      (chips || _NOTSET);
   }
 }
+
+// ── ClubEditModal — isolated, follows the PlayerEditModal pattern exactly.
+// Values written once on open; no reset/refill/reopen; explicit Save only.
+const ClubEditModal = (function () {
+  const MODAL_ID = 'club-edit-modal';
+  const $ = (id) => document.getElementById(id);
+  let _clubId = null;
+
+  function isOpen() { const m = $(MODAL_ID); return !!(m && m.classList.contains('open')); }
+
+  function populate(c) {
+    const b  = c.branding || {};
+    const sl = (c.socialLinks && typeof c.socialLinks === 'object') ? c.socialLinks : {};
+    const set = (id, v) => { const el = $(id); if (el) el.value = (v == null ? '' : v); };
+    set('ce-name', c.name);             set('ce-shortName', c.shortName);
+    set('ce-description', c.description);
+    set('ce-founded', c.founded ? new Date(c.founded).toISOString().slice(0, 10) : '');
+    set('ce-stadium', c.stadium);       set('ce-capacity', c.capacity);
+    set('ce-city', c.city);             set('ce-country', c.country);
+    set('ce-addressLine', c.addressLine); set('ce-region', c.region); set('ce-postalCode', c.postalCode);
+    set('ce-level', c.level);           set('ce-overall', c.overallRating); set('ce-leaguePosition', c.leaguePosition);
+    set('ce-contactEmail', c.contactEmail); set('ce-contactPhone', c.contactPhone); set('ce-websiteUrl', c.websiteUrl);
+    set('ce-x', sl.x);                  set('ce-instagram', sl.instagram); set('ce-facebook', sl.facebook);
+    set('ce-youtube', sl.youtube);      set('ce-tiktok', sl.tiktok);       set('ce-linkedin', sl.linkedin);
+    set('ce-logoUrl', b.logoUrl);       set('ce-logoDarkUrl', b.logoDarkUrl); set('ce-faviconUrl', b.faviconUrl);
+    set('ce-primaryColor', b.primaryColor); set('ce-secondaryColor', b.secondaryColor); set('ce-accentColor', b.accentColor);
+  }
+
+  function open(club) {
+    if (!['CLUB_ADMIN', 'SUPER_ADMIN'].includes(State.user && State.user.role)) { showToast('Not authorized to edit club', 'error'); return; }
+    if (isOpen()) return;
+    if (!club || !club.id) { showToast('Club not loaded', 'error'); return; }
+    _clubId = club.id;
+    const err = $('ce-error'); if (err) { err.style.display = 'none'; err.textContent = ''; }
+    const sb = $('ce-submit'); if (sb) { sb.disabled = false; sb.textContent = 'Save changes'; }
+    populate(club);
+    $(MODAL_ID).classList.add('open');
+    setTimeout(function () { const f = $('ce-name'); if (f) f.focus(); }, 60);
+  }
+
+  function close() { _clubId = null; const m = $(MODAL_ID); if (m) m.classList.remove('open'); }
+  function cancel() { close(); }
+
+  async function save() {
+    if (!isOpen() || !_clubId) return;
+    const errEl = $('ce-error');
+    const btn   = $('ce-submit');
+    const val = (id) => { const el = $(id); return el ? el.value.trim() : ''; };
+    const strOrNull = (id) => { const v = val(id); return v === '' ? null : v; };
+    const numOrNull = (id) => { const v = val(id); return v === '' ? null : Number(v); };
+
+    const body = {};
+    // Required-in-DB fields: only send when non-empty (never clear to null/blank).
+    if (val('ce-name'))    body.name = val('ce-name');
+    if (val('ce-city'))    body.city = val('ce-city');
+    if (val('ce-country')) body.country = val('ce-country');
+    if (val('ce-level'))   body.level = Number(val('ce-level'));
+    if (val('ce-overall')) body.overallRating = Number(val('ce-overall'));
+    // Nullable fields: send value, or null to clear.
+    body.shortName      = strOrNull('ce-shortName');
+    body.description    = strOrNull('ce-description');
+    body.founded        = val('ce-founded') || null;
+    body.stadium        = strOrNull('ce-stadium');
+    body.capacity       = numOrNull('ce-capacity');
+    body.addressLine    = strOrNull('ce-addressLine');
+    body.region         = strOrNull('ce-region');
+    body.postalCode     = strOrNull('ce-postalCode');
+    body.leaguePosition = numOrNull('ce-leaguePosition');
+    body.contactEmail   = strOrNull('ce-contactEmail');
+    body.contactPhone   = strOrNull('ce-contactPhone');
+    body.websiteUrl     = strOrNull('ce-websiteUrl');
+    // Social: include only non-empty entries; null if none.
+    const social = {}; let anySocial = false;
+    [['x','ce-x'],['instagram','ce-instagram'],['facebook','ce-facebook'],['youtube','ce-youtube'],['tiktok','ce-tiktok'],['linkedin','ce-linkedin']]
+      .forEach(([k, id]) => { const v = val(id); if (v) { social[k] = v; anySocial = true; } });
+    body.socialLinks = anySocial ? social : null;
+    // Brand: colors only when present (they have DB defaults); logo URLs send value/null.
+    if (val('ce-primaryColor'))   body.primaryColor = val('ce-primaryColor');
+    if (val('ce-secondaryColor')) body.secondaryColor = val('ce-secondaryColor');
+    if (val('ce-accentColor'))    body.accentColor = val('ce-accentColor');
+    body.logoUrl      = strOrNull('ce-logoUrl');
+    body.logoDarkUrl  = strOrNull('ce-logoDarkUrl');
+    body.faviconUrl   = strOrNull('ce-faviconUrl');
+
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      await ClubAPI.update(_clubId, body);
+      close();
+      loadClubData();                       // reload the page once
+      showToast('Club updated', 'success');
+    } catch (err) {
+      if (errEl) { errEl.textContent = (err && err.message) || 'Save failed'; errEl.style.display = 'block'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Save changes'; }
+    }
+  }
+
+  return { open: open, close: close, cancel: cancel, save: save, isOpen: isOpen };
+})();
+
+function openClubEdit()  { ClubEditModal.open(State.activeClub); }
+function clubEditSave()  { ClubEditModal.save(); }
+function clubEditCancel(){ ClubEditModal.cancel(); }
 
 // ── SETTINGS ──
 function renderSettingsHTML() {
@@ -12102,6 +12266,9 @@ async function tosBoardSnapshot() {
         case 'confirmDeletePlayer': confirmDeletePlayer(State.activePlayer?.id); break;
         case 'playerEditSave':      playerEditSave();   break;
         case 'playerEditCancel':    playerEditCancel(); break;
+        case 'openClubEdit':        openClubEdit();     break;
+        case 'clubEditSave':        clubEditSave();     break;
+        case 'clubEditCancel':      clubEditCancel();   break;
         case 'openEditMatchModal':       openEditMatchModal(State.activeMatch?.id);                  break;
         case 'confirmDeleteMatch':       confirmDeleteMatch(State.activeMatch?.id);                  break;
         case 'openEditTrainingModal':    openEditTrainingModal(State.activeTrainingSession?.id);    break;
@@ -12186,9 +12353,9 @@ async function tosBoardSnapshot() {
 
   // ── Submit delegation ───────────────────────────────────────────────────────
   document.addEventListener('submit', function delegateSubmit(e) {
-    // Player edit form saves ONLY via the explicit Save button — never on submit.
+    // These forms save ONLY via their explicit Save button — never on submit.
     // Swallow any Enter-key submit so the page can't reload mid-edit.
-    if (e.target && e.target.id === 'player-edit-form') { e.preventDefault(); return; }
+    if (e.target && (e.target.id === 'player-edit-form' || e.target.id === 'club-edit-form')) { e.preventDefault(); return; }
     const el = e.target.closest('[data-form-submit]');
     if (!el) return;
     switch (el.dataset.formSubmit) {
