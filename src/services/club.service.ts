@@ -75,7 +75,7 @@ export interface ClubBrandPatch {
 
 function toProfile(club: {
   id: string; name: string; shortName: string | null; emblem: string | null;
-  description: string | null; founded: Date | null; stadium: string | null;
+  founded: Date | null; stadium: string | null;
   capacity: number | null; city: string | null; country: string | null;
   addressLine: string | null; region: string | null; postalCode: string | null;
   level: number; overallRating: number; leaguePosition: number | null;
@@ -91,7 +91,9 @@ function toProfile(club: {
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
-    description: club.description,
+    // `description` column is not present on the production Club table — do not
+    // read it (avoids Prisma referencing a non-existent column). Always null.
+    description: null,
     founded: club.founded,
     stadium: club.stadium,
     capacity: club.capacity,
@@ -120,9 +122,23 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
+  // Explicit select (NOT include) so Prisma never references the `description`
+  // column, which is absent on the production Club table.
   const club = await prisma.club.findUnique({
     where: { id: clubId },
-    include: { whiteLabel: true },
+    select: {
+      id: true, name: true, shortName: true, emblem: true,
+      founded: true, stadium: true, capacity: true, city: true, country: true,
+      addressLine: true, region: true, postalCode: true, level: true,
+      overallRating: true, leaguePosition: true, fanClub: true,
+      contactEmail: true, contactPhone: true, websiteUrl: true, socialLinks: true,
+      whiteLabel: {
+        select: {
+          logoUrl: true, logoDarkUrl: true, faviconUrl: true,
+          primaryColor: true, secondaryColor: true, accentColor: true,
+        },
+      },
+    },
   });
   if (!club) throw new NotFoundError('Club not found');
   return toProfile(club as Parameters<typeof toProfile>[0]);
@@ -147,6 +163,8 @@ export async function updateClubProfile(
     // Nullable JSON column needs Prisma.JsonNull, not literal null.
     const { socialLinks, ...rest } = core;
     const data: Prisma.ClubUpdateInput = { ...rest };
+    // `description` column is absent on the production Club table — never write it.
+    delete (data as Record<string, unknown>).description;
     if (socialLinks !== undefined) {
       data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
     }
