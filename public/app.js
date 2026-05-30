@@ -1,7 +1,10 @@
 /* ============================================================
    FAMILISTA v5 — COMPLETE PRODUCTION APPLICATION
    Full Backend Integration — Live API Data
+   BUILD: 20260529h
    ============================================================ */
+// Confirm this build is loaded — if you see a different build below, you have a cached version.
+console.log('%c[FAMILISTA] BUILD 20260529h loaded', 'background:#0ea5e9;color:#fff;font-weight:bold;padding:2px 10px;border-radius:3px;font-size:13px;');
 
 // ════════════════════════════════════════════════════════════════════════
 // FAMILISTA — Network layer (config + API wrapper + health monitor)
@@ -623,6 +626,60 @@ function _isAnyFormEditing() {
   }
   return false;
 }
+
+/**
+ * Diagnostic — call from DevTools console or it fires automatically when
+ * a player edit modal opens.  Answers exactly why _isModalOpen() returns false.
+ */
+function _diagModal() {
+  var d = [];
+  d.push('=== MODAL DIAGNOSTIC (build 20260529h) ===');
+
+  // 1. All .modal-bg elements + their exact classes and computed display
+  var bgs = document.querySelectorAll('.modal-bg');
+  d.push('.modal-bg count: ' + bgs.length);
+  bgs.forEach(function(el) {
+    d.push('  #' + el.id + ' | class="' + el.className + '" | computed display: ' + getComputedStyle(el).display + ' | hasOpen: ' + el.classList.contains('open'));
+  });
+
+  // 2. All elements with "modal" anywhere in their id
+  var byId = document.querySelectorAll('[id*="modal"]');
+  d.push('[id*=modal] count: ' + byId.length);
+  byId.forEach(function(el) {
+    d.push('  #' + el.id + ' | class="' + el.className + '" | tagName: ' + el.tagName);
+  });
+
+  // 3. Direct check on player-edit-modal
+  var pem = document.getElementById('player-edit-modal');
+  if (pem) {
+    d.push('player-edit-modal exists: true');
+    d.push('  classList: ' + pem.classList.toString());
+    d.push('  style.display: ' + (pem.style.display || '(none set)'));
+    d.push('  computed display: ' + getComputedStyle(pem).display);
+    d.push('  parentNode.id: ' + (pem.parentNode && pem.parentNode.id || pem.parentNode && pem.parentNode.tagName));
+    d.push('  isConnected: ' + pem.isConnected);
+  } else {
+    d.push('player-edit-modal: NULL — element not found in DOM!');
+  }
+
+  // 4. querySelector results
+  d.push('.modal-bg.open result: ' + (document.querySelector('.modal-bg.open') ? document.querySelector('.modal-bg.open').id : 'null'));
+  d.push('.modal.open result: ' + (document.querySelector('.modal.open') ? document.querySelector('.modal.open').id : 'null'));
+  d.push('#player-edit-modal.open: ' + (document.querySelector('#player-edit-modal.open') ? 'FOUND' : 'null'));
+
+  // 5. Active element
+  var ae = document.activeElement;
+  d.push('activeElement: ' + (ae ? ae.tagName + '#' + ae.id + '.' + (ae.className || '').split(' ')[0] : 'null'));
+
+  // 6. Guard return values
+  d.push('_isModalOpen(): ' + _isModalOpen());
+  d.push('_isAnyFormEditing(): ' + _isAnyFormEditing());
+
+  console.error(d.join('\n'));
+  return d.join('\n');
+}
+// Expose for manual DevTools invocation
+window._diagModal = _diagModal;
 
 /**
  * Set by a guarded render when it had to skip due to _isAnyFormEditing().
@@ -1553,6 +1610,7 @@ function openAddPlayerModal() {
   const err = document.getElementById('pe-error');
   err.style.display = 'none'; err.textContent = '';
   document.getElementById('player-edit-modal').classList.add('open');
+  setTimeout(_diagModal, 80);  // auto-diagnose after classList.add completes
   setTimeout(() => document.getElementById('pe-firstName').focus(), 60);
 }
 
@@ -1602,6 +1660,7 @@ function openEditPlayerModal(id) {
   err.style.display = 'none'; err.textContent = '';
   closeModal('player-modal');
   document.getElementById('player-edit-modal').classList.add('open');
+  setTimeout(_diagModal, 80);  // auto-diagnose after classList.add completes
 }
 
 async function submitPlayerForm(ev) {
