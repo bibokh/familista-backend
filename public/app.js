@@ -336,8 +336,9 @@ const BackendHealth = (function () {
   }
 
   async function check(initial) {
+    console.warn('[TIMER]', 'BackendHealth.check', '| initial:', !!initial, '| modal:', !!document.querySelector('.modal-bg.open'));
     // Never ping / mutate the DOM while a modal form is open — focus would be lost.
-    if (!initial && _modalIsOpen()) return;
+    if (!initial && _modalIsOpen()) { console.warn('[TIMER BLOCKED]', 'BackendHealth.check'); return; }
     const ok = await ping(initial ? FAM_CONFIG.HEALTH_BOOT_TIMEOUT_MS : undefined);
     if (ok) {
       State.backendHealthy = true;
@@ -902,7 +903,8 @@ function renderDashboardHTML() {
 }
 
 function renderDashboard() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderDashboard', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderDashboard'); _pendingRefresh = true; return; }
   const d = State.analytics;
   if (!d) return;
 
@@ -1238,7 +1240,8 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderSquad', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderSquad'); _pendingRefresh = true; return; }
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -1766,7 +1769,8 @@ function renderMatchesHTML() {
 
 // Top-level orchestrator: paints the right view depending on sub-tab.
 function renderMatches() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderMatches', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderMatches'); _pendingRefresh = true; return; }
   const tab = _matchTab;
   if (tab === 'live')     return renderLiveSubTab();
   if (tab === 'tactical') return renderTacticalSubTab();
@@ -2235,6 +2239,7 @@ function setMatchModalTab(tab, el) {
 }
 
 function renderMatchModalTab() {
+  console.warn('[RENDER]', 'renderMatchModalTab[' + _matchModalTab + ']', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
   const c = document.getElementById('match-modal-content');
   const m = State.activeMatch;
   if (!c || !m) return;
@@ -2707,8 +2712,9 @@ async function paintIntelligenceTab(c, m) {
   const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
   if (isLive) {
     _intelPollTimer = setInterval(() => {
+      console.warn('[TIMER]', '_intelPollTimer', '| modal:', !!document.querySelector('.modal-bg.open'));
       if (document.visibilityState !== 'visible') return;
-      if (_isAnyFormEditing()) return;
+      if (_isAnyFormEditing()) { console.warn('[TIMER BLOCKED]', '_intelPollTimer'); return; }
       if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
       if (Date.now() - _lastIntelUpdate < 25_000) return; // WS already delivered recently
       const cont = document.getElementById('match-modal-content');
@@ -3271,6 +3277,7 @@ function parseSSEDataSafe(e) {
 }
 
 function repaintLivePanelsIfVisible() {
+  console.warn('[TIMER]', 'repaintLivePanelsIfVisible', '| tab:', _matchModalTab, '| modal:', !!document.querySelector('.modal-bg.open'));
   if (_matchModalTab === 'live'   || _matchModalTab === 'fusion') renderMatchModalTab();
 }
 
@@ -3584,6 +3591,7 @@ function replayToggle() {
   if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
   if (_replayState.playing) {
     _replayState.timer = setInterval(() => {
+      console.warn('[TIMER]', '_replayState.timer');
       if (_replayState.cursor >= _replayState.events.length) {
         _replayState.playing = false;
         if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
@@ -4087,7 +4095,8 @@ function setAnalyticsTab(tab, el) {
 }
 
 function renderAnalyticsPage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderAnalyticsPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderAnalyticsPage'); _pendingRefresh = true; return; }
   const el = document.getElementById('analytics-content');
   if (!el) return;
   if (_analyticsTab === 'dashboard') _renderAnalyticsDashboard(el);
@@ -4780,7 +4789,8 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderTrainingPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderTrainingPage'); _pendingRefresh = true; return; }
   const el = document.getElementById('training-content');
   if (!el) return;
   if (_trainingTab === 'sessions')  renderTrainingSessions(el);
@@ -5206,7 +5216,8 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderMedicalPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderMedicalPage'); _pendingRefresh = true; return; }
   const el = document.getElementById('medical-content');
   if (!el) return;
   if (_medTab === 'dashboard') _renderMedDashboard(el);
@@ -5730,7 +5741,8 @@ function setPerfTab(tab, el) {
 }
 
 function renderPerformancePage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderPerformancePage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderPerformancePage'); _pendingRefresh = true; return; }
   const el = document.getElementById('perf-content');
   if (!el) return;
   if (_perfTab === 'dashboard') _renderPerfDashboard(el);
@@ -6974,8 +6986,9 @@ async function loadDevicesData() {
   }
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
+    console.warn('[TIMER]', '_devPollTimer', '| modal:', !!document.querySelector('.modal-bg.open'));
     if (document.visibilityState !== 'visible') return;
-    if (_isAnyFormEditing()) return;
+    if (_isAnyFormEditing()) { console.warn('[TIMER BLOCKED]', '_devPollTimer'); return; }
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
@@ -7434,7 +7447,8 @@ function _adminRenderAudit() {
 }
 
 function renderAdminPage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderAdminPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderAdminPage'); _pendingRefresh = true; return; }
   var el = document.getElementById('admin-content');
   if (!el) return;
   if (State.admin._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -7711,7 +7725,8 @@ function _taiRenderWorkload() {
 }
 
 function renderTacticalAIPage() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'renderTacticalAIPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderTacticalAIPage'); _pendingRefresh = true; return; }
   var el = document.getElementById('tai-content');
   if (!el) return;
   if (State.tacticalAI._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -8429,6 +8444,7 @@ async function testBackendConnection() {
 // After render, hook data loading
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-page="training"]') || e.target.closest('#pg-training')) {
+    console.warn('[TIMER]', 'click→setTimeout(renderTrainingPage)', '| target:', e.target.tagName, e.target.className, '| modal:', !!document.querySelector('.modal-bg.open'));
     setTimeout(renderTrainingPage, 100);
   }
   if (e.target.closest('[data-page="settings"]') || e.target.closest('#pg-settings')) {
@@ -9127,6 +9143,7 @@ function tosTwinToggle() {
   if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
   if (TOS.state.twin.playing) {
     TOS.state.twin.timer = setInterval(() => {
+      console.warn('[TIMER]', 'TOS.twin.timer');
       const r = document.getElementById('tos-twin-range'); if (!r) return;
       const next = Math.min(100, parseInt(r.value, 10) + 1);
       r.value = next; tosTwinSeek(next);
@@ -9292,7 +9309,8 @@ function siTab(tab) {
 }
 
 function siRenderTab() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'siRenderTab', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'siRenderTab'); _pendingRefresh = true; return; }
   const body = document.getElementById('si-body');
   if (!body) return;
   // Save focused input state — search/filter inputs live inside si-body and are
@@ -10110,7 +10128,8 @@ function tiSwitchTab(tab) {
 }
 
 function tiRenderTab() {
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  console.warn('[RENDER]', 'tiRenderTab', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
+  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'tiRenderTab'); _pendingRefresh = true; return; }
   const el = document.getElementById('ti-content');
   if (!el) return;
   var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
