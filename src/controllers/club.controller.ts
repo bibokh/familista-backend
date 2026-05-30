@@ -4,10 +4,12 @@
 // PATCH /clubs/:clubId     → update club + brand (CLUB_ADMIN / SUPER_ADMIN)
 
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import * as svc from '../services/club.service';
 import { sendSuccess } from '../utils/response';
-import { BadRequestError } from '../utils/errors';
+import { BadRequestError, InternalServerError } from '../utils/errors';
+import { logger } from '../utils/logger';
 
 // ── Reusable validators ───────────────────────────────────────────────────
 const httpsUrl = z
@@ -111,7 +113,25 @@ export async function updateClub(req: Request, res: Response, next: NextFunction
       }
     }
 
-    const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
-    return sendSuccess(res, profile, 'Club updated');
+    try {
+      const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
+      return sendSuccess(res, profile, 'Club updated');
+    } catch (dbErr) {
+      // Surface the precise DB failure for this endpoint. The global handler
+      // hides 500 detail in prod and never logs the body; here we log the
+      // Prisma code + meta + the FIELD KEYS ONLY (never values) and return the
+      // concrete message so the cause is visible without trawling logs.
+      if (dbErr instanceof Prisma.PrismaClientKnownRequestError) {
+        logger.error('Club PATCH Prisma error', {
+          code: dbErr.code,
+          meta: dbErr.meta,
+          fields: Object.keys(b),
+          clubId: req.params.clubId,
+        });
+        const detail = (dbErr.message.split('\n').pop() || dbErr.message).trim();
+        throw new InternalServerError(`Club update failed [${dbErr.code}]: ${detail}`);
+      }
+      throw dbErr;
+    }
   } catch (err) { return next(err); }
 }

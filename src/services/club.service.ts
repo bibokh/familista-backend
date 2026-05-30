@@ -136,26 +136,34 @@ export async function updateClubProfile(
   const existing = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
   if (!existing) throw new NotFoundError('Club not found');
 
-  const hasBrand = Object.keys(brand).length > 0;
+  // Build the writes as independent operations and run them in a BATCH
+  // transaction — prisma.$transaction([...]). The interactive form
+  // ($transaction(async (tx) => …)) fails with P2028 on transaction-mode
+  // connection poolers (e.g. Neon's -pooler endpoint), which is exactly the
+  // production setup here; the batch form is pooler-safe and still atomic.
+  const ops: Prisma.PrismaPromise<unknown>[] = [];
 
-  await prisma.$transaction(async (tx) => {
-    if (Object.keys(core).length > 0) {
-      // Nullable JSON column needs Prisma.JsonNull, not literal null.
-      const { socialLinks, ...rest } = core;
-      const data: Prisma.ClubUpdateInput = { ...rest };
-      if (socialLinks !== undefined) {
-        data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
-      }
-      await tx.club.update({ where: { id: clubId }, data });
+  if (Object.keys(core).length > 0) {
+    // Nullable JSON column needs Prisma.JsonNull, not literal null.
+    const { socialLinks, ...rest } = core;
+    const data: Prisma.ClubUpdateInput = { ...rest };
+    if (socialLinks !== undefined) {
+      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
     }
-    if (hasBrand) {
-      await tx.whiteLabelConfig.upsert({
+    ops.push(prisma.club.update({ where: { id: clubId }, data }));
+  }
+
+  if (Object.keys(brand).length > 0) {
+    ops.push(
+      prisma.whiteLabelConfig.upsert({
         where: { clubId },
         create: { clubId, ...brand },
         update: brand,
-      });
-    }
-  });
+      }),
+    );
+  }
+
+  if (ops.length > 0) await prisma.$transaction(ops);
 
   return getClubProfile(clubId);
 }
