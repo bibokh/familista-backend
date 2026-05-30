@@ -117,19 +117,33 @@ export async function updateClub(req: Request, res: Response, next: NextFunction
       const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
       return sendSuccess(res, profile, 'Club updated');
     } catch (dbErr) {
-      // Surface the precise DB failure for this endpoint. The global handler
-      // hides 500 detail in prod and never logs the body; here we log the
-      // Prisma code + meta + the FIELD KEYS ONLY (never values) and return the
-      // concrete message so the cause is visible without trawling logs.
+      // Surface the precise write failure for this endpoint regardless of the
+      // Prisma error subclass. The global handler hides 500 detail in prod and
+      // never logs the body; here we log error name/code/meta + the FIELD KEYS
+      // ONLY (never values) and return the concrete message so the exact cause
+      // is visible without trawling Render logs.
+      const e = dbErr as { name?: string; code?: string; meta?: unknown; message?: string };
+      logger.error('Club PATCH write failed', {
+        name: e?.name,
+        code: e?.code,
+        meta: e?.meta,
+        fields: Object.keys(b),
+        clubId: req.params.clubId,
+      });
+      const lastLine = (msg?: string) => ((msg || '').split('\n').pop() || msg || '').trim();
       if (dbErr instanceof Prisma.PrismaClientKnownRequestError) {
-        logger.error('Club PATCH Prisma error', {
-          code: dbErr.code,
-          meta: dbErr.meta,
-          fields: Object.keys(b),
-          clubId: req.params.clubId,
-        });
-        const detail = (dbErr.message.split('\n').pop() || dbErr.message).trim();
-        throw new InternalServerError(`Club update failed [${dbErr.code}]: ${detail}`);
+        throw new InternalServerError(`Club update failed [${dbErr.code}]: ${lastLine(dbErr.message)}`);
+      }
+      if (
+        dbErr instanceof Prisma.PrismaClientValidationError ||
+        dbErr instanceof Prisma.PrismaClientUnknownRequestError ||
+        dbErr instanceof Prisma.PrismaClientInitializationError ||
+        dbErr instanceof Prisma.PrismaClientRustPanicError
+      ) {
+        throw new InternalServerError(`Club update failed [${dbErr.name}]: ${lastLine(dbErr.message)}`);
+      }
+      if (dbErr instanceof Error) {
+        throw new InternalServerError(`Club update failed [${dbErr.name}]: ${lastLine(dbErr.message)}`);
       }
       throw dbErr;
     }
