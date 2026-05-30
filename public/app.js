@@ -329,7 +329,15 @@ const BackendHealth = (function () {
     } catch (_) { return false; }
   }
 
+  // Returns true while any modal overlay is visible — used to suppress health
+  // pings and banner DOM mutations that can steal focus from open forms.
+  function _modalIsOpen() {
+    return !!document.querySelector('.modal-bg.open');
+  }
+
   async function check(initial) {
+    // Never ping / mutate the DOM while a modal form is open — focus would be lost.
+    if (!initial && _modalIsOpen()) return;
     const ok = await ping(initial ? FAM_CONFIG.HEALTH_BOOT_TIMEOUT_MS : undefined);
     if (ok) {
       State.backendHealthy = true;
@@ -354,9 +362,9 @@ const BackendHealth = (function () {
     pollTimer = setInterval(check, FAM_CONFIG.HEALTH_PING_INTERVAL);
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('online',  () => { show('Network restored. Checking backend…', 'info'); check(); });
+      window.addEventListener('online',  () => { if (!_modalIsOpen()) { show('Network restored. Checking backend…', 'info'); check(); } });
       window.addEventListener('offline', () => { State.backendHealthy = false; show('You are offline.', 'warn'); });
-      document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden && !_modalIsOpen()) check(); });
     }
   }
   function stop() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
@@ -592,13 +600,17 @@ function _isModalOpen() {
 }
 
 /**
- * Master guard — returns true while the user is actively editing a form
- * OR any modal is open.  Every background render function (poll timers, WS
- * callbacks, data-load completions) calls this before replacing innerHTML so
- * user input is never destroyed mid-type.
+ * Master guard — returns true while any modal overlay is visible OR while
+ * the user is typing in a form input.  Background renders, polls, and WS
+ * callbacks all check this before touching innerHTML.
+ *
+ * .modal-bg.open is the primary truth — focus state is unreliable because
+ * the browser moves activeElement to <body> between keystrokes in some cases.
  */
 function _isAnyFormEditing() {
-  // 1. Focused text / select input
+  // Primary: any visible modal (display:flex via .modal-bg.open CSS rule)
+  if (document.querySelector('.modal-bg.open')) return true;
+  // Secondary: focused form element outside a modal (inline filters, AI chat, etc.)
   var ae = document.activeElement;
   if (ae) {
     var tag = ae.tagName;
@@ -608,8 +620,6 @@ function _isAnyFormEditing() {
     }
     if (ae.isContentEditable) return true;
   }
-  // 2. Any open modal (player-edit, injury-edit, training-edit, match-edit, etc.)
-  if (document.querySelector('.modal-bg.open')) return true;
   return false;
 }
 
