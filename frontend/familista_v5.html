@@ -2567,28 +2567,46 @@ async function tryAutoLogin() {
 }
 
 // ── Form-safe render guards ──────────────────────────────────────────────────
+// body.app-editing is the single source of truth, kept in lock-step with the
+// DOM by a MutationObserver on every .modal-bg. Reliable even during focus
+// transitions where activeElement briefly parks on <body>.
 function _isModalOpen() {
-  return !!document.querySelector('.modal-bg.open');
+  return document.body.classList.contains('app-editing')
+      || !!document.querySelector('.modal-bg.open');
 }
-function _isAnyFormEditing() {
-  // Primary: any visible modal overlay
+function isFormEditing() {
+  if (document.body.classList.contains('app-editing')) return true;
   if (document.querySelector('.modal-bg.open')) return true;
-  // Secondary: focused form element outside a modal
   var ae = document.activeElement;
-  if (ae) {
+  if (ae && ae !== document.body) {
     var tag = ae.tagName;
-    if (['INPUT', 'TEXTAREA', 'SELECT'].indexOf(tag) !== -1 &&
-        ae.type !== 'range' && ae.type !== 'checkbox' && ae.type !== 'radio') {
-      return true;
-    }
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     if (ae.isContentEditable) return true;
   }
   return false;
 }
+function _isAnyFormEditing() { return isFormEditing(); }
+(function _wireModalState() {
+  function sync() {
+    var open = !!document.querySelector('.modal-bg.open');
+    var was  = document.body.classList.contains('app-editing');
+    document.body.classList.toggle('app-editing', open);
+    if (was && !open) _flushPendingRender();
+  }
+  function attach() {
+    var obs = new MutationObserver(sync);
+    document.querySelectorAll('.modal-bg').forEach(function (m) {
+      obs.observe(m, { attributes: true, attributeFilter: ['class'] });
+    });
+    sync();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();
 var _pendingRefresh = false;
 function _flushPendingRender() {
   if (!_pendingRefresh) return;
-  if (_isAnyFormEditing()) return;
+  if (isFormEditing()) return;
   _pendingRefresh = false;
   var active = document.querySelector('.page.active');
   if (!active) return;
@@ -2672,8 +2690,9 @@ function toggleTheme() {
 }
 
 function closeModal(id) {
+  // Removing .open fires the modal observer, which clears body.app-editing and
+  // flushes any deferred render.
   document.getElementById(id).classList.remove('open');
-  setTimeout(_flushPendingRender, 100);
 }
 
 // ── HELPERS ──
@@ -10943,11 +10962,9 @@ document.addEventListener('submit', function(e) {
   var el = e.target.closest('[data-form-submit="tiSubmitAddTarget"]');
   if (el) tiSubmitAddTarget(e);
 });
-document.addEventListener('focusout', function() { setTimeout(_flushPendingRender, 150); });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     document.querySelectorAll('.modal-bg.open').forEach(function(m) { m.classList.remove('open'); });
-    setTimeout(_flushPendingRender, 100);
   }
 });
 </script>

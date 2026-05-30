@@ -1,10 +1,7 @@
 /* ============================================================
    FAMILISTA v5 — COMPLETE PRODUCTION APPLICATION
    Full Backend Integration — Live API Data
-   BUILD: 20260529h
    ============================================================ */
-// Confirm this build is loaded — if you see a different build below, you have a cached version.
-console.log('%c[FAMILISTA] BUILD 20260529h loaded', 'background:#0ea5e9;color:#fff;font-weight:bold;padding:2px 10px;border-radius:3px;font-size:13px;');
 
 // ════════════════════════════════════════════════════════════════════════
 // FAMILISTA — Network layer (config + API wrapper + health monitor)
@@ -339,9 +336,8 @@ const BackendHealth = (function () {
   }
 
   async function check(initial) {
-    console.warn('[TIMER]', 'BackendHealth.check', '| initial:', !!initial, '| modal:', !!document.querySelector('.modal-bg.open'));
     // Never ping / mutate the DOM while a modal form is open — focus would be lost.
-    if (!initial && _modalIsOpen()) { console.warn('[TIMER BLOCKED]', 'BackendHealth.check'); return; }
+    if (!initial && _modalIsOpen()) return;
     const ok = await ping(initial ? FAM_CONFIG.HEALTH_BOOT_TIMEOUT_MS : undefined);
     if (ok) {
       State.backendHealthy = true;
@@ -597,117 +593,95 @@ async function tryAutoLogin() {
 
 // ── Form-safe render guards ──────────────────────────────────────────────────
 // Prevents in-progress user input from being wiped by background re-renders.
+//
+// ARCHITECTURE: "is the user editing?" is tracked by an explicit body flag
+// (`app-editing`) that a MutationObserver keeps in lock-step with the DOM.
+// The observer watches every .modal-bg element for class changes, so EVERY
+// open/close path — classList.add('open'), closeModal(), Escape, overlay click
+// — flips the flag without us having to patch each call site. This is reliable
+// even during focus transitions, where document.activeElement briefly parks on
+// <body> and a naive .modal-bg.open / activeElement check would read false.
 
-/** True while any .modal-bg element has the 'open' class. */
+/** True while any modal overlay is open. */
 function _isModalOpen() {
-  return !!document.querySelector('.modal-bg.open');
+  return document.body.classList.contains('app-editing')
+      || !!document.querySelector('.modal-bg.open');
 }
 
 /**
- * Master guard — returns true while any modal overlay is visible OR while
- * the user is typing in a form input.  Background renders, polls, and WS
- * callbacks all check this before touching innerHTML.
- *
- * .modal-bg.open is the primary truth — focus state is unreliable because
- * the browser moves activeElement to <body> between keystrokes in some cases.
+ * Master guard. True while a modal is open OR a form control is focused.
+ * Every background render / poll / WS callback checks this before touching
+ * the DOM, so typing is never interrupted by a re-render.
  */
-function _isAnyFormEditing() {
-  // Primary: any visible modal (display:flex via .modal-bg.open CSS rule)
+function isFormEditing() {
+  // 1. Explicit flag maintained by the modal observer (primary truth)
+  if (document.body.classList.contains('app-editing')) return true;
+  // 2. Direct query backstop (covers the first paint before the observer syncs)
   if (document.querySelector('.modal-bg.open')) return true;
-  // Secondary: focused form element outside a modal (inline filters, AI chat, etc.)
+  // 3. Any focused form control anywhere (inline filters, search, AI chat…)
   var ae = document.activeElement;
-  if (ae) {
+  if (ae && ae !== document.body) {
     var tag = ae.tagName;
-    if (['INPUT', 'TEXTAREA', 'SELECT'].indexOf(tag) !== -1 &&
-        ae.type !== 'range' && ae.type !== 'checkbox' && ae.type !== 'radio') {
-      return true;
-    }
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
     if (ae.isContentEditable) return true;
   }
   return false;
 }
+// Back-compat alias — used throughout the file.
+function _isAnyFormEditing() { return isFormEditing(); }
 
 /**
- * Diagnostic — call from DevTools console or it fires automatically when
- * a player edit modal opens.  Answers exactly why _isModalOpen() returns false.
+ * Keep document.body.classList('app-editing') synchronised with the real DOM.
+ * One MutationObserver on every .modal-bg element fires on each class change,
+ * so the flag is always correct regardless of how the modal was opened/closed.
+ * When editing ends, flush any render that was deferred while it was active.
  */
-function _diagModal() {
-  var d = [];
-  d.push('=== MODAL DIAGNOSTIC (build 20260529h) ===');
-
-  // 1. All .modal-bg elements + their exact classes and computed display
-  var bgs = document.querySelectorAll('.modal-bg');
-  d.push('.modal-bg count: ' + bgs.length);
-  bgs.forEach(function(el) {
-    d.push('  #' + el.id + ' | class="' + el.className + '" | computed display: ' + getComputedStyle(el).display + ' | hasOpen: ' + el.classList.contains('open'));
-  });
-
-  // 2. All elements with "modal" anywhere in their id
-  var byId = document.querySelectorAll('[id*="modal"]');
-  d.push('[id*=modal] count: ' + byId.length);
-  byId.forEach(function(el) {
-    d.push('  #' + el.id + ' | class="' + el.className + '" | tagName: ' + el.tagName);
-  });
-
-  // 3. Direct check on player-edit-modal
-  var pem = document.getElementById('player-edit-modal');
-  if (pem) {
-    d.push('player-edit-modal exists: true');
-    d.push('  classList: ' + pem.classList.toString());
-    d.push('  style.display: ' + (pem.style.display || '(none set)'));
-    d.push('  computed display: ' + getComputedStyle(pem).display);
-    d.push('  parentNode.id: ' + (pem.parentNode && pem.parentNode.id || pem.parentNode && pem.parentNode.tagName));
-    d.push('  isConnected: ' + pem.isConnected);
-  } else {
-    d.push('player-edit-modal: NULL — element not found in DOM!');
+(function _wireModalState() {
+  function sync() {
+    var open = !!document.querySelector('.modal-bg.open');
+    var was  = document.body.classList.contains('app-editing');
+    document.body.classList.toggle('app-editing', open);
+    if (was && !open) _flushPendingRender();   // editing just ended → catch up
   }
-
-  // 4. querySelector results
-  d.push('.modal-bg.open result: ' + (document.querySelector('.modal-bg.open') ? document.querySelector('.modal-bg.open').id : 'null'));
-  d.push('.modal.open result: ' + (document.querySelector('.modal.open') ? document.querySelector('.modal.open').id : 'null'));
-  d.push('#player-edit-modal.open: ' + (document.querySelector('#player-edit-modal.open') ? 'FOUND' : 'null'));
-
-  // 5. Active element
-  var ae = document.activeElement;
-  d.push('activeElement: ' + (ae ? ae.tagName + '#' + ae.id + '.' + (ae.className || '').split(' ')[0] : 'null'));
-
-  // 6. Guard return values
-  d.push('_isModalOpen(): ' + _isModalOpen());
-  d.push('_isAnyFormEditing(): ' + _isAnyFormEditing());
-
-  console.error(d.join('\n'));
-  return d.join('\n');
-}
-// Expose for manual DevTools invocation
-window._diagModal = _diagModal;
+  function attach() {
+    var obs = new MutationObserver(sync);
+    document.querySelectorAll('.modal-bg').forEach(function (m) {
+      obs.observe(m, { attributes: true, attributeFilter: ['class'] });
+    });
+    sync();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', attach);
+  } else {
+    attach();
+  }
+})();
 
 /**
- * Set by a guarded render when it had to skip due to _isAnyFormEditing().
- * Flushed automatically when editing ends so the page catches up.
+ * Set by a guarded render that had to skip because isFormEditing() was true.
+ * Flushed automatically by the modal observer the instant editing ends, so the
+ * page catches up to the latest data exactly once — after Save/Cancel/close.
  */
 var _pendingRefresh = false;
 
-/**
- * Re-render the currently visible page after editing ends.
- * Called on focusout (with a 150 ms debounce) and on every closeModal().
- */
 function _flushPendingRender() {
   if (!_pendingRefresh) return;
-  if (_isAnyFormEditing()) return;
+  if (isFormEditing()) return;
   _pendingRefresh = false;
   var active = document.querySelector('.page.active');
   if (!active) return;
-  var id = active.id || '';
-  if      (id === 'pg-squad')       renderSquad();
-  else if (id === 'pg-dashboard')   renderDashboard();
-  else if (id === 'pg-matches')     renderMatches();
-  else if (id === 'pg-training')    renderTrainingPage();
-  else if (id === 'pg-medical')     renderMedicalPage();
-  else if (id === 'pg-performance') renderPerformancePage();
-  else if (id === 'pg-analytics')   renderAnalyticsPage();
-  else if (id === 'pg-admin')       renderAdminPage();
-  else if (id === 'pg-stats')       siRenderTab();
-  else if (id === 'pg-transfer')    tiRenderTab();
+  switch (active.id) {
+    case 'pg-squad':       renderSquad();           break;
+    case 'pg-dashboard':   renderDashboard();       break;
+    case 'pg-matches':     renderMatches();         break;
+    case 'pg-training':    renderTrainingPage();    break;
+    case 'pg-medical':     renderMedicalPage();     break;
+    case 'pg-performance': renderPerformancePage(); break;
+    case 'pg-analytics':   renderAnalyticsPage();   break;
+    case 'pg-admin':       renderAdminPage();       break;
+    case 'pg-stats':       siRenderTab();           break;
+    case 'pg-transfer':    tiRenderTab();           break;
+  }
 }
 
 /**
@@ -795,8 +769,9 @@ function toggleTheme() {
 }
 
 function closeModal(id) {
+  // Removing .open fires the modal observer, which clears body.app-editing and
+  // flushes any deferred render. No manual flush needed here.
   document.getElementById(id).classList.remove('open');
-  setTimeout(_flushPendingRender, 100);
 }
 
 // ── HELPERS ──
@@ -960,8 +935,7 @@ function renderDashboardHTML() {
 }
 
 function renderDashboard() {
-  console.warn('[RENDER]', 'renderDashboard', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderDashboard'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const d = State.analytics;
   if (!d) return;
 
@@ -1297,8 +1271,7 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
-  console.error('[SOURCE]', 'renderSquad', new Error().stack);
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   filterPos = filterPos || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
@@ -1610,7 +1583,6 @@ function openAddPlayerModal() {
   const err = document.getElementById('pe-error');
   err.style.display = 'none'; err.textContent = '';
   document.getElementById('player-edit-modal').classList.add('open');
-  setTimeout(_diagModal, 80);  // auto-diagnose after classList.add completes
   setTimeout(() => document.getElementById('pe-firstName').focus(), 60);
 }
 
@@ -1660,7 +1632,6 @@ function openEditPlayerModal(id) {
   err.style.display = 'none'; err.textContent = '';
   closeModal('player-modal');
   document.getElementById('player-edit-modal').classList.add('open');
-  setTimeout(_diagModal, 80);  // auto-diagnose after classList.add completes
 }
 
 async function submitPlayerForm(ev) {
@@ -1828,8 +1799,7 @@ function renderMatchesHTML() {
 
 // Top-level orchestrator: paints the right view depending on sub-tab.
 function renderMatches() {
-  console.error('[SOURCE]', 'renderMatches', new Error().stack);
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const tab = _matchTab;
   if (tab === 'live')     return renderLiveSubTab();
   if (tab === 'tactical') return renderTacticalSubTab();
@@ -2277,7 +2247,6 @@ async function liveAction(kind) {
 }
 
 async function refreshActiveMatch() {
-  console.error('[SOURCE]', 'refreshActiveMatch', new Error().stack);
   const id = State.activeMatch && State.activeMatch.id; if (!id) return;
   try {
     const res = await MatchAPI.get(id);
@@ -2299,7 +2268,6 @@ function setMatchModalTab(tab, el) {
 }
 
 function renderMatchModalTab() {
-  console.error('[SOURCE]', 'renderMatchModalTab[' + _matchModalTab + ']', new Error().stack);
   const c = document.getElementById('match-modal-content');
   const m = State.activeMatch;
   if (!c || !m) return;
@@ -2772,9 +2740,8 @@ async function paintIntelligenceTab(c, m) {
   const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
   if (isLive) {
     _intelPollTimer = setInterval(() => {
-      console.warn('[TIMER]', '_intelPollTimer', '| modal:', !!document.querySelector('.modal-bg.open'));
       if (document.visibilityState !== 'visible') return;
-      if (_isAnyFormEditing()) { console.warn('[TIMER BLOCKED]', '_intelPollTimer'); return; }
+      if (isFormEditing()) return;
       if (_matchModalTab !== 'intelligence') { clearInterval(_intelPollTimer); _intelPollTimer = null; return; }
       if (Date.now() - _lastIntelUpdate < 25_000) return; // WS already delivered recently
       const cont = document.getElementById('match-modal-content');
@@ -3337,7 +3304,6 @@ function parseSSEDataSafe(e) {
 }
 
 function repaintLivePanelsIfVisible() {
-  console.error('[SOURCE]', 'repaintLivePanelsIfVisible', new Error().stack);
   if (_matchModalTab === 'live'   || _matchModalTab === 'fusion') renderMatchModalTab();
 }
 
@@ -3651,7 +3617,6 @@ function replayToggle() {
   if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
   if (_replayState.playing) {
     _replayState.timer = setInterval(() => {
-      console.warn('[TIMER]', '_replayState.timer');
       if (_replayState.cursor >= _replayState.events.length) {
         _replayState.playing = false;
         if (_replayState.timer) { clearInterval(_replayState.timer); _replayState.timer = null; }
@@ -4155,8 +4120,7 @@ function setAnalyticsTab(tab, el) {
 }
 
 function renderAnalyticsPage() {
-  console.warn('[RENDER]', 'renderAnalyticsPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderAnalyticsPage'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('analytics-content');
   if (!el) return;
   if (_analyticsTab === 'dashboard') _renderAnalyticsDashboard(el);
@@ -4849,8 +4813,7 @@ function setTrainingTab(tab, el) {
 }
 
 function renderTrainingPage() {
-  console.error('[SOURCE]', 'renderTrainingPage', new Error().stack);
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('training-content');
   if (!el) return;
   if (_trainingTab === 'sessions')  renderTrainingSessions(el);
@@ -5276,8 +5239,7 @@ function setMedicalTab(tab, el) {
 }
 
 function renderMedicalPage() {
-  console.error('[SOURCE]', 'renderMedicalPage', new Error().stack);
-  if (_isAnyFormEditing()) { _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('medical-content');
   if (!el) return;
   if (_medTab === 'dashboard') _renderMedDashboard(el);
@@ -5801,8 +5763,7 @@ function setPerfTab(tab, el) {
 }
 
 function renderPerformancePage() {
-  console.warn('[RENDER]', 'renderPerformancePage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderPerformancePage'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('perf-content');
   if (!el) return;
   if (_perfTab === 'dashboard') _renderPerfDashboard(el);
@@ -7046,9 +7007,8 @@ async function loadDevicesData() {
   }
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
-    console.warn('[TIMER]', '_devPollTimer', '| modal:', !!document.querySelector('.modal-bg.open'));
     if (document.visibilityState !== 'visible') return;
-    if (_isAnyFormEditing()) { console.warn('[TIMER BLOCKED]', '_devPollTimer'); return; }
+    if (isFormEditing()) return;
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
@@ -7507,8 +7467,7 @@ function _adminRenderAudit() {
 }
 
 function renderAdminPage() {
-  console.warn('[RENDER]', 'renderAdminPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderAdminPage'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   var el = document.getElementById('admin-content');
   if (!el) return;
   if (State.admin._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -7785,8 +7744,7 @@ function _taiRenderWorkload() {
 }
 
 function renderTacticalAIPage() {
-  console.warn('[RENDER]', 'renderTacticalAIPage', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'renderTacticalAIPage'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   var el = document.getElementById('tai-content');
   if (!el) return;
   if (State.tacticalAI._loading) { el.innerHTML = loadingHTML('Loading...'); return; }
@@ -8504,7 +8462,6 @@ async function testBackendConnection() {
 // After render, hook data loading
 document.addEventListener('click', (e) => {
   if (e.target.closest('[data-page="training"]') || e.target.closest('#pg-training')) {
-    console.warn('[TIMER]', 'click→setTimeout(renderTrainingPage)', '| target:', e.target.tagName, e.target.className, '| modal:', !!document.querySelector('.modal-bg.open'));
     setTimeout(renderTrainingPage, 100);
   }
   if (e.target.closest('[data-page="settings"]') || e.target.closest('#pg-settings')) {
@@ -9203,7 +9160,6 @@ function tosTwinToggle() {
   if (TOS.state.twin.timer) { clearInterval(TOS.state.twin.timer); TOS.state.twin.timer = null; }
   if (TOS.state.twin.playing) {
     TOS.state.twin.timer = setInterval(() => {
-      console.warn('[TIMER]', 'TOS.twin.timer');
       const r = document.getElementById('tos-twin-range'); if (!r) return;
       const next = Math.min(100, parseInt(r.value, 10) + 1);
       r.value = next; tosTwinSeek(next);
@@ -9369,8 +9325,7 @@ function siTab(tab) {
 }
 
 function siRenderTab() {
-  console.warn('[RENDER]', 'siRenderTab', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'siRenderTab'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const body = document.getElementById('si-body');
   if (!body) return;
   // Save focused input state — search/filter inputs live inside si-body and are
@@ -10188,8 +10143,7 @@ function tiSwitchTab(tab) {
 }
 
 function tiRenderTab() {
-  console.warn('[RENDER]', 'tiRenderTab', '| modal:', !!document.querySelector('.modal-bg.open'), '| focus:', document.activeElement && document.activeElement.tagName, '| stack:', new Error().stack.split('\n')[2]);
-  if (_isAnyFormEditing()) { console.warn('[RENDER BLOCKED]', 'tiRenderTab'); _pendingRefresh = true; return; }
+  if (isFormEditing()) { _pendingRefresh = true; return; }
   const el = document.getElementById('ti-content');
   if (!el) return;
   var _f = _saveFocusIn(el);  // save focus/cursor before replacing innerHTML
@@ -12205,19 +12159,15 @@ async function tosBoardSnapshot() {
     }
   });
 
-  // ── Pending-refresh flush ────────────────────────────────────────────────────
-  // When the user finishes editing (focusout from a form input, or a modal closes
-  // via Escape / overlay click), flush any render that was deferred by _isAnyFormEditing().
-  document.addEventListener('focusout', function() {
-    setTimeout(_flushPendingRender, 150);
-  });
-  // Escape key closes whichever modal is open — flush immediately after.
+  // ── Escape closes whichever modal is open ─────────────────────────────────────
+  // Removing .open triggers the modal observer, which clears body.app-editing and
+  // flushes any deferred page render exactly once. No focus-based flushing here —
+  // that could fire a render mid-edit during a focus transition.
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       document.querySelectorAll('.modal-bg.open').forEach(function(m) {
         m.classList.remove('open');
       });
-      setTimeout(_flushPendingRender, 100);
     }
   });
 })();
