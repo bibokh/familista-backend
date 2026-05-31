@@ -4,12 +4,10 @@
 // PATCH /clubs/:clubId     → update club + brand (CLUB_ADMIN / SUPER_ADMIN)
 
 import { Request, Response, NextFunction } from 'express';
-import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import * as svc from '../services/club.service';
 import { sendSuccess } from '../utils/response';
-import { BadRequestError, InternalServerError } from '../utils/errors';
-import { logger } from '../utils/logger';
+import { BadRequestError } from '../utils/errors';
 
 // ── Reusable validators ───────────────────────────────────────────────────
 const httpsUrl = z
@@ -84,17 +82,7 @@ export async function getCurrentClub(req: Request, res: Response, next: NextFunc
     if (!clubId) throw new BadRequestError('No active club for this user');
     const profile = await svc.getClubProfile(clubId);
     return sendSuccess(res, profile);
-  } catch (err) {
-    // TEMP diagnostic (this endpoint only): log the exact failure + deployed
-    // commit so we can confirm root cause without dashboard/log spelunking.
-    logger.error('[clubs/current] failed', {
-      name: (err as { name?: string })?.name,
-      code: (err as { code?: string })?.code,
-      message: (err as Error)?.message?.split('\n').slice(-1)[0]?.trim(),
-      commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
-    });
-    return next(err);
-  }
+  } catch (err) { return next(err); }
 }
 
 export async function getClub(req: Request, res: Response, next: NextFunction) {
@@ -107,20 +95,7 @@ export async function getClub(req: Request, res: Response, next: NextFunction) {
 export async function updateClub(req: Request, res: Response, next: NextFunction) {
   try {
     const parsed = patchSchema.safeParse({ body: req.body });
-    if (!parsed.success) {
-      // TEMP diagnostic: capture the EXACT validation failure (field + message +
-      // code) and the submitted keys — no values logged (privacy-safe).
-      logger.warn('[clubs] PATCH 400 validation', {
-        clubId: req.params.clubId,
-        bodyKeys: Object.keys((req.body as Record<string, unknown>) || {}),
-        issues: parsed.error.errors.map((e) => ({
-          field: e.path.slice(1).join('.') || String(e.path[0] ?? 'body'),
-          code: e.code,
-          message: e.message,
-        })),
-      });
-      throw zerr(parsed.error);
-    }
+    if (!parsed.success) throw zerr(parsed.error);
     const b = parsed.data.body;
 
     // Split validated payload into Club core vs WhiteLabelConfig brand.
@@ -136,39 +111,7 @@ export async function updateClub(req: Request, res: Response, next: NextFunction
       }
     }
 
-    try {
-      const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
-      return sendSuccess(res, profile, 'Club updated');
-    } catch (dbErr) {
-      // Surface the precise write failure for this endpoint regardless of the
-      // Prisma error subclass. The global handler hides 500 detail in prod and
-      // never logs the body; here we log error name/code/meta + the FIELD KEYS
-      // ONLY (never values) and return the concrete message so the exact cause
-      // is visible without trawling Render logs.
-      const e = dbErr as { name?: string; code?: string; meta?: unknown; message?: string };
-      logger.error('Club PATCH write failed', {
-        name: e?.name,
-        code: e?.code,
-        meta: e?.meta,
-        fields: Object.keys(b),
-        clubId: req.params.clubId,
-      });
-      const lastLine = (msg?: string) => ((msg || '').split('\n').pop() || msg || '').trim();
-      if (dbErr instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new InternalServerError(`Club update failed [${dbErr.code}]: ${lastLine(dbErr.message)}`);
-      }
-      if (
-        dbErr instanceof Prisma.PrismaClientValidationError ||
-        dbErr instanceof Prisma.PrismaClientUnknownRequestError ||
-        dbErr instanceof Prisma.PrismaClientInitializationError ||
-        dbErr instanceof Prisma.PrismaClientRustPanicError
-      ) {
-        throw new InternalServerError(`Club update failed [${dbErr.name}]: ${lastLine(dbErr.message)}`);
-      }
-      if (dbErr instanceof Error) {
-        throw new InternalServerError(`Club update failed [${dbErr.name}]: ${lastLine(dbErr.message)}`);
-      }
-      throw dbErr;
-    }
+    const profile = await svc.updateClubProfile(req.params.clubId, core, brand);
+    return sendSuccess(res, profile, 'Club updated');
   } catch (err) { return next(err); }
 }

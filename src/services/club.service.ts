@@ -1,11 +1,11 @@
 // Familista — Club System service (Phase R)
-// Reads/writes the existing Club model + its 1:1 WhiteLabelConfig (brand).
+// Reads/writes the Club model + its 1:1 WhiteLabelConfig (brand).
 // Logo + colors live ONLY in WhiteLabelConfig (no duplication on Club).
+// Pure Prisma — schema is the single source of truth.
 
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
-import { logger } from '../utils/logger';
 
 export interface ClubBrand {
   logoUrl: string | null;
@@ -37,7 +37,7 @@ export interface ClubProfile {
   contactEmail: string | null;
   contactPhone: string | null;
   websiteUrl: string | null;
-  socialLinks: unknown;
+  socialLinks: Prisma.JsonValue;
   branding: ClubBrand;
 }
 
@@ -74,44 +74,33 @@ export interface ClubBrandPatch {
   accentColor?: string;
 }
 
-// Phase-R fields are typed OPTIONAL here so the mapping never breaks if the
-// generated Prisma Client is momentarily out of sync and omits them — they
-// simply default to null.
-function toProfile(club: {
-  id: string; name: string; shortName: string | null; emblem: string | null;
-  founded: Date | null; stadium: string | null;
-  capacity: number | null; city: string | null; country: string | null;
-  level: number; overallRating: number; leaguePosition: number | null;
-  fanClub: string | null;
-  description?: string | null; addressLine?: string | null; region?: string | null;
-  postalCode?: string | null; contactEmail?: string | null; contactPhone?: string | null;
-  websiteUrl?: string | null; socialLinks?: unknown;
-  whiteLabel: {
-    logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null;
-    primaryColor: string | null; secondaryColor: string | null; accentColor: string | null;
-  } | null;
-}): ClubProfile {
+const clubWithBrand = Prisma.validator<Prisma.ClubDefaultArgs>()({
+  include: { whiteLabel: true },
+});
+type ClubWithBrand = Prisma.ClubGetPayload<typeof clubWithBrand>;
+
+function toProfile(club: ClubWithBrand): ClubProfile {
   return {
     id: club.id,
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
-    description: club.description ?? null,
+    description: club.description,
     founded: club.founded,
     stadium: club.stadium,
     capacity: club.capacity,
     city: club.city,
     country: club.country,
-    addressLine: club.addressLine ?? null,
-    region: club.region ?? null,
-    postalCode: club.postalCode ?? null,
+    addressLine: club.addressLine,
+    region: club.region,
+    postalCode: club.postalCode,
     level: club.level,
     overallRating: club.overallRating,
     leaguePosition: club.leaguePosition,
     fanClub: club.fanClub,
-    contactEmail: club.contactEmail ?? null,
-    contactPhone: club.contactPhone ?? null,
-    websiteUrl: club.websiteUrl ?? null,
+    contactEmail: club.contactEmail,
+    contactPhone: club.contactPhone,
+    websiteUrl: club.websiteUrl,
     socialLinks: club.socialLinks ?? null,
     branding: {
       logoUrl: club.whiteLabel?.logoUrl ?? null,
@@ -125,55 +114,12 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  // Bare findUnique — NO field-level `select`/`include` — so the query can never
-  // throw "Unknown field" even if the deployed client is stale. This returns the
-  // client-known Club columns only.
-  let club;
-  try {
-    club = await prisma.club.findUnique({ where: { id: clubId } });
-  } catch (err) {
-    logger.error('[clubs] prisma.club.findUnique failed', {
-      clubId,
-      name: (err as { name?: string })?.name,
-      code: (err as { code?: string })?.code,
-      message: (err as Error)?.message,
-      commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
-    });
-    throw err;
-  }
+  const club = await prisma.club.findUnique({
+    where: { id: clubId },
+    include: { whiteLabel: true },
+  });
   if (!club) throw new NotFoundError('Club not found');
-
-  // Read the Phase-R columns with raw SQL and MERGE them in, so the values
-  // written by updateClubProfile's raw UPDATE are returned even when the
-  // deployed Prisma Client is stale and would otherwise omit them (returning
-  // null). Mirrors the write path. Non-fatal: if the columns are somehow absent,
-  // fall back to whatever the client returned.
-  let phaseR: Record<string, unknown> = {};
-  try {
-    const rows = await prisma.$queryRaw<Array<{
-      description: string | null; addressLine: string | null; region: string | null;
-      postalCode: string | null; contactEmail: string | null; contactPhone: string | null;
-      websiteUrl: string | null; socialLinks: unknown;
-    }>>(Prisma.sql`
-      SELECT "description", "addressLine", "region", "postalCode",
-             "contactEmail", "contactPhone", "websiteUrl", "socialLinks"
-      FROM "Club" WHERE "id" = ${clubId} LIMIT 1
-    `);
-    if (rows && rows[0]) phaseR = rows[0] as Record<string, unknown>;
-  } catch (_) { /* Phase-R columns optional — never fail the read on them */ }
-
-  let whiteLabel = null;
-  try {
-    whiteLabel = await prisma.whiteLabelConfig.findUnique({
-      where: { clubId },
-      select: {
-        logoUrl: true, logoDarkUrl: true, faviconUrl: true,
-        primaryColor: true, secondaryColor: true, accentColor: true,
-      },
-    });
-  } catch (_) { /* brand is optional — never fail the profile read on it */ }
-
-  return toProfile({ ...club, ...phaseR, whiteLabel } as Parameters<typeof toProfile>[0]);
+  return toProfile(club);
 }
 
 export async function updateClubProfile(
@@ -184,43 +130,16 @@ export async function updateClubProfile(
   const existing = await prisma.club.findUnique({ where: { id: clubId }, select: { id: true } });
   if (!existing) throw new NotFoundError('Club not found');
 
-  // Build the writes as independent operations and run them in a BATCH
-  // transaction — prisma.$transaction([...]). The interactive form
-  // ($transaction(async (tx) => …)) fails with P2028 on transaction-mode
-  // connection poolers (e.g. Neon's -pooler endpoint), which is exactly the
-  // production setup here; the batch form is pooler-safe and still atomic.
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
-  // Split the patch: columns the (possibly stale) generated client models go
-  // through prisma.club.update; the Phase-R columns are written with raw,
-  // PARAMETERIZED SQL so they persist even when the deployed client doesn't yet
-  // know them (which otherwise throws "Unknown argument `description`"). The
-  // columns exist in the DB (migration 20260531000000_club_profile_fields).
-  const PHASE_R = new Set(['description', 'addressLine', 'region', 'postalCode', 'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']);
-  const known: Record<string, unknown> = {};
-  const extra: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(core)) {
-    if (PHASE_R.has(k)) extra[k] = v; else known[k] = v;
-  }
-
-  if (Object.keys(known).length > 0) {
-    ops.push(prisma.club.update({ where: { id: clubId }, data: known as Prisma.ClubUpdateInput }));
-  }
-
-  const sets: Prisma.Sql[] = [];
-  if ('description'  in extra) sets.push(Prisma.sql`"description"  = ${(extra.description  ?? null) as string | null}`);
-  if ('addressLine'  in extra) sets.push(Prisma.sql`"addressLine"  = ${(extra.addressLine  ?? null) as string | null}`);
-  if ('region'       in extra) sets.push(Prisma.sql`"region"       = ${(extra.region       ?? null) as string | null}`);
-  if ('postalCode'   in extra) sets.push(Prisma.sql`"postalCode"   = ${(extra.postalCode   ?? null) as string | null}`);
-  if ('contactEmail' in extra) sets.push(Prisma.sql`"contactEmail" = ${(extra.contactEmail ?? null) as string | null}`);
-  if ('contactPhone' in extra) sets.push(Prisma.sql`"contactPhone" = ${(extra.contactPhone ?? null) as string | null}`);
-  if ('websiteUrl'   in extra) sets.push(Prisma.sql`"websiteUrl"   = ${(extra.websiteUrl   ?? null) as string | null}`);
-  if ('socialLinks'  in extra) {
-    const sl = extra.socialLinks;
-    sets.push(Prisma.sql`"socialLinks" = ${sl == null ? null : JSON.stringify(sl)}::jsonb`);
-  }
-  if (sets.length > 0) {
-    ops.push(prisma.$executeRaw(Prisma.sql`UPDATE "Club" SET ${Prisma.join(sets, ', ')} WHERE "id" = ${clubId}`));
+  if (Object.keys(core).length > 0) {
+    // Nullable JSON column needs Prisma.JsonNull (not literal null).
+    const { socialLinks, ...rest } = core;
+    const data: Prisma.ClubUpdateInput = { ...rest };
+    if (socialLinks !== undefined) {
+      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
+    }
+    ops.push(prisma.club.update({ where: { id: clubId }, data }));
   }
 
   if (Object.keys(brand).length > 0) {
@@ -236,26 +155,4 @@ export async function updateClubProfile(
   if (ops.length > 0) await prisma.$transaction(ops);
 
   return getClubProfile(clubId);
-}
-
-/**
- * Ensure the Phase-R Club profile columns exist in the database. Idempotent
- * (ADD COLUMN IF NOT EXISTS) and safe to run on every boot. This is the safety
- * net for production environments where migration
- * 20260531000000_club_profile_fields never ran — e.g. a start command that
- * bypasses the predeploy `prisma migrate deploy`. Pure DDL via the existing
- * connection: no Prisma Client regeneration, negligible memory.
- */
-export async function ensureClubProfileColumns(): Promise<void> {
-  await prisma.$executeRawUnsafe(`
-    ALTER TABLE "Club"
-      ADD COLUMN IF NOT EXISTS "description"  TEXT,
-      ADD COLUMN IF NOT EXISTS "addressLine"  TEXT,
-      ADD COLUMN IF NOT EXISTS "region"       TEXT,
-      ADD COLUMN IF NOT EXISTS "postalCode"   TEXT,
-      ADD COLUMN IF NOT EXISTS "contactEmail" TEXT,
-      ADD COLUMN IF NOT EXISTS "contactPhone" TEXT,
-      ADD COLUMN IF NOT EXISTS "websiteUrl"   TEXT,
-      ADD COLUMN IF NOT EXISTS "socialLinks"  JSONB;
-  `);
 }

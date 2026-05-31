@@ -7,7 +7,6 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
-import { Prisma } from '@prisma/client';
 import { config } from './config';
 import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
@@ -112,19 +111,6 @@ export function createApp(): express.Application {
 
   // ── Cold-start / liveness probes (no auth, no body)
   // Two paths for resilience: /api/health (frontend ping) + /healthz (Render).
-  // TEMP verification probe: does the RUNNING Prisma Client know the Phase-R
-  // Club columns? Reads the in-memory DMMF (cheap — NOT runtime generation, so
-  // no memory impact). Lets us confirm the deployed client matches the schema
-  // via a public curl. Safe to remove once verified.
-  const PHASE_R = ['description', 'addressLine', 'region', 'postalCode', 'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks'];
-  const clubClientPhaseR = (): boolean => {
-    try {
-      const m = (Prisma as unknown as { dmmf?: { datamodel?: { models?: Array<{ name: string; fields: Array<{ name: string }> }> } } })
-        .dmmf?.datamodel?.models?.find((x) => x.name === 'Club');
-      const f = m ? m.fields.map((x) => x.name) : [];
-      return PHASE_R.every((k) => f.includes(k));
-    } catch { return false; }
-  };
   const healthPayload = () => ({
     status: 'ok',
     server: 'Familista Backend',
@@ -132,8 +118,6 @@ export function createApp(): express.Application {
     env: config.env,
     uptimeSec: Math.round(process.uptime()),
     ts: new Date().toISOString(),
-    commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
-    clubClientPhaseR: clubClientPhaseR(),
   });
   app.get('/api/health', (_req, res) => res.json(healthPayload()));
   app.get('/healthz',    (_req, res) => res.json(healthPayload()));
