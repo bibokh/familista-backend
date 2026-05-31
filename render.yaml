@@ -13,7 +13,7 @@ services:
     autoDeploy: true
     buildCommand: npm install && npx prisma generate --schema=prisma/schema.prisma && npm run build
     preDeployCommand: bash scripts/render-predeploy.sh
-    startCommand: npm run start
+    startCommand: node dist/server.js
     healthCheckPath: /api/v1/health
     envVars:
       # ── Core ────────────────────────────────────────────────────────────

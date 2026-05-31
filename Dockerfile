@@ -61,8 +61,8 @@ EXPOSE 10000
 ENTRYPOINT ["/usr/bin/tini","--"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT}/api/v1/health" || exit 1
-# Regenerate the Prisma Client from the in-image schema BEFORE starting, so the
-# runtime client can never be stale relative to prisma/schema.prisma (npm run
-# start = `prisma generate --schema=prisma/schema.prisma && node dist/server.js`).
-# `prisma` is a runtime dependency (survives `npm prune --omit=dev`).
-CMD ["npm","run","start"]
+# Start the server directly. The Prisma Client is generated in the BUILD stage
+# (after prune) and baked into the image — NO runtime `prisma generate`, which
+# previously ran the generation engine concurrently with the server and blew
+# past Render's 512MB limit (OOM on boot).
+CMD ["node","dist/server.js"]
