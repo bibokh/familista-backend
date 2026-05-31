@@ -125,41 +125,41 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  // ROOT CAUSE of the 500: the typed `select: { description: true, … }` throws
-  // "Unknown field `description` for select statement on model Club" — a Prisma
-  // CLIENT validation error (raised before SQL) that means the generated client
-  // is out of sync with the schema. Using `include` with NO field-level Club
-  // `select` makes Prisma select exactly the columns the client knows, so it
-  // never references an unknown field; Phase-R columns are returned once the
-  // client includes them, and default to null until then. This is standard
-  // Prisma (no raw SQL).
+  // Bare findUnique — NO field-level `select` and NO relation `include` on Club.
+  // Prisma then selects only the Club columns the generated client knows, so the
+  // query can NEVER throw "Unknown field `description` for select statement on
+  // model Club" even if the deployed client is momentarily out of sync with the
+  // schema (the cause of the 500). WhiteLabel brand is read separately (its
+  // columns are long-established). Phase-R fields default to null via toProfile
+  // until the client includes them. Same safe shape for /clubs/current and
+  // /clubs/:id (both call this function). No raw SQL.
   let club;
   try {
-    club = await prisma.club.findUnique({
-      where: { id: clubId },
-      include: {
-        whiteLabel: {
-          select: {
-            logoUrl: true, logoDarkUrl: true, faviconUrl: true,
-            primaryColor: true, secondaryColor: true, accentColor: true,
-          },
-        },
-      },
-    });
+    club = await prisma.club.findUnique({ where: { id: clubId } });
   } catch (err) {
-    // TEMP diagnostic (Club read path only).
     logger.error('[clubs] prisma.club.findUnique failed', {
       clubId,
       name: (err as { name?: string })?.name,
       code: (err as { code?: string })?.code,
       message: (err as Error)?.message,
-      stack: (err as Error)?.stack,
       commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
     });
     throw err;
   }
   if (!club) throw new NotFoundError('Club not found');
-  return toProfile(club as Parameters<typeof toProfile>[0]);
+
+  let whiteLabel = null;
+  try {
+    whiteLabel = await prisma.whiteLabelConfig.findUnique({
+      where: { clubId },
+      select: {
+        logoUrl: true, logoDarkUrl: true, faviconUrl: true,
+        primaryColor: true, secondaryColor: true, accentColor: true,
+      },
+    });
+  } catch (_) { /* brand is optional — never fail the profile read on it */ }
+
+  return toProfile({ ...club, whiteLabel } as Parameters<typeof toProfile>[0]);
 }
 
 export async function updateClubProfile(
