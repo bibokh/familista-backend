@@ -84,7 +84,17 @@ export async function getCurrentClub(req: Request, res: Response, next: NextFunc
     if (!clubId) throw new BadRequestError('No active club for this user');
     const profile = await svc.getClubProfile(clubId);
     return sendSuccess(res, profile);
-  } catch (err) { return next(err); }
+  } catch (err) {
+    // TEMP diagnostic (this endpoint only): log the exact failure + deployed
+    // commit so we can confirm root cause without dashboard/log spelunking.
+    logger.error('[clubs/current] failed', {
+      name: (err as { name?: string })?.name,
+      code: (err as { code?: string })?.code,
+      message: (err as Error)?.message?.split('\n').slice(-1)[0]?.trim(),
+      commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
+    });
+    return next(err);
+  }
 }
 
 export async function getClub(req: Request, res: Response, next: NextFunction) {

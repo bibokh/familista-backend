@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 
+import { Prisma } from '@prisma/client';
 import { config } from './config';
 import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
@@ -111,14 +112,30 @@ export function createApp(): express.Application {
 
   // ── Cold-start / liveness probes (no auth, no body)
   // Two paths for resilience: /api/health (frontend ping) + /healthz (Render).
-  const healthPayload = () => ({
-    status: 'ok',
-    server: 'Familista Backend',
-    version: config.apiVersion || 'v1',
-    env: config.env,
-    uptimeSec: Math.round(process.uptime()),
-    ts: new Date().toISOString(),
-  });
+  // Live capability probe: does the RUNNING Prisma Client know the Phase-R Club
+  // columns? Lets us verify the deployed client matches the schema via a public
+  // curl — no dashboard/log access needed.
+  const clubClientFields = (): string[] => {
+    try {
+      const m = (Prisma as unknown as { dmmf?: { datamodel?: { models?: Array<{ name: string; fields: Array<{ name: string }> }> } } })
+        .dmmf?.datamodel?.models?.find((x) => x.name === 'Club');
+      return m ? m.fields.map((f) => f.name) : [];
+    } catch { return []; }
+  };
+  const PHASE_R = ['description', 'addressLine', 'region', 'postalCode', 'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks'];
+  const healthPayload = () => {
+    const fields = clubClientFields();
+    return {
+      status: 'ok',
+      server: 'Familista Backend',
+      version: config.apiVersion || 'v1',
+      env: config.env,
+      uptimeSec: Math.round(process.uptime()),
+      ts: new Date().toISOString(),
+      commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || process.env.GIT_COMMIT || null,
+      clientClubPhaseR: PHASE_R.every((f) => fields.includes(f)),
+    };
+  };
   app.get('/api/health', (_req, res) => res.json(healthPayload()));
   app.get('/healthz',    (_req, res) => res.json(healthPayload()));
 

@@ -1,3 +1,5 @@
+// MUST be first: regenerates a stale Prisma Client BEFORE @prisma/client loads.
+import './bootstrap-prisma';
 import http from 'http';
 import { createApp } from './app';
 import { config } from './config';
