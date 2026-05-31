@@ -123,24 +123,41 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  const club = await prisma.club.findUnique({
-    where: { id: clubId },
+  // Read the Club row via raw SQL so this endpoint NEVER depends on whether the
+  // deployed Prisma Client recognises the Phase-R columns. Those columns exist
+  // in the DB (migration 20260531000000_club_profile_fields); the generated
+  // client on the live host did not include them, which made the typed
+  // findUnique({ select: { description: true, … } }) throw
+  // "Invalid prisma.club.findUnique() invocation". $queryRaw bypasses the
+  // client's field validation entirely.
+  const rows = await prisma.$queryRaw<Array<{
+    id: string; name: string; shortName: string | null; emblem: string | null;
+    description: string | null; founded: Date | null; stadium: string | null;
+    capacity: number | null; city: string | null; country: string | null;
+    addressLine: string | null; region: string | null; postalCode: string | null;
+    level: number; overallRating: number; leaguePosition: number | null;
+    fanClub: string | null; contactEmail: string | null; contactPhone: string | null;
+    websiteUrl: string | null; socialLinks: unknown;
+  }>>(Prisma.sql`
+    SELECT "id", "name", "shortName", "emblem", "description", "founded",
+           "stadium", "capacity", "city", "country", "addressLine", "region",
+           "postalCode", "level", "overallRating", "leaguePosition", "fanClub",
+           "contactEmail", "contactPhone", "websiteUrl", "socialLinks"
+    FROM "Club" WHERE "id" = ${clubId} LIMIT 1
+  `);
+  if (!rows.length) throw new NotFoundError('Club not found');
+  const c = rows[0];
+
+  // WhiteLabelConfig columns are long-established — safe to read via the client.
+  const whiteLabel = await prisma.whiteLabelConfig.findUnique({
+    where: { clubId },
     select: {
-      id: true, name: true, shortName: true, emblem: true, description: true,
-      founded: true, stadium: true, capacity: true, city: true, country: true,
-      addressLine: true, region: true, postalCode: true,
-      level: true, overallRating: true, leaguePosition: true, fanClub: true,
-      contactEmail: true, contactPhone: true, websiteUrl: true, socialLinks: true,
-      whiteLabel: {
-        select: {
-          logoUrl: true, logoDarkUrl: true, faviconUrl: true,
-          primaryColor: true, secondaryColor: true, accentColor: true,
-        },
-      },
+      logoUrl: true, logoDarkUrl: true, faviconUrl: true,
+      primaryColor: true, secondaryColor: true, accentColor: true,
     },
   });
-  if (!club) throw new NotFoundError('Club not found');
-  return toProfile(club as Parameters<typeof toProfile>[0]);
+
+  return toProfile({ ...c, whiteLabel });
 }
 
 export async function updateClubProfile(
