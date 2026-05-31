@@ -73,19 +73,17 @@ export interface ClubBrandPatch {
   accentColor?: string;
 }
 
-// READ PATH: select ONLY the original Club columns that the current Prisma
-// Client recognises. The Phase-R columns (description, addressLine, region,
-// postalCode, contactEmail, contactPhone, websiteUrl, socialLinks) are NOT
-// referenced here — the deployed Prisma Client does not accept them, which was
-// causing PrismaClientValidationError: Unknown field `description` on
-// GET /clubs/current. They are surfaced as null in the DTO so the API shape is
-// unchanged. (Write/PATCH path left as-is per scope.)
+// The Phase-R Club-profile columns exist in production (migration
+// 20260531000000_club_profile_fields) and the Prisma Client is regenerated
+// from prisma/schema.prisma at startup, so the service reads/writes them fully.
 function toProfile(club: {
   id: string; name: string; shortName: string | null; emblem: string | null;
-  founded: Date | null; stadium: string | null;
+  description: string | null; founded: Date | null; stadium: string | null;
   capacity: number | null; city: string | null; country: string | null;
+  addressLine: string | null; region: string | null; postalCode: string | null;
   level: number; overallRating: number; leaguePosition: number | null;
-  fanClub: string | null;
+  fanClub: string | null; contactEmail: string | null; contactPhone: string | null;
+  websiteUrl: string | null; socialLinks: unknown;
   whiteLabel: {
     logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null;
     primaryColor: string | null; secondaryColor: string | null; accentColor: string | null;
@@ -96,24 +94,23 @@ function toProfile(club: {
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
+    description: club.description,
     founded: club.founded,
     stadium: club.stadium,
     capacity: club.capacity,
     city: club.city,
     country: club.country,
+    addressLine: club.addressLine,
+    region: club.region,
+    postalCode: club.postalCode,
     level: club.level,
     overallRating: club.overallRating,
     leaguePosition: club.leaguePosition,
     fanClub: club.fanClub,
-    // Phase-R fields not selected (client doesn't accept them) — return null.
-    description: null,
-    addressLine: null,
-    region: null,
-    postalCode: null,
-    contactEmail: null,
-    contactPhone: null,
-    websiteUrl: null,
-    socialLinks: null,
+    contactEmail: club.contactEmail,
+    contactPhone: club.contactPhone,
+    websiteUrl: club.websiteUrl,
+    socialLinks: club.socialLinks ?? null,
     branding: {
       logoUrl: club.whiteLabel?.logoUrl ?? null,
       logoDarkUrl: club.whiteLabel?.logoDarkUrl ?? null,
@@ -129,9 +126,11 @@ export async function getClubProfile(clubId: string): Promise<ClubProfile> {
   const club = await prisma.club.findUnique({
     where: { id: clubId },
     select: {
-      id: true, name: true, shortName: true, emblem: true,
+      id: true, name: true, shortName: true, emblem: true, description: true,
       founded: true, stadium: true, capacity: true, city: true, country: true,
+      addressLine: true, region: true, postalCode: true,
       level: true, overallRating: true, leaguePosition: true, fanClub: true,
+      contactEmail: true, contactPhone: true, websiteUrl: true, socialLinks: true,
       whiteLabel: {
         select: {
           logoUrl: true, logoDarkUrl: true, faviconUrl: true,
@@ -160,17 +159,13 @@ export async function updateClubProfile(
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
   if (Object.keys(core).length > 0) {
-    const data = { ...core } as Record<string, unknown>;
-    // The deployed Prisma Client does not accept the Phase-R columns, so writing
-    // any of them throws PrismaClientValidationError: Unknown argument
-    // `description` (etc.). Delete all Phase-R fields before prisma.club.update.
-    for (const k of ['description', 'addressLine', 'region', 'postalCode',
-      'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']) {
-      delete data[k];
+    // Nullable JSON column needs Prisma.JsonNull, not literal null.
+    const { socialLinks, ...rest } = core;
+    const data: Prisma.ClubUpdateInput = { ...rest };
+    if (socialLinks !== undefined) {
+      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
     }
-    if (Object.keys(data).length > 0) {
-      ops.push(prisma.club.update({ where: { id: clubId }, data: data as Prisma.ClubUpdateInput }));
-    }
+    ops.push(prisma.club.update({ where: { id: clubId }, data }));
   }
 
   if (Object.keys(brand).length > 0) {
