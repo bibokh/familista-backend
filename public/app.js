@@ -575,7 +575,27 @@ async function tryAutoLogin() {
       const user = (body && (body.data || body)) || null;
       if (user && user.id) {
         State.user = user;
-        console.log('[AutoLogin] Cookie session valid:', user.email);
+        // Populate the in-memory access token so the Authorization: Bearer
+        // header is attached to subsequent cross-site API calls. The SPA
+        // (familista-v5) and API (familista-backend) are different origins, so
+        // the HttpOnly access_token cookie is a THIRD-PARTY cookie that the
+        // browser may not send (third-party-cookie blocking / SameSite). Without
+        // a Bearer fallback a restored session sends NO credentials and the API
+        // replies "No token provided" (the Club page 401). /auth/refresh uses
+        // the refresh_token cookie to mint a fresh access token we hold in memory.
+        try {
+          const rr = await fetch(API_BASE + '/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (rr.ok) {
+            const rd = await rr.json();
+            const d  = (rd && (rd.data || rd)) || {};
+            if (d.accessToken) State.token = d.accessToken;
+          }
+        } catch (_) { /* non-fatal: fall back to cookie auth */ }
+        console.log('[AutoLogin] Session valid:', user.email, State.token ? '(bearer ready)' : '(cookie only)');
         bootApp();
         return;
       }
