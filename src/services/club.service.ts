@@ -177,17 +177,36 @@ export async function updateClubProfile(
   // production setup here; the batch form is pooler-safe and still atomic.
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
-  if (Object.keys(core).length > 0) {
-    // Full write of all Club profile fields, including Phase-R columns. The
-    // production Prisma Client is regenerated from prisma/schema.prisma at build
-    // time (after install/prune), so it recognises these columns. Nullable JSON
-    // column needs Prisma.JsonNull (not literal null).
-    const { socialLinks, ...rest } = core;
-    const data: Prisma.ClubUpdateInput = { ...rest };
-    if (socialLinks !== undefined) {
-      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
-    }
-    ops.push(prisma.club.update({ where: { id: clubId }, data }));
+  // Split the patch: columns the (possibly stale) generated client models go
+  // through prisma.club.update; the Phase-R columns are written with raw,
+  // PARAMETERIZED SQL so they persist even when the deployed client doesn't yet
+  // know them (which otherwise throws "Unknown argument `description`"). The
+  // columns exist in the DB (migration 20260531000000_club_profile_fields).
+  const PHASE_R = new Set(['description', 'addressLine', 'region', 'postalCode', 'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']);
+  const known: Record<string, unknown> = {};
+  const extra: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(core)) {
+    if (PHASE_R.has(k)) extra[k] = v; else known[k] = v;
+  }
+
+  if (Object.keys(known).length > 0) {
+    ops.push(prisma.club.update({ where: { id: clubId }, data: known as Prisma.ClubUpdateInput }));
+  }
+
+  const sets: Prisma.Sql[] = [];
+  if ('description'  in extra) sets.push(Prisma.sql`"description"  = ${(extra.description  ?? null) as string | null}`);
+  if ('addressLine'  in extra) sets.push(Prisma.sql`"addressLine"  = ${(extra.addressLine  ?? null) as string | null}`);
+  if ('region'       in extra) sets.push(Prisma.sql`"region"       = ${(extra.region       ?? null) as string | null}`);
+  if ('postalCode'   in extra) sets.push(Prisma.sql`"postalCode"   = ${(extra.postalCode   ?? null) as string | null}`);
+  if ('contactEmail' in extra) sets.push(Prisma.sql`"contactEmail" = ${(extra.contactEmail ?? null) as string | null}`);
+  if ('contactPhone' in extra) sets.push(Prisma.sql`"contactPhone" = ${(extra.contactPhone ?? null) as string | null}`);
+  if ('websiteUrl'   in extra) sets.push(Prisma.sql`"websiteUrl"   = ${(extra.websiteUrl   ?? null) as string | null}`);
+  if ('socialLinks'  in extra) {
+    const sl = extra.socialLinks;
+    sets.push(Prisma.sql`"socialLinks" = ${sl == null ? null : JSON.stringify(sl)}::jsonb`);
+  }
+  if (sets.length > 0) {
+    ops.push(prisma.$executeRaw(Prisma.sql`UPDATE "Club" SET ${Prisma.join(sets, ', ')} WHERE "id" = ${clubId}`));
   }
 
   if (Object.keys(brand).length > 0) {
