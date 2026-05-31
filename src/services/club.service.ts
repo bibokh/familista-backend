@@ -237,3 +237,25 @@ export async function updateClubProfile(
 
   return getClubProfile(clubId);
 }
+
+/**
+ * Ensure the Phase-R Club profile columns exist in the database. Idempotent
+ * (ADD COLUMN IF NOT EXISTS) and safe to run on every boot. This is the safety
+ * net for production environments where migration
+ * 20260531000000_club_profile_fields never ran — e.g. a start command that
+ * bypasses the predeploy `prisma migrate deploy`. Pure DDL via the existing
+ * connection: no Prisma Client regeneration, negligible memory.
+ */
+export async function ensureClubProfileColumns(): Promise<void> {
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "Club"
+      ADD COLUMN IF NOT EXISTS "description"  TEXT,
+      ADD COLUMN IF NOT EXISTS "addressLine"  TEXT,
+      ADD COLUMN IF NOT EXISTS "region"       TEXT,
+      ADD COLUMN IF NOT EXISTS "postalCode"   TEXT,
+      ADD COLUMN IF NOT EXISTS "contactEmail" TEXT,
+      ADD COLUMN IF NOT EXISTS "contactPhone" TEXT,
+      ADD COLUMN IF NOT EXISTS "websiteUrl"   TEXT,
+      ADD COLUMN IF NOT EXISTS "socialLinks"  JSONB;
+  `);
+}

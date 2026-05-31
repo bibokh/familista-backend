@@ -27,6 +27,18 @@ import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from './workers/v
 async function bootstrap() {
   await connectDatabase();
 
+  // Ensure the Phase-R Club profile columns exist (idempotent DDL). Safety net
+  // for production where migration 20260531000000_club_profile_fields did not
+  // run (the start command bypasses the predeploy `prisma migrate deploy`).
+  // Best-effort: never block boot.
+  try {
+    const { ensureClubProfileColumns } = await import('./services/club.service');
+    await ensureClubProfileColumns();
+    logger.info('[clubs] Phase-R columns ensured (description/addressLine/region/postalCode/contactEmail/contactPhone/websiteUrl/socialLinks)');
+  } catch (err) {
+    logger.warn('[clubs] ensureClubProfileColumns failed (swallowed)', { err: (err as Error).message });
+  }
+
   const app    = createApp();
   const server = http.createServer(app);
 
