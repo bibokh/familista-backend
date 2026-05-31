@@ -7209,7 +7209,7 @@ async function loadClubData() {
         (club.leaguePosition != null ? `<span class="badge badge-blue">League #${_esc(club.leaguePosition)}</span>` : '') +
       `</div>` +
       (club.description ? `<div style="margin-top:10px;font-size:12.5px;color:var(--tx-2);line-height:1.6;text-align:center;">${_esc(club.description)}</div>` : '') +
-      (canEdit ? `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" onclick="openClubEdit()">✏️ Edit Club</button></div>` : '');
+      (canEdit ? `<div style="margin-top:12px;"><button class="btn btn-primary btn-sm" data-action="openClubEdit">✏️ Edit Club</button></div>` : '');
   }
 
   if (infoEl) {
