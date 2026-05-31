@@ -107,7 +107,20 @@ export async function getClub(req: Request, res: Response, next: NextFunction) {
 export async function updateClub(req: Request, res: Response, next: NextFunction) {
   try {
     const parsed = patchSchema.safeParse({ body: req.body });
-    if (!parsed.success) throw zerr(parsed.error);
+    if (!parsed.success) {
+      // TEMP diagnostic: capture the EXACT validation failure (field + message +
+      // code) and the submitted keys — no values logged (privacy-safe).
+      logger.warn('[clubs] PATCH 400 validation', {
+        clubId: req.params.clubId,
+        bodyKeys: Object.keys((req.body as Record<string, unknown>) || {}),
+        issues: parsed.error.errors.map((e) => ({
+          field: e.path.slice(1).join('.') || String(e.path[0] ?? 'body'),
+          code: e.code,
+          message: e.message,
+        })),
+      });
+      throw zerr(parsed.error);
+    }
     const b = parsed.data.body;
 
     // Split validated payload into Club core vs WhiteLabelConfig brand.
