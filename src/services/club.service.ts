@@ -5,6 +5,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError } from '../utils/errors';
+import { logger } from '../utils/logger';
 
 export interface ClubBrand {
   logoUrl: string | null;
@@ -73,17 +74,18 @@ export interface ClubBrandPatch {
   accentColor?: string;
 }
 
-// The Phase-R Club-profile columns exist in production (migration
-// 20260531000000_club_profile_fields) and the Prisma Client is regenerated
-// from prisma/schema.prisma at startup, so the service reads/writes them fully.
+// Phase-R fields are typed OPTIONAL here so the mapping never breaks if the
+// generated Prisma Client is momentarily out of sync and omits them — they
+// simply default to null.
 function toProfile(club: {
   id: string; name: string; shortName: string | null; emblem: string | null;
-  description: string | null; founded: Date | null; stadium: string | null;
+  founded: Date | null; stadium: string | null;
   capacity: number | null; city: string | null; country: string | null;
-  addressLine: string | null; region: string | null; postalCode: string | null;
   level: number; overallRating: number; leaguePosition: number | null;
-  fanClub: string | null; contactEmail: string | null; contactPhone: string | null;
-  websiteUrl: string | null; socialLinks: unknown;
+  fanClub: string | null;
+  description?: string | null; addressLine?: string | null; region?: string | null;
+  postalCode?: string | null; contactEmail?: string | null; contactPhone?: string | null;
+  websiteUrl?: string | null; socialLinks?: unknown;
   whiteLabel: {
     logoUrl: string | null; logoDarkUrl: string | null; faviconUrl: string | null;
     primaryColor: string | null; secondaryColor: string | null; accentColor: string | null;
@@ -94,22 +96,22 @@ function toProfile(club: {
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
-    description: club.description,
+    description: club.description ?? null,
     founded: club.founded,
     stadium: club.stadium,
     capacity: club.capacity,
     city: club.city,
     country: club.country,
-    addressLine: club.addressLine,
-    region: club.region,
-    postalCode: club.postalCode,
+    addressLine: club.addressLine ?? null,
+    region: club.region ?? null,
+    postalCode: club.postalCode ?? null,
     level: club.level,
     overallRating: club.overallRating,
     leaguePosition: club.leaguePosition,
     fanClub: club.fanClub,
-    contactEmail: club.contactEmail,
-    contactPhone: club.contactPhone,
-    websiteUrl: club.websiteUrl,
+    contactEmail: club.contactEmail ?? null,
+    contactPhone: club.contactPhone ?? null,
+    websiteUrl: club.websiteUrl ?? null,
     socialLinks: club.socialLinks ?? null,
     branding: {
       logoUrl: club.whiteLabel?.logoUrl ?? null,
@@ -123,22 +125,39 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  const club = await prisma.club.findUnique({
-    where: { id: clubId },
-    select: {
-      id: true, name: true, shortName: true, emblem: true, description: true,
-      founded: true, stadium: true, capacity: true, city: true, country: true,
-      addressLine: true, region: true, postalCode: true,
-      level: true, overallRating: true, leaguePosition: true, fanClub: true,
-      contactEmail: true, contactPhone: true, websiteUrl: true, socialLinks: true,
-      whiteLabel: {
-        select: {
-          logoUrl: true, logoDarkUrl: true, faviconUrl: true,
-          primaryColor: true, secondaryColor: true, accentColor: true,
+  // ROOT CAUSE of the 500: the typed `select: { description: true, … }` throws
+  // "Unknown field `description` for select statement on model Club" — a Prisma
+  // CLIENT validation error (raised before SQL) that means the generated client
+  // is out of sync with the schema. Using `include` with NO field-level Club
+  // `select` makes Prisma select exactly the columns the client knows, so it
+  // never references an unknown field; Phase-R columns are returned once the
+  // client includes them, and default to null until then. This is standard
+  // Prisma (no raw SQL).
+  let club;
+  try {
+    club = await prisma.club.findUnique({
+      where: { id: clubId },
+      include: {
+        whiteLabel: {
+          select: {
+            logoUrl: true, logoDarkUrl: true, faviconUrl: true,
+            primaryColor: true, secondaryColor: true, accentColor: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch (err) {
+    // TEMP diagnostic (Club read path only).
+    logger.error('[clubs] prisma.club.findUnique failed', {
+      clubId,
+      name: (err as { name?: string })?.name,
+      code: (err as { code?: string })?.code,
+      message: (err as Error)?.message,
+      stack: (err as Error)?.stack,
+      commit: process.env.RENDER_GIT_COMMIT || process.env.SOURCE_COMMIT || null,
+    });
+    throw err;
+  }
   if (!club) throw new NotFoundError('Club not found');
   return toProfile(club as Parameters<typeof toProfile>[0]);
 }
