@@ -20,11 +20,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# `prisma generate` must run BEFORE `tsc` because the TS code imports types
-# from `@prisma/client` that depend on the generated artefacts.
-RUN npx prisma generate --schema=prisma/schema.prisma \
- && npm run build \
- && npm prune --omit=dev
+# Build, then prune devDeps, then generate the Prisma Client LAST.
+# Ordering matters: `npm prune` (and npm install/ci) reset node_modules/.prisma/
+# client to the package default, WIPING any client generated earlier — which is
+# why the runtime client was missing the Phase-R Club fields ("Unknown field
+# description"). `npm run build` runs its own `prisma generate` so tsc has the
+# types; the FINAL generate (after prune) is what persists into the image.
+# `prisma` is a runtime dependency, so it survives `npm prune --omit=dev`.
+RUN npm run build \
+ && npm prune --omit=dev \
+ && npx prisma generate --schema=prisma/schema.prisma
 
 FROM node:20-bookworm-slim AS runtime
 WORKDIR /app

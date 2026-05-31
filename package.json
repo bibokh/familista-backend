@@ -12,7 +12,7 @@
     "build:client": "cd client && npm install && npm run build",
     "build:all": "npm run build && npm run build:client",
     "dev:client": "cd client && npm run dev",
-    "start": "prisma generate --schema=prisma/schema.prisma && node dist/server.js",
+    "start": "prisma generate --schema=prisma/schema.prisma; node dist/server.js",
     "db:predeploy": "bash scripts/render-predeploy.sh",
     "db:migrate": "prisma migrate deploy --schema=prisma/schema.prisma",
     "db:migrate:dev": "prisma migrate dev --schema=prisma/schema.prisma",
