@@ -160,13 +160,17 @@ export async function updateClubProfile(
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
   if (Object.keys(core).length > 0) {
-    // Nullable JSON column needs Prisma.JsonNull, not literal null.
-    const { socialLinks, ...rest } = core;
-    const data: Prisma.ClubUpdateInput = { ...rest };
-    if (socialLinks !== undefined) {
-      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
+    const data = { ...core } as Record<string, unknown>;
+    // The deployed Prisma Client does not accept the Phase-R columns, so writing
+    // any of them throws PrismaClientValidationError: Unknown argument
+    // `description` (etc.). Delete all Phase-R fields before prisma.club.update.
+    for (const k of ['description', 'addressLine', 'region', 'postalCode',
+      'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']) {
+      delete data[k];
     }
-    ops.push(prisma.club.update({ where: { id: clubId }, data }));
+    if (Object.keys(data).length > 0) {
+      ops.push(prisma.club.update({ where: { id: clubId }, data: data as Prisma.ClubUpdateInput }));
+    }
   }
 
   if (Object.keys(brand).length > 0) {
