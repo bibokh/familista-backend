@@ -178,19 +178,16 @@ export async function updateClubProfile(
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
   if (Object.keys(core).length > 0) {
-    // Write only the Club columns the deployed Prisma Client recognises. The
-    // Phase-R columns are stripped because a client that is out of sync with the
-    // schema throws "Unknown argument `description`" on club.update (the 500).
-    // This mirrors the read-path drift-proofing in getClubProfile. Brand/colors
-    // still persist via the whiteLabelConfig upsert below.
-    const data = { ...core } as Record<string, unknown>;
-    for (const k of ['description', 'addressLine', 'region', 'postalCode',
-      'contactEmail', 'contactPhone', 'websiteUrl', 'socialLinks']) {
-      delete data[k];
+    // Full write of all Club profile fields, including Phase-R columns. The
+    // production Prisma Client is regenerated from prisma/schema.prisma at build
+    // time (after install/prune), so it recognises these columns. Nullable JSON
+    // column needs Prisma.JsonNull (not literal null).
+    const { socialLinks, ...rest } = core;
+    const data: Prisma.ClubUpdateInput = { ...rest };
+    if (socialLinks !== undefined) {
+      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
     }
-    if (Object.keys(data).length > 0) {
-      ops.push(prisma.club.update({ where: { id: clubId }, data: data as Prisma.ClubUpdateInput }));
-    }
+    ops.push(prisma.club.update({ where: { id: clubId }, data }));
   }
 
   if (Object.keys(brand).length > 0) {
