@@ -125,14 +125,9 @@ function toProfile(club: {
 }
 
 export async function getClubProfile(clubId: string): Promise<ClubProfile> {
-  // Bare findUnique — NO field-level `select` and NO relation `include` on Club.
-  // Prisma then selects only the Club columns the generated client knows, so the
-  // query can NEVER throw "Unknown field `description` for select statement on
-  // model Club" even if the deployed client is momentarily out of sync with the
-  // schema (the cause of the 500). WhiteLabel brand is read separately (its
-  // columns are long-established). Phase-R fields default to null via toProfile
-  // until the client includes them. Same safe shape for /clubs/current and
-  // /clubs/:id (both call this function). No raw SQL.
+  // Bare findUnique — NO field-level `select`/`include` — so the query can never
+  // throw "Unknown field" even if the deployed client is stale. This returns the
+  // client-known Club columns only.
   let club;
   try {
     club = await prisma.club.findUnique({ where: { id: clubId } });
@@ -148,6 +143,25 @@ export async function getClubProfile(clubId: string): Promise<ClubProfile> {
   }
   if (!club) throw new NotFoundError('Club not found');
 
+  // Read the Phase-R columns with raw SQL and MERGE them in, so the values
+  // written by updateClubProfile's raw UPDATE are returned even when the
+  // deployed Prisma Client is stale and would otherwise omit them (returning
+  // null). Mirrors the write path. Non-fatal: if the columns are somehow absent,
+  // fall back to whatever the client returned.
+  let phaseR: Record<string, unknown> = {};
+  try {
+    const rows = await prisma.$queryRaw<Array<{
+      description: string | null; addressLine: string | null; region: string | null;
+      postalCode: string | null; contactEmail: string | null; contactPhone: string | null;
+      websiteUrl: string | null; socialLinks: unknown;
+    }>>(Prisma.sql`
+      SELECT "description", "addressLine", "region", "postalCode",
+             "contactEmail", "contactPhone", "websiteUrl", "socialLinks"
+      FROM "Club" WHERE "id" = ${clubId} LIMIT 1
+    `);
+    if (rows && rows[0]) phaseR = rows[0] as Record<string, unknown>;
+  } catch (_) { /* Phase-R columns optional — never fail the read on them */ }
+
   let whiteLabel = null;
   try {
     whiteLabel = await prisma.whiteLabelConfig.findUnique({
@@ -159,7 +173,7 @@ export async function getClubProfile(clubId: string): Promise<ClubProfile> {
     });
   } catch (_) { /* brand is optional — never fail the profile read on it */ }
 
-  return toProfile({ ...club, whiteLabel } as Parameters<typeof toProfile>[0]);
+  return toProfile({ ...club, ...phaseR, whiteLabel } as Parameters<typeof toProfile>[0]);
 }
 
 export async function updateClubProfile(
