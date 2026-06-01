@@ -1320,7 +1320,10 @@ function renderSquadHTML() {
 
 function renderSquad(filterPos) {
   if (isFormEditing()) { _pendingRefresh = true; return; }
-  filterPos = filterPos || 'ALL';
+  // Persist the active position filter so re-renders (e.g. live name search)
+  // keep it instead of resetting to ALL.
+  if (filterPos) State.squadFilter = filterPos;
+  const pos = State.squadFilter || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
   if (!grid) return;
@@ -1330,7 +1333,17 @@ function renderSquad(filterPos) {
 
   const all = Array.isArray(State.players) ? State.players : [];
   const posMap = { GK:['GK'], DEF:['DC','DL','DR'], MID:['DMC','ML','MR','MC','AMC','AML','AMR'], ATT:['ST'] };
-  const filtered = filterPos === 'ALL' ? all : all.filter(p => (posMap[filterPos] || []).indexOf(p.position) !== -1);
+  let filtered = pos === 'ALL' ? all : all.filter(p => (posMap[pos] || []).indexOf(p.position) !== -1);
+
+  // Name search — case-insensitive over firstName / lastName / full name.
+  const q = (State.squadSearch || '').trim().toLowerCase();
+  if (q) {
+    filtered = filtered.filter(p => {
+      const first = (p.firstName || '').toLowerCase();
+      const last  = (p.lastName  || '').toLowerCase();
+      return first.includes(q) || last.includes(q) || (first + ' ' + last).includes(q);
+    });
+  }
 
   if (sub) {
     const ovr = State.analytics && State.analytics.overview && State.analytics.overview.teamRating;
@@ -1394,6 +1407,13 @@ function filterSquad(pos, el) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderSquad(pos);
+}
+
+// Live Squad name-search (wired to the header search input). Stores the query
+// and re-paints the grid in place, preserving the active position filter.
+function squadSearchInput(q) {
+  State.squadSearch = q || '';
+  if (document.getElementById('player-grid')) renderSquad();
 }
 
 async function openPlayerModal(id) {
@@ -8603,6 +8623,10 @@ window.addEventListener('DOMContentLoaded', () => {
   if (fpPw) fpPw.addEventListener('keydown', e => { if (e.key === 'Enter') doForgotPassword(); });
   const rpPw = document.getElementById('rp-confirm');
   if (rpPw) rpPw.addEventListener('keydown', e => { if (e.key === 'Enter') doResetPassword(); });
+
+  // Header search → live-filters the Squad grid by player name as you type.
+  const gsearch = document.getElementById('global-search');
+  if (gsearch) gsearch.addEventListener('input', e => squadSearchInput(e.target.value));
 
   // Boot the backend health monitor — pings /api/health, shows the
   // "Backend waking up…" banner on cold start, retries on its own.
