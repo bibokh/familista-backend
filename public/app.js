@@ -5403,11 +5403,19 @@ async function submitTrainingForm(ev) {
   if (!duration || duration < 1) { errEl.textContent = 'Duration must be at least 1 minute'; errEl.style.display = ''; return; }
 
   const drills    = Array.from(document.querySelectorAll('input[name="ts-drill"]:checked')).map(el => el.value);
-  // Final guard: POST /training rejects any non-UUID id. Drop anything that
-  // isn't a Player.id UUID so a stale row in the modal can't fail the request.
+  // POST /training requires every playerIds[i] to be a Player.id UUID.
+  // Read directly from the data-player-uuid attribute (set at render time from
+  // State.players[i].id) — never from el.value — so a stale label like a shirt
+  // number can't leak through. Then cross-check against the loaded squad so
+  // only ids that map to a real Player are sent.
+  const _tsKnownPlayerIds = new Set(
+    (State.players || [])
+      .filter(p => p && typeof p.id === 'string' && _TS_UUID_RE.test(p.id))
+      .map(p => p.id)
+  );
   const playerIds = Array.from(document.querySelectorAll('input[name="ts-player"]:checked'))
-    .map(el => el.value)
-    .filter(v => typeof v === 'string' && _TS_UUID_RE.test(v));
+    .map(el => (el.dataset && el.dataset.playerUuid) || el.value)
+    .filter(v => typeof v === 'string' && _TS_UUID_RE.test(v) && _tsKnownPlayerIds.has(v));
 
   const body = {
     title,
