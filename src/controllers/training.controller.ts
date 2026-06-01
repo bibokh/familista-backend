@@ -73,8 +73,27 @@ export async function getSession(req: Request, res: Response, next: NextFunction
 
 export async function createSession(req: Request, res: Response, next: NextFunction) {
   try {
+    // TRACE [5a] — raw request body that arrived at the server, before Zod
+    // touches it. Logs the exact playerIds[] the controller sees on the wire.
+    try {
+      // eslint-disable-next-line no-console
+      console.log('[TS-TRACE 5a] POST /training raw req.body:', JSON.stringify(req.body));
+      // eslint-disable-next-line no-console
+      console.log('[TS-TRACE 5a] POST /training raw playerIds:',
+        Array.isArray((req.body as any)?.playerIds)
+          ? (req.body as any).playerIds.map((v: unknown) => ({ value: v, type: typeof v }))
+          : (req.body as any)?.playerIds);
+    } catch { /* noop */ }
     const parsed = createSchema.safeParse({ body: req.body });
-    if (!parsed.success) throw zerr(parsed.error);
+    if (!parsed.success) {
+      // TRACE [5b] — exact Zod issue list so we can correlate which input
+      // path failed and what the literal value was.
+      try {
+        // eslint-disable-next-line no-console
+        console.log('[TS-TRACE 5b] Zod issues:', JSON.stringify(parsed.error.errors));
+      } catch { /* noop */ }
+      throw zerr(parsed.error);
+    }
     const session = await trainingService.createTrainingSession(req.user!.clubId, parsed.data.body);
     return sendCreated(res, session, 'Training session created');
   } catch (err) { return next(err); }
