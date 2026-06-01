@@ -4793,6 +4793,7 @@ model TrainingSession {
 
   title         String
   description   String?
+  location      String?
   scheduledAt   DateTime
   duration      Int
   drills        DrillType[]

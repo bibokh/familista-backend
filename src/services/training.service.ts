@@ -1,14 +1,21 @@
-import { DrillType, Prisma } from '@prisma/client';
+import { AttendanceMark, DrillType, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError } from '../utils/errors';
 
 export interface CreateTrainingDto {
   title:        string;
   description?: string;
+  location?:    string;
   scheduledAt:  string;
   duration:     number;
   drills?:      DrillType[];
   playerIds?:   string[];
+}
+
+export interface AttendanceMarkDto {
+  playerId: string;
+  mark:     AttendanceMark;
+  notes?:   string;
 }
 
 export async function getTrainingSessions(
@@ -65,6 +72,7 @@ export async function createTrainingSession(
       clubId,
       title:       dto.title,
       description: dto.description,
+      location:    dto.location,
       scheduledAt: new Date(dto.scheduledAt),
       duration:    dto.duration,
       drills:      dto.drills ?? [],
@@ -98,6 +106,7 @@ export async function updateTrainingSession(
       data: {
         ...(fields.title       !== undefined && { title:       fields.title }),
         ...(fields.description !== undefined && { description: fields.description }),
+        ...(fields.location    !== undefined && { location:    fields.location }),
         ...(fields.scheduledAt !== undefined && { scheduledAt: new Date(fields.scheduledAt) }),
         ...(fields.duration    !== undefined && { duration:    fields.duration }),
         ...(fields.drills      !== undefined && { drills:      fields.drills }),
@@ -123,6 +132,104 @@ export async function updateTrainingSession(
 export async function deleteTrainingSession(id: string, clubId: string) {
   await getTrainingById(id, clubId);
   await prisma.trainingSession.delete({ where: { id } });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Attendance — Training Attendance MVP
+// Persisted in TrainingAttendanceRecord (one row per (session, player)).
+// Active club players are the canonical roster; marks default to PRESENT
+// only when an explicit row exists. Missing rows are reported as `null`
+// (unmarked) so the UI can distinguish "not yet recorded" from PRESENT.
+// ─────────────────────────────────────────────────────────────────────────
+
+function summariseMarks(marks: AttendanceMark[]) {
+  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+  for (const m of marks) {
+    if      (m === 'PRESENT') counts.present++;
+    else if (m === 'ABSENT')  counts.absent++;
+    else if (m === 'LATE')    counts.late++;
+    else if (m === 'EXCUSED') counts.excused++;
+  }
+  return counts;
+}
+
+export async function getTrainingAttendance(sessionId: string, clubId: string) {
+  await getTrainingById(sessionId, clubId);
+
+  const [players, records] = await Promise.all([
+    prisma.player.findMany({
+      where:   { clubId, isActive: true },
+      select:  { id: true, firstName: true, lastName: true, number: true, position: true },
+      orderBy: [{ number: 'asc' }],
+    }),
+    prisma.trainingAttendanceRecord.findMany({
+      where: { clubId, trainingSessionId: sessionId },
+    }),
+  ]);
+
+  const byPlayer = new Map(records.map((r) => [r.playerId, r]));
+  const items = players.map((p) => {
+    const r = byPlayer.get(p.id);
+    return {
+      playerId:   p.id,
+      firstName:  p.firstName,
+      lastName:   p.lastName,
+      number:     p.number,
+      position:   p.position,
+      mark:       r ? r.mark : null,
+      notes:      r ? r.notes : null,
+      recordedAt: r ? r.recordedAt : null,
+    };
+  });
+
+  const summary = summariseMarks(records.map((r) => r.mark));
+  return { sessionId, items, summary };
+}
+
+export async function setTrainingAttendance(
+  sessionId: string,
+  clubId: string,
+  actorUserId: string,
+  marks: AttendanceMarkDto[],
+) {
+  await getTrainingById(sessionId, clubId);
+
+  // Reject marks for players outside this club — silently dropping would
+  // mask UI bugs (wrong club context, stale State.players).
+  if (marks.length > 0) {
+    const playerIds = marks.map((m) => m.playerId);
+    const owned = await prisma.player.findMany({
+      where:  { id: { in: playerIds }, clubId },
+      select: { id: true },
+    });
+    if (owned.length !== playerIds.length) {
+      throw new ForbiddenError();
+    }
+  }
+
+  await prisma.$transaction(
+    marks.map((m) =>
+      prisma.trainingAttendanceRecord.upsert({
+        where:  { trainingSessionId_playerId: { trainingSessionId: sessionId, playerId: m.playerId } },
+        create: {
+          clubId,
+          trainingSessionId: sessionId,
+          playerId:          m.playerId,
+          mark:              m.mark,
+          notes:             m.notes,
+          recordedById:      actorUserId,
+        },
+        update: {
+          mark:         m.mark,
+          notes:        m.notes,
+          recordedById: actorUserId,
+          recordedAt:   new Date(),
+        },
+      }),
+    ),
+  );
+
+  return getTrainingAttendance(sessionId, clubId);
 }
 
 export async function getTrainingForm(clubId: string) {

@@ -16,6 +16,7 @@ const createSchema = z.object({
   body: z.object({
     title:       z.string().trim().min(1).max(200),
     description: z.string().max(4000).optional(),
+    location:    z.string().trim().max(200).optional(),
     scheduledAt: DATE_OR_ISO,
     duration:    z.number().int().min(1).max(480),
     drills:      z.array(z.enum(DRILLS)).optional(),
@@ -27,11 +28,23 @@ const updateSchema = z.object({
   body: z.object({
     title:       z.string().trim().min(1).max(200).optional(),
     description: z.string().max(4000).optional(),
+    location:    z.string().trim().max(200).optional(),
     scheduledAt: DATE_OR_ISO.optional(),
     duration:    z.number().int().min(1).max(480).optional(),
     drills:      z.array(z.enum(DRILLS)).optional(),
     playerIds:   z.array(z.string().uuid()).optional(),
   }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
+});
+
+const ATTENDANCE_MARKS = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const;
+const attendanceSchema = z.object({
+  body: z.object({
+    marks: z.array(z.object({
+      playerId: z.string().uuid(),
+      mark:     z.enum(ATTENDANCE_MARKS),
+      notes:    z.string().max(500).optional(),
+    })).min(1),
+  }),
 });
 
 function zerr(err: z.ZodError): BadRequestError {
@@ -87,5 +100,26 @@ export async function getForm(req: Request, res: Response, next: NextFunction) {
   try {
     const form = await trainingService.getTrainingForm(req.user!.clubId);
     return sendSuccess(res, form);
+  } catch (err) { return next(err); }
+}
+
+export async function getAttendance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await trainingService.getTrainingAttendance(req.params.id, req.user!.clubId);
+    return sendSuccess(res, result);
+  } catch (err) { return next(err); }
+}
+
+export async function saveAttendance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = attendanceSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const result = await trainingService.setTrainingAttendance(
+      req.params.id,
+      req.user!.clubId,
+      req.user!.id,
+      parsed.data.body.marks,
+    );
+    return sendSuccess(res, result, 'Attendance saved');
   } catch (err) { return next(err); }
 }

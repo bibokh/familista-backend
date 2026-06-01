@@ -4857,13 +4857,21 @@ function hideAITyping() { if(aiTypingEl){aiTypingEl.remove();aiTypingEl=null;} }
 // ── TRAINING ──
 
 const TrainingAPI = {
-  list(query)      { return FamilistaAPI.get('/training' + (query ? '?' + query : '')); },
-  get(id)          { return FamilistaAPI.get('/training/' + id); },
-  form()           { return FamilistaAPI.get('/training/form'); },
-  create(body)     { return FamilistaAPI.post('/training', body); },
-  update(id, body) { return FamilistaAPI.patch('/training/' + id, body); },
-  remove(id)       { return FamilistaAPI.delete('/training/' + id); },
+  list(query)              { return FamilistaAPI.get('/training' + (query ? '?' + query : '')); },
+  get(id)                  { return FamilistaAPI.get('/training/' + id); },
+  form()                   { return FamilistaAPI.get('/training/form'); },
+  create(body)             { return FamilistaAPI.post('/training', body); },
+  update(id, body)         { return FamilistaAPI.patch('/training/' + id, body); },
+  remove(id)               { return FamilistaAPI.delete('/training/' + id); },
+  // Training Attendance MVP
+  getAttendance(id)        { return FamilistaAPI.get('/training/' + id + '/attendance'); },
+  saveAttendance(id, body) { return FamilistaAPI.put('/training/' + id + '/attendance', body); },
 };
+
+// In-memory draft for the Attendance panel — keyed by sessionId so a stale
+// draft from one session can't leak into another. Marks are saved on
+// "Save Attendance"; reads come from getAttendance.
+let _attendanceState = { sessionId: null, items: [], summary: { present: 0, absent: 0, late: 0, excused: 0 }, draft: Object.create(null), saving: false, loading: false };
 
 const TRAINING_DRILLS = [
   { key: 'TECHNICAL_PASSING',  label: 'Technical Passing',  icon: '⚽' },
@@ -4946,14 +4954,14 @@ function renderTrainingSessions(el) {
       return found ? found.icon : d;
     }).join(' ');
     const players = s.playerStats ? s.playerStats.length : 0;
-    return `<div class="card" style="padding:16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:14px;" onclick="openTrainingDetail('${_esc(s.id)}')">
+    return `<div class="card" style="padding:16px;margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:14px;" data-action="openTrainingDetail" data-id="${_esc(s.id)}">
       <div style="flex-shrink:0;width:44px;height:44px;border-radius:10px;background:var(--green-bg);border:1px solid var(--green-bd);display:flex;align-items:center;justify-content:center;font-size:20px;">🏋️</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(s.title)}</div>
         <div style="font-size:11px;color:var(--tx-3);margin-top:2px;">${dateStr}${timeStr ? ' · ' + timeStr : ''} · ${s.duration} min${players ? ' · ' + players + ' player' + (players !== 1 ? 's' : '') : ''}${drills ? ' · ' + drills : ''}</div>
       </div>
-      ${canEdit ? `<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();openEditTrainingModal('${_esc(s.id)}')">Edit</button>` : ''}
-      ${canDel  ? `<button class="btn btn-danger btn-xs"  onclick="event.stopPropagation();confirmDeleteTraining('${_esc(s.id)}')">Delete</button>` : ''}
+      ${canEdit ? `<button class="btn btn-outline btn-xs" data-action="editTraining" data-id="${_esc(s.id)}">Edit</button>` : ''}
+      ${canDel  ? `<button class="btn btn-danger btn-xs"  data-action="deleteTraining" data-id="${_esc(s.id)}">Delete</button>` : ''}
     </div>`;
   }).join('');
 }
@@ -5060,9 +5068,187 @@ async function openTrainingDetail(id) {
     // Render detail inline on the sessions tab content area
     const el = document.getElementById('training-content');
     if (el) renderTrainingDetailPanel(s, el);
+    // Training Attendance MVP — populate the attendance section in the
+    // background so refresh / re-login shows the persisted state.
+    loadAttendance(id);
   } catch (err) {
     showToast((err && err.userMessage) || 'Failed to load session', 'error');
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Training Attendance MVP — load / render / mark / save
+// All buttons use data-action delegation so they work under script-src 'self'.
+// ──────────────────────────────────────────────────────────────────────────
+
+async function loadAttendance(sessionId) {
+  if (!sessionId) return;
+  _attendanceState = { sessionId, items: [], summary: { present: 0, absent: 0, late: 0, excused: 0 }, draft: Object.create(null), saving: false, loading: true };
+  renderAttendancePanel();
+  try {
+    const res  = await TrainingAPI.getAttendance(sessionId);
+    const data = (res && res.data) || {};
+    // Guard against late responses for a session the user already left.
+    if (_attendanceState.sessionId !== sessionId) return;
+    _attendanceState.items   = Array.isArray(data.items) ? data.items : [];
+    _attendanceState.summary = data.summary || { present: 0, absent: 0, late: 0, excused: 0 };
+    _attendanceState.loading = false;
+    renderAttendancePanel();
+  } catch (err) {
+    if (_attendanceState.sessionId !== sessionId) return;
+    _attendanceState.loading = false;
+    renderAttendancePanel();
+    showToast((err && err.userMessage) || 'Could not load attendance', 'error');
+  }
+}
+
+function _attendanceCanEdit() {
+  const role = State.user && State.user.role;
+  return ['CLUB_ADMIN', 'HEAD_COACH', 'SUPER_ADMIN'].includes(role);
+}
+
+// Effective mark for a player = unsaved draft if set, else persisted mark.
+function _effectiveMark(item) {
+  const d = _attendanceState.draft[item.playerId];
+  return d != null ? d : item.mark;
+}
+
+function _attendanceTotals() {
+  const t = { present: 0, absent: 0, late: 0, excused: 0 };
+  for (const it of _attendanceState.items) {
+    const m = _effectiveMark(it);
+    if      (m === 'PRESENT') t.present++;
+    else if (m === 'ABSENT')  t.absent++;
+    else if (m === 'LATE')    t.late++;
+    else if (m === 'EXCUSED') t.excused++;
+  }
+  return t;
+}
+
+function renderAttendancePanel() {
+  const host = document.getElementById('attendance-section');
+  if (!host) return;
+  const st = _attendanceState;
+
+  if (st.loading) {
+    host.innerHTML = `<div class="card" style="padding:16px;">${loadingHTML('Loading attendance…')}</div>`;
+    return;
+  }
+
+  const canEdit  = _attendanceCanEdit();
+  const totals   = _attendanceTotals();
+  const dirty    = Object.keys(st.draft).length > 0;
+  const items    = st.items || [];
+
+  const MARKS = [
+    { key: 'PRESENT', label: 'Present', color: 'var(--green-l)', bg: 'var(--green-bg)' },
+    { key: 'ABSENT',  label: 'Absent',  color: '#FCA5A5',        bg: 'rgba(220,38,38,.12)' },
+    { key: 'LATE',    label: 'Late',    color: '#FDBA74',        bg: 'rgba(217,119,6,.12)' },
+    { key: 'EXCUSED', label: 'Excused', color: '#93C5FD',        bg: 'rgba(37,99,235,.12)' },
+  ];
+
+  const summaryRow = MARKS.map((m) => {
+    const count = totals[m.key.toLowerCase()];
+    return `<div style="flex:1;min-width:90px;padding:10px 12px;border-radius:8px;background:${m.bg};border:1px solid var(--bd);">
+      <div style="font-size:10px;color:var(--tx-3);font-weight:600;letter-spacing:.5px;">${m.label.toUpperCase()}</div>
+      <div style="font-size:22px;font-weight:700;color:${m.color};line-height:1.2;margin-top:2px;">${count}</div>
+    </div>`;
+  }).join('');
+
+  if (items.length === 0) {
+    host.innerHTML = `<div class="card" style="padding:20px;">
+      <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:10px;">Attendance</div>
+      <div style="font-size:12px;color:var(--tx-3);">No active players in this club yet.</div>
+    </div>`;
+    return;
+  }
+
+  const rows = items.map((it) => {
+    const effective = _effectiveMark(it);
+    const pendingPill = st.draft[it.playerId] != null
+      ? `<span style="font-size:9px;color:var(--amber);font-weight:600;letter-spacing:.4px;">UNSAVED</span>`
+      : '';
+    const btns = MARKS.map((m) => {
+      const active = effective === m.key;
+      const style  = active
+        ? `background:${m.bg};border:1px solid var(--bd-2);color:${m.color};font-weight:700;`
+        : `background:transparent;border:1px solid var(--bd);color:var(--tx-3);`;
+      const action = canEdit
+        ? `data-action="attendanceMark" data-id="${_esc(it.playerId)}" data-mark="${m.key}"`
+        : 'disabled';
+      return `<button type="button" class="btn btn-xs" ${action} style="padding:4px 10px;font-size:10.5px;border-radius:6px;${style}">${m.label}</button>`;
+    }).join('');
+
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--bd);">
+      <div style="min-width:28px;font-size:11px;color:var(--tx-3);font-family:var(--mono);">#${it.number != null ? it.number : '?'}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(it.firstName || '')} ${_esc(it.lastName || '')}</div>
+        <div style="font-size:10px;color:var(--tx-3);margin-top:1px;">${_esc(it.position || '—')}${pendingPill ? ' · ' : ''}${pendingPill}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">${btns}</div>
+    </div>`;
+  }).join('');
+
+  const saveBtn = canEdit
+    ? `<button type="button" class="btn btn-primary btn-sm" data-action="attendanceSave" ${(!dirty || st.saving) ? 'disabled' : ''}>${st.saving ? 'Saving…' : 'Save attendance'}</button>`
+    : '';
+
+  host.innerHTML = `<div class="card" style="padding:20px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:600;color:var(--tx);">Attendance</div>
+      ${dirty ? `<span style="font-size:10px;color:var(--amber);font-weight:600;letter-spacing:.5px;">UNSAVED CHANGES</span>` : ''}
+      <div style="margin-left:auto;">${saveBtn}</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${summaryRow}</div>
+    <div>${rows}</div>
+  </div>`;
+}
+
+function markAttendanceDraft(playerId, mark) {
+  if (!playerId || !mark) return;
+  if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
+  // If the chosen mark matches the persisted server value, drop the draft so
+  // the row goes back to "saved" and the Save button can disable correctly.
+  const item = (_attendanceState.items || []).find((x) => x.playerId === playerId);
+  if (item && item.mark === mark) {
+    delete _attendanceState.draft[playerId];
+  } else {
+    _attendanceState.draft[playerId] = mark;
+  }
+  renderAttendancePanel();
+}
+
+async function saveAttendance() {
+  const st = _attendanceState;
+  if (!st.sessionId) return;
+  if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
+  const playerIds = Object.keys(st.draft);
+  if (playerIds.length === 0) return;
+  const marks = playerIds.map((pid) => ({ playerId: pid, mark: st.draft[pid] }));
+
+  st.saving = true;
+  renderAttendancePanel();
+  try {
+    const res  = await TrainingAPI.saveAttendance(st.sessionId, { marks });
+    const data = (res && res.data) || {};
+    if (_attendanceState.sessionId !== st.sessionId) return; // navigated away
+    _attendanceState.items   = Array.isArray(data.items) ? data.items : _attendanceState.items;
+    _attendanceState.summary = data.summary || _attendanceState.summary;
+    _attendanceState.draft   = Object.create(null);
+    _attendanceState.saving  = false;
+    renderAttendancePanel();
+    showToast('Attendance saved', 'success');
+  } catch (err) {
+    _attendanceState.saving = false;
+    renderAttendancePanel();
+    showToast((err && err.userMessage) || 'Could not save attendance', 'error');
+  }
+}
+
+function trainingBack() {
+  _trainingDetailId = null;
+  _attendanceState = { sessionId: null, items: [], summary: { present: 0, absent: 0, late: 0, excused: 0 }, draft: Object.create(null), saving: false, loading: false };
+  renderTrainingPage();
 }
 
 function renderTrainingDetailPanel(s, el) {
@@ -5079,19 +5265,21 @@ function renderTrainingDetailPanel(s, el) {
 
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-      <button class="btn btn-outline btn-sm" onclick="_trainingDetailId=null;renderTrainingPage();">← Back</button>
+      <button class="btn btn-outline btn-sm" data-action="trainingBack">← Back</button>
       <div style="flex:1;font-size:14px;font-weight:700;color:var(--tx);">${_esc(s.title)}</div>
-      ${canEdit ? `<button class="btn btn-outline btn-sm" onclick="openEditTrainingModal('${_esc(s.id)}')">Edit</button>` : ''}
-      ${canDel  ? `<button class="btn btn-danger  btn-sm" onclick="confirmDeleteTraining('${_esc(s.id)}')">Delete</button>` : ''}
+      ${canEdit ? `<button class="btn btn-outline btn-sm" data-action="editTraining" data-id="${_esc(s.id)}">Edit</button>` : ''}
+      ${canDel  ? `<button class="btn btn-danger  btn-sm" data-action="deleteTraining" data-id="${_esc(s.id)}">Delete</button>` : ''}
     </div>
     <div class="card" style="padding:20px;margin-bottom:12px;">
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:${s.description ? 16 : 0}px;">
         <div><div style="font-size:10px;color:var(--tx-3);margin-bottom:3px;">DATE &amp; TIME</div><div style="font-size:12px;color:var(--tx);font-weight:600;">${dateStr}</div></div>
         <div><div style="font-size:10px;color:var(--tx-3);margin-bottom:3px;">DURATION</div><div style="font-size:12px;color:var(--tx);font-weight:600;">${s.duration} min</div></div>
+        ${s.location ? `<div><div style="font-size:10px;color:var(--tx-3);margin-bottom:3px;">LOCATION</div><div style="font-size:12px;color:var(--tx);font-weight:600;">${_esc(s.location)}</div></div>` : ''}
         <div><div style="font-size:10px;color:var(--tx-3);margin-bottom:3px;">PLAYERS</div><div style="font-size:12px;color:var(--tx);font-weight:600;">${players.length}</div></div>
       </div>
       ${s.description ? `<div style="font-size:12px;color:var(--tx-2);line-height:1.6;padding-top:12px;border-top:1px solid var(--bd);">${_esc(s.description)}</div>` : ''}
     </div>
+    <div id="attendance-section"></div>
     ${drillList ? `<div class="card" style="padding:16px;margin-bottom:12px;">
       <div style="font-size:12px;font-weight:600;color:var(--tx);margin-bottom:10px;">Drills</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;">${drillList}</div>
@@ -5150,6 +5338,7 @@ function openScheduleTrainingModal() {
   document.getElementById('ts-title').value = '';
   document.getElementById('ts-duration').value = 75;
   document.getElementById('ts-description').value = '';
+  const _newLoc = document.getElementById('ts-location'); if (_newLoc) _newLoc.value = '';
   // Default: tomorrow at 10:00
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10,0,0,0);
   document.getElementById('ts-scheduled-at').value = _trainingLocalDateStr(tomorrow);
@@ -5176,6 +5365,7 @@ function openEditTrainingModal(id) {
   document.getElementById('ts-title').value = s.title || '';
   document.getElementById('ts-duration').value = s.duration || 75;
   document.getElementById('ts-description').value = s.description || '';
+  const _editLoc = document.getElementById('ts-location'); if (_editLoc) _editLoc.value = s.location || '';
   if (s.scheduledAt) {
     document.getElementById('ts-scheduled-at').value = _trainingLocalDateStr(new Date(s.scheduledAt));
   }
@@ -5200,6 +5390,7 @@ async function submitTrainingForm(ev) {
   const durationRaw = document.getElementById('ts-duration').value;
   const schedRaw    = (document.getElementById('ts-scheduled-at').value || '').trim();
   const description = (document.getElementById('ts-description').value || '').trim();
+  const locationStr = ((document.getElementById('ts-location') || {}).value || '').trim();
 
   if (!title)    { errEl.textContent = 'Title is required';       errEl.style.display = ''; return; }
   if (!schedRaw) { errEl.textContent = 'Date & time is required'; errEl.style.display = ''; return; }
@@ -5214,6 +5405,7 @@ async function submitTrainingForm(ev) {
     duration,
     scheduledAt: new Date(schedRaw).toISOString(),
     ...(description && { description }),
+    ...(locationStr && { location: locationStr }),
     drills,
     playerIds,
   };
@@ -12352,6 +12544,13 @@ async function tosBoardSnapshot() {
         case 'adminRefresh': loadAdminData();                                                              break;
         case 'adminFixPlayer': openPlayerModal(el.dataset.id);                                             break;
         case 'openPlayerModal': openPlayerModal(el.dataset.id);                                            break;
+        // ── Training (entries needed for Training Attendance MVP) ─────────────
+        case 'openTrainingDetail': openTrainingDetail(el.dataset.id);                                      break;
+        case 'editTraining':       openEditTrainingModal(el.dataset.id);                                   break;
+        case 'deleteTraining':     confirmDeleteTraining(el.dataset.id);                                   break;
+        case 'trainingBack':       trainingBack();                                                         break;
+        case 'attendanceMark':     markAttendanceDraft(el.dataset.id, el.dataset.mark);                    break;
+        case 'attendanceSave':     saveAttendance();                                                       break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
