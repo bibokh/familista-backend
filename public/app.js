@@ -5310,10 +5310,15 @@ function _populateTrainingModalDrills(selected) {
     </label>`).join('');
 }
 
+const _TS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function _populateTrainingModalPlayers(selectedIds) {
   const container = document.getElementById('ts-players');
   if (!container) return;
-  const players = State.players || [];
+  // Only render players whose backend id is a real UUID — anything else (shirt
+  // number, display id, undefined) would be rejected by POST /training as
+  // "Invalid uuid" once submitted.
+  const players = (State.players || []).filter(p => p && typeof p.id === 'string' && _TS_UUID_RE.test(p.id));
   const sel     = new Set(selectedIds || []);
   if (players.length === 0) {
     container.innerHTML = `<div style="font-size:12px;color:var(--tx-3);padding:8px;">No players loaded.</div>`;
@@ -5321,7 +5326,7 @@ function _populateTrainingModalPlayers(selectedIds) {
   }
   container.innerHTML = players.map(p => `
     <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;border-radius:4px;">
-      <input type="checkbox" name="ts-player" value="${p.id}" ${sel.has(p.id)||(!sel.size&&!p.isInjured&&p.condition>=75)?'checked':''} style="width:13px;height:13px;">
+      <input type="checkbox" name="ts-player" value="${_esc(p.id)}" data-player-uuid="${_esc(p.id)}" ${sel.has(p.id)||(!sel.size&&!p.isInjured&&p.condition>=75)?'checked':''} style="width:13px;height:13px;">
       <span style="min-width:22px;font-size:10px;color:var(--tx-3);">#${p.number}</span>
       <span style="font-size:11px;font-weight:600;color:var(--tx);">${_esc(p.firstName)} ${_esc(p.lastName)}</span>
       <span style="margin-left:auto;font-size:10px;color:${condColor(p.condition)};font-family:var(--mono);">${p.condition}%</span>
@@ -5398,7 +5403,11 @@ async function submitTrainingForm(ev) {
   if (!duration || duration < 1) { errEl.textContent = 'Duration must be at least 1 minute'; errEl.style.display = ''; return; }
 
   const drills    = Array.from(document.querySelectorAll('input[name="ts-drill"]:checked')).map(el => el.value);
-  const playerIds = Array.from(document.querySelectorAll('input[name="ts-player"]:checked')).map(el => el.value);
+  // Final guard: POST /training rejects any non-UUID id. Drop anything that
+  // isn't a Player.id UUID so a stale row in the modal can't fail the request.
+  const playerIds = Array.from(document.querySelectorAll('input[name="ts-player"]:checked'))
+    .map(el => el.value)
+    .filter(v => typeof v === 'string' && _TS_UUID_RE.test(v));
 
   const body = {
     title,
