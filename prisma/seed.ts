@@ -166,43 +166,56 @@ async function main() {
   const players = [];
   for (const p of playerDefs) {
     const { def, atk, phy, gps, ...rest } = p;
-    const player = await prisma.player.upsert({
-      where: { id: `player-${rest.num}-fhsr` },
-      update: { condition: rest.cnd },
-      create: {
-        id:           `player-${rest.num}-fhsr`,
-        firstName:    rest.fn,
-        lastName:     rest.ln,
-        number:       rest.num,
-        position:     rest.pos,
-        nationality:  rest.nat,
-        flag:         rest.flag,
-        dateOfBirth:  new Date(rest.dob),
-        height:       rest.h,
-        weight:       rest.w,
-        overallRating:rest.ovr,
-        potential:    rest.pot,
-        condition:    rest.cnd,
-        marketValue:  rest.mv,
-        weeklyWage:   rest.wage,
-        preferredFoot:rest.foot,
-        contractUntil:new Date('2026-12-31'),
-        clubId:       club.id,
-      },
+    // Lookup by (clubId, shirt number) instead of a literal id so Prisma's
+    // @default(uuid()) generates real UUIDs on create. Literal ids of the
+    // form `player-${num}-fhsr` are what caused POST /training to reject
+    // playerIds with "Invalid uuid".
+    const existing = await prisma.player.findFirst({
+      where: { clubId: club.id, number: rest.num },
+      select: { id: true },
     });
+    const player = existing
+      ? await prisma.player.update({
+          where: { id: existing.id },
+          data:  { condition: rest.cnd },
+        })
+      : await prisma.player.create({
+          data: {
+            firstName:    rest.fn,
+            lastName:     rest.ln,
+            number:       rest.num,
+            position:     rest.pos,
+            nationality:  rest.nat,
+            flag:         rest.flag,
+            dateOfBirth:  new Date(rest.dob),
+            height:       rest.h,
+            weight:       rest.w,
+            overallRating:rest.ovr,
+            potential:    rest.pot,
+            condition:    rest.cnd,
+            marketValue:  rest.mv,
+            weeklyWage:   rest.wage,
+            preferredFoot:rest.foot,
+            contractUntil:new Date('2026-12-31'),
+            clubId:       club.id,
+          },
+        });
 
-    // Attributes
-    await prisma.playerAttribute.upsert({
-      where: { id: `attr-${player.id}` },
-      update: {},
-      create: {
-        id: `attr-${player.id}`,
-        playerId: player.id,
-        ...def as object,
-        ...atk as object,
-        ...phy as object,
-      } as never,
+    // Attributes — one row per player. Look up by playerId, not synthetic id.
+    const existingAttr = await prisma.playerAttribute.findFirst({
+      where: { playerId: player.id },
+      select: { id: true },
     });
+    if (!existingAttr) {
+      await prisma.playerAttribute.create({
+        data: {
+          playerId: player.id,
+          ...def as object,
+          ...atk as object,
+          ...phy as object,
+        } as never,
+      });
+    }
 
     // GPS data (last 3 sessions)
     for (let i = 0; i < 3; i++) {
@@ -226,6 +239,9 @@ async function main() {
 
     players.push(player);
   }
+  // Shirt number → Player.id (UUID) lookup so the injury upserts below stop
+  // hardcoding `player-N-fhsr` literals.
+  const playerIdByNumber = new Map<number, string>(players.map(p => [p.number, p.id]));
   console.log(`✅ ${players.length} players with attributes and GPS data`);
 
   // ── GPS Devices ───────────────────────────────────────────
@@ -249,12 +265,19 @@ async function main() {
   console.log(`✅ ${players.length} GPS devices`);
 
   // ── Injuries ──────────────────────────────────────────────
+  const caceresId  = playerIdByNumber.get(5);
+  const schrodenId = playerIdByNumber.get(23);
+  const fujitaId   = playerIdByNumber.get(20);
+  if (!caceresId || !schrodenId || !fujitaId) {
+    throw new Error('Seed: missing expected players (#5, #23, #20) — refusing to seed injuries with stale literal ids');
+  }
+
   await prisma.playerInjury.upsert({
     where: { id: 'inj-caceres-001' },
     update: {},
     create: {
       id:             'inj-caceres-001',
-      playerId:       `player-5-fhsr`,
+      playerId:       caceresId,
       bodyPart:       'Hamstring',
       injuryType:     'Hamstring Strain',
       severity:       InjurySeverity.CRITICAL,
@@ -262,15 +285,14 @@ async function main() {
       expectedReturn: new Date(Date.now() + 11 * 24 * 60 * 60 * 1000),
     },
   });
-  // Update player isInjured
-  await prisma.player.update({ where: { id: 'player-5-fhsr' }, data: { isInjured: true } });
+  await prisma.player.update({ where: { id: caceresId }, data: { isInjured: true } });
 
   await prisma.playerInjury.upsert({
     where: { id: 'inj-schroden-001' },
     update: {},
     create: {
       id:             'inj-schroden-001',
-      playerId:       `player-23-fhsr`,
+      playerId:       schrodenId,
       bodyPart:       'General',
       injuryType:     'Fatigue Overload',
       severity:       InjurySeverity.MODERATE,
@@ -284,7 +306,7 @@ async function main() {
     update: {},
     create: {
       id:             'inj-fujita-001',
-      playerId:       `player-20-fhsr`,
+      playerId:       fujitaId,
       bodyPart:       'Ankle',
       injuryType:     'Ankle Sprain',
       severity:       InjurySeverity.MINOR,
