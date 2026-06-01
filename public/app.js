@@ -1374,7 +1374,7 @@ function renderSquad(filterPos) {
     const age = p.dateOfBirth ? (new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : '—';
     const ovr = (p.overallRating != null) ? p.overallRating : '—';
     const num = (p.number != null) ? p.number : '?';
-    return '<div class="card pc clickable" onclick="openPlayerModal(\'' + p.id + '\')">' +
+    return '<div class="card pc clickable" data-action="openPlayerModal" data-id="' + p.id + '">' +
       '<div class="pc-top">' +
         '<div class="pc-avatar">' + playerSVG(p) + '</div>' +
         '<div class="pc-info">' +
@@ -12351,6 +12351,7 @@ async function tosBoardSnapshot() {
         case 'adminTab':     adminSwitchTab(el.dataset.tab);                                               break;
         case 'adminRefresh': loadAdminData();                                                              break;
         case 'adminFixPlayer': openPlayerModal(el.dataset.id);                                             break;
+        case 'openPlayerModal': openPlayerModal(el.dataset.id);                                            break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
