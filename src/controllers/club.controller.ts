@@ -24,51 +24,23 @@ const hexColor = z
 
 const text = (max: number) => z.string().trim().max(max);
 
-// Social links: every value must be an https URL (or empty → omitted).
-const socialLinks = z
-  .object({
-    x: httpsUrl.optional(),
-    instagram: httpsUrl.optional(),
-    facebook: httpsUrl.optional(),
-    youtube: httpsUrl.optional(),
-    tiktok: httpsUrl.optional(),
-    linkedin: httpsUrl.optional(),
-  })
-  .strict();
-
+// TEMP emergency scope — Club Settings reduced to essentials only. The advanced
+// club-profile fields (description / address / region / postalCode / contact* /
+// websiteUrl / socialLinks / faviconUrl / logoDark / and the legacy core fields)
+// are intentionally NOT accepted here, so the API only ever writes the safe set:
+// name + logo + brand colors. `.strict()` rejects anything else.
 const patchSchema = z.object({
   body: z.object({
-    // Core Club fields
     name:           text(120).min(1).optional(),
-    shortName:      text(40).nullable().optional(),
-    description:    text(2000).nullable().optional(),
-    founded:        z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).nullable().optional(),
-    stadium:        text(160).nullable().optional(),
-    capacity:       z.number().int().min(0).max(500000).nullable().optional(),
-    city:           text(120).min(1).optional(),
-    country:        text(120).min(1).optional(),
-    addressLine:    text(200).nullable().optional(),
-    region:         text(120).nullable().optional(),
-    postalCode:     text(32).nullable().optional(),
-    level:          z.number().int().min(1).max(100).optional(),
-    overallRating:  z.number().min(0).max(200).optional(),
-    leaguePosition: z.number().int().min(1).max(100).nullable().optional(),
-    fanClub:        text(120).nullable().optional(),
-    contactEmail:   z.string().trim().email().max(160).nullable().optional(),
-    contactPhone:   text(40).nullable().optional(),
-    websiteUrl:     httpsUrl.nullable().optional(),
-    socialLinks:    socialLinks.nullable().optional(),
     // Brand (WhiteLabelConfig)
     logoUrl:        httpsUrl.nullable().optional(),
-    logoDarkUrl:    httpsUrl.nullable().optional(),
-    faviconUrl:     httpsUrl.nullable().optional(),
     primaryColor:   hexColor.optional(),
     secondaryColor: hexColor.optional(),
     accentColor:    hexColor.optional(),
   }).strict(),
 });
 
-const BRAND_KEYS = ['logoUrl', 'logoDarkUrl', 'faviconUrl', 'primaryColor', 'secondaryColor', 'accentColor'] as const;
+const BRAND_KEYS = ['logoUrl', 'primaryColor', 'secondaryColor', 'accentColor'] as const;
 
 function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
@@ -104,8 +76,6 @@ export async function updateClub(req: Request, res: Response, next: NextFunction
     for (const [k, v] of Object.entries(b)) {
       if ((BRAND_KEYS as readonly string[]).includes(k)) {
         (brand as Record<string, unknown>)[k] = v;
-      } else if (k === 'founded') {
-        (core as Record<string, unknown>).founded = v == null ? null : new Date(v as string);
       } else {
         (core as Record<string, unknown>)[k] = v;
       }

@@ -7315,40 +7315,15 @@ const ClubEditModal = (function () {
     const btn   = $('ce-submit');
     const val = (id) => { const el = $(id); return el ? el.value.trim() : ''; };
     const strOrNull = (id) => { const v = val(id); return v === '' ? null : v; };
-    const numOrNull = (id) => { const v = val(id); return v === '' ? null : Number(v); };
 
+    // TEMP emergency scope: only name + logo + brand colors are sent. The
+    // backend PATCH accepts ONLY these (advanced profile fields removed).
     const body = {};
-    // Required-in-DB fields: only send when non-empty (never clear to null/blank).
-    if (val('ce-name'))    body.name = val('ce-name');
-    if (val('ce-city'))    body.city = val('ce-city');
-    if (val('ce-country')) body.country = val('ce-country');
-    if (val('ce-level'))   body.level = Number(val('ce-level'));
-    if (val('ce-overall')) body.overallRating = Number(val('ce-overall'));
-    // Nullable fields: send value, or null to clear.
-    body.shortName      = strOrNull('ce-shortName');
-    body.description    = strOrNull('ce-description');
-    body.founded        = val('ce-founded') || null;
-    body.stadium        = strOrNull('ce-stadium');
-    body.capacity       = numOrNull('ce-capacity');
-    body.addressLine    = strOrNull('ce-addressLine');
-    body.region         = strOrNull('ce-region');
-    body.postalCode     = strOrNull('ce-postalCode');
-    body.leaguePosition = numOrNull('ce-leaguePosition');
-    body.contactEmail   = strOrNull('ce-contactEmail');
-    body.contactPhone   = strOrNull('ce-contactPhone');
-    body.websiteUrl     = strOrNull('ce-websiteUrl');
-    // Social: include only non-empty entries; null if none.
-    const social = {}; let anySocial = false;
-    [['x','ce-x'],['instagram','ce-instagram'],['facebook','ce-facebook'],['youtube','ce-youtube'],['tiktok','ce-tiktok'],['linkedin','ce-linkedin']]
-      .forEach(([k, id]) => { const v = val(id); if (v) { social[k] = v; anySocial = true; } });
-    body.socialLinks = anySocial ? social : null;
-    // Brand: colors only when present (they have DB defaults); logo URLs send value/null.
+    if (val('ce-name')) body.name = val('ce-name');
+    body.logoUrl = strOrNull('ce-logoUrl');
     if (val('ce-primaryColor'))   body.primaryColor = val('ce-primaryColor');
     if (val('ce-secondaryColor')) body.secondaryColor = val('ce-secondaryColor');
     if (val('ce-accentColor'))    body.accentColor = val('ce-accentColor');
-    body.logoUrl      = strOrNull('ce-logoUrl');
-    body.logoDarkUrl  = strOrNull('ce-logoDarkUrl');
-    body.faviconUrl   = strOrNull('ce-faviconUrl');
 
     if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }

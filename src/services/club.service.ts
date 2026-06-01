@@ -41,34 +41,16 @@ export interface ClubProfile {
   branding: ClubBrand;
 }
 
-// Fields the PATCH endpoint may write onto Club (after validation upstream).
+// Fields the PATCH endpoint may write onto Club. TEMP emergency scope: only
+// `name` — advanced profile fields are removed from the writable payload.
 export interface ClubCorePatch {
   name?: string;
-  shortName?: string | null;
-  description?: string | null;
-  founded?: Date | null;
-  stadium?: string | null;
-  capacity?: number | null;
-  city?: string;
-  country?: string;
-  addressLine?: string | null;
-  region?: string | null;
-  postalCode?: string | null;
-  level?: number;
-  overallRating?: number;
-  leaguePosition?: number | null;
-  fanClub?: string | null;
-  contactEmail?: string | null;
-  contactPhone?: string | null;
-  websiteUrl?: string | null;
-  socialLinks?: Record<string, string> | null;
 }
 
-// Fields the PATCH endpoint may write onto WhiteLabelConfig (brand).
+// Fields the PATCH endpoint may write onto WhiteLabelConfig (brand). TEMP
+// emergency scope: logo + 3 colors only (logoDark / favicon removed).
 export interface ClubBrandPatch {
   logoUrl?: string | null;
-  logoDarkUrl?: string | null;
-  faviconUrl?: string | null;
   primaryColor?: string;
   secondaryColor?: string;
   accentColor?: string;
@@ -133,12 +115,7 @@ export async function updateClubProfile(
   const ops: Prisma.PrismaPromise<unknown>[] = [];
 
   if (Object.keys(core).length > 0) {
-    // Nullable JSON column needs Prisma.JsonNull (not literal null).
-    const { socialLinks, ...rest } = core;
-    const data: Prisma.ClubUpdateInput = { ...rest };
-    if (socialLinks !== undefined) {
-      data.socialLinks = socialLinks === null ? Prisma.JsonNull : (socialLinks as Prisma.InputJsonValue);
-    }
+    const data: Prisma.ClubUpdateInput = { ...core };
     ops.push(prisma.club.update({ where: { id: clubId }, data }));
   }
 
