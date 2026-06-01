@@ -1319,7 +1319,13 @@ function renderSquadHTML() {
 }
 
 function renderSquad(filterPos) {
-  if (isFormEditing()) { _pendingRefresh = true; return; }
+  // The header search input IS the trigger for live filtering — treating its
+  // focus as "editing" would defer the very re-render the user just asked for,
+  // leaving every player visible while they typed. Only the grid is replaced
+  // here, so re-rendering while #global-search is focused is safe.
+  const _ae = document.activeElement;
+  const _fromHeaderSearch = !!(_ae && _ae.id === 'global-search');
+  if (!_fromHeaderSearch && isFormEditing()) { _pendingRefresh = true; return; }
   // Persist the active position filter so re-renders (e.g. live name search)
   // keep it instead of resetting to ALL.
   if (filterPos) State.squadFilter = filterPos;

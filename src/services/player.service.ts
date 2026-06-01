@@ -169,7 +169,10 @@ export async function getPlayers(clubId: string, filters: PlayerFilters = {}) {
     ...(medicalStatus      && { medicalStatus }),
     ...(paymentStatus      && { paymentStatus }),
     ...(isInjured !== undefined && { isInjured }),
-    ...(isActive  !== undefined && { isActive  }),
+    // Soft-deleted players (isActive=false) must NOT leak into the default
+    // list — otherwise DELETE looks reverted after refresh / re-login.
+    // Callers wanting archived rows pass ?isActive=false explicitly.
+    isActive: isActive === undefined ? true : isActive,
     ...(filters.teamId === 'NULL' ? { teamId: null } : filters.teamId ? { teamId: filters.teamId } : {}),
     ...((minRating != null || maxRating != null) && {
       overallRating: {
