@@ -81,7 +81,14 @@ export async function createNewSession(req: Request, res: Response, next: NextFu
       const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
       return next(new BadRequestError(`Create training failed [${err.code}]${meta}`));
     }
-    return next(err);
+    // Catch every remaining error class (PrismaClientValidationError,
+    // PrismaClientInitializationError, PrismaClientRustPanicError, plain
+    // TypeError, etc.) and forward as a 400 with the literal error message
+    // so POST /api/v1/training/sessions can never return a generic 500.
+    // eslint-disable-next-line no-console
+    console.error('[createNewSession] unexpected', err && (err as Error).stack);
+    const msg: string = (err && (err as Error).message) ? (err as Error).message : 'Unknown error';
+    return next(new BadRequestError(`Create training failed: ${msg.split('\n').slice(-1)[0]}`));
   }
 }
 
