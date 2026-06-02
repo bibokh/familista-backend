@@ -5205,15 +5205,16 @@ function renderAttendancePanel() {
 }
 
 function markAttendanceDraft(playerId, mark) {
-  if (!playerId || !mark) return;
-  if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
-  // Always record the click. Previously this toggled the draft off when the
-  // chosen mark equalled item.mark, which silently swallowed clicks in the
-  // common path where item.mark was already PRESENT (no visible change, no
-  // counter update). The Save button disables correctly off Object.keys(draft)
-  // either way once a save has cleared the draft.
+  try { console.log('[ATT-TRACE 3] markAttendanceDraft ENTER  playerId=' + playerId + '  mark=' + mark + '  canEdit=' + _attendanceCanEdit() + '  role=' + (State.user && State.user.role)); } catch (_) {}
+  if (!playerId || !mark) { try { console.log('[ATT-TRACE 3] EARLY RETURN: missing playerId or mark'); } catch (_) {} return; }
+  if (!_attendanceCanEdit()) { try { console.log('[ATT-TRACE 3] EARLY RETURN: not authorized'); } catch (_) {} showToast('Not authorized to record attendance', 'error'); return; }
+  // [ATT-TRACE 3] draft before
+  try { console.log('[ATT-TRACE 3] draft BEFORE = ' + JSON.stringify(_attendanceState.draft)); } catch (_) {}
   _attendanceState.draft[playerId] = mark;
+  // [ATT-TRACE 3] draft after
+  try { console.log('[ATT-TRACE 3] draft AFTER  = ' + JSON.stringify(_attendanceState.draft) + '  size=' + Object.keys(_attendanceState.draft).length); } catch (_) {}
   renderAttendancePanel();
+  try { console.log('[ATT-TRACE 3] renderAttendancePanel returned  host?=' + !!document.getElementById('attendance-section')); } catch (_) {}
 }
 
 async function saveAttendance() {
@@ -12589,9 +12590,13 @@ async function tosBoardSnapshot() {
 (function wireStaticHandlers() {
   // ── Click delegation ────────────────────────────────────────────────────────
   document.addEventListener('click', function delegateClick(e) {
+    // [ATT-TRACE 1] Fires on EVERY click on the page — proves the listener is alive.
+    try { console.log('[ATT-TRACE 1] CLICK RECEIVED  tag=' + (e.target && e.target.tagName) + '  text=' + (e.target && (e.target.textContent || '').slice(0, 40))); } catch (_) {}
     const el = e.target.closest(
       '[data-action],[data-nav],[data-show-auth],[data-close-modal],[data-match-tab]'
     );
+    // [ATT-TRACE 1b] What closest() resolved to.
+    try { console.log('[ATT-TRACE 1b] closest match  el=' + (el && el.tagName) + '  data-action=' + (el && el.dataset && el.dataset.action) + '  data-id=' + (el && el.dataset && el.dataset.id) + '  data-mark=' + (el && el.dataset && el.dataset.mark)); } catch (_) {}
     if (!el) return;
     // Prevent <a> default scroll-to-top behaviour
     if (el.tagName === 'A') e.preventDefault();
@@ -12668,7 +12673,10 @@ async function tosBoardSnapshot() {
         case 'editTraining':       openEditTrainingModal(el.dataset.id);                                   break;
         case 'deleteTraining':     confirmDeleteTraining(el.dataset.id);                                   break;
         case 'trainingBack':       trainingBack();                                                         break;
-        case 'attendanceMark':     markAttendanceDraft(el.dataset.id, el.dataset.mark);                    break;
+        case 'attendanceMark':
+          try { console.log('[ATT-TRACE 2] case attendanceMark fired  playerId=' + el.dataset.id + '  mark=' + el.dataset.mark); } catch (_) {}
+          markAttendanceDraft(el.dataset.id, el.dataset.mark);
+          break;
         case 'attendanceSave':     saveAttendance();                                                       break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
