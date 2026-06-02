@@ -5110,16 +5110,10 @@ function _attendanceCanEdit() {
 // Effective mark for a player = unsaved draft if set, else persisted mark.
 function _effectiveMark(item) {
   const d = _attendanceState.draft[item.playerId];
-  // [ATT-TRACE 4]
-  try { console.log('[ATT-TRACE 4] _effectiveMark  item.playerId=' + item.playerId + '  typeof=' + typeof item.playerId + '  draft[item.playerId]=' + d + '  fallback item.mark=' + item.mark); } catch (_) {}
   return d != null ? d : item.mark;
 }
 
 function _attendanceTotals() {
-  // [ATT-TRACE 5]
-  try {
-    console.log('[ATT-TRACE 5] _attendanceTotals ENTER  items.length=' + ((_attendanceState.items || []).length) + '  draft=' + JSON.stringify(_attendanceState.draft) + '  draft keys=' + JSON.stringify(Object.keys(_attendanceState.draft)));
-  } catch (_) {}
   const t = { present: 0, absent: 0, late: 0, excused: 0 };
   for (const it of _attendanceState.items) {
     const m = _effectiveMark(it);
@@ -5128,15 +5122,11 @@ function _attendanceTotals() {
     else if (m === 'LATE')    t.late++;
     else if (m === 'EXCUSED') t.excused++;
   }
-  // [ATT-TRACE 5] result
-  try { console.log('[ATT-TRACE 5] _attendanceTotals RESULT  ' + JSON.stringify(t)); } catch (_) {}
   return t;
 }
 
 function renderAttendancePanel() {
   const host = document.getElementById('attendance-section');
-  // [ATT-TRACE 6]
-  try { console.log('[ATT-TRACE 6] renderAttendancePanel ENTER  host?=' + !!host + '  items.length=' + ((_attendanceState.items || []).length) + '  first item playerId=' + ((_attendanceState.items || [])[0] && (_attendanceState.items || [])[0].playerId) + '  draft=' + JSON.stringify(_attendanceState.draft)); } catch (_) {}
   if (!host) return;
   const st = _attendanceState;
 
@@ -5157,13 +5147,6 @@ function renderAttendancePanel() {
     { key: 'EXCUSED', label: 'Excused', color: '#93C5FD',        bg: 'rgba(37,99,235,.12)' },
   ];
 
-  // [ATT-TRACE 7] totals object at summaryRow build time, per-mark count
-  try {
-    console.log('[ATT-TRACE 7] totals at summaryRow build = ' + JSON.stringify(totals));
-    MARKS.forEach(function (m) {
-      console.log('[ATT-TRACE 7]   ' + m.key + ' → totals[' + m.key.toLowerCase() + '] = ' + totals[m.key.toLowerCase()]);
-    });
-  } catch (_) {}
   const summaryRow = MARKS.map((m) => {
     const count = totals[m.key.toLowerCase()];
     return `<div style="flex:1;min-width:90px;padding:10px 12px;border-radius:8px;background:${m.bg};border:1px solid var(--bd);">
@@ -5171,8 +5154,6 @@ function renderAttendancePanel() {
       <div style="font-size:22px;font-weight:700;color:${m.color};line-height:1.2;margin-top:2px;">${count}</div>
     </div>`;
   }).join('');
-  // [ATT-TRACE 7] summaryRow HTML
-  try { console.log('[ATT-TRACE 7] summaryRow HTML (first 600 chars) = ' + summaryRow.substring(0, 600)); } catch (_) {}
 
   if (items.length === 0) {
     host.innerHTML = `<div class="card" style="padding:20px;">
@@ -5221,36 +5202,13 @@ function renderAttendancePanel() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${summaryRow}</div>
     <div>${rows}</div>
   </div>`;
-  // [ATT-TRACE 8] DOM verification AFTER innerHTML write
-  try {
-    console.log('[ATT-TRACE 8] host.isConnected = ' + host.isConnected + '  parent=' + (host.parentElement && (host.parentElement.id || host.parentElement.tagName)));
-    console.log('[ATT-TRACE 8] document #attendance-section count = ' + document.querySelectorAll('#attendance-section').length);
-    console.log('[ATT-TRACE 8] host.innerHTML length after write = ' + host.innerHTML.length);
-    console.log('[ATT-TRACE 8] host.innerHTML (first 800 chars) = ' + host.innerHTML.substring(0, 800));
-    // Schedule a follow-up read 100ms later so we can see if anything overwrites the section.
-    var __snap = host.innerHTML.substring(0, 800);
-    setTimeout(function () {
-      try {
-        var live = document.getElementById('attendance-section');
-        var liveHTML = live ? live.innerHTML.substring(0, 800) : '<#attendance-section vanished>';
-        console.log('[ATT-TRACE 8+100ms] same? ' + (liveHTML === __snap) + '  liveHTML.len=' + (live ? live.innerHTML.length : 0));
-        if (liveHTML !== __snap) console.log('[ATT-TRACE 8+100ms] live (first 800) = ' + liveHTML);
-      } catch (e) { console.log('[ATT-TRACE 8+100ms] error: ' + e.message); }
-    }, 100);
-  } catch (_) {}
 }
 
 function markAttendanceDraft(playerId, mark) {
-  try { console.log('[ATT-TRACE 3] markAttendanceDraft ENTER  playerId=' + playerId + '  mark=' + mark + '  canEdit=' + _attendanceCanEdit() + '  role=' + (State.user && State.user.role)); } catch (_) {}
-  if (!playerId || !mark) { try { console.log('[ATT-TRACE 3] EARLY RETURN: missing playerId or mark'); } catch (_) {} return; }
-  if (!_attendanceCanEdit()) { try { console.log('[ATT-TRACE 3] EARLY RETURN: not authorized'); } catch (_) {} showToast('Not authorized to record attendance', 'error'); return; }
-  // [ATT-TRACE 3] draft before
-  try { console.log('[ATT-TRACE 3] draft BEFORE = ' + JSON.stringify(_attendanceState.draft)); } catch (_) {}
+  if (!playerId || !mark) return;
+  if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
   _attendanceState.draft[playerId] = mark;
-  // [ATT-TRACE 3] draft after
-  try { console.log('[ATT-TRACE 3] draft AFTER  = ' + JSON.stringify(_attendanceState.draft) + '  size=' + Object.keys(_attendanceState.draft).length); } catch (_) {}
   renderAttendancePanel();
-  try { console.log('[ATT-TRACE 3] renderAttendancePanel returned  host?=' + !!document.getElementById('attendance-section')); } catch (_) {}
 }
 
 async function saveAttendance() {
@@ -9047,12 +9005,18 @@ async function testBackendConnection() {
   }
 }
 
-// After render, hook data loading
+// After render, hook data loading.
+// IMPORTANT: only refire on actual nav-item clicks ([data-page=…]); the
+// previous `#pg-training` / `#pg-settings` clauses matched every click
+// inside the page including buttons inside the Training Detail panel.
+// That scheduled a renderTrainingPage 100ms after each attendance mark
+// click, which re-rendered the Sessions list and wiped #attendance-section
+// (root cause of the "100ms later the section vanished" trace).
 document.addEventListener('click', (e) => {
-  if (e.target.closest('[data-page="training"]') || e.target.closest('#pg-training')) {
+  if (e.target.closest('[data-page="training"]')) {
     setTimeout(renderTrainingPage, 100);
   }
-  if (e.target.closest('[data-page="settings"]') || e.target.closest('#pg-settings')) {
+  if (e.target.closest('[data-page="settings"]')) {
     setTimeout(loadSettingsData, 100);
   }
 });
@@ -12626,13 +12590,9 @@ async function tosBoardSnapshot() {
 (function wireStaticHandlers() {
   // ── Click delegation ────────────────────────────────────────────────────────
   document.addEventListener('click', function delegateClick(e) {
-    // [ATT-TRACE 1] Fires on EVERY click on the page — proves the listener is alive.
-    try { console.log('[ATT-TRACE 1] CLICK RECEIVED  tag=' + (e.target && e.target.tagName) + '  text=' + (e.target && (e.target.textContent || '').slice(0, 40))); } catch (_) {}
     const el = e.target.closest(
       '[data-action],[data-nav],[data-show-auth],[data-close-modal],[data-match-tab]'
     );
-    // [ATT-TRACE 1b] What closest() resolved to.
-    try { console.log('[ATT-TRACE 1b] closest match  el=' + (el && el.tagName) + '  data-action=' + (el && el.dataset && el.dataset.action) + '  data-id=' + (el && el.dataset && el.dataset.id) + '  data-mark=' + (el && el.dataset && el.dataset.mark)); } catch (_) {}
     if (!el) return;
     // Prevent <a> default scroll-to-top behaviour
     if (el.tagName === 'A') e.preventDefault();
@@ -12709,10 +12669,7 @@ async function tosBoardSnapshot() {
         case 'editTraining':       openEditTrainingModal(el.dataset.id);                                   break;
         case 'deleteTraining':     confirmDeleteTraining(el.dataset.id);                                   break;
         case 'trainingBack':       trainingBack();                                                         break;
-        case 'attendanceMark':
-          try { console.log('[ATT-TRACE 2] case attendanceMark fired  playerId=' + el.dataset.id + '  mark=' + el.dataset.mark); } catch (_) {}
-          markAttendanceDraft(el.dataset.id, el.dataset.mark);
-          break;
+        case 'attendanceMark':     markAttendanceDraft(el.dataset.id, el.dataset.mark);                    break;
         case 'attendanceSave':     saveAttendance();                                                       break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
