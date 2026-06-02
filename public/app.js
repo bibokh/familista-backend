@@ -5157,6 +5157,13 @@ function renderAttendancePanel() {
     { key: 'EXCUSED', label: 'Excused', color: '#93C5FD',        bg: 'rgba(37,99,235,.12)' },
   ];
 
+  // [ATT-TRACE 7] totals object at summaryRow build time, per-mark count
+  try {
+    console.log('[ATT-TRACE 7] totals at summaryRow build = ' + JSON.stringify(totals));
+    MARKS.forEach(function (m) {
+      console.log('[ATT-TRACE 7]   ' + m.key + ' → totals[' + m.key.toLowerCase() + '] = ' + totals[m.key.toLowerCase()]);
+    });
+  } catch (_) {}
   const summaryRow = MARKS.map((m) => {
     const count = totals[m.key.toLowerCase()];
     return `<div style="flex:1;min-width:90px;padding:10px 12px;border-radius:8px;background:${m.bg};border:1px solid var(--bd);">
@@ -5164,6 +5171,8 @@ function renderAttendancePanel() {
       <div style="font-size:22px;font-weight:700;color:${m.color};line-height:1.2;margin-top:2px;">${count}</div>
     </div>`;
   }).join('');
+  // [ATT-TRACE 7] summaryRow HTML
+  try { console.log('[ATT-TRACE 7] summaryRow HTML (first 600 chars) = ' + summaryRow.substring(0, 600)); } catch (_) {}
 
   if (items.length === 0) {
     host.innerHTML = `<div class="card" style="padding:20px;">
@@ -5212,6 +5221,23 @@ function renderAttendancePanel() {
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">${summaryRow}</div>
     <div>${rows}</div>
   </div>`;
+  // [ATT-TRACE 8] DOM verification AFTER innerHTML write
+  try {
+    console.log('[ATT-TRACE 8] host.isConnected = ' + host.isConnected + '  parent=' + (host.parentElement && (host.parentElement.id || host.parentElement.tagName)));
+    console.log('[ATT-TRACE 8] document #attendance-section count = ' + document.querySelectorAll('#attendance-section').length);
+    console.log('[ATT-TRACE 8] host.innerHTML length after write = ' + host.innerHTML.length);
+    console.log('[ATT-TRACE 8] host.innerHTML (first 800 chars) = ' + host.innerHTML.substring(0, 800));
+    // Schedule a follow-up read 100ms later so we can see if anything overwrites the section.
+    var __snap = host.innerHTML.substring(0, 800);
+    setTimeout(function () {
+      try {
+        var live = document.getElementById('attendance-section');
+        var liveHTML = live ? live.innerHTML.substring(0, 800) : '<#attendance-section vanished>';
+        console.log('[ATT-TRACE 8+100ms] same? ' + (liveHTML === __snap) + '  liveHTML.len=' + (live ? live.innerHTML.length : 0));
+        if (liveHTML !== __snap) console.log('[ATT-TRACE 8+100ms] live (first 800) = ' + liveHTML);
+      } catch (e) { console.log('[ATT-TRACE 8+100ms] error: ' + e.message); }
+    }, 100);
+  } catch (_) {}
 }
 
 function markAttendanceDraft(playerId, mark) {
