@@ -5030,7 +5030,7 @@ function renderTrainingPlayersPanel(el) {
           <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:12px;">Squad Availability</div>
           <div id="train-players">
             ${players.length === 0 ? loadingHTML() : players.map(p=>`
-              <div class="tp-row">
+              <div class="tp-row" data-action="openPlayerModal" data-id="${_esc(p.id)}" style="cursor:pointer;">
                 <div class="tp-check ${p.condition>75&&!p.isInjured?'on':''}" style="width:16px;height:16px;border-radius:4px;border:1px solid var(--bd-2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;${p.condition>75&&!p.isInjured?'background:var(--green);border-color:var(--green);color:#fff':''}">${p.condition>75&&!p.isInjured?'✓':''}</div>
                 <div class="tp-num">${p.number}</div>
                 <div style="flex:1;">

@@ -1,6 +1,6 @@
 import { AttendanceMark, DrillType, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
-import { NotFoundError, ForbiddenError } from '../utils/errors';
+import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 
 export interface CreateTrainingDto {
   title:        string;
@@ -61,11 +61,32 @@ export async function getTrainingById(id: string, clubId: string) {
 
 // Bug fixed: use explicit field mapping instead of ...rest spread so arbitrary
 // request body keys cannot reach Prisma.
+//
+// Bug fixed: pre-verify every playerId belongs to an active player in the
+// caller's club BEFORE attempting the nested playerStats.create. Without this,
+// a stale / soft-deleted / out-of-club UUID raised Prisma P2003 inside the
+// nested create which the global error handler doesn't recognise — surfacing
+// as a generic 500 "Server error. Please retry shortly." to the client.
+// Mirrors the same pre-flight setTrainingAttendance has below.
 export async function createTrainingSession(
   clubId: string,
   dto: CreateTrainingDto
 ) {
   const { playerIds } = dto;
+
+  if (playerIds && playerIds.length > 0) {
+    const owned = await prisma.player.findMany({
+      where:  { id: { in: playerIds }, clubId, isActive: true },
+      select: { id: true },
+    });
+    if (owned.length !== playerIds.length) {
+      const ownedSet = new Set(owned.map((p) => p.id));
+      const missing  = playerIds.filter((id) => !ownedSet.has(id));
+      throw new BadRequestError(
+        `playerIds not found in this club: ${missing.join(', ')}`,
+      );
+    }
+  }
 
   return prisma.trainingSession.create({
     data: {
