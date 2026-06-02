@@ -5220,10 +5220,13 @@ function markAttendanceDraft(playerId, mark) {
 
 async function saveAttendance() {
   const st = _attendanceState;
-  if (!st.sessionId) return;
+  if (!st.sessionId) { showToast('Open a session first', 'error'); return; }
   if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
-  const playerIds = Object.keys(st.draft);
-  if (playerIds.length === 0) return;
+  // Drop any non-UUID playerId from the draft before sending — the backend's
+  // attendance schema is z.string().uuid() and a single legacy id (e.g.
+  // player-15-fhsr) makes the whole PUT fail validation.
+  const playerIds = Object.keys(st.draft).filter((pid) => _TS_UUID_RE.test(pid));
+  if (playerIds.length === 0) { showToast('Nothing to save', 'info'); return; }
   const marks = playerIds.map((pid) => ({ playerId: pid, mark: st.draft[pid] }));
 
   st.saving = true;
