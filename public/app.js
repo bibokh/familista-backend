@@ -5315,19 +5315,10 @@ const _TS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 function _populateTrainingModalPlayers(selectedIds) {
   const container = document.getElementById('ts-players');
   if (!container) return;
-  const players = State.players || [];
-  // TRACE [1] — what's actually in State.players when the modal opens
-  try {
-    console.log('[TS-TRACE 1] State.players length:', players.length);
-    console.log('[TS-TRACE 1] State.players ids:', players.map(p => ({
-      id: p && p.id,
-      idType: p && typeof p.id,
-      idIsUuid: !!(p && typeof p.id === 'string' && _TS_UUID_RE.test(p.id)),
-      number: p && p.number,
-      firstName: p && p.firstName,
-      lastName: p && p.lastName,
-    })));
-  } catch (_) {}
+  // Only players whose id is a real UUID — legacy seed rows (player-N-fhsr)
+  // and anything else POST /training would reject as "Invalid uuid" are
+  // hidden so the modal can only ever submit valid Player.id UUIDs.
+  const players = (State.players || []).filter(p => p && typeof p.id === 'string' && _TS_UUID_RE.test(p.id));
   const sel = new Set(selectedIds || []);
   if (players.length === 0) {
     container.innerHTML = `<div style="font-size:12px;color:var(--tx-3);padding:8px;">No players loaded.</div>`;
@@ -5335,20 +5326,12 @@ function _populateTrainingModalPlayers(selectedIds) {
   }
   container.innerHTML = players.map(p => `
     <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;border-radius:4px;">
-      <input type="checkbox" name="ts-player" value="${_esc(p.id)}" data-player-uuid="${_esc(p.id)}" ${sel.has(p.id)||(!sel.size&&!p.isInjured&&p.condition>=75)?'checked':''} style="width:13px;height:13px;">
+      <input type="checkbox" name="ts-player" value="${_esc(p.id)}" ${sel.has(p.id)||(!sel.size&&!p.isInjured&&p.condition>=75)?'checked':''} style="width:13px;height:13px;">
       <span style="min-width:22px;font-size:10px;color:var(--tx-3);">#${p.number}</span>
       <span style="font-size:11px;font-weight:600;color:var(--tx);">${_esc(p.firstName)} ${_esc(p.lastName)}</span>
       <span style="margin-left:auto;font-size:10px;color:${condColor(p.condition)};font-family:var(--mono);">${p.condition}%</span>
       ${p.isInjured?`<span class="badge badge-red" style="font-size:8px;">INJ</span>`:''}
     </label>`).join('');
-
-  // TRACE [2] — what the DOM actually rendered into each checkbox
-  try {
-    const rendered = Array.from(container.querySelectorAll('input[name="ts-player"]'))
-      .map(el => ({ value: el.value, dataPlayerUuid: el.dataset && el.dataset.playerUuid, checked: el.checked }));
-    console.log('[TS-TRACE 2] rendered checkbox count:', rendered.length);
-    console.log('[TS-TRACE 2] rendered checkboxes:', rendered);
-  } catch (_) {}
 }
 
 function openScheduleTrainingModal() {
@@ -5420,26 +5403,11 @@ async function submitTrainingForm(ev) {
   if (!duration || duration < 1) { errEl.textContent = 'Duration must be at least 1 minute'; errEl.style.display = ''; return; }
 
   const drills = Array.from(document.querySelectorAll('input[name="ts-drill"]:checked')).map(el => el.value);
-
-  // TRACE [3] — exact values being submitted. No filtering, no fallbacks —
-  // show what the DOM is actually carrying so we can see where the non-UUID
-  // values come from.
-  const _checkedEls = Array.from(document.querySelectorAll('input[name="ts-player"]:checked'));
-  try {
-    console.log('[TS-TRACE 3] checked count:', _checkedEls.length);
-    console.log('[TS-TRACE 3] checked elements:', _checkedEls.map(el => ({
-      value: el.value,
-      valueType: typeof el.value,
-      dataPlayerUuid: el.dataset && el.dataset.playerUuid,
-      parentLabelText: (el.closest('label') || {}).textContent,
-      outerHTML: el.outerHTML,
-    })));
-  } catch (_) {}
-  const playerIds = _checkedEls.map(el => el.value);
-  try {
-    console.log('[TS-TRACE 3] playerIds about to send:', playerIds);
-    console.log('[TS-TRACE 3] playerIds JSON:', JSON.stringify(playerIds));
-  } catch (_) {}
+  // Defence-in-depth: the modal already filters to UUID-id players, but
+  // drop any non-UUID value here too so a stale row can never reach POST.
+  const playerIds = Array.from(document.querySelectorAll('input[name="ts-player"]:checked'))
+    .map(el => el.value)
+    .filter(v => typeof v === 'string' && _TS_UUID_RE.test(v));
 
   const body = {
     title,
@@ -5450,12 +5418,6 @@ async function submitTrainingForm(ev) {
     drills,
     playerIds,
   };
-
-  // TRACE [4] — exact JSON body about to leave the browser
-  try {
-    console.log('[TS-TRACE 4] POST /training body:', body);
-    console.log('[TS-TRACE 4] POST /training body JSON:', JSON.stringify(body));
-  } catch (_) {}
 
   errEl.style.display = 'none'; errEl.textContent = '';
   btn.disabled = true;
