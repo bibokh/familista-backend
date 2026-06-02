@@ -52,18 +52,18 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
     }
   }
 
-  // `location` was previously stripped here (commit 2a7a8ff) as a workaround
-  // for PrismaClientValidationError when the deployed Client lacked the
-  // column. Restored as part of the candidate-#3 fix; the createSession
-  // controller now catches both PrismaClientKnownRequestError and
-  // PrismaClientValidationError so any future Client/schema mismatch
-  // surfaces as a clean 400 with the offending field name instead of a 500.
+  // NOTE: `location` intentionally NOT written here. The deployed Prisma
+  // Client on Render predates the 20260602000000_training_location migration,
+  // so include of `location` raises PrismaClientValidationError "Unknown
+  // argument `location`". Zod still accepts `location` from the request body
+  // so existing clients don't fail validation — it just isn't persisted until
+  // the next full backend redeploy regenerates the Client against the
+  // current schema.
   return prisma.trainingSession.create({
     data: {
       clubId,
       title:       dto.title,
       description: dto.notes ?? null,
-      location:    dto.location ?? null,
       scheduledAt: new Date(dto.scheduledAt),
       duration:    dto.duration,
       drills:      dto.drills ?? [],
@@ -188,14 +188,14 @@ export async function updateTrainingSession(
       data: {
         ...(fields.title       !== undefined && { title:       fields.title }),
         ...(fields.description !== undefined && { description: fields.description }),
-        // `location` was previously stripped here (commit a863797) as a
-        // workaround for PrismaClientValidationError when the deployed Client
-        // lacked the column. Restored as part of the candidate-#3 fix; the
-        // updateSession controller now catches both
-        // PrismaClientKnownRequestError and PrismaClientValidationError so
-        // any future Client/schema mismatch surfaces as a clean 400 with the
-        // offending field name instead of a 500.
-        ...(fields.location    !== undefined && { location:    fields.location }),
+        // NOTE: `location` intentionally NOT written here. Same reason as
+        // createCleanSession (commit 2a7a8ff): the deployed Prisma Client on
+        // Render predates the 20260602000000_training_location migration, so
+        // including `location` raises PrismaClientValidationError "Unknown
+        // argument `location`" and 500s the entire PATCH. Zod still accepts
+        // it in the request body so existing clients don't fail validation;
+        // the value is silently discarded until the next clean backend
+        // redeploy regenerates the Client against the current schema.
         ...(fields.scheduledAt !== undefined && { scheduledAt: new Date(fields.scheduledAt) }),
         ...(fields.duration    !== undefined && { duration:    fields.duration }),
         ...(fields.drills      !== undefined && { drills:      fields.drills }),

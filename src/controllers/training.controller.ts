@@ -118,15 +118,6 @@ export async function createSession(req: Request, res: Response, next: NextFunct
       const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
       return next(new BadRequestError(`Create training failed [${err.code}]${meta}`));
     }
-    // PrismaClientValidationError is thrown client-side by Prisma when the
-    // generated Client's internal schema doesn't recognise an argument (e.g.
-    // a column added by a migration the Client wasn't regenerated against).
-    // Same principle as the known-request catch above: surface the cause as
-    // a clean 400 instead of letting it fall through to the generic 500.
-    if (err instanceof Prisma.PrismaClientValidationError) {
-      const msg = (err.message || '').split('\n').filter(Boolean).slice(-1)[0] || 'Prisma validation error';
-      return next(new BadRequestError(`Create training failed [PrismaValidation] ${msg}`));
-    }
     return next(err);
   }
 }
@@ -146,13 +137,6 @@ export async function updateSession(req: Request, res: Response, next: NextFunct
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
       const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
       return next(new BadRequestError(`Update training failed [${err.code}]${meta}`));
-    }
-    // Same client-side validation catch as createSession — converts a stale
-    // Prisma Client / schema mismatch into a clean 400 with the offending
-    // argument named, instead of a generic 500.
-    if (err instanceof Prisma.PrismaClientValidationError) {
-      const msg = (err.message || '').split('\n').filter(Boolean).slice(-1)[0] || 'Prisma validation error';
-      return next(new BadRequestError(`Update training failed [PrismaValidation] ${msg}`));
     }
     return next(err);
   }
