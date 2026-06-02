@@ -5207,14 +5207,12 @@ function renderAttendancePanel() {
 function markAttendanceDraft(playerId, mark) {
   if (!playerId || !mark) return;
   if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
-  // If the chosen mark matches the persisted server value, drop the draft so
-  // the row goes back to "saved" and the Save button can disable correctly.
-  const item = (_attendanceState.items || []).find((x) => x.playerId === playerId);
-  if (item && item.mark === mark) {
-    delete _attendanceState.draft[playerId];
-  } else {
-    _attendanceState.draft[playerId] = mark;
-  }
+  // Always record the click. Previously this toggled the draft off when the
+  // chosen mark equalled item.mark, which silently swallowed clicks in the
+  // common path where item.mark was already PRESENT (no visible change, no
+  // counter update). The Save button disables correctly off Object.keys(draft)
+  // either way once a save has cleared the draft.
+  _attendanceState.draft[playerId] = mark;
   renderAttendancePanel();
 }
 
