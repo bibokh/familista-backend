@@ -5556,6 +5556,17 @@ async function submitTrainingForm(ev) {
           State.activeTrainingSession = Object.assign({}, State.activeTrainingSession, saved);
         }
       }
+      // BUG #2-A fix: Edit can change scheduledAt and therefore which session
+      // is the latest by scheduledAt — the row that GET /training/form picks.
+      // State.trainingForm was hydrated once at login and never refreshed on
+      // Edit, so the Form tab kept showing rings for the old "latest" until a
+      // hard reload. Re-fetch so the cache matches the server. Failure is
+      // non-fatal: the tab keeps showing the previous values, same as before.
+      try {
+        const form = await FamilistaAPI.get('/training/form');
+        const formData = (form && (form.data || form)) || null;
+        if (formData) State.trainingForm = formData;
+      } catch (_) { /* leave State.trainingForm as-is */ }
     } else {
       const res = await TrainingAPI.create(body);
       saved = res && res.data;
@@ -5590,6 +5601,17 @@ async function confirmDeleteTraining(id) {
       State.activeTrainingSession = null;
       _trainingDetailId = null;
     }
+    // BUG #2-B fix: if the deleted session was the latest by scheduledAt,
+    // GET /training/form now returns a different row (or the empty-club
+    // fallback). State.trainingForm was hydrated once at login and never
+    // refreshed on Delete, so the Form tab kept showing the deleted session's
+    // rings until a hard reload. Re-fetch so the cache matches the server.
+    // Failure is non-fatal: the tab keeps showing the previous values.
+    try {
+      const form = await FamilistaAPI.get('/training/form');
+      const formData = (form && (form.data || form)) || null;
+      if (formData) State.trainingForm = formData;
+    } catch (_) { /* leave State.trainingForm as-is */ }
     showToast('Session deleted', 'success');
     renderTrainingPage();
   } catch (e) {
