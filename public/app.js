@@ -5110,10 +5110,16 @@ function _attendanceCanEdit() {
 // Effective mark for a player = unsaved draft if set, else persisted mark.
 function _effectiveMark(item) {
   const d = _attendanceState.draft[item.playerId];
+  // [ATT-TRACE 4]
+  try { console.log('[ATT-TRACE 4] _effectiveMark  item.playerId=' + item.playerId + '  typeof=' + typeof item.playerId + '  draft[item.playerId]=' + d + '  fallback item.mark=' + item.mark); } catch (_) {}
   return d != null ? d : item.mark;
 }
 
 function _attendanceTotals() {
+  // [ATT-TRACE 5]
+  try {
+    console.log('[ATT-TRACE 5] _attendanceTotals ENTER  items.length=' + ((_attendanceState.items || []).length) + '  draft=' + JSON.stringify(_attendanceState.draft) + '  draft keys=' + JSON.stringify(Object.keys(_attendanceState.draft)));
+  } catch (_) {}
   const t = { present: 0, absent: 0, late: 0, excused: 0 };
   for (const it of _attendanceState.items) {
     const m = _effectiveMark(it);
@@ -5122,11 +5128,15 @@ function _attendanceTotals() {
     else if (m === 'LATE')    t.late++;
     else if (m === 'EXCUSED') t.excused++;
   }
+  // [ATT-TRACE 5] result
+  try { console.log('[ATT-TRACE 5] _attendanceTotals RESULT  ' + JSON.stringify(t)); } catch (_) {}
   return t;
 }
 
 function renderAttendancePanel() {
   const host = document.getElementById('attendance-section');
+  // [ATT-TRACE 6]
+  try { console.log('[ATT-TRACE 6] renderAttendancePanel ENTER  host?=' + !!host + '  items.length=' + ((_attendanceState.items || []).length) + '  first item playerId=' + ((_attendanceState.items || [])[0] && (_attendanceState.items || [])[0].playerId) + '  draft=' + JSON.stringify(_attendanceState.draft)); } catch (_) {}
   if (!host) return;
   const st = _attendanceState;
 
