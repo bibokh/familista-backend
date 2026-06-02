@@ -325,5 +325,11 @@ export async function getTrainingForm(clubId: string) {
       conditionForm: true,
     },
   });
-  return latest ?? { attackForm: 10, defenseForm: 12, possession: 9, conditionForm: 11 };
+  // BUG #2 fix: fallback for a brand-new club (no sessions yet) must match
+  // the TrainingSession schema @default values. Previously this returned
+  // { 10, 12, 9, 11 } while the schema defaults are { 12, 14, 11, 13 } — so
+  // the rings would jump the moment the club created its first session,
+  // even though no rating was edited. Source of truth is the schema; mirror
+  // it here.
+  return latest ?? { attackForm: 12, defenseForm: 14, possession: 11, conditionForm: 13 };
 }

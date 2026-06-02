@@ -4977,11 +4977,15 @@ function renderTrainingFormPanel(el) {
   }
 
   const MAX = 16;
+  // BUG #2 fix: ?? fallbacks must match TrainingSession schema @default
+  // (12 / 14 / 11 / 13). Old values (10 / 12 / 9 / 11) diverged from the
+  // schema and caused the rings to jump when a new club created its first
+  // session even though no rating was ever edited.
   const rings = [
-    { v: f.attackForm    ?? 10, color: 'var(--red)',     lbl: 'Attack' },
-    { v: f.defenseForm   ?? 12, color: 'var(--green-l)', lbl: 'Defense' },
-    { v: f.possession    ??  9, color: 'var(--amber)',   lbl: 'Possession' },
-    { v: f.conditionForm ?? 11, color: 'var(--blue)',    lbl: 'Condition' },
+    { v: f.attackForm    ?? 12, color: 'var(--red)',     lbl: 'Attack' },
+    { v: f.defenseForm   ?? 14, color: 'var(--green-l)', lbl: 'Defense' },
+    { v: f.possession    ?? 11, color: 'var(--amber)',   lbl: 'Possession' },
+    { v: f.conditionForm ?? 13, color: 'var(--blue)',    lbl: 'Condition' },
   ];
   const circumference = 2 * Math.PI * 42; // ≈ 263.9
 
@@ -5397,6 +5401,18 @@ async function submitNewSession(ev) {
   try {
     const saved = await FamilistaAPI.post('/training/sessions', body);
     if (saved && saved.id) State.training = [saved, ...(State.training || [])];
+    // BUG #1 fix: the Form tab reads State.trainingForm, which is hydrated
+    // once at login from GET /training/form (the latest-session rating row).
+    // Creating a new session may make THAT session the new "latest" by
+    // scheduledAt — so re-fetch the form payload from the server (which is
+    // the only place that authoritatively knows what "latest" means now) and
+    // update State.trainingForm. Failure is non-fatal: the tab keeps showing
+    // the previous values, same as before this fix.
+    try {
+      const form = await FamilistaAPI.get('/training/form');
+      const formData = (form && (form.data || form)) || null;
+      if (formData) State.trainingForm = formData;
+    } catch (_) { /* leave State.trainingForm as-is */ }
     closeModal('training-edit-modal');
     showToast('Session created', 'success');
     if (typeof renderTrainingPage === 'function') renderTrainingPage();
