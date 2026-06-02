@@ -54,6 +54,37 @@ function zerr(err: z.ZodError): BadRequestError {
   );
 }
 
+// ─── New clean Create Session flow ────────────────────────────────────────
+// Independent of the legacy createSchema / createSession path so nothing in
+// the old code interferes. `notes` maps to TrainingSession.description.
+const newSessionSchema = z.object({
+  body: z.object({
+    title:       z.string().trim().min(1).max(200),
+    scheduledAt: DATE_OR_ISO,
+    duration:    z.number().int().min(1).max(480),
+    location:    z.string().trim().max(200).optional(),
+    notes:       z.string().max(4000).optional(),
+    drills:      z.array(z.enum(DRILLS)).optional(),
+    playerIds:   z.array(z.string().uuid()).optional(),
+  }),
+});
+
+export async function createNewSession(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.user?.clubId) throw new BadRequestError('No active club context');
+    const parsed = newSessionSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const session = await trainingService.createCleanSession(req.user.clubId, parsed.data.body);
+    return sendCreated(res, session, 'Training session created');
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
+      return next(new BadRequestError(`Create training failed [${err.code}]${meta}`));
+    }
+    return next(err);
+  }
+}
+
 export async function getSessions(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit } = req.query;

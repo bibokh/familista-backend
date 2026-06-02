@@ -18,6 +18,61 @@ export interface AttendanceMarkDto {
   notes?:   string;
 }
 
+// ─── New clean Create Session flow ────────────────────────────────────────
+// Independent of createTrainingSession() above. Resolves playerIds against
+// active club players, drops any that don't resolve (so a stale row in
+// State.players can never poison the request), and only attempts the
+// Prisma create with verified ids. Always returns the row the way the
+// frontend expects (with playerStats.player), so it can land straight in
+// the Sessions list.
+export interface CleanCreateSessionDto {
+  title:       string;
+  scheduledAt: string;
+  duration:    number;
+  location?:   string;
+  notes?:      string;
+  drills?:     DrillType[];
+  playerIds?:  string[];
+}
+
+export async function createCleanSession(clubId: string, dto: CleanCreateSessionDto) {
+  if (!clubId) throw new BadRequestError('No active club context');
+
+  let validPlayerIds: string[] = [];
+  if (dto.playerIds && dto.playerIds.length > 0) {
+    const owned = await prisma.player.findMany({
+      where:  { id: { in: dto.playerIds }, clubId, isActive: true },
+      select: { id: true },
+    });
+    validPlayerIds = owned.map((p) => p.id);
+    if (validPlayerIds.length !== dto.playerIds.length) {
+      const ownedSet = new Set(validPlayerIds);
+      const missing  = dto.playerIds.filter((id) => !ownedSet.has(id));
+      throw new BadRequestError(`Players not in active squad: ${missing.join(', ')}`);
+    }
+  }
+
+  return prisma.trainingSession.create({
+    data: {
+      clubId,
+      title:       dto.title,
+      description: dto.notes ?? null,
+      location:    dto.location ?? null,
+      scheduledAt: new Date(dto.scheduledAt),
+      duration:    dto.duration,
+      drills:      dto.drills ?? [],
+      ...(validPlayerIds.length && {
+        playerStats: {
+          create: validPlayerIds.map((pid) => ({ playerId: pid })),
+        },
+      }),
+    },
+    include: {
+      playerStats: { include: { player: true } },
+    },
+  });
+}
+
 export async function getTrainingSessions(
   clubId: string,
   filters: { page?: number; limit?: number } = {}

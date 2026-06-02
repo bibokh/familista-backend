@@ -4903,7 +4903,7 @@ function renderTrainingHTML() {
           <button class="filter-btn"        onclick="setTrainingTab('form',this)">Form</button>
           <button class="filter-btn"        onclick="setTrainingTab('players',this)">Players</button>
         </div>
-        <button class="btn btn-primary btn-sm" id="training-schedule-btn" onclick="openScheduleTrainingModal()">+ New Session</button>
+        <button class="btn btn-primary btn-sm" id="training-schedule-btn" onclick="openNewSessionModal()">+ New Session</button>
       </div>
     </div>
     <div style="overflow-y:auto;flex:1;padding:16px 20px;" id="training-content"></div>
@@ -5311,6 +5311,115 @@ function _populateTrainingModalDrills(selected) {
 }
 
 const _TS_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ─── New clean Create Session flow (separate from the legacy one above) ──
+// openNewSessionModal opens the same modal HTML (training-edit-modal) but
+// runs through submitNewSession → POST /training/sessions, which is the
+// clean endpoint with proper validation and error surfacing. The legacy
+// edit path (openEditTrainingModal → submitTrainingForm) is untouched;
+// the dispatcher trainingModalSubmit picks between the two based on
+// whether ts-id is filled.
+function _newSessionRenderPlayers() {
+  const container = document.getElementById('ts-players');
+  if (!container) return;
+  const clubId = (State.context && State.context.clubId) || (State.user && State.user.clubId);
+  const players = (State.players || []).filter(p =>
+    p && typeof p.id === 'string' && _TS_UUID_RE.test(p.id)
+    && (p.isActive === undefined || p.isActive === true)
+    && (!clubId || !p.clubId || p.clubId === clubId)
+  );
+  if (players.length === 0) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--tx-3);padding:8px;">No active players available. Add a player in Squad first.</div>';
+    return;
+  }
+  container.innerHTML = players.map(p => `
+    <label style="display:flex;align-items:center;gap:8px;padding:4px 6px;cursor:pointer;border-radius:4px;">
+      <input type="checkbox" name="ts-player" value="${_esc(p.id)}" ${!p.isInjured && p.condition>=75 ? 'checked' : ''} style="width:13px;height:13px;">
+      <span style="min-width:22px;font-size:10px;color:var(--tx-3);">#${p.number}</span>
+      <span style="font-size:11px;font-weight:600;color:var(--tx);">${_esc(p.firstName)} ${_esc(p.lastName)}</span>
+      <span style="margin-left:auto;font-size:10px;color:${condColor(p.condition)};font-family:var(--mono);">${p.condition}%</span>
+      ${p.isInjured?`<span class="badge badge-red" style="font-size:8px;">INJ</span>`:''}
+    </label>`).join('');
+}
+
+function openNewSessionModal() {
+  const role = State.user && State.user.role;
+  if (!['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(role)) {
+    showToast('Not authorized to create training sessions', 'error'); return;
+  }
+  document.getElementById('ts-id').value = '';
+  document.getElementById('ts-title').value = '';
+  document.getElementById('ts-duration').value = 75;
+  document.getElementById('ts-description').value = '';
+  const _loc = document.getElementById('ts-location'); if (_loc) _loc.value = '';
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10,0,0,0);
+  document.getElementById('ts-scheduled-at').value = _trainingLocalDateStr(tomorrow);
+  _populateTrainingModalDrills([]);
+  _newSessionRenderPlayers();
+  const errEl = document.getElementById('ts-error');
+  errEl.style.display = 'none'; errEl.textContent = '';
+  const btn = document.getElementById('ts-submit');
+  btn.textContent = 'Create session'; btn.disabled = false;
+  document.querySelector('#training-edit-modal .modal-title').textContent = 'New Training Session';
+  document.getElementById('training-edit-modal').classList.add('open');
+}
+
+async function submitNewSession(ev) {
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const errEl = document.getElementById('ts-error');
+  const btn   = document.getElementById('ts-submit');
+
+  const title       = (document.getElementById('ts-title').value || '').trim();
+  const durationRaw = document.getElementById('ts-duration').value;
+  const schedRaw    = (document.getElementById('ts-scheduled-at').value || '').trim();
+  const notes       = (document.getElementById('ts-description').value || '').trim();
+  const location    = ((document.getElementById('ts-location') || {}).value || '').trim();
+
+  if (!title)    { errEl.textContent = 'Title is required';       errEl.style.display = ''; return; }
+  if (!schedRaw) { errEl.textContent = 'Date & time is required'; errEl.style.display = ''; return; }
+  const duration = parseInt(durationRaw);
+  if (!duration || duration < 1) { errEl.textContent = 'Duration must be at least 1 minute'; errEl.style.display = ''; return; }
+
+  const drills    = Array.from(document.querySelectorAll('input[name="ts-drill"]:checked')).map(el => el.value);
+  const playerIds = Array.from(document.querySelectorAll('input[name="ts-player"]:checked'))
+    .map(el => el.value)
+    .filter(v => typeof v === 'string' && _TS_UUID_RE.test(v));
+
+  const body = {
+    title,
+    duration,
+    scheduledAt: new Date(schedRaw).toISOString(),
+    ...(location && { location }),
+    ...(notes && { notes }),
+    drills,
+    playerIds,
+  };
+
+  errEl.style.display = 'none'; errEl.textContent = '';
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  try {
+    const saved = await FamilistaAPI.post('/training/sessions', body);
+    if (saved && saved.id) State.training = [saved, ...(State.training || [])];
+    closeModal('training-edit-modal');
+    showToast('Session created', 'success');
+    if (typeof renderTrainingPage === 'function') renderTrainingPage();
+  } catch (e) {
+    errEl.textContent = (e && (e.userMessage || e.message)) || 'Could not create session';
+    errEl.style.display = '';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create session';
+  }
+}
+
+// Dispatcher used by the shared training-edit-modal form. Edit (ts-id set)
+// stays on the legacy submitTrainingForm — Create goes through the new
+// clean submitNewSession.
+function trainingModalSubmit(ev) {
+  const id = (document.getElementById('ts-id').value || '').trim();
+  if (id) return submitTrainingForm(ev);
+  return submitNewSession(ev);
+}
 
 function _populateTrainingModalPlayers(selectedIds) {
   const container = document.getElementById('ts-players');
@@ -12604,7 +12713,8 @@ async function tosBoardSnapshot() {
     if (!el) return;
     switch (el.dataset.formSubmit) {
       case 'submitMatchForm':    submitMatchForm(e);    break;
-      case 'submitTrainingForm': submitTrainingForm(e); break;
+      case 'submitTrainingForm':  submitTrainingForm(e);  break;
+      case 'trainingModalSubmit': trainingModalSubmit(e); break;
       case 'submitInjuryForm':   submitInjuryForm(e);   break;
       case 'submitPerfForm':     submitPerfForm(e);     break;
       case 'submitScoutForm':    submitScoutForm(e);    break;
