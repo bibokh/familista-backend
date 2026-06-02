@@ -5211,6 +5211,15 @@ function renderAttendancePanel() {
 function markAttendanceDraft(playerId, mark) {
   if (!playerId || !mark) return;
   if (!_attendanceCanEdit()) { showToast('Not authorized to record attendance', 'error'); return; }
+  // Only canonical-UUID playerIds can be persisted — the attendance API
+  // validates playerId with z.string().uuid(). Legacy ids like player-N-fhsr
+  // would be silently dropped by saveAttendance's UUID filter, making the
+  // UI look dirty but produce "Nothing to save". Reject the click here so
+  // the user gets an explicit reason instead of mismatched UI state.
+  if (!_TS_UUID_RE.test(playerId)) {
+    showToast('Legacy player cannot be saved yet', 'error');
+    return;
+  }
   _attendanceState.draft[playerId] = mark;
   renderAttendancePanel();
 }
