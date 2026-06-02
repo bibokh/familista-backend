@@ -52,12 +52,18 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
     }
   }
 
+  // NOTE: `location` intentionally NOT written here. The deployed Prisma
+  // Client on Render predates the 20260602000000_training_location migration,
+  // so include of `location` raises PrismaClientValidationError "Unknown
+  // argument `location`". Zod still accepts `location` from the request body
+  // so existing clients don't fail validation — it just isn't persisted until
+  // the next full backend redeploy regenerates the Client against the
+  // current schema.
   return prisma.trainingSession.create({
     data: {
       clubId,
       title:       dto.title,
       description: dto.notes ?? null,
-      location:    dto.location ?? null,
       scheduledAt: new Date(dto.scheduledAt),
       duration:    dto.duration,
       drills:      dto.drills ?? [],
