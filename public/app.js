@@ -4966,10 +4966,116 @@ function renderTrainingSessions(el) {
   }).join('');
 }
 
+// ─── Team Form Intelligence helpers (all derived from existing State) ─────
+// No backend calls, no new endpoints. Reads:
+//   State.trainingForm — { attackForm, defenseForm, possession, conditionForm }
+//   State.training     — last 10 sessions (already loaded for the Sessions tab)
+//   State.players      — active squad (already loaded for Squad)
+//   State.matches      — match fixtures (already loaded by loadAllData)
+function _formActivePlayers() {
+  return (State.players || []).filter(p => p && p.isActive !== false);
+}
+function _formAvgCondition() {
+  const ps = _formActivePlayers();
+  if (ps.length === 0) return null;
+  return ps.reduce((a, p) => a + (typeof p.condition === 'number' ? p.condition : 100), 0) / ps.length;
+}
+function _formInjuryCount()    { return _formActivePlayers().filter(p => p.isInjured).length; }
+function _formAvailableCount() { return _formActivePlayers().filter(p => !p.isInjured).length; }
+function _formRatings() {
+  const f = State.trainingForm || {};
+  return {
+    attack:     f.attackForm    ?? 12,
+    defense:    f.defenseForm   ?? 14,
+    possession: f.possession    ?? 11,
+    condition:  f.conditionForm ?? 13,
+  };
+}
+function _formReadinessScore() {
+  const total = _formActivePlayers().length;
+  if (total === 0) return null;
+  const availPct = (_formAvailableCount() / total) * 100;
+  const condPct  = _formAvgCondition() ?? 100;
+  const r        = _formRatings();
+  const formPct  = ((r.attack + r.defense + r.possession + r.condition) / 64) * 100;
+  return 0.4 * condPct + 0.3 * availPct + 0.3 * formPct;
+}
+function _formReadinessColor(s) {
+  if (s == null)  return 'var(--tx-3)';
+  if (s >= 80)    return 'var(--green-l)';
+  if (s >= 65)    return 'var(--amber)';
+  return 'var(--red)';
+}
+function _formReadinessLabel(s) {
+  if (s == null)  return 'Insufficient data';
+  if (s >= 85)    return 'Peak';
+  if (s >= 75)    return 'Match Ready';
+  if (s >= 65)    return 'Conditioning';
+  if (s >= 50)    return 'At Risk';
+  return 'Critical';
+}
+function _formDrillCounts(n) {
+  const sessions = (State.training || []).slice(0, n);
+  const counts = Object.create(null);
+  let total = 0;
+  sessions.forEach(s => (s.drills || []).forEach(d => { counts[d] = (counts[d] || 0) + 1; total++; }));
+  const items = Object.keys(counts).map(k => {
+    const meta = (typeof TRAINING_DRILLS !== 'undefined' && TRAINING_DRILLS.find(x => x.key === k)) || {};
+    return { key: k, label: meta.label || k, icon: meta.icon || '•', count: counts[k], pct: total > 0 ? (counts[k] / total) * 100 : 0 };
+  }).sort((a, b) => b.count - a.count);
+  return { items, total };
+}
+function _formNextMatch() {
+  const now = Date.now();
+  const upcoming = (State.matches || []).filter(m => m && m.scheduledAt && new Date(m.scheduledAt).getTime() > now);
+  upcoming.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  return upcoming[0] || null;
+}
+function _formMatchReadiness() {
+  const nm = _formNextMatch();
+  const r  = _formReadinessScore();
+  if (!nm) return { hasMatch: false, label: 'No upcoming match scheduled', color: 'var(--tx-3)' };
+  const days = Math.max(0, Math.ceil((new Date(nm.scheduledAt).getTime() - Date.now()) / 86400000));
+  let label, color;
+  if (r == null)      { label = 'Awaiting squad data'; color = 'var(--tx-3)'; }
+  else if (r >= 80)   { label = 'Ready for match';     color = 'var(--green-l)'; }
+  else if (r >= 65)   { label = 'Conditioning needed'; color = 'var(--amber)'; }
+  else                { label = 'High risk — manage load'; color = 'var(--red)'; }
+  const opponent = nm.awayTeam || nm.homeTeam || 'opponent';
+  return { hasMatch: true, days, opponent, label, color };
+}
+function _formDNAClassification() {
+  const r = _formRatings();
+  const profile = [];
+  if (r.attack     >= 13) profile.push('Attack-Led');
+  if (r.defense    >= 13) profile.push('Defensive Solidity');
+  if (r.possession >= 12) profile.push('Possession-Based');
+  if (r.condition  >= 13) profile.push('High-Intensity');
+  if (r.attack     >= 12 && r.possession >= 12) profile.push('Build-Up Football');
+  if (r.defense    >= 13 && r.condition  >= 12) profile.push('Press-Resilient');
+  if (profile.length === 0) profile.push('Building Identity');
+  const dna = ((r.attack + r.defense + r.possession + r.condition) / 64) * 100;
+  return { dna, profile };
+}
+function _formAIRecommendation() {
+  const cond = _formAvgCondition();
+  const inj  = _formInjuryCount();
+  const r    = _formRatings();
+  const mr   = _formMatchReadiness();
+  if (inj >= 3)                          return `${inj} injured players — keep this session technical only and rotate fitness work.`;
+  if (cond != null && cond < 75)         return 'Squad condition below 75%. Schedule recovery, drop sprint intervals, prioritise mobility.';
+  if (mr.hasMatch && mr.days <= 2)       return `Match in ${mr.days}d. Switch to set pieces and light technical work, taper training load.`;
+  if (r.possession < 10)                 return 'Possession rating low. Prioritise rondos and transition drills this week.';
+  if (r.condition  < 11)                 return 'Conditioning trailing — add interval and high-press blocks for the next two sessions.';
+  if (r.attack     < 11)                 return 'Attack rating dipping. Focus on shooting practice and final-third combinations.';
+  if (r.defense    < 12)                 return 'Defensive shape needs work. Schedule defensive-shape and pressing blocks.';
+  return 'Squad balanced. Continue tactical work; rotate possession and defensive shape across the week.';
+}
+
 function renderTrainingFormPanel(el) {
   const f = State.trainingForm;
   const sub = document.getElementById('training-sub');
-  if (sub) sub.textContent = 'Teamplay form ratings';
+  if (sub) sub.textContent = 'Team Form Intelligence';
 
   if (!f) {
     el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--tx-3);">No form data available.</div>`;
@@ -4977,10 +5083,6 @@ function renderTrainingFormPanel(el) {
   }
 
   const MAX = 16;
-  // BUG #2 fix: ?? fallbacks must match TrainingSession schema @default
-  // (12 / 14 / 11 / 13). Old values (10 / 12 / 9 / 11) diverged from the
-  // schema and caused the rings to jump when a new club created its first
-  // session even though no rating was ever edited.
   const rings = [
     { v: f.attackForm    ?? 12, color: 'var(--red)',     lbl: 'Attack' },
     { v: f.defenseForm   ?? 14, color: 'var(--green-l)', lbl: 'Defense' },
@@ -4989,31 +5091,158 @@ function renderTrainingFormPanel(el) {
   ];
   const circumference = 2 * Math.PI * 42; // ≈ 263.9
 
-  el.innerHTML = `<div class="card" style="padding:24px;max-width:600px;">
-    <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px;">Teamplay Form</div>
-    <div style="font-size:12px;color:var(--tx-3);margin-bottom:20px;">Latest session ratings — live from database</div>
-    <div class="rings-row">
-      ${rings.map(r => {
-        const dash = (r.v / MAX) * circumference;
-        const gap  = circumference - dash;
-        return `<div class="ring-block">
-          <div class="ring-svg-w">
-            <svg viewBox="0 0 100 100" width="86" height="86">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="var(--bg-4)" stroke-width="8"/>
-              <circle cx="50" cy="50" r="42" fill="none" stroke="${r.color}" stroke-width="8"
-                stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}"
-                stroke-linecap="round" transform="rotate(-90 50 50)"/>
-            </svg>
-            <div class="ring-center">
-              <div class="ring-val" style="color:${r.color};">${r.v}</div>
-              <div class="ring-sub">/${MAX}</div>
-            </div>
+  // ── Intelligence layer (no backend calls, all derived from existing State)
+  const readiness      = _formReadinessScore();
+  const readinessColor = _formReadinessColor(readiness);
+  const readinessLabel = _formReadinessLabel(readiness);
+  const matchRdy       = _formMatchReadiness();
+  const aiRec          = _formAIRecommendation();
+  const drillFocus     = _formDrillCounts(5);
+  const dna            = _formDNAClassification();
+  const inj            = _formInjuryCount();
+  const avail          = _formAvailableCount();
+  const total          = _formActivePlayers().length;
+  const cond           = _formAvgCondition();
+
+  const last5    = (State.training || []).slice(0, 5);
+  const trendRows = [
+    { lbl: 'Attack',     color: 'var(--red)',     key: 'attackForm' },
+    { lbl: 'Defense',    color: 'var(--green-l)', key: 'defenseForm' },
+    { lbl: 'Possession', color: 'var(--amber)',   key: 'possession' },
+    { lbl: 'Condition',  color: 'var(--blue)',    key: 'conditionForm' },
+  ];
+
+  el.innerHTML = `
+    <!-- Row 1: KPIs — Team Readiness Score + Match Readiness Indicator -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px;">
+      <div class="card" style="padding:20px;">
+        <div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Team Readiness Score</div>
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:10px;">
+          <div style="font-size:38px;font-weight:800;line-height:1;color:${readinessColor};font-family:var(--mono);">${readiness != null ? Math.round(readiness) : '—'}</div>
+          <div style="font-size:13px;font-weight:700;color:${readinessColor};">${readinessLabel}</div>
+        </div>
+        <div style="height:6px;border-radius:3px;background:var(--bg-3);overflow:hidden;margin-bottom:10px;">
+          <div style="width:${readiness != null ? Math.min(100, Math.max(0, readiness)).toFixed(1) : 0}%;height:100%;background:${readinessColor};"></div>
+        </div>
+        <div style="display:flex;gap:14px;font-size:11px;color:var(--tx-3);">
+          <span><b style="color:var(--tx-2);font-family:var(--mono);">${avail}/${total}</b> available</span>
+          <span><b style="color:var(--tx-2);font-family:var(--mono);">${inj}</b> injured</span>
+          <span><b style="color:var(--tx-2);font-family:var(--mono);">${cond != null ? Math.round(cond) + '%' : '—'}</b> condition</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:20px;">
+        <div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;">Match Readiness</div>
+        ${matchRdy.hasMatch ? `
+          <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:10px;">
+            <div style="font-size:38px;font-weight:800;line-height:1;color:${matchRdy.color};font-family:var(--mono);">${matchRdy.days}<span style="font-size:18px;">d</span></div>
+            <div style="font-size:13px;font-weight:700;color:${matchRdy.color};">${matchRdy.label}</div>
           </div>
-          <div class="ring-lbl">${r.lbl}</div>
-        </div>`;
-      }).join('')}
+          <div style="height:6px;border-radius:3px;background:var(--bg-3);overflow:hidden;margin-bottom:10px;">
+            <div style="width:${Math.max(0, Math.min(100, 100 - matchRdy.days * 7)).toFixed(0)}%;height:100%;background:${matchRdy.color};"></div>
+          </div>
+          <div style="font-size:11px;color:var(--tx-3);">Next fixture vs <b style="color:var(--tx-2);">${_esc(matchRdy.opponent)}</b></div>
+        ` : `
+          <div style="font-size:14px;font-weight:600;color:var(--tx-3);margin-top:6px;">${matchRdy.label}</div>
+          <div style="font-size:11px;color:var(--tx-3);margin-top:6px;">Schedule a match to populate this indicator.</div>
+        `}
+      </div>
     </div>
-  </div>`;
+
+    <!-- Row 2: AI Recommendation -->
+    <div class="card" style="padding:14px 18px;margin-bottom:14px;border-left:3px solid var(--green-l);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span style="font-size:14px;">🧠</span>
+        <span style="font-size:10px;font-weight:700;color:var(--green-l);text-transform:uppercase;letter-spacing:.9px;">ARIA Recommends</span>
+      </div>
+      <div style="font-size:13px;color:var(--tx);line-height:1.55;">${_esc(aiRec)}</div>
+    </div>
+
+    <!-- Row 3: Existing Teamplay Form rings (kept untouched in markup + style) -->
+    <div class="card" style="padding:24px;max-width:600px;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px;">Teamplay Form</div>
+      <div style="font-size:12px;color:var(--tx-3);margin-bottom:20px;">Latest session ratings — live from database</div>
+      <div class="rings-row">
+        ${rings.map(r => {
+          const dash = (r.v / MAX) * circumference;
+          const gap  = circumference - dash;
+          return `<div class="ring-block">
+            <div class="ring-svg-w">
+              <svg viewBox="0 0 100 100" width="86" height="86">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="var(--bg-4)" stroke-width="8"/>
+                <circle cx="50" cy="50" r="42" fill="none" stroke="${r.color}" stroke-width="8"
+                  stroke-dasharray="${dash.toFixed(1)} ${gap.toFixed(1)}"
+                  stroke-linecap="round" transform="rotate(-90 50 50)"/>
+              </svg>
+              <div class="ring-center">
+                <div class="ring-val" style="color:${r.color};">${r.v}</div>
+                <div class="ring-sub">/${MAX}</div>
+              </div>
+            </div>
+            <div class="ring-lbl">${r.lbl}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Row 4: Trend + Focus -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px;">
+      <div class="card" style="padding:20px;">
+        <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px;">Last 5 Sessions Trend</div>
+        <div style="font-size:11px;color:var(--tx-3);margin-bottom:14px;">Rating evolution across recent sessions</div>
+        ${last5.length === 0 ? `<div style="font-size:12px;color:var(--tx-3);padding:8px 0;">No session history yet.</div>` :
+          trendRows.map(row => {
+            const vals = last5.slice().reverse().map(s => s[row.key] != null ? s[row.key] : null);
+            const cap  = 16;
+            const last = vals[vals.length - 1];
+            return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+              <div style="min-width:78px;font-size:11px;color:var(--tx-2);">${row.lbl}</div>
+              <div style="flex:1;display:flex;gap:3px;align-items:flex-end;height:30px;">
+                ${vals.map(v => {
+                  const h = v != null ? Math.max(2, (v / cap) * 30) : 0;
+                  return `<div title="${v != null ? v : '—'}" style="flex:1;height:${h.toFixed(1)}px;background:${row.color};border-radius:2px 2px 0 0;opacity:${v != null ? 0.85 : 0.18};"></div>`;
+                }).join('')}
+              </div>
+              <div style="min-width:34px;text-align:right;font-size:11px;font-weight:700;color:${row.color};font-family:var(--mono);">${last != null ? last : '—'}</div>
+            </div>`;
+          }).join('')}
+      </div>
+
+      <div class="card" style="padding:20px;">
+        <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:4px;">Training Focus Analysis</div>
+        <div style="font-size:11px;color:var(--tx-3);margin-bottom:14px;">Drill distribution · last 5 sessions</div>
+        ${drillFocus.items.length === 0 ? `<div style="font-size:12px;color:var(--tx-3);padding:8px 0;">No drills recorded.</div>` :
+          drillFocus.items.slice(0, 6).map(d => `
+            <div style="margin-bottom:9px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                <div style="font-size:11px;color:var(--tx-2);">${d.icon} ${_esc(d.label)}</div>
+                <div style="font-size:11px;font-weight:700;color:var(--tx);font-family:var(--mono);">${Math.round(d.pct)}%</div>
+              </div>
+              <div style="height:5px;border-radius:3px;background:var(--bg-3);overflow:hidden;">
+                <div style="width:${d.pct.toFixed(1)}%;height:100%;background:var(--green-l);"></div>
+              </div>
+            </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- Row 5: FC Familista DNA Score -->
+    <div class="card" style="padding:20px;">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <div style="flex:1;">
+          <div style="font-size:10px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.9px;">Tactical DNA</div>
+          <div style="font-size:14px;font-weight:600;color:var(--tx);margin-top:3px;">FC Familista identity profile</div>
+          <div style="font-size:11px;color:var(--tx-3);margin-top:2px;">Composite of Attack · Defense · Possession · Condition</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:32px;font-weight:800;line-height:1;color:var(--green-l);font-family:var(--mono);">${Math.round(dna.dna)}</div>
+          <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;">DNA score</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${dna.profile.map(p => `<span style="padding:5px 11px;border-radius:6px;background:var(--green-bg);border:1px solid var(--green-bd);font-size:11px;font-weight:700;color:var(--green-l);letter-spacing:.3px;">${_esc(p)}</span>`).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function renderTrainingPlayersPanel(el) {
