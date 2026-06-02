@@ -188,7 +188,14 @@ export async function updateTrainingSession(
       data: {
         ...(fields.title       !== undefined && { title:       fields.title }),
         ...(fields.description !== undefined && { description: fields.description }),
-        ...(fields.location    !== undefined && { location:    fields.location }),
+        // NOTE: `location` intentionally NOT written here. Same reason as
+        // createCleanSession (commit 2a7a8ff): the deployed Prisma Client on
+        // Render predates the 20260602000000_training_location migration, so
+        // including `location` raises PrismaClientValidationError "Unknown
+        // argument `location`" and 500s the entire PATCH. Zod still accepts
+        // it in the request body so existing clients don't fail validation;
+        // the value is silently discarded until the next clean backend
+        // redeploy regenerates the Client against the current schema.
         ...(fields.scheduledAt !== undefined && { scheduledAt: new Date(fields.scheduledAt) }),
         ...(fields.duration    !== undefined && { duration:    fields.duration }),
         ...(fields.drills      !== undefined && { drills:      fields.drills }),

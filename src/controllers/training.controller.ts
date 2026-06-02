@@ -128,7 +128,18 @@ export async function updateSession(req: Request, res: Response, next: NextFunct
     if (!parsed.success) throw zerr(parsed.error);
     const session = await trainingService.updateTrainingSession(req.params.id, req.user!.clubId, parsed.data.body);
     return sendSuccess(res, session, 'Training session updated');
-  } catch (err) { return next(err); }
+  } catch (err) {
+    // Endpoint-scoped surfacing — mirrors createSession. Any Prisma known
+    // request error (P2002 unique, P2003 FK, P2011 null, P2025 not-found, …)
+    // becomes a 400 with code + meta so the modal banner shows the real
+    // cause instead of the global error handler's generic 500
+    // "Server error. Please retry shortly."
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
+      return next(new BadRequestError(`Update training failed [${err.code}]${meta}`));
+    }
+    return next(err);
+  }
 }
 
 export async function deleteSession(req: Request, res: Response, next: NextFunction) {
