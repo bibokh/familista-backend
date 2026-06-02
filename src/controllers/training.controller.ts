@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import * as trainingService from '../services/training.service';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
@@ -77,7 +78,17 @@ export async function createSession(req: Request, res: Response, next: NextFunct
     if (!parsed.success) throw zerr(parsed.error);
     const session = await trainingService.createTrainingSession(req.user!.clubId, parsed.data.body);
     return sendCreated(res, session, 'Training session created');
-  } catch (err) { return next(err); }
+  } catch (err) {
+    // Endpoint-scoped surfacing: any Prisma known-request error (P2002 unique,
+    // P2003 FK, P2011 null, P2025 not-found, …) becomes a 400 with code + meta
+    // so the modal banner shows the real cause instead of the global error
+    // handler's generic 500 "Server error. Please retry shortly."
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
+      return next(new BadRequestError(`Create training failed [${err.code}]${meta}`));
+    }
+    return next(err);
+  }
 }
 
 export async function updateSession(req: Request, res: Response, next: NextFunction) {
