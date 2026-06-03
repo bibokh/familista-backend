@@ -513,6 +513,7 @@ async function loadAllData() {
     if (matches.status === 'fulfilled' && matches.value?.data) {
       State.matches = matches.value.data;
       renderMatches();
+      try { if (typeof renderMatchCenter === 'function') renderMatchCenter(); } catch (_) {}
     }
 
     if (tourns.status === 'fulfilled' && tourns.value?.data) {
@@ -807,6 +808,9 @@ function navTo(page, el) {
   if (page === 'tactical-os') loadTacticalOS();
   if (page === 'admin')      loadAdminData();
   if (page === 'tactical-ai') loadTacticalAIData();
+  // Match Center is purely derived from already-loaded State, so it just
+  // needs its renderer kicked when the user navigates to the page.
+  if (page === 'match-center') { try { renderMatchCenter(); } catch (e) { try { console.error('[match-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -1576,10 +1580,23 @@ function renderMatchCenterHTML() {
   </div>`;
 }
 function renderMatchCenter() {
-  _ensureFCCmdStyles();
-  _ensureMCStyles();
   const el = document.getElementById('match-center-content');
   if (!el) return;
+  try {
+    _ensureFCCmdStyles();
+    _ensureMCStyles();
+  } catch (e) {
+    try { console.error('[match-center] style injection failed:', e); } catch (_) {}
+  }
+  // Fallback UI when nothing has been loaded yet — clearer than infinite spinner.
+  if (!Array.isArray(State.players) && !Array.isArray(State.matches) && !State.trainingForm) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for data…</div>
+      <div style="font-size:11px;">Squad and fixtures load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
   const next        = _mcNextMatch();
   const opp         = _mcOpponent(next);
   const cd          = _mcCountdown(next);
@@ -1720,6 +1737,14 @@ function renderMatchCenter() {
       </div>
     </div>`;
   _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[match-center] renderMatchCenter() failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Match Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+      <div style="font-size:10.5px;color:var(--tx-3);margin-top:8px;">Open DevTools console for the full stack trace.</div>
+    </div>`;
+  }
 }
 
 function renderDashboard() {
