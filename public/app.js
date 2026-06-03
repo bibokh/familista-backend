@@ -5072,7 +5072,93 @@ function _formAIRecommendation() {
   return 'Squad balanced. Continue tactical work; rotate possession and defensive shape across the week.';
 }
 
+// ─── Familista AI Coach helpers ─────────────────────────────────────────
+// All derived from State already loaded by loadAllData. CSS-only orb +
+// glass card injected once per session via _ensureAICoachStyles().
+function _formRecommendedFocus() {
+  const r = _formRatings();
+  const arr = [
+    { lbl: 'Attacking play',  v: r.attack,     drill: 'Shooting Practice + final-third combinations' },
+    { lbl: 'Defensive shape', v: r.defense,    drill: 'Defensive Shape + Pressing blocks' },
+    { lbl: 'Possession',      v: r.possession, drill: 'Rondo + Transition Play' },
+    { lbl: 'Conditioning',    v: r.condition,  drill: 'Sprint Intervals + active Recovery' },
+  ];
+  arr.sort((a, b) => a.v - b.v);
+  return arr[0];
+}
+function _formRiskLevel() {
+  const inj  = _formInjuryCount();
+  const cond = _formAvgCondition();
+  const rdy  = _formReadinessScore();
+  if (inj >= 4 || (cond != null && cond < 60) || (rdy != null && rdy < 50)) return { level: 'HIGH',     color: 'var(--red)' };
+  if (inj >= 2 || (cond != null && cond < 75) || (rdy != null && rdy < 70)) return { level: 'MODERATE', color: 'var(--amber)' };
+  return { level: 'LOW', color: 'var(--green-l)' };
+}
+function _formTacticalTip() {
+  const r = _formRatings();
+  if (r.possession >= 12 && r.attack    >= 12) return 'Press higher in transitions to break opponent build-up, then exploit the space behind the press.';
+  if (r.defense    >= 13 && r.condition >= 12) return 'Bait the opponent into pressing, then break midfield with vertical passes through the half-spaces.';
+  if (r.possession >= 12)                      return 'Anchor midfield, recycle possession patiently, and probe wide channels late in the build-up.';
+  if (r.attack     >= 12)                      return 'Stretch the opponent wide, then attack the half-spaces with overlapping fullbacks.';
+  if (r.defense    >= 12)                      return 'Compact mid-block, force play wide, double up on the opponent\'s creative #10.';
+  if (r.condition  >= 12)                      return 'Sustain a high press in 20-minute blocks; rotate press triggers between holders and forwards.';
+  return 'Keep structure simple — prioritise first-touch quality and decision-making in tight zones.';
+}
+function _ensureAICoachStyles() {
+  if (document.getElementById('ai-coach-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'ai-coach-styles';
+  s.textContent = `
+    .ai-coach-card{position:relative;padding:22px 22px 18px;margin-bottom:14px;border-radius:14px;
+      background:
+        radial-gradient(at top left,rgba(34,197,94,0.10),transparent 55%),
+        radial-gradient(at bottom right,rgba(37,99,235,0.10),transparent 55%),
+        linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.22);
+      box-shadow:0 1px 0 rgba(255,255,255,0.05) inset,0 22px 60px -22px rgba(0,0,0,0.55),0 0 36px -12px rgba(34,197,94,0.18);
+      overflow:hidden;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
+    .ai-coach-card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 45%);pointer-events:none;border-radius:14px;}
+    .ai-coach-header{display:flex;align-items:center;gap:18px;margin-bottom:16px;position:relative;}
+    .ai-orb{position:relative;width:86px;height:86px;flex-shrink:0;border-radius:50%;
+      background:
+        radial-gradient(circle at 30% 30%,rgba(74,222,128,0.95) 0%,rgba(34,197,94,0.6) 35%,rgba(22,163,74,0.2) 72%),
+        radial-gradient(circle at 70% 70%,rgba(37,99,235,0.7) 0%,rgba(29,78,216,0.3) 50%,transparent 80%);
+      box-shadow:inset 0 0 24px rgba(255,255,255,0.22),0 0 32px rgba(74,222,128,0.42),0 0 64px rgba(34,197,94,0.22);
+      animation:ai-orb-pulse 3.2s ease-in-out infinite;}
+    .ai-orb::before{content:'';position:absolute;inset:-10px;border-radius:50%;border:1px solid rgba(74,222,128,0.32);animation:ai-orb-spin 9s linear infinite;}
+    .ai-orb::after{content:'';position:absolute;inset:-20px;border-radius:50%;border:1px dashed rgba(74,222,128,0.2);animation:ai-orb-spin-rev 14s linear infinite;}
+    .ai-orb-core{position:absolute;inset:24%;border-radius:50%;
+      background:radial-gradient(circle,rgba(255,255,255,0.45) 0%,rgba(74,222,128,0.1) 60%,transparent 82%);
+      display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;letter-spacing:1.2px;
+      text-shadow:0 0 10px rgba(74,222,128,0.85);}
+    @keyframes ai-orb-pulse{
+      0%,100%{transform:scale(1);box-shadow:inset 0 0 24px rgba(255,255,255,0.22),0 0 32px rgba(74,222,128,0.42),0 0 64px rgba(34,197,94,0.22);}
+      50%{transform:scale(1.045);box-shadow:inset 0 0 28px rgba(255,255,255,0.32),0 0 44px rgba(74,222,128,0.55),0 0 84px rgba(34,197,94,0.32);}
+    }
+    @keyframes ai-orb-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+    @keyframes ai-orb-spin-rev{from{transform:rotate(360deg);}to{transform:rotate(0deg);}}
+    .ai-coach-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:12px;
+      background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.28);
+      font-size:10px;font-weight:700;color:var(--green-l);letter-spacing:.9px;text-transform:uppercase;}
+    .ai-live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;
+      box-shadow:0 0 8px currentColor;animation:ai-live-blink 1.4s ease-in-out infinite;}
+    @keyframes ai-live-blink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.45;transform:scale(0.82);}}
+    .ai-coach-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px;}
+    .ai-coach-cell{padding:11px 13px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);}
+    .ai-coach-lbl{font-size:9px;font-weight:700;letter-spacing:.95px;text-transform:uppercase;color:var(--tx-3);margin-bottom:5px;}
+    .ai-coach-val{font-size:12.5px;color:var(--tx);line-height:1.55;}
+    .ai-coach-dna-tag{padding:3px 8px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.28);
+      font-size:10px;font-weight:700;color:var(--green-l);letter-spacing:.3px;display:inline-block;}
+    @media (max-width:540px){
+      .ai-coach-header{flex-direction:column;align-items:flex-start;gap:14px;}
+      .ai-orb{align-self:center;}
+      .ai-coach-grid{grid-template-columns:1fr;}
+    }`;
+  document.head.appendChild(s);
+}
+
 function renderTrainingFormPanel(el) {
+  _ensureAICoachStyles();
   const f = State.trainingForm;
   const sub = document.getElementById('training-sub');
   if (sub) sub.textContent = 'Team Form Intelligence';
@@ -5112,7 +5198,68 @@ function renderTrainingFormPanel(el) {
     { lbl: 'Condition',  color: 'var(--blue)',    key: 'conditionForm' },
   ];
 
+  // ── Familista AI Coach widget data ─────────────────────────────────────
+  const aiFocus      = _formRecommendedFocus();
+  const aiRisk       = _formRiskLevel();
+  const aiTacticTip  = _formTacticalTip();
+  // readiness, readinessColor, readinessLabel, aiRec, dna, inj, cond already
+  // computed above — re-used here, no duplicate work.
+
   el.innerHTML = `
+    <!-- Row 0: Familista AI Coach (3D / glass style, CSS-only orb) -->
+    <div class="ai-coach-card">
+      <div class="ai-coach-header">
+        <div class="ai-orb"><div class="ai-orb-core">ARIA</div></div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+            <div style="font-size:12.5px;font-weight:800;color:var(--tx);letter-spacing:.7px;">FAMILISTA AI COACH</div>
+            <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+          </div>
+          <div style="font-size:11px;color:var(--tx-3);line-height:1.5;">Real-time training intelligence — derived from squad condition, recent sessions, and upcoming fixtures.</div>
+        </div>
+      </div>
+      <div class="ai-coach-grid">
+        <div class="ai-coach-cell">
+          <div class="ai-coach-lbl">Overall Readiness</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <div style="font-size:26px;font-weight:800;line-height:1;color:${readinessColor};font-family:var(--mono);">${readiness != null ? Math.round(readiness) : '—'}</div>
+            <div style="font-size:11px;font-weight:700;color:${readinessColor};">${readinessLabel}</div>
+          </div>
+        </div>
+        <div class="ai-coach-cell">
+          <div class="ai-coach-lbl">Risk Level</div>
+          <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <div style="font-size:20px;font-weight:800;color:${aiRisk.color};letter-spacing:.6px;line-height:1;">${aiRisk.level}</div>
+            <div style="font-size:11px;color:var(--tx-3);">${inj} injuries · ${cond != null ? Math.round(cond) + '%' : '—'} cond</div>
+          </div>
+        </div>
+      </div>
+      <div class="ai-coach-cell" style="margin-bottom:10px;">
+        <div class="ai-coach-lbl">AI Recommendation</div>
+        <div class="ai-coach-val">${_esc(aiRec)}</div>
+      </div>
+      <div class="ai-coach-cell" style="margin-bottom:10px;">
+        <div class="ai-coach-lbl">Recommended Focus</div>
+        <div class="ai-coach-val"><b style="color:var(--tx);">${_esc(aiFocus.lbl)}</b> &nbsp;·&nbsp; <span style="color:var(--tx-3);">${_esc(aiFocus.drill)}</span></div>
+      </div>
+      <div class="ai-coach-cell" style="margin-bottom:10px;">
+        <div class="ai-coach-lbl">Tactical Tip</div>
+        <div class="ai-coach-val">${_esc(aiTacticTip)}</div>
+      </div>
+      <div class="ai-coach-cell" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div class="ai-coach-lbl">FC Familista DNA</div>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">
+            ${dna.profile.map(p => `<span class="ai-coach-dna-tag">${_esc(p)}</span>`).join('')}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:800;color:var(--green-l);font-family:var(--mono);line-height:1;">${Math.round(dna.dna)}</div>
+          <div style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.85px;">DNA score</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Row 1: KPIs — Team Readiness Score + Match Readiness Indicator -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:14px;">
       <div class="card" style="padding:20px;">
