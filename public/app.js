@@ -5708,6 +5708,74 @@ function _pcPhotoUrl(p) {
   }
   return null;
 }
+function _pcAIScoutVerdict(p) {
+  if (!p) return '';
+  const pos = p.position;
+  const str = _pcStrengths(p, 1)[0];
+  const age = _pcAge(p);
+  const ovr = p.overallRating || 70;
+  const pot = p.potential     || ovr;
+  const gap = Math.max(0, pot - ovr);
+  let role;
+  if      (pos === 'GK')                                            role = 'Shot-stopper';
+  else if (pos === 'DC')                                            role = 'Defensive anchor';
+  else if (['DL','DR'].includes(pos))                               role = 'Modern fullback';
+  else if (pos === 'DMC')                                           role = 'Holding midfielder';
+  else if (pos === 'MC')                                            role = 'Central midfielder';
+  else if (['ML','MR'].includes(pos))                               role = 'Wide midfielder';
+  else if (pos === 'AMC')                                           role = 'Creative #10';
+  else if (['AML','AMR'].includes(pos))                             role = 'Inside forward';
+  else if (pos === 'ST')                                            role = 'Centre-forward';
+  else                                                              role = 'Versatile player';
+  const strBit = str ? ` with notable ${str.label.toLowerCase()} (${str.value}/120).` : '.';
+  let ceiling;
+  if (gap >= 15 && age != null && age <= 22) ceiling = ' High ceiling — prime academy investment.';
+  else if (gap >= 10)                        ceiling = ' Strong development trajectory ahead.';
+  else if (gap >= 5)                         ceiling = ' Refinement phase, room to grow.';
+  else if (age != null && age >= 30)         ceiling = ' Veteran asset — manage minutes carefully.';
+  else                                       ceiling = ' At or near peak performance.';
+  return role + strBit + ceiling;
+}
+function _pcQRCells(seed) {
+  // 7x7 stylised QR. Top-left, top-right, bottom-left carry 3x3 finder
+  // patterns (outline + centre); the rest is a deterministic pseudo-random
+  // fill from a djb2 hash of the seed string. Decorative only — not scannable.
+  let h = 5381;
+  const s = String(seed || '');
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  const inFinder = (r, c) => {
+    if (r < 3 && c < 3) return { lr: r,     lc: c };
+    if (r < 3 && c > 3) return { lr: r,     lc: c - 4 };
+    if (r > 3 && c < 3) return { lr: r - 4, lc: c };
+    return null;
+  };
+  const cells = new Array(49);
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 7; c++) {
+      const f = inFinder(r, c);
+      if (f) {
+        const ring   = (f.lr === 0 || f.lr === 2 || f.lc === 0 || f.lc === 2);
+        const centre = (f.lr === 1 && f.lc === 1);
+        cells[r * 7 + c] = ring || centre;
+      } else {
+        h = ((h * 33) ^ (r * 7 + c)) >>> 0;
+        cells[r * 7 + c] = (h & 1) === 1;
+      }
+    }
+  }
+  return cells;
+}
+function _pcFcfPosColor(pos) {
+  if (pos === 'GK')                                                 return '#d97706';
+  if (['DC','DL','DR','DMC'].includes(pos))                         return '#3b82f6';
+  if (['MC','ML','MR','AMC','AML','AMR'].includes(pos))             return '#22c55e';
+  return                                                              '#ef4444';
+}
+function _pcFcfShortId(id) {
+  const s = String(id || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
+  return 'FCF-' + (s.substring(0, 6) || 'XXXXXX');
+}
+
 function _pcWirePhotoErrors(root) {
   if (!root) return;
   root.querySelectorAll('img.pc-photo-img').forEach(img => {
@@ -5782,6 +5850,66 @@ function _ensurePCStyles() {
     .pc-cmp-bar{position:absolute;top:0;bottom:0;}
     .pc-cmp-mid{position:absolute;top:-3px;bottom:-3px;left:50%;width:1px;background:rgba(255,255,255,0.22);}
     .pc-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+
+    /* ── FC Familista Digital Player Card ────────────────────────────── */
+    .pc-fcf-card{position:relative;margin-top:14px;border-radius:16px;overflow:hidden;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.32);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.7),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.06);}
+    .pc-fcf-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.06),transparent 55%),radial-gradient(at bottom left,rgba(255,215,0,0.04),transparent 55%);}
+    .pc-fcf-brand{position:relative;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .pc-fcf-logo{display:inline-flex;align-items:center;gap:7px;font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.8px;}
+    .pc-fcf-logo::before{content:'★';font-size:12px;text-shadow:0 0 8px currentColor;}
+    .pc-fcf-foil{width:54px;height:4px;border-radius:2px;
+      background:linear-gradient(90deg,#FFD700,#4ade80,#3b82f6,#FFD700);background-size:200% 100%;
+      animation:pc-foil-shimmer 4.5s linear infinite;}
+    @keyframes pc-foil-shimmer{0%{background-position:0 0;}100%{background-position:200% 0;}}
+    .pc-fcf-body{position:relative;padding:18px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;}
+    .pc-fcf-photo{position:relative;width:96px;height:96px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+      font-size:28px;font-weight:800;color:#fff;letter-spacing:.8px;flex-shrink:0;
+      box-shadow:inset 0 0 18px rgba(255,255,255,0.18),0 0 0 2px rgba(74,222,128,0.45),0 0 22px -6px rgba(74,222,128,0.5),0 0 14px rgba(0,0,0,0.4);}
+    .pc-fcf-photo .pc-photo-img{border-radius:12px;}
+    .pc-fcf-photo .pc-avatar-num{display:none;}
+    .pc-fcf-ident{min-width:0;}
+    .pc-fcf-num-pos{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;}
+    .pc-fcf-num{font-size:34px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;
+      letter-spacing:-1.5px;text-shadow:0 0 14px rgba(74,222,128,0.5);}
+    .pc-fcf-pos{font-size:10px;font-weight:900;padding:4px 9px;border-radius:6px;letter-spacing:1.2px;color:#fff;
+      box-shadow:0 0 12px -4px currentColor;}
+    .pc-fcf-name{font-size:19px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:.4px;text-transform:uppercase;
+      margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .pc-fcf-sub{font-size:11px;color:var(--tx-3);letter-spacing:.3px;}
+    .pc-fcf-stats{position:relative;padding:0 18px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+    .pc-fcf-stat{padding:10px 8px;border-radius:9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);text-align:center;}
+    .pc-fcf-stat-lbl{font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;}
+    .pc-fcf-stat-val{font-size:19px;font-weight:900;font-family:var(--mono);line-height:1.05;}
+    .pc-fcf-verdict{position:relative;margin:0 18px 14px;padding:12px 14px;border-radius:10px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.10),rgba(74,222,128,0.03));
+      border:1px solid rgba(74,222,128,0.22);border-left:3px solid var(--green-l);}
+    .pc-fcf-verdict-lbl{font-size:9px;font-weight:800;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;}
+    .pc-fcf-verdict-txt{font-size:12px;color:var(--tx);line-height:1.55;}
+    .pc-fcf-footer{position:relative;display:flex;align-items:center;gap:14px;padding:14px 18px;
+      border-top:1px dashed rgba(255,255,255,0.1);background:rgba(0,0,0,0.22);}
+    .pc-fcf-qr{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;width:60px;height:60px;padding:5px;
+      background:rgba(255,255,255,0.05);border-radius:6px;border:1px solid rgba(74,222,128,0.22);flex-shrink:0;}
+    .pc-fcf-qr-cell{background:var(--green-l);border-radius:1px;}
+    .pc-fcf-qr-cell.off{background:transparent;}
+    .pc-fcf-meta{flex:1;min-width:0;}
+    .pc-fcf-meta-id{font-size:11.5px;font-weight:800;color:var(--tx);font-family:var(--mono);letter-spacing:1.4px;margin-bottom:2px;}
+    .pc-fcf-meta-sub{font-size:10px;color:var(--tx-3);letter-spacing:.4px;}
+    .pc-fcf-meta-est{text-align:right;font-size:8.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.6px;line-height:1.4;}
+    @media (max-width:540px){
+      .pc-fcf-body{grid-template-columns:1fr;gap:14px;text-align:center;}
+      .pc-fcf-photo{margin:0 auto;}
+      .pc-fcf-num-pos{justify-content:center;}
+      .pc-fcf-stats{grid-template-columns:repeat(2,1fr);}
+      .pc-fcf-footer{flex-wrap:wrap;justify-content:center;text-align:center;}
+      .pc-fcf-meta-est{text-align:center;width:100%;}
+    }
+
     @media (max-width:600px){
       .pc-grid{grid-template-columns:1fr;}
       .pc-detail-grid{grid-template-columns:1fr;}
@@ -5951,6 +6079,60 @@ function _pcRenderDetail(el, p) {
       <div class="pc-section" style="border-left:3px solid var(--green-l);">
         <div class="pc-section-lbl">AI Summary — 4-week focus</div>
         <div style="font-size:12.5px;color:var(--tx);line-height:1.65;">${_esc(summary)}</div>
+      </div>
+
+      <!-- FC Familista Digital Player Card — scouting-card style -->
+      <div class="pc-fcf-card">
+        <div class="pc-fcf-brand">
+          <div class="pc-fcf-logo">FC FAMILISTA · DIGITAL PLAYER CARD</div>
+          <div class="pc-fcf-foil" aria-hidden="true"></div>
+        </div>
+        <div class="pc-fcf-body">
+          <div class="pc-fcf-photo pc-avatar" style="background:${grad};">
+            ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : ''}
+            ${_esc(_pcInitials(p))}
+          </div>
+          <div class="pc-fcf-ident">
+            <div class="pc-fcf-num-pos">
+              <div class="pc-fcf-num">#${p.number != null ? p.number : '?'}</div>
+              <div class="pc-fcf-pos" style="background:${_pcFcfPosColor(p.position)};">${_esc(p.position || '—')}</div>
+            </div>
+            <div class="pc-fcf-name">${_esc((p.firstName || '') + ' ' + (p.lastName || ''))}</div>
+            <div class="pc-fcf-sub">${_esc(p.flag || '')} ${_esc(p.nationality || '—')}${age != null ? ' · Age ' + age : ''}${typeof p.height === 'number' ? ' · ' + p.height + 'cm' : ''}</div>
+          </div>
+        </div>
+        <div class="pc-fcf-stats">
+          <div class="pc-fcf-stat">
+            <div class="pc-fcf-stat-lbl">OVR</div>
+            <div class="pc-fcf-stat-val" style="color:var(--green-l);">${ovr}</div>
+          </div>
+          <div class="pc-fcf-stat">
+            <div class="pc-fcf-stat-lbl">POT</div>
+            <div class="pc-fcf-stat-val" style="color:var(--amber);">${pot}</div>
+          </div>
+          <div class="pc-fcf-stat">
+            <div class="pc-fcf-stat-lbl">Ready</div>
+            <div class="pc-fcf-stat-val" style="color:${rc};">${rdy}</div>
+          </div>
+          <div class="pc-fcf-stat">
+            <div class="pc-fcf-stat-lbl">Injury</div>
+            <div class="pc-fcf-stat-val" style="color:${inj.color};font-size:13px;">${inj.level}</div>
+          </div>
+        </div>
+        <div class="pc-fcf-verdict">
+          <div class="pc-fcf-verdict-lbl">AI Scout Verdict</div>
+          <div class="pc-fcf-verdict-txt">${_esc(_pcAIScoutVerdict(p))}</div>
+        </div>
+        <div class="pc-fcf-footer">
+          <div class="pc-fcf-qr" aria-hidden="true">
+            ${_pcQRCells(p.id).map(on => `<div class="pc-fcf-qr-cell${on ? '' : ' off'}"></div>`).join('')}
+          </div>
+          <div class="pc-fcf-meta">
+            <div class="pc-fcf-meta-id">${_esc(_pcFcfShortId(p.id))}</div>
+            <div class="pc-fcf-meta-sub">Validated · ARIA Intelligence v1.0</div>
+          </div>
+          <div class="pc-fcf-meta-est">FC FAMILISTA<br>EST · 2024</div>
+        </div>
       </div>
     </div>`;
   _pcWirePhotoErrors(el);
