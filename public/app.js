@@ -939,6 +939,7 @@ function renderDashboardHTML() {
   return `<div class="page active" id="pg-dashboard">
   <div class="dash-grid">
     <div class="dash-main">
+      <div id="fc-cmd-center"></div>
       <div class="match-hero" id="match-hero">
         ${loadingHTML('Loading next match...')}
       </div>
@@ -985,8 +986,322 @@ function renderDashboardHTML() {
 </div>`;
 }
 
+// ─── FC Familista Command Center (Dashboard top section) ───────────────
+// Frontend-only. All metrics derived from State already loaded by
+// loadAllData: State.players, State.training, State.trainingForm,
+// State.matches. No new fetches, no backend touches.
+function _fcSquadHealth() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const injured = ps.filter(p => p.isInjured).length;
+  const healthy = ps.length - injured;
+  const ratio   = ps.length ? injured / ps.length : 0;
+  let level, color;
+  if (ratio >= 0.2 || injured >= 4)        { level = 'CRITICAL'; color = 'var(--red)'; }
+  else if (ratio >= 0.1 || injured >= 2)   { level = 'MODERATE'; color = 'var(--amber)'; }
+  else                                      { level = 'OPTIMAL';  color = 'var(--green-l)'; }
+  return { total: ps.length, healthy, injured, level, color };
+}
+function _fcReadinessRadar() {
+  const ps  = (State.players || []).filter(p => p && p.isActive !== false);
+  const f   = State.trainingForm || {};
+  const cond = ps.length ? ps.reduce((a, p) => a + (typeof p.condition === 'number' ? p.condition : 100), 0) / ps.length : 100;
+  const tactical = (((f.attackForm ?? 12) + (f.defenseForm ?? 14) + (f.possession ?? 11)) / 3 / 16) * 100;
+  const physical = cond;
+  let techSum = 0, techN = 0;
+  ps.forEach(p => {
+    const a = (p.attributes && p.attributes[0]) || {};
+    ['passing','dribbling','shooting','crossing'].forEach(k => {
+      if (typeof a[k] === 'number') { techSum += a[k]; techN++; }
+    });
+  });
+  const technical = techN ? (techSum / techN) / 120 * 100 : 70;
+  const avgAge = ps.length ? ps.reduce((a, p) => {
+    const age = _pcAge(p);
+    return a + (age != null ? age : 26);
+  }, 0) / ps.length : 26;
+  const mental = Math.max(40, Math.min(95, 38 + avgAge));
+  let stdevCond = 0;
+  if (ps.length > 1) {
+    const variance = ps.reduce((a, p) => a + Math.pow((p.condition || 100) - cond, 2), 0) / ps.length;
+    stdevCond = Math.sqrt(variance);
+  }
+  const chemistry = Math.max(0, Math.min(100, 100 - stdevCond * 2.5));
+  return {
+    Tactical:  Math.round(tactical),
+    Physical:  Math.round(physical),
+    Technical: Math.round(technical),
+    Mental:    Math.round(mental),
+    Chemistry: Math.round(chemistry),
+  };
+}
+function _fcTopPlayers(n) {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  return ps.map(p => ({ p, score: _pcReadinessScore(p) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n || 5);
+}
+function _fcAIAlerts() {
+  const alerts = [];
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const highRisk = ps.filter(p => _pcInjuryRisk(p).level === 'HIGH' && !p.isInjured);
+  if (highRisk.length > 0) {
+    alerts.push({ icon: '🚨', color: 'var(--red)',
+      text: `Injury risk rising: ${highRisk.slice(0,2).map(p => p.lastName).join(', ')}${highRisk.length > 2 ? ` +${highRisk.length-2}` : ''}` });
+  }
+  const overload = ps.filter(p => _pcFatigueRisk(p).level === 'HIGH');
+  if (overload.length > 0) {
+    alerts.push({ icon: '⚡', color: 'var(--amber)',
+      text: `Player overload: ${overload[0].lastName}${overload.length > 1 ? ` +${overload.length-1}` : ''} — schedule recovery` });
+  }
+  const injured = ps.filter(p => p.isInjured);
+  if (injured.length >= 2) {
+    alerts.push({ icon: '🩹', color: 'var(--red)',
+      text: `${injured.length} players injured: ${injured.slice(0,2).map(p => p.lastName).join(', ')}${injured.length > 2 ? ` +${injured.length-2}` : ''}` });
+  }
+  const tops = _fcTopPlayers(1);
+  if (tops[0] && tops[0].score >= 85) {
+    alerts.push({ icon: '⭐', color: 'var(--green-l)',
+      text: `High performer: ${tops[0].p.firstName} ${tops[0].p.lastName} at peak readiness (${tops[0].score}/100)` });
+  }
+  if (Array.isArray(State.training) && State.training.length >= 2) {
+    const recent = State.training.slice(0, 3);
+    const older  = State.training.slice(3, 6);
+    const avgOf  = (arr) => arr.length ? arr.reduce((a, s) => a + (((s.attackForm || 0) + (s.defenseForm || 0) + (s.possession || 0) + (s.conditionForm || 0)) / 4), 0) / arr.length : 0;
+    const avgRec = avgOf(recent), avgOld = older.length ? avgOf(older) : avgRec;
+    if (avgRec > avgOld + 0.5)      alerts.push({ icon: '📈', color: 'var(--green-l)', text: `Form trending up across last 3 sessions (+${(avgRec - avgOld).toFixed(1)} avg)` });
+    else if (avgRec < avgOld - 0.5) alerts.push({ icon: '📉', color: 'var(--amber)',   text: `Form trending down across last 3 sessions (${(avgRec - avgOld).toFixed(1)} avg)` });
+  }
+  if (alerts.length === 0) alerts.push({ icon: '✓', color: 'var(--green-l)', text: 'No critical alerts — squad operating within normal thresholds.' });
+  return alerts.slice(0, 5);
+}
+function _fcTeamTrend(n) {
+  const sessions = (State.training || []).slice(0, n || 8).slice().reverse();
+  return sessions.map(s => ({
+    date: s.scheduledAt,
+    value: (((s.attackForm || 0) + (s.defenseForm || 0) + (s.possession || 0) + (s.conditionForm || 0)) / 4),
+  }));
+}
+function _fcDNA() {
+  const f = State.trainingForm || {};
+  const attack     = f.attackForm    ?? 12;
+  const possession = f.possession    ?? 11;
+  const condition  = f.conditionForm ?? 13;
+  const defense    = f.defenseForm   ?? 14;
+  const Attack       = Math.round((attack     / 16) * 100);
+  const Possession   = Math.round((possession / 16) * 100);
+  const Intensity    = Math.round((condition  / 16) * 100);
+  const Discipline   = Math.round((defense    / 16) * 100);
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  let devSum = 0, devN = 0;
+  ps.forEach(p => { devSum += Math.max(0, (p.potential || 70) - (p.overallRating || 70)); devN++; });
+  const Development = Math.round(Math.min(100, devN ? (devSum / devN) * 4 : 30));
+  const composite   = Math.round((Attack + Possession + Intensity + Discipline + Development) / 5);
+  return { Attack, Possession, Intensity, Discipline, Development, composite };
+}
+function _fcRadarSVG(radar) {
+  const labels = Object.keys(radar);
+  const n = labels.length;
+  const cx = 100, cy = 92, maxR = 68;
+  const pointsAt = (radii) => labels.map((_, i) => {
+    const a = -Math.PI / 2 + (i / n) * 2 * Math.PI;
+    const r = radii[i];
+    return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`;
+  }).join(' ');
+  const rings  = [20, 40, 60, 80, 100].map(p => `<polygon points="${pointsAt(labels.map(() => (p / 100) * maxR))}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>`).join('');
+  const spokes = labels.map((_, i) => {
+    const a = -Math.PI / 2 + (i / n) * 2 * Math.PI;
+    return `<line x1="${cx}" y1="${cy}" x2="${(cx + Math.cos(a) * maxR).toFixed(1)}" y2="${(cy + Math.sin(a) * maxR).toFixed(1)}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`;
+  }).join('');
+  const dataR = labels.map(k => (radar[k] / 100) * maxR);
+  const dataPolyPts = pointsAt(dataR);
+  const dots = labels.map((_, i) => {
+    const a = -Math.PI / 2 + (i / n) * 2 * Math.PI;
+    return `<circle cx="${(cx + Math.cos(a) * dataR[i]).toFixed(1)}" cy="${(cy + Math.sin(a) * dataR[i]).toFixed(1)}" r="2.5" fill="var(--green-l)" style="filter:drop-shadow(0 0 4px rgba(74,222,128,0.7));"/>`;
+  }).join('');
+  const labelEls = labels.map((lbl, i) => {
+    const a = -Math.PI / 2 + (i / n) * 2 * Math.PI;
+    const lr = maxR + 12;
+    const x = cx + Math.cos(a) * lr;
+    const y = cy + Math.sin(a) * lr;
+    const anchor = x < cx - 5 ? 'end' : x > cx + 5 ? 'start' : 'middle';
+    return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="central" style="font-size:8.5px;font-weight:700;fill:var(--tx-2);">${lbl}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 200 184" style="width:100%;max-height:200px;display:block;">
+    ${rings}${spokes}
+    <polygon points="${dataPolyPts}" fill="rgba(74,222,128,0.20)" stroke="var(--green-l)" stroke-width="1.6" style="filter:drop-shadow(0 0 6px rgba(74,222,128,0.5));">
+      <animate attributeName="opacity" values="0.7;1;0.7" dur="3.2s" repeatCount="indefinite"/>
+    </polygon>
+    ${dots}${labelEls}
+  </svg>`;
+}
+function _fcTrendSVG(trend) {
+  if (trend.length < 2) return `<div style="font-size:11px;color:var(--tx-3);">Need at least 2 sessions for trend.</div>`;
+  const values = trend.map(t => t.value);
+  const min = Math.min.apply(null, values.concat([0]));
+  const max = Math.max.apply(null, values.concat([16]));
+  const range = Math.max(1, max - min);
+  const w = 280, h = 80, pad = 8;
+  const points = trend.map((t, i) => ({
+    x: pad + (i / (trend.length - 1)) * (w - 2 * pad),
+    y: h - pad - ((t.value - min) / range) * (h - 2 * pad),
+  }));
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const areaD = pathD + ` L ${points[points.length-1].x.toFixed(1)} ${h - pad} L ${pad} ${h - pad} Z`;
+  const first = trend[0].value, last = trend[trend.length - 1].value, delta = last - first;
+  const deltaColor = delta > 0.2 ? 'var(--green-l)' : delta < -0.2 ? 'var(--red)' : 'var(--amber)';
+  const arrow = delta > 0.05 ? '↑ +' : delta < -0.05 ? '↓ ' : '→ ';
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;">
+    <defs><linearGradient id="fc-trend-area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(74,222,128,0.35)"/><stop offset="100%" stop-color="rgba(74,222,128,0)"/>
+    </linearGradient></defs>
+    <path d="${areaD}" fill="url(#fc-trend-area)"/>
+    <path d="${pathD}" fill="none" stroke="var(--green-l)" stroke-width="2" style="filter:drop-shadow(0 0 4px rgba(74,222,128,0.5));"/>
+    ${points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="var(--green-l)"/>`).join('')}
+  </svg>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:10px;">
+    <span style="color:var(--tx-3);">Avg <b style="color:var(--tx-2);font-family:var(--mono);">${(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1)}</b></span>
+    <span style="color:${deltaColor};font-weight:800;font-family:var(--mono);">${arrow}${Math.abs(delta).toFixed(1)}</span>
+  </div>`;
+}
+function _ensureFCCmdStyles() {
+  if (document.getElementById('fc-cmd-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'fc-cmd-styles';
+  s.textContent = `
+    .fc-cmd-card{position:relative;margin-bottom:16px;border-radius:16px;overflow:hidden;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .fc-cmd-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .fc-cmd-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .fc-cmd-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .fc-cmd-grid{position:relative;padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+    .fc-cmd-tile{padding:14px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.04);transition:border-color .15s ease,box-shadow .15s ease;}
+    .fc-cmd-tile:hover{border-color:rgba(74,222,128,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 0 16px -4px rgba(74,222,128,0.2);}
+    .fc-cmd-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:8px;}
+    .fc-cmd-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .fc-cmd-alert:last-child{margin-bottom:0;}
+    .fc-cmd-rank-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .fc-cmd-rank-row:last-child{border-bottom:none;}
+    .fc-cmd-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:16px;flex-shrink:0;text-align:right;}
+    .fc-cmd-rank-avatar{position:relative;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:9.5px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .fc-cmd-radar-legend{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px;margin-top:6px;}
+    @media (max-width:1024px){.fc-cmd-grid{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.fc-cmd-grid{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function _fcCommandCenterHTML() {
+  const health = _fcSquadHealth();
+  const radar  = _fcReadinessRadar();
+  const top5   = _fcTopPlayers(5);
+  const alerts = _fcAIAlerts();
+  const trend  = _fcTeamTrend(8);
+  const dna    = _fcDNA();
+  return `<div class="fc-cmd-card">
+    <div class="fc-cmd-brand">
+      <div class="fc-cmd-logo">★ FC FAMILISTA · COMMAND CENTER</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+        <div class="pc-fcf-foil" aria-hidden="true"></div>
+      </div>
+    </div>
+    <div class="fc-cmd-grid">
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">Squad Health</div>
+        <div style="display:flex;align-items:baseline;gap:12px;margin:6px 0 10px;">
+          <div style="font-size:28px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${health.healthy}<span style="font-size:14px;color:var(--tx-3);">/${health.total}</span></div>
+          <div style="font-size:11px;color:var(--tx-3);">healthy · ${health.injured} injured</div>
+        </div>
+        <div style="display:flex;height:7px;border-radius:4px;background:rgba(255,255,255,0.05);overflow:hidden;">
+          <div style="flex:${Math.max(health.healthy,0.0001)};background:var(--green-l);"></div>
+          <div style="flex:${Math.max(health.injured,0.0001)};background:var(--red);"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+          <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.8px;">Risk Level</div>
+          <div style="font-size:12.5px;font-weight:900;color:${health.color};letter-spacing:.6px;">${health.level}</div>
+        </div>
+      </div>
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">AI Alerts Center</div>
+        ${alerts.map(a => `<div class="fc-cmd-alert" style="border-left-color:${a.color};">
+          <span style="font-size:14px;flex-shrink:0;line-height:1.2;">${a.icon}</span>
+          <span style="font-size:11.5px;color:var(--tx);line-height:1.45;">${_esc(a.text)}</span>
+        </div>`).join('')}
+      </div>
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">Match Readiness Radar</div>
+        ${_fcRadarSVG(radar)}
+        <div class="fc-cmd-radar-legend">
+          ${Object.keys(radar).map(k => `<div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:6px;height:6px;border-radius:50%;background:var(--green-l);box-shadow:0 0 6px var(--green-l);flex-shrink:0;"></div>
+            <span style="font-size:10px;color:var(--tx-2);flex:1;">${k}</span>
+            <b style="font-size:10px;font-weight:800;color:var(--tx);font-family:var(--mono);">${radar[k]}</b>
+          </div>`).join('')}
+        </div>
+      </div>
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">Top 5 Players Today</div>
+        ${top5.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No active players.</div>` :
+          top5.map((tp, i) => {
+            const p = tp.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+            const sc = tp.score >= 80 ? 'var(--green-l)' : tp.score >= 65 ? 'var(--amber)' : 'var(--red)';
+            return `<div class="fc-cmd-rank-row">
+              <div class="fc-cmd-rank-num">${i+1}</div>
+              <div class="fc-cmd-rank-avatar" style="background:${grad};">
+                ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}</div>
+              </div>
+              <div style="font-size:15px;font-weight:900;color:${sc};font-family:var(--mono);line-height:1;">${tp.score}</div>
+            </div>`;
+          }).join('')}
+      </div>
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">Team Trend</div>
+        <div style="font-size:10px;color:var(--tx-3);margin-bottom:8px;">Last ${trend.length} session${trend.length === 1 ? '' : 's'} · avg of 4 ratings</div>
+        ${trend.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No session history.</div>` : _fcTrendSVG(trend)}
+      </div>
+      <div class="fc-cmd-tile">
+        <div class="fc-cmd-tile-lbl">FC Familista DNA</div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin:4px 0 12px;">
+          <div style="font-size:30px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;text-shadow:0 0 12px rgba(74,222,128,0.45);">${dna.composite}</div>
+          <div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:1px;">Composite</div>
+        </div>
+        ${['Attack','Possession','Intensity','Discipline','Development'].map(k => `
+          <div style="display:grid;grid-template-columns:84px 1fr 28px;gap:8px;align-items:center;padding:3px 0;">
+            <div style="font-size:10.5px;color:var(--tx-2);">${k}</div>
+            <div style="height:5px;border-radius:3px;background:rgba(255,255,255,0.05);overflow:hidden;">
+              <div style="width:${dna[k]}%;height:100%;background:linear-gradient(90deg,var(--green-l),#3b82f6);"></div>
+            </div>
+            <div style="font-size:10.5px;font-weight:800;color:var(--tx);font-family:var(--mono);text-align:right;">${dna[k]}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderDashboard() {
   if (isFormEditing()) { _pendingRefresh = true; return; }
+  // FC Familista Command Center — renders independently of State.analytics
+  // so it shows up even while analytics is still loading.
+  try {
+    _ensureFCCmdStyles();
+    const cmdEl = document.getElementById('fc-cmd-center');
+    if (cmdEl) {
+      cmdEl.innerHTML = _fcCommandCenterHTML();
+      _pcWirePhotoErrors(cmdEl);
+    }
+  } catch (_) { /* never let the new section break the rest of the dashboard */ }
   const d = State.analytics;
   if (!d) return;
 
