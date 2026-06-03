@@ -10935,6 +10935,11 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('[data-page="settings"]')) {
     setTimeout(loadSettingsData, 100);
   }
+  // Defensive: ensure renderMatchCenter runs even if navTo's branch is
+  // bypassed for any reason. Same pattern as the Training entry above.
+  if (e.target.closest('[data-page="match-center"]')) {
+    setTimeout(function () { try { renderMatchCenter(); } catch (err) { try { console.error('[match-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════
