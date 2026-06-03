@@ -5696,6 +5696,27 @@ function _pcInitials(p) {
   const l = ((p && p.lastName)  || '').charAt(0).toUpperCase();
   return f + l;
 }
+function _pcPhotoUrl(p) {
+  if (!p) return null;
+  const fields = ['photoUrl', 'avatarUrl', 'image', 'picture', 'avatar', 'photo'];
+  for (const k of fields) {
+    const v = p[k];
+    if (typeof v === 'string' && v.trim()) {
+      const s = v.trim();
+      if (/^(https?:\/\/|data:image\/)/i.test(s)) return s;
+    }
+  }
+  return null;
+}
+function _pcWirePhotoErrors(root) {
+  if (!root) return;
+  root.querySelectorAll('img.pc-photo-img').forEach(img => {
+    const drop = () => { try { img.remove(); } catch (_) {} };
+    img.addEventListener('error', drop, { once: true });
+    // Catch already-failed (cached) loads where 'error' won't fire again
+    if (img.complete && img.naturalWidth === 0) drop();
+  });
+}
 function _pcPosGradient(pos) {
   if (!pos)                                                          return 'linear-gradient(135deg,#1e293b,#0f172a)';
   if (pos === 'GK')                                                  return 'linear-gradient(135deg,#d97706,#b45309)';
@@ -5723,10 +5744,13 @@ function _ensurePCStyles() {
     .pc-card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%);pointer-events:none;border-radius:14px;}
     .pc-avatar{position:relative;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
       font-size:14px;font-weight:800;color:#fff;letter-spacing:.5px;
-      box-shadow:inset 0 0 12px rgba(255,255,255,0.18),0 0 14px rgba(0,0,0,0.3);flex-shrink:0;}
+      box-shadow:inset 0 0 12px rgba(255,255,255,0.18),0 0 0 2px rgba(74,222,128,0.32),0 0 16px -4px rgba(74,222,128,0.45),0 0 14px rgba(0,0,0,0.3);
+      flex-shrink:0;}
+    .pc-photo-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;z-index:1;
+      background:transparent;}
     .pc-avatar-num{position:absolute;bottom:-3px;right:-3px;width:18px;height:18px;border-radius:50%;
       background:#0a0f1a;border:1.5px solid rgba(74,222,128,0.45);font-size:9px;font-weight:800;color:var(--green-l);
-      display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);z-index:2;}
     .pc-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px;}
     .pc-chip{padding:7px 4px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);text-align:center;}
     .pc-chip-lbl{font-size:8.5px;font-weight:700;color:var(--tx-3);letter-spacing:.55px;text-transform:uppercase;margin-bottom:2px;line-height:1.2;}
@@ -5775,10 +5799,12 @@ function _pcRenderCard(p) {
   const dc = dev  >= 70 ? 'var(--green-l)' : dev  >= 50 ? 'var(--amber)' : 'var(--red)';
   const rc = rdy  >= 80 ? 'var(--green-l)' : rdy  >= 65 ? 'var(--amber)' : 'var(--red)';
   const grad = _pcPosGradient(p.position);
+  const photo = _pcPhotoUrl(p);
   return `
     <div class="pc-card" data-action="pcSelectPlayer" data-id="${_esc(p.id)}">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="pc-avatar" style="background:${grad};">
+          ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : ''}
           ${_esc(_pcInitials(p))}
           <div class="pc-avatar-num">${p.number != null ? p.number : '?'}</div>
         </div>
@@ -5808,6 +5834,7 @@ function _pcRenderGrid(el, players) {
       <div style="font-size:11px;color:var(--tx-3);">ARIA-driven scores · ${players.length} active player${players.length === 1 ? '' : 's'} · click a card for full profile</div>
     </div>
     <div class="pc-grid">${players.map(p => _pcRenderCard(p)).join('')}</div>`;
+  _pcWirePhotoErrors(el);
 }
 
 function _pcRenderDetail(el, p) {
@@ -5830,6 +5857,7 @@ function _pcRenderDetail(el, p) {
   const potPct      = Math.min(100, (pot / 140) * 100);
   const curPct      = Math.min(100, (ovr / 140) * 100);
   const grad        = _pcPosGradient(p.position);
+  const photo       = _pcPhotoUrl(p);
   const cmpRows = (_PC_POS_ATTRS[p.position] || []).slice(0, 5).map(k => {
     const v = _pcLatestAttrs(p)[k];
     const ta = teamAvg[k];
@@ -5842,6 +5870,7 @@ function _pcRenderDetail(el, p) {
     <div class="pc-detail">
       <div class="pc-detail-head">
         <div class="pc-avatar pc-detail-avatar" style="background:${grad};">
+          ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : ''}
           ${_esc(_pcInitials(p))}
           <div class="pc-avatar-num">${p.number != null ? p.number : '?'}</div>
         </div>
@@ -5924,6 +5953,7 @@ function _pcRenderDetail(el, p) {
         <div style="font-size:12.5px;color:var(--tx);line-height:1.65;">${_esc(summary)}</div>
       </div>
     </div>`;
+  _pcWirePhotoErrors(el);
 }
 
 function renderTrainingPlayersPanel(el) {
