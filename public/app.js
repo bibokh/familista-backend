@@ -5058,17 +5058,26 @@ function _formDNAClassification() {
   return { dna, profile };
 }
 function _formAIRecommendation() {
-  const cond = _formAvgCondition();
-  const inj  = _formInjuryCount();
-  const r    = _formRatings();
-  const mr   = _formMatchReadiness();
-  if (inj >= 3)                          return `${inj} injured players — keep this session technical only and rotate fitness work.`;
-  if (cond != null && cond < 75)         return 'Squad condition below 75%. Schedule recovery, drop sprint intervals, prioritise mobility.';
-  if (mr.hasMatch && mr.days <= 2)       return `Match in ${mr.days}d. Switch to set pieces and light technical work, taper training load.`;
-  if (r.possession < 10)                 return 'Possession rating low. Prioritise rondos and transition drills this week.';
-  if (r.condition  < 11)                 return 'Conditioning trailing — add interval and high-press blocks for the next two sessions.';
-  if (r.attack     < 11)                 return 'Attack rating dipping. Focus on shooting practice and final-third combinations.';
-  if (r.defense    < 12)                 return 'Defensive shape needs work. Schedule defensive-shape and pressing blocks.';
+  const cond   = _formAvgCondition();
+  const inj    = _formInjuryCount();
+  const r      = _formRatings();
+  const mr     = _formMatchReadiness();
+  const rdy    = _formReadinessScore();
+  const drills = _formDrillCounts(3);
+  const top    = drills.items[0];
+  const variety = drills.items.length;
+
+  if (inj >= 3)                                              return `${inj} injured players — keep this session technical only and rotate fitness work. Skip high-impact drills.`;
+  if (rdy != null && rdy < 50)                               return `Readiness ${Math.round(rdy)}/100. Critical fatigue cluster — recovery-only session, no contact work.`;
+  if (cond != null && cond < 75)                             return `Squad condition ${Math.round(cond)}%. Schedule recovery, drop sprint intervals, prioritise mobility.`;
+  if (mr.hasMatch && mr.days <= 2)                           return `Match in ${mr.days}d. Switch to set pieces and light technical work, taper training load.`;
+  if (mr.hasMatch && mr.days <= 5)                           return `${mr.days}d to next fixture. Build through mid-week tactical, then taper into the weekend.`;
+  if (variety > 0 && variety <= 2)                           return `Recent training is narrow (${variety} drill types). Diversify with ${r.possession < 12 ? 'possession' : r.defense < 13 ? 'defensive shape' : 'transition'} work.`;
+  if (r.possession < 10)                                     return 'Possession rating low. Prioritise rondos and transition drills this week.';
+  if (r.condition  < 11)                                     return 'Conditioning trailing — add interval and high-press blocks for the next two sessions.';
+  if (r.attack     < 11)                                     return 'Attack rating dipping. Focus on shooting practice and final-third combinations.';
+  if (r.defense    < 12)                                     return 'Defensive shape needs work. Schedule defensive-shape and pressing blocks.';
+  if (top && top.pct > 50)                                   return `${top.label} accounts for ${Math.round(top.pct)}% of recent drills — rotate in tactical variety.`;
   return 'Squad balanced. Continue tactical work; rotate possession and defensive shape across the week.';
 }
 
@@ -5104,6 +5113,77 @@ function _formTacticalTip() {
   if (r.condition  >= 12)                      return 'Sustain a high press in 20-minute blocks; rotate press triggers between holders and forwards.';
   return 'Keep structure simple — prioritise first-touch quality and decision-making in tight zones.';
 }
+function _formAIConfidence() {
+  let c = 0;
+  if (State.trainingForm)                                     c += 20;
+  if (Array.isArray(State.training) && State.training.length > 0)  c += 15;
+  if (Array.isArray(State.training) && State.training.length >= 5) c += 15;
+  if (Array.isArray(State.players)  && State.players.length  > 0)  c += 15;
+  if (Array.isArray(State.players)  && State.players.length  > 5)  c += 15;
+  if (Array.isArray(State.matches)  && State.matches.length  > 0)  c += 10;
+  if (_formAvgCondition() != null)                            c += 10;
+  return Math.max(0, Math.min(100, c));
+}
+
+let _aiPlanVisible = false;
+function aiCoachTogglePlan() {
+  _aiPlanVisible = !_aiPlanVisible;
+  if (typeof renderTrainingPage === 'function') renderTrainingPage();
+}
+
+function _formGeneratedPlan() {
+  const r    = _formRatings();
+  const cond = _formAvgCondition();
+  const inj  = _formInjuryCount();
+  const rdy  = _formReadinessScore();
+  const mr   = _formMatchReadiness();
+  const matchClose = mr.hasMatch && mr.days <= 2;
+  const focus = _formRecommendedFocus();
+
+  // 1. Warm-up
+  let warm;
+  if (inj >= 2)                       warm = { duration: 15, title: 'Joint stability + activation circuits', desc: 'Banded glute work, deep core engagement, light coordination ladders. Keep load below threshold.' };
+  else if (cond != null && cond < 75) warm = { duration: 12, title: 'Dynamic mobility + light passing',      desc: 'Multidirectional movement prep, 2-touch wall passes, low intensity to conserve legs.' };
+  else                                warm = { duration: 10, title: 'Activation drills + 4v2 rondo',          desc: 'Hip mobility, sprint primers, then a quick 4v2 rondo to switch on the ball.' };
+
+  // 2. Technical drill — drives off the lowest rating
+  let tech;
+  if (focus.lbl === 'Attacking play')       tech = { duration: 22, title: 'Finishing in the box',          desc: '1v1 → 2v1 → 3v2 channels with cutbacks, far-post runs, and finishing under fatigue.' };
+  else if (focus.lbl === 'Defensive shape') tech = { duration: 20, title: 'Defensive 1v1 + recovery runs',  desc: 'Press-then-recover work, body shape on the shoulder, jockey-tackle progression.' };
+  else if (focus.lbl === 'Possession')      tech = { duration: 20, title: 'Tight rondos + positional play', desc: '4v2 → 5v3 → 7v4 progression with third-man release patterns and counter-press triggers.' };
+  else                                       tech = { duration: 18, title: 'Interval-based ball circuits',   desc: 'Pass-receive-sprint stations, 20s on / 20s off × 8 rotations.' };
+
+  // 3. Tactical drill
+  let tact;
+  if (matchClose)              tact = { duration: 15, title: 'Set pieces — attacking + defending',         desc: 'Corner routines (near-post run), free kicks, zonal vs man defensive assignments.' };
+  else if (r.possession >= 12) tact = { duration: 25, title: '11v11 build-up patterns',                    desc: 'Phase-of-play from GK to final third, 3+2 wide overload triggers, switch-of-play cues.' };
+  else if (r.defense    >= 13) tact = { duration: 25, title: 'Mid-block defensive shape vs 4-2-3-1',       desc: 'Compact lines, force play wide, double-team on the opponent’s creative #10.' };
+  else                          tact = { duration: 25, title: 'Phase-of-play: build-up + transitions',     desc: 'Three-zone game, counter-press window of 6 seconds on every loss of possession.' };
+
+  // 4. Match scenario
+  let scen;
+  if (matchClose)                     scen = { duration: 20, title: 'Game-state simulation',                desc: 'Leading 1-0 in the last 15 minutes, defending the high ball, managing tempo and fouls.' };
+  else if (rdy != null && rdy < 65)   scen = { duration: 15, title: 'Short-sided 6v6 under pressure',       desc: 'Small pitch, 3-touch maximum, immediate restart on every dead-ball.' };
+  else if (rdy != null && rdy >= 80)  scen = { duration: 22, title: '11v11 full pitch, captain-led',        desc: 'No coach intervention — captain calls patterns, mirror opponent tendencies.' };
+  else                                 scen = { duration: 20, title: '8v8 transitions + counter-press',     desc: 'Reset on every turnover, two-goal target window of 4 seconds after regaining possession.' };
+
+  // 5. Recovery / cooldown
+  let cool;
+  if (inj >= 3)                       cool = { duration: 15, title: 'Mobility circuit + cryotherapy',       desc: 'Hip openers, hamstring length, ice bath for the highest-risk players.' };
+  else if (cond != null && cond < 70) cool = { duration: 12, title: 'Aerobic flush + foam roll + breath',  desc: 'Easy 8-min jog, full foam-roll cycle, box-breathing wind-down.' };
+  else                                 cool = { duration: 8,  title: 'Static stretching + mobility',        desc: 'Hamstrings, hip flexors, thoracic mobility, brief team debrief.' };
+
+  const blocks = [
+    { phase: '1', kind: 'Warm-up',             icon: '🏃', accent: 'rgb(96,165,250)',  ...warm },
+    { phase: '2', kind: 'Technical drill',     icon: '⚽', accent: 'rgb(217,119,6)',   ...tech },
+    { phase: '3', kind: 'Tactical drill',      icon: '🎯', accent: 'rgb(74,222,128)',  ...tact },
+    { phase: '4', kind: 'Match scenario',      icon: '🏟️', accent: 'rgb(239,68,68)',   ...scen },
+    { phase: '5', kind: 'Recovery / cooldown', icon: '🧘', accent: 'rgb(148,163,184)', ...cool },
+  ];
+  const totalDuration = blocks.reduce((a, b) => a + (b.duration || 0), 0);
+  return { blocks, totalDuration };
+}
+
 function _ensureAICoachStyles() {
   if (document.getElementById('ai-coach-styles')) return;
   const s = document.createElement('style');
@@ -5149,10 +5229,40 @@ function _ensureAICoachStyles() {
     .ai-coach-val{font-size:12.5px;color:var(--tx);line-height:1.55;}
     .ai-coach-dna-tag{padding:3px 8px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.28);
       font-size:10px;font-weight:700;color:var(--green-l);letter-spacing:.3px;display:inline-block;}
+    .ai-coach-subtitle{font-size:10.5px;font-weight:700;color:var(--green-l);letter-spacing:.55px;
+      margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+    .ai-coach-subtitle::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
+      background:currentColor;box-shadow:0 0 6px currentColor;}
+    .ai-coach-pill-cfn{background:rgba(37,99,235,0.16);border-color:rgba(96,165,250,0.36);color:#93C5FD;}
+    .ai-plan-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;margin-top:12px;
+      border-radius:10px;border:1px solid rgba(74,222,128,0.45);cursor:pointer;
+      background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(37,99,235,0.16));
+      font-size:12px;font-weight:700;color:#fff;letter-spacing:.6px;text-transform:uppercase;
+      box-shadow:0 6px 18px -6px rgba(74,222,128,0.45),inset 0 1px 0 rgba(255,255,255,0.14);
+      transition:transform .12s ease,box-shadow .12s ease,background .12s ease;}
+    .ai-plan-btn:hover{transform:translateY(-1px);
+      background:linear-gradient(135deg,rgba(74,222,128,0.28),rgba(37,99,235,0.24));
+      box-shadow:0 10px 24px -8px rgba(74,222,128,0.6),inset 0 1px 0 rgba(255,255,255,0.22);}
+    .ai-plan-btn:active{transform:translateY(0);box-shadow:0 4px 10px -4px rgba(74,222,128,0.4),inset 0 1px 0 rgba(255,255,255,0.1);}
+    .ai-plan-btn-icon{font-size:14px;line-height:1;}
+    .ai-plan-wrap{margin-top:14px;padding-top:14px;border-top:1px dashed rgba(74,222,128,0.24);}
+    .ai-plan-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+    .ai-plan-eyebrow{font-size:9px;font-weight:800;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:2px;}
+    .ai-plan-title{font-size:13px;font-weight:700;color:var(--tx);}
+    .ai-plan-total{font-size:11px;font-weight:700;color:var(--tx-2);font-family:var(--mono);
+      padding:4px 10px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);}
+    .ai-plan-block{padding:10px 12px 11px;margin-bottom:8px;border-radius:10px;
+      background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);border-left:3px solid var(--green-l);}
+    .ai-plan-block-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:5px;}
+    .ai-plan-block-icon{font-size:18px;line-height:1;flex-shrink:0;margin-top:2px;}
+    .ai-plan-block-meta{font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:2px;}
+    .ai-plan-block-title{font-size:12.5px;font-weight:700;color:var(--tx);}
+    .ai-plan-block-desc{font-size:11.5px;color:var(--tx-2);line-height:1.55;padding-left:28px;}
     @media (max-width:540px){
       .ai-coach-header{flex-direction:column;align-items:flex-start;gap:14px;}
       .ai-orb{align-self:center;}
       .ai-coach-grid{grid-template-columns:1fr;}
+      .ai-plan-block-desc{padding-left:0;}
     }`;
   document.head.appendChild(s);
 }
@@ -5202,6 +5312,8 @@ function renderTrainingFormPanel(el) {
   const aiFocus      = _formRecommendedFocus();
   const aiRisk       = _formRiskLevel();
   const aiTacticTip  = _formTacticalTip();
+  const aiConfidence = _formAIConfidence();
+  const aiPlan       = _aiPlanVisible ? _formGeneratedPlan() : null;
   // readiness, readinessColor, readinessLabel, aiRec, dna, inj, cond already
   // computed above — re-used here, no duplicate work.
 
@@ -5211,10 +5323,12 @@ function renderTrainingFormPanel(el) {
       <div class="ai-coach-header">
         <div class="ai-orb"><div class="ai-orb-core">ARIA</div></div>
         <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
             <div style="font-size:12.5px;font-weight:800;color:var(--tx);letter-spacing:.7px;">FAMILISTA AI COACH</div>
             <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+            <span class="ai-coach-pill ai-coach-pill-cfn">${aiConfidence}% confidence</span>
           </div>
+          <div class="ai-coach-subtitle">ARIA Intelligence · v1.0</div>
           <div style="font-size:11px;color:var(--tx-3);line-height:1.5;">Real-time training intelligence — derived from squad condition, recent sessions, and upcoming fixtures.</div>
         </div>
       </div>
@@ -5258,6 +5372,35 @@ function renderTrainingFormPanel(el) {
           <div style="font-size:9px;font-weight:700;color:var(--tx-3);text-transform:uppercase;letter-spacing:.85px;">DNA score</div>
         </div>
       </div>
+
+      <button type="button" class="ai-plan-btn" data-action="aiCoachTogglePlan">
+        <span class="ai-plan-btn-icon">${_aiPlanVisible ? '↑' : '✨'}</span>
+        ${_aiPlanVisible ? 'Hide training plan' : 'Generate Training Plan'}
+      </button>
+
+      ${aiPlan ? `
+        <div class="ai-plan-wrap">
+          <div class="ai-plan-header">
+            <div>
+              <div class="ai-plan-eyebrow">Suggested Training Plan</div>
+              <div class="ai-plan-title">Generated from current readiness, ratings, injuries & recent drills</div>
+            </div>
+            <div class="ai-plan-total">${aiPlan.totalDuration} min · ${aiPlan.blocks.length} phases</div>
+          </div>
+          ${aiPlan.blocks.map(b => `
+            <div class="ai-plan-block" style="border-left-color:${b.accent};">
+              <div class="ai-plan-block-head">
+                <div class="ai-plan-block-icon">${b.icon}</div>
+                <div style="flex:1;min-width:0;">
+                  <div class="ai-plan-block-meta">Phase ${b.phase} · ${_esc(b.kind)} · ${b.duration} min</div>
+                  <div class="ai-plan-block-title">${_esc(b.title)}</div>
+                </div>
+              </div>
+              <div class="ai-plan-block-desc">${_esc(b.desc)}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
 
     <!-- Row 1: KPIs — Team Readiness Score + Match Readiness Indicator -->
@@ -13094,6 +13237,7 @@ async function tosBoardSnapshot() {
         case 'trainingBack':       trainingBack();                                                         break;
         case 'attendanceMark':     markAttendanceDraft(el.dataset.id, el.dataset.mark);                    break;
         case 'attendanceSave':     saveAttendance();                                                       break;
+        case 'aiCoachTogglePlan':  aiCoachTogglePlan();                                                    break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
