@@ -1573,8 +1573,8 @@ function _ensureMCStyles() {
   document.head.appendChild(s);
 }
 function renderMatchCenterHTML() {
-  return `<div class="page" id="pg-match-center" style="display:flex;flex-direction:column;height:100%;">
-    <div style="overflow-y:auto;flex:1;padding:0;" id="match-center-content">
+  return `<div class="page" id="pg-match-center">
+    <div id="match-center-content">
       <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Match Center…</div>
     </div>
   </div>`;
