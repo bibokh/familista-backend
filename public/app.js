@@ -5535,44 +5535,410 @@ function renderTrainingFormPanel(el) {
   `;
 }
 
-function renderTrainingPlayersPanel(el) {
-  const sub = document.getElementById('training-sub');
-  if (sub) sub.textContent = 'Player availability';
-  // Reuse the existing renderTrainingPlayers logic but target the passed el
-  const players = State.players || [];
-  const injured = players.filter(p => p.isInjured).map(p => p.lastName);
-  const lowCond = players.filter(p => p.condition < 75 && !p.isInjured).map(p => p.lastName);
-  const rec = (injured.length > 0 || lowCond.length > 0)
-    ? `Rest ${[...injured,...lowCond].join(', ')}. ${players.filter(p=>!p.isInjured&&p.condition>=75).length} players available for full session.`
-    : 'All players fit for full training session today. Optimal conditions.';
+// ─── Player Intelligence Center ─────────────────────────────────────────
+// Frontend-only. All scores derived from data already loaded into
+// State.players (each row includes attributes[0], gpsData[0], injuries[0],
+// and the scalar Player columns). No new fetches, no backend touches.
 
-  el.innerHTML = `
-    <div class="training-layout">
-      <div class="training-main">
-        <div class="card" style="padding:20px;">
-          <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:12px;">Squad Availability</div>
-          <div id="train-players">
-            ${players.length === 0 ? loadingHTML() : players.map(p=>`
-              <div class="tp-row">
-                <div class="tp-check ${p.condition>75&&!p.isInjured?'on':''}" style="width:16px;height:16px;border-radius:4px;border:1px solid var(--bd-2);display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;${p.condition>75&&!p.isInjured?'background:var(--green);border-color:var(--green);color:#fff':''}">${p.condition>75&&!p.isInjured?'✓':''}</div>
-                <div class="tp-num">${p.number}</div>
-                <div style="flex:1;">
-                  <div style="font-size:11px;font-weight:600;color:var(--tx);">${_esc(p.firstName)} ${_esc(p.lastName)}</div>
-                  <div class="tp-bar"><div style="width:${p.condition}%;height:100%;border-radius:2px;background:${condBarBg(p.condition)};"></div></div>
-                </div>
-                <span style="font-size:10px;color:${condColor(p.condition)};font-family:var(--mono);">${p.condition}%</span>
-                ${p.isInjured?`<span class="badge badge-red" style="font-size:8px;">INJ</span>`:''}
-              </div>`).join('')}
-          </div>
+const _PC_POS_ATTRS = {
+  GK:  ['reflexes','gkPositioning','handling','kicking','agility','balance'],
+  DC:  ['tackling','marking','heading','defPositioning','strength','interceptions'],
+  DL:  ['pace','crossing','tackling','marking','stamina','interceptions'],
+  DR:  ['pace','crossing','tackling','marking','stamina','interceptions'],
+  DMC: ['interceptions','tackling','passing','defPositioning','stamina','marking'],
+  MC:  ['passing','dribbling','stamina','tackling','agility','balance'],
+  ML:  ['pace','crossing','dribbling','passing','stamina','agility'],
+  MR:  ['pace','crossing','dribbling','passing','stamina','agility'],
+  AMC: ['passing','dribbling','shooting','agility','balance','pace'],
+  AML: ['pace','dribbling','crossing','shooting','agility','balance'],
+  AMR: ['pace','dribbling','crossing','shooting','agility','balance'],
+  ST:  ['shooting','pace','heading','strength','agility','balance'],
+};
+const _PC_ATTR_LABELS = {
+  reflexes:'Reflexes', gkPositioning:'GK Positioning', handling:'Handling', kicking:'Kicking',
+  tackling:'Tackling', marking:'Marking', heading:'Heading', defPositioning:'Positioning',
+  interceptions:'Interceptions', pace:'Pace', shooting:'Shooting', passing:'Passing',
+  dribbling:'Dribbling', crossing:'Crossing', strength:'Strength', stamina:'Stamina',
+  agility:'Agility', balance:'Balance',
+};
+
+function _pcLatestAttrs(p) { return (p && p.attributes && p.attributes[0]) || {}; }
+function _pcLatestGps(p)   { return (p && p.gpsData    && p.gpsData[0])    || {}; }
+function _pcAge(p) {
+  if (!p || !p.dateOfBirth) return null;
+  const d = new Date(p.dateOfBirth);
+  if (isNaN(d.getTime())) return null;
+  const n = new Date();
+  let a = n.getFullYear() - d.getFullYear();
+  const m = n.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--;
+  return a;
+}
+function _pcFormScore(p) {
+  if (!p) return 0;
+  const ovr = typeof p.overallRating === 'number' ? p.overallRating : 70;
+  const cnd = typeof p.condition === 'number' ? p.condition : 100;
+  let s = ovr * 0.65 + cnd * 0.35;
+  if (p.isInjured) s = Math.min(s, 50);
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+function _pcDevelopmentScore(p) {
+  if (!p) return 0;
+  const ovr = p.overallRating || 70;
+  const pot = p.potential || ovr;
+  const gap = Math.max(0, pot - ovr);
+  const age = _pcAge(p);
+  let ageFactor = 1;
+  if (age != null) {
+    if (age <= 20)       ageFactor = 1.3;
+    else if (age <= 24)  ageFactor = 1.1;
+    else if (age <= 28)  ageFactor = 1.0;
+    else if (age <= 32)  ageFactor = 0.8;
+    else                 ageFactor = 0.6;
+  }
+  return Math.max(0, Math.min(100, Math.round((gap / 40) * 100 * ageFactor + 30)));
+}
+function _pcFatigueRisk(p) {
+  const g = _pcLatestGps(p);
+  const cnd = (p && typeof p.condition === 'number') ? p.condition : 100;
+  let s = 0;
+  if (typeof g.playerLoad === 'number' && g.playerLoad > 110) s += 40;
+  else if (typeof g.playerLoad === 'number' && g.playerLoad > 90) s += 20;
+  if (cnd < 70)       s += 30;
+  else if (cnd < 80)  s += 15;
+  if (typeof g.sprintCount === 'number' && g.sprintCount > 22) s += 15;
+  if (s >= 55) return { level: 'HIGH', color: 'var(--red)' };
+  if (s >= 25) return { level: 'MED',  color: 'var(--amber)' };
+  return        { level: 'LOW',  color: 'var(--green-l)' };
+}
+function _pcInjuryRisk(p) {
+  if (!p) return { level: 'LOW', color: 'var(--green-l)' };
+  if (p.isInjured) return { level: 'HIGH', color: 'var(--red)' };
+  const g = _pcLatestGps(p);
+  const rs = typeof g.riskScore === 'number' ? g.riskScore : 0;
+  const hasRecent = Array.isArray(p.injuries) && p.injuries.length > 0;
+  if (rs >= 60 || (hasRecent && rs >= 40)) return { level: 'HIGH', color: 'var(--red)' };
+  if (rs >= 30 || hasRecent)                return { level: 'MED',  color: 'var(--amber)' };
+  return                                     { level: 'LOW',  color: 'var(--green-l)' };
+}
+function _pcReadinessScore(p) {
+  if (!p) return 0;
+  if (p.isInjured) return 25;
+  const cnd = p.condition ?? 100;
+  const ovr = p.overallRating ?? 70;
+  const g = _pcLatestGps(p);
+  const rs = typeof g.riskScore === 'number' ? g.riskScore : 0;
+  return Math.max(0, Math.min(100, Math.round(cnd * 0.5 + (100 - rs) * 0.25 + (ovr / 1.4) * 0.25)));
+}
+function _pcAttrEntries(p) {
+  const a = _pcLatestAttrs(p);
+  return Object.keys(_PC_ATTR_LABELS)
+    .map(k => ({ key: k, label: _PC_ATTR_LABELS[k], value: a[k] }))
+    .filter(e => typeof e.value === 'number');
+}
+function _pcStrengths(p, n) {
+  return _pcAttrEntries(p).sort((a, b) => b.value - a.value).slice(0, n || 4);
+}
+function _pcImprovementAreas(p, n) {
+  const all = _pcAttrEntries(p);
+  const posSet = new Set(_PC_POS_ATTRS[p && p.position] || []);
+  const relevant = all.filter(e => posSet.has(e.key));
+  const list = relevant.length >= (n || 4) ? relevant : all;
+  return list.sort((a, b) => a.value - b.value).slice(0, n || 4);
+}
+function _pcTeamAverages() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false && p.attributes && p.attributes[0]);
+  if (ps.length === 0) return {};
+  const sums = Object.create(null), counts = Object.create(null);
+  ps.forEach(p => {
+    const a = p.attributes[0];
+    Object.keys(_PC_ATTR_LABELS).forEach(k => {
+      if (typeof a[k] === 'number') { sums[k] = (sums[k] || 0) + a[k]; counts[k] = (counts[k] || 0) + 1; }
+    });
+  });
+  const avg = Object.create(null);
+  Object.keys(sums).forEach(k => { avg[k] = sums[k] / counts[k]; });
+  return avg;
+}
+function _pcRecommendation(p) {
+  const imp = _pcImprovementAreas(p, 1);
+  const inj = _pcInjuryRisk(p);
+  const fat = _pcFatigueRisk(p);
+  if (p && p.isInjured)         return 'Currently injured — focus on rehab milestones and isolated technical work once cleared.';
+  if (fat.level === 'HIGH')     return 'High fatigue — reduce running volume and prioritise active recovery this micro-cycle.';
+  if (inj.level === 'HIGH')     return 'Elevated injury risk (GPS) — drop high-speed drills and monitor deceleration work.';
+  if (imp[0])                   return `Lift ${imp[0].label.toLowerCase()} (${imp[0].value}/120) — schedule 3 dedicated sessions over the next two weeks.`;
+  return 'Profile is balanced — keep general progression and rotate between technical and tactical blocks.';
+}
+function _pcAISummary(p) {
+  if (!p) return '';
+  const pos = p.position || '—';
+  const age = _pcAge(p);
+  const fn  = p.firstName || 'This player';
+  const inj = _pcInjuryRisk(p);
+  const fat = _pcFatigueRisk(p);
+  const imp = _pcImprovementAreas(p, 2);
+  const str = _pcStrengths(p, 1)[0];
+  const dev = _pcDevelopmentScore(p);
+  const rdy = _pcReadinessScore(p);
+  const phase = (age != null && age <= 22) ? 'development phase' : (age != null && age >= 30) ? 'maintenance phase' : 'peak phase';
+  const wk12 = (p.isInjured || inj.level === 'HIGH') ? 'rehab milestones and progressive return-to-play work'
+             : (fat.level === 'HIGH')                ? 'load management with two recovery-focused micro-cycles'
+             : `targeted ${imp[0] ? imp[0].label.toLowerCase() : 'technical'} drills, three sessions per week`;
+  const wk34 = imp[1]
+    ? `progress to ${imp[1].label.toLowerCase()} work and integrate position-specific tactical scenarios for a ${pos}`
+    : `re-introduce match-tempo conditioning and position-specific tactical scenarios for a ${pos}`;
+  const strBit = str ? ` Maintain ${str.label.toLowerCase()} (${str.value}/120) as the cornerstone of his game.` : '';
+  return `${fn} is in his ${phase}. Across the next 4 weeks, weeks 1-2 should be ${wk12}. Weeks 3-4: ${wk34}. Development trajectory sits at ${dev}/100 with current readiness ${rdy}/100.${strBit}`;
+}
+function _pcInitials(p) {
+  const f = ((p && p.firstName) || '?').charAt(0).toUpperCase();
+  const l = ((p && p.lastName)  || '').charAt(0).toUpperCase();
+  return f + l;
+}
+function _pcPosGradient(pos) {
+  if (!pos)                                                          return 'linear-gradient(135deg,#1e293b,#0f172a)';
+  if (pos === 'GK')                                                  return 'linear-gradient(135deg,#d97706,#b45309)';
+  if (['DC','DL','DR','DMC'].includes(pos))                          return 'linear-gradient(135deg,#3b82f6,#1d4ed8)';
+  if (['MC','ML','MR','AMC','AML','AMR'].includes(pos))              return 'linear-gradient(135deg,#22c55e,#15803d)';
+  return                                                              'linear-gradient(135deg,#ef4444,#b91c1c)';
+}
+
+let _pcSelectedPlayerId = null;
+function pcSelectPlayer(id) { if (!id) return; _pcSelectedPlayerId = id; if (typeof renderTrainingPage === 'function') renderTrainingPage(); }
+function pcBackToList()     { _pcSelectedPlayerId = null;                if (typeof renderTrainingPage === 'function') renderTrainingPage(); }
+
+function _ensurePCStyles() {
+  if (document.getElementById('pc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'pc-styles';
+  s.textContent = `
+    .pc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+    .pc-card{position:relative;padding:18px;border-radius:14px;cursor:pointer;
+      background:radial-gradient(at top left,rgba(34,197,94,0.08),transparent 55%),radial-gradient(at bottom right,rgba(37,99,235,0.07),transparent 55%),linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);box-shadow:0 1px 0 rgba(255,255,255,0.04) inset,0 16px 40px -16px rgba(0,0,0,0.5);
+      backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;overflow:hidden;}
+    .pc-card:hover{transform:translateY(-2px);border-color:rgba(74,222,128,0.4);
+      box-shadow:0 1px 0 rgba(255,255,255,0.06) inset,0 22px 50px -18px rgba(0,0,0,0.6),0 0 24px -8px rgba(74,222,128,0.28);}
+    .pc-card::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.06) 0%,transparent 40%);pointer-events:none;border-radius:14px;}
+    .pc-avatar{position:relative;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:14px;font-weight:800;color:#fff;letter-spacing:.5px;
+      box-shadow:inset 0 0 12px rgba(255,255,255,0.18),0 0 14px rgba(0,0,0,0.3);flex-shrink:0;}
+    .pc-avatar-num{position:absolute;bottom:-3px;right:-3px;width:18px;height:18px;border-radius:50%;
+      background:#0a0f1a;border:1.5px solid rgba(74,222,128,0.45);font-size:9px;font-weight:800;color:var(--green-l);
+      display:flex;align-items:center;justify-content:center;font-family:var(--mono);}
+    .pc-chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px;}
+    .pc-chip{padding:7px 4px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);text-align:center;}
+    .pc-chip-lbl{font-size:8.5px;font-weight:700;color:var(--tx-3);letter-spacing:.55px;text-transform:uppercase;margin-bottom:2px;line-height:1.2;}
+    .pc-chip-val{font-size:13.5px;font-weight:800;font-family:var(--mono);line-height:1.1;}
+    .pc-back-btn{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:14px;
+      border-radius:9px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;background:rgba(255,255,255,0.03);
+      font-size:11.5px;font-weight:700;color:var(--tx-2);letter-spacing:.4px;
+      transition:background .12s ease,border-color .12s ease,color .12s ease;}
+    .pc-back-btn:hover{background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.32);color:var(--tx);}
+    .pc-detail{position:relative;padding:22px;border-radius:14px;
+      background:radial-gradient(at top left,rgba(34,197,94,0.10),transparent 55%),radial-gradient(at bottom right,rgba(37,99,235,0.10),transparent 55%),linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.22);
+      box-shadow:0 1px 0 rgba(255,255,255,0.05) inset,0 22px 60px -22px rgba(0,0,0,0.55),0 0 36px -12px rgba(34,197,94,0.18);
+      backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);overflow:hidden;}
+    .pc-detail::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.07) 0%,transparent 45%);pointer-events:none;border-radius:14px;}
+    .pc-detail-head{display:flex;align-items:center;gap:14px;margin-bottom:16px;position:relative;}
+    .pc-detail-avatar{width:72px;height:72px;font-size:20px;}
+    .pc-section{margin-bottom:12px;padding:14px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);}
+    .pc-section-lbl{font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.95px;text-transform:uppercase;margin-bottom:8px;}
+    .pc-section-row{display:flex;align-items:center;gap:10px;padding:4px 0;}
+    .pc-section-name{flex:1;font-size:11.5px;color:var(--tx-2);}
+    .pc-section-bar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,0.05);overflow:hidden;}
+    .pc-section-val{min-width:34px;text-align:right;font-size:11px;font-weight:800;font-family:var(--mono);}
+    .pc-pot-bar{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,0.05);overflow:hidden;margin:10px 0 6px;}
+    .pc-pot-current{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--green-l),#3b82f6);}
+    .pc-pot-future{position:absolute;left:0;top:0;bottom:0;border-right:2px dashed var(--amber);}
+    .pc-cmp-row{display:grid;grid-template-columns:96px 1fr 50px;gap:10px;align-items:center;padding:3px 0;}
+    .pc-cmp-bar-wrap{height:6px;border-radius:3px;background:rgba(255,255,255,0.05);position:relative;overflow:hidden;}
+    .pc-cmp-bar{position:absolute;top:0;bottom:0;}
+    .pc-cmp-mid{position:absolute;top:-3px;bottom:-3px;left:50%;width:1px;background:rgba(255,255,255,0.22);}
+    .pc-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+    @media (max-width:600px){
+      .pc-grid{grid-template-columns:1fr;}
+      .pc-detail-grid{grid-template-columns:1fr;}
+    }`;
+  document.head.appendChild(s);
+}
+
+function _pcRenderCard(p) {
+  const form = _pcFormScore(p);
+  const dev  = _pcDevelopmentScore(p);
+  const fat  = _pcFatigueRisk(p);
+  const inj  = _pcInjuryRisk(p);
+  const rdy  = _pcReadinessScore(p);
+  const fc = form >= 80 ? 'var(--green-l)' : form >= 65 ? 'var(--amber)' : 'var(--red)';
+  const dc = dev  >= 70 ? 'var(--green-l)' : dev  >= 50 ? 'var(--amber)' : 'var(--red)';
+  const rc = rdy  >= 80 ? 'var(--green-l)' : rdy  >= 65 ? 'var(--amber)' : 'var(--red)';
+  const grad = _pcPosGradient(p.position);
+  return `
+    <div class="pc-card" data-action="pcSelectPlayer" data-id="${_esc(p.id)}">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="pc-avatar" style="background:${grad};">
+          ${_esc(_pcInitials(p))}
+          <div class="pc-avatar-num">${p.number != null ? p.number : '?'}</div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:800;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+          <div style="font-size:10.5px;color:var(--tx-3);margin-top:2px;">${_esc(p.position || '—')} · ${_esc(p.flag || '')} ${_esc(p.nationality || '')}</div>
         </div>
       </div>
-      <div class="training-side">
-        <div style="padding:11px;border-radius:8px;background:var(--green-bg);border:1px solid var(--green-bd);">
-          <div style="font-size:9px;font-weight:600;color:var(--green-l);font-family:var(--mono);margin-bottom:5px;">🤖 ARIA RECOMMENDS</div>
-          <div style="font-size:12px;color:var(--tx-2);line-height:1.55;">${_esc(rec)}</div>
-        </div>
+      <div class="pc-chips">
+        <div class="pc-chip"><div class="pc-chip-lbl">Form</div><div class="pc-chip-val" style="color:${fc};">${form}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Devel</div><div class="pc-chip-val" style="color:${dc};">${dev}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Fati</div><div class="pc-chip-val" style="color:${fat.color};font-size:11px;">${fat.level}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Injry</div><div class="pc-chip-val" style="color:${inj.color};font-size:11px;">${inj.level}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Ready</div><div class="pc-chip-val" style="color:${rc};">${rdy}</div></div>
       </div>
     </div>`;
+}
+
+function _pcRenderGrid(el, players) {
+  if (players.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--tx-3);">No active players in this club.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div style="margin-bottom:14px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+      <div style="font-size:14px;font-weight:800;color:var(--tx);letter-spacing:.4px;">PLAYER INTELLIGENCE CENTER</div>
+      <div style="font-size:11px;color:var(--tx-3);">ARIA-driven scores · ${players.length} active player${players.length === 1 ? '' : 's'} · click a card for full profile</div>
+    </div>
+    <div class="pc-grid">${players.map(p => _pcRenderCard(p)).join('')}</div>`;
+}
+
+function _pcRenderDetail(el, p) {
+  const form = _pcFormScore(p);
+  const dev  = _pcDevelopmentScore(p);
+  const fat  = _pcFatigueRisk(p);
+  const inj  = _pcInjuryRisk(p);
+  const rdy  = _pcReadinessScore(p);
+  const fc = form >= 80 ? 'var(--green-l)' : form >= 65 ? 'var(--amber)' : 'var(--red)';
+  const dc = dev  >= 70 ? 'var(--green-l)' : dev  >= 50 ? 'var(--amber)' : 'var(--red)';
+  const rc = rdy  >= 80 ? 'var(--green-l)' : rdy  >= 65 ? 'var(--amber)' : 'var(--red)';
+  const strengths   = _pcStrengths(p, 4);
+  const weaknesses  = _pcImprovementAreas(p, 4);
+  const rec         = _pcRecommendation(p);
+  const summary     = _pcAISummary(p);
+  const teamAvg     = _pcTeamAverages();
+  const age         = _pcAge(p);
+  const ovr         = p.overallRating || 70;
+  const pot         = p.potential || ovr;
+  const potPct      = Math.min(100, (pot / 140) * 100);
+  const curPct      = Math.min(100, (ovr / 140) * 100);
+  const grad        = _pcPosGradient(p.position);
+  const cmpRows = (_PC_POS_ATTRS[p.position] || []).slice(0, 5).map(k => {
+    const v = _pcLatestAttrs(p)[k];
+    const ta = teamAvg[k];
+    if (typeof v !== 'number' || typeof ta !== 'number') return null;
+    return { key: k, label: _PC_ATTR_LABELS[k] || k, value: v, avg: ta, diff: v - ta };
+  }).filter(Boolean);
+
+  el.innerHTML = `
+    <button type="button" class="pc-back-btn" data-action="pcBackToList">← Back to squad</button>
+    <div class="pc-detail">
+      <div class="pc-detail-head">
+        <div class="pc-avatar pc-detail-avatar" style="background:${grad};">
+          ${_esc(_pcInitials(p))}
+          <div class="pc-avatar-num">${p.number != null ? p.number : '?'}</div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px;">
+            <div style="font-size:18px;font-weight:800;color:var(--tx);">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+            <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+            ${p.isInjured ? `<span class="ai-coach-pill" style="background:rgba(239,68,68,0.16);border-color:rgba(239,68,68,0.36);color:#FCA5A5;">INJURED</span>` : ''}
+          </div>
+          <div class="ai-coach-subtitle">ARIA Intelligence · player profile</div>
+          <div style="font-size:11px;color:var(--tx-3);line-height:1.5;">#${p.number != null ? p.number : '?'} · ${_esc(p.position || '—')} · ${_esc(p.flag || '')} ${_esc(p.nationality || '')}${age != null ? ' · Age ' + age : ''}</div>
+        </div>
+      </div>
+
+      <div class="pc-chips" style="margin-bottom:14px;">
+        <div class="pc-chip"><div class="pc-chip-lbl">Form</div><div class="pc-chip-val" style="color:${fc};">${form}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Development</div><div class="pc-chip-val" style="color:${dc};">${dev}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Fatigue Risk</div><div class="pc-chip-val" style="color:${fat.color};font-size:11px;">${fat.level}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Injury Risk</div><div class="pc-chip-val" style="color:${inj.color};font-size:11px;">${inj.level}</div></div>
+        <div class="pc-chip"><div class="pc-chip-lbl">Readiness</div><div class="pc-chip-val" style="color:${rc};">${rdy}</div></div>
+      </div>
+
+      <div class="pc-detail-grid">
+        <div class="pc-section">
+          <div class="pc-section-lbl">Strengths</div>
+          ${strengths.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);">No attribute data yet.</div>` :
+            strengths.map(e => `
+              <div class="pc-section-row">
+                <div class="pc-section-name">${_esc(e.label)}</div>
+                <div class="pc-section-bar"><div style="width:${Math.min(100,(e.value/120)*100).toFixed(1)}%;height:100%;background:var(--green-l);"></div></div>
+                <div class="pc-section-val" style="color:var(--green-l);">${e.value}</div>
+              </div>`).join('')}
+        </div>
+        <div class="pc-section">
+          <div class="pc-section-lbl">Improvement Areas</div>
+          ${weaknesses.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);">No attribute data yet.</div>` :
+            weaknesses.map(e => `
+              <div class="pc-section-row">
+                <div class="pc-section-name">${_esc(e.label)}</div>
+                <div class="pc-section-bar"><div style="width:${Math.min(100,(e.value/120)*100).toFixed(1)}%;height:100%;background:var(--amber);"></div></div>
+                <div class="pc-section-val" style="color:var(--amber);">${e.value}</div>
+              </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="pc-section">
+        <div class="pc-section-lbl">AI Recommendation</div>
+        <div style="font-size:12.5px;color:var(--tx);line-height:1.55;">${_esc(rec)}</div>
+      </div>
+
+      <div class="pc-section">
+        <div class="pc-section-lbl">Potential Meter</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--tx-3);">
+          <span>Current <b style="color:var(--tx);font-family:var(--mono);">${ovr}</b></span>
+          <span>Future <b style="color:var(--amber);font-family:var(--mono);">${pot}</b></span>
+        </div>
+        <div class="pc-pot-bar">
+          <div class="pc-pot-current" style="width:${curPct.toFixed(1)}%;"></div>
+          <div class="pc-pot-future"  style="width:${potPct.toFixed(1)}%;"></div>
+        </div>
+        <div style="font-size:11px;color:var(--tx-3);">Growth headroom: <b style="color:var(--tx-2);">${Math.max(0, pot - ovr)} pts</b> · scale 0-140</div>
+      </div>
+
+      ${cmpRows.length > 0 ? `
+        <div class="pc-section">
+          <div class="pc-section-lbl">Comparison vs Team Average</div>
+          ${cmpRows.map(c => {
+            const w = Math.min(100, (Math.abs(c.diff) / 30) * 50);
+            const half = c.diff >= 0 ? `left:50%;background:var(--green-l);` : `right:50%;background:var(--red);`;
+            return `<div class="pc-cmp-row">
+              <div style="font-size:11px;color:var(--tx-2);">${_esc(c.label)}</div>
+              <div class="pc-cmp-bar-wrap"><div class="pc-cmp-mid"></div><div class="pc-cmp-bar" style="${half}width:${w.toFixed(1)}%;height:100%;"></div></div>
+              <div style="font-size:11px;font-weight:800;color:${c.diff >= 0 ? 'var(--green-l)' : 'var(--red)'};font-family:var(--mono);text-align:right;">${c.diff > 0 ? '+' : ''}${c.diff.toFixed(0)}</div>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
+
+      <div class="pc-section" style="border-left:3px solid var(--green-l);">
+        <div class="pc-section-lbl">AI Summary — 4-week focus</div>
+        <div style="font-size:12.5px;color:var(--tx);line-height:1.65;">${_esc(summary)}</div>
+      </div>
+    </div>`;
+}
+
+function renderTrainingPlayersPanel(el) {
+  _ensureAICoachStyles();
+  _ensurePCStyles();
+  const sub = document.getElementById('training-sub');
+  if (sub) sub.textContent = 'Player Intelligence Center';
+  const players = (State.players || []).filter(p => p && p.isActive !== false);
+
+  if (_pcSelectedPlayerId) {
+    const player = players.find(p => p.id === _pcSelectedPlayerId);
+    if (player) { _pcRenderDetail(el, player); return; }
+    _pcSelectedPlayerId = null; // fall through to grid if the selected player is gone
+  }
+  _pcRenderGrid(el, players);
 }
 
 // Keep renderTrainingPlayers for any legacy call-sites
@@ -13238,6 +13604,8 @@ async function tosBoardSnapshot() {
         case 'attendanceMark':     markAttendanceDraft(el.dataset.id, el.dataset.mark);                    break;
         case 'attendanceSave':     saveAttendance();                                                       break;
         case 'aiCoachTogglePlan':  aiCoachTogglePlan();                                                    break;
+        case 'pcSelectPlayer':     pcSelectPlayer(el.dataset.id);                                          break;
+        case 'pcBackToList':       pcBackToList();                                                         break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
