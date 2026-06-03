@@ -6557,6 +6557,83 @@ function _pcWirePhotoErrors(root) {
     if (img.complete && img.naturalWidth === 0) drop();
   });
 }
+
+// ─── Player photo upload (writes to existing Player.avatar field) ─────
+// Frontend-only handler. Resizes the picked file via <canvas> to a
+// 512px-max JPEG data URI (~50-150 KB), then PATCHes the existing
+// /api/v1/players/:id endpoint with { avatar: <dataUri> }. No backend
+// changes — the field, the Zod schema (z.string().url() accepts data
+// URIs), and the route already exist.
+function _pcResizeImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type || '')) { reject(new Error('Not an image file')); return; }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not load image'));
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (!w || !h) { reject(new Error('Invalid image dimensions')); return; }
+        const max = maxDim || 512;
+        if (w > h) { if (w > max) { h = Math.round(h * (max / w)); w = max; } }
+        else        { if (h > max) { w = Math.round(w * (max / h)); h = max; } }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        try { resolve(canvas.toDataURL('image/jpeg', quality || 0.85)); }
+        catch (e) { reject(e); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+let _pcUploadInFlight = false;
+async function pcUploadPhoto(playerId) {
+  if (!playerId || _pcUploadInFlight) return;
+  if (!['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(State.user && State.user.role)) {
+    showToast('Not authorized to upload photos', 'error');
+    return;
+  }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  input.addEventListener('change', async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) { try { input.remove(); } catch (_) {} return; }
+    _pcUploadInFlight = true;
+    showToast('Uploading photo…', 'info');
+    try {
+      const dataUrl = await _pcResizeImage(file, 512, 0.85);
+      if (dataUrl.length > 1.5 * 1024 * 1024) {
+        throw new Error('Photo too large after compression. Try a smaller image.');
+      }
+      const res = await SquadAPI.update(playerId, { avatar: dataUrl });
+      const updated = res && res.data;
+      if (updated) {
+        const idx = (State.players || []).findIndex(x => x.id === playerId);
+        if (idx !== -1) State.players[idx] = Object.assign({}, State.players[idx], updated);
+        if (State.activePlayer && State.activePlayer.id === playerId) {
+          State.activePlayer = Object.assign({}, State.activePlayer, updated);
+        }
+      }
+      showToast('Photo updated', 'success');
+      if (typeof renderTrainingPage === 'function') renderTrainingPage();
+    } catch (err) {
+      try { console.error('[pc-upload] failed:', err); } catch (_) {}
+      showToast((err && (err.userMessage || err.message)) || 'Upload failed', 'error');
+    } finally {
+      _pcUploadInFlight = false;
+      try { input.remove(); } catch (_) {}
+    }
+  });
+  document.body.appendChild(input);
+  input.click();
+}
 function _pcPosGradient(pos) {
   if (!pos)                                                          return 'linear-gradient(135deg,#1e293b,#0f172a)';
   if (pos === 'GK')                                                  return 'linear-gradient(135deg,#d97706,#b45309)';
@@ -6622,6 +6699,13 @@ function _ensurePCStyles() {
     .pc-cmp-bar{position:absolute;top:0;bottom:0;}
     .pc-cmp-mid{position:absolute;top:-3px;bottom:-3px;left:50%;width:1px;background:rgba(255,255,255,0.22);}
     .pc-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+    .pc-upload-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;
+      border:1px solid rgba(74,222,128,0.32);background:rgba(74,222,128,0.10);
+      font-size:10.5px;font-weight:700;color:var(--green-l);cursor:pointer;letter-spacing:.3px;
+      transition:background .12s ease,border-color .12s ease,transform .12s ease;}
+    .pc-upload-btn:hover{background:rgba(74,222,128,0.18);border-color:rgba(74,222,128,0.5);}
+    .pc-upload-btn:active{transform:translateY(1px);}
+    .pc-upload-btn:disabled{opacity:0.6;cursor:not-allowed;}
 
     /* ── FC Familista Digital Player Card ────────────────────────────── */
     .pc-fcf-card{position:relative;margin-top:14px;border-radius:16px;overflow:hidden;
@@ -6779,6 +6863,7 @@ function _pcRenderDetail(el, p) {
             <div style="font-size:18px;font-weight:800;color:var(--tx);">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
             <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
             ${p.isInjured ? `<span class="ai-coach-pill" style="background:rgba(239,68,68,0.16);border-color:rgba(239,68,68,0.36);color:#FCA5A5;">INJURED</span>` : ''}
+            ${['CLUB_ADMIN','HEAD_COACH','SUPER_ADMIN'].includes(State.user && State.user.role) ? `<button type="button" class="pc-upload-btn" data-action="pcUploadPhoto" data-id="${_esc(p.id)}" title="Upload a new photo">📷 Upload Photo</button>` : ''}
           </div>
           <div class="ai-coach-subtitle">ARIA Intelligence · player profile</div>
           <div style="font-size:11px;color:var(--tx-3);line-height:1.5;">#${p.number != null ? p.number : '?'} · ${_esc(p.position || '—')} · ${_esc(p.flag || '')} ${_esc(p.nationality || '')}${age != null ? ' · Age ' + age : ''}</div>
@@ -14595,6 +14680,7 @@ async function tosBoardSnapshot() {
         case 'aiCoachTogglePlan':  aiCoachTogglePlan();                                                    break;
         case 'pcSelectPlayer':     pcSelectPlayer(el.dataset.id);                                          break;
         case 'pcBackToList':       pcBackToList();                                                         break;
+        case 'pcUploadPhoto':      pcUploadPhoto(el.dataset.id);                                           break;
         // ── Tactical AI ──────────────────────────────────────────────────────────
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
