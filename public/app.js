@@ -722,6 +722,7 @@ function _flushPendingRender() {
     case 'pg-squad':       renderSquad();           break;
     case 'pg-dashboard':   renderDashboard();       break;
     case 'pg-matches':     renderMatches();         break;
+    case 'pg-match-center':renderMatchCenter();     break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -784,7 +785,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -911,6 +912,7 @@ function renderAllPages() {
     ${renderDashboardHTML()}
     ${renderSquadHTML()}
     ${renderMatchesHTML()}
+    ${renderMatchCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -1288,6 +1290,436 @@ function _fcCommandCenterHTML() {
       </div>
     </div>
   </div>`;
+}
+
+// ─── FC Familista Match Center (new page) ─────────────────────────────
+// Frontend-only. All derived from State already loaded by loadAllData
+// (State.matches, State.players, State.trainingForm). No fetches, no backend.
+function _mcNextMatch() {
+  const now = Date.now();
+  const list = (State.matches || []).filter(m => m && m.scheduledAt && new Date(m.scheduledAt).getTime() > now);
+  list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  return list[0] || null;
+}
+function _mcIsHome(m) { return !!(m && m.homeTeam && /familista/i.test(m.homeTeam)); }
+function _mcOpponent(m) {
+  if (!m) return 'TBD';
+  return _mcIsHome(m) ? (m.awayTeam || 'Opponent') : (m.homeTeam || 'Opponent');
+}
+function _mcCountdown(m) {
+  if (!m || !m.scheduledAt) return { label: '—', urgent: false };
+  const ms = new Date(m.scheduledAt).getTime() - Date.now();
+  if (ms <= 0) return { label: 'In progress', urgent: true };
+  const d = Math.floor(ms / 86400000);
+  const h = Math.floor((ms % 86400000) / 3600000);
+  return { label: `${d}d ${h}h`, urgent: d <= 2 };
+}
+function _mcImportance(m) {
+  const c = ((m && m.competition) || '').toLowerCase();
+  if (/cup|knockout|final|semi|quarter/.test(c)) return { level: 'HIGH',   color: 'var(--red)' };
+  if (/friendly|preseason/.test(c))              return { level: 'LOW',    color: 'var(--tx-3)' };
+  return                                                { level: 'MEDIUM', color: 'var(--amber)' };
+}
+function _mcRecentForm() {
+  return (State.matches || []).filter(m => m && m.result).slice(0, 5).map(m => (m.result || '').charAt(0).toUpperCase()).reverse();
+}
+function _mcPosColor(pos) {
+  if (pos === 'GK')                                                 return '#d97706';
+  if (['DC','DL','DR','DMC'].includes(pos))                         return '#3b82f6';
+  if (['MC','ML','MR','AMC','AML','AMR'].includes(pos))             return '#22c55e';
+  return                                                              '#ef4444';
+}
+function _mcPickStartingXI() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false && !p.isInjured);
+  const ranked = ps.map(p => ({ p, score: _pcReadinessScore(p) })).sort((a, b) => b.score - a.score);
+  const isGK  = p => p.position === 'GK';
+  const isDEF = p => ['DC','DL','DR','DMC'].includes(p.position);
+  const isMID = p => ['MC','ML','MR','AMC','AML','AMR'].includes(p.position);
+  const isFWD = p => p.position === 'ST';
+  const pickN = (arr, n) => arr.slice(0, n);
+  const xi = [];
+  const gk  = pickN(ranked.filter(r => isGK(r.p)),  1).map(r => ({ ...r, role: 'GK'  }));
+  const def = pickN(ranked.filter(r => isDEF(r.p)), 4).map(r => ({ ...r, role: 'DEF' }));
+  const mid = pickN(ranked.filter(r => isMID(r.p)), 3).map(r => ({ ...r, role: 'MID' }));
+  const fwd = pickN(ranked.filter(r => isFWD(r.p)), 3).map(r => ({ ...r, role: 'FWD' }));
+  xi.push(...gk, ...def, ...mid, ...fwd);
+  if (xi.length < 11) {
+    const used = new Set(xi.map(e => e.p.id));
+    for (const r of ranked) {
+      if (xi.length >= 11) break;
+      if (used.has(r.p.id)) continue;
+      const role = isGK(r.p) ? 'GK' : isDEF(r.p) ? 'DEF' : isFWD(r.p) ? 'FWD' : 'MID';
+      xi.push({ ...r, role });
+    }
+  }
+  return xi.slice(0, 11);
+}
+function _mcFormation(xi) {
+  const d = xi.filter(e => e.role === 'DEF').length;
+  const m = xi.filter(e => e.role === 'MID').length;
+  const f = xi.filter(e => e.role === 'FWD').length;
+  return `${d}-${m}-${f}`;
+}
+function _mcBenchRec() {
+  const xi = _mcPickStartingXI();
+  const xiIds = new Set(xi.map(e => e.p.id));
+  return (State.players || [])
+    .filter(p => p && p.isActive !== false && !p.isInjured && !xiIds.has(p.id))
+    .map(p => {
+      const score = _pcReadinessScore(p);
+      const ovr   = p.overallRating || 70;
+      return { p, score, impact: Math.round(score * 0.6 + (ovr / 1.4) * 0.4) };
+    })
+    .sort((a, b) => b.impact - a.impact)
+    .slice(0, 5);
+}
+function _mcMatchRisk() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  if (ps.length === 0) return { injury: 0, fatigue: 0, attendance: 0, depth: 0 };
+  const lvl = (level) => level === 'HIGH' ? 100 : level === 'MED' ? 50 : 10;
+  const injury  = ps.reduce((a, p) => a + lvl(_pcInjuryRisk(p).level),  0) / ps.length;
+  const fatigue = ps.reduce((a, p) => a + lvl(_pcFatigueRisk(p).level), 0) / ps.length;
+  const injured = ps.filter(p => p.isInjured).length;
+  const lowCond = ps.filter(p => (p.condition || 100) < 75).length;
+  const attendance = Math.min(100, injured * 18 + lowCond * 7);
+  const available = ps.length - injured;
+  const depth     = Math.min(100, Math.max(0, (available / 22) * 100));
+  return { injury: Math.round(injury), fatigue: Math.round(fatigue), attendance: Math.round(attendance), depth: Math.round(depth) };
+}
+function _mcTacticalPlan() {
+  const f = State.trainingForm || {};
+  const attack     = f.attackForm    ?? 12;
+  const defense    = f.defenseForm   ?? 14;
+  const possession = f.possession    ?? 11;
+  const condition  = f.conditionForm ?? 13;
+  return {
+    buildup:    possession >= 12 ? 'Positional play, patient build from the back'
+              : possession >= 10 ? 'Mixed build-up with vertical options'
+              :                    'Direct, long-ball oriented',
+    pressing:   (condition >= 13 && attack >= 12) ? 'High press, aggressive triggers'
+              : condition >= 11                   ? 'Mid-block press, conditional triggers'
+              :                                     'Low block, conserve energy',
+    transitions: attack >= 13 ? 'Fast counter-attack, vertical passes'
+               : attack >= 11 ? 'Quick transitions, look for space'
+               :                'Patient build, reset and probe',
+    defBlock:    defense >= 14 ? 'High defensive line, compact unit'
+               : defense >= 12 ? 'Mid-block defensive shape'
+               :                 'Deep low block, defend the box',
+  };
+}
+function _mcWinProbability() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false && !p.isInjured);
+  const avgOvr = ps.length ? ps.reduce((a, p) => a + (p.overallRating || 70), 0) / ps.length : 70;
+  const avgRdy = ps.length ? ps.reduce((a, p) => a + _pcReadinessScore(p), 0)        / ps.length : 70;
+  const recent = _mcRecentForm();
+  const formScore = recent.length ? recent.reduce((a, r) => a + (r === 'W' ? 3 : r === 'D' ? 1 : 0), 0) / recent.length : 1.5;
+  const isHome = _mcIsHome(_mcNextMatch());
+  let win = 35 + (avgOvr - 70) * 0.55 + (avgRdy - 70) * 0.45 + formScore * 5 + (isHome ? 6 : 0);
+  win = Math.max(25, Math.min(82, Math.round(win)));
+  const draw = Math.max(15, Math.round(28 - (win - 50) * 0.3));
+  const loss = Math.max(5, 100 - win - draw);
+  return { win, draw, loss };
+}
+function _mcKeyPlayers() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false && !p.isInjured);
+  return ps.map(p => {
+    const rdy      = _pcReadinessScore(p);
+    const ovr      = p.overallRating || 70;
+    const posBoost = ['ST','AMC','DC'].includes(p.position) ? 5 : 0;
+    return { p, impact: Math.round(rdy * 0.45 + (ovr / 1.4) * 0.45 + posBoost) };
+  }).sort((a, b) => b.impact - a.impact).slice(0, 3);
+}
+function _mcPitchSVG(xi) {
+  const w = 280, h = 380;
+  const rows = ['GK','DEF','MID','FWD'];
+  const yMap = { GK: h - 32, DEF: h * 0.72, MID: h * 0.45, FWD: h * 0.18 };
+  const groups = { GK: [], DEF: [], MID: [], FWD: [] };
+  xi.forEach(e => { if (groups[e.role]) groups[e.role].push(e); });
+  const positionRow = (players, y) => {
+    if (players.length === 0) return [];
+    const padding = 28;
+    const usable  = w - 2 * padding;
+    return players.map((e, i) => {
+      const x = players.length === 1
+        ? w / 2
+        : padding + (i / (players.length - 1)) * usable;
+      return { e, x, y };
+    });
+  };
+  const tokens = [].concat(
+    positionRow(groups.GK,  yMap.GK),
+    positionRow(groups.DEF, yMap.DEF),
+    positionRow(groups.MID, yMap.MID),
+    positionRow(groups.FWD, yMap.FWD)
+  );
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;display:block;max-height:380px;">
+    <defs>
+      <linearGradient id="mc-pitch-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0a4d24"/><stop offset="100%" stop-color="#063318"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="${w}" height="${h}" fill="url(#mc-pitch-grad)" rx="10"/>
+    <rect x="0" y="${h*0.5-h*0.06}" width="${w}" height="${h*0.12}" fill="rgba(255,255,255,0.02)"/>
+    <rect x="6" y="6" width="${w-12}" height="${h-12}" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5" rx="4"/>
+    <line x1="6" y1="${h/2}" x2="${w-6}" y2="${h/2}" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    <circle cx="${w/2}" cy="${h/2}" r="34" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    <circle cx="${w/2}" cy="${h/2}" r="2" fill="rgba(255,255,255,0.6)"/>
+    <rect x="${(w*0.32).toFixed(0)}" y="6"       width="${(w*0.36).toFixed(0)}" height="28" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    <rect x="${(w*0.22).toFixed(0)}" y="6"       width="${(w*0.56).toFixed(0)}" height="58" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    <rect x="${(w*0.32).toFixed(0)}" y="${h-34}" width="${(w*0.36).toFixed(0)}" height="28" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    <rect x="${(w*0.22).toFixed(0)}" y="${h-64}" width="${(w*0.56).toFixed(0)}" height="58" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.5"/>
+    ${tokens.map(t => {
+      const p = t.e.p;
+      const num = p.number != null ? p.number : '?';
+      const last = (p.lastName || '').toUpperCase().substring(0, 9);
+      return `<g transform="translate(${t.x.toFixed(0)},${t.y.toFixed(0)})">
+        <circle cx="0" cy="0" r="15" fill="${_mcPosColor(p.position)}" stroke="#fff" stroke-width="1.5" style="filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));"/>
+        <text x="0" y="1" text-anchor="middle" dominant-baseline="central" style="font-size:10.5px;font-weight:900;fill:#fff;font-family:var(--mono);">${num}</text>
+        <text x="0" y="24" text-anchor="middle" style="font-size:8.5px;font-weight:700;fill:#fff;paint-order:stroke;stroke:#000;stroke-width:2.5;stroke-linejoin:round;">${_esc(last)}</text>
+      </g>`;
+    }).join('')}
+  </svg>`;
+}
+function _mcGaugeSVG(probs) {
+  const size = 180, cx = size / 2, cy = size / 2, r = 70;
+  const C = 2 * Math.PI * r;
+  const dash = ((probs.win / 100) * C).toFixed(1);
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:100%;max-width:200px;display:block;margin:0 auto;">
+    <defs><linearGradient id="mc-gauge-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient></defs>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="url(#mc-gauge-grad)" stroke-width="10" stroke-linecap="round"
+      stroke-dasharray="${dash} ${C}" transform="rotate(-90 ${cx} ${cy})"
+      style="filter:drop-shadow(0 0 10px rgba(74,222,128,0.55));">
+      <animate attributeName="stroke-dasharray" from="0 ${C}" to="${dash} ${C}" dur="1.2s" fill="freeze"/>
+    </circle>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" style="font-size:32px;font-weight:900;fill:var(--green-l);font-family:var(--mono);">${probs.win}%</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" style="font-size:9px;font-weight:700;fill:var(--tx-3);letter-spacing:1.4px;">WIN PROBABILITY</text>
+  </svg>`;
+}
+function _ensureMCStyles() {
+  if (document.getElementById('mc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'mc-styles';
+  s.textContent = `
+    .mc-page{padding:16px 18px;}
+    .mc-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .mc-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .mc-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .mc-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .mc-grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px;}
+    .mc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .mc-tile{position:relative;padding:16px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease;}
+    .mc-tile:hover{border-color:rgba(74,222,128,0.32);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 24px -8px rgba(74,222,128,0.25);}
+    .mc-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px;}
+    .mc-next-body{position:relative;padding:18px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;}
+    .mc-next-opp{font-size:22px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+    .mc-next-meta{font-size:11px;color:var(--tx-3);letter-spacing:.2px;line-height:1.6;}
+    .mc-countdown{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;
+      background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);
+      font-size:11px;font-weight:800;color:var(--green-l);letter-spacing:.6px;font-family:var(--mono);}
+    .mc-form-dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:900;color:#fff;}
+    .mc-form-W{background:var(--green-l);}
+    .mc-form-D{background:var(--amber);}
+    .mc-form-L{background:var(--red);}
+    .mc-form-{background:rgba(255,255,255,0.1);color:var(--tx-3);}
+    .mc-risk-row{display:grid;grid-template-columns:90px 1fr 38px;gap:8px;align-items:center;padding:5px 0;}
+    .mc-risk-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.05);overflow:hidden;}
+    .mc-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .mc-row:last-child{border-bottom:none;}
+    .mc-rank{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:16px;flex-shrink:0;text-align:right;}
+    .mc-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .mc-tact{padding:9px 11px;border-radius:9px;background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);margin-bottom:7px;}
+    .mc-tact:last-child{margin-bottom:0;}
+    .mc-tact-lbl{font-size:8.5px;font-weight:900;color:var(--green-l);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
+    .mc-tact-val{font-size:11.5px;color:var(--tx);line-height:1.45;}
+    .mc-prob-leg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
+    .mc-prob-cell{padding:8px 6px;border-radius:8px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);}
+    .mc-prob-cell-lbl{font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:3px;}
+    .mc-prob-cell-val{font-size:15px;font-weight:900;font-family:var(--mono);}
+    .mc-key-card{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.10),rgba(255,255,255,0.02));
+      border:1px solid rgba(74,222,128,0.25);overflow:hidden;}
+    .mc-key-avatar{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:14px;font-weight:800;color:#fff;letter-spacing:.4px;overflow:hidden;flex-shrink:0;position:relative;
+      box-shadow:inset 0 0 10px rgba(255,255,255,0.2),0 0 0 2px rgba(74,222,128,0.4),0 0 14px -3px rgba(74,222,128,0.4);}
+    .mc-key-star{position:absolute;top:8px;right:10px;font-size:14px;filter:drop-shadow(0 0 6px rgba(255,215,0,0.6));}
+    @media (max-width:1024px){
+      .mc-grid-2{grid-template-columns:1fr;}
+      .mc-grid-3{grid-template-columns:repeat(2,1fr);}
+    }
+    @media (max-width:600px){
+      .mc-grid-3{grid-template-columns:1fr;}
+      .mc-next-body{grid-template-columns:1fr;}
+    }`;
+  document.head.appendChild(s);
+}
+function renderMatchCenterHTML() {
+  return `<div class="page" id="pg-match-center" style="display:flex;flex-direction:column;height:100%;">
+    <div style="overflow-y:auto;flex:1;padding:0;" id="match-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Match Center…</div>
+    </div>
+  </div>`;
+}
+function renderMatchCenter() {
+  _ensureFCCmdStyles();
+  _ensureMCStyles();
+  const el = document.getElementById('match-center-content');
+  if (!el) return;
+  const next        = _mcNextMatch();
+  const opp         = _mcOpponent(next);
+  const cd          = _mcCountdown(next);
+  const imp         = _mcImportance(next);
+  const form        = _mcRecentForm();
+  const xi          = _mcPickStartingXI();
+  const formation   = _mcFormation(xi);
+  const bench       = _mcBenchRec();
+  const risk        = _mcMatchRisk();
+  const tact        = _mcTacticalPlan();
+  const probs       = _mcWinProbability();
+  const keyPlayers  = _mcKeyPlayers();
+  const dt          = next ? new Date(next.scheduledAt) : null;
+  const dateStr     = dt ? dt.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD';
+  const venue       = (next && (next.location || (next.competition && next.competition))) || 'TBD';
+
+  el.innerHTML = `
+    <div class="mc-page">
+      <div class="mc-card">
+        <div class="mc-brand">
+          <div class="mc-brand-logo">★ FC FAMILISTA · MATCH CENTER</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+            <div class="pc-fcf-foil" aria-hidden="true"></div>
+          </div>
+        </div>
+        ${next ? `
+          <div class="mc-next-body">
+            <div>
+              <div style="font-size:10px;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">${_mcIsHome(next) ? 'Home' : 'Away'} · ${_esc(next.competition || '—')}</div>
+              <div class="mc-next-opp">vs ${_esc(opp)}</div>
+              <div class="mc-next-meta">📅 ${_esc(dateStr)}  ·  📍 ${_esc(venue)}  ·  Importance <b style="color:${imp.color};">${imp.level}</b></div>
+              <div style="margin-top:10px;display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:var(--tx-3);letter-spacing:.8px;text-transform:uppercase;">Last 5</span>
+                ${form.length === 0 ? `<span style="font-size:11px;color:var(--tx-3);">No history</span>` : form.map(r => `<span class="mc-form-dot mc-form-${r || ''}">${r || '·'}</span>`).join('')}
+              </div>
+            </div>
+            <div class="mc-countdown" style="${cd.urgent ? 'background:rgba(239,68,68,0.16);border-color:rgba(239,68,68,0.42);color:#FCA5A5;' : ''}">
+              ⏱ ${_esc(cd.label)}
+            </div>
+          </div>
+        ` : `<div style="padding:30px;text-align:center;color:var(--tx-3);">No upcoming match scheduled.</div>`}
+      </div>
+
+      <div class="mc-grid-2">
+        <div class="mc-tile">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="mc-tile-lbl">Starting XI Predictor</div>
+            <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--tx);padding:3px 9px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);">Formation ${formation}</div>
+          </div>
+          ${xi.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:20px 0;text-align:center;">Not enough fit players to predict an XI.</div>` : _mcPitchSVG(xi)}
+        </div>
+        <div class="mc-tile">
+          <div class="mc-tile-lbl">Win Probability</div>
+          ${_mcGaugeSVG(probs)}
+          <div class="mc-prob-leg">
+            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Win</div><div class="mc-prob-cell-val" style="color:var(--green-l);">${probs.win}%</div></div>
+            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Draw</div><div class="mc-prob-cell-val" style="color:var(--amber);">${probs.draw}%</div></div>
+            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Loss</div><div class="mc-prob-cell-val" style="color:var(--red);">${probs.loss}%</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mc-grid-3">
+        <div class="mc-tile">
+          <div class="mc-tile-lbl">Bench Recommendation</div>
+          ${bench.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No bench candidates.</div>` :
+            bench.map((b, i) => {
+              const p = b.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+              return `<div class="mc-row">
+                <div class="mc-rank">${i+1}</div>
+                <div class="mc-mini-avatar" style="background:${grad};">
+                  ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                  <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:13px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${b.impact}</div>
+                  <div style="font-size:8.5px;color:var(--tx-3);letter-spacing:.6px;text-transform:uppercase;">impact</div>
+                </div>
+              </div>`;
+            }).join('')}
+        </div>
+        <div class="mc-tile">
+          <div class="mc-tile-lbl">Match Risk Analysis</div>
+          ${[
+            { lbl: 'Injury Risk',    val: risk.injury,     color: risk.injury     >= 60 ? 'var(--red)' : risk.injury     >= 30 ? 'var(--amber)' : 'var(--green-l)' },
+            { lbl: 'Fatigue Risk',   val: risk.fatigue,    color: risk.fatigue    >= 60 ? 'var(--red)' : risk.fatigue    >= 30 ? 'var(--amber)' : 'var(--green-l)' },
+            { lbl: 'Attendance',     val: risk.attendance, color: risk.attendance >= 50 ? 'var(--red)' : risk.attendance >= 25 ? 'var(--amber)' : 'var(--green-l)' },
+          ].map(r => `
+            <div class="mc-risk-row">
+              <div style="font-size:11px;color:var(--tx-2);">${r.lbl}</div>
+              <div class="mc-risk-bar"><div style="width:${r.val}%;height:100%;background:${r.color};"></div></div>
+              <div style="font-size:11px;font-weight:800;color:${r.color};font-family:var(--mono);text-align:right;">${r.val}</div>
+            </div>`).join('')}
+          <div class="mc-risk-row" style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:10px;">
+            <div style="font-size:11px;color:var(--tx-2);font-weight:700;">Squad Depth</div>
+            <div class="mc-risk-bar"><div style="width:${risk.depth}%;height:100%;background:linear-gradient(90deg,var(--green-l),#3b82f6);"></div></div>
+            <div style="font-size:12px;font-weight:900;color:var(--green-l);font-family:var(--mono);text-align:right;">${risk.depth}</div>
+          </div>
+        </div>
+        <div class="mc-tile">
+          <div class="mc-tile-lbl">Tactical Plan</div>
+          <div class="mc-tact"><div class="mc-tact-lbl">Build-up</div><div class="mc-tact-val">${_esc(tact.buildup)}</div></div>
+          <div class="mc-tact"><div class="mc-tact-lbl">Pressing</div><div class="mc-tact-val">${_esc(tact.pressing)}</div></div>
+          <div class="mc-tact"><div class="mc-tact-lbl">Transitions</div><div class="mc-tact-val">${_esc(tact.transitions)}</div></div>
+          <div class="mc-tact"><div class="mc-tact-lbl">Defensive Block</div><div class="mc-tact-val">${_esc(tact.defBlock)}</div></div>
+        </div>
+      </div>
+
+      <div class="mc-card" style="padding:18px;">
+        <div class="mc-tile-lbl" style="margin-bottom:14px;">Key Players · Top 3 Match Influencers</div>
+        ${keyPlayers.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No active players to rank.</div>` : `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;">
+            ${keyPlayers.map(k => {
+              const p = k.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+              return `<div class="mc-key-card">
+                <div class="mc-key-star">⭐</div>
+                <div style="display:flex;align-items:center;gap:11px;margin-bottom:8px;">
+                  <div class="mc-key-avatar" style="background:${grad};">
+                    ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:13.5px;font-weight:800;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                    <div style="font-size:10.5px;color:var(--tx-3);">#${p.number != null ? p.number : '?'} · ${_esc(p.position || '—')}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                  <div style="font-size:9.5px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.9px;font-weight:800;">Impact Score</div>
+                  <div style="font-size:22px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;text-shadow:0 0 10px rgba(74,222,128,0.4);">${k.impact}</div>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    </div>`;
+  _pcWirePhotoErrors(el);
 }
 
 function renderDashboard() {
