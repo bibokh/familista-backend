@@ -6611,6 +6611,85 @@ function _pcAITier(p) {
   return { tier, color, composite };
 }
 
+// ─── PIC Advanced Analytics helpers (read-only, State-derived) ────────
+function _pcDevelopmentTrend(p) {
+  return {
+    form:        _pcFormScore(p),
+    readiness:   _pcReadinessScore(p),
+    development: _pcDevelopmentScore(p),
+  };
+}
+function _pcPositionBenchmark(p) {
+  const keys  = _PC_POS_ATTRS[p && p.position] || [];
+  if (keys.length === 0) return null;
+  const attrs = _pcLatestAttrs(p);
+  const rows  = keys.map(k => ({
+    key:   k,
+    label: _PC_ATTR_LABELS[k] || k,
+    value: typeof attrs[k] === 'number' ? attrs[k] : null,
+    ideal: 95,
+  })).filter(r => r.value != null);
+  if (rows.length === 0) return null;
+  const avg    = rows.reduce((a, r) => a + r.value, 0) / rows.length;
+  const fitPct = Math.max(0, Math.min(100, Math.round((avg / 95) * 100)));
+  return { rows, avg, fitPct };
+}
+function _pcPotentialForecast(p) {
+  const current = (p && p.overallRating) || 70;
+  const pot     = (p && p.potential)     || current;
+  const gap     = Math.max(0, pot - current);
+  const age     = _pcAge(p);
+  let factor = 1;
+  if (age != null) {
+    if (age <= 20)       factor = 1.4;
+    else if (age <= 24)  factor = 1.1;
+    else if (age <= 28)  factor = 0.9;
+    else if (age <= 32)  factor = 0.5;
+    else                 factor = 0.2;
+  }
+  const d30 = Math.min(pot, Math.round(current + gap * 0.04 * factor));
+  const d90 = Math.min(pot, Math.round(current + gap * 0.12 * factor));
+  return { current, d30, d90, potential: pot };
+}
+function _pcRiskTimeline(p) {
+  const injuries = (p && Array.isArray(p.injuries)) ? p.injuries : [];
+  const last     = injuries[0] || null;
+  const daysSinceInjury = (last && last.injuredAt)
+    ? Math.floor((Date.now() - new Date(last.injuredAt).getTime()) / 86400000)
+    : null;
+  const att = _pcAttendance(p);
+  return {
+    injuriesCount: injuries.length,
+    daysSinceInjury,
+    fatigue:    _pcFatigueRisk(p),
+    injury:     _pcInjuryRisk(p),
+    attendance: att.pct,
+  };
+}
+const _PC_POS_DRILLS = {
+  GK:  ['reflex ladder drills', 'shot-stopping reps',         'distribution under pressure'],
+  DC:  ['1v1 defending blocks', 'aerial duel circuits',       'positioning vs overload'],
+  DL:  ['overlap runs',         'crossing reps',              'recovery sprints'],
+  DR:  ['overlap runs',         'crossing reps',              'recovery sprints'],
+  DMC: ['interception drills',  'first-time passing',         'press triggers'],
+  MC:  ['box-to-box runs',      'dribble + scan drills',      'through-ball reps'],
+  ML:  ['1v1 dribbling',        'final-third decisions',      'set-piece delivery'],
+  MR:  ['1v1 dribbling',        'final-third decisions',      'set-piece delivery'],
+  AMC: ['half-space pockets',   'through balls',              'arrival timing'],
+  AML: ['1v1 wide',             'cut-inside finishing',       'quick combinations'],
+  AMR: ['1v1 wide',             'cut-inside finishing',       'quick combinations'],
+  ST:  ['finishing under fatigue', 'first-touch volleys',     'arrival timing'],
+};
+function _pcDevelopmentPriorities(p) {
+  const imp    = _pcImprovementAreas(p, 3);
+  const drills = _PC_POS_DRILLS[p && p.position] || ['position-specific drills', 'small-sided games', 'recovery + mobility'];
+  return imp.map((e, i) => ({
+    label:  e.label,
+    value:  e.value,
+    action: drills[i % drills.length],
+  }));
+}
+
 // ─── Player photo upload (writes to existing Player.avatar field) ─────
 // Frontend-only handler. Resizes the picked file via <canvas> to a
 // 512px-max JPEG data URI (~50-150 KB), then PATCHes the existing
@@ -7031,7 +7110,7 @@ function _pcRenderDetail(el, p) {
 
       ${cmpRows.length > 0 ? `
         <div class="pc-section">
-          <div class="pc-section-lbl">Comparison vs Team Average</div>
+          <div class="pc-section-lbl">Player vs Team Average</div>
           ${cmpRows.map(c => {
             const w = Math.min(100, (Math.abs(c.diff) / 30) * 50);
             const half = c.diff >= 0 ? `left:50%;background:var(--green-l);` : `right:50%;background:var(--red);`;
@@ -7042,6 +7121,145 @@ function _pcRenderDetail(el, p) {
             </div>`;
           }).join('')}
         </div>` : ''}
+
+      ${(function(){
+        const dt = _pcDevelopmentTrend(p);
+        const fc = dt.form        >= 80 ? 'var(--green-l)' : dt.form        >= 65 ? 'var(--amber)' : 'var(--red)';
+        const rc = dt.readiness   >= 80 ? 'var(--green-l)' : dt.readiness   >= 65 ? 'var(--amber)' : 'var(--red)';
+        const dc = dt.development >= 70 ? 'var(--green-l)' : dt.development >= 50 ? 'var(--amber)' : 'var(--red)';
+        return `<div class="pc-section">
+          <div class="pc-section-lbl">Development Trend · 30-day window</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            ${[
+              { lbl: 'Form',        v: dt.form,        c: fc },
+              { lbl: 'Readiness',   v: dt.readiness,   c: rc },
+              { lbl: 'Development', v: dt.development, c: dc },
+            ].map(m => `
+              <div style="padding:10px 8px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);text-align:center;">
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px;">${m.lbl}</div>
+                <div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:${m.c};">${m.v}</div>
+                <div style="margin-top:6px;height:4px;border-radius:2px;background:rgba(255,255,255,0.05);overflow:hidden;">
+                  <div style="width:${Math.max(0, Math.min(100, m.v)).toFixed(0)}%;height:100%;background:${m.c};"></div>
+                </div>
+              </div>`).join('')}
+          </div>
+          <div style="font-size:10.5px;color:var(--tx-3);margin-top:8px;line-height:1.45;">Snapshot composite — no per-day attribute history is loaded into State; values reflect current squad condition, ratings, and GPS state.</div>
+        </div>`;
+      })()}
+
+      ${(function(){
+        const bench = _pcPositionBenchmark(p);
+        if (!bench) return '';
+        const color = bench.fitPct >= 80 ? 'var(--green-l)' : bench.fitPct >= 65 ? 'var(--amber)' : 'var(--red)';
+        return `<div class="pc-section">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+            <div>
+              <div class="pc-section-lbl" style="margin-bottom:2px;">Position Benchmark · ${_esc(p.position || '—')}</div>
+              <div style="font-size:11px;color:var(--tx-3);">Player attributes vs ideal for this position (target 95/120)</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:24px;font-weight:900;color:${color};font-family:var(--mono);line-height:1;">${bench.fitPct}%</div>
+              <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;">Fit</div>
+            </div>
+          </div>
+          ${bench.rows.map(r => {
+            const playerW = Math.min(100, (r.value / 120) * 100);
+            const idealW  = Math.min(100, (r.ideal / 120) * 100);
+            return `<div style="display:grid;grid-template-columns:90px 1fr 60px;gap:8px;align-items:center;padding:3px 0;">
+              <div style="font-size:11px;color:var(--tx-2);">${_esc(r.label)}</div>
+              <div style="height:6px;border-radius:3px;background:rgba(255,255,255,0.05);position:relative;overflow:hidden;">
+                <div style="position:absolute;inset:0;left:0;width:${playerW.toFixed(1)}%;background:linear-gradient(90deg,var(--green-l),#3b82f6);"></div>
+                <div style="position:absolute;top:-2px;bottom:-2px;left:${idealW.toFixed(1)}%;width:1.5px;background:var(--amber);"></div>
+              </div>
+              <div style="text-align:right;font-size:11px;font-weight:800;color:var(--tx);font-family:var(--mono);">${r.value}<span style="color:var(--tx-3);font-size:9px;">/${r.ideal}</span></div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      })()}
+
+      ${(function(){
+        const fcst = _pcPotentialForecast(p);
+        const max  = Math.max(fcst.current, fcst.potential, 100);
+        return `<div class="pc-section">
+          <div class="pc-section-lbl">AI Potential Forecast</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+            ${[
+              { lbl: 'Current',  v: fcst.current, c: 'var(--tx)' },
+              { lbl: '+30 days', v: fcst.d30,     c: 'var(--green-l)' },
+              { lbl: '+90 days', v: fcst.d90,     c: 'var(--amber)' },
+            ].map(m => `
+              <div style="padding:10px 8px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);text-align:center;">
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px;">${m.lbl}</div>
+                <div style="font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;color:${m.c};">${m.v}</div>
+              </div>`).join('')}
+          </div>
+          <div style="position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,0.05);overflow:hidden;">
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100, (fcst.current / max) * 100).toFixed(1)}%;background:linear-gradient(90deg,var(--tx-2),#94a3b8);"></div>
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100, (fcst.d30 / max) * 100).toFixed(1)}%;background:linear-gradient(90deg,var(--green-l),#3b82f6);opacity:.85;"></div>
+            <div style="position:absolute;left:0;top:0;bottom:0;width:${Math.min(100, (fcst.d90 / max) * 100).toFixed(1)}%;border-right:2px dashed var(--amber);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);margin-top:5px;">
+            <span>Now ${fcst.current}</span>
+            <span>Potential ceiling <b style="color:var(--amber);font-family:var(--mono);">${fcst.potential}</b></span>
+          </div>
+          <div style="font-size:10.5px;color:var(--tx-3);margin-top:6px;line-height:1.45;">Projection derived from current overall, potential ceiling, and age curve. Younger players progress faster toward potential.</div>
+        </div>`;
+      })()}
+
+      ${(function(){
+        const rt = _pcRiskTimeline(p);
+        const fc = rt.fatigue.color, ic = rt.injury.color;
+        const atColor = rt.attendance == null ? 'var(--tx-3)' : rt.attendance >= 80 ? 'var(--green-l)' : rt.attendance >= 50 ? 'var(--amber)' : 'var(--red)';
+        const sinceLbl = rt.daysSinceInjury == null ? 'No history' : (rt.daysSinceInjury === 0 ? 'Today' : `${rt.daysSinceInjury}d ago`);
+        return `<div class="pc-section">
+          <div class="pc-section-lbl">Risk Timeline</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+            <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px;">Injury Trend</div>
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);line-height:1;color:${ic};">${rt.injury.level}</div>
+                <div style="font-size:11px;color:var(--tx-3);">${rt.injuriesCount} on record</div>
+              </div>
+              <div style="font-size:10.5px;color:var(--tx-3);margin-top:6px;">Last: ${_esc(sinceLbl)}</div>
+            </div>
+            <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px;">Fatigue Trend</div>
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);line-height:1;color:${fc};">${rt.fatigue.level}</div>
+                <div style="font-size:11px;color:var(--tx-3);">${p.condition != null ? Math.round(p.condition) + '% cond' : '—'}</div>
+              </div>
+              <div style="font-size:10.5px;color:var(--tx-3);margin-top:6px;">Latest GPS snapshot</div>
+            </div>
+            <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:4px;">Attendance Trend</div>
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);line-height:1;color:${atColor};">${rt.attendance == null ? '—' : rt.attendance + '%'}</div>
+                <div style="font-size:11px;color:var(--tx-3);">last 10 sessions</div>
+              </div>
+              <div style="font-size:10.5px;color:var(--tx-3);margin-top:6px;">Scheduled-in proxy from State.training</div>
+            </div>
+          </div>
+        </div>`;
+      })()}
+
+      ${(function(){
+        const prios = _pcDevelopmentPriorities(p);
+        if (prios.length === 0) return '';
+        return `<div class="pc-section" style="border-left:3px solid var(--green-l);">
+          <div class="pc-section-lbl">Development Priority Engine · Top 3</div>
+          ${prios.map((pr, i) => `
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:9px 10px;margin-bottom:7px;border-radius:9px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.18);">
+              <div style="flex-shrink:0;width:24px;height:24px;border-radius:50%;background:rgba(74,222,128,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);">${i+1}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                  <div style="font-size:12.5px;font-weight:800;color:var(--tx);">${_esc(pr.label)}</div>
+                  <div style="font-size:11px;font-weight:800;color:var(--amber);font-family:var(--mono);">${pr.value}/120</div>
+                </div>
+                <div style="font-size:11px;color:var(--tx-3);margin-top:3px;">Suggested drill: <span style="color:var(--tx-2);">${_esc(pr.action)}</span></div>
+              </div>
+            </div>`).join('')}
+        </div>`;
+      })()}
 
       <div class="pc-section" style="border-left:3px solid var(--green-l);">
         <div class="pc-section-lbl">AI Summary — 4-week focus</div>
