@@ -6558,6 +6558,59 @@ function _pcWirePhotoErrors(root) {
   });
 }
 
+// ─── Player participation helpers (read-only, State-derived) ──────────
+// Attendance + Training Progress derived from State.training already
+// loaded for the Sessions tab. playerStats reflects who was scheduled
+// for each session — proxy for attendance without a new fetch.
+function _pcAttendance(p) {
+  const sessions = (State.training || []).slice(0, 10);
+  const inSession = (s) => Array.isArray(s.playerStats) && s.playerStats.some(stat =>
+    (stat.playerId === p.id) || (stat.player && stat.player.id === p.id));
+  // Oldest → newest for left-to-right dot rendering.
+  const hits = sessions.slice().reverse().map(inSession);
+  const attended = hits.filter(Boolean).length;
+  const total = sessions.length;
+  return {
+    total,
+    attended,
+    pct: total > 0 ? Math.round((attended / total) * 100) : null,
+    hits,
+  };
+}
+function _pcTrainingProgress(p) {
+  const sessions = (State.training || []);
+  if (sessions.length === 0) return null;
+  const day = 86400000;
+  const now = Date.now();
+  const inSession = (s) => Array.isArray(s.playerStats) && s.playerStats.some(stat =>
+    (stat.playerId === p.id) || (stat.player && stat.player.id === p.id));
+  const ts = (s) => s.scheduledAt ? new Date(s.scheduledAt).getTime() : 0;
+  const recent  = sessions.filter(s => ts(s) >= now - 14 * day && ts(s) <= now);
+  const earlier = sessions.filter(s => ts(s) >= now - 28 * day && ts(s) < now - 14 * day);
+  const recentCount  = recent.filter(inSession).length;
+  const earlierCount = earlier.filter(inSession).length;
+  return {
+    recentCount,
+    earlierCount,
+    delta: recentCount - earlierCount,
+    recentTotal:  recent.length,
+    earlierTotal: earlier.length,
+  };
+}
+function _pcAITier(p) {
+  const form = _pcFormScore(p);
+  const dev  = _pcDevelopmentScore(p);
+  const rdy  = _pcReadinessScore(p);
+  const composite = Math.round((form * 0.45) + (dev * 0.20) + (rdy * 0.35));
+  let tier, color;
+  if      (composite >= 90) { tier = 'S'; color = 'var(--green-l)'; }
+  else if (composite >= 80) { tier = 'A'; color = 'var(--green-l)'; }
+  else if (composite >= 70) { tier = 'B'; color = 'var(--amber)'; }
+  else if (composite >= 60) { tier = 'C'; color = 'var(--amber)'; }
+  else                       { tier = 'D'; color = 'var(--red)'; }
+  return { tier, color, composite };
+}
+
 // ─── Player photo upload (writes to existing Player.avatar field) ─────
 // Frontend-only handler. Resizes the picked file via <canvas> to a
 // 512px-max JPEG data URI (~50-150 KB), then PATCHes the existing
@@ -6870,6 +6923,23 @@ function _pcRenderDetail(el, p) {
         </div>
       </div>
 
+      <div class="pc-section" style="margin-bottom:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;">
+          <div class="pc-section-lbl">AI Rating Summary</div>
+          <div style="font-size:11.5px;color:var(--tx-2);line-height:1.45;">Composite of Form, Development, and Readiness — derived from squad condition, ratings, and GPS load.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="text-align:center;">
+            <div style="font-size:34px;font-weight:900;line-height:1;color:${_pcAITier(p).color};font-family:var(--mono);text-shadow:0 0 12px rgba(74,222,128,0.35);">${_pcAITier(p).tier}</div>
+            <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Tier</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:26px;font-weight:900;line-height:1;color:var(--green-l);font-family:var(--mono);">${_pcAITier(p).composite}</div>
+            <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Composite</div>
+          </div>
+        </div>
+      </div>
+
       <div class="pc-chips" style="margin-bottom:14px;">
         <div class="pc-chip"><div class="pc-chip-lbl">Form</div><div class="pc-chip-val" style="color:${fc};">${form}</div></div>
         <div class="pc-chip"><div class="pc-chip-lbl">Development</div><div class="pc-chip-val" style="color:${dc};">${dev}</div></div>
@@ -6877,6 +6947,46 @@ function _pcRenderDetail(el, p) {
         <div class="pc-chip"><div class="pc-chip-lbl">Injury Risk</div><div class="pc-chip-val" style="color:${inj.color};font-size:11px;">${inj.level}</div></div>
         <div class="pc-chip"><div class="pc-chip-lbl">Readiness</div><div class="pc-chip-val" style="color:${rc};">${rdy}</div></div>
       </div>
+
+      ${(function(){
+        const att  = _pcAttendance(p);
+        const prog = _pcTrainingProgress(p);
+        const attPctColor = att.pct == null ? 'var(--tx-3)' : (att.pct >= 80 ? 'var(--green-l)' : att.pct >= 50 ? 'var(--amber)' : 'var(--red)');
+        const deltaColor  = !prog ? 'var(--tx-3)' : (prog.delta > 0 ? 'var(--green-l)' : prog.delta < 0 ? 'var(--red)' : 'var(--amber)');
+        const arrow       = !prog ? '—' : (prog.delta > 0 ? '↑ +' : prog.delta < 0 ? '↓ ' : '→ ');
+        return `<div class="pc-detail-grid">
+          <div class="pc-section">
+            <div class="pc-section-lbl">Attendance Summary</div>
+            ${att.total === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No session history yet.</div>` : `
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+                <div style="font-size:26px;font-weight:900;font-family:var(--mono);color:${attPctColor};line-height:1;">${att.attended}<span style="font-size:13px;color:var(--tx-3);">/${att.total}</span></div>
+                <div style="font-size:11px;color:var(--tx-3);">last sessions${att.pct != null ? ` · <b style="color:${attPctColor};">${att.pct}%</b>` : ''}</div>
+              </div>
+              <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                ${att.hits.map(h => `<div style="width:14px;height:14px;border-radius:3px;background:${h ? 'var(--green-l)' : 'rgba(255,255,255,0.07)'};${h ? 'box-shadow:0 0 6px rgba(74,222,128,0.35);' : ''}"></div>`).join('')}
+              </div>
+              <div style="font-size:10px;color:var(--tx-3);margin-top:8px;letter-spacing:.3px;">Oldest → newest · ✓ = scheduled in session</div>
+            `}
+          </div>
+          <div class="pc-section">
+            <div class="pc-section-lbl">Training Progress</div>
+            ${!prog ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No session history yet.</div>` : `
+              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+                <div style="font-size:26px;font-weight:900;font-family:var(--mono);color:${deltaColor};line-height:1;">${prog.recentCount}</div>
+                <div style="font-size:11px;color:var(--tx-3);">sessions · last 14 days (of ${prog.recentTotal})</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:6px 0;">
+                <div style="font-size:11px;color:var(--tx-2);flex:1;">Previous 14 days</div>
+                <div style="font-size:13px;font-weight:800;color:var(--tx-2);font-family:var(--mono);">${prog.earlierCount}<span style="color:var(--tx-3);font-size:10px;">/${prog.earlierTotal}</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed rgba(255,255,255,0.06);margin-top:4px;">
+                <div style="font-size:11px;color:var(--tx-2);flex:1;font-weight:700;">Δ change</div>
+                <div style="font-size:13px;font-weight:900;color:${deltaColor};font-family:var(--mono);">${arrow}${Math.abs(prog.delta)}</div>
+              </div>
+            `}
+          </div>
+        </div>`;
+      })()}
 
       <div class="pc-detail-grid">
         <div class="pc-section">
