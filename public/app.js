@@ -515,6 +515,7 @@ async function loadAllData() {
       try { if (typeof renderScoutingCenter    === 'function') renderScoutingCenter();    } catch (_) {}
       try { if (typeof renderTransferCenter    === 'function') renderTransferCenter();    } catch (_) {}
       try { if (typeof renderFinanceCenter     === 'function') renderFinanceCenter();     } catch (_) {}
+      try { if (typeof renderManagementCenter  === 'function') renderManagementCenter();  } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -738,6 +739,7 @@ function _flushPendingRender() {
     case 'pg-scouting-center': renderScoutingCenter(); break;
     case 'pg-transfer-center': renderTransferCenter(); break;
     case 'pg-finance-center':  renderFinanceCenter();  break;
+    case 'pg-management-center': renderManagementCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -800,7 +802,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -832,6 +834,7 @@ function navTo(page, el) {
   if (page === 'scouting-center'){ try { renderScoutingCenter();    } catch (e) { try { console.error('[scouting-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'transfer-center'){ try { renderTransferCenter();    } catch (e) { try { console.error('[transfer-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'finance-center') { try { renderFinanceCenter();     } catch (e) { try { console.error('[finance-center] nav render failed:', e);  } catch (_) {} } }
+  if (page === 'management-center'){ try { renderManagementCenter();} catch (e) { try { console.error('[management-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -945,6 +948,7 @@ function renderAllPages() {
     ${renderScoutingCenterHTML()}
     ${renderTransferCenterHTML()}
     ${renderFinanceCenterHTML()}
+    ${renderManagementCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -5441,6 +5445,540 @@ function renderFinanceCenter() {
     try { console.error('[finance-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Finance Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Management Center (new executive Management page) ────
+// Aggregator-only. Consumes outputs from Performance Center (_pf*),
+// Medical Center (_md*), Scouting Center (_sg*), Transfer Center (_tc*)
+// and Finance Center (_fi*) helpers directly — does NOT recompute any
+// domain analytics, and does NOT mutate any State. Adds a thin _mg*
+// synthesis layer (club-health composite, executive KPIs, department
+// matrix, strategic risks, season objectives, recommendations) on top.
+// No backend writes, no new fetches, no schema changes, no routes.
+function _mgSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _mgPerfScores() { return _mgSafe(_pfTeamScores, { Overall: 0, Attack: 0, Defense: 0, Possession: 0, Condition: 0 }); }
+function _mgPerfImpact() { return _mgSafe(_pfTrainingImpact, { direction: 'STABLE', improvement: 0, recentCount: 0 }); }
+function _mgMedScores() {
+  // Reuse Medical Center's bucketing to avoid recompute.
+  const ps = _mgSafe(_mdActive, []);
+  const total = ps.length || 1;
+  const buckets = { AVAILABLE: 0, QUESTIONABLE: 0, RECOVERY: 0, INJURED: 0 };
+  ps.forEach(p => { try { const c = _mdCategorize(p); buckets[c] = (buckets[c] || 0) + 1; } catch (_) {} });
+  const availPct = Math.round((buckets.AVAILABLE / total) * 100);
+  return { total, buckets, availPct, avgCond: _mgSafe(_mdAvgCondition, 0), avgFat: _mgSafe(_mdAvgFatigue, 0) };
+}
+function _mgScoutScore() {
+  // Composite "talent pipeline" score 0–100 from Scouting Center watchlist.
+  const watch = _mgSafe(function () { return _sgWatchlist(10); }, []);
+  if (!watch.length) return 0;
+  return Math.round(watch.reduce((a, x) => a + (x.score || 0), 0) / watch.length);
+}
+function _mgTransferBalance() { return _mgSafe(function () { return _tcSquadNeeds(); }, { balance: 0, fit: '—', groups: {} }); }
+function _mgFinanceOverview() { return _mgSafe(_fiClubOverview, { wageRatio: 0, netProfit: 0, cashReserve: 0, annualRevenue: 0, totalAssets: 0, netWorth: 0, annualExpenses: 0 }); }
+function _mgFinanceHealthScore() {
+  const co = _mgFinanceOverview();
+  // 100 minus wage-ratio penalty + profit bonus, then clamp.
+  let s = 100 - Math.max(0, co.wageRatio - 50) * 1.4;
+  if (co.netProfit > 0) s += 8;
+  if (co.netProfit < 0) s -= 15;
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+function _mgDepartmentMatrix() {
+  // Each department scored 0–100 with status band.
+  const perf  = _mgPerfScores();
+  const med   = _mgMedScores();
+  const scout = _mgScoutScore();
+  const balance = _mgTransferBalance().balance;
+  const finS  = _mgFinanceHealthScore();
+  const band = (s) => s >= 80 ? 'EXCELLENT' : s >= 65 ? 'STRONG' : s >= 50 ? 'WATCH' : 'CRITICAL';
+  const col  = (s) => s >= 80 ? 'var(--green-l)' : s >= 65 ? 'var(--amber)' : s >= 50 ? '#60A5FA' : 'var(--red)';
+  return [
+    { key:'PERFORMANCE', lbl:'Performance', score: perf.Overall, status: band(perf.Overall), color: col(perf.Overall), note:`Attack ${perf.Attack} · Def ${perf.Defense} · Poss ${perf.Possession} · Cnd ${perf.Condition}` },
+    { key:'MEDICAL',     lbl:'Medical',     score: med.availPct,  status: band(med.availPct),  color: col(med.availPct),  note:`${med.buckets.AVAILABLE}/${med.total} available · ${med.buckets.INJURED} injured` },
+    { key:'SCOUTING',    lbl:'Scouting',    score: scout,         status: band(scout),         color: col(scout),         note:`Watchlist avg score ${scout}/100` },
+    { key:'TRANSFER',    lbl:'Transfer',    score: balance,       status: band(balance),       color: col(balance),       note:`Squad balance ${balance}/100` },
+    { key:'FINANCE',     lbl:'Finance',     score: finS,          status: band(finS),          color: col(finS),          note:`Wage ratio ${_mgFinanceOverview().wageRatio}% · ${_fiFmtMoney(_mgFinanceOverview().netProfit)} net` },
+  ];
+}
+function _mgClubHealth() {
+  const dept = _mgDepartmentMatrix();
+  if (!dept.length) return { score: 0, band: 'NO DATA', color: 'var(--tx-3)' };
+  const score = Math.round(dept.reduce((a, d) => a + d.score, 0) / dept.length);
+  let band, color;
+  if (score >= 80)      { band = 'EXCELLENT'; color = 'var(--green-l)'; }
+  else if (score >= 65) { band = 'STRONG';    color = 'var(--amber)';   }
+  else if (score >= 50) { band = 'WATCH';     color = '#60A5FA';        }
+  else                  { band = 'CRITICAL';  color = 'var(--red)';     }
+  return { score, band, color, departments: dept };
+}
+function _mgStrategicRisks() {
+  // Pull alerts from every domain; promote the non-ALL-CLEAR ones,
+  // tag each by source, return top 6.
+  const sources = [
+    { key:'PERF',    color:'var(--amber)',   fn: _pfAlerts },
+    { key:'MEDICAL', color:'var(--red)',     fn: _mdAlerts },
+    { key:'SCOUT',   color:'#A78BFA',         fn: _sgAlerts },
+    { key:'XFER',    color:'#60A5FA',         fn: _tcAlerts },
+    { key:'FIN',     color:'var(--green-l)', fn: _fiAlerts },
+  ];
+  const out = [];
+  sources.forEach(src => {
+    let list = [];
+    try { list = src.fn() || []; } catch (_) {}
+    list.forEach(a => {
+      if (a && a.kind && a.kind.toUpperCase() !== 'ALL CLEAR') out.push({ src: src.key, srcColor: src.color, ...a });
+    });
+  });
+  // Red first, then amber, then others.
+  const weight = (c) => c === 'var(--red)' ? 3 : c === 'var(--amber)' ? 2 : 1;
+  out.sort((a, b) => weight(b.color) - weight(a.color));
+  return out.slice(0, 6);
+}
+function _mgSeasonObjectives() {
+  // Derive from State.matches results + training participation.
+  const matches = (State.matches || []).filter(m => m && (m.result || (m.homeScore != null && m.awayScore != null)));
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0;
+  matches.forEach(m => {
+    const isHome = (m.homeTeam || '').toLowerCase().includes('familista');
+    const ours   = isHome ? (m.homeScore || 0) : (m.awayScore || 0);
+    const theirs = isHome ? (m.awayScore || 0) : (m.homeScore || 0);
+    gf += ours; ga += theirs;
+    if (m.result === 'WIN'  || ours > theirs) w++;
+    else if (m.result === 'LOSS' || ours < theirs) l++;
+    else d++;
+  });
+  const played = w + d + l;
+  const points = w * 3 + d;
+  const winPct = played > 0 ? Math.round((w / played) * 100) : 0;
+  const ppg    = played > 0 ? (points / played) : 0;
+  const form   = matches.slice(0, 5).map(m => (m.result || (m.homeScore > m.awayScore ? 'W' : m.homeScore < m.awayScore ? 'L' : 'D'))[0] || 'D');
+  // Training compliance — average attendance across squad.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  let attTotal = 0, attCount = 0;
+  ps.forEach(p => { try { const a = _pcAttendance(p); if (a && a.pct != null) { attTotal += a.pct; attCount++; } } catch (_) {} });
+  const trainingCompliance = attCount ? Math.round(attTotal / attCount) : 0;
+  // Three season objectives with their targets and current pct.
+  const objectives = [
+    { key:'WIN_RATE',  lbl:'Win Rate Target',          actual: winPct,              target: 50,  unit:'%' },
+    { key:'PPG',       lbl:'Points / Match',           actual: Math.round(ppg * 100) / 100, target: 1.5, unit:'' },
+    { key:'TRAIN',     lbl:'Training Compliance',      actual: trainingCompliance,  target: 75,  unit:'%' },
+  ];
+  return { played, w, d, l, gf, ga, gd: gf - ga, points, winPct, ppg, form, trainingCompliance, objectives };
+}
+function _mgRecommendations() {
+  const dept = _mgDepartmentMatrix();
+  const out = [];
+  // Sort departments worst-first.
+  const sorted = dept.slice().sort((a, b) => a.score - b.score);
+  const lowest = sorted[0];
+  const highest = sorted[sorted.length - 1];
+  if (lowest) {
+    const map = {
+      PERFORMANCE: { icon:'🎯', text:'Tighten training programme around weakest tactical dimension; book a focus block before the next fixture.' },
+      MEDICAL:     { icon:'🚑', text:'Schedule physio review for questionable players; cap high-intensity exposure for the week.' },
+      SCOUTING:    { icon:'🔭', text:'Reactivate scouting pipeline — squad upside is plateauing; prioritise U21 prospects with high potential.' },
+      TRANSFER:    { icon:'💼', text:'Address weakest squad lines via targeted recruitment; rebalance over-/under-stocked positions.' },
+      FINANCE:     { icon:'💰', text:'Freeze incremental wage commitments; review top-quartile contracts before the next window.' },
+    };
+    const e = map[lowest.key] || { icon:'⚠️', text:'Investigate weakest department score and propose a remediation plan.' };
+    out.push({ priority:'HIGH',   icon: e.icon, color:'var(--red)',     text:`${lowest.lbl}: ${e.text}` });
+  }
+  if (highest && highest.score >= 80) {
+    out.push({ priority:'LEVERAGE', icon:'⭐', color:'var(--green-l)',  text:`${highest.lbl} is operating at ${highest.score}/100 — invest in compounding the lead (extra reps, contract security, marketing visibility).` });
+  }
+  // Finance-specific tail
+  const fin = _mgFinanceOverview();
+  if (fin.wageRatio >= 70) out.push({ priority:'MEDIUM', icon:'📈', color:'var(--amber)', text:`Wage ratio ${fin.wageRatio}% — exposure to revenue dips; defer non-essential extensions.` });
+  // Medical-specific tail
+  const med = _mgMedScores();
+  if (med.buckets.INJURED >= 3) out.push({ priority:'MEDIUM', icon:'🩺', color:'var(--amber)', text:`${med.buckets.INJURED} active injuries — review training-load model and physio capacity.` });
+  // Season objectives tail
+  const obj = _mgSeasonObjectives();
+  if (obj.played >= 3 && obj.winPct < 35) out.push({ priority:'HIGH', icon:'📉', color:'var(--red)', text:`Win rate ${obj.winPct}% over ${obj.played} matches — coach review and tactical reset recommended.` });
+  if (!out.length) out.push({ priority:'STEADY', icon:'✓', color:'var(--green-l)', text:'All departments performing within target bands — maintain current programme and re-assess at the next checkpoint.' });
+  return out.slice(0, 5);
+}
+function _mgAIDirectorSummary() {
+  const ch = _mgClubHealth();
+  const fin = _mgFinanceOverview();
+  const med = _mgMedScores();
+  const perf = _mgPerfScores();
+  const obj = _mgSeasonObjectives();
+  const dept = ch.departments || [];
+  const sorted = dept.slice().sort((a, b) => a.score - b.score);
+  const weakest = sorted[0];
+  const strongest = sorted[sorted.length - 1];
+  let outlook;
+  if (ch.score >= 80)      outlook = 'club is in elite operational health — protect the lead and compound it';
+  else if (ch.score >= 65) outlook = 'club is operating in a healthy band with isolated areas to lift';
+  else if (ch.score >= 50) outlook = 'mixed operational picture — coordinated department actions required';
+  else                      outlook = 'multiple departments under stress — executive intervention required';
+  const seasonBit = obj.played > 0 ? `Season-to-date: ${obj.w}W ${obj.d}D ${obj.l}L (${obj.points}pts · ${obj.winPct}% win rate). ` : 'No competitive fixtures recorded yet. ';
+  return `Club health: ${ch.band} (${ch.score}/100) — ${outlook}. ` +
+         seasonBit +
+         `Performance ${perf.Overall}/100, Medical availability ${med.availPct}%, Finance wage ratio ${fin.wageRatio}%. ` +
+         `Strongest area: ${strongest ? strongest.lbl + ' (' + strongest.score + ')' : '—'}. ` +
+         `Weakest area: ${weakest ? weakest.lbl + ' (' + weakest.score + ')' : '—'}. ` +
+         `Director call: focus the next executive cycle on ${weakest ? weakest.lbl.toLowerCase() : 'cross-department alignment'} while preserving the gains in ${strongest ? strongest.lbl.toLowerCase() : 'leading departments'}.`;
+}
+function _ensureMGStyles() {
+  if (document.getElementById('mg-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'mg-styles';
+  s.textContent = `
+    .mg-page{padding:16px 18px;}
+    .mg-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.32);
+      box-shadow:0 26px 64px -20px rgba(0,0,0,0.65),0 0 60px -16px rgba(74,222,128,0.28),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .mg-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.08),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.06),transparent 55%);}
+    .mg-brand{position:relative;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.22),rgba(34,197,94,0.08) 30%,rgba(37,99,235,0.08) 70%,rgba(74,222,128,0.22));
+      border-bottom:1px solid rgba(74,222,128,0.28);}
+    .mg-brand-logo{font-size:13px;font-weight:900;color:var(--green-l);letter-spacing:2.4px;text-shadow:0 0 10px rgba(74,222,128,0.55);}
+    .mg-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .mg-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .mg-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .mg-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .mg-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+    .mg-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .mg-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .mg-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .mg-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .mg-kpi-val{font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .mg-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .mg-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .mg-bar-fill{height:100%;border-radius:6px;}
+    .mg-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .mg-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .mg-alert:last-child{margin-bottom:0;}
+    .mg-dept-tile{padding:14px;border-radius:12px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.18);transition:border-color .15s ease,transform .15s ease;}
+    .mg-dept-tile:hover{transform:translateY(-1px);}
+    .mg-obj-row{display:grid;grid-template-columns:1fr 80px 70px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .mg-obj-row:last-child{border-bottom:none;}
+    .mg-formdot{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:9.5px;font-weight:900;color:#fff;letter-spacing:.3px;margin-right:3px;}
+    .mg-fd-w{background:var(--green-l);}
+    .mg-fd-d{background:var(--amber);}
+    .mg-fd-l{background:var(--red);}
+    .mg-summary{position:relative;padding:20px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.06));
+      border:1px solid rgba(74,222,128,0.36);border-left:5px solid var(--green-l);
+      box-shadow:0 20px 44px -16px rgba(0,0,0,0.55),0 0 36px -10px rgba(74,222,128,0.30);}
+    @media (max-width:1024px){.mg-grid-3{grid-template-columns:repeat(2,1fr);}.mg-grid-4{grid-template-columns:repeat(2,1fr);}.mg-grid-5{grid-template-columns:repeat(2,1fr);}.mg-grid-6{grid-template-columns:repeat(3,1fr);}.mg-obj-row{grid-template-columns:1fr 70px 60px;font-size:10px;}}
+    @media (max-width:600px){.mg-grid-2,.mg-grid-3,.mg-grid-4,.mg-grid-5,.mg-grid-6{grid-template-columns:1fr;}.mg-obj-row{grid-template-columns:1fr 60px;}.mg-obj-row > :nth-child(3){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderManagementCenterHTML() {
+  return `<div class="page" id="pg-management-center">
+    <div id="management-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Management Center…</div>
+    </div>
+  </div>`;
+}
+function renderManagementCenter() {
+  const el = document.getElementById('management-center-content');
+  if (!el) return;
+  try { _ensureMGStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const health = _mgClubHealth();
+    const dept   = health.departments || _mgDepartmentMatrix();
+    const fin    = _mgFinanceOverview();
+    const med    = _mgMedScores();
+    const perf   = _mgPerfScores();
+    const obj    = _mgSeasonObjectives();
+    const risks  = _mgStrategicRisks();
+    const recs   = _mgRecommendations();
+    const ai     = _mgAIDirectorSummary();
+
+    // Cross-domain quick references (delegating to existing helpers).
+    const sv  = _mgSafe(_fiSquadValue, { total: 0, top: null });
+    const wb  = _mgSafe(_fiWageBill, { total: 0 });
+    const sim = _mgSafe(_fiTransferSimulation, { scenarios: [], cashReserve: 0 });
+    const targets = _mgSafe(_tcTransferTargets, { priority: [], suggested: [], replacements: [], devTargets: [] });
+    const cand    = _mgSafe(_tcSellLoanCandidates, { lowReadiness: [], lowForm: [], lowAtt: [], overloaded: [], loanRec: [] });
+    const top     = _mgSafe(function () { return _pfTopPerformers(3); }, []);
+    const watch   = _mgSafe(function () { return _sgWatchlist(5); }, []);
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+
+    el.innerHTML = `
+      <div class="mg-page">
+
+        <!-- Brand bar + 1) Club Health Dashboard -->
+        <div class="mg-card">
+          <div class="mg-brand">
+            <div class="mg-brand-logo">★ FC FAMILISTA · MANAGEMENT CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>EXECUTIVE LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div style="padding:18px 20px;display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:center;">
+            <div style="text-align:center;padding:18px 12px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(74,222,128,0.22),rgba(74,222,128,0.04) 70%);border:1px solid rgba(74,222,128,0.32);">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;">Club Health</div>
+              <div style="font-size:56px;font-weight:900;font-family:var(--mono);color:${health.color};line-height:1;text-shadow:0 0 22px ${health.color};">${health.score}</div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;color:${health.color};text-transform:uppercase;margin-top:6px;">${health.band}</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">Department Composite</div>
+              ${dept.map(d => `
+                <div style="margin-bottom:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${d.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${d.color};">${d.score}/100 · ${d.status}</span>
+                  </div>
+                  <div class="mg-bar"><div class="mg-bar-fill" style="width:${Math.max(0, Math.min(100, d.score))}%;background:${d.color};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 2) Executive KPI Board -->
+        <div class="mg-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Executive KPI Board</div>
+          <div class="mg-grid-6">
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:${colorFor(perf.Overall)};">${perf.Overall}</div><div class="mg-kpi-lbl">Team Form</div></div>
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:${colorFor(med.availPct)};">${med.availPct}%</div><div class="mg-kpi-lbl">Availability</div></div>
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:var(--green-l);">${_fiFmtMoney(sv.total)}</div><div class="mg-kpi-lbl">Squad Value</div></div>
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:var(--red);">${_fiFmtMoney(wb.total)}</div><div class="mg-kpi-lbl">Wage Bill / Yr</div></div>
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:${fin.wageRatio >= 75 ? 'var(--red)' : fin.wageRatio >= 65 ? 'var(--amber)' : 'var(--green-l)'};">${fin.wageRatio}%</div><div class="mg-kpi-lbl">Wage Ratio</div></div>
+            <div class="mg-kpi"><div class="mg-kpi-val" style="color:${fin.netProfit > 0 ? 'var(--green-l)' : fin.netProfit < 0 ? 'var(--red)' : 'var(--tx-3)'};">${_fiFmtMoney(fin.netProfit)}</div><div class="mg-kpi-lbl">Net P&amp;L</div></div>
+          </div>
+        </div>
+
+        <!-- 3) Department Performance Matrix -->
+        <div class="mg-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Department Performance Matrix</div>
+          <div class="mg-grid-5">
+            ${dept.map(d => `
+              <div class="mg-dept-tile" style="border-color:${d.color};">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${d.color};text-transform:uppercase;">${d.lbl}</div>
+                  <span class="mg-pill" style="color:${d.color};background:${d.color === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : d.color === 'var(--red)' ? 'rgba(239,68,68,0.16)' : d.color === 'var(--amber)' ? 'rgba(245,158,11,0.16)' : 'rgba(96,165,250,0.16)'};">${d.status}</span>
+                </div>
+                <div style="font-size:30px;font-weight:900;font-family:var(--mono);color:${d.color};line-height:1;">${d.score}</div>
+                <div class="mg-bar"><div class="mg-bar-fill" style="width:${Math.max(0, Math.min(100, d.score))}%;background:${d.color};"></div></div>
+                <div style="font-size:10px;color:var(--tx-3);margin-top:7px;line-height:1.4;">${_esc(d.note)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Strategic Risks | Season Objectives -->
+        <div class="mg-grid-2">
+
+          <!-- 4) Strategic Risks -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Strategic Risks</div>
+            ${risks.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No active strategic risks — all departments reporting green.</div>`
+              : risks.map(r => `
+                <div class="mg-alert" style="border-left-color:${r.color};">
+                  <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon || '⚠️'}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${r.color};text-transform:uppercase;">${_esc(r.kind)}</div>
+                      <span class="mg-pill" style="color:${r.srcColor};background:rgba(255,255,255,0.05);">${r.src}</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(r.text)}</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 9) Season Objectives Tracker -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Season Objectives Tracker</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${obj.w}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">WINS</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--amber);">${obj.d}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">DRAWS</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--red);">${obj.l}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">LOSSES</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--tx);">${obj.points}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">POINTS</div>
+              </div>
+            </div>
+            ${obj.form.length ? `<div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;">Recent Form</div>
+              <div style="display:flex;gap:4px;margin-bottom:10px;">
+                ${obj.form.map(f => `<div class="mg-formdot mg-fd-${(f || 'd').toLowerCase()}">${f}</div>`).join('')}
+              </div>` : ''}
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;">Objectives vs Target</div>
+            ${obj.objectives.map(o => {
+              const ratio = o.target > 0 ? Math.min(100, Math.round((o.actual / o.target) * 100)) : 0;
+              const c = ratio >= 100 ? 'var(--green-l)' : ratio >= 70 ? 'var(--amber)' : 'var(--red)';
+              return `
+                <div class="mg-obj-row">
+                  <div>
+                    <div style="font-size:10.5px;color:var(--tx);font-weight:700;">${o.lbl}</div>
+                    <div class="mg-bar" style="margin-top:5px;"><div class="mg-bar-fill" style="width:${ratio}%;background:${c};"></div></div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:${c};line-height:1;">${o.actual}${o.unit}</div>
+                    <div style="font-size:8.5px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">ACTUAL</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--tx-3);">${o.target}${o.unit}</div>
+                    <div style="font-size:8.5px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">TARGET</div>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Squad Status | Financial Status | Transfer & Recruit | Medical -->
+        <div class="mg-grid-4">
+
+          <!-- 5) Squad Status Overview -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Squad Status Overview</div>
+            <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${med.total}</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);margin-bottom:8px;">ACTIVE PLAYERS</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="padding:6px;border-radius:6px;background:rgba(74,222,128,0.08);text-align:center;">
+                <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${med.buckets.AVAILABLE}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">AVAIL</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(245,158,11,0.08);text-align:center;">
+                <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:var(--amber);">${med.buckets.QUESTIONABLE}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">QUEST</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(96,165,250,0.08);text-align:center;">
+                <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${med.buckets.RECOVERY}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">RECOV</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(239,68,68,0.08);text-align:center;">
+                <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:var(--red);">${med.buckets.INJURED}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">INJURED</div>
+              </div>
+            </div>
+            ${top.length ? `<div style="margin-top:10px;font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;">Top Performer</div>
+              <div style="font-size:11px;color:var(--tx);font-weight:700;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(top[0].p))} <span style="font-family:var(--mono);color:${colorFor(top[0].score)};">${top[0].score}</span></div>` : ''}
+          </div>
+
+          <!-- 6) Financial Status Overview -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Financial Status</div>
+            <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${_fiFmtMoney(fin.netWorth)}</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);margin-bottom:8px;">NET WORTH</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--tx);">${_fiFmtMoney(fin.annualRevenue)}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">REVENUE</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--amber);">${_fiFmtMoney(fin.annualExpenses)}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">EXPENSES</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${_fiFmtMoney(fin.cashReserve)}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">CASH</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:${fin.wageRatio >= 75 ? 'var(--red)' : fin.wageRatio >= 65 ? 'var(--amber)' : 'var(--green-l)'};">${fin.wageRatio}%</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">WAGE %</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7) Transfer & Recruitment Overview -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Transfer & Recruitment</div>
+            <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${sim.scenarios[1] ? _fiFmtMoney(sim.scenarios[1].cap) : '—'}</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);margin-bottom:8px;">REALISTIC BUDGET</div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:4px;">Priority Lines</div>
+            <div style="margin-bottom:8px;min-height:18px;">${
+              targets.priority.length
+                ? targets.priority.map(k => `<span class="mg-pill" style="color:var(--amber);background:rgba(245,158,11,0.16);margin-right:4px;">${k}</span>`).join('')
+                : `<span style="font-size:10px;color:var(--tx-3);">Balanced</span>`
+            }</div>
+            ${watch.length ? `<div style="font-size:9.5px;font-weight:900;color:#A78BFA;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:3px;">Top Prospect</div>
+              <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(watch[0].p))} <span style="font-family:var(--mono);color:#A78BFA;">${watch[0].score}</span></div>` : ''}
+          </div>
+
+          <!-- 8) Medical & Availability Overview -->
+          <div class="mg-tile">
+            <div class="mg-tile-lbl">Medical & Availability</div>
+            <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(med.availPct)};line-height:1;">${med.availPct}%</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);margin-bottom:8px;">SQUAD AVAILABLE</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--tx);">${med.avgCond}%</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">AVG CND</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--tx);">${med.avgFat}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">AVG FAT</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(239,68,68,0.08);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--red);">${med.buckets.INJURED}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">INJURED</div>
+              </div>
+              <div style="padding:6px;border-radius:6px;background:rgba(245,158,11,0.08);text-align:center;">
+                <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:var(--amber);">${cand.overloaded ? cand.overloaded.length : 0}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">OVERLOAD</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10) Executive Recommendations -->
+        <div class="mg-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Executive Recommendations</div>
+          ${recs.map(r => `
+            <div class="mg-alert" style="border-left-color:${r.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${r.color};text-transform:uppercase;">${_esc(r.priority)}</div>
+                </div>
+                <div style="font-size:11.5px;color:var(--tx);line-height:1.55;">${_esc(r.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 11) AI Director Summary -->
+        <div class="mg-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:16px;">🧭</span>
+            <div style="font-size:11px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;">AI Director Summary</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;">${_esc(ai)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[management-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Management Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -15072,6 +15610,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="finance-center"]')) {
     setTimeout(function () { try { renderFinanceCenter(); } catch (err) { try { console.error('[finance-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="management-center"]')) {
+    setTimeout(function () { try { renderManagementCenter(); } catch (err) { try { console.error('[management-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
