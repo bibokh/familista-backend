@@ -512,6 +512,7 @@ async function loadAllData() {
       try { if (typeof renderAICoachCenter    === 'function') renderAICoachCenter();    } catch (_) {}
       try { if (typeof renderMedicalCenter    === 'function') renderMedicalCenter();    } catch (_) {}
       try { if (typeof renderPerformanceCenter === 'function') renderPerformanceCenter(); } catch (_) {}
+      try { if (typeof renderScoutingCenter    === 'function') renderScoutingCenter();    } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -732,6 +733,7 @@ function _flushPendingRender() {
     case 'pg-ai-coach':    renderAICoachCenter();   break;
     case 'pg-medical-center': renderMedicalCenter(); break;
     case 'pg-performance-center': renderPerformanceCenter(); break;
+    case 'pg-scouting-center': renderScoutingCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -794,7 +796,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -823,6 +825,7 @@ function navTo(page, el) {
   if (page === 'ai-coach')     { try { renderAICoachCenter();    } catch (e) { try { console.error('[ai-coach] nav render failed:', e);    } catch (_) {} } }
   if (page === 'medical-center'){ try { renderMedicalCenter();    } catch (e) { try { console.error('[medical-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'performance-center'){ try { renderPerformanceCenter(); } catch (e) { try { console.error('[performance-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'scouting-center'){ try { renderScoutingCenter();    } catch (e) { try { console.error('[scouting-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -933,6 +936,7 @@ function renderAllPages() {
     ${renderAICoachHTML()}
     ${renderMedicalCenterHTML()}
     ${renderPerformanceCenterHTML()}
+    ${renderScoutingCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -3620,6 +3624,651 @@ function renderPerformanceCenter() {
     try { console.error('[performance-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Performance Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Scouting Center (new Intelligence page) ──────────────
+// Mirrors Performance Center / Medical Center / AI Coach Center / AI
+// Scouting Center wiring exactly. Read-only, State-derived only —
+// consumes State.players + existing player attributes. Reuses _pcAge,
+// _pcDevelopmentScore, _pcFormScore, _pcReadinessScore, _pcAttrEntries,
+// _pcStrengths, _pcImprovementAreas, _pcTeamAverages, _PC_ATTR_LABELS,
+// _PC_POS_ATTRS, _pcPhotoUrl, _pcInitials, _pcWirePhotoErrors. No
+// backend writes, no new fetches. Distinct from AI Scouting Center
+// (_sc* prefix); Scouting Center uses _sg* prefix throughout.
+function _sgActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _sgOvr(p) { return (p && typeof p.overallRating === 'number') ? p.overallRating : 70; }
+function _sgPot(p) { return (p && typeof p.potential     === 'number') ? p.potential     : _sgOvr(p); }
+function _sgGap(p) { return Math.max(0, _sgPot(p) - _sgOvr(p)); }
+function _sgAgeFactor(p) {
+  const age = _pcAge(p);
+  if (age == null)    return 1.00;
+  if (age <= 19)      return 1.35;
+  if (age <= 22)      return 1.20;
+  if (age <= 25)      return 1.05;
+  if (age <= 28)      return 0.90;
+  return                    0.70;
+}
+function _sgGrowthScore(p) {
+  // 0–100: how quickly this player can grow. Big gap + young = high growth.
+  if (!p) return 0;
+  const gap = _sgGap(p);
+  const af  = _sgAgeFactor(p);
+  return Math.max(0, Math.min(100, Math.round((gap / 35) * 100 * af)));
+}
+function _sgProspectScore(p) {
+  // 0–100 single ranking number combining current ability, potential gap,
+  // and youth multiplier. Used everywhere a single comparable number is needed.
+  if (!p) return 0;
+  const ovr = _sgOvr(p);
+  const pot = _sgPot(p);
+  const gap = _sgGap(p);
+  const af  = _sgAgeFactor(p);
+  const raw = pot * 0.45 + gap * 1.40 + ovr * 0.20;
+  return Math.max(0, Math.min(100, Math.round((raw * af) / 1.4)));
+}
+function _sgIsHiddenGem(p, teamAvgOvr) {
+  if (!p) return false;
+  const age = _pcAge(p);
+  return _sgOvr(p) < teamAvgOvr - 2 && _sgGap(p) >= 8 && (age == null || age <= 24);
+}
+function _sgIsEmerging(p) {
+  if (!p) return false;
+  const age = _pcAge(p);
+  return age != null && age <= 21 && _sgOvr(p) >= 65;
+}
+function _sgIsHighPotential(p) {
+  return _sgPot(p) >= 82;
+}
+function _sgRoleOf(p) {
+  const pos = (p && p.position || '').toUpperCase();
+  if (pos === 'GK') return 'GK';
+  if (pos === 'CB' || pos === 'LB' || pos === 'RB' || pos === 'DEF')  return 'DEF';
+  if (pos === 'CM' || pos === 'CDM' || pos === 'CAM' || pos === 'LM' || pos === 'RM' || pos === 'MID') return 'MID';
+  if (pos === 'ST' || pos === 'CF'  || pos === 'LW'  || pos === 'RW'  || pos === 'FWD') return 'FWD';
+  return 'MID';
+}
+function _sgTopProspects(n) {
+  return _sgActive()
+    .filter(p => !p.isInjured)
+    .map(p => ({ p, score: _sgProspectScore(p) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n || 5);
+}
+function _sgHiddenGems(n) {
+  const ps = _sgActive();
+  if (!ps.length) return [];
+  const teamAvgOvr = ps.reduce((a, p) => a + _sgOvr(p), 0) / ps.length;
+  return ps
+    .filter(p => _sgIsHiddenGem(p, teamAvgOvr))
+    .map(p => ({ p, score: _sgProspectScore(p), gap: _sgGap(p) }))
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, n || 5);
+}
+function _sgHighPotential(n) {
+  return _sgActive()
+    .filter(p => _sgIsHighPotential(p))
+    .map(p => ({ p, pot: _sgPot(p) }))
+    .sort((a, b) => b.pot - a.pot)
+    .slice(0, n || 5);
+}
+function _sgEmerging(n) {
+  return _sgActive()
+    .filter(p => _sgIsEmerging(p))
+    .map(p => ({ p, score: _sgProspectScore(p), age: _pcAge(p) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n || 5);
+}
+function _sgPositionScouting() {
+  const buckets = { GK: [], DEF: [], MID: [], FWD: [] };
+  _sgActive().forEach(p => { (buckets[_sgRoleOf(p)] || buckets.MID).push(p); });
+  const out = {};
+  Object.keys(buckets).forEach(k => {
+    const arr = buckets[k];
+    const best = arr.slice().map(p => ({ p, s: _sgProspectScore(p) })).sort((a, b) => b.s - a.s)[0] || null;
+    const avgOvr = arr.length ? Math.round(arr.reduce((a, p) => a + _sgOvr(p), 0) / arr.length) : 0;
+    const avgPot = arr.length ? Math.round(arr.reduce((a, p) => a + _sgPot(p), 0) / arr.length) : 0;
+    out[k] = { count: arr.length, best: best ? best.p : null, bestScore: best ? best.s : 0, avgOvr, avgPot };
+  });
+  return out;
+}
+function _sgFutureStars() {
+  const ps = _sgActive();
+  if (!ps.length) return { highestPot: [], highestGrowth: [], longTerm: [], ceiling: [] };
+  const withAll = ps.map(p => ({
+    p,
+    pot:    _sgPot(p),
+    growth: _sgGrowthScore(p),
+    age:    _pcAge(p),
+    dev:    (typeof _pcDevelopmentScore === 'function') ? _pcDevelopmentScore(p) : 0,
+    score:  _sgProspectScore(p),
+  }));
+  const highestPot    = withAll.slice().sort((a, b) => b.pot    - a.pot   ).slice(0, 5);
+  const highestGrowth = withAll.slice().sort((a, b) => b.growth - a.growth).slice(0, 5);
+  const longTerm      = withAll.filter(x => x.age != null && x.age <= 21).sort((a, b) => b.pot - a.pot).slice(0, 5);
+  const ceiling       = withAll.slice().sort((a, b) => b.pot - a.pot).slice(0, 3); // top 3 ceiling
+  return { highestPot, highestGrowth, longTerm, ceiling };
+}
+function _sgRecruitmentBoard() {
+  const ps = _sgActive();
+  if (!ps.length) return { immediate: [], development: [], longTerm: [], priority: [] };
+  const immediate   = ps.filter(p => _sgOvr(p) >= 80 && !p.isInjured)
+                        .map(p => ({ p, score: _sgProspectScore(p), ovr: _sgOvr(p) }))
+                        .sort((a, b) => b.ovr - a.ovr).slice(0, 5);
+  const development = ps.filter(p => { const a = _pcAge(p); return a != null && a >= 19 && a <= 23 && _sgPot(p) >= 75; })
+                        .map(p => ({ p, score: _sgProspectScore(p), pot: _sgPot(p) }))
+                        .sort((a, b) => b.score - a.score).slice(0, 5);
+  const longTerm    = ps.filter(p => { const a = _pcAge(p); return a != null && a <= 19 && _sgPot(p) >= 70; })
+                        .map(p => ({ p, score: _sgProspectScore(p), pot: _sgPot(p), age: _pcAge(p) }))
+                        .sort((a, b) => b.score - a.score).slice(0, 5);
+  // Priority: best single per category, then any remaining top scorers.
+  const usedIds = new Set();
+  const priority = [];
+  [immediate, development, longTerm].forEach(list => { if (list[0] && !usedIds.has(list[0].p.id)) { priority.push(list[0]); usedIds.add(list[0].p.id); } });
+  if (priority.length < 5) {
+    ps.map(p => ({ p, score: _sgProspectScore(p) }))
+      .sort((a, b) => b.score - a.score)
+      .forEach(x => { if (priority.length < 5 && !usedIds.has(x.p.id)) { priority.push(x); usedIds.add(x.p.id); } });
+  }
+  return { immediate, development, longTerm, priority };
+}
+function _sgComparison(prospect) {
+  // Compare a single prospect to squad averages + position averages.
+  if (!prospect) return null;
+  const ps = _sgActive();
+  if (!ps.length) return null;
+  const teamAvgOvr = Math.round(ps.reduce((a, p) => a + _sgOvr(p), 0) / ps.length);
+  const teamAvgPot = Math.round(ps.reduce((a, p) => a + _sgPot(p), 0) / ps.length);
+  const role = _sgRoleOf(prospect);
+  const peers = ps.filter(p => _sgRoleOf(p) === role && p.id !== prospect.id);
+  const posAvgOvr = peers.length ? Math.round(peers.reduce((a, p) => a + _sgOvr(p), 0) / peers.length) : teamAvgOvr;
+  const posAvgPot = peers.length ? Math.round(peers.reduce((a, p) => a + _sgPot(p), 0) / peers.length) : teamAvgPot;
+  let strengths = [];
+  let weaknesses = [];
+  try {
+    strengths  = (typeof _pcStrengths         === 'function') ? _pcStrengths(prospect, 3)         : [];
+    weaknesses = (typeof _pcImprovementAreas  === 'function') ? _pcImprovementAreas(prospect, 3)  : [];
+  } catch (_) {}
+  return {
+    prospect,
+    role,
+    ovr: _sgOvr(prospect), pot: _sgPot(prospect),
+    teamAvgOvr, teamAvgPot, posAvgOvr, posAvgPot,
+    deltaTeamOvr: _sgOvr(prospect) - teamAvgOvr,
+    deltaTeamPot: _sgPot(prospect) - teamAvgPot,
+    deltaPosOvr:  _sgOvr(prospect) - posAvgOvr,
+    deltaPosPot:  _sgPot(prospect) - posAvgPot,
+    strengths, weaknesses,
+  };
+}
+function _sgAlerts() {
+  const ps = _sgActive();
+  const alerts = [];
+  // Rapid Growth — multiple players with high growth scores
+  const rapid = ps.filter(p => _sgGrowthScore(p) >= 60);
+  if (rapid.length >= 2) alerts.push({ icon: '🚀', color: 'var(--green-l)', kind: 'RAPID GROWTH', text: `${rapid.length} players with rapid growth signals — protect minutes and progress development plans.` });
+  // Potential Breakthrough — emerging players ready for first team
+  const breakthrough = ps.filter(p => _sgIsEmerging(p) && _sgPot(p) >= 78);
+  if (breakthrough.length >= 1) alerts.push({ icon: '⭐', color: 'var(--green-l)', kind: 'POTENTIAL BREAKTHROUGH', text: `${breakthrough.length} young player${breakthrough.length > 1 ? 's' : ''} ready to break through — consider first-team integration.` });
+  // Hidden Talent — gems found
+  const teamAvgOvr = ps.length ? ps.reduce((a, p) => a + _sgOvr(p), 0) / ps.length : 70;
+  const gems = ps.filter(p => _sgIsHiddenGem(p, teamAvgOvr));
+  if (gems.length >= 1) alerts.push({ icon: '💎', color: 'var(--amber)', kind: 'HIDDEN TALENT', text: `${gems.length} hidden gem${gems.length > 1 ? 's' : ''} identified — under-rated current ability with high upside.` });
+  // Consistency Alert — high potential but low current condition / form
+  const consistency = ps.filter(p => !p.isInjured && _sgPot(p) >= 80 && (((typeof p.condition === 'number') ? p.condition : 100) < 70));
+  if (consistency.length >= 1) alerts.push({ icon: '🎯', color: 'var(--amber)', kind: 'CONSISTENCY ALERT', text: `${consistency.length} high-potential player${consistency.length > 1 ? 's' : ''} with low current condition — monitor workload and form consistency.` });
+  if (!alerts.length) alerts.push({ icon: '✓', color: 'var(--green-l)', kind: 'ALL CLEAR', text: 'No active scouting alerts — squad development on track.' });
+  return alerts.slice(0, 5);
+}
+function _sgWatchlist(n) {
+  return _sgActive()
+    .map(p => ({ p, score: _sgProspectScore(p), pot: _sgPot(p), dev: (typeof _pcDevelopmentScore === 'function') ? _pcDevelopmentScore(p) : 0 }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n || 10);
+}
+function _sgSummary() {
+  const ps = _sgActive();
+  if (!ps.length) return 'No squad data available — Scouting Center is waiting for player data.';
+  const watch = _sgWatchlist(10);
+  const top = watch[0];
+  const fs = _sgFutureStars();
+  const recBoard = _sgRecruitmentBoard();
+  const avgPot = Math.round(ps.reduce((a, p) => a + _sgPot(p), 0) / ps.length);
+  const avgOvr = Math.round(ps.reduce((a, p) => a + _sgOvr(p), 0) / ps.length);
+  const pipelineGap = avgPot - avgOvr;
+  let outlook;
+  if (pipelineGap >= 8) outlook = 'strong — significant upside in current squad';
+  else if (pipelineGap >= 4) outlook = 'positive — measured upside across the group';
+  else outlook = 'limited — squad is already close to ceiling';
+  const topName = top ? `${(top.p.firstName || '').charAt(0)}. ${top.p.lastName || ''}` : '—';
+  const u21Count = ps.filter(p => { const a = _pcAge(p); return a != null && a <= 21; }).length;
+  const rapid = ps.filter(p => _sgGrowthScore(p) >= 60).length;
+  return `Squad talent overview: avg overall ${avgOvr}, avg potential ${avgPot} (gap ${pipelineGap}). ` +
+         `Pipeline contains ${u21Count} U21 player${u21Count === 1 ? '' : 's'} and ${rapid} rapid-growth profile${rapid === 1 ? '' : 's'}. ` +
+         `Top prospect: ${topName} (score ${top ? top.score : 0}/100). ` +
+         `Future stars led by ${fs.highestPot[0] ? (fs.highestPot[0].p.lastName || '') : '—'} (pot ${fs.highestPot[0] ? fs.highestPot[0].pot : '—'}). ` +
+         `${recBoard.immediate.length} immediate-ready, ${recBoard.development.length} development, ${recBoard.longTerm.length} long-term prospects. ` +
+         `Development outlook: ${outlook}. Recommended approach: protect minutes for top prospects, schedule structured exposure for emerging players, and continue progressive load for long-term profiles.`;
+}
+function _ensureSGStyles() {
+  if (document.getElementById('sg-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'sg-styles';
+  s.textContent = `
+    .sg-page{padding:16px 18px;}
+    .sg-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .sg-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .sg-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .sg-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .sg-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .sg-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .sg-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .sg-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .sg-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .sg-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .sg-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .sg-row:last-child{border-bottom:none;}
+    .sg-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .sg-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .sg-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .sg-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .sg-alert:last-child{margin-bottom:0;}
+    .sg-bar{height:7px;border-radius:5px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:5px;}
+    .sg-bar-fill{height:100%;border-radius:5px;}
+    .sg-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .sg-cmp-row{display:grid;grid-template-columns:1fr 60px 60px 60px;gap:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;}
+    .sg-cmp-row:last-child{border-bottom:none;}
+    .sg-cmp-cell{font-size:11px;font-weight:800;font-family:var(--mono);text-align:right;}
+    .sg-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.sg-grid-3{grid-template-columns:repeat(2,1fr);}.sg-grid-4{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.sg-grid-2,.sg-grid-3,.sg-grid-4{grid-template-columns:1fr;}.sg-cmp-row{grid-template-columns:1fr 50px 50px 50px;font-size:10px;}}`;
+  document.head.appendChild(s);
+}
+function renderScoutingCenterHTML() {
+  return `<div class="page" id="pg-scouting-center">
+    <div id="scouting-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Scouting Center…</div>
+    </div>
+  </div>`;
+}
+function renderScoutingCenter() {
+  const el = document.getElementById('scouting-center-content');
+  if (!el) return;
+  try { _ensureSGStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const topProspects = _sgTopProspects(5);
+    const hiddenGems   = _sgHiddenGems(5);
+    const highPot      = _sgHighPotential(5);
+    const emerging     = _sgEmerging(5);
+    const posScout     = _sgPositionScouting();
+    const futureStars  = _sgFutureStars();
+    const recBoard     = _sgRecruitmentBoard();
+    const cmp          = topProspects[0] ? _sgComparison(topProspects[0].p) : null;
+    const alerts       = _sgAlerts();
+    const watch        = _sgWatchlist(10);
+    const summary      = _sgSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : 'var(--red)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="sg-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="sg-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const deltaPill = (d) => {
+      const c = d > 0 ? 'var(--green-l)' : d < 0 ? 'var(--red)' : 'var(--tx-3)';
+      return `<span style="color:${c};font-weight:800;font-family:var(--mono);">${d > 0 ? '+' : ''}${d}</span>`;
+    };
+
+    el.innerHTML = `
+      <div class="sg-page">
+
+        <!-- Brand bar -->
+        <div class="sg-card">
+          <div class="sg-brand">
+            <div class="sg-brand-logo">★ FC FAMILISTA · SCOUTING CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 1) Talent Radar -->
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Talent Radar</div>
+            <div class="sg-grid-4">
+              ${[
+                { title: 'Top Prospects',     list: topProspects, valKey: 'score', valLbl: 'SCORE', color: 'var(--green-l)' },
+                { title: 'Hidden Gems',       list: hiddenGems,   valKey: 'gap',   valLbl: 'GAP',   color: 'var(--amber)'   },
+                { title: 'High Potential',    list: highPot,      valKey: 'pot',   valLbl: 'POT',   color: '#A78BFA'        },
+                { title: 'Emerging Players',  list: emerging,     valKey: 'age',   valLbl: 'AGE',   color: '#60A5FA'        },
+              ].map(col => `
+                <div class="sg-tile">
+                  <div class="sg-tile-lbl" style="color:${col.color};">${col.title}</div>
+                  ${col.list.length === 0
+                    ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No candidates yet.</div>`
+                    : col.list.slice(0, 4).map((x, i) => `
+                      <div class="sg-row" style="padding:5px 0;">
+                        <div class="sg-rank-num">${i + 1}</div>
+                        ${miniAv(x.p)}
+                        <div style="flex:1;min-width:0;">
+                          <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                          <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · OVR ${_sgOvr(x.p)} · POT ${_sgPot(x.p)}</div>
+                        </div>
+                        <div style="text-align:right;">
+                          <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:${col.color};line-height:1;">${x[col.valKey] != null ? x[col.valKey] : '—'}</div>
+                          <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;">${col.valLbl}</div>
+                        </div>
+                      </div>`).join('')}
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Position Scouting | Future Stars -->
+        <div class="sg-grid-2">
+
+          <!-- 2) Position Scouting -->
+          <div class="sg-tile">
+            <div class="sg-tile-lbl">Position Scouting</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${[
+                { key:'GK',  lbl:'Goalkeepers', col:'var(--amber)' },
+                { key:'DEF', lbl:'Defenders',   col:'#60A5FA' },
+                { key:'MID', lbl:'Midfielders', col:'var(--green-l)' },
+                { key:'FWD', lbl:'Forwards',    col:'var(--red)' },
+              ].map(g => {
+                const grp = posScout[g.key];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <div>
+                        <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${g.col};">${g.lbl}</div>
+                        <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${grp.count} player${grp.count === 1 ? '' : 's'} · avg pot ${grp.avgPot}</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(grp.avgPot)};line-height:1;">${grp.bestScore}</div>
+                        <div style="font-size:8.5px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">BEST</div>
+                      </div>
+                    </div>
+                    ${grp.best
+                      ? `<div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05);">
+                          ${miniAv(grp.best)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(grp.best))}</div>
+                            <div style="font-size:9px;color:var(--tx-3);">OVR ${_sgOvr(grp.best)} · POT ${_sgPot(grp.best)}</div>
+                          </div>
+                        </div>`
+                      : `<div style="font-size:10px;color:var(--tx-3);padding-top:8px;border-top:1px solid rgba(255,255,255,0.05);">No players in group.</div>`}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- 3) Future Stars -->
+          <div class="sg-tile">
+            <div class="sg-tile-lbl">Future Stars</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Highest Potential</div>
+                ${futureStars.highestPot.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No candidates.</div>`
+                  : futureStars.highestPot.slice(0, 3).map((x) => `
+                    <div class="sg-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${x.pot}</div>
+                    </div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Highest Growth Curve</div>
+                ${futureStars.highestGrowth.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No candidates.</div>`
+                  : futureStars.highestGrowth.slice(0, 3).map((x) => `
+                    <div class="sg-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">+${x.p.potential != null ? Math.max(0, x.p.potential - _sgOvr(x.p)) : 0} growth</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--amber);">${x.growth}</div>
+                    </div>`).join('')}
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:#60A5FA;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Long-Term Projection</div>
+                ${futureStars.longTerm.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No U21 candidates.</div>`
+                  : futureStars.longTerm.slice(0, 3).map((x) => `
+                    <div class="sg-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">age ${x.age != null ? x.age : '—'}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${x.pot}</div>
+                    </div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:#A78BFA;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Development Ceiling</div>
+                ${futureStars.ceiling.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No data.</div>`
+                  : futureStars.ceiling.map((x) => `
+                    <div class="sg-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">OVR ${_sgOvr(x.p)} → POT ${x.pot}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:#A78BFA;">${x.pot}</div>
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4) Recruitment Board -->
+        <div class="sg-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Recruitment Board</div>
+          <div class="sg-grid-4">
+            ${[
+              { key: 'immediate',   lbl: 'Immediate Ready',     list: recBoard.immediate,   col: 'var(--green-l)', note: 'ovr ≥ 80' },
+              { key: 'development', lbl: 'Development Prospect', list: recBoard.development, col: 'var(--amber)',   note: '19–23 · pot ≥ 75' },
+              { key: 'longTerm',    lbl: 'Long-Term Prospect',   list: recBoard.longTerm,    col: '#60A5FA',         note: '≤ 19 · pot ≥ 70' },
+              { key: 'priority',    lbl: 'Priority Ranking',     list: recBoard.priority,    col: '#A78BFA',         note: 'top-of-category' },
+            ].map(col => `
+              <div class="sg-tile" style="padding:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <div>
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${col.col};">${col.lbl}</div>
+                    <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${col.note}</div>
+                  </div>
+                  <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${col.col};">${col.list.length}</div>
+                </div>
+                ${col.list.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">None.</div>`
+                  : col.list.slice(0, 4).map((x, i) => `
+                    <div class="sg-row" style="padding:4px 0;">
+                      <div class="sg-rank-num">${i + 1}</div>
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${col.col};">${x.score != null ? x.score : (x.ovr || x.pot || '—')}</div>
+                    </div>`).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 5) Comparison Board (top prospect vs squad/position avg) -->
+        <div class="sg-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Comparison Board — Top Prospect Profile</div>
+          ${!cmp
+            ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No prospect data to compare.</div>`
+            : `<div style="display:grid;grid-template-columns:280px 1fr;gap:14px;align-items:start;" id="sg-cmp-wrap">
+                <div class="sg-tile" style="padding:14px;">
+                  <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+                    <div style="width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:linear-gradient(135deg,#1e3a8a,#0ea5e9);font-size:13px;font-weight:800;color:#fff;box-shadow:inset 0 0 10px rgba(255,255,255,0.2),0 0 0 1.5px rgba(74,222,128,0.4);">
+                      ${_pcPhotoUrl(cmp.prospect) ? `<img src="${_esc(_pcPhotoUrl(cmp.prospect))}" alt="${_esc(fullName(cmp.prospect))}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />` : ''}
+                      <span style="position:relative;z-index:1;">${_pcInitials(cmp.prospect)}</span>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:13px;color:var(--tx);font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(cmp.prospect))}</div>
+                      <div style="font-size:10px;color:var(--tx-3);">${_esc(cmp.prospect.position || '—')} · ${cmp.role}</div>
+                    </div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div style="padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);text-align:center;">
+                      <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(cmp.ovr)};">${cmp.ovr}</div>
+                      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;">OVERALL</div>
+                    </div>
+                    <div style="padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);text-align:center;">
+                      <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(cmp.pot)};">${cmp.pot}</div>
+                      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;">POTENTIAL</div>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div class="sg-cmp-row" style="font-weight:800;color:var(--tx-3);font-size:9.5px;letter-spacing:1px;">
+                    <div>METRIC</div><div class="sg-cmp-cell">PLAYER</div><div class="sg-cmp-cell">SQUAD</div><div class="sg-cmp-cell">${cmp.role}</div>
+                  </div>
+                  <div class="sg-cmp-row">
+                    <div style="font-size:11px;color:var(--tx);">Overall vs Squad Avg</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx);">${cmp.ovr}</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx-3);">${cmp.teamAvgOvr}</div>
+                    <div class="sg-cmp-cell">${deltaPill(cmp.deltaTeamOvr)}</div>
+                  </div>
+                  <div class="sg-cmp-row">
+                    <div style="font-size:11px;color:var(--tx);">Potential vs Squad Avg</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx);">${cmp.pot}</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx-3);">${cmp.teamAvgPot}</div>
+                    <div class="sg-cmp-cell">${deltaPill(cmp.deltaTeamPot)}</div>
+                  </div>
+                  <div class="sg-cmp-row">
+                    <div style="font-size:11px;color:var(--tx);">Overall vs ${cmp.role} Avg</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx);">${cmp.ovr}</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx-3);">${cmp.posAvgOvr}</div>
+                    <div class="sg-cmp-cell">${deltaPill(cmp.deltaPosOvr)}</div>
+                  </div>
+                  <div class="sg-cmp-row">
+                    <div style="font-size:11px;color:var(--tx);">Potential vs ${cmp.role} Avg</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx);">${cmp.pot}</div>
+                    <div class="sg-cmp-cell" style="color:var(--tx-3);">${cmp.posAvgPot}</div>
+                    <div class="sg-cmp-cell">${deltaPill(cmp.deltaPosPot)}</div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+                    <div>
+                      <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;">Strengths</div>
+                      ${cmp.strengths.length === 0
+                        ? `<div style="font-size:10.5px;color:var(--tx-3);">No attribute data.</div>`
+                        : cmp.strengths.map(s => `<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);margin-bottom:3px;"><span>${_esc(s.label)}</span><span style="font-family:var(--mono);color:var(--green-l);font-weight:800;">${s.value}</span></div>`).join('')}
+                    </div>
+                    <div>
+                      <div style="font-size:9.5px;font-weight:900;color:var(--red);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:5px;">Weaknesses</div>
+                      ${cmp.weaknesses.length === 0
+                        ? `<div style="font-size:10.5px;color:var(--tx-3);">No attribute data.</div>`
+                        : cmp.weaknesses.map(s => `<div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);margin-bottom:3px;"><span>${_esc(s.label)}</span><span style="font-family:var(--mono);color:var(--red);font-weight:800;">${s.value}</span></div>`).join('')}
+                    </div>
+                  </div>
+                </div>
+              </div>`}
+        </div>
+
+        <!-- Row: Scouting Alerts | Prospect Watchlist -->
+        <div class="sg-grid-2">
+
+          <!-- 6) Scouting Alerts -->
+          <div class="sg-tile">
+            <div class="sg-tile-lbl">Scouting Alerts</div>
+            ${alerts.map(a => `
+              <div class="sg-alert" style="border-left-color:${a.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 7) Prospect Watchlist -->
+          <div class="sg-tile">
+            <div class="sg-tile-lbl">Prospect Watchlist — Top 10</div>
+            ${watch.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No prospects on watchlist.</div>`
+              : watch.map((x, i) => `
+                <div class="sg-row" style="padding:5px 0;">
+                  <div class="sg-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${_pcAge(x.p) != null ? _pcAge(x.p) : '—'}</div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <div style="text-align:right;">
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(x.score)};line-height:1;">${x.score}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;">RNK</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:#A78BFA;line-height:1;">${x.pot}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;">POT</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:#60A5FA;line-height:1;">${x.dev}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;">DEV</div>
+                    </div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 8) Scouting Summary -->
+        <div class="sg-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">🔭</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Scouting Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[scouting-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Scouting Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -13242,6 +13891,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="performance-center"]')) {
     setTimeout(function () { try { renderPerformanceCenter(); } catch (err) { try { console.error('[performance-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="scouting-center"]')) {
+    setTimeout(function () { try { renderScoutingCenter(); } catch (err) { try { console.error('[scouting-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
