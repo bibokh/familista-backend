@@ -514,6 +514,7 @@ async function loadAllData() {
       try { if (typeof renderPerformanceCenter === 'function') renderPerformanceCenter(); } catch (_) {}
       try { if (typeof renderScoutingCenter    === 'function') renderScoutingCenter();    } catch (_) {}
       try { if (typeof renderTransferCenter    === 'function') renderTransferCenter();    } catch (_) {}
+      try { if (typeof renderFinanceCenter     === 'function') renderFinanceCenter();     } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -736,6 +737,7 @@ function _flushPendingRender() {
     case 'pg-performance-center': renderPerformanceCenter(); break;
     case 'pg-scouting-center': renderScoutingCenter(); break;
     case 'pg-transfer-center': renderTransferCenter(); break;
+    case 'pg-finance-center':  renderFinanceCenter();  break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -798,7 +800,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -829,6 +831,7 @@ function navTo(page, el) {
   if (page === 'performance-center'){ try { renderPerformanceCenter(); } catch (e) { try { console.error('[performance-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'scouting-center'){ try { renderScoutingCenter();    } catch (e) { try { console.error('[scouting-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'transfer-center'){ try { renderTransferCenter();    } catch (e) { try { console.error('[transfer-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'finance-center') { try { renderFinanceCenter();     } catch (e) { try { console.error('[finance-center] nav render failed:', e);  } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -941,6 +944,7 @@ function renderAllPages() {
     ${renderPerformanceCenterHTML()}
     ${renderScoutingCenterHTML()}
     ${renderTransferCenterHTML()}
+    ${renderFinanceCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -4928,6 +4932,515 @@ function renderTransferCenter() {
     try { console.error('[transfer-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Transfer Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Finance Center (new Management page) ────────────────
+// Mirrors Transfer Center / Scouting Center / Performance Center / Medical
+// Center / AI Coach Center / AI Scouting Center wiring exactly. Read-only,
+// State-derived only — consumes State.players + existing player
+// attributes. Reuses _tcValueOf (market value), _pcAge, _pcPhotoUrl,
+// _pcInitials, _pcWirePhotoErrors. No backend writes, no new fetches.
+// All non-value finance figures (salary, revenue, expenses, budget
+// allocation, transfer-budget scenarios) are deterministically derived
+// from squad value + ratings + age. Uses _fi* helper prefix (distinct
+// from _fc* which belongs to Command Center).
+function _fiActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _fiValueOf(p) {
+  // Single source of value — defer to Transfer Center's helper so the
+  // two pages always agree.
+  try { return _tcValueOf(p); } catch (_) { return 0; }
+}
+function _fiSalaryOf(p) {
+  // Annual wage = persisted salary if present, else % of market value.
+  // Top earners 18%, mid-tier 15%, fringe 12%, with a 30k floor.
+  if (p && typeof p.salary === 'number' && p.salary > 0) return Math.round(p.salary);
+  if (p && typeof p.annualSalary === 'number' && p.annualSalary > 0) return Math.round(p.annualSalary);
+  const v = _fiValueOf(p);
+  const ovr = (p && typeof p.overallRating === 'number') ? p.overallRating : 70;
+  const ratePct = ovr >= 85 ? 0.18 : ovr >= 75 ? 0.15 : 0.12;
+  return Math.max(30000, Math.round(v * ratePct));
+}
+function _fiFmtMoney(v) {
+  if (v == null || isNaN(v)) return '—';
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) return sign + '€' + (abs / 1000000).toFixed(abs >= 10000000 ? 0 : 1) + 'M';
+  if (abs >= 1000)    return sign + '€' + Math.round(abs / 1000) + 'k';
+  return sign + '€' + Math.round(abs);
+}
+function _fiSquadValue() {
+  const ps = _fiActive();
+  if (!ps.length) return { total: 0, avg: 0, count: 0, top: null, low: null, valued: [] };
+  const valued = ps.map(p => ({ p, v: _fiValueOf(p) })).sort((a, b) => b.v - a.v);
+  const total  = valued.reduce((a, x) => a + x.v, 0);
+  const avg    = Math.round(total / valued.length);
+  return { total, avg, count: valued.length, top: valued[0], low: valued[valued.length - 1], valued };
+}
+function _fiWageBill() {
+  const ps = _fiActive();
+  if (!ps.length) return { total: 0, avg: 0, top: null, valued: [] };
+  const valued = ps.map(p => ({ p, w: _fiSalaryOf(p) })).sort((a, b) => b.w - a.w);
+  const total  = valued.reduce((a, x) => a + x.w, 0);
+  const avg    = Math.round(total / valued.length);
+  return { total, avg, top: valued[0], valued };
+}
+function _fiClubOverview() {
+  // Synthesised club P&L derived from wage bill + squad value.
+  // Annual revenue ≈ wages × 1.6 (a typical pro-football wage-to-revenue ratio of ~62%).
+  // Operating expenses ≈ 25% of revenue (matchday, travel, kit, staff).
+  // Net profit  = revenue − wages − operating.
+  // Cash reserve ≈ 30% of annual revenue (proxy for liquidity).
+  // Net worth   ≈ squad value + cash reserve − annual debt service (none here).
+  const sv = _fiSquadValue();
+  const wb = _fiWageBill();
+  const annualRevenue   = Math.round(wb.total * 1.6);
+  const operatingCost   = Math.round(annualRevenue * 0.25);
+  const annualExpenses  = wb.total + operatingCost;
+  const netProfit       = annualRevenue - annualExpenses;
+  const cashReserve     = Math.round(annualRevenue * 0.30);
+  const totalAssets     = sv.total + cashReserve;
+  const totalLiabilities = Math.round(wb.total * 0.6); // contractual obligations proxy
+  const netWorth        = totalAssets - totalLiabilities;
+  const wageRatio       = annualRevenue > 0 ? Math.round((wb.total / annualRevenue) * 100) : 0;
+  return {
+    squadValue: sv.total, wageBill: wb.total, annualRevenue, operatingCost,
+    annualExpenses, netProfit, cashReserve, totalAssets, totalLiabilities,
+    netWorth, wageRatio,
+  };
+}
+function _fiBudgetAllocation() {
+  // Recommended split of annual expense budget. Anchored to wage ratio
+  // so reality vs target is visible: if wages already eat 60%+ of
+  // revenue, headroom for transfers / youth shrinks.
+  const co = _fiClubOverview();
+  const expense = co.annualExpenses;
+  // Recommended targets (sum to 100).
+  const recommended = { wages: 55, transfers: 18, operations: 15, youth: 7, infra: 5 };
+  // Actual split, with wages as is, operations from synthesised value,
+  // and the remainder distributed by recommended weights.
+  const actualWages   = expense > 0 ? Math.round((co.wageBill / expense) * 100) : 0;
+  const actualOps     = expense > 0 ? Math.round((co.operatingCost / expense) * 100) : 0;
+  const remaining     = Math.max(0, 100 - actualWages - actualOps);
+  const actualTransf  = Math.round(remaining * 0.55);
+  const actualYouth   = Math.round(remaining * 0.25);
+  const actualInfra   = Math.max(0, remaining - actualTransf - actualYouth);
+  const actual = { wages: actualWages, transfers: actualTransf, operations: actualOps, youth: actualYouth, infra: actualInfra };
+  // Concrete euro amounts derived from actual splits.
+  const amounts = {
+    wages:      co.wageBill,
+    transfers:  Math.round(expense * actualTransf / 100),
+    operations: co.operatingCost,
+    youth:      Math.round(expense * actualYouth / 100),
+    infra:      Math.round(expense * actualInfra / 100),
+  };
+  return { recommended, actual, amounts, expense };
+}
+function _fiTransferSimulation() {
+  // Three scenarios for an incoming transfer fee, using cash reserve
+  // plus optional offload value.
+  const co = _fiClubOverview();
+  const wb = _fiWageBill();
+  const sv = _fiSquadValue();
+  // Top offload candidate (kept distinct from "best keep") — lowest-rated
+  // senior player on a non-trivial wage.
+  const ps = _fiActive();
+  let offload = null;
+  let offloadVal = 0;
+  if (ps.length) {
+    const sorted = ps
+      .map(p => ({ p, v: _fiValueOf(p), w: _fiSalaryOf(p), ovr: (typeof p.overallRating === 'number' ? p.overallRating : 70) }))
+      .filter(x => x.ovr < 78)
+      .sort((a, b) => b.v - a.v);
+    if (sorted.length) { offload = sorted[0]; offloadVal = sorted[0].v; }
+  }
+  // A typical incoming "deal" costs ~ fee + 2× annual salary over a 4-yr contract.
+  // We expose the max sign-fee available under each scenario by subtracting
+  // first-year salary commitment from the available cash.
+  const assumedSignSalary = Math.round(wb.avg ? wb.avg * 1.2 : 50000);
+  const lowCash     = Math.round(co.cashReserve * 0.50);
+  const midCash     = co.cashReserve;
+  const highCash    = co.cashReserve + offloadVal;
+  const sigCap = (cash) => Math.max(0, cash - assumedSignSalary);
+  return {
+    cashReserve: co.cashReserve,
+    offload, offloadVal, assumedSignSalary,
+    scenarios: [
+      { key:'LOW',  lbl:'Conservative', cash: lowCash,  cap: sigCap(lowCash),  note: '50% of cash reserve; safe headroom for unforeseen costs.' },
+      { key:'MID',  lbl:'Realistic',    cash: midCash,  cap: sigCap(midCash),  note: 'Full available cash reserve; standard window approach.' },
+      { key:'HIGH', lbl:'Aggressive',   cash: highCash, cap: sigCap(highCash), note: offload ? `Full cash reserve + offload of ${(offload.p.firstName || '').charAt(0)}. ${offload.p.lastName || ''} (${_fiFmtMoney(offloadVal)}).` : 'Full cash reserve; no obvious offload candidate identified.' },
+    ],
+  };
+}
+function _fiAlerts() {
+  const ps = _fiActive();
+  const co = _fiClubOverview();
+  const wb = _fiWageBill();
+  const alerts = [];
+  // High wage ratio
+  if (co.wageRatio >= 75)      alerts.push({ icon: '📈', color: 'var(--red)',   kind: 'HIGH WAGE RATIO',       text: `Wages absorb ${co.wageRatio}% of projected revenue — sustainability risk; review fringe contracts.` });
+  else if (co.wageRatio >= 65) alerts.push({ icon: '📈', color: 'var(--amber)', kind: 'ELEVATED WAGE RATIO',   text: `Wages absorb ${co.wageRatio}% of revenue — monitor and avoid new high-wage signings.` });
+  // Low cash reserve (less than one month of wages)
+  if (co.cashReserve < wb.total / 12 && wb.total > 0) alerts.push({ icon: '💸', color: 'var(--red)',   kind: 'LOW CASH RESERVE',      text: `Cash reserve ${_fiFmtMoney(co.cashReserve)} below one month of wages — liquidity at risk.` });
+  // Top earner concentration
+  if (wb.top && wb.total > 0) {
+    const share = Math.round((wb.top.w / wb.total) * 100);
+    if (share >= 20) alerts.push({ icon: '🎯', color: 'var(--amber)', kind: 'EARNER CONCENTRATION',  text: `${(wb.top.p.firstName || '').charAt(0)}. ${wb.top.p.lastName || ''} alone accounts for ${share}% of wage bill — dependency on a single contract.` });
+  }
+  // Aging cost — players 32+ on top-quartile wages
+  if (ps.length && wb.valued && wb.valued.length) {
+    const q1Cut = wb.valued[Math.max(0, Math.floor(wb.valued.length / 4) - 1)].w;
+    const agingExpensive = wb.valued.filter(x => { const a = _pcAge(x.p); return a != null && a >= 32 && x.w >= q1Cut; });
+    if (agingExpensive.length >= 2) alerts.push({ icon: '🕰️', color: 'var(--amber)', kind: 'AGING WAGE COST',       text: `${agingExpensive.length} players age 32+ on top-quartile wages — succession plans needed.` });
+  }
+  // Injured wage exposure
+  const injuredWage = (wb.valued || []).filter(x => x.p && x.p.isInjured).reduce((a, x) => a + x.w, 0);
+  if (injuredWage > 0 && wb.total > 0) {
+    const pct = Math.round((injuredWage / wb.total) * 100);
+    if (pct >= 8) alerts.push({ icon: '🚑', color: 'var(--red)', kind: 'INJURED WAGE EXPOSURE', text: `${_fiFmtMoney(injuredWage)} (${pct}%) of wages paid to injured players — medical/contract reviews recommended.` });
+  }
+  if (!alerts.length) alerts.push({ icon: '✓', color: 'var(--green-l)', kind: 'ALL CLEAR', text: 'No financial-risk alerts — projections within healthy ranges.' });
+  return alerts.slice(0, 5);
+}
+function _fiSummary() {
+  const ps = _fiActive();
+  if (!ps.length) return 'No squad data available — Finance Center is waiting for player data.';
+  const co  = _fiClubOverview();
+  const sv  = _fiSquadValue();
+  const wb  = _fiWageBill();
+  const sim = _fiTransferSimulation();
+  let health;
+  if (co.netProfit > 0 && co.wageRatio <= 65 && co.cashReserve >= wb.total / 6) health = 'HEALTHY';
+  else if (co.netProfit >= 0 && co.wageRatio <= 75)                              health = 'BALANCED';
+  else                                                                            health = 'STRESSED';
+  const topName  = sv.top ? `${(sv.top.p.firstName || '').charAt(0)}. ${sv.top.p.lastName || ''}` : '—';
+  const recAction = health === 'HEALTHY'
+    ? 'maintain wage discipline and reinvest projected profit into youth + infrastructure'
+    : health === 'BALANCED'
+    ? 'cap incoming wages, prioritise replacements that fit existing wage bands, and rebuild reserves'
+    : 'freeze high-wage signings, review top-quartile contracts, and offload to restore liquidity';
+  return `Club financial health: ${health}. ` +
+         `Squad value ${_fiFmtMoney(sv.total)} across ${sv.count} players. ` +
+         `Wage bill ${_fiFmtMoney(wb.total)}/yr, projected revenue ${_fiFmtMoney(co.annualRevenue)}/yr — wage ratio ${co.wageRatio}%. ` +
+         `Net P&L ${_fiFmtMoney(co.netProfit)}. Cash reserve ${_fiFmtMoney(co.cashReserve)}. Top asset: ${topName} (${_fiFmtMoney(sv.top ? sv.top.v : 0)}). ` +
+         `Realistic transfer budget headroom ${_fiFmtMoney(sim.scenarios[1].cap)}. ` +
+         `Recommended action: ${recAction}.`;
+}
+function _ensureFIStyles() {
+  if (document.getElementById('fi-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'fi-styles';
+  s.textContent = `
+    .fi-page{padding:16px 18px;}
+    .fi-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .fi-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .fi-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .fi-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .fi-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .fi-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .fi-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .fi-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .fi-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .fi-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .fi-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .fi-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .fi-kpi-val{font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .fi-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .fi-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .fi-row:last-child{border-bottom:none;}
+    .fi-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .fi-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .fi-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .fi-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .fi-alert:last-child{margin-bottom:0;}
+    .fi-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .fi-bar-fill{height:100%;border-radius:6px;}
+    .fi-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .fi-budget-row{display:grid;grid-template-columns:120px 1fr 70px 50px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .fi-budget-row:last-child{border-bottom:none;}
+    .fi-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.fi-grid-3{grid-template-columns:repeat(2,1fr);}.fi-grid-4{grid-template-columns:repeat(2,1fr);}.fi-grid-5{grid-template-columns:repeat(2,1fr);}.fi-budget-row{grid-template-columns:90px 1fr 60px 40px;font-size:10px;}}
+    @media (max-width:600px){.fi-grid-2,.fi-grid-3,.fi-grid-4,.fi-grid-5{grid-template-columns:1fr;}.fi-budget-row{grid-template-columns:80px 1fr 50px;}.fi-budget-row > :nth-child(4){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderFinanceCenterHTML() {
+  return `<div class="page" id="pg-finance-center">
+    <div id="finance-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Finance Center…</div>
+    </div>
+  </div>`;
+}
+function renderFinanceCenter() {
+  const el = document.getElementById('finance-center-content');
+  if (!el) return;
+  try { _ensureFIStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const co   = _fiClubOverview();
+    const sv   = _fiSquadValue();
+    const wb   = _fiWageBill();
+    const budg = _fiBudgetAllocation();
+    const sim  = _fiTransferSimulation();
+    const alts = _fiAlerts();
+    const summary = _fiSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const miniAv = (p) => {
+      if (!p) return `<div class="fi-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="fi-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const wageRatioColor = co.wageRatio >= 75 ? 'var(--red)' : co.wageRatio >= 65 ? 'var(--amber)' : 'var(--green-l)';
+    const profitColor    = co.netProfit  > 0 ? 'var(--green-l)' : co.netProfit < 0 ? 'var(--red)' : 'var(--tx-3)';
+    const topValueList   = sv.valued.slice(0, 10);
+    const topWageList    = wb.valued.slice(0, 5);
+
+    // Budget rows
+    const budgetRows = [
+      { key:'wages',      lbl:'Wages',          col:'var(--red)'     },
+      { key:'transfers',  lbl:'Transfers',      col:'var(--green-l)' },
+      { key:'operations', lbl:'Operations',     col:'var(--amber)'   },
+      { key:'youth',      lbl:'Youth Develop.', col:'#60A5FA'        },
+      { key:'infra',      lbl:'Infrastructure', col:'#A78BFA'        },
+    ];
+
+    el.innerHTML = `
+      <div class="fi-page">
+
+        <!-- Brand bar -->
+        <div class="fi-card">
+          <div class="fi-brand">
+            <div class="fi-brand-logo">★ FC FAMILISTA · FINANCE CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 1) Club Financial Overview -->
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Club Financial Overview</div>
+            <div class="fi-grid-5" style="margin-bottom:14px;">
+              <div class="fi-kpi"><div class="fi-kpi-val" style="color:var(--green-l);">${_fiFmtMoney(co.totalAssets)}</div><div class="fi-kpi-lbl">Total Assets</div></div>
+              <div class="fi-kpi"><div class="fi-kpi-val" style="color:var(--red);">${_fiFmtMoney(co.totalLiabilities)}</div><div class="fi-kpi-lbl">Liabilities</div></div>
+              <div class="fi-kpi"><div class="fi-kpi-val" style="color:${co.netWorth >= 0 ? 'var(--green-l)' : 'var(--red)'};">${_fiFmtMoney(co.netWorth)}</div><div class="fi-kpi-lbl">Net Worth</div></div>
+              <div class="fi-kpi"><div class="fi-kpi-val" style="color:var(--tx);">${_fiFmtMoney(co.annualRevenue)}</div><div class="fi-kpi-lbl">Annual Revenue</div></div>
+              <div class="fi-kpi"><div class="fi-kpi-val" style="color:${profitColor};">${_fiFmtMoney(co.netProfit)}</div><div class="fi-kpi-lbl">Net P&amp;L</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+              <div class="fi-tile" style="padding:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Wage Ratio</div>
+                  <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${wageRatioColor};">${co.wageRatio}%</div>
+                </div>
+                <div class="fi-bar"><div class="fi-bar-fill" style="width:${Math.min(100, co.wageRatio)}%;background:${wageRatioColor};"></div></div>
+                <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.4;">${_fiFmtMoney(wb.total)} of ${_fiFmtMoney(co.annualRevenue)} revenue.</div>
+              </div>
+              <div class="fi-tile" style="padding:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Cash Reserve</div>
+                  <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${_fiFmtMoney(co.cashReserve)}</div>
+                </div>
+                <div style="font-size:9.5px;color:var(--tx-3);margin-top:8px;line-height:1.4;">≈ ${wb.total > 0 ? (co.cashReserve / (wb.total / 12)).toFixed(1) : '—'} months of wages.</div>
+              </div>
+              <div class="fi-tile" style="padding:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Annual Expenses</div>
+                  <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--amber);">${_fiFmtMoney(co.annualExpenses)}</div>
+                </div>
+                <div style="font-size:9.5px;color:var(--tx-3);margin-top:8px;line-height:1.4;">${_fiFmtMoney(wb.total)} wages + ${_fiFmtMoney(co.operatingCost)} operations.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Squad Value Overview | Player Market Value Ranking -->
+        <div class="fi-grid-2">
+
+          <!-- 2) Squad Value Overview -->
+          <div class="fi-tile">
+            <div class="fi-tile-lbl">Squad Value Overview</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${_fiFmtMoney(sv.total)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">TOTAL</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--tx);">${_fiFmtMoney(sv.avg)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">AVERAGE</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--tx);">${sv.count}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">PLAYERS</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Top Wage Earners</div>
+            ${topWageList.length === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No data.</div>`
+              : topWageList.map((x, i) => `
+                <div class="fi-row" style="padding:5px 0;">
+                  <div class="fi-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ${wb.total > 0 ? Math.round((x.w / wb.total) * 100) : 0}% of bill</div>
+                  </div>
+                  <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--red);">${_fiFmtMoney(x.w)}/yr</div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 3) Player Market Value Ranking -->
+          <div class="fi-tile">
+            <div class="fi-tile-lbl">Player Market Value Ranking — Top 10</div>
+            ${topValueList.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No prospects on watchlist.</div>`
+              : topValueList.map((x, i) => `
+                <div class="fi-row" style="padding:5px 0;">
+                  <div class="fi-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${_pcAge(x.p) != null ? _pcAge(x.p) : '—'}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${_fiFmtMoney(x.v)}</div>
+                    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">${sv.total > 0 ? Math.round((x.v / sv.total) * 100) : 0}% OF SQUAD</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Salary / Cost Estimate | Budget Allocation -->
+        <div class="fi-grid-2">
+
+          <!-- 4) Salary / Cost Estimate -->
+          <div class="fi-tile">
+            <div class="fi-tile-lbl">Salary / Cost Estimate</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--red);">${_fiFmtMoney(wb.total)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">TOTAL WAGES / YR</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--tx);">${_fiFmtMoney(wb.avg)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">AVG / PLAYER</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber);">${_fiFmtMoney(Math.round(wb.total / 12))}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">MONTHLY</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber);">${_fiFmtMoney(co.operatingCost)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">OPERATING / YR</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;color:var(--tx-3);line-height:1.5;">Wages derived from market value × tier rate (12–18%). Operating overhead modelled at 25% of projected annual revenue.</div>
+          </div>
+
+          <!-- 5) Budget Allocation -->
+          <div class="fi-tile">
+            <div class="fi-tile-lbl">Budget Allocation</div>
+            <div class="fi-budget-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+              <div>CATEGORY</div><div>ALLOCATION</div><div style="text-align:right;">AMOUNT</div><div style="text-align:right;">TARGET</div>
+            </div>
+            ${budgetRows.map(r => `
+              <div class="fi-budget-row">
+                <div style="font-size:11px;color:var(--tx);font-weight:700;"><span class="fi-pill" style="color:${r.col};background:${r.col === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : r.col === 'var(--red)' ? 'rgba(239,68,68,0.16)' : r.col === 'var(--amber)' ? 'rgba(245,158,11,0.16)' : r.col === '#60A5FA' ? 'rgba(96,165,250,0.16)' : 'rgba(167,139,250,0.16)'};">${budg.actual[r.key]}%</span> <span style="color:var(--tx-2);margin-left:6px;">${r.lbl}</span></div>
+                <div><div class="fi-bar" style="margin-top:0;"><div class="fi-bar-fill" style="width:${Math.min(100, budg.actual[r.key])}%;background:${r.col};"></div></div></div>
+                <div style="text-align:right;font-size:10.5px;font-family:var(--mono);color:var(--tx);font-weight:800;">${_fiFmtMoney(budg.amounts[r.key])}</div>
+                <div style="text-align:right;font-size:10px;font-family:var(--mono);color:var(--tx-3);">${budg.recommended[r.key]}%</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 6) Transfer Budget Simulation (full) -->
+        <div class="fi-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Transfer Budget Simulation</div>
+          <div class="fi-grid-3">
+            ${sim.scenarios.map(s => {
+              const col = s.key === 'LOW' ? '#60A5FA' : s.key === 'MID' ? 'var(--green-l)' : 'var(--amber)';
+              return `
+                <div class="fi-tile" style="padding:14px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div>
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${col};">${s.lbl}</div>
+                      <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${s.key} SCENARIO</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${col};line-height:1;">${_fiFmtMoney(s.cap)}</div>
+                      <div style="font-size:8.5px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">MAX FEE</div>
+                    </div>
+                  </div>
+                  <div style="font-size:10px;color:var(--tx-2);line-height:1.5;margin-bottom:8px;">${_esc(s.note)}</div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);">
+                    <span>Cash pool:</span><span style="font-family:var(--mono);color:var(--tx);font-weight:700;">${_fiFmtMoney(s.cash)}</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);margin-top:3px;">
+                    <span>Yr-1 wage commitment:</span><span style="font-family:var(--mono);color:var(--tx);font-weight:700;">${_fiFmtMoney(sim.assumedSignSalary)}</span>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+          ${sim.offload ? `<div style="font-size:10.5px;color:var(--tx-3);margin-top:10px;line-height:1.5;">Aggressive scenario assumes offload of <span style="color:var(--tx);font-weight:700;">${_esc(fullName(sim.offload.p))}</span> (${_fiFmtMoney(sim.offloadVal)}).</div>` : ''}
+        </div>
+
+        <!-- 7) Financial Risk Alerts (full) -->
+        <div class="fi-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Financial Risk Alerts</div>
+          ${alts.map(a => `
+            <div class="fi-alert" style="border-left-color:${a.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 8) Finance Summary -->
+        <div class="fi-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">💰</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Finance Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[finance-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Finance Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -14556,6 +15069,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="transfer-center"]')) {
     setTimeout(function () { try { renderTransferCenter(); } catch (err) { try { console.error('[transfer-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="finance-center"]')) {
+    setTimeout(function () { try { renderFinanceCenter(); } catch (err) { try { console.error('[finance-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
