@@ -518,6 +518,7 @@ async function loadAllData() {
       try { if (typeof renderManagementCenter  === 'function') renderManagementCenter();  } catch (_) {}
       try { if (typeof renderAcademyCenter     === 'function') renderAcademyCenter();     } catch (_) {}
       try { if (typeof renderSportingDirectorCenter === 'function') renderSportingDirectorCenter(); } catch (_) {}
+      try { if (typeof renderDirectorOfFootballCenter === 'function') renderDirectorOfFootballCenter(); } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -744,6 +745,7 @@ function _flushPendingRender() {
     case 'pg-management-center': renderManagementCenter(); break;
     case 'pg-academy-center':    renderAcademyCenter();    break;
     case 'pg-sporting-director-center': renderSportingDirectorCenter(); break;
+    case 'pg-director-of-football-center': renderDirectorOfFootballCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -806,7 +808,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -841,6 +843,7 @@ function navTo(page, el) {
   if (page === 'management-center'){ try { renderManagementCenter();} catch (e) { try { console.error('[management-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'academy-center')   { try { renderAcademyCenter();   } catch (e) { try { console.error('[academy-center] nav render failed:', e);    } catch (_) {} } }
   if (page === 'sporting-director-center'){ try { renderSportingDirectorCenter(); } catch (e) { try { console.error('[sporting-director-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'director-of-football-center'){ try { renderDirectorOfFootballCenter(); } catch (e) { try { console.error('[director-of-football-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -957,6 +960,7 @@ function renderAllPages() {
     ${renderManagementCenterHTML()}
     ${renderAcademyCenterHTML()}
     ${renderSportingDirectorCenterHTML()}
+    ${renderDirectorOfFootballCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -7093,6 +7097,603 @@ function renderSportingDirectorCenter() {
     try { console.error('[sporting-director-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Sporting Director Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Director Of Football Center (executive decision page) ─
+// Aggregator-only. Consumes outputs from Sporting Director Center
+// (_sd*), Finance Center (_fi*), Academy Center (_aca*), Scouting
+// Center (_sg*), Medical Center (_md*), Performance Center (_pf*),
+// Transfer Center (_tc*) and Management Center (_mg*). Does NOT
+// recompute any domain analytic. Adds a thin _dof* synthesis layer
+// (overall football health composite, contract strategy, succession
+// planning, squad lifecycle balance, action queue, summary) on top.
+// No backend writes, no new fetches, no schema changes, no routes.
+function _dofSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _dofActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _dofOvr(p) { return (p && typeof p.overallRating === 'number') ? p.overallRating : 70; }
+function _dofPot(p) { return (p && typeof p.potential     === 'number') ? p.potential     : _dofOvr(p); }
+function _dofAge(p) { try { return _pcAge(p); } catch (_) { return null; } }
+function _dofFormScore(p) { try { return _pcFormScore(p); } catch (_) { return 0; } }
+function _dofValue(p) { try { return _tcValueOf(p); } catch (_) { return 0; } }
+function _dofHealthScore() {
+  // Composite of Sporting Score and Finance Health, weighted toward
+  // Sporting Score (operations weigh heavier than headline finance).
+  const sport = _dofSafe(_sdOverallScore, 0);
+  const fin   = _dofSafe(_mgFinanceHealthScore, 0);
+  const score = Math.round(sport * 0.70 + fin * 0.30);
+  return Math.max(0, Math.min(100, score));
+}
+function _dofBand(score) {
+  if (score > 80) return { band:'ELITE',    color:'var(--green-l)' };
+  if (score > 65) return { band:'STRONG',   color:'var(--amber)'   };
+  if (score > 50) return { band:'WATCH',    color:'#60A5FA'        };
+  return                 { band:'CRITICAL', color:'var(--red)'     };
+}
+function _dofSignRecommendations() { return _dofSafe(_sdTransferPriorities, []); }
+function _dofSellRecommendations() { return _dofSafe(_sdSellCandidates, { list: [], estimatedGain: 0 }); }
+function _dofLoanRecommendations() { return _dofSafe(_sdLoanStrategy, []); }
+function _dofPromotionRecommendations() { return _dofSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [], LONG_TERM: [] }); }
+function _dofContractStrategy() {
+  // Per-player RENEW / MONITOR / RELEASE recommendation, deterministic
+  // on age + ovr + form + value + injury.
+  const ps = _dofActive();
+  if (!ps.length) return { RENEW: [], MONITOR: [], RELEASE: [] };
+  const decide = (p) => {
+    const ovr = _dofOvr(p);
+    const age = _dofAge(p);
+    const form = _dofFormScore(p);
+    const val = _dofValue(p);
+    if (p.isInjured && age != null && age >= 32) return 'RELEASE';
+    if (age != null && age >= 33 && form < 55)   return 'RELEASE';
+    if (ovr < 60 && form < 50)                   return 'RELEASE';
+    if (ovr >= 78 && form >= 65 && (age == null || age <= 30)) return 'RENEW';
+    if (ovr >= 72 && form >= 60 && (age == null || age <= 28)) return 'RENEW';
+    return 'MONITOR';
+  };
+  const buckets = { RENEW: [], MONITOR: [], RELEASE: [] };
+  ps.forEach(p => {
+    const tag = decide(p);
+    buckets[tag].push({ p, ovr: _dofOvr(p), age: _dofAge(p), form: _dofFormScore(p), value: _dofValue(p), tag });
+  });
+  Object.keys(buckets).forEach(k => { buckets[k].sort((a, b) => b.value - a.value); });
+  return buckets;
+}
+function _dofSuccessionPlanning() {
+  // For each aging starter (>= 30, ovr >= 72), find best young (≤ 24)
+  // successor in the same role bucket.
+  const ps = _dofActive();
+  if (!ps.length) return [];
+  const role = (p) => { try { return _tcRoleOf(p); } catch (_) { return 'MID'; } };
+  const youngByRole = { GK: [], DEF: [], MID: [], FWD: [] };
+  ps.forEach(p => { const a = _dofAge(p); if (a != null && a <= 24) { (youngByRole[role(p)] || youngByRole.MID).push(p); } });
+  Object.keys(youngByRole).forEach(k => {
+    youngByRole[k].sort((a, b) => {
+      const sa = _dofPot(a) * 0.5 + _dofOvr(a) * 0.5;
+      const sb = _dofPot(b) * 0.5 + _dofOvr(b) * 0.5;
+      return sb - sa;
+    });
+  });
+  const aging = ps
+    .filter(p => { const a = _dofAge(p); return a != null && a >= 30 && _dofOvr(p) >= 72; })
+    .map(p => ({ p, age: _dofAge(p), ovr: _dofOvr(p), role: role(p) }))
+    .sort((a, b) => b.age - a.age);
+  return aging.map(x => {
+    const candidates = youngByRole[x.role] || [];
+    const successor = candidates.find(y => y.id !== x.p.id) || null;
+    const fit = successor ? Math.round(_dofPot(successor) * 0.6 + _dofOvr(successor) * 0.4) : 0;
+    return { incumbent: x.p, age: x.age, ovr: x.ovr, role: x.role, successor, fit };
+  }).slice(0, 6);
+}
+function _dofSquadLifecycle() {
+  const ps = _dofActive();
+  const young = [], prime = [], veteran = [];
+  ps.forEach(p => {
+    const a = _dofAge(p);
+    if (a == null)         prime.push(p);
+    else if (a <= 23)      young.push(p);
+    else if (a <= 30)      prime.push(p);
+    else                   veteran.push(p);
+  });
+  const avgOvrOf = (arr) => arr.length ? Math.round(arr.reduce((a, p) => a + _dofOvr(p), 0) / arr.length) : 0;
+  const total = ps.length || 1;
+  // Balance score: ideal ~30% young, 50% prime, 20% veteran.
+  const targets = { young: 30, prime: 50, veteran: 20 };
+  const pct = { young: Math.round((young.length / total) * 100), prime: Math.round((prime.length / total) * 100), veteran: Math.round((veteran.length / total) * 100) };
+  const dev = Math.abs(pct.young - targets.young) + Math.abs(pct.prime - targets.prime) + Math.abs(pct.veteran - targets.veteran);
+  const balance = Math.max(0, Math.min(100, 100 - dev));
+  return {
+    young:   { count: young.length,   avgOvr: avgOvrOf(young),   pct: pct.young,   target: targets.young },
+    prime:   { count: prime.length,   avgOvr: avgOvrOf(prime),   pct: pct.prime,   target: targets.prime },
+    veteran: { count: veteran.length, avgOvr: avgOvrOf(veteran), pct: pct.veteran, target: targets.veteran },
+    balance,
+  };
+}
+function _dofTransferWindowPlan() { return _dofSafe(_sdRecruitmentStrategy, { immediate: [], seasonal: [], longTerm: [] }); }
+function _dofActionQueue() {
+  // Build a prioritised, deduplicated queue of director actions.
+  // Each action carries: impact (0–100), kind, color, label, detail.
+  const queue = [];
+  // Highest-priority signing
+  const signs = _dofSignRecommendations();
+  if (signs[0]) {
+    queue.push({
+      impact: 95 - signs[0].grp.avgOvr * 0.3,
+      kind: 'SIGN', color: 'var(--green-l)', icon: '➕',
+      label: `Sign ${signs[0].key} target`,
+      detail: `${_esc(signs[0].profile)} — ${signs[0].urgency} urgency, budget ${_fiFmtMoney(signs[0].cost)}.`,
+    });
+  }
+  // Best academy promotion (READY_NOW)
+  const promos = _dofPromotionRecommendations();
+  if (promos.READY_NOW.length) {
+    const x = promos.READY_NOW[0];
+    queue.push({
+      impact: 70 + (x.composite || 0) * 0.25,
+      kind: 'PROMOTE', color: '#60A5FA', icon: '🎓',
+      label: `Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''}`,
+      detail: `Composite ${x.composite}/100 — integrate into next training cycle.`,
+    });
+  }
+  // Top sell candidate
+  const sells = _dofSellRecommendations();
+  if (sells.list[0]) {
+    const s = sells.list[0];
+    queue.push({
+      impact: 65 + Math.min(20, Math.round(s.value / 200000)),
+      kind: 'SELL', color: 'var(--red)', icon: '💰',
+      label: `Offload ${(s.p.firstName || '').charAt(0)}. ${s.p.lastName || ''}`,
+      detail: `${s.reason}; estimated ${_fiFmtMoney(s.value)}.`,
+    });
+  }
+  // Top loan
+  const loans = _dofLoanRecommendations();
+  if (loans[0]) {
+    const l = loans[0];
+    queue.push({
+      impact: 55 + (l.dev || 0) * 0.2,
+      kind: 'LOAN', color: '#A78BFA', icon: '📨',
+      label: `Loan out ${(l.p.firstName || '').charAt(0)}. ${l.p.lastName || ''}`,
+      detail: `Age ${l.age}, dev ${l.dev}/100 — protect minutes via loan.`,
+    });
+  }
+  // Contract release candidate
+  const contracts = _dofContractStrategy();
+  if (contracts.RELEASE.length) {
+    const r = contracts.RELEASE[0];
+    queue.push({
+      impact: 60 - (r.age || 0) * 0.5,
+      kind: 'RELEASE', color: 'var(--amber)', icon: '✂️',
+      label: `Release ${(r.p.firstName || '').charAt(0)}. ${r.p.lastName || ''}`,
+      detail: `Contract decision — ovr ${r.ovr}, form ${r.form}, age ${r.age}.`,
+    });
+  }
+  // Renewal lock
+  if (contracts.RENEW.length) {
+    const re = contracts.RENEW[0];
+    queue.push({
+      impact: 80 - (re.age == null ? 5 : Math.max(0, re.age - 25) * 1),
+      kind: 'RENEW', color: 'var(--green-l)', icon: '🤝',
+      label: `Renew ${(re.p.firstName || '').charAt(0)}. ${re.p.lastName || ''}`,
+      detail: `Key asset — ovr ${re.ovr}, form ${re.form}, value ${_fiFmtMoney(re.value)}.`,
+    });
+  }
+  // Succession lock for top aging starter
+  const succ = _dofSuccessionPlanning();
+  if (succ[0]) {
+    const s0 = succ[0];
+    queue.push({
+      impact: 50 + (s0.age || 0) * 0.5,
+      kind: 'SUCCESSION', color: 'var(--amber)', icon: '🧭',
+      label: `Plan ${s0.role} succession`,
+      detail: `${(s0.incumbent.firstName || '').charAt(0)}. ${s0.incumbent.lastName || ''} (age ${s0.age}) — ${s0.successor ? `groom ${(s0.successor.firstName || '').charAt(0)}. ${s0.successor.lastName || ''} (fit ${s0.fit}/100)` : 'no internal successor identified'}.`,
+    });
+  }
+  queue.sort((a, b) => b.impact - a.impact);
+  return queue.slice(0, 7);
+}
+function _dofSummary() {
+  const ps = _dofActive();
+  if (!ps.length) return 'No squad data available — Director Of Football Center is waiting for player data.';
+  const score = _dofHealthScore();
+  const band = _dofBand(score);
+  const contracts = _dofContractStrategy();
+  const lifecycle = _dofSquadLifecycle();
+  const succ = _dofSuccessionPlanning();
+  const sells = _dofSellRecommendations();
+  const promos = _dofPromotionRecommendations();
+  let outlook;
+  if (score > 80)      outlook = 'football operation is in elite shape — protect the lead and compound it';
+  else if (score > 65) outlook = 'football operation is healthy with isolated dimensions to lift';
+  else if (score > 50) outlook = 'mixed football operation picture — coordinated executive decisions required';
+  else                  outlook = 'multiple dimensions under stress — full executive intervention required';
+  const renewCt   = contracts.RENEW.length;
+  const releaseCt = contracts.RELEASE.length;
+  const monCt     = contracts.MONITOR.length;
+  const succCount = succ.length;
+  const promoCount = (promos.READY_NOW.length + promos.READY_SOON.length);
+  return `Football operation: ${band.band} (${score}/100). ` +
+         `Contract strategy: ${renewCt} renew · ${monCt} monitor · ${releaseCt} release. ` +
+         `Squad lifecycle: ${lifecycle.young.count} young / ${lifecycle.prime.count} prime / ${lifecycle.veteran.count} veteran (balance ${lifecycle.balance}/100). ` +
+         `Succession map flags ${succCount} aging starters needing planning; ` +
+         `pipeline shows ${promoCount} promotion-ready academy player${promoCount === 1 ? '' : 's'}; ` +
+         `sell-board could free ${_fiFmtMoney(sells.estimatedGain)}. ` +
+         `Director call: ${outlook}.`;
+}
+function _ensureDOFStyles() {
+  if (document.getElementById('dof-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'dof-styles';
+  s.textContent = `
+    .dof-page{padding:16px 18px;}
+    .dof-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.32);
+      box-shadow:0 26px 64px -20px rgba(0,0,0,0.65),0 0 60px -16px rgba(74,222,128,0.28),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .dof-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.08),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.06),transparent 55%);}
+    .dof-brand{position:relative;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.22),rgba(34,197,94,0.08) 30%,rgba(37,99,235,0.08) 70%,rgba(74,222,128,0.22));
+      border-bottom:1px solid rgba(74,222,128,0.28);}
+    .dof-brand-logo{font-size:13px;font-weight:900;color:var(--green-l);letter-spacing:2.4px;text-shadow:0 0 10px rgba(74,222,128,0.55);}
+    .dof-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .dof-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .dof-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .dof-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .dof-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .dof-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .dof-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .dof-row:last-child{border-bottom:none;}
+    .dof-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .dof-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .dof-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .dof-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .dof-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .dof-bar-fill{height:100%;border-radius:6px;}
+    .dof-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .dof-alert:last-child{margin-bottom:0;}
+    .dof-action-row{display:flex;align-items:center;gap:10px;padding:9px 10px;margin-bottom:6px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.14);}
+    .dof-action-row:last-child{margin-bottom:0;}
+    .dof-summary{position:relative;padding:20px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.06));
+      border:1px solid rgba(74,222,128,0.36);border-left:5px solid var(--green-l);
+      box-shadow:0 20px 44px -16px rgba(0,0,0,0.55),0 0 36px -10px rgba(74,222,128,0.30);}
+    @media (max-width:1024px){.dof-grid-3{grid-template-columns:repeat(2,1fr);}.dof-grid-4{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.dof-grid-2,.dof-grid-3,.dof-grid-4{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderDirectorOfFootballCenterHTML() {
+  return `<div class="page" id="pg-director-of-football-center">
+    <div id="director-of-football-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Director Of Football Center…</div>
+    </div>
+  </div>`;
+}
+function renderDirectorOfFootballCenter() {
+  const el = document.getElementById('director-of-football-center-content');
+  if (!el) return;
+  try { _ensureDOFStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _dofHealthScore();
+    const band  = _dofBand(score);
+    const signs    = _dofSignRecommendations();
+    const sells    = _dofSellRecommendations();
+    const loans    = _dofLoanRecommendations();
+    const promos   = _dofPromotionRecommendations();
+    const contracts = _dofContractStrategy();
+    const succession = _dofSuccessionPlanning();
+    const lifecycle = _dofSquadLifecycle();
+    const plan = _dofTransferWindowPlan();
+    const queue = _dofActionQueue();
+    const summary = _dofSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="dof-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="dof-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const urgencyColor = (u) => u === 'IMMEDIATE' ? 'var(--red)' : u === 'HIGH' ? 'var(--amber)' : u === 'MEDIUM' ? '#60A5FA' : 'var(--tx-3)';
+
+    el.innerHTML = `
+      <div class="dof-page">
+
+        <!-- Brand bar + 1) Executive Football Dashboard -->
+        <div class="dof-card">
+          <div class="dof-brand">
+            <div class="dof-brand-logo">★ FC FAMILISTA · DIRECTOR OF FOOTBALL CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>EXECUTIVE LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:center;">
+            <div style="text-align:center;padding:18px 12px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(74,222,128,0.22),rgba(74,222,128,0.04) 70%);border:1px solid rgba(74,222,128,0.32);">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;">Football Health</div>
+              <div style="font-size:56px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 22px ${band.color};">${score}</div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;color:${band.color};text-transform:uppercase;margin-top:6px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">Composite Outlook</div>
+              <div style="font-size:12px;color:var(--tx);line-height:1.6;margin-bottom:10px;">${_esc(summary.split(' Director call:')[0])}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <span class="dof-pill" style="color:var(--green-l);background:rgba(74,222,128,0.16);">${contracts.RENEW.length} RENEW</span>
+                <span class="dof-pill" style="color:var(--amber);background:rgba(245,158,11,0.16);">${contracts.MONITOR.length} MONITOR</span>
+                <span class="dof-pill" style="color:var(--red);background:rgba(239,68,68,0.16);">${contracts.RELEASE.length} RELEASE</span>
+                <span class="dof-pill" style="color:#60A5FA;background:rgba(96,165,250,0.16);">${succession.length} SUCCESSION</span>
+                <span class="dof-pill" style="color:#A78BFA;background:rgba(167,139,250,0.16);">${signs.length} SIGN TARGETS</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Sign | Sell | Loan -->
+        <div class="dof-grid-3">
+
+          <!-- 2) Sign Recommendations -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Sign Recommendations</div>
+            ${signs.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No critical sign targets — squad balanced.</div>`
+              : signs.slice(0, 5).map((s, i) => `
+                <div class="dof-row" style="padding:6px 0;">
+                  <div class="dof-rank-num">${i + 1}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;display:flex;align-items:center;gap:5px;">
+                      <span class="dof-pill" style="color:var(--amber);background:rgba(245,158,11,0.16);">${s.key}</span>
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(s.profile)}</span>
+                    </div>
+                    <div style="font-size:9.5px;color:var(--tx-3);margin-top:2px;">Budget ${_fiFmtMoney(s.cost)}</div>
+                  </div>
+                  <span class="dof-pill" style="color:${urgencyColor(s.urgency)};background:rgba(255,255,255,0.05);">${s.urgency}</span>
+                </div>`).join('')}
+          </div>
+
+          <!-- 3) Sell Recommendations -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Sell Recommendations · Gain ${_fiFmtMoney(sells.estimatedGain)}</div>
+            ${sells.list.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No sell candidates flagged.</div>`
+              : sells.list.map((x, i) => `
+                <div class="dof-row" style="padding:6px 0;">
+                  <div class="dof-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ${_esc(x.reason)}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${_fiFmtMoney(x.value)}</div>
+                    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">VAL</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 4) Loan Recommendations -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Loan Recommendations</div>
+            ${loans.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No loan candidates flagged.</div>`
+              : loans.slice(0, 5).map((l, i) => `
+                <div class="dof-row" style="padding:6px 0;">
+                  <div class="dof-rank-num">${i + 1}</div>
+                  ${miniAv(l.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(l.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">age ${l.age} · dev ${l.dev}/100</div>
+                  </div>
+                  <span class="dof-pill" style="color:#A78BFA;background:rgba(167,139,250,0.16);">LOAN OUT</span>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Promotion | Contract Strategy -->
+        <div class="dof-grid-2">
+
+          <!-- 5) Promotion Recommendations -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Promotion Recommendations</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(74,222,128,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${promos.READY_NOW.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">READY NOW</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(245,158,11,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--amber);">${promos.READY_SOON.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">READY SOON</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(96,165,250,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${promos.LONG_TERM.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">LONG-TERM</div>
+              </div>
+            </div>
+            ${(promos.READY_NOW.length + promos.READY_SOON.length + promos.LONG_TERM.length) === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No academy candidates currently meeting promotion criteria.</div>`
+              : ['READY_NOW','READY_SOON','LONG_TERM'].map(bucket => {
+                  const arr = promos[bucket] || [];
+                  if (!arr.length) return '';
+                  const bcol = bucket === 'READY_NOW' ? 'var(--green-l)' : bucket === 'READY_SOON' ? 'var(--amber)' : '#60A5FA';
+                  return arr.slice(0, 2).map(x => `
+                    <div class="dof-row" style="padding:5px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ovr ${x.ovr} · pot ${x.pot}</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${bcol};line-height:1;">${x.composite}</div>
+                        <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">${bucket === 'READY_NOW' ? 'NOW' : bucket === 'READY_SOON' ? 'SOON' : 'LT'}</div>
+                      </div>
+                    </div>`).join('');
+                }).join('')}
+          </div>
+
+          <!-- 6) Contract Strategy -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Contract Strategy</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+              ${[
+                { key:'RENEW',   lbl:'Renew',   col:'var(--green-l)' },
+                { key:'MONITOR', lbl:'Monitor', col:'var(--amber)'   },
+                { key:'RELEASE', lbl:'Release', col:'var(--red)'     },
+              ].map(c => {
+                const arr = contracts[c.key] || [];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${c.col};">${c.lbl}</div>
+                      <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${c.col};">${arr.length}</div>
+                    </div>
+                    ${arr.length === 0
+                      ? `<div style="font-size:10px;color:var(--tx-3);">None.</div>`
+                      : arr.slice(0, 3).map(x => `
+                        <div class="dof-row" style="padding:4px 0;">
+                          ${miniAv(x.p)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                            <div style="font-size:9px;color:var(--tx-3);">age ${x.age ?? '—'} · ovr ${x.ovr} · form ${x.form}</div>
+                          </div>
+                        </div>`).join('')}
+                    ${arr.length > 3 ? `<div style="font-size:9px;color:var(--tx-3);text-align:center;margin-top:4px;">+ ${arr.length - 3} more</div>` : ''}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Succession | Squad Lifecycle -->
+        <div class="dof-grid-2">
+
+          <!-- 7) Succession Planning -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Succession Planning — Position Replacement Map</div>
+            ${succession.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No aging starters above the succession threshold.</div>`
+              : succession.map(s => `
+                <div class="dof-row" style="padding:7px 0;">
+                  ${miniAv(s.incumbent)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(s.incumbent))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${s.role} · age ${s.age} · ovr ${s.ovr}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx-3);font-weight:700;letter-spacing:.5px;">→</div>
+                  ${s.successor
+                    ? `<div style="display:flex;gap:7px;align-items:center;min-width:0;max-width:46%;">
+                        ${miniAv(s.successor)}
+                        <div style="min-width:0;">
+                          <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(s.successor))}</div>
+                          <div style="font-size:9px;color:var(--tx-3);">fit ${s.fit}/100</div>
+                        </div>
+                      </div>`
+                    : `<div style="font-size:10px;color:var(--red);font-style:italic;">No internal successor</div>`}
+                </div>`).join('')}
+          </div>
+
+          <!-- 8) Squad Lifecycle -->
+          <div class="dof-tile">
+            <div class="dof-tile-lbl">Squad Lifecycle — Young / Prime / Veteran</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
+              ${[
+                { key:'young',   lbl:'Young ≤23',   col:'var(--green-l)' },
+                { key:'prime',   lbl:'Prime 24–30', col:'var(--amber)'   },
+                { key:'veteran', lbl:'Veteran ≥31', col:'#60A5FA'        },
+              ].map(b => {
+                const d = lifecycle[b.key];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${b.col};margin-bottom:4px;">${b.lbl}</div>
+                    <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:${b.col};line-height:1;">${d.count}</div>
+                    <div style="font-size:9px;color:var(--tx-3);margin-top:3px;">${d.pct}% · target ${d.target}% · avg ${d.avgOvr}</div>
+                    <div class="dof-bar"><div class="dof-bar-fill" style="width:${Math.min(100, d.pct)}%;background:${b.col};"></div></div>
+                  </div>`;
+              }).join('')}
+            </div>
+            <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Lifecycle Balance</div>
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${colorFor(lifecycle.balance)};">${lifecycle.balance}/100</div>
+              </div>
+              <div class="dof-bar"><div class="dof-bar-fill" style="width:${lifecycle.balance}%;background:${colorFor(lifecycle.balance)};"></div></div>
+              <div style="font-size:10px;color:var(--tx-3);margin-top:6px;line-height:1.5;">Target: 30% young, 50% prime, 20% veteran.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9) Transfer Window Plan -->
+        <div class="dof-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Transfer Window Plan</div>
+          <div class="dof-grid-3">
+            ${[
+              { key:'immediate', lbl:'Immediate', col:'var(--red)',    list: plan.immediate },
+              { key:'summer',    lbl:'Summer',    col:'var(--amber)',  list: plan.seasonal  },
+              { key:'longTerm',  lbl:'Long-Term', col:'#60A5FA',       list: plan.longTerm  },
+            ].map(s => `
+              <div class="dof-tile" style="padding:12px;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${s.col};margin-bottom:8px;">${s.lbl}</div>
+                ${s.list.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);">No items in horizon.</div>`
+                  : s.list.map((it, i) => `<div style="font-size:11px;color:var(--tx);line-height:1.5;margin-bottom:5px;">${i + 1}. ${_esc(it)}</div>`).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 10) Director Actions -->
+        <div class="dof-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Director Actions — Queue Ordered By Impact</div>
+          ${queue.length === 0
+            ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No director-level actions queued — programme on track.</div>`
+            : queue.map((q, i) => `
+              <div class="dof-action-row" style="border-left:3px solid ${q.color};">
+                <div style="display:flex;align-items:center;gap:8px;min-width:140px;">
+                  <span style="font-size:14px;">${q.icon}</span>
+                  <div>
+                    <div style="font-size:9px;font-weight:900;color:${q.color};letter-spacing:1.1px;text-transform:uppercase;">${q.kind}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">IMPACT ${Math.round(q.impact)}</div>
+                  </div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(q.label)}</div>
+                  <div style="font-size:10px;color:var(--tx-3);margin-top:2px;line-height:1.5;">${_esc(q.detail)}</div>
+                </div>
+                <div class="dof-rank-num" style="text-align:left;width:24px;">${i + 1}</div>
+              </div>`).join('')}
+        </div>
+
+        <!-- 11) Director Of Football Summary -->
+        <div class="dof-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:16px;">📋</span>
+            <div style="font-size:11px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;">Director Of Football Summary</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[director-of-football-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Director Of Football Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -16733,6 +17334,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="sporting-director-center"]')) {
     setTimeout(function () { try { renderSportingDirectorCenter(); } catch (err) { try { console.error('[sporting-director-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="director-of-football-center"]')) {
+    setTimeout(function () { try { renderDirectorOfFootballCenter(); } catch (err) { try { console.error('[director-of-football-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
