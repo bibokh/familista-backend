@@ -516,6 +516,7 @@ async function loadAllData() {
       try { if (typeof renderTransferCenter    === 'function') renderTransferCenter();    } catch (_) {}
       try { if (typeof renderFinanceCenter     === 'function') renderFinanceCenter();     } catch (_) {}
       try { if (typeof renderManagementCenter  === 'function') renderManagementCenter();  } catch (_) {}
+      try { if (typeof renderAcademyCenter     === 'function') renderAcademyCenter();     } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -740,6 +741,7 @@ function _flushPendingRender() {
     case 'pg-transfer-center': renderTransferCenter(); break;
     case 'pg-finance-center':  renderFinanceCenter();  break;
     case 'pg-management-center': renderManagementCenter(); break;
+    case 'pg-academy-center':    renderAcademyCenter();    break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -802,7 +804,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -835,6 +837,7 @@ function navTo(page, el) {
   if (page === 'transfer-center'){ try { renderTransferCenter();    } catch (e) { try { console.error('[transfer-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'finance-center') { try { renderFinanceCenter();     } catch (e) { try { console.error('[finance-center] nav render failed:', e);  } catch (_) {} } }
   if (page === 'management-center'){ try { renderManagementCenter();} catch (e) { try { console.error('[management-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'academy-center')   { try { renderAcademyCenter();   } catch (e) { try { console.error('[academy-center] nav render failed:', e);    } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -949,6 +952,7 @@ function renderAllPages() {
     ${renderTransferCenterHTML()}
     ${renderFinanceCenterHTML()}
     ${renderManagementCenterHTML()}
+    ${renderAcademyCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -5979,6 +5983,590 @@ function renderManagementCenter() {
     try { console.error('[management-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Management Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Academy Center (new Management page) ─────────────────
+// Mirrors Management / Finance / Transfer / Scouting / Performance /
+// Medical / AI Coach / AI Scouting Centers wiring exactly. Read-only,
+// State-derived only — consumes State.players + State.training.
+// Reuses _pcAge, _pcFormScore, _pcReadinessScore, _pcDevelopmentScore,
+// _pcAttendance, _pcTrainingProgress, _pcPhotoUrl, _pcInitials,
+// _pcWirePhotoErrors. Also reuses _sgGrowthScore, _sgProspectScore,
+// _tcRoleOf, _fiFmtMoney from existing centers — no recomputation.
+// "Academy" = active players whose age <= 21. Uses _aca* prefix
+// (distinct from _ac* which belongs to AI Coach Center).
+function _acaAge(p) { try { return _pcAge(p); } catch (_) { return null; } }
+function _acaIsAcademy(p) {
+  if (!p || p.isActive === false) return false;
+  const a = _acaAge(p);
+  return a != null && a <= 21;
+}
+function _acaActive() { return (State.players || []).filter(_acaIsAcademy); }
+function _acaForm(p)     { try { return _pcFormScore(p);        } catch (_) { return 0; } }
+function _acaReady(p)    { try { return _pcReadinessScore(p);   } catch (_) { return 0; } }
+function _acaDev(p)      { try { return _pcDevelopmentScore(p); } catch (_) { return 0; } }
+function _acaProspect(p) { try { return _sgProspectScore(p);    } catch (_) { return 0; } }
+function _acaGrowth(p)   { try { return _sgGrowthScore(p);      } catch (_) { return 0; } }
+function _acaOvr(p)      { return (p && typeof p.overallRating === 'number') ? p.overallRating : 70; }
+function _acaPot(p)      { return (p && typeof p.potential     === 'number') ? p.potential     : _acaOvr(p); }
+function _acaOverview() {
+  const ps = _acaActive();
+  if (!ps.length) return { count: 0, minAge: null, maxAge: null, avgAge: 0, avgOvr: 0, avgPot: 0, avgDev: 0, gap: 0 };
+  const ages = ps.map(p => _acaAge(p)).filter(a => a != null);
+  const avgOvr = Math.round(ps.reduce((a, p) => a + _acaOvr(p), 0) / ps.length);
+  const avgPot = Math.round(ps.reduce((a, p) => a + _acaPot(p), 0) / ps.length);
+  const avgDev = Math.round(ps.reduce((a, p) => a + _acaDev(p), 0) / ps.length);
+  const avgAge = ages.length ? Math.round((ages.reduce((a, x) => a + x, 0) / ages.length) * 10) / 10 : 0;
+  return {
+    count: ps.length,
+    minAge: ages.length ? Math.min.apply(null, ages) : null,
+    maxAge: ages.length ? Math.max.apply(null, ages) : null,
+    avgAge, avgOvr, avgPot, avgDev,
+    gap: avgPot - avgOvr,
+  };
+}
+function _acaTalentPipeline() {
+  // Best prospect per age tier — U16 / U18 / U20 / U21.
+  const ps = _acaActive();
+  if (!ps.length) return { U16: null, U18: null, U20: null, U21: null };
+  const fits = (p, lo, hi) => { const a = _acaAge(p); return a != null && a >= lo && a <= hi; };
+  const best = (lo, hi) => ps
+    .filter(p => fits(p, lo, hi))
+    .map(p => ({ p, score: _acaProspect(p) }))
+    .sort((a, b) => b.score - a.score)[0] || null;
+  return {
+    U16: best(0, 16),
+    U18: best(17, 18),
+    U20: best(19, 20),
+    U21: best(21, 21),
+  };
+}
+function _acaAgeDistribution() {
+  // Buckets used in the UI grid.
+  const ps = _acaActive();
+  const bands = [
+    { key:'U16', lbl:'U16', lo: 0,  hi: 16 },
+    { key:'U18', lbl:'U18', lo: 17, hi: 18 },
+    { key:'U20', lbl:'U20', lo: 19, hi: 20 },
+    { key:'U21', lbl:'U21', lo: 21, hi: 21 },
+  ];
+  return bands.map(b => {
+    const arr = ps.filter(p => { const a = _acaAge(p); return a != null && a >= b.lo && a <= b.hi; });
+    return {
+      key: b.key,
+      lbl: b.lbl,
+      count: arr.length,
+      avgPot: arr.length ? Math.round(arr.reduce((a, p) => a + _acaPot(p), 0) / arr.length) : 0,
+    };
+  });
+}
+function _acaDevLevels() {
+  const ps = _acaActive();
+  const levels = { ELITE: [], STRONG: [], DEVELOPING: [], EARLY: [] };
+  ps.forEach(p => {
+    const d = _acaDev(p);
+    if      (d >= 75) levels.ELITE.push(p);
+    else if (d >= 60) levels.STRONG.push(p);
+    else if (d >= 40) levels.DEVELOPING.push(p);
+    else              levels.EARLY.push(p);
+  });
+  return levels;
+}
+function _acaTrainingCompliance() {
+  const ps = _acaActive();
+  if (!ps.length) return { avgPct: 0, count: 0, breakdown: { HIGH: 0, MID: 0, LOW: 0 }, lowList: [] };
+  let total = 0, n = 0;
+  const breakdown = { HIGH: 0, MID: 0, LOW: 0 };
+  const lowList = [];
+  ps.forEach(p => {
+    try {
+      const a = _pcAttendance(p);
+      if (!a || a.pct == null) return;
+      total += a.pct; n++;
+      if      (a.pct >= 80) breakdown.HIGH++;
+      else if (a.pct >= 60) breakdown.MID++;
+      else { breakdown.LOW++; lowList.push({ p, pct: a.pct }); }
+    } catch (_) {}
+  });
+  lowList.sort((a, b) => a.pct - b.pct);
+  return {
+    avgPct: n ? Math.round(total / n) : 0,
+    count: n,
+    breakdown,
+    lowList: lowList.slice(0, 5),
+  };
+}
+function _acaGrowthMonitor() {
+  // Top growing prospects + most-improved training participation.
+  const ps = _acaActive();
+  const byGrowth = ps
+    .map(p => ({ p, growth: _acaGrowth(p), pot: _acaPot(p), gap: Math.max(0, _acaPot(p) - _acaOvr(p)) }))
+    .sort((a, b) => b.growth - a.growth)
+    .slice(0, 5);
+  const byProgress = [];
+  ps.forEach(p => {
+    try {
+      const prog = _pcTrainingProgress(p);
+      if (prog && prog.delta > 0) {
+        const denom = (prog.earlierTotal || 0) > 0 ? prog.earlierTotal : Math.max(1, prog.recentTotal || 1);
+        byProgress.push({ p, delta: prog.delta, pct: Math.min(200, Math.round((prog.delta / denom) * 100)), recent: prog.recentCount, earlier: prog.earlierCount });
+      }
+    } catch (_) {}
+  });
+  byProgress.sort((a, b) => b.pct - a.pct);
+  return { byGrowth, byProgress: byProgress.slice(0, 5) };
+}
+function _acaPromotionCandidates() {
+  // Academy → first team: high ovr (>=70) AND age >=18 AND form/readiness solid.
+  const ps = _acaActive();
+  return ps
+    .filter(p => { const a = _acaAge(p); return a != null && a >= 18 && _acaOvr(p) >= 70; })
+    .map(p => ({
+      p,
+      ovr: _acaOvr(p),
+      pot: _acaPot(p),
+      form: _acaForm(p),
+      ready: _acaReady(p),
+      composite: Math.round(_acaOvr(p) * 0.4 + _acaForm(p) * 0.35 + _acaReady(p) * 0.25),
+    }))
+    .sort((a, b) => b.composite - a.composite)
+    .slice(0, 5);
+}
+function _acaAlerts() {
+  const ps = _acaActive();
+  const alerts = [];
+  if (!ps.length) {
+    alerts.push({ icon:'ℹ️', color:'var(--tx-3)', kind:'NO ACADEMY DATA', text:'No academy-age players (≤21) currently active in the squad.' });
+    return alerts;
+  }
+  // Low attendance cluster
+  const att = _acaTrainingCompliance();
+  if (att.breakdown.LOW >= 2) alerts.push({ icon:'📉', color:'var(--amber)', kind:'LOW ATTENDANCE',    text:`${att.breakdown.LOW} academy players with attendance <60% — commitment risk.` });
+  // Low development cluster
+  const lowDev = ps.filter(p => _acaDev(p) < 40);
+  if (lowDev.length >= 2) alerts.push({ icon:'📊', color:'var(--amber)', kind:'LOW DEVELOPMENT',  text:`${lowDev.length} academy players with development <40 — reassess training paths.` });
+  // Plateau warning (high ovr but small pot gap)
+  const plateau = ps.filter(p => _acaOvr(p) >= 68 && (_acaPot(p) - _acaOvr(p)) <= 3);
+  if (plateau.length >= 1) alerts.push({ icon:'🪨', color:'var(--amber)', kind:'PLATEAU WARNING',  text:`${plateau.length} academy player${plateau.length > 1 ? 's' : ''} approaching potential ceiling — refresh development plan.` });
+  // Injury / fitness in academy
+  const injured = ps.filter(p => p.isInjured);
+  if (injured.length >= 1) alerts.push({ icon:'🩺', color:'var(--red)', kind:'ACADEMY INJURY',    text:`${injured.length} academy player${injured.length > 1 ? 's' : ''} currently injured — protect long-term load curves.` });
+  // Rapid growth (positive)
+  const rapid = ps.filter(p => _acaGrowth(p) >= 60);
+  if (rapid.length >= 2) alerts.push({ icon:'🚀', color:'var(--green-l)', kind:'RAPID GROWTH', text:`${rapid.length} academy players with rapid growth signals — protect minutes and progress plans.` });
+  if (!alerts.length) alerts.push({ icon:'✓', color:'var(--green-l)', kind:'ALL CLEAR', text:'Academy programme on track — no critical risk signals.' });
+  return alerts.slice(0, 5);
+}
+function _acaWeeklyFocus() {
+  // Pick weekly emphasis from the squad-wide weakness pattern in the academy.
+  const ps = _acaActive();
+  if (!ps.length) return { theme:'AWAITING DATA', detail:'No academy data — focus block deferred until players are loaded.', drills:[] };
+  // Composite: which dimension trails most? Compare avgs of form / readiness / dev.
+  const avgForm  = Math.round(ps.reduce((a, p) => a + _acaForm(p),  0) / ps.length);
+  const avgReady = Math.round(ps.reduce((a, p) => a + _acaReady(p), 0) / ps.length);
+  const avgDev   = Math.round(ps.reduce((a, p) => a + _acaDev(p),   0) / ps.length);
+  const candidates = [
+    { key:'FORM',  v: avgForm,  theme:'TECHNICAL SHARPENING',
+      drills:['Possession rondos · 20 min', 'Finishing reps · 25 min', '1v1 / 2v2 game-state drills · 20 min'] },
+    { key:'READY', v: avgReady, theme:'CONDITIONING & RECOVERY',
+      drills:['Aerobic intervals · 25 min', 'Mobility + activation circuits · 15 min', 'Modified small-sided games · 20 min'] },
+    { key:'DEV',   v: avgDev,   theme:'INDIVIDUAL DEVELOPMENT PATHS',
+      drills:['1-on-1 position coaching · 30 min', 'Position-specific tactical scenarios · 25 min', 'Video review · 20 min'] },
+  ];
+  candidates.sort((a, b) => a.v - b.v);
+  const pick = candidates[0];
+  return {
+    theme: pick.theme,
+    detail: `Avg form ${avgForm}, avg readiness ${avgReady}, avg development ${avgDev}. ${pick.key === 'FORM' ? 'Form is the trailing dimension this week — schedule technical-load blocks.' : pick.key === 'READY' ? 'Readiness trails — prioritise base condition and active recovery.' : 'Development trails — push individual paths and tactical IQ.'}`,
+    drills: pick.drills,
+  };
+}
+function _acaSummary() {
+  const ps = _acaActive();
+  if (!ps.length) return 'No active academy players (≤21) found — Academy Center is waiting for player data.';
+  const ov   = _acaOverview();
+  const lvls = _acaDevLevels();
+  const promo = _acaPromotionCandidates();
+  const att  = _acaTrainingCompliance();
+  const pipe = _acaTalentPipeline();
+  let outlook;
+  if (ov.gap >= 8 && lvls.ELITE.length + lvls.STRONG.length >= ov.count * 0.4) outlook = 'pipeline is strong with clear elite signals and meaningful upside';
+  else if (ov.gap >= 4) outlook = 'pipeline is healthy with measured upside across the group';
+  else outlook = 'pipeline is thin — close to ceiling, recruit fresh youth profiles';
+  const topName = pipe.U18 ? `${(pipe.U18.p.firstName || '').charAt(0)}. ${pipe.U18.p.lastName || ''}` : (pipe.U20 ? `${(pipe.U20.p.firstName || '').charAt(0)}. ${pipe.U20.p.lastName || ''}` : (pipe.U21 ? `${(pipe.U21.p.firstName || '').charAt(0)}. ${pipe.U21.p.lastName || ''}` : '—'));
+  const promoName = promo[0] ? `${(promo[0].p.firstName || '').charAt(0)}. ${promo[0].p.lastName || ''}` : '—';
+  return `Academy overview: ${ov.count} players (age ${ov.minAge ?? '—'}–${ov.maxAge ?? '—'}, avg ${ov.avgAge}). ` +
+         `Avg overall ${ov.avgOvr}, avg potential ${ov.avgPot} (gap ${ov.gap}). ` +
+         `Development levels — ${lvls.ELITE.length} elite, ${lvls.STRONG.length} strong, ${lvls.DEVELOPING.length} developing, ${lvls.EARLY.length} early-stage. ` +
+         `Training compliance ${att.avgPct}% across ${att.count} players. ` +
+         `Pipeline outlook: ${outlook}. ` +
+         `Top academy talent: ${topName}. Best promotion candidate: ${promoName}. ` +
+         `Recommended approach: protect minutes for top prospects, schedule individual development paths for the early-stage cohort, and re-evaluate plateauing profiles before the next window.`;
+}
+function _ensureACAStyles() {
+  if (document.getElementById('aca-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'aca-styles';
+  s.textContent = `
+    .aca-page{padding:16px 18px;}
+    .aca-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .aca-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .aca-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .aca-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .aca-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .aca-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .aca-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .aca-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .aca-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .aca-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .aca-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .aca-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .aca-kpi-val{font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .aca-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .aca-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .aca-row:last-child{border-bottom:none;}
+    .aca-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .aca-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .aca-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .aca-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .aca-alert:last-child{margin-bottom:0;}
+    .aca-bar{height:7px;border-radius:5px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:5px;}
+    .aca-bar-fill{height:100%;border-radius:5px;}
+    .aca-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .aca-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.aca-grid-3{grid-template-columns:repeat(2,1fr);}.aca-grid-4{grid-template-columns:repeat(2,1fr);}.aca-grid-5{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.aca-grid-2,.aca-grid-3,.aca-grid-4,.aca-grid-5{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAcademyCenterHTML() {
+  return `<div class="page" id="pg-academy-center">
+    <div id="academy-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Academy Center…</div>
+    </div>
+  </div>`;
+}
+function renderAcademyCenter() {
+  const el = document.getElementById('academy-center-content');
+  if (!el) return;
+  try { _ensureACAStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const ov     = _acaOverview();
+    const pipe   = _acaTalentPipeline();
+    const ageDist = _acaAgeDistribution();
+    const levels  = _acaDevLevels();
+    const att     = _acaTrainingCompliance();
+    const growth  = _acaGrowthMonitor();
+    const promo   = _acaPromotionCandidates();
+    const alerts  = _acaAlerts();
+    const focus   = _acaWeeklyFocus();
+    const summary = _acaSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="aca-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="aca-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+
+    el.innerHTML = `
+      <div class="aca-page">
+
+        <!-- Brand bar + 1) Academy Overview -->
+        <div class="aca-card">
+          <div class="aca-brand">
+            <div class="aca-brand-logo">★ FC FAMILISTA · ACADEMY CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Academy Overview</div>
+            <div class="aca-grid-5">
+              <div class="aca-kpi"><div class="aca-kpi-val" style="color:var(--green-l);">${ov.count}</div><div class="aca-kpi-lbl">Academy Players</div></div>
+              <div class="aca-kpi"><div class="aca-kpi-val" style="color:var(--tx);">${ov.minAge ?? '—'}–${ov.maxAge ?? '—'}</div><div class="aca-kpi-lbl">Age Range</div></div>
+              <div class="aca-kpi"><div class="aca-kpi-val" style="color:${colorFor(ov.avgOvr)};">${ov.avgOvr}</div><div class="aca-kpi-lbl">Avg Overall</div></div>
+              <div class="aca-kpi"><div class="aca-kpi-val" style="color:${colorFor(ov.avgPot)};">${ov.avgPot}</div><div class="aca-kpi-lbl">Avg Potential</div></div>
+              <div class="aca-kpi"><div class="aca-kpi-val" style="color:var(--amber);">+${ov.gap}</div><div class="aca-kpi-lbl">Avg Growth Gap</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Talent Pipeline | Age Group Distribution -->
+        <div class="aca-grid-2">
+
+          <!-- 2) Talent Pipeline -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Talent Pipeline — Best per Tier</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${['U16','U18','U20','U21'].map(tier => {
+                const item = pipe[tier];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:var(--green-l);">${tier}</div>
+                      <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:${item ? colorFor(item.score) : 'var(--tx-3)'};">${item ? item.score : '—'}</div>
+                    </div>
+                    ${item
+                      ? `<div style="display:flex;gap:8px;align-items:center;">
+                          ${miniAv(item.p)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(item.p))}</div>
+                            <div style="font-size:9px;color:var(--tx-3);">${_esc(item.p.position || '—')} · age ${_acaAge(item.p) ?? '—'}</div>
+                          </div>
+                        </div>`
+                      : `<div style="font-size:10px;color:var(--tx-3);">No player in tier.</div>`}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- 3) Age Group Distribution -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Age Group Distribution</div>
+            ${(() => {
+              const max = Math.max(1, ...ageDist.map(b => b.count));
+              return ageDist.map(b => {
+                const w = Math.round((b.count / max) * 100);
+                return `
+                  <div style="margin-bottom:8px;">
+                    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                      <span style="font-weight:700;">${b.lbl}</span>
+                      <span style="font-family:var(--mono);">${b.count} · avg pot ${b.avgPot}</span>
+                    </div>
+                    <div class="aca-bar"><div class="aca-bar-fill" style="width:${w}%;background:var(--green-l);"></div></div>
+                  </div>`;
+              }).join('');
+            })()}
+            <div style="font-size:10px;color:var(--tx-3);margin-top:10px;line-height:1.5;">Buckets cover ≤16, 17–18, 19–20 and 21 years. Tier-best potential drawn alongside each band.</div>
+          </div>
+        </div>
+
+        <!-- Row: Development Levels | Training Compliance -->
+        <div class="aca-grid-2">
+
+          <!-- 4) Development Levels -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Development Levels</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${[
+                { key:'ELITE',      lbl:'Elite ≥ 75',      col:'var(--green-l)' },
+                { key:'STRONG',     lbl:'Strong 60–74',    col:'var(--amber)'   },
+                { key:'DEVELOPING', lbl:'Developing 40–59', col:'#60A5FA'        },
+                { key:'EARLY',      lbl:'Early-Stage < 40', col:'var(--red)'    },
+              ].map(b => {
+                const arr = levels[b.key] || [];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${b.col};">${b.lbl}</div>
+                      <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${b.col};">${arr.length}</div>
+                    </div>
+                    ${arr.length === 0
+                      ? `<div style="font-size:10px;color:var(--tx-3);">None.</div>`
+                      : arr.slice(0, 3).map(p => `
+                        <div class="aca-row" style="padding:4px 0;">
+                          ${miniAv(p)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(p))}</div>
+                            <div style="font-size:9px;color:var(--tx-3);">${_esc(p.position || '—')} · age ${_acaAge(p) ?? '—'}</div>
+                          </div>
+                          <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${b.col};">${_acaDev(p)}</div>
+                        </div>`).join('')}
+                    ${arr.length > 3 ? `<div style="font-size:9px;color:var(--tx-3);text-align:center;margin-top:4px;">+ ${arr.length - 3} more</div>` : ''}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- 5) Training Compliance -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Training Compliance</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;">
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(att.avgPct)};">${att.avgPct}%</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">AVG</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(74,222,128,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${att.breakdown.HIGH}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">≥ 80%</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(245,158,11,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber);">${att.breakdown.MID}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">60–79%</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(239,68,68,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--red);">${att.breakdown.LOW}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">&lt; 60%</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--red);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Low-Attendance Watchlist</div>
+            ${att.lowList.length === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">All academy players above 60% attendance.</div>`
+              : att.lowList.map(x => `
+                <div class="aca-row" style="padding:5px 0;">
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${_acaAge(x.p) ?? '—'}</div>
+                  </div>
+                  <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--red);">${x.pct}%</div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Player Growth Monitor | Promotion Candidates -->
+        <div class="aca-grid-2">
+
+          <!-- 6) Player Growth Monitor -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Player Growth Monitor</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Top Growth Score</div>
+                ${growth.byGrowth.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No data.</div>`
+                  : growth.byGrowth.slice(0, 4).map((x, i) => `
+                    <div class="aca-row" style="padding:5px 0;">
+                      <div class="aca-rank-num">${i + 1}</div>
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">gap +${x.gap} · pot ${x.pot}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${x.growth}</div>
+                    </div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Most Improved (Training)</div>
+                ${growth.byProgress.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No movement yet.</div>`
+                  : growth.byProgress.slice(0, 4).map(x => `
+                    <div class="aca-row" style="padding:5px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${x.earlier} → ${x.recent} sess.</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--amber);">+${x.pct}%</div>
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- 7) Promotion Candidates -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Promotion Candidates — Academy → First Team</div>
+            ${promo.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No academy player currently meeting promotion thresholds (age ≥ 18 + ovr ≥ 70).</div>`
+              : promo.map((x, i) => `
+                <div class="aca-row" style="padding:6px 0;">
+                  <div class="aca-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${_acaAge(x.p) ?? '—'} · ovr ${x.ovr} · pot ${x.pot}</div>
+                  </div>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <div style="text-align:right;">
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(x.form)};line-height:1;">${x.form}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">FRM</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(x.ready)};line-height:1;">${x.ready}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">RDY</div>
+                    </div>
+                    <div style="text-align:right;">
+                      <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:${colorFor(x.composite)};line-height:1;">${x.composite}</div>
+                      <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">SCORE</div>
+                    </div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Academy Risk Alerts | Weekly Academy Focus -->
+        <div class="aca-grid-2">
+
+          <!-- 8) Academy Risk Alerts -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Academy Risk Alerts</div>
+            ${alerts.map(a => `
+              <div class="aca-alert" style="border-left-color:${a.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 9) Weekly Academy Focus -->
+          <div class="aca-tile">
+            <div class="aca-tile-lbl">Weekly Academy Focus</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="aca-pill" style="color:var(--green-l);background:rgba(74,222,128,0.16);">${_esc(focus.theme)}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--tx);line-height:1.6;margin-bottom:10px;">${_esc(focus.detail)}</div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Recommended Drills</div>
+            ${focus.drills.length === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No drill set assigned.</div>`
+              : focus.drills.map((d, i) => `
+                <div class="aca-row" style="padding:5px 0;">
+                  <div class="aca-rank-num">${i + 1}</div>
+                  <div style="flex:1;font-size:11px;color:var(--tx);">${_esc(d)}</div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 10) Academy Summary -->
+        <div class="aca-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">🎓</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Academy Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[academy-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Academy Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -15613,6 +16201,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="management-center"]')) {
     setTimeout(function () { try { renderManagementCenter(); } catch (err) { try { console.error('[management-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="academy-center"]')) {
+    setTimeout(function () { try { renderAcademyCenter(); } catch (err) { try { console.error('[academy-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
