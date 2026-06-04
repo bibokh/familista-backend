@@ -510,6 +510,7 @@ async function loadAllData() {
       renderSquad();
       try { if (typeof renderAIScoutingCenter === 'function') renderAIScoutingCenter(); } catch (_) {}
       try { if (typeof renderAICoachCenter    === 'function') renderAICoachCenter();    } catch (_) {}
+      try { if (typeof renderMedicalCenter    === 'function') renderMedicalCenter();    } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -728,6 +729,7 @@ function _flushPendingRender() {
     case 'pg-match-center':renderMatchCenter();     break;
     case 'pg-ai-scouting': renderAIScoutingCenter();break;
     case 'pg-ai-coach':    renderAICoachCenter();   break;
+    case 'pg-medical-center': renderMedicalCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -790,7 +792,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -817,6 +819,7 @@ function navTo(page, el) {
   if (page === 'match-center') { try { renderMatchCenter(); } catch (e) { try { console.error('[match-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-scouting')  { try { renderAIScoutingCenter(); } catch (e) { try { console.error('[ai-scouting] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-coach')     { try { renderAICoachCenter();    } catch (e) { try { console.error('[ai-coach] nav render failed:', e);    } catch (_) {} } }
+  if (page === 'medical-center'){ try { renderMedicalCenter();    } catch (e) { try { console.error('[medical-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -925,6 +928,7 @@ function renderAllPages() {
     ${renderMatchCenterHTML()}
     ${renderAIScoutingHTML()}
     ${renderAICoachHTML()}
+    ${renderMedicalCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -2565,6 +2569,476 @@ function renderAICoachCenter() {
     try { console.error('[ai-coach] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Coach Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Medical Center (new Intelligence page) ───────────────
+// Mirrors AI Coach Center / AI Scouting Center wiring exactly. Read-only,
+// State-derived only — uses _pcFatigueRisk, _pcInjuryRisk, _pcReadinessScore,
+// _pcAttendance, _pcPhotoUrl, _pcInitials, _pcLatestGps, _acActive, _acNextMatch.
+// No backend writes, no new fetches, no schema changes.
+function _mdActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _mdCondition(p) { return (p && typeof p.condition === 'number') ? p.condition : 100; }
+function _mdCategorize(p) {
+  if (!p) return 'AVAILABLE';
+  if (p.isInjured) return 'INJURED';
+  const cond = _mdCondition(p);
+  const fatLvl = _pcFatigueRisk(p).level;
+  const injLvl = _pcInjuryRisk(p).level;
+  if (cond < 60) return 'RECOVERY';
+  if (cond < 80 || fatLvl === 'HIGH' || injLvl === 'HIGH') return 'QUESTIONABLE';
+  return 'AVAILABLE';
+}
+function _mdReturnToPlay(p) {
+  if (!p) return { status: 'READY', pct: 100, rec: 'Cleared.', color: 'var(--green-l)' };
+  const cond = _mdCondition(p);
+  if (p.isInjured) {
+    const pct = Math.max(10, Math.min(75, cond));
+    return { status: 'NOT READY', pct, rec: 'Continue rehab — no contact, daily physio review.', color: 'var(--red)' };
+  }
+  if (cond >= 85) return { status: 'READY', pct: cond, rec: 'Cleared for full training and selection.', color: 'var(--green-l)' };
+  if (cond >= 65) return { status: 'PARTIAL TRAINING', pct: cond, rec: 'Modified load — skip contact and max-effort sprint blocks.', color: 'var(--amber)' };
+  return { status: 'NOT READY', pct: cond, rec: 'Recovery focus — mobility and aerobic work only.', color: 'var(--red)' };
+}
+function _mdRecoveryRec(p) {
+  if (!p) return { kind: 'FULL TRAINING', color: 'var(--green-l)', icon: '🏃' };
+  if (p.isInjured) return { kind: 'PHYSIOTHERAPY', color: 'var(--red)', icon: '🩺' };
+  const cond = _mdCondition(p);
+  const fatLvl = _pcFatigueRisk(p).level;
+  const injLvl = _pcInjuryRisk(p).level;
+  if (fatLvl === 'HIGH' || cond < 55) return { kind: 'REST', color: 'var(--red)', icon: '🛌' };
+  if (injLvl === 'HIGH')              return { kind: 'MOBILITY', color: 'var(--amber)', icon: '🧘' };
+  if (fatLvl === 'MED' || cond < 72)  return { kind: 'RECOVERY RUN', color: 'var(--amber)', icon: '🏊' };
+  if (cond < 85)                      return { kind: 'LIGHT TRAINING', color: 'var(--amber)', icon: '⚡' };
+  return                                { kind: 'FULL TRAINING', color: 'var(--green-l)', icon: '🏃' };
+}
+function _mdWorkloadScore(p) {
+  if (!p) return 0;
+  const g = _pcLatestGps(p);
+  const load    = typeof g.playerLoad  === 'number' ? g.playerLoad  : 70;
+  const sprints = typeof g.sprintCount === 'number' ? g.sprintCount : 0;
+  const fatLvl  = _pcFatigueRisk(p).level;
+  const cnd     = _mdCondition(p);
+  const fatBonus = fatLvl === 'HIGH' ? 25 : fatLvl === 'MED' ? 12 : 0;
+  const condDrag = (100 - cnd) * 0.3;
+  return Math.max(0, Math.min(100, Math.round(load * 0.5 + sprints * 1.3 + fatBonus + condDrag)));
+}
+function _mdAvgCondition() {
+  const ps = _mdActive();
+  if (!ps.length) return null;
+  return Math.round(ps.reduce((a, p) => a + _mdCondition(p), 0) / ps.length);
+}
+function _mdAvgFatigue() {
+  const ps = _mdActive();
+  if (!ps.length) return null;
+  const score = (lvl) => lvl === 'HIGH' ? 80 : lvl === 'MED' ? 50 : 20;
+  return Math.round(ps.reduce((a, p) => a + score(_pcFatigueRisk(p).level), 0) / ps.length);
+}
+function _mdAlerts() {
+  const ps = _mdActive();
+  const alerts = [];
+  const highFat = ps.filter(p => _pcFatigueRisk(p).level === 'HIGH');
+  if (highFat.length >= 3) alerts.push({ icon: '💪', color: 'var(--red)',   kind: 'HIGH FATIGUE',       text: `${highFat.length} players flagged with high fatigue — reduce session intensity.` });
+  const recurrence = ps.filter(p => Array.isArray(p.injuries) && p.injuries.length > 0 && _pcInjuryRisk(p).level !== 'LOW');
+  if (recurrence.length)   alerts.push({ icon: '🔄', color: 'var(--amber)', kind: 'INJURY RECURRENCE',  text: `${recurrence.length} player${recurrence.length > 1 ? 's have' : ' has'} recurrence risk — limit max-effort work.` });
+  const lowCond = ps.filter(p => _mdCondition(p) < 70);
+  if (lowCond.length >= 2) alerts.push({ icon: '⚠️', color: 'var(--amber)', kind: 'LOW CONDITION',      text: `${lowCond.length} players below 70% condition — schedule recovery block.` });
+  const lowAtt = ps.filter(p => { const a = _pcAttendance(p); return a.pct != null && a.pct < 50; });
+  if (lowAtt.length >= 2)  alerts.push({ icon: '📉', color: 'var(--amber)', kind: 'ATTENDANCE CONCERN', text: `${lowAtt.length} players with <50% attendance — review participation and fitness exposure.` });
+  if (!alerts.length)      alerts.push({ icon: '✓',  color: 'var(--green-l)', kind: 'ALL CLEAR',         text: 'No critical medical alerts — squad in good condition.' });
+  return alerts.slice(0, 5);
+}
+function _mdSummary() {
+  const ps = _mdActive();
+  if (!ps.length) return 'No squad data available.';
+  const cats = ps.reduce((acc, p) => { const c = _mdCategorize(p); acc[c] = (acc[c] || 0) + 1; return acc; }, {});
+  const total = ps.length;
+  const avail = cats.AVAILABLE   || 0;
+  const ques  = cats.QUESTIONABLE || 0;
+  const rec   = cats.RECOVERY    || 0;
+  const inj   = cats.INJURED     || 0;
+  const readinessPct = Math.round((avail / total) * 100);
+  const avgCond = _mdAvgCondition() ?? 0;
+  const avgFat  = _mdAvgFatigue()   ?? 0;
+  let phrase, recommendation;
+  if (readinessPct >= 80)      { phrase = 'GREEN — squad medical state is strong'; recommendation = 'continue planned training schedule and rotate fringe players'; }
+  else if (readinessPct >= 60) { phrase = 'AMBER — manage minutes and load carefully'; recommendation = 'rotate squad, prioritise recovery work, and reduce contact volume mid-week'; }
+  else                          { phrase = 'RED — multiple medical issues impacting selection'; recommendation = 'reduce high-intensity and contact training, schedule physio review for all questionable players, and consider postponing non-essential drills'; }
+  const injBit = inj > 0 ? `Active injuries (${inj}) require progressive return-to-play protocols. ` : '';
+  return `Team medical readiness: ${phrase}. ${avail}/${total} fully available, ${ques} questionable, ${rec} in recovery, ${inj} injured. ` +
+         `Avg squad condition ${avgCond}%, avg fatigue load ${avgFat}/100. ${injBit}Recommended approach: ${recommendation}.`;
+}
+function _ensureMDStyles() {
+  if (document.getElementById('md-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'md-styles';
+  s.textContent = `
+    .md-page{padding:16px 18px;}
+    .md-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .md-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .md-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .md-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .md-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .md-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .md-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .md-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+    .md-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .md-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .md-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .md-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .md-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .md-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .md-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .md-row:last-child{border-bottom:none;}
+    .md-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .md-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .md-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .md-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .md-alert:last-child{margin-bottom:0;}
+    .md-rec-tile{text-align:center;padding:12px 8px;border-radius:11px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      transition:border-color .15s ease,transform .15s ease;}
+    .md-rec-tile:hover{transform:translateY(-1px);border-color:rgba(74,222,128,0.32);}
+    .md-rec-ico{font-size:18px;margin-bottom:6px;}
+    .md-rec-kind{font-size:9px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:3px;}
+    .md-rec-count{font-size:18px;font-weight:900;font-family:var(--mono);}
+    .md-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .md-bar-fill{height:100%;border-radius:6px;}
+    .md-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .md-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.md-grid-3{grid-template-columns:repeat(2,1fr);}.md-grid-4{grid-template-columns:repeat(2,1fr);}.md-grid-6{grid-template-columns:repeat(3,1fr);}}
+    @media (max-width:600px){.md-grid-2,.md-grid-3,.md-grid-4{grid-template-columns:1fr;}.md-grid-6{grid-template-columns:repeat(2,1fr);}}`;
+  document.head.appendChild(s);
+}
+function renderMedicalCenterHTML() {
+  return `<div class="page" id="pg-medical-center">
+    <div id="medical-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Medical Center…</div>
+    </div>
+  </div>`;
+}
+function renderMedicalCenter() {
+  const el = document.getElementById('medical-center-content');
+  if (!el) return;
+  try { _ensureMDStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const ps = _mdActive();
+
+    // Bucket once.
+    const buckets = { AVAILABLE: [], QUESTIONABLE: [], RECOVERY: [], INJURED: [] };
+    ps.forEach(p => { (buckets[_mdCategorize(p)] || buckets.AVAILABLE).push(p); });
+
+    // Section 2 — Injury Risk Board
+    const risk = { LOW: [], MED: [], HIGH: [] };
+    ps.forEach(p => { (risk[_pcInjuryRisk(p).level] || risk.LOW).push(p); });
+    const topRisk = ps
+      .map(p => ({ p, lvl: _pcInjuryRisk(p).level }))
+      .filter(x => x.lvl !== 'LOW')
+      .sort((a, b) => (b.lvl === 'HIGH' ? 2 : 1) - (a.lvl === 'HIGH' ? 2 : 1))
+      .slice(0, 5);
+
+    // Section 3 — Return To Play
+    const rtp = ps.map(p => ({ p, r: _mdReturnToPlay(p) }));
+    const rtpCounts = { 'READY': 0, 'PARTIAL TRAINING': 0, 'NOT READY': 0 };
+    rtp.forEach(x => { rtpCounts[x.r.status] = (rtpCounts[x.r.status] || 0) + 1; });
+    const rtpShowList = rtp
+      .filter(x => x.r.status !== 'READY')
+      .sort((a, b) => a.r.pct - b.r.pct)
+      .slice(0, 5);
+
+    // Section 4 — Workload Monitor (top 5 by score)
+    const wlList = ps
+      .map(p => ({ p, score: _mdWorkloadScore(p), fat: _pcFatigueRisk(p), cnd: _mdCondition(p) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+
+    // Section 5 — Medical Alerts
+    const alerts = _mdAlerts();
+
+    // Section 6 — Recovery Recommendations
+    const recBuckets = { 'REST': [], 'MOBILITY': [], 'RECOVERY RUN': [], 'PHYSIOTHERAPY': [], 'LIGHT TRAINING': [], 'FULL TRAINING': [] };
+    const recMeta    = { 'REST': { color:'var(--red)',   icon:'🛌' }, 'MOBILITY':{ color:'var(--amber)', icon:'🧘' }, 'RECOVERY RUN':{ color:'var(--amber)', icon:'🏊' }, 'PHYSIOTHERAPY':{ color:'var(--red)', icon:'🩺' }, 'LIGHT TRAINING':{ color:'var(--amber)', icon:'⚡' }, 'FULL TRAINING':{ color:'var(--green-l)', icon:'🏃' } };
+    ps.forEach(p => { const r = _mdRecoveryRec(p); (recBuckets[r.kind] || recBuckets['FULL TRAINING']).push(p); });
+
+    // Section 8 — Summary
+    const summary = _mdSummary();
+    const totalPlayers = ps.length || 1;
+    const availPct = Math.round(((buckets.AVAILABLE.length) / totalPlayers) * 100);
+    const avgCond  = _mdAvgCondition() ?? 0;
+    const avgFat   = _mdAvgFatigue()   ?? 0;
+
+    // --- helpers (inline render utilities) ----------------------------
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const lastName = (p) => (p && p.lastName) || '';
+    const miniAv = (p) => {
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="md-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const lvlPill = (lvl) => {
+      const c = lvl === 'HIGH' ? 'var(--red)' : lvl === 'MED' ? 'var(--amber)' : 'var(--green-l)';
+      const bg = lvl === 'HIGH' ? 'rgba(239,68,68,0.16)' : lvl === 'MED' ? 'rgba(245,158,11,0.16)' : 'rgba(74,222,128,0.16)';
+      const lbl = lvl === 'HIGH' ? 'HIGH' : lvl === 'MED' ? 'MED' : 'LOW';
+      return `<span class="md-pill" style="color:${c};background:${bg};">${lbl}</span>`;
+    };
+
+    el.innerHTML = `
+      <div class="md-page">
+
+        <!-- Brand bar -->
+        <div class="md-card">
+          <div class="md-brand">
+            <div class="md-brand-logo">★ FC FAMILISTA · MEDICAL CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 1) Squad Medical Status -->
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Squad Medical Status</div>
+            <div class="md-grid-4" style="margin-bottom:14px;">
+              <div class="md-kpi"><div class="md-kpi-val" style="color:var(--green-l);">${buckets.AVAILABLE.length}</div><div class="md-kpi-lbl">Available</div></div>
+              <div class="md-kpi"><div class="md-kpi-val" style="color:var(--amber);">${buckets.QUESTIONABLE.length}</div><div class="md-kpi-lbl">Questionable</div></div>
+              <div class="md-kpi"><div class="md-kpi-val" style="color:var(--red);">${buckets.INJURED.length}</div><div class="md-kpi-lbl">Injured</div></div>
+              <div class="md-kpi"><div class="md-kpi-val" style="color:#60A5FA;">${buckets.RECOVERY.length}</div><div class="md-kpi-lbl">Recovery</div></div>
+            </div>
+            <div class="md-tile" style="padding:14px 16px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div>
+                  <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:3px;">Team Medical Overview</div>
+                  <div style="font-size:11.5px;color:var(--tx-3);">Squad medical availability — derived from condition, injury flag, fatigue and risk signals.</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${availPct >= 80 ? 'var(--green-l)' : availPct >= 60 ? 'var(--amber)' : 'var(--red)'};line-height:1;">${availPct}%</div>
+                  <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;">AVAILABILITY</div>
+                </div>
+              </div>
+              <div class="md-bar"><div class="md-bar-fill" style="width:${availPct}%;background:${availPct >= 80 ? 'var(--green-l)' : availPct >= 60 ? 'var(--amber)' : 'var(--red)'};"></div></div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);margin-top:6px;">
+                <span>Avg condition: <span style="color:var(--tx);font-weight:700;">${avgCond}%</span></span>
+                <span>Avg fatigue: <span style="color:var(--tx);font-weight:700;">${avgFat}/100</span></span>
+                <span>Total squad: <span style="color:var(--tx);font-weight:700;">${ps.length}</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Injury Risk Board | Return To Play -->
+        <div class="md-grid-2">
+
+          <!-- 2) Injury Risk Board -->
+          <div class="md-tile">
+            <div class="md-tile-lbl">Injury Risk Board</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${risk.LOW.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">LOW</div>
+              </div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber);">${risk.MED.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">MEDIUM</div>
+              </div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.22);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--red);">${risk.HIGH.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">HIGH</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Top Risk Players</div>
+            ${topRisk.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No elevated injury risk in squad.</div>`
+              : topRisk.map((x, i) => `
+                <div class="md-row">
+                  <div class="md-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(x.p.position || '—')} · Cnd ${_mdCondition(x.p)}%</div>
+                  </div>
+                  ${lvlPill(x.lvl)}
+                </div>`).join('')}
+          </div>
+
+          <!-- 3) Return To Play -->
+          <div class="md-tile">
+            <div class="md-tile-lbl">Return To Play</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${rtpCounts['READY'] || 0}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">READY</div>
+              </div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--amber);">${rtpCounts['PARTIAL TRAINING'] || 0}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">PARTIAL</div>
+              </div>
+              <div style="text-align:center;padding:8px 4px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.22);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--red);">${rtpCounts['NOT READY'] || 0}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">NOT READY</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Active Return Programmes</div>
+            ${rtpShowList.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">All players cleared for full training.</div>`
+              : rtpShowList.map((x) => `
+                <div class="md-row" style="align-items:flex-start;">
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                      <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                      <div style="font-size:10px;font-weight:800;color:${x.r.color};font-family:var(--mono);">${x.r.pct}%</div>
+                    </div>
+                    <div style="font-size:9.5px;color:${x.r.color};font-weight:800;letter-spacing:.6px;margin-top:1px;">${x.r.status}</div>
+                    <div style="font-size:10px;color:var(--tx-3);margin-top:2px;line-height:1.4;">${_esc(x.r.rec)}</div>
+                    <div class="md-bar" style="margin-top:5px;"><div class="md-bar-fill" style="width:${x.r.pct}%;background:${x.r.color};"></div></div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Workload Monitor | Medical Alerts -->
+        <div class="md-grid-2">
+
+          <!-- 4) Workload Monitor -->
+          <div class="md-tile">
+            <div class="md-tile-lbl">Workload Monitor — Top Loaded</div>
+            ${wlList.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No workload data available.</div>`
+              : wlList.map((x, i) => {
+                  const g = _pcLatestGps(x.p);
+                  const load = typeof g.playerLoad === 'number' ? Math.round(g.playerLoad) : '—';
+                  const wColor = x.score >= 70 ? 'var(--red)' : x.score >= 50 ? 'var(--amber)' : 'var(--green-l)';
+                  return `
+                  <div class="md-row" style="align-items:flex-start;">
+                    <div class="md-rank-num">${i + 1}</div>
+                    ${miniAv(x.p)}
+                    <div style="flex:1;min-width:0;">
+                      <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:10.5px;font-weight:800;font-family:var(--mono);color:${wColor};">${x.score}</div>
+                      </div>
+                      <div style="display:flex;gap:10px;font-size:9.5px;color:var(--tx-3);margin-top:2px;">
+                        <span>Load: <span style="color:var(--tx);font-weight:700;">${load}</span></span>
+                        <span>Fat: <span style="color:${x.fat.color};font-weight:700;">${x.fat.level}</span></span>
+                        <span>Cnd: <span style="color:var(--tx);font-weight:700;">${x.cnd}%</span></span>
+                      </div>
+                      <div class="md-bar" style="margin-top:5px;"><div class="md-bar-fill" style="width:${x.score}%;background:${wColor};"></div></div>
+                    </div>
+                  </div>`;
+                }).join('')}
+          </div>
+
+          <!-- 5) Medical Alerts -->
+          <div class="md-tile">
+            <div class="md-tile-lbl">Medical Alerts</div>
+            ${alerts.map(a => `
+              <div class="md-alert" style="border-left-color:${a.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 6) Recovery Recommendations -->
+        <div class="md-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Recovery Recommendations</div>
+          <div class="md-grid-6">
+            ${Object.keys(recBuckets).map(kind => {
+              const meta = recMeta[kind];
+              const count = recBuckets[kind].length;
+              const sample = recBuckets[kind].slice(0, 3).map(p => _esc(lastName(p))).join(', ');
+              return `
+                <div class="md-rec-tile" style="border-color:${count > 0 ? meta.color : 'rgba(74,222,128,0.18)'};">
+                  <div class="md-rec-ico">${meta.icon}</div>
+                  <div class="md-rec-kind" style="color:${meta.color};">${kind}</div>
+                  <div class="md-rec-count" style="color:${meta.color};">${count}</div>
+                  <div style="font-size:9px;color:var(--tx-3);margin-top:5px;line-height:1.4;min-height:24px;">${sample || '—'}</div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 7) Availability Board -->
+        <div class="md-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Availability Board</div>
+          <div class="md-grid-4">
+            ${[
+              { key:'AVAILABLE',    color:'var(--green-l)', lbl:'Available' },
+              { key:'QUESTIONABLE', color:'var(--amber)',   lbl:'Questionable' },
+              { key:'RECOVERY',     color:'#60A5FA',         lbl:'Recovery' },
+              { key:'INJURED',      color:'var(--red)',     lbl:'Injured' },
+            ].map(col => {
+              const list = buckets[col.key] || [];
+              return `
+                <div class="md-tile" style="padding:12px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${col.color};">${col.lbl}</div>
+                    <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${col.color};">${list.length}</div>
+                  </div>
+                  ${list.length === 0
+                    ? `<div style="font-size:10.5px;color:var(--tx-3);padding:6px 0;">None.</div>`
+                    : list.slice(0, 12).map(p => `
+                      <div class="md-row" style="padding:5px 0;">
+                        ${miniAv(p)}
+                        <div style="flex:1;min-width:0;">
+                          <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(p))}</div>
+                          <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')} · #${p.number != null ? p.number : '—'} · ${_mdCondition(p)}%</div>
+                        </div>
+                      </div>`).join('')}
+                  ${list.length > 12 ? `<div style="font-size:9.5px;color:var(--tx-3);margin-top:4px;text-align:center;">+ ${list.length - 12} more</div>` : ''}
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 8) Medical Summary -->
+        <div class="md-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">🩺</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Medical Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[medical-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Medical Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -12181,6 +12655,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-coach"]')) {
     setTimeout(function () { try { renderAICoachCenter(); } catch (err) { try { console.error('[ai-coach] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="medical-center"]')) {
+    setTimeout(function () { try { renderMedicalCenter(); } catch (err) { try { console.error('[medical-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
