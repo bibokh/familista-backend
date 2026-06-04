@@ -513,6 +513,7 @@ async function loadAllData() {
       try { if (typeof renderMedicalCenter    === 'function') renderMedicalCenter();    } catch (_) {}
       try { if (typeof renderPerformanceCenter === 'function') renderPerformanceCenter(); } catch (_) {}
       try { if (typeof renderScoutingCenter    === 'function') renderScoutingCenter();    } catch (_) {}
+      try { if (typeof renderTransferCenter    === 'function') renderTransferCenter();    } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -734,6 +735,7 @@ function _flushPendingRender() {
     case 'pg-medical-center': renderMedicalCenter(); break;
     case 'pg-performance-center': renderPerformanceCenter(); break;
     case 'pg-scouting-center': renderScoutingCenter(); break;
+    case 'pg-transfer-center': renderTransferCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -796,7 +798,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -826,6 +828,7 @@ function navTo(page, el) {
   if (page === 'medical-center'){ try { renderMedicalCenter();    } catch (e) { try { console.error('[medical-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'performance-center'){ try { renderPerformanceCenter(); } catch (e) { try { console.error('[performance-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'scouting-center'){ try { renderScoutingCenter();    } catch (e) { try { console.error('[scouting-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'transfer-center'){ try { renderTransferCenter();    } catch (e) { try { console.error('[transfer-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -937,6 +940,7 @@ function renderAllPages() {
     ${renderMedicalCenterHTML()}
     ${renderPerformanceCenterHTML()}
     ${renderScoutingCenterHTML()}
+    ${renderTransferCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -4269,6 +4273,661 @@ function renderScoutingCenter() {
     try { console.error('[scouting-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Scouting Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Transfer Center (new Management page) ────────────────
+// Mirrors Scouting Center / Performance Center / Medical Center / AI
+// Coach Center / AI Scouting Center wiring exactly. Read-only,
+// State-derived only — consumes State.players + existing player
+// attributes. Reuses _pcAge, _pcFormScore, _pcReadinessScore,
+// _pcDevelopmentScore, _pcFatigueRisk, _pcInjuryRisk, _pcAttendance,
+// _pcPhotoUrl, _pcInitials, _pcWirePhotoErrors. No backend writes,
+// no new fetches. Distinct from existing Transfer page (data-page
+// "transfer") — Transfer Center uses _tc* helper prefix and lives at
+// data-page "transfer-center".
+function _tcActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _tcOvr(p)  { return (p && typeof p.overallRating === 'number') ? p.overallRating : 70; }
+function _tcPot(p)  { return (p && typeof p.potential     === 'number') ? p.potential     : _tcOvr(p); }
+function _tcCnd(p)  { return (p && typeof p.condition     === 'number') ? p.condition     : 100; }
+function _tcAgeFactor(p) {
+  const age = _pcAge(p);
+  if (age == null)    return 1.00;
+  if (age <= 19)      return 1.60;
+  if (age <= 22)      return 1.40;
+  if (age <= 25)      return 1.20;
+  if (age <= 28)      return 1.00;
+  if (age <= 31)      return 0.75;
+  if (age <= 34)      return 0.50;
+  return                     0.30;
+}
+function _tcValueOf(p) {
+  // Prefer persisted value if present; otherwise derive deterministically
+  // from ovr, potential, age and condition. Used everywhere a value
+  // number is needed.
+  if (p && typeof p.marketValue === 'number' && p.marketValue > 0) return Math.round(p.marketValue);
+  if (p && typeof p.value       === 'number' && p.value       > 0) return Math.round(p.value);
+  const ovr = _tcOvr(p);
+  const pot = _tcPot(p);
+  const cnd = _tcCnd(p);
+  const af  = _tcAgeFactor(p);
+  const condFactor = 0.6 + (cnd / 100) * 0.4;
+  const tier = ovr * 0.6 + pot * 0.4;
+  let v = Math.pow(tier / 50, 4.5) * 80000;
+  v *= af * condFactor;
+  if (p && p.isInjured) v *= 0.7;
+  return Math.max(25000, Math.round(v));
+}
+function _tcRiskScore(p) {
+  // 0–100 composite: high = risky asset to sell against / monitor.
+  if (!p) return 0;
+  let inj = 'LOW', fat = 'LOW';
+  try { inj = _pcInjuryRisk(p).level; } catch (_) {}
+  try { fat = _pcFatigueRisk(p).level; } catch (_) {}
+  const injPart = inj === 'HIGH' ? 45 : inj === 'MED' ? 22 : 5;
+  const fatPart = fat === 'HIGH' ? 25 : fat === 'MED' ? 12 : 3;
+  const cndPart = Math.max(0, 70 - _tcCnd(p)) * 0.4;
+  const ageBit  = (() => { const a = _pcAge(p); return a == null ? 0 : a >= 32 ? (a - 31) * 5 : 0; })();
+  let attPart = 0;
+  try { const at = _pcAttendance(p); if (at && at.pct != null && at.pct < 50) attPart = (50 - at.pct) * 0.4; } catch (_) {}
+  return Math.max(0, Math.min(100, Math.round(injPart + fatPart + cndPart + ageBit + attPart)));
+}
+function _tcReadinessOf(p) { try { return _pcReadinessScore(p); } catch (_) { return 0; } }
+function _tcFormOf(p)      { try { return _pcFormScore(p);      } catch (_) { return 0; } }
+function _tcDevOf(p)       { try { return _pcDevelopmentScore(p); } catch (_) { return 0; } }
+function _tcRoleOf(p) {
+  const pos = (p && p.position || '').toUpperCase();
+  if (pos === 'GK') return 'GK';
+  if (pos === 'CB' || pos === 'LB' || pos === 'RB' || pos === 'DEF')  return 'DEF';
+  if (pos === 'CM' || pos === 'CDM' || pos === 'CAM' || pos === 'LM' || pos === 'RM' || pos === 'MID') return 'MID';
+  if (pos === 'ST' || pos === 'CF'  || pos === 'LW'  || pos === 'RW'  || pos === 'FWD') return 'FWD';
+  return 'MID';
+}
+function _tcRecommendation(p) {
+  // KEEP / DEVELOP / SELL / LOAN — deterministic on age + form + dev + risk.
+  if (!p) return { tag: 'KEEP', color: 'var(--green-l)' };
+  const age = _pcAge(p);
+  const form = _tcFormOf(p);
+  const dev  = _tcDevOf(p);
+  const risk = _tcRiskScore(p);
+  const young = age != null && age <= 22;
+  const old   = age != null && age >= 32;
+  if (p.isInjured && risk >= 60)              return { tag: 'MONITOR', color: 'var(--amber)' };
+  if (young && form < 55 && dev >= 50)        return { tag: 'LOAN',    color: '#60A5FA' };
+  if (young && dev >= 60)                     return { tag: 'DEVELOP', color: 'var(--amber)' };
+  if (old   && form < 55)                     return { tag: 'SELL',    color: 'var(--red)' };
+  if (form < 50 && risk >= 50)                return { tag: 'SELL',    color: 'var(--red)' };
+  if (form < 60 && dev < 35)                  return { tag: 'LOAN',    color: '#60A5FA' };
+  return                                       { tag: 'KEEP',    color: 'var(--green-l)' };
+}
+function _tcSquadOverview() {
+  const ps = _tcActive();
+  if (!ps.length) return { total: 0, avg: 0, highest: null, lowest: null, dist: { low: 0, mid: 0, high: 0, elite: 0 }, count: 0 };
+  const valued = ps.map(p => ({ p, v: _tcValueOf(p) })).sort((a, b) => b.v - a.v);
+  const total = valued.reduce((a, x) => a + x.v, 0);
+  const avg   = Math.round(total / valued.length);
+  const dist  = { low: 0, mid: 0, high: 0, elite: 0 };
+  valued.forEach(x => {
+    if (x.v >= 3000000)      dist.elite++;
+    else if (x.v >= 1500000) dist.high++;
+    else if (x.v >=  500000) dist.mid++;
+    else                     dist.low++;
+  });
+  return { total, avg, highest: valued[0], lowest: valued[valued.length - 1], dist, count: valued.length };
+}
+function _tcPosBuckets() {
+  const buckets = { GK: [], DEF: [], MID: [], FWD: [] };
+  _tcActive().forEach(p => { (buckets[_tcRoleOf(p)] || buckets.MID).push(p); });
+  return buckets;
+}
+function _tcSquadNeeds() {
+  const buckets = _tcPosBuckets();
+  const ideal   = { GK: 3, DEF: 8, MID: 7, FWD: 5 };
+  const out = {};
+  let deviationSum = 0;
+  Object.keys(ideal).forEach(k => {
+    const arr = buckets[k];
+    const count = arr.length;
+    const want = ideal[k];
+    const deviation = Math.abs(count - want);
+    deviationSum += deviation;
+    const avgOvr = count ? Math.round(arr.reduce((a, p) => a + _tcOvr(p), 0) / count) : 0;
+    const avgPot = count ? Math.round(arr.reduce((a, p) => a + _tcPot(p), 0) / count) : 0;
+    const status = count < want - 1 ? 'SHORTAGE'
+                 : count > want + 4 ? 'OVERLOAD'
+                 :                     'BALANCED';
+    out[k] = { count, ideal: want, avgOvr, avgPot, status };
+  });
+  // Balance score: 100 minus 6× sum-of-deviations, clamped.
+  const balance = Math.max(0, Math.min(100, 100 - deviationSum * 6));
+  let fit;
+  if (balance >= 85)      fit = 'Strong squad balance — depth supports rotation across all lines.';
+  else if (balance >= 60) fit = 'Acceptable balance — some line is thin; rotate carefully.';
+  else                    fit = 'Imbalanced squad — recruitment required to support tactical flexibility.';
+  return { groups: out, balance, fit };
+}
+function _tcWeakestPositions() {
+  const needs = _tcSquadNeeds().groups;
+  return Object.keys(needs).map(k => ({ key: k, ...needs[k] }))
+    .sort((a, b) => (a.avgOvr + (a.status === 'SHORTAGE' ? -10 : 0)) - (b.avgOvr + (b.status === 'SHORTAGE' ? -10 : 0)))
+    .slice(0, 2);
+}
+function _tcTransferTargets() {
+  const buckets = _tcPosBuckets();
+  const needs   = _tcSquadNeeds().groups;
+  const priority = Object.keys(needs).filter(k => needs[k].status === 'SHORTAGE' || needs[k].avgOvr < 70);
+  const weakest  = _tcWeakestPositions();
+  const profileFor = (k, avgOvr) => {
+    const labelMap = { GK: 'Goalkeeper', DEF: 'Defender', MID: 'Midfielder', FWD: 'Forward' };
+    const targetOvr = Math.max(72, avgOvr + 5);
+    return `${labelMap[k]}, age 21–25, ovr ${targetOvr}+, pot ${targetOvr + 5}+`;
+  };
+  const suggested = weakest.map(w => ({ key: w.key, profile: profileFor(w.key, w.avgOvr) }));
+  // Potential replacement needs — players 32+ who are still starting (high ovr)
+  const replacements = _tcActive()
+    .filter(p => { const a = _pcAge(p); return a != null && a >= 31 && _tcOvr(p) >= 75; })
+    .map(p => ({ p, age: _pcAge(p), ovr: _tcOvr(p) }))
+    .sort((a, b) => b.age - a.age)
+    .slice(0, 4);
+  // Development-based targets — positions with low avg potential
+  const devTargets = Object.keys(buckets)
+    .map(k => ({ key: k, count: buckets[k].length, avgPot: needs[k].avgPot }))
+    .sort((a, b) => a.avgPot - b.avgPot)
+    .slice(0, 2);
+  return { priority, suggested, replacements, devTargets };
+}
+function _tcSellLoanCandidates() {
+  const ps = _tcActive();
+  const lowReadiness = ps.filter(p => !p.isInjured && _tcReadinessOf(p) < 50)
+                         .map(p => ({ p, score: _tcReadinessOf(p) }))
+                         .sort((a, b) => a.score - b.score).slice(0, 5);
+  const lowForm      = ps.filter(p => !p.isInjured && _tcFormOf(p) < 55)
+                         .map(p => ({ p, score: _tcFormOf(p) }))
+                         .sort((a, b) => a.score - b.score).slice(0, 5);
+  const lowAtt = [];
+  ps.forEach(p => { try { const a = _pcAttendance(p); if (a && a.pct != null && a.pct < 50) lowAtt.push({ p, pct: a.pct }); } catch (_) {} });
+  lowAtt.sort((a, b) => a.pct - b.pct);
+  const overloaded = [];
+  ps.forEach(p => { try { if (_pcFatigueRisk(p).level === 'HIGH') overloaded.push({ p, score: _tcRiskScore(p) }); } catch (_) {} });
+  overloaded.sort((a, b) => b.score - a.score);
+  // Loan recommendations: young + low form + decent dev
+  const loanRec = ps.filter(p => { const a = _pcAge(p); return a != null && a <= 22 && _tcFormOf(p) < 60 && _tcDevOf(p) >= 50 && !p.isInjured; })
+                    .map(p => ({ p, dev: _tcDevOf(p), age: _pcAge(p) }))
+                    .sort((a, b) => b.dev - a.dev).slice(0, 5);
+  return { lowReadiness, lowForm, lowAtt: lowAtt.slice(0, 5), overloaded: overloaded.slice(0, 5), loanRec };
+}
+function _tcContractBoard(n) {
+  return _tcActive()
+    .map(p => {
+      let availability = 'AVAILABLE';
+      if (p.isInjured) availability = 'INJURED';
+      else if (_tcCnd(p) < 60) availability = 'RECOVERY';
+      else if (_tcCnd(p) < 80) availability = 'QUESTIONABLE';
+      return {
+        p,
+        status: (p.contractStatus || (p.isInjured ? 'INJURED' : 'ACTIVE')),
+        availability,
+        risk:   _tcRiskScore(p),
+        dev:    _tcDevOf(p),
+        rec:    _tcRecommendation(p),
+        value:  _tcValueOf(p),
+      };
+    })
+    .sort((a, b) => b.value - a.value)
+    .slice(0, n || 14);
+}
+function _tcMarketRanking() {
+  const ps = _tcActive();
+  if (!ps.length) return { topValue: [], rising: [], hidden: [], riskAdj: [] };
+  const enriched = ps.map(p => {
+    const v = _tcValueOf(p);
+    const af = _tcAgeFactor(p);
+    const growthFactor = (Math.max(0, _tcPot(p) - _tcOvr(p)) / 30) * af;
+    const ovrRatio = v / Math.max(60, _tcOvr(p));
+    const riskAdj  = Math.round(v * (1 - _tcRiskScore(p) / 150));
+    return { p, v, growthFactor, ovrRatio, riskAdj };
+  });
+  const topValue = enriched.slice().sort((a, b) => b.v - a.v).slice(0, 5);
+  const rising   = enriched.slice().sort((a, b) => b.growthFactor - a.growthFactor).slice(0, 5);
+  // Hidden value: high ovrRatio (=> v/ovr ratio) among players with low ovr
+  const hidden   = enriched.filter(x => _tcOvr(x.p) < 75).slice().sort((a, b) => b.ovrRatio - a.ovrRatio).slice(0, 5);
+  const riskAdj  = enriched.slice().sort((a, b) => b.riskAdj - a.riskAdj).slice(0, 5);
+  return { topValue, rising, hidden, riskAdj };
+}
+function _tcAlerts() {
+  const ps = _tcActive();
+  const alerts = [];
+  let hiInj = 0; ps.forEach(p => { try { if (_pcInjuryRisk(p).level === 'HIGH') hiInj++; } catch (_) {} });
+  if (hiInj >= 2) alerts.push({ icon: '🚑', color: 'var(--red)',   kind: 'INJURY RISK',         text: `${hiInj} players with high injury risk — devalues potential transfer outflow.` });
+  const lowCnd = ps.filter(p => _tcCnd(p) < 70 && !p.isInjured);
+  if (lowCnd.length >= 2) alerts.push({ icon: '⚠️', color: 'var(--amber)', kind: 'LOW CONDITION',       text: `${lowCnd.length} players below 70% condition — current market value depressed.` });
+  let lowAtt = 0; ps.forEach(p => { try { const a = _pcAttendance(p); if (a && a.pct != null && a.pct < 50) lowAtt++; } catch (_) {} });
+  if (lowAtt >= 2) alerts.push({ icon: '📉', color: 'var(--amber)', kind: 'LOW ATTENDANCE',     text: `${lowAtt} players with attendance < 50% — review commitment before contract extensions.` });
+  const lowDev = ps.filter(p => { const a = _pcAge(p); return a != null && a <= 24 && _tcDevOf(p) < 40; });
+  if (lowDev.length >= 2) alerts.push({ icon: '📊', color: 'var(--amber)', kind: 'LOW DEVELOPMENT',    text: `${lowDev.length} young players with low development trajectory — reassess plans or move on.` });
+  // High-dependency player: single biggest absence impact
+  const dependency = ps.map(p => {
+    let pct = null;
+    try { const a = _pcAttendance(p); pct = a ? a.pct : null; } catch (_) {}
+    const attBit = (pct == null) ? 70 : pct;
+    return { p, score: _tcOvr(p) * 0.5 + _tcFormOf(p) * 0.3 + attBit * 0.2 };
+  }).sort((a, b) => b.score - a.score)[0];
+  if (dependency && dependency.score >= 70) alerts.push({ icon: '🎯', color: 'var(--green-l)', kind: 'HIGH DEPENDENCY', text: `Squad highly dependent on ${(dependency.p.firstName || '').charAt(0)}. ${dependency.p.lastName || ''} — protect contract and rotate carefully.` });
+  if (!alerts.length) alerts.push({ icon: '✓', color: 'var(--green-l)', kind: 'ALL CLEAR', text: 'No transfer-window risk alerts — squad asset health is stable.' });
+  return alerts.slice(0, 5);
+}
+function _tcFmtMoney(v) {
+  if (v == null) return '—';
+  if (v >= 1000000) return '€' + (v / 1000000).toFixed(v >= 10000000 ? 0 : 1) + 'M';
+  if (v >= 1000)    return '€' + Math.round(v / 1000) + 'k';
+  return '€' + v;
+}
+function _tcSummary() {
+  const ps = _tcActive();
+  if (!ps.length) return 'No squad data available — Transfer Center is waiting for player data.';
+  const ov = _tcSquadOverview();
+  const needs = _tcSquadNeeds();
+  const market = _tcMarketRanking();
+  const candidates = _tcSellLoanCandidates();
+  const rec = _tcTransferTargets();
+  // Best keep = top market value with KEEP recommendation
+  const best = ps.map(p => ({ p, v: _tcValueOf(p), rec: _tcRecommendation(p) })).sort((a, b) => b.v - a.v);
+  const bestKeep    = best.find(x => x.rec.tag === 'KEEP')    || best[0];
+  const bestDevelop = best.find(x => x.rec.tag === 'DEVELOP') || best.find(x => { const a = _pcAge(x.p); return a != null && a <= 22; }) || best[0];
+  const bestLoan    = candidates.loanRec[0] ? candidates.loanRec[0] : null;
+  const healthBand  = needs.balance >= 80 ? 'STRONG' : needs.balance >= 60 ? 'MIXED' : 'WEAK';
+  const action = healthBand === 'STRONG'
+    ? 'consolidate current squad and protect top assets'
+    : healthBand === 'MIXED'
+    ? `address ${rec.priority.join('/') || 'weak lines'} via targeted recruitment`
+    : `prioritise structural recruitment in ${rec.priority.join('/') || 'multiple lines'} before extending fringe contracts`;
+  const bestKeepNm    = bestKeep    ? `${(bestKeep.p.firstName || '').charAt(0)}. ${bestKeep.p.lastName || ''} (${_tcFmtMoney(bestKeep.v)})`       : '—';
+  const bestDevelopNm = bestDevelop ? `${(bestDevelop.p.firstName || '').charAt(0)}. ${bestDevelop.p.lastName || ''} (${_tcFmtMoney(bestDevelop.v)})` : '—';
+  const bestLoanNm    = bestLoan    ? `${(bestLoan.p.firstName || '').charAt(0)}. ${bestLoan.p.lastName || ''}`                                       : 'no obvious loan candidate';
+  return `Squad market health: ${healthBand} — total value ${_tcFmtMoney(ov.total)} across ${ov.count} players (avg ${_tcFmtMoney(ov.avg)}). ` +
+         `Balance score ${needs.balance}/100. ${needs.fit} ` +
+         `Best keep: ${bestKeepNm}. Best develop: ${bestDevelopNm}. Best loan candidate: ${bestLoanNm}. ` +
+         `Recommended action: ${action}.`;
+}
+function _ensureTCStyles() {
+  if (document.getElementById('tc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'tc-styles';
+  s.textContent = `
+    .tc-page{padding:16px 18px;}
+    .tc-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .tc-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .tc-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .tc-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .tc-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .tc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .tc-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .tc-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .tc-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .tc-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .tc-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .tc-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .tc-kpi-val{font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .tc-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .tc-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .tc-row:last-child{border-bottom:none;}
+    .tc-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .tc-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .tc-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .tc-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .tc-alert:last-child{margin-bottom:0;}
+    .tc-bar{height:7px;border-radius:5px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:5px;}
+    .tc-bar-fill{height:100%;border-radius:5px;}
+    .tc-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .tc-board-row{display:grid;grid-template-columns:36px 1fr 80px 90px 80px 70px 80px;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .tc-board-row:last-child{border-bottom:none;}
+    .tc-board-hdr{font-size:9px;font-weight:900;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;margin-bottom:2px;}
+    .tc-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.tc-grid-3{grid-template-columns:repeat(2,1fr);}.tc-grid-4{grid-template-columns:repeat(2,1fr);}.tc-grid-5{grid-template-columns:repeat(2,1fr);}.tc-board-row{grid-template-columns:30px 1fr 70px 70px 60px 60px 70px;font-size:10px;}}
+    @media (max-width:600px){.tc-grid-2,.tc-grid-3,.tc-grid-4,.tc-grid-5{grid-template-columns:1fr;}.tc-board-row{grid-template-columns:26px 1fr 60px 60px;font-size:10px;}.tc-board-row > :nth-child(5),.tc-board-row > :nth-child(6),.tc-board-row > :nth-child(7){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderTransferCenterHTML() {
+  return `<div class="page" id="pg-transfer-center">
+    <div id="transfer-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Transfer Center…</div>
+    </div>
+  </div>`;
+}
+function renderTransferCenter() {
+  const el = document.getElementById('transfer-center-content');
+  if (!el) return;
+  try { _ensureTCStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const ov       = _tcSquadOverview();
+    const targets  = _tcTransferTargets();
+    const cand     = _tcSellLoanCandidates();
+    const board    = _tcContractBoard(14);
+    const needs    = _tcSquadNeeds();
+    const market   = _tcMarketRanking();
+    const alerts   = _tcAlerts();
+    const summary  = _tcSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : 'var(--red)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="tc-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="tc-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const recPill = (rec) => `<span class="tc-pill" style="color:${rec.color};background:${rec.color === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : rec.color === 'var(--red)' ? 'rgba(239,68,68,0.16)' : rec.color === '#60A5FA' ? 'rgba(96,165,250,0.16)' : 'rgba(245,158,11,0.16)'};">${rec.tag}</span>`;
+    const riskBar = (r) => {
+      const c = r >= 60 ? 'var(--red)' : r >= 35 ? 'var(--amber)' : 'var(--green-l)';
+      return `<div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;font-weight:800;color:${c};font-family:var(--mono);min-width:18px;">${r}</span>
+        <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;"><div style="height:100%;width:${r}%;background:${c};"></div></div>
+      </div>`;
+    };
+    const distTotal = Math.max(1, ov.dist.low + ov.dist.mid + ov.dist.high + ov.dist.elite);
+    const distRow = (lbl, n, col) => {
+      const pct = Math.round((n / distTotal) * 100);
+      return `<div style="margin-bottom:5px;">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx);margin-bottom:3px;">
+          <span style="color:${col};font-weight:700;">${lbl}</span>
+          <span style="font-family:var(--mono);">${n} · ${pct}%</span>
+        </div>
+        <div class="tc-bar"><div class="tc-bar-fill" style="width:${pct}%;background:${col};"></div></div>
+      </div>`;
+    };
+
+    el.innerHTML = `
+      <div class="tc-page">
+
+        <!-- Brand bar -->
+        <div class="tc-card">
+          <div class="tc-brand">
+            <div class="tc-brand-logo">★ FC FAMILISTA · TRANSFER CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 1) Squad Market Overview -->
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Squad Market Overview</div>
+            <div class="tc-grid-5" style="margin-bottom:14px;">
+              <div class="tc-kpi">
+                <div class="tc-kpi-val" style="color:var(--green-l);">${_tcFmtMoney(ov.total)}</div>
+                <div class="tc-kpi-lbl">Total Value</div>
+              </div>
+              <div class="tc-kpi">
+                <div class="tc-kpi-val" style="color:var(--tx);">${_tcFmtMoney(ov.avg)}</div>
+                <div class="tc-kpi-lbl">Avg / Player</div>
+              </div>
+              <div class="tc-kpi" style="text-align:left;padding:12px;">
+                <div style="font-size:9.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--green-l);margin-bottom:5px;">Highest Value</div>
+                ${ov.highest
+                  ? `<div style="display:flex;gap:8px;align-items:center;">${miniAv(ov.highest.p)}<div style="flex:1;min-width:0;">
+                      <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(ov.highest.p))}</div>
+                      <div style="font-size:10.5px;font-family:var(--mono);color:var(--green-l);font-weight:800;">${_tcFmtMoney(ov.highest.v)}</div>
+                    </div></div>`
+                  : `<div style="font-size:10px;color:var(--tx-3);">—</div>`}
+              </div>
+              <div class="tc-kpi" style="text-align:left;padding:12px;">
+                <div style="font-size:9.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--red);margin-bottom:5px;">Lowest Value</div>
+                ${ov.lowest
+                  ? `<div style="display:flex;gap:8px;align-items:center;">${miniAv(ov.lowest.p)}<div style="flex:1;min-width:0;">
+                      <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(ov.lowest.p))}</div>
+                      <div style="font-size:10.5px;font-family:var(--mono);color:var(--red);font-weight:800;">${_tcFmtMoney(ov.lowest.v)}</div>
+                    </div></div>`
+                  : `<div style="font-size:10px;color:var(--tx-3);">—</div>`}
+              </div>
+              <div class="tc-kpi" style="text-align:left;padding:12px;">
+                <div style="font-size:9.5px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--green-l);margin-bottom:6px;">Value Distribution</div>
+                ${distRow('Elite ≥ €3M',   ov.dist.elite, 'var(--green-l)')}
+                ${distRow('High €1.5–3M',  ov.dist.high,  'var(--amber)')}
+                ${distRow('Mid €500k–1.5M',ov.dist.mid,   '#60A5FA')}
+                ${distRow('Low < €500k',   ov.dist.low,   'var(--red)')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Transfer Targets | Sell / Loan Candidates -->
+        <div class="tc-grid-2">
+
+          <!-- 2) Transfer Targets -->
+          <div class="tc-tile">
+            <div class="tc-tile-lbl">Transfer Targets</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Priority Positions</div>
+                ${targets.priority.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No urgent gaps.</div>`
+                  : targets.priority.map(k => `<div style="display:inline-block;margin:0 4px 4px 0;"><span class="tc-pill" style="color:var(--green-l);background:rgba(74,222,128,0.16);">${k}</span></div>`).join('')}
+                <div style="font-size:9.5px;font-weight:900;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin:10px 0 6px;">Weakest Squad Areas</div>
+                ${(targets.suggested.length === 0)
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">Balanced.</div>`
+                  : targets.suggested.map(s => `<div style="font-size:10.5px;color:var(--tx);margin-bottom:3px;"><span class="tc-pill" style="color:var(--amber);background:rgba(245,158,11,0.16);">${s.key}</span> <span style="color:var(--tx-3);margin-left:4px;">${_esc(s.profile)}</span></div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:#60A5FA;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Replacement Needs</div>
+                ${targets.replacements.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No imminent replacements needed.</div>`
+                  : targets.replacements.map(x => `
+                    <div class="tc-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${x.age} · ovr ${x.ovr}</div>
+                      </div>
+                    </div>`).join('')}
+                <div style="font-size:9.5px;font-weight:900;color:#A78BFA;letter-spacing:1.2px;text-transform:uppercase;margin:10px 0 6px;">Development Targets</div>
+                ${targets.devTargets.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No data.</div>`
+                  : targets.devTargets.map(d => `<div style="font-size:10.5px;color:var(--tx);margin-bottom:3px;"><span class="tc-pill" style="color:#A78BFA;background:rgba(167,139,250,0.16);">${d.key}</span> <span style="color:var(--tx-3);margin-left:4px;">${d.count} player${d.count === 1 ? '' : 's'} · avg pot ${d.avgPot}</span></div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- 3) Sell / Loan Candidates -->
+          <div class="tc-tile">
+            <div class="tc-tile-lbl">Sell / Loan Candidates</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              ${[
+                { lbl: 'Low Readiness',  list: cand.lowReadiness, col: 'var(--amber)',   valKey: 'score', valLbl: 'RDY' },
+                { lbl: 'Low Form',       list: cand.lowForm,      col: 'var(--red)',     valKey: 'score', valLbl: 'FRM' },
+                { lbl: 'Low Attendance', list: cand.lowAtt,       col: 'var(--amber)',   valKey: 'pct',   valLbl: 'ATT%' },
+                { lbl: 'Overloaded',     list: cand.overloaded,   col: 'var(--red)',     valKey: 'score', valLbl: 'RSK' },
+              ].map(col => `
+                <div>
+                  <div style="font-size:9.5px;font-weight:900;color:${col.col};letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">${col.lbl}</div>
+                  ${col.list.length === 0
+                    ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">None.</div>`
+                    : col.list.slice(0, 3).map(x => `
+                      <div class="tc-row" style="padding:4px 0;">
+                        ${miniAv(x.p)}
+                        <div style="flex:1;min-width:0;">
+                          <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                          <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')}</div>
+                        </div>
+                        <div style="text-align:right;">
+                          <div style="font-size:10.5px;font-weight:900;font-family:var(--mono);color:${col.col};line-height:1;">${x[col.valKey] != null ? x[col.valKey] : '—'}</div>
+                          <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">${col.valLbl}</div>
+                        </div>
+                      </div>`).join('')}
+                </div>`).join('')}
+            </div>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+              <div style="font-size:9.5px;font-weight:900;color:#60A5FA;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Loan Recommendation</div>
+              ${cand.loanRec.length === 0
+                ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No loan candidates flagged.</div>`
+                : cand.loanRec.slice(0, 3).map(x => `
+                  <div class="tc-row" style="padding:4px 0;">
+                    ${miniAv(x.p)}
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                      <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${x.age} · dev ${x.dev}</div>
+                    </div>
+                    <span class="tc-pill" style="color:#60A5FA;background:rgba(96,165,250,0.16);">LOAN OUT</span>
+                  </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 4) Contract & Status Board (full) -->
+        <div class="tc-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Contract & Status Board</div>
+          <div class="tc-board-row tc-board-hdr">
+            <div>#</div><div>PLAYER</div><div>STATUS</div><div>AVAILABILITY</div><div>RISK</div><div>DEV</div><div>REC</div>
+          </div>
+          ${board.map((b, i) => `
+            <div class="tc-board-row">
+              <div class="tc-rank-num">${i + 1}</div>
+              <div style="display:flex;gap:7px;align-items:center;min-width:0;">
+                ${miniAv(b.p)}
+                <div style="min-width:0;">
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(b.p))}</div>
+                  <div style="font-size:9.5px;color:var(--tx-3);">${_esc(b.p.position || '—')} · ${_tcFmtMoney(b.value)}</div>
+                </div>
+              </div>
+              <div><span class="tc-pill" style="color:${b.status === 'INJURED' ? 'var(--red)' : 'var(--tx-3)'};background:rgba(255,255,255,0.05);">${_esc(String(b.status))}</span></div>
+              <div><span class="tc-pill" style="color:${b.availability === 'AVAILABLE' ? 'var(--green-l)' : b.availability === 'INJURED' ? 'var(--red)' : 'var(--amber)'};background:${b.availability === 'AVAILABLE' ? 'rgba(74,222,128,0.16)' : b.availability === 'INJURED' ? 'rgba(239,68,68,0.16)' : 'rgba(245,158,11,0.16)'};">${b.availability}</span></div>
+              <div>${riskBar(b.risk)}</div>
+              <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(b.dev)};text-align:right;">${b.dev}</div>
+              <div style="text-align:right;">${recPill(b.rec)}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Row: Squad Needs Analysis | Market Value Ranking -->
+        <div class="tc-grid-2">
+
+          <!-- 5) Squad Needs Analysis -->
+          <div class="tc-tile">
+            <div class="tc-tile-lbl">Squad Needs Analysis</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px;">
+              ${[
+                { key:'GK',  lbl:'Goalkeepers', col:'var(--amber)' },
+                { key:'DEF', lbl:'Defenders',   col:'#60A5FA' },
+                { key:'MID', lbl:'Midfielders', col:'var(--green-l)' },
+                { key:'FWD', lbl:'Forwards',    col:'var(--red)' },
+              ].map(g => {
+                const grp = needs.groups[g.key];
+                const statusColor = grp.status === 'SHORTAGE' ? 'var(--red)' : grp.status === 'OVERLOAD' ? 'var(--amber)' : 'var(--green-l)';
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <div>
+                        <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${g.col};">${g.lbl}</div>
+                        <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${grp.count}/${grp.ideal} · avg ovr ${grp.avgOvr}</div>
+                      </div>
+                      <span class="tc-pill" style="color:${statusColor};background:${statusColor === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : statusColor === 'var(--red)' ? 'rgba(239,68,68,0.16)' : 'rgba(245,158,11,0.16)'};">${grp.status}</span>
+                    </div>
+                  </div>`;
+              }).join('')}
+            </div>
+            <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Balance Score</div>
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${colorFor(needs.balance)};">${needs.balance}/100</div>
+              </div>
+              <div class="tc-bar"><div class="tc-bar-fill" style="width:${needs.balance}%;background:${colorFor(needs.balance)};"></div></div>
+              <div style="font-size:10.5px;color:var(--tx-2);margin-top:8px;line-height:1.5;">${_esc(needs.fit)}</div>
+            </div>
+          </div>
+
+          <!-- 6) Market Value Ranking -->
+          <div class="tc-tile">
+            <div class="tc-tile-lbl">Market Value Ranking</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              ${[
+                { title:'Top Value',         list: market.topValue, col:'var(--green-l)', show:'v',        showLbl:'VAL' },
+                { title:'Rising Value',      list: market.rising,   col:'var(--amber)',   show:'growth',   showLbl:'×' },
+                { title:'Hidden Value',      list: market.hidden,   col:'#A78BFA',         show:'v',        showLbl:'VAL' },
+                { title:'Risk-Adjusted',     list: market.riskAdj,  col:'#60A5FA',         show:'riskAdj',  showLbl:'ADJ' },
+              ].map(col => `
+                <div>
+                  <div style="font-size:9.5px;font-weight:900;color:${col.col};letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">${col.title}</div>
+                  ${col.list.length === 0
+                    ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No data.</div>`
+                    : col.list.slice(0, 3).map((x, i) => {
+                        const shown = col.show === 'growth' ? '+' + Math.round((x.growthFactor || 0) * 100) + '%'
+                                    : col.show === 'v'      ? _tcFmtMoney(x.v)
+                                    : col.show === 'riskAdj'? _tcFmtMoney(x.riskAdj)
+                                    :                          '—';
+                        return `
+                        <div class="tc-row" style="padding:4px 0;">
+                          <div class="tc-rank-num">${i + 1}</div>
+                          ${miniAv(x.p)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                            <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')}</div>
+                          </div>
+                          <div style="text-align:right;">
+                            <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${col.col};line-height:1;">${shown}</div>
+                            <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">${col.showLbl}</div>
+                          </div>
+                        </div>`;
+                      }).join('')}
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 7) Transfer Risk Alerts (full) -->
+        <div class="tc-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Transfer Risk Alerts</div>
+          ${alerts.map(a => `
+            <div class="tc-alert" style="border-left-color:${a.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 8) Transfer Summary -->
+        <div class="tc-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">💼</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Transfer Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[transfer-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Transfer Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -13894,6 +14553,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="scouting-center"]')) {
     setTimeout(function () { try { renderScoutingCenter(); } catch (err) { try { console.error('[scouting-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="transfer-center"]')) {
+    setTimeout(function () { try { renderTransferCenter(); } catch (err) { try { console.error('[transfer-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
