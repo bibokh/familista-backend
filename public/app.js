@@ -511,6 +511,7 @@ async function loadAllData() {
       try { if (typeof renderAIScoutingCenter === 'function') renderAIScoutingCenter(); } catch (_) {}
       try { if (typeof renderAICoachCenter    === 'function') renderAICoachCenter();    } catch (_) {}
       try { if (typeof renderMedicalCenter    === 'function') renderMedicalCenter();    } catch (_) {}
+      try { if (typeof renderPerformanceCenter === 'function') renderPerformanceCenter(); } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -730,6 +731,7 @@ function _flushPendingRender() {
     case 'pg-ai-scouting': renderAIScoutingCenter();break;
     case 'pg-ai-coach':    renderAICoachCenter();   break;
     case 'pg-medical-center': renderMedicalCenter(); break;
+    case 'pg-performance-center': renderPerformanceCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -792,7 +794,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -820,6 +822,7 @@ function navTo(page, el) {
   if (page === 'ai-scouting')  { try { renderAIScoutingCenter(); } catch (e) { try { console.error('[ai-scouting] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-coach')     { try { renderAICoachCenter();    } catch (e) { try { console.error('[ai-coach] nav render failed:', e);    } catch (_) {} } }
   if (page === 'medical-center'){ try { renderMedicalCenter();    } catch (e) { try { console.error('[medical-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'performance-center'){ try { renderPerformanceCenter(); } catch (e) { try { console.error('[performance-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -929,6 +932,7 @@ function renderAllPages() {
     ${renderAIScoutingHTML()}
     ${renderAICoachHTML()}
     ${renderMedicalCenterHTML()}
+    ${renderPerformanceCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -3039,6 +3043,583 @@ function renderMedicalCenter() {
     try { console.error('[medical-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Medical Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Performance Center (new Intelligence page) ──────────
+// Mirrors Medical Center / AI Coach Center / AI Scouting Center wiring
+// exactly. Read-only, State-derived only — consumes State.players,
+// State.training (per-session attackForm/defenseForm/possession/
+// conditionForm), State.matches, State.trainingForm. Reuses _pcFormScore,
+// _pcDevelopmentScore, _pcReadinessScore, _pcFatigueRisk, _pcInjuryRisk,
+// _pcTrainingProgress, _pcAttendance, _pcAttrEntries, _pcPhotoUrl,
+// _pcInitials, _pcWirePhotoErrors. No backend writes, no new fetches.
+function _pfActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _pfTeamScores() {
+  const f = State.trainingForm || {};
+  const attack     = (f.attackForm    ?? 12);
+  const defense    = (f.defenseForm   ?? 14);
+  const possession = (f.possession    ?? 11);
+  const condition  = (f.conditionForm ?? 13);
+  const Attack     = Math.round((attack     / 16) * 100);
+  const Defense    = Math.round((defense    / 16) * 100);
+  const Possession = Math.round((possession / 16) * 100);
+  const Condition  = Math.round((condition  / 16) * 100);
+  const Overall    = Math.round((Attack + Defense + Possession + Condition) / 4);
+  return { Overall, Attack, Defense, Possession, Condition };
+}
+function _pfFormOf(p) { try { return _pcFormScore(p); } catch (_) { return 0; } }
+function _pfTopPerformers(n) {
+  return _pfActive()
+    .filter(p => !p.isInjured)
+    .map(p => ({ p, score: _pfFormOf(p) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n || 5);
+}
+function _pfMostImproved(n) {
+  const out = [];
+  _pfActive().forEach(p => {
+    let prog = null;
+    try { prog = _pcTrainingProgress(p); } catch (_) {}
+    if (prog && prog.delta > 0) {
+      const denom = (prog.earlierTotal || 0) > 0 ? prog.earlierTotal : Math.max(1, prog.recentTotal || 1);
+      const pct = Math.round((prog.delta / denom) * 100);
+      out.push({ p, delta: prog.delta, pct: Math.min(200, pct), recent: prog.recentCount, earlier: prog.earlierCount });
+    }
+  });
+  return out.sort((a, b) => b.pct - a.pct).slice(0, n || 5);
+}
+function _pfLowestForm(n) {
+  return _pfActive()
+    .filter(p => !p.isInjured)
+    .map(p => ({ p, score: _pfFormOf(p) }))
+    .sort((a, b) => a.score - b.score)
+    .slice(0, n || 5);
+}
+function _pfPositionRanking() {
+  const groups = { GK: [], DEF: [], MID: [], FWD: [] };
+  _pfActive().forEach(p => {
+    const pos = (p.position || '').toUpperCase();
+    if (pos === 'GK') groups.GK.push(p);
+    else if (pos === 'CB' || pos === 'LB' || pos === 'RB' || pos === 'DEF') groups.DEF.push(p);
+    else if (pos === 'CM' || pos === 'CDM' || pos === 'CAM' || pos === 'LM' || pos === 'RM' || pos === 'MID') groups.MID.push(p);
+    else if (pos === 'ST' || pos === 'CF' || pos === 'LW' || pos === 'RW' || pos === 'FWD') groups.FWD.push(p);
+    else groups.MID.push(p);
+  });
+  const top = (arr) => arr.slice().sort((a, b) => _pfFormOf(b) - _pfFormOf(a))[0] || null;
+  return {
+    GK:  { count: groups.GK.length,  best: top(groups.GK),  avg: groups.GK.length  ? Math.round(groups.GK.reduce((a, p)  => a + _pfFormOf(p), 0) / groups.GK.length)  : 0 },
+    DEF: { count: groups.DEF.length, best: top(groups.DEF), avg: groups.DEF.length ? Math.round(groups.DEF.reduce((a, p) => a + _pfFormOf(p), 0) / groups.DEF.length) : 0 },
+    MID: { count: groups.MID.length, best: top(groups.MID), avg: groups.MID.length ? Math.round(groups.MID.reduce((a, p) => a + _pfFormOf(p), 0) / groups.MID.length) : 0 },
+    FWD: { count: groups.FWD.length, best: top(groups.FWD), avg: groups.FWD.length ? Math.round(groups.FWD.reduce((a, p) => a + _pfFormOf(p), 0) / groups.FWD.length) : 0 },
+  };
+}
+function _pfTrendSessions() {
+  const sessions = (State.training || []).slice();
+  if (sessions.length === 0) return [];
+  const ts = (s) => s.scheduledAt ? new Date(s.scheduledAt).getTime() : 0;
+  return sessions.slice().sort((a, b) => ts(a) - ts(b)).slice(-5);
+}
+function _pfTrends() {
+  const last5 = _pfTrendSessions();
+  if (last5.length === 0) {
+    return { sessions: [], attack: [], defense: [], possession: [], condition: [] };
+  }
+  const attack     = last5.map(s => Math.round(((s.attackForm    ?? 0) / 16) * 100));
+  const defense    = last5.map(s => Math.round(((s.defenseForm   ?? 0) / 16) * 100));
+  const possession = last5.map(s => Math.round(((s.possession    ?? 0) / 16) * 100));
+  const condition  = last5.map(s => Math.round(((s.conditionForm ?? 0) / 16) * 100));
+  return { sessions: last5, attack, defense, possession, condition };
+}
+function _pfTrendDelta(arr) {
+  if (!arr || arr.length < 2) return 0;
+  return arr[arr.length - 1] - arr[0];
+}
+function _pfTrainingImpact() {
+  const sessions = (State.training || []).slice();
+  if (sessions.length === 0) {
+    return { recentCount: 0, earlierCount: 0, drills: [], direction: 'STABLE', improvement: 0, recentAvg: 0, earlierAvg: 0 };
+  }
+  const day = 86400000;
+  const now = Date.now();
+  const ts = (s) => s.scheduledAt ? new Date(s.scheduledAt).getTime() : 0;
+  const recent  = sessions.filter(s => ts(s) >= now - 14 * day && ts(s) <= now);
+  const earlier = sessions.filter(s => ts(s) >= now - 28 * day && ts(s) < now - 14 * day);
+  const avgOf = (arr) => arr.length ? Math.round(arr.reduce((a, s) => a + ((((s.attackForm || 0) + (s.defenseForm || 0) + (s.possession || 0) + (s.conditionForm || 0)) / 4) / 16) * 100, 0) / arr.length) : 0;
+  const recentAvg  = avgOf(recent);
+  const earlierAvg = avgOf(earlier);
+  const improvement = earlierAvg > 0 ? Math.round(((recentAvg - earlierAvg) / earlierAvg) * 100) : 0;
+  const direction = improvement >= 5 ? 'IMPROVING' : improvement <= -5 ? 'DECLINING' : 'STABLE';
+  const drillCounts = {};
+  sessions.slice(0, 10).forEach(s => {
+    if (Array.isArray(s.drills)) s.drills.forEach(d => { drillCounts[d] = (drillCounts[d] || 0) + 1; });
+  });
+  const drills = Object.keys(drillCounts).map(k => ({ kind: k, count: drillCounts[k] })).sort((a, b) => b.count - a.count).slice(0, 4);
+  return { recentCount: recent.length, earlierCount: earlier.length, drills, direction, improvement, recentAvg, earlierAvg };
+}
+function _pfAlerts() {
+  const ps = _pfActive();
+  const alerts = [];
+  // Drop in form — players whose form score is notably low
+  const dropForm = ps.filter(p => !p.isInjured && _pfFormOf(p) < 55);
+  if (dropForm.length >= 2) alerts.push({ icon: '📉', color: 'var(--red)',   kind: 'FORM DROP',          text: `${dropForm.length} players with form below 55 — review recent performances.` });
+  // Fatigue impact
+  let hfat = 0; ps.forEach(p => { try { if (_pcFatigueRisk(p).level === 'HIGH') hfat++; } catch (_) {} });
+  if (hfat >= 2) alerts.push({ icon: '💪', color: 'var(--amber)', kind: 'FATIGUE IMPACT',     text: `${hfat} players with high fatigue — performance under load is at risk.` });
+  // Low condition
+  const lowCnd = ps.filter(p => ((typeof p.condition === 'number') ? p.condition : 100) < 70);
+  if (lowCnd.length >= 2) alerts.push({ icon: '⚠️', color: 'var(--amber)', kind: 'LOW CONDITION',     text: `${lowCnd.length} players below 70% condition — physical readiness limiting performance.` });
+  // High improvement
+  const improved = _pfMostImproved(20);
+  if (improved.length >= 3) alerts.push({ icon: '🚀', color: 'var(--green-l)', kind: 'HIGH IMPROVEMENT', text: `${improved.length} players trending up in training participation.` });
+  // Consistency warning — low attendance
+  let lowAtt = 0; ps.forEach(p => { try { const a = _pcAttendance(p); if (a.pct != null && a.pct < 60) lowAtt++; } catch (_) {} });
+  if (lowAtt >= 2) alerts.push({ icon: '🎯', color: 'var(--amber)', kind: 'CONSISTENCY WARNING', text: `${lowAtt} players with attendance below 60% — consistency at risk.` });
+  if (!alerts.length) alerts.push({ icon: '✓', color: 'var(--green-l)', kind: 'ALL CLEAR', text: 'No performance alerts — squad form holding steady.' });
+  return alerts.slice(0, 5);
+}
+function _pfWeeklyReport() {
+  const ps = _pfActive();
+  const scores = _pfTeamScores();
+  const top = _pfTopPerformers(3);
+  const lo  = _pfLowestForm(3);
+  const trends = _pfTrends();
+  const impact = _pfTrainingImpact();
+
+  const teamSummary = `Team overall ${scores.Overall}/100 — Attack ${scores.Attack}, Defense ${scores.Defense}, Possession ${scores.Possession}, Condition ${scores.Condition}. ` +
+                      `Squad of ${ps.length}. ` +
+                      `${impact.direction === 'IMPROVING' ? `Form trending upward (+${impact.improvement}%).` : impact.direction === 'DECLINING' ? `Form trending down (${impact.improvement}%).` : 'Form steady.'}`;
+
+  const highlights = top.length
+    ? top.map(x => `${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''} (${x.score})`).join(' · ')
+    : 'No standout performers yet.';
+
+  // Weakness = lowest of the four team scores
+  const tag = { Attack: scores.Attack, Defense: scores.Defense, Possession: scores.Possession, Condition: scores.Condition };
+  const weakKey = Object.keys(tag).sort((a, b) => tag[a] - tag[b])[0];
+  const weakness = `${weakKey} (${tag[weakKey]}/100)` + (lo.length ? ` — also watch ${lo.slice(0,2).map(x => x.p.lastName || '').filter(Boolean).join(' & ')} on individual form.` : '');
+
+  const focus = weakKey === 'Attack'     ? 'Finishing drills, transition speed, final-third combinations'
+              : weakKey === 'Defense'    ? 'Defensive shape, line discipline, set-piece marking'
+              : weakKey === 'Possession' ? 'Short-passing rondos, build-up patterns, midfield rotations'
+              :                            'Conditioning blocks and recovery cycles';
+
+  // Trend hint
+  const trendBits = [];
+  if (trends.attack.length     >= 2) trendBits.push(`Attack ${_pfTrendDelta(trends.attack)     >= 0 ? '+' : ''}${_pfTrendDelta(trends.attack)}`);
+  if (trends.defense.length    >= 2) trendBits.push(`Defense ${_pfTrendDelta(trends.defense)   >= 0 ? '+' : ''}${_pfTrendDelta(trends.defense)}`);
+  if (trends.possession.length >= 2) trendBits.push(`Possession ${_pfTrendDelta(trends.possession) >= 0 ? '+' : ''}${_pfTrendDelta(trends.possession)}`);
+  if (trends.condition.length  >= 2) trendBits.push(`Condition ${_pfTrendDelta(trends.condition) >= 0 ? '+' : ''}${_pfTrendDelta(trends.condition)}`);
+
+  return { teamSummary, highlights, weakness, focus, trendBits };
+}
+function _pfAISummary() {
+  const ps = _pfActive();
+  if (!ps.length) return 'No squad data available — Performance Center is waiting for player data.';
+  const scores = _pfTeamScores();
+  const impact = _pfTrainingImpact();
+  const report = _pfWeeklyReport();
+  let band, rec, next;
+  if (scores.Overall >= 80) {
+    band = 'elite';
+    rec  = 'continue current programme and protect peak players from over-load';
+    next = 'sharpening match-tempo finishing and pressing triggers';
+  } else if (scores.Overall >= 65) {
+    band = 'solid';
+    rec  = 'maintain volume, sharpen weakest dimension, rotate fringe players to keep depth alive';
+    next = `targeted ${report.focus.toLowerCase().split(',')[0]}`;
+  } else {
+    band = 'developing';
+    rec  = 'lift base condition and tactical clarity before increasing intensity';
+    next = `foundational ${report.focus.toLowerCase().split(',')[0]}`;
+  }
+  const trendPhrase = impact.direction === 'IMPROVING' ? `Recent 14-day window improving (+${impact.improvement}%).`
+                    : impact.direction === 'DECLINING' ? `Recent 14-day window slipping (${impact.improvement}%).`
+                    : 'Recent 14-day window stable.';
+  return `Performance band: ${band} (${scores.Overall}/100). ` +
+         `${trendPhrase} Team strengths sit in ${['Attack','Defense','Possession','Condition'].sort((a, b) => scores[b] - scores[a])[0]} (${Math.max(scores.Attack, scores.Defense, scores.Possession, scores.Condition)}/100); ` +
+         `weakest area is ${report.weakness.split(' —')[0]}. ` +
+         `Recommended approach: ${rec}. Next training priority: ${next}.`;
+}
+function _pfSpark(values, color) {
+  if (!values || values.length < 2) {
+    return `<svg width="100%" height="30" viewBox="0 0 100 30" preserveAspectRatio="none"><line x1="0" y1="15" x2="100" y2="15" stroke="${color}" stroke-width="1" stroke-dasharray="2,3" opacity="0.4"/></svg>`;
+  }
+  const min = Math.min.apply(null, values);
+  const max = Math.max.apply(null, values);
+  const range = Math.max(1, max - min);
+  const w = 100, h = 30, step = w / (values.length - 1);
+  const points = values.map((v, i) => `${(i * step).toFixed(2)},${(h - 4 - ((v - min) / range) * (h - 8)).toFixed(2)}`).join(' ');
+  const last = values[values.length - 1];
+  const lx = ((values.length - 1) * step).toFixed(2);
+  const ly = (h - 4 - ((last - min) / range) * (h - 8)).toFixed(2);
+  return `<svg width="100%" height="30" viewBox="0 0 100 30" preserveAspectRatio="none">
+    <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="2" fill="${color}"/>
+  </svg>`;
+}
+function _ensurePFStyles() {
+  if (document.getElementById('pf-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'pf-styles';
+  s.textContent = `
+    .pf-page{padding:16px 18px;}
+    .pf-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .pf-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .pf-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .pf-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .pf-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .pf-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .pf-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .pf-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .pf-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .pf-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .pf-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .pf-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .pf-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .pf-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .pf-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .pf-row:last-child{border-bottom:none;}
+    .pf-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .pf-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .pf-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .pf-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .pf-alert:last-child{margin-bottom:0;}
+    .pf-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .pf-bar-fill{height:100%;border-radius:6px;}
+    .pf-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .pf-trend-tile{padding:12px 14px;border-radius:11px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .pf-trend-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+    .pf-trend-name{font-size:9.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .pf-trend-val{font-size:18px;font-weight:900;font-family:var(--mono);line-height:1;}
+    .pf-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.pf-grid-3{grid-template-columns:repeat(2,1fr);}.pf-grid-4{grid-template-columns:repeat(2,1fr);}.pf-grid-5{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.pf-grid-2,.pf-grid-3,.pf-grid-4,.pf-grid-5{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderPerformanceCenterHTML() {
+  return `<div class="page" id="pg-performance-center">
+    <div id="performance-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Performance Center…</div>
+    </div>
+  </div>`;
+}
+function renderPerformanceCenter() {
+  const el = document.getElementById('performance-center-content');
+  if (!el) return;
+  try { _ensurePFStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const scores  = _pfTeamScores();
+    const top     = _pfTopPerformers(5);
+    const improv  = _pfMostImproved(5);
+    const lowest  = _pfLowestForm(5);
+    const posRank = _pfPositionRanking();
+    const trends  = _pfTrends();
+    const impact  = _pfTrainingImpact();
+    const alerts  = _pfAlerts();
+    const report  = _pfWeeklyReport();
+    const aiSum   = _pfAISummary();
+
+    const overallColor = scores.Overall >= 80 ? 'var(--green-l)' : scores.Overall >= 65 ? 'var(--amber)' : 'var(--red)';
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : 'var(--red)';
+    const dirIcon  = impact.direction === 'IMPROVING' ? '↑' : impact.direction === 'DECLINING' ? '↓' : '→';
+    const dirCol   = impact.direction === 'IMPROVING' ? 'var(--green-l)' : impact.direction === 'DECLINING' ? 'var(--red)' : 'var(--tx-3)';
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const miniAv = (p) => {
+      if (!p) return `<div class="pf-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="pf-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+
+    el.innerHTML = `
+      <div class="pf-page">
+
+        <!-- Brand bar -->
+        <div class="pf-card">
+          <div class="pf-brand">
+            <div class="pf-brand-logo">★ FC FAMILISTA · PERFORMANCE CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+
+          <!-- 1) Team Performance Overview -->
+          <div style="padding:16px 18px;">
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Team Performance Overview</div>
+            <div class="pf-grid-5" style="margin-bottom:14px;">
+              <div class="pf-kpi" style="border-color:${overallColor};">
+                <div class="pf-kpi-val" style="color:${overallColor};">${scores.Overall}</div>
+                <div class="pf-kpi-lbl">Overall</div>
+                <div class="pf-bar"><div class="pf-bar-fill" style="width:${scores.Overall}%;background:${overallColor};"></div></div>
+              </div>
+              <div class="pf-kpi">
+                <div class="pf-kpi-val" style="color:${colorFor(scores.Attack)};">${scores.Attack}</div>
+                <div class="pf-kpi-lbl">Attack</div>
+                <div class="pf-bar"><div class="pf-bar-fill" style="width:${scores.Attack}%;background:${colorFor(scores.Attack)};"></div></div>
+              </div>
+              <div class="pf-kpi">
+                <div class="pf-kpi-val" style="color:${colorFor(scores.Defense)};">${scores.Defense}</div>
+                <div class="pf-kpi-lbl">Defense</div>
+                <div class="pf-bar"><div class="pf-bar-fill" style="width:${scores.Defense}%;background:${colorFor(scores.Defense)};"></div></div>
+              </div>
+              <div class="pf-kpi">
+                <div class="pf-kpi-val" style="color:${colorFor(scores.Possession)};">${scores.Possession}</div>
+                <div class="pf-kpi-lbl">Possession</div>
+                <div class="pf-bar"><div class="pf-bar-fill" style="width:${scores.Possession}%;background:${colorFor(scores.Possession)};"></div></div>
+              </div>
+              <div class="pf-kpi">
+                <div class="pf-kpi-val" style="color:${colorFor(scores.Condition)};">${scores.Condition}</div>
+                <div class="pf-kpi-lbl">Condition</div>
+                <div class="pf-bar"><div class="pf-bar-fill" style="width:${scores.Condition}%;background:${colorFor(scores.Condition)};"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Player Performance Ranking | Performance Trends -->
+        <div class="pf-grid-2">
+
+          <!-- 2) Player Performance Ranking -->
+          <div class="pf-tile">
+            <div class="pf-tile-lbl">Player Performance Ranking</div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Top Performers</div>
+            ${top.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No data.</div>`
+              : top.map((x, i) => `
+                <div class="pf-row">
+                  <div class="pf-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(x.p.position || '—')} · #${x.p.number != null ? x.p.number : '—'}</div>
+                  </div>
+                  <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:${colorFor(x.score)};">${x.score}</div>
+                </div>`).join('')}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Most Improved</div>
+                ${improv.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No movement yet.</div>`
+                  : improv.slice(0, 3).map(x => `
+                    <div class="pf-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${x.earlier} → ${x.recent} sess.</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);">+${x.pct}%</div>
+                    </div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--red);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Lowest Form Warning</div>
+                ${lowest.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No concerns.</div>`
+                  : lowest.slice(0, 3).map(x => `
+                    <div class="pf-row" style="padding:4px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(x.score)};">${x.score}</div>
+                    </div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- 3) Performance Trends -->
+          <div class="pf-tile">
+            <div class="pf-tile-lbl">Performance Trends — Last ${trends.sessions.length || 5} Sessions</div>
+            ${trends.sessions.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No training session history yet.</div>`
+              : `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  ${[
+                    { name:'Attack',     arr: trends.attack,     col:'var(--green-l)' },
+                    { name:'Defense',    arr: trends.defense,    col:'#60A5FA' },
+                    { name:'Possession', arr: trends.possession, col:'var(--amber)' },
+                    { name:'Condition',  arr: trends.condition,  col:'#A78BFA' },
+                  ].map(t => {
+                    const last = t.arr[t.arr.length - 1] || 0;
+                    const delta = _pfTrendDelta(t.arr);
+                    const dCol = delta > 0 ? 'var(--green-l)' : delta < 0 ? 'var(--red)' : 'var(--tx-3)';
+                    return `
+                      <div class="pf-trend-tile">
+                        <div class="pf-trend-hdr">
+                          <div class="pf-trend-name" style="color:${t.col};">${t.name}</div>
+                          <div style="font-size:10px;font-weight:800;color:${dCol};font-family:var(--mono);">${delta >= 0 ? '+' : ''}${delta}</div>
+                        </div>
+                        <div class="pf-trend-val" style="color:${t.col};">${last}</div>
+                        <div style="margin-top:4px;">${_pfSpark(t.arr, t.col)}</div>
+                      </div>`;
+                  }).join('')}
+                </div>`}
+          </div>
+        </div>
+
+        <!-- Row: Training Impact | Position Performance -->
+        <div class="pf-grid-2">
+
+          <!-- 4) Training Impact -->
+          <div class="pf-tile">
+            <div class="pf-tile-lbl">Training Impact</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;">
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--tx);">${impact.recentCount}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">SESSIONS · 14D</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${dirCol};">${dirIcon} ${impact.improvement >= 0 ? '+' : ''}${impact.improvement}%</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">IMPROVEMENT</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:13px;font-weight:900;letter-spacing:.6px;color:${dirCol};">${impact.direction}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">PROGRESS</div>
+              </div>
+            </div>
+            <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Drill Impact — Recent Mix</div>
+            ${impact.drills.length === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No recorded drills in recent sessions.</div>`
+              : impact.drills.map(d => {
+                  const max = Math.max.apply(null, impact.drills.map(x => x.count)) || 1;
+                  const w = Math.round((d.count / max) * 100);
+                  return `
+                    <div style="margin-bottom:6px;">
+                      <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);margin-bottom:3px;">
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(d.kind.replace(/_/g, ' '))}</span>
+                        <span style="font-family:var(--mono);color:var(--tx-3);">${d.count}</span>
+                      </div>
+                      <div class="pf-bar"><div class="pf-bar-fill" style="width:${w}%;background:var(--green-l);"></div></div>
+                    </div>`;
+                }).join('')}
+          </div>
+
+          <!-- 5) Position Performance -->
+          <div class="pf-tile">
+            <div class="pf-tile-lbl">Position Performance</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${[
+                { key:'GK',  lbl:'Goalkeeper', col:'var(--amber)' },
+                { key:'DEF', lbl:'Defense',    col:'#60A5FA' },
+                { key:'MID', lbl:'Midfield',   col:'var(--green-l)' },
+                { key:'FWD', lbl:'Forwards',   col:'var(--red)' },
+              ].map(g => {
+                const grp = posRank[g.key];
+                const best = grp.best;
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <div>
+                        <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${g.col};">${g.lbl}</div>
+                        <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${grp.count} player${grp.count === 1 ? '' : 's'}</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${colorFor(grp.avg)};line-height:1;">${grp.avg}</div>
+                        <div style="font-size:8.5px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">AVG FORM</div>
+                      </div>
+                    </div>
+                    ${best
+                      ? `<div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05);">
+                          ${miniAv(best)}
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:8.5px;font-weight:800;letter-spacing:1px;color:var(--tx-3);">BEST</div>
+                            <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(best))}</div>
+                          </div>
+                          <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(_pfFormOf(best))};">${_pfFormOf(best)}</div>
+                        </div>`
+                      : `<div style="font-size:10px;color:var(--tx-3);padding-top:8px;border-top:1px solid rgba(255,255,255,0.05);">No players in group.</div>`}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 6) Performance Alerts (full) -->
+        <div class="pf-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Performance Alerts</div>
+          ${alerts.map(a => `
+            <div class="pf-alert" style="border-left-color:${a.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${a.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${a.color};text-transform:uppercase;margin-bottom:2px;">${_esc(a.kind)}</div>
+                <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(a.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 7) Weekly Performance Report (full) -->
+        <div class="pf-card" style="padding:16px 18px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Weekly Performance Report</div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+            <div class="pf-tile" style="padding:12px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;">Team Summary</div>
+              <div style="font-size:11.5px;color:var(--tx);line-height:1.6;">${_esc(report.teamSummary)}</div>
+              ${report.trendBits.length
+                ? `<div style="font-size:10px;color:var(--tx-3);margin-top:6px;line-height:1.5;">Trend deltas — ${_esc(report.trendBits.join(' · '))}</div>`
+                : ''}
+            </div>
+            <div class="pf-tile" style="padding:12px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;">Player Highlights</div>
+              <div style="font-size:11.5px;color:var(--tx);line-height:1.6;">${_esc(report.highlights)}</div>
+            </div>
+            <div class="pf-tile" style="padding:12px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--red);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;">Weaknesses</div>
+              <div style="font-size:11.5px;color:var(--tx);line-height:1.6;">${_esc(report.weakness)}</div>
+            </div>
+            <div class="pf-tile" style="padding:12px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--amber);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:6px;">Recommended Focus</div>
+              <div style="font-size:11.5px;color:var(--tx);line-height:1.6;">${_esc(report.focus)}.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8) AI Performance Summary -->
+        <div class="pf-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">🧠</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">AI Performance Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(aiSum)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[performance-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Performance Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -12658,6 +13239,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="medical-center"]')) {
     setTimeout(function () { try { renderMedicalCenter(); } catch (err) { try { console.error('[medical-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="performance-center"]')) {
+    setTimeout(function () { try { renderPerformanceCenter(); } catch (err) { try { console.error('[performance-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
