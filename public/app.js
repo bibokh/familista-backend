@@ -519,6 +519,7 @@ async function loadAllData() {
       try { if (typeof renderAcademyCenter     === 'function') renderAcademyCenter();     } catch (_) {}
       try { if (typeof renderSportingDirectorCenter === 'function') renderSportingDirectorCenter(); } catch (_) {}
       try { if (typeof renderDirectorOfFootballCenter === 'function') renderDirectorOfFootballCenter(); } catch (_) {}
+      try { if (typeof renderBoardOfDirectorsCenter   === 'function') renderBoardOfDirectorsCenter();   } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -746,6 +747,7 @@ function _flushPendingRender() {
     case 'pg-academy-center':    renderAcademyCenter();    break;
     case 'pg-sporting-director-center': renderSportingDirectorCenter(); break;
     case 'pg-director-of-football-center': renderDirectorOfFootballCenter(); break;
+    case 'pg-board-of-directors-center': renderBoardOfDirectorsCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -808,7 +810,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -844,6 +846,7 @@ function navTo(page, el) {
   if (page === 'academy-center')   { try { renderAcademyCenter();   } catch (e) { try { console.error('[academy-center] nav render failed:', e);    } catch (_) {} } }
   if (page === 'sporting-director-center'){ try { renderSportingDirectorCenter(); } catch (e) { try { console.error('[sporting-director-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'director-of-football-center'){ try { renderDirectorOfFootballCenter(); } catch (e) { try { console.error('[director-of-football-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'board-of-directors-center'){ try { renderBoardOfDirectorsCenter(); } catch (e) { try { console.error('[board-of-directors-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -961,6 +964,7 @@ function renderAllPages() {
     ${renderAcademyCenterHTML()}
     ${renderSportingDirectorCenterHTML()}
     ${renderDirectorOfFootballCenterHTML()}
+    ${renderBoardOfDirectorsCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -7694,6 +7698,621 @@ function renderDirectorOfFootballCenter() {
     try { console.error('[director-of-football-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Director Of Football Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Board Of Directors Center (top-level governance) ─────
+// Aggregator-only. Consumes outputs from Director Of Football Center
+// (_dof*), Sporting Director Center (_sd*), Finance Center (_fi*),
+// Academy Center (_aca*), Management Center (_mg*), Transfer Center
+// (_tc*), Scouting Center (_sg*), Medical Center (_md*) and
+// Performance Center (_pf*). Does NOT recompute any domain analytic.
+// Adds a thin _bod* synthesis layer (club-health composite, strategic
+// objectives, governance scorecards, risk register, investment
+// opportunities, executive performance review, board decisions,
+// summary). No backend writes, no new fetches, no schema changes,
+// no routes.
+function _bodSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _bodClubHealth() {
+  // Composite of every executive layer: Management + Sporting + DoF + Finance.
+  const mg  = _bodSafe(_mgClubHealth, { score: 0 });
+  const sd  = _bodSafe(_sdOverallScore, 0);
+  const dof = _bodSafe(_dofHealthScore, 0);
+  const fin = _bodSafe(_mgFinanceHealthScore, 0);
+  const score = Math.round((mg.score || 0) * 0.25 + sd * 0.30 + dof * 0.25 + fin * 0.20);
+  return { score: Math.max(0, Math.min(100, score)), mg: mg.score || 0, sd, dof, fin };
+}
+function _bodBand(score) {
+  if (score > 80) return { band:'ELITE',    color:'var(--green-l)' };
+  if (score > 65) return { band:'STRONG',   color:'var(--amber)'   };
+  if (score > 50) return { band:'WATCH',    color:'#60A5FA'        };
+  return                 { band:'CRITICAL', color:'var(--red)'     };
+}
+function _bodGrade(score) {
+  // A+/A/B/C/D for executive-performance review.
+  if (score >= 90) return { grade:'A+', color:'var(--green-l)' };
+  if (score >= 80) return { grade:'A',  color:'var(--green-l)' };
+  if (score >= 65) return { grade:'B',  color:'var(--amber)'   };
+  if (score >= 50) return { grade:'C',  color:'#60A5FA'        };
+  return                  { grade:'D',  color:'var(--red)'     };
+}
+function _bodStrategicObjectives() {
+  // Board-level multi-horizon objectives. Derived from synthesised
+  // squad data so the board view stays aligned with the executive
+  // centres below.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const sv = _bodSafe(_fiSquadValue, { total: 0 });
+  const lifecycle = _bodSafe(_dofSquadLifecycle, { balance: 0 });
+  const academy = _bodSafe(_acaOverview, { count: 0 });
+  const matchesObj = _bodSafe(_mgSeasonObjectives, { winPct: 0, points: 0 });
+  // Build objective rows.
+  return [
+    {
+      key:'WIN_RATE',
+      lbl:'Win Rate',
+      actual: matchesObj.winPct || 0,
+      target: 50,
+      unit: '%',
+      detail: `${matchesObj.points || 0} points in season; competitive target ≥ 50% win rate.`,
+    },
+    {
+      key:'SQUAD_VALUE',
+      lbl:'Squad Asset Value',
+      actual: Math.min(100, Math.round((sv.total || 0) / 200000)),
+      target: 60,
+      unit: '%',
+      detail: `Current squad value ${_fiFmtMoney(sv.total)} — building toward sustained recruitment headroom.`,
+    },
+    {
+      key:'LIFECYCLE',
+      lbl:'Squad Lifecycle Balance',
+      actual: lifecycle.balance || 0,
+      target: 75,
+      unit: '%',
+      detail: 'Healthy distribution of young / prime / veteran across the squad.',
+    },
+    {
+      key:'ACADEMY',
+      lbl:'Academy Pipeline Size',
+      actual: Math.min(100, (academy.count || 0) * 10),
+      target: 70,
+      unit: '%',
+      detail: `${academy.count} academy players (≤21) feeding the senior squad.`,
+    },
+  ];
+}
+function _bodFinancialGovernance() {
+  const co = _bodSafe(_mgFinanceOverview, { wageRatio: 0, netProfit: 0, cashReserve: 0, annualRevenue: 0, annualExpenses: 0, totalAssets: 0, netWorth: 0 });
+  const wb = _bodSafe(_fiWageBill, { total: 0 });
+  const wageRatioFlag = co.wageRatio >= 75 ? 'BREACH' : co.wageRatio >= 65 ? 'WATCH' : 'WITHIN';
+  const monthsCash = wb.total > 0 ? +(co.cashReserve / (wb.total / 12)).toFixed(1) : 0;
+  const cashFlag   = monthsCash < 1 ? 'BREACH' : monthsCash < 2 ? 'WATCH' : 'WITHIN';
+  const profitFlag = co.netProfit < 0 ? 'BREACH' : co.netProfit < co.annualRevenue * 0.03 ? 'WATCH' : 'WITHIN';
+  return {
+    co, wb, wageRatioFlag, cashFlag, profitFlag, monthsCash,
+    healthScore: _bodSafe(_mgFinanceHealthScore, 0),
+  };
+}
+function _bodSportingGovernance() {
+  const perf = _bodSafe(_pfTeamScores, { Overall: 0 });
+  const needs = _bodSafe(_tcSquadNeeds, { balance: 0, fit: '—' });
+  const med  = _bodSafe(_mgMedScores, { availPct: 0, buckets: { INJURED: 0 } });
+  const lifecycle = _bodSafe(_dofSquadLifecycle, { balance: 0 });
+  return {
+    overall:    perf.Overall || 0,
+    balance:    needs.balance || 0,
+    fit:        needs.fit || '—',
+    availPct:   med.availPct || 0,
+    injured:    (med.buckets && med.buckets.INJURED) || 0,
+    lifecycle:  lifecycle.balance || 0,
+  };
+}
+function _bodAcademyGovernance() {
+  const ov   = _bodSafe(_acaOverview, { count: 0, avgPot: 0, avgDev: 0, gap: 0 });
+  const att  = _bodSafe(_acaTrainingCompliance, { avgPct: 0 });
+  const promos = _bodSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [], LONG_TERM: [] });
+  const promotionRate = (promos.READY_NOW.length + promos.READY_SOON.length);
+  return {
+    count: ov.count, avgPot: ov.avgPot, avgDev: ov.avgDev, gap: ov.gap,
+    attendance: att.avgPct,
+    promotionRate,
+    readyNow: promos.READY_NOW.length,
+    readySoon: promos.READY_SOON.length,
+    longTerm: promos.LONG_TERM.length,
+  };
+}
+function _bodRiskRegister() {
+  // Aggregate top governance-level risks across every domain. Promote
+  // non-ALL-CLEAR; tag by source; weight by severity color; cap at 6.
+  const sources = [
+    { key:'PERF',    color:'var(--amber)',   fn: _pfAlerts },
+    { key:'MEDICAL', color:'var(--red)',     fn: _mdAlerts },
+    { key:'SCOUT',   color:'#A78BFA',         fn: _sgAlerts },
+    { key:'XFER',    color:'#60A5FA',         fn: _tcAlerts },
+    { key:'FIN',     color:'var(--green-l)', fn: _fiAlerts },
+  ];
+  const out = [];
+  sources.forEach(src => {
+    let list = [];
+    try { list = src.fn() || []; } catch (_) {}
+    list.forEach(a => { if (a && a.kind && a.kind.toUpperCase() !== 'ALL CLEAR') out.push({ src: src.key, srcColor: src.color, ...a }); });
+  });
+  const w = (c) => c === 'var(--red)' ? 3 : c === 'var(--amber)' ? 2 : 1;
+  out.sort((a, b) => w(b.color) - w(a.color));
+  return out.slice(0, 6);
+}
+function _bodInvestmentOpportunities() {
+  // Where the board should deploy capital, derived from current gaps.
+  const fin = _bodSafe(_fiClubOverview, { cashReserve: 0, annualRevenue: 0 });
+  const sim = _bodSafe(_fiTransferSimulation, { scenarios: [], assumedSignSalary: 0 });
+  const aca = _bodSafe(_acaOverview, { count: 0, avgPot: 0 });
+  const lifecycle = _bodSafe(_dofSquadLifecycle, { balance: 0 });
+  const realisticBudget = sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0;
+  const items = [];
+  // Transfers — only if budget meaningful.
+  if (realisticBudget > 0) {
+    items.push({
+      kind:'TRANSFERS', color:'var(--green-l)', icon:'➕',
+      label:'Targeted Recruitment',
+      amount: realisticBudget,
+      rationale:'Address priority lines flagged by Sporting Director; capacity sits within current cash headroom.',
+    });
+  }
+  // Academy — if pipeline is thin (count low or pot low).
+  if ((aca.count || 0) < 6 || (aca.avgPot || 0) < 70) {
+    items.push({
+      kind:'ACADEMY', color:'var(--amber)', icon:'🎓',
+      label:'Academy Investment',
+      amount: Math.round(fin.cashReserve * 0.10),
+      rationale:`Academy pipeline currently ${aca.count || 0} players, avg pot ${aca.avgPot || 0}. Lifts long-term sustainability and squad lifecycle.`,
+    });
+  }
+  // Infrastructure — if lifecycle balance is mid or low.
+  if ((lifecycle.balance || 0) < 75) {
+    items.push({
+      kind:'INFRA', color:'#60A5FA', icon:'🏟️',
+      label:'Training Facilities',
+      amount: Math.round(fin.cashReserve * 0.06),
+      rationale:'Modernise facilities to reduce injury rates, improve player development efficiency, support recruitment pitch.',
+    });
+  }
+  // Operations — always a low-cost, low-impact baseline if reserve healthy.
+  if (fin.cashReserve > 100000) {
+    items.push({
+      kind:'OPERATIONS', color:'#A78BFA', icon:'⚙️',
+      label:'Operations Buffer',
+      amount: Math.round(fin.cashReserve * 0.04),
+      rationale:'Protect baseline match-day, travel, kit and staff operations against revenue shocks.',
+    });
+  }
+  if (!items.length) items.push({ kind:'NONE', color:'var(--tx-3)', icon:'—', label:'No board-level investment opportunities recommended', amount: 0, rationale:'Current reserve insufficient for new commitments; protect liquidity.' });
+  return items.slice(0, 4);
+}
+function _bodBudgetAllocation() { return _bodSafe(_fiBudgetAllocation, { recommended: {}, actual: {}, amounts: {}, expense: 0 }); }
+function _bodExecutivePerformance() {
+  // Score and grade each executive role. Pulls directly from each
+  // centre's headline score so the board page stays aligned.
+  const dof = _bodSafe(_dofHealthScore, 0);
+  const sd  = _bodSafe(_sdOverallScore, 0);
+  const fin = _bodSafe(_mgFinanceHealthScore, 0);
+  const aca = _bodSafe(_sdAcademyReadiness, 0);
+  const mg  = _bodSafe(_mgClubHealth, { score: 0 });
+  const ceoScore = mg.score || 0;
+  return [
+    { role:'DOF', lbl:'Director Of Football',   score: dof, grade: _bodGrade(dof),       note:'Sporting operation composite + finance flexibility blend.' },
+    { role:'SD',  lbl:'Sporting Director',      score: sd,  grade: _bodGrade(sd),        note:'Squad health + transfer readiness + academy + finance blend.' },
+    { role:'CFO', lbl:'Chief Financial Officer',score: fin, grade: _bodGrade(fin),       note:'Wage discipline, profitability, liquidity reserves.' },
+    { role:'AD',  lbl:'Academy Director',       score: aca, grade: _bodGrade(aca),       note:'Pipeline size + average potential + growth gap quality.' },
+    { role:'CEO', lbl:'CEO / Management',       score: ceoScore, grade: _bodGrade(ceoScore), note:'Cross-department composite — operational health overall.' },
+  ];
+}
+function _bodBoardDecisions() {
+  const ch  = _bodClubHealth();
+  const fin = _bodSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0 });
+  const sg  = _bodSportingGovernance();
+  const ag  = _bodAcademyGovernance();
+  const dq  = _bodSafe(_dofActionQueue, []);
+  const out = [];
+  // Highest-priority decision from DoF queue.
+  if (dq[0]) {
+    out.push({
+      priority:'HIGH', icon: dq[0].icon || '🚨', color: dq[0].color || 'var(--red)',
+      label:`Approve: ${dq[0].label}`, detail: dq[0].detail,
+    });
+  }
+  // Wage governance trigger.
+  if (fin.wageRatio >= 70) {
+    out.push({
+      priority:'HIGH', icon:'📈', color:'var(--red)',
+      label:'Cap incremental wage commitments',
+      detail:`Wage ratio at ${fin.wageRatio}% — board approval required for new senior contracts above current bands.`,
+    });
+  }
+  // Sporting governance trigger.
+  if (sg.balance < 65) {
+    out.push({
+      priority:'MEDIUM', icon:'⚖️', color:'var(--amber)',
+      label:'Mandate squad rebalance plan',
+      detail:`Squad balance ${sg.balance}/100 — request a structural plan from Sporting Director before next window.`,
+    });
+  }
+  // Academy governance trigger.
+  if (ag.promotionRate < 2 && ag.count < 6) {
+    out.push({
+      priority:'MEDIUM', icon:'🎓', color:'#60A5FA',
+      label:'Approve academy expansion investment',
+      detail:`Pipeline only ${ag.count} players, ${ag.promotionRate} promotion-ready — board to authorise multi-year academy uplift.`,
+    });
+  }
+  // Liquidity guard.
+  if (fin.cashReserve > 0 && ch.score >= 65) {
+    out.push({
+      priority:'LOW', icon:'💼', color:'var(--green-l)',
+      label:'Re-affirm dividend / reinvestment policy',
+      detail:`Cash reserve ${_fiFmtMoney(fin.cashReserve)} with club health ${ch.score}/100 — confirm board policy on profit deployment.`,
+    });
+  }
+  if (!out.length) out.push({ priority:'STEADY', icon:'✓', color:'var(--green-l)', label:'No board-level decisions outstanding', detail:'Club health within target bands; routine governance only.' });
+  return out.slice(0, 5);
+}
+function _bodSummary() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  if (!ps.length) return 'No squad data available — Board Of Directors Center is waiting for player data.';
+  const ch = _bodClubHealth();
+  const band = _bodBand(ch.score);
+  const fin = _bodSafe(_mgFinanceOverview, { wageRatio: 0, netProfit: 0, cashReserve: 0 });
+  const sg  = _bodSportingGovernance();
+  const ag  = _bodAcademyGovernance();
+  const exec = _bodExecutivePerformance();
+  const lowest = exec.slice().sort((a, b) => a.score - b.score)[0];
+  let outlook;
+  if (ch.score > 80)      outlook = 'club is in elite governance health — protect the lead and compound it';
+  else if (ch.score > 65) outlook = 'club is in healthy governance condition with isolated dimensions to lift';
+  else if (ch.score > 50) outlook = 'mixed governance picture — board action required on the weakest department';
+  else                     outlook = 'multiple governance areas under stress — board oversight and intervention required';
+  return `Board view: ${band.band} (${ch.score}/100). ` +
+         `Composite — Management ${ch.mg} · Sporting ${ch.sd} · DoF ${ch.dof} · Finance ${ch.fin}. ` +
+         `Financial governance — wage ratio ${fin.wageRatio}%, net P&L ${_fiFmtMoney(fin.netProfit)}, cash reserve ${_fiFmtMoney(fin.cashReserve)}. ` +
+         `Sporting governance — overall ${sg.overall}, availability ${sg.availPct}%, balance ${sg.balance}. ` +
+         `Academy governance — ${ag.count} players, ${ag.promotionRate} promotion-ready. ` +
+         `Lowest executive scorecard: ${lowest ? lowest.lbl + ' (' + lowest.score + '/' + 100 + ', ' + lowest.grade.grade + ')' : '—'}. ` +
+         `Board call: ${outlook}.`;
+}
+function _ensureBODStyles() {
+  if (document.getElementById('bod-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'bod-styles';
+  s.textContent = `
+    .bod-page{padding:16px 18px;}
+    .bod-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.32);
+      box-shadow:0 26px 64px -20px rgba(0,0,0,0.65),0 0 60px -16px rgba(74,222,128,0.28),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .bod-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.08),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.06),transparent 55%);}
+    .bod-brand{position:relative;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.22),rgba(34,197,94,0.08) 30%,rgba(37,99,235,0.08) 70%,rgba(74,222,128,0.22));
+      border-bottom:1px solid rgba(74,222,128,0.28);}
+    .bod-brand-logo{font-size:13px;font-weight:900;color:var(--green-l);letter-spacing:2.4px;text-shadow:0 0 10px rgba(74,222,128,0.55);}
+    .bod-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .bod-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .bod-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .bod-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .bod-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .bod-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .bod-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .bod-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .bod-bar-fill{height:100%;border-radius:6px;}
+    .bod-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .bod-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .bod-alert:last-child{margin-bottom:0;}
+    .bod-obj-row{display:grid;grid-template-columns:1fr 80px 70px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .bod-obj-row:last-child{border-bottom:none;}
+    .bod-exec-tile{padding:12px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(74,222,128,0.15);}
+    .bod-grade{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;}
+    .bod-budget-row{display:grid;grid-template-columns:120px 1fr 80px 50px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .bod-budget-row:last-child{border-bottom:none;}
+    .bod-summary{position:relative;padding:20px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.06));
+      border:1px solid rgba(74,222,128,0.36);border-left:5px solid var(--green-l);
+      box-shadow:0 20px 44px -16px rgba(0,0,0,0.55),0 0 36px -10px rgba(74,222,128,0.30);}
+    @media (max-width:1024px){.bod-grid-3{grid-template-columns:repeat(2,1fr);}.bod-grid-4{grid-template-columns:repeat(2,1fr);}.bod-grid-5{grid-template-columns:repeat(2,1fr);}.bod-obj-row{grid-template-columns:1fr 70px 60px;font-size:10px;}.bod-budget-row{grid-template-columns:90px 1fr 70px 40px;font-size:10px;}}
+    @media (max-width:600px){.bod-grid-2,.bod-grid-3,.bod-grid-4,.bod-grid-5{grid-template-columns:1fr;}.bod-obj-row{grid-template-columns:1fr 60px;}.bod-obj-row > :nth-child(3){display:none;}.bod-budget-row{grid-template-columns:80px 1fr 60px;}.bod-budget-row > :nth-child(4){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderBoardOfDirectorsCenterHTML() {
+  return `<div class="page" id="pg-board-of-directors-center">
+    <div id="board-of-directors-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Board Of Directors Center…</div>
+    </div>
+  </div>`;
+}
+function renderBoardOfDirectorsCenter() {
+  const el = document.getElementById('board-of-directors-center-content');
+  if (!el) return;
+  try { _ensureBODStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const ch = _bodClubHealth();
+    const band = _bodBand(ch.score);
+    const objectives = _bodStrategicObjectives();
+    const finGov = _bodFinancialGovernance();
+    const spGov  = _bodSportingGovernance();
+    const acaGov = _bodAcademyGovernance();
+    const risks  = _bodRiskRegister();
+    const invs   = _bodInvestmentOpportunities();
+    const budget = _bodBudgetAllocation();
+    const exec   = _bodExecutivePerformance();
+    const decisions = _bodBoardDecisions();
+    const summary = _bodSummary();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const flagColor = (f) => f === 'WITHIN' ? 'var(--green-l)' : f === 'WATCH' ? 'var(--amber)' : 'var(--red)';
+    const flagBg    = (f) => f === 'WITHIN' ? 'rgba(74,222,128,0.16)' : f === 'WATCH' ? 'rgba(245,158,11,0.16)' : 'rgba(239,68,68,0.16)';
+
+    const budgetRows = [
+      { key:'wages',      lbl:'Wages',          col:'var(--red)'     },
+      { key:'transfers',  lbl:'Transfers',      col:'var(--green-l)' },
+      { key:'operations', lbl:'Operations',     col:'var(--amber)'   },
+      { key:'youth',      lbl:'Youth Develop.', col:'#60A5FA'        },
+      { key:'infra',      lbl:'Infrastructure', col:'#A78BFA'        },
+    ];
+
+    el.innerHTML = `
+      <div class="bod-page">
+
+        <!-- Brand bar + 1) Club Health Dashboard -->
+        <div class="bod-card">
+          <div class="bod-brand">
+            <div class="bod-brand-logo">★ FC FAMILISTA · BOARD OF DIRECTORS CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>BOARD LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:center;">
+            <div style="text-align:center;padding:18px 12px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(74,222,128,0.22),rgba(74,222,128,0.04) 70%);border:1px solid rgba(74,222,128,0.32);">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;">Club Health</div>
+              <div style="font-size:56px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 22px ${band.color};">${ch.score}</div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;color:${band.color};text-transform:uppercase;margin-top:6px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:8px;">Composite Departmental Read</div>
+              ${[
+                { lbl:'Management',  score: ch.mg },
+                { lbl:'Sporting',    score: ch.sd },
+                { lbl:'Director Of Football', score: ch.dof },
+                { lbl:'Finance',     score: ch.fin },
+              ].map(d => `
+                <div style="margin-bottom:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${d.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(d.score)};">${d.score}/100</span>
+                  </div>
+                  <div class="bod-bar"><div class="bod-bar-fill" style="width:${Math.max(0, Math.min(100, d.score))}%;background:${colorFor(d.score)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- 2) Strategic Objectives -->
+        <div class="bod-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Strategic Objectives</div>
+          ${objectives.map(o => {
+            const ratio = o.target > 0 ? Math.min(100, Math.round((o.actual / o.target) * 100)) : 0;
+            const c = ratio >= 100 ? 'var(--green-l)' : ratio >= 70 ? 'var(--amber)' : 'var(--red)';
+            return `
+              <div class="bod-obj-row">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;">${o.lbl}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(o.detail)}</div>
+                  </div>
+                  <div class="bod-bar" style="margin-top:5px;"><div class="bod-bar-fill" style="width:${ratio}%;background:${c};"></div></div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px;font-weight:900;font-family:var(--mono);color:${c};line-height:1;">${o.actual}${o.unit}</div>
+                  <div style="font-size:8.5px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">ACTUAL</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--tx-3);">${o.target}${o.unit}</div>
+                  <div style="font-size:8.5px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">TARGET</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+
+        <!-- Row: Financial Governance | Sporting Governance | Academy Governance -->
+        <div class="bod-grid-3">
+
+          <!-- 3) Financial Governance -->
+          <div class="bod-tile">
+            <div class="bod-tile-lbl">Financial Governance</div>
+            <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:${colorFor(finGov.healthScore)};line-height:1;">${finGov.healthScore}/100</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);margin-bottom:10px;">HEALTH SCORE</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--tx);">
+                <span>Wage Ratio</span><span style="display:flex;gap:8px;align-items:center;font-family:var(--mono);"><span>${finGov.co.wageRatio}%</span><span class="bod-pill" style="color:${flagColor(finGov.wageRatioFlag)};background:${flagBg(finGov.wageRatioFlag)};">${finGov.wageRatioFlag}</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--tx);">
+                <span>Net P&amp;L</span><span style="display:flex;gap:8px;align-items:center;font-family:var(--mono);"><span style="color:${finGov.co.netProfit >= 0 ? 'var(--green-l)' : 'var(--red)'};">${_fiFmtMoney(finGov.co.netProfit)}</span><span class="bod-pill" style="color:${flagColor(finGov.profitFlag)};background:${flagBg(finGov.profitFlag)};">${finGov.profitFlag}</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--tx);">
+                <span>Cash Reserve</span><span style="display:flex;gap:8px;align-items:center;font-family:var(--mono);"><span>${finGov.monthsCash} mo</span><span class="bod-pill" style="color:${flagColor(finGov.cashFlag)};background:${flagBg(finGov.cashFlag)};">${finGov.cashFlag}</span></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4) Sporting Governance -->
+          <div class="bod-tile">
+            <div class="bod-tile-lbl">Sporting Governance</div>
+            <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:${colorFor(spGov.overall)};line-height:1;">${spGov.overall}/100</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);margin-bottom:10px;">TEAM RATING</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Squad Balance</span><span style="font-family:var(--mono);color:${colorFor(spGov.balance)};">${spGov.balance}/100</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Availability</span><span style="font-family:var(--mono);color:${colorFor(spGov.availPct)};">${spGov.availPct}%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Active Injuries</span><span style="font-family:var(--mono);color:${spGov.injured > 0 ? 'var(--red)' : 'var(--green-l)'};">${spGov.injured}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Lifecycle Balance</span><span style="font-family:var(--mono);color:${colorFor(spGov.lifecycle)};">${spGov.lifecycle}/100</span>
+              </div>
+            </div>
+            <div style="font-size:9.5px;color:var(--tx-3);margin-top:8px;line-height:1.5;">${_esc(spGov.fit)}</div>
+          </div>
+
+          <!-- 5) Academy Governance -->
+          <div class="bod-tile">
+            <div class="bod-tile-lbl">Academy Governance</div>
+            <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:${colorFor(acaGov.avgPot)};line-height:1;">${acaGov.count}</div>
+            <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);margin-bottom:10px;">ACADEMY PLAYERS</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Avg Potential</span><span style="font-family:var(--mono);color:${colorFor(acaGov.avgPot)};">${acaGov.avgPot}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Avg Development</span><span style="font-family:var(--mono);color:${colorFor(acaGov.avgDev)};">${acaGov.avgDev}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Growth Gap</span><span style="font-family:var(--mono);color:var(--amber);">+${acaGov.gap}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Attendance</span><span style="font-family:var(--mono);color:${colorFor(acaGov.attendance)};">${acaGov.attendance}%</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--tx);">
+                <span>Promotion Ready</span><span style="font-family:var(--mono);color:${acaGov.promotionRate > 0 ? 'var(--green-l)' : 'var(--tx-3)'};">${acaGov.promotionRate}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Risk Register | Investment Opportunities -->
+        <div class="bod-grid-2">
+
+          <!-- 6) Risk Register -->
+          <div class="bod-tile">
+            <div class="bod-tile-lbl">Risk Register</div>
+            ${risks.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No active board-level risks — all departments reporting green.</div>`
+              : risks.map(r => `
+                <div class="bod-alert" style="border-left-color:${r.color};">
+                  <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon || '⚠️'}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${r.color};text-transform:uppercase;">${_esc(r.kind)}</div>
+                      <span class="bod-pill" style="color:${r.srcColor};background:rgba(255,255,255,0.05);">${r.src}</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(r.text)}</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 7) Investment Opportunities -->
+          <div class="bod-tile">
+            <div class="bod-tile-lbl">Investment Opportunities</div>
+            ${invs.map(it => `
+              <div class="bod-alert" style="border-left-color:${it.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${it.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${it.color};text-transform:uppercase;">${_esc(it.kind)}</div>
+                    <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:${it.color};">${_fiFmtMoney(it.amount)}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(it.label)}</div>
+                  <div style="font-size:10px;color:var(--tx-3);line-height:1.5;">${_esc(it.rationale)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 8) Budget Allocation -->
+        <div class="bod-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Budget Allocation</div>
+          <div class="bod-budget-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+            <div>CATEGORY</div><div>ALLOCATION</div><div style="text-align:right;">AMOUNT</div><div style="text-align:right;">TARGET</div>
+          </div>
+          ${budgetRows.map(r => `
+            <div class="bod-budget-row">
+              <div style="font-size:11px;color:var(--tx);font-weight:700;display:flex;align-items:center;gap:6px;">
+                <span class="bod-pill" style="color:${r.col};background:${r.col === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : r.col === 'var(--red)' ? 'rgba(239,68,68,0.16)' : r.col === 'var(--amber)' ? 'rgba(245,158,11,0.16)' : r.col === '#60A5FA' ? 'rgba(96,165,250,0.16)' : 'rgba(167,139,250,0.16)'};">${(budget.actual && budget.actual[r.key]) || 0}%</span>
+                <span>${r.lbl}</span>
+              </div>
+              <div><div class="bod-bar" style="margin-top:0;"><div class="bod-bar-fill" style="width:${Math.min(100, (budget.actual && budget.actual[r.key]) || 0)}%;background:${r.col};"></div></div></div>
+              <div style="text-align:right;font-size:10.5px;font-family:var(--mono);color:var(--tx);font-weight:800;">${_fiFmtMoney((budget.amounts && budget.amounts[r.key]) || 0)}</div>
+              <div style="text-align:right;font-size:10px;font-family:var(--mono);color:var(--tx-3);">${(budget.recommended && budget.recommended[r.key]) || 0}%</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 9) Executive Performance Review -->
+        <div class="bod-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Executive Performance Review</div>
+          <div class="bod-grid-5">
+            ${exec.map(e => `
+              <div class="bod-exec-tile" style="border-color:${e.grade.color};">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:9px;font-weight:900;letter-spacing:1px;color:var(--tx-3);text-transform:uppercase;">${e.role}</div>
+                    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${e.lbl}</div>
+                  </div>
+                  <div class="bod-grade" style="color:${e.grade.color};">${e.grade.grade}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                  <span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">SCORE</span>
+                  <span style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(e.score)};">${e.score}/100</span>
+                </div>
+                <div class="bod-bar"><div class="bod-bar-fill" style="width:${Math.max(0, Math.min(100, e.score))}%;background:${e.grade.color};"></div></div>
+                <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.4;">${_esc(e.note)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 10) Board Decisions -->
+        <div class="bod-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Board Decisions</div>
+          ${decisions.map(d => `
+            <div class="bod-alert" style="border-left-color:${d.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${d.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${d.color};text-transform:uppercase;margin-bottom:2px;">${_esc(d.priority)}</div>
+                <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(d.label)}</div>
+                <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">${_esc(d.detail)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 11) Board Summary -->
+        <div class="bod-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:16px;">🏛️</span>
+            <div style="font-size:11px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;">Board Summary</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[board-of-directors-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Board Of Directors Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -17337,6 +17956,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="director-of-football-center"]')) {
     setTimeout(function () { try { renderDirectorOfFootballCenter(); } catch (err) { try { console.error('[director-of-football-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="board-of-directors-center"]')) {
+    setTimeout(function () { try { renderBoardOfDirectorsCenter(); } catch (err) { try { console.error('[board-of-directors-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
