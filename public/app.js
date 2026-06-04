@@ -509,6 +509,7 @@ async function loadAllData() {
       State.players = players.value.data;
       renderSquad();
       try { if (typeof renderAIScoutingCenter === 'function') renderAIScoutingCenter(); } catch (_) {}
+      try { if (typeof renderAICoachCenter    === 'function') renderAICoachCenter();    } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -726,6 +727,7 @@ function _flushPendingRender() {
     case 'pg-matches':     renderMatches();         break;
     case 'pg-match-center':renderMatchCenter();     break;
     case 'pg-ai-scouting': renderAIScoutingCenter();break;
+    case 'pg-ai-coach':    renderAICoachCenter();   break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -788,7 +790,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -814,6 +816,7 @@ function navTo(page, el) {
   // needs its renderer kicked when the user navigates to the page.
   if (page === 'match-center') { try { renderMatchCenter(); } catch (e) { try { console.error('[match-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-scouting')  { try { renderAIScoutingCenter(); } catch (e) { try { console.error('[ai-scouting] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-coach')     { try { renderAICoachCenter();    } catch (e) { try { console.error('[ai-coach] nav render failed:', e);    } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -921,6 +924,7 @@ function renderAllPages() {
     ${renderMatchesHTML()}
     ${renderMatchCenterHTML()}
     ${renderAIScoutingHTML()}
+    ${renderAICoachHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -2080,6 +2084,487 @@ function renderAIScoutingCenter() {
     try { console.error('[ai-scouting] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Scouting Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI Coach Center (new Intelligence page) ─────────────
+// Frontend-only. All sections derived from State.players / State.training
+// / State.matches / State.trainingForm already loaded. No backend, no
+// schema, no fetches. Reuses _pc*, _form*, _sc* helpers (read-only).
+function _acActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _acNextMatch() {
+  const now = Date.now();
+  const list = (State.matches || []).filter(m => m && m.scheduledAt && new Date(m.scheduledAt).getTime() > now);
+  list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  return list[0] || null;
+}
+function _acCoachBriefing() {
+  const ps = _acActive();
+  const total = ps.length;
+  const injured = ps.filter(p => p.isInjured).length;
+  const available = total - injured;
+  const next = _acNextMatch();
+  const daysToMatch = next ? Math.max(0, Math.ceil((new Date(next.scheduledAt).getTime() - Date.now()) / 86400000)) : null;
+  const opponent = next ? (next.homeTeam && /familista/i.test(next.homeTeam) ? (next.awayTeam || 'Opponent') : (next.homeTeam || 'Opponent')) : null;
+  const avgRdy = total > 0 ? Math.round(ps.reduce((a, p) => a + _pcReadinessScore(p), 0) / total) : null;
+  const f = State.trainingForm || {};
+  const teamComp = Math.round((((f.attackForm ?? 12) + (f.defenseForm ?? 14) + (f.possession ?? 11) + (f.conditionForm ?? 13)) / 64) * 100);
+  return { total, available, injured, daysToMatch, opponent, avgRdy, teamComp };
+}
+function _acPreMatchDecision() {
+  const ps = _acActive();
+  if (ps.length === 0) return { level: 'UNKNOWN', color: 'var(--tx-3)', summary: 'No squad data available.' };
+  const injured = ps.filter(p => p.isInjured).length;
+  const avgRdy  = ps.reduce((a, p) => a + _pcReadinessScore(p), 0) / ps.length;
+  const highFat = ps.filter(p => _pcFatigueRisk(p).level === 'HIGH').length;
+  let level, color, summary;
+  if (injured >= 4 || avgRdy < 50 || highFat >= 5) {
+    level = 'HIGH RISK'; color = 'var(--red)';
+    summary = 'Multiple critical issues — rest key players, simplify tactical demands.';
+  } else if (injured >= 2 || avgRdy < 65 || highFat >= 3) {
+    level = 'CAUTION'; color = 'var(--amber)';
+    summary = 'Manage minutes carefully — rotate where possible, monitor load.';
+  } else {
+    level = 'GO'; color = 'var(--green-l)';
+    summary = 'Squad ready — proceed with planned lineup and intensity.';
+  }
+  return { level, color, summary, injured, avgRdy: Math.round(avgRdy), highFat };
+}
+function _acRecommendedFormation() {
+  const f = State.trainingForm || {};
+  const atk = f.attackForm    ?? 12;
+  const def = f.defenseForm   ?? 14;
+  const pos = f.possession    ?? 11;
+  const cnd = f.conditionForm ?? 13;
+  const ps = _acActive().filter(p => !p.isInjured);
+  const cnt = {
+    GK:  ps.filter(p => p.position === 'GK').length,
+    DEF: ps.filter(p => ['DC','DL','DR','DMC'].includes(p.position)).length,
+    MID: ps.filter(p => ['MC','ML','MR','AMC','AML','AMR'].includes(p.position)).length,
+    FWD: ps.filter(p => p.position === 'ST').length,
+  };
+  let formation, rationale;
+  if      (atk >= 13 && pos >= 12 && cnt.FWD >= 3)             { formation = '4-3-3';   rationale = 'Attacking shape — leverage possession dominance with wide forwards.'; }
+  else if (def >= 14 && cnt.DEF >= 5)                           { formation = '5-4-1';   rationale = 'Defensive shape — congest midfield, counter on transitions.'; }
+  else if (atk >= 12 && cnt.FWD >= 2 && cnt.MID >= 5)           { formation = '4-2-3-1'; rationale = 'Balanced — creative #10 behind a lone striker.'; }
+  else if (cnd >= 13 && cnt.MID >= 4 && cnt.FWD >= 2)           { formation = '4-4-2';   rationale = 'High-intensity 4-4-2 — press hard, two strikers.'; }
+  else                                                          { formation = '4-3-3';   rationale = 'Default balanced 4-3-3 — adapt as match develops.'; }
+  return { formation, rationale, cnt };
+}
+function _acTrainingFocus() {
+  const f = State.trainingForm || {};
+  const ratings = {
+    Attack:     f.attackForm    ?? 12,
+    Defense:    f.defenseForm   ?? 14,
+    Possession: f.possession    ?? 11,
+    Condition:  f.conditionForm ?? 13,
+  };
+  const drillMap = {
+    Attack:     'Final-third combinations + shooting practice',
+    Defense:    'Defensive shape + 1v1 defending',
+    Possession: 'Rondos + positional play',
+    Condition:  'Sprint intervals + high-intensity blocks',
+  };
+  return Object.entries(ratings)
+    .sort((a, b) => a[1] - b[1])
+    .slice(0, 2)
+    .map(([area, value]) => ({ area, value, drill: drillMap[area] }));
+}
+function _acSquadAlerts() {
+  const ps = _acActive();
+  const alerts = [];
+  const injured = ps.filter(p => p.isInjured);
+  if (injured.length > 0) {
+    alerts.push({ icon: '🩹', color: 'var(--red)',
+      text: `${injured.length} injured: ${injured.slice(0, 2).map(p => p.lastName).join(', ')}${injured.length > 2 ? ` +${injured.length-2}` : ''}` });
+  }
+  const lowCond = ps.filter(p => (p.condition || 100) < 70);
+  if (lowCond.length >= 2) {
+    alerts.push({ icon: '⚡', color: 'var(--amber)',
+      text: `${lowCond.length} players with condition <70% — recovery priority` });
+  }
+  const highRisk = ps.filter(p => _pcInjuryRisk(p).level === 'HIGH' && !p.isInjured);
+  if (highRisk.length > 0) {
+    alerts.push({ icon: '🚨', color: 'var(--red)',
+      text: `Elevated injury risk: ${highRisk.slice(0, 2).map(p => p.lastName).join(', ')}${highRisk.length > 2 ? ` +${highRisk.length-2}` : ''}` });
+  }
+  const highFat = ps.filter(p => _pcFatigueRisk(p).level === 'HIGH');
+  if (highFat.length >= 3) {
+    alerts.push({ icon: '💪', color: 'var(--amber)',
+      text: `${highFat.length} players showing high fatigue — manage minutes` });
+  }
+  const lowAtt = ps.filter(p => { const a = _pcAttendance(p); return a.pct != null && a.pct < 50; });
+  if (lowAtt.length >= 2) {
+    alerts.push({ icon: '📉', color: 'var(--amber)',
+      text: `${lowAtt.length} players with low session attendance — review participation` });
+  }
+  if (alerts.length === 0) {
+    alerts.push({ icon: '✓', color: 'var(--green-l)', text: 'No critical alerts — squad operating within normal thresholds.' });
+  }
+  return alerts.slice(0, 5);
+}
+function _acRiskList() {
+  const ps = _acActive();
+  const lvl = (l) => l === 'HIGH' ? 100 : l === 'MED' ? 50 : 10;
+  return ps.map(p => {
+    const inj = _pcInjuryRisk(p);
+    const fat = _pcFatigueRisk(p);
+    const score = lvl(inj.level) + lvl(fat.level) + (p.isInjured ? 80 : 0);
+    return { p, score, inj, fat };
+  }).filter(e => e.score >= 60)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+function _acSubstitutions() {
+  let xi = [];
+  try { if (typeof _scPickXI === 'function' && typeof _scComposite === 'function') xi = _scPickXI(_scComposite); } catch (_) {}
+  const xiIds = new Set(xi.map(e => e.p.id));
+  return _acActive()
+    .filter(p => !p.isInjured && !xiIds.has(p.id))
+    .map(p => {
+      const rdy = _pcReadinessScore(p);
+      const ovr = p.overallRating || 70;
+      return { p, score: Math.round(rdy * 0.55 + (ovr / 1.4) * 0.45) };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+const _AC_ATTR_DRILLS = {
+  reflexes:       'reaction drills and shot-stopping ladders',
+  gkPositioning:  'angle + positioning sessions',
+  handling:       'high-ball and catching practice',
+  kicking:        'distribution and goal-kick work',
+  tackling:       '1v1 defending blocks',
+  marking:        'man-marking + set-piece defending',
+  heading:        'aerial-duel circuits',
+  defPositioning: 'defensive shape and line drills',
+  interceptions:  'reading-the-game drills',
+  pace:           'sprint intervals and acceleration work',
+  shooting:       'finishing practice from multiple angles',
+  passing:        'rondos and short-passing circuits',
+  dribbling:      '1v1 dribbling + cone-weave',
+  crossing:       'crossing and wide-play reps',
+  strength:       'gym + physical conditioning',
+  stamina:        'endurance runs and recovery work',
+  agility:        'cone agility ladders',
+  balance:        'plyometric and core stability',
+};
+function _acWeeklyPriorities() {
+  const ps = _acActive();
+  if (ps.length === 0) return [];
+  const sums = Object.create(null), counts = Object.create(null);
+  ps.forEach(p => {
+    const a = _pcLatestAttrs(p);
+    Object.keys(_PC_ATTR_LABELS).forEach(k => {
+      if (typeof a[k] === 'number') { sums[k] = (sums[k] || 0) + a[k]; counts[k] = (counts[k] || 0) + 1; }
+    });
+  });
+  const avgs = Object.keys(sums).map(k => ({
+    key: k,
+    label: _PC_ATTR_LABELS[k] || k,
+    avg:   sums[k] / counts[k],
+  }));
+  avgs.sort((a, b) => a.avg - b.avg);
+  return avgs.slice(0, 3).map(e => ({
+    area:  e.label,
+    avg:   Math.round(e.avg),
+    drill: _AC_ATTR_DRILLS[e.key] || 'targeted position drills',
+  }));
+}
+function _acBestXI() {
+  let xi = [];
+  try { if (typeof _scPickXI === 'function' && typeof _scComposite === 'function') xi = _scPickXI(_scComposite); } catch (_) {}
+  return xi;
+}
+function _acFinalDecision() {
+  const brief = _acCoachBriefing();
+  const pmd   = _acPreMatchDecision();
+  const form  = _acRecommendedFormation();
+  const focus = _acTrainingFocus();
+  const focusAreas = focus.length ? focus.map(f => f.area.toLowerCase()).join(' + ') : 'tactical balance';
+  const matchPhrase = pmd.level === 'GO'        ? 'green for kickoff'
+                    : pmd.level === 'CAUTION'   ? 'manage minutes'
+                    : pmd.level === 'HIGH RISK' ? 'treat this as a high-risk match week'
+                    :                              'awaiting more data';
+  const matchCtx = brief.daysToMatch != null
+    ? `Match in ${brief.daysToMatch}d${brief.opponent ? ' vs ' + brief.opponent : ''}.`
+    : 'No fixture currently scheduled.';
+  return `Squad assessment: ${matchPhrase}. ` +
+         `Recommended formation: ${form.formation} — ${form.rationale.toLowerCase()} ` +
+         `Weekly training priorities lean toward ${focusAreas}. ` +
+         `${brief.available}/${brief.total} players available, ${brief.injured} injured. ` +
+         `${matchCtx}`;
+}
+function _ensureACStyles() {
+  if (document.getElementById('ac-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'ac-styles';
+  s.textContent = `
+    .ac-page{padding:16px 18px;}
+    .ac-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .ac-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .ac-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .ac-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .ac-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .ac-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .ac-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease;}
+    .ac-tile:hover{border-color:rgba(74,222,128,0.32);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .ac-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .ac-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .ac-row:last-child{border-bottom:none;}
+    .ac-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .ac-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .ac-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .ac-alert:last-child{margin-bottom:0;}
+    .ac-summary{position:relative;padding:18px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.14),rgba(74,222,128,0.04));
+      border:1px solid rgba(74,222,128,0.32);border-left:4px solid var(--green-l);
+      box-shadow:0 18px 40px -16px rgba(0,0,0,0.5),0 0 30px -10px rgba(74,222,128,0.25);}
+    @media (max-width:1024px){.ac-grid-3{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.ac-grid-3,.ac-grid-2{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAICoachHTML() {
+  return `<div class="page" id="pg-ai-coach">
+    <div id="ai-coach-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI Coach Center…</div>
+    </div>
+  </div>`;
+}
+function renderAICoachCenter() {
+  const el = document.getElementById('ai-coach-content');
+  if (!el) return;
+  try { _ensureACStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const brief    = _acCoachBriefing();
+    const pmd      = _acPreMatchDecision();
+    const formRec  = _acRecommendedFormation();
+    const focus    = _acTrainingFocus();
+    const alerts   = _acSquadAlerts();
+    const risks    = _acRiskList();
+    const subs     = _acSubstitutions();
+    const xi       = _acBestXI();
+    const prios    = _acWeeklyPriorities();
+    const final    = _acFinalDecision();
+
+    const ROLE_LBL   = { GK: 'Goalkeeper', DEF: 'Defense', MID: 'Midfield', FWD: 'Forwards' };
+    const ROLE_ORDER = ['GK','DEF','MID','FWD'];
+    const groups = { GK: [], DEF: [], MID: [], FWD: [] };
+    xi.forEach(e => { if (groups[e.role]) groups[e.role].push(e); });
+    const dCount = groups.DEF.length, mCount = groups.MID.length, fCount = groups.FWD.length;
+
+    el.innerHTML = `
+      <div class="ac-page">
+        <div class="ac-card">
+          <div class="ac-brand">
+            <div class="ac-brand-logo">★ FC FAMILISTA · AI COACH CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <!-- 1) Coach Briefing -->
+          <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Coach Briefing</div>
+              <div style="font-size:11.5px;color:var(--tx-3);line-height:1.55;">Squad-wide situational report — derived from current squad condition, ratings, GPS state, and upcoming fixture.</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:24px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${brief.available}<span style="font-size:13px;color:var(--tx-3);">/${brief.total}</span></div>
+              <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Available</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:24px;font-weight:900;color:${brief.injured > 0 ? 'var(--red)' : 'var(--tx)'};font-family:var(--mono);line-height:1;">${brief.injured}</div>
+              <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Injured</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:24px;font-weight:900;color:${brief.avgRdy != null && brief.avgRdy >= 75 ? 'var(--green-l)' : brief.avgRdy != null && brief.avgRdy >= 60 ? 'var(--amber)' : 'var(--red)'};font-family:var(--mono);line-height:1;">${brief.avgRdy != null ? brief.avgRdy : '—'}</div>
+              <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Avg Ready</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:24px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${brief.daysToMatch != null ? brief.daysToMatch + 'd' : '—'}</div>
+              <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Next Match</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:24px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${brief.teamComp}</div>
+              <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;">Team DNA</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ac-grid-2">
+          <!-- 2) Pre-Match Decision -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Pre-Match Decision</div>
+            <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:8px;flex-wrap:wrap;">
+              <div style="font-size:28px;font-weight:900;color:${pmd.color};letter-spacing:.6px;line-height:1;">${pmd.level}</div>
+              <div style="font-size:11px;color:var(--tx-3);">${pmd.injured} injured · ${pmd.avgRdy}/100 ready · ${pmd.highFat} high fatigue</div>
+            </div>
+            <div style="height:7px;border-radius:4px;background:rgba(255,255,255,0.05);overflow:hidden;margin-bottom:10px;">
+              <div style="width:${pmd.level === 'GO' ? 90 : pmd.level === 'CAUTION' ? 55 : 25}%;height:100%;background:${pmd.color};"></div>
+            </div>
+            <div style="font-size:12px;color:var(--tx);line-height:1.55;">${_esc(pmd.summary)}</div>
+          </div>
+          <!-- 3) Recommended Formation -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Recommended Formation</div>
+            <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:8px;">
+              <div style="font-size:32px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;text-shadow:0 0 12px rgba(74,222,128,0.4);">${formRec.formation}</div>
+            </div>
+            <div style="font-size:11.5px;color:var(--tx);line-height:1.55;margin-bottom:8px;">${_esc(formRec.rationale)}</div>
+            <div style="font-size:10.5px;color:var(--tx-3);">Available: GK ${formRec.cnt.GK} · DEF ${formRec.cnt.DEF} · MID ${formRec.cnt.MID} · FWD ${formRec.cnt.FWD}</div>
+          </div>
+        </div>
+
+        <div class="ac-grid-3">
+          <!-- 4) Training Focus This Week -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Training Focus This Week</div>
+            ${focus.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No focus areas identified.</div>` :
+              focus.map((f, i) => `<div style="padding:9px 10px;margin-bottom:7px;border-radius:9px;background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.18);">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px;">
+                  <div style="font-size:12px;font-weight:800;color:var(--tx);">${_esc(f.area)}</div>
+                  <div style="font-size:11px;font-weight:800;color:var(--amber);font-family:var(--mono);">${f.value}/16</div>
+                </div>
+                <div style="font-size:11px;color:var(--tx-3);">${_esc(f.drill)}</div>
+              </div>`).join('')}
+          </div>
+          <!-- 5) Squad Alerts -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Squad Alerts</div>
+            ${alerts.map(a => `<div class="ac-alert" style="border-left-color:${a.color};">
+              <span style="font-size:14px;flex-shrink:0;line-height:1.2;">${a.icon}</span>
+              <span style="font-size:11.5px;color:var(--tx);line-height:1.45;">${_esc(a.text)}</span>
+            </div>`).join('')}
+          </div>
+          <!-- 9) Weekly Development Priorities -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Weekly Development Priorities</div>
+            ${prios.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No attribute data yet.</div>` :
+              prios.map((pr, i) => `<div style="padding:9px 10px;margin-bottom:7px;border-radius:9px;background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:3px;">
+                  <div style="font-size:12px;font-weight:800;color:var(--tx);">${i+1}. ${_esc(pr.area)}</div>
+                  <div style="font-size:11px;font-weight:800;color:var(--amber);font-family:var(--mono);">${pr.avg}/120</div>
+                </div>
+                <div style="font-size:11px;color:var(--tx-3);">Drill: <span style="color:var(--tx-2);">${_esc(pr.drill)}</span></div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="ac-grid-2">
+          <!-- 6) Injury / Fatigue Warnings -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Injury / Fatigue Warnings</div>
+            ${risks.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No high-risk players right now.</div>` :
+              risks.map((r, i) => {
+                const p = r.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+                const tag = p.isInjured ? 'INJURED' : r.inj.level === 'HIGH' ? 'HIGH INJ' : r.fat.level === 'HIGH' ? 'HIGH FAT' : 'WATCH';
+                const color = p.isInjured ? 'var(--red)' : r.inj.level === 'HIGH' ? 'var(--red)' : 'var(--amber)';
+                return `<div class="ac-row">
+                  <div class="ac-rank-num">${i+1}</div>
+                  <div class="ac-mini-avatar" style="background:${grad};">
+                    ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')} · inj ${r.inj.level} · fat ${r.fat.level}</div>
+                  </div>
+                  <div style="font-size:10.5px;font-weight:900;color:${color};letter-spacing:.4px;">${tag}</div>
+                </div>`;
+              }).join('')}
+          </div>
+          <!-- 8) Substitution Suggestions -->
+          <div class="ac-tile">
+            <div class="ac-tile-lbl">Substitution Suggestions</div>
+            ${subs.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">All best-XI players covered.</div>` :
+              subs.map((s, i) => {
+                const p = s.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+                return `<div class="ac-row">
+                  <div class="ac-rank-num">${i+1}</div>
+                  <div class="ac-mini-avatar" style="background:${grad};">
+                    ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+                  </div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')} · OVR ${p.overallRating || '—'}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:14px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${s.score}</div>
+                    <div style="font-size:8.5px;color:var(--tx-3);letter-spacing:.6px;text-transform:uppercase;">impact</div>
+                  </div>
+                </div>`;
+              }).join('')}
+          </div>
+        </div>
+
+        <!-- 7) Best XI Recommendation -->
+        <div class="ac-card" style="padding:16px 18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <div class="ac-tile-lbl" style="margin-bottom:0;">Best XI Recommendation</div>
+            ${xi.length === 11 ? `<div style="font-size:10.5px;font-weight:800;font-family:var(--mono);color:var(--tx);padding:3px 9px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);">Formation ${dCount}-${mCount}-${fCount}</div>` : ''}
+          </div>
+          ${xi.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">Not enough fit players for an XI.</div>` :
+            `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;">
+              ${ROLE_ORDER.map(role => {
+                if (groups[role].length === 0) return '';
+                return `<div>
+                  <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">${ROLE_LBL[role]}</div>
+                  ${groups[role].map(e => {
+                    const p = e.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+                    return `<div class="ac-row">
+                      <div class="ac-rank-num" style="color:var(--tx-2);">#${p.number != null ? p.number : '?'}</div>
+                      <div class="ac-mini-avatar" style="background:${grad};">
+                        ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+                      </div>
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+                        <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}</div>
+                      </div>
+                      <div style="font-size:13px;font-weight:900;color:var(--green-l);font-family:var(--mono);">${e.score}</div>
+                    </div>`;
+                  }).join('')}
+                </div>`;
+              }).join('')}
+            </div>`}
+        </div>
+
+        <!-- 10) Final Coach Decision Summary -->
+        <div class="ac-summary">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="font-size:14px;">🧠</span>
+            <div style="font-size:10px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Final Coach Decision Summary</div>
+          </div>
+          <div style="font-size:13px;color:var(--tx);line-height:1.7;">${_esc(final)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-coach] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Coach Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -11693,6 +12178,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-scouting"]')) {
     setTimeout(function () { try { renderAIScoutingCenter(); } catch (err) { try { console.error('[ai-scouting] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-coach"]')) {
+    setTimeout(function () { try { renderAICoachCenter(); } catch (err) { try { console.error('[ai-coach] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
