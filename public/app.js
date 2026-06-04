@@ -517,6 +517,7 @@ async function loadAllData() {
       try { if (typeof renderFinanceCenter     === 'function') renderFinanceCenter();     } catch (_) {}
       try { if (typeof renderManagementCenter  === 'function') renderManagementCenter();  } catch (_) {}
       try { if (typeof renderAcademyCenter     === 'function') renderAcademyCenter();     } catch (_) {}
+      try { if (typeof renderSportingDirectorCenter === 'function') renderSportingDirectorCenter(); } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -742,6 +743,7 @@ function _flushPendingRender() {
     case 'pg-finance-center':  renderFinanceCenter();  break;
     case 'pg-management-center': renderManagementCenter(); break;
     case 'pg-academy-center':    renderAcademyCenter();    break;
+    case 'pg-sporting-director-center': renderSportingDirectorCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -804,7 +806,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -838,6 +840,7 @@ function navTo(page, el) {
   if (page === 'finance-center') { try { renderFinanceCenter();     } catch (e) { try { console.error('[finance-center] nav render failed:', e);  } catch (_) {} } }
   if (page === 'management-center'){ try { renderManagementCenter();} catch (e) { try { console.error('[management-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'academy-center')   { try { renderAcademyCenter();   } catch (e) { try { console.error('[academy-center] nav render failed:', e);    } catch (_) {} } }
+  if (page === 'sporting-director-center'){ try { renderSportingDirectorCenter(); } catch (e) { try { console.error('[sporting-director-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -953,6 +956,7 @@ function renderAllPages() {
     ${renderFinanceCenterHTML()}
     ${renderManagementCenterHTML()}
     ${renderAcademyCenterHTML()}
+    ${renderSportingDirectorCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -6567,6 +6571,528 @@ function renderAcademyCenter() {
     try { console.error('[academy-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Academy Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Sporting Director Center (executive decision page) ───
+// Aggregator-only. Consumes outputs from Transfer Center (_tc*),
+// Scouting Center (_sg*), Academy Center (_aca*), Performance Center
+// (_pf*), Medical Center (_md*), Finance Center (_fi*), and the
+// Management Center synthesis layer (_mg*). Does NOT recompute any
+// domain analytic. Adds a thin _sd* synthesis layer for sporting-
+// decision scoring (squad health / transfer readiness / academy
+// readiness / financial flexibility / overall sporting score) and
+// the executive recommendations + summary paragraph.
+// No backend writes, no new fetches, no schema changes, no routes.
+function _sdSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _sdSquadHealth() {
+  // 50/50 blend of team form and medical availability.
+  const perf = _sdSafe(_pfTeamScores, { Overall: 0 });
+  const med  = _sdSafe(_mgMedScores, { availPct: 0 });
+  return Math.round((perf.Overall || 0) * 0.5 + (med.availPct || 0) * 0.5);
+}
+function _sdTransferReadiness() {
+  // Squad balance + budget headroom signal.
+  const needs = _sdSafe(_tcSquadNeeds, { balance: 0 });
+  const sim   = _sdSafe(_fiTransferSimulation, { scenarios: [] });
+  const co    = _sdSafe(_fiClubOverview, { annualRevenue: 1, cashReserve: 0 });
+  const cap   = sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0;
+  // Headroom as % of one month of revenue (proxy for "can we move now?").
+  const headroomPct = co.annualRevenue > 0 ? Math.min(100, Math.round((cap / (co.annualRevenue / 12)) * 100)) : 0;
+  return Math.round((needs.balance || 0) * 0.65 + headroomPct * 0.35);
+}
+function _sdAcademyReadiness() {
+  const ov = _sdSafe(_acaOverview, { count: 0, avgPot: 0, gap: 0 });
+  if (!ov.count) return 0;
+  // Composite: avg pot weight + growth gap weight + size weight.
+  const sizeScore = Math.min(100, ov.count * 10);
+  const potScore  = Math.min(100, ov.avgPot);
+  const gapScore  = Math.min(100, Math.max(0, ov.gap) * 8);
+  return Math.round(potScore * 0.45 + gapScore * 0.35 + sizeScore * 0.20);
+}
+function _sdFinancialFlex() {
+  return _sdSafe(_mgFinanceHealthScore, 0);
+}
+function _sdOverallScore() {
+  const a = _sdSquadHealth();
+  const b = _sdTransferReadiness();
+  const c = _sdAcademyReadiness();
+  const d = _sdFinancialFlex();
+  return Math.round((a + b + c + d) / 4);
+}
+function _sdBand(score) {
+  if (score >= 80) return { band:'ELITE',       color:'var(--green-l)' };
+  if (score >= 65) return { band:'STRONG',      color:'var(--amber)'   };
+  if (score >= 50) return { band:'WATCH',       color:'#60A5FA'        };
+  return                 { band:'CRITICAL',    color:'var(--red)'     };
+}
+function _sdTransferPriorities() {
+  // Use Transfer Center's weakest positions + squad needs as priority signals.
+  const targets = _sdSafe(_tcTransferTargets, { priority: [], suggested: [], replacements: [], devTargets: [] });
+  const needs   = _sdSafe(_tcSquadNeeds, { groups: {} });
+  const sim     = _sdSafe(_fiTransferSimulation, { scenarios: [], assumedSignSalary: 0 });
+  const budget  = sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0;
+  const priorityKeys = (targets.priority && targets.priority.length) ? targets.priority : Object.keys(needs.groups || {}).filter(k => (needs.groups[k] && needs.groups[k].status === 'SHORTAGE'));
+  return priorityKeys.map(k => {
+    const grp = (needs.groups && needs.groups[k]) || { count: 0, ideal: 0, avgOvr: 0, status: '—' };
+    const suggested = (targets.suggested || []).find(s => s.key === k);
+    const urgency = grp.status === 'SHORTAGE' && grp.count < (grp.ideal - 2) ? 'IMMEDIATE'
+                  : grp.status === 'SHORTAGE'                                   ? 'HIGH'
+                  : grp.avgOvr < 65                                              ? 'MEDIUM'
+                  :                                                                'WATCH';
+    const cost = Math.round(budget / Math.max(1, priorityKeys.length));
+    const score = Math.max(0, 100 - grp.avgOvr) + (grp.status === 'SHORTAGE' ? 25 : 0);
+    return { key: k, profile: suggested ? suggested.profile : '—', urgency, cost, score: Math.min(100, score), grp };
+  }).sort((a, b) => b.score - a.score).slice(0, 5);
+}
+function _sdSellCandidates() {
+  const cand = _sdSafe(_tcSellLoanCandidates, { lowForm: [], lowReadiness: [], lowAtt: [], overloaded: [] });
+  const merged = [];
+  const seen = new Set();
+  const push = (entry, reason) => {
+    if (!entry || !entry.p || seen.has(entry.p.id)) return;
+    seen.add(entry.p.id);
+    const v = _sdSafe(function () { return _tcValueOf(entry.p); }, 0);
+    merged.push({ p: entry.p, value: v, reason });
+  };
+  (cand.lowForm      || []).forEach(x => push(x, 'Low form'));
+  (cand.lowReadiness || []).forEach(x => push(x, 'Low readiness'));
+  (cand.lowAtt       || []).forEach(x => push(x, 'Low attendance'));
+  (cand.overloaded   || []).forEach(x => push(x, 'Overloaded'));
+  merged.sort((a, b) => b.value - a.value);
+  const top = merged.slice(0, 5);
+  const gain = top.reduce((a, x) => a + x.value, 0);
+  return { list: top, estimatedGain: gain };
+}
+function _sdLoanStrategy() {
+  const cand = _sdSafe(_tcSellLoanCandidates, { loanRec: [] });
+  return (cand.loanRec || []).slice(0, 5);
+}
+function _sdAcademyPromotions() {
+  // Bucket academy promotion candidates by readiness band.
+  const promo = _sdSafe(_acaPromotionCandidates, []);
+  const buckets = { READY_NOW: [], READY_SOON: [], LONG_TERM: [] };
+  promo.forEach(x => {
+    if (x.composite >= 75)      buckets.READY_NOW.push(x);
+    else if (x.composite >= 60) buckets.READY_SOON.push(x);
+    else                        buckets.LONG_TERM.push(x);
+  });
+  // Pull a few extra long-term prospects from the Scouting watchlist
+  // if the long-term bucket is empty.
+  if (!buckets.LONG_TERM.length) {
+    const watch = _sdSafe(function () { return _sgWatchlist(5); }, []);
+    watch.forEach(x => {
+      const age = _sdSafe(function () { return _pcAge(x.p); }, null);
+      if (age != null && age <= 19 && !buckets.READY_NOW.some(y => y.p && y.p.id === x.p.id) && !buckets.READY_SOON.some(y => y.p && y.p.id === x.p.id)) {
+        buckets.LONG_TERM.push({ p: x.p, ovr: (typeof x.p.overallRating === 'number' ? x.p.overallRating : 70), pot: x.pot, form: 0, ready: 0, composite: x.score });
+      }
+    });
+    buckets.LONG_TERM = buckets.LONG_TERM.slice(0, 4);
+  }
+  return buckets;
+}
+function _sdRecruitmentStrategy() {
+  const targets = _sdSafe(_tcTransferTargets, { priority: [], replacements: [], devTargets: [] });
+  const academyPipe = _sdSafe(_acaTalentPipeline, {});
+  // Immediate — top weak-area incoming profile.
+  const immediate = (targets.suggested || []).slice(0, 2).map(s => `${s.key}: ${s.profile}`);
+  // Seasonal — replacement targets (age 31+ starters).
+  const seasonal = (targets.replacements || []).slice(0, 2).map(r => `${(r.p.firstName || '').charAt(0)}. ${r.p.lastName || ''} (${r.p.position || '—'}, age ${r.age}) — succession plan`);
+  // Long-term — development targets + academy U18/U20 stars.
+  const longTermItems = [];
+  (targets.devTargets || []).slice(0, 2).forEach(d => longTermItems.push(`${d.key}: develop pipeline (avg pot ${d.avgPot})`));
+  if (academyPipe.U18) longTermItems.push(`Promote ${academyPipe.U18.p.firstName || ''} ${academyPipe.U18.p.lastName || ''} (U18)`);
+  if (academyPipe.U20) longTermItems.push(`Track ${academyPipe.U20.p.firstName || ''} ${academyPipe.U20.p.lastName || ''} (U20)`);
+  return { immediate, seasonal, longTerm: longTermItems.slice(0, 4) };
+}
+function _sdSportingRisks() {
+  // Aggregate sporting-relevant risk signals.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const med = _sdSafe(_mgMedScores, { buckets: { INJURED: 0, QUESTIONABLE: 0 } });
+  const needs = _sdSafe(_tcSquadNeeds, { groups: {} });
+  const fin = _sdSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0 });
+  const out = [];
+  if (med.buckets && med.buckets.INJURED >= 2)        out.push({ icon:'🚑', color:'var(--red)',   kind:'INJURIES',          text:`${med.buckets.INJURED} active injuries reducing available squad — selection risk for the next fixture.` });
+  Object.keys(needs.groups || {}).forEach(k => {
+    const g = needs.groups[k];
+    if (g.status === 'SHORTAGE')                       out.push({ icon:'📭', color:'var(--amber)', kind:'LACK OF DEPTH',     text:`${k} shortage (${g.count}/${g.ideal}) — exposure to injury cascade.` });
+  });
+  const aging = ps.filter(p => { const a = _sdSafe(function () { return _pcAge(p); }, null); return a != null && a >= 31 && (typeof p.overallRating === 'number' ? p.overallRating : 70) >= 75; });
+  if (aging.length >= 2)                               out.push({ icon:'🕰️', color:'var(--amber)', kind:'AGING POSITIONS',   text:`${aging.length} starters aged 31+ — succession plans needed before contract end.` });
+  if (fin.wageRatio >= 70)                             out.push({ icon:'💸', color:'var(--red)',   kind:'BUDGET PRESSURE',   text:`Wage ratio ${fin.wageRatio}% — limited room for sporting investment.` });
+  if (!out.length)                                     out.push({ icon:'✓',  color:'var(--green-l)', kind:'ALL CLEAR',         text:'No sporting risks above the executive threshold.' });
+  return out.slice(0, 6);
+}
+function _sdExecRecommendations() {
+  const overall = _sdOverallScore();
+  const out = [];
+  const dims = [
+    { key:'SQUAD',    lbl:'Squad Health',         score: _sdSquadHealth(),      action:'Stabilise selection: cap minutes for at-risk players and rotate fringe squad to keep first XI fresh.' },
+    { key:'XFER',     lbl:'Transfer Readiness',   score: _sdTransferReadiness(), action:'Prioritise position shortages within current cash headroom; defer non-essential extensions.' },
+    { key:'ACA',      lbl:'Academy Readiness',    score: _sdAcademyReadiness(),  action:'Lift academy pipeline: protect minutes for top prospects and reactivate scouting for U18.' },
+    { key:'FIN',      lbl:'Financial Flexibility',score: _sdFinancialFlex(),     action:'Recover financial flexibility: freeze incremental wage commitments and review top-quartile contracts.' },
+  ];
+  // Lowest dimension → HIGH priority
+  dims.slice().sort((a, b) => a.score - b.score).slice(0, 1).forEach(d => {
+    if (d.score < 80) out.push({ priority:'HIGH', icon:'🚨', color:'var(--red)', text:`${d.lbl} sits at ${d.score}/100 — ${d.action}` });
+  });
+  // Next two lowest → MEDIUM
+  dims.slice().sort((a, b) => a.score - b.score).slice(1, 3).forEach(d => {
+    if (d.score < 75) out.push({ priority:'MEDIUM', icon:'📌', color:'var(--amber)', text:`${d.lbl} at ${d.score}/100 — ${d.action}` });
+  });
+  // LOW priority — opportunistic moves driven by sell candidates and academy promotions.
+  const promo = _sdAcademyPromotions();
+  if (promo.READY_NOW.length) {
+    const x = promo.READY_NOW[0];
+    out.push({ priority:'LOW', icon:'🎓', color:'#60A5FA', text:`Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''} — composite ${x.composite}/100, integrate into next training cycle.` });
+  }
+  const sells = _sdSellCandidates();
+  if (sells.list.length >= 2) {
+    out.push({ priority:'LOW', icon:'💼', color:'#60A5FA', text:`Open quiet conversations on ${sells.list.length} sell candidates — estimated gain ${_fiFmtMoney(sells.estimatedGain)} could fund priority lines.` });
+  }
+  if (!out.length) out.push({ priority:'STEADY', icon:'✓', color:'var(--green-l)', text:`Overall sporting score ${overall}/100 — maintain current programme and re-assess at the next checkpoint.` });
+  return out.slice(0, 5);
+}
+function _sdSummary() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  if (!ps.length) return 'No squad data available — Sporting Director Center is waiting for player data.';
+  const overall = _sdOverallScore();
+  const sh = _sdSquadHealth();
+  const tr = _sdTransferReadiness();
+  const aca = _sdAcademyReadiness();
+  const fin = _sdFinancialFlex();
+  const band = _sdBand(overall);
+  const targets = _sdSafe(_tcTransferTargets, { priority: [] });
+  const sells   = _sdSellCandidates();
+  const promos  = _sdAcademyPromotions();
+  let outlook;
+  if (overall >= 80)      outlook = 'sporting operation is in elite shape — protect the lead and compound it';
+  else if (overall >= 65) outlook = 'sporting operation is healthy with isolated dimensions to lift';
+  else if (overall >= 50) outlook = 'mixed sporting picture — coordinated decisions required this window';
+  else                     outlook = 'multiple sporting dimensions under stress — full executive intervention required';
+  const priorityList = (targets.priority && targets.priority.length) ? targets.priority.join('/') : 'no critical line';
+  const promoCount = (promos.READY_NOW.length + promos.READY_SOON.length);
+  return `Sporting score: ${band.band} (${overall}/100). Squad health ${sh}, Transfer readiness ${tr}, Academy readiness ${aca}, Financial flexibility ${fin}. ` +
+         `Pipeline shows ${promoCount} promotion-ready academy player${promoCount === 1 ? '' : 's'}; sell-board could free ${_fiFmtMoney(sells.estimatedGain)}. ` +
+         `Priority lines: ${priorityList}. Director call: ${outlook}.`;
+}
+function _ensureSDStyles() {
+  if (document.getElementById('sd-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'sd-styles';
+  s.textContent = `
+    .sd-page{padding:16px 18px;}
+    .sd-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.32);
+      box-shadow:0 26px 64px -20px rgba(0,0,0,0.65),0 0 60px -16px rgba(74,222,128,0.28),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .sd-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.08),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.06),transparent 55%);}
+    .sd-brand{position:relative;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.22),rgba(34,197,94,0.08) 30%,rgba(37,99,235,0.08) 70%,rgba(74,222,128,0.22));
+      border-bottom:1px solid rgba(74,222,128,0.28);}
+    .sd-brand-logo{font-size:13px;font-weight:900;color:var(--green-l);letter-spacing:2.4px;text-shadow:0 0 10px rgba(74,222,128,0.55);}
+    .sd-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .sd-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .sd-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .sd-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .sd-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .sd-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .sd-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .sd-kpi{text-align:center;padding:14px 10px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);}
+    .sd-kpi-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;}
+    .sd-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}
+    .sd-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .sd-row:last-child{border-bottom:none;}
+    .sd-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .sd-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    .sd-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .sd-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .sd-alert:last-child{margin-bottom:0;}
+    .sd-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .sd-bar-fill{height:100%;border-radius:6px;}
+    .sd-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .sd-needs-row{display:grid;grid-template-columns:48px 1fr 100px 90px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .sd-needs-row:last-child{border-bottom:none;}
+    .sd-summary{position:relative;padding:20px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.06));
+      border:1px solid rgba(74,222,128,0.36);border-left:5px solid var(--green-l);
+      box-shadow:0 20px 44px -16px rgba(0,0,0,0.55),0 0 36px -10px rgba(74,222,128,0.30);}
+    @media (max-width:1024px){.sd-grid-3{grid-template-columns:repeat(2,1fr);}.sd-grid-4{grid-template-columns:repeat(2,1fr);}.sd-grid-5{grid-template-columns:repeat(2,1fr);}.sd-needs-row{grid-template-columns:40px 1fr 80px 70px;font-size:10px;}}
+    @media (max-width:600px){.sd-grid-2,.sd-grid-3,.sd-grid-4,.sd-grid-5{grid-template-columns:1fr;}.sd-needs-row{grid-template-columns:36px 1fr 70px;}.sd-needs-row > :nth-child(4){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderSportingDirectorCenterHTML() {
+  return `<div class="page" id="pg-sporting-director-center">
+    <div id="sporting-director-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Sporting Director Center…</div>
+    </div>
+  </div>`;
+}
+function renderSportingDirectorCenter() {
+  const el = document.getElementById('sporting-director-center-content');
+  if (!el) return;
+  try { _ensureSDStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const sh   = _sdSquadHealth();
+    const tr   = _sdTransferReadiness();
+    const aca  = _sdAcademyReadiness();
+    const fin  = _sdFinancialFlex();
+    const overall = _sdOverallScore();
+    const band = _sdBand(overall);
+    const needs = _sdSafe(_tcSquadNeeds, { groups: {}, balance: 0 });
+    const priorities = _sdTransferPriorities();
+    const sells = _sdSellCandidates();
+    const loanRec = _sdLoanStrategy();
+    const promos = _sdAcademyPromotions();
+    const strat = _sdRecruitmentStrategy();
+    const risks = _sdSportingRisks();
+    const recs  = _sdExecRecommendations();
+    const summary = _sdSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="sd-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="sd-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+    const urgencyColor = (u) => u === 'IMMEDIATE' ? 'var(--red)' : u === 'HIGH' ? 'var(--amber)' : u === 'MEDIUM' ? '#60A5FA' : 'var(--tx-3)';
+
+    el.innerHTML = `
+      <div class="sd-page">
+
+        <!-- Brand bar + 1) Sporting Overview -->
+        <div class="sd-card">
+          <div class="sd-brand">
+            <div class="sd-brand-logo">★ FC FAMILISTA · SPORTING DIRECTOR CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>EXECUTIVE LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:center;">
+            <div style="text-align:center;padding:18px 12px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(74,222,128,0.22),rgba(74,222,128,0.04) 70%);border:1px solid rgba(74,222,128,0.32);">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;">Sporting Score</div>
+              <div style="font-size:56px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 22px ${band.color};">${overall}</div>
+              <div style="font-size:11px;font-weight:900;letter-spacing:1.4px;color:${band.color};text-transform:uppercase;margin-top:6px;">${band.band}</div>
+            </div>
+            <div class="sd-grid-4" style="margin-bottom:0;">
+              <div class="sd-kpi"><div class="sd-kpi-val" style="color:${colorFor(sh)};">${sh}</div><div class="sd-kpi-lbl">Squad Health</div><div class="sd-bar"><div class="sd-bar-fill" style="width:${sh}%;background:${colorFor(sh)};"></div></div></div>
+              <div class="sd-kpi"><div class="sd-kpi-val" style="color:${colorFor(tr)};">${tr}</div><div class="sd-kpi-lbl">Transfer Readiness</div><div class="sd-bar"><div class="sd-bar-fill" style="width:${tr}%;background:${colorFor(tr)};"></div></div></div>
+              <div class="sd-kpi"><div class="sd-kpi-val" style="color:${colorFor(aca)};">${aca}</div><div class="sd-kpi-lbl">Academy Readiness</div><div class="sd-bar"><div class="sd-bar-fill" style="width:${aca}%;background:${colorFor(aca)};"></div></div></div>
+              <div class="sd-kpi"><div class="sd-kpi-val" style="color:${colorFor(fin)};">${fin}</div><div class="sd-kpi-lbl">Financial Flex.</div><div class="sd-bar"><div class="sd-bar-fill" style="width:${fin}%;background:${colorFor(fin)};"></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2) Squad Needs Analysis -->
+        <div class="sd-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Squad Needs Analysis</div>
+          <div class="sd-grid-4">
+            ${[
+              { key:'GK',  lbl:'Goalkeepers', col:'var(--amber)' },
+              { key:'DEF', lbl:'Defenders',   col:'#60A5FA' },
+              { key:'MID', lbl:'Midfielders', col:'var(--green-l)' },
+              { key:'FWD', lbl:'Forwards',    col:'var(--red)' },
+            ].map(g => {
+              const grp = (needs.groups && needs.groups[g.key]) || { count: 0, ideal: 0, status: '—', avgOvr: 0 };
+              const c = grp.status === 'SHORTAGE' ? 'var(--red)' : grp.status === 'OVERLOAD' ? 'var(--amber)' : 'var(--green-l)';
+              return `
+                <div class="sd-tile" style="padding:12px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div>
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${g.col};">${g.lbl}</div>
+                      <div style="font-size:9px;color:var(--tx-3);margin-top:1px;">${grp.count}/${grp.ideal} · avg ovr ${grp.avgOvr}</div>
+                    </div>
+                    <span class="sd-pill" style="color:${c};background:${c === 'var(--green-l)' ? 'rgba(74,222,128,0.16)' : c === 'var(--red)' ? 'rgba(239,68,68,0.16)' : 'rgba(245,158,11,0.16)'};">${grp.status}</span>
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Transfer Priorities | Sell Candidates -->
+        <div class="sd-grid-2">
+
+          <!-- 3) Transfer Priorities -->
+          <div class="sd-tile">
+            <div class="sd-tile-lbl">Transfer Priorities</div>
+            ${priorities.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No critical incoming priorities — squad balanced.</div>`
+              : `<div class="sd-needs-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+                  <div>POS</div><div>PROFILE</div><div style="text-align:right;">COST</div><div style="text-align:right;">URGENCY</div>
+                </div>
+                ${priorities.map(p => `
+                  <div class="sd-needs-row">
+                    <div><span class="sd-pill" style="color:var(--amber);background:rgba(245,158,11,0.16);">${p.key}</span></div>
+                    <div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.profile)}</div>
+                    <div style="text-align:right;font-size:11px;font-family:var(--mono);color:var(--tx);font-weight:800;">${_fiFmtMoney(p.cost)}</div>
+                    <div style="text-align:right;"><span class="sd-pill" style="color:${urgencyColor(p.urgency)};background:rgba(255,255,255,0.05);">${p.urgency}</span></div>
+                  </div>`).join('')}`}
+          </div>
+
+          <!-- 4) Sell Candidates -->
+          <div class="sd-tile">
+            <div class="sd-tile-lbl">Sell Candidates · Est. Gain ${_fiFmtMoney(sells.estimatedGain)}</div>
+            ${sells.list.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No sell candidates flagged.</div>`
+              : sells.list.map((x, i) => `
+                <div class="sd-row" style="padding:6px 0;">
+                  <div class="sd-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ${_esc(x.reason)}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${_fiFmtMoney(x.value)}</div>
+                    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">VAL</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Loan Strategy | Academy Promotions -->
+        <div class="sd-grid-2">
+
+          <!-- 5) Loan Strategy -->
+          <div class="sd-tile">
+            <div class="sd-tile-lbl">Loan Strategy — Loan-Out Candidates</div>
+            ${loanRec.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No loan candidates currently flagged.</div>`
+              : loanRec.map((x, i) => `
+                <div class="sd-row" style="padding:6px 0;">
+                  <div class="sd-rank-num">${i + 1}</div>
+                  ${miniAv(x.p)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · age ${x.age} · dev ${x.dev}</div>
+                  </div>
+                  <span class="sd-pill" style="color:#60A5FA;background:rgba(96,165,250,0.16);">LOAN · DEVELOP</span>
+                </div>`).join('')}
+            <div style="font-size:10px;color:var(--tx-3);margin-top:8px;line-height:1.5;">Loan rationale: protect minutes for young profiles with strong development trajectory; reassess on return.</div>
+          </div>
+
+          <!-- 6) Academy Promotions -->
+          <div class="sd-tile">
+            <div class="sd-tile-lbl">Academy Promotions</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(74,222,128,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${promos.READY_NOW.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">READY NOW</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(245,158,11,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--amber);">${promos.READY_SOON.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">READY SOON</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(96,165,250,0.08);">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${promos.LONG_TERM.length}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">LONG-TERM</div>
+              </div>
+            </div>
+            ${(promos.READY_NOW.length + promos.READY_SOON.length + promos.LONG_TERM.length) === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No academy candidates currently meeting promotion criteria.</div>`
+              : ['READY_NOW','READY_SOON','LONG_TERM'].map(bucket => {
+                  const arr = promos[bucket] || [];
+                  if (!arr.length) return '';
+                  const bcol = bucket === 'READY_NOW' ? 'var(--green-l)' : bucket === 'READY_SOON' ? 'var(--amber)' : '#60A5FA';
+                  return arr.slice(0, 2).map(x => `
+                    <div class="sd-row" style="padding:5px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ovr ${x.ovr} · pot ${x.pot}</div>
+                      </div>
+                      <div style="text-align:right;">
+                        <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${bcol};line-height:1;">${x.composite}</div>
+                        <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">${bucket === 'READY_NOW' ? 'NOW' : bucket === 'READY_SOON' ? 'SOON' : 'LT'}</div>
+                      </div>
+                    </div>`).join('');
+                }).join('')}
+          </div>
+        </div>
+
+        <!-- 7) Recruitment Strategy -->
+        <div class="sd-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Recruitment Strategy</div>
+          <div class="sd-grid-3">
+            ${[
+              { key:'immediate', lbl:'Immediate',  col:'var(--red)',    list: strat.immediate },
+              { key:'seasonal',  lbl:'Seasonal',   col:'var(--amber)',  list: strat.seasonal  },
+              { key:'longTerm',  lbl:'Long-Term',  col:'#60A5FA',       list: strat.longTerm  },
+            ].map(s => `
+              <div class="sd-tile" style="padding:12px;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${s.col};margin-bottom:8px;">${s.lbl}</div>
+                ${s.list.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);">No items in horizon.</div>`
+                  : s.list.map((it, i) => `<div style="font-size:11px;color:var(--tx);line-height:1.5;margin-bottom:5px;">${i + 1}. ${_esc(it)}</div>`).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 8) Sporting Risks -->
+        <div class="sd-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Sporting Risks</div>
+          ${risks.map(r => `
+            <div class="sd-alert" style="border-left-color:${r.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${r.color};text-transform:uppercase;margin-bottom:2px;">${_esc(r.kind)}</div>
+                <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(r.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 9) Executive Recommendations -->
+        <div class="sd-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Executive Recommendations</div>
+          ${recs.map(r => `
+            <div class="sd-alert" style="border-left-color:${r.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${r.color};text-transform:uppercase;margin-bottom:2px;">${_esc(r.priority)}</div>
+                <div style="font-size:11.5px;color:var(--tx);line-height:1.55;">${_esc(r.text)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 10) Sporting Director Summary -->
+        <div class="sd-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:16px;">⚖️</span>
+            <div style="font-size:11px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;">Sporting Director Summary</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[sporting-director-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Sporting Director Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -16204,6 +16730,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="academy-center"]')) {
     setTimeout(function () { try { renderAcademyCenter(); } catch (err) { try { console.error('[academy-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="sporting-director-center"]')) {
+    setTimeout(function () { try { renderSportingDirectorCenter(); } catch (err) { try { console.error('[sporting-director-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
