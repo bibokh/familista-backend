@@ -508,6 +508,7 @@ async function loadAllData() {
     if (players.status === 'fulfilled' && players.value?.data) {
       State.players = players.value.data;
       renderSquad();
+      try { if (typeof renderAIScoutingCenter === 'function') renderAIScoutingCenter(); } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -724,6 +725,7 @@ function _flushPendingRender() {
     case 'pg-dashboard':   renderDashboard();       break;
     case 'pg-matches':     renderMatches();         break;
     case 'pg-match-center':renderMatchCenter();     break;
+    case 'pg-ai-scouting': renderAIScoutingCenter();break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -786,7 +788,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -811,6 +813,7 @@ function navTo(page, el) {
   // Match Center is purely derived from already-loaded State, so it just
   // needs its renderer kicked when the user navigates to the page.
   if (page === 'match-center') { try { renderMatchCenter(); } catch (e) { try { console.error('[match-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-scouting')  { try { renderAIScoutingCenter(); } catch (e) { try { console.error('[ai-scouting] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -917,6 +920,7 @@ function renderAllPages() {
     ${renderSquadHTML()}
     ${renderMatchesHTML()}
     ${renderMatchCenterHTML()}
+    ${renderAIScoutingHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -1743,6 +1747,340 @@ function renderMatchCenter() {
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Match Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
       <div style="font-size:10.5px;color:var(--tx-3);margin-top:8px;">Open DevTools console for the full stack trace.</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI Scouting Center (new Intelligence page) ─────────
+// Frontend-only. All scores derived from State.players + State.training
+// already loaded by loadAllData. No fetches, no backend, no schema work.
+function _scActive() { return (State.players || []).filter(p => p && p.isActive !== false); }
+function _scComposite(p) {
+  const ovr = (p && p.overallRating) || 70;
+  const cnd = (p && typeof p.condition === 'number') ? p.condition : 100;
+  const rdy = _pcReadinessScore(p);
+  const fat = _pcFatigueRisk(p).level;
+  const fatPenalty = fat === 'HIGH' ? 8 : fat === 'MED' ? 3 : 0;
+  return Math.max(0, Math.min(100, Math.round((ovr * 0.50) + (cnd * 0.20) + (rdy * 0.30) - fatPenalty)));
+}
+function _scGrowth(p) {
+  const ovr = (p && p.overallRating) || 70;
+  const pot = (p && p.potential) || ovr;
+  const gap = Math.max(0, pot - ovr);
+  const age = _pcAge(p);
+  let factor = 1;
+  if (age != null) {
+    if (age <= 20)       factor = 1.4;
+    else if (age <= 24)  factor = 1.1;
+    else if (age <= 28)  factor = 0.9;
+    else                 factor = 0.4;
+  }
+  // Scale to a 0-100 "growth-this-window" proxy.
+  return Math.max(0, Math.min(100, Math.round(gap * factor * 3.5)));
+}
+function _scPotentialScore(p) { return _pcPotentialForecast(p).d90; }
+function _scAttendanceScore(p) {
+  const a = _pcAttendance(p);
+  return a.pct == null ? -1 : a.pct;
+}
+function _scInjuryRiskScore(p) {
+  if (!p) return 0;
+  if (p.isInjured) return 200;
+  const lvl = _pcInjuryRisk(p).level;
+  const fat = _pcFatigueRisk(p).level;
+  let s = lvl === 'HIGH' ? 100 : lvl === 'MED' ? 55 : 12;
+  if (fat === 'HIGH') s += 20;
+  else if (fat === 'MED') s += 8;
+  return s;
+}
+function _scHiddenGemScore(p) {
+  if (!p) return 0;
+  const ovr = p.overallRating || 70;
+  const pot = p.potential     || ovr;
+  const gap = Math.max(0, pot - ovr);
+  const age = _pcAge(p);
+  if (age == null || age > 24) return 0;
+  if (ovr >= 85) return 0;
+  return Math.round(gap * (age <= 20 ? 1.6 : 1.2));
+}
+function _scDevWatchScore(p) {
+  if (!p) return 0;
+  const form = _pcFormScore(p);
+  const rdy  = _pcReadinessScore(p);
+  const inj  = _pcInjuryRisk(p).level;
+  const fat  = _pcFatigueRisk(p).level;
+  const a    = _pcAttendance(p);
+  let s = 0;
+  if (form < 65) s += (65 - form);
+  if (rdy  < 70) s += (70 - rdy);
+  if (inj === 'HIGH') s += 28;
+  else if (inj === 'MED') s += 14;
+  if (fat === 'HIGH') s += 20;
+  else if (fat === 'MED') s += 8;
+  if (a.pct != null && a.pct < 50) s += 25;
+  return Math.round(s);
+}
+function _scWeekScore(p) {
+  const cnd = (p && typeof p.condition === 'number') ? p.condition : 100;
+  const rdy = _pcReadinessScore(p);
+  const att = _pcAttendance(p).pct;
+  return Math.round(cnd * 0.4 + rdy * 0.4 + (att == null ? 60 : att) * 0.2);
+}
+function _scTopN(scoreFn, n, filterFn) {
+  const ps = _scActive().filter(p => filterFn ? filterFn(p) : true);
+  return ps.map(p => ({ p, score: scoreFn(p) })).sort((a, b) => b.score - a.score).slice(0, n || 5);
+}
+function _scIsGK(p)  { return p.position === 'GK'; }
+function _scIsDEF(p) { return ['DC','DL','DR','DMC'].includes(p.position); }
+function _scIsMID(p) { return ['MC','ML','MR','AMC','AML','AMR'].includes(p.position); }
+function _scIsFWD(p) { return p.position === 'ST'; }
+function _scPickXI(scoreFn) {
+  const ps = _scActive().filter(p => !p.isInjured);
+  const ranked = ps.map(p => ({ p, score: scoreFn(p) })).sort((a, b) => b.score - a.score);
+  const pickN = (arr, n) => arr.slice(0, n);
+  const xi = [];
+  xi.push(...pickN(ranked.filter(r => _scIsGK(r.p)),  1).map(r => ({ ...r, role: 'GK'  })));
+  xi.push(...pickN(ranked.filter(r => _scIsDEF(r.p)), 4).map(r => ({ ...r, role: 'DEF' })));
+  xi.push(...pickN(ranked.filter(r => _scIsMID(r.p)), 3).map(r => ({ ...r, role: 'MID' })));
+  xi.push(...pickN(ranked.filter(r => _scIsFWD(r.p)), 3).map(r => ({ ...r, role: 'FWD' })));
+  if (xi.length < 11) {
+    const used = new Set(xi.map(e => e.p.id));
+    for (const r of ranked) {
+      if (xi.length >= 11) break;
+      if (used.has(r.p.id)) continue;
+      const role = _scIsGK(r.p) ? 'GK' : _scIsDEF(r.p) ? 'DEF' : _scIsFWD(r.p) ? 'FWD' : 'MID';
+      xi.push({ ...r, role });
+    }
+  }
+  return xi.slice(0, 11);
+}
+function _scRankRow(it, i, opts) {
+  const p = it.p;
+  const photo = _pcPhotoUrl(p);
+  const grad  = _pcPosGradient(p.position);
+  const color = (opts && opts.colorFn) ? opts.colorFn(it.score) : 'var(--green-l)';
+  const sub   = (opts && opts.subFn)   ? opts.subFn(p, it)      : '';
+  const lbl   = (opts && opts.scoreLabel) ? opts.scoreLabel     : 'score';
+  const valDisplay = (opts && opts.valFn) ? opts.valFn(it)      : String(it.score);
+  return `<div class="sc-rank-row">
+    <div class="sc-rank-num">${i+1}</div>
+    <div class="sc-rank-avatar" style="background:${grad};">
+      ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+      <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}${sub ? ' · ' + sub : ''}</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:14px;font-weight:900;color:${color};font-family:var(--mono);line-height:1;">${valDisplay}</div>
+      <div style="font-size:8.5px;color:var(--tx-3);letter-spacing:.6px;text-transform:uppercase;">${_esc(lbl)}</div>
+    </div>
+  </div>`;
+}
+function _scTile(label, items, opts) {
+  return `<div class="sc-tile">
+    <div class="sc-tile-lbl">${_esc(label)}</div>
+    ${items.length === 0
+      ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No data available.</div>`
+      : items.map((it, i) => _scRankRow(it, i, opts)).join('')}
+  </div>`;
+}
+function _scXITile(label, xi, scoreLabel) {
+  if (xi.length === 0) return `<div class="sc-tile"><div class="sc-tile-lbl">${_esc(label)}</div><div style="font-size:11px;color:var(--tx-3);padding:8px 0;">Not enough fit players to pick an XI.</div></div>`;
+  const ROLE_LBL = { GK: 'Goalkeeper', DEF: 'Defense', MID: 'Midfield', FWD: 'Forwards' };
+  const ROLE_ORDER = ['GK','DEF','MID','FWD'];
+  const groups = { GK: [], DEF: [], MID: [], FWD: [] };
+  xi.forEach(e => { if (groups[e.role]) groups[e.role].push(e); });
+  const d = groups.DEF.length, m = groups.MID.length, f = groups.FWD.length;
+  return `<div class="sc-tile">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+      <div class="sc-tile-lbl" style="margin-bottom:0;">${_esc(label)}</div>
+      <div style="font-size:10.5px;font-weight:800;font-family:var(--mono);color:var(--tx);padding:3px 9px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);">Formation ${d}-${m}-${f}</div>
+    </div>
+    ${ROLE_ORDER.map(role => {
+      if (groups[role].length === 0) return '';
+      return `<div style="margin-bottom:8px;">
+        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;">${ROLE_LBL[role]}</div>
+        ${groups[role].map((e, i) => {
+          const p = e.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
+          return `<div class="sc-rank-row">
+            <div class="sc-rank-num" style="color:var(--tx-2);">#${p.number != null ? p.number : '?'}</div>
+            <div class="sc-rank-avatar" style="background:${grad};">
+              ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
+              <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${e.score}</div>
+              <div style="font-size:8px;color:var(--tx-3);letter-spacing:.5px;text-transform:uppercase;">${_esc(scoreLabel || 'score')}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function _ensureSCStyles() {
+  if (document.getElementById('sc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'sc-styles';
+  s.textContent = `
+    .sc-page{padding:16px 18px;}
+    .sc-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.28);
+      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .sc-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
+    .sc-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
+      border-bottom:1px solid rgba(74,222,128,0.24);}
+    .sc-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
+    .sc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .sc-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .sc-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease;}
+    .sc-tile:hover{border-color:rgba(74,222,128,0.32);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .sc-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .sc-rank-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .sc-rank-row:last-child{border-bottom:none;}
+    .sc-rank-num{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .sc-rank-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
+    @media (max-width:1024px){.sc-grid-3{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.sc-grid-3,.sc-grid-2{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAIScoutingHTML() {
+  return `<div class="page" id="pg-ai-scouting">
+    <div id="ai-scouting-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI Scouting Center…</div>
+    </div>
+  </div>`;
+}
+function renderAIScoutingCenter() {
+  const el = document.getElementById('ai-scouting-content');
+  if (!el) return;
+  try { _ensureSCStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const tier3 = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : 'var(--red)';
+    const top    = _scTopN(_scComposite,        5);
+    const grow   = _scTopN(_scGrowth,           5);
+    const pot    = _scTopN(_scPotentialScore,   5);
+    const att    = _scTopN(_scAttendanceScore,  5, p => _scAttendanceScore(p) >= 0);
+    const rdy    = _scTopN(_pcReadinessScore,   5);
+    const risk   = _scTopN(_scInjuryRiskScore,  5, p => _scInjuryRiskScore(p) >= 50);
+    const gems   = _scTopN(_scHiddenGemScore,   5, p => _scHiddenGemScore(p) > 0);
+    const watch  = _scTopN(_scDevWatchScore,    5, p => _scDevWatchScore(p) > 30);
+    const totw   = _scPickXI(_scWeekScore);
+    const recXI  = _scPickXI(_scComposite);
+    const riskLabel = (v) => v >= 200 ? 'INJ' : v >= 100 ? 'HIGH' : v >= 55 ? 'MED' : 'LOW';
+    const riskColor = (v) => v >= 100 ? 'var(--red)' : v >= 55 ? 'var(--amber)' : 'var(--green-l)';
+
+    el.innerHTML = `
+      <div class="sc-page">
+        <div class="sc-card">
+          <div class="sc-brand">
+            <div class="sc-brand-logo">★ FC FAMILISTA · AI SCOUTING CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:14px 18px;font-size:11.5px;color:var(--tx-3);line-height:1.55;">
+            Squad-wide scouting intelligence — rankings, watchlists, and auto-picked XIs derived from current squad condition, ratings, GPS state, and recent session participation. Read-only.
+          </div>
+        </div>
+
+        <div class="sc-grid-3">
+          ${_scTile('Top Current Players', top, {
+            scoreLabel: 'composite',
+            colorFn: tier3,
+            subFn: (p, it) => `OVR ${p.overallRating || '—'}`,
+          })}
+          ${_scTile('Highest Readiness', rdy, {
+            scoreLabel: 'ready',
+            colorFn: tier3,
+            subFn: (p, it) => `${typeof p.condition === 'number' ? Math.round(p.condition) + '% cond' : '—'}`,
+          })}
+          ${_scTile('Highest Potential', pot, {
+            scoreLabel: '+90d',
+            colorFn: () => 'var(--amber)',
+            subFn: (p, it) => `OVR ${p.overallRating || '—'} · POT ${p.potential || '—'}`,
+          })}
+        </div>
+
+        <div class="sc-grid-3">
+          ${_scTile('Most Improved (30d)', grow, {
+            scoreLabel: 'growth',
+            colorFn: tier3,
+            subFn: (p, it) => `OVR ${p.overallRating || '—'} → POT ${p.potential || '—'}`,
+          })}
+          ${_scTile('Best Attendance', att, {
+            scoreLabel: 'pct',
+            colorFn: tier3,
+            valFn: (it) => it.score + '%',
+            subFn: (p, it) => `last 10 sessions`,
+          })}
+          ${_scTile('Injury Risk Watchlist', risk, {
+            scoreLabel: 'risk',
+            colorFn: riskColor,
+            valFn: (it) => riskLabel(it.score),
+            subFn: (p, it) => p.isInjured ? 'currently injured' : `${typeof p.condition === 'number' ? Math.round(p.condition) + '% cond' : '—'}`,
+          })}
+        </div>
+
+        <div class="sc-grid-2">
+          ${_scXITile('AI Team of the Week', totw, 'week')}
+          ${_scXITile('Recommended Starting XI', recXI, 'comp')}
+        </div>
+
+        <div class="sc-grid-2">
+          ${_scTile('Hidden Gems', gems, {
+            scoreLabel: 'upside',
+            colorFn: () => 'var(--green-l)',
+            subFn: (p, it) => {
+              const age = _pcAge(p);
+              return `${age != null ? 'Age ' + age + ' · ' : ''}OVR ${p.overallRating || '—'} → POT ${p.potential || '—'}`;
+            },
+          })}
+          ${_scTile('Development Watchlist', watch, {
+            scoreLabel: 'urgency',
+            colorFn: () => 'var(--red)',
+            subFn: (p, it) => {
+              const fParts = [];
+              if (p.isInjured) fParts.push('injured');
+              const inj = _pcInjuryRisk(p).level;
+              if (inj === 'HIGH') fParts.push('high injury risk');
+              const fat = _pcFatigueRisk(p).level;
+              if (fat === 'HIGH') fParts.push('overloaded');
+              const a = _pcAttendance(p).pct;
+              if (a != null && a < 50) fParts.push('low attendance');
+              return fParts.length ? fParts.join(', ') : 'rating + readiness dipping';
+            },
+          })}
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-scouting] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Scouting Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
 }
@@ -11352,6 +11690,9 @@ document.addEventListener('click', (e) => {
   // bypassed for any reason. Same pattern as the Training entry above.
   if (e.target.closest('[data-page="match-center"]')) {
     setTimeout(function () { try { renderMatchCenter(); } catch (err) { try { console.error('[match-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-scouting"]')) {
+    setTimeout(function () { try { renderAIScoutingCenter(); } catch (err) { try { console.error('[ai-scouting] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
