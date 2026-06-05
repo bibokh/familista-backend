@@ -522,6 +522,7 @@ async function loadAllData() {
       try { if (typeof renderBoardOfDirectorsCenter   === 'function') renderBoardOfDirectorsCenter();   } catch (_) {}
       try { if (typeof renderOwnershipCenter          === 'function') renderOwnershipCenter();          } catch (_) {}
       try { if (typeof renderAIExecutiveCenter        === 'function') renderAIExecutiveCenter();        } catch (_) {}
+      try { if (typeof renderAIPresidentCenter        === 'function') renderAIPresidentCenter();        } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -752,6 +753,7 @@ function _flushPendingRender() {
     case 'pg-board-of-directors-center': renderBoardOfDirectorsCenter(); break;
     case 'pg-ownership-center': renderOwnershipCenter(); break;
     case 'pg-ai-executive-center': renderAIExecutiveCenter(); break;
+    case 'pg-ai-president-center': renderAIPresidentCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -814,7 +816,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -853,6 +855,7 @@ function navTo(page, el) {
   if (page === 'board-of-directors-center'){ try { renderBoardOfDirectorsCenter(); } catch (e) { try { console.error('[board-of-directors-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ownership-center'){ try { renderOwnershipCenter(); } catch (e) { try { console.error('[ownership-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-executive-center'){ try { renderAIExecutiveCenter(); } catch (e) { try { console.error('[ai-executive-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-president-center'){ try { renderAIPresidentCenter(); } catch (e) { try { console.error('[ai-president-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -973,6 +976,7 @@ function renderAllPages() {
     ${renderBoardOfDirectorsCenterHTML()}
     ${renderOwnershipCenterHTML()}
     ${renderAIExecutiveCenterHTML()}
+    ${renderAIPresidentCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -9555,6 +9559,513 @@ function renderAIExecutiveCenter() {
     try { console.error('[ai-executive-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Executive Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI President Center (highest strategic layer) ────────
+// Aggregator-only. Consumes outputs ONLY from AI Executive Center
+// (_aix*) and Ownership Center (_own*). Does NOT recompute any
+// low-level player analytic. Adds a thin _pres* synthesis layer
+// (Club Direction Score, multi-horizon narratives, presidential
+// decision queue, club vision statement). No backend writes, no new
+// fetches, no schema changes, no routes.
+function _presSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _presAIXScore()       { return _presSafe(_aixExecutiveScore, 0); }
+function _presOWNScore()       { return _presSafe(_ownScore, 0); }
+function _presOWNSustain()     { return _presSafe(_ownSustainability, 0); }
+function _presAcademyStrength(){ return _presSafe(_ownAcademyStrength, 0); }
+function _presFinanceHealth()  { return _presSafe(_ownFinanceHealth, 0); }
+function _presSportingScore()  { return _presSafe(_ownSportingScore, 0); }
+function _presClubHealth()     { return _presSafe(_ownClubHealth, 0); }
+function _presClubDirectionScore() {
+  // Composite: AI Executive Score + Ownership Score, weighted toward AIX
+  // (operational truth) but anchored by ownership posture (long-term).
+  const aix = _presAIXScore();
+  const own = _presOWNScore();
+  return Math.max(0, Math.min(100, Math.round(aix * 0.55 + own * 0.45)));
+}
+function _presStrategicHealth() {
+  // Composite: sustainability + club health (averaged).
+  const sus = _presOWNSustain();
+  const ch  = _presClubHealth();
+  return Math.round((sus + ch) / 2);
+}
+function _presOwnershipConfidence() {
+  // Owners' confidence: blend of Ownership Score and Finance Health.
+  const own = _presOWNScore();
+  const fin = _presFinanceHealth();
+  return Math.round(own * 0.65 + fin * 0.35);
+}
+function _presExecutiveConfidence() {
+  // Execs' confidence: blend of AIX score and the action-plan strength
+  // (we use average impact of top items in _aixActionPlan as a proxy).
+  const aix = _presAIXScore();
+  const plan = _presSafe(_aixActionPlan, []);
+  const avgImpact = plan.length ? Math.round(plan.slice(0, 5).reduce((a, x) => a + (x.impact || 0), 0) / Math.min(5, plan.length)) : aix;
+  return Math.round(aix * 0.70 + avgImpact * 0.30);
+}
+function _presLongTermOutlook() {
+  // Forward-looking: lean heavily on the Ownership 5-year sustainability
+  // projection if available; else fall back to current sustainability.
+  const su = _presSafe(_ownSustainabilityOutlook, null);
+  if (su && typeof su.last === 'number') {
+    let band, color;
+    if      (su.band === 'GREEN')  { band = 'POSITIVE';  color = 'var(--green-l)'; }
+    else if (su.band === 'YELLOW') { band = 'CAUTIOUS';  color = '#FBBF24';        }
+    else                            { band = 'CHALLENGED'; color = 'var(--red)';   }
+    return { score: su.last, band, color, narrative: su.narrative || '' };
+  }
+  const sus = _presOWNSustain();
+  const band = sus >= 75 ? { band:'POSITIVE',   color:'var(--green-l)' }
+             : sus >= 55 ? { band:'CAUTIOUS',   color:'#FBBF24' }
+             :              { band:'CHALLENGED', color:'var(--red)' };
+  return { score: sus, band: band.band, color: band.color, narrative: 'Outlook derived from current sustainability composite.' };
+}
+function _presBand(score) {
+  if (score > 85) return { band:'VISIONARY',  color:'var(--green-l)' };
+  if (score > 70) return { band:'STRATEGIC',  color:'#FBBF24'        };
+  if (score > 55) return { band:'STEADY',     color:'#60A5FA'        };
+  return                 { band:'INTERVENTION', color:'var(--red)'    };
+}
+function _pres12MonthDirection() {
+  // Pull from existing centres: ownership priorities + AI Executive
+  // immediate priorities, then synthesise five fixed buckets.
+  const ownPri = _presSafe(_ownPriorities, []);
+  const aixPri = _presSafe(_aixImmediatePriorities, []);
+  const co     = _presSafe(_ownSafe ? function () { return _mgFinanceOverview(); } : function () { return null; }, null) || _presSafe(function () { return _mgFinanceOverview ? _mgFinanceOverview() : null; }, null);
+  const wageR  = (co && typeof co.wageRatio === 'number') ? co.wageRatio : 0;
+  // 5 fixed labels.
+  return [
+    {
+      key:'IMMEDIATE',  lbl:'Immediate Priorities',
+      detail: ownPri.length
+        ? (ownPri[0].text || 'Top ownership-level action this cycle.')
+        : 'No critical ownership priority — execute against the operational plan.',
+      color: ownPri.length ? (ownPri[0].color || '#FBBF24') : 'var(--green-l)',
+      impact: ownPri[0] ? ownPri[0].impact || 70 : 50,
+    },
+    {
+      key:'BUDGET',     lbl:'Budget Discipline',
+      detail: wageR >= 70
+        ? `Wage ratio ${wageR}% — cap incremental wage commitments, review fringe contracts.`
+        : wageR >= 60
+        ? `Wage ratio ${wageR}% — maintain discipline; small headroom available.`
+        : `Wage ratio ${wageR || '—'}% — healthy headroom for selective investment.`,
+      color: wageR >= 70 ? 'var(--red)' : wageR >= 60 ? '#FBBF24' : 'var(--green-l)',
+      impact: wageR >= 70 ? 85 : wageR >= 60 ? 60 : 40,
+    },
+    {
+      key:'SQUAD',      lbl:'Squad Priorities',
+      detail: aixPri.find(x => x.source === 'DIRECTOR OF FOOTBALL')
+        ? (aixPri.find(x => x.source === 'DIRECTOR OF FOOTBALL').label + '.')
+        : 'Continue current tactical programme; rotate to protect first XI.',
+      color: '#60A5FA',
+      impact: 65,
+    },
+    {
+      key:'ACADEMY',    lbl:'Academy Priorities',
+      detail: _presAcademyStrength() < 60
+        ? 'Lift academy programme; expand U18/U20 cohort and protect minutes for top prospects.'
+        : 'Protect academy gains; integrate one or two READY NOW prospects into the senior squad.',
+      color: _presAcademyStrength() < 60 ? '#FBBF24' : 'var(--green-l)',
+      impact: _presAcademyStrength() < 60 ? 70 : 50,
+    },
+    {
+      key:'RISK',       lbl:'Risk Control',
+      detail: 'Maintain governance bands (wage ratio, cash reserve, medical exposure); board to approve any departure from current thresholds.',
+      color: '#A78BFA',
+      impact: 55,
+    },
+  ];
+}
+function _pres3YearPlan() {
+  const exp = _presSafe(_ownStrategicExpansion, { leagueAmbition:'—', academyExpansion:'—', infraExpansion:'—' });
+  const sp = _presSportingScore();
+  const fin = _presFinanceHealth();
+  const aca = _presAcademyStrength();
+  return [
+    { key:'COMPETITIVE',  lbl:'Competitive Ambition',  detail: exp.leagueAmbition,
+      color: sp >= 75 ? 'var(--green-l)' : sp >= 60 ? '#FBBF24' : 'var(--red)' },
+    { key:'FINANCIAL',    lbl:'Financial Growth',      detail: fin >= 75 ? 'Grow revenue base while protecting reserves — explore commercial expansion.' : fin >= 60 ? 'Stabilise revenue / cost ratios; rebuild reserves before bigger plays.' : 'Recover financial fundamentals before any expansion programme.',
+      color: fin >= 75 ? 'var(--green-l)' : fin >= 60 ? '#FBBF24' : 'var(--red)' },
+    { key:'ACADEMY',      lbl:'Academy Expansion',     detail: exp.academyExpansion,
+      color: aca >= 70 ? 'var(--green-l)' : aca >= 50 ? '#FBBF24' : 'var(--red)' },
+    { key:'INFRA',        lbl:'Infrastructure',        detail: exp.infraExpansion,
+      color: fin >= 70 ? 'var(--green-l)' : fin >= 55 ? '#FBBF24' : 'var(--red)' },
+    { key:'RECRUITMENT',  lbl:'Recruitment Direction', detail: aca >= 70 && fin >= 65 ? 'Internal-first: lean on academy + targeted complementary signings.' : fin >= 65 ? 'External-led: targeted senior signings to lift competitive band.' : 'Cautious: prioritise free transfers and short-term loans until reserves rebuild.',
+      color: '#A78BFA' },
+  ];
+}
+function _pres5YearVision() {
+  const sp = _presSportingScore();
+  const aca = _presAcademyStrength();
+  const sus = _presOWNSustain();
+  const fin = _presFinanceHealth();
+  const longTerm = _presLongTermOutlook();
+  return [
+    { key:'IDENTITY',     lbl:'Club Identity',          detail: aca >= 70 ? 'Academy-led, technically progressive, community-rooted club.' : sp >= 70 ? 'Competitive, market-savvy club with sporting-first decision making.' : 'Sustainable community club with disciplined operations.',
+      color: 'var(--green-l)' },
+    { key:'LEAGUE',       lbl:'League Ambition',        detail: sp > 80 ? 'Regular trophy contention and continental qualification.' : sp > 65 ? 'Sustained top-half finish and cup runs.' : sp > 50 ? 'Top-half consolidation by year 5.' : 'Stabilise division position before chasing ambition.',
+      color: sp > 65 ? 'var(--green-l)' : sp > 50 ? '#FBBF24' : 'var(--red)' },
+    { key:'DEVELOPMENT',  lbl:'Player Development Vision', detail: aca >= 70 ? 'Visible academy-to-first-team pathway delivering 2+ promotions per season.' : aca >= 50 ? 'Functional pathway with 1 promotion per season; lift to elite tier within plan.' : 'Establish a credible pathway; prioritise youth coaching, scouting and facilities.',
+      color: aca >= 60 ? 'var(--green-l)' : '#FBBF24' },
+    { key:'SUSTAIN',      lbl:'Sustainability Vision',  detail: sus >= 75 ? 'Self-funding operation, low debt, predictable wage discipline.' : sus >= 55 ? 'Sustainable operating model with planned reserve rebuild.' : 'Targeted intervention plan to restore long-term sustainability.',
+      color: longTerm.color },
+    { key:'BRAND',        lbl:'Brand Expansion Vision', detail: (sp >= 70 || aca >= 70) && fin >= 70 ? 'Expand commercial brand domestically and into nearby markets — leverage academy story.' : fin >= 65 ? 'Consolidate domestic brand; small commercial pilots.' : 'Hold brand investment until sporting + finance lift.',
+      color: '#A78BFA' },
+  ];
+}
+function _presStrategicRiskBoard() {
+  // Pull from Ownership risk exposure + AI Executive risk classification.
+  const risks = _presSafe(_ownRiskExposure, []);
+  // Map FINANCIAL/SPORTING/OPERATIONAL/ACADEMY + a derived SQUAD DEPTH from sustainability composite.
+  const sus = _presSafe(_aixSquadSustainability, { composite: 0 });
+  const depthScore = sus.composite || 0;
+  const depthLvl = depthScore >= 75 ? 'LOW' : depthScore >= 55 ? 'MED' : 'HIGH';
+  const depthCol = depthLvl === 'HIGH' ? 'var(--red)' : depthLvl === 'MED' ? 'var(--amber)' : 'var(--green-l)';
+  const out = [];
+  ['FINANCIAL','SPORTING','OPERATIONAL','ACADEMY'].forEach(kind => {
+    const found = risks.find(r => r.kind === kind);
+    if (found) out.push({ kind: found.kind, lvl: found.lvl, score: found.score, color: found.color, note: found.note });
+    else out.push({ kind, lvl:'MED', score: 60, color:'var(--amber)', note:'Insufficient signal — monitor.' });
+  });
+  out.splice(2, 0, { kind:'SQUAD DEPTH', lvl: depthLvl, score: depthScore, color: depthCol, note: depthScore < 55 ? 'Lifecycle balance + succession exposure.' : 'Lifecycle balance within tolerance.' });
+  return out.slice(0, 5);
+}
+function _presStrategicOpportunities() {
+  // Build five fixed buckets, drawing from existing helpers.
+  const aixOpps = _presSafe(_aixOpportunities, []);
+  const ownInv  = _presSafe(_ownCapitalOpportunities, []);
+  const findOpp = (kindList) => aixOpps.find(o => kindList.indexOf(o.kind) >= 0)
+                              || ownInv.find(o => kindList.indexOf(o.kind) >= 0);
+  const fb = (kinds, lbl, defaultDetail, color, icon) => {
+    const o = findOpp(kinds);
+    if (o) return { kind: lbl, label: o.label || o.kind, detail: o.detail || o.rationale || defaultDetail, color: o.color || color, icon: o.icon || icon, amount: o.amount || 0 };
+    return { kind: lbl, label: '—', detail: defaultDetail, color, icon, amount: 0 };
+  };
+  return [
+    fb(['TRANSFERS'],                  'Transfer Opportunity',         'Capital headroom available for priority signing if board approves.',                'var(--green-l)', '➕'),
+    fb(['ACADEMY'],                    'Academy Opportunity',          'Investment in academy infrastructure compounds over multiple seasons.',              '#FBBF24',        '🎓'),
+    fb(['FACILITIES','INFRA'],         'Infrastructure Opportunity',   'Facilities upgrade lifts commercial revenue and recruitment pitch.',                  '#60A5FA',        '🏟️'),
+    fb(['TECHNOLOGY','OPERATIONS'],    'Operations / Tech Opportunity','Performance, medical and analytics tooling — multiplier across all functions.',       '#A78BFA',        '🛰️'),
+    fb(['FINANCE'],                    'Brand / Commercial Opportunity','Brand and commercial deals scale with sporting + academy storytelling.',              'var(--green-l)', '🌐'),
+  ];
+}
+function _presDecisionQueue() {
+  // Convert Ownership Decisions + AI Executive Action Plan items into
+  // president-level decisions tagged with priority + horizon.
+  const decisions = [];
+  const ownDec = _presSafe(_ownDecisions, []);
+  const aixPlan = _presSafe(_aixActionPlan, []);
+  const priFor = (impact) => impact >= 80 ? 'HIGH' : impact >= 60 ? 'MEDIUM' : 'LOW';
+  const colFor = (impact) => impact >= 80 ? 'var(--red)' : impact >= 60 ? '#FBBF24' : '#60A5FA';
+  const seen = new Set();
+  const push = (item) => {
+    const key = (item.label || '').slice(0, 40).toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    decisions.push(item);
+  };
+  ownDec.forEach(d => {
+    push({
+      kind: d.kind, label: d.label, detail: d.detail, icon: d.icon, color: d.color,
+      priority: priFor(d.impact || 60), priorityColor: colFor(d.impact || 60),
+      impact: d.impact || 60,
+    });
+  });
+  aixPlan.forEach(a => {
+    let kind = 'MONITOR';
+    const labelLower = (a.label || '').toLowerCase();
+    if (/sign|recruit|invest/.test(labelLower))                kind = 'INVEST';
+    else if (/promot|academy|expand|integr/.test(labelLower))  kind = 'EXPAND';
+    else if (/release|reduce|cut|cap/.test(labelLower))        kind = 'REDUCE COST';
+    else if (/protect|maintain|preserve|renew/.test(labelLower))kind = 'MAINTAIN';
+    push({
+      kind, label: a.label, detail: a.detail, icon: a.icon, color: a.color,
+      priority: priFor(a.impact || 60), priorityColor: colFor(a.impact || 60),
+      impact: a.impact || 60,
+    });
+  });
+  // If nothing surfaced, add a steady-state placeholder.
+  if (!decisions.length) decisions.push({ kind:'MAINTAIN', label:'Maintain current programme', detail:'No president-level decisions outstanding.', icon:'✓', color:'var(--green-l)', priority:'LOW', priorityColor:'#60A5FA', impact: 30 });
+  decisions.sort((a, b) => b.impact - a.impact);
+  return decisions.slice(0, 8);
+}
+function _presClubVisionStatement() {
+  const direction = _presClubDirectionScore();
+  const band = _presBand(direction);
+  const sus = _presOWNSustain();
+  const fin = _presFinanceHealth();
+  const sp = _presSportingScore();
+  const aca = _presAcademyStrength();
+  const longTerm = _presLongTermOutlook();
+  let direction12 = direction > 75 ? 'protect operational gains and compound them through disciplined recruitment'
+                    : direction > 60 ? 'lift the weakest dimension through coordinated executive action'
+                    :                   'stabilise core operations and restore governance bands';
+  let direction3  = (sp >= 70 && fin >= 70)
+                    ? 'compete consistently in the upper half and grow commercial revenue'
+                    : (aca >= 70 && fin >= 60)
+                    ? 'lean on the academy pathway while measured external recruitment lifts the squad'
+                    : 'rebuild fundamentals across squad, finance and academy before chasing ambition';
+  let direction5  = longTerm.band === 'POSITIVE' ? 'establish FC Familista as a sustainable, academy-led contender with disciplined finances'
+                    : longTerm.band === 'CAUTIOUS' ? 'reach long-term sustainability while building competitive identity and a credible pathway'
+                    : 'restore long-term viability before any major brand or expansion programme';
+  return `Club direction: ${band.band} (${direction}/100). ` +
+         `12-month focus: ${direction12}. ` +
+         `3-year direction: ${direction3}. ` +
+         `5-year ambition: ${direction5}. ` +
+         `Sustainability outlook: ${longTerm.band} (${longTerm.score}/100) — ${longTerm.narrative}`;
+}
+function _ensurePresStyles() {
+  if (document.getElementById('pres-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'pres-styles';
+  s.textContent = `
+    .pres-page{padding:16px 18px;}
+    .pres-card{position:relative;border-radius:18px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0b1228 0%,#0e1d3b 50%,#070d1c 100%);
+      border:1px solid rgba(251,191,36,0.36);
+      box-shadow:0 32px 86px -20px rgba(0,0,0,0.72),0 0 90px -16px rgba(251,191,36,0.34),0 0 70px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
+    .pres-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(251,191,36,0.14),transparent 55%),radial-gradient(at bottom left,rgba(74,222,128,0.10),transparent 55%);}
+    .pres-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(251,191,36,0.30),rgba(74,222,128,0.18) 35%,rgba(37,99,235,0.14) 70%,rgba(251,191,36,0.30));
+      border-bottom:1px solid rgba(251,191,36,0.40);}
+    .pres-brand-logo{font-size:15px;font-weight:900;letter-spacing:3.0px;
+      background:linear-gradient(90deg,#FBBF24,#FEF3C7,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 16px rgba(251,191,36,0.55);}
+    .pres-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:10.5px;font-weight:900;letter-spacing:1.5px;
+      background:linear-gradient(90deg,rgba(251,191,36,0.26),rgba(74,222,128,0.26));
+      border:1px solid rgba(251,191,36,0.50);color:#FEF3C7;text-shadow:0 0 10px rgba(251,191,36,0.50);}
+    .pres-pill .pres-dot{width:8px;height:8px;border-radius:50%;background:#FBBF24;box-shadow:0 0 12px #FBBF24;animation:pres-pulse 1.4s ease-in-out infinite;}
+    @keyframes pres-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.12);}}
+    .pres-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .pres-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .pres-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .pres-tile{position:relative;padding:15px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));
+      border:1px solid rgba(251,191,36,0.24);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.55);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .pres-tile:hover{border-color:rgba(251,191,36,0.42);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 22px 56px -18px rgba(0,0,0,0.6),0 0 30px -8px rgba(251,191,36,0.34);}
+    .pres-tile-lbl{font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:10px;}
+    .pres-bar{height:9px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:7px;}
+    .pres-bar-fill{height:100%;border-radius:6px;}
+    .pres-pill-mini{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:900;letter-spacing:1px;}
+    .pres-row{display:flex;align-items:flex-start;gap:9px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .pres-row:last-child{border-bottom:none;}
+    .pres-rank-num{font-size:11px;font-weight:900;color:#FBBF24;font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .pres-alert{display:flex;align-items:flex-start;gap:9px;padding:10px 12px;margin-bottom:7px;border-radius:9px;
+      background:rgba(255,255,255,0.03);border-left:3px solid var(--green-l);}
+    .pres-alert:last-child{margin-bottom:0;}
+    .pres-summary{position:relative;padding:26px;border-radius:18px;
+      background:linear-gradient(135deg,rgba(251,191,36,0.24),rgba(74,222,128,0.14));
+      border:1px solid rgba(251,191,36,0.44);border-left:8px solid #FBBF24;
+      box-shadow:0 28px 70px -16px rgba(0,0,0,0.7),0 0 70px -10px rgba(251,191,36,0.44);}
+    @media (max-width:1024px){.pres-grid-3{grid-template-columns:repeat(2,1fr);}.pres-grid-5{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.pres-grid-2,.pres-grid-3,.pres-grid-5{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAIPresidentCenterHTML() {
+  return `<div class="page" id="pg-ai-president-center">
+    <div id="ai-president-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI President Center…</div>
+    </div>
+  </div>`;
+}
+function renderAIPresidentCenter() {
+  const el = document.getElementById('ai-president-center-content');
+  if (!el) return;
+  try { _ensurePresStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const direction = _presClubDirectionScore();
+    const band = _presBand(direction);
+    const strategic = _presStrategicHealth();
+    const ownerConf = _presOwnershipConfidence();
+    const execConf  = _presExecutiveConfidence();
+    const longTerm  = _presLongTermOutlook();
+    const plan12    = _pres12MonthDirection();
+    const plan3     = _pres3YearPlan();
+    const plan5     = _pres5YearVision();
+    const risks     = _presStrategicRiskBoard();
+    const opps      = _presStrategicOpportunities();
+    const decisions = _presDecisionQueue();
+    const vision    = _presClubVisionStatement();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const lvlBg = (lvl) => lvl === 'HIGH' ? 'rgba(239,68,68,0.16)' : lvl === 'MED' ? 'rgba(245,158,11,0.16)' : 'rgba(74,222,128,0.16)';
+    const priBg = (pri) => pri === 'HIGH' ? 'rgba(239,68,68,0.16)' : pri === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(96,165,250,0.16)';
+
+    el.innerHTML = `
+      <div class="pres-page">
+
+        <!-- Brand bar + 1) Presidential Overview -->
+        <div class="pres-card">
+          <div class="pres-brand">
+            <div class="pres-brand-logo">★ FC FAMILISTA · AI PRESIDENT CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="pres-pill"><span class="pres-dot"></span>PRESIDENT LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:24px;display:grid;grid-template-columns:300px 1fr;gap:24px;align-items:center;">
+            <div style="text-align:center;padding:24px 14px;border-radius:18px;background:radial-gradient(circle at 50% 35%,rgba(251,191,36,0.30),rgba(74,222,128,0.12) 50%,transparent 75%);border:1px solid rgba(251,191,36,0.44);">
+              <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:10px;">Club Direction Score</div>
+              <div style="font-size:80px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 34px ${band.color};">${direction}</div>
+              <div style="font-size:13px;font-weight:900;letter-spacing:2.0px;color:${band.color};text-transform:uppercase;margin-top:12px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:12px;">Presidential Composite</div>
+              ${[
+                { lbl:'Strategic Health',       v: strategic   },
+                { lbl:'Ownership Confidence',   v: ownerConf   },
+                { lbl:'Executive Confidence',   v: execConf    },
+                { lbl:'Long-Term Outlook',      v: longTerm.score, sub: longTerm.band, subCol: longTerm.color },
+              ].map(k => `
+                <div style="margin-bottom:10px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${k.lbl}</span>
+                    <span style="display:flex;gap:8px;align-items:center;">
+                      ${k.sub ? `<span class="pres-pill-mini" style="color:${k.subCol};background:rgba(251,191,36,0.12);">${k.sub}</span>` : ''}
+                      <span style="font-family:var(--mono);font-weight:800;color:${colorFor(k.v)};">${k.v}/100</span>
+                    </span>
+                  </div>
+                  <div class="pres-bar"><div class="pres-bar-fill" style="width:${Math.max(0, Math.min(100, k.v))}%;background:${colorFor(k.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: 12-Month | 3-Year | 5-Year -->
+        <div class="pres-grid-3">
+
+          <!-- 2) 12-Month Club Direction -->
+          <div class="pres-tile">
+            <div class="pres-tile-lbl">12-Month Club Direction</div>
+            ${plan12.map(it => `
+              <div class="pres-alert" style="border-left-color:${it.color};">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span class="pres-pill-mini" style="color:${it.color};background:rgba(251,191,36,0.12);">${it.lbl}</span>
+                    <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">IMP ${it.impact}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.55;">${_esc(it.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 3) 3-Year Strategic Plan -->
+          <div class="pres-tile">
+            <div class="pres-tile-lbl">3-Year Strategic Plan</div>
+            ${plan3.map(it => `
+              <div class="pres-alert" style="border-left-color:${it.color};">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span class="pres-pill-mini" style="color:${it.color};background:rgba(251,191,36,0.12);">${it.lbl}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.55;">${_esc(it.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 4) 5-Year Vision -->
+          <div class="pres-tile">
+            <div class="pres-tile-lbl">5-Year Vision</div>
+            ${plan5.map(it => `
+              <div class="pres-alert" style="border-left-color:${it.color};">
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span class="pres-pill-mini" style="color:${it.color};background:rgba(251,191,36,0.12);">${it.lbl}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.55;">${_esc(it.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Strategic Risk Board | Strategic Opportunities -->
+        <div class="pres-grid-2">
+
+          <!-- 5) Strategic Risk Board -->
+          <div class="pres-tile">
+            <div class="pres-tile-lbl">Strategic Risk Board</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${risks.map(r => `
+                <div style="padding:12px;border-radius:11px;background:rgba(255,255,255,0.025);border:1px solid ${r.color};">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:var(--tx-3);text-transform:uppercase;">${r.kind}</div>
+                    <span class="pres-pill-mini" style="color:${r.color};background:${lvlBg(r.lvl)};">${r.lvl}</span>
+                  </div>
+                  <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${r.color};line-height:1;">${r.score}</div>
+                  <div class="pres-bar"><div class="pres-bar-fill" style="width:${Math.max(0, Math.min(100, r.score))}%;background:${r.color};"></div></div>
+                  <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.4;">${_esc(r.note)}</div>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <!-- 6) Strategic Opportunities -->
+          <div class="pres-tile">
+            <div class="pres-tile-lbl">Strategic Opportunities</div>
+            ${opps.map(o => `
+              <div class="pres-alert" style="border-left-color:${o.color};">
+                <span style="font-size:15px;line-height:1;flex-shrink:0;">${o.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span class="pres-pill-mini" style="color:${o.color};background:rgba(251,191,36,0.12);">${o.kind}</span>
+                    ${o.amount > 0 ? `<span style="font-size:10px;font-family:var(--mono);font-weight:800;color:${o.color};">${_fiFmtMoney(o.amount)}</span>` : ''}
+                  </div>
+                  <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:3px;">${_esc(o.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(o.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 7) President Decision Queue -->
+        <div class="pres-card" style="padding:18px 22px;">
+          <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:12px;">President Decision Queue</div>
+          ${decisions.map((d, i) => `
+            <div class="pres-alert" style="border-left-color:${d.color};">
+              <span style="font-size:15px;line-height:1;flex-shrink:0;">${d.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:6px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="pres-pill-mini" style="color:${d.color};background:rgba(251,191,36,0.12);">${_esc(d.kind)}</span>
+                    <span class="pres-pill-mini" style="color:${d.priorityColor};background:${priBg(d.priority)};">${d.priority}</span>
+                  </div>
+                  <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">IMPACT ${d.impact} · #${i + 1}</span>
+                </div>
+                <div style="font-size:12px;color:var(--tx);font-weight:700;margin-bottom:3px;">${_esc(d.label)}</div>
+                <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">${_esc(d.detail)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 8) Club Vision Statement -->
+        <div class="pres-summary">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <span style="font-size:20px;">🏛️</span>
+            <div style="font-size:13px;font-weight:900;color:#FBBF24;letter-spacing:2.0px;text-transform:uppercase;">Club Vision Statement</div>
+          </div>
+          <div style="font-size:14.5px;color:var(--tx);line-height:1.85;">${_esc(vision)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-president-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI President Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -19207,6 +19718,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-executive-center"]')) {
     setTimeout(function () { try { renderAIExecutiveCenter(); } catch (err) { try { console.error('[ai-executive-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-president-center"]')) {
+    setTimeout(function () { try { renderAIPresidentCenter(); } catch (err) { try { console.error('[ai-president-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
