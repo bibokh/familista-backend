@@ -521,6 +521,7 @@ async function loadAllData() {
       try { if (typeof renderDirectorOfFootballCenter === 'function') renderDirectorOfFootballCenter(); } catch (_) {}
       try { if (typeof renderBoardOfDirectorsCenter   === 'function') renderBoardOfDirectorsCenter();   } catch (_) {}
       try { if (typeof renderOwnershipCenter          === 'function') renderOwnershipCenter();          } catch (_) {}
+      try { if (typeof renderAIExecutiveCenter        === 'function') renderAIExecutiveCenter();        } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -750,6 +751,7 @@ function _flushPendingRender() {
     case 'pg-director-of-football-center': renderDirectorOfFootballCenter(); break;
     case 'pg-board-of-directors-center': renderBoardOfDirectorsCenter(); break;
     case 'pg-ownership-center': renderOwnershipCenter(); break;
+    case 'pg-ai-executive-center': renderAIExecutiveCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -812,7 +814,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -850,6 +852,7 @@ function navTo(page, el) {
   if (page === 'director-of-football-center'){ try { renderDirectorOfFootballCenter(); } catch (e) { try { console.error('[director-of-football-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'board-of-directors-center'){ try { renderBoardOfDirectorsCenter(); } catch (e) { try { console.error('[board-of-directors-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ownership-center'){ try { renderOwnershipCenter(); } catch (e) { try { console.error('[ownership-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-executive-center'){ try { renderAIExecutiveCenter(); } catch (e) { try { console.error('[ai-executive-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -969,6 +972,7 @@ function renderAllPages() {
     ${renderDirectorOfFootballCenterHTML()}
     ${renderBoardOfDirectorsCenterHTML()}
     ${renderOwnershipCenterHTML()}
+    ${renderAIExecutiveCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -8911,6 +8915,646 @@ function renderOwnershipCenter() {
     try { console.error('[ownership-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Ownership Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI Executive Center (highest AI decision layer) ──────
+// Aggregator-only. Consumes outputs from every executive centre below
+// it — Ownership (_own*), Board Of Directors (_bod*), Director Of
+// Football (_dof*), Sporting Director (_sd*), Management (_mg*),
+// Finance (_fi*), Transfer (_tc*), Scouting (_sg*), Academy (_aca*),
+// Medical (_md*), Performance (_pf*), AI Coach (_ac*), AI Scouting
+// (_sc*). Does NOT recompute any domain analytic. Adds a thin _aix*
+// synthesis layer (executive composite score, critical risks,
+// immediate priorities, opportunities, transfer decision engine,
+// injury forecast, sustainability, action plan, roadmap, summary).
+// No backend writes, no new fetches, no schema changes, no routes.
+function _aixSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _aixOwnershipScore() { return _aixSafe(_ownScore, 0); }
+function _aixBoardScore()     { return _aixSafe(function () { return _bodClubHealth().score; }, 0); }
+function _aixDoFScore()       { return _aixSafe(_dofHealthScore, 0); }
+function _aixSDScore()        { return _aixSafe(_sdOverallScore, 0); }
+function _aixFinanceScore()   { return _aixSafe(_mgFinanceHealthScore, 0); }
+function _aixAcademyScore()   { return _aixSafe(_sdAcademyReadiness, 0); }
+function _aixMedicalScore()   { return _aixSafe(function () { return _mgMedScores().availPct; }, 0); }
+function _aixPerfScore()      { return _aixSafe(function () { return _pfTeamScores().Overall; }, 0); }
+function _aixExecutiveScore() {
+  // Per-spec weighting (sums to 1.0).
+  const ow  = _aixOwnershipScore();
+  const bd  = _aixBoardScore();
+  const dof = _aixDoFScore();
+  const sd  = _aixSDScore();
+  const fin = _aixFinanceScore();
+  const aca = _aixAcademyScore();
+  const med = _aixMedicalScore();
+  const pf  = _aixPerfScore();
+  const s = ow * 0.20 + bd * 0.15 + dof * 0.15 + sd * 0.10 + fin * 0.10 + aca * 0.10 + med * 0.10 + pf * 0.10;
+  return Math.max(0, Math.min(100, Math.round(s)));
+}
+function _aixBand(score) {
+  if (score > 90) return { band:'ELITE',    color:'var(--green-l)' };
+  if (score > 75) return { band:'STRONG',   color:'#FBBF24'        };
+  if (score > 60) return { band:'WATCH',    color:'#60A5FA'        };
+  return                 { band:'CRITICAL', color:'var(--red)'     };
+}
+function _aixCriticalRisks() {
+  // Aggregate alerts from every domain centre. Promote non-ALL-CLEAR.
+  // Classify CRITICAL / HIGH / MEDIUM / LOW by source severity color
+  // and source weight.
+  const sources = [
+    { key:'PERF',     fn: _pfAlerts },
+    { key:'MEDICAL',  fn: _mdAlerts },
+    { key:'SCOUTING', fn: _sgAlerts },
+    { key:'TRANSFER', fn: _tcAlerts },
+    { key:'FINANCE',  fn: _fiAlerts },
+  ];
+  const classify = (color) => {
+    if (color === 'var(--red)')      return 'CRITICAL';
+    if (color === 'var(--amber)')    return 'HIGH';
+    if (color === '#60A5FA')         return 'MEDIUM';
+    return                                   'LOW';
+  };
+  const items = [];
+  sources.forEach(src => {
+    let list = [];
+    try { list = src.fn() || []; } catch (_) {}
+    list.forEach(a => {
+      if (!a || !a.kind) return;
+      if (a.kind.toUpperCase() === 'ALL CLEAR') return;
+      items.push({ source: src.key, severity: classify(a.color), color: a.color, icon: a.icon || '⚠️', kind: a.kind, text: a.text });
+    });
+  });
+  const sevW = (s) => s === 'CRITICAL' ? 4 : s === 'HIGH' ? 3 : s === 'MEDIUM' ? 2 : 1;
+  items.sort((a, b) => sevW(b.severity) - sevW(a.severity));
+  return items.slice(0, 8);
+}
+function _aixImmediatePriorities() {
+  // Synthesise a top-10 immediate action list from existing executive
+  // signals. Each item carries impact + urgency + source.
+  const items = [];
+  const owDec  = _aixSafe(_ownDecisions, []);
+  const dofQ   = _aixSafe(_dofActionQueue, []);
+  const bodDec = _aixSafe(_bodBoardDecisions, []);
+  const sdRecs = _aixSafe(_sdExecRecommendations, []);
+  owDec.forEach(d => items.push({
+    label: d.label, detail: d.detail, source: 'OWNERSHIP',
+    impact: d.impact || 60, urgency: d.kind === 'REDUCE COST' ? 90 : 70, color: d.color, icon: d.icon || '📌',
+  }));
+  dofQ.forEach(q => items.push({
+    label: q.label, detail: q.detail, source: 'DIRECTOR OF FOOTBALL',
+    impact: Math.round(q.impact || 60), urgency: q.kind === 'SIGN' ? 80 : q.kind === 'SUCCESSION' ? 50 : 70, color: q.color, icon: q.icon || '📋',
+  }));
+  bodDec.forEach(d => items.push({
+    label: d.label, detail: d.detail, source: 'BOARD',
+    impact: d.priority === 'HIGH' ? 85 : d.priority === 'MEDIUM' ? 65 : 45, urgency: d.priority === 'HIGH' ? 85 : d.priority === 'MEDIUM' ? 60 : 40, color: d.color, icon: d.icon || '🏛️',
+  }));
+  sdRecs.forEach(r => items.push({
+    label: r.text.split(' — ')[0] || r.text.slice(0, 60), detail: r.text, source: 'SPORTING DIRECTOR',
+    impact: r.priority === 'HIGH' ? 80 : r.priority === 'MEDIUM' ? 60 : 40, urgency: r.priority === 'HIGH' ? 80 : 55, color: r.color, icon: r.icon || '⚽',
+  }));
+  // Dedupe roughly by label start.
+  const seen = new Set();
+  const filtered = items.filter(x => {
+    const key = (x.label || '').slice(0, 40).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  filtered.sort((a, b) => (b.impact + b.urgency) - (a.impact + a.urgency));
+  return filtered.slice(0, 10);
+}
+function _aixOpportunities() {
+  // Best opportunities across transfers / academy / finance / operations / scouting.
+  const out = [];
+  const sim = _aixSafe(_fiTransferSimulation, { scenarios: [] });
+  const targets = _aixSafe(_tcTransferTargets, { priority: [] });
+  const promos = _aixSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [] });
+  const sells = _aixSafe(_sdSellCandidates, { estimatedGain: 0 });
+  const co  = _aixSafe(_mgFinanceOverview, { netProfit: 0, cashReserve: 0 });
+  const watch = _aixSafe(function () { return _sgWatchlist(3); }, []);
+  if (sim.scenarios && sim.scenarios[1] && sim.scenarios[1].cap > 0 && (targets.priority || []).length) {
+    out.push({ kind:'TRANSFERS', icon:'➕', color:'var(--green-l)',
+      label: `Sign ${(targets.priority || []).join('/')} priority`,
+      detail: `Budget ${_fiFmtMoney(sim.scenarios[1].cap)} available — capital headroom matches squad gap.` });
+  }
+  if (promos.READY_NOW.length || promos.READY_SOON.length) {
+    out.push({ kind:'ACADEMY', icon:'🎓', color:'#FBBF24',
+      label: `${promos.READY_NOW.length + promos.READY_SOON.length} academy players ready to integrate`,
+      detail: 'Lift selected prospects into first-team rotation to compound development and reduce wage spend.' });
+  }
+  if (sells.estimatedGain > 0) {
+    out.push({ kind:'FINANCE', icon:'💼', color:'var(--green-l)',
+      label: `Free ${_fiFmtMoney(sells.estimatedGain)} via offloads`,
+      detail: 'Redirect capital into recruitment or reserves; review fringe contracts before window opens.' });
+  }
+  if (co.cashReserve > 100000) {
+    out.push({ kind:'OPERATIONS', icon:'⚙️', color:'#60A5FA',
+      label: 'Operations efficiency window',
+      detail: `Reserve ${_fiFmtMoney(co.cashReserve)} — invest in analytics, medical or facilities for compounding returns.` });
+  }
+  if (watch.length) {
+    const top = watch[0];
+    out.push({ kind:'SCOUTING', icon:'🔭', color:'#A78BFA',
+      label: `Top watchlist: ${(top.p.firstName || '').charAt(0)}. ${top.p.lastName || ''}`,
+      detail: `Composite score ${top.score}/100 — track and accelerate development path.` });
+  }
+  if (!out.length) out.push({ kind:'NONE', icon:'—', color:'var(--tx-3)', label:'No outsized opportunities detected', detail:'Maintain current programme and re-assess next cycle.' });
+  return out.slice(0, 6);
+}
+function _aixPromotionCandidates() { return _aixSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [], LONG_TERM: [] }); }
+function _aixTransferRecommendations() {
+  // Bucket into BUY / SELL / LOAN / MONITOR per decision engine.
+  const buy   = _aixSafe(_dofSignRecommendations, []);
+  const sell  = _aixSafe(function () { return _dofSellRecommendations().list; }, []);
+  const loan  = _aixSafe(_dofLoanRecommendations, []);
+  const monit = _aixSafe(function () { return (_dofContractStrategy().MONITOR || []); }, []);
+  return {
+    BUY:     buy.slice(0, 5),
+    SELL:    sell.slice(0, 5),
+    LOAN:    loan.slice(0, 5),
+    MONITOR: monit.slice(0, 5),
+  };
+}
+function _aixInjuryForecast() {
+  // Synthesise medical + performance into a single forward-looking view.
+  const med = _aixSafe(_mgMedScores, { buckets: { AVAILABLE: 0, QUESTIONABLE: 0, RECOVERY: 0, INJURED: 0 }, availPct: 0, avgCond: 0, avgFat: 0 });
+  const cand = _aixSafe(_tcSellLoanCandidates, { overloaded: [] });
+  const ovrldHigh = (cand.overloaded || []).length;
+  let risk;
+  if      (med.buckets.INJURED >= 4 || ovrldHigh >= 3) risk = { lvl:'HIGH',   color:'var(--red)',   text:'Forecast: high injury / fatigue risk through next fixture cycle.' };
+  else if (med.buckets.INJURED >= 2 || ovrldHigh >= 1) risk = { lvl:'MEDIUM', color:'#FBBF24',      text:'Forecast: moderate exposure — manage minutes and recovery blocks.' };
+  else                                                  risk = { lvl:'LOW',    color:'var(--green-l)', text:'Forecast: low injury exposure — squad recovery curves stable.' };
+  return { med, ovrldHigh, risk };
+}
+function _aixSquadSustainability() {
+  // Age balance, succession readiness, academy pipeline.
+  const lifecycle = _aixSafe(_dofSquadLifecycle, { balance: 0, young: { count: 0, pct: 0 }, prime: { count: 0, pct: 0 }, veteran: { count: 0, pct: 0 } });
+  const succ      = _aixSafe(_dofSuccessionPlanning, []);
+  const covered   = succ.filter(s => s.successor).length;
+  const successionScore = succ.length ? Math.round((covered / succ.length) * 100) : 100;
+  const aca = _aixSafe(_acaOverview, { count: 0, avgPot: 0 });
+  const academyScore = Math.max(0, Math.min(100, Math.round((aca.count || 0) * 10 + (aca.avgPot || 0) * 0.3)));
+  const composite = Math.round((lifecycle.balance || 0) * 0.4 + successionScore * 0.3 + academyScore * 0.3);
+  return { lifecycle, succession: { total: succ.length, covered, score: successionScore }, academy: { count: aca.count, avgPot: aca.avgPot, score: academyScore }, composite };
+}
+function _aixActionPlan() {
+  // Same source data as Immediate Priorities, but surfaced as a richer
+  // table with explicit OWNER per row. Limit to 12 rows.
+  const owners = { OWNERSHIP:'Owners', 'DIRECTOR OF FOOTBALL':'DoF', BOARD:'Board', 'SPORTING DIRECTOR':'Sporting Director', FINANCE:'CFO', TRANSFER:'DoF', ACADEMY:'Academy Director' };
+  const items = _aixImmediatePriorities();
+  return items.map(it => Object.assign({}, it, { owner: owners[it.source] || 'Executive' })).slice(0, 12);
+}
+function _aixRoadmap() {
+  // NOW: immediate decisions (top urgency).
+  // NEXT: medium-horizon recruitment / academy / contract moves.
+  // LATER: strategic expansion / infrastructure / sustainability.
+  const sd = _aixSafe(_sdRecruitmentStrategy, { immediate: [], seasonal: [], longTerm: [] });
+  const exp = _aixSafe(_ownStrategicExpansion, { leagueAmbition:'—', academyExpansion:'—', infraExpansion:'—' });
+  const promos = _aixSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [], LONG_TERM: [] });
+  const now = [];
+  (sd.immediate || []).forEach(x => now.push(x));
+  (promos.READY_NOW || []).slice(0, 2).forEach(x => now.push(`Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''}`));
+  const next = [];
+  (sd.seasonal || []).forEach(x => next.push(x));
+  (promos.READY_SOON || []).slice(0, 2).forEach(x => next.push(`Integrate ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''}`));
+  if (exp.academyExpansion) next.push(`Academy: ${exp.academyExpansion}`);
+  const later = [];
+  (sd.longTerm || []).forEach(x => later.push(x));
+  if (exp.leagueAmbition)        later.push(`League: ${exp.leagueAmbition}`);
+  if (exp.infraExpansion)        later.push(`Facilities: ${exp.infraExpansion}`);
+  return { now: now.slice(0, 5), next: next.slice(0, 5), later: later.slice(0, 5) };
+}
+function _aixSummary() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  if (!ps.length) return 'No squad data available — AI Executive Center is waiting for player data.';
+  const score = _aixExecutiveScore();
+  const band = _aixBand(score);
+  const risks = _aixCriticalRisks();
+  const opps  = _aixOpportunities();
+  const promos = _aixPromotionCandidates();
+  const fcst = _aixInjuryForecast();
+  const sus  = _aixSquadSustainability();
+  let outlook;
+  if (score > 90)      outlook = 'organisation is in elite executive shape — every layer aligned, compounding gains';
+  else if (score > 75) outlook = 'organisation is in strong executive shape with isolated dimensions to lift';
+  else if (score > 60) outlook = 'mixed executive picture — coordinated cross-department action required';
+  else                  outlook = 'organisation under stress across multiple layers — top-down intervention required';
+  const criticalCt = risks.filter(r => r.severity === 'CRITICAL').length;
+  const promoCt = (promos.READY_NOW.length + promos.READY_SOON.length);
+  return `AI Executive view: ${band.band} (${score}/100). ` +
+         `${criticalCt} critical risk${criticalCt === 1 ? '' : 's'} flagged; ${opps.length} high-leverage opportunit${opps.length === 1 ? 'y' : 'ies'} detected. ` +
+         `Promotion pipeline: ${promoCt} academy player${promoCt === 1 ? '' : 's'} ready or near-ready. ` +
+         `Injury forecast: ${fcst.risk.lvl} (${fcst.med.availPct}% availability, ${fcst.med.buckets.INJURED} injured). ` +
+         `Squad sustainability composite: ${sus.composite}/100. ` +
+         `AI executive call: ${outlook}.`;
+}
+function _ensureAIXStyles() {
+  if (document.getElementById('aix-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'aix-styles';
+  s.textContent = `
+    .aix-page{padding:16px 18px;}
+    .aix-card{position:relative;border-radius:18px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0b1228 0%,#0e1d3b 50%,#070d1c 100%);
+      border:1px solid rgba(251,191,36,0.32);
+      box-shadow:0 30px 80px -20px rgba(0,0,0,0.7),0 0 80px -16px rgba(251,191,36,0.30),0 0 60px -16px rgba(74,222,128,0.20),inset 0 1px 0 rgba(255,255,255,0.08);
+      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}
+    .aix-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(251,191,36,0.12),transparent 55%),radial-gradient(at bottom left,rgba(74,222,128,0.10),transparent 55%);}
+    .aix-brand{position:relative;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(251,191,36,0.26),rgba(74,222,128,0.16) 35%,rgba(37,99,235,0.14) 70%,rgba(251,191,36,0.26));
+      border-bottom:1px solid rgba(251,191,36,0.34);}
+    .aix-brand-logo{font-size:14px;font-weight:900;letter-spacing:2.8px;
+      background:linear-gradient(90deg,#FBBF24,#FEF3C7,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 14px rgba(251,191,36,0.45);}
+    .aix-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:1.4px;
+      background:linear-gradient(90deg,rgba(251,191,36,0.22),rgba(74,222,128,0.22));
+      border:1px solid rgba(251,191,36,0.45);color:#FEF3C7;text-shadow:0 0 8px rgba(251,191,36,0.45);}
+    .aix-pill .aix-dot{width:7px;height:7px;border-radius:50%;background:#FBBF24;box-shadow:0 0 10px #FBBF24;animation:aix-pulse 1.4s ease-in-out infinite;}
+    @keyframes aix-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.1);}}
+    .aix-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .aix-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .aix-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .aix-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .aix-tile{position:relative;padding:14px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.012));
+      border:1px solid rgba(251,191,36,0.22);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.55);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .aix-tile:hover{border-color:rgba(251,191,36,0.40);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 22px 56px -18px rgba(0,0,0,0.6),0 0 28px -8px rgba(251,191,36,0.30);}
+    .aix-tile-lbl{font-size:9.5px;font-weight:900;color:#FBBF24;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:9px;}
+    .aix-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .aix-bar-fill{height:100%;border-radius:6px;}
+    .aix-mini-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .aix-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .aix-row:last-child{border-bottom:none;}
+    .aix-rank-num{font-size:11px;font-weight:900;color:#FBBF24;font-family:var(--mono);width:18px;flex-shrink:0;text-align:right;}
+    .aix-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
+      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(251,191,36,0.5);}
+    .aix-mini-avatar img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .aix-alert{display:flex;align-items:flex-start;gap:9px;padding:9px 11px;margin-bottom:7px;border-radius:9px;
+      background:rgba(255,255,255,0.03);border-left:3px solid var(--green-l);}
+    .aix-alert:last-child{margin-bottom:0;}
+    .aix-plan-row{display:grid;grid-template-columns:32px 1fr 80px 80px 110px 110px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .aix-plan-row:last-child{border-bottom:none;}
+    .aix-summary{position:relative;padding:24px;border-radius:16px;
+      background:linear-gradient(135deg,rgba(251,191,36,0.20),rgba(74,222,128,0.10));
+      border:1px solid rgba(251,191,36,0.40);border-left:7px solid #FBBF24;
+      box-shadow:0 26px 60px -16px rgba(0,0,0,0.65),0 0 60px -10px rgba(251,191,36,0.40);}
+    @media (max-width:1024px){.aix-grid-3{grid-template-columns:repeat(2,1fr);}.aix-grid-4{grid-template-columns:repeat(2,1fr);}.aix-grid-5{grid-template-columns:repeat(2,1fr);}.aix-plan-row{grid-template-columns:28px 1fr 70px 70px 90px 90px;font-size:10px;}}
+    @media (max-width:600px){.aix-grid-2,.aix-grid-3,.aix-grid-4,.aix-grid-5{grid-template-columns:1fr;}.aix-plan-row{grid-template-columns:26px 1fr 60px 60px;font-size:10px;}.aix-plan-row > :nth-child(5),.aix-plan-row > :nth-child(6){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderAIExecutiveCenterHTML() {
+  return `<div class="page" id="pg-ai-executive-center">
+    <div id="ai-executive-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI Executive Center…</div>
+    </div>
+  </div>`;
+}
+function renderAIExecutiveCenter() {
+  const el = document.getElementById('ai-executive-center-content');
+  if (!el) return;
+  try { _ensureAIXStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _aixExecutiveScore();
+    const band = _aixBand(score);
+    const ch  = _aixSafe(function () { return _bodClubHealth().score; }, 0);
+    const fin = _aixFinanceScore();
+    const med = _aixMedicalScore();
+    const aca = _aixAcademyScore();
+    const sd  = _aixSDScore();
+    const sus = _aixSquadSustainability();
+    const kpis = [
+      { lbl:'Club Health',         v: ch },
+      { lbl:'Financial Strength',  v: fin },
+      { lbl:'Squad Readiness',     v: med },
+      { lbl:'Academy Future',      v: aca },
+      { lbl:'Strategic Stability', v: sus.composite },
+    ];
+    const risks = _aixCriticalRisks();
+    const priorities = _aixImmediatePriorities();
+    const opps  = _aixOpportunities();
+    const promos = _aixPromotionCandidates();
+    const tDecisions = _aixTransferRecommendations();
+    const forecast = _aixInjuryForecast();
+    const sustain = _aixSquadSustainability();
+    const plan = _aixActionPlan();
+    const roadmap = _aixRoadmap();
+    const summary = _aixSummary();
+
+    const fullName = (p) => ((p && p.firstName) || '') + ' ' + ((p && p.lastName) || '');
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const sevColor = (s) => s === 'CRITICAL' ? 'var(--red)' : s === 'HIGH' ? '#FBBF24' : s === 'MEDIUM' ? '#60A5FA' : 'var(--green-l)';
+    const sevBg = (s) => s === 'CRITICAL' ? 'rgba(239,68,68,0.16)' : s === 'HIGH' ? 'rgba(251,191,36,0.16)' : s === 'MEDIUM' ? 'rgba(96,165,250,0.16)' : 'rgba(74,222,128,0.16)';
+    const miniAv = (p) => {
+      if (!p) return `<div class="aix-mini-avatar" style="background:rgba(255,255,255,0.06);">—</div>`;
+      const url = _pcPhotoUrl(p);
+      const ini = _pcInitials(p);
+      const bg  = `background:linear-gradient(135deg,#1e3a8a,#0ea5e9);`;
+      return `<div class="aix-mini-avatar" style="${bg}">${url ? `<img src="${_esc(url)}" alt="${_esc(fullName(p))}" />` : ''}<span style="position:relative;z-index:1;">${ini}</span></div>`;
+    };
+
+    el.innerHTML = `
+      <div class="aix-page">
+
+        <!-- Brand bar + 1) Executive Intelligence Dashboard -->
+        <div class="aix-card">
+          <div class="aix-brand">
+            <div class="aix-brand-logo">★ FC FAMILISTA · AI EXECUTIVE CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="aix-pill"><span class="aix-dot"></span>AI EXECUTIVE LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:22px;display:grid;grid-template-columns:280px 1fr;gap:22px;align-items:center;">
+            <div style="text-align:center;padding:22px 12px;border-radius:16px;background:radial-gradient(circle at 50% 35%,rgba(251,191,36,0.28),rgba(74,222,128,0.10) 50%,transparent 75%);border:1px solid rgba(251,191,36,0.40);">
+              <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:8px;">AI Executive Score</div>
+              <div style="font-size:72px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 30px ${band.color};">${score}</div>
+              <div style="font-size:12px;font-weight:900;letter-spacing:1.8px;color:${band.color};text-transform:uppercase;margin-top:10px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:#FBBF24;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px;">Composite KPIs</div>
+              ${kpis.map(k => `
+                <div style="margin-bottom:9px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${k.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(k.v)};">${k.v}/100</span>
+                  </div>
+                  <div class="aix-bar"><div class="aix-bar-fill" style="width:${Math.max(0, Math.min(100, k.v))}%;background:${colorFor(k.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Critical Risks | Immediate Priorities | Executive Opportunities -->
+        <div class="aix-grid-3">
+
+          <!-- 2) Critical Risks -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Critical Risks</div>
+            ${risks.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No risks — every department reporting green.</div>`
+              : risks.map(r => `
+                <div class="aix-alert" style="border-left-color:${sevColor(r.severity)};">
+                  <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                      <span class="aix-mini-pill" style="color:${sevColor(r.severity)};background:${sevBg(r.severity)};">${r.severity}</span>
+                      <span style="font-size:9px;color:var(--tx-3);font-weight:800;letter-spacing:.8px;">${r.source}</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(r.kind)}</div>
+                    <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(r.text)}</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 3) Immediate Priorities -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Immediate Priorities · Top 10</div>
+            ${priorities.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No immediate priorities — programme on track.</div>`
+              : priorities.map((p, i) => `
+                <div class="aix-row" style="padding:6px 0;align-items:flex-start;">
+                  <div class="aix-rank-num">${i + 1}</div>
+                  <span style="font-size:13px;line-height:1.2;flex-shrink:0;">${p.icon}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.label)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);">${p.source}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:10px;font-weight:900;font-family:var(--mono);color:${colorFor(p.impact)};">${p.impact}</div>
+                    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">IMP</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:10px;font-weight:900;font-family:var(--mono);color:${colorFor(p.urgency)};">${p.urgency}</div>
+                    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">URG</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 4) Executive Opportunities -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Executive Opportunities</div>
+            ${opps.map(o => `
+              <div class="aix-alert" style="border-left-color:${o.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${o.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${o.color};text-transform:uppercase;margin-bottom:2px;">${_esc(o.kind)}</div>
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(o.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(o.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Promotion Candidates | Transfer Recommendations -->
+        <div class="aix-grid-2">
+
+          <!-- 5) Promotion Candidates -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Promotion Candidates</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+              <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(74,222,128,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${promos.READY_NOW.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">READY NOW</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(251,191,36,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#FBBF24;">${promos.READY_SOON.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">READY SOON</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(96,165,250,0.08);">
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${promos.LONG_TERM.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">LONG TERM</div>
+              </div>
+            </div>
+            ${(promos.READY_NOW.length + promos.READY_SOON.length + promos.LONG_TERM.length) === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);padding:4px 0;">No academy candidates currently meeting promotion criteria.</div>`
+              : ['READY_NOW','READY_SOON','LONG_TERM'].map(bucket => {
+                  const arr = promos[bucket] || [];
+                  if (!arr.length) return '';
+                  const bcol = bucket === 'READY_NOW' ? 'var(--green-l)' : bucket === 'READY_SOON' ? '#FBBF24' : '#60A5FA';
+                  return arr.slice(0, 2).map(x => `
+                    <div class="aix-row" style="padding:5px 0;">
+                      ${miniAv(x.p)}
+                      <div style="flex:1;min-width:0;">
+                        <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(x.p))}</div>
+                        <div style="font-size:9px;color:var(--tx-3);">${_esc(x.p.position || '—')} · ovr ${x.ovr} · pot ${x.pot}</div>
+                      </div>
+                      <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:${bcol};">${x.composite}</div>
+                    </div>`).join('');
+                }).join('')}
+          </div>
+
+          <!-- 6) Transfer Recommendations -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Transfer Recommendations</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+              ${[
+                { key:'BUY',     lbl:'Buy',     col:'var(--green-l)', icon:'➕' },
+                { key:'SELL',    lbl:'Sell',    col:'var(--red)',      icon:'💰' },
+                { key:'LOAN',    lbl:'Loan',    col:'#A78BFA',          icon:'📨' },
+                { key:'MONITOR', lbl:'Monitor', col:'#FBBF24',          icon:'👁️' },
+              ].map(b => {
+                const arr = tDecisions[b.key] || [];
+                return `
+                  <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid rgba(251,191,36,0.18);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                      <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:${b.col};">${b.icon} ${b.lbl}</div>
+                      <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${b.col};">${arr.length}</div>
+                    </div>
+                    ${arr.length === 0
+                      ? `<div style="font-size:10px;color:var(--tx-3);">None.</div>`
+                      : arr.slice(0, 3).map(x => {
+                          const p = x.p;
+                          const lblBit = b.key === 'BUY'
+                            ? `<div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(x.profile || (x.key || '') + ' target')}</div>
+                               <div style="font-size:9px;color:var(--tx-3);">${x.urgency || 'PRIORITY'} · ${_fiFmtMoney(x.cost || 0)}</div>`
+                            : `<div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(fullName(p))}</div>
+                               <div style="font-size:9px;color:var(--tx-3);">${b.key === 'SELL' ? (x.reason || 'flagged') + ' · ' + _fiFmtMoney(x.value || 0) : b.key === 'LOAN' ? 'age ' + (x.age || '—') + ' · dev ' + (x.dev || 0) : 'ovr ' + (x.ovr || 0) + ' · form ' + (x.form || 0)}</div>`;
+                          return `<div class="aix-row" style="padding:4px 0;">${b.key === 'BUY' ? `<span style="font-size:14px;flex-shrink:0;">${b.icon}</span>` : miniAv(p)}
+                            <div style="flex:1;min-width:0;">${lblBit}</div>
+                          </div>`;
+                        }).join('')}
+                  </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Injury & Availability Forecast | Squad Sustainability -->
+        <div class="aix-grid-2">
+
+          <!-- 7) Injury & Availability Forecast -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Injury & Availability Forecast</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Forward Risk</div>
+                <div style="font-size:22px;font-weight:900;letter-spacing:1.4px;color:${forecast.risk.color};margin-top:4px;">${forecast.risk.lvl}</div>
+              </div>
+              <span class="aix-mini-pill" style="color:${forecast.risk.color};background:${forecast.risk.lvl === 'HIGH' ? 'rgba(239,68,68,0.16)' : forecast.risk.lvl === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(74,222,128,0.16)'};">FORECAST</span>
+            </div>
+            <div style="font-size:11px;color:var(--tx);line-height:1.55;margin-bottom:12px;">${_esc(forecast.risk.text)}</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(74,222,128,0.08);">
+                <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${forecast.med.buckets.AVAILABLE}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">AVAIL</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(251,191,36,0.08);">
+                <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#FBBF24;">${forecast.med.buckets.QUESTIONABLE}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">QUEST</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(96,165,250,0.08);">
+                <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${forecast.med.buckets.RECOVERY}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">RECOV</div>
+              </div>
+              <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(239,68,68,0.08);">
+                <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--red);">${forecast.med.buckets.INJURED}</div>
+                <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);">INJURED</div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-3);margin-top:8px;">
+              <span>Avg condition: <span style="color:var(--tx);font-weight:700;">${forecast.med.avgCond}%</span></span>
+              <span>Avg fatigue: <span style="color:var(--tx);font-weight:700;">${forecast.med.avgFat}/100</span></span>
+              <span>Overload: <span style="color:${forecast.ovrldHigh > 0 ? 'var(--red)' : 'var(--green-l)'};font-weight:700;">${forecast.ovrldHigh}</span></span>
+            </div>
+          </div>
+
+          <!-- 8) Squad Sustainability -->
+          <div class="aix-tile">
+            <div class="aix-tile-lbl">Squad Sustainability</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Composite</div>
+                <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:${colorFor(sustain.composite)};line-height:1;margin-top:4px;">${sustain.composite}/100</div>
+              </div>
+              <span class="aix-mini-pill" style="color:${colorFor(sustain.composite)};background:rgba(251,191,36,0.16);">${sustain.composite >= 75 ? 'STRONG' : sustain.composite >= 55 ? 'WATCH' : 'STRETCHED'}</span>
+            </div>
+            ${[
+              { lbl:'Age Balance',         val: sustain.lifecycle.balance, sub:`Y ${sustain.lifecycle.young.count}/${sustain.lifecycle.young.pct}% · P ${sustain.lifecycle.prime.count}/${sustain.lifecycle.prime.pct}% · V ${sustain.lifecycle.veteran.count}/${sustain.lifecycle.veteran.pct}%` },
+              { lbl:'Succession Readiness',val: sustain.succession.score,  sub:`${sustain.succession.covered}/${sustain.succession.total} successors mapped` },
+              { lbl:'Academy Pipeline',    val: sustain.academy.score,     sub:`${sustain.academy.count} players · avg pot ${sustain.academy.avgPot}` },
+            ].map(s => `
+              <div style="margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--tx);margin-bottom:3px;">
+                  <span style="font-weight:700;">${s.lbl}</span>
+                  <span style="font-family:var(--mono);font-weight:800;color:${colorFor(s.val)};">${s.val}/100</span>
+                </div>
+                <div class="aix-bar"><div class="aix-bar-fill" style="width:${Math.max(0, Math.min(100, s.val))}%;background:${colorFor(s.val)};"></div></div>
+                <div style="font-size:9px;color:var(--tx-3);margin-top:3px;">${_esc(s.sub)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 9) AI Executive Action Plan -->
+        <div class="aix-card" style="padding:18px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:#FBBF24;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px;">AI Executive Action Plan</div>
+          <div class="aix-plan-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+            <div>#</div><div>ACTION</div><div style="text-align:right;">IMPACT</div><div style="text-align:right;">URGENCY</div><div style="text-align:right;">OWNER</div><div style="text-align:right;">SOURCE</div>
+          </div>
+          ${plan.length === 0
+            ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No executive actions queued — programme aligned.</div>`
+            : plan.map((p, i) => `
+              <div class="aix-plan-row">
+                <div class="aix-rank-num">${i + 1}</div>
+                <div style="display:flex;gap:7px;align-items:flex-start;min-width:0;">
+                  <span style="font-size:13px;flex-shrink:0;">${p.icon}</span>
+                  <div style="min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.label)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${_esc((p.detail || '').slice(0, 110))}</div>
+                  </div>
+                </div>
+                <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(p.impact)};">${p.impact}</div>
+                <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(p.urgency)};">${p.urgency}</div>
+                <div style="text-align:right;font-size:10px;color:var(--tx);font-weight:700;">${_esc(p.owner)}</div>
+                <div style="text-align:right;font-size:9px;color:var(--tx-3);letter-spacing:.8px;font-weight:800;">${_esc(p.source)}</div>
+              </div>`).join('')}
+        </div>
+
+        <!-- 10) Strategic Roadmap -->
+        <div class="aix-card" style="padding:18px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:#FBBF24;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px;">Strategic Roadmap</div>
+          <div class="aix-grid-3">
+            ${[
+              { key:'now',   lbl:'Now',   col:'var(--red)',    list: roadmap.now },
+              { key:'next',  lbl:'Next',  col:'#FBBF24',        list: roadmap.next },
+              { key:'later', lbl:'Later', col:'#60A5FA',         list: roadmap.later },
+            ].map(s => `
+              <div class="aix-tile" style="padding:14px;">
+                <div style="font-size:10px;font-weight:900;letter-spacing:1.4px;text-transform:uppercase;color:${s.col};margin-bottom:8px;">${s.lbl}</div>
+                ${s.list.length === 0
+                  ? `<div style="font-size:10.5px;color:var(--tx-3);">No items in horizon.</div>`
+                  : s.list.map((it, i) => `<div style="font-size:11px;color:var(--tx);line-height:1.6;margin-bottom:6px;display:flex;gap:6px;"><span style="color:var(--tx-3);font-family:var(--mono);">${i + 1}.</span><span>${_esc(it)}</span></div>`).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 11) Executive Summary Banner -->
+        <div class="aix-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+            <span style="font-size:18px;">🧠</span>
+            <div style="font-size:12px;font-weight:900;color:#FBBF24;letter-spacing:1.8px;text-transform:uppercase;">AI Executive Summary</div>
+          </div>
+          <div style="font-size:14px;color:var(--tx);line-height:1.8;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-executive-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Executive Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -18560,6 +19204,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ownership-center"]')) {
     setTimeout(function () { try { renderOwnershipCenter(); } catch (err) { try { console.error('[ownership-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-executive-center"]')) {
+    setTimeout(function () { try { renderAIExecutiveCenter(); } catch (err) { try { console.error('[ai-executive-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
