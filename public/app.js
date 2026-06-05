@@ -727,6 +727,25 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
   }
 })();
 
+// ─── Deep Space Neural Network theme activation ────────────────────────
+// Activates the FOS visual theme on <body>. Pure additive CSS overlay —
+// no logic changes. Sets the deep space background, neural particle
+// layer, glassmorphism on sidebar/top bar, and animated tenant status.
+(function () {
+  function applyTheme() {
+    try {
+      if (document.body && !document.body.classList.contains('fos-neural-theme')) {
+        document.body.classList.add('fos-neural-theme');
+      }
+    } catch (_) {}
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyTheme);
+  } else {
+    applyTheme();
+  }
+})();
+
 /**
  * Set by a guarded render that had to skip because isFormEditing() was true.
  * Flushed automatically by the modal observer the instant editing ends, so the

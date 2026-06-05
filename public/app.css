@@ -1734,4 +1734,274 @@ body:has(.modal-bg.open) .content {
   will-change: auto !important;
 }
 /* ════════════════════════════════════════════════════════════════════ */
+
+/* ════════════════════════════════════════════════════════════════════
+   DEEP SPACE NEURAL NETWORK THEME — additive overlay
+   Activated on <body class="fos-neural-theme">. Non-destructive.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fos-bg:        #050816;
+  --fos-bg-soft:   #0a0f24;
+  --fos-primary:   #00F5FF;
+  --fos-secondary: #A855F7;
+  --fos-accent:    #FBBF24;
+  --fos-glass:     rgba(10, 15, 36, 0.55);
+  --fos-glass-bd:  rgba(0, 245, 255, 0.18);
+}
+
+/* Body backdrop — deep space gradient + radial nebula */
+body.fos-neural-theme{
+  background:
+    radial-gradient(ellipse at 18% 25%, rgba(0,245,255,0.10), transparent 55%),
+    radial-gradient(ellipse at 82% 70%, rgba(168,85,247,0.12), transparent 55%),
+    radial-gradient(ellipse at 50% 95%, rgba(251,191,36,0.08), transparent 60%),
+    linear-gradient(160deg, var(--fos-bg) 0%, var(--fos-bg-soft) 50%, var(--fos-bg) 100%) !important;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Animated neural particle layer behind everything (fixed) */
+body.fos-neural-theme::before{
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 6%  12%, rgba(0,245,255,0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 14% 78%, rgba(168,85,247,0.55), transparent 60%),
+    radial-gradient(2px   2px   at 27% 42%, rgba(251,191,36,0.50), transparent 60%),
+    radial-gradient(1.5px 1.5px at 38% 18%, rgba(0,245,255,0.50), transparent 60%),
+    radial-gradient(1.5px 1.5px at 49% 88%, rgba(168,85,247,0.45), transparent 60%),
+    radial-gradient(2px   2px   at 58% 35%, rgba(0,245,255,0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 66% 72%, rgba(251,191,36,0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 74% 22%, rgba(168,85,247,0.55), transparent 60%),
+    radial-gradient(2px   2px   at 81% 58%, rgba(0,245,255,0.50), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 84%, rgba(251,191,36,0.50), transparent 60%),
+    radial-gradient(1.5px 1.5px at 94% 30%, rgba(168,85,247,0.55), transparent 60%);
+  animation: fosNeuralDrift 14s ease-in-out infinite alternate;
+  opacity: .85;
+}
+
+/* Floating connection layer — soft gradient lines + slow drift */
+body.fos-neural-theme::after{
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(115deg, transparent 30%, rgba(0,245,255,0.04) 50%, transparent 70%),
+    linear-gradient(245deg, transparent 30%, rgba(168,85,247,0.04) 50%, transparent 70%),
+    linear-gradient(35deg,  transparent 35%, rgba(251,191,36,0.025) 55%, transparent 75%);
+  animation: fosConnectionDrift 24s ease-in-out infinite alternate;
+}
+
+@keyframes fosNeuralDrift{
+  0%   { transform: translateY(0)    translateX(0);    opacity: .80; }
+  50%  { transform: translateY(-4px) translateX(2px);  opacity: 1; }
+  100% { transform: translateY(2px)  translateX(-3px); opacity: .85; }
+}
+@keyframes fosConnectionDrift{
+  0%   { transform: translateX(0)    rotate(0deg);    opacity: .6; }
+  100% { transform: translateX(-2px) rotate(0.5deg);  opacity: .85; }
+}
+
+/* Sit content above the particle layers */
+body.fos-neural-theme .sidebar,
+body.fos-neural-theme .content,
+body.fos-neural-theme .main-content,
+body.fos-neural-theme .topbar,
+body.fos-neural-theme .auth-overlay,
+body.fos-neural-theme .modal-bg{
+  position: relative;
+  z-index: 1;
+}
+
+/* Glassmorphism for sidebar, top bar and key surfaces */
+body.fos-neural-theme .sidebar{
+  background:
+    linear-gradient(180deg, rgba(10,15,36,0.62) 0%, rgba(5,8,22,0.78) 100%) !important;
+  border-right: 1px solid var(--fos-glass-bd) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 0 40px -10px rgba(0,245,255,0.22), 0 0 80px -20px rgba(168,85,247,0.18);
+}
+body.fos-neural-theme .topbar{
+  background: rgba(10,15,36,0.55) !important;
+  border-bottom: 1px solid var(--fos-glass-bd) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+body.fos-neural-theme .card,
+body.fos-neural-theme .modal{
+  background: var(--fos-glass) !important;
+  border: 1px solid var(--fos-glass-bd) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 12px 40px -16px rgba(0,0,0,0.7), 0 0 24px -10px rgba(0,245,255,0.20);
+}
+
+/* Active nav item — primary cyan accent + faint holographic glow */
+body.fos-neural-theme .nav-item.active{
+  background: linear-gradient(90deg, rgba(0,245,255,0.18), rgba(168,85,247,0.10)) !important;
+  color: var(--fos-primary) !important;
+  border-color: rgba(0,245,255,0.32) !important;
+  box-shadow: 0 0 18px -4px rgba(0,245,255,0.40), inset 0 0 14px -8px rgba(0,245,255,0.30);
+}
+body.fos-neural-theme .nav-item.active::before{
+  background: linear-gradient(180deg, var(--fos-primary), var(--fos-secondary)) !important;
+  box-shadow: 0 0 8px var(--fos-primary);
+}
+body.fos-neural-theme .nav-item:hover{
+  background: rgba(0,245,255,0.05);
+  color: var(--tx);
+}
+
+/* Tier headers — keep gold/cyan/violet but add inner glow shadow */
+body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(1){
+  background: linear-gradient(90deg, rgba(251,191,36,0.10), transparent 80%);
+}
+body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(2){
+  background: linear-gradient(90deg, rgba(0,245,255,0.10), transparent 80%);
+}
+body.fos-neural-theme .sidebar-nav > .nav-section:nth-of-type(3){
+  background: linear-gradient(90deg, rgba(168,85,247,0.12), transparent 80%);
+}
+
+/* Holographic card helper — for opt-in elements */
+.fos-holo-card{
+  position: relative;
+  background: linear-gradient(135deg, rgba(0,245,255,0.06), rgba(168,85,247,0.06));
+  border: 1px solid rgba(0,245,255,0.28);
+  border-radius: 16px;
+  padding: 18px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 14px 40px -16px rgba(0,0,0,0.6),
+    0 0 30px -10px rgba(0,245,255,0.34),
+    0 0 24px -10px rgba(168,85,247,0.26);
+  overflow: hidden;
+}
+.fos-holo-card::before{
+  content: '';
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(from 0deg,
+    transparent 0%, rgba(0,245,255,0.22) 12%,
+    transparent 24%, rgba(168,85,247,0.22) 38%,
+    transparent 52%, rgba(251,191,36,0.18) 66%,
+    transparent 78%, rgba(0,245,255,0.22) 92%,
+    transparent 100%);
+  animation: fosHoloSweep 8s linear infinite;
+  pointer-events: none;
+  opacity: 0.30;
+}
+.fos-holo-card > *{ position: relative; z-index: 1; }
+@keyframes fosHoloSweep{
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Live AI pulse indicator — drop on any element with .fos-ai-pulse */
+.fos-ai-pulse{
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--fos-primary);
+  text-shadow: 0 0 10px rgba(0,245,255,0.55);
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0,245,255,0.18), rgba(168,85,247,0.16));
+  border: 1px solid rgba(0,245,255,0.40);
+}
+.fos-ai-pulse::before{
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #DBFEFF, var(--fos-primary));
+  box-shadow:
+    0 0 8px var(--fos-primary),
+    0 0 14px rgba(0,245,255,0.6),
+    0 0 22px rgba(168,85,247,0.4);
+  animation: fosAIPulse 1.2s ease-in-out infinite;
+}
+@keyframes fosAIPulse{
+  0%, 100% { transform: scale(0.92); opacity: 0.7; box-shadow: 0 0 6px var(--fos-primary); }
+  50%      { transform: scale(1.18); opacity: 1;   box-shadow: 0 0 14px var(--fos-primary), 0 0 22px rgba(168,85,247,0.6); }
+}
+
+/* Animated tenant status (FC Familista ACTIVE) — upgrade existing badge */
+body.fos-neural-theme .tenant-active-badge{
+  background:
+    linear-gradient(90deg, rgba(0,245,255,0.20), rgba(34,211,154,0.30), rgba(168,85,247,0.20)) !important;
+  background-size: 200% 100% !important;
+  color: #DBFEFF !important;
+  border-color: rgba(0,245,255,0.50) !important;
+  text-shadow: 0 0 8px rgba(0,245,255,0.65) !important;
+  box-shadow:
+    0 0 12px rgba(0,245,255,0.55),
+    0 0 22px rgba(168,85,247,0.35),
+    inset 0 0 8px rgba(0,245,255,0.25) !important;
+  animation: fosTenantStatus 3s ease-in-out infinite, fosTenantSweep 4.5s linear infinite !important;
+}
+@keyframes fosTenantStatus{
+  0%, 100% { box-shadow: 0 0 10px rgba(0,245,255,0.40), 0 0 18px rgba(168,85,247,0.28); transform: scale(1); }
+  50%      { box-shadow: 0 0 18px rgba(0,245,255,0.75), 0 0 30px rgba(168,85,247,0.50); transform: scale(1.03); }
+}
+@keyframes fosTenantSweep{
+  0%   { background-position: 0%   0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* Tenant placeholder hover — add neural shimmer on hover */
+body.fos-neural-theme .nav-tenant-placeholder:hover{
+  background: linear-gradient(90deg, rgba(168,85,247,0.08), rgba(0,245,255,0.05)) !important;
+  border-left-color: rgba(168,85,247,0.60) !important;
+  box-shadow: inset 0 0 12px -4px rgba(168,85,247,0.25);
+}
+
+/* Section heading text shadow — make tier headers feel holographic */
+body.fos-neural-theme .nav-section{
+  background-clip: padding-box;
+}
+
+/* Optional: live data stream helper class */
+.fos-stream-line{
+  position: relative;
+  overflow: hidden;
+}
+.fos-stream-line::after{
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0,245,255,0.18), transparent);
+  animation: fosStreamSweep 2.4s linear infinite;
+}
+@keyframes fosStreamSweep{
+  0%   { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Reduced motion — calm everything down */
+@media (prefers-reduced-motion: reduce){
+  body.fos-neural-theme::before,
+  body.fos-neural-theme::after,
+  .fos-holo-card::before,
+  .fos-ai-pulse::before,
+  body.fos-neural-theme .tenant-active-badge,
+  .fos-stream-line::after{
+    animation: none !important;
+  }
+}
 
