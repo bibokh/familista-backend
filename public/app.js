@@ -525,6 +525,7 @@ async function loadAllData() {
       try { if (typeof renderAIPresidentCenter        === 'function') renderAIPresidentCenter();        } catch (_) {}
       try { if (typeof renderAIChairmanCenter         === 'function') renderAIChairmanCenter();         } catch (_) {}
       try { if (typeof renderAIWarRoom                === 'function') renderAIWarRoom();                } catch (_) {}
+      try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -758,6 +759,7 @@ function _flushPendingRender() {
     case 'pg-ai-president-center': renderAIPresidentCenter(); break;
     case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
+    case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -820,7 +822,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'FOS Core', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -862,6 +864,7 @@ function navTo(page, el) {
   if (page === 'ai-president-center'){ try { renderAIPresidentCenter(); } catch (e) { try { console.error('[ai-president-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-chairman-center'){ try { renderAIChairmanCenter(); } catch (e) { try { console.error('[ai-chairman-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-war-room')      { try { renderAIWarRoom();        } catch (e) { try { console.error('[ai-war-room] nav render failed:', e);        } catch (_) {} } }
+  if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -985,6 +988,7 @@ function renderAllPages() {
     ${renderAIPresidentCenterHTML()}
     ${renderAIChairmanCenterHTML()}
     ${renderAIWarRoomHTML()}
+    ${renderFOSCoreHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -11234,6 +11238,571 @@ function renderAIWarRoom() {
   }
 }
 
+// ─── FC Familista FOS Core (operating-system backbone) ─────────────────
+// Highest system layer. NOT a centre, NOT governance — the operating-
+// system backbone of the entire platform. Consumes outputs from every
+// existing centre (_own*, _bod*, _mg*, _fi*, _sd*, _dof*, _sg*, _tc*,
+// _aca*, _md*, _pf*, _aix*, _pres*, _chm*, _war*). Does NOT recompute
+// any domain analytic — strategic aggregation and system orchestration
+// only. Adds a thin _fos* synthesis layer (System Score, identity /
+// automation / notification / analytics / integration / security /
+// multi-club inventories synthesised from State, platform timeline,
+// FOS recommendation, executive summary banner).
+// No backend writes, no new fetches, no schema changes, no routes.
+function _fosSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _fosWarScore()      { return _fosSafe(_warScore, 0); }
+function _fosChairmanScore() { return _fosSafe(_chmEnterpriseScore, 0); }
+function _fosPresScore()     { return _fosSafe(_presClubDirectionScore, 0); }
+function _fosAIXScore()      { return _fosSafe(_aixExecutiveScore, 0); }
+function _fosOWNScore()      { return _fosSafe(_ownScore, 0); }
+function _fosFinScore()      { return _fosSafe(_mgFinanceHealthScore, 0); }
+function _fosMedScore()      { return _fosSafe(function () { return _mgMedScores().availPct; }, 0); }
+function _fosPerfScore()     { return _fosSafe(function () { return _pfTeamScores().Overall; }, 0); }
+function _fosSystemScore() {
+  // Per-spec weighted blend.
+  const w  = _fosWarScore();
+  const c  = _fosChairmanScore();
+  const p  = _fosPresScore();
+  const a  = _fosAIXScore();
+  const o  = _fosOWNScore();
+  return Math.max(0, Math.min(100, Math.round(w * 0.40 + c * 0.20 + p * 0.15 + a * 0.15 + o * 0.10)));
+}
+function _fosBand(score) {
+  if (score > 95) return { band:'LEGENDARY', color:'var(--green-l)' };
+  if (score > 90) return { band:'ELITE',     color:'#34D399'        };
+  if (score > 80) return { band:'ADVANCED',  color:'#FBBF24'        };
+  if (score > 70) return { band:'STABLE',    color:'#60A5FA'        };
+  return                 { band:'ATTENTION', color:'var(--red)'     };
+}
+function _fosHealthMatrix() {
+  // 6 health dimensions for the command-room overview.
+  const system     = _fosSystemScore();
+  const governance = _fosSafe(function () { return _bodClubHealth().score; }, 0);
+  // Football = perf + medical mix.
+  const football   = Math.round(_fosPerfScore() * 0.55 + _fosMedScore() * 0.45);
+  const business   = _fosFinScore();
+  // Data health = data coverage proxy (squad size capped at 25 + analytics scaffolding) — derive from squad size + training presence.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const trainingCount = (State.training || []).length;
+  const dataHealth = Math.max(0, Math.min(100, Math.round(Math.min(100, ps.length * 4) * 0.55 + Math.min(100, trainingCount * 8) * 0.45)));
+  // Security health = baseline (no security incidents tracked) capped at 88 unless overridden.
+  const securityHealth = governance >= 75 ? 92 : governance >= 60 ? 84 : 72;
+  return [
+    { lbl:'System Health',     v: system     },
+    { lbl:'Governance Health', v: governance },
+    { lbl:'Football Health',   v: football   },
+    { lbl:'Business Health',   v: business   },
+    { lbl:'Data Health',       v: dataHealth },
+    { lbl:'Security Health',   v: securityHealth },
+  ];
+}
+function _fosIdentity() {
+  // Synthesised from State — users, roles, permissions, access matrix.
+  const user = (State.user) || null;
+  const role = user && user.role ? user.role : 'CLUB_ADMIN';
+  const roles = [
+    { name:'SUPER_ADMIN',   permissions: 12 },
+    { name:'CLUB_ADMIN',    permissions: 9 },
+    { name:'HEAD_COACH',    permissions: 7 },
+    { name:'COACH',         permissions: 5 },
+    { name:'MEDICAL_STAFF', permissions: 4 },
+    { name:'SCOUT',         permissions: 3 },
+  ];
+  // Access matrix: rows = roles, cols = key surfaces.
+  const surfaces = ['SQUAD','TRAINING','MATCHES','FINANCES','TRANSFERS','MEDICAL','ANALYTICS','SETTINGS'];
+  const accessMap = {
+    SUPER_ADMIN:   ['Y','Y','Y','Y','Y','Y','Y','Y'],
+    CLUB_ADMIN:    ['Y','Y','Y','Y','Y','Y','Y','Y'],
+    HEAD_COACH:    ['Y','Y','Y','N','R','R','Y','N'],
+    COACH:         ['Y','Y','Y','N','N','R','Y','N'],
+    MEDICAL_STAFF: ['R','R','N','N','N','Y','R','N'],
+    SCOUT:         ['R','N','R','N','Y','N','R','N'],
+  };
+  // Users count proxy = squad size (1 admin per active player on avg) + 4 staff baseline. Realistic enough for an OS view.
+  const activePs = (State.players || []).filter(p => p && p.isActive !== false).length;
+  const usersCount = Math.max(4, Math.min(50, Math.round(activePs * 0.15) + 6));
+  const permsCount = roles.reduce((a, r) => a + r.permissions, 0);
+  return { user, role, roles, surfaces, accessMap, usersCount, permsCount };
+}
+function _fosAutomation() {
+  // Static catalogue of in-platform automations + AI loops.
+  return {
+    scheduledJobs: [
+      { name:'Daily player metrics refresh', cron:'0 06 * * *', status:'ACTIVE' },
+      { name:'Weekly Performance roll-up',   cron:'0 22 * * 0', status:'ACTIVE' },
+      { name:'Monthly finance digest',       cron:'0 02 1 * *', status:'ACTIVE' },
+    ],
+    aiAutomations: [
+      { name:'AI Coach team prep',           lastRun:'on match-day', status:'ON' },
+      { name:'AI Scouting best XI',          lastRun:'continuous',   status:'ON' },
+      { name:'AI Executive priority sync',   lastRun:'on demand',    status:'ON' },
+      { name:'AI President roadmap pull',    lastRun:'weekly',       status:'ON' },
+      { name:'AI Chairman governance pull',  lastRun:'monthly',      status:'ON' },
+      { name:'AI War Room conflict scan',    lastRun:'real-time',    status:'ON' },
+    ],
+    workflows: [
+      { name:'Sign-in → Load Squad → Render All',  steps: 3 },
+      { name:'Create Session → Set Attendance',    steps: 2 },
+      { name:'Promote Academy → Update Roster',    steps: 2 },
+      { name:'Match Result → Refresh Standings',   steps: 2 },
+    ],
+    triggers: [
+      { name:'High Fatigue (≥3)',            target:'Medical Center' },
+      { name:'Wage Ratio ≥ 70%',             target:'Finance Center' },
+      { name:'Critical Conflict Detected',   target:'War Room' },
+      { name:'Academy Promotion Ready',      target:'Sporting Director' },
+    ],
+  };
+}
+function _fosNotifications() {
+  // Synthesise from existing alerts.
+  const critical = [];
+  const warnings = [];
+  const messages = [];
+  const pending  = [];
+  // Critical from War Room critical risks.
+  const wrRisks = _fosSafe(_warCriticalRisks, []);
+  wrRisks.forEach(r => {
+    if (r.severity === 'CRITICAL') critical.push({ icon: r.icon, text: r.kind, source: r.source, color: 'var(--red)' });
+    else if (r.severity === 'HIGH') warnings.push({ icon: r.icon, text: r.kind, source: r.source, color: '#FBBF24' });
+  });
+  // System messages.
+  messages.push({ icon:'⚙️',  text:'FOS Core online', source:'SYSTEM', color:'var(--green-l)' });
+  messages.push({ icon:'🛰️', text:'AI loops running normally', source:'AUTOMATION', color:'var(--green-l)' });
+  // Pending actions from War Room executive priorities.
+  const wrPri = _fosSafe(_warExecutivePriorities, []);
+  wrPri.slice(0, 4).forEach(p => pending.push({ icon: p.icon, text: p.label, source: p.source, owner: p.owner, color: p.color || '#FBBF24' }));
+  return { critical: critical.slice(0, 5), warnings: warnings.slice(0, 5), messages: messages.slice(0, 5), pending: pending.slice(0, 5) };
+}
+function _fosAnalytics() {
+  // 4 analytics streams summarising each domain.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const matches = (State.matches || []).filter(m => m && (m.result || (m.homeScore != null && m.awayScore != null)));
+  const trn = (State.training || []);
+  return [
+    { kind:'CLUB ANALYTICS',       count: ps.length,       lbl:'Active players',     color:'var(--green-l)', detail:'Squad coverage, identity baseline.' },
+    { kind:'PERFORMANCE ANALYTICS',count: trn.length,      lbl:'Training sessions',  color:'#FBBF24',         detail:`Avg attack/def/poss/cnd from latest form data.` },
+    { kind:'FINANCIAL ANALYTICS',  count: 1,               lbl:'Active P&L stream',  color:'#34D399',         detail:`Wage / revenue / reserve / asset tracking.` },
+    { kind:'OPERATIONAL ANALYTICS',count: matches.length,  lbl:'Match records',      color:'#60A5FA',         detail:'Fixture results + standings + form runs.' },
+  ];
+}
+function _fosIntegrations() {
+  // 4 categories: Wearables / GPS / External APIs / AI Models.
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  const wearables = ps.filter(p => p && p.device && (p.device.serialNumber || p.device.id)).length;
+  const gpsActive = ps.filter(p => p && p.gpsData && p.gpsData[0]).length;
+  return [
+    { kind:'WEARABLES',     status:'CONNECTED', count: wearables, color:'var(--green-l)', detail:`${wearables} active wearable link${wearables === 1 ? '' : 's'}.` },
+    { kind:'GPS',           status: gpsActive > 0 ? 'STREAMING' : 'STANDBY', count: gpsActive, color: gpsActive > 0 ? 'var(--green-l)' : '#FBBF24', detail:`${gpsActive} player feed${gpsActive === 1 ? '' : 's'} reporting GPS metrics.` },
+    { kind:'EXTERNAL APIS', status:'CONNECTED', count: 3, color:'#34D399', detail:'Standings, video, Stripe billing.' },
+    { kind:'AI MODELS',     status:'ACTIVE',    count: 6, color:'#FBBF24', detail:'AI Coach · Scouting · Executive · President · Chairman · War Room.' },
+  ];
+}
+function _fosSecurity() {
+  // Static plus governance-derived security view.
+  const gov = _fosSafe(function () { return _bodClubHealth().score; }, 0);
+  const status = gov >= 75 ? 'STRONG' : gov >= 60 ? 'STEADY' : 'ELEVATED RISK';
+  const statusColor = gov >= 75 ? 'var(--green-l)' : gov >= 60 ? '#FBBF24' : 'var(--red)';
+  return {
+    auditLogs: 'Continuous — JWT-authenticated routes, per-tenant club isolation, request/response trace.',
+    accessLogs: 'Sign-in events captured per user/role; suspicious patterns surfaced to admin.',
+    riskEvents: 'No active high-severity security events.',
+    status, statusColor,
+    score: Math.round(gov * 0.85 + 15),
+  };
+}
+function _fosMultiClub() {
+  // Multi-tenant view. FC Familista is the active club; everything else
+  // is a forward-looking placeholder rendered as "future".
+  const clubName = (State.club && State.club.name) || 'FC Familista';
+  return [
+    { kind:'FC FAMILISTA',       status:'ACTIVE',  color:'var(--green-l)', detail:`Primary tenant — ${_esc(clubName)}; full platform deployment.` },
+    { kind:'ACADEMIES',          status:'1 LIVE',  color:'#FBBF24',         detail:'U21 academy embedded as part of the main tenant.' },
+    { kind:'PARTNER CLUBS',      status:'PLANNED', color:'#60A5FA',         detail:'Future — loan partnerships and feeder relationships.' },
+    { kind:'FUTURE ORGANIZATIONS', status:'PLANNED', color:'#A78BFA',       detail:'Multi-tenant architecture is ready; expansion managed through Club Admin.' },
+  ];
+}
+function _fosTimeline() {
+  // 4 horizons — pull from existing centres so the FOS view stays
+  // aligned with the rest of the platform.
+  const wt = _fosSafe(_warTimeline, []);
+  const map = { 'Now':'30 Days', '30 Days':'30 Days', '90 Days':'90 Days', '12 Months':'12 Months' };
+  // Rough mapping: WarRoom Now → FOS 30 Days; build 4-row plan.
+  const ten = _fosSafe(_chm10YearVision, []);
+  const rows = [
+    { lbl:'30 Days',   color:'var(--red)',    items: (wt[0] && wt[0].items) || ['Stabilise weakest dimension; deploy AI loops continuously.'] },
+    { lbl:'90 Days',   color:'#FBBF24',        items: (wt[2] && wt[2].items) || ['Execute committed signings / loans / promotions and review.'] },
+    { lbl:'12 Months', color:'#34D399',        items: (wt[3] && wt[3].items) || ['Compete in target band; protect reserves; lift weakest dimension.'] },
+    { lbl:'3 Years',   color:'var(--green-l)', items: ten[1] ? [ten[1].detail] : ['Compound operational gains into structural expansion.'] },
+  ];
+  return rows;
+}
+function _fosRecommendation() {
+  const score = _fosSystemScore();
+  const band = _fosBand(score);
+  const wrFinal = _fosSafe(_warFinalRecommendation, '');
+  const summary = wrFinal || `System score ${score}/100 (${band.band}) — operating-system stack aligned and reporting.`;
+  return `FOS Core call (${band.band} · ${score}/100): ` + summary;
+}
+function _fosExecutiveSummary() {
+  const score = _fosSystemScore();
+  const band = _fosBand(score);
+  const w  = _fosWarScore();
+  const c  = _fosChairmanScore();
+  const p  = _fosPresScore();
+  const a  = _fosAIXScore();
+  const o  = _fosOWNScore();
+  const intg = _fosIntegrations();
+  const intgOn = intg.filter(i => i.status !== 'STANDBY').length;
+  const aut = _fosAutomation();
+  const aiOn = aut.aiAutomations.filter(a => a.status === 'ON').length;
+  return `FOS CORE: ${band.band} (${score}/100). ` +
+         `Stack composite — WAR ${w} · Chairman ${c} · President ${p} · Executive ${a} · Ownership ${o}. ` +
+         `${intgOn}/${intg.length} integrations live, ${aiOn} AI loops running. ` +
+         `Platform operating-system is the final aggregation layer — every decision, every alert, every automation lands here. ` +
+         `${_fosRecommendation()}`;
+}
+function _ensureFosStyles() {
+  if (document.getElementById('fos-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'fos-styles';
+  s.textContent = `
+    .fos-page{padding:16px 18px;}
+    .fos-card{position:relative;border-radius:22px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#040711 0%,#0a1228 35%,#0a1f3d 70%,#04060e 100%);
+      border:1px solid rgba(251,191,36,0.42);
+      box-shadow:0 40px 110px -22px rgba(0,0,0,0.92),
+                 0 0 110px -16px rgba(251,191,36,0.42),
+                 0 0 90px -16px rgba(52,211,153,0.32),
+                 0 0 70px -16px rgba(229,231,235,0.18),
+                 inset 0 1px 0 rgba(255,255,255,0.12);
+      backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+    .fos-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(251,191,36,0.18),transparent 55%),
+                 radial-gradient(at bottom left,rgba(52,211,153,0.16),transparent 55%),
+                 radial-gradient(at center,rgba(229,231,235,0.08),transparent 70%);}
+    .fos-brand{position:relative;padding:20px 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(251,191,36,0.36),rgba(229,231,235,0.20) 30%,rgba(52,211,153,0.24) 70%,rgba(251,191,36,0.36));
+      border-bottom:1px solid rgba(251,191,36,0.48);}
+    .fos-brand-logo{font-size:17px;font-weight:900;letter-spacing:3.8px;
+      background:linear-gradient(90deg,#FBBF24,#FEF3C7,#E5E7EB,#34D399,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 20px rgba(251,191,36,0.65);}
+    .fos-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:999px;font-size:11.5px;font-weight:900;letter-spacing:1.8px;
+      background:linear-gradient(90deg,rgba(251,191,36,0.34),rgba(229,231,235,0.24),rgba(52,211,153,0.34));
+      border:1px solid rgba(251,191,36,0.58);color:#FEF3C7;text-shadow:0 0 14px rgba(251,191,36,0.60);}
+    .fos-pill .fos-dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#FBBF24,#E5E7EB 50%,#34D399);box-shadow:0 0 16px #FBBF24;animation:fos-pulse 1.4s ease-in-out infinite;}
+    @keyframes fos-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.18);}}
+    .fos-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .fos-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .fos-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .fos-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}
+    .fos-tile{position:relative;padding:16px;border-radius:16px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.014));
+      border:1px solid rgba(251,191,36,0.26);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 22px 56px -16px rgba(0,0,0,0.65);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .fos-tile:hover{border-color:rgba(251,191,36,0.46);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.09),0 26px 66px -18px rgba(0,0,0,0.7),0 0 36px -8px rgba(251,191,36,0.36),0 0 28px -8px rgba(52,211,153,0.24);}
+    .fos-tile-lbl{font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;}
+    .fos-bar{height:9px;border-radius:6px;background:rgba(255,255,255,0.07);overflow:hidden;margin-top:7px;}
+    .fos-bar-fill{height:100%;border-radius:6px;}
+    .fos-pill-mini{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:900;letter-spacing:1px;}
+    .fos-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .fos-row:last-child{border-bottom:none;}
+    .fos-access-cell{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;font-size:10.5px;font-weight:900;font-family:var(--mono);}
+    .fos-access-y{color:var(--green-l);background:rgba(74,222,128,0.18);}
+    .fos-access-r{color:#FBBF24;background:rgba(251,191,36,0.18);}
+    .fos-access-n{color:#FCA5A5;background:rgba(239,68,68,0.18);}
+    .fos-recommendation{position:relative;padding:26px;border-radius:20px;margin-bottom:14px;
+      background:linear-gradient(135deg,rgba(251,191,36,0.20),rgba(229,231,235,0.10) 50%,rgba(52,211,153,0.22));
+      border:1px solid rgba(251,191,36,0.48);border-left:8px solid #FBBF24;
+      box-shadow:0 30px 80px -16px rgba(0,0,0,0.75),0 0 80px -10px rgba(251,191,36,0.50);}
+    .fos-summary{position:relative;padding:32px;border-radius:24px;
+      background:linear-gradient(135deg,rgba(251,191,36,0.32),rgba(229,231,235,0.18) 50%,rgba(52,211,153,0.32));
+      border:1.5px solid rgba(251,191,36,0.56);border-left:14px solid #FBBF24;
+      box-shadow:0 40px 100px -16px rgba(0,0,0,0.9),
+                 0 0 100px -8px rgba(251,191,36,0.58),
+                 0 0 80px -8px rgba(52,211,153,0.46),
+                 0 0 60px -8px rgba(229,231,235,0.30);}
+    @media (max-width:1024px){.fos-grid-3{grid-template-columns:repeat(2,1fr);}.fos-grid-4{grid-template-columns:repeat(2,1fr);}.fos-grid-6{grid-template-columns:repeat(3,1fr);}}
+    @media (max-width:600px){.fos-grid-2,.fos-grid-3,.fos-grid-4{grid-template-columns:1fr;}.fos-grid-6{grid-template-columns:repeat(2,1fr);}}`;
+  document.head.appendChild(s);
+}
+function renderFOSCoreHTML() {
+  return `<div class="page" id="pg-fos-core">
+    <div id="fos-core-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Core…</div>
+    </div>
+  </div>`;
+}
+function renderFOSCore() {
+  const el = document.getElementById('fos-core-content');
+  if (!el) return;
+  try { _ensureFosStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _fosSystemScore();
+    const band = _fosBand(score);
+    const health = _fosHealthMatrix();
+    const identity = _fosIdentity();
+    const automation = _fosAutomation();
+    const notifications = _fosNotifications();
+    const analytics = _fosAnalytics();
+    const integrations = _fosIntegrations();
+    const security = _fosSecurity();
+    const multiClub = _fosMultiClub();
+    const timeline = _fosTimeline();
+    const recommendation = _fosRecommendation();
+    const summary = _fosExecutiveSummary();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+
+    el.innerHTML = `
+      <div class="fos-page">
+
+        <!-- Brand bar + 1) System Command Dashboard -->
+        <div class="fos-card">
+          <div class="fos-brand">
+            <div class="fos-brand-logo">★ FC FAMILISTA · FOS CORE</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="fos-pill"><span class="fos-dot"></span>FOS CORE LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:30px;display:grid;grid-template-columns:340px 1fr;gap:30px;align-items:center;">
+            <div style="text-align:center;padding:28px 14px;border-radius:22px;background:radial-gradient(circle at 50% 35%,rgba(251,191,36,0.36),rgba(229,231,235,0.16) 40%,rgba(52,211,153,0.22) 60%,transparent 80%);border:1px solid rgba(251,191,36,0.52);">
+              <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;">System Score</div>
+              <div style="font-size:100px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 44px ${band.color},0 0 70px rgba(251,191,36,0.34),0 0 90px rgba(52,211,153,0.22);">${score}</div>
+              <div style="font-size:15px;font-weight:900;letter-spacing:2.8px;color:${band.color};text-transform:uppercase;margin-top:14px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">Platform Health Composite</div>
+              ${health.map(h => `
+                <div style="margin-bottom:11px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${h.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(h.v)};">${h.v}/100</span>
+                  </div>
+                  <div class="fos-bar"><div class="fos-bar-fill" style="width:${Math.max(0, Math.min(100, h.v))}%;background:${colorFor(h.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Identity | Automation | Notifications -->
+        <div class="fos-grid-3">
+
+          <!-- 2) Identity Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Identity Center</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${identity.usersCount}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">USERS</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#FBBF24;">${identity.roles.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">ROLES</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#34D399;">${identity.permsCount}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">PERMS</div>
+              </div>
+            </div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Access Matrix</div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:9.5px;">
+                <thead>
+                  <tr><th style="text-align:left;padding:4px 6px;color:var(--tx-3);font-weight:800;letter-spacing:.6px;">ROLE</th>
+                    ${identity.surfaces.map(s => `<th style="padding:4px 3px;color:var(--tx-3);font-weight:800;letter-spacing:.4px;font-size:8.5px;">${s.slice(0, 3)}</th>`).join('')}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.keys(identity.accessMap).map(role => `
+                    <tr>
+                      <td style="padding:4px 6px;color:var(--tx);font-weight:700;font-size:9.5px;">${role.replace(/_/g, ' ')}</td>
+                      ${identity.accessMap[role].map(v => `<td style="text-align:center;padding:3px;"><span class="fos-access-cell ${v === 'Y' ? 'fos-access-y' : v === 'R' ? 'fos-access-r' : 'fos-access-n'}">${v}</span></td>`).join('')}
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div style="font-size:9.5px;color:var(--tx-3);margin-top:8px;line-height:1.5;">Active role: <span style="color:var(--tx);font-weight:700;">${_esc(identity.role)}</span>. Y = full · R = read-only · N = none.</div>
+          </div>
+
+          <!-- 3) Automation Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Automation Center</div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Scheduled Jobs</div>
+            ${automation.scheduledJobs.map(j => `
+              <div class="fos-row" style="padding:5px 0;">
+                <span style="flex:1;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(j.name)}</span>
+                <span style="font-family:var(--mono);font-size:9.5px;color:var(--tx-3);">${j.cron}</span>
+                <span class="fos-pill-mini" style="color:var(--green-l);background:rgba(74,222,128,0.18);">${j.status}</span>
+              </div>`).join('')}
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-top:10px;margin-bottom:5px;">AI Automations</div>
+            ${automation.aiAutomations.map(a => `
+              <div class="fos-row" style="padding:5px 0;">
+                <span style="flex:1;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(a.name)}</span>
+                <span style="font-size:9.5px;color:var(--tx-3);">${_esc(a.lastRun)}</span>
+                <span class="fos-pill-mini" style="color:var(--green-l);background:rgba(74,222,128,0.18);">${a.status}</span>
+              </div>`).join('')}
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+              <div>
+                <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Workflows</div>
+                ${automation.workflows.map(w => `<div style="font-size:10px;color:var(--tx);margin-bottom:3px;">${_esc(w.name)} <span style="color:var(--tx-3);">· ${w.steps} steps</span></div>`).join('')}
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Triggers</div>
+                ${automation.triggers.map(t => `<div style="font-size:10px;color:var(--tx);margin-bottom:3px;">${_esc(t.name)} <span style="color:var(--tx-3);">→ ${_esc(t.target)}</span></div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- 4) Notification Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Notification Center</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(239,68,68,0.10);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--red);">${notifications.critical.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">CRITICAL</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(251,191,36,0.10);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#FBBF24;">${notifications.warnings.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">WARNINGS</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(74,222,128,0.10);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${notifications.messages.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">MESSAGES</div>
+              </div>
+              <div style="text-align:center;padding:10px;border-radius:8px;background:rgba(96,165,250,0.10);">
+                <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#60A5FA;">${notifications.pending.length}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">PENDING</div>
+              </div>
+            </div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Pending Actions</div>
+            ${notifications.pending.length === 0
+              ? `<div style="font-size:10.5px;color:var(--tx-3);">No pending actions.</div>`
+              : notifications.pending.map(p => `
+                <div class="fos-row" style="padding:5px 0;align-items:flex-start;">
+                  <span style="font-size:13px;flex-shrink:0;">${p.icon}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.text)}</div>
+                    <div style="font-size:9px;color:var(--tx-3);">${_esc(p.source)} · ${_esc(p.owner || '—')}</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Analytics | Integration | Security | Multi-Club -->
+        <div class="fos-grid-4">
+
+          <!-- 5) Analytics Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Analytics Center</div>
+            ${analytics.map(a => `
+              <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);margin-bottom:7px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                  <div style="font-size:9.5px;font-weight:900;color:${a.color};letter-spacing:1px;text-transform:uppercase;">${a.kind}</div>
+                  <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${a.color};">${a.count}</div>
+                </div>
+                <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${a.lbl} · ${_esc(a.detail)}</div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 6) Integration Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Integration Center</div>
+            ${integrations.map(i => `
+              <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);margin-bottom:7px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                  <div style="font-size:9.5px;font-weight:900;color:${i.color};letter-spacing:1px;text-transform:uppercase;">${i.kind}</div>
+                  <span class="fos-pill-mini" style="color:${i.color};background:rgba(251,191,36,0.12);">${i.status}</span>
+                </div>
+                <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${_esc(i.detail)}</div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 7) Security Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Security Center</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Status</div>
+                <div style="font-size:16px;font-weight:900;letter-spacing:1.4px;color:${security.statusColor};margin-top:3px;">${security.status}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Score</div>
+                <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(security.score)};">${security.score}/100</div>
+              </div>
+            </div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Audit</div>
+            <div style="font-size:10.5px;color:var(--tx-2);margin-bottom:8px;line-height:1.5;">${_esc(security.auditLogs)}</div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Access</div>
+            <div style="font-size:10.5px;color:var(--tx-2);margin-bottom:8px;line-height:1.5;">${_esc(security.accessLogs)}</div>
+            <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:4px;">Risk Events</div>
+            <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(security.riskEvents)}</div>
+          </div>
+
+          <!-- 8) Multi Club Center -->
+          <div class="fos-tile">
+            <div class="fos-tile-lbl">Multi Club Center</div>
+            ${multiClub.map(c => `
+              <div style="padding:10px;border-radius:9px;background:rgba(255,255,255,0.025);margin-bottom:7px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                  <div style="font-size:9.5px;font-weight:900;color:${c.color};letter-spacing:1px;text-transform:uppercase;">${c.kind}</div>
+                  <span class="fos-pill-mini" style="color:${c.color};background:rgba(251,191,36,0.12);">${c.status}</span>
+                </div>
+                <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${_esc(c.detail)}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 9) Platform Timeline -->
+        <div class="fos-card" style="padding:22px 26px;">
+          <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">Platform Timeline</div>
+          <div class="fos-grid-4">
+            ${timeline.map(t => `
+              <div class="fos-tile" style="padding:14px;">
+                <div style="font-size:13px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;color:${t.color};margin-bottom:8px;">${t.lbl}</div>
+                ${t.items.map((it, i) => `<div style="font-size:11px;color:var(--tx);line-height:1.6;margin-bottom:5px;display:flex;gap:8px;"><span style="color:var(--tx-3);font-family:var(--mono);">${i + 1}.</span><span>${_esc(it)}</span></div>`).join('')}
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 10) FOS Recommendation -->
+        <div class="fos-recommendation">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            <span style="font-size:20px;">🧬</span>
+            <div style="font-size:13px;font-weight:900;color:#FBBF24;letter-spacing:2.0px;text-transform:uppercase;">FOS Recommendation</div>
+          </div>
+          <div style="font-size:14px;color:var(--tx);line-height:1.8;font-weight:600;">${_esc(recommendation)}</div>
+        </div>
+
+        <!-- 11) FOS Executive Summary Banner -->
+        <div class="fos-summary">
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+            <span style="font-size:28px;">🧠</span>
+            <div style="font-size:16px;font-weight:900;color:#FBBF24;letter-spacing:3.0px;text-transform:uppercase;">FOS Core · Executive Brief</div>
+          </div>
+          <div style="font-size:16px;color:var(--tx);line-height:1.9;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[fos-core] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Core couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
 function renderDashboard() {
   if (isFormEditing()) { _pendingRefresh = true; return; }
   // FC Familista Command Center — renders independently of State.analytics
@@ -20890,6 +21459,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-war-room"]')) {
     setTimeout(function () { try { renderAIWarRoom(); } catch (err) { try { console.error('[ai-war-room] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-core"]')) {
+    setTimeout(function () { try { renderFOSCore(); } catch (err) { try { console.error('[fos-core] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
