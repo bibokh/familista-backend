@@ -520,6 +520,7 @@ async function loadAllData() {
       try { if (typeof renderSportingDirectorCenter === 'function') renderSportingDirectorCenter(); } catch (_) {}
       try { if (typeof renderDirectorOfFootballCenter === 'function') renderDirectorOfFootballCenter(); } catch (_) {}
       try { if (typeof renderBoardOfDirectorsCenter   === 'function') renderBoardOfDirectorsCenter();   } catch (_) {}
+      try { if (typeof renderOwnershipCenter          === 'function') renderOwnershipCenter();          } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -748,6 +749,7 @@ function _flushPendingRender() {
     case 'pg-sporting-director-center': renderSportingDirectorCenter(); break;
     case 'pg-director-of-football-center': renderDirectorOfFootballCenter(); break;
     case 'pg-board-of-directors-center': renderBoardOfDirectorsCenter(); break;
+    case 'pg-ownership-center': renderOwnershipCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -810,7 +812,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -847,6 +849,7 @@ function navTo(page, el) {
   if (page === 'sporting-director-center'){ try { renderSportingDirectorCenter(); } catch (e) { try { console.error('[sporting-director-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'director-of-football-center'){ try { renderDirectorOfFootballCenter(); } catch (e) { try { console.error('[director-of-football-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'board-of-directors-center'){ try { renderBoardOfDirectorsCenter(); } catch (e) { try { console.error('[board-of-directors-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ownership-center'){ try { renderOwnershipCenter(); } catch (e) { try { console.error('[ownership-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -965,6 +968,7 @@ function renderAllPages() {
     ${renderSportingDirectorCenterHTML()}
     ${renderDirectorOfFootballCenterHTML()}
     ${renderBoardOfDirectorsCenterHTML()}
+    ${renderOwnershipCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -8313,6 +8317,600 @@ function renderBoardOfDirectorsCenter() {
     try { console.error('[board-of-directors-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Board Of Directors Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista Ownership Center (highest strategic layer) ───────────
+// Aggregator-only. Consumes outputs from Board Of Directors Center
+// (_bod*), Director Of Football Center (_dof*), Sporting Director
+// Center (_sd*), Management Center (_mg*), Finance Center (_fi*) and
+// Academy Center (_aca*) only. Does NOT recompute any domain analytic.
+// Adds a thin _own* synthesis layer (ownership-score composite,
+// revenue outlook, asset portfolio, strategic expansion plan, risk
+// exposure, sustainability outlook, ownership decisions, summary).
+// No backend writes, no new fetches, no schema changes, no routes.
+function _ownSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _ownClubHealth()      { return _ownSafe(function () { return _bodClubHealth().score; }, 0); }
+function _ownFinanceHealth()   { return _ownSafe(_mgFinanceHealthScore, 0); }
+function _ownSportingScore()   { return _ownSafe(_sdOverallScore, 0); }
+function _ownAcademyStrength() { return _ownSafe(_sdAcademyReadiness, 0); }
+function _ownAssetValueScore() {
+  // 0–100 composite from squad value + cash reserve, normalised against
+  // a 5M reference (so a 5M club lands at ~70).
+  const sv = _ownSafe(_fiSquadValue, { total: 0 });
+  const co = _ownSafe(_fiClubOverview, { cashReserve: 0 });
+  const assets = (sv.total || 0) + (co.cashReserve || 0);
+  return Math.max(0, Math.min(100, Math.round((assets / 5000000) * 70)));
+}
+function _ownSustainability() {
+  // 0–100 composite: wage discipline + reserve depth + lifecycle balance + profit signal.
+  const co = _ownSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0, netProfit: 0 });
+  const wb = _ownSafe(_fiWageBill, { total: 0 });
+  const lifecycle = _ownSafe(_dofSquadLifecycle, { balance: 0 });
+  const wagePart = Math.max(0, 100 - Math.max(0, co.wageRatio - 50) * 2);
+  const months = wb.total > 0 ? (co.cashReserve / (wb.total / 12)) : 12;
+  const cashPart = Math.max(0, Math.min(100, months * 25));
+  const lifePart = lifecycle.balance || 0;
+  const profitPart = co.netProfit > 0 ? 100 : co.netProfit < 0 ? 25 : 60;
+  return Math.max(0, Math.min(100, Math.round(wagePart * 0.30 + cashPart * 0.30 + lifePart * 0.20 + profitPart * 0.20)));
+}
+function _ownScore() {
+  const ch  = _ownClubHealth();
+  const fin = _ownFinanceHealth();
+  const sp  = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const sus = _ownSustainability();
+  return Math.max(0, Math.min(100, Math.round(ch * 0.35 + fin * 0.25 + sp * 0.20 + aca * 0.10 + sus * 0.10)));
+}
+function _ownBand(score) {
+  if (score > 85) return { band:'ELITE',    color:'var(--green-l)' };
+  if (score > 70) return { band:'STRONG',   color:'var(--amber)'   };
+  if (score > 55) return { band:'WATCH',    color:'#60A5FA'        };
+  return                 { band:'CRITICAL', color:'var(--red)'     };
+}
+function _ownRevenueOutlook() {
+  // Projected revenue = current × (1 + growth%), where growth is driven by
+  // sporting score (table position proxy) and academy strength.
+  const co = _ownSafe(_mgFinanceOverview, { annualRevenue: 0 });
+  const sp = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const sust = _ownSustainability();
+  // Growth between -10% and +20% depending on sporting + academy + sustainability.
+  const growthRaw = (sp - 60) * 0.18 + (aca - 60) * 0.10 + (sust - 60) * 0.06;
+  const growth = Math.max(-10, Math.min(20, Math.round(growthRaw)));
+  const projected = Math.round((co.annualRevenue || 0) * (1 + growth / 100));
+  return { current: co.annualRevenue || 0, projected, growth };
+}
+function _ownAssetPortfolio() {
+  const sv = _ownSafe(_fiSquadValue, { total: 0 });
+  const co = _ownSafe(_mgFinanceOverview, { cashReserve: 0, annualRevenue: 0 });
+  const aca = _ownSafe(_acaOverview, { count: 0 });
+  // Academy assets — proxy: avg academy player value × count (no academy
+  // value persisted, so derive from count × small reference).
+  const academyAssets = (aca.count || 0) * 80000;
+  // Infrastructure — proxy: 12% of annual revenue (stadium / training
+  // facility valuation placeholder).
+  const infrastructure = Math.round((co.annualRevenue || 0) * 0.12);
+  const cash = co.cashReserve || 0;
+  return {
+    players:        sv.total || 0,
+    academyAssets,
+    infrastructure,
+    cash,
+    total:          (sv.total || 0) + academyAssets + infrastructure + cash,
+  };
+}
+function _ownStrategicExpansion() {
+  const sp = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const fin = _ownFinanceHealth();
+  const sus = _ownSustainability();
+  const leagueAmbition = sp >= 80 ? 'PROMOTION / TROPHY PUSH'
+                       : sp >= 65 ? 'TOP-HALF CONSOLIDATION'
+                       : sp >= 50 ? 'MID-TABLE STABILISATION'
+                       :            'SURVIVAL FOCUS';
+  const academyExpansion = aca >= 75 ? 'ACCELERATE — academy is a strength'
+                         : aca >= 55 ? 'STEADY GROWTH — protect what works'
+                         :             'PRIORITY UPLIFT — pipeline thin';
+  const infraExpansion = fin >= 75 && sus >= 70 ? 'GREENLIGHT — finances support investment'
+                        : fin >= 60                ? 'PHASED — capex over multi-year'
+                        :                            'HOLD — restore reserves first';
+  return { leagueAmbition, academyExpansion, infraExpansion, sp, aca, fin, sus };
+}
+function _ownPriorities() {
+  // Build HIGH / MEDIUM / LOW priority list from existing executive
+  // signals. Sort by impact within each band.
+  const out = [];
+  const ch  = _ownClubHealth();
+  const fin = _ownFinanceHealth();
+  const sp  = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const sus = _ownSustainability();
+  const co  = _ownSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0 });
+  if (fin < 50)               out.push({ priority:'HIGH',   impact: 95, icon:'💸', color:'var(--red)',     text:`Finance health ${fin}/100 — restore liquidity before any new commitments.` });
+  if (sp < 55)                out.push({ priority:'HIGH',   impact: 90, icon:'🎯', color:'var(--red)',     text:`Sporting score ${sp}/100 — sporting overhaul required to protect brand value.` });
+  if (co.wageRatio >= 75)     out.push({ priority:'HIGH',   impact: 88, icon:'📈', color:'var(--red)',     text:`Wage ratio ${co.wageRatio}% — owners' approval required to cap incremental commitments.` });
+  if (ch < 65)                out.push({ priority:'MEDIUM', impact: 75, icon:'🏛️', color:'var(--amber)',   text:`Club health ${ch}/100 — request cross-department alignment from Board.` });
+  if (aca < 55)               out.push({ priority:'MEDIUM', impact: 70, icon:'🎓', color:'var(--amber)',   text:`Academy strength ${aca}/100 — multi-year investment plan needed.` });
+  if (sus < 60)               out.push({ priority:'MEDIUM', impact: 65, icon:'♻️', color:'var(--amber)',   text:`Sustainability ${sus}/100 — review long-term cost base.` });
+  if (fin >= 75 && ch >= 75)  out.push({ priority:'LOW',    impact: 55, icon:'⭐', color:'var(--green-l)', text:`Healthy operation — re-affirm dividend / reinvestment policy.` });
+  if (sp  >= 75 && aca >= 65) out.push({ priority:'LOW',    impact: 50, icon:'🚀', color:'var(--green-l)', text:`Sporting + academy compounding — consider brand/commercial expansion.` });
+  if (!out.length) out.push({ priority:'STEADY', impact: 40, icon:'✓', color:'var(--green-l)', text:'No ownership-level priorities outstanding — programme on track.' });
+  out.sort((a, b) => b.impact - a.impact);
+  return out.slice(0, 6);
+}
+function _ownCapitalOpportunities() {
+  const co = _ownSafe(_mgFinanceOverview, { cashReserve: 0, annualRevenue: 0 });
+  const sim = _ownSafe(_fiTransferSimulation, { scenarios: [] });
+  const aca = _ownAcademyStrength();
+  const sp  = _ownSportingScore();
+  const transferCap = sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0;
+  const items = [];
+  if (transferCap > 0) {
+    items.push({
+      kind:'TRANSFERS', color:'var(--green-l)', icon:'➕',
+      label:'Targeted Transfers',
+      amount: transferCap,
+      rationale:`Owners can authorise ${_fiFmtMoney(transferCap)} for priority lines flagged by Sporting Director.`,
+    });
+  }
+  if (aca < 70) {
+    items.push({
+      kind:'ACADEMY', color:'var(--amber)', icon:'🎓',
+      label:'Academy Capital Programme',
+      amount: Math.round((co.cashReserve || 0) * 0.10),
+      rationale:`Academy strength ${aca}/100 — sustained capex protects long-term squad value and reduces dependence on the transfer market.`,
+    });
+  }
+  if (sp < 80 || co.annualRevenue < 5000000) {
+    items.push({
+      kind:'FACILITIES', color:'#60A5FA', icon:'🏟️',
+      label:'Training & Match-Day Facilities',
+      amount: Math.round((co.cashReserve || 0) * 0.07),
+      rationale:'Facility upgrades lift commercial revenue, support recruitment pitch and reduce injury exposure.',
+    });
+  }
+  items.push({
+    kind:'TECHNOLOGY', color:'#A78BFA', icon:'🛰️',
+    label:'Performance & Data Technology',
+    amount: Math.round(Math.max(50000, (co.cashReserve || 0) * 0.03)),
+    rationale:'GPS, video, analytics and medical tooling — multiplier across performance, medical and recruitment functions.',
+  });
+  return items.slice(0, 4);
+}
+function _ownRiskExposure() {
+  // Four-quadrant risk view derived from existing centres.
+  const co = _ownSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0, netProfit: 0 });
+  const med = _ownSafe(_mgMedScores, { buckets: { INJURED: 0 } });
+  const lifecycle = _ownSafe(_dofSquadLifecycle, { balance: 0 });
+  const aca = _ownAcademyStrength();
+  const banded = (score) => score >= 75 ? 'LOW' : score >= 55 ? 'MED' : 'HIGH';
+  const cFor = (lvl) => lvl === 'HIGH' ? 'var(--red)' : lvl === 'MED' ? 'var(--amber)' : 'var(--green-l)';
+  // Finance risk: function of wage ratio + cash + profit
+  const finScore = Math.max(0, Math.min(100, Math.round(100 - (co.wageRatio > 65 ? (co.wageRatio - 65) * 2 : 0) - (co.netProfit < 0 ? 25 : 0) - (co.cashReserve < 100000 ? 20 : 0))));
+  // Sporting risk: 100 − (sporting score gap)
+  const sportingScore = _ownSportingScore();
+  // Operational risk: lifecycle balance + injured count
+  const opScore = Math.max(0, Math.min(100, lifecycle.balance - (med.buckets && med.buckets.INJURED ? med.buckets.INJURED * 8 : 0)));
+  // Academy risk: inverse of academy strength
+  return [
+    { kind:'FINANCIAL',   lvl: banded(finScore),     score: finScore,     color: cFor(banded(finScore)),     note: co.wageRatio >= 70 ? 'Wage ratio elevated.' : 'Within range.' },
+    { kind:'SPORTING',    lvl: banded(sportingScore), score: sportingScore, color: cFor(banded(sportingScore)), note: sportingScore < 60 ? 'Below competitive band.' : 'Competitive.' },
+    { kind:'OPERATIONAL', lvl: banded(opScore),       score: opScore,       color: cFor(banded(opScore)),       note: (med.buckets && med.buckets.INJURED >= 2) ? 'Injuries impacting roster depth.' : 'Stable.' },
+    { kind:'ACADEMY',     lvl: banded(aca),            score: aca,            color: cFor(banded(aca)),            note: aca < 55 ? 'Pipeline thin or thinning.' : 'Pipeline supporting first team.' },
+  ];
+}
+function _ownSustainabilityOutlook() {
+  // 5-year horizon green/yellow/red based on current sustainability score
+  // + trajectory adjustments from sporting and academy strength.
+  const sus = _ownSustainability();
+  const sp  = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const trajectory = Math.round((sp - 60) * 0.25 + (aca - 60) * 0.20);
+  // Project a 5-year trend line at +trajectory/year, clamp to 0–100.
+  const yearly = [0, 1, 2, 3, 4, 5].map(i => Math.max(0, Math.min(100, Math.round(sus + trajectory * i))));
+  const last = yearly[yearly.length - 1];
+  let band, color, narrative;
+  if (last >= 75)      { band = 'GREEN';  color = 'var(--green-l)'; narrative = 'Trajectory points to sustained operational health over the next five seasons.'; }
+  else if (last >= 55) { band = 'YELLOW'; color = 'var(--amber)';   narrative = 'Sustainability holds with intervention; capex and operating costs must stay aligned.'; }
+  else                  { band = 'RED';    color = 'var(--red)';     narrative = 'Without intervention, current cost base and sporting trajectory threaten long-term viability.'; }
+  return { yearly, last, band, color, narrative, trajectory, current: sus };
+}
+function _ownExecReview() {
+  const exec = _ownSafe(_bodExecutivePerformance, []);
+  // Combined ownership assessment = avg of the four headline grades.
+  const subset = exec.filter(e => ['DOF','SD','CFO','CEO','AD'].indexOf(e.role) >= 0);
+  const avg = subset.length ? Math.round(subset.reduce((a, e) => a + (e.score || 0), 0) / subset.length) : 0;
+  let combined;
+  if (avg >= 85)      combined = 'EXEMPLARY';
+  else if (avg >= 70) combined = 'STRONG';
+  else if (avg >= 55) combined = 'WATCH';
+  else                combined = 'CRITICAL';
+  return { exec: subset, combined, avg };
+}
+function _ownDecisions() {
+  // Map signals to one of {INVEST, EXPAND, MAINTAIN, REDUCE COST}.
+  const fin = _ownFinanceHealth();
+  const sp  = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const co  = _ownSafe(_mgFinanceOverview, { wageRatio: 0, cashReserve: 0 });
+  const lifecycle = _ownSafe(_dofSquadLifecycle, { balance: 0 });
+  const out = [];
+  if (fin >= 70 && sp >= 70) {
+    out.push({ kind:'INVEST',  impact: 90, color:'var(--green-l)', icon:'➕', label:'Greenlight targeted recruitment', detail:'Sporting + finance both elite; deploy authorised transfer cap on priority lines.' });
+  }
+  if (aca < 60) {
+    out.push({ kind:'EXPAND',  impact: 80, color:'var(--amber)',   icon:'🎓', label:'Expand academy programme',         detail:'Pipeline below sustainability threshold — multi-year academy uplift required.' });
+  }
+  if (sp >= 60 && fin >= 60 && co.wageRatio < 65) {
+    out.push({ kind:'MAINTAIN',impact: 70, color:'#60A5FA',         icon:'🛡️', label:'Maintain current operating model',  detail:'All quadrants within target bands; protect wage discipline and reserve depth.' });
+  }
+  if (co.wageRatio >= 70 || fin < 55) {
+    out.push({ kind:'REDUCE COST', impact: 85, color:'var(--red)',  icon:'✂️', label:'Reduce cost base',                  detail:`Wage ratio ${co.wageRatio}% / finance health ${fin}/100 — review fringe contracts and operating overhead.` });
+  }
+  if (lifecycle.balance < 65) {
+    out.push({ kind:'EXPAND',  impact: 60, color:'var(--amber)',   icon:'🔄', label:'Rebalance squad lifecycle',        detail:`Lifecycle balance ${lifecycle.balance}/100 — recalibrate Young / Prime / Veteran share.` });
+  }
+  if (!out.length) out.push({ kind:'STEADY', impact: 30, color:'var(--green-l)', icon:'✓', label:'No ownership-level decisions outstanding', detail:'Programme aligned across all departments.' });
+  out.sort((a, b) => b.impact - a.impact);
+  return out.slice(0, 5);
+}
+function _ownSummary() {
+  const ps = (State.players || []).filter(p => p && p.isActive !== false);
+  if (!ps.length) return 'No squad data available — Ownership Center is waiting for player data.';
+  const score = _ownScore();
+  const band = _ownBand(score);
+  const ch  = _ownClubHealth();
+  const fin = _ownFinanceHealth();
+  const sp  = _ownSportingScore();
+  const aca = _ownAcademyStrength();
+  const sus = _ownSustainability();
+  const revenue = _ownRevenueOutlook();
+  const sustain = _ownSustainabilityOutlook();
+  const exec = _ownExecReview();
+  let outlook;
+  if (score > 85)      outlook = 'club is in elite ownership condition — protect and compound the asset';
+  else if (score > 70) outlook = 'club is in strong ownership shape with isolated areas to lift';
+  else if (score > 55) outlook = 'mixed ownership picture — coordinated capital and oversight required';
+  else                  outlook = 'multiple dimensions under stress — ownership intervention required';
+  return `Ownership view: ${band.band} (${score}/100). ` +
+         `Pillars — Club ${ch} · Finance ${fin} · Sporting ${sp} · Academy ${aca} · Sustainability ${sus}. ` +
+         `Revenue outlook: ${_fiFmtMoney(revenue.current)} → ${_fiFmtMoney(revenue.projected)} (${revenue.growth >= 0 ? '+' : ''}${revenue.growth}%). ` +
+         `5-year sustainability: ${sustain.band} — ${sustain.narrative} ` +
+         `Combined executive performance: ${exec.combined} (avg ${exec.avg}/100). ` +
+         `Ownership call: ${outlook}.`;
+}
+function _ensureOWNStyles() {
+  if (document.getElementById('own-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'own-styles';
+  s.textContent = `
+    .own-page{padding:16px 18px;}
+    .own-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
+      border:1px solid rgba(74,222,128,0.36);
+      box-shadow:0 28px 70px -20px rgba(0,0,0,0.65),0 0 70px -16px rgba(74,222,128,0.34),inset 0 1px 0 rgba(255,255,255,0.06);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .own-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(74,222,128,0.10),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.07),transparent 55%);}
+    .own-brand{position:relative;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(74,222,128,0.26),rgba(34,197,94,0.10) 30%,rgba(37,99,235,0.10) 70%,rgba(74,222,128,0.26));
+      border-bottom:1px solid rgba(74,222,128,0.32);}
+    .own-brand-logo{font-size:13px;font-weight:900;color:var(--green-l);letter-spacing:2.6px;text-shadow:0 0 12px rgba(74,222,128,0.6);}
+    .own-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .own-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .own-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .own-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .own-tile{position:relative;padding:14px;border-radius:12px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
+      border:1px solid rgba(74,222,128,0.18);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .own-tile:hover{border-color:rgba(74,222,128,0.32);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 22px -8px rgba(74,222,128,0.22);}
+    .own-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:9px;}
+    .own-bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.06);overflow:hidden;margin-top:6px;}
+    .own-bar-fill{height:100%;border-radius:6px;}
+    .own-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.8px;}
+    .own-alert{display:flex;align-items:flex-start;gap:9px;padding:8px 10px;margin-bottom:6px;border-radius:8px;
+      background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);}
+    .own-alert:last-child{margin-bottom:0;}
+    .own-summary{position:relative;padding:22px;border-radius:14px;
+      background:linear-gradient(135deg,rgba(74,222,128,0.22),rgba(74,222,128,0.08));
+      border:1px solid rgba(74,222,128,0.40);border-left:6px solid var(--green-l);
+      box-shadow:0 22px 50px -16px rgba(0,0,0,0.6),0 0 44px -10px rgba(74,222,128,0.36);}
+    .own-spark{display:flex;align-items:flex-end;gap:5px;height:50px;padding:5px 0;}
+    .own-spark-bar{flex:1;border-radius:3px;min-height:6px;transition:height .2s ease;}
+    @media (max-width:1024px){.own-grid-3{grid-template-columns:repeat(2,1fr);}.own-grid-4{grid-template-columns:repeat(2,1fr);}.own-grid-5{grid-template-columns:repeat(2,1fr);}}
+    @media (max-width:600px){.own-grid-2,.own-grid-3,.own-grid-4,.own-grid-5{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderOwnershipCenterHTML() {
+  return `<div class="page" id="pg-ownership-center">
+    <div id="ownership-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Ownership Center…</div>
+    </div>
+  </div>`;
+}
+function renderOwnershipCenter() {
+  const el = document.getElementById('ownership-center-content');
+  if (!el) return;
+  try { _ensureOWNStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _ownScore();
+    const band = _ownBand(score);
+    const components = [
+      { lbl:'Club Health',          v: _ownClubHealth()      },
+      { lbl:'Financial Stability',  v: _ownFinanceHealth()   },
+      { lbl:'Sporting Performance', v: _ownSportingScore()   },
+      { lbl:'Academy Strength',     v: _ownAcademyStrength() },
+      { lbl:'Asset Value',          v: _ownAssetValueScore() },
+    ];
+    const revenue = _ownRevenueOutlook();
+    const assets = _ownAssetPortfolio();
+    const expansion = _ownStrategicExpansion();
+    const priorities = _ownPriorities();
+    const investments = _ownCapitalOpportunities();
+    const risks = _ownRiskExposure();
+    const sustain = _ownSustainabilityOutlook();
+    const review = _ownExecReview();
+    const decisions = _ownDecisions();
+    const summary = _ownSummary();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? 'var(--amber)' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const lvlBg = (lvl) => lvl === 'HIGH' ? 'rgba(239,68,68,0.16)' : lvl === 'MED' ? 'rgba(245,158,11,0.16)' : 'rgba(74,222,128,0.16)';
+
+    // For asset portfolio, % breakdown of total.
+    const totalAssets = Math.max(1, assets.total);
+    const pct = (v) => Math.round((v / totalAssets) * 100);
+
+    el.innerHTML = `
+      <div class="own-page">
+
+        <!-- Brand bar + 1) Club Valuation Dashboard -->
+        <div class="own-card">
+          <div class="own-brand">
+            <div class="own-brand-logo">★ FC FAMILISTA · OWNERSHIP CENTER</div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="ai-coach-pill"><span class="ai-live-dot"></span>OWNERS LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:20px;display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:center;">
+            <div style="text-align:center;padding:20px 12px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(74,222,128,0.28),rgba(74,222,128,0.04) 70%);border:1px solid rgba(74,222,128,0.36);">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:6px;">Ownership Score</div>
+              <div style="font-size:64px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 26px ${band.color};">${score}</div>
+              <div style="font-size:11.5px;font-weight:900;letter-spacing:1.6px;color:${band.color};text-transform:uppercase;margin-top:8px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Composite Pillars</div>
+              ${components.map(c => `
+                <div style="margin-bottom:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${c.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(c.v)};">${c.v}/100</span>
+                  </div>
+                  <div class="own-bar"><div class="own-bar-fill" style="width:${Math.max(0, Math.min(100, c.v))}%;background:${colorFor(c.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Revenue Outlook | Asset Portfolio | Strategic Expansion -->
+        <div class="own-grid-3">
+
+          <!-- 2) Revenue Outlook -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Revenue Outlook</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:var(--tx);">${_fiFmtMoney(revenue.current)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">CURRENT</div>
+              </div>
+              <div style="padding:10px;border-radius:8px;background:rgba(255,255,255,0.025);text-align:center;">
+                <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:${revenue.growth > 0 ? 'var(--green-l)' : revenue.growth < 0 ? 'var(--red)' : 'var(--tx-3)'};">${_fiFmtMoney(revenue.projected)}</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">PROJECTED</div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
+              <span style="font-size:11px;color:var(--tx-3);">Growth</span>
+              <span style="font-size:18px;font-weight:900;font-family:var(--mono);color:${revenue.growth > 0 ? 'var(--green-l)' : revenue.growth < 0 ? 'var(--red)' : 'var(--tx-3)'};">${revenue.growth >= 0 ? '+' : ''}${revenue.growth}%</span>
+            </div>
+            <div style="font-size:10px;color:var(--tx-3);margin-top:8px;line-height:1.5;">Forecast modelled from sporting score, academy strength and sustainability trajectory.</div>
+          </div>
+
+          <!-- 3) Asset Portfolio -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Asset Portfolio</div>
+            ${[
+              { lbl:'Players',         v: assets.players,        col:'var(--green-l)' },
+              { lbl:'Academy Assets',  v: assets.academyAssets,  col:'var(--amber)'   },
+              { lbl:'Infrastructure',  v: assets.infrastructure, col:'#60A5FA'         },
+              { lbl:'Cash Position',   v: assets.cash,           col:'#A78BFA'         },
+            ].map(a => `
+              <div style="margin-bottom:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--tx);margin-bottom:3px;">
+                  <span style="font-weight:700;">${a.lbl}</span>
+                  <span style="font-family:var(--mono);font-weight:800;color:${a.col};">${_fiFmtMoney(a.v)} <span style="color:var(--tx-3);font-weight:600;">· ${pct(a.v)}%</span></span>
+                </div>
+                <div class="own-bar"><div class="own-bar-fill" style="width:${pct(a.v)}%;background:${a.col};"></div></div>
+              </div>`).join('')}
+            <div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:10px;color:var(--tx-3);font-weight:800;letter-spacing:1px;">TOTAL</span>
+              <span style="font-size:14px;font-weight:900;font-family:var(--mono);color:var(--green-l);">${_fiFmtMoney(assets.total)}</span>
+            </div>
+          </div>
+
+          <!-- 4) Strategic Expansion -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Strategic Expansion</div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:4px;">League Ambition</div>
+              <div style="font-size:11px;color:var(--tx);font-weight:700;line-height:1.4;">${_esc(expansion.leagueAmbition)}</div>
+              <div style="font-size:9px;color:var(--tx-3);margin-top:2px;">Sporting score ${expansion.sp}/100</div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:9.5px;font-weight:900;color:var(--amber);letter-spacing:1.1px;text-transform:uppercase;margin-bottom:4px;">Academy Expansion</div>
+              <div style="font-size:11px;color:var(--tx);font-weight:700;line-height:1.4;">${_esc(expansion.academyExpansion)}</div>
+              <div style="font-size:9px;color:var(--tx-3);margin-top:2px;">Academy strength ${expansion.aca}/100</div>
+            </div>
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:#60A5FA;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:4px;">Infrastructure Expansion</div>
+              <div style="font-size:11px;color:var(--tx);font-weight:700;line-height:1.4;">${_esc(expansion.infraExpansion)}</div>
+              <div style="font-size:9px;color:var(--tx-3);margin-top:2px;">Finance ${expansion.fin} · Sustain ${expansion.sus}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Ownership Priorities | Capital Investment Opportunities -->
+        <div class="own-grid-2">
+
+          <!-- 5) Ownership Priorities -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Ownership Priorities</div>
+            ${priorities.map(p => `
+              <div class="own-alert" style="border-left-color:${p.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${p.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${p.color};text-transform:uppercase;">${_esc(p.priority)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);font-family:var(--mono);">IMPACT ${p.impact}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);line-height:1.5;">${_esc(p.text)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 6) Capital Investment Opportunities -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Capital Investment Opportunities</div>
+            ${investments.map(it => `
+              <div class="own-alert" style="border-left-color:${it.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${it.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${it.color};text-transform:uppercase;">${_esc(it.kind)}</div>
+                    <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:${it.color};">${_fiFmtMoney(it.amount)}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(it.label)}</div>
+                  <div style="font-size:10px;color:var(--tx-3);line-height:1.5;">${_esc(it.rationale)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Risk Exposure | Long-Term Sustainability -->
+        <div class="own-grid-2">
+
+          <!-- 7) Risk Exposure -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Risk Exposure</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              ${risks.map(r => `
+                <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid ${r.color};">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:var(--tx-3);text-transform:uppercase;">${r.kind}</div>
+                    <span class="own-pill" style="color:${r.color};background:${lvlBg(r.lvl)};">${r.lvl}</span>
+                  </div>
+                  <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${r.color};line-height:1;">${r.score}</div>
+                  <div class="own-bar"><div class="own-bar-fill" style="width:${Math.max(0, Math.min(100, r.score))}%;background:${r.color};"></div></div>
+                  <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.4;">${_esc(r.note)}</div>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <!-- 8) Long-Term Sustainability -->
+          <div class="own-tile">
+            <div class="own-tile-lbl">Long-Term Sustainability · 5-Year Outlook</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Year-5 Projection</div>
+                <div style="font-size:24px;font-weight:900;font-family:var(--mono);color:${sustain.color};line-height:1;margin-top:4px;">${sustain.last}/100</div>
+              </div>
+              <span class="own-pill" style="color:${sustain.color};background:${lvlBg(sustain.band === 'GREEN' ? 'LOW' : sustain.band === 'YELLOW' ? 'MED' : 'HIGH')};">${sustain.band}</span>
+            </div>
+            <div class="own-spark">
+              ${sustain.yearly.map((v, i) => `<div class="own-spark-bar" style="height:${Math.max(6, v * 0.45)}px;background:${i === 0 ? 'rgba(255,255,255,0.18)' : sustain.color};" title="Y${i}: ${v}/100"></div>`).join('')}
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:8.5px;color:var(--tx-3);font-weight:800;margin-top:4px;">
+              <span>NOW</span><span>Y1</span><span>Y2</span><span>Y3</span><span>Y4</span><span>Y5</span>
+            </div>
+            <div style="font-size:11px;color:var(--tx);margin-top:10px;line-height:1.5;">${_esc(sustain.narrative)}</div>
+            <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.4;">Trajectory ${sustain.trajectory >= 0 ? '+' : ''}${sustain.trajectory}/year · current ${sustain.current}/100.</div>
+          </div>
+        </div>
+
+        <!-- 9) Executive Review -->
+        <div class="own-card" style="padding:16px 20px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;">
+            <div>
+              <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;">Executive Review</div>
+              <div style="font-size:10.5px;color:var(--tx-3);margin-top:2px;">Combined ownership assessment across all director scorecards.</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:9.5px;color:var(--tx-3);letter-spacing:1px;font-weight:800;">COMBINED</div>
+              <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(review.avg)};">${review.avg}/100 · ${review.combined}</div>
+            </div>
+          </div>
+          <div class="own-grid-5">
+            ${review.exec.map(e => `
+              <div style="padding:12px;border-radius:10px;background:rgba(255,255,255,0.025);border:1px solid ${e.grade.color};">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:9px;font-weight:900;letter-spacing:1px;color:var(--tx-3);text-transform:uppercase;">${e.role}</div>
+                    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${e.lbl}</div>
+                  </div>
+                  <div style="font-size:24px;font-weight:900;font-family:var(--mono);color:${e.grade.color};line-height:1;">${e.grade.grade}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                  <span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--tx-3);">SCORE</span>
+                  <span style="font-size:13px;font-weight:900;font-family:var(--mono);color:${colorFor(e.score)};">${e.score}/100</span>
+                </div>
+                <div class="own-bar"><div class="own-bar-fill" style="width:${Math.max(0, Math.min(100, e.score))}%;background:${e.grade.color};"></div></div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 10) Ownership Decisions -->
+        <div class="own-card" style="padding:16px 20px;">
+          <div style="font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;">Ownership Decisions — Priority Queue</div>
+          ${decisions.map((d, i) => `
+            <div class="own-alert" style="border-left-color:${d.color};">
+              <span style="font-size:14px;line-height:1;flex-shrink:0;">${d.icon}</span>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${d.color};text-transform:uppercase;">${_esc(d.kind)}</div>
+                  <div style="font-size:9.5px;color:var(--tx-3);font-family:var(--mono);">IMPACT ${d.impact} · #${i + 1}</div>
+                </div>
+                <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(d.label)}</div>
+                <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">${_esc(d.detail)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 11) Ownership Summary -->
+        <div class="own-summary">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:18px;">👑</span>
+            <div style="font-size:11.5px;font-weight:900;color:var(--green-l);letter-spacing:1.6px;text-transform:uppercase;">Ownership Summary</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ownership-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Ownership Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -17959,6 +18557,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="board-of-directors-center"]')) {
     setTimeout(function () { try { renderBoardOfDirectorsCenter(); } catch (err) { try { console.error('[board-of-directors-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ownership-center"]')) {
+    setTimeout(function () { try { renderOwnershipCenter(); } catch (err) { try { console.error('[ownership-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
