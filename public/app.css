@@ -224,6 +224,46 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 @keyframes badgePulse{0%,100%{opacity:1}50%{opacity:.6}}
 .sidebar.collapsed .nav-badge{display:none;}
 
+/* ── Enterprise multi-tenant sidebar tiers ─────────────────────────── */
+/* Familista Operating System (Platform Layer) — gold */
+.sidebar-nav > .nav-section:nth-of-type(1){
+  color:#FBBF24;letter-spacing:1.4px;font-weight:800;
+  border-top:1px solid rgba(251,191,36,0.25);margin-top:4px;padding-top:14px;
+  text-shadow:0 0 8px rgba(251,191,36,0.30);
+}
+/* Global Intelligence Services — cyan */
+.sidebar-nav > .nav-section:nth-of-type(2){
+  color:#7DF9FF;letter-spacing:1.4px;font-weight:800;
+  border-top:1px solid rgba(0,229,255,0.25);margin-top:10px;padding-top:14px;
+  text-shadow:0 0 8px rgba(0,229,255,0.30);
+}
+/* Organizations — violet */
+.sidebar-nav > .nav-section:nth-of-type(3){
+  color:#A855F7;letter-spacing:1.4px;font-weight:800;
+  border-top:1px solid rgba(168,85,247,0.25);margin-top:10px;padding-top:14px;
+  text-shadow:0 0 8px rgba(168,85,247,0.30);
+}
+/* FC Familista workspace sub-headers — green tint, indented */
+.nav-tenant-header{
+  color:rgba(74,222,128,0.78);letter-spacing:1.1px;font-weight:700;font-size:9.5px;
+  padding:8px 8px 3px 16px;border-left:2px solid rgba(74,222,128,0.20);margin-left:6px;
+}
+/* ACTIVE tenant glow (FC Familista) */
+.tenant-active-badge{
+  background:linear-gradient(90deg,rgba(74,222,128,0.20),rgba(34,211,154,0.30));
+  color:#4ade80;border-color:rgba(74,222,128,.45) !important;
+  box-shadow:0 0 12px rgba(74,222,128,0.50);text-shadow:0 0 6px rgba(74,222,128,0.55);
+  animation:tenantPulse 2.2s ease-in-out infinite;
+}
+@keyframes tenantPulse{0%,100%{box-shadow:0 0 10px rgba(74,222,128,0.40);}50%{box-shadow:0 0 18px rgba(74,222,128,0.65);}}
+/* Tenant placeholder rows — dimmed, italic, non-clickable visual */
+.nav-tenant-placeholder{
+  opacity:0.42;font-style:italic;cursor:not-allowed;
+  border-left:2px dashed rgba(168,85,247,0.34);margin-left:6px;
+}
+.nav-tenant-placeholder:hover{opacity:0.62;background:rgba(168,85,247,0.05);color:var(--tx-3);}
+.nav-tenant-placeholder .nav-icon{opacity:0.5;}
+
 .sidebar-footer{
   padding:10px;border-top:1px solid var(--bd);
   flex-shrink:0;display:flex;align-items:center;gap:8px;

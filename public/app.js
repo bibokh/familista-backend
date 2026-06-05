@@ -528,6 +528,7 @@ async function loadAllData() {
       try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
       try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
       try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
+      try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -764,6 +765,12 @@ function _flushPendingRender() {
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
+    case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
+    case 'pg-gis-analytics':    renderGIS('gis-analytics');   break;
+    case 'pg-gis-scouting':     renderGIS('gis-scouting');    break;
+    case 'pg-gis-medical':      renderGIS('gis-medical');     break;
+    case 'pg-gis-financial':    renderGIS('gis-financial');   break;
+    case 'pg-gis-performance':  renderGIS('gis-performance'); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -826,7 +833,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President', 'ai-chairman-center':'AI Chairman', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'multi-club-network':'Multi-Club Network', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -871,6 +878,7 @@ function navTo(page, el) {
   if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
   if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
   if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
+  if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -997,6 +1005,12 @@ function renderAllPages() {
     ${renderFOSCoreHTML()}
     ${renderFOSAIOrchestratorHTML()}
     ${renderMultiClubNetworkHTML()}
+    ${renderGISHTML('gis-data-lake')}
+    ${renderGISHTML('gis-analytics')}
+    ${renderGISHTML('gis-scouting')}
+    ${renderGISHTML('gis-medical')}
+    ${renderGISHTML('gis-financial')}
+    ${renderGISHTML('gis-performance')}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -8707,7 +8721,7 @@ function renderOwnershipCenter() {
         <!-- Brand bar + 1) Club Valuation Dashboard -->
         <div class="own-card">
           <div class="own-brand">
-            <div class="own-brand-logo">★ FAMILISTA OS · OWNERSHIP</div>
+            <div class="own-brand-logo">★ FC FAMILISTA · OWNERSHIP CENTER</div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="ai-coach-pill"><span class="ai-live-dot"></span>OWNERS LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -9933,7 +9947,7 @@ function renderAIPresidentCenter() {
         <!-- Brand bar + 1) Presidential Overview -->
         <div class="pres-card">
           <div class="pres-brand">
-            <div class="pres-brand-logo">★ FAMILISTA OS · AI PRESIDENT</div>
+            <div class="pres-brand-logo">★ FC FAMILISTA · AI PRESIDENT CENTER</div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="pres-pill"><span class="pres-dot"></span>PRESIDENT LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -10467,7 +10481,7 @@ function renderAIChairmanCenter() {
         <!-- Brand bar + 1) Enterprise Governance Dashboard -->
         <div class="chm-card">
           <div class="chm-brand">
-            <div class="chm-brand-logo">★ FAMILISTA OS · AI CHAIRMAN</div>
+            <div class="chm-brand-logo">★ FC FAMILISTA · AI CHAIRMAN CENTER</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="chm-pill"><span class="chm-dot"></span>CHAIRMAN LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -11059,7 +11073,7 @@ function renderAIWarRoom() {
         <!-- Brand bar + 1) War Room Dashboard -->
         <div class="war-card">
           <div class="war-brand">
-            <div class="war-brand-logo">★ FAMILISTA OS · AI WAR ROOM</div>
+            <div class="war-brand-logo">★ FC FAMILISTA · AI WAR ROOM</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="war-pill"><span class="war-dot"></span>WAR ROOM LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -12507,6 +12521,295 @@ function renderMultiClubNetwork() {
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Multi-Club Network couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
+  }
+}
+
+// ─── Familista OS · Global Intelligence Services ───────────────────────
+// Platform-wide intelligence layer available to every organization in
+// the network. Read-only — aggregates data from active tenants. With
+// FC Familista currently the only active tenant, each service reads
+// FC Familista's State signals through existing centre helpers, and
+// renders the result under a platform-level frame.
+function _gisSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+var _GIS_SERVICES = {
+  'gis-data-lake': {
+    name:'AI Data Lake', icon:'🗄️', accent:'#FBBF24',
+    tagline:'Multi-tenant data substrate — squad, training, match, finance, medical records.',
+    kpis: function () {
+      var ps  = (State.players  || []).length;
+      var trn = (State.training || []).length;
+      var mat = (State.matches  || []).length;
+      var inj = ((State.players || []).filter(function (p) { return p && p.isInjured; })).length;
+      return [
+        { lbl:'Player Records',     v: ps },
+        { lbl:'Training Sessions',  v: trn },
+        { lbl:'Match Records',      v: mat },
+        { lbl:'Active Injuries',    v: inj },
+      ];
+    },
+    sections: function () {
+      var ps = (State.players || []).filter(function (p) { return p && p.isActive !== false; });
+      var trn = (State.training || []);
+      return [
+        { title:'Ingestion Streams', rows: [
+          'Squad roster · live · per-tenant',
+          'Training sessions · ingested on save',
+          'Match results · ingested on result update',
+          'GPS / wearable feeds · sub-second window',
+          'Finance records · daily roll-up',
+        ]},
+        { title:'Storage Snapshot', rows: [
+          'Active tenants: 1 (FC Familista)',
+          'Total records (FC Familista): ' + (ps.length + trn.length),
+          'Schema version: v1.0',
+          'Replication: tenant-isolated',
+        ]},
+      ];
+    },
+  },
+  'gis-analytics': {
+    name:'AI Analytics', icon:'📊', accent:'#34D399',
+    tagline:'Cross-tenant analytics fabric — composite scores, KPIs, and trend services.',
+    kpis: function () {
+      var sys  = _gisSafe(_fosSystemScore, 0);
+      var war  = _gisSafe(_warScore, 0);
+      var chm  = _gisSafe(_chmEnterpriseScore, 0);
+      var orc  = _gisSafe(_orcScore, 0);
+      return [
+        { lbl:'System Score',       v: sys },
+        { lbl:'War Score',          v: war },
+        { lbl:'Enterprise Score',   v: chm },
+        { lbl:'Orchestrator Score', v: orc },
+      ];
+    },
+    sections: function () {
+      return [
+        { title:'Active Analytical Surfaces', rows: [
+          'Health composite (System / Governance / Football / Business / Data / Security)',
+          'Performance composite (Attack / Defense / Possession / Condition)',
+          'Financial composite (wage ratio / reserves / profit)',
+          'Medical composite (availability / fatigue / injury)',
+          'Academy composite (pipeline / growth gap)',
+        ]},
+        { title:'Cross-Tenant Aggregation', rows: [
+          'Aggregation engine ready for additional tenants',
+          'Per-tenant normalisation: enabled',
+          'Privacy boundary: per-club isolation enforced',
+        ]},
+      ];
+    },
+  },
+  'gis-scouting': {
+    name:'AI Scouting Network', icon:'🔭', accent:'#A855F7',
+    tagline:'Federated scouting graph — talent across the network with confidence and rank.',
+    kpis: function () {
+      var watch = _gisSafe(function () { return _sgWatchlist(10); }, []);
+      var avg = watch.length ? Math.round(watch.reduce(function (a, x) { return a + (x.score || 0); }, 0) / watch.length) : 0;
+      var top = watch[0] ? watch[0].score || 0 : 0;
+      var totalProspects = _gisSafe(function () { return _sgActive().length; }, 0);
+      return [
+        { lbl:'Watchlist Size',     v: watch.length },
+        { lbl:'Avg Prospect Score', v: avg },
+        { lbl:'Top Prospect Score', v: top },
+        { lbl:'Active Prospects',   v: totalProspects },
+      ];
+    },
+    sections: function () {
+      var watch = _gisSafe(function () { return _sgWatchlist(5); }, []);
+      return [
+        { title:'Top 5 Network Watchlist', rows: watch.length === 0
+          ? ['No prospects flagged.']
+          : watch.map(function (x) { return ((x.p.firstName || '').charAt(0) + '. ' + (x.p.lastName || '') + ' — score ' + (x.score || 0) + ', pot ' + (x.pot || 0)); }) },
+        { title:'Federation Notes', rows: [
+          'FC Familista pipeline contributed.',
+          'Future tenants will federate prospects into shared watchlist.',
+          'Cross-tenant ranking: weighted by tenant tier.',
+        ]},
+      ];
+    },
+  },
+  'gis-medical': {
+    name:'Medical Intelligence', icon:'🩺', accent:'#FCA5A5',
+    tagline:'Platform-wide medical signal layer — risk, availability, fatigue.',
+    kpis: function () {
+      var med = _gisSafe(_mgMedScores, { availPct:0, avgCond:0, avgFat:0, buckets:{ INJURED:0, QUESTIONABLE:0 } });
+      return [
+        { lbl:'Availability %',   v: med.availPct },
+        { lbl:'Avg Condition',    v: med.avgCond },
+        { lbl:'Avg Fatigue',      v: med.avgFat },
+        { lbl:'Active Injuries',  v: (med.buckets && med.buckets.INJURED) || 0 },
+      ];
+    },
+    sections: function () {
+      var alerts = _gisSafe(_mdAlerts, []);
+      return [
+        { title:'Active Medical Alerts', rows: alerts.length === 0
+          ? ['No active alerts.']
+          : alerts.map(function (a) { return (a.icon || '⚠️') + '  ' + (a.kind || '—') + ' — ' + (a.text || ''); }) },
+        { title:'Federation Notes', rows: [
+          'Tenant-isolated medical records.',
+          'Aggregate trends available cross-tenant once additional clubs onboard.',
+        ]},
+      ];
+    },
+  },
+  'gis-financial': {
+    name:'Financial Intelligence', icon:'💰', accent:'#7DF9FF',
+    tagline:'Cross-tenant financial telemetry — wage discipline, reserves, profitability.',
+    kpis: function () {
+      var co = _gisSafe(_mgFinanceOverview, { wageRatio:0, netProfit:0, cashReserve:0, annualRevenue:0 });
+      return [
+        { lbl:'Wage Ratio %',      v: co.wageRatio },
+        { lbl:'Cash Reserve',      v: _gisSafe(function () { return _fiFmtMoney(co.cashReserve); }, '—') },
+        { lbl:'Net P&L',           v: _gisSafe(function () { return _fiFmtMoney(co.netProfit); }, '—') },
+        { lbl:'Annual Revenue',    v: _gisSafe(function () { return _fiFmtMoney(co.annualRevenue); }, '—') },
+      ];
+    },
+    sections: function () {
+      var alerts = _gisSafe(_fiAlerts, []);
+      return [
+        { title:'Financial Alerts', rows: alerts.length === 0
+          ? ['No active alerts.']
+          : alerts.map(function (a) { return (a.icon || '⚠️') + '  ' + (a.kind || '—') + ' — ' + (a.text || ''); }) },
+        { title:'Federation Notes', rows: [
+          'Per-tenant P&L stream.',
+          'Aggregate benchmarks available once additional clubs onboard.',
+        ]},
+      ];
+    },
+  },
+  'gis-performance': {
+    name:'Performance Intelligence', icon:'🎯', accent:'#6C63FF',
+    tagline:'Platform performance signal — form, condition, training impact.',
+    kpis: function () {
+      var perf = _gisSafe(_pfTeamScores, { Overall:0, Attack:0, Defense:0, Possession:0, Condition:0 });
+      return [
+        { lbl:'Overall',     v: perf.Overall    },
+        { lbl:'Attack',      v: perf.Attack     },
+        { lbl:'Defense',     v: perf.Defense    },
+        { lbl:'Possession',  v: perf.Possession },
+      ];
+    },
+    sections: function () {
+      var alerts = _gisSafe(_pfAlerts, []);
+      return [
+        { title:'Performance Alerts', rows: alerts.length === 0
+          ? ['No active alerts.']
+          : alerts.map(function (a) { return (a.icon || '⚠️') + '  ' + (a.kind || '—') + ' — ' + (a.text || ''); }) },
+        { title:'Federation Notes', rows: [
+          'Per-tenant performance composite.',
+          'Multi-tenant benchmarks ready when additional clubs onboard.',
+        ]},
+      ];
+    },
+  },
+};
+function _ensureGISStyles() {
+  if (document.getElementById('gis-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'gis-styles';
+  s.textContent = ''
+    + '.gis-page{padding:16px 18px;}'
+    + '.gis-card{position:relative;border-radius:18px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#08102a 0%,#0d1a3a 50%,#06091b 100%);'
+    + '  border:1px solid rgba(125,249,255,0.30);'
+    + '  box-shadow:0 30px 70px -22px rgba(0,0,0,0.70),0 0 70px -16px rgba(125,249,255,0.28),inset 0 1px 0 rgba(255,255,255,0.07);}'
+    + '.gis-brand{position:relative;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(125,249,255,0.22),rgba(168,85,247,0.16) 50%,rgba(251,191,36,0.22));'
+    + '  border-bottom:1px solid rgba(125,249,255,0.30);}'
+    + '.gis-brand-logo{font-size:13px;font-weight:900;letter-spacing:2.4px;'
+    + '  background:linear-gradient(90deg,#7DF9FF,#FBBF24,#A855F7,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 12px rgba(125,249,255,0.45);}'
+    + '.gis-pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:1.4px;'
+    + '  background:linear-gradient(90deg,rgba(125,249,255,0.22),rgba(168,85,247,0.22));'
+    + '  border:1px solid rgba(125,249,255,0.45);color:#DBF6FF;}'
+    + '.gis-pill .gis-dot{width:7px;height:7px;border-radius:50%;background:#7DF9FF;box-shadow:0 0 10px #7DF9FF;animation:gis-pulse 1.4s ease-in-out infinite;}'
+    + '@keyframes gis-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.15);}}'
+    + '.gis-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.gis-kpi{text-align:center;padding:14px 10px;border-radius:12px;'
+    + '  background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.012));'
+    + '  border:1px solid rgba(125,249,255,0.24);}'
+    + '.gis-kpi-val{font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:4px;color:#7DF9FF;}'
+    + '.gis-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);}'
+    + '.gis-section{padding:14px 16px;border-radius:12px;margin-top:10px;'
+    + '  background:linear-gradient(135deg,rgba(125,249,255,0.05),rgba(168,85,247,0.04));'
+    + '  border:1px solid rgba(125,249,255,0.18);}'
+    + '.gis-section h4{margin:0 0 8px 0;font-size:10px;font-weight:900;letter-spacing:1.4px;color:#FBBF24;text-transform:uppercase;}'
+    + '.gis-section li{font-size:11.5px;color:var(--tx);line-height:1.6;margin-bottom:3px;}'
+    + '.gis-tier-badge{display:inline-block;font-size:9.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;'
+    + '  padding:3px 10px;border-radius:999px;color:#FBBF24;background:rgba(251,191,36,0.14);border:1px solid rgba(251,191,36,0.32);margin-right:8px;}'
+    + '@media (max-width:1024px){.gis-kpi-grid{grid-template-columns:repeat(2,1fr);}}'
+    + '@media (max-width:600px){.gis-kpi-grid{grid-template-columns:1fr;}}';
+  document.head.appendChild(s);
+}
+function renderGISHTML(key) {
+  var slug = (key || '').replace(/^gis-/, '');
+  return '<div class="page" id="pg-' + key + '">'
+       + '  <div id="' + key + '-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading ' + slug + '…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderGIS(key) {
+  var svc = _GIS_SERVICES[key];
+  var el = document.getElementById(key + '-content');
+  if (!el || !svc) return;
+  try { _ensureGISStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for tenant data…</div>'
+      + '<div style="font-size:11px;">Active tenant data loads on sign-in.</div></div>';
+    return;
+  }
+  try {
+    var kpis = svc.kpis();
+    var sections = svc.sections();
+    var html = ''
+      + '<div class="gis-page">'
+      + '  <div class="gis-card">'
+      + '    <div class="gis-brand">'
+      + '      <div class="gis-brand-logo">★ FAMILISTA OS · ' + svc.name.toUpperCase() + '</div>'
+      + '      <div style="display:flex;align-items:center;gap:10px;">'
+      + '        <span class="gis-pill"><span class="gis-dot"></span>SERVICE LIVE</span>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="padding:22px 24px;">'
+      + '      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">'
+      + '        <span class="gis-tier-badge">GLOBAL INTELLIGENCE</span>'
+      + '        <span style="font-size:22px;">' + svc.icon + '</span>'
+      + '        <div style="font-size:14px;color:var(--tx);font-weight:700;">' + _esc(svc.name) + '</div>'
+      + '      </div>'
+      + '      <div style="font-size:12px;color:var(--tx-2);line-height:1.7;margin-bottom:18px;">' + _esc(svc.tagline) + '</div>'
+      + '      <div class="gis-kpi-grid">'
+      +          kpis.map(function (k) {
+                  return '<div class="gis-kpi">'
+                       + '  <div class="gis-kpi-val">' + _esc(String(k.v)) + '</div>'
+                       + '  <div class="gis-kpi-lbl">' + _esc(k.lbl) + '</div>'
+                       + '</div>';
+                }).join('')
+      + '      </div>'
+      +        sections.map(function (sec) {
+                return '<div class="gis-section">'
+                     + '  <h4>' + _esc(sec.title) + '</h4>'
+                     + '  <ul style="margin:0;padding-left:18px;">'
+                     +    sec.rows.map(function (r) { return '<li>' + _esc(r) + '</li>'; }).join('')
+                     + '  </ul>'
+                     + '</div>';
+              }).join('')
+      + '      <div style="margin-top:14px;font-size:10px;color:var(--tx-3);line-height:1.6;">'
+      + '        Platform service — available to every tenant in the Familista OS network.'
+      + '        Active tenant: <span style="color:var(--green-l);font-weight:700;">FC Familista</span>.'
+      + '      </div>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[gis] render failed:', key, err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">' + _esc(svc.name) + " couldn't render</div>"
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
   }
 }
 
@@ -22175,6 +22478,11 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="multi-club-network"]')) {
     setTimeout(function () { try { renderMultiClubNetwork(); } catch (err) { try { console.error('[multi-club-network] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  var _gisEl = e.target.closest('[data-page^="gis-"]');
+  if (_gisEl) {
+    var _gisKey = _gisEl.getAttribute('data-page');
+    setTimeout(function () { try { renderGIS(_gisKey); } catch (err) { try { console.error('[gis] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
