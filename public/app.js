@@ -523,6 +523,7 @@ async function loadAllData() {
       try { if (typeof renderOwnershipCenter          === 'function') renderOwnershipCenter();          } catch (_) {}
       try { if (typeof renderAIExecutiveCenter        === 'function') renderAIExecutiveCenter();        } catch (_) {}
       try { if (typeof renderAIPresidentCenter        === 'function') renderAIPresidentCenter();        } catch (_) {}
+      try { if (typeof renderAIChairmanCenter         === 'function') renderAIChairmanCenter();         } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -754,6 +755,7 @@ function _flushPendingRender() {
     case 'pg-ownership-center': renderOwnershipCenter(); break;
     case 'pg-ai-executive-center': renderAIExecutiveCenter(); break;
     case 'pg-ai-president-center': renderAIPresidentCenter(); break;
+    case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -816,7 +818,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -856,6 +858,7 @@ function navTo(page, el) {
   if (page === 'ownership-center'){ try { renderOwnershipCenter(); } catch (e) { try { console.error('[ownership-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-executive-center'){ try { renderAIExecutiveCenter(); } catch (e) { try { console.error('[ai-executive-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-president-center'){ try { renderAIPresidentCenter(); } catch (e) { try { console.error('[ai-president-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-chairman-center'){ try { renderAIChairmanCenter(); } catch (e) { try { console.error('[ai-chairman-center] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -977,6 +980,7 @@ function renderAllPages() {
     ${renderOwnershipCenterHTML()}
     ${renderAIExecutiveCenterHTML()}
     ${renderAIPresidentCenterHTML()}
+    ${renderAIChairmanCenterHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -10066,6 +10070,529 @@ function renderAIPresidentCenter() {
     try { console.error('[ai-president-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI President Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI Chairman Center (highest enterprise governance) ───
+// Aggregator-only. Consumes outputs ONLY from AI President Center
+// (_pres*), AI Executive Center (_aix*) and Ownership Center (_own*).
+// Does NOT recompute any low-level player analytic, no squad
+// analysis, no scouting calculations, no financial recomputation —
+// strategic aggregation only. Adds a thin _chm* synthesis layer
+// (Enterprise Score, expansion / investor readiness composites,
+// growth opportunities, governance risks, chairman decision queue,
+// 10-year vision, enterprise manifesto).
+// No backend writes, no new fetches, no schema changes, no routes.
+function _chmSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _chmPresScore() { return _chmSafe(_presClubDirectionScore, 0); }
+function _chmAIXScore()  { return _chmSafe(_aixExecutiveScore, 0); }
+function _chmOWNScore()  { return _chmSafe(_ownScore, 0); }
+function _chmEnterpriseScore() {
+  const pres = _chmPresScore();
+  const aix  = _chmAIXScore();
+  const own  = _chmOWNScore();
+  return Math.max(0, Math.min(100, Math.round(pres * 0.50 + aix * 0.30 + own * 0.20)));
+}
+function _chmBand(score) {
+  if (score > 90) return { band:'VISIONARY', color:'var(--green-l)' };
+  if (score > 80) return { band:'GLOBAL',    color:'#34D399'        };
+  if (score > 70) return { band:'STRATEGIC', color:'#FBBF24'        };
+  if (score > 60) return { band:'WATCH',     color:'#60A5FA'        };
+  return                 { band:'CRITICAL',  color:'var(--red)'     };
+}
+function _chmKPIs() {
+  // 5 enterprise-level composite KPIs.
+  const direction = _chmPresScore();
+  // Growth Potential — academy + sustainability + revenue trajectory.
+  const acaStr   = _chmSafe(_ownAcademyStrength, 0);
+  const sustain  = _chmSafe(_ownSustainability, 0);
+  const sporting = _chmSafe(_ownSportingScore, 0);
+  const growthPotential = Math.round(acaStr * 0.40 + sustain * 0.35 + sporting * 0.25);
+  // Expansion Readiness — finance + sustainability.
+  const finance = _chmSafe(_ownFinanceHealth, 0);
+  const expansionReadiness = Math.round(finance * 0.55 + sustain * 0.45);
+  // Investor Readiness — ownership + finance + executive confidence.
+  const own = _chmOWNScore();
+  const execConf = _chmSafe(_presExecutiveConfidence, 0);
+  const investorReadiness = Math.round(own * 0.50 + finance * 0.30 + execConf * 0.20);
+  // Institutional Stability — strategic health + ownership confidence.
+  const strategicHealth = _chmSafe(_presStrategicHealth, 0);
+  const ownerConf = _chmSafe(_presOwnershipConfidence, 0);
+  const institutionalStability = Math.round(strategicHealth * 0.55 + ownerConf * 0.45);
+  return [
+    { lbl:'Club Direction',           v: direction },
+    { lbl:'Growth Potential',         v: growthPotential },
+    { lbl:'Expansion Readiness',      v: expansionReadiness },
+    { lbl:'Investor Readiness',       v: investorReadiness },
+    { lbl:'Institutional Stability',  v: institutionalStability },
+  ];
+}
+function _chmExpansionReadiness() {
+  // Four-dimensional expansion view. Each dim 0–100 derived from
+  // already-synthesised composites — no direct squad / finance recompute.
+  const aca  = _chmSafe(_ownAcademyStrength, 0);
+  const fin  = _chmSafe(_ownFinanceHealth, 0);
+  const sus  = _chmSafe(_ownSustainability, 0);
+  const sp   = _chmSafe(_ownSportingScore, 0);
+  const band = (v) => v >= 75 ? 'STRONG' : v >= 55 ? 'STEADY' : 'EMERGING';
+  const colFor = (v) => v >= 75 ? 'var(--green-l)' : v >= 55 ? '#FBBF24' : v >= 40 ? '#60A5FA' : 'var(--red)';
+  // Academy expansion = academy strength + sustainability.
+  const academyExp     = Math.round(aca * 0.60 + sus * 0.40);
+  // Regional expansion = sporting score + finance.
+  const regionalExp    = Math.round(sp  * 0.55 + fin * 0.45);
+  // National expansion = enterprise composite (pres × 0.5 + finance × 0.5).
+  const nationalExp    = Math.round(_chmPresScore() * 0.5 + fin * 0.5);
+  // International expansion = combination of all four, gated by sustainability.
+  const intlBase       = Math.round((aca + sp + fin + sus) / 4);
+  const internationalExp = sus < 50 ? Math.round(intlBase * 0.55) : intlBase;
+  return [
+    { kind:'ACADEMY',       score: academyExp,       band: band(academyExp),       color: colFor(academyExp) },
+    { kind:'REGIONAL',      score: regionalExp,      band: band(regionalExp),      color: colFor(regionalExp) },
+    { kind:'NATIONAL',      score: nationalExp,      band: band(nationalExp),      color: colFor(nationalExp) },
+    { kind:'INTERNATIONAL', score: internationalExp, band: band(internationalExp), color: colFor(internationalExp) },
+  ];
+}
+function _chmInvestorAttractiveness() {
+  const fin = _chmSafe(_ownFinanceHealth, 0);
+  const own = _chmOWNScore();
+  const sp  = _chmSafe(_ownSportingScore, 0);
+  const aca = _chmSafe(_ownAcademyStrength, 0);
+  const sus = _chmSafe(_ownSustainability, 0);
+  const colFor = (v) => v >= 75 ? 'var(--green-l)' : v >= 55 ? '#FBBF24' : v >= 40 ? '#60A5FA' : 'var(--red)';
+  // Sponsorship potential — sporting + ownership.
+  const sponsorship = Math.round(sp * 0.55 + own * 0.45);
+  // Funding potential — finance + ownership.
+  const funding     = Math.round(fin * 0.55 + own * 0.45);
+  // Commercial potential — finance + sustainability + sporting.
+  const commercial  = Math.round(fin * 0.40 + sus * 0.30 + sp * 0.30);
+  // Brand value — own + academy + sporting (story).
+  const brandValue  = Math.round(own * 0.40 + aca * 0.30 + sp * 0.30);
+  return [
+    { kind:'SPONSORSHIP', score: sponsorship, color: colFor(sponsorship) },
+    { kind:'FUNDING',     score: funding,     color: colFor(funding)     },
+    { kind:'COMMERCIAL',  score: commercial,  color: colFor(commercial)  },
+    { kind:'BRAND VALUE', score: brandValue,  color: colFor(brandValue)  },
+  ];
+}
+function _chmGrowthOpportunities() {
+  // Five buckets: Academy / Infrastructure / Technology / Commercial /
+  // Partnerships. Drive from existing executive opportunity outputs.
+  const aixOpps = _chmSafe(_aixOpportunities, []);
+  const ownInv  = _chmSafe(_ownCapitalOpportunities, []);
+  const findIn = (list, kinds) => list.find(o => kinds.indexOf(o.kind) >= 0);
+  const pickByKind = (kinds, lbl, icon, defaultColor, defaultDetail) => {
+    const fromAix = findIn(aixOpps, kinds);
+    const fromOwn = findIn(ownInv,  kinds);
+    const src = fromAix || fromOwn;
+    if (src) {
+      return {
+        kind: lbl, icon: src.icon || icon, color: src.color || defaultColor,
+        label: src.label || lbl,
+        detail: src.detail || src.rationale || defaultDetail,
+        amount: src.amount || 0,
+      };
+    }
+    return { kind: lbl, icon, color: defaultColor, label: '—', detail: defaultDetail, amount: 0 };
+  };
+  return [
+    pickByKind(['ACADEMY'],                 'ACADEMY',        '🎓', '#FBBF24',
+      'Multi-year academy programme; widens talent pipeline and lowers wage exposure.'),
+    pickByKind(['FACILITIES','INFRA'],      'INFRASTRUCTURE', '🏟️', '#60A5FA',
+      'Facility upgrades lift commercial revenue and recruitment pitch.'),
+    pickByKind(['TECHNOLOGY','OPERATIONS'], 'TECHNOLOGY',     '🛰️', '#A78BFA',
+      'Analytics, GPS and medical tech multiply performance and recruitment functions.'),
+    pickByKind(['FINANCE','TRANSFERS'],     'COMMERCIAL',     '🌐', 'var(--green-l)',
+      'Brand, broadcasting and commercial deals scale with sporting + academy narrative.'),
+    pickByKind(['NONE','PARTNERSHIPS'],     'PARTNERSHIPS',   '🤝', '#34D399',
+      'Strategic partnerships with local clubs / academies / sponsors compound brand reach.'),
+  ];
+}
+function _chmGovernanceRisks() {
+  // 4 governance-level risks: Financial / Operational / Brand / Strategic.
+  const ownRisks = _chmSafe(_ownRiskExposure, []);
+  const findRisk = (kind) => ownRisks.find(r => r.kind === kind);
+  const fin = findRisk('FINANCIAL');
+  const op  = findRisk('OPERATIONAL');
+  const sport = findRisk('SPORTING');
+  const brand = _chmSafe(_ownScore, 0);
+  // Strategic governance risk derived from president's strategic health.
+  const sh = _chmSafe(_presStrategicHealth, 0);
+  const lvlFor = (score) => score >= 75 ? 'LOW' : score >= 55 ? 'MED' : 'HIGH';
+  const cFor = (lvl) => lvl === 'HIGH' ? 'var(--red)' : lvl === 'MED' ? 'var(--amber)' : 'var(--green-l)';
+  const brandScore = Math.round(brand * 0.70 + (sport ? sport.score : 60) * 0.30);
+  return [
+    fin ? { kind:'FINANCIAL', score: fin.score, lvl: fin.lvl, color: fin.color, note: fin.note }
+        : { kind:'FINANCIAL', score: 60, lvl:'MED', color:'var(--amber)', note:'No financial signal — monitor.' },
+    op  ? { kind:'OPERATIONAL', score: op.score, lvl: op.lvl, color: op.color, note: op.note }
+        : { kind:'OPERATIONAL', score: 60, lvl:'MED', color:'var(--amber)', note:'No operational signal — monitor.' },
+    { kind:'BRAND',     score: brandScore, lvl: lvlFor(brandScore), color: cFor(lvlFor(brandScore)),
+      note: brandScore < 55 ? 'Brand depth limited by sporting + ownership posture.' : 'Brand position competitive within current band.' },
+    { kind:'STRATEGIC', score: sh, lvl: lvlFor(sh), color: cFor(lvlFor(sh)),
+      note: sh < 55 ? 'Strategic health below threshold — board / ownership intervention required.' : 'Strategic governance aligned across layers.' },
+  ];
+}
+function _chmDecisionQueue() {
+  // SCALE / INVEST / PARTNER / HOLD / RESTRUCTURE per spec.
+  const enterprise = _chmEnterpriseScore();
+  const ownDec = _chmSafe(_ownDecisions, []);
+  const presQ  = _chmSafe(_presDecisionQueue, []);
+  const out = [];
+  const seen = new Set();
+  const push = (item) => {
+    const key = (item.label || '').slice(0, 40).toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
+  };
+  // Map ownership / president decisions into Chairman kinds.
+  const mapKind = (label, kind) => {
+    const t = (label || '').toLowerCase();
+    if (/expand|academy/.test(t))                    return 'SCALE';
+    if (/sign|invest|recruit/.test(t))               return 'INVEST';
+    if (/partner|brand|commercial|sponsor/.test(t))  return 'PARTNER';
+    if (/maintain|protect|preserve|renew|policy/.test(t)) return 'HOLD';
+    if (/reduce|release|cut|restructure|cap/.test(t)) return 'RESTRUCTURE';
+    return kind || 'HOLD';
+  };
+  const colorForKind = (k) => k === 'SCALE'       ? 'var(--green-l)'
+                            : k === 'INVEST'      ? '#FBBF24'
+                            : k === 'PARTNER'     ? '#34D399'
+                            : k === 'HOLD'        ? '#60A5FA'
+                            : /* RESTRUCTURE */     'var(--red)';
+  const iconForKind  = (k) => k === 'SCALE'       ? '🚀'
+                            : k === 'INVEST'      ? '➕'
+                            : k === 'PARTNER'     ? '🤝'
+                            : k === 'HOLD'        ? '🛡️'
+                            : /* RESTRUCTURE */     '🔧';
+  presQ.forEach(d => {
+    const k = mapKind(d.label, d.kind === 'INVEST' ? 'INVEST' : null);
+    push({ kind: k, label: d.label, detail: d.detail, color: colorForKind(k), icon: iconForKind(k), impact: d.impact || 60, priority: d.priority || 'MEDIUM', priorityColor: d.priorityColor || '#FBBF24' });
+  });
+  ownDec.forEach(d => {
+    const k = mapKind(d.label, d.kind === 'REDUCE COST' ? 'RESTRUCTURE' : d.kind === 'EXPAND' ? 'SCALE' : d.kind === 'INVEST' ? 'INVEST' : d.kind === 'MAINTAIN' ? 'HOLD' : null);
+    push({ kind: k, label: d.label, detail: d.detail, color: colorForKind(k), icon: iconForKind(k), impact: d.impact || 60, priority: d.impact >= 80 ? 'HIGH' : d.impact >= 60 ? 'MEDIUM' : 'LOW', priorityColor: d.impact >= 80 ? 'var(--red)' : d.impact >= 60 ? '#FBBF24' : '#60A5FA' });
+  });
+  if (!out.length) out.push({
+    kind:'HOLD', label:'Maintain enterprise programme', detail:`Enterprise score ${enterprise}/100 — no chairman-level decisions outstanding.`,
+    color:'#60A5FA', icon:'🛡️', impact: 30, priority:'LOW', priorityColor:'#60A5FA',
+  });
+  out.sort((a, b) => b.impact - a.impact);
+  return out.slice(0, 7);
+}
+function _chm10YearVision() {
+  // 4 timeline rows: NOW / 3 YEARS / 5 YEARS / 10 YEARS.
+  const aca = _chmSafe(_ownAcademyStrength, 0);
+  const fin = _chmSafe(_ownFinanceHealth, 0);
+  const sp  = _chmSafe(_ownSportingScore, 0);
+  const sus = _chmSafe(_ownSustainability, 0);
+  const exp = _chmSafe(_ownStrategicExpansion, { leagueAmbition:'—', academyExpansion:'—', infraExpansion:'—' });
+  const direction = _chmPresScore();
+  const colorFor = (v) => v >= 75 ? 'var(--green-l)' : v >= 55 ? '#FBBF24' : 'var(--red)';
+  return [
+    {
+      key:'NOW',
+      lbl:'Now',
+      detail: direction >= 75 ? 'Execute current programme; protect operational gains.'
+             : direction >= 55 ? 'Stabilise weakest dimension; align departments around the next executive cycle.'
+             :                    'Top-down intervention; restore governance bands before any expansion programme.',
+      color: colorFor(direction),
+    },
+    {
+      key:'3Y',
+      lbl:'3 Years',
+      detail: `${exp.leagueAmbition}; ${exp.academyExpansion.toLowerCase()}; ${exp.infraExpansion.toLowerCase()}.`,
+      color: colorFor((sp + aca + fin) / 3),
+    },
+    {
+      key:'5Y',
+      lbl:'5 Years',
+      detail: aca >= 70 && fin >= 65
+              ? 'Academy-led contender with disciplined finances and visible pathway to first team.'
+              : sp >= 65
+              ? 'Sustained upper-half competitor; commercial brand consolidating regionally.'
+              : 'Sustainable mid-table club with credible academy pathway and protected reserves.',
+      color: colorFor((aca + fin + sp) / 3),
+    },
+    {
+      key:'10Y',
+      lbl:'10 Years',
+      detail: (aca >= 75 && fin >= 75 && sus >= 75)
+              ? 'Continental contender with global brand footprint, academy export pipeline, multi-stream commercial revenue.'
+              : (aca >= 60 && fin >= 60)
+              ? 'Established national contender, financially self-sufficient, recognised academy pathway, expanding commercial brand.'
+              : 'Stable national mid-table club with sustainable operating model and credible community brand.',
+      color: colorFor((aca + fin + sus + sp) / 4),
+    },
+  ];
+}
+function _chmEnterpriseManifesto() {
+  const score = _chmEnterpriseScore();
+  const band = _chmBand(score);
+  const pres = _chmPresScore();
+  const aix  = _chmAIXScore();
+  const own  = _chmOWNScore();
+  const inv  = _chmInvestorAttractiveness();
+  const exp  = _chmExpansionReadiness();
+  const sus  = _chmSafe(_ownSustainability, 0);
+  const investorBest = inv.slice().sort((a, b) => b.score - a.score)[0];
+  const expansionBest = exp.slice().sort((a, b) => b.score - a.score)[0];
+  let stance;
+  if (score > 90)      stance = 'governance posture is visionary — institutionalise the lead and scale the brand';
+  else if (score > 80) stance = 'governance posture is global — push regional and national expansion plays';
+  else if (score > 70) stance = 'governance posture is strategic — compound operational gains into structural expansion';
+  else if (score > 60) stance = 'governance posture is watchful — close the weakest gap before pursuing expansion';
+  else                  stance = 'governance posture is critical — top-down rebuild required across multiple layers';
+  return `Enterprise governance: ${band.band} (${score}/100). ` +
+         `Composite — President direction ${pres} · Executive operational ${aix} · Ownership posture ${own}. ` +
+         `Best expansion vector: ${expansionBest ? expansionBest.kind + ' (' + expansionBest.score + ')' : '—'}. ` +
+         `Best investor angle: ${investorBest ? investorBest.kind + ' (' + investorBest.score + ')' : '—'}. ` +
+         `Long-term sustainability composite ${sus}/100. ` +
+         `Chairman call: ${stance}.`;
+}
+function _ensureChmStyles() {
+  if (document.getElementById('chm-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'chm-styles';
+  s.textContent = `
+    .chm-page{padding:16px 18px;}
+    .chm-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#0a1228 0%,#0c1d3d 50%,#060b1d 100%);
+      border:1px solid rgba(251,191,36,0.40);
+      box-shadow:0 36px 96px -20px rgba(0,0,0,0.78),
+                 0 0 100px -16px rgba(251,191,36,0.40),
+                 0 0 80px -16px rgba(52,211,153,0.30),
+                 0 0 60px -16px rgba(74,222,128,0.20),
+                 inset 0 1px 0 rgba(255,255,255,0.10);
+      backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+    .chm-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(251,191,36,0.16),transparent 55%),
+                 radial-gradient(at bottom left,rgba(52,211,153,0.14),transparent 55%);}
+    .chm-brand{position:relative;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(251,191,36,0.34),rgba(52,211,153,0.22) 35%,rgba(74,222,128,0.18) 70%,rgba(251,191,36,0.34));
+      border-bottom:1px solid rgba(251,191,36,0.44);}
+    .chm-brand-logo{font-size:16px;font-weight:900;letter-spacing:3.4px;
+      background:linear-gradient(90deg,#FBBF24,#FEF3C7,#34D399,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 18px rgba(251,191,36,0.60);}
+    .chm-pill{display:inline-flex;align-items:center;gap:7px;padding:4px 13px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:1.6px;
+      background:linear-gradient(90deg,rgba(251,191,36,0.30),rgba(52,211,153,0.30));
+      border:1px solid rgba(251,191,36,0.55);color:#FEF3C7;text-shadow:0 0 12px rgba(251,191,36,0.55);}
+    .chm-pill .chm-dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#FBBF24,#34D399);box-shadow:0 0 14px #FBBF24;animation:chm-pulse 1.4s ease-in-out infinite;}
+    @keyframes chm-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.15);}}
+    .chm-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .chm-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .chm-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .chm-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+    .chm-tile{position:relative;padding:16px;border-radius:15px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.014));
+      border:1px solid rgba(251,191,36,0.26);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 20px 50px -16px rgba(0,0,0,0.6);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .chm-tile:hover{border-color:rgba(251,191,36,0.46);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.09),0 24px 60px -18px rgba(0,0,0,0.65),0 0 32px -8px rgba(251,191,36,0.36);}
+    .chm-tile-lbl{font-size:10.5px;font-weight:900;color:#FBBF24;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:11px;}
+    .chm-bar{height:9px;border-radius:6px;background:rgba(255,255,255,0.07);overflow:hidden;margin-top:7px;}
+    .chm-bar-fill{height:100%;border-radius:6px;}
+    .chm-pill-mini{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:900;letter-spacing:1px;}
+    .chm-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+    .chm-row:last-child{border-bottom:none;}
+    .chm-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;
+      background:rgba(255,255,255,0.035);border-left:3px solid var(--green-l);}
+    .chm-alert:last-child{margin-bottom:0;}
+    .chm-timeline{display:grid;grid-template-columns:80px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:flex-start;}
+    .chm-timeline:last-child{border-bottom:none;}
+    .chm-timeline-lbl{font-size:13px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;}
+    .chm-summary{position:relative;padding:28px;border-radius:20px;
+      background:linear-gradient(135deg,rgba(251,191,36,0.26),rgba(52,211,153,0.18));
+      border:1px solid rgba(251,191,36,0.50);border-left:10px solid #FBBF24;
+      box-shadow:0 32px 80px -16px rgba(0,0,0,0.75),0 0 80px -10px rgba(251,191,36,0.50),0 0 60px -10px rgba(52,211,153,0.34);}
+    @media (max-width:1024px){.chm-grid-3{grid-template-columns:repeat(2,1fr);}.chm-grid-4{grid-template-columns:repeat(2,1fr);}.chm-grid-5{grid-template-columns:repeat(2,1fr);}.chm-timeline{grid-template-columns:70px 1fr;}}
+    @media (max-width:600px){.chm-grid-2,.chm-grid-3,.chm-grid-4,.chm-grid-5{grid-template-columns:1fr;}.chm-timeline{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAIChairmanCenterHTML() {
+  return `<div class="page" id="pg-ai-chairman-center">
+    <div id="ai-chairman-center-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI Chairman Center…</div>
+    </div>
+  </div>`;
+}
+function renderAIChairmanCenter() {
+  const el = document.getElementById('ai-chairman-center-content');
+  if (!el) return;
+  try { _ensureChmStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _chmEnterpriseScore();
+    const band = _chmBand(score);
+    const kpis = _chmKPIs();
+    const expansion = _chmExpansionReadiness();
+    const investor  = _chmInvestorAttractiveness();
+    const growth    = _chmGrowthOpportunities();
+    const risks     = _chmGovernanceRisks();
+    const queue     = _chmDecisionQueue();
+    const vision10  = _chm10YearVision();
+    const manifesto = _chmEnterpriseManifesto();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const lvlBg = (lvl) => lvl === 'HIGH' ? 'rgba(239,68,68,0.16)' : lvl === 'MED' ? 'rgba(245,158,11,0.16)' : 'rgba(74,222,128,0.16)';
+    const priBg = (pri) => pri === 'HIGH' ? 'rgba(239,68,68,0.16)' : pri === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(96,165,250,0.16)';
+
+    el.innerHTML = `
+      <div class="chm-page">
+
+        <!-- Brand bar + 1) Enterprise Governance Dashboard -->
+        <div class="chm-card">
+          <div class="chm-brand">
+            <div class="chm-brand-logo">★ FC FAMILISTA · AI CHAIRMAN CENTER</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="chm-pill"><span class="chm-dot"></span>CHAIRMAN LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:26px;display:grid;grid-template-columns:320px 1fr;gap:26px;align-items:center;">
+            <div style="text-align:center;padding:26px 14px;border-radius:20px;background:radial-gradient(circle at 50% 35%,rgba(251,191,36,0.32),rgba(52,211,153,0.18) 45%,transparent 75%);border:1px solid rgba(251,191,36,0.48);">
+              <div style="font-size:10.5px;font-weight:900;color:#FBBF24;letter-spacing:2.0px;text-transform:uppercase;margin-bottom:12px;">Enterprise Score</div>
+              <div style="font-size:96px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 40px ${band.color},0 0 60px rgba(251,191,36,0.30);">${score}</div>
+              <div style="font-size:14px;font-weight:900;letter-spacing:2.4px;color:${band.color};text-transform:uppercase;margin-top:14px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:10.5px;font-weight:900;color:#FBBF24;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;">Enterprise Composite KPIs</div>
+              ${kpis.map(k => `
+                <div style="margin-bottom:10px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${k.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(k.v)};">${k.v}/100</span>
+                  </div>
+                  <div class="chm-bar"><div class="chm-bar-fill" style="width:${Math.max(0, Math.min(100, k.v))}%;background:${colorFor(k.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Expansion Readiness | Investor Attractiveness | Growth Opportunities -->
+        <div class="chm-grid-3">
+
+          <!-- 2) Expansion Readiness -->
+          <div class="chm-tile">
+            <div class="chm-tile-lbl">Expansion Readiness</div>
+            ${expansion.map(e => `
+              <div style="margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                  <span style="font-weight:700;">${e.kind}</span>
+                  <span style="display:flex;gap:8px;align-items:center;">
+                    <span class="chm-pill-mini" style="color:${e.color};background:rgba(251,191,36,0.12);">${e.band}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${e.color};">${e.score}/100</span>
+                  </span>
+                </div>
+                <div class="chm-bar"><div class="chm-bar-fill" style="width:${e.score}%;background:${e.color};"></div></div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 3) Investor Attractiveness -->
+          <div class="chm-tile">
+            <div class="chm-tile-lbl">Investor Attractiveness</div>
+            ${investor.map(i => `
+              <div style="margin-bottom:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx);margin-bottom:3px;">
+                  <span style="font-weight:700;">${i.kind}</span>
+                  <span style="font-family:var(--mono);font-weight:800;color:${i.color};">${i.score}/100</span>
+                </div>
+                <div class="chm-bar"><div class="chm-bar-fill" style="width:${i.score}%;background:${i.color};"></div></div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 4) Enterprise Growth Opportunities -->
+          <div class="chm-tile">
+            <div class="chm-tile-lbl">Enterprise Growth Opportunities</div>
+            ${growth.map(o => `
+              <div class="chm-alert" style="border-left-color:${o.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${o.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <span class="chm-pill-mini" style="color:${o.color};background:rgba(251,191,36,0.12);">${o.kind}</span>
+                    ${o.amount > 0 ? `<span style="font-size:10px;font-family:var(--mono);font-weight:800;color:${o.color};">${_fiFmtMoney(o.amount)}</span>` : ''}
+                  </div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(o.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Governance Risk Board | Chairman Decision Queue -->
+        <div class="chm-grid-2">
+
+          <!-- 5) Governance Risk Board -->
+          <div class="chm-tile">
+            <div class="chm-tile-lbl">Governance Risk Board</div>
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:11px;">
+              ${risks.map(r => `
+                <div style="padding:13px;border-radius:12px;background:rgba(255,255,255,0.025);border:1px solid ${r.color};">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+                    <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:var(--tx-3);text-transform:uppercase;">${r.kind}</div>
+                    <span class="chm-pill-mini" style="color:${r.color};background:${lvlBg(r.lvl)};">${r.lvl}</span>
+                  </div>
+                  <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:${r.color};line-height:1;">${r.score}</div>
+                  <div class="chm-bar"><div class="chm-bar-fill" style="width:${Math.max(0, Math.min(100, r.score))}%;background:${r.color};"></div></div>
+                  <div style="font-size:9.5px;color:var(--tx-3);margin-top:7px;line-height:1.4;">${_esc(r.note)}</div>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <!-- 6) Chairman Decision Queue -->
+          <div class="chm-tile">
+            <div class="chm-tile-lbl">Chairman Decision Queue</div>
+            ${queue.map((d, i) => `
+              <div class="chm-alert" style="border-left-color:${d.color};">
+                <span style="font-size:15px;line-height:1;flex-shrink:0;">${d.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span class="chm-pill-mini" style="color:${d.color};background:rgba(251,191,36,0.12);">${_esc(d.kind)}</span>
+                      <span class="chm-pill-mini" style="color:${d.priorityColor};background:${priBg(d.priority)};">${d.priority}</span>
+                    </div>
+                    <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">IMPACT ${d.impact} · #${i + 1}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:3px;">${_esc(d.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">${_esc(d.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 7) 10-Year Vision -->
+        <div class="chm-card" style="padding:20px 24px;">
+          <div style="font-size:10.5px;font-weight:900;color:#FBBF24;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;">10-Year Vision — Club Evolution Roadmap</div>
+          ${vision10.map(v => `
+            <div class="chm-timeline">
+              <div>
+                <div class="chm-timeline-lbl" style="color:${v.color};">${v.lbl}</div>
+              </div>
+              <div style="font-size:12.5px;color:var(--tx);line-height:1.7;">${_esc(v.detail)}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 8) Enterprise Manifesto -->
+        <div class="chm-summary">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <span style="font-size:22px;">🏛️</span>
+            <div style="font-size:14px;font-weight:900;color:#FBBF24;letter-spacing:2.4px;text-transform:uppercase;">Enterprise Manifesto</div>
+          </div>
+          <div style="font-size:15px;color:var(--tx);line-height:1.85;">${_esc(manifesto)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-chairman-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Chairman Center couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -19721,6 +20248,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-president-center"]')) {
     setTimeout(function () { try { renderAIPresidentCenter(); } catch (err) { try { console.error('[ai-president-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-chairman-center"]')) {
+    setTimeout(function () { try { renderAIChairmanCenter(); } catch (err) { try { console.error('[ai-chairman-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
