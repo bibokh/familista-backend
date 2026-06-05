@@ -524,6 +524,7 @@ async function loadAllData() {
       try { if (typeof renderAIExecutiveCenter        === 'function') renderAIExecutiveCenter();        } catch (_) {}
       try { if (typeof renderAIPresidentCenter        === 'function') renderAIPresidentCenter();        } catch (_) {}
       try { if (typeof renderAIChairmanCenter         === 'function') renderAIChairmanCenter();         } catch (_) {}
+      try { if (typeof renderAIWarRoom                === 'function') renderAIWarRoom();                } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -756,6 +757,7 @@ function _flushPendingRender() {
     case 'pg-ai-executive-center': renderAIExecutiveCenter(); break;
     case 'pg-ai-president-center': renderAIPresidentCenter(); break;
     case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
+    case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -818,7 +820,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -859,6 +861,7 @@ function navTo(page, el) {
   if (page === 'ai-executive-center'){ try { renderAIExecutiveCenter(); } catch (e) { try { console.error('[ai-executive-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-president-center'){ try { renderAIPresidentCenter(); } catch (e) { try { console.error('[ai-president-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-chairman-center'){ try { renderAIChairmanCenter(); } catch (e) { try { console.error('[ai-chairman-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'ai-war-room')      { try { renderAIWarRoom();        } catch (e) { try { console.error('[ai-war-room] nav render failed:', e);        } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -981,6 +984,7 @@ function renderAllPages() {
     ${renderAIExecutiveCenterHTML()}
     ${renderAIPresidentCenterHTML()}
     ${renderAIChairmanCenterHTML()}
+    ${renderAIWarRoomHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -10593,6 +10597,638 @@ function renderAIChairmanCenter() {
     try { console.error('[ai-chairman-center] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI Chairman Center couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── FC Familista AI War Room (operating-system layer, not a centre) ───
+// Aggregator-only. Consumes outputs from every existing centre —
+// Chairman (_chm*), President (_pres*), AI Executive (_aix*),
+// Ownership (_own*), Board (_bod*), Director Of Football (_dof*),
+// Sporting Director (_sd*), Management (_mg*), Finance (_fi*),
+// Transfer (_tc*), Scouting (_sg*), Academy (_aca*), Medical (_md*)
+// and Performance (_pf*). Does NOT recompute any domain analytic.
+// Adds a thin _war* synthesis layer (War Score, readiness KPIs,
+// risk + opportunity aggregation, conflict detection, executive
+// priority queue, club-health heatmap, recommended action engine,
+// timeline, final recommendation, summary banner).
+// No backend writes, no new fetches, no schema changes, no routes.
+function _warSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _warChairmanScore() { return _warSafe(_chmEnterpriseScore, 0); }
+function _warPresScore()     { return _warSafe(_presClubDirectionScore, 0); }
+function _warAIXScore()      { return _warSafe(_aixExecutiveScore, 0); }
+function _warOWNScore()      { return _warSafe(_ownScore, 0); }
+function _warFinHealth()     { return _warSafe(_mgFinanceHealthScore, 0); }
+function _warSportScore()    { return _warSafe(function () { return _pfTeamScores().Overall; }, 0); }
+function _warMedScore()      { return _warSafe(function () { return _mgMedScores().availPct; }, 0); }
+function _warAcaScore()      { return _warSafe(_sdAcademyReadiness, 0); }
+function _warScore() {
+  // Weighted blend per spec — Chairman + President + AI Executive +
+  // Ownership, with operational signal floor.
+  const c = _warChairmanScore();
+  const p = _warPresScore();
+  const a = _warAIXScore();
+  const o = _warOWNScore();
+  return Math.max(0, Math.min(100, Math.round(c * 0.35 + p * 0.25 + a * 0.25 + o * 0.15)));
+}
+function _warBand(score) {
+  if (score > 90) return { band:'DOMINANT', color:'var(--green-l)' };
+  if (score > 80) return { band:'READY',    color:'#34D399'        };
+  if (score > 65) return { band:'WATCH',    color:'#FBBF24'        };
+  return                 { band:'CRITICAL', color:'var(--red)'     };
+}
+function _warReadinessKPIs() {
+  // 5 readiness dimensions for command-room overview.
+  const sh        = _warSafe(_presStrategicHealth, 0);
+  const inst      = (_warSafe(_presOwnershipConfidence, 0) + _warSafe(_presExecutiveConfidence, 0)) / 2;
+  const strategic = Math.round((sh + inst) / 2);
+  const financial = _warFinHealth();
+  const sporting  = _warSportScore();
+  const medical   = _warMedScore();
+  // Execution readiness = AIX action plan strength average impact.
+  const plan = _warSafe(_aixActionPlan, []);
+  const execution = plan.length ? Math.round(plan.slice(0, 5).reduce((a, x) => a + (x.impact || 0), 0) / Math.min(5, plan.length)) : _warAIXScore();
+  return [
+    { lbl:'Strategic Readiness', v: strategic },
+    { lbl:'Financial Readiness', v: financial },
+    { lbl:'Sporting Readiness',  v: sporting  },
+    { lbl:'Medical Readiness',   v: medical   },
+    { lbl:'Execution Readiness', v: Math.min(100, Math.max(0, execution)) },
+  ];
+}
+function _warCriticalRisks() {
+  // Aggregate every domain centre's alerts. Promote non-ALL-CLEAR.
+  // Severity from color: red CRITICAL, amber HIGH, blue MEDIUM, else LOW.
+  // Add Chairman/President governance risks on top.
+  const sources = [
+    { key:'PERFORMANCE', fn: _pfAlerts,              impact: 65 },
+    { key:'MEDICAL',     fn: _mdAlerts,              impact: 80 },
+    { key:'SCOUTING',    fn: _sgAlerts,              impact: 50 },
+    { key:'TRANSFER',    fn: _tcAlerts,              impact: 70 },
+    { key:'FINANCE',     fn: _fiAlerts,              impact: 85 },
+  ];
+  const classify = (color) => color === 'var(--red)' ? 'CRITICAL' : color === 'var(--amber)' ? 'HIGH' : color === '#60A5FA' ? 'MEDIUM' : 'LOW';
+  const sevImpact = (s) => s === 'CRITICAL' ? 90 : s === 'HIGH' ? 70 : s === 'MEDIUM' ? 50 : 30;
+  const items = [];
+  sources.forEach(src => {
+    let list = [];
+    try { list = src.fn() || []; } catch (_) {}
+    list.forEach(a => {
+      if (!a || !a.kind || a.kind.toUpperCase() === 'ALL CLEAR') return;
+      const severity = classify(a.color);
+      items.push({ source: src.key, severity, color: a.color, icon: a.icon || '⚠️', kind: a.kind, text: a.text, impact: sevImpact(severity) + (src.impact - 65) * 0.2 });
+    });
+  });
+  // Governance / strategic risks from Chairman + Board.
+  const bodRisks = _warSafe(_bodRiskRegister, []);
+  bodRisks.forEach(r => {
+    if (!r || !r.kind || r.kind.toUpperCase() === 'ALL CLEAR') return;
+    const severity = classify(r.color);
+    items.push({ source: 'BOARD', severity, color: r.color, icon: r.icon || '🏛️', kind: r.kind, text: r.text, impact: sevImpact(severity) + 5 });
+  });
+  const sevW = (s) => s === 'CRITICAL' ? 4 : s === 'HIGH' ? 3 : s === 'MEDIUM' ? 2 : 1;
+  items.sort((a, b) => sevW(b.severity) - sevW(a.severity) || b.impact - a.impact);
+  return items.slice(0, 10);
+}
+function _warOpportunityRadar() {
+  // Pull from every "best opportunity" surface we have.
+  const out = [];
+  const aix = _warSafe(_aixOpportunities, []);
+  const own = _warSafe(_ownCapitalOpportunities, []);
+  const sd  = _warSafe(function () { return _sdSafe ? null : null; }, null);
+  // Tag by source so user can trace.
+  aix.forEach(o => out.push({ source:'AI EXECUTIVE', kind: o.kind, label: o.label, detail: o.detail, color: o.color, icon: o.icon, amount: 0 }));
+  own.forEach(o => out.push({ source:'OWNERSHIP',    kind: o.kind, label: o.label, detail: o.rationale, color: o.color, icon: o.icon, amount: o.amount || 0 }));
+  // Top promotion candidate as an academy opportunity.
+  const promos = _warSafe(_sdAcademyPromotions, { READY_NOW: [] });
+  if (promos.READY_NOW.length) {
+    const x = promos.READY_NOW[0];
+    out.push({ source:'ACADEMY', kind:'ACADEMY', label:`Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''}`, detail:`Composite ${x.composite}/100 — ready for first-team integration.`, color:'#FBBF24', icon:'🎓', amount: 0 });
+  }
+  // Sell board signal as finance opportunity.
+  const sells = _warSafe(_sdSellCandidates, { estimatedGain: 0 });
+  if (sells.estimatedGain > 0) {
+    out.push({ source:'TRANSFER', kind:'FINANCE', label:`Free ${_fiFmtMoney(sells.estimatedGain)} via offloads`, detail:'Redirect capital to priority lines or reserves.', color:'var(--green-l)', icon:'💼', amount: sells.estimatedGain });
+  }
+  // Dedupe by label.
+  const seen = new Set();
+  return out.filter(o => { const k = (o.label || '').slice(0, 40).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+}
+function _warDecisionConflicts() {
+  // Detect contradictions between high-level decisions.
+  const conflicts = [];
+  const fin = _warFinHealth();
+  const co  = _warSafe(_mgFinanceOverview, { wageRatio: 0 });
+  const chairmanQ = _warSafe(_chmDecisionQueue, []);
+  const presQ     = _warSafe(_presDecisionQueue, []);
+  const dofQ      = _warSafe(_dofActionQueue, []);
+  // Conflict 1: Chairman/President says SCALE/INVEST but finance health is low.
+  const wantsScale = chairmanQ.some(d => d.kind === 'SCALE' || d.kind === 'INVEST') || presQ.some(d => d.kind === 'INVEST' || d.kind === 'EXPAND');
+  if (wantsScale && fin < 60) {
+    conflicts.push({
+      title:'Strategic ambition outruns finance capacity',
+      sourceA:'CHAIRMAN/PRESIDENT', sourceALabel: 'SCALE / INVEST',
+      sourceB:'FINANCE', sourceBLabel: `HOLD (health ${fin}/100)`,
+      resolution: `Pause major signings until finance health rises above 65; pursue ${chairmanQ.find(d => d.kind === 'PARTNER') ? 'partnership' : 'commercial revenue'} plays first.`,
+      color:'var(--red)',
+    });
+  }
+  // Conflict 2: DoF wants to BUY but wage ratio elevated.
+  const wantsBuy = dofQ.some(q => /sign/i.test(q.label || ''));
+  if (wantsBuy && co.wageRatio >= 70) {
+    conflicts.push({
+      title:'DoF push to sign vs wage discipline',
+      sourceA:'DIRECTOR OF FOOTBALL', sourceALabel:'BUY',
+      sourceB:'BOARD / FINANCE', sourceBLabel: `HOLD (wage ratio ${co.wageRatio}%)`,
+      resolution: 'Constrain incoming wages to current bands; explore loans-with-option before permanent transfers.',
+      color:'#FBBF24',
+    });
+  }
+  // Conflict 3: Academy ready to promote but sporting performance high (no room).
+  const promos = _warSafe(_sdAcademyPromotions, { READY_NOW: [] });
+  const sport  = _warSportScore();
+  if (promos.READY_NOW.length && sport >= 80) {
+    conflicts.push({
+      title:'Academy promotion pressure vs strong first team',
+      sourceA:'ACADEMY', sourceALabel: `PROMOTE (${promos.READY_NOW.length} ready)`,
+      sourceB:'SPORTING DIRECTOR', sourceBLabel: `HOLD (team form ${sport}/100)`,
+      resolution: 'Use cup minutes + sub appearances; consider strategic loan for game-time without losing player.',
+      color:'#60A5FA',
+    });
+  }
+  // Conflict 4: Risk-of-injury cluster vs DoF "play through" tone.
+  const med = _warSafe(_mgMedScores, { availPct: 100, buckets: { INJURED: 0 } });
+  if (med.buckets.INJURED >= 3 && wantsBuy) {
+    conflicts.push({
+      title:'High injury exposure vs new signings',
+      sourceA:'MEDICAL', sourceALabel: `${med.buckets.INJURED} INJURED`,
+      sourceB:'DIRECTOR OF FOOTBALL', sourceBLabel:'BUY',
+      resolution: 'Resolve medical readiness above 80% before committing to first-team signings; rotate squad.',
+      color:'#FBBF24',
+    });
+  }
+  // Conflict 5: Chairman wants RESTRUCTURE but DoF queue is full of SIGN.
+  const wantsRestructure = chairmanQ.some(d => d.kind === 'RESTRUCTURE');
+  const signCount = dofQ.filter(q => /sign/i.test(q.label || '')).length;
+  if (wantsRestructure && signCount >= 1) {
+    conflicts.push({
+      title:'Restructure mandate vs in-flight recruitment',
+      sourceA:'CHAIRMAN', sourceALabel:'RESTRUCTURE',
+      sourceB:'DIRECTOR OF FOOTBALL', sourceBLabel:'SIGN',
+      resolution: 'Sequence: complete restructure milestones before reopening signing budget; communicate stop-gap with DoF.',
+      color:'var(--red)',
+    });
+  }
+  if (!conflicts.length) {
+    conflicts.push({
+      title:'No active conflicts detected',
+      sourceA:'WAR ROOM', sourceALabel:'ALIGNED',
+      sourceB:'EXECUTIVE', sourceBLabel:'ALIGNED',
+      resolution: 'Executive layer aligned across departments — proceed with current programme.',
+      color:'var(--green-l)',
+    });
+  }
+  return conflicts.slice(0, 5);
+}
+function _warExecutivePriorities() {
+  // Top 15 actions across sources.
+  const items = [];
+  const aix = _warSafe(_aixImmediatePriorities, []);
+  const dof = _warSafe(_dofActionQueue, []);
+  const own = _warSafe(_ownDecisions, []);
+  const bod = _warSafe(_bodBoardDecisions, []);
+  const sd  = _warSafe(_sdExecRecommendations, []);
+  const ownerMap = { OWNERSHIP:'Owners', 'DIRECTOR OF FOOTBALL':'DoF', BOARD:'Board', 'SPORTING DIRECTOR':'Sporting Director', FINANCE:'CFO', TRANSFER:'DoF', ACADEMY:'Academy Director' };
+  aix.forEach(a => items.push({ label: a.label, detail: a.detail, source: a.source, owner: ownerMap[a.source] || 'Executive', impact: a.impact || 60, urgency: a.urgency || 60, color: a.color, icon: a.icon }));
+  dof.forEach(d => items.push({ label: d.label, detail: d.detail, source: 'DIRECTOR OF FOOTBALL', owner: 'DoF', impact: Math.round(d.impact || 60), urgency: 70, color: d.color, icon: d.icon || '📋' }));
+  own.forEach(d => items.push({ label: d.label, detail: d.detail, source: 'OWNERSHIP', owner: 'Owners', impact: d.impact || 60, urgency: 70, color: d.color, icon: d.icon || '👑' }));
+  bod.forEach(d => items.push({ label: d.label, detail: d.detail, source: 'BOARD', owner: 'Board', impact: d.priority === 'HIGH' ? 85 : d.priority === 'MEDIUM' ? 65 : 45, urgency: 65, color: d.color, icon: d.icon || '🏛️' }));
+  sd.forEach(s => items.push({ label: (s.text || '').split(' — ')[0] || (s.text || '').slice(0, 60), detail: s.text, source: 'SPORTING DIRECTOR', owner: 'Sporting Director', impact: s.priority === 'HIGH' ? 80 : s.priority === 'MEDIUM' ? 60 : 40, urgency: 70, color: s.color, icon: s.icon || '⚽' }));
+  // Dedupe by label start.
+  const seen = new Set();
+  const filtered = items.filter(x => { const k = (x.label || '').slice(0, 40).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  filtered.sort((a, b) => (b.impact + b.urgency) - (a.impact + a.urgency));
+  return filtered.slice(0, 15);
+}
+function _warClubHealthMatrix() {
+  // Heatmap-style cells: 7 dimensions.
+  const med = _warMedScore();
+  const perf = _warSportScore();
+  const fin = _warFinHealth();
+  const aca = _warAcaScore();
+  const scout = _warSafe(function () {
+    const w = _sgWatchlist(10);
+    return w.length ? Math.round(w.reduce((a, x) => a + (x.score || 0), 0) / w.length) : 0;
+  }, 0);
+  const xfer = _warSafe(function () { return _tcSquadNeeds().balance; }, 0);
+  const ops  = _warSafe(_presStrategicHealth, 0);
+  return [
+    { kind:'MEDICAL',      score: med   },
+    { kind:'PERFORMANCE',  score: perf  },
+    { kind:'FINANCE',      score: fin   },
+    { kind:'ACADEMY',      score: aca   },
+    { kind:'SCOUTING',     score: scout },
+    { kind:'TRANSFERS',    score: xfer  },
+    { kind:'OPERATIONS',   score: ops   },
+  ];
+}
+function _warRecommendedActions() {
+  // PROMOTE / BUY / SELL / LOAN / INVEST / EXPAND / HOLD ranked.
+  const out = [];
+  const aix = _warSafe(_aixTransferRecommendations, { BUY:[], SELL:[], LOAN:[], MONITOR:[] });
+  const promos = _warSafe(_sdAcademyPromotions, { READY_NOW: [], READY_SOON: [] });
+  const chairman = _warSafe(_chmDecisionQueue, []);
+  if (promos.READY_NOW.length) {
+    const x = promos.READY_NOW[0];
+    out.push({ kind:'PROMOTE', label:`Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''}`, detail:`Composite ${x.composite}/100 — integrate into senior squad.`, color:'#FBBF24', icon:'🎓', impact: 80 + (x.composite || 0) * 0.10 });
+  }
+  if (aix.BUY[0]) {
+    const b = aix.BUY[0];
+    out.push({ kind:'BUY', label:`Sign ${b.key} target`, detail:`${b.profile} · ${b.urgency} urgency`, color:'var(--green-l)', icon:'➕', impact: 88 });
+  }
+  if (aix.SELL[0]) {
+    const s = aix.SELL[0];
+    out.push({ kind:'SELL', label:`Offload ${(s.p.firstName || '').charAt(0)}. ${s.p.lastName || ''}`, detail:`${s.reason}; ${_fiFmtMoney(s.value)}`, color:'var(--red)', icon:'💰', impact: 75 });
+  }
+  if (aix.LOAN[0]) {
+    const l = aix.LOAN[0];
+    out.push({ kind:'LOAN', label:`Loan ${(l.p.firstName || '').charAt(0)}. ${l.p.lastName || ''}`, detail:`Age ${l.age}, dev ${l.dev}/100 — minutes via loan.`, color:'#A78BFA', icon:'📨', impact: 68 });
+  }
+  // INVEST / EXPAND / HOLD from chairman queue.
+  chairman.forEach(c => {
+    if (out.length >= 7) return;
+    if (c.kind === 'INVEST' || c.kind === 'SCALE' || c.kind === 'PARTNER' || c.kind === 'HOLD' || c.kind === 'RESTRUCTURE') {
+      const mapped = c.kind === 'SCALE' ? 'EXPAND' : c.kind === 'RESTRUCTURE' ? 'HOLD' : c.kind;
+      out.push({ kind: mapped, label: c.label, detail: c.detail, color: c.color, icon: c.icon, impact: c.impact || 60 });
+    }
+  });
+  // Ensure HOLD fallback if nothing else.
+  if (!out.length) {
+    out.push({ kind:'HOLD', label:'Maintain current programme', detail:'No actionable signals from any source centre.', color:'#60A5FA', icon:'🛡️', impact: 30 });
+  }
+  out.sort((a, b) => b.impact - a.impact);
+  return out.slice(0, 8);
+}
+function _warTimeline() {
+  const sd = _warSafe(_sdRecruitmentStrategy, { immediate: [], seasonal: [], longTerm: [] });
+  const ownExp = _warSafe(_ownStrategicExpansion, { leagueAmbition:'—', academyExpansion:'—' });
+  const ten = _warSafe(_chm10YearVision, []);
+  const now = [];
+  const d30 = [];
+  const d90 = [];
+  const m12 = [];
+  (sd.immediate || []).slice(0, 2).forEach(x => now.push(x));
+  const promos = _warSafe(_sdAcademyPromotions, { READY_NOW: [] });
+  promos.READY_NOW.slice(0, 2).forEach(x => d30.push(`Promote ${(x.p.firstName || '').charAt(0)}. ${x.p.lastName || ''} to senior rotation`));
+  (sd.seasonal || []).slice(0, 2).forEach(x => d90.push(x));
+  (sd.longTerm || []).slice(0, 2).forEach(x => m12.push(x));
+  if (ownExp.leagueAmbition && m12.length < 3)  m12.push(`League: ${ownExp.leagueAmbition}`);
+  if (ten[1]) m12.push(ten[1].detail);
+  return [
+    { lbl:'Now',       color:'var(--red)',    items: now.length ? now : ['Lock current sporting + medical plan; brief all departments.'] },
+    { lbl:'30 Days',   color:'#FBBF24',        items: d30.length ? d30 : ['Resolve any decision conflicts; align finance + DoF on budget.'] },
+    { lbl:'90 Days',   color:'#60A5FA',        items: d90.length ? d90 : ['Execute committed signings / loans / promotions and review.'] },
+    { lbl:'12 Months', color:'var(--green-l)', items: m12.length ? m12 : ['Compete in target band; protect reserves; lift weakest dimension.'] },
+  ];
+}
+function _warFinalRecommendation() {
+  const score = _warScore();
+  const band = _warBand(score);
+  const conflicts = _warDecisionConflicts();
+  const realConflicts = conflicts.filter(c => c.sourceALabel !== 'ALIGNED');
+  const priorities = _warExecutivePriorities();
+  const top = priorities[0];
+  const top2 = priorities[1];
+  let lead;
+  if (score > 90)      lead = 'Execute the operational plan and protect compounding advantages.';
+  else if (score > 80) lead = 'Drive the top two priorities through without delay; everything else is supporting.';
+  else if (score > 65) lead = 'Resolve the top conflict, then execute the strongest two priorities.';
+  else                  lead = 'Top-down intervention — pause non-critical work, fix the weakest dimension first.';
+  const conflictNote = realConflicts.length
+    ? ` Top conflict to resolve: ${realConflicts[0].title}. Recommended resolution: ${realConflicts[0].resolution}`
+    : ' No executive conflicts active.';
+  const topNote = top ? ` Highest priority: ${top.label} (impact ${top.impact}, owner ${top.owner})${top2 ? `, followed by ${top2.label} (owner ${top2.owner})` : ''}.` : '';
+  return `WAR ROOM call (${band.band} · ${score}/100): ${lead}${conflictNote}${topNote}`;
+}
+function _warSummaryBanner() {
+  const score = _warScore();
+  const band = _warBand(score);
+  const c = _warChairmanScore();
+  const p = _warPresScore();
+  const a = _warAIXScore();
+  const o = _warOWNScore();
+  const risksCt = _warCriticalRisks().filter(r => r.severity === 'CRITICAL').length;
+  const conflicts = _warDecisionConflicts().filter(c => c.sourceALabel !== 'ALIGNED').length;
+  return `WAR ROOM: ${band.band} (${score}/100). Composite — Chairman ${c} · President ${p} · Executive ${a} · Ownership ${o}. ` +
+         `${risksCt} critical risk${risksCt === 1 ? '' : 's'} · ${conflicts} active conflict${conflicts === 1 ? '' : 's'}. ` +
+         `${_warFinalRecommendation()}`;
+}
+function _ensureWarRoomStyles() {
+  if (document.getElementById('war-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'war-styles';
+  s.textContent = `
+    .war-page{padding:16px 18px;}
+    .war-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#1a0a0a 0%,#0c1228 35%,#0c1d3d 70%,#070d1c 100%);
+      border:1px solid rgba(239,68,68,0.36);
+      box-shadow:0 36px 96px -20px rgba(0,0,0,0.85),
+                 0 0 100px -16px rgba(239,68,68,0.34),
+                 0 0 80px -16px rgba(251,191,36,0.28),
+                 0 0 60px -16px rgba(74,222,128,0.22),
+                 inset 0 1px 0 rgba(255,255,255,0.10);
+      backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+    .war-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(239,68,68,0.14),transparent 55%),
+                 radial-gradient(at bottom left,rgba(74,222,128,0.12),transparent 55%),
+                 radial-gradient(at center,rgba(251,191,36,0.08),transparent 70%);}
+    .war-brand{position:relative;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(239,68,68,0.32),rgba(251,191,36,0.24) 35%,rgba(74,222,128,0.22) 70%,rgba(239,68,68,0.32));
+      border-bottom:1px solid rgba(239,68,68,0.44);}
+    .war-brand-logo{font-size:16px;font-weight:900;letter-spacing:3.4px;
+      background:linear-gradient(90deg,#FCA5A5,#FBBF24,#34D399,#FCA5A5);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 18px rgba(239,68,68,0.55);}
+    .war-pill{display:inline-flex;align-items:center;gap:7px;padding:4px 13px;border-radius:999px;font-size:11px;font-weight:900;letter-spacing:1.6px;
+      background:linear-gradient(90deg,rgba(239,68,68,0.30),rgba(251,191,36,0.30));
+      border:1px solid rgba(239,68,68,0.55);color:#FECACA;text-shadow:0 0 12px rgba(239,68,68,0.55);}
+    .war-pill .war-dot{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#FCA5A5,#DC2626);box-shadow:0 0 14px #EF4444;animation:war-pulse 1.2s ease-in-out infinite;}
+    @keyframes war-pulse{0%,100%{opacity:.55;transform:scale(.95);}50%{opacity:1;transform:scale(1.20);}}
+    .war-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .war-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .war-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .war-grid-7{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+    .war-tile{position:relative;padding:16px;border-radius:15px;
+      background:linear-gradient(135deg,rgba(255,255,255,0.055),rgba(255,255,255,0.014));
+      border:1px solid rgba(239,68,68,0.22);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 20px 50px -16px rgba(0,0,0,0.6);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .war-tile:hover{border-color:rgba(239,68,68,0.40);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.09),0 24px 60px -18px rgba(0,0,0,0.65),0 0 28px -8px rgba(239,68,68,0.30),0 0 22px -8px rgba(251,191,36,0.20);}
+    .war-tile-lbl{font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:11px;}
+    .war-bar{height:9px;border-radius:6px;background:rgba(255,255,255,0.07);overflow:hidden;margin-top:7px;}
+    .war-bar-fill{height:100%;border-radius:6px;}
+    .war-pill-mini{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:900;letter-spacing:1px;}
+    .war-row{display:grid;grid-template-columns:32px 1fr 80px 80px 110px 130px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .war-row:last-child{border-bottom:none;}
+    .war-risk-row{display:grid;grid-template-columns:24px 1fr 90px 100px 70px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:11px;}
+    .war-risk-row:last-child{border-bottom:none;}
+    .war-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;
+      background:rgba(255,255,255,0.035);border-left:3px solid var(--green-l);}
+    .war-alert:last-child{margin-bottom:0;}
+    .war-heatmap-cell{padding:14px 10px;border-radius:11px;text-align:center;
+      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.012));
+      border:1.5px solid transparent;
+      transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease;}
+    .war-heatmap-cell:hover{transform:translateY(-2px);box-shadow:0 14px 40px -14px rgba(0,0,0,0.6);}
+    .war-conflict{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:12px;padding:14px;margin-bottom:10px;border-radius:13px;background:rgba(255,255,255,0.03);border-left:4px solid var(--red);}
+    .war-conflict:last-child{margin-bottom:0;}
+    .war-timeline-row{display:grid;grid-template-columns:90px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.05);align-items:flex-start;}
+    .war-timeline-row:last-child{border-bottom:none;}
+    .war-timeline-lbl{font-size:14px;font-weight:900;letter-spacing:1.8px;text-transform:uppercase;}
+    .war-final{position:relative;padding:24px;border-radius:18px;margin-bottom:14px;
+      background:linear-gradient(135deg,rgba(239,68,68,0.18),rgba(251,191,36,0.16) 50%,rgba(74,222,128,0.18));
+      border:1px solid rgba(251,191,36,0.42);border-left:6px solid #FBBF24;
+      box-shadow:0 28px 70px -16px rgba(0,0,0,0.7),0 0 70px -10px rgba(251,191,36,0.40);}
+    .war-summary{position:relative;padding:30px;border-radius:22px;
+      background:linear-gradient(135deg,rgba(239,68,68,0.28),rgba(251,191,36,0.20) 50%,rgba(74,222,128,0.24));
+      border:1px solid rgba(239,68,68,0.50);border-left:12px solid #EF4444;
+      box-shadow:0 36px 90px -16px rgba(0,0,0,0.85),
+                 0 0 90px -10px rgba(239,68,68,0.50),
+                 0 0 70px -10px rgba(251,191,36,0.40),
+                 0 0 60px -10px rgba(74,222,128,0.36);}
+    @media (max-width:1024px){.war-grid-3{grid-template-columns:repeat(2,1fr);}.war-grid-4{grid-template-columns:repeat(2,1fr);}.war-grid-7{grid-template-columns:repeat(3,1fr);}.war-row{grid-template-columns:28px 1fr 70px 70px 90px 100px;font-size:10px;}.war-conflict{grid-template-columns:1fr;}.war-timeline-row{grid-template-columns:70px 1fr;}.war-risk-row{grid-template-columns:22px 1fr 70px 80px 50px;font-size:10px;}}
+    @media (max-width:600px){.war-grid-2,.war-grid-3,.war-grid-4{grid-template-columns:1fr;}.war-grid-7{grid-template-columns:repeat(2,1fr);}.war-row{grid-template-columns:24px 1fr 50px 50px;font-size:10px;}.war-row > :nth-child(5),.war-row > :nth-child(6){display:none;}.war-risk-row{grid-template-columns:22px 1fr 60px;}.war-risk-row > :nth-child(4),.war-risk-row > :nth-child(5){display:none;}.war-timeline-row{grid-template-columns:1fr;}}`;
+  document.head.appendChild(s);
+}
+function renderAIWarRoomHTML() {
+  return `<div class="page" id="pg-ai-war-room">
+    <div id="ai-war-room-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading AI War Room…</div>
+    </div>
+  </div>`;
+}
+function renderAIWarRoom() {
+  const el = document.getElementById('ai-war-room-content');
+  if (!el) return;
+  try { _ensureWarRoomStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const score = _warScore();
+    const band = _warBand(score);
+    const kpis = _warReadinessKPIs();
+    const risks = _warCriticalRisks();
+    const opps  = _warOpportunityRadar();
+    const conflicts = _warDecisionConflicts();
+    const priorities = _warExecutivePriorities();
+    const matrix = _warClubHealthMatrix();
+    const recommended = _warRecommendedActions();
+    const timeline = _warTimeline();
+    const finalRec = _warFinalRecommendation();
+    const summary = _warSummaryBanner();
+
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+    const sevColor = (s) => s === 'CRITICAL' ? 'var(--red)' : s === 'HIGH' ? '#FBBF24' : s === 'MEDIUM' ? '#60A5FA' : 'var(--green-l)';
+    const sevBg    = (s) => s === 'CRITICAL' ? 'rgba(239,68,68,0.18)' : s === 'HIGH' ? 'rgba(251,191,36,0.18)' : s === 'MEDIUM' ? 'rgba(96,165,250,0.18)' : 'rgba(74,222,128,0.18)';
+    const heatBg   = (v) => v >= 80 ? 'linear-gradient(135deg,rgba(74,222,128,0.28),rgba(74,222,128,0.10))'
+                          : v >= 65 ? 'linear-gradient(135deg,rgba(251,191,36,0.28),rgba(251,191,36,0.10))'
+                          : v >= 50 ? 'linear-gradient(135deg,rgba(96,165,250,0.28),rgba(96,165,250,0.10))'
+                          :            'linear-gradient(135deg,rgba(239,68,68,0.32),rgba(239,68,68,0.12))';
+
+    el.innerHTML = `
+      <div class="war-page">
+
+        <!-- Brand bar + 1) War Room Dashboard -->
+        <div class="war-card">
+          <div class="war-brand">
+            <div class="war-brand-logo">★ FC FAMILISTA · AI WAR ROOM</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="war-pill"><span class="war-dot"></span>WAR ROOM LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:26px;display:grid;grid-template-columns:320px 1fr;gap:26px;align-items:center;">
+            <div style="text-align:center;padding:26px 14px;border-radius:20px;background:radial-gradient(circle at 50% 35%,rgba(239,68,68,0.30),rgba(251,191,36,0.20) 45%,transparent 75%);border:1px solid rgba(239,68,68,0.48);">
+              <div style="font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:2.0px;text-transform:uppercase;margin-bottom:12px;">War Score</div>
+              <div style="font-size:96px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 40px ${band.color},0 0 60px rgba(239,68,68,0.30);">${score}</div>
+              <div style="font-size:14px;font-weight:900;letter-spacing:2.4px;color:${band.color};text-transform:uppercase;margin-top:14px;">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;">Readiness Composite</div>
+              ${kpis.map(k => `
+                <div style="margin-bottom:10px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${k.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(k.v)};">${k.v}/100</span>
+                  </div>
+                  <div class="war-bar"><div class="war-bar-fill" style="width:${Math.max(0, Math.min(100, k.v))}%;background:${colorFor(k.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: Critical Risks | Opportunity Radar -->
+        <div class="war-grid-2">
+
+          <!-- 2) Critical Risks -->
+          <div class="war-tile">
+            <div class="war-tile-lbl">Critical Risks</div>
+            <div class="war-risk-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+              <div></div><div>RISK</div><div>SEVERITY</div><div>SOURCE</div><div style="text-align:right;">IMPACT</div>
+            </div>
+            ${risks.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No active risks — all departments reporting green.</div>`
+              : risks.map(r => `
+                <div class="war-risk-row">
+                  <div style="font-size:13px;">${r.icon}</div>
+                  <div>
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(r.kind)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(r.text)}</div>
+                  </div>
+                  <div><span class="war-pill-mini" style="color:${sevColor(r.severity)};background:${sevBg(r.severity)};">${r.severity}</span></div>
+                  <div style="font-size:9.5px;color:var(--tx-3);font-weight:800;letter-spacing:.8px;">${r.source}</div>
+                  <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(r.impact)};">${Math.round(r.impact)}</div>
+                </div>`).join('')}
+          </div>
+
+          <!-- 3) Opportunity Radar -->
+          <div class="war-tile">
+            <div class="war-tile-lbl">Opportunity Radar</div>
+            ${opps.map(o => `
+              <div class="war-alert" style="border-left-color:${o.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${o.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <span class="war-pill-mini" style="color:${o.color};background:rgba(251,191,36,0.12);">${_esc(o.kind || o.source)}</span>
+                    ${o.amount > 0 ? `<span style="font-size:10px;font-family:var(--mono);font-weight:800;color:${o.color};">${_fiFmtMoney(o.amount)}</span>` : `<span style="font-size:9px;color:var(--tx-3);letter-spacing:.6px;">${o.source}</span>`}
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(o.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(o.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 4) Decision Conflicts -->
+        <div class="war-card" style="padding:18px 22px;">
+          <div style="font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;">Decision Conflicts</div>
+          ${conflicts.map(c => `
+            <div class="war-conflict" style="border-left-color:${c.color};">
+              <div>
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:var(--tx-3);text-transform:uppercase;margin-bottom:3px;">${c.sourceA}</div>
+                <div style="font-size:12px;color:var(--tx);font-weight:800;">${_esc(c.sourceALabel)}</div>
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:var(--tx-3);text-transform:uppercase;margin-bottom:3px;">${c.sourceB}</div>
+                <div style="font-size:12px;color:var(--tx);font-weight:800;">${_esc(c.sourceBLabel)}</div>
+              </div>
+              <div>
+                <div style="font-size:9.5px;font-weight:900;letter-spacing:1.1px;color:${c.color};text-transform:uppercase;margin-bottom:3px;">${_esc(c.title)}</div>
+                <div style="font-size:11px;color:var(--tx);line-height:1.55;">${_esc(c.resolution)}</div>
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 5) Executive Priorities (Top 15) -->
+        <div class="war-card" style="padding:18px 22px;">
+          <div style="font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:12px;">Executive Priorities · Top 15</div>
+          <div class="war-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:6px;">
+            <div>#</div><div>PRIORITY</div><div style="text-align:right;">IMPACT</div><div style="text-align:right;">URGENCY</div><div style="text-align:right;">OWNER</div><div style="text-align:right;">SOURCE</div>
+          </div>
+          ${priorities.length === 0
+            ? `<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No executive priorities outstanding — programme aligned.</div>`
+            : priorities.map((p, i) => `
+              <div class="war-row">
+                <div style="font-size:11px;font-weight:900;color:#FBBF24;font-family:var(--mono);text-align:right;">${i + 1}</div>
+                <div style="display:flex;gap:7px;align-items:flex-start;min-width:0;">
+                  <span style="font-size:13px;flex-shrink:0;">${p.icon}</span>
+                  <div style="min-width:0;">
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.label)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${_esc((p.detail || '').slice(0, 100))}</div>
+                  </div>
+                </div>
+                <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(p.impact)};">${p.impact}</div>
+                <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:${colorFor(p.urgency)};">${p.urgency}</div>
+                <div style="text-align:right;font-size:10px;color:var(--tx);font-weight:700;">${_esc(p.owner)}</div>
+                <div style="text-align:right;font-size:9px;color:var(--tx-3);letter-spacing:.8px;font-weight:800;">${_esc(p.source)}</div>
+              </div>`).join('')}
+        </div>
+
+        <!-- Row: Club Health Matrix | Recommended Actions -->
+        <div class="war-grid-2">
+
+          <!-- 6) Club Health Matrix -->
+          <div class="war-tile">
+            <div class="war-tile-lbl">Club Health Matrix</div>
+            <div class="war-grid-7">
+              ${matrix.map(c => `
+                <div class="war-heatmap-cell" style="background:${heatBg(c.score)};border-color:${colorFor(c.score)};">
+                  <div style="font-size:8.5px;font-weight:900;color:var(--tx);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">${c.kind}</div>
+                  <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:${colorFor(c.score)};line-height:1;">${c.score}</div>
+                </div>`).join('')}
+            </div>
+            <div style="font-size:10px;color:var(--tx-3);margin-top:10px;line-height:1.5;">Heatmap colour reflects current department score — green ≥ 80, amber ≥ 65, blue ≥ 50, red below.</div>
+          </div>
+
+          <!-- 7) Recommended Actions -->
+          <div class="war-tile">
+            <div class="war-tile-lbl">Recommended Actions</div>
+            ${recommended.map((r, i) => `
+              <div class="war-alert" style="border-left-color:${r.color};">
+                <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                    <span class="war-pill-mini" style="color:${r.color};background:rgba(251,191,36,0.12);">${_esc(r.kind)}</span>
+                    <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">IMP ${Math.round(r.impact)} · #${i + 1}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(r.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(r.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 8) War Room Timeline -->
+        <div class="war-card" style="padding:20px 24px;">
+          <div style="font-size:10.5px;font-weight:900;color:#FCA5A5;letter-spacing:1.8px;text-transform:uppercase;margin-bottom:14px;">War Room Timeline</div>
+          ${timeline.map(t => `
+            <div class="war-timeline-row">
+              <div><div class="war-timeline-lbl" style="color:${t.color};">${t.lbl}</div></div>
+              <div>
+                ${t.items.map((it, i) => `<div style="font-size:12px;color:var(--tx);line-height:1.7;margin-bottom:5px;display:flex;gap:8px;"><span style="color:var(--tx-3);font-family:var(--mono);">${i + 1}.</span><span>${_esc(it)}</span></div>`).join('')}
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <!-- 9) AI Final Recommendation -->
+        <div class="war-final">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            <span style="font-size:18px;">🎯</span>
+            <div style="font-size:12px;font-weight:900;color:#FBBF24;letter-spacing:2.0px;text-transform:uppercase;">AI Final Recommendation</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--tx);line-height:1.75;font-weight:600;">${_esc(finalRec)}</div>
+        </div>
+
+        <!-- 10) War Room Summary Banner -->
+        <div class="war-summary">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <span style="font-size:24px;">⚔️</span>
+            <div style="font-size:15px;font-weight:900;color:#FCA5A5;letter-spacing:2.6px;text-transform:uppercase;">War Room Strategic Brief</div>
+          </div>
+          <div style="font-size:15.5px;color:var(--tx);line-height:1.85;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[ai-war-room] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">AI War Room couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -20251,6 +20887,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="ai-chairman-center"]')) {
     setTimeout(function () { try { renderAIChairmanCenter(); } catch (err) { try { console.error('[ai-chairman-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="ai-war-room"]')) {
+    setTimeout(function () { try { renderAIWarRoom(); } catch (err) { try { console.error('[ai-war-room] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
