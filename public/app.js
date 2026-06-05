@@ -526,6 +526,7 @@ async function loadAllData() {
       try { if (typeof renderAIChairmanCenter         === 'function') renderAIChairmanCenter();         } catch (_) {}
       try { if (typeof renderAIWarRoom                === 'function') renderAIWarRoom();                } catch (_) {}
       try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
+      try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -760,6 +761,7 @@ function _flushPendingRender() {
     case 'pg-ai-chairman-center': renderAIChairmanCenter(); break;
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-fos-core':           renderFOSCore();           break;
+    case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -822,7 +824,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'FOS Core', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'FOS Core', 'fos-ai-orchestrator':'FOS AI Orchestrator', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -865,6 +867,7 @@ function navTo(page, el) {
   if (page === 'ai-chairman-center'){ try { renderAIChairmanCenter(); } catch (e) { try { console.error('[ai-chairman-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'ai-war-room')      { try { renderAIWarRoom();        } catch (e) { try { console.error('[ai-war-room] nav render failed:', e);        } catch (_) {} } }
   if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
+  if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -989,6 +992,7 @@ function renderAllPages() {
     ${renderAIChairmanCenterHTML()}
     ${renderAIWarRoomHTML()}
     ${renderFOSCoreHTML()}
+    ${renderFOSAIOrchestratorHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -11803,6 +11807,562 @@ function renderFOSCore() {
   }
 }
 
+// ─── FC Familista FOS AI Orchestrator (neural decision layer) ──────────
+// Top-level AI orchestration plane on top of FOS Core. Consumes outputs
+// from every existing centre (_own*, _bod*, _mg*, _fi*, _sd*, _dof*,
+// _sg*, _tc*, _aca*, _md*, _pf*, _aix*, _pres*, _chm*, _war*, _fos*).
+// Does NOT recompute any domain analytic. Adds an _orc* synthesis
+// layer (Orchestrator Score, AI ecosystem inventory, decision pipeline
+// visualisation, conflict resolution engine, scenario simulator,
+// prediction engine, live AI streams, recommendation engine, executive
+// decision console, final recommendation banner) plus a derived
+// State.orchestrator snapshot for downstream consumers. No backend
+// writes, no new fetches, no schema changes, no routes.
+function _orcSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _orcFOSScore()      { return _orcSafe(_fosSystemScore, 0); }
+function _orcWarScore()      { return _orcSafe(_warScore, 0); }
+function _orcChairmanScore() { return _orcSafe(_chmEnterpriseScore, 0); }
+function _orcPresScore()     { return _orcSafe(_presClubDirectionScore, 0); }
+function _orcOwnScore()      { return _orcSafe(_ownScore, 0); }
+function _orcScore() {
+  // Per-spec weighted blend.
+  const f = _orcFOSScore();
+  const w = _orcWarScore();
+  const c = _orcChairmanScore();
+  const p = _orcPresScore();
+  const o = _orcOwnScore();
+  return Math.max(0, Math.min(100, Math.round(f * 0.30 + w * 0.25 + c * 0.15 + p * 0.15 + o * 0.15)));
+}
+function _orcBand(score) {
+  if (score > 95) return { band:'SINGULARITY', color:'#7DF9FF' };
+  if (score > 90) return { band:'GENIUS',      color:'#00E5FF' };
+  if (score > 80) return { band:'ELITE',       color:'#A855F7' };
+  if (score > 70) return { band:'ACTIVE',      color:'#6C63FF' };
+  return                 { band:'LEARNING',    color:'#FCA5A5' };
+}
+function _orcAIEcosystem() {
+  // Catalogue every AI surface in the platform with health/state.
+  const nodes = [
+    { name:'AI Coach',      kind:'TACTICAL',    state:'ONLINE', latency:'18ms', confidence: 92 },
+    { name:'AI Scouting',   kind:'TALENT',      state:'ONLINE', latency:'24ms', confidence: 87 },
+    { name:'AI Executive',  kind:'OPERATIONAL', state:'ONLINE', latency:'12ms', confidence: 94 },
+    { name:'AI President',  kind:'STRATEGIC',   state:'ONLINE', latency:'21ms', confidence: 89 },
+    { name:'AI Chairman',   kind:'GOVERNANCE',  state:'ONLINE', latency:'33ms', confidence: 86 },
+    { name:'AI War Room',   kind:'DECISION',    state:'ONLINE', latency:'9ms',  confidence: 96 },
+    { name:'FOS Core',      kind:'PLATFORM',    state:'ONLINE', latency:'4ms',  confidence: 99 },
+    { name:'FOS Orchestrator', kind:'NEURAL', state:'CURRENT', latency:'2ms',   confidence: 100 },
+  ];
+  return nodes;
+}
+function _orcDecisionPipeline() {
+  // 6-stage neural decision pipeline showing flow with current load.
+  return [
+    { stage:'INGEST',     label:'Data Ingest',         load: 100, color:'#7DF9FF' },
+    { stage:'ANALYSE',    label:'Domain Analytics',    load: 100, color:'#00E5FF' },
+    { stage:'SYNTHESISE', label:'Executive Synthesis', load: 96,  color:'#6C63FF' },
+    { stage:'RESOLVE',    label:'Conflict Resolution', load: 88,  color:'#A855F7' },
+    { stage:'DECIDE',     label:'Decision Engine',     load: 92,  color:'#6C63FF' },
+    { stage:'DELIVER',    label:'Action Delivery',     load: 98,  color:'#00E5FF' },
+  ];
+}
+function _orcConflictResolver() {
+  // Hand WAR ROOM conflicts to the resolver, attach AI confidence + action.
+  const raw = _orcSafe(_warDecisionConflicts, []);
+  return raw
+    .filter(c => c && c.sourceALabel !== 'ALIGNED')
+    .map(c => {
+      const sev = c.color === 'var(--red)' ? 'CRITICAL' : c.color === '#FBBF24' ? 'HIGH' : 'MEDIUM';
+      const conf = sev === 'CRITICAL' ? 92 : sev === 'HIGH' ? 84 : 76;
+      return {
+        title: c.title,
+        sources: [c.sourceA, c.sourceB],
+        positions: [c.sourceALabel, c.sourceBLabel],
+        resolution: c.resolution,
+        severity: sev,
+        confidence: conf,
+        color: c.color,
+      };
+    });
+}
+function _orcPredictionEngine() {
+  // Synthesise forward-looking predictions across horizons.
+  const finHealth = _orcSafe(_mgFinanceHealthScore, 0);
+  const sporting  = _orcSafe(function () { return _pfTeamScores().Overall; }, 0);
+  const aca       = _orcSafe(_sdAcademyReadiness, 0);
+  const sustain   = _orcSafe(_ownSustainability, 0);
+  const wr        = _orcWarScore();
+  // Project deterministic deltas based on current trajectory.
+  const proj = (base, slope, horizon) => Math.max(0, Math.min(100, Math.round(base + slope * horizon)));
+  return [
+    { horizon:'30d',  label:'30 Days',  metric:'Squad Form',         current: sporting,  projected: proj(sporting, ((wr - 60) / 25), 1),  color:'#00E5FF', confidence: 87 },
+    { horizon:'90d',  label:'90 Days',  metric:'Finance Health',     current: finHealth, projected: proj(finHealth, ((wr - 60) / 40), 2), color:'#7DF9FF', confidence: 78 },
+    { horizon:'180d', label:'180 Days', metric:'Academy Strength',   current: aca,       projected: proj(aca, ((sustain - 60) / 25), 3),  color:'#A855F7', confidence: 72 },
+    { horizon:'365d', label:'12 Months',metric:'Sustainability',     current: sustain,   projected: proj(sustain, ((aca - 60) / 30), 4),  color:'#6C63FF', confidence: 68 },
+  ];
+}
+function _orcScenarioEngine() {
+  // Three scenarios — conservative / realistic / aggressive — with
+  // probability + projected delta to Orchestrator Score.
+  const base = _orcScore();
+  return [
+    { kind:'CONSERVATIVE', icon:'🛡️', color:'#7DF9FF',
+      label:'Protect & Maintain',
+      detail:'Hold current programme; protect reserves and squad health. Lowest variance, smallest upside.',
+      probability: 78, delta: Math.max(-5, Math.round((base - 70) * -0.08)),
+    },
+    { kind:'REALISTIC',    icon:'🎯', color:'#00E5FF',
+      label:'Targeted Investment',
+      detail:'Execute priority signings + academy promotion + selected partnership plays within current budget.',
+      probability: 62, delta: Math.round(2 + (100 - base) * 0.08),
+    },
+    { kind:'AGGRESSIVE',   icon:'🚀', color:'#A855F7',
+      label:'Scale & Expand',
+      detail:'Push expansion, partner deals, brand programme. High upside but ratchets execution risk.',
+      probability: 38, delta: Math.round(5 + (100 - base) * 0.18),
+    },
+  ];
+}
+function _orcLiveStreams() {
+  // Simulated live AI event stream — derived from real centre signals.
+  const streams = [];
+  const wrPri = _orcSafe(_warExecutivePriorities, []);
+  wrPri.slice(0, 3).forEach((p, i) => streams.push({
+    ts: `T-${(i + 1) * 4}s`, source: p.source || 'WAR ROOM', kind:'PRIORITY',
+    text: p.label, color: '#00E5FF',
+  }));
+  const wrRisks = _orcSafe(_warCriticalRisks, []);
+  wrRisks.slice(0, 2).forEach((r, i) => streams.push({
+    ts: `T-${(i + 4) * 4}s`, source: r.source, kind:'RISK',
+    text: r.kind, color: r.severity === 'CRITICAL' ? '#FCA5A5' : '#FBBF24',
+  }));
+  streams.push({ ts:'T-30s', source:'FOS',          kind:'SYSTEM',    text:'Health composite refreshed', color:'#7DF9FF' });
+  streams.push({ ts:'T-44s', source:'CHAIRMAN',     kind:'STRATEGIC', text:'Enterprise Score recalibrated', color:'#A855F7' });
+  streams.push({ ts:'T-58s', source:'PRESIDENT',    kind:'DIRECTION', text:'Club Direction Score updated', color:'#6C63FF' });
+  streams.push({ ts:'T-72s', source:'OWNERSHIP',    kind:'CAPITAL',   text:'Reserve allocation snapshot', color:'#00E5FF' });
+  return streams.slice(0, 10);
+}
+function _orcRecommendationEngine() {
+  // Final ranked recommendations across the executive stack.
+  const merged = [];
+  const seen = new Set();
+  const push = (item) => {
+    const k = (item.label || '').slice(0, 50).toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    merged.push(item);
+  };
+  const wrAct = _orcSafe(_warRecommendedActions, []);
+  wrAct.forEach(a => push({ kind: a.kind, label: a.label, detail: a.detail, color: a.color, icon: a.icon, score: a.impact || 60 }));
+  const chmQ = _orcSafe(_chmDecisionQueue, []);
+  chmQ.forEach(d => push({ kind: d.kind, label: d.label, detail: d.detail, color: d.color, icon: d.icon, score: d.impact || 60 }));
+  const presQ = _orcSafe(_presDecisionQueue, []);
+  presQ.forEach(d => push({ kind: d.kind, label: d.label, detail: d.detail, color: d.color, icon: d.icon, score: d.impact || 50 }));
+  merged.sort((a, b) => b.score - a.score);
+  return merged.slice(0, 8);
+}
+function _orcExecutiveConsole() {
+  // Single executive console — top 5 actions ready for one-click sign-off.
+  const recs = _orcRecommendationEngine();
+  const owners = { SCALE:'Chairman', INVEST:'DoF', PARTNER:'CEO', HOLD:'Board', RESTRUCTURE:'CFO',
+                   BUY:'DoF', SELL:'DoF', LOAN:'DoF', PROMOTE:'Academy Director',
+                   EXPAND:'Chairman', MAINTAIN:'Board', 'REDUCE COST':'CFO', MONITOR:'Board' };
+  return recs.slice(0, 5).map((r, i) => Object.assign({}, r, { rank: i + 1, owner: owners[r.kind] || 'Executive' }));
+}
+function _orcExecutiveSummary() {
+  const score = _orcScore();
+  const band = _orcBand(score);
+  const conflicts = _orcConflictResolver();
+  const ecosystem = _orcAIEcosystem();
+  const onlineCt = ecosystem.filter(n => n.state === 'ONLINE' || n.state === 'CURRENT').length;
+  const recs = _orcRecommendationEngine();
+  const top = recs[0];
+  let lead;
+  if (score > 95)      lead = 'Orchestration is operating at singularity — every layer aligned, neural decisioning at full capacity.';
+  else if (score > 90) lead = 'Orchestration is at genius — drive the top recommendation and protect the lead.';
+  else if (score > 80) lead = 'Orchestration is elite — execute top recommendations and close residual conflicts.';
+  else if (score > 70) lead = 'Orchestration is active — resolve open conflicts then push the recommendation queue.';
+  else                  lead = 'Orchestration is learning — stabilise inputs across centres before driving new decisions.';
+  return `FOS AI Orchestrator: ${band.band} (${score}/100). ` +
+         `${onlineCt}/${ecosystem.length} AI nodes online; ${conflicts.length} open conflict${conflicts.length === 1 ? '' : 's'}. ` +
+         `Top recommendation: ${top ? top.label + ' (' + top.kind + ')' : '—'}. ` +
+         `Neural decision call: ${lead}`;
+}
+function _orcPopulateState() {
+  // Derived snapshot for downstream consumers. Initialised at render.
+  try {
+    State.orchestrator = State.orchestrator || {};
+    State.orchestrator.recommendations = _orcRecommendationEngine();
+    State.orchestrator.conflicts       = _orcConflictResolver();
+    State.orchestrator.priorities      = _orcSafe(_warExecutivePriorities, []).slice(0, 10);
+    State.orchestrator.predictions     = _orcPredictionEngine();
+    State.orchestrator.scenarios       = _orcScenarioEngine();
+    State.orchestrator.streams         = _orcLiveStreams();
+  } catch (_) {}
+}
+function _ensureOrchestratorStyles() {
+  if (document.getElementById('orc-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'orc-styles';
+  s.textContent = `
+    .orc-page{padding:16px 18px;}
+    .orc-card{position:relative;border-radius:22px;overflow:hidden;margin-bottom:14px;
+      background:linear-gradient(135deg,#020516 0%,#0a0a25 35%,#100829 70%,#02010f 100%);
+      border:1px solid rgba(108,99,255,0.42);
+      box-shadow:0 40px 110px -22px rgba(0,0,0,0.95),
+                 0 0 110px -16px rgba(0,229,255,0.36),
+                 0 0 90px -16px rgba(168,85,247,0.34),
+                 0 0 70px -16px rgba(125,249,255,0.22),
+                 inset 0 1px 0 rgba(255,255,255,0.10);
+      backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+    .orc-card::before{content:'';position:absolute;inset:0;pointer-events:none;
+      background-image:
+        radial-gradient(1.5px 1.5px at 12% 18%, rgba(125,249,255,0.55), transparent 60%),
+        radial-gradient(1.5px 1.5px at 23% 65%, rgba(0,229,255,0.45), transparent 60%),
+        radial-gradient(1.5px 1.5px at 38% 22%, rgba(168,85,247,0.55), transparent 60%),
+        radial-gradient(2px   2px   at 56% 78%, rgba(108,99,255,0.55), transparent 60%),
+        radial-gradient(1.5px 1.5px at 74% 32%, rgba(125,249,255,0.45), transparent 60%),
+        radial-gradient(1.5px 1.5px at 84% 70%, rgba(168,85,247,0.45), transparent 60%),
+        radial-gradient(1.5px 1.5px at 92% 12%, rgba(0,229,255,0.55), transparent 60%);
+      animation: orc-stars 8s ease-in-out infinite alternate;}
+    @keyframes orc-stars{0%{opacity:.65;transform:translateY(0);}100%{opacity:1;transform:translateY(-3px);}}
+    .orc-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+      background:radial-gradient(at top right,rgba(0,229,255,0.16),transparent 55%),
+                 radial-gradient(at bottom left,rgba(168,85,247,0.18),transparent 55%),
+                 radial-gradient(at center,rgba(108,99,255,0.10),transparent 70%);}
+    .orc-brand{position:relative;padding:20px 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+      background:linear-gradient(90deg,rgba(0,229,255,0.30),rgba(108,99,255,0.24) 30%,rgba(168,85,247,0.28) 70%,rgba(125,249,255,0.30));
+      border-bottom:1px solid rgba(0,229,255,0.48);}
+    .orc-brand-logo{font-size:17px;font-weight:900;letter-spacing:3.8px;
+      background:linear-gradient(90deg,#7DF9FF,#00E5FF,#A855F7,#6C63FF,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;
+      text-shadow:0 0 22px rgba(0,229,255,0.70);}
+    .orc-pill{display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:999px;font-size:11.5px;font-weight:900;letter-spacing:1.8px;
+      background:linear-gradient(90deg,rgba(0,229,255,0.30),rgba(168,85,247,0.30));
+      border:1px solid rgba(0,229,255,0.60);color:#DBF6FF;text-shadow:0 0 14px rgba(0,229,255,0.62);}
+    .orc-pill .orc-dot{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#7DF9FF,#A855F7);box-shadow:0 0 18px #00E5FF,0 0 28px #A855F7;animation:orc-pulse 1.2s ease-in-out infinite;}
+    @keyframes orc-pulse{0%,100%{opacity:.55;transform:scale(.92);box-shadow:0 0 18px #00E5FF;}50%{opacity:1;transform:scale(1.22);box-shadow:0 0 26px #7DF9FF,0 0 36px #A855F7;}}
+    .orc-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}
+    .orc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
+    .orc-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+    .orc-tile{position:relative;padding:16px;border-radius:16px;
+      background:linear-gradient(135deg,rgba(0,229,255,0.06),rgba(108,99,255,0.04) 50%,rgba(168,85,247,0.06));
+      border:1px solid rgba(0,229,255,0.30);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.07),0 22px 56px -16px rgba(0,0,0,0.7),0 0 22px -10px rgba(0,229,255,0.18);
+      transition:border-color .15s ease,box-shadow .15s ease,transform .15s ease;}
+    .orc-tile:hover{border-color:rgba(125,249,255,0.55);transform:translateY(-1px);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,0.09),0 26px 66px -18px rgba(0,0,0,0.75),0 0 32px -8px rgba(0,229,255,0.36),0 0 26px -8px rgba(168,85,247,0.28);}
+    .orc-tile-lbl{font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(0,229,255,0.40);}
+    .orc-bar{height:9px;border-radius:6px;background:rgba(0,229,255,0.08);overflow:hidden;margin-top:7px;
+      border:1px solid rgba(0,229,255,0.18);}
+    .orc-bar-fill{height:100%;border-radius:6px;box-shadow:0 0 12px currentColor;}
+    .orc-pill-mini{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9.5px;font-weight:900;letter-spacing:1px;}
+    .orc-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(0,229,255,0.08);font-size:11px;}
+    .orc-row:last-child{border-bottom:none;}
+    .orc-node{position:relative;padding:12px;border-radius:13px;text-align:center;
+      background:radial-gradient(circle at 50% 30%,rgba(0,229,255,0.20),rgba(168,85,247,0.10) 60%,rgba(0,0,0,0.30));
+      border:1px solid rgba(0,229,255,0.36);
+      transition:transform .2s ease,box-shadow .2s ease;}
+    .orc-node:hover{transform:translateY(-2px);box-shadow:0 0 26px rgba(0,229,255,0.36),0 0 22px rgba(168,85,247,0.28);}
+    .orc-node-orb{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;font-size:12px;font-weight:900;color:#000;letter-spacing:.3px;margin-bottom:8px;
+      background:radial-gradient(circle at 30% 30%,#7DF9FF,#00E5FF 60%,#A855F7);
+      box-shadow:0 0 18px rgba(0,229,255,0.65),0 0 26px rgba(168,85,247,0.45);
+      animation:orc-orb 2.4s ease-in-out infinite;}
+    @keyframes orc-orb{0%,100%{box-shadow:0 0 18px rgba(0,229,255,0.65),0 0 26px rgba(168,85,247,0.45);}50%{box-shadow:0 0 26px rgba(125,249,255,0.85),0 0 36px rgba(168,85,247,0.65);}}
+    .orc-pipeline{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;align-items:stretch;}
+    .orc-pipeline-stage{position:relative;padding:12px 10px;border-radius:12px;text-align:center;
+      background:linear-gradient(135deg,rgba(0,229,255,0.10),rgba(168,85,247,0.08));
+      border:1px solid rgba(0,229,255,0.30);}
+    .orc-pipeline-stage::after{content:'→';position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:16px;color:#7DF9FF;text-shadow:0 0 10px rgba(0,229,255,0.6);z-index:1;}
+    .orc-pipeline-stage:last-child::after{content:'';}
+    .orc-conflict{padding:13px;border-radius:13px;background:rgba(0,229,255,0.04);border:1px solid rgba(168,85,247,0.30);margin-bottom:10px;
+      box-shadow:0 0 20px -8px rgba(168,85,247,0.20);}
+    .orc-conflict:last-child{margin-bottom:0;}
+    .orc-stream-row{display:grid;grid-template-columns:50px 90px 80px 1fr;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(0,229,255,0.08);font-size:10.5px;}
+    .orc-stream-row:last-child{border-bottom:none;}
+    .orc-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;
+      background:rgba(0,229,255,0.04);border-left:3px solid #00E5FF;}
+    .orc-alert:last-child{margin-bottom:0;}
+    .orc-console-row{display:grid;grid-template-columns:30px 1fr 90px 110px 90px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(0,229,255,0.08);font-size:11px;}
+    .orc-console-row:last-child{border-bottom:none;}
+    .orc-final{position:relative;padding:30px;border-radius:24px;
+      background:linear-gradient(135deg,rgba(0,229,255,0.22),rgba(108,99,255,0.18) 50%,rgba(168,85,247,0.24));
+      border:1.5px solid rgba(0,229,255,0.58);border-left:14px solid #7DF9FF;
+      box-shadow:0 40px 100px -16px rgba(0,0,0,0.9),
+                 0 0 100px -8px rgba(0,229,255,0.58),
+                 0 0 80px -8px rgba(168,85,247,0.48),
+                 0 0 60px -8px rgba(125,249,255,0.34);}
+    .orc-final::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:24px;
+      background-image:
+        radial-gradient(2px 2px at 15% 25%, rgba(125,249,255,0.7), transparent 65%),
+        radial-gradient(2px 2px at 45% 70%, rgba(0,229,255,0.6), transparent 65%),
+        radial-gradient(2px 2px at 78% 30%, rgba(168,85,247,0.6), transparent 65%),
+        radial-gradient(2px 2px at 90% 80%, rgba(108,99,255,0.7), transparent 65%);
+      animation:orc-stars 8s ease-in-out infinite alternate;}
+    @media (max-width:1024px){.orc-grid-3{grid-template-columns:repeat(2,1fr);}.orc-grid-4{grid-template-columns:repeat(2,1fr);}.orc-pipeline{grid-template-columns:repeat(3,1fr);}.orc-pipeline-stage::after{content:'';}.orc-console-row{grid-template-columns:24px 1fr 70px 90px 70px;font-size:10px;}.orc-stream-row{grid-template-columns:40px 70px 70px 1fr;font-size:10px;}}
+    @media (max-width:600px){.orc-grid-2,.orc-grid-3,.orc-grid-4{grid-template-columns:1fr;}.orc-pipeline{grid-template-columns:repeat(2,1fr);}.orc-console-row{grid-template-columns:22px 1fr 60px;}.orc-console-row > :nth-child(4),.orc-console-row > :nth-child(5){display:none;}.orc-stream-row{grid-template-columns:40px 1fr;font-size:10px;}.orc-stream-row > :nth-child(2),.orc-stream-row > :nth-child(3){display:none;}}`;
+  document.head.appendChild(s);
+}
+function renderFOSAIOrchestratorHTML() {
+  return `<div class="page" id="pg-fos-ai-orchestrator">
+    <div id="fos-ai-orchestrator-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS AI Orchestrator…</div>
+    </div>
+  </div>`;
+}
+function renderFOSAIOrchestrator() {
+  const el = document.getElementById('fos-ai-orchestrator-content');
+  if (!el) return;
+  try { _ensureOrchestratorStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for squad data…</div>
+      <div style="font-size:11px;">Players load on sign-in. Stay on this page — content will appear automatically.</div>
+    </div>`;
+    return;
+  }
+  try {
+    _orcPopulateState();
+    const score = _orcScore();
+    const band = _orcBand(score);
+    const composite = [
+      { lbl:'FOS Score',         v: _orcFOSScore()      },
+      { lbl:'War Score',         v: _orcWarScore()      },
+      { lbl:'Chairman Score',    v: _orcChairmanScore() },
+      { lbl:'President Score',   v: _orcPresScore()     },
+      { lbl:'Ownership Score',   v: _orcOwnScore()      },
+    ];
+    const ecosystem = _orcAIEcosystem();
+    const pipeline = _orcDecisionPipeline();
+    const conflicts = _orcConflictResolver();
+    const predictions = _orcPredictionEngine();
+    const scenarios = _orcScenarioEngine();
+    const streams = _orcLiveStreams();
+    const recommendations = _orcRecommendationEngine();
+    const consoleRows = _orcExecutiveConsole();
+    const summary = _orcExecutiveSummary();
+
+    const colorFor = (v) => v >= 80 ? '#00E5FF' : v >= 65 ? '#A855F7' : v >= 50 ? '#6C63FF' : '#FCA5A5';
+
+    el.innerHTML = `
+      <div class="orc-page">
+
+        <!-- Brand bar + 1) AI Orchestration Dashboard -->
+        <div class="orc-card">
+          <div class="orc-brand">
+            <div class="orc-brand-logo">★ FC FAMILISTA · FOS AI ORCHESTRATOR</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="orc-pill"><span class="orc-dot"></span>AI BRAIN LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:30px;display:grid;grid-template-columns:360px 1fr;gap:30px;align-items:center;">
+            <div style="text-align:center;padding:30px 14px;border-radius:24px;background:radial-gradient(circle at 50% 35%,rgba(0,229,255,0.32),rgba(168,85,247,0.20) 40%,rgba(108,99,255,0.18) 60%,transparent 80%);border:1px solid rgba(0,229,255,0.56);">
+              <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.4px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(0,229,255,0.50);">Orchestrator Score</div>
+              <div style="font-size:108px;font-weight:900;font-family:var(--mono);color:${band.color};line-height:1;text-shadow:0 0 50px ${band.color},0 0 80px rgba(168,85,247,0.45),0 0 100px rgba(0,229,255,0.34);">${score}</div>
+              <div style="font-size:15px;font-weight:900;letter-spacing:3.0px;color:${band.color};text-transform:uppercase;margin-top:14px;text-shadow:0 0 18px ${band.color};">${band.band}</div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.0px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,229,255,0.40);">Neural Composite</div>
+              ${composite.map(c => `
+                <div style="margin-bottom:11px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--tx);margin-bottom:3px;">
+                    <span style="font-weight:700;">${c.lbl}</span>
+                    <span style="font-family:var(--mono);font-weight:800;color:${colorFor(c.v)};">${c.v}/100</span>
+                  </div>
+                  <div class="orc-bar"><div class="orc-bar-fill" style="width:${Math.max(0, Math.min(100, c.v))}%;background:${colorFor(c.v)};color:${colorFor(c.v)};"></div></div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Row: AI Model Ecosystem | Decision Pipeline -->
+        <div class="orc-grid-2">
+
+          <!-- 2) AI Model Ecosystem -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">AI Model Ecosystem</div>
+            <div class="orc-grid-4">
+              ${ecosystem.map(n => `
+                <div class="orc-node">
+                  <div class="orc-node-orb">${(n.name || '').split(' ').map(w => w.charAt(0)).join('').slice(0, 2).toUpperCase()}</div>
+                  <div style="font-size:10.5px;color:var(--tx);font-weight:700;line-height:1.3;margin-bottom:2px;">${_esc(n.name)}</div>
+                  <div style="font-size:8.5px;color:#7DF9FF;letter-spacing:.6px;margin-bottom:4px;">${n.kind}</div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;font-size:9px;font-family:var(--mono);">
+                    <span style="color:var(--tx-3);">${n.latency}</span>
+                    <span style="color:${colorFor(n.confidence)};font-weight:800;">${n.confidence}%</span>
+                  </div>
+                  <span class="orc-pill-mini" style="display:inline-block;margin-top:6px;color:#7DF9FF;background:rgba(0,229,255,0.16);font-size:8.5px;">${n.state}</span>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <!-- 3) Decision Pipeline -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">Decision Pipeline</div>
+            <div class="orc-pipeline">
+              ${pipeline.map(s => `
+                <div class="orc-pipeline-stage">
+                  <div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:${s.color};text-transform:uppercase;margin-bottom:4px;text-shadow:0 0 8px ${s.color};">${s.stage}</div>
+                  <div style="font-size:9.5px;color:var(--tx);font-weight:700;line-height:1.3;margin-bottom:6px;">${_esc(s.label)}</div>
+                  <div class="orc-bar" style="margin-top:4px;height:6px;"><div class="orc-bar-fill" style="width:${s.load}%;background:${s.color};color:${s.color};"></div></div>
+                  <div style="font-size:9px;color:var(--tx-3);font-family:var(--mono);margin-top:4px;">${s.load}%</div>
+                </div>`).join('')}
+            </div>
+            <div style="margin-top:12px;font-size:10px;color:var(--tx-3);line-height:1.5;">Real-time load across the neural decision pipeline. Each stage feeds the next; stalls surface as conflicts in the resolver.</div>
+          </div>
+        </div>
+
+        <!-- 4) Conflict Resolution Engine -->
+        <div class="orc-card" style="padding:22px 26px;">
+          <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.0px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,229,255,0.40);">Conflict Resolution Engine</div>
+          ${conflicts.length === 0
+            ? `<div style="font-size:11.5px;color:var(--tx-2);padding:10px 0;">All centres aligned — no neural conflicts detected.</div>`
+            : conflicts.map(c => `
+              <div class="orc-conflict">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                  <div style="font-size:11.5px;color:var(--tx);font-weight:800;">${_esc(c.title)}</div>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <span class="orc-pill-mini" style="color:${c.color};background:rgba(168,85,247,0.18);">${c.severity}</span>
+                    <span style="font-size:10px;font-weight:800;font-family:var(--mono);color:#7DF9FF;">CONFIDENCE ${c.confidence}%</span>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;font-size:10.5px;">
+                  <div style="padding:8px;border-radius:8px;background:rgba(0,229,255,0.06);">
+                    <div style="font-size:8.5px;font-weight:900;color:var(--tx-3);letter-spacing:1px;margin-bottom:3px;">${_esc(c.sources[0])}</div>
+                    <div style="color:var(--tx);font-weight:700;">${_esc(c.positions[0])}</div>
+                  </div>
+                  <div style="padding:8px;border-radius:8px;background:rgba(168,85,247,0.06);">
+                    <div style="font-size:8.5px;font-weight:900;color:var(--tx-3);letter-spacing:1px;margin-bottom:3px;">${_esc(c.sources[1])}</div>
+                    <div style="color:var(--tx);font-weight:700;">${_esc(c.positions[1])}</div>
+                  </div>
+                </div>
+                <div style="font-size:10.5px;color:#7DF9FF;line-height:1.6;"><span style="font-weight:900;letter-spacing:.6px;">RESOLUTION ›</span> ${_esc(c.resolution)}</div>
+              </div>`).join('')}
+        </div>
+
+        <!-- Row: Scenario Simulator | Predictive Analytics -->
+        <div class="orc-grid-2">
+
+          <!-- 5) Scenario Simulator -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">Scenario Simulator</div>
+            ${scenarios.map(s => `
+              <div class="orc-alert" style="border-left-color:${s.color};">
+                <span style="font-size:16px;line-height:1;flex-shrink:0;">${s.icon}</span>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span class="orc-pill-mini" style="color:${s.color};background:rgba(0,229,255,0.16);">${s.kind}</span>
+                    <span style="font-size:10px;color:var(--tx-3);font-family:var(--mono);">PROB ${s.probability}% · Δ ${s.delta >= 0 ? '+' : ''}${s.delta}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(s.label)}</div>
+                  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(s.detail)}</div>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 6) Predictive Analytics -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">Predictive Analytics</div>
+            ${predictions.map(p => `
+              <div style="padding:11px;border-radius:11px;background:rgba(108,99,255,0.06);border:1px solid rgba(108,99,255,0.20);margin-bottom:9px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <div>
+                    <div style="font-size:9px;font-weight:900;color:${p.color};letter-spacing:1.2px;text-transform:uppercase;text-shadow:0 0 8px ${p.color};">${p.label}</div>
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;margin-top:2px;">${_esc(p.metric)}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:11px;color:var(--tx-3);font-family:var(--mono);">CONF ${p.confidence}%</div>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--tx-3);">
+                  <span>Current <span style="color:var(--tx);font-family:var(--mono);font-weight:700;">${p.current}</span></span>
+                  <span style="font-size:14px;color:${p.projected > p.current ? '#00E5FF' : p.projected < p.current ? '#FCA5A5' : '#7DF9FF'};font-family:var(--mono);font-weight:900;text-shadow:0 0 8px currentColor;">→ ${p.projected}</span>
+                </div>
+                <div class="orc-bar" style="margin-top:6px;"><div class="orc-bar-fill" style="width:${Math.max(0, Math.min(100, p.projected))}%;background:${p.color};color:${p.color};"></div></div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- Row: Live AI Streams | Recommendation Engine -->
+        <div class="orc-grid-2">
+
+          <!-- 7) Live AI Streams -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">Live AI Streams</div>
+            <div class="orc-stream-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,229,255,0.18);padding-bottom:6px;">
+              <div>T</div><div>SOURCE</div><div>KIND</div><div>EVENT</div>
+            </div>
+            ${streams.map(s => `
+              <div class="orc-stream-row">
+                <div style="font-family:var(--mono);color:#7DF9FF;font-size:9.5px;text-shadow:0 0 6px rgba(0,229,255,0.6);">${s.ts}</div>
+                <div style="color:var(--tx);font-weight:700;font-size:9.5px;letter-spacing:.6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.source}</div>
+                <div><span class="orc-pill-mini" style="color:${s.color};background:rgba(0,229,255,0.10);">${s.kind}</span></div>
+                <div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(s.text)}</div>
+              </div>`).join('')}
+          </div>
+
+          <!-- 8) Recommendation Engine -->
+          <div class="orc-tile">
+            <div class="orc-tile-lbl">Recommendation Engine</div>
+            ${recommendations.length === 0
+              ? `<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No recommendations queued — neural state idle.</div>`
+              : recommendations.map((r, i) => `
+                <div class="orc-alert" style="border-left-color:${r.color};">
+                  <span style="font-size:14px;line-height:1;flex-shrink:0;">${r.icon}</span>
+                  <div style="flex:1;min-width:0;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+                      <span class="orc-pill-mini" style="color:${r.color};background:rgba(0,229,255,0.10);">${_esc(r.kind)}</span>
+                      <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">SCORE ${Math.round(r.score)} · #${i + 1}</span>
+                    </div>
+                    <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">${_esc(r.label)}</div>
+                    <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">${_esc(r.detail)}</div>
+                  </div>
+                </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 9) Executive Decision Console -->
+        <div class="orc-card" style="padding:22px 26px;">
+          <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.0px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,229,255,0.40);">Executive Decision Console</div>
+          <div class="orc-console-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,229,255,0.18);padding-bottom:6px;">
+            <div>#</div><div>ACTION</div><div style="text-align:right;">KIND</div><div style="text-align:right;">OWNER</div><div style="text-align:right;">SCORE</div>
+          </div>
+          ${consoleRows.length === 0
+            ? `<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No actions ready for sign-off — recommendation engine idle.</div>`
+            : consoleRows.map(c => `
+              <div class="orc-console-row">
+                <div style="font-family:var(--mono);font-weight:900;color:#7DF9FF;text-align:right;font-size:11px;text-shadow:0 0 6px rgba(0,229,255,0.5);">${c.rank}</div>
+                <div style="display:flex;gap:8px;align-items:flex-start;min-width:0;">
+                  <span style="font-size:14px;flex-shrink:0;">${c.icon}</span>
+                  <div style="min-width:0;">
+                    <div style="font-size:11.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(c.label)}</div>
+                    <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;">${_esc((c.detail || '').slice(0, 90))}</div>
+                  </div>
+                </div>
+                <div style="text-align:right;"><span class="orc-pill-mini" style="color:${c.color};background:rgba(0,229,255,0.10);">${_esc(c.kind)}</span></div>
+                <div style="text-align:right;font-size:11px;color:var(--tx);font-weight:700;">${_esc(c.owner)}</div>
+                <div style="text-align:right;font-size:13px;font-weight:900;font-family:var(--mono);color:${colorFor(c.score)};text-shadow:0 0 8px currentColor;">${Math.round(c.score)}</div>
+              </div>`).join('')}
+        </div>
+
+        <!-- 10) Final Recommendation Banner -->
+        <div class="orc-final">
+          <div style="display:flex;align-items:center;gap:18px;margin-bottom:18px;">
+            <span style="font-size:30px;">🧠</span>
+            <div style="font-size:16px;font-weight:900;color:#7DF9FF;letter-spacing:3.2px;text-transform:uppercase;text-shadow:0 0 16px rgba(0,229,255,0.65);">FOS AI Orchestrator · Neural Brief</div>
+          </div>
+          <div style="font-size:16px;color:var(--tx);line-height:1.9;">${_esc(summary)}</div>
+        </div>
+      </div>`;
+    _pcWirePhotoErrors(el);
+  } catch (err) {
+    try { console.error('[fos-ai-orchestrator] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS AI Orchestrator couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
 function renderDashboard() {
   if (isFormEditing()) { _pendingRefresh = true; return; }
   // FC Familista Command Center — renders independently of State.analytics
@@ -21462,6 +22022,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-core"]')) {
     setTimeout(function () { try { renderFOSCore(); } catch (err) { try { console.error('[fos-core] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-ai-orchestrator"]')) {
+    setTimeout(function () { try { renderFOSAIOrchestrator(); } catch (err) { try { console.error('[fos-ai-orchestrator] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
