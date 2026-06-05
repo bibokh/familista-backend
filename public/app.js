@@ -527,6 +527,7 @@ async function loadAllData() {
       try { if (typeof renderAIWarRoom                === 'function') renderAIWarRoom();                } catch (_) {}
       try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
       try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
+      try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
     }
 
     if (matches.status === 'fulfilled' && matches.value?.data) {
@@ -762,6 +763,7 @@ function _flushPendingRender() {
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
+    case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
@@ -824,7 +826,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'FOS Core', 'fos-ai-orchestrator':'FOS AI Orchestrator', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President', 'ai-chairman-center':'AI Chairman', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'multi-club-network':'Multi-Club Network', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -868,6 +870,7 @@ function navTo(page, el) {
   if (page === 'ai-war-room')      { try { renderAIWarRoom();        } catch (e) { try { console.error('[ai-war-room] nav render failed:', e);        } catch (_) {} } }
   if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
   if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
+  if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
 }
 
 function toggleSidebar() {
@@ -993,6 +996,7 @@ function renderAllPages() {
     ${renderAIWarRoomHTML()}
     ${renderFOSCoreHTML()}
     ${renderFOSAIOrchestratorHTML()}
+    ${renderMultiClubNetworkHTML()}
     ${renderTournamentsHTML()}
     ${renderAnalyticsHTML()}
     ${renderAIHTML()}
@@ -8703,7 +8707,7 @@ function renderOwnershipCenter() {
         <!-- Brand bar + 1) Club Valuation Dashboard -->
         <div class="own-card">
           <div class="own-brand">
-            <div class="own-brand-logo">★ FC FAMILISTA · OWNERSHIP CENTER</div>
+            <div class="own-brand-logo">★ FAMILISTA OS · OWNERSHIP</div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="ai-coach-pill"><span class="ai-live-dot"></span>OWNERS LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -9929,7 +9933,7 @@ function renderAIPresidentCenter() {
         <!-- Brand bar + 1) Presidential Overview -->
         <div class="pres-card">
           <div class="pres-brand">
-            <div class="pres-brand-logo">★ FC FAMILISTA · AI PRESIDENT CENTER</div>
+            <div class="pres-brand-logo">★ FAMILISTA OS · AI PRESIDENT</div>
             <div style="display:flex;align-items:center;gap:10px;">
               <span class="pres-pill"><span class="pres-dot"></span>PRESIDENT LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -10463,7 +10467,7 @@ function renderAIChairmanCenter() {
         <!-- Brand bar + 1) Enterprise Governance Dashboard -->
         <div class="chm-card">
           <div class="chm-brand">
-            <div class="chm-brand-logo">★ FC FAMILISTA · AI CHAIRMAN CENTER</div>
+            <div class="chm-brand-logo">★ FAMILISTA OS · AI CHAIRMAN</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="chm-pill"><span class="chm-dot"></span>CHAIRMAN LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -11055,7 +11059,7 @@ function renderAIWarRoom() {
         <!-- Brand bar + 1) War Room Dashboard -->
         <div class="war-card">
           <div class="war-brand">
-            <div class="war-brand-logo">★ FC FAMILISTA · AI WAR ROOM</div>
+            <div class="war-brand-logo">★ FAMILISTA OS · AI WAR ROOM</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="war-pill"><span class="war-dot"></span>WAR ROOM LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -11573,7 +11577,7 @@ function renderFOSCore() {
         <!-- Brand bar + 1) System Command Dashboard -->
         <div class="fos-card">
           <div class="fos-brand">
-            <div class="fos-brand-logo">★ FC FAMILISTA · FOS CORE</div>
+            <div class="fos-brand-logo">★ FAMILISTA OPERATING SYSTEM · PLATFORM CORE</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="fos-pill"><span class="fos-dot"></span>FOS CORE LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -12148,7 +12152,7 @@ function renderFOSAIOrchestrator() {
         <!-- Brand bar + 1) AI Orchestration Dashboard -->
         <div class="orc-card">
           <div class="orc-brand">
-            <div class="orc-brand-logo">★ FC FAMILISTA · FOS AI ORCHESTRATOR</div>
+            <div class="orc-brand-logo">★ FAMILISTA OS · AI ORCHESTRATOR</div>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="orc-pill"><span class="orc-dot"></span>AI BRAIN LIVE</span>
               <div class="pc-fcf-foil" aria-hidden="true"></div>
@@ -12358,6 +12362,149 @@ function renderFOSAIOrchestrator() {
     try { console.error('[fos-ai-orchestrator] render failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
       <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS AI Orchestrator couldn't render</div>
+      <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
+    </div>`;
+  }
+}
+
+// ─── Familista OS · Multi-Club Network ─────────────────────────────────
+// Platform-level view of all organizations registered in FOS. Read-only,
+// no fetches. Uses the same multi-tenant inventory produced by FOS Core.
+function _mcnSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _mcnOrgs() {
+  // Reuse FOS Core's multi-club catalogue. Augment FC Familista (active
+  // tenant) with live composite scores so the network view shows real
+  // signal for the active org and placeholders for forward orgs.
+  const base = _mcnSafe(_fosMultiClub, []);
+  return base.map(o => {
+    const isActive = o.status === 'ACTIVE';
+    const score = isActive
+      ? _mcnSafe(_fosSystemScore, 0)
+      : 0;
+    const live = isActive
+      ? {
+          system:    _mcnSafe(_fosSystemScore, 0),
+          governance:_mcnSafe(function () { return _bodClubHealth().score; }, 0),
+          finance:   _mcnSafe(_mgFinanceHealthScore, 0),
+          medical:   _mcnSafe(function () { return _mgMedScores().availPct; }, 0),
+        }
+      : null;
+    return Object.assign({}, o, { isActive, score, live });
+  });
+}
+function renderMultiClubNetworkHTML() {
+  return `<div class="page" id="pg-multi-club-network">
+    <div id="multi-club-network-content">
+      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Multi-Club Network…</div>
+    </div>
+  </div>`;
+}
+function renderMultiClubNetwork() {
+  const el = document.getElementById('multi-club-network-content');
+  if (!el) return;
+  try { _ensureFosStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for tenant data…</div>
+      <div style="font-size:11px;">Active organization data loads on sign-in.</div>
+    </div>`;
+    return;
+  }
+  try {
+    const orgs = _mcnOrgs();
+    const activeCount = orgs.filter(o => o.isActive).length;
+    const plannedCount = orgs.filter(o => !o.isActive).length;
+    const colorFor = (v) => v >= 80 ? 'var(--green-l)' : v >= 65 ? '#FBBF24' : v >= 50 ? '#60A5FA' : 'var(--red)';
+
+    el.innerHTML = `
+      <div class="fos-page">
+        <div class="fos-card">
+          <div class="fos-brand">
+            <div class="fos-brand-logo">★ FAMILISTA OPERATING SYSTEM · MULTI-CLUB NETWORK</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="fos-pill"><span class="fos-dot"></span>NETWORK LIVE</span>
+              <div class="pc-fcf-foil" aria-hidden="true"></div>
+            </div>
+          </div>
+          <div style="padding:24px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;">
+              <div class="fos-tile" style="text-align:center;padding:18px 12px;">
+                <div style="font-size:36px;font-weight:900;font-family:var(--mono);color:var(--green-l);line-height:1;">${activeCount}</div>
+                <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--tx-3);text-transform:uppercase;margin-top:6px;">Active Organizations</div>
+              </div>
+              <div class="fos-tile" style="text-align:center;padding:18px 12px;">
+                <div style="font-size:36px;font-weight:900;font-family:var(--mono);color:#60A5FA;line-height:1;">${plannedCount}</div>
+                <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--tx-3);text-transform:uppercase;margin-top:6px;">Planned / Future</div>
+              </div>
+              <div class="fos-tile" style="text-align:center;padding:18px 12px;">
+                <div style="font-size:36px;font-weight:900;font-family:var(--mono);color:#FBBF24;line-height:1;">${orgs.length}</div>
+                <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--tx-3);text-transform:uppercase;margin-top:6px;">Total Tenants</div>
+              </div>
+            </div>
+            <div style="font-size:10.5px;color:var(--tx-3);line-height:1.6;">
+              FOS is the platform root. Each organization onboarded into the network appears here as a tenant workspace.
+              FC Familista is the first deployed organization and serves as the reference implementation.
+            </div>
+          </div>
+        </div>
+
+        <div class="fos-card" style="padding:22px 26px;">
+          <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;">Registered Organizations</div>
+          ${orgs.map(o => `
+            <div class="fos-tile" style="padding:14px 16px;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:220px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                    <div style="font-size:13.5px;font-weight:900;color:${o.color};letter-spacing:1.2px;text-transform:uppercase;">${_esc(o.kind)}</div>
+                    <span class="fos-pill-mini" style="color:${o.color};background:rgba(251,191,36,0.12);">${o.status}</span>
+                  </div>
+                  <div style="font-size:11px;color:var(--tx-2);line-height:1.55;">${_esc(o.detail)}</div>
+                </div>
+                ${o.live ? `
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;min-width:280px;">
+                    <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                      <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(o.live.system)};">${o.live.system}</div>
+                      <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">SYSTEM</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                      <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(o.live.governance)};">${o.live.governance}</div>
+                      <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">GOVERN</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                      <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(o.live.finance)};">${o.live.finance}</div>
+                      <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">FINANCE</div>
+                    </div>
+                    <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">
+                      <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:${colorFor(o.live.medical)};">${o.live.medical}</div>
+                      <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">MEDICAL</div>
+                    </div>
+                  </div>
+                ` : `<div style="font-size:10px;color:var(--tx-3);align-self:center;font-style:italic;letter-spacing:.5px;">Tenant placeholder — onboard via Club Admin</div>`}
+              </div>
+            </div>`).join('')}
+        </div>
+
+        <div class="fos-card" style="padding:22px 26px;">
+          <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Platform Hierarchy</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--tx-2);line-height:1.85;white-space:pre;background:rgba(0,0,0,0.25);padding:18px;border-radius:12px;border:1px solid rgba(251,191,36,0.18);overflow-x:auto;">
+<span style="color:#FBBF24;font-weight:800;">Familista Operating System</span>
+├─ <span style="color:#34D399;">Platform Core</span>
+├─ <span style="color:#34D399;">AI Orchestrator</span>
+├─ <span style="color:#34D399;">Multi-Club Network</span>
+├─ <span style="color:#7DF9FF;">Organizations</span>
+│   └─ <span style="color:var(--green-l);font-weight:700;">FC Familista</span>          <span style="color:var(--tx-3);">(active tenant)</span>
+└─ <span style="color:#A855F7;">Shared Centers</span>
+    ├─ Ownership
+    ├─ AI President
+    ├─ AI Chairman
+    └─ AI War Room
+          </div>
+        </div>
+      </div>`;
+  } catch (err) {
+    try { console.error('[multi-club-network] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
+      <div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">Multi-Club Network couldn't render</div>
       <div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">${_esc((err && (err.message || err.toString())) || 'unknown error')}</div>
     </div>`;
   }
@@ -22025,6 +22172,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-ai-orchestrator"]')) {
     setTimeout(function () { try { renderFOSAIOrchestrator(); } catch (err) { try { console.error('[fos-ai-orchestrator] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="multi-club-network"]')) {
+    setTimeout(function () { try { renderMultiClubNetwork(); } catch (err) { try { console.error('[multi-club-network] click hook failed:', err); } catch (_) {} } }, 100);
   }
 });
 
