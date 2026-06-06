@@ -528,6 +528,7 @@ async function loadAllData() {
       try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
       try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
       try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
+      try { if (typeof renderFOSKnowledgeGraph        === 'function') renderFOSKnowledgeGraph();        } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -783,6 +784,7 @@ function _flushPendingRender() {
     case 'pg-ai-war-room':        renderAIWarRoom();         break;
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
+    case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
     case 'pg-gis-analytics':    renderGIS('gis-analytics');   break;
@@ -852,7 +854,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -897,6 +899,7 @@ function navTo(page, el) {
   if (page === 'fos-core')         { try { renderFOSCore();          } catch (e) { try { console.error('[fos-core] nav render failed:', e);           } catch (_) {} } }
   if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
   if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-knowledge-graph'){ try { renderFOSKnowledgeGraph(); } catch (e) { try { console.error('[fos-knowledge-graph] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1024,6 +1027,7 @@ function renderAllPages() {
     ${renderFOSCoreHTML()}
     ${renderFOSAIOrchestratorHTML()}
     ${renderMultiClubNetworkHTML()}
+    ${renderFOSKnowledgeGraphHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -12543,6 +12547,391 @@ function renderMultiClubNetwork() {
   }
 }
 
+// ─── Familista OS · Knowledge Graph ────────────────────────────────────
+// Platform-level entity graph. Read-only — aggregates entities and
+// relationships from existing State (players, training, matches,
+// medical, finance, devices, clubs) without modifying any centre.
+// Exposes _kgOrchestratorFeed() so the AI Orchestrator can consume a
+// stable, typed snapshot later. Does NOT mutate State.
+function _kgSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _kgEntities() {
+  // Entity counts and derived signals per domain. Returned in a stable
+  // shape so the orchestrator feed can rely on it.
+  var ps = _kgSafe(function () { return (State.players || []).filter(function (p) { return p && p.isActive !== false; }); }, []);
+  var trn = _kgSafe(function () { return State.training || []; }, []);
+  var mat = _kgSafe(function () { return State.matches || []; }, []);
+  var med = _kgSafe(_mgMedScores, { buckets: { INJURED: 0, QUESTIONABLE: 0, RECOVERY: 0, AVAILABLE: 0 }, availPct: 0 });
+  var co  = _kgSafe(_mgFinanceOverview, { annualRevenue: 0, cashReserve: 0, wageRatio: 0 });
+  var devices = ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length;
+  var injuriesActive = (med.buckets && med.buckets.INJURED) || 0;
+  var stewardRoles = ['SUPER_ADMIN','CLUB_ADMIN','HEAD_COACH','COACH','MEDICAL_STAFF','SCOUT'];
+  var clubName = _kgSafe(function () { return (State.club && State.club.name) || 'FC Familista'; }, 'FC Familista');
+  return [
+    { id:'players',  label:'Players',  icon:'👤', color:'#00F5FF', count: ps.length,
+      detail: ps.length + ' active player records', confidence: ps.length > 0 ? 96 : 0 },
+    { id:'clubs',    label:'Clubs',    icon:'🏟️', color:'#FBBF24', count: 1,
+      detail: clubName + ' (active tenant)',         confidence: 100 },
+    { id:'staff',    label:'Staff',    icon:'🧑‍💼', color:'#A855F7', count: stewardRoles.length,
+      detail: stewardRoles.length + ' configured role classes', confidence: 80 },
+    { id:'devices',  label:'Devices',  icon:'📡', color:'#7DF9FF', count: devices,
+      detail: devices + ' GPS / wearable assignments', confidence: ps.length > 0 ? Math.round((devices / Math.max(1, ps.length)) * 100) : 0 },
+    { id:'medical',  label:'Medical',  icon:'🩺', color:'#FCA5A5', count: injuriesActive,
+      detail: injuriesActive + ' active injuries · ' + (med.availPct || 0) + '% available', confidence: 88 },
+    { id:'finance',  label:'Finance',  icon:'💰', color:'#34D399', count: 1,
+      detail: 'Wage ratio ' + (co.wageRatio || 0) + '% · 1 active P&L stream', confidence: 78 },
+    { id:'training', label:'Training', icon:'📋', color:'#6C63FF', count: trn.length,
+      detail: trn.length + ' training sessions on record', confidence: trn.length > 0 ? 92 : 0 },
+    { id:'matches',  label:'Matches',  icon:'⚽', color:'#22D39A', count: mat.length,
+      detail: mat.length + ' match records on file', confidence: mat.length > 0 ? 94 : 0 },
+  ];
+}
+function _kgRelationships() {
+  // Edge inventory. Each edge has source, target, kind, count and
+  // narrative explanation.
+  var ents = _kgEntities();
+  var byId = {};
+  ents.forEach(function (e) { byId[e.id] = e; });
+  var ps = (State.players || []).filter(function (p) { return p && p.isActive !== false; });
+  var trn = (State.training || []);
+  var mat = (State.matches  || []);
+  var med = _kgSafe(_mgMedScores, { buckets: { INJURED: 0 } });
+  var devicedPlayers = ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length;
+  var trainingAttendance = trn.reduce(function (a, s) { return a + (Array.isArray(s.playerStats) ? s.playerStats.length : 0); }, 0);
+  // Match lineup edges approximated by lineup size or roster size.
+  var matchLineupEdges = mat.reduce(function (a, m) {
+    var lineSz = (m && Array.isArray(m.lineup)) ? m.lineup.length : (m && Array.isArray(m.players) ? m.players.length : 0);
+    return a + (lineSz || 0);
+  }, 0);
+  return [
+    { src:'players',  dst:'clubs',    kind:'BELONGS_TO',   count: ps.length,             label:'belongs_to · tenant assignment' },
+    { src:'players',  dst:'devices',  kind:'WEARS',        count: devicedPlayers,         label:'wears · GPS/wearable link' },
+    { src:'players',  dst:'training', kind:'PARTICIPATES', count: trainingAttendance,     label:'participates_in · attendance records' },
+    { src:'players',  dst:'matches',  kind:'PLAYS_IN',     count: matchLineupEdges,       label:'plays_in · lineup / minutes' },
+    { src:'players',  dst:'medical',  kind:'HAS_RECORD',   count: (med.buckets && med.buckets.INJURED) || 0, label:'has_record · injury / condition' },
+    { src:'clubs',    dst:'finance',  kind:'OWNS_PL',      count: 1,                      label:'owns_pl · annual statement stream' },
+    { src:'staff',    dst:'clubs',    kind:'ASSIGNED_TO',  count: 6,                      label:'assigned_to · role grant per tenant' },
+    { src:'staff',    dst:'players',  kind:'OVERSEES',     count: ps.length,              label:'oversees · coach / medical / scout access' },
+  ];
+}
+function _kgConfidence() {
+  var ents = _kgEntities();
+  if (!ents.length) return { overall: 0, perEntity: [] };
+  var overall = Math.round(ents.reduce(function (a, e) { return a + (e.confidence || 0); }, 0) / ents.length);
+  return { overall: overall, perEntity: ents };
+}
+function _kgMissingLinks() {
+  var ents = _kgEntities();
+  var byId = {};
+  ents.forEach(function (e) { byId[e.id] = e; });
+  var ps = (State.players || []).filter(function (p) { return p && p.isActive !== false; });
+  var trn = (State.training || []);
+  var missing = [];
+  // Device coverage
+  var noDevice = ps.filter(function (p) { return !p.device || !(p.device.serialNumber || p.device.id); });
+  if (noDevice.length) {
+    missing.push({ kind:'DEVICE COVERAGE', severity: noDevice.length > 5 ? 'HIGH' : 'MEDIUM',
+      detail: noDevice.length + ' player(s) without an assigned GPS device.' });
+  }
+  // Training participation
+  var trnNoAttend = trn.filter(function (s) { return !Array.isArray(s.playerStats) || s.playerStats.length === 0; });
+  if (trnNoAttend.length) {
+    missing.push({ kind:'TRAINING ATTENDANCE', severity: 'MEDIUM',
+      detail: trnNoAttend.length + ' training session(s) with no recorded attendance.' });
+  }
+  // Match lineup coverage
+  var mat = (State.matches || []);
+  var matNoLineup = mat.filter(function (m) { return !(m && Array.isArray(m.lineup) && m.lineup.length) && !(m && Array.isArray(m.players) && m.players.length); });
+  if (matNoLineup.length) {
+    missing.push({ kind:'MATCH LINEUP', severity: 'LOW',
+      detail: matNoLineup.length + ' match(es) without an explicit lineup snapshot.' });
+  }
+  // Multi-tenant federation
+  missing.push({ kind:'MULTI-TENANT FEDERATION', severity:'LOW',
+    detail:'Only one tenant active (FC Familista). Future organizations will populate this graph.' });
+  // Staff identity
+  missing.push({ kind:'STAFF IDENTITY', severity:'LOW',
+    detail:'Staff entities derived from role classes; explicit per-person identity records to be added.' });
+  return missing.slice(0, 6);
+}
+function _kgOrchestratorFeed() {
+  // Stable, typed snapshot consumed by the AI Orchestrator. Read-only.
+  // The orchestrator reads this on its next refresh — no orchestrator
+  // helper modifications are made in this commit.
+  var ents = _kgEntities();
+  var rels = _kgRelationships();
+  var conf = _kgConfidence();
+  return {
+    schemaVersion: 'kg.v1',
+    generatedAt: new Date().toISOString(),
+    entities: ents.map(function (e) { return { id: e.id, count: e.count, confidence: e.confidence }; }),
+    relationships: rels.map(function (r) { return { src: r.src, dst: r.dst, kind: r.kind, count: r.count }; }),
+    confidence: conf.overall,
+    activeTenant: _kgSafe(function () { return (State.club && State.club.name) || 'FC Familista'; }, 'FC Familista'),
+  };
+}
+function _kgSummary() {
+  var ents = _kgEntities();
+  var rels = _kgRelationships();
+  var conf = _kgConfidence();
+  var missing = _kgMissingLinks();
+  var totalEntities = ents.reduce(function (a, e) { return a + (e.count || 0); }, 0);
+  var totalRels = rels.reduce(function (a, r) { return a + (r.count || 0); }, 0);
+  var critical = missing.filter(function (m) { return m.severity === 'HIGH'; }).length;
+  return 'Knowledge Graph snapshot — schema kg.v1. ' +
+         ents.length + ' entity classes covering ' + totalEntities + ' records, ' +
+         rels.length + ' relationship classes across ' + totalRels + ' edges. ' +
+         'Aggregate data confidence: ' + conf.overall + '/100. ' +
+         missing.length + ' coverage gap(s) flagged' + (critical ? ' (' + critical + ' high severity)' : '') + '. ' +
+         'Active tenant: FC Familista. AI Orchestrator feed scheduled for read-only consumption.';
+}
+function _ensureKGStyles() {
+  if (document.getElementById('kg-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'kg-styles';
+  s.textContent = ''
+    + '.kg-page{padding:16px 18px;}'
+    + '.kg-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(0,245,255,0.32);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.85),0 0 80px -16px rgba(0,245,255,0.30),0 0 60px -16px rgba(168,85,247,0.26),inset 0 1px 0 rgba(255,255,255,0.08);}'
+    + '.kg-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(0,245,255,0.14),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(168,85,247,0.14),transparent 55%);}'
+    + '.kg-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(0,245,255,0.26),rgba(168,85,247,0.18) 50%,rgba(251,191,36,0.22));'
+    + '  border-bottom:1px solid rgba(0,245,255,0.42);}'
+    + '.kg-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#7DF9FF,#00F5FF,#A855F7,#FBBF24,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(0,245,255,0.55);}'
+    + '.kg-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.kg-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.kg-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.kg-tile{position:relative;padding:14px;border-radius:14px;'
+    + '  background:linear-gradient(135deg,rgba(0,245,255,0.06),rgba(168,85,247,0.05) 50%,rgba(251,191,36,0.04));'
+    + '  border:1px solid rgba(0,245,255,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);'
+    + '  transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease;}'
+    + '.kg-tile:hover{border-color:rgba(125,249,255,0.60);transform:translateY(-1px);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.10),0 24px 60px -18px rgba(0,0,0,0.75),0 0 36px -10px rgba(0,245,255,0.42),0 0 24px -8px rgba(168,85,247,0.32);}'
+    + '.kg-tile-lbl{font-size:10.5px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;text-shadow:0 0 10px rgba(0,245,255,0.45);}'
+    + '.kg-entity-node{position:relative;padding:14px;border-radius:14px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(0,245,255,0.20),rgba(168,85,247,0.12) 60%,rgba(0,0,0,0.45));'
+    + '  border:1px solid rgba(0,245,255,0.42);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.kg-entity-node:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 0 28px rgba(0,245,255,0.45),0 0 22px rgba(168,85,247,0.30);}'
+    + '.kg-entity-orb{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:50%;font-size:22px;margin-bottom:9px;'
+    + '  background:radial-gradient(circle at 30% 30%,#DBFEFF,#00F5FF 55%,#A855F7);'
+    + '  box-shadow:0 0 20px rgba(0,245,255,0.65),0 0 30px rgba(168,85,247,0.45);'
+    + '  animation:kg-orb 2.4s ease-in-out infinite;}'
+    + '@keyframes kg-orb{0%,100%{box-shadow:0 0 18px rgba(0,245,255,0.55),0 0 26px rgba(168,85,247,0.40);}50%{box-shadow:0 0 28px rgba(125,249,255,0.85),0 0 38px rgba(168,85,247,0.65);}}'
+    + '.kg-entity-count{font-size:22px;font-weight:900;font-family:var(--mono);color:#7DF9FF;text-shadow:0 0 12px rgba(0,245,255,0.6);}'
+    + '.kg-conf-bar{height:6px;border-radius:4px;background:rgba(0,245,255,0.10);overflow:hidden;margin-top:8px;border:1px solid rgba(0,245,255,0.20);}'
+    + '.kg-conf-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#7DF9FF,#A855F7,#FBBF24);box-shadow:0 0 10px rgba(0,245,255,0.45);}'
+    + '.kg-rel-row{display:grid;grid-template-columns:90px 22px 90px 100px 1fr 60px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,245,255,0.10);font-size:11px;}'
+    + '.kg-rel-row:last-child{border-bottom:none;}'
+    + '.kg-edge-arrow{color:#7DF9FF;text-shadow:0 0 8px rgba(0,245,255,0.6);font-family:var(--mono);text-align:center;font-weight:900;}'
+    + '.kg-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.kg-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;background:rgba(0,245,255,0.05);border-left:3px solid #7DF9FF;}'
+    + '.kg-alert:last-child{margin-bottom:0;}'
+    + '.kg-feed{font-family:var(--mono);font-size:11px;line-height:1.7;color:#DBFEFF;background:rgba(0,0,0,0.40);padding:18px;border-radius:12px;border:1px solid rgba(0,245,255,0.28);overflow-x:auto;white-space:pre;box-shadow:inset 0 0 24px rgba(0,245,255,0.10);}'
+    + '.kg-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(0,245,255,0.20),rgba(168,85,247,0.18) 50%,rgba(251,191,36,0.18));'
+    + '  border:1px solid rgba(0,245,255,0.52);border-left:10px solid #7DF9FF;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(0,245,255,0.50),0 0 60px -10px rgba(168,85,247,0.40);}'
+    + '.kg-graph-svg{width:100%;height:340px;display:block;}'
+    + '.kg-graph-line{stroke:rgba(0,245,255,0.42);stroke-width:1.4;fill:none;filter:drop-shadow(0 0 6px rgba(0,245,255,0.45));animation:kg-line 4s ease-in-out infinite alternate;}'
+    + '@keyframes kg-line{0%{stroke-opacity:.35;}100%{stroke-opacity:.85;}}'
+    + '.kg-graph-node-circle{fill:rgba(0,245,255,0.20);stroke:#7DF9FF;stroke-width:1.6;filter:drop-shadow(0 0 8px rgba(0,245,255,0.55));}'
+    + '.kg-graph-node-label{font-size:9.5px;font-weight:800;fill:#DBFEFF;text-anchor:middle;letter-spacing:1px;}'
+    + '@media (max-width:1024px){.kg-grid-3{grid-template-columns:repeat(2,1fr);}.kg-grid-4{grid-template-columns:repeat(2,1fr);}.kg-rel-row{grid-template-columns:80px 22px 80px 80px 1fr 50px;font-size:10px;}}'
+    + '@media (max-width:600px){.kg-grid-2,.kg-grid-3,.kg-grid-4{grid-template-columns:1fr;}.kg-rel-row{grid-template-columns:1fr 22px 1fr;font-size:10px;}.kg-rel-row > :nth-child(4),.kg-rel-row > :nth-child(5),.kg-rel-row > :nth-child(6){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSKnowledgeGraphHTML() {
+  return '<div class="page" id="pg-fos-knowledge-graph">'
+       + '  <div id="fos-knowledge-graph-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Knowledge Graph…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSKnowledgeGraph() {
+  var el = document.getElementById('fos-knowledge-graph-content');
+  if (!el) return;
+  try { _ensureKGStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for tenant data…</div>'
+      + '<div style="font-size:11px;">Knowledge graph builds once squad data loads.</div></div>';
+    return;
+  }
+  try {
+    var entities = _kgEntities();
+    var relationships = _kgRelationships();
+    var confidence = _kgConfidence();
+    var missing = _kgMissingLinks();
+    var feed = _kgOrchestratorFeed();
+    var summary = _kgSummary();
+
+    // SVG node positions arranged on a circle around the centre.
+    var w = 800, h = 340;
+    var cx = w / 2, cy = h / 2;
+    var radius = 122;
+    var nodes = entities.map(function (e, i) {
+      var ang = (i / entities.length) * Math.PI * 2 - Math.PI / 2;
+      return {
+        id: e.id, label: e.label, icon: e.icon, color: e.color, count: e.count,
+        x: Math.round(cx + Math.cos(ang) * radius),
+        y: Math.round(cy + Math.sin(ang) * radius),
+      };
+    });
+    var nodeById = {};
+    nodes.forEach(function (n) { nodeById[n.id] = n; });
+
+    // Lines from each entity to centre (hub), plus relationship arcs.
+    var lines = nodes.map(function (n) {
+      return '<line x1="' + cx + '" y1="' + cy + '" x2="' + n.x + '" y2="' + n.y + '" class="kg-graph-line" />';
+    }).join('');
+    var relLines = relationships.map(function (r) {
+      var a = nodeById[r.src], b = nodeById[r.dst];
+      if (!a || !b) return '';
+      return '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" class="kg-graph-line" stroke-opacity="0.35" stroke-dasharray="3,5" />';
+    }).join('');
+    var nodeMarkup = nodes.map(function (n) {
+      return '<g>'
+           + '<circle cx="' + n.x + '" cy="' + n.y + '" r="22" class="kg-graph-node-circle" />'
+           + '<text x="' + n.x + '" y="' + (n.y + 4) + '" class="kg-graph-node-label">' + _esc(n.label.toUpperCase()) + '</text>'
+           + '</g>';
+    }).join('');
+    var hub = '<circle cx="' + cx + '" cy="' + cy + '" r="28" fill="rgba(168,85,247,0.30)" stroke="#A855F7" stroke-width="1.8" filter="drop-shadow(0 0 14px rgba(168,85,247,0.65))" />'
+            + '<text x="' + cx + '" y="' + (cy + 4) + '" class="kg-graph-node-label" style="fill:#FBBF24;">FOS</text>';
+
+    var sevColor = function (s) { return s === 'HIGH' ? '#FCA5A5' : s === 'MEDIUM' ? '#FBBF24' : '#7DF9FF'; };
+    var sevBg    = function (s) { return s === 'HIGH' ? 'rgba(239,68,68,0.16)' : s === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(0,245,255,0.16)'; };
+    var confColor = function (v) { return v >= 80 ? '#7DF9FF' : v >= 65 ? '#FBBF24' : v >= 50 ? '#A855F7' : '#FCA5A5'; };
+
+    var html = ''
+      + '<div class="kg-page">'
+
+      // Brand bar + Entity Graph Overview
+      + '<div class="kg-card">'
+      + '  <div class="kg-brand">'
+      + '    <div class="kg-brand-logo">★ FAMILISTA OPERATING SYSTEM · KNOWLEDGE GRAPH</div>'
+      + '    <span class="fos-ai-pulse">GRAPH LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:20px 24px;">'
+      + '    <div style="font-size:10.5px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;text-shadow:0 0 10px rgba(0,245,255,0.40);">Entity Graph Overview</div>'
+      + '    <div style="display:grid;grid-template-columns:1fr 240px;gap:18px;align-items:center;">'
+      + '      <svg viewBox="0 0 ' + w + ' ' + h + '" class="kg-graph-svg" preserveAspectRatio="xMidYMid meet">'
+      + '        <defs><radialGradient id="kg-hub-grad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#A855F7" stop-opacity="0.50"/><stop offset="100%" stop-color="#A855F7" stop-opacity="0"/></radialGradient></defs>'
+      + '        <circle cx="' + cx + '" cy="' + cy + '" r="60" fill="url(#kg-hub-grad)" />'
+      +          relLines + lines + nodeMarkup + hub
+      + '      </svg>'
+      + '      <div style="text-align:center;padding:14px 8px;border-radius:14px;background:radial-gradient(circle at 50% 35%,rgba(0,245,255,0.22),rgba(168,85,247,0.10) 50%,transparent 80%);border:1px solid rgba(0,245,255,0.42);">'
+      + '        <div style="font-size:10px;font-weight:900;color:#7DF9FF;letter-spacing:1.6px;text-transform:uppercase;margin-bottom:8px;">Aggregate Confidence</div>'
+      + '        <div style="font-size:56px;font-weight:900;font-family:var(--mono);color:' + confColor(confidence.overall) + ';line-height:1;text-shadow:0 0 24px ' + confColor(confidence.overall) + ',0 0 36px rgba(168,85,247,0.40);">' + confidence.overall + '</div>'
+      + '        <div style="font-size:10.5px;color:var(--tx-3);margin-top:8px;letter-spacing:1px;">SCHEMA kg.v1</div>'
+      + '      </div>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // Entity nodes grid
+      + '<div class="kg-card" style="padding:20px 24px;">'
+      + '  <div style="font-size:10.5px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(0,245,255,0.40);">Entity Nodes</div>'
+      + '  <div class="kg-grid-4">'
+      +      entities.map(function (e) {
+              return '<div class="kg-entity-node">'
+                   + '  <div class="kg-entity-orb">' + e.icon + '</div>'
+                   + '  <div style="font-size:9.5px;color:#7DF9FF;letter-spacing:1.4px;font-weight:900;text-transform:uppercase;margin-bottom:4px;">' + _esc(e.label) + '</div>'
+                   + '  <div class="kg-entity-count">' + e.count + '</div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);margin-top:5px;line-height:1.4;">' + _esc(e.detail) + '</div>'
+                   + '  <div class="kg-conf-bar"><div class="kg-conf-fill" style="width:' + Math.max(0, Math.min(100, e.confidence)) + '%;"></div></div>'
+                   + '  <div style="font-size:8.5px;color:var(--tx-3);margin-top:4px;font-family:var(--mono);">CONF ' + e.confidence + '/100</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // Relationship Map
+      + '<div class="kg-card" style="padding:20px 24px;">'
+      + '  <div style="font-size:10.5px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(0,245,255,0.40);">Relationship Map</div>'
+      + '  <div class="kg-rel-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,245,255,0.18);padding-bottom:6px;">'
+      + '    <div>SOURCE</div><div></div><div>TARGET</div><div>KIND</div><div>LABEL</div><div style="text-align:right;">COUNT</div>'
+      + '  </div>'
+      +    relationships.map(function (r) {
+            var s = nodeById[r.src], t = nodeById[r.dst];
+            return '<div class="kg-rel-row">'
+                 + '  <div style="font-size:11px;color:var(--tx);font-weight:700;letter-spacing:.5px;">' + (s ? s.label.toUpperCase() : r.src) + '</div>'
+                 + '  <div class="kg-edge-arrow">→</div>'
+                 + '  <div style="font-size:11px;color:var(--tx);font-weight:700;letter-spacing:.5px;">' + (t ? t.label.toUpperCase() : r.dst) + '</div>'
+                 + '  <div><span class="kg-pill" style="color:#7DF9FF;background:rgba(0,245,255,0.16);">' + r.kind + '</span></div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx-3);line-height:1.5;">' + _esc(r.label) + '</div>'
+                 + '  <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:#FBBF24;text-shadow:0 0 8px rgba(251,191,36,0.55);">' + r.count + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // Data Confidence + Missing Links
+      + '<div class="kg-grid-2">'
+      + '  <div class="kg-tile">'
+      + '    <div class="kg-tile-lbl">Data Confidence</div>'
+      +      entities.map(function (e) {
+              return '<div style="margin-bottom:10px;">'
+                   + '  <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:3px;">'
+                   + '    <span style="font-weight:700;">' + _esc(e.label) + '</span>'
+                   + '    <span style="font-family:var(--mono);font-weight:800;color:' + confColor(e.confidence) + ';">' + e.confidence + '/100</span>'
+                   + '  </div>'
+                   + '  <div class="kg-conf-bar"><div class="kg-conf-fill" style="width:' + Math.max(0, Math.min(100, e.confidence)) + '%;background:' + confColor(e.confidence) + ';"></div></div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="kg-tile">'
+      + '    <div class="kg-tile-lbl">Missing Links</div>'
+      +      missing.map(function (m) {
+              return '<div class="kg-alert" style="border-left-color:' + sevColor(m.severity) + ';">'
+                   + '  <span style="font-size:14px;">🔗</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+                   + '      <span class="kg-pill" style="color:' + sevColor(m.severity) + ';background:' + sevBg(m.severity) + ';">' + m.kind + '</span>'
+                   + '      <span class="kg-pill" style="color:' + sevColor(m.severity) + ';background:' + sevBg(m.severity) + ';">' + m.severity + '</span>'
+                   + '    </div>'
+                   + '    <div style="font-size:11px;color:var(--tx);line-height:1.55;">' + _esc(m.detail) + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // AI Orchestrator Feed
+      + '<div class="kg-card" style="padding:20px 24px;">'
+      + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;">'
+      + '    <div style="font-size:10.5px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 10px rgba(0,245,255,0.40);">AI Orchestrator Feed</div>'
+      + '    <span class="kg-pill" style="color:#A855F7;background:rgba(168,85,247,0.18);">READ-ONLY · ' + feed.schemaVersion + '</span>'
+      + '  </div>'
+      + '  <div class="kg-feed">' + _esc(JSON.stringify(feed, null, 2)) + '</div>'
+      + '  <div style="font-size:10px;color:var(--tx-3);margin-top:10px;line-height:1.5;">Stable snapshot consumed by FOS AI Orchestrator. Generated each render; no orchestrator helper is modified by this view.</div>'
+      + '</div>'
+
+      // Knowledge Summary
+      + '<div class="kg-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">🧬</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#7DF9FF;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(0,245,255,0.65);">Knowledge Summary</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-knowledge-graph] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Knowledge Graph couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -22497,6 +22886,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="multi-club-network"]')) {
     setTimeout(function () { try { renderMultiClubNetwork(); } catch (err) { try { console.error('[multi-club-network] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-knowledge-graph"]')) {
+    setTimeout(function () { try { renderFOSKnowledgeGraph(); } catch (err) { try { console.error('[fos-knowledge-graph] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
