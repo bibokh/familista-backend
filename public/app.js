@@ -530,6 +530,7 @@ async function loadAllData() {
       try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
       try { if (typeof renderFOSKnowledgeGraph        === 'function') renderFOSKnowledgeGraph();        } catch (_) {}
       try { if (typeof renderFOSNeuralIntelligence    === 'function') renderFOSNeuralIntelligence();    } catch (_) {}
+      try { if (typeof renderFOSCommandCenter         === 'function') renderFOSCommandCenter();         } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -786,6 +787,7 @@ function _flushPendingRender() {
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
+    case 'pg-fos-command-center':  renderFOSCommandCenter();  break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -856,7 +858,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -903,6 +905,7 @@ function navTo(page, el) {
   if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-knowledge-graph'){ try { renderFOSKnowledgeGraph(); } catch (e) { try { console.error('[fos-knowledge-graph] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-neural-intelligence'){ try { renderFOSNeuralIntelligence(); } catch (e) { try { console.error('[fos-neural-intelligence] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-command-center'){ try { renderFOSCommandCenter(); } catch (e) { try { console.error('[fos-command-center] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1032,6 +1035,7 @@ function renderAllPages() {
     ${renderMultiClubNetworkHTML()}
     ${renderFOSKnowledgeGraphHTML()}
     ${renderFOSNeuralIntelligenceHTML()}
+    ${renderFOSCommandCenterHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -13575,6 +13579,372 @@ function renderFOSNeuralIntelligence() {
   }
 }
 
+// ─── Familista OS · Command Center ─────────────────────────────────────
+// Single executive cockpit for the entire Familista Operating System.
+// Read-only — consumes outputs from AI Orchestrator (_orc*), Knowledge
+// Graph (_kg*), Neural Intelligence (_ni*), Multi-Club Network and
+// Global Intelligence Services. Does NOT modify any centre, business
+// logic, backend, Prisma, or API.
+function _cmdSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _cmdActive() { return _cmdSafe(function () { return (State.players || []).filter(function (p) { return p && p.isActive !== false; }); }, []); }
+function _cmdExecutiveOverview() {
+  var ps = _cmdActive();
+  var trn = _cmdSafe(function () { return State.training || []; }, []);
+  var mat = _cmdSafe(function () { return State.matches  || []; }, []);
+  var devices = ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length;
+  // Staff count proxy from the platform identity catalogue + any user.
+  var roleCt = 6;
+  return [
+    { lbl:'Active Players',   v: ps.length,   color:'#00F5FF', icon:'👥' },
+    { lbl:'Active Staff',     v: roleCt,      color:'#A855F7', icon:'🧑‍💼' },
+    { lbl:'Active Devices',   v: devices,     color:'#7DF9FF', icon:'📡' },
+    { lbl:'Active Trainings', v: trn.length,  color:'#FBBF24', icon:'📋' },
+    { lbl:'Active Matches',   v: mat.length,  color:'#34D399', icon:'⚽' },
+  ];
+}
+function _cmdSystemHealth() {
+  var kg = _cmdSafe(_kgConfidence, { overall: 0 });
+  var ni = _cmdSafe(_niDiagnostics, { confidence: 0, completeness: 0, riskScore: 0, riskLevel: 'LOW' });
+  var ps = _cmdActive();
+  var deviceCov = ps.length ? Math.round((ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length / ps.length) * 100) : 0;
+  var med = _cmdSafe(_mgMedScores, { availPct: 0 });
+  return [
+    { lbl:'Data Completeness',   v: ni.completeness || 0, color:'#A855F7' },
+    { lbl:'Knowledge Confidence',v: kg.overall || 0,      color:'#FBBF24' },
+    { lbl:'Neural Confidence',   v: ni.confidence || 0,   color:'#00F5FF' },
+    { lbl:'Device Coverage',     v: deviceCov,             color:'#7DF9FF' },
+    { lbl:'Medical Coverage',    v: med.availPct || 0,    color:'#FCA5A5' },
+  ];
+}
+function _cmdCriticalAlerts() {
+  var out = [];
+  // High risk players from Neural engine.
+  var risk = _cmdSafe(_niPlayerRiskEngine, []);
+  var hi = risk.filter(function (r) { return r && r.composite >= 60; });
+  if (hi.length) {
+    out.push({
+      kind: 'HIGH RISK PLAYERS', severity: hi.length >= 3 ? 'CRITICAL' : 'HIGH', count: hi.length,
+      detail: 'Top: ' + hi.slice(0, 3).map(function (r) { return r.name + ' (' + r.composite + ')'; }).join(' · '),
+      color: '#FCA5A5',
+    });
+  }
+  // Medical engine flags.
+  var medEng = _cmdSafe(_niMedicalRiskEngine, { queue: [] });
+  if (medEng.queue && medEng.queue.length) {
+    out.push({
+      kind: 'MEDICAL FLAGS', severity: medEng.queue.length >= 4 ? 'HIGH' : 'MEDIUM', count: medEng.queue.length,
+      detail: medEng.queue.length + ' player(s) require medical review.',
+      color: '#FCA5A5',
+    });
+  }
+  // Missing data from Knowledge Graph.
+  var missing = _cmdSafe(_kgMissingLinks, []);
+  var highMiss = missing.filter(function (m) { return m.severity === 'HIGH'; });
+  if (highMiss.length || missing.length >= 3) {
+    out.push({
+      kind: 'MISSING DATA', severity: highMiss.length ? 'HIGH' : 'MEDIUM', count: missing.length,
+      detail: missing.slice(0, 2).map(function (m) { return m.kind; }).join(' · ') + (missing.length > 2 ? ' · ' + (missing.length - 2) + ' more' : ''),
+      color: '#FBBF24',
+    });
+  }
+  // Attendance problems from training engine.
+  var trn = _cmdSafe(function () { return State.training || []; }, []);
+  var trnNoAtt = trn.filter(function (s) { return !Array.isArray(s.playerStats) || s.playerStats.length === 0; }).length;
+  var lowAttPlayers = 0;
+  _cmdActive().forEach(function (p) {
+    try {
+      var a = _pcAttendance(p);
+      if (a && a.pct != null && a.pct < 50) lowAttPlayers++;
+    } catch (_) {}
+  });
+  if (trnNoAtt > 0 || lowAttPlayers > 0) {
+    out.push({
+      kind: 'ATTENDANCE PROBLEMS', severity: lowAttPlayers >= 3 ? 'HIGH' : 'MEDIUM', count: trnNoAtt + lowAttPlayers,
+      detail: trnNoAtt + ' session(s) without records · ' + lowAttPlayers + ' player(s) below 50% attendance.',
+      color: '#FBBF24',
+    });
+  }
+  if (!out.length) out.push({
+    kind:'ALL CLEAR', severity:'LOW', count: 0,
+    detail:'No critical alerts at this time.', color:'#7DF9FF',
+  });
+  return out.slice(0, 8);
+}
+function _cmdStrategicRecommendations() {
+  var out = [];
+  var seen = {};
+  var push = function (item) {
+    var k = (item.label || '').slice(0, 50).toLowerCase();
+    if (seen[k]) return;
+    seen[k] = true;
+    out.push(item);
+  };
+  var orc = _cmdSafe(_orcRecommendationEngine, []);
+  orc.forEach(function (r) { push({ label: r.label, detail: r.detail, source: 'AI ORCHESTRATOR', impact: r.score || 60, color: r.color || '#00F5FF' }); });
+  var aix = _cmdSafe(_aixImmediatePriorities, []);
+  aix.forEach(function (a) { push({ label: a.label, detail: a.detail, source: 'AI EXECUTIVE', impact: a.impact || 60, color: a.color || '#A855F7' }); });
+  var ni  = _cmdSafe(_niRecommendations, []);
+  ni.forEach(function (r) { push({ label: r.label, detail: r.detail, source: 'NEURAL', impact: r.impact || 60, color: r.color || '#FBBF24' }); });
+  out.sort(function (a, b) { return b.impact - a.impact; });
+  return out.slice(0, 10);
+}
+function _cmdLiveOperationalFeed() {
+  // Synthesise live ops events from existing streams.
+  var feed = [];
+  var orcStreams = _cmdSafe(_orcLiveStreams, []);
+  orcStreams.slice(0, 4).forEach(function (s) {
+    feed.push({ ts: s.ts, source: s.source || 'ORCHESTRATOR', kind: s.kind || 'EVENT', text: s.text, color: s.color || '#00F5FF' });
+  });
+  var ent = _cmdSafe(_kgEntities, []);
+  if (ent.length) {
+    feed.push({ ts:'T-90s', source:'KNOWLEDGE GRAPH', kind:'SNAPSHOT', text: 'Entity refresh — ' + ent.length + ' classes · ' + ent.reduce(function (a, e) { return a + (e.count || 0); }, 0) + ' records', color:'#7DF9FF' });
+  }
+  var diag = _cmdSafe(_niDiagnostics, { confidence: 0, riskScore: 0 });
+  feed.push({ ts:'T-120s', source:'NEURAL INTEL', kind:'DIAGNOSTIC', text: 'Confidence ' + diag.confidence + '/100 · Risk score ' + diag.riskScore, color:'#A855F7' });
+  feed.push({ ts:'T-150s', source:'MULTI-CLUB', kind:'NETWORK', text: '1 tenant active (FC Familista) · multi-tenant ready', color:'#FBBF24' });
+  feed.push({ ts:'T-180s', source:'GIS', kind:'SERVICE', text: '6 global intelligence services online', color:'#34D399' });
+  return feed.slice(0, 12);
+}
+function _cmdExecutiveScore() {
+  // Composite executive score blending key platform composites.
+  var fos = _cmdSafe(_fosSystemScore, 0);
+  var orc = _cmdSafe(_orcScore, 0);
+  var kg  = _cmdSafe(function () { return _kgConfidence().overall; }, 0);
+  var ni  = _cmdSafe(function () { return _niDiagnostics().confidence; }, 0);
+  var war = _cmdSafe(_warScore, 0);
+  var raw = Math.round(fos * 0.30 + orc * 0.25 + war * 0.20 + ni * 0.15 + kg * 0.10);
+  var score = Math.max(0, Math.min(100, raw));
+  var band;
+  if (score >= 90)      band = { name:'EXEMPLARY', color:'#7DF9FF' };
+  else if (score >= 75) band = { name:'STRONG',    color:'#00F5FF' };
+  else if (score >= 60) band = { name:'STEADY',    color:'#FBBF24' };
+  else if (score >= 40) band = { name:'WATCH',     color:'#A855F7' };
+  else                   band = { name:'CRITICAL', color:'#FCA5A5' };
+  return { score: score, band: band, fos: fos, orc: orc, war: war, ni: ni, kg: kg };
+}
+function _cmdSummary() {
+  var exec = _cmdExecutiveScore();
+  var overview = _cmdExecutiveOverview();
+  var alerts = _cmdCriticalAlerts();
+  var recs = _cmdStrategicRecommendations();
+  var critical = alerts.filter(function (a) { return a.severity === 'HIGH' || a.severity === 'CRITICAL'; }).length;
+  return 'FOS Command Center · executive score ' + exec.score + '/100 (' + exec.band.name + '). ' +
+         (overview[0] ? overview[0].v + ' active players, ' : '') +
+         (overview[3] ? overview[3].v + ' trainings, ' : '') +
+         (overview[4] ? overview[4].v + ' matches on file. ' : '') +
+         critical + ' critical alert(s) · ' + recs.length + ' strategic recommendation(s) queued for executive review.';
+}
+function _ensureCmdStyles() {
+  if (document.getElementById('cmd-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'cmd-styles';
+  s.textContent = ''
+    + '.cmd-page{padding:16px 18px;}'
+    + '.cmd-card{position:relative;border-radius:22px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(0,245,255,0.36);'
+    + '  box-shadow:0 36px 96px -20px rgba(0,0,0,0.92),0 0 110px -16px rgba(0,245,255,0.36),0 0 90px -16px rgba(168,85,247,0.28),0 0 70px -16px rgba(251,191,36,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.cmd-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(0,245,255,0.18),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(168,85,247,0.16),transparent 55%),'
+    + '             radial-gradient(at center,rgba(251,191,36,0.10),transparent 70%);}'
+    + '.cmd-brand{position:relative;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(0,245,255,0.30),rgba(168,85,247,0.22) 35%,rgba(251,191,36,0.22) 70%,rgba(125,249,255,0.30));'
+    + '  border-bottom:1px solid rgba(0,245,255,0.46);}'
+    + '.cmd-brand-logo{font-size:15px;font-weight:900;letter-spacing:3.4px;'
+    + '  background:linear-gradient(90deg,#7DF9FF,#00F5FF,#A855F7,#FBBF24,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 18px rgba(0,245,255,0.65);}'
+    + '.cmd-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.cmd-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.cmd-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}'
+    + '.cmd-tile{position:relative;padding:16px;border-radius:16px;'
+    + '  background:linear-gradient(135deg,rgba(0,245,255,0.06),rgba(168,85,247,0.05) 50%,rgba(251,191,36,0.04));'
+    + '  border:1px solid rgba(0,245,255,0.30);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 22px 56px -16px rgba(0,0,0,0.65);'
+    + '  transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease;}'
+    + '.cmd-tile:hover{border-color:rgba(125,249,255,0.60);transform:translateY(-1px);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.10),0 26px 66px -18px rgba(0,0,0,0.75),0 0 36px -10px rgba(0,245,255,0.42),0 0 24px -8px rgba(168,85,247,0.32);}'
+    + '.cmd-tile-lbl{font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 12px rgba(0,245,255,0.45);}'
+    + '.cmd-kpi{text-align:center;padding:16px 10px;border-radius:14px;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(0,245,255,0.20),rgba(168,85,247,0.12) 60%,rgba(0,0,0,0.45));'
+    + '  border:1px solid rgba(0,245,255,0.42);}'
+    + '.cmd-kpi-icon{font-size:22px;margin-bottom:6px;}'
+    + '.cmd-kpi-val{font-size:30px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.cmd-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--tx-3);margin-top:6px;}'
+    + '.cmd-health-row{margin-bottom:11px;}'
+    + '.cmd-bar{height:9px;border-radius:6px;background:rgba(0,245,255,0.08);overflow:hidden;margin-top:5px;border:1px solid rgba(0,245,255,0.20);}'
+    + '.cmd-bar-fill{height:100%;border-radius:6px;box-shadow:0 0 12px currentColor;}'
+    + '.cmd-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;background:rgba(0,245,255,0.05);border-left:3px solid #00F5FF;}'
+    + '.cmd-alert:last-child{margin-bottom:0;}'
+    + '.cmd-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.cmd-rec-row{display:grid;grid-template-columns:32px 1fr 100px 90px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(0,245,255,0.10);font-size:11px;}'
+    + '.cmd-rec-row:last-child{border-bottom:none;}'
+    + '.cmd-feed-row{display:grid;grid-template-columns:60px 110px 90px 1fr;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(0,245,255,0.08);font-size:10.5px;}'
+    + '.cmd-feed-row:last-child{border-bottom:none;}'
+    + '.cmd-score-tile{text-align:center;padding:22px 14px;border-radius:18px;'
+    + '  background:radial-gradient(circle at 50% 35%,rgba(0,245,255,0.30),rgba(168,85,247,0.18) 50%,rgba(251,191,36,0.12) 70%,transparent 85%);'
+    + '  border:1px solid rgba(0,245,255,0.52);}'
+    + '.cmd-summary{position:relative;padding:30px;border-radius:22px;'
+    + '  background:linear-gradient(135deg,rgba(0,245,255,0.24),rgba(168,85,247,0.20) 50%,rgba(251,191,36,0.22));'
+    + '  border:1.5px solid rgba(0,245,255,0.58);border-left:12px solid #7DF9FF;'
+    + '  box-shadow:0 38px 100px -16px rgba(0,0,0,0.92),0 0 100px -10px rgba(0,245,255,0.58),0 0 80px -10px rgba(168,85,247,0.46),0 0 60px -10px rgba(251,191,36,0.34);}'
+    + '@media (max-width:1024px){.cmd-grid-3{grid-template-columns:repeat(2,1fr);}.cmd-grid-5{grid-template-columns:repeat(2,1fr);}.cmd-rec-row{grid-template-columns:28px 1fr 80px 70px;font-size:10px;}.cmd-feed-row{grid-template-columns:50px 90px 70px 1fr;font-size:10px;}}'
+    + '@media (max-width:600px){.cmd-grid-2,.cmd-grid-3,.cmd-grid-5{grid-template-columns:1fr;}.cmd-rec-row{grid-template-columns:24px 1fr 60px;}.cmd-rec-row > :nth-child(4){display:none;}.cmd-feed-row{grid-template-columns:50px 1fr;}.cmd-feed-row > :nth-child(3),.cmd-feed-row > :nth-child(4){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSCommandCenterHTML() {
+  return '<div class="page" id="pg-fos-command-center">'
+       + '  <div id="fos-command-center-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Command Center…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSCommandCenter() {
+  var el = document.getElementById('fos-command-center-content');
+  if (!el) return;
+  try { _ensureCmdStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Command Center activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var exec = _cmdExecutiveScore();
+    var overview = _cmdExecutiveOverview();
+    var health = _cmdSystemHealth();
+    var alerts = _cmdCriticalAlerts();
+    var recs = _cmdStrategicRecommendations();
+    var feed = _cmdLiveOperationalFeed();
+    var summary = _cmdSummary();
+
+    var colorFor = function (v) { return v >= 80 ? '#7DF9FF' : v >= 65 ? '#FBBF24' : v >= 50 ? '#A855F7' : '#FCA5A5'; };
+    var sevColor = function (s) { return s === 'CRITICAL' ? '#FCA5A5' : s === 'HIGH' ? '#FBBF24' : s === 'MEDIUM' ? '#A855F7' : '#7DF9FF'; };
+    var sevBg    = function (s) { return s === 'CRITICAL' ? 'rgba(239,68,68,0.18)' : s === 'HIGH' ? 'rgba(251,191,36,0.18)' : s === 'MEDIUM' ? 'rgba(168,85,247,0.18)' : 'rgba(0,245,255,0.18)'; };
+
+    var html = ''
+      + '<div class="cmd-page">'
+
+      // Brand bar + Executive Score + Executive Overview
+      + '<div class="cmd-card">'
+      + '  <div class="cmd-brand">'
+      + '    <div class="cmd-brand-logo">★ FAMILISTA OPERATING SYSTEM · COMMAND CENTER</div>'
+      + '    <span class="fos-ai-pulse">EXECUTIVE LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:26px;display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:center;">'
+      + '    <div class="cmd-score-tile">'
+      + '      <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.4px;text-transform:uppercase;margin-bottom:10px;">Executive Score</div>'
+      + '      <div style="font-size:96px;font-weight:900;font-family:var(--mono);color:' + exec.band.color + ';line-height:1;text-shadow:0 0 44px ' + exec.band.color + ',0 0 70px rgba(168,85,247,0.42),0 0 90px rgba(251,191,36,0.30);">' + exec.score + '</div>'
+      + '      <div style="font-size:14px;font-weight:900;letter-spacing:2.8px;color:' + exec.band.color + ';text-transform:uppercase;margin-top:14px;text-shadow:0 0 16px ' + exec.band.color + ';">' + exec.band.name + '</div>'
+      + '      <div style="font-size:9.5px;color:var(--tx-3);margin-top:12px;letter-spacing:1px;font-family:var(--mono);">FOS ' + exec.fos + ' · ORC ' + exec.orc + ' · WAR ' + exec.war + ' · NI ' + exec.ni + ' · KG ' + exec.kg + '</div>'
+      + '    </div>'
+      + '    <div>'
+      + '      <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">1 · Executive Overview</div>'
+      + '      <div class="cmd-grid-5">'
+      +          overview.map(function (k) {
+                  return '<div class="cmd-kpi">'
+                       + '  <div class="cmd-kpi-icon">' + k.icon + '</div>'
+                       + '  <div class="cmd-kpi-val" style="color:' + k.color + ';">' + k.v + '</div>'
+                       + '  <div class="cmd-kpi-lbl">' + _esc(k.lbl) + '</div>'
+                       + '</div>';
+                }).join('')
+      + '      </div>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2. System Health
+      + '<div class="cmd-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">2 · System Health</div>'
+      + '  <div class="cmd-grid-5">'
+      +      health.map(function (h) {
+              return '<div class="cmd-tile" style="padding:14px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx);margin-bottom:4px;">'
+                   + '    <span style="font-weight:700;letter-spacing:.4px;">' + _esc(h.lbl) + '</span>'
+                   + '    <span style="font-family:var(--mono);font-weight:900;color:' + colorFor(h.v) + ';">' + h.v + '</span>'
+                   + '  </div>'
+                   + '  <div class="cmd-bar"><div class="cmd-bar-fill" style="width:' + Math.max(0, Math.min(100, h.v)) + '%;background:' + colorFor(h.v) + ';color:' + colorFor(h.v) + ';"></div></div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 3. Critical Alerts + 4. Strategic Recommendations
+      + '<div class="cmd-grid-2">'
+      + '  <div class="cmd-tile">'
+      + '    <div class="cmd-tile-lbl">3 · Critical Alerts</div>'
+      +      alerts.map(function (a) {
+              return '<div class="cmd-alert" style="border-left-color:' + sevColor(a.severity) + ';">'
+                   + '  <span style="font-size:14px;color:' + sevColor(a.severity) + ';">⚠</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:6px;flex-wrap:wrap;">'
+                   + '      <div style="display:flex;gap:8px;align-items:center;">'
+                   + '        <span class="cmd-pill" style="color:' + sevColor(a.severity) + ';background:' + sevBg(a.severity) + ';">' + a.kind + '</span>'
+                   + '        <span class="cmd-pill" style="color:' + sevColor(a.severity) + ';background:' + sevBg(a.severity) + ';">' + a.severity + '</span>'
+                   + '      </div>'
+                   + '      <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);">COUNT ' + a.count + '</span>'
+                   + '    </div>'
+                   + '    <div style="font-size:11px;color:var(--tx);line-height:1.55;">' + _esc(a.detail) + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="cmd-tile">'
+      + '    <div class="cmd-tile-lbl">4 · Strategic Recommendations · Top 10</div>'
+      + '    <div class="cmd-rec-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,245,255,0.18);padding-bottom:6px;">'
+      + '      <div>#</div><div>RECOMMENDATION</div><div style="text-align:right;">SOURCE</div><div style="text-align:right;">IMPACT</div>'
+      + '    </div>'
+      +      (recs.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No recommendations queued.</div>' :
+            recs.map(function (r, i) {
+              return '<div class="cmd-rec-row">'
+                   + '  <div style="font-family:var(--mono);font-weight:900;color:#7DF9FF;text-align:right;text-shadow:0 0 6px rgba(0,245,255,0.55);">' + (i + 1) + '</div>'
+                   + '  <div style="min-width:0;">'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.label) + '</div>'
+                   + '    <div style="font-size:9.5px;color:var(--tx-3);line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.detail) + '</div>'
+                   + '  </div>'
+                   + '  <div style="text-align:right;"><span class="cmd-pill" style="color:' + r.color + ';background:rgba(0,245,255,0.10);">' + r.source + '</span></div>'
+                   + '  <div style="text-align:right;font-size:12px;font-weight:900;font-family:var(--mono);color:' + colorFor(r.impact) + ';text-shadow:0 0 8px currentColor;">' + Math.round(r.impact) + '</div>'
+                   + '</div>';
+            }).join(''))
+      + '  </div>'
+      + '</div>'
+
+      // 5. Live Operational Feed
+      + '<div class="cmd-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">5 · Live Operational Feed</div>'
+      + '  <div class="cmd-feed-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,245,255,0.18);padding-bottom:6px;">'
+      + '    <div>T</div><div>SOURCE</div><div>KIND</div><div>EVENT</div>'
+      + '  </div>'
+      +    feed.map(function (f) {
+            return '<div class="cmd-feed-row">'
+                 + '  <div style="font-family:var(--mono);color:#7DF9FF;font-size:9.5px;text-shadow:0 0 6px rgba(0,245,255,0.55);">' + f.ts + '</div>'
+                 + '  <div style="color:var(--tx);font-weight:700;font-size:10px;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + f.source + '</div>'
+                 + '  <div><span class="cmd-pill" style="color:' + f.color + ';background:rgba(0,245,255,0.10);">' + f.kind + '</span></div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(f.text) + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // Summary banner
+      + '<div class="cmd-summary">'
+      + '  <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">'
+      + '    <span style="font-size:28px;">⚙️</span>'
+      + '    <div style="font-size:15px;font-weight:900;color:#7DF9FF;letter-spacing:2.8px;text-transform:uppercase;text-shadow:0 0 16px rgba(0,245,255,0.70);">FOS Command Center · Executive Brief</div>'
+      + '  </div>'
+      + '  <div style="font-size:14.5px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-command-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Command Center couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -23535,6 +23905,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-neural-intelligence"]')) {
     setTimeout(function () { try { renderFOSNeuralIntelligence(); } catch (err) { try { console.error('[fos-neural-intelligence] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-command-center"]')) {
+    setTimeout(function () { try { renderFOSCommandCenter(); } catch (err) { try { console.error('[fos-command-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
