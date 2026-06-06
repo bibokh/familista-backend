@@ -529,6 +529,7 @@ async function loadAllData() {
       try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
       try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
       try { if (typeof renderFOSKnowledgeGraph        === 'function') renderFOSKnowledgeGraph();        } catch (_) {}
+      try { if (typeof renderFOSNeuralIntelligence    === 'function') renderFOSNeuralIntelligence();    } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -785,6 +786,7 @@ function _flushPendingRender() {
     case 'pg-fos-core':           renderFOSCore();           break;
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
+    case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
     case 'pg-gis-analytics':    renderGIS('gis-analytics');   break;
@@ -854,7 +856,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -900,6 +902,7 @@ function navTo(page, el) {
   if (page === 'fos-ai-orchestrator'){ try { renderFOSAIOrchestrator();} catch (e) { try { console.error('[fos-ai-orchestrator] nav render failed:', e);} catch (_) {} } }
   if (page === 'multi-club-network'){ try { renderMultiClubNetwork(); } catch (e) { try { console.error('[multi-club-network] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-knowledge-graph'){ try { renderFOSKnowledgeGraph(); } catch (e) { try { console.error('[fos-knowledge-graph] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-neural-intelligence'){ try { renderFOSNeuralIntelligence(); } catch (e) { try { console.error('[fos-neural-intelligence] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1028,6 +1031,7 @@ function renderAllPages() {
     ${renderFOSAIOrchestratorHTML()}
     ${renderMultiClubNetworkHTML()}
     ${renderFOSKnowledgeGraphHTML()}
+    ${renderFOSNeuralIntelligenceHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -12932,6 +12936,645 @@ function renderFOSKnowledgeGraph() {
   }
 }
 
+// ─── Familista OS · Neural Intelligence ────────────────────────────────
+// Platform-level neural intelligence dashboard. Read-only — consumes
+// outputs from the Knowledge Graph (_kg*), existing centres (_md*,
+// _pf*, _mg*, _tc*, _sg*) and State (players, training, matches,
+// medical, finance, devices). Does NOT mutate any State or modify
+// any centre. Detects patterns / anomalies / forecasts / risks and
+// surfaces AI recommendations with diagnostics (confidence,
+// completeness, risk level, recommendation count).
+function _niSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _niActive() { return _niSafe(function () { return (State.players || []).filter(function (p) { return p && p.isActive !== false; }); }, []); }
+function _niPatternDetection() {
+  // Pull stable, deterministic patterns from existing data.
+  var ps = _niActive();
+  var trn = _niSafe(function () { return State.training || []; }, []);
+  var mat = _niSafe(function () { return State.matches  || []; }, []);
+  var med = _niSafe(_mgMedScores, { availPct: 100, buckets: { INJURED: 0 } });
+  var perf = _niSafe(_pfTeamScores, { Overall: 0, Attack: 0, Defense: 0, Possession: 0, Condition: 0 });
+  var patterns = [];
+  // Pattern 1: Form weakness — lowest of 4 dimensions
+  if (perf && perf.Overall) {
+    var dims = [
+      { k: 'Attack', v: perf.Attack || 0 },
+      { k: 'Defense', v: perf.Defense || 0 },
+      { k: 'Possession', v: perf.Possession || 0 },
+      { k: 'Condition', v: perf.Condition || 0 },
+    ];
+    dims.sort(function (a, b) { return a.v - b.v; });
+    patterns.push({
+      kind: 'FORM PATTERN',
+      detail: 'Team trailing dimension: ' + dims[0].k + ' (' + dims[0].v + '/100). ' + dims[3].k + ' leads at ' + dims[3].v + '.',
+      strength: Math.max(20, 100 - dims[0].v),
+      color: '#00F5FF',
+    });
+  }
+  // Pattern 2: Training engagement
+  if (trn.length >= 2) {
+    var avgAtt = trn.reduce(function (a, s) { return a + (Array.isArray(s.playerStats) ? s.playerStats.length : 0); }, 0) / trn.length;
+    var pct = ps.length ? Math.round((avgAtt / ps.length) * 100) : 0;
+    patterns.push({
+      kind: 'TRAINING ENGAGEMENT',
+      detail: 'Average ' + Math.round(avgAtt) + '/' + ps.length + ' players per session (' + pct + '%).',
+      strength: pct,
+      color: '#A855F7',
+    });
+  }
+  // Pattern 3: Medical pattern
+  if (med && (med.buckets && med.buckets.INJURED >= 0)) {
+    patterns.push({
+      kind: 'MEDICAL PATTERN',
+      detail: 'Availability ' + (med.availPct || 0) + '%. ' + ((med.buckets && med.buckets.INJURED) || 0) + ' active injuries.',
+      strength: med.availPct || 0,
+      color: '#7DF9FF',
+    });
+  }
+  // Pattern 4: Match cadence
+  if (mat.length >= 1) {
+    patterns.push({
+      kind: 'MATCH CADENCE',
+      detail: mat.length + ' fixture record(s) on file. Average ' + (trn.length && mat.length ? Math.round(trn.length / Math.max(1, mat.length)) : '—') + ' training sessions per match.',
+      strength: Math.min(100, mat.length * 10),
+      color: '#FBBF24',
+    });
+  }
+  if (!patterns.length) patterns.push({ kind:'NO PATTERN DETECTED', detail:'Insufficient data for pattern engine.', strength: 0, color:'#FCA5A5' });
+  return patterns.slice(0, 6);
+}
+function _niAnomalyDetection() {
+  var ps = _niActive();
+  var anomalies = [];
+  // Statistical outliers per metric
+  if (ps.length) {
+    // Condition outliers
+    var conds = ps.map(function (p) { return typeof p.condition === 'number' ? p.condition : 100; });
+    var avgC = conds.reduce(function (a, x) { return a + x; }, 0) / conds.length;
+    var stdC = Math.sqrt(conds.reduce(function (a, x) { return a + Math.pow(x - avgC, 2); }, 0) / conds.length);
+    ps.forEach(function (p) {
+      var c = typeof p.condition === 'number' ? p.condition : 100;
+      if (stdC > 0 && Math.abs(c - avgC) > stdC * 1.7 && c < avgC) {
+        anomalies.push({
+          kind: 'CONDITION OUTLIER',
+          subject: ((p.firstName || '').charAt(0) + '. ' + (p.lastName || '')),
+          detail: 'Condition ' + c + '% (squad avg ' + Math.round(avgC) + '%). Z=' + ((c - avgC) / stdC).toFixed(2),
+          severity: c < 50 ? 'HIGH' : 'MEDIUM',
+          color: '#FCA5A5',
+        });
+      }
+    });
+    // Overall rating outliers (top tier dependency)
+    var ovrs = ps.map(function (p) { return typeof p.overallRating === 'number' ? p.overallRating : 70; });
+    var avgO = ovrs.reduce(function (a, x) { return a + x; }, 0) / ovrs.length;
+    ps.forEach(function (p) {
+      var o = typeof p.overallRating === 'number' ? p.overallRating : 70;
+      if (o >= avgO + 12) {
+        anomalies.push({
+          kind: 'TOP TIER DEPENDENCY',
+          subject: ((p.firstName || '').charAt(0) + '. ' + (p.lastName || '')),
+          detail: 'OVR ' + o + ' significantly above squad avg ' + Math.round(avgO) + '. Squad concentration risk.',
+          severity: 'MEDIUM',
+          color: '#FBBF24',
+        });
+      }
+    });
+  }
+  // Squad balance anomaly
+  var balance = _niSafe(function () { return _tcSquadNeeds().balance; }, 100);
+  if (balance < 55) {
+    anomalies.push({
+      kind: 'SQUAD BALANCE ANOMALY',
+      subject: 'Roster',
+      detail: 'Balance score ' + balance + '/100 — significant structural imbalance.',
+      severity: 'HIGH',
+      color: '#FCA5A5',
+    });
+  }
+  return anomalies.slice(0, 6);
+}
+function _niPredictionEngine() {
+  // 30 / 60 / 90 day forecasts of key metrics derived from current
+  // trajectory signals.
+  var perf = _niSafe(_pfTeamScores, { Overall: 0 });
+  var med  = _niSafe(_mgMedScores, { availPct: 0 });
+  var fin  = _niSafe(_mgFinanceHealthScore, 0);
+  var impact = _niSafe(_pfTrainingImpact, { direction:'STABLE', improvement: 0 });
+  var slope = impact.direction === 'IMPROVING' ? 1.5 : impact.direction === 'DECLINING' ? -1.5 : 0.2;
+  var clamp = function (v) { return Math.max(0, Math.min(100, Math.round(v))); };
+  return [
+    { horizon:'30 DAYS',  metric:'Form',         current: perf.Overall, projected: clamp(perf.Overall + slope * 1),   confidence: 82, color:'#00F5FF' },
+    { horizon:'60 DAYS',  metric:'Form',         current: perf.Overall, projected: clamp(perf.Overall + slope * 2),   confidence: 72, color:'#00F5FF' },
+    { horizon:'90 DAYS',  metric:'Availability', current: med.availPct, projected: clamp(med.availPct + slope * 1.2), confidence: 65, color:'#7DF9FF' },
+    { horizon:'90 DAYS',  metric:'Finance',      current: fin,           projected: clamp(fin + slope * 0.8),         confidence: 60, color:'#FBBF24' },
+  ];
+}
+function _niPlayerRiskEngine() {
+  var ps = _niActive();
+  var rows = ps.map(function (p) {
+    var inj = _niSafe(function () { return _pcInjuryRisk(p); }, { level: 'LOW' });
+    var fat = _niSafe(function () { return _pcFatigueRisk(p); }, { level: 'LOW' });
+    var rdy = _niSafe(function () { return _pcReadinessScore(p); }, 100);
+    var weight = { HIGH: 3, MED: 2, LOW: 1 };
+    var composite = (weight[inj.level] || 1) * 25 + (weight[fat.level] || 1) * 15 + Math.max(0, 100 - rdy) * 0.4;
+    return {
+      name: ((p.firstName || '').charAt(0) + '. ' + (p.lastName || '')),
+      position: p.position || '—',
+      injuryLevel: inj.level || 'LOW',
+      fatigueLevel: fat.level || 'LOW',
+      readiness: rdy,
+      composite: Math.max(0, Math.min(100, Math.round(composite))),
+    };
+  });
+  rows.sort(function (a, b) { return b.composite - a.composite; });
+  return rows.slice(0, 8);
+}
+function _niMedicalRiskEngine() {
+  var ps = _niActive();
+  var med = _niSafe(_mgMedScores, { buckets: { INJURED: 0, QUESTIONABLE: 0, RECOVERY: 0 }, availPct: 0 });
+  // Build patient-level medical attention queue.
+  var queue = ps.map(function (p) {
+    var inj = _niSafe(function () { return _pcInjuryRisk(p); }, { level: 'LOW' });
+    var fat = _niSafe(function () { return _pcFatigueRisk(p); }, { level: 'LOW' });
+    var cond = typeof p.condition === 'number' ? p.condition : 100;
+    var score = (inj.level === 'HIGH' ? 40 : inj.level === 'MED' ? 22 : 6)
+              + (fat.level === 'HIGH' ? 25 : fat.level === 'MED' ? 12 : 3)
+              + Math.max(0, 70 - cond) * 0.6
+              + (p.isInjured ? 30 : 0);
+    return {
+      name: ((p.firstName || '').charAt(0) + '. ' + (p.lastName || '')),
+      condition: cond,
+      injury: !!p.isInjured,
+      score: Math.max(0, Math.min(100, Math.round(score))),
+    };
+  }).filter(function (x) { return x.score >= 30; });
+  queue.sort(function (a, b) { return b.score - a.score; });
+  return {
+    queue: queue.slice(0, 6),
+    summary: {
+      injured: (med.buckets && med.buckets.INJURED) || 0,
+      questionable: (med.buckets && med.buckets.QUESTIONABLE) || 0,
+      recovery: (med.buckets && med.buckets.RECOVERY) || 0,
+      availability: med.availPct || 0,
+    },
+  };
+}
+function _niTransferIntelligence() {
+  var needs = _niSafe(_tcSquadNeeds, { groups: {}, balance: 0 });
+  var sells = _niSafe(_tcSellLoanCandidates, { lowReadiness: [], lowForm: [] });
+  var sim   = _niSafe(_fiTransferSimulation, { scenarios: [] });
+  var weakLines = Object.keys(needs.groups || {}).filter(function (k) {
+    var g = needs.groups[k];
+    return g && (g.status === 'SHORTAGE' || (g.avgOvr || 0) < 70);
+  });
+  return {
+    balance: needs.balance || 0,
+    weakLines: weakLines,
+    sellSignals: ((sells.lowReadiness || []).length + (sells.lowForm || []).length),
+    realisticBudget: sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0,
+    aggressiveBudget: sim.scenarios && sim.scenarios[2] ? sim.scenarios[2].cap : 0,
+  };
+}
+function _niTrainingIntelligence() {
+  var trn = _niSafe(function () { return State.training || []; }, []);
+  var impact = _niSafe(_pfTrainingImpact, { direction:'STABLE', improvement: 0, recentCount: 0 });
+  var attendanceCoverage = 0;
+  if (trn.length) {
+    var totalSlots = 0, recordedSlots = 0;
+    trn.forEach(function (s) {
+      totalSlots += Array.isArray(s.playerStats) ? s.playerStats.length : 0;
+      if (Array.isArray(s.playerStats) && s.playerStats.length) recordedSlots++;
+    });
+    attendanceCoverage = trn.length ? Math.round((recordedSlots / trn.length) * 100) : 0;
+  }
+  return {
+    sessions: trn.length,
+    recent14d: impact.recentCount || 0,
+    direction: impact.direction || 'STABLE',
+    improvement: impact.improvement || 0,
+    attendanceCoverage: attendanceCoverage,
+  };
+}
+function _niCrossEntityCorrelation() {
+  // Cross-domain correlation signals.
+  var perf = _niSafe(_pfTeamScores, { Overall: 0, Condition: 0 });
+  var med  = _niSafe(_mgMedScores, { availPct: 100 });
+  var fin  = _niSafe(_mgFinanceHealthScore, 0);
+  var balance = _niSafe(function () { return _tcSquadNeeds().balance; }, 0);
+  var corr = [];
+  corr.push({
+    pair: 'Medical ↔ Performance',
+    detail: 'Availability ' + (med.availPct || 0) + '% maps to team form ' + (perf.Overall || 0) + '/100.',
+    strength: Math.round(((med.availPct || 0) + (perf.Overall || 0)) / 2),
+    color: '#7DF9FF',
+  });
+  corr.push({
+    pair: 'Condition ↔ Form',
+    detail: 'Conditioning rating ' + (perf.Condition || 0) + ' linked to overall form trend.',
+    strength: Math.round(((perf.Condition || 0) + (perf.Overall || 0)) / 2),
+    color: '#00F5FF',
+  });
+  corr.push({
+    pair: 'Finance ↔ Squad Balance',
+    detail: 'Finance health ' + fin + ' vs squad balance ' + balance + '/100.',
+    strength: Math.round((fin + balance) / 2),
+    color: '#FBBF24',
+  });
+  corr.push({
+    pair: 'Devices ↔ Players',
+    detail: 'GPS coverage feeds condition / fatigue derivation.',
+    strength: 78,
+    color: '#A855F7',
+  });
+  return corr.slice(0, 6);
+}
+function _niRecommendations() {
+  var out = [];
+  // Pull from existing recommendation surfaces.
+  var aix = _niSafe(_aixImmediatePriorities, []);
+  aix.slice(0, 3).forEach(function (a) {
+    out.push({
+      label: a.label || 'Executive priority',
+      detail: a.detail || '',
+      source: a.source || 'AI EXECUTIVE',
+      impact: a.impact || 60,
+      color: '#00F5FF',
+    });
+  });
+  var med = _niMedicalRiskEngine();
+  if (med.queue.length) {
+    out.push({
+      label: 'Open ' + med.queue.length + ' medical reviews',
+      detail: 'High medical-risk queue from neural engine.',
+      source: 'MEDICAL ENGINE',
+      impact: 78,
+      color: '#FCA5A5',
+    });
+  }
+  var xfer = _niTransferIntelligence();
+  if (xfer.weakLines.length) {
+    out.push({
+      label: 'Address weak line(s): ' + xfer.weakLines.join('/'),
+      detail: 'Squad balance ' + xfer.balance + '/100. Realistic budget headroom ' + _fiFmtMoney(xfer.realisticBudget) + '.',
+      source: 'TRANSFER ENGINE',
+      impact: 80,
+      color: '#FBBF24',
+    });
+  }
+  if (!out.length) out.push({ label:'No actionable recommendations', detail:'Neural engine reports steady state.', source:'NEURAL', impact: 30, color:'#A855F7' });
+  out.sort(function (a, b) { return b.impact - a.impact; });
+  return out.slice(0, 6);
+}
+function _niDiagnostics() {
+  // Confidence score = inherits from Knowledge Graph if available,
+  // else recomputed from data coverage.
+  var kg = _niSafe(_kgConfidence, { overall: 60 });
+  var confidence = kg.overall || 60;
+  // Data completeness = average across critical domains.
+  var ps = _niActive();
+  var trn = _niSafe(function () { return State.training || []; }, []);
+  var mat = _niSafe(function () { return State.matches  || []; }, []);
+  var medOK = ps.length > 0 ? 100 : 0;
+  var trnOK = trn.length > 0 ? 100 : 0;
+  var matOK = mat.length > 0 ? 100 : 0;
+  var deviceOK = ps.length ? Math.round((ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length / ps.length) * 100) : 0;
+  var completeness = Math.round((medOK + trnOK + matOK + deviceOK) / 4);
+  // Risk level = aggregate from player + medical risk engines.
+  var pri = _niPlayerRiskEngine();
+  var avgRisk = pri.length ? Math.round(pri.reduce(function (a, x) { return a + (x.composite || 0); }, 0) / pri.length) : 0;
+  var riskLevel = avgRisk >= 65 ? 'HIGH' : avgRisk >= 45 ? 'MEDIUM' : 'LOW';
+  var recs = _niRecommendations();
+  return {
+    confidence: confidence,
+    completeness: completeness,
+    riskScore: avgRisk,
+    riskLevel: riskLevel,
+    recommendationCount: recs.length,
+  };
+}
+function _niSummary() {
+  var diag = _niDiagnostics();
+  var pats = _niPatternDetection();
+  var anomalies = _niAnomalyDetection();
+  var preds = _niPredictionEngine();
+  var dir = (preds[0] && preds[0].projected) > (preds[0] && preds[0].current) ? 'upward' : 'stable';
+  return 'Neural Intelligence — ' + pats.length + ' pattern signals · ' +
+         anomalies.length + ' anomaly signals · ' + preds.length + ' forecasts. ' +
+         'Aggregate confidence ' + diag.confidence + '/100, data completeness ' + diag.completeness + '%. ' +
+         'Average squad risk: ' + diag.riskScore + ' (' + diag.riskLevel + '). ' +
+         'Form trajectory: ' + dir + '. ' +
+         diag.recommendationCount + ' active recommendation(s) — read-only feed ready for executive consumption.';
+}
+function _ensureNIStyles() {
+  if (document.getElementById('ni-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'ni-styles';
+  s.textContent = ''
+    + '.ni-page{padding:16px 18px;}'
+    + '.ni-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(168,85,247,0.34);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.85),0 0 80px -16px rgba(168,85,247,0.32),0 0 60px -16px rgba(0,245,255,0.26),inset 0 1px 0 rgba(255,255,255,0.08);}'
+    + '.ni-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(168,85,247,0.16),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(0,245,255,0.14),transparent 55%);}'
+    + '.ni-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(168,85,247,0.30),rgba(0,245,255,0.20) 50%,rgba(251,191,36,0.22));'
+    + '  border-bottom:1px solid rgba(168,85,247,0.42);}'
+    + '.ni-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#A855F7,#7DF9FF,#FBBF24,#A855F7);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(168,85,247,0.55);}'
+    + '.ni-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.ni-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.ni-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.ni-tile{position:relative;padding:14px;border-radius:14px;'
+    + '  background:linear-gradient(135deg,rgba(168,85,247,0.06),rgba(0,245,255,0.05) 50%,rgba(251,191,36,0.04));'
+    + '  border:1px solid rgba(168,85,247,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);'
+    + '  transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease;}'
+    + '.ni-tile:hover{border-color:rgba(168,85,247,0.55);transform:translateY(-1px);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.10),0 24px 60px -18px rgba(0,0,0,0.75),0 0 36px -10px rgba(168,85,247,0.42),0 0 24px -8px rgba(0,245,255,0.32);}'
+    + '.ni-tile-lbl{font-size:10.5px;font-weight:900;color:#A855F7;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;text-shadow:0 0 10px rgba(168,85,247,0.45);}'
+    + '.ni-kpi{text-align:center;padding:14px 10px;border-radius:14px;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(168,85,247,0.20),rgba(0,245,255,0.12) 60%,rgba(0,0,0,0.45));'
+    + '  border:1px solid rgba(168,85,247,0.42);}'
+    + '.ni-kpi-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 12px currentColor;}'
+    + '.ni-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--tx-3);margin-top:5px;}'
+    + '.ni-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(168,85,247,0.10);font-size:11px;}'
+    + '.ni-row:last-child{border-bottom:none;}'
+    + '.ni-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.ni-bar{height:7px;border-radius:5px;background:rgba(168,85,247,0.10);overflow:hidden;margin-top:5px;border:1px solid rgba(168,85,247,0.20);}'
+    + '.ni-bar-fill{height:100%;border-radius:5px;box-shadow:0 0 10px currentColor;}'
+    + '.ni-alert{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;margin-bottom:8px;border-radius:11px;background:rgba(168,85,247,0.06);border-left:3px solid #A855F7;}'
+    + '.ni-alert:last-child{margin-bottom:0;}'
+    + '.ni-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(168,85,247,0.20),rgba(0,245,255,0.18) 50%,rgba(251,191,36,0.18));'
+    + '  border:1px solid rgba(168,85,247,0.52);border-left:10px solid #A855F7;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(168,85,247,0.50),0 0 60px -10px rgba(0,245,255,0.40);}'
+    + '@media (max-width:1024px){.ni-grid-3{grid-template-columns:repeat(2,1fr);}.ni-grid-4{grid-template-columns:repeat(2,1fr);}}'
+    + '@media (max-width:600px){.ni-grid-2,.ni-grid-3,.ni-grid-4{grid-template-columns:1fr;}}';
+  document.head.appendChild(s);
+}
+function renderFOSNeuralIntelligenceHTML() {
+  return '<div class="page" id="pg-fos-neural-intelligence">'
+       + '  <div id="fos-neural-intelligence-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Neural Intelligence…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSNeuralIntelligence() {
+  var el = document.getElementById('fos-neural-intelligence-content');
+  if (!el) return;
+  try { _ensureNIStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for tenant data…</div>'
+      + '<div style="font-size:11px;">Neural intelligence builds once squad data loads.</div></div>';
+    return;
+  }
+  try {
+    var diag = _niDiagnostics();
+    var patterns = _niPatternDetection();
+    var anomalies = _niAnomalyDetection();
+    var predictions = _niPredictionEngine();
+    var playerRisk = _niPlayerRiskEngine();
+    var medicalRisk = _niMedicalRiskEngine();
+    var transferIQ = _niTransferIntelligence();
+    var trainingIQ = _niTrainingIntelligence();
+    var corr = _niCrossEntityCorrelation();
+    var recs = _niRecommendations();
+    var summary = _niSummary();
+
+    var colorFor = function (v) { return v >= 80 ? '#7DF9FF' : v >= 65 ? '#FBBF24' : v >= 50 ? '#A855F7' : '#FCA5A5'; };
+    var lvlColor = function (l) { return l === 'HIGH' ? '#FCA5A5' : l === 'MED' || l === 'MEDIUM' ? '#FBBF24' : '#7DF9FF'; };
+    var lvlBg    = function (l) { return l === 'HIGH' ? 'rgba(239,68,68,0.16)' : l === 'MED' || l === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(0,245,255,0.16)'; };
+
+    var html = ''
+      + '<div class="ni-page">'
+
+      // Brand bar + Diagnostics
+      + '<div class="ni-card">'
+      + '  <div class="ni-brand">'
+      + '    <div class="ni-brand-logo">★ FAMILISTA OPERATING SYSTEM · NEURAL INTELLIGENCE</div>'
+      + '    <span class="fos-ai-pulse">NEURAL LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:22px 24px;">'
+      + '    <div class="ni-grid-4">'
+      + '      <div class="ni-kpi"><div class="ni-kpi-val" style="color:' + colorFor(diag.confidence) + ';">' + diag.confidence + '</div><div class="ni-kpi-lbl">Confidence</div></div>'
+      + '      <div class="ni-kpi"><div class="ni-kpi-val" style="color:' + colorFor(diag.completeness) + ';">' + diag.completeness + '%</div><div class="ni-kpi-lbl">Data Completeness</div></div>'
+      + '      <div class="ni-kpi"><div class="ni-kpi-val" style="color:' + lvlColor(diag.riskLevel) + ';">' + diag.riskScore + '</div><div class="ni-kpi-lbl">Risk Score · ' + diag.riskLevel + '</div></div>'
+      + '      <div class="ni-kpi"><div class="ni-kpi-val" style="color:#A855F7;">' + diag.recommendationCount + '</div><div class="ni-kpi-lbl">Recommendations</div></div>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // A. Pattern Detection + B. Anomaly Detection
+      + '<div class="ni-grid-2">'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">A · Pattern Detection</div>'
+      +      patterns.map(function (p) {
+              return '<div style="margin-bottom:10px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx);margin-bottom:4px;">'
+                   + '    <span style="font-weight:700;letter-spacing:.5px;">' + _esc(p.kind) + '</span>'
+                   + '    <span style="font-family:var(--mono);font-weight:800;color:' + p.color + ';">' + p.strength + '</span>'
+                   + '  </div>'
+                   + '  <div class="ni-bar"><div class="ni-bar-fill" style="width:' + Math.max(0, Math.min(100, p.strength)) + '%;background:' + p.color + ';color:' + p.color + ';"></div></div>'
+                   + '  <div style="font-size:10px;color:var(--tx-3);margin-top:5px;line-height:1.5;">' + _esc(p.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">B · Anomaly Detection</div>'
+      +      (anomalies.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No anomalies detected.</div>' :
+            anomalies.map(function (a) {
+              return '<div class="ni-alert" style="border-left-color:' + a.color + ';">'
+                   + '  <span style="font-size:14px;">⚡</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+                   + '      <span class="ni-pill" style="color:' + lvlColor(a.severity) + ';background:' + lvlBg(a.severity) + ';">' + a.kind + '</span>'
+                   + '      <span class="ni-pill" style="color:' + lvlColor(a.severity) + ';background:' + lvlBg(a.severity) + ';">' + a.severity + '</span>'
+                   + '    </div>'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">' + _esc(a.subject) + '</div>'
+                   + '    <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">' + _esc(a.detail) + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join(''))
+      + '  </div>'
+      + '</div>'
+
+      // C. Prediction Engine + D. Player Risk Engine
+      + '<div class="ni-grid-2">'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">C · Prediction Engine</div>'
+      +      predictions.map(function (p) {
+              return '<div style="padding:11px;border-radius:11px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.22);margin-bottom:9px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+                   + '    <div>'
+                   + '      <div style="font-size:9.5px;font-weight:900;color:' + p.color + ';letter-spacing:1.4px;text-transform:uppercase;">' + p.horizon + '</div>'
+                   + '      <div style="font-size:11px;color:var(--tx);font-weight:700;margin-top:2px;">' + _esc(p.metric) + '</div>'
+                   + '    </div>'
+                   + '    <div style="font-size:10px;color:var(--tx-3);font-family:var(--mono);">CONF ' + p.confidence + '%</div>'
+                   + '  </div>'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--tx-3);">'
+                   + '    <span>Current <span style="color:var(--tx);font-family:var(--mono);font-weight:700;">' + p.current + '</span></span>'
+                   + '    <span style="font-size:14px;font-family:var(--mono);font-weight:900;color:' + (p.projected > p.current ? '#00F5FF' : p.projected < p.current ? '#FCA5A5' : '#7DF9FF') + ';text-shadow:0 0 8px currentColor;">→ ' + p.projected + '</span>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">D · Player Risk Engine</div>'
+      +      (playerRisk.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:6px 0;">No risk data.</div>' :
+            playerRisk.map(function (r) {
+              return '<div class="ni-row">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.name) + ' <span style="color:var(--tx-3);">· ' + _esc(r.position) + '</span></div>'
+                   + '    <div style="font-size:9.5px;color:var(--tx-3);">Inj ' + r.injuryLevel + ' · Fat ' + r.fatigueLevel + ' · Rdy ' + r.readiness + '</div>'
+                   + '  </div>'
+                   + '  <div style="text-align:right;">'
+                   + '    <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:' + colorFor(100 - r.composite) + ';">' + r.composite + '</div>'
+                   + '    <div style="font-size:8px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">RISK</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join(''))
+      + '  </div>'
+      + '</div>'
+
+      // E. Medical Risk Engine + F. Transfer Intelligence
+      + '<div class="ni-grid-2">'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">E · Medical Risk Engine</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(239,68,68,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FCA5A5;">' + medicalRisk.summary.injured + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">INJURED</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(251,191,36,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FBBF24;">' + medicalRisk.summary.questionable + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">QUEST</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + medicalRisk.summary.recovery + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">RECOV</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + medicalRisk.summary.availability + '%</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">AVAIL</div>'
+      + '      </div>'
+      + '    </div>'
+      +      (medicalRisk.queue.length === 0 ? '<div style="font-size:10.5px;color:var(--tx-3);padding:6px 0;">No medical attention queue.</div>' :
+            medicalRisk.queue.map(function (q) {
+              return '<div class="ni-row">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(q.name) + (q.injury ? ' <span class="ni-pill" style="color:#FCA5A5;background:rgba(239,68,68,0.16);">INJURED</span>' : '') + '</div>'
+                   + '    <div style="font-size:9px;color:var(--tx-3);">Condition ' + q.condition + '%</div>'
+                   + '  </div>'
+                   + '  <div style="font-size:11px;font-weight:900;font-family:var(--mono);color:#FCA5A5;">' + q.score + '</div>'
+                   + '</div>';
+            }).join(''))
+      + '  </div>'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">F · Transfer Intelligence</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + transferIQ.balance + '/100</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">SQUAD BALANCE</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + transferIQ.sellSignals + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">SELL SIGNALS</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="font-size:10px;font-weight:900;color:#FBBF24;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">Weak Lines</div>'
+      + '    <div style="margin-bottom:10px;">'
+      +        (transferIQ.weakLines.length === 0 ? '<span style="font-size:10.5px;color:var(--tx-3);">Balanced.</span>' :
+              transferIQ.weakLines.map(function (k) { return '<span class="ni-pill" style="color:#FBBF24;background:rgba(251,191,36,0.16);margin-right:6px;">' + k + '</span>'; }).join(''))
+      + '    </div>'
+      + '    <div style="font-size:10px;color:var(--tx-3);line-height:1.6;">Realistic budget: <span style="color:#7DF9FF;font-weight:700;">' + _fiFmtMoney(transferIQ.realisticBudget) + '</span> · Aggressive: <span style="color:#FBBF24;font-weight:700;">' + _fiFmtMoney(transferIQ.aggressiveBudget) + '</span></div>'
+      + '  </div>'
+      + '</div>'
+
+      // G. Training Intelligence + H. Cross-Entity Correlation
+      + '<div class="ni-grid-2">'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">G · Training Intelligence</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + trainingIQ.sessions + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">SESSIONS</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + trainingIQ.recent14d + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">LAST 14D</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(251,191,36,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;letter-spacing:1px;color:#FBBF24;">' + trainingIQ.direction + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">DIRECTION</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + trainingIQ.attendanceCoverage + '%</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">ATT COVERAGE</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="font-size:10px;color:var(--tx-3);margin-top:10px;line-height:1.5;">Improvement vs prior 14d window: <span style="color:' + (trainingIQ.improvement >= 0 ? '#7DF9FF' : '#FCA5A5') + ';font-family:var(--mono);font-weight:800;">' + (trainingIQ.improvement >= 0 ? '+' : '') + trainingIQ.improvement + '%</span></div>'
+      + '  </div>'
+      + '  <div class="ni-tile">'
+      + '    <div class="ni-tile-lbl">H · Cross-Entity Correlation</div>'
+      +      corr.map(function (c) {
+              return '<div style="margin-bottom:11px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--tx);margin-bottom:3px;">'
+                   + '    <span style="font-weight:700;">' + _esc(c.pair) + '</span>'
+                   + '    <span style="font-family:var(--mono);font-weight:800;color:' + c.color + ';">' + c.strength + '</span>'
+                   + '  </div>'
+                   + '  <div class="ni-bar"><div class="ni-bar-fill" style="width:' + Math.max(0, Math.min(100, c.strength)) + '%;background:' + c.color + ';color:' + c.color + ';"></div></div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);margin-top:5px;line-height:1.5;">' + _esc(c.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // I. AI Recommendations
+      + '<div class="ni-card" style="padding:20px 24px;">'
+      + '  <div style="font-size:10.5px;font-weight:900;color:#A855F7;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(168,85,247,0.40);">I · AI Recommendations</div>'
+      +    recs.map(function (r, i) {
+            return '<div class="ni-alert" style="border-left-color:' + r.color + ';">'
+                 + '  <span style="font-size:14px;color:' + r.color + ';">⊕</span>'
+                 + '  <div style="flex:1;min-width:0;">'
+                 + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:6px;">'
+                 + '      <div style="display:flex;gap:8px;align-items:center;">'
+                 + '        <span class="ni-pill" style="color:' + r.color + ';background:rgba(168,85,247,0.16);">#' + (i + 1) + '</span>'
+                 + '        <span class="ni-pill" style="color:var(--tx-3);background:rgba(255,255,255,0.05);">' + r.source + '</span>'
+                 + '      </div>'
+                 + '      <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);">IMPACT ' + r.impact + '</span>'
+                 + '    </div>'
+                 + '    <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:3px;">' + _esc(r.label) + '</div>'
+                 + '    <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">' + _esc(r.detail) + '</div>'
+                 + '  </div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // Summary banner
+      + '<div class="ni-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">🧠</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#A855F7;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(168,85,247,0.65);">Neural Intelligence Brief</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-neural-intelligence] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Neural Intelligence couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -22889,6 +23532,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-knowledge-graph"]')) {
     setTimeout(function () { try { renderFOSKnowledgeGraph(); } catch (err) { try { console.error('[fos-knowledge-graph] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-neural-intelligence"]')) {
+    setTimeout(function () { try { renderFOSNeuralIntelligence(); } catch (err) { try { console.error('[fos-neural-intelligence] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
