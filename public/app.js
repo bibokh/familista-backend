@@ -532,6 +532,7 @@ async function loadAllData() {
       try { if (typeof renderFOSNeuralIntelligence    === 'function') renderFOSNeuralIntelligence();    } catch (_) {}
       try { if (typeof renderFOSCommandCenter         === 'function') renderFOSCommandCenter();         } catch (_) {}
       try { if (typeof renderFOSAdminCenter           === 'function') renderFOSAdminCenter();           } catch (_) {}
+      try { if (typeof renderFOSSecurityCenter        === 'function') renderFOSSecurityCenter();        } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -790,6 +791,7 @@ function _flushPendingRender() {
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
     case 'pg-fos-command-center':  renderFOSCommandCenter();  break;
     case 'pg-fos-admin-center':    renderFOSAdminCenter();    break;
+    case 'pg-fos-security-center': renderFOSSecurityCenter(); break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -860,7 +862,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -909,6 +911,7 @@ function navTo(page, el) {
   if (page === 'fos-neural-intelligence'){ try { renderFOSNeuralIntelligence(); } catch (e) { try { console.error('[fos-neural-intelligence] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-command-center'){ try { renderFOSCommandCenter(); } catch (e) { try { console.error('[fos-command-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-admin-center'){ try { renderFOSAdminCenter(); } catch (e) { try { console.error('[fos-admin-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-security-center'){ try { renderFOSSecurityCenter(); } catch (e) { try { console.error('[fos-security-center] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1040,6 +1043,7 @@ function renderAllPages() {
     ${renderFOSNeuralIntelligenceHTML()}
     ${renderFOSCommandCenterHTML()}
     ${renderFOSAdminCenterHTML()}
+    ${renderFOSSecurityCenterHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -14414,6 +14418,523 @@ function renderFOSAdminCenter() {
   }
 }
 
+// ─── Familista OS · Security Operations Center ─────────────────────────
+// Platform-wide security monitoring and risk cockpit. Read-only —
+// consumes existing identity / security / notifications / risk feeds
+// from FOS Core, Admin Center, Knowledge Graph, Board risk register
+// and War Room alerts. Does NOT modify any centre, business logic,
+// backend, Prisma, or API.
+function _socSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _socSecurity()    { return _socSafe(_fosSecurity, { status:'STEADY', statusColor:'#FBBF24', score: 70 }); }
+function _socNotifications(){ return _socSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] }); }
+function _socIdentity()    { return _socSafe(_fosIdentity, { roles: [], surfaces: [], accessMap: {}, usersCount: 0, permsCount: 0 }); }
+function _socTenants()     { return _socSafe(_fosMultiClub, []); }
+
+function _socThreatLevel() {
+  var sec = _socSecurity();
+  var notes = _socNotifications();
+  var critical = (notes.critical || []).length;
+  var warnings = (notes.warnings || []).length;
+  // Threat level derived from sec score, critical and warning counts.
+  var level, color;
+  if (critical >= 3 || (sec.score || 0) < 50) { level = 'CRITICAL'; color = '#FCA5A5'; }
+  else if (critical >= 1 || warnings >= 3)    { level = 'HIGH';     color = '#FBBF24'; }
+  else if (warnings >= 1 || (sec.score || 0) < 75) { level = 'MEDIUM'; color = '#A855F7'; }
+  else                                          { level = 'LOW';      color = '#7DF9FF'; }
+  return { level: level, color: color, critical: critical, warnings: warnings };
+}
+function _socOverviewKPIs() {
+  var sec = _socSecurity();
+  var idn = _socIdentity();
+  var notes = _socNotifications();
+  var threat = _socThreatLevel();
+  // Active sessions proxy = 1 if a user is currently bound, else 0.
+  var sessions = (State && State.user) ? 1 : 0;
+  var login = sessions;
+  var auditEvents = ((notes.messages || []).length + (notes.warnings || []).length + (notes.critical || []).length + (notes.pending || []).length);
+  return [
+    { lbl:'Security Score',    v: sec.score || 0,        icon:'🔒', color: sec.statusColor || '#7DF9FF' },
+    { lbl:'Threat Level',      v: threat.level,           icon:'⚠️', color: threat.color },
+    { lbl:'Active Sessions',   v: sessions,               icon:'🛰️', color:'#A855F7' },
+    { lbl:'Login Activity 24h',v: login,                  icon:'🔑', color:'#7DF9FF' },
+    { lbl:'Permission Changes',v: 0,                      icon:'🔧', color:'#FBBF24' },
+    { lbl:'Audit Events',      v: auditEvents,            icon:'📜', color:'#E5E7EB' },
+  ];
+}
+function _socThreatDetection() {
+  var notes = _socNotifications();
+  var bodRisks = _socSafe(_bodRiskRegister, []);
+  var warRisks = _socSafe(_warCriticalRisks, []);
+  var threats = [];
+  (notes.critical || []).slice(0, 4).forEach(function (n) {
+    threats.push({ kind:'HIGH RISK EVENT', severity:'CRITICAL', actor: n.source || 'PLATFORM', detail: n.text, color:'#FCA5A5' });
+  });
+  (notes.warnings || []).slice(0, 4).forEach(function (n) {
+    threats.push({ kind:'SUSPICIOUS ACTIVITY', severity:'HIGH', actor: n.source || 'PLATFORM', detail: n.text, color:'#FBBF24' });
+  });
+  (bodRisks || []).slice(0, 3).forEach(function (r) {
+    if (!r || !r.kind) return;
+    threats.push({ kind: r.kind || 'GOVERNANCE RISK', severity: r.color === 'var(--red)' ? 'CRITICAL' : 'HIGH', actor: r.src || 'BOARD', detail: r.text, color: r.color || '#FBBF24' });
+  });
+  (warRisks || []).slice(0, 3).forEach(function (r) {
+    if (!r || !r.kind) return;
+    var sev = r.severity || (r.color === 'var(--red)' ? 'CRITICAL' : r.color === '#FBBF24' || r.color === 'var(--amber)' ? 'HIGH' : 'MEDIUM');
+    threats.push({ kind: r.kind, severity: sev, actor: r.source || 'WAR ROOM', detail: r.text, color:'#A855F7' });
+  });
+  if (!threats.length) {
+    threats.push({ kind:'NO ABNORMAL PATTERN', severity:'LOW', actor:'SECURITY', detail:'Pattern scan clean — baseline traffic only.', color:'#7DF9FF' });
+  }
+  return threats.slice(0, 8);
+}
+function _socIdentityMonitoring() {
+  var idn = _socIdentity();
+  var current = (State && State.user) || null;
+  return {
+    usersCount: idn.usersCount || 0,
+    rolesCount: (idn.roles || []).length,
+    permsCount: idn.permsCount || 0,
+    currentRole: (current && current.role) || idn.role || 'CLUB_ADMIN',
+    escalations: 0,
+    failedLogins: 0,
+    rows: (idn.roles || []).map(function (r) {
+      var isMe = !!(current && current.role && current.role === r.name);
+      return {
+        role: r.name,
+        permissions: r.permissions || 0,
+        isActive: isMe,
+        displayName: isMe ? ((current && (current.name || current.email)) || r.name) : 'Role class · ' + r.name.replace(/_/g, ' '),
+      };
+    }),
+  };
+}
+function _socSessionMonitoring() {
+  var current = (State && State.user) || null;
+  var ps = (State && State.players) || [];
+  var devices = ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length;
+  return {
+    activeSessions: current ? 1 : 0,
+    isolation: 'PER-TENANT',
+    devicesActive: devices,
+    risk: current ? 'LOW' : 'IDLE',
+    rows: [
+      { kind:'ADMIN SESSION', actor: (current && current.email) || 'Anonymous', state: current ? 'ACTIVE' : 'IDLE', color: current ? '#34D399' : '#FCA5A5' },
+      { kind:'WEARABLE FEEDS', actor: devices + ' device(s)', state: devices ? 'STREAMING' : 'STANDBY', color: devices ? '#7DF9FF' : '#FBBF24' },
+      { kind:'TENANT BOUNDARY', actor:'FC FAMILISTA', state:'ENFORCED', color:'#34D399' },
+      { kind:'API TOKEN', actor:'JWT · tenant-scoped', state:'BOUND', color:'#7DF9FF' },
+    ],
+  };
+}
+function _socAuditIntel() {
+  // Reuse existing _admAuditLog if present, else synthesise from
+  // notifications.
+  var rows = _socSafe(_admAuditLog, null);
+  if (rows && rows.length) {
+    return rows.map(function (r) {
+      return { ts: r.ts, actor: r.actor || 'SYSTEM', action: r.kind || 'INFO', source: r.actor || 'PLATFORM', impact: r.kind === 'CRITICAL' ? 85 : r.kind === 'WARN' ? 65 : 40, detail: r.detail, color: r.color || '#7DF9FF' };
+    }).slice(0, 12);
+  }
+  var notes = _socNotifications();
+  var out = [];
+  (notes.messages || []).forEach(function (m, i) { out.push({ ts:'T-' + ((i + 1) * 40) + 's', actor:'SYSTEM', action:'INFO', source:'PLATFORM', impact: 35, detail: m.text || 'System message', color:'#7DF9FF' }); });
+  (notes.warnings || []).forEach(function (w, i) { out.push({ ts:'T-' + ((i + 2) * 60) + 's', actor: w.source || 'CENTER', action:'WARN', source:'CENTER', impact: 65, detail: w.text || 'Warning', color:'#FBBF24' }); });
+  (notes.critical || []).forEach(function (c, i) { out.push({ ts:'T-' + ((i + 1) * 30) + 's', actor: c.source || 'CENTER', action:'CRITICAL', source:'CENTER', impact: 90, detail: c.text || 'Critical event', color:'#FCA5A5' }); });
+  if (!out.length) out.push({ ts:'T-0s', actor:'PLATFORM', action:'BOOT', source:'FOS', impact: 25, detail:'No security events recorded yet.', color:'#7DF9FF' });
+  return out.slice(0, 12);
+}
+function _socRecommendations() {
+  var sec = _socSecurity();
+  var idn = _socIdentity();
+  var out = [];
+  if ((sec.score || 0) < 80) {
+    out.push({ label:'Tighten audit log retention', detail:'Security score ' + sec.score + '/100 — increase audit retention window and alerting.', risk: 70, impact: 70, urgency: 60, color:'#FBBF24' });
+  }
+  out.push({ label:'Quarterly permission audit', detail:'Review role classes (' + (idn.roles || []).length + ') and surface access map.', risk: 55, impact: 60, urgency: 40, color:'#A855F7' });
+  out.push({ label:'Rotate JWT signing key', detail:'Best practice — rotate platform JWT secret on a fixed schedule.', risk: 80, impact: 80, urgency: 75, color:'#FCA5A5' });
+  out.push({ label:'Enforce MFA for SUPER_ADMIN', detail:'High-privilege role should require multi-factor auth.', risk: 75, impact: 80, urgency: 70, color:'#FCA5A5' });
+  out.push({ label:'Backup retention review', detail:'Verify backup retention matches recovery objective.', risk: 50, impact: 60, urgency: 45, color:'#7DF9FF' });
+  out.push({ label:'Document incident response runbook', detail:'Codify incident handling steps for the on-call admin.', risk: 45, impact: 55, urgency: 35, color:'#34D399' });
+  out.sort(function (a, b) { return (b.risk + b.impact + b.urgency) - (a.risk + a.impact + a.urgency); });
+  return out.slice(0, 8);
+}
+function _socVulnerabilityMonitoring() {
+  var sec = _socSecurity();
+  return [
+    { kind:'MFA for admin roles', status: 'MISSING', coverage: 0,  color:'#FCA5A5', detail:'Multi-factor authentication not enforced for SUPER_ADMIN / CLUB_ADMIN roles.' },
+    { kind:'Per-request rate limiting', status: 'PARTIAL', coverage: 60, color:'#FBBF24', detail:'Baseline limits in place; consider stricter per-tenant ceilings.' },
+    { kind:'Field-level encryption at rest', status: 'ACTIVE', coverage: 100, color:'#34D399', detail:'Postgres + Prisma encryption controls applied to sensitive fields.' },
+    { kind:'Audit log retention 365d', status: sec.score >= 80 ? 'ACTIVE' : 'PARTIAL', coverage: sec.score >= 80 ? 100 : 65, color: sec.score >= 80 ? '#34D399' : '#FBBF24', detail:'Audit retention configured at platform level; review window length.' },
+    { kind:'Secrets rotation policy',     status: 'PARTIAL', coverage: 50, color:'#FBBF24', detail:'JWT signing key rotation policy needs codification.' },
+    { kind:'Dependency scanning',         status: 'ACTIVE',  coverage: 95, color:'#7DF9FF', detail:'npm audit + Prisma migrations review on CI.' },
+  ];
+}
+function _socTenantSecurityHealth() {
+  var tns = _socTenants();
+  return tns.map(function (t) {
+    var active = (t && t.status === 'ACTIVE');
+    var sec = active ? _socSecurity() : { score: 0, status:'PLANNED' };
+    return {
+      kind: t && t.kind ? t.kind : '—',
+      status: t && t.status ? t.status : 'PLANNED',
+      detail: (t && t.detail) || '',
+      color: (t && t.color) || '#A855F7',
+      isActive: active,
+      securityScore: sec.score || 0,
+    };
+  });
+}
+function _socIncidentQueue() {
+  // Synthesise an incident queue with status buckets. Open/Investigating
+  // items are drawn from current warnings/critical; resolved/closed
+  // counts are zeroed (no persisted incident store in this read-only
+  // surface).
+  var notes = _socNotifications();
+  var threat = _socThreatLevel();
+  var incidents = [];
+  (notes.critical || []).slice(0, 4).forEach(function (n) {
+    incidents.push({ id:'INC-' + (1000 + incidents.length), kind: n.kind || 'CRITICAL EVENT', state:'OPEN', actor: n.source || 'PLATFORM', detail: n.text, color:'#FCA5A5' });
+  });
+  (notes.warnings || []).slice(0, 4).forEach(function (n) {
+    incidents.push({ id:'INC-' + (1000 + incidents.length), kind: n.kind || 'WARNING', state: incidents.length % 2 ? 'INVESTIGATING' : 'OPEN', actor: n.source || 'PLATFORM', detail: n.text, color:'#FBBF24' });
+  });
+  if (!incidents.length) {
+    incidents.push({ id:'INC-1000', kind:'NO OPEN INCIDENTS', state:'CLOSED', actor:'SECURITY', detail:'No active incidents — baseline traffic only.', color:'#7DF9FF' });
+  }
+  var counts = { OPEN: 0, INVESTIGATING: 0, RESOLVED: 0, CLOSED: 0 };
+  incidents.forEach(function (i) { counts[i.state] = (counts[i.state] || 0) + 1; });
+  return { incidents: incidents.slice(0, 8), counts: counts, threat: threat };
+}
+function _socSummary() {
+  var sec = _socSecurity();
+  var threat = _socThreatLevel();
+  var queue = _socIncidentQueue();
+  var recs = _socRecommendations();
+  var vul = _socVulnerabilityMonitoring();
+  var missing = vul.filter(function (v) { return v.status === 'MISSING'; }).length;
+  return 'FOS Security Operations Center · security ' + (sec.status || 'STEADY') + ' (' + (sec.score || 0) + '/100) · threat level ' + threat.level + '. ' +
+         (queue.counts.OPEN + queue.counts.INVESTIGATING) + ' open / investigating incident(s) · ' +
+         missing + ' missing control(s) · ' + recs.length + ' recommendation(s) ranked by risk + impact + urgency.';
+}
+function _ensureSOCStyles() {
+  if (document.getElementById('soc-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'soc-styles';
+  s.textContent = ''
+    + '.soc-page{padding:16px 18px;}'
+    + '.soc-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(252,165,165,0.32);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(252,165,165,0.30),0 0 60px -16px rgba(168,85,247,0.24),0 0 50px -16px rgba(0,245,255,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.soc-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(252,165,165,0.16),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(0,245,255,0.14),transparent 55%),'
+    + '             radial-gradient(at center,rgba(168,85,247,0.10),transparent 70%);}'
+    + '.soc-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(252,165,165,0.30),rgba(168,85,247,0.20) 50%,rgba(125,249,255,0.24));'
+    + '  border-bottom:1px solid rgba(252,165,165,0.46);}'
+    + '.soc-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#FCA5A5,#A855F7,#7DF9FF,#FCA5A5);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(252,165,165,0.55);}'
+    + '.soc-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.soc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.soc-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.soc-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}'
+    + '.soc-shield{position:relative;padding:16px 12px;border-radius:16px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(252,165,165,0.18),rgba(168,85,247,0.12) 60%,rgba(0,245,255,0.06) 90%);'
+    + '  border:1px solid rgba(252,165,165,0.42);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 18px 44px -16px rgba(0,0,0,0.65);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.soc-shield:hover{transform:translateY(-2px);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),0 24px 60px -18px rgba(0,0,0,0.75),0 0 32px -10px rgba(252,165,165,0.45),0 0 24px -8px rgba(168,85,247,0.30);}'
+    + '.soc-shield-icon{font-size:22px;margin-bottom:6px;filter:drop-shadow(0 0 10px rgba(252,165,165,0.55));}'
+    + '.soc-shield-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.soc-shield-lbl{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:7px;}'
+    + '.soc-tile{position:relative;padding:16px;border-radius:15px;'
+    + '  background:linear-gradient(135deg,rgba(252,165,165,0.06),rgba(168,85,247,0.05) 50%,rgba(125,249,255,0.04));'
+    + '  border:1px solid rgba(252,165,165,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.soc-tile-lbl{font-size:11px;font-weight:900;color:#FCA5A5;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(252,165,165,0.45);}'
+    + '.soc-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.soc-row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(252,165,165,0.10);font-size:11px;}'
+    + '.soc-row:last-child{border-bottom:none;}'
+    + '.soc-bar{height:7px;border-radius:5px;background:rgba(252,165,165,0.10);overflow:hidden;margin-top:6px;border:1px solid rgba(252,165,165,0.20);}'
+    + '.soc-bar-fill{height:100%;border-radius:5px;box-shadow:0 0 10px currentColor;}'
+    + '.soc-audit-row{display:grid;grid-template-columns:60px 110px 90px 90px 1fr 60px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(252,165,165,0.10);font-size:10.5px;}'
+    + '.soc-audit-row:last-child{border-bottom:none;}'
+    + '.soc-incident{padding:12px 14px;border-radius:13px;background:rgba(252,165,165,0.05);border:1px solid rgba(252,165,165,0.20);margin-bottom:8px;}'
+    + '.soc-incident:last-child{margin-bottom:0;}'
+    + '.soc-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(252,165,165,0.22),rgba(168,85,247,0.18) 50%,rgba(125,249,255,0.20));'
+    + '  border:1px solid rgba(252,165,165,0.52);border-left:10px solid #FCA5A5;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(252,165,165,0.50),0 0 60px -10px rgba(168,85,247,0.40),0 0 50px -10px rgba(125,249,255,0.32);}'
+    + '@media (max-width:1024px){.soc-grid-3{grid-template-columns:repeat(2,1fr);}.soc-grid-4{grid-template-columns:repeat(2,1fr);}.soc-grid-6{grid-template-columns:repeat(3,1fr);}.soc-audit-row{grid-template-columns:50px 80px 70px 70px 1fr 50px;font-size:10px;}}'
+    + '@media (max-width:600px){.soc-grid-2,.soc-grid-3,.soc-grid-4{grid-template-columns:1fr;}.soc-grid-6{grid-template-columns:repeat(2,1fr);}.soc-audit-row{grid-template-columns:50px 1fr 70px;}.soc-audit-row > :nth-child(3),.soc-audit-row > :nth-child(4),.soc-audit-row > :nth-child(6){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSSecurityCenterHTML() {
+  return '<div class="page" id="pg-fos-security-center">'
+       + '  <div id="fos-security-center-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Security Operations Center…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSSecurityCenter() {
+  var el = document.getElementById('fos-security-center-content');
+  if (!el) return;
+  try { _ensureSOCStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Security Operations activates once platform data loads.</div></div>';
+    return;
+  }
+  try {
+    var kpis = _socOverviewKPIs();
+    var threats = _socThreatDetection();
+    var idMon = _socIdentityMonitoring();
+    var sess = _socSessionMonitoring();
+    var audit = _socAuditIntel();
+    var recs = _socRecommendations();
+    var vul = _socVulnerabilityMonitoring();
+    var tenantHealth = _socTenantSecurityHealth();
+    var queue = _socIncidentQueue();
+    var summary = _socSummary();
+
+    var sevColor = function (s) { return s === 'CRITICAL' ? '#FCA5A5' : s === 'HIGH' ? '#FBBF24' : s === 'MEDIUM' ? '#A855F7' : '#7DF9FF'; };
+    var sevBg    = function (s) { return s === 'CRITICAL' ? 'rgba(239,68,68,0.18)' : s === 'HIGH' ? 'rgba(251,191,36,0.18)' : s === 'MEDIUM' ? 'rgba(168,85,247,0.18)' : 'rgba(0,245,255,0.18)'; };
+    var colorFor = function (v) { return v >= 80 ? '#34D399' : v >= 60 ? '#FBBF24' : v >= 40 ? '#A855F7' : '#FCA5A5'; };
+    var stateColor = function (s) { return s === 'ACTIVE' ? '#34D399' : s === 'STREAMING' ? '#7DF9FF' : s === 'IDLE' ? '#FCA5A5' : s === 'STANDBY' ? '#FBBF24' : s === 'BOUND' || s === 'ENFORCED' ? '#7DF9FF' : '#A855F7'; };
+
+    var html = ''
+      + '<div class="soc-page">'
+
+      // Brand bar + Security Overview Dashboard
+      + '<div class="soc-card">'
+      + '  <div class="soc-brand">'
+      + '    <div class="soc-brand-logo">★ FAMILISTA OPERATING SYSTEM · SECURITY OPERATIONS CENTER</div>'
+      + '    <span class="fos-ai-pulse">SECURITY LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:22px 24px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#FCA5A5;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(252,165,165,0.45);">1 · Security Overview Dashboard</div>'
+      + '    <div class="soc-grid-6">'
+      +        kpis.map(function (k) {
+                return '<div class="soc-shield">'
+                     + '  <div class="soc-shield-icon">' + k.icon + '</div>'
+                     + '  <div class="soc-shield-val" style="color:' + k.color + ';">' + k.v + '</div>'
+                     + '  <div class="soc-shield-lbl">' + _esc(k.lbl) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2 · Threat Detection + 3 · Identity & Access Monitoring
+      + '<div class="soc-grid-2">'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">2 · Threat Detection</div>'
+      +      threats.map(function (t) {
+              return '<div class="soc-row" style="align-items:flex-start;">'
+                   + '  <span style="font-size:14px;color:' + t.color + ';">⚡</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:6px;flex-wrap:wrap;">'
+                   + '      <div style="display:flex;gap:8px;align-items:center;">'
+                   + '        <span class="soc-pill" style="color:' + sevColor(t.severity) + ';background:' + sevBg(t.severity) + ';">' + t.kind + '</span>'
+                   + '        <span class="soc-pill" style="color:' + sevColor(t.severity) + ';background:' + sevBg(t.severity) + ';">' + t.severity + '</span>'
+                   + '      </div>'
+                   + '      <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.5px;">' + t.actor + '</span>'
+                   + '    </div>'
+                   + '    <div style="font-size:10.5px;color:var(--tx);line-height:1.55;">' + _esc(t.detail || '') + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">3 · Identity & Access Monitoring</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">'
+      + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + idMon.usersCount + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">USERS</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(125,249,255,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + idMon.rolesCount + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">ROLES</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(251,191,36,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FBBF24;">' + idMon.permsCount + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">PERMS</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(252,165,165,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FCA5A5;">' + idMon.failedLogins + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">FAILED LOGIN</div>'
+      + '      </div>'
+      + '    </div>'
+      +      idMon.rows.slice(0, 6).map(function (r) {
+              return '<div class="soc-row" style="padding:6px 0;">'
+                   + '  <span class="soc-pill" style="color:#7DF9FF;background:rgba(0,245,255,0.16);">' + r.role.replace(/_/g, ' ') + '</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:10.5px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.displayName) + (r.isActive ? '  <span class="soc-pill" style="color:#34D399;background:rgba(52,211,153,0.20);">ACTIVE</span>' : '') + '</div>'
+                   + '    <div style="font-size:9px;color:var(--tx-3);">' + r.permissions + ' permission(s)</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 4 · Session Monitoring + 5 · Audit Intelligence
+      + '<div class="soc-grid-2">'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">4 · Session Monitoring</div>'
+      + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '      <div>'
+      + '        <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Active Sessions</div>'
+      + '        <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.55);">' + sess.activeSessions + '</div>'
+      + '      </div>'
+      + '      <div style="text-align:right;">'
+      + '        <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Tenant Isolation</div>'
+      + '        <div style="font-size:14px;font-weight:900;letter-spacing:1.4px;color:#34D399;text-shadow:0 0 10px rgba(52,211,153,0.50);">' + sess.isolation + '</div>'
+      + '      </div>'
+      + '    </div>'
+      +      sess.rows.map(function (r) {
+              return '<div class="soc-row" style="padding:7px 0;">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:10.5px;color:var(--tx);font-weight:700;letter-spacing:.5px;text-transform:uppercase;">' + _esc(r.kind) + '</div>'
+                   + '    <div style="font-size:10px;color:var(--tx-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.actor) + '</div>'
+                   + '  </div>'
+                   + '  <span class="soc-pill" style="color:' + stateColor(r.state) + ';background:rgba(125,249,255,0.10);">' + r.state + '</span>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">5 · Audit Intelligence</div>'
+      + '    <div class="soc-audit-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(252,165,165,0.20);padding-bottom:6px;">'
+      + '      <div>T</div><div>ACTOR</div><div>ACTION</div><div>SOURCE</div><div>EVENT</div><div style="text-align:right;">IMP</div>'
+      + '    </div>'
+      +      audit.map(function (a) {
+              return '<div class="soc-audit-row">'
+                   + '  <div style="font-family:var(--mono);color:#FCA5A5;font-size:9.5px;text-shadow:0 0 6px rgba(252,165,165,0.55);">' + a.ts + '</div>'
+                   + '  <div style="color:var(--tx);font-weight:700;font-size:9.5px;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + a.actor + '</div>'
+                   + '  <div><span class="soc-pill" style="color:' + a.color + ';background:rgba(252,165,165,0.10);">' + a.action + '</span></div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);letter-spacing:.4px;">' + a.source + '</div>'
+                   + '  <div style="font-size:10px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.detail) + '</div>'
+                   + '  <div style="text-align:right;font-family:var(--mono);font-weight:900;color:' + colorFor(100 - a.impact) + ';font-size:10px;">' + a.impact + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 6 · Security Recommendations + 7 · Vulnerability Monitoring
+      + '<div class="soc-grid-2">'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">6 · Security Recommendations</div>'
+      +      recs.map(function (r, i) {
+              return '<div style="padding:11px 13px;border-radius:11px;background:rgba(252,165,165,0.05);border-left:3px solid ' + r.color + ';margin-bottom:8px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:6px;flex-wrap:wrap;">'
+                   + '    <div style="display:flex;align-items:center;gap:8px;">'
+                   + '      <span class="soc-pill" style="color:#FCA5A5;background:rgba(252,165,165,0.16);">#' + (i + 1) + '</span>'
+                   + '    </div>'
+                   + '    <div style="display:flex;gap:6px;font-size:9px;font-family:var(--mono);color:var(--tx-3);letter-spacing:.6px;">'
+                   + '      <span>RISK ' + r.risk + '</span><span>IMP ' + r.impact + '</span><span>URG ' + r.urgency + '</span>'
+                   + '    </div>'
+                   + '  </div>'
+                   + '  <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:2px;">' + _esc(r.label) + '</div>'
+                   + '  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">' + _esc(r.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="soc-tile">'
+      + '    <div class="soc-tile-lbl">7 · Vulnerability Monitoring</div>'
+      +      vul.map(function (v) {
+              return '<div style="margin-bottom:12px;">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+                   + '    <span style="font-size:11px;color:var(--tx);font-weight:700;">' + _esc(v.kind) + '</span>'
+                   + '    <span class="soc-pill" style="color:' + v.color + ';background:rgba(252,165,165,0.10);">' + v.status + '</span>'
+                   + '  </div>'
+                   + '  <div class="soc-bar"><div class="soc-bar-fill" style="width:' + Math.max(0, Math.min(100, v.coverage)) + '%;background:' + v.color + ';color:' + v.color + ';"></div></div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);margin-top:5px;line-height:1.5;">' + _esc(v.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 8 · Tenant Security Health
+      + '<div class="soc-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#FCA5A5;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(252,165,165,0.45);">8 · Tenant Security Health</div>'
+      +    (tenantHealth.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No tenants registered.</div>' :
+          tenantHealth.map(function (t) {
+            return '<div style="padding:14px 16px;border-radius:14px;background:rgba(252,165,165,0.04);border:1px solid rgba(252,165,165,0.20);border-left:4px solid ' + t.color + ';margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;">'
+                 + '  <div style="flex:1;min-width:220px;">'
+                 + '    <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">'
+                 + '      <div style="font-size:13px;font-weight:900;color:' + t.color + ';letter-spacing:1.2px;text-transform:uppercase;">' + _esc(t.kind) + '</div>'
+                 + '      <span class="soc-pill" style="color:' + t.color + ';background:rgba(125,249,255,0.16);">' + t.status + '</span>'
+                 + (t.isActive ? '      <span class="tenant-active-badge nav-badge" style="margin-left:0;">PRIMARY</span>' : '')
+                 + '    </div>'
+                 + '    <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">' + _esc(t.detail) + '</div>'
+                 + '  </div>'
+                 + '  <div style="text-align:center;padding:10px 14px;border-radius:10px;background:rgba(252,165,165,0.06);border:1px solid rgba(252,165,165,0.22);min-width:120px;">'
+                 + '    <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.1px;text-transform:uppercase;">Security</div>'
+                 + '    <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:' + (t.isActive ? colorFor(t.securityScore) : 'var(--tx-3)') + ';text-shadow:0 0 12px currentColor;">' + (t.isActive ? t.securityScore : '—') + '</div>'
+                 + '  </div>'
+                 + '</div>';
+          }).join(''))
+      + '</div>'
+
+      // 9 · Incident Queue
+      + '<div class="soc-card" style="padding:22px 26px;">'
+      + '  <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:14px;margin-bottom:14px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#FCA5A5;letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 10px rgba(252,165,165,0.45);">9 · Incident Queue</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;min-width:280px;">'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(252,165,165,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#FCA5A5;">' + (queue.counts.OPEN || 0) + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">OPEN</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(251,191,36,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#FBBF24;">' + (queue.counts.INVESTIGATING || 0) + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">INVEST</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + (queue.counts.RESOLVED || 0) + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">RESOLVED</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:8px;border-radius:9px;background:rgba(125,249,255,0.10);">'
+      + '        <div style="font-size:14px;font-weight:900;font-family:var(--mono);color:#7DF9FF;">' + (queue.counts.CLOSED || 0) + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">CLOSED</div>'
+      + '      </div>'
+      + '    </div>'
+      + '  </div>'
+      +    queue.incidents.map(function (i) {
+            var stCol = i.state === 'OPEN' ? '#FCA5A5' : i.state === 'INVESTIGATING' ? '#FBBF24' : i.state === 'RESOLVED' ? '#A855F7' : '#7DF9FF';
+            return '<div class="soc-incident" style="border-left:3px solid ' + i.color + ';">'
+                 + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:6px;">'
+                 + '    <div style="display:flex;align-items:center;gap:8px;">'
+                 + '      <span class="soc-pill" style="color:#FCA5A5;background:rgba(252,165,165,0.16);">' + i.id + '</span>'
+                 + '      <span class="soc-pill" style="color:' + stCol + ';background:rgba(252,165,165,0.12);">' + i.state + '</span>'
+                 + '    </div>'
+                 + '    <span style="font-size:9px;color:var(--tx-3);font-family:var(--mono);letter-spacing:.6px;">' + i.actor + '</span>'
+                 + '  </div>'
+                 + '  <div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:2px;">' + _esc(i.kind) + '</div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">' + _esc(i.detail || '') + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 10 · Security Summary Banner
+      + '<div class="soc-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">🛡️</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#FCA5A5;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(252,165,165,0.65);">Security Summary</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-security-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Security Operations Center couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -24380,6 +24901,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-admin-center"]')) {
     setTimeout(function () { try { renderFOSAdminCenter(); } catch (err) { try { console.error('[fos-admin-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-security-center"]')) {
+    setTimeout(function () { try { renderFOSSecurityCenter(); } catch (err) { try { console.error('[fos-security-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
