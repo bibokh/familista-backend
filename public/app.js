@@ -531,6 +531,7 @@ async function loadAllData() {
       try { if (typeof renderFOSKnowledgeGraph        === 'function') renderFOSKnowledgeGraph();        } catch (_) {}
       try { if (typeof renderFOSNeuralIntelligence    === 'function') renderFOSNeuralIntelligence();    } catch (_) {}
       try { if (typeof renderFOSCommandCenter         === 'function') renderFOSCommandCenter();         } catch (_) {}
+      try { if (typeof renderFOSAdminCenter           === 'function') renderFOSAdminCenter();           } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -788,6 +789,7 @@ function _flushPendingRender() {
     case 'pg-fos-ai-orchestrator': renderFOSAIOrchestrator(); break;
     case 'pg-fos-knowledge-graph': renderFOSKnowledgeGraph(); break;
     case 'pg-fos-command-center':  renderFOSCommandCenter();  break;
+    case 'pg-fos-admin-center':    renderFOSAdminCenter();    break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -858,7 +860,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -906,6 +908,7 @@ function navTo(page, el) {
   if (page === 'fos-knowledge-graph'){ try { renderFOSKnowledgeGraph(); } catch (e) { try { console.error('[fos-knowledge-graph] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-neural-intelligence'){ try { renderFOSNeuralIntelligence(); } catch (e) { try { console.error('[fos-neural-intelligence] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-command-center'){ try { renderFOSCommandCenter(); } catch (e) { try { console.error('[fos-command-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-admin-center'){ try { renderFOSAdminCenter(); } catch (e) { try { console.error('[fos-admin-center] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1036,6 +1039,7 @@ function renderAllPages() {
     ${renderFOSKnowledgeGraphHTML()}
     ${renderFOSNeuralIntelligenceHTML()}
     ${renderFOSCommandCenterHTML()}
+    ${renderFOSAdminCenterHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -13945,6 +13949,471 @@ function renderFOSCommandCenter() {
   }
 }
 
+// ─── Familista OS · Admin Center ───────────────────────────────────────
+// Platform-level administration cockpit for tenants, users, roles,
+// permissions, access control, audit, security, system settings and
+// admin actions. Read-only — consumes the identity catalogue from FOS
+// Core (_fosIdentity), tenant inventory (_fosMultiClub), security
+// posture (_fosSecurity), automation catalogue (_fosAutomation) and
+// notification feed (_fosNotifications). Does NOT modify any centre,
+// business logic, backend, Prisma, or API.
+function _admSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _admIdentity()      { return _admSafe(_fosIdentity, { roles: [], surfaces: [], accessMap: {}, usersCount: 0, permsCount: 0, role: 'CLUB_ADMIN' }); }
+function _admTenants()       { return _admSafe(_fosMultiClub, []); }
+function _admSecurity()      { return _admSafe(_fosSecurity, { status:'STEADY', statusColor:'#FBBF24', score: 70, auditLogs:'—', accessLogs:'—', riskEvents:'—' }); }
+function _admAutomation()    { return _admSafe(_fosAutomation, { scheduledJobs: [], aiAutomations: [], workflows: [], triggers: [] }); }
+function _admNotifications() { return _admSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] }); }
+
+function _admOverviewKPIs() {
+  var idn = _admIdentity();
+  var tns = _admTenants();
+  var sec = _admSecurity();
+  var activeTenants = tns.filter(function (t) { return t && (t.status === 'ACTIVE'); }).length;
+  return [
+    { lbl:'Tenants · Active',     v: activeTenants,         icon:'🏢', color:'#7DF9FF' },
+    { lbl:'Tenants · Total',      v: tns.length,             icon:'🌐', color:'#00F5FF' },
+    { lbl:'Users',                 v: idn.usersCount || 0,   icon:'👥', color:'#A855F7' },
+    { lbl:'Roles',                 v: (idn.roles && idn.roles.length) || 0, icon:'🔑', color:'#FBBF24' },
+    { lbl:'Permissions',           v: idn.permsCount || 0,   icon:'🛡️', color:'#E5E7EB' },
+    { lbl:'Security Score',        v: sec.score || 0,        icon:'🔒', color: sec.statusColor || '#7DF9FF' },
+  ];
+}
+function _admTenantCards() {
+  var tns = _admTenants();
+  // Pin FC Familista with live signals at the top; others are placeholders.
+  return tns.map(function (t) {
+    var active = (t && t.status === 'ACTIVE');
+    var live = active ? {
+      system: _admSafe(_fosSystemScore, 0),
+      health: _admSafe(function () { return _bodClubHealth().score; }, 0),
+      finance: _admSafe(_mgFinanceHealthScore, 0),
+    } : null;
+    return {
+      kind: t && t.kind ? t.kind : '—',
+      status: t && t.status ? t.status : 'PLANNED',
+      detail: (t && t.detail) || '',
+      color: (t && t.color) || '#A855F7',
+      isActive: active,
+      live: live,
+    };
+  });
+}
+function _admUsers() {
+  // Synthesise a steward list per role from State.user + identity
+  // catalogue. The active user is highlighted; others are abstract
+  // role-class entries until per-person identity rows are added.
+  var idn = _admIdentity();
+  var current = (State && State.user) || null;
+  var rows = (idn.roles || []).map(function (r) {
+    var isMe = !!(current && current.role && current.role === r.name);
+    return {
+      role: r.name,
+      displayName: isMe
+        ? ((current && (current.name || current.email)) || r.name)
+        : 'Role class · ' + r.name.replace(/_/g, ' '),
+      email: isMe ? (current && current.email) || '—' : '—',
+      permissions: r.permissions || 0,
+      isActive: isMe,
+    };
+  });
+  return rows;
+}
+function _admPermissionMatrix() {
+  var idn = _admIdentity();
+  return {
+    surfaces: idn.surfaces || [],
+    roles: Object.keys(idn.accessMap || {}),
+    map: idn.accessMap || {},
+  };
+}
+function _admAccessControl() {
+  var idn = _admIdentity();
+  var sec = _admSecurity();
+  return [
+    { kind:'JWT AUTHENTICATION', state:'ENFORCED', detail:'Every API route protected by JWT — token verified on each request.', color:'#7DF9FF' },
+    { kind:'TENANT ISOLATION',   state:'ENFORCED', detail:'Per-club isolation in every query · row-level enforcement.',         color:'#34D399' },
+    { kind:'ROLE-BASED ACCESS',  state:'ENFORCED', detail:idn.roles.length + ' role classes · ' + idn.permsCount + ' total permissions across ' + (idn.surfaces.length) + ' surfaces.', color:'#A855F7' },
+    { kind:'AUDIT TRAIL',        state:sec.score >= 80 ? 'ACTIVE' : 'PARTIAL', detail:'Per-request audit envelope · admin actions surfaced in queue.', color:'#FBBF24' },
+    { kind:'SESSION CONTROL',    state:'STANDARD', detail:'Token-bound sessions; refresh policy default.', color:'#E5E7EB' },
+  ];
+}
+function _admAuditLog() {
+  // Derive a small platform audit timeline from notifications + automation
+  // + tenant info. Timestamps are relative (T-Ns) and stable per render.
+  var notes = _admNotifications();
+  var aut = _admAutomation();
+  var tns = _admTenants();
+  var log = [];
+  if (Array.isArray(notes.messages)) notes.messages.forEach(function (m, i) {
+    log.push({ ts:'T-' + ((i + 1) * 40) + 's', actor:'SYSTEM',        kind:'INFO',    detail: m.text || 'System message', color: m.color || '#7DF9FF' });
+  });
+  if (Array.isArray(notes.warnings)) notes.warnings.forEach(function (w, i) {
+    log.push({ ts:'T-' + ((i + 3) * 50) + 's', actor: w.source || 'CENTER', kind:'WARN', detail: w.text || 'Warning event', color: w.color || '#FBBF24' });
+  });
+  if (Array.isArray(notes.critical)) notes.critical.forEach(function (c, i) {
+    log.push({ ts:'T-' + ((i + 1) * 30) + 's', actor: c.source || 'CENTER', kind:'CRITICAL', detail: c.text || 'Critical event', color:'#FCA5A5' });
+  });
+  if (aut.aiAutomations && aut.aiAutomations.length) {
+    log.push({ ts:'T-180s', actor:'AUTOMATION', kind:'JOB', detail: aut.aiAutomations.length + ' AI loops reported healthy', color:'#7DF9FF' });
+  }
+  if (aut.scheduledJobs && aut.scheduledJobs.length) {
+    log.push({ ts:'T-260s', actor:'SCHEDULER', kind:'CRON', detail: aut.scheduledJobs.length + ' scheduled job(s) registered', color:'#A855F7' });
+  }
+  log.push({ ts:'T-320s', actor:'TENANT',     kind:'PROVISION', detail: tns.length + ' tenant slot(s) registered (' + tns.filter(function (t) { return t.status === 'ACTIVE'; }).length + ' active)', color:'#FBBF24' });
+  log.push({ ts:'T-400s', actor:'PLATFORM',   kind:'BOOT',      detail:'FOS subsystems initialised', color:'#E5E7EB' });
+  return log.slice(0, 12);
+}
+function _admSecurityStatus() {
+  var sec = _admSecurity();
+  return {
+    status: sec.status,
+    statusColor: sec.statusColor,
+    score: sec.score,
+    bullets: [
+      { lbl:'Audit Logs',  detail: sec.auditLogs },
+      { lbl:'Access Logs', detail: sec.accessLogs },
+      { lbl:'Risk Events', detail: sec.riskEvents },
+    ],
+  };
+}
+function _admSystemSettings() {
+  // Read-only feature flag / config view. Derived from runtime state.
+  var hasUser = !!(State && State.user);
+  return [
+    { key:'PLATFORM',          value:'Familista Operating System', state:'STABLE',  color:'#7DF9FF' },
+    { key:'THEME',             value:'Deep Space Neural',          state:'ACTIVE',  color:'#A855F7' },
+    { key:'MULTI-TENANT',      value:'Enabled',                     state:'ACTIVE',  color:'#34D399' },
+    { key:'AUTH MODE',         value:'JWT · tenant-scoped',          state:'ACTIVE',  color:'#FBBF24' },
+    { key:'AUDIT LOG',         value:'Continuous',                   state:'ACTIVE',  color:'#7DF9FF' },
+    { key:'ACTIVE SESSION',    value: hasUser ? 'Bound to user'      : 'Not logged in', state: hasUser ? 'ACTIVE' : 'IDLE', color: hasUser ? '#34D399' : '#FCA5A5' },
+    { key:'AI LOOPS',          value:'6 active loops',                state:'RUNNING', color:'#00F5FF' },
+    { key:'WS · MATCH FEED',   value:'On demand',                     state:'STANDBY', color:'#E5E7EB' },
+  ];
+}
+function _admActionQueue() {
+  // Surface admin-relevant actions: pending tasks from FOS
+  // notifications + recommended provisioning items.
+  var notes = _admNotifications();
+  var tns = _admTenants();
+  var out = [];
+  if (Array.isArray(notes.pending)) notes.pending.forEach(function (p) {
+    out.push({ kind:'REVIEW', label: p.text || 'Pending action', source: p.source || 'CENTER', owner: p.owner || 'Admin', impact: 60, color: p.color || '#FBBF24' });
+  });
+  if (tns.filter(function (t) { return t.status !== 'ACTIVE'; }).length) {
+    out.push({ kind:'PROVISION', label:'Onboard next tenant slot', source:'MULTI-CLUB', owner:'Platform Admin', impact: 70, color:'#7DF9FF' });
+  }
+  out.push({ kind:'REVIEW', label:'Quarterly permission audit', source:'SECURITY', owner:'Platform Admin', impact: 55, color:'#A855F7' });
+  out.push({ kind:'CONFIG', label:'Verify backup retention policy', source:'PLATFORM', owner:'Platform Admin', impact: 50, color:'#34D399' });
+  out.push({ kind:'CONFIG', label:'Rotate platform JWT signing key', source:'SECURITY', owner:'Platform Admin', impact: 75, color:'#FCA5A5' });
+  out.sort(function (a, b) { return b.impact - a.impact; });
+  return out.slice(0, 8);
+}
+function _admSummary() {
+  var idn = _admIdentity();
+  var tns = _admTenants();
+  var sec = _admSecurity();
+  var activeT = tns.filter(function (t) { return t.status === 'ACTIVE'; }).length;
+  var queue = _admActionQueue();
+  return 'FOS Admin Center · ' + activeT + '/' + tns.length + ' tenants active. ' +
+         (idn.usersCount || 0) + ' user(s) across ' + (idn.roles ? idn.roles.length : 0) + ' role classes and ' + (idn.permsCount || 0) + ' permissions. ' +
+         'Security ' + (sec.status || 'STEADY') + ' (' + (sec.score || 0) + '/100). ' +
+         queue.length + ' admin action(s) queued for review.';
+}
+function _ensureAdmStyles() {
+  if (document.getElementById('adm-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'adm-styles';
+  s.textContent = ''
+    + '.adm-page{padding:16px 18px;}'
+    + '.adm-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(125,249,255,0.34);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(0,245,255,0.30),0 0 60px -16px rgba(168,85,247,0.26),0 0 50px -16px rgba(229,231,235,0.18),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.adm-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(125,249,255,0.16),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(168,85,247,0.14),transparent 55%),'
+    + '             radial-gradient(at center,rgba(229,231,235,0.08),transparent 70%);}'
+    + '.adm-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(125,249,255,0.28),rgba(168,85,247,0.22) 50%,rgba(229,231,235,0.22));'
+    + '  border-bottom:1px solid rgba(125,249,255,0.42);}'
+    + '.adm-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#7DF9FF,#00F5FF,#A855F7,#E5E7EB,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(125,249,255,0.60);}'
+    + '.adm-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.adm-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.adm-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}'
+    + '.adm-shield{position:relative;padding:18px 14px;border-radius:16px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(125,249,255,0.22),rgba(168,85,247,0.12) 60%,rgba(229,231,235,0.05) 90%);'
+    + '  border:1px solid rgba(125,249,255,0.42);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.10),0 18px 44px -16px rgba(0,0,0,0.65);'
+    + '  transition:border-color .2s ease,transform .2s ease;}'
+    + '.adm-shield:hover{transform:translateY(-2px);border-color:rgba(125,249,255,0.70);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.14),0 24px 60px -18px rgba(0,0,0,0.75),0 0 36px -10px rgba(125,249,255,0.42),0 0 24px -8px rgba(168,85,247,0.28);}'
+    + '.adm-shield-icon{font-size:22px;margin-bottom:6px;display:inline-block;filter:drop-shadow(0 0 10px rgba(125,249,255,0.5));}'
+    + '.adm-shield-val{font-size:28px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.adm-shield-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--tx-3);margin-top:7px;}'
+    + '.adm-tile{position:relative;padding:16px;border-radius:15px;'
+    + '  background:linear-gradient(135deg,rgba(125,249,255,0.05),rgba(168,85,247,0.05) 50%,rgba(229,231,235,0.04));'
+    + '  border:1px solid rgba(125,249,255,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.adm-tile-lbl{font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(125,249,255,0.45);}'
+    + '.adm-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.adm-role-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:1.1px;background:linear-gradient(90deg,rgba(125,249,255,0.20),rgba(168,85,247,0.20));border:1px solid rgba(125,249,255,0.40);color:#DBFEFF;text-shadow:0 0 8px rgba(125,249,255,0.55);}'
+    + '.adm-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:11px;}'
+    + '.adm-row:last-child{border-bottom:none;}'
+    + '.adm-matrix{width:100%;border-collapse:collapse;font-size:10.5px;}'
+    + '.adm-matrix th,.adm-matrix td{padding:6px 4px;}'
+    + '.adm-matrix th{color:var(--tx-3);font-weight:800;letter-spacing:.8px;font-size:9.5px;text-align:center;border-bottom:1px solid rgba(125,249,255,0.18);}'
+    + '.adm-matrix th:first-child,.adm-matrix td:first-child{text-align:left;}'
+    + '.adm-matrix td{text-align:center;}'
+    + '.adm-cell{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;font-weight:900;font-family:var(--mono);font-size:10.5px;}'
+    + '.adm-cell-y{color:#34D399;background:rgba(52,211,153,0.20);box-shadow:0 0 8px rgba(52,211,153,0.30);}'
+    + '.adm-cell-r{color:#FBBF24;background:rgba(251,191,36,0.20);}'
+    + '.adm-cell-n{color:#FCA5A5;background:rgba(239,68,68,0.20);}'
+    + '.adm-audit-row{display:grid;grid-template-columns:60px 110px 90px 1fr;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:10.5px;}'
+    + '.adm-audit-row:last-child{border-bottom:none;}'
+    + '.adm-action-row{display:grid;grid-template-columns:30px 1fr 90px 110px 60px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:11px;}'
+    + '.adm-action-row:last-child{border-bottom:none;}'
+    + '.adm-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(125,249,255,0.22),rgba(168,85,247,0.18) 50%,rgba(229,231,235,0.18));'
+    + '  border:1px solid rgba(125,249,255,0.52);border-left:10px solid #7DF9FF;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(125,249,255,0.50),0 0 60px -10px rgba(168,85,247,0.40),0 0 50px -10px rgba(229,231,235,0.32);}'
+    + '@media (max-width:1024px){.adm-grid-3{grid-template-columns:repeat(2,1fr);}.adm-grid-6{grid-template-columns:repeat(3,1fr);}.adm-action-row{grid-template-columns:26px 1fr 70px 90px 50px;font-size:10px;}.adm-audit-row{grid-template-columns:50px 90px 70px 1fr;font-size:10px;}}'
+    + '@media (max-width:600px){.adm-grid-2,.adm-grid-3{grid-template-columns:1fr;}.adm-grid-6{grid-template-columns:repeat(2,1fr);}.adm-action-row{grid-template-columns:22px 1fr 60px;}.adm-action-row > :nth-child(4),.adm-action-row > :nth-child(5){display:none;}.adm-audit-row{grid-template-columns:50px 1fr;}.adm-audit-row > :nth-child(2),.adm-audit-row > :nth-child(3){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSAdminCenterHTML() {
+  return '<div class="page" id="pg-fos-admin-center">'
+       + '  <div id="fos-admin-center-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Admin Center…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSAdminCenter() {
+  var el = document.getElementById('fos-admin-center-content');
+  if (!el) return;
+  try { _ensureAdmStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Admin Center activates once platform data loads.</div></div>';
+    return;
+  }
+  try {
+    var kpis = _admOverviewKPIs();
+    var tenants = _admTenantCards();
+    var users = _admUsers();
+    var perms = _admPermissionMatrix();
+    var access = _admAccessControl();
+    var audit = _admAuditLog();
+    var security = _admSecurityStatus();
+    var settings = _admSystemSettings();
+    var queue = _admActionQueue();
+    var summary = _admSummary();
+
+    var colorFor = function (v) { return v >= 80 ? '#34D399' : v >= 65 ? '#FBBF24' : v >= 50 ? '#A855F7' : '#FCA5A5'; };
+
+    var html = ''
+      + '<div class="adm-page">'
+
+      // Brand bar + Admin Overview Dashboard
+      + '<div class="adm-card">'
+      + '  <div class="adm-brand">'
+      + '    <div class="adm-brand-logo">★ FAMILISTA OPERATING SYSTEM · ADMIN CENTER</div>'
+      + '    <span class="fos-ai-pulse">ADMIN LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:22px 24px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">1 · Admin Overview Dashboard</div>'
+      + '    <div class="adm-grid-6">'
+      +        kpis.map(function (k) {
+                return '<div class="adm-shield">'
+                     + '  <div class="adm-shield-icon">' + k.icon + '</div>'
+                     + '  <div class="adm-shield-val" style="color:' + k.color + ';">' + k.v + '</div>'
+                     + '  <div class="adm-shield-lbl">' + _esc(k.lbl) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2 · Tenant Management
+      + '<div class="adm-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">2 · Tenant Management</div>'
+      +    (tenants.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No tenants registered.</div>' :
+          tenants.map(function (t) {
+            return '<div class="adm-tile" style="padding:14px 16px;margin-bottom:10px;border-left:4px solid ' + t.color + ';">'
+                 + '  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;">'
+                 + '    <div style="flex:1;min-width:220px;">'
+                 + '      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">'
+                 + '        <div style="font-size:13px;font-weight:900;color:' + t.color + ';letter-spacing:1.2px;text-transform:uppercase;">' + _esc(t.kind) + '</div>'
+                 + '        <span class="adm-pill" style="color:' + t.color + ';background:rgba(125,249,255,0.16);">' + t.status + '</span>'
+                 + (t.isActive ? '        <span class="tenant-active-badge nav-badge" style="margin-left:0;">PRIMARY</span>' : '')
+                 + '      </div>'
+                 + '      <div style="font-size:11px;color:var(--tx-2);line-height:1.55;">' + _esc(t.detail) + '</div>'
+                 + '    </div>'
+                 + (t.live ? ''
+                   + '    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;min-width:240px;">'
+                   + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">'
+                   + '        <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:' + colorFor(t.live.system) + ';">' + t.live.system + '</div>'
+                   + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">SYSTEM</div>'
+                   + '      </div>'
+                   + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">'
+                   + '        <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:' + colorFor(t.live.health) + ';">' + t.live.health + '</div>'
+                   + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">HEALTH</div>'
+                   + '      </div>'
+                   + '      <div style="text-align:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.025);">'
+                   + '        <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:' + colorFor(t.live.finance) + ';">' + t.live.finance + '</div>'
+                   + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;">FINANCE</div>'
+                   + '      </div>'
+                   + '    </div>'
+                   : '    <div style="font-size:10px;color:var(--tx-3);font-style:italic;align-self:center;">Tenant placeholder — onboard via Multi-Club Network</div>')
+                 + '  </div>'
+                 + '</div>';
+          }).join(''))
+      + '</div>'
+
+      // 3 · Users & Roles · 4 · Permission Matrix
+      + '<div class="adm-grid-2">'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">3 · Users & Role Management</div>'
+      +      users.map(function (u) {
+              return '<div class="adm-row">'
+                   + '  <span class="adm-role-badge">' + u.role.replace(/_/g, ' ') + '</span>'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(u.displayName) + (u.isActive ? '  <span class="adm-pill" style="color:#34D399;background:rgba(52,211,153,0.20);">ACTIVE</span>' : '') + '</div>'
+                   + '    <div style="font-size:9.5px;color:var(--tx-3);">' + _esc(u.email) + ' · ' + u.permissions + ' permission(s)</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">4 · Permission Matrix</div>'
+      +      (perms.surfaces.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No surfaces configured.</div>' :
+            ('<div style="overflow-x:auto;">'
+            + '<table class="adm-matrix">'
+            + '  <thead><tr><th>ROLE</th>'
+            +     perms.surfaces.map(function (s) { return '<th>' + s.slice(0, 4) + '</th>'; }).join('')
+            + '  </tr></thead>'
+            + '  <tbody>'
+            +     perms.roles.map(function (r) {
+                  var row = perms.map[r] || [];
+                  return '<tr><td style="color:var(--tx);font-weight:700;font-size:10px;">' + r.replace(/_/g, ' ') + '</td>'
+                       + row.map(function (v) { return '<td><span class="adm-cell ' + (v === 'Y' ? 'adm-cell-y' : v === 'R' ? 'adm-cell-r' : 'adm-cell-n') + '">' + v + '</span></td>'; }).join('')
+                       + '</tr>';
+                }).join('')
+            + '  </tbody>'
+            + '</table>'
+            + '<div style="font-size:9.5px;color:var(--tx-3);margin-top:8px;letter-spacing:.5px;">Y = full · R = read-only · N = none</div>'
+            + '</div>'))
+      + '  </div>'
+      + '</div>'
+
+      // 5 · Access Control · 6 · Audit Log
+      + '<div class="adm-grid-2">'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">5 · Access Control</div>'
+      +      access.map(function (a) {
+              return '<div class="adm-row" style="align-items:flex-start;">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+                   + '      <div style="font-size:11px;color:var(--tx);font-weight:800;letter-spacing:.6px;">' + _esc(a.kind) + '</div>'
+                   + '      <span class="adm-pill" style="color:' + a.color + ';background:rgba(125,249,255,0.16);">' + a.state + '</span>'
+                   + '    </div>'
+                   + '    <div style="font-size:10px;color:var(--tx-3);line-height:1.55;">' + _esc(a.detail) + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">6 · Audit Log</div>'
+      + '    <div class="adm-audit-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(125,249,255,0.20);padding-bottom:6px;">'
+      + '      <div>T</div><div>ACTOR</div><div>KIND</div><div>EVENT</div>'
+      + '    </div>'
+      +      audit.map(function (a) {
+              return '<div class="adm-audit-row">'
+                   + '  <div style="font-family:var(--mono);color:#7DF9FF;font-size:9.5px;text-shadow:0 0 6px rgba(125,249,255,0.55);">' + a.ts + '</div>'
+                   + '  <div style="color:var(--tx);font-weight:700;font-size:10px;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + a.actor + '</div>'
+                   + '  <div><span class="adm-pill" style="color:' + a.color + ';background:rgba(125,249,255,0.10);">' + a.kind + '</span></div>'
+                   + '  <div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 7 · Security Status · 8 · System Settings
+      + '<div class="adm-grid-2">'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">7 · Security Status</div>'
+      + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '      <div>'
+      + '        <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.2px;text-transform:uppercase;">Status</div>'
+      + '        <div style="font-size:18px;font-weight:900;letter-spacing:1.5px;color:' + security.statusColor + ';margin-top:4px;text-shadow:0 0 10px ' + security.statusColor + ';">' + security.status + '</div>'
+      + '      </div>'
+      + '      <div style="text-align:right;">'
+      + '        <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.2px;text-transform:uppercase;">Score</div>'
+      + '        <div style="font-size:24px;font-weight:900;font-family:var(--mono);color:' + colorFor(security.score) + ';text-shadow:0 0 12px currentColor;">' + security.score + '/100</div>'
+      + '      </div>'
+      + '    </div>'
+      +      security.bullets.map(function (b) {
+              return '<div style="padding:8px 10px;border-radius:9px;background:rgba(125,249,255,0.05);margin-bottom:6px;border:1px solid rgba(125,249,255,0.18);">'
+                   + '  <div style="font-size:9.5px;font-weight:900;color:#7DF9FF;letter-spacing:1.1px;text-transform:uppercase;margin-bottom:2px;">' + _esc(b.lbl) + '</div>'
+                   + '  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">' + _esc(b.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="adm-tile">'
+      + '    <div class="adm-tile-lbl">8 · System Settings</div>'
+      +      settings.map(function (s) {
+              return '<div class="adm-row">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1px;">' + s.key + '</div>'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(s.value) + '</div>'
+                   + '  </div>'
+                   + '  <span class="adm-pill" style="color:' + s.color + ';background:rgba(125,249,255,0.10);">' + s.state + '</span>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 9 · Admin Action Queue
+      + '<div class="adm-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">9 · Admin Action Queue</div>'
+      + '  <div class="adm-action-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(125,249,255,0.20);padding-bottom:6px;">'
+      + '    <div>#</div><div>ACTION</div><div style="text-align:right;">SOURCE</div><div style="text-align:right;">OWNER</div><div style="text-align:right;">IMPACT</div>'
+      + '  </div>'
+      +    queue.map(function (q, i) {
+            return '<div class="adm-action-row">'
+                 + '  <div style="font-family:var(--mono);color:#7DF9FF;text-align:right;font-weight:900;font-size:11px;text-shadow:0 0 6px rgba(125,249,255,0.55);">' + (i + 1) + '</div>'
+                 + '  <div style="min-width:0;">'
+                 + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span class="adm-pill" style="color:' + q.color + ';background:rgba(125,249,255,0.12);margin-right:6px;">' + q.kind + '</span>' + _esc(q.label) + '</div>'
+                 + '  </div>'
+                 + '  <div style="text-align:right;font-size:10px;color:var(--tx);font-weight:700;letter-spacing:.5px;">' + q.source + '</div>'
+                 + '  <div style="text-align:right;font-size:10px;color:var(--tx);font-weight:700;">' + q.owner + '</div>'
+                 + '  <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:' + colorFor(q.impact) + ';text-shadow:0 0 8px currentColor;">' + q.impact + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 10 · Admin Summary Banner
+      + '<div class="adm-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">🛡️</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#7DF9FF;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(125,249,255,0.65);">Admin Summary</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-admin-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Admin Center couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -23908,6 +24377,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-command-center"]')) {
     setTimeout(function () { try { renderFOSCommandCenter(); } catch (err) { try { console.error('[fos-command-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-admin-center"]')) {
+    setTimeout(function () { try { renderFOSAdminCenter(); } catch (err) { try { console.error('[fos-admin-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
