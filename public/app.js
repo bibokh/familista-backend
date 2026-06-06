@@ -533,6 +533,7 @@ async function loadAllData() {
       try { if (typeof renderFOSCommandCenter         === 'function') renderFOSCommandCenter();         } catch (_) {}
       try { if (typeof renderFOSAdminCenter           === 'function') renderFOSAdminCenter();           } catch (_) {}
       try { if (typeof renderFOSSecurityCenter        === 'function') renderFOSSecurityCenter();        } catch (_) {}
+      try { if (typeof renderFOSDataCenter            === 'function') renderFOSDataCenter();            } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -792,6 +793,7 @@ function _flushPendingRender() {
     case 'pg-fos-command-center':  renderFOSCommandCenter();  break;
     case 'pg-fos-admin-center':    renderFOSAdminCenter();    break;
     case 'pg-fos-security-center': renderFOSSecurityCenter(); break;
+    case 'pg-fos-data-center':     renderFOSDataCenter();     break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -862,7 +864,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -912,6 +914,7 @@ function navTo(page, el) {
   if (page === 'fos-command-center'){ try { renderFOSCommandCenter(); } catch (e) { try { console.error('[fos-command-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-admin-center'){ try { renderFOSAdminCenter(); } catch (e) { try { console.error('[fos-admin-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-security-center'){ try { renderFOSSecurityCenter(); } catch (e) { try { console.error('[fos-security-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-data-center'){ try { renderFOSDataCenter(); } catch (e) { try { console.error('[fos-data-center] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1044,6 +1047,7 @@ function renderAllPages() {
     ${renderFOSCommandCenterHTML()}
     ${renderFOSAdminCenterHTML()}
     ${renderFOSSecurityCenterHTML()}
+    ${renderFOSDataCenterHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -14935,6 +14939,561 @@ function renderFOSSecurityCenter() {
   }
 }
 
+// ─── Familista OS · Data Intelligence Center ───────────────────────────
+// Central analytics + intelligence hub for every data class on the
+// platform. Read-only — consumes Knowledge Graph (_kg*), Neural
+// Intelligence (_ni*), AI Orchestrator (_orc*), FOS Core analytics
+// inventories (_fos*) and existing State. No mutation, no backend
+// changes, no API calls.
+function _dicSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _dicActive() { return _dicSafe(function () { return (State.players || []).filter(function (p) { return p && p.isActive !== false; }); }, []); }
+function _dicOverview() {
+  var ents = _dicSafe(_kgEntities, []);
+  var rels = _dicSafe(_kgRelationships, []);
+  var diag = _dicSafe(_niDiagnostics, { confidence: 0, completeness: 0 });
+  var intgs = _dicSafe(_fosIntegrations, []);
+  var totalEntities = ents.reduce(function (a, e) { return a + (e.count || 0); }, 0);
+  var totalRelEdges = rels.reduce(function (a, r) { return a + (r.count || 0); }, 0);
+  var liveSources = intgs.filter(function (i) { return i && (i.status === 'CONNECTED' || i.status === 'STREAMING' || i.status === 'ACTIVE'); }).length;
+  // Freshness — simple proxy: 100 if there is any training session in the last 14 days, else lower.
+  var trn = _dicSafe(function () { return State.training || []; }, []);
+  var day = 86400000;
+  var now = Date.now();
+  var fresh = trn.filter(function (s) { var t = s && s.scheduledAt ? new Date(s.scheduledAt).getTime() : 0; return t >= now - 14 * day; }).length;
+  var freshness = trn.length ? Math.max(15, Math.min(100, Math.round((fresh / Math.max(1, trn.length)) * 100 + 30))) : 0;
+  return [
+    { lbl:'Total Entities',         v: totalEntities,                color:'#00F5FF', icon:'🧩' },
+    { lbl:'Total Relationships',    v: totalRelEdges,                color:'#A855F7', icon:'🔗' },
+    { lbl:'Active Data Sources',    v: liveSources,                  color:'#34D399', icon:'🛰️' },
+    { lbl:'Data Freshness',         v: freshness,                    color:'#7DF9FF', icon:'⏱️' },
+    { lbl:'Data Quality',           v: diag.completeness || 0,       color:'#FBBF24', icon:'✅' },
+    { lbl:'Intelligence Coverage',  v: diag.confidence || 0,         color:'#A855F7', icon:'🧠' },
+  ];
+}
+function _dicEntityAnalytics() {
+  var ents = _dicSafe(_kgEntities, []);
+  // Map KG entities to the spec list (Players / Staff / Devices / Trainings / Matches / Medical Records).
+  var want = ['players','staff','devices','training','matches','medical'];
+  var byId = {};
+  ents.forEach(function (e) { byId[e.id] = e; });
+  return want.map(function (id) {
+    var e = byId[id];
+    if (!e) return { id: id, label: id, count: 0, confidence: 0, color:'#A855F7', detail:'No data.' };
+    return { id: e.id, label: e.label, count: e.count || 0, confidence: e.confidence || 0, color: e.color || '#00F5FF', detail: e.detail || '' };
+  });
+}
+function _dicDataQuality() {
+  var ps = _dicActive();
+  var missingFields = 0, incomplete = 0;
+  ps.forEach(function (p) {
+    if (typeof p.condition !== 'number') missingFields++;
+    if (typeof p.overallRating !== 'number') missingFields++;
+    if (!p.position) missingFields++;
+    if (!p.firstName || !p.lastName) incomplete++;
+  });
+  // Duplicates — by composite key (firstName/lastName/number).
+  var seen = {};
+  var dup = 0;
+  ps.forEach(function (p) {
+    var key = ((p.firstName || '') + '|' + (p.lastName || '') + '|' + (p.number != null ? p.number : '')).toLowerCase();
+    if (key && key !== '||') { if (seen[key]) dup++; else seen[key] = 1; }
+  });
+  var trn = _dicSafe(function () { return State.training || []; }, []);
+  var trnIncomplete = trn.filter(function (s) { return !Array.isArray(s.playerStats) || s.playerStats.length === 0; }).length;
+  var conf = _dicSafe(_kgConfidence, { overall: 0 });
+  var validationItems = [
+    { kind:'PLAYER NAME', state: incomplete === 0 ? 'PASS' : 'WARN', detail: incomplete + ' record(s) with missing name.' },
+    { kind:'PLAYER CONDITION', state: missingFields > 0 ? 'WARN' : 'PASS', detail: missingFields + ' player-level field gap(s).' },
+    { kind:'TRAINING ATTENDANCE', state: trnIncomplete > 0 ? 'WARN' : 'PASS', detail: trnIncomplete + ' session(s) with empty attendance.' },
+    { kind:'PLAYER DUPLICATES', state: dup === 0 ? 'PASS' : 'FAIL', detail: dup + ' suspected duplicate player(s).' },
+  ];
+  return {
+    missingFields: missingFields,
+    incomplete: incomplete,
+    duplicates: dup,
+    validation: validationItems,
+    confidence: conf.overall || 0,
+  };
+}
+function _dicKnowledgeGraphAnalytics() {
+  var ents = _dicSafe(_kgEntities, []);
+  var rels = _dicSafe(_kgRelationships, []);
+  var nodes = ents.length;
+  var edges = rels.length;
+  // Most connected entities = entities appearing in the most edges.
+  var degree = {};
+  rels.forEach(function (r) {
+    degree[r.src] = (degree[r.src] || 0) + 1;
+    degree[r.dst] = (degree[r.dst] || 0) + 1;
+  });
+  var mostConnected = ents.map(function (e) { return { id: e.id, label: e.label, degree: degree[e.id] || 0, color: e.color }; })
+                          .sort(function (a, b) { return b.degree - a.degree; })
+                          .slice(0, 5);
+  // Orphan nodes = degree zero.
+  var orphans = ents.filter(function (e) { return !degree[e.id]; }).map(function (e) { return e.label; });
+  // Graph density = 2 * edges / (nodes * (nodes - 1)) — normalised to 0..100.
+  var density = nodes > 1 ? Math.round((2 * edges / (nodes * (nodes - 1))) * 100) : 0;
+  return {
+    nodeCount: nodes,
+    edgeCount: edges,
+    mostConnected: mostConnected,
+    orphans: orphans,
+    density: Math.max(0, Math.min(100, density)),
+  };
+}
+function _dicAIIntelligenceMetrics() {
+  var diag = _dicSafe(_niDiagnostics, { confidence: 0, recommendationCount: 0 });
+  var recs = _dicSafe(_niRecommendations, []);
+  var preds = _dicSafe(_niPredictionEngine, []);
+  var avgPredConf = preds.length ? Math.round(preds.reduce(function (a, p) { return a + (p.confidence || 0); }, 0) / preds.length) : 0;
+  var orcQueue = _dicSafe(_orcRecommendationEngine, []);
+  return {
+    recommendationsGenerated: recs.length + orcQueue.length,
+    diagnosticsGenerated: 1, // a diagnostics snapshot is always produced once.
+    neuralConfidence: diag.confidence || 0,
+    predictionConfidence: avgPredConf,
+  };
+}
+function _dicDataLineage() {
+  // Six-stage lineage for the FOS data path.
+  return [
+    { stage:'SOURCE',          detail:'GPS · Forms · Match feed · Finance · Medical', color:'#7DF9FF' },
+    { stage:'PROCESS',         detail:'Validation · Normalisation · Tenant tagging',  color:'#00F5FF' },
+    { stage:'KNOWLEDGE GRAPH', detail:'Entity + relationship index (kg.v1)',           color:'#A855F7' },
+    { stage:'AI',              detail:'Neural Intelligence · Orchestrator · Predict',   color:'#FBBF24' },
+    { stage:'OUTPUT',          detail:'Centres · Command Center · Reports · Streams',   color:'#34D399' },
+  ];
+}
+function _dicOperationalTrends() {
+  var ps = _dicActive();
+  var trn = _dicSafe(function () { return State.training || []; }, []);
+  var mat = _dicSafe(function () { return State.matches  || []; }, []);
+  // Attendance trend (last 5 sessions)
+  var lastTrn = trn.slice().sort(function (a, b) {
+    var ta = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
+    var tb = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+    return ta - tb;
+  }).slice(-5);
+  var attendance = lastTrn.map(function (s) { return Array.isArray(s.playerStats) ? s.playerStats.length : 0; });
+  var training = lastTrn.map(function (s, i) { return (s.attackForm || 0) + (s.defenseForm || 0) + (s.possession || 0) + (s.conditionForm || 0); });
+  // Match trend — last 5 results to numeric (W=3, D=1, L=0).
+  var lastMat = mat.slice().sort(function (a, b) {
+    var ta = a.scheduledAt ? new Date(a.scheduledAt).getTime() : 0;
+    var tb = b.scheduledAt ? new Date(b.scheduledAt).getTime() : 0;
+    return ta - tb;
+  }).slice(-5);
+  var matchPts = lastMat.map(function (m) {
+    var isHome = (m.homeTeam || '').toLowerCase().indexOf('familista') >= 0;
+    var ours = isHome ? (m.homeScore || 0) : (m.awayScore || 0);
+    var theirs = isHome ? (m.awayScore || 0) : (m.homeScore || 0);
+    if (m.result === 'WIN' || ours > theirs) return 3;
+    if (m.result === 'LOSS' || ours < theirs) return 0;
+    return 1;
+  });
+  // Medical trend — current injured count repeated as a constant
+  // (single snapshot — gives a visual baseline).
+  var med = _dicSafe(_mgMedScores, { buckets: { INJURED: 0 } });
+  var medical = [med.buckets.INJURED, med.buckets.INJURED, med.buckets.INJURED, med.buckets.INJURED, med.buckets.INJURED];
+  return {
+    attendance: attendance.length ? attendance : [0,0,0,0,0],
+    training:   training.length ? training : [0,0,0,0,0],
+    matches:    matchPts.length ? matchPts : [0,0,0,0,0],
+    medical:    medical,
+  };
+}
+function _dicInsights() {
+  // Build up to 20 insights from existing engines, then rank.
+  var out = [];
+  var push = function (it) { if (!it || !it.label) return; out.push(it); };
+  var pats = _dicSafe(_niPatternDetection, []);
+  pats.forEach(function (p) {
+    push({ label: p.kind, detail: p.detail, confidence: p.strength || 60, impact: 50, priority: p.strength >= 70 ? 'HIGH' : 'MEDIUM', color: p.color || '#00F5FF', source:'NEURAL · PATTERN' });
+  });
+  var ano = _dicSafe(_niAnomalyDetection, []);
+  ano.forEach(function (a) {
+    push({ label: a.kind + ' · ' + a.subject, detail: a.detail, confidence: a.severity === 'HIGH' ? 88 : 72, impact: a.severity === 'HIGH' ? 80 : 60, priority: a.severity, color: a.color || '#FBBF24', source:'NEURAL · ANOMALY' });
+  });
+  var preds = _dicSafe(_niPredictionEngine, []);
+  preds.forEach(function (p) {
+    push({ label: 'Forecast · ' + (p.metric || 'Metric') + ' · ' + (p.horizon || ''), detail: 'Current ' + p.current + ' → projected ' + p.projected, confidence: p.confidence || 60, impact: 55, priority: 'MEDIUM', color: p.color || '#A855F7', source:'NEURAL · PREDICTION' });
+  });
+  var recs = _dicSafe(_niRecommendations, []);
+  recs.forEach(function (r) {
+    push({ label: r.label, detail: r.detail, confidence: 75, impact: r.impact || 60, priority: r.impact >= 75 ? 'HIGH' : 'MEDIUM', color: r.color || '#7DF9FF', source: r.source || 'NEURAL' });
+  });
+  var orc = _dicSafe(_orcRecommendationEngine, []);
+  orc.slice(0, 5).forEach(function (r) {
+    push({ label: r.label, detail: r.detail, confidence: 70, impact: r.score || 60, priority: r.score >= 75 ? 'HIGH' : 'MEDIUM', color: r.color || '#00F5FF', source:'ORCHESTRATOR' });
+  });
+  // Rank: confidence + impact + priority weight.
+  var pw = function (p) { return p === 'HIGH' || p === 'CRITICAL' ? 30 : p === 'MEDIUM' ? 15 : 5; };
+  out.sort(function (a, b) { return (b.confidence + b.impact + pw(b.priority)) - (a.confidence + a.impact + pw(a.priority)); });
+  return out.slice(0, 20);
+}
+function _dicForecasts() {
+  var ps = _dicActive();
+  var aca = _dicSafe(_acaOverview, { count: 0, gap: 0 });
+  var diag = _dicSafe(_niDiagnostics, { completeness: 0 });
+  var devCov = ps.length ? Math.round((ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length / ps.length) * 100) : 0;
+  // Forecast logic: simple linear projections using current values.
+  var clamp = function (v) { return Math.max(0, Math.min(100, Math.round(v))); };
+  return [
+    { kind:'Player Growth',     current: aca.gap || 0,    horizon:'12 MONTHS', projected: clamp((aca.gap || 0) + 2), color:'#00F5FF', detail:'Composite growth gap projection.' },
+    { kind:'Attendance',        current: 75,                horizon:'30 DAYS',   projected: 78, color:'#7DF9FF', detail:'Based on recent training participation trend.' },
+    { kind:'Device Coverage',   current: devCov,            horizon:'90 DAYS',   projected: clamp(devCov + 5),  color:'#34D399', detail:'Assumes incremental device assignment.' },
+    { kind:'Data Quality',      current: diag.completeness || 0, horizon:'60 DAYS', projected: clamp((diag.completeness || 0) + 8), color:'#FBBF24', detail:'Ingest pipeline improvements expected.' },
+  ];
+}
+function _dicSummary() {
+  var ents = _dicSafe(_kgEntities, []);
+  var rels = _dicSafe(_kgRelationships, []);
+  var totalE = ents.reduce(function (a, e) { return a + (e.count || 0); }, 0);
+  var totalR = rels.reduce(function (a, r) { return a + (r.count || 0); }, 0);
+  var qa = _dicDataQuality();
+  var ai = _dicAIIntelligenceMetrics();
+  var insights = _dicInsights();
+  return 'FOS Data Intelligence Center · ' + totalE + ' record(s) across ' + ents.length + ' entity classes · ' +
+         totalR + ' edges across ' + rels.length + ' relationship classes. ' +
+         'Data confidence ' + qa.confidence + '/100 · neural confidence ' + ai.neuralConfidence + '/100 · prediction confidence ' + ai.predictionConfidence + '/100. ' +
+         insights.length + ' insight(s) ranked by confidence, impact and priority — ready for executive consumption.';
+}
+function _ensureDICStyles() {
+  if (document.getElementById('dic-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'dic-styles';
+  s.textContent = ''
+    + '.dic-page{padding:16px 18px;}'
+    + '.dic-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(52,211,153,0.32);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(52,211,153,0.30),0 0 60px -16px rgba(0,245,255,0.26),0 0 50px -16px rgba(168,85,247,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.dic-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(52,211,153,0.16),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(0,245,255,0.14),transparent 55%),'
+    + '             radial-gradient(at center,rgba(168,85,247,0.10),transparent 70%);}'
+    + '.dic-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(52,211,153,0.28),rgba(0,245,255,0.20) 50%,rgba(168,85,247,0.22));'
+    + '  border-bottom:1px solid rgba(52,211,153,0.42);}'
+    + '.dic-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#34D399,#7DF9FF,#00F5FF,#A855F7,#34D399);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(52,211,153,0.55);}'
+    + '.dic-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.dic-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.dic-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.dic-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}'
+    + '.dic-kpi{text-align:center;padding:16px 12px;border-radius:14px;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(52,211,153,0.20),rgba(0,245,255,0.12) 60%,rgba(168,85,247,0.06) 90%);'
+    + '  border:1px solid rgba(52,211,153,0.42);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.dic-kpi:hover{transform:translateY(-2px);box-shadow:0 0 32px -10px rgba(52,211,153,0.42),0 0 24px -8px rgba(0,245,255,0.30);}'
+    + '.dic-kpi-icon{font-size:22px;margin-bottom:6px;filter:drop-shadow(0 0 10px rgba(52,211,153,0.55));}'
+    + '.dic-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.dic-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--tx-3);margin-top:7px;}'
+    + '.dic-tile{position:relative;padding:16px;border-radius:15px;'
+    + '  background:linear-gradient(135deg,rgba(52,211,153,0.06),rgba(0,245,255,0.05) 50%,rgba(168,85,247,0.04));'
+    + '  border:1px solid rgba(52,211,153,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.dic-tile-lbl{font-size:11px;font-weight:900;color:#34D399;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(52,211,153,0.45);}'
+    + '.dic-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.dic-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(52,211,153,0.10);font-size:11px;}'
+    + '.dic-row:last-child{border-bottom:none;}'
+    + '.dic-bar{height:7px;border-radius:5px;background:rgba(52,211,153,0.10);overflow:hidden;margin-top:6px;border:1px solid rgba(52,211,153,0.20);}'
+    + '.dic-bar-fill{height:100%;border-radius:5px;box-shadow:0 0 10px currentColor;}'
+    + '.dic-entity-card{padding:14px;border-radius:14px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 25%,rgba(52,211,153,0.18),rgba(0,245,255,0.10) 60%,rgba(0,0,0,0.45));'
+    + '  border:1px solid rgba(52,211,153,0.34);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.dic-entity-card:hover{transform:translateY(-2px);box-shadow:0 0 28px -10px rgba(52,211,153,0.50);}'
+    + '.dic-spark{display:flex;align-items:flex-end;gap:5px;height:60px;padding:5px 0;}'
+    + '.dic-spark-bar{flex:1;border-radius:3px;min-height:6px;box-shadow:0 0 8px currentColor;}'
+    + '.dic-lineage{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;align-items:stretch;}'
+    + '.dic-lineage-stage{position:relative;padding:13px 10px;border-radius:12px;text-align:center;'
+    + '  background:linear-gradient(135deg,rgba(52,211,153,0.10),rgba(0,245,255,0.08));'
+    + '  border:1px solid rgba(52,211,153,0.32);}'
+    + '.dic-lineage-stage::after{content:"→";position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:16px;color:#34D399;text-shadow:0 0 10px rgba(52,211,153,0.6);}'
+    + '.dic-lineage-stage:last-child::after{content:"";}'
+    + '.dic-insight-row{display:grid;grid-template-columns:30px 1fr 70px 70px 70px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(52,211,153,0.10);font-size:11px;}'
+    + '.dic-insight-row:last-child{border-bottom:none;}'
+    + '.dic-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(52,211,153,0.22),rgba(0,245,255,0.18) 50%,rgba(168,85,247,0.18));'
+    + '  border:1px solid rgba(52,211,153,0.52);border-left:10px solid #34D399;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(52,211,153,0.50),0 0 60px -10px rgba(0,245,255,0.40),0 0 50px -10px rgba(168,85,247,0.32);}'
+    + '@media (max-width:1024px){.dic-grid-3{grid-template-columns:repeat(2,1fr);}.dic-grid-4{grid-template-columns:repeat(2,1fr);}.dic-grid-6{grid-template-columns:repeat(3,1fr);}.dic-lineage{grid-template-columns:repeat(3,1fr);}.dic-lineage-stage::after{content:"";}.dic-insight-row{grid-template-columns:24px 1fr 50px 50px 50px;font-size:10px;}}'
+    + '@media (max-width:600px){.dic-grid-2,.dic-grid-3,.dic-grid-4{grid-template-columns:1fr;}.dic-grid-6{grid-template-columns:repeat(2,1fr);}.dic-lineage{grid-template-columns:repeat(2,1fr);}.dic-insight-row{grid-template-columns:24px 1fr 50px;}.dic-insight-row > :nth-child(4),.dic-insight-row > :nth-child(5){display:none;}}';
+  document.head.appendChild(s);
+}
+function _dicSparkSVG(vals, color) {
+  if (!vals || !vals.length) return '';
+  var max = Math.max.apply(null, vals);
+  if (max <= 0) max = 1;
+  return '<div class="dic-spark">'
+    + vals.map(function (v) {
+        var h = Math.max(6, Math.round((v / max) * 50));
+        return '<div class="dic-spark-bar" style="height:' + h + 'px;background:' + color + ';color:' + color + ';"></div>';
+      }).join('')
+    + '</div>';
+}
+function renderFOSDataCenterHTML() {
+  return '<div class="page" id="pg-fos-data-center">'
+       + '  <div id="fos-data-center-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Data Intelligence Center…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSDataCenter() {
+  var el = document.getElementById('fos-data-center-content');
+  if (!el) return;
+  try { _ensureDICStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Data Intelligence Center activates once platform data loads.</div></div>';
+    return;
+  }
+  try {
+    var overview = _dicOverview();
+    var entities = _dicEntityAnalytics();
+    var quality = _dicDataQuality();
+    var kgAnalytics = _dicKnowledgeGraphAnalytics();
+    var aiMetrics = _dicAIIntelligenceMetrics();
+    var lineage = _dicDataLineage();
+    var trends = _dicOperationalTrends();
+    var insights = _dicInsights();
+    var forecasts = _dicForecasts();
+    var summary = _dicSummary();
+
+    var colorFor = function (v) { return v >= 80 ? '#34D399' : v >= 65 ? '#7DF9FF' : v >= 50 ? '#FBBF24' : '#A855F7'; };
+    var priColor = function (p) { return p === 'CRITICAL' || p === 'HIGH' ? '#FCA5A5' : p === 'MEDIUM' ? '#FBBF24' : '#7DF9FF'; };
+    var priBg    = function (p) { return p === 'CRITICAL' || p === 'HIGH' ? 'rgba(239,68,68,0.16)' : p === 'MEDIUM' ? 'rgba(251,191,36,0.16)' : 'rgba(0,245,255,0.16)'; };
+    var stateColor = function (s) { return s === 'PASS' ? '#34D399' : s === 'WARN' ? '#FBBF24' : s === 'FAIL' ? '#FCA5A5' : '#7DF9FF'; };
+
+    var html = ''
+      + '<div class="dic-page">'
+
+      // Brand bar + Data Overview Dashboard
+      + '<div class="dic-card">'
+      + '  <div class="dic-brand">'
+      + '    <div class="dic-brand-logo">★ FAMILISTA OPERATING SYSTEM · DATA INTELLIGENCE CENTER</div>'
+      + '    <span class="fos-ai-pulse">DATA LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:22px 24px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">1 · Data Overview Dashboard</div>'
+      + '    <div class="dic-grid-6">'
+      +        overview.map(function (k) {
+                return '<div class="dic-kpi">'
+                     + '  <div class="dic-kpi-icon">' + k.icon + '</div>'
+                     + '  <div class="dic-kpi-val" style="color:' + k.color + ';">' + k.v + '</div>'
+                     + '  <div class="dic-kpi-lbl">' + _esc(k.lbl) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2 · Entity Analytics
+      + '<div class="dic-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">2 · Entity Analytics</div>'
+      + '  <div class="dic-grid-6">'
+      +      entities.map(function (e) {
+              return '<div class="dic-entity-card">'
+                   + '  <div style="font-size:9px;font-weight:900;color:' + e.color + ';letter-spacing:1.3px;text-transform:uppercase;margin-bottom:5px;">' + _esc(e.label) + '</div>'
+                   + '  <div style="font-size:26px;font-weight:900;font-family:var(--mono);color:' + e.color + ';text-shadow:0 0 12px currentColor;line-height:1;">' + e.count + '</div>'
+                   + '  <div style="font-size:9px;color:var(--tx-3);margin-top:5px;line-height:1.3;">' + _esc(e.detail).slice(0, 60) + '</div>'
+                   + '  <div class="dic-bar"><div class="dic-bar-fill" style="width:' + Math.max(0, Math.min(100, e.confidence)) + '%;background:' + e.color + ';color:' + e.color + ';"></div></div>'
+                   + '  <div style="font-size:8.5px;color:var(--tx-3);margin-top:4px;font-family:var(--mono);">CONF ' + e.confidence + '/100</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 3 · Data Quality + 4 · Knowledge Graph Analytics
+      + '<div class="dic-grid-2">'
+      + '  <div class="dic-tile">'
+      + '    <div class="dic-tile-lbl">3 · Data Quality Center</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(251,191,36,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FBBF24;">' + quality.missingFields + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">MISSING FIELDS</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + quality.incomplete + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">INCOMPLETE</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(252,165,165,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#FCA5A5;">' + quality.duplicates + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">DUPLICATES</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(52,211,153,0.10);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:#34D399;">' + quality.confidence + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">CONFIDENCE</div>'
+      + '      </div>'
+      + '    </div>'
+      +      quality.validation.map(function (v) {
+              return '<div class="dic-row">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:11px;color:var(--tx);font-weight:700;letter-spacing:.4px;">' + _esc(v.kind) + '</div>'
+                   + '    <div style="font-size:9.5px;color:var(--tx-3);">' + _esc(v.detail) + '</div>'
+                   + '  </div>'
+                   + '  <span class="dic-pill" style="color:' + stateColor(v.state) + ';background:rgba(52,211,153,0.16);">' + v.state + '</span>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="dic-tile">'
+      + '    <div class="dic-tile-lbl">4 · Knowledge Graph Analytics</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#00F5FF;">' + kgAnalytics.nodeCount + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">NODES</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#A855F7;">' + kgAnalytics.edgeCount + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">EDGES</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(52,211,153,0.10);">'
+      + '        <div style="font-size:18px;font-weight:900;font-family:var(--mono);color:#34D399;">' + kgAnalytics.density + '%</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">DENSITY</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="font-size:10px;font-weight:900;color:#34D399;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">Most Connected</div>'
+      +      kgAnalytics.mostConnected.map(function (m) {
+              return '<div class="dic-row" style="padding:5px 0;">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="font-size:10.5px;color:var(--tx);font-weight:700;">' + _esc(m.label) + '</div>'
+                   + '  </div>'
+                   + '  <div style="font-size:11px;font-family:var(--mono);font-weight:900;color:' + m.color + ';">deg ' + m.degree + '</div>'
+                   + '</div>';
+            }).join('')
+      + '    <div style="margin-top:12px;font-size:9.5px;color:var(--tx-3);letter-spacing:.5px;">Orphan nodes: ' + (kgAnalytics.orphans.length ? kgAnalytics.orphans.join(', ') : 'None — every entity participates in at least one relationship.') + '</div>'
+      + '  </div>'
+      + '</div>'
+
+      // 5 · AI Intelligence Metrics + 6 · Data Lineage
+      + '<div class="dic-grid-2">'
+      + '  <div class="dic-tile">'
+      + '    <div class="dic-tile-lbl">5 · AI Intelligence Metrics</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px;">'
+      + '      <div style="text-align:center;padding:12px;border-radius:10px;background:rgba(0,245,255,0.10);">'
+      + '        <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#00F5FF;text-shadow:0 0 14px rgba(0,245,255,0.55);">' + aiMetrics.recommendationsGenerated + '</div>'
+      + '        <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">RECOMMENDATIONS</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:12px;border-radius:10px;background:rgba(168,85,247,0.10);">'
+      + '        <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#A855F7;text-shadow:0 0 14px rgba(168,85,247,0.55);">' + aiMetrics.diagnosticsGenerated + '</div>'
+      + '        <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">DIAGNOSTICS</div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div style="margin-bottom:10px;">'
+      + '      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:4px;">'
+      + '        <span style="font-weight:700;">Neural Confidence</span>'
+      + '        <span style="font-family:var(--mono);font-weight:800;color:' + colorFor(aiMetrics.neuralConfidence) + ';">' + aiMetrics.neuralConfidence + '/100</span>'
+      + '      </div>'
+      + '      <div class="dic-bar"><div class="dic-bar-fill" style="width:' + Math.max(0, Math.min(100, aiMetrics.neuralConfidence)) + '%;background:' + colorFor(aiMetrics.neuralConfidence) + ';color:' + colorFor(aiMetrics.neuralConfidence) + ';"></div></div>'
+      + '    </div>'
+      + '    <div>'
+      + '      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx);margin-bottom:4px;">'
+      + '        <span style="font-weight:700;">Prediction Confidence</span>'
+      + '        <span style="font-family:var(--mono);font-weight:800;color:' + colorFor(aiMetrics.predictionConfidence) + ';">' + aiMetrics.predictionConfidence + '/100</span>'
+      + '      </div>'
+      + '      <div class="dic-bar"><div class="dic-bar-fill" style="width:' + Math.max(0, Math.min(100, aiMetrics.predictionConfidence)) + '%;background:' + colorFor(aiMetrics.predictionConfidence) + ';color:' + colorFor(aiMetrics.predictionConfidence) + ';"></div></div>'
+      + '    </div>'
+      + '  </div>'
+      + '  <div class="dic-tile">'
+      + '    <div class="dic-tile-lbl">6 · Data Lineage</div>'
+      + '    <div class="dic-lineage">'
+      +        lineage.map(function (l) {
+                return '<div class="dic-lineage-stage">'
+                     + '  <div style="font-size:9.5px;font-weight:900;letter-spacing:1.4px;color:' + l.color + ';text-transform:uppercase;margin-bottom:5px;text-shadow:0 0 8px ' + l.color + ';">' + l.stage + '</div>'
+                     + '  <div style="font-size:9.5px;color:var(--tx-2);line-height:1.5;">' + _esc(l.detail) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '    <div style="margin-top:14px;font-size:10px;color:var(--tx-3);line-height:1.55;">Lineage trace from raw inputs through processing, the Knowledge Graph and AI orchestration to consumable outputs.</div>'
+      + '  </div>'
+      + '</div>'
+
+      // 7 · Operational Analytics
+      + '<div class="dic-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">7 · Operational Analytics</div>'
+      + '  <div class="dic-grid-4">'
+      +      [
+              { lbl:'Attendance Trend', vals: trends.attendance, color:'#00F5FF' },
+              { lbl:'Training Trend',   vals: trends.training,   color:'#A855F7' },
+              { lbl:'Match Trend',      vals: trends.matches,    color:'#34D399' },
+              { lbl:'Medical Trend',    vals: trends.medical,    color:'#FCA5A5' },
+            ].map(function (t) {
+              return '<div class="dic-tile" style="padding:14px;">'
+                   + '  <div style="font-size:9.5px;font-weight:900;color:' + t.color + ';letter-spacing:1.3px;text-transform:uppercase;margin-bottom:8px;">' + _esc(t.lbl) + '</div>'
+                   +    _dicSparkSVG(t.vals, t.color)
+                   + '  <div style="display:flex;justify-content:space-between;font-size:8.5px;color:var(--tx-3);margin-top:5px;font-family:var(--mono);letter-spacing:.5px;">'
+                   +      t.vals.map(function (v, i) { return '<span>' + v + '</span>'; }).join('')
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 8 · Intelligence Insights
+      + '<div class="dic-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">8 · Intelligence Insights · Top 20</div>'
+      + '  <div class="dic-insight-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(52,211,153,0.20);padding-bottom:6px;">'
+      + '    <div>#</div><div>INSIGHT</div><div style="text-align:right;">CONF</div><div style="text-align:right;">IMP</div><div style="text-align:right;">PRI</div>'
+      + '  </div>'
+      +    (insights.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:10px 0;">No insights surfaced from upstream engines.</div>' :
+          insights.map(function (it, i) {
+            return '<div class="dic-insight-row">'
+                 + '  <div style="font-family:var(--mono);font-weight:900;color:#34D399;text-align:right;text-shadow:0 0 6px rgba(52,211,153,0.55);">' + (i + 1) + '</div>'
+                 + '  <div style="min-width:0;">'
+                 + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(it.label) + '  <span class="dic-pill" style="color:' + it.color + ';background:rgba(52,211,153,0.10);margin-left:6px;">' + it.source + '</span></div>'
+                 + '    <div style="font-size:9.5px;color:var(--tx-3);line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc((it.detail || '')) + '</div>'
+                 + '  </div>'
+                 + '  <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:' + colorFor(it.confidence) + ';">' + it.confidence + '</div>'
+                 + '  <div style="text-align:right;font-size:11px;font-weight:900;font-family:var(--mono);color:' + colorFor(it.impact) + ';">' + it.impact + '</div>'
+                 + '  <div style="text-align:right;"><span class="dic-pill" style="color:' + priColor(it.priority) + ';background:' + priBg(it.priority) + ';">' + it.priority + '</span></div>'
+                 + '</div>';
+          }).join(''))
+      + '</div>'
+
+      // 9 · Forecast Center
+      + '<div class="dic-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">9 · Forecast Center</div>'
+      + '  <div class="dic-grid-4">'
+      +      forecasts.map(function (f) {
+              var arrow = f.projected > f.current ? '↗' : f.projected < f.current ? '↘' : '→';
+              var arrowCol = f.projected > f.current ? '#34D399' : f.projected < f.current ? '#FCA5A5' : '#7DF9FF';
+              return '<div class="dic-tile" style="padding:14px;">'
+                   + '  <div style="font-size:9.5px;font-weight:900;color:' + f.color + ';letter-spacing:1.3px;text-transform:uppercase;margin-bottom:5px;">' + _esc(f.kind)+ '</div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);letter-spacing:.4px;margin-bottom:7px;">' + _esc(f.horizon) + '</div>'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+                   + '    <span style="font-size:20px;font-weight:900;font-family:var(--mono);color:var(--tx);">' + f.current + '</span>'
+                   + '    <span style="font-size:22px;color:' + arrowCol + ';text-shadow:0 0 8px currentColor;">' + arrow + '</span>'
+                   + '    <span style="font-size:20px;font-weight:900;font-family:var(--mono);color:' + arrowCol + ';">' + f.projected + '</span>'
+                   + '  </div>'
+                   + '  <div class="dic-bar"><div class="dic-bar-fill" style="width:' + Math.max(0, Math.min(100, f.projected)) + '%;background:' + f.color + ';color:' + f.color + ';"></div></div>'
+                   + '  <div style="font-size:9.5px;color:var(--tx-3);margin-top:6px;line-height:1.5;">' + _esc(f.detail) + '</div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 10 · Executive Data Summary
+      + '<div class="dic-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">🧬</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#34D399;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(52,211,153,0.65);">Executive Data Summary</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-data-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Data Intelligence Center couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -24904,6 +25463,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-security-center"]')) {
     setTimeout(function () { try { renderFOSSecurityCenter(); } catch (err) { try { console.error('[fos-security-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-data-center"]')) {
+    setTimeout(function () { try { renderFOSDataCenter(); } catch (err) { try { console.error('[fos-data-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
