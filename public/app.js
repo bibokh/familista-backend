@@ -534,6 +534,7 @@ async function loadAllData() {
       try { if (typeof renderFOSAdminCenter           === 'function') renderFOSAdminCenter();           } catch (_) {}
       try { if (typeof renderFOSSecurityCenter        === 'function') renderFOSSecurityCenter();        } catch (_) {}
       try { if (typeof renderFOSDataCenter            === 'function') renderFOSDataCenter();            } catch (_) {}
+      try { if (typeof renderFOSAutomationCenter      === 'function') renderFOSAutomationCenter();      } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -794,6 +795,7 @@ function _flushPendingRender() {
     case 'pg-fos-admin-center':    renderFOSAdminCenter();    break;
     case 'pg-fos-security-center': renderFOSSecurityCenter(); break;
     case 'pg-fos-data-center':     renderFOSDataCenter();     break;
+    case 'pg-fos-automation-center': renderFOSAutomationCenter(); break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -864,7 +866,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -915,6 +917,7 @@ function navTo(page, el) {
   if (page === 'fos-admin-center'){ try { renderFOSAdminCenter(); } catch (e) { try { console.error('[fos-admin-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-security-center'){ try { renderFOSSecurityCenter(); } catch (e) { try { console.error('[fos-security-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-data-center'){ try { renderFOSDataCenter(); } catch (e) { try { console.error('[fos-data-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-automation-center'){ try { renderFOSAutomationCenter(); } catch (e) { try { console.error('[fos-automation-center] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1048,6 +1051,7 @@ function renderAllPages() {
     ${renderFOSAdminCenterHTML()}
     ${renderFOSSecurityCenterHTML()}
     ${renderFOSDataCenterHTML()}
+    ${renderFOSAutomationCenterHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -15494,6 +15498,479 @@ function renderFOSDataCenter() {
   }
 }
 
+// ─── Familista OS · Automation Center ──────────────────────────────────
+// Central platform automation management hub. Read-only — reuses the
+// catalogue of scheduled jobs, AI loops, workflows and triggers from
+// FOS Core (_fosAutomation), the notification feed (_fosNotifications),
+// the AI Orchestrator live stream (_orcLiveStreams) and Admin Center
+// action queue (_admActionQueue). No mutation, no backend changes.
+function _autSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _autCatalogue()    { return _autSafe(_fosAutomation, { scheduledJobs: [], aiAutomations: [], workflows: [], triggers: [] }); }
+function _autNotifications(){ return _autSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] }); }
+function _autOverview() {
+  var cat = _autCatalogue();
+  var active = (cat.aiAutomations || []).filter(function (a) { return a && (a.status === 'ON' || a.status === 'ACTIVE' || a.status === 'RUNNING'); }).length
+             + (cat.scheduledJobs  || []).filter(function (j) { return j && (j.status === 'ACTIVE' || j.status === 'RUNNING'); }).length;
+  var scheduled = (cat.scheduledJobs || []).length;
+  // Success rate proxy — derive from notification mix: more criticals = lower.
+  var notes = _autNotifications();
+  var critical = (notes.critical || []).length;
+  var warnings = (notes.warnings || []).length;
+  var failed = critical + Math.floor(warnings / 2);
+  var attempts = (active + scheduled) * 24; // 24-h horizon proxy
+  var success = attempts > 0 ? Math.max(50, Math.round(((attempts - failed) / attempts) * 100)) : 100;
+  var queue = (notes.pending || []).length + (_autSafe(_admActionQueue, []) || []).length;
+  var health = Math.max(0, Math.min(100, Math.round(success - critical * 8 - warnings * 3)));
+  return [
+    { lbl:'Active Automations', v: active,    color:'#00F5FF', icon:'⚙️' },
+    { lbl:'Scheduled Jobs',     v: scheduled,  color:'#A855F7', icon:'⏰' },
+    { lbl:'Success Rate',       v: success + '%', color:'#34D399', icon:'✅' },
+    { lbl:'Failed Jobs · 24h',  v: failed,     color:'#FCA5A5', icon:'⚠️' },
+    { lbl:'Queue Size',         v: queue,      color:'#FBBF24', icon:'📋' },
+    { lbl:'Automation Health',  v: health,     color:'#7DF9FF', icon:'💠' },
+  ];
+}
+function _autWorkflowCenter() {
+  var cat = _autCatalogue();
+  // Pin existing workflows; also classify by domain prefix in label.
+  var rows = (cat.workflows || []).map(function (w) {
+    var label = (w.name || '').toLowerCase();
+    var domain = /train|attend/.test(label) ? 'TRAINING'
+              : /match|result|standing/.test(label) ? 'MATCH'
+              : /medical|injur|attend/.test(label) ? 'MEDICAL'
+              : /promot|roster|staff/.test(label) ? 'STAFF'
+              :                                       'PLATFORM';
+    return { domain: domain, name: w.name, steps: w.steps || 0 };
+  });
+  // Build per-domain summaries from rows; always show 4 buckets.
+  var byDomain = { TRAINING: [], MATCH: [], MEDICAL: [], STAFF: [] };
+  rows.forEach(function (r) { if (byDomain[r.domain]) byDomain[r.domain].push(r); });
+  return [
+    { kind:'TRAINING', color:'#00F5FF',  icon:'📋', rows: byDomain.TRAINING },
+    { kind:'MATCH',    color:'#34D399',  icon:'⚽', rows: byDomain.MATCH },
+    { kind:'MEDICAL',  color:'#FCA5A5',  icon:'🩺', rows: byDomain.MEDICAL },
+    { kind:'STAFF',    color:'#A855F7',  icon:'🧑‍💼', rows: byDomain.STAFF },
+  ];
+}
+function _autTriggerManagement() {
+  var cat = _autCatalogue();
+  // Each existing trigger becomes a row mapped to EVENT / CONDITION / ACTION.
+  var triggers = (cat.triggers || []).map(function (t) {
+    var name = t.name || 'Trigger';
+    var cond = '';
+    var event = name;
+    if (/Fatigue/i.test(name))   cond = 'fatigue >= 3 HIGH';
+    else if (/Wage/i.test(name)) cond = 'wage ratio >= 70%';
+    else if (/Conflict/i.test(name)) cond = 'critical conflict detected';
+    else if (/Promotion/i.test(name)) cond = 'academy READY_NOW count > 0';
+    return { event: event, condition: cond || 'event matched', action: t.target || 'Notify center', color:'#FBBF24' };
+  });
+  // Add a couple of platform-level baseline triggers.
+  triggers.push({ event:'Session save',     condition:'role has attendance permission', action:'Update Knowledge Graph',  color:'#00F5FF' });
+  triggers.push({ event:'Sign-in success',  condition:'JWT verified',                    action:'Bind tenant context',     color:'#7DF9FF' });
+  return triggers.slice(0, 8);
+}
+function _autSchedulerCenter() {
+  var cat = _autCatalogue();
+  // Bucket scheduled jobs by interval inferred from cron.
+  var buckets = { HOURLY: [], DAILY: [], WEEKLY: [], MONTHLY: [] };
+  (cat.scheduledJobs || []).forEach(function (j) {
+    var c = (j.cron || '').trim();
+    if (/\*\s+\*\s+\*\s+\*$/.test(c) || /^0?\s*\*\s*\*\s*\*\s*\*$/.test(c)) buckets.HOURLY.push(j);
+    else if (/\*\s+0?\s+\*\s+\*\s+\*$|0\s+\d+\s+\*\s+\*\s+\*/.test(c))        buckets.DAILY.push(j);
+    else if (/0\s+\d+\s+\*\s+\*\s+[0-6]/.test(c))                              buckets.WEEKLY.push(j);
+    else if (/0\s+\d+\s+\d+\s+\*\s+\*/.test(c))                                buckets.MONTHLY.push(j);
+    else buckets.DAILY.push(j);
+  });
+  return [
+    { kind:'HOURLY',  color:'#7DF9FF', rows: buckets.HOURLY  },
+    { kind:'DAILY',   color:'#00F5FF', rows: buckets.DAILY   },
+    { kind:'WEEKLY',  color:'#A855F7', rows: buckets.WEEKLY  },
+    { kind:'MONTHLY', color:'#FBBF24', rows: buckets.MONTHLY },
+  ];
+}
+function _autAIQueue() {
+  var ai = (_autCatalogue().aiAutomations) || [];
+  // Bucket each AI automation by the kind hinted in its name.
+  var queue = { RECOMMENDATIONS: [], DIAGNOSTICS: [], NOTIFICATIONS: [], PREDICTIONS: [] };
+  ai.forEach(function (a) {
+    var n = (a.name || '').toLowerCase();
+    if      (/rec|action|war/.test(n))    queue.RECOMMENDATIONS.push(a);
+    else if (/diag|sync|govern/.test(n))   queue.DIAGNOSTICS.push(a);
+    else if (/notif|alert|coach/.test(n))  queue.NOTIFICATIONS.push(a);
+    else if (/predict|forecast|roadmap/.test(n)) queue.PREDICTIONS.push(a);
+    else queue.DIAGNOSTICS.push(a);
+  });
+  return [
+    { kind:'RECOMMENDATIONS', color:'#00F5FF', rows: queue.RECOMMENDATIONS },
+    { kind:'DIAGNOSTICS',     color:'#A855F7', rows: queue.DIAGNOSTICS },
+    { kind:'NOTIFICATIONS',   color:'#FBBF24', rows: queue.NOTIFICATIONS },
+    { kind:'PREDICTIONS',     color:'#34D399', rows: queue.PREDICTIONS },
+  ];
+}
+function _autNotificationAutomation() {
+  var notes = _autNotifications();
+  return [
+    { kind:'EMAIL',  status:'PLANNED', count: 0, color:'#A855F7', detail:'Transactional + digest email channel (forward-looking).' },
+    { kind:'PUSH',   status:'PLANNED', count: 0, color:'#7DF9FF', detail:'Web push channel — opt-in surface ready.' },
+    { kind:'SYSTEM', status:'ACTIVE',  count: (notes.messages || []).length, color:'#34D399', detail:'In-app system messages routed via notification feed.' },
+    { kind:'ALERTS', status:'ACTIVE',  count: (notes.critical || []).length + (notes.warnings || []).length, color:'#FBBF24', detail:'Critical + warning alerts surfaced through Command Center.' },
+  ];
+}
+function _autProcessMonitoring() {
+  var cat = _autCatalogue();
+  var notes = _autNotifications();
+  var failed = (notes.critical || []).length;
+  var waiting = (notes.pending || []).length;
+  var running = (cat.aiAutomations || []).length + (cat.scheduledJobs || []).filter(function (j) { return j && j.status === 'ACTIVE'; }).length;
+  // Completed proxy — total scheduled jobs treated as completed cycles per day.
+  var completed = (cat.scheduledJobs || []).length * 24;
+  return {
+    running: running,
+    waiting: waiting,
+    failed: failed,
+    completed: completed,
+    rows: [
+      { kind:'AI loops (continuous)',         state:'RUNNING', count: (cat.aiAutomations || []).length, color:'#34D399' },
+      { kind:'Cron schedule worker',          state:'RUNNING', count: (cat.scheduledJobs || []).length, color:'#7DF9FF' },
+      { kind:'Pending admin actions',         state: waiting > 0 ? 'WAITING' : 'IDLE', count: waiting, color: waiting > 0 ? '#FBBF24' : '#A855F7' },
+      { kind:'Failed critical jobs · 24h',    state: failed  > 0 ? 'FAILED'  : 'CLEAN', count: failed,  color: failed  > 0 ? '#FCA5A5' : '#34D399' },
+    ],
+  };
+}
+function _autLogs() {
+  // Reuse the orchestrator stream + notifications as automation log.
+  var orcStreams = _autSafe(_orcLiveStreams, []);
+  var rows = orcStreams.map(function (s) {
+    return { ts: s.ts || 'T-0s', source: s.source || 'PLATFORM', action: s.kind || 'EVENT', status: 'OK', detail: s.text || '', color: s.color || '#00F5FF' };
+  });
+  var notes = _autNotifications();
+  (notes.warnings || []).forEach(function (w, i) {
+    rows.push({ ts:'T-' + ((i + 2) * 35) + 's', source: w.source || 'CENTER', action:'WARN', status:'WARNED', detail: w.text || 'Warning', color:'#FBBF24' });
+  });
+  (notes.critical || []).forEach(function (c, i) {
+    rows.push({ ts:'T-' + ((i + 1) * 20) + 's', source: c.source || 'CENTER', action:'CRITICAL', status:'FAILED', detail: c.text || 'Critical event', color:'#FCA5A5' });
+  });
+  if (!rows.length) rows.push({ ts:'T-0s', source:'PLATFORM', action:'BOOT', status:'OK', detail:'No automation events recorded yet.', color:'#7DF9FF' });
+  return rows.slice(0, 12);
+}
+function _autOptimizationSuggestions() {
+  // Synthesise platform-wide automation improvements.
+  var cat = _autCatalogue();
+  var notes = _autNotifications();
+  var out = [];
+  if ((cat.aiAutomations || []).length >= 4) {
+    out.push({ label:'Consolidate AI loops into a single scheduler', detail:'Multiple AI loops can share a heartbeat to reduce overhead.', impact: 60, color:'#00F5FF' });
+  }
+  if ((cat.scheduledJobs || []).length < 5) {
+    out.push({ label:'Add a weekly knowledge-graph snapshot', detail:'Helps neural engine compare week-over-week confidence.', impact: 55, color:'#A855F7' });
+  }
+  if ((notes.warnings || []).length >= 2) {
+    out.push({ label:'Route warnings into a dedicated triage queue', detail:'Avoids buryed alerts in the general notification feed.', impact: 70, color:'#FBBF24' });
+  }
+  out.push({ label:'Wire push channel into Notification Automation', detail:'Web push currently planned — activate when subscriber base grows.', impact: 50, color:'#7DF9FF' });
+  out.push({ label:'Add retry policy to failed cron jobs', detail:'Exponential backoff prevents data-quality drops on transient failures.', impact: 75, color:'#FCA5A5' });
+  out.push({ label:'Persist orchestrator decisions to audit log', detail:'Improves traceability for Admin Center audit timeline.', impact: 65, color:'#34D399' });
+  out.sort(function (a, b) { return b.impact - a.impact; });
+  return out.slice(0, 6);
+}
+function _autSummary() {
+  var ov = _autOverview();
+  var mon = _autProcessMonitoring();
+  var opt = _autOptimizationSuggestions();
+  return 'FOS Automation Center · ' + (ov[0].v) + ' active automation(s), ' + (ov[1].v) + ' scheduled job(s), ' +
+         'success rate ' + (ov[2].v) + ', queue size ' + (ov[4].v) + '. ' +
+         mon.running + ' process(es) running · ' + mon.waiting + ' waiting · ' + mon.failed + ' failed · ' + mon.completed + ' completed cycles in window. ' +
+         opt.length + ' optimisation(s) ready for executive review.';
+}
+function _ensureAutStyles() {
+  if (document.getElementById('aut-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'aut-styles';
+  s.textContent = ''
+    + '.aut-page{padding:16px 18px;}'
+    + '.aut-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(251,191,36,0.30);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(251,191,36,0.28),0 0 60px -16px rgba(0,245,255,0.24),0 0 50px -16px rgba(168,85,247,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.aut-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(251,191,36,0.14),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(0,245,255,0.14),transparent 55%),'
+    + '             radial-gradient(at center,rgba(168,85,247,0.10),transparent 70%);}'
+    + '.aut-brand{position:relative;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(251,191,36,0.28),rgba(0,245,255,0.20) 50%,rgba(168,85,247,0.22));'
+    + '  border-bottom:1px solid rgba(251,191,36,0.42);}'
+    + '.aut-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;'
+    + '  background:linear-gradient(90deg,#FBBF24,#7DF9FF,#00F5FF,#A855F7,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 16px rgba(251,191,36,0.55);}'
+    + '.aut-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.aut-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.aut-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.aut-grid-6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;}'
+    + '.aut-kpi{text-align:center;padding:16px 12px;border-radius:14px;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(251,191,36,0.20),rgba(0,245,255,0.12) 60%,rgba(168,85,247,0.06) 90%);'
+    + '  border:1px solid rgba(251,191,36,0.42);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.aut-kpi:hover{transform:translateY(-2px);box-shadow:0 0 32px -10px rgba(251,191,36,0.42),0 0 24px -8px rgba(0,245,255,0.30);}'
+    + '.aut-kpi-icon{font-size:22px;margin-bottom:6px;filter:drop-shadow(0 0 10px rgba(251,191,36,0.55));}'
+    + '.aut-kpi-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.aut-kpi-lbl{font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:7px;}'
+    + '.aut-tile{position:relative;padding:16px;border-radius:15px;'
+    + '  background:linear-gradient(135deg,rgba(251,191,36,0.06),rgba(0,245,255,0.05) 50%,rgba(168,85,247,0.04));'
+    + '  border:1px solid rgba(251,191,36,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.aut-tile-lbl{font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(251,191,36,0.45);}'
+    + '.aut-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.aut-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:11px;}'
+    + '.aut-row:last-child{border-bottom:none;}'
+    + '.aut-domain{padding:14px;border-radius:14px;background:linear-gradient(135deg,rgba(251,191,36,0.10),rgba(0,245,255,0.06));border:1px solid rgba(251,191,36,0.32);}'
+    + '.aut-trigger-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:11px;}'
+    + '.aut-trigger-row:last-child{border-bottom:none;}'
+    + '.aut-log-row{display:grid;grid-template-columns:60px 110px 90px 90px 1fr;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:10.5px;}'
+    + '.aut-log-row:last-child{border-bottom:none;}'
+    + '.aut-summary{position:relative;padding:26px;border-radius:20px;'
+    + '  background:linear-gradient(135deg,rgba(251,191,36,0.22),rgba(0,245,255,0.18) 50%,rgba(168,85,247,0.18));'
+    + '  border:1px solid rgba(251,191,36,0.52);border-left:10px solid #FBBF24;'
+    + '  box-shadow:0 30px 80px -16px rgba(0,0,0,0.85),0 0 80px -10px rgba(251,191,36,0.50),0 0 60px -10px rgba(0,245,255,0.40),0 0 50px -10px rgba(168,85,247,0.32);}'
+    + '@media (max-width:1024px){.aut-grid-3{grid-template-columns:repeat(2,1fr);}.aut-grid-4{grid-template-columns:repeat(2,1fr);}.aut-grid-6{grid-template-columns:repeat(3,1fr);}.aut-log-row{grid-template-columns:50px 90px 70px 70px 1fr;font-size:10px;}}'
+    + '@media (max-width:600px){.aut-grid-2,.aut-grid-3,.aut-grid-4{grid-template-columns:1fr;}.aut-grid-6{grid-template-columns:repeat(2,1fr);}.aut-trigger-row{grid-template-columns:1fr;}.aut-log-row{grid-template-columns:50px 1fr 60px;}.aut-log-row > :nth-child(3),.aut-log-row > :nth-child(5){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSAutomationCenterHTML() {
+  return '<div class="page" id="pg-fos-automation-center">'
+       + '  <div id="fos-automation-center-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Automation Center…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSAutomationCenter() {
+  var el = document.getElementById('fos-automation-center-content');
+  if (!el) return;
+  try { _ensureAutStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Automation Center activates once platform data loads.</div></div>';
+    return;
+  }
+  try {
+    var overview = _autOverview();
+    var workflows = _autWorkflowCenter();
+    var triggers = _autTriggerManagement();
+    var scheduler = _autSchedulerCenter();
+    var aiQueue = _autAIQueue();
+    var notifAuto = _autNotificationAutomation();
+    var monitoring = _autProcessMonitoring();
+    var logs = _autLogs();
+    var optimisations = _autOptimizationSuggestions();
+    var summary = _autSummary();
+
+    var stateColor = function (s) { return s === 'RUNNING' || s === 'ACTIVE' || s === 'CLEAN' ? '#34D399' : s === 'WAITING' || s === 'WARNED' ? '#FBBF24' : s === 'FAILED' || s === 'CRITICAL' ? '#FCA5A5' : s === 'STANDBY' || s === 'PLANNED' ? '#A855F7' : '#7DF9FF'; };
+    var colorFor = function (v) { return v >= 80 ? '#34D399' : v >= 65 ? '#7DF9FF' : v >= 50 ? '#FBBF24' : '#FCA5A5'; };
+
+    var html = ''
+      + '<div class="aut-page">'
+
+      // Brand bar + Automation Overview Dashboard
+      + '<div class="aut-card">'
+      + '  <div class="aut-brand">'
+      + '    <div class="aut-brand-logo">★ FAMILISTA OPERATING SYSTEM · AUTOMATION CENTER</div>'
+      + '    <span class="fos-ai-pulse">AUTOMATION LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:22px 24px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">1 · Automation Overview Dashboard</div>'
+      + '    <div class="aut-grid-6">'
+      +        overview.map(function (k) {
+                return '<div class="aut-kpi">'
+                     + '  <div class="aut-kpi-icon">' + k.icon + '</div>'
+                     + '  <div class="aut-kpi-val" style="color:' + k.color + ';">' + k.v + '</div>'
+                     + '  <div class="aut-kpi-lbl">' + _esc(k.lbl) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2 · Workflow Center
+      + '<div class="aut-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">2 · Workflow Center</div>'
+      + '  <div class="aut-grid-4">'
+      +      workflows.map(function (w) {
+              return '<div class="aut-domain">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+                   + '    <div style="font-size:10px;font-weight:900;color:' + w.color + ';letter-spacing:1.4px;text-transform:uppercase;">' + w.icon + ' ' + w.kind + '</div>'
+                   + '    <span class="aut-pill" style="color:' + w.color + ';background:rgba(251,191,36,0.10);">' + w.rows.length + '</span>'
+                   + '  </div>'
+                   +    (w.rows.length === 0 ? '<div style="font-size:10px;color:var(--tx-3);">No workflow in this domain.</div>' :
+                      w.rows.map(function (r) {
+                        return '<div style="font-size:10.5px;color:var(--tx);margin-bottom:5px;">'
+                             + _esc(r.name) + ' <span style="color:var(--tx-3);">· ' + r.steps + ' step(s)</span></div>';
+                      }).join(''))
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 3 · Trigger Management + 4 · Scheduler Center
+      + '<div class="aut-grid-2">'
+      + '  <div class="aut-tile">'
+      + '    <div class="aut-tile-lbl">3 · Trigger Management</div>'
+      + '    <div class="aut-trigger-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(251,191,36,0.20);padding-bottom:6px;">'
+      + '      <div>EVENT</div><div>CONDITION</div><div>ACTION</div>'
+      + '    </div>'
+      +      triggers.map(function (t) {
+              return '<div class="aut-trigger-row">'
+                   + '  <div style="font-size:10.5px;color:var(--tx);font-weight:700;letter-spacing:.4px;">' + _esc(t.event) + '</div>'
+                   + '  <div style="font-size:10px;color:var(--tx-2);">' + _esc(t.condition) + '</div>'
+                   + '  <div><span class="aut-pill" style="color:' + t.color + ';background:rgba(251,191,36,0.12);">→ ' + _esc(t.action) + '</span></div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="aut-tile">'
+      + '    <div class="aut-tile-lbl">4 · Scheduler Center</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">'
+      +        scheduler.map(function (s) {
+                return '<div style="padding:11px;border-radius:10px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.22);">'
+                     + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+                     + '    <div style="font-size:9.5px;font-weight:900;color:' + s.color + ';letter-spacing:1.4px;">' + s.kind + '</div>'
+                     + '    <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:' + s.color + ';">' + s.rows.length + '</div>'
+                     + '  </div>'
+                     +    (s.rows.length === 0 ? '<div style="font-size:9.5px;color:var(--tx-3);">No jobs in bucket.</div>' :
+                        s.rows.slice(0, 2).map(function (j) {
+                          return '<div style="font-size:9.5px;color:var(--tx);margin-bottom:2px;">'
+                               + _esc(j.name) + ' <span style="color:var(--tx-3);font-family:var(--mono);">· ' + (j.cron || '—') + '</span></div>';
+                        }).join(''))
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 5 · AI Automation Queue + 6 · Notification Automation
+      + '<div class="aut-grid-2">'
+      + '  <div class="aut-tile">'
+      + '    <div class="aut-tile-lbl">5 · AI Automation Queue</div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">'
+      +        aiQueue.map(function (q) {
+                return '<div style="padding:11px;border-radius:10px;background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.22);">'
+                     + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+                     + '    <div style="font-size:9.5px;font-weight:900;color:' + q.color + ';letter-spacing:1.4px;">' + q.kind + '</div>'
+                     + '    <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:' + q.color + ';">' + q.rows.length + '</div>'
+                     + '  </div>'
+                     +    (q.rows.length === 0 ? '<div style="font-size:9.5px;color:var(--tx-3);">No AI items.</div>' :
+                        q.rows.slice(0, 3).map(function (a) {
+                          return '<div style="font-size:9.5px;color:var(--tx);margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+                               + _esc(a.name) + ' <span class="aut-pill" style="color:#34D399;background:rgba(52,211,153,0.16);margin-left:4px;">' + (a.status || 'ON') + '</span></div>';
+                        }).join(''))
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '  <div class="aut-tile">'
+      + '    <div class="aut-tile-lbl">6 · Notification Automation</div>'
+      +      notifAuto.map(function (n) {
+              return '<div class="aut-row" style="align-items:flex-start;">'
+                   + '  <div style="flex:1;min-width:0;">'
+                   + '    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'
+                   + '      <div style="font-size:11px;color:var(--tx);font-weight:800;letter-spacing:.6px;">' + _esc(n.kind) + '</div>'
+                   + '      <div style="display:flex;gap:8px;align-items:center;">'
+                   + '        <span style="font-size:11px;font-family:var(--mono);font-weight:800;color:' + n.color + ';">' + n.count + '</span>'
+                   + '        <span class="aut-pill" style="color:' + stateColor(n.status) + ';background:rgba(251,191,36,0.10);">' + n.status + '</span>'
+                   + '      </div>'
+                   + '    </div>'
+                   + '    <div style="font-size:10px;color:var(--tx-3);line-height:1.5;">' + _esc(n.detail) + '</div>'
+                   + '  </div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '</div>'
+
+      // 7 · Process Monitoring
+      + '<div class="aut-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">7 · Process Monitoring</div>'
+      + '  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">'
+      + '    <div style="text-align:center;padding:14px;border-radius:11px;background:rgba(52,211,153,0.10);">'
+      + '      <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#34D399;text-shadow:0 0 12px rgba(52,211,153,0.55);">' + monitoring.running + '</div>'
+      + '      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">RUNNING</div>'
+      + '    </div>'
+      + '    <div style="text-align:center;padding:14px;border-radius:11px;background:rgba(251,191,36,0.10);">'
+      + '      <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#FBBF24;text-shadow:0 0 12px rgba(251,191,36,0.55);">' + monitoring.waiting + '</div>'
+      + '      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">WAITING</div>'
+      + '    </div>'
+      + '    <div style="text-align:center;padding:14px;border-radius:11px;background:rgba(252,165,165,0.10);">'
+      + '      <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#FCA5A5;text-shadow:0 0 12px rgba(252,165,165,0.55);">' + monitoring.failed + '</div>'
+      + '      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">FAILED</div>'
+      + '    </div>'
+      + '    <div style="text-align:center;padding:14px;border-radius:11px;background:rgba(125,249,255,0.10);">'
+      + '      <div style="font-size:20px;font-weight:900;font-family:var(--mono);color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.55);">' + monitoring.completed + '</div>'
+      + '      <div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">COMPLETED · 24H</div>'
+      + '    </div>'
+      + '  </div>'
+      +    monitoring.rows.map(function (r) {
+            return '<div class="aut-row">'
+                 + '  <div style="flex:1;min-width:0;">'
+                 + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.kind) + '</div>'
+                 + '  </div>'
+                 + '  <span class="aut-pill" style="color:' + stateColor(r.state) + ';background:rgba(251,191,36,0.10);">' + r.state + '</span>'
+                 + '  <span style="font-size:11px;font-family:var(--mono);font-weight:800;color:' + r.color + ';min-width:40px;text-align:right;">' + r.count + '</span>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 8 · Automation Logs
+      + '<div class="aut-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">8 · Automation Logs</div>'
+      + '  <div class="aut-log-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(251,191,36,0.20);padding-bottom:6px;">'
+      + '    <div>TIME</div><div>SOURCE</div><div>ACTION</div><div>STATUS</div><div>DETAIL</div>'
+      + '  </div>'
+      +    logs.map(function (l) {
+            return '<div class="aut-log-row">'
+                 + '  <div style="font-family:var(--mono);color:#FBBF24;font-size:9.5px;text-shadow:0 0 6px rgba(251,191,36,0.55);">' + l.ts + '</div>'
+                 + '  <div style="color:var(--tx);font-weight:700;font-size:9.5px;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + l.source + '</div>'
+                 + '  <div><span class="aut-pill" style="color:' + l.color + ';background:rgba(251,191,36,0.10);">' + l.action + '</span></div>'
+                 + '  <div><span class="aut-pill" style="color:' + stateColor(l.status) + ';background:rgba(251,191,36,0.10);">' + l.status + '</span></div>'
+                 + '  <div style="font-size:10px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(l.detail) + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 9 · Optimization Suggestions
+      + '<div class="aut-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">9 · Optimization Suggestions</div>'
+      +    optimisations.map(function (o, i) {
+            return '<div style="padding:12px 14px;border-radius:12px;background:rgba(251,191,36,0.05);border-left:3px solid ' + o.color + ';margin-bottom:8px;">'
+                 + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;flex-wrap:wrap;gap:6px;">'
+                 + '    <div style="display:flex;align-items:center;gap:8px;">'
+                 + '      <span class="aut-pill" style="color:#FBBF24;background:rgba(251,191,36,0.16);">#' + (i + 1) + '</span>'
+                 + '    </div>'
+                 + '    <span style="font-size:11px;font-family:var(--mono);font-weight:900;color:' + colorFor(o.impact) + ';">IMPACT ' + o.impact + '</span>'
+                 + '  </div>'
+                 + '  <div style="font-size:11.5px;color:var(--tx);font-weight:700;margin-bottom:2px;">' + _esc(o.label) + '</div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;">' + _esc(o.detail) + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 10 · Executive Automation Summary
+      + '<div class="aut-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:24px;">⚙️</span>'
+      + '    <div style="font-size:14px;font-weight:900;color:#FBBF24;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(251,191,36,0.65);">Executive Automation Summary</div>'
+      + '  </div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-automation-center] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Automation Center couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -25466,6 +25943,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-data-center"]')) {
     setTimeout(function () { try { renderFOSDataCenter(); } catch (err) { try { console.error('[fos-data-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-automation-center"]')) {
+    setTimeout(function () { try { renderFOSAutomationCenter(); } catch (err) { try { console.error('[fos-automation-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
