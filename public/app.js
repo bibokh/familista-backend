@@ -535,6 +535,7 @@ async function loadAllData() {
       try { if (typeof renderFOSSecurityCenter        === 'function') renderFOSSecurityCenter();        } catch (_) {}
       try { if (typeof renderFOSDataCenter            === 'function') renderFOSDataCenter();            } catch (_) {}
       try { if (typeof renderFOSAutomationCenter      === 'function') renderFOSAutomationCenter();      } catch (_) {}
+      try { if (typeof renderFOSIntelligencePipeline  === 'function') renderFOSIntelligencePipeline();  } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -796,6 +797,7 @@ function _flushPendingRender() {
     case 'pg-fos-security-center': renderFOSSecurityCenter(); break;
     case 'pg-fos-data-center':     renderFOSDataCenter();     break;
     case 'pg-fos-automation-center': renderFOSAutomationCenter(); break;
+    case 'pg-fos-intelligence-pipeline': renderFOSIntelligencePipeline(); break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -866,7 +868,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -918,6 +920,7 @@ function navTo(page, el) {
   if (page === 'fos-security-center'){ try { renderFOSSecurityCenter(); } catch (e) { try { console.error('[fos-security-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-data-center'){ try { renderFOSDataCenter(); } catch (e) { try { console.error('[fos-data-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-automation-center'){ try { renderFOSAutomationCenter(); } catch (e) { try { console.error('[fos-automation-center] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-intelligence-pipeline'){ try { renderFOSIntelligencePipeline(); } catch (e) { try { console.error('[fos-intelligence-pipeline] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1052,6 +1055,7 @@ function renderAllPages() {
     ${renderFOSSecurityCenterHTML()}
     ${renderFOSDataCenterHTML()}
     ${renderFOSAutomationCenterHTML()}
+    ${renderFOSIntelligencePipelineHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -15971,6 +15975,548 @@ function renderFOSAutomationCenter() {
   }
 }
 
+// ─── Familista OS · Intelligence Pipeline ──────────────────────────────
+// End-to-end connector that wires together FOS Data Intelligence (_dic*),
+// FOS Neural Intelligence (_ni*), FOS Security Operations (_soc*) and
+// FOS Automation Center (_aut*) into one unified workflow. Read-only —
+// none of the source centres are modified. The pipeline reads each
+// stage's public output, detects cross-stage correlations, and
+// auto-generates recommendations + actions deterministically. No
+// backend, no Prisma, no API.
+function _pipSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
+function _pipStages() {
+  // Read each centre's headline signal.
+  var dic = _pipSafe(_dicOverview, []);
+  var dicQuality = _pipSafe(_dicDataQuality, { confidence: 0, missingFields: 0, duplicates: 0 });
+  var diag = _pipSafe(_niDiagnostics, { confidence: 0, completeness: 0, riskLevel: 'LOW', riskScore: 0, recommendationCount: 0 });
+  var threat = _pipSafe(_socThreatLevel, { level: 'LOW', color: '#7DF9FF' });
+  var sec = _pipSafe(_socSecurity, { score: 0 });
+  var autOv = _pipSafe(_autOverview, []);
+  var autHealth = (autOv[5] && typeof autOv[5].v === 'number') ? autOv[5].v : 0;
+  var orcScore = _pipSafe(_orcScore, 0);
+  return [
+    { id:'data',       name:'Data Intelligence',     icon:'🧬', color:'#34D399',
+      headline: dicQuality.confidence,
+      detail:'Data quality ' + (dicQuality.confidence || 0) + '/100 · ' + (dicQuality.missingFields || 0) + ' missing field(s)',
+    },
+    { id:'neural',     name:'Neural Intelligence',   icon:'🧠', color:'#A855F7',
+      headline: diag.confidence,
+      detail:'Neural confidence ' + (diag.confidence || 0) + '/100 · risk ' + (diag.riskLevel || 'LOW') + ' (' + (diag.riskScore || 0) + ')',
+    },
+    { id:'security',   name:'Security Operations',   icon:'🛡️', color:'#FCA5A5',
+      headline: sec.score || 0,
+      detail:'Security ' + (sec.score || 0) + '/100 · threat ' + threat.level,
+    },
+    { id:'automation', name:'Automation Center',     icon:'⚙️', color:'#FBBF24',
+      headline: autHealth,
+      detail:'Automation health ' + autHealth + '/100 · orchestrator ' + orcScore + '/100',
+    },
+  ];
+}
+function _pipEdges() {
+  // Inter-stage signal flow with strength derived from the receiving
+  // stage's confidence vs the sending stage's signal.
+  var s = _pipStages();
+  if (s.length < 4) return [];
+  var avg = function (a, b) { return Math.round(((a || 0) + (b || 0)) / 2); };
+  return [
+    { from:'data',       to:'neural',     strength: avg(s[0].headline, s[1].headline), color:'#7DF9FF', kind:'INSIGHT FEED' },
+    { from:'neural',     to:'security',   strength: avg(s[1].headline, s[2].headline), color:'#A855F7', kind:'RISK FEED' },
+    { from:'security',   to:'automation', strength: avg(s[2].headline, s[3].headline), color:'#FCA5A5', kind:'ALERT FEED' },
+    { from:'automation', to:'data',       strength: avg(s[3].headline, s[0].headline), color:'#FBBF24', kind:'TRIGGER FEEDBACK' },
+  ];
+}
+function _pipCrossSignals() {
+  // Surface cross-centre correlations as observable signals.
+  var dicQ = _pipSafe(_dicDataQuality, { confidence: 100, missingFields: 0 });
+  var dicForecasts = _pipSafe(_dicForecasts, []);
+  var ni  = _pipSafe(_niDiagnostics, { confidence: 100, riskScore: 0 });
+  var niAno = _pipSafe(_niAnomalyDetection, []);
+  var sec = _pipSafe(_socSecurity, { score: 100 });
+  var threat = _pipSafe(_socThreatLevel, { level: 'LOW' });
+  var inc = _pipSafe(_socIncidentQueue, { counts: { OPEN: 0, INVESTIGATING: 0 } });
+  var aut = _pipSafe(_autProcessMonitoring, { failed: 0, waiting: 0 });
+  var signals = [];
+  if (dicQ.confidence < 70 && ni.confidence < 70) {
+    signals.push({
+      kind:'DATA → NEURAL CONFIDENCE GAP',
+      detail:'Both data quality (' + dicQ.confidence + ') and neural confidence (' + ni.confidence + ') are below 70 — predictions risk cascading errors.',
+      strength: 85, color:'#FCA5A5', stages:['DATA','NEURAL'],
+    });
+  }
+  if (niAno.length > 0 && (inc.counts.OPEN + inc.counts.INVESTIGATING) === 0) {
+    signals.push({
+      kind:'NEURAL → SECURITY DRIFT',
+      detail: niAno.length + ' anomaly signal(s) detected but no security incidents recorded — connector recommends opening incidents for traceability.',
+      strength: 75, color:'#FBBF24', stages:['NEURAL','SECURITY'],
+    });
+  }
+  if ((threat.level === 'HIGH' || threat.level === 'CRITICAL') && aut.failed === 0) {
+    signals.push({
+      kind:'SECURITY → AUTOMATION COVERAGE GAP',
+      detail:'Threat level ' + threat.level + ' with no failed automations — no automated containment job is wired for this severity.',
+      strength: 90, color:'#FCA5A5', stages:['SECURITY','AUTOMATION'],
+    });
+  }
+  if (dicQ.missingFields > 0 && dicForecasts.length) {
+    signals.push({
+      kind:'DATA → FORECAST DRIFT',
+      detail: dicQ.missingFields + ' missing field(s) propagate into ' + dicForecasts.length + ' forecast(s); upstream ingestion needs a retry job.',
+      strength: 70, color:'#FBBF24', stages:['DATA','NEURAL'],
+    });
+  }
+  if (aut.waiting > 0 && (inc.counts.OPEN + inc.counts.INVESTIGATING) > 0) {
+    signals.push({
+      kind:'INCIDENT → AUTOMATION BACKPRESSURE',
+      detail: aut.waiting + ' automation(s) waiting while ' + (inc.counts.OPEN + inc.counts.INVESTIGATING) + ' incident(s) are open — pipeline is backpressured.',
+      strength: 80, color:'#A855F7', stages:['SECURITY','AUTOMATION'],
+    });
+  }
+  if (!signals.length) {
+    signals.push({
+      kind:'PIPELINE ALIGNED',
+      detail:'No cross-centre correlation gap detected — all four stages report compatible signal levels.',
+      strength: 30, color:'#34D399', stages:['DATA','NEURAL','SECURITY','AUTOMATION'],
+    });
+  }
+  return signals.slice(0, 6);
+}
+function _pipAutoRecommendations() {
+  // Generate recommendations automatically from cross-stage correlations.
+  // Each rule fires when a specific combination of upstream signals
+  // appears, producing a deterministic recommendation with an explicit
+  // chain of source centres.
+  var dicQ = _pipSafe(_dicDataQuality, { confidence: 100, missingFields: 0, duplicates: 0, incomplete: 0 });
+  var dicQuery = _pipSafe(_dicOverview, []);
+  var dicFresh = (dicQuery[3] && typeof dicQuery[3].v === 'number') ? dicQuery[3].v : 100;
+  var ni  = _pipSafe(_niDiagnostics, { confidence: 100, riskLevel: 'LOW', riskScore: 0 });
+  var niAno = _pipSafe(_niAnomalyDetection, []);
+  var niPred = _pipSafe(_niPredictionEngine, []);
+  var sec = _pipSafe(_socSecurity, { score: 100 });
+  var threat = _pipSafe(_socThreatLevel, { level: 'LOW' });
+  var inc = _pipSafe(_socIncidentQueue, { counts: { OPEN: 0, INVESTIGATING: 0 } });
+  var aut = _pipSafe(_autProcessMonitoring, { failed: 0, waiting: 0, running: 0 });
+  var notifAuto = _pipSafe(_autNotificationAutomation, []);
+  var pushIdle = notifAuto.some(function (n) { return n.kind === 'PUSH' && n.status === 'PLANNED'; });
+  var out = [];
+
+  // Rule 1: Low data + low neural → improve ingestion
+  if (dicQ.confidence < 70 && ni.confidence < 70) {
+    out.push({
+      label:'Add ingestion retry job for incomplete records',
+      detail:'Data confidence ' + dicQ.confidence + '/100 + neural confidence ' + ni.confidence + '/100 — wire a daily backfill cron to lift both upstream.',
+      chain:'DATA → NEURAL → AUTOMATION',
+      action:'CREATE CRON JOB · backfill_incomplete_records · 02:00 daily',
+      impact: 80, urgency: 70, confidence: 84,
+      color:'#FCA5A5',
+    });
+  }
+  // Rule 2: Anomalies but no incidents → open incidents
+  if (niAno.length > 0 && (inc.counts.OPEN + inc.counts.INVESTIGATING) === 0) {
+    out.push({
+      label:'Open security incidents for ' + niAno.length + ' active anomaly signal(s)',
+      detail:'Neural engine flagged anomalies that never reached the security incident queue — link them via a SECURITY · OPEN INCIDENT action.',
+      chain:'NEURAL → SECURITY',
+      action:'OPEN INCIDENT · INC-AUTO · for each anomaly',
+      impact: 75, urgency: 80, confidence: 82,
+      color:'#FBBF24',
+    });
+  }
+  // Rule 3: HIGH threat + no failed jobs → wire containment automation
+  if ((threat.level === 'HIGH' || threat.level === 'CRITICAL') && aut.failed === 0) {
+    out.push({
+      label:'Wire automated containment workflow for ' + threat.level + ' threat path',
+      detail:'Threat level ' + threat.level + ' without a failed automation row indicates no containment job is configured — register one in the Automation Center.',
+      chain:'SECURITY → AUTOMATION',
+      action:'CREATE WORKFLOW · containment_' + threat.level.toLowerCase() + ' · trigger on threat ≥ ' + threat.level,
+      impact: 88, urgency: 85, confidence: 80,
+      color:'#FCA5A5',
+    });
+  }
+  // Rule 4: Missing fields propagate into forecasts → fix ingestion before forecast
+  if (dicQ.missingFields >= 3 && niPred.length >= 2) {
+    out.push({
+      label:'Improve player ingestion to lift ' + niPred.length + ' downstream forecasts',
+      detail:'Forecast engine relies on player records; ' + dicQ.missingFields + ' missing field(s) reduce projection confidence by up to 15 points.',
+      chain:'DATA → NEURAL · FORECAST',
+      action:'UPDATE WORKFLOW · player_ingest_validation · enforce non-null on condition / ovr / position',
+      impact: 70, urgency: 60, confidence: 78,
+      color:'#A855F7',
+    });
+  }
+  // Rule 5: Duplicates detected → deduplication job
+  if (dicQ.duplicates > 0) {
+    out.push({
+      label:'Schedule deduplication job · ' + dicQ.duplicates + ' suspected duplicate(s)',
+      detail:'Duplicates inflate entity counts and bias neural training. Auto-generated weekly cron resolves them.',
+      chain:'DATA → AUTOMATION',
+      action:'CREATE CRON JOB · player_dedupe · 03:00 every Sunday',
+      impact: 60, urgency: 55, confidence: 86,
+      color:'#FBBF24',
+    });
+  }
+  // Rule 6: Pending automations + open incidents → bound queue
+  if (aut.waiting > 0 && (inc.counts.OPEN + inc.counts.INVESTIGATING) > 0) {
+    out.push({
+      label:'Cap automation queue while ' + (inc.counts.OPEN + inc.counts.INVESTIGATING) + ' incident(s) are open',
+      detail:'Backpressure detected — recommend pausing non-critical jobs and routing capacity to incident response automations.',
+      chain:'SECURITY → AUTOMATION',
+      action:'UPDATE SCHEDULER · pause non-critical jobs while incidents > 0',
+      impact: 82, urgency: 90, confidence: 81,
+      color:'#FCA5A5',
+    });
+  }
+  // Rule 7: Push channel planned + active alerts → activate channel
+  if (pushIdle && (threat.level === 'HIGH' || threat.level === 'MEDIUM')) {
+    out.push({
+      label:'Activate push channel — alerts currently land in-app only',
+      detail:'Push channel is planned but inactive; threat level ' + threat.level + ' justifies enabling immediate delivery.',
+      chain:'SECURITY → AUTOMATION · NOTIFICATION',
+      action:'ENABLE CHANNEL · web_push · severity ≥ MEDIUM',
+      impact: 65, urgency: 70, confidence: 76,
+      color:'#A855F7',
+    });
+  }
+  // Rule 8: Low data freshness + healthy automation → add freshness sweep
+  if (dicFresh < 60 && aut.running > 0) {
+    out.push({
+      label:'Add data-freshness sweep to keep DATA stage above 70',
+      detail:'Data freshness ' + dicFresh + '% — schedule a 30-minute heartbeat ingest while automation worker is online.',
+      chain:'DATA → AUTOMATION',
+      action:'CREATE CRON JOB · data_freshness_sweep · */30 * * * *',
+      impact: 60, urgency: 60, confidence: 75,
+      color:'#7DF9FF',
+    });
+  }
+  // Always emit a baseline alignment note when no rules fire.
+  if (!out.length) {
+    out.push({
+      label:'Pipeline aligned — no auto-recommendations generated',
+      detail:'All four stages reporting compatible signal levels. Maintain current programme.',
+      chain:'DATA + NEURAL + SECURITY + AUTOMATION',
+      action:'OBSERVE · no action required',
+      impact: 30, urgency: 30, confidence: 90,
+      color:'#34D399',
+    });
+  }
+  out.sort(function (a, b) { return (b.impact + b.urgency + b.confidence) - (a.impact + a.urgency + a.confidence); });
+  return out.slice(0, 8);
+}
+function _pipAutoActions() {
+  // Translate each recommendation into a concrete executable action
+  // mapped to an executor system. Status is suggested (PROPOSED) since
+  // execution is read-only.
+  var recs = _pipAutoRecommendations();
+  return recs.map(function (r, i) {
+    var act = r.action || '—';
+    var executor = /CRON|JOB|SCHEDULER/.test(act) ? 'AUTOMATION CENTER'
+                 : /WORKFLOW/.test(act)             ? 'AUTOMATION CENTER'
+                 : /INCIDENT/.test(act)             ? 'SECURITY OPERATIONS'
+                 : /CHANNEL|NOTIFICATION|PUSH/.test(act) ? 'AUTOMATION CENTER'
+                 : /OBSERVE/.test(act)              ? 'PLATFORM'
+                 :                                     'PLATFORM';
+    return {
+      id: 'ACT-' + (1000 + i),
+      title: r.label,
+      action: act,
+      executor: executor,
+      status: act === 'OBSERVE · no action required' ? 'OBSERVE' : 'PROPOSED',
+      chain: r.chain,
+      impact: r.impact,
+      urgency: r.urgency,
+      confidence: r.confidence,
+      color: r.color,
+    };
+  });
+}
+function _pipWorkflowHealth() {
+  var stages = _pipStages();
+  var avg = stages.length ? Math.round(stages.reduce(function (a, s) { return a + (s.headline || 0); }, 0) / stages.length) : 0;
+  var edges = _pipEdges();
+  var avgEdge = edges.length ? Math.round(edges.reduce(function (a, e) { return a + (e.strength || 0); }, 0) / edges.length) : 0;
+  var crossSig = _pipCrossSignals();
+  var redSignals = crossSig.filter(function (s) { return s.strength >= 80 && s.color !== '#34D399'; }).length;
+  var health = Math.max(0, Math.min(100, Math.round(avg * 0.5 + avgEdge * 0.4 - redSignals * 10)));
+  var band;
+  if (health >= 85)      band = { name:'ALIGNED',     color:'#34D399' };
+  else if (health >= 70) band = { name:'HEALTHY',     color:'#7DF9FF' };
+  else if (health >= 55) band = { name:'WATCH',       color:'#FBBF24' };
+  else                    band = { name:'INTERVENE',   color:'#FCA5A5' };
+  return { health: health, avgStage: avg, avgEdge: avgEdge, redSignals: redSignals, band: band };
+}
+function _pipExecutionTrace() {
+  // Synthesise an execution trace from orchestrator streams + auto actions.
+  var streams = _pipSafe(_orcLiveStreams, []);
+  var actions = _pipAutoActions();
+  var trace = [];
+  streams.slice(0, 5).forEach(function (s) {
+    trace.push({ ts: s.ts || 'T-0s', stage: s.source || 'PLATFORM', kind: s.kind || 'EVENT', detail: s.text || '', color: s.color || '#7DF9FF' });
+  });
+  actions.slice(0, 5).forEach(function (a, i) {
+    trace.push({ ts:'T-' + ((i + 2) * 25) + 's', stage:'PIPELINE', kind:'AUTO-REC', detail: a.title, color: a.color || '#A855F7' });
+  });
+  return trace.slice(0, 12);
+}
+function _pipSummary() {
+  var s = _pipStages();
+  var h = _pipWorkflowHealth();
+  var recs = _pipAutoRecommendations();
+  var actions = _pipAutoActions();
+  var critical = actions.filter(function (a) { return a.impact + a.urgency >= 150; }).length;
+  return 'FOS Intelligence Pipeline · ' + s.length + ' stages connected · workflow health ' + h.health + '/100 (' + h.band.name + '). ' +
+         recs.length + ' auto-recommendation(s) generated from cross-centre correlations · ' + actions.length + ' action(s) proposed (' + critical + ' high-priority). ' +
+         'End-to-end loop closes Data → Neural → Security → Automation → Data with continuous feedback.';
+}
+function _ensurePipStyles() {
+  if (document.getElementById('pip-styles')) return;
+  var s = document.createElement('style');
+  s.id = 'pip-styles';
+  s.textContent = ''
+    + '.pip-page{padding:16px 18px;}'
+    + '.pip-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;'
+    + '  background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);'
+    + '  border:1px solid rgba(125,249,255,0.34);'
+    + '  box-shadow:0 30px 80px -20px rgba(0,0,0,0.90),0 0 90px -16px rgba(125,249,255,0.34),0 0 70px -16px rgba(168,85,247,0.28),0 0 50px -16px rgba(251,191,36,0.20),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.pip-card::after{content:"";position:absolute;inset:0;pointer-events:none;'
+    + '  background:radial-gradient(at top right,rgba(125,249,255,0.16),transparent 55%),'
+    + '             radial-gradient(at bottom left,rgba(168,85,247,0.16),transparent 55%),'
+    + '             radial-gradient(at center,rgba(251,191,36,0.10),transparent 70%);}'
+    + '.pip-brand{position:relative;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;'
+    + '  background:linear-gradient(90deg,rgba(125,249,255,0.30),rgba(168,85,247,0.22) 35%,rgba(251,191,36,0.22) 70%,rgba(125,249,255,0.30));'
+    + '  border-bottom:1px solid rgba(125,249,255,0.42);}'
+    + '.pip-brand-logo{font-size:15px;font-weight:900;letter-spacing:3.2px;'
+    + '  background:linear-gradient(90deg,#7DF9FF,#A855F7,#FBBF24,#FCA5A5,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;'
+    + '  text-shadow:0 0 18px rgba(125,249,255,0.65);}'
+    + '.pip-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.pip-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.pip-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.pip-flow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}'
+    + '.pip-stage{position:relative;padding:18px 14px;border-radius:16px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 30%,rgba(125,249,255,0.20),rgba(168,85,247,0.10) 60%,rgba(251,191,36,0.06));'
+    + '  border:1px solid rgba(125,249,255,0.45);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.08),0 18px 44px -16px rgba(0,0,0,0.65);'
+    + '  transition:transform .2s ease,box-shadow .2s ease;}'
+    + '.pip-stage:hover{transform:translateY(-2px);box-shadow:0 0 32px -10px rgba(125,249,255,0.45),0 0 22px -8px rgba(168,85,247,0.32);}'
+    + '.pip-stage::after{content:"→";position:absolute;right:-14px;top:50%;transform:translateY(-50%);font-size:22px;color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.7);z-index:2;}'
+    + '.pip-stage:last-child::after{content:"";}'
+    + '.pip-stage-icon{font-size:32px;margin-bottom:8px;filter:drop-shadow(0 0 12px rgba(125,249,255,0.55));}'
+    + '.pip-stage-name{font-size:11px;font-weight:900;letter-spacing:1.6px;text-transform:uppercase;color:#DBFEFF;margin-bottom:6px;}'
+    + '.pip-stage-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;margin-bottom:6px;text-shadow:0 0 14px currentColor;}'
+    + '.pip-stage-detail{font-size:9.5px;color:var(--tx-3);line-height:1.45;}'
+    + '.pip-tile{position:relative;padding:16px;border-radius:15px;'
+    + '  background:linear-gradient(135deg,rgba(125,249,255,0.06),rgba(168,85,247,0.05) 50%,rgba(251,191,36,0.04));'
+    + '  border:1px solid rgba(125,249,255,0.28);'
+    + '  box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.pip-tile-lbl{font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2.2px;text-transform:uppercase;margin-bottom:12px;text-shadow:0 0 10px rgba(125,249,255,0.45);}'
+    + '.pip-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.pip-bar{height:7px;border-radius:5px;background:rgba(125,249,255,0.10);overflow:hidden;margin-top:6px;border:1px solid rgba(125,249,255,0.20);}'
+    + '.pip-bar-fill{height:100%;border-radius:5px;box-shadow:0 0 10px currentColor;}'
+    + '.pip-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:11px;}'
+    + '.pip-row:last-child{border-bottom:none;}'
+    + '.pip-rec{position:relative;padding:14px 16px;margin-bottom:10px;border-radius:13px;background:rgba(125,249,255,0.04);border:1px solid rgba(125,249,255,0.18);border-left:4px solid var(--fos-primary,#00F5FF);}'
+    + '.pip-rec:last-child{margin-bottom:0;}'
+    + '.pip-chain{font-size:9.5px;font-weight:900;letter-spacing:1.4px;color:#7DF9FF;font-family:var(--mono);text-shadow:0 0 6px rgba(125,249,255,0.55);}'
+    + '.pip-action{font-size:10px;color:#FBBF24;background:rgba(251,191,36,0.10);padding:6px 10px;border-radius:8px;font-family:var(--mono);margin-top:6px;letter-spacing:.4px;border:1px solid rgba(251,191,36,0.20);}'
+    + '.pip-action-row{display:grid;grid-template-columns:80px 1fr 110px 110px 70px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:11px;}'
+    + '.pip-action-row:last-child{border-bottom:none;}'
+    + '.pip-trace-row{display:grid;grid-template-columns:60px 110px 90px 1fr;gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:10.5px;}'
+    + '.pip-trace-row:last-child{border-bottom:none;}'
+    + '.pip-health-tile{padding:18px;border-radius:18px;text-align:center;'
+    + '  background:radial-gradient(circle at 50% 35%,rgba(125,249,255,0.26),rgba(168,85,247,0.16) 50%,rgba(251,191,36,0.10) 75%,transparent);'
+    + '  border:1px solid rgba(125,249,255,0.50);}'
+    + '.pip-summary{position:relative;padding:28px;border-radius:22px;'
+    + '  background:linear-gradient(135deg,rgba(125,249,255,0.26),rgba(168,85,247,0.20) 50%,rgba(251,191,36,0.20));'
+    + '  border:1.5px solid rgba(125,249,255,0.56);border-left:12px solid #7DF9FF;'
+    + '  box-shadow:0 32px 80px -16px rgba(0,0,0,0.9),0 0 90px -10px rgba(125,249,255,0.56),0 0 70px -10px rgba(168,85,247,0.46),0 0 60px -10px rgba(251,191,36,0.34);}'
+    + '@media (max-width:1024px){.pip-grid-3{grid-template-columns:repeat(2,1fr);}.pip-grid-4{grid-template-columns:repeat(2,1fr);}.pip-flow{grid-template-columns:repeat(2,1fr);}.pip-stage::after{content:"";}.pip-action-row{grid-template-columns:70px 1fr 90px 90px 60px;font-size:10px;}.pip-trace-row{grid-template-columns:50px 90px 70px 1fr;font-size:10px;}}'
+    + '@media (max-width:600px){.pip-grid-2,.pip-grid-3,.pip-grid-4{grid-template-columns:1fr;}.pip-flow{grid-template-columns:1fr;}.pip-action-row{grid-template-columns:1fr 70px;}.pip-action-row > :nth-child(1),.pip-action-row > :nth-child(4),.pip-action-row > :nth-child(5){display:none;}.pip-trace-row{grid-template-columns:50px 1fr;}.pip-trace-row > :nth-child(2),.pip-trace-row > :nth-child(3){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSIntelligencePipelineHTML() {
+  return '<div class="page" id="pg-fos-intelligence-pipeline">'
+       + '  <div id="fos-intelligence-pipeline-content">'
+       + '    <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Intelligence Pipeline…</div>'
+       + '  </div>'
+       + '</div>';
+}
+function renderFOSIntelligencePipeline() {
+  var el = document.getElementById('fos-intelligence-pipeline-content');
+  if (!el) return;
+  try { _ensurePipStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);">'
+      + '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div>'
+      + '<div style="font-size:11px;">Pipeline activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var stages = _pipStages();
+    var edges = _pipEdges();
+    var signals = _pipCrossSignals();
+    var recs = _pipAutoRecommendations();
+    var actions = _pipAutoActions();
+    var health = _pipWorkflowHealth();
+    var trace = _pipExecutionTrace();
+    var summary = _pipSummary();
+
+    var colorFor = function (v) { return v >= 80 ? '#34D399' : v >= 65 ? '#7DF9FF' : v >= 50 ? '#FBBF24' : '#FCA5A5'; };
+    var stateColor = function (s) { return s === 'OBSERVE' ? '#34D399' : s === 'PROPOSED' ? '#FBBF24' : '#A855F7'; };
+
+    var html = ''
+      + '<div class="pip-page">'
+
+      // Brand bar + Pipeline Overview
+      + '<div class="pip-card">'
+      + '  <div class="pip-brand">'
+      + '    <div class="pip-brand-logo">★ FAMILISTA OPERATING SYSTEM · INTELLIGENCE PIPELINE</div>'
+      + '    <span class="fos-ai-pulse">PIPELINE LIVE</span>'
+      + '  </div>'
+      + '  <div style="padding:24px 26px;">'
+      + '    <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">1 · End-to-End Pipeline Overview</div>'
+      + '    <div class="pip-flow">'
+      +        stages.map(function (s) {
+                return '<div class="pip-stage">'
+                     + '  <div class="pip-stage-icon">' + s.icon + '</div>'
+                     + '  <div class="pip-stage-name" style="color:' + s.color + ';">' + _esc(s.name) + '</div>'
+                     + '  <div class="pip-stage-val" style="color:' + s.color + ';">' + s.headline + '</div>'
+                     + '  <div class="pip-stage-detail">' + _esc(s.detail) + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px;">'
+      +        edges.map(function (e) {
+                return '<div style="padding:10px 12px;border-radius:10px;background:rgba(125,249,255,0.05);border:1px solid rgba(125,249,255,0.20);">'
+                     + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'
+                     + '    <div style="font-size:9px;font-weight:900;letter-spacing:1.2px;color:' + e.color + ';text-transform:uppercase;">' + e.kind + '</div>'
+                     + '    <div style="font-size:13px;font-weight:900;font-family:var(--mono);color:' + e.color + ';">' + e.strength + '</div>'
+                     + '  </div>'
+                     + '  <div class="pip-bar"><div class="pip-bar-fill" style="width:' + Math.max(0, Math.min(100, e.strength)) + '%;background:' + e.color + ';color:' + e.color + ';"></div></div>'
+                     + '  <div style="font-size:9px;color:var(--tx-3);margin-top:5px;letter-spacing:.5px;">' + e.from.toUpperCase() + ' → ' + e.to.toUpperCase() + '</div>'
+                     + '</div>';
+              }).join('')
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 2 · Cross-Stage Signals + Workflow Health
+      + '<div class="pip-grid-2">'
+      + '  <div class="pip-tile">'
+      + '    <div class="pip-tile-lbl">2 · Cross-Center Signals</div>'
+      +      signals.map(function (s) {
+              return '<div class="pip-rec" style="border-left-color:' + s.color + ';">'
+                   + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px;">'
+                   + '    <div style="display:flex;align-items:center;gap:8px;">'
+                   + '      <span class="pip-pill" style="color:' + s.color + ';background:rgba(125,249,255,0.10);">' + _esc(s.kind) + '</span>'
+                   + '    </div>'
+                   + '    <span class="pip-chain">' + s.stages.join(' → ') + '</span>'
+                   + '  </div>'
+                   + '  <div style="font-size:10.5px;color:var(--tx);line-height:1.55;margin-bottom:5px;">' + _esc(s.detail) + '</div>'
+                   + '  <div class="pip-bar"><div class="pip-bar-fill" style="width:' + s.strength + '%;background:' + s.color + ';color:' + s.color + ';"></div></div>'
+                   + '</div>';
+            }).join('')
+      + '  </div>'
+      + '  <div class="pip-tile">'
+      + '    <div class="pip-tile-lbl">5 · Workflow Health</div>'
+      + '    <div class="pip-health-tile" style="margin-bottom:14px;">'
+      + '      <div style="font-size:9.5px;font-weight:900;color:#7DF9FF;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:8px;">PIPELINE HEALTH</div>'
+      + '      <div style="font-size:54px;font-weight:900;font-family:var(--mono);color:' + health.band.color + ';line-height:1;text-shadow:0 0 22px ' + health.band.color + ',0 0 36px rgba(125,249,255,0.32);">' + health.health + '</div>'
+      + '      <div style="font-size:13px;font-weight:900;letter-spacing:2px;color:' + health.band.color + ';text-transform:uppercase;margin-top:8px;">' + health.band.name + '</div>'
+      + '    </div>'
+      + '    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(125,249,255,0.06);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:' + colorFor(health.avgStage) + ';">' + health.avgStage + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">AVG STAGE</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(168,85,247,0.06);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:' + colorFor(health.avgEdge) + ';">' + health.avgEdge + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">AVG EDGE</div>'
+      + '      </div>'
+      + '      <div style="text-align:center;padding:10px;border-radius:9px;background:rgba(252,165,165,0.06);">'
+      + '        <div style="font-size:16px;font-weight:900;font-family:var(--mono);color:' + (health.redSignals > 0 ? '#FCA5A5' : '#34D399') + ';">' + health.redSignals + '</div>'
+      + '        <div style="font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.6px;">RED SIGNALS</div>'
+      + '      </div>'
+      + '    </div>'
+      + '  </div>'
+      + '</div>'
+
+      // 3 · Auto-Generated Recommendations
+      + '<div class="pip-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">3 · Auto-Generated Recommendations</div>'
+      +    recs.map(function (r, i) {
+            return '<div class="pip-rec" style="border-left-color:' + r.color + ';">'
+                 + '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px;">'
+                 + '    <div style="display:flex;align-items:center;gap:8px;">'
+                 + '      <span class="pip-pill" style="color:' + r.color + ';background:rgba(125,249,255,0.12);">#' + (i + 1) + '</span>'
+                 + '      <span class="pip-chain">' + _esc(r.chain) + '</span>'
+                 + '    </div>'
+                 + '    <div style="display:flex;gap:8px;font-size:9px;font-family:var(--mono);color:var(--tx-3);letter-spacing:.6px;">'
+                 + '      <span>IMP ' + r.impact + '</span><span>URG ' + r.urgency + '</span><span>CONF ' + r.confidence + '</span>'
+                 + '    </div>'
+                 + '  </div>'
+                 + '  <div style="font-size:12px;color:var(--tx);font-weight:700;margin-bottom:3px;">' + _esc(r.label) + '</div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx-2);line-height:1.55;margin-bottom:6px;">' + _esc(r.detail) + '</div>'
+                 + '  <div class="pip-action">→ ' + _esc(r.action) + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // 4 · Auto-Generated Actions
+      + '<div class="pip-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">4 · Auto-Generated Actions Queue</div>'
+      + '  <div class="pip-action-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(125,249,255,0.20);padding-bottom:6px;">'
+      + '    <div>ID</div><div>ACTION</div><div>EXECUTOR</div><div>CHAIN</div><div>STATUS</div>'
+      + '  </div>'
+      +    actions.map(function (a) {
+            return '<div class="pip-action-row">'
+                 + '  <div style="font-size:10px;font-family:var(--mono);color:#7DF9FF;font-weight:900;text-shadow:0 0 6px rgba(125,249,255,0.50);">' + a.id + '</div>'
+                 + '  <div style="min-width:0;">'
+                 + '    <div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.title) + '</div>'
+                 + '    <div style="font-size:10px;color:#FBBF24;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.action) + '</div>'
+                 + '  </div>'
+                 + '  <div style="font-size:10px;color:var(--tx);font-weight:700;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + a.executor + '</div>'
+                 + '  <div><span class="pip-chain">' + _esc(a.chain) + '</span></div>'
+                 + '  <div><span class="pip-pill" style="color:' + stateColor(a.status) + ';background:rgba(125,249,255,0.12);">' + a.status + '</span></div>'
+                 + '</div>';
+          }).join('')
+      + '  <div style="font-size:10px;color:var(--tx-3);margin-top:10px;line-height:1.55;">Auto-generated actions are PROPOSED — execution sits in the Automation Center / Security Operations queue under the existing Admin oversight model. This view is read-only.</div>'
+      + '</div>'
+
+      // 6 · Execution Trace
+      + '<div class="pip-card" style="padding:22px 26px;">'
+      + '  <div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">6 · Execution Trace</div>'
+      + '  <div class="pip-trace-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(125,249,255,0.20);padding-bottom:6px;">'
+      + '    <div>T</div><div>STAGE</div><div>KIND</div><div>EVENT</div>'
+      + '  </div>'
+      +    trace.map(function (t) {
+            return '<div class="pip-trace-row">'
+                 + '  <div style="font-family:var(--mono);color:#7DF9FF;font-size:9.5px;text-shadow:0 0 6px rgba(125,249,255,0.55);">' + t.ts + '</div>'
+                 + '  <div style="color:var(--tx);font-weight:700;font-size:9.5px;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + t.stage + '</div>'
+                 + '  <div><span class="pip-pill" style="color:' + t.color + ';background:rgba(125,249,255,0.10);">' + t.kind + '</span></div>'
+                 + '  <div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(t.detail) + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+
+      // Summary banner
+      + '<div class="pip-summary">'
+      + '  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">'
+      + '    <span style="font-size:26px;">🔗</span>'
+      + '    <div style="font-size:15px;font-weight:900;color:#7DF9FF;letter-spacing:2.6px;text-transform:uppercase;text-shadow:0 0 16px rgba(125,249,255,0.70);">Pipeline Brief</div>'
+      + '  </div>'
+      + '  <div style="font-size:14.5px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '</div>'
+
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-intelligence-pipeline] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">'
+      + '<div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Intelligence Pipeline couldn\'t render</div>'
+      + '<div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div>'
+      + '</div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -25946,6 +26492,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-automation-center"]')) {
     setTimeout(function () { try { renderFOSAutomationCenter(); } catch (err) { try { console.error('[fos-automation-center] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-intelligence-pipeline"]')) {
+    setTimeout(function () { try { renderFOSIntelligencePipeline(); } catch (err) { try { console.error('[fos-intelligence-pipeline] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
