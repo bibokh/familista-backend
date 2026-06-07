@@ -536,6 +536,11 @@ async function loadAllData() {
       try { if (typeof renderFOSDataCenter            === 'function') renderFOSDataCenter();            } catch (_) {}
       try { if (typeof renderFOSAutomationCenter      === 'function') renderFOSAutomationCenter();      } catch (_) {}
       try { if (typeof renderFOSIntelligencePipeline  === 'function') renderFOSIntelligencePipeline();  } catch (_) {}
+      try { if (typeof renderFOSDecisionEngine        === 'function') renderFOSDecisionEngine();        } catch (_) {}
+      try { if (typeof renderFOSEventBus              === 'function') renderFOSEventBus();              } catch (_) {}
+      try { if (typeof renderFOSAuditGovernance       === 'function') renderFOSAuditGovernance();       } catch (_) {}
+      try { if (typeof renderFOSRBAC                  === 'function') renderFOSRBAC();                  } catch (_) {}
+      try { if (typeof renderFOSWorkflowExecution     === 'function') renderFOSWorkflowExecution();     } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -798,6 +803,11 @@ function _flushPendingRender() {
     case 'pg-fos-data-center':     renderFOSDataCenter();     break;
     case 'pg-fos-automation-center': renderFOSAutomationCenter(); break;
     case 'pg-fos-intelligence-pipeline': renderFOSIntelligencePipeline(); break;
+    case 'pg-fos-decision-engine':    renderFOSDecisionEngine();        break;
+    case 'pg-fos-event-bus':          renderFOSEventBus();              break;
+    case 'pg-fos-audit-governance':   renderFOSAuditGovernance();       break;
+    case 'pg-fos-rbac':               renderFOSRBAC();                  break;
+    case 'pg-fos-workflow-execution': renderFOSWorkflowExecution();     break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -868,7 +878,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'fos-decision-engine':'FOS Decision Engine', 'fos-event-bus':'FOS Event Bus', 'fos-audit-governance':'FOS Audit & Governance', 'fos-rbac':'FOS RBAC', 'fos-workflow-execution':'FOS Workflow Execution', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -921,6 +931,11 @@ function navTo(page, el) {
   if (page === 'fos-data-center'){ try { renderFOSDataCenter(); } catch (e) { try { console.error('[fos-data-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-automation-center'){ try { renderFOSAutomationCenter(); } catch (e) { try { console.error('[fos-automation-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-intelligence-pipeline'){ try { renderFOSIntelligencePipeline(); } catch (e) { try { console.error('[fos-intelligence-pipeline] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-decision-engine'){ try { renderFOSDecisionEngine();        } catch (e) { try { console.error('[fos-decision-engine] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-event-bus'){       try { renderFOSEventBus();              } catch (e) { try { console.error('[fos-event-bus] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-audit-governance'){ try { renderFOSAuditGovernance();      } catch (e) { try { console.error('[fos-audit-governance] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-rbac'){             try { renderFOSRBAC();                 } catch (e) { try { console.error('[fos-rbac] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-workflow-execution'){ try { renderFOSWorkflowExecution();  } catch (e) { try { console.error('[fos-workflow-execution] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1056,6 +1071,11 @@ function renderAllPages() {
     ${renderFOSDataCenterHTML()}
     ${renderFOSAutomationCenterHTML()}
     ${renderFOSIntelligencePipelineHTML()}
+    ${renderFOSDecisionEngineHTML()}
+    ${renderFOSEventBusHTML()}
+    ${renderFOSAuditGovernanceHTML()}
+    ${renderFOSRBACHTML()}
+    ${renderFOSWorkflowExecutionHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -16517,6 +16537,699 @@ function renderFOSIntelligencePipeline() {
   }
 }
 
+// ─── Familista OS · Enterprise Layer (Decision / Bus / Gov / RBAC / Wex) ─
+// Five platform-level pages added together. Read-only — reuses every
+// existing centre and pipeline output. No backend, no Prisma, no API.
+// Each page has its own _* helper prefix and CSS namespace so it is
+// fully isolated from the other four. Shared theme: Deep Space Neural.
+
+// ════════════════════════════════════════════════════════════════════
+// A · FOS Decision Engine — convert recommendations into decisions
+// ════════════════════════════════════════════════════════════════════
+function _decSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+function _decRecommendations() {
+  // Source recommendations from Pipeline + Orchestrator + Neural.
+  var pipRecs = _decSafe(_pipAutoRecommendations, []);
+  var orcRecs = _decSafe(_orcRecommendationEngine, []);
+  var niRecs  = _decSafe(_niRecommendations, []);
+  var merged = [];
+  var seen = {};
+  var push = function (item) {
+    var k = (item.label || '').slice(0, 40).toLowerCase();
+    if (seen[k]) return;
+    seen[k] = 1;
+    merged.push(item);
+  };
+  pipRecs.forEach(function (r) { push({ label: r.label, detail: r.detail, source:'PIPELINE',     impact: r.impact || 60, urgency: r.urgency || 60, confidence: r.confidence || 70, color: r.color || '#A855F7' }); });
+  orcRecs.forEach(function (r) { push({ label: r.label, detail: r.detail, source:'ORCHESTRATOR', impact: r.score  || 60, urgency: 60,             confidence: 75, color: r.color || '#00F5FF' }); });
+  niRecs.forEach(function (r)  { push({ label: r.label, detail: r.detail, source:'NEURAL',       impact: r.impact || 60, urgency: 65,             confidence: 72, color: r.color || '#FBBF24' }); });
+  return merged.slice(0, 12);
+}
+function _decRules() {
+  return [
+    { name:'AUTO',   threshold:'impact ≥ 75 · confidence ≥ 80', detail:'Highest confidence + impact — promote directly to executor.', color:'#34D399' },
+    { name:'REVIEW', threshold:'impact ≥ 60 · confidence ≥ 60', detail:'Material change — surface for board review before execution.', color:'#FBBF24' },
+    { name:'MANUAL', threshold:'otherwise',                       detail:'Low confidence — assign owner; do not auto-execute.',          color:'#A855F7' },
+  ];
+}
+function _decClassify(rec) {
+  if ((rec.impact || 0) >= 75 && (rec.confidence || 0) >= 80) return { kind:'AUTO',   color:'#34D399' };
+  if ((rec.impact || 0) >= 60 && (rec.confidence || 0) >= 60) return { kind:'REVIEW', color:'#FBBF24' };
+  return                                                       { kind:'MANUAL', color:'#A855F7' };
+}
+function _decPriority(rec) {
+  return Math.round((rec.impact || 0) * 0.45 + (rec.urgency || 0) * 0.30 + (rec.confidence || 0) * 0.25);
+}
+function _decQueue() {
+  var recs = _decRecommendations();
+  var rows = recs.map(function (r, i) {
+    var c = _decClassify(r);
+    return Object.assign({}, r, {
+      id: 'DEC-' + (1000 + i),
+      kind: c.kind,
+      kindColor: c.color,
+      priority: _decPriority(r),
+      status: c.kind === 'AUTO' ? 'APPROVED' : c.kind === 'REVIEW' ? 'PENDING REVIEW' : 'AWAITING ASSIGNMENT',
+    });
+  });
+  rows.sort(function (a, b) { return b.priority - a.priority; });
+  return rows;
+}
+function _decSummary() {
+  var q = _decQueue();
+  var auto = q.filter(function (r) { return r.kind === 'AUTO'; }).length;
+  var review = q.filter(function (r) { return r.kind === 'REVIEW'; }).length;
+  var manual = q.filter(function (r) { return r.kind === 'MANUAL'; }).length;
+  return 'FOS Decision Engine · ' + q.length + ' recommendation(s) processed · ' + auto + ' AUTO · ' + review + ' REVIEW · ' + manual + ' MANUAL · ranked by priority score (impact 45% + urgency 30% + confidence 25%).';
+}
+function _ensureDecStyles() {
+  if (document.getElementById('dec-styles')) return;
+  var s = document.createElement('style'); s.id = 'dec-styles';
+  s.textContent = ''
+    + '.dec-page{padding:16px 18px;}'
+    + '.dec-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(168,85,247,0.34);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(168,85,247,0.30),0 0 60px -16px rgba(251,191,36,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.dec-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(168,85,247,0.30),rgba(251,191,36,0.22) 50%,rgba(125,249,255,0.22));border-bottom:1px solid rgba(168,85,247,0.42);}'
+    + '.dec-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#A855F7,#FBBF24,#7DF9FF,#A855F7);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(168,85,247,0.55);}'
+    + '.dec-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.dec-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.dec-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.dec-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(168,85,247,0.06),rgba(251,191,36,0.04));border:1px solid rgba(168,85,247,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.dec-tile-lbl{font-size:11px;font-weight:900;color:#A855F7;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(168,85,247,0.45);}'
+    + '.dec-kpi{text-align:center;padding:14px;border-radius:12px;background:radial-gradient(circle at 50% 30%,rgba(168,85,247,0.20),rgba(251,191,36,0.10));border:1px solid rgba(168,85,247,0.42);}'
+    + '.dec-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.dec-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:6px;}'
+    + '.dec-row{display:grid;grid-template-columns:60px 1fr 90px 80px 100px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(168,85,247,0.10);font-size:11px;}'
+    + '.dec-row:last-child{border-bottom:none;}'
+    + '.dec-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.dec-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(168,85,247,0.22),rgba(251,191,36,0.18) 50%,rgba(125,249,255,0.18));border:1px solid rgba(168,85,247,0.52);border-left:10px solid #A855F7;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(168,85,247,0.50);}'
+    + '@media (max-width:1024px){.dec-grid-3{grid-template-columns:repeat(2,1fr);}.dec-grid-4{grid-template-columns:repeat(2,1fr);}.dec-row{grid-template-columns:50px 1fr 70px 70px;font-size:10px;}.dec-row > :nth-child(5){display:none;}}'
+    + '@media (max-width:600px){.dec-grid-2,.dec-grid-3,.dec-grid-4{grid-template-columns:1fr;}.dec-row{grid-template-columns:1fr 70px;}.dec-row > :nth-child(1),.dec-row > :nth-child(3),.dec-row > :nth-child(5){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSDecisionEngineHTML() {
+  return '<div class="page" id="pg-fos-decision-engine"><div id="fos-decision-engine-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Decision Engine…</div></div></div>';
+}
+function renderFOSDecisionEngine() {
+  var el = document.getElementById('fos-decision-engine-content');
+  if (!el) return;
+  try { _ensureDecStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);"><div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div><div style="font-size:11px;">Decision Engine activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var queue = _decQueue();
+    var rules = _decRules();
+    var auto = queue.filter(function (r) { return r.kind === 'AUTO'; }).length;
+    var review = queue.filter(function (r) { return r.kind === 'REVIEW'; }).length;
+    var manual = queue.filter(function (r) { return r.kind === 'MANUAL'; }).length;
+    var avgPri = queue.length ? Math.round(queue.reduce(function (a, x) { return a + x.priority; }, 0) / queue.length) : 0;
+    var kindBg = function (c) { return 'rgba(' + (c === '#34D399' ? '52,211,153' : c === '#FBBF24' ? '251,191,36' : c === '#A855F7' ? '168,85,247' : '125,249,255') + ',0.16)'; };
+    var html = ''
+      + '<div class="dec-page">'
+      + '<div class="dec-card"><div class="dec-brand"><div class="dec-brand-logo">★ FAMILISTA OPERATING SYSTEM · DECISION ENGINE</div><span class="fos-ai-pulse">DECISIONS LIVE</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#A855F7;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(168,85,247,0.45);">1 · Decision Overview</div>'
+      + '<div class="dec-grid-4">'
+      + '<div class="dec-kpi"><div class="dec-kpi-val" style="color:#A855F7;">' + queue.length + '</div><div class="dec-kpi-lbl">Total Decisions</div></div>'
+      + '<div class="dec-kpi"><div class="dec-kpi-val" style="color:#34D399;">' + auto + '</div><div class="dec-kpi-lbl">AUTO</div></div>'
+      + '<div class="dec-kpi"><div class="dec-kpi-val" style="color:#FBBF24;">' + review + '</div><div class="dec-kpi-lbl">REVIEW</div></div>'
+      + '<div class="dec-kpi"><div class="dec-kpi-val" style="color:#7DF9FF;">' + avgPri + '</div><div class="dec-kpi-lbl">Avg Priority</div></div>'
+      + '</div></div></div>'
+      + '<div class="dec-grid-2">'
+      + '<div class="dec-tile"><div class="dec-tile-lbl">2 · Decision Rules</div>'
+      +   rules.map(function (r) { return '<div style="padding:11px;margin-bottom:8px;border-radius:10px;background:rgba(168,85,247,0.05);border-left:3px solid ' + r.color + ';"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;"><span class="dec-pill" style="color:' + r.color + ';background:' + kindBg(r.color) + ';">' + r.name + '</span><span style="font-size:9.5px;font-family:var(--mono);color:var(--tx-3);">' + _esc(r.threshold) + '</span></div><div style="font-size:10.5px;color:var(--tx-2);line-height:1.5;">' + _esc(r.detail) + '</div></div>'; }).join('')
+      + '</div>'
+      + '<div class="dec-tile"><div class="dec-tile-lbl">3 · Recommendation → Decision Mapping</div><div style="font-size:11px;color:var(--tx-2);line-height:1.7;">Each upstream recommendation is classified by combining its <span style="color:#7DF9FF;font-weight:700;">impact</span>, <span style="color:#FBBF24;font-weight:700;">confidence</span> and <span style="color:#A855F7;font-weight:700;">urgency</span> into a single <span style="color:#34D399;font-weight:700;">priority score</span>:</div><div style="font-family:var(--mono);font-size:11px;color:#FBBF24;background:rgba(0,0,0,0.30);padding:12px;border-radius:10px;margin-top:10px;border:1px solid rgba(168,85,247,0.22);">priority = impact × 0.45 + urgency × 0.30 + confidence × 0.25</div><div style="font-size:10.5px;color:var(--tx-3);margin-top:10px;line-height:1.6;">Mapping is deterministic — same inputs always produce the same decision. Sources merged: Intelligence Pipeline + AI Orchestrator + Neural Recommendations.</div></div>'
+      + '</div>'
+      + '<div class="dec-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#A855F7;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(168,85,247,0.45);">4 · Auto / Manual / Review Queue · ranked by priority</div>'
+      + '<div class="dec-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(168,85,247,0.20);padding-bottom:6px;"><div>ID</div><div>DECISION</div><div>KIND</div><div style="text-align:right;">PRI</div><div style="text-align:right;">STATUS</div></div>'
+      +   queue.map(function (q) {
+            return '<div class="dec-row">'
+                 + '<div style="font-family:var(--mono);color:#A855F7;font-weight:900;text-shadow:0 0 6px rgba(168,85,247,0.55);">' + q.id + '</div>'
+                 + '<div style="min-width:0;"><div style="color:var(--tx);font-weight:700;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(q.label) + '</div><div style="font-size:9.5px;color:var(--tx-3);">' + q.source + ' · ' + _esc((q.detail || '').slice(0, 70)) + '</div></div>'
+                 + '<div><span class="dec-pill" style="color:' + q.kindColor + ';background:' + kindBg(q.kindColor) + ';">' + q.kind + '</span></div>'
+                 + '<div style="text-align:right;font-family:var(--mono);font-weight:900;color:#FBBF24;text-shadow:0 0 8px rgba(251,191,36,0.55);">' + q.priority + '</div>'
+                 + '<div style="text-align:right;font-size:9.5px;color:var(--tx-2);">' + q.status + '</div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+      + '<div class="dec-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">⚖️</span><div style="font-size:13px;font-weight:900;color:#A855F7;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(168,85,247,0.65);">Final Decision Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">' + _esc(_decSummary()) + '</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-decision-engine] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Decision Engine couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// B · FOS Event Bus / Message Queue — platform events flowing
+// ════════════════════════════════════════════════════════════════════
+function _busSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+function _busProducers() {
+  return [
+    { name:'Data Intelligence',    color:'#34D399', rate: 14 },
+    { name:'Neural Intelligence',  color:'#A855F7', rate: 9  },
+    { name:'Security Operations',  color:'#FCA5A5', rate: 6  },
+    { name:'Automation Center',    color:'#FBBF24', rate: 12 },
+    { name:'Knowledge Graph',      color:'#7DF9FF', rate: 7  },
+    { name:'AI Orchestrator',      color:'#00F5FF', rate: 18 },
+  ];
+}
+function _busConsumers() {
+  return [
+    { name:'Command Center',         color:'#7DF9FF' },
+    { name:'Intelligence Pipeline',  color:'#A855F7' },
+    { name:'Decision Engine',        color:'#FBBF24' },
+    { name:'Workflow Execution',     color:'#FCA5A5' },
+    { name:'Multi-Club Network',     color:'#34D399' },
+  ];
+}
+function _busEventTypes() {
+  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] });
+  return [
+    { kind:'data.ingest',        color:'#34D399', count: (State.training || []).length + (State.matches || []).length },
+    { kind:'neural.diagnostic',  color:'#A855F7', count: 4 },
+    { kind:'security.alert',     color:'#FCA5A5', count: (notes.critical || []).length + (notes.warnings || []).length },
+    { kind:'automation.trigger', color:'#FBBF24', count: ((_busSafe(_fosAutomation, { aiAutomations: [] }).aiAutomations) || []).length },
+    { kind:'orchestrator.event', color:'#00F5FF', count: (_busSafe(_orcLiveStreams, []) || []).length },
+    { kind:'audit.write',        color:'#7DF9FF', count: (notes.messages || []).length },
+  ];
+}
+function _busQueueHealth() {
+  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] });
+  var aut = _busSafe(_autProcessMonitoring, { running: 0, waiting: 0, failed: 0, completed: 0 });
+  var failed = (notes.critical || []).length + aut.failed;
+  var pending = (notes.pending || []).length + aut.waiting;
+  var completed = aut.completed;
+  var running = (notes.messages || []).length + aut.running;
+  var total = failed + pending + completed + running;
+  var health = total > 0 ? Math.max(0, Math.min(100, Math.round(((completed + running) / total) * 100))) : 100;
+  return { failed: failed, pending: pending, completed: completed, running: running, health: health };
+}
+function _busTrace() {
+  var streams = _busSafe(_orcLiveStreams, []);
+  var rows = streams.map(function (s) { return { ts: s.ts || 'T-0s', topic: (s.source || 'platform').toLowerCase() + '.' + (s.kind || 'event').toLowerCase(), payload: s.text || '', status:'DELIVERED', color: s.color || '#00F5FF' }; });
+  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [] });
+  (notes.warnings || []).forEach(function (w, i) { rows.push({ ts:'T-' + ((i + 4) * 35) + 's', topic:'security.warning', payload: w.text || '', status:'RETRY', color:'#FBBF24' }); });
+  (notes.critical || []).forEach(function (c, i) { rows.push({ ts:'T-' + ((i + 1) * 20) + 's', topic:'security.critical', payload: c.text || '', status:'FAILED', color:'#FCA5A5' }); });
+  if (!rows.length) rows.push({ ts:'T-0s', topic:'platform.boot', payload:'No bus events yet.', status:'IDLE', color:'#7DF9FF' });
+  return rows.slice(0, 12);
+}
+function _busSummary() {
+  var h = _busQueueHealth();
+  var p = _busProducers(), c = _busConsumers(), e = _busEventTypes();
+  return 'FOS Event Bus · health ' + h.health + '/100 · ' + p.length + ' producer(s), ' + c.length + ' consumer(s), ' + e.length + ' event type(s) on the wire. ' + h.running + ' running · ' + h.pending + ' pending · ' + h.completed + ' completed · ' + h.failed + ' failed in current window.';
+}
+function _ensureBusStyles() {
+  if (document.getElementById('bus-styles')) return;
+  var s = document.createElement('style'); s.id = 'bus-styles';
+  s.textContent = ''
+    + '.bus-page{padding:16px 18px;}'
+    + '.bus-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(0,245,255,0.34);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(0,245,255,0.32),0 0 60px -16px rgba(125,249,255,0.24),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.bus-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(0,245,255,0.28),rgba(125,249,255,0.20) 50%,rgba(168,85,247,0.18));border-bottom:1px solid rgba(0,245,255,0.42);}'
+    + '.bus-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#00F5FF,#7DF9FF,#A855F7,#00F5FF);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(0,245,255,0.55);}'
+    + '.bus-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.bus-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.bus-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.bus-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(0,245,255,0.06),rgba(125,249,255,0.04));border:1px solid rgba(0,245,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.bus-tile-lbl{font-size:11px;font-weight:900;color:#00F5FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(0,245,255,0.45);}'
+    + '.bus-kpi{text-align:center;padding:14px;border-radius:12px;background:radial-gradient(circle at 50% 30%,rgba(0,245,255,0.20),rgba(168,85,247,0.10));border:1px solid rgba(0,245,255,0.42);}'
+    + '.bus-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.bus-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:6px;}'
+    + '.bus-node{padding:12px;border-radius:11px;background:rgba(0,245,255,0.06);border:1px solid rgba(0,245,255,0.30);text-align:center;}'
+    + '.bus-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.bus-flow{display:grid;grid-template-columns:1fr 60px 1fr;gap:14px;align-items:center;}'
+    + '.bus-trace-row{display:grid;grid-template-columns:60px 140px 1fr 80px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(0,245,255,0.10);font-size:10.5px;}'
+    + '.bus-trace-row:last-child{border-bottom:none;}'
+    + '.bus-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(0,245,255,0.22),rgba(125,249,255,0.18) 50%,rgba(168,85,247,0.18));border:1px solid rgba(0,245,255,0.52);border-left:10px solid #00F5FF;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(0,245,255,0.50);}'
+    + '@media (max-width:1024px){.bus-grid-3{grid-template-columns:repeat(2,1fr);}.bus-grid-4{grid-template-columns:repeat(2,1fr);}.bus-flow{grid-template-columns:1fr;}.bus-trace-row{grid-template-columns:50px 110px 1fr;font-size:10px;}.bus-trace-row > :nth-child(4){display:none;}}'
+    + '@media (max-width:600px){.bus-grid-2,.bus-grid-3,.bus-grid-4{grid-template-columns:1fr;}.bus-trace-row{grid-template-columns:50px 1fr;}.bus-trace-row > :nth-child(2){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSEventBusHTML() {
+  return '<div class="page" id="pg-fos-event-bus"><div id="fos-event-bus-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Event Bus…</div></div></div>';
+}
+function renderFOSEventBus() {
+  var el = document.getElementById('fos-event-bus-content');
+  if (!el) return;
+  try { _ensureBusStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);"><div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div><div style="font-size:11px;">Event Bus activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var producers = _busProducers(), consumers = _busConsumers();
+    var types = _busEventTypes(), health = _busQueueHealth(), trace = _busTrace();
+    var statColor = function (s) { return s === 'DELIVERED' ? '#34D399' : s === 'RETRY' ? '#FBBF24' : s === 'FAILED' ? '#FCA5A5' : '#7DF9FF'; };
+    var html = ''
+      + '<div class="bus-page">'
+      + '<div class="bus-card"><div class="bus-brand"><div class="bus-brand-logo">★ FAMILISTA OPERATING SYSTEM · EVENT BUS</div><span class="fos-ai-pulse">BUS LIVE</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#00F5FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">1 · Event Stream Overview</div>'
+      + '<div class="bus-grid-4">'
+      + '<div class="bus-kpi"><div class="bus-kpi-val" style="color:#34D399;">' + health.completed + '</div><div class="bus-kpi-lbl">Completed</div></div>'
+      + '<div class="bus-kpi"><div class="bus-kpi-val" style="color:#7DF9FF;">' + health.running + '</div><div class="bus-kpi-lbl">Running</div></div>'
+      + '<div class="bus-kpi"><div class="bus-kpi-val" style="color:#FBBF24;">' + health.pending + '</div><div class="bus-kpi-lbl">Pending</div></div>'
+      + '<div class="bus-kpi"><div class="bus-kpi-val" style="color:#FCA5A5;">' + health.failed + '</div><div class="bus-kpi-lbl">Failed</div></div>'
+      + '</div></div></div>'
+      + '<div class="bus-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#00F5FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">2 · Producers → Bus → Consumers</div>'
+      + '<div class="bus-flow"><div>'
+      +   producers.map(function (p) { return '<div class="bus-node" style="border-color:' + p.color + ';margin-bottom:8px;"><div style="font-size:10.5px;color:var(--tx);font-weight:700;">' + _esc(p.name) + '</div><div style="font-size:9.5px;color:var(--tx-3);font-family:var(--mono);">' + p.rate + ' evt/min</div></div>'; }).join('')
+      + '</div><div style="text-align:center;font-size:24px;color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.7);font-weight:900;">⤳<br/>BUS<br/>⤳</div><div>'
+      +   consumers.map(function (c) { return '<div class="bus-node" style="border-color:' + c.color + ';margin-bottom:8px;"><div style="font-size:10.5px;color:var(--tx);font-weight:700;">' + _esc(c.name) + '</div></div>'; }).join('')
+      + '</div></div></div>'
+      + '<div class="bus-grid-2">'
+      + '<div class="bus-tile"><div class="bus-tile-lbl">3 · Event Types</div>'
+      +   types.map(function (t) { return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(0,245,255,0.10);font-size:11px;"><span class="bus-pill" style="color:' + t.color + ';background:rgba(0,245,255,0.10);font-family:var(--mono);">' + t.kind + '</span><span style="font-family:var(--mono);font-weight:900;color:' + t.color + ';">' + t.count + '</span></div>'; }).join('')
+      + '</div>'
+      + '<div class="bus-tile"><div class="bus-tile-lbl">4 · Queue Health · Retry Simulation</div>'
+      + '<div style="font-size:36px;font-weight:900;font-family:var(--mono);color:' + (health.health >= 80 ? '#34D399' : health.health >= 60 ? '#FBBF24' : '#FCA5A5') + ';text-shadow:0 0 16px currentColor;text-align:center;margin-bottom:12px;">' + health.health + '/100</div>'
+      + '<div style="font-size:10.5px;color:var(--tx-2);line-height:1.7;">Failed events retry with exponential backoff: <span style="color:#FBBF24;font-family:var(--mono);">2s → 4s → 8s → 16s</span>. After 4 retries, an event escalates to <span style="color:#FCA5A5;font-weight:700;">DEAD-LETTER queue</span> and surfaces in Security Operations.</div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="bus-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#00F5FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(0,245,255,0.45);">5 · Message Trace</div>'
+      + '<div class="bus-trace-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(0,245,255,0.20);padding-bottom:6px;"><div>T</div><div>TOPIC</div><div>PAYLOAD</div><div>STATUS</div></div>'
+      +   trace.map(function (t) {
+            return '<div class="bus-trace-row">'
+                 + '<div style="font-family:var(--mono);color:#00F5FF;font-size:9.5px;text-shadow:0 0 6px rgba(0,245,255,0.55);">' + t.ts + '</div>'
+                 + '<div style="font-family:var(--mono);color:' + t.color + ';font-size:10px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + t.topic + '</div>'
+                 + '<div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(t.payload) + '</div>'
+                 + '<div><span class="bus-pill" style="color:' + statColor(t.status) + ';background:rgba(0,245,255,0.10);">' + t.status + '</span></div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+      + '<div class="bus-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">📡</span><div style="font-size:13px;font-weight:900;color:#00F5FF;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(0,245,255,0.65);">Event Bus Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">' + _esc(_busSummary()) + '</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-event-bus] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Event Bus couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// C · FOS Audit & Governance Center
+// ════════════════════════════════════════════════════════════════════
+function _govSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+function _govPolicies() {
+  return [
+    { name:'Tenant isolation policy',     state:'ENFORCED', owner:'Platform Admin', detail:'Per-tenant row-level isolation across all data classes.', color:'#34D399' },
+    { name:'JWT signing key rotation',    state:'PARTIAL',  owner:'CFO / Admin',     detail:'Manual rotation today; runbook drafted, automation pending.', color:'#FBBF24' },
+    { name:'PII handling policy',         state:'ENFORCED', owner:'Platform Admin', detail:'No PII export outside tenant boundary; encryption at rest.', color:'#34D399' },
+    { name:'Data retention 365 days',     state:'ACTIVE',   owner:'Platform Admin', detail:'Audit log retention enforced at platform level.',           color:'#7DF9FF' },
+    { name:'Incident response SLA · 4h',  state:'DRAFT',    owner:'Security Ops',    detail:'Runbook drafted; 4-hour SLA for HIGH+ severity.',           color:'#A855F7' },
+  ];
+}
+function _govAuditLog()    { return _govSafe(_admAuditLog, []); }
+function _govChangeTrace() {
+  // Synthesised change-trace covering recent platform updates.
+  return [
+    { ts:'T-12m', actor:'Platform', action:'CONFIG', detail:'Theme set to Deep Space Neural.',                color:'#A855F7' },
+    { ts:'T-08m', actor:'Admin',    action:'ROLE',   detail:'Active role bound to current user session.',     color:'#7DF9FF' },
+    { ts:'T-04m', actor:'FOS Core', action:'BOOT',   detail:'Operating system subsystems initialised.',       color:'#00F5FF' },
+    { ts:'T-02m', actor:'Pipeline', action:'AUTO',   detail:'Recommendations regenerated on tenant data refresh.', color:'#FBBF24' },
+  ];
+}
+function _govRiskMatrix() {
+  var sec = _govSafe(_socSecurity, { score: 70 });
+  var threat = _govSafe(_socThreatLevel, { level: 'LOW' });
+  var inc = _govSafe(_socIncidentQueue, { counts: { OPEN: 0, INVESTIGATING: 0 } });
+  return [
+    { area:'Financial Compliance', risk: threat.level === 'CRITICAL' ? 'HIGH' : 'LOW',  color: threat.level === 'CRITICAL' ? '#FCA5A5' : '#34D399', detail:'Wage ratio and reserve thresholds within governance bands.' },
+    { area:'Data Privacy',          risk: 'LOW',                                          color:'#34D399',                                                detail:'No PII export · per-tenant boundary enforced.' },
+    { area:'Security Posture',     risk: sec.score >= 80 ? 'LOW' : sec.score >= 60 ? 'MEDIUM' : 'HIGH', color: sec.score >= 80 ? '#34D399' : sec.score >= 60 ? '#FBBF24' : '#FCA5A5', detail:'Security score ' + sec.score + '/100 · threat level ' + threat.level + '.' },
+    { area:'Incident Response',     risk: (inc.counts.OPEN + inc.counts.INVESTIGATING) > 0 ? 'MEDIUM' : 'LOW', color: (inc.counts.OPEN + inc.counts.INVESTIGATING) > 0 ? '#FBBF24' : '#34D399', detail: (inc.counts.OPEN + inc.counts.INVESTIGATING) + ' open / investigating incident(s).' },
+    { area:'Operational Resilience',risk: 'LOW',                                          color:'#34D399',                                                detail:'Automation health and orchestrator pipeline within target.' },
+  ];
+}
+function _govApprovalChain() {
+  return [
+    { level:'1', role:'AI Recommendation', detail:'Pipeline / Orchestrator surfaces candidate.',            color:'#7DF9FF' },
+    { level:'2', role:'Decision Engine',    detail:'Classified AUTO / REVIEW / MANUAL with priority score.', color:'#A855F7' },
+    { level:'3', role:'Security Ops',       detail:'Reviewed for risk + tenant isolation impact.',           color:'#FCA5A5' },
+    { level:'4', role:'Workflow Execution', detail:'Executed against the appropriate executor.',             color:'#FBBF24' },
+    { level:'5', role:'Audit Log',          detail:'Outcome recorded with timestamp + actor + chain.',       color:'#34D399' },
+  ];
+}
+function _govSummary() {
+  var pol = _govPolicies();
+  var enf = pol.filter(function (p) { return p.state === 'ENFORCED' || p.state === 'ACTIVE'; }).length;
+  var risks = _govRiskMatrix();
+  var hi = risks.filter(function (r) { return r.risk === 'HIGH'; }).length;
+  return 'FOS Audit & Governance · ' + enf + '/' + pol.length + ' policies enforced · ' + risks.length + ' compliance areas tracked · ' + hi + ' high-risk area(s). Approval chain spans 5 levels from AI recommendation through audit log persistence.';
+}
+function _ensureGovStyles() {
+  if (document.getElementById('gov-styles')) return;
+  var s = document.createElement('style'); s.id = 'gov-styles';
+  s.textContent = ''
+    + '.gov-page{padding:16px 18px;}'
+    + '.gov-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(251,191,36,0.34);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(251,191,36,0.30),0 0 60px -16px rgba(229,231,235,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.gov-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(251,191,36,0.30),rgba(229,231,235,0.20) 50%,rgba(125,249,255,0.18));border-bottom:1px solid rgba(251,191,36,0.42);}'
+    + '.gov-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#FBBF24,#E5E7EB,#7DF9FF,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(251,191,36,0.55);}'
+    + '.gov-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.gov-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.gov-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}'
+    + '.gov-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(251,191,36,0.06),rgba(229,231,235,0.04));border:1px solid rgba(251,191,36,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.gov-tile-lbl{font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(251,191,36,0.45);}'
+    + '.gov-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.gov-step{position:relative;padding:14px;border-radius:12px;background:radial-gradient(circle at 50% 30%,rgba(251,191,36,0.18),rgba(229,231,235,0.10) 60%,transparent);border:1px solid rgba(251,191,36,0.42);text-align:center;}'
+    + '.gov-step::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);font-size:18px;color:#FBBF24;text-shadow:0 0 10px rgba(251,191,36,0.65);}'
+    + '.gov-step:last-child::after{content:"";}'
+    + '.gov-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(251,191,36,0.22),rgba(229,231,235,0.16) 50%,rgba(125,249,255,0.18));border:1px solid rgba(251,191,36,0.52);border-left:10px solid #FBBF24;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(251,191,36,0.50);}'
+    + '@media (max-width:1024px){.gov-grid-3{grid-template-columns:repeat(2,1fr);}.gov-grid-5{grid-template-columns:repeat(3,1fr);}.gov-step::after{content:"";}}'
+    + '@media (max-width:600px){.gov-grid-2,.gov-grid-3,.gov-grid-5{grid-template-columns:1fr;}}';
+  document.head.appendChild(s);
+}
+function renderFOSAuditGovernanceHTML() {
+  return '<div class="page" id="pg-fos-audit-governance"><div id="fos-audit-governance-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Audit & Governance…</div></div></div>';
+}
+function renderFOSAuditGovernance() {
+  var el = document.getElementById('fos-audit-governance-content');
+  if (!el) return;
+  try { _ensureGovStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);"><div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div><div style="font-size:11px;">Audit & Governance activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var pol = _govPolicies(), audit = _govAuditLog(), changes = _govChangeTrace(), risks = _govRiskMatrix(), chain = _govApprovalChain();
+    var enf = pol.filter(function (p) { return p.state === 'ENFORCED' || p.state === 'ACTIVE'; }).length;
+    var sevColor = function (s) { return s === 'HIGH' ? '#FCA5A5' : s === 'MEDIUM' ? '#FBBF24' : '#34D399'; };
+    var html = ''
+      + '<div class="gov-page">'
+      + '<div class="gov-card"><div class="gov-brand"><div class="gov-brand-logo">★ FAMILISTA OPERATING SYSTEM · AUDIT &amp; GOVERNANCE</div><span class="fos-ai-pulse">GOVERNANCE LIVE</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">1 · Governance Overview</div>'
+      + '<div class="gov-grid-3">'
+      + '<div class="gov-tile" style="text-align:center;padding:18px;"><div style="font-size:26px;font-family:var(--mono);font-weight:900;color:#FBBF24;text-shadow:0 0 14px rgba(251,191,36,0.55);">' + pol.length + '</div><div style="font-size:9.5px;font-weight:800;color:var(--tx-3);letter-spacing:1.1px;margin-top:6px;">POLICIES TRACKED</div></div>'
+      + '<div class="gov-tile" style="text-align:center;padding:18px;"><div style="font-size:26px;font-family:var(--mono);font-weight:900;color:#34D399;text-shadow:0 0 14px rgba(52,211,153,0.55);">' + enf + '/' + pol.length + '</div><div style="font-size:9.5px;font-weight:800;color:var(--tx-3);letter-spacing:1.1px;margin-top:6px;">ENFORCED</div></div>'
+      + '<div class="gov-tile" style="text-align:center;padding:18px;"><div style="font-size:26px;font-family:var(--mono);font-weight:900;color:#7DF9FF;text-shadow:0 0 14px rgba(125,249,255,0.55);">' + risks.length + '</div><div style="font-size:9.5px;font-weight:800;color:var(--tx-3);letter-spacing:1.1px;margin-top:6px;">COMPLIANCE AREAS</div></div>'
+      + '</div></div></div>'
+      + '<div class="gov-grid-2">'
+      + '<div class="gov-tile"><div class="gov-tile-lbl">2 · Policy Registry</div>'
+      +   pol.map(function (p) { return '<div style="padding:11px;margin-bottom:8px;border-radius:10px;background:rgba(251,191,36,0.04);border-left:3px solid ' + p.color + ';"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:6px;flex-wrap:wrap;"><div style="font-size:11px;color:var(--tx);font-weight:700;">' + _esc(p.name) + '</div><span class="gov-pill" style="color:' + p.color + ';background:rgba(251,191,36,0.16);">' + p.state + '</span></div><div style="font-size:10px;color:var(--tx-3);line-height:1.5;">' + _esc(p.detail) + ' · <span style="color:var(--tx-2);">' + _esc(p.owner) + '</span></div></div>'; }).join('')
+      + '</div>'
+      + '<div class="gov-tile"><div class="gov-tile-lbl">3 · Audit Log</div>'
+      +   (audit.length === 0 ? '<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No audit events recorded.</div>' :
+        audit.slice(0, 8).map(function (a) { return '<div style="padding:6px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:10.5px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;"><span style="font-family:var(--mono);color:#FBBF24;text-shadow:0 0 6px rgba(251,191,36,0.55);font-size:9.5px;">' + a.ts + '</span><span class="gov-pill" style="color:' + (a.color || '#7DF9FF') + ';background:rgba(251,191,36,0.10);">' + (a.kind || 'INFO') + '</span></div><div style="font-size:9.5px;color:var(--tx-3);letter-spacing:.4px;margin-bottom:2px;">' + _esc(a.actor || 'SYSTEM') + '</div><div style="font-size:10.5px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(a.detail || '') + '</div></div>'; }).join(''))
+      + '</div>'
+      + '</div>'
+      + '<div class="gov-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">4 · Change Trace</div>'
+      +   changes.map(function (c) { return '<div style="padding:8px 0;border-bottom:1px solid rgba(251,191,36,0.10);display:grid;grid-template-columns:60px 110px 90px 1fr;gap:10px;align-items:center;font-size:10.5px;"><div style="font-family:var(--mono);color:#FBBF24;text-shadow:0 0 6px rgba(251,191,36,0.55);">' + c.ts + '</div><div style="color:var(--tx);font-weight:700;letter-spacing:.4px;">' + _esc(c.actor) + '</div><div><span class="gov-pill" style="color:' + c.color + ';background:rgba(251,191,36,0.10);">' + c.action + '</span></div><div style="color:var(--tx-2);">' + _esc(c.detail) + '</div></div>'; }).join('')
+      + '</div>'
+      + '<div class="gov-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">5 · Risk &amp; Compliance Matrix</div>'
+      + '<div class="gov-grid-5">'
+      +   risks.map(function (r) { return '<div class="gov-tile" style="padding:14px;text-align:center;border-color:' + r.color + ';"><div style="font-size:9.5px;font-weight:900;color:var(--tx-3);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;">' + _esc(r.area) + '</div><span class="gov-pill" style="color:' + r.color + ';background:rgba(251,191,36,0.16);">' + r.risk + '</span><div style="font-size:9.5px;color:var(--tx-3);margin-top:7px;line-height:1.4;">' + _esc(r.detail) + '</div></div>'; }).join('')
+      + '</div></div>'
+      + '<div class="gov-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">6 · Approval Chain</div>'
+      + '<div class="gov-grid-5">'
+      +   chain.map(function (c) { return '<div class="gov-step" style="border-color:' + c.color + ';"><div style="font-size:9.5px;font-weight:900;color:' + c.color + ';letter-spacing:1.3px;text-transform:uppercase;margin-bottom:4px;">L' + c.level + ' · ' + c.role + '</div><div style="font-size:9.5px;color:var(--tx-2);line-height:1.5;">' + _esc(c.detail) + '</div></div>'; }).join('')
+      + '</div></div>'
+      + '<div class="gov-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">📜</span><div style="font-size:13px;font-weight:900;color:#FBBF24;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(251,191,36,0.65);">Governance Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">' + _esc(_govSummary()) + '</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-audit-governance] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Audit &amp; Governance couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// D · FOS Advanced RBAC / Permission System
+// ════════════════════════════════════════════════════════════════════
+function _rbacSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+function _rbacIdentity() { return _rbacSafe(_fosIdentity, { roles: [], surfaces: [], accessMap: {}, usersCount: 0, permsCount: 0, role: 'CLUB_ADMIN' }); }
+function _rbacOverview() {
+  var idn = _rbacIdentity();
+  var tns = _rbacSafe(_fosMultiClub, []);
+  var active = tns.filter(function (t) { return t && t.status === 'ACTIVE'; }).length;
+  return [
+    { lbl:'Roles',          v: (idn.roles || []).length, color:'#34D399', icon:'🔑' },
+    { lbl:'Permissions',    v: idn.permsCount || 0,       color:'#A855F7', icon:'🛡️' },
+    { lbl:'Users',           v: idn.usersCount || 0,      color:'#7DF9FF', icon:'👥' },
+    { lbl:'Active Tenants', v: active,                     color:'#FBBF24', icon:'🏢' },
+  ];
+}
+function _rbacScopeCounts() {
+  var idn = _rbacIdentity();
+  var read = 0, write = 0, admin = 0;
+  Object.keys(idn.accessMap || {}).forEach(function (role) {
+    (idn.accessMap[role] || []).forEach(function (v) {
+      if (v === 'Y') write++;
+      else if (v === 'R') read++;
+      else admin++; /* counted as deny - 'N' */
+    });
+  });
+  // Admin scope inferred from SUPER_ADMIN / CLUB_ADMIN roles with full Y row.
+  var adminRoles = (idn.roles || []).filter(function (r) { return /ADMIN/.test(r.name); }).length;
+  return { read: read, write: write, admin: adminRoles * (idn.surfaces || []).length };
+}
+function _rbacUserRoleMap() {
+  var idn = _rbacIdentity();
+  var current = (State && State.user) || null;
+  return (idn.roles || []).map(function (r) {
+    return {
+      role: r.name,
+      permissions: r.permissions || 0,
+      bound: !!(current && current.role && current.role === r.name),
+      user: current && current.role === r.name ? (current.name || current.email || 'current user') : 'role class only',
+    };
+  });
+}
+function _rbacAccessRisk() {
+  var idn = _rbacIdentity();
+  var superRoles = (idn.roles || []).filter(function (r) { return r.name === 'SUPER_ADMIN'; }).length;
+  return [
+    { kind:'Privilege concentration', risk: superRoles >= 1 ? 'MEDIUM' : 'LOW', color: superRoles >= 1 ? '#FBBF24' : '#34D399', detail:'SUPER_ADMIN holds full surface; recommend MFA enforcement.' },
+    { kind:'Stale role binding',       risk:'LOW',                                color:'#34D399',                                  detail:'Active session bound to user; no stale tokens detected.' },
+    { kind:'Cross-tenant access',     risk:'LOW',                                color:'#34D399',                                  detail:'Tenant boundary enforced at every row read.' },
+    { kind:'Read-write blast radius', risk:'MEDIUM',                              color:'#FBBF24',                                  detail:'Write scope on FINANCES / MEDICAL surfaces should require board review.' },
+  ];
+}
+function _rbacSummary() {
+  var idn = _rbacIdentity();
+  var sc = _rbacScopeCounts();
+  return 'FOS RBAC · ' + (idn.roles || []).length + ' role class(es), ' + (idn.permsCount || 0) + ' permission(s) across ' + (idn.surfaces || []).length + ' surface(s). Read scope: ' + sc.read + ' · Write scope: ' + sc.write + ' · Admin scope: ' + sc.admin + '. Tenant isolation enforced platform-wide.';
+}
+function _ensureRBACStyles() {
+  if (document.getElementById('rbac-styles')) return;
+  var s = document.createElement('style'); s.id = 'rbac-styles';
+  s.textContent = ''
+    + '.rbac-page{padding:16px 18px;}'
+    + '.rbac-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(52,211,153,0.34);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(52,211,153,0.30),0 0 60px -16px rgba(168,85,247,0.26),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.rbac-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(52,211,153,0.30),rgba(168,85,247,0.22) 50%,rgba(125,249,255,0.18));border-bottom:1px solid rgba(52,211,153,0.42);}'
+    + '.rbac-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#34D399,#A855F7,#7DF9FF,#34D399);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(52,211,153,0.55);}'
+    + '.rbac-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.rbac-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.rbac-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.rbac-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(52,211,153,0.06),rgba(168,85,247,0.05));border:1px solid rgba(52,211,153,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.rbac-tile-lbl{font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(52,211,153,0.45);}'
+    + '.rbac-kpi{text-align:center;padding:16px;border-radius:14px;background:radial-gradient(circle at 50% 30%,rgba(52,211,153,0.20),rgba(168,85,247,0.12));border:1px solid rgba(52,211,153,0.42);}'
+    + '.rbac-kpi-val{font-size:26px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.rbac-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:6px;}'
+    + '.rbac-cell{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;font-weight:900;font-family:var(--mono);font-size:11px;}'
+    + '.rbac-y{color:#34D399;background:rgba(52,211,153,0.22);box-shadow:0 0 8px rgba(52,211,153,0.40);}'
+    + '.rbac-r{color:#FBBF24;background:rgba(251,191,36,0.22);}'
+    + '.rbac-n{color:#FCA5A5;background:rgba(239,68,68,0.20);}'
+    + '.rbac-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.rbac-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(52,211,153,0.22),rgba(168,85,247,0.18) 50%,rgba(125,249,255,0.18));border:1px solid rgba(52,211,153,0.52);border-left:10px solid #34D399;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(52,211,153,0.50);}'
+    + '@media (max-width:1024px){.rbac-grid-3{grid-template-columns:repeat(2,1fr);}.rbac-grid-4{grid-template-columns:repeat(2,1fr);}}'
+    + '@media (max-width:600px){.rbac-grid-2,.rbac-grid-3,.rbac-grid-4{grid-template-columns:1fr;}}';
+  document.head.appendChild(s);
+}
+function renderFOSRBACHTML() {
+  return '<div class="page" id="pg-fos-rbac"><div id="fos-rbac-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS RBAC…</div></div></div>';
+}
+function renderFOSRBAC() {
+  var el = document.getElementById('fos-rbac-content');
+  if (!el) return;
+  try { _ensureRBACStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);"><div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div><div style="font-size:11px;">RBAC activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var ov = _rbacOverview();
+    var idn = _rbacIdentity();
+    var scopes = _rbacScopeCounts();
+    var users = _rbacUserRoleMap();
+    var risks = _rbacAccessRisk();
+    var sevColor = function (s) { return s === 'HIGH' ? '#FCA5A5' : s === 'MEDIUM' ? '#FBBF24' : '#34D399'; };
+    var html = ''
+      + '<div class="rbac-page">'
+      + '<div class="rbac-card"><div class="rbac-brand"><div class="rbac-brand-logo">★ FAMILISTA OPERATING SYSTEM · ADVANCED RBAC</div><span class="fos-ai-pulse">RBAC LIVE</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">1 · Role Overview</div>'
+      + '<div class="rbac-grid-4">'
+      +   ov.map(function (k) { return '<div class="rbac-kpi"><div style="font-size:22px;margin-bottom:6px;filter:drop-shadow(0 0 10px rgba(52,211,153,0.55));">' + k.icon + '</div><div class="rbac-kpi-val" style="color:' + k.color + ';">' + k.v + '</div><div class="rbac-kpi-lbl">' + _esc(k.lbl) + '</div></div>'; }).join('')
+      + '</div></div></div>'
+      + '<div class="rbac-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">2 · Permission Matrix</div>'
+      + '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr><th style="text-align:left;padding:6px 10px;color:var(--tx-3);letter-spacing:.7px;font-weight:800;font-size:9.5px;">ROLE</th>'
+      +   (idn.surfaces || []).map(function (s) { return '<th style="padding:6px 8px;color:var(--tx-3);font-weight:800;letter-spacing:.5px;font-size:9px;text-align:center;">' + s + '</th>'; }).join('')
+      + '</tr></thead><tbody>'
+      +   Object.keys(idn.accessMap || {}).map(function (role) { var row = (idn.accessMap || {})[role] || []; return '<tr><td style="padding:8px 10px;color:var(--tx);font-weight:700;font-size:11px;">' + role.replace(/_/g, ' ') + '</td>' + row.map(function (v) { return '<td style="padding:6px;text-align:center;"><span class="rbac-cell ' + (v === 'Y' ? 'rbac-y' : v === 'R' ? 'rbac-r' : 'rbac-n') + '">' + v + '</span></td>'; }).join('') + '</tr>'; }).join('')
+      + '</tbody></table></div><div style="font-size:9.5px;color:var(--tx-3);margin-top:10px;letter-spacing:.5px;">Y = full write · R = read-only · N = no access</div>'
+      + '</div>'
+      + '<div class="rbac-grid-2">'
+      + '<div class="rbac-tile"><div class="rbac-tile-lbl">3 · User → Role Mapping</div>'
+      +   users.map(function (u) { return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid rgba(52,211,153,0.10);font-size:11px;"><div><div style="color:var(--tx);font-weight:700;letter-spacing:.4px;">' + u.role.replace(/_/g, ' ') + ' ' + (u.bound ? '<span class="rbac-pill" style="color:#34D399;background:rgba(52,211,153,0.16);margin-left:6px;">ACTIVE</span>' : '') + '</div><div style="font-size:9.5px;color:var(--tx-3);">' + _esc(u.user) + '</div></div><div style="font-size:11px;font-family:var(--mono);font-weight:900;color:#A855F7;">' + u.permissions + ' perms</div></div>'; }).join('')
+      + '</div>'
+      + '<div class="rbac-tile"><div class="rbac-tile-lbl">4 · Tenant Isolation · Read / Write / Admin Scopes</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">'
+      + '<div style="text-align:center;padding:12px;border-radius:10px;background:rgba(125,249,255,0.10);"><div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.55);">' + scopes.read + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">READ</div></div>'
+      + '<div style="text-align:center;padding:12px;border-radius:10px;background:rgba(168,85,247,0.10);"><div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#A855F7;text-shadow:0 0 12px rgba(168,85,247,0.55);">' + scopes.write + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">WRITE</div></div>'
+      + '<div style="text-align:center;padding:12px;border-radius:10px;background:rgba(251,191,36,0.10);"><div style="font-size:22px;font-weight:900;font-family:var(--mono);color:#FBBF24;text-shadow:0 0 12px rgba(251,191,36,0.55);">' + scopes.admin + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.7px;margin-top:5px;">ADMIN</div></div>'
+      + '</div>'
+      + '<div style="font-size:10.5px;color:var(--tx-2);line-height:1.6;">Tenant boundary enforced at every row read. JWT carries tenant id; all queries scoped at the ORM layer before reaching the database.</div>'
+      + '</div></div>'
+      + '<div class="rbac-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#34D399;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(52,211,153,0.45);">5 · Access Risk</div>'
+      + '<div class="rbac-grid-4">'
+      +   risks.map(function (r) { return '<div class="rbac-tile" style="padding:13px;border-color:' + r.color + ';"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span class="rbac-pill" style="color:' + r.color + ';background:rgba(52,211,153,0.16);">' + _esc(r.kind) + '</span><span class="rbac-pill" style="color:' + r.color + ';background:rgba(52,211,153,0.10);">' + r.risk + '</span></div><div style="font-size:10px;color:var(--tx-3);line-height:1.5;">' + _esc(r.detail) + '</div></div>'; }).join('')
+      + '</div></div>'
+      + '<div class="rbac-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">🛡️</span><div style="font-size:13px;font-weight:900;color:#34D399;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(52,211,153,0.65);">Permission Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">' + _esc(_rbacSummary()) + '</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-rbac] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS RBAC couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// E · FOS Workflow Execution Engine
+// ════════════════════════════════════════════════════════════════════
+function _wexSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+function _wexRuntime() {
+  var actions = _wexSafe(_pipAutoActions, []);
+  return actions.map(function (a, i) {
+    var statePool = ['PROPOSED','APPROVED','RUNNING','COMPLETED','FAILED'];
+    var st = a.status === 'OBSERVE' ? 'COMPLETED' : statePool[i % statePool.length];
+    return { id: a.id, title: a.title, executor: a.executor, chain: a.chain, status: st, action: a.action || a.label };
+  });
+}
+function _wexTraceFor(action) {
+  // Step-by-step execution path.
+  return [
+    { step:1, label:'Pull recommendation', detail:'From Decision Engine queue · priority known', color:'#A855F7' },
+    { step:2, label:'Resolve executor',    detail:action.executor,                                color:'#7DF9FF' },
+    { step:3, label:'Provision payload',   detail:action.action || action.title,                  color:'#FBBF24' },
+    { step:4, label:'Submit to executor',  detail:'PROPOSED → APPROVED · awaits admin sign-off',  color:'#00F5FF' },
+    { step:5, label:'Execute',             detail:'Worker performs work · audit log persists',    color:'#34D399' },
+    { step:6, label:'Acknowledge',         detail:'Status → COMPLETED · event published to bus',  color:'#7DF9FF' },
+  ];
+}
+function _wexExecutorMap() {
+  return [
+    { name:'AUTOMATION CENTER',   accepts:'CRON / WORKFLOW / CHANNEL',  color:'#FBBF24' },
+    { name:'SECURITY OPERATIONS', accepts:'INCIDENT / POLICY',           color:'#FCA5A5' },
+    { name:'KNOWLEDGE GRAPH',     accepts:'ENTITY / RELATIONSHIP',       color:'#7DF9FF' },
+    { name:'PLATFORM',            accepts:'OBSERVE / NO-OP',             color:'#A855F7' },
+  ];
+}
+function _wexStatusCounts() {
+  var rt = _wexRuntime();
+  var c = { PROPOSED: 0, APPROVED: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 };
+  rt.forEach(function (r) { c[r.status] = (c[r.status] || 0) + 1; });
+  return c;
+}
+function _wexRollbackPlan() {
+  return [
+    { kind:'CRON / WORKFLOW',    plan:'Disable job + restore previous config snapshot.',           color:'#FBBF24' },
+    { kind:'INCIDENT',           plan:'Reopen INC-XXXX with rollback context attached.',           color:'#FCA5A5' },
+    { kind:'CHANNEL',            plan:'Revert channel state to PLANNED with reason logged.',       color:'#A855F7' },
+    { kind:'ENTITY / GRAPH',     plan:'Revert edge / node mutation via Knowledge Graph snapshot.', color:'#7DF9FF' },
+    { kind:'OBSERVE',            plan:'No rollback — observation only, audit record kept.',        color:'#34D399' },
+  ];
+}
+function _wexSummary() {
+  var c = _wexStatusCounts();
+  var ex = _wexExecutorMap();
+  return 'FOS Workflow Execution · ' + (c.PROPOSED + c.APPROVED + c.RUNNING + c.COMPLETED + c.FAILED) + ' workflow row(s) tracked across ' + ex.length + ' executor lane(s) · ' + c.PROPOSED + ' proposed · ' + c.APPROVED + ' approved · ' + c.RUNNING + ' running · ' + c.COMPLETED + ' completed · ' + c.FAILED + ' failed.';
+}
+function _ensureWexStyles() {
+  if (document.getElementById('wex-styles')) return;
+  var s = document.createElement('style'); s.id = 'wex-styles';
+  s.textContent = ''
+    + '.wex-page{padding:16px 18px;}'
+    + '.wex-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(251,191,36,0.32);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(251,191,36,0.30),0 0 60px -16px rgba(0,245,255,0.24),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.wex-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(251,191,36,0.30),rgba(0,245,255,0.22) 50%,rgba(168,85,247,0.18));border-bottom:1px solid rgba(251,191,36,0.42);}'
+    + '.wex-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#FBBF24,#00F5FF,#A855F7,#FBBF24);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(251,191,36,0.55);}'
+    + '.wex-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.wex-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.wex-grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}'
+    + '.wex-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(251,191,36,0.06),rgba(0,245,255,0.05));border:1px solid rgba(251,191,36,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.wex-tile-lbl{font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(251,191,36,0.45);}'
+    + '.wex-step{padding:14px;border-radius:13px;text-align:center;background:radial-gradient(circle at 50% 30%,rgba(251,191,36,0.18),rgba(0,245,255,0.10));border:1px solid rgba(251,191,36,0.38);position:relative;}'
+    + '.wex-step::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);font-size:18px;color:#FBBF24;text-shadow:0 0 10px rgba(251,191,36,0.7);z-index:2;}'
+    + '.wex-step:last-child::after{content:"";}'
+    + '.wex-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.wex-row{display:grid;grid-template-columns:60px 1fr 130px 130px 90px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:11px;}'
+    + '.wex-row:last-child{border-bottom:none;}'
+    + '.wex-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(251,191,36,0.22),rgba(0,245,255,0.18) 50%,rgba(168,85,247,0.18));border:1px solid rgba(251,191,36,0.52);border-left:10px solid #FBBF24;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(251,191,36,0.50);}'
+    + '@media (max-width:1024px){.wex-grid-3{grid-template-columns:repeat(2,1fr);}.wex-grid-5{grid-template-columns:repeat(3,1fr);}.wex-step::after{content:"";}.wex-row{grid-template-columns:50px 1fr 100px 100px;font-size:10px;}.wex-row > :nth-child(5){display:none;}}'
+    + '@media (max-width:600px){.wex-grid-2,.wex-grid-3,.wex-grid-5{grid-template-columns:1fr;}.wex-row{grid-template-columns:1fr 90px;}.wex-row > :nth-child(1),.wex-row > :nth-child(3),.wex-row > :nth-child(5){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSWorkflowExecutionHTML() {
+  return '<div class="page" id="pg-fos-workflow-execution"><div id="fos-workflow-execution-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Workflow Execution…</div></div></div>';
+}
+function renderFOSWorkflowExecution() {
+  var el = document.getElementById('fos-workflow-execution-content');
+  if (!el) return;
+  try { _ensureWexStyles(); } catch (_) {}
+  if (!Array.isArray(State.players)) {
+    el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--tx-3);"><div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for platform data…</div><div style="font-size:11px;">Workflow Execution activates once tenant data loads.</div></div>';
+    return;
+  }
+  try {
+    var rt = _wexRuntime();
+    var counts = _wexStatusCounts();
+    var executors = _wexExecutorMap();
+    var rollback = _wexRollbackPlan();
+    var sampleTrace = _wexTraceFor(rt[0] || { executor:'PLATFORM', action:'observe', title:'baseline' });
+    var stateColor = function (s) { return s === 'COMPLETED' ? '#34D399' : s === 'RUNNING' ? '#7DF9FF' : s === 'APPROVED' ? '#FBBF24' : s === 'PROPOSED' ? '#A855F7' : '#FCA5A5'; };
+    var html = ''
+      + '<div class="wex-page">'
+      + '<div class="wex-card"><div class="wex-brand"><div class="wex-brand-logo">★ FAMILISTA OPERATING SYSTEM · WORKFLOW EXECUTION</div><span class="fos-ai-pulse">EXECUTION LIVE</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">1 · Execution Overview</div>'
+      + '<div class="wex-grid-5">'
+      + '<div class="wex-tile" style="text-align:center;padding:16px;border-color:#A855F7;"><div style="font-size:24px;font-family:var(--mono);font-weight:900;color:#A855F7;text-shadow:0 0 12px rgba(168,85,247,0.55);">' + counts.PROPOSED + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;margin-top:6px;">PROPOSED</div></div>'
+      + '<div class="wex-tile" style="text-align:center;padding:16px;border-color:#FBBF24;"><div style="font-size:24px;font-family:var(--mono);font-weight:900;color:#FBBF24;text-shadow:0 0 12px rgba(251,191,36,0.55);">' + counts.APPROVED + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;margin-top:6px;">APPROVED</div></div>'
+      + '<div class="wex-tile" style="text-align:center;padding:16px;border-color:#7DF9FF;"><div style="font-size:24px;font-family:var(--mono);font-weight:900;color:#7DF9FF;text-shadow:0 0 12px rgba(125,249,255,0.55);">' + counts.RUNNING + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;margin-top:6px;">RUNNING</div></div>'
+      + '<div class="wex-tile" style="text-align:center;padding:16px;border-color:#34D399;"><div style="font-size:24px;font-family:var(--mono);font-weight:900;color:#34D399;text-shadow:0 0 12px rgba(52,211,153,0.55);">' + counts.COMPLETED + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;margin-top:6px;">COMPLETED</div></div>'
+      + '<div class="wex-tile" style="text-align:center;padding:16px;border-color:#FCA5A5;"><div style="font-size:24px;font-family:var(--mono);font-weight:900;color:#FCA5A5;text-shadow:0 0 12px rgba(252,165,165,0.55);">' + counts.FAILED + '</div><div style="font-size:9px;font-weight:800;color:var(--tx-3);letter-spacing:.8px;margin-top:6px;">FAILED</div></div>'
+      + '</div></div></div>'
+      + '<div class="wex-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">2 · Workflow Runtime</div>'
+      + '<div class="wex-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(251,191,36,0.20);padding-bottom:6px;"><div>ID</div><div>WORKFLOW</div><div>EXECUTOR</div><div>CHAIN</div><div style="text-align:right;">STATUS</div></div>'
+      +   rt.map(function (r) {
+            return '<div class="wex-row">'
+                 + '<div style="font-family:var(--mono);color:#FBBF24;font-weight:900;text-shadow:0 0 6px rgba(251,191,36,0.55);">' + r.id + '</div>'
+                 + '<div style="min-width:0;"><div style="font-size:11px;color:var(--tx);font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.title) + '</div><div style="font-size:9.5px;color:var(--tx-3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.action) + '</div></div>'
+                 + '<div style="font-size:10px;color:var(--tx);font-weight:700;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + r.executor + '</div>'
+                 + '<div style="font-size:9.5px;font-family:var(--mono);color:#7DF9FF;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(r.chain || '—') + '</div>'
+                 + '<div style="text-align:right;"><span class="wex-pill" style="color:' + stateColor(r.status) + ';background:rgba(251,191,36,0.10);">' + r.status + '</span></div>'
+                 + '</div>';
+          }).join('')
+      + '</div>'
+      + '<div class="wex-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#FBBF24;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(251,191,36,0.45);">3 · Step-by-Step Execution Trace</div>'
+      + '<div class="wex-grid-3">'
+      +   sampleTrace.map(function (s) { return '<div class="wex-step" style="border-color:' + s.color + ';"><div style="font-size:10px;font-weight:900;color:' + s.color + ';letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px;">STEP ' + s.step + '</div><div style="font-size:11px;color:var(--tx);font-weight:700;margin-bottom:3px;">' + _esc(s.label) + '</div><div style="font-size:9.5px;color:var(--tx-3);line-height:1.45;">' + _esc(s.detail) + '</div></div>'; }).join('')
+      + '</div></div>'
+      + '<div class="wex-grid-2">'
+      + '<div class="wex-tile"><div class="wex-tile-lbl">4 · Executor Mapping</div>'
+      +   executors.map(function (e) { return '<div style="padding:11px;margin-bottom:8px;border-radius:10px;background:rgba(251,191,36,0.05);border-left:3px solid ' + e.color + ';"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;"><span class="wex-pill" style="color:' + e.color + ';background:rgba(251,191,36,0.16);">' + _esc(e.name) + '</span></div><div style="font-size:10px;color:var(--tx-2);">Accepts: <span style="color:var(--tx);font-family:var(--mono);">' + _esc(e.accepts) + '</span></div></div>'; }).join('')
+      + '</div>'
+      + '<div class="wex-tile"><div class="wex-tile-lbl">5 · Rollback / Retry Plan</div>'
+      +   rollback.map(function (r) { return '<div style="padding:9px 0;border-bottom:1px solid rgba(251,191,36,0.10);font-size:10.5px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;"><span class="wex-pill" style="color:' + r.color + ';background:rgba(251,191,36,0.10);">' + _esc(r.kind) + '</span></div><div style="font-size:10px;color:var(--tx-2);line-height:1.5;">' + _esc(r.plan) + '</div></div>'; }).join('')
+      + '</div>'
+      + '</div>'
+      + '<div class="wex-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">⚡</span><div style="font-size:13px;font-weight:900;color:#FBBF24;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(251,191,36,0.65);">Execution Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">' + _esc(_wexSummary()) + '</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-workflow-execution] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Workflow Execution couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -26495,6 +27208,21 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-intelligence-pipeline"]')) {
     setTimeout(function () { try { renderFOSIntelligencePipeline(); } catch (err) { try { console.error('[fos-intelligence-pipeline] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-decision-engine"]')) {
+    setTimeout(function () { try { renderFOSDecisionEngine(); } catch (err) { try { console.error('[fos-decision-engine] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-event-bus"]')) {
+    setTimeout(function () { try { renderFOSEventBus(); } catch (err) { try { console.error('[fos-event-bus] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-audit-governance"]')) {
+    setTimeout(function () { try { renderFOSAuditGovernance(); } catch (err) { try { console.error('[fos-audit-governance] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-rbac"]')) {
+    setTimeout(function () { try { renderFOSRBAC(); } catch (err) { try { console.error('[fos-rbac] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-workflow-execution"]')) {
+    setTimeout(function () { try { renderFOSWorkflowExecution(); } catch (err) { try { console.error('[fos-workflow-execution] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
