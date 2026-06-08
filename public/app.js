@@ -14481,77 +14481,208 @@ function renderFOSAdminCenter() {
 // and War Room alerts. Does NOT modify any centre, business logic,
 // backend, Prisma, or API.
 function _socSafe(fn, fallback) { try { return fn(); } catch (_) { return fallback; } }
-function _socSecurity()    { return _socSafe(_fosSecurity, { status:'STEADY', statusColor:'#FBBF24', score: 70 }); }
-function _socNotifications(){ return _socSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] }); }
 function _socIdentity()    { return _socSafe(_fosIdentity, { roles: [], surfaces: [], accessMap: {}, usersCount: 0, permsCount: 0 }); }
 function _socTenants()     { return _socSafe(_fosMultiClub, []); }
 
+// ── FOS Security Operations · powered by FOSTelemetry ───────────────
+// Every helper below reads from the captured ring buffers installed by
+// the Observability layer. No fabricated alerts, no synthetic
+// timestamps, no hardcoded session counts. Empty telemetry → honest
+// "no captured security telemetry yet" sentinel state.
+
+var _SOC_WINDOW_MS = 15 * 60 * 1000; // 15-minute working window
+var _SOC_WINDOW_24H = 24 * 60 * 60 * 1000;
+
+function _socTelemetry() {
+  var T = (typeof window !== 'undefined') ? window.FOSTelemetry : null;
+  if (!T || typeof T.snapshot !== 'function') {
+    return { _ready: false, _metrics: null, api: [], errors: [], nav: [], counters: { req: 0, ok: 0, fail: 0, errors: 0, navs: 0 }, uptimeMs: 0, sessionStart: Date.now() };
+  }
+  try {
+    var snap = T.snapshot();
+    snap._ready = true;
+    snap._metrics = (typeof T.metrics === 'function') ? T.metrics(_SOC_WINDOW_MS) : null;
+    return snap;
+  } catch (_) {
+    return { _ready: false, _metrics: null, api: [], errors: [], nav: [], counters: { req: 0, ok: 0, fail: 0, errors: 0, navs: 0 }, uptimeMs: 0, sessionStart: Date.now() };
+  }
+}
+
+function _socClassifyApi(call) {
+  if (!call) return null;
+  var method = String(call.method || 'GET').toUpperCase();
+  var url = String(call.url || '').toLowerCase();
+  var path = url.replace(/^https?:\/\/[^/]+/, '');
+  var status = call.status || 0;
+  var isErr = call.kind === 'err' || status >= 500;
+  var isClientErr = !isErr && status >= 400 && status < 500;
+  var isAuth = path.indexOf('/api/auth') === 0 || path.indexOf('/auth') === 0;
+  var isAdmin = path.indexOf('/api/admin') === 0 || /\/(roles?|permissions?|memberships?|users?)\b/.test(path);
+  return {
+    method: method,
+    path: path,
+    status: status,
+    isErr: isErr,
+    isClientErr: isClientErr,
+    isUnauthorized: status === 401,
+    isForbidden:    status === 403,
+    isAuth: isAuth,
+    isAdmin: isAdmin,
+    isLogin: isAuth && (path.indexOf('/login') >= 0 || path.indexOf('/refresh') >= 0 || path.indexOf('/me') >= 0),
+    isWrite: method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE',
+  };
+}
+
+function _socFmtTime(ts) { try { return new Date(ts).toISOString().slice(11, 19); } catch (_) { return '—'; } }
+function _socShortPath(url) { return String(url || '').replace(/^https?:\/\/[^/]+/, '').split('?')[0]; }
+
+// ── Security Score / Threat Level ───────────────────────────────────
+function _socSecurity() {
+  var snap = _socTelemetry();
+  if (!snap._ready) return { status:'UNKNOWN', statusColor:'#7DF9FF', score: 0 };
+  if (snap.counters.req === 0 && snap.counters.errors === 0) {
+    return { status:'IDLE', statusColor:'#7DF9FF', score: 0 };
+  }
+  var m = snap._metrics;
+  var sr = (m && m.successRate != null) ? m.successRate : 100;
+  var uptimeMin = Math.max(1 / 60, snap.uptimeMs / 60000);
+  var errPerMin = snap.counters.errors / uptimeMin;
+  var penalty = Math.min(40, Math.round(errPerMin * 8));
+  var score = Math.max(0, Math.min(100, Math.round(sr) - penalty));
+  var status, statusColor;
+  if (score >= 80)      { status = 'STRONG';   statusColor = '#34D399'; }
+  else if (score >= 60) { status = 'STEADY';   statusColor = '#FBBF24'; }
+  else if (score >= 40) { status = 'ELEVATED'; statusColor = '#FB923C'; }
+  else                  { status = 'AT-RISK';  statusColor = '#FCA5A5'; }
+  return { status: status, statusColor: statusColor, score: score };
+}
+
 function _socThreatLevel() {
+  var snap = _socTelemetry();
+  if (!snap._ready) return { level:'UNKNOWN', color:'#7DF9FF', critical: 0, warnings: 0 };
+  var cutoff = Date.now() - _SOC_WINDOW_MS;
+  var critical = 0, warnings = 0;
+  snap.errors.forEach(function (e) { if (e.ts >= cutoff) critical += 1; });
+  snap.api.forEach(function (a) {
+    if (a.ts < cutoff) return;
+    var c = _socClassifyApi(a);
+    if (!c) return;
+    if (c.isErr) critical += 1;
+    else if (c.isClientErr) warnings += 1;
+  });
+  if (snap.counters.req === 0 && snap.counters.errors === 0) {
+    return { level:'IDLE', color:'#7DF9FF', critical: 0, warnings: 0 };
+  }
   var sec = _socSecurity();
-  var notes = _socNotifications();
-  var critical = (notes.critical || []).length;
-  var warnings = (notes.warnings || []).length;
-  // Threat level derived from sec score, critical and warning counts.
   var level, color;
-  if (critical >= 3 || (sec.score || 0) < 50) { level = 'CRITICAL'; color = '#FCA5A5'; }
-  else if (critical >= 1 || warnings >= 3)    { level = 'HIGH';     color = '#FBBF24'; }
-  else if (warnings >= 1 || (sec.score || 0) < 75) { level = 'MEDIUM'; color = '#A855F7'; }
-  else                                          { level = 'LOW';      color = '#7DF9FF'; }
+  if (critical >= 5 || sec.score < 40)                      { level = 'CRITICAL'; color = '#FCA5A5'; }
+  else if (critical >= 1 || warnings >= 5 || sec.score < 60){ level = 'HIGH';     color = '#FBBF24'; }
+  else if (warnings >= 1 || sec.score < 80)                 { level = 'MEDIUM';   color = '#A855F7'; }
+  else                                                       { level = 'LOW';      color = '#34D399'; }
   return { level: level, color: color, critical: critical, warnings: warnings };
 }
+
+// ── Overview KPIs (preserve order + icons + colors expected by render) ──
 function _socOverviewKPIs() {
+  var snap = _socTelemetry();
   var sec = _socSecurity();
-  var idn = _socIdentity();
-  var notes = _socNotifications();
   var threat = _socThreatLevel();
-  // Active sessions proxy = 1 if a user is currently bound, else 0.
+  if (!snap._ready) {
+    return [
+      { lbl:'Security Score',     v: '—',       icon:'🔒', color:'#7DF9FF' },
+      { lbl:'Threat Level',       v:'UNKNOWN', icon:'⚠️', color:'#7DF9FF' },
+      { lbl:'Active Sessions',    v: 0,         icon:'🛰️', color:'#A855F7' },
+      { lbl:'Login Activity 24h', v: 0,         icon:'🔑', color:'#7DF9FF' },
+      { lbl:'Permission Changes', v: 0,         icon:'🔧', color:'#FBBF24' },
+      { lbl:'Audit Events',       v: 0,         icon:'📜', color:'#E5E7EB' },
+    ];
+  }
   var sessions = (State && State.user) ? 1 : 0;
-  var login = sessions;
-  var auditEvents = ((notes.messages || []).length + (notes.warnings || []).length + (notes.critical || []).length + (notes.pending || []).length);
+  var cutoff24h = Date.now() - _SOC_WINDOW_24H;
+  var logins = 0, permChanges = 0;
+  snap.api.forEach(function (a) {
+    if (a.ts < cutoff24h) return;
+    var c = _socClassifyApi(a);
+    if (!c) return;
+    if (c.isLogin) logins += 1;
+    if (c.isAdmin && c.isWrite) permChanges += 1;
+  });
+  var auditEvents = snap.counters.req + snap.counters.errors + snap.counters.navs;
   return [
-    { lbl:'Security Score',    v: sec.score || 0,        icon:'🔒', color: sec.statusColor || '#7DF9FF' },
-    { lbl:'Threat Level',      v: threat.level,           icon:'⚠️', color: threat.color },
-    { lbl:'Active Sessions',   v: sessions,               icon:'🛰️', color:'#A855F7' },
-    { lbl:'Login Activity 24h',v: login,                  icon:'🔑', color:'#7DF9FF' },
-    { lbl:'Permission Changes',v: 0,                      icon:'🔧', color:'#FBBF24' },
-    { lbl:'Audit Events',      v: auditEvents,            icon:'📜', color:'#E5E7EB' },
+    { lbl:'Security Score',     v: sec.score,      icon:'🔒', color: sec.statusColor || '#7DF9FF' },
+    { lbl:'Threat Level',       v: threat.level,   icon:'⚠️', color: threat.color },
+    { lbl:'Active Sessions',    v: sessions,       icon:'🛰️', color:'#A855F7' },
+    { lbl:'Login Activity 24h', v: logins,         icon:'🔑', color:'#7DF9FF' },
+    { lbl:'Permission Changes', v: permChanges,    icon:'🔧', color:'#FBBF24' },
+    { lbl:'Audit Events',       v: auditEvents,    icon:'📜', color:'#E5E7EB' },
   ];
 }
+
+// ── Threat Detection rows (real errors + 5xx + 401/403) ─────────────
 function _socThreatDetection() {
-  var notes = _socNotifications();
-  var bodRisks = _socSafe(_bodRiskRegister, []);
-  var warRisks = _socSafe(_warCriticalRisks, []);
+  var snap = _socTelemetry();
+  if (!snap._ready) {
+    return [{ kind:'TELEMETRY UNAVAILABLE', severity:'LOW', actor:'PLATFORM', detail:'FOSTelemetry layer not initialised — no live signal source.', color:'#7DF9FF' }];
+  }
+  var cutoff = Date.now() - _SOC_WINDOW_MS;
   var threats = [];
-  (notes.critical || []).slice(0, 4).forEach(function (n) {
-    threats.push({ kind:'HIGH RISK EVENT', severity:'CRITICAL', actor: n.source || 'PLATFORM', detail: n.text, color:'#FCA5A5' });
+  // Real runtime errors → CRITICAL
+  snap.errors.slice().reverse().forEach(function (e) {
+    if (e.ts < cutoff) return;
+    if (threats.length >= 8) return;
+    threats.push({ kind:'RUNTIME ERROR', severity:'CRITICAL', actor: e.origin || 'window', detail: e.message || 'unhandled error', color:'#FCA5A5' });
   });
-  (notes.warnings || []).slice(0, 4).forEach(function (n) {
-    threats.push({ kind:'SUSPICIOUS ACTIVITY', severity:'HIGH', actor: n.source || 'PLATFORM', detail: n.text, color:'#FBBF24' });
+  // Real 5xx / network errors → HIGH
+  snap.api.slice().reverse().forEach(function (a) {
+    if (a.ts < cutoff || threats.length >= 8) return;
+    var c = _socClassifyApi(a);
+    if (!c) return;
+    if (c.isErr) {
+      threats.push({ kind:'BACKEND FAILURE', severity:'HIGH', actor: c.method + ' ' + _socShortPath(a.url), detail:'status ' + (a.status || a.code || 'ERR') + ' · ' + (a.message || 'no payload'), color:'#FBBF24' });
+    }
   });
-  (bodRisks || []).slice(0, 3).forEach(function (r) {
-    if (!r || !r.kind) return;
-    threats.push({ kind: r.kind || 'GOVERNANCE RISK', severity: r.color === 'var(--red)' ? 'CRITICAL' : 'HIGH', actor: r.src || 'BOARD', detail: r.text, color: r.color || '#FBBF24' });
-  });
-  (warRisks || []).slice(0, 3).forEach(function (r) {
-    if (!r || !r.kind) return;
-    var sev = r.severity || (r.color === 'var(--red)' ? 'CRITICAL' : r.color === '#FBBF24' || r.color === 'var(--amber)' ? 'HIGH' : 'MEDIUM');
-    threats.push({ kind: r.kind, severity: sev, actor: r.source || 'WAR ROOM', detail: r.text, color:'#A855F7' });
+  // Real 401 / 403 → MEDIUM
+  snap.api.slice().reverse().forEach(function (a) {
+    if (a.ts < cutoff || threats.length >= 8) return;
+    var c = _socClassifyApi(a);
+    if (!c) return;
+    if (c.isUnauthorized || c.isForbidden) {
+      threats.push({ kind: c.isForbidden ? 'AUTHZ DENIAL' : 'AUTH CHALLENGE', severity:'MEDIUM', actor: c.method + ' ' + _socShortPath(a.url), detail:'status ' + a.status + ' returned by backend', color:'#A855F7' });
+    }
   });
   if (!threats.length) {
-    threats.push({ kind:'NO ABNORMAL PATTERN', severity:'LOW', actor:'SECURITY', detail:'Pattern scan clean — baseline traffic only.', color:'#7DF9FF' });
+    if (snap.counters.req === 0 && snap.counters.errors === 0) {
+      threats.push({ kind:'NO TELEMETRY YET', severity:'LOW', actor:'TELEMETRY', detail:'No captured security telemetry yet — Threat Detection activates once traffic flows.', color:'#7DF9FF' });
+    } else {
+      threats.push({ kind:'NO ABNORMAL PATTERN', severity:'LOW', actor:'TELEMETRY', detail:'No errors, 5xx, or auth denials in the last ' + Math.round(_SOC_WINDOW_MS / 60000) + ' min.', color:'#34D399' });
+    }
   }
   return threats.slice(0, 8);
 }
+
+// ── Identity Monitoring (failed logins + escalations now telemetry-real) ──
 function _socIdentityMonitoring() {
   var idn = _socIdentity();
   var current = (State && State.user) || null;
+  var snap = _socTelemetry();
+  var failedLogins = 0, escalations = 0;
+  if (snap._ready) {
+    var cutoff = Date.now() - _SOC_WINDOW_24H;
+    snap.api.forEach(function (a) {
+      if (a.ts < cutoff) return;
+      var c = _socClassifyApi(a);
+      if (!c) return;
+      if (c.isLogin && (c.isErr || c.status >= 400)) failedLogins += 1;
+      if (c.isForbidden) escalations += 1;
+    });
+  }
   return {
     usersCount: idn.usersCount || 0,
     rolesCount: (idn.roles || []).length,
     permsCount: idn.permsCount || 0,
     currentRole: (current && current.role) || idn.role || 'CLUB_ADMIN',
-    escalations: 0,
-    failedLogins: 0,
+    escalations: escalations,
+    failedLogins: failedLogins,
     rows: (idn.roles || []).map(function (r) {
       var isMe = !!(current && current.role && current.role === r.name);
       return {
@@ -14563,52 +14694,121 @@ function _socIdentityMonitoring() {
     }),
   };
 }
+
+// ── Session Monitoring (API activity replaces fabricated stream rows) ──
 function _socSessionMonitoring() {
   var current = (State && State.user) || null;
+  var snap = _socTelemetry();
+  var apiCalls = 0;
+  if (snap._ready) {
+    var cutoff = Date.now() - _SOC_WINDOW_MS;
+    snap.api.forEach(function (a) { if (a.ts >= cutoff) apiCalls += 1; });
+  }
   var ps = (State && State.players) || [];
   var devices = ps.filter(function (p) { return p && p.device && (p.device.serialNumber || p.device.id); }).length;
+  var tenantLabel = (State && State.club && State.club.name) || (State && State.user && State.user.clubId) || 'platform default';
   return {
     activeSessions: current ? 1 : 0,
     isolation: 'PER-TENANT',
     devicesActive: devices,
-    risk: current ? 'LOW' : 'IDLE',
+    risk: !snap._ready ? 'UNKNOWN' : (current ? 'LOW' : 'IDLE'),
     rows: [
-      { kind:'ADMIN SESSION', actor: (current && current.email) || 'Anonymous', state: current ? 'ACTIVE' : 'IDLE', color: current ? '#34D399' : '#FCA5A5' },
-      { kind:'WEARABLE FEEDS', actor: devices + ' device(s)', state: devices ? 'STREAMING' : 'STANDBY', color: devices ? '#7DF9FF' : '#FBBF24' },
-      { kind:'TENANT BOUNDARY', actor:'FC FAMILISTA', state:'ENFORCED', color:'#34D399' },
-      { kind:'API TOKEN', actor:'JWT · tenant-scoped', state:'BOUND', color:'#7DF9FF' },
+      { kind:'ADMIN SESSION',   actor: (current && current.email) || 'No user bound',                                       state: current ? 'ACTIVE' : 'IDLE',                                       color: current ? '#34D399' : '#FCA5A5' },
+      { kind:'API ACTIVITY',    actor: apiCalls + ' call(s) in last ' + Math.round(_SOC_WINDOW_MS / 60000) + ' min',         state: apiCalls > 0 ? 'ACTIVE' : 'IDLE',                                  color: apiCalls > 0 ? '#34D399' : '#FBBF24' },
+      { kind:'WEARABLE FEEDS',  actor: devices + ' device(s) in tenant data',                                                state: devices > 0 ? 'STREAMING' : 'STANDBY',                             color: devices > 0 ? '#7DF9FF' : '#FBBF24' },
+      { kind:'TENANT BOUNDARY', actor: tenantLabel,                                                                          state:'ENFORCED',                                                         color:'#34D399' },
+      { kind:'API TOKEN',       actor: (State && State.token) ? 'JWT bound (tenant-scoped)' : 'No JWT in memory',             state: (State && State.token) ? 'BOUND' : 'IDLE',                         color: (State && State.token) ? '#7DF9FF' : '#FCA5A5' },
     ],
   };
 }
+
+// ── Audit Intelligence (errors + 5xx + 4xx + privileged writes) ─────
 function _socAuditIntel() {
-  // Reuse existing _admAuditLog if present, else synthesise from
-  // notifications.
-  var rows = _socSafe(_admAuditLog, null);
-  if (rows && rows.length) {
-    return rows.map(function (r) {
-      return { ts: r.ts, actor: r.actor || 'SYSTEM', action: r.kind || 'INFO', source: r.actor || 'PLATFORM', impact: r.kind === 'CRITICAL' ? 85 : r.kind === 'WARN' ? 65 : 40, detail: r.detail, color: r.color || '#7DF9FF' };
-    }).slice(0, 12);
+  var snap = _socTelemetry();
+  if (!snap._ready) {
+    return [{ ts:'—', actor:'TELEMETRY', action:'INFO', source:'PLATFORM', impact: 0, detail:'No captured security telemetry yet.', color:'#7DF9FF' }];
   }
-  var notes = _socNotifications();
-  var out = [];
-  (notes.messages || []).forEach(function (m, i) { out.push({ ts:'T-' + ((i + 1) * 40) + 's', actor:'SYSTEM', action:'INFO', source:'PLATFORM', impact: 35, detail: m.text || 'System message', color:'#7DF9FF' }); });
-  (notes.warnings || []).forEach(function (w, i) { out.push({ ts:'T-' + ((i + 2) * 60) + 's', actor: w.source || 'CENTER', action:'WARN', source:'CENTER', impact: 65, detail: w.text || 'Warning', color:'#FBBF24' }); });
-  (notes.critical || []).forEach(function (c, i) { out.push({ ts:'T-' + ((i + 1) * 30) + 's', actor: c.source || 'CENTER', action:'CRITICAL', source:'CENTER', impact: 90, detail: c.text || 'Critical event', color:'#FCA5A5' }); });
-  if (!out.length) out.push({ ts:'T-0s', actor:'PLATFORM', action:'BOOT', source:'FOS', impact: 25, detail:'No security events recorded yet.', color:'#7DF9FF' });
-  return out.slice(0, 12);
+  var rows = [];
+  snap.errors.slice().reverse().forEach(function (e) {
+    if (rows.length >= 12) return;
+    rows.push({
+      ts: _socFmtTime(e.ts),
+      actor: e.origin || 'window',
+      action: 'ERROR',
+      source: (e.source ? String(e.source).split('/').pop() : 'browser'),
+      impact: 90,
+      detail: e.message || 'runtime error',
+      color: '#FCA5A5',
+    });
+  });
+  var sortedApi = snap.api.slice().reverse();
+  for (var i = 0; i < sortedApi.length && rows.length < 12; i++) {
+    var a = sortedApi[i];
+    var c = _socClassifyApi(a);
+    if (!c) continue;
+    if (c.isErr) {
+      rows.push({ ts: _socFmtTime(a.ts), actor: c.method, action:'CRITICAL', source: _socShortPath(a.url).split('/').slice(0, 4).join('/'), impact: 85, detail:'HTTP ' + (a.status || a.code || 'ERR'), color:'#FCA5A5' });
+    } else if (c.isForbidden || c.isUnauthorized) {
+      rows.push({ ts: _socFmtTime(a.ts), actor: c.method, action:'WARN',     source: _socShortPath(a.url).split('/').slice(0, 4).join('/'), impact: 65, detail:'HTTP ' + a.status + ' (' + (c.isForbidden ? 'forbidden' : 'unauthorized') + ')', color:'#FBBF24' });
+    } else if (c.isAdmin && c.isWrite) {
+      rows.push({ ts: _socFmtTime(a.ts), actor: c.method, action:'PRIV-WRITE', source: _socShortPath(a.url).split('/').slice(0, 4).join('/'), impact: 70, detail:'Privileged route mutation · status ' + (a.status || 'OK'), color:'#A855F7' });
+    } else if (c.isLogin) {
+      rows.push({ ts: _socFmtTime(a.ts), actor: c.method, action:'AUTH',     source: _socShortPath(a.url).split('/').slice(0, 4).join('/'), impact: 40, detail:'Auth event · status ' + (a.status || 'OK'), color:'#7DF9FF' });
+    }
+  }
+  if (!rows.length) {
+    rows.push({
+      ts: '—',
+      actor: 'TELEMETRY',
+      action: 'INFO',
+      source: 'PLATFORM',
+      impact: 25,
+      detail: (snap.counters.req === 0 && snap.counters.errors === 0)
+        ? 'No captured security telemetry yet.'
+        : 'No security-relevant events in the last ' + Math.round(_SOC_WINDOW_MS / 60000) + ' min — clean baseline.',
+      color: '#7DF9FF',
+    });
+  }
+  return rows.slice(0, 12);
 }
+
+// ── Security Recommendations driven by real captured signal ─────────
 function _socRecommendations() {
-  var sec = _socSecurity();
-  var idn = _socIdentity();
-  var out = [];
-  if ((sec.score || 0) < 80) {
-    out.push({ label:'Tighten audit log retention', detail:'Security score ' + sec.score + '/100 — increase audit retention window and alerting.', risk: 70, impact: 70, urgency: 60, color:'#FBBF24' });
+  var snap = _socTelemetry();
+  if (!snap._ready) {
+    return [{ label:'Telemetry layer offline', detail:'FOSTelemetry not initialised — security recommendations unavailable until the observability layer is online.', risk: 50, impact: 50, urgency: 30, color:'#7DF9FF' }];
   }
-  out.push({ label:'Quarterly permission audit', detail:'Review role classes (' + (idn.roles || []).length + ') and surface access map.', risk: 55, impact: 60, urgency: 40, color:'#A855F7' });
-  out.push({ label:'Rotate JWT signing key', detail:'Best practice — rotate platform JWT secret on a fixed schedule.', risk: 80, impact: 80, urgency: 75, color:'#FCA5A5' });
-  out.push({ label:'Enforce MFA for SUPER_ADMIN', detail:'High-privilege role should require multi-factor auth.', risk: 75, impact: 80, urgency: 70, color:'#FCA5A5' });
-  out.push({ label:'Backup retention review', detail:'Verify backup retention matches recovery objective.', risk: 50, impact: 60, urgency: 45, color:'#7DF9FF' });
-  out.push({ label:'Document incident response runbook', detail:'Codify incident handling steps for the on-call admin.', risk: 45, impact: 55, urgency: 35, color:'#34D399' });
+  var out = [];
+  var cutoff = Date.now() - _SOC_WINDOW_MS;
+  var fives = 0, fours = 0, denials = 0, failedLogins = 0;
+  snap.api.forEach(function (a) {
+    if (a.ts < cutoff) return;
+    var c = _socClassifyApi(a);
+    if (!c) return;
+    if (c.isErr) fives += 1;
+    else if (c.isClientErr) fours += 1;
+    if (c.isForbidden) denials += 1;
+    if (c.isLogin && (c.isErr || c.status >= 400)) failedLogins += 1;
+  });
+  if (snap.counters.errors > 0) {
+    out.push({ label:'Triage frontend runtime errors', detail: snap.counters.errors + ' real captured runtime error(s) in this session — open FOS Observability for stack traces.', risk: 70, impact: 70, urgency: 75, color:'#FCA5A5' });
+  }
+  if (fives > 0) {
+    out.push({ label:'Investigate 5xx backend failures', detail: fives + ' server error(s) captured in last ' + Math.round(_SOC_WINDOW_MS / 60000) + ' min — check backend logs and service health.', risk: 80, impact: 80, urgency: 80, color:'#FCA5A5' });
+  }
+  if (denials > 0) {
+    out.push({ label:'Review authorization denials', detail: denials + ' real 403 denial(s) in window — verify tenant-guard middleware is gating intended routes.', risk: 65, impact: 70, urgency: 60, color:'#A855F7' });
+  }
+  if (failedLogins > 0) {
+    out.push({ label:'Investigate failed logins',     detail: failedLogins + ' real failed login attempt(s) — consider rate-limit tightening on /api/auth/login.', risk: 75, impact: 60, urgency: 70, color:'#FBBF24' });
+  }
+  if (fours > 5) {
+    out.push({ label:'Audit 4xx client errors',       detail: fours + ' real 4xx response(s) — frontend may be sending malformed requests; verify validation contract.', risk: 50, impact: 50, urgency: 45, color:'#FBBF24' });
+  }
+  // Policy-driven recommendations (not telemetry-replaceable, kept lean).
+  out.push({ label:'Enforce MFA for SUPER_ADMIN',     detail:'Multi-factor auth not enforced on the highest-privilege role.',  risk: 75, impact: 80, urgency: 65, color:'#FCA5A5' });
+  out.push({ label:'Rotate JWT signing key',          detail:'Best practice — rotate platform JWT secret on a fixed cadence.', risk: 70, impact: 80, urgency: 60, color:'#FCA5A5' });
+  out.push({ label:'Document incident runbook',       detail:'Codify response steps for HIGH+ severity captured events.',       risk: 45, impact: 55, urgency: 35, color:'#34D399' });
   out.sort(function (a, b) { return (b.risk + b.impact + b.urgency) - (a.risk + a.impact + a.urgency); });
   return out.slice(0, 8);
 }
@@ -14639,36 +14839,79 @@ function _socTenantSecurityHealth() {
   });
 }
 function _socIncidentQueue() {
-  // Synthesise an incident queue with status buckets. Open/Investigating
-  // items are drawn from current warnings/critical; resolved/closed
-  // counts are zeroed (no persisted incident store in this read-only
-  // surface).
-  var notes = _socNotifications();
+  var snap = _socTelemetry();
   var threat = _socThreatLevel();
+  if (!snap._ready) {
+    return {
+      incidents: [{ id:'INC-—', kind:'TELEMETRY UNAVAILABLE', state:'CLOSED', actor:'PLATFORM', detail:'FOSTelemetry layer not initialised — incident queue offline.', color:'#7DF9FF' }],
+      counts: { OPEN: 0, INVESTIGATING: 0, RESOLVED: 0, CLOSED: 1 },
+      threat: threat,
+    };
+  }
   var incidents = [];
-  (notes.critical || []).slice(0, 4).forEach(function (n) {
-    incidents.push({ id:'INC-' + (1000 + incidents.length), kind: n.kind || 'CRITICAL EVENT', state:'OPEN', actor: n.source || 'PLATFORM', detail: n.text, color:'#FCA5A5' });
+  var serial = 1;
+  // Real runtime errors → OPEN incidents.
+  snap.errors.slice().reverse().forEach(function (e) {
+    if (incidents.length >= 8) return;
+    incidents.push({
+      id: 'INC-' + String(1000 + serial++),
+      kind: 'RUNTIME ERROR',
+      state: 'OPEN',
+      actor: e.origin || 'window',
+      detail: (e.message || 'runtime error') + (e.source ? ' · ' + String(e.source).split('/').pop() : '') + (e.line ? ':' + e.line : ''),
+      color: '#FCA5A5',
+    });
   });
-  (notes.warnings || []).slice(0, 4).forEach(function (n) {
-    incidents.push({ id:'INC-' + (1000 + incidents.length), kind: n.kind || 'WARNING', state: incidents.length % 2 ? 'INVESTIGATING' : 'OPEN', actor: n.source || 'PLATFORM', detail: n.text, color:'#FBBF24' });
-  });
+  // Real 5xx / network failures → INVESTIGATING.
+  var sortedApi = snap.api.slice().reverse();
+  for (var i = 0; i < sortedApi.length && incidents.length < 8; i++) {
+    var a = sortedApi[i];
+    var c = _socClassifyApi(a);
+    if (!c) continue;
+    if (c.isErr) {
+      incidents.push({
+        id: 'INC-' + String(1000 + serial++),
+        kind: 'BACKEND FAILURE',
+        state: 'INVESTIGATING',
+        actor: c.method + ' ' + _socShortPath(a.url),
+        detail: 'HTTP ' + (a.status || a.code || 'ERR') + (a.durationMs != null ? ' · ' + a.durationMs + 'ms' : ''),
+        color: '#FBBF24',
+      });
+    }
+  }
   if (!incidents.length) {
-    incidents.push({ id:'INC-1000', kind:'NO OPEN INCIDENTS', state:'CLOSED', actor:'SECURITY', detail:'No active incidents — baseline traffic only.', color:'#7DF9FF' });
+    incidents.push({
+      id: 'INC-1000',
+      kind: (snap.counters.req === 0 && snap.counters.errors === 0) ? 'NO TELEMETRY YET' : 'NO OPEN INCIDENTS',
+      state: 'CLOSED',
+      actor: 'TELEMETRY',
+      detail: (snap.counters.req === 0 && snap.counters.errors === 0)
+        ? 'No captured security telemetry yet — incident queue activates once the platform talks to the backend.'
+        : 'No real incidents in last ' + Math.round(_SOC_WINDOW_MS / 60000) + ' min — captured baseline is clean.',
+      color: '#7DF9FF',
+    });
   }
   var counts = { OPEN: 0, INVESTIGATING: 0, RESOLVED: 0, CLOSED: 0 };
   incidents.forEach(function (i) { counts[i.state] = (counts[i.state] || 0) + 1; });
   return { incidents: incidents.slice(0, 8), counts: counts, threat: threat };
 }
 function _socSummary() {
+  var snap = _socTelemetry();
+  if (!snap._ready) {
+    return 'FOS Security Operations Center · FOSTelemetry layer offline — security summary unavailable.';
+  }
+  if (snap.counters.req === 0 && snap.counters.errors === 0) {
+    return 'FOS Security Operations Center · no captured security telemetry yet · session ' + Math.round(snap.uptimeMs / 1000) + 's. Counters activate as the platform makes its first API call.';
+  }
   var sec = _socSecurity();
   var threat = _socThreatLevel();
   var queue = _socIncidentQueue();
   var recs = _socRecommendations();
   var vul = _socVulnerabilityMonitoring();
   var missing = vul.filter(function (v) { return v.status === 'MISSING'; }).length;
-  return 'FOS Security Operations Center · security ' + (sec.status || 'STEADY') + ' (' + (sec.score || 0) + '/100) · threat level ' + threat.level + '. ' +
-         (queue.counts.OPEN + queue.counts.INVESTIGATING) + ' open / investigating incident(s) · ' +
-         missing + ' missing control(s) · ' + recs.length + ' recommendation(s) ranked by risk + impact + urgency.';
+  return 'FOS Security Operations Center · score ' + sec.score + '/100 (' + sec.status + ') · threat level ' + threat.level + ' · ' +
+         (queue.counts.OPEN + queue.counts.INVESTIGATING) + ' open / investigating incident(s) (real captured) · ' +
+         missing + ' missing control(s) · ' + recs.length + ' recommendation(s) ranked by risk + impact + urgency. All counters sourced from FOSTelemetry.';
 }
 function _ensureSOCStyles() {
   if (document.getElementById('soc-styles')) return;
