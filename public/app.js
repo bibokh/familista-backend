@@ -20103,42 +20103,70 @@ function canManagePlayers(opts) {
   return role === 'CLUB_ADMIN' || role === 'HEAD_COACH' || role === 'SUPER_ADMIN';
 }
 
+// ════════════════════════════════════════════════════════════════════
+// PHASE B.4 · SQUAD + RICH PLAYER PROFILE
+// ────────────────────────────────────────────────────────────────────
+// Top Eleven-inspired premium player grid + 6-tab rich profile modal.
+// Real Player data only; existing dispatcher wires preserved.
+// ════════════════════════════════════════════════════════════════════
+
+function _sq2Role(pos) {
+  const p = String(pos || '').toUpperCase();
+  if (p === 'GK') return 'GK';
+  if (['DC','DL','DR','CB','LB','RB'].indexOf(p) !== -1) return 'DEF';
+  if (['DMC','ML','MR','MC','AMC','AML','AMR','CM','LM','RM'].indexOf(p) !== -1) return 'MID';
+  if (['ST','CF','LW','RW','SS'].indexOf(p) !== -1) return 'FWD';
+  return 'OTHER';
+}
+function _sq2RingColor(role) {
+  return role === 'GK'  ? '#FACC15'
+       : role === 'DEF' ? '#38BDF8'
+       : role === 'MID' ? '#22C55E'
+       : role === 'FWD' ? '#EF4444'
+       : '#94A3B8';
+}
+function _sq2CndFill(cnd) {
+  return cnd >= 80 ? 'linear-gradient(90deg, #16A34A, #22C55E)'
+       : cnd >= 60 ? 'linear-gradient(90deg, #D97706, #F59E0B)'
+       :             'linear-gradient(90deg, #B91C1C, #EF4444)';
+}
+function _sq2Photo(p) {
+  if (typeof _pcPhotoUrl === 'function') { try { return _pcPhotoUrl(p) || ''; } catch (_) {} }
+  return (p && p.avatar) || '';
+}
+function _sq2Initials(p) {
+  if (typeof _pcInitials === 'function') { try { return _pcInitials(p); } catch (_) {} }
+  const f = ((p && p.firstName) || '?')[0] || '?';
+  const l = ((p && p.lastName)  || '')[0]  || '';
+  return (f + l).toUpperCase();
+}
+
 function renderSquadHTML() {
-  return '<div class="page" id="pg-squad">' +
-    '<div style="display:flex;flex-direction:column;height:100%;">' +
-      '<div class="squad-toolbar">' +
-        '<div>' +
-          '<div style="font-size:15px;font-weight:700;color:var(--tx);">Squad</div>' +
-          '<div style="font-size:12px;color:var(--tx-3);" id="squad-sub">Loading…</div>' +
-        '</div>' +
-        '<div style="margin-left:auto;display:flex;gap:8px;align-items:center;">' +
-          '<div class="filter-group">' +
-            '<button class="filter-btn active" onclick="filterSquad(\'ALL\',this)">All</button>' +
-            '<button class="filter-btn" onclick="filterSquad(\'GK\',this)">GK</button>' +
-            '<button class="filter-btn" onclick="filterSquad(\'DEF\',this)">DEF</button>' +
-            '<button class="filter-btn" onclick="filterSquad(\'MID\',this)">MID</button>' +
-            '<button class="filter-btn" onclick="filterSquad(\'ATT\',this)">ATT</button>' +
-          '</div>' +
-          '<button class="btn btn-primary btn-sm" id="squad-add-btn" onclick="openAddPlayerModal()" style="display:none;">+ Add Player</button>' +
-        '</div>' +
-      '</div>' +
-      '<div style="overflow-y:auto;flex:1;">' +
-        '<div id="player-grid" class="player-grid">' + loadingHTML('Loading squad…') + '</div>' +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  return '<div class="page" id="pg-squad">'
+       + '  <div class="sq2-page">'
+       + '    <header class="sq2-toolbar">'
+       + '      <div class="sq2-tb-titles">'
+       + '        <h1 class="sq2-tb-title">Squad</h1>'
+       + '        <div class="sq2-tb-sub" id="squad-sub">Loading…</div>'
+       + '      </div>'
+       + '      <div class="sq2-tb-filters">'
+       + '        <button class="sq2-chip active" onclick="filterSquad(\'ALL\', this)" type="button">All</button>'
+       + '        <button class="sq2-chip"        onclick="filterSquad(\'GK\',  this)" type="button">GK</button>'
+       + '        <button class="sq2-chip"        onclick="filterSquad(\'DEF\', this)" type="button">DEF</button>'
+       + '        <button class="sq2-chip"        onclick="filterSquad(\'MID\', this)" type="button">MID</button>'
+       + '        <button class="sq2-chip"        onclick="filterSquad(\'ATT\', this)" type="button">ATT</button>'
+       + '      </div>'
+       + '      <button class="sq2-add-btn" id="squad-add-btn" onclick="openAddPlayerModal()" type="button" style="display:none;">+ Add Player</button>'
+       + '    </header>'
+       + '    <div class="sq2-grid" id="player-grid"></div>'
+       + '  </div>'
+       + '</div>';
 }
 
 function renderSquad(filterPos) {
-  // The header search input IS the trigger for live filtering — treating its
-  // focus as "editing" would defer the very re-render the user just asked for,
-  // leaving every player visible while they typed. Only the grid is replaced
-  // here, so re-rendering while #global-search is focused is safe.
   const _ae = document.activeElement;
   const _fromHeaderSearch = !!(_ae && _ae.id === 'global-search');
   if (!_fromHeaderSearch && isFormEditing()) { _pendingRefresh = true; return; }
-  // Persist the active position filter so re-renders (e.g. live name search)
-  // keep it instead of resetting to ALL.
   if (filterPos) State.squadFilter = filterPos;
   const pos = State.squadFilter || 'ALL';
   const grid = document.getElementById('player-grid');
@@ -20149,90 +20177,79 @@ function renderSquad(filterPos) {
   if (addBtn) addBtn.style.display = canManagePlayers() ? '' : 'none';
 
   const all = Array.isArray(State.players) ? State.players : [];
-  const posMap = { GK:['GK'], DEF:['DC','DL','DR'], MID:['DMC','ML','MR','MC','AMC','AML','AMR'], ATT:['ST'] };
+  const posMap = { GK:['GK'], DEF:['DC','DL','DR','CB','LB','RB'], MID:['DMC','ML','MR','MC','AMC','AML','AMR','CM','LM','RM'], ATT:['ST','CF','LW','RW','SS'] };
   let filtered = pos === 'ALL' ? all : all.filter(p => (posMap[pos] || []).indexOf(p.position) !== -1);
 
-  // Name search — case-insensitive over firstName / lastName / full name.
   const q = (State.squadSearch || '').trim().toLowerCase();
   if (q) {
     filtered = filtered.filter(p => {
       const first = (p.firstName || '').toLowerCase();
       const last  = (p.lastName  || '').toLowerCase();
-      return first.includes(q) || last.includes(q) || (first + ' ' + last).includes(q);
+      return first.indexOf(q) !== -1 || last.indexOf(q) !== -1 || (first + ' ' + last).indexOf(q) !== -1;
     });
   }
 
-  if (sub) {
-    const ovr = State.analytics && State.analytics.overview && State.analytics.overview.teamRating;
-    sub.textContent = filtered.length + ' player' + (filtered.length === 1 ? '' : 's') + ' · OVR ' + (ovr || '—');
-  }
+  const injured = filtered.filter(p => p.isInjured).length;
+  const avgOvr = filtered.length
+    ? Math.round(filtered.reduce((a, p) => a + (p.overallRating || 0), 0) / filtered.length)
+    : '—';
+  if (sub) sub.textContent = filtered.length + ' player' + (filtered.length === 1 ? '' : 's') + ' · ' + injured + ' injured · avg OVR ' + avgOvr;
 
   if (filtered.length === 0) {
     grid.innerHTML =
-      '<div class="empty" style="grid-column:1/-1;">' +
-        '<div class="empty-ico">👥</div>' +
-        '<div class="empty-ttl">' + (all.length === 0 ? 'No players in the squad yet' : 'No players match this filter') + '</div>' +
-        '<div style="font-size:12px;color:var(--tx-3);margin-top:6px;">' +
-          (canManagePlayers() ? 'Click <strong>+ Add Player</strong> to create the first one.' : 'Ask a club admin to add players.') +
-        '</div>' +
-      '</div>';
+      '<div class="sq2-empty">'
+    + '  <div class="sq2-empty-icon">👥</div>'
+    + '  <div class="sq2-empty-title">' + (all.length === 0 ? 'No players in the squad yet' : 'No players match this filter') + '</div>'
+    + '  <div class="sq2-empty-sub">' + (canManagePlayers() ? 'Click <strong>+ Add Player</strong> to create the first one.' : 'Ask a club admin to add players.') + '</div>'
+    + '</div>';
     return;
   }
 
   grid.innerHTML = filtered.map(p => {
-    const gps = (p.gpsData && p.gpsData[0]) || {};
-    const cnd = (p.condition != null) ? p.condition : 100;
-    const age = p.dateOfBirth ? (new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : '—';
-    const ovr = (p.overallRating != null) ? p.overallRating : '—';
-    const num = (p.number != null) ? p.number : '?';
-    return '<div class="card pc clickable" data-action="openPlayerModal" data-id="' + p.id + '">' +
-      '<div class="pc-top">' +
-        '<div class="pc-avatar">' + playerSVG(p) + '</div>' +
-        '<div class="pc-info">' +
-          '<div class="pc-name">' + (p.firstName || '') + ' ' + (p.lastName || '') + '</div>' +
-          '<div class="pc-meta">Age ' + age + ' · ' + (p.nationality || '—') + '</div>' +
-          '<div style="margin-top:4px;display:flex;gap:4px;align-items:center;">' +
-            '<span class="pos-pill ' + posClass(p.position) + '">' + (p.position || '—') + '</span>' +
-            (p.isInjured ? '<span class="badge badge-red" style="font-size:9px;">INJURED</span>' : '') +
-            (p.medicalStatus && p.medicalStatus !== 'HEALTHY' && !p.isInjured ? '<span class="badge" style="background:rgba(217,119,6,.12);color:#FDBA74;border:1px solid rgba(217,119,6,.3);font-size:9px;">' + p.medicalStatus + '</span>' : '') +
-            (p.paymentStatus && p.paymentStatus !== 'PAID' && p.paymentStatus !== 'EXEMPT' ? '<span class="badge" style="background:rgba(220,38,38,.12);color:#FCA5A5;border:1px solid rgba(220,38,38,.3);font-size:9px;">' + p.paymentStatus + '</span>' : '') +
-            (p.isActive === false ? '<span class="badge badge-gray" style="font-size:9px;">INACTIVE</span>' : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="pc-rating">' + ovr + '</div>' +
-      '</div>' +
-      '<div class="pc-body">' +
-        '<div class="pc-stats">' +
-          '<div class="pc-stat"><div class="pc-stat-val" style="color:var(--green-l);">' + (gps.topSpeed != null ? gps.topSpeed.toFixed(1) : '—') + '</div><div class="pc-stat-lbl">km/h</div></div>' +
-          '<div class="pc-stat"><div class="pc-stat-val" style="color:var(--red);">' + (gps.heartRateAvg || '—') + '</div><div class="pc-stat-lbl">BPM</div></div>' +
-          '<div class="pc-stat"><div class="pc-stat-val" style="color:var(--amber);">' + (gps.distance != null ? gps.distance.toFixed(1) : '—') + '</div><div class="pc-stat-lbl">km/m</div></div>' +
-        '</div>' +
-        '<div class="pc-cnd">' +
-          '<div class="pc-cnd-hdr"><span>Condition</span><span style="color:' + condColor(cnd) + ';font-weight:600;">' + cnd + '%</span></div>' +
-          '<div class="prog"><div class="prog-bar" style="width:' + cnd + '%;background:' + condBarBg(cnd) + ';"></div></div>' +
-        '</div>' +
-      '</div>' +
-      '<div class="pc-footer">' +
-        '<span style="font-size:10px;color:var(--tx-3);font-family:var(--mono);">' + ((p.device && p.device.serialNumber) || 'No Device') + '</span>' +
-        '<span class="badge badge-gray" style="font-size:9px;">#' + num + '</span>' +
-      '</div>' +
-    '</div>';
+    const cnd       = (p.condition != null) ? p.condition : 100;
+    const age       = p.dateOfBirth ? (new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : '—';
+    const ovr       = (p.overallRating != null) ? p.overallRating : '—';
+    const num       = (p.number != null) ? p.number : '?';
+    const photo     = _sq2Photo(p);
+    const initials  = _sq2Initials(p);
+    const role      = _sq2Role(p.position);
+    const ring      = _sq2RingColor(role);
+    const isInjured = !!p.isInjured;
+
+    return '<button class="sq2-card sq2-status-' + (isInjured ? 'injured' : 'available') + '" data-action="openPlayerModal" data-id="' + p.id + '" type="button">'
+         + '  <div class="sq2-card-hdr">'
+         + '    <span class="sq2-jersey">#' + num + '</span>'
+         + '    <span class="sq2-rating">' + ovr + '</span>'
+         + '  </div>'
+         + '  <div class="sq2-photo" style="border-color:' + ring + ';">'
+         +    (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<span class="sq2-photo-initials">' + _esc(initials) + '</span>')
+         +    (isInjured ? '<span class="sq2-photo-badge" title="Injured">🚑</span>' : '')
+         + '  </div>'
+         + '  <div class="sq2-card-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div>'
+         + '  <div class="sq2-card-meta">'
+         + '    <span class="sq2-pos-chip sq2-pos-' + role.toLowerCase() + '">' + _esc(p.position || '—') + '</span>'
+         + '    <span class="sq2-card-age">Age ' + age + '</span>'
+         + '  </div>'
+         + '  <div class="sq2-card-cnd">'
+         + '    <div class="sq2-cnd-top"><span>CONDITION</span><span class="sq2-cnd-val">' + cnd + '%</span></div>'
+         + '    <div class="sq2-cnd-bar"><div class="sq2-cnd-fill" style="width:' + cnd + '%;background:' + _sq2CndFill(cnd) + ';"></div></div>'
+         + '  </div>'
+         + '</button>';
   }).join('');
 }
 
 function filterSquad(pos, el) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sq2-chip').forEach(b => b.classList.remove('active'));
   if (el) el.classList.add('active');
   renderSquad(pos);
 }
 
-// Live Squad name-search (wired to the header search input). Stores the query
-// and re-paints the grid in place, preserving the active position filter.
 function squadSearchInput(q) {
   State.squadSearch = q || '';
   if (document.getElementById('player-grid')) renderSquad();
 }
 
+// ── Rich Player Profile modal ────────────────────────────────────
 async function openPlayerModal(id) {
   if (!id) return;
   let p = (State.players || []).find(x => x.id === id);
@@ -20257,165 +20274,208 @@ async function openPlayerModal(id) {
   if (editBtn) editBtn.style.display = canManagePlayers()                  ? '' : 'none';
   if (delBtn)  delBtn.style.display  = canManagePlayers({ deleteOnly:true }) ? '' : 'none';
 
-  document.getElementById('player-modal-sidebar').innerHTML =
-    '<div style="margin-bottom:10px;">' + playerSVG(p, 68, 84) + '</div>' +
-    '<div style="font-size:17px;font-weight:700;color:var(--tx);letter-spacing:-.3px;">' + (p.firstName || '') + ' ' + (p.lastName || '') + '</div>' +
-    '<div style="font-size:32px;font-weight:700;color:var(--green-l);letter-spacing:-2px;margin:5px 0;line-height:1;">' + (p.overallRating != null ? p.overallRating : '—') + '</div>' +
-    '<span class="pos-pill ' + posClass(p.position) + '">' + (p.position || '—') + '</span>' +
-    '<div style="font-size:16px;margin-top:6px;">' + (p.flag || '🌍') + '</div>';
+  const photo    = _sq2Photo(p);
+  const initials = _sq2Initials(p);
+  const role     = _sq2Role(p.position);
+  const ring     = _sq2RingColor(role);
+  const cnd      = p.condition != null ? p.condition : 100;
+  const ovr      = p.overallRating != null ? p.overallRating : '—';
 
-  const tabs = ['Overview', 'Skills', 'GPS Data', 'AI Analysis', 'Contract'];
-  document.getElementById('player-modal-tabs-nav').innerHTML = tabs.map((t, i) =>
-    '<div class="modal-tab ' + (i === 0 ? 'active' : '') + '" style="padding:8px 10px;font-size:12px;text-align:left;border-radius:6px;border:none;border-bottom:none;margin-bottom:2px;' + (i === 0 ? 'background:var(--green-bg);color:var(--green-l);' : '') + '" onclick="playerModalTab(\'' + t.toLowerCase().replace(' ', '-') + '\',this)">' + t + '</div>'
+  document.getElementById('player-modal-sidebar').innerHTML =
+    '<div class="pm2-hero">'
+  + '  <div class="pm2-photo" style="border-color:' + ring + ';">'
+  +      (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">' : '<span class="pm2-photo-initials">' + _esc(initials) + '</span>')
+  +      (p.isInjured ? '<span class="pm2-photo-badge">🚑</span>' : '')
+  + '  </div>'
+  + '  <div class="pm2-rating">' + ovr + '</div>'
+  + '  <div class="pm2-rating-lbl">OVERALL</div>'
+  + '  <div class="pm2-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div>'
+  + '  <div class="pm2-meta">'
+  + '    <span class="pm2-jersey">#' + (p.number != null ? p.number : '?') + '</span>'
+  + '    <span class="sq2-pos-chip sq2-pos-' + role.toLowerCase() + '">' + _esc(p.position || '—') + '</span>'
+  + '  </div>'
+  + '  <div class="pm2-flag">' + (p.flag || '🌍') + ' ' + _esc(p.nationality || '') + '</div>'
+  + '  <div class="pm2-cnd">'
+  + '    <div class="pm2-cnd-top"><span>CONDITION</span><span>' + cnd + '%</span></div>'
+  + '    <div class="pm2-cnd-bar"><div class="pm2-cnd-fill" style="width:' + cnd + '%;background:' + _sq2CndFill(cnd) + ';"></div></div>'
+  + '  </div>'
+  + '</div>';
+
+  const tabs = [
+    { id: 'overview',    label: 'Overview' },
+    { id: 'performance', label: 'Performance' },
+    { id: 'fitness',     label: 'Fitness' },
+    { id: 'injuries',    label: 'Injuries' },
+    { id: 'stats',       label: 'Stats' },
+    { id: 'videos',      label: 'Videos' },
+  ];
+  document.getElementById('player-modal-tabs-nav').innerHTML = tabs.map(t =>
+    '<div class="pm2-tab" onclick="playerModalTab(\'' + t.id + '\', this)">' + t.label + '</div>'
   ).join('');
 
-  playerModalTab('overview', document.querySelector('#player-modal-tabs-nav .modal-tab'));
+  playerModalTab('overview', document.querySelector('#player-modal-tabs-nav .pm2-tab'));
   document.getElementById('player-modal').classList.add('open');
 }
 
 function playerModalTab(tab, el) {
-  document.querySelectorAll('#player-modal-tabs-nav .modal-tab').forEach(t => {
-    t.classList.remove('active');
-    t.style.background = 'none';
-    t.style.color = '';
-  });
-  if (el) { el.classList.add('active'); el.style.background = 'var(--green-bg)'; el.style.color = 'var(--green-l)'; }
+  document.querySelectorAll('#player-modal-tabs-nav .pm2-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
 
   const p = State.activePlayer;
   const c = document.getElementById('player-modal-content');
   if (!p || !c) return;
-
   const gps   = (p.gpsData && p.gpsData[0]) || {};
   const attrs = (p.attributes && p.attributes[0]) || {};
+  const age   = p.dateOfBirth ? (new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : null;
 
   if (tab === 'overview') {
-    const age = p.dateOfBirth ? (new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear()) : '—';
     const rows = [
-      ['Nationality',    (p.flag || '') + ' ' + (p.nationality || '—')],
-      ['Age',            age + ' years'],
+      ['Age',            age != null ? age + ' years' : '—'],
+      ['Nationality',    (p.flag || '🌍') + ' ' + (p.nationality || '—')],
       ['Height',         p.height ? p.height + ' cm' : '—'],
       ['Weight',         p.weight ? p.weight + ' kg' : '—'],
       ['Preferred Foot', p.preferredFoot || '—'],
+      ['Joined',         p.joinedAt ? new Date(p.joinedAt).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) : '—'],
+      ['Contract Until', p.contractUntil ? new Date(p.contractUntil).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) : '—'],
       ['Market Value',   p.marketValue != null ? fmtCurrency(p.marketValue) : '—'],
+      ['Weekly Wage',    p.weeklyWage != null ? fmtCurrency(p.weeklyWage) : '—'],
+      ['Potential',      p.potential != null ? p.potential : '—'],
     ];
-    c.innerHTML =
-      '<div style="padding:18px;">' +
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">' +
-          '<div class="card" style="padding:14px;text-align:center;">' +
-            '<div style="font-size:24px;margin-bottom:4px;">' + (p.isInjured ? '🤕' : '✅') + '</div>' +
-            '<div style="font-size:12px;font-weight:600;color:var(--tx);">Fitness</div>' +
-            '<div style="font-size:11px;color:var(--tx-3);">' + (p.isInjured ? 'Injured' : 'Fully Fit') + '</div>' +
-          '</div>' +
-          '<div class="card" style="padding:14px;text-align:center;">' +
-            '<div style="font-size:24px;margin-bottom:4px;">😄</div>' +
-            '<div style="font-size:12px;font-weight:600;color:var(--tx);">Morale</div>' +
-            '<div style="font-size:11px;color:var(--tx-3);">Superb</div>' +
-          '</div>' +
-          '<div class="card" style="padding:14px;text-align:center;">' +
-            '<div style="font-size:20px;font-weight:700;color:' + condColor(p.condition) + ';margin-bottom:4px;">' + (p.condition != null ? p.condition + '%' : '—') + '</div>' +
-            '<div style="font-size:12px;font-weight:600;color:var(--tx);">Condition</div>' +
-            '<div class="prog" style="margin-top:6px;"><div class="prog-bar" style="width:' + (p.condition || 0) + '%;background:' + condBarBg(p.condition) + ';"></div></div>' +
-          '</div>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-          rows.map(r =>
-            '<div class="card" style="padding:11px 13px;">' +
-              '<div style="font-size:10px;font-weight:600;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">' + r[0] + '</div>' +
-              '<div style="font-size:13px;font-weight:600;color:var(--tx);">' + r[1] + '</div>' +
-            '</div>').join('') +
-        '</div>' +
-      '</div>';
+    c.innerHTML = '<div class="pm2-content">'
+                + '  <h3 class="pm2-section-title">PLAYER FACTS</h3>'
+                + '  <div class="pm2-fact-grid">'
+                +      rows.map(r => '<div class="pm2-fact"><div class="pm2-fact-lbl">' + r[0] + '</div><div class="pm2-fact-val">' + _esc(String(r[1])) + '</div></div>').join('')
+                + '  </div>'
+                + '</div>';
+    return;
+  }
 
-  } else if (tab === 'skills') {
-    const sections = [
-      { title: 'Defense',  color: 'var(--green-l)', keys: ['tackling','marking','heading','defPositioning','interceptions','reflexes','gkPositioning','handling','kicking'].filter(k => attrs[k]) },
-      { title: 'Attack',   color: 'var(--red)',     keys: ['pace','shooting','passing','dribbling','crossing'].filter(k => attrs[k]) },
-      { title: 'Physical', color: 'var(--blue)',    keys: ['strength','stamina','agility','balance'].filter(k => attrs[k]) },
+  if (tab === 'performance') {
+    const groups = [
+      { title: 'Defense',     color: '#38BDF8', keys: ['tackling','marking','heading','defPositioning','interceptions'] },
+      { title: 'Attack',      color: '#EF4444', keys: ['pace','shooting','passing','dribbling','crossing'] },
+      { title: 'Physical',    color: '#22C55E', keys: ['strength','stamina','agility','balance'] },
+      { title: 'Goalkeeping', color: '#FACC15', keys: ['reflexes','gkPositioning','handling','kicking'] },
     ];
-    c.innerHTML =
-      '<div style="padding:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">' +
-        sections.map(s =>
-          '<div>' +
-            '<div style="font-size:12px;font-weight:700;color:' + s.color + ';text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;padding-left:3px;border-left:3px solid ' + s.color + ';">' + s.title + '</div>' +
-            (s.keys.length === 0
-              ? '<div style="font-size:12px;color:var(--tx-3);">No data</div>'
-              : s.keys.map(k =>
-                  '<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;">' +
-                    '<div style="font-size:11px;color:var(--tx-2);width:70px;flex-shrink:0;text-transform:capitalize;">' + k.replace(/([A-Z])/g, ' $1') + '</div>' +
-                    '<div style="flex:1;height:5px;background:var(--bg-4);border-radius:3px;overflow:hidden;">' +
-                      '<div style="width:' + Math.min(100, (attrs[k] || 0) / 1.3) + '%;height:100%;background:' + s.color + ';border-radius:3px;opacity:.8;"></div>' +
-                    '</div>' +
-                    '<div style="font-size:11px;font-weight:600;color:var(--tx);font-family:var(--mono);min-width:26px;text-align:right;">' + (attrs[k] || 0) + '</div>' +
-                  '</div>').join('')) +
-          '</div>'
-        ).join('') +
-      '</div>';
+    const hasAny = groups.some(g => g.keys.some(k => attrs[k] != null));
+    if (!hasAny) {
+      c.innerHTML = '<div class="pm2-content"><div class="pm2-empty">No performance attributes recorded for this player.</div></div>';
+      return;
+    }
+    c.innerHTML = '<div class="pm2-content"><div class="pm2-perf-grid">'
+                + groups.map(g => {
+                    if (!g.keys.some(k => attrs[k] != null)) return '';
+                    return '<div class="pm2-perf-group">'
+                         + '<div class="pm2-perf-title" style="color:' + g.color + ';">' + g.title + '</div>'
+                         +    g.keys.filter(k => attrs[k] != null).map(k => {
+                                const v = attrs[k];
+                                const pct = Math.min(100, (v / 130) * 100);
+                                const label = k.replace(/([A-Z])/g, ' $1');
+                                return '<div class="pm2-perf-row">'
+                                     + '<div class="pm2-perf-lbl">' + label.charAt(0).toUpperCase() + label.slice(1) + '</div>'
+                                     + '<div class="pm2-perf-bar"><div class="pm2-perf-fill" style="width:' + pct + '%;background:' + g.color + ';"></div></div>'
+                                     + '<div class="pm2-perf-val">' + v + '</div>'
+                                     + '</div>';
+                              }).join('')
+                         + '</div>';
+                  }).join('')
+                + '</div></div>';
+    return;
+  }
 
-  } else if (tab === 'gps-data') {
+  if (tab === 'fitness') {
+    const cnd = p.condition != null ? p.condition : 100;
+    const cndColor = cnd >= 80 ? '#22C55E' : cnd >= 60 ? '#F59E0B' : '#EF4444';
     const tiles = [
-      ['Top Speed',   gps.topSpeed != null ? gps.topSpeed.toFixed(1) + ' km/h' : '—', 'var(--green-l)'],
-      ['Avg Speed',   gps.avgSpeed != null ? gps.avgSpeed.toFixed(1) + ' km/h' : '—', 'var(--blue)'],
-      ['Distance',    gps.distance != null ? gps.distance.toFixed(2) + ' km'   : '—', 'var(--amber)'],
-      ['Sprints',     gps.sprintCount || '—',                                          'var(--blue)'],
-      ['Avg HR',      gps.heartRateAvg ? gps.heartRateAvg + ' bpm' : '—',              'var(--red)'],
-      ['Player Load', gps.playerLoad != null ? gps.playerLoad.toFixed(0) : '—',        'var(--purple)'],
-      ['Risk Score',  gps.riskScore != null ? gps.riskScore.toFixed(0) + '%' : '—',    gps.riskScore > 70 ? 'var(--red)' : gps.riskScore > 50 ? 'var(--amber)' : 'var(--green-l)'],
-      ['Battery',     (p.device && p.device.batteryLevel) ? p.device.batteryLevel + '%' : '—', 'var(--green-l)'],
-      ['Condition',   p.condition != null ? p.condition + '%' : '—',                   condColor(p.condition)],
+      { lbl: 'Condition',   val: cnd + '%',                                                                col: cndColor },
+      { lbl: 'Status',      val: p.isInjured ? 'Injured 🚑' : 'Available ✓',                              col: p.isInjured ? '#EF4444' : '#22C55E' },
+      { lbl: 'Top Speed',   val: gps.topSpeed != null   ? gps.topSpeed.toFixed(1) + ' km/h'    : '—',     col: '#22C55E' },
+      { lbl: 'Avg HR',      val: gps.heartRateAvg       ? gps.heartRateAvg + ' bpm'           : '—',     col: '#EF4444' },
+      { lbl: 'Distance',    val: gps.distance != null   ? gps.distance.toFixed(2) + ' km'     : '—',     col: '#F59E0B' },
+      { lbl: 'Sprints',     val: gps.sprintCount        ? gps.sprintCount                     : '—',     col: '#38BDF8' },
+      { lbl: 'Player Load', val: gps.playerLoad != null ? gps.playerLoad.toFixed(0)           : '—',     col: '#A855F7' },
+      { lbl: 'GPS Risk',    val: gps.riskScore != null  ? gps.riskScore.toFixed(0) + '%'      : '—',     col: gps.riskScore > 70 ? '#EF4444' : '#22C55E' },
     ];
-    c.innerHTML =
-      '<div style="padding:18px;">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">' +
-          '<div style="width:8px;height:8px;border-radius:50%;background:var(--green-l);animation:badgePulse 1.5s ease infinite;"></div>' +
-          '<span style="font-size:13px;font-weight:600;color:var(--tx);">Familista GPS Device · ' + ((p.device && p.device.serialNumber) || 'Not assigned') + '</span>' +
-          (p.device ? '<span class="badge badge-green">Online</span>' : '<span class="badge badge-gray">Offline</span>') +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">' +
-          tiles.map(t =>
-            '<div class="card" style="padding:13px;text-align:center;">' +
-              '<div style="font-size:20px;font-weight:700;color:' + t[2] + ';font-family:var(--mono);">' + t[1] + '</div>' +
-              '<div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-top:4px;">' + t[0] + '</div>' +
-            '</div>').join('') +
-        '</div>' +
-      '</div>';
+    c.innerHTML = '<div class="pm2-content">'
+                + '  <h3 class="pm2-section-title">FITNESS &amp; LOAD</h3>'
+                + '  <div class="pm2-fitness-grid">'
+                +      tiles.map(t => '<div class="pm2-fitness-tile"><div class="pm2-fitness-lbl">' + t.lbl + '</div><div class="pm2-fitness-val" style="color:' + t.col + ';">' + _esc(String(t.val)) + '</div></div>').join('')
+                + '  </div>'
+                + '</div>';
+    return;
+  }
 
-  } else if (tab === 'ai-analysis') {
-    c.innerHTML =
-      '<div style="padding:18px;">' +
-        '<div class="card" style="padding:14px;background:var(--green-bg);border:1px solid var(--green-bd);margin-bottom:12px;" id="ai-player-analysis">' +
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-            '<div style="width:26px;height:26px;border-radius:7px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:13px;">⚡</div>' +
-            '<div style="font-size:13px;font-weight:600;color:var(--tx);">ARIA Player Analysis</div>' +
-            '<button class="btn btn-outline btn-xs" onclick="loadPlayerAIAnalysis(\'' + p.id + '\')">Generate</button>' +
-          '</div>' +
-          '<div style="font-size:13px;color:var(--tx-2);line-height:1.7;">Click "Generate" for real-time AI analysis of ' + (p.firstName || '') + ' ' + (p.lastName || '') + '</div>' +
-        '</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
-          '<div class="card" style="padding:13px;"><div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Market Value</div><div style="font-size:20px;font-weight:700;color:var(--amber);font-family:var(--mono);">' + (p.marketValue != null ? fmtCurrency(p.marketValue) : '—') + '</div></div>' +
-          '<div class="card" style="padding:13px;"><div style="font-size:10px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Potential</div><div style="font-size:20px;font-weight:700;color:var(--green-l);font-family:var(--mono);">' + (p.potential != null ? p.potential : '—') + '</div></div>' +
-        '</div>' +
-      '</div>';
+  if (tab === 'injuries') {
+    const inj = Array.isArray(p.injuries) ? p.injuries : [];
+    if (!inj.length) {
+      c.innerHTML = '<div class="pm2-content"><div class="pm2-empty">No injury history recorded.</div></div>';
+      return;
+    }
+    c.innerHTML = '<div class="pm2-content">'
+                + '  <h3 class="pm2-section-title">INJURY HISTORY · ' + inj.length + '</h3>'
+                + '  <div class="pm2-inj-list">'
+                +      inj.map(i => {
+                        const active = !i.returnedAt;
+                        const start  = i.injuredAt ? new Date(i.injuredAt).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) : '—';
+                        const end    = i.returnedAt ? new Date(i.returnedAt).toLocaleDateString(undefined, { day:'numeric', month:'short', year:'numeric' }) : 'Ongoing';
+                        return '<div class="pm2-inj-row pm2-inj-' + (active ? 'active' : 'recovered') + '">'
+                             + '<div class="pm2-inj-icon">' + (active ? '🚑' : '✅') + '</div>'
+                             + '<div class="pm2-inj-body"><div class="pm2-inj-title">' + _esc(i.type || i.injuryType || 'Injury') + '</div><div class="pm2-inj-meta">' + _esc(start) + ' → ' + _esc(end) + '</div></div>'
+                             + '<div class="pm2-inj-state ' + (active ? 'active' : 'recovered') + '">' + (active ? 'ACTIVE' : 'RECOVERED') + '</div>'
+                             + '</div>';
+                      }).join('')
+                + '  </div>'
+                + '</div>';
+    return;
+  }
 
-  } else { // 'contract'
-    c.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;">' +
-        '<div style="padding:18px;border-right:1px solid var(--bd);">' +
-          '<div style="font-size:11px;font-weight:700;color:var(--green-l);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Contract</div>' +
-          '<div style="font-size:12px;color:var(--tx-3);margin-bottom:5px;">Expires</div>' +
-          '<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:12px;">' + (p.contractUntil ? fmtDate(p.contractUntil) : 'Unknown') + '</div>' +
-          '<div style="font-size:12px;color:var(--tx-3);margin-bottom:4px;">Weekly Wage</div>' +
-          '<div style="font-size:17px;font-weight:700;color:var(--tx);">🪙 ' + (p.weeklyWage || 0).toLocaleString() + '</div>' +
-        '</div>' +
-        '<div style="padding:18px;border-right:1px solid var(--bd);background:var(--bg-2);">' +
-          '<div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Market Value</div>' +
-          '<div style="font-size:24px;font-weight:700;color:var(--amber);font-family:var(--mono);">' + (p.marketValue != null ? fmtCurrency(p.marketValue) : '—') + '</div>' +
-        '</div>' +
-        '<div style="padding:18px;">' +
-          '<div style="font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Potential</div>' +
-          '<div style="font-size:24px;font-weight:700;color:var(--blue);font-family:var(--mono);">' + (p.potential != null ? p.potential : '—') + '</div>' +
-          '<div style="font-size:11px;color:var(--tx-3);margin-top:8px;">Foot: ' + (p.preferredFoot || '—') + '</div>' +
-        '</div>' +
-      '</div>';
+  if (tab === 'stats') {
+    const matches = Array.isArray(p.matchStats) ? p.matchStats : [];
+    if (!matches.length) {
+      c.innerHTML = '<div class="pm2-content"><div class="pm2-empty">No match statistics recorded for this player yet.</div></div>';
+      return;
+    }
+    c.innerHTML = '<div class="pm2-content">'
+                + '  <h3 class="pm2-section-title">MATCH STATS · LAST ' + Math.min(10, matches.length) + '</h3>'
+                + '  <div class="pm2-stats-tbl">'
+                + '    <div class="pm2-stats-row pm2-stats-hdr"><div>MATCH</div><div>RESULT</div><div>MIN</div><div>G</div><div>A</div><div>RAT</div></div>'
+                +      matches.slice(0, 10).map(s => {
+                        const m = s.match || {};
+                        const mLabel = m.homeTeam && m.awayTeam ? (m.homeTeam + ' vs ' + m.awayTeam) : (m.opponent || '—');
+                        const score = (m.homeScore != null && m.awayScore != null) ? (m.homeScore + '—' + m.awayScore) : '—';
+                        return '<div class="pm2-stats-row">'
+                             + '<div class="pm2-stats-match">' + _esc(mLabel) + '</div>'
+                             + '<div>' + _esc(score) + '</div>'
+                             + '<div>' + (s.minutes != null ? s.minutes : '—') + '</div>'
+                             + '<div>' + (s.goals   != null ? s.goals : 0) + '</div>'
+                             + '<div>' + (s.assists != null ? s.assists : 0) + '</div>'
+                             + '<div class="pm2-stats-rating">' + (s.rating != null ? Number(s.rating).toFixed(1) : '—') + '</div>'
+                             + '</div>';
+                      }).join('')
+                + '  </div>'
+                + '</div>';
+    return;
+  }
+
+  if (tab === 'videos') {
+    const vids = Array.isArray(p.videos) ? p.videos : [];
+    if (!vids.length) {
+      c.innerHTML = '<div class="pm2-content"><div class="pm2-empty">No videos linked to this player yet.<br><small>Upload via the Videos page and tag with this player to see them here.</small></div></div>';
+      return;
+    }
+    c.innerHTML = '<div class="pm2-content">'
+                + '  <h3 class="pm2-section-title">VIDEOS · ' + vids.length + '</h3>'
+                + '  <div class="pm2-vid-grid">'
+                +      vids.slice(0, 12).map(v =>
+                        '<div class="pm2-vid-card">'
+                      + '  <div class="pm2-vid-thumb">🎬</div>'
+                      + '  <div class="pm2-vid-title">' + _esc(v.title || 'Video') + '</div>'
+                      + '  <div class="pm2-vid-meta">' + (v.durationSec ? Math.round(v.durationSec / 60) + ' min' : '—') + ' · ' + _esc(v.status || 'READY') + '</div>'
+                      + '</div>'
+                      ).join('')
+                + '  </div>'
+                + '</div>';
+    return;
   }
 }
 
