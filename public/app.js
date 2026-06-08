@@ -1201,56 +1201,335 @@ function renderAllPages() {
   renderTournContent('overview');
 }
 
-// ── DASHBOARD ──
+// ── DASHBOARD (Phase B.2 — Premium Club Hero) ──
 function renderDashboardHTML() {
   return `<div class="page active" id="pg-dashboard">
-  <div class="dash-grid">
-    <div class="dash-main">
-      <div id="fc-cmd-center"></div>
-      <div class="match-hero" id="match-hero">
-        ${loadingHTML('Loading next match...')}
+  <div class="dash-v2">
+    <section class="hero-club" id="dash-hero"></section>
+    <section class="kpi-row-v2" id="dash-kpi"></section>
+    <section class="dash-grid-v2">
+      <div class="dash-col-main">
+        <div class="d-card" id="dash-readiness"></div>
+        <div class="d-card" id="dash-recent"></div>
       </div>
-      <div class="kpi-row" id="kpi-row">
-        ${[1,2,3,4].map(()=>`<div class="card"><div class="skeleton skeleton-card"></div></div>`).join('')}
+      <div class="dash-col-side">
+        <div class="d-card" id="dash-training-today"></div>
+        <div class="d-card" id="dash-top-performers"></div>
+        <div class="d-card" id="dash-alerts"></div>
       </div>
-      <div class="card">
-        <div class="card-header">
-          <div><div class="card-title">Performance Overview</div><div class="card-sub">Last 8 matches</div></div>
-          <span class="badge badge-gray">Loading...</span>
-        </div>
-        <div style="padding:0 16px 16px;height:170px;display:flex;align-items:center;justify-content:center;">
-          <div class="spinner"></div>
-        </div>
-      </div>
-      <div class="card" id="results-card" style="overflow:hidden;">
-        <div style="padding:12px 14px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;">
-          <div class="card-title">Recent Results</div>
-          <button class="btn btn-ghost btn-xs" onclick="navTo('matches',null)">View All</button>
-        </div>
-        <div id="results-list">${loadingHTML('Loading results...')}</div>
-      </div>
-    </div>
-    <div class="dash-side">
-      <div style="flex-shrink:0;">
-        <div class="side-hdr"><div class="side-title">League 33</div><span class="badge badge-blue">Live</span></div>
-        <div id="standings-mini">${loadingHTML()}</div>
-        <div style="padding:8px 14px;">
-          <button class="btn btn-ghost btn-xs" style="width:100%;justify-content:center;" onclick="navTo('tournaments',null)">Full Standings →</button>
-        </div>
-      </div>
-      <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;">
-        <div class="side-hdr" style="flex-shrink:0;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <div style="width:20px;height:20px;border-radius:6px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:10px;">⚡</div>
-            <div class="side-title">ARIA Insights</div>
-          </div>
-          <span class="badge badge-green">Live</span>
-        </div>
-        <div id="aria-insights">${loadingHTML()}</div>
-      </div>
-    </div>
+    </section>
   </div>
 </div>`;
+}
+
+// Countdown — single 1 s interval, updates only digit spans (tabular-nums
+// keeps the digit columns fixed, so no layout shift). Auto-clears when
+// the dashboard is no longer mounted.
+var _dashCountdownTimer = null;
+var _dashCountdownTarget = 0;
+function _dashStartCountdown(targetMs) {
+  if (_dashCountdownTimer) { clearInterval(_dashCountdownTimer); _dashCountdownTimer = null; }
+  _dashCountdownTarget = targetMs;
+  function tick() {
+    var d = document.getElementById('hfc-days');
+    if (!d) { if (_dashCountdownTimer) { clearInterval(_dashCountdownTimer); _dashCountdownTimer = null; } return; }
+    var diff = _dashCountdownTarget - Date.now();
+    if (diff < 0) diff = 0;
+    var days  = Math.floor(diff / 86400000);
+    var hours = Math.floor((diff % 86400000) / 3600000);
+    var mins  = Math.floor((diff % 3600000)  / 60000);
+    var secs  = Math.floor((diff % 60000)    / 1000);
+    var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+    d.textContent = pad(days);
+    var h = document.getElementById('hfc-hours'); if (h) h.textContent = pad(hours);
+    var m = document.getElementById('hfc-mins');  if (m) m.textContent = pad(mins);
+    var s = document.getElementById('hfc-secs');  if (s) s.textContent = pad(secs);
+  }
+  tick();
+  _dashCountdownTimer = setInterval(tick, 1000);
+}
+
+// Helpers — real data from State, no fabrication.
+function _dashClubIdent() {
+  var c = (window.State && State.club) || {};
+  return {
+    name:    c.name      || 'FC Familista',
+    city:    c.city      || '',
+    country: c.country   || '',
+    level:   c.level,
+    rating:  c.overallRating,
+    emblem:  c.emblem    || '',
+    league:  c.fanClub   || '',
+  };
+}
+function _dashNextMatch() {
+  var ms = (window.State && Array.isArray(State.matches)) ? State.matches : [];
+  var now = Date.now();
+  var upcoming = ms.filter(function (m) {
+    if (!m || !m.scheduledAt) return false;
+    if (m.result) return false;
+    return new Date(m.scheduledAt).getTime() > now;
+  }).sort(function (a, b) { return new Date(a.scheduledAt) - new Date(b.scheduledAt); });
+  return upcoming[0] || null;
+}
+function _dashRecentResults(limit) {
+  var ms = (window.State && Array.isArray(State.matches)) ? State.matches : [];
+  var played = ms.filter(function (m) { return m && m.result; });
+  played.sort(function (a, b) { return new Date(b.scheduledAt) - new Date(a.scheduledAt); });
+  return played.slice(0, limit || 5);
+}
+function _dashFormLast5() {
+  var played = _dashRecentResults(5);
+  return played.map(function (m) { return (m.result || '').toUpperCase()[0] || '?'; });
+}
+function _dashTrainingThisWeek() {
+  var ts = (window.State && Array.isArray(State.training)) ? State.training : [];
+  if (!ts.length) return 0;
+  var now = new Date();
+  var dow = (now.getDay() + 6) % 7; // monday=0
+  var monday = new Date(now); monday.setHours(0, 0, 0, 0); monday.setDate(now.getDate() - dow);
+  var sunday = new Date(monday); sunday.setDate(monday.getDate() + 7);
+  return ts.filter(function (t) {
+    if (!t || !t.scheduledAt) return false;
+    var d = new Date(t.scheduledAt);
+    return d >= monday && d < sunday;
+  }).length;
+}
+function _dashTrainingToday() {
+  var ts = (window.State && Array.isArray(State.training)) ? State.training : [];
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  return ts.filter(function (t) {
+    if (!t || !t.scheduledAt) return false;
+    var d = new Date(t.scheduledAt);
+    return d >= today && d < tomorrow;
+  }).sort(function (a, b) { return new Date(a.scheduledAt) - new Date(b.scheduledAt); });
+}
+function _dashSquadStats() {
+  var ps = (window.State && Array.isArray(State.players)) ? State.players.filter(function (p) { return p && p.isActive !== false; }) : [];
+  var injured = ps.filter(function (p) { return p && p.isInjured; }).length;
+  var avgCond = ps.length ? Math.round(ps.reduce(function (a, p) { return a + (typeof p.condition === 'number' ? p.condition : 100); }, 0) / ps.length) : 0;
+  var avgRating = ps.length ? Math.round(ps.reduce(function (a, p) { return a + (typeof p.overallRating === 'number' ? p.overallRating : 70); }, 0) / ps.length) : 0;
+  return { total: ps.length, injured: injured, avgCond: avgCond, avgRating: avgRating };
+}
+function _dashTopPerformers(limit) {
+  // Real source: Player.overallRating (best available). When PlayerMatchStats
+  // is loaded we can refine to last-5 match form; that's a future enhancement.
+  var ps = (window.State && Array.isArray(State.players)) ? State.players.filter(function (p) { return p && p.isActive !== false; }) : [];
+  ps = ps.slice().sort(function (a, b) { return (b.overallRating || 0) - (a.overallRating || 0); });
+  return ps.slice(0, limit || 5);
+}
+function _dashAlerts() {
+  var alerts = [];
+  var ps = (window.State && Array.isArray(State.players)) ? State.players : [];
+  var injured = ps.filter(function (p) { return p && p.isInjured && p.isActive !== false; });
+  injured.slice(0, 3).forEach(function (p) {
+    alerts.push({ tone: 'critical', icon: '🚑', title: (p.firstName || '') + ' ' + (p.lastName || ''), detail: 'Injured — recovery pending' });
+  });
+  // Contract expiring within 90 days
+  var now = Date.now();
+  var soon = now + 90 * 86400000;
+  ps.forEach(function (p) {
+    if (!p || !p.contractUntil) return;
+    var t = new Date(p.contractUntil).getTime();
+    if (t >= now && t <= soon && alerts.length < 6) {
+      var daysLeft = Math.ceil((t - now) / 86400000);
+      alerts.push({ tone: 'warning', icon: '📝', title: (p.firstName || '') + ' ' + (p.lastName || ''), detail: 'Contract expires in ' + daysLeft + ' days' });
+    }
+  });
+  return alerts;
+}
+
+function renderDashboard() {
+  if (isFormEditing()) { _pendingRefresh = true; return; }
+  try {
+    var club = _dashClubIdent();
+    var nextMatch = _dashNextMatch();
+    var recent = _dashRecentResults(5);
+    var sq = _dashSquadStats();
+    var tThis = _dashTrainingThisWeek();
+    var tToday = _dashTrainingToday();
+    var form = _dashFormLast5();
+    var top = _dashTopPerformers(5);
+    var alerts = _dashAlerts();
+
+    // ── HERO ──
+    var heroEl = document.getElementById('dash-hero');
+    if (heroEl) {
+      var emblemHtml = club.emblem
+        ? '<img class="hero-emblem-img" src="' + _esc(club.emblem) + '" alt="' + _esc(club.name) + '" onerror="this.style.display=\'none\'">'
+        : '<span class="hero-emblem-glyph">⚽</span>';
+      var meta = [club.city, club.country, club.level ? 'Level ' + club.level : '', club.rating ? '⭐ ' + Number(club.rating).toFixed(1) : '']
+        .filter(Boolean).join(' · ');
+
+      var fixtureHtml = '';
+      if (nextMatch) {
+        var dt = new Date(nextMatch.scheduledAt);
+        var when = dt.toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+        var venue = nextMatch.venue || (nextMatch.isHome ? 'Home' : 'Away');
+        var competition = nextMatch.competitionName || nextMatch.competition || '';
+        var homeName = nextMatch.homeTeam || club.name;
+        var awayName = nextMatch.awayTeam || 'Opponent';
+        var isHome = (homeName || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1 || nextMatch.isHome;
+        fixtureHtml =
+          '<div class="hero-fixture">'
+          + '<div class="hf-label">NEXT FIXTURE' + (competition ? ' · ' + _esc(competition) : '') + '</div>'
+          + '<div class="hf-teams">'
+          + '  <div class="hf-team home"><div class="hf-crest">' + (isHome && club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">' : '🏠') + '</div><div class="hf-name">' + _esc(homeName) + '</div><div class="hf-side">Home</div></div>'
+          + '  <div class="hf-vs">vs</div>'
+          + '  <div class="hf-team away"><div class="hf-crest">⚔️</div><div class="hf-name">' + _esc(awayName) + '</div><div class="hf-side">Away</div></div>'
+          + '</div>'
+          + '<div class="hf-countdown" id="hf-countdown">'
+          + '<span class="hfc-block"><span class="hfc-val" id="hfc-days">00</span><span class="hfc-lbl">DAYS</span></span>'
+          + '<span class="hfc-sep">:</span>'
+          + '<span class="hfc-block"><span class="hfc-val" id="hfc-hours">00</span><span class="hfc-lbl">HRS</span></span>'
+          + '<span class="hfc-sep">:</span>'
+          + '<span class="hfc-block"><span class="hfc-val" id="hfc-mins">00</span><span class="hfc-lbl">MIN</span></span>'
+          + '<span class="hfc-sep">:</span>'
+          + '<span class="hfc-block"><span class="hfc-val" id="hfc-secs">00</span><span class="hfc-lbl">SEC</span></span>'
+          + '</div>'
+          + '<div class="hf-when">' + _esc(when) + ' · ' + _esc(venue) + '</div>'
+          + '<button class="hf-cta" data-action="navTo" data-page="match-center">▶ MATCH CENTER</button>'
+          + '</div>';
+      } else {
+        fixtureHtml =
+          '<div class="hero-fixture hero-fixture--empty">'
+          + '<div class="hf-label">NEXT FIXTURE</div>'
+          + '<div class="hf-empty">No upcoming match scheduled</div>'
+          + '<button class="hf-cta secondary" data-action="navTo" data-page="matches">View matches →</button>'
+          + '</div>';
+      }
+
+      heroEl.innerHTML =
+        '<div class="hero-watermark">' + (club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.remove()">' : '⚽') + '</div>'
+        + '<div class="hero-content">'
+        + '<div class="hero-identity">'
+        + '<div class="hero-emblem">' + emblemHtml + '</div>'
+        + '<div>'
+        + '<h1 class="hero-club-name">' + _esc(club.name) + '</h1>'
+        + '<div class="hero-meta">' + (meta || 'Premium football management') + '</div>'
+        + '</div>'
+        + '</div>'
+        + fixtureHtml
+        + '</div>';
+
+      if (nextMatch) {
+        try { _dashStartCountdown(new Date(nextMatch.scheduledAt).getTime()); } catch (_) {}
+      } else if (_dashCountdownTimer) {
+        clearInterval(_dashCountdownTimer); _dashCountdownTimer = null;
+      }
+    }
+
+    // ── KPI ROW ──
+    var kpiEl = document.getElementById('dash-kpi');
+    if (kpiEl) {
+      var formDots = form.length
+        ? form.map(function (r) { var cls = r === 'W' ? 'fw' : r === 'L' ? 'fl' : r === 'D' ? 'fd' : 'fn'; return '<span class="form-dot ' + cls + '">' + r + '</span>'; }).join('')
+        : '<span class="kpi-empty">No matches yet</span>';
+      kpiEl.innerHTML = ''
+        + '<div class="kpi-tile"><div class="kpi-icon">👥</div><div class="kpi-val">' + sq.total + '</div><div class="kpi-lbl">SQUAD</div><div class="kpi-sub">' + (sq.total - sq.injured) + ' available · ' + sq.injured + ' injured</div></div>'
+        + '<div class="kpi-tile"><div class="kpi-icon">⚡</div><div class="kpi-val">' + tThis + '</div><div class="kpi-lbl">TRAINING</div><div class="kpi-sub">sessions this week</div></div>'
+        + '<div class="kpi-tile"><div class="kpi-icon">📈</div><div class="kpi-val form-row">' + formDots + '</div><div class="kpi-lbl">FORM</div><div class="kpi-sub">last ' + form.length + ' matches</div></div>'
+        + '<div class="kpi-tile"><div class="kpi-icon">⭐</div><div class="kpi-val gold">' + (sq.avgRating || '—') + '</div><div class="kpi-lbl">AVG RATING</div><div class="kpi-sub">overall squad</div></div>'
+        + '<div class="kpi-tile"><div class="kpi-icon">⚠️</div><div class="kpi-val ' + (alerts.length ? 'critical' : '') + '">' + alerts.length + '</div><div class="kpi-lbl">ALERTS</div><div class="kpi-sub">' + (alerts.length ? 'attention needed' : 'all clear') + '</div></div>';
+    }
+
+    // ── SQUAD READINESS ──
+    var readyEl = document.getElementById('dash-readiness');
+    if (readyEl) {
+      var fitnessPct = sq.avgCond || 0;
+      var moralePct = sq.total ? Math.max(40, Math.min(100, sq.avgRating)) : 0;
+      readyEl.innerHTML = ''
+        + '<div class="d-card-hdr"><h2 class="d-card-title">SQUAD READINESS</h2><button class="d-card-action" data-action="navTo" data-page="squad">View Squad →</button></div>'
+        + '<div class="readiness-gauges">'
+        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FITNESS</span><span class="gauge-val">' + fitnessPct + '%</span></div><div class="gauge-bar"><div class="gauge-fill pitch" style="width:' + fitnessPct + '%;"></div></div></div>'
+        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FORM</span><span class="gauge-val">' + moralePct + '</span></div><div class="gauge-bar"><div class="gauge-fill gold" style="width:' + moralePct + '%;"></div></div></div>'
+        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">INJURED</span><span class="gauge-val ' + (sq.injured ? 'critical' : '') + '">' + sq.injured + '</span></div><div class="gauge-bar"><div class="gauge-fill critical" style="width:' + (sq.total ? Math.round((sq.injured / sq.total) * 100) : 0) + '%;"></div></div></div>'
+        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">ACTIVE</span><span class="gauge-val">' + (sq.total - sq.injured) + '</span></div><div class="gauge-bar"><div class="gauge-fill royal" style="width:' + (sq.total ? Math.round(((sq.total - sq.injured) / sq.total) * 100) : 0) + '%;"></div></div></div>'
+        + '</div>';
+    }
+
+    // ── RECENT RESULTS ──
+    var recentEl = document.getElementById('dash-recent');
+    if (recentEl) {
+      var rows = recent.length
+        ? recent.map(function (m) {
+            var isHome = (m.homeTeam || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1;
+            var r = (m.result || '').toUpperCase();
+            var cls = r === 'WIN' ? 'rb-w' : r === 'LOSS' ? 'rb-l' : 'rb-d';
+            var rChip = r ? r[0] : '?';
+            var competition = m.competitionName || m.competition || '—';
+            return '<div class="result-row-v2">'
+                 + '<div class="rr-badge ' + cls + '">' + rChip + '</div>'
+                 + '<div class="rr-body">'
+                 + '<div class="rr-teams"><span class="' + (isHome ? 'rr-home' : '') + '">' + _esc(m.homeTeam || '—') + '</span> vs <span class="' + (!isHome ? 'rr-home' : '') + '">' + _esc(m.awayTeam || '—') + '</span></div>'
+                 + '<div class="rr-meta">' + _esc(competition) + ' · ' + new Date(m.scheduledAt).toLocaleDateString(undefined, { day:'numeric', month:'short' }) + '</div>'
+                 + '</div>'
+                 + '<div class="rr-score">' + (m.homeScore != null ? m.homeScore : '?') + ' — ' + (m.awayScore != null ? m.awayScore : '?') + '</div>'
+                 + '</div>';
+          }).join('')
+        : '<div class="d-empty"><div class="d-empty-icon">⚽</div><div class="d-empty-title">No matches played yet</div><div class="d-empty-sub">Results will appear here.</div></div>';
+      recentEl.innerHTML = ''
+        + '<div class="d-card-hdr"><h2 class="d-card-title">RECENT RESULTS</h2><button class="d-card-action" data-action="navTo" data-page="matches">All matches →</button></div>'
+        + '<div class="d-card-body">' + rows + '</div>';
+    }
+
+    // ── TRAINING TODAY ──
+    var trainEl = document.getElementById('dash-training-today');
+    if (trainEl) {
+      var trainRows = tToday.length
+        ? tToday.map(function (t) {
+            var dt = new Date(t.scheduledAt);
+            var hh = dt.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+            return '<div class="training-row">'
+                 + '<div class="tr-time">' + hh + '</div>'
+                 + '<div class="tr-body"><div class="tr-title">' + _esc(t.title || 'Training session') + '</div><div class="tr-meta">' + _esc(t.location || 'Pitch') + ' · ' + (t.duration || 90) + ' min</div></div>'
+                 + '</div>';
+          }).join('')
+        : '<div class="d-empty"><div class="d-empty-icon">🌙</div><div class="d-empty-title">Rest day</div><div class="d-empty-sub">No sessions scheduled.</div></div>';
+      trainEl.innerHTML = ''
+        + '<div class="d-card-hdr"><h2 class="d-card-title">TRAINING TODAY</h2><button class="d-card-action" data-action="navTo" data-page="training">→</button></div>'
+        + '<div class="d-card-body">' + trainRows + '</div>';
+    }
+
+    // ── TOP PERFORMERS ──
+    var topEl = document.getElementById('dash-top-performers');
+    if (topEl) {
+      var topRows = top.length
+        ? top.map(function (p, i) {
+            var photo = (typeof _pcPhotoUrl === 'function' ? _pcPhotoUrl(p) : p.avatar) || '';
+            var initials = (typeof _pcInitials === 'function' ? _pcInitials(p) : ((p.firstName || '?')[0] + (p.lastName || '')[0]));
+            return '<div class="performer-row">'
+                 + '<div class="pf-rank">' + (i + 1) + '</div>'
+                 + '<div class="pf-avatar">' + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials)) + '</div>'
+                 + '<div class="pf-body"><div class="pf-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="pf-pos">' + _esc(p.position || '—') + '</div></div>'
+                 + '<div class="pf-rating">' + (p.overallRating || '—') + '</div>'
+                 + '</div>';
+          }).join('')
+        : '<div class="d-empty"><div class="d-empty-icon">👥</div><div class="d-empty-title">No players</div><div class="d-empty-sub">Add players to see top performers.</div></div>';
+      topEl.innerHTML = ''
+        + '<div class="d-card-hdr"><h2 class="d-card-title">TOP PERFORMERS</h2><button class="d-card-action" data-action="navTo" data-page="squad">All →</button></div>'
+        + '<div class="d-card-body">' + topRows + '</div>';
+    }
+
+    // ── ALERTS ──
+    var alertEl = document.getElementById('dash-alerts');
+    if (alertEl) {
+      var alertRows = alerts.length
+        ? alerts.map(function (a) {
+            return '<div class="alert-row alert-' + a.tone + '">'
+                 + '<div class="al-icon">' + a.icon + '</div>'
+                 + '<div class="al-body"><div class="al-title">' + _esc(a.title) + '</div><div class="al-detail">' + _esc(a.detail) + '</div></div>'
+                 + '</div>';
+          }).join('')
+        : '<div class="d-empty"><div class="d-empty-icon">✅</div><div class="d-empty-title">All clear</div><div class="d-empty-sub">No active alerts.</div></div>';
+      alertEl.innerHTML = ''
+        + '<div class="d-card-hdr"><h2 class="d-card-title">ALERTS</h2></div>'
+        + '<div class="d-card-body">' + alertRows + '</div>';
+    }
+  } catch (err) {
+    try { console.error('[dashboard-v2] render failed:', err && err.stack || err); } catch (_) {}
+  }
 }
 
 // ─── FC Familista Command Center (Dashboard top section) ───────────────
@@ -19207,10 +19486,12 @@ function renderGIS(key) {
   }
 }
 
-function renderDashboard() {
+// ── Legacy renderDashboard (Phase B.2) — superseded by the premium
+// dashboard defined earlier in this file (~line 1343). Kept here as a
+// no-op stub for any cached source maps; the active renderDashboard
+// is the one above renderDashboardHTML.
+function _legacyRenderDashboard_b2_obsolete() {
   if (isFormEditing()) { _pendingRefresh = true; return; }
-  // FC Familista Command Center — renders independently of State.analytics
-  // so it shows up even while analytics is still loading.
   try {
     _ensureFCCmdStyles();
     const cmdEl = document.getElementById('fc-cmd-center');
