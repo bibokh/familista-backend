@@ -546,6 +546,7 @@ async function loadAllData() {
       try { if (typeof renderFOSSimulationCenter      === 'function') renderFOSSimulationCenter();      } catch (_) {}
       try { if (typeof renderFOSExecutiveBridge       === 'function') renderFOSExecutiveBridge();       } catch (_) {}
       try { if (typeof renderFOSAIAgentFramework      === 'function') renderFOSAIAgentFramework();      } catch (_) {}
+      try { if (typeof renderFOSObservability         === 'function') renderFOSObservability();         } catch (_) {}
       try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
     }
 
@@ -818,6 +819,7 @@ function _flushPendingRender() {
     case 'pg-fos-simulation-center':       renderFOSSimulationCenter();       break;
     case 'pg-fos-executive-bridge':        renderFOSExecutiveBridge();        break;
     case 'pg-fos-ai-agent-framework':      renderFOSAIAgentFramework();       break;
+    case 'pg-fos-observability':           renderFOSObservability();          break;
     case 'pg-fos-neural-intelligence': renderFOSNeuralIntelligence(); break;
     case 'pg-multi-club-network': renderMultiClubNetwork(); break;
     case 'pg-gis-data-lake':    renderGIS('gis-data-lake');   break;
@@ -888,7 +890,7 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'fos-decision-engine':'FOS Decision Engine', 'fos-event-bus':'FOS Event Bus', 'fos-audit-governance':'FOS Audit & Governance', 'fos-rbac':'FOS RBAC', 'fos-workflow-execution':'FOS Workflow Execution', 'fos-digital-twin':'FOS Digital Twin', 'fos-predictive-intelligence':'FOS Predictive Intelligence', 'fos-simulation-center':'FOS Simulation Center', 'fos-executive-bridge':'FOS Executive Bridge', 'fos-ai-agent-framework':'FOS AI Agent Framework', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'fos-decision-engine':'FOS Decision Engine', 'fos-event-bus':'FOS Event Bus', 'fos-audit-governance':'FOS Audit & Governance', 'fos-rbac':'FOS RBAC', 'fos-workflow-execution':'FOS Workflow Execution', 'fos-digital-twin':'FOS Digital Twin', 'fos-predictive-intelligence':'FOS Predictive Intelligence', 'fos-simulation-center':'FOS Simulation Center', 'fos-executive-bridge':'FOS Executive Bridge', 'fos-ai-agent-framework':'FOS AI Agent Framework', 'fos-observability':'FOS Observability', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
     tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
     medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
     devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
@@ -951,6 +953,7 @@ function navTo(page, el) {
   if (page === 'fos-simulation-center'){       try { renderFOSSimulationCenter();       } catch (e) { try { console.error('[fos-simulation-center] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-executive-bridge'){        try { renderFOSExecutiveBridge();        } catch (e) { try { console.error('[fos-executive-bridge] nav render failed:', e); } catch (_) {} } }
   if (page === 'fos-ai-agent-framework'){      try { renderFOSAIAgentFramework();       } catch (e) { try { console.error('[fos-ai-agent-framework] nav render failed:', e); } catch (_) {} } }
+  if (page === 'fos-observability'){           try { renderFOSObservability();          } catch (e) { try { console.error('[fos-observability] nav render failed:', e); } catch (_) {} } }
   if (page && page.indexOf('gis-') === 0){ try { renderGIS(page); } catch (e) { try { console.error('[gis] nav render failed:', e); } catch (_) {} } }
 }
 
@@ -1096,6 +1099,7 @@ function renderAllPages() {
     ${renderFOSSimulationCenterHTML()}
     ${renderFOSExecutiveBridgeHTML()}
     ${renderFOSAIAgentFrameworkHTML()}
+    ${renderFOSObservabilityHTML()}
     ${renderGISHTML('gis-data-lake')}
     ${renderGISHTML('gis-analytics')}
     ${renderGISHTML('gis-scouting')}
@@ -17912,6 +17916,429 @@ function renderFOSAIAgentFramework() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+// FOS · OBSERVABILITY LAYER  —  REAL telemetry capture (no fabrication)
+// ════════════════════════════════════════════════════════════════════
+// Singleton FOSTelemetry. Captures real signals from the live runtime:
+//   - API calls (every request / response / error via the existing
+//     netLog instrumentation point)
+//   - Frontend errors (window.error + unhandledrejection)
+//   - Navigation events (wrapped navTo)
+//   - Browser performance metrics (PerformanceObserver:
+//     navigation + paint + largest-contentful-paint + layout-shift)
+//
+// Everything is in-memory ring buffers — no backend, no Prisma, no API.
+// When the buffers are empty, the page shows an EMPTY STATE — never a
+// fabricated row.
+window.FOSTelemetry = window.FOSTelemetry || (function () {
+  var MAX_API = 200;
+  var MAX_ERR = 100;
+  var MAX_NAV = 50;
+  var sessionStart = Date.now();
+
+  var state = {
+    api:      [],   // { id, method, url, status, code, durationMs, ts, kind }
+    errors:   [],   // { id, message, source, line, col, stack, ts }
+    nav:      [],   // { id, page, ts }
+    perf:     { lcp: null, fcp: null, cls: 0, ttfb: null, nav: null, navStart: null },
+    counters: { req: 0, ok: 0, fail: 0, errors: 0, navs: 0 },
+    inflight: {},   // method+url → { ts, id }
+    _installed: false,
+  };
+  var _idSeq = 0;
+  function _id() { return ++_idSeq; }
+
+  function _pushCap(arr, item, cap) {
+    arr.push(item);
+    if (arr.length > cap) arr.splice(0, arr.length - cap);
+  }
+
+  // ── Public recorders ────────────────────────────────────────────────
+  function recordApi(entry) {
+    if (!entry) return;
+    var rec = {
+      id: _id(),
+      method: entry.method || 'GET',
+      url: entry.url || '',
+      status: entry.status || 0,
+      code: entry.code || null,
+      durationMs: entry.durationMs == null ? null : Math.max(0, Math.round(entry.durationMs)),
+      ts: entry.ts || Date.now(),
+      kind: entry.kind || 'res', // 'res' | 'err'
+      message: entry.message || null,
+    };
+    _pushCap(state.api, rec, MAX_API);
+    state.counters.req += 1;
+    if (rec.kind === 'err' || (rec.status && rec.status >= 400)) state.counters.fail += 1;
+    else                                                          state.counters.ok   += 1;
+  }
+  function recordError(err) {
+    if (!err) return;
+    var rec = {
+      id: _id(),
+      message: err.message || String(err) || 'unknown error',
+      source:  err.source  || null,
+      line:    err.line    || null,
+      col:     err.col     || null,
+      stack:   err.stack   || null,
+      ts:      err.ts      || Date.now(),
+      origin:  err.origin  || 'window',
+    };
+    _pushCap(state.errors, rec, MAX_ERR);
+    state.counters.errors += 1;
+  }
+  function recordNav(page) {
+    if (!page) return;
+    _pushCap(state.nav, { id: _id(), page: String(page), ts: Date.now() }, MAX_NAV);
+    state.counters.navs += 1;
+  }
+
+  // ── Derived metrics ────────────────────────────────────────────────
+  function _percentile(sorted, p) {
+    if (!sorted.length) return null;
+    var idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(p * (sorted.length - 1))));
+    return sorted[idx];
+  }
+  function metrics(windowMs) {
+    var now = Date.now();
+    var cutoff = windowMs ? (now - windowMs) : 0;
+    var inWindow = state.api.filter(function (a) { return a.ts >= cutoff; });
+    var ok = 0, fail = 0;
+    var lats = [];
+    inWindow.forEach(function (a) {
+      if (a.kind === 'err' || (a.status && a.status >= 400)) fail += 1;
+      else                                                    ok   += 1;
+      if (a.durationMs != null) lats.push(a.durationMs);
+    });
+    lats.sort(function (x, y) { return x - y; });
+    var total = ok + fail;
+    return {
+      windowMs: windowMs || (now - sessionStart),
+      total: total,
+      ok: ok,
+      fail: fail,
+      successRate: total ? Math.round((ok / total) * 1000) / 10 : null, // %
+      p50: _percentile(lats, 0.50),
+      p95: _percentile(lats, 0.95),
+      p99: _percentile(lats, 0.99),
+      avg: lats.length ? Math.round(lats.reduce(function (a, x) { return a + x; }, 0) / lats.length) : null,
+      errors: state.errors.filter(function (e) { return e.ts >= cutoff; }).length,
+      navs:   state.nav.filter(function (n) { return n.ts >= cutoff; }).length,
+    };
+  }
+  function uptimeMs() { return Date.now() - sessionStart; }
+  function snapshot()  {
+    return {
+      sessionStart: sessionStart,
+      uptimeMs: uptimeMs(),
+      api: state.api.slice(),
+      errors: state.errors.slice(),
+      nav: state.nav.slice(),
+      perf: Object.assign({}, state.perf),
+      counters: Object.assign({}, state.counters),
+    };
+  }
+
+  // ── Hook installation ──────────────────────────────────────────────
+  function _install() {
+    if (state._installed) return;
+    state._installed = true;
+
+    // 1. Decorate netLog (existing instrumentation point) — captures every
+    //    real API call without changing the API wrapper.
+    try {
+      if (typeof window !== 'undefined' && typeof window.netLog === 'function') {
+        var orig = window.netLog;
+        window.netLog = function (kind, payload) {
+          try {
+            if (payload && (kind === 'req' || kind === 'res' || kind === 'err')) {
+              var key = (payload.method || '') + ' ' + (payload.url || '');
+              if (kind === 'req') {
+                state.inflight[key] = { ts: Date.now() };
+              } else if (kind === 'res') {
+                var st1 = state.inflight[key];
+                var dur1 = st1 ? (Date.now() - st1.ts) : (payload.dt || null);
+                delete state.inflight[key];
+                recordApi({ method: payload.method, url: payload.url, status: payload.status, durationMs: dur1, kind: 'res' });
+              } else if (kind === 'err') {
+                var st2 = state.inflight[key];
+                var dur2 = st2 ? (Date.now() - st2.ts) : null;
+                delete state.inflight[key];
+                recordApi({ method: payload.method, url: payload.url, status: 0, code: payload.code, durationMs: dur2, kind: 'err', message: payload.message });
+              }
+            }
+          } catch (_) {}
+          return orig.apply(this, arguments);
+        };
+      }
+    } catch (_) {}
+
+    // Fallback: if netLog is a top-level function (not on window), also
+    // shim it via property descriptor on the module scope. Many builds
+    // declare netLog with `function netLog`, which Chrome promotes to
+    // window.netLog — so the above branch handles the common case.
+
+    // 2. window.error + unhandledrejection
+    try {
+      window.addEventListener('error', function (ev) {
+        try {
+          recordError({
+            message: ev.message || (ev.error && ev.error.message) || 'error',
+            source:  ev.filename || null,
+            line:    ev.lineno   || null,
+            col:     ev.colno    || null,
+            stack:   ev.error && ev.error.stack || null,
+            origin:  'window.error',
+            ts:      Date.now(),
+          });
+        } catch (_) {}
+      }, true);
+      window.addEventListener('unhandledrejection', function (ev) {
+        try {
+          var r = ev.reason || {};
+          recordError({
+            message: (r && (r.message || r.toString())) || 'unhandled promise rejection',
+            stack:   r && r.stack || null,
+            origin:  'unhandledrejection',
+            ts:      Date.now(),
+          });
+        } catch (_) {}
+      });
+    } catch (_) {}
+
+    // 3. Wrap navTo to capture real page transitions.
+    try {
+      if (typeof window !== 'undefined' && typeof window.navTo === 'function') {
+        var origNav = window.navTo;
+        window.navTo = function (page, el) {
+          try { recordNav(page); } catch (_) {}
+          return origNav.apply(this, arguments);
+        };
+      }
+    } catch (_) {}
+
+    // 4. Browser performance — Navigation Timing, paint, LCP, CLS.
+    try {
+      if (typeof PerformanceObserver === 'function') {
+        try {
+          var poNav = new PerformanceObserver(function (list) {
+            list.getEntries().forEach(function (e) {
+              try {
+                state.perf.nav = Math.round(e.duration || 0);
+                if (typeof e.responseStart === 'number' && typeof e.requestStart === 'number') {
+                  state.perf.ttfb = Math.round(e.responseStart - e.requestStart);
+                }
+                if (typeof e.startTime === 'number') state.perf.navStart = Math.round(e.startTime);
+              } catch (_) {}
+            });
+          });
+          poNav.observe({ type: 'navigation', buffered: true });
+        } catch (_) {}
+        try {
+          var poPaint = new PerformanceObserver(function (list) {
+            list.getEntries().forEach(function (e) {
+              if (e.name === 'first-contentful-paint') state.perf.fcp = Math.round(e.startTime);
+            });
+          });
+          poPaint.observe({ type: 'paint', buffered: true });
+        } catch (_) {}
+        try {
+          var poLcp = new PerformanceObserver(function (list) {
+            var entries = list.getEntries();
+            if (entries.length) {
+              var last = entries[entries.length - 1];
+              state.perf.lcp = Math.round(last.startTime || last.renderTime || 0);
+            }
+          });
+          poLcp.observe({ type: 'largest-contentful-paint', buffered: true });
+        } catch (_) {}
+        try {
+          var poCls = new PerformanceObserver(function (list) {
+            list.getEntries().forEach(function (e) {
+              if (!e.hadRecentInput) state.perf.cls = Math.round((state.perf.cls + (e.value || 0)) * 10000) / 10000;
+            });
+          });
+          poCls.observe({ type: 'layout-shift', buffered: true });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  // Public API
+  return {
+    recordApi: recordApi,
+    recordError: recordError,
+    recordNav: recordNav,
+    metrics: metrics,
+    snapshot: snapshot,
+    uptimeMs: uptimeMs,
+    sessionStart: function () { return sessionStart; },
+    _state: state,
+    _install: _install,
+  };
+})();
+
+// Install hooks immediately. By the time the script reaches this line,
+// netLog and navTo are already defined, so the decoration is safe.
+try { window.FOSTelemetry._install(); } catch (_) {}
+
+// ── Observability page ─────────────────────────────────────────────
+function _obsFmtMs(ms) {
+  if (ms == null) return '—';
+  if (ms < 1000) return ms + 'ms';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+  if (ms < 3600000) return Math.floor(ms / 60000) + 'm ' + Math.floor((ms % 60000) / 1000) + 's';
+  return Math.floor(ms / 3600000) + 'h ' + Math.floor((ms % 3600000) / 60000) + 'm';
+}
+function _obsFmtAgo(ts) {
+  var d = Date.now() - ts;
+  if (d < 1000) return 'just now';
+  if (d < 60000) return Math.floor(d / 1000) + 's ago';
+  if (d < 3600000) return Math.floor(d / 60000) + 'm ago';
+  return Math.floor(d / 3600000) + 'h ago';
+}
+function _obsFmtTime(ts) {
+  try { return new Date(ts).toISOString().slice(11, 19); } catch (_) { return '—'; }
+}
+function _ensureObsStyles() {
+  if (document.getElementById('obs-styles')) return;
+  var s = document.createElement('style'); s.id = 'obs-styles';
+  s.textContent = ''
+    + '.obs-page{padding:16px 18px;}'
+    + '.obs-card{position:relative;border-radius:20px;overflow:hidden;margin-bottom:14px;background:linear-gradient(135deg,#04060f 0%,#08102a 50%,#03050e 100%);border:1px solid rgba(125,249,255,0.34);box-shadow:0 30px 80px -20px rgba(0,0,0,0.88),0 0 80px -16px rgba(125,249,255,0.30),0 0 60px -16px rgba(0,245,255,0.22),inset 0 1px 0 rgba(255,255,255,0.10);}'
+    + '.obs-brand{padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(125,249,255,0.28),rgba(0,245,255,0.20) 50%,rgba(52,211,153,0.18));border-bottom:1px solid rgba(125,249,255,0.42);}'
+    + '.obs-brand-logo{font-size:14px;font-weight:900;letter-spacing:3px;background:linear-gradient(90deg,#7DF9FF,#00F5FF,#34D399,#7DF9FF);background-clip:text;-webkit-background-clip:text;color:transparent;text-shadow:0 0 16px rgba(125,249,255,0.55);}'
+    + '.obs-real{display:inline-block;padding:3px 10px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#34D399;background:rgba(52,211,153,0.16);border:1px solid rgba(52,211,153,0.40);}'
+    + '.obs-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px;}'
+    + '.obs-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}'
+    + '.obs-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}'
+    + '.obs-tile{padding:16px;border-radius:14px;background:linear-gradient(135deg,rgba(125,249,255,0.06),rgba(0,245,255,0.04));border:1px solid rgba(125,249,255,0.28);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 18px 44px -16px rgba(0,0,0,0.65);}'
+    + '.obs-tile-lbl{font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:11px;text-shadow:0 0 10px rgba(125,249,255,0.45);}'
+    + '.obs-kpi{text-align:center;padding:14px;border-radius:12px;background:radial-gradient(circle at 50% 30%,rgba(125,249,255,0.18),rgba(0,245,255,0.08));border:1px solid rgba(125,249,255,0.36);}'
+    + '.obs-kpi-val{font-size:24px;font-weight:900;font-family:var(--mono);line-height:1;text-shadow:0 0 14px currentColor;}'
+    + '.obs-kpi-lbl{font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:var(--tx-3);margin-top:6px;}'
+    + '.obs-api-row{display:grid;grid-template-columns:80px 60px 1fr 70px 70px;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(125,249,255,0.10);font-size:10.5px;}'
+    + '.obs-api-row:last-child{border-bottom:none;}'
+    + '.obs-err-row{padding:9px 12px;margin-bottom:7px;border-radius:10px;background:rgba(252,165,165,0.06);border-left:3px solid #FCA5A5;font-size:10.5px;}'
+    + '.obs-nav-row{display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(125,249,255,0.08);font-size:10.5px;}'
+    + '.obs-nav-row:last-child{border-bottom:none;}'
+    + '.obs-pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:1px;}'
+    + '.obs-empty{padding:24px;text-align:center;color:var(--tx-3);font-size:11px;border:1px dashed rgba(125,249,255,0.24);border-radius:11px;background:rgba(125,249,255,0.03);}'
+    + '.obs-summary{padding:24px;border-radius:18px;background:linear-gradient(135deg,rgba(125,249,255,0.22),rgba(0,245,255,0.18) 50%,rgba(52,211,153,0.18));border:1px solid rgba(125,249,255,0.52);border-left:10px solid #7DF9FF;box-shadow:0 28px 70px -16px rgba(0,0,0,0.85),0 0 70px -10px rgba(125,249,255,0.50);}'
+    + '@media (max-width:1024px){.obs-grid-3{grid-template-columns:repeat(2,1fr);}.obs-grid-4{grid-template-columns:repeat(2,1fr);}.obs-api-row{grid-template-columns:70px 50px 1fr 60px;font-size:10px;}.obs-api-row > :nth-child(5){display:none;}}'
+    + '@media (max-width:600px){.obs-grid-2,.obs-grid-3,.obs-grid-4{grid-template-columns:1fr;}.obs-api-row{grid-template-columns:1fr 70px;}.obs-api-row > :nth-child(1),.obs-api-row > :nth-child(2),.obs-api-row > :nth-child(5){display:none;}}';
+  document.head.appendChild(s);
+}
+function renderFOSObservabilityHTML() {
+  return '<div class="page" id="pg-fos-observability"><div id="fos-observability-content"><div style="text-align:center;padding:60px;color:var(--tx-3);">Loading FOS Observability…</div></div></div>';
+}
+function renderFOSObservability() {
+  var el = document.getElementById('fos-observability-content');
+  if (!el) return;
+  try { _ensureObsStyles(); } catch (_) {}
+  try {
+    var T = window.FOSTelemetry;
+    if (!T || typeof T.snapshot !== 'function') {
+      el.innerHTML = '<div class="obs-empty" style="margin:30px;">FOSTelemetry not initialised — observability layer unavailable.</div>';
+      return;
+    }
+    var snap = T.snapshot();
+    var m = T.metrics();
+    var uptime = T.uptimeMs();
+    var lastApi = snap.api.slice().reverse().slice(0, 12);
+    var lastErrs = snap.errors.slice().reverse().slice(0, 8);
+    var lastNav = snap.nav.slice().reverse().slice(0, 8);
+
+    var p50col = m.p50 == null ? '#7DF9FF' : m.p50 < 300 ? '#34D399' : m.p50 < 800 ? '#FBBF24' : '#FCA5A5';
+    var p95col = m.p95 == null ? '#7DF9FF' : m.p95 < 800 ? '#34D399' : m.p95 < 2000 ? '#FBBF24' : '#FCA5A5';
+    var p99col = m.p99 == null ? '#7DF9FF' : m.p99 < 1500 ? '#34D399' : m.p99 < 3500 ? '#FBBF24' : '#FCA5A5';
+    var srCol  = m.successRate == null ? '#7DF9FF' : m.successRate >= 99 ? '#34D399' : m.successRate >= 95 ? '#FBBF24' : '#FCA5A5';
+
+    var backendStatus = State && State.backendHealthy === true ? 'HEALTHY' : State && State.backendHealthy === false ? 'DEGRADED' : 'UNKNOWN';
+    var backendCol = backendStatus === 'HEALTHY' ? '#34D399' : backendStatus === 'DEGRADED' ? '#FCA5A5' : '#7DF9FF';
+
+    var apiRows = lastApi.length ? lastApi.map(function (a) {
+      var statusCol = a.kind === 'err' ? '#FCA5A5' : a.status >= 500 ? '#FCA5A5' : a.status >= 400 ? '#FBBF24' : a.status >= 300 ? '#7DF9FF' : '#34D399';
+      var label = a.kind === 'err' ? (a.code || 'ERR') : (a.status || '—');
+      var url = a.url || '';
+      var short = url.replace(/^https?:\/\/[^/]+/, '');
+      return '<div class="obs-api-row">'
+           + '<div style="font-family:var(--mono);color:#7DF9FF;font-weight:900;text-shadow:0 0 6px rgba(125,249,255,0.55);">' + _obsFmtTime(a.ts) + '</div>'
+           + '<div style="font-family:var(--mono);color:var(--tx-2);font-weight:700;font-size:10px;">' + _esc(a.method) + '</div>'
+           + '<div style="font-family:var(--mono);color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">' + _esc(short || url) + '</div>'
+           + '<div style="text-align:right;font-family:var(--mono);font-weight:900;color:' + statusCol + ';">' + label + '</div>'
+           + '<div style="text-align:right;font-family:var(--mono);color:var(--tx-3);font-size:10px;">' + (a.durationMs == null ? '—' : a.durationMs + 'ms') + '</div>'
+           + '</div>';
+    }).join('') : '<div class="obs-empty">No API calls captured yet — buffer fills as the platform talks to the backend.</div>';
+
+    var errRows = lastErrs.length ? lastErrs.map(function (e) {
+      var loc = (e.source ? e.source.split('/').pop() : '') + (e.line ? ':' + e.line : '');
+      return '<div class="obs-err-row">'
+           + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;gap:8px;"><span style="font-family:var(--mono);color:#FCA5A5;font-weight:900;font-size:10px;">' + _obsFmtTime(e.ts) + ' · ' + _esc(e.origin || 'window') + '</span><span style="font-family:var(--mono);color:var(--tx-3);font-size:9.5px;">' + _esc(loc) + '</span></div>'
+           + '<div style="color:var(--tx);font-size:10.5px;line-height:1.5;word-break:break-word;">' + _esc(e.message) + '</div>'
+           + '</div>';
+    }).join('') : '<div class="obs-empty">No errors captured this session — clean run.</div>';
+
+    var navRows = lastNav.length ? lastNav.map(function (n) {
+      return '<div class="obs-nav-row">'
+           + '<div style="font-family:var(--mono);color:#7DF9FF;font-weight:900;font-size:10px;">' + _obsFmtTime(n.ts) + '</div>'
+           + '<div style="color:var(--tx);font-size:10.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + _esc(n.page) + '</div>'
+           + '</div>';
+    }).join('') : '<div class="obs-empty">No navigations recorded yet.</div>';
+
+    var perf = snap.perf || {};
+    var perfRows = [
+      { lbl:'LCP (largest paint)', v: perf.lcp == null ? '—' : perf.lcp + 'ms', col:'#7DF9FF' },
+      { lbl:'FCP (first paint)',   v: perf.fcp == null ? '—' : perf.fcp + 'ms', col:'#00F5FF' },
+      { lbl:'TTFB',                v: perf.ttfb == null ? '—' : perf.ttfb + 'ms', col:'#34D399' },
+      { lbl:'CLS',                 v: perf.cls == null ? '—' : perf.cls.toFixed(3), col:'#FBBF24' },
+      { lbl:'Navigation duration', v: perf.nav == null ? '—' : perf.nav + 'ms', col:'#A855F7' },
+    ];
+
+    var html = ''
+      + '<div class="obs-page">'
+      + '<div class="obs-card"><div class="obs-brand"><div class="obs-brand-logo">★ FAMILISTA OPERATING SYSTEM · OBSERVABILITY</div><span class="obs-real">REAL TELEMETRY</span></div>'
+      + '<div style="padding:22px 24px;"><div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">1 · System Status · captured in this session</div>'
+      + '<div class="obs-grid-4">'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + backendCol + ';">' + backendStatus + '</div><div class="obs-kpi-lbl">Backend</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:#7DF9FF;">' + _obsFmtMs(uptime) + '</div><div class="obs-kpi-lbl">Uptime</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:#00F5FF;">' + snap.counters.req + '</div><div class="obs-kpi-lbl">API Calls</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + (snap.counters.errors > 0 ? '#FCA5A5' : '#34D399') + ';">' + snap.counters.errors + '</div><div class="obs-kpi-lbl">Errors</div></div>'
+      + '</div></div></div>'
+      + '<div class="obs-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">2 · Real-Time Latency · session window</div>'
+      + '<div class="obs-grid-4">'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + srCol + ';">' + (m.successRate == null ? '—' : m.successRate + '%') + '</div><div class="obs-kpi-lbl">Success Rate</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + p50col + ';">' + (m.p50 == null ? '—' : m.p50 + 'ms') + '</div><div class="obs-kpi-lbl">p50</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + p95col + ';">' + (m.p95 == null ? '—' : m.p95 + 'ms') + '</div><div class="obs-kpi-lbl">p95</div></div>'
+      + '<div class="obs-kpi"><div class="obs-kpi-val" style="color:' + p99col + ';">' + (m.p99 == null ? '—' : m.p99 + 'ms') + '</div><div class="obs-kpi-lbl">p99</div></div>'
+      + '</div>'
+      + '<div style="margin-top:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:11px;">'
+      + '<div style="padding:10px;border-radius:10px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.22);text-align:center;"><div style="font-family:var(--mono);color:#34D399;font-weight:900;font-size:18px;">' + m.ok + '</div><div style="color:var(--tx-3);font-size:9px;letter-spacing:1px;margin-top:4px;">OK</div></div>'
+      + '<div style="padding:10px;border-radius:10px;background:rgba(252,165,165,0.06);border:1px solid rgba(252,165,165,0.22);text-align:center;"><div style="font-family:var(--mono);color:#FCA5A5;font-weight:900;font-size:18px;">' + m.fail + '</div><div style="color:var(--tx-3);font-size:9px;letter-spacing:1px;margin-top:4px;">FAIL</div></div>'
+      + '<div style="padding:10px;border-radius:10px;background:rgba(168,85,247,0.06);border:1px solid rgba(168,85,247,0.22);text-align:center;"><div style="font-family:var(--mono);color:#A855F7;font-weight:900;font-size:18px;">' + (m.avg == null ? '—' : m.avg + 'ms') + '</div><div style="color:var(--tx-3);font-size:9px;letter-spacing:1px;margin-top:4px;">AVG</div></div>'
+      + '</div></div>'
+      + '<div class="obs-grid-2">'
+      + '<div class="obs-tile"><div class="obs-tile-lbl">3 · Browser Performance · PerformanceObserver</div>'
+      +   perfRows.map(function (r) { return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(125,249,255,0.08);font-size:11px;"><span style="color:var(--tx-2);">' + _esc(r.lbl) + '</span><span style="font-family:var(--mono);font-weight:900;color:' + r.col + ';text-shadow:0 0 8px currentColor;">' + r.v + '</span></div>'; }).join('')
+      + '</div>'
+      + '<div class="obs-tile"><div class="obs-tile-lbl">4 · Navigation · ' + snap.counters.navs + ' total</div>' + navRows + '</div>'
+      + '</div>'
+      + '<div class="obs-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">5 · Recent API Activity · last ' + lastApi.length + ' of ' + snap.api.length + '</div>'
+      + (lastApi.length ? '<div class="obs-api-row" style="font-weight:800;color:var(--tx-3);font-size:9px;letter-spacing:1px;border-bottom:1px solid rgba(125,249,255,0.20);padding-bottom:6px;"><div>TIME</div><div>METHOD</div><div>URL</div><div style="text-align:right;">STATUS</div><div style="text-align:right;">DUR</div></div>' : '')
+      + apiRows
+      + '</div>'
+      + '<div class="obs-card" style="padding:22px 26px;"><div style="font-size:11px;font-weight:900;color:#7DF9FF;letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;text-shadow:0 0 10px rgba(125,249,255,0.45);">6 · Recent Error Log · last ' + lastErrs.length + ' of ' + snap.errors.length + '</div>'
+      + errRows
+      + '</div>'
+      + '<div class="obs-summary"><div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"><span style="font-size:22px;">📡</span><div style="font-size:13px;font-weight:900;color:#7DF9FF;letter-spacing:2.2px;text-transform:uppercase;text-shadow:0 0 14px rgba(125,249,255,0.65);">Observability Summary</div></div><div style="font-size:13.5px;color:var(--tx);line-height:1.85;">FOS Observability · session ' + _obsFmtMs(uptime) + ' · ' + snap.counters.req + ' API call(s) captured (' + m.ok + ' ok, ' + m.fail + ' fail, success rate ' + (m.successRate == null ? '—' : m.successRate + '%') + ') · ' + snap.counters.errors + ' frontend error(s) · ' + snap.counters.navs + ' navigation(s). All metrics captured from the live runtime — no fabricated data.</div></div>'
+      + '</div>';
+    el.innerHTML = html;
+  } catch (err) {
+    try { console.error('[fos-observability] render failed:', err && err.stack || err); } catch (_) {}
+    el.innerHTML = '<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);"><div style="font-size:13px;font-weight:700;color:#FCA5A5;margin-bottom:6px;">FOS Observability couldn\'t render</div><div style="font-size:11.5px;color:var(--tx-2);line-height:1.55;">' + _esc((err && (err.message || err.toString())) || 'unknown error') + '</div></div>';
+  }
+}
+
 // ─── Familista OS · Global Intelligence Services ───────────────────────
 // Platform-wide intelligence layer available to every organization in
 // the network. Read-only — aggregates data from active tenants. With
@@ -27920,6 +28347,9 @@ document.addEventListener('click', (e) => {
   }
   if (e.target.closest('[data-page="fos-ai-agent-framework"]')) {
     setTimeout(function () { try { renderFOSAIAgentFramework(); } catch (err) { try { console.error('[fos-ai-agent-framework] click hook failed:', err); } catch (_) {} } }, 100);
+  }
+  if (e.target.closest('[data-page="fos-observability"]')) {
+    setTimeout(function () { try { renderFOSObservability(); } catch (err) { try { console.error('[fos-observability] click hook failed:', err); } catch (_) {} } }, 100);
   }
   var _gisEl = e.target.closest('[data-page^="gis-"]');
   if (_gisEl) {
