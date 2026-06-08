@@ -16710,60 +16710,208 @@ function renderFOSDecisionEngine() {
 // B · FOS Event Bus / Message Queue — platform events flowing
 // ════════════════════════════════════════════════════════════════════
 function _busSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+
+// FOS Event Bus · powered by FOSTelemetry
+// Every helper below reads ONLY from the captured telemetry ring buffers
+// installed by the Observability layer. No hardcoded producers, no
+// hardcoded rates, no synthetic timestamps, no placeholder alerts.
+// Empty telemetry → empty arrays / honest zeros / sentinel "No telemetry
+// captured" row in the trace (preserving the existing UI contract).
+
+// Window used for "rate" calculations and "current window" stats.
+var _BUS_WINDOW_MS = 5 * 60 * 1000;
+
+// Snapshot helper — returns FOSTelemetry data or a safe empty shape.
+function _busSnapshot() {
+  var T = (typeof window !== 'undefined') ? window.FOSTelemetry : null;
+  if (!T || typeof T.snapshot !== 'function') {
+    return { api: [], errors: [], nav: [], counters: { req: 0, ok: 0, fail: 0, errors: 0, navs: 0 }, uptimeMs: 0, sessionStart: Date.now(), _ready: false };
+  }
+  try {
+    var snap = T.snapshot();
+    snap._ready = true;
+    return snap;
+  } catch (_) {
+    return { api: [], errors: [], nav: [], counters: { req: 0, ok: 0, fail: 0, errors: 0, navs: 0 }, uptimeMs: 0, sessionStart: Date.now(), _ready: false };
+  }
+}
+
+// Map an API URL to a "producer" (the service emitting events).
+function _busClassifyProducer(url) {
+  if (!url) return null;
+  var path = String(url).replace(/^https?:\/\/[^/]+/, '').toLowerCase();
+  if (path.indexOf('/api/auth')        === 0) return { key:'auth',      name:'Auth Service',      color:'#FCA5A5' };
+  if (path.indexOf('/api/players')     === 0) return { key:'squad',     name:'Squad Service',     color:'#34D399' };
+  if (path.indexOf('/api/matches')     === 0) return { key:'match',     name:'Match Service',     color:'#7DF9FF' };
+  if (path.indexOf('/api/training')    === 0) return { key:'training',  name:'Training Service',  color:'#A855F7' };
+  if (path.indexOf('/api/transfer')    === 0) return { key:'transfer',  name:'Transfer Service',  color:'#FBBF24' };
+  if (path.indexOf('/api/finance')     === 0) return { key:'finance',   name:'Finance Service',   color:'#34D399' };
+  if (path.indexOf('/api/stats')       === 0) return { key:'stats',     name:'Stats Service',     color:'#00F5FF' };
+  if (path.indexOf('/api/scouting')    === 0) return { key:'scouting',  name:'Scouting Service',  color:'#A855F7' };
+  if (path.indexOf('/api/medical')     === 0
+   || path.indexOf('/api/injuries')    === 0) return { key:'medical',   name:'Medical Service',   color:'#FCA5A5' };
+  if (path.indexOf('/api/admin')       === 0) return { key:'admin',     name:'Admin Service',     color:'#E5E7EB' };
+  if (path.indexOf('/api/club')        === 0) return { key:'club',      name:'Club Service',      color:'#FBBF24' };
+  if (path.indexOf('/api/video')       === 0) return { key:'video',     name:'Video Service',     color:'#7DF9FF' };
+  if (path.indexOf('/api')             === 0) return { key:'other-api', name:'Other API',          color:'#7DF9FF' };
+  return { key:'external', name:'External',  color:'#A855F7' };
+}
+
+// Map an HTTP method + status to an event-type kind.
+function _busClassifyEventType(call) {
+  if (!call) return null;
+  var m = (call.method || 'GET').toUpperCase();
+  var ok = call.kind !== 'err' && (call.status >= 200 && call.status < 400);
+  var fail = !ok && (call.kind === 'err' || call.status >= 500);
+  var clientErr = !ok && call.status >= 400 && call.status < 500;
+  var path = String(call.url || '').toLowerCase();
+  if (path.indexOf('/api/auth') >= 0)                            return { kind:'auth.event',     color:'#FCA5A5' };
+  if (fail)                                                       return { kind:'error.event',    color:'#FCA5A5' };
+  if (clientErr)                                                  return { kind:'client.error',   color:'#FBBF24' };
+  if (m === 'GET')                                                return { kind:'data.read',      color:'#34D399' };
+  if (m === 'POST' || m === 'PUT' || m === 'PATCH')               return { kind:'data.write',     color:'#A855F7' };
+  if (m === 'DELETE')                                             return { kind:'data.delete',    color:'#FB923C' };
+  return { kind:'other.event', color:'#7DF9FF' };
+}
+
+// Consumer-color lookup — used only for pages we already know are FOS
+// internals. Unknown pages fall back to the default cyan.
+function _busConsumerColor(page) {
+  var p = String(page || '').toLowerCase();
+  if (p.indexOf('fos-')              === 0) return '#7DF9FF';
+  if (p === 'squad')                        return '#34D399';
+  if (p === 'matches' || p === 'match-center') return '#7DF9FF';
+  if (p === 'training')                     return '#A855F7';
+  if (p === 'medical' || p === 'medical-center')   return '#FCA5A5';
+  if (p === 'performance' || p === 'performance-center') return '#FBBF24';
+  if (p === 'scouting' || p === 'scouting-center') return '#A855F7';
+  if (p === 'transfer' || p === 'transfer-center') return '#FBBF24';
+  if (p === 'finances' || p === 'finance-center')  return '#34D399';
+  if (p === 'admin' || p === 'admin-center')        return '#E5E7EB';
+  if (p === 'multi-club-network')           return '#34D399';
+  return '#7DF9FF';
+}
+
 function _busProducers() {
-  return [
-    { name:'Data Intelligence',    color:'#34D399', rate: 14 },
-    { name:'Neural Intelligence',  color:'#A855F7', rate: 9  },
-    { name:'Security Operations',  color:'#FCA5A5', rate: 6  },
-    { name:'Automation Center',    color:'#FBBF24', rate: 12 },
-    { name:'Knowledge Graph',      color:'#7DF9FF', rate: 7  },
-    { name:'AI Orchestrator',      color:'#00F5FF', rate: 18 },
-  ];
+  var snap = _busSnapshot();
+  if (!snap._ready) return [];
+  var now = Date.now();
+  var cutoff = now - _BUS_WINDOW_MS;
+  var calls = snap.api.filter(function (a) { return a.ts >= cutoff; });
+  if (!calls.length) return [];
+  // Group by producer key, count calls.
+  var buckets = {};
+  calls.forEach(function (a) {
+    var c = _busClassifyProducer(a.url);
+    if (!c) return;
+    var b = buckets[c.key];
+    if (!b) { b = { name: c.name, color: c.color, count: 0 }; buckets[c.key] = b; }
+    b.count += 1;
+  });
+  // Window length in minutes — clamp to actual session uptime so early
+  // sessions don't divide by 5 when they've only been running for 30s.
+  var windowMin = Math.max(1 / 60, Math.min(_BUS_WINDOW_MS, snap.uptimeMs || _BUS_WINDOW_MS) / 60000);
+  return Object.keys(buckets)
+    .map(function (k) {
+      var b = buckets[k];
+      return { name: b.name, color: b.color, rate: Math.max(1, Math.round(b.count / windowMin)) };
+    })
+    .sort(function (a, b) { return b.rate - a.rate; })
+    .slice(0, 8);
 }
+
 function _busConsumers() {
-  return [
-    { name:'Command Center',         color:'#7DF9FF' },
-    { name:'Intelligence Pipeline',  color:'#A855F7' },
-    { name:'Decision Engine',        color:'#FBBF24' },
-    { name:'Workflow Execution',     color:'#FCA5A5' },
-    { name:'Multi-Club Network',     color:'#34D399' },
-  ];
+  var snap = _busSnapshot();
+  if (!snap._ready) return [];
+  var now = Date.now();
+  var cutoff = now - _BUS_WINDOW_MS;
+  var navs = snap.nav.filter(function (n) { return n.ts >= cutoff; });
+  if (!navs.length) return [];
+  var counts = {};
+  navs.forEach(function (n) { counts[n.page] = (counts[n.page] || 0) + 1; });
+  return Object.keys(counts)
+    .map(function (page) { return { name: page, color: _busConsumerColor(page), count: counts[page] }; })
+    .sort(function (a, b) { return b.count - a.count; })
+    .slice(0, 6);
 }
+
 function _busEventTypes() {
-  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] });
-  return [
-    { kind:'data.ingest',        color:'#34D399', count: (State.training || []).length + (State.matches || []).length },
-    { kind:'neural.diagnostic',  color:'#A855F7', count: 4 },
-    { kind:'security.alert',     color:'#FCA5A5', count: (notes.critical || []).length + (notes.warnings || []).length },
-    { kind:'automation.trigger', color:'#FBBF24', count: ((_busSafe(_fosAutomation, { aiAutomations: [] }).aiAutomations) || []).length },
-    { kind:'orchestrator.event', color:'#00F5FF', count: (_busSafe(_orcLiveStreams, []) || []).length },
-    { kind:'audit.write',        color:'#7DF9FF', count: (notes.messages || []).length },
-  ];
+  var snap = _busSnapshot();
+  if (!snap._ready) return [];
+  var now = Date.now();
+  var cutoff = now - _BUS_WINDOW_MS;
+  var calls = snap.api.filter(function (a) { return a.ts >= cutoff; });
+  if (!calls.length) return [];
+  var buckets = {};
+  calls.forEach(function (a) {
+    var t = _busClassifyEventType(a);
+    if (!t) return;
+    var b = buckets[t.kind];
+    if (!b) { b = { kind: t.kind, color: t.color, count: 0 }; buckets[t.kind] = b; }
+    b.count += 1;
+  });
+  return Object.keys(buckets)
+    .map(function (k) { return buckets[k]; })
+    .sort(function (a, b) { return b.count - a.count; });
 }
+
 function _busQueueHealth() {
-  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [], messages: [], pending: [] });
-  var aut = _busSafe(_autProcessMonitoring, { running: 0, waiting: 0, failed: 0, completed: 0 });
-  var failed = (notes.critical || []).length + aut.failed;
-  var pending = (notes.pending || []).length + aut.waiting;
-  var completed = aut.completed;
-  var running = (notes.messages || []).length + aut.running;
-  var total = failed + pending + completed + running;
-  var health = total > 0 ? Math.max(0, Math.min(100, Math.round(((completed + running) / total) * 100))) : 100;
-  return { failed: failed, pending: pending, completed: completed, running: running, health: health };
+  var snap = _busSnapshot();
+  if (!snap._ready) {
+    return { failed: 0, pending: 0, completed: 0, running: 0, health: 0 };
+  }
+  var T = window.FOSTelemetry;
+  var inflight = 0;
+  try { inflight = Object.keys((T && T._state && T._state.inflight) || {}).length; } catch (_) {}
+  var m = (T && typeof T.metrics === 'function') ? T.metrics(_BUS_WINDOW_MS) : { ok: snap.counters.ok, fail: snap.counters.fail, successRate: null };
+  var ok = m.ok || 0;
+  var fail = (m.fail || 0) + (snap.errors || []).filter(function (e) { return e.ts >= (Date.now() - _BUS_WINDOW_MS); }).length;
+  // Pending here is intentionally 0 — the platform has no real durable
+  // queue. We do not fabricate a pending count.
+  var pending = 0;
+  // health = real success rate (0-100). When nothing has happened, 0 —
+  // not a fake "100".
+  var health = m.successRate == null ? 0 : Math.round(m.successRate);
+  return { failed: fail, pending: pending, completed: ok, running: inflight, health: health };
 }
+
+function _busFmtBusTime(ts) {
+  try { return new Date(ts).toISOString().slice(11, 19); } catch (_) { return '—'; }
+}
+
 function _busTrace() {
-  var streams = _busSafe(_orcLiveStreams, []);
-  var rows = streams.map(function (s) { return { ts: s.ts || 'T-0s', topic: (s.source || 'platform').toLowerCase() + '.' + (s.kind || 'event').toLowerCase(), payload: s.text || '', status:'DELIVERED', color: s.color || '#00F5FF' }; });
-  var notes = _busSafe(_fosNotifications, { critical: [], warnings: [] });
-  (notes.warnings || []).forEach(function (w, i) { rows.push({ ts:'T-' + ((i + 4) * 35) + 's', topic:'security.warning', payload: w.text || '', status:'RETRY', color:'#FBBF24' }); });
-  (notes.critical || []).forEach(function (c, i) { rows.push({ ts:'T-' + ((i + 1) * 20) + 's', topic:'security.critical', payload: c.text || '', status:'FAILED', color:'#FCA5A5' }); });
-  if (!rows.length) rows.push({ ts:'T-0s', topic:'platform.boot', payload:'No bus events yet.', status:'IDLE', color:'#7DF9FF' });
-  return rows.slice(0, 12);
+  var snap = _busSnapshot();
+  if (!snap._ready || !snap.api.length) {
+    return [{ ts: '—', topic: 'platform.idle', payload: 'No telemetry captured yet — bus activates once API traffic flows.', status: 'IDLE', color: '#7DF9FF' }];
+  }
+  // Take the most-recent 12 captured API calls.
+  var recent = snap.api.slice(-12).reverse();
+  return recent.map(function (a) {
+    var producer = _busClassifyProducer(a.url) || { key: 'other', color: '#7DF9FF' };
+    var etype    = _busClassifyEventType(a)    || { kind: 'other.event', color: '#7DF9FF' };
+    var status, statusColor;
+    if (a.kind === 'err' || (a.status && a.status >= 500)) { status = 'FAILED';   statusColor = '#FCA5A5'; }
+    else if (a.status >= 400)                              { status = 'RETRY';    statusColor = '#FBBF24'; }
+    else                                                    { status = 'DELIVERED'; statusColor = '#34D399'; }
+    var topic = (producer.key || 'event') + '.' + (a.method || 'GET').toLowerCase();
+    var payload = (a.url || '').replace(/^https?:\/\/[^/]+/, '') + (a.durationMs != null ? ' · ' + a.durationMs + 'ms' : '') + (a.status ? ' · ' + a.status : '');
+    return { ts: _busFmtBusTime(a.ts), topic: topic, payload: payload, status: status, color: etype.color || statusColor };
+  });
 }
+
 function _busSummary() {
+  var snap = _busSnapshot();
+  if (!snap._ready) {
+    return 'FOS Event Bus · telemetry layer unavailable — observability subsystem not initialised.';
+  }
   var h = _busQueueHealth();
-  var p = _busProducers(), c = _busConsumers(), e = _busEventTypes();
-  return 'FOS Event Bus · health ' + h.health + '/100 · ' + p.length + ' producer(s), ' + c.length + ' consumer(s), ' + e.length + ' event type(s) on the wire. ' + h.running + ' running · ' + h.pending + ' pending · ' + h.completed + ' completed · ' + h.failed + ' failed in current window.';
+  var producers = _busProducers();
+  var consumers = _busConsumers();
+  var types = _busEventTypes();
+  if (!snap.api.length && !snap.nav.length) {
+    return 'FOS Event Bus · no telemetry captured yet · the bus has been online for ' + Math.max(0, Math.round((snap.uptimeMs || 0) / 1000)) + 's and is waiting for real API traffic or page navigations.';
+  }
+  return 'FOS Event Bus · health ' + h.health + '/100 (real success rate) · ' + producers.length + ' producer(s), ' + consumers.length + ' consumer(s), ' + types.length + ' event type(s) seen in the last ' + Math.round(_BUS_WINDOW_MS / 60000) + ' min. ' + h.running + ' in-flight · ' + h.completed + ' completed · ' + h.failed + ' failed. All counters sourced from FOSTelemetry — no fabricated data.';
 }
 function _ensureBusStyles() {
   if (document.getElementById('bus-styles')) return;
