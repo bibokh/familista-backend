@@ -1,0 +1,21 @@
+{
+  "name": "Familista — FC Familista",
+  "short_name": "Familista",
+  "description": "Premium football management platform for FC Familista.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A0E1A",
+  "theme_color": "#0A0E1A",
+  "lang": "en",
+  "categories": ["sports", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/familista-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

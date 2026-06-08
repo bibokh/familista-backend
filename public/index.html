@@ -2,14 +2,27 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Familista â€” Football Intelligence Platform</title>
-<!-- â”€â”€ Familista runtime: tenant theme + API client â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>Familista — FC Familista</title>
+
+<!-- ── Phase B.1 · PWA + premium chrome ─────────────────────────────── -->
+<meta name="theme-color"             content="#0A0E1A">
+<meta name="application-name"        content="Familista">
+<meta name="apple-mobile-web-app-title"             content="Familista">
+<meta name="apple-mobile-web-app-capable"           content="yes">
+<meta name="apple-mobile-web-app-status-bar-style"  content="black-translucent">
+<meta name="mobile-web-app-capable"  content="yes">
+<meta name="format-detection"        content="telephone=no">
+<link rel="manifest"        href="/manifest.webmanifest">
+<link rel="icon"            type="image/svg+xml" href="/familista-icon.svg">
+<link rel="apple-touch-icon" href="/familista-icon.svg">
+
+<!-- ── Familista runtime: tenant theme + API client ────────────────── -->
 <script src="/whitelabel-bootstrap.client.js"></script>
 <script src="/familista-api-client.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20260608-nav-cleanup">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css?v=20260609-b1-foundation">
 </head>
 <body>
 
@@ -187,75 +200,75 @@
     <nav class="sidebar-nav">
 
       <!-- ═════════ PLATFORM ═════════ -->
-      <div class="nav-section">PLATFORM</div>
-      <div class="nav-item" data-nav="fos-core" data-page="fos-core">
+      <div class="nav-section nav-section--platform">PLATFORM</div>
+      <div class="nav-item nav-item--platform" data-nav="fos-core" data-page="fos-core">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M13 7H7v6h6V7z"/><path fill-rule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clip-rule="evenodd"/></svg>
         <span class="nav-label">FOS Core</span>
       </div>
-      <div class="nav-item" data-nav="fos-observability" data-page="fos-observability">
+      <div class="nav-item nav-item--platform" data-nav="fos-observability" data-page="fos-observability">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 6a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zm10-1a1 1 0 00-1 1v6a1 1 0 001 1h3a1 1 0 001-1v-6a1 1 0 00-1-1h-3z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Observability</span>
       </div>
-      <div class="nav-item" data-nav="fos-security-center" data-page="fos-security-center">
+      <div class="nav-item nav-item--platform" data-nav="fos-security-center" data-page="fos-security-center">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zm-1.293 5.293a1 1 0 011.414 0L11 8.293V12a1 1 0 11-2 0V8.293l-.293-.292a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Security</span>
       </div>
-      <div class="nav-item" data-nav="fos-automation-center" data-page="fos-automation-center">
+      <div class="nav-item nav-item--platform" data-nav="fos-automation-center" data-page="fos-automation-center">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Automation</span>
       </div>
-      <div class="nav-item" data-nav="fos-rbac" data-page="fos-rbac">
+      <div class="nav-item nav-item--platform" data-nav="fos-rbac" data-page="fos-rbac">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/></svg>
         <span class="nav-label">RBAC</span>
       </div>
-      <div class="nav-item" data-nav="fos-audit-governance" data-page="fos-audit-governance">
+      <div class="nav-item nav-item--platform" data-nav="fos-audit-governance" data-page="fos-audit-governance">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Governance</span>
       </div>
-      <div class="nav-item" data-nav="multi-club-network" data-page="multi-club-network">
+      <div class="nav-item nav-item--platform" data-nav="multi-club-network" data-page="multi-club-network">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
         <span class="nav-label">Multi-Club Management</span>
       </div>
-      <div class="nav-item" data-nav="fos-admin-center" data-page="fos-admin-center">
+      <div class="nav-item nav-item--platform" data-nav="fos-admin-center" data-page="fos-admin-center">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
         <span class="nav-label">System Settings</span>
       </div>
 
       <!-- ═════════ CLUB WORKSPACE · FC Familista ═════════ -->
-      <div class="nav-section nav-tenant-header">FC FAMILISTA · CLUB WORKSPACE</div>
-      <div class="nav-item active" data-nav="dashboard" data-page="dashboard">
+      <div class="nav-section nav-tenant-header nav-section--workspace">FC FAMILISTA · CLUB WORKSPACE</div>
+      <div class="nav-item nav-item--workspace active" data-nav="dashboard" data-page="dashboard">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zM3 12a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
         <span class="nav-label">Dashboard</span>
       </div>
-      <div class="nav-item" data-nav="squad" data-page="squad">
+      <div class="nav-item nav-item--workspace" data-nav="squad" data-page="squad">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
         <span class="nav-label">Squad</span>
       </div>
-      <div class="nav-item" data-nav="training" data-page="training">
+      <div class="nav-item nav-item--workspace" data-nav="training" data-page="training">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Training</span>
       </div>
-      <div class="nav-item" data-nav="matches" data-page="matches">
+      <div class="nav-item nav-item--workspace" data-nav="matches" data-page="matches">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Matches</span>
       </div>
-      <div class="nav-item" data-nav="scouting" data-page="scouting">
+      <div class="nav-item nav-item--workspace" data-nav="scouting" data-page="scouting">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Scouting</span>
       </div>
-      <div class="nav-item" data-nav="video" data-page="video">
+      <div class="nav-item nav-item--workspace" data-nav="video" data-page="video">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
         <span class="nav-label">Videos</span>
       </div>
-      <div class="nav-item" data-nav="stats" data-page="stats">
+      <div class="nav-item nav-item--workspace" data-nav="stats" data-page="stats">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
         <span class="nav-label">Statistics</span>
       </div>
-      <div class="nav-item" data-nav="analytics" data-page="analytics">
+      <div class="nav-item nav-item--workspace" data-nav="analytics" data-page="analytics">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
         <span class="nav-label">Reports</span>
       </div>
-      <div class="nav-item" data-nav="club" data-page="club">
+      <div class="nav-item nav-item--workspace" data-nav="club" data-page="club">
         <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z" clip-rule="evenodd"/></svg>
         <span class="nav-label">Club Settings</span>
       </div>
@@ -509,9 +522,18 @@
 
   <!-- MAIN -->
   <div class="main">
-    <header class="header">
+    <header class="header topbar">
       <div class="header-left">
-        <span class="page-title" id="page-title">Dashboard</span>
+        <button class="topbar-menu-btn" data-action="toggleSidebar" aria-label="Toggle navigation" type="button">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
+        </button>
+        <a class="topbar-brand" data-page="dashboard" data-action="navTo" aria-label="Go to Dashboard">
+          <span class="topbar-emblem" id="topbar-club-emblem" aria-hidden="true">⚽</span>
+          <span class="topbar-titles">
+            <span class="page-title" id="page-title">Dashboard</span>
+            <span class="page-subtitle" id="page-subtitle">FC Familista</span>
+          </span>
+        </a>
       </div>
       <div class="header-search">
         <svg width="13" height="13" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>
@@ -1121,6 +1143,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260608-nav-cleanup" defer></script>
+<script src="/app.js?v=20260609-b1-foundation" defer></script>
 </body>
 </html>

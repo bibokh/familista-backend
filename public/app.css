@@ -2271,4 +2271,342 @@ body.fos-neural-theme{
    them. No styling on the items themselves changes.
    ──────────────────────────────────────────────────────────────── */
 .hidden{ display: none !important; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE B.1 · FOUNDATION — Premium Club Theme (FC Familista)
+   ────────────────────────────────────────────────────────────────────
+   Top Eleven-inspired premium football management identity.
+   • Tokens defined under `body.club-theme` (default-on via boot IIFE)
+   • Coexists with `body.fos-neural-theme` — club-theme rules win on
+     source order so the chrome (sidebar + topbar) gets the new look
+     without touching FOS page bodies.
+   • Sidebar splits visually into PLATFORM (royal indigo accent) and
+     CLUB WORKSPACE (pitch green accent + club emblem prominence).
+   • Topbar carries the club emblem + dual-line title/subtitle.
+   • Mobile-first: ≤ 600 px collapses sidebar to slide-over drawer.
+   • Preserves all stability layer rules (v1, v2, v3).
+   ──────────────────────────────────────────────────────────────── */
+
+/* ── 1 · Design tokens ─────────────────────────────────────────── */
+body.club-theme{
+  /* Surfaces */
+  --bg-canvas:      #0A0E1A;
+  --bg-surface:     #131826;
+  --bg-elevated:    #1A2236;
+  --bg-sunken:      #070A14;
+  /* Borders */
+  --b-subtle:       #1E263B;
+  --b-default:      #232B41;
+  --b-strong:       #2D3756;
+  /* Text */
+  --t-primary:      #F1F5F9;
+  --t-secondary:    #94A3B8;
+  --t-tertiary:     #64748B;
+  --t-disabled:     #475569;
+  /* Club / Pitch accent */
+  --pitch-400:      #4ADE80;
+  --pitch-500:      #22C55E;
+  --pitch-600:      #16A34A;
+  --pitch-700:      #15803D;
+  --pitch-800:      #166534;
+  --pitch-glow:     rgba(34,197,94,0.20);
+  /* Platform / Royal accent */
+  --royal-400:      #A5B4FC;
+  --royal-500:      #818CF8;
+  --royal-600:      #6366F1;
+  --royal-700:      #4F46E5;
+  --royal-glow:     rgba(99,102,241,0.20);
+  /* Gold (premium / value / rating) */
+  --gold-400:       #FACC15;
+  --gold-500:       #EAB308;
+  --gold-glow:      rgba(234,179,8,0.22);
+  /* Semantic */
+  --c-success:      #22C55E;
+  --c-warning:      #F59E0B;
+  --c-critical:     #EF4444;
+  --c-info:         #38BDF8;
+  /* Spacing scale (4 px base) */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --sp-14: 56px; --sp-20: 80px;
+  /* Radius */
+  --r-sm: 6px;  --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+  /* Shadows */
+  --sh-1: 0 1px 3px rgba(0,0,0,0.40);
+  --sh-2: 0 8px 24px rgba(0,0,0,0.45);
+  --sh-3: 0 24px 56px rgba(0,0,0,0.55);
+  /* Topbar height */
+  --topbar-h: 64px;
+}
+@media (max-width: 600px){
+  body.club-theme{ --topbar-h: 56px; }
+}
+
+/* ── 2 · App body + canvas ─────────────────────────────────────── */
+body.club-theme{
+  background: var(--bg-canvas) !important;
+  color: var(--t-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Static premium backdrop — no animation, no jitter risk */
+  background-image:
+    radial-gradient(1100px 600px at 110% -10%, rgba(34,197,94,0.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(99,102,241,0.06), transparent 60%) !important;
+}
+
+/* ── 3 · Topbar (the new header) ───────────────────────────────── */
+body.club-theme .header,
+body.club-theme .topbar{
+  height: var(--topbar-h) !important;
+  min-height: var(--topbar-h) !important;
+  padding: 0 var(--sp-6) !important;
+  background: linear-gradient(180deg, rgba(13,17,28,0.92), rgba(13,17,28,0.78)) !important;
+  border-bottom: 1px solid var(--b-default) !important;
+  display: flex; align-items: center; gap: var(--sp-4);
+  position: sticky; top: 0; z-index: 80;
+  /* Sidebar/topbar keep backdrop-filter — they don't scroll with content (stability v2) */
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+body.club-theme .header-left{
+  display: flex; align-items: center; gap: var(--sp-3); min-width: 0;
+}
+body.club-theme .topbar-menu-btn{
+  display: none; /* shown on mobile */
+  background: transparent; border: 1px solid var(--b-default); color: var(--t-secondary);
+  width: 36px; height: 36px; border-radius: var(--r-md); cursor: pointer;
+  align-items: center; justify-content: center;
+}
+body.club-theme .topbar-menu-btn:hover{ background: var(--bg-elevated); color: var(--t-primary); }
+@media (max-width: 1023px){
+  body.club-theme .topbar-menu-btn{ display: inline-flex; }
+}
+body.club-theme .topbar-brand{
+  display: flex; align-items: center; gap: var(--sp-3); text-decoration: none; min-width: 0;
+  cursor: pointer; padding: 4px var(--sp-2); border-radius: var(--r-md);
+}
+body.club-theme .topbar-brand:hover{ background: var(--bg-elevated); }
+body.club-theme .topbar-emblem{
+  width: 36px; height: 36px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--pitch-600), var(--pitch-800));
+  color: #fff; font-weight: 900; font-size: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; box-shadow: 0 0 0 1px var(--pitch-700) inset, var(--sh-1);
+  object-fit: cover; overflow: hidden;
+}
+body.club-theme img.topbar-emblem{ background: var(--bg-elevated); }
+body.club-theme .topbar-titles{
+  display: flex; flex-direction: column; min-width: 0; line-height: 1.15;
+}
+body.club-theme .topbar-titles .page-title{
+  font-size: 16px; font-weight: 700; color: var(--t-primary); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body.club-theme .topbar-titles .page-subtitle{
+  font-size: 11px; font-weight: 600; color: var(--t-tertiary);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Platform mood — subtitle picks up royal hue */
+body.club-theme #page-subtitle:not([data-tenant])[textContent="PLATFORM"]{ color: var(--royal-500); }
+
+/* Search keeps existing functionality — restyled */
+body.club-theme .header-search{
+  background: var(--bg-elevated) !important; border: 1px solid var(--b-default) !important;
+  border-radius: var(--r-md) !important; height: 36px !important; padding: 0 var(--sp-3) !important;
+  display: flex; align-items: center; gap: var(--sp-2); color: var(--t-secondary);
+  min-width: 200px; max-width: 380px;
+}
+body.club-theme .header-search input{
+  background: transparent !important; border: none !important; color: var(--t-primary) !important;
+  font-size: 13px !important; outline: none !important; flex: 1; padding: 0 !important;
+}
+body.club-theme .header-search input::placeholder{ color: var(--t-tertiary); }
+@media (max-width: 720px){
+  body.club-theme .header-search{ display: none !important; }
+}
+
+/* Action chips + buttons */
+body.club-theme .status-chip{
+  background: var(--bg-elevated) !important; border: 1px solid var(--b-default) !important;
+  color: var(--t-secondary) !important; border-radius: 999px !important;
+  padding: 4px var(--sp-3) !important; font-size: 11px !important; font-weight: 600 !important;
+  height: 28px !important; line-height: 1 !important; display: inline-flex !important;
+  align-items: center !important; gap: 6px !important;
+}
+body.club-theme .status-chip.chip-live{ border-color: rgba(239,68,68,0.35) !important; color: #FCA5A5 !important; }
+body.club-theme .status-chip.chip-ai{   border-color: rgba(34,197,94,0.30) !important; color: var(--pitch-400) !important; }
+body.club-theme .hdr-btn{
+  background: var(--bg-elevated) !important; border: 1px solid var(--b-default) !important;
+  color: var(--t-secondary) !important; width: 36px !important; height: 36px !important;
+  border-radius: var(--r-md) !important;
+}
+body.club-theme .hdr-btn:hover{ background: var(--b-default) !important; color: var(--t-primary) !important; }
+@media (max-width: 720px){
+  body.club-theme .status-chip{ display: none !important; }
+}
+
+/* ── 4 · Sidebar ───────────────────────────────────────────────── */
+body.club-theme .sidebar{
+  background: linear-gradient(180deg, #0E1424 0%, #0A0E1A 100%) !important;
+  border-right: 1px solid var(--b-default) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  width: 256px !important;
+  display: flex; flex-direction: column;
+}
+body.club-theme .sidebar.collapsed{ width: 64px !important; }
+@media (max-width: 1023px){
+  body.club-theme .sidebar{
+    position: fixed; top: var(--topbar-h); bottom: 0; left: 0; z-index: 70;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+  }
+  body.club-theme .sidebar.mobile-open{ transform: translateX(0); box-shadow: var(--sh-3); }
+}
+body.club-theme .sidebar-brand,
+body.club-theme .brand{
+  padding: var(--sp-5) var(--sp-5) var(--sp-4) !important;
+  border-bottom: 1px solid var(--b-subtle) !important;
+}
+body.club-theme .brand-name{
+  font-size: 18px !important; font-weight: 900 !important; letter-spacing: -0.02em !important;
+  color: var(--t-primary) !important;
+  background: linear-gradient(135deg, #F1F5F9 0%, var(--pitch-400) 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+body.club-theme .brand-version{
+  font-size: 10px !important; font-weight: 600 !important; color: var(--t-tertiary) !important;
+  letter-spacing: 0.08em !important; text-transform: uppercase !important;
+}
+
+/* Tenant card (the FC Familista card at sidebar top) */
+body.club-theme .club-card{
+  margin: var(--sp-4) !important; padding: var(--sp-3) !important;
+  background: var(--bg-elevated) !important; border: 1px solid var(--b-default) !important;
+  border-left: 3px solid var(--pitch-500) !important;
+  border-radius: var(--r-md) !important; box-shadow: var(--sh-1) !important;
+  cursor: pointer;
+}
+body.club-theme .club-card:hover{ background: var(--b-default) !important; }
+body.club-theme .club-row{ display: flex; gap: var(--sp-3) !important; align-items: center; }
+body.club-theme .club-emblem{
+  width: 36px !important; height: 36px !important; border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--pitch-600), var(--pitch-800)) !important;
+  font-size: 18px !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+}
+body.club-theme .club-name{
+  font-size: 13px !important; font-weight: 700 !important; color: var(--t-primary) !important;
+}
+body.club-theme .club-meta{
+  font-size: 11px !important; font-weight: 500 !important; color: var(--t-tertiary) !important;
+}
+
+/* Nav sections — group differentiation PLATFORM vs CLUB WORKSPACE */
+body.club-theme .nav-section{
+  font-size: 10px !important; font-weight: 800 !important;
+  letter-spacing: 0.14em !important; text-transform: uppercase !important;
+  padding: var(--sp-5) var(--sp-5) var(--sp-2) !important;
+  color: var(--t-tertiary) !important; background: transparent !important;
+  border-top: 1px solid var(--b-subtle) !important; margin-top: var(--sp-3) !important;
+}
+body.club-theme .nav-section:first-of-type{ border-top: none !important; margin-top: var(--sp-2) !important; }
+body.club-theme .nav-section--platform{ color: var(--royal-500) !important; }
+body.club-theme .nav-section--workspace{ color: var(--pitch-400) !important; }
+
+/* Nav items — base */
+body.club-theme .nav-item{
+  display: flex !important; align-items: center !important; gap: var(--sp-3) !important;
+  padding: 9px var(--sp-5) !important; margin: 1px var(--sp-2) !important;
+  border-radius: var(--r-md) !important;
+  font-size: 13px !important; font-weight: 500 !important; color: var(--t-secondary) !important;
+  cursor: pointer !important; position: relative !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  /* No translateY hover lift (stability v1) — only color/bg change */
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease !important;
+}
+body.club-theme .nav-item:hover{
+  background: var(--bg-elevated) !important;
+  color: var(--t-primary) !important;
+  border-color: var(--b-subtle) !important;
+}
+body.club-theme .nav-item .nav-icon{
+  width: 18px !important; height: 18px !important; flex-shrink: 0 !important; opacity: 0.8;
+}
+body.club-theme .nav-item .nav-label{
+  font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0 !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+body.club-theme .nav-item .nav-badge{
+  font-size: 9px !important; font-weight: 800 !important; letter-spacing: 0.08em !important;
+  padding: 2px 6px !important; border-radius: 4px !important;
+  background: var(--gold-glow) !important; color: var(--gold-400) !important;
+  border: 1px solid rgba(234,179,8,0.30) !important;
+}
+
+/* Active state — base (overridden per-group below) */
+body.club-theme .nav-item.active{
+  background: var(--bg-elevated) !important;
+  color: var(--t-primary) !important;
+  border-color: var(--b-default) !important;
+  box-shadow: inset 2px 0 0 var(--pitch-500) !important;
+}
+body.club-theme .nav-item.active .nav-icon{ opacity: 1; color: var(--pitch-500); }
+
+/* PLATFORM items — royal-indigo accent */
+body.club-theme .nav-item--platform:hover{ border-color: rgba(99,102,241,0.25) !important; }
+body.club-theme .nav-item--platform.active{
+  background: linear-gradient(90deg, rgba(99,102,241,0.12), transparent 70%) !important;
+  border-color: rgba(99,102,241,0.30) !important;
+  box-shadow: inset 2px 0 0 var(--royal-500) !important;
+}
+body.club-theme .nav-item--platform.active .nav-icon{ color: var(--royal-500) !important; }
+
+/* CLUB WORKSPACE items — pitch-green accent */
+body.club-theme .nav-item--workspace:hover{ border-color: rgba(34,197,94,0.25) !important; }
+body.club-theme .nav-item--workspace.active{
+  background: linear-gradient(90deg, rgba(34,197,94,0.14), transparent 70%) !important;
+  border-color: rgba(34,197,94,0.32) !important;
+  box-shadow: inset 2px 0 0 var(--pitch-500) !important;
+}
+body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !important; }
+
+/* Sidebar footer (user chip) */
+body.club-theme .sidebar-footer{
+  padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;
+  display: flex !important; align-items: center !important; gap: var(--sp-3) !important;
+  margin-top: auto;
+}
+body.club-theme .user-av{
+  width: 36px !important; height: 36px !important; border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--royal-500), var(--royal-700)) !important;
+  color: #fff !important; font-weight: 800 !important; font-size: 14px !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+}
+body.club-theme .user-name{ font-size: 12.5px !important; font-weight: 600 !important; color: var(--t-primary) !important; }
+body.club-theme .user-email{ font-size: 11px !important; color: var(--t-tertiary) !important; }
+body.club-theme .footer-btn{
+  background: transparent !important; border: 1px solid var(--b-default) !important;
+  color: var(--t-tertiary) !important; border-radius: var(--r-sm) !important;
+  width: 28px !important; height: 28px !important;
+}
+body.club-theme .footer-btn:hover{ background: var(--bg-elevated) !important; color: var(--c-critical) !important; }
+
+/* ── 5 · Backdrop overlay for mobile sidebar drawer ────────────── */
+body.club-theme .mobile-overlay{
+  display: none; position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 65;
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);
+}
+body.club-theme.mobile-nav-open .mobile-overlay{ display: block; }
+
+/* ── 6 · FOS-theme overrides while club-theme is active ────────── */
+/* Disable the radial particle layers so the new palette isn't muddied. */
+body.club-theme.fos-neural-theme::before,
+body.club-theme.fos-neural-theme::after{
+  display: none !important;
+}
+
+/* END PHASE B.1 FOUNDATION ─────────────────────────────────────── */
 

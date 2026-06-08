@@ -747,14 +747,21 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
 })();
 
 // ─── Deep Space Neural Network theme activation ────────────────────────
-// Activates the FOS visual theme on <body>. Pure additive CSS overlay —
-// no logic changes. Sets the deep space background, neural particle
-// layer, glassmorphism on sidebar/top bar, and animated tenant status.
+// Activates the FOS visual theme on <body> AND (Phase B.1) the new
+// Premium Club Theme. Both classes coexist; club-theme rules ship at the
+// end of app.css and win via cascade source order. The Deep Space Neural
+// look stays available for any future opt-out — flip `body.fos-neural-theme`
+// off if you ever want the bare theme.
 (function () {
   function applyTheme() {
     try {
-      if (document.body && !document.body.classList.contains('fos-neural-theme')) {
+      if (!document.body) return;
+      if (!document.body.classList.contains('fos-neural-theme')) {
         document.body.classList.add('fos-neural-theme');
+      }
+      // Phase B.1 — premium club theme (default on)
+      if (!document.body.classList.contains('club-theme')) {
+        document.body.classList.add('club-theme');
       }
     } catch (_) {}
   }
@@ -764,6 +771,58 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
     applyTheme();
   }
 })();
+
+// ── Phase B.1 · Topbar brand hydration ────────────────────────────
+// Keeps the topbar's emblem + subtitle in sync with the loaded tenant
+// (State.club) and the current page (platform vs club workspace). No
+// new endpoints — reads the same State the rest of the app uses.
+function _b1IsPlatformPage(page) {
+  var p = String(page || '').toLowerCase();
+  return p.indexOf('fos-') === 0 || p === 'multi-club-network';
+}
+function hydrateTopbarBrand(page) {
+  try {
+    var emblemEl   = document.getElementById('topbar-club-emblem');
+    var subtitleEl = document.getElementById('page-subtitle');
+    var clubName = (window.State && State.club && State.club.name) || 'FC Familista';
+    var emblemUrl = (window.State && State.club && State.club.emblem) || '';
+    if (subtitleEl) {
+      subtitleEl.textContent = _b1IsPlatformPage(page) ? 'PLATFORM' : clubName;
+    }
+    if (emblemEl) {
+      // If a real emblem URL is loaded, render the image. Otherwise leave
+      // the fallback glyph in place — no fabricated club identity.
+      if (emblemUrl) {
+        if (emblemEl.tagName !== 'IMG') {
+          var img = document.createElement('img');
+          img.id = 'topbar-club-emblem';
+          img.className = 'topbar-emblem';
+          img.alt = clubName;
+          img.src = emblemUrl;
+          img.onerror = function () {
+            // Restore glyph fallback on broken image
+            var span = document.createElement('span');
+            span.id = 'topbar-club-emblem';
+            span.className = 'topbar-emblem';
+            span.setAttribute('aria-hidden', 'true');
+            span.textContent = '⚽';
+            img.replaceWith(span);
+          };
+          emblemEl.replaceWith(img);
+        } else if (emblemEl.getAttribute('src') !== emblemUrl) {
+          emblemEl.setAttribute('src', emblemUrl);
+          emblemEl.setAttribute('alt', clubName);
+        }
+      }
+    }
+    // Document title — reflects active page + tenant.
+    try {
+      var titleEl = document.getElementById('page-title');
+      var pageLabel = (titleEl && titleEl.textContent) || 'Familista';
+      document.title = pageLabel + ' — ' + clubName;
+    } catch (_) {}
+  } catch (_) {}
+}
 
 /**
  * Set by a guarded render that had to skip because isFormEditing() was true.
@@ -890,12 +949,25 @@ function navTo(page, el) {
   }
 
   const titles = {
-    dashboard:'Dashboard', squad:'Squad', matches:'Matches', 'match-center':'Match Center', 'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-core':'Platform Core', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-admin-center':'FOS Admin Center', 'fos-security-center':'FOS Security Operations Center', 'fos-data-center':'FOS Data Intelligence Center', 'fos-automation-center':'FOS Automation Center', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'fos-decision-engine':'FOS Decision Engine', 'fos-event-bus':'FOS Event Bus', 'fos-audit-governance':'FOS Audit & Governance', 'fos-rbac':'FOS RBAC', 'fos-workflow-execution':'FOS Workflow Execution', 'fos-digital-twin':'FOS Digital Twin', 'fos-predictive-intelligence':'FOS Predictive Intelligence', 'fos-simulation-center':'FOS Simulation Center', 'fos-executive-bridge':'FOS Executive Bridge', 'fos-ai-agent-framework':'FOS AI Agent Framework', 'fos-observability':'FOS Observability', 'multi-club-network':'Multi-Club Network', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
-    tournaments:'Tournaments', analytics:'Analytics', ai:'AI Analyst', training:'Training',
-    medical:'Medical', performance:'Performance', scouting:'Scouting', video:'Video Intelligence', transfer:'Transfer Intelligence', stats:'Stats Intelligence', finances:'Finances',
-    devices:'GPS Devices', club:'Club', settings:'Settings', 'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
+    // ── Club Workspace (Phase B labels) ──
+    dashboard:'Dashboard', squad:'Squad', training:'Training', matches:'Matches',
+    'match-center':'Match Center', scouting:'Scouting', video:'Videos',
+    stats:'Statistics', analytics:'Reports', club:'Club Settings',
+    // ── Platform (Phase B labels) ──
+    'fos-core':'FOS Core', 'fos-observability':'Observability',
+    'fos-security-center':'Security', 'fos-automation-center':'Automation',
+    'fos-rbac':'RBAC', 'fos-audit-governance':'Governance',
+    'multi-club-network':'Multi-Club Management', 'fos-admin-center':'System Settings',
+    // ── Hidden but routable (legacy labels retained) ──
+    'ai-coach':'AI Coach Center', 'medical-center':'Medical Center', 'performance-center':'Performance Center', 'scouting-center':'Scouting Center', 'transfer-center':'Transfer Center', 'finance-center':'Finance Center', 'management-center':'Management Center', 'academy-center':'Academy Center', 'sporting-director-center':'Sporting Director Center', 'director-of-football-center':'Director Of Football Center', 'board-of-directors-center':'Board Of Directors Center', 'ownership-center':'Ownership Center', 'ai-executive-center':'AI Executive Center', 'ai-president-center':'AI President Center', 'ai-chairman-center':'AI Chairman Center', 'ai-war-room':'AI War Room', 'fos-ai-orchestrator':'AI Orchestrator', 'fos-knowledge-graph':'FOS Knowledge Graph', 'fos-neural-intelligence':'FOS Neural Intelligence', 'fos-command-center':'FOS Command Center', 'fos-data-center':'FOS Data Intelligence', 'fos-intelligence-pipeline':'FOS Intelligence Pipeline', 'fos-decision-engine':'FOS Decision Engine', 'fos-event-bus':'FOS Event Bus', 'fos-workflow-execution':'FOS Workflow Execution', 'fos-digital-twin':'FOS Digital Twin', 'fos-predictive-intelligence':'FOS Predictive Intelligence', 'fos-simulation-center':'FOS Simulation Center', 'fos-executive-bridge':'FOS Executive Bridge', 'fos-ai-agent-framework':'FOS AI Agent Framework', 'gis-data-lake':'AI Data Lake', 'gis-analytics':'AI Analytics', 'gis-scouting':'AI Scouting Network', 'gis-medical':'Medical Intelligence', 'gis-financial':'Financial Intelligence', 'gis-performance':'Performance Intelligence', 'ai-scouting':'AI Scouting Center', live:'Live Tracking',
+    tournaments:'Tournaments', ai:'AI Analyst', medical:'Medical', performance:'Performance',
+    transfer:'Transfer', finances:'Finances', devices:'GPS Devices', settings:'Account Settings',
+    'tactical-os':'Tactical OS', admin:'Admin Center', 'tactical-ai':'Tactical AI'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
+  // Phase B.1 — keep the topbar subtitle, document title, and emblem
+  // synchronised with the active page + tenant.
+  try { hydrateTopbarBrand(page); } catch (_) {}
 
   // Lazy-load page data
   if (page === 'analytics')   loadAnalyticsData();
