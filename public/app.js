@@ -17512,13 +17512,112 @@ function renderFOSRBAC() {
 // E · FOS Workflow Execution Engine
 // ════════════════════════════════════════════════════════════════════
 function _wexSafe(fn, fb) { try { return fn(); } catch (_) { return fb; } }
+
+// ── FOS Workflow Execution · powered by FOSTelemetry ────────────────
+// Phase 2 rewire. Replaces the synthesised `statePool[i % 5]` runtime
+// with honest mapping from real captured signal:
+//   RUNNING   = in-flight API calls (T._state.inflight)
+//   COMPLETED = 2xx API calls in window
+//   FAILED    = 5xx + network errors + captured runtime errors
+//   PROPOSED  = real Decision Engine queue (_decQueue) — already real
+//   APPROVED  = 0 (platform has no real approval workflow — no honest
+//               source available, so we don't fabricate one)
+//
+// _wexExecutorMap, _wexRollbackPlan, _wexTraceFor are documentation /
+// policy content and remain as-is — same precedent as
+// _socVulnerabilityMonitoring kept during the Security Ops rewire.
+
+var _WEX_WINDOW_MS = 15 * 60 * 1000;
+
+function _wexTelemetry() {
+  var T = (typeof window !== 'undefined') ? window.FOSTelemetry : null;
+  if (!T || typeof T.snapshot !== 'function') {
+    return { _ready: false, _metrics: null, _inflight: 0, api: [], errors: [], counters: { req: 0, ok: 0, fail: 0, errors: 0 }, uptimeMs: 0 };
+  }
+  try {
+    var snap = T.snapshot();
+    snap._ready = true;
+    snap._metrics = (typeof T.metrics === 'function') ? T.metrics(_WEX_WINDOW_MS) : null;
+    snap._inflight = 0;
+    try { snap._inflight = Object.keys((T._state && T._state.inflight) || {}).length; } catch (_) {}
+    return snap;
+  } catch (_) {
+    return { _ready: false, _metrics: null, _inflight: 0, api: [], errors: [], counters: { req: 0, ok: 0, fail: 0, errors: 0 }, uptimeMs: 0 };
+  }
+}
+
+function _wexFmtTime(ts) { try { return new Date(ts).toISOString().slice(11, 19); } catch (_) { return '—'; } }
+function _wexShortPath(url) { return String(url || '').replace(/^https?:\/\/[^/]+/, '').split('?')[0]; }
+
+// Map an API call into one of the four documented executor lanes so
+// runtime rows visually align with section 4 (Executor Mapping).
+function _wexExecutorForCall(call) {
+  if (!call) return 'PLATFORM';
+  var method = String(call.method || 'GET').toUpperCase();
+  var path = _wexShortPath(call.url).toLowerCase();
+  var status = call.status || 0;
+  if (call.kind === 'err' || status >= 500) return 'SECURITY OPERATIONS';
+  if (path.indexOf('/api/admin') === 0)     return 'SECURITY OPERATIONS';
+  if (path.indexOf('/api/auth')  === 0)     return 'PLATFORM';
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE') return 'AUTOMATION CENTER';
+  return 'KNOWLEDGE GRAPH';
+}
+
+function _wexMapStatus(call) {
+  if (!call) return 'PROPOSED';
+  if (call.kind === 'err' || (call.status && call.status >= 500)) return 'FAILED';
+  if (call.status && call.status >= 400) return 'FAILED';
+  if (call.status && call.status >= 200 && call.status < 400) return 'COMPLETED';
+  return 'RUNNING';
+}
+
 function _wexRuntime() {
-  var actions = _wexSafe(_pipAutoActions, []);
-  return actions.map(function (a, i) {
-    var statePool = ['PROPOSED','APPROVED','RUNNING','COMPLETED','FAILED'];
-    var st = a.status === 'OBSERVE' ? 'COMPLETED' : statePool[i % statePool.length];
-    return { id: a.id, title: a.title, executor: a.executor, chain: a.chain, status: st, action: a.action || a.label };
-  });
+  var snap = _wexTelemetry();
+  var rows = [];
+  // 1. Real Decision Engine proposals → PROPOSED rows (top priority).
+  var decRows = _wexSafe(_decQueue, []);
+  for (var i = 0; i < decRows.length && rows.length < 4; i++) {
+    var d = decRows[i];
+    rows.push({
+      id: 'WF-P' + (1000 + i),
+      title: (d.label || 'proposal').slice(0, 90),
+      action: (d.detail || '').slice(0, 80) || (d.label || ''),
+      executor: 'PLATFORM',
+      chain: 'DECISION → WORKFLOW',
+      status: 'PROPOSED',
+    });
+  }
+  // 2. Real captured API calls → RUNNING / COMPLETED / FAILED.
+  if (snap._ready && snap.api.length) {
+    var recent = snap.api.slice(-8).reverse();
+    for (var j = 0; j < recent.length && rows.length < 12; j++) {
+      var a = recent[j];
+      rows.push({
+        id: 'WF-' + (2000 + j),
+        title: (a.method || 'GET') + ' ' + _wexShortPath(a.url),
+        action: 'HTTP ' + (a.status || a.code || '—') + (a.durationMs != null ? ' · ' + a.durationMs + 'ms' : ''),
+        executor: _wexExecutorForCall(a),
+        chain: _wexFmtTime(a.ts),
+        status: _wexMapStatus(a),
+      });
+    }
+  }
+  // 3. Empty state — honest sentinel, NO synthetic rows.
+  if (!rows.length) {
+    rows.push({
+      id: 'WF-—',
+      title: snap._ready
+        ? 'No captured workflow telemetry yet'
+        : 'FOSTelemetry layer unavailable',
+      action: snap._ready
+        ? 'Workflow runtime activates once the platform talks to the backend'
+        : 'Observability subsystem not initialised',
+      executor: 'PLATFORM',
+      chain: '—',
+      status: 'PROPOSED',
+    });
+  }
+  return rows;
 }
 function _wexTraceFor(action) {
   // Step-by-step execution path.
@@ -17540,9 +17639,18 @@ function _wexExecutorMap() {
   ];
 }
 function _wexStatusCounts() {
-  var rt = _wexRuntime();
+  // Derive from telemetry counters directly so Executive Bridge and
+  // AI Agent Framework get the real total platform numbers — not the
+  // 12-row visualisation slice that _wexRuntime is bounded to.
+  var snap = _wexTelemetry();
   var c = { PROPOSED: 0, APPROVED: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 };
-  rt.forEach(function (r) { c[r.status] = (c[r.status] || 0) + 1; });
+  if (!snap._ready) return c;
+  var m = snap._metrics;
+  c.PROPOSED  = _wexSafe(function () { return _decQueue().length; }, 0);
+  c.APPROVED  = 0; // No honest approval workflow exists — never fabricated.
+  c.RUNNING   = snap._inflight;
+  c.COMPLETED = (m && m.ok)   != null ? m.ok   : snap.counters.ok;
+  c.FAILED    = ((m && m.fail) != null ? m.fail : snap.counters.fail) + snap.counters.errors;
   return c;
 }
 function _wexRollbackPlan() {
@@ -17555,9 +17663,17 @@ function _wexRollbackPlan() {
   ];
 }
 function _wexSummary() {
+  var snap = _wexTelemetry();
+  if (!snap._ready) {
+    return 'FOS Workflow Execution · FOSTelemetry layer offline — runtime view unavailable.';
+  }
   var c = _wexStatusCounts();
   var ex = _wexExecutorMap();
-  return 'FOS Workflow Execution · ' + (c.PROPOSED + c.APPROVED + c.RUNNING + c.COMPLETED + c.FAILED) + ' workflow row(s) tracked across ' + ex.length + ' executor lane(s) · ' + c.PROPOSED + ' proposed · ' + c.APPROVED + ' approved · ' + c.RUNNING + ' running · ' + c.COMPLETED + ' completed · ' + c.FAILED + ' failed.';
+  var total = c.PROPOSED + c.APPROVED + c.RUNNING + c.COMPLETED + c.FAILED;
+  if (total === 0) {
+    return 'FOS Workflow Execution · no captured workflow telemetry yet · session ' + Math.round(snap.uptimeMs / 1000) + 's. Runtime activates as the platform makes its first API call.';
+  }
+  return 'FOS Workflow Execution · ' + total + ' workflow row(s) tracked across ' + ex.length + ' executor lane(s) · ' + c.PROPOSED + ' proposed (Decision Engine queue) · ' + c.APPROVED + ' approved · ' + c.RUNNING + ' running (in-flight) · ' + c.COMPLETED + ' completed (2xx) · ' + c.FAILED + ' failed (5xx + network + runtime errors). All counters sourced from FOSTelemetry.';
 }
 function _ensureWexStyles() {
   if (document.getElementById('wex-styles')) return;
