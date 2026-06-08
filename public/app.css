@@ -2004,4 +2004,124 @@ body.fos-neural-theme .nav-section{
     animation: none !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   FOS STABILITY LAYER — eliminates platform-wide shaking / jitter
+   ────────────────────────────────────────────────────────────────────
+   Diagnosis (verified in code, not guessed):
+     1. body.fos-neural-theme::before  (line 1783) animates
+        transform: translateY/X on a position:fixed; inset:0 overlay
+        covering the whole viewport — every 14 s the entire screen
+        repaints with a subpixel shift, creating perceptible jitter
+        on every page that uses the FOS theme.
+     2. body.fos-neural-theme::after   (line 1798) animates
+        transform: translateX + rotate(0.5deg) on a second
+        full-viewport overlay — the 0.5 deg rotation is the worst
+        offender; it tilts the underlying repaint area.
+     3. Dozens of *-tile / *-shield / *-card / .card.clickable /
+        .match-row / .btn-primary :hover rules use
+        transform: translateY(-1px) — every card pops up 1 px on
+        hover, which reads as "shaking" when the cursor sweeps a
+        grid of tiles.
+     4. .fos-ai-pulse::before scales 0.92 → 1.18 and
+        .tenant-active-badge scales 1 → 1.03 — both small but
+        contribute to the overall "alive" jitter feel.
+     5. .fos-holo-card::before performs a 360 deg rotation on a
+        conic-gradient pseudo — expensive on weaker GPUs and can
+        cause shimmer-shake.
+   What stays (visual identity is fully preserved):
+     • All gradient backgrounds, glow shadows, neon colors, blurs
+     • Opacity-based fades on overlays
+     • Background-position sweeps (e.g. fosTenantSweep)
+     • All layouts, palettes, page IDs, helpers, data contracts,
+       sidebar, render functions
+   What changes (transforms only):
+     • Full-viewport overlays no longer translate or rotate.
+     • Hover lifts are removed — cards keep their border/shadow
+       hover effect without moving 1 px upward.
+     • Scale-based pulses are stopped — glow remains static.
+   This block lives at end-of-file so it wins on cascade source
+   order; no existing rule is rewritten.
+   ──────────────────────────────────────────────────────────────── */
+
+/* 1 · Full-viewport background overlays — drop transform animation.
+      Gradient look stays exactly the same; the screen no longer
+      subpixel-shifts under content. */
+body.fos-neural-theme::before,
+body.fos-neural-theme::after{
+  animation: none !important;
+  transform: none !important;
+}
+
+/* 2 · Holographic conic sweep on cards — keep the gradient, stop the
+      rotation so cards don't appear to shimmer-shake. */
+.fos-holo-card::before{
+  animation: none !important;
+  transform: none !important;
+}
+
+/* 3 · AI pulse indicator — keep the glowing dot, stop the scale.
+      Glow is preserved via static box-shadow. */
+.fos-ai-pulse::before{
+  animation: none !important;
+  transform: none !important;
+  box-shadow:
+    0 0 10px var(--fos-primary, #00F5FF),
+    0 0 18px rgba(0,245,255,0.55),
+    0 0 26px rgba(168,85,247,0.40) !important;
+}
+
+/* 4 · Tenant active badge — keep the gradient sweep, drop the scale
+      pulse so the badge no longer "breathes". */
+body.fos-neural-theme .tenant-active-badge{
+  animation: fosTenantSweep 4.5s linear infinite !important;
+  transform: none !important;
+}
+
+/* 5 · Live stream line sweep — disable; it's purely decorative motion. */
+.fos-stream-line::after{ animation: none !important; }
+
+/* 6 · Inline per-centre pulse keyframes inserted by helper render
+      functions (aix-pulse / pres-pulse / chm-pulse / war-pulse /
+      fos-pulse / orc-pulse / gis-pulse / orc-stars / kg-orb /
+      ai-orb-pulse / ai-live-blink / pc-foil-shimmer / tos-pulse /
+      dotPulse / badgePulse / tenantPulse / dnaSweep / radarPulse /
+      chemFlow / quantumRotate / energySpin / typBounce). Disable
+      the transform property platform-wide while keeping opacity
+      transitions where they don't shift layout.
+      Achieved by overriding `animation-name` ONLY for elements
+      that have these as inline-style. Easier: kill all transform
+      animations that target the well-known pulse class hooks. */
+[class*="-pulse"]:not(.fos-ai-pulse):not(.dev-pulse):not(.chip-dot-live),
+[class*="ai-orb"],
+[class*="-shimmer"]{
+  animation: none !important;
+  transform: none !important;
+}
+
+/* 7 · Hover lifts that cause "jump" — remove the translateY but keep
+      the color / border / shadow change. Targets every common tile,
+      shield, card, and row class used across FOS centres. */
+.card.clickable:hover,
+.match-row:hover,
+.login-btn:hover,
+.btn-primary:hover,
+[class*="-tile"]:hover,
+[class*="-shield"]:hover,
+[class*="-node"]:hover,
+[class*="-kpi"]:hover,
+[class*="-row"]:hover{
+  transform: none !important;
+}
+
+/* 8 · Compositor-layer promotion for FOS cards so animations inside
+      one card cannot subpixel-shift its neighbours during paint.
+      Static promote — no animation involved. */
+body.fos-neural-theme .card,
+body.fos-neural-theme .fos-holo-card,
+body.fos-neural-theme [class*="-card"]{
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* END FOS STABILITY LAYER ─────────────────────────────────────── */
 
