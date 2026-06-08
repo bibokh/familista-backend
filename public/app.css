@@ -2260,4 +2260,15 @@ body.fos-neural-theme{
   font-variant-numeric: tabular-nums;
 }
 /* END FOS STABILITY LAYER v3 ─────────────────────────────────── */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE A · Navigation cleanup utility
+   ────────────────────────────────────────────────────────────────────
+   `.hidden` is used on `.nav-item` rows that are temporarily hidden
+   from the sidebar but kept in the DOM so they remain reachable by
+   data-page routing (programmatic navTo). One class removal restores
+   them. No styling on the items themselves changes.
+   ──────────────────────────────────────────────────────────────── */
+.hidden{ display: none !important; }
 
