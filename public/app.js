@@ -772,6 +772,32 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
   }
 })();
 
+// ── Phase B · Area separation (Owner / System / Club) ────────────
+// `home`   = Owner Home or Clubs picker — sidebar hidden
+// `system` = System area — only platform/system nav items visible
+// `club`   = Club workspace — only club nav items visible
+function _areaForPage(page) {
+  var p = String(page || '').toLowerCase();
+  if (p === 'owner-home' || p === 'clubs') return 'home';
+  if (p.indexOf('fos-') === 0) return 'system';
+  if (p === 'multi-club-network') return 'system';
+  if (p.indexOf('gis-') === 0) return 'system';
+  return 'club';
+}
+function _setArea(area) {
+  if (!document.body) return;
+  var classes = document.body.classList;
+  classes.remove('area-home', 'area-system', 'area-club');
+  classes.add('area-' + (area || 'home'));
+}
+// Initial area on boot — Owner Home is the landing surface.
+(function () {
+  function init() { try { _setArea('home'); } catch (_) {} }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+})();
+
 // ── Phase B.1 · Topbar brand hydration ────────────────────────────
 // Keeps the topbar's emblem + subtitle in sync with the loaded tenant
 // (State.club) and the current page (platform vs club workspace). No
@@ -949,6 +975,8 @@ function navTo(page, el) {
   }
 
   const titles = {
+    // ── Owner Control ──
+    'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace (Phase B labels) ──
     dashboard:'Dashboard', squad:'Squad', training:'Training', matches:'Matches',
     'match-center':'Match Center', scouting:'Scouting', video:'Videos',
@@ -968,6 +996,16 @@ function navTo(page, el) {
   // Phase B.1 — keep the topbar subtitle, document title, and emblem
   // synchronised with the active page + tenant.
   try { hydrateTopbarBrand(page); } catch (_) {}
+  // ── Owner / System / Club area separation ──
+  // The body class drives which sidebar is shown. CSS rules in
+  // app.css scope nav-item visibility per area.
+  try { _setArea(_areaForPage(page)); } catch (_) {}
+  // Hydrate the Owner Home / Clubs picker content slots if we just
+  // landed on one of them.
+  try {
+    if (page === 'owner-home' && typeof renderOwnerHome === 'function') renderOwnerHome();
+    if (page === 'clubs'      && typeof renderClubs === 'function')      renderClubs();
+  } catch (_) {}
 
   // Lazy-load page data
   if (page === 'analytics')   loadAnalyticsData();
@@ -1129,6 +1167,8 @@ function errorHTML(msg = 'Failed to load data') {
 function renderAllPages() {
   const container = document.getElementById('pages-container');
   container.innerHTML = `
+    ${renderOwnerHomeHTML()}
+    ${renderClubsHTML()}
     ${renderDashboardHTML()}
     ${renderSquadHTML()}
     ${renderMatchesHTML()}
@@ -1199,11 +1239,125 @@ function renderAllPages() {
   `;
 
   renderTournContent('overview');
+  // Phase B · Owner Home is the initial active page; hydrate its
+  // content + the Clubs picker so they paint immediately.
+  try { if (typeof renderOwnerHome === 'function') renderOwnerHome(); } catch (_) {}
+  try { if (typeof renderClubs === 'function') renderClubs(); } catch (_) {}
+}
+
+// ── OWNER HOME (Phase B · Owner Control Center) ──
+// Landing surface after sign-in. Two giant entry cards: SYSTEM and
+// CLUBS. No sidebar on this page (the sidebar is hidden via
+// body.area-home rules in app.css). All routing preserved — these
+// pages are additive; nothing else is renamed or removed.
+function renderOwnerHomeHTML() {
+  return `<div class="page active" id="pg-owner-home">
+    <div class="owner-home" id="owner-home-content"></div>
+  </div>`;
+}
+function renderOwnerHome() {
+  const el = document.getElementById('owner-home-content');
+  if (!el) return;
+  const club = (window.State && State.club) || {};
+  const user = (window.State && State.user) || {};
+  const greet = (function () {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  })();
+  // Today there is one tenant (FC Familista). The CLUBS card surfaces
+  // the count so the owner sees the real network size.
+  const clubCount = 1;
+  el.innerHTML = `
+    <div class="oh-wrap">
+      <div class="oh-hero">
+        <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
+        <h1 class="oh-title">${_esc(greet)}${user.firstName ? ', ' + _esc(user.firstName) : ''}</h1>
+        <div class="oh-sub">Where do you want to go today?</div>
+      </div>
+      <div class="oh-cards">
+        <button class="oh-card oh-card--system" data-action="navTo" data-page="fos-core" type="button">
+          <div class="oh-card-icon">⚙️</div>
+          <div class="oh-card-title">SYSTEM</div>
+          <div class="oh-card-sub">Platform &amp; infrastructure</div>
+          <div class="oh-card-list">FOS Core · Observability · Security · Automation · RBAC · Governance · Multi-Club Management · System Settings</div>
+          <div class="oh-card-cta">Enter system area <span>→</span></div>
+        </button>
+        <button class="oh-card oh-card--clubs" data-action="navTo" data-page="clubs" type="button">
+          <div class="oh-card-icon">🏟️</div>
+          <div class="oh-card-title">CLUBS</div>
+          <div class="oh-card-sub">${clubCount} club${clubCount === 1 ? '' : 's'} in your network</div>
+          <div class="oh-card-list">Pick a club workspace to enter — currently ${_esc(club.name || 'FC Familista')}</div>
+          <div class="oh-card-cta">Select a club <span>→</span></div>
+        </button>
+      </div>
+      <div class="oh-footer">
+        Familista · ${_esc((user.email || 'Owner') + '')}
+      </div>
+    </div>
+  `;
+}
+
+// ── CLUBS PICKER ──
+// Lists every club the owner has access to. Click → enter that club
+// workspace. Today only FC Familista exists; future clubs from
+// State.context.availableClubs are surfaced automatically when present.
+function renderClubsHTML() {
+  return `<div class="page" id="pg-clubs">
+    <div class="clubs-picker" id="clubs-picker-content"></div>
+  </div>`;
+}
+function renderClubs() {
+  const el = document.getElementById('clubs-picker-content');
+  if (!el) return;
+  const club = (window.State && State.club) || {};
+  const available = (window.State && State.context && Array.isArray(State.context.availableClubs))
+    ? State.context.availableClubs : [];
+  // Build the list — real data only. Fall back to the active club if
+  // availableClubs hasn't been hydrated yet.
+  const clubs = available.length ? available : [{
+    id: (club.id || 'fc-familista'),
+    name: club.name || 'FC Familista',
+    city: club.city || '',
+    country: club.country || '',
+    level: club.level,
+    emblem: club.emblem || '',
+    isActive: true,
+  }];
+  el.innerHTML = `
+    <div class="cp-wrap">
+      <div class="cp-hero">
+        <button class="cp-back" data-action="navTo" data-page="owner-home" type="button">← Owner Home</button>
+        <h1 class="cp-title">Clubs</h1>
+        <div class="cp-sub">Pick a club workspace to enter</div>
+      </div>
+      <div class="cp-grid">
+        ${clubs.map(c => `
+          <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="navTo" data-page="dashboard" type="button">
+            <div class="cp-card-crest">${c.emblem ? `<img src="${_esc(c.emblem)}" alt="" onerror="this.replaceWith(document.createTextNode('⚽'))">` : '⚽'}</div>
+            <div class="cp-card-body">
+              <div class="cp-card-name">${_esc(c.name || 'Club')}</div>
+              <div class="cp-card-meta">${_esc([c.city, c.country, c.level ? 'Level ' + c.level : ''].filter(Boolean).join(' · ') || 'Football Club')}</div>
+            </div>
+            <div class="cp-card-state">${c.isActive !== false ? 'ACTIVE' : 'PLANNED'}</div>
+          </button>
+        `).join('')}
+        <button class="cp-card cp-card--add" data-action="navTo" data-page="multi-club-network" type="button">
+          <div class="cp-card-crest placeholder">+</div>
+          <div class="cp-card-body">
+            <div class="cp-card-name">Onboard a new club</div>
+            <div class="cp-card-meta">Multi-Club Management →</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
 }
 
 // ── DASHBOARD (Phase B.2 — Premium Club Hero) ──
 function renderDashboardHTML() {
-  return `<div class="page active" id="pg-dashboard">
+  return `<div class="page" id="pg-dashboard">
   <div class="dash-v2">
     <section class="hero-club" id="dash-hero"></section>
     <section class="kpi-row-v2" id="dash-kpi"></section>

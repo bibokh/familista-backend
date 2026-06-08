@@ -3108,4 +3108,198 @@ body.club-theme .mc2-empty-inline{
   background: var(--bg-elevated); border-radius: var(--r-md);
 }
 /* END PHASE B.3 ─────────────────────────────────────────────── */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE B.4 · OWNER / SYSTEM / CLUB area separation
+   ────────────────────────────────────────────────────────────────────
+   Body class drives which sidebar (and which nav items) are visible.
+   Routes are preserved — only sidebar visibility changes per area.
+   ──────────────────────────────────────────────────────────────── */
+
+/* ── Owner Home: NO sidebar, full-width main content ──────────── */
+body.club-theme.area-home .sidebar{
+  display: none !important;
+}
+body.club-theme.area-home .main{
+  width: 100% !important; margin-left: 0 !important;
+}
+body.club-theme.area-home .mobile-overlay{ display: none !important; }
+body.club-theme.area-home .topbar-menu-btn{ display: none !important; }
+
+/* ── System area: only platform items visible ─────────────────── */
+body.club-theme.area-system .nav-section--workspace,
+body.club-theme.area-system .nav-item--workspace,
+body.club-theme.area-system .club-card{
+  display: none !important;
+}
+
+/* ── Club area: only club workspace items visible ─────────────── */
+body.club-theme.area-club .nav-section--platform,
+body.club-theme.area-club .nav-item--platform{
+  display: none !important;
+}
+
+/* ── Subtitle colour follows the area ─────────────────────────── */
+body.club-theme.area-system #page-subtitle{ color: var(--royal-500) !important; }
+body.club-theme.area-club   #page-subtitle{ color: var(--pitch-400) !important; }
+body.club-theme.area-home   #page-subtitle{ color: var(--gold-500) !important; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE B.4 · OWNER HOME — two-card landing
+   ──────────────────────────────────────────────────────────────── */
+body.club-theme #pg-owner-home{
+  background:
+    radial-gradient(900px 600px at 80% -10%, var(--pitch-glow), transparent 65%),
+    radial-gradient(900px 600px at -10% 110%, var(--royal-glow), transparent 65%),
+    var(--bg-canvas);
+  min-height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+}
+body.club-theme .owner-home{ width: 100%; }
+body.club-theme .oh-wrap{
+  max-width: 1200px; margin: 0 auto;
+  padding: var(--sp-14) var(--sp-6) var(--sp-10);
+  display: flex; flex-direction: column; gap: var(--sp-10);
+  min-height: calc(100vh - var(--topbar-h));
+}
+@media (max-width: 720px){
+  body.club-theme .oh-wrap{ padding: var(--sp-8) var(--sp-4) var(--sp-6); gap: var(--sp-8); }
+}
+body.club-theme .oh-hero{ text-align: center; }
+body.club-theme .oh-eyebrow{
+  font-size: 11px; font-weight: 800; color: var(--gold-500);
+  letter-spacing: 0.30em; text-transform: uppercase; margin-bottom: var(--sp-3);
+}
+body.club-theme .oh-title{
+  font-size: 44px; font-weight: 900; letter-spacing: -0.025em;
+  margin: 0; line-height: 1.05;
+  background: linear-gradient(135deg, #F1F5F9 0%, var(--pitch-400) 50%, var(--gold-400) 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+@media (max-width: 720px){ body.club-theme .oh-title{ font-size: 30px; } }
+body.club-theme .oh-sub{
+  font-size: 15px; color: var(--t-secondary); margin-top: var(--sp-3);
+  font-weight: 500;
+}
+body.club-theme .oh-cards{
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6);
+  align-items: stretch;
+}
+@media (max-width: 900px){ body.club-theme .oh-cards{ grid-template-columns: 1fr; } }
+body.club-theme .oh-card{
+  position: relative; padding: var(--sp-8);
+  background: var(--bg-surface); border: 1px solid var(--b-default); border-radius: var(--r-xl);
+  text-align: left; cursor: pointer; color: var(--t-primary);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  min-height: 320px; overflow: hidden;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+body.club-theme .oh-card::before{
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: linear-gradient(90deg, var(--royal-500), var(--royal-700));
+}
+body.club-theme .oh-card--clubs::before{
+  background: linear-gradient(90deg, var(--pitch-500), var(--pitch-700));
+}
+body.club-theme .oh-card:hover{ border-color: var(--b-strong); box-shadow: var(--sh-2); }
+body.club-theme .oh-card--system:hover{ box-shadow: 0 24px 56px rgba(99,102,241,0.20); border-color: rgba(99,102,241,0.40); }
+body.club-theme .oh-card--clubs:hover{  box-shadow: 0 24px 56px rgba(34,197,94,0.20); border-color: rgba(34,197,94,0.40); }
+body.club-theme .oh-card-icon{
+  width: 72px; height: 72px; border-radius: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 36px;
+  background: var(--bg-elevated); border: 1px solid var(--b-default);
+}
+body.club-theme .oh-card--system .oh-card-icon{
+  background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(79,70,229,0.18));
+  border-color: rgba(99,102,241,0.40);
+}
+body.club-theme .oh-card--clubs .oh-card-icon{
+  background: linear-gradient(135deg, rgba(34,197,94,0.25), rgba(22,163,74,0.18));
+  border-color: rgba(34,197,94,0.40);
+}
+body.club-theme .oh-card-title{
+  font-size: 22px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--t-primary);
+}
+body.club-theme .oh-card-sub{
+  font-size: 14px; font-weight: 600; color: var(--t-secondary); line-height: 1.4;
+}
+body.club-theme .oh-card-list{
+  font-size: 12.5px; color: var(--t-tertiary); line-height: 1.55;
+}
+body.club-theme .oh-card-cta{
+  margin-top: auto; padding-top: var(--sp-4);
+  font-size: 13px; font-weight: 700; color: var(--gold-400);
+  letter-spacing: 0.04em;
+  display: flex; align-items: center; justify-content: space-between;
+}
+body.club-theme .oh-card-cta span{ font-size: 18px; }
+body.club-theme .oh-card--system .oh-card-cta{ color: var(--royal-400); }
+body.club-theme .oh-card--clubs .oh-card-cta{ color: var(--pitch-400); }
+body.club-theme .oh-footer{
+  text-align: center; font-size: 11px; color: var(--t-tertiary);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   PHASE B.4 · CLUBS PICKER
+   ──────────────────────────────────────────────────────────────── */
+body.club-theme #pg-clubs{
+  background:
+    radial-gradient(900px 500px at 50% -10%, var(--pitch-glow), transparent 65%),
+    var(--bg-canvas);
+  min-height: calc(100vh - var(--topbar-h));
+  overflow-y: auto;
+}
+body.club-theme .clubs-picker{ width: 100%; }
+body.club-theme .cp-wrap{
+  max-width: 1200px; margin: 0 auto;
+  padding: var(--sp-10) var(--sp-6) var(--sp-10);
+}
+@media (max-width: 720px){ body.club-theme .cp-wrap{ padding: var(--sp-6) var(--sp-4); } }
+body.club-theme .cp-hero{ text-align: center; margin-bottom: var(--sp-8); position: relative; }
+body.club-theme .cp-back{
+  position: absolute; left: 0; top: 0;
+  background: var(--bg-surface); border: 1px solid var(--b-default);
+  color: var(--t-secondary); font-size: 12px; font-weight: 600;
+  padding: 8px var(--sp-3); border-radius: var(--r-md); cursor: pointer;
+}
+body.club-theme .cp-back:hover{ background: var(--bg-elevated); color: var(--t-primary); }
+body.club-theme .cp-title{
+  font-size: 36px; font-weight: 900; letter-spacing: -0.02em;
+  margin: 0; color: var(--t-primary);
+}
+body.club-theme .cp-sub{ font-size: 14px; color: var(--t-secondary); margin-top: 8px; }
+body.club-theme .cp-grid{
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-4);
+}
+body.club-theme .cp-card{
+  display: grid; grid-template-columns: 64px 1fr auto; align-items: center;
+  gap: var(--sp-4); padding: var(--sp-4);
+  background: var(--bg-surface); border: 1px solid var(--b-default); border-radius: var(--r-lg);
+  text-align: left; cursor: pointer; color: var(--t-primary);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+body.club-theme .cp-card:hover{ background: var(--bg-elevated); border-color: var(--pitch-500); }
+body.club-theme .cp-card--active{ border-left: 3px solid var(--pitch-500); }
+body.club-theme .cp-card--add{ border-style: dashed; opacity: 0.85; }
+body.club-theme .cp-card-crest{
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--bg-elevated); display: inline-flex; align-items: center; justify-content: center;
+  font-size: 26px; overflow: hidden;
+}
+body.club-theme .cp-card-crest img{ width: 100%; height: 100%; object-fit: cover; }
+body.club-theme .cp-card-crest.placeholder{ color: var(--t-tertiary); font-size: 32px; font-weight: 300; }
+body.club-theme .cp-card-name{ font-size: 15px; font-weight: 800; color: var(--t-primary); }
+body.club-theme .cp-card-meta{ font-size: 12px; color: var(--t-tertiary); margin-top: 2px; }
+body.club-theme .cp-card-state{
+  font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--pitch-400); padding: 4px 8px;
+  background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.32); border-radius: 999px;
+}
+/* END PHASE B.4 ─────────────────────────────────────────────── */
 
