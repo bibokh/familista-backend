@@ -33174,6 +33174,19 @@ async function tosBoardSnapshot() {
         case 'taiTab':          taiSwitchTab(el.dataset.tab);                                              break;
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
         case 'taiSelectMatch':  taiSelectMatch(el.dataset.id);                                             break;
+        // ── Phase B · Owner Home / Clubs picker / inline navigation ──
+        // Any element with [data-action="navTo" data-page="<page>"] routes
+        // through navTo. Passing null as the second arg keeps the click
+        // target from receiving a stuck `.active` class — navTo locates
+        // the matching sidebar entry (if one exists) instead.
+        case 'navTo': {
+          const _navPage = el.dataset.page;
+          if (_navPage) {
+            try { navTo(_navPage, null); }
+            catch (err) { try { console.error('[delegate] navTo failed:', err); } catch (_) {} }
+          }
+          break;
+        }
         default: console.warn('[delegate] Unknown action:', el.dataset.action);
       }
     } else if ('nav' in el.dataset) {
