@@ -2114,14 +2114,92 @@ body.fos-neural-theme .tenant-active-badge{
   transform: none !important;
 }
 
-/* 8 · Compositor-layer promotion for FOS cards so animations inside
-      one card cannot subpixel-shift its neighbours during paint.
-      Static promote — no animation involved. */
+/* 8 · (Removed — previous backface-visibility:hidden promotion was the
+      WRONG fix and caused independent GPU layers per card to
+      re-rasterize their backdrop-filter blur during scroll, which
+      reads as subpixel shake. See Stability Layer v2 below.) */
+/* END FOS STABILITY LAYER v1 ─────────────────────────────────── */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   FOS STABILITY LAYER v2 — eliminates RESIDUAL scroll/paint jitter
+   ────────────────────────────────────────────────────────────────────
+   Root causes verified after v1 failed to fully stabilise pages:
+
+     A. body.fos-neural-theme .card { backdrop-filter: blur(10px) }
+        (app.css:1841). Every FOS card paints a live blur of the body
+        gradient behind it. When the page scrolls, every visible card
+        has to recompose its blurred surface — on a wide FOS dashboard
+        with 10-20 cards, this is the dominant GPU cost and the source
+        of micro-shimmer that reads as "shaking".
+
+     B. Stability Layer v1 section 8 added backface-visibility:hidden
+        to [class*="-card"], which promoted every FOS card to its own
+        compositor layer. Combined with (A), each card layer
+        re-rasterizes independently — pixel-rounding differences
+        between layers manifest as subpixel jitter between cards.
+
+     C. .page { animation: fadeIn .2s ease both } with
+        @keyframes fadeIn{from{transform:translateY(5px)}…} (app.css
+        line 340/342). Every navigation shifts the page 5 px upward
+        as it fades in — rapid navigation amplifies this into flicker.
+
+     D. Default overflow-anchor:auto causes the browser to re-anchor
+        scroll position when content size changes above the viewport.
+        FOSTelemetry-driven KPI numbers updating can trigger this.
+
+   What stays (visual identity preserved):
+     • Sidebar + topbar backdrop-filter blur (they don't scroll with
+       content — blur stays cheap)
+     • Translucent card backgrounds (--fos-glass rgba(10,15,36,0.55))
+     • All glow box-shadows, gradient backgrounds, neon palette
+     • Page fade transition (opacity-only — no slide)
+
+   What changes (paint cost + scroll anchoring only):
+     • Card backdrop-filter disabled — cards still look translucent
+       because background is already rgba(0.55); the body gradient
+       shows through softly without the blur.
+     • backface-visibility:hidden on cards removed (v1 mistake).
+     • Page fade keeps opacity, drops the 5 px translateY.
+     • overflow-anchor:none on .page suppresses scroll-anchor jumps.
+   ──────────────────────────────────────────────────────────────── */
+
+/* A. Cards: drop the expensive backdrop-filter — keep the translucent
+      glass-look via the existing rgba background + border + glow. */
+body.fos-neural-theme .card,
+body.fos-neural-theme .modal,
+body.fos-neural-theme .fos-holo-card,
+body.fos-neural-theme [class*="-card"]{
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* B. Reset compositor-layer promotion from v1 — let the browser
+      composite cards on the main layer where they don't shimmer. */
 body.fos-neural-theme .card,
 body.fos-neural-theme .fos-holo-card,
 body.fos-neural-theme [class*="-card"]{
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  will-change: auto;
 }
-/* END FOS STABILITY LAYER ─────────────────────────────────────── */
+
+/* C. Page fade — opacity only, no 5 px slide that reads as a jump on
+      rapid navigation. Overrides the inherited fadeIn keyframe by
+      naming a stability-specific keyframe. */
+@keyframes fosPageFadeIn{ from{opacity:0} to{opacity:1} }
+.page{
+  animation-name: fosPageFadeIn !important;
+  animation-duration: .15s !important;
+  animation-timing-function: ease !important;
+  animation-fill-mode: both !important;
+}
+
+/* D. Suppress browser scroll-anchoring. Without this, KPI counter
+      updates above the viewport can silently nudge the visible
+      content downward. */
+.page, .content, body.fos-neural-theme{
+  overflow-anchor: none;
+}
+/* END FOS STABILITY LAYER v2 ─────────────────────────────────── */
 
