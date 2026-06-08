@@ -2119,164 +2119,308 @@ function renderMatchCenterHTML() {
     </div>
   </div>`;
 }
+// ── Phase B.3 · Match Center visual-showcase helpers ─────────────
+// Optional event timeline reads from Match.aiInsights.events[] when the
+// match record carries one (no schema change required). Honest empty
+// state when absent — never synthesise minute-stamped events.
+function _mcEvents(match) {
+  if (!match) return [];
+  var raw = null;
+  try {
+    raw = match.aiInsights && (match.aiInsights.events || (typeof match.aiInsights === 'string' ? JSON.parse(match.aiInsights).events : null));
+  } catch (_) { raw = null; }
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(function (e) { return e && typeof e.minute !== 'undefined'; });
+}
+function _mcEventIcon(kind) {
+  var k = String(kind || '').toLowerCase();
+  if (k === 'goal')        return '⚽';
+  if (k === 'yellow_card' || k === 'yellow') return '🟨';
+  if (k === 'red_card' || k === 'red')       return '🟥';
+  if (k === 'sub' || k === 'substitution')    return '🔁';
+  if (k === 'halftime' || k === 'ht')          return '⏸';
+  if (k === 'fulltime' || k === 'ft')          return '🏁';
+  return '•';
+}
+function _mcEventColor(kind) {
+  var k = String(kind || '').toLowerCase();
+  if (k === 'goal')        return 'var(--gold-400)';
+  if (k === 'yellow_card' || k === 'yellow') return 'var(--c-warning)';
+  if (k === 'red_card' || k === 'red')       return 'var(--c-critical)';
+  if (k === 'sub' || k === 'substitution')    return 'var(--royal-500)';
+  return 'var(--t-tertiary)';
+}
+// Real photo URL (uses existing helper if defined; falls back to avatar)
+function _mcPhoto(p) {
+  if (typeof _pcPhotoUrl === 'function') {
+    try { return _pcPhotoUrl(p) || ''; } catch (_) {}
+  }
+  return (p && p.avatar) || '';
+}
+function _mcInitials(p) {
+  if (typeof _pcInitials === 'function') {
+    try { return _pcInitials(p); } catch (_) {}
+  }
+  var f = ((p && p.firstName) || '?')[0] || '?';
+  var l = ((p && p.lastName)  || '')[0]  || '';
+  return (f + l).toUpperCase();
+}
+function _mcRingColor(role) {
+  var r = String(role || '').toUpperCase();
+  if (r === 'GK')  return '#FACC15';
+  if (r === 'DEF') return '#38BDF8';
+  if (r === 'MID') return '#22C55E';
+  if (r === 'FWD') return '#EF4444';
+  return '#94A3B8';
+}
+// Premium pitch — top-down portrait, real photo tokens, jersey numbers,
+// surname caption. Each player can be clicked to open the existing
+// player modal.
+function _mcPitchPremiumSVG(xi) {
+  var w = 540, h = 760;
+  var rows = ['GK','DEF','MID','FWD'];
+  var yMap = { GK: h - 60, DEF: h * 0.70, MID: h * 0.45, FWD: h * 0.18 };
+  var groups = { GK: [], DEF: [], MID: [], FWD: [] };
+  (xi || []).forEach(function (e) { if (groups[e.role]) groups[e.role].push(e); });
+  function placeRow(arr, y) {
+    if (!arr.length) return [];
+    var pad = 56;
+    var usable = w - 2 * pad;
+    return arr.map(function (e, i) {
+      var x = arr.length === 1 ? w / 2 : pad + (i / (arr.length - 1)) * usable;
+      return { e: e, x: x, y: y };
+    });
+  }
+  var tokens = [].concat(
+    placeRow(groups.GK,  yMap.GK),
+    placeRow(groups.DEF, yMap.DEF),
+    placeRow(groups.MID, yMap.MID),
+    placeRow(groups.FWD, yMap.FWD)
+  );
+  // Two-tone grass stripes
+  var stripes = '';
+  var stripeCount = 10;
+  var stripeH = (h - 32) / stripeCount;
+  for (var i = 0; i < stripeCount; i++) {
+    var fill = i % 2 === 0 ? '#0E5A2C' : '#0B4A24';
+    stripes += '<rect x="16" y="' + (16 + i * stripeH) + '" width="' + (w - 32) + '" height="' + stripeH + '" fill="' + fill + '"/>';
+  }
+  var line = 'stroke="rgba(255,255,255,0.55)" stroke-width="2" fill="none"';
+  var tokensSVG = tokens.map(function (t, idx) {
+    var p = t.e.p;
+    var num = (p && p.number != null) ? p.number : '?';
+    var last = ((p && p.lastName) || '').toUpperCase().substring(0, 11);
+    var photo = _mcPhoto(p);
+    var ring = _mcRingColor(t.e.role);
+    var clipId = 'mcp-clip-' + idx;
+    return ''
+      + '<g transform="translate(' + t.x.toFixed(1) + ',' + t.y.toFixed(1) + ')" data-player-id="' + _esc((p && p.id) || '') + '" style="cursor:pointer;" class="mc2-token">'
+      + '  <defs><clipPath id="' + clipId + '"><circle r="22"/></clipPath></defs>'
+      + '  <circle r="26" fill="rgba(0,0,0,0.45)"/>'
+      + (photo
+          ? '  <image x="-22" y="-22" width="44" height="44" href="' + _esc(photo) + '" preserveAspectRatio="xMidYMid slice" clip-path="url(#' + clipId + ')"/>'
+          : '  <circle r="22" fill="' + ring + '" fill-opacity="0.85"/><text x="0" y="2" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="14" font-weight="800" font-family="Inter, sans-serif">' + _esc(_mcInitials(p)) + '</text>')
+      + '  <circle r="22" fill="none" stroke="' + ring + '" stroke-width="3"/>'
+      + '  <circle cx="16" cy="16" r="10" fill="#0A0E1A" stroke="' + ring + '" stroke-width="1.5"/>'
+      + '  <text x="16" y="17" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="11" font-weight="900" font-family="JetBrains Mono, monospace">' + num + '</text>'
+      + '  <text x="0" y="42" text-anchor="middle" fill="#fff" font-size="11" font-weight="800" font-family="Inter, sans-serif" paint-order="stroke" stroke="#000" stroke-width="3" stroke-linejoin="round">' + _esc(last) + '</text>'
+      + '</g>';
+  }).join('');
+  return ''
+    + '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;display:block;max-height:760px;" class="mc2-pitch-svg">'
+    + '<rect x="0" y="0" width="' + w + '" height="' + h + '" rx="16" fill="#093E1F"/>'
+    + stripes
+    // perimeter
+    + '<rect x="20" y="20" width="' + (w - 40) + '" height="' + (h - 40) + '" rx="6" ' + line + '/>'
+    // halfway line + centre circle
+    + '<line x1="20" y1="' + (h / 2) + '" x2="' + (w - 20) + '" y2="' + (h / 2) + '" ' + line + '/>'
+    + '<circle cx="' + (w / 2) + '" cy="' + (h / 2) + '" r="64" ' + line + '/>'
+    + '<circle cx="' + (w / 2) + '" cy="' + (h / 2) + '" r="3" fill="rgba(255,255,255,0.85)"/>'
+    // top penalty + goal box (away)
+    + '<rect x="' + (w * 0.18) + '" y="20" width="' + (w * 0.64) + '" height="110" ' + line + '/>'
+    + '<rect x="' + (w * 0.34) + '" y="20" width="' + (w * 0.32) + '" height="42" ' + line + '/>'
+    + '<circle cx="' + (w / 2) + '" cy="84" r="3" fill="rgba(255,255,255,0.7)"/>'
+    // bottom penalty + goal box (home)
+    + '<rect x="' + (w * 0.18) + '" y="' + (h - 130) + '" width="' + (w * 0.64) + '" height="110" ' + line + '/>'
+    + '<rect x="' + (w * 0.34) + '" y="' + (h - 62) + '" width="' + (w * 0.32) + '" height="42" ' + line + '/>'
+    + '<circle cx="' + (w / 2) + '" cy="' + (h - 84) + '" r="3" fill="rgba(255,255,255,0.7)"/>'
+    // home label
+    + '<text x="' + (w / 2) + '" y="' + (h - 12) + '" text-anchor="middle" fill="rgba(255,255,255,0.30)" font-size="11" font-weight="800" letter-spacing="3">HOME</text>'
+    + '<text x="' + (w / 2) + '" y="12" text-anchor="middle" fill="rgba(255,255,255,0.30)" font-size="11" font-weight="800" letter-spacing="3">AWAY</text>'
+    + tokensSVG
+    + '</svg>';
+}
+
 function renderMatchCenter() {
   const el = document.getElementById('match-center-content');
   if (!el) return;
-  try {
-    _ensureFCCmdStyles();
-    _ensureMCStyles();
-  } catch (e) {
-    try { console.error('[match-center] style injection failed:', e); } catch (_) {}
-  }
-  // Fallback UI when nothing has been loaded yet — clearer than infinite spinner.
-  if (!Array.isArray(State.players) && !Array.isArray(State.matches) && !State.trainingForm) {
-    el.innerHTML = `<div style="text-align:center;padding:60px;color:var(--tx-3);">
-      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:8px;">Waiting for data…</div>
-      <div style="font-size:11px;">Squad and fixtures load on sign-in. Stay on this page — content will appear automatically.</div>
-    </div>`;
+  try { _ensureMCStyles(); } catch (_) {}
+  if (!Array.isArray(State.players) && !Array.isArray(State.matches)) {
+    el.innerHTML = '<div class="mc2-empty"><div class="mc2-empty-icon">⚽</div><div class="mc2-empty-title">Loading Match Center…</div><div class="mc2-empty-sub">Squad and fixtures load on sign-in.</div></div>';
     return;
   }
   try {
-  const next        = _mcNextMatch();
-  const opp         = _mcOpponent(next);
-  const cd          = _mcCountdown(next);
-  const imp         = _mcImportance(next);
-  const form        = _mcRecentForm();
-  const xi          = _mcPickStartingXI();
-  const formation   = _mcFormation(xi);
-  const bench       = _mcBenchRec();
-  const risk        = _mcMatchRisk();
-  const tact        = _mcTacticalPlan();
-  const probs       = _mcWinProbability();
-  const keyPlayers  = _mcKeyPlayers();
-  const dt          = next ? new Date(next.scheduledAt) : null;
-  const dateStr     = dt ? dt.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'TBD';
-  const venue       = (next && (next.location || (next.competition && next.competition))) || 'TBD';
+    var next       = _mcNextMatch();
+    var club       = (window.State && State.club) || {};
+    var clubName   = club.name || 'FC Familista';
+    var clubEmblem = club.emblem || '';
+    var xi         = _mcPickStartingXI();
+    var formation  = _mcFormation(xi);
+    var bench      = _mcBenchRec();
+    var keyPlayers = _mcKeyPlayers();
+    var form       = _mcRecentForm();
+    var events     = _mcEvents(next);
 
-  el.innerHTML = `
-    <div class="mc-page">
-      <div class="mc-card">
-        <div class="mc-brand">
-          <div class="mc-brand-logo">★ FC FAMILISTA · MATCH CENTER</div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="ai-coach-pill"><span class="ai-live-dot"></span>LIVE</span>
-            <div class="pc-fcf-foil" aria-hidden="true"></div>
-          </div>
-        </div>
-        ${next ? `
-          <div class="mc-next-body">
-            <div>
-              <div style="font-size:10px;color:var(--tx-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">${_mcIsHome(next) ? 'Home' : 'Away'} · ${_esc(next.competition || '—')}</div>
-              <div class="mc-next-opp">vs ${_esc(opp)}</div>
-              <div class="mc-next-meta">📅 ${_esc(dateStr)}  ·  📍 ${_esc(venue)}  ·  Importance <b style="color:${imp.color};">${imp.level}</b></div>
-              <div style="margin-top:10px;display:flex;align-items:center;gap:6px;">
-                <span style="font-size:10px;color:var(--tx-3);letter-spacing:.8px;text-transform:uppercase;">Last 5</span>
-                ${form.length === 0 ? `<span style="font-size:11px;color:var(--tx-3);">No history</span>` : form.map(r => `<span class="mc-form-dot mc-form-${r || ''}">${r || '·'}</span>`).join('')}
-              </div>
-            </div>
-            <div class="mc-countdown" style="${cd.urgent ? 'background:rgba(239,68,68,0.16);border-color:rgba(239,68,68,0.42);color:#FCA5A5;' : ''}">
-              ⏱ ${_esc(cd.label)}
-            </div>
-          </div>
-        ` : `<div style="padding:30px;text-align:center;color:var(--tx-3);">No upcoming match scheduled.</div>`}
-      </div>
+    var isHome     = next ? _mcIsHome(next) : true;
+    var homeName   = next ? (next.homeTeam || clubName) : clubName;
+    var awayName   = next ? (next.awayTeam || 'Opponent') : 'Opponent';
+    var competition = next ? (next.competitionName || next.competition || 'Match') : '—';
+    var dt         = next ? new Date(next.scheduledAt) : null;
+    var when       = dt ? dt.toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : 'TBD';
+    var venue      = next ? (next.venue || (isHome ? 'Home' : 'Away')) : '—';
+    var possession = next && typeof next.possession === 'number' ? Math.round(next.possession) : null;
+    var shots      = next && typeof next.shots === 'number' ? next.shots : null;
+    var shotsOnT   = next && typeof next.shotsOnTarget === 'number' ? next.shotsOnTarget : null;
+    var played     = next && (next.result || (next.homeScore != null && next.awayScore != null));
 
-      <div class="mc-grid-2">
-        <div class="mc-tile">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div class="mc-tile-lbl">Starting XI Predictor</div>
-            <div style="font-size:11px;font-weight:800;font-family:var(--mono);color:var(--tx);padding:3px 9px;border-radius:6px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);">Formation ${formation}</div>
-          </div>
-          ${xi.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:20px 0;text-align:center;">Not enough fit players to predict an XI.</div>` : _mcPitchSVG(xi)}
-        </div>
-        <div class="mc-tile">
-          <div class="mc-tile-lbl">Win Probability</div>
-          ${_mcGaugeSVG(probs)}
-          <div class="mc-prob-leg">
-            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Win</div><div class="mc-prob-cell-val" style="color:var(--green-l);">${probs.win}%</div></div>
-            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Draw</div><div class="mc-prob-cell-val" style="color:var(--amber);">${probs.draw}%</div></div>
-            <div class="mc-prob-cell"><div class="mc-prob-cell-lbl">Loss</div><div class="mc-prob-cell-val" style="color:var(--red);">${probs.loss}%</div></div>
-          </div>
-        </div>
-      </div>
+    var homeEmblemHTML = clubEmblem && isHome
+      ? '<img src="' + _esc(clubEmblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">'
+      : '🏠';
+    var awayEmblemHTML = clubEmblem && !isHome
+      ? '<img src="' + _esc(clubEmblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'⚔️\'))">'
+      : '⚔️';
 
-      <div class="mc-grid-3">
-        <div class="mc-tile">
-          <div class="mc-tile-lbl">Bench Recommendation</div>
-          ${bench.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No bench candidates.</div>` :
-            bench.map((b, i) => {
-              const p = b.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
-              return `<div class="mc-row">
-                <div class="mc-rank">${i+1}</div>
-                <div class="mc-mini-avatar" style="background:${grad};">
-                  ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
-                </div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-size:11.5px;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
-                  <div style="font-size:9.5px;color:var(--tx-3);">${_esc(p.position || '—')}</div>
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-size:13px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;">${b.impact}</div>
-                  <div style="font-size:8.5px;color:var(--tx-3);letter-spacing:.6px;text-transform:uppercase;">impact</div>
-                </div>
-              </div>`;
-            }).join('')}
-        </div>
-        <div class="mc-tile">
-          <div class="mc-tile-lbl">Match Risk Analysis</div>
-          ${[
-            { lbl: 'Injury Risk',    val: risk.injury,     color: risk.injury     >= 60 ? 'var(--red)' : risk.injury     >= 30 ? 'var(--amber)' : 'var(--green-l)' },
-            { lbl: 'Fatigue Risk',   val: risk.fatigue,    color: risk.fatigue    >= 60 ? 'var(--red)' : risk.fatigue    >= 30 ? 'var(--amber)' : 'var(--green-l)' },
-            { lbl: 'Attendance',     val: risk.attendance, color: risk.attendance >= 50 ? 'var(--red)' : risk.attendance >= 25 ? 'var(--amber)' : 'var(--green-l)' },
-          ].map(r => `
-            <div class="mc-risk-row">
-              <div style="font-size:11px;color:var(--tx-2);">${r.lbl}</div>
-              <div class="mc-risk-bar"><div style="width:${r.val}%;height:100%;background:${r.color};"></div></div>
-              <div style="font-size:11px;font-weight:800;color:${r.color};font-family:var(--mono);text-align:right;">${r.val}</div>
-            </div>`).join('')}
-          <div class="mc-risk-row" style="border-top:1px solid rgba(255,255,255,0.06);margin-top:8px;padding-top:10px;">
-            <div style="font-size:11px;color:var(--tx-2);font-weight:700;">Squad Depth</div>
-            <div class="mc-risk-bar"><div style="width:${risk.depth}%;height:100%;background:linear-gradient(90deg,var(--green-l),#3b82f6);"></div></div>
-            <div style="font-size:12px;font-weight:900;color:var(--green-l);font-family:var(--mono);text-align:right;">${risk.depth}</div>
-          </div>
-        </div>
-        <div class="mc-tile">
-          <div class="mc-tile-lbl">Tactical Plan</div>
-          <div class="mc-tact"><div class="mc-tact-lbl">Build-up</div><div class="mc-tact-val">${_esc(tact.buildup)}</div></div>
-          <div class="mc-tact"><div class="mc-tact-lbl">Pressing</div><div class="mc-tact-val">${_esc(tact.pressing)}</div></div>
-          <div class="mc-tact"><div class="mc-tact-lbl">Transitions</div><div class="mc-tact-val">${_esc(tact.transitions)}</div></div>
-          <div class="mc-tact"><div class="mc-tact-lbl">Defensive Block</div><div class="mc-tact-val">${_esc(tact.defBlock)}</div></div>
-        </div>
-      </div>
+    // SCORE STRIP — pre-match / live / post
+    var scoreLeft = next && played ? next.homeScore : (next ? (isHome ? clubName.split(' ').map(function (w) { return w[0]; }).join('').slice(0, 3).toUpperCase() : (next.homeTeam || '')) : '—');
+    var scoreRight = next && played ? next.awayScore : (next ? (!isHome ? clubName.split(' ').map(function (w) { return w[0]; }).join('').slice(0, 3).toUpperCase() : (next.awayTeam || '')) : '—');
+    var scoreCenter = next && played ? ((next.homeScore || 0) + ' — ' + (next.awayScore || 0)) : 'vs';
+    var statusPill = !next ? 'NO FIXTURE'
+                    : played ? (next.result === 'WIN' ? 'WIN' : next.result === 'LOSS' ? 'LOSS' : next.result === 'DRAW' ? 'DRAW' : 'FT')
+                    : (next.status === 'LIVE' || next.status === 'HALFTIME' ? next.status : 'UPCOMING');
+    var statusClass = !next ? 'idle' : played ? (next.result === 'WIN' ? 'win' : next.result === 'LOSS' ? 'loss' : 'draw') : 'upcoming';
 
-      <div class="mc-card" style="padding:18px;">
-        <div class="mc-tile-lbl" style="margin-bottom:14px;">Key Players · Top 3 Match Influencers</div>
-        ${keyPlayers.length === 0 ? `<div style="font-size:11px;color:var(--tx-3);padding:8px 0;">No active players to rank.</div>` : `
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;">
-            ${keyPlayers.map(k => {
-              const p = k.p, photo = _pcPhotoUrl(p), grad = _pcPosGradient(p.position);
-              return `<div class="mc-key-card">
-                <div class="mc-key-star">⭐</div>
-                <div style="display:flex;align-items:center;gap:11px;margin-bottom:8px;">
-                  <div class="mc-key-avatar" style="background:${grad};">
-                    ${photo ? `<img class="pc-photo-img" loading="lazy" alt="" src="${_esc(photo)}">` : _esc(_pcInitials(p))}
-                  </div>
-                  <div style="flex:1;min-width:0;">
-                    <div style="font-size:13.5px;font-weight:800;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${_esc(p.firstName || '')} ${_esc(p.lastName || '')}</div>
-                    <div style="font-size:10.5px;color:var(--tx-3);">#${p.number != null ? p.number : '?'} · ${_esc(p.position || '—')}</div>
-                  </div>
-                </div>
-                <div style="display:flex;align-items:baseline;justify-content:space-between;">
-                  <div style="font-size:9.5px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.9px;font-weight:800;">Impact Score</div>
-                  <div style="font-size:22px;font-weight:900;color:var(--green-l);font-family:var(--mono);line-height:1;text-shadow:0 0 10px rgba(74,222,128,0.4);">${k.impact}</div>
-                </div>
-              </div>`;
-            }).join('')}
-          </div>
-        `}
-      </div>
-    </div>`;
-  _pcWirePhotoErrors(el);
+    // POSSESSION MOMENTUM — real values only; no fabricated rolling data.
+    var possessionHTML;
+    if (possession != null) {
+      var hm = possession, aw = 100 - possession;
+      possessionHTML = ''
+        + '<div class="mc2-poss-bar">'
+        + '  <div class="mc2-poss-home" style="width:' + hm + '%;"><span>' + hm + '%</span></div>'
+        + '  <div class="mc2-poss-away" style="width:' + aw + '%;"><span>' + aw + '%</span></div>'
+        + '</div>'
+        + '<div class="mc2-poss-legend"><span><i class="mc2-dot home"></i> ' + _esc(homeName) + '</span><span><i class="mc2-dot away"></i> ' + _esc(awayName) + '</span></div>';
+    } else {
+      possessionHTML = '<div class="mc2-empty-inline">Possession not recorded for this fixture.</div>';
+    }
+
+    // EVENT TIMELINE — real Match.aiInsights.events[] only.
+    var timelineHTML;
+    if (events.length) {
+      var maxMin = Math.max(95, Math.max.apply(null, events.map(function (e) { return e.minute || 0; })));
+      timelineHTML = '<div class="mc2-tl">'
+        + '<div class="mc2-tl-axis">'
+        +   '<div class="mc2-tl-track"></div>'
+        +   '<div class="mc2-tl-tick" style="left:0%;">0\'</div>'
+        +   '<div class="mc2-tl-tick" style="left:50%;">HT</div>'
+        +   '<div class="mc2-tl-tick" style="left:100%;">90\'</div>'
+        +   events.map(function (e) {
+              var pct = Math.max(0, Math.min(100, ((e.minute || 0) / maxMin) * 100));
+              return '<div class="mc2-tl-event" style="left:' + pct + '%;color:' + _mcEventColor(e.kind) + ';" title="' + _esc((e.minute || 0) + '\' · ' + (e.kind || '') + (e.player ? ' · ' + e.player : '')) + '">' + _mcEventIcon(e.kind) + '<span class="mc2-tl-min">' + (e.minute || 0) + '\'</span></div>';
+            }).join('')
+        + '</div></div>';
+    } else {
+      timelineHTML = '<div class="mc2-empty-inline">No event timeline recorded for this fixture.</div>';
+    }
+
+    // PLAYER TOKENS WITH PHOTOS — STARTING XI ROSTER
+    var rosterHTML = xi.length
+      ? '<div class="mc2-roster">' + xi.map(function (e) {
+          var p = e.p;
+          var photo = _mcPhoto(p);
+          var initials = _mcInitials(p);
+          var ring = _mcRingColor(e.role);
+          return '<div class="mc2-roster-row" data-action="openPlayerModal" data-player-id="' + _esc(p.id || '') + '">'
+               + '<div class="mc2-roster-avatar" style="box-shadow:0 0 0 2px ' + ring + ' inset;">'
+               + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials))
+               + '</div>'
+               + '<div class="mc2-roster-body"><div class="mc2-roster-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="mc2-roster-meta">#' + (p.number != null ? p.number : '?') + ' · ' + _esc(p.position || e.role) + '</div></div>'
+               + '<div class="mc2-roster-rating">' + (p.overallRating || '—') + '</div>'
+               + '</div>';
+        }).join('') + '</div>'
+      : '<div class="mc2-empty-inline">Not enough fit players to set a starting XI.</div>';
+
+    // BENCH WITH PHOTOS
+    var benchHTML = bench.length
+      ? bench.map(function (b) {
+          var p = b.p;
+          var photo = _mcPhoto(p);
+          var initials = _mcInitials(p);
+          return '<div class="mc2-bench-row" data-action="openPlayerModal" data-player-id="' + _esc(p.id || '') + '">'
+               + '<div class="mc2-bench-avatar">' + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials)) + '</div>'
+               + '<div class="mc2-bench-body"><div class="mc2-bench-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="mc2-bench-meta">' + _esc(p.position || '—') + '</div></div>'
+               + '<div class="mc2-bench-impact">' + (b.impact || '—') + '</div>'
+               + '</div>';
+        }).join('')
+      : '<div class="mc2-empty-inline">No bench candidates available.</div>';
+
+    el.innerHTML = ''
+      + '<div class="mc2-page">'
+      // SCORE STRIP
+      + '<section class="mc2-score-strip">'
+      + '  <div class="mc2-ss-team home">'
+      + '    <div class="mc2-ss-crest">' + homeEmblemHTML + '</div>'
+      + '    <div class="mc2-ss-name">' + _esc(homeName) + '</div>'
+      + '    <div class="mc2-ss-side">Home</div>'
+      + '  </div>'
+      + '  <div class="mc2-ss-mid">'
+      + '    <div class="mc2-ss-score">' + _esc(String(scoreCenter)) + '</div>'
+      + '    <div class="mc2-ss-pill ' + statusClass + '">' + statusPill + '</div>'
+      + '    <div class="mc2-ss-meta">' + _esc(when) + ' · ' + _esc(venue) + '</div>'
+      + '    <div class="mc2-ss-meta">' + _esc(competition) + ' · Formation ' + formation + '</div>'
+      + '  </div>'
+      + '  <div class="mc2-ss-team away">'
+      + '    <div class="mc2-ss-crest">' + awayEmblemHTML + '</div>'
+      + '    <div class="mc2-ss-name">' + _esc(awayName) + '</div>'
+      + '    <div class="mc2-ss-side">Away</div>'
+      + '  </div>'
+      + '</section>'
+      // KEY STATS BAR
+      + '<section class="mc2-stats-strip">'
+      + '  <div class="mc2-stat"><div class="mc2-stat-lbl">POSSESSION</div><div class="mc2-stat-val">' + (possession != null ? possession + '%' : '—') + '</div></div>'
+      + '  <div class="mc2-stat"><div class="mc2-stat-lbl">SHOTS</div><div class="mc2-stat-val">' + (shots != null ? shots : '—') + '</div></div>'
+      + '  <div class="mc2-stat"><div class="mc2-stat-lbl">ON TARGET</div><div class="mc2-stat-val">' + (shotsOnT != null ? shotsOnT : '—') + '</div></div>'
+      + '  <div class="mc2-stat"><div class="mc2-stat-lbl">FORM</div><div class="mc2-stat-val mc2-stat-form">' + (form.length ? form.map(function (r) { var cls = r === 'W' ? 'fw' : r === 'L' ? 'fl' : r === 'D' ? 'fd' : 'fn'; return '<span class="form-dot ' + cls + '">' + r + '</span>'; }).join('') : '—') + '</div></div>'
+      + '</section>'
+      // PITCH
+      + '<section class="mc2-pitch-section">'
+      + '  <div class="mc2-pitch-hdr"><h2 class="mc2-section-title">PITCH · ' + formation + '</h2><span class="mc2-pitch-sub">' + xi.length + ' starting · ' + bench.length + ' bench</span></div>'
+      + '  <div class="mc2-pitch-wrap">' + (xi.length ? _mcPitchPremiumSVG(xi) : '<div class="mc2-empty-inline">Not enough fit players to set a starting XI.</div>') + '</div>'
+      + '</section>'
+      // POSSESSION + TIMELINE
+      + '<section class="mc2-grid-2">'
+      + '  <div class="mc2-tile">'
+      + '    <h3 class="mc2-section-title">POSSESSION MOMENTUM</h3>'
+      +      possessionHTML
+      + '  </div>'
+      + '  <div class="mc2-tile">'
+      + '    <h3 class="mc2-section-title">EVENT TIMELINE</h3>'
+      +      timelineHTML
+      + '  </div>'
+      + '</section>'
+      // STARTING XI + BENCH
+      + '<section class="mc2-grid-2">'
+      + '  <div class="mc2-tile">'
+      + '    <h3 class="mc2-section-title">STARTING XI</h3>'
+      +      rosterHTML
+      + '  </div>'
+      + '  <div class="mc2-tile">'
+      + '    <h3 class="mc2-section-title">BENCH · IMPACT-RANKED</h3>'
+      + '    <div class="mc2-bench">' + benchHTML + '</div>'
+      + '  </div>'
+      + '</section>'
+      + '</div>';
+    if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(el); } catch (_) {} }
+    return;
   } catch (err) {
     try { console.error('[match-center] renderMatchCenter() failed:', err && err.stack || err); } catch (_) {}
     el.innerHTML = `<div style="padding:30px;border-radius:14px;margin:16px;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.32);color:var(--tx);">
