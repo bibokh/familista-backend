@@ -2202,4 +2202,62 @@ body.fos-neural-theme [class*="-card"]{
   overflow-anchor: none;
 }
 /* END FOS STABILITY LAYER v2 ─────────────────────────────────── */
+
+
+/* ════════════════════════════════════════════════════════════════════
+   FOS STABILITY LAYER v3 — residual CLS (scrollbar gutter + tabular nums)
+   ────────────────────────────────────────────────────────────────────
+   Verified residual causes after v1 + v2 fixes:
+
+     1. No `scrollbar-gutter: stable` anywhere in app.css. When a FOS
+        page first paints, content fits in the viewport — no vertical
+        scrollbar. Once data arrives and the dashboard expands, the
+        scrollbar appears (~15-17 px) and EVERY pixel of FOS content
+        shifts left to make room. Repeated on every navigation
+        between pages of different heights. This is the dominant
+        remaining horizontal-shift source on FOS pages.
+
+     2. No `font-variant-numeric: tabular-nums` anywhere. Even with
+        `font-family: var(--mono)` (JetBrains Mono), some browsers
+        render proportional figures by default — and even with
+        equal-width digits, `5` vs `127` vs `1000` are different
+        total widths. Centered KPI values visibly jump inside their
+        tiles when counters update (Observability API calls, SOC
+        Security Score, Predictive Confidence, Exec Bridge KPIs,
+        etc.).
+
+   What stays:
+     • All layouts, grids, palettes, typography, page IDs, helpers
+     • All v1 + v2 stability rules
+     • Glow shadows, gradient backgrounds, neon colors
+     • Translucent card backgrounds
+
+   What changes:
+     • `scrollbar-gutter: stable` on html + body — vertical scrollbar
+       space is reserved even when content fits; the slim gutter
+       stays empty until needed. No more horizontal layout snap on
+       navigation between short/tall pages.
+     • `font-variant-numeric: tabular-nums` inherited from FOS theme
+       root — every KPI digit occupies the same width as every other
+       digit, so number changes don't shift centered text.
+
+   Zero visual cost. Two CSS properties. Verified causes only.
+   ──────────────────────────────────────────────────────────────── */
+
+/* 1. Reserve scrollbar space — prevents the universal 15 px horizontal
+      shift when a FOS page's content first exceeds viewport height. */
+html, body{
+  scrollbar-gutter: stable;
+}
+.page, .content{
+  scrollbar-gutter: stable;
+}
+
+/* 2. Equal-width digits for every KPI value rendered in FOS theme.
+      Inherits to every child — covers every var(--mono) tile, every
+      KPI val, every counter, every percentage, every score. */
+body.fos-neural-theme{
+  font-variant-numeric: tabular-nums;
+}
+/* END FOS STABILITY LAYER v3 ─────────────────────────────────── */
 
