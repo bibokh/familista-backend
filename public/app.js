@@ -975,6 +975,10 @@ function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
+  // Step 1 lazy-mount — ensure the target page's template is in the DOM
+  // before we try to activate it. Idempotent for already-mounted pages.
+  try { if (typeof _ensurePageMounted === 'function') _ensurePageMounted(page); } catch (_) {}
+
   const pg = document.getElementById('pg-' + page);
   if (pg) pg.classList.add('active');
 
@@ -1174,9 +1178,151 @@ function errorHTML(msg = 'Failed to load data') {
   return `<div class="error-state"><div class="error-icon">⚠️</div><div class="error-title">Error</div><div class="error-msg">${msg}</div><button class="btn btn-outline btn-sm" onclick="loadAllData()">Retry</button></div>`;
 }
 
-// ── RENDER ALL PAGES ──
+// ════════════════════════════════════════════════════════════════════
+// Step 1 · Lazy page mounting
+// ────────────────────────────────────────────────────────────────────
+// BEFORE this refactor, renderAllPages() stamped 69 page templates
+// into the DOM on every boot — 985 descendants and 71 KB of HTML
+// before the user picked anything. Most of those pages are hidden
+// from the sidebar (Phase A) and are unreachable in a normal session.
+//
+// AFTER this refactor, only the 19 pages reachable from the visible
+// sidebar are mounted up-front. Every other page is mounted on demand
+// the first time navTo() routes to it. Render-functions probe for
+// their content slot (e.g. renderFOSObservability checks
+// document.getElementById('fos-observability-content')) and bail when
+// it's missing, so no caller breaks if a target hasn't been mounted
+// yet — and once navTo lazy-mounts the template, the next render call
+// fills it.
+// ════════════════════════════════════════════════════════════════════
+
+// Map page-name → its render-HTML function. Consumed by both the
+// eager boot pass and _ensurePageMounted() at navigation time.
+var _PAGE_TEMPLATE_MAP = null;
+function _buildPageTemplateMap() {
+  if (_PAGE_TEMPLATE_MAP) return _PAGE_TEMPLATE_MAP;
+  _PAGE_TEMPLATE_MAP = {
+    'owner-home':                  renderOwnerHomeHTML,
+    'clubs':                       renderClubsHTML,
+    'dashboard':                   renderDashboardHTML,
+    'squad':                       renderSquadHTML,
+    'matches':                     renderMatchesHTML,
+    'match-center':                renderMatchCenterHTML,
+    'ai-scouting':                 renderAIScoutingHTML,
+    'ai-coach':                    renderAICoachHTML,
+    'medical-center':              renderMedicalCenterHTML,
+    'performance-center':          renderPerformanceCenterHTML,
+    'scouting-center':             renderScoutingCenterHTML,
+    'transfer-center':             renderTransferCenterHTML,
+    'finance-center':              renderFinanceCenterHTML,
+    'management-center':           renderManagementCenterHTML,
+    'academy-center':              renderAcademyCenterHTML,
+    'sporting-director-center':    renderSportingDirectorCenterHTML,
+    'director-of-football-center': renderDirectorOfFootballCenterHTML,
+    'board-of-directors-center':   renderBoardOfDirectorsCenterHTML,
+    'ownership-center':            renderOwnershipCenterHTML,
+    'ai-executive-center':         renderAIExecutiveCenterHTML,
+    'ai-president-center':         renderAIPresidentCenterHTML,
+    'ai-chairman-center':          renderAIChairmanCenterHTML,
+    'ai-war-room':                 renderAIWarRoomHTML,
+    'fos-core':                    renderFOSCoreHTML,
+    'fos-ai-orchestrator':         renderFOSAIOrchestratorHTML,
+    'multi-club-network':          renderMultiClubNetworkHTML,
+    'fos-knowledge-graph':         renderFOSKnowledgeGraphHTML,
+    'fos-neural-intelligence':     renderFOSNeuralIntelligenceHTML,
+    'fos-command-center':          renderFOSCommandCenterHTML,
+    'fos-admin-center':            renderFOSAdminCenterHTML,
+    'fos-security-center':         renderFOSSecurityCenterHTML,
+    'fos-data-center':             renderFOSDataCenterHTML,
+    'fos-automation-center':       renderFOSAutomationCenterHTML,
+    'fos-intelligence-pipeline':   renderFOSIntelligencePipelineHTML,
+    'fos-decision-engine':         renderFOSDecisionEngineHTML,
+    'fos-event-bus':               renderFOSEventBusHTML,
+    'fos-audit-governance':        renderFOSAuditGovernanceHTML,
+    'fos-rbac':                    renderFOSRBACHTML,
+    'fos-workflow-execution':      renderFOSWorkflowExecutionHTML,
+    'fos-digital-twin':            renderFOSDigitalTwinHTML,
+    'fos-predictive-intelligence': renderFOSPredictiveIntelligenceHTML,
+    'fos-simulation-center':       renderFOSSimulationCenterHTML,
+    'fos-executive-bridge':        renderFOSExecutiveBridgeHTML,
+    'fos-ai-agent-framework':      renderFOSAIAgentFrameworkHTML,
+    'fos-observability':           renderFOSObservabilityHTML,
+    'gis-data-lake':    function () { return renderGISHTML('gis-data-lake'); },
+    'gis-analytics':    function () { return renderGISHTML('gis-analytics'); },
+    'gis-scouting':     function () { return renderGISHTML('gis-scouting'); },
+    'gis-medical':      function () { return renderGISHTML('gis-medical'); },
+    'gis-financial':    function () { return renderGISHTML('gis-financial'); },
+    'gis-performance':  function () { return renderGISHTML('gis-performance'); },
+    'tournaments':                 renderTournamentsHTML,
+    'analytics':                   renderAnalyticsHTML,
+    'ai':                          renderAIHTML,
+    'training':                    renderTrainingHTML,
+    'medical':                     renderMedicalHTML,
+    'performance':                 renderPerformanceHTML,
+    'scouting':                    renderScoutingHTML,
+    'video':                       renderVideoHTML,
+    'transfer':                    renderTransferHTML,
+    'stats':                       renderStatsHTML,
+    'finances':                    renderFinancesHTML,
+    'devices':                     renderDevicesHTML,
+    'club':                        renderClubHTML,
+    'settings':                    renderSettingsHTML,
+    'quantum':                     renderQuantumHTML,
+    'tactical-os':                 renderTacticalOSHTML,
+    'admin':                       renderAdminHTML,
+    'tactical-ai':                 renderTacticalAIHTML,
+  };
+  return _PAGE_TEMPLATE_MAP;
+}
+
+// Pages reachable from the visible sidebar (Phase A + Phase B Owner Home).
+// These are mounted eagerly at boot so the click flow is instant.
+var _EAGER_PAGES = [
+  'owner-home', 'clubs',
+  'dashboard', 'squad', 'training', 'matches',
+  'scouting', 'video', 'stats', 'analytics', 'club',
+  'fos-core', 'fos-observability', 'fos-security-center',
+  'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
+  'multi-club-network', 'fos-admin-center',
+];
+
+// Lazy-mount the page template for `page` if it isn't already in the
+// DOM. Returns true if `pg-<page>` exists after the call. Idempotent.
+function _ensurePageMounted(page) {
+  if (!page) return false;
+  if (document.getElementById('pg-' + page)) return true;
+  var map = _buildPageTemplateMap();
+  var fn = map[page];
+  if (typeof fn !== 'function') return false;
+  var html = '';
+  try { html = fn(); } catch (_) { return false; }
+  if (!html) return false;
+  var container = document.getElementById('pages-container');
+  if (!container) return false;
+  var tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  while (tmp.firstChild) container.appendChild(tmp.firstChild);
+  return !!document.getElementById('pg-' + page);
+}
+
+// ── RENDER ALL PAGES (eager subset only — see lazy mount above) ──
 function renderAllPages() {
-  const container = document.getElementById('pages-container');
+  var container = document.getElementById('pages-container');
+  if (!container) return;
+  var map = _buildPageTemplateMap();
+  var html = '';
+  for (var i = 0; i < _EAGER_PAGES.length; i++) {
+    var fn = map[_EAGER_PAGES[i]];
+    if (typeof fn === 'function') {
+      try { html += fn(); } catch (_) {}
+    }
+  }
+  container.innerHTML = html;
+  // ↓ Legacy template list — replaced by the loop above. Kept around
+  // for a few releases as a fallback if a follower discovers a page
+  // that was never in the eager set AND has no lazy entry. Commented
+  // out so it doesn't double-mount the eager pages.
+  /*
   container.innerHTML = `
     ${renderOwnerHomeHTML()}
     ${renderClubsHTML()}
@@ -1248,8 +1394,10 @@ function renderAllPages() {
     ${renderAdminHTML()}
     ${renderTacticalAIHTML()}
   `;
-
-  renderTournContent('overview');
+  */
+  // Tournament list is rendered lazily into #tourn-content; safe no-op
+  // when the tournaments page hasn't been mounted yet.
+  try { renderTournContent('overview'); } catch (_) {}
   // Phase B · Owner Home is the initial active page; hydrate its
   // content + the Clubs picker so they paint immediately.
   try { if (typeof renderOwnerHome === 'function') renderOwnerHome(); } catch (_) {}
@@ -19799,161 +19947,6 @@ function renderGIS(key) {
 // dashboard defined earlier in this file (~line 1343). Kept here as a
 // no-op stub for any cached source maps; the active renderDashboard
 // is the one above renderDashboardHTML.
-function _legacyRenderDashboard_b2_obsolete() {
-  if (isFormEditing()) { _pendingRefresh = true; return; }
-  try {
-    _ensureFCCmdStyles();
-    const cmdEl = document.getElementById('fc-cmd-center');
-    if (cmdEl) {
-      cmdEl.innerHTML = _fcCommandCenterHTML();
-      _pcWirePhotoErrors(cmdEl);
-    }
-  } catch (_) { /* never let the new section break the rest of the dashboard */ }
-  const d = State.analytics;
-  if (!d) return;
-
-  // Match hero
-  const nextMatch = State.matches?.find(m => !m.result) || State.matches?.[0];
-  const heroEl = document.getElementById('match-hero');
-  if (heroEl && nextMatch) {
-    const isHome = nextMatch.homeTeam?.includes('Familista');
-    heroEl.innerHTML = `
-      <div class="mh-top">
-        <div class="mh-tag"><div style="width:6px;height:6px;border-radius:50%;background:var(--red);animation:dotPulse 1.2s ease infinite;"></div>
-          ${nextMatch.result ? 'Last Match' : 'Next Match'} · ${_esc(nextMatch.competition)} · ${fmtDate(nextMatch.scheduledAt)}
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-outline btn-sm" onclick="navTo('ai',null)">AI Preview</button>
-          <button class="btn btn-primary btn-sm" onclick="navTo('squad',null)">Set Lineup →</button>
-        </div>
-      </div>
-      <div class="mh-body">
-        <div class="mh-team">
-          <div class="mh-crest">${isHome ? '🔴' : '⬛'}</div>
-          <div class="mh-name">${_esc(nextMatch.homeTeam)}</div>
-          <div class="mh-ovr">OVR ${d.overview?.teamRating || 108.9}</div>
-          <div class="mh-form">${(d.recentMatches||[]).slice(0,5).map(m=>`<div class="form-dot fd-${m.result?.toLowerCase()[0]||'d'}">${m.result?.[0]||'?'}</div>`).join('')}</div>
-        </div>
-        <div class="mh-mid">
-          <div class="mh-time-box">
-            <div class="mh-time">${nextMatch.result ? `${nextMatch.homeScore}—${nextMatch.awayScore}` : new Date(nextMatch.scheduledAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div>
-            <div class="mh-venue">${_esc(nextMatch.venue || 'Away Match')}</div>
-          </div>
-          <div style="font-size:11px;font-weight:600;color:var(--tx-3);">vs</div>
-          <span class="badge badge-amber">${nextMatch.result ? `Result: ${nextMatch.result}` : 'Upcoming'}</span>
-        </div>
-        <div class="mh-team">
-          <div class="mh-crest">${isHome ? '⬛' : '🔴'}</div>
-          <div class="mh-name">${_esc(nextMatch.awayTeam)}</div>
-          <div class="mh-ovr">OVR 112.4</div>
-          <div class="mh-form"><div class="form-dot fd-w">W</div><div class="form-dot fd-w">W</div><div class="form-dot fd-w">W</div><div class="form-dot fd-w">W</div><div class="form-dot fd-w">W</div></div>
-        </div>
-      </div>
-      <div class="mh-prep">
-        <div class="mh-prep-label"><span>Team Preparation</span><span style="color:var(--green-l);font-weight:600;">Excellent — ${d.overview?.teamCondition || 87}%</span></div>
-        <div class="mh-prep-bar"><div class="mh-prep-fill" style="width:${d.overview?.teamCondition || 87}%;"></div></div>
-      </div>
-      <div class="mh-actions">
-        <button class="btn btn-ghost btn-sm">📋 Match Report</button>
-        <button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="navTo('matches',null)">📅 Match Center →</button>
-      </div>`;
-  }
-
-  // KPIs
-  const kpiEl = document.getElementById('kpi-row');
-  if (kpiEl && d.overview) {
-    const kpis = [
-      { icon:'📈', val: d.overview.teamRating, lbl:'Team Rating', chg:'+2.1 this week', up:true, color:'var(--green-l)' },
-      { icon:'🏆', val: `${d.overview.wins||0}W ${d.overview.draws||0}D ${d.overview.losses||0}L`, lbl:'Season Record', chg:'League 33', up:true },
-      { icon:'💪', val: `${d.overview.teamCondition}%`, lbl:'Team Condition', chg:`${d.overview.injuredCount} injured`, up:d.overview.injuredCount===0 },
-      { icon:'👥', val: d.overview.playerCount, lbl:'Squad Size', chg:'Active players', up:true },
-    ];
-    kpiEl.innerHTML = kpis.map(k => `
-      <div class="card hover metric">
-        <div class="metric-icon" style="background:var(--green-bg);">${k.icon}</div>
-        <div class="metric-val" style="font-size:${String(k.val).length>5?'20px':'28px'};${k.color?`color:${k.color}`:''}">${k.val}</div>
-        <div class="metric-lbl">${k.lbl}</div>
-        <div class="metric-chg ${k.up?'chg-up':'chg-dn'}">${k.up?'↑':'↓'} ${k.chg}</div>
-      </div>`).join('');
-  }
-
-  // Results
-  const resultsEl = document.getElementById('results-list');
-  if (resultsEl) {
-    const matches = d.recentMatches?.slice(0,5) || [];
-    if (matches.length === 0) {
-      resultsEl.innerHTML = '<div class="empty"><div class="empty-ico">⚽</div><div class="empty-ttl">No matches yet</div></div>';
-    } else {
-      resultsEl.innerHTML = matches.map(m => {
-        const mine_home = m.homeTeam?.includes('Familista');
-        const badge = m.result === 'WIN' ? 'rb-w' : m.result === 'LOSS' ? 'rb-l' : 'rb-d';
-        const letter = m.result?.[0] || '?';
-        return `<div class="result-row">
-          <div class="result-badge ${badge}">${letter}</div>
-          <div style="flex:1;">
-            <div class="res-home ${mine_home?'res-mine':''}">${m.homeTeam}</div>
-            <div class="res-away ${!mine_home?'res-mine':''}">${m.awayTeam}</div>
-          </div>
-          <div class="res-score">${m.homeScore??'?'} — ${m.awayScore??'?'}</div>
-          <div class="res-comp">${m.competition}</div>
-        </div>`;
-      }).join('');
-    }
-  }
-
-  // Standings — live from first competition via Phase Q API
-  const stdEl = document.getElementById('standings-mini');
-  if (stdEl) {
-    stdEl.innerHTML = `<div style="color:var(--tx-3);font-size:12px;padding:8px 0;">Loading…</div>`;
-    (async () => {
-      try {
-        const compsRes = await api('/phase-q/competitions?limit=1');
-        const comps = (compsRes && compsRes.items) || [];
-        if (!comps.length) { stdEl.innerHTML = `<div style="color:var(--tx-3);font-size:12px;padding:8px 0;">No competitions yet.</div>`; return; }
-        const compId = comps[0].id;
-        if (!_TournData.selectedCompId) _TournData.selectedCompId = compId;
-        if (!_TournData.competitions.length) _TournData.competitions = comps;
-        const rows = await api(`/phase-q/competitions/${compId}/standings`);
-        const arr = Array.isArray(rows) ? rows.slice(0, 5) : [];
-        if (!arr.length) { stdEl.innerHTML = `<div style="color:var(--tx-3);font-size:12px;padding:8px 0;">No standings data.</div>`; return; }
-        if (!_TournData.teams.length) {
-          const tr = await api('/teams?isActive=true&limit=200');
-          _TournData.teams = (tr && tr.data) || [];
-        }
-        const myIds = new Set(_TournData.teams.map(t => t.id));
-        stdEl.innerHTML = arr.map(r => {
-          const form = (r.form || '').split('').slice(-3);
-          const mine = myIds.has(r.teamId);
-          const nm = _tournTeamName(r.teamId);
-          return `<div class="std-row ${mine?'mine':''}">
-            <div class="std-pos" style="color:${r.position<=4?'var(--amber)':'var(--tx-3)'};">${r.position}</div>
-            <div class="std-name ${mine?'m':''}">${_esc(nm)}</div>
-            <div style="display:flex;gap:2px;">${form.map(f=>`<div class="form-dot ${f==='W'?'fd-w':f==='D'?'fd-d':'fd-l'}" style="width:14px;height:14px;">${f}</div>`).join('')}</div>
-            <div class="std-pts">${r.points}</div>
-          </div>`;
-        }).join('');
-      } catch (_) {
-        stdEl.innerHTML = `<div style="color:var(--tx-3);font-size:12px;padding:8px 0;">Standings unavailable.</div>`;
-      }
-    })();
-  }
-
-  // ARIA insights from real GPS risk data
-  const insightsEl = document.getElementById('aria-insights');
-  if (insightsEl) {
-    const highRisk = d.highRiskPlayers || [];
-    const insights = [
-      { badge:'badge-green', icon:'⚡', title:'Performance', text: d.topPerformers?.[0] ? `${d.topPerformers[0].firstName} ${d.topPerformers[0].lastName} is your top performer with OVR ${d.topPerformers[0].overallRating}. Consider building tactics around his strengths.` : 'Loading performance data...' },
-      { badge:'badge-red', icon:'⚠️', title:'Medical Alert', text: d.overview?.injuredCount > 0 ? `${d.overview.injuredCount} player${d.overview.injuredCount>1?'s':''} currently injured. GPS risk monitoring active on all ${d.overview.playerCount} players.` : 'All players fit and available.' },
-      { badge:'badge-amber', icon:'🎯', title:'Tactical', text: `Team condition at ${d.overview?.teamCondition}%. ${highRisk.length > 0 ? `${highRisk.length} high-risk GPS readings detected.` : 'GPS loads within safe parameters.'}` },
-    ];
-    insightsEl.innerHTML = insights.map(i=>`
-      <div class="insight-row">
-        <div class="insight-top"><span style="font-size:13px;">${i.icon}</span><span class="badge ${i.badge}">${i.title}</span></div>
-        <div class="insight-body">${_esc(i.text)}</div>
-      </div>`).join('');
-  }
-}
 
 // ════════════════════════════════════════════════════════════════════════
 // SQUAD / PLAYERS MODULE — clean rebuild (Phase 1)
