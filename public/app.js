@@ -20173,7 +20173,16 @@ const AppContext = (function () {
     try {
       const r = await FamilistaAPI.get('/me/context');
       _ctx = (r && r.data) || r || null;
-      if (_ctx) State.context = { clubId: _ctx.currentClubId || _ctx.legacyClubId, teamId: _ctx.currentTeamId || null };
+      if (_ctx) {
+        // IMPORTANT: include availableClubs in State.context — the Clubs picker
+        // (renderClubs()) reads State.context.availableClubs to enumerate cards.
+        // Wiping this key was the bug behind "new club never appears".
+        State.context = {
+          clubId: _ctx.currentClubId || _ctx.legacyClubId,
+          teamId: _ctx.currentTeamId || null,
+          availableClubs: Array.isArray(_ctx.availableClubs) ? _ctx.availableClubs : [],
+        };
+      }
       await loadTeams();
       renderSwitcher();
       return _ctx;
@@ -20211,7 +20220,14 @@ const AppContext = (function () {
     try {
       const r = await FamilistaAPI.post('/me/context', { clubId, teamId: null });
       _ctx = (r && r.data) || r || _ctx;
-      State.context = { clubId, teamId: null };
+      // Preserve availableClubs across the switch (server returns full ctx).
+      State.context = {
+        clubId,
+        teamId: null,
+        availableClubs: (_ctx && Array.isArray(_ctx.availableClubs))
+          ? _ctx.availableClubs
+          : ((State.context && State.context.availableClubs) || []),
+      };
       await loadTeams();
       renderSwitcher();
       // Re-hydrate the squad page after tenant change
@@ -20223,7 +20239,13 @@ const AppContext = (function () {
     try {
       const r = await FamilistaAPI.post('/me/context', { clubId: State.context.clubId, teamId: teamId || null });
       _ctx = (r && r.data) || r || _ctx;
-      State.context = { clubId: State.context.clubId, teamId: teamId || null };
+      State.context = {
+        clubId: State.context.clubId,
+        teamId: teamId || null,
+        availableClubs: (_ctx && Array.isArray(_ctx.availableClubs))
+          ? _ctx.availableClubs
+          : ((State.context && State.context.availableClubs) || []),
+      };
       renderSwitcher();
       if (typeof loadAllData === 'function') await loadAllData();
     } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
