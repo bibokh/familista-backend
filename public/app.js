@@ -809,6 +809,86 @@ function _setArea(area) {
   } else { init(); }
 })();
 
+// ── Topbar context Back button ─────────────────────────────────
+// Shows nothing on Owner Home; "Owner Home" on System pages; "Clubs"
+// on Club Workspace pages. The handler in the click dispatcher
+// (case 'topbarBack') reads the current area and routes back.
+function _updateTopbarBack(page) {
+  var btn = document.getElementById('topbar-back');
+  var lbl = document.getElementById('topbar-back-label');
+  if (!btn) return;
+  var area = _areaForPage(page);
+  if (area === 'home') {
+    btn.style.display = 'none';
+    return;
+  }
+  btn.style.display = '';
+  if (lbl) lbl.textContent = (area === 'system') ? 'Owner Home' : 'Clubs';
+}
+
+// ── Browser back/forward — popstate replays navigation ─────────
+(function () {
+  function onPopState(e) {
+    var page = (e && e.state && e.state.page) ||
+               (location.hash || '').replace(/^#/, '') ||
+               'owner-home';
+    try { navTo(page, null, { fromPopState: true }); } catch (_) {}
+  }
+  function initHash() {
+    try {
+      var hashPage = (location.hash || '').replace(/^#/, '');
+      if (hashPage) {
+        // Deep-link arrived; route to it (also runs through the
+        // allow-list guard inside navTo).
+        navTo(hashPage, null, { fromPopState: false });
+      } else if (window.history && !window.history.state) {
+        // Seed history so the very first Back press has somewhere
+        // to land instead of leaving the app.
+        window.history.replaceState({ page: 'owner-home' }, '', '#owner-home');
+      }
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', onPopState);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initHash);
+  } else { initHash(); }
+})();
+
+// ── Onboard New Club modal ─────────────────────────────────────
+// Replaces the previous behaviour of routing the Clubs picker's
+// "+ Onboard a new club" tile straight to the Multi-Club Management
+// platform page. Opens a clear modal with Cancel + Submit. Submit
+// shows a toast explaining backend admin must complete provisioning;
+// no backend / API / DB write is performed here.
+function openOnboardClubModal() {
+  var el = document.getElementById('onboard-club-modal');
+  if (!el) return;
+  el.classList.add('open');
+  // Reset inputs (idempotent in case the modal is re-opened)
+  ['onboard-name','onboard-shortname','onboard-city','onboard-country','onboard-emblem']
+    .forEach(function (id) { var f = document.getElementById(id); if (f) f.value = ''; });
+  setTimeout(function () { var n = document.getElementById('onboard-name'); if (n) n.focus(); }, 50);
+}
+function closeOnboardClubModal() {
+  var el = document.getElementById('onboard-club-modal');
+  if (el) el.classList.remove('open');
+}
+function submitOnboardClub() {
+  var name = (document.getElementById('onboard-name') || {}).value || '';
+  if (!name.trim()) {
+    try { showToast('Club name is required.', 'warn', 3000); } catch (_) {}
+    return;
+  }
+  // Frontend-only: surface the intent. Real provisioning happens via
+  // platform admin (no backend touch in this UX fix).
+  try {
+    showToast('Onboarding request captured for "' + name.trim() + '". Platform admin will complete provisioning.', 'success', 4500);
+  } catch (_) {}
+  closeOnboardClubModal();
+}
+
 // ── Phase B.1 · Topbar brand hydration ────────────────────────────
 // Keeps the topbar's emblem + subtitle in sync with the loaded tenant
 // (State.club) and the current page (platform vs club workspace). No
@@ -968,7 +1048,8 @@ function _restoreFocusIn(container, saved) {
 // ────────────────────────────────────────────────────────────────────────────
 
 // ── NAVIGATION ──
-function navTo(page, el) {
+function navTo(page, el, _opts) {
+  _opts = _opts || {};
   // Global guard: never switch pages / rebuild containers while an editing UI
   // (modal, card detail, edit drawer, or focused form control) is active.
   if (isEditingUIActive()) return;
@@ -1039,6 +1120,18 @@ function navTo(page, el) {
   // The body class drives which sidebar is shown. CSS rules in
   // app.css scope nav-item visibility per area.
   try { _setArea(_areaForPage(page)); } catch (_) {}
+  // ── Topbar context Back button — label tracks the current area.
+  try { _updateTopbarBack(page); } catch (_) {}
+  // ── Browser back/forward — push a hash-based history entry per nav.
+  // Skip when this navigation is itself replaying a popstate event.
+  if (!_opts.fromPopState && typeof window !== 'undefined' && window.history && typeof window.history.pushState === 'function') {
+    try {
+      var curState = window.history.state;
+      if (!curState || curState.page !== page) {
+        window.history.pushState({ page: page }, '', '#' + page);
+      }
+    } catch (_) {}
+  }
   // Hydrate the Owner Home / Clubs picker content slots if we just
   // landed on one of them.
   try {
@@ -1526,7 +1619,7 @@ function renderClubs() {
             <div class="cp-card-state">${c.isActive !== false ? 'ACTIVE' : 'PLANNED'}</div>
           </button>
         `).join('')}
-        <button class="cp-card cp-card--add" data-action="navTo" data-page="multi-club-network" type="button">
+        <button class="cp-card cp-card--add" data-action="openOnboardClubModal" type="button">
           <div class="cp-card-crest placeholder">+</div>
           <div class="cp-card-body">
             <div class="cp-card-name">Onboard a new club</div>
@@ -33263,10 +33356,6 @@ async function tosBoardSnapshot() {
         case 'taiRefresh':      loadTacticalAIData();                                                      break;
         case 'taiSelectMatch':  taiSelectMatch(el.dataset.id);                                             break;
         // ── Phase B · Owner Home / Clubs picker / inline navigation ──
-        // Any element with [data-action="navTo" data-page="<page>"] routes
-        // through navTo. Passing null as the second arg keeps the click
-        // target from receiving a stuck `.active` class — navTo locates
-        // the matching sidebar entry (if one exists) instead.
         case 'navTo': {
           const _navPage = el.dataset.page;
           if (_navPage) {
@@ -33275,6 +33364,20 @@ async function tosBoardSnapshot() {
           }
           break;
         }
+        // ── Topbar context Back button — area-aware up-navigation
+        case 'topbarBack': {
+          var _area = (document.body.className.match(/area-(\w+)/) || [])[1] || 'home';
+          var _target = (_area === 'system') ? 'owner-home'
+                      : (_area === 'club')   ? 'clubs'
+                      : 'owner-home';
+          try { navTo(_target, null); }
+          catch (err) { try { console.error('[delegate] topbarBack failed:', err); } catch (_) {} }
+          break;
+        }
+        // ── Onboard New Club modal
+        case 'openOnboardClubModal':  openOnboardClubModal();  break;
+        case 'closeOnboardClubModal': closeOnboardClubModal(); break;
+        case 'submitOnboardClub':     submitOnboardClub();     break;
         default: console.warn('[delegate] Unknown action:', el.dataset.action);
       }
     } else if ('nav' in el.dataset) {

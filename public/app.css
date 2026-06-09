@@ -2386,6 +2386,26 @@ body.club-theme .topbar-brand{
   cursor: pointer; padding: 4px var(--sp-2); border-radius: var(--r-md);
 }
 body.club-theme .topbar-brand:hover{ background: var(--bg-elevated); }
+
+/* ── Topbar context Back button (Owner Home / Clubs picker target) ── */
+body.club-theme .topbar-back{
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; border: 1px solid var(--b-default);
+  color: var(--t-secondary); cursor: pointer;
+  padding: 6px 10px; border-radius: var(--r-md);
+  font-size: 13px; font-weight: 600; line-height: 1;
+  margin-right: var(--sp-2);
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+body.club-theme .topbar-back:hover{
+  background: var(--bg-elevated); color: var(--t-primary);
+  border-color: var(--b-strong, var(--b-default));
+}
+body.club-theme .topbar-back:focus-visible{
+  outline: 2px solid var(--pitch-600); outline-offset: 2px;
+}
+body.club-theme .topbar-back svg{ display: block; flex-shrink: 0; }
+body.club-theme.area-home .topbar-back{ display: none !important; }
 body.club-theme .topbar-emblem{
   width: 36px; height: 36px; border-radius: 50%;
   background: linear-gradient(135deg, var(--pitch-600), var(--pitch-800));

@@ -22,7 +22,7 @@
 <script src="/familista-api-client.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20260609-clean-separation">
+<link rel="stylesheet" href="/app.css?v=20260609-navux">
 </head>
 <body>
 
@@ -296,6 +296,12 @@
         <button class="topbar-menu-btn" data-action="toggleSidebar" aria-label="Toggle navigation" type="button">
           <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
         </button>
+        <!-- Context Back button — JS toggles label & visibility per area -->
+        <button class="topbar-back" id="topbar-back" data-action="topbarBack" type="button" aria-label="Go back" style="display:none;">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0L3.586 10l4.707-4.707a1 1 0 011.414 1.414L7.414 9H17a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
+          <span id="topbar-back-label">Back</span>
+        </button>
+        <!-- Owner Home shortcut — always navigates to owner-home -->
         <a class="topbar-brand" data-page="owner-home" data-action="navTo" aria-label="Go to Owner Home">
           <span class="topbar-emblem" id="topbar-club-emblem" aria-hidden="true">⚽</span>
           <span class="topbar-titles">
@@ -912,6 +918,54 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260609-clean-separation" defer></script>
+<!-- Onboard New Club modal — opens from the Clubs picker "+ Onboard a new club" tile.
+     UI only. Form data is captured locally and surfaces a clear message that
+     backend provisioning is required (the actual /clubs CRUD path is admin-only).
+     No backend / API / DB / auth changes here. -->
+<div class="modal-bg" id="onboard-club-modal">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-hdr">
+      <div class="modal-title">Onboard New Club</div>
+      <button class="modal-close" data-action="closeOnboardClubModal" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px;">
+      <div style="padding:12px 14px;border-radius:10px;background:rgba(99,102,241,0.10);border:1px solid rgba(99,102,241,0.30);font-size:12.5px;color:#A5B4FC;line-height:1.55;margin-bottom:18px;">
+        Onboarding a club provisions a new tenant on the platform. Submit this form and a platform admin will complete the backend setup. No tenant data is created until provisioning is confirmed.
+      </div>
+      <form id="onboard-club-form" onsubmit="return false;">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">Club name *</span>
+            <input id="onboard-name" type="text" required placeholder="e.g. Berlin City FC" style="background:#1A2236;border:1px solid #232B41;color:#F1F5F9;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">Short name</span>
+            <input id="onboard-shortname" type="text" placeholder="e.g. BCFC" style="background:#1A2236;border:1px solid #232B41;color:#F1F5F9;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;">
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <label style="display:flex;flex-direction:column;gap:6px;">
+              <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">City</span>
+              <input id="onboard-city" type="text" placeholder="Berlin" style="background:#1A2236;border:1px solid #232B41;color:#F1F5F9;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;">
+            </label>
+            <label style="display:flex;flex-direction:column;gap:6px;">
+              <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">Country</span>
+              <input id="onboard-country" type="text" placeholder="Germany" style="background:#1A2236;border:1px solid #232B41;color:#F1F5F9;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;">
+            </label>
+          </div>
+          <label style="display:flex;flex-direction:column;gap:6px;">
+            <span style="font-size:11px;font-weight:700;color:var(--t-tertiary, #94A3B8);letter-spacing:0.06em;text-transform:uppercase;">Emblem URL (optional)</span>
+            <input id="onboard-emblem" type="url" placeholder="https://…" style="background:#1A2236;border:1px solid #232B41;color:#F1F5F9;border-radius:10px;padding:10px 12px;font-size:14px;outline:none;">
+          </label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-ftr" style="padding:14px 24px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid #232B41;">
+      <button class="btn btn-outline btn-sm" data-action="closeOnboardClubModal" type="button">Cancel</button>
+      <button class="btn btn-primary btn-sm" data-action="submitOnboardClub" type="button">Submit request</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js?v=20260609-navux" defer></script>
 </body>
 </html>
