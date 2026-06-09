@@ -25,44 +25,86 @@ import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from './workers/v
 // Clients subscribe to live match state via /ws/match/:id (Phase C).
 
 async function bootstrap() {
-  await connectDatabase();
-
+  // ── Step 1: build the Express app + HTTP server (sync, cheap). ─────────
+  // Everything below this point that's heavy/slow runs AFTER listen() so
+  // Render's port-scanner (≈90 s timeout) sees an open socket immediately.
   const app    = createApp();
   const server = http.createServer(app);
 
-  // ── Phase C: tenant-aware match WebSocket at /ws/match/:id ───────────
+  // Mount tenant-aware match WebSocket BEFORE listen so /ws/match/:id is
+  // wired up to the same HTTP server the moment we start accepting.
   mountMatchWebSocket(server);
 
-  // ── Phase 16: intel broadcaster (subscribes to MatchChannel globally) ──
-  startIntelBroadcaster();
-
-  // ── Phase C: background workers ──────────────────────────────────────
-  startAIAgentWorker();
-  startAutomationScheduler();
-  // ── Phase Q: stats aggregator (EventOutbox → PlayerMatchStats) ────────
-  startStatsAggregatorWorker();
-  // ── Phase S.1: video transcode (VideoTranscodeJob QUEUED → HLS) ───────
-  startVideoTranscodeWorker();
-
-  // ── Phase J: region presence + billing tier seed (idempotent, best-effort)
-  try {
-    const { ensureRegions, registerThisNode, startHeartbeat } = await import('./distributed/region.service');
-    const { ensureDefaultTiers } = await import('./billing/plans.service');
-    await ensureRegions();
-    await registerThisNode();
-    startHeartbeat();
-    await ensureDefaultTiers();
-  } catch (err) {
-    logger.warn('[phase-j] region/billing bootstrap failed (swallowed)', { err: (err as Error).message });
-  }
-
-  server.listen(config.port, () => {
-    logger.info(`🚀 Familista API running`, {
-      port:     config.port,
-      env:      config.env,
-      version:  config.apiVersion,
-      api:      `http://localhost:${config.port}/api/${config.apiVersion}`,
+  // ── Step 2: OPEN THE PORT FIRST. ───────────────────────────────────────
+  // Bind to 0.0.0.0 explicitly so Render's port scanner can see it.
+  // We do NOT await connectDatabase or any worker start before this —
+  // earlier ordering blocked listen() behind ~4 awaited Postgres calls,
+  // causing "Port scan timeout reached / No open ports detected" on cold
+  // boot and leaving the previous deploy as the active build.
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(config.port, '0.0.0.0', () => {
+      server.off('error', reject);
+      logger.info(`🚀 Familista API listening (warmup running in background)`, {
+        port:     config.port,
+        host:     '0.0.0.0',
+        env:      config.env,
+        version:  config.apiVersion,
+        api:      `http://localhost:${config.port}/api/${config.apiVersion}`,
+      });
+      // eslint-disable-next-line no-console
+      console.log(`[boot] HTTP server listening on 0.0.0.0:${config.port}`);
+      resolve();
     });
+  });
+
+  // ── Step 3: background warmup — DB, workers, Phase J seed. ─────────────
+  // Failures here do NOT take the server down. /api/v1/health still
+  // responds, and Render's scanner has already passed. Routes that need
+  // DB will return 503 until connectDatabase resolves; Prisma also
+  // lazy-connects on first query, so most reads/writes will work even
+  // before this block completes.
+  (async () => {
+    try {
+      await connectDatabase();
+      // eslint-disable-next-line no-console
+      console.log('[boot] database connected');
+    } catch (err) {
+      logger.error('[boot] connectDatabase failed (server still serving)', {
+        err: (err as Error).message,
+      });
+    }
+
+    // Each worker start runs in its own try/catch so a single failure
+    // can't prevent the others from coming up.
+    const safeStart = (label: string, fn: () => void) => {
+      try { fn(); } catch (err) {
+        logger.error(`[boot] ${label} failed (swallowed)`, { err: (err as Error).message });
+      }
+    };
+    safeStart('startIntelBroadcaster',      () => startIntelBroadcaster());
+    safeStart('startAIAgentWorker',         () => startAIAgentWorker());
+    safeStart('startAutomationScheduler',   () => startAutomationScheduler());
+    safeStart('startStatsAggregatorWorker', () => startStatsAggregatorWorker());
+    safeStart('startVideoTranscodeWorker',  () => startVideoTranscodeWorker());
+
+    // Phase J: region presence + billing tier seed (idempotent, best-effort)
+    try {
+      const { ensureRegions, registerThisNode, startHeartbeat } = await import('./distributed/region.service');
+      const { ensureDefaultTiers } = await import('./billing/plans.service');
+      await ensureRegions();
+      await registerThisNode();
+      startHeartbeat();
+      await ensureDefaultTiers();
+    } catch (err) {
+      logger.warn('[phase-j] region/billing bootstrap failed (swallowed)', { err: (err as Error).message });
+    }
+    // eslint-disable-next-line no-console
+    console.log('[boot] warmup complete');
+  })().catch((err) => {
+    // Defence in depth — even the outer wrapper rejection must not crash
+    // the live server.
+    logger.error('[boot] warmup orchestrator threw', { err: (err as Error).message });
   });
 
   // ── Graceful shutdown
