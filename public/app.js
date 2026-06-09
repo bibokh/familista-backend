@@ -374,8 +374,19 @@ const BackendHealth = (function () {
   function stop() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
   function notifyOffline(err) {
+    // De-dupe: during a cold-start, request() retries up to 2 times PER
+    // failing call, and loadAllData fires 5 parallel calls. Without this
+    // guard, the banner's innerHTML was being replaced 10x in ~5 seconds
+    // — each replacement re-mounted the .dot span, restarting the
+    // badgePulse animation from 0 and producing visible page-wide
+    // flicker. We only paint the banner ONCE per offline window; the
+    // 30 s health-ping (check()) will hide() it when the backend recovers.
+    if (lastState === 'down') return;
+    const el = banner();
+    if (el && el.classList.contains('show')) { lastState = 'down'; return; }
     const msg = err && err.userMessage || 'Backend is unreachable. Retrying…';
     show(msg, 'warn');
+    lastState = 'down';
   }
   function retryNow() { check(); }
 
