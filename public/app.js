@@ -875,18 +875,88 @@ function closeOnboardClubModal() {
   var el = document.getElementById('onboard-club-modal');
   if (el) el.classList.remove('open');
 }
+// Submit the Onboard New Club form.
+// Calls POST /clubs which (a) creates the Club row and (b) grants the caller
+// a CLUB_OWNER Membership in that club. On success, reloads /me/context so
+// State.context.availableClubs picks up the new club, then re-renders the
+// Clubs picker — the new card appears next to FC Familista.
 function submitOnboardClub() {
-  var name = (document.getElementById('onboard-name') || {}).value || '';
-  if (!name.trim()) {
-    try { showToast('Club name is required.', 'warn', 3000); } catch (_) {}
+  var nameEl  = document.getElementById('onboard-name');
+  var cityEl  = document.getElementById('onboard-city');
+  var shortEl = document.getElementById('onboard-shortname');
+  var ctryEl  = document.getElementById('onboard-country');
+  var embEl   = document.getElementById('onboard-emblem');
+  var submitBtn = document.querySelector('#onboard-club-modal [data-action="submitOnboardClub"]');
+
+  var name  = (nameEl  && nameEl.value  || '').trim();
+  var city  = (cityEl  && cityEl.value  || '').trim();
+  var shortName = (shortEl && shortEl.value || '').trim();
+  var country   = (ctryEl  && ctryEl.value  || '').trim();
+  var emblem    = (embEl   && embEl.value   || '').trim();
+
+  if (!name) { try { showToast('Club name is required.', 'warn', 3000); } catch (_) {} if (nameEl) nameEl.focus(); return; }
+  if (!city) { try { showToast('City is required.', 'warn', 3000); } catch (_) {} if (cityEl) cityEl.focus(); return; }
+  if (emblem && !/^https:\/\//i.test(emblem)) {
+    try { showToast('Emblem URL must start with https://', 'warn', 3500); } catch (_) {}
+    if (embEl) embEl.focus();
     return;
   }
-  // Frontend-only: surface the intent. Real provisioning happens via
-  // platform admin (no backend touch in this UX fix).
-  try {
-    showToast('Onboarding request captured for "' + name.trim() + '". Platform admin will complete provisioning.', 'success', 4500);
-  } catch (_) {}
-  closeOnboardClubModal();
+
+  var payload = { name: name, city: city };
+  if (shortName) payload.shortName = shortName;
+  if (country)   payload.country   = country;
+  if (emblem)    payload.emblem    = emblem;
+
+  // Disable submit during the round-trip so a double-click can't create two clubs.
+  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating…'; }
+
+  FamilistaAPI.post('/clubs', payload).then(function (res) {
+    // sendSuccess wraps as { success, data, message } — FamilistaAPI normalises.
+    var data = (res && res.data) || res || {};
+    var newClubId = data.clubId || (data.profile && data.profile.id) || null;
+
+    // Refresh /me/context so availableClubs now includes the new club.
+    return (typeof AppContext !== 'undefined' && AppContext.load ? AppContext.load() : Promise.resolve()).then(function () {
+      // Re-render the picker if it's currently mounted.
+      try { if (typeof renderClubs === 'function') renderClubs(); } catch (_) {}
+      try { showToast('Club "' + name + '" created.', 'success', 3500); } catch (_) {}
+      closeOnboardClubModal();
+      return newClubId;
+    });
+  }).catch(function (err) {
+    var msg = (err && (err.userMessage || err.message)) || 'Failed to create club';
+    try { showToast(msg, 'error', 4500); } catch (_) {}
+    console.warn('[onboard-club] failed:', err);
+  }).then(function () {
+    if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit request'; }
+  });
+}
+
+// Open a Club workspace from the Clubs picker.
+// 1. Calls POST /me/context with the picked clubId so server-side context
+//    matches what the user sees.
+// 2. Mirrors the change into the local State so renderers pick it up.
+// 3. Navigates to the Dashboard.
+function openClub(clubId) {
+  if (!clubId) {
+    try { showToast('Missing club id', 'error'); } catch (_) {}
+    return;
+  }
+  var goToDashboard = function () {
+    try { window.State = window.State || {}; window.State.context = window.State.context || {}; window.State.context.clubId = clubId; window.State.context.teamId = null; } catch (_) {}
+    try { navTo('dashboard', null); } catch (_) {}
+  };
+  // If AppContext is available, route through it so /me/context is updated
+  // server-side and AppContext._ctx stays consistent with the picker choice.
+  if (typeof AppContext !== 'undefined' && AppContext.switchClub) {
+    try {
+      var p = AppContext.switchClub(clubId);
+      if (p && typeof p.then === 'function') { p.then(goToDashboard).catch(goToDashboard); }
+      else { goToDashboard(); }
+    } catch (_) { goToDashboard(); }
+  } else {
+    goToDashboard();
+  }
 }
 
 // ── Phase B.1 · Topbar brand hydration ────────────────────────────
@@ -1610,7 +1680,7 @@ function renderClubs() {
       </div>
       <div class="cp-grid">
         ${clubs.map(c => `
-          <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="navTo" data-page="dashboard" type="button">
+          <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="openClub" data-club-id="${_esc(c.id || '')}" type="button">
             <div class="cp-card-crest">${c.emblem ? `<img src="${_esc(c.emblem)}" alt="" onerror="this.replaceWith(document.createTextNode('⚽'))">` : '⚽'}</div>
             <div class="cp-card-body">
               <div class="cp-card-name">${_esc(c.name || 'Club')}</div>
@@ -1623,7 +1693,7 @@ function renderClubs() {
           <div class="cp-card-crest placeholder">+</div>
           <div class="cp-card-body">
             <div class="cp-card-name">Onboard a new club</div>
-            <div class="cp-card-meta">Multi-Club Management →</div>
+            <div class="cp-card-meta">Create a new tenant →</div>
           </div>
         </button>
       </div>
@@ -33378,6 +33448,13 @@ async function tosBoardSnapshot() {
         case 'openOnboardClubModal':  openOnboardClubModal();  break;
         case 'closeOnboardClubModal': closeOnboardClubModal(); break;
         case 'submitOnboardClub':     submitOnboardClub();     break;
+        // ── Clubs picker → open the picked club workspace
+        case 'openClub': {
+          var _clubId = el.dataset.clubId || el.getAttribute('data-club-id') || '';
+          try { openClub(_clubId); }
+          catch (err) { try { console.error('[delegate] openClub failed:', err); } catch (_) {} }
+          break;
+        }
         default: console.warn('[delegate] Unknown action:', el.dataset.action);
       }
     } else if ('nav' in el.dataset) {

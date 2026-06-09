@@ -1,6 +1,8 @@
 // Familista — Club System routes (Phase R)
 // Mounted at /api/v1/clubs
 //
+// POST  /clubs              — onboard a new club (any authenticated user;
+//                             caller becomes CLUB_OWNER of the new club)
 // GET   /clubs/current      — caller's active club (read; any authenticated member)
 // GET   /clubs/:clubId      — club profile (tenant-guarded)
 // PATCH /clubs/:clubId      — update club + brand (CLUB_ADMIN / SUPER_ADMIN, tenant-guarded)
@@ -14,6 +16,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.post('/',       ctrl.createClub);
 router.get('/current', ctrl.getCurrentClub);
 router.get('/:clubId', ensureClubAccess, ctrl.getClub);
 router.patch(

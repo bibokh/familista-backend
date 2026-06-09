@@ -1,7 +1,8 @@
 // Familista — Club System controller (Phase R)
-// GET  /clubs/current      → caller's active club profile
-// GET  /clubs/:clubId      → club profile (tenant-guarded upstream)
-// PATCH /clubs/:clubId     → update club + brand (CLUB_ADMIN / SUPER_ADMIN)
+// POST  /clubs              → onboard a new club (any authenticated user)
+// GET   /clubs/current      → caller's active club profile
+// GET   /clubs/:clubId      → club profile (tenant-guarded upstream)
+// PATCH /clubs/:clubId      → update club + brand (CLUB_ADMIN / SUPER_ADMIN)
 
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
@@ -46,6 +47,50 @@ function zerr(err: z.ZodError): BadRequestError {
   return new BadRequestError(
     err.errors.map((e) => `${e.path.slice(1).join('.') || e.path[0] || 'body'}: ${e.message}`).join(', '),
   );
+}
+
+// POST /clubs — onboard a new club.
+//
+// Required: name, city. Optional: shortName, country, emblem (https URL).
+// Side-effect: caller receives a CLUB_OWNER Membership in the new club so it
+// shows up in /me/context.availableClubs immediately on next refresh.
+const createSchema = z.object({
+  body: z.object({
+    name:      text(120).min(1, 'name is required'),
+    city:      text(120).min(1, 'city is required'),
+    shortName: text(60).optional().nullable(),
+    country:   text(120).optional().nullable(),
+    emblem:    httpsUrl.optional().nullable(),
+  }).strict(),
+});
+
+export async function createClub(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = createSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const b = parsed.data.body;
+
+    const userId = req.user?.id;
+    if (!userId) throw new BadRequestError('No authenticated user');
+
+    const result = await svc.createClubWithOwnerMembership(
+      {
+        name:      b.name,
+        city:      b.city,
+        shortName: b.shortName ?? null,
+        country:   b.country   ?? null,
+        emblem:    b.emblem    ?? null,
+      },
+      userId,
+    );
+
+    return sendSuccess(
+      res,
+      { clubId: result.clubId, membershipId: result.membershipId, profile: result.profile },
+      'Club created',
+      201,
+    );
+  } catch (err) { return next(err); }
 }
 
 export async function getCurrentClub(req: Request, res: Response, next: NextFunction) {
