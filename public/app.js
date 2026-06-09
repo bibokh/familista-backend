@@ -90,6 +90,14 @@ const State = {
   coldStartInFlight: false,
 };
 
+// Expose State on window so the many `(window.State && State.X)` guards
+// scattered through this file work. Top-level `const` in a classic <script>
+// creates a lexical binding only — it does NOT attach to window. Without
+// this alias every defensive `window.State && …` short-circuits to false,
+// which is why the Clubs picker fell through to its FC-Familista fallback
+// even when availableClubs was correctly populated by AppContext.load().
+try { if (typeof window !== 'undefined') window.State = State; } catch (_) {}
+
 // ── Structured network error ─────────────────────────────────────────────
 class ApiError extends Error {
   constructor(opts) {
@@ -913,9 +921,34 @@ function submitOnboardClub() {
   FamilistaAPI.post('/clubs', payload).then(function (res) {
     // sendSuccess wraps as { success, data, message } — FamilistaAPI normalises.
     var data = (res && res.data) || res || {};
-    var newClubId = data.clubId || (data.profile && data.profile.id) || null;
+    var profile = data.profile || {};
+    var newClubId = data.clubId || profile.id || null;
 
-    // Refresh /me/context so availableClubs now includes the new club.
+    // ── Defence in depth ─────────────────────────────────────────────
+    // Splice the new club directly from the POST response into
+    // State.context.availableClubs, so the picker repaints with both
+    // cards even if the /me/context refresh below fails (cold start,
+    // token expiry, edge cache, etc.).
+    try {
+      State.context = State.context || { clubId: null, teamId: null, availableClubs: [] };
+      if (!Array.isArray(State.context.availableClubs)) State.context.availableClubs = [];
+      if (newClubId && !State.context.availableClubs.find(function (c) { return c && c.id === newClubId; })) {
+        State.context.availableClubs.push({
+          id:        newClubId,
+          name:      profile.name      || name,
+          shortName: profile.shortName || shortName || null,
+          emblem:    profile.emblem    || emblem    || null,
+          city:      profile.city      || city      || null,
+          country:   profile.country   || country   || null,
+          plan:      profile.plan      || 'BASIC',
+          teams:     [],
+          isActive:  true,
+        });
+      }
+    } catch (e) { try { console.warn('[onboard-club] splice failed:', e); } catch (_) {} }
+
+    // Refresh /me/context so availableClubs is the authoritative server view
+    // (replaces our optimistic splice with the canonical shape).
     return (typeof AppContext !== 'undefined' && AppContext.load ? AppContext.load() : Promise.resolve()).then(function () {
       // Re-render the picker if it's currently mounted.
       try { if (typeof renderClubs === 'function') renderClubs(); } catch (_) {}
