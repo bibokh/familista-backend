@@ -975,6 +975,30 @@ function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
+  // ── Separation guard ──
+  // Only the explicit allow-list (Owner Home, Clubs picker, the 8
+  // Platform pages, and the 9 Club Workspace pages) may activate
+  // through navTo. Any other page-name silently redirects to
+  // Owner Home to prevent hidden experimental surfaces from leaking
+  // into the visible chrome. Routes are NOT removed from the
+  // lazy-mount registry — internal CTAs that need them still work via
+  // a direct DOM mount — but they cannot become the active page.
+  var _ALLOWED_PAGES = {
+    'owner-home': 1, 'clubs': 1,
+    // PLATFORM (8)
+    'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
+    'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
+    'multi-club-network': 1, 'fos-admin-center': 1,
+    // CLUB WORKSPACE (9)
+    'dashboard': 1, 'squad': 1, 'training': 1, 'matches': 1,
+    'scouting': 1, 'video': 1, 'stats': 1, 'analytics': 1, 'club': 1,
+  };
+  if (!_ALLOWED_PAGES[page]) {
+    try { console.warn('[navTo] blocked non-allow-listed page:', page, '→ redirecting to owner-home'); } catch (_) {}
+    page = 'owner-home';
+    el = null;
+  }
+
   // Step 1 lazy-mount — ensure the target page's template is in the DOM
   // before we try to activate it. Idempotent for already-mounted pages.
   try { if (typeof _ensurePageMounted === 'function') _ensurePageMounted(page); } catch (_) {}
