@@ -107,20 +107,25 @@ router.get('/health', (_req, res) => {
 });
 
 // Public build marker — no auth, no DB. Lets clients self-verify which
-// commit Render has actually deployed. Bumped manually with each commit
-// so a curl https://.../api/v1/_build is enough to confirm rollout.
-// Also reports whether the /me/_diag route file is loaded (it must be,
-// because this file imports the same contextRoutes module).
+// commit Render has actually deployed.
+//
+// `commit` reads RENDER_GIT_COMMIT (set automatically in the Render build
+// environment) and falls back to a hand-bumped MANUAL_BUILD_MARKER when
+// running outside Render (local dev, tests). This means the field
+// auto-updates on every Render deploy with no manual bump needed.
 router.get('/_build', (_req, res) => {
+  const renderCommit = process.env.RENDER_GIT_COMMIT;
+  const MANUAL_BUILD_MARKER = 'local-dev';
   res.json({
-    commit:     'b0a1ce0',
-    builtAt:    '2026-06-09',
+    commit:    renderCommit ? renderCommit.slice(0, 7) : MANUAL_BUILD_MARKER,
+    fullSha:   renderCommit ?? null,
+    onRender:  Boolean(renderCommit),
     routes: {
       meContext: '/api/v1/me/context',
       meDiag:    '/api/v1/me/_diag',
       clubs:     '/api/v1/clubs',
     },
-    note: 'If commit field matches your latest push, the deploy is live.',
+    note: 'Compare the `commit` field to your latest push to main. Match = deploy is live.',
   });
 });
 
