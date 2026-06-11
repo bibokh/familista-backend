@@ -80,6 +80,22 @@ async function main() {
   });
   console.log(`✅ Team:  ${seniorTeam.name} (${seniorTeam.id})`);
 
+  // Coach — must be created BEFORE membershipSpecs so coach.id is defined.
+  const coachHash = await bcrypt.hash('Coach2024!', 12);
+  const coach = await prisma.user.upsert({
+    where: { email: 'coach@familista.io' },
+    update: {},
+    create: {
+      email:        'coach@familista.io',
+      passwordHash: coachHash,
+      firstName:    'Thomas',
+      lastName:     'Mueller',
+      role:         UserRole.HEAD_COACH,
+      clubId:       club.id,
+    },
+  });
+  console.log(`✅ Coach: ${coach.email}`);
+
   // Memberships mirror legacy roles so the Phase A tenant middleware
   // accepts these users immediately after deploy.
   const membershipSpecs: Array<{ userId: string; role: MembershipRole }> = [
@@ -109,22 +125,6 @@ async function main() {
     data:  { teamId: seniorTeam.id },
   });
   if (backfill.count > 0) console.log(`✅ Backfilled ${backfill.count} player(s) → Senior team`);
-
-  // Coach
-  const coachHash = await bcrypt.hash('Coach2024!', 12);
-  const coach = await prisma.user.upsert({
-    where: { email: 'coach@familista.io' },
-    update: {},
-    create: {
-      email:        'coach@familista.io',
-      passwordHash: coachHash,
-      firstName:    'Thomas',
-      lastName:     'Mueller',
-      role:         UserRole.HEAD_COACH,
-      clubId:       club.id,
-    },
-  });
-  console.log(`✅ Coach: ${coach.email}`);
 
   // ── Players ───────────────────────────────────────────────
   const playerDefs = [
