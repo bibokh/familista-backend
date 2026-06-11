@@ -62,7 +62,7 @@ export function errorHandler(
   // Unknown / programming errors
   // NOTE: req.body is intentionally omitted — it can contain plaintext passwords
   // (e.g. a failed login when the DB is down) and must never reach the log sink.
-  const errCode = (err as Record<string, unknown>).code as string | undefined;
+  const errCode = (err as unknown as { code?: string }).code;
   logger.error('Unexpected error', {
     message: err.message,
     code:    errCode,

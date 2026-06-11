@@ -728,22 +728,22 @@ export async function getScoutDashboard(actor: ScoutActor) {
     prisma.scoutProspect.groupBy({
       by: ['position'],
       where: { clubId: actor.clubId },
-      _count: { _all: true },
-      orderBy: { _count: { _all: 'desc' } },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
     }),
 
     prisma.scoutProspect.groupBy({
       by: ['nationality'],
       where: { clubId: actor.clubId, nationality: { not: null } },
-      _count: { _all: true },
-      orderBy: { _count: { _all: 'desc' } },
+      _count: { id: true },
+      orderBy: { _count: { id: 'desc' } },
       take: 10,
     }),
 
     prisma.scoutProspect.groupBy({
       by: ['recommendation'],
       where: { clubId: actor.clubId, recommendation: { not: null } },
-      _count: { _all: true },
+      _count: { id: true },
     }),
 
     getPipelineBoard(actor),
@@ -764,9 +764,9 @@ export async function getScoutDashboard(actor: ScoutActor) {
       watchlistCount,
       pipelineActive: total - signed - allProspects.filter((p) => p.status === 'REJECTED').length,
     },
-    positionDistribution: positionDist.map((p) => ({ position: p.position, count: p._count._all })),
-    nationalityDistribution: nationalityDist.map((n) => ({ nationality: n.nationality, count: n._count._all })),
-    potentialDistribution: potentialDist.map((r) => ({ recommendation: r.recommendation, count: r._count._all })),
+    positionDistribution: positionDist.map((p) => ({ position: p.position, count: p._count.id })),
+    nationalityDistribution: nationalityDist.map((n) => ({ nationality: n.nationality, count: n._count.id })),
+    potentialDistribution: potentialDist.map((r) => ({ recommendation: r.recommendation, count: r._count.id })),
     pipeline: Object.fromEntries(
       Object.entries(pipeline).map(([stage, prospects]) => [stage, prospects.length])
     ),
