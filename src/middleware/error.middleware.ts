@@ -62,18 +62,27 @@ export function errorHandler(
   // Unknown / programming errors
   // NOTE: req.body is intentionally omitted — it can contain plaintext passwords
   // (e.g. a failed login when the DB is down) and must never reach the log sink.
+  const errCode = (err as Record<string, unknown>).code as string | undefined;
   logger.error('Unexpected error', {
     message: err.message,
+    code:    errCode,
+    name:    err.constructor.name,
     stack: err.stack,
     path: req.path,
     method: req.method,
   });
 
-  res.status(500).json({
-    success: false,
-    message: config.isProd ? 'Internal server error' : err.message,
-    ...(config.isDev && { stack: err.stack }),
-  });
+  // Non-sensitive debug headers: error class name + Prisma P-code (if any).
+  // Allows diagnosing 500s from HTTP response headers without needing log access.
+  res
+    .status(500)
+    .header('X-Error-Type', err.constructor.name)
+    .header('X-Error-Code', errCode ?? '')
+    .json({
+      success: false,
+      message: config.isProd ? 'Internal server error' : err.message,
+      ...(config.isDev && { stack: err.stack }),
+    });
 }
 
 export function notFoundHandler(req: Request, res: Response): void {

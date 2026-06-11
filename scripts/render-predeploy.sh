@@ -27,6 +27,13 @@ npx prisma migrate resolve --applied 00000000000000_baseline $SCHEMA 2>/dev/null
   && echo "==> baseline resolved" || echo "==> baseline already recorded (skipping)"
 npx prisma migrate resolve --applied 20250525000000_add_phase_q_and_password_reset $SCHEMA 2>/dev/null \
   && echo "==> phase_q resolved" || echo "==> phase_q already recorded (skipping)"
+# Player-UUID remap and ScoutProspect: may already exist in the DB from a
+# prior db push.  Marking resolved lets the retry skip to 20260612 which
+# uses CREATE TABLE IF NOT EXISTS and is always safe to run.
+npx prisma migrate resolve --applied 20260603000000_player_uuid_id_migration $SCHEMA 2>/dev/null \
+  && echo "==> player_uuid_id resolved" || echo "==> player_uuid_id already recorded (skipping)"
+npx prisma migrate resolve --applied 20260611000000_add_scout_prospect $SCHEMA 2>/dev/null \
+  && echo "==> add_scout_prospect resolved" || echo "==> add_scout_prospect already recorded (skipping)"
 
 echo "==> Retrying prisma migrate deploy..."
 npx prisma migrate deploy $SCHEMA
