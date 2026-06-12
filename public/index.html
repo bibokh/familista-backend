@@ -22,7 +22,7 @@
 <script src="/familista-api-client.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20260609-onboard-fix2">
+<link rel="stylesheet" href="/app.css?v=20260609-club-reset">
 </head>
 <body>
 
@@ -234,44 +234,14 @@
         <span class="nav-label">System Settings</span>
       </div>
 
-      <!-- ═════════ CLUB WORKSPACE · FC Familista ═════════ -->
-      <div class="nav-section nav-tenant-header nav-section--workspace">FC FAMILISTA · CLUB WORKSPACE</div>
-      <div class="nav-item nav-item--workspace" data-nav="dashboard" data-page="dashboard">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zM3 12a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
-        <span class="nav-label">Dashboard</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="squad" data-page="squad">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
-        <span class="nav-label">Squad</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="training" data-page="training">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>
-        <span class="nav-label">Training</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="matches" data-page="matches">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
-        <span class="nav-label">Matches</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="scouting" data-page="scouting">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z"/><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clip-rule="evenodd"/></svg>
-        <span class="nav-label">Scouting</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="video" data-page="video">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm12.553 1.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"/></svg>
-        <span class="nav-label">Videos</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="stats" data-page="stats">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-        <span class="nav-label">Statistics</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="analytics" data-page="analytics">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
-        <span class="nav-label">Reports</span>
-      </div>
-      <div class="nav-item nav-item--workspace" data-nav="club" data-page="club">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z" clip-rule="evenodd"/></svg>
-        <span class="nav-label">Club Settings</span>
-      </div>
+      <!-- ═════════ CLUB WORKSPACE · sidebar slot ═════════ -->
+      <!-- 2026-06-09 reset: all workspace nav items removed.
+           Sidebar items will be added back here once the new
+           structure is defined. Each new item must use:
+              data-nav="<slug>" data-page="<slug>"
+           inside a div.nav-item.nav-item--workspace, plus a
+           span.nav-label with the display name. -->
+      <div class="nav-section nav-tenant-header nav-section--workspace">CLUB WORKSPACE</div>
 
 
     </nav>
@@ -966,6 +936,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260609-onboard-fix2" defer></script>
+<script src="/app.js?v=20260609-club-reset" defer></script>
 </body>
 </html>

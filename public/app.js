@@ -977,7 +977,7 @@ function openClub(clubId) {
   }
   var goToDashboard = function () {
     try { window.State = window.State || {}; window.State.context = window.State.context || {}; window.State.context.clubId = clubId; window.State.context.teamId = null; } catch (_) {}
-    try { navTo('dashboard', null); } catch (_) {}
+    try { navTo('club-home', null); } catch (_) {}
   };
   // If AppContext is available, route through it so /me/context is updated
   // server-side and AppContext._ctx stays consistent with the picker choice.
@@ -1174,8 +1174,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
-    'dashboard': 1, 'squad': 1, 'training': 1, 'matches': 1,
-    'scouting': 1, 'video': 1, 'stats': 1, 'analytics': 1, 'club': 1,
+    'club-home': 1,
   };
   if (!_ALLOWED_PAGES[page]) {
     try { console.warn('[navTo] blocked non-allow-listed page:', page, '→ redirecting to owner-home'); } catch (_) {}
@@ -1200,10 +1199,8 @@ function navTo(page, el, _opts) {
   const titles = {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
-    // ── Club Workspace (Phase B labels) ──
-    dashboard:'Dashboard', squad:'Squad', training:'Training', matches:'Matches',
-    'match-center':'Match Center', scouting:'Scouting', video:'Videos',
-    stats:'Statistics', analytics:'Reports', club:'Club Settings',
+    // ── Club Workspace ──
+    'club-home':'Club',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1235,24 +1232,20 @@ function navTo(page, el, _opts) {
       }
     } catch (_) {}
   }
-  // Hydrate the Owner Home / Clubs picker content slots if we just
-  // landed on one of them.
+  // Hydrate the Owner Home / Clubs picker / Club Home content slots if we
+  // just landed on one of them.
   try {
     if (page === 'owner-home' && typeof renderOwnerHome === 'function') renderOwnerHome();
     if (page === 'clubs'      && typeof renderClubs === 'function')      renderClubs();
+    if (page === 'club-home'  && typeof renderClubHome === 'function')   renderClubHome();
   } catch (_) {}
 
   // Lazy-load page data
-  if (page === 'analytics')   loadAnalyticsData();
   if (page === 'medical')     loadMedicalData();
   if (page === 'performance') loadPerformanceData();
-  if (page === 'scouting')    loadScoutingData();
-  if (page === 'video')       loadVideoIntelData();
   if (page === 'transfer')    loadTransferData();
-  if (page === 'stats')       loadStatsData();
   if (page === 'finances')    loadFinancesData();
   if (page === 'devices')     loadDevicesData();
-  if (page === 'club')        loadClubData();
   if (page === 'tournaments') loadTournamentsData();
   if (page === 'tactical-os') loadTacticalOS();
   if (page === 'admin')      loadAdminData();
@@ -1424,9 +1417,7 @@ function _buildPageTemplateMap() {
   _PAGE_TEMPLATE_MAP = {
     'owner-home':                  renderOwnerHomeHTML,
     'clubs':                       renderClubsHTML,
-    'dashboard':                   renderDashboardHTML,
-    'squad':                       renderSquadHTML,
-    'matches':                     renderMatchesHTML,
+    'club-home':                   renderClubHomeHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -1474,18 +1465,12 @@ function _buildPageTemplateMap() {
     'gis-financial':    function () { return renderGISHTML('gis-financial'); },
     'gis-performance':  function () { return renderGISHTML('gis-performance'); },
     'tournaments':                 renderTournamentsHTML,
-    'analytics':                   renderAnalyticsHTML,
     'ai':                          renderAIHTML,
-    'training':                    renderTrainingHTML,
     'medical':                     renderMedicalHTML,
     'performance':                 renderPerformanceHTML,
-    'scouting':                    renderScoutingHTML,
-    'video':                       renderVideoHTML,
     'transfer':                    renderTransferHTML,
-    'stats':                       renderStatsHTML,
     'finances':                    renderFinancesHTML,
     'devices':                     renderDevicesHTML,
-    'club':                        renderClubHTML,
     'settings':                    renderSettingsHTML,
     'quantum':                     renderQuantumHTML,
     'tactical-os':                 renderTacticalOSHTML,
@@ -1498,9 +1483,7 @@ function _buildPageTemplateMap() {
 // Pages reachable from the visible sidebar (Phase A + Phase B Owner Home).
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
-  'owner-home', 'clubs',
-  'dashboard', 'squad', 'training', 'matches',
-  'scouting', 'video', 'stats', 'analytics', 'club',
+  'owner-home', 'clubs', 'club-home',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -1732,6 +1715,54 @@ function renderClubs() {
       </div>
     </div>
   `;
+}
+
+// ── CLUB HOME ──
+// Single landing page for an active club workspace. After clicking a
+// card on the Clubs picker, openClub() switches /me/context and routes
+// here. Shows only: club logo, club name, short name, club owner name,
+// club owner email. All previous club workspace pages — Dashboard,
+// Squad, Training, Matches, Scouting, Videos, Statistics, Reports,
+// Club Settings — were removed in the 2026-06-09 reset.
+function renderClubHomeHTML() {
+  return '<div class="page" id="pg-club-home">'
+       +   '<div class="ch-wrap">'
+       +     '<div class="ch-card" id="club-home-card"></div>'
+       +   '</div>'
+       + '</div>';
+}
+function renderClubHome() {
+  var el = document.getElementById('club-home-card');
+  if (!el) return;
+  var ctx    = (window.State && State.context) || {};
+  var avail  = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
+  var active = avail.find(function (c) { return c && c.id === ctx.clubId; }) || null;
+  if (!active && window.State && State.club) {
+    active = {
+      id:        State.club.id,
+      name:      State.club.name,
+      emblem:    State.club.emblem,
+      shortName: State.club.shortName,
+    };
+  }
+  var name      = (active && active.name)      || 'Club';
+  var emblem    = (active && active.emblem)    || '';
+  var shortName = (active && active.shortName) || '';
+  var user       = (window.State && State.user) || {};
+  var ownerName  = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
+  var ownerEmail = user.email || '';
+  el.innerHTML = ''
+    + '<div class="ch-emblem">'
+    +   (emblem
+          ? '<img src="' + _esc(emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'⚽\'))">'
+          : '⚽')
+    + '</div>'
+    + '<div class="ch-name">' + _esc(name) + '</div>'
+    + (shortName ? '<div class="ch-short">' + _esc(shortName) + '</div>' : '')
+    + '<div class="ch-divider"></div>'
+    + '<div class="ch-owner-label">CLUB OWNER</div>'
+    + '<div class="ch-owner-name">' + _esc(ownerName) + '</div>'
+    + (ownerEmail ? '<div class="ch-owner-email">' + _esc(ownerEmail) + '</div>' : '');
 }
 
 // ── DASHBOARD (Phase B.2 — Premium Club Hero) ──
