@@ -22,7 +22,7 @@
 <script src="/familista-api-client.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css?v=20260609-club-reset">
+<link rel="stylesheet" href="/app.css?v=20260615-chd-widgets">
 </head>
 <body>
 
@@ -235,11 +235,10 @@
       </div>
 
       <!-- ═════════ CLUB WORKSPACE · sidebar slot ═════════ -->
+      <!-- Items are injected by buildWorkspaceSidebar() from CLUB_NAV_ITEMS in app.js.
+           To add/remove/reorder tabs, edit CLUB_NAV_ITEMS — do not add static divs here. -->
       <div class="nav-section nav-tenant-header nav-section--workspace">CLUB WORKSPACE</div>
-      <div class="nav-item nav-item--workspace" data-nav="club-home" data-page="club-home">
-        <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/></svg>
-        <span class="nav-label">Home</span>
-      </div>
+      <div id="workspace-nav-items"></div>
 
 
     </nav>
@@ -934,6 +933,6 @@
   </div>
 </div>
 
-<script src="/app.js?v=20260609-club-reset" defer></script>
+<script src="/app.js?v=20260615-chd-widgets" defer></script>
 </body>
 </html>

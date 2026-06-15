@@ -2407,60 +2407,470 @@ body.club-theme .topbar-back:focus-visible{
 body.club-theme .topbar-back svg{ display: block; flex-shrink: 0; }
 body.club-theme.area-home .topbar-back{ display: none !important; }
 
-/* ── Club Home (single landing card after entering a club) ─────── */
-body.club-theme #pg-club-home{ background: transparent; }
-body.club-theme .ch-wrap{
-  display: flex; align-items: center; justify-content: center;
-  min-height: calc(100vh - 120px); padding: 32px;
+/* ── Club Home Dashboard (chd-* namespace) ─────────────────────────────────
+   12-column responsive CSS grid.
+   Widget span is set via inline  style="grid-column:span N"  from HOME_WIDGETS.cols.
+   chd-grid → chd-widget → chd-widget-header + chd-widget-body
+   ─────────────────────────────────────────────────────────────────────────── */
+body.club-theme #pg-club-home{
+  background: var(--bg-canvas, #0C1120);
+  min-height: calc(100vh - var(--topbar-h, 56px));
+  overflow-y: auto;
 }
-body.club-theme .ch-card{
-  max-width: 480px; width: 100%;
-  padding: 48px 36px;
-  text-align: center;
-  border: 1px solid var(--b-default, #232B41);
-  border-radius: 16px;
+
+/* ── 12-col grid ── */
+body.club-theme .chd-grid{
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  padding: 20px 24px 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+/* Tablet: collapse to 8 cols */
+@media (max-width: 1024px){
+  body.club-theme .chd-grid{ grid-template-columns: repeat(8, 1fr); }
+}
+
+/* Mobile: single column */
+@media (max-width: 640px){
+  body.club-theme .chd-grid{
+    grid-template-columns: 1fr;
+    padding: 12px 14px 32px;
+    gap: 12px;
+  }
+  body.club-theme .chd-grid [style*="grid-column"]{
+    grid-column: 1 / -1 !important;
+  }
+}
+
+/* ── Base widget card ── */
+body.club-theme .chd-widget{
   background: var(--bg-elevated, #131A2D);
-  box-shadow: var(--sh-1, 0 1px 2px rgba(0,0,0,0.18));
-}
-body.club-theme .ch-emblem{
-  width: 96px; height: 96px; margin: 0 auto 18px;
-  border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, var(--pitch-600, #22C55E), var(--pitch-800, #15803D));
-  color: #fff; font-size: 42px; font-weight: 900;
-  box-shadow: 0 0 0 1px var(--pitch-700, #166534) inset;
+  border: 1px solid var(--b-default, #1E293B);
+  border-radius: 14px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 100px;
+  transition: border-color 0.15s ease;
 }
-body.club-theme .ch-emblem img{
-  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+body.club-theme .chd-widget:hover{
+  border-color: var(--b-strong, #334155);
 }
-body.club-theme .ch-name{
-  font-size: 26px; font-weight: 800;
+
+/* Widget title bar */
+body.club-theme .chd-widget-header{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--b-default, #1E293B);
+}
+body.club-theme .chd-widget-icon{
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+}
+body.club-theme .chd-widget-title{
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t-secondary, #64748B);
+}
+
+/* Widget body */
+body.club-theme .chd-widget-body{
+  padding: 16px 18px;
+  flex: 1;
+}
+
+/* Error fallback */
+body.club-theme .chd-widget-error{
+  color: var(--t-tertiary, #475569);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+/* ── Widget: Club Header (hero) ── */
+body.club-theme #chd-w-club-header{
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(34,197,94,0.12) 0%, transparent 70%),
+    linear-gradient(180deg, var(--bg-elevated, #131A2D) 0%, var(--bg-canvas, #0C1120) 100%);
+  border-bottom: 1px solid var(--b-default, #1E293B);
+  position: relative;
+}
+body.club-theme #chd-w-club-header::before{
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 0%, var(--pitch-500, #22C55E) 50%, transparent 100%);
+}
+body.club-theme #chd-wb-club-header{
+  padding: 44px 32px 36px;
+}
+body.club-theme .chd-hero-inner{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 18px;
+}
+body.club-theme .chd-hero-crest{
+  width: 88px; height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(34,197,94,0.35);
+  box-shadow: 0 0 0 4px rgba(34,197,94,0.08), 0 8px 32px rgba(0,0,0,0.5);
+}
+body.club-theme .chd-hero-crest--text{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  background: linear-gradient(135deg, var(--pitch-700, #15803D), var(--pitch-900, #052e16));
+}
+body.club-theme .chd-hero-text{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+body.club-theme .chd-hero-name{
+  margin: 0;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
   color: var(--t-primary, #F1F5F9);
-  margin: 0 0 6px;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.4);
 }
-body.club-theme .ch-short{
-  font-size: 13px; font-weight: 600;
-  color: var(--t-secondary, #94A3B8);
-  margin-bottom: 18px;
-  letter-spacing: 0.08em; text-transform: uppercase;
+body.club-theme .chd-hero-short{
+  display: inline-block;
+  padding: 3px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pitch-300, #86efac);
+  background: rgba(34,197,94,0.07);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 999px;
 }
-body.club-theme .ch-divider{
-  height: 1px; background: var(--b-default, #232B41);
-  margin: 24px 0;
+
+/* ── Widget: Club Information ── */
+body.club-theme .chd-info-list{
+  margin: 0; padding: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  font-size: 13px;
 }
-body.club-theme .ch-owner-label{
-  font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
-  color: var(--t-tertiary, #64748B);
-  text-transform: uppercase; margin-bottom: 10px;
+body.club-theme .chd-info-list dt{
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t-tertiary, #475569);
+  padding-top: 2px;
 }
-body.club-theme .ch-owner-name{
-  font-size: 16px; font-weight: 700;
+body.club-theme .chd-info-list dd{
+  margin: 0;
+  color: var(--t-primary, #F1F5F9);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* ── Widget: Club Statistics (3-col, 6 stats) ── */
+body.club-theme .chd-stat-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+body.club-theme .chd-stat{
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--b-default, #1E293B);
+  border-radius: 8px;
+  padding: 14px 14px 12px;
+  text-align: center;
+}
+body.club-theme .chd-stat-value{
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--t-primary, #F1F5F9);
+  line-height: 1;
+}
+body.club-theme .chd-stat-label{
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--t-tertiary, #475569);
+  margin-top: 6px;
+}
+
+/* ── Widget: Quick Actions ── */
+body.club-theme .chd-qa-grid{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+@media (max-width: 768px){
+  body.club-theme .chd-qa-grid{ grid-template-columns: repeat(2, 1fr); }
+}
+body.club-theme .chd-qa-btn{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--b-default, #1E293B);
+  border-radius: 10px;
+  cursor: not-allowed;
+  opacity: 0.7;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+body.club-theme .chd-qa-btn:not([disabled]){
+  cursor: pointer;
+  opacity: 1;
+}
+body.club-theme .chd-qa-btn:not([disabled]):hover{
+  background: rgba(74,222,128,0.05);
+  border-color: rgba(74,222,128,0.25);
+}
+body.club-theme .chd-qa-icon{ font-size: 22px; line-height: 1; }
+body.club-theme .chd-qa-label{
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--t-secondary, #64748B);
+  text-align: center;
+  line-height: 1.25;
+}
+
+/* ── Widget: generic placeholder (no data yet) ── */
+body.club-theme .chd-placeholder{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+  min-height: 80px;
+}
+body.club-theme .chd-ph-icon{ font-size: 28px; opacity: 0.45; }
+body.club-theme .chd-ph-text{
+  font-size: 13px;
+  color: var(--t-tertiary, #475569);
+}
+body.club-theme .chd-ph-api{
+  font-size: 10px;
+  color: var(--t-tertiary, #475569);
+  opacity: 0.5;
+  font-family: monospace;
+  margin-top: 4px;
+}
+
+/* ── Widget: Club Header — meta row (owner + location) ── */
+body.club-theme .chd-hero-meta{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--t-secondary, #64748B);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+body.club-theme .chd-hero-meta-sep{ opacity: 0.4; }
+
+/* ── Widget: Next Match ── */
+body.club-theme .chd-match{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+body.club-theme .chd-match-badge{
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 999px;
+  width: fit-content;
+}
+body.club-theme .chd-match-vs{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+}
+body.club-theme .chd-match-team{
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--t-primary, #F1F5F9);
+  flex: 1;
+  text-align: center;
+}
+body.club-theme .chd-match-sep{
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--t-tertiary, #475569);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+body.club-theme .chd-match-details{
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+body.club-theme .chd-match-detail{
+  font-size: 12px;
+  color: var(--t-secondary, #64748B);
+}
+
+/* ── Widget: Training Overview ── */
+body.club-theme .chd-training{
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+body.club-theme .chd-training-section{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+body.club-theme .chd-training-section + .chd-training-section{
+  padding-top: 14px;
+  border-top: 1px solid var(--b-default, #1E293B);
+}
+body.club-theme .chd-training-label{
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t-tertiary, #475569);
+  margin-bottom: 4px;
+}
+body.club-theme .chd-training-name{
+  font-size: 13.5px;
+  font-weight: 600;
   color: var(--t-primary, #F1F5F9);
 }
-body.club-theme .ch-owner-email{
-  margin-top: 4px; font-size: 13px;
-  color: var(--t-secondary, #94A3B8);
+body.club-theme .chd-training-detail{
+  font-size: 12px;
+  color: var(--t-secondary, #64748B);
+}
+body.club-theme .chd-training-bar-wrap{
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 6px 0 4px;
+}
+body.club-theme .chd-training-bar{
+  height: 100%;
+  background: linear-gradient(90deg, var(--pitch-600,#16a34a), var(--pitch-400,#4ade80));
+  border-radius: 999px;
+}
+body.club-theme .chd-training-pct{
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--pitch-400, #4ade80);
+}
+
+/* ── Widget: Recent Activity ── */
+body.club-theme .chd-activity-list{
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+body.club-theme .chd-activity-item{
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--b-default, #1E293B);
+}
+body.club-theme .chd-activity-item:last-child{ border-bottom: none; }
+body.club-theme .chd-activity-icon{
+  font-size: 14px;
+  text-align: center;
+  line-height: 1;
+}
+body.club-theme .chd-activity-text{
+  font-size: 12.5px;
+  color: var(--t-primary, #F1F5F9);
+  line-height: 1.35;
+}
+body.club-theme .chd-activity-time{
+  font-size: 11px;
+  color: var(--t-tertiary, #475569);
+  white-space: nowrap;
+}
+
+/* ── Widget: Announcements ── */
+body.club-theme .chd-announce-list{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+body.club-theme .chd-announce-card{
+  padding: 14px 16px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--b-default, #1E293B);
+  border-radius: 10px;
+}
+body.club-theme .chd-announce-card--high{
+  border-left: 3px solid #f472b6;
+  background: rgba(244,114,182,0.04);
+}
+body.club-theme .chd-announce-header{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+body.club-theme .chd-announce-title{
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t-primary, #F1F5F9);
+}
+body.club-theme .chd-announce-date{
+  font-size: 11px;
+  color: var(--t-tertiary, #475569);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+body.club-theme .chd-announce-body{
+  font-size: 12.5px;
+  color: var(--t-secondary, #64748B);
+  line-height: 1.5;
+}
+
+/* ── Widget: Quick Actions — enabled state ── */
+body.club-theme .chd-qa-btn:not([disabled]){
+  cursor: pointer;
+  opacity: 1;
+}
+body.club-theme .chd-qa-btn:not([disabled]):hover{
+  background: rgba(74,222,128,0.06);
+  border-color: rgba(74,222,128,0.28);
 }
 body.club-theme .topbar-emblem{
   width: 36px; height: 36px; border-radius: 50%;

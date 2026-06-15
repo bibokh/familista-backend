@@ -791,6 +791,355 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
   }
 })();
 
+// ── Club Workspace nav config ─────────────────────────────────────────────────
+// Each entry defines one sidebar item in the CLUB WORKSPACE section.
+//
+// Fields:
+//   slug    — page slug; MUST also appear in _ALLOWED_PAGES and _buildPageTemplateMap
+//   label   — text shown in the sidebar
+//   svgPath — a single heroicons-style <path d="…"> for a 20×20 icon
+//   color   — CSS color/variable for the icon tint (leave '' for theme default)
+//   enabled — set false to hide without deleting (default true)
+//   order   — ascending sort order
+//
+// ▶ TO ADD A NEW TAB:
+//   1. Push a new object to CLUB_NAV_ITEMS with a unique slug.
+//   2. Add the slug to _ALLOWED_PAGES (search "_ALLOWED_PAGES" below).
+//   3. Add a renderXxxHTML function and register it in _buildPageTemplateMap.
+//   4. If the page needs data, add a loadXxxData() call in the navTo lazy-load block.
+//
+var CLUB_NAV_ITEMS = [
+  {
+    slug:    'club-home',
+    label:   'Home',
+    svgPath: 'M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z',
+    color:   'var(--pitch-400,#4ade80)',
+    enabled: true,
+    order:   1,
+  },
+];
+
+// Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
+// Called once at boot; call again after mutating CLUB_NAV_ITEMS at runtime.
+function buildWorkspaceSidebar() {
+  var slot = document.getElementById('workspace-nav-items');
+  if (!slot) return;
+  var items = CLUB_NAV_ITEMS
+    .filter(function (n) { return n.enabled !== false; })
+    .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  slot.innerHTML = items.map(function (n) {
+    var iconStyle = n.color ? ' style="color:' + n.color + '"' : '';
+    return '<div class="nav-item nav-item--workspace" data-nav="' + n.slug
+      + '" data-page="' + n.slug + '">'
+      + '<svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"' + iconStyle + '>'
+      + '<path d="' + n.svgPath + '"/></svg>'
+      + '<span class="nav-label">' + n.label + '</span>'
+      + '</div>';
+  }).join('');
+}
+(function () {
+  function _boot() { try { buildWorkspaceSidebar(); } catch (_) {} }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _boot);
+  } else { _boot(); }
+})();
+
+// ── Home Dashboard widget config ─────────────────────────────────────────────
+// Drives the Club Home dashboard grid. Each entry = one card on the page.
+//
+// Fields:
+//   id         — unique key; must match a key in HOME_WIDGET_RENDERERS
+//   title      — header label (hidden when hideHeader: true)
+//   svgPath    — heroicons 20×20 <path d="…"> for the widget icon
+//   color      — CSS color / var() applied as icon tint and accent
+//   enabled    — false hides without deleting
+//   order      — ascending render order
+//   cols       — grid-column span out of 12  (1–12, default 6)
+//   hideHeader — omit the title bar (widget IS the visual header)
+//
+// ▶ TO ADD A WIDGET:
+//   1. Push an entry here with a unique id.
+//   2. Add a matching key → function in HOME_WIDGET_RENDERERS below.
+//   3. Implement renderWidget_<camelId>(ctx) → HTML string.
+//
+var HOME_WIDGETS = [
+  { id:'club-header',       title:'Club Header',        svgPath:'M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z',                                                                                                                                                                                                                                                                                                                color:'var(--pitch-400,#4ade80)',  enabled:true, order:1, cols:12, hideHeader:true },
+  { id:'club-info',         title:'Club Information',   svgPath:'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z',                                                                                                                                                                                                                                                                                                                                                     color:'var(--royal-400,#818cf8)', enabled:true, order:2, cols:4  },
+  { id:'next-match',        title:'Next Match',         svgPath:'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z',                                                                                                                                                                                                                                                                                                                              color:'var(--gold-400,#facc15)',   enabled:true, order:3, cols:4  },
+  { id:'training-overview', title:'Training Overview',  svgPath:'M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z',                                                                                                                                                                                                                                                                                                                                                                     color:'#fb923c',                   enabled:true, order:4, cols:4  },
+  { id:'recent-activity',   title:'Recent Activity',    svgPath:'M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z',                                                                                                                                                                                                                                                                                                                                                                   color:'#22d3ee',                   enabled:true, order:5, cols:6  },
+  { id:'club-stats',        title:'Club Statistics',    svgPath:'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z',                                                                                                                                                                                                                                                                            color:'#c084fc',                   enabled:true, order:6, cols:6  },
+  { id:'announcements',     title:'Club Announcements', svgPath:'M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z',                                                                                                                                                                                                                                                                                                                                                      color:'#f472b6',                   enabled:true, order:7, cols:12 },
+  { id:'quick-actions',     title:'Quick Actions',      svgPath:'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z',                                                                                                                                                                                  color:'var(--pitch-400,#4ade80)', enabled:true, order:8, cols:12 },
+];
+
+// ── Club Home mock data ───────────────────────────────────────────────────────
+// Each section maps to one widget by id.
+// ▶ TO WIRE A REAL API: replace the relevant section with fetched data, then
+//   call renderClubHome() to re-render the affected widget(s).
+var CLUB_HOME_DATA = {
+  info: {
+    founded:  '1880',
+    location: 'Manchester, England',
+    members:  247,
+    teams:    4,
+    season:   '2025 / 2026',
+  },
+  nextMatch: {
+    opponent:    'Liverpool FC',
+    date:        'Fri 20 Jun 2026',
+    time:        '15:00',
+    status:      'SCHEDULED',  // SCHEDULED | LIVE | POSTPONED | COMPLETED
+    stadium:     'Etihad Stadium',
+    competition: 'Premier League',
+  },
+  training: {
+    next: {
+      date:  'Tue 17 Jun 2026',
+      time:  '10:00',
+      type:  'Tactical Session',
+      venue: 'City Football Academy',
+    },
+    attendanceRate: 87,
+    lastSession: {
+      date:     'Sat 14 Jun 2026',
+      type:     'Fitness & Conditioning',
+      attended: 18,
+      squad:    22,
+    },
+  },
+  activity: [
+    { icon: '👤', text: 'Marcus Reed added to squad',          time: '2h ago'  },
+    { icon: '⚽', text: 'Match vs Arsenal logged (2–1 W)', time: '1d ago'  },
+    { icon: '⚡', text: 'Tactical Session scheduled',           time: '1d ago'  },
+    { icon: '👤', text: 'David Cruz added to squad',            time: '2d ago'  },
+    { icon: '📣', text: 'Season kickoff announcement posted',   time: '3d ago'  },
+    { icon: '⚽', text: 'Match vs Chelsea logged (1–1 D)', time: '5d ago'  },
+    { icon: '👤', text: 'Tom Ellis added to squad',             time: '6d ago'  },
+    { icon: '⚡', text: 'Fitness Session scheduled',            time: '7d ago'  },
+    { icon: '⚽', text: 'Match vs Spurs logged (3–0 W)',   time: '8d ago'  },
+    { icon: '👤', text: 'Ryan Blake added to squad',            time: '10d ago' },
+  ],
+  stats: {
+    players: 28,
+    coaches: 5,
+    matches: 14,
+    wins:    9,
+    draws:   3,
+    losses:  2,
+  },
+  announcements: [
+    {
+      title:    'Season Kickoff Meeting',
+      body:     'All players and staff are required to attend the pre-season briefing on 20 Jun at 09:00.',
+      date:     '13 Jun 2026',
+      priority: 'high',
+    },
+    {
+      title:    'New Training Schedule Posted',
+      body:     'The updated weekly training schedule for June / July is now live. Please check your assigned sessions.',
+      date:     '10 Jun 2026',
+      priority: 'normal',
+    },
+    {
+      title:    'Annual Medical Check-ups',
+      body:     'All players must complete their annual medical assessments before 30 Jun 2026.',
+      date:     '8 Jun 2026',
+      priority: 'normal',
+    },
+  ],
+  quickActions: [
+    { label: 'Add Player',      icon: '👤', action: 'add-player'      },
+    { label: 'Create Match',    icon: '⚽', action: 'create-match'    },
+    { label: 'Create Training', icon: '⚡', action: 'create-training' },
+    { label: 'Club Settings',   icon: '⚙️', action: 'club-settings' },
+  ],
+};
+
+// ── Widget render functions ───────────────────────────────────────────────────
+// Each: renderWidget_<id>(ctx) → HTML string
+// ctx  = live app state: { club:{id,name,emblem,shortName}, user:{...} }
+// Data = CLUB_HOME_DATA sections — replace each section with an API fetch when ready.
+//
+// ▶ Add new renderer functions here, then register in HOME_WIDGET_RENDERERS below.
+
+function renderWidget_clubHeader(ctx) {
+  var club     = ctx.club || {};
+  var user     = ctx.user || {};
+  var name     = club.name      || 'Club';
+  var short    = club.shortName || '';
+  var owner    = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
+  var location = CLUB_HOME_DATA.info.location;
+  var crest    = club.emblem
+    ? '<img src="' + _esc(club.emblem) + '" class="chd-hero-crest" onerror="this.style.display=\'none\'">'
+    : '<div class="chd-hero-crest chd-hero-crest--text">⚽</div>';
+  return '<div class="chd-hero-inner">'
+    + crest
+    + '<div class="chd-hero-text">'
+    +   '<h1 class="chd-hero-name">' + _esc(name) + '</h1>'
+    +   (short ? '<span class="chd-hero-short">' + _esc(short) + '</span>' : '')
+    +   '<div class="chd-hero-meta">'
+    +     '<span class="chd-hero-meta-item">👤 ' + _esc(owner) + '</span>'
+    +     '<span class="chd-hero-meta-sep">·</span>'
+    +     '<span class="chd-hero-meta-item">📍 ' + _esc(location) + '</span>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderWidget_clubInfo() {
+  var d = CLUB_HOME_DATA.info;
+  var rows = [
+    { label: 'Founded',       value: d.founded  },
+    { label: 'Location',      value: d.location },
+    { label: 'Members',       value: d.members  },
+    { label: 'Teams',         value: d.teams    },
+    { label: 'Active Season', value: d.season   },
+  ];
+  return '<dl class="chd-info-list">'
+    + rows.map(function (r) {
+        return '<dt>' + _esc(r.label) + '</dt><dd>' + _esc(String(r.value)) + '</dd>';
+      }).join('')
+    + '</dl>';
+}
+
+function renderWidget_nextMatch() {
+  var m = CLUB_HOME_DATA.nextMatch;
+  var statusColors = {
+    SCHEDULED: '#818cf8',
+    LIVE:      '#4ade80',
+    POSTPONED: '#f87171',
+    COMPLETED: '#64748b',
+  };
+  var sc = statusColors[m.status] || '#818cf8';
+  return '<div class="chd-match">'
+    + '<div class="chd-match-badge" style="color:' + sc + ';border-color:' + sc + '33;background:' + sc + '18">'
+    +   _esc(m.status)
+    + '</div>'
+    + '<div class="chd-match-vs">'
+    +   '<span class="chd-match-team">Your Club</span>'
+    +   '<span class="chd-match-sep">vs</span>'
+    +   '<span class="chd-match-team">' + _esc(m.opponent) + '</span>'
+    + '</div>'
+    + '<div class="chd-match-details">'
+    +   '<div class="chd-match-detail">📅 ' + _esc(m.date) + ' · ' + _esc(m.time) + '</div>'
+    +   '<div class="chd-match-detail">🏟 ' + _esc(m.stadium) + '</div>'
+    +   '<div class="chd-match-detail">🏆 ' + _esc(m.competition) + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderWidget_trainingOverview() {
+  var t   = CLUB_HOME_DATA.training;
+  var pct = Math.min(100, Math.max(0, t.attendanceRate));
+  return '<div class="chd-training">'
+    + '<div class="chd-training-section">'
+    +   '<div class="chd-training-label">NEXT SESSION</div>'
+    +   '<div class="chd-training-name">' + _esc(t.next.type) + '</div>'
+    +   '<div class="chd-training-detail">📅 ' + _esc(t.next.date) + ' · ' + _esc(t.next.time) + '</div>'
+    +   '<div class="chd-training-detail">📍 ' + _esc(t.next.venue) + '</div>'
+    + '</div>'
+    + '<div class="chd-training-section">'
+    +   '<div class="chd-training-label">ATTENDANCE RATE</div>'
+    +   '<div class="chd-training-bar-wrap"><div class="chd-training-bar" style="width:' + pct + '%"></div></div>'
+    +   '<div class="chd-training-pct">' + pct + '%</div>'
+    + '</div>'
+    + '<div class="chd-training-section">'
+    +   '<div class="chd-training-label">LAST SESSION</div>'
+    +   '<div class="chd-training-name">' + _esc(t.lastSession.type) + '</div>'
+    +   '<div class="chd-training-detail">' + _esc(t.lastSession.date) + ' · ' + t.lastSession.attended + ' / ' + t.lastSession.squad + ' attended</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderWidget_recentActivity() {
+  var items = CLUB_HOME_DATA.activity;
+  return '<ul class="chd-activity-list">'
+    + items.map(function (a) {
+        return '<li class="chd-activity-item">'
+          + '<span class="chd-activity-icon">' + a.icon + '</span>'
+          + '<span class="chd-activity-text">' + _esc(a.text) + '</span>'
+          + '<span class="chd-activity-time">' + _esc(a.time) + '</span>'
+          + '</li>';
+      }).join('')
+    + '</ul>';
+}
+
+function renderWidget_clubStats() {
+  var s = CLUB_HOME_DATA.stats;
+  var stats = [
+    { label: 'Players', value: s.players },
+    { label: 'Coaches', value: s.coaches },
+    { label: 'Matches', value: s.matches },
+    { label: 'Wins',    value: s.wins    },
+    { label: 'Draws',   value: s.draws   },
+    { label: 'Losses',  value: s.losses  },
+  ];
+  return '<div class="chd-stat-grid">'
+    + stats.map(function (stat) {
+        return '<div class="chd-stat">'
+          + '<div class="chd-stat-value">' + stat.value + '</div>'
+          + '<div class="chd-stat-label">' + _esc(stat.label) + '</div>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+function renderWidget_announcements() {
+  var items = CLUB_HOME_DATA.announcements;
+  if (!items || !items.length) {
+    return '<div class="chd-placeholder">'
+      + '<span class="chd-ph-icon">📣</span>'
+      + '<span class="chd-ph-text">No announcements yet</span>'
+      + '</div>';
+  }
+  return '<div class="chd-announce-list">'
+    + items.map(function (a) {
+        var hi = a.priority === 'high';
+        return '<div class="chd-announce-card' + (hi ? ' chd-announce-card--high' : '') + '">'
+          + '<div class="chd-announce-header">'
+          +   '<span class="chd-announce-title">' + _esc(a.title) + '</span>'
+          +   '<span class="chd-announce-date">' + _esc(a.date) + '</span>'
+          + '</div>'
+          + '<div class="chd-announce-body">' + _esc(a.body) + '</div>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
+function renderWidget_quickActions() {
+  var actions = CLUB_HOME_DATA.quickActions;
+  return '<div class="chd-qa-grid">'
+    + actions.map(function (a) {
+        return '<button class="chd-qa-btn" type="button" data-action="' + _esc(a.action) + '">'
+          + '<span class="chd-qa-icon">' + a.icon + '</span>'
+          + '<span class="chd-qa-label">' + _esc(a.label) + '</span>'
+          + '</button>';
+      }).join('')
+    + '</div>';
+}
+
+// Placeholder helper — used by widgets awaiting API integration
+function _chdPlaceholder(icon, text) {
+  return '<div class="chd-placeholder">'
+    + '<span class="chd-ph-icon">' + icon + '</span>'
+    + '<span class="chd-ph-text">' + _esc(text) + '</span>'
+    + '</div>';
+}
+
+// Registry: widget id → render function
+// ▶ Register new renderers here after adding to HOME_WIDGETS above.
+var HOME_WIDGET_RENDERERS = {
+  'club-header':       renderWidget_clubHeader,
+  'club-info':         renderWidget_clubInfo,
+  'next-match':        renderWidget_nextMatch,
+  'training-overview': renderWidget_trainingOverview,
+  'recent-activity':   renderWidget_recentActivity,
+  'club-stats':        renderWidget_clubStats,
+  'announcements':     renderWidget_announcements,
+  'quick-actions':     renderWidget_quickActions,
+};
+
 // ── Phase B · Area separation (Owner / System / Club) ────────────
 // `home`   = Owner Home or Clubs picker — sidebar hidden
 // `system` = System area — only platform/system nav items visible
@@ -1717,23 +2066,39 @@ function renderClubs() {
   `;
 }
 
-// ── CLUB HOME ──
-// Single landing page for an active club workspace. After clicking a
-// card on the Clubs picker, openClub() switches /me/context and routes
-// here. Shows only: club logo, club name, short name, club owner name,
-// club owner email. All previous club workspace pages — Dashboard,
-// Squad, Training, Matches, Scouting, Videos, Statistics, Reports,
-// Club Settings — were removed in the 2026-06-09 reset.
+// ── CLUB HOME v2 ──────────────────────────────────────────────────────────────
+// Default landing page for the club workspace. Renders a hero header with club
+// identity and an owner card below. openClub() routes here via navTo('club-home').
+//
+// ▶ TO EXPAND THIS PAGE: add a row to HOME_WIDGETS and a matching key in HOME_WIDGET_RENDERERS.
+//   renderClubHomeHTML() builds the container; renderClubHome() populates widget slots.
 function renderClubHomeHTML() {
+  var widgets = HOME_WIDGETS
+    .filter(function (w) { return w.enabled !== false; })
+    .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+
+  var slots = widgets.map(function (w) {
+    var span  = w.cols ? ' style="grid-column:span ' + w.cols + '"' : '';
+    var hdr   = w.hideHeader ? '' :
+      '<div class="chd-widget-header">'
+      + '<svg class="chd-widget-icon" fill="currentColor" viewBox="0 0 20 20"'
+      + (w.color ? ' style="color:' + w.color + '"' : '') + '>'
+      + '<path d="' + (w.svgPath || '') + '"/></svg>'
+      + '<span class="chd-widget-title">' + _esc(w.title || '') + '</span>'
+      + '</div>';
+    return '<div class="chd-widget" id="chd-w-' + _esc(w.id) + '"' + span + '>'
+      + hdr
+      + '<div class="chd-widget-body" id="chd-wb-' + _esc(w.id) + '"></div>'
+      + '</div>';
+  }).join('');
+
   return '<div class="page" id="pg-club-home">'
-       +   '<div class="ch-wrap">'
-       +     '<div class="ch-card" id="club-home-card"></div>'
-       +   '</div>'
-       + '</div>';
+    + '<div class="chd-grid">' + slots + '</div>'
+    + '</div>';
 }
+
 function renderClubHome() {
-  var el = document.getElementById('club-home-card');
-  if (!el) return;
+  // Build render context from app state
   var ctx    = (window.State && State.context) || {};
   var avail  = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
   var active = avail.find(function (c) { return c && c.id === ctx.clubId; }) || null;
@@ -1745,24 +2110,30 @@ function renderClubHome() {
       shortName: State.club.shortName,
     };
   }
-  var name      = (active && active.name)      || 'Club';
-  var emblem    = (active && active.emblem)    || '';
-  var shortName = (active && active.shortName) || '';
-  var user       = (window.State && State.user) || {};
-  var ownerName  = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
-  var ownerEmail = user.email || '';
-  el.innerHTML = ''
-    + '<div class="ch-emblem">'
-    +   (emblem
-          ? '<img src="' + _esc(emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'⚽\'))">'
-          : '⚽')
-    + '</div>'
-    + '<div class="ch-name">' + _esc(name) + '</div>'
-    + (shortName ? '<div class="ch-short">' + _esc(shortName) + '</div>' : '')
-    + '<div class="ch-divider"></div>'
-    + '<div class="ch-owner-label">CLUB OWNER</div>'
-    + '<div class="ch-owner-name">' + _esc(ownerName) + '</div>'
-    + (ownerEmail ? '<div class="ch-owner-email">' + _esc(ownerEmail) + '</div>' : '');
+  var renderCtx = {
+    club: {
+      id:        (active && active.id)        || '',
+      name:      (active && active.name)      || 'Club',
+      emblem:    (active && active.emblem)    || '',
+      shortName: (active && active.shortName) || '',
+    },
+    user: (window.State && State.user) || {},
+  };
+
+  // Render each enabled widget into its body slot
+  HOME_WIDGETS
+    .filter(function (w) { return w.enabled !== false; })
+    .forEach(function (w) {
+      var renderer = HOME_WIDGET_RENDERERS[w.id];
+      if (!renderer) return;
+      var bodyEl = document.getElementById('chd-wb-' + w.id);
+      if (!bodyEl) return;
+      try {
+        bodyEl.innerHTML = renderer(renderCtx);
+      } catch (e) {
+        bodyEl.innerHTML = '<div class="chd-widget-error">Widget error</div>';
+      }
+    });
 }
 
 // ── DASHBOARD (Phase B.2 — Premium Club Hero) ──
