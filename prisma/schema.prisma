@@ -167,6 +167,9 @@ model Club {
   // ── Scouting & Recruitment Center ──
   scoutProspects   ScoutProspect[]
 
+  // ── Club Home Dashboard ──
+  announcements    Announcement[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -9192,4 +9195,27 @@ model ScoutProspect {
   @@index([clubId, isOnWatchlist])
   @@index([clubId, recommendation])
   @@index([clubId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Club Home Dashboard — Announcements
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum AnnouncementPriority {
+  HIGH
+  NORMAL
+  LOW
+}
+
+model Announcement {
+  id        String               @id @default(uuid())
+  clubId    String
+  title     String               @db.VarChar(200)
+  body      String               @db.Text
+  priority  AnnouncementPriority @default(NORMAL)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  club      Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@index([clubId, createdAt(sort: Desc)])
 }

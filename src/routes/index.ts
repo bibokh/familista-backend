@@ -54,6 +54,8 @@ import clubAdminRoutes from './club-admin.routes';
 import tacticalAIRoutes from './tactical-ai.routes';
 // Phase R — Club System (club profile + branding, reuses Club + WhiteLabelConfig)
 import clubRoutes from './club.routes';
+// Club Home Dashboard
+import homeRoutes from './home.routes';
 
 const router = Router();
 
@@ -96,6 +98,7 @@ router.use('/scouting',            scoutingRoutes);
 router.use('/club-admin',          clubAdminRoutes);
 router.use('/tactical-ai',         tacticalAIRoutes);
 router.use('/clubs',               clubRoutes);
+router.use('/home',                homeRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

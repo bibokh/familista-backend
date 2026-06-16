@@ -873,88 +873,31 @@ var HOME_WIDGETS = [
   { id:'quick-actions',     title:'Quick Actions',      svgPath:'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z',                                                                                                                                                                                  color:'var(--pitch-400,#4ade80)', enabled:true, order:8, cols:12 },
 ];
 
-// ── Club Home mock data ───────────────────────────────────────────────────────
-// Each section maps to one widget by id.
-// ▶ TO WIRE A REAL API: replace the relevant section with fetched data, then
-//   call renderClubHome() to re-render the affected widget(s).
-var CLUB_HOME_DATA = {
-  info: {
-    founded:  '1880',
-    location: 'Manchester, England',
-    members:  247,
-    teams:    4,
-    season:   '2025 / 2026',
-  },
-  nextMatch: {
-    opponent:    'Liverpool FC',
-    date:        'Fri 20 Jun 2026',
-    time:        '15:00',
-    status:      'SCHEDULED',  // SCHEDULED | LIVE | POSTPONED | COMPLETED
-    stadium:     'Etihad Stadium',
-    competition: 'Premier League',
-  },
-  training: {
-    next: {
-      date:  'Tue 17 Jun 2026',
-      time:  '10:00',
-      type:  'Tactical Session',
-      venue: 'City Football Academy',
-    },
-    attendanceRate: 87,
-    lastSession: {
-      date:     'Sat 14 Jun 2026',
-      type:     'Fitness & Conditioning',
-      attended: 18,
-      squad:    22,
-    },
-  },
-  activity: [
-    { icon: '👤', text: 'Marcus Reed added to squad',          time: '2h ago'  },
-    { icon: '⚽', text: 'Match vs Arsenal logged (2–1 W)', time: '1d ago'  },
-    { icon: '⚡', text: 'Tactical Session scheduled',           time: '1d ago'  },
-    { icon: '👤', text: 'David Cruz added to squad',            time: '2d ago'  },
-    { icon: '📣', text: 'Season kickoff announcement posted',   time: '3d ago'  },
-    { icon: '⚽', text: 'Match vs Chelsea logged (1–1 D)', time: '5d ago'  },
-    { icon: '👤', text: 'Tom Ellis added to squad',             time: '6d ago'  },
-    { icon: '⚡', text: 'Fitness Session scheduled',            time: '7d ago'  },
-    { icon: '⚽', text: 'Match vs Spurs logged (3–0 W)',   time: '8d ago'  },
-    { icon: '👤', text: 'Ryan Blake added to squad',            time: '10d ago' },
-  ],
-  stats: {
-    players: 28,
-    coaches: 5,
-    matches: 14,
-    wins:    9,
-    draws:   3,
-    losses:  2,
-  },
-  announcements: [
-    {
-      title:    'Season Kickoff Meeting',
-      body:     'All players and staff are required to attend the pre-season briefing on 20 Jun at 09:00.',
-      date:     '13 Jun 2026',
-      priority: 'high',
-    },
-    {
-      title:    'New Training Schedule Posted',
-      body:     'The updated weekly training schedule for June / July is now live. Please check your assigned sessions.',
-      date:     '10 Jun 2026',
-      priority: 'normal',
-    },
-    {
-      title:    'Annual Medical Check-ups',
-      body:     'All players must complete their annual medical assessments before 30 Jun 2026.',
-      date:     '8 Jun 2026',
-      priority: 'normal',
-    },
-  ],
-  quickActions: [
-    { label: 'Add Player',      icon: '👤', action: 'add-player'      },
-    { label: 'Create Match',    icon: '⚽', action: 'create-match'    },
-    { label: 'Create Training', icon: '⚡', action: 'create-training' },
-    { label: 'Club Settings',   icon: '⚙️', action: 'club-settings' },
-  ],
-};
+// ── Club Home quick-actions config (static — these are navigation targets) ──
+var CLUB_HOME_QUICK_ACTIONS = [
+  { label: 'Add Player',      icon: '👤', action: 'add-player'      },
+  { label: 'Create Match',    icon: '⚽', action: 'create-match'    },
+  { label: 'Create Training', icon: '⚡', action: 'create-training' },
+  { label: 'Club Settings',   icon: '⚙️', action: 'club-settings'  },
+];
+
+// ── Date helpers for Club Home widgets ───────────────────────────────────────
+function _chdRelTime(iso) {
+  var diff = Date.now() - new Date(iso).getTime();
+  var m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return m + 'm ago';
+  var h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  var d = Math.floor(h / 24);
+  return d === 1 ? '1d ago' : d + 'd ago';
+}
+function _chdFmtDate(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+}
+function _chdFmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
+}
 
 // ── Widget render functions ───────────────────────────────────────────────────
 // Each: renderWidget_<id>(ctx) → HTML string
@@ -964,14 +907,16 @@ var CLUB_HOME_DATA = {
 // ▶ Add new renderer functions here, then register in HOME_WIDGET_RENDERERS below.
 
 function renderWidget_clubHeader(ctx) {
-  var club     = ctx.club || {};
-  var user     = ctx.user || {};
-  var name     = club.name      || 'Club';
-  var short    = club.shortName || '';
-  var owner    = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
-  var location = CLUB_HOME_DATA.info.location;
-  var crest    = club.emblem
-    ? '<img src="' + _esc(club.emblem) + '" class="chd-hero-crest" onerror="this.style.display=\'none\'">'
+  var club  = ctx.club || {};
+  var user  = ctx.user || {};
+  var d     = ctx.data && ctx.data.header;
+  var name  = (d && d.clubName)  || club.name      || 'Club';
+  var short = (d && d.shortName) || club.shortName  || '';
+  var owner = (d && d.ownerName) || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
+  var loc   = (d && d.location)  || '';
+  var emb   = (d && d.emblem)    || club.emblem || '';
+  var crest = emb
+    ? '<img src="' + _esc(emb) + '" class="chd-hero-crest" onerror="this.style.display=\'none\'">'
     : '<div class="chd-hero-crest chd-hero-crest--text">⚽</div>';
   return '<div class="chd-hero-inner">'
     + crest
@@ -980,21 +925,21 @@ function renderWidget_clubHeader(ctx) {
     +   (short ? '<span class="chd-hero-short">' + _esc(short) + '</span>' : '')
     +   '<div class="chd-hero-meta">'
     +     '<span class="chd-hero-meta-item">👤 ' + _esc(owner) + '</span>'
-    +     '<span class="chd-hero-meta-sep">·</span>'
-    +     '<span class="chd-hero-meta-item">📍 ' + _esc(location) + '</span>'
+    +     (loc ? '<span class="chd-hero-meta-sep">·</span><span class="chd-hero-meta-item">📍 ' + _esc(loc) + '</span>' : '')
     +   '</div>'
     + '</div>'
     + '</div>';
 }
 
-function renderWidget_clubInfo() {
-  var d = CLUB_HOME_DATA.info;
+function renderWidget_clubInfo(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading club info...');
+  var d = ctx.data.info || {};
   var rows = [
-    { label: 'Founded',       value: d.founded  },
-    { label: 'Location',      value: d.location },
-    { label: 'Members',       value: d.members  },
-    { label: 'Teams',         value: d.teams    },
-    { label: 'Active Season', value: d.season   },
+    { label: 'Founded',       value: d.founded  || '-' },
+    { label: 'Location',      value: d.location || '-' },
+    { label: 'Members',       value: d.members  != null ? d.members  : '-' },
+    { label: 'Teams',         value: d.teams    != null ? d.teams    : '-' },
+    { label: 'Active Season', value: d.season   || '-' },
   ];
   return '<dl class="chd-info-list">'
     + rows.map(function (r) {
@@ -1003,41 +948,46 @@ function renderWidget_clubInfo() {
     + '</dl>';
 }
 
-function renderWidget_nextMatch() {
-  var m = CLUB_HOME_DATA.nextMatch;
-  var statusColors = {
-    SCHEDULED: '#818cf8',
-    LIVE:      '#4ade80',
-    POSTPONED: '#f87171',
-    COMPLETED: '#64748b',
-  };
-  var sc = statusColors[m.status] || '#818cf8';
+function renderWidget_nextMatch(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading next match...');
+  var m = ctx.data.nextMatch;
+  if (!m) return _chdPlaceholder('📅', 'No upcoming match scheduled');
+  var statusColors = { SCHEDULED:'#818cf8', LIVE:'#4ade80', POSTPONED:'#f87171', COMPLETED:'#64748b' };
+  var sc        = statusColors[m.status] || '#818cf8';
+  var clubName  = ctx.club.name || 'Your Club';
+  var homeLabel = m.isHome ? clubName : m.homeTeam;
+  var awayLabel = m.isHome ? m.awayTeam : clubName;
   return '<div class="chd-match">'
     + '<div class="chd-match-badge" style="color:' + sc + ';border-color:' + sc + '33;background:' + sc + '18">'
     +   _esc(m.status)
     + '</div>'
     + '<div class="chd-match-vs">'
-    +   '<span class="chd-match-team">Your Club</span>'
+    +   '<span class="chd-match-team">' + _esc(homeLabel) + '</span>'
     +   '<span class="chd-match-sep">vs</span>'
-    +   '<span class="chd-match-team">' + _esc(m.opponent) + '</span>'
+    +   '<span class="chd-match-team">' + _esc(awayLabel) + '</span>'
     + '</div>'
     + '<div class="chd-match-details">'
     +   '<div class="chd-match-detail">📅 ' + _esc(m.date) + ' · ' + _esc(m.time) + '</div>'
-    +   '<div class="chd-match-detail">🏟 ' + _esc(m.stadium) + '</div>'
-    +   '<div class="chd-match-detail">🏆 ' + _esc(m.competition) + '</div>'
+    +   (m.venue       ? '<div class="chd-match-detail">🏟️ ' + _esc(m.venue) + '</div>' : '')
+    +   (m.competition ? '<div class="chd-match-detail">🏆 ' + _esc(String(m.competition)) + '</div>' : '')
     + '</div>'
     + '</div>';
 }
 
-function renderWidget_trainingOverview() {
-  var t   = CLUB_HOME_DATA.training;
-  var pct = Math.min(100, Math.max(0, t.attendanceRate));
+function renderWidget_trainingOverview(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading training data...');
+  var t   = ctx.data.training || {};
+  var pct = Math.min(100, Math.max(0, t.attendanceRate || 0));
+  var nxt = t.next;
+  var lst = t.lastSession;
   return '<div class="chd-training">'
     + '<div class="chd-training-section">'
     +   '<div class="chd-training-label">NEXT SESSION</div>'
-    +   '<div class="chd-training-name">' + _esc(t.next.type) + '</div>'
-    +   '<div class="chd-training-detail">📅 ' + _esc(t.next.date) + ' · ' + _esc(t.next.time) + '</div>'
-    +   '<div class="chd-training-detail">📍 ' + _esc(t.next.venue) + '</div>'
+    +   (nxt
+        ? '<div class="chd-training-name">' + _esc(nxt.title) + '</div>'
+        + '<div class="chd-training-detail">📅 ' + _esc(nxt.date) + ' · ' + _esc(nxt.time) + '</div>'
+        + (nxt.venue ? '<div class="chd-training-detail">📍 ' + _esc(nxt.venue) + '</div>' : '')
+        : '<div class="chd-training-name" style="color:var(--text-muted,#64748b)">No upcoming session</div>')
     + '</div>'
     + '<div class="chd-training-section">'
     +   '<div class="chd-training-label">ATTENDANCE RATE</div>'
@@ -1046,18 +996,22 @@ function renderWidget_trainingOverview() {
     + '</div>'
     + '<div class="chd-training-section">'
     +   '<div class="chd-training-label">LAST SESSION</div>'
-    +   '<div class="chd-training-name">' + _esc(t.lastSession.type) + '</div>'
-    +   '<div class="chd-training-detail">' + _esc(t.lastSession.date) + ' · ' + t.lastSession.attended + ' / ' + t.lastSession.squad + ' attended</div>'
+    +   (lst
+        ? '<div class="chd-training-name">' + _esc(lst.title) + '</div>'
+        + '<div class="chd-training-detail">' + _esc(lst.date) + ' · ' + lst.attended + ' / ' + lst.total + ' attended</div>'
+        : '<div class="chd-training-name" style="color:var(--text-muted,#64748b)">No past sessions</div>')
     + '</div>'
     + '</div>';
 }
 
-function renderWidget_recentActivity() {
-  var items = CLUB_HOME_DATA.activity;
+function renderWidget_recentActivity(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading activity...');
+  var items = ctx.data.activity;
+  if (!items || !items.length) return _chdPlaceholder('📋', 'No recent activity');
   return '<ul class="chd-activity-list">'
     + items.map(function (a) {
         return '<li class="chd-activity-item">'
-          + '<span class="chd-activity-icon">' + a.icon + '</span>'
+          + '<span class="chd-activity-icon">' + (a.icon || '·') + '</span>'
           + '<span class="chd-activity-text">' + _esc(a.text) + '</span>'
           + '<span class="chd-activity-time">' + _esc(a.time) + '</span>'
           + '</li>';
@@ -1065,15 +1019,16 @@ function renderWidget_recentActivity() {
     + '</ul>';
 }
 
-function renderWidget_clubStats() {
-  var s = CLUB_HOME_DATA.stats;
+function renderWidget_clubStats(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading stats...');
+  var s = ctx.data.stats || {};
   var stats = [
-    { label: 'Players', value: s.players },
-    { label: 'Coaches', value: s.coaches },
-    { label: 'Matches', value: s.matches },
-    { label: 'Wins',    value: s.wins    },
-    { label: 'Draws',   value: s.draws   },
-    { label: 'Losses',  value: s.losses  },
+    { label: 'Players', value: s.players != null ? s.players : '-' },
+    { label: 'Coaches', value: s.coaches != null ? s.coaches : '-' },
+    { label: 'Matches', value: s.matches != null ? s.matches : '-' },
+    { label: 'Wins',    value: s.wins    != null ? s.wins    : '-' },
+    { label: 'Draws',   value: s.draws   != null ? s.draws   : '-' },
+    { label: 'Losses',  value: s.losses  != null ? s.losses  : '-' },
   ];
   return '<div class="chd-stat-grid">'
     + stats.map(function (stat) {
@@ -1085,8 +1040,9 @@ function renderWidget_clubStats() {
     + '</div>';
 }
 
-function renderWidget_announcements() {
-  var items = CLUB_HOME_DATA.announcements;
+function renderWidget_announcements(ctx) {
+  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading announcements...');
+  var items = ctx.data.announcements;
   if (!items || !items.length) {
     return '<div class="chd-placeholder">'
       + '<span class="chd-ph-icon">📣</span>'
@@ -1108,9 +1064,8 @@ function renderWidget_announcements() {
 }
 
 function renderWidget_quickActions() {
-  var actions = CLUB_HOME_DATA.quickActions;
   return '<div class="chd-qa-grid">'
-    + actions.map(function (a) {
+    + CLUB_HOME_QUICK_ACTIONS.map(function (a) {
         return '<button class="chd-qa-btn" type="button" data-action="' + _esc(a.action) + '">'
           + '<span class="chd-qa-icon">' + a.icon + '</span>'
           + '<span class="chd-qa-label">' + _esc(a.label) + '</span>'
@@ -1524,6 +1479,8 @@ function navTo(page, el, _opts) {
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
     'club-home': 1,
+    // Club Settings (reachable via Quick Actions on Home)
+    'settings': 1,
   };
   if (!_ALLOWED_PAGES[page]) {
     try { console.warn('[navTo] blocked non-allow-listed page:', page, '→ redirecting to owner-home'); } catch (_) {}
@@ -2098,7 +2055,7 @@ function renderClubHomeHTML() {
 }
 
 function renderClubHome() {
-  // Build render context from app state
+  // Build render context from State (available immediately)
   var ctx    = (window.State && State.context) || {};
   var avail  = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
   var active = avail.find(function (c) { return c && c.id === ctx.clubId; }) || null;
@@ -2117,10 +2074,26 @@ function renderClubHome() {
       emblem:    (active && active.emblem)    || '',
       shortName: (active && active.shortName) || '',
     },
-    user: (window.State && State.user) || {},
+    user:    (window.State && State.user) || {},
+    data:    null,
+    loading: true,
   };
 
-  // Render each enabled widget into its body slot
+  // Phase 1: render immediately with loading placeholders
+  _renderHomeWidgets(renderCtx);
+
+  // Phase 2: fetch real data, re-render all widgets
+  FamilistaAPI.get('/home/dashboard').then(function (res) {
+    if (!res || !res.success || !res.data) return;
+    renderCtx.data    = res.data;
+    renderCtx.loading = false;
+    _renderHomeWidgets(renderCtx);
+  }).catch(function () {
+    // Loading skeletons remain visible on error — no crash
+  });
+}
+
+function _renderHomeWidgets(ctx) {
   HOME_WIDGETS
     .filter(function (w) { return w.enabled !== false; })
     .forEach(function (w) {
@@ -2129,7 +2102,7 @@ function renderClubHome() {
       var bodyEl = document.getElementById('chd-wb-' + w.id);
       if (!bodyEl) return;
       try {
-        bodyEl.innerHTML = renderer(renderCtx);
+        bodyEl.innerHTML = renderer(ctx);
       } catch (e) {
         bodyEl.innerHTML = '<div class="chd-widget-error">Widget error</div>';
       }
@@ -33901,6 +33874,11 @@ async function tosBoardSnapshot() {
           catch (err) { try { console.error('[delegate] topbarBack failed:', err); } catch (_) {} }
           break;
         }
+        // ── Club Home Quick Actions ──────────────────────────────────────────────
+        case 'add-player':      try { openAddPlayerModal();     } catch(_){} break;
+        case 'create-match':    try { openScheduleMatchModal(); } catch(_){} break;
+        case 'create-training': try { openNewSessionModal();    } catch(_){} break;
+        case 'club-settings':   try { navTo('settings', null);  } catch(_){} break;
         // ── Onboard New Club modal
         case 'openOnboardClubModal':  openOnboardClubModal();  break;
         case 'closeOnboardClubModal': closeOnboardClubModal(); break;
