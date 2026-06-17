@@ -2088,8 +2088,24 @@ function renderClubHome() {
     renderCtx.data    = res.data;
     renderCtx.loading = false;
     _renderHomeWidgets(renderCtx);
-  }).catch(function () {
-    // Loading skeletons remain visible on error — no crash
+  }).catch(function (err) {
+    var status  = err && err.status;
+    var is401   = status === 401;
+    var errHtml = is401
+      ? '<div class="chd-placeholder">'
+        + '<span class="chd-ph-icon">🔒</span>'
+        + '<span class="chd-ph-text"><strong>Session expired</strong><br>Sign in again to load your dashboard.</span>'
+        + '<button type="button" class="btn btn-primary btn-sm" style="margin-top:10px"'
+        +   ' onclick="if(typeof doLogout===\'function\')doLogout()">Sign in again</button>'
+        + '</div>'
+      : '<div class="chd-placeholder">'
+        + '<span class="chd-ph-icon">⚠️</span>'
+        + '<span class="chd-ph-text">Server error' + (status ? ' (' + status + ')' : '') + ' — refresh the page to retry.</span>'
+        + '</div>';
+    ['club-info', 'next-match', 'training-overview', 'recent-activity', 'club-stats', 'announcements'].forEach(function (wid) {
+      var el = document.getElementById('chd-wb-' + wid);
+      if (el) el.innerHTML = errHtml;
+    });
   });
 }
 
