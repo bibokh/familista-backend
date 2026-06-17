@@ -282,18 +282,25 @@ export async function getDashboard(clubId: string, userId: string): Promise<Home
   type RawItem = { icon: string; text: string; rawTime: Date };
 
   const rawItems: RawItem[] = [
-    ...playerLogs.map(log => ({
-      icon: '👤',
-      text: log.action === PlayerAuditAction.CREATE
-        ? `${log.player.firstName} ${log.player.lastName} added to squad`
-        : `${log.player.firstName} ${log.player.lastName} profile updated`,
-      rawTime: log.createdAt,
-    })),
-    ...matchLogs.map(log => ({
-      icon:    '⚽',
-      text:    `Match: ${log.match.homeTeam} vs ${log.match.awayTeam} created`,
-      rawTime: log.createdAt,
-    })),
+    ...playerLogs.flatMap(log => {
+      // Prisma types player as non-null, but orphaned audit rows return null at runtime
+      if ((log.player as unknown) == null) return [];
+      return [{
+        icon:    '👤',
+        text:    log.action === PlayerAuditAction.CREATE
+          ? `${log.player.firstName} ${log.player.lastName} added to squad`
+          : `${log.player.firstName} ${log.player.lastName} profile updated`,
+        rawTime: log.createdAt,
+      }];
+    }),
+    ...matchLogs.flatMap(log => {
+      if ((log.match as unknown) == null) return [];
+      return [{
+        icon:    '⚽',
+        text:    `Match: ${log.match.homeTeam} vs ${log.match.awayTeam} created`,
+        rawTime: log.createdAt,
+      }];
+    }),
     ...trainingLogs.map(s => ({
       icon:    '⚡',
       text:    `${s.title} session scheduled`,
