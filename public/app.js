@@ -1891,24 +1891,175 @@ function _sqSubHtml(id, label, color, svgPath) {
 }
 
 function renderSquadHTML() {
+  // ── Lineup: football pitch top-down, 4-3-3 ──────────────────────
+  var iLu = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs>'
+    + '<radialGradient id="lu-bg" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="#1b4d32"/><stop offset="100%" stop-color="#0c2519"/></radialGradient>'
+    + '<filter id="lu-ga"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<filter id="lu-gb"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '</defs>'
+    + '<rect width="220" height="160" rx="10" fill="url(#lu-bg)"/>'
+    + '<rect x="0" y="0" width="220" height="27" rx="10" fill="rgba(255,255,255,.016)"/>'
+    + '<rect x="0" y="54" width="220" height="27" fill="rgba(255,255,255,.016)"/>'
+    + '<rect x="0" y="108" width="220" height="27" fill="rgba(255,255,255,.016)"/>'
+    + '<rect x="7" y="7" width="206" height="146" rx="5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
+    + '<line x1="110" y1="7" x2="110" y2="153" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
+    + '<circle cx="110" cy="80" r="22" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
+    + '<circle cx="110" cy="80" r="2" fill="rgba(255,255,255,.28)"/>'
+    + '<rect x="7" y="44" width="40" height="72" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
+    + '<rect x="173" y="44" width="40" height="72" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
+    + '<rect x="2" y="66" width="5" height="28" rx="1" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.5"/>'
+    + '<rect x="213" y="66" width="5" height="28" rx="1" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.5"/>'
+    + '<line x1="28" y1="80" x2="51" y2="36" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="28" y1="80" x2="51" y2="63" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="28" y1="80" x2="51" y2="97" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="28" y1="80" x2="51" y2="124" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="87" y1="53" x2="147" y2="43" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="87" y1="80" x2="161" y2="80" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<line x1="87" y1="107" x2="147" y2="117" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<circle cx="22" cy="80" r="7.5" fill="#4ade80" filter="url(#lu-ga)"/><circle cx="22" cy="80" r="3.5" fill="#fff" opacity=".7"/>'
+    + '<circle cx="51" cy="36" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="36" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="51" cy="63" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="63" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="51" cy="97" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="97" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="51" cy="124" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="124" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="87" cy="53" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="53" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="87" cy="80" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="80" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="87" cy="107" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="107" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="147" cy="43" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="147" cy="43" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="161" cy="80" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="161" cy="80" r="3" fill="#fff" opacity=".65"/>'
+    + '<circle cx="147" cy="117" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="147" cy="117" r="3" fill="#fff" opacity=".65"/>'
+    + '</svg>';
+
+  // ── Formation: connected node graph, 4-3-3 ──────────────────────
+  var iFm = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs>'
+    + '<radialGradient id="fm-bg" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="#130c2e"/><stop offset="100%" stop-color="#07040f"/></radialGradient>'
+    + '<filter id="fm-gn"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<filter id="fm-gs"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '</defs>'
+    + '<rect width="220" height="160" rx="10" fill="url(#fm-bg)"/>'
+    + '<g fill="rgba(255,255,255,.06)">'
+    + '<circle cx="22" cy="20" r="1.2"/><circle cx="55" cy="20" r="1.2"/><circle cx="88" cy="20" r="1.2"/><circle cx="121" cy="20" r="1.2"/><circle cx="154" cy="20" r="1.2"/><circle cx="187" cy="20" r="1.2"/>'
+    + '<circle cx="22" cy="50" r="1.2"/><circle cx="55" cy="50" r="1.2"/><circle cx="88" cy="50" r="1.2"/><circle cx="121" cy="50" r="1.2"/><circle cx="154" cy="50" r="1.2"/><circle cx="187" cy="50" r="1.2"/>'
+    + '<circle cx="22" cy="80" r="1.2"/><circle cx="55" cy="80" r="1.2"/><circle cx="88" cy="80" r="1.2"/><circle cx="121" cy="80" r="1.2"/><circle cx="154" cy="80" r="1.2"/><circle cx="187" cy="80" r="1.2"/>'
+    + '<circle cx="22" cy="110" r="1.2"/><circle cx="55" cy="110" r="1.2"/><circle cx="88" cy="110" r="1.2"/><circle cx="121" cy="110" r="1.2"/><circle cx="154" cy="110" r="1.2"/><circle cx="187" cy="110" r="1.2"/>'
+    + '<circle cx="22" cy="140" r="1.2"/><circle cx="55" cy="140" r="1.2"/><circle cx="88" cy="140" r="1.2"/><circle cx="121" cy="140" r="1.2"/><circle cx="154" cy="140" r="1.2"/><circle cx="187" cy="140" r="1.2"/>'
+    + '</g>'
+    + '<g stroke="rgba(139,92,246,.28)" stroke-width="1.2">'
+    + '<line x1="110" y1="143" x2="32" y2="111"/><line x1="110" y1="143" x2="79" y2="111"/><line x1="110" y1="143" x2="141" y2="111"/><line x1="110" y1="143" x2="188" y2="111"/>'
+    + '<line x1="32" y1="111" x2="55" y2="78"/><line x1="79" y1="111" x2="55" y2="78"/><line x1="79" y1="111" x2="110" y2="75"/>'
+    + '<line x1="141" y1="111" x2="110" y2="75"/><line x1="141" y1="111" x2="165" y2="78"/><line x1="188" y1="111" x2="165" y2="78"/>'
+    + '<line x1="55" y1="78" x2="57" y2="40"/><line x1="55" y1="78" x2="110" y2="34"/><line x1="110" y1="75" x2="110" y2="34"/>'
+    + '<line x1="165" y1="78" x2="110" y2="34"/><line x1="165" y1="78" x2="163" y2="40"/>'
+    + '</g>'
+    + '<circle cx="110" cy="143" r="10.5" fill="rgba(139,92,246,.2)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="110" y="147.5" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" font-family="system-ui,sans-serif">GK</text>'
+    + '<circle cx="32" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="32" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LB</text>'
+    + '<circle cx="79" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="79" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CB</text>'
+    + '<circle cx="141" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="141" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CB</text>'
+    + '<circle cx="188" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="188" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RB</text>'
+    + '<circle cx="55" cy="78" r="9.5" fill="rgba(167,139,250,.25)" stroke="#a78bfa" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="55" y="82" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LM</text>'
+    + '<circle cx="110" cy="75" r="11" fill="rgba(167,139,250,.3)" stroke="#a78bfa" stroke-width="2" filter="url(#fm-gn)"/>'
+    + '<text x="110" y="79.5" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CM</text>'
+    + '<circle cx="165" cy="78" r="9.5" fill="rgba(167,139,250,.25)" stroke="#a78bfa" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="165" y="82" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RM</text>'
+    + '<circle cx="57" cy="40" r="9.5" fill="rgba(192,132,252,.3)" stroke="#c084fc" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="57" y="44" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LW</text>'
+    + '<circle cx="110" cy="34" r="11" fill="rgba(192,132,252,.35)" stroke="#c084fc" stroke-width="2" filter="url(#fm-gn)"/>'
+    + '<text x="110" y="38.5" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">ST</text>'
+    + '<circle cx="163" cy="40" r="9.5" fill="rgba(192,132,252,.3)" stroke="#c084fc" stroke-width="1.5" filter="url(#fm-gs)"/>'
+    + '<text x="163" y="44" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RW</text>'
+    + '</svg>';
+
+  // ── Tactics: board with movement arrows ──────────────────────────
+  var iTc = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    + '<defs>'
+    + '<radialGradient id="tc-bg" cx="50%" cy="30%" r="80%"><stop offset="0%" stop-color="#1c1015"/><stop offset="100%" stop-color="#08050e"/></radialGradient>'
+    + '<marker id="tc-a1" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fb923c"/></marker>'
+    + '<marker id="tc-a2" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fbbf24"/></marker>'
+    + '<filter id="tc-g"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '</defs>'
+    + '<rect width="220" height="160" rx="10" fill="url(#tc-bg)"/>'
+    + '<g stroke="rgba(255,255,255,.035)" stroke-width="1">'
+    + '<line x1="0" y1="40" x2="220" y2="40"/><line x1="0" y1="80" x2="220" y2="80"/><line x1="0" y1="120" x2="220" y2="120"/>'
+    + '<line x1="55" y1="0" x2="55" y2="160"/><line x1="110" y1="0" x2="110" y2="160"/><line x1="165" y1="0" x2="165" y2="160"/>'
+    + '</g>'
+    + '<ellipse cx="110" cy="80" rx="60" ry="46" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5"/>'
+    + '<ellipse cx="110" cy="80" rx="30" ry="23" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
+    + '<path d="M 48,118 C 44,95 62,78 94,60" stroke="#fb923c" stroke-width="2.5" marker-end="url(#tc-a1)" filter="url(#tc-g)"/>'
+    + '<path d="M 110,108 C 118,90 140,76 168,60" stroke="#fb923c" stroke-width="2.5" marker-end="url(#tc-a1)" filter="url(#tc-g)"/>'
+    + '<path d="M 88,86 C 93,76 100,68 110,58" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#tc-a2)"/>'
+    + '<circle cx="48" cy="120" r="8.5" fill="rgba(249,115,22,.2)" stroke="#fb923c" stroke-width="2" filter="url(#tc-g)"/>'
+    + '<circle cx="48" cy="120" r="3.5" fill="#fb923c" opacity=".9"/>'
+    + '<circle cx="110" cy="110" r="8.5" fill="rgba(249,115,22,.2)" stroke="#fb923c" stroke-width="2" filter="url(#tc-g)"/>'
+    + '<circle cx="110" cy="110" r="3.5" fill="#fb923c" opacity=".9"/>'
+    + '<circle cx="88" cy="88" r="7.5" fill="rgba(251,191,36,.2)" stroke="#fbbf24" stroke-width="1.8"/>'
+    + '<circle cx="88" cy="88" r="3" fill="#fbbf24" opacity=".9"/>'
+    + '<circle cx="94" cy="58" r="4.5" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".65"/>'
+    + '<circle cx="168" cy="58" r="4.5" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".65"/>'
+    + '<circle cx="110" cy="56" r="4.5" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".6"/>'
+    + '</svg>';
+
+  // ── Arrow icon for card footer ───────────────────────────────────
+  var arrowSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px">'
+    + '<path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>'
+    + '</svg>';
+
+  // ── Card data ────────────────────────────────────────────────────
   var cards = [
-    { id:'lineup',    label:'Lineup',    color:'#f59e0b', svgPath:'M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z' },
-    { id:'formation', label:'Formation', color:'#a78bfa', svgPath:'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
-    { id:'tactics',   label:'Tactics',   color:'#fb923c', svgPath:'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z' },
+    {
+      id: 'lineup',    modClass: 'sq-module-card--lineup',
+      label: 'Lineup', desc: 'Define starting positions & roles',
+      iconColor: '#f59e0b',
+      iconPath: 'M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z',
+      illus: iLu,
+    },
+    {
+      id: 'formation', modClass: 'sq-module-card--formation',
+      label: 'Formation', desc: 'Structure and player node graph',
+      iconColor: '#a78bfa',
+      iconPath: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
+      illus: iFm,
+    },
+    {
+      id: 'tactics',   modClass: 'sq-module-card--tactics',
+      label: 'Tactics', desc: 'Movements & strategy planning',
+      iconColor: '#fb923c',
+      iconPath: 'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z',
+      illus: iTc,
+    },
   ];
+
   var cardHtml = cards.map(function (c) {
-    return '<div class="sq-card" data-action="squadNav" data-squad-page="' + c.id + '">'
-      + '<svg class="sq-card-icon" style="color:' + c.color + '" fill="currentColor" viewBox="0 0 20 20"><path d="' + c.svgPath + '"/></svg>'
-      + '<span class="sq-card-label">' + c.label + '</span>'
+    return '<div class="sq-module-card ' + c.modClass + '" data-action="squadNav" data-squad-page="' + c.id + '">'
+      + '<div class="sq-module-top-bar"></div>'
+      + '<div class="sq-module-illus">' + c.illus + '</div>'
+      + '<div class="sq-module-footer">'
+      +   '<div class="sq-module-footer-left">'
+      +     '<svg class="sq-module-footer-icon" style="color:' + c.iconColor + '" fill="currentColor" viewBox="0 0 20 20"><path d="' + c.iconPath + '"/></svg>'
+      +     '<div>'
+      +       '<h3 class="sq-module-title">' + c.label + '</h3>'
+      +       '<p class="sq-module-desc">' + c.desc + '</p>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="sq-module-arrow">' + arrowSvg + '</div>'
+      + '</div>'
       + '</div>';
   }).join('');
+
   var subHtml = cards.map(function (c) {
-    return _sqSubHtml(c.id, c.label, c.color, c.svgPath);
+    return _sqSubHtml(c.id, c.label, c.iconColor, c.iconPath);
   }).join('');
+
   return '<div class="page" id="pg-squad">'
     + '<div id="sq-home">'
-    +   '<div style="padding:32px 32px 24px"><h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1></div>'
-    +   '<div class="sq-cards">' + cardHtml + '</div>'
+    +   '<div style="padding:32px 32px 28px"><h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1></div>'
+    +   '<div class="sq-module-cards">' + cardHtml + '</div>'
     + '</div>'
     + subHtml
     + '</div>';

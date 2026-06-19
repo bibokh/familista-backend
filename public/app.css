@@ -3059,40 +3059,112 @@ body.club-theme .nav-item--workspace.active{
 }
 body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !important; }
 
-/* Squad page — 3-card picker */
-.sq-cards{
+/* Squad page — premium module cards */
+.sq-module-cards{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  padding: 0 32px 32px;
-  max-width: 780px;
+  gap: 24px;
+  padding: 0 32px 48px;
+  max-width: 1040px;
 }
-.sq-card{
+.sq-module-card{
+  position: relative;
+  border-radius: 20px;
+  background: linear-gradient(145deg, rgba(15,23,42,.85), rgba(10,15,30,.9));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,.08);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease, border-color .3s ease;
+  user-select: none;
   display: flex;
   flex-direction: column;
+}
+.sq-module-card::before{
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+}
+.sq-module-card:hover{ transform: translateY(-8px) scale(1.01); }
+.sq-module-card:hover::before{ opacity: 1; }
+.sq-module-top-bar{
+  height: 3px;
+  flex-shrink: 0;
+  border-radius: 20px 20px 0 0;
+}
+.sq-module-card--lineup .sq-module-top-bar{ background: linear-gradient(90deg,#f59e0b,#fbbf24,#f59e0b); }
+.sq-module-card--lineup{ box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+.sq-module-card--lineup:hover{ box-shadow: 0 24px 60px rgba(245,158,11,.22), 0 0 0 1px rgba(245,158,11,.28); border-color: rgba(245,158,11,.25); }
+.sq-module-card--lineup::before{ background: radial-gradient(ellipse at top, rgba(245,158,11,.06), transparent 70%); }
+.sq-module-card--formation .sq-module-top-bar{ background: linear-gradient(90deg,#8b5cf6,#c4b5fd,#8b5cf6); }
+.sq-module-card--formation{ box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+.sq-module-card--formation:hover{ box-shadow: 0 24px 60px rgba(139,92,246,.22), 0 0 0 1px rgba(139,92,246,.28); border-color: rgba(139,92,246,.25); }
+.sq-module-card--formation::before{ background: radial-gradient(ellipse at top, rgba(139,92,246,.06), transparent 70%); }
+.sq-module-card--tactics .sq-module-top-bar{ background: linear-gradient(90deg,#f97316,#fb923c,#f97316); }
+.sq-module-card--tactics{ box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+.sq-module-card--tactics:hover{ box-shadow: 0 24px 60px rgba(249,115,22,.22), 0 0 0 1px rgba(249,115,22,.28); border-color: rgba(249,115,22,.25); }
+.sq-module-card--tactics::before{ background: radial-gradient(ellipse at top, rgba(249,115,22,.06), transparent 70%); }
+.sq-module-illus{
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  padding: 44px 24px;
-  background: var(--bg-2, rgba(255,255,255,0.04));
-  border: 1px solid var(--bd, rgba(255,255,255,0.09));
-  border-radius: 16px;
-  cursor: pointer;
-  transition: background 0.18s, border-color 0.18s, transform 0.18s;
-  min-height: 170px;
-  user-select: none;
+  padding: 24px 20px 16px;
+  min-height: 160px;
 }
-.sq-card:hover{
-  background: var(--bg-3, rgba(255,255,255,0.08));
-  border-color: rgba(255,255,255,0.2);
-  transform: translateY(-3px);
+.sq-module-illus svg{ width: 100%; height: 100%; max-height: 160px; }
+.sq-module-footer{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 20px;
+  border-top: 1px solid rgba(255,255,255,.06);
+  gap: 12px;
 }
-.sq-card-icon{ width:48px; height:48px; }
-.sq-card-label{
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--tx-1, #f1f5f9);
-  letter-spacing: -0.2px;
+.sq-module-footer-left{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.sq-module-footer-icon{ width: 28px; height: 28px; flex-shrink: 0; }
+.sq-module-title{
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tx-1,#f1f5f9);
+  margin: 0 0 3px;
+  letter-spacing: -.35px;
+}
+.sq-module-desc{
+  font-size: 12px;
+  color: var(--tx-3,#64748b);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sq-module-arrow{
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .2s;
+  color: var(--tx-3,#64748b);
+}
+.sq-module-card:hover .sq-module-arrow{
+  background: rgba(255,255,255,.13);
+  color: var(--tx-1,#f1f5f9);
+  transform: translateX(3px);
 }
 
 /* Squad sub-page */
