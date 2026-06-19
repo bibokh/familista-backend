@@ -20575,28 +20575,6 @@ function _sq2Initials(p) {
   return (f + l).toUpperCase();
 }
 
-function renderSquadHTML() {
-  return '<div class="page" id="pg-squad">'
-       + '  <div class="sq2-page">'
-       + '    <header class="sq2-toolbar">'
-       + '      <div class="sq2-tb-titles">'
-       + '        <h1 class="sq2-tb-title">Squad</h1>'
-       + '        <div class="sq2-tb-sub" id="squad-sub">Loading…</div>'
-       + '      </div>'
-       + '      <div class="sq2-tb-filters">'
-       + '        <button class="sq2-chip active" onclick="filterSquad(\'ALL\', this)" type="button">All</button>'
-       + '        <button class="sq2-chip"        onclick="filterSquad(\'GK\',  this)" type="button">GK</button>'
-       + '        <button class="sq2-chip"        onclick="filterSquad(\'DEF\', this)" type="button">DEF</button>'
-       + '        <button class="sq2-chip"        onclick="filterSquad(\'MID\', this)" type="button">MID</button>'
-       + '        <button class="sq2-chip"        onclick="filterSquad(\'ATT\', this)" type="button">ATT</button>'
-       + '      </div>'
-       + '      <button class="sq2-add-btn" id="squad-add-btn" onclick="openAddPlayerModal()" type="button" style="display:none;">+ Add Player</button>'
-       + '    </header>'
-       + '    <div class="sq2-grid" id="player-grid"></div>'
-       + '  </div>'
-       + '</div>';
-}
-
 function renderSquad(filterPos) {
   const _ae = document.activeElement;
   const _fromHeaderSearch = !!(_ae && _ae.id === 'global-search');
