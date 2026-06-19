@@ -824,26 +824,6 @@ var CLUB_NAV_ITEMS = [
     color:   '#38bdf8',
     enabled: true,
     order:   2,
-    children: [
-      {
-        slug:    'lineup',
-        label:   'Lineup',
-        svgPath: 'M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z',
-        color:   '#f59e0b',
-      },
-      {
-        slug:    'formation',
-        label:   'Formation',
-        svgPath: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
-        color:   '#a78bfa',
-      },
-      {
-        slug:    'tactics',
-        label:   'Tactics',
-        svgPath: 'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z',
-        color:   '#fb923c',
-      },
-    ],
   },
 ];
 
@@ -855,32 +835,14 @@ function buildWorkspaceSidebar() {
   var items = CLUB_NAV_ITEMS
     .filter(function (n) { return n.enabled !== false; })
     .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
-  var chevron = '<svg class="nav-chevron" fill="currentColor" viewBox="0 0 20 20">'
-    + '<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>'
-    + '</svg>';
   slot.innerHTML = items.map(function (n) {
     var iconStyle = n.color ? ' style="color:' + n.color + '"' : '';
-    var hasChildren = Array.isArray(n.children) && n.children.length > 0;
-    var parentAttrs = hasChildren
-      ? ' data-action="toggleNavGroup" data-nav-group="' + n.slug + '" data-page="' + n.slug + '"'
-      : ' data-nav="' + n.slug + '" data-page="' + n.slug + '"';
-    var parentHtml = '<div class="nav-item nav-item--workspace' + (hasChildren ? ' nav-item--parent' : '') + '"' + parentAttrs + '>'
+    return '<div class="nav-item nav-item--workspace" data-nav="' + n.slug
+      + '" data-page="' + n.slug + '">'
       + '<svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"' + iconStyle + '>'
       + '<path d="' + n.svgPath + '"/></svg>'
       + '<span class="nav-label">' + n.label + '</span>'
-      + (hasChildren ? chevron : '')
       + '</div>';
-    if (!hasChildren) return parentHtml;
-    var childrenHtml = n.children.map(function (c) {
-      var cStyle = c.color ? ' style="color:' + c.color + '"' : '';
-      return '<div class="nav-item nav-item--workspace nav-item--child" data-nav="' + c.slug + '" data-page="' + c.slug + '">'
-        + '<svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"' + cStyle + '>'
-        + '<path d="' + c.svgPath + '"/></svg>'
-        + '<span class="nav-label">' + c.label + '</span>'
-        + '</div>';
-    }).join('');
-    return parentHtml
-      + '<div class="nav-group" id="nav-group-' + n.slug + '">' + childrenHtml + '</div>';
   }).join('');
 }
 (function () {
@@ -1335,7 +1297,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
-    'club-home': 1, 'squad': 1, 'lineup': 1, 'formation': 1, 'tactics': 1,
+    'club-home': 1, 'squad': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1363,7 +1325,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'lineup':'Lineup', 'formation':'Formation', 'tactics':'Tactics',
+    'club-home':'Club', 'squad':'Squad',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1401,6 +1363,7 @@ function navTo(page, el, _opts) {
     if (page === 'owner-home' && typeof renderOwnerHome === 'function') renderOwnerHome();
     if (page === 'clubs'      && typeof renderClubs === 'function')      renderClubs();
     if (page === 'club-home'  && typeof renderClubHome === 'function')   renderClubHome();
+    if (page === 'squad'      && typeof resetSquadView === 'function')   resetSquadView();
   } catch (_) {}
 
   // Lazy-load page data
@@ -1582,9 +1545,6 @@ function _buildPageTemplateMap() {
     'clubs':                       renderClubsHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
-    'lineup':                      renderLineupHTML,
-    'formation':                   renderFormationHTML,
-    'tactics':                     renderTacticsHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -1650,7 +1610,7 @@ function _buildPageTemplateMap() {
 // Pages reachable from the visible sidebar (Phase A + Phase B Owner Home).
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
-  'owner-home', 'clubs', 'club-home', 'squad', 'lineup', 'formation', 'tactics',
+  'owner-home', 'clubs', 'club-home', 'squad',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -1915,45 +1875,52 @@ function renderClubHomeHTML() {
     + '</div>';
 }
 
+function _sqSubHtml(id, label, color, svgPath) {
+  return '<div class="sq-sub" id="sq-sub-' + id + '" style="display:none">'
+    + '<div class="sq-sub-header">'
+    +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">'
+    +     '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>'
+    +     'Squad'
+    +   '</button>'
+    +   '<div class="sq-sub-title-row">'
+    +     '<svg style="width:28px;height:28px;flex-shrink:0;color:' + color + '" fill="currentColor" viewBox="0 0 20 20"><path d="' + svgPath + '"/></svg>'
+    +     '<h1 class="sq-sub-title">' + label + '</h1>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+
 function renderSquadHTML() {
+  var cards = [
+    { id:'lineup',    label:'Lineup',    color:'#f59e0b', svgPath:'M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z' },
+    { id:'formation', label:'Formation', color:'#a78bfa', svgPath:'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' },
+    { id:'tactics',   label:'Tactics',   color:'#fb923c', svgPath:'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z' },
+  ];
+  var cardHtml = cards.map(function (c) {
+    return '<div class="sq-card" data-action="squadNav" data-squad-page="' + c.id + '">'
+      + '<svg class="sq-card-icon" style="color:' + c.color + '" fill="currentColor" viewBox="0 0 20 20"><path d="' + c.svgPath + '"/></svg>'
+      + '<span class="sq-card-label">' + c.label + '</span>'
+      + '</div>';
+  }).join('');
+  var subHtml = cards.map(function (c) {
+    return _sqSubHtml(c.id, c.label, c.color, c.svgPath);
+  }).join('');
   return '<div class="page" id="pg-squad">'
-    + '<div style="padding:32px 32px 0">'
-    +   '<h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1>'
+    + '<div id="sq-home">'
+    +   '<div style="padding:32px 32px 24px"><h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1></div>'
+    +   '<div class="sq-cards">' + cardHtml + '</div>'
     + '</div>'
+    + subHtml
     + '</div>';
 }
 
-function renderLineupHTML() {
-  return '<div class="page" id="pg-lineup">'
-    + '<div style="padding:32px 32px 0;display:flex;align-items:center;gap:12px">'
-    +   '<svg style="width:28px;height:28px;flex-shrink:0;color:#f59e0b" fill="currentColor" viewBox="0 0 20 20">'
-    +     '<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"/>'
-    +   '</svg>'
-    +   '<h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Lineup</h1>'
-    + '</div>'
-    + '</div>';
-}
-
-function renderFormationHTML() {
-  return '<div class="page" id="pg-formation">'
-    + '<div style="padding:32px 32px 0;display:flex;align-items:center;gap:12px">'
-    +   '<svg style="width:28px;height:28px;flex-shrink:0;color:#a78bfa" fill="currentColor" viewBox="0 0 20 20">'
-    +     '<path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>'
-    +   '</svg>'
-    +   '<h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Formation</h1>'
-    + '</div>'
-    + '</div>';
-}
-
-function renderTacticsHTML() {
-  return '<div class="page" id="pg-tactics">'
-    + '<div style="padding:32px 32px 0;display:flex;align-items:center;gap:12px">'
-    +   '<svg style="width:28px;height:28px;flex-shrink:0;color:#fb923c" fill="currentColor" viewBox="0 0 20 20">'
-    +     '<path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>'
-    +   '</svg>'
-    +   '<h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Tactics</h1>'
-    + '</div>'
-    + '</div>';
+function resetSquadView() {
+  var home = document.getElementById('sq-home');
+  if (home) home.style.display = '';
+  ['lineup', 'formation', 'tactics'].forEach(function (s) {
+    var el = document.getElementById('sq-sub-' + s);
+    if (el) el.style.display = 'none';
+  });
 }
 
 function renderClubHome() {
@@ -33640,16 +33607,18 @@ async function tosBoardSnapshot() {
 
     if (el.dataset.action) {
       switch (el.dataset.action) {
-        case 'toggleNavGroup': {
-          var _grp = document.getElementById('nav-group-' + el.dataset.navGroup);
-          if (_grp) {
-            var _open = _grp.classList.contains('nav-group--open');
-            _grp.classList.toggle('nav-group--open', !_open);
-            el.classList.toggle('nav-item--expanded', !_open);
-          }
-          if (el.dataset.page) {
-            try { navTo(el.dataset.page, el); } catch (_) {}
-          }
+        case 'squadNav': {
+          var _sp = el.dataset.squadPage;
+          var _sqHome = document.getElementById('sq-home');
+          if (_sqHome) _sqHome.style.display = 'none';
+          ['lineup', 'formation', 'tactics'].forEach(function (s) {
+            var _sv = document.getElementById('sq-sub-' + s);
+            if (_sv) _sv.style.display = s === _sp ? '' : 'none';
+          });
+          break;
+        }
+        case 'squadNavHome': {
+          if (typeof resetSquadView === 'function') resetSquadView();
           break;
         }
         case 'closeMobileMenu':     closeMobileMenu();     break;

@@ -3059,27 +3059,72 @@ body.club-theme .nav-item--workspace.active{
 }
 body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !important; }
 
-/* Nav group — collapsible children container */
-.nav-group{ display:none; }
-.nav-group--open{ display:block; }
-
-/* Child nav items — indented under parent */
-.nav-item--child{
-  padding-left: 36px !important;
-  font-size: 12.5px !important;
+/* Squad page — 3-card picker */
+.sq-cards{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 0 32px 32px;
+  max-width: 780px;
 }
-.nav-item--child .nav-icon{ width:15px !important; height:15px !important; opacity:0.85; }
-
-/* Chevron icon on parent nav items */
-.nav-chevron{
-  margin-left: auto;
-  width: 14px;
-  height: 14px;
-  color: var(--tx-3, #64748b);
-  transition: transform 0.2s ease;
-  flex-shrink: 0;
+.sq-card{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 44px 24px;
+  background: var(--bg-2, rgba(255,255,255,0.04));
+  border: 1px solid var(--bd, rgba(255,255,255,0.09));
+  border-radius: 16px;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s;
+  min-height: 170px;
+  user-select: none;
 }
-.nav-item--expanded .nav-chevron{ transform: rotate(90deg); }
+.sq-card:hover{
+  background: var(--bg-3, rgba(255,255,255,0.08));
+  border-color: rgba(255,255,255,0.2);
+  transform: translateY(-3px);
+}
+.sq-card-icon{ width:48px; height:48px; }
+.sq-card-label{
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tx-1, #f1f5f9);
+  letter-spacing: -0.2px;
+}
+
+/* Squad sub-page */
+.sq-sub{ padding: 0; }
+.sq-sub-header{ padding: 28px 32px 0; }
+.sq-back-btn{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--tx-3, #94a3b8);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 24px;
+  transition: color 0.15s;
+}
+.sq-back-btn:hover{ color: var(--tx-1, #f1f5f9); }
+.sq-sub-title-row{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sq-sub-title{
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tx-1, #f1f5f9);
+  letter-spacing: -0.3px;
+}
 
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
