@@ -864,40 +864,8 @@ function buildWorkspaceSidebar() {
 //
 var HOME_WIDGETS = [
   { id:'club-header',       title:'Club Header',        svgPath:'M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z',                                                                                                                                                                                                                                                                                                                color:'var(--pitch-400,#4ade80)',  enabled:true, order:1, cols:12, hideHeader:true },
-  { id:'club-info',         title:'Club Information',   svgPath:'M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z',                                                                                                                                                                                                                                                                                                                                                     color:'var(--royal-400,#818cf8)', enabled:true, order:2, cols:4  },
-  { id:'next-match',        title:'Next Match',         svgPath:'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z',                                                                                                                                                                                                                                                                                                                              color:'var(--gold-400,#facc15)',   enabled:true, order:3, cols:4  },
-  { id:'training-overview', title:'Training Overview',  svgPath:'M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z',                                                                                                                                                                                                                                                                                                                                                                     color:'#fb923c',                   enabled:true, order:4, cols:4  },
-  { id:'recent-activity',   title:'Recent Activity',    svgPath:'M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z',                                                                                                                                                                                                                                                                                                                                                                   color:'#22d3ee',                   enabled:true, order:5, cols:6  },
-  { id:'club-stats',        title:'Club Statistics',    svgPath:'M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z',                                                                                                                                                                                                                                                                            color:'#c084fc',                   enabled:true, order:6, cols:6  },
-  { id:'announcements',     title:'Club Announcements', svgPath:'M18 3a1 1 0 00-1.447-.894L8.763 6H5a3 3 0 000 6h.28l1.771 5.316A1 1 0 008 18h1a1 1 0 001-1v-4.382l6.553 3.276A1 1 0 0018 15V3z',                                                                                                                                                                                                                                                                                                                                                      color:'#f472b6',                   enabled:true, order:7, cols:12 },
-  { id:'quick-actions',     title:'Quick Actions',      svgPath:'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z',                                                                                                                                                                                  color:'var(--pitch-400,#4ade80)', enabled:true, order:8, cols:12 },
 ];
 
-// ── Club Home quick-actions config (static — these are navigation targets) ──
-var CLUB_HOME_QUICK_ACTIONS = [
-  { label: 'Add Player',      icon: '👤', action: 'add-player'      },
-  { label: 'Create Match',    icon: '⚽', action: 'create-match'    },
-  { label: 'Create Training', icon: '⚡', action: 'create-training' },
-  { label: 'Club Settings',   icon: '⚙️', action: 'club-settings'  },
-];
-
-// ── Date helpers for Club Home widgets ───────────────────────────────────────
-function _chdRelTime(iso) {
-  var diff = Date.now() - new Date(iso).getTime();
-  var m = Math.floor(diff / 60000);
-  if (m < 1)  return 'just now';
-  if (m < 60) return m + 'm ago';
-  var h = Math.floor(m / 60);
-  if (h < 24) return h + 'h ago';
-  var d = Math.floor(h / 24);
-  return d === 1 ? '1d ago' : d + 'd ago';
-}
-function _chdFmtDate(iso) {
-  return new Date(iso).toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
-}
-function _chdFmtTime(iso) {
-  return new Date(iso).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', hour12:false });
-}
 
 // ── Widget render functions ───────────────────────────────────────────────────
 // Each: renderWidget_<id>(ctx) → HTML string
@@ -907,15 +875,16 @@ function _chdFmtTime(iso) {
 // ▶ Add new renderer functions here, then register in HOME_WIDGET_RENDERERS below.
 
 function renderWidget_clubHeader(ctx) {
-  var club  = ctx.club || {};
-  var user  = ctx.user || {};
-  var d     = ctx.data && ctx.data.header;
-  var name  = (d && d.clubName)  || club.name      || 'Club';
-  var short = (d && d.shortName) || club.shortName  || '';
-  var owner = (d && d.ownerName) || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
-  var loc   = (d && d.location)  || '';
-  var emb   = (d && d.emblem)    || club.emblem || '';
-  var crest = emb
+  var club   = ctx.club || {};
+  var user   = ctx.user || {};
+  var d      = ctx.data && ctx.data.header;
+  var info   = ctx.data && ctx.data.info;
+  var name   = (d && d.clubName)  || club.name      || 'Club';
+  var short  = (d && d.shortName) || club.shortName  || '';
+  var owner  = (d && d.ownerName) || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
+  var season = (info && info.season) || '';
+  var emb    = (d && d.emblem)    || club.emblem || '';
+  var crest  = emb
     ? '<img src="' + _esc(emb) + '" class="chd-hero-crest" onerror="this.style.display=\'none\'">'
     : '<div class="chd-hero-crest chd-hero-crest--text">⚽</div>';
   return '<div class="chd-hero-inner">'
@@ -925,174 +894,16 @@ function renderWidget_clubHeader(ctx) {
     +   (short ? '<span class="chd-hero-short">' + _esc(short) + '</span>' : '')
     +   '<div class="chd-hero-meta">'
     +     '<span class="chd-hero-meta-item">👤 ' + _esc(owner) + '</span>'
-    +     (loc ? '<span class="chd-hero-meta-sep">·</span><span class="chd-hero-meta-item">📍 ' + _esc(loc) + '</span>' : '')
+    +     (season ? '<span class="chd-hero-meta-sep">·</span><span class="chd-hero-meta-item">📅 ' + _esc(season) + '</span>' : '')
     +   '</div>'
     + '</div>'
-    + '</div>';
-}
-
-function renderWidget_clubInfo(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading club info...');
-  var d = ctx.data.info || {};
-  var rows = [
-    { label: 'Founded',       value: d.founded  || '-' },
-    { label: 'Location',      value: d.location || '-' },
-    { label: 'Members',       value: d.members  != null ? d.members  : '-' },
-    { label: 'Teams',         value: d.teams    != null ? d.teams    : '-' },
-    { label: 'Active Season', value: d.season   || '-' },
-  ];
-  return '<dl class="chd-info-list">'
-    + rows.map(function (r) {
-        return '<dt>' + _esc(r.label) + '</dt><dd>' + _esc(String(r.value)) + '</dd>';
-      }).join('')
-    + '</dl>';
-}
-
-function renderWidget_nextMatch(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading next match...');
-  var m = ctx.data.nextMatch;
-  if (!m) return _chdPlaceholder('📅', 'No upcoming match scheduled');
-  var statusColors = { SCHEDULED:'#818cf8', LIVE:'#4ade80', POSTPONED:'#f87171', COMPLETED:'#64748b' };
-  var sc        = statusColors[m.status] || '#818cf8';
-  var clubName  = ctx.club.name || 'Your Club';
-  var homeLabel = m.isHome ? clubName : m.homeTeam;
-  var awayLabel = m.isHome ? m.awayTeam : clubName;
-  return '<div class="chd-match">'
-    + '<div class="chd-match-badge" style="color:' + sc + ';border-color:' + sc + '33;background:' + sc + '18">'
-    +   _esc(m.status)
-    + '</div>'
-    + '<div class="chd-match-vs">'
-    +   '<span class="chd-match-team">' + _esc(homeLabel) + '</span>'
-    +   '<span class="chd-match-sep">vs</span>'
-    +   '<span class="chd-match-team">' + _esc(awayLabel) + '</span>'
-    + '</div>'
-    + '<div class="chd-match-details">'
-    +   '<div class="chd-match-detail">📅 ' + _esc(m.date) + ' · ' + _esc(m.time) + '</div>'
-    +   (m.venue       ? '<div class="chd-match-detail">🏟️ ' + _esc(m.venue) + '</div>' : '')
-    +   (m.competition ? '<div class="chd-match-detail">🏆 ' + _esc(String(m.competition)) + '</div>' : '')
-    + '</div>'
-    + '</div>';
-}
-
-function renderWidget_trainingOverview(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading training data...');
-  var t   = ctx.data.training || {};
-  var pct = Math.min(100, Math.max(0, t.attendanceRate || 0));
-  var nxt = t.next;
-  var lst = t.lastSession;
-  return '<div class="chd-training">'
-    + '<div class="chd-training-section">'
-    +   '<div class="chd-training-label">NEXT SESSION</div>'
-    +   (nxt
-        ? '<div class="chd-training-name">' + _esc(nxt.title) + '</div>'
-        + '<div class="chd-training-detail">📅 ' + _esc(nxt.date) + ' · ' + _esc(nxt.time) + '</div>'
-        + (nxt.venue ? '<div class="chd-training-detail">📍 ' + _esc(nxt.venue) + '</div>' : '')
-        : '<div class="chd-training-name" style="color:var(--text-muted,#64748b)">No upcoming session</div>')
-    + '</div>'
-    + '<div class="chd-training-section">'
-    +   '<div class="chd-training-label">ATTENDANCE RATE</div>'
-    +   '<div class="chd-training-bar-wrap"><div class="chd-training-bar" style="width:' + pct + '%"></div></div>'
-    +   '<div class="chd-training-pct">' + pct + '%</div>'
-    + '</div>'
-    + '<div class="chd-training-section">'
-    +   '<div class="chd-training-label">LAST SESSION</div>'
-    +   (lst
-        ? '<div class="chd-training-name">' + _esc(lst.title) + '</div>'
-        + '<div class="chd-training-detail">' + _esc(lst.date) + ' · ' + lst.attended + ' / ' + lst.total + ' attended</div>'
-        : '<div class="chd-training-name" style="color:var(--text-muted,#64748b)">No past sessions</div>')
-    + '</div>'
-    + '</div>';
-}
-
-function renderWidget_recentActivity(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading activity...');
-  var items = ctx.data.activity;
-  if (!items || !items.length) return _chdPlaceholder('📋', 'No recent activity');
-  return '<ul class="chd-activity-list">'
-    + items.map(function (a) {
-        return '<li class="chd-activity-item">'
-          + '<span class="chd-activity-icon">' + (a.icon || '·') + '</span>'
-          + '<span class="chd-activity-text">' + _esc(a.text) + '</span>'
-          + '<span class="chd-activity-time">' + _esc(a.time) + '</span>'
-          + '</li>';
-      }).join('')
-    + '</ul>';
-}
-
-function renderWidget_clubStats(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading stats...');
-  var s = ctx.data.stats || {};
-  var stats = [
-    { label: 'Players', value: s.players != null ? s.players : '-' },
-    { label: 'Coaches', value: s.coaches != null ? s.coaches : '-' },
-    { label: 'Matches', value: s.matches != null ? s.matches : '-' },
-    { label: 'Wins',    value: s.wins    != null ? s.wins    : '-' },
-    { label: 'Draws',   value: s.draws   != null ? s.draws   : '-' },
-    { label: 'Losses',  value: s.losses  != null ? s.losses  : '-' },
-  ];
-  return '<div class="chd-stat-grid">'
-    + stats.map(function (stat) {
-        return '<div class="chd-stat">'
-          + '<div class="chd-stat-value">' + stat.value + '</div>'
-          + '<div class="chd-stat-label">' + _esc(stat.label) + '</div>'
-          + '</div>';
-      }).join('')
-    + '</div>';
-}
-
-function renderWidget_announcements(ctx) {
-  if (ctx.loading || !ctx.data) return _chdPlaceholder('⏳', 'Loading announcements...');
-  var items = ctx.data.announcements;
-  if (!items || !items.length) {
-    return '<div class="chd-placeholder">'
-      + '<span class="chd-ph-icon">📣</span>'
-      + '<span class="chd-ph-text">No announcements yet</span>'
-      + '</div>';
-  }
-  return '<div class="chd-announce-list">'
-    + items.map(function (a) {
-        var hi = a.priority === 'high';
-        return '<div class="chd-announce-card' + (hi ? ' chd-announce-card--high' : '') + '">'
-          + '<div class="chd-announce-header">'
-          +   '<span class="chd-announce-title">' + _esc(a.title) + '</span>'
-          +   '<span class="chd-announce-date">' + _esc(a.date) + '</span>'
-          + '</div>'
-          + '<div class="chd-announce-body">' + _esc(a.body) + '</div>'
-          + '</div>';
-      }).join('')
-    + '</div>';
-}
-
-function renderWidget_quickActions() {
-  return '<div class="chd-qa-grid">'
-    + CLUB_HOME_QUICK_ACTIONS.map(function (a) {
-        return '<button class="chd-qa-btn" type="button" data-action="' + _esc(a.action) + '">'
-          + '<span class="chd-qa-icon">' + a.icon + '</span>'
-          + '<span class="chd-qa-label">' + _esc(a.label) + '</span>'
-          + '</button>';
-      }).join('')
-    + '</div>';
-}
-
-// Placeholder helper — used by widgets awaiting API integration
-function _chdPlaceholder(icon, text) {
-  return '<div class="chd-placeholder">'
-    + '<span class="chd-ph-icon">' + icon + '</span>'
-    + '<span class="chd-ph-text">' + _esc(text) + '</span>'
     + '</div>';
 }
 
 // Registry: widget id → render function
 // ▶ Register new renderers here after adding to HOME_WIDGETS above.
 var HOME_WIDGET_RENDERERS = {
-  'club-header':       renderWidget_clubHeader,
-  'club-info':         renderWidget_clubInfo,
-  'next-match':        renderWidget_nextMatch,
-  'training-overview': renderWidget_trainingOverview,
-  'recent-activity':   renderWidget_recentActivity,
-  'club-stats':        renderWidget_clubStats,
-  'announcements':     renderWidget_announcements,
-  'quick-actions':     renderWidget_quickActions,
+  'club-header': renderWidget_clubHeader,
 };
 
 // ── Phase B · Area separation (Owner / System / Club) ────────────
@@ -2055,7 +1866,6 @@ function renderClubHomeHTML() {
 }
 
 function renderClubHome() {
-  // Build render context from State (available immediately)
   var ctx    = (window.State && State.context) || {};
   var avail  = Array.isArray(ctx.availableClubs) ? ctx.availableClubs : [];
   var active = avail.find(function (c) { return c && c.id === ctx.clubId; }) || null;
@@ -2067,45 +1877,15 @@ function renderClubHome() {
       shortName: State.club.shortName,
     };
   }
-  var renderCtx = {
+  _renderHomeWidgets({
     club: {
       id:        (active && active.id)        || '',
       name:      (active && active.name)      || 'Club',
       emblem:    (active && active.emblem)    || '',
       shortName: (active && active.shortName) || '',
     },
-    user:    (window.State && State.user) || {},
-    data:    null,
-    loading: true,
-  };
-
-  // Phase 1: render immediately with loading placeholders
-  _renderHomeWidgets(renderCtx);
-
-  // Phase 2: fetch real data, re-render all widgets
-  FamilistaAPI.get('/home/dashboard').then(function (res) {
-    if (!res || !res.success || !res.data) return;
-    renderCtx.data    = res.data;
-    renderCtx.loading = false;
-    _renderHomeWidgets(renderCtx);
-  }).catch(function (err) {
-    var status  = err && err.status;
-    var is401   = status === 401;
-    var errHtml = is401
-      ? '<div class="chd-placeholder">'
-        + '<span class="chd-ph-icon">🔒</span>'
-        + '<span class="chd-ph-text"><strong>Session expired</strong><br>Sign in again to load your dashboard.</span>'
-        + '<button type="button" class="btn btn-primary btn-sm" style="margin-top:10px"'
-        +   ' onclick="if(typeof doLogout===\'function\')doLogout()">Sign in again</button>'
-        + '</div>'
-      : '<div class="chd-placeholder">'
-        + '<span class="chd-ph-icon">⚠️</span>'
-        + '<span class="chd-ph-text">Server error' + (status ? ' (' + status + ')' : '') + ' — refresh the page to retry.</span>'
-        + '</div>';
-    ['club-info', 'next-match', 'training-overview', 'recent-activity', 'club-stats', 'announcements'].forEach(function (wid) {
-      var el = document.getElementById('chd-wb-' + wid);
-      if (el) el.innerHTML = errHtml;
-    });
+    user: (window.State && State.user) || {},
+    data: null,
   });
 }
 
