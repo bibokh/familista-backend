@@ -817,6 +817,14 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   1,
   },
+  {
+    slug:    'squad',
+    label:   'Squad',
+    svgPath: 'M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z',
+    color:   '#38bdf8',
+    enabled: true,
+    order:   2,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -1289,7 +1297,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
-    'club-home': 1,
+    'club-home': 1, 'squad': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1317,7 +1325,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club',
+    'club-home':'Club', 'squad':'Squad',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1535,6 +1543,7 @@ function _buildPageTemplateMap() {
     'owner-home':                  renderOwnerHomeHTML,
     'clubs':                       renderClubsHTML,
     'club-home':                   renderClubHomeHTML,
+    'squad':                       renderSquadHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -1600,7 +1609,7 @@ function _buildPageTemplateMap() {
 // Pages reachable from the visible sidebar (Phase A + Phase B Owner Home).
 // These are mounted eagerly at boot so the click flow is instant.
 var _EAGER_PAGES = [
-  'owner-home', 'clubs', 'club-home',
+  'owner-home', 'clubs', 'club-home', 'squad',
   'fos-core', 'fos-observability', 'fos-security-center',
   'fos-automation-center', 'fos-rbac', 'fos-audit-governance',
   'multi-club-network', 'fos-admin-center',
@@ -1862,6 +1871,14 @@ function renderClubHomeHTML() {
 
   return '<div class="page" id="pg-club-home">'
     + '<div class="chd-grid">' + slots + '</div>'
+    + '</div>';
+}
+
+function renderSquadHTML() {
+  return '<div class="page" id="pg-squad">'
+    + '<div style="padding:32px 32px 0">'
+    +   '<h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1>'
+    + '</div>'
     + '</div>';
 }
 
