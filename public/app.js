@@ -2024,7 +2024,9 @@ function renderSquadHTML() {
   }).join('');
 
   var subHtml = cards.map(function (c) {
-    return _sqSubHtml(c.id, c.label, c.iconColor, c.iconPath);
+    return c.id === 'lineup'
+      ? _sqLineupHtml()
+      : _sqSubHtml(c.id, c.label, c.iconColor, c.iconPath);
   }).join('');
 
   return '<div class="page" id="pg-squad">'
@@ -2033,6 +2035,7 @@ function renderSquadHTML() {
     +   '<div class="sqf-cards">' + cardHtml + '</div>'
     + '</div>'
     + subHtml
+    + _sqPlayerModalShell()
     + '</div>';
 }
 
@@ -2043,7 +2046,348 @@ function resetSquadView() {
     var el = document.getElementById('sq-sub-' + s);
     if (el) el.style.display = 'none';
   });
+  var _pm = document.getElementById('sq-pl-modal');
+  if (_pm) _pm.style.display = 'none';
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SQUAD · LINEUP — internal players table + player profile modal (frontend-only)
+// Mock/demo data until real player data is wired in. No backend calls, no mutations.
+// ══════════════════════════════════════════════════════════════════════════════
+var SQ_UI = { playerId: null, tab: 'overview' };
+
+function _sqSeed(s) {
+  var h = 0; s = String(s);
+  for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) >>> 0; }
+  return h;
+}
+function _sqRng(p, key) { return (_sqSeed(p.id + ':' + key) % 1000) / 1000; }
+function _sqVar(p, key, base, spread) {
+  var v = Math.round(base + (_sqRng(p, key) * 2 - 1) * spread);
+  return Math.max(24, Math.min(99, v));
+}
+function _sqStat(p, key, base, spread, min, max) {
+  var v = Math.round(base + (_sqRng(p, key) * 2 - 1) * spread);
+  return Math.max(min, Math.min(max, v));
+}
+
+var SQ_NAT = { Argentina:'ARG', Germany:'GER', Portugal:'POR', Italy:'ITA', Senegal:'SEN',
+  France:'FRA', Spain:'ESP', Japan:'JPN', Brazil:'BRA', Morocco:'MAR', Denmark:'DEN',
+  England:'ENG', 'South Africa':'RSA', Serbia:'SRB', Finland:'FIN' };
+
+var SQ_DEMO_PLAYERS = [
+  { id:'sq-1',  pos:'GK', cat:'gk', num:1,  name:'Diego Marán',     roles:'SK · GK',  nat:'🇦🇷', natName:'Argentina',   age:30, value:'€7.4M',  form:6, cond:94, morale:'Good',      qual:84, foot:'Right', height:'1.91m' },
+  { id:'sq-2',  pos:'GK', cat:'gk', num:13, name:'Lukas Brenner',   roles:'GK',       nat:'🇩🇪', natName:'Germany',     age:24, value:'€3.1M',  form:5, cond:97, morale:'Content',   qual:78, foot:'Right', height:'1.93m' },
+  { id:'sq-3',  pos:'RB', cat:'df', num:2,  name:'Tomás Oliveira',  roles:'FB · WB',  nat:'🇵🇹', natName:'Portugal',    age:27, value:'€12.0M', form:7, cond:88, morale:'Good',      qual:82, foot:'Right', height:'1.79m' },
+  { id:'sq-4',  pos:'CB', cat:'df', num:4,  name:'Marco Vidalli',   roles:'CD · BPD', nat:'🇮🇹', natName:'Italy',       age:29, value:'€18.5M', form:8, cond:90, morale:'Excellent', qual:86, foot:'Right', height:'1.88m' },
+  { id:'sq-5',  pos:'CB', cat:'df', num:5,  name:'Idris Bah',       roles:'CD · NCB', nat:'🇸🇳', natName:'Senegal',     age:25, value:'€21.0M', form:7, cond:85, morale:'Good',      qual:85, foot:'Left',  height:'1.90m' },
+  { id:'sq-6',  pos:'LB', cat:'df', num:3,  name:'Yann Lefevre',    roles:'FB · IWB', nat:'🇫🇷', natName:'France',      age:23, value:'€14.2M', form:6, cond:91, morale:'Good',      qual:81, foot:'Left',  height:'1.81m' },
+  { id:'sq-7',  pos:'DM', cat:'mf', num:6,  name:'Sergio Bautista', roles:'DLP · A',  nat:'🇪🇸', natName:'Spain',       age:28, value:'€22.5M', form:8, cond:87, morale:'Excellent', qual:86, foot:'Right', height:'1.83m' },
+  { id:'sq-8',  pos:'CM', cat:'mf', num:8,  name:'Kenji Watanabe',  roles:'BBM · CM', nat:'🇯🇵', natName:'Japan',       age:26, value:'€28.0M', form:9, cond:89, morale:'Excellent', qual:88, foot:'Right', height:'1.78m', captain:true },
+  { id:'sq-9',  pos:'CM', cat:'mf', num:10, name:'Rafael Pinto',    roles:'AP · MEZ', nat:'🇧🇷', natName:'Brazil',      age:24, value:'€34.0M', form:8, cond:84, morale:'Good',      qual:87, foot:'Left',  height:'1.75m' },
+  { id:'sq-10', pos:'LW', cat:'mf', num:11, name:'Amir Haddad',     roles:'IW · W',   nat:'🇲🇦', natName:'Morocco',     age:22, value:'€26.5M', form:7, cond:92, morale:'Good',      qual:84, foot:'Right', height:'1.74m' },
+  { id:'sq-11', pos:'RW', cat:'mf', num:7,  name:'Niklas Sorensen', roles:'W · IF',   nat:'🇩🇰', natName:'Denmark',     age:25, value:'€24.0M', form:6, cond:86, morale:'Content',   qual:83, foot:'Left',  height:'1.80m' },
+  { id:'sq-12', pos:'ST', cat:'fw', num:9,  name:'Viktor Almeida',  roles:'AF · PF',  nat:'🇧🇷', natName:'Brazil',      age:27, value:'€41.0M', form:9, cond:88, morale:'Excellent', qual:89, foot:'Right', height:'1.86m' },
+  { id:'sq-13', pos:'ST', cat:'fw', num:19, name:'Owen Carter',     roles:'PF · TF',  nat:'🇬🇧', natName:'England',     age:21, value:'€19.0M', form:7, cond:95, morale:'Good',      qual:80, foot:'Right', height:'1.89m' },
+  { id:'sq-14', pos:'CM', cat:'mf', num:14, name:'Dragan Petrov',   roles:'CM · B2B', nat:'🇷🇸', natName:'Serbia',      age:30, value:'€9.5M',  form:5, cond:83, morale:'Content',   qual:79, foot:'Right', height:'1.84m' },
+  { id:'sq-15', pos:'RB', cat:'df', num:22, name:'Leon Mbeki',      roles:'WB · FB',  nat:'🇿🇦', natName:'South Africa', age:20, value:'€8.0M', form:6, cond:96, morale:'Good',      qual:76, foot:'Right', height:'1.77m' },
+  { id:'sq-16', pos:'CB', cat:'df', num:15, name:'Janne Korhonen',  roles:'CD',       nat:'🇫🇮', natName:'Finland',     age:28, value:'€6.5M',  form:5, cond:90, morale:'Content',   qual:77, foot:'Left',  height:'1.92m' },
+];
+
+function _sqEsc(s) { return (typeof _esc === 'function') ? _esc(s) : String(s == null ? '' : s); }
+function _sqFind(id) { return SQ_DEMO_PLAYERS.filter(function (x) { return x.id === id; })[0] || null; }
+function _sqMoralePct(m) { return ({ Excellent: 92, Good: 76, Content: 58, Poor: 32 })[m] || 60; }
+function _sqBarTone(v) { return v >= 85 ? 'is-hi' : v >= 70 ? 'is-mid' : 'is-lo'; }
+
+function _sqBar(v) {
+  return '<div class="sql-bar"><div class="sql-bar-fill ' + _sqBarTone(v) + '" style="width:' + Math.min(100, v) + '%"></div></div>';
+}
+function _sqFormChip(f) {
+  var t = f >= 7 ? 'up' : f >= 5 ? 'mid' : 'down';
+  var g = f >= 7 ? '▲' : f >= 5 ? '▬' : '▼';
+  return '<span class="sql-form sql-form--' + t + '">' + g + ' ' + f + '</span>';
+}
+function _sqMorale(m) {
+  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Content' ? 'ok' : 'low';
+  return '<span class="sql-mor sql-mor--' + t + '"><i></i>' + m + '</span>';
+}
+function _sqQual(q) {
+  var t = q >= 85 ? 'elite' : q >= 80 ? 'good' : q >= 75 ? 'ok' : 'avg';
+  return '<span class="sql-qual sql-qual--' + t + '">' + q + '</span>';
+}
+function _sqInitials(name) {
+  var parts = String(name).split(' ');
+  return ((parts[0] || '').charAt(0) + (parts[parts.length - 1] || '').charAt(0)).toUpperCase();
+}
+
+function _sqLineupHtml() {
+  var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
+  var rows = SQ_DEMO_PLAYERS.map(function (p) {
+    return '<tr class="sql-row" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
+      + '<td class="sql-c-pos"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span></td>'
+      + '<td class="sql-c-num">' + p.num + '</td>'
+      + '<td class="sql-c-name"><span class="sql-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt" title="Captain">C</span>' : '') + '</span></td>'
+      + '<td class="sql-c-roles">' + p.roles + '</td>'
+      + '<td class="sql-c-nat"><span class="sql-flag">' + p.nat + '</span><span class="sql-natc">' + (SQ_NAT[p.natName] || '') + '</span></td>'
+      + '<td class="sql-c-age">' + p.age + '</td>'
+      + '<td class="sql-c-val">' + p.value + '</td>'
+      + '<td class="sql-c-form">' + _sqFormChip(p.form) + '</td>'
+      + '<td class="sql-c-cond"><div class="sql-condwrap"><span>' + p.cond + '%</span>' + _sqBar(p.cond) + '</div></td>'
+      + '<td class="sql-c-mor">' + _sqMorale(p.morale) + '</td>'
+      + '<td class="sql-c-qual">' + _sqQual(p.qual) + '</td>'
+      + '</tr>';
+  }).join('');
+
+  return '<div class="sq-sub" id="sq-sub-lineup" style="display:none">'
+    + '<div class="sq-sub-header">'
+    +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
+    +   '<div class="sql-tabs">'
+    +     '<button class="sql-tab is-active" type="button">Lineup</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button">Formation</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="sql-meta"><span class="sql-meta-title">Squad</span><span class="sql-meta-count">' + SQ_DEMO_PLAYERS.length + ' players</span></div>'
+    + '<div class="sql-tablewrap"><table class="sql-table">'
+    +   '<thead><tr>'
+    +     '<th>Pos</th><th>#</th><th>Name</th><th>Roles</th><th>Nat</th><th>Age</th><th>Value</th><th>Form</th><th>Condition</th><th>Morale</th><th>Quality</th>'
+    +   '</tr></thead>'
+    +   '<tbody>' + rows + '</tbody>'
+    + '</table></div>'
+    + '</div>';
+}
+
+function _sqPlayerModalShell() {
+  return '<div id="sq-pl-modal" class="sq-plm" style="display:none">'
+    + '<div class="sq-plm-backdrop" data-action="sqClosePlayer"></div>'
+    + '<div class="sq-plm-dialog" id="sq-plm-dialog" role="dialog" aria-modal="true"></div>'
+    + '</div>';
+}
+
+// ── attribute model (deterministic mock) ─────────────────────────────────────
+function _sqSkillGroups(p) {
+  if (p.cat === 'gk') {
+    return [
+      ['Shot stopping', ['Reflexes', 'One-on-one', 'Handling', 'Aerial reach', 'Positioning', 'Concentration']],
+      ['Distribution',  ['Kicking', 'Throwing', 'Passing', 'First touch', 'Vision', 'Composure']],
+      ['Physical',      ['Agility', 'Jumping', 'Strength', 'Stamina', 'Pace', 'Balance']],
+    ];
+  }
+  return [
+    ['Technical', ['Finishing', 'Dribbling', 'Passing', 'First touch', 'Crossing', 'Technique']],
+    ['Mental',    ['Vision', 'Composure', 'Decisions', 'Positioning', 'Work rate', 'Teamwork']],
+    ['Physical',  ['Pace', 'Acceleration', 'Stamina', 'Strength', 'Agility', 'Jumping']],
+  ];
+}
+function _sqSkillVal(p, name) {
+  var bias = 0;
+  if (p.cat === 'fw' && (name === 'Finishing' || name === 'Pace' || name === 'Acceleration')) bias = 6;
+  if (p.cat === 'df' && (name === 'Strength' || name === 'Positioning' || name === 'Jumping')) bias = 6;
+  if (p.cat === 'mf' && (name === 'Passing' || name === 'Vision' || name === 'Stamina')) bias = 6;
+  return _sqVar(p, name, p.qual + bias - 3, 11);
+}
+function _sqBarsList(items) {
+  return items.map(function (it) {
+    return '<div class="sq-attr"><span class="sq-attr-l">' + it[0] + '</span>'
+      + _sqBar(it[1]) + '<span class="sq-attr-v">' + it[1] + '</span></div>';
+  }).join('');
+}
+function _sqTopAttrs(p) {
+  var g = _sqSkillGroups(p);
+  var picks = [];
+  g.forEach(function (grp) { picks.push(grp[1][0]); picks.push(grp[1][1]); });
+  var items = picks.map(function (n) { return [n, _sqSkillVal(p, n)]; });
+  items.sort(function (a, b) { return b[1] - a[1]; });
+  return _sqBarsList(items.slice(0, 6));
+}
+
+// ── panels ───────────────────────────────────────────────────────────────────
+function _sqPanelOverview(p) {
+  var info = [
+    ['Position', p.pos], ['Roles', p.roles], ['Age', p.age + ' yrs'], ['Nationality', p.natName],
+    ['Height', p.height], ['Preferred foot', p.foot], ['Market value', p.value], ['Squad number', '#' + p.num],
+  ];
+  var infoHtml = info.map(function (i) {
+    return '<div class="sq-kv"><span class="sq-kv-l">' + i[0] + '</span><span class="sq-kv-v">' + _sqEsc(i[1]) + '</span></div>';
+  }).join('');
+  var meters = [
+    ['Condition', p.cond, p.cond + '%'],
+    ['Form', p.form * 10, p.form + ' / 10'],
+    ['Morale', _sqMoralePct(p.morale), p.morale],
+    ['Quality', p.qual, String(p.qual)],
+  ];
+  var meterHtml = meters.map(function (m) {
+    return '<div class="sq-meter"><div class="sq-meter-top"><span>' + m[0] + '</span><span>' + m[2] + '</span></div>'
+      + _sqBar(m[1]) + '</div>';
+  }).join('');
+  return '<div class="sq-panel">'
+    + '<div class="sq-sec-title">Player overview</div>'
+    + '<div class="sq-kv-grid">' + infoHtml + '</div>'
+    + '<div class="sq-sec-title">Current status</div>'
+    + '<div class="sq-meters">' + meterHtml + '</div>'
+    + '<div class="sq-sec-title">Key attributes</div>'
+    + '<div class="sq-attrs">' + _sqTopAttrs(p) + '</div>'
+    + '</div>';
+}
+function _sqPanelSkills(p) {
+  var groups = _sqSkillGroups(p).map(function (grp) {
+    var items = grp[1].map(function (n) { return [n, _sqSkillVal(p, n)]; });
+    var avg = Math.round(items.reduce(function (s, x) { return s + x[1]; }, 0) / items.length);
+    return '<div class="sq-skillgrp">'
+      + '<div class="sq-skillgrp-hd"><span>' + grp[0] + '</span><span class="sq-skillgrp-avg">' + avg + '</span></div>'
+      + '<div class="sq-attrs">' + _sqBarsList(items) + '</div>'
+      + '</div>';
+  }).join('');
+  return '<div class="sq-panel"><div class="sq-sec-title">Attributes</div>' + groups + '</div>';
+}
+function _sqPanelPlaystyle(p) {
+  var poolFw = ['Runs in behind', 'Shoots with power', 'Gets into the box', 'Holds up the ball', 'Tries first-time shots'];
+  var poolMf = ['Dictates tempo', 'Switches play', 'Late runs into box', 'Plays through balls', 'Presses high'];
+  var poolDf = ['Steps out with the ball', 'Times tackles well', 'Marks tightly', 'Wins aerial duels', 'Stays back at all times'];
+  var poolGk = ['Sweeps behind line', 'Distributes quickly', 'Stays on line', 'Commands the area'];
+  var pool = p.cat === 'fw' ? poolFw : p.cat === 'mf' ? poolMf : p.cat === 'df' ? poolDf : poolGk;
+  var traits = pool.slice(0, 3 + (_sqSeed(p.id) % 2)).map(function (t) { return '<span class="sq-trait">' + t + '</span>'; }).join('');
+  var wrA = p.cat === 'fw' ? 'High' : p.cat === 'mf' ? 'High' : p.cat === 'df' ? 'Medium' : 'Low';
+  var wrD = p.cat === 'df' ? 'High' : p.cat === 'mf' ? 'Medium' : p.cat === 'gk' ? 'High' : 'Low';
+  var kv = [
+    ['Preferred role', p.roles], ['Preferred foot', p.foot],
+    ['Attacking work rate', wrA], ['Defensive work rate', wrD],
+    ['Best position', p.pos], ['Tempo', p.cat === 'mf' ? 'Controls' : 'Adapts'],
+  ];
+  var kvHtml = kv.map(function (i) {
+    return '<div class="sq-kv"><span class="sq-kv-l">' + i[0] + '</span><span class="sq-kv-v">' + _sqEsc(i[1]) + '</span></div>';
+  }).join('');
+  return '<div class="sq-panel">'
+    + '<div class="sq-sec-title">Playing style</div>'
+    + '<div class="sq-kv-grid">' + kvHtml + '</div>'
+    + '<div class="sq-sec-title">Player traits</div>'
+    + '<div class="sq-traits">' + traits + '</div>'
+    + '</div>';
+}
+function _sqPanelStats(p) {
+  var apps = _sqStat(p, 'apps', 26, 6, 10, 38);
+  var gb = p.cat === 'fw' ? 15 : p.cat === 'mf' ? 6 : p.cat === 'df' ? 2 : 0;
+  var ab = p.cat === 'fw' ? 5 : p.cat === 'mf' ? 8 : p.cat === 'df' ? 3 : 1;
+  var goals = _sqStat(p, 'goals', gb, 4, 0, gb + 6);
+  var assists = _sqStat(p, 'assists', ab, 3, 0, ab + 5);
+  var mpg = _sqStat(p, 'mpg', 80, 8, 58, 90);
+  var rating = (6.3 + (p.qual - 75) * 0.045 + p.form * 0.03);
+  var rows = [
+    ['Domestic League', Math.round(apps * 0.66)],
+    ['Domestic Cup', Math.round(apps * 0.16)],
+    ['Continental', Math.round(apps * 0.18)],
+  ];
+  var tot = { a: 0, g: 0, as: 0, m: 0 };
+  var body = rows.map(function (r) {
+    var a = Math.max(1, r[1]);
+    var g = Math.round(goals * a / apps);
+    var as = Math.round(assists * a / apps);
+    var m = a * mpg;
+    tot.a += a; tot.g += g; tot.as += as; tot.m += m;
+    var rr = (rating + (_sqRng(p, r[0]) - 0.5) * 0.3).toFixed(2);
+    return '<tr><td class="sq-st-comp">' + r[0] + '</td><td>' + a + '</td><td>' + g + '</td><td>' + as + '</td><td>' + m.toLocaleString() + "'</td><td><span class=\"sq-rate\">" + rr + '</span></td></tr>';
+  }).join('');
+  var totRow = '<tr class="sq-st-tot"><td class="sq-st-comp">Total · 2025/26</td><td>' + tot.a + '</td><td>' + tot.g + '</td><td>' + tot.as + '</td><td>' + tot.m.toLocaleString() + "'</td><td><span class=\"sq-rate\">" + rating.toFixed(2) + '</span></td></tr>';
+  return '<div class="sq-panel">'
+    + '<div class="sq-sec-title">Season statistics</div>'
+    + '<table class="sq-st-table"><thead><tr><th>Competition</th><th>Apps</th><th>Gls</th><th>Ast</th><th>Mins</th><th>Avg</th></tr></thead>'
+    + '<tbody>' + body + totRow + '</tbody></table>'
+    + '</div>';
+}
+function _sqPanelTrainer(p) {
+  var coaches = ['Marcus Reid', 'Paolo Greco', 'Henrik Vogt', 'Daniel Soto'];
+  var coach = coaches[_sqSeed(p.id) % coaches.length];
+  var focus = p.cat === 'fw' ? 'Finishing & movement' : p.cat === 'mf' ? 'Passing & vision' : p.cat === 'df' ? 'Positioning & marking' : 'Shot stopping & distribution';
+  var intensity = p.cond >= 90 ? 'High' : p.cond >= 80 ? 'Medium' : 'Light';
+  var bars = [
+    ['Focus progress', _sqStat(p, 'tf', 64, 18, 20, 96)],
+    ['Fitness', p.cond],
+    ['Development', _sqStat(p, 'dev', 100 - p.age * 1.8, 12, 18, 92)],
+    ['Sharpness', _sqStat(p, 'sharp', 70, 16, 30, 96)],
+  ];
+  var barHtml = bars.map(function (b) {
+    return '<div class="sq-meter"><div class="sq-meter-top"><span>' + b[0] + '</span><span>' + Math.round(b[1]) + '%</span></div>' + _sqBar(b[1]) + '</div>';
+  }).join('');
+  var kv = [['Assigned coach', coach], ['Training focus', focus], ['Intensity', intensity], ['Weekly sessions', String(3 + (_sqSeed(p.id) % 3))]];
+  var kvHtml = kv.map(function (i) {
+    return '<div class="sq-kv"><span class="sq-kv-l">' + i[0] + '</span><span class="sq-kv-v">' + _sqEsc(i[1]) + '</span></div>';
+  }).join('');
+  return '<div class="sq-panel">'
+    + '<div class="sq-sec-title">Personal trainer</div>'
+    + '<div class="sq-kv-grid">' + kvHtml + '</div>'
+    + '<div class="sq-sec-title">Programme</div>'
+    + '<div class="sq-meters">' + barHtml + '</div>'
+    + '</div>';
+}
+function _sqPanelContract(p) {
+  var wage = '€' + _sqStat(p, 'wage', Math.round((p.qual - 58) * 3), 8, 8, 280) + 'K / week';
+  var expiry = 'Jun 30, ' + (2026 + (_sqSeed(p.id + 'x') % 4));
+  var signed = 'Jul ' + (2019 + (_sqSeed(p.id + 's') % 5));
+  var agents = ['Stellar Group', 'Base Soccer', 'Gestifute', 'ROGON', 'Unique Sports'];
+  var agent = agents[_sqSeed(p.id + 'a') % agents.length];
+  var status = p.qual >= 85 ? 'Key player' : p.qual >= 80 ? 'First team' : p.qual >= 76 ? 'Rotation' : 'Squad player';
+  var clause = '€' + (Math.round(parseFloat(String(p.value).replace(/[^0-9.]/g, '')) * 1.8 * 10) / 10) + 'M';
+  var kv = [
+    ['Weekly wage', wage], ['Contract expires', expiry], ['Signed', signed],
+    ['Release clause', clause], ['Agent', agent], ['Squad status', status],
+    ['Shirt number', '#' + p.num], ['Bonus', 'Appearance + goal'],
+  ];
+  var kvHtml = kv.map(function (i) {
+    return '<div class="sq-kv"><span class="sq-kv-l">' + i[0] + '</span><span class="sq-kv-v">' + _sqEsc(i[1]) + '</span></div>';
+  }).join('');
+  return '<div class="sq-panel">'
+    + '<div class="sq-sec-title">Contract details</div>'
+    + '<div class="sq-kv-grid">' + kvHtml + '</div>'
+    + '<div class="sq-note">Read-only — contract management is not enabled in this view.</div>'
+    + '</div>';
+}
+function _sqPlayerPanel(p, tab) {
+  switch (tab) {
+    case 'skills':    return _sqPanelSkills(p);
+    case 'playstyle': return _sqPanelPlaystyle(p);
+    case 'stats':     return _sqPanelStats(p);
+    case 'trainer':   return _sqPanelTrainer(p);
+    case 'contract':  return _sqPanelContract(p);
+    default:          return _sqPanelOverview(p);
+  }
+}
+
+function _sqRenderPlayerModal() {
+  var p = _sqFind(SQ_UI.playerId);
+  var dlg = document.getElementById('sq-plm-dialog');
+  if (!p || !dlg) return;
+  var tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['playstyle', 'Playstyle'], ['stats', 'Stats'], ['trainer', 'Personal trainer'], ['contract', 'Contract']];
+  var tabHtml = tabs.map(function (t) {
+    return '<button class="sq-plm-tab' + (SQ_UI.tab === t[0] ? ' is-active' : '') + '" data-action="sqPlayerTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
+  }).join('');
+  dlg.innerHTML =
+      '<button class="sq-plm-close" data-action="sqClosePlayer" type="button" aria-label="Close">✕</button>'
+    + '<div class="sq-plm-head">'
+    +   '<div class="sq-plm-avatar sql-pos--' + p.cat + '">' + _sqInitials(p.name) + '</div>'
+    +   '<div class="sq-plm-id">'
+    +     '<div class="sq-plm-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt">C</span>' : '') + '</div>'
+    +     '<div class="sq-plm-sub"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span><span>#' + p.num + '</span><span>' + p.nat + ' ' + p.natName + '</span><span>' + p.age + ' yrs</span></div>'
+    +   '</div>'
+    +   '<div class="sq-plm-qual"><span class="sq-plm-qual-n">' + p.qual + '</span><span class="sq-plm-qual-l">Quality</span></div>'
+    + '</div>'
+    + '<div class="sq-plm-body">'
+    +   '<div class="sq-plm-side">' + tabHtml + '</div>'
+    +   '<div class="sq-plm-content">' + _sqPlayerPanel(p, SQ_UI.tab) + '</div>'
+    + '</div>';
+}
+function sqOpenPlayer(id) {
+  if (!_sqFind(id)) return;
+  SQ_UI.playerId = id; SQ_UI.tab = 'overview';
+  _sqRenderPlayerModal();
+  var m = document.getElementById('sq-pl-modal');
+  if (m) m.style.display = 'flex';
+}
+function sqClosePlayer() {
+  var m = document.getElementById('sq-pl-modal');
+  if (m) m.style.display = 'none';
+  SQ_UI.playerId = null;
+}
+function sqPlayerTab(tab) { SQ_UI.tab = tab; _sqRenderPlayerModal(); }
 
 function renderClubHome() {
   var ctx    = (window.State && State.context) || {};
@@ -33733,6 +34077,8 @@ async function tosBoardSnapshot() {
           var _sp = el.dataset.squadPage;
           var _sqHome = document.getElementById('sq-home');
           if (_sqHome) _sqHome.style.display = 'none';
+          var _sqpm = document.getElementById('sq-pl-modal');
+          if (_sqpm) _sqpm.style.display = 'none';
           ['lineup', 'formation', 'tactics'].forEach(function (s) {
             var _sv = document.getElementById('sq-sub-' + s);
             if (_sv) _sv.style.display = s === _sp ? '' : 'none';
@@ -33743,6 +34089,9 @@ async function tosBoardSnapshot() {
           if (typeof resetSquadView === 'function') resetSquadView();
           break;
         }
+        case 'sqOpenPlayer':  if (typeof sqOpenPlayer === 'function')  sqOpenPlayer(el.dataset.playerId); break;
+        case 'sqClosePlayer': if (typeof sqClosePlayer === 'function') sqClosePlayer();                   break;
+        case 'sqPlayerTab':   if (typeof sqPlayerTab === 'function')   sqPlayerTab(el.dataset.tab);        break;
         case 'closeMobileMenu':     closeMobileMenu();     break;
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
