@@ -2046,8 +2046,7 @@ function resetSquadView() {
     var el = document.getElementById('sq-sub-' + s);
     if (el) el.style.display = 'none';
   });
-  var _pm = document.getElementById('sq-pl-modal');
-  if (_pm) _pm.style.display = 'none';
+  if (typeof _sqHideModals === 'function') _sqHideModals();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2122,21 +2121,7 @@ function _sqInitials(name) {
 
 function _sqLineupHtml() {
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
-  var rows = SQ_DEMO_PLAYERS.map(function (p) {
-    return '<tr class="sql-row" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
-      + '<td class="sql-c-pos"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span></td>'
-      + '<td class="sql-c-num">' + p.num + '</td>'
-      + '<td class="sql-c-name"><span class="sql-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt" title="Captain">C</span>' : '') + '</span></td>'
-      + '<td class="sql-c-roles">' + p.roles + '</td>'
-      + '<td class="sql-c-nat"><span class="sql-flag">' + p.nat + '</span><span class="sql-natc">' + (SQ_NAT[p.natName] || '') + '</span></td>'
-      + '<td class="sql-c-age">' + p.age + '</td>'
-      + '<td class="sql-c-val">' + p.value + '</td>'
-      + '<td class="sql-c-form">' + _sqFormChip(p.form) + '</td>'
-      + '<td class="sql-c-cond"><div class="sql-condwrap"><span>' + p.cond + '%</span>' + _sqBar(p.cond) + '</div></td>'
-      + '<td class="sql-c-mor">' + _sqMorale(p.morale) + '</td>'
-      + '<td class="sql-c-qual">' + _sqQual(p.qual) + '</td>'
-      + '</tr>';
-  }).join('');
+  var rows = _sqLineupRows();
 
   return '<div class="sq-sub" id="sq-sub-lineup" style="display:none">'
     + '<div class="sq-sub-header">'
@@ -2147,12 +2132,13 @@ function _sqLineupHtml() {
     +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
     +   '</div>'
     + '</div>'
-    + '<div class="sql-meta"><span class="sql-meta-title">Squad</span><span class="sql-meta-count">' + SQ_DEMO_PLAYERS.length + ' players</span></div>'
+    + '<div class="sql-meta"><div class="sql-meta-l"><span class="sql-meta-title">Squad</span><span class="sql-meta-count" id="sq-lineup-count">' + SQ_DEMO_PLAYERS.length + ' players</span></div>'
+    + '<button class="sq-mbtn sq-mbtn--add" data-action="sqAddPlayer" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add player</button></div>'
     + '<div class="sql-tablewrap"><table class="sql-table">'
     +   '<thead><tr>'
     +     '<th>Pos</th><th>#</th><th>Name</th><th>Roles</th><th>Nat</th><th>Age</th><th>Value</th><th>Form</th><th>Condition</th><th>Morale</th><th>Quality</th>'
     +   '</tr></thead>'
-    +   '<tbody>' + rows + '</tbody>'
+    +   '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
     + '</table></div>'
     + '</div>';
 }
@@ -2161,6 +2147,14 @@ function _sqPlayerModalShell() {
   return '<div id="sq-pl-modal" class="sq-plm" style="display:none">'
     + '<div class="sq-plm-backdrop" data-action="sqClosePlayer"></div>'
     + '<div class="sq-plm-dialog" id="sq-plm-dialog" role="dialog" aria-modal="true"></div>'
+    + '</div>'
+    + '<div id="sq-form-modal" class="sq-fm" style="display:none">'
+    + '<div class="sq-fm-backdrop" data-action="sqFormCancel"></div>'
+    + '<div class="sq-fm-dialog" id="sq-fm-dialog" role="dialog" aria-modal="true"></div>'
+    + '</div>'
+    + '<div id="sq-confirm-modal" class="sq-cf" style="display:none">'
+    + '<div class="sq-cf-backdrop" data-action="sqDeleteCancel"></div>'
+    + '<div class="sq-cf-dialog" id="sq-cf-dialog" role="dialog" aria-modal="true"></div>'
     + '</div>';
 }
 
@@ -2363,12 +2357,16 @@ function _sqRenderPlayerModal() {
   dlg.innerHTML =
       '<button class="sq-plm-close" data-action="sqClosePlayer" type="button" aria-label="Close">✕</button>'
     + '<div class="sq-plm-head">'
-    +   '<div class="sq-plm-avatar sql-pos--' + p.cat + '">' + _sqInitials(p.name) + '</div>'
+    +   '<div class="sq-plm-avatar sql-pos--' + p.cat + '">' + _sqAvatar(p) + '</div>'
     +   '<div class="sq-plm-id">'
     +     '<div class="sq-plm-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt">C</span>' : '') + '</div>'
     +     '<div class="sq-plm-sub"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span><span>#' + p.num + '</span><span>' + p.nat + ' ' + p.natName + '</span><span>' + p.age + ' yrs</span></div>'
     +   '</div>'
     +   '<div class="sq-plm-qual"><span class="sq-plm-qual-n">' + p.qual + '</span><span class="sq-plm-qual-l">Quality</span></div>'
+    + '</div>'
+    + '<div class="sq-plm-toolbar">'
+    +   '<button class="sq-mbtn" data-action="sqEditPlayer" data-player-id="' + p.id + '" type="button">' + ICON_EDIT + 'Edit player</button>'
+    +   '<button class="sq-mbtn sq-mbtn--danger" data-action="sqDeletePlayer" data-player-id="' + p.id + '" type="button">' + ICON_TRASH + 'Delete</button>'
     + '</div>'
     + '<div class="sq-plm-body">'
     +   '<div class="sq-plm-side">' + tabHtml + '</div>'
@@ -2388,6 +2386,182 @@ function sqClosePlayer() {
   SQ_UI.playerId = null;
 }
 function sqPlayerTab(tab) { SQ_UI.tab = tab; _sqRenderPlayerModal(); }
+
+// ── Squad · Lineup management (frontend-only, mutates the in-memory demo list) ──
+var SQ_POS = [
+  { v: 'GK', cat: 'gk' }, { v: 'RB', cat: 'df' }, { v: 'LB', cat: 'df' }, { v: 'CB', cat: 'df' },
+  { v: 'DM', cat: 'mf' }, { v: 'CM', cat: 'mf' }, { v: 'LW', cat: 'mf' }, { v: 'RW', cat: 'mf' }, { v: 'ST', cat: 'fw' },
+];
+var SQ_FLAG = { Argentina:'🇦🇷', Germany:'🇩🇪', Portugal:'🇵🇹', Italy:'🇮🇹', Senegal:'🇸🇳', France:'🇫🇷',
+  Spain:'🇪🇸', Japan:'🇯🇵', Brazil:'🇧🇷', Morocco:'🇲🇦', Denmark:'🇩🇰', England:'🇬🇧', 'South Africa':'🇿🇦',
+  Serbia:'🇷🇸', Finland:'🇫🇮', Netherlands:'🇳🇱', Belgium:'🇧🇪', Croatia:'🇭🇷', Nigeria:'🇳🇬', Mexico:'🇲🇽',
+  Colombia:'🇨🇴', Norway:'🇳🇴', Sweden:'🇸🇪', Poland:'🇵🇱', Uruguay:'🇺🇾', Ghana:'🇬🇭', Egypt:'🇪🇬' };
+function _sqFlag(n) { return SQ_FLAG[n] || '🏳️'; }
+function _sqCatFromPos(pos) { for (var i = 0; i < SQ_POS.length; i++) { if (SQ_POS[i].v === pos) return SQ_POS[i].cat; } return 'mf'; }
+
+var ICON_EDIT  = '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+var ICON_TRASH = '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+
+var _sqFormState = { mode: 'add', id: null };
+var _sqDeleteId = null;
+
+function _sqAvatar(p) {
+  if (p.photo) return '<img class="sq-plm-photo" src="' + _sqEsc(p.photo) + '" alt="">';
+  return '<svg class="sq-plm-ph" viewBox="0 0 48 48" aria-hidden="true">'
+    + '<circle cx="24" cy="17.5" r="8.4" fill="currentColor"/>'
+    + '<path d="M8.5 42c0-8.3 7-12.8 15.5-12.8S39.5 33.7 39.5 42z" fill="currentColor"/>'
+    + '</svg>';
+}
+
+function _sqLineupRows() {
+  return SQ_DEMO_PLAYERS.map(function (p) {
+    var code = SQ_NAT[p.natName] || (p.natName || '').slice(0, 3).toUpperCase();
+    return '<tr class="sql-row" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
+      + '<td class="sql-c-pos"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span></td>'
+      + '<td class="sql-c-num">' + p.num + '</td>'
+      + '<td class="sql-c-name"><span class="sql-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt" title="Captain">C</span>' : '') + '</span></td>'
+      + '<td class="sql-c-roles">' + _sqEsc(p.roles) + '</td>'
+      + '<td class="sql-c-nat"><span class="sql-flag">' + (p.nat || '🏳️') + '</span><span class="sql-natc">' + code + '</span></td>'
+      + '<td class="sql-c-age">' + p.age + '</td>'
+      + '<td class="sql-c-val">' + _sqEsc(p.value) + '</td>'
+      + '<td class="sql-c-form">' + _sqFormChip(p.form) + '</td>'
+      + '<td class="sql-c-cond"><div class="sql-condwrap"><span>' + p.cond + '%</span>' + _sqBar(p.cond) + '</div></td>'
+      + '<td class="sql-c-mor">' + _sqMorale(p.morale) + '</td>'
+      + '<td class="sql-c-qual">' + _sqQual(p.qual) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+function _sqRerenderLineup() {
+  var tb = document.getElementById('sq-lineup-tbody');
+  if (tb) tb.innerHTML = _sqLineupRows();
+  var c = document.getElementById('sq-lineup-count');
+  if (c) c.textContent = SQ_DEMO_PLAYERS.length + ' players';
+}
+function _sqHideModals() {
+  ['sq-pl-modal', 'sq-form-modal', 'sq-confirm-modal'].forEach(function (id) {
+    var e = document.getElementById(id); if (e) e.style.display = 'none';
+  });
+}
+
+function _sqField(id, label, type, val, full) {
+  return '<div class="sq-field' + (full ? ' sq-field--full' : '') + '">'
+    + '<label for="' + id + '">' + label + '</label>'
+    + '<input id="' + id + '" type="' + type + '" value="' + (val == null ? '' : val) + '"' + (type === 'number' ? ' inputmode="numeric"' : '') + '>'
+    + '</div>';
+}
+function _sqSelectField(id, label, opts, full) {
+  return '<div class="sq-field' + (full ? ' sq-field--full' : '') + '">'
+    + '<label for="' + id + '">' + label + '</label>'
+    + '<select id="' + id + '">' + opts + '</select>'
+    + '</div>';
+}
+function _sqRenderForm() {
+  var st = _sqFormState;
+  var p = st.mode === 'edit' ? _sqFind(st.id) : null;
+  var posOpts = SQ_POS.map(function (o) { return '<option value="' + o.v + '"' + ((p && p.pos === o.v) ? ' selected' : '') + '>' + o.v + '</option>'; }).join('');
+  var morOpts = ['Excellent', 'Good', 'Content', 'Poor'].map(function (m) { return '<option' + (((p && p.morale === m) || (!p && m === 'Good')) ? ' selected' : '') + '>' + m + '</option>'; }).join('');
+  var footOpts = ['Right', 'Left'].map(function (f) { return '<option' + (((p && p.foot === f) || (!p && f === 'Right')) ? ' selected' : '') + '>' + f + '</option>'; }).join('');
+  var dlg = document.getElementById('sq-fm-dialog');
+  if (!dlg) return;
+  dlg.innerHTML =
+      '<div class="sq-fm-head"><div class="sq-fm-title">' + (p ? 'Edit player' : 'Add player') + '</div>'
+    +   '<button class="sq-plm-close" data-action="sqFormCancel" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body"><div class="sq-fm-grid">'
+    +   _sqField('sqf-name', 'Name', 'text', p ? _sqEsc(p.name) : '', true)
+    +   _sqSelectField('sqf-pos', 'Position', posOpts)
+    +   _sqField('sqf-num', 'Squad number', 'number', p ? p.num : '')
+    +   _sqField('sqf-nat', 'Nationality', 'text', p ? _sqEsc(p.natName) : '')
+    +   _sqField('sqf-age', 'Age', 'number', p ? p.age : '')
+    +   _sqField('sqf-roles', 'Roles', 'text', p ? _sqEsc(p.roles) : '', true)
+    +   _sqField('sqf-value', 'Market value', 'text', p ? _sqEsc(p.value) : '')
+    +   _sqField('sqf-qual', 'Quality (40-99)', 'number', p ? p.qual : '')
+    +   _sqField('sqf-form', 'Form (1-10)', 'number', p ? p.form : '')
+    +   _sqField('sqf-cond', 'Condition (0-100)', 'number', p ? p.cond : '')
+    +   _sqSelectField('sqf-mor', 'Morale', morOpts)
+    +   _sqSelectField('sqf-foot', 'Preferred foot', footOpts)
+    +   _sqField('sqf-height', 'Height', 'text', p ? _sqEsc(p.height) : '')
+    +   _sqField('sqf-photo', 'Photo URL (optional)', 'text', p ? _sqEsc(p.photo || '') : '', true)
+    + '</div><div class="sq-fm-err" id="sq-fm-err"></div></div>'
+    + '<div class="sq-fm-foot">'
+    +   '<button class="sq-btn-ghost" data-action="sqFormCancel" type="button">Cancel</button>'
+    +   '<button class="sq-btn-primary" data-action="sqFormSave" type="button">' + (p ? 'Save changes' : 'Add player') + '</button>'
+    + '</div>';
+}
+function sqAddPlayer() {
+  _sqFormState = { mode: 'add', id: null };
+  _sqRenderForm();
+  var m = document.getElementById('sq-form-modal'); if (m) m.style.display = 'flex';
+}
+function sqEditPlayerOpen(id) {
+  if (!_sqFind(id)) return;
+  _sqFormState = { mode: 'edit', id: id };
+  _sqRenderForm();
+  var m = document.getElementById('sq-form-modal'); if (m) m.style.display = 'flex';
+}
+function sqFormCancel() {
+  var m = document.getElementById('sq-form-modal'); if (m) m.style.display = 'none';
+}
+function sqFormSave() {
+  var g = function (id) { var e = document.getElementById(id); return e ? String(e.value).trim() : ''; };
+  var name = g('sqf-name');
+  var err = document.getElementById('sq-fm-err');
+  if (!name) { if (err) err.textContent = 'Player name is required.'; return; }
+  var pos = g('sqf-pos') || 'CM';
+  var natName = g('sqf-nat') || '—';
+  var data = {
+    pos: pos, cat: _sqCatFromPos(pos),
+    num: parseInt(g('sqf-num'), 10) || 0,
+    name: name,
+    roles: g('sqf-roles') || pos,
+    natName: natName, nat: _sqFlag(natName),
+    age: parseInt(g('sqf-age'), 10) || 0,
+    value: g('sqf-value') || '—',
+    qual: Math.max(40, Math.min(99, parseInt(g('sqf-qual'), 10) || 70)),
+    form: Math.max(1, Math.min(10, parseInt(g('sqf-form'), 10) || 5)),
+    cond: Math.max(0, Math.min(100, parseInt(g('sqf-cond'), 10) || 85)),
+    morale: g('sqf-mor') || 'Good',
+    foot: g('sqf-foot') || 'Right',
+    height: g('sqf-height') || '—',
+  };
+  var photo = g('sqf-photo'); if (photo) data.photo = photo;
+  if (_sqFormState.mode === 'edit') {
+    var p = _sqFind(_sqFormState.id);
+    if (p) { for (var k in data) { p[k] = data[k]; } if (!photo) { delete p.photo; } }
+  } else {
+    data.id = 'sq-new-' + Date.now();
+    SQ_DEMO_PLAYERS.push(data);
+  }
+  _sqRerenderLineup();
+  if (SQ_UI.playerId && _sqFormState.mode === 'edit' && SQ_UI.playerId === _sqFormState.id) { _sqRenderPlayerModal(); }
+  sqFormCancel();
+}
+function sqDeleteConfirm(id) {
+  var p = _sqFind(id); if (!p) return;
+  _sqDeleteId = id;
+  var dlg = document.getElementById('sq-cf-dialog');
+  if (dlg) {
+    dlg.innerHTML = '<div class="sq-cf-title">Delete player</div>'
+      + '<div class="sq-cf-text">Remove <b>' + _sqEsc(p.name) + '</b> (' + p.pos + ' · #' + p.num + ') from the squad? This cannot be undone.</div>'
+      + '<div class="sq-cf-foot">'
+      +   '<button class="sq-btn-ghost" data-action="sqDeleteCancel" type="button">Cancel</button>'
+      +   '<button class="sq-btn-danger" data-action="sqDeleteDo" type="button">Delete player</button>'
+      + '</div>';
+  }
+  var m = document.getElementById('sq-confirm-modal'); if (m) m.style.display = 'flex';
+}
+function sqDeleteCancel() {
+  var m = document.getElementById('sq-confirm-modal'); if (m) m.style.display = 'none';
+  _sqDeleteId = null;
+}
+function sqDeleteDo() {
+  var idx = -1;
+  for (var i = 0; i < SQ_DEMO_PLAYERS.length; i++) { if (SQ_DEMO_PLAYERS[i].id === _sqDeleteId) { idx = i; break; } }
+  if (idx >= 0) SQ_DEMO_PLAYERS.splice(idx, 1);
+  _sqRerenderLineup();
+  sqDeleteCancel();
+  var pm = document.getElementById('sq-pl-modal'); if (pm) pm.style.display = 'none';
+  SQ_UI.playerId = null;
+}
 
 function renderClubHome() {
   var ctx    = (window.State && State.context) || {};
@@ -34077,8 +34251,7 @@ async function tosBoardSnapshot() {
           var _sp = el.dataset.squadPage;
           var _sqHome = document.getElementById('sq-home');
           if (_sqHome) _sqHome.style.display = 'none';
-          var _sqpm = document.getElementById('sq-pl-modal');
-          if (_sqpm) _sqpm.style.display = 'none';
+          if (typeof _sqHideModals === 'function') _sqHideModals();
           ['lineup', 'formation', 'tactics'].forEach(function (s) {
             var _sv = document.getElementById('sq-sub-' + s);
             if (_sv) _sv.style.display = s === _sp ? '' : 'none';
@@ -34092,6 +34265,13 @@ async function tosBoardSnapshot() {
         case 'sqOpenPlayer':  if (typeof sqOpenPlayer === 'function')  sqOpenPlayer(el.dataset.playerId); break;
         case 'sqClosePlayer': if (typeof sqClosePlayer === 'function') sqClosePlayer();                   break;
         case 'sqPlayerTab':   if (typeof sqPlayerTab === 'function')   sqPlayerTab(el.dataset.tab);        break;
+        case 'sqAddPlayer':    if (typeof sqAddPlayer === 'function')     sqAddPlayer();                              break;
+        case 'sqEditPlayer':   if (typeof sqEditPlayerOpen === 'function') sqEditPlayerOpen(el.dataset.playerId);     break;
+        case 'sqDeletePlayer': if (typeof sqDeleteConfirm === 'function')  sqDeleteConfirm(el.dataset.playerId);      break;
+        case 'sqFormSave':     if (typeof sqFormSave === 'function')      sqFormSave();                               break;
+        case 'sqFormCancel':   if (typeof sqFormCancel === 'function')    sqFormCancel();                             break;
+        case 'sqDeleteDo':     if (typeof sqDeleteDo === 'function')      sqDeleteDo();                               break;
+        case 'sqDeleteCancel': if (typeof sqDeleteCancel === 'function')  sqDeleteCancel();                           break;
         case 'closeMobileMenu':     closeMobileMenu();     break;
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
