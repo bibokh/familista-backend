@@ -3445,6 +3445,16 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sq-plm-ph{ width:100%; height:100%; }
 .sq-plm-head{ gap:18px; }
 
+/* Lineup — player photo upload */
+.sq-photo-row{ display:flex; align-items:center; gap:14px; }
+.sq-photo-prev{ width:66px; height:66px; border-radius:14px; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; color:#5b6678; }
+.sq-photo-prev img{ width:100%; height:100%; object-fit:cover; display:block; }
+.sq-photo-prev svg{ width:84%; height:84%; }
+.sq-photo-actions{ display:flex; flex-direction:column; gap:7px; align-items:flex-start; }
+.sq-photo-actions .sq-btn-ghost{ padding:7px 13px; font-size:12.5px; }
+.sq-photo-rm{ color:#fca5a5; border-color:rgba(248,113,113,.3); }
+.sq-photo-hint{ font-size:11px; color:var(--tx-3,#7e8aa0); }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;

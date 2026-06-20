@@ -2427,12 +2427,7 @@ function _sqLoad() {
 
 function _sqAvatar(p) {
   if (p.photo) return '<img class="sq-plm-photo" src="' + _sqEsc(p.photo) + '" alt="' + _sqEsc(p.name) + '">';
-  return '<svg class="sq-plm-ph" viewBox="0 0 80 80" aria-hidden="true">'
-    + '<circle cx="40" cy="27" r="14.5" fill="rgba(255,255,255,.94)"/>'
-    + '<path d="M12 80 C12 56 26 46.5 40 46.5 C54 46.5 68 56 68 80 Z" fill="rgba(255,255,255,.94)"/>'
-    + '<path d="M30.5 48.5 L40 58 L49.5 48.5" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'
-    + '<text x="40" y="73" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="16" fill="currentColor">' + (p.num != null ? p.num : '') + '</text>'
-    + '</svg>';
+  return _sqDefaultPlayerSvg();
 }
 
 function _sqLineupRows() {
@@ -2480,6 +2475,7 @@ function _sqSelectField(id, label, opts, full) {
 function _sqRenderForm() {
   var st = _sqFormState;
   var p = st.mode === 'edit' ? _sqFind(st.id) : null;
+  _sqFormPhoto = (p && p.photo) ? p.photo : '';
   var posOpts = SQ_POS.map(function (o) { return '<option value="' + o.v + '"' + ((p && p.pos === o.v) ? ' selected' : '') + '>' + o.v + '</option>'; }).join('');
   var morOpts = ['Excellent', 'Good', 'Content', 'Poor'].map(function (m) { return '<option' + (((p && p.morale === m) || (!p && m === 'Good')) ? ' selected' : '') + '>' + m + '</option>'; }).join('');
   var footOpts = ['Right', 'Left'].map(function (f) { return '<option' + (((p && p.foot === f) || (!p && f === 'Right')) ? ' selected' : '') + '>' + f + '</option>'; }).join('');
@@ -2502,7 +2498,7 @@ function _sqRenderForm() {
     +   _sqSelectField('sqf-mor', 'Morale', morOpts)
     +   _sqSelectField('sqf-foot', 'Preferred foot', footOpts)
     +   _sqField('sqf-height', 'Height', 'text', p ? _sqEsc(p.height) : '')
-    +   _sqField('sqf-photo', 'Photo URL (optional)', 'text', p ? _sqEsc(p.photo || '') : '', true)
+    +   _sqPhotoField()
     + '</div><div class="sq-fm-err" id="sq-fm-err"></div></div>'
     + '<div class="sq-fm-foot">'
     +   '<button class="sq-btn-ghost" data-action="sqFormCancel" type="button">Cancel</button>'
@@ -2545,7 +2541,7 @@ function sqFormSave() {
     foot: g('sqf-foot') || 'Right',
     height: g('sqf-height') || '—',
   };
-  var photo = g('sqf-photo'); if (photo) data.photo = photo;
+  var photo = _sqFormPhoto; if (photo) data.photo = photo;
   if (_sqFormState.mode === 'edit') {
     var p = _sqFind(_sqFormState.id);
     if (p) { for (var k in data) { p[k] = data[k]; } if (!photo) { delete p.photo; } }
@@ -2586,6 +2582,66 @@ function sqDeleteDo() {
   var pm = document.getElementById('sq-pl-modal'); if (pm) pm.style.display = 'none';
   SQ_UI.playerId = null;
 }
+
+var _sqFormPhoto = '';
+function _sqDefaultPlayerSvg() {
+  return '<svg class="sq-plm-ph" viewBox="0 0 80 80" aria-hidden="true">'
+    + '<circle cx="40" cy="23" r="11.5" fill="rgba(255,255,255,.95)"/>'
+    + '<path d="M23 80 C23 56 30 47 40 47 C50 47 57 56 57 80 Z" fill="rgba(255,255,255,.95)"/>'
+    + '<path d="M23.5 49 L13 55 L17.5 63 L27 57.5 Z" fill="rgba(255,255,255,.95)"/>'
+    + '<path d="M56.5 49 L67 55 L62.5 63 L53 57.5 Z" fill="rgba(255,255,255,.95)"/>'
+    + '<path d="M33 49 L40 57 L47 49" fill="none" stroke="rgba(0,0,0,.16)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '</svg>';
+}
+function _sqPhotoField() {
+  return '<div class="sq-field sq-field--full"><label>Player photo</label>'
+    + '<div class="sq-photo-row">'
+    +   '<div class="sq-photo-prev" id="sq-photo-prev">' + (_sqFormPhoto ? '<img src="' + _sqFormPhoto + '" alt="">' : _sqDefaultPlayerSvg()) + '</div>'
+    +   '<div class="sq-photo-actions">'
+    +     '<button class="sq-btn-ghost" data-action="sqPickPhoto" type="button"><svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" style="width:15px;height:15px;vertical-align:-3px;margin-right:7px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 9l5-5 5 5M12 4v12"/></svg>Upload photo</button>'
+    +     '<button class="sq-btn-ghost sq-photo-rm" data-action="sqRemovePhoto" type="button"' + (_sqFormPhoto ? '' : ' style="display:none"') + '>Remove photo</button>'
+    +     '<span class="sq-photo-hint">JPG or PNG from your device</span>'
+    +   '</div>'
+    + '</div></div>';
+}
+function sqPickPhoto() {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.style.display = 'none';
+  inp.onchange = function () { var f = inp.files && inp.files[0]; if (f) _sqReadPhoto(f); };
+  document.body.appendChild(inp);
+  inp.click();
+  setTimeout(function () { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
+}
+function _sqReadPhoto(file) {
+  var reader = new FileReader();
+  reader.onload = function () {
+    var img = new Image();
+    img.onload = function () {
+      var max = 320, w = img.width, h = img.height;
+      if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+      else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+      var data;
+      try {
+        var c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        data = c.toDataURL('image/jpeg', 0.82);
+      } catch (e) { data = reader.result; }
+      _sqFormPhoto = data; _sqUpdatePhotoPreview();
+    };
+    img.onerror = function () { _sqFormPhoto = reader.result; _sqUpdatePhotoPreview(); };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function _sqUpdatePhotoPreview() {
+  var prev = document.getElementById('sq-photo-prev');
+  if (prev) prev.innerHTML = _sqFormPhoto ? '<img src="' + _sqFormPhoto + '" alt="">' : _sqDefaultPlayerSvg();
+  var rm = document.querySelector('.sq-photo-rm');
+  if (rm) rm.style.display = _sqFormPhoto ? '' : 'none';
+}
+function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 
 if (typeof _sqLoad === 'function') { _sqLoad(); }
 
@@ -34298,6 +34354,8 @@ async function tosBoardSnapshot() {
         case 'sqFormCancel':   if (typeof sqFormCancel === 'function')    sqFormCancel();                             break;
         case 'sqDeleteDo':     if (typeof sqDeleteDo === 'function')      sqDeleteDo();                               break;
         case 'sqDeleteCancel': if (typeof sqDeleteCancel === 'function')  sqDeleteCancel();                           break;
+        case 'sqPickPhoto':    if (typeof sqPickPhoto === 'function')     sqPickPhoto();                              break;
+        case 'sqRemovePhoto':  if (typeof sqRemovePhoto === 'function')   sqRemovePhoto();                            break;
         case 'closeMobileMenu':     closeMobileMenu();     break;
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
