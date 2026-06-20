@@ -2120,6 +2120,7 @@ function _sqInitials(name) {
 }
 
 function _sqLineupHtml() {
+  if (typeof _sqLoad === 'function') _sqLoad();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
   var rows = _sqLineupRows();
 
@@ -2404,12 +2405,33 @@ var ICON_TRASH = '<svg fill="none" stroke="currentColor" stroke-width="1.9" stro
 
 var _sqFormState = { mode: 'add', id: null };
 var _sqDeleteId = null;
+var SQ_LS_KEY = 'familista.squad.lineup.v1';
+function _sqSave() {
+  try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_LS_KEY, JSON.stringify(SQ_DEMO_PLAYERS)); } catch (e) {}
+}
+function _sqLoad() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    var raw = window.localStorage.getItem(SQ_LS_KEY);
+    if (raw) {
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length) {
+        SQ_DEMO_PLAYERS.length = 0;
+        for (var i = 0; i < arr.length; i++) SQ_DEMO_PLAYERS.push(arr[i]);
+        return;
+      }
+    }
+  } catch (e) {}
+  _sqSave();
+}
 
 function _sqAvatar(p) {
-  if (p.photo) return '<img class="sq-plm-photo" src="' + _sqEsc(p.photo) + '" alt="">';
-  return '<svg class="sq-plm-ph" viewBox="0 0 48 48" aria-hidden="true">'
-    + '<circle cx="24" cy="17.5" r="8.4" fill="currentColor"/>'
-    + '<path d="M8.5 42c0-8.3 7-12.8 15.5-12.8S39.5 33.7 39.5 42z" fill="currentColor"/>'
+  if (p.photo) return '<img class="sq-plm-photo" src="' + _sqEsc(p.photo) + '" alt="' + _sqEsc(p.name) + '">';
+  return '<svg class="sq-plm-ph" viewBox="0 0 80 80" aria-hidden="true">'
+    + '<circle cx="40" cy="27" r="14.5" fill="rgba(255,255,255,.94)"/>'
+    + '<path d="M12 80 C12 56 26 46.5 40 46.5 C54 46.5 68 56 68 80 Z" fill="rgba(255,255,255,.94)"/>'
+    + '<path d="M30.5 48.5 L40 58 L49.5 48.5" fill="none" stroke="rgba(0,0,0,.15)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>'
+    + '<text x="40" y="73" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="16" fill="currentColor">' + (p.num != null ? p.num : '') + '</text>'
     + '</svg>';
 }
 
@@ -2531,6 +2553,7 @@ function sqFormSave() {
     data.id = 'sq-new-' + Date.now();
     SQ_DEMO_PLAYERS.push(data);
   }
+  _sqSave();
   _sqRerenderLineup();
   if (SQ_UI.playerId && _sqFormState.mode === 'edit' && SQ_UI.playerId === _sqFormState.id) { _sqRenderPlayerModal(); }
   sqFormCancel();
@@ -2557,11 +2580,14 @@ function sqDeleteDo() {
   var idx = -1;
   for (var i = 0; i < SQ_DEMO_PLAYERS.length; i++) { if (SQ_DEMO_PLAYERS[i].id === _sqDeleteId) { idx = i; break; } }
   if (idx >= 0) SQ_DEMO_PLAYERS.splice(idx, 1);
+  _sqSave();
   _sqRerenderLineup();
   sqDeleteCancel();
   var pm = document.getElementById('sq-pl-modal'); if (pm) pm.style.display = 'none';
   SQ_UI.playerId = null;
 }
+
+if (typeof _sqLoad === 'function') { _sqLoad(); }
 
 function renderClubHome() {
   var ctx    = (window.State && State.context) || {};
