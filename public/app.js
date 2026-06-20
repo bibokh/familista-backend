@@ -2026,6 +2026,8 @@ function renderSquadHTML() {
   var subHtml = cards.map(function (c) {
     return c.id === 'lineup'
       ? _sqLineupHtml()
+      : c.id === 'formation'
+      ? _sqFormationHtml()
       : _sqSubHtml(c.id, c.label, c.iconColor, c.iconPath);
   }).join('');
 
@@ -2156,6 +2158,14 @@ function _sqPlayerModalShell() {
     + '<div id="sq-confirm-modal" class="sq-cf" style="display:none">'
     + '<div class="sq-cf-backdrop" data-action="sqDeleteCancel"></div>'
     + '<div class="sq-cf-dialog" id="sq-cf-dialog" role="dialog" aria-modal="true"></div>'
+    + '</div>'
+    + '<div id="sq-setups-modal" class="sq-fm" style="display:none">'
+    + '<div class="sq-fm-backdrop" data-action="sqSetupsClose"></div>'
+    + '<div class="sq-fm-dialog" id="sq-setups-dialog" role="dialog" aria-modal="true"></div>'
+    + '</div>'
+    + '<div id="sq-sp-modal" class="sq-fm" style="display:none">'
+    + '<div class="sq-fm-backdrop" data-action="sqFormSetPiecesClose"></div>'
+    + '<div class="sq-fm-dialog" id="sq-sp-dialog" role="dialog" aria-modal="true"></div>'
     + '</div>';
 }
 
@@ -2455,7 +2465,7 @@ function _sqRerenderLineup() {
   if (c) c.textContent = SQ_DEMO_PLAYERS.length + ' players';
 }
 function _sqHideModals() {
-  ['sq-pl-modal', 'sq-form-modal', 'sq-confirm-modal'].forEach(function (id) {
+  ['sq-pl-modal', 'sq-form-modal', 'sq-confirm-modal', 'sq-setups-modal', 'sq-sp-modal'].forEach(function (id) {
     var e = document.getElementById(id); if (e) e.style.display = 'none';
   });
 }
@@ -2643,7 +2653,203 @@ function _sqUpdatePhotoPreview() {
 }
 function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 
+// ── Squad · Formation (shares Lineup players; setups persist in localStorage) ──
+var SQ_FORM = { mentality: 'Balanced', team: 'my', showRoles: false, showCond: false };
+var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
+var SQ_SETUPS = [null, null, null, null];
+
+function _sqSetupsSave() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_SETUPS_KEY, JSON.stringify(SQ_SETUPS)); } catch (e) {} }
+function _sqSetupsLoad() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    var raw = window.localStorage.getItem(SQ_SETUPS_KEY);
+    if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) { for (var i = 0; i < 4; i++) SQ_SETUPS[i] = a[i] || null; } }
+  } catch (e) {}
+}
+
+var SQ_FORM_SLOTS = [
+  { role: 'GK', cat: 'gk', x: 50, y: 88 },
+  { role: 'LB', cat: 'df', x: 15, y: 72 },
+  { role: 'CB', cat: 'df', x: 38, y: 76 },
+  { role: 'CB', cat: 'df', x: 62, y: 76 },
+  { role: 'RB', cat: 'df', x: 85, y: 72 },
+  { role: 'CM', cat: 'mf', x: 27, y: 54 },
+  { role: 'CM', cat: 'mf', x: 50, y: 56 },
+  { role: 'CM', cat: 'mf', x: 73, y: 54 },
+  { role: 'LW', cat: 'fw', x: 18, y: 28 },
+  { role: 'ST', cat: 'fw', x: 50, y: 22 },
+  { role: 'RW', cat: 'fw', x: 82, y: 28 }
+];
+function _sqMentalityOffset(m) { return m === 'Attacking' ? -7 : m === 'Defensive' ? 7 : 0; }
+function _sqStars(q) { return Math.max(1, Math.min(5, Math.round((q - 54) / 7))); }
+function _sqStarStr(n) { var s = ''; for (var i = 0; i < 5; i++) s += (i < n ? '★' : '☆'); return s; }
+function _sqLastName(name) { var a = String(name).split(' '); return a[a.length - 1]; }
+function _sqMorClass(m) { return m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Content' ? 'ok' : 'low'; }
+
+function _sqPickXI() {
+  var pool = SQ_DEMO_PLAYERS.slice().sort(function (a, b) { return b.qual - a.qual; });
+  var used = {}, out = [], i;
+  SQ_FORM_SLOTS.forEach(function (s) {
+    var pick = null;
+    for (i = 0; i < pool.length; i++) { if (!used[pool[i].id] && pool[i].cat === s.cat) { pick = pool[i]; break; } }
+    if (!pick) { for (i = 0; i < pool.length; i++) { if (!used[pool[i].id]) { pick = pool[i]; break; } } }
+    if (pick) used[pick.id] = 1;
+    out.push({ slot: s, player: pick });
+  });
+  return out;
+}
+function _sqMiniDots(mentality) {
+  var off = _sqMentalityOffset(mentality);
+  return SQ_FORM_SLOTS.map(function (s) {
+    var y = s.role === 'GK' ? s.y : s.y + off;
+    return '<i class="sqfp-mini-dot sql-pos--' + s.cat + '" style="left:' + s.x + '%;top:' + y + '%"></i>';
+  }).join('');
+}
+function _sqOpponentChips() {
+  var opp = [{ n: 1, x: 50, y: 8 }, { n: 2, x: 16, y: 24 }, { n: 5, x: 38, y: 21 }, { n: 6, x: 62, y: 21 }, { n: 3, x: 84, y: 24 },
+    { n: 7, x: 18, y: 42 }, { n: 4, x: 40, y: 45 }, { n: 8, x: 60, y: 45 }, { n: 11, x: 82, y: 42 }, { n: 9, x: 40, y: 64 }, { n: 10, x: 60, y: 64 }];
+  return opp.map(function (o) {
+    return '<div class="sqfp-chip sqfp-chip--opp" style="left:' + o.x + '%;top:' + o.y + '%">'
+      + '<div class="sqfp-shirt sqfp-shirt--opp"><span class="sqfp-num">' + o.n + '</span></div>'
+      + '<div class="sqfp-name">Rival</div></div>';
+  }).join('');
+}
+function _sqChip(player, slot, off) {
+  var y = slot.y + (slot.role === 'GK' ? 0 : off);
+  if (!player) {
+    return '<div class="sqfp-chip" style="left:' + slot.x + '%;top:' + y + '%">'
+      + '<div class="sqfp-shirt sqfp-shirt--empty">+</div>'
+      + '<div class="sqfp-name sqfp-name--muted">' + slot.role + '</div></div>';
+  }
+  var shirt = player.photo
+    ? '<img class="sqfp-photo" src="' + _sqEsc(player.photo) + '" alt="">'
+    : '<span class="sqfp-num">' + player.num + '</span>';
+  var html = '<div class="sqfp-chip" data-action="sqOpenPlayer" data-player-id="' + player.id + '" style="left:' + slot.x + '%;top:' + y + '%">'
+    + '<div class="sqfp-shirt sql-pos--' + player.cat + '">' + shirt + (player.captain ? '<span class="sqfp-capt">C</span>' : '') + '</div>'
+    + '<div class="sqfp-stars">' + _sqStarStr(_sqStars(player.qual)) + '</div>'
+    + '<div class="sqfp-name">' + _sqEsc(_sqLastName(player.name)) + '</div>';
+  if (SQ_FORM.showRoles) html += '<div class="sqfp-role">' + _sqEsc(player.roles) + '</div>';
+  if (SQ_FORM.showCond) html += '<div class="sqfp-ind"><span class="sqfp-cond"><span style="width:' + player.cond + '%"></span></span>'
+    + '<span class="sqfp-mor sql-mor--' + _sqMorClass(player.morale) + '"></span></div>';
+  html += '</div>';
+  return html;
+}
+function _sqPitchHtml() {
+  var off = _sqMentalityOffset(SQ_FORM.mentality);
+  var pitch = '<svg class="sqfp-markings" viewBox="0 0 100 150" preserveAspectRatio="none">'
+    + '<rect x="2" y="2" width="96" height="146" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
+    + '<line x1="2" y1="75" x2="98" y2="75" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<circle cx="50" cy="75" r="11" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<circle cx="50" cy="75" r="0.8" fill="rgba(255,255,255,.3)"/>'
+    + '<rect x="28" y="2" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="40" y="2" width="20" height="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="28" y="128" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="40" y="140" width="20" height="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '</svg>';
+  var content = SQ_FORM.team === 'opp'
+    ? _sqOpponentChips()
+    : _sqPickXI().map(function (a) { return _sqChip(a.player, a.slot, off); }).join('');
+  return '<div class="sqfp-pitch">' + pitch + content + '</div>';
+}
+function _sqCtrlBtn(label, action, data, active) {
+  return '<button class="sqfp-ctrl' + (active ? ' is-active' : '') + '" data-action="' + action + '"' + (data || '') + ' type="button">' + label + '</button>';
+}
+function _sqFormationBody() {
+  var t = SQ_FORM.team;
+  var toolbar = '<div class="sqfp-toolbar">'
+    + '<div class="sqfp-seg">'
+    +   '<button class="sqfp-segbtn' + (t === 'my' ? ' is-active' : '') + '" data-action="sqFormTeam" data-team="my" type="button">My Team</button>'
+    +   '<button class="sqfp-segbtn' + (t === 'opp' ? ' is-active' : '') + '" data-action="sqFormTeam" data-team="opp" type="button">Opponent Team</button>'
+    + '</div>'
+    + _sqCtrlBtn('Roles', 'sqFormToggle', ' data-key="roles"', SQ_FORM.showRoles)
+    + _sqCtrlBtn('Condition &amp; Morale', 'sqFormToggle', ' data-key="cond"', SQ_FORM.showCond)
+    + _sqCtrlBtn('Mentality: ' + SQ_FORM.mentality, 'sqFormMentality', '', false)
+    + _sqCtrlBtn('Set Piece Takers', 'sqFormSetPieces', '', false)
+    + _sqCtrlBtn('Squad Setups', 'sqFormSetups', '', false)
+    + '</div>';
+  return toolbar + '<div class="sqfp-stage">' + _sqPitchHtml() + '</div>';
+}
+function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
+function _sqFormationHtml() {
+  if (typeof _sqLoad === 'function') _sqLoad();
+  if (typeof _sqSetupsLoad === 'function') _sqSetupsLoad();
+  var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
+  return '<div class="sq-sub" id="sq-sub-formation" style="display:none">'
+    + '<div class="sq-sub-header">'
+    +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
+    +   '<div class="sql-tabs">'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button">Lineup</button>'
+    +     '<button class="sql-tab is-active" type="button">Formation</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div id="sqfp-body">' + _sqFormationBody() + '</div>'
+    + '</div>';
+}
+function sqFormTeam(t) { SQ_FORM.team = (t === 'opp' ? 'opp' : 'my'); _sqRenderFormationBody(); }
+function sqFormToggle(k) { if (k === 'roles') SQ_FORM.showRoles = !SQ_FORM.showRoles; else if (k === 'cond') SQ_FORM.showCond = !SQ_FORM.showCond; _sqRenderFormationBody(); }
+function sqFormMentality() { var m = SQ_FORM.mentality; SQ_FORM.mentality = m === 'Balanced' ? 'Attacking' : m === 'Attacking' ? 'Defensive' : 'Balanced'; _sqRenderFormationBody(); }
+
+function _sqBest(filterFn) {
+  var pool = SQ_DEMO_PLAYERS.filter(filterFn).sort(function (a, b) { return b.qual - a.qual; });
+  return pool[0] || SQ_DEMO_PLAYERS.slice().sort(function (a, b) { return b.qual - a.qual; })[0] || null;
+}
+function _sqRenderSetPieces() {
+  var dlg = document.getElementById('sq-sp-dialog'); if (!dlg) return;
+  var rows = [
+    ['Penalties', _sqBest(function (p) { return p.cat === 'fw' || p.cat === 'mf'; })],
+    ['Free kicks', _sqBest(function (p) { return p.cat === 'mf' || p.cat === 'fw'; })],
+    ['Corners', _sqBest(function (p) { return p.cat === 'mf'; })],
+    ['Long throws', _sqBest(function (p) { return p.cat === 'df'; })],
+    ['Captain', _sqBest(function (p) { return !!p.captain; })]
+  ];
+  var body = rows.map(function (r) {
+    var p = r[1];
+    var who = p ? ('<div class="sqsp-who"><span class="sqfp-shirt sql-pos--' + p.cat + '" style="width:28px;height:28px">' + (p.photo ? '<img class="sqfp-photo" src="' + _sqEsc(p.photo) + '">' : '<span class="sqfp-num" style="font-size:11px">' + p.num + '</span>') + '</span><span>' + _sqEsc(p.name) + '</span></div>') : '<span class="sq-note">--</span>';
+    return '<div class="sqsp-row"><span class="sqsp-label">' + r[0] + '</span>' + who + '</div>';
+  }).join('');
+  dlg.innerHTML = '<div class="sq-fm-head"><div class="sq-fm-title">Set piece takers</div><button class="sq-plm-close" data-action="sqFormSetPiecesClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body">' + body + '<div class="sq-note">Auto-selected by quality.</div></div>';
+}
+function sqFormSetPieces() { _sqRenderSetPieces(); var m = document.getElementById('sq-sp-modal'); if (m) m.style.display = 'flex'; }
+function sqFormSetPiecesClose() { var m = document.getElementById('sq-sp-modal'); if (m) m.style.display = 'none'; }
+
+function _sqRenderSetups() {
+  var dlg = document.getElementById('sq-setups-dialog'); if (!dlg) return;
+  var cards = '';
+  for (var i = 0; i < 4; i++) {
+    var s = SQ_SETUPS[i];
+    var status = s ? ('<span class="sqset-badge">' + s.mentality + '</span>') : '<span class="sqset-empty">Empty</span>';
+    cards += '<div class="sqset-card">'
+      + '<div class="sqset-top"><span class="sqset-name">Setup ' + (i + 1) + '</span>' + status + '</div>'
+      + '<div class="sqset-mini">' + _sqMiniDots(s ? s.mentality : SQ_FORM.mentality) + '</div>'
+      + '<div class="sqset-actions">'
+      +   '<button class="sq-btn-ghost" data-action="sqSetupLoad" data-slot="' + i + '" type="button"' + (s ? '' : ' disabled') + '>Load</button>'
+      +   '<button class="sq-btn-primary" data-action="sqSetupSave" data-slot="' + i + '" type="button">Save</button>'
+      + '</div></div>';
+  }
+  dlg.innerHTML = '<div class="sq-fm-head"><div class="sq-fm-title">Squad setups</div><button class="sq-plm-close" data-action="sqSetupsClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body"><div class="sqset-grid">' + cards + '</div>'
+    + '<div class="sq-note">Saves the current mentality &amp; XI to a slot. Persists on this device.</div></div>';
+}
+function sqFormSetups() { _sqRenderSetups(); var m = document.getElementById('sq-setups-modal'); if (m) m.style.display = 'flex'; }
+function sqSetupsClose() { var m = document.getElementById('sq-setups-modal'); if (m) m.style.display = 'none'; }
+function sqSetupSave(i) {
+  i = parseInt(i, 10); if (isNaN(i) || i < 0 || i > 3) return;
+  var ids = _sqPickXI().map(function (a) { return a.player ? a.player.id : null; });
+  SQ_SETUPS[i] = { mentality: SQ_FORM.mentality, ids: ids, ts: Date.now() };
+  _sqSetupsSave();
+  _sqRenderSetups();
+}
+function sqSetupLoad(i) {
+  i = parseInt(i, 10); var s = SQ_SETUPS[i]; if (!s) return;
+  SQ_FORM.mentality = s.mentality || 'Balanced';
+  _sqRenderFormationBody();
+  sqSetupsClose();
+}
+
 if (typeof _sqLoad === 'function') { _sqLoad(); }
+if (typeof _sqSetupsLoad === 'function') { _sqSetupsLoad(); }
 
 function renderClubHome() {
   var ctx    = (window.State && State.context) || {};
@@ -34356,6 +34562,15 @@ async function tosBoardSnapshot() {
         case 'sqDeleteCancel': if (typeof sqDeleteCancel === 'function')  sqDeleteCancel();                           break;
         case 'sqPickPhoto':    if (typeof sqPickPhoto === 'function')     sqPickPhoto();                              break;
         case 'sqRemovePhoto':  if (typeof sqRemovePhoto === 'function')   sqRemovePhoto();                            break;
+        case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
+        case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
+        case 'sqFormMentality':    if (typeof sqFormMentality === 'function')     sqFormMentality();                  break;
+        case 'sqFormSetPieces':    if (typeof sqFormSetPieces === 'function')     sqFormSetPieces();                  break;
+        case 'sqFormSetPiecesClose': if (typeof sqFormSetPiecesClose === 'function') sqFormSetPiecesClose();          break;
+        case 'sqFormSetups':       if (typeof sqFormSetups === 'function')        sqFormSetups();                     break;
+        case 'sqSetupsClose':      if (typeof sqSetupsClose === 'function')       sqSetupsClose();                    break;
+        case 'sqSetupSave':        if (typeof sqSetupSave === 'function')         sqSetupSave(el.dataset.slot);       break;
+        case 'sqSetupLoad':        if (typeof sqSetupLoad === 'function')         sqSetupLoad(el.dataset.slot);       break;
         case 'closeMobileMenu':     closeMobileMenu();     break;
         case 'toggleMobileMenu':    toggleMobileMenu();    break;
         case 'doLogin':             doLogin();             break;
