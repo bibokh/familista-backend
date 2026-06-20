@@ -2657,6 +2657,9 @@ function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 var SQ_FORM = { mentality: 'Balanced', team: 'my', showRoles: false, showCond: false };
 var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
 var SQ_SETUPS = [null, null, null, null];
+var SQ_FORM_XI = null;
+var _sqDragInit = false;
+var _sqDrag = null;
 
 function _sqSetupsSave() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_SETUPS_KEY, JSON.stringify(SQ_SETUPS)); } catch (e) {} }
 function _sqSetupsLoad() {
@@ -2667,41 +2670,77 @@ function _sqSetupsLoad() {
   } catch (e) {}
 }
 
-var SQ_FORM_SLOTS = [
-  { role: 'GK', cat: 'gk', x: 50, y: 88 },
-  { role: 'LB', cat: 'df', x: 15, y: 72 },
-  { role: 'CB', cat: 'df', x: 38, y: 76 },
-  { role: 'CB', cat: 'df', x: 62, y: 76 },
-  { role: 'RB', cat: 'df', x: 85, y: 72 },
-  { role: 'CM', cat: 'mf', x: 27, y: 54 },
-  { role: 'CM', cat: 'mf', x: 50, y: 56 },
-  { role: 'CM', cat: 'mf', x: 73, y: 54 },
-  { role: 'LW', cat: 'fw', x: 18, y: 28 },
-  { role: 'ST', cat: 'fw', x: 50, y: 22 },
-  { role: 'RW', cat: 'fw', x: 82, y: 28 }
-];
+// Pitch zones (vertical, attacking up: GK bottom y88, forwards top y~20)
+var SQ_ZONES = {
+  GK: { x: 50, y: 88, label: 'GK' },
+  DL: { x: 13, y: 74, label: 'DL' }, DCL: { x: 35, y: 78, label: 'DC' }, DC: { x: 50, y: 79, label: 'DC' }, DCR: { x: 65, y: 78, label: 'DC' }, DR: { x: 87, y: 74, label: 'DR' },
+  WBL: { x: 11, y: 60, label: 'WBL' }, WBR: { x: 89, y: 60, label: 'WBR' }, DM: { x: 50, y: 62, label: 'DM' },
+  ML: { x: 14, y: 50, label: 'ML' }, MCL: { x: 35, y: 53, label: 'MC' }, MC: { x: 50, y: 54, label: 'MC' }, MCR: { x: 65, y: 53, label: 'MC' }, MR: { x: 86, y: 50, label: 'MR' },
+  AML: { x: 17, y: 36, label: 'AML' }, AMC: { x: 50, y: 36, label: 'AMC' }, AMR: { x: 83, y: 36, label: 'AMR' },
+  FL: { x: 20, y: 22, label: 'FL' }, ST: { x: 50, y: 20, label: 'ST' }, FR: { x: 80, y: 22, label: 'FR' }
+};
+var SQ_ALLOWED = {
+  GK: ['GK'],
+  RB: ['DR', 'WBR'], LB: ['DL', 'WBL'], CB: ['DCL', 'DC', 'DCR'],
+  DM: ['DM', 'MCL', 'MC', 'MCR'], CM: ['ML', 'MCL', 'MC', 'MCR', 'MR'],
+  LW: ['ML', 'AML', 'FL'], RW: ['MR', 'AMR', 'FR'], ST: ['ST', 'AMC', 'FL', 'FR']
+};
+var DEF_ZONES_433 = ['GK', 'DL', 'DCL', 'DCR', 'DR', 'MCL', 'MC', 'MCR', 'FL', 'ST', 'FR'];
+function _sqZoneCat(z) {
+  if (z === 'GK') return 'gk';
+  if (['DL', 'DCL', 'DC', 'DCR', 'DR', 'WBL', 'WBR'].indexOf(z) >= 0) return 'df';
+  if (['ML', 'MCL', 'MC', 'MCR', 'MR', 'DM', 'AML', 'AMC', 'AMR'].indexOf(z) >= 0) return 'mf';
+  return 'fw';
+}
+function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? ['DL', 'DCL', 'DC', 'DCR', 'DR'] : cat === 'mf' ? ['ML', 'MCL', 'MC', 'MCR', 'MR'] : ['FL', 'ST', 'FR']; }
+function _sqAllowedZones(p) { return SQ_ALLOWED[p.pos] || _sqDefaultAllowed(p.cat); }
+function _sqBuildXI() {
+  SQ_FORM_XI = {};
+  var pool = SQ_DEMO_PLAYERS.slice().sort(function (a, b) { return b.qual - a.qual; });
+  var used = {}, i;
+  DEF_ZONES_433.forEach(function (z) {
+    var pick = null;
+    for (i = 0; i < pool.length; i++) { if (!used[pool[i].id] && _sqAllowedZones(pool[i]).indexOf(z) >= 0) { pick = pool[i]; break; } }
+    if (!pick) { var cat = _sqZoneCat(z); for (i = 0; i < pool.length; i++) { if (!used[pool[i].id] && pool[i].cat === cat) { pick = pool[i]; break; } } }
+    if (!pick) { for (i = 0; i < pool.length; i++) { if (!used[pool[i].id]) { pick = pool[i]; break; } } }
+    if (pick) { used[pick.id] = 1; SQ_FORM_XI[z] = pick.id; }
+  });
+}
+function _sqPlaceInZone(pid, newZone) {
+  var cur = null, k;
+  for (k in SQ_FORM_XI) { if (SQ_FORM_XI[k] === pid) { cur = k; break; } }
+  var occupant = SQ_FORM_XI[newZone];
+  if (occupant && occupant !== pid) {
+    SQ_FORM_XI[newZone] = pid;
+    if (cur) SQ_FORM_XI[cur] = occupant; else delete SQ_FORM_XI[newZone];
+  } else {
+    if (cur) delete SQ_FORM_XI[cur];
+    SQ_FORM_XI[newZone] = pid;
+  }
+}
+function _sqFormationStats() {
+  var zs = SQ_FORM_XI ? Object.keys(SQ_FORM_XI) : [], players = [], correct = 0;
+  zs.forEach(function (z) { var p = _sqFind(SQ_FORM_XI[z]); if (!p) return; players.push(p); if (_sqAllowedZones(p).indexOf(z) >= 0) correct++; });
+  var ovrRaw = players.length ? Math.round(players.reduce(function (s, p) { return s + p.qual; }, 0) / players.length) : 0;
+  var bal = players.length ? Math.round(correct / players.length * 100) : 0;
+  var ovr = Math.max(0, Math.min(99, ovrRaw + Math.round((bal - 80) / 10)));
+  return { ovr: ovr, balance: bal, correct: correct, total: players.length };
+}
+
 function _sqMentalityOffset(m) { return m === 'Attacking' ? -7 : m === 'Defensive' ? 7 : 0; }
 function _sqStars(q) { return Math.max(1, Math.min(5, Math.round((q - 54) / 7))); }
 function _sqStarStr(n) { var s = ''; for (var i = 0; i < 5; i++) s += (i < n ? '★' : '☆'); return s; }
 function _sqLastName(name) { var a = String(name).split(' '); return a[a.length - 1]; }
 function _sqMorClass(m) { return m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Content' ? 'ok' : 'low'; }
 
-function _sqPickXI() {
-  var pool = SQ_DEMO_PLAYERS.slice().sort(function (a, b) { return b.qual - a.qual; });
-  var used = {}, out = [], i;
-  SQ_FORM_SLOTS.forEach(function (s) {
-    var pick = null;
-    for (i = 0; i < pool.length; i++) { if (!used[pool[i].id] && pool[i].cat === s.cat) { pick = pool[i]; break; } }
-    if (!pick) { for (i = 0; i < pool.length; i++) { if (!used[pool[i].id]) { pick = pool[i]; break; } } }
-    if (pick) used[pick.id] = 1;
-    out.push({ slot: s, player: pick });
-  });
-  return out;
-}
+var SQ_FORM_SLOTS = [
+  { cat: 'gk', x: 50, y: 88 }, { cat: 'df', x: 15, y: 72 }, { cat: 'df', x: 38, y: 76 }, { cat: 'df', x: 62, y: 76 }, { cat: 'df', x: 85, y: 72 },
+  { cat: 'mf', x: 27, y: 54 }, { cat: 'mf', x: 50, y: 56 }, { cat: 'mf', x: 73, y: 54 }, { cat: 'fw', x: 18, y: 28 }, { cat: 'fw', x: 50, y: 22 }, { cat: 'fw', x: 82, y: 28 }
+];
 function _sqMiniDots(mentality) {
   var off = _sqMentalityOffset(mentality);
   return SQ_FORM_SLOTS.map(function (s) {
-    var y = s.role === 'GK' ? s.y : s.y + off;
+    var y = s.cat === 'gk' ? s.y : s.y + off;
     return '<i class="sqfp-mini-dot sql-pos--' + s.cat + '" style="left:' + s.x + '%;top:' + y + '%"></i>';
   }).join('');
 }
@@ -2714,28 +2753,20 @@ function _sqOpponentChips() {
       + '<div class="sqfp-name">Rival</div></div>';
   }).join('');
 }
-function _sqChip(player, slot, off) {
-  var y = slot.y + (slot.role === 'GK' ? 0 : off);
-  if (!player) {
-    return '<div class="sqfp-chip" style="left:' + slot.x + '%;top:' + y + '%">'
-      + '<div class="sqfp-shirt sqfp-shirt--empty">+</div>'
-      + '<div class="sqfp-name sqfp-name--muted">' + slot.role + '</div></div>';
-  }
-  var shirt = player.photo
-    ? '<img class="sqfp-photo" src="' + _sqEsc(player.photo) + '" alt="">'
-    : '<span class="sqfp-num">' + player.num + '</span>';
-  var html = '<div class="sqfp-chip" data-action="sqOpenPlayer" data-player-id="' + player.id + '" style="left:' + slot.x + '%;top:' + y + '%">'
-    + '<div class="sqfp-shirt sql-pos--' + player.cat + '">' + shirt + (player.captain ? '<span class="sqfp-capt">C</span>' : '') + '</div>'
-    + '<div class="sqfp-stars">' + _sqStarStr(_sqStars(player.qual)) + '</div>'
-    + '<div class="sqfp-name">' + _sqEsc(_sqLastName(player.name)) + '</div>';
-  if (SQ_FORM.showRoles) html += '<div class="sqfp-role">' + _sqEsc(player.roles) + '</div>';
-  if (SQ_FORM.showCond) html += '<div class="sqfp-ind"><span class="sqfp-cond"><span style="width:' + player.cond + '%"></span></span>'
-    + '<span class="sqfp-mor sql-mor--' + _sqMorClass(player.morale) + '"></span></div>';
+function _sqDragChip(p, z, Z) {
+  var shirt = p.photo ? '<img class="sqfp-photo" src="' + _sqEsc(p.photo) + '" alt="">' : '<span class="sqfp-num">' + p.num + '</span>';
+  var warn = _sqAllowedZones(p).indexOf(z) >= 0 ? '' : ' sqfp-chip--warn';
+  var html = '<div class="sqfp-chip' + warn + '" data-zone="' + z + '" data-drag="1" data-player-id="' + p.id + '" style="left:' + Z.x + '%;top:' + Z.y + '%">'
+    + '<div class="sqfp-shirt sql-pos--' + p.cat + '">' + shirt + (p.captain ? '<span class="sqfp-capt">C</span>' : '') + '</div>'
+    + '<div class="sqfp-stars">' + _sqStarStr(_sqStars(p.qual)) + '</div>'
+    + '<div class="sqfp-name">' + _sqEsc(_sqLastName(p.name)) + '</div>';
+  if (SQ_FORM.showRoles) html += '<div class="sqfp-role">' + _sqEsc(p.roles) + '</div>';
+  if (SQ_FORM.showCond) html += '<div class="sqfp-ind"><span class="sqfp-cond"><span style="width:' + p.cond + '%"></span></span>'
+    + '<span class="sqfp-mor sql-mor--' + _sqMorClass(p.morale) + '"></span></div>';
   html += '</div>';
   return html;
 }
 function _sqPitchHtml() {
-  var off = _sqMentalityOffset(SQ_FORM.mentality);
   var pitch = '<svg class="sqfp-markings" viewBox="0 0 100 150" preserveAspectRatio="none">'
     + '<rect x="2" y="2" width="96" height="146" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
     + '<line x1="2" y1="75" x2="98" y2="75" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
@@ -2746,9 +2777,12 @@ function _sqPitchHtml() {
     + '<rect x="28" y="128" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
     + '<rect x="40" y="140" width="20" height="8" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
     + '</svg>';
-  var content = SQ_FORM.team === 'opp'
-    ? _sqOpponentChips()
-    : _sqPickXI().map(function (a) { return _sqChip(a.player, a.slot, off); }).join('');
+  var content;
+  if (SQ_FORM.team === 'opp') { content = _sqOpponentChips(); }
+  else {
+    if (!SQ_FORM_XI || !Object.keys(SQ_FORM_XI).length) _sqBuildXI();
+    content = Object.keys(SQ_FORM_XI).map(function (z) { var p = _sqFind(SQ_FORM_XI[z]); var Z = SQ_ZONES[z]; return (p && Z) ? _sqDragChip(p, z, Z) : ''; }).join('');
+  }
   return '<div class="sqfp-pitch">' + pitch + content + '</div>';
 }
 function _sqCtrlBtn(label, action, data, active) {
@@ -2767,12 +2801,22 @@ function _sqFormationBody() {
     + _sqCtrlBtn('Set Piece Takers', 'sqFormSetPieces', '', false)
     + _sqCtrlBtn('Squad Setups', 'sqFormSetups', '', false)
     + '</div>';
-  return toolbar + '<div class="sqfp-stage">' + _sqPitchHtml() + '</div>';
+  var hud = '', hint = '';
+  if (t === 'my') {
+    var st = _sqFormationStats();
+    hud = '<div class="sqfp-hud">'
+      + '<div class="sqfp-stat sqfp-stat--ovr"><span>Team OVR</span><b id="sqfp-ovr">' + st.ovr + '</b></div>'
+      + '<div class="sqfp-stat sqfp-stat--bal"><span>Balance</span><b id="sqfp-bal">' + st.balance + '%</b></div>'
+      + '</div>';
+    hint = '<div class="sqfp-hint">Drag a player to reposition — green zones show his valid roles.</div>';
+  }
+  return toolbar + hud + '<div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + hint;
 }
 function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
   if (typeof _sqSetupsLoad === 'function') _sqSetupsLoad();
+  _sqBuildXI();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
   return '<div class="sq-sub" id="sq-sub-formation" style="display:none">'
     + '<div class="sq-sub-header">'
@@ -2789,6 +2833,60 @@ function _sqFormationHtml() {
 function sqFormTeam(t) { SQ_FORM.team = (t === 'opp' ? 'opp' : 'my'); _sqRenderFormationBody(); }
 function sqFormToggle(k) { if (k === 'roles') SQ_FORM.showRoles = !SQ_FORM.showRoles; else if (k === 'cond') SQ_FORM.showCond = !SQ_FORM.showCond; _sqRenderFormationBody(); }
 function sqFormMentality() { var m = SQ_FORM.mentality; SQ_FORM.mentality = m === 'Balanced' ? 'Attacking' : m === 'Attacking' ? 'Defensive' : 'Balanced'; _sqRenderFormationBody(); }
+
+// ── drag-and-drop placement ──
+function _sqNearestZone(x, y) {
+  var best = null, bd = 1e9, k;
+  for (k in SQ_ZONES) { var Z = SQ_ZONES[k]; var dx = Z.x - x, dy = Z.y - y; var d = dx * dx + dy * dy; if (d < bd) { bd = d; best = k; } }
+  return bd <= 196 ? best : null;
+}
+function _sqShowZones(pitch, zones) {
+  _sqHideZones(pitch);
+  var wrap = document.createElement('div'); wrap.className = 'sqfp-zones';
+  zones.forEach(function (z) {
+    var Z = SQ_ZONES[z]; if (!Z) return;
+    var d = document.createElement('div'); d.className = 'sqfp-zone'; d.setAttribute('data-zone', z);
+    d.style.left = Z.x + '%'; d.style.top = Z.y + '%';
+    d.innerHTML = '<span>' + Z.label + '</span>';
+    wrap.appendChild(d);
+  });
+  pitch.appendChild(wrap);
+}
+function _sqHideZones(pitch) { var w = pitch.querySelector('.sqfp-zones'); if (w) w.parentNode.removeChild(w); var m = pitch.querySelector('.sqfp-invalid-mark'); if (m) m.parentNode.removeChild(m); }
+function _sqHighlightTarget(pitch, zone) { var zs = pitch.querySelectorAll('.sqfp-zone'); for (var i = 0; i < zs.length; i++) { zs[i].classList.toggle('is-target', zs[i].getAttribute('data-zone') === zone); } }
+function _sqFlashInvalid(pitch, x, y) { var m = document.createElement('div'); m.className = 'sqfp-invalid-mark'; m.style.left = Math.max(6, Math.min(94, x)) + '%'; m.style.top = Math.max(6, Math.min(94, y)) + '%'; m.textContent = '✕'; pitch.appendChild(m); }
+function _sqInitFormationDrag() {
+  if (_sqDragInit || typeof document === 'undefined') return;
+  _sqDragInit = true;
+  document.addEventListener('pointerdown', function (e) {
+    var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
+    if (!chip || !chip.closest('#sq-sub-formation') || SQ_FORM.team !== 'my') return;
+    var pitch = chip.closest('.sqfp-pitch'); if (!pitch) return;
+    var pid = chip.getAttribute('data-player-id');
+    _sqDrag = { chip: chip, pitch: pitch, pid: pid, zone: chip.getAttribute('data-zone'), player: _sqFind(pid), sx: e.clientX, sy: e.clientY, moved: false, allowed: [] };
+    if (_sqDrag.player) _sqDrag.allowed = _sqAllowedZones(_sqDrag.player);
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) {
+    var d = _sqDrag; if (!d) return;
+    if (!d.moved) { if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 6) return; d.moved = true; d.chip.classList.add('is-dragging'); _sqShowZones(d.pitch, d.allowed); }
+    var r = d.pitch.getBoundingClientRect();
+    var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    d.chip.style.left = Math.max(4, Math.min(96, x)) + '%'; d.chip.style.top = Math.max(4, Math.min(96, y)) + '%';
+    var nz = _sqNearestZone(x, y); var ok = !!(nz && d.allowed.indexOf(nz) >= 0);
+    d.chip.classList.toggle('is-invalid', !ok);
+    _sqHighlightTarget(d.pitch, ok ? nz : null);
+  });
+  document.addEventListener('pointerup', function (e) {
+    var d = _sqDrag; if (!d) return; _sqDrag = null;
+    if (!d.moved) { if (typeof sqOpenPlayer === 'function') sqOpenPlayer(d.pid); return; }
+    var r = d.pitch.getBoundingClientRect();
+    var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+    var nz = _sqNearestZone(x, y); var ok = !!(nz && d.allowed.indexOf(nz) >= 0);
+    if (ok) { _sqPlaceInZone(d.pid, nz); _sqHideZones(d.pitch); _sqRenderFormationBody(); }
+    else { _sqHideZones(d.pitch); _sqFlashInvalid(d.pitch, x, y); setTimeout(_sqRenderFormationBody, 750); }
+  });
+}
 
 function _sqBest(filterFn) {
   var pool = SQ_DEMO_PLAYERS.filter(filterFn).sort(function (a, b) { return b.qual - a.qual; });
@@ -2836,7 +2934,8 @@ function sqFormSetups() { _sqRenderSetups(); var m = document.getElementById('sq
 function sqSetupsClose() { var m = document.getElementById('sq-setups-modal'); if (m) m.style.display = 'none'; }
 function sqSetupSave(i) {
   i = parseInt(i, 10); if (isNaN(i) || i < 0 || i > 3) return;
-  var ids = _sqPickXI().map(function (a) { return a.player ? a.player.id : null; });
+  if (!SQ_FORM_XI) _sqBuildXI();
+  var ids = Object.keys(SQ_FORM_XI).map(function (z) { return SQ_FORM_XI[z]; });
   SQ_SETUPS[i] = { mentality: SQ_FORM.mentality, ids: ids, ts: Date.now() };
   _sqSetupsSave();
   _sqRenderSetups();
@@ -2847,6 +2946,7 @@ function sqSetupLoad(i) {
   _sqRenderFormationBody();
   sqSetupsClose();
 }
+if (typeof document !== 'undefined') { _sqInitFormationDrag(); }
 
 if (typeof _sqLoad === 'function') { _sqLoad(); }
 if (typeof _sqSetupsLoad === 'function') { _sqSetupsLoad(); }
