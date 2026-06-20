@@ -1891,164 +1891,135 @@ function _sqSubHtml(id, label, color, svgPath) {
 }
 
 function renderSquadHTML() {
-  // ── Lineup: football pitch top-down, 4-3-3 ──────────────────────
-  var iLu = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+  // ---- Lineup preview: top-down green pitch, 4-3-3, glossy 3D player discs, captain armband, match ball
+  var iLu = '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">'
     + '<defs>'
-    + '<radialGradient id="lu-bg" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="#1b4d32"/><stop offset="100%" stop-color="#0c2519"/></radialGradient>'
-    + '<filter id="lu-ga"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '<filter id="lu-gb"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<radialGradient id="lx-d" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#ffe7ad"/><stop offset="40%" stop-color="#f6a821"/><stop offset="100%" stop-color="#8a4f08"/></radialGradient>'
+    + '<radialGradient id="lx-c" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#fffaf0"/><stop offset="40%" stop-color="#ffcf5e"/><stop offset="100%" stop-color="#9a5a08"/></radialGradient>'
+    + '<radialGradient id="lx-b" cx="36%" cy="28%" r="80%"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#d7dde6"/><stop offset="100%" stop-color="#94a0af"/></radialGradient>'
+    + '<radialGradient id="lx-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(245,158,11,.32)"/><stop offset="100%" stop-color="rgba(245,158,11,0)"/></radialGradient>'
     + '</defs>'
-    + '<rect width="220" height="160" rx="10" fill="url(#lu-bg)"/>'
-    + '<rect x="0" y="0" width="220" height="27" rx="10" fill="rgba(255,255,255,.016)"/>'
-    + '<rect x="0" y="54" width="220" height="27" fill="rgba(255,255,255,.016)"/>'
-    + '<rect x="0" y="108" width="220" height="27" fill="rgba(255,255,255,.016)"/>'
-    + '<rect x="7" y="7" width="206" height="146" rx="5" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
-    + '<line x1="110" y1="7" x2="110" y2="153" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
-    + '<circle cx="110" cy="80" r="22" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
-    + '<circle cx="110" cy="80" r="2" fill="rgba(255,255,255,.28)"/>'
-    + '<rect x="7" y="44" width="40" height="72" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
-    + '<rect x="173" y="44" width="40" height="72" fill="none" stroke="rgba(255,255,255,.13)" stroke-width="1.5"/>'
-    + '<rect x="2" y="66" width="5" height="28" rx="1" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.5"/>'
-    + '<rect x="213" y="66" width="5" height="28" rx="1" fill="none" stroke="rgba(255,255,255,.26)" stroke-width="1.5"/>'
-    + '<line x1="28" y1="80" x2="51" y2="36" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="28" y1="80" x2="51" y2="63" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="28" y1="80" x2="51" y2="97" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="28" y1="80" x2="51" y2="124" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="87" y1="53" x2="147" y2="43" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="87" y1="80" x2="161" y2="80" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<line x1="87" y1="107" x2="147" y2="117" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<circle cx="22" cy="80" r="7.5" fill="#4ade80" filter="url(#lu-ga)"/><circle cx="22" cy="80" r="3.5" fill="#fff" opacity=".7"/>'
-    + '<circle cx="51" cy="36" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="36" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="51" cy="63" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="63" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="51" cy="97" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="97" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="51" cy="124" r="6.5" fill="#38bdf8" filter="url(#lu-gb)"/><circle cx="51" cy="124" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="87" cy="53" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="53" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="87" cy="80" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="80" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="87" cy="107" r="6.5" fill="#f59e0b" filter="url(#lu-gb)"/><circle cx="87" cy="107" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="147" cy="43" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="147" cy="43" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="161" cy="80" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="161" cy="80" r="3" fill="#fff" opacity=".65"/>'
-    + '<circle cx="147" cy="117" r="6.5" fill="#f43f5e" filter="url(#lu-gb)"/><circle cx="147" cy="117" r="3" fill="#fff" opacity=".65"/>'
+    + '<rect width="412" height="158" fill="#155e31"/>'
+    + '<rect x="0" width="51.5" height="158" fill="#1a6f3a"/><rect x="103" width="51.5" height="158" fill="#1a6f3a"/><rect x="206" width="51.5" height="158" fill="#1a6f3a"/><rect x="309" width="51.5" height="158" fill="#1a6f3a"/>'
+    + '<g fill="none" stroke="rgba(235,253,245,0.5)" stroke-width="1.3"><rect x="7" y="10" width="398" height="138" rx="2"/><line x1="206" y1="10" x2="206" y2="148"/><circle cx="206" cy="79" r="26"/><rect x="7" y="44" width="40" height="70"/><rect x="7" y="62" width="18" height="34"/><rect x="365" y="44" width="40" height="70"/><rect x="387" y="62" width="18" height="34"/></g>'
+    + '<circle cx="206" cy="79" r="2.2" fill="rgba(235,253,245,.6)"/>'
+    + '<rect x="3" y="62" width="4" height="34" fill="rgba(235,253,245,.5)"/><rect x="405" y="62" width="4" height="34" fill="rgba(235,253,245,.5)"/>'
+    + '<ellipse cx="312" cy="79" rx="40" ry="40" fill="url(#lx-glow)"/>'
+    + '<ellipse cx="26" cy="87" rx="7" ry="2.2" fill="rgba(0,0,0,.42)"/><circle cx="26" cy="79" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.36)" stroke-width=".8"/><ellipse cx="23.5" cy="76" rx="2.6" ry="1.7" fill="rgba(255,255,255,.5)"/>'
+    + '<ellipse cx="96" cy="36" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="28" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="96" cy="68" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="60" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="96" cy="106" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="98" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="96" cy="138" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="130" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="172" cy="48" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="172" cy="40" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="172" cy="126" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="172" cy="118" r="8" fill="url(#lx-d)" stroke="rgba(255,255,255,.3)" stroke-width=".8"/>'
+    + '<ellipse cx="172" cy="88" rx="7.5" ry="2.3" fill="rgba(0,0,0,.46)"/><circle cx="172" cy="79" r="9.5" fill="url(#lx-c)" stroke="#ffe6a3" stroke-width="1.2"/><ellipse cx="169" cy="75" rx="3" ry="2" fill="rgba(255,255,255,.55)"/>'
+    + '<circle cx="181" cy="71" r="4.6" fill="#10151f" stroke="#ffcf5e" stroke-width="1"/><text x="181" y="73.6" text-anchor="middle" font-size="6" font-weight="800" font-family="system-ui,sans-serif" fill="#ffcf5e">C</text>'
+    + '<circle cx="244" cy="76" r="8" fill="url(#lx-b)" stroke="#5b6675" stroke-width=".6"/><polygon points="244,71 248,73.8 246.5,78.3 241.5,78.3 240,73.8" fill="#10151f"/>'
+    + '<ellipse cx="300" cy="40" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="300" cy="32" r="8.5" fill="url(#lx-d)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+    + '<ellipse cx="300" cy="134" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="300" cy="126" r="8.5" fill="url(#lx-d)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+    + '<ellipse cx="312" cy="89" rx="8" ry="2.4" fill="rgba(0,0,0,.46)"/><circle cx="312" cy="79" r="10.5" fill="url(#lx-d)" stroke="rgba(255,255,255,.44)" stroke-width="1.2"/><ellipse cx="308.5" cy="74.5" rx="3.4" ry="2.2" fill="rgba(255,255,255,.5)"/>'
     + '</svg>';
 
-  // ── Formation: connected node graph, 4-3-3 ──────────────────────
-  var iFm = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+  // ---- Formation preview: green pitch, 4-3-3 magnetic discs, team-shape block, bank lines
+  var iFm = '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">'
     + '<defs>'
-    + '<radialGradient id="fm-bg" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="#130c2e"/><stop offset="100%" stop-color="#07040f"/></radialGradient>'
-    + '<filter id="fm-gn"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '<filter id="fm-gs"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<radialGradient id="fx-d" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#e7e0ff"/><stop offset="40%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#4c1fa6"/></radialGradient>'
+    + '<radialGradient id="fx-g" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#e8fff6"/><stop offset="40%" stop-color="#34d399"/><stop offset="100%" stop-color="#0a5a3e"/></radialGradient>'
+    + '<radialGradient id="fx-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(139,92,246,.3)"/><stop offset="100%" stop-color="rgba(139,92,246,0)"/></radialGradient>'
     + '</defs>'
-    + '<rect width="220" height="160" rx="10" fill="url(#fm-bg)"/>'
-    + '<g fill="rgba(255,255,255,.06)">'
-    + '<circle cx="22" cy="20" r="1.2"/><circle cx="55" cy="20" r="1.2"/><circle cx="88" cy="20" r="1.2"/><circle cx="121" cy="20" r="1.2"/><circle cx="154" cy="20" r="1.2"/><circle cx="187" cy="20" r="1.2"/>'
-    + '<circle cx="22" cy="50" r="1.2"/><circle cx="55" cy="50" r="1.2"/><circle cx="88" cy="50" r="1.2"/><circle cx="121" cy="50" r="1.2"/><circle cx="154" cy="50" r="1.2"/><circle cx="187" cy="50" r="1.2"/>'
-    + '<circle cx="22" cy="80" r="1.2"/><circle cx="55" cy="80" r="1.2"/><circle cx="88" cy="80" r="1.2"/><circle cx="121" cy="80" r="1.2"/><circle cx="154" cy="80" r="1.2"/><circle cx="187" cy="80" r="1.2"/>'
-    + '<circle cx="22" cy="110" r="1.2"/><circle cx="55" cy="110" r="1.2"/><circle cx="88" cy="110" r="1.2"/><circle cx="121" cy="110" r="1.2"/><circle cx="154" cy="110" r="1.2"/><circle cx="187" cy="110" r="1.2"/>'
-    + '<circle cx="22" cy="140" r="1.2"/><circle cx="55" cy="140" r="1.2"/><circle cx="88" cy="140" r="1.2"/><circle cx="121" cy="140" r="1.2"/><circle cx="154" cy="140" r="1.2"/><circle cx="187" cy="140" r="1.2"/>'
-    + '</g>'
-    + '<g stroke="rgba(139,92,246,.28)" stroke-width="1.2">'
-    + '<line x1="110" y1="143" x2="32" y2="111"/><line x1="110" y1="143" x2="79" y2="111"/><line x1="110" y1="143" x2="141" y2="111"/><line x1="110" y1="143" x2="188" y2="111"/>'
-    + '<line x1="32" y1="111" x2="55" y2="78"/><line x1="79" y1="111" x2="55" y2="78"/><line x1="79" y1="111" x2="110" y2="75"/>'
-    + '<line x1="141" y1="111" x2="110" y2="75"/><line x1="141" y1="111" x2="165" y2="78"/><line x1="188" y1="111" x2="165" y2="78"/>'
-    + '<line x1="55" y1="78" x2="57" y2="40"/><line x1="55" y1="78" x2="110" y2="34"/><line x1="110" y1="75" x2="110" y2="34"/>'
-    + '<line x1="165" y1="78" x2="110" y2="34"/><line x1="165" y1="78" x2="163" y2="40"/>'
-    + '</g>'
-    + '<circle cx="110" cy="143" r="10.5" fill="rgba(139,92,246,.2)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="110" y="147.5" text-anchor="middle" fill="#c4b5fd" font-size="8" font-weight="700" font-family="system-ui,sans-serif">GK</text>'
-    + '<circle cx="32" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="32" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LB</text>'
-    + '<circle cx="79" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="79" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CB</text>'
-    + '<circle cx="141" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="141" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CB</text>'
-    + '<circle cx="188" cy="111" r="9.5" fill="rgba(139,92,246,.18)" stroke="#8b5cf6" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="188" y="115" text-anchor="middle" fill="#c4b5fd" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RB</text>'
-    + '<circle cx="55" cy="78" r="9.5" fill="rgba(167,139,250,.25)" stroke="#a78bfa" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="55" y="82" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LM</text>'
-    + '<circle cx="110" cy="75" r="11" fill="rgba(167,139,250,.3)" stroke="#a78bfa" stroke-width="2" filter="url(#fm-gn)"/>'
-    + '<text x="110" y="79.5" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">CM</text>'
-    + '<circle cx="165" cy="78" r="9.5" fill="rgba(167,139,250,.25)" stroke="#a78bfa" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="165" y="82" text-anchor="middle" fill="#ddd6fe" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RM</text>'
-    + '<circle cx="57" cy="40" r="9.5" fill="rgba(192,132,252,.3)" stroke="#c084fc" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="57" y="44" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">LW</text>'
-    + '<circle cx="110" cy="34" r="11" fill="rgba(192,132,252,.35)" stroke="#c084fc" stroke-width="2" filter="url(#fm-gn)"/>'
-    + '<text x="110" y="38.5" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">ST</text>'
-    + '<circle cx="163" cy="40" r="9.5" fill="rgba(192,132,252,.3)" stroke="#c084fc" stroke-width="1.5" filter="url(#fm-gs)"/>'
-    + '<text x="163" y="44" text-anchor="middle" fill="#f3e8ff" font-size="7.5" font-weight="700" font-family="system-ui,sans-serif">RW</text>'
+    + '<rect width="412" height="158" fill="#155e31"/>'
+    + '<rect x="0" width="51.5" height="158" fill="#1a6f3a"/><rect x="103" width="51.5" height="158" fill="#1a6f3a"/><rect x="206" width="51.5" height="158" fill="#1a6f3a"/><rect x="309" width="51.5" height="158" fill="#1a6f3a"/>'
+    + '<g fill="none" stroke="rgba(235,253,245,0.5)" stroke-width="1.3"><rect x="7" y="10" width="398" height="138" rx="2"/><line x1="206" y1="10" x2="206" y2="148"/><circle cx="206" cy="79" r="26"/><rect x="7" y="44" width="40" height="70"/><rect x="365" y="44" width="40" height="70"/></g>'
+    + '<circle cx="206" cy="79" r="2.2" fill="rgba(235,253,245,.6)"/>'
+    + '<ellipse cx="300" cy="79" rx="44" ry="44" fill="url(#fx-glow)"/>'
+    + '<polygon points="96,28 172,40 300,32 300,126 172,118 96,130" fill="rgba(139,92,246,.18)" stroke="rgba(196,181,253,.62)" stroke-width="1.3" stroke-dasharray="5,4" stroke-linejoin="round"/>'
+    + '<g stroke="rgba(196,181,253,.5)" stroke-width="1.5" stroke-linecap="round"><line x1="96" y1="28" x2="96" y2="130"/><line x1="172" y1="40" x2="172" y2="118"/><line x1="300" y1="32" x2="300" y2="126"/></g>'
+    + '<ellipse cx="26" cy="87" rx="7" ry="2.2" fill="rgba(0,0,0,.42)"/><circle cx="26" cy="79" r="8" fill="url(#fx-g)" stroke="rgba(255,255,255,.42)" stroke-width="1"/><ellipse cx="23.5" cy="76" rx="2.6" ry="1.7" fill="rgba(255,255,255,.5)"/>'
+    + '<ellipse cx="96" cy="36" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="28" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="96" cy="68" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="60" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="96" cy="106" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="98" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="96" cy="138" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="96" cy="130" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="172" cy="48" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="172" cy="40" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="172" cy="87" rx="7" ry="2.2" fill="rgba(0,0,0,.44)"/><circle cx="172" cy="79" r="8.5" fill="url(#fx-d)" stroke="rgba(255,255,255,.46)" stroke-width="1"/>'
+    + '<ellipse cx="172" cy="126" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="172" cy="118" r="8" fill="url(#fx-d)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="300" cy="40" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="300" cy="32" r="8.5" fill="url(#fx-d)" stroke="rgba(255,255,255,.44)" stroke-width="1"/>'
+    + '<ellipse cx="300" cy="87" rx="7.5" ry="2.3" fill="rgba(0,0,0,.44)"/><circle cx="300" cy="79" r="9" fill="url(#fx-d)" stroke="rgba(255,255,255,.46)" stroke-width="1"/>'
+    + '<ellipse cx="300" cy="134" rx="6.5" ry="2" fill="rgba(0,0,0,.42)"/><circle cx="300" cy="126" r="8.5" fill="url(#fx-d)" stroke="rgba(255,255,255,.44)" stroke-width="1"/>'
     + '</svg>';
 
-  // ── Tactics: board with movement arrows ──────────────────────────
-  var iTc = '<svg viewBox="0 0 220 160" fill="none" xmlns="http://www.w3.org/2000/svg">'
+  // ---- Tactics preview: green pitch, pressing zones, passing lanes, attacking runs, defensive line, ball
+  var iTc = '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">'
     + '<defs>'
-    + '<radialGradient id="tc-bg" cx="50%" cy="30%" r="80%"><stop offset="0%" stop-color="#1c1015"/><stop offset="100%" stop-color="#08050e"/></radialGradient>'
-    + '<marker id="tc-a1" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fb923c"/></marker>'
-    + '<marker id="tc-a2" markerWidth="7" markerHeight="6" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#fbbf24"/></marker>'
-    + '<filter id="tc-g"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<radialGradient id="tx-a" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#ffe1c6"/><stop offset="40%" stop-color="#fb923c"/><stop offset="100%" stop-color="#8a2c06"/></radialGradient>'
+    + '<radialGradient id="tx-df" cx="34%" cy="26%" r="80%"><stop offset="0%" stop-color="#dbe2ec"/><stop offset="45%" stop-color="#64748b"/><stop offset="100%" stop-color="#1d2734"/></radialGradient>'
+    + '<radialGradient id="tx-b" cx="36%" cy="28%" r="80%"><stop offset="0%" stop-color="#ffffff"/><stop offset="60%" stop-color="#d7dde6"/><stop offset="100%" stop-color="#94a0af"/></radialGradient>'
+    + '<radialGradient id="tx-pz" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(249,115,22,.42)"/><stop offset="100%" stop-color="rgba(249,115,22,0)"/></radialGradient>'
+    + '<marker id="tx-ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#fb923c"/></marker>'
     + '</defs>'
-    + '<rect width="220" height="160" rx="10" fill="url(#tc-bg)"/>'
-    + '<g stroke="rgba(255,255,255,.035)" stroke-width="1">'
-    + '<line x1="0" y1="40" x2="220" y2="40"/><line x1="0" y1="80" x2="220" y2="80"/><line x1="0" y1="120" x2="220" y2="120"/>'
-    + '<line x1="55" y1="0" x2="55" y2="160"/><line x1="110" y1="0" x2="110" y2="160"/><line x1="165" y1="0" x2="165" y2="160"/>'
-    + '</g>'
-    + '<ellipse cx="110" cy="80" rx="60" ry="46" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5"/>'
-    + '<ellipse cx="110" cy="80" rx="30" ry="23" fill="none" stroke="rgba(255,255,255,.05)" stroke-width="1"/>'
-    + '<path d="M 48,118 C 44,95 62,78 94,60" stroke="#fb923c" stroke-width="2.5" marker-end="url(#tc-a1)" filter="url(#tc-g)"/>'
-    + '<path d="M 110,108 C 118,90 140,76 168,60" stroke="#fb923c" stroke-width="2.5" marker-end="url(#tc-a1)" filter="url(#tc-g)"/>'
-    + '<path d="M 88,86 C 93,76 100,68 110,58" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#tc-a2)"/>'
-    + '<circle cx="48" cy="120" r="8.5" fill="rgba(249,115,22,.2)" stroke="#fb923c" stroke-width="2" filter="url(#tc-g)"/>'
-    + '<circle cx="48" cy="120" r="3.5" fill="#fb923c" opacity=".9"/>'
-    + '<circle cx="110" cy="110" r="8.5" fill="rgba(249,115,22,.2)" stroke="#fb923c" stroke-width="2" filter="url(#tc-g)"/>'
-    + '<circle cx="110" cy="110" r="3.5" fill="#fb923c" opacity=".9"/>'
-    + '<circle cx="88" cy="88" r="7.5" fill="rgba(251,191,36,.2)" stroke="#fbbf24" stroke-width="1.8"/>'
-    + '<circle cx="88" cy="88" r="3" fill="#fbbf24" opacity=".9"/>'
-    + '<circle cx="94" cy="58" r="4.5" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".65"/>'
-    + '<circle cx="168" cy="58" r="4.5" fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".65"/>'
-    + '<circle cx="110" cy="56" r="4.5" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="2.5 2" opacity=".6"/>'
+    + '<rect width="412" height="158" fill="#155e31"/>'
+    + '<rect x="0" width="51.5" height="158" fill="#1a6f3a"/><rect x="103" width="51.5" height="158" fill="#1a6f3a"/><rect x="206" width="51.5" height="158" fill="#1a6f3a"/><rect x="309" width="51.5" height="158" fill="#1a6f3a"/>'
+    + '<g fill="none" stroke="rgba(235,253,245,0.46)" stroke-width="1.3"><rect x="7" y="10" width="398" height="138" rx="2"/><line x1="206" y1="10" x2="206" y2="148"/><circle cx="206" cy="79" r="26"/><rect x="365" y="44" width="40" height="70"/><rect x="387" y="62" width="18" height="34"/></g>'
+    + '<rect x="405" y="62" width="4" height="34" fill="rgba(235,253,245,.5)"/>'
+    + '<ellipse cx="300" cy="46" rx="52" ry="42" fill="url(#tx-pz)"/><ellipse cx="300" cy="114" rx="48" ry="38" fill="url(#tx-pz)" opacity=".85"/>'
+    + '<path d="M96 46 C 162 26 236 26 304 48" fill="none" stroke="#fb923c" stroke-width="2.8" stroke-linecap="round" marker-end="url(#tx-ah)"/>'
+    + '<path d="M122 114 C 200 130 270 130 330 88" fill="none" stroke="#fb923c" stroke-width="2.8" stroke-linecap="round" marker-end="url(#tx-ah)"/>'
+    + '<path d="M108 79 C 184 74 254 74 330 79" fill="none" stroke="#fdba74" stroke-width="2" stroke-dasharray="7,4" stroke-linecap="round" marker-end="url(#tx-ah)"/>'
+    + '<path d="M232 36 L232 122" stroke="rgba(148,163,184,.42)" stroke-width="1.6" stroke-dasharray="3,5"/>'
+    + '<ellipse cx="232" cy="44" rx="5" ry="1.6" fill="rgba(0,0,0,.4)"/><circle cx="232" cy="38" r="6.5" fill="url(#tx-df)" stroke="rgba(255,255,255,.22)" stroke-width=".7"/>'
+    + '<ellipse cx="232" cy="85" rx="5" ry="1.6" fill="rgba(0,0,0,.4)"/><circle cx="232" cy="79" r="6.5" fill="url(#tx-df)" stroke="rgba(255,255,255,.22)" stroke-width=".7"/>'
+    + '<ellipse cx="232" cy="128" rx="5" ry="1.6" fill="rgba(0,0,0,.4)"/><circle cx="232" cy="122" r="6.5" fill="url(#tx-df)" stroke="rgba(255,255,255,.22)" stroke-width=".7"/>'
+    + '<ellipse cx="92" cy="58" rx="6" ry="1.9" fill="rgba(0,0,0,.42)"/><circle cx="92" cy="50" r="7.5" fill="url(#tx-a)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+    + '<ellipse cx="122" cy="122" rx="6" ry="1.9" fill="rgba(0,0,0,.42)"/><circle cx="122" cy="114" r="7.5" fill="url(#tx-a)" stroke="rgba(255,255,255,.32)" stroke-width=".8"/>'
+    + '<ellipse cx="300" cy="56" rx="6.5" ry="2" fill="rgba(0,0,0,.44)"/><circle cx="300" cy="48" r="8.5" fill="url(#tx-a)" stroke="rgba(255,255,255,.42)" stroke-width="1"/>'
+    + '<ellipse cx="104" cy="88" rx="7.5" ry="2.3" fill="rgba(0,0,0,.46)"/><circle cx="104" cy="79" r="9.5" fill="url(#tx-a)" stroke="rgba(255,255,255,.42)" stroke-width="1.1"/><ellipse cx="100.5" cy="74.5" rx="3.2" ry="2.1" fill="rgba(255,255,255,.5)"/>'
+    + '<circle cx="122" cy="79" r="7.5" fill="url(#tx-b)" stroke="#5b6675" stroke-width=".6"/>'
     + '</svg>';
 
-  // ── Arrow icon for card footer ───────────────────────────────────
-  var arrowSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px">'
-    + '<path fill-rule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>'
-    + '</svg>';
+  var expandIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>';
+  var arrowRight = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>';
 
-  // ── Card data ────────────────────────────────────────────────────
+  var icBall   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8l3.8 2.8-1.45 4.5h-4.7L8.2 10.8 12 8z"/><path d="M12 3v5M20.5 9.8l-4.7 1M16.9 17.7l-2.55-3.4M9.65 14.3 7.1 17.7M3.5 9.8l4.7 1"/></svg>';
+  var icGrid   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
+  var icTarget = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="8"/><circle cx="11" cy="13" r="3.2"/><path d="M13.4 10.6 19 5M19 5h-3.6M19 5v3.6"/></svg>';
+  var icUsers  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3"/><path d="M22 19v-1a4 4 0 0 0-3-3.87M16 4.13a4 4 0 0 1 0 7.75"/></svg>';
+  var icSliders= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg>';
+  var icCross  = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>';
+
   var cards = [
-    {
-      id: 'lineup',    modClass: 'sq-module-card--lineup',
-      label: 'Lineup', desc: 'Define starting positions & roles',
-      iconColor: '#f59e0b',
-      iconPath: 'M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z',
-      illus: iLu,
-    },
-    {
-      id: 'formation', modClass: 'sq-module-card--formation',
-      label: 'Formation', desc: 'Structure and player node graph',
-      iconColor: '#a78bfa',
-      iconPath: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
-      illus: iFm,
-    },
-    {
-      id: 'tactics',   modClass: 'sq-module-card--tactics',
-      label: 'Tactics', desc: 'Movements & strategy planning',
-      iconColor: '#fb923c',
-      iconPath: 'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z',
-      illus: iTc,
-    },
+    { id: 'lineup', label: 'Lineup', sub: 'Match-day squad selection', pill: 'Starting XI',
+      plabel: 'Starting XI · 4-3-3', ac: '245,158,11', ac2: '251,191,36',
+      icon: icBall, btnIcon: icUsers, btnLabel: 'Manage lineup',
+      stats: [{ l: 'Starters', v: '11<small> / 11</small>' }, { l: 'Subs', v: '7' }, { l: 'Captain', v: '#8' }],
+      iconColor: '#f59e0b', iconPath: 'M9 2a1 1 0 000 2h2a1 1 0 100-2H9z M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z', illus: iLu },
+    { id: 'formation', label: 'Formation', sub: 'Team shape &amp; structure', pill: '4-3-3',
+      plabel: 'Team shape · compactness', ac: '139,92,246', ac2: '196,181,253',
+      icon: icGrid, btnIcon: icSliders, btnLabel: 'Edit formation',
+      stats: [{ l: 'Shape', v: '4-3-3' }, { l: 'Def line', v: 'High' }, { l: 'Width', v: 'Bal.' }],
+      iconColor: '#a78bfa', iconPath: 'M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z', illus: iFm },
+    { id: 'tactics', label: 'Tactics', sub: 'Movement &amp; pressing patterns', pill: 'High press',
+      plabel: 'Press map · attacking runs', ac: '249,115,22', ac2: '251,146,60',
+      icon: icTarget, btnIcon: icCross, btnLabel: 'Set tactics',
+      stats: [{ l: 'Pressing', v: 'High' }, { l: 'Tempo', v: 'Fast' }, { l: 'Build-up', v: 'Direct' }],
+      iconColor: '#fb923c', iconPath: 'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z', illus: iTc },
   ];
 
   var cardHtml = cards.map(function (c) {
-    return '<div class="sq-module-card ' + c.modClass + '" data-action="squadNav" data-squad-page="' + c.id + '">'
-      + '<div class="sq-module-top-bar"></div>'
-      + '<div class="sq-module-illus">' + c.illus + '</div>'
-      + '<div class="sq-module-footer">'
-      +   '<div class="sq-module-footer-left">'
-      +     '<svg class="sq-module-footer-icon" style="color:' + c.iconColor + '" fill="currentColor" viewBox="0 0 20 20"><path d="' + c.iconPath + '"/></svg>'
-      +     '<div>'
-      +       '<h3 class="sq-module-title">' + c.label + '</h3>'
-      +       '<p class="sq-module-desc">' + c.desc + '</p>'
-      +     '</div>'
-      +   '</div>'
-      +   '<div class="sq-module-arrow">' + arrowSvg + '</div>'
+    var statHtml = c.stats.map(function (s) {
+      return '<div class="sqf-stat"><div class="sqf-sl">' + s.l + '</div><div class="sqf-sv">' + s.v + '</div></div>';
+    }).join('');
+    return '<div class="sqf-card sqf-card--' + c.id + '" data-action="squadNav" data-squad-page="' + c.id + '" style="--ac:' + c.ac + ';--ac2:' + c.ac2 + '">'
+      + '<div class="sqf-head">'
+      +   '<div class="sqf-icon">' + c.icon + '</div>'
+      +   '<div class="sqf-titles"><div class="sqf-title">' + c.label + '</div><div class="sqf-sub">' + c.sub + '</div></div>'
+      +   '<div class="sqf-pill">' + c.pill + '</div>'
       + '</div>'
+      + '<div class="sqf-prev">' + c.illus
+      +   '<div class="sqf-gloss"></div>'
+      +   '<div class="sqf-plabel">' + c.plabel + '</div>'
+      +   '<div class="sqf-pexp">' + expandIcon + '</div>'
+      + '</div>'
+      + '<div class="sqf-stats">' + statHtml + '</div>'
+      + '<div class="sqf-btn"><span class="l">' + c.btnIcon + '<span>' + c.btnLabel + '</span></span><span class="a">' + arrowRight + '</span></div>'
       + '</div>';
   }).join('');
 
@@ -2058,8 +2029,8 @@ function renderSquadHTML() {
 
   return '<div class="page" id="pg-squad">'
     + '<div id="sq-home">'
-    +   '<div style="padding:32px 32px 28px"><h1 style="margin:0;font-size:22px;font-weight:700;color:var(--tx-1,#f1f5f9);letter-spacing:-.3px">Squad</h1></div>'
-    +   '<div class="sq-module-cards">' + cardHtml + '</div>'
+    +   '<div style="padding:32px 32px 26px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Squad</h1><p style="margin:6px 0 0;font-size:13.5px;color:var(--tx-3,#64748b)">Select a module to manage your team</p></div>'
+    +   '<div class="sqf-cards">' + cardHtml + '</div>'
     + '</div>'
     + subHtml
     + '</div>';
