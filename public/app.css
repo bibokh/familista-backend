@@ -3705,7 +3705,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-metrics > div{ flex:1; padding:2px 0; }
 .sqfp-side--fm .sqlib-metrics span{ font-size:6px; }
 .sqfp-side--fm .sqlib-metrics b{ font-size:9px; }
-.sqfp-side--fm .sqlib-actions{ flex-direction:column; gap:3px; }
+.sqfp-side--fm .sqlib-actions{ gap:3px; }
 .sqfp-side--fm .sqlib-use{ padding:3px 1px !important; font-size:7.5px !important; }
 @media (max-width:1000px){ .sqfp-side--fm{ flex-basis:auto; width:100%; max-width:580px; } .sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(3,1fr); } }
 
