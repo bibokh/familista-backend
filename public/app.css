@@ -3679,6 +3679,36 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--plan .sq-note{ font-size:9.5px; margin-top:4px; }
 @media (max-width:960px){ .sqfp-side--plan{ flex-basis:auto; width:100%; max-width:520px; } }
 
+/* Squad · Tactical Formations compact docked workspace (layout only, no scroll) */
+.sqfp-side--fm{ flex:0 0 520px; max-width:520px; max-height:none; overflow:hidden; }
+.sqfp-side--fm .sq-fm-head{ padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sqfp-side--fm .sqlib-body{ flex:1; max-height:none; overflow:hidden; padding:9px 12px; }
+.sqfp-side--fm .sqlib-match{ padding:9px 10px; margin-bottom:8px; }
+.sqfp-side--fm .sqlib-match-hd{ margin-bottom:7px; }
+.sqfp-side--fm .sqlib-mt{ font-size:11px; } .sqfp-side--fm .sqlib-mt b{ font-size:12.5px; margin-left:4px; }
+.sqfp-side--fm .sqlib-bigs{ grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:8px; }
+.sqfp-side--fm .sqlib-big{ padding:5px 4px; }
+.sqfp-side--fm .sqlib-big span{ font-size:7px; margin-bottom:2px; }
+.sqfp-side--fm .sqlib-big b{ font-size:15px; }
+.sqfp-side--fm .sqlib-cmps{ gap:4px; }
+.sqfp-side--fm .sqlib-cmp-top{ font-size:9.5px; margin-bottom:2px; }
+.sqfp-side--fm .sqlib-cmp-bar{ height:5px; }
+.sqfp-side--fm .sqlib-sec{ margin:4px 0 6px; font-size:11px; }
+.sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(4,1fr); gap:6px; }
+.sqfp-side--fm .sqlib-card{ padding:5px; }
+.sqfp-side--fm .sqlib-chd{ margin-bottom:3px; gap:3px; }
+.sqfp-side--fm .sqlib-rank{ font-size:7px; padding:1px 3px; }
+.sqfp-side--fm .sqlib-name{ font-size:10.5px; }
+.sqfp-side--fm .sqlib-eff{ font-size:9.5px; }
+.sqfp-side--fm .sqlib-mini{ max-height:30px; margin:0 auto 4px; }
+.sqfp-side--fm .sqlib-metrics{ gap:3px; margin-bottom:4px; }
+.sqfp-side--fm .sqlib-metrics > div{ padding:2px 1px; }
+.sqfp-side--fm .sqlib-metrics span{ font-size:6.5px; }
+.sqfp-side--fm .sqlib-metrics b{ font-size:10px; }
+.sqfp-side--fm .sqlib-actions{ gap:4px; }
+.sqfp-side--fm .sqlib-use{ padding:3px 1px !important; font-size:8px !important; }
+@media (max-width:1000px){ .sqfp-side--fm{ flex-basis:auto; width:100%; max-width:580px; } .sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(3,1fr); } }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;

@@ -3039,7 +3039,7 @@ function _sqLibInner() {
   return '<div class="sq-fm-head"><div class="sq-fm-title">Tactical formations</div><button class="sqfp-side-close" data-action="sqFormLibClose" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sq-fm-body sqlib-body">' + matchHtml + '<div class="sqlib-sec">Recommended formations <span class="sq-note" style="font-style:normal">— ranked by efficiency for your squad</span></div><div class="sqlib-grid">' + cards + '</div></div>';
 }
-function _sqLibPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib">' + _sqLibInner() + '</aside>'; }
+function _sqLibPanelHtml() { return '<aside class="sqfp-side sqfp-side--fm">' + _sqLibInner() + '</aside>'; }
 function sqFormLibrary() { SQ_FORM.showLib = !SQ_FORM.showLib; if (SQ_FORM.showLib) { SQ_FORM.showMent = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqFormLibClose() { SQ_FORM.showLib = false; _sqRenderFormationBody(); }
 function sqPickFormation(name, side) { if (!SQ_FORMATIONS[name]) return; if (side === 'opp') { SQ_FORM.oppFormation = name; SQ_FORM.showOpp = true; } else SQ_FORM.myFormation = name; var sb = document.querySelector('.sqfp-side--lib .sqlib-body'); var st = sb ? sb.scrollTop : 0; _sqBuildBoard(); _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side--lib .sqlib-body'); if (sb2) sb2.scrollTop = st; }
