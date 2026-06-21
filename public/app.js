@@ -2670,7 +2670,7 @@ function _sqUpdatePhotoPreview() {
 function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 
 // ── Squad · Formation (Lineup players; board, library, matchup, mentality, planning) ──
-var SQ_FORM = { mentality: 'Balanced', showOpp: false, showRoles: false, showCond: false, showMent: false, showLib: false, myFormation: '4-3-3', oppFormation: '4-4-2' };
+var SQ_FORM = { mentality: 'Balanced', showOpp: false, showRoles: false, showCond: false, showMent: false, showLib: false, showTac: false, myFormation: '4-3-3', oppFormation: '4-4-2' };
 var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
 var SQ_SETUPS = [null, null, null, null];
 var SQ_MY_IDS = null;
@@ -2978,7 +2978,7 @@ function _sqFormationBody() {
     + '</div>'
     + _sqCtrlBtn('Formations: ' + SQ_FORM.myFormation, 'sqFormLibrary', '', SQ_FORM.showLib)
     + _sqCtrlBtn('Mentality', 'sqMentality', '', SQ_FORM.showMent)
-    + _sqCtrlBtn('Tactical analysis', 'sqTactical', '', false)
+    + _sqCtrlBtn('Tactical analysis', 'sqTactical', '', SQ_FORM.showTac)
     + _sqCtrlBtn('Squad planning', 'sqPlanning', '', false)
     + _sqCtrlBtn('Roles', 'sqFormToggle', ' data-key="roles"', SQ_FORM.showRoles)
     + _sqCtrlBtn('Condition &amp; Morale', 'sqFormToggle', ' data-key="cond"', SQ_FORM.showCond)
@@ -2990,8 +2990,8 @@ function _sqFormationBody() {
   hud += '</div>';
   if (so) { var mu = _sqMatchup(); hud += '<div class="sqfp-mustrip"><span>Matchup <b>' + mu.matchup + '%</b></span><span>Tactical advantage <b>' + mu.tacAdv + '%</b></span><span>Strength <b>' + mu.strength + '%</b></span><span>Weakness <b>' + mu.weakness + '%</b></span></div>'; }
   var hint = '<div class="sqfp-hint">Arrows show each player’s instruction — open Mentality to change roles, Tactical analysis for execution &amp; alerts, Squad planning for depth &amp; squad size.</div>';
-  var side = SQ_FORM.showMent ? _sqMentPanelHtml() : (SQ_FORM.showLib ? _sqLibPanelHtml() : '');
-  var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
+  var side = SQ_FORM.showMent ? _sqMentPanelHtml() : SQ_FORM.showLib ? _sqLibPanelHtml() : SQ_FORM.showTac ? _sqTacPanelHtml() : '';
+  var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + hint;
 }
 function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
@@ -3040,7 +3040,7 @@ function _sqLibInner() {
     + '<div class="sq-fm-body sqlib-body">' + matchHtml + '<div class="sqlib-sec">Recommended formations <span class="sq-note" style="font-style:normal">— ranked by efficiency for your squad</span></div><div class="sqlib-grid">' + cards + '</div></div>';
 }
 function _sqLibPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib">' + _sqLibInner() + '</aside>'; }
-function sqFormLibrary() { SQ_FORM.showLib = !SQ_FORM.showLib; if (SQ_FORM.showLib) SQ_FORM.showMent = false; _sqRenderFormationBody(); }
+function sqFormLibrary() { SQ_FORM.showLib = !SQ_FORM.showLib; if (SQ_FORM.showLib) { SQ_FORM.showMent = false; SQ_FORM.showTac = false; } _sqRenderFormationBody(); }
 function sqFormLibClose() { SQ_FORM.showLib = false; _sqRenderFormationBody(); }
 function sqPickFormation(name, side) { if (!SQ_FORMATIONS[name]) return; if (side === 'opp') { SQ_FORM.oppFormation = name; SQ_FORM.showOpp = true; } else SQ_FORM.myFormation = name; var sb = document.querySelector('.sqfp-side--lib .sqlib-body'); var st = sb ? sb.scrollTop : 0; _sqBuildBoard(); _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side--lib .sqlib-body'); if (sb2) sb2.scrollTop = st; }
 
@@ -3060,13 +3060,12 @@ function _sqMentPanelHtml() {
     + '<div class="sqfp-side-body"><div class="sqment-legend"><span><i style="background:#fb923c"></i>Attack run</span><span><i style="background:#38bdf8"></i>Defensive / support</span><span><i style="background:#4ade80"></i>Stay wide</span><span><i style="background:#f87171"></i>Press</span></div>'
     + '<div class="sqment-list">' + rows + '</div><div class="sq-note">Changing a role instantly updates the arrows, zones, OVR &amp; Balance on the pitch.</div></div></aside>';
 }
-function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) SQ_FORM.showLib = false; _sqRenderFormationBody(); }
+function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; } _sqRenderFormationBody(); }
 function sqMentalityClose() { SQ_FORM.showMent = false; _sqRenderFormationBody(); }
 function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; var sb = document.querySelector('.sqfp-side-body'); var st = sb ? sb.scrollTop : 0; _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
 
 // ── Tactical analysis modal (execution, mistakes, training, alerts) ──
-function _sqRenderTactical() {
-  var dlg = document.getElementById('sq-tac-dialog'); if (!dlg) return;
+function _sqTacInner() {
   var ids = SQ_MY_IDS || [];
   var teamExec = _sqTeamExec();
   var reports = ids.map(function (id) { var p = _sqFind(id); return p ? { p: p, ex: _sqExecFor(p) } : null; }).filter(Boolean);
@@ -3084,7 +3083,7 @@ function _sqRenderTactical() {
   var trainCount = {};
   reports.forEach(function (r) { var t = _sqTrainingFor(r.ex); trainCount[t] = (trainCount[t] || 0) + 1; });
   var trainHtml = Object.keys(trainCount).sort(function (a, b) { return trainCount[b] - trainCount[a]; }).map(function (t) { return '<div class="sqtac-train"><span>' + t + '</span><b>' + trainCount[t] + ' player' + (trainCount[t] > 1 ? 's' : '') + '</b></div>'; }).join('');
-  dlg.innerHTML = '<div class="sq-fm-head"><div class="sq-fm-title">Tactical analysis</div><button class="sq-plm-close" data-action="sqTacticalClose" type="button" aria-label="Close">✕</button></div>'
+  return '<div class="sq-fm-head"><div class="sq-fm-title">Tactical analysis</div><button class="sqfp-side-close" data-action="sqTacticalClose" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sq-fm-body sqlib-body">'
     + '<div class="sqtac-top"><div class="sqlib-big"><span>Tactical execution</span><b>' + teamExec + '%</b></div><div class="sqlib-big"><span>Alerts</span><b style="color:' + (reports.filter(function (r) { return r.ex.score < 64; }).length ? '#f87171' : '#4ade80') + '">' + reports.filter(function (r) { return r.ex.score < 64; }).length + '</b></div></div>'
     + '<div class="sqlib-sec">Player error analysis</div>'
@@ -3093,8 +3092,9 @@ function _sqRenderTactical() {
     + '<div class="sqlib-sec">Training recommendations</div><div class="sqtac-trains">' + trainHtml + '</div>'
     + '</div>';
 }
-function sqTactical() { _sqRenderTactical(); var m = document.getElementById('sq-tac-modal'); if (m) m.style.display = 'flex'; }
-function sqTacticalClose() { var m = document.getElementById('sq-tac-modal'); if (m) m.style.display = 'none'; }
+function _sqTacPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib">' + _sqTacInner() + '</aside>'; }
+function sqTactical() { SQ_FORM.showTac = !SQ_FORM.showTac; if (SQ_FORM.showTac) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; } _sqRenderFormationBody(); }
+function sqTacticalClose() { SQ_FORM.showTac = false; _sqRenderFormationBody(); }
 
 // ── Squad planning modal ──
 function _sqRenderPlanning() {

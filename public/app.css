@@ -3656,6 +3656,9 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--lib .sqlib-bigs{ grid-template-columns:repeat(2,1fr); }
 @media (max-width:900px){ .sqfp-side--lib{ flex-basis:auto; width:100%; max-width:460px; max-height:none; } }
 
+/* Squad · Tactical analysis docked panel (layout only) */
+.sqfp-side--lib .sqlib-body{ overflow-x:auto; }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;
