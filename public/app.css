@@ -3634,7 +3634,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* Squad · Mentality docked side panel (field stays fully visible) */
 .sqfp-board{ display:flex; gap:18px; align-items:flex-start; justify-content:center; padding:14px 24px 40px; }
-.sqfp-board .sqfp-stage{ padding:0; }
+.sqfp-board .sqfp-stage{ padding:0; flex:0 0 auto; }
+.sqfp-board .sqfp-pitch{ width:430px; }
 .sqfp-side{ flex:0 0 322px; max-width:322px; align-self:stretch; background:linear-gradient(168deg,#121b32,#0b1222); border:1px solid rgba(255,255,255,.1); border-radius:14px; max-height:680px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 14px 40px rgba(0,0,0,.45); }
 .sqfp-side-hd{ display:flex; align-items:center; justify-content:space-between; padding:13px 15px; border-bottom:1px solid rgba(255,255,255,.08); font-size:14px; font-weight:800; color:#f1f5f9; }
 .sqfp-side-close{ width:28px; height:28px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e3eaf4; font-size:13px; cursor:pointer; flex-shrink:0; }
@@ -3645,7 +3646,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side .sq-instr-sel{ flex:1 1 100%; width:100%; background:#0e1626; border:1px solid rgba(255,255,255,.14); border-radius:8px; color:#eef2f8; font-size:11.5px; padding:6px 8px; outline:none; cursor:pointer; }
 .sqfp-side .sq-instr-sel:focus{ border-color:#f4b740; }
 .sqfp-side .sqment-id{ flex:1; min-width:0; }
-@media (max-width:900px){ .sqfp-board{ flex-direction:column; align-items:center; } .sqfp-side{ flex-basis:auto; width:100%; max-width:460px; max-height:none; } }
+@media (max-width:900px){ .sqfp-board{ flex-direction:column; align-items:center; } .sqfp-board .sqfp-pitch{ width:min(440px,92vw); } .sqfp-side{ flex-basis:auto; width:100%; max-width:460px; max-height:none; } }
 
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
