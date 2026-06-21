@@ -3530,6 +3530,20 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-zone span{ font-size:9px; font-weight:800; color:#dcfce7; text-shadow:0 1px 2px rgba(0,0,0,.5); }
 .sqfp-invalid-mark{ position:absolute; transform:translate(-50%,-50%); z-index:32; color:#fff; background:#dc2626; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; box-shadow:0 4px 16px rgba(220,38,38,.7); border:2px solid rgba(255,255,255,.6); }
 
+/* Squad · Formation — free board, opponent overlay, dual stats */
+.sqfp-statgrp{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:7px 14px; }
+.sqfp-statgrp-t{ font-size:11px; font-weight:800; letter-spacing:.02em; color:#f1f5f9; margin-right:2px; }
+.sqfp-statgrp .sqfp-stat{ background:none; border:none; padding:0; }
+.sqfp-statgrp--opp{ border-color:rgba(148,163,184,.32); background:rgba(148,163,184,.09); }
+.sqfp-statgrp--opp .sqfp-statgrp-t{ color:#cbd5e1; }
+.sqfp-chip[data-team]{ z-index:8; }
+.sqfp-chip--opp{ opacity:.58; z-index:4; }
+.sqfp-chip--opp .sqfp-name{ opacity:.95; }
+.sqfp-chip--bad .sqfp-shirt{ border-color:#f87171 !important; box-shadow:0 0 0 3px rgba(248,113,113,.5) !important; }
+.sqfp-warn-badge{ position:absolute; top:-4px; left:-4px; width:15px; height:15px; border-radius:50%; background:#dc2626; color:#fff; font-size:10px; font-weight:800; line-height:1; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.55); }
+.sqfp-zone--anchor{ border-color:rgba(148,163,184,.85) !important; background:rgba(148,163,184,.18) !important; }
+.sqfp-zone--anchor span{ color:#e2e8f0; }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;
