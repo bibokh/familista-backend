@@ -3659,6 +3659,26 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* Squad · Tactical analysis docked panel (layout only) */
 .sqfp-side--lib .sqlib-body{ overflow-x:auto; }
 
+/* Squad · Squad planning docked panel (compact, no scroll) */
+.sqfp-side--plan{ flex:0 0 442px; max-width:442px; max-height:none; overflow:hidden; }
+.sqfp-side--plan .sq-fm-head{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sqfp-side--plan .sqlib-body{ flex:1; max-height:none; overflow:hidden; padding:10px 13px; }
+.sqfp-side--plan .sqlib-sec{ margin:4px 0 7px; font-size:11.5px; }
+.sqfp-side--plan .sqplan-dash{ grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:9px; }
+.sqfp-side--plan .sqplan-stat{ padding:7px 5px; }
+.sqfp-side--plan .sqplan-stat span{ font-size:7.5px; margin-bottom:3px; }
+.sqfp-side--plan .sqplan-stat b{ font-size:15px; }
+.sqfp-side--plan .sqplan-size{ grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:6px; }
+.sqfp-side--plan .sqplan-szc{ padding:7px 5px; }
+.sqfp-side--plan .sqplan-szc span{ font-size:7.5px; margin-bottom:3px; }
+.sqfp-side--plan .sqplan-szc b{ font-size:18px; }
+.sqfp-side--plan .sqtac-table th{ padding:4px 4px; font-size:8px; }
+.sqfp-side--plan .sqtac-table td{ padding:2px 4px; font-size:10.5px; }
+.sqfp-side--plan .sqplan-pos{ padding:1px 5px; font-size:10px; }
+.sqfp-side--plan .sqplan-roles{ font-size:9.5px; }
+.sqfp-side--plan .sq-note{ font-size:9.5px; margin-top:4px; }
+@media (max-width:960px){ .sqfp-side--plan{ flex-basis:auto; width:100%; max-width:520px; } }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;
