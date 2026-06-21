@@ -3700,7 +3700,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-rank{ font-size:7px; padding:1px 3px; }
 .sqfp-side--fm .sqlib-name{ font-size:10.5px; }
 .sqfp-side--fm .sqlib-eff{ font-size:9.5px; }
-.sqfp-side--fm .sqlib-mini{ max-height:30px; margin:0 auto 4px; }
+.sqfp-side--fm .sqlib-mini{ display:none; }
 .sqfp-side--fm .sqlib-metrics{ gap:3px; margin-bottom:4px; }
 .sqfp-side--fm .sqlib-metrics > div{ padding:2px 1px; }
 .sqfp-side--fm .sqlib-metrics span{ font-size:6.5px; }
