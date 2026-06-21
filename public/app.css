@@ -3648,6 +3648,14 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side .sqment-id{ flex:1; min-width:0; }
 @media (max-width:900px){ .sqfp-board{ flex-direction:column; align-items:center; } .sqfp-board .sqfp-pitch{ width:min(440px,92vw); } .sqfp-side{ flex-basis:auto; width:100%; max-width:460px; max-height:none; } }
 
+/* Squad · Tactical formations docked panel (layout only) */
+.sqfp-side--lib{ flex:0 0 404px; max-width:404px; }
+.sqfp-side--lib .sq-fm-head{ padding:13px 16px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sqfp-side--lib .sqlib-body{ flex:1; max-height:none; padding:14px 16px; overflow-y:auto; }
+.sqfp-side--lib .sqlib-grid{ grid-template-columns:1fr; }
+.sqfp-side--lib .sqlib-bigs{ grid-template-columns:repeat(2,1fr); }
+@media (max-width:900px){ .sqfp-side--lib{ flex-basis:auto; width:100%; max-width:460px; max-height:none; } }
+
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
   padding: var(--sp-4) !important; border-top: 1px solid var(--b-subtle) !important;
