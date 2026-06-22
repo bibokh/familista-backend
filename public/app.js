@@ -3047,24 +3047,209 @@ function sqFormLibClose() { SQ_FORM.showLib = false; _sqRenderFormationBody(); }
 function sqPickFormation(name, side) { if (!SQ_FORMATIONS[name]) return; if (side === 'opp') { SQ_FORM.oppFormation = name; SQ_FORM.showOpp = true; } else SQ_FORM.myFormation = name; var sb = document.querySelector('.sqfp-side--lib .sqlib-body'); var st = sb ? sb.scrollTop : 0; _sqBuildBoard(); _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side--lib .sqlib-body'); if (sb2) sb2.scrollTop = st; }
 
 // ── Mentality modal ──
-function _sqMentPanelHtml() {
-  var rows = (SQ_MY_IDS || []).map(function (id) {
-    var p = _sqP(id); if (!p) return '';
-    var cur = _sqInstrOf(id);
+// ── Mentality intelligence (compare · score · analyse · recommend · monitor) ──
+var SQ_MENTALITIES = {
+  'High Press Attack':           { label: 'Aggressive Pressing', press: 0.92, line: 0.86, tempo: 0.82, width: 0.70, poss: 0.55, dir: 0.60, risk: 0.72 },
+  'Balanced Possession':         { label: 'Possession Build-Up', press: 0.50, line: 0.55, tempo: 0.50, width: 0.62, poss: 0.82, dir: 0.32, risk: 0.34 },
+  'Counterattack Compact Block': { label: 'Counterattack',       press: 0.32, line: 0.28, tempo: 0.85, width: 0.46, poss: 0.34, dir: 0.86, risk: 0.40 },
+  'Wide Overload System':        { label: 'Wide Play',           press: 0.56, line: 0.60, tempo: 0.62, width: 0.95, poss: 0.60, dir: 0.46, risk: 0.50 },
+  'Compact Low Block':           { label: 'Compact Block',       press: 0.24, line: 0.20, tempo: 0.40, width: 0.40, poss: 0.42, dir: 0.62, risk: 0.20 },
+  'Direct Football':             { label: 'Direct Football',     press: 0.60, line: 0.62, tempo: 0.86, width: 0.66, poss: 0.30, dir: 0.95, risk: 0.60 },
+  'Patient Build-Up':            { label: 'Patient Build-Up',    press: 0.42, line: 0.50, tempo: 0.34, width: 0.56, poss: 0.90, dir: 0.16, risk: 0.26 },
+  'High Defensive Line':         { label: 'High Defensive Line', press: 0.72, line: 0.95, tempo: 0.60, width: 0.60, poss: 0.66, dir: 0.42, risk: 0.66 }
+};
+var SQ_MENT_NAMES = Object.keys(SQ_MENTALITIES);
+function _sqMentState() {
+  if (!SQ_FORM.myMentality || !SQ_MENTALITIES[SQ_FORM.myMentality]) SQ_FORM.myMentality = 'Balanced Possession';
+  if (!SQ_FORM.oppMentality || !SQ_MENTALITIES[SQ_FORM.oppMentality]) SQ_FORM.oppMentality = 'Counterattack Compact Block';
+  return { my: SQ_FORM.myMentality, opp: SQ_FORM.oppMentality };
+}
+function _sqPosLong(pos) { var m = { GK: 'Goalkeeper', CB: 'Centre Back', LB: 'Left Back', RB: 'Right Back', DM: 'Defensive Midfielder', CM: 'Central Midfielder', LW: 'Left Winger', RW: 'Right Winger', ST: 'Striker' }; return m[pos] || pos; }
+function _sqSign(v) { return (v > 0 ? '+' : '') + v; }
+// mentality vs mentality matchup (my pct per battle, 0..100)
+function _sqMentVs(myKey, oppKey) {
+  var a = SQ_MENTALITIES[myKey], b = SQ_MENTALITIES[oppKey];
+  var pressing   = _sqEdge(a.press * 100, b.poss * 100);
+  var possession = _sqEdge(a.poss * 100, b.press * 100);
+  var transition = _sqEdge((a.dir * a.tempo) * 100, (b.poss * (1 - b.dir) + 0.2) * 100);
+  var territory  = _sqEdge((a.line + a.press) * 100, ((1 - b.line) + b.dir) * 100);
+  var width      = _sqEdge(a.width * 100, b.width * 100);
+  var security   = _sqEdge(((1 - a.risk) + (1 - b.dir)) * 100, (b.dir + b.tempo) * 100);
+  var advantage  = Math.round((pressing + possession + transition + territory + width + security) / 6);
+  return { pressing: pressing, possession: possession, transition: transition, territory: territory, width: width, security: security, advantage: advantage };
+}
+// squad capability to execute a named mentality (0..99 probability)
+function _sqMentSuitability(key) {
+  var ids = SQ_MY_IDS || [], sum = 0, n = 0;
+  ids.forEach(function (id) { var p = _sqP(id); if (!p) return; n++; sum += _sqExecFor(p).score; });
+  var execAvg = n ? sum / n : 0, m = SQ_MENTALITIES[key];
+  var demand = m.press * 0.30 + m.tempo * 0.25 + m.line * 0.20 + m.risk * 0.25;
+  var prob = Math.max(35, Math.min(99, Math.round(execAvg - (demand - 0.45) * 30)));
+  return { execAvg: Math.round(execAvg), prob: prob, demand: demand };
+}
+// dedicated mentality score (effectiveness / risk / execution / balance)
+function _sqMentScore() {
+  var st = _sqMentState(), my = _sqMyStats(), vs = _sqMentVs(st.my, st.opp), su = _sqMentSuitability(st.my), m = SQ_MENTALITIES[st.my];
+  var ovrScaled = Math.max(0, Math.min(100, Math.round((my.ovr - 60) / 40 * 100)));
+  var effectiveness = Math.max(20, Math.min(99, Math.round(0.30 * su.prob + 0.25 * vs.advantage + 0.20 * my.balance + 0.15 * my.compat + 0.10 * ovrScaled)));
+  var aggr = 0;
+  (SQ_MY_IDS || []).forEach(function (id) { var instr = SQ_INSTR[_sqInstrOf(id)]; if (instr && (instr.type === 'att' || instr.type === 'press')) aggr++; });
+  var risk = Math.max(8, Math.min(92, Math.round(m.risk * 40 + SQ_MENTALITIES[st.opp].dir * 22 + aggr * 2.5 + (100 - my.balance) * 0.3 - su.prob * 0.18)));
+  return { effectiveness: effectiveness, risk: risk, execution: su.prob, balance: my.balance, vs: vs, suit: su, my: my };
+}
+// per-instruction analysis (benefit / risk / OVR / balance / execution impact)
+function _sqInstrAnalysis(p) {
+  var key = _sqInstrOf(p.id), instr = SQ_INSTR[key] || SQ_INSTR.hold, ex = _sqExecFor(p);
+  var pos = SQ_POS_MY[p.id], d = pos ? _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) : 0, suit = _sqSuitFactor(d);
+  var base = Math.round((ex.score - 60) / 8), benefits = [], risks = [], ovrImp = 0, balImp = 0, execImp = Math.round((ex.score - 70) / 12);
+  switch (instr.type) {
+    case 'att':
+      benefits.push(['Width', 8 + Math.round(suit * 6)]); benefits.push(['Crossing threat', 6 + Math.round(suit * 5)]);
+      risks.push(['Defensive exposure', 5 + Math.round((1 - suit) * 6)]);
+      ovrImp = base > 0 ? 1 : 0; balImp = base >= 2 ? 2 : base >= 0 ? 1 : -1; break;
+    case 'press':
+      benefits.push(['Pressing intensity', 9 + Math.round(suit * 6)]); benefits.push(['Turnovers won', 6 + Math.round(suit * 4)]);
+      risks.push(['Space behind', 6 + Math.round((1 - suit) * 7)]); risks.push(['Fatigue', 5 + Math.round((1 - (p.cond || 80) / 100) * 20)]);
+      ovrImp = base > 0 ? 1 : 0; balImp = base >= 2 ? 1 : base >= 0 ? 0 : -2; break;
+    case 'wide':
+      benefits.push(['Pitch width', 10 + Math.round(suit * 5)]); benefits.push(['1v1 isolation', 6 + Math.round(suit * 4)]);
+      risks.push(['Central density', 5]); ovrImp = 0; balImp = base >= 1 ? 1 : 0; break;
+    case 'def': case 'sup':
+      benefits.push(['Defensive cover', 9 + Math.round(suit * 5)]); benefits.push(['Build-up support', 6 + Math.round(suit * 4)]);
+      risks.push(['Attacking output', 4]); ovrImp = 0; balImp = base >= 0 ? 2 : 1; break;
+    default:
+      benefits.push(['Positional discipline', 7 + Math.round(suit * 4)]);
+      risks.push(['Limited progression', 4]); ovrImp = 0; balImp = 1;
+  }
+  return { key: key, instr: instr, ex: ex, suit: suit, benefits: benefits, risks: risks, ovrImp: ovrImp, balImp: balImp, execImp: execImp };
+}
+// mentality strengths & weaknesses
+function _sqMentSW() {
+  var st = _sqMentState(), m = SQ_MENTALITIES[st.my];
+  var pool = [
+    ['High pressing', m.press, 'Fatigue risk', m.press * 0.7 + m.tempo * 0.3],
+    ['Wide attacks', m.width, 'Central exposure', 1 - m.width],
+    ['Fast transitions', m.tempo, 'Low possession control', 1 - m.poss],
+    ['Counterattacks', m.dir, 'Space behind fullbacks', m.line],
+    ['Defensive solidity', 1 - m.risk, 'Aerial vulnerability', m.risk * 0.7 + (1 - m.line) * 0.3],
+    ['Midfield control', (m.poss + (1 - m.dir)) / 2, 'Slow build-up', 1 - m.tempo]
+  ];
+  var strengths = pool.slice().sort(function (a, b) { return b[1] - a[1]; }).slice(0, 4).map(function (x) { return [x[0], Math.round(x[1] * 100)]; });
+  var weaknesses = pool.slice().sort(function (a, b) { return b[3] - a[3]; }).slice(0, 4).map(function (x) { return [x[2], Math.round(x[3] * 100)]; });
+  return { strengths: strengths, weaknesses: weaknesses };
+}
+// recommended mentalities (ranked for current squad vs opponent)
+function _sqMentRecommend() {
+  var st = _sqMentState();
+  return SQ_MENT_NAMES.map(function (k) {
+    var vs = _sqMentVs(k, st.opp), su = _sqMentSuitability(k);
+    return { key: k, label: SQ_MENTALITIES[k].label, score: Math.max(20, Math.min(99, Math.round(0.5 * vs.advantage + 0.5 * su.prob))), vs: vs, prob: su.prob };
+  }).sort(function (a, b) { return b.score - a.score; });
+}
+function _sqAltInstr(p) {
+  var cands = Object.keys(SQ_INSTR).filter(function (k) { return SQ_INSTR[k].cats.indexOf(p.cat) >= 0; });
+  var best = null, bestScore = -1, low = (p.cond || 80) < 78;
+  cands.forEach(function (k) { var instr = SQ_INSTR[k], sc = p.qual - instr.diff; if (low && (instr.type === 'def' || instr.type === 'sup' || instr.type === 'neutral')) sc += 7; if (sc > bestScore) { bestScore = sc; best = k; } });
+  return best ? SQ_INSTR[best].short : null;
+}
+// real-time coaching alerts (capability to execute the assigned instruction)
+function _sqMentCoachAlerts() {
+  var out = [];
+  (SQ_MY_IDS || []).forEach(function (id) {
+    var p = _sqP(id); if (!p) return; var an = _sqInstrAnalysis(p), ex = an.ex, cond = p.cond || 80;
+    if (an.key === 'overlap' && cond < 80) out.push(['warn', _sqPosLong(p.pos) + ' lacks stamina for constant overlapping', _sqAltInstr(p)]);
+    else if (an.instr.type === 'press' && ex.score < 66) out.push(['warn', _sqPosLong(p.pos) + ' unsuitable for aggressive pressing', _sqAltInstr(p)]);
+    else if (ex.score < 60) out.push(['warn', _sqLastName(p.name) + ' is struggling to execute “' + an.instr.short + '”', _sqAltInstr(p)]);
+    else if (ex.score >= 86) out.push(['good', _sqPosLong(p.pos) + ' is perfectly suited for the ' + an.instr.short.toLowerCase() + ' role', null]);
+  });
+  return out.slice(0, 6);
+}
+// assistant-coach intelligence — match performance vs assigned mentality
+function _sqMentMatchFeed() {
+  var ids = SQ_MY_IDS || [], feed = [];
+  var reports = ids.map(function (id) { var p = _sqP(id); return p ? { p: p, ex: _sqExecFor(p), k: _sqInstrOf(id) } : null; }).filter(Boolean);
+  var press = reports.filter(function (r) { var i = SQ_INSTR[r.k]; return i && i.type === 'press'; }).sort(function (a, b) { return a.ex.score - b.ex.score; });
+  if (press.length) { var w = press[0], n = Math.max(3, w.ex.posErr + w.ex.miss + 2); feed.push(['bad', _sqLastName(w.p.name) + ' ignored pressing instructions ' + n + ' times']); }
+  var wide = reports.filter(function (r) { var i = SQ_INSTR[r.k]; return i && (i.type === 'wide' || i.type === 'att'); }).sort(function (a, b) { return b.ex.score - a.ex.score; });
+  if (wide.length && wide[0].ex.score >= 72) feed.push(['good', (String(wide[0].p.pos).charAt(0) === 'L' ? 'Left' : 'Right') + ' side overload executed successfully (' + Math.round(wide[0].ex.score / 9) + ' times)']);
+  var st = _sqMentState(), vs = _sqMentVs(st.my, st.opp);
+  if (vs.transition < 48) feed.push(['bad', 'Counterattack pattern failed repeatedly — opponent block too compact']);
+  else feed.push(['good', 'Counterattack pattern created ' + Math.max(2, Math.round(vs.transition / 14)) + ' clear chances']);
+  if (vs.possession >= 55) feed.push(['good', 'Possession retained well in midfield (' + vs.possession + '%)']);
+  else feed.push(['bad', 'Lost possession cheaply under pressure (' + (100 - vs.possession) + '% turnovers)']);
+  return feed;
+}
+
+function _sqMentInner() {
+  var st = _sqMentState(), sc = _sqMentScore(), vs = sc.vs, sw = _sqMentSW(), recs = _sqMentRecommend(), alerts = _sqMentCoachAlerts(), feed = _sqMentMatchFeed();
+  var myL = SQ_MENTALITIES[st.my].label, oppL = SQ_MENTALITIES[st.opp].label;
+  var verdict = vs.advantage >= 60 ? ['well-suited', 'ok'] : vs.advantage >= 48 ? ['evenly matched', 'mid'] : ['a risky match', 'lo'];
+  // 1 — comparison + mentality score
+  var match = '<div class="sqlib-match">'
+    + '<div class="sqlib-match-hd"><span class="sqlib-mt">My Team <b>' + myL + '</b></span><span class="sqlib-vs">vs</span><span class="sqlib-mt sqlib-mt--opp">Opponent <b>' + oppL + '</b></span></div>'
+    + '<div class="sqment-verdict sqment-verdict--' + verdict[1] + '">Your ' + myL + ' is <b>' + verdict[0] + '</b> against the opponent ' + oppL + '.</div>'
+    + '<div class="sqlib-bigs"><div class="sqlib-big"><span>Effectiveness</span><b>' + sc.effectiveness + '%</b></div>'
+    +   '<div class="sqlib-big sqlib-big--risk"><span>Risk</span><b>' + sc.risk + '%</b></div>'
+    +   '<div class="sqlib-big"><span>Execution prob.</span><b>' + sc.execution + '%</b></div>'
+    +   '<div class="sqlib-big"><span>Balance</span><b>' + sc.balance + '%</b></div></div>'
+    + '<div class="sqlib-cmps">' + _sqCmpRow('Pressing control', vs.pressing) + _sqCmpRow('Possession control', vs.possession) + _sqCmpRow('Transition threat', vs.transition) + _sqCmpRow('Territory', vs.territory) + _sqCmpRow('Width', vs.width) + _sqCmpRow('Defensive security', vs.security) + '</div></div>';
+  // 2 — visual map legend (arrows render on the pitch)
+  var legend = '<div class="sqlib-sec">Visual tactical map</div>'
+    + '<div class="sqment-legend"><span><i style="background:#fb923c"></i>Attack runs</span><span><i style="background:#38bdf8"></i>Defensive support / recovery</span><span><i style="background:#4ade80"></i>Wide positioning</span><span><i style="background:#f87171"></i>Pressing zones</span><span><i style="background:#cbd5e1"></i>Central positioning</span></div>'
+    + '<div class="sq-note">Arrows on the pitch show how the team will move under this mentality — change a role below to update them live.</div>';
+  // 3 — player instruction analysis (assign + benefit/risk/impact)
+  var anRows = (SQ_MY_IDS || []).map(function (id) {
+    var p = _sqP(id); if (!p) return ''; var an = _sqInstrAnalysis(p), cur = an.key;
     var opts = Object.keys(SQ_INSTR).filter(function (k) { return SQ_INSTR[k].cats.indexOf(p.cat) >= 0; }).map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + SQ_INSTR[k].label + '</option>'; }).join('');
-    var col = _sqInstrColor(SQ_INSTR[cur].type);
-    return '<div class="sqment-row"><span class="sqfp-shirt sql-pos--' + p.cat + '" style="width:28px;height:28px;border-width:1.5px"><span class="sqfp-num" style="font-size:10px">' + p.num + '</span></span>'
+    var col = _sqInstrColor(an.instr.type);
+    var bens = an.benefits.map(function (x) { return '<span class="sqment-tag sqment-tag--ben">' + x[0] + ' +' + x[1] + '%</span>'; }).join('');
+    var rsk = an.risks.map(function (x) { return '<span class="sqment-tag sqment-tag--risk">' + x[0] + ' +' + x[1] + '%</span>'; }).join('');
+    return '<div class="sqment-an">'
+      + '<div class="sqment-an-hd"><span class="sqfp-shirt sql-pos--' + p.cat + '" style="width:26px;height:26px;border-width:1.5px"><span class="sqfp-num" style="font-size:10px">' + p.num + '</span></span>'
       + '<div class="sqment-id"><span class="sqment-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqment-pos">' + p.pos + '</span></div>'
       + '<span class="sqment-dot" style="background:' + col + '"></span>'
-      + '<select class="sq-instr-sel" data-instr-player="' + id + '">' + opts + '</select></div>';
+      + '<span class="sqment-imp">OVR ' + _sqSign(an.ovrImp) + ' · Bal ' + _sqSign(an.balImp) + ' · Exec ' + _sqSign(an.execImp) + '%</span></div>'
+      + '<select class="sq-instr-sel" data-instr-player="' + id + '">' + opts + '</select>'
+      + '<div class="sqment-tags">' + bens + rsk + '</div></div>';
   }).join('');
-  return '<aside class="sqfp-side"><div class="sqfp-side-hd"><span>Mentality — instructions</span><button class="sqfp-side-close" data-action="sqMentalityClose" type="button" aria-label="Close">✕</button></div>'
-    + '<div class="sqfp-side-body"><div class="sqment-legend"><span><i style="background:#fb923c"></i>Attack run</span><span><i style="background:#38bdf8"></i>Defensive / support</span><span><i style="background:#4ade80"></i>Stay wide</span><span><i style="background:#f87171"></i>Press</span></div>'
-    + '<div class="sqment-list">' + rows + '</div><div class="sq-note">Changing a role instantly updates the arrows, zones, OVR &amp; Balance on the pitch.</div></div></aside>';
+  var analysis = '<div class="sqlib-sec">Player instruction analysis</div><div class="sqment-an-list">' + anRows + '</div>';
+  // 4 — strengths & weaknesses
+  var swHtml = '<div class="sqlib-sec">Mentality strengths &amp; weaknesses</div><div class="sqment-sw">'
+    + '<div class="sqment-sw-col sqment-sw-col--s"><h5>Strengths</h5>' + sw.strengths.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div>'
+    + '<div class="sqment-sw-col sqment-sw-col--w"><h5>Weaknesses</h5>' + sw.weaknesses.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div></div>';
+  // 5 — recommended mentalities
+  var recCards = recs.map(function (r, i) {
+    return '<div class="sqlib-card' + (r.key === st.my ? ' is-my' : '') + (r.key === st.opp ? ' is-opp' : '') + '">'
+      + '<div class="sqlib-chd"><span class="sqlib-rank">#' + (i + 1) + '</span><span class="sqlib-name">' + r.key + '</span><span class="sqlib-eff">' + r.score + '%</span></div>'
+      + '<div class="sqment-rec-sub">' + r.label + ' · execution ' + r.prob + '%</div>'
+      + '<div class="sqlib-actions"><button class="sq-btn-ghost sqlib-use' + (r.key === st.my ? ' is-on' : '') + '" data-action="sqPickMentality" data-ment="' + r.key + '" data-side="my" type="button">My Team</button>'
+      + '<button class="sq-btn-ghost sqlib-use sqlib-use--opp' + (r.key === st.opp ? ' is-on' : '') + '" data-action="sqPickMentality" data-ment="' + r.key + '" data-side="opp" type="button">Opponent</button></div></div>';
+  }).join('');
+  var recHtml = '<div class="sqlib-sec">Recommended mentalities <span class="sq-note" style="font-style:normal">— ranked for your squad vs the opponent</span></div><div class="sqlib-grid">' + recCards + '</div>';
+  // 6 — coaching alerts
+  var alertHtml = (alerts.length ? alerts.map(function (a) {
+    return '<div class="sqment-coach sqment-coach--' + a[0] + '"><span class="sqment-coach-ic">' + (a[0] === 'good' ? '✓' : '⚠') + '</span><div class="sqment-coach-b"><b>' + _sqEsc(a[1]) + '</b>' + (a[2] ? '<span class="sqment-coach-alt">Suggested role: ' + _sqEsc(a[2]) + '</span>' : '') + '</div></div>';
+  }).join('') : '<div class="sq-note">All players are capable of executing their assigned instructions.</div>');
+  var coachHtml = '<div class="sqlib-sec">Real-time coaching alerts</div>' + alertHtml;
+  // 7 — training recommendations (failing players → plans)
+  var trainCount = {};
+  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id); if (!p) return; var ex = _sqExecFor(p); if (ex.score >= 78) return; var t = _sqTrainingFor(ex); trainCount[t] = (trainCount[t] || 0) + 1; });
+  var trainKeys = Object.keys(trainCount).sort(function (a, b) { return trainCount[b] - trainCount[a]; });
+  var trainHtml = '<div class="sqlib-sec">Training recommendations</div><div class="sqtac-trains">'
+    + (trainKeys.length ? trainKeys.map(function (t) { return '<div class="sqtac-train"><span>' + t + '</span><b>' + trainCount[t] + ' player' + (trainCount[t] > 1 ? 's' : '') + '</b></div>'; }).join('') : '<div class="sq-note">No targeted training required — execution is within tolerance.</div>')
+    + '</div><div class="sq-note">Improves OVR, Balance, Tactical Execution &amp; Mentality efficiency.</div>';
+  // 8 — assistant-coach intelligence feed
+  var feedHtml = '<div class="sqlib-sec">Assistant coach intelligence</div><div class="sqment-feed">'
+    + feed.map(function (f) { return '<div class="sqment-feed-row sqment-feed-row--' + f[0] + '"><i></i><span>' + _sqEsc(f[1]) + '</span></div>'; }).join('') + '</div>';
+  return '<div class="sq-fm-head"><div class="sq-fm-title">Mentality intelligence</div><button class="sqfp-side-close" data-action="sqMentalityClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body sqlib-body">' + match + legend + analysis + swHtml + recHtml + coachHtml + trainHtml + feedHtml + '</div>';
 }
+function _sqMentPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib sqfp-side--ment">' + _sqMentInner() + '</aside>'; }
 function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqMentalityClose() { SQ_FORM.showMent = false; _sqRenderFormationBody(); }
-function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; var sb = document.querySelector('.sqfp-side-body'); var st = sb ? sb.scrollTop : 0; _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
+function _sqMentScrollKeep(fn) { var sb = document.querySelector('.sqfp-side--ment .sqlib-body, .sqfp-side-body'); var st = sb ? sb.scrollTop : 0; fn(); var sb2 = document.querySelector('.sqfp-side--ment .sqlib-body, .sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
+function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqMentScrollKeep(_sqRenderFormationBody); }
+function sqPickMentality(name, side) { if (!SQ_MENTALITIES[name]) return; if (side === 'opp') SQ_FORM.oppMentality = name; else SQ_FORM.myMentality = name; _sqMentScrollKeep(_sqRenderFormationBody); }
 
 // ── Tactical analysis modal (execution, mistakes, training, alerts) ──
 function _sqTacInner() {
@@ -34999,6 +35184,7 @@ async function tosBoardSnapshot() {
         case 'sqPickFormation': if (typeof sqPickFormation === 'function') sqPickFormation(el.dataset.form, el.dataset.side); break;
         case 'sqMentality':       if (typeof sqMentality === 'function')       sqMentality();        break;
         case 'sqMentalityClose':  if (typeof sqMentalityClose === 'function')  sqMentalityClose();   break;
+        case 'sqPickMentality':   if (typeof sqPickMentality === 'function')   sqPickMentality(el.dataset.ment, el.dataset.side); break;
         case 'sqTactical':        if (typeof sqTactical === 'function')        sqTactical();         break;
         case 'sqTacticalClose':   if (typeof sqTacticalClose === 'function')   sqTacticalClose();    break;
         case 'sqPlanning':        if (typeof sqPlanning === 'function')        sqPlanning();         break;

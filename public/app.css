@@ -3709,6 +3709,51 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-use{ padding:3px 2px !important; font-size:8.5px !important; }
 @media (max-width:1040px){ .sqfp-side--fm{ flex-basis:auto; width:100%; height:auto; max-height:none; } }
 
+/* Squad · Mentality intelligence docked panel */
+.sqfp-side--ment{ flex:0 0 430px; max-width:430px; }
+.sqfp-side--ment .sqlib-body{ flex:1; max-height:none; overflow-y:auto; overflow-x:hidden; padding:14px 16px; }
+.sqfp-side--ment .sqlib-grid{ grid-template-columns:repeat(2,1fr); }
+.sqfp-side--ment .sqlib-bigs{ grid-template-columns:repeat(4,1fr); }
+.sqfp-side--ment .sqlib-cmps{ display:grid; grid-template-columns:repeat(2,1fr); gap:9px 16px; }
+.sqlib-big--risk b{ color:#fca5a5; }
+.sqment-verdict{ font-size:12px; color:#cbd5e1; line-height:1.5; margin-bottom:13px; padding:8px 11px; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
+.sqment-verdict b{ color:#f1f5f9; }
+.sqment-verdict--ok{ border-color:rgba(74,222,128,.35); } .sqment-verdict--ok b{ color:#86efac; }
+.sqment-verdict--mid{ border-color:rgba(251,191,36,.32); } .sqment-verdict--mid b{ color:#fcd34d; }
+.sqment-verdict--lo{ border-color:rgba(248,113,113,.32); } .sqment-verdict--lo b{ color:#fca5a5; }
+.sqment-an-list{ display:flex; flex-direction:column; gap:9px; }
+.sqment-an{ background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); border-radius:11px; padding:9px 11px; }
+.sqment-an-hd{ display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+.sqment-an .sqment-id{ flex:1; min-width:0; }
+.sqment-an .sqment-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.sqment-imp{ font-size:10px; font-weight:700; color:#9aa6ba; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.sqment-an .sq-instr-sel{ flex:none; width:100%; font-size:11.5px; padding:6px 8px; margin-bottom:8px; }
+.sqment-tags{ display:flex; flex-wrap:wrap; gap:5px; }
+.sqment-tag{ font-size:10px; font-weight:600; padding:2px 7px; border-radius:100px; }
+.sqment-tag--ben{ background:rgba(74,222,128,.13); color:#86efac; }
+.sqment-tag--risk{ background:rgba(248,113,113,.13); color:#fca5a5; }
+.sqment-sw{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:4px; }
+.sqment-sw-col{ background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); border-radius:11px; padding:10px 11px; }
+.sqment-sw-col h5{ margin:0 0 8px; font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.sqment-sw-col--s h5{ color:#86efac; } .sqment-sw-col--w h5{ color:#fca5a5; }
+.sqment-sw-li{ display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#cbd5e1; padding:4px 0; }
+.sqment-sw-li b{ font-weight:700; color:#f1f5f9; font-size:11.5px; }
+.sqment-rec-sub{ font-size:10.5px; color:#8a94a6; margin-bottom:8px; }
+.sqment-coach{ display:flex; gap:9px; align-items:flex-start; border-radius:11px; padding:9px 11px; margin-bottom:8px; }
+.sqment-coach--warn{ background:rgba(248,113,113,.08); border:1px solid rgba(248,113,113,.28); }
+.sqment-coach--good{ background:rgba(74,222,128,.08); border:1px solid rgba(74,222,128,.28); }
+.sqment-coach-ic{ flex-shrink:0; width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; }
+.sqment-coach--warn .sqment-coach-ic{ background:rgba(248,113,113,.2); color:#fca5a5; }
+.sqment-coach--good .sqment-coach-ic{ background:rgba(74,222,128,.2); color:#86efac; }
+.sqment-coach-b{ display:flex; flex-direction:column; gap:2px; }
+.sqment-coach-b b{ font-size:12px; font-weight:600; color:#f1f5f9; line-height:1.4; }
+.sqment-coach-alt{ font-size:10.5px; color:#8a94a6; }
+.sqment-feed{ display:flex; flex-direction:column; gap:6px; }
+.sqment-feed-row{ display:flex; align-items:center; gap:9px; font-size:12px; color:#cbd5e1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:8px 11px; }
+.sqment-feed-row i{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.sqment-feed-row--good i{ background:#4ade80; } .sqment-feed-row--bad i{ background:#f87171; }
+@media (max-width:1040px){ .sqfp-side--ment{ flex-basis:auto; width:100%; max-width:520px; } }
+
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
 .sqsub-col{ flex:1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 11px; min-width:0; }
