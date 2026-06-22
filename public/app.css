@@ -3683,10 +3683,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm{ flex:1 1 auto; max-width:none; height:645px; max-height:645px; overflow:hidden; }
 .sqfp-side--fm .sq-fm-head{ padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.08); }
 .sqfp-side--fm .sqlib-body{ flex:1; min-height:0; max-height:none; overflow:hidden; padding:11px 15px; }
-.sqfp-side--fm .sqlib-match{ padding:7px 12px; margin-bottom:6px; }
+.sqfp-side--fm .sqlib-match{ padding:6px 12px; margin-bottom:4px; }
 .sqfp-side--fm .sqlib-match-hd{ margin-bottom:5px; }
 .sqfp-side--fm .sqlib-mt{ font-size:11px; } .sqfp-side--fm .sqlib-mt b{ font-size:12.5px; margin-left:4px; }
-.sqfp-side--fm .sqlib-bigs{ grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:6px; }
+.sqfp-side--fm .sqlib-bigs{ grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:4px; }
 .sqfp-side--fm .sqlib-big{ padding:4px 5px; }
 .sqfp-side--fm .sqlib-big span{ font-size:7px; margin-bottom:2px; }
 .sqfp-side--fm .sqlib-big b{ font-size:15px; }
@@ -3695,12 +3695,12 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-cmp-bar{ height:5px; }
 .sqfp-side--fm .sqlib-sec{ margin:5px 0 6px; font-size:12px; }
 .sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:6px; }
-.sqfp-side--fm .sqlib-card{ padding:5px; }
+.sqfp-side--fm .sqlib-card{ padding:4px; }
 .sqfp-side--fm .sqlib-chd{ margin-bottom:4px; gap:3px; }
 .sqfp-side--fm .sqlib-rank{ font-size:8px; padding:1px 4px; }
 .sqfp-side--fm .sqlib-name{ font-size:11.5px; }
 .sqfp-side--fm .sqlib-eff{ font-size:10px; }
-.sqfp-side--fm .sqlib-mini{ display:block; max-height:26px; margin:0 auto 5px; }
+.sqfp-side--fm .sqlib-mini{ display:block; max-height:20px; margin:0 auto 4px; }
 .sqfp-side--fm .sqlib-metrics{ display:grid; grid-template-columns:repeat(3,1fr); gap:3px; margin-bottom:5px; }
 .sqfp-side--fm .sqlib-metrics > div{ padding:2px 1px; }
 .sqfp-side--fm .sqlib-metrics span{ font-size:7px; }
