@@ -3242,7 +3242,12 @@ function _sqMentInner() {
   var feedHtml = '<div class="sqlib-sec">Assistant coach intelligence</div><div class="sqment-feed">'
     + feed.map(function (f) { return '<div class="sqment-feed-row sqment-feed-row--' + f[0] + '"><i></i><span>' + _sqEsc(f[1]) + '</span></div>'; }).join('') + '</div>';
   return '<div class="sq-fm-head"><div class="sq-fm-title">Mentality intelligence</div><button class="sqfp-side-close" data-action="sqMentalityClose" type="button" aria-label="Close">✕</button></div>'
-    + '<div class="sq-fm-body sqlib-body">' + match + legend + analysis + swHtml + recHtml + coachHtml + trainHtml + feedHtml + '</div>';
+    + '<div class="sq-fm-body sqlib-body sqment-dash">'
+    +   '<div class="sqment-col sqment-col--a">' + match + legend + '</div>'
+    +   '<div class="sqment-col sqment-col--b">' + analysis + '</div>'
+    +   '<div class="sqment-col sqment-col--c">' + recHtml + swHtml + '</div>'
+    +   '<div class="sqment-col sqment-col--d">' + coachHtml + trainHtml + feedHtml + '</div>'
+    + '</div>';
 }
 function _sqMentPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib sqfp-side--ment">' + _sqMentInner() + '</aside>'; }
 function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }

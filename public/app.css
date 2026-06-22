@@ -3709,13 +3709,77 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-use{ padding:3px 2px !important; font-size:8.5px !important; }
 @media (max-width:1040px){ .sqfp-side--fm{ flex-basis:auto; width:100%; height:auto; max-height:none; } }
 
-/* Squad · Mentality intelligence docked panel */
-.sqfp-side--ment{ flex:0 0 430px; max-width:430px; }
-.sqfp-side--ment .sqlib-body{ flex:1; max-height:none; overflow-y:auto; overflow-x:hidden; padding:14px 16px; }
-.sqfp-side--ment .sqlib-grid{ grid-template-columns:repeat(2,1fr); }
-.sqfp-side--ment .sqlib-bigs{ grid-template-columns:repeat(4,1fr); }
-.sqfp-side--ment .sqlib-cmps{ display:grid; grid-template-columns:repeat(2,1fr); gap:9px 16px; }
+/* Squad · Mentality intelligence — full-width, pitch-height, no-scroll dashboard */
+.sqfp-side--ment{ flex:1 1 auto; max-width:none; height:645px; max-height:645px; overflow:hidden; }
+.sqfp-side--ment .sq-fm-head{ padding:9px 16px; }
+.sqfp-side--ment .sq-fm-title{ font-size:14px; }
+.sqment-dash{ display:flex; gap:11px; flex:1; min-height:0; max-height:none; overflow:hidden; padding:11px 14px; }
+.sqment-col{ display:flex; flex-direction:column; gap:6px; min-width:0; min-height:0; overflow:hidden; }
+.sqment-col--a{ flex:1 1 20%; }
+.sqment-col--b{ flex:1 1 35%; }
+.sqment-col--c{ flex:1 1 22.5%; }
+.sqment-col--d{ flex:1 1 22.5%; }
 .sqlib-big--risk b{ color:#fca5a5; }
+/* shared compaction */
+.sqfp-side--ment .sqlib-sec{ margin:2px 0 4px; font-size:11px; }
+.sqfp-side--ment .sqlib-sec .sq-note{ font-size:8.5px; }
+.sqfp-side--ment .sq-note{ font-size:8.5px; margin-top:2px; line-height:1.35; }
+.sqfp-side--ment .sqlib-match{ padding:8px 10px; margin-bottom:0; }
+.sqfp-side--ment .sqlib-match-hd{ margin-bottom:6px; gap:8px; }
+.sqfp-side--ment .sqlib-mt{ font-size:10px; } .sqfp-side--ment .sqlib-mt b{ font-size:11.5px; display:block; margin-left:0; }
+.sqfp-side--ment .sqlib-vs{ font-size:9px; }
+.sqfp-side--ment .sqment-verdict{ font-size:9.5px; padding:5px 8px; margin-bottom:8px; line-height:1.4; }
+.sqfp-side--ment .sqlib-bigs{ grid-template-columns:repeat(2,1fr); gap:5px; margin-bottom:8px; }
+.sqfp-side--ment .sqlib-big{ padding:4px 5px; }
+.sqfp-side--ment .sqlib-big span{ font-size:7px; margin-bottom:2px; }
+.sqfp-side--ment .sqlib-big b{ font-size:14px; }
+.sqfp-side--ment .sqlib-cmps{ display:flex; flex-direction:column; gap:4px; }
+.sqfp-side--ment .sqlib-cmp-top{ font-size:8.5px; margin-bottom:1px; }
+.sqfp-side--ment .sqlib-cmp-bar{ height:4px; }
+.sqfp-side--ment .sqment-legend{ gap:5px 9px; margin-bottom:4px; }
+.sqfp-side--ment .sqment-legend span{ font-size:8.5px; gap:4px; }
+.sqfp-side--ment .sqment-legend i{ width:10px; height:4px; }
+/* player instruction analysis — 2-col grid */
+.sqfp-side--ment .sqment-an-list{ display:grid; grid-template-columns:repeat(2,1fr); gap:3px; }
+.sqfp-side--ment .sqment-an{ padding:4px 5px; }
+.sqfp-side--ment .sqment-an-hd{ gap:4px; margin-bottom:2px; }
+.sqfp-side--ment .sqment-an .sqfp-shirt{ width:18px !important; height:18px !important; }
+.sqfp-side--ment .sqment-an .sqfp-num{ font-size:7.5px !important; }
+.sqfp-side--ment .sqment-nm{ font-size:9.5px; }
+.sqfp-side--ment .sqment-pos{ font-size:7.5px; }
+.sqfp-side--ment .sqment-imp{ font-size:7.5px; }
+.sqfp-side--ment .sqment-an .sq-instr-sel{ font-size:8.5px; padding:2px 4px; margin-bottom:2px; }
+.sqfp-side--ment .sqment-tags{ gap:2px; }
+.sqfp-side--ment .sqment-tag{ font-size:7px; padding:1px 4px; }
+/* recommended mentalities */
+.sqfp-side--ment .sqlib-grid{ grid-template-columns:repeat(2,1fr); gap:5px; }
+.sqfp-side--ment .sqlib-card{ padding:4px 5px; }
+.sqfp-side--ment .sqlib-chd{ margin-bottom:2px; gap:3px; }
+.sqfp-side--ment .sqlib-rank{ font-size:7.5px; padding:1px 4px; }
+.sqfp-side--ment .sqlib-name{ font-size:9.5px; }
+.sqfp-side--ment .sqlib-eff{ font-size:9px; }
+.sqfp-side--ment .sqment-rec-sub{ font-size:8px; margin-bottom:4px; }
+.sqfp-side--ment .sqlib-actions{ gap:3px; }
+.sqfp-side--ment .sqlib-use{ padding:2px 2px !important; font-size:7.5px !important; }
+/* strengths & weaknesses */
+.sqfp-side--ment .sqment-sw{ gap:6px; margin-bottom:0; }
+.sqfp-side--ment .sqment-sw-col{ padding:5px 7px; }
+.sqfp-side--ment .sqment-sw-col h5{ font-size:8.5px; margin-bottom:3px; }
+.sqfp-side--ment .sqment-sw-li{ font-size:9px; padding:1px 0; }
+.sqfp-side--ment .sqment-sw-li b{ font-size:9px; }
+/* coaching alerts */
+.sqfp-side--ment .sqment-coach{ padding:6px 7px; margin-bottom:0; gap:6px; }
+.sqfp-side--ment .sqment-coach-ic{ width:16px; height:16px; font-size:9px; }
+.sqfp-side--ment .sqment-coach-b b{ font-size:9.5px; line-height:1.3; }
+.sqfp-side--ment .sqment-coach-alt{ font-size:8px; }
+/* training */
+.sqfp-side--ment .sqtac-trains{ gap:4px; }
+.sqfp-side--ment .sqtac-train{ padding:5px 8px; font-size:9.5px; }
+.sqfp-side--ment .sqtac-train b{ font-size:8.5px; }
+/* assistant feed */
+.sqfp-side--ment .sqment-feed{ gap:4px; }
+.sqfp-side--ment .sqment-feed-row{ font-size:9px; padding:5px 8px; gap:6px; }
+.sqfp-side--ment .sqment-feed-row i{ width:6px; height:6px; }
 .sqment-verdict{ font-size:12px; color:#cbd5e1; line-height:1.5; margin-bottom:13px; padding:8px 11px; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
 .sqment-verdict b{ color:#f1f5f9; }
 .sqment-verdict--ok{ border-color:rgba(74,222,128,.35); } .sqment-verdict--ok b{ color:#86efac; }
@@ -3752,7 +3816,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqment-feed-row{ display:flex; align-items:center; gap:9px; font-size:12px; color:#cbd5e1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:8px 11px; }
 .sqment-feed-row i{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
 .sqment-feed-row--good i{ background:#4ade80; } .sqment-feed-row--bad i{ background:#f87171; }
-@media (max-width:1040px){ .sqfp-side--ment{ flex-basis:auto; width:100%; max-width:520px; } }
+@media (max-width:1120px){ .sqfp-side--ment{ flex-basis:auto; width:100%; max-width:640px; height:auto; max-height:none; overflow:visible; } .sqment-dash{ flex-wrap:wrap; overflow:visible; } .sqment-col{ flex:1 1 46% !important; overflow:visible; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
