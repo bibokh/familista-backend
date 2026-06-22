@@ -3680,34 +3680,34 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 @media (max-width:960px){ .sqfp-side--plan{ flex-basis:auto; width:100%; max-width:520px; } }
 
 /* Squad · Tactical Formations compact docked workspace (layout only, no scroll) */
-.sqfp-side--fm{ flex:0 0 600px; max-width:600px; max-height:none; overflow:hidden; }
-.sqfp-side--fm .sq-fm-head{ padding:11px 14px; border-bottom:1px solid rgba(255,255,255,.08); }
-.sqfp-side--fm .sqlib-body{ flex:1; max-height:none; overflow:hidden; padding:9px 12px; }
-.sqfp-side--fm .sqlib-match{ padding:9px 10px; margin-bottom:8px; }
-.sqfp-side--fm .sqlib-match-hd{ margin-bottom:7px; }
-.sqfp-side--fm .sqlib-mt{ font-size:11px; } .sqfp-side--fm .sqlib-mt b{ font-size:12.5px; margin-left:4px; }
-.sqfp-side--fm .sqlib-bigs{ grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:8px; }
-.sqfp-side--fm .sqlib-big{ padding:5px 4px; }
-.sqfp-side--fm .sqlib-big span{ font-size:7px; margin-bottom:2px; }
-.sqfp-side--fm .sqlib-big b{ font-size:15px; }
-.sqfp-side--fm .sqlib-cmps{ gap:4px; }
-.sqfp-side--fm .sqlib-cmp-top{ font-size:9.5px; margin-bottom:2px; }
-.sqfp-side--fm .sqlib-cmp-bar{ height:5px; }
-.sqfp-side--fm .sqlib-sec{ margin:4px 0 6px; font-size:11px; }
-.sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(6,1fr); gap:5px; }
-.sqfp-side--fm .sqlib-card{ padding:5px 4px; }
-.sqfp-side--fm .sqlib-chd{ margin-bottom:3px; gap:3px; }
-.sqfp-side--fm .sqlib-rank{ font-size:7px; padding:1px 3px; }
-.sqfp-side--fm .sqlib-name{ font-size:10px; }
-.sqfp-side--fm .sqlib-eff{ font-size:9px; }
-.sqfp-side--fm .sqlib-mini{ display:none; }
-.sqfp-side--fm .sqlib-metrics{ display:flex; gap:3px; margin-bottom:4px; }
-.sqfp-side--fm .sqlib-metrics > div{ flex:1; padding:2px 0; }
-.sqfp-side--fm .sqlib-metrics span{ font-size:6px; }
-.sqfp-side--fm .sqlib-metrics b{ font-size:9px; }
-.sqfp-side--fm .sqlib-actions{ gap:3px; }
-.sqfp-side--fm .sqlib-use{ padding:3px 1px !important; font-size:7.5px !important; }
-@media (max-width:1000px){ .sqfp-side--fm{ flex-basis:auto; width:100%; max-width:580px; } .sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(3,1fr); } }
+.sqfp-side--fm{ flex:1 1 auto; max-width:none; height:645px; max-height:645px; overflow:hidden; }
+.sqfp-side--fm .sq-fm-head{ padding:11px 16px; border-bottom:1px solid rgba(255,255,255,.08); }
+.sqfp-side--fm .sqlib-body{ flex:1; min-height:0; max-height:none; overflow:hidden; padding:11px 15px; }
+.sqfp-side--fm .sqlib-match{ padding:10px 13px; margin-bottom:9px; }
+.sqfp-side--fm .sqlib-match-hd{ margin-bottom:8px; }
+.sqfp-side--fm .sqlib-mt{ font-size:12px; } .sqfp-side--fm .sqlib-mt b{ font-size:13.5px; margin-left:5px; }
+.sqfp-side--fm .sqlib-bigs{ grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:9px; }
+.sqfp-side--fm .sqlib-big{ padding:6px 5px; }
+.sqfp-side--fm .sqlib-big span{ font-size:8px; margin-bottom:3px; }
+.sqfp-side--fm .sqlib-big b{ font-size:18px; }
+.sqfp-side--fm .sqlib-cmps{ display:grid; grid-template-columns:repeat(2,1fr); gap:6px 18px; }
+.sqfp-side--fm .sqlib-cmp-top{ font-size:10.5px; margin-bottom:3px; }
+.sqfp-side--fm .sqlib-cmp-bar{ height:6px; }
+.sqfp-side--fm .sqlib-sec{ margin:7px 0 8px; font-size:12.5px; }
+.sqfp-side--fm .sqlib-grid{ grid-template-columns:repeat(auto-fill, minmax(102px, 1fr)); gap:8px; }
+.sqfp-side--fm .sqlib-card{ padding:7px 6px; }
+.sqfp-side--fm .sqlib-chd{ margin-bottom:5px; gap:4px; }
+.sqfp-side--fm .sqlib-rank{ font-size:8.5px; padding:1px 4px; }
+.sqfp-side--fm .sqlib-name{ font-size:12px; }
+.sqfp-side--fm .sqlib-eff{ font-size:10.5px; }
+.sqfp-side--fm .sqlib-mini{ display:block; max-height:46px; margin:0 auto 6px; }
+.sqfp-side--fm .sqlib-metrics{ display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-bottom:6px; }
+.sqfp-side--fm .sqlib-metrics > div{ padding:3px 1px; }
+.sqfp-side--fm .sqlib-metrics span{ font-size:7.5px; }
+.sqfp-side--fm .sqlib-metrics b{ font-size:11px; }
+.sqfp-side--fm .sqlib-actions{ gap:5px; }
+.sqfp-side--fm .sqlib-use{ padding:4px 2px !important; font-size:9px !important; }
+@media (max-width:1040px){ .sqfp-side--fm{ flex-basis:auto; width:100%; height:auto; max-height:none; } }
 
 /* Sidebar footer (user chip) */
 body.club-theme .sidebar-footer{
