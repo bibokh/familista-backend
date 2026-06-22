@@ -3180,24 +3180,38 @@ function _sqMentMatchFeed() {
   return feed;
 }
 
+var SQ_MENT_OPEN = {};
+function _sqMentAcc(key, title, meta, tone, body) {
+  var open = !!SQ_MENT_OPEN[key];
+  return '<div class="sqm2-acc' + (open ? ' is-open' : '') + '">'
+    + '<button class="sqm2-acc-h" data-action="sqMentSec" data-sec="' + key + '" type="button" aria-expanded="' + open + '">'
+    + '<span class="sqm2-acc-t">' + title + '</span>'
+    + (meta ? '<span class="sqm2-acc-meta' + (tone ? ' sqm2-acc-meta--' + tone : '') + '">' + meta + '</span>' : '')
+    + '<span class="sqm2-acc-x" aria-hidden="true"></span></button>'
+    + (open ? '<div class="sqm2-acc-b">' + body + '</div>' : '') + '</div>';
+}
 function _sqMentInner() {
   var st = _sqMentState(), sc = _sqMentScore(), vs = sc.vs, sw = _sqMentSW(), recs = _sqMentRecommend(), alerts = _sqMentCoachAlerts(), feed = _sqMentMatchFeed();
   var myL = SQ_MENTALITIES[st.my].label, oppL = SQ_MENTALITIES[st.opp].label;
-  var verdict = vs.advantage >= 60 ? ['well-suited', 'ok'] : vs.advantage >= 48 ? ['evenly matched', 'mid'] : ['a risky match', 'lo'];
-  // 1 — comparison + mentality score
-  var match = '<div class="sqlib-match">'
-    + '<div class="sqlib-match-hd"><span class="sqlib-mt">My Team <b>' + myL + '</b></span><span class="sqlib-vs">vs</span><span class="sqlib-mt sqlib-mt--opp">Opponent <b>' + oppL + '</b></span></div>'
-    + '<div class="sqment-verdict sqment-verdict--' + verdict[1] + '">Your ' + myL + ' is <b>' + verdict[0] + '</b> against the opponent ' + oppL + '.</div>'
-    + '<div class="sqlib-bigs"><div class="sqlib-big"><span>Effectiveness</span><b>' + sc.effectiveness + '%</b></div>'
-    +   '<div class="sqlib-big sqlib-big--risk"><span>Risk</span><b>' + sc.risk + '%</b></div>'
-    +   '<div class="sqlib-big"><span>Execution prob.</span><b>' + sc.execution + '%</b></div>'
-    +   '<div class="sqlib-big"><span>Balance</span><b>' + sc.balance + '%</b></div></div>'
-    + '<div class="sqlib-cmps">' + _sqCmpRow('Pressing control', vs.pressing) + _sqCmpRow('Possession control', vs.possession) + _sqCmpRow('Transition threat', vs.transition) + _sqCmpRow('Territory', vs.territory) + _sqCmpRow('Width', vs.width) + _sqCmpRow('Defensive security', vs.security) + '</div></div>';
-  // 2 — visual map legend (arrows render on the pitch)
-  var legend = '<div class="sqlib-sec">Visual tactical map</div>'
-    + '<div class="sqment-legend"><span><i style="background:#fb923c"></i>Attack runs</span><span><i style="background:#38bdf8"></i>Defensive support / recovery</span><span><i style="background:#4ade80"></i>Wide positioning</span><span><i style="background:#f87171"></i>Pressing zones</span><span><i style="background:#cbd5e1"></i>Central positioning</span></div>'
-    + '<div class="sq-note">Arrows on the pitch show how the team will move under this mentality — change a role below to update them live.</div>';
-  // 3 — player instruction analysis (assign + benefit/risk/impact)
+  var verdict = vs.advantage >= 60 ? ['Well suited', 'ok'] : vs.advantage >= 48 ? ['Evenly matched', 'mid'] : ['Risky match', 'lo'];
+  var effTone = sc.effectiveness >= 70 ? 'ok' : sc.effectiveness >= 50 ? 'mid' : 'lo';
+  // ── default summary (always visible, large & clear) ──
+  var summary = '<div class="sqm2-match">'
+    + '<div class="sqm2-team"><span>My team</span><b>' + myL + '</b></div>'
+    + '<div class="sqm2-vs">vs</div>'
+    + '<div class="sqm2-team sqm2-team--opp"><span>Opponent</span><b>' + oppL + '</b></div></div>'
+    + '<div class="sqm2-verdict sqm2-verdict--' + verdict[1] + '">' + verdict[0] + '<span>tactical match-up</span></div>'
+    + '<div class="sqm2-hero"><div class="sqm2-score sqm2-score--' + effTone + '"><b>' + sc.effectiveness + '<i>%</i></b><span>Mentality effectiveness</span></div>'
+    + '<div class="sqm2-mini"><div class="sqm2-m sqm2-m--risk"><span>Risk</span><b>' + sc.risk + '%</b></div>'
+    + '<div class="sqm2-m"><span>Execution</span><b>' + sc.execution + '%</b></div></div></div>';
+  var top = recs[0], topIsCurrent = top.key === st.my;
+  summary += '<div class="sqm2-top"><div class="sqm2-top-l"><span class="sqm2-top-lbl">Recommended mentality</span><b class="sqm2-top-name">' + top.key + '</b><span class="sqm2-top-sub">' + top.label + '</span></div>'
+    + '<div class="sqm2-top-r"><span class="sqm2-top-score">' + top.score + '%</span>'
+    + (topIsCurrent ? '<span class="sqm2-top-cur">In use</span>' : '<button class="sqm2-use" data-action="sqPickMentality" data-ment="' + top.key + '" data-side="my" type="button">Use</button>') + '</div></div>';
+  // ── detail bodies (same engine outputs, behind accordions) ──
+  var cmpBody = '<div class="sqlib-cmps">' + _sqCmpRow('Pressing control', vs.pressing) + _sqCmpRow('Possession control', vs.possession) + _sqCmpRow('Transition threat', vs.transition) + _sqCmpRow('Territory', vs.territory) + _sqCmpRow('Width', vs.width) + _sqCmpRow('Defensive security', vs.security) + '</div>'
+    + '<div class="sqm2-legend"><span><i style="background:#fb923c"></i>Attack runs</span><span><i style="background:#38bdf8"></i>Defensive support</span><span><i style="background:#4ade80"></i>Wide play</span><span><i style="background:#f87171"></i>Pressing</span><span><i style="background:#cbd5e1"></i>Central</span></div>'
+    + '<div class="sq-note">Arrows on the pitch show how the team moves under this mentality.</div>';
   var anRows = (SQ_MY_IDS || []).map(function (id) {
     var p = _sqP(id); if (!p) return ''; var an = _sqInstrAnalysis(p), cur = an.key;
     var opts = Object.keys(SQ_INSTR).filter(function (k) { return SQ_INSTR[k].cats.indexOf(p.cat) >= 0; }).map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + SQ_INSTR[k].label + '</option>'; }).join('');
@@ -3205,55 +3219,55 @@ function _sqMentInner() {
     var bens = an.benefits.map(function (x) { return '<span class="sqment-tag sqment-tag--ben">' + x[0] + ' +' + x[1] + '%</span>'; }).join('');
     var rsk = an.risks.map(function (x) { return '<span class="sqment-tag sqment-tag--risk">' + x[0] + ' +' + x[1] + '%</span>'; }).join('');
     return '<div class="sqment-an">'
-      + '<div class="sqment-an-hd"><span class="sqfp-shirt sql-pos--' + p.cat + '" style="width:26px;height:26px;border-width:1.5px"><span class="sqfp-num" style="font-size:10px">' + p.num + '</span></span>'
+      + '<div class="sqment-an-hd"><span class="sqfp-shirt sql-pos--' + p.cat + '" style="width:28px;height:28px;border-width:1.5px"><span class="sqfp-num" style="font-size:11px">' + p.num + '</span></span>'
       + '<div class="sqment-id"><span class="sqment-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqment-pos">' + p.pos + '</span></div>'
       + '<span class="sqment-dot" style="background:' + col + '"></span>'
       + '<span class="sqment-imp">OVR ' + _sqSign(an.ovrImp) + ' · Bal ' + _sqSign(an.balImp) + ' · Exec ' + _sqSign(an.execImp) + '%</span></div>'
       + '<select class="sq-instr-sel" data-instr-player="' + id + '">' + opts + '</select>'
       + '<div class="sqment-tags">' + bens + rsk + '</div></div>';
   }).join('');
-  var analysis = '<div class="sqlib-sec">Player instruction analysis</div><div class="sqment-an-list">' + anRows + '</div>';
-  // 4 — strengths & weaknesses
-  var swHtml = '<div class="sqlib-sec">Mentality strengths &amp; weaknesses</div><div class="sqment-sw">'
-    + '<div class="sqment-sw-col sqment-sw-col--s"><h5>Strengths</h5>' + sw.strengths.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div>'
-    + '<div class="sqment-sw-col sqment-sw-col--w"><h5>Weaknesses</h5>' + sw.weaknesses.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div></div>';
-  // 5 — recommended mentalities
-  var recCards = recs.map(function (r, i) {
+  var instrBody = '<div class="sqment-an-list">' + anRows + '</div>';
+  var recBody = '<div class="sqlib-grid">' + recs.map(function (r, i) {
     return '<div class="sqlib-card' + (r.key === st.my ? ' is-my' : '') + (r.key === st.opp ? ' is-opp' : '') + '">'
       + '<div class="sqlib-chd"><span class="sqlib-rank">#' + (i + 1) + '</span><span class="sqlib-name">' + r.key + '</span><span class="sqlib-eff">' + r.score + '%</span></div>'
       + '<div class="sqment-rec-sub">' + r.label + ' · execution ' + r.prob + '%</div>'
       + '<div class="sqlib-actions"><button class="sq-btn-ghost sqlib-use' + (r.key === st.my ? ' is-on' : '') + '" data-action="sqPickMentality" data-ment="' + r.key + '" data-side="my" type="button">My Team</button>'
       + '<button class="sq-btn-ghost sqlib-use sqlib-use--opp' + (r.key === st.opp ? ' is-on' : '') + '" data-action="sqPickMentality" data-ment="' + r.key + '" data-side="opp" type="button">Opponent</button></div></div>';
-  }).join('');
-  var recHtml = '<div class="sqlib-sec">Recommended mentalities <span class="sq-note" style="font-style:normal">— ranked for your squad vs the opponent</span></div><div class="sqlib-grid">' + recCards + '</div>';
-  // 6 — coaching alerts
-  var alertHtml = (alerts.length ? alerts.map(function (a) {
+  }).join('') + '</div>';
+  var swBody = '<div class="sqment-sw">'
+    + '<div class="sqment-sw-col sqment-sw-col--s"><h5>Strengths</h5>' + sw.strengths.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div>'
+    + '<div class="sqment-sw-col sqment-sw-col--w"><h5>Weaknesses</h5>' + sw.weaknesses.map(function (x) { return '<div class="sqment-sw-li"><span>' + x[0] + '</span><b>' + x[1] + '%</b></div>'; }).join('') + '</div></div>';
+  var hasWarn = alerts.some(function (a) { return a[0] === 'warn'; });
+  var alertBody = (alerts.length ? alerts.map(function (a) {
     return '<div class="sqment-coach sqment-coach--' + a[0] + '"><span class="sqment-coach-ic">' + (a[0] === 'good' ? '✓' : '⚠') + '</span><div class="sqment-coach-b"><b>' + _sqEsc(a[1]) + '</b>' + (a[2] ? '<span class="sqment-coach-alt">Suggested role: ' + _sqEsc(a[2]) + '</span>' : '') + '</div></div>';
-  }).join('') : '<div class="sq-note">All players are capable of executing their assigned instructions.</div>');
-  var coachHtml = '<div class="sqlib-sec">Real-time coaching alerts</div>' + alertHtml;
-  // 7 — training recommendations (failing players → plans)
+  }).join('') : '<div class="sq-note">All players can execute their assigned instructions.</div>');
   var trainCount = {};
   (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id); if (!p) return; var ex = _sqExecFor(p); if (ex.score >= 78) return; var t = _sqTrainingFor(ex); trainCount[t] = (trainCount[t] || 0) + 1; });
   var trainKeys = Object.keys(trainCount).sort(function (a, b) { return trainCount[b] - trainCount[a]; });
-  var trainHtml = '<div class="sqlib-sec">Training recommendations</div><div class="sqtac-trains">'
+  var trainTotal = trainKeys.reduce(function (s, t) { return s + trainCount[t]; }, 0);
+  var trainBody = '<div class="sqtac-trains">'
     + (trainKeys.length ? trainKeys.map(function (t) { return '<div class="sqtac-train"><span>' + t + '</span><b>' + trainCount[t] + ' player' + (trainCount[t] > 1 ? 's' : '') + '</b></div>'; }).join('') : '<div class="sq-note">No targeted training required — execution is within tolerance.</div>')
     + '</div><div class="sq-note">Improves OVR, Balance, Tactical Execution &amp; Mentality efficiency.</div>';
-  // 8 — assistant-coach intelligence feed
-  var feedHtml = '<div class="sqlib-sec">Assistant coach intelligence</div><div class="sqment-feed">'
-    + feed.map(function (f) { return '<div class="sqment-feed-row sqment-feed-row--' + f[0] + '"><i></i><span>' + _sqEsc(f[1]) + '</span></div>'; }).join('') + '</div>';
-  return '<div class="sq-fm-head"><div class="sq-fm-title">Mentality intelligence</div><button class="sqfp-side-close" data-action="sqMentalityClose" type="button" aria-label="Close">✕</button></div>'
-    + '<div class="sq-fm-body sqlib-body sqment-dash">'
-    +   '<div class="sqment-col sqment-col--a">' + match + legend + '</div>'
-    +   '<div class="sqment-col sqment-col--b">' + analysis + '</div>'
-    +   '<div class="sqment-col sqment-col--c">' + recHtml + swHtml + '</div>'
-    +   '<div class="sqment-col sqment-col--d">' + coachHtml + trainHtml + feedHtml + '</div>'
+  var feedBody = '<div class="sqment-feed">' + feed.map(function (f) { return '<div class="sqment-feed-row sqment-feed-row--' + f[0] + '"><i></i><span>' + _sqEsc(f[1]) + '</span></div>'; }).join('') + '</div>';
+  // ── accordions: only essentials shown, detail on demand ──
+  var accs = '<div class="sqm2-accs">'
+    + _sqMentAcc('compare', 'Tactical comparison', 'Advantage ' + vs.advantage + '%', '', cmpBody)
+    + _sqMentAcc('instr', 'Player instructions', (SQ_MY_IDS || []).length + ' players', '', instrBody)
+    + _sqMentAcc('recs', 'Recommended mentalities', recs.length + ' options', '', recBody)
+    + _sqMentAcc('alerts', 'Coaching alerts', String(alerts.length), (hasWarn ? 'warn' : 'good'), alertBody)
+    + _sqMentAcc('sw', 'Strengths & weaknesses', '', '', swBody)
+    + _sqMentAcc('train', 'Training plan', (trainTotal ? trainTotal + ' players' : 'On track'), (trainTotal ? '' : 'good'), trainBody)
+    + _sqMentAcc('feed', 'Assistant coach', String(feed.length), '', feedBody)
     + '</div>';
+  return '<div class="sq-fm-head sqm2-head"><div class="sq-fm-title">Mentality</div><button class="sqfp-side-close" data-action="sqMentalityClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body sqm2">' + summary + accs + '</div>';
 }
-function _sqMentPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib sqfp-side--ment">' + _sqMentInner() + '</aside>'; }
+function _sqMentPanelHtml() { return '<aside class="sqfp-side sqfp-side--ment">' + _sqMentInner() + '</aside>'; }
 function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqMentalityClose() { SQ_FORM.showMent = false; _sqRenderFormationBody(); }
-function _sqMentScrollKeep(fn) { var sb = document.querySelector('.sqfp-side--ment .sqlib-body, .sqfp-side-body'); var st = sb ? sb.scrollTop : 0; fn(); var sb2 = document.querySelector('.sqfp-side--ment .sqlib-body, .sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
+function _sqMentScrollKeep(fn) { var sb = document.querySelector('.sqfp-side--ment .sqm2, .sqfp-side-body'); var st = sb ? sb.scrollTop : 0; fn(); var sb2 = document.querySelector('.sqfp-side--ment .sqm2, .sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
 function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqMentScrollKeep(_sqRenderFormationBody); }
+function sqMentSec(key) { if (!key) return; SQ_MENT_OPEN[key] = !SQ_MENT_OPEN[key]; _sqMentScrollKeep(_sqRenderFormationBody); }
 function sqPickMentality(name, side) { if (!SQ_MENTALITIES[name]) return; if (side === 'opp') SQ_FORM.oppMentality = name; else SQ_FORM.myMentality = name; _sqMentScrollKeep(_sqRenderFormationBody); }
 
 // ── Tactical analysis modal (execution, mistakes, training, alerts) ──
@@ -35190,6 +35204,7 @@ async function tosBoardSnapshot() {
         case 'sqMentality':       if (typeof sqMentality === 'function')       sqMentality();        break;
         case 'sqMentalityClose':  if (typeof sqMentalityClose === 'function')  sqMentalityClose();   break;
         case 'sqPickMentality':   if (typeof sqPickMentality === 'function')   sqPickMentality(el.dataset.ment, el.dataset.side); break;
+        case 'sqMentSec':         if (typeof sqMentSec === 'function')         sqMentSec(el.dataset.sec); break;
         case 'sqTactical':        if (typeof sqTactical === 'function')        sqTactical();         break;
         case 'sqTacticalClose':   if (typeof sqTacticalClose === 'function')   sqTacticalClose();    break;
         case 'sqPlanning':        if (typeof sqPlanning === 'function')        sqPlanning();         break;

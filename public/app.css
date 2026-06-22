@@ -3709,77 +3709,91 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqfp-side--fm .sqlib-use{ padding:3px 2px !important; font-size:8.5px !important; }
 @media (max-width:1040px){ .sqfp-side--fm{ flex-basis:auto; width:100%; height:auto; max-height:none; } }
 
-/* Squad · Mentality intelligence — full-width, pitch-height, no-scroll dashboard */
-.sqfp-side--ment{ flex:1 1 auto; max-width:none; height:645px; max-height:645px; overflow:hidden; }
-.sqfp-side--ment .sq-fm-head{ padding:9px 16px; }
-.sqfp-side--ment .sq-fm-title{ font-size:14px; }
-.sqment-dash{ display:flex; gap:11px; flex:1; min-height:0; max-height:none; overflow:hidden; padding:11px 14px; }
-.sqment-col{ display:flex; flex-direction:column; gap:6px; min-width:0; min-height:0; overflow:hidden; }
-.sqment-col--a{ flex:1 1 22%; }
-.sqment-col--b{ flex:1 1 31%; }
-.sqment-col--c{ flex:1 1 24%; }
-.sqment-col--d{ flex:1 1 23%; }
-.sqlib-big--risk b{ color:#fca5a5; }
-/* shared compaction */
-.sqfp-side--ment .sqlib-sec{ margin:2px 0 4px; font-size:11px; white-space:nowrap; }
-.sqfp-side--ment .sqlib-sec .sq-note{ display:none; }
-.sqfp-side--ment .sq-note{ font-size:8.5px; margin-top:2px; line-height:1.35; }
-.sqfp-side--ment .sqlib-match{ padding:8px 10px; margin-bottom:0; }
-.sqfp-side--ment .sqlib-match-hd{ margin-bottom:6px; gap:8px; }
-.sqfp-side--ment .sqlib-mt{ font-size:10px; } .sqfp-side--ment .sqlib-mt b{ font-size:11.5px; display:block; margin-left:0; }
-.sqfp-side--ment .sqlib-vs{ font-size:9px; }
-.sqfp-side--ment .sqment-verdict{ font-size:9.5px; padding:5px 8px; margin-bottom:8px; line-height:1.4; }
-.sqfp-side--ment .sqlib-bigs{ grid-template-columns:repeat(2,1fr); gap:5px; margin-bottom:8px; }
-.sqfp-side--ment .sqlib-big{ padding:4px 5px; }
-.sqfp-side--ment .sqlib-big span{ font-size:7px; margin-bottom:2px; }
-.sqfp-side--ment .sqlib-big b{ font-size:14px; }
-.sqfp-side--ment .sqlib-cmps{ display:flex; flex-direction:column; gap:4px; }
-.sqfp-side--ment .sqlib-cmp-top{ font-size:8.5px; margin-bottom:1px; }
-.sqfp-side--ment .sqlib-cmp-bar{ height:4px; }
-.sqfp-side--ment .sqment-legend{ gap:5px 9px; margin-bottom:4px; }
-.sqfp-side--ment .sqment-legend span{ font-size:8.5px; gap:4px; }
-.sqfp-side--ment .sqment-legend i{ width:10px; height:4px; }
-/* player instruction analysis — 2-col grid */
-.sqfp-side--ment .sqment-an-list{ display:grid; grid-template-columns:repeat(2,1fr); gap:3px; }
-.sqfp-side--ment .sqment-an{ padding:3px 5px; }
-.sqfp-side--ment .sqment-an-hd{ gap:4px; margin-bottom:2px; }
-.sqfp-side--ment .sqment-an .sqfp-shirt{ width:18px !important; height:18px !important; }
-.sqfp-side--ment .sqment-an .sqfp-num{ font-size:7.5px !important; }
-.sqfp-side--ment .sqment-nm{ font-size:9.5px; }
-.sqfp-side--ment .sqment-pos{ font-size:7.5px; }
-.sqfp-side--ment .sqment-imp{ font-size:7.5px; }
-.sqfp-side--ment .sqment-an .sq-instr-sel{ font-size:8.5px; padding:2px 4px; margin-bottom:2px; }
-.sqfp-side--ment .sqment-tags{ gap:2px; }
-.sqfp-side--ment .sqment-tag{ font-size:7px; padding:1px 4px; }
-/* recommended mentalities */
-.sqfp-side--ment .sqlib-grid{ grid-template-columns:repeat(2,1fr); gap:4px; }
-.sqfp-side--ment .sqlib-card{ padding:3px 5px; }
-.sqfp-side--ment .sqlib-chd{ margin-bottom:2px; gap:3px; }
-.sqfp-side--ment .sqlib-rank{ font-size:7.5px; padding:1px 4px; }
-.sqfp-side--ment .sqlib-name{ font-size:9.5px; }
-.sqfp-side--ment .sqlib-eff{ font-size:9px; }
-.sqfp-side--ment .sqment-rec-sub{ font-size:8px; margin-bottom:3px; }
-.sqfp-side--ment .sqlib-actions{ gap:3px; }
-.sqfp-side--ment .sqlib-use{ padding:2px 2px !important; font-size:7.5px !important; }
-/* strengths & weaknesses */
-.sqfp-side--ment .sqment-sw{ gap:6px; margin-bottom:0; }
-.sqfp-side--ment .sqment-sw-col{ padding:4px 6px; }
-.sqfp-side--ment .sqment-sw-col h5{ font-size:8.5px; margin-bottom:2px; }
-.sqfp-side--ment .sqment-sw-li{ font-size:9px; padding:1px 0; }
-.sqfp-side--ment .sqment-sw-li b{ font-size:9px; }
-/* coaching alerts */
-.sqfp-side--ment .sqment-coach{ padding:6px 7px; margin-bottom:0; gap:6px; }
-.sqfp-side--ment .sqment-coach-ic{ width:16px; height:16px; font-size:9px; }
-.sqfp-side--ment .sqment-coach-b b{ font-size:9.5px; line-height:1.3; }
-.sqfp-side--ment .sqment-coach-alt{ font-size:8px; }
-/* training */
-.sqfp-side--ment .sqtac-trains{ gap:4px; }
-.sqfp-side--ment .sqtac-train{ padding:5px 8px; font-size:9.5px; }
-.sqfp-side--ment .sqtac-train b{ font-size:8.5px; }
-/* assistant feed */
-.sqfp-side--ment .sqment-feed{ gap:4px; }
-.sqfp-side--ment .sqment-feed-row{ font-size:9px; padding:5px 8px; gap:6px; }
-.sqfp-side--ment .sqment-feed-row i{ width:6px; height:6px; }
+/* Squad · Mentality — clean coach-friendly panel (large text, expandable detail) */
+.sqfp-side--ment{ flex:0 0 460px; max-width:460px; height:645px; max-height:645px; }
+.sqfp-side--ment .sq-fm-head{ padding:16px 18px; }
+.sqfp-side--ment .sq-fm-title{ font-size:18px; }
+.sqm2{ flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding:16px 18px 18px; display:flex; flex-direction:column; gap:12px; }
+.sqm2-match{ display:flex; align-items:stretch; gap:9px; }
+.sqm2-team{ flex:1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:10px 13px; min-width:0; }
+.sqm2-team span{ display:block; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#7e8aa0; margin-bottom:4px; }
+.sqm2-team b{ font-size:15.5px; font-weight:800; color:#f1f5f9; line-height:1.2; }
+.sqm2-team--opp{ border-color:rgba(148,163,184,.28); } .sqm2-team--opp b{ color:#cbd5e1; }
+.sqm2-vs{ align-self:center; font-size:12px; font-weight:800; color:#7e8aa0; }
+.sqm2-verdict{ text-align:center; font-size:18px; font-weight:800; padding:11px; border-radius:12px; line-height:1.1; }
+.sqm2-verdict span{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.7; margin-top:3px; }
+.sqm2-verdict--ok{ background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.35); color:#86efac; }
+.sqm2-verdict--mid{ background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.32); color:#fcd34d; }
+.sqm2-verdict--lo{ background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.32); color:#fca5a5; }
+.sqm2-hero{ display:flex; align-items:center; gap:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); border-radius:14px; padding:15px 16px; }
+.sqm2-score{ flex:1; min-width:0; }
+.sqm2-score b{ font-size:44px; font-weight:800; color:#4ade80; line-height:1; display:block; }
+.sqm2-score b i{ font-size:20px; font-style:normal; font-weight:700; }
+.sqm2-score span{ display:block; font-size:12px; font-weight:600; color:#9aa6ba; margin-top:7px; }
+.sqm2-score--mid b{ color:#fcd34d; } .sqm2-score--lo b{ color:#fca5a5; }
+.sqm2-mini{ display:flex; flex-direction:column; gap:8px; flex:0 0 118px; }
+.sqm2-m{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:7px 11px; }
+.sqm2-m span{ display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#7e8aa0; }
+.sqm2-m b{ font-size:19px; font-weight:800; color:#f1f5f9; }
+.sqm2-m--risk b{ color:#fca5a5; }
+.sqm2-top{ display:flex; align-items:center; gap:12px; background:linear-gradient(135deg,rgba(244,183,64,.13),rgba(244,183,64,.04)); border:1px solid rgba(244,183,64,.4); border-radius:14px; padding:12px 15px; }
+.sqm2-top-l{ flex:1; min-width:0; }
+.sqm2-top-lbl{ display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#f4b740; margin-bottom:3px; }
+.sqm2-top-name{ display:block; font-size:16.5px; font-weight:800; color:#f1f5f9; line-height:1.15; }
+.sqm2-top-sub{ display:block; font-size:11.5px; color:#9aa6ba; margin-top:1px; }
+.sqm2-top-r{ display:flex; flex-direction:column; align-items:center; gap:6px; flex-shrink:0; }
+.sqm2-top-score{ font-size:21px; font-weight:800; color:#f4b740; }
+.sqm2-use{ background:#f4b740; color:#1a1205; border:none; border-radius:9px; padding:7px 18px; font-size:13px; font-weight:800; cursor:pointer; }
+.sqm2-use:hover{ filter:brightness(1.08); }
+.sqm2-top-cur{ font-size:11px; font-weight:700; color:#86efac; background:rgba(74,222,128,.14); padding:5px 12px; border-radius:8px; }
+.sqm2-accs{ display:flex; flex-direction:column; gap:8px; margin-top:2px; }
+.sqm2-acc{ border:1px solid rgba(255,255,255,.09); border-radius:12px; overflow:hidden; background:rgba(255,255,255,.022); }
+.sqm2-acc.is-open{ border-color:rgba(255,255,255,.16); background:rgba(255,255,255,.035); }
+.sqm2-acc-h{ width:100%; display:flex; align-items:center; gap:10px; background:transparent; border:none; cursor:pointer; padding:13px 15px; text-align:left; }
+.sqm2-acc-t{ flex:1; font-size:14.5px; font-weight:700; color:#f1f5f9; }
+.sqm2-acc-meta{ font-size:12px; font-weight:600; color:#8a94a6; }
+.sqm2-acc-meta--warn{ color:#fca5a5; } .sqm2-acc-meta--good{ color:#86efac; }
+.sqm2-acc-x{ width:20px; height:20px; position:relative; flex-shrink:0; }
+.sqm2-acc-x::before,.sqm2-acc-x::after{ content:''; position:absolute; background:#9aa6ba; border-radius:2px; }
+.sqm2-acc-x::before{ top:9px; left:4px; width:12px; height:2px; }
+.sqm2-acc-x::after{ top:4px; left:9px; width:2px; height:12px; transition:transform .18s, opacity .18s; }
+.sqm2-acc.is-open .sqm2-acc-x::after{ transform:scaleY(0); opacity:0; }
+.sqm2-acc-b{ padding:2px 15px 15px; }
+/* readable detail content inside accordions */
+.sqm2 .sqlib-cmps{ display:flex; flex-direction:column; gap:11px; }
+.sqm2 .sqlib-cmp-top{ font-size:13px; margin-bottom:5px; }
+.sqm2 .sqlib-cmp-bar{ height:8px; }
+.sqm2-legend{ display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:14px; }
+.sqm2-legend span{ display:flex; align-items:center; gap:6px; font-size:12px; color:#aab4c5; }
+.sqm2-legend i{ width:14px; height:6px; border-radius:3px; }
+.sqm2 .sqment-an-list{ gap:9px; }
+.sqm2 .sqment-an{ padding:11px 12px; }
+.sqm2 .sqment-nm{ font-size:14px; } .sqm2 .sqment-pos{ font-size:11px; }
+.sqm2 .sqment-imp{ font-size:11px; }
+.sqm2 .sqment-an .sq-instr-sel{ font-size:13px; padding:9px 10px; margin:9px 0; }
+.sqm2 .sqment-tag{ font-size:11px; padding:3px 9px; }
+.sqm2 .sqment-tags{ gap:6px; }
+.sqm2 .sqlib-grid{ display:flex; flex-direction:column; gap:9px; }
+.sqm2 .sqlib-card{ padding:11px 13px; }
+.sqm2 .sqlib-name{ font-size:14.5px; } .sqm2 .sqlib-rank{ font-size:11px; padding:2px 7px; } .sqm2 .sqlib-eff{ font-size:14px; }
+.sqm2 .sqment-rec-sub{ font-size:12px; }
+.sqm2 .sqlib-actions{ gap:8px; }
+.sqm2 .sqlib-use{ padding:8px 10px !important; font-size:12px !important; }
+.sqm2 .sqment-sw{ grid-template-columns:repeat(2,1fr); gap:11px; }
+.sqm2 .sqment-sw-col{ padding:12px; }
+.sqm2 .sqment-sw-col h5{ font-size:12px; margin-bottom:9px; }
+.sqm2 .sqment-sw-li{ font-size:13px; padding:5px 0; }
+.sqm2 .sqment-sw-li b{ font-size:13px; }
+.sqm2 .sqment-coach{ padding:12px 13px; margin-bottom:0; }
+.sqm2 .sqment-coach + .sqment-coach{ margin-top:9px; }
+.sqm2 .sqment-coach-b b{ font-size:13.5px; }
+.sqm2 .sqment-coach-alt{ font-size:11.5px; }
+.sqm2 .sqtac-trains{ gap:8px; }
+.sqm2 .sqtac-train{ padding:11px 14px; font-size:14px; }
+.sqm2 .sqtac-train b{ font-size:12.5px; }
+.sqm2 .sqment-feed{ gap:8px; }
+.sqm2 .sqment-feed-row{ font-size:13px; padding:11px 13px; }
+.sqm2 .sq-note{ font-size:11.5px; margin-top:8px; }
 .sqment-verdict{ font-size:12px; color:#cbd5e1; line-height:1.5; margin-bottom:13px; padding:8px 11px; border-radius:9px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); }
 .sqment-verdict b{ color:#f1f5f9; }
 .sqment-verdict--ok{ border-color:rgba(74,222,128,.35); } .sqment-verdict--ok b{ color:#86efac; }
@@ -3816,7 +3830,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqment-feed-row{ display:flex; align-items:center; gap:9px; font-size:12px; color:#cbd5e1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.06); border-radius:9px; padding:8px 11px; }
 .sqment-feed-row i{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
 .sqment-feed-row--good i{ background:#4ade80; } .sqment-feed-row--bad i{ background:#f87171; }
-@media (max-width:1460px){ .sqfp-side--ment{ flex-basis:auto; width:100%; max-width:820px; height:auto; max-height:none; overflow:visible; } .sqment-dash{ flex-wrap:wrap; overflow:visible; } .sqment-col{ flex:1 1 46% !important; overflow:visible; } }
+@media (max-width:980px){ .sqfp-side--ment{ flex-basis:auto; width:100%; max-width:520px; height:auto; max-height:none; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
