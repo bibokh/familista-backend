@@ -2772,7 +2772,7 @@ function _sqInstrVec(key, x, y) {
   }
 }
 function _sqDefaultInstr(p) { var m = { GK: 'hold', CB: 'hold', LB: 'overlap', RB: 'overlap', DM: 'stayback', CM: 'shuttle', LW: 'staywide', RW: 'staywide', ST: 'attackruns' }; return m[p.pos] || (p.cat === 'fw' ? 'attackruns' : p.cat === 'mf' ? 'shuttle' : 'hold'); }
-function _sqInstrOf(id) { var p = _sqFind(id); if (!p) return 'hold'; return SQ_MENTALITY[id] || _sqDefaultInstr(p); }
+function _sqInstrOf(id) { var p = _sqP(id); if (!p) return 'hold'; return SQ_MENTALITY[id] || _sqDefaultInstr(p); }
 function _sqInstrColor(t) { return t === 'att' ? '#fb923c' : t === 'press' ? '#f87171' : t === 'wide' ? '#4ade80' : t === 'def' || t === 'sup' ? '#38bdf8' : '#cbd5e1'; }
 
 // ── execution / error analysis (deterministic from player data) ──
@@ -2789,7 +2789,7 @@ function _sqExecFor(p) {
   var success = Math.round(score / 11);
   return { key: key, instr: instr, score: score, correct: correct, tacErr: tacErr, posErr: posErr, miss: miss, success: success };
 }
-function _sqTeamExec() { var ids = SQ_MY_IDS || [], s = 0, n = 0; ids.forEach(function (id) { var p = _sqFind(id); if (!p) return; n++; s += _sqExecFor(p).score; }); return n ? Math.round(s / n) : 0; }
+function _sqTeamExec() { var ids = SQ_MY_IDS || [], s = 0, n = 0; ids.forEach(function (id) { var p = _sqP(id); if (!p) return; n++; s += _sqExecFor(p).score; }); return n ? Math.round(s / n) : 0; }
 function _sqTrainingFor(ex) {
   var arr = [['Positioning Training', ex.posErr], ['Movement Off The Ball', ex.miss], ['Tactical Awareness', ex.tacErr], ['Transition Training', Math.round((100 - ex.score) / 20)]];
   if (ex.instr.type === 'press') arr.push(['Pressing Training', Math.round((100 - ex.score) / 15)]);
@@ -2840,17 +2840,19 @@ function _sqBuildBoard() {
   var assign = _sqAssignXI(mSlots, SQ_DEMO_PLAYERS);
   SQ_MY_IDS = []; SQ_POS_MY = {};
   assign.forEach(function (a) { if (!a.player) return; SQ_MY_IDS.push(a.player.id); var y = a.slot.c === 'gk' ? a.slot.y : Math.max(8, Math.min(92, a.slot.y + off)); SQ_POS_MY[a.player.id] = { x: a.slot.x, y: y }; if (!SQ_MENTALITY[a.player.id]) SQ_MENTALITY[a.player.id] = _sqDefaultInstr(a.player); });
+  SQ_BENCH_IDS = SQ_DEMO_PLAYERS.filter(function (pl) { return SQ_MY_IDS.indexOf(pl.id) < 0; }).map(function (pl) { return pl.id; });
   var oSlots = SQ_FORMATIONS[SQ_FORM.oppFormation] || SQ_FORMATIONS['4-4-2'];
   var oAssign = _sqAssignXI(oSlots, SQ_OPP_DEF);
   SQ_POS_OPP = {}; SQ_OPP_ACTIVE = []; SQ_OPP_ANCHOR = {};
   oAssign.forEach(function (a) { if (!a.player) return; SQ_OPP_ACTIVE.push(a.player); var pos = { x: a.slot.x, y: Math.max(6, Math.min(72, 98 - a.slot.y)) }; SQ_POS_OPP[a.player.id] = pos; SQ_OPP_ANCHOR[a.player.id] = { x: pos.x, y: pos.y }; });
 }
-function _sqMyValid(id) { var p = _sqFind(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return true; return _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) <= 13; }
+function _sqMyValid(id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return true; return _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) <= 13; }
 function _sqOppValid(o) { var pos = SQ_POS_OPP[o.id], an = SQ_OPP_ANCHOR[o.id]; if (!pos || !an) return true; return _sqDist(pos.x, pos.y, an.x, an.y) <= 16; }
 function _sqMyStats() {
   var qs = 0, sc = 0, n = 0;
-  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqFind(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return; n++; qs += p.qual; sc += _sqPosScore(_sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p))); });
-  var posBal = n ? Math.round(sc / n) : 0, ovrRaw = n ? Math.round(qs / n) : 0, exec = _sqTeamExec();
+  var eff = 0;
+  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return; n++; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
+  var posBal = n ? Math.round(sc / n) : 0, ovrRaw = n ? Math.round(eff / n) : 0, exec = _sqTeamExec();
   var bal = Math.max(0, Math.min(100, Math.round(posBal * 0.7 + exec * 0.3)));
   var ovr = Math.max(0, Math.min(99, ovrRaw + Math.round((bal - 80) / 10) + Math.round((exec - 75) / 14)));
   return { ovr: ovr, balance: bal, compat: _sqCompat(SQ_FORMATIONS[SQ_FORM.myFormation] || [], SQ_DEMO_PLAYERS), exec: exec };
@@ -2910,7 +2912,7 @@ function _sqDashboard() {
 }
 
 function _sqMyChip(id) {
-  var p = _sqFind(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return '';
+  var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return '';
   var bad = !_sqMyValid(id);
   var shirt = p.photo ? '<img class="sqfp-photo" src="' + _sqEsc(p.photo) + '" alt="">' : '<span class="sqfp-num">' + p.num + '</span>';
   var html = '<div class="sqfp-chip' + (bad ? ' sqfp-chip--bad' : '') + '" data-drag="1" data-team="my" data-id="' + p.id + '" style="left:' + pos.x + '%;top:' + pos.y + '%">'
@@ -2932,7 +2934,7 @@ function _sqOppChip(o) {
 function _sqArrowsLayer() {
   var paths = '';
   (SQ_MY_IDS || []).forEach(function (id) {
-    var p = _sqFind(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return;
+    var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return;
     var key = _sqInstrOf(id), instr = SQ_INSTR[key]; if (!instr) return;
     var t = _sqInstrVec(key, pos.x, pos.y); if (!t) return;
     var col = _sqInstrColor(instr.type);
@@ -2992,7 +2994,7 @@ function _sqFormationBody() {
   var hint = '<div class="sqfp-hint">Arrows show each player’s instruction — open Mentality to change roles, Tactical analysis for execution &amp; alerts, Squad planning for depth &amp; squad size.</div>';
   var side = SQ_FORM.showMent ? _sqMentPanelHtml() : SQ_FORM.showLib ? _sqLibPanelHtml() : SQ_FORM.showTac ? _sqTacPanelHtml() : SQ_FORM.showPlan ? _sqPlanPanelHtml() : '';
   var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
-  return toolbar + hud + board + hint;
+  return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
 function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
 function _sqFormationHtml() {
@@ -3047,7 +3049,7 @@ function sqPickFormation(name, side) { if (!SQ_FORMATIONS[name]) return; if (sid
 // ── Mentality modal ──
 function _sqMentPanelHtml() {
   var rows = (SQ_MY_IDS || []).map(function (id) {
-    var p = _sqFind(id); if (!p) return '';
+    var p = _sqP(id); if (!p) return '';
     var cur = _sqInstrOf(id);
     var opts = Object.keys(SQ_INSTR).filter(function (k) { return SQ_INSTR[k].cats.indexOf(p.cat) >= 0; }).map(function (k) { return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + SQ_INSTR[k].label + '</option>'; }).join('');
     var col = _sqInstrColor(SQ_INSTR[cur].type);
@@ -3068,7 +3070,7 @@ function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = ke
 function _sqTacInner() {
   var ids = SQ_MY_IDS || [];
   var teamExec = _sqTeamExec();
-  var reports = ids.map(function (id) { var p = _sqFind(id); return p ? { p: p, ex: _sqExecFor(p) } : null; }).filter(Boolean);
+  var reports = ids.map(function (id) { var p = _sqP(id); return p ? { p: p, ex: _sqExecFor(p) } : null; }).filter(Boolean);
   var rowHtml = reports.map(function (r) {
     var ex = r.ex, tone = ex.score >= 80 ? 'hi' : ex.score >= 62 ? 'mid' : 'lo';
     return '<tr><td class="sqtac-pl"><b>' + _sqEsc(_sqLastName(r.p.name)) + '</b><span>' + r.p.pos + '</span></td>'
@@ -3121,6 +3123,8 @@ function _sqPlanInner() {
     + '<div class="sq-fm-body sqlib-body">'
     + '<div class="sqlib-sec">Tactical efficiency dashboard</div>' + dash
     + '<div class="sqlib-sec">Smart squad size calculator</div>' + size
+    + '<div class="sqlib-sec">Squad depth alerts</div>' + _sqDepthAlertsHtml()
+    + '<div class="sqlib-sec">Squad size models</div>' + _sqSquadModelsHtml()
     + '<div class="sqlib-sec">Multi-position squad map</div>'
     + '<table class="sqtac-table"><thead><tr><th>Player</th><th>Primary</th><th>Secondary</th><th>Third</th><th>Tactical roles</th></tr></thead><tbody>' + rows + '</tbody></table>'
     + '</div>';
@@ -3138,15 +3142,18 @@ function _sqInitFormationDrag() {
   _sqDragInit = true;
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sq-instr-sel')) { if (typeof sqSetInstr === 'function') sqSetInstr(s.getAttribute('data-instr-player'), s.value); } });
   document.addEventListener('pointerdown', function (e) {
+    var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub]');
+    if (subc && subc.closest('#sq-sub-formation')) { _sqSubDrag = { id: subc.getAttribute('data-sub'), tier: subc.getAttribute('data-tier'), sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
     if (!chip || !chip.closest('#sq-sub-formation')) return;
     var pitch = chip.closest('.sqfp-pitch'); if (!pitch) return;
     var team = chip.getAttribute('data-team'), id = chip.getAttribute('data-id');
     var d = { chip: chip, pitch: pitch, team: team, id: id, sx: e.clientX, sy: e.clientY, moved: false, allowed: null, anchor: null };
-    if (team === 'my') { var p = _sqFind(id); if (p) d.allowed = _sqAllowedZonesAny(p); } else { d.anchor = SQ_OPP_ANCHOR[id] || null; }
+    if (team === 'my') { var p = _sqP(id); if (p) d.allowed = _sqAllowedZonesAny(p); } else { d.anchor = SQ_OPP_ANCHOR[id] || null; }
     _sqDrag = d; e.preventDefault();
   });
   document.addEventListener('pointermove', function (e) {
+    if (_sqSubDrag) { var sd = _sqSubDrag; if (!sd.moved) { if (Math.abs(e.clientX - sd.sx) + Math.abs(e.clientY - sd.sy) < 6) return; sd.moved = true; sd.ghost = _sqMakeGhost(sd.id); } if (sd.ghost) { sd.ghost.style.left = e.clientX + 'px'; sd.ghost.style.top = e.clientY + 'px'; } _sqSubHighlight(document.elementFromPoint(e.clientX, e.clientY)); return; }
     var d = _sqDrag; if (!d) return;
     if (!d.moved) { if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 6) return; d.moved = true; d.chip.classList.add('is-dragging'); if (d.team === 'my') _sqShowZones(d.pitch, d.allowed); else if (d.anchor) _sqShowAnchor(d.pitch, d.anchor.x, d.anchor.y); }
     var r = d.pitch.getBoundingClientRect();
@@ -3156,6 +3163,7 @@ function _sqInitFormationDrag() {
     d.chip.classList.toggle('is-invalid', !ok);
   });
   document.addEventListener('pointerup', function (e) {
+    if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var tgt = el && el.closest && el.closest('.sqfp-chip[data-team="my"]'); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } return; }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };
@@ -3176,6 +3184,100 @@ function sqFormSetups() { var m = document.getElementById('sq-setups-modal'); if
 function sqSetupsClose() { var m = document.getElementById('sq-setups-modal'); if (m) m.style.display = 'none'; }
 function sqSetupSave() {}
 function sqSetupLoad() {}
+// ── Squad · Substitute bench, reserves, depth & squad-size models ──
+var SQ_RESERVE = [
+  { id: 'rs-1', num: 30, name: 'Pavel Novak', pos: 'GK', cat: 'gk', qual: 74, age: 19, value: '€1.2M', cond: 96, morale: 'Good', roles: 'GK' },
+  { id: 'rs-2', num: 24, name: 'Yuki Tanaka', pos: 'RB', cat: 'df', qual: 73, age: 20, value: '€1.6M', cond: 95, morale: 'Good', roles: 'FB · WB' },
+  { id: 'rs-3', num: 28, name: 'Luca Greco', pos: 'CB', cat: 'df', qual: 75, age: 21, value: '€2.4M', cond: 93, morale: 'Content', roles: 'CD · BPD' },
+  { id: 'rs-4', num: 26, name: 'Omar Sy', pos: 'CM', cat: 'mf', qual: 74, age: 20, value: '€2.1M', cond: 94, morale: 'Good', roles: 'BBM · CM' },
+  { id: 'rs-5', num: 27, name: 'Eli Roberts', pos: 'LW', cat: 'fw', qual: 72, age: 18, value: '€1.4M', cond: 97, morale: 'Excellent', roles: 'IW · W' },
+  { id: 'rs-6', num: 29, name: 'Mateo Ruiz', pos: 'ST', cat: 'fw', qual: 73, age: 19, value: '€1.8M', cond: 95, morale: 'Good', roles: 'AF · PF' }
+];
+var SQ_BENCH_IDS = [];
+var _sqSubDrag = null;
+function _sqP(id) { var p = _sqFind(id); if (p) return p; for (var i = 0; i < SQ_RESERVE.length; i++) if (SQ_RESERVE[i].id === id) return SQ_RESERVE[i]; return null; }
+function _sqWage(p) { return Math.max(8, Math.round((p.qual - 58) * 3.2)); }
+function _sqSuitFactor(d) { return d <= 8 ? 1 : d <= 16 ? 0.94 : d <= 24 ? 0.86 : 0.74; }
+function _sqEffQual(p, d) { return Math.round(p.qual * _sqSuitFactor(d)); }
+function _sqReserveIds() { var my = SQ_MY_IDS || []; return SQ_RESERVE.map(function (r) { return r.id; }).filter(function (id) { return my.indexOf(id) < 0 && SQ_BENCH_IDS.indexOf(id) < 0; }); }
+function _sqBenchChip(id, tier) {
+  var p = _sqP(id); if (!p) return '';
+  return '<div class="sqsub-chip" data-sub="' + id + '" data-tier="' + tier + '"><span class="sqsub-shirt sql-pos--' + p.cat + '">' + p.num + '</span>'
+    + '<span class="sqsub-meta"><span class="sqsub-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqsub-pos">' + p.pos + '</span></span>'
+    + '<span class="sqsub-q">' + p.qual + '</span></div>';
+}
+function _sqBenchStripHtml() {
+  var bench = (SQ_BENCH_IDS || []).filter(function (id) { return (SQ_MY_IDS || []).indexOf(id) < 0; });
+  var res = _sqReserveIds();
+  var benchHtml = bench.length ? bench.map(function (id) { return _sqBenchChip(id, 'bench'); }).join('') : '<span class="sqsub-empty">No substitutes</span>';
+  var resHtml = res.length ? res.map(function (id) { return _sqBenchChip(id, 'reserve'); }).join('') : '<span class="sqsub-empty">No reserves</span>';
+  return '<div class="sqsub-wrap"><div class="sqsub-col sqsub-bench"><div class="sqsub-hd">Substitute bench <span>' + bench.length + '</span></div><div class="sqsub-row">' + benchHtml + '</div></div>'
+    + '<div class="sqsub-col sqsub-reserve"><div class="sqsub-hd">Reserve squad <span>' + res.length + '</span></div><div class="sqsub-row">' + resHtml + '</div></div></div>';
+}
+function _sqMakeGhost(id) { var p = _sqP(id); var g = document.createElement('div'); g.className = 'sqsub-ghost sql-pos--' + (p ? p.cat : 'mf'); g.textContent = p ? p.num : '?'; document.body.appendChild(g); return g; }
+function _sqSubHighlight(el) { var prev = document.querySelector('.sqfp-chip.sqsub-target'); if (prev) prev.classList.remove('sqsub-target'); var t = el && el.closest && el.closest('.sqfp-chip[data-team="my"]'); if (t) t.classList.add('sqsub-target'); }
+function _sqSubstitute(inId, outId) {
+  if (!inId || !outId || inId === outId) return;
+  var my = SQ_MY_IDS || []; var idx = my.indexOf(outId); if (idx < 0) return;
+  if (my.indexOf(inId) >= 0) { return; }
+  my[idx] = inId; SQ_POS_MY[inId] = SQ_POS_MY[outId]; delete SQ_POS_MY[outId];
+  if (!SQ_MENTALITY[inId]) { var pin = _sqP(inId); SQ_MENTALITY[inId] = pin ? _sqDefaultInstr(pin) : 'hold'; }
+  SQ_BENCH_IDS = SQ_BENCH_IDS.filter(function (id) { return id !== inId; });
+  if (SQ_BENCH_IDS.indexOf(outId) < 0) SQ_BENCH_IDS.push(outId);
+  _sqRenderFormationBody();
+}
+function _sqMoveToBench(id) { if ((SQ_MY_IDS || []).indexOf(id) < 0 && SQ_BENCH_IDS.indexOf(id) < 0) { SQ_BENCH_IDS.push(id); _sqRenderFormationBody(); } }
+
+function _sqCountPos(posList) { return SQ_DEMO_PLAYERS.filter(function (p) { return posList.indexOf(p.pos) >= 0; }).length; }
+function _sqDepthAlerts() {
+  var a = [];
+  var gk = SQ_DEMO_PLAYERS.filter(function (p) { return p.cat === 'gk'; }).length;
+  if (gk < 2) a.push(['No backup goalkeeper', 'Only ' + gk + ' goalkeeper in the squad — sign a deputy.']);
+  var lb = _sqCountPos(['LB']); if (lb <= 1) a.push(['Thin at left-back', (lb ? 'Only one natural left-back' : 'No natural left-back') + ' — cover via versatility or recruitment.']);
+  var rb = _sqCountPos(['RB']); if (rb <= 1) a.push(['Thin at right-back', (rb ? 'Only one natural right-back' : 'No natural right-back') + '.']);
+  var dm = _sqCountPos(['DM']); if (dm < 1) a.push(['No defensive midfielder', 'No natural DM — the midfield screen relies on out-of-position cover.']);
+  var fw = SQ_DEMO_PLAYERS.filter(function (p) { return p.cat === 'fw'; }).length; if (fw < 3) a.push(['Lack of attacking depth', 'Only ' + fw + ' forwards — limited rotation up front.']);
+  var cb = _sqCountPos(['CB']); if (cb < 3) a.push(['Limited centre-back depth', 'Only ' + cb + ' natural centre-backs available.']);
+  return a;
+}
+function _sqDepthAlertsHtml() {
+  var a = _sqDepthAlerts();
+  if (!a.length) return '<div class="sq-note">Squad depth looks healthy across all positions.</div>';
+  return '<div class="sqdepth-list">' + a.map(function (x) { return '<div class="sqdepth-alert"><span class="sqdepth-t">⚠ ' + x[0] + '</span><span class="sqdepth-d">' + x[1] + '</span></div>'; }).join('') + '</div>';
+}
+function _sqVersatility(p) { return 1 + ((POS_RELATED[p.pos] || []).length) * 0.5; }
+function _sqSquadModels() {
+  var all = SQ_DEMO_PLAYERS.concat(SQ_RESERVE).slice().sort(function (a, b) { return b.qual - a.qual; });
+  function build(size) {
+    var sel = all.slice(0, Math.min(size, all.length));
+    var ovr = Math.round(sel.reduce(function (s, p) { return s + p.qual; }, 0) / sel.length);
+    var cover = { gk: 0, df: 0, mf: 0, fw: 0 }; sel.forEach(function (p) { cover[p.cat]++; });
+    var need = { gk: 2, df: 5, mf: 5, fw: 3 }, cats = ['gk', 'df', 'mf', 'fw'];
+    var coverage = Math.round(cats.map(function (c) { return Math.min(1, cover[c] / need[c]); }).reduce(function (a, b) { return a + b; }, 0) / 4 * 100);
+    var flex = Math.round(sel.reduce(function (s, p) { return s + _sqVersatility(p); }, 0) / sel.length / 2 * 100);
+    var balance = Math.round(coverage * 0.6 + flex * 0.4);
+    var wage = sel.reduce(function (s, p) { return s + _sqWage(p); }, 0);
+    var wageEff = Math.round(ovr / (wage / sel.length) * 10);
+    var injRes = Math.round(Math.min(100, (sel.length / 15) * 100 * 0.6 + flex * 0.4));
+    return { size: sel.length, ovr: ovr, balance: balance, coverage: coverage, wageEff: wageEff, injRes: injRes, flex: flex, wage: wage };
+  }
+  return { full: build(Math.min(all.length, 28)), balanced: build(Math.min(all.length, 21)), compact: build(Math.min(all.length, 17)) };
+}
+function _sqSquadModelsHtml() {
+  var m = _sqSquadModels();
+  function card(title, sub, d, hl) {
+    return '<div class="sqmodel' + (hl ? ' sqmodel--hl' : '') + '"><div class="sqmodel-hd"><span>' + title + '</span><b>' + d.size + ' players</b></div><div class="sqmodel-sub">' + sub + '</div>'
+      + '<div class="sqmodel-grid">'
+      + '<div><span>OVR</span><b>' + d.ovr + '</b></div><div><span>Balance</span><b>' + d.balance + '%</b></div><div><span>Coverage</span><b>' + d.coverage + '%</b></div>'
+      + '<div><span>Wage eff</span><b>' + d.wageEff + '</b></div><div><span>Injury res</span><b>' + d.injRes + '%</b></div><div><span>Flexibility</span><b>' + d.flex + '%</b></div>'
+      + '</div></div>';
+  }
+  return '<div class="sqmodels">'
+    + card('Full squad', '25–30 · specialists · more depth', m.full, false)
+    + card('Balanced squad', '18–24 · mixed versatility', m.balanced, true)
+    + card('Compact squad', '15–18 · versatile · lower wage', m.compact, false)
+    + '</div>';
+}
 if (typeof document !== 'undefined') { _sqInitFormationDrag(); }
 
 if (typeof _sqLoad === 'function') { _sqLoad(); }
