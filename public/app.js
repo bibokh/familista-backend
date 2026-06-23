@@ -2670,7 +2670,7 @@ function _sqUpdatePhotoPreview() {
 function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 
 // ── Squad · Formation (Lineup players; board, library, matchup, mentality, planning) ──
-var SQ_FORM = { mentality: 'Balanced', showOpp: false, showRoles: false, showCond: false, showMent: false, showLib: false, showTac: false, showPlan: false, myFormation: '4-3-3', oppFormation: '4-4-2' };
+var SQ_FORM = { mentality: 'Balanced', showOpp: false, showRoles: false, showCond: false, showMent: false, showLib: false, showTac: false, showPlan: false, showCmd: false, myFormation: '4-3-3', oppFormation: '4-4-2' };
 var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
 var SQ_SETUPS = [null, null, null, null];
 var SQ_MY_IDS = null;
@@ -2982,6 +2982,7 @@ function _sqFormationBody() {
     + _sqCtrlBtn('Mentality', 'sqMentality', '', SQ_FORM.showMent)
     + _sqCtrlBtn('Tactical analysis', 'sqTactical', '', SQ_FORM.showTac)
     + _sqCtrlBtn('Squad planning', 'sqPlanning', '', SQ_FORM.showPlan)
+    + _sqCtrlBtn('Match-day', 'sqCommand', '', SQ_FORM.showCmd)
     + _sqCtrlBtn('Roles', 'sqFormToggle', ' data-key="roles"', SQ_FORM.showRoles)
     + _sqCtrlBtn('Condition &amp; Morale', 'sqFormToggle', ' data-key="cond"', SQ_FORM.showCond)
     + _sqCtrlBtn('Approach: ' + SQ_FORM.mentality, 'sqFormMentality', '', false)
@@ -2992,8 +2993,8 @@ function _sqFormationBody() {
   hud += '</div>';
   if (so) { var mu = _sqMatchup(); hud += '<div class="sqfp-mustrip"><span>Matchup <b>' + mu.matchup + '%</b></span><span>Tactical advantage <b>' + mu.tacAdv + '%</b></span><span>Strength <b>' + mu.strength + '%</b></span><span>Weakness <b>' + mu.weakness + '%</b></span></div>'; }
   var hint = '<div class="sqfp-hint">Arrows show each player’s instruction — open Mentality to change roles, Tactical analysis for execution &amp; alerts, Squad planning for depth &amp; squad size.</div>';
-  var side = SQ_FORM.showMent ? _sqMentPanelHtml() : SQ_FORM.showLib ? _sqLibPanelHtml() : SQ_FORM.showTac ? _sqTacPanelHtml() : SQ_FORM.showPlan ? _sqPlanPanelHtml() : '';
-  var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
+  var side = SQ_FORM.showMent ? _sqMentPanelHtml() : SQ_FORM.showLib ? _sqLibPanelHtml() : SQ_FORM.showTac ? _sqTacPanelHtml() : SQ_FORM.showPlan ? _sqPlanPanelHtml() : SQ_FORM.showCmd ? _sqCmdPanelHtml() : '';
+  var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
 function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
@@ -3042,7 +3043,7 @@ function _sqLibInner() {
     + '<div class="sq-fm-body sqlib-body">' + matchHtml + '<div class="sqlib-sec">Recommended formations <span class="sq-note" style="font-style:normal">— ranked by efficiency for your squad</span></div><div class="sqlib-grid">' + cards + '</div></div>';
 }
 function _sqLibPanelHtml() { return '<aside class="sqfp-side sqfp-side--fm">' + _sqLibInner() + '</aside>'; }
-function sqFormLibrary() { SQ_FORM.showLib = !SQ_FORM.showLib; if (SQ_FORM.showLib) { SQ_FORM.showMent = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
+function sqFormLibrary() { SQ_FORM.showLib = !SQ_FORM.showLib; if (SQ_FORM.showLib) { SQ_FORM.showMent = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; SQ_FORM.showCmd = false; } _sqRenderFormationBody(); }
 function sqFormLibClose() { SQ_FORM.showLib = false; _sqRenderFormationBody(); }
 function sqPickFormation(name, side) { if (!SQ_FORMATIONS[name]) return; if (side === 'opp') { SQ_FORM.oppFormation = name; SQ_FORM.showOpp = true; } else SQ_FORM.myFormation = name; var sb = document.querySelector('.sqfp-side--lib .sqlib-body'); var st = sb ? sb.scrollTop : 0; _sqBuildBoard(); _sqRenderFormationBody(); var sb2 = document.querySelector('.sqfp-side--lib .sqlib-body'); if (sb2) sb2.scrollTop = st; }
 
@@ -3263,7 +3264,7 @@ function _sqMentInner() {
     + '<div class="sq-fm-body sqm2">' + summary + accs + '</div>';
 }
 function _sqMentPanelHtml() { return '<aside class="sqfp-side sqfp-side--ment">' + _sqMentInner() + '</aside>'; }
-function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
+function sqMentality() { SQ_FORM.showMent = !SQ_FORM.showMent; if (SQ_FORM.showMent) { SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; SQ_FORM.showCmd = false; } _sqRenderFormationBody(); }
 function sqMentalityClose() { SQ_FORM.showMent = false; _sqRenderFormationBody(); }
 function _sqMentScrollKeep(fn) { var sb = document.querySelector('.sqfp-side--ment .sqm2, .sqfp-side-body'); var st = sb ? sb.scrollTop : 0; fn(); var sb2 = document.querySelector('.sqfp-side--ment .sqm2, .sqfp-side-body'); if (sb2) sb2.scrollTop = st; }
 function sqSetInstr(id, key) { if (!SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqMentScrollKeep(_sqRenderFormationBody); }
@@ -3299,7 +3300,7 @@ function _sqTacInner() {
     + '</div>';
 }
 function _sqTacPanelHtml() { return '<aside class="sqfp-side sqfp-side--lib">' + _sqTacInner() + '</aside>'; }
-function sqTactical() { SQ_FORM.showTac = !SQ_FORM.showTac; if (SQ_FORM.showTac) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
+function sqTactical() { SQ_FORM.showTac = !SQ_FORM.showTac; if (SQ_FORM.showTac) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showPlan = false; SQ_FORM.showCmd = false; } _sqRenderFormationBody(); }
 function sqTacticalClose() { SQ_FORM.showTac = false; _sqRenderFormationBody(); }
 
 // ── Squad planning modal ──
@@ -3334,8 +3335,134 @@ function _sqPlanInner() {
     + '</div>';
 }
 function _sqPlanPanelHtml() { return '<aside class="sqfp-side sqfp-side--plan">' + _sqPlanInner() + '</aside>'; }
-function sqPlanning() { SQ_FORM.showPlan = !SQ_FORM.showPlan; if (SQ_FORM.showPlan) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; } _sqRenderFormationBody(); }
+function sqPlanning() { SQ_FORM.showPlan = !SQ_FORM.showPlan; if (SQ_FORM.showPlan) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showCmd = false; } _sqRenderFormationBody(); }
 function sqPlanningClose() { SQ_FORM.showPlan = false; _sqRenderFormationBody(); }
+
+// ── Match-day command center (dual-team OVR/Balance + matchup intelligence) ──
+var SQ_ARCH = { GK: { p: 2, t: 0, m: 4 }, CB: { p: 6, t: -3, m: 2 }, LB: { p: 4, t: 1, m: 0 }, RB: { p: 4, t: 1, m: 0 }, DM: { p: 3, t: 0, m: 4 }, CM: { p: 0, t: 3, m: 2 }, AM: { p: -2, t: 5, m: 1 }, LW: { p: 2, t: 5, m: -1 }, RW: { p: 2, t: 5, m: -1 }, ST: { p: 3, t: 3, m: 0 } };
+function _sqSubRatings(qual, pos, seed) { var a = SQ_ARCH[pos] || { p: 0, t: 0, m: 0 }; function v(b, k) { var r = (_sqSeed(seed + k) % 7) - 3; return Math.max(40, Math.min(99, qual + b + r)); } return { phys: v(a.p, 'p'), tech: v(a.t, 't'), ment: v(a.m, 'm') }; }
+function _sqMatchLabel(d) { return d >= 6 ? ['Strong advantage', 'vstrong'] : d >= 2 ? ['Slight advantage', 'adv'] : d >= -1 ? ['Balanced', 'bal'] : d >= -5 ? ['Slight disadvantage', 'dis'] : ['High-risk matchup', 'risk']; }
+function _sqMeanQ(arr) { if (!arr.length) return 0; var s = 0; arr.forEach(function (p) { s += p.qual; }); return Math.round(s / arr.length); }
+function _sqBenchMy() {
+  var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
+  var ps = ids.map(_sqP).filter(Boolean), cats = {};
+  ps.forEach(function (p) { cats[p.cat] = 1; });
+  var distinct = Object.keys(cats).length;
+  var bal = Math.max(50, Math.min(94, 60 + distinct * 7 + Math.min(8, ps.length)));
+  return { ovr: _sqMeanQ(ps), balance: bal, n: ps.length };
+}
+function _sqTeamReport(side) {
+  if (side === 'my') {
+    var my = _sqMyStats(), formEff = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency, bench = _sqBenchMy();
+    return { name: 'My Team', formation: SQ_FORM.myFormation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
+  }
+  var op = _sqOppStats(), formEffO = _sqMetricsFor(SQ_FORM.oppFormation, SQ_OPP_DEF).efficiency;
+  var benchOvrO = Math.max(50, op.ovr - 6), benchBalO = Math.max(45, op.balance - 9);
+  var ovrScaled = Math.max(0, Math.min(100, Math.round((op.ovr - 60) / 40 * 100)));
+  var execO = Math.max(35, Math.min(99, Math.round(0.5 * op.balance + 0.3 * op.compat + 0.2 * ovrScaled)));
+  return { name: 'Opponent', formation: SQ_FORM.oppFormation, ovr: Math.round(op.ovr * 0.82 + benchOvrO * 0.18), balance: Math.round(op.balance * 0.85 + benchBalO * 0.15), xiOvr: op.ovr, xiBalance: op.balance, benchOvr: benchOvrO, benchBalance: benchBalO, compat: op.compat, formEff: formEffO, exec: execO };
+}
+function _sqCmdField() {
+  return '<svg class="sqcc-markings" viewBox="0 0 150 100" preserveAspectRatio="none">'
+    + '<rect x="2" y="2" width="146" height="96" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.6"/>'
+    + '<line x1="75" y1="2" x2="75" y2="98" stroke="rgba(255,255,255,.15)" stroke-width="0.6"/>'
+    + '<circle cx="75" cy="50" r="11" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="0.6"/>'
+    + '<rect x="2" y="30" width="18" height="40" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="0.6"/>'
+    + '<rect x="130" y="30" width="18" height="40" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="0.6"/></svg>';
+}
+function _sqCmdDots(side) {
+  var dots = '';
+  if (side === 'my') {
+    (SQ_MY_IDS || []).forEach(function (id) {
+      var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return;
+      var L = Math.max(7, Math.min(93, 100 - pos.y)), T = Math.max(10, Math.min(90, pos.x));
+      var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d);
+      dots += '<div class="sqcc-dot sql-pos--' + p.cat + (d > 16 ? ' is-bad' : '') + '" style="left:' + L + '%;top:' + T + '%"><b>' + p.pos + '</b><i>' + q + '</i></div>';
+    });
+  } else {
+    _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) {
+      if (!a.player) return; var s = a.slot;
+      var L = Math.max(7, Math.min(93, s.y)), T = Math.max(10, Math.min(90, s.x));
+      dots += '<div class="sqcc-dot sqcc-dot--opp sql-pos--' + a.player.cat + '" style="left:' + L + '%;top:' + T + '%"><b>' + (s.r || a.player.pos) + '</b><i>' + a.player.qual + '</i></div>';
+    });
+  }
+  return dots;
+}
+function _sqCmdBoard(side, rep) {
+  return '<div class="sqcc-team sqcc-team--' + side + '">'
+    + '<div class="sqcc-team-hd"><span class="sqcc-team-nm">' + rep.name + '</span><span class="sqcc-team-form">' + rep.formation + '</span>'
+    + '<span class="sqcc-team-ovr">OVR <b>' + rep.ovr + '</b></span><span class="sqcc-team-bal">BAL <b>' + rep.balance + '%</b></span>'
+    + '<span class="sqcc-team-dir">' + (side === 'my' ? 'Attacking →' : '← Attacking') + '</span></div>'
+    + '<div class="sqcc-pitch">' + _sqCmdField() + _sqCmdDots(side) + '</div></div>';
+}
+function _sqCmdCmp(my, op) {
+  function row(label, mv, ov, suffix) {
+    var mw = mv > ov, ow = ov > mv;
+    return '<div class="sqcc-cmp"><span class="sqcc-cmp-m' + (mw ? ' is-win' : '') + '">' + mv + (suffix || '') + '</span><span class="sqcc-cmp-l">' + label + '</span><span class="sqcc-cmp-o' + (ow ? ' is-win' : '') + '">' + ov + (suffix || '') + '</span></div>';
+  }
+  return '<div class="sqcc-cmphd"><span>My Team</span><span></span><span>Opponent</span></div><div class="sqcc-cmps">'
+    + row('Team OVR', my.ovr, op.ovr, '') + row('Team Balance', my.balance, op.balance, '%')
+    + row('Starting XI OVR', my.xiOvr, op.xiOvr, '') + row('Starting XI Balance', my.xiBalance, op.xiBalance, '%')
+    + row('Bench OVR', my.benchOvr, op.benchOvr, '') + row('Bench Balance', my.benchBalance, op.benchBalance, '%')
+    + row('Tactical compatibility', my.compat, op.compat, '%') + row('Formation efficiency', my.formEff, op.formEff, '%')
+    + row('Tactical execution', my.exec, op.exec, '%') + '</div>';
+}
+function _sqCmdMatchups() {
+  var myPs = (SQ_MY_IDS || []).map(_sqP).filter(Boolean);
+  var conf = [['ST', ['CB'], 0], ['LW', ['RB'], 0], ['RW', ['LB'], 0], ['CM', ['CM'], 0], ['DM', ['CM', 'AM'], 0], ['CB', ['ST'], 0], ['LB', ['RW'], 0], ['RB', ['LW'], 0]], rows = [];
+  conf.forEach(function (c) {
+    var mine = myPs.filter(function (p) { return p.pos === c[0]; }), opp = SQ_OPP_DEF.filter(function (o) { return c[1].indexOf(o.pos) >= 0; });
+    if (!mine.length || !opp.length) return;
+    var n = Math.min(mine.length, opp.length);
+    for (var i = 0; i < n; i++) {
+      var mp = mine[i], op = opp[i], pos = SQ_POS_MY[mp.id], d = pos ? _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(mp)) : 0;
+      var myEff = _sqEffQual(mp, d), oppEff = op.qual, diff = myEff - oppEff, suit = Math.round(_sqSuitFactor(d) * 100);
+      var ms = _sqSubRatings(myEff, mp.pos, mp.id + 'x'), os = _sqSubRatings(oppEff, op.pos, op.id + 'x');
+      var lab = _sqMatchLabel(diff + Math.round((suit - 92) / 6));
+      rows.push({ myPos: c[0], oppPos: op.pos, myName: _sqLastName(mp.name), oppNum: op.n, myEff: myEff, oppEff: oppEff, diff: diff, suit: suit, tac: diff + Math.round((suit - 90) / 5), phys: ms.phys - os.phys, tech: ms.tech - os.tech, ment: ms.ment - os.ment, myBal: Math.round(_sqPosScore(d)), oppBal: Math.max(60, Math.min(96, 80 + (op.qual - 79) + (_sqSeed(op.id) % 7 - 3))), lab: lab[0], tone: lab[1] });
+    }
+  });
+  return rows;
+}
+function _sqCmdImpact(my, op, mus) {
+  var notes = [];
+  if (my.formEff !== op.formEff) notes.push((my.formEff > op.formEff ? 'Your ' + my.formation : 'The opponent’s ' + op.formation) + ' fits the squad better (' + Math.max(my.formEff, op.formEff) + '% vs ' + Math.min(my.formEff, op.formEff) + '% efficiency).');
+  notes.push('Your bench is ' + (my.benchOvr >= op.benchOvr ? 'stronger' : 'weaker') + ' (OVR ' + my.benchOvr + ' vs ' + op.benchOvr + ') — ' + (my.benchOvr >= op.benchOvr ? 'more' : 'fewer') + ' rotation options.');
+  var worst = null, worstD = 0;
+  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); if (d > worstD) { worstD = d; worst = { p: p, d: d }; } });
+  if (worst && worst.d > 16) notes.push(_sqLastName(worst.p.name) + ' is playing out of position (' + worst.p.pos + ') — about ' + Math.round((1 - _sqSuitFactor(worst.d)) * 100) + '% off his best balance.');
+  var wins = mus.filter(function (m) { return m.diff >= 2; }).length, losses = mus.filter(function (m) { return m.diff <= -2; }).length;
+  notes.push('You win ' + wins + ' and lose ' + losses + ' of ' + mus.length + ' key positional duels.');
+  notes.push((my.balance >= op.balance ? 'Your team' : 'The opponent') + ' is the more balanced side (' + Math.max(my.balance, op.balance) + '% vs ' + Math.min(my.balance, op.balance) + '%).');
+  return notes;
+}
+function _sqCmdVerdicts(my, op) {
+  function v(label, mv, ov) { return [label, mv === ov ? 'Even' : (mv > ov ? 'My Team' : 'Opponent')]; }
+  return [v('Stronger squad', my.ovr, op.ovr), v('More balanced', my.balance, op.balance), v('Tactically superior', my.compat + my.formEff, op.compat + op.formEff), v('Better bench', my.benchOvr, op.benchOvr), v('Better formation fit', my.formEff, op.formEff)];
+}
+function _sqCmdInner() {
+  var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), mus = _sqCmdMatchups();
+  function sg(v) { return (v > 0 ? '+' : '') + v; }
+  var muHtml = mus.map(function (m) {
+    return '<div class="sqcc-mu sqcc-mu--' + m.tone + '">'
+      + '<div class="sqcc-mu-top"><span class="sqcc-mu-pair">My ' + m.myPos + ' <b>' + _sqEsc(m.myName) + '</b> <i>vs</i> Opp ' + m.oppPos + ' <b>#' + m.oppNum + '</b></span><span class="sqcc-mu-lab">' + m.lab + '</span></div>'
+      + '<div class="sqcc-mu-ovr"><span>' + m.myEff + '</span><em>OVR ' + sg(m.diff) + '</em><span>' + m.oppEff + '</span></div>'
+      + '<div class="sqcc-mu-row"><span>Role fit ' + m.suit + '%</span><span>Tactical ' + sg(m.tac) + '</span><span>Physical ' + sg(m.phys) + '</span><span>Technical ' + sg(m.tech) + '</span><span>Mental ' + sg(m.ment) + '</span></div>'
+      + '<div class="sqcc-mu-bal">Balance contribution — you ' + m.myBal + '% · opp ' + m.oppBal + '%</div></div>';
+  }).join('');
+  var impact = '<div class="sqcc-impact">' + _sqCmdImpact(my, op, mus).map(function (n) { return '<div class="sqcc-note">' + _sqEsc(n) + '</div>'; }).join('') + '</div>';
+  var verds = _sqCmdVerdicts(my, op).map(function (v) { var cls = v[1] === 'My Team' ? 'my' : v[1] === 'Opponent' ? 'opp' : 'even'; return '<div class="sqcc-verd"><span>' + v[0] + '</span><b class="sqcc-verd--' + cls + '">' + v[1] + '</b></div>'; }).join('');
+  return '<div class="sq-fm-head"><div class="sq-fm-title">Match-day command center</div><button class="sqfp-side-close" data-action="sqCommandClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sq-fm-body sqlib-body sqcc">'
+    + '<div class="sqcc-boards">' + _sqCmdBoard('my', my) + _sqCmdBoard('opp', op) + '</div>'
+    + '<div class="sqlib-sec">Live team comparison</div>' + _sqCmdCmp(my, op)
+    + '<div class="sqlib-sec">Position vs position</div><div class="sqcc-mus">' + muHtml + '</div>'
+    + '<div class="sqlib-sec">Tactical impact analysis</div>' + impact
+    + '<div class="sqlib-sec">Coaching intelligence</div><div class="sqcc-verds">' + verds + '</div></div>';
+}
+function _sqCmdPanelHtml() { return '<aside class="sqfp-side sqfp-side--cmd">' + _sqCmdInner() + '</aside>'; }
+function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
+function sqCommandClose() { SQ_FORM.showCmd = false; _sqRenderFormationBody(); }
 
 // ── free drag-and-drop + change delegation ──
 function _sqShowZones(pitch, zones) { _sqHideZones(pitch); var wrap = document.createElement('div'); wrap.className = 'sqfp-zones'; zones.forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqfp-zone'; d.style.left = Z.x + '%'; d.style.top = Z.y + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); }); pitch.appendChild(wrap); }
@@ -35209,6 +35336,8 @@ async function tosBoardSnapshot() {
         case 'sqTacticalClose':   if (typeof sqTacticalClose === 'function')   sqTacticalClose();    break;
         case 'sqPlanning':        if (typeof sqPlanning === 'function')        sqPlanning();         break;
         case 'sqPlanningClose':   if (typeof sqPlanningClose === 'function')   sqPlanningClose();    break;
+        case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
+        case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
         case 'sqFormMentality':    if (typeof sqFormMentality === 'function')     sqFormMentality();                  break;
