@@ -3967,6 +3967,99 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-eng-adv span,.sqmd-eng-risk span{ display:block; font-size:12px; color:#cbd5e1; padding:3px 0; }
 @media (max-width:1100px){ .sqmd-boards{ grid-template-columns:1fr; } .sqmd-analysis{ grid-template-columns:1fr; } .sqmd-poscmp{ grid-template-columns:1fr; } .sqmd-tac{ grid-template-columns:1fr; } }
 
+/* Squad · Tactical Command Center (full-screen, no-scroll, tabbed) */
+.sqfp-board--cmd{ display:block; padding:4px 16px 12px; }
+.sqtc{ height:calc(100vh - 104px); min-height:480px; display:flex; flex-direction:column; gap:9px; background:linear-gradient(168deg,#0f1830,#0a1018); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:12px 14px; overflow:hidden; box-shadow:0 16px 50px rgba(0,0,0,.5); }
+.sqtc-heads{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; flex:0 0 auto; }
+.sqtc-head{ display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.09); min-width:0; }
+.sqtc-head--my{ background:linear-gradient(135deg,rgba(34,160,90,.16),rgba(34,160,90,.03)); }
+.sqtc-head--opp{ background:linear-gradient(135deg,rgba(56,130,220,.16),rgba(56,130,220,.03)); }
+.sqtc-badge{ width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:800; flex-shrink:0; }
+.sqtc-badge--my{ background:linear-gradient(135deg,#4ade80,#16a34a); color:#06140b; }
+.sqtc-badge--opp{ background:linear-gradient(135deg,#60a5fa,#2563eb); color:#04122a; }
+.sqtc-head-id{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.sqtc-head-nm{ font-size:14px; font-weight:800; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqtc-form-sel{ background:#0e1626; border:1px solid rgba(255,255,255,.16); border-radius:7px; color:#eef2f8; font-size:11px; font-weight:700; padding:3px 6px; outline:none; cursor:pointer; max-width:104px; }
+.sqtc-form-sel:focus{ border-color:#f4b740; }
+.sqtc-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-left:auto; justify-content:flex-end; }
+.sqtc-chip{ display:flex; flex-direction:column; align-items:center; background:rgba(0,0,0,.25); border-radius:7px; padding:4px 8px; min-width:42px; }
+.sqtc-chip i{ font-style:normal; font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:#8a94a6; }
+.sqtc-chip b{ font-size:14px; font-weight:800; color:#f1f5f9; }
+.sqtc-nav{ display:flex; gap:6px; flex:0 0 auto; flex-wrap:wrap; }
+.sqtc-tab{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); border-radius:9px; color:#aab4c5; font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer; transition:background .15s,color .15s; }
+.sqtc-tab:hover{ background:rgba(255,255,255,.09); color:#f1f5f9; }
+.sqtc-tab.is-active{ background:linear-gradient(135deg,#f4b740,#e09c2a); color:#1a1205; border-color:transparent; }
+.sqtc-content{ flex:1 1 auto; min-height:0; overflow:hidden; display:flex; flex-direction:column; }
+.sqtc-note{ font-size:11px; color:#8a94a6; margin-top:8px; text-align:center; flex:0 0 auto; }
+/* avatars (future-ready: only the image source changes) */
+.sqmd-av{ width:24px; height:24px; border-radius:50%; overflow:hidden; display:flex; align-items:center; justify-content:center; margin-bottom:2px; flex-shrink:0; }
+.sqmd-av img{ width:100%; height:100%; object-fit:cover; }
+.sqmd-av--ph{ font-size:9px; font-weight:800; color:#06140b; }
+.sqmd-av--my{ background:linear-gradient(135deg,#86efac,#22c55e); }
+.sqmd-av--opp{ background:linear-gradient(135deg,#93c5fd,#3b82f6); color:#04122a; }
+/* Overview tab */
+.sqtc-overview{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:9px; }
+.sqtc-pitches{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+.sqtc-side{ display:flex; flex-direction:column; gap:7px; min-width:0; min-height:0; }
+.sqtc-side-lbl{ font-size:11px; font-weight:800; padding:0 2px; }
+.sqtc-side-lbl--my{ color:#86efac; } .sqtc-side-lbl--opp{ color:#93c5fd; }
+.sqtc-side .sqmd-pitch{ flex:1 1 auto; min-height:0; aspect-ratio:auto; }
+.sqtc-side .sqmd-bench{ flex:0 0 auto; }
+.sqtc-summary{ flex:0 0 auto; display:grid; grid-template-columns:repeat(5,1fr); gap:10px; }
+.sqtc-scard{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:11px; padding:9px 12px; }
+.sqtc-scard-l{ display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:#8a94a6; margin-bottom:3px; }
+.sqtc-scard-v{ font-size:21px; font-weight:800; color:#f1f5f9; }
+.sqtc-scard-bar{ display:block; height:5px; background:rgba(255,255,255,.08); border-radius:100px; overflow:hidden; margin-top:6px; }
+.sqtc-scard-bar i{ display:block; height:100%; background:linear-gradient(90deg,#16a34a,#4ade80); border-radius:100px; }
+.sqmd-bc-meta{ display:flex; flex-direction:column; line-height:1.18; min-width:0; }
+.sqmd-bc-sub{ font-size:9px; color:#8a94a6; }
+/* Matchup tab */
+.sqtc-mgrid{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1.1fr 1fr; grid-template-rows:auto 1fr; gap:12px; min-height:0; }
+.sqtc-acard{ background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.08); border-radius:13px; padding:12px 14px; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.sqtc-acard--tall{ grid-column:1; grid-row:1 / span 2; }
+.sqtc-sec{ font-size:13px; font-weight:800; color:#f1f5f9; margin-bottom:10px; flex:0 0 auto; }
+.sqtc-acard .sqmd-poscmp{ overflow-y:auto; min-height:0; }
+.sqmd-eng-extra{ margin-top:10px; display:flex; flex-direction:column; gap:7px; }
+.sqmd-eng-extra span{ display:block; font-size:11.5px; color:#cbd5e1; }
+.sqmd-eng-extra i{ display:block; font-style:normal; font-size:9.5px; font-weight:800; text-transform:uppercase; letter-spacing:.03em; color:#8a94a6; margin-bottom:1px; }
+/* Heatmap tab */
+.sqtc-heatwrap{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:center; }
+.sqtc-heat{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:13px; padding:16px; }
+.sqtc-heat-hd{ font-size:14px; font-weight:800; color:#f1f5f9; margin-bottom:12px; text-align:center; }
+.sqtc-heat-body{ display:flex; gap:10px; align-items:stretch; }
+.sqtc-heat-ax{ display:flex; flex-direction:column; justify-content:space-around; font-size:10px; font-weight:700; color:#8a94a6; }
+.sqtc-heat-grid{ flex:1; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:5px; aspect-ratio:3 / 2; }
+.sqtc-heat-cell{ border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.5); }
+/* Zones tab */
+.sqtc-zoneswrap{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; gap:18px; max-width:920px; margin:0 auto; width:100%; }
+.sqtc-zone{ display:grid; grid-template-columns:150px 1fr 116px; align-items:center; gap:14px; }
+.sqtc-zone-l{ font-size:14px; font-weight:700; color:#e8edf5; }
+.sqtc-zone-bar{ display:flex; height:24px; border-radius:8px; overflow:hidden; }
+.sqtc-zone-my{ background:linear-gradient(90deg,#16a34a,#4ade80); } .sqtc-zone-op{ background:linear-gradient(90deg,#60a5fa,#2563eb); }
+.sqtc-zone-w{ font-size:12px; font-weight:800; text-align:center; padding:5px; border-radius:7px; }
+.sqtc-zone-w--my{ background:rgba(74,222,128,.16); color:#86efac; } .sqtc-zone-w--opp{ background:rgba(96,165,250,.16); color:#93c5fd; } .sqtc-zone-w--even{ background:rgba(148,163,184,.16); color:#cbd5e1; }
+/* Set pieces tab */
+.sqtc-setpieces{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(5,1fr); gap:14px; align-content:center; }
+.sqtc-spc{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:13px; padding:14px; }
+.sqtc-spc-l{ display:block; font-size:11px; font-weight:800; text-transform:uppercase; color:#f4b740; margin-bottom:11px; }
+.sqtc-spc-p{ display:flex; align-items:center; gap:9px; }
+.sqtc-spc-meta{ display:flex; flex-direction:column; min-width:0; }
+.sqtc-spc-nm{ font-size:14px; font-weight:700; color:#f1f5f9; }
+.sqtc-spc-o{ font-size:11px; color:#8a94a6; }
+.sqtc-spc-empty{ color:#7e8aa0; }
+/* Instructions tab */
+.sqtc-instrs{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:1fr 1fr; gap:7px 16px; align-content:start; overflow-y:auto; }
+.sqtc-instr{ display:flex; align-items:center; gap:9px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:9px; padding:8px 12px; }
+.sqtc-instr-dot{ width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+.sqtc-instr-nm{ font-size:13px; font-weight:700; color:#f1f5f9; min-width:84px; }
+.sqtc-instr-pos{ font-size:11px; font-weight:700; color:#8a94a6; }
+.sqtc-instr-r{ font-size:12px; color:#cbd5e1; margin-left:auto; text-align:right; }
+/* Stats tab */
+.sqtc-statswrap{ flex:1 1 auto; min-height:0; overflow-y:auto; max-width:1000px; margin:0 auto; width:100%; }
+.sqtc-stats-hd{ display:flex; justify-content:space-between; font-size:11px; font-weight:800; text-transform:uppercase; padding:0 4px 8px; }
+.sqtc-stats-hd span:first-child{ color:#86efac; } .sqtc-stats-hd span:last-child{ color:#93c5fd; }
+@media (max-width:1024px){ .sqtc{ height:auto; overflow:visible; } .sqtc-content{ overflow:visible; } .sqtc-pitches{ grid-template-columns:1fr; } .sqtc-mgrid{ grid-template-columns:1fr; grid-template-rows:auto; } .sqtc-acard--tall{ grid-column:auto; grid-row:auto; } .sqtc-summary{ grid-template-columns:repeat(2,1fr); } .sqtc-setpieces{ grid-template-columns:repeat(2,1fr); } .sqtc-heatwrap{ grid-template-columns:1fr; } .sqtc-instrs{ grid-template-columns:1fr; } }
+
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
 .sqsub-col{ flex:1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 11px; min-width:0; }
@@ -4995,4 +5088,4 @@ body.club-theme .pm2-vid-thumb{
 body.club-theme .pm2-vid-title{ font-size: 12px; font-weight: 700; color: var(--t-primary); margin-bottom: 2px; }
 body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 /* END PHASE B.4 SQUAD ─────────────────────────────────────────── */
-
+

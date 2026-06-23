@@ -2972,6 +2972,10 @@ function _sqStatGrp(title, st, opp) {
     + '<div class="sqfp-stat"><span>Compat</span><b>' + st.compat + '%</b></div>' + ex + '</div>';
 }
 function _sqFormationBody() {
+  if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
+  return '<div class="sqfp-board sqfp-board--cmd">' + _sqCmdPanelHtml() + '</div>';
+}
+function _sqFormationBodyLegacy() {
   var so = SQ_FORM.showOpp;
   var toolbar = '<div class="sqfp-toolbar">'
     + '<div class="sqfp-seg">'
@@ -3379,9 +3383,15 @@ function _sqRoleMap() {
   add(ps.filter(function (p) { return /TF/.test(p.roles || ''); })[0], 'TM');
   return map;
 }
-function _sqMdCard(side, num, name, pos, ovr, badges, bad) {
+// future-ready avatar: real photo URL when present, initials placeholder otherwise (only the source changes later)
+function _sqMdAvatar(photo, fallback, side) {
+  if (photo) return '<span class="sqmd-av"><img src="' + _sqEsc(photo) + '" alt="" loading="lazy"></span>';
+  return '<span class="sqmd-av sqmd-av--ph sqmd-av--' + side + '">' + _sqEsc(String(fallback || '?').slice(0, 2)) + '</span>';
+}
+function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo) {
   var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
   return '<div class="sqmd-card sqmd-card--' + side + (bad ? ' is-bad' : '') + '">'
+    + _sqMdAvatar(photo, side === 'my' ? (name || '?').slice(0, 1) : pos, side)
     + '<span class="sqmd-card-top"><span class="sqmd-card-num">' + num + '</span><span class="sqmd-card-ovr">' + ovr + '</span></span>'
     + '<span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + pos + '</span>' + bd + '</div>';
 }
@@ -3402,7 +3412,7 @@ function _sqMdPitch(side) {
       if (!a.player) return; var p = a.player, s = a.slot;
       var L = Math.max(8, Math.min(92, 100 - s.y)), T = Math.max(11, Math.min(89, s.x));
       var pos0 = SQ_POS_MY[p.id], d = pos0 ? _sqNearestAllowedDist(pos0.x, pos0.y, _sqAllowedZonesAny(p)) : 0, q = _sqEffQual(p, d);
-      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), s.r || p.pos, q, rm[p.id], d > 16) + '</div>';
+      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), s.r || p.pos, q, rm[p.id], d > 16, p.photo) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) {
@@ -3425,13 +3435,14 @@ function _sqMdBench(side) {
   if (side === 'my') {
     var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
     var chips = ids.map(_sqP).filter(Boolean).map(function (p) {
-      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '"><span class="sqmd-bc-num">' + p.num + '</span><span class="sqmd-bc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqmd-bc-pos">' + p.pos + '</span><span class="sqmd-bc-ovr">' + p.qual + '</span></div>';
+      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my')
+        + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqmd-bc-sub">' + p.pos + ' · ' + p.qual + '</span></span></div>';
     }).join('');
-    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Substitutes</span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
+    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">My Team bench</span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
   }
-  var rep = _sqTeamReport('opp'), cats = [['GK', 'gk', 1], ['DF', 'df', 2], ['MF', 'mf', 2], ['FW', 'fw', 2]];
-  var chips2 = cats.map(function (c) { return '<div class="sqmd-bench-chip sql-pos--' + c[1] + '"><span class="sqmd-bc-pos">' + c[0] + '</span><span class="sqmd-bc-num">×' + c[2] + '</span></div>'; }).join('');
-  return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Bench depth · OVR ' + rep.benchOvr + '</span><div class="sqmd-bench-row">' + chips2 + '</div></div>';
+  var rep = _sqTeamReport('opp'), cats = [['GK', 'gk'], ['DF', 'df'], ['DF', 'df'], ['MF', 'mf'], ['MF', 'mf'], ['FW', 'fw'], ['FW', 'fw']];
+  var chips2 = cats.map(function (c) { return '<div class="sqmd-bench-chip sql-pos--' + c[1] + '">' + _sqMdAvatar(null, c[0], 'opp') + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">Sub</span><span class="sqmd-bc-sub">' + c[0] + ' · ' + rep.benchOvr + '</span></span></div>'; }).join('');
+  return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Opponent bench · OVR ' + rep.benchOvr + '</span><div class="sqmd-bench-row">' + chips2 + '</div></div>';
 }
 function _sqBarPair(label, mv, ov, suffix) {
   var max = Math.max(mv, ov, 1), mp = Math.round(mv / max * 100), op = Math.round(ov / max * 100);
@@ -3484,42 +3495,128 @@ function _sqFormMatch() {
   if (mu.defStab < 46) risk.push('Vulnerable in transition');
   if (mu.widthAdv < 46) risk.push('Outflanked on the wings');
   if (mu.press < 46) risk.push('Pressed into mistakes');
-  return { eff: mu.matchup, adv: adv.length ? adv.slice(0, 3) : ['Balanced phases of play'], risk: risk.length ? risk.slice(0, 2) : ['Few structural risks'] };
+  var counter = mu.counter >= 52 ? 'Break at pace through the channels (' + mu.counter + '%)' : 'Limited transition outlets (' + mu.counter + '%)';
+  var space = mu.defStab < 52 ? 'Space behind the defensive line (' + (100 - mu.defStab) + '%)' : 'Back line well protected (' + mu.defStab + '%)';
+  var press = mu.press >= 52 ? 'Win the ball higher up the pitch (' + mu.press + '%)' : 'Opponent press is harder to break (' + mu.press + '%)';
+  return { eff: mu.matchup, adv: adv.length ? adv.slice(0, 3) : ['Balanced phases of play'], risk: risk.length ? risk.slice(0, 2) : ['Few structural risks'], counter: counter, space: space, press: press };
 }
-function _sqCmdInner() {
-  var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), mus = _sqCmdMatchups();
-  var mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp'), fm = _sqFormMatch();
-  var teamCol = function (side, rep) { return '<div class="sqmd-team sqmd-team--' + side + '">' + _sqMdSummary(rep, side) + _sqMdPitch(side) + _sqMdBench(side) + '</div>'; };
-  var boards = '<div class="sqmd-boards">' + teamCol('my', my) + teamCol('opp', op) + '</div>';
-  var legend = '<div class="sqmd-legend">' + Object.keys(SQ_ROLE_LABEL).map(function (k) { return '<span><i class="sqmd-rb sqmd-rb--' + k.toLowerCase() + '">' + k + '</i>' + SQ_ROLE_LABEL[k] + '</span>'; }).join('') + '</div>';
-  var bars = '<div class="sqmd-bars">'
-    + _sqBarPair('Team OVR', my.ovr, op.ovr, '') + _sqBarPair('Team Balance', my.balance, op.balance, '%')
-    + _sqBarPair('Starting XI OVR', my.xiOvr, op.xiOvr, '') + _sqBarPair('Starting XI Balance', my.xiBalance, op.xiBalance, '%')
-    + _sqBarPair('Bench OVR', my.benchOvr, op.benchOvr, '') + _sqBarPair('Bench Balance', my.benchBalance, op.benchBalance, '%') + '</div>';
+function _sqClubName() { try { return (typeof window !== 'undefined' && window.State && window.State.club && window.State.club.name) || 'FC Familista'; } catch (e) { return 'FC Familista'; } }
+function _sqTeamFeel() {
+  var ids = (SQ_MY_IDS || []).map(_sqP).filter(Boolean), att = 0, an = 0, def = 0, dn = 0, cond = 0, cn = 0, my = _sqMyStats();
+  ids.forEach(function (p) {
+    var pos = SQ_POS_MY[p.id], d = pos ? _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) : 0, q = _sqEffQual(p, d);
+    if (p.cat === 'fw' || (p.cat === 'mf' && /AM|LW|RW|AP|IW|IF/.test(p.pos + (p.roles || '')))) { att += q; an++; }
+    if (p.cat === 'df' || p.cat === 'gk' || p.pos === 'DM') { def += q; dn++; }
+    if (p.cond) { cond += p.cond; cn++; }
+  });
+  var pm = (typeof _sqPlanMetrics === 'function') ? _sqPlanMetrics() : { depthScore: 70 };
+  return { tacticalBalance: my.balance, attacking: an ? Math.round(att / an) : my.ovr, defensive: dn ? Math.round(def / dn) : my.ovr, depth: pm.depthScore, condition: cn ? Math.round(cond / cn) : 85 };
+}
+function _sqTcHead(side, rep) {
+  var name = side === 'my' ? _sqClubName() : 'Opponent', cur = side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation;
+  var ini = name.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase() || 'FC';
+  function chip(l, v, s) { return '<span class="sqtc-chip"><i>' + l + '</i><b>' + v + (s || '') + '</b></span>'; }
+  var sel = '<select class="sqtc-form-sel" data-side="' + side + '" aria-label="Formation">' + (SQ_FORM_NAMES || []).map(function (n) { return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
+  return '<div class="sqtc-head sqtc-head--' + side + '"><span class="sqtc-badge sqtc-badge--' + side + '">' + ini + '</span>'
+    + '<div class="sqtc-head-id"><span class="sqtc-head-nm">' + _sqEsc(name) + '</span>' + sel + '</div>'
+    + '<div class="sqtc-chips">' + chip('OVR', rep.ovr, '') + chip('Bal', rep.balance, '%') + chip('XI', rep.xiOvr, '') + chip('XI bal', rep.xiBalance, '%') + chip('Bench', rep.benchOvr, '') + chip('Bench bal', rep.benchBalance, '%') + '</div></div>';
+}
+function _sqTcSummaryCards() {
+  var f = _sqTeamFeel();
+  function card(l, v, s) { var pct = Math.max(4, Math.min(100, v)); return '<div class="sqtc-scard"><span class="sqtc-scard-l">' + l + '</span><b class="sqtc-scard-v">' + v + (s || '') + '</b><span class="sqtc-scard-bar"><i style="width:' + pct + '%"></i></span></div>'; }
+  return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
+}
+function _sqTcOverview(my, op) {
+  return '<div class="sqtc-overview"><div class="sqtc-pitches">'
+    + '<div class="sqtc-side"><div class="sqtc-side-lbl sqtc-side-lbl--my">' + _sqEsc(_sqClubName()) + ' · ' + my.formation + '</div>' + _sqMdPitch('my') + _sqMdBench('my') + '</div>'
+    + '<div class="sqtc-side"><div class="sqtc-side-lbl sqtc-side-lbl--opp">Opponent · ' + op.formation + '</div>' + _sqMdPitch('opp') + _sqMdBench('opp') + '</div>'
+    + '</div>' + _sqTcSummaryCards() + '</div>';
+}
+function _sqTcMatchup(my, op) {
+  var mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp'), fm = _sqFormMatch();
   var posCmp = '<div class="sqmd-poscmp">' + mus.map(function (m) {
     return '<div class="sqmd-pc sqmd-pc--' + m.tone + '"><span class="sqmd-pc-my">' + _sqEsc(m.myName) + ' <i>' + m.myPos + '</i></span>'
       + '<span class="sqmd-pc-sc">' + m.myEff + '<em>vs</em>' + m.oppEff + '</span>'
       + '<span class="sqmd-pc-op"><i>' + m.oppPos + '</i> #' + m.oppNum + '</span><span class="sqmd-pc-lab">' + m.lab + '</span></div>';
   }).join('') + '</div>';
-  function swCol(title, sw, side) {
-    return '<div class="sqmd-sw sqmd-sw--' + side + '"><h5>' + title + '</h5>'
-      + '<div class="sqmd-sw-grp"><b>Strengths</b>' + sw.strengths.map(function (x) { return '<span class="sqmd-sw-s">' + x + '</span>'; }).join('') + '</div>'
-      + '<div class="sqmd-sw-grp"><b>Weaknesses</b>' + sw.weaknesses.map(function (x) { return '<span class="sqmd-sw-w">' + x + '</span>'; }).join('') + '</div></div>';
-  }
-  var tac = '<div class="sqmd-tac">' + swCol('My Team', mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div>';
+  function swCol(t, sw, side) { return '<div class="sqmd-sw sqmd-sw--' + side + '"><h5>' + t + '</h5><div class="sqmd-sw-grp"><b>Strengths</b>' + sw.strengths.map(function (x) { return '<span class="sqmd-sw-s">' + x + '</span>'; }).join('') + '</div><div class="sqmd-sw-grp"><b>Weaknesses</b>' + sw.weaknesses.map(function (x) { return '<span class="sqmd-sw-w">' + x + '</span>'; }).join('') + '</div></div>'; }
   var eng = '<div class="sqmd-eng"><div class="sqmd-eng-hd"><span>' + my.formation + ' <i>vs</i> ' + op.formation + '</span><span class="sqmd-eng-eff">Effectiveness <b>' + fm.eff + '%</b></span></div>'
     + '<div class="sqmd-eng-cols"><div class="sqmd-eng-adv"><b>Advantages</b>' + fm.adv.map(function (a) { return '<span>+ ' + a + '</span>'; }).join('') + '</div>'
-    + '<div class="sqmd-eng-risk"><b>Risks</b>' + fm.risk.map(function (r) { return '<span>− ' + r + '</span>'; }).join('') + '</div></div></div>';
-  return '<div class="sq-fm-head sqmd-head"><div class="sq-fm-title">Match-day tactical dashboard</div><button class="sqfp-side-close" data-action="sqCommandClose" type="button" aria-label="Close board">✕</button></div>'
-    + '<div class="sqmd">' + boards + legend
-    + '<div class="sqmd-analysis">'
-    + '<div class="sqmd-acard"><div class="sqmd-sec">Team comparison</div>' + bars + '</div>'
-    + '<div class="sqmd-acard"><div class="sqmd-sec">Formation matchup engine</div>' + eng + '</div>'
-    + '<div class="sqmd-acard sqmd-acard--wide"><div class="sqmd-sec">Position vs position</div>' + posCmp + '</div>'
-    + '<div class="sqmd-acard sqmd-acard--wide"><div class="sqmd-sec">Tactical analysis</div>' + tac + '</div>'
-    + '</div></div>';
+    + '<div class="sqmd-eng-risk"><b>Risks</b>' + fm.risk.map(function (r) { return '<span>− ' + r + '</span>'; }).join('') + '</div></div>'
+    + '<div class="sqmd-eng-extra"><span><i>Counter opportunities</i>' + fm.counter + '</span><span><i>Space vulnerabilities</i>' + fm.space + '</span><span><i>Pressing advantages</i>' + fm.press + '</span></div></div>';
+  return '<div class="sqtc-mgrid"><div class="sqtc-acard sqtc-acard--tall"><div class="sqtc-sec">Position vs position</div>' + posCmp + '</div>'
+    + '<div class="sqtc-acard"><div class="sqtc-sec">Formation matchup engine</div>' + eng + '</div>'
+    + '<div class="sqtc-acard"><div class="sqtc-sec">Tactical analysis</div><div class="sqmd-tac">' + swCol('My Team', mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div></div></div>';
 }
-function _sqCmdPanelHtml() { return '<div class="sqmd-wrap">' + _sqCmdInner() + '</div>'; }
+function _sqHeatGrid(side) {
+  var grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], max = 1;
+  if (side === 'my') {
+    (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return; var row = pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2, col = pos.x < 37 ? 0 : pos.x < 63 ? 1 : 2, d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); grid[row][col] += _sqEffQual(p, d); });
+  } else {
+    _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) { if (!a.player) return; var s = a.slot, row = s.y < 42 ? 0 : s.y < 67 ? 1 : 2, col = s.x < 37 ? 0 : s.x < 63 ? 1 : 2; grid[row][col] += a.player.qual; });
+  }
+  for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) max = Math.max(max, grid[r][c]);
+  return { grid: grid, max: max };
+}
+function _sqTcHeatmap() {
+  function gridHtml(side, label, col) {
+    var g = _sqHeatGrid(side), cells = '';
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) { var v = g.grid[r][c], pct = Math.round(v / g.max * 100); cells += '<div class="sqtc-heat-cell" style="background:rgba(' + col + ',' + (0.06 + pct / 100 * 0.72).toFixed(2) + ')"><span>' + (v ? pct : 0) + '</span></div>'; }
+    return '<div class="sqtc-heat"><div class="sqtc-heat-hd">' + label + '</div><div class="sqtc-heat-body"><div class="sqtc-heat-ax"><span>Attack</span><span>Midfield</span><span>Defence</span></div><div class="sqtc-heat-grid">' + cells + '</div></div></div>';
+  }
+  return '<div class="sqtc-heatwrap">' + gridHtml('my', _sqEsc(_sqClubName()), '74,222,128') + gridHtml('opp', 'Opponent', '96,165,250') + '</div><div class="sqtc-note">Brighter zones show where each side concentrates quality and presence — derived live from the formation. (Ready for live match heatmaps.)</div>';
+}
+function _sqTcZones() {
+  var myg = _sqHeatGrid('my').grid, opg = _sqHeatGrid('opp').grid;
+  function band(g, r) { return g[r][0] + g[r][1] + g[r][2]; }
+  var bands = [['Attacking third', 0], ['Middle third', 1], ['Defensive third', 2]];
+  var rows = bands.map(function (b) {
+    var mv = band(myg, b[1]), ov = band(opg, 2 - b[1]), tot = mv + ov || 1, mp = Math.round(mv / tot * 100);
+    var who = mp >= 56 ? 'My Team' : mp <= 44 ? 'Opponent' : 'Contested', cls = who === 'My Team' ? 'my' : who === 'Opponent' ? 'opp' : 'even';
+    return '<div class="sqtc-zone"><div class="sqtc-zone-l">' + b[0] + '</div><div class="sqtc-zone-bar"><i class="sqtc-zone-my" style="width:' + mp + '%"></i><i class="sqtc-zone-op" style="width:' + (100 - mp) + '%"></i></div><div class="sqtc-zone-w sqtc-zone-w--' + cls + '">' + who + '</div></div>';
+  }).join('');
+  return '<div class="sqtc-zoneswrap">' + rows + '</div><div class="sqtc-note">Zone control compares the quality each side commits to each third of the pitch.</div>';
+}
+function _sqTcSetpieces() {
+  var rm = _sqRoleMap(), find = function (b) { for (var id in rm) { if (rm[id].indexOf(b) >= 0) { var p = _sqP(id); if (p) return p; } } return null; };
+  var items = [['Penalties', 'P'], ['Free kicks', 'FK'], ['Corners', 'CK'], ['Captain', 'C'], ['Vice-captain', 'VC']];
+  var cards = items.map(function (it) { var p = find(it[1]); return '<div class="sqtc-spc"><span class="sqtc-spc-l">' + it[0] + '</span>' + (p ? '<div class="sqtc-spc-p">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my') + '<span class="sqtc-spc-meta"><span class="sqtc-spc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqtc-spc-o">' + p.pos + ' · ' + p.qual + '</span></span></div>' : '<span class="sqtc-spc-empty">—</span>') + '</div>'; }).join('');
+  return '<div class="sqtc-setpieces">' + cards + '</div><div class="sqtc-note">Designated takers are derived from the lineup — captaincy, role profiles and quality.</div>';
+}
+function _sqTcInstructions() {
+  var rows = (SQ_MY_IDS || []).map(function (id) { var p = _sqP(id); if (!p) return ''; var k = _sqInstrOf(id), instr = SQ_INSTR[k] || SQ_INSTR.hold; return '<div class="sqtc-instr"><span class="sqtc-instr-dot" style="background:' + _sqInstrColor(instr.type) + '"></span><span class="sqtc-instr-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqtc-instr-pos">' + p.pos + '</span><span class="sqtc-instr-r">' + instr.label + '</span></div>'; }).join('');
+  return '<div class="sqtc-instrs">' + rows + '</div><div class="sqtc-note">Live tactical instructions per player — the basis for future AI recommendations.</div>';
+}
+function _sqTcStats(my, op) {
+  var bars = '<div class="sqmd-bars">'
+    + _sqBarPair('Team OVR', my.ovr, op.ovr, '') + _sqBarPair('Team Balance', my.balance, op.balance, '%')
+    + _sqBarPair('Starting XI OVR', my.xiOvr, op.xiOvr, '') + _sqBarPair('Starting XI Balance', my.xiBalance, op.xiBalance, '%')
+    + _sqBarPair('Bench OVR', my.benchOvr, op.benchOvr, '') + _sqBarPair('Bench Balance', my.benchBalance, op.benchBalance, '%')
+    + _sqBarPair('Tactical compatibility', my.compat, op.compat, '%') + _sqBarPair('Formation efficiency', my.formEff, op.formEff, '%')
+    + _sqBarPair('Tactical execution', my.exec, op.exec, '%') + '</div>';
+  return '<div class="sqtc-statswrap"><div class="sqtc-stats-hd"><span>My Team</span><span>Opponent</span></div>' + bars + '</div>';
+}
+var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions'];
+function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
+function _sqCmdInner() {
+  if (!SQ_FORM.cmdTab) SQ_FORM.cmdTab = 'overview';
+  var my = _sqTeamReport('my'), op = _sqTeamReport('opp');
+  var heads = '<div class="sqtc-heads">' + _sqTcHead('my', my) + _sqTcHead('opp', op) + '</div>';
+  var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) { var k = _sqCmdTabKey(t); return '<button class="sqtc-tab' + (SQ_FORM.cmdTab === k ? ' is-active' : '') + '" data-action="sqCmdTab" data-tab="' + k + '" type="button">' + t + '</button>'; }).join('') + '</div>';
+  var content;
+  switch (SQ_FORM.cmdTab) {
+    case 'matchup': content = _sqTcMatchup(my, op); break;
+    case 'heatmap': content = _sqTcHeatmap(); break;
+    case 'stats': content = _sqTcStats(my, op); break;
+    case 'zones': content = _sqTcZones(); break;
+    case 'setpieces': content = _sqTcSetpieces(); break;
+    case 'instructions': content = _sqTcInstructions(); break;
+    default: content = _sqTcOverview(my, op);
+  }
+  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--' + SQ_FORM.cmdTab + '">' + content + '</div></div>';
+}
+function _sqCmdPanelHtml() { return _sqCmdInner(); }
+function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; _sqRenderFormationBody(); }
 function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqCommandClose() { SQ_FORM.showCmd = false; _sqRenderFormationBody(); }
 
@@ -3531,6 +3628,7 @@ function _sqInitFormationDrag() {
   if (_sqDragInit || typeof document === 'undefined') return;
   _sqDragInit = true;
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sq-instr-sel')) { if (typeof sqSetInstr === 'function') sqSetInstr(s.getAttribute('data-instr-player'), s.value); } });
+  document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sqtc-form-sel')) { if (typeof sqPickFormation === 'function') sqPickFormation(s.value, s.getAttribute('data-side')); } });
   document.addEventListener('pointerdown', function (e) {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub]');
     if (subc && subc.closest('#sq-sub-formation')) { _sqSubDrag = { id: subc.getAttribute('data-sub'), tier: subc.getAttribute('data-tier'), sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
@@ -35397,6 +35495,7 @@ async function tosBoardSnapshot() {
         case 'sqPlanningClose':   if (typeof sqPlanningClose === 'function')   sqPlanningClose();    break;
         case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
+        case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
         case 'sqFormMentality':    if (typeof sqFormMentality === 'function')     sqFormMentality();                  break;
