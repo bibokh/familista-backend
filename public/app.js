@@ -3388,9 +3388,11 @@ function _sqMdAvatar(photo, fallback, side) {
   if (photo) return '<span class="sqmd-av"><img src="' + _sqEsc(photo) + '" alt="" loading="lazy"></span>';
   return '<span class="sqmd-av sqmd-av--ph sqmd-av--' + side + '">' + _sqEsc(String(fallback || '?').slice(0, 2)) + '</span>';
 }
-function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo) {
+function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel) {
   var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
-  return '<div class="sqmd-card sqmd-card--' + side + (bad ? ' is-bad' : '') + '">'
+  var arr = (side === 'my' && instrType) ? (function () { var a = _sqInstrArrow(instrType); return '<span class="sqmd-instr sqmd-instr--' + a.c + '" title="' + a.t + '">' + a.g + '</span>'; })() : '';
+  var attrs = (side === 'my' && id) ? ' data-action="sqCmdSelect" data-id="' + id + '" data-team="my"' : '';
+  return '<div class="sqmd-card sqmd-card--' + side + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + '>' + arr
     + _sqMdAvatar(photo, side === 'my' ? (name || '?').slice(0, 1) : pos, side)
     + '<span class="sqmd-card-top"><span class="sqmd-card-num">' + num + '</span><span class="sqmd-card-ovr">' + ovr + '</span></span>'
     + '<span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + pos + '</span>' + bd + '</div>';
@@ -3412,7 +3414,8 @@ function _sqMdPitch(side) {
       if (!a.player) return; var p = a.player, s = a.slot;
       var L = Math.max(8, Math.min(92, 100 - s.y)), T = Math.max(11, Math.min(89, s.x));
       var pos0 = SQ_POS_MY[p.id], d = pos0 ? _sqNearestAllowedDist(pos0.x, pos0.y, _sqAllowedZonesAny(p)) : 0, q = _sqEffQual(p, d);
-      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), s.r || p.pos, q, rm[p.id], d > 16, p.photo) + '</div>';
+      var it = SQ_INSTR[_sqInstrOf(p.id)]; var itype = it ? it.type : 'neutral';
+      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), s.r || p.pos, q, rm[p.id], d > 16, p.photo, p.id, itype, SQ_FORM.cmdSel === p.id) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) {
@@ -3421,7 +3424,8 @@ function _sqMdPitch(side) {
       cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', s.r || p.pos, p.qual, null, false) + '</div>';
     });
   }
-  return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + cards + '</div>';
+  var zones = (side === 'my' && SQ_FORM.cmdSel) ? '<div class="sqmd-zonelayer">' + _sqMdZones(SQ_FORM.cmdSel) + '</div>' : '';
+  return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + zones + cards + '</div>';
 }
 function _sqMdSummary(rep, side) {
   function stat(l, v, s) { return '<div class="sqmd-stat"><span>' + l + '</span><b>' + v + (s || '') + '</b></div>'; }
@@ -3435,10 +3439,10 @@ function _sqMdBench(side) {
   if (side === 'my') {
     var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
     var chips = ids.map(_sqP).filter(Boolean).map(function (p) {
-      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my')
+      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '" data-sub="' + p.id + '" data-tier="bench" title="Drag onto a starter to substitute">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my')
         + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqmd-bc-sub">' + p.pos + ' · ' + p.qual + '</span></span></div>';
     }).join('');
-    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">My Team bench</span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
+    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">My Team bench <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
   }
   var rep = _sqTeamReport('opp'), cats = [['GK', 'gk'], ['DF', 'df'], ['DF', 'df'], ['MF', 'mf'], ['MF', 'mf'], ['FW', 'fw'], ['FW', 'fw']];
   var chips2 = cats.map(function (c) { return '<div class="sqmd-bench-chip sql-pos--' + c[1] + '">' + _sqMdAvatar(null, c[0], 'opp') + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">Sub</span><span class="sqmd-bc-sub">' + c[0] + ' · ' + rep.benchOvr + '</span></span></div>'; }).join('');
@@ -3527,8 +3531,9 @@ function _sqTcSummaryCards() {
   return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
 }
 function _sqTcOverview(my, op) {
+  var popup = SQ_FORM.cmdSel ? _sqCmpPopup(SQ_FORM.cmdSel) : '';
   return '<div class="sqtc-overview"><div class="sqtc-pitches">'
-    + '<div class="sqtc-side"><div class="sqtc-side-lbl sqtc-side-lbl--my">' + _sqEsc(_sqClubName()) + ' · ' + my.formation + '</div>' + _sqMdPitch('my') + _sqMdBench('my') + '</div>'
+    + '<div class="sqtc-side"><div class="sqtc-side-lbl sqtc-side-lbl--my">' + _sqEsc(_sqClubName()) + ' · ' + my.formation + '</div>' + _sqMdPitch('my') + popup + _sqMdBench('my') + '</div>'
     + '<div class="sqtc-side"><div class="sqtc-side-lbl sqtc-side-lbl--opp">Opponent · ' + op.formation + '</div>' + _sqMdPitch('opp') + _sqMdBench('opp') + '</div>'
     + '</div>' + _sqTcSummaryCards() + '</div>';
 }
@@ -3596,6 +3601,68 @@ function _sqTcStats(my, op) {
     + _sqBarPair('Tactical execution', my.exec, op.exec, '%') + '</div>';
   return '<div class="sqtc-statswrap"><div class="sqtc-stats-hd"><span>My Team</span><span>Opponent</span></div>' + bars + '</div>';
 }
+// ── coaching helpers: instruction markers, position zones, player comparison ──
+function _sqInstrArrow(type) {
+  switch (type) {
+    case 'att': return { g: '↑', c: 'att', t: 'Attack forward' };
+    case 'press': return { g: '⚡', c: 'press', t: 'Press' };
+    case 'wide': return { g: '↔', c: 'wide', t: 'Wide movement' };
+    case 'def': return { g: '↓', c: 'def', t: 'Support / defend' };
+    case 'sup': return { g: '↘', c: 'sup', t: 'Support' };
+    default: return { g: '●', c: 'hold', t: 'Stay position' };
+  }
+}
+function _sqMdZones(id) {
+  var p = _sqP(id); if (!p) return '';
+  return (_sqAllowedZonesAny(p) || []).map(function (z) {
+    var Z = SQ_ZONES[z]; if (!Z) return '';
+    var L = Math.max(6, Math.min(94, 100 - Z.y)), T = Math.max(8, Math.min(92, Z.x));
+    return '<div class="sqmd-zone" style="left:' + L + '%;top:' + T + '%"><span>' + Z.label + '</span></div>';
+  }).join('');
+}
+var SQ_POS_CAT = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df', WB: 'df', FB: 'df', DM: 'mf', CM: 'mf', AM: 'mf', LM: 'mf', MC: 'mf', MR: 'mf', ML: 'mf', RM: 'mf', LW: 'fw', RW: 'fw', ST: 'fw', CF: 'fw' };
+function _sqMoralePctSafe(m) { return (typeof _sqMoralePct === 'function') ? _sqMoralePct(m) : 60; }
+function _sqRoleFit(p, pos) { if (p.pos === pos) return 100; var rel = POS_RELATED[p.pos] || []; if (rel.indexOf(pos) >= 0) return 84; if ((SQ_POS_CAT[pos] || p.cat) === p.cat) return 72; return 52; }
+function _sqReady(p, pos) {
+  var fit = _sqRoleFit(p, pos), cond = p.cond || 85, mor = _sqMoralePctSafe(p.morale);
+  var eff = Math.round(p.qual * (0.7 + fit / 100 * 0.3));
+  var success = Math.max(20, Math.min(99, Math.round(0.55 * p.qual + 0.2 * cond + 0.12 * mor + 0.13 * fit)));
+  return { fit: fit, cond: cond, morale: p.morale || 'Content', eff: eff, success: success, qual: p.qual };
+}
+function _sqCmpData(id) {
+  var p = _sqP(id); if (!p) return null;
+  var pos = p.pos, me = _sqReady(p, pos);
+  var pool = SQ_DEMO_PLAYERS.concat(SQ_RESERVE).filter(function (x) { return x.id !== id; });
+  var alts = pool.map(function (x) { return { p: x, r: _sqReady(x, pos) }; }).filter(function (o) { return o.r.fit >= 70; }).sort(function (a, b) { return b.r.success - a.r.success; });
+  var alt = alts[0] || null;
+  var opp = SQ_OPP_DEF.filter(function (o) { return o.pos === pos; })[0] || SQ_OPP_DEF.filter(function (o) { return o.cat === p.cat; }).sort(function (a, b) { return b.qual - a.qual; })[0] || null;
+  var diff = opp ? (me.eff - opp.qual) : 0, lab = opp ? _sqMatchLabel(diff) : null;
+  var betterSelf = alt ? (me.success >= alt.r.success) : true;
+  return { p: p, me: me, pos: pos, alt: alt, betterSelf: betterSelf, opp: opp, diff: diff, lab: lab };
+}
+function _sqCmpPopup(id) {
+  var c = _sqCmpData(id); if (!c) return '';
+  function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
+  var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>';
+  if (c.alt) {
+    var a = c.me, b = c.alt.r;
+    html += '<div class="sqcmp-sec">Best starter at ' + c.pos + ' (same team)</div>'
+      + '<div class="sqcmp-names"><span class="' + (c.betterSelf ? 'sqcmp-win' : '') + '">' + _sqEsc(_sqLastName(c.p.name)) + '</span><span class="' + (!c.betterSelf ? 'sqcmp-win' : '') + '">' + _sqEsc(_sqLastName(c.alt.p.name)) + '</span></div>'
+      + row('OVR', a.eff, b.eff, '', a.eff >= b.eff)
+      + row('Condition', a.cond, b.cond, '%', a.cond >= b.cond)
+      + row('Morale', a.morale, b.morale, '', _sqMoralePctSafe(a.morale) >= _sqMoralePctSafe(b.morale))
+      + row('Role fit', a.fit, b.fit, '%', a.fit >= b.fit)
+      + row('Success', a.success, b.success, '%', a.success >= b.success)
+      + '<div class="sqcmp-verdict">' + _sqEsc(c.betterSelf ? _sqLastName(c.p.name) : _sqLastName(c.alt.p.name)) + ' is more ready for ' + c.pos + '</div>';
+  }
+  if (c.opp) {
+    html += '<div class="sqcmp-sec">vs Opponent ' + c.opp.pos + ' #' + c.opp.n + '</div>'
+      + '<div class="sqcmp-vs"><b>' + c.me.eff + '</b><em>OVR</em><b>' + c.opp.qual + '</b></div>'
+      + '<div class="sqcmp-lab sqcmp-lab--' + c.lab[1] + '">' + c.lab[0] + '</div>';
+  }
+  return html + '</div>';
+}
 var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions'];
 function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
 function _sqCmdInner() {
@@ -3616,7 +3683,8 @@ function _sqCmdInner() {
   return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--' + SQ_FORM.cmdTab + '">' + content + '</div></div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
-function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; _sqRenderFormationBody(); }
+function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
+function sqCmdSelect(id) { SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody(); }
 function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqCommandClose() { SQ_FORM.showCmd = false; _sqRenderFormationBody(); }
 
@@ -3630,7 +3698,7 @@ function _sqInitFormationDrag() {
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sq-instr-sel')) { if (typeof sqSetInstr === 'function') sqSetInstr(s.getAttribute('data-instr-player'), s.value); } });
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sqtc-form-sel')) { if (typeof sqPickFormation === 'function') sqPickFormation(s.value, s.getAttribute('data-side')); } });
   document.addEventListener('pointerdown', function (e) {
-    var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub]');
+    var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub]');
     if (subc && subc.closest('#sq-sub-formation')) { _sqSubDrag = { id: subc.getAttribute('data-sub'), tier: subc.getAttribute('data-tier'), sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
     if (!chip || !chip.closest('#sq-sub-formation')) return;
@@ -3651,7 +3719,7 @@ function _sqInitFormationDrag() {
     d.chip.classList.toggle('is-invalid', !ok);
   });
   document.addEventListener('pointerup', function (e) {
-    if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var tgt = el && el.closest && el.closest('.sqfp-chip[data-team="my"]'); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } return; }
+    if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } return; }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };
@@ -3703,7 +3771,7 @@ function _sqBenchStripHtml() {
     + '<div class="sqsub-col sqsub-reserve"><div class="sqsub-hd">Reserve squad <span>' + res.length + '</span></div><div class="sqsub-row">' + resHtml + '</div></div></div>';
 }
 function _sqMakeGhost(id) { var p = _sqP(id); var g = document.createElement('div'); g.className = 'sqsub-ghost sql-pos--' + (p ? p.cat : 'mf'); g.textContent = p ? p.num : '?'; document.body.appendChild(g); return g; }
-function _sqSubHighlight(el) { var prev = document.querySelector('.sqfp-chip.sqsub-target'); if (prev) prev.classList.remove('sqsub-target'); var t = el && el.closest && el.closest('.sqfp-chip[data-team="my"]'); if (t) t.classList.add('sqsub-target'); }
+function _sqSubHighlight(el) { var prev = document.querySelector('.sqfp-chip.sqsub-target, .sqmd-card.sqsub-target'); if (prev) prev.classList.remove('sqsub-target'); var t = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (t) t.classList.add('sqsub-target'); }
 function _sqSubstitute(inId, outId) {
   if (!inId || !outId || inId === outId) return;
   var my = SQ_MY_IDS || []; var idx = my.indexOf(outId); if (idx < 0) return;
@@ -35496,6 +35564,7 @@ async function tosBoardSnapshot() {
         case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
+        case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
         case 'sqFormMentality':    if (typeof sqFormMentality === 'function')     sqFormMentality();                  break;
