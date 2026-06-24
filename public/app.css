@@ -4110,6 +4110,24 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcmp-ib.is-on{ border-color:#f4b740; background:rgba(244,183,64,.16); color:#fde68a; }
 .sqcmp-ib--att i{ color:#fb923c; } .sqcmp-ib--press i{ color:#f87171; } .sqcmp-ib--wide i{ color:#4ade80; } .sqcmp-ib--def i{ color:#38bdf8; } .sqcmp-ib--sup i{ color:#60a5fa; } .sqcmp-ib--hold i{ color:#cbd5e1; }
 
+/* Command center — transparent tab overlays over the Overview (no navigation) */
+.sqtc-content{ position:relative; }
+.sqtc-ov-back{ position:absolute; inset:0; background:rgba(6,10,18,.4); z-index:30; animation:sqtcFade .14s ease both; }
+.sqtc-ov{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(840px,90%); max-height:90%; display:flex; flex-direction:column; background:rgba(13,19,34,.95); border:1px solid rgba(255,255,255,.14); border-radius:16px; box-shadow:0 26px 70px rgba(0,0,0,.62); z-index:31; overflow:hidden; animation:sqtcPop .16s ease both; }
+.sqtc-ov-hd{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid rgba(255,255,255,.09); flex:0 0 auto; }
+.sqtc-ov-hd span{ font-size:14px; font-weight:800; color:#f1f5f9; }
+.sqtc-ov-x{ width:26px; height:26px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e3eaf4; font-size:12px; cursor:pointer; }
+.sqtc-ov-x:hover{ background:rgba(255,255,255,.13); }
+.sqtc-ov-body{ flex:1 1 auto; min-height:0; overflow:auto; padding:14px 16px; }
+.sqtc-ov-body .sqtc-mgrid{ height:auto; grid-template-rows:auto; }
+.sqtc-ov-body .sqtc-acard{ overflow:visible; }
+.sqtc-ov-body .sqtc-acard--tall{ grid-column:auto; grid-row:auto; }
+.sqtc-ov-body .sqmd-poscmp{ overflow:visible; }
+.sqtc-ov-body .sqtc-heatwrap,.sqtc-ov-body .sqtc-zoneswrap,.sqtc-ov-body .sqtc-setpieces,.sqtc-ov-body .sqtc-instrs,.sqtc-ov-body .sqtc-statswrap{ height:auto; overflow:visible; }
+.sqtc-ov-body .sqtc-note{ margin-top:10px; }
+@keyframes sqtcFade{ from{ opacity:0; } to{ opacity:1; } }
+@keyframes sqtcPop{ from{ opacity:0; transform:translate(-50%,-46%); } to{ opacity:1; transform:translate(-50%,-50%); } }
+
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
 .sqsub-col{ flex:1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 11px; min-width:0; }

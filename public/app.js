@@ -3682,25 +3682,33 @@ function _sqCmpPopup(id) {
 }
 var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions'];
 function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
-function _sqCmdInner() {
-  if (!SQ_FORM.cmdTab) SQ_FORM.cmdTab = 'overview';
-  var my = _sqTeamReport('my'), op = _sqTeamReport('opp');
-  var heads = '<div class="sqtc-heads">' + _sqTcHead('my', my) + _sqTcHead('opp', op) + '</div>';
-  var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) { var k = _sqCmdTabKey(t); return '<button class="sqtc-tab' + (SQ_FORM.cmdTab === k ? ' is-active' : '') + '" data-action="sqCmdTab" data-tab="' + k + '" type="button">' + t + '</button>'; }).join('') + '</div>';
-  var content;
-  switch (SQ_FORM.cmdTab) {
-    case 'matchup': content = _sqTcMatchup(my, op); break;
-    case 'heatmap': content = _sqTcHeatmap(); break;
-    case 'stats': content = _sqTcStats(my, op); break;
-    case 'zones': content = _sqTcZones(); break;
-    case 'setpieces': content = _sqTcSetpieces(); break;
-    case 'instructions': content = _sqTcInstructions(); break;
-    default: content = _sqTcOverview(my, op);
+function _sqCmdOverlayHtml(tab, my, op) {
+  var title = { matchup: 'Matchup', heatmap: 'Heatmap', stats: 'Stats', zones: 'Zones', setpieces: 'Set Pieces', instructions: 'Instructions' }[tab] || tab, inner = '';
+  switch (tab) {
+    case 'matchup': inner = _sqTcMatchup(my, op); break;
+    case 'heatmap': inner = _sqTcHeatmap(); break;
+    case 'stats': inner = _sqTcStats(my, op); break;
+    case 'zones': inner = _sqTcZones(); break;
+    case 'setpieces': inner = _sqTcSetpieces(); break;
+    case 'instructions': inner = _sqTcInstructions(); break;
+    default: return '';
   }
-  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--' + SQ_FORM.cmdTab + '">' + content + '</div></div>';
+  return '<div class="sqtc-ov-back" data-action="sqCmdOverlayClose"></div>'
+    + '<div class="sqtc-ov sqtc-ov--' + tab + '"><div class="sqtc-ov-hd"><span>' + title + '</span><button class="sqtc-ov-x" data-action="sqCmdOverlayClose" type="button" aria-label="Close">✕</button></div>'
+    + '<div class="sqtc-ov-body">' + inner + '</div></div>';
+}
+function _sqCmdInner() {
+  var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), ov = SQ_FORM.cmdOverlay;
+  var heads = '<div class="sqtc-heads">' + _sqTcHead('my', my) + _sqTcHead('opp', op) + '</div>';
+  var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) { var k = _sqCmdTabKey(t); var active = (k === 'overview') ? !ov : (ov === k); return '<button class="sqtc-tab' + (active ? ' is-active' : '') + '" data-action="sqCmdOverlay" data-tab="' + k + '" type="button">' + t + '</button>'; }).join('') + '</div>';
+  var content = _sqTcOverview(my, op);
+  if (ov && ov !== 'overview') content += _sqCmdOverlayHtml(ov, my, op);
+  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
+function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' || SQ_FORM.cmdOverlay === tab) ? null : tab; if (SQ_FORM.cmdOverlay) SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
+function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
 function sqCmdSelect(id) { SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody(); }
 function sqCmdInstr(id, key) { if (!id || !SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqRenderFormationBody(); }
 function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
@@ -35597,6 +35605,8 @@ async function tosBoardSnapshot() {
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
         case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
+        case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
+        case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
