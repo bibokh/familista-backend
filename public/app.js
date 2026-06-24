@@ -3620,12 +3620,20 @@ function _sqInstrArrow(type) {
 var SQ_POS_OPP2 = {};
 function _sqOppFind(id) { for (var i = 0; i < SQ_OPP_DEF.length; i++) if (SQ_OPP_DEF[i].id === id) return SQ_OPP_DEF[i]; return null; }
 function _sqSideOf(id) { if ((SQ_MY_IDS || []).indexOf(id) >= 0) return 'my'; if (_sqOppFind(id)) return 'opp'; if (_sqP(id)) return 'my'; return null; }
+// full transparent tactical-zone rectangle for one allowed zone (Top Eleven style)
+var SQ_ZONE_DX = 12, SQ_ZONE_DY = 9; // half-extents: DX = pitch-width band (vertical on the horizontal pitch), DY = depth band (horizontal)
+function _sqZoneRect(Z, side) {
+  var cx = (side === 'opp') ? Z.y : (100 - Z.y), cy = Z.x;
+  var left = cx - SQ_ZONE_DY, top = cy - SQ_ZONE_DX, w = SQ_ZONE_DY * 2, h = SQ_ZONE_DX * 2;
+  if (left < 1) { w += left - 1; left = 1; } if (top < 1) { h += top - 1; top = 1; }
+  if (left + w > 99) w = 99 - left; if (top + h > 99) h = 99 - top;
+  return 'left:' + left + '%;top:' + top + '%;width:' + w + '%;height:' + h + '%';
+}
 function _sqMdZones(id, side) {
   var p = (side === 'opp') ? _sqOppFind(id) : _sqP(id); if (!p) return '';
   return (_sqAllowedZonesAny(p) || []).map(function (z) {
     var Z = SQ_ZONES[z]; if (!Z) return '';
-    var L = (side === 'opp') ? Math.max(6, Math.min(94, Z.y)) : Math.max(6, Math.min(94, 100 - Z.y)), T = Math.max(8, Math.min(92, Z.x));
-    return '<div class="sqmd-zone" style="left:' + L + '%;top:' + T + '%"><span>' + Z.label + '</span></div>';
+    return '<div class="sqmd-zone" style="' + _sqZoneRect(Z, side) + '"><span>' + Z.label + '</span></div>';
   }).join('');
 }
 function _sqOppPenDist(p, slot, pos) { var al = _sqAllowedZonesAny(p); return Math.max(0, _sqNearestAllowedDist(pos.x, pos.y, al) - _sqNearestAllowedDist(slot.x, slot.y, al)); }
@@ -3639,7 +3647,7 @@ function _sqPlayerAllPos(p) { var arr = [p.pos].concat(POS_RELATED[p.pos] || [])
 function _sqCmdShowZones(pitch, id, side) {
   _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqOppFind(id) : _sqP(id); if (!p || !pitch) return;
   var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
-  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.left = ((side === 'opp') ? Math.max(6, Math.min(94, Z.y)) : Math.max(6, Math.min(94, 100 - Z.y))) + '%'; d.style.top = Math.max(8, Math.min(92, Z.x)) + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
+  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.cssText = _sqZoneRect(Z, side); d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
   pitch.appendChild(wrap);
 }
 function _sqCmdHideZones(pitch) { if (!pitch) return; var w = pitch.querySelector('.sqmd-zonelayer'); if (w && w.parentNode) w.parentNode.removeChild(w); }

@@ -4069,8 +4069,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-instr{ position:absolute; top:-7px; right:-6px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; line-height:1; z-index:3; border:1px solid rgba(0,0,0,.35); }
 .sqmd-instr--att{ background:#fb923c; color:#2a1300; } .sqmd-instr--press{ background:#f87171; color:#2a0707; } .sqmd-instr--wide{ background:#4ade80; color:#06280f; } .sqmd-instr--def{ background:#38bdf8; color:#04212f; } .sqmd-instr--sup{ background:#60a5fa; color:#04122a; } .sqmd-instr--hold{ background:#cbd5e1; color:#0b1120; }
 .sqmd-zonelayer{ position:absolute; inset:0; z-index:1; pointer-events:none; }
-.sqmd-zone{ position:absolute; transform:translate(-50%,-50%); width:34px; height:34px; border-radius:50%; background:rgba(244,183,64,.18); border:1.5px dashed rgba(244,183,64,.75); display:flex; align-items:center; justify-content:center; }
-.sqmd-zone span{ font-size:8px; font-weight:800; color:#fde68a; }
+.sqmd-zone{ position:absolute; border-radius:5px; background:rgba(244,183,64,.12); border:1.5px solid rgba(244,183,64,.6); box-shadow:inset 0 0 14px rgba(244,183,64,.12); display:flex; align-items:flex-start; justify-content:flex-start; overflow:hidden; }
+.sqmd-zone span{ font-size:8px; font-weight:800; color:#fde68a; text-shadow:0 1px 2px rgba(0,0,0,.65); padding:2px 4px; }
 .sqmd-bench-chip[data-sub]{ cursor:grab; touch-action:none; }
 .sqmd-bench-chip[data-sub]:active{ cursor:grabbing; }
 .sqmd-bench-hint{ font-style:normal; font-size:9px; font-weight:600; color:#7e8aa0; margin-left:6px; text-transform:none; letter-spacing:0; }
