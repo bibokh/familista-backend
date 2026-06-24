@@ -3361,7 +3361,7 @@ function _sqTeamReport(side) {
     var my = _sqMyStats(), formEff = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency, bench = _sqBenchMy();
     return { name: 'My Team', formation: SQ_FORM.myFormation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
   }
-  var op = _sqOppStats(), formEffO = _sqMetricsFor(SQ_FORM.oppFormation, SQ_OPP_DEF).efficiency;
+  var op = _sqCmdOppStats(), formEffO = _sqMetricsFor(SQ_FORM.oppFormation, SQ_OPP_DEF).efficiency;
   var benchOvrO = Math.max(50, op.ovr - 6), benchBalO = Math.max(45, op.balance - 9);
   var ovrScaled = Math.max(0, Math.min(100, Math.round((op.ovr - 60) / 40 * 100)));
   var execO = Math.max(35, Math.min(99, Math.round(0.5 * op.balance + 0.3 * op.compat + 0.2 * ovrScaled)));
@@ -3392,7 +3392,7 @@ function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType,
   var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
   var arr = (side === 'my' && instrType) ? (function () { var a = _sqInstrArrow(instrType); return '<span class="sqmd-instr sqmd-instr--' + a.c + '" title="' + a.t + '">' + a.g + '</span>'; })() : '';
   var attrs = (side === 'my' && id) ? ' data-id="' + id + '" data-team="my"' : '';
-  var allpos = (side === 'my' && positions) ? '<span class="sqmd-card-allpos' + (bad ? ' is-bad' : '') + '">' + positions + '</span>' : '';
+  var allpos = positions ? '<span class="sqmd-card-allpos' + (bad ? ' is-bad' : '') + '">' + positions + '</span>' : '';
   return '<div class="sqmd-card sqmd-card--' + side + ' sqmd-line--' + (cat || 'mf') + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + (bad ? ' title="Out of position — reduced efficiency"' : '') + '>' + arr
     + _sqMdAvatar(photo, side === 'my' ? (name || '?').slice(0, 1) : pos, side)
     + '<span class="sqmd-card-top"><span class="sqmd-card-num">' + num + '</span><span class="sqmd-card-ovr">' + ovr + '</span></span>'
@@ -3421,13 +3421,15 @@ function _sqMdPitch(side) {
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) {
-      if (!a.player) return; var p = a.player, s = a.slot;
-      var L = Math.max(8, Math.min(92, s.y)), T = Math.max(11, Math.min(89, s.x));
-      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', s.r || p.pos, p.qual, null, false, null, null, null, false, p.cat, null) + '</div>';
+      if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
+      var L = Math.max(8, Math.min(92, pos.y)), T = Math.max(11, Math.min(89, pos.x));
+      var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
     });
   }
-  var zones = (side === 'my' && SQ_FORM.cmdSel) ? '<div class="sqmd-zonelayer">' + _sqMdZones(SQ_FORM.cmdSel) + '</div>' : '';
-  var warn = (side === 'my' && oop) ? '<div class="sqmd-oop">⚠ Out of position — reduced efficiency</div>' : '';
+  var selSide = SQ_FORM.cmdSel ? _sqSideOf(SQ_FORM.cmdSel) : null;
+  var zones = (SQ_FORM.cmdSel && selSide === side) ? '<div class="sqmd-zonelayer">' + _sqMdZones(SQ_FORM.cmdSel, side) + '</div>' : '';
+  var warn = oop ? '<div class="sqmd-oop">⚠ Out of position — reduced efficiency</div>' : '';
   return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + zones + cards + warn + '</div>';
 }
 function _sqMdSummary(rep, side) {
@@ -3615,20 +3617,29 @@ function _sqInstrArrow(type) {
     default: return { g: '●', c: 'hold', t: 'Stay position' };
   }
 }
-function _sqMdZones(id) {
-  var p = _sqP(id); if (!p) return '';
+var SQ_POS_OPP2 = {};
+function _sqOppFind(id) { for (var i = 0; i < SQ_OPP_DEF.length; i++) if (SQ_OPP_DEF[i].id === id) return SQ_OPP_DEF[i]; return null; }
+function _sqSideOf(id) { if ((SQ_MY_IDS || []).indexOf(id) >= 0) return 'my'; if (_sqOppFind(id)) return 'opp'; if (_sqP(id)) return 'my'; return null; }
+function _sqMdZones(id, side) {
+  var p = (side === 'opp') ? _sqOppFind(id) : _sqP(id); if (!p) return '';
   return (_sqAllowedZonesAny(p) || []).map(function (z) {
     var Z = SQ_ZONES[z]; if (!Z) return '';
-    var L = Math.max(6, Math.min(94, 100 - Z.y)), T = Math.max(8, Math.min(92, Z.x));
+    var L = (side === 'opp') ? Math.max(6, Math.min(94, Z.y)) : Math.max(6, Math.min(94, 100 - Z.y)), T = Math.max(8, Math.min(92, Z.x));
     return '<div class="sqmd-zone" style="left:' + L + '%;top:' + T + '%"><span>' + Z.label + '</span></div>';
   }).join('');
 }
+function _sqOppPenDist(p, slot, pos) { var al = _sqAllowedZonesAny(p); return Math.max(0, _sqNearestAllowedDist(pos.x, pos.y, al) - _sqNearestAllowedDist(slot.x, slot.y, al)); }
+function _sqCmdOppStats() {
+  var assign = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), sc = 0, eff = 0, n = 0;
+  assign.forEach(function (a) { if (!a.player) return; var p = a.player, pos = SQ_POS_OPP2[p.id] || { x: a.slot.x, y: a.slot.y }; n++; var d = _sqOppPenDist(p, a.slot, pos); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
+  return { ovr: n ? Math.round(eff / n) : 0, balance: n ? Math.round(sc / n) : 0, compat: _sqCompat(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF) };
+}
 var SQ_POS_CAT = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df', WB: 'df', FB: 'df', DM: 'mf', CM: 'mf', AM: 'mf', LM: 'mf', MC: 'mf', MR: 'mf', ML: 'mf', RM: 'mf', LW: 'fw', RW: 'fw', ST: 'fw', CF: 'fw' };
 function _sqPlayerAllPos(p) { var arr = [p.pos].concat(POS_RELATED[p.pos] || []), seen = {}, out = []; arr.forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
-function _sqCmdShowZones(pitch, id) {
-  _sqCmdHideZones(pitch); var p = _sqP(id); if (!p || !pitch) return;
+function _sqCmdShowZones(pitch, id, side) {
+  _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqOppFind(id) : _sqP(id); if (!p || !pitch) return;
   var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
-  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.left = Math.max(6, Math.min(94, 100 - Z.y)) + '%'; d.style.top = Math.max(8, Math.min(92, Z.x)) + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
+  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.left = ((side === 'opp') ? Math.max(6, Math.min(94, Z.y)) : Math.max(6, Math.min(94, 100 - Z.y))) + '%'; d.style.top = Math.max(8, Math.min(92, Z.x)) + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
   pitch.appendChild(wrap);
 }
 function _sqCmdHideZones(pitch) { if (!pitch) return; var w = pitch.querySelector('.sqmd-zonelayer'); if (w && w.parentNode) w.parentNode.removeChild(w); }
@@ -3727,8 +3738,8 @@ function _sqInitFormationDrag() {
   document.addEventListener('pointerdown', function (e) {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub]');
     if (subc && subc.closest('#sq-sub-formation')) { _sqSubDrag = { id: subc.getAttribute('data-sub'), tier: subc.getAttribute('data-tier'), sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
-    var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove]');
-    if (slot && slot.closest('#sq-sub-formation')) { var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var pp = _sqP(sid); _sqCmdMove = { slot: slot, pitch: sp, id: sid, allowed: pp ? _sqAllowedZonesAny(pp) : [], sx: e.clientX, sy: e.clientY, moved: false }; e.preventDefault(); return; }
+    var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove], .sqmd-slot[data-cmdmove-opp]');
+    if (slot && slot.closest('#sq-sub-formation')) { var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp'); var pp = isOpp ? _sqOppFind(sid) : _sqP(sid); var hd = 0; if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); } _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', allowed: pp ? _sqAllowedZonesAny(pp) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false }; e.preventDefault(); return; }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
     if (!chip || !chip.closest('#sq-sub-formation')) return;
     var pitch = chip.closest('.sqfp-pitch'); if (!pitch) return;
@@ -3741,11 +3752,12 @@ function _sqInitFormationDrag() {
     if (_sqSubDrag) { var sd = _sqSubDrag; if (!sd.moved) { if (Math.abs(e.clientX - sd.sx) + Math.abs(e.clientY - sd.sy) < 6) return; sd.moved = true; sd.ghost = _sqMakeGhost(sd.id); } if (sd.ghost) { sd.ghost.style.left = e.clientX + 'px'; sd.ghost.style.top = e.clientY + 'px'; } _sqSubHighlight(document.elementFromPoint(e.clientX, e.clientY)); return; }
     if (_sqCmdMove) {
       var cm = _sqCmdMove;
-      if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id); }
+      if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id, cm.side); }
       var rc = cm.pitch.getBoundingClientRect();
       var L = Math.max(4, Math.min(96, (e.clientX - rc.left) / rc.width * 100)), T = Math.max(6, Math.min(94, (e.clientY - rc.top) / rc.height * 100));
       cm.L = L; cm.T = T; cm.slot.style.left = L + '%'; cm.slot.style.top = T + '%';
-      var bx = T, by = 100 - L, ok = _sqNearestAllowedDist(bx, by, cm.allowed) <= 16;
+      var bx = T, by = (cm.side === 'opp') ? L : (100 - L), dcur = _sqNearestAllowedDist(bx, by, cm.allowed);
+      var ok = (cm.side === 'opp') ? (Math.max(0, dcur - (cm.homeDist || 0)) <= 16) : (dcur <= 16);
       var card = cm.slot.querySelector('.sqmd-card'); if (card) card.classList.toggle('is-bad', !ok);
       return;
     }
@@ -3759,7 +3771,7 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointerup', function (e) {
     if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } return; }
-    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
+    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: cm.T, y: cm.L }; else SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };
