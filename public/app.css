@@ -4127,6 +4127,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtc-ov-body .sqtc-note{ margin-top:10px; }
 @keyframes sqtcFade{ from{ opacity:0; } to{ opacity:1; } }
 @keyframes sqtcPop{ from{ opacity:0; transform:translate(-50%,-46%); } to{ opacity:1; transform:translate(-50%,-50%); } }
+@media (max-width:1024px){ .sqtc-ov-back{ position:fixed; } .sqtc-ov{ position:fixed; width:min(560px,94vw); max-height:86vh; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
