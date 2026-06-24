@@ -3388,14 +3388,15 @@ function _sqMdAvatar(photo, fallback, side) {
   if (photo) return '<span class="sqmd-av"><img src="' + _sqEsc(photo) + '" alt="" loading="lazy"></span>';
   return '<span class="sqmd-av sqmd-av--ph sqmd-av--' + side + '">' + _sqEsc(String(fallback || '?').slice(0, 2)) + '</span>';
 }
-function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel) {
+function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel, cat, positions) {
   var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
   var arr = (side === 'my' && instrType) ? (function () { var a = _sqInstrArrow(instrType); return '<span class="sqmd-instr sqmd-instr--' + a.c + '" title="' + a.t + '">' + a.g + '</span>'; })() : '';
-  var attrs = (side === 'my' && id) ? ' data-action="sqCmdSelect" data-id="' + id + '" data-team="my"' : '';
-  return '<div class="sqmd-card sqmd-card--' + side + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + '>' + arr
+  var attrs = (side === 'my' && id) ? ' data-id="' + id + '" data-team="my"' : '';
+  var allpos = (side === 'my' && positions) ? '<span class="sqmd-card-allpos' + (bad ? ' is-bad' : '') + '">' + positions + '</span>' : '';
+  return '<div class="sqmd-card sqmd-card--' + side + ' sqmd-line--' + (cat || 'mf') + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + (bad ? ' title="Out of position — reduced efficiency"' : '') + '>' + arr
     + _sqMdAvatar(photo, side === 'my' ? (name || '?').slice(0, 1) : pos, side)
     + '<span class="sqmd-card-top"><span class="sqmd-card-num">' + num + '</span><span class="sqmd-card-ovr">' + ovr + '</span></span>'
-    + '<span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + pos + '</span>' + bd + '</div>';
+    + '<span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + pos + '</span>' + bd + allpos + '</div>';
 }
 function _sqMdField() {
   var c = 'rgba(255,255,255,.22)';
@@ -3407,25 +3408,27 @@ function _sqMdField() {
     + '<rect x="128" y="28" width="20" height="44" fill="none" stroke="' + c + '" stroke-width="0.5"/></svg>';
 }
 function _sqMdPitch(side) {
-  var cards = '';
+  var cards = '', oop = false;
   if (side === 'my') {
-    var starters = (SQ_MY_IDS || []).map(_sqP).filter(Boolean), rm = _sqRoleMap();
-    _sqAssignXI(SQ_FORMATIONS[SQ_FORM.myFormation] || [], starters.length ? starters : SQ_DEMO_PLAYERS).forEach(function (a) {
-      if (!a.player) return; var p = a.player, s = a.slot;
-      var L = Math.max(8, Math.min(92, 100 - s.y)), T = Math.max(11, Math.min(89, s.x));
-      var pos0 = SQ_POS_MY[p.id], d = pos0 ? _sqNearestAllowedDist(pos0.x, pos0.y, _sqAllowedZonesAny(p)) : 0, q = _sqEffQual(p, d);
-      var it = SQ_INSTR[_sqInstrOf(p.id)]; var itype = it ? it.type : 'neutral';
-      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), s.r || p.pos, q, rm[p.id], d > 16, p.photo, p.id, itype, SQ_FORM.cmdSel === p.id) + '</div>';
+    if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
+    var rm = _sqRoleMap();
+    (SQ_MY_IDS || []).forEach(function (id) {
+      var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return;
+      var L = Math.max(8, Math.min(92, 100 - pos.y)), T = Math.max(11, Math.min(89, pos.x));
+      var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
+      var it = SQ_INSTR[_sqInstrOf(id)], itype = it ? it.type : 'neutral';
+      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF).forEach(function (a) {
       if (!a.player) return; var p = a.player, s = a.slot;
       var L = Math.max(8, Math.min(92, s.y)), T = Math.max(11, Math.min(89, s.x));
-      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', s.r || p.pos, p.qual, null, false) + '</div>';
+      cards += '<div class="sqmd-slot" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', s.r || p.pos, p.qual, null, false, null, null, null, false, p.cat, null) + '</div>';
     });
   }
   var zones = (side === 'my' && SQ_FORM.cmdSel) ? '<div class="sqmd-zonelayer">' + _sqMdZones(SQ_FORM.cmdSel) + '</div>' : '';
-  return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + zones + cards + '</div>';
+  var warn = (side === 'my' && oop) ? '<div class="sqmd-oop">⚠ Out of position — reduced efficiency</div>' : '';
+  return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + zones + cards + warn + '</div>';
 }
 function _sqMdSummary(rep, side) {
   function stat(l, v, s) { return '<div class="sqmd-stat"><span>' + l + '</span><b>' + v + (s || '') + '</b></div>'; }
@@ -3621,6 +3624,16 @@ function _sqMdZones(id) {
   }).join('');
 }
 var SQ_POS_CAT = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df', WB: 'df', FB: 'df', DM: 'mf', CM: 'mf', AM: 'mf', LM: 'mf', MC: 'mf', MR: 'mf', ML: 'mf', RM: 'mf', LW: 'fw', RW: 'fw', ST: 'fw', CF: 'fw' };
+function _sqPlayerAllPos(p) { var arr = [p.pos].concat(POS_RELATED[p.pos] || []), seen = {}, out = []; arr.forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
+function _sqCmdShowZones(pitch, id) {
+  _sqCmdHideZones(pitch); var p = _sqP(id); if (!p || !pitch) return;
+  var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
+  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.left = Math.max(6, Math.min(94, 100 - Z.y)) + '%'; d.style.top = Math.max(8, Math.min(92, Z.x)) + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
+  pitch.appendChild(wrap);
+}
+function _sqCmdHideZones(pitch) { if (!pitch) return; var w = pitch.querySelector('.sqmd-zonelayer'); if (w && w.parentNode) w.parentNode.removeChild(w); }
+// coach instruction buttons → instruction key (any valid SQ_INSTR key of that type)
+var SQ_COACH_INSTR = [['Attack', 'attackruns'], ['Support', 'dropdeep'], ['Defend', 'stayback'], ['Hold', 'hold'], ['Press', 'presshigh'], ['Wide', 'staywide']];
 function _sqMoralePctSafe(m) { return (typeof _sqMoralePct === 'function') ? _sqMoralePct(m) : 60; }
 function _sqRoleFit(p, pos) { if (p.pos === pos) return 100; var rel = POS_RELATED[p.pos] || []; if (rel.indexOf(pos) >= 0) return 84; if ((SQ_POS_CAT[pos] || p.cat) === p.cat) return 72; return 52; }
 function _sqReady(p, pos) {
@@ -3643,8 +3656,12 @@ function _sqCmpData(id) {
 function _sqCmpPopup(id) {
   var c = _sqCmpData(id); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
+  var posSel = SQ_POS_MY[id], oop = posSel ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p)) > 16) : false;
+  var curKey = _sqInstrOf(id);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
-    + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>';
+    + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
+    + (oop ? '<div class="sqcmp-oop">⚠ Out of position — reduced efficiency</div>' : '')
+    + '<div class="sqcmp-sec">Instruction</div><div class="sqcmp-instr">' + SQ_COACH_INSTR.map(function (it) { var a = _sqInstrArrow((SQ_INSTR[it[1]] || {}).type); return '<button class="sqcmp-ib sqcmp-ib--' + a.c + (curKey === it[1] ? ' is-on' : '') + '" data-action="sqCmdInstr" data-id="' + id + '" data-key="' + it[1] + '" type="button"><i>' + a.g + '</i>' + it[0] + '</button>'; }).join('') + '</div>';
   if (c.alt) {
     var a = c.me, b = c.alt.r;
     html += '<div class="sqcmp-sec">Best starter at ' + c.pos + ' (same team)</div>'
@@ -3685,6 +3702,7 @@ function _sqCmdInner() {
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdSelect(id) { SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody(); }
+function sqCmdInstr(id, key) { if (!id || !SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqRenderFormationBody(); }
 function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
 function sqCommandClose() { SQ_FORM.showCmd = false; _sqRenderFormationBody(); }
 
@@ -3692,6 +3710,7 @@ function sqCommandClose() { SQ_FORM.showCmd = false; _sqRenderFormationBody(); }
 function _sqShowZones(pitch, zones) { _sqHideZones(pitch); var wrap = document.createElement('div'); wrap.className = 'sqfp-zones'; zones.forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqfp-zone'; d.style.left = Z.x + '%'; d.style.top = Z.y + '%'; d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); }); pitch.appendChild(wrap); }
 function _sqShowAnchor(pitch, x, y) { _sqHideZones(pitch); var wrap = document.createElement('div'); wrap.className = 'sqfp-zones'; var d = document.createElement('div'); d.className = 'sqfp-zone sqfp-zone--anchor'; d.style.left = x + '%'; d.style.top = y + '%'; d.innerHTML = '<span>HOME</span>'; wrap.appendChild(d); pitch.appendChild(wrap); }
 function _sqHideZones(pitch) { var w = pitch.querySelector('.sqfp-zones'); if (w) w.parentNode.removeChild(w); }
+var _sqCmdMove = null;
 function _sqInitFormationDrag() {
   if (_sqDragInit || typeof document === 'undefined') return;
   _sqDragInit = true;
@@ -3700,6 +3719,8 @@ function _sqInitFormationDrag() {
   document.addEventListener('pointerdown', function (e) {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub]');
     if (subc && subc.closest('#sq-sub-formation')) { _sqSubDrag = { id: subc.getAttribute('data-sub'), tier: subc.getAttribute('data-tier'), sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
+    var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove]');
+    if (slot && slot.closest('#sq-sub-formation')) { var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var pp = _sqP(sid); _sqCmdMove = { slot: slot, pitch: sp, id: sid, allowed: pp ? _sqAllowedZonesAny(pp) : [], sx: e.clientX, sy: e.clientY, moved: false }; e.preventDefault(); return; }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
     if (!chip || !chip.closest('#sq-sub-formation')) return;
     var pitch = chip.closest('.sqfp-pitch'); if (!pitch) return;
@@ -3710,6 +3731,16 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointermove', function (e) {
     if (_sqSubDrag) { var sd = _sqSubDrag; if (!sd.moved) { if (Math.abs(e.clientX - sd.sx) + Math.abs(e.clientY - sd.sy) < 6) return; sd.moved = true; sd.ghost = _sqMakeGhost(sd.id); } if (sd.ghost) { sd.ghost.style.left = e.clientX + 'px'; sd.ghost.style.top = e.clientY + 'px'; } _sqSubHighlight(document.elementFromPoint(e.clientX, e.clientY)); return; }
+    if (_sqCmdMove) {
+      var cm = _sqCmdMove;
+      if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id); }
+      var rc = cm.pitch.getBoundingClientRect();
+      var L = Math.max(4, Math.min(96, (e.clientX - rc.left) / rc.width * 100)), T = Math.max(6, Math.min(94, (e.clientY - rc.top) / rc.height * 100));
+      cm.L = L; cm.T = T; cm.slot.style.left = L + '%'; cm.slot.style.top = T + '%';
+      var bx = T, by = 100 - L, ok = _sqNearestAllowedDist(bx, by, cm.allowed) <= 16;
+      var card = cm.slot.querySelector('.sqmd-card'); if (card) card.classList.toggle('is-bad', !ok);
+      return;
+    }
     var d = _sqDrag; if (!d) return;
     if (!d.moved) { if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) < 6) return; d.moved = true; d.chip.classList.add('is-dragging'); if (d.team === 'my') _sqShowZones(d.pitch, d.allowed); else if (d.anchor) _sqShowAnchor(d.pitch, d.anchor.x, d.anchor.y); }
     var r = d.pitch.getBoundingClientRect();
@@ -3720,6 +3751,7 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointerup', function (e) {
     if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } return; }
+    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };
@@ -35565,6 +35597,7 @@ async function tosBoardSnapshot() {
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
         case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
+        case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
         case 'sqFormMentality':    if (typeof sqFormMentality === 'function')     sqFormMentality();                  break;
