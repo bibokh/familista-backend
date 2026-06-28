@@ -3411,44 +3411,70 @@ function _sqSlug(s) {
   if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
   return s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
-function _sqPlayerPortrait(photo, name, id, side, num, ovr) {
-  var sil = _SQ_SILHOUETTE;
-  // build a fallback chain in data-src list; onerror walks to the next candidate, then silhouette.
+// Build the fallback chain (uploaded photo -> name PNG -> id PNG -> silhouette).
+function _sqImgChain(photo, name, id) {
   var chain = [];
   if (photo) chain.push(photo);
   var slug = _sqSlug(name); if (slug) chain.push('/players/' + slug + '.png');
-  if (id) chain.push('/players/' + _sqSlug(id) + '.png');
-  var first = chain.length ? chain[0] : sil;
-  var rest = chain.slice(1).concat([sil]); // silhouette is always the final fallback
+  if (id) { var islug = _sqSlug(id); if (islug && islug !== slug) chain.push('/players/' + islug + '.png'); }
+  var first = chain.length ? chain[0] : _SQ_SILHOUETTE;
+  return { first: first, rest: chain.slice(1).concat([_SQ_SILHOUETTE]), isSil: first === _SQ_SILHOUETTE };
+}
+// One reusable <img> with an onerror chain that ends on the silhouette placeholder.
+function _sqImgTag(cls, photo, name, id) {
+  var r = _sqImgChain(photo, name, id);
   var onerr = "var n=JSON.parse(this.getAttribute('data-fallbacks')||'[]');var u=n.shift();"
     + "this.setAttribute('data-fallbacks',JSON.stringify(n));"
-    + "if(u){this.src=u;if(u.indexOf('data:image')===0){this.onerror=null;this.className='sqmd-pimg is-sil';}}"
-    + "else{this.onerror=null;this.className='sqmd-pimg is-sil';}";
-  var isSil = (first === sil);
-  var img = '<img class="sqmd-pimg' + (isSil ? ' is-sil' : '') + '" src="' + _sqEsc(first) + '" alt="" loading="lazy"'
-    + ' data-fallbacks="' + _sqEsc(JSON.stringify(rest)) + '"'
-    + (isSil ? '' : ' onerror="' + onerr + '"') + '>';
-  return '<span class="sqmd-av sqmd-av--' + side + '">' + img + '</span>'
+    + "if(u){this.src=u;if(u.indexOf('data:image')===0){this.onerror=null;this.classList.add('is-sil');}}"
+    + "else{this.onerror=null;this.classList.add('is-sil');}";
+  return '<img class="' + cls + (r.isSil ? ' is-sil' : '') + '" src="' + _sqEsc(r.first) + '" alt="" loading="lazy"'
+    + ' data-fallbacks="' + _sqEsc(JSON.stringify(r.rest)) + '"'
+    + (r.isSil ? '' : ' onerror="' + onerr + '"') + '>';
+}
+function _sqPlayerPortrait(photo, name, id, side, num, ovr) {
+  return '<span class="sqmd-av sqmd-av--' + side + '">' + _sqImgTag('sqmd-pimg', photo, name, id) + '</span>'
     + '<span class="sqmd-num">' + num + '</span>'
     + '<span class="sqmd-ovr">' + ovr + '</span>';
 }
-function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel, cat, positions) {
-  var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
+function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel, cat, positions, cond) {
+  var rbs = (badges && badges.length) ? badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') : '';
+  var condIcon = (typeof cond === 'number' && cond > 0) ? '<i class="sqmd-cond sqmd-cond--' + (cond >= 85 ? 'good' : cond >= 70 ? 'ok' : 'low') + '" title="Condition ' + cond + '%"></i>' : '';
+  var meta = (rbs || condIcon) ? '<span class="sqmd-meta">' + condIcon + rbs + '</span>' : '';
   var arr = (side === 'my' && instrType) ? (function () { var a = _sqInstrArrow(instrType); return '<span class="sqmd-instr sqmd-instr--' + a.c + '" title="' + a.t + '">' + a.g + '</span>'; })() : '';
   var attrs = id ? ' data-id="' + id + '" data-team="' + side + '"' : '';
+  // opponent uses the same component; photo resolves by id (real PNG when present, else silhouette)
   return '<div class="sqmd-card sqmd-card--' + side + ' sqmd-line--' + (cat || 'mf') + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + (bad ? ' title="Out of position — reduced efficiency"' : '') + '>'
-    + '<span class="sqmd-portrait">' + _sqPlayerPortrait(photo, side === 'my' ? name : null, side === 'my' ? id : null, side, num, ovr) + bd + arr + '</span>'
+    + '<span class="sqmd-portrait">' + _sqPlayerPortrait(photo, side === 'my' ? name : null, id, side, num, ovr) + meta + arr + '</span>'
     + '<span class="sqmd-label"><span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + _sqEsc(pos) + '</span></span>'
     + '</div>';
 }
 function _sqMdField() {
-  var c = 'rgba(255,255,255,.22)';
+  var c = 'rgba(255,255,255,.26)';
+  var s = 'fill="none" stroke="' + c + '" stroke-width="0.5"';
+  var sp = 'fill="' + c + '"';
   return '<svg class="sqmd-markings" viewBox="0 0 150 100" preserveAspectRatio="none">'
-    + '<rect x="2" y="2" width="146" height="96" fill="none" stroke="' + c + '" stroke-width="0.5"/>'
-    + '<line x1="75" y1="2" x2="75" y2="98" stroke="' + c + '" stroke-width="0.5"/>'
-    + '<circle cx="75" cy="50" r="12" fill="none" stroke="' + c + '" stroke-width="0.5"/>'
-    + '<rect x="2" y="28" width="20" height="44" fill="none" stroke="' + c + '" stroke-width="0.5"/>'
-    + '<rect x="128" y="28" width="20" height="44" fill="none" stroke="' + c + '" stroke-width="0.5"/></svg>';
+    // boundary, halfway line, center circle + spot
+    + '<rect x="2" y="2" width="146" height="96" rx="1" ' + s + '/>'
+    + '<line x1="75" y1="2" x2="75" y2="98" ' + s + '/>'
+    + '<circle cx="75" cy="50" r="12" ' + s + '/>'
+    + '<circle cx="75" cy="50" r="0.9" ' + sp + '/>'
+    // LEFT goal: penalty area, 6-yard box, penalty spot, penalty arc, goal frame
+    + '<rect x="2" y="22" width="22" height="56" ' + s + '/>'
+    + '<rect x="2" y="37" width="8" height="26" ' + s + '/>'
+    + '<circle cx="16" cy="50" r="0.9" ' + sp + '/>'
+    + '<path d="M24 41.1 A12 12 0 0 1 24 58.9" ' + s + '/>'
+    + '<rect x="0" y="44" width="2" height="12" ' + s + '/>'
+    // RIGHT goal: penalty area, 6-yard box, penalty spot, penalty arc, goal frame
+    + '<rect x="126" y="22" width="22" height="56" ' + s + '/>'
+    + '<rect x="140" y="37" width="8" height="26" ' + s + '/>'
+    + '<circle cx="134" cy="50" r="0.9" ' + sp + '/>'
+    + '<path d="M126 58.9 A12 12 0 0 1 126 41.1" ' + s + '/>'
+    + '<rect x="148" y="44" width="2" height="12" ' + s + '/>'
+    // corner arcs (all four corners)
+    + '<path d="M2 4 A2 2 0 0 0 4 2" ' + s + '/>'
+    + '<path d="M146 2 A2 2 0 0 0 148 4" ' + s + '/>'
+    + '<path d="M4 98 A2 2 0 0 0 2 96" ' + s + '/>'
+    + '<path d="M148 96 A2 2 0 0 0 146 98" ' + s + '/></svg>';
 }
 function _sqMdPitch(side) {
   var cards = '', oop = false;
@@ -3460,14 +3486,14 @@ function _sqMdPitch(side) {
       var L = Math.max(8, Math.min(92, 100 - pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
       var it = SQ_INSTR[_sqInstrOf(id)], itype = it ? it.type : 'neutral';
-      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) {
       if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
       var L = Math.max(8, Math.min(92, pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
-      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / '), null) + '</div>';
     });
   }
   var selSide = SQ_FORM.cmdSel ? _sqSideOf(SQ_FORM.cmdSel) : null;
@@ -3489,7 +3515,7 @@ function _sqMdPitchShared() {
     var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     var it = SQ_INSTR[_sqInstrOf(id)], itype = it ? it.type : 'neutral';
-    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
+    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
   });
   // Opponent — only when toggled on. SAME full pitch as a transparent overlay (defends right goal,
   // attacks toward left), so the coach can read how My Team reacts to opponent movement. One field only.
@@ -3500,7 +3526,7 @@ function _sqMdPitchShared() {
       var T = Math.max(6, Math.min(94, pos.x));
       var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16;
       if (bad) oop = true;
-      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / '), null) + '</div>';
     });
   }
   var zones = '';
@@ -3521,14 +3547,14 @@ function _sqMdBench(side) {
   if (side === 'my') {
     var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
     var chips = ids.map(_sqP).filter(Boolean).map(function (p) {
-      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '" data-sub="' + p.id + '" data-tier="bench" title="Drag onto a starter to substitute">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my')
+      return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '" data-sub="' + p.id + '" data-tier="bench" title="Drag onto a starter to substitute"><span class="sqmd-bc-av sqmd-bc-av--my">' + _sqImgTag('sqmd-bc-img', p.photo, _sqLastName(p.name), p.id) + '</span>'
         + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqmd-bc-sub">' + p.pos + ' · ' + p.qual + '</span></span></div>';
     }).join('');
     return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">My Team bench <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
   }
   var oIds = (SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds());
   var chips2 = oIds.map(_sqOppFind).filter(Boolean).map(function (p) {
-    return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '" data-sub-opp="' + p.id + '" title="Drag onto an opponent starter to substitute">' + _sqMdAvatar(null, p.pos, 'opp')
+    return '<div class="sqmd-bench-chip sqmd-bench-chip--opp sql-pos--' + p.cat + '" data-sub-opp="' + p.id + '" title="Drag onto an opponent starter to substitute"><span class="sqmd-bc-av sqmd-bc-av--opp">' + _sqImgTag('sqmd-bc-img', null, null, p.id) + '</span>'
       + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">#' + p.n + '</span><span class="sqmd-bc-sub">' + p.pos + ' · ' + p.qual + '</span></span></div>';
   }).join('');
   return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Opponent bench <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips2 || '<span class="sqmd-bench-empty">No substitutes</span>') + '</div></div>';
