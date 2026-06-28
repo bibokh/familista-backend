@@ -3399,15 +3399,47 @@ function _sqMdAvatar(photo, fallback, side) {
   if (photo) return '<span class="sqmd-av"><img src="' + _sqEsc(photo) + '" alt="" loading="lazy"></span>';
   return '<span class="sqmd-av sqmd-av--ph sqmd-av--' + side + '">' + _sqEsc(String(fallback || '?').slice(0, 2)) + '</span>';
 }
+// Clean professional silhouette placeholder (transparent-background person), as a data URI.
+var _SQ_SILHOUETTE = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'>"
+  + "<circle cx='22' cy='16' r='8' fill='#cdd8e8'/>"
+  + "<path d='M6 40c0-8.5 7.2-14 16-14s16 5.5 16 14z' fill='#cdd8e8'/></svg>");
+// Generic image resolver: explicit photo -> /players/<name-slug>.png -> /players/<id>.png, with silhouette fallback.
+// Drop a PNG (e.g. players/vlad.png) and it is picked up automatically — no code change required.
+function _sqSlug(s) {
+  s = String(s == null ? '' : s).toLowerCase();
+  if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+function _sqPlayerPortrait(photo, name, id, side, num, ovr) {
+  var sil = _SQ_SILHOUETTE;
+  // build a fallback chain in data-src list; onerror walks to the next candidate, then silhouette.
+  var chain = [];
+  if (photo) chain.push(photo);
+  var slug = _sqSlug(name); if (slug) chain.push('/players/' + slug + '.png');
+  if (id) chain.push('/players/' + _sqSlug(id) + '.png');
+  var first = chain.length ? chain[0] : sil;
+  var rest = chain.slice(1).concat([sil]); // silhouette is always the final fallback
+  var onerr = "var n=JSON.parse(this.getAttribute('data-fallbacks')||'[]');var u=n.shift();"
+    + "this.setAttribute('data-fallbacks',JSON.stringify(n));"
+    + "if(u){this.src=u;if(u.indexOf('data:image')===0){this.onerror=null;this.className='sqmd-pimg is-sil';}}"
+    + "else{this.onerror=null;this.className='sqmd-pimg is-sil';}";
+  var isSil = (first === sil);
+  var img = '<img class="sqmd-pimg' + (isSil ? ' is-sil' : '') + '" src="' + _sqEsc(first) + '" alt="" loading="lazy"'
+    + ' data-fallbacks="' + _sqEsc(JSON.stringify(rest)) + '"'
+    + (isSil ? '' : ' onerror="' + onerr + '"') + '>';
+  return '<span class="sqmd-av sqmd-av--' + side + '">' + img + '</span>'
+    + '<span class="sqmd-num">' + num + '</span>'
+    + '<span class="sqmd-ovr">' + ovr + '</span>';
+}
 function _sqMdCard(side, num, name, pos, ovr, badges, bad, photo, id, instrType, sel, cat, positions) {
   var bd = (badges && badges.length) ? '<span class="sqmd-card-badges">' + badges.slice(0, 2).map(function (b) { return '<i class="sqmd-rb sqmd-rb--' + b.toLowerCase() + '" title="' + SQ_ROLE_LABEL[b] + '">' + b + '</i>'; }).join('') + '</span>' : '';
   var arr = (side === 'my' && instrType) ? (function () { var a = _sqInstrArrow(instrType); return '<span class="sqmd-instr sqmd-instr--' + a.c + '" title="' + a.t + '">' + a.g + '</span>'; })() : '';
   var attrs = id ? ' data-id="' + id + '" data-team="' + side + '"' : '';
-  var allpos = positions ? '<span class="sqmd-card-allpos' + (bad ? ' is-bad' : '') + '">' + positions + '</span>' : '';
-  return '<div class="sqmd-card sqmd-card--' + side + ' sqmd-line--' + (cat || 'mf') + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + (bad ? ' title="Out of position — reduced efficiency"' : '') + '>' + arr
-    + _sqMdAvatar(photo, side === 'my' ? (name || '?').slice(0, 1) : pos, side)
-    + '<span class="sqmd-card-top"><span class="sqmd-card-num">' + num + '</span><span class="sqmd-card-ovr">' + ovr + '</span></span>'
-    + '<span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + pos + '</span>' + bd + allpos + '</div>';
+  return '<div class="sqmd-card sqmd-card--' + side + ' sqmd-line--' + (cat || 'mf') + (bad ? ' is-bad' : '') + (sel ? ' is-sel' : '') + '"' + attrs + (bad ? ' title="Out of position — reduced efficiency"' : '') + '>'
+    + '<span class="sqmd-portrait">' + _sqPlayerPortrait(photo, side === 'my' ? name : null, side === 'my' ? id : null, side, num, ovr) + bd + arr + '</span>'
+    + '<span class="sqmd-label"><span class="sqmd-card-nm">' + _sqEsc(name) + '</span><span class="sqmd-card-pos">' + _sqEsc(pos) + '</span></span>'
+    + '</div>';
 }
 function _sqMdField() {
   var c = 'rgba(255,255,255,.22)';

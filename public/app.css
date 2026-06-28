@@ -3912,17 +3912,39 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-pitch--overlay .sqmd-slot.is-moving .sqmd-card--opp{ opacity:.92; }
 .sqmd-markings{ position:absolute; inset:0; width:100%; height:100%; }
 .sqmd-slot{ position:absolute; transform:translate(-50%,-50%); z-index:2; }
-.sqmd-card{ width:62px; background:rgba(8,14,26,.92); border:1px solid rgba(255,255,255,.18); border-radius:8px; padding:4px 5px 5px; display:flex; flex-direction:column; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,.4); }
-.sqmd-card--opp{ background:rgba(10,22,40,.92); }
-.sqmd-card.is-bad{ border-color:#f87171; }
-.sqmd-card-top{ display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom:2px; }
-.sqmd-card-num{ font-size:9px; font-weight:700; color:#9aa6ba; }
-.sqmd-card-ovr{ font-size:12px; font-weight:800; color:#4ade80; }
-.sqmd-card--opp .sqmd-card-ovr{ color:#60a5fa; }
-.sqmd-card-nm{ font-size:10.5px; font-weight:700; color:#f1f5f9; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.sqmd-card-pos{ font-size:8.5px; font-weight:700; color:#8a94a6; }
-.sqmd-card-badges{ display:flex; gap:2px; margin-top:3px; }
-.sqmd-rb{ font-style:normal; font-size:7.5px; font-weight:800; min-width:14px; height:14px; line-height:14px; text-align:center; padding:0 2px; border-radius:4px; background:#f4b740; color:#1a1205; }
+/* Premium floating tactical markers (Top Eleven style) — no black rectangles */
+.sqmd-card{ width:58px; background:none; border:none; box-shadow:none; padding:0; display:flex; flex-direction:column; align-items:center; gap:3px; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; transition:transform .13s cubic-bezier(.2,.7,.3,1); will-change:transform; }
+.sqmd-card:active{ cursor:grabbing; }
+.sqmd-portrait{ position:relative; width:42px; height:42px; border-radius:50%; flex:0 0 auto; transition:box-shadow .13s ease; }
+.sqmd-av{ position:absolute; inset:0; width:100%; height:100%; border-radius:50%; overflow:hidden; background:linear-gradient(180deg,#22304c,#0f1a30); box-shadow:inset 0 0 0 2px rgba(255,255,255,.14); }
+.sqmd-av--my{ box-shadow:inset 0 0 0 2px rgba(134,239,172,.85); }
+.sqmd-av--opp{ box-shadow:inset 0 0 0 2px rgba(147,197,253,.85); }
+.sqmd-pimg{ width:100%; height:100%; object-fit:cover; display:block; }
+.sqmd-pimg.is-sil{ object-fit:contain; padding:5px 5px 0; background:linear-gradient(180deg,#2b3a58,#16223b); }
+/* portrait glow / shadow per side */
+.sqmd-card--my .sqmd-portrait{ box-shadow:0 3px 9px rgba(0,0,0,.5), 0 0 14px rgba(34,197,94,.30); border-radius:50%; }
+.sqmd-card--opp .sqmd-portrait{ box-shadow:0 3px 9px rgba(0,0,0,.55), 0 0 14px rgba(59,130,246,.30); border-radius:50%; }
+/* jersey number + OVR badges */
+.sqmd-num{ position:absolute; top:-3px; left:-4px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:#0e1830; color:#eef4ff; font-size:8.5px; font-weight:800; line-height:15px; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.14); }
+.sqmd-ovr{ position:absolute; bottom:-4px; right:-5px; min-width:17px; height:15px; padding:0 3px; border-radius:8px; background:linear-gradient(135deg,#16a34a,#22c55e); color:#04140a; font-size:9px; font-weight:900; line-height:15px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+.sqmd-card--opp .sqmd-ovr{ background:linear-gradient(135deg,#2563eb,#60a5fa); color:#02101f; }
+.sqmd-card.is-bad .sqmd-portrait{ box-shadow:0 0 0 2px #f87171, 0 0 14px rgba(248,113,113,.55); }
+/* name + position labels float over the pitch */
+.sqmd-label{ display:flex; flex-direction:column; align-items:center; line-height:1.06; pointer-events:none; }
+.sqmd-card-nm{ font-size:9.5px; font-weight:800; color:#f6f9ff; max-width:64px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 2px rgba(0,0,0,.8); }
+.sqmd-card-pos{ font-size:8px; font-weight:700; letter-spacing:.02em; color:#d6def0; text-shadow:0 1px 3px rgba(0,0,0,.9); }
+.sqmd-card--opp .sqmd-card-nm,.sqmd-card--opp .sqmd-card-pos{ color:#e4edff; }
+/* hover: subtle lift + scale (GPU transform only) */
+.sqmd-card:hover{ transform:translateY(-2px) scale(1.06); z-index:6; }
+/* selection: gold outline + scale-up + glow */
+.sqmd-card.is-sel{ transform:scale(1.12); z-index:7; }
+.sqmd-card.is-sel .sqmd-portrait{ box-shadow:0 0 0 2.5px #f4b740, 0 0 16px rgba(244,183,64,.65), 0 4px 12px rgba(0,0,0,.5); }
+/* smooth 60fps drag — no transition lag while moving */
+.sqmd-slot.is-moving{ z-index:9; }
+.sqmd-slot.is-moving .sqmd-card{ transition:none; transform:scale(1.12); cursor:grabbing; }
+.sqmd-slot.is-moving .sqmd-card .sqmd-portrait{ box-shadow:0 8px 18px rgba(0,0,0,.6), 0 0 18px rgba(244,183,64,.5); }
+.sqmd-card-badges{ position:absolute; top:-6px; right:-7px; display:flex; gap:1px; z-index:4; }
+.sqmd-rb{ font-style:normal; font-size:7.5px; font-weight:800; min-width:14px; height:14px; line-height:14px; text-align:center; padding:0 2px; border-radius:4px; background:#f4b740; color:#1a1205; box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .sqmd-rb--c{ background:#f4b740; } .sqmd-rb--vc{ background:#cbd5e1; } .sqmd-rb--p{ background:#f87171; color:#fff; } .sqmd-rb--fk{ background:#a78bfa; color:#fff; } .sqmd-rb--ck{ background:#38bdf8; color:#06243a; } .sqmd-rb--pm{ background:#4ade80; color:#06280f; } .sqmd-rb--tm{ background:#fb923c; color:#2a1300; }
 .sqmd-bench{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:11px; padding:8px 10px; }
 .sqmd-bench-lbl{ display:block; font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#8a94a6; margin-bottom:6px; }
@@ -4083,7 +4105,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-card[data-action]{ cursor:pointer; }
 .sqmd-card.is-sel{ border-color:#f4b740; box-shadow:0 0 0 2px rgba(244,183,64,.55); z-index:5; }
 .sqmd-card.sqsub-target{ border-color:#4ade80; box-shadow:0 0 0 2px #4ade80; }
-.sqmd-instr{ position:absolute; top:-7px; right:-6px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:800; line-height:1; z-index:3; border:1px solid rgba(0,0,0,.35); }
+.sqmd-instr{ position:absolute; bottom:-5px; left:-5px; width:15px; height:15px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; line-height:1; z-index:4; border:1px solid rgba(0,0,0,.35); box-shadow:0 1px 2px rgba(0,0,0,.4); }
 .sqmd-instr--att{ background:#fb923c; color:#2a1300; } .sqmd-instr--press{ background:#f87171; color:#2a0707; } .sqmd-instr--wide{ background:#4ade80; color:#06280f; } .sqmd-instr--def{ background:#38bdf8; color:#04212f; } .sqmd-instr--sup{ background:#60a5fa; color:#04122a; } .sqmd-instr--hold{ background:#cbd5e1; color:#0b1120; }
 .sqmd-zonelayer{ position:absolute; inset:0; z-index:1; pointer-events:none; }
 .sqmd-zone{ position:absolute; border-radius:5px; background:rgba(244,183,64,.12); border:1.5px solid rgba(244,183,64,.6); box-shadow:inset 0 0 14px rgba(244,183,64,.12); display:flex; align-items:flex-start; justify-content:flex-start; overflow:hidden; }
