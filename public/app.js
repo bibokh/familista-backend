@@ -3432,7 +3432,7 @@ function _sqImgTag(cls, photo, name, id) {
     + (r.isSil ? '' : ' onerror="' + onerr + '"') + '>';
 }
 function _sqPlayerPortrait(photo, name, id, side, num, ovr) {
-  return '<span class="sqmd-av sqmd-av--' + side + '">' + _sqImgTag('sqmd-pimg', photo, name, id) + '</span>'
+  return '<span class="sqpm-av sqpm-av--' + side + '">' + _sqImgTag('sqmd-pimg', photo, name, id) + '</span>'
     + '<span class="sqmd-num">' + num + '</span>'
     + '<span class="sqmd-ovr">' + ovr + '</span>';
 }
