@@ -3451,7 +3451,7 @@ function _sqMdPitchShared() {
   _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) {
     if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
     var L = Math.max(52, Math.min(97, 50 + pos.x * SQ_SHARED_LSCALE));
-    var T = Math.max(5, Math.min(95, pos.y));
+    var T = Math.max(5, Math.min(95, 100 - pos.y)); // flip: opp faces my team across center line
     var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / ')) + '</div>';
@@ -3697,7 +3697,7 @@ function _sqZoneRect(Z, side) {
 function _sqZoneRectShared(Z, side) {
   // Landscape layout: depth (Z.x) → horizontal L; width (Z.y) → vertical T
   var cx = (side === 'opp') ? (50 + Z.x * SQ_SHARED_LSCALE) : (50 - Z.x * SQ_SHARED_LSCALE);
-  var cy = Z.y;
+  var cy = (side === 'opp') ? (100 - Z.y) : Z.y; // opp zones mirror across horizontal center
   var dw = +(SQ_ZONE_DY * SQ_SHARED_LSCALE).toFixed(1); // depth extent compressed
   var dh = SQ_ZONE_DX;                                    // width extent unchanged
   var left = cx - dw, top = cy - dh, w = dw * 2, h = dh * 2;
@@ -3853,7 +3853,7 @@ function _sqInitFormationDrag() {
       if (isSharedPitch) {
         // Landscape: L=horizontal depth, T=vertical width — reverse-map to (x,y)
         bx = (cm.side === 'opp') ? Math.max(0, Math.min(100, (L - 50) / SQ_SHARED_LSCALE)) : Math.max(0, Math.min(100, (50 - L) / SQ_SHARED_LSCALE));
-        by = T;
+        by = (cm.side === 'opp') ? (100 - T) : T; // opp y is flipped
       } else { bx = T; by = (cm.side === 'opp') ? L : (100 - L); }
       var dcur = _sqNearestAllowedDist(bx, by, cm.allowed);
       var ok = (cm.side === 'opp') ? (Math.max(0, dcur - (cm.homeDist || 0)) <= 16) : (dcur <= 16);
@@ -3870,7 +3870,7 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointerup', function (e) {
     if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); if (sd.side === 'opp') { var ot = el && el.closest && el.closest('.sqmd-card[data-team="opp"]'); if (ot) { _sqOppSubstitute(sd.id, ot.getAttribute('data-id')); } } else { var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } } return; }
-    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { var isSharedSave = cm.pitch && cm.pitch.classList && cm.pitch.classList.contains('sqmd-pitch--shared'); if (isSharedSave) { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: Math.max(0, Math.min(100, (cm.L - 50) / SQ_SHARED_LSCALE)), y: cm.T }; else SQ_POS_MY[cm.id] = { x: Math.max(0, Math.min(100, (50 - cm.L) / SQ_SHARED_LSCALE)), y: cm.T }; } else { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: cm.T, y: cm.L }; else SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; } _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
+    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { var isSharedSave = cm.pitch && cm.pitch.classList && cm.pitch.classList.contains('sqmd-pitch--shared'); if (isSharedSave) { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: Math.max(0, Math.min(100, (cm.L - 50) / SQ_SHARED_LSCALE)), y: Math.max(0, Math.min(100, 100 - cm.T)) }; else SQ_POS_MY[cm.id] = { x: Math.max(0, Math.min(100, (50 - cm.L) / SQ_SHARED_LSCALE)), y: cm.T }; } else { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: cm.T, y: cm.L }; else SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; } _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };

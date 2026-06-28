@@ -3999,9 +3999,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-av--my{ background:linear-gradient(135deg,#86efac,#22c55e); }
 .sqmd-av--opp{ background:linear-gradient(135deg,#93c5fd,#3b82f6); color:#04122a; }
 /* Overview tab */
-.sqtc-overview{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; gap:9px; overflow-y:auto; }
+.sqtc-overview{ flex:1 1 0; min-height:0; display:flex; flex-direction:column; gap:6px; overflow:hidden; }
 .sqtc-shared-top{ display:flex; justify-content:space-between; align-items:center; padding:0 2px; flex:0 0 auto; }
-.sqtc-shared-wrap{ flex:0 0 auto; }
+.sqtc-shared-wrap{ flex:1 1 0; min-height:0; overflow:hidden; }
+.sqtc-shared-wrap .sqmd-pitch--shared{ height:100%; width:auto; max-width:100%; }
 .sqtc-shared-benches{ flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .sqtc-bench-col{ min-width:0; }
 .sqtc-pitches{ flex:1 1 auto; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
