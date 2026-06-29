@@ -3962,6 +3962,11 @@ function _sqSimCtx(M) {
   c.myWide = me.wg ? 'wingers' : me.wm ? 'wide midfielders' : me.fb ? 'overlapping full-backs' : 'wide runners';
   c.opShape = op.back5 ? 'a back five' : op.back3 ? 'a back three' : 'a back four';
   c.opDesc = c.overloadMid ? ('overloads midfield with ' + op.mid) : (op.wide ? 'attacks with width' : op.lone ? 'leaves a lone striker high' : 'stays compact');
+  // shape-aware fragments so each formation generates a different defensive response
+  c.fbName = me.fb ? 'full-back' : (me.back3 || me.back5) ? 'wing-back' : 'wide defender';
+  c.wideTracker = me.wg ? 'winger' : me.wm ? 'wide midfielder' : 'wide player';
+  c.midShifter = me.dm ? 'holding midfielder' : me.cm ? 'central midfielder' : 'nearest midfielder';
+  c.reshape = me.back3 ? 'the back three slides across and the far wing-back drops to make a back five' : me.back5 ? 'the back five shuffles over as a block' : 'the far full-back tucks in to keep the back four';
   return c;
 }
 function _sqSimSummaryLine(c) {
@@ -3984,73 +3989,105 @@ function _sqLay(M, myFn, oppFn) {
 }
 function _sqSimBasePos(M) { return M.my.players.map(function (p) { return [p.baseL, p.baseT]; }).concat(M.opp.players.map(function (p) { return [p.baseL, p.baseT]; })); }
 function _sqSimScenes(M) {
+  // Static analyst board: players stay at their real tactical positions; each scene is a
+  // different opponent ACTION with the full team RESPONSE drawn as overlays (arrows + ball + zones).
   var an = _sqSimAnalysis(M), c = _sqSimCtx(M), me = c.me, op = c.op, mf = M.my.f, of = M.opp.f, S = [];
-  var nMy = M.my.players.length;
+  var nMy = M.my.players.length, base = _sqSimBasePos(M);
+  function bp(side, role) { var a = side === 'my' ? M.my.players : M.opp.players; for (var i = 0; i < a.length; i++) if (a[i].role === role) return [a[i].baseL, a[i].baseT]; return null; }
   function idx(side, role) { var a = side === 'my' ? M.my.players : M.opp.players; for (var i = 0; i < a.length; i++) if (a[i].role === role) return side === 'my' ? i : nMy + i; return -1; }
-  function pt(pos, side, role) { var i = idx(side, role); return i >= 0 ? pos[i] : null; }
-  function baseOf(side, role) { var a = side === 'my' ? M.my.players : M.opp.players; for (var i = 0; i < a.length; i++) if (a[i].role === role) return [a[i].baseL, a[i].baseT]; return null; }
+  function pick(side, roles, low) { var arr = side === 'my' ? M.my.players : M.opp.players, cc = []; for (var i = 0; i < arr.length; i++) if (roles.indexOf(arr[i].role) >= 0) cc.push({ p: arr[i], i: side === 'my' ? i : nMy + i }); if (!cc.length) return null; cc.sort(function (a, b) { return a.p.baseT - b.p.baseT; }); var o = low ? cc[0] : cc[cc.length - 1]; return { pt: [o.p.baseL, o.p.baseT], idx: o.i }; }
   function A(x1, y1, x2, y2, t, curve, recv) { return { x1: x1, y1: y1, x2: x2, y2: y2, t: t, c: !!curve, r: !!recv }; }
-  var zero = function () { return [0, 0]; };
+  function sc(o) { o.pos = base; if (o.zones === undefined) o.zones = []; if (o.hl === undefined) o.hl = []; if (o.arrows === undefined) o.arrows = []; S.push(o); }
 
-  // Scene 1 — defensive shape (formation-specific compactness message)
-  var p1 = _sqLay(M, function (p) { var dF = (p.role === 'ST' || p.role === 'SS') ? -4 : p.role === 'AM' ? -3 : p.role === 'WG' ? -2 : 0; var dW = (p.role === 'FB' || p.role === 'WM' || p.role === 'WG') ? -4 : 0; return [dF, dW]; }, zero);
-  var s1 = 'Compact <b>' + mf + '</b> shape: a back ' + me.def + ' holds the line behind the ' + c.coverMid + '. '
-    + (c.overloadMid ? ('Stay narrow — <b>' + of + '</b> packs ' + op.mid + ' in midfield, so screen the centre and force play wide.') : (op.lone ? 'One spare defender covers their lone striker — stay tight between the lines.' : 'Keep short distances and deny the space between the lines.'));
-  S.push({ key: 'shape', no: 1, dur: 1500, title: 'Defensive shape', text: s1, pos: p1, arrows: [A(20, 28, 20, 72, 'line'), A(38, 30, 38, 70, 'line')], zones: [], hl: [], ball: null });
+  // 1 — defensive shape reference
+  sc({ key: 'shape', no: 1, dur: 1500, title: 'Defensive shape', ball: [46, 50],
+    text: 'Reference block: a back ' + me.def + ' behind the ' + c.coverMid + '. ' + (c.overloadMid ? ('<b>' + of + '</b> packs ' + op.mid + ' in midfield — stay narrow and force play wide.') : 'Tight distances deny the space between the lines.') + ' The ball marks where each scene begins.',
+    arrows: [A(20, 28, 20, 72, 'line'), A(38, 30, 38, 70, 'line')] });
 
-  // Scene 2 — opponent build-up (depends on back three/four & wing presence)
-  var p2 = _sqLay(M, function (p) { return [(p.role === 'ST' || p.role === 'SS') ? -5 : p.role === 'AM' ? -2 : 0, 0]; }, function (p) { if (p.role === 'GK') return [3, 0]; if (p.role === 'CB') return [2, -6]; if (p.role === 'FB') return [10, 3]; if (p.role === 'DM') return [2, 0]; return [0, 0]; });
-  (function () { var g = pt(p2, 'opp', 'GK'), c2 = pt(p2, 'opp', 'CB'), f = pt(p2, 'opp', 'FB'), a = []; if (g && c2) a.push(A(g[0], g[1], c2[0], c2[1], 'pass', true, true)); if (c2 && f) a.push(A(c2[0], c2[1], f[0], f[1], 'pass', true, true)); var s2 = '<b>' + of + '</b> builds out: ' + c.oppBuild + '. First pass GK → ' + c.oppFirst + ' → ' + c.oppOut + '. <b>Receiver:</b> ' + c.oppOut + ' in space. <b>Watch:</b> ' + c.freeMan + '.'; S.push({ key: 'build', no: 2, dur: 1800, title: 'Opponent build-up', text: s2, pos: p2, arrows: a, zones: [], hl: [idx('opp', 'GK')], ball: g }); })();
+  // 2 — opponent builds from the goalkeeper
+  (function () { var g = bp('opp', 'GK') || [90, 50], ocb = bp('opp', 'CB') || [80, 38], odm = bp('opp', 'DM') || bp('opp', 'CM') || [68, 50];
+    var st = bp('my', 'ST') || bp('my', 'SS') || bp('my', 'WG') || [40, 50], scr = bp('my', 'AM') || bp('my', 'CM') || bp('my', 'DM') || [46, 50];
+    sc({ key: 'build', no: 2, dur: 1900, title: 'Opponent builds from the goalkeeper', ball: g, hl: [idx('opp', 'GK')],
+      arrows: [A(g[0], g[1], ocb[0], ocb[1], 'opp', true), A(st[0], st[1], ocb[0], ocb[1], 'press'), A(scr[0], scr[1], odm[0], odm[1], 'def')],
+      zones: [{ x: 34, y: 40, w: 16, h: 20, kind: 'shadow', label: 'Cover shadow' }],
+      text: '<b>Opponent:</b> plays out from the keeper. <b>Response —</b> Presses: the ' + c.presser + ' curves onto the ball-side ' + c.oppFirst + '. Covers: the ' + c.screen + ' shadows the pivot, closing the central lane. Free man: ' + c.freeMan + '. Force them down one side.' }); })();
 
-  // Scene 3 — pressing trigger (who presses / who covers / who screens)
-  var p3 = _sqLay(M, function (p) { if (p.role === 'ST' || p.role === 'SS') return [10, 0]; if (p.role === 'AM') return [8, 0]; if (p.role === 'CM') return [5, 2]; if (p.role === 'WG') return [6, 0]; if (p.role === 'WM') return [5, -2]; if (p.role === 'FB' || p.role === 'DM' || p.role === 'CB') return [3, 0]; return [0, 0]; }, function (p) { if (p.role === 'CB') return [-1, -3]; if (p.role === 'DM') return [-2, 0]; return [0, 0]; });
-  (function () { var st = pt(p3, 'my', 'ST') || pt(p3, 'my', 'SS') || pt(p3, 'my', 'WG'), ocb = pt(p3, 'opp', 'CB'); var am = pt(p3, 'my', 'AM') || pt(p3, 'my', 'SS') || pt(p3, 'my', 'CM'), odm = pt(p3, 'opp', 'DM') || pt(p3, 'opp', 'CM'); var wm = pt(p3, 'my', 'WM') || pt(p3, 'my', 'WG'), ofb = pt(p3, 'opp', 'FB'); var a = []; if (st && ocb) a.push(A(st[0], st[1], ocb[0], ocb[1], 'press')); if (am && odm) a.push(A(am[0], am[1], odm[0], odm[1], 'press')); if (wm && ofb) a.push(A(wm[0], wm[1], ofb[0], ofb[1], 'press', true)); var hl = idx('my', 'ST'); if (hl < 0) hl = idx('my', 'SS'); if (hl < 0) hl = idx('my', 'WG');
-    var s3 = '<b>Presses:</b> the ' + c.presser + ' jumps to the ball-side ' + c.oppFirst + '. <b>Covers:</b> the ' + c.screen + ' screens the pivot' + (op.pivots >= 2 ? ' — two pivots, block both lanes' : '') + '. '
-      + (c.midEdge < 0 ? ('You are ' + (-c.midEdge) + ' short centrally, so press in a curve to cut the pass to ' + c.freeMan + '. <b>Coach:</b> stay compact, show them wide.') : 'Win it high and break. <b>Coach:</b> press together on the trigger.');
-    S.push({ key: 'press', no: 3, dur: 1800, title: 'Pressing trigger', text: s3, pos: p3, arrows: a, zones: [], hl: hl >= 0 ? [hl] : [], ball: ocb }); })();
+  // 3 — opponent attacks our LEFT (top flank)
+  (function () { var ball = [34, 20], fb = pick('my', ['FB'], true) || pick('my', ['CB'], true), wg = pick('my', ['WG', 'WM'], true), cb = pick('my', ['CB'], true), mid = pick('my', ['CM', 'DM', 'AM'], true), far = pick('my', ['FB'], false);
+    var ar = [A(60, 16, ball[0], ball[1], 'opp', true)];
+    if (fb) ar.push(A(fb.pt[0], fb.pt[1], ball[0], ball[1], 'press'));
+    if (wg) ar.push(A(wg.pt[0], wg.pt[1], 18, 16, 'run'));
+    if (cb) ar.push(A(cb.pt[0], cb.pt[1], 22, 30, 'def'));
+    if (mid) ar.push(A(mid.pt[0], mid.pt[1], 30, 26, 'def'));
+    if (far) ar.push(A(far.pt[0], far.pt[1], 16, 54, 'def'));
+    sc({ key: 'left', no: 3, dur: 1900, title: 'Opponent attacks our left', ball: ball, hl: fb ? [fb.idx] : [], arrows: ar,
+      text: '<b>Opponent:</b> attack down our left. <b>Response —</b> the left ' + c.fbName + ' presses the ball, the ball-near centre-back covers the channel behind, the ' + c.midShifter + ' slides across and the left ' + c.wideTracker + ' tracks the runner; ' + c.reshape + '. Wide lane closed — the switch to ' + c.weakSide + ' is the risk.' }); })();
 
-  // Scene 4 — midfield shift & cover
-  var p4 = _sqLay(M, function (p) { if (p.role === 'CM' || p.role === 'DM') return [2, -7]; if (p.role === 'WM' || p.role === 'AM' || p.role === 'SS') return [3, -5]; if (p.role === 'FB') return [2, -2]; return [0, 0]; }, zero);
-  (function () { var a = []; ['CM', 'WM', 'AM', 'SS'].forEach(function (r) { var b = baseOf('my', r), n = pt(p4, 'my', r); if (b && n) a.push(A(b[0], b[1], n[0], n[1], 'run')); });
-    var s4 = '<b>Shift:</b> the ' + c.coverMid + ' slides to lock the strong side. <b>Cover:</b> ' + (me.wm || me.wg ? ('the far ' + (me.wm ? 'wide midfielder' : 'winger') + ' tucks in') : 'the far midfielder tucks inside') + ' to protect the centre. <b>Free man:</b> appears on ' + c.weakSide + ' — recover the picture fast.';
-    S.push({ key: 'shift', no: 4, dur: 1700, title: 'Midfield shift & cover', text: s4, pos: p4, arrows: a, zones: [], hl: [], ball: null }); })();
+  // 4 — opponent attacks our RIGHT (bottom flank)
+  (function () { var ball = [34, 80], fb = pick('my', ['FB'], false) || pick('my', ['CB'], false), wg = pick('my', ['WG', 'WM'], false), cb = pick('my', ['CB'], false), mid = pick('my', ['CM', 'DM', 'AM'], false), far = pick('my', ['FB'], true);
+    var ar = [A(60, 84, ball[0], ball[1], 'opp', true)];
+    if (fb) ar.push(A(fb.pt[0], fb.pt[1], ball[0], ball[1], 'press'));
+    if (wg) ar.push(A(wg.pt[0], wg.pt[1], 18, 84, 'run'));
+    if (cb) ar.push(A(cb.pt[0], cb.pt[1], 22, 70, 'def'));
+    if (mid) ar.push(A(mid.pt[0], mid.pt[1], 30, 74, 'def'));
+    if (far) ar.push(A(far.pt[0], far.pt[1], 16, 46, 'def'));
+    sc({ key: 'right', no: 4, dur: 1900, title: 'Opponent attacks our right', ball: ball, hl: fb ? [fb.idx] : [], arrows: ar,
+      text: '<b>Opponent:</b> switch and attack our right. <b>Response —</b> the right ' + c.fbName + ' jumps to the ball, the ball-near centre-back covers, the ' + c.midShifter + ' shifts over and the right ' + c.wideTracker + ' tracks back; ' + c.reshape + '. Mirrored block — keep the back line square; ' + c.weakSide + ' is now the spare side.' }); })();
 
-  // Scene 5 — attacking transition (counter route specific to wide threat)
-  var p5 = _sqLay(M, function (p) { if (p.role === 'ST' || p.role === 'SS') return [22, 0]; if (p.role === 'WG') return [18, 3]; if (p.role === 'AM') return [16, 0]; if (p.role === 'CM') return [12, 2]; if (p.role === 'FB') return [16, 6]; if (p.role === 'WM') return [14, 3]; if (p.role === 'DM') return [6, 0]; if (p.role === 'CB') return [4, 0]; return [0, 0]; }, function (p) { return [p.role === 'FB' ? -2 : -4, 0]; });
-  (function () { var dm = pt(p5, 'my', 'DM') || pt(p5, 'my', 'CM') || pt(p5, 'my', 'CB'), st = pt(p5, 'my', 'ST') || pt(p5, 'my', 'SS') || pt(p5, 'my', 'WG'); var fb = pt(p5, 'my', 'FB'), fbBase = baseOf('my', 'FB'); var wg = pt(p5, 'my', 'WG') || pt(p5, 'my', 'WM'), am = pt(p5, 'my', 'AM') || pt(p5, 'my', 'SS') || pt(p5, 'my', 'CM'); var a = []; if (dm && st) a.push(A(dm[0], dm[1], st[0], st[1], 'counter', true)); if (fb && fbBase) a.push(A(fbBase[0], fbBase[1], fb[0], fb[1], 'overlap')); if (am && wg) a.push(A(am[0], am[1], wg[0], wg[1], 'run', true)); var hl = idx('my', 'ST'); if (hl < 0) hl = idx('my', 'SS');
-    var s5 = '<b>Win &amp; break:</b> vertical pass into the ' + c.presser + '. <b>Channel:</b> ' + c.myWide + ' attack ' + c.channel + '. <b>Free man:</b> a quick switch finds ' + c.weakSide + '; a third-man run breaks the last line.';
-    S.push({ key: 'counter', no: 5, dur: 1900, title: 'Attacking transition', text: s5, pos: p5, arrows: a, zones: [], hl: hl >= 0 ? [hl] : [], ball: st }); })();
+  // 5 — opponent plays through the centre / between the lines
+  (function () { var ball = [42, 50], dm = bp('my', 'DM') || bp('my', 'CM') || [40, 50], cbL = pick('my', ['CB'], true), cbR = pick('my', ['CB'], false), am = bp('my', 'AM') || bp('my', 'SS') || bp('my', 'CM') || [44, 50];
+    var ar = [A(58, 50, ball[0], ball[1], 'opp', true), A(dm[0], dm[1], 32, 50, 'def')];
+    if (cbL) ar.push(A(cbL.pt[0], cbL.pt[1], 36, 44, 'press'));
+    if (cbR) ar.push(A(cbR.pt[0], cbR.pt[1], 30, 58, 'def'));
+    ar.push(A(am[0], am[1], ball[0], ball[1], 'press'));
+    sc({ key: 'centre', no: 5, dur: 1900, title: 'Opponent plays through the centre', ball: ball, hl: idx('my', 'DM') >= 0 ? [idx('my', 'DM')] : [], arrows: ar,
+      zones: [{ x: 30, y: 40, w: 16, h: 20, kind: 'shadow', label: 'Lane closed' }],
+      text: '<b>Opponent:</b> receive between the lines. <b>Response —</b> the holding midfielder drops to screen, one centre-back steps onto the receiver while the partner covers, and the ' + c.second + ' presses from behind. Central lane shut — show the ball wide.' }); })();
 
-  // Scene 6 — defensive recovery
-  (function () { var a = []; ['FB', 'WG', 'WM', 'ST', 'SS', 'AM'].forEach(function (r) { var adv = pt(p5, 'my', r), home = baseOf('my', r); if (adv && home) a.push(A(adv[0], adv[1], home[0], home[1], 'run')); });
-    var s6 = '<b>Lost it — recover:</b> ' + (me.fb ? 'full-backs' : 'wide players') + ' and the ' + c.presser + ' sprint back; the ' + c.coverMid + ' delays the ball while the back ' + me.def + ' re-forms. <b>Coach:</b> protect the centre first, then the channels.';
-    S.push({ key: 'recover', no: 6, dur: 1600, title: 'Defensive recovery', text: s6, pos: p1, arrows: a, zones: [], hl: [], ball: null }); })();
+  // 6 — opponent overloads the wing (final third, our right)
+  (function () { var ball = [26, 82], fb = pick('my', ['FB'], false) || pick('my', ['CB'], false), wg = pick('my', ['WG', 'WM'], false), mid = pick('my', ['CM', 'DM', 'AM'], false), farwg = pick('my', ['WG', 'WM'], true), cb = pick('my', ['CB'], false);
+    var ar = [A(50, 86, ball[0], ball[1], 'opp', true), A(44, 72, ball[0] + 4, ball[1] - 6, 'opp', true)];
+    if (fb) ar.push(A(fb.pt[0], fb.pt[1], ball[0], ball[1], 'press'));
+    if (wg) ar.push(A(wg.pt[0], wg.pt[1], 18, 84, 'run'));
+    if (mid) ar.push(A(mid.pt[0], mid.pt[1], 26, 74, 'def'));
+    if (farwg) ar.push(A(farwg.pt[0], farwg.pt[1], 14, 70, 'def'));
+    if (cb) ar.push(A(cb.pt[0], cb.pt[1], 18, 64, 'def'));
+    sc({ key: 'overload', no: 6, dur: 1900, title: 'Opponent overloads the wing', ball: ball, hl: (fb && farwg) ? [fb.idx, farwg.idx] : (fb ? [fb.idx] : []), arrows: ar,
+      zones: [{ x: 60, y: 6, w: 30, h: 14, kind: 'weak', label: 'Weak side free' }],
+      text: '<b>Opponent:</b> 2v1 overload on our right. <b>Response —</b> the ' + c.fbName + ' presses, the ' + c.wideTracker + ' tracks, the ' + c.midShifter + ' shifts and the far ' + c.wideTracker + ' drops in so ' + c.reshape + '; centre-backs slide across to even it up. Overload neutralised — ' + c.weakSide + ' is open for the switch.' }); })();
 
-  // Scene 7 — dangerous spaces
-  var s7 = 'Spaces in <b>' + mf + '</b> vs <b>' + of + '</b>: ' + (c.overloadMid ? 'guard the half-spaces and the zone between the lines where their extra midfielder receives' : 'attack the half-spaces and ' + c.channel) + '. The weak side opens when play overloads one flank.';
-  S.push({ key: 'spaces', no: 7, dur: 1800, title: 'Dangerous spaces', text: s7, pos: p1,
-    arrows: [], zones: [
-      { x: 55, y: 17, w: 19, h: 19, kind: 'half', label: 'Half-space' },
-      { x: 55, y: 64, w: 19, h: 19, kind: 'half', label: 'Half-space' },
-      { x: 40, y: 41, w: 30, h: 18, kind: 'central', label: 'Central corridor' },
-      { x: 60, y: 78, w: 30, h: 15, kind: 'overload', label: 'Wide overload' },
-      { x: 60, y: 7, w: 30, h: 13, kind: 'weak', label: 'Weak side' },
-      { x: 58, y: 40, w: 15, h: 20, kind: 'between', label: 'Between the lines' }
-    ], hl: [], ball: null });
+  // 7 — we win it, counter
+  (function () { var ball = [70, 42], dm = bp('my', 'DM') || bp('my', 'CM') || bp('my', 'CB') || [40, 50], st = bp('my', 'ST') || bp('my', 'SS') || bp('my', 'WG') || [78, 40];
+    var wgL = pick('my', ['WG', 'WM'], true), wgR = pick('my', ['WG', 'WM'], false), fb = pick('my', ['FB'], false);
+    var ar = [A(dm[0], dm[1], st[0], st[1], 'counter', true)];
+    if (wgL) ar.push(A(wgL.pt[0], wgL.pt[1], 82, 22, 'run'));
+    if (wgR) ar.push(A(wgR.pt[0], wgR.pt[1], 82, 78, 'run'));
+    if (fb) ar.push(A(fb.pt[0], fb.pt[1], 70, 86, 'overlap'));
+    ar.push(A(46, 50, 84, 18, 'switch', true));
+    var h = idx('my', 'ST'); if (h < 0) h = idx('my', 'SS'); if (h < 0) h = idx('my', 'WG');
+    sc({ key: 'counter', no: 7, dur: 1900, title: 'Win the ball — counter', ball: ball, hl: h >= 0 ? [h] : [], arrows: ar,
+      text: '<b>Our transition:</b> win it and break. Vertical pass into the ' + c.presser + ', the ' + c.myWide + ' attack the channels, the full-back overlaps and a switch finds the free man on the weak side.' }); })();
 
-  // Scene 8 — tactical strengths
-  S.push({ key: 'strong', no: 8, dur: 1800, title: 'Tactical strengths', text: 'Where <b>' + mf + '</b> beats <b>' + of + '</b>:', pos: p1,
-    zones: [{ x: 55, y: 62, w: 34, h: 28, kind: 'strong', label: 'Advantage zone' }], arrows: [], hl: [], ball: null,
-    bullets: an.strengths.map(function (t) { return { k: 'pos', t: '✔ ' + t }; }) });
+  // 8 — opponent counter, our defensive transition
+  (function () { var ball = [30, 50], mid = bp('my', 'CM') || bp('my', 'DM') || bp('my', 'AM') || [40, 50], dm = bp('my', 'DM') || bp('my', 'CM') || [34, 50];
+    var fbL = pick('my', ['FB'], true), fbR = pick('my', ['FB'], false), wgL = pick('my', ['WG', 'WM'], true);
+    var ar = [A(56, 50, ball[0], ball[1], 'opp', true), A(mid[0], mid[1], ball[0], ball[1], 'press'), A(dm[0], dm[1], 22, 50, 'def')];
+    if (fbL) ar.push(A(fbL.pt[0] + 8, fbL.pt[1], fbL.pt[0], fbL.pt[1], 'run'));
+    if (fbR) ar.push(A(fbR.pt[0] + 8, fbR.pt[1], fbR.pt[0], fbR.pt[1], 'run'));
+    if (wgL) ar.push(A(wgL.pt[0] + 12, wgL.pt[1], wgL.pt[0], wgL.pt[1], 'run'));
+    sc({ key: 'recover', no: 8, dur: 1800, title: 'Opponent counter — recover', ball: ball, arrows: ar,
+      zones: [{ x: 14, y: 34, w: 14, h: 32, kind: 'shadow', label: 'Protect centre' }],
+      text: '<b>Opponent:</b> counter through the middle. <b>Response —</b> the nearest midfielder delays the ball, full-backs and wingers sprint back, the holder protects the centre and the back ' + me.def + ' drops together. Protect the centre first, then the channels.' }); })();
 
-  // Scene 9 — tactical weaknesses
-  S.push({ key: 'weak', no: 9, dur: 1800, title: 'Tactical weaknesses', text: 'Where <b>' + of + '</b> can hurt <b>' + mf + '</b>:', pos: p1,
-    zones: [{ x: 74, y: 58, w: 22, h: 32, kind: 'danger', label: 'Exposed area' }], arrows: [], hl: [], ball: null,
-    bullets: an.weaknesses.map(function (t) { return { k: 'neg', t: '✖ ' + t }; }) });
+  // 9 — tactical strengths
+  sc({ key: 'strong', no: 9, dur: 1800, title: 'Tactical strengths', ball: [58, 50],
+    zones: [{ x: 55, y: 62, w: 34, h: 28, kind: 'strong', label: 'Advantage zone' }],
+    bullets: an.strengths.map(function (t) { return { k: 'pos', t: '✔ ' + t }; }),
+    text: 'Where <b>' + mf + '</b> beats <b>' + of + '</b>:' });
 
-  // Scene 10 — smart coach summary specific to the two formations
+  // 10 — coach summary
   var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
-  S.push({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', text: _sqSimSummaryLine(c), pos: p1, zones: [], arrows: [], hl: [], ball: null, bullets: sum });
+  sc({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', ball: [50, 50], bullets: sum, text: _sqSimSummaryLine(c) });
 
   return S;
 }
@@ -4059,8 +4096,8 @@ function _sqSimDotsHtml(M) {
   return row('my') + row('opp');
 }
 function _sqSimArrowDefs() {
-  var types = [['pass', '#38bdf8'], ['press', '#f87171'], ['run', '#60a5fa'], ['counter', '#fbbf24'], ['overlap', '#a78bfa']];
-  var m = types.map(function (t) { return '<marker id="sqsimAh-' + t[0] + '" markerWidth="6" markerHeight="6" refX="4.4" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="' + t[1] + '"/></marker>'; }).join('');
+  var types = [['pass', '#38bdf8'], ['press', '#f87171'], ['run', '#60a5fa'], ['counter', '#fbbf24'], ['overlap', '#a78bfa'], ['def', '#5eead4'], ['switch', '#e2e8f0'], ['opp', '#e879f9']];
+  var m = types.map(function (t) { return '<marker id="sqsimAh-' + t[0] + '" markerWidth="5.5" markerHeight="5.5" refX="4.2" refY="2.75" orient="auto"><path d="M0,0 L5.5,2.75 L0,5.5 Z" fill="' + t[1] + '"/></marker>'; }).join('');
   return '<defs>' + m + '<filter id="sqsimGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
 }
 function _sqSimArrowSvg(arrows) {
@@ -4107,10 +4144,11 @@ var _SQ_CAM = ['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translat
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
   _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M);
-  var h1 = _sqHue(M.my.f), h2 = _sqHue(M.opp.f);
+  var gh = _sqHue(M.my.f + ' ' + M.opp.f); // per-matchup grid hue (subtle environment identity)
   var nd = M.my.players.filter(function (p) { return p.cat === 'df'; }).length;
-  var grid = (7 - Math.min(5, nd)) * 2 + 7; // per-formation grid density → visual identity
-  var styleVars = '--sqx-h1:' + h1 + ';--sqx-h2:' + h2 + ';--sqx-grid:' + grid + 'px';
+  var grid = 24 + (5 - Math.min(5, nd)) * 4; // larger cells = fewer lines (cleaner wireframe)
+  // fixed team identity: My Team = neon green, Opponent = magenta/purple
+  var styleVars = '--sqx-h1:145;--sqx-h2:300;--sqx-gh:' + gh + ';--sqx-grid:' + grid + 'px';
   var ctl = '<div class="sqsim-ctl">'
     + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="prev" title="Previous scene" type="button">⏮</button>'
     + '<button class="sqsim-btn sqsim-btn--play" data-action="sqSimCtl" data-ctl="pause" data-role="play" title="Pause / Play" type="button">⏸</button>'
@@ -4145,7 +4183,7 @@ function _sqTcSimulation(my, op) {
     + boot + '</div></div>'
     + scenebar
     + '<div class="sqsim-info" data-role="info"></div>'
-    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--pass">Pass</span><span class="sqsim-lg sqsim-lg--press">Press</span><span class="sqsim-lg sqsim-lg--run">Movement</span><span class="sqsim-lg sqsim-lg--counter">Counter</span><span class="sqsim-lg sqsim-lg--overlap">Overlap</span></div>'
+    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--opp">Opponent</span><span class="sqsim-lg sqsim-lg--press">Press</span><span class="sqsim-lg sqsim-lg--def">Shift / Cover</span><span class="sqsim-lg sqsim-lg--run">Track / Run</span><span class="sqsim-lg sqsim-lg--counter">Counter</span><span class="sqsim-lg sqsim-lg--switch">Switch</span></div>'
     + '</div>';
 }
 // ── engine state machine ──
@@ -4172,7 +4210,6 @@ function _sqSimEnter(i, instant) {
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
   var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimNetSvg(_sqSim.to, _sqSim.model.my.players.length);
-  var cam = root.querySelector('[data-role="cam"]'); if (cam) cam.style.transform = _SQ_CAM[i % _SQ_CAM.length];
   if (_sqSim.ctx) { var vals = _sqSimMetricVals(_sqSim.ctx, sc.key); var mws = root.querySelectorAll('.sqsim-mw'); for (var mI = 0; mI < mws.length; mI++) { var mk = mws[mI].getAttribute('data-mkey'), vv = Math.round(vals[mk]); var ib = mws[mI].querySelector('i'); if (ib) ib.style.width = vv + '%'; var vl = mws[mI].querySelector('.sqsim-mw-v'); if (vl) vl.textContent = vv; mws[mI].classList.toggle('is-hot', vv >= 70 && mk !== 'risk'); mws[mI].classList.toggle('is-risk', mk === 'risk' && vv >= 55); } }
   root.setAttribute('data-phase', sc.key);
   if (instant) { _sqSim.cur = _sqSim.to.map(function (p) { return p.slice(); }); _sqSimPaint(_sqSim.cur); }

@@ -4195,9 +4195,15 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-layer{ position:absolute; inset:0; z-index:4; }
 .sqsim-zones{ position:absolute; inset:0; z-index:1; pointer-events:none; }
 .sqsim-arrows{ position:absolute; inset:0; width:100%; height:100%; z-index:3; pointer-events:none; }
-.sqsim-ar{ fill:none; stroke-linecap:round; stroke-width:1.5; stroke-dasharray:130; stroke-dashoffset:130; animation:sqsimDraw .85s ease forwards, sqsimPulse 1.5s ease-in-out .8s infinite; }
-.sqsim-ar--pass{ stroke:#38bdf8; } .sqsim-ar--press{ stroke:#f87171; } .sqsim-ar--run{ stroke:#60a5fa; } .sqsim-ar--counter{ stroke:#fbbf24; stroke-width:1.9; } .sqsim-ar--overlap{ stroke:#a78bfa; }
-.sqsim-ar--line{ stroke:rgba(255,255,255,.4); stroke-width:0.8; stroke-dasharray:3 3; animation:none; stroke-dashoffset:0; }
+/* elegant, premium tactical arrows — thinner, smoother, semi-transparent */
+.sqsim-ar{ fill:none; stroke-linecap:round; stroke-linejoin:round; stroke-width:1.05; opacity:.9; stroke-dasharray:140; stroke-dashoffset:140; animation:sqsimDraw .9s ease forwards, sqsimPulse 1.8s ease-in-out .9s infinite; }
+.sqsim-ar--pass{ stroke:#38bdf8; } .sqsim-ar--press{ stroke:#f87171; } .sqsim-ar--counter{ stroke:#fbbf24; stroke-width:1.35; } .sqsim-ar--overlap{ stroke:#a78bfa; } .sqsim-ar--opp{ stroke:#e879f9; stroke-width:1.25; }
+/* dashed "movement" styles (run/track, defensive shift/cover, switch) — no draw, gentle pulse */
+.sqsim-ar--run{ stroke:#60a5fa; stroke-dasharray:3.2 2.6; stroke-dashoffset:0; animation:sqsimFlow 1.6s linear infinite, sqsimPulse 1.8s ease-in-out infinite; }
+.sqsim-ar--def{ stroke:#5eead4; stroke-dasharray:2 2.4; stroke-dashoffset:0; animation:sqsimFlow 1.9s linear infinite, sqsimPulse 1.8s ease-in-out infinite; }
+.sqsim-ar--switch{ stroke:#e2e8f0; stroke-width:1; stroke-dasharray:6 4; stroke-dashoffset:0; opacity:.8; animation:sqsimFlow 2.2s linear infinite; }
+@keyframes sqsimFlow{ to{ stroke-dashoffset:-60; } }
+.sqsim-ar--line{ stroke:rgba(255,255,255,.35); stroke-width:0.7; stroke-dasharray:3 3; animation:none; stroke-dashoffset:0; }
 .sqsim-recv{ fill:none; stroke-width:1; animation:sqsimRecv 1.3s ease-in-out infinite; }
 .sqsim-recv--pass{ stroke:#38bdf8; } .sqsim-recv--run{ stroke:#60a5fa; } .sqsim-recv--counter{ stroke:#fbbf24; }
 @keyframes sqsimDraw{ to{ stroke-dashoffset:0; } }
@@ -4211,6 +4217,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-zone--overload{ background:rgba(74,222,128,.18); border:1px solid rgba(74,222,128,.5); }
 .sqsim-zone--weak{ background:rgba(148,163,184,.16); border:1px dashed rgba(203,213,225,.5); }
 .sqsim-zone--between{ background:rgba(167,139,250,.18); border:1px solid rgba(167,139,250,.5); }
+.sqsim-zone--shadow{ background:rgba(8,14,28,.42); border:1px dashed rgba(180,210,255,.28); }
+.sqsim-zone--shadow span{ color:#bcd4f7; }
 .sqsim-zone--strong{ background:rgba(34,197,94,.22); border:1.5px solid rgba(74,222,128,.65); }
 .sqsim-zone--danger{ background:rgba(248,113,113,.2); border:1.5px solid rgba(248,113,113,.65); }
 .sqsim-dot{ position:absolute; left:0; top:0; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; will-change:transform; transform:translate3d(-100px,-100px,0); box-shadow:0 2px 8px rgba(0,0,0,.5); }
@@ -4238,7 +4246,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-legend{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; }
 .sqsim-lg{ font-size:10px; font-weight:700; color:#cbd5e1; display:flex; align-items:center; gap:6px; }
 .sqsim-lg::before{ content:''; width:14px; height:3px; border-radius:2px; }
-.sqsim-lg--pass::before{ background:#38bdf8; } .sqsim-lg--press::before{ background:#f87171; } .sqsim-lg--run::before{ background:#60a5fa; } .sqsim-lg--counter::before{ background:#fbbf24; } .sqsim-lg--overlap::before{ background:#a78bfa; }
+.sqsim-lg--pass::before{ background:#38bdf8; } .sqsim-lg--press::before{ background:#f87171; } .sqsim-lg--run::before{ background:#60a5fa; } .sqsim-lg--counter::before{ background:#fbbf24; } .sqsim-lg--overlap::before{ background:#a78bfa; } .sqsim-lg--def::before{ background:#5eead4; } .sqsim-lg--switch::before{ background:#e2e8f0; } .sqsim-lg--opp::before{ background:#e879f9; }
 .sqtc-ov-body .sqsim-stage{ height:auto; }
 /* Simulation popup = fixed height, no internal scroll: pitch flexes, summary always visible */
 .sqtc-ov--simulation{ width:min(900px,95vw); height:min(94vh,780px); max-height:94vh; }
@@ -4261,30 +4269,29 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim--holo{ color:#dff1ff; }
 .sqsim-holo{ position:relative; overflow:hidden; perspective:1100px;
   background:radial-gradient(120% 120% at 50% 0%,#0b1830 0%,#060d1c 55%,#03070f 100%) !important;
-  border:1px solid hsla(var(--sqx-h1,205),90%,60%,.35) !important;
-  box-shadow:0 0 0 1px rgba(0,0,0,.4), inset 0 0 70px rgba(0,40,90,.35); }
-/* neon grid environment (density varies per formation via --sqx-grid) */
+  border:1px solid rgba(120,200,255,.28) !important;
+  box-shadow:0 0 0 1px rgba(0,0,0,.4), inset 0 0 70px rgba(0,40,90,.32); }
+/* subtle wireframe grid (larger, fainter, static — easier to read) */
 .sqsim-grid{ position:absolute; inset:0; z-index:0; pointer-events:none;
-  background-image:linear-gradient(hsla(var(--sqx-h1,205),90%,60%,.10) 1px,transparent 1px),linear-gradient(90deg,hsla(var(--sqx-h1,205),90%,60%,.10) 1px,transparent 1px);
-  background-size:var(--sqx-grid,13px) var(--sqx-grid,13px);
-  -webkit-mask-image:radial-gradient(120% 100% at 50% 42%,#000 55%,transparent 100%); mask-image:radial-gradient(120% 100% at 50% 42%,#000 55%,transparent 100%);
-  animation:sqsimGridPan 9s linear infinite; }
+  background-image:linear-gradient(hsla(var(--sqx-gh,205),70%,62%,.055) 1px,transparent 1px),linear-gradient(90deg,hsla(var(--sqx-gh,205),70%,62%,.055) 1px,transparent 1px);
+  background-size:var(--sqx-grid,30px) var(--sqx-grid,30px);
+  -webkit-mask-image:radial-gradient(120% 100% at 50% 42%,#000 60%,transparent 100%); mask-image:radial-gradient(120% 100% at 50% 42%,#000 60%,transparent 100%); }
 @keyframes sqsimGridPan{ from{ background-position:0 0,0 0; } to{ background-position:var(--sqx-grid,13px) 0,0 var(--sqx-grid,13px); } }
-.sqsim-scan{ position:absolute; left:0; right:0; top:0; height:34%; z-index:1; pointer-events:none;
-  background:linear-gradient(180deg,transparent,hsla(var(--sqx-h1,205),95%,65%,.13),transparent); animation:sqsimScan 3.6s ease-in-out infinite; }
-@keyframes sqsimScan{ 0%{ transform:translateY(-40%); opacity:.2; } 50%{ opacity:.7; } 100%{ transform:translateY(300%); opacity:.2; } }
-.sqsim-holo .sqsim-cam{ position:absolute; inset:0; z-index:2; transform-origin:50% 50%; transform-style:preserve-3d; transition:transform 1s cubic-bezier(.4,.1,.2,1); }
-.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; color:hsla(var(--sqx-h1,205),95%,70%,.55); filter:drop-shadow(0 0 3px hsla(var(--sqx-h1,205),95%,60%,.5)); }
+.sqsim-scan{ position:absolute; left:0; right:0; top:0; height:30%; z-index:1; pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(140,200,255,.06),transparent); animation:sqsimScan 6s ease-in-out infinite; }
+@keyframes sqsimScan{ 0%{ transform:translateY(-40%); opacity:.15; } 50%{ opacity:.4; } 100%{ transform:translateY(320%); opacity:.15; } }
+.sqsim-holo .sqsim-cam{ position:absolute; inset:0; z-index:2; }
+.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; color:rgba(150,205,255,.5); filter:drop-shadow(0 0 3px rgba(120,190,255,.4)); }
 .sqsim-net{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.sqsim-nl{ stroke-width:.4; }
-.sqsim-nl--my{ stroke:hsla(var(--sqx-h1,205),90%,65%,.55); } .sqsim-nl--opp{ stroke:hsla(var(--sqx-h2,28),85%,68%,.40); }
+.sqsim-nl{ stroke-width:.35; }
+.sqsim-nl--my{ stroke:hsla(var(--sqx-h1,145),90%,65%,.5); } .sqsim-nl--opp{ stroke:hsla(var(--sqx-h2,300),85%,70%,.42); }
 /* holographic player nodes (override the green/blue dots) */
 .sqsim-holo .sqsim-dot{ background:none !important; }
 .sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 32%,hsla(var(--sqx-h1,205),95%,78%,1),hsla(var(--sqx-h1,205),90%,45%,.55) 70%) !important; box-shadow:0 0 0 1.5px hsla(var(--sqx-h1,205),95%,72%,.9), 0 0 14px hsla(var(--sqx-h1,205),95%,60%,.6) !important; }
 .sqsim-holo .sqsim-dot--opp{ background:radial-gradient(circle at 38% 32%,hsla(var(--sqx-h2,28),90%,80%,.95),hsla(var(--sqx-h2,28),85%,50%,.4) 70%) !important; box-shadow:0 0 0 1.5px hsla(var(--sqx-h2,28),90%,74%,.8), 0 0 12px hsla(var(--sqx-h2,28),85%,60%,.45) !important; opacity:.88; }
 .sqsim-holo .sqsim-dot.is-hl{ box-shadow:0 0 0 2.5px #ffd54a, 0 0 22px rgba(255,213,74,.85) !important; }
 .sqsim-holo .sqsim-dot-no{ color:#eaf6ff; }
-.sqsim-holo .sqsim-ar{ stroke-width:1.7; filter:drop-shadow(0 0 3px currentColor); }
+.sqsim-holo .sqsim-ar{ filter:drop-shadow(0 0 2px currentColor); }
 .sqsim-holo .sqsim-progress{ background:rgba(255,255,255,.08); }
 .sqsim-holo .sqsim-progress i{ background:linear-gradient(90deg,hsla(var(--sqx-h1,205),90%,55%,1),#ffd54a); }
 /* floating HUD metric widgets */
