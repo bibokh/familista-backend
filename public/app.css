@@ -4240,6 +4240,22 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-lg::before{ content:''; width:14px; height:3px; border-radius:2px; }
 .sqsim-lg--pass::before{ background:#38bdf8; } .sqsim-lg--press::before{ background:#f87171; } .sqsim-lg--run::before{ background:#60a5fa; } .sqsim-lg--counter::before{ background:#fbbf24; } .sqsim-lg--overlap::before{ background:#a78bfa; }
 .sqtc-ov-body .sqsim-stage{ height:auto; }
+/* Simulation popup = fixed height, no internal scroll: pitch flexes, summary always visible */
+.sqtc-ov--simulation{ width:min(900px,95vw); height:min(94vh,780px); max-height:94vh; }
+.sqtc-ov--simulation .sqtc-ov-body{ overflow:hidden; display:flex; flex-direction:column; padding:10px 14px; }
+.sqtc-ov--simulation .sqsim{ flex:1 1 auto; min-height:0; gap:6px; }
+.sqtc-ov--simulation .sqsim-bar,
+.sqtc-ov--simulation .sqsim-scenebar,
+.sqtc-ov--simulation .sqsim-info,
+.sqtc-ov--simulation .sqsim-legend{ flex:0 0 auto; }
+.sqtc-ov--simulation .sqsim-stagewrap{ flex:1 1 0; min-height:90px; display:flex; align-items:center; justify-content:center; }
+.sqtc-ov--simulation .sqsim-stagewrap .sqsim-stage{ height:100%; width:auto; max-width:100%; aspect-ratio:16/10; }
+.sqtc-ov--simulation .sqsim-info{ min-height:0; padding:7px 11px; max-height:30vh; overflow:auto; }
+.sqtc-ov--simulation .sqsim-sctitle{ font-size:13px; margin:1px 0 3px; }
+.sqtc-ov--simulation .sqsim-sctext{ font-size:11px; line-height:1.42; }
+.sqtc-ov--simulation .sqsim-bullets{ margin-top:6px; gap:4px 8px; }
+.sqtc-ov--simulation .sqsim-bl{ font-size:10.5px; padding:2px 8px; }
+.sqsim-stagewrap{ width:100%; }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
