@@ -4081,34 +4081,75 @@ function _sqSimInfoHtml(sc, total) {
   if (sc.bullets && sc.bullets.length) h += '<div class="sqsim-bullets">' + sc.bullets.map(function (b) { return '<div class="sqsim-bl sqsim-bl--' + (b.k || 'n') + '">' + _sqEsc(b.t) + '</div>'; }).join('') + '</div>';
   return h;
 }
+// ── Tactical Intelligence 3.0 — holographic command-centre visual layer ──
+function _sqHue(s) { var h = 0; s = String(s || ''); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360; }
+function _sqSimHoloField() {
+  var s = 'fill="none" stroke="currentColor" stroke-width="0.5" vector-effect="non-scaling-stroke"';
+  return '<svg class="sqsim-holofield" viewBox="0 0 150 100" preserveAspectRatio="none">'
+    + '<rect x="2" y="2" width="146" height="96" rx="2" ' + s + '/><line x1="75" y1="2" x2="75" y2="98" ' + s + '/>'
+    + '<circle cx="75" cy="50" r="12" ' + s + '/><circle cx="75" cy="50" r="0.9" fill="currentColor"/>'
+    + '<rect x="2" y="22" width="22" height="56" ' + s + '/><rect x="126" y="22" width="22" height="56" ' + s + '/>'
+    + '<rect x="2" y="37" width="8" height="26" ' + s + '/><rect x="140" y="37" width="8" height="26" ' + s + '/></svg>';
+}
+function _sqSimNetSvg(pos, nMy) {
+  function lines(s, e, cls) { var out = ''; for (var i = s; i < e; i++) { var d = []; for (var j = s; j < e; j++) { if (j === i) continue; var dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1]; d.push([dx * dx + dy * dy, j]); } d.sort(function (a, b) { return a[0] - b[0]; }); for (var k = 0; k < 2 && k < d.length; k++) { var j2 = d[k][1]; if (j2 > i) out += '<line x1="' + pos[i][0].toFixed(1) + '" y1="' + pos[i][1].toFixed(1) + '" x2="' + pos[j2][0].toFixed(1) + '" y2="' + pos[j2][1].toFixed(1) + '" class="' + cls + '"/>'; } } return out; }
+  return lines(0, nMy, 'sqsim-nl sqsim-nl--my') + lines(nMy, pos.length, 'sqsim-nl sqsim-nl--opp');
+}
+function _sqSimMetricBase(c) {
+  var me = c.me, op = c.op, cl = _sqSimClamp;
+  return { press: cl(50 + c.midEdge * 7 + me.fw * 2, 12, 96), space: cl(50 + c.midEdge * 6 + c.wideEdge * 3, 12, 96), compact: cl(52 + (me.def - 4) * 6 + (me.mid - 4) * 4, 12, 96), counter: cl(44 + me.fw * 7 + me.wide * 5, 12, 96), adv: cl(50 + c.midEdge * 4 + (me.def - op.fw) * 4 + c.wideEdge * 3, 8, 95), risk: cl(40 + op.wide * 7 + (op.fw > me.def ? 12 : 0) + (c.midEdge < 0 ? (-c.midEdge * 5) : 0), 8, 95) };
+}
+var _SQ_METRICS = [['press', 'Press'], ['space', 'Space'], ['compact', 'Compact'], ['counter', 'Counter'], ['adv', 'Tac Adv'], ['risk', 'Risk']];
+var _SQ_METRIC_EMPH = { shape: ['compact'], build: ['space'], press: ['press'], shift: ['space', 'compact'], counter: ['counter'], recover: ['compact', 'risk'], spaces: ['risk'], strong: ['adv'], weak: ['risk'], summary: ['adv'] };
+function _sqSimMetricVals(c, key) { var b = _sqSimMetricBase(c); (_SQ_METRIC_EMPH[key] || []).forEach(function (k) { b[k] = _sqSimClamp(b[k] + 16, 12, 98); }); return b; }
+function _sqSimMetricsHtml() { return _SQ_METRICS.map(function (m) { return '<div class="sqsim-mw" data-mkey="' + m[0] + '"><span class="sqsim-mw-l">' + m[1] + '</span><span class="sqsim-mw-bar"><i></i></span><span class="sqsim-mw-v">0</span></div>'; }).join(''); }
+var _SQ_CAM = ['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
-  _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M);
+  _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M);
+  var h1 = _sqHue(M.my.f), h2 = _sqHue(M.opp.f);
+  var nd = M.my.players.filter(function (p) { return p.cat === 'df'; }).length;
+  var grid = (7 - Math.min(5, nd)) * 2 + 7; // per-formation grid density → visual identity
+  var styleVars = '--sqx-h1:' + h1 + ';--sqx-h2:' + h2 + ';--sqx-grid:' + grid + 'px';
   var ctl = '<div class="sqsim-ctl">'
     + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="prev" title="Previous scene" type="button">⏮</button>'
     + '<button class="sqsim-btn sqsim-btn--play" data-action="sqSimCtl" data-ctl="pause" data-role="play" title="Pause / Play" type="button">⏸</button>'
     + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="next" title="Next scene" type="button">⏭</button>'
     + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="replay" title="Replay" type="button">↻</button>'
+    + '<button class="sqsim-btn sqsim-btn--mx" data-action="sqSimCtl" data-ctl="matrix" data-role="mx" title="Matrix mode" type="button">◉</button>'
     + '<span class="sqsim-spd"><button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="0.5" type="button">0.5×</button>'
     + '<button class="sqsim-sx is-on" data-action="sqSimCtl" data-ctl="speed" data-val="1" type="button">1×</button>'
     + '<button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="2" type="button">2×</button></span></div>';
   var scenebar = '<div class="sqsim-scenebar" data-role="scenebar">' + _sqSim.scenes.map(function (s, i) { return '<i class="sqsim-seg' + (i === 0 ? ' is-on' : '') + '" title="' + _sqEsc(s.title) + '"></i>'; }).join('') + '</div>';
-  return '<div class="sqsim" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '">'
-    + '<div class="sqsim-bar"><span class="sqsim-tag">AI tactical model</span>'
+  var boot = '<div class="sqsim-boot" data-role="boot"><div class="sqsim-boot-in"><div class="sqsim-boot-hd">◈ TACTICAL INTELLIGENCE ENGINE</div><div class="sqsim-boot-lines">'
+    + '<p style="animation-delay:.05s">▸ Initializing tactical engine…</p>'
+    + '<p style="animation-delay:.40s">▸ Scanning formations <b>' + _sqEsc(M.my.f) + '</b> / <b>' + _sqEsc(M.opp.f) + '</b>…</p>'
+    + '<p style="animation-delay:.75s">▸ Calculating press resistance…</p>'
+    + '<p style="animation-delay:1.10s">▸ Searching weak side…</p>'
+    + '<p style="animation-delay:1.45s">▸ Building passing network…</p>'
+    + '<p style="animation-delay:1.80s">▸ Generating tactical model…</p>'
+    + '<p class="sqsim-boot-ok" style="animation-delay:2.10s">▸ Simulation ready</p></div></div></div>';
+  return '<div class="sqsim sqsim--holo" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
+    + '<div class="sqsim-bar"><span class="sqsim-tag">AI tactical intelligence</span>'
     + '<span class="sqsim-match">' + _sqEsc(_sqClubName()) + ' <b>' + _sqEsc(M.my.f) + '</b> <i>vs</i> Opponent <b>' + _sqEsc(M.opp.f) + '</b></span>' + ctl + '</div>'
-    + '<div class="sqsim-stagewrap"><div class="sqsim-stage sqmd-pitch sqmd-pitch--shared">' + _sqMdField()
+    + '<div class="sqsim-stagewrap"><div class="sqsim-stage sqsim-holo sqmd-pitch sqmd-pitch--shared">'
+    + '<div class="sqsim-grid"></div><div class="sqsim-scan"></div>'
+    + '<div class="sqsim-cam" data-role="cam">' + _sqSimHoloField()
+    + '<svg class="sqsim-net" data-role="net" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>'
     + '<div class="sqsim-zones" data-role="zones"></div>'
     + '<svg class="sqsim-arrows" data-role="arrows" viewBox="0 0 100 100" preserveAspectRatio="none">' + _sqSimArrowDefs() + '</svg>'
     + '<div class="sqsim-layer">' + _sqSimDotsHtml(M) + '</div>'
-    + '<div class="sqsim-ball" data-role="ball"></div>'
-    + '<div class="sqsim-progress"><i data-role="bar"></i></div></div></div>'
+    + '<div class="sqsim-ball" data-role="ball"></div></div>'
+    + '<div class="sqsim-metrics" data-role="metrics">' + _sqSimMetricsHtml() + '</div>'
+    + '<div class="sqsim-progress"><i data-role="bar"></i></div>'
+    + boot + '</div></div>'
     + scenebar
     + '<div class="sqsim-info" data-role="info"></div>'
     + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--pass">Pass</span><span class="sqsim-lg sqsim-lg--press">Press</span><span class="sqsim-lg sqsim-lg--run">Movement</span><span class="sqsim-lg sqsim-lg--counter">Counter</span><span class="sqsim-lg sqsim-lg--overlap">Overlap</span></div>'
     + '</div>';
 }
 // ── engine state machine ──
-var _sqSim = { model: null, scenes: [], idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0 };
+var _sqSim = { model: null, scenes: [], ctx: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
 function _sqSimStop() { _sqSim.token++; if (_sqSim.raf) { try { cancelAnimationFrame(_sqSim.raf); } catch (e) {} _sqSim.raf = 0; } }
 function _sqSimBoot() {
   _sqSimStop(); if (typeof requestAnimationFrame !== 'function') return;
@@ -4130,6 +4171,9 @@ function _sqSimEnter(i, instant) {
   for (var d = 0; d < _sqSim.dots.length; d++) _sqSim.dots[d].classList.remove('is-hl');
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
+  var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimNetSvg(_sqSim.to, _sqSim.model.my.players.length);
+  var cam = root.querySelector('[data-role="cam"]'); if (cam) cam.style.transform = _SQ_CAM[i % _SQ_CAM.length];
+  if (_sqSim.ctx) { var vals = _sqSimMetricVals(_sqSim.ctx, sc.key); var mws = root.querySelectorAll('.sqsim-mw'); for (var mI = 0; mI < mws.length; mI++) { var mk = mws[mI].getAttribute('data-mkey'), vv = Math.round(vals[mk]); var ib = mws[mI].querySelector('i'); if (ib) ib.style.width = vv + '%'; var vl = mws[mI].querySelector('.sqsim-mw-v'); if (vl) vl.textContent = vv; mws[mI].classList.toggle('is-hot', vv >= 70 && mk !== 'risk'); mws[mI].classList.toggle('is-risk', mk === 'risk' && vv >= 55); } }
   root.setAttribute('data-phase', sc.key);
   if (instant) { _sqSim.cur = _sqSim.to.map(function (p) { return p.slice(); }); _sqSimPaint(_sqSim.cur); }
 }
@@ -4140,13 +4184,15 @@ function _sqSimInit(root, tok) {
   _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
   _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
   root.classList.remove('is-done'); _sqSimSetPlayIcon();
-  _sqSimEnter(0, false);
+  var bt = root.querySelector('[data-role="boot"]'); _sqSim.boot = bt ? 2300 : 0; if (bt) bt.classList.remove('is-hidden');
+  if (_sqSim.boot <= 0) _sqSimEnter(0, false);
   _sqSim.last = _sqSimNow();
   _sqSimLoop(tok);
 }
 function _sqSimLoop(tok) {
   if (tok !== _sqSim.token || !_sqSim.el || !document.body.contains(_sqSim.el)) return;
   var now = _sqSimNow(), dt = now - _sqSim.last; _sqSim.last = now; if (dt < 0) dt = 0; if (dt > 80) dt = 80;
+  if (_sqSim.boot > 0) { _sqSim.boot -= dt; if (_sqSim.boot <= 0) { var bt = _sqSim.el.querySelector('[data-role="boot"]'); if (bt) bt.classList.add('is-hidden'); _sqSimEnter(0, false); } _sqSim.raf = requestAnimationFrame(function () { _sqSimLoop(tok); }); return; }
   var sc = _sqSim.scenes[_sqSim.idx], dur = sc.dur || 1700, moveDur = dur * 0.72;
   if (_sqSim.playing) _sqSim.elapsed += dt * _sqSim.speed;
   var mp = _sqSimEase(_sqSimClamp(_sqSim.elapsed / moveDur, 0, 1));
@@ -4167,7 +4213,8 @@ function sqSimCtl(ctl, val) {
   if (ctl === 'pause') { _sqSim.playing = !_sqSim.playing; if (_sqSim.playing && _sqSim.el.classList.contains('is-done')) { _sqSim.el.classList.remove('is-done'); _sqSimEnter(0); } _sqSimSetPlayIcon(); }
   else if (ctl === 'next') { _sqSim.el.classList.remove('is-done'); _sqSimEnter(_sqSim.idx + 1); }
   else if (ctl === 'prev') { _sqSim.el.classList.remove('is-done'); _sqSimEnter(_sqSim.idx - 1); }
-  else if (ctl === 'replay') { _sqSim.el.classList.remove('is-done'); _sqSim.playing = true; _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimEnter(0); _sqSimSetPlayIcon(); }
+  else if (ctl === 'replay') { _sqSim.el.classList.remove('is-done'); _sqSim.playing = true; _sqSim.boot = 0; var bt = _sqSim.el.querySelector('[data-role="boot"]'); if (bt) bt.classList.add('is-hidden'); _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimEnter(0); _sqSimSetPlayIcon(); }
+  else if (ctl === 'matrix') { _sqSim.el.classList.toggle('is-matrix'); var mb = _sqSim.el.querySelector('[data-role="mx"]'); if (mb) mb.classList.toggle('is-on', _sqSim.el.classList.contains('is-matrix')); }
   else if (ctl === 'speed') { _sqSim.speed = parseFloat(val) || 1; var bs = _sqSim.el.querySelectorAll('.sqsim-sx'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('is-on', parseFloat(bs[i].getAttribute('data-val')) === _sqSim.speed); }
 }
 function sqSimReplay() { sqSimCtl('replay'); }
