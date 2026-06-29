@@ -3005,7 +3005,7 @@ function _sqFormationBodyLegacy() {
   var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
-function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) b.innerHTML = _sqFormationBody(); }
+function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdOverlay === 'simulation') _sqSimBoot(); else _sqSimStop(); } }
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
   if (typeof _sqSetupsLoad === 'function') _sqSetupsLoad();
@@ -3860,10 +3860,10 @@ function _sqCmpPopup(id) {
   }
   return html + '</div>';
 }
-var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions'];
+var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions', 'Simulation'];
 function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
 function _sqCmdOverlayHtml(tab, my, op) {
-  var title = { matchup: 'Matchup', heatmap: 'Heatmap', stats: 'Stats', zones: 'Zones', setpieces: 'Set Pieces', instructions: 'Instructions' }[tab] || tab, inner = '';
+  var title = { matchup: 'Matchup', heatmap: 'Heatmap', stats: 'Stats', zones: 'Zones', setpieces: 'Set Pieces', instructions: 'Instructions', simulation: 'AI Simulation' }[tab] || tab, inner = '';
   switch (tab) {
     case 'matchup': inner = _sqTcMatchup(my, op); break;
     case 'heatmap': inner = _sqTcHeatmap(); break;
@@ -3871,6 +3871,7 @@ function _sqCmdOverlayHtml(tab, my, op) {
     case 'zones': inner = _sqTcZones(); break;
     case 'setpieces': inner = _sqTcSetpieces(); break;
     case 'instructions': inner = _sqTcInstructions(); break;
+    case 'simulation': inner = _sqTcSimulation(my, op); break;
     default: return '';
   }
   return '<div class="sqtc-ov-back" data-action="sqCmdOverlayClose"></div>'
@@ -3886,6 +3887,103 @@ function _sqCmdInner() {
   return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
+// ── Tactical Simulation (formation-vs-formation educational animation) ──────────
+// Reads My + Opponent formation automatically and animates a short tactical model.
+// Architecture is attribute-ready: _sqSimMove receives per-player context so a future
+// AI layer can scale movement by OVR / fitness / speed / passing / mentality without UI changes.
+function _sqSimDots(formation, side) {
+  var slots = SQ_FORMATIONS[formation] || SQ_FORMATIONS['4-3-3'];
+  return slots.map(function (s, i) {
+    var baseL = side === 'my' ? (100 - s.y) : s.y; // same mapping as the shared overlay pitch
+    var baseT = s.x;
+    var wide = (s.x <= 24 || s.x >= 76) ? 1 : 0;
+    return '<div class="sqsim-dot sqsim-dot--' + side + ' sqsim-dot--' + (s.c || 'mf') + '"'
+      + ' data-side="' + side + '" data-cat="' + (s.c || 'mf') + '" data-bl="' + baseL.toFixed(1) + '" data-bt="' + baseT.toFixed(1) + '" data-wide="' + wide + '">'
+      + '<span class="sqsim-dot-no">' + _sqEsc(s.r || (i + 1)) + '</span></div>';
+  }).join('');
+}
+function _sqSimArrows() {
+  var defs = '<defs>'
+    + '<marker id="sqsimAh" markerWidth="6" markerHeight="6" refX="4.4" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>'
+    + '<filter id="sqsimGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1.1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '</defs>';
+  function g(cls, paths) { return '<g class="sqsim-arr sqsim-arr--' + cls + '" filter="url(#sqsimGlow)" marker-end="url(#sqsimAh)">' + paths + '</g>'; }
+  var press = g('press', '<path d="M34 50 L48 50"/><path d="M32 30 L46 36"/><path d="M32 70 L46 64"/>');
+  var attack = g('attack', '<path d="M40 50 Q56 36 70 30"/><path d="M28 84 L54 88"/><path d="M46 22 Q62 32 72 46"/>');
+  var counter = g('counter', '<path d="M22 52 L72 30"/><path d="M30 64 L66 74"/>');
+  return '<svg class="sqsim-arrows" viewBox="0 0 100 100" preserveAspectRatio="none">' + defs + press + attack + counter + '</svg>';
+}
+function _sqTcSimulation(my, op) {
+  var mf = SQ_FORM.myFormation, of = SQ_FORM.oppFormation;
+  var dots = _sqSimDots(mf, 'my') + _sqSimDots(of, 'opp');
+  return '<div class="sqsim" data-myf="' + _sqEsc(mf) + '" data-oppf="' + _sqEsc(of) + '">'
+    + '<div class="sqsim-bar"><span class="sqsim-tag">AI tactical model</span>'
+    + '<span class="sqsim-match">' + _sqEsc(_sqClubName()) + ' <b>' + _sqEsc(mf) + '</b> <i>vs</i> Opponent <b>' + _sqEsc(of) + '</b></span>'
+    + '<span class="sqsim-phase" data-role="phase">Kick-off</span>'
+    + '<button class="sqsim-replay" data-action="sqSimReplay" type="button">▶ Replay</button></div>'
+    + '<div class="sqsim-stage sqmd-pitch sqmd-pitch--shared">' + _sqMdField() + _sqSimArrows()
+    + '<div class="sqsim-layer">' + dots + '</div>'
+    + '<div class="sqsim-progress"><i data-role="bar"></i></div></div>'
+    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--press">Pressing</span><span class="sqsim-lg sqsim-lg--attack">Build-up &amp; width</span><span class="sqsim-lg sqsim-lg--counter">Counter</span>'
+    + '<span class="sqsim-note">Educational model — shows how <b>' + _sqEsc(mf) + '</b> behaves vs <b>' + _sqEsc(of) + '</b>. Future AI scales runs by OVR, fitness, speed, passing, positioning &amp; mentality.</span></div>'
+    + '</div>';
+}
+var _sqSimRAF = 0, _sqSimToken = 0;
+function _sqSimStop() { if (_sqSimRAF) { try { cancelAnimationFrame(_sqSimRAF); } catch (e) {} _sqSimRAF = 0; } _sqSimToken++; }
+function _sqSimBoot() {
+  _sqSimStop(); if (typeof requestAnimationFrame !== 'function') return;
+  var tok = _sqSimToken;
+  requestAnimationFrame(function () { if (tok !== _sqSimToken) return; var root = document.querySelector('.sqsim'); if (root) _sqSimRun(root); });
+}
+function sqSimReplay() { _sqSimBoot(); }
+// per-player movement model — context-rich so AI can later modulate (amplitude *= speed/OVR etc.)
+function _sqSimMove(side, cat, wide, phase) {
+  var f = 0, w = 0;
+  if (phase === 'press') { if (side === 'my') f = cat === 'df' ? 6 : cat === 'mf' ? 12 : cat === 'fw' ? 9 : 0; else f = cat === 'fw' ? -4 : cat === 'mf' ? -3 : -2; }
+  else if (phase === 'attack') { if (side === 'my') { f = cat === 'df' ? 5 : cat === 'mf' ? 9 : cat === 'fw' ? 6 : 0; if (wide && cat === 'df') { f += 11; w += 6; } else if (wide) { w += 8; f += 2; } } else { f = cat === 'df' ? -7 : cat === 'mf' ? -5 : -3; w = -3; } }
+  else if (phase === 'counter') { if (side === 'my') f = cat === 'fw' ? 20 : cat === 'mf' ? 12 : cat === 'df' ? 4 : 1; else f = -5; }
+  return [f, w];
+}
+function _sqSimRun(root) {
+  var stage = root.querySelector('.sqsim-stage'); if (!stage) return;
+  var phaseEl = root.querySelector('[data-role="phase"]'), barEl = root.querySelector('[data-role="bar"]');
+  var rect = stage.getBoundingClientRect(), W = rect.width || 600, H = rect.height || 360;
+  var phases = ['shape', 'press', 'attack', 'counter', 'shape'];
+  var dots = [].slice.call(root.querySelectorAll('.sqsim-dot')).map(function (el) {
+    var bl = +el.getAttribute('data-bl'), bt = +el.getAttribute('data-bt');
+    var side = el.getAttribute('data-side'), cat = el.getAttribute('data-cat'), wide = el.getAttribute('data-wide') === '1', dir = side === 'my' ? 1 : -1;
+    var kf = phases.map(function (ph) {
+      if (ph === 'shape') return [bl, bt];
+      var m = _sqSimMove(side, cat, wide, ph), L = bl + dir * m[0], T = bt + (bt < 50 ? -m[1] : m[1]);
+      return [Math.max(5, Math.min(95, L)), Math.max(6, Math.min(94, T))];
+    });
+    return { el: el, kf: kf };
+  });
+  var segs = [[0, 600, 0, 0], [600, 4000, 0, 1], [4000, 7800, 1, 2], [7800, 11200, 2, 3], [11200, 14600, 3, 4], [14600, 16200, 4, 4]];
+  var labels = { shape: 'Defensive shape', press: 'Pressing triggers', attack: 'Build-up & width', counter: 'Counter attack' };
+  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+  var start = nowMs(), total = 16200, tok = _sqSimToken;
+  root.classList.remove('is-done');
+  function frame() {
+    if (tok !== _sqSimToken || !document.body.contains(root)) return;
+    var t = nowMs() - start; if (t > total) t = total;
+    var seg = segs[segs.length - 1];
+    for (var i = 0; i < segs.length; i++) { if (t >= segs[i][0] && t <= segs[i][1]) { seg = segs[i]; break; } }
+    var p = seg[1] > seg[0] ? (t - seg[0]) / (seg[1] - seg[0]) : 1; p = ease(Math.max(0, Math.min(1, p)));
+    var arrowPhase = phases[seg[3]];
+    if (root.getAttribute('data-phase') !== arrowPhase) root.setAttribute('data-phase', arrowPhase);
+    if (phaseEl) { var lbl = labels[arrowPhase] || 'Shape'; if (phaseEl.textContent !== lbl) phaseEl.textContent = lbl; }
+    if (barEl) barEl.style.transform = 'scaleX(' + (t / total).toFixed(3) + ')';
+    for (var d = 0; d < dots.length; d++) {
+      var k = dots[d].kf, a = k[seg[2]], b = k[seg[3]];
+      var L = a[0] + (b[0] - a[0]) * p, T = a[1] + (b[1] - a[1]) * p;
+      dots[d].el.style.transform = 'translate3d(' + (L / 100 * W).toFixed(1) + 'px,' + (T / 100 * H).toFixed(1) + 'px,0) translate(-50%,-50%)';
+    }
+    if (t < total) _sqSimRAF = requestAnimationFrame(frame); else { root.classList.add('is-done'); _sqSimRAF = 0; }
+  }
+  _sqSimRAF = requestAnimationFrame(frame);
+}
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' || SQ_FORM.cmdOverlay === tab) ? null : tab; if (SQ_FORM.cmdOverlay) SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
@@ -35795,6 +35893,7 @@ async function tosBoardSnapshot() {
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
         case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
         case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(); break;
+        case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
