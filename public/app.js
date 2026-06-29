@@ -3887,103 +3887,239 @@ function _sqCmdInner() {
   return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
-// ── Tactical Simulation (formation-vs-formation educational animation) ──────────
-// Reads My + Opponent formation automatically and animates a short tactical model.
-// Architecture is attribute-ready: _sqSimMove receives per-player context so a future
-// AI layer can scale movement by OVR / fitness / speed / passing / mentality without UI changes.
-function _sqSimDots(formation, side) {
-  var slots = SQ_FORMATIONS[formation] || SQ_FORMATIONS['4-3-3'];
-  return slots.map(function (s, i) {
-    var baseL = side === 'my' ? (100 - s.y) : s.y; // same mapping as the shared overlay pitch
-    var baseT = s.x;
-    var wide = (s.x <= 24 || s.x >= 76) ? 1 : 0;
-    return '<div class="sqsim-dot sqsim-dot--' + side + ' sqsim-dot--' + (s.c || 'mf') + '"'
-      + ' data-side="' + side + '" data-cat="' + (s.c || 'mf') + '" data-bl="' + baseL.toFixed(1) + '" data-bt="' + baseT.toFixed(1) + '" data-wide="' + wide + '">'
-      + '<span class="sqsim-dot-no">' + _sqEsc(s.r || (i + 1)) + '</span></div>';
-  }).join('');
+// ── Tactical Simulation 2.0 — professional scene-based analysis engine ──────────
+// Reads My + Opponent formation automatically and plays a 10-scene tactical timeline.
+// Architecture is attribute-ready: _sqSimModel builds per-player objects carrying
+// {ovr,speed,passing,vision,fitness,mentality} so a future AI layer can drive scene
+// generation / movement amplitude without changing the UI or controls.
+function _sqSimClamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function _sqSimEase(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+function _sqSimNow() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+function _sqSimRole(s) {
+  if (s.c === 'gk') return 'GK';
+  var wide = s.x <= 24 || s.x >= 76;
+  if (s.c === 'df') return wide ? 'FB' : 'CB';
+  if (s.c === 'mf') { if (wide) return 'WM'; if (s.y >= 60) return 'DM'; if (s.y <= 44) return 'AM'; return 'CM'; }
+  return wide ? 'WG' : 'ST';
 }
-function _sqSimArrows() {
-  var defs = '<defs>'
-    + '<marker id="sqsimAh" markerWidth="6" markerHeight="6" refX="4.4" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/></marker>'
-    + '<filter id="sqsimGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1.1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
-    + '</defs>';
-  function g(cls, paths) { return '<g class="sqsim-arr sqsim-arr--' + cls + '" filter="url(#sqsimGlow)" marker-end="url(#sqsimAh)">' + paths + '</g>'; }
-  var press = g('press', '<path d="M34 50 L48 50"/><path d="M32 30 L46 36"/><path d="M32 70 L46 64"/>');
-  var attack = g('attack', '<path d="M40 50 Q56 36 70 30"/><path d="M28 84 L54 88"/><path d="M46 22 Q62 32 72 46"/>');
-  var counter = g('counter', '<path d="M22 52 L72 30"/><path d="M30 64 L66 74"/>');
-  return '<svg class="sqsim-arrows" viewBox="0 0 100 100" preserveAspectRatio="none">' + defs + press + attack + counter + '</svg>';
+function _sqSimModel(mf, of) {
+  function team(f, side) {
+    var slots = SQ_FORMATIONS[f] || SQ_FORMATIONS['4-3-3'];
+    return { f: f, players: slots.map(function (s, i) {
+      var baseL = side === 'my' ? (100 - s.y) : s.y, baseT = s.x;
+      return { side: side, cat: s.c || 'mf', role: _sqSimRole(s), num: s.r || (i + 1), baseL: baseL, baseT: baseT,
+        wide: (s.x <= 24 || s.x >= 76), attr: { ovr: 75, speed: 75, passing: 75, vision: 75, fitness: 90, mentality: 'Balanced' } };
+    }) };
+  }
+  return { my: team(mf, 'my'), opp: team(of, 'opp') };
+}
+// formation-matchup analysis (heuristic now; AI-replaceable later)
+function _sqSimAnalysis(M) {
+  function cnt(side, cat) { return (side === 'my' ? M.my.players : M.opp.players).filter(function (p) { return p.cat === cat; }).length; }
+  function has(side, role) { return (side === 'my' ? M.my.players : M.opp.players).some(function (p) { return p.role === role; }); }
+  function cntR(side, role) { return (side === 'my' ? M.my.players : M.opp.players).filter(function (p) { return p.role === role; }).length; }
+  var myMid = cnt('my', 'mf'), opMid = cnt('opp', 'mf'), myFw = cnt('my', 'fw'), opFw = cnt('opp', 'fw'), myDf = cnt('my', 'df');
+  var S = [], W = [], A = [], R = [];
+  if (myMid > opMid) { S.push('Numerical superiority in midfield (' + myMid + ' v ' + opMid + ')'); A.push('Better midfield control'); }
+  else if (myMid < opMid) { W.push('Outnumbered in central midfield (' + myMid + ' v ' + opMid + ')'); R.push('Midfield can be overrun'); }
+  else { S.push('Even midfield — battle decided by movement'); }
+  if (myDf > opFw) { S.push('Spare defender vs ' + opFw + ' forward' + (opFw === 1 ? '' : 's')); A.push('Compact, well-covered defence'); }
+  if (opFw >= 2 && myDf <= 2) { W.push('Two strikers stretch a thin back line'); R.push('Space behind the defence'); }
+  if (myFw === 1) { W.push('Lone striker can be isolated'); R.push('Lone striker isolation'); }
+  if (myFw >= 3 || has('my', 'WG')) { A.push('Quick wide counter-attacks'); S.push('Width & pace in the front line'); }
+  if (has('opp', 'WG')) { W.push('Full-backs exposed to wingers'); R.push('Space behind the full-backs'); }
+  if (has('my', 'FB') && has('my', 'WG')) { S.push('Overload potential down the flanks'); }
+  if (has('opp', 'DM') && !has('my', 'AM') && myFw <= 1) { W.push('Opponent pivot can play freely'); R.push('Free pivot in build-up'); }
+  if (cntR('my', 'CB') >= 3) { S.push('Back three offers a spare centre-back'); }
+  if (!S.length) S.push('Compact, organised structure'); if (!W.length) W.push('Few obvious structural gaps');
+  if (!A.length) A.push('Solid defensive base'); if (!R.length) R.push('Manage transitions carefully');
+  return { strengths: S.slice(0, 4), weaknesses: W.slice(0, 4), advantages: A.slice(0, 3), risks: R.slice(0, 3) };
+}
+// compute per-player [L,T] for a scene from base + role offsets (forward+ toward opp goal, wide+ toward nearer touchline)
+function _sqLay(M, myFn, oppFn) {
+  function row(side, arr, fn) {
+    var dir = side === 'my' ? 1 : -1;
+    return arr.map(function (p, i) { var d = fn(p, i) || [0, 0]; var L = p.baseL + dir * d[0], T = p.baseT + (p.baseT < 50 ? -d[1] : d[1]); return [_sqSimClamp(L, 5, 95), _sqSimClamp(T, 6, 94)]; });
+  }
+  return row('my', M.my.players, myFn).concat(row('opp', M.opp.players, oppFn));
+}
+function _sqSimBasePos(M) { return M.my.players.map(function (p) { return [p.baseL, p.baseT]; }).concat(M.opp.players.map(function (p) { return [p.baseL, p.baseT]; })); }
+function _sqSimScenes(M) {
+  var an = _sqSimAnalysis(M), mf = M.my.f, of = M.opp.f, S = [];
+  var nMy = M.my.players.length;
+  function idx(side, role) { var a = side === 'my' ? M.my.players : M.opp.players; for (var i = 0; i < a.length; i++) if (a[i].role === role) return side === 'my' ? i : nMy + i; return -1; }
+  function pt(pos, side, role) { var i = idx(side, role); return i >= 0 ? pos[i] : null; }
+  function baseOf(side, role) { var a = side === 'my' ? M.my.players : M.opp.players; for (var i = 0; i < a.length; i++) if (a[i].role === role) return [a[i].baseL, a[i].baseT]; return null; }
+  function A(x1, y1, x2, y2, t, curve, recv) { return { x1: x1, y1: y1, x2: x2, y2: y2, t: t, c: !!curve, r: !!recv }; }
+  var zero = function () { return [0, 0]; };
+
+  // Scene 1 — defensive shape
+  var p1 = _sqLay(M, function (p) { var dF = p.role === 'ST' ? -4 : p.role === 'AM' ? -3 : p.role === 'WG' ? -2 : 0; var dW = (p.role === 'FB' || p.role === 'WM' || p.role === 'WG') ? -4 : 0; return [dF, dW]; }, zero);
+  S.push({ key: 'shape', no: 1, dur: 1600, title: 'Initial defensive shape', text: 'Compact <b>' + mf + '</b> block — the lines stay tight. Short horizontal &amp; vertical distances deny space between the lines.', pos: p1, arrows: [A(20, 28, 20, 72, 'line'), A(38, 30, 38, 70, 'line')], zones: [], hl: [], ball: null });
+
+  // Scene 2 — opponent builds from the goalkeeper
+  var p2 = _sqLay(M, function (p) { return [p.role === 'ST' ? -5 : p.role === 'AM' ? -2 : 0, 0]; }, function (p) { if (p.role === 'GK') return [3, 0]; if (p.role === 'CB') return [2, -6]; if (p.role === 'FB') return [10, 3]; if (p.role === 'DM') return [2, 0]; return [0, 0]; });
+  (function () { var g = pt(p2, 'opp', 'GK'), c = pt(p2, 'opp', 'CB'), f = pt(p2, 'opp', 'FB'), a = []; if (g && c) a.push(A(g[0], g[1], c[0], c[1], 'pass', true, true)); if (c && f) a.push(A(c[0], c[1], f[0], f[1], 'pass', true, true)); S.push({ key: 'build', no: 2, dur: 1800, title: 'Opponent builds from the goalkeeper', text: 'GK → centre-back → full-back. The back line splits and full-backs push high to start possession.', pos: p2, arrows: a, zones: [], hl: [idx('opp', 'GK')], ball: g }); })();
+
+  // Scene 3 — pressing trigger
+  var p3 = _sqLay(M, function (p) { if (p.role === 'ST') return [10, 0]; if (p.role === 'AM') return [8, 0]; if (p.role === 'CM') return [5, 2]; if (p.role === 'WG') return [6, 0]; if (p.role === 'WM') return [5, -2]; if (p.role === 'FB' || p.role === 'DM' || p.role === 'CB') return [3, 0]; return [0, 0]; }, function (p) { if (p.role === 'CB') return [-1, -3]; if (p.role === 'DM') return [-2, 0]; return [0, 0]; });
+  (function () { var st = pt(p3, 'my', 'ST') || pt(p3, 'my', 'WG'), ocb = pt(p3, 'opp', 'CB'); var am = pt(p3, 'my', 'AM') || pt(p3, 'my', 'CM'), odm = pt(p3, 'opp', 'DM') || pt(p3, 'opp', 'CM'); var wm = pt(p3, 'my', 'WM') || pt(p3, 'my', 'WG'), ofb = pt(p3, 'opp', 'FB'); var a = []; if (st && ocb) a.push(A(st[0], st[1], ocb[0], ocb[1], 'press')); if (am && odm) a.push(A(am[0], am[1], odm[0], odm[1], 'press')); if (wm && ofb) a.push(A(wm[0], wm[1], ofb[0], ofb[1], 'press', true)); var hl = idx('my', 'ST'); S.push({ key: 'press', no: 3, dur: 1800, title: 'Pressing trigger', text: 'Striker jumps to the ball-side centre-back; midfield presses the pivot while a wide player screens the pass into the full-back.', pos: p3, arrows: a, zones: [], hl: hl >= 0 ? [hl] : [], ball: ocb }); })();
+
+  // Scene 4 — midfield movement
+  var p4 = _sqLay(M, function (p) { if (p.role === 'CM' || p.role === 'DM') return [2, -7]; if (p.role === 'WM' || p.role === 'AM') return [3, -5]; if (p.role === 'FB') return [2, -2]; return [0, 0]; }, zero);
+  (function () { var a = []; ['CM', 'WM', 'AM'].forEach(function (r) { var b = baseOf('my', r), n = pt(p4, 'my', r); if (b && n) a.push(A(b[0], b[1], n[0], n[1], 'run')); }); S.push({ key: 'shift', no: 4, dur: 1700, title: 'Midfield shift & cover', text: 'The midfield slides to the ball side; the far-side player tucks in to protect the centre while one stays to screen.', pos: p4, arrows: a, zones: [], hl: [], ball: null }); })();
+
+  // Scene 5 — attacking transition / counter
+  var p5 = _sqLay(M, function (p) { if (p.role === 'ST') return [22, 0]; if (p.role === 'WG') return [18, 3]; if (p.role === 'AM') return [16, 0]; if (p.role === 'CM') return [12, 2]; if (p.role === 'FB') return [16, 6]; if (p.role === 'WM') return [14, 3]; if (p.role === 'DM') return [6, 0]; if (p.role === 'CB') return [4, 0]; return [0, 0]; }, function (p) { return [p.role === 'FB' ? -2 : -4, 0]; });
+  (function () { var dm = pt(p5, 'my', 'DM') || pt(p5, 'my', 'CM') || pt(p5, 'my', 'CB'), st = pt(p5, 'my', 'ST') || pt(p5, 'my', 'WG'); var fb = pt(p5, 'my', 'FB'), fbBase = baseOf('my', 'FB'); var wg = pt(p5, 'my', 'WG'), am = pt(p5, 'my', 'AM') || pt(p5, 'my', 'CM'); var a = []; if (dm && st) a.push(A(dm[0], dm[1], st[0], st[1], 'counter', true)); if (fb && fbBase) a.push(A(fbBase[0], fbBase[1], fb[0], fb[1], 'overlap')); if (am && wg) a.push(A(am[0], am[1], wg[0], wg[1], 'run', true)); S.push({ key: 'counter', no: 5, dur: 1900, title: 'Attacking transition', text: 'Win the ball and counter: vertical pass into the striker, full-back overlaps and a third-man run breaks the line.', pos: p5, arrows: a, zones: [], hl: st ? [idx('my', 'ST')] : [], ball: st }); })();
+
+  // Scene 6 — defensive recovery
+  (function () { var a = []; ['FB', 'WG', 'ST', 'AM'].forEach(function (r) { var adv = pt(p5, 'my', r), home = baseOf('my', r); if (adv && home) a.push(A(adv[0], adv[1], home[0], home[1], 'run')); }); S.push({ key: 'recover', no: 6, dur: 1600, title: 'Defensive recovery', text: 'Possession lost — immediate recovery runs. Full-backs and forwards sprint back to restore the compact two-bank shape.', pos: p1, arrows: a, zones: [], hl: [], ball: null }); })();
+
+  // Scene 7 — dangerous spaces
+  S.push({ key: 'spaces', no: 7, dur: 1900, title: 'Dangerous spaces', text: 'Key areas to control: the half-spaces, the channel between the lines, and the far (weak) side when play overloads one flank.', pos: p1,
+    arrows: [], zones: [
+      { x: 55, y: 17, w: 19, h: 19, kind: 'half', label: 'Half-space' },
+      { x: 55, y: 64, w: 19, h: 19, kind: 'half', label: 'Half-space' },
+      { x: 40, y: 41, w: 30, h: 18, kind: 'central', label: 'Central corridor' },
+      { x: 60, y: 78, w: 30, h: 15, kind: 'overload', label: 'Wide overload' },
+      { x: 60, y: 7, w: 30, h: 13, kind: 'weak', label: 'Weak side' },
+      { x: 58, y: 40, w: 15, h: 20, kind: 'between', label: 'Between the lines' }
+    ], hl: [], ball: null });
+
+  // Scene 8 — tactical strengths
+  S.push({ key: 'strong', no: 8, dur: 1900, title: 'Tactical strengths', text: 'Where your <b>' + mf + '</b> gains the edge against <b>' + of + '</b>.', pos: p1,
+    zones: [{ x: 55, y: 62, w: 34, h: 28, kind: 'strong', label: 'Advantage zone' }], arrows: [], hl: [], ball: null,
+    bullets: an.strengths.map(function (t) { return { k: 'pos', t: '✔ ' + t }; }) });
+
+  // Scene 9 — tactical weaknesses
+  S.push({ key: 'weak', no: 9, dur: 1900, title: 'Tactical weaknesses', text: 'Spaces <b>' + of + '</b> can exploit — manage these risks.', pos: p1,
+    zones: [{ x: 74, y: 58, w: 22, h: 32, kind: 'danger', label: 'Exposed area' }], arrows: [], hl: [], ball: null,
+    bullets: an.weaknesses.map(function (t) { return { k: 'neg', t: '✖ ' + t }; }) });
+
+  // Scene 10 — coach summary
+  var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
+  S.push({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', text: '<b>' + mf + '</b> vs <b>' + of + '</b> — auto-generated tactical briefing.', pos: p1, zones: [], arrows: [], hl: [], ball: null, bullets: sum });
+
+  return S;
+}
+function _sqSimDotsHtml(M) {
+  function row(side) { var arr = side === 'my' ? M.my.players : M.opp.players; return arr.map(function (p) { return '<div class="sqsim-dot sqsim-dot--' + side + ' sqsim-dot--' + p.cat + '"><span class="sqsim-dot-no">' + _sqEsc(p.num) + '</span></div>'; }).join(''); }
+  return row('my') + row('opp');
+}
+function _sqSimArrowDefs() {
+  var types = [['pass', '#38bdf8'], ['press', '#f87171'], ['run', '#60a5fa'], ['counter', '#fbbf24'], ['overlap', '#a78bfa']];
+  var m = types.map(function (t) { return '<marker id="sqsimAh-' + t[0] + '" markerWidth="6" markerHeight="6" refX="4.4" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="' + t[1] + '"/></marker>'; }).join('');
+  return '<defs>' + m + '<filter id="sqsimGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+}
+function _sqSimArrowSvg(arrows) {
+  var s = _sqSimArrowDefs();
+  (arrows || []).forEach(function (a) {
+    if (a.t === 'line') { s += '<line x1="' + a.x1 + '" y1="' + a.y1 + '" x2="' + a.x2 + '" y2="' + a.y2 + '" class="sqsim-ar sqsim-ar--line"/>'; return; }
+    var path;
+    if (a.c) { var mx = (a.x1 + a.x2) / 2, my = (a.y1 + a.y2) / 2, nx = -(a.y2 - a.y1), ny = (a.x2 - a.x1), len = Math.sqrt(nx * nx + ny * ny) || 1; path = 'M' + a.x1 + ' ' + a.y1 + ' Q' + (mx + nx / len * 9).toFixed(1) + ' ' + (my + ny / len * 9).toFixed(1) + ' ' + a.x2 + ' ' + a.y2; }
+    else path = 'M' + a.x1 + ' ' + a.y1 + ' L' + a.x2 + ' ' + a.y2;
+    s += '<path d="' + path + '" class="sqsim-ar sqsim-ar--' + a.t + '" marker-end="url(#sqsimAh-' + a.t + ')" filter="url(#sqsimGlow)"/>';
+    if (a.r) s += '<circle cx="' + a.x2 + '" cy="' + a.y2 + '" r="3.2" class="sqsim-recv sqsim-recv--' + a.t + '"/>';
+  });
+  return s;
+}
+function _sqSimZonesHtml(zones) { return (zones || []).map(function (z) { return '<div class="sqsim-zone sqsim-zone--' + z.kind + '" style="left:' + z.x + '%;top:' + z.y + '%;width:' + z.w + '%;height:' + z.h + '%">' + (z.label ? '<span>' + _sqEsc(z.label) + '</span>' : '') + '</div>'; }).join(''); }
+function _sqSimInfoHtml(sc, total) {
+  var h = '<div class="sqsim-scno">Scene ' + sc.no + ' / ' + total + '</div><div class="sqsim-sctitle">' + _sqEsc(sc.title) + '</div><div class="sqsim-sctext">' + sc.text + '</div>';
+  if (sc.bullets && sc.bullets.length) h += '<div class="sqsim-bullets">' + sc.bullets.map(function (b) { return '<div class="sqsim-bl sqsim-bl--' + (b.k || 'n') + '">' + _sqEsc(b.t) + '</div>'; }).join('') + '</div>';
+  return h;
 }
 function _sqTcSimulation(my, op) {
-  var mf = SQ_FORM.myFormation, of = SQ_FORM.oppFormation;
-  var dots = _sqSimDots(mf, 'my') + _sqSimDots(of, 'opp');
-  return '<div class="sqsim" data-myf="' + _sqEsc(mf) + '" data-oppf="' + _sqEsc(of) + '">'
+  var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
+  _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M);
+  var ctl = '<div class="sqsim-ctl">'
+    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="prev" title="Previous scene" type="button">⏮</button>'
+    + '<button class="sqsim-btn sqsim-btn--play" data-action="sqSimCtl" data-ctl="pause" data-role="play" title="Pause / Play" type="button">⏸</button>'
+    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="next" title="Next scene" type="button">⏭</button>'
+    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="replay" title="Replay" type="button">↻</button>'
+    + '<span class="sqsim-spd"><button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="0.5" type="button">0.5×</button>'
+    + '<button class="sqsim-sx is-on" data-action="sqSimCtl" data-ctl="speed" data-val="1" type="button">1×</button>'
+    + '<button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="2" type="button">2×</button></span></div>';
+  var scenebar = '<div class="sqsim-scenebar" data-role="scenebar">' + _sqSim.scenes.map(function (s, i) { return '<i class="sqsim-seg' + (i === 0 ? ' is-on' : '') + '" title="' + _sqEsc(s.title) + '"></i>'; }).join('') + '</div>';
+  return '<div class="sqsim" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '">'
     + '<div class="sqsim-bar"><span class="sqsim-tag">AI tactical model</span>'
-    + '<span class="sqsim-match">' + _sqEsc(_sqClubName()) + ' <b>' + _sqEsc(mf) + '</b> <i>vs</i> Opponent <b>' + _sqEsc(of) + '</b></span>'
-    + '<span class="sqsim-phase" data-role="phase">Kick-off</span>'
-    + '<button class="sqsim-replay" data-action="sqSimReplay" type="button">▶ Replay</button></div>'
-    + '<div class="sqsim-stage sqmd-pitch sqmd-pitch--shared">' + _sqMdField() + _sqSimArrows()
-    + '<div class="sqsim-layer">' + dots + '</div>'
+    + '<span class="sqsim-match">' + _sqEsc(_sqClubName()) + ' <b>' + _sqEsc(M.my.f) + '</b> <i>vs</i> Opponent <b>' + _sqEsc(M.opp.f) + '</b></span>' + ctl + '</div>'
+    + '<div class="sqsim-stage sqmd-pitch sqmd-pitch--shared">' + _sqMdField()
+    + '<div class="sqsim-zones" data-role="zones"></div>'
+    + '<svg class="sqsim-arrows" data-role="arrows" viewBox="0 0 100 100" preserveAspectRatio="none">' + _sqSimArrowDefs() + '</svg>'
+    + '<div class="sqsim-layer">' + _sqSimDotsHtml(M) + '</div>'
+    + '<div class="sqsim-ball" data-role="ball"></div>'
     + '<div class="sqsim-progress"><i data-role="bar"></i></div></div>'
-    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--press">Pressing</span><span class="sqsim-lg sqsim-lg--attack">Build-up &amp; width</span><span class="sqsim-lg sqsim-lg--counter">Counter</span>'
-    + '<span class="sqsim-note">Educational model — shows how <b>' + _sqEsc(mf) + '</b> behaves vs <b>' + _sqEsc(of) + '</b>. Future AI scales runs by OVR, fitness, speed, passing, positioning &amp; mentality.</span></div>'
+    + scenebar
+    + '<div class="sqsim-info" data-role="info"></div>'
+    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--pass">Pass</span><span class="sqsim-lg sqsim-lg--press">Press</span><span class="sqsim-lg sqsim-lg--run">Movement</span><span class="sqsim-lg sqsim-lg--counter">Counter</span><span class="sqsim-lg sqsim-lg--overlap">Overlap</span></div>'
     + '</div>';
 }
-var _sqSimRAF = 0, _sqSimToken = 0;
-function _sqSimStop() { if (_sqSimRAF) { try { cancelAnimationFrame(_sqSimRAF); } catch (e) {} _sqSimRAF = 0; } _sqSimToken++; }
+// ── engine state machine ──
+var _sqSim = { model: null, scenes: [], idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0 };
+function _sqSimStop() { _sqSim.token++; if (_sqSim.raf) { try { cancelAnimationFrame(_sqSim.raf); } catch (e) {} _sqSim.raf = 0; } }
 function _sqSimBoot() {
   _sqSimStop(); if (typeof requestAnimationFrame !== 'function') return;
-  var tok = _sqSimToken;
-  requestAnimationFrame(function () { if (tok !== _sqSimToken) return; var root = document.querySelector('.sqsim'); if (root) _sqSimRun(root); });
+  var tok = _sqSim.token;
+  requestAnimationFrame(function () { if (tok !== _sqSim.token) return; var root = document.querySelector('.sqsim'); if (root) _sqSimInit(root, tok); });
 }
-function sqSimReplay() { _sqSimBoot(); }
-// per-player movement model — context-rich so AI can later modulate (amplitude *= speed/OVR etc.)
-function _sqSimMove(side, cat, wide, phase) {
-  var f = 0, w = 0;
-  if (phase === 'press') { if (side === 'my') f = cat === 'df' ? 6 : cat === 'mf' ? 12 : cat === 'fw' ? 9 : 0; else f = cat === 'fw' ? -4 : cat === 'mf' ? -3 : -2; }
-  else if (phase === 'attack') { if (side === 'my') { f = cat === 'df' ? 5 : cat === 'mf' ? 9 : cat === 'fw' ? 6 : 0; if (wide && cat === 'df') { f += 11; w += 6; } else if (wide) { w += 8; f += 2; } } else { f = cat === 'df' ? -7 : cat === 'mf' ? -5 : -3; w = -3; } }
-  else if (phase === 'counter') { if (side === 'my') f = cat === 'fw' ? 20 : cat === 'mf' ? 12 : cat === 'df' ? 4 : 1; else f = -5; }
-  return [f, w];
+function _sqSimPaint(pos) { var W = _sqSim.W, H = _sqSim.H, ds = _sqSim.dots; for (var d = 0; d < ds.length; d++) { var p = pos[d] || [50, 50]; ds[d].style.transform = 'translate3d(' + (p[0] / 100 * W).toFixed(1) + 'px,' + (p[1] / 100 * H).toFixed(1) + 'px,0) translate(-50%,-50%)'; } }
+function _sqSimEnter(i, instant) {
+  if (!_sqSim.el || !_sqSim.scenes.length) return;
+  i = _sqSimClamp(i, 0, _sqSim.scenes.length - 1); _sqSim.idx = i;
+  var sc = _sqSim.scenes[i], root = _sqSim.el;
+  _sqSim.from = _sqSim.cur.map(function (p) { return p.slice(); });
+  _sqSim.to = sc.pos.map(function (p) { return p.slice(); });
+  _sqSim.elapsed = 0;
+  var az = root.querySelector('[data-role="arrows"]'); if (az) az.innerHTML = _sqSimArrowSvg(sc.arrows);
+  var zz = root.querySelector('[data-role="zones"]'); if (zz) zz.innerHTML = _sqSimZonesHtml(sc.zones);
+  var inf = root.querySelector('[data-role="info"]'); if (inf) inf.innerHTML = _sqSimInfoHtml(sc, _sqSim.scenes.length);
+  var sb = root.querySelector('[data-role="scenebar"]'); if (sb) { var sg = sb.children; for (var k = 0; k < sg.length; k++) sg[k].className = 'sqsim-seg' + (k < i ? ' is-done' : k === i ? ' is-on' : ''); }
+  for (var d = 0; d < _sqSim.dots.length; d++) _sqSim.dots[d].classList.remove('is-hl');
+  (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
+  var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
+  root.setAttribute('data-phase', sc.key);
+  if (instant) { _sqSim.cur = _sqSim.to.map(function (p) { return p.slice(); }); _sqSimPaint(_sqSim.cur); }
 }
-function _sqSimRun(root) {
-  var stage = root.querySelector('.sqsim-stage'); if (!stage) return;
-  var phaseEl = root.querySelector('[data-role="phase"]'), barEl = root.querySelector('[data-role="bar"]');
-  var rect = stage.getBoundingClientRect(), W = rect.width || 600, H = rect.height || 360;
-  var phases = ['shape', 'press', 'attack', 'counter', 'shape'];
-  var dots = [].slice.call(root.querySelectorAll('.sqsim-dot')).map(function (el) {
-    var bl = +el.getAttribute('data-bl'), bt = +el.getAttribute('data-bt');
-    var side = el.getAttribute('data-side'), cat = el.getAttribute('data-cat'), wide = el.getAttribute('data-wide') === '1', dir = side === 'my' ? 1 : -1;
-    var kf = phases.map(function (ph) {
-      if (ph === 'shape') return [bl, bt];
-      var m = _sqSimMove(side, cat, wide, ph), L = bl + dir * m[0], T = bt + (bt < 50 ? -m[1] : m[1]);
-      return [Math.max(5, Math.min(95, L)), Math.max(6, Math.min(94, T))];
-    });
-    return { el: el, kf: kf };
-  });
-  var segs = [[0, 600, 0, 0], [600, 4000, 0, 1], [4000, 7800, 1, 2], [7800, 11200, 2, 3], [11200, 14600, 3, 4], [14600, 16200, 4, 4]];
-  var labels = { shape: 'Defensive shape', press: 'Pressing triggers', attack: 'Build-up & width', counter: 'Counter attack' };
-  function ease(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
-  function nowMs() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
-  var start = nowMs(), total = 16200, tok = _sqSimToken;
-  root.classList.remove('is-done');
-  function frame() {
-    if (tok !== _sqSimToken || !document.body.contains(root)) return;
-    var t = nowMs() - start; if (t > total) t = total;
-    var seg = segs[segs.length - 1];
-    for (var i = 0; i < segs.length; i++) { if (t >= segs[i][0] && t <= segs[i][1]) { seg = segs[i]; break; } }
-    var p = seg[1] > seg[0] ? (t - seg[0]) / (seg[1] - seg[0]) : 1; p = ease(Math.max(0, Math.min(1, p)));
-    var arrowPhase = phases[seg[3]];
-    if (root.getAttribute('data-phase') !== arrowPhase) root.setAttribute('data-phase', arrowPhase);
-    if (phaseEl) { var lbl = labels[arrowPhase] || 'Shape'; if (phaseEl.textContent !== lbl) phaseEl.textContent = lbl; }
-    if (barEl) barEl.style.transform = 'scaleX(' + (t / total).toFixed(3) + ')';
-    for (var d = 0; d < dots.length; d++) {
-      var k = dots[d].kf, a = k[seg[2]], b = k[seg[3]];
-      var L = a[0] + (b[0] - a[0]) * p, T = a[1] + (b[1] - a[1]) * p;
-      dots[d].el.style.transform = 'translate3d(' + (L / 100 * W).toFixed(1) + 'px,' + (T / 100 * H).toFixed(1) + 'px,0) translate(-50%,-50%)';
-    }
-    if (t < total) _sqSimRAF = requestAnimationFrame(frame); else { root.classList.add('is-done'); _sqSimRAF = 0; }
+function _sqSimInit(root, tok) {
+  _sqSim.el = root; _sqSim.dots = [].slice.call(root.querySelectorAll('.sqsim-dot'));
+  var st = root.querySelector('.sqsim-stage'), r = st ? st.getBoundingClientRect() : { width: 600, height: 360 };
+  _sqSim.W = r.width || 600; _sqSim.H = r.height || 360;
+  _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
+  _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
+  root.classList.remove('is-done'); _sqSimSetPlayIcon();
+  _sqSimEnter(0, false);
+  _sqSim.last = _sqSimNow();
+  _sqSimLoop(tok);
+}
+function _sqSimLoop(tok) {
+  if (tok !== _sqSim.token || !_sqSim.el || !document.body.contains(_sqSim.el)) return;
+  var now = _sqSimNow(), dt = now - _sqSim.last; _sqSim.last = now; if (dt < 0) dt = 0; if (dt > 80) dt = 80;
+  var sc = _sqSim.scenes[_sqSim.idx], dur = sc.dur || 1700, moveDur = dur * 0.72;
+  if (_sqSim.playing) _sqSim.elapsed += dt * _sqSim.speed;
+  var mp = _sqSimEase(_sqSimClamp(_sqSim.elapsed / moveDur, 0, 1));
+  for (var d = 0; d < _sqSim.dots.length; d++) { var a = _sqSim.from[d] || [50, 50], b = _sqSim.to[d] || a; _sqSim.cur[d] = [a[0] + (b[0] - a[0]) * mp, a[1] + (b[1] - a[1]) * mp]; }
+  _sqSimPaint(_sqSim.cur);
+  var ball = _sqSim.el.querySelector('[data-role="ball"]');
+  if (ball && ball.style.opacity !== '0' && ball.getAttribute('data-bx')) { var bx = +ball.getAttribute('data-bx'), by = +ball.getAttribute('data-by'); ball.style.transform = 'translate3d(' + (bx / 100 * _sqSim.W).toFixed(1) + 'px,' + (by / 100 * _sqSim.H).toFixed(1) + 'px,0) translate(-50%,-50%)'; }
+  var bar = _sqSim.el.querySelector('[data-role="bar"]'); if (bar) bar.style.transform = 'scaleX(' + ((_sqSim.idx + _sqSimClamp(_sqSim.elapsed / dur, 0, 1)) / _sqSim.scenes.length).toFixed(3) + ')';
+  if (_sqSim.playing && _sqSim.elapsed >= dur) {
+    if (_sqSim.idx < _sqSim.scenes.length - 1) _sqSimEnter(_sqSim.idx + 1);
+    else { _sqSim.playing = false; _sqSim.el.classList.add('is-done'); _sqSimSetPlayIcon(); }
   }
-  _sqSimRAF = requestAnimationFrame(frame);
+  _sqSim.raf = requestAnimationFrame(function () { _sqSimLoop(tok); });
 }
+function _sqSimSetPlayIcon() { if (!_sqSim.el) return; var b = _sqSim.el.querySelector('[data-role="play"]'); if (b) b.textContent = _sqSim.playing ? '⏸' : '▶'; }
+function sqSimCtl(ctl, val) {
+  if (!_sqSim.el) return;
+  if (ctl === 'pause') { _sqSim.playing = !_sqSim.playing; if (_sqSim.playing && _sqSim.el.classList.contains('is-done')) { _sqSim.el.classList.remove('is-done'); _sqSimEnter(0); } _sqSimSetPlayIcon(); }
+  else if (ctl === 'next') { _sqSim.el.classList.remove('is-done'); _sqSimEnter(_sqSim.idx + 1); }
+  else if (ctl === 'prev') { _sqSim.el.classList.remove('is-done'); _sqSimEnter(_sqSim.idx - 1); }
+  else if (ctl === 'replay') { _sqSim.el.classList.remove('is-done'); _sqSim.playing = true; _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimEnter(0); _sqSimSetPlayIcon(); }
+  else if (ctl === 'speed') { _sqSim.speed = parseFloat(val) || 1; var bs = _sqSim.el.querySelectorAll('.sqsim-sx'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('is-on', parseFloat(bs[i].getAttribute('data-val')) === _sqSim.speed); }
+}
+function sqSimReplay() { sqSimCtl('replay'); }
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' || SQ_FORM.cmdOverlay === tab) ? null : tab; if (SQ_FORM.cmdOverlay) SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
@@ -35894,6 +36030,7 @@ async function tosBoardSnapshot() {
         case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
         case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(); break;
         case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
+        case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;

@@ -4179,41 +4179,66 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 @keyframes sqtcPop{ from{ opacity:0; transform:translate(-50%,-46%); } to{ opacity:1; transform:translate(-50%,-50%); } }
 @media (max-width:1024px){ .sqtc-ov-back{ position:fixed; } .sqtc-ov{ position:fixed; width:min(560px,94vw); max-height:86vh; } }
 
-/* ── Tactical Simulation (formation-vs-formation educational animation) ── */
-.sqsim{ display:flex; flex-direction:column; gap:10px; }
+/* ── Tactical Simulation 2.0 — professional scene-based analysis ── */
+.sqsim{ display:flex; flex-direction:column; gap:9px; }
 .sqsim-bar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .sqsim-tag{ font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#04140a; background:linear-gradient(135deg,#f4b740,#e09c2a); padding:3px 9px; border-radius:100px; }
 .sqsim-match{ font-size:12px; font-weight:700; color:#cbd5e1; } .sqsim-match b{ color:#f1f5f9; } .sqsim-match i{ font-style:normal; color:#7e8aa0; margin:0 5px; }
-.sqsim-phase{ margin-left:auto; font-size:11px; font-weight:800; color:#fde68a; background:rgba(244,183,64,.14); border:1px solid rgba(244,183,64,.3); border-radius:100px; padding:3px 11px; min-width:120px; text-align:center; }
-.sqsim-replay{ font-size:11px; font-weight:800; color:#04140a; background:linear-gradient(135deg,#4ade80,#22c55e); border:none; border-radius:8px; padding:5px 12px; cursor:pointer; }
-.sqsim-replay:hover{ filter:brightness(1.08); }
+.sqsim-ctl{ margin-left:auto; display:flex; align-items:center; gap:5px; }
+.sqsim-btn{ width:28px; height:26px; border-radius:7px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e3eaf4; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
+.sqsim-btn:hover{ background:rgba(255,255,255,.13); }
+.sqsim-btn--play{ background:linear-gradient(135deg,#4ade80,#22c55e); color:#04140a; border-color:transparent; }
+.sqsim-spd{ display:flex; gap:2px; margin-left:4px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:2px; }
+.sqsim-sx{ font-size:10px; font-weight:800; color:#aab4c5; background:transparent; border:none; border-radius:6px; padding:3px 7px; cursor:pointer; }
+.sqsim-sx.is-on{ background:linear-gradient(135deg,#f4b740,#e09c2a); color:#1a1205; }
 .sqsim-stage{ position:relative; width:100%; aspect-ratio:16/10; border-radius:12px; overflow:hidden; }
-.sqsim-layer{ position:absolute; inset:0; z-index:3; }
-.sqsim-arrows{ position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none; }
-.sqsim-arr{ opacity:0; transition:opacity .35s ease; stroke-width:1.4; fill:none; stroke-linecap:round; }
-.sqsim-arr path{ stroke:currentColor; stroke-width:1.4; fill:none; stroke-dasharray:120; stroke-dashoffset:120; }
-.sqsim-arr--press{ color:#f87171; } .sqsim-arr--attack{ color:#4ade80; } .sqsim-arr--counter{ color:#fbbf24; }
-.sqsim[data-phase="press"] .sqsim-arr--press,
-.sqsim[data-phase="attack"] .sqsim-arr--attack,
-.sqsim[data-phase="counter"] .sqsim-arr--counter{ opacity:1; }
-.sqsim[data-phase="press"] .sqsim-arr--press path,
-.sqsim[data-phase="attack"] .sqsim-arr--attack path,
-.sqsim[data-phase="counter"] .sqsim-arr--counter path{ animation:sqsimDraw 1.1s ease forwards, sqsimPulse 1.4s ease-in-out .9s infinite; }
+.sqsim-layer{ position:absolute; inset:0; z-index:4; }
+.sqsim-zones{ position:absolute; inset:0; z-index:1; pointer-events:none; }
+.sqsim-arrows{ position:absolute; inset:0; width:100%; height:100%; z-index:3; pointer-events:none; }
+.sqsim-ar{ fill:none; stroke-linecap:round; stroke-width:1.5; stroke-dasharray:130; stroke-dashoffset:130; animation:sqsimDraw .85s ease forwards, sqsimPulse 1.5s ease-in-out .8s infinite; }
+.sqsim-ar--pass{ stroke:#38bdf8; } .sqsim-ar--press{ stroke:#f87171; } .sqsim-ar--run{ stroke:#60a5fa; } .sqsim-ar--counter{ stroke:#fbbf24; stroke-width:1.9; } .sqsim-ar--overlap{ stroke:#a78bfa; }
+.sqsim-ar--line{ stroke:rgba(255,255,255,.4); stroke-width:0.8; stroke-dasharray:3 3; animation:none; stroke-dashoffset:0; }
+.sqsim-recv{ fill:none; stroke-width:1; animation:sqsimRecv 1.3s ease-in-out infinite; }
+.sqsim-recv--pass{ stroke:#38bdf8; } .sqsim-recv--run{ stroke:#60a5fa; } .sqsim-recv--counter{ stroke:#fbbf24; }
 @keyframes sqsimDraw{ to{ stroke-dashoffset:0; } }
-@keyframes sqsimPulse{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+@keyframes sqsimPulse{ 0%,100%{ opacity:.6; } 50%{ opacity:1; } }
+@keyframes sqsimRecv{ 0%,100%{ opacity:.25; r:2.6; } 50%{ opacity:.9; r:3.8; } }
+.sqsim-zone{ position:absolute; border-radius:8px; display:flex; align-items:flex-start; justify-content:flex-start; overflow:hidden; animation:sqsimZone .5s ease both; }
+.sqsim-zone span{ font-size:7.5px; font-weight:800; padding:2px 5px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.7); white-space:nowrap; }
+@keyframes sqsimZone{ from{ opacity:0; transform:scale(.94); } to{ opacity:1; transform:scale(1); } }
+.sqsim-zone--half{ background:rgba(96,165,250,.18); border:1px solid rgba(96,165,250,.5); }
+.sqsim-zone--central{ background:rgba(244,183,64,.16); border:1px solid rgba(244,183,64,.5); }
+.sqsim-zone--overload{ background:rgba(74,222,128,.18); border:1px solid rgba(74,222,128,.5); }
+.sqsim-zone--weak{ background:rgba(148,163,184,.16); border:1px dashed rgba(203,213,225,.5); }
+.sqsim-zone--between{ background:rgba(167,139,250,.18); border:1px solid rgba(167,139,250,.5); }
+.sqsim-zone--strong{ background:rgba(34,197,94,.22); border:1.5px solid rgba(74,222,128,.65); }
+.sqsim-zone--danger{ background:rgba(248,113,113,.2); border:1.5px solid rgba(248,113,113,.65); }
 .sqsim-dot{ position:absolute; left:0; top:0; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; will-change:transform; transform:translate3d(-100px,-100px,0); box-shadow:0 2px 8px rgba(0,0,0,.5); }
 .sqsim-dot-no{ font-size:8.5px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8); letter-spacing:.02em; }
 .sqsim-dot--my{ background:radial-gradient(circle at 35% 30%,#86efac,#16a34a 70%); box-shadow:0 0 0 1.5px rgba(134,239,172,.7), 0 2px 9px rgba(0,0,0,.5), 0 0 12px rgba(34,197,94,.45); }
 .sqsim-dot--opp{ background:radial-gradient(circle at 35% 30%,#bcd4f7,#2563eb 70%); opacity:.5; box-shadow:0 0 0 1.5px rgba(147,197,253,.7), 0 2px 9px rgba(0,0,0,.5); }
 .sqsim-dot--opp .sqsim-dot-no{ color:#eaf1ff; }
-.sqsim-progress{ position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,.1); z-index:4; }
+.sqsim-dot.is-hl{ z-index:6; box-shadow:0 0 0 2.5px #f4b740, 0 0 16px rgba(244,183,64,.7), 0 2px 9px rgba(0,0,0,.5); }
+.sqsim-ball{ position:absolute; left:0; top:0; width:11px; height:11px; border-radius:50%; z-index:5; background:radial-gradient(circle at 35% 30%,#fff,#cbd5e1 70%); box-shadow:0 0 0 1px rgba(0,0,0,.3), 0 0 8px rgba(255,255,255,.6); transform:translate3d(-100px,-100px,0); transition:opacity .3s ease; opacity:0; }
+.sqsim-progress{ position:absolute; left:0; right:0; bottom:0; height:3px; background:rgba(255,255,255,.1); z-index:5; }
 .sqsim-progress i{ display:block; height:100%; width:100%; transform-origin:left center; transform:scaleX(0); background:linear-gradient(90deg,#4ade80,#f4b740); }
-.sqsim.is-done .sqsim-progress i{ background:linear-gradient(90deg,#22c55e,#22c55e); }
+.sqsim-scenebar{ display:flex; gap:4px; }
+.sqsim-seg{ flex:1 1 0; height:4px; border-radius:3px; background:rgba(255,255,255,.12); transition:background .2s; }
+.sqsim-seg.is-on{ background:linear-gradient(90deg,#f4b740,#e09c2a); }
+.sqsim-seg.is-done{ background:rgba(74,222,128,.6); }
+.sqsim-info{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:11px; padding:10px 13px; min-height:64px; }
+.sqsim-scno{ font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#f4b740; }
+.sqsim-sctitle{ font-size:14px; font-weight:800; color:#f1f5f9; margin:2px 0 4px; }
+.sqsim-sctext{ font-size:11.5px; line-height:1.5; color:#aab4c5; } .sqsim-sctext b{ color:#e3eaf4; }
+.sqsim-bullets{ display:flex; flex-wrap:wrap; gap:5px 10px; margin-top:8px; }
+.sqsim-bl{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:7px; }
+.sqsim-bl--pos{ color:#86efac; background:rgba(34,197,94,.12); }
+.sqsim-bl--neg{ color:#fca5a5; background:rgba(248,113,113,.12); }
+.sqsim-bl--hd{ flex:1 1 100%; font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#8a94a6; background:none; padding:4px 0 0; }
 .sqsim-legend{ display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; }
-.sqsim-lg{ font-size:10.5px; font-weight:700; color:#cbd5e1; display:flex; align-items:center; gap:6px; }
+.sqsim-lg{ font-size:10px; font-weight:700; color:#cbd5e1; display:flex; align-items:center; gap:6px; }
 .sqsim-lg::before{ content:''; width:14px; height:3px; border-radius:2px; }
-.sqsim-lg--press::before{ background:#f87171; } .sqsim-lg--attack::before{ background:#4ade80; } .sqsim-lg--counter::before{ background:#fbbf24; }
-.sqsim-note{ flex:1 1 100%; font-size:10.5px; color:#8a94a6; } .sqsim-note b{ color:#cbd5e1; }
+.sqsim-lg--pass::before{ background:#38bdf8; } .sqsim-lg--press::before{ background:#f87171; } .sqsim-lg--run::before{ background:#60a5fa; } .sqsim-lg--counter::before{ background:#fbbf24; } .sqsim-lg--overlap::before{ background:#a78bfa; }
 .sqtc-ov-body .sqsim-stage{ height:auto; }
 
 /* Squad · Substitute bench & squad depth */
