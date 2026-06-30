@@ -3981,12 +3981,16 @@ function _sqSimSummaryLine(c) {
         : ('hold your shape, win second balls and counter through the ' + c.myWide));
   return 'Against <b>' + c.of + '</b> (' + c.opShape + ' that ' + c.opDesc + '), <b>' + c.mf + '</b> should ' + resp + '.';
 }
+// Global movement scale — players only adjust SLIGHTLY per phase so the formation lines
+// stay readable and stable (clarity first). Raising this exaggerates movement.
+var _SQ_MOVE = 0.42;
 // compute per-player [L,T] for a scene from base + role offsets (forward+ toward opp goal, wide+ toward nearer touchline)
 function _sqLay(M, myFn, oppFn) {
   // fn(p,i) -> [dF, dW, dT]: forward (toward opp goal), widen (toward nearer touchline), lateral block-shift (+down/-up)
+  var k = _SQ_MOVE;
   function row(side, arr, fn) {
     var dir = side === 'my' ? 1 : -1;
-    return arr.map(function (p, i) { var d = fn(p, i) || [0, 0]; var dF = d[0] || 0, dW = d[1] || 0, dT = d[2] || 0; var L = p.baseL + dir * dF, T = p.baseT + (p.baseT < 50 ? -dW : dW) + dT; return [_sqSimClamp(L, 5, 95), _sqSimClamp(T, 6, 94)]; });
+    return arr.map(function (p, i) { var d = fn(p, i) || [0, 0]; var dF = (d[0] || 0) * k, dW = (d[1] || 0) * k, dT = (d[2] || 0) * k; var L = p.baseL + dir * dF, T = p.baseT + (p.baseT < 50 ? -dW : dW) + dT; return [_sqSimClamp(L, 5, 95), _sqSimClamp(T, 6, 94)]; });
   }
   return row('my', M.my.players, myFn).concat(row('opp', M.opp.players, oppFn));
 }
@@ -4137,6 +4141,25 @@ function _sqSimNetSvg(pos, nMy) {
   function lines(s, e, cls) { var out = ''; for (var i = s; i < e; i++) { var d = []; for (var j = s; j < e; j++) { if (j === i) continue; var dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1]; d.push([dx * dx + dy * dy, j]); } d.sort(function (a, b) { return a[0] - b[0]; }); for (var k = 0; k < 2 && k < d.length; k++) { var j2 = d[k][1]; if (j2 > i) out += '<line x1="' + pos[i][0].toFixed(1) + '" y1="' + pos[i][1].toFixed(1) + '" x2="' + pos[j2][0].toFixed(1) + '" y2="' + pos[j2][1].toFixed(1) + '" class="' + cls + '"/>'; } } return out; }
   return lines(0, nMy, 'sqsim-nl sqsim-nl--my') + lines(nMy, pos.length, 'sqsim-nl sqsim-nl--opp');
 }
+// Clear team-shape lines: connect each positional line (defence / midfield / attack) so the
+// block is instantly readable — defensive line, midfield line, attacking line, per team.
+function _sqSimShapeSvg(pos, M) {
+  var nMy = M.my.players.length;
+  function bank(players, off, cls) {
+    var g = { df: [], mf: [], fw: [] };
+    for (var i = 0; i < players.length; i++) { var cat = players[i].cat; if (cat === 'gk') continue; var key = cat === 'df' ? 'df' : cat === 'mf' ? 'mf' : 'fw'; g[key].push(pos[off + i]); }
+    var out = '';
+    ['df', 'mf', 'fw'].forEach(function (kk) {
+      var pts = g[kk].slice().sort(function (a, b) { return a[1] - b[1]; });
+      if (pts.length < 2) return;
+      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+      for (var k = 1; k < pts.length; k++) d += ' L' + pts[k][0].toFixed(1) + ' ' + pts[k][1].toFixed(1);
+      out += '<path d="' + d + '" class="sqsim-shp ' + cls + '"/>';
+    });
+    return out;
+  }
+  return bank(M.my.players, 0, 'sqsim-shp--my') + bank(M.opp.players, nMy, 'sqsim-shp--opp');
+}
 function _sqSimMetricBase(c) {
   var me = c.me, op = c.op, cl = _sqSimClamp;
   return { press: cl(50 + c.midEdge * 7 + me.fw * 2, 12, 96), space: cl(50 + c.midEdge * 6 + c.wideEdge * 3, 12, 96), compact: cl(52 + (me.def - 4) * 6 + (me.mid - 4) * 4, 12, 96), counter: cl(44 + me.fw * 7 + me.wide * 5, 12, 96), adv: cl(50 + c.midEdge * 4 + (me.def - op.fw) * 4 + c.wideEdge * 3, 8, 95), risk: cl(40 + op.wide * 7 + (op.fw > me.def ? 12 : 0) + (c.midEdge < 0 ? (-c.midEdge * 5) : 0), 8, 95) };
@@ -4254,7 +4277,7 @@ function _sqSimEnter(i, instant) {
   for (var d = 0; d < _sqSim.dots.length; d++) _sqSim.dots[d].classList.remove('is-hl');
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
-  var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimNetSvg(_sqSim.to, _sqSim.model.my.players.length);
+  var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimShapeSvg(_sqSim.to, _sqSim.model);
   // animate both teams' metric bars per scene (my = green panel, opp = magenta panel)
   var mws = root.querySelectorAll('.sqsim-mw');
   for (var mI = 0; mI < mws.length; mI++) {

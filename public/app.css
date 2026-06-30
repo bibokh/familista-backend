@@ -4286,6 +4286,9 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-net{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .sqsim-nl{ stroke-width:.35; }
 .sqsim-nl--my{ stroke:hsla(var(--sqx-h1,145),90%,65%,.5); } .sqsim-nl--opp{ stroke:hsla(var(--sqx-h2,300),85%,70%,.42); }
+/* clear, stable team-shape lines (defensive line / midfield line / attacking line) */
+.sqsim-shp{ fill:none; stroke-width:.55; stroke-linecap:round; stroke-linejoin:round; transition:d .8s ease; }
+.sqsim-shp--my{ stroke:hsla(var(--sqx-h1,145),85%,62%,.42); } .sqsim-shp--opp{ stroke:hsla(var(--sqx-h2,300),80%,66%,.34); }
 /* holographic player nodes (override the green/blue dots) */
 .sqsim-holo .sqsim-dot{ background:none !important; }
 .sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 32%,hsla(var(--sqx-h1,205),95%,78%,1),hsla(var(--sqx-h1,205),90%,45%,.55) 70%) !important; box-shadow:0 0 0 1.5px hsla(var(--sqx-h1,205),95%,72%,.9), 0 0 14px hsla(var(--sqx-h1,205),95%,60%,.6) !important; }
