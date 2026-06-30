@@ -3990,7 +3990,7 @@ function _sqLay(M, myFn, oppFn) {
   var k = _SQ_MOVE;
   function row(side, arr, fn) {
     var dir = side === 'my' ? 1 : -1;
-    return arr.map(function (p, i) { var d = fn(p, i) || [0, 0]; var dF = (d[0] || 0) * k, dW = (d[1] || 0) * k, dT = (d[2] || 0) * k; var L = p.baseL + dir * dF, T = p.baseT + (p.baseT < 50 ? -dW : dW) + dT; return [_sqSimClamp(L, 5, 95), _sqSimClamp(T, 6, 94)]; });
+    return arr.map(function (p, i) { var d = fn(p, i) || [0, 0]; var dF = (d[0] || 0) * k, dW = (d[1] || 0) * k, dT = (d[2] || 0) * k; var L = p.baseL + dir * dF, T = p.baseT + (p.baseT < 50 ? -dW : dW) + dT; return [_sqSimClamp(L, 8, 92), _sqSimClamp(T, 9, 91)]; });
   }
   return row('my', M.my.players, myFn).concat(row('opp', M.opp.players, oppFn));
 }
@@ -4015,6 +4015,7 @@ function _sqSimScenes(M) {
   (function () { var gk = sp(P1, 'my', 'GK') || [16, 50], cb = (spw(P1, 'my', ['CB'], true) || {}).pt || [24, 36], fb = (spw(P1, 'my', ['FB'], true) || {}).pt || [34, 16];
     var ar = []; if (gk && cb) ar.push(A(gk[0], gk[1], cb[0], cb[1], 'pass')); if (cb && fb) ar.push(A(cb[0], cb[1], fb[0], fb[1], 'pass')); if (fb) ar.push(A(fb[0], fb[1], fb[0] + 15, fb[1] + 4, 'run', true));
     sc({ key: 'build', no: 1, dur: 2000, title: 'Build-up — we have the ball', ball: cb ? [cb[0] + 2, cb[1]] : [24, 40], pos: P1, arrows: ar,
+      zones: [{ x: 8, y: 26, w: 44, h: 48, kind: 'poss', label: 'Our possession' }],
       text: '<b>FC Familista has the ball.</b> Centre-backs split, full-backs push high and the holding midfielder drops to build a back three. <b>Opponent</b> drops into a mid-block. Move the ball side to side to shift them and find the free man between the lines. <b>Avoid:</b> forcing it through a packed centre.' }); })();
 
   // 2 — High press: opponent has the ball, we step up to win it high
@@ -4024,6 +4025,7 @@ function _sqSimScenes(M) {
   (function () { var st = sp(P2, 'my', 'ST') || sp(P2, 'my', 'SS') || sp(P2, 'my', 'WG') || [60, 50], ocb = sp(P2, 'opp', 'CB') || [78, 38], scr = sp(P2, 'my', 'AM') || sp(P2, 'my', 'CM') || sp(P2, 'my', 'DM') || [56, 50], odm = sp(P2, 'opp', 'DM') || sp(P2, 'opp', 'CM') || [70, 50], og = sp(P2, 'opp', 'GK');
     var ar = []; if (og && ocb) ar.push(A(og[0], og[1], ocb[0], ocb[1], 'opp', true)); ar.push(A(st[0], st[1], ocb[0], ocb[1], 'press')); ar.push(A(scr[0], scr[1], odm[0], odm[1], 'def'));
     sc({ key: 'press', no: 2, dur: 1900, title: 'High press — opponent in possession', ball: ocb, pos: P2, hl: idx('my', 'ST') >= 0 ? [idx('my', 'ST')] : [], arrows: ar,
+      zones: [{ x: 54, y: 24, w: 40, h: 52, kind: 'press', label: 'Pressing zone' }],
       text: '<b>Opponent has the ball.</b> The ' + c.presser + ' curves onto the ball-side ' + c.oppFirst + ', the ' + c.screen + ' blocks the pivot and the whole line steps up to compress the space. <b>Defend:</b> press as one on the trigger. <b>Danger:</b> the ball in behind if you over-commit.' }); })();
 
   // 3 — opponent attacks our LEFT (block shifts up together)
@@ -4072,6 +4074,7 @@ function _sqSimScenes(M) {
     var ar = [A(dm[0], dm[1], st[0], st[1], 'counter', true)]; if (wg) ar.push(A(wg.pt[0], wg.pt[1], 86, 80, 'run', true)); if (fb) ar.push(A(fb.pt[0], fb.pt[1], 74, 88, 'overlap')); ar.push(A(48, 50, 86, 18, 'switch', true));
     var h = idx('my', 'ST'); if (h < 0) h = idx('my', 'SS'); if (h < 0) h = idx('my', 'WG');
     sc({ key: 'counter', no: 7, dur: 1900, title: 'Win the ball — counter attack', ball: ball, pos: P7, hl: h >= 0 ? [h] : [], arrows: ar,
+      zones: [{ x: 60, y: 26, w: 32, h: 44, kind: 'poss', label: 'Free space' }],
       text: '<b>We win it — transition to attack.</b> Vertical pass into the ' + c.presser + ', the ' + c.myWide + ' attack the channels, the full-back overlaps and a switch finds the free man — <b>opponent is caught high and recovering</b>. <b>Attack:</b> hit the space behind before they reset.' }); })();
 
   // 8 — compact low block (opponent in our final third)
@@ -4081,7 +4084,7 @@ function _sqSimScenes(M) {
   (function () { var ball = [18, 50], cbL = spw(P8, 'my', ['CB'], true), cbR = spw(P8, 'my', ['CB'], false), ow = spw(P8, 'opp', ['WG', 'WM', 'FB'], false);
     var ar = []; if (ow) ar.push(A(ow.pt[0], ow.pt[1], 12, 78, 'opp', true)); if (cbL) ar.push(A(cbL.pt[0], cbL.pt[1], cbL.pt[0] - 2, cbL.pt[1], 'def')); if (cbR) ar.push(A(cbR.pt[0], cbR.pt[1], cbR.pt[0] - 2, cbR.pt[1], 'def'));
     sc({ key: 'block', no: 8, dur: 1800, title: 'Compact low block', ball: ball, pos: P8, arrows: ar,
-      zones: [{ x: 4, y: 30, w: 22, h: 40, kind: 'shadow', label: 'Protected zone' }],
+      zones: [{ x: 4, y: 26, w: 24, h: 48, kind: 'block', label: 'Defensive block' }],
       text: '<b>Opponent camps in our third.</b> Drop into a compact low block — two banks, narrow, deny the centre. Centre-backs hold the line, full-backs guard the channels, midfield screens the box. <b>Defend:</b> stay on your feet and defend the cut-back. <b>Avoid:</b> diving in — protect the space inside the box.' }); })();
 
   // 9 — recovery / regain shape
@@ -4130,12 +4133,21 @@ function _sqSimInfoHtml(sc, total) {
 // ── Tactical Intelligence 3.0 — holographic command-centre visual layer ──
 function _sqHue(s) { var h = 0; s = String(s || ''); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h % 360; }
 function _sqSimHoloField() {
-  var s = 'fill="none" stroke="currentColor" stroke-width="0.5" vector-effect="non-scaling-stroke"';
+  // clean white pitch markings on real grass (boundary, halfway, centre circle/spot, both
+  // penalty areas, 6-yard boxes, penalty spots, penalty arcs, corner arcs)
+  var c = 'rgba(255,255,255,.72)';
+  var s = 'fill="none" stroke="' + c + '" stroke-width="0.45" vector-effect="non-scaling-stroke"';
+  var sp = 'fill="' + c + '"';
   return '<svg class="sqsim-holofield" viewBox="0 0 150 100" preserveAspectRatio="none">'
-    + '<rect x="2" y="2" width="146" height="96" rx="2" ' + s + '/><line x1="75" y1="2" x2="75" y2="98" ' + s + '/>'
-    + '<circle cx="75" cy="50" r="12" ' + s + '/><circle cx="75" cy="50" r="0.9" fill="currentColor"/>'
-    + '<rect x="2" y="22" width="22" height="56" ' + s + '/><rect x="126" y="22" width="22" height="56" ' + s + '/>'
-    + '<rect x="2" y="37" width="8" height="26" ' + s + '/><rect x="140" y="37" width="8" height="26" ' + s + '/></svg>';
+    + '<rect x="2" y="2" width="146" height="96" rx="1" ' + s + '/>'
+    + '<line x1="75" y1="2" x2="75" y2="98" ' + s + '/>'
+    + '<circle cx="75" cy="50" r="11" ' + s + '/><circle cx="75" cy="50" r="0.8" ' + sp + '/>'
+    + '<rect x="2" y="22" width="20" height="56" ' + s + '/><rect x="128" y="22" width="20" height="56" ' + s + '/>'
+    + '<rect x="2" y="36" width="7" height="28" ' + s + '/><rect x="141" y="36" width="7" height="28" ' + s + '/>'
+    + '<circle cx="15" cy="50" r="0.8" ' + sp + '/><circle cx="135" cy="50" r="0.8" ' + sp + '/>'
+    + '<path d="M22 41 A11 11 0 0 1 22 59" ' + s + '/><path d="M128 59 A11 11 0 0 1 128 41" ' + s + '/>'
+    + '<path d="M2 6 A4 4 0 0 0 6 2" ' + s + '/><path d="M148 6 A4 4 0 0 0 144 2" ' + s + '/>'
+    + '<path d="M6 98 A4 4 0 0 0 2 94" ' + s + '/><path d="M144 98 A4 4 0 0 0 148 94" ' + s + '/></svg>';
 }
 function _sqSimNetSvg(pos, nMy) {
   function lines(s, e, cls) { var out = ''; for (var i = s; i < e; i++) { var d = []; for (var j = s; j < e; j++) { if (j === i) continue; var dx = pos[i][0] - pos[j][0], dy = pos[i][1] - pos[j][1]; d.push([dx * dx + dy * dy, j]); } d.sort(function (a, b) { return a[0] - b[0]; }); for (var k = 0; k < 2 && k < d.length; k++) { var j2 = d[k][1]; if (j2 > i) out += '<line x1="' + pos[i][0].toFixed(1) + '" y1="' + pos[i][1].toFixed(1) + '" x2="' + pos[j2][0].toFixed(1) + '" y2="' + pos[j2][1].toFixed(1) + '" class="' + cls + '"/>'; } } return out; }
@@ -4277,7 +4289,7 @@ function _sqSimEnter(i, instant) {
   for (var d = 0; d < _sqSim.dots.length; d++) _sqSim.dots[d].classList.remove('is-hl');
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
-  var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimShapeSvg(_sqSim.to, _sqSim.model);
+  var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = ''; // clean pitch — no construction lines
   // animate both teams' metric bars per scene (my = green panel, opp = magenta panel)
   var mws = root.querySelectorAll('.sqsim-mw');
   for (var mI = 0; mI < mws.length; mI++) {
@@ -4313,7 +4325,7 @@ function _sqSimLoop(tok) {
   if (tok !== _sqSim.token || !_sqSim.el || !document.body.contains(_sqSim.el)) return;
   var now = _sqSimNow(), dt = now - _sqSim.last; _sqSim.last = now; if (dt < 0) dt = 0; if (dt > 80) dt = 80;
   if (_sqSim.boot > 0) { _sqSim.boot -= dt; if (_sqSim.boot <= 0) { var bt = _sqSim.el.querySelector('[data-role="boot"]'); if (bt) bt.classList.add('is-hidden'); _sqSimEnter(0, false); } _sqSim.raf = requestAnimationFrame(function () { _sqSimLoop(tok); }); return; }
-  var sc = _sqSim.scenes[_sqSim.idx], dur = sc.dur || 1700, moveDur = dur * 0.86;
+  var sc = _sqSim.scenes[_sqSim.idx], dur = (sc.dur || 1700) * 1.45, moveDur = dur * 0.84; // slower, smoother (~2.2–3.2s)
   if (_sqSim.playing) _sqSim.elapsed += dt * _sqSim.speed;
   var mp = _sqSimEase(_sqSimClamp(_sqSim.elapsed / moveDur, 0, 1));
   for (var d = 0; d < _sqSim.dots.length; d++) { var a = _sqSim.from[d] || [50, 50], b = _sqSim.to[d] || a; _sqSim.cur[d] = [a[0] + (b[0] - a[0]) * mp, a[1] + (b[1] - a[1]) * mp]; }

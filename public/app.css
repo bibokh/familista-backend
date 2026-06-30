@@ -4221,6 +4221,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-zone--shadow span{ color:#bcd4f7; }
 .sqsim-zone--strong{ background:rgba(34,197,94,.22); border:1.5px solid rgba(74,222,128,.65); }
 .sqsim-zone--danger{ background:rgba(248,113,113,.2); border:1.5px solid rgba(248,113,113,.65); }
+.sqsim-zone--poss{ background:rgba(52,215,122,.16); border:1px solid rgba(110,255,170,.5); }
+.sqsim-zone--press{ background:rgba(248,113,113,.16); border:1px dashed rgba(248,160,160,.55); }
+.sqsim-zone--block{ background:rgba(167,80,220,.18); border:1px solid rgba(200,130,250,.55); }
+.sqsim-zone--block span{ color:#e6c6ff; }
 .sqsim-dot{ position:absolute; left:0; top:0; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; will-change:transform; transform:translate3d(-100px,-100px,0); box-shadow:0 2px 8px rgba(0,0,0,.5); }
 .sqsim-dot-no{ font-size:8.5px; font-weight:800; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.8); letter-spacing:.02em; }
 .sqsim-dot--my{ background:radial-gradient(circle at 35% 30%,#86efac,#16a34a 70%); box-shadow:0 0 0 1.5px rgba(134,239,172,.7), 0 2px 9px rgba(0,0,0,.5), 0 0 12px rgba(34,197,94,.45); }
@@ -4266,35 +4270,23 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtc-ov--simulation .sqsim-bl{ font-size:10.5px; padding:2px 8px; }
 .sqsim-stagewrap{ width:100%; }
 
-/* ════ Tactical Intelligence 3.0 — holographic AI command centre ════ */
+/* ════ AI Tactical Command Centre — clean realistic-grass pitch ════ */
 .sqsim--holo{ color:#dff1ff; }
-.sqsim-holo{ position:relative; overflow:hidden; perspective:1100px;
-  background:radial-gradient(120% 120% at 50% 0%,#0b1830 0%,#060d1c 55%,#03070f 100%) !important;
-  border:1px solid rgba(120,200,255,.28) !important;
-  box-shadow:0 0 0 1px rgba(0,0,0,.4), inset 0 0 70px rgba(0,40,90,.32); }
-/* subtle wireframe grid (larger, fainter, static — easier to read) */
-.sqsim-grid{ position:absolute; inset:0; z-index:0; pointer-events:none;
-  background-image:linear-gradient(hsla(var(--sqx-gh,205),70%,62%,.055) 1px,transparent 1px),linear-gradient(90deg,hsla(var(--sqx-gh,205),70%,62%,.055) 1px,transparent 1px);
-  background-size:var(--sqx-grid,30px) var(--sqx-grid,30px);
-  -webkit-mask-image:radial-gradient(120% 100% at 50% 42%,#000 60%,transparent 100%); mask-image:radial-gradient(120% 100% at 50% 42%,#000 60%,transparent 100%); }
-@keyframes sqsimGridPan{ from{ background-position:0 0,0 0; } to{ background-position:var(--sqx-grid,13px) 0,0 var(--sqx-grid,13px); } }
-.sqsim-scan{ position:absolute; left:0; right:0; top:0; height:30%; z-index:1; pointer-events:none;
-  background:linear-gradient(180deg,transparent,rgba(140,200,255,.06),transparent); animation:sqsimScan 6s ease-in-out infinite; }
-@keyframes sqsimScan{ 0%{ transform:translateY(-40%); opacity:.15; } 50%{ opacity:.4; } 100%{ transform:translateY(320%); opacity:.15; } }
+.sqsim-holo{ position:relative; overflow:hidden;
+  background:
+    radial-gradient(130% 120% at 50% 35%, rgba(255,255,255,.06), rgba(0,0,0,.14) 100%),
+    repeating-linear-gradient(90deg, #2f8f3f 0 7.69%, #2a8639 7.69% 15.38%) !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+  box-shadow:0 8px 26px rgba(0,0,0,.45), inset 0 0 50px rgba(0,0,0,.16); }
 .sqsim-holo .sqsim-cam{ position:absolute; inset:0; z-index:2; }
-.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; color:rgba(150,205,255,.5); filter:drop-shadow(0 0 3px rgba(120,190,255,.4)); }
+.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; }
 .sqsim-net{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.sqsim-nl{ stroke-width:.35; }
-.sqsim-nl--my{ stroke:hsla(var(--sqx-h1,145),90%,65%,.5); } .sqsim-nl--opp{ stroke:hsla(var(--sqx-h2,300),85%,70%,.42); }
-/* clear, stable team-shape lines (defensive line / midfield line / attacking line) */
-.sqsim-shp{ fill:none; stroke-width:.55; stroke-linecap:round; stroke-linejoin:round; transition:d .8s ease; }
-.sqsim-shp--my{ stroke:hsla(var(--sqx-h1,145),85%,62%,.42); } .sqsim-shp--opp{ stroke:hsla(var(--sqx-h2,300),80%,66%,.34); }
-/* holographic player nodes (override the green/blue dots) */
+/* realistic player markers that read clearly on grass (white ring + drop shadow) */
 .sqsim-holo .sqsim-dot{ background:none !important; }
-.sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 32%,hsla(var(--sqx-h1,205),95%,78%,1),hsla(var(--sqx-h1,205),90%,45%,.55) 70%) !important; box-shadow:0 0 0 1.5px hsla(var(--sqx-h1,205),95%,72%,.9), 0 0 14px hsla(var(--sqx-h1,205),95%,60%,.6) !important; }
-.sqsim-holo .sqsim-dot--opp{ background:radial-gradient(circle at 38% 32%,hsla(var(--sqx-h2,28),90%,80%,.95),hsla(var(--sqx-h2,28),85%,50%,.4) 70%) !important; box-shadow:0 0 0 1.5px hsla(var(--sqx-h2,28),90%,74%,.8), 0 0 12px hsla(var(--sqx-h2,28),85%,60%,.45) !important; opacity:.88; }
-.sqsim-holo .sqsim-dot.is-hl{ box-shadow:0 0 0 2.5px #ffd54a, 0 0 22px rgba(255,213,74,.85) !important; }
-.sqsim-holo .sqsim-dot-no{ color:#eaf6ff; }
+.sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 30%,#7dffab,#15a04a 72%) !important; box-shadow:0 0 0 2px rgba(255,255,255,.92), 0 2px 7px rgba(0,0,0,.5) !important; }
+.sqsim-holo .sqsim-dot--opp{ background:radial-gradient(circle at 38% 30%,#ffa7ef,#c026a8 72%) !important; box-shadow:0 0 0 2px rgba(255,255,255,.9), 0 2px 7px rgba(0,0,0,.5) !important; }
+.sqsim-holo .sqsim-dot.is-hl{ box-shadow:0 0 0 2.5px #ffd54a, 0 0 16px rgba(255,213,74,.9), 0 2px 7px rgba(0,0,0,.5) !important; }
+.sqsim-holo .sqsim-dot-no{ color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); }
 .sqsim-holo .sqsim-ar{ filter:drop-shadow(0 0 2px currentColor); }
 .sqsim-holo .sqsim-progress{ background:rgba(255,255,255,.08); }
 .sqsim-holo .sqsim-progress i{ background:linear-gradient(90deg,hsla(var(--sqx-h1,205),90%,55%,1),#ffd54a); }
