@@ -4324,6 +4324,84 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim.is-matrix .sqsim-scan{ height:52%; animation-duration:2.4s; }
 .sqsim-btn--mx.is-on{ background:linear-gradient(135deg,#34d399,#10b981); color:#022; border-color:transparent; }
 
+/* ════ AI Tactical Intelligence — full command-centre layout (one screen, no scroll) ════ */
+.sqtc--sim .sqtc-content{ overflow:hidden; }
+.sqsim.sqcc{ flex:1 1 auto; min-height:0; height:auto; display:grid; grid-template-rows:auto 1fr auto; gap:8px; padding:2px 2px 0; }
+/* top bar: team identity + score/clock + transport controls */
+.sqcc-top{ display:grid; grid-template-columns:1fr minmax(280px,auto) 1fr; align-items:center; gap:14px; }
+.sqcc-tm{ display:flex; align-items:center; gap:10px; min-width:0; }
+.sqcc-tm--op{ justify-content:flex-end; }
+.sqcc-badge{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex:0 0 auto; }
+.sqcc-badge--my{ background:linear-gradient(135deg,#34d77a,#16a34a); color:#04140a; box-shadow:0 0 14px rgba(52,215,122,.45); }
+.sqcc-badge--op{ background:linear-gradient(135deg,#e85bd0,#a21caf); color:#1a0418; box-shadow:0 0 14px rgba(232,91,208,.45); }
+.sqcc-tm-id{ min-width:0; } .sqcc-tm-id--r{ text-align:right; }
+.sqcc-tm-id b{ display:block; font-size:15px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcc-tm--my .sqcc-tm-id b{ color:#7CFFB0; } .sqcc-tm--op .sqcc-tm-id b{ color:#f5a7e8; }
+.sqcc-tm-id i{ font-style:normal; font-size:9px; font-weight:700; letter-spacing:.06em; color:#8a94a6; }
+.sqcc-center{ text-align:center; }
+.sqcc-ai{ font-size:9px; font-weight:800; letter-spacing:.2em; color:#f4b740; text-shadow:0 0 8px rgba(244,183,64,.5); }
+.sqcc-score{ display:flex; align-items:center; justify-content:center; gap:14px; margin:2px 0 4px; }
+.sqcc-sc{ font-size:24px; font-weight:800; color:#eaf2ff; min-width:22px; }
+.sqcc-clock{ display:flex; flex-direction:column; align-items:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:3px 14px; font-size:15px; font-weight:800; color:#fff; line-height:1.05; }
+.sqcc-clock i{ font-style:normal; font-size:7px; font-weight:700; letter-spacing:.1em; color:#8a94a6; }
+.sqcc-ctl{ display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; }
+.sqcc-tb{ width:30px; height:26px; border-radius:7px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:#e3eaf4; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.sqcc-tb:hover{ background:rgba(255,255,255,.12); }
+.sqcc-tb--play{ background:linear-gradient(135deg,#34d77a,#16a34a); color:#04140a; border-color:transparent; }
+.sqcc-tb--mx.is-on{ background:linear-gradient(135deg,#34d399,#10b981); color:#022; border-color:transparent; }
+.sqcc-reset{ font-size:9.5px; font-weight:800; letter-spacing:.05em; color:#cbd5e1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:6px 11px; cursor:pointer; }
+.sqcc-reset:hover{ background:rgba(255,255,255,.12); }
+.sqcc-spd{ display:flex; gap:2px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:7px; padding:2px; }
+/* body: left panel | pitch | right panel */
+.sqcc-body{ display:grid; grid-template-columns:208px minmax(0,1fr) 208px; gap:10px; min-height:0; }
+.sqcc-side{ display:flex; flex-direction:column; gap:6px; min-height:0; overflow:hidden; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; padding:10px 12px; }
+.sqcc-side--my{ border-color:rgba(52,215,122,.18); } .sqcc-side--op{ border-color:rgba(232,91,208,.18); }
+.sqcc-sh{ font-size:8.5px; font-weight:800; letter-spacing:.1em; color:#8a94a6; }
+.sqcc-sname{ font-size:14px; font-weight:800; margin-bottom:3px; }
+.sqcc-sname--my{ color:#34d77a; } .sqcc-sname--op{ color:#e85bd0; }
+.sqcc-metrics{ display:flex; flex-direction:column; gap:6px; }
+.sqcc-metrics .sqsim-mw{ display:grid; grid-template-columns:1fr auto; grid-template-areas:"l v" "bar bar"; gap:2px 6px; }
+.sqcc-metrics .sqsim-mw-l{ grid-area:l; font-size:9px; font-weight:700; color:#aeb9cc; text-transform:none; letter-spacing:0; }
+.sqcc-metrics .sqsim-mw-v{ grid-area:v; font-size:11px; font-weight:800; text-align:right; }
+.sqcc-metrics .sqsim-mw-bar{ grid-area:bar; height:5px; }
+.sqcc-side--my .sqsim-mw-v{ color:#7CFFB0; } .sqcc-side--op .sqsim-mw-v{ color:#f5a7e8; }
+.sqcc-side--my .sqsim-mw-bar i{ background:linear-gradient(90deg,#16a34a,#4ade80); box-shadow:0 0 8px rgba(52,215,122,.55); }
+.sqcc-side--op .sqsim-mw-bar i{ background:linear-gradient(90deg,#a21caf,#e85bd0); box-shadow:0 0 8px rgba(232,91,208,.55); }
+.sqcc-side .sqsim-mw.is-risk .sqsim-mw-bar i{ background:linear-gradient(90deg,#f87171,#fca5a5); box-shadow:0 0 8px rgba(248,113,113,.6); }
+.sqcc-blk{ display:flex; flex-direction:column; align-items:center; gap:3px; margin-top:3px; }
+.sqcc-blk-l{ font-size:8px; font-weight:800; letter-spacing:.07em; color:#8a94a6; }
+.sqcc-ring{ width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.sqcc-ring-in{ width:56px; height:56px; border-radius:50%; background:#0a1322; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.sqcc-ring-in b{ font-size:16px; font-weight:800; } .sqcc-ring-in i{ font-style:normal; font-size:7px; font-weight:800; letter-spacing:.04em; color:#8a94a6; }
+.sqcc-ring--my .sqcc-ring-in b{ color:#7CFFB0; } .sqcc-ring--op .sqcc-ring-in b{ color:#f5a7e8; }
+.sqcc-stat{ display:flex; flex-direction:column; align-items:center; gap:1px; }
+.sqcc-stat-l{ font-size:7.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; }
+.sqcc-stat-v{ font-size:18px; font-weight:800; }
+.sqcc-stat-v--my{ color:#7CFFB0; } .sqcc-stat-v--op{ color:#f5a7e8; }
+.sqcc-ment{ display:flex; align-items:center; gap:8px; margin-top:auto; padding-top:6px; border-top:1px solid rgba(255,255,255,.06); }
+.sqcc-ment-i{ font-size:14px; } .sqcc-ment-i--my{ color:#34d77a; } .sqcc-ment-i--op{ color:#e85bd0; }
+.sqcc-ment-t i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; display:block; }
+.sqcc-ment-t b{ font-size:12px; font-weight:800; }
+.sqcc-ment-v--my{ color:#34d77a; } .sqcc-ment-v--op{ color:#e85bd0; }
+/* centre pitch */
+.sqcc-stagewrap{ min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; }
+.sqcc-stagewrap .sqsim-stage{ height:100%; width:auto; max-width:100%; max-height:100%; aspect-ratio:16/10; }
+/* bottom analysis bar */
+.sqcc-bottom{ display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr 1.15fr; gap:12px; padding:9px 13px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; }
+.sqcc-sec{ min-width:0; }
+.sqcc-sec-h{ display:block; font-size:9px; font-weight:800; letter-spacing:.07em; margin-bottom:4px; }
+.sqcc-sec-h--y{ color:#f4b740; } .sqcc-sec-h--g{ color:#34d77a; } .sqcc-sec-h--m{ color:#e85bd0; }
+.sqcc-sec [data-role]{ font-size:11px; line-height:1.4; color:#aab4c5; }
+.sqcc-sec [data-role] p{ margin:0; }
+.sqcc-sec--scene [data-role] b{ display:block; color:#eaf2ff; font-size:12px; font-weight:800; margin-bottom:2px; }
+.sqcc-bt{ display:inline-flex; align-items:center; gap:6px; margin-bottom:3px; }
+.sqcc-bt b{ background:rgba(232,91,208,.16); color:#f5a7e8; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:800; }
+.sqcc-bt em{ font-style:normal; color:#8a94a6; font-size:9px; }
+/* clean pitch inside the command centre (no grid) */
+.sqcc .sqsim-scenebar{ position:absolute; left:8px; right:8px; bottom:7px; z-index:5; opacity:.7; }
+.sqcc .sqsim-progress{ position:absolute; left:0; right:0; bottom:0; }
+@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-bottom{ grid-template-columns:1fr 1fr 1fr; } }
+
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
 .sqsub-col{ flex:1; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:8px 11px; min-width:0; }

@@ -3880,11 +3880,13 @@ function _sqCmdOverlayHtml(tab, my, op) {
 }
 function _sqCmdInner() {
   var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), ov = SQ_FORM.cmdOverlay;
-  var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
+  var isSim = ov === 'simulation'; // simulation = full command-centre screen (its own top bar)
+  var heads = isSim ? '' : '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
   var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) { var k = _sqCmdTabKey(t); var active = (k === 'overview') ? !ov : (ov === k); return '<button class="sqtc-tab' + (active ? ' is-active' : '') + '" data-action="sqCmdOverlay" data-tab="' + k + '" type="button">' + t + '</button>'; }).join('') + '</div>';
-  var content = _sqTcOverview(my, op);
-  if (ov && ov !== 'overview') content += _sqCmdOverlayHtml(ov, my, op);
-  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
+  var content;
+  if (isSim) { content = _sqTcSimulation(my, op); } // replaces the overview + popup with the command centre
+  else { content = _sqTcOverview(my, op); if (ov && ov !== 'overview') content += _sqCmdOverlayHtml(ov, my, op); }
+  return '<div class="sqtc' + (isSim ? ' sqtc--sim' : '') + '">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
 // ── Tactical Simulation 2.0 — professional scene-based analysis engine ──────────
@@ -4091,6 +4093,7 @@ function _sqSimScenes(M) {
   var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
   sc({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', ball: [50, 50], bullets: sum, text: _sqSimSummaryLine(c) });
 
+  S.forEach(function (s) { s.narr = _sqSimNarr(c, s.key); });
   return S;
 }
 function _sqSimDotsHtml(M) {
@@ -4138,57 +4141,98 @@ function _sqSimMetricBase(c) {
   var me = c.me, op = c.op, cl = _sqSimClamp;
   return { press: cl(50 + c.midEdge * 7 + me.fw * 2, 12, 96), space: cl(50 + c.midEdge * 6 + c.wideEdge * 3, 12, 96), compact: cl(52 + (me.def - 4) * 6 + (me.mid - 4) * 4, 12, 96), counter: cl(44 + me.fw * 7 + me.wide * 5, 12, 96), adv: cl(50 + c.midEdge * 4 + (me.def - op.fw) * 4 + c.wideEdge * 3, 8, 95), risk: cl(40 + op.wide * 7 + (op.fw > me.def ? 12 : 0) + (c.midEdge < 0 ? (-c.midEdge * 5) : 0), 8, 95) };
 }
-var _SQ_METRICS = [['press', 'Press'], ['space', 'Space'], ['compact', 'Compact'], ['counter', 'Counter'], ['adv', 'Tac Adv'], ['risk', 'Risk']];
+var _SQ_METRICS = [['press', 'Press'], ['compact', 'Compactness'], ['space', 'Connect'], ['counter', 'Counter'], ['adv', 'Tactical Adv'], ['risk', 'Risk']];
 var _SQ_METRIC_EMPH = { build: ['space'], press: ['press'], left: ['press', 'compact'], right: ['press', 'compact'], centre: ['compact'], overload: ['risk', 'compact'], counter: ['counter'], block: ['compact', 'risk'], recover: ['risk'], summary: ['adv'], shape: ['compact'], strong: ['adv'] };
 function _sqSimMetricVals(c, key) { var b = _sqSimMetricBase(c); (_SQ_METRIC_EMPH[key] || []).forEach(function (k) { b[k] = _sqSimClamp(b[k] + 16, 12, 98); }); return b; }
-function _sqSimMetricsHtml() { return _SQ_METRICS.map(function (m) { return '<div class="sqsim-mw" data-mkey="' + m[0] + '"><span class="sqsim-mw-l">' + m[1] + '</span><span class="sqsim-mw-bar"><i></i></span><span class="sqsim-mw-v">0</span></div>'; }).join(''); }
+function _sqSimMetricsHtml(side) { side = side || 'my'; return _SQ_METRICS.map(function (m) { return '<div class="sqsim-mw" data-side="' + side + '" data-mkey="' + m[0] + '"><span class="sqsim-mw-l">' + m[1] + '</span><span class="sqsim-mw-v">0</span><span class="sqsim-mw-bar"><i></i></span></div>'; }).join(''); }
+// per-scene narrative for the bottom analysis bar (Objective / Team instruction / Opponent response / Key battle)
+function _sqSimNarr(c, key) {
+  function duel(a, b, note) { return '<span class="sqcc-bt"><b>' + a + '</b><em>vs</em><b>' + b + '</b></span><p>' + note + '</p>'; }
+  var t = {
+    build: { obj: 'Break the lines and find the free man between the lines.', inst: 'Split the centre-backs, use width and quick passing.', oppr: 'Drops into a mid-block and compacts the centre.', battle: duel('CM', 'DM', 'Beat the first line of pressure.') },
+    press: { obj: 'Win the ball high and attack at once.', inst: 'Press the ball-side centre-back as a unit.', oppr: 'Plays out under pressure, eyes the long ball.', battle: duel('ST', 'CB', 'Pin the centre-backs, force the error.') },
+    left: { obj: 'Stop the wide attack and protect the box.', inst: 'Slide the block, press the ball, cover behind.', oppr: 'Overloads our left, looks for the cross.', battle: duel('LB', 'RW', '1v1 on our left flank.') },
+    right: { obj: 'Stop the wide attack and protect the box.', inst: 'Mirror the block, press, cover the channel.', oppr: 'Switches play and attacks our right.', battle: duel('RB', 'LW', '1v1 on our right flank.') },
+    centre: { obj: 'Protect the central lane between the lines.', inst: 'Pivot screens; a centre-back steps to the receiver.', oppr: 'Plays through the No.10 in the pocket.', battle: duel('DM', 'AM', 'Who owns the pocket?') },
+    overload: { obj: 'Restore the numbers on the overloaded side.', inst: 'Shift the whole block; far winger drops in.', oppr: 'Loads one flank to create a 2v1.', battle: duel('FB', 'WG', '2v1 — recover the spare man.') },
+    counter: { obj: 'Hit the space behind before they reset.', inst: 'Vertical pass; runners attack the channels.', oppr: 'Caught high — scrambling to recover.', battle: duel('WG', 'FB', 'Race in behind on the break.') },
+    block: { obj: 'Deny the centre and defend the box.', inst: 'Two compact banks; stay on your feet.', oppr: 'Camps in our third, switches and crosses.', battle: duel('CB', 'ST', 'Win the duels in the box.') },
+    recover: { obj: 'Reset the shape and stay compact.', inst: 'Jog back and re-form the lines together.', oppr: 'Recycles the ball and probes for gaps.', battle: duel('MID', 'MID', 'Win the second balls.') },
+    summary: { obj: 'Out-think ' + c.of + ' across the whole game.', inst: (_sqSimSummaryLine(c) || '').replace(/<[^>]+>/g, ''), oppr: 'Will target our weak side and our transitions.', battle: duel(c.mf, c.of, 'Match decided in midfield.') }
+  };
+  return t[key] || t.build;
+}
 var _SQ_CAM = ['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
-  _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M);
-  var gh = _sqHue(M.my.f + ' ' + M.opp.f); // per-matchup grid hue (subtle environment identity)
-  var nd = M.my.players.filter(function (p) { return p.cat === 'df'; }).length;
-  var grid = 24 + (5 - Math.min(5, nd)) * 4; // larger cells = fewer lines (cleaner wireframe)
-  // fixed team identity: My Team = neon green, Opponent = magenta/purple
-  var styleVars = '--sqx-h1:145;--sqx-h2:300;--sqx-gh:' + gh + ';--sqx-grid:' + grid + 'px';
-  var ctl = '<div class="sqsim-ctl">'
-    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="prev" title="Previous scene" type="button">⏮</button>'
-    + '<button class="sqsim-btn sqsim-btn--play" data-action="sqSimCtl" data-ctl="pause" data-role="play" title="Pause / Play" type="button">⏸</button>'
-    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="next" title="Next scene" type="button">⏭</button>'
-    + '<button class="sqsim-btn" data-action="sqSimCtl" data-ctl="replay" title="Replay" type="button">↻</button>'
-    + '<button class="sqsim-btn sqsim-btn--mx" data-action="sqSimCtl" data-ctl="matrix" data-role="mx" title="Matrix mode" type="button">◉</button>'
-    + '<span class="sqsim-spd"><button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="0.5" type="button">0.5×</button>'
-    + '<button class="sqsim-sx is-on" data-action="sqSimCtl" data-ctl="speed" data-val="1" type="button">1×</button>'
-    + '<button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="2" type="button">2×</button></span></div>';
+  _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M); _sqSim.ctxOpp = _sqSimCtx({ my: M.opp, opp: M.my });
+  var styleVars = '--sqx-h1:145;--sqx-h2:300';
+  var c = _sqSim.ctx, co = _sqSim.ctxOpp, cl = _sqSimClamp;
+  // static side-panel stats (engine animates the six metric bars per scene)
+  var myMv = _sqSimMetricBase(c), opMv = _sqSimMetricBase(co);
+  var myPoss = Math.round(cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2, 28, 72)), opPoss = 100 - myPoss;
+  var myBal = Math.round(cl((myMv.compact + myMv.adv + (100 - myMv.risk)) / 3, 20, 98)), opBal = Math.round(cl((opMv.compact + opMv.adv + (100 - opMv.risk)) / 3, 20, 98));
+  var myThr = Math.round(cl((myMv.counter + myMv.adv) / 2 + (c.me.fw - 2) * 4, 20, 95)), opThr = Math.round(cl((opMv.counter + opMv.adv) / 2 + (co.me.fw - 2) * 4, 20, 95));
+  var myMent = SQ_FORM.mentality || 'Balanced', opMent = c.op.fw >= 2 ? 'Attacking' : (c.op.def >= 5 ? 'Defensive' : 'Balanced');
+  function balLbl(v) { return v >= 80 ? 'GOOD' : v >= 60 ? 'AVERAGE' : 'RISK'; }
+  function ini(n) { return (String(n || '').split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2) || 'FC').toUpperCase(); }
+  function ring(sd, v) { var col = sd === 'my' ? '#34d77a' : '#e85bd0'; return '<div class="sqcc-ring sqcc-ring--' + sd + '" style="background:conic-gradient(' + col + ' ' + (v * 3.6).toFixed(0) + 'deg,rgba(255,255,255,.07) 0)"><span class="sqcc-ring-in"><b>' + v + '%</b><i>' + balLbl(v) + '</i></span></div>'; }
+  function panel(sd, name, bal, poss, thr, ment) {
+    return '<aside class="sqcc-side sqcc-side--' + sd + '">'
+      + '<div class="sqcc-sh">TEAM SHAPE</div><div class="sqcc-sname sqcc-sname--' + sd + '">' + _sqEsc(name) + '</div>'
+      + '<div class="sqcc-metrics">' + _sqSimMetricsHtml(sd) + '</div>'
+      + '<div class="sqcc-blk"><div class="sqcc-blk-l">TEAM BALANCE</div>' + ring(sd, bal) + '</div>'
+      + '<div class="sqcc-stat"><span class="sqcc-stat-l">POSSESSION</span><b class="sqcc-stat-v sqcc-stat-v--' + sd + '">' + poss + '%</b></div>'
+      + '<div class="sqcc-stat"><span class="sqcc-stat-l">ATTACKING THREAT</span><b class="sqcc-stat-v sqcc-stat-v--' + sd + '">' + thr + '%</b></div>'
+      + '<div class="sqcc-ment"><span class="sqcc-ment-i sqcc-ment-i--' + sd + '">' + (sd === 'my' ? '▲' : '◆') + '</span><span class="sqcc-ment-t"><i>MENTALITY</i><b class="sqcc-ment-v--' + sd + '">' + _sqEsc(ment.toUpperCase()) + '</b></span></div>'
+      + '</aside>';
+  }
+  var ctl = '<div class="sqcc-ctl">'
+    + '<button class="sqcc-tb" data-action="sqSimCtl" data-ctl="prev" title="Previous scene" type="button">⏮</button>'
+    + '<button class="sqcc-tb" data-action="sqSimCtl" data-ctl="replay" title="Stop / restart" type="button">⏹</button>'
+    + '<button class="sqcc-tb sqcc-tb--play" data-action="sqSimCtl" data-ctl="pause" data-role="play" title="Pause / Play" type="button">⏸</button>'
+    + '<button class="sqcc-tb" data-action="sqSimCtl" data-ctl="next" title="Next scene" type="button">⏭</button>'
+    + '<button class="sqcc-reset" data-action="sqSimCtl" data-ctl="replay" type="button">RESET</button>'
+    + '<span class="sqcc-spd"><button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="0.5" type="button">0.5x</button>'
+    + '<button class="sqsim-sx is-on" data-action="sqSimCtl" data-ctl="speed" data-val="1" type="button">1x</button>'
+    + '<button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="2" type="button">2x</button></span>'
+    + '<button class="sqcc-tb sqcc-tb--mx" data-action="sqSimCtl" data-ctl="matrix" data-role="mx" title="Matrix mode" type="button">◉</button></div>';
+  var top = '<div class="sqcc-top">'
+    + '<div class="sqcc-tm sqcc-tm--my"><span class="sqcc-badge sqcc-badge--my">' + ini(_sqClubName()) + '</span><div class="sqcc-tm-id"><b>' + _sqEsc(_sqClubName()) + '</b><i>' + _sqEsc(M.my.f) + ' · ' + myMent.toUpperCase() + '</i></div></div>'
+    + '<div class="sqcc-center"><div class="sqcc-ai">AI TACTICAL INTELLIGENCE</div>'
+    + '<div class="sqcc-score"><span class="sqcc-sc">0</span><span class="sqcc-clock" data-role="clock">00:00<i>FIRST HALF</i></span><span class="sqcc-sc">0</span></div>' + ctl + '</div>'
+    + '<div class="sqcc-tm sqcc-tm--op"><div class="sqcc-tm-id sqcc-tm-id--r"><b>OPPONENT</b><i>' + _sqEsc(M.opp.f) + ' · ' + opMent.toUpperCase() + '</i></div><span class="sqcc-badge sqcc-badge--op">' + ini('OP') + '</span></div>'
+    + '</div>';
   var scenebar = '<div class="sqsim-scenebar" data-role="scenebar">' + _sqSim.scenes.map(function (s, i) { return '<i class="sqsim-seg' + (i === 0 ? ' is-on' : '') + '" title="' + _sqEsc(s.title) + '"></i>'; }).join('') + '</div>';
   var boot = '<div class="sqsim-boot" data-role="boot"><div class="sqsim-boot-in"><div class="sqsim-boot-hd">◈ TACTICAL INTELLIGENCE ENGINE</div><div class="sqsim-boot-lines">'
     + '<p style="animation-delay:.05s">▸ Initializing tactical engine…</p>'
     + '<p style="animation-delay:.40s">▸ Scanning formations <b>' + _sqEsc(M.my.f) + '</b> / <b>' + _sqEsc(M.opp.f) + '</b>…</p>'
-    + '<p style="animation-delay:.75s">▸ Calculating press resistance…</p>'
-    + '<p style="animation-delay:1.10s">▸ Searching weak side…</p>'
+    + '<p style="animation-delay:.75s">▸ Modelling press &amp; cover shadows…</p>'
+    + '<p style="animation-delay:1.10s">▸ Searching weak side &amp; overloads…</p>'
     + '<p style="animation-delay:1.45s">▸ Building passing network…</p>'
-    + '<p style="animation-delay:1.80s">▸ Generating tactical model…</p>'
+    + '<p style="animation-delay:1.80s">▸ Generating live tactical model…</p>'
     + '<p class="sqsim-boot-ok" style="animation-delay:2.10s">▸ Simulation ready</p></div></div></div>';
-  return '<div class="sqsim sqsim--holo" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
-    + '<div class="sqsim-bar"><span class="sqsim-tag">AI tactical intelligence</span>'
-    + '<span class="sqsim-match">' + _sqEsc(_sqClubName()) + ' <b>' + _sqEsc(M.my.f) + '</b> <i>vs</i> Opponent <b>' + _sqEsc(M.opp.f) + '</b></span>' + ctl + '</div>'
-    + '<div class="sqsim-stagewrap"><div class="sqsim-stage sqsim-holo sqmd-pitch sqmd-pitch--shared">'
+  var stage = '<div class="sqcc-stagewrap"><div class="sqsim-stage sqsim-holo sqmd-pitch sqmd-pitch--shared">'
     + '<div class="sqsim-cam" data-role="cam">' + _sqSimHoloField()
     + '<svg class="sqsim-net" data-role="net" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>'
     + '<div class="sqsim-zones" data-role="zones"></div>'
     + '<svg class="sqsim-arrows" data-role="arrows" viewBox="0 0 100 100" preserveAspectRatio="none">' + _sqSimArrowDefs() + '</svg>'
     + '<div class="sqsim-layer">' + _sqSimDotsHtml(M) + '</div>'
     + '<div class="sqsim-ball" data-role="ball"></div></div>'
-    + '<div class="sqsim-progress"><i data-role="bar"></i></div>'
-    + boot + '</div></div>'
-    + '<div class="sqsim-metrics sqsim-metrics--out" data-role="metrics">' + _sqSimMetricsHtml() + '</div>'
-    + scenebar
-    + '<div class="sqsim-info" data-role="info"></div>'
-    + '<div class="sqsim-legend"><span class="sqsim-lg sqsim-lg--opp">Opponent</span><span class="sqsim-lg sqsim-lg--press">Press</span><span class="sqsim-lg sqsim-lg--def">Shift / Cover</span><span class="sqsim-lg sqsim-lg--run">Track / Run</span><span class="sqsim-lg sqsim-lg--counter">Counter</span><span class="sqsim-lg sqsim-lg--switch">Switch</span></div>'
+    + scenebar + '<div class="sqsim-progress"><i data-role="bar"></i></div>'
+    + boot + '</div></div>';
+  var bottom = '<div class="sqcc-bottom">'
+    + '<div class="sqcc-sec sqcc-sec--scene"><span class="sqcc-sec-h sqcc-sec-h--y">SCENE</span><div data-role="scene"></div></div>'
+    + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--g">OBJECTIVE</span><div data-role="obj"></div></div>'
+    + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--g">TEAM INSTRUCTION</span><div data-role="inst"></div></div>'
+    + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--m">OPPONENT RESPONSE</span><div data-role="oppr"></div></div>'
+    + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--m">KEY BATTLE</span><div data-role="battle"></div></div>'
     + '</div>';
+  return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
+    + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>' + bottom + '</div>';
 }
 // ── engine state machine ──
-var _sqSim = { model: null, scenes: [], ctx: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
+var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
 function _sqSimStop() { _sqSim.token++; if (_sqSim.raf) { try { cancelAnimationFrame(_sqSim.raf); } catch (e) {} _sqSim.raf = 0; } }
 function _sqSimBoot() {
   _sqSimStop(); if (typeof requestAnimationFrame !== 'function') return;
@@ -4211,7 +4255,22 @@ function _sqSimEnter(i, instant) {
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
   var net = root.querySelector('[data-role="net"]'); if (net) net.innerHTML = _sqSimNetSvg(_sqSim.to, _sqSim.model.my.players.length);
-  if (_sqSim.ctx) { var vals = _sqSimMetricVals(_sqSim.ctx, sc.key); var mws = root.querySelectorAll('.sqsim-mw'); for (var mI = 0; mI < mws.length; mI++) { var mk = mws[mI].getAttribute('data-mkey'), vv = Math.round(vals[mk]); var ib = mws[mI].querySelector('i'); if (ib) ib.style.width = vv + '%'; var vl = mws[mI].querySelector('.sqsim-mw-v'); if (vl) vl.textContent = vv + '%'; mws[mI].classList.toggle('is-hot', vv >= 70 && mk !== 'risk'); mws[mI].classList.toggle('is-risk', mk === 'risk' && vv >= 55); } }
+  // animate both teams' metric bars per scene (my = green panel, opp = magenta panel)
+  var mws = root.querySelectorAll('.sqsim-mw');
+  for (var mI = 0; mI < mws.length; mI++) {
+    var el = mws[mI], sdd = el.getAttribute('data-side') || 'my', mk = el.getAttribute('data-mkey');
+    var cx = sdd === 'op' ? _sqSim.ctxOpp : _sqSim.ctx; if (!cx) continue;
+    var vv = Math.round(_sqSimMetricVals(cx, sc.key)[mk]);
+    var ib = el.querySelector('i'); if (ib) ib.style.width = vv + '%';
+    var vl = el.querySelector('.sqsim-mw-v'); if (vl) vl.textContent = vv + '%';
+    el.classList.toggle('is-hot', vv >= 70 && mk !== 'risk');
+    el.classList.toggle('is-risk', mk === 'risk' && vv >= 55);
+  }
+  // bottom analysis bar — Scene / Objective / Team Instruction / Opponent Response / Key Battle
+  function _setR(r, h) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = h; }
+  _setR('scene', '<b>' + _sqEsc(sc.title) + '</b><p>' + (sc.text || '') + '</p>');
+  if (sc.narr) { _setR('obj', sc.narr.obj); _setR('inst', sc.narr.inst); _setR('oppr', sc.narr.oppr); _setR('battle', sc.narr.battle); }
+  var clk = root.querySelector('[data-role="clock"]'); if (clk) { var mn = 3 + i * 4, ss = (i * 37) % 60; clk.innerHTML = (mn < 10 ? '0' : '') + mn + ':' + (ss < 10 ? '0' : '') + ss + '<i>FIRST HALF</i>'; }
   root.setAttribute('data-phase', sc.key);
   if (instant) { _sqSim.cur = _sqSim.to.map(function (p) { return p.slice(); }); _sqSimPaint(_sqSim.cur); }
 }
