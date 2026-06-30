@@ -4253,6 +4253,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtc-ov--simulation .sqtc-ov-body{ overflow:hidden; display:flex; flex-direction:column; padding:10px 14px; }
 .sqtc-ov--simulation .sqsim{ flex:1 1 auto; min-height:0; gap:6px; }
 .sqtc-ov--simulation .sqsim-bar,
+.sqtc-ov--simulation .sqsim-metrics,
 .sqtc-ov--simulation .sqsim-scenebar,
 .sqtc-ov--simulation .sqsim-info,
 .sqtc-ov--simulation .sqsim-legend{ flex:0 0 auto; }
@@ -4296,6 +4297,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqsim-holo .sqsim-progress i{ background:linear-gradient(90deg,hsla(var(--sqx-h1,205),90%,55%,1),#ffd54a); }
 /* floating HUD metric widgets */
 .sqsim-metrics{ position:absolute; top:8px; right:8px; z-index:6; display:flex; flex-direction:column; gap:4px; width:126px; padding:7px 8px; border-radius:9px; background:rgba(6,16,30,.55); border:1px solid hsla(var(--sqx-h1,205),80%,60%,.3); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); box-shadow:0 6px 18px rgba(0,0,0,.45); }
+/* metrics moved OUTSIDE the pitch: horizontal strip, never covers players */
+.sqsim-metrics--out{ position:static; flex-direction:row; flex-wrap:wrap; width:auto; gap:5px 16px; padding:7px 11px; background:rgba(8,16,30,.5); border-color:rgba(120,200,255,.22); box-shadow:none; }
+.sqsim-metrics--out .sqsim-mw{ flex:1 1 118px; grid-template-columns:50px 1fr 32px; }
+.sqsim-metrics--out .sqsim-mw-l{ font-size:8px; } .sqsim-metrics--out .sqsim-mw-bar{ height:5px; } .sqsim-metrics--out .sqsim-mw-v{ font-size:9px; }
 .sqsim-mw{ display:grid; grid-template-columns:44px 1fr 20px; align-items:center; gap:5px; }
 .sqsim-mw-l{ font-size:7.5px; font-weight:800; letter-spacing:.02em; color:#9fd0ff; text-transform:uppercase; white-space:nowrap; }
 .sqsim-mw-bar{ height:4px; border-radius:3px; background:rgba(255,255,255,.1); overflow:hidden; }
