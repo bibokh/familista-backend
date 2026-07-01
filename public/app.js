@@ -4346,18 +4346,21 @@ function _sqSimArrowDefs() {
   return '<defs>' + m + '<filter id="sqsimGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="1" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
 }
 function _sqSimArrowSvg(arrows) {
+  // keep every tactical graphic strictly inside the white pitch boundary (viewBox 0..100)
+  var AX = function (v) { return Math.max(4, Math.min(96, v)); }, AY = function (v) { return Math.max(5, Math.min(95, v)); };
   var s = _sqSimArrowDefs();
   (arrows || []).forEach(function (a) {
-    if (a.t === 'line') { s += '<line x1="' + a.x1 + '" y1="' + a.y1 + '" x2="' + a.x2 + '" y2="' + a.y2 + '" class="sqsim-ar sqsim-ar--line"/>'; return; }
+    var x1 = AX(a.x1), y1 = AY(a.y1), x2 = AX(a.x2), y2 = AY(a.y2);
+    if (a.t === 'line') { s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sqsim-ar sqsim-ar--line"/>'; return; }
     var path;
-    if (a.c) { var mx = (a.x1 + a.x2) / 2, my = (a.y1 + a.y2) / 2, nx = -(a.y2 - a.y1), ny = (a.x2 - a.x1), len = Math.sqrt(nx * nx + ny * ny) || 1; path = 'M' + a.x1 + ' ' + a.y1 + ' Q' + (mx + nx / len * 9).toFixed(1) + ' ' + (my + ny / len * 9).toFixed(1) + ' ' + a.x2 + ' ' + a.y2; }
-    else path = 'M' + a.x1 + ' ' + a.y1 + ' L' + a.x2 + ' ' + a.y2;
+    if (a.c) { var mx = (x1 + x2) / 2, my = (y1 + y2) / 2, nx = -(y2 - y1), ny = (x2 - x1), len = Math.sqrt(nx * nx + ny * ny) || 1; path = 'M' + x1 + ' ' + y1 + ' Q' + AX(mx + nx / len * 9).toFixed(1) + ' ' + AY(my + ny / len * 9).toFixed(1) + ' ' + x2 + ' ' + y2; }
+    else path = 'M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2;
     s += '<path d="' + path + '" class="sqsim-ar sqsim-ar--' + a.t + '" marker-end="url(#sqsimAh-' + a.t + ')" filter="url(#sqsimGlow)"/>';
-    if (a.r) s += '<circle cx="' + a.x2 + '" cy="' + a.y2 + '" r="3.2" class="sqsim-recv sqsim-recv--' + a.t + '"/>';
+    if (a.r) s += '<circle cx="' + x2 + '" cy="' + y2 + '" r="3.2" class="sqsim-recv sqsim-recv--' + a.t + '"/>';
   });
   return s;
 }
-function _sqSimZonesHtml(zones) { return (zones || []).map(function (z) { return '<div class="sqsim-zone sqsim-zone--' + z.kind + '" style="left:' + z.x + '%;top:' + z.y + '%;width:' + z.w + '%;height:' + z.h + '%">' + (z.label ? '<span>' + _sqEsc(z.label) + '</span>' : '') + '</div>'; }).join(''); }
+function _sqSimZonesHtml(zones) { return (zones || []).map(function (z) { var x = Math.max(3, Math.min(97, z.x)), y = Math.max(4, Math.min(96, z.y)), w = Math.max(2, Math.min(97 - x, z.w)), h = Math.max(2, Math.min(96 - y, z.h)); return '<div class="sqsim-zone sqsim-zone--' + z.kind + '" style="left:' + x + '%;top:' + y + '%;width:' + w + '%;height:' + h + '%">' + (z.label ? '<span>' + _sqEsc(z.label) + '</span>' : '') + '</div>'; }).join(''); }
 function _sqSimInfoHtml(sc, total) {
   var h = '<div class="sqsim-scno">Scene ' + sc.no + ' / ' + total + '</div><div class="sqsim-sctitle">' + _sqEsc(sc.title) + '</div><div class="sqsim-sctext">' + sc.text + '</div>';
   if (sc.bullets && sc.bullets.length) h += '<div class="sqsim-bullets">' + sc.bullets.map(function (b) { return '<div class="sqsim-bl sqsim-bl--' + (b.k || 'n') + '">' + _sqEsc(b.t) + '</div>'; }).join('') + '</div>';
