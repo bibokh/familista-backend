@@ -3981,6 +3981,133 @@ function _sqSimSummaryLine(c) {
         : ('hold your shape, win second balls and counter through the ' + c.myWide));
   return 'Against <b>' + c.of + '</b> (' + c.opShape + ' that ' + c.opDesc + '), <b>' + c.mf + '</b> should ' + resp + '.';
 }
+// Dynamic tactical-analyst text: generated from the actual formation SHAPE of both teams
+// (back three/four/five, wing-backs vs full-backs, single/double pivot, number of forwards,
+//  wingers vs wide midfielders) + mentality — so every formation pair reads differently.
+function _sqSimPhrase(c, key) {
+  var me = c.me, op = c.op;
+  var ment = (typeof SQ_FORM !== 'undefined' && SQ_FORM.mentality) ? SQ_FORM.mentality : 'Balanced';
+  function backName(s) { return s.back5 ? 'back five' : s.back3 ? 'back three' : 'back four'; }
+  function wideName(s) { return s.wg ? 'wingers' : s.wm ? 'wide midfielders' : ((s.back3 || s.back5) && !s.fb) ? 'wing-backs' : s.fb ? 'full-backs' : 'wide players'; }
+  function pivotName(s) { return s.dm >= 2 ? 'double pivot' : s.dm === 1 ? 'single pivot' : s.cm >= 3 ? 'midfield three' : 'central midfielders'; }
+  function frontName(s) { return s.fw >= 3 ? 'front three' : s.st >= 2 ? 'two strikers' : (s.ss || s.am) ? 'striker with a second striker' : 'lone striker'; }
+  function usesWB(s) { return s.back3 || s.back5; } // wide defenders in a back three/five are wing-backs
+  var oBack = backName(op), oWide = wideName(op), oPiv = pivotName(op), oFront = frontName(op), mBack = backName(me), mPiv = pivotName(me), mFront = frontName(me), mWide = wideName(me);
+  function duel(a, b, note) { return '<span class="sqcc-bt"><b>' + a + '</b><em>vs</em><b>' + b + '</b></span><p>' + note + '</p>'; }
+  var r = {}, p;
+  if (key === 'build') {
+    p = [];
+    p.push(me.back5 ? 'Three centre-backs circulate as the wing-backs push on' : me.back3 ? 'The back three circulates possession' : 'Centre-backs split to open the pitch');
+    if (usesWB(me)) { if (!me.back5) p.push('wing-backs push high for width'); } else if (me.fb) p.push('full-backs advance up the line');
+    p.push(me.dm >= 2 ? 'the double pivot drops in to receive' : me.dm === 1 ? 'the single pivot drops between the centre-backs' : 'central midfielders rotate to offer angles');
+    if (me.am) p.push('the No.10 occupies the pocket between the lines');
+    if (me.wm) p.push('wide midfielders stretch the play'); else if (me.wg) p.push('wingers hold maximum width');
+    p.push(me.st >= 2 ? 'the two strikers occupy both centre-backs' : 'the lone striker pins the last line');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Beat ' + c.of + "'s " + (op.overloadMid ? 'packed midfield' : 'first line') + ' and progress into the final third.';
+    r.inst = 'Build through the ' + mPiv + '; switch the point of attack to shift their block' + (ment === 'Attacking' ? ' — commit the second line high.' : ment === 'Defensive' ? ' — keep a rest-defence behind the ball.' : '.');
+    r.oppr = 'Sets a ' + oBack + ' mid-block' + (op.dm >= 2 ? ' with a double pivot screening the centre' : op.dm ? ' with a lone pivot in front' : '') + ', inviting the ball wide.';
+    r.battle = duel(me.dm >= 1 ? 'PIVOT' : '6', op.am ? '10' : (op.st >= 2 ? 'ST' : 'FWD'), 'Space in front of the back line.');
+  } else if (key === 'press') {
+    p = [];
+    if (me.fw >= 3) p.push('The front three press with triggers, wingers curving in onto the centre-backs');
+    else if (me.st >= 2) p.push('Two strikers split the press onto both centre-backs');
+    else p.push('The lone striker delays and shows the ball to one side');
+    p.push(me.mid >= 4 ? ('the midfield ' + me.mid + ' step up together') : 'the midfield jumps the passing lanes');
+    if (usesWB(me)) p.push('wing-backs jump only when the ball travels wide'); else if (me.fb) p.push('full-backs press the wide receiver on the trigger');
+    if (me.dm >= 2) p.push('the double pivot screens behind the press');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Win the ball high and attack the space behind their line.';
+    r.inst = 'Press on the trigger as one unit; keep the ' + mBack + ' compact and high.';
+    r.oppr = 'Plays out from a ' + oBack + '; looks for the ' + oPiv + ' or a long ball to the ' + oFront + '.';
+    r.battle = duel(me.fw >= 3 ? 'FRONT 3' : (me.st >= 2 ? 'STRIKERS' : 'ST'), op.dm ? 'PIVOT' : 'CB', 'First line of pressure.');
+  } else if (key === 'left' || key === 'right') {
+    var L = key === 'left', sd = L ? 'left' : 'right', fsd = L ? 'right' : 'left';
+    p = [];
+    if (usesWB(me)) { p.push('The ' + sd + ' wing-back jumps to press the ball'); p.push('the ball-near centre-back covers behind'); p.push('the central centre-back protects depth'); p.push('the ' + mPiv + ' closes the half-space'); p.push('the far wing-back narrows into a back four'); }
+    else if (me.fb) { p.push('The ' + sd + '-back presses the ball'); p.push('the ball-near centre-back covers'); p.push('the ' + sd + ' ' + (me.wm ? 'midfielder' : me.wg ? 'winger' : 'wide player') + ' tracks the runner'); p.push('the ' + fsd + ' ' + (me.wm ? 'midfielder' : me.wg ? 'winger' : 'wide player') + ' tucks inside'); }
+    else { p.push('The ball-near defender steps to press'); p.push('the centre-backs shuffle across'); p.push('midfield slides to lock the strong side'); }
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Stop the wide attack and protect the box.';
+    r.inst = 'Defend the flank as a chain — press, cover, track, tuck; keep the back line square.';
+    r.oppr = 'Attacks our ' + sd + ' with ' + (op.wg ? 'the winger and an overlapping full-back' : op.wm ? 'the wide midfielder' : 'a wide overload') + ', looking for the cross.';
+    r.battle = duel(usesWB(me) ? 'WB' : 'FB', op.wg ? 'WG' : op.wm ? 'WM' : 'WIDE', '1v1 on our ' + sd + ' flank.');
+  } else if (key === 'centre') {
+    p = [];
+    if (me.dm >= 2) { p.push('The double pivot screens Zone 14'); p.push('a centre-back steps onto the receiver'); if (me.am) p.push('the No.10 counter-presses from above'); else p.push('the partner covers the depth'); }
+    else if (me.dm === 1) { p.push('The single pivot screens the centre'); p.push('a centre-back steps, the partner covers'); }
+    else if (me.back5) { p.push('The middle centre-back steps onto the receiver'); p.push('the outside centre-backs cover'); p.push('the ' + pivotName(me) + ' protect Zone 14'); }
+    else { p.push('A centre-back steps onto the receiver'); p.push('the partner covers the space behind'); p.push('midfield compresses the middle'); }
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Deny the central lane between the lines.';
+    r.inst = 'Stay connected — never let their playmaker turn in the pocket. Force the ball wide.';
+    r.oppr = 'Plays through ' + (op.am ? 'the No.10' : op.dm >= 2 ? 'a dropping pivot' : 'a central receiver') + ' between the lines.';
+    r.battle = duel(me.dm ? 'PIVOT' : 'CB', op.am ? '10' : 'CM', 'Control of Zone 14.');
+  } else if (key === 'overload') {
+    p = [];
+    p.push('The ball-near ' + (usesWB(me) ? 'wing-back' : me.fb ? 'full-back' : 'defender') + ' presses');
+    p.push('the ' + mWide + ' tracks back');
+    p.push('the nearest ' + mPiv + ' shifts across');
+    p.push(usesWB(me) ? 'the far wing-back drops to hold the back line' : 'the far ' + (me.wg ? 'winger' : 'wide player') + ' drops in to make an extra defender');
+    p.push('the centre-backs slide to even the numbers');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Restore the numbers on the overloaded side.';
+    r.inst = 'Shift together, turn the 2v1 back into a 2v2, then slide back on the switch.';
+    r.oppr = 'Overloads one flank with ' + (op.wg ? 'winger and full-back' : 'multiple runners') + ' to build a 2v1.';
+    r.battle = duel(usesWB(me) ? 'WB + CB' : 'FB + WIDE', 'WG + FB', 'Numbers on the flank.');
+  } else if (key === 'counter') {
+    p = [];
+    p.push('Win it and go vertical into the ' + mFront);
+    p.push('the ' + mWide + ' attack the channels');
+    p.push((me.fb || usesWB(me)) ? 'the ' + (usesWB(me) ? 'wing-back' : 'full-back') + ' overlaps for width' : 'a midfielder drives underneath in support');
+    p.push('a switch releases the free man on the weak side');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Hit the space behind before they reset.';
+    r.inst = 'First pass forward; runners attack the channels at speed.';
+    r.oppr = 'Caught high — the ' + oBack + ' scrambles to recover behind the ball.';
+    r.battle = duel(me.wg ? 'WG' : 'FWD', op.fb ? 'FB' : 'CB', 'Race in behind on the break.');
+  } else if (key === 'block') {
+    p = [];
+    p.push('Drop into a compact ' + (me.mid >= 5 ? 'banks of five and four' : me.mid >= 4 ? 'two banks of four' : 'low block'));
+    p.push('the ' + mBack + ' holds the edge of the box');
+    p.push(usesWB(me) ? 'wing-backs guard the channels' : me.fb ? 'full-backs guard the channels' : 'wide players protect the flanks');
+    p.push('the ' + mPiv + ' screens the top of the box');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Deny the centre and defend the box.';
+    r.inst = 'Stay on your feet, protect the cut-back, never dive in.';
+    r.oppr = 'Camps in our third, switching sides to cross for the ' + oFront + '.';
+    r.battle = duel('CB', op.st >= 2 ? 'STRIKERS' : 'FWD', 'Duels inside the box.');
+  } else if (key === 'recover') {
+    p = [];
+    p.push('Every line recovers — the ' + mFront + ' jogs back');
+    p.push('the ' + mPiv + ' re-forms the screen');
+    p.push('the ' + mBack + ' squeezes up together');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Reset the shape and stay compact.';
+    r.inst = 'Recover the picture calmly; rebuild the block before stepping out.';
+    r.oppr = 'Recycles possession and probes for a gap in the reset.';
+    r.battle = duel('MID', 'MID', 'Win the second balls.');
+  } else {
+    r.scene = _sqSimSummaryLine(c);
+    r.obj = 'Out-think ' + c.of + ' across the whole game (' + ment.toLowerCase() + ' mentality).';
+    r.inst = (_sqSimSummaryLine(c) || '').replace(/<[^>]+>/g, '');
+    r.oppr = 'Will target our weak side and our transitions.';
+    r.battle = duel(c.mf, c.of, 'Match decided in midfield.');
+  }
+  // opponent-specific tail so every formation PAIR reads differently (not just our formation)
+  var tail = {
+    build: ' Against a ' + oBack + (op.overloadMid ? ' that overloads midfield' : op.wide ? ' with real width' : op.lone ? ' and a lone striker' : '') + ', stay patient and find the free man.',
+    press: ' They build from a ' + oBack + ' — screen the ' + oPiv + ' and cut the outlet to the ' + oFront + '.',
+    left: ' Their ' + oWide + ' provide the width on that side.',
+    right: ' Their ' + oWide + ' provide the width on that side.',
+    centre: ' Their ' + (op.am ? 'No.10' : oPiv) + ' wants to receive between the lines.',
+    overload: ' They load the flank with ' + oWide + '.',
+    counter: ' Exploit the ' + oBack + ' before it recovers.',
+    block: ' They attack with the ' + oFront + ' and switches of play.'
+  };
+  if (tail[key]) r.scene += tail[key];
+  return r;
+}
 // Global movement scale — players only adjust SLIGHTLY per phase so the formation lines
 // stay readable and stable (clarity first). Raising this exaggerates movement.
 var _SQ_MOVE = 0.42;
@@ -4100,7 +4227,8 @@ function _sqSimScenes(M) {
   var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
   sc({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', ball: [50, 50], bullets: sum, text: _sqSimSummaryLine(c) });
 
-  S.forEach(function (s) { s.narr = _sqSimNarr(c, s.key); });
+  // dynamic tactical text per scene — generated from BOTH formations' shapes (never a template)
+  S.forEach(function (s) { var ph = _sqSimPhrase(c, s.key); s.text = ph.scene; s.narr = { obj: ph.obj, inst: ph.inst, oppr: ph.oppr, battle: ph.battle }; });
   return S;
 }
 function _sqSimDotsHtml(M) {
