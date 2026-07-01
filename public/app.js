@@ -4087,6 +4087,50 @@ function _sqSimPhrase(c, key) {
     r.inst = 'Recover the picture calmly; rebuild the block before stepping out.';
     r.oppr = 'Recycles possession and probes for a gap in the reset.';
     r.battle = duel('MID', 'MID', 'Win the second balls.');
+  } else if (key === 'manpress') {
+    p = [];
+    p.push('Man-oriented press — the ' + mFront + ' step onto the ball-side centre-backs');
+    p.push('midfield picks up the ' + pivotName(op) + ' man-to-man');
+    p.push((usesWB(me) ? 'wing-backs' : me.fb ? 'full-backs' : 'wide players') + ' follow their direct opponent');
+    if (me.dm >= 1) p.push('the pivot covers the spare man');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Deny every short option and force the mistake.';
+    r.inst = 'Everyone marks tight; the spare defender covers behind.';
+    r.oppr = 'Beats the marks with a long ball to the ' + oFront + ' or a quick rotation.';
+    r.battle = duel(me.st >= 2 ? 'STRIKERS' : 'ST', op.dm ? 'PIVOT' : 'CB', 'Every duel man-to-man.');
+  } else if (key === 'midblock') {
+    p = [];
+    p.push('Settle into a mid-block around halfway');
+    p.push('the ' + mFront + ' screens the ' + oPiv + ', guiding the ball wide');
+    p.push('the ' + mPiv + ' protects the centre');
+    p.push('spring the trap when the ball reaches the full-back');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Set a trap and win the ball in midfield.';
+    r.inst = 'Stay compact, show them outside, then jump on the wide pass.';
+    r.oppr = 'Circulates in a ' + oBack + ' looking to break the block.';
+    r.battle = duel(me.dm ? 'PIVOT' : 'CM', op.am ? '10' : 'CM', 'Control of the middle third.');
+  } else if (key === 'secondball') {
+    p = [];
+    p.push('Load the area around the drop of the ' + mFront);
+    p.push('the ' + mPiv + ' steps up to attack the knock-down');
+    p.push((usesWB(me) ? 'wing-backs' : me.fb ? 'full-backs' : 'wide players') + ' tuck in to win the second ball');
+    p.push('the ' + mBack + ' holds a rest-defence behind');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Win the second ball, keep the rest-defence safe.';
+    r.inst = 'React first to the knock-down; keep two behind the ball.';
+    r.oppr = 'Goes long to the ' + oFront + ' and swarms the loose ball.';
+    r.battle = duel(me.dm ? 'DM' : 'CM', op.dm ? 'DM' : 'CM', 'Who wins the loose ball.');
+  } else if (key === 'halfspace') {
+    p = [];
+    p.push('Attack the half-spaces inside their full-backs');
+    p.push('the ' + (me.am ? 'No.10' : 'inside midfielder') + ' receives between the lines');
+    p.push((usesWB(me) ? 'wing-backs' : me.fb ? 'full-backs' : 'wide players') + ' overlap while the ' + mWide + ' come inside');
+    p.push('a third-man run breaks the last line');
+    r.scene = p.join('. ') + '.';
+    r.obj = 'Exploit the space between their centre-back and full-back.';
+    r.inst = 'Occupy the half-space, then combine — underlap or overlap.';
+    r.oppr = 'Their ' + oBack + ' stays connected and tries to pass on the runners.';
+    r.battle = duel(me.wg ? 'WG' : 'WIDE', op.fb ? 'FB' : 'CB', '1v1 in the half-space.');
   } else {
     r.scene = _sqSimSummaryLine(c);
     r.obj = 'Out-think ' + c.of + ' across the whole game (' + ment.toLowerCase() + ' mentality).';
@@ -4103,7 +4147,11 @@ function _sqSimPhrase(c, key) {
     centre: ' Their ' + (op.am ? 'No.10' : oPiv) + ' wants to receive between the lines.',
     overload: ' They load the flank with ' + oWide + '.',
     counter: ' Exploit the ' + oBack + ' before it recovers.',
-    block: ' They attack with the ' + oFront + ' and switches of play.'
+    block: ' They attack with the ' + oFront + ' and switches of play.',
+    manpress: ' They must beat the marks against ' + c.mf + '.',
+    midblock: ' Their ' + oPiv + ' probes for the gap.',
+    secondball: ' They send the ' + oFront + ' to fight for it.',
+    halfspace: ' Their ' + oBack + ' defends the inside channels.'
   };
   if (tail[key]) r.scene += tail[key];
   return r;
@@ -4223,17 +4271,74 @@ function _sqSimScenes(M) {
     sc({ key: 'recover', no: 9, dur: 1700, title: 'Recover & regain shape', ball: ball, pos: P9, arrows: ar,
       text: '<b>Reset.</b> As soon as the ball is safe, every line recovers its position — forwards jog back, midfield re-forms the screen, the back line squeezes up together. <b>Why:</b> a good shape is rebuilt in seconds, not by sprinting blindly. Calm, compact, ready for the next phase.' }); })();
 
-  // 10 — coach summary (both formations' strengths & risks)
-  var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
-  sc({ key: 'summary', no: 10, dur: 2200, title: 'Coach summary', ball: [50, 50], bullets: sum, text: _sqSimSummaryLine(c) });
+  // 10 — Man-to-man press (each player marks his direct opponent)
+  var Pm = _sqLay(M,
+    function (p) { if (p.role === 'ST') return [10, 0]; if (p.role === 'SS' || p.role === 'AM') return [9, 0]; if (p.role === 'WG') return [8, 2]; if (p.role === 'WM') return [7, -2]; if (p.role === 'CM' || p.role === 'DM') return [7, 0]; if (p.role === 'FB') return [6, 2]; if (p.role === 'CB') return [3, 0]; return [0, 0]; },
+    function (p) { if (p.role === 'CB') return [1, 4]; if (p.role === 'FB') return [3, 3]; return [-1, 0]; });
+  (function () { var st = sp(Pm, 'my', 'ST') || sp(Pm, 'my', 'SS') || sp(Pm, 'my', 'WG') || [60, 50], ocb = sp(Pm, 'opp', 'CB') || [76, 40], mm = sp(Pm, 'my', 'CM') || sp(Pm, 'my', 'AM') || [55, 40], om = sp(Pm, 'opp', 'DM') || sp(Pm, 'opp', 'CM') || [70, 50];
+    var ar = [A(st[0], st[1], ocb[0], ocb[1], 'press'), A(mm[0], mm[1], om[0], om[1], 'press')];
+    sc({ key: 'manpress', no: 10, dur: 1900, title: 'Man-to-man press', ball: sp(Pm, 'opp', 'CB') || [76, 40], pos: Pm, hl: idx('my', 'ST') >= 0 ? [idx('my', 'ST')] : [], arrows: ar,
+      zones: [{ x: 54, y: 20, w: 42, h: 60, kind: 'press', label: 'Man-marking' }], text: '' }); })();
 
-  // dynamic tactical text per scene — generated from BOTH formations' shapes (never a template)
-  S.forEach(function (s) { var ph = _sqSimPhrase(c, s.key); s.text = ph.scene; s.narr = { obj: ph.obj, inst: ph.inst, oppr: ph.oppr, battle: ph.battle }; });
+  // 11 — Mid block (pressing trap around halfway)
+  var Pmb = _sqLay(M,
+    function (p) { if (p.role === 'ST' || p.role === 'SS') return [-8, 0]; if (p.role === 'WG') return [-6, -2]; if (p.role === 'AM') return [-6, 0]; if (p.role === 'WM') return [-4, -3]; if (p.role === 'CM') return [-3, -2]; if (p.role === 'DM') return [-2, 0]; if (p.role === 'FB') return [-2, -2]; if (p.role === 'CB') return [-1, 0]; return [0, 0]; },
+    function (p) { if (p.role === 'CB') return [4, 4]; if (p.role === 'FB') return [6, 3]; if (p.role === 'DM') return [3, 0]; return [1, 0]; });
+  (function () { var st = sp(Pmb, 'my', 'ST') || sp(Pmb, 'my', 'SS') || [46, 50], odm = sp(Pmb, 'opp', 'DM') || sp(Pmb, 'opp', 'CM') || [64, 50];
+    var ar = [A(st[0], st[1], odm[0], odm[1], 'press', true), A(40, 30, 30, 20, 'def', true)];
+    sc({ key: 'midblock', no: 11, dur: 1800, title: 'Mid block', ball: [52, 50], pos: Pmb, arrows: ar,
+      zones: [{ x: 30, y: 34, w: 24, h: 32, kind: 'shadow', label: 'Trap zone' }], text: '' }); })();
+
+  // 12 — Second ball (win the loose ball around midfield)
+  var Psb = _sqLay(M,
+    function (p) { if (p.role === 'CM' || p.role === 'DM') return [3, -4]; if (p.role === 'AM' || p.role === 'SS') return [4, -2]; if (p.role === 'WM') return [2, -4]; if (p.role === 'FB') return [1, -2]; if (p.role === 'ST') return [-3, -2]; if (p.role === 'WG') return [1, -3]; return [0, -1]; },
+    function (p) { if (p.role === 'CM' || p.role === 'DM') return [3, -4]; if (p.role === 'AM') return [4, -2]; return [1, 0]; });
+  (function () { var cm = sp(Psb, 'my', 'CM') || sp(Psb, 'my', 'DM') || [46, 50];
+    var ar = [A(cm[0] - 8, cm[1] + 6, 50, 48, 'run', true), A(cm[0] + 6, cm[1] - 8, 50, 48, 'run', true)];
+    sc({ key: 'secondball', no: 12, dur: 1800, title: 'Second ball', ball: [50, 48], pos: Psb, arrows: ar,
+      zones: [{ x: 40, y: 38, w: 22, h: 24, kind: 'central', label: 'Second-ball zone' }], text: '' }); })();
+
+  // 13 — Half-space exploitation
+  var Phs = _sqLay(M,
+    function (p) { if (p.role === 'AM' || p.role === 'SS') return [9, 3]; if (p.role === 'WG') return [10, -4]; if (p.role === 'WM') return [8, -3]; if (p.role === 'CM') return [7, 2]; if (p.role === 'FB') return [12, 5]; if (p.role === 'ST') return [8, 0]; if (p.role === 'DM') return [4, 0]; if (p.role === 'CB') return [3, 0]; return [1, 0]; },
+    function (p) { if (p.role === 'FB') return [-3, 0]; if (p.role === 'CM' || p.role === 'DM') return [-3, -2]; return [-2, 0]; });
+  (function () { var am = sp(Phs, 'my', 'AM') || sp(Phs, 'my', 'SS') || sp(Phs, 'my', 'CM') || [60, 32], fb = spw(Phs, 'my', ['FB'], true), wg = spw(Phs, 'my', ['WG', 'WM'], true);
+    var ar = [A(am[0] - 10, am[1], am[0], am[1], 'run', true)]; if (fb) ar.push(A(fb.pt[0], fb.pt[1], fb.pt[0] + 8, fb.pt[1] - 6, 'overlap')); if (wg) ar.push(A(wg.pt[0], wg.pt[1], 78, 24, 'run', true));
+    sc({ key: 'halfspace', no: 13, dur: 1900, title: 'Half-space exploit', ball: [60, 32], pos: Phs, hl: idx('my', 'AM') >= 0 ? [idx('my', 'AM')] : [], arrows: ar,
+      zones: [{ x: 55, y: 18, w: 22, h: 24, kind: 'half', label: 'Half-space' }], text: '' }); })();
+
+  // 14 — coach summary (both formations' strengths & risks)
+  var sum = [{ k: 'hd', t: 'Advantages' }].concat(an.advantages.map(function (t) { return { k: 'pos', t: '• ' + t }; }), [{ k: 'hd', t: 'Risks' }], an.risks.map(function (t) { return { k: 'neg', t: '• ' + t }; }));
+  sc({ key: 'summary', no: 14, dur: 2200, title: 'Coach summary', ball: [50, 50], bullets: sum, text: _sqSimSummaryLine(c) });
+
+  // dynamic tactical text + scenario-card metadata per scene (from BOTH formations — never a template)
+  var LAB = { build: 'Build-Up vs High Press', press: 'High Block Press', manpress: 'Man-to-Man Press', left: 'Defend Left Side', right: 'Defend Right Side', centre: 'Protect Zone 14', midblock: 'Mid Block', overload: 'Overload on One Side', counter: 'Transition After Win', recover: 'Transition After Loss', block: 'Low Block Defense', secondball: 'Second Ball', halfspace: 'Half-Space Exploit', summary: 'Coach Summary' };
+  var DES = { build: 'Play out from the back under pressure.', press: 'Coordinated high pressing.', manpress: 'Each player marks his opponent.', left: 'Defend the left flank.', right: 'Defend the right flank.', centre: 'Protect the central lane.', midblock: 'Set a pressing trap in midfield.', overload: 'Win a wing overload back.', counter: 'Transition fast after winning it.', recover: 'Recover shape after losing it.', block: 'Defend in a compact low block.', secondball: 'Win the second balls.', halfspace: 'Exploit the half-spaces.', summary: 'Coach summary of the matchup.' };
+  S.forEach(function (s, i) { var ph = _sqSimPhrase(c, s.key); s.no = i + 1; s.text = ph.scene; s.narr = { obj: ph.obj, inst: ph.inst, oppr: ph.oppr, battle: ph.battle }; s.battleTag = ph.battle.replace(/<p>[\s\S]*?<\/p>/, ''); s.label = LAB[s.key] || s.title; s.desc = DES[s.key] || ''; if (s.pos) s.pos = s.pos.map(function (p) { return [Math.max(8, Math.min(92, p[0])), Math.max(9, Math.min(91, p[1]))]; }); });
   return S;
 }
 function _sqSimDotsHtml(M) {
   function row(side) { var arr = side === 'my' ? M.my.players : M.opp.players; return arr.map(function (p) { return '<div class="sqsim-dot sqsim-dot--' + side + ' sqsim-dot--' + p.cat + '"><span class="sqsim-dot-no">' + _sqEsc(p.num) + '</span></div>'; }).join(''); }
   return row('my') + row('opp');
+}
+// tiny static preview board for a scenario card
+function _sqSimMiniSvg(M, pos) {
+  var nMy = M.my.players.length;
+  var out = '<svg class="sqcc-mini-svg" viewBox="0 0 100 60" preserveAspectRatio="none"><rect x="1" y="1" width="98" height="58" rx="2" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="0.6"/><line x1="50" y1="1" x2="50" y2="59" stroke="rgba(255,255,255,.12)" stroke-width="0.5"/><circle cx="50" cy="30" r="7" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="0.5"/>';
+  for (var i = 0; i < pos.length; i++) { var p = pos[i]; out += '<circle cx="' + p[0].toFixed(1) + '" cy="' + (p[1] / 100 * 60).toFixed(1) + '" r="1.9" fill="' + (i < nMy ? '#34d77a' : '#e85bd0') + '"/>'; }
+  return out + '</svg>';
+}
+// bottom scenario selector — "choose a situation to simulate" (reuses the scene engine)
+function _sqSimCardsHtml(M, scenes) {
+  return '<div class="sqcc-scen-hd">Tactical scenarios — choose a situation to simulate</div>'
+    + '<div class="sqcc-scen-row" data-role="cards">' + scenes.map(function (s, i) {
+      return '<button class="sqcc-card' + (i === 0 ? ' is-on' : '') + '" data-action="sqSimScene" data-idx="' + i + '" type="button">'
+        + '<div class="sqcc-card-hd"><span class="sqcc-card-no">' + (i + 1) + '</span><span class="sqcc-card-t">' + _sqEsc(s.label || s.title) + '</span></div>'
+        + '<div class="sqcc-card-d">' + _sqEsc(s.desc || '') + '</div>'
+        + '<div class="sqcc-card-mini">' + _sqSimMiniSvg(M, s.pos) + '</div>'
+        + '<div class="sqcc-card-kb"><i>KEY BATTLE</i>' + (s.battleTag || '') + '</div>'
+        + '</button>';
+    }).join('') + '</div>';
 }
 function _sqSimArrowDefs() {
   var types = [['pass', '#38bdf8'], ['press', '#f87171'], ['run', '#60a5fa'], ['counter', '#fbbf24'], ['overlap', '#a78bfa'], ['def', '#5eead4'], ['switch', '#e2e8f0'], ['opp', '#e879f9']];
@@ -4384,15 +4489,19 @@ function _sqTcSimulation(my, op) {
     + '<div class="sqsim-ball" data-role="ball"></div></div>'
     + scenebar + '<div class="sqsim-progress"><i data-role="bar"></i></div>'
     + boot + '</div></div>';
-  var bottom = '<div class="sqcc-bottom">'
+  var analysis = '<div class="sqcc-analysis">'
     + '<div class="sqcc-sec sqcc-sec--scene"><span class="sqcc-sec-h sqcc-sec-h--y">SCENE</span><div data-role="scene"></div></div>'
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--g">OBJECTIVE</span><div data-role="obj"></div></div>'
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--g">TEAM INSTRUCTION</span><div data-role="inst"></div></div>'
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--m">OPPONENT RESPONSE</span><div data-role="oppr"></div></div>'
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--m">KEY BATTLE</span><div data-role="battle"></div></div>'
     + '</div>';
+  var cards = '<div class="sqcc-scenarios">' + _sqSimCardsHtml(M, _sqSim.scenes) + '</div>';
+  var legend = '<div class="sqcc-legend"><span class="sqcc-lg sqcc-lg--my">' + _sqEsc(_sqClubName()) + ' (' + _sqEsc(M.my.f) + ')</span><span class="sqcc-lg sqcc-lg--op">Opponent (' + _sqEsc(M.opp.f) + ')</span>'
+    + '<span class="sqcc-lg2 sqcc-lg2--pass">Pass</span><span class="sqcc-lg2 sqcc-lg2--run">Movement</span><span class="sqcc-lg2 sqcc-lg2--press">Press</span><span class="sqcc-lg2 sqcc-lg2--def">Cover</span><span class="sqcc-lg2 sqcc-lg2--zone">Space</span></div>';
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
-    + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>' + bottom + '</div>';
+    + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
+    + analysis + cards + legend + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -4414,6 +4523,7 @@ function _sqSimEnter(i, instant) {
   var zz = root.querySelector('[data-role="zones"]'); if (zz) zz.innerHTML = _sqSimZonesHtml(sc.zones);
   var inf = root.querySelector('[data-role="info"]'); if (inf) inf.innerHTML = _sqSimInfoHtml(sc, _sqSim.scenes.length);
   var sb = root.querySelector('[data-role="scenebar"]'); if (sb) { var sg = sb.children; for (var k = 0; k < sg.length; k++) sg[k].className = 'sqsim-seg' + (k < i ? ' is-done' : k === i ? ' is-on' : ''); }
+  var cds = root.querySelector('[data-role="cards"]'); if (cds) { var cc = cds.children; for (var kc = 0; kc < cc.length; kc++) cc[kc].classList.toggle('is-on', kc === i); var act = cc[i]; if (act && act.scrollIntoView) try { act.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
   for (var d = 0; d < _sqSim.dots.length; d++) _sqSim.dots[d].classList.remove('is-hl');
   (sc.hl || []).forEach(function (ix) { if (_sqSim.dots[ix]) _sqSim.dots[ix].classList.add('is-hl'); });
   var ball = root.querySelector('[data-role="ball"]'); if (ball) { if (sc.ball) { ball.style.opacity = '1'; ball.setAttribute('data-bx', sc.ball[0]); ball.setAttribute('data-by', sc.ball[1]); } else ball.style.opacity = '0'; }
@@ -4478,6 +4588,7 @@ function sqSimCtl(ctl, val) {
   else if (ctl === 'speed') { _sqSim.speed = parseFloat(val) || 1; var bs = _sqSim.el.querySelectorAll('.sqsim-sx'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('is-on', parseFloat(bs[i].getAttribute('data-val')) === _sqSim.speed); }
 }
 function sqSimReplay() { sqSimCtl('replay'); }
+function sqSimScene(idx) { idx = parseInt(idx, 10); if (isNaN(idx) || !_sqSim.el) return; _sqSim.el.classList.remove('is-done'); _sqSim.boot = 0; var bt = _sqSim.el.querySelector('[data-role="boot"]'); if (bt) bt.classList.add('is-hidden'); _sqSim.playing = true; _sqSimEnter(idx); _sqSimSetPlayIcon(); }
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' || SQ_FORM.cmdOverlay === tab) ? null : tab; if (SQ_FORM.cmdOverlay) SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
@@ -36389,6 +36500,7 @@ async function tosBoardSnapshot() {
         case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(); break;
         case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
         case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
+        case 'sqSimScene':        if (typeof sqSimScene === 'function')        sqSimScene(el.dataset.idx); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;

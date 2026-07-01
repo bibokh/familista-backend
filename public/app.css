@@ -4270,24 +4270,25 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtc-ov--simulation .sqsim-bl{ font-size:10.5px; padding:2px 8px; }
 .sqsim-stagewrap{ width:100%; }
 
-/* ════ AI Tactical Command Centre — clean realistic-grass pitch ════ */
+/* ════ AI Tactical Command Centre — premium dark graphite tactical board ════ */
 .sqsim--holo{ color:#dff1ff; }
 .sqsim-holo{ position:relative; overflow:hidden;
   background:
-    radial-gradient(130% 120% at 50% 35%, rgba(255,255,255,.06), rgba(0,0,0,.14) 100%),
-    repeating-linear-gradient(90deg, #2f8f3f 0 7.69%, #2a8639 7.69% 15.38%) !important;
-  border:1px solid rgba(255,255,255,.14) !important;
-  box-shadow:0 8px 26px rgba(0,0,0,.45), inset 0 0 50px rgba(0,0,0,.16); }
+    radial-gradient(120% 120% at 50% 30%, rgba(60,90,130,.10), rgba(0,0,0,0) 60%),
+    repeating-linear-gradient(90deg, #10151f 0 7.69%, #0c111a 7.69% 15.38%) !important;
+  border:1px solid rgba(150,180,220,.18) !important;
+  box-shadow:0 10px 30px rgba(0,0,0,.55), inset 0 0 80px rgba(10,20,40,.5); }
 .sqsim-holo .sqsim-cam{ position:absolute; inset:0; z-index:2; }
-.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; }
+/* thin white pitch markings with a soft glow */
+.sqsim-holofield{ position:absolute; inset:0; width:100%; height:100%; filter:drop-shadow(0 0 1.5px rgba(150,200,255,.35)); }
 .sqsim-net{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-/* realistic player markers that read clearly on grass (white ring + drop shadow) */
+/* premium glowing player markers on the dark board */
 .sqsim-holo .sqsim-dot{ background:none !important; }
-.sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 30%,#7dffab,#15a04a 72%) !important; box-shadow:0 0 0 2px rgba(255,255,255,.92), 0 2px 7px rgba(0,0,0,.5) !important; }
-.sqsim-holo .sqsim-dot--opp{ background:radial-gradient(circle at 38% 30%,#ffa7ef,#c026a8 72%) !important; box-shadow:0 0 0 2px rgba(255,255,255,.9), 0 2px 7px rgba(0,0,0,.5) !important; }
-.sqsim-holo .sqsim-dot.is-hl{ box-shadow:0 0 0 2.5px #ffd54a, 0 0 16px rgba(255,213,74,.9), 0 2px 7px rgba(0,0,0,.5) !important; }
-.sqsim-holo .sqsim-dot-no{ color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); }
-.sqsim-holo .sqsim-ar{ filter:drop-shadow(0 0 2px currentColor); }
+.sqsim-holo .sqsim-dot--my{ background:radial-gradient(circle at 38% 30%,#8dffb8,#12924a 72%) !important; box-shadow:0 0 0 1.5px rgba(120,255,170,.95), 0 0 12px rgba(34,197,110,.55), 0 2px 6px rgba(0,0,0,.55) !important; }
+.sqsim-holo .sqsim-dot--opp{ background:radial-gradient(circle at 38% 30%,#ffb0f2,#b31f9c 72%) !important; box-shadow:0 0 0 1.5px rgba(255,150,235,.9), 0 0 12px rgba(214,38,168,.5), 0 2px 6px rgba(0,0,0,.55) !important; }
+.sqsim-holo .sqsim-dot.is-hl{ box-shadow:0 0 0 2.5px #ffd54a, 0 0 18px rgba(255,213,74,.9), 0 2px 6px rgba(0,0,0,.55) !important; }
+.sqsim-holo .sqsim-dot-no{ color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.7); }
+.sqsim-holo .sqsim-ar{ filter:drop-shadow(0 0 2.5px currentColor); }
 .sqsim-holo .sqsim-progress{ background:rgba(255,255,255,.08); }
 .sqsim-holo .sqsim-progress i{ background:linear-gradient(90deg,hsla(var(--sqx-h1,205),90%,55%,1),#ffd54a); }
 /* floating HUD metric widgets */
@@ -4321,7 +4322,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* ════ AI Tactical Intelligence — full command-centre layout (one screen, no scroll) ════ */
 .sqtc--sim .sqtc-content{ overflow:hidden; }
-.sqsim.sqcc{ flex:1 1 auto; min-height:0; height:auto; display:grid; grid-template-rows:auto 1fr auto; gap:8px; padding:2px 2px 0; }
+.sqsim.sqcc{ flex:1 1 auto; min-height:0; height:auto; display:grid; grid-template-rows:auto minmax(0,1fr) auto auto auto; gap:7px; padding:2px 2px 0; }
 /* top bar: team identity + score/clock + transport controls */
 .sqcc-top{ display:grid; grid-template-columns:1fr minmax(280px,auto) 1fr; align-items:center; gap:14px; }
 .sqcc-tm{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -4381,21 +4382,44 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* centre pitch */
 .sqcc-stagewrap{ min-width:0; min-height:0; display:flex; align-items:center; justify-content:center; }
 .sqcc-stagewrap .sqsim-stage{ height:100%; width:auto; max-width:100%; max-height:100%; aspect-ratio:16/10; }
-/* bottom analysis bar */
+/* compact dynamic analysis strip (Scene / Objective / Team Instruction / Opponent Response / Key Battle) */
+.sqcc-analysis{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1.1fr; gap:12px; padding:7px 12px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; }
 .sqcc-bottom{ display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr 1.15fr; gap:12px; padding:9px 13px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; }
 .sqcc-sec{ min-width:0; }
-.sqcc-sec-h{ display:block; font-size:9px; font-weight:800; letter-spacing:.07em; margin-bottom:4px; }
+.sqcc-sec-h{ display:block; font-size:8.5px; font-weight:800; letter-spacing:.07em; margin-bottom:3px; }
 .sqcc-sec-h--y{ color:#f4b740; } .sqcc-sec-h--g{ color:#34d77a; } .sqcc-sec-h--m{ color:#e85bd0; }
-.sqcc-sec [data-role]{ font-size:11px; line-height:1.4; color:#aab4c5; }
+.sqcc-sec [data-role]{ font-size:10.5px; line-height:1.36; color:#aab4c5; }
 .sqcc-sec [data-role] p{ margin:0; }
-.sqcc-sec--scene [data-role] b{ display:block; color:#eaf2ff; font-size:12px; font-weight:800; margin-bottom:2px; }
-.sqcc-bt{ display:inline-flex; align-items:center; gap:6px; margin-bottom:3px; }
-.sqcc-bt b{ background:rgba(232,91,208,.16); color:#f5a7e8; border-radius:6px; padding:2px 8px; font-size:11px; font-weight:800; }
+.sqcc-sec--scene [data-role] b{ display:block; color:#eaf2ff; font-size:11.5px; font-weight:800; margin-bottom:1px; }
+.sqcc-bt{ display:inline-flex; align-items:center; gap:6px; }
+.sqcc-bt b{ background:rgba(232,91,208,.16); color:#f5a7e8; border-radius:6px; padding:2px 8px; font-size:10.5px; font-weight:800; }
 .sqcc-bt em{ font-style:normal; color:#8a94a6; font-size:9px; }
-/* clean pitch inside the command centre (no grid) */
-.sqcc .sqsim-scenebar{ position:absolute; left:8px; right:8px; bottom:7px; z-index:5; opacity:.7; }
+/* scenario selector row */
+.sqcc-scen-hd{ font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#f4b740; text-align:center; margin-bottom:5px; }
+.sqcc-scen-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; }
+.sqcc-card{ flex:0 0 158px; text-align:left; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:7px 8px; cursor:pointer; color:#cbd5e1; transition:border-color .15s,background .15s; display:flex; flex-direction:column; gap:4px; }
+.sqcc-card:hover{ background:rgba(255,255,255,.06); }
+.sqcc-card.is-on{ border-color:#f4b740; box-shadow:0 0 0 1px rgba(244,183,64,.4), 0 6px 16px rgba(0,0,0,.4); background:rgba(244,183,64,.06); }
+.sqcc-card-hd{ display:flex; align-items:center; gap:6px; }
+.sqcc-card-no{ flex:0 0 auto; width:16px; height:16px; border-radius:5px; background:rgba(244,183,64,.18); color:#f4d27a; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+.sqcc-card-t{ font-size:10.5px; font-weight:800; color:#eaf2ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcc-card-d{ font-size:9px; color:#8a94a6; line-height:1.25; min-height:22px; }
+.sqcc-card-mini{ height:44px; border-radius:6px; overflow:hidden; background:repeating-linear-gradient(90deg,#0e131c 0 12.5%,#0b0f17 12.5% 25%); border:1px solid rgba(255,255,255,.05); }
+.sqcc-mini-svg{ width:100%; height:100%; display:block; }
+.sqcc-card-kb{ display:flex; align-items:center; gap:5px; }
+.sqcc-card-kb i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; }
+.sqcc-card-kb .sqcc-bt b{ font-size:9px; padding:1px 6px; }
+.sqcc-card-kb .sqcc-bt em{ font-size:8px; }
+/* legend row */
+.sqcc-legend{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px 16px; padding:3px 0 4px; }
+.sqcc-lg,.sqcc-lg2{ font-size:9.5px; font-weight:700; color:#aab4c5; display:flex; align-items:center; gap:6px; }
+.sqcc-lg::before{ content:''; width:8px; height:8px; border-radius:50%; }
+.sqcc-lg--my::before{ background:#34d77a; } .sqcc-lg--op::before{ background:#e85bd0; }
+.sqcc-lg2::before{ content:''; width:14px; height:2px; border-radius:2px; }
+.sqcc-lg2--pass::before{ background:#38bdf8; } .sqcc-lg2--run::before{ background:#60a5fa; } .sqcc-lg2--press::before{ background:#f87171; } .sqcc-lg2--def::before{ background:#5eead4; } .sqcc-lg2--zone::before{ background:rgba(160,190,230,.5); }
+.sqcc .sqsim-scenebar{ position:absolute; left:8px; right:8px; bottom:7px; z-index:5; opacity:.6; }
 .sqcc .sqsim-progress{ position:absolute; left:0; right:0; bottom:0; }
-@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-bottom{ grid-template-columns:1fr 1fr 1fr; } }
+@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
