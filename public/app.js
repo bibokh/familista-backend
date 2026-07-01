@@ -4024,7 +4024,7 @@ function _sqSimPhrase(c, key) {
   } else if (key === 'left' || key === 'right') {
     var L = key === 'left', sd = L ? 'left' : 'right', fsd = L ? 'right' : 'left';
     p = [];
-    if (usesWB(me)) { p.push('The ' + sd + ' wing-back jumps to press the ball'); p.push('the ball-near centre-back covers behind'); p.push('the central centre-back protects depth'); p.push('the ' + mPiv + ' closes the half-space'); p.push('the far wing-back narrows into a back four'); }
+    if (usesWB(me)) { p.push('The ' + sd + ' wing-back jumps to press the ball'); p.push('the ball-near centre-back covers behind'); p.push('the central centre-back protects depth'); p.push('the pivot closes the half-space'); p.push('the far wing-back narrows into a back four'); }
     else if (me.fb) { p.push('The ' + sd + '-back presses the ball'); p.push('the ball-near centre-back covers'); p.push('the ' + sd + ' ' + (me.wm ? 'midfielder' : me.wg ? 'winger' : 'wide player') + ' tracks the runner'); p.push('the ' + fsd + ' ' + (me.wm ? 'midfielder' : me.wg ? 'winger' : 'wide player') + ' tucks inside'); }
     else { p.push('The ball-near defender steps to press'); p.push('the centre-backs shuffle across'); p.push('midfield slides to lock the strong side'); }
     r.scene = p.join('. ') + '.';
