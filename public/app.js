@@ -4695,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT AI</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -4783,7 +4783,7 @@ function _sqSimDConf(pct) { return pct >= 70 ? 'High Confidence' : pct >= 55 ? '
 function _sqSimDScore(d) { var a = d.adj, R = Math.round; var benefit = (a.chance > 0 ? a.chance : 0) + (a.control > 0 ? a.control * 1.2 : 0) + (a.counter < 0 ? -a.counter * 0.7 : 0) + (a.compact > 0 ? a.compact * 0.4 : 0); var risk = (a.counter > 0 ? a.counter : 0) + (a.chance < 0 ? -a.chance * 0.6 : 0) + (a.compact < 0 ? -a.compact : 0) + (a.press > 0 ? a.press * 0.2 : 0); return { benefit: R(benefit), risk: R(risk) }; }
 // live metrics snapshot with the accepted-decision + opponent-reaction modifiers applied
 function _sqSimDState(c, co, key) {
-  var b = _sqSimMetricBase(c), p = _sqSimProb(c, key), ds = _sqSim.dstate || {}, cl = _sqSimClamp, R = Math.round;
+  var b = _sqSimMetricBase(c), p = _sqSimProb(c, key), ds = _sqSimEff(), cl = _sqSimClamp, R = Math.round;
   var mc = _sqSimControlRaw(c, key), oc = _sqSimControlRaw(co, key), opB = _sqSimMetricBase(co);
   return {
     chance: R(cl(p.chance + (ds.chance || 0), 0, 100)),
@@ -4913,6 +4913,95 @@ function _sqSimDOverlayHtml() {
     + '<div class="sqcc-dsub"><h5>🕒 DECISION TIMELINE</h5><ul class="sqcc-dtl-list" data-role="d-timeline"></ul></div>'
     + '</div></div></div></div>';
 }
+// ── Phase 5: Dynamic Opponent AI — the opponent analyses our team every scene, adapts, remembers
+// repeated behaviour, counter-adapts and feeds its modifiers back into the live metrics, creating a
+// genuine AI-vs-AI tactical battle. All reactions are generated dynamically from the current state.
+function _sqSimOAINew() { return { mem: { left: 0, right: 0, centre: 0, pressHigh: 0, poss: 0, fbHigh: 0, midDom: 0, wingOv: 0, pressGK: 0 }, mod: { chance: 0, control: 0, counter: 0, press: 0, compact: 0, poss: 0, tilt: 0 }, log: [], msgs: [], lastMsg: '', lastTitle: '', read: null, recognised: {}, momentum: 50, decisions: 0, lastSig: '' }; }
+// combined tactical modifiers on OUR metrics = our accepted decisions (dstate) + opponent adaptation (oai.mod)
+function _sqSimEff() { var d = _sqSim.dstate || {}, o = (_sqSim.oai && _sqSim.oai.mod) || {}, r = {}; ['press', 'compact', 'counter', 'chance', 'control', 'poss', 'tilt'].forEach(function (k) { r[k] = (d[k] || 0) + (o[k] || 0); }); return r; }
+var _SQ_OAI = [
+  { mem: 'left', trig: function (a) { return a.side === 'left'; }, base: 5, title: function () { return 'Overload the right side'; }, msg: function (a, s) { return 'Opponent ' + (s ? 'aggressively ' : '') + 'overloads its right to punish your committed left.'; }, mod: { counter: 6, chance: -3, tilt: -3 }, pat: 'left-side attacks', counter: 'protecting the left more aggressively' },
+  { mem: 'right', trig: function (a) { return a.side === 'right'; }, base: 5, title: function () { return 'Overload the left side'; }, msg: function (a, s) { return 'Opponent ' + (s ? 'aggressively ' : '') + 'overloads its left to exploit your committed right.'; }, mod: { counter: 6, chance: -3, tilt: -3 }, pat: 'right-side attacks', counter: 'protecting the right more aggressively' },
+  { mem: 'pressHigh', trig: function (a) { return a.pressHigh; }, base: 6, title: function () { return 'Switch to long balls'; }, msg: function (a, s) { return 'Opponent goes long to beat your high press' + (s ? ' — every time now.' : '.'); }, mod: { press: -8, counter: 7 }, pat: 'high press', counter: 'playing direct long balls immediately' },
+  { mem: 'poss', trig: function (a) { return a.possDom; }, base: 6, title: function () { return 'Drop into a low block'; }, msg: function (a, s) { return 'Opponent drops into a compact low block to deny space.'; }, mod: { chance: -8, control: 4, counter: -5, tilt: -4 }, pat: 'possession dominance', counter: 'sitting in a low block' },
+  { mem: 'centre', trig: function (a) { return a.centre; }, base: 5, title: function () { return 'Protect Zone 14'; }, msg: function (a, s) { return 'Opponent collapses the midfield to protect Zone 14.'; }, mod: { chance: -6, compact: 5 }, pat: 'central attacks', counter: 'shielding Zone 14' },
+  { mem: 'fbHigh', trig: function (a) { return a.fbHigh; }, base: 6, title: function () { return 'Attack behind the full-backs'; }, msg: function (a, s) { return 'Opponent targets the space behind your high full-backs.'; }, mod: { counter: 9 }, pat: 'high full-backs', counter: 'attacking in behind' },
+  { mem: 'midDom', trig: function (a) { return a.midDom; }, base: 4, title: function () { return 'Change the pressing structure'; }, msg: function (a, s) { return 'Opponent reshapes its press to contest midfield.'; }, mod: { control: -4, press: -3, chance: -3 }, pat: 'midfield control', counter: 'reshaping its press' },
+  { mem: 'wingOv', trig: function (a) { return a.wingOv; }, base: 5, title: function () { return 'Double-team the winger'; }, msg: function (a, s) { return 'Opponent double-teams your winger to kill the overload.'; }, mod: { chance: -7, tilt: -2 }, pat: 'wing overloads', counter: 'doubling the winger' },
+  { mem: 'pressGK', trig: function (a) { return a.pressGK; }, base: 5, title: function () { return 'Play direct, bypass the press'; }, msg: function (a, s) { return 'Opponent plays direct to bypass your goalkeeper press.'; }, mod: { counter: 6, press: -6 }, pat: 'goalkeeper press', counter: 'playing long immediately' }
+];
+function _sqSimOAIEval(i, sc) {
+  if (!_sqSim.ctx) return;
+  _sqSim.oai = _sqSim.oai || _sqSimOAINew();
+  var O = _sqSim.oai, c = _sqSim.ctx, co = _sqSim.ctxOpp || c, key = sc.key, min = 3 + i * 4, R = Math.round, cl = _sqSimClamp, d = _sqSim.dstate || {};
+  var mEff = _sqSimDState(c, co, key);
+  var side = key === 'right' ? 'right' : (key === 'left' || key === 'overload' || key === 'halfspace') ? 'left' : (key === 'centre' || key === 'build') ? 'centre' : (c.wideEdge > 0 ? 'left' : c.wideEdge < 0 ? 'right' : 'centre');
+  var a = {
+    side: side,
+    pressHigh: (mEff.press >= 58) || (d.press > 0) || key === 'press' || key === 'manpress',
+    possDom: (mEff.control >= 56) || (mEff.poss >= 58),
+    centre: (key === 'centre' || key === 'build'),
+    fbHigh: (c.me.fb >= 2 && (key === 'overload' || key === 'counter' || key === 'build' || key === 'left' || key === 'right')) || (d.counter > 0 && d.chance > 0),
+    midDom: c.midEdge > 0,
+    wingOv: (c.wideEdge > 0) || key === 'overload' || key === 'halfspace',
+    pressGK: key === 'manpress' || (d.press >= 8),
+    control: mEff.control, chance: mEff.chance, counter: mEff.counter, poss: mEff.poss
+  };
+  O.read = a;
+  if (side === 'left') O.mem.left++; else if (side === 'right') O.mem.right++; else O.mem.centre++;
+  if (a.pressHigh) O.mem.pressHigh++; if (a.possDom) O.mem.poss++; if (a.fbHigh) O.mem.fbHigh++; if (a.midDom) O.mem.midDom++; if (a.wingOv) O.mem.wingOv++; if (a.pressGK) O.mem.pressGK++;
+  var cands = _SQ_OAI.filter(function (rx) { return rx.trig(a); }).map(function (rx) { var memN = O.mem[rx.mem] || 0; return { rx: rx, memN: memN, score: rx.base + memN * 1.5 }; }).sort(function (x, y) { return y.score - x.score; });
+  var sig = a.side + '|' + ['press', 'compact', 'counter', 'chance', 'control'].map(function (k) { return (d[k] || 0) > 0 ? '+' : (d[k] || 0) < 0 ? '-' : '0'; }).join('');
+  var changed = O.lastSig && O.lastSig !== sig; O.lastSig = sig;
+  ['chance', 'control', 'counter', 'press', 'compact', 'poss', 'tilt'].forEach(function (k) { O.mod[k] = (O.mod[k] || 0) * 0.55; });
+  var msg = '', title = '', picked = cands[0];
+  if (picked) {
+    var rx = picked.rx, strong = picked.memN >= 3, f = strong ? 1.5 : 1;
+    Object.keys(rx.mod).forEach(function (k) { O.mod[k] = cl((O.mod[k] || 0) + rx.mod[k] * f, -20, 20); });
+    title = rx.title(a); msg = rx.msg(a, strong);
+    if (strong && !O.recognised[rx.mem]) { O.recognised[rx.mem] = true; O.msgs.unshift({ min: min, txt: 'Opponent recognised your repeated ' + rx.pat + ' — ' + rx.counter + '.' }); }
+    O.log.unshift({ min: min, txt: title }); if (O.log.length > 10) O.log.pop();
+  }
+  if (changed && title) msg = 'Opponent reacted to your tactical change — ' + title.toLowerCase() + '.';
+  if (msg) { O.lastMsg = msg; O.lastTitle = title || O.lastTitle; O.msgs.unshift({ min: min, txt: msg }); if (O.msgs.length > 8) O.msgs.pop(); O.decisions++; }
+  var suppression = (O.mod.chance < 0 ? -O.mod.chance : 0) + (O.mod.counter > 0 ? O.mod.counter : 0), ourPush = (d.chance || 0) + (d.control || 0);
+  O.momentum = R(cl(50 - suppression * 1.1 + ourPush * 0.8, 8, 92));
+  O.mod.tilt = cl((O.mod.tilt || 0) - suppression * 0.2, -18, 18);
+}
+function sqSimOAI() {
+  if (!_sqSim.el) return; var ov = _sqSim.el.querySelector('[data-role="oai"]'); if (!ov) return;
+  _sqSim.oaiOpen = !_sqSim.oaiOpen;
+  if (_sqSim.oaiOpen) { ov.hidden = false; ov.classList.add('is-on'); _sqSimOAIPaint(); }
+  else { ov.hidden = true; ov.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-oai-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.oaiOpen);
+}
+function _sqSimOAIPaint() {
+  if (!_sqSim.el || !_sqSim.oaiOpen || !_sqSim.oai) return;
+  var root = _sqSim.el, O = _sqSim.oai, a = O.read; if (!a) return;
+  function P(r, h) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = h; }
+  P('o-read', 'Attack side <b>' + a.side + '</b> · Pressing <b>' + (a.pressHigh ? 'high' : 'moderate') + '</b> · Possession <b>' + (a.possDom ? 'dominant' : 'shared') + '</b> · Your control <b>' + a.control + '%</b> · Your chance <b>' + a.chance + '%</b>');
+  P('o-now', '<b>' + _sqEsc(O.lastTitle || '—') + '</b><span>' + _sqEsc(O.lastMsg || 'Reading your shape…') + '</span>');
+  var memLab = { left: 'Left-side attacks', right: 'Right-side attacks', centre: 'Central attacks', pressHigh: 'High press', poss: 'Possession dominance', fbHigh: 'High full-backs', midDom: 'Midfield control', wingOv: 'Wing overloads', pressGK: 'Goalkeeper press' };
+  var mem = Object.keys(O.mem).filter(function (k) { return O.mem[k] > 0; }).sort(function (x, y) { return O.mem[y] - O.mem[x]; });
+  P('o-mem', mem.length ? mem.map(function (k) { return '<li' + (O.mem[k] >= 3 ? ' class="is-rec"' : '') + '>' + memLab[k] + ' <b>×' + O.mem[k] + '</b>' + (O.mem[k] >= 3 ? ' <em>recognised</em>' : '') + '</li>'; }).join('') : '<li>Learning your patterns…</li>');
+  P('o-msgs', O.msgs.length ? O.msgs.map(function (e) { return '<li><b>' + e.min + '\'</b> ' + _sqEsc(e.txt) + '</li>'; }).join('') : '<li>No reactions yet.</li>');
+  P('o-timeline', O.log.length ? O.log.map(function (e) { return '<li><b>' + e.min + '\'</b> ' + _sqEsc(e.txt) + '</li>'; }).join('') : '<li>Advance the simulation.</li>');
+  var mo = O.momentum;
+  P('o-mom', '<div class="sqcc-omom-bar"><i class="sqcc-omom-my" style="width:' + mo + '%"></i><i class="sqcc-omom-op" style="width:' + (100 - mo) + '%"></i></div><div class="sqcc-omom-v"><b>Familista ' + mo + '%</b><span>' + (mo >= 55 ? 'we hold momentum' : mo <= 45 ? 'opponent holds momentum' : 'even battle') + '</span><b>Opponent ' + (100 - mo) + '%</b></div>');
+  var mods = [['chance', 'Chance'], ['control', 'Control'], ['counter', 'Counter'], ['press', 'Press'], ['compact', 'Compact'], ['tilt', 'Field tilt']];
+  P('o-impact', mods.map(function (mk) { var v = Math.round(O.mod[mk[0]] || 0); var cls = mk[0] === 'counter' ? (v > 0 ? 'is-bad' : v < 0 ? 'is-good' : '') : (v > 0 ? 'is-good' : v < 0 ? 'is-bad' : ''); return '<span class="sqcc-oimp ' + cls + '">' + mk[1] + ' ' + (v > 0 ? '+' : '') + v + '</span>'; }).join(''));
+  var hd = root.querySelector('[data-role="oai-min"]'); if (hd) hd.textContent = O.decisions + ' reactions · momentum ' + mo + '%';
+}
+function _sqSimOAIOverlayHtml() {
+  return '<div class="sqcc-oai" data-role="oai" hidden><div class="sqcc-oai-in">'
+    + '<div class="sqcc-oai-hd"><span>🤖 DYNAMIC OPPONENT AI</span><span class="sqcc-oai-min" data-role="oai-min"></span><button class="sqcc-oai-x" data-action="sqSimOAI" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-oai-grid">'
+    + '<div class="sqcc-ocard sqcc-ocard--read"><h5>👁 OPPONENT READS YOU</h5><p data-role="o-read"></p><div class="sqcc-onow" data-role="o-now"></div><div class="sqcc-omom" data-role="o-mom"></div><div class="sqcc-oimp-row" data-role="o-impact"></div></div>'
+    + '<div class="sqcc-ocard sqcc-ocard--mem"><h5>🧠 TACTICAL MEMORY</h5><ul class="sqcc-omem" data-role="o-mem"></ul></div>'
+    + '<div class="sqcc-ocard sqcc-ocard--msg"><h5>💬 LIVE AI MESSAGES</h5><ul class="sqcc-omsgs" data-role="o-msgs"></ul></div>'
+    + '<div class="sqcc-ocard sqcc-ocard--tl"><h5>🕒 OPPONENT DECISION TIMELINE</h5><ul class="sqcc-otl" data-role="o-timeline"></ul></div>'
+    + '</div></div></div>';
+}
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
@@ -4994,7 +5083,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -5070,8 +5159,10 @@ function _sqSimEnter(i, instant) {
   if (sc.narr) { _setR('obj', sc.narr.obj); _setR('inst', sc.narr.inst); _setR('oppr', sc.narr.oppr); _setR('battle', sc.narr.battle); }
   // Phase 1 — live tactical probabilities, game control, AI read, confidence, coach report
   if (_sqSim.ctx) {
-    // Phase 4 — apply accepted-decision + opponent-reaction modifiers so the live board reflects the tactical state
-    var ds = _sqSim.dstate || {};
+    // Phase 5 — Dynamic Opponent AI evaluates once per scene (interval-based, not per frame)
+    _sqSimOAIEval(i, sc);
+    // Phase 4+5 — combined modifiers (our accepted decisions + opponent adaptation) so the live board reflects the AI-vs-AI battle
+    var ds = _sqSimEff();
     var dpa = { build: 0, chance: (ds.chance || 0), loss: -(ds.compact || 0) * 0.4, counter: (ds.counter || 0), press: (ds.press || 0), defend: (ds.compact || 0), transition: 0 };
     var pc = _sqSimProb(_sqSim.ctx, sc.key);
     var pr = root.querySelectorAll('[data-role="prob"]');
@@ -5094,9 +5185,12 @@ function _sqSimEnter(i, instant) {
     if (cfe) { cfe.className = 'sqcc-conf' + (cf.pct < 55 ? ' is-low' : cf.pct >= 75 ? ' is-hi' : ''); cfe.innerHTML = '<b>CONF ' + cf.pct + '%</b><em>' + _sqEsc(cf.evidence) + '</em>' + (cf.risk ? '<i class="sqcc-conf-warn">⚠ ' + _sqEsc(cf.risk) + '</i>' : ''); }
     // Phase 2 — advanced metrics, AI recommendation, opponent coach, timeline
     var rec = _sqSimRecommend(_sqSim.ctx, sc.key), rt = root.querySelector('[data-role="rec-t"]'); if (rt) rt.textContent = rec.title;
-    var oco = root.querySelector('[data-role="oppcoach"]'); if (oco) oco.textContent = _sqSimOppCoach(_sqSim.ctx, sc.key);
+    var oco = root.querySelector('[data-role="oppcoach"]'); if (oco) oco.textContent = (_sqSim.oai && _sqSim.oai.lastMsg) ? _sqSim.oai.lastMsg : _sqSimOppCoach(_sqSim.ctx, sc.key);
     var xgMy = Math.max(0.15, _sqSimXG(_sqSim.ctx, sc.key) + (ds.chance || 0) * 0.012), xgOp = _sqSimXG(_sqSim.ctxOpp || _sqSim.ctx, sc.key);
-    var xt = _sqSimXT(_sqSim.ctx, sc.key), tilt = _sqSimFieldTilt(_sqSim.ctx, sc.key), terr = _sqSimTerritory(_sqSim.ctx, sc.key);
+    var xt = _sqSimClamp(_sqSimXT(_sqSim.ctx, sc.key) + (ds.chance || 0) * 0.4, 5, 96);
+    var tiltAdj = Math.round((ds.tilt || 0) + (ds.control || 0) * 0.25), tilt = _sqSimFieldTilt(_sqSim.ctx, sc.key), terr = _sqSimTerritory(_sqSim.ctx, sc.key);
+    tilt.my = _sqSimClamp(tilt.my + tiltAdj, 10, 90); tilt.opp = 100 - tilt.my;
+    terr.my = _sqSimClamp(terr.my + tiltAdj, 12, 88); terr.opp = 100 - terr.my;
     var advVals = { xg: { t: xgMy.toFixed(2) + ' – ' + xgOp.toFixed(2), w: _sqSimClamp(xgMy / (xgMy + xgOp) * 100, 5, 95) }, xt: { t: xt + '%', w: xt }, tilt: { t: tilt.my + '% / ' + tilt.opp + '%', w: tilt.my }, terr: { t: terr.my + '% / ' + terr.opp + '%', w: terr.my } };
     var advs = root.querySelectorAll('[data-role="adv"]');
     for (var ai = 0; ai < advs.length; ai++) { var ak = advs[ai].getAttribute('data-ak'), av = advVals[ak]; if (!av) continue; var avv = advs[ai].querySelector('[data-role="advv"]'); if (avv) avv.textContent = av.t; var avb = advs[ai].querySelector('[data-role="advbar"]'); if (avb) avb.style.width = Math.round(av.w) + '%'; }
@@ -5106,6 +5200,8 @@ function _sqSimEnter(i, instant) {
     // Phase 4 — evaluate decisions once per scene (interval-based, not per frame); repaint the engine only when open
     _sqSimDLog(i, sc);
     if (_sqSim.dOpen) _sqSimDPaint();
+    // Phase 5 — repaint the Dynamic Opponent AI panel only when open
+    if (_sqSim.oaiOpen) _sqSimOAIPaint();
     var coach = root.querySelector('[data-role="coach"]');
     if (coach) {
       if (sc.key === 'summary') {
@@ -5130,7 +5226,7 @@ function _sqSimInit(root, tok) {
   var st = root.querySelector('.sqsim-stage'), r = st ? st.getBoundingClientRect() : { width: 600, height: 360 };
   _sqSim.W = r.width || 600; _sqSim.H = r.height || 360;
   _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
-  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; // fresh decision engine per simulation
+  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; _sqSim.oai = _sqSimOAINew(); // fresh decision engine + opponent AI per simulation
   _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
   root.classList.remove('is-done'); _sqSimSetPlayIcon();
   var bt = root.querySelector('[data-role="boot"]'); _sqSim.boot = bt ? 2300 : 0; if (bt) bt.classList.remove('is-hidden');
@@ -37084,6 +37180,7 @@ async function tosBoardSnapshot() {
         case 'sqSimDToggle':      if (typeof sqSimDToggle === 'function')      sqSimDToggle(); break;
         case 'sqSimDAccept':      if (typeof sqSimDAccept === 'function')      sqSimDAccept(el.dataset.k); break;
         case 'sqSimDIgnore':      if (typeof sqSimDIgnore === 'function')      sqSimDIgnore(el.dataset.k); break;
+        case 'sqSimOAI':          if (typeof sqSimOAI === 'function')          sqSimOAI(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
