@@ -4744,13 +4744,43 @@ function _sqSimBoot() {
   var tok = _sqSim.token;
   requestAnimationFrame(function () { if (tok !== _sqSim.token) return; var root = document.querySelector('.sqsim'); if (root) _sqSimInit(root, tok); });
 }
-// pitch keep-in box (dot centres) — the whole marker + label stays inside the white boundary at every tick
-var _SQ_PX0 = 6, _SQ_PX1 = 94, _SQ_PY0 = 9, _SQ_PY1 = 91;
-function _sqSimPaint(pos) { var W = _sqSim.W, H = _sqSim.H, ds = _sqSim.dots, cl = _sqSimClamp; for (var d = 0; d < ds.length; d++) { var p = pos[d] || [50, 50]; var x = cl(p[0], _SQ_PX0, _SQ_PX1), y = cl(p[1], _SQ_PY0, _SQ_PY1); ds[d].style.transform = 'translate3d(' + (x / 100 * W).toFixed(1) + 'px,' + (y / 100 * H).toFixed(1) + 'px,0) translate(-50%,-50%)'; } }
+// Authored design box: the engine writes all player/ball coords inside this range.
+var _SQ_DX0 = 6, _SQ_DX1 = 94, _SQ_DY0 = 9, _SQ_DY1 = 91;
+// The safe render box is recomputed from the CURRENT pitch size + marker radius so the whole
+// marker (centre ± radius + a small margin) always sits inside the white pitch line, at any size.
+// The authored box is mapped affinely into the safe box, so formation proportions / line
+// spacing are preserved — players simply get the space the pitch allows.
+function _sqSimSafeBox() {
+  var W = _sqSim.W || 1, H = _sqSim.H || 1, ds = _sqSim.dots;
+  var dr = (ds && ds[0] && ds[0].offsetWidth) ? ds[0].offsetWidth / 2 : (_sqSim.dotR || 17);
+  _sqSim.dotR = dr;
+  var rx = dr / W * 100, ry = dr / H * 100, bx = 2.0, by = 3.0; // white-line inset (%) + safety margin
+  var b = { sx0: bx + rx, sx1: 100 - bx - rx, sy0: by + ry, sy1: 100 - by - ry };
+  if (b.sx1 < b.sx0) { var mx = (b.sx0 + b.sx1) / 2; b.sx0 = b.sx1 = mx; }
+  if (b.sy1 < b.sy0) { var my = (b.sy0 + b.sy1) / 2; b.sy0 = b.sy1 = my; }
+  _sqSim.box = b; return b;
+}
+function _sqSimMap(px, py) {
+  var b = _sqSim.box || _sqSimSafeBox();
+  var x = b.sx0 + ((px - _SQ_DX0) / (_SQ_DX1 - _SQ_DX0)) * (b.sx1 - b.sx0);
+  var y = b.sy0 + ((py - _SQ_DY0) / (_SQ_DY1 - _SQ_DY0)) * (b.sy1 - b.sy0);
+  if (x < b.sx0) x = b.sx0; else if (x > b.sx1) x = b.sx1;
+  if (y < b.sy0) y = b.sy0; else if (y > b.sy1) y = b.sy1;
+  return [x, y];
+}
+function _sqSimPaint(pos) {
+  // Always read the CURRENT pitch size so the scaling matches the live pitch on every tick
+  // (self-heals if the pitch is enlarged, fonts settle late, or the window resizes).
+  var el = _sqSim.el; if (el) { var st = el.querySelector('.sqsim-stage'); if (st) { var r = st.getBoundingClientRect(); if (r.width > 40) { _sqSim.W = r.width; _sqSim.H = r.height; } } }
+  var W = _sqSim.W, H = _sqSim.H, ds = _sqSim.dots; _sqSimSafeBox();
+  for (var d = 0; d < ds.length; d++) { var p = pos[d] || [50, 50]; var m = _sqSimMap(p[0], p[1]); ds[d].style.transform = 'translate3d(' + (m[0] / 100 * W).toFixed(1) + 'px,' + (m[1] / 100 * H).toFixed(1) + 'px,0) translate(-50%,-50%)'; }
+}
 function _sqSimEnter(i, instant) {
   if (!_sqSim.el || !_sqSim.scenes.length) return;
   i = _sqSimClamp(i, 0, _sqSim.scenes.length - 1); _sqSim.idx = i;
   var sc = _sqSim.scenes[i], root = _sqSim.el;
+  // refresh live pitch size each scene so scaling always matches the current pitch (handles enlarged pitch / resize)
+  var _st = root.querySelector('.sqsim-stage'); if (_st) { var _r = _st.getBoundingClientRect(); if (_r.width > 40) { _sqSim.W = _r.width; _sqSim.H = _r.height; } }
   _sqSim.from = _sqSim.cur.map(function (p) { return p.slice(); });
   _sqSim.to = sc.pos.map(function (p) { return p.slice(); });
   _sqSim.elapsed = 0;
@@ -4849,7 +4879,7 @@ function _sqSimLoop(tok) {
   for (var d = 0; d < _sqSim.dots.length; d++) { var a = _sqSim.from[d] || [50, 50], b = _sqSim.to[d] || a; _sqSim.cur[d] = [a[0] + (b[0] - a[0]) * mp, a[1] + (b[1] - a[1]) * mp]; }
   _sqSimPaint(_sqSim.cur);
   var ball = _sqSim.el.querySelector('[data-role="ball"]');
-  if (ball && ball.style.opacity !== '0' && ball.getAttribute('data-bx')) { var bx = +ball.getAttribute('data-bx'), by = +ball.getAttribute('data-by'); ball.style.transform = 'translate3d(' + (bx / 100 * _sqSim.W).toFixed(1) + 'px,' + (by / 100 * _sqSim.H).toFixed(1) + 'px,0) translate(-50%,-50%)'; }
+  if (ball && ball.style.opacity !== '0' && ball.getAttribute('data-bx')) { var bx = +ball.getAttribute('data-bx'), by = +ball.getAttribute('data-by'); var mb = _sqSimMap(bx, by); ball.style.transform = 'translate3d(' + (mb[0] / 100 * _sqSim.W).toFixed(1) + 'px,' + (mb[1] / 100 * _sqSim.H).toFixed(1) + 'px,0) translate(-50%,-50%)'; }
   var bar = _sqSim.el.querySelector('[data-role="bar"]'); if (bar) bar.style.transform = 'scaleX(' + ((_sqSim.idx + _sqSimClamp(_sqSim.elapsed / dur, 0, 1)) / _sqSim.scenes.length).toFixed(3) + ')';
   if (_sqSim.playing && _sqSim.elapsed >= dur) {
     if (_sqSim.idx < _sqSim.scenes.length - 1) _sqSimEnter(_sqSim.idx + 1);

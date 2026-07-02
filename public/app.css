@@ -4336,16 +4336,16 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-tm-id i{ font-style:normal; font-size:9px; font-weight:700; letter-spacing:.06em; color:#8a94a6; }
 .sqcc-center{ text-align:center; }
 .sqcc-ai{ font-size:9px; font-weight:800; letter-spacing:.2em; color:#f4b740; text-shadow:0 0 8px rgba(244,183,64,.5); }
-.sqcc-score{ display:flex; align-items:center; justify-content:center; gap:14px; margin:2px 0 4px; }
-.sqcc-sc{ font-size:24px; font-weight:800; color:#eaf2ff; min-width:22px; }
-.sqcc-clock{ display:flex; flex-direction:column; align-items:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:3px 14px; font-size:15px; font-weight:800; color:#fff; line-height:1.05; }
-.sqcc-clock i{ font-style:normal; font-size:7px; font-weight:700; letter-spacing:.1em; color:#8a94a6; }
-.sqcc-ctl{ display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; }
-.sqcc-tb{ width:30px; height:26px; border-radius:7px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:#e3eaf4; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.sqcc-score{ display:flex; align-items:center; justify-content:center; gap:12px; margin:0 0 2px; }
+.sqcc-sc{ font-size:19px; font-weight:800; color:#eaf2ff; min-width:18px; }
+.sqcc-clock{ display:flex; flex-direction:column; align-items:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:2px 12px; font-size:13px; font-weight:800; color:#fff; line-height:1.05; }
+.sqcc-clock i{ font-style:normal; font-size:6.5px; font-weight:700; letter-spacing:.1em; color:#8a94a6; }
+.sqcc-ctl{ display:flex; align-items:center; justify-content:center; gap:5px; flex-wrap:wrap; }
+.sqcc-tb{ width:28px; height:22px; border-radius:7px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.05); color:#e3eaf4; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .sqcc-tb:hover{ background:rgba(255,255,255,.12); }
 .sqcc-tb--play{ background:linear-gradient(135deg,#34d77a,#16a34a); color:#04140a; border-color:transparent; }
 .sqcc-tb--mx.is-on{ background:linear-gradient(135deg,#34d399,#10b981); color:#022; border-color:transparent; }
-.sqcc-reset{ font-size:9.5px; font-weight:800; letter-spacing:.05em; color:#cbd5e1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:6px 11px; cursor:pointer; }
+.sqcc-reset{ font-size:9.5px; font-weight:800; letter-spacing:.05em; color:#cbd5e1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:7px; padding:4px 10px; cursor:pointer; }
 .sqcc-reset:hover{ background:rgba(255,255,255,.12); }
 .sqcc-spd{ display:flex; gap:2px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:7px; padding:2px; }
 /* body: left panel | pitch | right panel — side columns are fixed so neither panel can ever collapse or be pushed off-screen */
