@@ -4695,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -4758,6 +4758,160 @@ function sqSimBrain() {
   if (_sqSim.brainOpen) { br.hidden = false; br.classList.add('is-on'); _sqSimBrainPaint(); }
   else { br.hidden = true; br.classList.remove('is-on'); }
   var btn = _sqSim.el.querySelector('.sqcc-brain-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.brainOpen);
+}
+// ── Phase 4: AI Tactical Decision Engine — trigger-driven live coaching decisions with ranking,
+// comparison, accept/ignore, state changes, impact tracking and opponent reactions.
+var _SQ_DEC = [
+  { k: 'switch-side', t: 'Switch attack side', tier: 'best', trig: function (m) { return m.oppCompact >= 66 || m.chance < 42; }, adj: { chance: 11, control: 2 }, risk: 'Brief exposure on the switch', opp: 'Opponent shifts across and double-teams the winger', oppAdj: { chance: -5 }, cond: function (m) { return 'Opponent compactness ' + m.oppCompact + '% / chance ' + m.chance + '%'; } },
+  { k: 'wide-overload', t: 'Create a wide overload', tier: 'best', trig: function (m) { return m.chance < 46 || m.key === 'overload'; }, adj: { chance: 11, counter: 4 }, risk: 'Ball-far side exposed', opp: 'Opponent switches play to the free side', oppAdj: { counter: 4 }, cond: function (m) { return 'Chance creation ' + m.chance + '%'; } },
+  { k: 'reduce-fb-overlap', t: 'Reduce full-back overlap', tier: 'safe', trig: function (m) { return m.counter >= 62; }, adj: { counter: -12, chance: -4, compact: 4, control: 2 }, risk: 'Less width in attack', opp: 'Opponent overloads the other flank', oppAdj: { chance: -2 }, cond: function (m) { return 'Counter risk ' + m.counter + '% & both full-backs high'; } },
+  { k: 'mid-block', t: 'Drop to a mid-block', tier: 'safe', trig: function (m) { return m.control < 48; }, adj: { compact: 7, counter: -10, control: 3, chance: -5 }, risk: 'Concede territory', opp: 'Opponent enjoys more possession', oppAdj: { poss: 6 }, cond: function (m) { return 'Game control ' + m.control + '%'; } },
+  { k: 'change-mentality', t: 'Change mentality to Balanced', tier: 'safe', trig: function (m) { return m.control < 45 || m.counter >= 66; }, adj: { control: 3, counter: -5, chance: -3, ment: 'Balanced' }, risk: 'Lower attacking threat', opp: 'Opponent takes the initiative', oppAdj: {}, cond: function (m) { return 'Control ' + m.control + '% / counter ' + m.counter + '%'; } },
+  { k: 'protect-z14', t: 'Keep the pivot central', tier: 'safe', trig: function (m) { return (m.compact < 58 && m.me.dm) || m.key === 'centre'; }, adj: { compact: 8, control: 3, chance: -2 }, risk: 'Less wide support', opp: 'Opponent attacks wide instead', oppAdj: {}, cond: function (m) { return 'Zone 14 exposed (compactness ' + m.compact + '%)'; } },
+  { k: 'stop-press', t: 'Stop the high press', tier: 'safe', trig: function (m) { return m.press < 46; }, adj: { press: -12, compact: 6, counter: -8 }, risk: 'Invite pressure onto our block', opp: 'Opponent builds up more comfortably', oppAdj: { poss: 5 }, cond: function (m) { return 'Pressing success ' + m.press + '%'; } },
+  { k: 'lower-line', t: 'Lower the defensive line', tier: 'safe', trig: function (m) { return m.counter >= 60; }, adj: { compact: 6, counter: -8, press: -5 }, risk: 'Deeper block, less pressing', opp: 'Opponent pushes higher', oppAdj: { poss: 4 }, cond: function (m) { return 'Counter risk ' + m.counter + '%'; } },
+  { k: 'raise-line', t: 'Raise the defensive line', tier: 'risky', trig: function (m) { return m.control >= 58 && m.counter < 52; }, adj: { press: 6, counter: 6, compact: -3, chance: 3 }, risk: 'Space in behind if beaten', opp: 'Opponent plays in behind', oppAdj: { counter: 5 }, cond: function (m) { return 'Control ' + m.control + '% & low counter risk'; } },
+  { k: 'press-gk', t: 'Press the goalkeeper', tier: 'risky', trig: function (m) { return m.press >= 56 && m.control >= 50; }, adj: { press: 8, counter: 6, chance: 4 }, risk: 'Gaps behind the press', opp: 'Opponent plays a long ball', oppAdj: { counter: 6, chance: -3 }, cond: function (m) { return 'Pressing ' + m.press + '% & control ' + m.control + '%'; } },
+  { k: 'invert-fb', t: 'Invert the full-back', tier: 'best', trig: function (m) { return m.midEdge < 0; }, adj: { control: 5, counter: -3, chance: 2 }, risk: 'Less natural width', opp: 'Opponent winger stays wide', oppAdj: {}, cond: function (m) { return 'Midfield deficit ' + m.midEdge; } },
+  { k: 'push-wb', t: 'Push the wing-back higher', tier: 'risky', trig: function (m) { return (m.me.back3 || m.me.back5) && m.chance < 52; }, adj: { chance: 7, counter: 7 }, risk: 'Counter behind the wing-back', opp: 'Opponent targets the space behind', oppAdj: { counter: 5 }, cond: function (m) { return 'Back three/five & chance ' + m.chance + '%'; } },
+  { k: 'drop-pivot', t: 'Drop the pivot deeper', tier: 'safe', trig: function (m) { return m.loss >= 58; }, adj: { compact: 6, counter: -6, control: 3, chance: -3 }, risk: 'Fewer bodies higher up', opp: 'Opponent pushes their line up', oppAdj: { poss: 4 }, cond: function (m) { return 'Ball-loss risk ' + m.loss + '%'; } },
+  { k: 'change-buildup', t: 'Change the build-up route', tier: 'best', trig: function (m) { return m.loss >= 56; }, adj: { control: 4, chance: 3 }, risk: 'Short adjustment period', opp: 'Opponent adjusts their press', oppAdj: { chance: -2 }, cond: function (m) { return 'Ball-loss risk ' + m.loss + '%'; } },
+  { k: 'protect-weakside', t: 'Protect the weak side', tier: 'safe', trig: function (m) { return m.wideEdge < 0 || m.counter >= 58; }, adj: { counter: -7, compact: 5 }, risk: 'Less attacking width', opp: 'Opponent overloads the other side', oppAdj: {}, cond: function (m) { return 'Weak side exposed'; } },
+  { k: 'attack-behind-fb', t: 'Attack behind the full-back', tier: 'risky', trig: function (m) { return m.chance < 50 && m.control >= 50; }, adj: { chance: 9, counter: 5 }, risk: 'Overcommit forward', opp: 'Opponent full-back drops off', oppAdj: { chance: -4 }, cond: function (m) { return 'Chance ' + m.chance + '% & control ' + m.control + '%'; } }
+];
+function _sqSimDConf(pct) { return pct >= 70 ? 'High Confidence' : pct >= 55 ? 'Medium Confidence' : pct >= 45 ? 'Low Confidence' : 'Experimental'; }
+function _sqSimDScore(d) { var a = d.adj, R = Math.round; var benefit = (a.chance > 0 ? a.chance : 0) + (a.control > 0 ? a.control * 1.2 : 0) + (a.counter < 0 ? -a.counter * 0.7 : 0) + (a.compact > 0 ? a.compact * 0.4 : 0); var risk = (a.counter > 0 ? a.counter : 0) + (a.chance < 0 ? -a.chance * 0.6 : 0) + (a.compact < 0 ? -a.compact : 0) + (a.press > 0 ? a.press * 0.2 : 0); return { benefit: R(benefit), risk: R(risk) }; }
+// live metrics snapshot with the accepted-decision + opponent-reaction modifiers applied
+function _sqSimDState(c, co, key) {
+  var b = _sqSimMetricBase(c), p = _sqSimProb(c, key), ds = _sqSim.dstate || {}, cl = _sqSimClamp, R = Math.round;
+  var mc = _sqSimControlRaw(c, key), oc = _sqSimControlRaw(co, key), opB = _sqSimMetricBase(co);
+  return {
+    chance: R(cl(p.chance + (ds.chance || 0), 0, 100)),
+    control: R(cl(mc / (mc + oc) * 100 + (ds.control || 0), 3, 97)),
+    counter: R(cl(p.counter + (ds.counter || 0), 0, 100)),
+    loss: R(cl(p.loss - (ds.compact || 0) * 0.4, 0, 100)),
+    press: R(cl(p.press + (ds.press || 0), 0, 100)),
+    defend: R(cl(p.defend + (ds.compact || 0), 0, 100)),
+    compact: R(cl(b.compact + (ds.compact || 0), 0, 100)),
+    poss: R(cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2 + (ds.poss || 0), 20, 80)),
+    oppCompact: R(opB.compact), me: c.me, op: c.op, wideEdge: c.wideEdge, midEdge: c.midEdge, key: key
+  };
+}
+function _sqSimDecide(c, co, key) {
+  var m = _sqSimDState(c, co, key), cl = _sqSimClamp, R = Math.round, min = 3 + _sqSim.idx * 4;
+  var fired = [];
+  _SQ_DEC.forEach(function (d) {
+    if (!d.trig(m)) return;
+    var s = _sqSimDScore(d), base = d.tier === 'best' ? 66 : d.tier === 'safe' ? 60 : 50;
+    var conf = R(cl(base + (s.benefit - s.risk * 0.8), 34, 90));
+    var imp = []; var a = d.adj;
+    if (a.chance) imp.push('chance ' + (a.chance > 0 ? '+' : '') + a.chance + '%');
+    if (a.control) imp.push('control ' + (a.control > 0 ? '+' : '') + a.control + '%');
+    if (a.counter) imp.push('counter ' + (a.counter > 0 ? '+' : '') + a.counter + '%');
+    if (a.compact) imp.push('compactness ' + (a.compact > 0 ? '+' : '') + a.compact + '%');
+    fired.push({ k: d.k, title: d.t, tier: d.tier, reason: d.cond(m), riskText: d.risk, opp: d.opp, adj: a, benefit: s.benefit, riskVal: s.risk, conf: conf, impact: imp.join(', '), minute: min, netScore: s.benefit - s.risk * 0.6 + conf * 0.15 });
+  });
+  var ranked = { best: null, safe: null, risky: null };
+  if (fired.length) {
+    var byScore = fired.slice().sort(function (a, b) { return b.netScore - a.netScore; });
+    ranked.best = byScore[0]; ranked.best.why = 'Highest net benefit vs risk';
+    var rest = byScore.filter(function (x) { return x !== ranked.best; });
+    ranked.safe = rest.slice().sort(function (a, b) { return a.riskVal - b.riskVal; })[0] || null; if (ranked.safe) ranked.safe.why = 'Lowest tactical risk';
+    ranked.risky = rest.filter(function (x) { return x !== ranked.safe; }).sort(function (a, b) { return b.benefit - a.benefit; })[0] || null; if (ranked.risky) ranked.risky.why = 'Highest upside but exposes us';
+  }
+  function sgn(v) { return (v > 0 ? '+' : '') + (v || 0) + '%'; }
+  function comp(label, a, conf) { return { label: label, poss: sgn(a.poss || 0), chance: sgn(a.chance || 0), counter: sgn(a.counter || 0), control: sgn(a.control || 0), conf: conf }; }
+  var comparison = {
+    A: comp('Continue current tactic', { poss: -1, chance: -2, counter: 2, control: -2 }, R(cl(m.control, 35, 80))),
+    B: ranked.best ? comp('Apply: ' + ranked.best.title, ranked.best.adj, ranked.best.conf) : null,
+    C: (ranked.safe || ranked.risky) ? comp('Alt: ' + (ranked.safe || ranked.risky).title, (ranked.safe || ranked.risky).adj, (ranked.safe || ranked.risky).conf) : null
+  };
+  return { list: ranked, all: fired, comparison: comparison, minute: min, m: m };
+}
+function _sqSimDNew() { return { press: 0, compact: 0, counter: 0, chance: 0, control: 0, poss: 0, ment: null }; }
+function _sqSimDlogPush(min, txt, type) { _sqSim.dlog = _sqSim.dlog || []; var last = _sqSim.dlog[_sqSim.dlog.length - 1]; if (last && last.txt === txt) return; _sqSim.dlog.push({ min: min, txt: txt, type: type }); if (_sqSim.dlog.length > 12) _sqSim.dlog.shift(); }
+// per-scene evaluation (interval-based: runs once per scene, not per frame) — builds the timeline,
+// applies the opponent reaction and measures the impact of an accepted decision
+function _sqSimDLog(i, sc) {
+  if (!_sqSim.ctx) return;
+  var m = _sqSimDState(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, sc.key), min = 3 + i * 4;
+  // opponent reaction to a previously accepted decision
+  if (_sqSim.doppPending && i >= _sqSim.doppPending.scene) {
+    var oa = _sqSim.doppPending.adj || {}; _sqSim.dstate = _sqSim.dstate || _sqSimDNew();
+    ['press', 'compact', 'counter', 'chance', 'control', 'poss'].forEach(function (kk) { if (oa[kk]) _sqSim.dstate[kk] = (_sqSim.dstate[kk] || 0) + oa[kk]; });
+    _sqSimDlogPush(min, 'Opponent reacts — ' + _sqSim.doppPending.text, 'opp'); _sqSim.doppPending = null; _sqSim.brainMemo = null;
+  }
+  // impact measurement a few minutes after acceptance
+  if (_sqSim.dtrack && !_sqSim.dtrack.done && i >= _sqSim.dtrack.atScene + 2) {
+    var t = _sqSim.dtrack; t.afterChance = m.chance; t.afterCtrl = m.control; t.afterCounter = m.counter;
+    t.impact = (t.afterChance - t.beforeChance) + (t.afterCtrl - t.beforeCtrl) + (t.beforeCounter - t.afterCounter); t.done = true;
+    _sqSimDlogPush(min, (t.impact >= 0 ? 'Impact measured: positive (+' + t.impact + ')' : 'Decision failed — opponent adjusted (' + t.impact + ')'), t.impact >= 0 ? 'good' : 'bad');
+  }
+  // detect notable tactical conditions for the timeline
+  if (m.press < 46) _sqSimDlogPush(min, 'Pressing failure detected (' + m.press + '%)', 'detect');
+  else if (m.control < 46) _sqSimDlogPush(min, 'Game control dropping (' + m.control + '%)', 'detect');
+  else if (m.counter >= 62) _sqSimDlogPush(min, 'Counter risk rising (' + m.counter + '%)', 'detect');
+  else if (m.oppCompact >= 68) _sqSimDlogPush(min, 'Opponent weak side / compact block (' + m.oppCompact + '%)', 'detect');
+  else if (m.chance < 42) _sqSimDlogPush(min, 'Chance creation low (' + m.chance + '%)', 'detect');
+}
+function _sqSimDFind(k) { if (!_sqSim.ctx) return null; var r = _sqSimDecide(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, _sqSim.scenes[_sqSim.idx].key); return r.all.filter(function (x) { return x.k === k; })[0] || null; }
+function sqSimDAccept(k) {
+  if (!_sqSim.el || !_sqSim.ctx) return; var dec = _sqSimDFind(k); if (!dec) return;
+  _sqSim.dstate = _sqSim.dstate || _sqSimDNew();
+  var mBefore = _sqSimDState(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, _sqSim.scenes[_sqSim.idx].key);
+  var a = dec.adj; ['press', 'compact', 'counter', 'chance', 'control', 'poss'].forEach(function (kk) { if (a[kk]) _sqSim.dstate[kk] = (_sqSim.dstate[kk] || 0) + a[kk]; });
+  if (a.ment) { _sqSim.dstate.ment = a.ment; if (typeof SQ_FORM !== 'undefined') SQ_FORM.mentality = a.ment; }
+  _sqSim.doppPending = { adj: dec.oppAdj || {}, scene: _sqSim.idx + 1, text: dec.opp };
+  _sqSim.dtrack = { k: k, title: dec.title, beforeChance: mBefore.chance, beforeCtrl: mBefore.control, beforeCounter: mBefore.counter, atScene: _sqSim.idx, opp: dec.opp, done: false };
+  _sqSimDlogPush(dec.minute, 'Accepted: ' + dec.title, 'accept');
+  _sqSim.brainMemo = null;
+  _sqSimEnter(_sqSim.idx, true); // reflect the new tactical state on the live board (instant, no re-animation)
+  _sqSimDPaint();
+}
+function sqSimDIgnore(k) { if (!_sqSim.el || !_sqSim.ctx) return; var dec = _sqSimDFind(k); if (!dec) return; _sqSimDlogPush(dec.minute, 'Ignored: ' + dec.title, 'ignore'); _sqSimDPaint(); }
+function sqSimDToggle() {
+  if (!_sqSim.el) return; var dv = _sqSim.el.querySelector('[data-role="dengine"]'); if (!dv) return;
+  _sqSim.dOpen = !_sqSim.dOpen;
+  if (_sqSim.dOpen) { dv.hidden = false; dv.classList.add('is-on'); _sqSimDPaint(); }
+  else { dv.hidden = true; dv.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-dec-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.dOpen);
+}
+function _sqSimDPaint() {
+  if (!_sqSim.el || !_sqSim.dOpen || !_sqSim.ctx) return;
+  var root = _sqSim.el, sc = _sqSim.scenes[_sqSim.idx]; if (!sc) return;
+  var D = _sqSimDecide(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, sc.key);
+  function confCls(p) { return p >= 70 ? 'is-hi' : p >= 55 ? 'is-md' : p >= 45 ? 'is-lo' : 'is-exp'; }
+  function card(d, rankLabel) {
+    if (!d) return '';
+    var warn = d.conf < 55 ? '<p class="sqcc-dec-warn">⚠ Low confidence — test carefully.</p>' : '';
+    return '<div class="sqcc-dec sqcc-dec--' + d.tier + '">'
+      + '<div class="sqcc-dec-top"><span class="sqcc-dec-rank">' + rankLabel + '</span><b class="sqcc-dec-t">' + _sqEsc(d.title) + '</b><span class="sqcc-dec-conf ' + confCls(d.conf) + '">' + _sqSimDConf(d.conf) + ' · ' + d.conf + '%</span></div>'
+      + '<p class="sqcc-dec-r"><i>Trigger:</i> ' + _sqEsc(d.reason) + '</p>'
+      + '<p class="sqcc-dec-r"><i>Expected:</i> ' + _sqEsc(d.impact || '—') + ' &nbsp;·&nbsp; <i>Why here:</i> ' + _sqEsc(d.why || '') + '</p>'
+      + '<p class="sqcc-dec-risk">⚠ Risk: ' + _sqEsc(d.riskText) + ' &nbsp;·&nbsp; ' + d.minute + '\'</p>' + warn
+      + '<div class="sqcc-dec-act"><button class="sqcc-dec-yes" data-action="sqSimDAccept" data-k="' + d.k + '" type="button">✓ Accept</button><button class="sqcc-dec-no" data-action="sqSimDIgnore" data-k="' + d.k + '" type="button">✕ Ignore</button></div>'
+      + '</div>';
+  }
+  var live = root.querySelector('[data-role="d-live"]');
+  if (live) { var cards = card(D.list.best, 'BEST') + card(D.list.safe, 'SAFE') + card(D.list.risky, 'RISKY'); live.innerHTML = cards || '<p class="sqcc-dec-none">No trigger active — the current shape is stable.</p>'; }
+  var cmp = root.querySelector('[data-role="d-cmp"]');
+  if (cmp) { var C = D.comparison; function col(o, cls) { if (!o) return ''; return '<div class="sqcc-dcmp ' + cls + '"><b>' + _sqEsc(o.label) + '</b><span>Possession ' + o.poss + '</span><span>Chance ' + o.chance + '</span><span>Counter ' + o.counter + '</span><span>Control ' + o.control + '</span><em>' + _sqSimDConf(o.conf) + ' · ' + o.conf + '%</em></div>'; } cmp.innerHTML = col(C.A, 'sqcc-dcmp--a') + col(C.B, 'sqcc-dcmp--b') + col(C.C, 'sqcc-dcmp--c'); }
+  var tl = root.querySelector('[data-role="d-timeline"]');
+  if (tl) { var lg = _sqSim.dlog || []; tl.innerHTML = lg.length ? lg.slice().reverse().map(function (e) { return '<li class="sqcc-dtl sqcc-dtl--' + e.type + '"><b>' + e.min + '\'</b> ' + _sqEsc(e.txt) + '</li>'; }).join('') : '<li class="sqcc-dtl">No decisions yet — advance the simulation.</li>'; }
+  var im = root.querySelector('[data-role="d-impact"]');
+  if (im) { var t = _sqSim.dtrack; if (!t) im.innerHTML = '<p class="sqcc-dec-none">Accept a decision to track its impact.</p>'; else im.innerHTML = '<p class="sqcc-dimp-t"><b>' + _sqEsc(t.title) + '</b></p><div class="sqcc-dimp-row"><span>Chance creation</span><b>' + t.beforeChance + '% → ' + (t.done ? t.afterChance + '%' : '…') + '</b></div><div class="sqcc-dimp-row"><span>Game control</span><b>' + t.beforeCtrl + '% → ' + (t.done ? t.afterCtrl + '%' : '…') + '</b></div><div class="sqcc-dimp-row"><span>Counter risk</span><b>' + t.beforeCounter + '% → ' + (t.done ? t.afterCounter + '%' : '…') + '</b></div>' + (t.done ? ('<p class="sqcc-dimp-v ' + (t.impact >= 0 ? 'is-pos' : 'is-neg') + '">' + (t.impact >= 0 ? 'Positive impact +' + t.impact : 'Decision failed because opponent adjusted (' + t.impact + ')') + '</p>') : '<p class="sqcc-dimp-wait">Measuring over the next few minutes…</p>') + '<p class="sqcc-dimp-opp">↳ ' + _sqEsc(t.opp) + '</p>'; }
+  var cc = root.querySelector('[data-role="dengine-min"]'); if (cc) cc.textContent = D.minute + '\' · ' + D.all.length + ' triggers active';
+}
+function _sqSimDOverlayHtml() {
+  return '<div class="sqcc-dengine" data-role="dengine" hidden><div class="sqcc-dengine-in">'
+    + '<div class="sqcc-dengine-hd"><span>⚙ AI TACTICAL DECISION ENGINE</span><span class="sqcc-dengine-min" data-role="dengine-min"></span><button class="sqcc-dengine-x" data-action="sqSimDToggle" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-dengine-grid">'
+    + '<div class="sqcc-dsec sqcc-dsec--live"><h5>⚡ LIVE DECISIONS (ranked)</h5><div data-role="d-live"></div></div>'
+    + '<div class="sqcc-dsec sqcc-dsec--side">'
+    + '<div class="sqcc-dsub"><h5>⚖ DECISION COMPARISON</h5><div class="sqcc-dcmp-row" data-role="d-cmp"></div></div>'
+    + '<div class="sqcc-dsub"><h5>📈 IMPACT TRACKING</h5><div data-role="d-impact"></div></div>'
+    + '<div class="sqcc-dsub"><h5>🕒 DECISION TIMELINE</h5><ul class="sqcc-dtl-list" data-role="d-timeline"></ul></div>'
+    + '</div></div></div></div>';
 }
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
@@ -4840,7 +4994,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -4916,17 +5070,20 @@ function _sqSimEnter(i, instant) {
   if (sc.narr) { _setR('obj', sc.narr.obj); _setR('inst', sc.narr.inst); _setR('oppr', sc.narr.oppr); _setR('battle', sc.narr.battle); }
   // Phase 1 — live tactical probabilities, game control, AI read, confidence, coach report
   if (_sqSim.ctx) {
+    // Phase 4 — apply accepted-decision + opponent-reaction modifiers so the live board reflects the tactical state
+    var ds = _sqSim.dstate || {};
+    var dpa = { build: 0, chance: (ds.chance || 0), loss: -(ds.compact || 0) * 0.4, counter: (ds.counter || 0), press: (ds.press || 0), defend: (ds.compact || 0), transition: 0 };
     var pc = _sqSimProb(_sqSim.ctx, sc.key);
     var pr = root.querySelectorAll('[data-role="prob"]');
     for (var pi = 0; pi < pr.length; pi++) {
-      var pk = pr[pi].getAttribute('data-pk'), pv = Math.round(pc[pk]);
+      var pk = pr[pi].getAttribute('data-pk'), pv = Math.round(_sqSimClamp(pc[pk] + (dpa[pk] || 0), 0, 100));
       var pvb = pr[pi].querySelector('[data-role="probv"]'); if (pvb) pvb.textContent = pv + '%';
       var pib = pr[pi].querySelector('.sqcc-prob-bar i'); if (pib) pib.style.width = pv + '%';
       var isRisk = pk === 'loss' || pk === 'counter';
       pr[pi].classList.toggle('is-hi', isRisk ? pv >= 55 : pv >= 68);
     }
     var mc = _sqSimControlRaw(_sqSim.ctx, sc.key), oc = _sqSimControlRaw(_sqSim.ctxOpp || _sqSim.ctx, sc.key);
-    var mp = Math.round(mc / (mc + oc) * 100), op2 = 100 - mp;
+    var mp = Math.round(_sqSimClamp(mc / (mc + oc) * 100 + (ds.control || 0), 3, 97)), op2 = 100 - mp;
     var gm = root.querySelector('[data-role="gcmy"]'); if (gm) gm.style.width = mp + '%';
     var go = root.querySelector('[data-role="gcop"]'); if (go) go.style.width = op2 + '%';
     var gvm = root.querySelector('[data-role="gcvm"]'); if (gvm) gvm.textContent = mp + '%';
@@ -4938,7 +5095,7 @@ function _sqSimEnter(i, instant) {
     // Phase 2 — advanced metrics, AI recommendation, opponent coach, timeline
     var rec = _sqSimRecommend(_sqSim.ctx, sc.key), rt = root.querySelector('[data-role="rec-t"]'); if (rt) rt.textContent = rec.title;
     var oco = root.querySelector('[data-role="oppcoach"]'); if (oco) oco.textContent = _sqSimOppCoach(_sqSim.ctx, sc.key);
-    var xgMy = _sqSimXG(_sqSim.ctx, sc.key), xgOp = _sqSimXG(_sqSim.ctxOpp || _sqSim.ctx, sc.key);
+    var xgMy = Math.max(0.15, _sqSimXG(_sqSim.ctx, sc.key) + (ds.chance || 0) * 0.012), xgOp = _sqSimXG(_sqSim.ctxOpp || _sqSim.ctx, sc.key);
     var xt = _sqSimXT(_sqSim.ctx, sc.key), tilt = _sqSimFieldTilt(_sqSim.ctx, sc.key), terr = _sqSimTerritory(_sqSim.ctx, sc.key);
     var advVals = { xg: { t: xgMy.toFixed(2) + ' – ' + xgOp.toFixed(2), w: _sqSimClamp(xgMy / (xgMy + xgOp) * 100, 5, 95) }, xt: { t: xt + '%', w: xt }, tilt: { t: tilt.my + '% / ' + tilt.opp + '%', w: tilt.my }, terr: { t: terr.my + '% / ' + terr.opp + '%', w: terr.my } };
     var advs = root.querySelectorAll('[data-role="adv"]');
@@ -4946,6 +5103,9 @@ function _sqSimEnter(i, instant) {
     var tls = root.querySelectorAll('[data-role="tlseg"]'); for (var ti = 0; ti < tls.length; ti++) tls[ti].className = 'sqcc-tl-seg' + (ti < i ? ' is-done' : ti === i ? ' is-on' : '');
     // Phase 3 — refresh the AI Tactical Brain only when it is open (per scene, memoized — no per-frame work)
     if (_sqSim.brainOpen) _sqSimBrainPaint();
+    // Phase 4 — evaluate decisions once per scene (interval-based, not per frame); repaint the engine only when open
+    _sqSimDLog(i, sc);
+    if (_sqSim.dOpen) _sqSimDPaint();
     var coach = root.querySelector('[data-role="coach"]');
     if (coach) {
       if (sc.key === 'summary') {
@@ -4970,6 +5130,7 @@ function _sqSimInit(root, tok) {
   var st = root.querySelector('.sqsim-stage'), r = st ? st.getBoundingClientRect() : { width: 600, height: 360 };
   _sqSim.W = r.width || 600; _sqSim.H = r.height || 360;
   _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
+  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; // fresh decision engine per simulation
   _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
   root.classList.remove('is-done'); _sqSimSetPlayIcon();
   var bt = root.querySelector('[data-role="boot"]'); _sqSim.boot = bt ? 2300 : 0; if (bt) bt.classList.remove('is-hidden');
@@ -36920,6 +37081,9 @@ async function tosBoardSnapshot() {
         case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
         case 'sqSimScene':        if (typeof sqSimScene === 'function')        sqSimScene(el.dataset.idx); break;
         case 'sqSimBrain':        if (typeof sqSimBrain === 'function')        sqSimBrain(); break;
+        case 'sqSimDToggle':      if (typeof sqSimDToggle === 'function')      sqSimDToggle(); break;
+        case 'sqSimDAccept':      if (typeof sqSimDAccept === 'function')      sqSimDAccept(el.dataset.k); break;
+        case 'sqSimDIgnore':      if (typeof sqSimDIgnore === 'function')      sqSimDIgnore(el.dataset.k); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
