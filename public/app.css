@@ -4322,7 +4322,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* ════ AI Tactical Intelligence — full command-centre layout (one screen, no scroll) ════ */
 .sqtc--sim .sqtc-content{ overflow:hidden; }
-.sqsim.sqcc{ flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(150px,1fr) auto auto auto auto; gap:6px; padding:2px 2px 0; }
+.sqsim.sqcc{ flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(200px,1fr) auto auto auto auto; gap:5px; padding:2px 2px 0; }
 /* top bar: team identity + score/clock + transport controls */
 .sqcc-top{ display:grid; grid-template-columns:1fr minmax(280px,auto) 1fr; align-items:center; gap:14px; }
 .sqcc-tm{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -4350,31 +4350,32 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-spd{ display:flex; gap:2px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); border-radius:7px; padding:2px; }
 /* body: left panel | pitch | right panel — side columns are fixed so neither panel can ever collapse or be pushed off-screen */
 .sqcc-body{ display:grid; grid-template-columns:200px minmax(0,1fr) 200px; gap:10px; min-height:0; min-width:0; }
-.sqcc-side{ display:flex; flex-direction:column; gap:5px; min-height:0; min-width:0; overflow-x:hidden; overflow-y:auto; scrollbar-width:thin; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; padding:9px 11px; }
+.sqcc-side{ display:flex; flex-direction:column; gap:3px; min-height:0; min-width:0; overflow-x:hidden; overflow-y:auto; scrollbar-width:thin; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; padding:7px 10px; }
 .sqcc-side--my{ border-color:rgba(52,215,122,.18); } .sqcc-side--op{ border-color:rgba(232,91,208,.18); }
-.sqcc-sh{ font-size:8.5px; font-weight:800; letter-spacing:.1em; color:#8a94a6; }
-.sqcc-sname{ font-size:13px; font-weight:800; margin-bottom:1px; }
+.sqcc-sh{ display:none; }
+.sqcc-sname{ font-size:12px; font-weight:800; margin-bottom:1px; }
 .sqcc-sname--my{ color:#34d77a; } .sqcc-sname--op{ color:#e85bd0; }
-.sqcc-metrics{ display:flex; flex-direction:column; gap:4px; }
-.sqcc-metrics .sqsim-mw{ display:grid; grid-template-columns:1fr auto; grid-template-areas:"l v" "bar bar"; gap:1px 6px; }
-.sqcc-metrics .sqsim-mw-l{ grid-area:l; font-size:8.5px; font-weight:700; color:#aeb9cc; text-transform:none; letter-spacing:0; }
-.sqcc-metrics .sqsim-mw-v{ grid-area:v; font-size:10px; font-weight:800; text-align:right; }
+.sqcc-metrics{ display:flex; flex-direction:column; gap:2px; }
+.sqcc-metrics .sqsim-mw{ display:grid; grid-template-columns:1fr 42px 30px; grid-template-areas:"l bar v"; gap:0 7px; align-items:center; }
+.sqcc-metrics .sqsim-mw-l{ grid-area:l; font-size:8.5px; font-weight:700; color:#aeb9cc; text-transform:none; letter-spacing:0; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcc-metrics .sqsim-mw-v{ grid-area:v; font-size:9.5px; font-weight:800; text-align:right; }
 .sqcc-metrics .sqsim-mw-bar{ grid-area:bar; height:4px; }
 .sqcc-side--my .sqsim-mw-v{ color:#7CFFB0; } .sqcc-side--op .sqsim-mw-v{ color:#f5a7e8; }
 .sqcc-side--my .sqsim-mw-bar i{ background:linear-gradient(90deg,#16a34a,#4ade80); box-shadow:0 0 8px rgba(52,215,122,.55); }
 .sqcc-side--op .sqsim-mw-bar i{ background:linear-gradient(90deg,#a21caf,#e85bd0); box-shadow:0 0 8px rgba(232,91,208,.55); }
 .sqcc-side .sqsim-mw.is-risk .sqsim-mw-bar i{ background:linear-gradient(90deg,#f87171,#fca5a5); box-shadow:0 0 8px rgba(248,113,113,.6); }
-.sqcc-blk{ display:flex; flex-direction:column; align-items:center; gap:2px; margin-top:2px; }
+.sqcc-blk{ display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:6px; margin-top:2px; }
 .sqcc-blk-l{ font-size:8px; font-weight:800; letter-spacing:.07em; color:#8a94a6; }
-.sqcc-ring{ width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
-.sqcc-ring-in{ width:45px; height:45px; border-radius:50%; background:#0a1322; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.sqcc-ring-in b{ font-size:14px; font-weight:800; } .sqcc-ring-in i{ font-style:normal; font-size:6.5px; font-weight:800; letter-spacing:.04em; color:#8a94a6; }
+.sqcc-ring{ width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.sqcc-ring-in{ width:28px; height:28px; border-radius:50%; background:#0a1322; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.sqcc-ring-in b{ font-size:10px; font-weight:800; line-height:1; } .sqcc-ring-in i{ font-style:normal; font-size:5px; font-weight:800; letter-spacing:.02em; color:#8a94a6; }
 .sqcc-ring--my .sqcc-ring-in b{ color:#7CFFB0; } .sqcc-ring--op .sqcc-ring-in b{ color:#f5a7e8; }
-.sqcc-stat{ display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:6px; }
-.sqcc-stat-l{ font-size:8px; font-weight:800; letter-spacing:.05em; color:#8a94a6; }
-.sqcc-stat-v{ font-size:14px; font-weight:800; }
+.sqcc-stats2{ display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; }
+.sqcc-stat{ display:flex; flex-direction:column; align-items:flex-start; gap:0; min-width:0; }
+.sqcc-stat-l{ font-size:7px; font-weight:800; letter-spacing:.04em; color:#8a94a6; white-space:nowrap; }
+.sqcc-stat-v{ font-size:13px; font-weight:800; line-height:1.1; }
 .sqcc-stat-v--my{ color:#7CFFB0; } .sqcc-stat-v--op{ color:#f5a7e8; }
-.sqcc-ment{ display:flex; align-items:center; gap:8px; margin-top:auto; padding-top:5px; border-top:1px solid rgba(255,255,255,.06); }
+.sqcc-ment{ display:flex; align-items:center; gap:7px; margin-top:auto; padding-top:4px; border-top:1px solid rgba(255,255,255,.06); }
 .sqcc-ment-i{ font-size:14px; } .sqcc-ment-i--my{ color:#34d77a; } .sqcc-ment-i--op{ color:#e85bd0; }
 .sqcc-ment-t i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; display:block; }
 .sqcc-ment-t b{ font-size:12px; font-weight:800; }
@@ -4384,28 +4385,28 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* fill the middle cell exactly — pitch SVG (preserveAspectRatio=none) + %-based dots stay perfectly inside; no aspect-ratio so the stage can never derive a width that pushes the side panels off-screen */
 .sqcc-stagewrap .sqsim-stage{ width:100%; height:100%; max-width:100%; max-height:100%; }
 /* compact dynamic analysis strip (Scene / Objective / Team Instruction / Opponent Response / Key Battle) */
-.sqcc-analysis{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1.1fr; gap:12px; padding:7px 12px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; }
+.sqcc-analysis{ display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr 1.1fr; gap:12px; padding:5px 11px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; }
 .sqcc-bottom{ display:grid; grid-template-columns:1.5fr 1fr 1fr 1fr 1.15fr; gap:12px; padding:9px 13px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:13px; }
 .sqcc-sec{ min-width:0; }
-.sqcc-sec-h{ display:block; font-size:8.5px; font-weight:800; letter-spacing:.07em; margin-bottom:3px; }
+.sqcc-sec-h{ display:block; font-size:8px; font-weight:800; letter-spacing:.07em; margin-bottom:2px; }
 .sqcc-sec-h--y{ color:#f4b740; } .sqcc-sec-h--g{ color:#34d77a; } .sqcc-sec-h--m{ color:#e85bd0; }
-.sqcc-sec [data-role]{ font-size:10.5px; line-height:1.36; color:#aab4c5; }
-.sqcc-sec [data-role] p{ margin:0; }
-.sqcc-sec--scene [data-role] b{ display:block; color:#eaf2ff; font-size:11.5px; font-weight:800; margin-bottom:1px; }
+.sqcc-sec [data-role]{ font-size:9px; line-height:1.26; color:#aab4c5; }
+.sqcc-sec [data-role] p{ margin:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.sqcc-sec--scene [data-role] b{ display:block; color:#eaf2ff; font-size:11px; font-weight:800; margin-bottom:1px; }
 .sqcc-bt{ display:inline-flex; align-items:center; gap:6px; }
 .sqcc-bt b{ background:rgba(232,91,208,.16); color:#f5a7e8; border-radius:6px; padding:2px 8px; font-size:10.5px; font-weight:800; }
 .sqcc-bt em{ font-style:normal; color:#8a94a6; font-size:9px; }
 /* scenario selector row */
-.sqcc-scen-hd{ font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#f4b740; text-align:center; margin-bottom:5px; }
-.sqcc-scen-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; scrollbar-width:thin; }
-.sqcc-card{ flex:0 0 158px; text-align:left; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:7px 8px; cursor:pointer; color:#cbd5e1; transition:border-color .15s,background .15s; display:flex; flex-direction:column; gap:4px; }
+.sqcc-scen-hd{ font-size:8.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#f4b740; text-align:center; margin-bottom:3px; }
+.sqcc-scen-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:3px; scrollbar-width:thin; }
+.sqcc-card{ flex:0 0 152px; text-align:left; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:5px 7px; cursor:pointer; color:#cbd5e1; transition:border-color .15s,background .15s; display:flex; flex-direction:column; gap:3px; }
 .sqcc-card:hover{ background:rgba(255,255,255,.06); }
 .sqcc-card.is-on{ border-color:#f4b740; box-shadow:0 0 0 1px rgba(244,183,64,.4), 0 6px 16px rgba(0,0,0,.4); background:rgba(244,183,64,.06); }
 .sqcc-card-hd{ display:flex; align-items:center; gap:6px; }
 .sqcc-card-no{ flex:0 0 auto; width:16px; height:16px; border-radius:5px; background:rgba(244,183,64,.18); color:#f4d27a; font-size:9px; font-weight:800; display:flex; align-items:center; justify-content:center; }
 .sqcc-card-t{ font-size:10.5px; font-weight:800; color:#eaf2ff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sqcc-card-d{ font-size:9px; color:#8a94a6; line-height:1.2; min-height:21px; }
-.sqcc-card-mini{ height:34px; border-radius:6px; overflow:hidden; background:repeating-linear-gradient(90deg,#0e131c 0 12.5%,#0b0f17 12.5% 25%); border:1px solid rgba(255,255,255,.05); }
+.sqcc-card-d{ font-size:8.5px; color:#8a94a6; line-height:1.2; min-height:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.sqcc-card-mini{ height:20px; border-radius:6px; overflow:hidden; background:repeating-linear-gradient(90deg,#0e131c 0 12.5%,#0b0f17 12.5% 25%); border:1px solid rgba(255,255,255,.05); }
 .sqcc-mini-svg{ width:100%; height:100%; display:block; }
 .sqcc-card-kb{ display:flex; align-items:center; gap:5px; }
 .sqcc-card-kb i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; }
@@ -4421,8 +4422,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc .sqsim-scenebar{ position:absolute; left:8px; right:8px; bottom:7px; z-index:5; opacity:.6; }
 .sqcc .sqsim-progress{ position:absolute; left:0; right:0; bottom:0; }
 /* ── Phase 1: Tactical Intelligence strip (Game Control + Probabilities + AI Read/Confidence) ── */
-.sqcc-intel{ display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; padding:7px 11px; min-width:0; }
-.sqcc-intel-top{ display:grid; grid-template-columns:230px minmax(0,1fr); gap:14px; align-items:center; }
+.sqcc-intel{ display:flex; flex-direction:column; gap:4px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; padding:5px 10px; min-width:0; }
+.sqcc-intel-top{ display:grid; grid-template-columns:220px minmax(0,1fr); gap:14px; align-items:center; }
 .sqcc-gc{ min-width:0; }
 .sqcc-gc-h{ font-size:8.5px; font-weight:800; letter-spacing:.09em; color:#f4b740; margin-bottom:3px; }
 .sqcc-gc-bar{ display:flex; height:9px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,.06); }
@@ -4442,15 +4443,44 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-prob--up.is-hi .sqcc-prob-v{ color:#7CFFB0; } .sqcc-prob--up.is-hi .sqcc-prob-bar i{ background:linear-gradient(90deg,#16a34a,#4ade80); }
 .sqcc-prob--dn .sqcc-prob-bar i{ background:linear-gradient(90deg,#fbbf24,#f59e0b); }
 .sqcc-prob--dn.is-hi .sqcc-prob-v{ color:#fca5a5; } .sqcc-prob--dn.is-hi .sqcc-prob-bar i{ background:linear-gradient(90deg,#f87171,#ef4444); }
-.sqcc-airead{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,.06); padding-top:5px; }
-.sqcc-airead-t{ font-size:8.5px; font-weight:800; letter-spacing:.08em; color:#38bdf8; flex:0 0 auto; }
-.sqcc-airead-x{ font-size:10.5px; line-height:1.35; color:#cbd5e1; flex:1 1 260px; min-width:0; }
-.sqcc-conf{ flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; font-size:9px; }
-.sqcc-conf b{ background:rgba(56,189,248,.16); color:#7dd3fc; border-radius:6px; padding:2px 8px; font-weight:800; }
+.sqcc-conf{ flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; font-size:8.5px; }
+.sqcc-conf b{ background:rgba(56,189,248,.16); color:#7dd3fc; border-radius:6px; padding:1px 7px; font-weight:800; }
 .sqcc-conf em{ font-style:normal; color:#8a94a6; }
 .sqcc-conf.is-hi b{ background:rgba(52,215,122,.16); color:#7CFFB0; }
 .sqcc-conf.is-low b{ background:rgba(248,113,113,.16); color:#fca5a5; }
 .sqcc-conf-warn{ font-style:normal; color:#fca5a5; font-weight:700; }
+/* Phase 2 — advanced metric chips (xG, xThreat, Field Tilt, Territory) */
+.sqcc-adv{ display:grid; grid-template-columns:repeat(4,1fr); gap:7px; border-top:1px solid rgba(255,255,255,.06); padding-top:2px; }
+.sqcc-adv-c{ min-width:0; background:rgba(56,189,248,.05); border:1px solid rgba(56,189,248,.14); border-radius:7px; padding:2px 7px; display:flex; flex-direction:column; gap:0; }
+.sqcc-adv-l{ font-size:7.5px; font-weight:800; letter-spacing:.04em; color:#7dd3fc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcc-adv-v{ font-size:11px; font-weight:800; color:#eaf2ff; line-height:1.25; }
+.sqcc-adv-bar{ height:3px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:1px; }
+.sqcc-adv-bar i{ display:block; height:100%; width:0; border-radius:3px; background:linear-gradient(90deg,#22d3ee,#38bdf8); transition:width .5s ease; }
+/* Phase 2 — AI assistant / recommendation / opponent coach */
+.sqcc-ai{ display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:9px; border-top:1px solid rgba(255,255,255,.06); padding-top:2px; }
+.sqcc-ai-c{ min-width:0; display:flex; flex-direction:column; gap:1px; }
+.sqcc-ai-h{ font-size:7.5px; font-weight:800; letter-spacing:.06em; }
+.sqcc-ai-c--assist .sqcc-ai-h{ color:#38bdf8; } .sqcc-ai-c--rec .sqcc-ai-h{ color:#34d77a; } .sqcc-ai-c--opp .sqcc-ai-h{ color:#e85bd0; }
+.sqcc-ai-x{ font-size:9.5px; line-height:1.28; color:#cbd5e1; min-width:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.sqcc-ai-c--rec .sqcc-ai-x{ -webkit-line-clamp:2; } .sqcc-ai-c--rec .sqcc-ai-x b{ color:#7CFFB0; font-weight:800; }
+.sqcc-ai-c--opp .sqcc-ai-x{ color:#e9b8de; }
+/* Phase 2 — tactical timeline */
+.sqcc-timeline{ display:flex; align-items:center; gap:9px; border-top:1px solid rgba(255,255,255,.06); padding-top:2px; }
+.sqcc-tl-h{ font-size:7.5px; font-weight:800; letter-spacing:.08em; color:#8a94a6; flex:0 0 auto; }
+.sqcc-tl-row{ display:flex; gap:4px; flex:1 1 auto; min-width:0; overflow:hidden; }
+.sqcc-tl-seg{ flex:1 1 0; min-width:0; height:13px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); border-radius:4px; color:#6b7688; font-size:7.5px; font-weight:800; cursor:pointer; padding:0; display:flex; align-items:center; justify-content:center; }
+.sqcc-tl-seg i{ font-style:normal; }
+.sqcc-tl-seg.is-done{ background:rgba(52,215,122,.14); border-color:rgba(52,215,122,.3); color:#7CFFB0; }
+.sqcc-tl-seg.is-on{ background:linear-gradient(135deg,#34d77a,#16a34a); border-color:transparent; color:#04140a; box-shadow:0 0 8px rgba(52,215,122,.5); }
+/* Phase 2 — coach report extras */
+.sqcc-coach-pred{ font-size:9px; font-weight:800; letter-spacing:.04em; color:#7CFFB0; background:rgba(52,215,122,.12); border:1px solid rgba(52,215,122,.28); border-radius:6px; padding:2px 9px; }
+.sqcc-cc--reasons{ grid-row:span 2; } .sqcc-cc--reasons h5{ color:#7dd3fc; }
+/* Phase 2 — pre-sim tactical preview (in boot overlay) */
+.sqsim-preview{ margin-top:10px; text-align:left; max-width:420px; background:rgba(56,189,248,.06); border:1px solid rgba(56,189,248,.18); border-radius:10px; padding:9px 12px; opacity:0; animation:sqsimBootLine .5s ease forwards; }
+.sqsim-preview-h{ font-size:9px; font-weight:800; letter-spacing:.08em; color:#7dd3fc; margin-bottom:5px; }
+.sqsim-preview-row{ display:flex; justify-content:space-between; gap:12px; font-size:10.5px; line-height:1.5; }
+.sqsim-preview-row span{ color:#8a94a6; } .sqsim-preview-row b{ color:#eaf2ff; font-weight:700; text-align:right; }
+.sqsim-preview-plan{ margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,.08); font-size:10px; line-height:1.4; color:#cbd5e1; }
 /* Coach report overlay (appears on the final scene) */
 .sqcc-coach{ position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; padding:8px 10px; background:linear-gradient(180deg,rgba(6,10,20,.9),rgba(6,10,20,.96)); backdrop-filter:blur(3px); animation:sqccFade .4s ease; }
 .sqcc-coach[hidden]{ display:none; }
