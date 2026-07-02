@@ -4433,6 +4433,129 @@ function _sqSimNarr(c, key) {
   };
   return t[key] || t.build;
 }
+// ── Phase 1: Tactical Intelligence — probabilities, game control, AI explanation, confidence, coach report ──
+// All values are derived from the live formation-vs-formation context (me/op player counts,
+// midfield & width edges) + the active scene, so every metric is dynamic and formation-specific.
+var _SQ_PROBS = [['build', 'Build-up', 'up'], ['chance', 'Chance', 'up'], ['loss', 'Ball Loss', 'dn'], ['counter', 'Counter Risk', 'dn'], ['press', 'Pressing', 'up'], ['defend', 'Def Stability', 'up'], ['transition', 'Transition', 'up']];
+var _SQ_PROB_EMPH = { build: ['build'], press: ['press', 'loss'], left: ['defend'], right: ['defend'], centre: ['defend'], overload: ['loss', 'counter'], counter: ['transition', 'chance'], block: ['defend'], recover: ['defend', 'loss'], manpress: ['press', 'counter'], midblock: ['defend', 'press'], secondball: ['transition'], halfspace: ['chance', 'build'], summary: [] };
+function _sqSimProbBase(c) {
+  var me = c.me, op = c.op, cl = _sqSimClamp, E = c.midEdge, W = c.wideEdge;
+  return {
+    build: cl(56 + E * 6 + (me.def - op.fw) * 5 - op.fw * 2, 14, 96),
+    chance: cl(44 + me.fw * 6 + me.wide * 4 + E * 3 + W * 3, 12, 95),
+    loss: cl(34 + op.wide * 5 + (op.fw > me.def ? 12 : 0) + (E < 0 ? -E * 6 : 0) - me.dm * 3, 8, 93),
+    counter: cl(30 + op.fw * 7 + op.wide * 4 + (me.fw > me.def ? 10 : 0) - me.dm * 5, 8, 93),
+    press: cl(50 + E * 7 + me.fw * 3 + me.wide * 2 - (op.back3 ? 6 : 0), 12, 96),
+    defend: cl(52 + (me.def - 4) * 7 + me.dm * 5 + (me.def - op.fw) * 4 - op.wide * 3, 12, 96),
+    transition: cl(44 + me.fw * 5 + me.wide * 4 + E * 3 + (me.dm ? 4 : 0), 12, 95)
+  };
+}
+function _sqSimProb(c, key) { var b = _sqSimProbBase(c); (_SQ_PROB_EMPH[key] || []).forEach(function (k) { b[k] = _sqSimClamp(b[k] + 15, 8, 97); }); return b; }
+// raw one-team control score (possession + field control + pressure + compactness + chance quality + transition)
+function _sqSimControlRaw(c, key) {
+  var b = _sqSimMetricBase(c), p = _sqSimProbBase(c), cl = _sqSimClamp;
+  var poss = cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2, 28, 74);
+  var raw = poss * 0.22 + b.adv * 0.20 + b.press * 0.14 + b.compact * 0.16 + p.chance * 0.14 + p.transition * 0.14;
+  if (_SQ_PROB_EMPH[key] && _SQ_PROB_EMPH[key].indexOf('defend') >= 0) raw += (b.compact - 50) * 0.12;
+  return cl(raw, 10, 92);
+}
+// formation-specific "why" explanation for the active scene
+function _sqSimWhy(c, key) {
+  var me = c.me, op = c.op;
+  var oppWide = op.wg ? 'winger' : op.wm ? 'wide midfielder' : (op.fb || op.back3) ? 'wing-back' : 'wide man';
+  var myWide = me.wg ? 'wingers' : me.wm ? 'wide midfielders' : me.fb ? 'full-backs' : 'wide runners';
+  var pivot = me.dm >= 2 ? 'double pivot' : me.dm ? 'holding midfielder' : me.cm ? 'central midfielder' : 'midfield line';
+  var oppPivot = op.dm >= 2 ? 'double pivot' : op.dm ? 'holding midfielder' : 'midfield line';
+  var chan = op.back3 ? 'the channel outside their wide centre-back' : 'the channel between their centre-back and ' + (op.fb ? 'full-back' : 'wide defender');
+  var map = {
+    build: (me.def > op.fw)
+      ? ('Build-up is clean because you have a ' + me.def + 'v' + op.fw + ' at the back — a spare defender steps in while their ' + op.fw + ' forward line can only screen one lane.')
+      : ('Your ' + pivot + ' drops between the centre-backs to make an extra man, so their ' + op.fw + '-man press cannot cover every passing lane.'),
+    halfspace: 'The ' + (op.back3 ? 'space outside their wide centre-back' : 'half-space inside their ' + (op.fb ? 'full-back' : 'wide defender')) + ' opens because their ' + oppWide + ' steps forward and their ' + oppPivot + ' cannot cover inside in time.',
+    press: 'Your press bites because ' + (c.midEdge > 0 ? ('you have +' + c.midEdge + ' bodies in midfield, so every short option is marked') : ('the front line screens their ' + oppPivot + ', forcing a rushed long ball')) + '.',
+    manpress: 'Man-marking works because your ' + pivot + ' and forwards pick up their ' + oppPivot + ' and centre-backs one-for-one; the risk is the space in behind if a mark is beaten.',
+    left: 'They attack our left because their ' + oppWide + ' isolates our ' + (me.fb ? 'full-back' : 'wide defender') + ' 1v1 while the ball is switched away from our cover.',
+    right: 'They attack our right because their ' + oppWide + ' pins our ' + (me.fb ? 'full-back' : 'wide defender') + ' and the far side is slow to shift across.',
+    centre: 'The pocket between our lines opens when our ' + pivot + ' is pulled forward, letting their ' + (op.am ? 'No.10' : 'deep forward') + ' receive on the half-turn.',
+    overload: 'They build a 2v1 by loading one flank; our far ' + myWide.replace(/s$/, '') + ' is too high to tuck in, so the spare man is free until the block shifts.',
+    counter: 'The counter is on because they committed ' + op.fw + ' forward and ' + chan + ' is open behind their ' + oppWide + '.',
+    block: 'We defend deep because they camp in our third; staying compact removes the central lane and forces low-percentage crosses onto our ' + me.def + ' defenders.',
+    recover: 'We are recovering shape after a turnover left us stretched; the ' + pivot + ' drops first to rebuild the lines before pressing again.',
+    midblock: 'The mid-block holds because our ' + pivot + ' screens the centre and the forwards curve their runs to keep their ' + oppPivot + ' on the back foot.',
+    secondball: 'Second balls fall our way when our ' + pivot + ' sits just behind the first duel and reads the drop to step in.',
+    summary: 'Across the game the decisive space is ' + (c.overloadMid ? 'central midfield, where they hold a numbers edge' : (op.back3 ? 'behind their advancing wing-backs' : 'the channels either side of their back four')) + '.'
+  };
+  return map[key] || map.build;
+}
+// confidence % + evidence + low-confidence risk warning for the scene recommendation
+function _sqSimConfidence(c, key) {
+  var b = _sqSimMetricBase(c), p = _sqSimProbBase(c), cl = _sqSimClamp;
+  var relMap = { build: p.build, press: p.press, left: p.defend, right: p.defend, centre: p.defend, overload: 100 - p.loss, counter: p.transition, block: p.defend, recover: p.defend, manpress: p.press, midblock: p.defend, secondball: p.transition, halfspace: p.chance, summary: b.adv };
+  var rel = relMap[key]; if (rel == null) rel = b.adv;
+  var pct = Math.round(cl(rel * 0.62 + b.adv * 0.38, 22, 96));
+  var ev = [];
+  if (c.midEdge > 0) ev.push('+' + c.midEdge + ' spare in midfield'); else if (c.midEdge < 0) ev.push(c.midEdge + ' short in midfield');
+  if (c.me.def > c.op.fw) ev.push('spare defender at the back'); else if (c.op.fw >= c.me.def) ev.push('no spare CB vs ' + c.op.fw + ' forwards');
+  if (c.wideEdge > 0) ev.push('width edge'); else if (c.wideEdge < 0) ev.push('outnumbered wide');
+  if (!ev.length) ev.push('balanced matchup');
+  var evidence = ev.slice(0, 2).join(' · ');
+  var risk = '';
+  if (pct < 55) { var threat = p.counter > p.loss ? 'exposed to the counter' : (p.loss > 60 ? 'high ball-loss risk under their press' : 'thin margins — the matchup is even'); risk = 'Low confidence — ' + threat + '.'; }
+  return { pct: pct, evidence: evidence, risk: risk };
+}
+// end-of-simulation coach report, aggregated over every scene
+function _sqSimCoach(c, ctxOpp, scenes) {
+  var agg = { build: 0, chance: 0, loss: 0, counter: 0, press: 0, defend: 0, transition: 0 }, n = 0, ctrlSum = 0;
+  var best = { v: -1e9 }, worst = { v: -1e9 };
+  (scenes || []).forEach(function (s) {
+    if (s.key === 'summary') return;
+    var p = _sqSimProb(c, s.key);
+    Object.keys(agg).forEach(function (k) { agg[k] += p[k]; });
+    n++;
+    var mc = _sqSimControlRaw(c, s.key), oc = _sqSimControlRaw(ctxOpp, s.key);
+    ctrlSum += mc / (mc + oc) * 100;
+    var good = p.chance + p.build + (100 - p.loss); if (good > best.v) best = { v: good, s: s };
+    var bad = p.loss + p.counter + (100 - p.defend); if (bad > worst.v) worst = { v: bad, s: s };
+  });
+  Object.keys(agg).forEach(function (k) { agg[k] = Math.round(agg[k] / (n || 1)); });
+  var avgCtrl = Math.round(ctrlSum / (n || 1));
+  var dims = ['build', 'chance', 'press', 'defend', 'transition'];
+  var lab = { build: 'Build-up', chance: 'Chance creation', press: 'Pressing', defend: 'Defensive stability', transition: 'Transition play' };
+  var ranked = dims.slice().sort(function (a, b) { return agg[b] - agg[a]; });
+  var strengths = [ranked[0], ranked[1]].map(function (k) { return lab[k] + ' (' + agg[k] + '%)'; });
+  var weakDims = [ranked[ranked.length - 1], ranked[ranked.length - 2]];
+  var weaknesses = [lab[weakDims[0]] + ' (' + agg[weakDims[0]] + '%)'];
+  weaknesses.push(agg.loss >= 58 ? ('Ball retention — loss risk ' + agg.loss + '%') : agg.counter >= 58 ? ('Exposed on the counter — ' + agg.counter + '%') : (lab[weakDims[1]] + ' (' + agg[weakDims[1]] + '%)'));
+  var battle = avgCtrl >= 52 ? 'WON' : avgCtrl >= 47 ? 'CONTESTED' : 'LOST';
+  var priorityDim = agg.loss >= 60 ? 'loss' : agg.counter >= 60 ? 'counter' : weakDims[0];
+  var fix = { loss: 'Shorten passing distances and give the carrier a bounce option to cut turnovers.', counter: 'Add a resting defender and hold one pivot back to screen the counter.', defend: 'Drop the line a touch and keep two compact banks to deny the central lane.', build: 'Drop a pivot between the centre-backs to beat the first line of pressure.', chance: 'Commit a runner beyond the striker and attack the half-spaces.', press: 'Set clearer pressing triggers so the front line steps together.', transition: 'Get the first pass forward faster after winning it.' };
+  var adj = { loss: 'Play with more support around the ball; stop forcing passes into the press.', counter: 'Do not over-commit full-backs; keep rest-defence behind the ball.', defend: 'Stay compact between the lines and force play wide.', build: 'Use a back-three build shape to guarantee a free man.', chance: 'Overload one half-space to break their defensive line.', press: 'Press as a unit from the striker back, not individually.', transition: 'Break at once on the turnover before they reset.' };
+  return { strengths: strengths, weaknesses: weaknesses, keyBattle: battle + ' — ' + c.mf + ' vs ' + c.of + ' (avg control ' + avgCtrl + '%).', best: (best.s ? (best.s.label + ' — ' + (best.s.desc || 'best control gain')) : '—'), worst: (worst.s ? (worst.s.label + ' — highest turnover / counter exposure') : '—'), adjust: adj[priorityDim], priority: fix[priorityDim], avgCtrl: avgCtrl };
+}
+// DOM skeletons (values filled live by _sqSimEnter)
+function _sqSimIntelHtml() {
+  var chips = _SQ_PROBS.map(function (p) { return '<div class="sqcc-prob sqcc-prob--' + p[2] + '" data-role="prob" data-pk="' + p[0] + '"><span class="sqcc-prob-l">' + p[1] + '</span><span class="sqcc-prob-v" data-role="probv">0%</span><span class="sqcc-prob-bar"><i></i></span></div>'; }).join('');
+  return '<div class="sqcc-intel">'
+    + '<div class="sqcc-intel-top">'
+    + '<div class="sqcc-gc"><div class="sqcc-gc-h">GAME CONTROL</div><div class="sqcc-gc-bar"><i class="sqcc-gc-my" data-role="gcmy" style="width:50%"></i><i class="sqcc-gc-op" data-role="gcop" style="width:50%"></i></div><div class="sqcc-gc-vals"><b class="sqcc-gc-vm" data-role="gcvm">50%</b><span data-role="gclab">EVEN</span><b class="sqcc-gc-vo" data-role="gcvo">50%</b></div></div>'
+    + '<div class="sqcc-probs"><div class="sqcc-probs-h">TACTICAL PROBABILITIES</div><div class="sqcc-probs-row">' + chips + '</div></div>'
+    + '</div>'
+    + '<div class="sqcc-airead"><span class="sqcc-airead-t">◈ AI READ</span><span class="sqcc-airead-x" data-role="why">—</span><span class="sqcc-conf" data-role="conf"></span></div>'
+    + '</div>';
+}
+function _sqSimCoachOverlayHtml() {
+  return '<div class="sqcc-coach" data-role="coach" hidden><div class="sqcc-coach-in">'
+    + '<div class="sqcc-coach-hd">◈ COACH REPORT <span class="sqcc-coach-ctrl" data-role="coach-ctrl">avg control 50%</span></div>'
+    + '<div class="sqcc-coach-grid">'
+    + '<div class="sqcc-cc sqcc-cc--good"><h5>STRENGTHS</h5><ul data-role="coach-str"></ul></div>'
+    + '<div class="sqcc-cc sqcc-cc--bad"><h5>WEAKNESSES</h5><ul data-role="coach-weak"></ul></div>'
+    + '<div class="sqcc-cc"><h5>KEY BATTLE</h5><p data-role="coach-kb"></p></div>'
+    + '<div class="sqcc-cc"><h5>BEST DECISION</h5><p data-role="coach-best"></p></div>'
+    + '<div class="sqcc-cc"><h5>WORST DECISION</h5><p data-role="coach-worst"></p></div>'
+    + '<div class="sqcc-cc"><h5>RECOMMENDED ADJUSTMENT</h5><p data-role="coach-adj"></p></div>'
+    + '<div class="sqcc-cc sqcc-cc--pri"><h5>PRIORITY FIX</h5><p data-role="coach-pri"></p></div>'
+    + '</div></div></div>';
+}
 var _SQ_CAM = ['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
@@ -4491,7 +4614,7 @@ function _sqTcSimulation(my, op) {
     + '<div class="sqsim-layer">' + _sqSimDotsHtml(M) + '</div>'
     + '<div class="sqsim-ball" data-role="ball"></div></div>'
     + scenebar + '<div class="sqsim-progress"><i data-role="bar"></i></div>'
-    + boot + '</div></div>';
+    + boot + _sqSimCoachOverlayHtml() + '</div></div>';
   var analysis = '<div class="sqcc-analysis">'
     + '<div class="sqcc-sec sqcc-sec--scene"><span class="sqcc-sec-h sqcc-sec-h--y">SCENE</span><div data-role="scene"></div></div>'
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--g">OBJECTIVE</span><div data-role="obj"></div></div>'
@@ -4502,9 +4625,10 @@ function _sqTcSimulation(my, op) {
   var cards = '<div class="sqcc-scenarios">' + _sqSimCardsHtml(M, _sqSim.scenes) + '</div>';
   var legend = '<div class="sqcc-legend"><span class="sqcc-lg sqcc-lg--my">' + _sqEsc(_sqClubName()) + ' (' + _sqEsc(M.my.f) + ')</span><span class="sqcc-lg sqcc-lg--op">Opponent (' + _sqEsc(M.opp.f) + ')</span>'
     + '<span class="sqcc-lg2 sqcc-lg2--pass">Pass</span><span class="sqcc-lg2 sqcc-lg2--run">Movement</span><span class="sqcc-lg2 sqcc-lg2--press">Press</span><span class="sqcc-lg2 sqcc-lg2--def">Cover</span><span class="sqcc-lg2 sqcc-lg2--zone">Space</span></div>';
+  var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + analysis + cards + legend + '</div>';
+    + intel + analysis + cards + legend + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -4546,6 +4670,41 @@ function _sqSimEnter(i, instant) {
   function _setR(r, h) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = h; }
   _setR('scene', '<b>' + _sqEsc(sc.title) + '</b><p>' + (sc.text || '') + '</p>');
   if (sc.narr) { _setR('obj', sc.narr.obj); _setR('inst', sc.narr.inst); _setR('oppr', sc.narr.oppr); _setR('battle', sc.narr.battle); }
+  // Phase 1 — live tactical probabilities, game control, AI read, confidence, coach report
+  if (_sqSim.ctx) {
+    var pc = _sqSimProb(_sqSim.ctx, sc.key);
+    var pr = root.querySelectorAll('[data-role="prob"]');
+    for (var pi = 0; pi < pr.length; pi++) {
+      var pk = pr[pi].getAttribute('data-pk'), pv = Math.round(pc[pk]);
+      var pvb = pr[pi].querySelector('[data-role="probv"]'); if (pvb) pvb.textContent = pv + '%';
+      var pib = pr[pi].querySelector('.sqcc-prob-bar i'); if (pib) pib.style.width = pv + '%';
+      var isRisk = pk === 'loss' || pk === 'counter';
+      pr[pi].classList.toggle('is-hi', isRisk ? pv >= 55 : pv >= 68);
+    }
+    var mc = _sqSimControlRaw(_sqSim.ctx, sc.key), oc = _sqSimControlRaw(_sqSim.ctxOpp || _sqSim.ctx, sc.key);
+    var mp = Math.round(mc / (mc + oc) * 100), op2 = 100 - mp;
+    var gm = root.querySelector('[data-role="gcmy"]'); if (gm) gm.style.width = mp + '%';
+    var go = root.querySelector('[data-role="gcop"]'); if (go) go.style.width = op2 + '%';
+    var gvm = root.querySelector('[data-role="gcvm"]'); if (gvm) gvm.textContent = mp + '%';
+    var gvo = root.querySelector('[data-role="gcvo"]'); if (gvo) gvo.textContent = op2 + '%';
+    var glab = root.querySelector('[data-role="gclab"]'); if (glab) glab.textContent = mp >= 56 ? 'IN CONTROL' : mp <= 44 ? 'CHASING' : 'EVEN';
+    var why = root.querySelector('[data-role="why"]'); if (why) why.textContent = _sqSimWhy(_sqSim.ctx, sc.key);
+    var cf = _sqSimConfidence(_sqSim.ctx, sc.key), cfe = root.querySelector('[data-role="conf"]');
+    if (cfe) { cfe.className = 'sqcc-conf' + (cf.pct < 55 ? ' is-low' : cf.pct >= 75 ? ' is-hi' : ''); cfe.innerHTML = '<b>CONFIDENCE ' + cf.pct + '%</b><em>' + _sqEsc(cf.evidence) + '</em>' + (cf.risk ? '<i class="sqcc-conf-warn">⚠ ' + _sqEsc(cf.risk) + '</i>' : ''); }
+    var coach = root.querySelector('[data-role="coach"]');
+    if (coach) {
+      if (sc.key === 'summary') {
+        var rep = _sqSimCoach(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, _sqSim.scenes);
+        var setL = function (r, arr) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = (arr || []).map(function (x) { return '<li>' + _sqEsc(x) + '</li>'; }).join(''); };
+        var setP = function (r, t) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.textContent = t; };
+        setL('coach-str', rep.strengths); setL('coach-weak', rep.weaknesses);
+        setP('coach-kb', rep.keyBattle); setP('coach-best', rep.best); setP('coach-worst', rep.worst);
+        setP('coach-adj', rep.adjust); setP('coach-pri', rep.priority);
+        var cc2 = root.querySelector('[data-role="coach-ctrl"]'); if (cc2) cc2.textContent = 'avg control ' + rep.avgCtrl + '%';
+        coach.hidden = false; coach.classList.add('is-on');
+      } else { coach.hidden = true; coach.classList.remove('is-on'); }
+    }
+  }
   var clk = root.querySelector('[data-role="clock"]'); if (clk) { var mn = 3 + i * 4, ss = (i * 37) % 60; clk.innerHTML = (mn < 10 ? '0' : '') + mn + ':' + (ss < 10 ? '0' : '') + ss + '<i>FIRST HALF</i>'; }
   root.setAttribute('data-phase', sc.key);
   if (instant) { _sqSim.cur = _sqSim.to.map(function (p) { return p.slice(); }); _sqSimPaint(_sqSim.cur); }

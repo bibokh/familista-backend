@@ -4322,7 +4322,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* ════ AI Tactical Intelligence — full command-centre layout (one screen, no scroll) ════ */
 .sqtc--sim .sqtc-content{ overflow:hidden; }
-.sqsim.sqcc{ flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(172px,1fr) auto auto auto; gap:6px; padding:2px 2px 0; }
+.sqsim.sqcc{ flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(150px,1fr) auto auto auto auto; gap:6px; padding:2px 2px 0; }
 /* top bar: team identity + score/clock + transport controls */
 .sqcc-top{ display:grid; grid-template-columns:1fr minmax(280px,auto) 1fr; align-items:center; gap:14px; }
 .sqcc-tm{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -4420,7 +4420,54 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-lg2--pass::before{ background:#38bdf8; } .sqcc-lg2--run::before{ background:#60a5fa; } .sqcc-lg2--press::before{ background:#f87171; } .sqcc-lg2--def::before{ background:#5eead4; } .sqcc-lg2--zone::before{ background:rgba(160,190,230,.5); }
 .sqcc .sqsim-scenebar{ position:absolute; left:8px; right:8px; bottom:7px; z-index:5; opacity:.6; }
 .sqcc .sqsim-progress{ position:absolute; left:0; right:0; bottom:0; }
-@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } }
+/* ── Phase 1: Tactical Intelligence strip (Game Control + Probabilities + AI Read/Confidence) ── */
+.sqcc-intel{ display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,.022); border:1px solid rgba(255,255,255,.06); border-radius:11px; padding:7px 11px; min-width:0; }
+.sqcc-intel-top{ display:grid; grid-template-columns:230px minmax(0,1fr); gap:14px; align-items:center; }
+.sqcc-gc{ min-width:0; }
+.sqcc-gc-h{ font-size:8.5px; font-weight:800; letter-spacing:.09em; color:#f4b740; margin-bottom:3px; }
+.sqcc-gc-bar{ display:flex; height:9px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,.06); }
+.sqcc-gc-my{ background:linear-gradient(90deg,#16a34a,#4ade80); box-shadow:0 0 8px rgba(52,215,122,.5); }
+.sqcc-gc-op{ background:linear-gradient(90deg,#e85bd0,#a21caf); box-shadow:0 0 8px rgba(232,91,208,.5); }
+.sqcc-gc-vals{ display:flex; align-items:center; justify-content:space-between; margin-top:3px; }
+.sqcc-gc-vals span{ font-size:8px; font-weight:800; letter-spacing:.08em; color:#8a94a6; }
+.sqcc-gc-vm{ font-size:13px; font-weight:800; color:#7CFFB0; } .sqcc-gc-vo{ font-size:13px; font-weight:800; color:#f5a7e8; }
+.sqcc-probs{ min-width:0; }
+.sqcc-probs-h{ font-size:8.5px; font-weight:800; letter-spacing:.09em; color:#8a94a6; margin-bottom:3px; }
+.sqcc-probs-row{ display:grid; grid-template-columns:repeat(7,1fr); gap:7px; }
+.sqcc-prob{ min-width:0; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-radius:8px; padding:4px 6px; }
+.sqcc-prob-l{ display:block; font-size:8px; font-weight:700; color:#aeb9cc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcc-prob-v{ display:block; font-size:12px; font-weight:800; color:#eaf2ff; line-height:1.2; }
+.sqcc-prob-bar{ display:block; height:3px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:2px; }
+.sqcc-prob-bar i{ display:block; height:100%; width:0; border-radius:3px; background:linear-gradient(90deg,#38bdf8,#22d3ee); transition:width .5s ease; }
+.sqcc-prob--up.is-hi .sqcc-prob-v{ color:#7CFFB0; } .sqcc-prob--up.is-hi .sqcc-prob-bar i{ background:linear-gradient(90deg,#16a34a,#4ade80); }
+.sqcc-prob--dn .sqcc-prob-bar i{ background:linear-gradient(90deg,#fbbf24,#f59e0b); }
+.sqcc-prob--dn.is-hi .sqcc-prob-v{ color:#fca5a5; } .sqcc-prob--dn.is-hi .sqcc-prob-bar i{ background:linear-gradient(90deg,#f87171,#ef4444); }
+.sqcc-airead{ display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; border-top:1px solid rgba(255,255,255,.06); padding-top:5px; }
+.sqcc-airead-t{ font-size:8.5px; font-weight:800; letter-spacing:.08em; color:#38bdf8; flex:0 0 auto; }
+.sqcc-airead-x{ font-size:10.5px; line-height:1.35; color:#cbd5e1; flex:1 1 260px; min-width:0; }
+.sqcc-conf{ flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; font-size:9px; }
+.sqcc-conf b{ background:rgba(56,189,248,.16); color:#7dd3fc; border-radius:6px; padding:2px 8px; font-weight:800; }
+.sqcc-conf em{ font-style:normal; color:#8a94a6; }
+.sqcc-conf.is-hi b{ background:rgba(52,215,122,.16); color:#7CFFB0; }
+.sqcc-conf.is-low b{ background:rgba(248,113,113,.16); color:#fca5a5; }
+.sqcc-conf-warn{ font-style:normal; color:#fca5a5; font-weight:700; }
+/* Coach report overlay (appears on the final scene) */
+.sqcc-coach{ position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; padding:8px 10px; background:linear-gradient(180deg,rgba(6,10,20,.9),rgba(6,10,20,.96)); backdrop-filter:blur(3px); animation:sqccFade .4s ease; }
+.sqcc-coach[hidden]{ display:none; }
+@keyframes sqccFade{ from{ opacity:0 } to{ opacity:1 } }
+.sqcc-coach-in{ width:100%; max-width:1000px; max-height:100%; overflow:auto; }
+.sqcc-coach-hd{ font-size:12px; font-weight:800; letter-spacing:.06em; color:#f4b740; margin-bottom:6px; display:flex; align-items:center; gap:12px; }
+.sqcc-coach-ctrl{ font-size:8.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; background:rgba(255,255,255,.06); border-radius:6px; padding:2px 9px; }
+.sqcc-coach-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.sqcc-cc{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:9px; padding:5px 8px; min-width:0; }
+.sqcc-cc h5{ margin:0 0 2px; font-size:8px; font-weight:800; letter-spacing:.06em; color:#8a94a6; }
+.sqcc-cc p{ margin:0; font-size:9.5px; line-height:1.32; color:#d7deea; }
+.sqcc-cc ul{ margin:0; padding-left:13px; }
+.sqcc-cc li{ font-size:9.5px; line-height:1.34; color:#d7deea; }
+.sqcc-cc--good{ border-color:rgba(52,215,122,.28); } .sqcc-cc--good h5{ color:#7CFFB0; }
+.sqcc-cc--bad{ border-color:rgba(232,91,208,.28); } .sqcc-cc--bad h5{ color:#f5a7e8; }
+.sqcc-cc--pri{ border-color:rgba(244,183,64,.35); background:rgba(244,183,64,.06); } .sqcc-cc--pri h5{ color:#f4d27a; }
+@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } .sqcc-intel-top{ grid-template-columns:1fr; } .sqcc-coach-grid{ grid-template-columns:repeat(2,1fr); } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }
