@@ -4322,7 +4322,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* ════ AI Tactical Intelligence — full command-centre layout (one screen, no scroll) ════ */
 .sqtc--sim .sqtc-content{ overflow:hidden; }
-.sqsim.sqcc{ flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(200px,1fr) auto auto auto auto; gap:5px; padding:2px 2px 0; }
+.sqsim.sqcc{ position:relative; flex:1 1 auto; min-height:0; min-width:0; height:auto; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(200px,1fr) auto auto auto auto; gap:5px; padding:2px 2px 0; }
 /* top bar: team identity + score/clock + transport controls */
 .sqcc-top{ display:grid; grid-template-columns:1fr minmax(280px,auto) 1fr; align-items:center; gap:14px; }
 .sqcc-tm{ display:flex; align-items:center; gap:10px; min-width:0; }
@@ -4497,7 +4497,45 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-cc--good{ border-color:rgba(52,215,122,.28); } .sqcc-cc--good h5{ color:#7CFFB0; }
 .sqcc-cc--bad{ border-color:rgba(232,91,208,.28); } .sqcc-cc--bad h5{ color:#f5a7e8; }
 .sqcc-cc--pri{ border-color:rgba(244,183,64,.35); background:rgba(244,183,64,.06); } .sqcc-cc--pri h5{ color:#f4d27a; }
-@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } .sqcc-intel-top{ grid-template-columns:1fr; } .sqcc-coach-grid{ grid-template-columns:repeat(2,1fr); } }
+/* ── Phase 3: AI Tactical Brain (toggle button + on-demand overlay) ── */
+.sqcc-brain-btn{ margin-left:8px; font-size:8px; font-weight:800; letter-spacing:.04em; color:#c4b5fd; background:rgba(139,92,246,.16); border:1px solid rgba(139,92,246,.4); border-radius:6px; padding:1px 7px; cursor:pointer; vertical-align:middle; }
+.sqcc-brain-btn:hover{ background:rgba(139,92,246,.28); }
+.sqcc-brain-btn.is-on{ background:linear-gradient(135deg,#8b5cf6,#6d28d9); color:#fff; border-color:transparent; }
+.sqcc-brain{ position:absolute; inset:0; z-index:9; display:flex; align-items:center; justify-content:center; padding:8px 10px; background:linear-gradient(180deg,rgba(11,7,24,.93),rgba(8,6,18,.97)); backdrop-filter:blur(3px); animation:sqccFade .3s ease; }
+.sqcc-brain[hidden]{ display:none; }
+.sqcc-brain-in{ width:100%; max-width:1120px; max-height:100%; overflow:auto; scrollbar-width:thin; }
+.sqcc-brain-hd{ display:flex; align-items:center; gap:12px; font-size:12px; font-weight:800; letter-spacing:.05em; color:#c4b5fd; margin-bottom:7px; }
+.sqcc-brain-hd>span:first-child{ text-shadow:0 0 10px rgba(139,92,246,.6); }
+.sqcc-brain-ctrl{ font-size:8.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; background:rgba(139,92,246,.14); border:1px solid rgba(139,92,246,.3); border-radius:6px; padding:2px 9px; }
+.sqcc-brain-x{ margin-left:auto; font-size:9px; font-weight:800; color:#cbd5e1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.sqcc-brain-x:hover{ background:rgba(255,255,255,.14); }
+.sqcc-brain-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
+.sqcc-bcard{ min-width:0; background:rgba(255,255,255,.035); border:1px solid rgba(139,92,246,.18); border-radius:9px; padding:6px 9px; }
+.sqcc-bcard h5{ margin:0 0 4px; font-size:8.5px; font-weight:800; letter-spacing:.06em; color:#c4b5fd; }
+.sqcc-bcard p{ margin:0 0 3px; font-size:9.5px; line-height:1.32; color:#d7deea; }
+.sqcc-bcard p i{ color:#8a94a6; font-style:normal; font-weight:700; }
+.sqcc-bcard ul{ margin:0; padding-left:14px; }
+.sqcc-bcard li{ font-size:9.5px; line-height:1.34; color:#d7deea; margin-bottom:2px; }
+.sqcc-bcore{ list-style:none; padding-left:0; }
+.sqcc-bcore li{ display:block; }
+.sqcc-bcore li b{ display:inline-block; min-width:64px; color:#a78bfa; font-size:8px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; vertical-align:top; }
+.sqcc-bcore li span{ font-size:9.5px; color:#d7deea; }
+.sqcc-bcard--diag{ border-color:rgba(56,189,248,.28); } .sqcc-bcard--diag h5{ color:#7dd3fc; }
+.sqcc-bcard--rec{ border-color:rgba(52,215,122,.3); } .sqcc-bcard--rec h5{ color:#7CFFB0; }
+.sqcc-brec-t b{ color:#7CFFB0; font-weight:800; } .sqcc-brec-c{ font-size:8px; font-weight:800; color:#7CFFB0; background:rgba(52,215,122,.16); border-radius:5px; padding:1px 6px; }
+.sqcc-brec-w{ color:#fca5a5!important; font-weight:700; }
+.sqcc-bcard--alt h5{ color:#f4d27a; } .sqcc-bcard--alt{ border-color:rgba(244,183,64,.28); }
+.sqcc-balt{ display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:6px; padding:3px 5px; border-radius:6px; margin-bottom:3px; background:rgba(255,255,255,.03); }
+.sqcc-balt.is-best{ background:rgba(52,215,122,.1); border:1px solid rgba(52,215,122,.3); }
+.sqcc-balt-l{ font-size:8.5px; font-weight:800; color:#eaf2ff; } .sqcc-balt.is-best .sqcc-balt-l{ color:#7CFFB0; }
+.sqcc-balt-b{ font-size:8.5px; color:#7dd3fc; } .sqcc-balt-r{ font-size:8.5px; color:#f0a; color:#e9a0c8; }
+.sqcc-bcard--n5{ border-color:rgba(232,91,208,.26); } .sqcc-bcard--n5 h5{ color:#f5a7e8; }
+.sqcc-bn5-c b{ color:#f5a7e8; font-weight:800; }
+.sqcc-bcard--ce{ grid-column:span 3; border-color:rgba(139,92,246,.3); }
+.sqcc-bce-h{ display:block; font-size:8px; font-weight:800; letter-spacing:.08em; color:#a78bfa; margin:2px 0 1px; text-transform:uppercase; }
+.sqcc-bcard--ce ul{ display:flex; flex-wrap:wrap; gap:4px 18px; padding-left:16px; margin-bottom:2px; }
+.sqcc-bce-t{ color:#eaf2ff!important; font-weight:800; } .sqcc-bce-e{ color:#7CFFB0!important; font-weight:700; }
+@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } .sqcc-intel-top{ grid-template-columns:1fr; } .sqcc-coach-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-brain-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-bcard--ce{ grid-column:span 2; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }

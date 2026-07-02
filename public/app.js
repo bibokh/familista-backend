@@ -4619,6 +4619,69 @@ function _sqSimPreview(c) {
   var xg = _sqSimXG(c, 'build'), tilt = _sqSimFieldTilt(c, 'build');
   return { plan: (_sqSimSummaryLine(c) || '').replace(/<[^>]+>/g, ''), edge: c.midEdge > 0 ? ('midfield overload +' + c.midEdge) : c.midEdge < 0 ? ('midfield deficit ' + c.midEdge) : 'even midfield battle', keyZone: c.op.back3 ? 'behind the wing-backs' : 'the channels beside the back four', predXg: xg.toFixed(2), tilt: tilt.my };
 }
+// ── Phase 3: AI Tactical Brain — a reasoning engine that turns the live simulation values into
+// cause-and-effect analysis, live diagnosis, a recommended adjustment, decision options, and a
+// next-5-minutes prediction. Everything is derived from the current formation-vs-formation context,
+// scenario, control, probabilities and metrics — no fixed template text.
+function _sqSimBrain(c, co, key) {
+  var me = c.me, op = c.op, cl = _sqSimClamp, R = Math.round;
+  var b = _sqSimMetricBase(c), p = _sqSimProb(c, key), pb = _sqSimProbBase(c);
+  var mc = _sqSimControlRaw(c, key), oc = _sqSimControlRaw(co, key), ctrl = R(mc / (mc + oc) * 100);
+  var xg = _sqSimXG(c, key), xgO = _sqSimXG(co, key);
+  var poss = R(cl(50 + c.midEdge * 4 + (me.fw - op.fw) * 2, 28, 72));
+  var oppWide = op.wg ? 'winger' : op.wm ? 'wide midfielder' : (op.fb || op.back3) ? 'wing-back' : 'wide man';
+  var myWide = me.wg ? 'winger' : me.wm ? 'wide midfielder' : me.fb ? 'overlapping full-back' : 'wide runner';
+  var myFB = me.fb ? 'full-back' : (me.back3 || me.back5) ? 'wing-back' : 'wide defender';
+  var pivot = me.dm >= 2 ? 'double pivot' : me.dm ? 'holding midfielder' : me.cm ? 'central midfielder' : 'midfield line';
+  var side = key === 'right' ? 'right' : (key === 'left' || key === 'overload' || key === 'halfspace') ? 'left' : (c.wideEdge >= 0 ? 'left' : 'right');
+  var oppFar = side === 'left' ? 'right' : 'left';
+  var whoCtrl = ctrl >= 53 ? 'We control' : ctrl <= 47 ? 'They control' : 'It is even';
+  var core = {
+    situation: _sqSimWhy(c, key),
+    control: whoCtrl + ' the game (' + ctrl + '%) — ' + (ctrl >= 53 ? ('we hold ' + (c.midEdge > 0 ? ('a +' + c.midEdge + ' midfield edge and ') : '') + poss + '% possession') : ctrl <= 47 ? ('they keep the ball moving' + (c.midEdge < 0 ? (' with +' + (-c.midEdge) + ' in midfield') : ' and press our first pass')) : 'neither side can settle on the ball') + '.',
+    advantage: 'Advantage in the ' + side + ' ' + (op.back3 ? 'channel outside their wide centre-back' : 'half-space inside their ' + myFB) + ' — their ' + oppWide + ' steps up and leaves space.',
+    risk: 'Main risk: ' + (pb.counter >= pb.loss ? ('the counter behind our ' + (me.fb ? 'high full-backs' : 'advanced wing-backs') + ' (counter risk ' + R(p.counter) + '%)') : ('losing the ball under their press (ball-loss risk ' + R(p.loss) + '%)')) + '.',
+    adjust: _SQ_REC_TITLE[key] || 'Control midfield',
+    next: (ctrl >= 53 ? ('Sustained pressure — expect a chance from the ' + side + ' half-space') : op.fw >= 2 ? ('They will look to spring ' + op.fw + ' forwards on the counter') : 'The territory battle in midfield continues') + '.'
+  };
+  var diag = [];
+  if (c.wideEdge > 0 || key === 'left' || key === 'right' || key === 'overload' || key === 'halfspace') diag.push('Opponent ' + oppFar + '-back is isolated because our ' + myWide + ' and ' + myFB + ' created a 2v1 on the ' + side + '.');
+  if (c.midEdge < 0) diag.push('Midfield control is dropping because the opponent has ' + (-c.midEdge) + ' extra central midfielder' + (c.midEdge < -1 ? 's' : '') + '.');
+  else if (c.midEdge > 0) diag.push('We dominate midfield because we have +' + c.midEdge + ' body there — the free man is the ' + pivot + '.');
+  if (p.counter >= 58 || key === 'overload' || key === 'counter') diag.push('Counter risk is rising because both ' + (me.fb ? 'full-backs' : 'wing-backs') + ' are high at the same time.');
+  if (b.press < 52 || b.compact < 52 || key === 'recover') diag.push('Pressing is failing because the distance between midfield and defence is too large.');
+  if (key === 'centre' || key === 'build' || (me.dm && c.wideEdge > 0)) diag.push('Zone 14 is ' + (b.compact >= 60 ? 'protected' : 'exposed') + ' because the ' + pivot + ' ' + (b.compact >= 60 ? 'screens it' : 'moved too wide') + '.');
+  if (!diag.length) diag.push('Shape is balanced — no isolated player and the lines stay compact.');
+  diag = diag.slice(0, 4);
+  var rec0 = _sqSimRecommend(c, key);
+  var impChance = R(cl((pb.chance - 50) * 0.25 + 9, 4, 22)), impCounter = R(cl((p.counter - 50) * 0.12 + 3, 1, 12));
+  var rec = { title: rec0.title, confidence: rec0.confidence, reason: rec0.points.join('; '), impact: 'Chance creation +' + impChance + '%, counter risk +' + impCounter + '%', risk: rec0.risk };
+  var pressBen = R(cl((p.press - 50) * 0.3 + 8, 4, 20)), spaceRisk = R(cl((100 - b.compact) * 0.14 + 4, 3, 16));
+  var ctrDrop = R(cl((p.counter - 40) * 0.35 + 6, 4, 20)), thrDrop = R(cl((pb.chance - 40) * 0.2 + 5, 3, 14));
+  var switchBen = R(cl((pb.chance - 48) * 0.22 + 8, 4, 18));
+  var alternatives = [
+    { label: 'Continue high press', benefit: '+' + pressBen + '% pressing success', risk: '+' + spaceRisk + '% space behind defence', score: pressBen - spaceRisk * 0.8 },
+    { label: 'Drop to a mid-block', benefit: '-' + ctrDrop + '% counter risk', risk: '-' + thrDrop + '% attacking threat', score: ctrDrop * 0.9 - thrDrop * 0.6 },
+    { label: 'Switch attack to the ' + side, benefit: '+' + switchBen + '% chance creation', risk: 'low', score: switchBen + 4 }
+  ];
+  var bestAlt = alternatives[0]; for (var ia = 1; ia < alternatives.length; ia++) if (alternatives[ia].score > bestAlt.score) bestAlt = alternatives[ia];
+  bestAlt.best = true;
+  var next5 = {
+    likely: (ctrl <= 48 ? ('Opponent likely to attack ' + ((op.wg || op.wm) ? ('our ' + oppFar + ' flank') : 'through the middle')) : ('We keep the ball and probe the ' + side + ' half-space')) + '.',
+    danger: (p.counter >= 55 ? ('Counter behind our ' + (side === 'left' ? 'left' : 'right') + '-back') : 'Zone 14 in front of our back line') + '.',
+    opportunity: 'Highest scoring path: ' + side + ' half-space combination (xG ' + xg.toFixed(2) + ').',
+    prevention: (p.counter >= 55 ? ('Keep one ' + (me.dm ? 'pivot' : 'midfielder') + ' back as rest-defence') : 'Hold compactness above 60% and screen the centre') + '.',
+    confidence: R(cl(58 + Math.abs(ctrl - 50) * 1.1 + Math.abs(xg - xgO) * 8, 55, 92))
+  };
+  var because = [
+    (op.mid >= me.mid ? 'Their midfield is set up compact' : 'Their compactness is ' + (b.compact >= 60 ? 'high' : 'moderate')),
+    'Their ' + oppFar + '-back is isolated' + (c.wideEdge > 0 ? ' in a 2v1' : ''),
+    'Our ' + myWide + ' has space on the ' + side,
+    (ctrl >= 50 ? 'Our midfield control is higher (' + ctrl + '%)' : 'We must use quick transitions (' + ctrl + '% control)')
+  ];
+  var cause = { because: because, therefore: 'Attack the ' + side + ' half-space', expected: 'Chance creation +' + impChance + '%, counter risk +' + impCounter + '%' };
+  return { ctrl: ctrl, core: core, diagnosis: diag, rec: rec, alternatives: alternatives, next5: next5, cause: cause };
+}
 // DOM skeletons (values filled live by _sqSimEnter)
 var _SQ_ADV = [['xg', 'xG (my–opp)'], ['xt', 'xThreat'], ['tilt', 'Field Tilt'], ['terr', 'Territory']];
 function _sqSimIntelHtml() {
@@ -4632,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION</span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -4653,7 +4716,50 @@ function _sqSimCoachOverlayHtml() {
     + '<div class="sqcc-cc sqcc-cc--pri"><h5>PRIORITY FIX</h5><p data-role="coach-pri"></p></div>'
     + '</div></div></div>';
 }
-var _SQ_CAM = ['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
+function _sqSimBrainOverlayHtml() {
+  return '<div class="sqcc-brain" data-role="brain" hidden><div class="sqcc-brain-in">'
+    + '<div class="sqcc-brain-hd"><span>🧠 AI TACTICAL BRAIN</span><span class="sqcc-brain-ctrl" data-role="brain-ctrl">control 50%</span><button class="sqcc-brain-x" data-action="sqSimBrain" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-brain-grid">'
+    + '<div class="sqcc-bcard sqcc-bcard--core"><h5>◈ TACTICAL READ</h5><ul class="sqcc-bcore">'
+    + '<li><b>Why</b><span data-role="b-situation"></span></li>'
+    + '<li><b>Control</b><span data-role="b-control"></span></li>'
+    + '<li><b>Advantage</b><span data-role="b-adv"></span></li>'
+    + '<li><b>Risk</b><span data-role="b-risk"></span></li>'
+    + '<li><b>Adjust</b><span data-role="b-adjust"></span></li>'
+    + '<li><b>Next</b><span data-role="b-next"></span></li></ul></div>'
+    + '<div class="sqcc-bcard sqcc-bcard--diag"><h5>⚡ LIVE DIAGNOSIS</h5><ul data-role="b-diag"></ul></div>'
+    + '<div class="sqcc-bcard sqcc-bcard--rec"><h5>✔ RECOMMENDED ADJUSTMENT</h5><p class="sqcc-brec-t"><b data-role="b-rec-t"></b> <span class="sqcc-brec-c" data-role="b-rec-c"></span></p><p><i>Reason:</i> <span data-role="b-rec-r"></span></p><p><i>Expected:</i> <span data-role="b-rec-i"></span></p><p class="sqcc-brec-w" data-role="b-rec-w"></p></div>'
+    + '<div class="sqcc-bcard sqcc-bcard--alt"><h5>⚖ DECISION OPTIONS</h5><div data-role="b-alt"></div></div>'
+    + '<div class="sqcc-bcard sqcc-bcard--n5"><h5>⏱ NEXT 5 MINUTES</h5><p><i>Most likely:</i> <span data-role="b-n5-l"></span></p><p><i>Danger zone:</i> <span data-role="b-n5-d"></span></p><p><i>Best chance:</i> <span data-role="b-n5-o"></span></p><p><i>Prevention:</i> <span data-role="b-n5-p"></span></p><p class="sqcc-bn5-c"><i>Confidence</i> <b data-role="b-n5-c"></b></p></div>'
+    + '<div class="sqcc-bcard sqcc-bcard--ce"><h5>↳ CAUSE → EFFECT</h5><span class="sqcc-bce-h">Because</span><ul data-role="b-ce-because"></ul><span class="sqcc-bce-h">Therefore</span><p class="sqcc-bce-t" data-role="b-ce-therefore"></p><span class="sqcc-bce-h">Expected result</span><p class="sqcc-bce-e" data-role="b-ce-expected"></p></div>'
+    + '</div></div></div>';
+}
+function _sqSimBrainPaint() {
+  if (!_sqSim.el || !_sqSim.brainOpen || !_sqSim.ctx) return;
+  var root = _sqSim.el, sc = _sqSim.scenes[_sqSim.idx]; if (!sc) return;
+  var memoKey = _sqSim.model.my.f + '|' + _sqSim.model.opp.f + '|' + sc.key;
+  var B = (_sqSim.brainMemo && _sqSim.brainMemo.k === memoKey) ? _sqSim.brainMemo.v : _sqSimBrain(_sqSim.ctx, _sqSim.ctxOpp || _sqSim.ctx, sc.key);
+  _sqSim.brainMemo = { k: memoKey, v: B };
+  function P(r, t) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.textContent = t; }
+  function LI(r, arr) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = (arr || []).map(function (x) { return '<li>' + _sqEsc(x) + '</li>'; }).join(''); }
+  P('b-situation', B.core.situation); P('b-control', B.core.control); P('b-adv', B.core.advantage); P('b-risk', B.core.risk); P('b-adjust', B.core.adjust); P('b-next', B.core.next);
+  LI('b-diag', B.diagnosis);
+  P('b-rec-t', B.rec.title); P('b-rec-c', 'CONF ' + B.rec.confidence + '%'); P('b-rec-r', B.rec.reason); P('b-rec-i', B.rec.impact);
+  var w = root.querySelector('[data-role="b-rec-w"]'); if (w) { w.textContent = B.rec.risk ? ('⚠ ' + B.rec.risk) : ''; w.style.display = B.rec.risk ? '' : 'none'; }
+  var altEl = root.querySelector('[data-role="b-alt"]'); if (altEl) altEl.innerHTML = B.alternatives.map(function (o, i) { return '<div class="sqcc-balt' + (o.best ? ' is-best' : '') + '"><span class="sqcc-balt-l">' + String.fromCharCode(65 + i) + '. ' + _sqEsc(o.label) + (o.best ? ' ★ best' : '') + '</span><span class="sqcc-balt-b">' + _sqEsc(o.benefit) + '</span><span class="sqcc-balt-r">Risk: ' + _sqEsc(o.risk) + '</span></div>'; }).join('');
+  P('b-n5-l', B.next5.likely); P('b-n5-d', B.next5.danger); P('b-n5-o', B.next5.opportunity); P('b-n5-p', B.next5.prevention); P('b-n5-c', B.next5.confidence + '%');
+  LI('b-ce-because', B.cause.because); P('b-ce-therefore', B.cause.therefore); P('b-ce-expected', B.cause.expected);
+  var cc = root.querySelector('[data-role="brain-ctrl"]'); if (cc) cc.textContent = 'control ' + B.ctrl + '%';
+}
+function sqSimBrain() {
+  if (!_sqSim.el) return;
+  var br = _sqSim.el.querySelector('[data-role="brain"]'); if (!br) return;
+  _sqSim.brainOpen = !_sqSim.brainOpen;
+  if (_sqSim.brainOpen) { br.hidden = false; br.classList.add('is-on'); _sqSimBrainPaint(); }
+  else { br.hidden = true; br.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-brain-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.brainOpen);
+}
+var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
   _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M); _sqSim.ctxOpp = _sqSimCtx({ my: M.opp, opp: M.my });
@@ -4734,7 +4840,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -4838,6 +4944,8 @@ function _sqSimEnter(i, instant) {
     var advs = root.querySelectorAll('[data-role="adv"]');
     for (var ai = 0; ai < advs.length; ai++) { var ak = advs[ai].getAttribute('data-ak'), av = advVals[ak]; if (!av) continue; var avv = advs[ai].querySelector('[data-role="advv"]'); if (avv) avv.textContent = av.t; var avb = advs[ai].querySelector('[data-role="advbar"]'); if (avb) avb.style.width = Math.round(av.w) + '%'; }
     var tls = root.querySelectorAll('[data-role="tlseg"]'); for (var ti = 0; ti < tls.length; ti++) tls[ti].className = 'sqcc-tl-seg' + (ti < i ? ' is-done' : ti === i ? ' is-on' : '');
+    // Phase 3 — refresh the AI Tactical Brain only when it is open (per scene, memoized — no per-frame work)
+    if (_sqSim.brainOpen) _sqSimBrainPaint();
     var coach = root.querySelector('[data-role="coach"]');
     if (coach) {
       if (sc.key === 'summary') {
@@ -36811,6 +36919,7 @@ async function tosBoardSnapshot() {
         case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
         case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
         case 'sqSimScene':        if (typeof sqSimScene === 'function')        sqSimScene(el.dataset.idx); break;
+        case 'sqSimBrain':        if (typeof sqSimBrain === 'function')        sqSimBrain(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
