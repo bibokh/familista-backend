@@ -4695,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button> <button class="sqcc-pred-btn" data-action="sqSimPred" type="button" title="Open the Tactical Prediction Engine">🔭 PREDICT</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -5143,6 +5143,128 @@ function _sqSimWIOverlayHtml() {
     + '<div class="sqcc-wi-grid"><div class="sqcc-wi-opts" data-role="wi-opts"></div><div class="sqcc-wi-res" data-role="wi-res"></div></div>'
     + '</div></div>';
 }
+// ── Phase 7: Tactical Prediction Engine — forecasts how the match evolves over the next minutes from
+// the current tactical state (trends over the last scenes), and scores its own accuracy. Reuses the
+// existing metric engine; evaluated once per scene (interval-based, not per frame).
+var _SQ_PRED_MET = [['poss', 'Possession', 1], ['control', 'Game Control', 1], ['chance', 'Chance Creation', 1], ['counter', 'Counter Risk', -1], ['press', 'Pressing Success', 1], ['defend', 'Defensive Stability', 1], ['transition', 'Transition Success', 1], ['terr', 'Territory Control', 1], ['tilt', 'Field Tilt', 1], ['xg', 'xG', 1], ['xt', 'xThreat', 1], ['momentum', 'Momentum', 1]];
+function _sqSimPredNew() { return { hist: [], cumXgMy: 0, cumXgOpp: 0, log: [], correct: 0, incorrect: 0, calibSum: 0, calibN: 0 }; }
+function _sqSimPredSnap(key) {
+  var c = _sqSim.ctx, co = _sqSim.ctxOpp || c, eff = _sqSimEff(), cl = _sqSimClamp, R = Math.round;
+  var m = _sqSimDState(c, co, key), p = _sqSimProb(c, key), tilt = _sqSimFieldTilt(c, key), terr = _sqSimTerritory(c, key), tiltAdj = R((eff.tilt || 0) + (eff.control || 0) * 0.25);
+  return { poss: m.poss, control: m.control, chance: m.chance, counter: m.counter, press: m.press, defend: m.defend, transition: R(cl(p.transition + (eff.chance || 0) * 0.3, 0, 100)), terr: R(cl(terr.my + tiltAdj, 12, 88)), tilt: R(cl(tilt.my + tiltAdj, 10, 90)), xg: +Math.max(0.15, _sqSimXG(c, key) + (eff.chance || 0) * 0.012).toFixed(2), xt: R(cl(_sqSimXT(c, key) + (eff.chance || 0) * 0.4, 5, 96)), momentum: (_sqSim.oai && _sqSim.oai.momentum) || 50 };
+}
+function _sqSimPredTrend(P, metric) {
+  var h = P.hist, R = Math.round, cl = _sqSimClamp; if (h.length < 2) return { slope: 0, dir: 0, conf: 42 };
+  var n = Math.min(h.length, 3), a = h[h.length - n], b = h[h.length - 1], slope = (b[metric] - a[metric]) / (n - 1), sign = slope > 0 ? 1 : slope < 0 ? -1 : 0, consistent = true;
+  for (var k = h.length - n + 1; k < h.length; k++) { var st = Math.sign(h[k][metric] - h[k - 1][metric]); if (sign !== 0 && st !== 0 && st !== sign) consistent = false; }
+  return { slope: slope, dir: slope > 1 ? 1 : slope < -1 ? -1 : 0, conf: R(cl(50 + Math.abs(slope) * 3 + (consistent ? 15 : 0), 35, 90)) };
+}
+function _sqSimPredEval(i, sc) {
+  if (!_sqSim.ctx) return; _sqSim.pred = _sqSim.pred || _sqSimPredNew();
+  var P = _sqSim.pred, key = sc.key, min = 3 + i * 4, c = _sqSim.ctx, co = _sqSim.ctxOpp || c, snap = _sqSimPredSnap(key);
+  snap.min = min; P.hist.push(snap); if (P.hist.length > 6) P.hist.shift();
+  P.cumXgMy += snap.xg / 5; P.cumXgOpp += _sqSimXG(co, key) / 5;
+  // resolve pending predictions
+  P.log.forEach(function (e) {
+    if (e.checked || i < e.checkAt) return; var moved = snap[e.metric] - e.baseVal;
+    var occurred = e.dir > 0 ? moved >= 1 : e.dir < 0 ? moved <= -1 : Math.abs(moved) < 2;
+    e.checked = true; e.occurred = occurred; if (occurred) P.correct++; else P.incorrect++;
+    P.calibSum += Math.abs(e.conf / 100 - (occurred ? 1 : 0)); P.calibN++;
+  });
+  // make a new headline prediction from the strongest current trend
+  if (P.hist.length >= 2) {
+    var best = null; _SQ_PRED_MET.forEach(function (mm) { if (mm[0] === 'xg') return; var t = _sqSimPredTrend(P, mm[0]); if (t.dir !== 0 && (!best || Math.abs(t.slope) > Math.abs(best.t.slope))) best = { mm: mm, t: t }; });
+    if (best) { var up = best.t.dir > 0, good = best.mm[2] === 1 ? up : !up; P.log.push({ min: min, metric: best.mm[0], dir: best.t.dir, baseVal: snap[best.mm[0]], checkAt: i + 2, conf: best.t.conf, checked: false, txt: best.mm[1] + ' ' + (up ? 'rising' : 'falling') + (good ? ' (favourable)' : ' (watch)') }); if (P.log.length > 10) P.log.shift(); }
+  }
+}
+function _sqSimPredData() {
+  var P = _sqSim.pred; if (!P || !P.hist.length) return null;
+  var snap = P.hist[P.hist.length - 1], R = Math.round, cl = _sqSimClamp, c = _sqSim.ctx, co = _sqSim.ctxOpp || c, key = _sqSim.scenes[_sqSim.idx].key;
+  var oaiSide = (_sqSim.oai && _sqSim.oai.read) ? _sqSim.oai.read.side : (c.wideEdge > 0 ? 'left' : c.wideEdge < 0 ? 'right' : 'centre');
+  var oppFar = oaiSide === 'left' ? 'right' : oaiSide === 'right' ? 'left' : 'central';
+  var hs = oaiSide === 'centre' ? 'central channel' : oaiSide + ' half-space';
+  function tr(m) { return _sqSimPredTrend(P, m); }
+  var ct = tr('counter'), pt = tr('press'), mt = tr('control'), cht = tr('chance'), post = tr('poss'), dt = tr('defend');
+  // live predictions per horizon
+  var live = [
+    { h: '1 min', txt: 'Opponent likely to attack our ' + oppFar + ' side.', conf: ct.conf },
+    { h: '3 min', txt: 'Counter-attack risk ' + (ct.dir >= 0 ? 'increasing' : 'easing') + ' → ' + R(cl(snap.counter + ct.slope, 0, 100)) + '%.', conf: ct.conf },
+    { h: '5 min', txt: 'Midfield control expected to ' + (mt.dir > 0 ? 'improve' : mt.dir < 0 ? 'decline' : 'hold') + '; pressing ' + (pt.dir > 0 ? 'improving' : pt.dir < 0 ? 'dropping' : 'steady') + '.', conf: R((mt.conf + pt.conf) / 2) },
+    { h: '10 min', txt: 'Dangerous attack expected from the ' + hs + (cht.dir > 0 ? ' as chance creation rises.' : '.'), conf: cht.conf }
+  ];
+  // forecast rows (current -> predicted over ~5 min) + confidence
+  var forecast = _SQ_PRED_MET.map(function (mm) { var t = tr(mm[0]), cur = snap[mm[0]], w = 1.6; var proj = mm[0] === 'xg' ? +Math.max(0.1, cur + t.slope * w).toFixed(2) : R(cl(cur + t.slope * w, 0, 100)); return { k: mm[0], label: mm[1], cur: cur, pred: proj, dir: t.dir, good: (mm[2] === 1 ? proj >= cur : proj <= cur), conf: R(cl(t.conf - 4, 30, 92)), xg: mm[0] === 'xg' }; });
+  // event predictions
+  var oppXg = _sqSimXG(co, key);
+  var events = [
+    { t: 'Counter attack', p: snap.counter }, { t: 'Dangerous cross', p: R((snap.tilt + snap.chance) / 2 - 6) }, { t: 'Through ball', p: R(snap.chance * 0.55 + snap.control * 0.3) }, { t: 'Wide overload', p: R(snap.tilt * 0.7 + snap.chance * 0.2) }, { t: 'Shot on goal', p: R(snap.chance * 0.5 + snap.xg * 22) }, { t: 'Loss of possession', p: R(100 - snap.poss * 0.6 - snap.control * 0.4) }, { t: 'Defensive recovery', p: R(snap.defend * 0.6 + (100 - snap.counter) * 0.3) }, { t: 'Tactical foul', p: R(snap.counter * 0.4 + snap.transition * 0.3) }
+  ]; events.forEach(function (e) { e.p = R(cl(e.p, 5, 96)); }); events.sort(function (a, b) { return b.p - a.p; });
+  // danger zone
+  var curDanger = snap.counter >= 60 ? 'Behind our full-backs (Defensive Third)' : oaiSide === 'left' ? 'Left Half Space' : oaiSide === 'right' ? 'Right Half Space' : 'Zone 14';
+  var predDanger = ct.dir > 0 ? 'Behind the ' + (oaiSide === 'right' ? 'left' : 'right') + '-back (Final Third)' : cht.dir > 0 ? (oaiSide === 'centre' ? 'Zone 14' : oaiSide + ' Wing') : 'Zone 14';
+  var dangerConf = R((ct.conf + cht.conf) / 2);
+  // opportunity
+  var oppList = ['Overload ' + oaiSide, 'Switch play', 'Through ball', 'Counter attack', 'Build through pivot', 'Long diagonal', 'Half-space combination'];
+  var oppo = snap.counter >= 62 ? 'Counter attack' : snap.control >= 56 ? 'Half-space combination' : c.wideEdge > 0 ? 'Overload ' + oaiSide : 'Switch play';
+  var oppoWhy = 'Your ' + (c.midEdge > 0 ? '+' + c.midEdge + ' midfield edge and ' : '') + oaiSide + '-side advantage vs their ' + oppFar + ' side makes this the highest-value route (chance ' + snap.chance + '%).';
+  // score probability from cumulative xG + control + momentum
+  var diff = P.cumXgMy - P.cumXgOpp, ctrl = snap.control, mom = snap.momentum;
+  var win = cl(40 + diff * 16 + (ctrl - 50) * 0.7, 5, 88), loss = cl(40 - diff * 16 - (ctrl - 50) * 0.7, 5, 88), draw = cl(100 - win - loss, 6, 45), tot = win + draw + loss;
+  win = R(win / tot * 100); draw = R(draw / tot * 100); loss = 100 - win - draw;
+  var score = { win: win, draw: draw, loss: loss, next: R(cl(50 + diff * 12 + (mom - 50) * 0.5, 12, 88)), btts: R(cl(38 + Math.min(P.cumXgMy, P.cumXgOpp) * 22, 20, 85)), clean: R(cl(55 - P.cumXgOpp * 18 + (snap.defend - 50) * 0.5, 10, 85)), noGoal: R(cl(62 - (snap.xg + oppXg) * 20, 15, 80)), xgMy: +P.cumXgMy.toFixed(1), xgOpp: +P.cumXgOpp.toFixed(1) };
+  // trends
+  var trendMets = [['poss', 'Possession'], ['press', 'Press effectiveness'], ['counter', 'Counter danger'], ['chance', 'Chance creation'], ['control', 'Game control'], ['defend', 'Defensive stability']];
+  var trends = trendMets.map(function (mm) { var t = tr(mm[0]); return { label: mm[1], dir: t.dir, dirTxt: t.dir > 0 ? '▲ rising' : t.dir < 0 ? '▼ falling' : '▬ stable', conf: t.conf, cont: t.dir > 0 ? 'expected to continue rising' : t.dir < 0 ? 'expected to keep falling' : 'expected to hold steady' }; });
+  // AI natural-language forecast
+  var compactT = tr('defend'), fbHigh = c.me.fb >= 2 && (key === 'overload' || key === 'counter' || key === 'left' || key === 'right');
+  var aiForecast = 'Based on the last tactical sequence, the opponent is ' + (compactT.dir > 0 ? 'increasingly protecting the centre' : ct.dir > 0 ? 'committing forward and stretching' : 'holding its current shape') + '. The highest probability for creating a chance is now through the ' + hs + ' (' + snap.chance + '%). Counter-attack risk is ' + (ct.dir > 0 ? 'rising' : ct.dir < 0 ? 'falling' : 'steady') + (fbHigh ? ' because both full-backs remain high' : '') + '.';
+  // accuracy
+  var checked = P.correct + P.incorrect, acc = checked ? R(P.correct / checked * 100) : 0, calib = P.calibN ? R(100 - (P.calibSum / P.calibN) * 100) : 0;
+  var reliability = checked ? R(cl(acc * 0.5 + calib * 0.3 + Math.min(checked, 10) * 2, 0, 100)) : 0;
+  return { live: live, forecast: forecast, events: events, curDanger: curDanger, predDanger: predDanger, dangerConf: dangerConf, oppo: oppo, oppoWhy: oppoWhy, score: score, trends: trends, aiForecast: aiForecast, history: P.log, acc: acc, correct: P.correct, incorrect: P.incorrect, calib: calib, reliability: reliability };
+}
+function _sqSimPredPaint() {
+  if (!_sqSim.el || !_sqSim.predOpen) return; var root = _sqSim.el, D = _sqSimPredData();
+  function P(r, h) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = h; }
+  if (!D) { P('pr-live', '<li>Advance the simulation to generate predictions.</li>'); return; }
+  function cf(p) { return p >= 70 ? 'is-hi' : p >= 55 ? 'is-md' : p >= 45 ? 'is-lo' : 'is-exp'; }
+  P('pr-live', D.live.map(function (l) { return '<li><span class="sqcc-pr-h">' + l.h + '</span> ' + _sqEsc(l.txt) + ' <em class="' + cf(l.conf) + '">' + l.conf + '%</em></li>'; }).join(''));
+  P('pr-forecast', D.forecast.map(function (f) { return '<tr><td>' + f.label + '</td><td>' + (f.xg ? f.cur.toFixed(2) : f.cur + '%') + '</td><td class="' + (f.dir > 0 ? 'is-up' : f.dir < 0 ? 'is-down' : '') + '">' + (f.dir > 0 ? '↑' : f.dir < 0 ? '↓' : '→') + ' ' + (f.xg ? f.pred.toFixed(2) : f.pred + '%') + '</td><td class="' + cf(f.conf) + '">' + f.conf + '%</td></tr>'; }).join(''));
+  P('pr-events', D.events.slice(0, 6).map(function (e) { return '<div class="sqcc-pr-ev"><span>' + _sqEsc(e.t) + '</span><span class="sqcc-pr-bar"><i style="width:' + e.p + '%"></i></span><b class="' + cf(e.p) + '">' + e.p + '%</b></div>'; }).join(''));
+  P('pr-danger', '<p><i>Now:</i> <b class="sqcc-pr-red">' + _sqEsc(D.curDanger) + '</b></p><p><i>Predicted:</i> <b class="sqcc-pr-red">' + _sqEsc(D.predDanger) + '</b> <em class="' + cf(D.dangerConf) + '">' + D.dangerConf + '%</em></p>');
+  P('pr-oppo', '<p class="sqcc-pr-opp-t"><b>' + _sqEsc(D.oppo) + '</b></p><p>' + _sqEsc(D.oppoWhy) + '</p>');
+  var s = D.score;
+  P('pr-score', '<div class="sqcc-pr-sc3"><span class="sqcc-pr-win">WIN ' + s.win + '%</span><span>DRAW ' + s.draw + '%</span><span class="sqcc-pr-loss">LOSS ' + s.loss + '%</span></div>'
+    + '<div class="sqcc-pr-sgrid"><span>Next goal (ours) <b>' + s.next + '%</b></span><span>Both score <b>' + s.btts + '%</b></span><span>Clean sheet <b>' + s.clean + '%</b></span><span>No goal next <b>' + s.noGoal + '%</b></span><span>Expected goals <b>' + s.xgMy + ' – ' + s.xgOpp + '</b></span></div>');
+  P('pr-trends', D.trends.map(function (t) { return '<li class="' + (t.dir > 0 ? 'is-up' : t.dir < 0 ? 'is-down' : '') + '"><b>' + _sqEsc(t.label) + '</b> ' + t.dirTxt + ' — ' + t.cont + ' <em class="' + cf(t.conf) + '">' + t.conf + '%</em></li>'; }).join(''));
+  P('pr-ai', _sqEsc(D.aiForecast));
+  P('pr-history', D.history.length ? D.history.slice().reverse().map(function (e) { return '<li><b>' + e.min + '\'</b> ' + _sqEsc(e.txt) + ' ' + (e.checked ? (e.occurred ? '<em class="sqcc-pr-ok">Occurred ✓</em>' : '<em class="sqcc-pr-no">Missed ✗</em>') : '<em class="sqcc-pr-wait">pending…</em>') + '</li>'; }).join('') : '<li>No predictions logged yet.</li>');
+  P('pr-acc', '<div class="sqcc-pr-accbig">' + D.acc + '%<span>prediction accuracy</span></div><div class="sqcc-pr-accgrid"><span>Correct <b class="sqcc-pr-ok">' + D.correct + '</b></span><span>Incorrect <b class="sqcc-pr-no">' + D.incorrect + '</b></span><span>Calibration <b>' + D.calib + '%</b></span><span>Reliability <b>' + D.reliability + '%</b></span></div>');
+  var hd = root.querySelector('[data-role="pred-min"]'); if (hd) hd.textContent = (P && D ? (D.correct + D.incorrect) + ' checked · ' + D.acc + '% accurate' : '');
+}
+function sqSimPred() {
+  if (!_sqSim.el) return; var ov = _sqSim.el.querySelector('[data-role="predict"]'); if (!ov) return;
+  _sqSim.predOpen = !_sqSim.predOpen;
+  if (_sqSim.predOpen) { ov.hidden = false; ov.classList.add('is-on'); _sqSimPredPaint(); }
+  else { ov.hidden = true; ov.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-pred-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.predOpen);
+}
+function _sqSimPredOverlayHtml() {
+  return '<div class="sqcc-pred" data-role="predict" hidden><div class="sqcc-pred-in">'
+    + '<div class="sqcc-pred-hd"><span>🔭 TACTICAL PREDICTION ENGINE</span><span class="sqcc-pred-min" data-role="pred-min"></span><button class="sqcc-pred-x" data-action="sqSimPred" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-pred-grid">'
+    + '<div class="sqcc-pcard sqcc-pcard--live"><h5>🔮 LIVE PREDICTIONS</h5><ul class="sqcc-pr-list" data-role="pr-live"></ul></div>'
+    + '<div class="sqcc-pcard"><h5>📊 TACTICAL FORECAST (→ 5 min)</h5><table class="sqcc-pr-tbl"><thead><tr><th>Metric</th><th>Now</th><th>Predicted</th><th>Conf</th></tr></thead><tbody data-role="pr-forecast"></tbody></table></div>'
+    + '<div class="sqcc-pcard"><h5>⚡ EVENT PREDICTION</h5><div data-role="pr-events"></div></div>'
+    + '<div class="sqcc-pcard sqcc-pcard--danger"><h5>⚠ DANGER ZONE</h5><div data-role="pr-danger"></div></div>'
+    + '<div class="sqcc-pcard sqcc-pcard--oppo"><h5>🎯 OPPORTUNITY</h5><div data-role="pr-oppo"></div></div>'
+    + '<div class="sqcc-pcard sqcc-pcard--score"><h5>🏆 SCORE PROBABILITY</h5><div data-role="pr-score"></div></div>'
+    + '<div class="sqcc-pcard"><h5>📈 TACTICAL TRENDS</h5><ul class="sqcc-pr-list" data-role="pr-trends"></ul></div>'
+    + '<div class="sqcc-pcard sqcc-pcard--ai"><h5>🧠 AI TACTICAL FORECAST</h5><p data-role="pr-ai"></p></div>'
+    + '<div class="sqcc-pcard"><h5>🕒 PREDICTION HISTORY</h5><ul class="sqcc-pr-hist" data-role="pr-history"></ul></div>'
+    + '<div class="sqcc-pcard sqcc-pcard--acc"><h5>✅ PREDICTION ACCURACY</h5><div data-role="pr-acc"></div></div>'
+    + '</div></div></div>';
+}
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
@@ -5224,7 +5346,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + _sqSimPredOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -5343,6 +5465,9 @@ function _sqSimEnter(i, instant) {
     if (_sqSim.dOpen) _sqSimDPaint();
     // Phase 5 — repaint the Dynamic Opponent AI panel only when open
     if (_sqSim.oaiOpen) _sqSimOAIPaint();
+    // Phase 7 — Tactical Prediction Engine: evaluate once per scene (records history + accuracy); paint only when open
+    _sqSimPredEval(i, sc);
+    if (_sqSim.predOpen) _sqSimPredPaint();
     var coach = root.querySelector('[data-role="coach"]');
     if (coach) {
       if (sc.key === 'summary') {
@@ -5367,7 +5492,7 @@ function _sqSimInit(root, tok) {
   var st = root.querySelector('.sqsim-stage'), r = st ? st.getBoundingClientRect() : { width: 600, height: 360 };
   _sqSim.W = r.width || 600; _sqSim.H = r.height || 360;
   _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
-  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; _sqSim.oai = _sqSimOAINew(); _sqSim.wi = null; // fresh decision engine + opponent AI + what-if per simulation
+  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; _sqSim.oai = _sqSimOAINew(); _sqSim.wi = null; _sqSim.pred = _sqSimPredNew(); // fresh decision engine + opponent AI + what-if + prediction per simulation
   _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
   root.classList.remove('is-done'); _sqSimSetPlayIcon();
   var bt = root.querySelector('[data-role="boot"]'); _sqSim.boot = bt ? 2300 : 0; if (bt) bt.classList.remove('is-hidden');
@@ -37327,6 +37452,7 @@ async function tosBoardSnapshot() {
         case 'sqSimWIScope':      if (typeof sqSimWIScope === 'function')      sqSimWIScope(el.dataset.scope); break;
         case 'sqSimWIApply':      if (typeof sqSimWIApply === 'function')      sqSimWIApply(); break;
         case 'sqSimWICancel':     if (typeof sqSimWICancel === 'function')     sqSimWICancel(); break;
+        case 'sqSimPred':         if (typeof sqSimPred === 'function')         sqSimPred(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
