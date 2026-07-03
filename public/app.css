@@ -4621,7 +4621,51 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-omsgs li b{ color:#f5a7e8; }
 .sqcc-otl li{ font-size:9px; line-height:1.5; color:#cbd5e1; border-left:2px solid rgba(232,91,208,.4); padding-left:7px; margin-bottom:2px; }
 .sqcc-otl li b{ color:#f5a7e8; }
-@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } .sqcc-intel-top{ grid-template-columns:1fr; } .sqcc-coach-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-brain-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-bcard--ce{ grid-column:span 2; } .sqcc-dengine-grid{ grid-template-columns:1fr; } .sqcc-oai-grid{ grid-template-columns:1fr; } .sqcc-ocard--read{ grid-row:auto; } }
+/* ── Phase 6: What-If Tactical Simulator (toggle + on-demand overlay) ── */
+.sqcc-wi-btn{ margin-left:6px; font-size:8px; font-weight:800; letter-spacing:.04em; color:#67e8f9; background:rgba(34,211,238,.14); border:1px solid rgba(34,211,238,.4); border-radius:6px; padding:1px 7px; cursor:pointer; vertical-align:middle; }
+.sqcc-wi-btn:hover{ background:rgba(34,211,238,.26); }
+.sqcc-wi-btn.is-on{ background:linear-gradient(135deg,#22d3ee,#0891b2); color:#04121a; border-color:transparent; }
+.sqcc-wi{ position:absolute; inset:0; z-index:12; display:flex; align-items:center; justify-content:center; padding:8px 10px; background:linear-gradient(180deg,rgba(4,16,22,.94),rgba(3,12,18,.97)); backdrop-filter:blur(3px); animation:sqccFade .3s ease; }
+.sqcc-wi[hidden]{ display:none; }
+.sqcc-wi-in{ width:100%; max-width:1160px; max-height:100%; overflow:auto; scrollbar-width:thin; }
+.sqcc-wi-hd{ display:flex; align-items:center; gap:12px; font-size:12px; font-weight:800; letter-spacing:.05em; color:#67e8f9; margin-bottom:7px; }
+.sqcc-wi-hd>span:first-child{ text-shadow:0 0 10px rgba(34,211,238,.5); }
+.sqcc-wi-scope{ display:flex; gap:3px; }
+.sqcc-wi-scope button{ font-size:8px; font-weight:800; color:#9fb0c0; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:2px 8px; cursor:pointer; }
+.sqcc-wi-scope button.is-on{ background:linear-gradient(135deg,#22d3ee,#0891b2); color:#04121a; border-color:transparent; }
+.sqcc-wi-x{ margin-left:auto; font-size:9px; font-weight:800; color:#cbd5e1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:6px; padding:3px 10px; cursor:pointer; }
+.sqcc-wi-x:hover{ background:rgba(255,255,255,.14); }
+.sqcc-wi-grid{ display:grid; grid-template-columns:0.9fr 1.1fr; gap:9px; }
+.sqcc-wi-opts{ min-width:0; }
+.sqcc-wi-grp{ margin-bottom:5px; }
+.sqcc-wi-gl{ display:block; font-size:7.5px; font-weight:800; letter-spacing:.06em; color:#67e8f9; text-transform:uppercase; margin-bottom:2px; }
+.sqcc-wi-chip{ font-size:8.5px; font-weight:700; color:#cbd5e1; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); border-radius:6px; padding:2px 7px; margin:0 3px 3px 0; cursor:pointer; }
+.sqcc-wi-chip:hover{ background:rgba(34,211,238,.12); }
+.sqcc-wi-chip.is-on{ background:linear-gradient(135deg,#22d3ee,#0891b2); color:#04121a; border-color:transparent; font-weight:800; }
+.sqcc-wi-res{ min-width:0; background:rgba(255,255,255,.03); border:1px solid rgba(34,211,238,.2); border-radius:9px; padding:7px 10px; }
+.sqcc-wi-empty{ font-size:10px; line-height:1.5; color:#8a94a6; padding:14px 6px; }
+.sqcc-wi-sel{ font-size:9.5px; color:#cbd5e1; margin-bottom:5px; } .sqcc-wi-sel b{ color:#67e8f9; }
+.sqcc-wi-tbl{ width:100%; border-collapse:collapse; font-size:9px; margin-bottom:6px; }
+.sqcc-wi-tbl th{ text-align:right; font-size:7.5px; font-weight:800; letter-spacing:.04em; color:#8a94a6; padding:1px 5px; border-bottom:1px solid rgba(255,255,255,.1); }
+.sqcc-wi-tbl th:first-child{ text-align:left; }
+.sqcc-wi-tbl td{ text-align:right; padding:1px 5px; color:#cbd5e1; }
+.sqcc-wi-tbl td:first-child{ text-align:left; color:#aeb9cc; }
+.sqcc-wi-tbl td.is-up{ color:#7CFFB0; font-weight:800; } .sqcc-wi-tbl td.is-down{ color:#fca5a5; font-weight:800; }
+.sqcc-wi-rec{ border-top:1px solid rgba(255,255,255,.08); padding-top:5px; }
+.sqcc-wi-rec-hd{ display:flex; align-items:center; gap:8px; font-size:8px; font-weight:800; letter-spacing:.06em; color:#67e8f9; margin-bottom:3px; }
+.sqcc-wi-conf{ font-size:8px; font-weight:800; border-radius:5px; padding:1px 7px; }
+.sqcc-wi-conf.is-hi{ color:#7CFFB0; background:rgba(52,215,122,.16); } .sqcc-wi-conf.is-md{ color:#7dd3fc; background:rgba(56,189,248,.16); } .sqcc-wi-conf.is-lo{ color:#fcd34d; background:rgba(251,191,36,.16); } .sqcc-wi-conf.is-exp{ color:#fca5a5; background:rgba(248,113,113,.16); }
+.sqcc-wi-rec p{ margin:0 0 2px; font-size:9px; line-height:1.32; color:#cbd5e1; }
+.sqcc-wi-rec p i{ color:#8a94a6; font-style:normal; font-weight:700; }
+.sqcc-wi-ben{ color:#7CFFB0; } .sqcc-wi-rsk{ color:#fca5a5; }
+.sqcc-wi-warn{ font-size:8.5px; font-weight:800; color:#fca5a5; margin-top:2px; }
+.sqcc-wi-opp{ margin-top:5px; background:rgba(232,91,208,.08); border:1px solid rgba(232,91,208,.24); border-radius:7px; padding:4px 8px; }
+.sqcc-wi-opp b{ font-size:8px; font-weight:800; color:#f5a7e8; } .sqcc-wi-opp span{ display:block; font-size:9px; color:#e9c8e2; margin-top:1px; }
+.sqcc-wi-actions{ display:flex; gap:7px; margin-top:6px; }
+.sqcc-wi-apply{ font-size:9px; font-weight:800; border-radius:6px; padding:4px 13px; cursor:pointer; background:linear-gradient(135deg,#22d3ee,#0891b2); color:#04121a; border:1px solid transparent; }
+.sqcc-wi-cancel{ font-size:9px; font-weight:800; border-radius:6px; padding:4px 13px; cursor:pointer; background:rgba(255,255,255,.06); color:#cbd5e1; border:1px solid rgba(255,255,255,.16); }
+.sqcc-wi-apply:hover{ filter:brightness(1.08); } .sqcc-wi-cancel:hover{ background:rgba(255,255,255,.14); }
+@media (max-width:1180px){ .sqcc-body{ grid-template-columns:170px minmax(0,1fr) 170px; } .sqcc-analysis{ grid-template-columns:1fr 1fr 1fr; } .sqcc-intel-top{ grid-template-columns:1fr; } .sqcc-coach-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-brain-grid{ grid-template-columns:repeat(2,1fr); } .sqcc-bcard--ce{ grid-column:span 2; } .sqcc-dengine-grid{ grid-template-columns:1fr; } .sqcc-oai-grid{ grid-template-columns:1fr; } .sqcc-ocard--read{ grid-row:auto; } .sqcc-wi-grid{ grid-template-columns:1fr; } }
 
 /* Squad · Substitute bench & squad depth */
 .sqsub-wrap{ display:flex; gap:14px; padding:4px 32px 12px; }

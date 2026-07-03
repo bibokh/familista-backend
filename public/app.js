@@ -4695,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 AI BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT AI</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -5002,6 +5002,147 @@ function _sqSimOAIOverlayHtml() {
     + '<div class="sqcc-ocard sqcc-ocard--tl"><h5>🕒 OPPONENT DECISION TIMELINE</h5><ul class="sqcc-otl" data-role="o-timeline"></ul></div>'
     + '</div></div></div>';
 }
+// ── Phase 6: What-If Tactical Simulator — test a tactical change before applying it. All metrics
+// reuse the existing tactical engine; computed only when the coach picks an option (not per frame).
+var _SQ_WI_FMN = ['4-3-3', '4-2-3-1', '4-4-2', '3-5-2', '4-1-4-1', '3-4-3', '5-3-2', '4-5-1', '4-2-4'];
+var _SQ_WI_METS = [['control', 'Game Control', '%', 'up'], ['poss', 'Possession', '%', 'up'], ['chance', 'Chance Creation', '%', 'up'], ['counter', 'Counter Risk', '%', 'down'], ['press', 'Pressing Success', '%', 'up'], ['defend', 'Defensive Stability', '%', 'up'], ['xg', 'xG', '', 'up'], ['xt', 'xThreat', '%', 'up'], ['tilt', 'Field Tilt', '%', 'up'], ['territory', 'Territory Control', '%', 'up']];
+var _SQ_WI_OPTS = [
+  { type: 'Mentality', val: 'Attacking', label: 'Attacking', mod: { chance: 8, counter: 6, control: 2, compact: -3 }, reason: 'A higher line and more bodies forward raise chance creation at the cost of counter exposure.', best: 'Chasing a goal against a deep block.', avoid: 'When leading against a fast transition team.', opp: 'Opponent may sit deeper and spring the counter.' },
+  { type: 'Mentality', val: 'Balanced', label: 'Balanced', mod: { control: 3, counter: -4, chance: -3 }, reason: 'A balanced block trades some attacking threat for control and counter-safety.', best: 'Managing a tight game.', avoid: 'When you must force the tempo.', opp: 'Opponent may take the initiative and push up.' },
+  { type: 'Mentality', val: 'Defensive', label: 'Defensive', mod: { compact: 8, counter: -9, chance: -6, control: -2 }, reason: 'A low, compact block minimises risk but concedes territory.', best: 'Closing out a lead.', avoid: 'When you need to create.', opp: 'Opponent may dominate possession and probe.' },
+  { type: 'Pressing', val: 'high', label: 'High press', mod: { press: 9, counter: 6, chance: 4, compact: -3 }, reason: 'Pressing high wins the ball nearer their goal but leaves space in behind.', best: 'Against a shaky build-up.', avoid: 'Against a direct, physical side.', opp: 'Opponent may go long to beat the press.' },
+  { type: 'Pressing', val: 'mid', label: 'Mid press', mod: { press: 2, compact: 3, counter: -3 }, reason: 'A mid-block stays compact and picks pressing triggers selectively.', best: 'Neutralising midfield.', avoid: 'When you must win the ball high.', opp: 'Opponent may circulate to pull you out.' },
+  { type: 'Pressing', val: 'low', label: 'Low press', mod: { press: -10, compact: 6, counter: -7 }, reason: 'Dropping the press protects the block and invites them on.', best: 'Protecting a lead / resting.', avoid: 'When you need turnovers high.', opp: 'Opponent may build up comfortably.' },
+  { type: 'Defensive line', val: 'high', label: 'High line', mod: { press: 6, counter: 6, compact: -3, chance: 3 }, reason: 'A high line compresses space but exposes the channels behind.', best: 'Sustaining pressure.', avoid: 'Against pace in behind.', opp: 'Opponent may play in behind.' },
+  { type: 'Defensive line', val: 'low', label: 'Low line', mod: { compact: 6, counter: -8, press: -5 }, reason: 'Dropping the line removes the space in behind at the cost of territory.', best: 'Defending a lead.', avoid: 'When you want to press.', opp: 'Opponent may push higher and cross.' },
+  { type: 'Width', val: 'wide', label: 'Wider', mod: { chance: 6, tilt: 4, counter: 3 }, reason: 'Stretching the pitch opens wide overloads and crossing lanes.', best: 'Against a narrow block.', avoid: 'When midfield is being overrun.', opp: 'Opponent may narrow and defend the box.' },
+  { type: 'Width', val: 'narrow', label: 'Narrower', mod: { compact: 6, control: 3, chance: -3 }, reason: 'A narrow shape packs the centre and protects Zone 14.', best: 'Controlling central duels.', avoid: 'When you need width to score.', opp: 'Opponent may switch play to the flanks.' },
+  { type: 'Attack side', val: 'left', label: 'Attack left', mod: { chance: 8, tilt: 5 }, reason: 'Loading the left targets their right-back and the left half-space.', best: 'Their right-back is isolated.', avoid: 'When their right side is strong.', opp: 'Opponent may double-team your left winger.' },
+  { type: 'Attack side', val: 'right', label: 'Attack right', mod: { chance: 8, tilt: 5 }, reason: 'Loading the right targets their left-back and the right half-space.', best: 'Their left-back is isolated.', avoid: 'When their left side is strong.', opp: 'Opponent may shift across to your right.' },
+  { type: 'Attack side', val: 'centre', label: 'Attack centre', mod: { chance: 5, control: 3, counter: 2 }, reason: 'Going through the middle exploits gaps between their lines.', best: 'Against a stretched midfield.', avoid: 'Against a compact double pivot.', opp: 'Opponent may collapse to protect Zone 14.' },
+  { type: 'Build-up', val: 'short', label: 'Short build-up', mod: { control: 5, poss: 5, chance: 2, counter: -2 }, reason: 'Playing out short keeps the ball and draws their press.', best: 'When you have a spare man at the back.', avoid: 'Against an aggressive man-press.', opp: 'Opponent may press higher to force errors.' },
+  { type: 'Build-up', val: 'direct', label: 'Direct build-up', mod: { chance: 6, counter: 5, control: -3, poss: -5 }, reason: 'Going direct bypasses the press but concedes the ball more often.', best: 'Under heavy pressure.', avoid: 'When you want to control tempo.', opp: 'Opponent may drop off and win second balls.' },
+  { type: 'Full-back', val: 'overlap', label: 'Overlap', mod: { chance: 7, counter: 7, tilt: 4 }, reason: 'Overlapping full-backs add width and crosses but leave space behind.', best: 'Against a low block.', avoid: 'Against a fast counter.', opp: 'Opponent may attack behind your full-backs.' },
+  { type: 'Full-back', val: 'invert', label: 'Invert', mod: { control: 6, counter: -3, chance: 2 }, reason: 'Inverting full-backs adds a midfielder and secures rest-defence.', best: 'To win the midfield battle.', avoid: 'When you need natural width.', opp: 'Opponent winger may hold width to pin you.' },
+  { type: 'Full-back', val: 'stay', label: 'Stay home', mod: { counter: -6, compact: 4, chance: -3 }, reason: 'Keeping full-backs home guarantees rest-defence.', best: 'Protecting a lead.', avoid: 'When you need attacking width.', opp: 'Opponent may commit its full-backs instead.' },
+  { type: 'Pivot', val: 'deep', label: 'Deep pivot', mod: { compact: 6, control: 3, counter: -6, chance: -3 }, reason: 'A deep pivot screens the defence and shields Zone 14.', best: 'Against a strong No.10.', avoid: 'When you need him to create.', opp: 'Opponent may push a runner beyond him.' },
+  { type: 'Pivot', val: 'b2b', label: 'Box-to-box', mod: { chance: 6, control: 2, counter: 4 }, reason: 'A box-to-box pivot adds a runner in the final third.', best: 'To overload the attack.', avoid: 'When you are exposed centrally.', opp: 'Opponent may exploit the vacated space.' },
+  { type: 'Tempo', val: 'fast', label: 'Fast tempo', mod: { chance: 6, counter: 5, control: -2 }, reason: 'A high tempo unsettles their block but invites turnovers.', best: 'To break down a set defence.', avoid: 'When you need to game-manage.', opp: 'Opponent may slow the game and reset.' },
+  { type: 'Tempo', val: 'slow', label: 'Slow tempo', mod: { control: 5, poss: 5, counter: -4, chance: -3 }, reason: 'Slowing the tempo controls the game and rests the team.', best: 'Protecting a lead.', avoid: 'When you must chase a goal.', opp: 'Opponent may step up to press.' },
+  { type: 'Counter', val: 'direct', label: 'Direct counters', mod: { chance: 8, counter: 3 }, reason: 'Breaking fast on turnovers attacks a disorganised defence.', best: 'Against a high line.', avoid: 'When you need to keep the ball.', opp: 'Opponent may keep a resting defender back.' },
+  { type: 'Counter', val: 'patient', label: 'Patient counters', mod: { control: 4, chance: 2, counter: -3 }, reason: 'Controlled transitions keep the ball and pick the right moment.', best: 'When ahead and in control.', avoid: 'Against a deep block that resets fast.', opp: 'Opponent may recover its shape in time.' }
+];
+function _sqSimWIMetrics(c, co, key, mod) {
+  mod = mod || {}; var p = _sqSimProb(c, key), cl = _sqSimClamp, R = Math.round;
+  var mc = _sqSimControlRaw(c, key), oc = _sqSimControlRaw(co, key);
+  var tilt = _sqSimFieldTilt(c, key), terr = _sqSimTerritory(c, key);
+  return {
+    control: R(cl(mc / (mc + oc) * 100 + (mod.control || 0), 3, 97)),
+    poss: R(cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2 + (mod.poss || 0), 20, 80)),
+    chance: R(cl(p.chance + (mod.chance || 0), 0, 100)),
+    counter: R(cl(p.counter + (mod.counter || 0), 0, 100)),
+    press: R(cl(p.press + (mod.press || 0), 0, 100)),
+    defend: R(cl(p.defend + (mod.defend || 0) + (mod.compact || 0), 0, 100)),
+    xg: +Math.max(0.15, _sqSimXG(c, key) + (mod.chance || 0) * 0.012).toFixed(2),
+    xt: R(cl(_sqSimXT(c, key) + (mod.chance || 0) * 0.4, 5, 96)),
+    tilt: R(cl(tilt.my + (mod.tilt || 0) + (mod.control || 0) * 0.25, 10, 90)),
+    territory: R(cl(terr.my + (mod.territory || 0) + (mod.tilt || 0), 12, 88))
+  };
+}
+function _sqSimWIFormationReason(cur, nw) {
+  var parts = [];
+  if (nw.mid > cur.mid) parts.push('an extra central midfielder helps control Zone 14'); else if (nw.mid < cur.mid) parts.push('one fewer midfielder trades control for a more direct threat');
+  if (nw.def > cur.def) parts.push('an extra defender adds security but less attacking width'); else if (nw.def < cur.def) parts.push('a higher back line commits more bodies forward');
+  if (nw.fw > cur.fw) parts.push('an extra forward raises the attacking threat'); else if (nw.fw < cur.fw) parts.push('a lone striker frees a man for midfield');
+  if (!parts.length) parts.push('a similar balance with a different passing geometry');
+  return parts.slice(0, 2).join('; ') + '.';
+}
+function _sqSimWIFormationOpp(nc) { var me = nc.me; if (me.back3 || me.back5) return 'Opponent may target the space behind your wing-backs.'; if (me.mid >= 5) return 'Opponent may go direct to bypass your packed midfield.'; if (me.fw >= 2) return 'Opponent may sit deeper to handle two strikers.'; return 'Opponent may adjust its press to your new shape.'; }
+function _sqSimWICompute(type, val, scope) {
+  if (!_sqSim.ctx) return null;
+  var c = _sqSim.ctx, co = _sqSim.ctxOpp || c, key = _sqSim.scenes[_sqSim.idx].key, eff = _sqSimEff(), cl = _sqSimClamp;
+  var scopeF = scope === 'next5' ? 0.8 : scope === 'full' ? 0.65 : 1, scopePen = scope === 'next5' ? 8 : scope === 'full' ? 16 : 0;
+  var before = _sqSimWIMetrics(c, co, key, eff), after, reason, best, avoid, opp;
+  var oppF = (_sqSim.model && _sqSim.model.opp && _sqSim.model.opp.f) || '4-2-3-1';
+  if (type === 'Formation') {
+    var nm = _sqSimModel(val, oppF), nc = _sqSimCtx(nm), nco = _sqSimCtx({ my: nm.opp, opp: nm.my });
+    after = _sqSimWIMetrics(nc, nco, key, eff);
+    if (scope !== 'scenario') _SQ_WI_METS.forEach(function (mm) { var k = mm[0]; after[k] = before[k] + (after[k] - before[k]) * scopeF; if (k !== 'xg') after[k] = Math.round(after[k]); else after[k] = +after[k].toFixed(2); });
+    reason = _sqSimWIFormationReason(c.me, nc.me); best = 'When you need to change the midfield/defensive balance vs ' + oppF + '.'; avoid = 'Mid-game if the players are unfamiliar with the shape.'; opp = _sqSimWIFormationOpp(nc);
+  } else {
+    var opt = _SQ_WI_OPTS.filter(function (o) { return o.type === type && o.val === val; })[0]; if (!opt) return null;
+    var m = {}; _SQ_WI_METS.forEach(function (mm) { m[mm[0]] = eff[mm[0]] || 0; }); ['press', 'compact', 'tilt', 'poss', 'control', 'chance', 'counter', 'defend'].forEach(function (k) { if (m[k] === undefined) m[k] = eff[k] || 0; });
+    Object.keys(opt.mod).forEach(function (k) { m[k] = (m[k] || 0) + opt.mod[k] * scopeF; });
+    after = _sqSimWIMetrics(c, co, key, m); reason = opt.reason; best = opt.best; avoid = opt.avoid; opp = opt.opp;
+  }
+  var benefit = { v: -1e9 }, risk = { v: -1e9 }, deltas = {};
+  _SQ_WI_METS.forEach(function (mm) { var k = mm[0], d = after[k] - before[k]; deltas[k] = d; var fav = mm[3] === 'down' ? -d : d, unfav = mm[3] === 'down' ? d : -d; if (fav > benefit.v) benefit = { v: fav, d: d, met: mm }; if (unfav > risk.v) risk = { v: unfav, d: d, met: mm }; });
+  function fmt(mm, d) { return (d > 0 ? '+' : '') + (mm[0] === 'xg' ? d.toFixed(2) : Math.round(d)) + mm[2] + ' ' + mm[1]; }
+  var benefitTxt = benefit.v > 0.4 ? fmt(benefit.met, benefit.d) : 'marginal gains only';
+  var riskTxt = risk.v > 0.4 ? fmt(risk.met, risk.d) : 'low added risk';
+  var conf = Math.round(cl(62 + benefit.v * 1.0 - risk.v * 0.9 - scopePen, 30, 92));
+  return { before: before, after: after, deltas: deltas, benefit: benefitTxt, risk: riskTxt, reason: reason, conf: conf, best: best, avoid: avoid, opp: opp };
+}
+function _sqSimWIOptionsHtml() {
+  function chip(t, v, lab) { var on = _sqSim.wi && _sqSim.wi.type === t && _sqSim.wi.val === v; return '<button class="sqcc-wi-chip' + (on ? ' is-on' : '') + '" data-action="sqSimWhatIf" data-wt="' + _sqEsc(t) + '" data-wv="' + _sqEsc(v) + '" type="button">' + _sqEsc(lab) + '</button>'; }
+  var cur = (_sqSim.model && _sqSim.model.my && _sqSim.model.my.f) || '', html = '';
+  html += '<div class="sqcc-wi-grp"><span class="sqcc-wi-gl">Formation</span>' + _SQ_WI_FMN.filter(function (f) { return f !== cur; }).map(function (f) { return chip('Formation', f, '→ ' + f); }).join('') + '</div>';
+  var byType = {}, order = []; _SQ_WI_OPTS.forEach(function (o) { if (!byType[o.type]) { byType[o.type] = []; order.push(o.type); } byType[o.type].push(o); });
+  order.forEach(function (t) { html += '<div class="sqcc-wi-grp"><span class="sqcc-wi-gl">' + t + '</span>' + byType[t].map(function (o) { return chip(o.type, o.val, o.label); }).join('') + '</div>'; });
+  return html;
+}
+function _sqSimWIPaint() {
+  if (!_sqSim.el || !_sqSim.wiOpen) return;
+  var root = _sqSim.el;
+  var optsEl = root.querySelector('[data-role="wi-opts"]'); if (optsEl) optsEl.innerHTML = _sqSimWIOptionsHtml();
+  var scope = (_sqSim.wi && _sqSim.wi.scope) || 'scenario';
+  var sb = root.querySelectorAll('.sqcc-wi-scope button'); for (var s = 0; s < sb.length; s++) sb[s].classList.toggle('is-on', sb[s].getAttribute('data-scope') === scope);
+  var res = root.querySelector('[data-role="wi-res"]'); if (!res) return;
+  if (!_sqSim.wi || !_sqSim.wi.type) { res.innerHTML = '<div class="sqcc-wi-empty">Select a tactical change on the left to preview its impact — before vs after on every metric, expected benefit &amp; risk, confidence, and the likely opponent response.</div>'; return; }
+  var R = _sqSimWICompute(_sqSim.wi.type, _sqSim.wi.val, scope); if (!R) { res.innerHTML = '<div class="sqcc-wi-empty">—</div>'; return; }
+  var rows = _SQ_WI_METS.map(function (mm) { var k = mm[0], bv = R.before[k], av = R.after[k], d = av - bv, u = mm[2], fav = mm[3] === 'down' ? -d : d, cls = Math.abs(d) < 0.3 ? '' : (fav > 0 ? 'is-up' : 'is-down'), f = function (x) { return mm[0] === 'xg' ? x.toFixed(2) : Math.round(x); }; return '<tr><td>' + mm[1] + '</td><td>' + f(bv) + u + '</td><td>' + f(av) + u + '</td><td class="' + cls + '">' + (d > 0 ? '+' : '') + (mm[0] === 'xg' ? d.toFixed(2) : Math.round(d)) + u + '</td></tr>'; }).join('');
+  var confCls = R.conf >= 70 ? 'is-hi' : R.conf >= 55 ? 'is-md' : R.conf >= 45 ? 'is-lo' : 'is-exp', warn = R.conf < 55 ? '<p class="sqcc-wi-warn">⚠ Low confidence — test carefully.</p>' : '';
+  var labMap = {}; _SQ_WI_OPTS.forEach(function (o) { labMap[o.type + '|' + o.val] = o.label; });
+  var selLab = _sqSim.wi.type === 'Formation' ? ('→ ' + _sqSim.wi.val) : (labMap[_sqSim.wi.type + '|' + _sqSim.wi.val] || _sqSim.wi.val);
+  var scopeLab = scope === 'next5' ? 'Next 5 minutes' : scope === 'full' ? 'Full projection' : 'Current scenario';
+  res.innerHTML = '<div class="sqcc-wi-sel">Testing <b>' + _sqEsc(_sqSim.wi.type) + ': ' + _sqEsc(selLab) + '</b> · scope <b>' + scopeLab + '</b></div>'
+    + '<table class="sqcc-wi-tbl"><thead><tr><th>Metric</th><th>Before</th><th>After</th><th>Δ</th></tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div class="sqcc-wi-rec"><div class="sqcc-wi-rec-hd">RECOMMENDATION <span class="sqcc-wi-conf ' + confCls + '">' + _sqSimDConf(R.conf) + ' · ' + R.conf + '%</span></div>'
+    + '<p><i>Benefit:</i> <b class="sqcc-wi-ben">' + _sqEsc(R.benefit) + '</b></p><p><i>Risk:</i> <b class="sqcc-wi-rsk">' + _sqEsc(R.risk) + '</b></p>'
+    + '<p><i>Reason:</i> ' + _sqEsc(R.reason) + '</p><p><i>Best use:</i> ' + _sqEsc(R.best) + '</p><p><i>Avoid when:</i> ' + _sqEsc(R.avoid) + '</p>' + warn + '</div>'
+    + '<div class="sqcc-wi-opp"><b>🤖 Likely opponent response</b><span>' + _sqEsc(R.opp) + '</span></div>'
+    + '<div class="sqcc-wi-actions"><button class="sqcc-wi-apply" data-action="sqSimWIApply" type="button">✓ Apply Change</button><button class="sqcc-wi-cancel" data-action="sqSimWICancel" type="button">✕ Cancel</button></div>';
+}
+function sqSimWhatIf(t, v) { if (!_sqSim.el) return; _sqSim.wi = { type: t, val: v, scope: (_sqSim.wi && _sqSim.wi.scope) || 'scenario' }; _sqSimWIPaint(); }
+function sqSimWIScope(s) { if (!_sqSim.el) return; if (_sqSim.wi) _sqSim.wi.scope = s; else _sqSim.wi = { type: null, val: null, scope: s }; _sqSimWIPaint(); }
+function sqSimWICancel() { _sqSim.wi = { type: null, val: null, scope: (_sqSim.wi && _sqSim.wi.scope) || 'scenario' }; _sqSimWIPaint(); }
+function sqSimWIApply() {
+  if (!_sqSim.el || !_sqSim.wi || !_sqSim.wi.type) return; var wi = _sqSim.wi;
+  if (wi.type === 'Formation') { if (typeof SQ_FORM !== 'undefined') { SQ_FORM.myFormation = wi.val; SQ_FORM.cmdOverlay = 'simulation'; } if (typeof _sqRenderFormationBody === 'function') _sqRenderFormationBody(); return; }
+  var opt = _SQ_WI_OPTS.filter(function (o) { return o.type === wi.type && o.val === wi.val; })[0]; if (!opt) return;
+  _sqSim.dstate = _sqSim.dstate || _sqSimDNew();
+  Object.keys(opt.mod).forEach(function (k) { if (['press', 'compact', 'counter', 'chance', 'control', 'poss', 'tilt'].indexOf(k) >= 0) _sqSim.dstate[k] = (_sqSim.dstate[k] || 0) + opt.mod[k]; });
+  if (wi.type === 'Mentality') { _sqSim.dstate.ment = wi.val; if (typeof SQ_FORM !== 'undefined') SQ_FORM.mentality = wi.val; }
+  _sqSim.brainMemo = null;
+  if (typeof _sqSimDlogPush === 'function') _sqSimDlogPush(3 + _sqSim.idx * 4, 'Applied (What-If): ' + wi.type + ' → ' + opt.label, 'accept');
+  _sqSimEnter(_sqSim.idx, true);
+  sqSimWIToggle();
+}
+function sqSimWIToggle() {
+  if (!_sqSim.el) return; var ov = _sqSim.el.querySelector('[data-role="whatif"]'); if (!ov) return;
+  _sqSim.wiOpen = !_sqSim.wiOpen;
+  if (_sqSim.wiOpen) { ov.hidden = false; ov.classList.add('is-on'); _sqSimWIPaint(); }
+  else { ov.hidden = true; ov.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-wi-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.wiOpen);
+}
+function _sqSimWIOverlayHtml() {
+  return '<div class="sqcc-wi" data-role="whatif" hidden><div class="sqcc-wi-in">'
+    + '<div class="sqcc-wi-hd"><span>🔮 WHAT-IF TACTICAL SIMULATOR</span>'
+    + '<span class="sqcc-wi-scope"><button data-action="sqSimWIScope" data-scope="scenario" type="button" class="is-on">Current</button><button data-action="sqSimWIScope" data-scope="next5" type="button">Next 5 min</button><button data-action="sqSimWIScope" data-scope="full" type="button">Full projection</button></span>'
+    + '<button class="sqcc-wi-x" data-action="sqSimWIToggle" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-wi-grid"><div class="sqcc-wi-opts" data-role="wi-opts"></div><div class="sqcc-wi-res" data-role="wi-res"></div></div>'
+    + '</div></div>';
+}
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
@@ -5083,7 +5224,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -5226,7 +5367,7 @@ function _sqSimInit(root, tok) {
   var st = root.querySelector('.sqsim-stage'), r = st ? st.getBoundingClientRect() : { width: 600, height: 360 };
   _sqSim.W = r.width || 600; _sqSim.H = r.height || 360;
   _sqSim.idx = 0; _sqSim.playing = true; _sqSim.speed = 1;
-  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; _sqSim.oai = _sqSimOAINew(); // fresh decision engine + opponent AI per simulation
+  _sqSim.dstate = null; _sqSim.dlog = []; _sqSim.dtrack = null; _sqSim.doppPending = null; _sqSim.brainMemo = null; _sqSim.oai = _sqSimOAINew(); _sqSim.wi = null; // fresh decision engine + opponent AI + what-if per simulation
   _sqSim.cur = _sqSimBasePos(_sqSim.model); _sqSimPaint(_sqSim.cur);
   root.classList.remove('is-done'); _sqSimSetPlayIcon();
   var bt = root.querySelector('[data-role="boot"]'); _sqSim.boot = bt ? 2300 : 0; if (bt) bt.classList.remove('is-hidden');
@@ -37181,6 +37322,11 @@ async function tosBoardSnapshot() {
         case 'sqSimDAccept':      if (typeof sqSimDAccept === 'function')      sqSimDAccept(el.dataset.k); break;
         case 'sqSimDIgnore':      if (typeof sqSimDIgnore === 'function')      sqSimDIgnore(el.dataset.k); break;
         case 'sqSimOAI':          if (typeof sqSimOAI === 'function')          sqSimOAI(); break;
+        case 'sqSimWIToggle':     if (typeof sqSimWIToggle === 'function')     sqSimWIToggle(); break;
+        case 'sqSimWhatIf':       if (typeof sqSimWhatIf === 'function')       sqSimWhatIf(el.dataset.wt, el.dataset.wv); break;
+        case 'sqSimWIScope':      if (typeof sqSimWIScope === 'function')      sqSimWIScope(el.dataset.scope); break;
+        case 'sqSimWIApply':      if (typeof sqSimWIApply === 'function')      sqSimWIApply(); break;
+        case 'sqSimWICancel':     if (typeof sqSimWICancel === 'function')     sqSimWICancel(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
