@@ -4695,7 +4695,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button> <button class="sqcc-pred-btn" data-action="sqSimPred" type="button" title="Open the Tactical Prediction Engine">🔭 PREDICT</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button> <button class="sqcc-pred-btn" data-action="sqSimPred" type="button" title="Open the Tactical Prediction Engine">🔭 PREDICT</button> <button class="sqcc-rep-btn" data-action="sqSimReport" type="button" title="Open the Post-Match Tactical Analysis">📋 REPORT</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -5265,6 +5265,206 @@ function _sqSimPredOverlayHtml() {
     + '<div class="sqcc-pcard sqcc-pcard--acc"><h5>✅ PREDICTION ACCURACY</h5><div data-role="pr-acc"></div></div>'
     + '</div></div></div>';
 }
+// ── Phase 8 (final): Post-Match Tactical Analysis — a full professional report generated from the
+// accumulated simulation state (Brain / Decision Engine / Opponent AI / Prediction). Computed on open
+// (not per frame). Reuses every existing calculation; nothing is rebuilt.
+function _sqSimReportAgg(c, co) {
+  var scenes = _sqSim.scenes || [], cl = _sqSimClamp, R = Math.round, n = 0;
+  var A = { build: 0, chance: 0, loss: 0, counter: 0, press: 0, defend: 0, transition: 0, compact: 0, adv: 0, control: 0, poss: 0, xg: 0, xt: 0, tilt: 0, terr: 0 };
+  scenes.forEach(function (s) {
+    if (s.key === 'summary') return; n++;
+    var p = _sqSimProb(c, s.key), b = _sqSimMetricBase(c), mc = _sqSimControlRaw(c, s.key), oc = _sqSimControlRaw(co, s.key);
+    A.build += p.build; A.chance += p.chance; A.loss += p.loss; A.counter += p.counter; A.press += p.press; A.defend += p.defend; A.transition += p.transition;
+    A.compact += b.compact; A.adv += b.adv; A.control += mc / (mc + oc) * 100; A.poss += cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2, 20, 80);
+    A.xg += _sqSimXG(c, s.key) / 5; A.xt += _sqSimXT(c, s.key); A.tilt += _sqSimFieldTilt(c, s.key).my; A.terr += _sqSimTerritory(c, s.key).my;
+  });
+  Object.keys(A).forEach(function (k) { if (k === 'xg') A[k] = +A[k].toFixed(1); else A[k] = R(A[k] / (n || 1)); });
+  return A;
+}
+function _sqSimReport() {
+  var c = _sqSim.ctx, co = _sqSim.ctxOpp || c; if (!c) return null;
+  var M = _sqSim.model, R = Math.round, cl = _sqSimClamp, scenes = _sqSim.scenes || [];
+  var my = _sqSimReportAgg(c, co), op = _sqSimReportAgg(co, c);
+  var coach = _sqSimCoach(c, co, scenes), pred = _sqSim.pred || _sqSimPredNew(), oai = _sqSim.oai || _sqSimOAINew();
+  var CN = (typeof _sqClubName === 'function') ? _sqClubName() : 'FC Familista';
+  var mf = M.my.f, of = M.opp.f, ctrl = my.control, verdict = ctrl >= 53 ? 'WIN' : ctrl <= 47 ? 'LOSS' : 'DRAW', controller = ctrl >= 52 ? CN : ctrl <= 48 ? 'Opponent' : 'neither side';
+  var side = c.wideEdge > 0 ? 'left' : c.wideEdge < 0 ? 'right' : 'central', hs = side === 'central' ? 'central channel' : side + ' half-space';
+  // 1 executive summary
+  var turning = coach.best || (side + ' half-space combination');
+  var matchRating = R(cl(5 + (ctrl - 50) * 0.06 + (my.xg - op.xg) * 0.6 + my.chance * 0.01, 4, 9.6));
+  var qualRating = R(cl(50 + (my.adv - 50) + (my.control - 50) * 0.6, 35, 96));
+  var exec = {
+    verdict: verdict + ' — ' + (verdict === 'WIN' ? CN + ' shaded a tight tactical battle.' : verdict === 'LOSS' ? 'the opponent edged the tactical contest.' : 'an even tactical contest with fine margins.'),
+    controller: controller + ' controlled the match (avg game control ' + ctrl + '%).',
+    reason: (verdict === 'WIN' ? 'Won through ' : verdict === 'LOSS' ? 'Lost because of ' : 'Level because of ') + (my.control >= op.control ? 'superior midfield control and ' + hs + ' occupation' : 'the opponent’s tighter block and transition threat') + '; xG ' + my.xg + '–' + op.xg + '.',
+    turning: 'Biggest turning point: ' + turning + '.',
+    matchRating: matchRating.toFixed(1) + ' / 10',
+    qualRating: qualRating + ' / 100'
+  };
+  // 2 performance report (12 categories)
+  function cat(label, sc, gr, br, grec, brec) { sc = R(cl(sc, 20, 98)); return { label: label, score: sc, reason: sc >= 60 ? gr : br, rec: sc >= 60 ? grec : brec }; }
+  var perf = [
+    cat('Build-up quality', my.build, 'Built cleanly through the lines with a spare man.', 'Build-up broke down under pressure.', 'Keep the back-three build shape.', 'Drop a pivot to beat the first line.'),
+    cat('Pressing quality', my.press, 'The press won the ball high in a unit.', 'The press was bypassed too easily.', 'Maintain the pressing triggers.', 'Set clearer triggers and press together.'),
+    cat('Defensive organization', my.defend, 'The block stayed compact and disciplined.', 'The defensive block leaked space.', 'Hold the current shape.', 'Stay compact and force play wide.'),
+    cat('Transition quality', my.transition, 'Transitions were quick and purposeful.', 'Transitions were slow after turnovers.', 'Keep breaking at once.', 'Get the first pass forward faster.'),
+    cat('Counter attacks', 100 - my.counter, 'Rarely exposed on the counter.', 'Too exposed on the counter.', 'Keep rest-defence behind the ball.', 'Hold a pivot back as rest-defence.'),
+    cat('Compactness', my.compact, 'Lines stayed tight between the thirds.', 'The lines were too stretched.', 'Maintain the compact distances.', 'Shorten the gap midfield-to-defence.'),
+    cat('Width usage', R((my.tilt + my.chance) / 2), 'Used width to stretch and create.', 'Attack was too narrow.', 'Keep stretching the block.', 'Add width to open the block.'),
+    cat('Half-space usage', my.chance, 'Occupied the half-spaces to create.', 'Failed to exploit the half-spaces.', 'Keep attacking the ' + hs + '.', 'Commit a runner into the ' + hs + '.'),
+    cat('Zone 14 protection', my.compact, 'Zone 14 was well screened.', 'Zone 14 was left exposed.', 'Keep the pivot central.', 'Screen Zone 14 with the pivot.'),
+    cat('Rest defence', 100 - my.counter, 'Rest-defence covered the counters.', 'Rest-defence was undermanned.', 'Keep numbers behind the ball.', 'Do not over-commit the full-backs.'),
+    cat('Ball circulation', R((my.poss + my.control) / 2), 'Circulated the ball to control tempo.', 'Struggled to keep possession.', 'Keep controlling with the ball.', 'Add support around the ball.'),
+    cat('Tempo control', my.control, 'Dictated the tempo of the game.', 'Lost control of the tempo.', 'Manage the tempo as needed.', 'Slow the game to regain control.')
+  ];
+  // 3 team comparison (12 metrics)
+  function cmp(label, a, b, unit) { unit = unit === undefined ? '%' : unit; var w = a > b ? 'my' : a < b ? 'op' : 'even'; return { label: label, my: a, op: b, unit: unit, win: w }; }
+  var mom = oai.momentum || 50;
+  var comp = [
+    cmp('Possession', my.poss, op.poss), cmp('Game Control', my.control, op.control), cmp('Pressing', my.press, op.press), cmp('Chance Creation', my.chance, op.chance),
+    cmp('xG', my.xg, op.xg, ''), cmp('xThreat', my.xt, op.xt), cmp('Momentum', mom, 100 - mom), cmp('Territory', my.terr, op.terr),
+    cmp('Field Tilt', my.tilt, op.tilt), cmp('Compactness', my.compact, op.compact), cmp('Transitions', my.transition, op.transition), cmp('Defensive Stability', my.defend, op.defend)
+  ];
+  var compWhy = CN + ' was stronger in ' + comp.filter(function (x) { return x.win === 'my'; }).length + ' of 12 categories — decisive edges in ' + (my.control >= op.control ? 'game control and ' : '') + (my.chance >= op.chance ? 'chance creation' : 'defensive stability') + '.';
+  // 4 tactical timeline + 5 key moments
+  var min = function (i) { return 3 + i * 4; };
+  var tl = [];
+  scenes.forEach(function (s, i) { if (s.key === 'summary') return; var p = _sqSimProb(c, s.key); var ev = p.chance >= 66 ? 'Chance created from the ' + hs : p.counter >= 62 ? 'Counter-attack danger from a turnover' : s.key === 'overload' ? 'Wide overload worked on the ' + side : s.key === 'press' || s.key === 'manpress' ? 'High press ' + (p.press >= 60 ? 'won the ball' : 'was bypassed') : s.key === 'block' ? 'Opponent sat in a low block' : (s.label || s.title); tl.push({ min: min(i), txt: ev }); });
+  (oai.log || []).forEach(function (e) { tl.push({ min: e.min, txt: 'Opponent — ' + e.txt }); });
+  (_sqSim.dlog || []).filter(function (e) { return e.type === 'accept'; }).forEach(function (e) { tl.push({ min: e.min, txt: 'AI adjustment — ' + e.txt }); });
+  tl.sort(function (a, b) { return a.min - b.min; });
+  var moments = scenes.filter(function (s) { return s.key !== 'summary'; }).map(function (s, i) { var p = _sqSimProb(c, s.key); return { i: i, s: s, p: p, sig: Math.max(p.chance, p.counter, Math.abs(my.control - 50) + 40) }; }).sort(function (a, b) { return b.sig - a.sig; }).slice(0, 10).sort(function (a, b) { return a.i - b.i; }).map(function (mm) {
+    var p = mm.p, big = p.chance >= p.counter;
+    return { min: min(mm.i), desc: mm.s.label || mm.s.title, cause: big ? (mm.s.desc || 'created space to receive') : ('exposed transition (counter risk ' + R(p.counter) + '%)'), effect: big ? ('chance creation ' + R(p.chance) + '%') : ('counter risk ' + R(p.counter) + '%'), comment: big ? 'A high-value phase — the ' + hs + ' was the route to goal.' : 'A risk phase — rest-defence had to hold shape here.' };
+  });
+  // 6 decision review
+  var decs = (_sqSim.dlog || []).filter(function (e) { return e.type === 'accept'; }).map(function (e) { var t = _sqSim.dtrack; var matched = t && ('Accepted: ' + t.title === e.txt || e.txt.indexOf(t.title) >= 0); return { rec: e.txt.replace(/^Accepted: |^Applied \(What-If\): /, ''), accepted: 'YES', result: matched && t.done ? (t.impact >= 0 ? 'Successful' : 'Unsuccessful') : 'Advisory', impact: matched && t.done ? ((t.impact >= 0 ? '+' : '') + t.impact + ' net (chance ' + t.beforeChance + '→' + t.afterChance + '%, control ' + t.beforeCtrl + '→' + t.afterCtrl + '%)') : '—', why: matched && t.done && t.impact < 0 ? 'Failed because the opponent adjusted — ' + (t.opp || 'countered the change') + '.' : '' }; });
+  // 7 opponent review
+  var memArr = Object.keys(oai.mem || {}).map(function (k) { return { k: k, v: oai.mem[k] }; }).sort(function (a, b) { return b.v - a.v; });
+  var memLab = { left: 'punishing your left-side attacks', right: 'punishing your right-side attacks', centre: 'protecting Zone 14', pressHigh: 'going long to beat your press', poss: 'dropping into a low block', fbHigh: 'attacking behind your full-backs', midDom: 'reshaping its press', wingOv: 'doubling your winger', pressGK: 'playing direct past your GK press' };
+  var oppRev = {
+    bestTactic: memArr.length && memArr[0].v ? ('Most used reaction: ' + (memLab[memArr[0].k] || memArr[0].k) + ' (×' + memArr[0].v + ').') : 'Held a stable shape.',
+    weakness: op.control <= my.control ? 'Ceded midfield control (' + op.control + '%).' : 'Vulnerable in transition (allowed ' + my.transition + '% transitions).',
+    adaptation: oai.decisions >= 5 ? 'High — adapted ' + oai.decisions + ' times and shifted momentum.' : oai.decisions >= 2 ? 'Moderate — reacted a few times.' : 'Low — rarely adjusted.',
+    pressing: op.press + '% pressing effectiveness.',
+    transition: op.transition + '% transition effectiveness.',
+    discipline: op.compact + '% defensive discipline / compactness.'
+  };
+  // 8 player influence
+  var Pl = M.my.players; function byR(rs) { return Pl.filter(function (p) { return rs.indexOf(p.role) >= 0; }); }
+  function nmv(p) { return p ? (p.num + (p.role !== p.num ? ' · ' + p.role : '')) : '—'; }
+  var dm = byR(['DM', 'CM'])[0], am = byR(['AM', 'SS'])[0], wg = byR(['WG', 'WM'])[0], st = byR(['ST', 'SS'])[0], cb = byR(['CB'])[0], fb = byR(['FB'])[0];
+  var players = {
+    influential: { p: nmv(dm || am || wg), why: 'Dictated the game from the pivot and linked the lines.' },
+    bestRole: { p: (wg ? wg.role : (am ? am.role : 'CM')), why: 'Best-fit role in this matchup — kept finding the ' + hs + '.' },
+    worstPos: { p: nmv(fb || wg), why: my.counter >= 55 ? 'Caught high, leaving space behind for the counter.' : 'Occasionally too narrow to stretch the block.' },
+    dangerous: { p: nmv(st || wg || am), why: 'Highest attacking threat (team chance ' + my.chance + '%).' },
+    defender: { p: nmv(cb), why: 'Anchored the block and won the key duels (stability ' + my.defend + '%).' },
+    creator: { p: nmv(am || wg || dm), why: 'Created the best chances through the ' + hs + '.' },
+    isolated: { p: (c.me.fw === 1 ? nmv(st) : nmv(byR(['WG', 'WM'])[byR(['WG', 'WM']).length - 1])), why: c.me.fw === 1 ? 'A lone striker with little support in front.' : 'The weak-side wide man was often bypassed.' }
+  };
+  // 9 formation evaluation
+  var rec0 = _sqSimRecommend(c, 'summary'), alt = c.midEdge < 0 ? '4-2-3-1' : c.me.fw >= 2 ? '4-3-3' : '4-2-3-1';
+  var formEval = {
+    mine: mf, opp: of,
+    strengths: (c.me.mid >= 5 ? 'Midfield overload and central control' : c.me.wide ? 'Natural width and wide overloads' : 'Balanced structure') + '.',
+    weaknesses: (my.counter >= 55 ? 'Exposed to the counter behind the full-backs' : c.midEdge < 0 ? 'Outnumbered in central midfield' : 'Limited penetration vs a deep block') + '.',
+    effectiveness: my.control + '% effectiveness (game control).',
+    suitability: (my.control >= op.control ? 'Well suited' : 'Only partly suited') + ' against ' + of + '.',
+    alt: alt, conf: rec0.confidence
+  };
+  // 10 lessons
+  var lessons = [];
+  if (my.compact < 62) lessons.push('Improve compactness between midfield and defence.');
+  if (my.counter >= 55) lessons.push('Avoid both full-backs pushing forward together.');
+  if (my.chance < 55) lessons.push('Attack the ' + hs + ' and switch play sooner.');
+  if (c.midEdge < 0) lessons.push('Increase central-midfield support against the extra man.');
+  if (op.control > 48) lessons.push('Protect Zone 14 earlier to deny their No.10.');
+  lessons.push('Reuse the ' + (coach.best ? coach.best.split(' — ')[0] : 'half-space combination') + ' — it was the most productive.');
+  lessons = lessons.slice(0, 5);
+  // 11 recommendations
+  var recs = {
+    immediate: coach.priority, next: coach.adjust,
+    training: my.transition < 55 ? 'Defensive transitions and rest-defence.' : my.press < 55 ? 'Coordinated pressing patterns.' : 'Final-third combinations in the half-spaces.',
+    formation: formEval.suitability.indexOf('Well') === 0 ? 'Keep ' + mf + '.' : 'Consider ' + alt + '.',
+    mentality: ctrl >= 55 ? 'Balanced — you are in control.' : ctrl <= 45 ? 'More Direct/Attacking to seize initiative.' : 'Balanced.',
+    pressing: my.press >= 60 ? 'Maintain the current pressing height.' : 'Drop to a mid-block and pick triggers.',
+    line: my.counter >= 55 ? 'Lower the defensive line.' : 'Hold the current line.',
+    width: my.tilt < 50 ? 'Add width to stretch the block.' : 'Keep the current width.'
+  };
+  // 12 prediction accuracy review
+  var checked = pred.correct + pred.incorrect, acc = checked ? R(pred.correct / checked * 100) : 0;
+  var calib = pred.calibN ? R(100 - (pred.calibSum / pred.calibN) * 100) : 0;
+  var reliability = checked ? R(cl(acc * 0.5 + calib * 0.3 + Math.min(checked, 10) * 2, 0, 100)) : 0;
+  var decAcc = (function () { var t = _sqSim.dtrack; if (!t || !t.done) return decs.length ? 70 : 0; return t.impact >= 0 ? 82 : 45; })();
+  var accRev = { prediction: acc, decision: decAcc, oppReaction: R(cl(50 + Math.abs(mom - 50), 40, 92)), forecast: acc, calibration: calib, reliability: reliability };
+  // 14 scores
+  var tiScore = R(cl(45 + (ctrl - 50) * 0.9 + (my.adv - 50) * 0.4 + my.chance * 0.1, 40, 98));
+  var decQ = R(cl(58 + (coach.avgCtrl - 50) * 0.8 + (my.chance - my.loss) * 0.15, 40, 97));
+  var execS = R(cl(50 + my.chance * 0.25 + my.xg * 8 - my.loss * 0.1, 40, 97));
+  var adaptS = R(cl(52 + (oai.decisions ? 8 : 0) + (my.control - 50) * 0.6 + (100 - op.chance) * 0.1, 40, 97));
+  var predScore = R(cl(45 + acc * 0.35 + reliability * 0.2, 38, 96));
+  var overall = R((tiScore + decQ + execS + adaptS + predScore) / 5);
+  var scores = { ti: tiScore, dec: decQ, exec: execS, adapt: adaptS, pred: predScore, overall: overall };
+  // 15 conclusion
+  var conclusion = CN + ' ' + (my.control >= op.control ? 'controlled midfield for much of the match through ' + (my.compact >= 60 ? 'superior compactness' : 'ball circulation') + ' and successful ' + hs + ' occupation' : 'struggled to control midfield against a compact ' + of) + '. The decisive tactical ' + (verdict === 'WIN' ? 'advantage' : 'battle') + ' centred on ' + (coach.best ? coach.best.split(' — ')[0].toLowerCase() : 'the ' + hs) + '. ' + (my.counter >= 55 ? 'Defensive transitions remained the main weakness and should be prioritised in future training.' : 'Ball retention under pressure is the next area to sharpen.') + ' Overall match intelligence: ' + overall + '/100.';
+  return { exec: exec, perf: perf, comp: comp, compWhy: compWhy, timeline: tl, moments: moments, decs: decs, oppRev: oppRev, players: players, formEval: formEval, lessons: lessons, recs: recs, accRev: accRev, scores: scores, conclusion: conclusion };
+}
+function _sqSimReportPaint() {
+  if (!_sqSim.el || !_sqSim.reportOpen) return; var root = _sqSim.el, D = _sqSimReport();
+  function P(r, h) { var e = root.querySelector('[data-role="' + r + '"]'); if (e) e.innerHTML = h; }
+  if (!D) { P('rp-exec', 'Run the simulation to generate the report.'); return; }
+  function sc(v) { return v >= 75 ? 'is-hi' : v >= 55 ? 'is-md' : v >= 45 ? 'is-lo' : 'is-exp'; }
+  var e = D.exec;
+  P('rp-exec', '<p><i>Verdict:</i> <b>' + _sqEsc(e.verdict) + '</b></p><p><i>Control:</i> ' + _sqEsc(e.controller) + '</p><p><i>Why:</i> ' + _sqEsc(e.reason) + '</p><p>' + _sqEsc(e.turning) + '</p><div class="sqcc-rp-rate"><span>Match rating <b>' + e.matchRating + '</b></span><span>Tactical quality <b>' + e.qualRating + '</b></span></div>');
+  P('rp-perf', D.perf.map(function (p) { return '<div class="sqcc-rp-cat"><div class="sqcc-rp-cat-h"><b>' + _sqEsc(p.label) + '</b><span class="sqcc-rp-sc ' + sc(p.score) + '">' + p.score + '</span></div><p>' + _sqEsc(p.reason) + '</p><p class="sqcc-rp-rec">➜ ' + _sqEsc(p.rec) + '</p></div>'; }).join(''));
+  P('rp-comp', D.comp.map(function (x) { var mv = x.unit === '' ? x.my.toFixed(1) : x.my + x.unit, ov = x.unit === '' ? x.op.toFixed(1) : x.op + x.unit; return '<tr><td>' + _sqEsc(x.label) + '</td><td class="' + (x.win === 'my' ? 'is-win' : '') + '">' + mv + '</td><td class="' + (x.win === 'op' ? 'is-win' : '') + '">' + ov + '</td><td>' + (x.win === 'my' ? '◀ us' : x.win === 'op' ? 'opp ▶' : '=') + '</td></tr>'; }).join('') );
+  var cw = root.querySelector('[data-role="rp-comp-why"]'); if (cw) cw.textContent = D.compWhy;
+  P('rp-timeline', D.timeline.map(function (t) { return '<li><b>' + t.min + '\'</b> ' + _sqEsc(t.txt) + '</li>'; }).join('') || '<li>—</li>');
+  P('rp-moments', D.moments.map(function (m) { return '<div class="sqcc-rp-mom"><div class="sqcc-rp-mom-h"><b>' + m.min + '\'</b> ' + _sqEsc(m.desc) + '</div><p><i>Cause:</i> ' + _sqEsc(m.cause) + ' · <i>Effect:</i> ' + _sqEsc(m.effect) + '</p><p class="sqcc-rp-mom-ai">🧠 ' + _sqEsc(m.comment) + '</p></div>'; }).join(''));
+  P('rp-decs', D.decs.length ? D.decs.map(function (d) { return '<div class="sqcc-rp-dec"><b>' + _sqEsc(d.rec) + '</b> <span class="sqcc-rp-tag">Accepted ' + d.accepted + '</span> <span class="sqcc-rp-res sqcc-rp-res--' + (d.result === 'Successful' ? 'ok' : d.result === 'Unsuccessful' ? 'no' : 'adv') + '">' + d.result + '</span><p><i>Impact:</i> ' + _sqEsc(d.impact) + '</p>' + (d.why ? '<p class="sqcc-rp-why">' + _sqEsc(d.why) + '</p>' : '') + '</div>'; }).join('') : '<p class="sqcc-rp-none">No decisions were applied — AI recommendations were advisory this match.</p>');
+  var o = D.oppRev;
+  P('rp-opp', '<p><i>Most successful tactic:</i> ' + _sqEsc(o.bestTactic) + '</p><p><i>Biggest weakness:</i> ' + _sqEsc(o.weakness) + '</p><p><i>Adaptation quality:</i> ' + _sqEsc(o.adaptation) + '</p><div class="sqcc-rp-og"><span>Pressing <b>' + _sqEsc(o.pressing) + '</b></span><span>Transitions <b>' + _sqEsc(o.transition) + '</b></span><span>Discipline <b>' + _sqEsc(o.discipline) + '</b></span></div>');
+  var pl = D.players;
+  P('rp-players', [['Most influential', pl.influential], ['Best tactical role', pl.bestRole], ['Worst positioning', pl.worstPos], ['Most dangerous', pl.dangerous], ['Best defender', pl.defender], ['Best creator', pl.creator], ['Most isolated', pl.isolated]].map(function (r) { return '<div class="sqcc-rp-pl"><span class="sqcc-rp-pl-l">' + r[0] + '</span><b>' + _sqEsc(r[1].p) + '</b><em>' + _sqEsc(r[1].why) + '</em></div>'; }).join(''));
+  var f = D.formEval;
+  P('rp-form', '<div class="sqcc-rp-fm"><span>Ours <b>' + _sqEsc(f.mine) + '</b></span><span>Opponent <b>' + _sqEsc(f.opp) + '</b></span></div><p><i>Strengths:</i> ' + _sqEsc(f.strengths) + '</p><p><i>Weaknesses:</i> ' + _sqEsc(f.weaknesses) + '</p><p><i>Effectiveness:</i> ' + _sqEsc(f.effectiveness) + '</p><p><i>Suitability:</i> ' + _sqEsc(f.suitability) + '</p><p><i>Alternative:</i> <b>' + _sqEsc(f.alt) + '</b> <span class="sqcc-rp-sc ' + sc(f.conf) + '">' + f.conf + '%</span></p>');
+  P('rp-lessons', D.lessons.map(function (l, i) { return '<li><b>' + (i + 1) + '.</b> ' + _sqEsc(l) + '</li>'; }).join(''));
+  var rc = D.recs;
+  P('rp-recs', '<p><i>Immediate:</i> ' + _sqEsc(rc.immediate) + '</p><p><i>Next match:</i> ' + _sqEsc(rc.next) + '</p><p><i>Training priority:</i> ' + _sqEsc(rc.training) + '</p><div class="sqcc-rp-og"><span>Formation <b>' + _sqEsc(rc.formation) + '</b></span><span>Mentality <b>' + _sqEsc(rc.mentality) + '</b></span><span>Pressing <b>' + _sqEsc(rc.pressing) + '</b></span><span>Line <b>' + _sqEsc(rc.line) + '</b></span><span>Width <b>' + _sqEsc(rc.width) + '</b></span></div>');
+  var a = D.accRev;
+  P('rp-acc', '<div class="sqcc-rp-og"><span>Prediction <b>' + a.prediction + '%</b></span><span>Decision <b>' + a.decision + '%</b></span><span>Opp reaction <b>' + a.oppReaction + '%</b></span><span>Forecast <b>' + a.forecast + '%</b></span><span>Calibration <b>' + a.calibration + '%</b></span><span>AI reliability <b>' + a.reliability + '%</b></span></div>');
+  var s = D.scores;
+  P('rp-scores', [['Tactical Intelligence', s.ti], ['Decision Quality', s.dec], ['Execution', s.exec], ['Adaptation', s.adapt], ['Prediction', s.pred]].map(function (r) { return '<div class="sqcc-rp-score"><span>' + r[0] + '</span><b class="' + sc(r[1]) + '">' + r[1] + '<i>/100</i></b></div>'; }).join('') + '<div class="sqcc-rp-score sqcc-rp-score--overall"><span>Overall Match Intelligence</span><b class="' + sc(s.overall) + '">' + s.overall + '<i>/100</i></b></div>');
+  P('rp-conclusion', _sqEsc(D.conclusion));
+}
+function sqSimReport() {
+  if (!_sqSim.el) return; var ov = _sqSim.el.querySelector('[data-role="report"]'); if (!ov) return;
+  _sqSim.reportOpen = !_sqSim.reportOpen;
+  if (_sqSim.reportOpen) { ov.hidden = false; ov.classList.add('is-on'); _sqSimReportPaint(); }
+  else { ov.hidden = true; ov.classList.remove('is-on'); }
+  var btn = _sqSim.el.querySelector('.sqcc-rep-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.reportOpen);
+}
+function _sqSimReportOverlayHtml() {
+  return '<div class="sqcc-report" data-role="report" data-export="post-match" hidden><div class="sqcc-report-in">'
+    + '<div class="sqcc-report-hd"><span>📋 POST-MATCH TACTICAL ANALYSIS</span><span class="sqcc-report-exp">PDF · Print · Share — structure ready</span><button class="sqcc-report-x" data-action="sqSimReport" type="button">✕ Close</button></div>'
+    + '<div class="sqcc-report-grid">'
+    + '<div class="sqcc-rcard sqcc-rcard--exec sqcc-rcard--wide"><h5>1 · EXECUTIVE MATCH SUMMARY</h5><div data-role="rp-exec"></div></div>'
+    + '<div class="sqcc-rcard"><h5>2 · TACTICAL PERFORMANCE REPORT</h5><div class="sqcc-rp-cats" data-role="rp-perf"></div></div>'
+    + '<div class="sqcc-rcard"><h5>3 · TEAM COMPARISON</h5><table class="sqcc-rp-tbl"><thead><tr><th>Metric</th><th>Us</th><th>Opp</th><th>Edge</th></tr></thead><tbody data-role="rp-comp"></tbody></table><p class="sqcc-rp-why2" data-role="rp-comp-why"></p></div>'
+    + '<div class="sqcc-rcard"><h5>4 · TACTICAL TIMELINE</h5><ul class="sqcc-rp-tl" data-role="rp-timeline"></ul></div>'
+    + '<div class="sqcc-rcard sqcc-rcard--wide"><h5>5 · KEY TACTICAL MOMENTS (Top 10)</h5><div class="sqcc-rp-moms" data-role="rp-moments"></div></div>'
+    + '<div class="sqcc-rcard"><h5>6 · TACTICAL DECISION REVIEW</h5><div data-role="rp-decs"></div></div>'
+    + '<div class="sqcc-rcard sqcc-rcard--opp"><h5>7 · OPPONENT REVIEW</h5><div data-role="rp-opp"></div></div>'
+    + '<div class="sqcc-rcard"><h5>8 · PLAYER TACTICAL INFLUENCE</h5><div class="sqcc-rp-pls" data-role="rp-players"></div></div>'
+    + '<div class="sqcc-rcard"><h5>9 · FORMATION EVALUATION</h5><div data-role="rp-form"></div></div>'
+    + '<div class="sqcc-rcard sqcc-rcard--lessons"><h5>10 · TACTICAL LESSONS</h5><ul class="sqcc-rp-lessons" data-role="rp-lessons"></ul></div>'
+    + '<div class="sqcc-rcard"><h5>11 · TACTICAL RECOMMENDATIONS</h5><div data-role="rp-recs"></div></div>'
+    + '<div class="sqcc-rcard"><h5>12 · PREDICTION ACCURACY REVIEW</h5><div data-role="rp-acc"></div></div>'
+    + '<div class="sqcc-rcard sqcc-rcard--scores"><h5>14 · TACTICAL INTELLIGENCE SCORE</h5><div data-role="rp-scores"></div></div>'
+    + '<div class="sqcc-rcard sqcc-rcard--concl sqcc-rcard--wide"><h5>15 · FINAL COACH CONCLUSION</h5><p data-role="rp-conclusion"></p></div>'
+    + '</div></div></div>';
+}
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
@@ -5346,7 +5546,7 @@ function _sqTcSimulation(my, op) {
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
     + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
-    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + _sqSimPredOverlayHtml() + '</div>';
+    + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + _sqSimPredOverlayHtml() + _sqSimReportOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
 var _sqSim = { model: null, scenes: [], ctx: null, ctxOpp: null, idx: 0, playing: true, speed: 1, raf: 0, token: 0, el: null, W: 0, H: 0, dots: [], cur: [], from: [], to: [], elapsed: 0, last: 0, boot: 0 };
@@ -37453,6 +37653,7 @@ async function tosBoardSnapshot() {
         case 'sqSimWIApply':      if (typeof sqSimWIApply === 'function')      sqSimWIApply(); break;
         case 'sqSimWICancel':     if (typeof sqSimWICancel === 'function')     sqSimWICancel(); break;
         case 'sqSimPred':         if (typeof sqSimPred === 'function')         sqSimPred(); break;
+        case 'sqSimReport':       if (typeof sqSimReport === 'function')       sqSimReport(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
