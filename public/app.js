@@ -3908,7 +3908,9 @@ function _sqSimModel(mf, of) {
   function team(f, side) {
     var slots = SQ_FORMATIONS[f] || SQ_FORMATIONS['4-3-3'];
     return { f: f, players: slots.map(function (s, i) {
-      var baseL = side === 'my' ? (100 - s.y) : s.y, baseT = s.x;
+      // 'my' attacks right; the opponent is a true 180° tactical-board mirror (point reflection through
+      // the centre) — length flips (baseL) AND width flips (baseT) so LB↔RB, LWB↔RWB, LM↔RM, etc.
+      var baseL = side === 'my' ? (100 - s.y) : s.y, baseT = side === 'my' ? s.x : (100 - s.x);
       return { side: side, cat: s.c || 'mf', role: _sqSimRole(s), num: s.r || (i + 1), baseL: baseL, baseT: baseT,
         wide: (s.x <= 24 || s.x >= 76), attr: { ovr: 75, speed: 75, passing: 75, vision: 75, fitness: 90, mentality: 'Balanced' } };
     }) };
@@ -5566,7 +5568,7 @@ function _sqSimSafeBox() {
   var W = _sqSim.W || 1, H = _sqSim.H || 1, ds = _sqSim.dots;
   var dr = (ds && ds[0] && ds[0].offsetWidth) ? ds[0].offsetWidth / 2 : (_sqSim.dotR || 17);
   _sqSim.dotR = dr;
-  var rx = dr / W * 100, ry = dr / H * 100, bx = 2.0, by = 3.0; // white-line inset (%) + safety margin
+  var rx = dr / W * 100, ry = dr / H * 100, bx = 1.7, by = 2.6; // white-line inset (%) + safety margin
   var b = { sx0: bx + rx, sx1: 100 - bx - rx, sy0: by + ry, sy1: 100 - by - ry };
   if (b.sx1 < b.sx0) { var mx = (b.sx0 + b.sx1) / 2; b.sx0 = b.sx1 = mx; }
   if (b.sy1 < b.sy0) { var my = (b.sy0 + b.sy1) / 2; b.sy0 = b.sy1 = my; }
