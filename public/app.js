@@ -3105,22 +3105,24 @@ var _SQ_TAC_SECS = [
   { id: 'team', no: '5', title: 'Team Instructions', tab: 'Team', ac: '34,211,238' },        // cyan / blue
   { id: 'players', no: '6', title: 'Player Instructions', tab: 'Players', ac: '236,72,153' } // pink / violet
 ];
-var _SQ_TAC_TAB = 'identity'; // active internal section (UI state only — not persisted, not read by Simulation)
 // floating-panel UI state (all UI-only — never persisted, never read by Simulation)
-var _SQ_TAC_OPEN = false;                              // is the floating panel open
-var _SQ_TAC_POS = { x: null, y: null, w: null, h: null }; // panel position/size (px), preserved across re-renders
+// Multiple panels may be open at once: one entry per open section id → its own {x,y,w,h,z}.
+var _SQ_TAC_PANELS = {};                 // open panels keyed by section id
+var _SQ_TAC_Z = 1200;                    // z-index counter for bring-to-front
 var _SQ_TAC_BOUND = false, _SQ_TAC_DRAG = null;
-// bind drag + resize + viewport-clamp listeners once (delegated on document; harmless if panel absent)
+function _sqTacFront(id) { if (_SQ_TAC_PANELS[id]) _SQ_TAC_PANELS[id].z = (++_SQ_TAC_Z); } // raise one panel above the rest
+// bind drag + bring-to-front + viewport-clamp listeners once (delegated on document; harmless if no panels)
 function _sqTacFpBind() {
   if (_SQ_TAC_BOUND || typeof document === 'undefined' || !document.addEventListener) return;
   _SQ_TAC_BOUND = true;
   document.addEventListener('mousedown', function (e) {
     var t = e.target; if (!t || !t.closest) return;
+    var fp = t.closest('.sqtac-fp');
+    if (fp) { var pid = fp.getAttribute('data-tacpanel'); _sqTacFront(pid); if (_SQ_TAC_PANELS[pid]) fp.style.zIndex = _SQ_TAC_PANELS[pid].z; } // click any panel → front
     if (t.closest('button')) return;                    // never start a drag from the close buttons
-    var h = t.closest('[data-tacdrag]'); if (!h) return;
-    var fp = h.closest('.sqtac-fp'); if (!fp) return;
+    var h = t.closest('[data-tacdrag]'); if (!h || !fp) return;
     var r = fp.getBoundingClientRect();
-    _SQ_TAC_DRAG = { fp: fp, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    _SQ_TAC_DRAG = { fp: fp, id: fp.getAttribute('data-tacpanel'), dx: e.clientX - r.left, dy: e.clientY - r.top };
     e.preventDefault();
   });
   document.addEventListener('mousemove', function (e) {
@@ -3130,22 +3132,19 @@ function _sqTacFpBind() {
     x = Math.max(6, Math.min(x, vw - Math.min(w, vw) - 6));
     y = Math.max(6, Math.min(y, vh - 44));              // keep the header on-screen
     fp.style.left = x + 'px'; fp.style.top = y + 'px'; fp.style.transform = 'none';
-    _SQ_TAC_POS.x = x; _SQ_TAC_POS.y = y;
+    var p = _SQ_TAC_PANELS[_SQ_TAC_DRAG.id]; if (p) { p.x = x; p.y = y; }
   });
   document.addEventListener('mouseup', function () {
-    if (!_SQ_TAC_DRAG) { var fpx = document.querySelector('.sqtac-fp'); if (fpx) _sqTacCapture(fpx); return; }
-    _sqTacCapture(_SQ_TAC_DRAG.fp); _SQ_TAC_DRAG = null;
+    _SQ_TAC_DRAG = null;
+    // sync every open panel's pos + size from the DOM (covers dragging AND native CSS resize, any panel)
+    var els = document.querySelectorAll('.sqtac-fp');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = _SQ_TAC_PANELS[el.getAttribute('data-tacpanel')]; if (p) { var r = el.getBoundingClientRect(); p.x = r.left; p.y = r.top; p.w = el.offsetWidth; p.h = el.offsetHeight; } }
   });
-  window.addEventListener('resize', function () {              // keep the panel inside the viewport
-    var fp = document.querySelector('.sqtac-fp'); if (!fp || _SQ_TAC_POS.x == null) return;
-    var vw = window.innerWidth, vh = window.innerHeight;
-    _SQ_TAC_POS.x = Math.max(6, Math.min(_SQ_TAC_POS.x, vw - 80));
-    _SQ_TAC_POS.y = Math.max(6, Math.min(_SQ_TAC_POS.y, vh - 44));
-    fp.style.left = _SQ_TAC_POS.x + 'px'; fp.style.top = _SQ_TAC_POS.y + 'px';
+  window.addEventListener('resize', function () {              // keep every panel inside the viewport
+    var vw = window.innerWidth, vh = window.innerHeight, els = document.querySelectorAll('.sqtac-fp');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = _SQ_TAC_PANELS[el.getAttribute('data-tacpanel')]; if (!p) continue; p.x = Math.max(6, Math.min(p.x, vw - 80)); p.y = Math.max(6, Math.min(p.y, vh - 44)); el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; }
   });
 }
-// capture final position + size (covers both dragging and native CSS resize) so a re-render keeps them
-function _sqTacCapture(fp) { if (!fp) return; var r = fp.getBoundingClientRect(); _SQ_TAC_POS.x = r.left; _SQ_TAC_POS.y = r.top; _SQ_TAC_POS.w = fp.offsetWidth; _SQ_TAC_POS.h = fp.offsetHeight; }
 // per-position player-instruction rows, derived live from the CURRENT formation
 function _sqTacRoleKeys() {
   var slots = SQ_FORMATIONS[SQ_FORM.myFormation] || SQ_FORMATIONS['4-3-3'], seen = {}, out = [];
@@ -3204,19 +3203,18 @@ function _sqTacSecContent(id) {
   // players
   return '<div class="sqtac-players">' + _sqTacPlayerRows() + '</div>';
 }
-function _sqTacFloatPanel() {
-  var sec = null; for (var i = 0; i < _SQ_TAC_SECS.length; i++) if (_SQ_TAC_SECS[i].id === _SQ_TAC_TAB) sec = _SQ_TAC_SECS[i];
-  if (!sec) sec = _SQ_TAC_SECS[0];
-  var p = _SQ_TAC_POS, st = 'style="--ac:' + sec.ac + ';'
-    + (p.x != null ? 'left:' + Math.round(p.x) + 'px;top:' + Math.round(p.y) + 'px;' : '')
-    + (p.w != null ? 'width:' + Math.round(p.w) + 'px;height:' + Math.round(p.h) + 'px;' : '') + '"';
-  return '<div class="sqtac-fp' + (p.x != null ? '' : ' sqtac-fp--auto') + '" ' + st + '>'
+function _sqTacFloatPanel(id) {
+  var sec = null; for (var i = 0; i < _SQ_TAC_SECS.length; i++) if (_SQ_TAC_SECS[i].id === id) sec = _SQ_TAC_SECS[i];
+  if (!sec) return '';
+  var p = _SQ_TAC_PANELS[id]; if (!p) return '';
+  var st = 'style="--ac:' + sec.ac + ';left:' + Math.round(p.x) + 'px;top:' + Math.round(p.y) + 'px;width:' + Math.round(p.w) + 'px;height:' + Math.round(p.h) + 'px;z-index:' + p.z + ';"';
+  return '<div class="sqtac-fp" data-tacpanel="' + id + '" ' + st + '>'
     + '<div class="sqtac-fp-hd" data-tacdrag="1">'
     +   '<span class="sqtac-fp-no">' + sec.no + '</span>'
     +   '<span class="sqtac-fp-ttl">' + sec.title
     +     (sec.id === 'players' || sec.id === 'team' ? ' <em class="sqtac-fp-tag">' + SQ_FORM.myFormation + '</em>' : '') + '</span>'
-    +   '<button class="sqtac-fp-close" data-action="sqTacClose" type="button">Close</button>'
-    +   '<button class="sqtac-fp-x" data-action="sqTacClose" type="button" aria-label="Close">&#10005;</button>'
+    +   '<button class="sqtac-fp-close" data-action="sqTacClose" data-tid="' + id + '" type="button">Close</button>'
+    +   '<button class="sqtac-fp-x" data-action="sqTacClose" data-tid="' + id + '" type="button" aria-label="Close">&#10005;</button>'
     + '</div>'
     + '<div class="sqtac-fp-bd">' + _sqTacSecContent(sec.id) + '</div>'
     + '<span class="sqtac-fp-grip" aria-hidden="true"></span>'
@@ -3224,12 +3222,13 @@ function _sqTacFloatPanel() {
 }
 function _sqTacticsBody() {
   var tabs = '<div class="sqtac-tabs">' + _SQ_TAC_SECS.map(function (s) {
-    var on = _SQ_TAC_OPEN && s.id === _SQ_TAC_TAB;
+    var on = !!_SQ_TAC_PANELS[s.id];   // a section's tab is highlighted while its panel is open
     return '<button class="sqtac-tab' + (on ? ' is-active' : '') + '" style="--ac:' + s.ac + '" data-action="sqTacTab" data-tid="' + s.id + '" type="button"><span class="sqtac-tab-no">' + s.no + '</span>' + s.tab + '</button>';
   }).join('') + '</div>';
-  var stage = _SQ_TAC_OPEN
-    ? _sqTacFloatPanel()
-    : '<div class="sqtac-hint">Select a section above to open its floating panel — drag it by the header, resize from the corner, and close with <b>Close</b> or <b>&#10005;</b>.</div>';
+  var panels = _SQ_TAC_SECS.map(function (s) { return _SQ_TAC_PANELS[s.id] ? _sqTacFloatPanel(s.id) : ''; }).join('');
+  var stage = panels
+    ? panels
+    : '<div class="sqtac-hint">Select any section above to open its floating panel — open several at once, drag each by its header, resize from the corner, and close with <b>Close</b> or <b>&#10005;</b>.</div>';
   return '<div class="sqtac-scroll">'
     + '<div class="sqtac-note">Configure the team <b>before</b> the match — stored and read automatically by <b>Simulation</b> as the initial tactical state. No analysis on this page.</div>'
     + _sqTacSummary() + tabs + stage + '</div>';
@@ -3257,20 +3256,21 @@ function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body');
 function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); }
 function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); _sqRenderTacticsBody(); }
 function sqTacPlayer(pkey, val) { if (!pkey || val == null) return; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); _sqRenderTacticsBody(); }
-// open the floating panel for a section (or swap its content if already open); UI-only, no state change
+// open a section's floating panel; if it is already open, just bring it to the front (no duplicate). UI-only.
 function sqTacTab(id) {
   if (!id) return;
   _sqTacFpBind();
-  _SQ_TAC_TAB = id; _SQ_TAC_OPEN = true;
-  if (_SQ_TAC_POS.x == null && typeof window !== 'undefined' && window.innerWidth) { // first open → sensible centred default, clamped to viewport
-    var vw = window.innerWidth, vh = window.innerHeight;
-    _SQ_TAC_POS.w = Math.min(680, vw - 32); _SQ_TAC_POS.h = Math.min(480, vh - 150);
-    _SQ_TAC_POS.x = Math.max(12, Math.round((vw - _SQ_TAC_POS.w) / 2));
-    _SQ_TAC_POS.y = Math.max(76, Math.round((vh - _SQ_TAC_POS.h) / 2) - 10);
-  }
+  if (_SQ_TAC_PANELS[id]) { _sqTacFront(id); _sqRenderTacticsBody(); return; } // already open → front, never duplicate
+  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
+  var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+  var w = Math.min(660, vw - 32), h = Math.min(460, vh - 150);
+  var n = 0; for (var k in _SQ_TAC_PANELS) n++;                 // cascade each new panel so they don't perfectly overlap
+  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 30 - 60, vw - 90));
+  var y = Math.max(76, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 28, vh - 60));
+  _SQ_TAC_PANELS[id] = { x: x, y: y, w: w, h: h, z: (++_SQ_TAC_Z) };
   _sqRenderTacticsBody();
 }
-function sqTacClose() { _SQ_TAC_OPEN = false; _sqRenderTacticsBody(); } // closes only via X / Close button
+function sqTacClose(id) { if (id && _SQ_TAC_PANELS[id]) { delete _SQ_TAC_PANELS[id]; _sqRenderTacticsBody(); } } // closes only via its own X / Close
 
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
@@ -37910,7 +37910,7 @@ async function tosBoardSnapshot() {
         case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
         case 'sqTacTab':          if (typeof sqTacTab === 'function')          sqTacTab(el.dataset.tid); break;
-        case 'sqTacClose':        if (typeof sqTacClose === 'function')        sqTacClose(); break;
+        case 'sqTacClose':        if (typeof sqTacClose === 'function')        sqTacClose(el.dataset.tid); break;
         case 'sqTacSet':          if (typeof sqTacSet === 'function')          sqTacSet(el.dataset.grp, el.dataset.val); break;
         case 'sqTacToggle':       if (typeof sqTacToggle === 'function')       sqTacToggle(el.dataset.scope, el.dataset.key); break;
         case 'sqTacPlayer':       if (typeof sqTacPlayer === 'function')       sqTacPlayer(el.dataset.pkey, el.dataset.val); break;
