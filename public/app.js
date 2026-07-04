@@ -2028,6 +2028,8 @@ function renderSquadHTML() {
       ? _sqLineupHtml()
       : c.id === 'formation'
       ? _sqFormationHtml()
+      : c.id === 'tactics'
+      ? _sqTacticsHtml()
       : _sqSubHtml(c.id, c.label, c.iconColor, c.iconPath);
   }).join('');
 
@@ -2671,6 +2673,77 @@ function sqRemovePhoto() { _sqFormPhoto = ''; _sqUpdatePhotoPreview(); }
 
 // ── Squad · Formation (Lineup players; board, library, matchup, mentality, planning) ──
 var SQ_FORM = { mentality: 'Balanced', showOpp: false, showRoles: false, showCond: false, showMent: false, showLib: false, showTac: false, showPlan: false, showCmd: true, myFormation: '4-3-3', oppFormation: '4-4-2' };
+
+// ══ Squad · Tactics — coach pre-match configuration (stores parameters only; Simulation reads them) ══
+// Pure configuration state. No AI, no analysis — Section values are consumed by the Simulation engine
+// as its initial tactical state (see _sqTacMods + _sqSimMetricBase, and the SQ_FORM.mentality sync).
+var SQ_TACTICS_KEY = 'familista.squad.tactics.v1';
+var SQ_TACTICS = {
+  mentality: 'Balanced', style: 'Balanced',                               // Section 1 — Team Identity
+  width: 'Balanced', tempo: 'Normal', buildUp: 'Mixed', finalThird: 'Mixed', crossing: 'Mixed', // Section 2 — Attacking
+  defLine: 'Standard', pressLine: 'Medium', compactness: 'Balanced', offsideTrap: false,         // Section 3 — Defensive Shape
+  transWon: 'Counter Attack', transLost: 'Counter Press', gkDist: 'Mixed',                        // Section 4 — Transitions
+  team: {},      // Section 5 — global team instructions (key → true)
+  players: {}    // Section 6 — per-position player instructions (roleKey → instruction label)
+};
+function _sqTacticsSave() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_TACTICS_KEY, JSON.stringify(SQ_TACTICS)); } catch (e) {} }
+function _sqTacticsLoad() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) { _sqTacSyncMentality(); return; }
+    var raw = window.localStorage.getItem(SQ_TACTICS_KEY);
+    if (raw) { var o = JSON.parse(raw); if (o && typeof o === 'object') { for (var k in SQ_TACTICS) if (o[k] !== undefined) SQ_TACTICS[k] = o[k]; if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; } }
+  } catch (e) {}
+  _sqTacSyncMentality();
+}
+// keep the existing 3-state SQ_FORM.mentality in sync with the 6-level Tactics mentality
+function _sqTacSyncMentality() {
+  var m = SQ_TACTICS.mentality;
+  SQ_FORM.mentality = (m === 'Very Defensive' || m === 'Defensive') ? 'Defensive'
+    : (m === 'Positive' || m === 'Attacking' || m === 'All Out Attack') ? 'Attacking' : 'Balanced';
+}
+
+// Section options
+var _SQ_TAC_MENT = ['Very Defensive', 'Defensive', 'Balanced', 'Positive', 'Attacking', 'All Out Attack'];
+var _SQ_TAC_STYLE = ['Possession', 'Direct Play', 'Counter Attack', 'Gegenpress', 'Tiki-Taka', 'Long Ball', 'Balanced'];
+var _SQ_TAC_TEAM = [
+  ['playWider', 'Play Wider'], ['playNarrow', 'Play Narrow'], ['overlapLeft', 'Overlap Left'], ['overlapRight', 'Overlap Right'],
+  ['underlap', 'Underlap'], ['focusLeft', 'Focus Left'], ['focusCenter', 'Focus Center'], ['focusRight', 'Focus Right'],
+  ['timeWasting', 'Time Wasting'], ['higherRisk', 'Higher Risk Passing'], ['lowerRisk', 'Lower Risk Passing']
+];
+// per-position player-instruction option sets (single choice per player, first = default/neutral)
+var _SQ_TAC_ROLEOPTS = {
+  GK: ['Defend', 'Sweeper Keeper'],
+  FB: ['Hold Position', 'Overlap', 'Invert'], WBL: ['Hold Position', 'Overlap', 'Invert'], WBR: ['Hold Position', 'Overlap', 'Invert'],
+  CB: ['Defend', 'Stopper', 'Ball-Playing'],
+  DM: ['Hold', 'Roam'],
+  CM: ['Support', 'Box to Box', 'Attack'],
+  WM: ['Stay Wide', 'Cut Inside'],
+  AM: ['Support', 'Roam', 'Attack'],
+  WG: ['Stay Wide', 'Cut Inside'],
+  SS: ['Support', 'False 9', 'Press Defender'],
+  ST: ['Target Man', 'False 9', 'Press Defender']
+};
+
+// Simulation integration — translate the stored tactical parameters into metric deltas the
+// AI Tactical Intelligence engine applies to MY side's initial state (press/compact/space/counter/adv/risk).
+function _sqTacMods() {
+  var T = (typeof SQ_TACTICS !== 'undefined') ? SQ_TACTICS : null, d = { press: 0, compact: 0, space: 0, counter: 0, adv: 0, risk: 0 };
+  if (!T) return d;
+  function pick(map, v) { return map[v] || 0; }
+  var ment = pick({ 'Very Defensive': -2, 'Defensive': -1, 'Balanced': 0, 'Positive': 1, 'Attacking': 2, 'All Out Attack': 3 }, T.mentality);
+  d.press += ment * 4; d.counter += ment * 3; d.risk += ment * 4; d.compact -= ment * 3; d.adv += ment;
+  d.press += pick({ Low: -12, Medium: 0, High: 12 }, T.pressLine); d.risk += pick({ Low: -4, Medium: 0, High: 8 }, T.pressLine);
+  d.compact += pick({ Low: -12, Balanced: 0, High: 12 }, T.compactness);
+  d.space += pick({ Narrow: -8, Balanced: 0, Wide: 10 }, T.width); d.compact += pick({ Narrow: 8, Balanced: 0, Wide: -6 }, T.width);
+  d.counter += pick({ Slow: -6, Normal: 0, Fast: 8 }, T.tempo); d.press += pick({ Slow: -4, Normal: 0, Fast: 6 }, T.tempo);
+  d.press += pick({ Deep: -8, Standard: 0, High: 8 }, T.defLine); d.risk += pick({ Deep: -6, Standard: 0, High: 8 }, T.defLine); d.compact += pick({ Deep: 6, Standard: 0, High: -4 }, T.defLine);
+  d.space += pick({ 'Short Passing': 8, Mixed: 0, Direct: -6 }, T.buildUp); d.counter += pick({ 'Short Passing': -4, Mixed: 0, Direct: 8 }, T.buildUp);
+  if (T.transWon === 'Counter Attack') { d.counter += 8; d.risk += 3; } else { d.compact += 5; }
+  if (T.transLost === 'Counter Press') { d.press += 8; d.risk += 4; } else { d.compact += 5; d.risk -= 3; }
+  var st = { 'Possession': { space: 8, compact: 4, counter: -6 }, 'Direct Play': { counter: 8, space: -4 }, 'Counter Attack': { counter: 12, press: -4, risk: 4 }, 'Gegenpress': { press: 14, risk: 6, counter: 6 }, 'Tiki-Taka': { space: 12, compact: 6, counter: -8 }, 'Long Ball': { counter: 6, space: -8 }, 'Balanced': {} }[T.style] || {};
+  for (var k in st) d[k] += st[k];
+  return d;
+}
 var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
 var SQ_SETUPS = [null, null, null, null];
 var SQ_MY_IDS = null;
@@ -3006,9 +3079,112 @@ function _sqFormationBodyLegacy() {
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
 function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdOverlay === 'simulation') _sqSimBoot(); else _sqSimStop(); } }
+
+// ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
+function _sqTacEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+// segmented single-select control
+function _sqTacSeg(grp, opts, cur) {
+  return '<div class="sqtac-seg">' + opts.map(function (o) {
+    var on = (o === cur);
+    return '<button class="sqtac-seg-b' + (on ? ' is-on' : '') + '" data-action="sqTacSet" data-grp="' + grp + '" data-val="' + _sqTacEsc(o) + '" type="button">' + _sqTacEsc(o) + '</button>';
+  }).join('') + '</div>';
+}
+// ON/OFF pill toggle (scope: 'root' for top-level flags, 'team' for team-instruction flags)
+function _sqTacSwitch(scope, key, on) {
+  return '<button class="sqtac-sw' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="' + scope + '" data-key="' + key + '" type="button" aria-pressed="' + (on ? 'true' : 'false') + '">'
+    + '<span class="sqtac-sw-track"><span class="sqtac-sw-thumb"></span></span><span class="sqtac-sw-txt">' + (on ? 'ON' : 'OFF') + '</span></button>';
+}
+function _sqTacRow(label, control) { return '<div class="sqtac-row"><div class="sqtac-row-l">' + label + '</div><div class="sqtac-row-c">' + control + '</div></div>'; }
+function _sqTacSection(no, title, sub, inner) {
+  return '<section class="sqtac-sec">'
+    + '<div class="sqtac-sec-hd"><span class="sqtac-sec-no">' + no + '</span><div class="sqtac-sec-tt"><h3 class="sqtac-sec-t">' + title + '</h3><p class="sqtac-sec-sub">' + sub + '</p></div></div>'
+    + '<div class="sqtac-sec-bd">' + inner + '</div></section>';
+}
+// per-position player-instruction rows, derived live from the CURRENT formation
+function _sqTacRoleKeys() {
+  var slots = SQ_FORMATIONS[SQ_FORM.myFormation] || SQ_FORMATIONS['4-3-3'], seen = {}, out = [];
+  slots.forEach(function (s) {
+    var role = _sqSimRole(s), occ = (seen[role] = (seen[role] || 0) + 1) - 1;
+    var opts = _SQ_TAC_ROLEOPTS[role] || ['Default'];
+    out.push({ badge: s.r || role, key: role + '#' + occ, opts: opts });
+  });
+  return out;
+}
+function _sqTacPlayerRows() {
+  return _sqTacRoleKeys().map(function (r) {
+    var cur = SQ_TACTICS.players[r.key]; if (r.opts.indexOf(cur) < 0) cur = r.opts[0];
+    var seg = '<div class="sqtac-seg sqtac-seg--sm">' + r.opts.map(function (o) {
+      return '<button class="sqtac-seg-b' + (o === cur ? ' is-on' : '') + '" data-action="sqTacPlayer" data-pkey="' + _sqTacEsc(r.key) + '" data-val="' + _sqTacEsc(o) + '" type="button">' + _sqTacEsc(o) + '</button>';
+    }).join('') + '</div>';
+    return '<div class="sqtac-prow"><span class="sqtac-badge sqtac-badge--' + _sqTacPosClass(r.badge) + '">' + _sqTacEsc(r.badge) + '</span>' + seg + '</div>';
+  }).join('');
+}
+function _sqTacPosClass(b) { b = String(b); if (b === 'GK') return 'gk'; if (/B$|CB|WB/.test(b)) return 'df'; if (/M$|DM|AM|CM/.test(b)) return 'mf'; return 'fw'; }
+function _sqTacticsBody() {
+  var T = SQ_TACTICS;
+  // Section 1 — Team Identity
+  var s1 = _sqTacRow('Mentality', _sqTacSeg('mentality', _SQ_TAC_MENT, T.mentality))
+    + _sqTacRow('Team Style', _sqTacSeg('style', _SQ_TAC_STYLE, T.style));
+  // Section 2 — Attacking
+  var s2 = _sqTacRow('Width', _sqTacSeg('width', ['Narrow', 'Balanced', 'Wide'], T.width))
+    + _sqTacRow('Tempo', _sqTacSeg('tempo', ['Slow', 'Normal', 'Fast'], T.tempo))
+    + _sqTacRow('Build-Up', _sqTacSeg('buildUp', ['Short Passing', 'Mixed', 'Direct'], T.buildUp))
+    + _sqTacRow('Final Third', _sqTacSeg('finalThird', ['Work Into Box', 'Mixed', 'Shoot On Sight'], T.finalThird))
+    + _sqTacRow('Crossing', _sqTacSeg('crossing', ['Low', 'Mixed', 'High'], T.crossing));
+  // Section 3 — Defensive Shape
+  var s3 = _sqTacRow('Defensive Line', _sqTacSeg('defLine', ['Deep', 'Standard', 'High'], T.defLine))
+    + _sqTacRow('Pressing Line', _sqTacSeg('pressLine', ['Low', 'Medium', 'High'], T.pressLine))
+    + _sqTacRow('Compactness', _sqTacSeg('compactness', ['Low', 'Balanced', 'High'], T.compactness))
+    + _sqTacRow('Offside Trap', _sqTacSwitch('root', 'offsideTrap', !!T.offsideTrap));
+  // Section 4 — Transitions
+  var s4 = _sqTacRow('When Possession Won', _sqTacSeg('transWon', ['Counter Attack', 'Hold Shape'], T.transWon))
+    + _sqTacRow('When Possession Lost', _sqTacSeg('transLost', ['Counter Press', 'Regroup'], T.transLost))
+    + _sqTacRow('Goalkeeper Distribution', _sqTacSeg('gkDist', ['Short', 'Mixed', 'Long'], T.gkDist));
+  // Section 5 — Team Instructions (each ON/OFF)
+  var s5 = '<div class="sqtac-team">' + _SQ_TAC_TEAM.map(function (t) {
+    var on = !!T.team[t[0]];
+    return '<button class="sqtac-chip' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="team" data-key="' + t[0] + '" type="button" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="sqtac-chip-dot"></span>' + t[1] + '</button>';
+  }).join('') + '</div>';
+  // Section 6 — Player Instructions (from current formation)
+  var s6 = '<div class="sqtac-players">' + _sqTacPlayerRows() + '</div>';
+  return '<div class="sqtac-scroll">'
+    + '<div class="sqtac-note">Configure the team <b>before</b> the match. These settings are stored and read automatically by <b>Simulation</b> as the initial tactical state — this page performs no analysis.</div>'
+    + _sqTacSection('1', 'Team Identity', 'Overall mentality &amp; playing style', s1)
+    + _sqTacSection('2', 'Attacking', 'How the team creates and finishes', s2)
+    + _sqTacSection('3', 'Defensive Shape', 'Block height, pressing &amp; compactness', s3)
+    + _sqTacSection('4', 'Transitions', 'What happens when the ball changes hands', s4)
+    + _sqTacSection('5', 'Team Instructions', 'Global on/off directives (' + SQ_FORM.myFormation + ')', s5)
+    + _sqTacSection('6', 'Player Instructions', 'Individual roles for the current formation · ' + SQ_FORM.myFormation, s6)
+    + '</div>';
+}
+function _sqTacticsHtml() {
+  if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
+  var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
+  return '<div class="sq-sub" id="sq-sub-tactics" style="display:none">'
+    + '<div class="sq-sub-header">'
+    +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
+    +   '<div class="sql-tabs">'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button">Lineup</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button">Formation</button>'
+    +     '<button class="sql-tab is-active" type="button">Tactics</button>'
+    +   '</div>'
+    +   '<div class="sq-sub-title-row" style="margin-top:16px">'
+    +     '<svg style="width:26px;height:26px;flex-shrink:0;color:#fb923c" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>'
+    +     '<h1 class="sq-sub-title">Tactics</h1>'
+    +   '</div>'
+    + '</div>'
+    + '<div id="sqtac-body">' + _sqTacticsBody() + '</div>'
+    + '</div>';
+}
+function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body'); if (b) b.innerHTML = _sqTacticsBody(); }
+function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); }
+function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); _sqRenderTacticsBody(); }
+function sqTacPlayer(pkey, val) { if (!pkey || val == null) return; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); _sqRenderTacticsBody(); }
+
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
   if (typeof _sqSetupsLoad === 'function') _sqSetupsLoad();
+  if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
   _sqBuildBoard();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
   return '<div class="sq-sub" id="sq-sub-formation" style="display:none">'
@@ -4412,7 +4588,10 @@ function _sqSimShapeSvg(pos, M) {
 }
 function _sqSimMetricBase(c) {
   var me = c.me, op = c.op, cl = _sqSimClamp;
-  return { press: cl(50 + c.midEdge * 7 + me.fw * 2, 12, 96), space: cl(50 + c.midEdge * 6 + c.wideEdge * 3, 12, 96), compact: cl(52 + (me.def - 4) * 6 + (me.mid - 4) * 4, 12, 96), counter: cl(44 + me.fw * 7 + me.wide * 5, 12, 96), adv: cl(50 + c.midEdge * 4 + (me.def - op.fw) * 4 + c.wideEdge * 3, 8, 95), risk: cl(40 + op.wide * 7 + (op.fw > me.def ? 12 : 0) + (c.midEdge < 0 ? (-c.midEdge * 5) : 0), 8, 95) };
+  var b = { press: cl(50 + c.midEdge * 7 + me.fw * 2, 12, 96), space: cl(50 + c.midEdge * 6 + c.wideEdge * 3, 12, 96), compact: cl(52 + (me.def - 4) * 6 + (me.mid - 4) * 4, 12, 96), counter: cl(44 + me.fw * 7 + me.wide * 5, 12, 96), adv: cl(50 + c.midEdge * 4 + (me.def - op.fw) * 4 + c.wideEdge * 3, 8, 95), risk: cl(40 + op.wide * 7 + (op.fw > me.def ? 12 : 0) + (c.midEdge < 0 ? (-c.midEdge * 5) : 0), 8, 95) };
+  // Coach's Tactics-page configuration feeds the my-side initial state (my context only).
+  if (c.tac && typeof _sqTacMods === 'function') { var d = _sqTacMods(); for (var k in d) if (b[k] != null) b[k] = cl(b[k] + d[k], 8, 98); }
+  return b;
 }
 var _SQ_METRICS = [['press', 'Press'], ['compact', 'Compactness'], ['space', 'Connect'], ['counter', 'Counter'], ['adv', 'Tactical Adv'], ['risk', 'Risk']];
 var _SQ_METRIC_EMPH = { build: ['space'], press: ['press'], left: ['press', 'compact'], right: ['press', 'compact'], centre: ['compact'], overload: ['risk', 'compact'], counter: ['counter'], block: ['compact', 'risk'], recover: ['risk'], summary: ['adv'], shape: ['compact'], strong: ['adv'] };
@@ -5471,6 +5650,7 @@ var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate
 function _sqTcSimulation(my, op) {
   var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
   _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M); _sqSim.ctxOpp = _sqSimCtx({ my: M.opp, opp: M.my });
+  _sqSim.ctx.tac = 1; // mark my-side context so the Tactics-page config only modifies my team's metrics
   var styleVars = '--sqx-h1:145;--sqx-h2:300';
   var c = _sqSim.ctx, co = _sqSim.ctxOpp, cl = _sqSimClamp;
   // static side-panel stats (engine animates the six metric bars per scene)
@@ -37638,6 +37818,9 @@ async function tosBoardSnapshot() {
         case 'sqPlanningClose':   if (typeof sqPlanningClose === 'function')   sqPlanningClose();    break;
         case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
+        case 'sqTacSet':          if (typeof sqTacSet === 'function')          sqTacSet(el.dataset.grp, el.dataset.val); break;
+        case 'sqTacToggle':       if (typeof sqTacToggle === 'function')       sqTacToggle(el.dataset.scope, el.dataset.key); break;
+        case 'sqTacPlayer':       if (typeof sqTacPlayer === 'function')       sqTacPlayer(el.dataset.pkey, el.dataset.val); break;
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
         case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
         case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(); break;

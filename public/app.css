@@ -3262,6 +3262,51 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 }
 .sql-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.06); }
 .sql-tab.is-active{ color:#0b1020; background:#f4b740; border-color:#f4b740; cursor:default; }
+
+/* ════ Squad · Tactics — coach configuration center ════ */
+.sqtac-scroll{ padding:20px 32px 60px; max-width:1080px; }
+.sqtac-note{ font-size:12.5px; line-height:1.5; color:#aab4c5; background:linear-gradient(135deg,rgba(251,146,60,.10),rgba(251,146,60,.02)); border:1px solid rgba(251,146,60,.22); border-radius:12px; padding:12px 16px; margin-bottom:20px; }
+.sqtac-note b{ color:#fbbf24; font-weight:800; }
+.sqtac-sec{ background:linear-gradient(168deg,#0f1830,#0b1220); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:18px 20px; margin-bottom:16px; box-shadow:0 10px 30px rgba(0,0,0,.28); }
+.sqtac-sec-hd{ display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,.07); }
+.sqtac-sec-no{ flex:0 0 auto; width:28px; height:28px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:800; color:#1a1205; background:linear-gradient(135deg,#f4b740,#e09c2a); box-shadow:0 4px 12px rgba(244,183,64,.3); }
+.sqtac-sec-tt{ min-width:0; }
+.sqtac-sec-t{ margin:0; font-size:15px; font-weight:800; color:#f1f5f9; letter-spacing:-.2px; }
+.sqtac-sec-sub{ margin:2px 0 0; font-size:11.5px; color:#7e8aa0; }
+.sqtac-sec-bd{ display:flex; flex-direction:column; gap:12px; }
+.sqtac-row{ display:grid; grid-template-columns:170px minmax(0,1fr); gap:16px; align-items:center; }
+.sqtac-row-l{ font-size:13px; font-weight:700; color:#cbd5e1; }
+.sqtac-row-c{ min-width:0; }
+.sqtac-seg{ display:inline-flex; flex-wrap:wrap; gap:5px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:11px; padding:4px; }
+.sqtac-seg-b{ appearance:none; border:1px solid transparent; background:transparent; color:#9aa6ba; font-size:12px; font-weight:700; letter-spacing:-.1px; padding:7px 14px; border-radius:8px; cursor:pointer; transition:all .15s ease; white-space:nowrap; }
+.sqtac-seg-b:hover{ color:#f1f5f9; background:rgba(255,255,255,.06); }
+.sqtac-seg-b.is-on{ color:#04140a; background:linear-gradient(135deg,#34d77a,#16a34a); border-color:transparent; box-shadow:0 3px 10px rgba(52,215,122,.32); }
+.sqtac-seg--sm .sqtac-seg-b{ padding:5px 11px; font-size:11px; }
+/* ON/OFF switch */
+.sqtac-sw{ display:inline-flex; align-items:center; gap:9px; background:none; border:none; cursor:pointer; padding:0; }
+.sqtac-sw-track{ width:42px; height:23px; border-radius:12px; background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.14); position:relative; transition:background .18s ease; }
+.sqtac-sw-thumb{ position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:#cbd5e1; transition:transform .18s ease,background .18s ease; }
+.sqtac-sw.is-on .sqtac-sw-track{ background:linear-gradient(135deg,#34d77a,#16a34a); border-color:transparent; }
+.sqtac-sw.is-on .sqtac-sw-thumb{ transform:translateX(19px); background:#04140a; }
+.sqtac-sw-txt{ font-size:11px; font-weight:800; letter-spacing:.08em; color:#8a94a6; min-width:24px; text-align:left; }
+.sqtac-sw.is-on .sqtac-sw-txt{ color:#7CFFB0; }
+/* team-instruction chips */
+.sqtac-team{ display:flex; flex-wrap:wrap; gap:9px; }
+.sqtac-chip{ display:inline-flex; align-items:center; gap:8px; appearance:none; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.10); color:#9aa6ba; font-size:12.5px; font-weight:700; padding:9px 14px; border-radius:10px; cursor:pointer; transition:all .15s ease; }
+.sqtac-chip-dot{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.18); transition:all .15s ease; }
+.sqtac-chip:hover{ color:#f1f5f9; border-color:rgba(255,255,255,.2); }
+.sqtac-chip.is-on{ color:#eaf2ff; background:rgba(52,215,122,.10); border-color:rgba(52,215,122,.5); }
+.sqtac-chip.is-on .sqtac-chip-dot{ background:#34d77a; box-shadow:0 0 8px rgba(52,215,122,.7); }
+/* player-instruction rows */
+.sqtac-players{ display:flex; flex-direction:column; gap:9px; }
+.sqtac-prow{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.sqtac-badge{ flex:0 0 auto; min-width:44px; text-align:center; font-size:12px; font-weight:800; letter-spacing:.02em; padding:6px 9px; border-radius:8px; }
+.sqtac-badge--gk{ background:rgba(250,204,21,.16); color:#fde047; }
+.sqtac-badge--df{ background:rgba(56,189,248,.16); color:#7dd3fc; }
+.sqtac-badge--mf{ background:rgba(52,215,122,.16); color:#7CFFB0; }
+.sqtac-badge--fw{ background:rgba(232,91,208,.16); color:#f5a7e8; }
+@media (max-width:720px){ .sqtac-row{ grid-template-columns:1fr; gap:7px; } .sqtac-scroll{ padding:18px 18px 60px; } }
+
 .sql-meta{ display:flex; align-items:baseline; gap:10px; padding:22px 32px 12px; }
 .sql-meta-title{ font-size:18px; font-weight:700; color:var(--tx-1,#f1f5f9); letter-spacing:-.3px; }
 .sql-meta-count{ font-size:12.5px; color:var(--tx-3,#7e8aa0); }
