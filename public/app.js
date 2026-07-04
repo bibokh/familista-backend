@@ -3094,12 +3094,18 @@ function _sqTacSwitch(scope, key, on) {
   return '<button class="sqtac-sw' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="' + scope + '" data-key="' + key + '" type="button" aria-pressed="' + (on ? 'true' : 'false') + '">'
     + '<span class="sqtac-sw-track"><span class="sqtac-sw-thumb"></span></span><span class="sqtac-sw-txt">' + (on ? 'ON' : 'OFF') + '</span></button>';
 }
-function _sqTacRow(label, control) { return '<div class="sqtac-row"><div class="sqtac-row-l">' + label + '</div><div class="sqtac-row-c">' + control + '</div></div>'; }
-function _sqTacSection(no, title, sub, inner) {
-  return '<section class="sqtac-sec">'
-    + '<div class="sqtac-sec-hd"><span class="sqtac-sec-no">' + no + '</span><div class="sqtac-sec-tt"><h3 class="sqtac-sec-t">' + title + '</h3><p class="sqtac-sec-sub">' + sub + '</p></div></div>'
-    + '<div class="sqtac-sec-bd">' + inner + '</div></section>';
-}
+// compact labelled control (label on top, control below) — packs into a responsive grid
+function _sqTacField(label, control, wide) { return '<div class="sqtac-field' + (wide ? ' sqtac-field--wide' : '') + '"><span class="sqtac-field-l">' + label + '</span><div class="sqtac-field-c">' + control + '</div></div>'; }
+// internal section tabs — each colour-coded (subtle accent per section)
+var _SQ_TAC_SECS = [
+  { id: 'identity', no: '1', title: 'Team Identity', tab: 'Identity', ac: '139,92,246' },   // purple / blue
+  { id: 'attacking', no: '2', title: 'Attacking', tab: 'Attacking', ac: '249,115,22' },      // red / orange
+  { id: 'defensive', no: '3', title: 'Defensive Shape', tab: 'Defense', ac: '20,184,166' },  // green / teal
+  { id: 'transitions', no: '4', title: 'Transitions', tab: 'Transitions', ac: '245,158,11' },// yellow / amber
+  { id: 'team', no: '5', title: 'Team Instructions', tab: 'Team', ac: '34,211,238' },        // cyan / blue
+  { id: 'players', no: '6', title: 'Player Instructions', tab: 'Players', ac: '236,72,153' } // pink / violet
+];
+var _SQ_TAC_TAB = 'identity'; // active internal section (UI state only — not persisted, not read by Simulation)
 // per-position player-instruction rows, derived live from the CURRENT formation
 function _sqTacRoleKeys() {
   var slots = SQ_FORMATIONS[SQ_FORM.myFormation] || SQ_FORMATIONS['4-3-3'], seen = {}, out = [];
@@ -3120,42 +3126,58 @@ function _sqTacPlayerRows() {
   }).join('');
 }
 function _sqTacPosClass(b) { b = String(b); if (b === 'GK') return 'gk'; if (/B$|CB|WB/.test(b)) return 'df'; if (/M$|DM|AM|CM/.test(b)) return 'mf'; return 'fw'; }
-function _sqTacticsBody() {
+// compact live summary cards (reflect current config; update on every change)
+function _sqTacSummary() {
+  var T = SQ_TACTICS, cards = [
+    ['Mentality', T.mentality, '139,92,246'], ['Team Style', T.style, '236,72,153'], ['Pressing', T.pressLine, '20,184,166'],
+    ['Width', T.width, '249,115,22'], ['Tempo', T.tempo, '245,158,11'], ['Def. Line', T.defLine, '34,211,238']
+  ];
+  return '<div class="sqtac-summary">' + cards.map(function (c) {
+    return '<div class="sqtac-sum" style="--ac:' + c[2] + '"><span class="sqtac-sum-l">' + c[0] + '</span><b class="sqtac-sum-v">' + _sqTacEsc(c[1]) + '</b></div>';
+  }).join('') + '</div>';
+}
+// content for one internal section (compact field grid)
+function _sqTacSecContent(id) {
   var T = SQ_TACTICS;
-  // Section 1 — Team Identity
-  var s1 = _sqTacRow('Mentality', _sqTacSeg('mentality', _SQ_TAC_MENT, T.mentality))
-    + _sqTacRow('Team Style', _sqTacSeg('style', _SQ_TAC_STYLE, T.style));
-  // Section 2 — Attacking
-  var s2 = _sqTacRow('Width', _sqTacSeg('width', ['Narrow', 'Balanced', 'Wide'], T.width))
-    + _sqTacRow('Tempo', _sqTacSeg('tempo', ['Slow', 'Normal', 'Fast'], T.tempo))
-    + _sqTacRow('Build-Up', _sqTacSeg('buildUp', ['Short Passing', 'Mixed', 'Direct'], T.buildUp))
-    + _sqTacRow('Final Third', _sqTacSeg('finalThird', ['Work Into Box', 'Mixed', 'Shoot On Sight'], T.finalThird))
-    + _sqTacRow('Crossing', _sqTacSeg('crossing', ['Low', 'Mixed', 'High'], T.crossing));
-  // Section 3 — Defensive Shape
-  var s3 = _sqTacRow('Defensive Line', _sqTacSeg('defLine', ['Deep', 'Standard', 'High'], T.defLine))
-    + _sqTacRow('Pressing Line', _sqTacSeg('pressLine', ['Low', 'Medium', 'High'], T.pressLine))
-    + _sqTacRow('Compactness', _sqTacSeg('compactness', ['Low', 'Balanced', 'High'], T.compactness))
-    + _sqTacRow('Offside Trap', _sqTacSwitch('root', 'offsideTrap', !!T.offsideTrap));
-  // Section 4 — Transitions
-  var s4 = _sqTacRow('When Possession Won', _sqTacSeg('transWon', ['Counter Attack', 'Hold Shape'], T.transWon))
-    + _sqTacRow('When Possession Lost', _sqTacSeg('transLost', ['Counter Press', 'Regroup'], T.transLost))
-    + _sqTacRow('Goalkeeper Distribution', _sqTacSeg('gkDist', ['Short', 'Mixed', 'Long'], T.gkDist));
-  // Section 5 — Team Instructions (each ON/OFF)
-  var s5 = '<div class="sqtac-team">' + _SQ_TAC_TEAM.map(function (t) {
+  if (id === 'identity') return '<div class="sqtac-fields">'
+    + _sqTacField('Mentality', _sqTacSeg('mentality', _SQ_TAC_MENT, T.mentality), true)
+    + _sqTacField('Team Style', _sqTacSeg('style', _SQ_TAC_STYLE, T.style), true) + '</div>';
+  if (id === 'attacking') return '<div class="sqtac-fields">'
+    + _sqTacField('Width', _sqTacSeg('width', ['Narrow', 'Balanced', 'Wide'], T.width))
+    + _sqTacField('Tempo', _sqTacSeg('tempo', ['Slow', 'Normal', 'Fast'], T.tempo))
+    + _sqTacField('Build-Up', _sqTacSeg('buildUp', ['Short Passing', 'Mixed', 'Direct'], T.buildUp))
+    + _sqTacField('Final Third', _sqTacSeg('finalThird', ['Work Into Box', 'Mixed', 'Shoot On Sight'], T.finalThird))
+    + _sqTacField('Crossing', _sqTacSeg('crossing', ['Low', 'Mixed', 'High'], T.crossing)) + '</div>';
+  if (id === 'defensive') return '<div class="sqtac-fields">'
+    + _sqTacField('Defensive Line', _sqTacSeg('defLine', ['Deep', 'Standard', 'High'], T.defLine))
+    + _sqTacField('Pressing Line', _sqTacSeg('pressLine', ['Low', 'Medium', 'High'], T.pressLine))
+    + _sqTacField('Compactness', _sqTacSeg('compactness', ['Low', 'Balanced', 'High'], T.compactness))
+    + _sqTacField('Offside Trap', _sqTacSwitch('root', 'offsideTrap', !!T.offsideTrap)) + '</div>';
+  if (id === 'transitions') return '<div class="sqtac-fields">'
+    + _sqTacField('When Possession Won', _sqTacSeg('transWon', ['Counter Attack', 'Hold Shape'], T.transWon))
+    + _sqTacField('When Possession Lost', _sqTacSeg('transLost', ['Counter Press', 'Regroup'], T.transLost))
+    + _sqTacField('Goalkeeper Distribution', _sqTacSeg('gkDist', ['Short', 'Mixed', 'Long'], T.gkDist)) + '</div>';
+  if (id === 'team') return '<div class="sqtac-team">' + _SQ_TAC_TEAM.map(function (t) {
     var on = !!T.team[t[0]];
     return '<button class="sqtac-chip' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="team" data-key="' + t[0] + '" type="button" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="sqtac-chip-dot"></span>' + t[1] + '</button>';
   }).join('') + '</div>';
-  // Section 6 — Player Instructions (from current formation)
-  var s6 = '<div class="sqtac-players">' + _sqTacPlayerRows() + '</div>';
+  // players
+  return '<div class="sqtac-players">' + _sqTacPlayerRows() + '</div>';
+}
+function _sqTacticsBody() {
+  var active = _SQ_TAC_TAB, sec = null;
+  var tabs = '<div class="sqtac-tabs">' + _SQ_TAC_SECS.map(function (s) {
+    if (s.id === active) sec = s;
+    return '<button class="sqtac-tab' + (s.id === active ? ' is-active' : '') + '" style="--ac:' + s.ac + '" data-action="sqTacTab" data-tid="' + s.id + '" type="button"><span class="sqtac-tab-no">' + s.no + '</span>' + s.tab + '</button>';
+  }).join('') + '</div>';
+  if (!sec) { sec = _SQ_TAC_SECS[0]; active = sec.id; }
+  var panel = '<section class="sqtac-panel" style="--ac:' + sec.ac + '">'
+    + '<h3 class="sqtac-panel-t"><span class="sqtac-panel-no">' + sec.no + '</span>' + sec.title
+    + (sec.id === 'players' || sec.id === 'team' ? '<em class="sqtac-panel-tag">' + SQ_FORM.myFormation + '</em>' : '') + '</h3>'
+    + '<div class="sqtac-panel-bd">' + _sqTacSecContent(sec.id) + '</div></section>';
   return '<div class="sqtac-scroll">'
-    + '<div class="sqtac-note">Configure the team <b>before</b> the match. These settings are stored and read automatically by <b>Simulation</b> as the initial tactical state — this page performs no analysis.</div>'
-    + _sqTacSection('1', 'Team Identity', 'Overall mentality &amp; playing style', s1)
-    + _sqTacSection('2', 'Attacking', 'How the team creates and finishes', s2)
-    + _sqTacSection('3', 'Defensive Shape', 'Block height, pressing &amp; compactness', s3)
-    + _sqTacSection('4', 'Transitions', 'What happens when the ball changes hands', s4)
-    + _sqTacSection('5', 'Team Instructions', 'Global on/off directives (' + SQ_FORM.myFormation + ')', s5)
-    + _sqTacSection('6', 'Player Instructions', 'Individual roles for the current formation · ' + SQ_FORM.myFormation, s6)
-    + '</div>';
+    + '<div class="sqtac-note">Configure the team <b>before</b> the match — stored and read automatically by <b>Simulation</b> as the initial tactical state. No analysis on this page.</div>'
+    + _sqTacSummary() + tabs + panel + '</div>';
 }
 function _sqTacticsHtml() {
   if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
@@ -3180,6 +3202,7 @@ function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body');
 function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); }
 function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); _sqRenderTacticsBody(); }
 function sqTacPlayer(pkey, val) { if (!pkey || val == null) return; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); _sqRenderTacticsBody(); }
+function sqTacTab(id) { if (!id) return; _SQ_TAC_TAB = id; _sqRenderTacticsBody(); } // switch internal section (UI only)
 
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
@@ -37818,6 +37841,7 @@ async function tosBoardSnapshot() {
         case 'sqPlanningClose':   if (typeof sqPlanningClose === 'function')   sqPlanningClose();    break;
         case 'sqCommand':         if (typeof sqCommand === 'function')         sqCommand();          break;
         case 'sqCommandClose':    if (typeof sqCommandClose === 'function')    sqCommandClose();     break;
+        case 'sqTacTab':          if (typeof sqTacTab === 'function')          sqTacTab(el.dataset.tid); break;
         case 'sqTacSet':          if (typeof sqTacSet === 'function')          sqTacSet(el.dataset.grp, el.dataset.val); break;
         case 'sqTacToggle':       if (typeof sqTacToggle === 'function')       sqTacToggle(el.dataset.scope, el.dataset.key); break;
         case 'sqTacPlayer':       if (typeof sqTacPlayer === 'function')       sqTacPlayer(el.dataset.pkey, el.dataset.val); break;
