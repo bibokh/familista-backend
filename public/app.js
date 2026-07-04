@@ -4967,7 +4967,7 @@ function _sqSimIntelHtml() {
     + '<div class="sqcc-adv">' + adv + '</div>'
     + '<div class="sqcc-ai">'
     + '<div class="sqcc-ai-c sqcc-ai-c--assist"><span class="sqcc-ai-h">◈ AI ASSISTANT</span><span class="sqcc-ai-x" data-role="why">—</span></div>'
-    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimBrain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimDToggle" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimOAI" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimWIToggle" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button> <button class="sqcc-pred-btn" data-action="sqSimPred" type="button" title="Open the Tactical Prediction Engine">🔭 PREDICT</button> <button class="sqcc-rep-btn" data-action="sqSimReport" type="button" title="Open the Post-Match Tactical Analysis">📋 REPORT</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
+    + '<div class="sqcc-ai-c sqcc-ai-c--rec"><span class="sqcc-ai-h">▶ AI RECOMMENDATION <button class="sqcc-brain-btn" data-action="sqSimPanel" data-panel="brain" type="button" title="Open the AI Tactical Brain">🧠 BRAIN</button> <button class="sqcc-dec-btn" data-action="sqSimPanel" data-panel="decisions" type="button" title="Open the AI Tactical Decision Engine">⚙ DECISIONS</button> <button class="sqcc-oai-btn" data-action="sqSimPanel" data-panel="opponent" type="button" title="Open the Dynamic Opponent AI">🤖 OPPONENT</button> <button class="sqcc-wi-btn" data-action="sqSimPanel" data-panel="whatif" type="button" title="Open the What-If Tactical Simulator">🔮 WHAT-IF</button> <button class="sqcc-pred-btn" data-action="sqSimPanel" data-panel="predict" type="button" title="Open the Tactical Prediction Engine">🔭 PREDICT</button> <button class="sqcc-rep-btn" data-action="sqSimPanel" data-panel="report" type="button" title="Open the Post-Match Tactical Analysis">📋 REPORT</button></span><span class="sqcc-ai-x"><b data-role="rec-t">—</b> <span class="sqcc-conf" data-role="conf"></span></span></div>'
     + '<div class="sqcc-ai-c sqcc-ai-c--opp"><span class="sqcc-ai-h">⚑ OPPONENT COACH</span><span class="sqcc-ai-x" data-role="oppcoach">—</span></div>'
     + '</div>'
     + '<div class="sqcc-timeline"><span class="sqcc-tl-h">TACTICAL TIMELINE</span><div class="sqcc-tl-row" data-role="timeline">' + _sqSimTimelineHtml(_sqSim.scenes) + '</div></div>'
@@ -4988,9 +4988,80 @@ function _sqSimCoachOverlayHtml() {
     + '<div class="sqcc-cc sqcc-cc--pri"><h5>PRIORITY FIX</h5><p data-role="coach-pri"></p></div>'
     + '</div></div></div>';
 }
+// ── Floating-panel manager for the Simulation AI modules ──────────────────────────
+// Turns the 6 AI overlays (BRAIN/DECISIONS/OPPONENT/WHAT-IF/PREDICT/REPORT) into
+// draggable/resizable glass panels. Multiple open at once; opening only opens/raises
+// (never closes — closing is via each panel's ✕/Close). No AI logic or state changes:
+// the existing per-scene paint functions and `_sqSim.*Open` flags are reused verbatim.
+var _SQ_SIM_FLAG = { brain: 'brainOpen', decisions: 'dOpen', opponent: 'oaiOpen', whatif: 'wiOpen', predict: 'predOpen', report: 'reportOpen' };
+var _SQ_SIM_BTN = { brain: '.sqcc-brain-btn', decisions: '.sqcc-dec-btn', opponent: '.sqcc-oai-btn', whatif: '.sqcc-wi-btn', predict: '.sqcc-pred-btn', report: '.sqcc-rep-btn' };
+var _sqSimZ = 900, _sqSimDrag = null;
+function _sqSimPanelPaint(id) {
+  switch (id) {
+    case 'brain': if (typeof _sqSimBrainPaint === 'function') _sqSimBrainPaint(); break;
+    case 'decisions': if (typeof _sqSimDPaint === 'function') _sqSimDPaint(); break;
+    case 'opponent': if (typeof _sqSimOAIPaint === 'function') _sqSimOAIPaint(); break;
+    case 'whatif': if (typeof _sqSimWIPaint === 'function') _sqSimWIPaint(); break;
+    case 'predict': if (typeof _sqSimPredPaint === 'function') _sqSimPredPaint(); break;
+    case 'report': if (typeof _sqSimReportPaint === 'function') _sqSimReportPaint(); break;
+  }
+}
+function _sqSimPanelEl(id) { return _sqSim.el ? _sqSim.el.querySelector('[data-simpanel="' + id + '"]') : null; }
+function _sqSimPanelPlace(el) {              // cascade a sensible default position/size once, clamped to viewport
+  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
+  var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+  var w = Math.min(940, vw - 40), h = Math.min(540, vh - 140);
+  var n = _sqSim.el ? _sqSim.el.querySelectorAll('[data-simpanel][data-placed]').length : 0;
+  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 30 - 60, vw - 100));
+  var y = Math.max(66, Math.min(Math.round((vh - h) / 2) - 24 + (n % 5) * 28, vh - 80));
+  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px';
+}
+function sqSimPanel(id) {                    // open, or if already open just bring to front (never duplicates, never closes)
+  if (!id || !_sqSim.el) return;
+  _sqSimPanelBind();
+  var el = _sqSimPanelEl(id); if (!el) return;
+  if (!el.getAttribute('data-placed')) { _sqSimPanelPlace(el); el.setAttribute('data-placed', '1'); }
+  _sqSim[_SQ_SIM_FLAG[id]] = true;
+  el.hidden = false; el.classList.add('is-on'); el.style.zIndex = (++_sqSimZ);
+  var b = _sqSim.el.querySelector(_SQ_SIM_BTN[id]); if (b) b.classList.add('is-on');
+  _sqSimPanelPaint(id);
+}
+function sqSimPanelClose(id) {               // closes ONLY via a panel's own ✕ / Close button
+  if (!id || !_sqSim.el) return;
+  var el = _sqSimPanelEl(id); if (!el) return;
+  _sqSim[_SQ_SIM_FLAG[id]] = false;
+  el.hidden = true; el.classList.remove('is-on');
+  var b = _sqSim.el.querySelector(_SQ_SIM_BTN[id]); if (b) b.classList.remove('is-on');
+}
+function _sqSimPanelBind() {                 // drag + bring-to-front + viewport-clamp (bound once)
+  if (_sqSim._pbound || typeof document === 'undefined' || !document.addEventListener) return;
+  _sqSim._pbound = true;
+  document.addEventListener('mousedown', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var fp = t.closest('[data-simpanel]');
+    if (fp) fp.style.zIndex = (++_sqSimZ);                       // click any panel → front
+    if (t.closest('button')) return;                            // never drag from the close buttons / controls
+    var h = t.closest('[data-simdrag]'); if (!h || !fp) return;
+    var r = fp.getBoundingClientRect();
+    _sqSimDrag = { fp: fp, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!_sqSimDrag) return;
+    var fp = _sqSimDrag.fp, vw = window.innerWidth, vh = window.innerHeight, w = fp.offsetWidth;
+    var x = Math.max(6, Math.min(e.clientX - _sqSimDrag.dx, vw - Math.min(w, vw) - 6));
+    var y = Math.max(6, Math.min(e.clientY - _sqSimDrag.dy, vh - 44));   // keep the header on-screen
+    fp.style.left = x + 'px'; fp.style.top = y + 'px';
+  });
+  document.addEventListener('mouseup', function () { _sqSimDrag = null; });
+  window.addEventListener('resize', function () {                // keep every open panel inside the viewport
+    if (!_sqSim.el) return; var vw = window.innerWidth, vh = window.innerHeight, els = _sqSim.el.querySelectorAll('[data-simpanel]');
+    for (var i = 0; i < els.length; i++) { var el = els[i]; if (el.hidden) continue; var r = el.getBoundingClientRect(); el.style.left = Math.max(6, Math.min(r.left, vw - 100)) + 'px'; el.style.top = Math.max(6, Math.min(r.top, vh - 44)) + 'px'; }
+  });
+}
 function _sqSimBrainOverlayHtml() {
-  return '<div class="sqcc-brain" data-role="brain" hidden><div class="sqcc-brain-in">'
-    + '<div class="sqcc-brain-hd"><span>🧠 AI TACTICAL BRAIN</span><span class="sqcc-brain-ctrl" data-role="brain-ctrl">control 50%</span><button class="sqcc-brain-x" data-action="sqSimBrain" type="button">✕ Close</button></div>'
+  return '<div class="sqcc-brain sqcc-flp" data-simpanel="brain" data-role="brain" hidden><div class="sqcc-brain-in sqcc-flp-in">'
+    + '<div class="sqcc-brain-hd" data-simdrag="1"><span>🧠 AI TACTICAL BRAIN</span><span class="sqcc-brain-ctrl" data-role="brain-ctrl">control 50%</span><button class="sqcc-brain-x" data-action="sqSimPanelClose" data-panel="brain" type="button">✕ Close</button></div>'
     + '<div class="sqcc-brain-grid">'
     + '<div class="sqcc-bcard sqcc-bcard--core"><h5>◈ TACTICAL READ</h5><ul class="sqcc-bcore">'
     + '<li><b>Why</b><span data-role="b-situation"></span></li>'
@@ -5175,8 +5246,8 @@ function _sqSimDPaint() {
   var cc = root.querySelector('[data-role="dengine-min"]'); if (cc) cc.textContent = D.minute + '\' · ' + D.all.length + ' triggers active';
 }
 function _sqSimDOverlayHtml() {
-  return '<div class="sqcc-dengine" data-role="dengine" hidden><div class="sqcc-dengine-in">'
-    + '<div class="sqcc-dengine-hd"><span>⚙ AI TACTICAL DECISION ENGINE</span><span class="sqcc-dengine-min" data-role="dengine-min"></span><button class="sqcc-dengine-x" data-action="sqSimDToggle" type="button">✕ Close</button></div>'
+  return '<div class="sqcc-dengine sqcc-flp" data-simpanel="decisions" data-role="dengine" hidden><div class="sqcc-dengine-in sqcc-flp-in">'
+    + '<div class="sqcc-dengine-hd" data-simdrag="1"><span>⚙ AI TACTICAL DECISION ENGINE</span><span class="sqcc-dengine-min" data-role="dengine-min"></span><button class="sqcc-dengine-x" data-action="sqSimPanelClose" data-panel="decisions" type="button">✕ Close</button></div>'
     + '<div class="sqcc-dengine-grid">'
     + '<div class="sqcc-dsec sqcc-dsec--live"><h5>⚡ LIVE DECISIONS (ranked)</h5><div data-role="d-live"></div></div>'
     + '<div class="sqcc-dsec sqcc-dsec--side">'
@@ -5265,8 +5336,8 @@ function _sqSimOAIPaint() {
   var hd = root.querySelector('[data-role="oai-min"]'); if (hd) hd.textContent = O.decisions + ' reactions · momentum ' + mo + '%';
 }
 function _sqSimOAIOverlayHtml() {
-  return '<div class="sqcc-oai" data-role="oai" hidden><div class="sqcc-oai-in">'
-    + '<div class="sqcc-oai-hd"><span>🤖 DYNAMIC OPPONENT AI</span><span class="sqcc-oai-min" data-role="oai-min"></span><button class="sqcc-oai-x" data-action="sqSimOAI" type="button">✕ Close</button></div>'
+  return '<div class="sqcc-oai sqcc-flp" data-simpanel="opponent" data-role="oai" hidden><div class="sqcc-oai-in sqcc-flp-in">'
+    + '<div class="sqcc-oai-hd" data-simdrag="1"><span>🤖 DYNAMIC OPPONENT AI</span><span class="sqcc-oai-min" data-role="oai-min"></span><button class="sqcc-oai-x" data-action="sqSimPanelClose" data-panel="opponent" type="button">✕ Close</button></div>'
     + '<div class="sqcc-oai-grid">'
     + '<div class="sqcc-ocard sqcc-ocard--read"><h5>👁 OPPONENT READS YOU</h5><p data-role="o-read"></p><div class="sqcc-onow" data-role="o-now"></div><div class="sqcc-omom" data-role="o-mom"></div><div class="sqcc-oimp-row" data-role="o-impact"></div></div>'
     + '<div class="sqcc-ocard sqcc-ocard--mem"><h5>🧠 TACTICAL MEMORY</h5><ul class="sqcc-omem" data-role="o-mem"></ul></div>'
@@ -5408,10 +5479,10 @@ function sqSimWIToggle() {
   var btn = _sqSim.el.querySelector('.sqcc-wi-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.wiOpen);
 }
 function _sqSimWIOverlayHtml() {
-  return '<div class="sqcc-wi" data-role="whatif" hidden><div class="sqcc-wi-in">'
-    + '<div class="sqcc-wi-hd"><span>🔮 WHAT-IF TACTICAL SIMULATOR</span>'
+  return '<div class="sqcc-wi sqcc-flp" data-simpanel="whatif" data-role="whatif" hidden><div class="sqcc-wi-in sqcc-flp-in">'
+    + '<div class="sqcc-wi-hd" data-simdrag="1"><span>🔮 WHAT-IF TACTICAL SIMULATOR</span>'
     + '<span class="sqcc-wi-scope"><button data-action="sqSimWIScope" data-scope="scenario" type="button" class="is-on">Current</button><button data-action="sqSimWIScope" data-scope="next5" type="button">Next 5 min</button><button data-action="sqSimWIScope" data-scope="full" type="button">Full projection</button></span>'
-    + '<button class="sqcc-wi-x" data-action="sqSimWIToggle" type="button">✕ Close</button></div>'
+    + '<button class="sqcc-wi-x" data-action="sqSimPanelClose" data-panel="whatif" type="button">✕ Close</button></div>'
     + '<div class="sqcc-wi-grid"><div class="sqcc-wi-opts" data-role="wi-opts"></div><div class="sqcc-wi-res" data-role="wi-res"></div></div>'
     + '</div></div>';
 }
@@ -5522,8 +5593,8 @@ function sqSimPred() {
   var btn = _sqSim.el.querySelector('.sqcc-pred-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.predOpen);
 }
 function _sqSimPredOverlayHtml() {
-  return '<div class="sqcc-pred" data-role="predict" hidden><div class="sqcc-pred-in">'
-    + '<div class="sqcc-pred-hd"><span>🔭 TACTICAL PREDICTION ENGINE</span><span class="sqcc-pred-min" data-role="pred-min"></span><button class="sqcc-pred-x" data-action="sqSimPred" type="button">✕ Close</button></div>'
+  return '<div class="sqcc-pred sqcc-flp" data-simpanel="predict" data-role="predict" hidden><div class="sqcc-pred-in sqcc-flp-in">'
+    + '<div class="sqcc-pred-hd" data-simdrag="1"><span>🔭 TACTICAL PREDICTION ENGINE</span><span class="sqcc-pred-min" data-role="pred-min"></span><button class="sqcc-pred-x" data-action="sqSimPanelClose" data-panel="predict" type="button">✕ Close</button></div>'
     + '<div class="sqcc-pred-grid">'
     + '<div class="sqcc-pcard sqcc-pcard--live"><h5>🔮 LIVE PREDICTIONS</h5><ul class="sqcc-pr-list" data-role="pr-live"></ul></div>'
     + '<div class="sqcc-pcard"><h5>📊 TACTICAL FORECAST (→ 5 min)</h5><table class="sqcc-pr-tbl"><thead><tr><th>Metric</th><th>Now</th><th>Predicted</th><th>Conf</th></tr></thead><tbody data-role="pr-forecast"></tbody></table></div>'
@@ -5718,8 +5789,8 @@ function sqSimReport() {
   var btn = _sqSim.el.querySelector('.sqcc-rep-btn'); if (btn) btn.classList.toggle('is-on', _sqSim.reportOpen);
 }
 function _sqSimReportOverlayHtml() {
-  return '<div class="sqcc-report" data-role="report" data-export="post-match" hidden><div class="sqcc-report-in">'
-    + '<div class="sqcc-report-hd"><span>📋 POST-MATCH TACTICAL ANALYSIS</span><span class="sqcc-report-exp">PDF · Print · Share — structure ready</span><button class="sqcc-report-x" data-action="sqSimReport" type="button">✕ Close</button></div>'
+  return '<div class="sqcc-report sqcc-flp" data-simpanel="report" data-role="report" data-export="post-match" hidden><div class="sqcc-report-in sqcc-flp-in">'
+    + '<div class="sqcc-report-hd" data-simdrag="1"><span>📋 POST-MATCH TACTICAL ANALYSIS</span><span class="sqcc-report-exp">PDF · Print · Share — structure ready</span><button class="sqcc-report-x" data-action="sqSimPanelClose" data-panel="report" type="button">✕ Close</button></div>'
     + '<div class="sqcc-report-grid">'
     + '<div class="sqcc-rcard sqcc-rcard--exec sqcc-rcard--wide"><h5>1 · EXECUTIVE MATCH SUMMARY</h5><div data-role="rp-exec"></div></div>'
     + '<div class="sqcc-rcard"><h5>2 · TACTICAL PERFORMANCE REPORT</h5><div class="sqcc-rp-cats" data-role="rp-perf"></div></div>'
@@ -37920,6 +37991,8 @@ async function tosBoardSnapshot() {
         case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
         case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
         case 'sqSimScene':        if (typeof sqSimScene === 'function')        sqSimScene(el.dataset.idx); break;
+        case 'sqSimPanel':        if (typeof sqSimPanel === 'function')        sqSimPanel(el.dataset.panel); break;
+        case 'sqSimPanelClose':   if (typeof sqSimPanelClose === 'function')   sqSimPanelClose(el.dataset.panel); break;
         case 'sqSimBrain':        if (typeof sqSimBrain === 'function')        sqSimBrain(); break;
         case 'sqSimDToggle':      if (typeof sqSimDToggle === 'function')      sqSimDToggle(); break;
         case 'sqSimDAccept':      if (typeof sqSimDAccept === 'function')      sqSimDAccept(el.dataset.k); break;

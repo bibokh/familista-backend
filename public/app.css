@@ -4583,6 +4583,33 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqcc-coach{ position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center; padding:8px 10px; background:linear-gradient(180deg,rgba(6,10,20,.9),rgba(6,10,20,.96)); backdrop-filter:blur(3px); animation:sqccFade .4s ease; }
 .sqcc-coach[hidden]{ display:none; }
 @keyframes sqccFade{ from{ opacity:0 } to{ opacity:1 } }
+
+/* ══ Simulation AI modules → floating draggable / resizable glass panels (multiple open at once) ══ */
+/* Overrides each module's full-cover `position:absolute;inset:0` overlay with a floating panel.
+   Higher specificity (.sqcc-flp[data-simpanel]) guarantees the override regardless of source order. */
+.sqcc-flp[data-simpanel]{ position:fixed; inset:auto; left:60px; top:92px; width:min(940px,94vw); height:min(540px,80vh);
+  z-index:900; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; padding:0; margin:0;
+  overflow:hidden; resize:both; min-width:320px; min-height:200px; max-width:96vw; max-height:88vh;
+  background:linear-gradient(168deg,rgba(18,28,52,.82),rgba(9,14,26,.8));
+  -webkit-backdrop-filter:blur(18px) saturate(1.2); backdrop-filter:blur(18px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.16); border-radius:16px; box-shadow:0 26px 80px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.04) inset;
+  animation:sqccFade .22s ease; }
+.sqcc-flp[data-simpanel][hidden]{ display:none; }
+.sqcc-flp > .sqcc-flp-in{ flex:1 1 auto; width:100%; max-width:none; max-height:none; min-height:0; overflow:auto; padding:0 14px 14px; scrollbar-width:thin; }
+/* header becomes a sticky drag handle so it stays reachable while the body scrolls */
+.sqcc-flp [data-simdrag]{ position:sticky; top:0; z-index:4; cursor:move; margin:0 -14px 8px; padding:11px 14px;
+  background:linear-gradient(180deg,rgba(12,19,36,.97),rgba(12,19,36,.9)); border-bottom:1px solid rgba(255,255,255,.09); border-radius:16px 16px 0 0; }
+.sqcc-flp::after{ content:''; position:absolute; right:3px; bottom:3px; width:14px; height:14px; pointer-events:none; opacity:.5;
+  background:linear-gradient(135deg,transparent 46%,rgba(255,255,255,.85) 46% 58%,transparent 58% 66%,rgba(255,255,255,.85) 66% 78%,transparent 78%); }
+
+/* ══ Anti-shake: stop live per-scene text updates from changing row heights (which resized the pitch) ══ */
+/* Fixed heights on the live-updating text blocks so the intel + analysis rows never grow/shrink, so the
+   1fr pitch row (and its markers) stay perfectly still while AI read / recommendation / prediction update. */
+.sqcc-intel, .sqcc-ai, .sqcc-analysis{ contain:layout; }
+.sqcc-ai-x{ height:25px; }
+.sqcc-analysis .sqcc-sec [data-role]{ height:30px; overflow:hidden; }
+.sqcc-analysis .sqcc-sec--scene [data-role]{ height:44px; overflow:hidden; }
+.sqcc-gc-vals span[data-role="gclab"]{ min-width:80px; text-align:center; }
 .sqcc-coach-in{ width:100%; max-width:1000px; max-height:100%; overflow:auto; }
 .sqcc-coach-hd{ font-size:12px; font-weight:800; letter-spacing:.06em; color:#f4b740; margin-bottom:6px; display:flex; align-items:center; gap:12px; }
 .sqcc-coach-ctrl{ font-size:8.5px; font-weight:800; letter-spacing:.05em; color:#8a94a6; background:rgba(255,255,255,.06); border-radius:6px; padding:2px 9px; }
