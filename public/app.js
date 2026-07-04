@@ -3924,21 +3924,65 @@ function _sqTcOverview(my, op) {
     + _sqTcSummaryCards()
     + '</div>';
 }
+// circular effectiveness ring (SVG) — pure presentation
+function _sqmxRing(pct) {
+  var p = Math.max(0, Math.min(100, Math.round(pct))), r = 33, c = 2 * Math.PI * r, off = c * (1 - p / 100);
+  var col = p >= 56 ? '#4ade80' : p >= 46 ? '#93c5fd' : p >= 40 ? '#fbbf24' : '#fb7185';
+  return '<div class="sqmx-ring"><svg viewBox="0 0 82 82" width="92" height="92" aria-hidden="true">'
+    + '<circle cx="41" cy="41" r="' + r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/>'
+    + '<circle cx="41" cy="41" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 41 41)"/></svg>'
+    + '<div class="sqmx-ring-c"><b style="color:' + col + '">' + p + '<span>%</span></b><i>Effectiveness</i></div></div>';
+}
+// premium Matchup popup — redesigned presentation only; every number comes from the existing engines
+// (_sqCmdMatchups / _sqMatchup / _sqFormMatch / _sqTeamSW) — no calculation, AI, or backend change.
 function _sqTcMatchup(my, op) {
-  var mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp'), fm = _sqFormMatch();
-  var posCmp = '<div class="sqmd-poscmp">' + mus.map(function (m) {
-    return '<div class="sqmd-pc sqmd-pc--' + m.tone + '"><span class="sqmd-pc-my">' + _sqEsc(m.myName) + ' <i>' + m.myPos + '</i></span>'
-      + '<span class="sqmd-pc-sc">' + m.myEff + '<em>vs</em>' + m.oppEff + '</span>'
-      + '<span class="sqmd-pc-op"><i>' + m.oppPos + '</i> #' + m.oppNum + '</span><span class="sqmd-pc-lab">' + m.lab + '</span></div>';
-  }).join('') + '</div>';
-  function swCol(t, sw, side) { return '<div class="sqmd-sw sqmd-sw--' + side + '"><h5>' + t + '</h5><div class="sqmd-sw-grp"><b>Strengths</b>' + sw.strengths.map(function (x) { return '<span class="sqmd-sw-s">' + x + '</span>'; }).join('') + '</div><div class="sqmd-sw-grp"><b>Weaknesses</b>' + sw.weaknesses.map(function (x) { return '<span class="sqmd-sw-w">' + x + '</span>'; }).join('') + '</div></div>'; }
-  var eng = '<div class="sqmd-eng"><div class="sqmd-eng-hd"><span>' + my.formation + ' <i>vs</i> ' + op.formation + '</span><span class="sqmd-eng-eff">Effectiveness <b>' + fm.eff + '%</b></span></div>'
-    + '<div class="sqmd-eng-cols"><div class="sqmd-eng-adv"><b>Advantages</b>' + fm.adv.map(function (a) { return '<span>+ ' + a + '</span>'; }).join('') + '</div>'
-    + '<div class="sqmd-eng-risk"><b>Risks</b>' + fm.risk.map(function (r) { return '<span>− ' + r + '</span>'; }).join('') + '</div></div>'
-    + '<div class="sqmd-eng-extra"><span><i>Counter opportunities</i>' + fm.counter + '</span><span><i>Space vulnerabilities</i>' + fm.space + '</span><span><i>Pressing advantages</i>' + fm.press + '</span></div></div>';
-  return '<div class="sqtc-mgrid"><div class="sqtc-acard sqtc-acard--tall"><div class="sqtc-sec">Position vs position</div>' + posCmp + '</div>'
-    + '<div class="sqtc-acard"><div class="sqtc-sec">Formation matchup engine</div>' + eng + '</div>'
-    + '<div class="sqtc-acard"><div class="sqtc-sec">Tactical analysis</div><div class="sqmd-tac">' + swCol('My Team', mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div></div></div>';
+  var mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp'), fm = _sqFormMatch(), mu = _sqMatchup();
+  var cl = function (v) { return Math.max(1, Math.min(99, Math.round(v))); };
+  var toneCls = { vstrong: 'adv', adv: 'adv', bal: 'bal', dis: 'slt', risk: 'risk' };
+  var dir = function (d) { return d > 1 ? '&#8250;' : d < -1 ? '&#8249;' : '='; };
+  // Position vs Position — modern comparison cards
+  var posCards = mus.map(function (m) {
+    var tc = toneCls[m.tone] || 'bal', ini = String(m.myName || '?').charAt(0).toUpperCase();
+    return '<div class="sqmx-card sqmx-card--' + tc + '">'
+      + '<div class="sqmx-duel">'
+      + '<div class="sqmx-pl"><span class="sqmx-face sqmx-face--my">' + _sqEsc(ini) + '</span><div class="sqmx-pl-id"><b>' + _sqEsc(m.myName) + '</b><span class="sqmx-badge sqmx-badge--my">' + m.myPos + ' · ' + m.myEff + '</span></div></div>'
+      + '<div class="sqmx-mid"><b class="sqmx-mid-my">' + m.myEff + '</b><i class="sqmx-mid-d">' + dir(m.diff) + '</i><b class="sqmx-mid-op">' + m.oppEff + '</b></div>'
+      + '<div class="sqmx-pl sqmx-pl--op"><div class="sqmx-pl-id sqmx-pl-id--r"><b>#' + m.oppNum + '</b><span class="sqmx-badge sqmx-badge--op">' + m.oppPos + ' · ' + m.oppEff + '</span></div><span class="sqmx-face sqmx-face--op">#' + m.oppNum + '</span></div>'
+      + '</div><div class="sqmx-card-lab">' + m.lab + '</div></div>';
+  }).join('');
+  // Formation Matchup Engine — executive tactical summary
+  var advList = (fm.adv.length ? fm.adv : ['Balanced phases of play']).map(function (a) { return '<li class="sqmx-adv"><i>&#10003;</i>' + _sqEsc(a) + '</li>'; }).join('');
+  var riskList = (fm.risk.length ? fm.risk : ['Few structural risks']).map(function (r) { return '<li class="sqmx-risk"><i>&#9888;</i>' + _sqEsc(r) + '</li>'; }).join('');
+  var metrics = [
+    ['&#9889;', 'Counter opportunities', fm.counter], ['&#9673;', 'Weak zones', fm.space], ['&#9650;', 'Pressing opportunities', fm.press],
+    ['&#9680;', 'Possession expectation', 'Around ' + cl(mu.midCtrl) + '% — midfield control decides it'], ['&#8646;', 'Transition quality', cl((mu.counter + mu.defStab) / 2) + '% — break &amp; recover balance']
+  ].map(function (x) { return '<div class="sqmx-metric"><span class="sqmx-metric-i">' + x[0] + '</span><div class="sqmx-metric-t"><i>' + x[1] + '</i><p>' + _sqEsc(String(x[2])) + '</p></div></div>'; }).join('');
+  var engine = '<div class="sqmx-engine">'
+    + '<div class="sqmx-engine-hd"><span class="sqmx-engine-t">Formation Matchup Engine</span><span class="sqmx-engine-vs">' + my.formation + ' <i>vs</i> ' + op.formation + '</span></div>'
+    + '<div class="sqmx-engine-top">' + _sqmxRing(fm.eff)
+    + '<div class="sqmx-cols"><div class="sqmx-col sqmx-col--adv"><h6>Advantages</h6><ul>' + advList + '</ul></div><div class="sqmx-col sqmx-col--risk"><h6>Risks</h6><ul>' + riskList + '</ul></div></div></div>'
+    + '<div class="sqmx-metrics">' + metrics + '</div></div>';
+  // Tactical Score cards — presentation of the existing matchup outputs (no new tactical model)
+  var scores = [
+    ['Attack', cl((mu.widthAdv + mu.counter) / 2)], ['Midfield', cl(mu.midCtrl)], ['Defence', cl(mu.defStab)], ['Pressing', cl(mu.press)],
+    ['Counter Attack', cl(mu.counter)], ['Width Control', cl(mu.widthAdv)], ['Set Pieces', cl(50 + (mu.myOvr - mu.oppOvr) * 1.5)], ['Transition', cl((mu.counter + mu.defStab) / 2)]
+  ];
+  var scoreCards = scores.map(function (s) {
+    var t = s[1] >= 56 ? 'adv' : s[1] >= 46 ? 'bal' : s[1] >= 40 ? 'slt' : 'risk';
+    return '<div class="sqmx-sc sqmx-sc--' + t + '"><span class="sqmx-sc-l">' + s[0] + '</span><b class="sqmx-sc-v">' + s[1] + '<span>%</span></b><span class="sqmx-sc-bar"><i style="width:' + s[1] + '%"></i></span></div>';
+  }).join('');
+  // Tactical Analysis (kept — restyled strengths/weaknesses; no information removed)
+  function swCol(t, sw, side) {
+    return '<div class="sqmx-sw sqmx-sw--' + side + '"><h6>' + t + '</h6>'
+      + '<div class="sqmx-sw-grp"><b>Strengths</b><div class="sqmx-tags">' + sw.strengths.map(function (x) { return '<span class="sqmx-tag sqmx-tag--s">' + x + '</span>'; }).join('') + '</div></div>'
+      + '<div class="sqmx-sw-grp"><b>Weaknesses</b><div class="sqmx-tags">' + sw.weaknesses.map(function (x) { return '<span class="sqmx-tag sqmx-tag--w">' + x + '</span>'; }).join('') + '</div></div></div>';
+  }
+  return '<div class="sqmx">'
+    + '<div class="sqmx-top">' + engine
+    + '<div class="sqmx-pos"><div class="sqmx-h">Position vs Position</div><div class="sqmx-pos-list">' + posCards + '</div></div></div>'
+    + '<div class="sqmx-block"><div class="sqmx-h">Tactical Score</div><div class="sqmx-scores">' + scoreCards + '</div></div>'
+    + '<div class="sqmx-block"><div class="sqmx-h">Tactical Analysis</div><div class="sqmx-tac">' + swCol(_sqEsc(_sqClubName()), mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div></div>'
+    + '</div>';
 }
 function _sqHeatGrid(side) {
   var grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], max = 1;

@@ -4093,6 +4093,80 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmd-eng-adv span,.sqmd-eng-risk span{ display:block; font-size:12px; color:#cbd5e1; padding:3px 0; }
 @media (max-width:1100px){ .sqmd-boards{ grid-template-columns:1fr; } .sqmd-analysis{ grid-template-columns:1fr; } .sqmd-poscmp{ grid-template-columns:1fr; } .sqmd-tac{ grid-template-columns:1fr; } }
 
+/* ══════════ Matchup popup — premium redesign (presentation only) ══════════ */
+.sqmx{ display:flex; flex-direction:column; gap:16px; }
+.sqmx-h{ font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#8a94a6; margin-bottom:10px; }
+.sqmx-top{ display:grid; grid-template-columns:1.05fr .95fr; gap:14px; align-items:start; }
+.sqmx-block{ min-width:0; }
+/* tone palette (shared by cards + score cards): adv=green, bal=gray, slt=yellow, risk=orange */
+.sqmx-card--adv,.sqmx-sc--adv{ --c:74,222,128; } .sqmx-card--bal,.sqmx-sc--bal{ --c:148,163,184; }
+.sqmx-card--slt,.sqmx-sc--slt{ --c:251,191,36; } .sqmx-card--risk,.sqmx-sc--risk{ --c:251,146,60; }
+/* Formation Matchup Engine — executive summary */
+.sqmx-engine{ background:linear-gradient(168deg,rgba(255,255,255,.05),rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:16px 18px; box-shadow:0 10px 30px rgba(0,0,0,.24); }
+.sqmx-engine-hd{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:14px; }
+.sqmx-engine-t{ font-size:15px; font-weight:800; color:#f1f5f9; letter-spacing:-.2px; }
+.sqmx-engine-vs{ font-size:12px; font-weight:800; color:#cbd5e1; } .sqmx-engine-vs i{ font-style:normal; color:#7e8aa0; margin:0 4px; font-weight:600; }
+.sqmx-engine-top{ display:grid; grid-template-columns:auto 1fr; gap:16px; align-items:center; }
+.sqmx-ring{ position:relative; width:92px; height:92px; flex:0 0 auto; }
+.sqmx-ring svg{ display:block; }
+.sqmx-ring-c{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.sqmx-ring-c b{ font-size:24px; font-weight:900; line-height:1; } .sqmx-ring-c b span{ font-size:12px; font-weight:800; margin-left:1px; }
+.sqmx-ring-c i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#8a94a6; margin-top:3px; }
+.sqmx-cols{ display:grid; grid-template-columns:1fr 1fr; gap:12px; min-width:0; }
+.sqmx-col h6{ margin:0 0 7px; font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.sqmx-col--adv h6{ color:#86efac; } .sqmx-col--risk h6{ color:#fdba74; }
+.sqmx-col ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:5px; }
+.sqmx-col li{ display:flex; align-items:flex-start; gap:7px; font-size:11.5px; line-height:1.3; color:#dbe3ee; }
+.sqmx-col li i{ font-style:normal; flex:0 0 auto; font-size:11px; margin-top:.5px; }
+.sqmx-adv i{ color:#4ade80; } .sqmx-risk i{ color:#fb923c; }
+.sqmx-metrics{ display:grid; grid-template-columns:1fr 1fr; gap:9px 16px; margin-top:15px; padding-top:14px; border-top:1px solid rgba(255,255,255,.08); }
+.sqmx-metric{ display:flex; align-items:flex-start; gap:9px; min-width:0; }
+.sqmx-metric-i{ flex:0 0 auto; width:26px; height:26px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; color:#93c5fd; background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.2); }
+.sqmx-metric-t{ min-width:0; } .sqmx-metric-t i{ display:block; font-style:normal; font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8a94a6; margin-bottom:2px; }
+.sqmx-metric-t p{ margin:0; font-size:11.5px; line-height:1.32; color:#dbe3ee; }
+/* Position vs Position — comparison cards */
+.sqmx-pos-list{ display:flex; flex-direction:column; gap:9px; max-height:none; }
+.sqmx-card{ --c:148,163,184; background:linear-gradient(168deg,rgba(255,255,255,.045),rgba(255,255,255,.012)); border:1px solid rgba(255,255,255,.08); border-left:3px solid rgb(var(--c)); border-radius:13px; padding:10px 13px; box-shadow:0 0 20px rgba(var(--c),.05); }
+.sqmx-duel{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; }
+.sqmx-pl{ display:flex; align-items:center; gap:9px; min-width:0; }
+.sqmx-pl--op{ justify-content:flex-end; }
+.sqmx-face{ flex:0 0 auto; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; box-shadow:inset 0 0 0 2px rgba(255,255,255,.12); }
+.sqmx-face--my{ background:linear-gradient(160deg,#2b6b46,#123524); color:#9df7c1; }
+.sqmx-face--op{ background:linear-gradient(160deg,#2a4a78,#12233f); color:#a9cbfb; font-size:11px; }
+.sqmx-pl-id{ min-width:0; display:flex; flex-direction:column; gap:3px; } .sqmx-pl-id--r{ align-items:flex-end; }
+.sqmx-pl-id b{ font-size:12.5px; font-weight:800; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px; }
+.sqmx-badge{ font-size:9px; font-weight:800; letter-spacing:.03em; padding:2px 7px; border-radius:6px; white-space:nowrap; }
+.sqmx-badge--my{ background:rgba(74,222,128,.15); color:#86efac; } .sqmx-badge--op{ background:rgba(96,165,250,.15); color:#93c5fd; }
+.sqmx-mid{ display:flex; align-items:center; gap:6px; flex:0 0 auto; }
+.sqmx-mid b{ font-size:17px; font-weight:900; color:#f1f5f9; } .sqmx-mid-op{ color:#cbd5e1 !important; }
+.sqmx-mid-d{ font-style:normal; font-size:15px; font-weight:900; color:rgb(var(--c)); }
+.sqmx-card-lab{ margin-top:8px; padding-top:8px; border-top:1px dashed rgba(255,255,255,.08); text-align:center; font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:rgb(var(--c)); }
+/* Tactical Score cards */
+.sqmx-scores{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+.sqmx-sc{ --c:148,163,184; background:linear-gradient(168deg,rgba(255,255,255,.045),rgba(255,255,255,.012)); border:1px solid rgba(255,255,255,.08); border-top:2px solid rgb(var(--c)); border-radius:12px; padding:10px 12px; min-width:0; }
+.sqmx-sc-l{ display:block; font-size:9.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#8a94a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqmx-sc-v{ display:block; font-size:22px; font-weight:900; color:#f1f5f9; line-height:1.1; margin:3px 0 6px; } .sqmx-sc-v span{ font-size:11px; font-weight:800; color:#8a94a6; margin-left:1px; }
+.sqmx-sc-bar{ display:block; height:5px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+.sqmx-sc-bar i{ display:block; height:100%; border-radius:4px; background:rgb(var(--c)); box-shadow:0 0 8px rgba(var(--c),.5); }
+/* Tactical Analysis (kept) */
+.sqmx-tac{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.sqmx-sw{ background:linear-gradient(168deg,rgba(255,255,255,.04),rgba(255,255,255,.01)); border:1px solid rgba(255,255,255,.08); border-radius:13px; padding:13px 14px; }
+.sqmx-sw--my{ border-top:2px solid #4ade80; } .sqmx-sw--opp{ border-top:2px solid #60a5fa; }
+.sqmx-sw h6{ margin:0 0 11px; font-size:13px; font-weight:800; color:#f1f5f9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqmx-sw-grp{ margin-bottom:10px; } .sqmx-sw-grp:last-child{ margin-bottom:0; }
+.sqmx-sw-grp b{ display:block; font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#8a94a6; margin-bottom:6px; }
+.sqmx-tags{ display:flex; flex-wrap:wrap; gap:5px; }
+.sqmx-tag{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:100px; }
+.sqmx-tag--s{ background:rgba(74,222,128,.13); color:#86efac; } .sqmx-tag--w{ background:rgba(248,113,113,.13); color:#fca5a5; }
+@media (max-width:760px){
+  .sqmx-top{ grid-template-columns:1fr; }
+  .sqmx-engine-top{ grid-template-columns:1fr; justify-items:center; text-align:center; }
+  .sqmx-cols,.sqmx-metrics{ text-align:left; }
+  .sqmx-scores{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .sqmx-tac{ grid-template-columns:1fr; }
+}
+@media (max-width:460px){ .sqmx-cols{ grid-template-columns:1fr; } .sqmx-metrics{ grid-template-columns:1fr; } }
+
 /* Squad · Tactical Command Center (full-screen, no-scroll, tabbed) */
 .sqfp-board--cmd{ display:block; padding:4px 16px 12px; }
 .sqtc{ height:calc(100vh - 78px); min-height:520px; display:flex; flex-direction:column; gap:7px; background:linear-gradient(168deg,#0f1830,#0a1018); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:10px 14px; overflow:hidden; box-shadow:0 16px 50px rgba(0,0,0,.5); }
