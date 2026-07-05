@@ -6409,14 +6409,39 @@ function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false,
 function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
 function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
 var _TR_SESSIONS = [
-  { date: 'Mon 06 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Possession & Rondos', coach: 'Head Coach', notes: 'Build-up under pressure; two-touch limit.' },
-  { date: 'Tue 07 Jul', time: '10:30', loc: 'Gym + Pitch B', dur: '75 min', focus: 'Strength & Speed', coach: 'Fitness Coach', notes: 'Split by position; watch high-load players.' },
-  { date: 'Wed 08 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Pressing Triggers', coach: 'Assistant Coach', notes: '11v11 tactical; press on the switch.' },
-  { date: 'Thu 09 Jul', time: '11:00', loc: 'Main Pitch', dur: '60 min', focus: 'Set Pieces & Finishing', coach: 'Head Coach', notes: 'Attacking corners; recovery for starters.' }
+  { date: 'Mon 06 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Possession & Rondos', coach: 'Head Coach', notes: 'Build-up under pressure; two-touch limit.', kind: 'possession', inten: 'High', iAc: '248,113,113', diff: 'Advanced', equip: 'Cones · Bibs · Balls', players: '18 / 18' },
+  { date: 'Tue 07 Jul', time: '10:30', loc: 'Gym + Pitch B', dur: '75 min', focus: 'Strength & Speed', coach: 'Fitness Coach', notes: 'Split by position; watch high-load players.', kind: 'fitness', inten: 'High', iAc: '248,113,113', diff: 'Intermediate', equip: 'Ladders · Hurdles', players: '16 / 18' },
+  { date: 'Wed 08 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Pressing Triggers', coach: 'Assistant Coach', notes: '11v11 tactical; press on the switch.', kind: 'pressing', inten: 'High', iAc: '248,113,113', diff: 'Advanced', equip: 'Bibs · Balls · Goals', players: '18 / 18' },
+  { date: 'Thu 09 Jul', time: '11:00', loc: 'Main Pitch', dur: '60 min', focus: 'Set Pieces & Finishing', coach: 'Head Coach', notes: 'Attacking corners; recovery for starters.', kind: 'shooting', inten: 'Medium', iAc: '244,183,64', diff: 'Intermediate', equip: 'Balls · Mannequins', players: '17 / 18' }
 ];
 function _trEsc(s) { return (typeof _sqEsc === 'function') ? _sqEsc(s) : String(s == null ? '' : s); }
 function _trStatColor(v) { return v >= 80 ? '52,215,122' : v >= 60 ? '244,183,64' : v >= 45 ? '251,146,60' : '248,113,113'; }
 function _trPill(txt, ac) { return '<span class="tr-pill" style="--c:' + ac + '">' + txt + '</span>'; }
+// ── visual helpers (inline SVG — avatars, progress rings, drill diagrams, thumbnails; no external assets) ──
+var _TR_DIA_N = 0;
+function _trPac(p) { var c = p && p.cat; return c === 'gk' ? '244,183,64' : c === 'df' ? '56,189,248' : c === 'mf' ? '52,215,122' : '236,72,153'; }
+function _trAv(name, ac, sz) { var ini = String(name || '?').trim().charAt(0).toUpperCase(); return '<span class="tr-av' + (sz ? ' tr-av--' + sz : '') + '" style="--c:' + (ac || '56,189,248') + '">' + _trEsc(ini) + '</span>'; }
+function _trRing(pct, ac, d) { d = d || 46; var cx = d / 2, R = d / 2 - 4, C = 2 * Math.PI * R, p = Math.max(0, Math.min(100, Math.round(pct))), off = C * (1 - p / 100), fz = Math.round(d * 0.3); return '<span class="tr-ring"><svg viewBox="0 0 ' + d + ' ' + d + '" width="' + d + '" height="' + d + '"><circle cx="' + cx + '" cy="' + cx + '" r="' + R + '" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="3.5"/><circle cx="' + cx + '" cy="' + cx + '" r="' + R + '" fill="none" stroke="rgb(' + ac + ')" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 ' + cx + ' ' + cx + ')"/><text x="' + cx + '" y="' + (cx + fz * 0.36) + '" text-anchor="middle" font-size="' + fz + '" font-weight="800" fill="#eef2f8">' + p + '</text></svg></span>'; }
+function _trStars(n) { var f = Math.round(n), s = ''; for (var i = 0; i < 5; i++) s += i < f ? '★' : '☆'; return '<span class="tr-stars">' + s + '</span>'; }
+function _trBot() { return '<span class="tr-bot"><svg viewBox="0 0 40 40" width="44" height="44"><line x1="20" y1="3" x2="20" y2="9" stroke="#38bdf8" stroke-width="1.6"/><circle cx="20" cy="3.5" r="2" fill="#38bdf8"/><rect x="7" y="9" width="26" height="21" rx="7" fill="rgba(56,189,248,.16)" stroke="#38bdf8" stroke-width="1.6"/><circle cx="15" cy="19" r="3.2" fill="#38bdf8"/><circle cx="25" cy="19" r="3.2" fill="#38bdf8"/><rect x="14" y="25" width="12" height="2.4" rx="1.2" fill="rgba(56,189,248,.55)"/></svg></span>'; }
+function _trDia(kind, ac) {
+  ac = ac || '52,215,122'; var m = 'trm' + (++_TR_DIA_N), o = '';
+  var base = '<rect x="1.5" y="1.5" width="117" height="71" rx="9" fill="rgba(16,36,26,.6)" stroke="rgba(255,255,255,.12)"/><line x1="60" y1="2" x2="60" y2="72" stroke="rgba(255,255,255,.13)"/><circle cx="60" cy="37" r="12" fill="none" stroke="rgba(255,255,255,.13)"/>';
+  if (kind === 'passing') o = '<circle cx="26" cy="24" r="4" fill="rgb(' + ac + ')"/><circle cx="60" cy="52" r="4" fill="rgb(' + ac + ')"/><circle cx="94" cy="22" r="4" fill="rgb(' + ac + ')"/><path d="M29 26 L56 49" stroke="rgb(' + ac + ')" stroke-width="2" stroke-dasharray="4 3" fill="none" marker-end="url(#' + m + ')"/><path d="M64 50 L90 25" stroke="rgb(' + ac + ')" stroke-width="2" stroke-dasharray="4 3" fill="none" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'shooting') o = '<rect x="104" y="26" width="8" height="22" fill="none" stroke="rgb(' + ac + ')" stroke-width="2"/><circle cx="40" cy="37" r="4" fill="rgb(' + ac + ')"/><path d="M45 37 L101 37" stroke="rgb(' + ac + ')" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'pressing') o = '<circle cx="60" cy="37" r="5" fill="#fff"/><path d="M22 16 L52 33" stroke="rgb(' + ac + ')" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/><path d="M22 58 L52 41" stroke="rgb(' + ac + ')" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/><path d="M98 16 L68 33" stroke="rgb(' + ac + ')" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/><path d="M98 58 L68 41" stroke="rgb(' + ac + ')" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'possession') { o = '<circle cx="60" cy="37" r="4" fill="#fff"/>'; for (var i = 0; i < 5; i++) { var a = i / 5 * 6.283 - 1.57, x = 60 + Math.cos(a) * 27, y = 37 + Math.sin(a) * 20; o += '<circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="4" fill="rgb(' + ac + ')"/>'; } }
+  else if (kind === 'fitness') { for (var f = 0; f < 6; f++) { var lx = 22 + f * 13; o += '<line x1="' + lx + '" y1="18" x2="' + lx + '" y2="56" stroke="rgb(' + ac + ')" stroke-width="2"/>'; } o += '<line x1="22" y1="18" x2="87" y2="18" stroke="rgb(' + ac + ')" stroke-width="2"/><line x1="22" y1="56" x2="87" y2="56" stroke="rgb(' + ac + ')" stroke-width="2"/>'; }
+  else if (kind === 'speed') o = '<path d="M20 22 L96 22" stroke="rgb(' + ac + ')" stroke-width="2" marker-end="url(#' + m + ')"/><path d="M20 37 L96 37" stroke="rgb(' + ac + ')" stroke-width="2" marker-end="url(#' + m + ')"/><path d="M20 52 L96 52" stroke="rgb(' + ac + ')" stroke-width="2" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'gk') o = '<rect x="8" y="24" width="8" height="26" fill="none" stroke="rgb(' + ac + ')" stroke-width="2"/><path d="M22 37 a24 24 0 0 1 42 0" stroke="rgb(' + ac + ')" stroke-width="2" fill="none"/><circle cx="62" cy="37" r="4" fill="#fff"/>';
+  else if (kind === 'tactical') { var pts = [[20, 37], [42, 18], [42, 37], [42, 56], [70, 22], [70, 52], [95, 18], [95, 37], [95, 56]]; for (var t = 0; t < pts.length; t++) o += '<circle cx="' + pts[t][0] + '" cy="' + pts[t][1] + '" r="3.5" fill="rgb(' + ac + ')"/>'; }
+  else if (kind === 'warmup') { for (var w = 0; w < 4; w++) { var wx = 26 + w * 20; o += '<path d="M' + wx + ' 44 l6 12 l-12 0 z" fill="rgb(' + ac + ')"/>'; } }
+  else if (kind === 'cooldown') o = '<path d="M16 30 q10 -9 20 0 t20 0 t20 0 t20 0" stroke="rgb(' + ac + ')" stroke-width="2" fill="none"/><path d="M16 46 q10 -9 20 0 t20 0 t20 0 t20 0" stroke="rgb(' + ac + ')" stroke-width="2" fill="none"/>';
+  else if (kind === 'ssg') o = '<circle cx="34" cy="26" r="4" fill="rgb(' + ac + ')"/><circle cx="34" cy="50" r="4" fill="rgb(' + ac + ')"/><circle cx="86" cy="26" r="4" fill="#e85bd0"/><circle cx="86" cy="50" r="4" fill="#e85bd0"/><circle cx="60" cy="37" r="4" fill="#fff"/>';
+  else o = '<circle cx="60" cy="37" r="4" fill="rgb(' + ac + ')"/>';
+  return '<svg class="tr-dia" viewBox="0 0 120 74" preserveAspectRatio="xMidYMid slice"><defs><marker id="' + m + '" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="rgb(' + ac + ')"/></marker></defs>' + base + o + '</svg>';
+}
+function _trThumb(kind, ac, label) { return '<div class="tr-thumb" style="--c:' + ac + '">' + _trDia(kind, ac) + '<span class="tr-thumb-play">&#9654;</span>' + (label ? '<span class="tr-thumb-lb">' + _trEsc(label) + '</span>' : '') + '</div>'; }
 function _trData() {
   var ps = (typeof SQ_DEMO_PLAYERS !== 'undefined' ? SQ_DEMO_PLAYERS : []).slice(0, 14);
   function load(p) { return Math.max(30, Math.min(99, Math.round(50 + (p.form || 6) * 4 + (100 - (p.cond || 85)) * 0.35))); }
@@ -6430,65 +6455,75 @@ function _trData() {
   var attention = ps.filter(function (p) { return (p.cond || 85) < 86 || load(p) >= 85; });
   return { ps: ps, att: att, attRate: attRate, load: load, ready: ready, avgLoad: avgLoad, avgReady: avgReady, best: best, attention: attention };
 }
+function _trOvCard(ac, viz, l, v, s) { return '<div class="tr-ov-card" style="--c:' + ac + '"><span class="tr-ov-viz">' + viz + '</span><span class="tr-ov-txt"><span class="tr-ov-l">' + l + '</span><b class="tr-ov-v">' + _trEsc(v) + '</b><span class="tr-ov-s">' + _trEsc(s) + '</span></span></div>'; }
 function _trOverviewCards() {
   var D = _trData(), next = _TR_SESSIONS[0];
-  var cards = [
-    ['Next Session', next.date + ' · ' + next.time, next.focus, '56,189,248'],
-    ['Attendance Rate', D.attRate + '%', D.ps.length + ' players', '52,215,122'],
-    ['Training Load', D.avgLoad + '%', D.avgLoad >= 80 ? 'High — manage minutes' : 'Balanced', '251,146,60'],
-    ['Team Readiness', D.avgReady + '%', D.avgReady >= 80 ? 'Match ready' : 'Building up', '139,92,246'],
-    ['Best Trainer', D.best ? _sqLastName(D.best.name) : '—', D.best ? ('Form ' + (D.best.form || 0) + '/10') : '', '244,183,64'],
-    ['Players Needing Attention', String(D.attention.length), D.attention.slice(0, 2).map(function (p) { return _sqLastName(p.name); }).join(', ') || 'None', '248,113,113']
-  ];
-  return '<div class="tr-ov">' + cards.map(function (c) {
-    return '<div class="tr-ov-card" style="--c:' + c[3] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div>';
-  }).join('') + '</div>';
+  return '<div class="tr-ov">'
+    + _trOvCard('56,189,248', _trThumb(next.kind, '56,189,248', ''), 'Next Session', next.date + ' · ' + next.time, next.focus)
+    + _trOvCard('52,215,122', _trRing(D.attRate, '52,215,122'), 'Attendance', D.ps.length + ' players', 'This week')
+    + _trOvCard('251,146,60', _trRing(D.avgLoad, '251,146,60'), 'Training Load', D.avgLoad >= 80 ? 'High' : 'Balanced', 'Team average')
+    + _trOvCard('139,92,246', _trRing(D.avgReady, '139,92,246'), 'Team Readiness', D.avgReady >= 80 ? 'Match ready' : 'Building', 'Fitness index')
+    + _trOvCard('244,183,64', _trAv(D.best ? D.best.name : '?', '244,183,64'), 'Best Trainer', D.best ? _sqLastName(D.best.name) : '—', D.best ? ('Form ' + (D.best.form || 0) + '/10') : '')
+    + _trOvCard('248,113,113', '<span class="tr-ov-count">' + D.attention.length + '</span>', 'Needs Attention', D.attention.slice(0, 2).map(function (p) { return _sqLastName(p.name); }).join(', ') || 'None', 'Monitor load')
+    + '</div>';
 }
 function _trSessions() {
   return '<div class="tr-sess">' + _TR_SESSIONS.map(function (s) {
-    return '<div class="tr-sess-card"><div class="tr-sess-top"><b>' + _trEsc(s.focus) + '</b>' + _trPill(s.dur, '56,189,248') + '</div>'
-      + '<div class="tr-sess-meta"><span>📅 ' + s.date + '</span><span>⏱ ' + s.time + '</span><span>📍 ' + _trEsc(s.loc) + '</span><span>👤 ' + _trEsc(s.coach) + '</span></div>'
-      + '<p class="tr-sess-notes">' + _trEsc(s.notes) + '</p></div>';
-  }).join('') + '<div class="tr-hint">Sessions read from the club schedule — the new-session form connects here in a later phase.</div></div>';
+    return '<div class="tr-sess-card" style="--c:56,189,248">'
+      + '<div class="tr-sess-thumb">' + _trThumb(s.kind, '56,189,248', s.dur) + '</div>'
+      + '<div class="tr-sess-info">'
+      + '<div class="tr-sess-top"><b>' + _trEsc(s.focus) + '</b>' + _trPill(s.inten + ' intensity', s.iAc) + '</div>'
+      + '<p class="tr-sess-obj">' + _trEsc(s.notes) + '</p>'
+      + '<div class="tr-sess-meta"><span>&#128198; ' + s.date + '</span><span>&#9200; ' + s.time + '</span><span>&#128205; ' + _trEsc(s.loc) + '</span><span>&#9670; ' + s.diff + '</span></div>'
+      + '<div class="tr-sess-foot">' + _trAv(s.coach, '56,189,248', 'sm') + '<span class="tr-sess-coach">' + _trEsc(s.coach) + '</span><span class="tr-sess-tag">&#127890; ' + _trEsc(s.equip) + '</span><span class="tr-sess-tag">&#128101; ' + s.players + '</span></div>'
+      + '</div></div>';
+  }).join('') + '</div>';
 }
 function _trAttendance() {
-  var D = _trData();
+  var D = _trData(), counts = { Present: 0, Late: 0, Excused: 0, Absent: 0 };
+  D.att.forEach(function (a) { counts[a.s]++; });
+  function chip(k, ac) { return '<span class="tr-att-chip" style="--c:' + ac + '"><b>' + counts[k] + '</b>' + k + '</span>'; }
   var rows = D.att.map(function (a) {
     var reason = a.s === 'Absent' ? 'Illness' : a.s === 'Late' ? 'Traffic' : a.s === 'Excused' ? 'Personal' : '—';
+    var ic = a.s === 'Present' ? '&#10003;' : a.s === 'Late' ? '&#9201;' : a.s === 'Excused' ? '&#9432;' : '&#10005;';
     var tone = a.s === 'Present' ? '52,215,122' : a.s === 'Late' ? '244,183,64' : a.s === 'Excused' ? '148,163,184' : '248,113,113';
-    return '<tr><td class="tr-att-nm">' + _trEsc(_sqLastName(a.p.name)) + ' <i>' + a.p.pos + '</i></td><td>' + _trPill(a.s, tone) + '</td><td class="tr-att-r">' + reason + '</td></tr>';
+    return '<div class="tr-att-row">' + _trAv(a.p.name, _trPac(a.p), 'sm') + '<span class="tr-att-nm">' + _trEsc(_sqLastName(a.p.name)) + '<i>' + a.p.pos + '</i></span><span class="tr-att-badge" style="--c:' + tone + '">' + ic + ' ' + a.s + '</span><span class="tr-att-r">' + reason + '</span></div>';
   }).join('');
-  return '<div class="tr-att"><div class="tr-att-hd"><span>Attendance</span><b style="color:rgb(' + _trStatColor(D.attRate) + ')">' + D.attRate + '%</b></div>'
-    + '<table class="tr-tbl"><thead><tr><th>Player</th><th>Status</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  return '<div class="tr-att"><div class="tr-att-head">' + _trRing(D.attRate, _trStatColor(D.attRate), 58)
+    + '<div class="tr-att-chips">' + chip('Present', '52,215,122') + chip('Late', '244,183,64') + chip('Excused', '148,163,184') + chip('Absent', '248,113,113') + '</div></div>'
+    + '<div class="tr-att-list">' + rows + '</div></div>';
 }
 function _trPlan() {
-  var days = [['Monday', 'Possession & Passing', 'Medium'], ['Tuesday', 'Strength & Speed', 'High'], ['Wednesday', 'Pressing & Tactical', 'High'], ['Thursday', 'Set Pieces & Finishing', 'Medium'], ['Friday', 'Match Prep · Shape', 'Low'], ['Saturday', 'Match Day', 'Match'], ['Sunday', 'Recovery', 'Rest']];
+  var days = [['Mon', 'Possession & Passing', 'High', '248,113,113', 'possession'], ['Tue', 'Strength & Speed', 'High', '248,113,113', 'fitness'], ['Wed', 'Pressing & Tactical', 'High', '248,113,113', 'pressing'], ['Thu', 'Set Pieces & Finishing', 'Medium', '244,183,64', 'shooting'], ['Fri', 'Match Prep · Shape', 'Low', '52,215,122', 'tactical'], ['Sat', 'Match Day', 'Match', '56,189,248', 'ssg'], ['Sun', 'Recovery', 'Rest', '148,163,184', 'cooldown']];
   return '<div class="tr-plan">' + days.map(function (d) {
-    var rest = d[2] === 'Rest', ac = d[2] === 'High' ? '248,113,113' : d[2] === 'Medium' ? '244,183,64' : d[2] === 'Low' ? '52,215,122' : d[2] === 'Match' ? '56,189,248' : '148,163,184';
-    return '<div class="tr-plan-row' + (rest ? ' is-rest' : '') + '"><span class="tr-plan-day">' + d[0] + '</span><span class="tr-plan-focus">' + _trEsc(d[1]) + '</span>' + _trPill(d[2], ac) + (rest ? '<span class="tr-plan-rest">🛌 Rest day</span>' : '') + '</div>';
+    var rest = d[2] === 'Rest';
+    return '<div class="tr-plan-card' + (rest ? ' is-rest' : '') + '" style="--c:' + d[3] + '"><div class="tr-plan-thumb">' + _trDia(d[4], d[3]) + '</div><b class="tr-plan-day">' + d[0] + '</b><span class="tr-plan-focus">' + _trEsc(d[1]) + '</span>' + _trPill(d[2], d[3]) + '</div>';
   }).join('') + '</div>';
 }
 function _trDrills() {
-  var cats = [['Passing', 'Short & long patterns', '56,189,248'], ['Shooting', 'Finishing & 1v1 vs GK', '236,72,153'], ['Pressing', 'Triggers & counter-press', '248,113,113'], ['Possession', 'Rondos & positional play', '52,215,122'], ['Fitness', 'Endurance & conditioning', '251,146,60'], ['Speed', 'Sprints & agility', '244,183,64'], ['Goalkeeper', 'Handling & distribution', '45,212,191'], ['Tactical', 'Shape & transitions', '139,92,246'], ['Warm-up', 'Activation & mobility', '148,163,184'], ['Cool-down', 'Stretch & recovery', '96,165,250']];
-  return '<div class="tr-drills">' + cats.map(function (c) { var n = 3 + _sqSeed(c[0]) % 5; return '<div class="tr-drill" style="--c:' + c[2] + '"><b>' + c[0] + '</b><span>' + _trEsc(c[1]) + '</span><i>' + n + ' drills</i></div>'; }).join('') + '</div>';
+  var cats = [['Passing', 'Short & long patterns', '56,189,248', 'passing'], ['Shooting', 'Finishing & 1v1 vs GK', '236,72,153', 'shooting'], ['Pressing', 'Triggers & counter-press', '248,113,113', 'pressing'], ['Possession', 'Rondos & positional play', '52,215,122', 'possession'], ['Fitness', 'Endurance & conditioning', '251,146,60', 'fitness'], ['Speed', 'Sprints & agility', '244,183,64', 'speed'], ['Goalkeeper', 'Handling & distribution', '45,212,191', 'gk'], ['Tactical', 'Shape & transitions', '139,92,246', 'tactical'], ['Warm-up', 'Activation & mobility', '148,163,184', 'warmup'], ['Cool-down', 'Stretch & recovery', '96,165,250', 'cooldown']];
+  return '<div class="tr-drills">' + cats.map(function (c) { var n = 3 + _sqSeed(c[0]) % 5; return '<div class="tr-drill" style="--c:' + c[2] + '"><div class="tr-drill-thumb">' + _trThumb(c[3], c[2], '') + '</div><div class="tr-drill-b"><b>' + c[0] + '</b><span>' + _trEsc(c[1]) + '</span><i>' + n + ' drills</i></div></div>'; }).join('') + '</div>';
 }
 function _trIndividual() {
   var D = _trData();
   var focusFor = { GK: 'Distribution & handling', CB: 'Aerial & positioning', RB: 'Overlaps & crossing', LB: 'Overlaps & crossing', DM: 'Screening & passing', CM: 'Box-to-box endurance', LW: '1v1 & final ball', RW: '1v1 & final ball', ST: 'Movement & finishing' };
   return '<div class="tr-ind">' + D.ps.slice(0, 12).map(function (p) {
-    var prog = 40 + _sqSeed(p.id + 'prog') % 55, inten = _sqSeed(p.id + 'in') % 3, iL = ['Low', 'Medium', 'High'][inten], iAc = ['52,215,122', '244,183,64', '248,113,113'][inten];
+    var prog = 40 + _sqSeed(p.id + 'prog') % 55, inten = _sqSeed(p.id + 'in') % 3, iL = ['Low', 'Medium', 'High'][inten], iAc = ['52,215,122', '244,183,64', '248,113,113'][inten], ac = _trPac(p);
     var note = (p.cond || 85) < 86 ? 'Manage load — build gradually.' : 'On track — keep sharpness.';
-    return '<div class="tr-ind-item"><div class="tr-ind-top"><b>' + _trEsc(_sqLastName(p.name)) + ' <i>' + p.pos + '</i></b>' + _trPill(iL, iAc) + '</div>'
-      + '<div class="tr-ind-focus">' + _trEsc(focusFor[p.pos] || 'General conditioning') + '</div>'
-      + '<div class="tr-ind-prog"><span class="tr-bar"><i style="width:' + prog + '%;--c:' + _trStatColor(prog) + '"></i></span><span>' + prog + '%</span></div>'
-      + '<p class="tr-ind-note">' + note + '</p></div>';
+    return '<div class="tr-ind-item" style="--c:' + ac + '">' + _trAv(p.name, ac, 'lg')
+      + '<div class="tr-ind-body"><div class="tr-ind-head"><b class="tr-ind-nm">' + _trEsc(_sqLastName(p.name)) + '</b><span class="tr-ind-pos" style="--c:' + ac + '">' + p.pos + '</span>' + _trPill(iL + ' load', iAc) + '</div>'
+      + '<div class="tr-ind-focus"><span class="tr-ind-fi">&#127919;</span>' + _trEsc(focusFor[p.pos] || 'General conditioning') + '</div>'
+      + '<p class="tr-ind-note">' + note + '</p></div>'
+      + '<div class="tr-ind-ring">' + _trRing(prog, _trStatColor(prog), 52) + '<span class="tr-ind-rl">Progress</span></div></div>';
   }).join('') + '</div>';
 }
 function _trLoad() {
   var D = _trData(), fat = Math.min(99, Math.max(1, 100 - D.avgReady + 10)), rec = D.avgReady, risk = D.avgLoad >= 82 ? 'Elevated' : D.avgLoad >= 70 ? 'Moderate' : 'Low';
-  var cards = [['Load', D.avgLoad + '%', _trStatColor(100 - D.avgLoad)], ['Fatigue', fat + '%', _trStatColor(100 - fat)], ['Recovery', rec + '%', _trStatColor(rec)], ['Readiness', D.avgReady + '%', _trStatColor(D.avgReady)], ['Injury Risk', risk, risk === 'Low' ? '52,215,122' : risk === 'Moderate' ? '244,183,64' : '248,113,113']];
-  var mini = D.ps.slice(0, 12).map(function (p) { var l = D.load(p); return '<div class="tr-load-row"><span>' + _trEsc(_sqLastName(p.name)) + '</span><span class="tr-bar" style="--c:' + _trStatColor(100 - l) + '"><i style="width:' + l + '%;--c:' + _trStatColor(100 - l) + '"></i></span><span>' + l + '%</span></div>'; }).join('');
-  return '<div class="tr-load"><div class="tr-load-cards">' + cards.map(function (c) { return '<div class="tr-ov-card" style="--c:' + c[2] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + c[1] + '</b></div>'; }).join('') + '</div>'
+  var riskAc = risk === 'Low' ? '52,215,122' : risk === 'Moderate' ? '244,183,64' : '248,113,113';
+  var gauges = [['Load', D.avgLoad, _trStatColor(100 - D.avgLoad)], ['Fatigue', fat, _trStatColor(100 - fat)], ['Recovery', rec, _trStatColor(rec)], ['Readiness', D.avgReady, _trStatColor(D.avgReady)]];
+  var mini = D.ps.slice(0, 12).map(function (p) { var l = D.load(p), ac = _trStatColor(100 - l); return '<div class="tr-load-row">' + _trAv(p.name, _trPac(p), 'sm') + '<span class="tr-load-nm">' + _trEsc(_sqLastName(p.name)) + '</span><span class="tr-bar" style="--c:' + ac + '"><i style="width:' + l + '%;--c:' + ac + '"></i></span><span class="tr-load-v" style="color:rgb(' + ac + ')">' + l + '%</span></div>'; }).join('');
+  return '<div class="tr-load"><div class="tr-gauges">' + gauges.map(function (g) { return '<div class="tr-gauge" style="--c:' + g[2] + '">' + _trRing(g[1], g[2], 62) + '<span class="tr-gauge-l">' + g[0] + '</span></div>'; }).join('')
+    + '<div class="tr-gauge tr-gauge--risk" style="--c:' + riskAc + '"><span class="tr-gauge-badge" style="--c:' + riskAc + '">&#9888;</span><b class="tr-gauge-rv">' + risk + '</b><span class="tr-gauge-l">Injury Risk</span></div></div>'
     + '<div class="tr-load-mini"><div class="tr-sub-h">Per-player load</div>' + mini + '</div></div>';
 }
 function _trNotes() {
@@ -6502,19 +6537,36 @@ function _trReports() {
   var lowAtt = D.att.filter(function (a) { return a.s !== 'Present'; })[0];
   var highLoad = ps.slice().sort(function (a, b) { return D.load(b) - D.load(a); })[0];
   var rest = ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0];
-  var cards = [['Best Performer', best ? _sqLastName(best.name) : '—', 'Form ' + (best ? best.form : '-') + '/10', '52,215,122'], ['Most Improved', improved ? _sqLastName(improved.name) : '—', '+' + (5 + _sqSeed((improved ? improved.id : 'x') + 'i') % 10) + '% this week', '56,189,248'], ['Lowest Attendance', lowAtt ? _sqLastName(lowAtt.p.name) : 'None', 'Status ' + (lowAtt ? lowAtt.s : '—'), '244,183,64'], ['Highest Load', highLoad ? _sqLastName(highLoad.name) : '—', D.load(highLoad) + '% load', '251,146,60'], ['Recommended Rest', rest ? _sqLastName(rest.name) : '—', 'Condition ' + (rest ? rest.cond : '-') + '%', '167,139,250']];
-  return '<div class="tr-rep">' + cards.map(function (c) { return '<div class="tr-rep-card" style="--c:' + c[3] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div>'; }).join('') + '</div>';
+  var potw = best, improvedName = improved ? _sqLastName(improved.name) : '—';
+  var av = function (nm, ac) { return '<span class="tr-rep-viz">' + _trAv(nm, ac, 'lg') + '</span>'; };
+  var ring = function (v, ac) { return '<span class="tr-rep-viz">' + _trRing(v, ac, 50) + '</span>'; };
+  var cards = [
+    ['Best Performer', best ? _sqLastName(best.name) : '—', 'Form ' + (best ? best.form : '-') + '/10', '52,215,122', av(best ? best.name : '?', '52,215,122')],
+    ['Most Improved', improvedName, '+' + (5 + _sqSeed((improved ? improved.id : 'x') + 'i') % 10) + '% this week', '56,189,248', av(improved ? improved.name : '?', '56,189,248')],
+    ['Highest Load', highLoad ? _sqLastName(highLoad.name) : '—', D.load(highLoad) + '% load', '251,146,60', ring(D.load(highLoad), '251,146,60')],
+    ['Lowest Attendance', lowAtt ? _sqLastName(lowAtt.p.name) : 'None', 'Status ' + (lowAtt ? lowAtt.s : '—'), '244,183,64', av(lowAtt ? lowAtt.p.name : '?', '244,183,64')],
+    ['Recommended Rest', rest ? _sqLastName(rest.name) : '—', 'Condition ' + (rest ? rest.cond : '-') + '%', '167,139,250', ring(rest ? (rest.cond || 85) : 85, '167,139,250')],
+    ['Coach Rating', '4.6 / 5', 'Session quality this week', '244,183,64', '<span class="tr-rep-viz">' + _trStars(4.6) + '</span>'],
+    ['Player of the Week', potw ? _sqLastName(potw.name) : '—', potw ? potw.pos + ' · Form ' + potw.form + '/10' : '—', '236,72,153', av(potw ? potw.name : '?', '236,72,153')]
+  ];
+  return '<div class="tr-rep">' + cards.map(function (c) { return '<div class="tr-rep-card" style="--c:' + c[3] + '">' + c[4] + '<div class="tr-rep-txt"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div></div>'; }).join('') + '</div>';
 }
 function _trAI() {
   var D = _trData(), best = D.best, low = D.ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0], extra = D.attention[0] || best;
   var recs = [
-    ['Tomorrow — Focus', '⚡', 'Sharp finishing under fatigue plus a short pressing block. Keep total load moderate.', '56,189,248'],
-    ['Player Needs Rest', '🛌', (low ? _sqLastName(low.name) : '—') + ' — condition ' + (low ? low.cond : '-') + '%. Give a recovery day or reduced session.', '167,139,250'],
-    ['Player Needs Extra Work', '＋', (extra ? _sqLastName(extra.name) : '—') + ' — add individual positional reps this week.', '244,183,64'],
-    ['Team Weakness To Train', '🎯', 'Transition defence after losing the ball — rehearse counter-press triggers.', '248,113,113'],
-    ['Match Preparation', '📋', 'Two tactical sessions plus one set-piece session before match day; taper on Friday.', '52,215,122']
+    ['Tomorrow — Focus', '&#9889;', 'Sharp finishing under fatigue plus a short pressing block. Keep total load moderate.', '56,189,248', 'High', 92, ['shooting', 'pressing']],
+    ['Player Needs Rest', '&#128564;', (low ? _sqLastName(low.name) : '—') + ' — condition ' + (low ? low.cond : '-') + '%. Give a recovery day or reduced session.', '167,139,250', 'High', 88, ['cooldown']],
+    ['Player Needs Extra Work', '&#43;', (extra ? _sqLastName(extra.name) : '—') + ' — add individual positional reps this week.', '244,183,64', 'Medium', 80, ['passing', 'tactical']],
+    ['Team Weakness To Train', '&#127919;', 'Transition defence after losing the ball — rehearse counter-press triggers.', '248,113,113', 'High', 85, ['pressing', 'possession']],
+    ['Match Preparation', '&#128203;', 'Two tactical sessions plus one set-piece session before match day; taper on Friday.', '52,215,122', 'Medium', 90, ['tactical', 'ssg']]
   ];
-  return '<div class="tr-ai">' + recs.map(function (r) { return '<div class="tr-ai-card" style="--c:' + r[3] + '"><span class="tr-ai-i">' + r[1] + '</span><div class="tr-ai-t"><b>' + r[0] + '</b><p>' + _trEsc(r[2]) + '</p></div></div>'; }).join('') + '</div>';
+  var dName = { shooting: 'Finishing', pressing: 'Pressing', cooldown: 'Recovery', passing: 'Passing', tactical: 'Tactical', possession: 'Possession', ssg: 'Small-Sided' };
+  return '<div class="tr-ai"><div class="tr-ai-head">' + _trBot() + '<div class="tr-ai-hd-t"><b>AIZA · Training Assistant</b><span><span class="tr-ai-dot"></span>Online · analysing squad data</span></div></div>'
+    + '<div class="tr-ai-list">' + recs.map(function (r) {
+      var pAc = r[4] === 'High' ? '248,113,113' : '244,183,64';
+      var chips = r[6].map(function (k) { return '<span class="tr-ai-chip" style="--c:' + r[3] + '">' + _trDia(k, r[3]).replace('class="tr-dia"', 'class="tr-dia tr-ai-mini"') + (dName[k] || k) + '</span>'; }).join('');
+      return '<div class="tr-ai-card" style="--c:' + r[3] + '"><span class="tr-ai-i">' + r[1] + '</span><div class="tr-ai-t"><div class="tr-ai-ct"><b>' + r[0] + '</b>' + _trPill(r[4] + ' priority', pAc) + '</div><p>' + _trEsc(r[2]) + '</p><div class="tr-ai-chips">' + chips + '</div></div><div class="tr-ai-conf">' + _trRing(r[5], r[3], 44) + '<span class="tr-ai-conf-l">Confidence</span></div></div>';
+    }).join('') + '</div></div>';
 }
 function _trBody(id) {
   switch (id) {
