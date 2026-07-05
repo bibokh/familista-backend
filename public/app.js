@@ -825,6 +825,14 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   2,
   },
+  {
+    slug:    'training',
+    label:   'Training',
+    svgPath: 'M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z',
+    color:   '#f59e0b',
+    enabled: true,
+    order:   3,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -1297,7 +1305,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
-    'club-home': 1, 'squad': 1,
+    'club-home': 1, 'squad': 1, 'training': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1325,7 +1333,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1545,6 +1553,7 @@ function _buildPageTemplateMap() {
     'clubs':                       renderClubsHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
+    'training':                    renderTrainingHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -6375,6 +6384,203 @@ if (typeof document !== 'undefined') { _sqInitFormationDrag(); }
 
 if (typeof _sqLoad === 'function') { _sqLoad(); }
 if (typeof _sqSetupsLoad === 'function') { _sqSetupsLoad(); }
+
+// ═══════════════════════ Club Workspace · Training module ═══════════════════════
+// Simple, coach-friendly Training workspace. Overview landing + 9 sections that each open as an
+// independent floating glass panel (same system as Simulation/Tactics: draggable, resizable, multi-open,
+// close-only-by-X, no outside-close, no duplicate). Uses existing player data; no heavy backend/AI.
+var _TR_SECTIONS = [
+  { id: 'sessions', t: 'Training Sessions', ac: '56,189,248', d: 'Plan & view sessions' },
+  { id: 'attendance', t: 'Attendance', ac: '52,215,122', d: 'Present · absent · late' },
+  { id: 'plan', t: 'Training Plan', ac: '139,92,246', d: 'Weekly Mon–Sun' },
+  { id: 'drills', t: 'Drill Library', ac: '244,183,64', d: '10 drill categories' },
+  { id: 'individual', t: 'Individual Training', ac: '236,72,153', d: 'Per-player focus' },
+  { id: 'load', t: 'Physical Load', ac: '251,146,60', d: 'Load · fatigue · risk' },
+  { id: 'notes', t: 'Coach Notes', ac: '148,163,184', d: 'Team & player notes' },
+  { id: 'reports', t: 'Training Reports', ac: '45,212,191', d: 'Weekly report cards' },
+  { id: 'ai', t: 'AI Training Suggestions', ac: '167,139,250', d: 'Simple recommendations' }
+];
+var _TR_Z = 60, _trDrag = null, _trBound = false;
+var _TR_SESSIONS = [
+  { date: 'Mon 06 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Possession & Rondos', coach: 'Head Coach', notes: 'Build-up under pressure; two-touch limit.' },
+  { date: 'Tue 07 Jul', time: '10:30', loc: 'Gym + Pitch B', dur: '75 min', focus: 'Strength & Speed', coach: 'Fitness Coach', notes: 'Split by position; watch high-load players.' },
+  { date: 'Wed 08 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Pressing Triggers', coach: 'Assistant Coach', notes: '11v11 tactical; press on the switch.' },
+  { date: 'Thu 09 Jul', time: '11:00', loc: 'Main Pitch', dur: '60 min', focus: 'Set Pieces & Finishing', coach: 'Head Coach', notes: 'Attacking corners; recovery for starters.' }
+];
+function _trEsc(s) { return (typeof _sqEsc === 'function') ? _sqEsc(s) : String(s == null ? '' : s); }
+function _trStatColor(v) { return v >= 80 ? '52,215,122' : v >= 60 ? '244,183,64' : v >= 45 ? '251,146,60' : '248,113,113'; }
+function _trPill(txt, ac) { return '<span class="tr-pill" style="--c:' + ac + '">' + txt + '</span>'; }
+function _trData() {
+  var ps = (typeof SQ_DEMO_PLAYERS !== 'undefined' ? SQ_DEMO_PLAYERS : []).slice(0, 14);
+  function load(p) { return Math.max(30, Math.min(99, Math.round(50 + (p.form || 6) * 4 + (100 - (p.cond || 85)) * 0.35))); }
+  function ready(p) { return Math.max(40, Math.min(99, Math.round((p.cond || 85) * 0.72 + (p.form || 6) * 3.5))); }
+  var att = ps.map(function (p) { var r = _sqSeed(p.id + 'att') % 10, s = r < 7 ? 'Present' : r < 8 ? 'Late' : r < 9 ? 'Excused' : 'Absent'; return { p: p, s: s }; });
+  var present = att.filter(function (a) { return a.s === 'Present' || a.s === 'Late'; }).length;
+  var attRate = ps.length ? Math.round(present / ps.length * 100) : 0;
+  var avgLoad = Math.round(ps.reduce(function (s, p) { return s + load(p); }, 0) / (ps.length || 1));
+  var avgReady = Math.round(ps.reduce(function (s, p) { return s + ready(p); }, 0) / (ps.length || 1));
+  var best = ps.slice().sort(function (a, b) { return (b.form || 0) - (a.form || 0); })[0] || null;
+  var attention = ps.filter(function (p) { return (p.cond || 85) < 86 || load(p) >= 85; });
+  return { ps: ps, att: att, attRate: attRate, load: load, ready: ready, avgLoad: avgLoad, avgReady: avgReady, best: best, attention: attention };
+}
+function _trOverviewCards() {
+  var D = _trData(), next = _TR_SESSIONS[0];
+  var cards = [
+    ['Next Session', next.date + ' · ' + next.time, next.focus, '56,189,248'],
+    ['Attendance Rate', D.attRate + '%', D.ps.length + ' players', '52,215,122'],
+    ['Training Load', D.avgLoad + '%', D.avgLoad >= 80 ? 'High — manage minutes' : 'Balanced', '251,146,60'],
+    ['Team Readiness', D.avgReady + '%', D.avgReady >= 80 ? 'Match ready' : 'Building up', '139,92,246'],
+    ['Best Trainer', D.best ? _sqLastName(D.best.name) : '—', D.best ? ('Form ' + (D.best.form || 0) + '/10') : '', '244,183,64'],
+    ['Players Needing Attention', String(D.attention.length), D.attention.slice(0, 2).map(function (p) { return _sqLastName(p.name); }).join(', ') || 'None', '248,113,113']
+  ];
+  return '<div class="tr-ov">' + cards.map(function (c) {
+    return '<div class="tr-ov-card" style="--c:' + c[3] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div>';
+  }).join('') + '</div>';
+}
+function _trSessions() {
+  return '<div class="tr-sess">' + _TR_SESSIONS.map(function (s) {
+    return '<div class="tr-sess-card"><div class="tr-sess-top"><b>' + _trEsc(s.focus) + '</b>' + _trPill(s.dur, '56,189,248') + '</div>'
+      + '<div class="tr-sess-meta"><span>📅 ' + s.date + '</span><span>⏱ ' + s.time + '</span><span>📍 ' + _trEsc(s.loc) + '</span><span>👤 ' + _trEsc(s.coach) + '</span></div>'
+      + '<p class="tr-sess-notes">' + _trEsc(s.notes) + '</p></div>';
+  }).join('') + '<div class="tr-hint">Sessions read from the club schedule — the new-session form connects here in a later phase.</div></div>';
+}
+function _trAttendance() {
+  var D = _trData();
+  var rows = D.att.map(function (a) {
+    var reason = a.s === 'Absent' ? 'Illness' : a.s === 'Late' ? 'Traffic' : a.s === 'Excused' ? 'Personal' : '—';
+    var tone = a.s === 'Present' ? '52,215,122' : a.s === 'Late' ? '244,183,64' : a.s === 'Excused' ? '148,163,184' : '248,113,113';
+    return '<tr><td class="tr-att-nm">' + _trEsc(_sqLastName(a.p.name)) + ' <i>' + a.p.pos + '</i></td><td>' + _trPill(a.s, tone) + '</td><td class="tr-att-r">' + reason + '</td></tr>';
+  }).join('');
+  return '<div class="tr-att"><div class="tr-att-hd"><span>Attendance</span><b style="color:rgb(' + _trStatColor(D.attRate) + ')">' + D.attRate + '%</b></div>'
+    + '<table class="tr-tbl"><thead><tr><th>Player</th><th>Status</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _trPlan() {
+  var days = [['Monday', 'Possession & Passing', 'Medium'], ['Tuesday', 'Strength & Speed', 'High'], ['Wednesday', 'Pressing & Tactical', 'High'], ['Thursday', 'Set Pieces & Finishing', 'Medium'], ['Friday', 'Match Prep · Shape', 'Low'], ['Saturday', 'Match Day', 'Match'], ['Sunday', 'Recovery', 'Rest']];
+  return '<div class="tr-plan">' + days.map(function (d) {
+    var rest = d[2] === 'Rest', ac = d[2] === 'High' ? '248,113,113' : d[2] === 'Medium' ? '244,183,64' : d[2] === 'Low' ? '52,215,122' : d[2] === 'Match' ? '56,189,248' : '148,163,184';
+    return '<div class="tr-plan-row' + (rest ? ' is-rest' : '') + '"><span class="tr-plan-day">' + d[0] + '</span><span class="tr-plan-focus">' + _trEsc(d[1]) + '</span>' + _trPill(d[2], ac) + (rest ? '<span class="tr-plan-rest">🛌 Rest day</span>' : '') + '</div>';
+  }).join('') + '</div>';
+}
+function _trDrills() {
+  var cats = [['Passing', 'Short & long patterns', '56,189,248'], ['Shooting', 'Finishing & 1v1 vs GK', '236,72,153'], ['Pressing', 'Triggers & counter-press', '248,113,113'], ['Possession', 'Rondos & positional play', '52,215,122'], ['Fitness', 'Endurance & conditioning', '251,146,60'], ['Speed', 'Sprints & agility', '244,183,64'], ['Goalkeeper', 'Handling & distribution', '45,212,191'], ['Tactical', 'Shape & transitions', '139,92,246'], ['Warm-up', 'Activation & mobility', '148,163,184'], ['Cool-down', 'Stretch & recovery', '96,165,250']];
+  return '<div class="tr-drills">' + cats.map(function (c) { var n = 3 + _sqSeed(c[0]) % 5; return '<div class="tr-drill" style="--c:' + c[2] + '"><b>' + c[0] + '</b><span>' + _trEsc(c[1]) + '</span><i>' + n + ' drills</i></div>'; }).join('') + '</div>';
+}
+function _trIndividual() {
+  var D = _trData();
+  var focusFor = { GK: 'Distribution & handling', CB: 'Aerial & positioning', RB: 'Overlaps & crossing', LB: 'Overlaps & crossing', DM: 'Screening & passing', CM: 'Box-to-box endurance', LW: '1v1 & final ball', RW: '1v1 & final ball', ST: 'Movement & finishing' };
+  return '<div class="tr-ind">' + D.ps.slice(0, 12).map(function (p) {
+    var prog = 40 + _sqSeed(p.id + 'prog') % 55, inten = _sqSeed(p.id + 'in') % 3, iL = ['Low', 'Medium', 'High'][inten], iAc = ['52,215,122', '244,183,64', '248,113,113'][inten];
+    var note = (p.cond || 85) < 86 ? 'Manage load — build gradually.' : 'On track — keep sharpness.';
+    return '<div class="tr-ind-item"><div class="tr-ind-top"><b>' + _trEsc(_sqLastName(p.name)) + ' <i>' + p.pos + '</i></b>' + _trPill(iL, iAc) + '</div>'
+      + '<div class="tr-ind-focus">' + _trEsc(focusFor[p.pos] || 'General conditioning') + '</div>'
+      + '<div class="tr-ind-prog"><span class="tr-bar"><i style="width:' + prog + '%;--c:' + _trStatColor(prog) + '"></i></span><span>' + prog + '%</span></div>'
+      + '<p class="tr-ind-note">' + note + '</p></div>';
+  }).join('') + '</div>';
+}
+function _trLoad() {
+  var D = _trData(), fat = Math.min(99, Math.max(1, 100 - D.avgReady + 10)), rec = D.avgReady, risk = D.avgLoad >= 82 ? 'Elevated' : D.avgLoad >= 70 ? 'Moderate' : 'Low';
+  var cards = [['Load', D.avgLoad + '%', _trStatColor(100 - D.avgLoad)], ['Fatigue', fat + '%', _trStatColor(100 - fat)], ['Recovery', rec + '%', _trStatColor(rec)], ['Readiness', D.avgReady + '%', _trStatColor(D.avgReady)], ['Injury Risk', risk, risk === 'Low' ? '52,215,122' : risk === 'Moderate' ? '244,183,64' : '248,113,113']];
+  var mini = D.ps.slice(0, 12).map(function (p) { var l = D.load(p); return '<div class="tr-load-row"><span>' + _trEsc(_sqLastName(p.name)) + '</span><span class="tr-bar" style="--c:' + _trStatColor(100 - l) + '"><i style="width:' + l + '%;--c:' + _trStatColor(100 - l) + '"></i></span><span>' + l + '%</span></div>'; }).join('');
+  return '<div class="tr-load"><div class="tr-load-cards">' + cards.map(function (c) { return '<div class="tr-ov-card" style="--c:' + c[2] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + c[1] + '</b></div>'; }).join('') + '</div>'
+    + '<div class="tr-load-mini"><div class="tr-sub-h">Per-player load</div>' + mini + '</div></div>';
+}
+function _trNotes() {
+  var blocks = [['Team Notes', '52,215,122', 'High tempo in possession drills this week. Shape held well in the pressing block — keep the second line compact.'], ['Player Notes', '56,189,248', 'Watanabe leading the group; Pinto sharp in tight spaces. Monitor Bah — slight dip in condition.'], ['Training Feedback', '244,183,64', 'Intensity is good; add more finishing reps under fatigue. Recovery-day attendance excellent.']];
+  return '<div class="tr-notes">' + blocks.map(function (b) { return '<div class="tr-note" style="--c:' + b[1] + '"><b>' + b[0] + '</b><p>' + _trEsc(b[2]) + '</p></div>'; }).join('') + '</div>';
+}
+function _trReports() {
+  var D = _trData(), ps = D.ps;
+  var best = ps.slice().sort(function (a, b) { return (b.form || 0) - (a.form || 0); })[0];
+  var improved = ps.slice().sort(function (a, b) { return (_sqSeed(b.id + 'imp') % 20) - (_sqSeed(a.id + 'imp') % 20); })[0];
+  var lowAtt = D.att.filter(function (a) { return a.s !== 'Present'; })[0];
+  var highLoad = ps.slice().sort(function (a, b) { return D.load(b) - D.load(a); })[0];
+  var rest = ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0];
+  var cards = [['Best Performer', best ? _sqLastName(best.name) : '—', 'Form ' + (best ? best.form : '-') + '/10', '52,215,122'], ['Most Improved', improved ? _sqLastName(improved.name) : '—', '+' + (5 + _sqSeed((improved ? improved.id : 'x') + 'i') % 10) + '% this week', '56,189,248'], ['Lowest Attendance', lowAtt ? _sqLastName(lowAtt.p.name) : 'None', 'Status ' + (lowAtt ? lowAtt.s : '—'), '244,183,64'], ['Highest Load', highLoad ? _sqLastName(highLoad.name) : '—', D.load(highLoad) + '% load', '251,146,60'], ['Recommended Rest', rest ? _sqLastName(rest.name) : '—', 'Condition ' + (rest ? rest.cond : '-') + '%', '167,139,250']];
+  return '<div class="tr-rep">' + cards.map(function (c) { return '<div class="tr-rep-card" style="--c:' + c[3] + '"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div>'; }).join('') + '</div>';
+}
+function _trAI() {
+  var D = _trData(), best = D.best, low = D.ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0], extra = D.attention[0] || best;
+  var recs = [
+    ['Tomorrow — Focus', '⚡', 'Sharp finishing under fatigue plus a short pressing block. Keep total load moderate.', '56,189,248'],
+    ['Player Needs Rest', '🛌', (low ? _sqLastName(low.name) : '—') + ' — condition ' + (low ? low.cond : '-') + '%. Give a recovery day or reduced session.', '167,139,250'],
+    ['Player Needs Extra Work', '＋', (extra ? _sqLastName(extra.name) : '—') + ' — add individual positional reps this week.', '244,183,64'],
+    ['Team Weakness To Train', '🎯', 'Transition defence after losing the ball — rehearse counter-press triggers.', '248,113,113'],
+    ['Match Preparation', '📋', 'Two tactical sessions plus one set-piece session before match day; taper on Friday.', '52,215,122']
+  ];
+  return '<div class="tr-ai">' + recs.map(function (r) { return '<div class="tr-ai-card" style="--c:' + r[3] + '"><span class="tr-ai-i">' + r[1] + '</span><div class="tr-ai-t"><b>' + r[0] + '</b><p>' + _trEsc(r[2]) + '</p></div></div>'; }).join('') + '</div>';
+}
+function _trBody(id) {
+  switch (id) {
+    case 'sessions': return _trSessions();
+    case 'attendance': return _trAttendance();
+    case 'plan': return _trPlan();
+    case 'drills': return _trDrills();
+    case 'individual': return _trIndividual();
+    case 'load': return _trLoad();
+    case 'notes': return _trNotes();
+    case 'reports': return _trReports();
+    case 'ai': return _trAI();
+  }
+  return '';
+}
+function renderTrainingHTML() {
+  var launch = _TR_SECTIONS.map(function (s) {
+    return '<button class="tr-launch-btn" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-launch-dot"></span><b>' + s.t + '</b><small>' + s.d + '</small></button>';
+  }).join('');
+  var panels = _TR_SECTIONS.map(function (s) {
+    return '<div class="tr-panel" data-trpanel="' + s.id + '" style="--c:' + s.ac + '" hidden>'
+      + '<div class="tr-panel-hd" data-trdrag="1"><span class="tr-panel-t">' + s.t + '</span><button class="tr-panel-x" data-action="trClose" data-tr="' + s.id + '" type="button" aria-label="Close">&#10005;</button></div>'
+      + '<div class="tr-panel-bd">' + _trBody(s.id) + '</div></div>';
+  }).join('');
+  if (typeof _trBind === 'function') _trBind();
+  return '<div class="page" id="pg-training">'
+    + '<div class="tr-wrap">'
+    + '<div class="tr-head"><h1 class="tr-title">Training</h1><p class="tr-sub">Plan sessions, track load &amp; readiness — open any section as its own floating glass panel.</p></div>'
+    + '<div class="tr-sec-h">Training Overview</div>' + _trOverviewCards()
+    + '<div class="tr-sec-h">Sections</div><div class="tr-launch">' + launch + '</div>'
+    + '</div>' + panels + '</div>';
+}
+// ── Training floating-panel controls (open / front / close / drag) — mirrors the Simulation panel system ──
+function _trPin(fp) { if (fp.getAttribute('data-trpinned')) return; fp.style.left = fp.offsetLeft + 'px'; fp.style.top = fp.offsetTop + 'px'; fp.style.right = 'auto'; fp.style.bottom = 'auto'; fp.style.margin = '0'; fp.setAttribute('data-trpinned', '1'); }
+function _trClampView(fp) { var vw = window.innerWidth, vh = window.innerHeight, r = fp.getBoundingClientRect(), offX = r.left - fp.offsetLeft, offY = r.top - fp.offsetTop, w = fp.offsetWidth; var vL = Math.max(6, Math.min(r.left, vw - Math.min(w, vw) - 6)), vT = Math.max(6, Math.min(r.top, vh - 44)); fp.style.left = (vL - offX) + 'px'; fp.style.top = (vT - offY) + 'px'; }
+function _trPlace(el) {
+  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280, vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+  var w = Math.min(640, vw - 40), h = Math.min(460, vh - 140), n = document.querySelectorAll('.tr-panel[data-placed]').length;
+  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 32 - 50, vw - 100)), y = Math.max(72, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 28, vh - 80));
+  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.margin = '0';
+}
+function trOpen(id) {
+  if (!id || typeof document === 'undefined') return; _trBind();
+  var el = document.querySelector('.tr-panel[data-trpanel="' + id + '"]'); if (!el) return;
+  if (!el.getAttribute('data-placed')) { _trPlace(el); el.setAttribute('data-placed', '1'); }
+  el.hidden = false; el.style.zIndex = (++_TR_Z);
+  var b = document.querySelector('.tr-launch-btn[data-tr="' + id + '"]'); if (b) b.classList.add('is-on');
+}
+function trClose(id) {
+  if (!id || typeof document === 'undefined') return;
+  var el = document.querySelector('.tr-panel[data-trpanel="' + id + '"]'); if (el) el.hidden = true;
+  var b = document.querySelector('.tr-launch-btn[data-tr="' + id + '"]'); if (b) b.classList.remove('is-on');
+}
+function _trBind() {
+  if (_trBound || typeof document === 'undefined' || !document.addEventListener) return; _trBound = true;
+  document.addEventListener('mousedown', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var p = t.closest('.tr-panel'); if (p) p.style.zIndex = (++_TR_Z);
+    if (t.closest('button')) return;
+    var h = t.closest('[data-trdrag]'); if (!h || !p) return;
+    _trPin(p); var r = p.getBoundingClientRect();
+    _trDrag = { fp: p, sx: e.clientX, sy: e.clientY, l0: p.offsetLeft, t0: p.offsetTop, offX: r.left - p.offsetLeft, offY: r.top - p.offsetTop };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!_trDrag) return; var d = _trDrag, fp = d.fp, vw = window.innerWidth, vh = window.innerHeight, w = fp.offsetWidth;
+    var nl = d.l0 + (e.clientX - d.sx), nt = d.t0 + (e.clientY - d.sy);
+    var vL = Math.max(6, Math.min(nl + d.offX, vw - Math.min(w, vw) - 6)), vT = Math.max(6, Math.min(nt + d.offY, vh - 44));
+    fp.style.left = (vL - d.offX) + 'px'; fp.style.top = (vT - d.offY) + 'px';
+  });
+  document.addEventListener('mouseup', function () { _trDrag = null; });
+  window.addEventListener('resize', function () { var els = document.querySelectorAll('.tr-panel[data-trpinned]'); for (var i = 0; i < els.length; i++) _trClampView(els[i]); });
+}
 
 function renderClubHome() {
   var ctx    = (window.State && State.context) || {};
@@ -38129,6 +38335,8 @@ async function tosBoardSnapshot() {
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
         case 'sqMxOpen':          if (typeof sqMxOpen === 'function')          sqMxOpen(el.dataset.mx); break;
         case 'sqMxClose':         if (typeof sqMxClose === 'function')         sqMxClose(el.dataset.mx); break;
+        case 'trOpen':            if (typeof trOpen === 'function')            trOpen(el.dataset.tr); break;
+        case 'trClose':           if (typeof trClose === 'function')           trClose(el.dataset.tr); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
