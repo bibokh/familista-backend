@@ -1553,7 +1553,7 @@ function _buildPageTemplateMap() {
     'clubs':                       renderClubsHTML,
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
-    'training':                    renderTrainingHTML,
+    'training':                    renderTrainingWorkspaceHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -6523,7 +6523,9 @@ function _trBody(id) {
   }
   return '';
 }
-function renderTrainingHTML() {
+// NOTE: named uniquely (a legacy `renderTrainingHTML` "Training Management" page still exists further down).
+// The sidebar 'training' route maps to THIS function so the new Training workspace renders, not the legacy one.
+function renderTrainingWorkspaceHTML() {
   var launch = _TR_SECTIONS.map(function (s) {
     return '<button class="tr-launch-btn" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-launch-dot"></span><b>' + s.t + '</b><small>' + s.d + '</small></button>';
   }).join('');
