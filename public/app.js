@@ -6400,7 +6400,14 @@ var _TR_SECTIONS = [
   { id: 'reports', t: 'Training Reports', ac: '45,212,191', d: 'Weekly report cards' },
   { id: 'ai', t: 'AI Training Suggestions', ac: '167,139,250', d: 'Simple recommendations' }
 ];
+// ── Training desktop window-manager state (taskbar / minimize / pin / snap / persistence) ──
 var _TR_Z = 60, _trDrag = null, _trBound = false;
+var _TR_WIN = {};          // per-panel window state: id -> {open,min,pinned,x,y,w,h,z,placed}
+var _trFocus = null;       // currently focused panel id
+var _TR_WS_KEY = 'familista.training.workspace.v1';
+function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false, pinned: false, x: 0, y: 0, w: 0, h: 0, z: 0, placed: false }; return _TR_WIN[id]; }
+function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
+function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
 var _TR_SESSIONS = [
   { date: 'Mon 06 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Possession & Rondos', coach: 'Head Coach', notes: 'Build-up under pressure; two-touch limit.' },
   { date: 'Tue 07 Jul', time: '10:30', loc: 'Gym + Pitch B', dur: '75 min', focus: 'Strength & Speed', coach: 'Fitness Coach', notes: 'Split by position; watch high-load players.' },
@@ -6525,53 +6532,167 @@ function _trBody(id) {
 }
 // NOTE: named uniquely (a legacy `renderTrainingHTML` "Training Management" page still exists further down).
 // The sidebar 'training' route maps to THIS function so the new Training workspace renders, not the legacy one.
+function _trTitle(id) { for (var i = 0; i < _TR_SECTIONS.length; i++) if (_TR_SECTIONS[i].id === id) return _TR_SECTIONS[i].t; return id; }
 function renderTrainingWorkspaceHTML() {
+  _trLoadWS();
   var launch = _TR_SECTIONS.map(function (s) {
-    return '<button class="tr-launch-btn" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-launch-dot"></span><b>' + s.t + '</b><small>' + s.d + '</small></button>';
+    var on = _TR_WIN[s.id] && _TR_WIN[s.id].open;
+    return '<button class="tr-launch-btn' + (on ? ' is-on' : '') + '" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-launch-dot"></span><b>' + s.t + '</b><small>' + s.d + '</small></button>';
   }).join('');
   var panels = _TR_SECTIONS.map(function (s) {
-    return '<div class="tr-panel" data-trpanel="' + s.id + '" style="--c:' + s.ac + '" hidden>'
-      + '<div class="tr-panel-hd" data-trdrag="1"><span class="tr-panel-t">' + s.t + '</span><button class="tr-panel-x" data-action="trClose" data-tr="' + s.id + '" type="button" aria-label="Close">&#10005;</button></div>'
+    var w = _TR_WIN[s.id], open = w && w.open, vis = open && !w.min;
+    var st = '--c:' + s.ac + ';';
+    if (open) st += 'left:' + Math.round(w.x) + 'px;top:' + Math.round(w.y) + 'px;width:' + Math.round(w.w) + 'px;height:' + Math.round(w.h) + 'px;right:auto;bottom:auto;margin:0;z-index:' + (w.z || 60) + ';';
+    var cls = 'tr-panel' + (open ? ' tr-placed' : '') + (w && w.pinned ? ' tr-pinned' : '') + (_trFocus === s.id ? ' tr-focus' : '');
+    return '<div class="' + cls + '" data-trpanel="' + s.id + '" style="' + st + '"' + (vis ? '' : ' hidden') + (open ? ' data-placed="1"' : '') + '>'
+      + '<div class="tr-panel-hd" data-trdrag="1"><span class="tr-panel-t">' + s.t + '</span>'
+      + '<button class="tr-win-btn tr-win-pin' + (w && w.pinned ? ' is-on' : '') + '" data-action="trPin" data-tr="' + s.id + '" type="button" title="Keep on top" aria-label="Pin">&#128204;</button>'
+      + '<button class="tr-win-btn tr-win-min" data-action="trMin" data-tr="' + s.id + '" type="button" title="Minimize" aria-label="Minimize">&#8211;</button>'
+      + '<button class="tr-win-btn tr-win-x" data-action="trClose" data-tr="' + s.id + '" type="button" title="Close" aria-label="Close">&#10005;</button></div>'
       + '<div class="tr-panel-bd">' + _trBody(s.id) + '</div></div>';
   }).join('');
+  // taskbar (window manager) — lists every open panel; hidden when none open
+  var openIds = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; });
+  var tbItems = openIds.map(function (s) {
+    var w = _TR_WIN[s.id];
+    return '<button class="tr-tb-item' + (w.min ? ' is-min' : '') + (_trFocus === s.id ? ' is-active' : '') + '" style="--c:' + s.ac + '" data-action="trTask" data-tr="' + s.id + '" type="button"><span class="tr-tb-dot"></span>' + s.t + '</button>';
+  }).join('');
+  var taskbar = '<div class="tr-taskbar" id="tr-taskbar"' + (openIds.length ? '' : ' hidden') + '>'
+    + '<div class="tr-tb-items" id="tr-tb-items">' + tbItems + '</div>'
+    + '<div class="tr-tb-arrange-wrap"><button class="tr-tb-arrange" data-action="trArrangeMenu" type="button" title="Arrange windows">&#9638; Arrange</button>'
+    + '<div class="tr-arrange-menu" id="tr-arrange-menu" hidden><button data-action="trArrange" data-mode="cascade" type="button">Cascade</button><button data-action="trArrange" data-mode="tile" type="button">Tile</button><button data-action="trArrange" data-mode="grid" type="button">Grid</button></div></div></div>';
   if (typeof _trBind === 'function') _trBind();
   return '<div class="page" id="pg-training">'
     + '<div class="tr-wrap">'
-    + '<div class="tr-head"><h1 class="tr-title">Training</h1><p class="tr-sub">Plan sessions, track load &amp; readiness — open any section as its own floating glass panel.</p></div>'
+    + '<div class="tr-head"><h1 class="tr-title">Training</h1><p class="tr-sub">A floating-window workspace — open any section as its own glass window; minimize, pin, snap, arrange &amp; tile. No scrolling needed.</p></div>'
     + '<div class="tr-sec-h">Training Overview</div>' + _trOverviewCards()
     + '<div class="tr-sec-h">Sections</div><div class="tr-launch">' + launch + '</div>'
-    + '</div>' + panels + '</div>';
+    + '</div>' + panels
+    + '<div class="tr-snap" id="tr-snap" hidden></div>' + taskbar + '</div>';
 }
-// ── Training floating-panel controls (open / front / close / drag) — mirrors the Simulation panel system ──
-function _trPin(fp) { if (fp.getAttribute('data-trpinned')) return; fp.style.left = fp.offsetLeft + 'px'; fp.style.top = fp.offsetTop + 'px'; fp.style.right = 'auto'; fp.style.bottom = 'auto'; fp.style.margin = '0'; fp.setAttribute('data-trpinned', '1'); }
-function _trClampView(fp) { var vw = window.innerWidth, vh = window.innerHeight, r = fp.getBoundingClientRect(), offX = r.left - fp.offsetLeft, offY = r.top - fp.offsetTop, w = fp.offsetWidth; var vL = Math.max(6, Math.min(r.left, vw - Math.min(w, vw) - 6)), vT = Math.max(6, Math.min(r.top, vh - 44)); fp.style.left = (vL - offX) + 'px'; fp.style.top = (vT - offY) + 'px'; }
-function _trPlace(el) {
-  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280, vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
-  var w = Math.min(640, vw - 40), h = Math.min(460, vh - 140), n = document.querySelectorAll('.tr-panel[data-placed]').length;
-  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 32 - 50, vw - 100)), y = Math.max(72, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 28, vh - 80));
-  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.margin = '0';
+// ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts ──
+function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
+function _trLaunchState(id, on) { var b = document.querySelector('.tr-launch-btn[data-tr="' + id + '"]'); if (b) b.classList.toggle('is-on', !!on); }
+function _trApplyWin(id) {
+  var el = _trPanelEl(id), w = _TR_WIN[id]; if (!el || !w) return;
+  el.hidden = !(w.open && !w.min);
+  el.classList.toggle('tr-pinned', !!w.pinned);
+  el.classList.toggle('tr-focus', _trFocus === id);
+  var pb = el.querySelector('.tr-win-pin'); if (pb) pb.classList.toggle('is-on', !!w.pinned);
+  if (w.open) { el.style.left = Math.round(w.x) + 'px'; el.style.top = Math.round(w.y) + 'px'; el.style.width = Math.round(w.w) + 'px'; el.style.height = Math.round(w.h) + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.margin = '0'; el.style.zIndex = w.z; }
+}
+function _trDefaultPlace(id) {
+  var w = _trWin(id), vw = (typeof window !== 'undefined' && window.innerWidth) || 1280, vh = (typeof window !== 'undefined' && window.innerHeight) || 800;
+  w.w = Math.min(640, vw - 40); w.h = Math.min(460, vh - 150);
+  var n = 0; for (var k in _TR_WIN) if (_TR_WIN[k].placed) n++;
+  w.x = Math.max(12, Math.min(Math.round((vw - w.w) / 2) + (n % 5) * 32 - 50, vw - 100));
+  w.y = Math.max(66, Math.min(Math.round((vh - w.h) / 2) - 34 + (n % 5) * 28, vh - 130));
+  w.placed = true;
+}
+function _trFront(id) {
+  var w = _TR_WIN[id]; if (!w) return;
+  w.z = (w.pinned ? 100000 : 0) + (++_TR_Z); _trFocus = id;
+  var el = _trPanelEl(id); if (el) el.style.zIndex = w.z;
+  for (var i = 0; i < _TR_SECTIONS.length; i++) { var e = _trPanelEl(_TR_SECTIONS[i].id); if (e) e.classList.toggle('tr-focus', _TR_SECTIONS[i].id === id); }
+}
+function _trFocusTop() { var best = null, bz = -1; for (var i = 0; i < _TR_SECTIONS.length; i++) { var id = _TR_SECTIONS[i].id, w = _TR_WIN[id]; if (w && w.open && !w.min && (w.z || 0) > bz) { bz = w.z || 0; best = id; } } _trFocus = best; }
+function _trRenderTaskbar() {
+  if (typeof document === 'undefined') return;
+  var host = document.getElementById('tr-tb-items'), bar = document.getElementById('tr-taskbar'); if (!host || !bar) return;
+  var openIds = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; });
+  bar.hidden = openIds.length === 0;
+  host.innerHTML = openIds.map(function (s) { var w = _TR_WIN[s.id]; return '<button class="tr-tb-item' + (w.min ? ' is-min' : '') + (w.pinned ? ' is-pin' : '') + (_trFocus === s.id ? ' is-active' : '') + '" style="--c:' + s.ac + '" data-action="trTask" data-tr="' + s.id + '" type="button"><span class="tr-tb-dot"></span>' + s.t + '</button>'; }).join('');
 }
 function trOpen(id) {
   if (!id || typeof document === 'undefined') return; _trBind();
-  var el = document.querySelector('.tr-panel[data-trpanel="' + id + '"]'); if (!el) return;
-  if (!el.getAttribute('data-placed')) { _trPlace(el); el.setAttribute('data-placed', '1'); }
-  el.hidden = false; el.style.zIndex = (++_TR_Z);
-  var b = document.querySelector('.tr-launch-btn[data-tr="' + id + '"]'); if (b) b.classList.add('is-on');
+  var w = _trWin(id); if (!w.placed || (!w.w || !w.h)) _trDefaultPlace(id);
+  w.open = true; w.min = false;
+  _trApplyWin(id); _trFront(id); _trLaunchState(id, true); _trRenderTaskbar(); _trSaveWS();
 }
 function trClose(id) {
-  if (!id || typeof document === 'undefined') return;
-  var el = document.querySelector('.tr-panel[data-trpanel="' + id + '"]'); if (el) el.hidden = true;
-  var b = document.querySelector('.tr-launch-btn[data-tr="' + id + '"]'); if (b) b.classList.remove('is-on');
+  if (!id || typeof document === 'undefined') return; var w = _TR_WIN[id]; if (!w) return;
+  w.open = false; w.min = false; _trApplyWin(id); _trLaunchState(id, false);
+  if (_trFocus === id) _trFocusTop();
+  _trRenderTaskbar(); _trSaveWS();
+}
+function trMin(id) {
+  if (!id || typeof document === 'undefined') return; var w = _TR_WIN[id]; if (!w || !w.open) return;
+  w.min = true; _trApplyWin(id); if (_trFocus === id) _trFocusTop();
+  _trRenderTaskbar(); _trSaveWS();
+}
+function trTask(id) {                 // taskbar click: restore+front, or minimize if already focused
+  if (!id || typeof document === 'undefined') return; var w = _TR_WIN[id]; if (!w) return;
+  if (w.min) { w.min = false; _trApplyWin(id); _trFront(id); }
+  else if (_trFocus === id) { trMin(id); return; }
+  else { _trFront(id); }
+  _trRenderTaskbar(); _trSaveWS();
+}
+function trPin(id) {
+  if (!id || typeof document === 'undefined') return; var w = _TR_WIN[id]; if (!w) return;
+  w.pinned = !w.pinned; _trFront(id); _trApplyWin(id); _trRenderTaskbar(); _trSaveWS();
+}
+function trArrangeMenu() { if (typeof document === 'undefined') return; var m = document.getElementById('tr-arrange-menu'); if (m) m.hidden = !m.hidden; }
+function trArrange(mode) {
+  if (typeof document === 'undefined') return; var m = document.getElementById('tr-arrange-menu'); if (m) m.hidden = true;
+  var ids = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; }).map(function (s) { return s.id; });
+  if (!ids.length) return;
+  var vw = window.innerWidth, vh = window.innerHeight, M = 10, TOP = 60, TB = 54, x0 = M, y0 = TOP, W = vw - 2 * M, H = vh - TOP - TB;
+  if (mode === 'cascade') {
+    ids.forEach(function (id, i) { var w = _trWin(id); w.min = false; w.w = Math.min(660, W - 60); w.h = Math.min(460, H - 60); w.x = x0 + i * 34; w.y = y0 + i * 32; });
+  } else {
+    var n = ids.length, cols = mode === 'tile' ? Math.min(n, n <= 2 ? n : 3) : Math.ceil(Math.sqrt(n));
+    cols = Math.max(1, cols); var rows = Math.ceil(n / cols);
+    var cw = Math.floor((W - (cols - 1) * 8) / cols), ch = Math.floor((H - (rows - 1) * 8) / rows);
+    ids.forEach(function (id, i) { var w = _trWin(id), c = i % cols, r = Math.floor(i / cols); w.min = false; w.x = x0 + c * (cw + 8); w.y = y0 + r * (ch + 8); w.w = cw; w.h = ch; });
+  }
+  ids.forEach(function (id, i) { _TR_WIN[id].z = (_TR_WIN[id].pinned ? 100000 : 0) + (++_TR_Z); _trApplyWin(id); });
+  _trFocus = ids[ids.length - 1]; _trRenderTaskbar(); _trSaveWS();
+}
+function _trCapture() {                // sync every open panel's live geometry back into the store, then persist
+  if (typeof document === 'undefined') return;
+  _TR_SECTIONS.forEach(function (s) { var el = _trPanelEl(s.id), w = _TR_WIN[s.id]; if (el && w && w.open && !w.min) { w.x = el.offsetLeft; w.y = el.offsetTop; w.w = el.offsetWidth; w.h = el.offsetHeight; } });
+  _trSaveWS();
+}
+function _trSnapZoneAt(x, y) {
+  var vw = window.innerWidth, vh = window.innerHeight, TB = 54, E = 16, C = 58;
+  if (x <= C && y <= C) return 'tl'; if (x >= vw - C && y <= C) return 'tr';
+  if (x <= C && y >= vh - TB - C) return 'bl'; if (x >= vw - C && y >= vh - TB - C) return 'br';
+  if (y <= E) return 'max'; if (x <= E) return 'left'; if (x >= vw - E) return 'right';
+  return null;
+}
+function _trSnapRect(z) {
+  var vw = window.innerWidth, vh = window.innerHeight, M = 10, TOP = 60, TB = 54, x0 = M, y0 = TOP, W = vw - 2 * M, H = vh - TOP - TB, hw = Math.floor(W / 2) - 4, hh = Math.floor(H / 2) - 4, rx = x0 + Math.ceil(W / 2) + 4, ry = y0 + Math.ceil(H / 2) + 4;
+  switch (z) {
+    case 'max': return { x: x0, y: y0, w: W, h: H };
+    case 'left': return { x: x0, y: y0, w: hw, h: H };
+    case 'right': return { x: rx, y: y0, w: hw, h: H };
+    case 'tl': return { x: x0, y: y0, w: hw, h: hh };
+    case 'tr': return { x: rx, y: y0, w: hw, h: hh };
+    case 'bl': return { x: x0, y: ry, w: hw, h: hh };
+    case 'br': return { x: rx, y: ry, w: hw, h: hh };
+  }
+  return null;
+}
+function _trSnapPreview(z) {
+  var el = document.getElementById('tr-snap'); if (!el) return;
+  var r = z ? _trSnapRect(z) : null;
+  if (!r) { el.hidden = true; return; }
+  el.style.left = r.x + 'px'; el.style.top = r.y + 'px'; el.style.width = r.w + 'px'; el.style.height = r.h + 'px'; el.hidden = false;
+}
+function _trCycle(dir) {
+  var ids = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open && !_TR_WIN[s.id].min; }).map(function (s) { return s.id; });
+  if (!ids.length) return; var i = ids.indexOf(_trFocus); i = (i < 0 ? 0 : (i + dir + ids.length) % ids.length);
+  _trFront(ids[i]); _trRenderTaskbar(); _trSaveWS();
 }
 function _trBind() {
   if (_trBound || typeof document === 'undefined' || !document.addEventListener) return; _trBound = true;
   document.addEventListener('mousedown', function (e) {
     var t = e.target; if (!t || !t.closest) return;
-    var p = t.closest('.tr-panel'); if (p) p.style.zIndex = (++_TR_Z);
+    var p = t.closest('.tr-panel'); if (p) { var pid = p.getAttribute('data-trpanel'); _trFront(pid); _trRenderTaskbar(); _trSaveWS(); }
     if (t.closest('button')) return;
     var h = t.closest('[data-trdrag]'); if (!h || !p) return;
-    _trPin(p); var r = p.getBoundingClientRect();
-    _trDrag = { fp: p, sx: e.clientX, sy: e.clientY, l0: p.offsetLeft, t0: p.offsetTop, offX: r.left - p.offsetLeft, offY: r.top - p.offsetTop };
+    var r = p.getBoundingClientRect();
+    _trDrag = { fp: p, id: p.getAttribute('data-trpanel'), sx: e.clientX, sy: e.clientY, l0: p.offsetLeft, t0: p.offsetTop, offX: r.left - p.offsetLeft, offY: r.top - p.offsetTop, snap: null };
     e.preventDefault();
   });
   document.addEventListener('mousemove', function (e) {
@@ -6579,9 +6700,27 @@ function _trBind() {
     var nl = d.l0 + (e.clientX - d.sx), nt = d.t0 + (e.clientY - d.sy);
     var vL = Math.max(6, Math.min(nl + d.offX, vw - Math.min(w, vw) - 6)), vT = Math.max(6, Math.min(nt + d.offY, vh - 44));
     fp.style.left = (vL - d.offX) + 'px'; fp.style.top = (vT - d.offY) + 'px';
+    d.snap = _trSnapZoneAt(e.clientX, e.clientY); _trSnapPreview(d.snap);   // Windows-style snap preview
   });
-  document.addEventListener('mouseup', function () { _trDrag = null; });
-  window.addEventListener('resize', function () { var els = document.querySelectorAll('.tr-panel[data-trpinned]'); for (var i = 0; i < els.length; i++) _trClampView(els[i]); });
+  document.addEventListener('mouseup', function () {
+    if (_trDrag) {
+      var d = _trDrag; _trSnapPreview(null);
+      if (d.snap && d.id) { var r = _trSnapRect(d.snap), w = _TR_WIN[d.id]; if (r && w) { w.x = r.x; w.y = r.y; w.w = r.w; w.h = r.h; w.min = false; _trApplyWin(d.id); } }
+      _trDrag = null; _trCapture();
+    }
+  });
+  window.addEventListener('resize', function () {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    _TR_SECTIONS.forEach(function (s) { var el = _trPanelEl(s.id), w = _TR_WIN[s.id]; if (!el || !w || !w.open || w.min) return; var r = el.getBoundingClientRect(); w.x = Math.max(6, Math.min(w.x, vw - 90)); w.y = Math.max(6, Math.min(w.y, vh - 60)); _trApplyWin(s.id); });
+  });
+  document.addEventListener('keydown', function (e) {
+    var pg = document.getElementById('pg-training'); if (!pg || !pg.classList.contains('active')) return;
+    var tg = (e.target && e.target.tagName) || ''; if (/INPUT|TEXTAREA|SELECT/.test(tg) || (e.target && e.target.isContentEditable)) return;
+    if (e.key === 'Escape') { if (_trFocus) { trClose(_trFocus); e.preventDefault(); } }
+    else if (e.ctrlKey && e.key === 'Tab') { _trCycle(e.shiftKey ? -1 : 1); e.preventDefault(); }
+    else if (e.ctrlKey && (e.key === 'm' || e.key === 'M')) { if (_trFocus) { trMin(_trFocus); e.preventDefault(); } }
+    else if (e.ctrlKey && (e.key === 'w' || e.key === 'W')) { if (_trFocus) { trClose(_trFocus); e.preventDefault(); } }
+  });
 }
 
 function renderClubHome() {
@@ -38339,6 +38478,11 @@ async function tosBoardSnapshot() {
         case 'sqMxClose':         if (typeof sqMxClose === 'function')         sqMxClose(el.dataset.mx); break;
         case 'trOpen':            if (typeof trOpen === 'function')            trOpen(el.dataset.tr); break;
         case 'trClose':           if (typeof trClose === 'function')           trClose(el.dataset.tr); break;
+        case 'trMin':             if (typeof trMin === 'function')             trMin(el.dataset.tr); break;
+        case 'trTask':            if (typeof trTask === 'function')            trTask(el.dataset.tr); break;
+        case 'trPin':             if (typeof trPin === 'function')             trPin(el.dataset.tr); break;
+        case 'trArrange':         if (typeof trArrange === 'function')         trArrange(el.dataset.mode); break;
+        case 'trArrangeMenu':     if (typeof trArrangeMenu === 'function')     trArrangeMenu(); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
