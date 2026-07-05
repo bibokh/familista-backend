@@ -4190,6 +4190,29 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmx-panel.is-on{ display:block; height:100%; overflow-y:auto; overflow-x:hidden; padding-right:4px; scrollbar-width:thin; }
 .sqmx-panel .sqmx-pos-list{ gap:9px; }
 
+/* ══ Matchup: main popup is now a compact controller; each tab opens its own floating glass sub-panel ══ */
+.sqtc-ov--float.sqtc-ov--launch{ inset:84px 0 auto 0; margin:0 auto; width:min(460px,92vw); height:auto; min-height:0; max-height:76vh; min-width:280px; }
+.sqtc-ov--float.sqtc-ov--launch .sqtc-ov-body{ display:block; overflow:auto; }
+.sqmx-intro{ margin:0 0 14px; font-size:12px; line-height:1.55; color:#aab4c5; }
+.sqmx--launch .sqmx-tabs{ flex-direction:column; align-items:stretch; gap:8px; margin:0; }
+.sqmx--launch .sqmx-tab{ text-align:left; padding:11px 15px; font-size:12.5px; }
+.sqmx--launch .sqmx-tab.is-on::after{ content:' — open'; font-weight:700; opacity:.7; }
+/* independent floating glass sub-panels (one per tab) */
+.sqmx-sub{ position:fixed; z-index:40; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; resize:both;
+  min-width:300px; min-height:200px; max-width:96vw; max-height:88vh;
+  background:linear-gradient(168deg,rgba(18,28,52,.82),rgba(9,14,26,.8));
+  -webkit-backdrop-filter:blur(18px) saturate(1.2); backdrop-filter:blur(18px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.16); border-radius:15px; box-shadow:0 24px 70px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04) inset;
+  animation:sqtcPop .16s ease both; }
+.sqmx-sub[hidden]{ display:none; }
+.sqmx-sub-hd{ flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; cursor:move; user-select:none; border-bottom:1px solid rgba(255,255,255,.09); }
+.sqmx-sub-hd span{ font-size:13px; font-weight:800; color:#f1f5f9; } .sqmx-sub-hd em{ font-style:normal; font-size:10px; font-weight:800; color:#8a94a6; margin-left:5px; }
+.sqmx-sub-x{ flex:0 0 auto; width:26px; height:26px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e3eaf4; font-size:12px; cursor:pointer; }
+.sqmx-sub-x:hover{ background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.5); color:#fff; }
+.sqmx-sub-bd{ flex:1 1 auto; min-height:0; overflow:auto; padding:14px; scrollbar-width:thin; }
+.sqmx-sub::after{ content:''; position:absolute; right:3px; bottom:3px; width:14px; height:14px; pointer-events:none; opacity:.5;
+  background:linear-gradient(135deg,transparent 46%,rgba(255,255,255,.85) 46% 58%,transparent 58% 66%,rgba(255,255,255,.85) 66% 78%,transparent 78%); }
+
 /* Squad · Tactical Command Center (full-screen, no-scroll, tabbed) */
 .sqfp-board--cmd{ display:block; padding:4px 16px 12px; }
 .sqtc{ height:calc(100vh - 78px); min-height:520px; display:flex; flex-direction:column; gap:7px; background:linear-gradient(168deg,#0f1830,#0a1018); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:10px 14px; overflow:hidden; box-shadow:0 16px 50px rgba(0,0,0,.5); }

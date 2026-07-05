@@ -3924,32 +3924,47 @@ function _sqTcOverview(my, op) {
     + _sqTcSummaryCards()
     + '</div>';
 }
-// ── Matchup popup: internal tabs + floating (draggable) behaviour — UI only, no data/calc change ──
-var _SQ_MX_TAB = 'summary';         // active internal tab (UI state only)
-var _sqMxDrag = null, _sqMxBound = false;
-function sqMxTab(id) {               // switch tab by toggling classes only (no re-render → keeps drag pos/size, no shake)
-  if (!id) return; _SQ_MX_TAB = id;
-  if (typeof document === 'undefined') return;
-  var root = document.querySelector('.sqtc-ov--matchup .sqmx'); if (!root) return;
-  var tabs = root.querySelectorAll('[data-mx]'); for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle('is-on', tabs[i].getAttribute('data-mx') === id);
-  var pnls = root.querySelectorAll('[data-mxp]'); for (var j = 0; j < pnls.length; j++) pnls[j].classList.toggle('is-on', pnls[j].getAttribute('data-mxp') === id);
-}
-// Pin the popup to an explicit top-left (converting from margin:auto centring) so dragging is stable.
+// ── Matchup popup: floating controller + independent floating glass sub-panels (one per tab) — UI only, no data/calc change ──
+var _sqMxDrag = null, _sqMxBound = false, _SQ_MX_Z = 40;
+// Pin an element to an explicit top-left (converting from margin:auto centring) so dragging is stable.
 function _sqMxPin(fp) { if (fp.getAttribute('data-mxpinned')) return; fp.style.left = fp.offsetLeft + 'px'; fp.style.top = fp.offsetTop + 'px'; fp.style.right = 'auto'; fp.style.bottom = 'auto'; fp.style.margin = '0'; fp.setAttribute('data-mxpinned', '1'); }
 function _sqMxClampToView(fp) {
   var vw = window.innerWidth, vh = window.innerHeight, r = fp.getBoundingClientRect(), offX = r.left - fp.offsetLeft, offY = r.top - fp.offsetTop, w = fp.offsetWidth;
   var visL = Math.max(6, Math.min(r.left, vw - Math.min(w, vw) - 6)), visT = Math.max(6, Math.min(r.top, vh - 44));
   fp.style.left = (visL - offX) + 'px'; fp.style.top = (visT - offY) + 'px';
 }
-function _sqMxBind() {               // drag the Matchup popup by its header (bound once; scoped to .sqtc-ov--matchup only)
+// cascade a sub-panel's default position/size once, clamped to the viewport
+function _sqMxSubPlace(el, id) {
+  var sz = { summary: [660, 430], battles: [560, 480], scores: [560, 380], analysis: [600, 380] }[id] || [560, 420];
+  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280, vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+  var w = Math.min(sz[0], vw - 40), h = Math.min(sz[1], vh - 120);
+  var n = document.querySelectorAll('.sqmx-sub[data-placed]').length;
+  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 34 - 40, vw - 100));
+  var y = Math.max(66, Math.min(Math.round((vh - h) / 2) - 40 + (n % 5) * 30, vh - 80));
+  el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; el.style.right = 'auto'; el.style.bottom = 'auto'; el.style.margin = '0';
+}
+function sqMxOpen(id) {          // open a tab's floating sub-panel, or bring it to front if already open (never duplicates, never closes)
+  if (!id || typeof document === 'undefined') return; _sqMxBind();
+  var el = document.querySelector('.sqmx-sub[data-mxpanel="' + id + '"]'); if (!el) return;
+  if (!el.getAttribute('data-placed')) { _sqMxSubPlace(el, id); el.setAttribute('data-placed', '1'); }
+  el.hidden = false; el.style.zIndex = (++_SQ_MX_Z);
+  var tab = document.querySelector('.sqmx-tab[data-mx="' + id + '"]'); if (tab) tab.classList.add('is-on');
+}
+function sqMxClose(id) {         // closes ONLY via a sub-panel's own ✕
+  if (!id || typeof document === 'undefined') return;
+  var el = document.querySelector('.sqmx-sub[data-mxpanel="' + id + '"]'); if (el) el.hidden = true;
+  var tab = document.querySelector('.sqmx-tab[data-mx="' + id + '"]'); if (tab) tab.classList.remove('is-on');
+}
+function _sqMxBind() {           // drag the controller popup + sub-panels by their headers; click a sub-panel → front (bound once)
   if (_sqMxBound || typeof document === 'undefined' || !document.addEventListener) return;
   _sqMxBound = true;
   document.addEventListener('mousedown', function (e) {
-    var t = e.target; if (!t || !t.closest || t.closest('button')) return;
-    var h = t.closest('[data-mxdrag]'); if (!h) return;
-    var fp = h.closest('.sqtc-ov--matchup'); if (!fp) return;
+    var t = e.target; if (!t || !t.closest) return;
+    var sub = t.closest('.sqmx-sub'); if (sub) sub.style.zIndex = (++_SQ_MX_Z);        // click any sub-panel → front
+    if (t.closest('button')) return;                                                   // never drag from the close buttons
+    var h = t.closest('[data-mxdrag],[data-mxsubdrag]'); if (!h) return;
+    var fp = h.closest('.sqmx-sub') || h.closest('.sqtc-ov--matchup'); if (!fp) return;
     _sqMxPin(fp);
-    // offset between the fixed containing block and the viewport, so clamping is correct even with a transformed ancestor
     var r = fp.getBoundingClientRect();
     _sqMxDrag = { fp: fp, sx: e.clientX, sy: e.clientY, l0: fp.offsetLeft, t0: fp.offsetTop, offX: r.left - fp.offsetLeft, offY: r.top - fp.offsetTop };
     e.preventDefault();
@@ -3963,7 +3978,7 @@ function _sqMxBind() {               // drag the Matchup popup by its header (bo
     fp.style.left = (visL - d.offX) + 'px'; fp.style.top = (visT - d.offY) + 'px';
   });
   document.addEventListener('mouseup', function () { _sqMxDrag = null; });
-  window.addEventListener('resize', function () { var fp = document.querySelector('.sqtc-ov--matchup[data-mxpinned]'); if (fp) _sqMxClampToView(fp); });
+  window.addEventListener('resize', function () { var els = document.querySelectorAll('.sqtc-ov--matchup[data-mxpinned], .sqmx-sub[data-mxpinned]'); for (var i = 0; i < els.length; i++) _sqMxClampToView(els[i]); });
 }
 // circular effectiveness ring (SVG) — pure presentation
 function _sqmxRing(pct) {
@@ -3976,7 +3991,9 @@ function _sqmxRing(pct) {
 }
 // premium Matchup popup — redesigned presentation only; every number comes from the existing engines
 // (_sqCmdMatchups / _sqMatchup / _sqFormMatch / _sqTeamSW) — no calculation, AI, or backend change.
-function _sqTcMatchup(my, op) {
+// Returns { launch, subs }: launch = controller (tab launcher) shown inside the main popup;
+// subs = the 4 independent floating glass sub-panels (one per tab), rendered outside the popup.
+function _sqMxBuild(my, op) {
   var mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp'), fm = _sqFormMatch(), mu = _sqMatchup();
   var cl = function (v) { return Math.max(1, Math.min(99, Math.round(v))); };
   var toneCls = { vstrong: 'adv', adv: 'adv', bal: 'bal', dis: 'slt', risk: 'risk' };
@@ -4018,19 +4035,23 @@ function _sqTcMatchup(my, op) {
       + '<div class="sqmx-sw-grp"><b>Strengths</b><div class="sqmx-tags">' + sw.strengths.map(function (x) { return '<span class="sqmx-tag sqmx-tag--s">' + x + '</span>'; }).join('') + '</div></div>'
       + '<div class="sqmx-sw-grp"><b>Weaknesses</b><div class="sqmx-tags">' + sw.weaknesses.map(function (x) { return '<span class="sqmx-tag sqmx-tag--w">' + x + '</span>'; }).join('') + '</div></div></div>';
   }
-  // Internal tabs so the coach never scrolls the whole popup — each tab scrolls on its own if needed.
-  var act = (typeof _SQ_MX_TAB !== 'undefined' && _SQ_MX_TAB) ? _SQ_MX_TAB : 'summary';
-  function tb(id, label) { return '<button class="sqmx-tab' + (act === id ? ' is-on' : '') + '" data-action="sqMxTab" data-mx="' + id + '" type="button">' + label + '</button>'; }
-  function pnl(id, body) { return '<div class="sqmx-panel' + (act === id ? ' is-on' : '') + '" data-mxp="' + id + '">' + body + '</div>'; }
+  // Controller (launcher): each button opens that section as its OWN floating glass sub-panel.
+  var tabs = [['summary', 'Summary'], ['battles', 'Position Battles'], ['scores', 'Tactical Scores'], ['analysis', 'Tactical Analysis']];
+  var launch = '<div class="sqmx sqmx--launch">'
+    + '<p class="sqmx-intro">Open any section as its own draggable, resizable glass window — open several at once. Each closes with its own ✕.</p>'
+    + '<div class="sqmx-tabs">' + tabs.map(function (t) { return '<button class="sqmx-tab" data-action="sqMxOpen" data-mx="' + t[0] + '" type="button">' + t[1] + '</button>'; }).join('') + '</div></div>';
+  // Independent floating glass sub-panels (draggable header, resize, ✕, own position/size). Rendered hidden until opened.
+  function sub(id, title, body, tag) {
+    return '<div class="sqmx-sub" data-mxpanel="' + id + '" hidden>'
+      + '<div class="sqmx-sub-hd" data-mxsubdrag="1"><span>' + title + (tag ? ' <em>' + tag + '</em>' : '') + '</span><button class="sqmx-sub-x" data-action="sqMxClose" data-mx="' + id + '" type="button" aria-label="Close">&#10005;</button></div>'
+      + '<div class="sqmx-sub-bd">' + body + '</div></div>';
+  }
+  var subs = sub('summary', 'Summary', engine)
+    + sub('battles', 'Position Battles', '<div class="sqmx-pos-list">' + posCards + '</div>')
+    + sub('scores', 'Tactical Scores', '<div class="sqmx-scores">' + scoreCards + '</div>')
+    + sub('analysis', 'Tactical Analysis', '<div class="sqmx-tac">' + swCol(_sqEsc(_sqClubName()), mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div>');
   if (typeof _sqMxBind === 'function') _sqMxBind();
-  return '<div class="sqmx">'
-    + '<div class="sqmx-tabs">' + tb('summary', 'Summary') + tb('battles', 'Position Battles') + tb('scores', 'Tactical Scores') + tb('analysis', 'Tactical Analysis') + '</div>'
-    + '<div class="sqmx-panels">'
-    + pnl('summary', engine)
-    + pnl('battles', '<div class="sqmx-pos-list">' + posCards + '</div>')
-    + pnl('scores', '<div class="sqmx-scores">' + scoreCards + '</div>')
-    + pnl('analysis', '<div class="sqmx-tac">' + swCol(_sqEsc(_sqClubName()), mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div>')
-    + '</div></div>';
+  return { launch: launch, subs: subs };
 }
 function _sqHeatGrid(side) {
   var grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], max = 1;
@@ -4222,9 +4243,9 @@ function _sqCmpPopup(id) {
 var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions', 'Simulation'];
 function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
 function _sqCmdOverlayHtml(tab, my, op) {
-  var title = { matchup: 'Matchup', heatmap: 'Heatmap', stats: 'Stats', zones: 'Zones', setpieces: 'Set Pieces', instructions: 'Instructions', simulation: 'AI Simulation' }[tab] || tab, inner = '';
+  var title = { matchup: 'Matchup', heatmap: 'Heatmap', stats: 'Stats', zones: 'Zones', setpieces: 'Set Pieces', instructions: 'Instructions', simulation: 'AI Simulation' }[tab] || tab, inner = '', mxSubs = '';
   switch (tab) {
-    case 'matchup': inner = _sqTcMatchup(my, op); break;
+    case 'matchup': { var mxb = _sqMxBuild(my, op); inner = mxb.launch; mxSubs = mxb.subs; break; }
     case 'heatmap': inner = _sqTcHeatmap(); break;
     case 'stats': inner = _sqTcStats(my, op); break;
     case 'zones': inner = _sqTcZones(); break;
@@ -4233,14 +4254,16 @@ function _sqCmdOverlayHtml(tab, my, op) {
     case 'simulation': inner = _sqTcSimulation(my, op); break;
     default: return '';
   }
-  // Matchup opens as a floating glass panel: draggable header, resizable, NO click-outside backdrop
-  // (closes only via ✕). Every other tab keeps its existing modal + click-to-close backdrop untouched.
+  // Matchup opens as a floating glass controller: draggable header, resizable, NO click-outside backdrop
+  // (closes only via ✕). Its tab launcher opens independent floating glass sub-panels (mxSubs), which are
+  // rendered as a SIBLING of the popup so they are never clipped by its overflow:hidden / backdrop-filter.
+  // Every other tab keeps its existing modal + click-to-close backdrop untouched.
   var isMx = (tab === 'matchup');
   var back = isMx ? '' : '<div class="sqtc-ov-back" data-action="sqCmdOverlayClose"></div>';
   var hd = '<div class="sqtc-ov-hd"' + (isMx ? ' data-mxdrag="1"' : '') + '><span>' + title + '</span><button class="sqtc-ov-x" data-action="sqCmdOverlayClose" type="button" aria-label="Close">✕</button></div>';
   return back
-    + '<div class="sqtc-ov sqtc-ov--' + tab + (isMx ? ' sqtc-ov--float' : '') + '">' + hd
-    + '<div class="sqtc-ov-body">' + inner + '</div></div>';
+    + '<div class="sqtc-ov sqtc-ov--' + tab + (isMx ? ' sqtc-ov--float sqtc-ov--launch' : '') + '">' + hd
+    + '<div class="sqtc-ov-body">' + inner + '</div></div>' + mxSubs;
 }
 function _sqCmdInner() {
   var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), ov = SQ_FORM.cmdOverlay;
@@ -38104,7 +38127,8 @@ async function tosBoardSnapshot() {
         case 'sqSimReport':       if (typeof sqSimReport === 'function')       sqSimReport(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
-        case 'sqMxTab':           if (typeof sqMxTab === 'function')           sqMxTab(el.dataset.mx); break;
+        case 'sqMxOpen':          if (typeof sqMxOpen === 'function')          sqMxOpen(el.dataset.mx); break;
+        case 'sqMxClose':         if (typeof sqMxClose === 'function')         sqMxClose(el.dataset.mx); break;
         case 'sqCmdInstr':        if (typeof sqCmdInstr === 'function')        sqCmdInstr(el.dataset.id, el.dataset.key); break;
         case 'sqFormTeam':         if (typeof sqFormTeam === 'function')          sqFormTeam(el.dataset.team);        break;
         case 'sqFormToggle':       if (typeof sqFormToggle === 'function')        sqFormToggle(el.dataset.key);       break;
