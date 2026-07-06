@@ -4215,6 +4215,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 
 /* ═══════════ Club Workspace · Training module — premium football OS (reference replication) ═══════════ */
 .tr-wrap{ padding:14px 20px 0; max-width:none; }
+.tr-wrap.tr-empty{ min-height:calc(100vh - 150px); }   /* Training reset to an empty workspace — no content */
 .tr-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .tr-head-t{ font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:#8a94a6; }
 .tr-head-ctrl{ display:flex; align-items:center; gap:8px; }
