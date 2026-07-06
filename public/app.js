@@ -6398,14 +6398,173 @@ var _TR_WS_KEY = 'familista.training.workspace.v1';
 function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false, pinned: false, x: 0, y: 0, w: 0, h: 0, z: 0, placed: false }; return _TR_WIN[id]; }
 function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
 function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
-// ── Training workspace reset to empty (all sections, panels, overview cards, demo data,
-// images/charts and floating-panel content removed; the window-manager framework is kept below) ──
+// ══════════ Training · Drill Encyclopedia (premium coaching manual — original drills, descriptions & pitch illustrations) ══════════
+var DE_CATS = { 'Attack': '248,113,113', 'Defense': '56,189,248', 'Possession': '52,215,122', 'Physical & Mental': '251,146,60', 'Teamplay': '167,139,250' };
+var DE_POS_ALL = ['GK', 'DL', 'DC', 'DR', 'DMC', 'MC', 'AML', 'AMC', 'AMR', 'ST'];
+var _DE_N = 0, _DE_SEL = null, _DE_CAT = 'All', _deBound = false;
+function _deEsc(s) { return (typeof _sqEsc === 'function') ? _sqEsc(s) : String(s == null ? '' : s); }
+function _deIntKey(s) { return s === 'Very Easy' ? 've' : s === 'Easy' ? 'e' : s === 'Medium' ? 'm' : 'h'; }
+function _deStars(n) { var h = ''; for (var i = 1; i <= 5; i++) { var f = n >= i ? 'is-full' : (n >= i - 0.5 ? 'is-half' : ''); h += '<span class="de-star ' + f + '">&#9733;</span>'; } return '<span class="de-stars">' + h + '</span>'; }
+function _deScene(kind, ac) {
+  ac = ac || '52,215,122'; var m = 'dm' + (++_DE_N), o = '';
+  var defs = '<defs><linearGradient id="' + m + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f9b57"/><stop offset="1" stop-color="#12482a"/></linearGradient><marker id="' + m + '" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 z" fill="rgb(' + ac + ')"/></marker></defs>';
+  var base = '<rect x="0" y="0" width="320" height="170" fill="url(#' + m + 'g)"/><g opacity=".26" stroke="#eafff2" stroke-width="1.4" fill="none"><rect x="10" y="10" width="300" height="150" rx="4"/><path d="M160 10 V160"/><circle cx="160" cy="85" r="30"/><rect x="10" y="45" width="40" height="80"/><rect x="270" y="45" width="40" height="80"/><rect x="10" y="62" width="15" height="46"/><rect x="295" y="62" width="15" height="46"/></g>';
+  if (kind === 'crossing') o = '<circle cx="272" cy="42" r="7" fill="rgb(' + ac + ')"/><path d="M270 48 Q200 20 92 68" stroke="rgb(' + ac + ')" stroke-width="2.5" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="86" cy="66" r="6" fill="#fff"/><circle cx="78" cy="104" r="6" fill="rgb(' + ac + ')"/><circle cx="120" cy="120" r="6" fill="rgb(' + ac + ')"/><path d="M80 98 L86 74" stroke="#eafff2" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'rondo') { for (var i = 0; i < 7; i++) { var a = i / 7 * 6.283 - 1.57, x = 160 + Math.cos(a) * 70, y = 85 + Math.sin(a) * 46; o += '<circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="6" fill="rgb(' + ac + ')"/>'; } o += '<circle cx="150" cy="78" r="6" fill="#f4b740"/><circle cx="172" cy="94" r="6" fill="#f4b740"/><circle cx="160" cy="85" r="4" fill="#fff"/><path d="M96 68 Q160 30 224 68" stroke="rgb(' + ac + ')" stroke-width="2" stroke-dasharray="5 4" fill="none" opacity=".85" marker-end="url(#' + m + ')"/>'; }
+  else if (kind === 'shooting') o = '<circle cx="120" cy="70" r="7" fill="rgb(' + ac + ')"/><circle cx="130" cy="112" r="7" fill="rgb(' + ac + ')"/><path d="M127 70 L300 74" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><path d="M137 110 L300 92" stroke="#eafff2" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><circle cx="210" cy="86" r="6" fill="#f4b740"/><circle cx="120" cy="70" r="3" fill="#fff"/>';
+  else if (kind === 'pressing') o = '<circle cx="160" cy="85" r="6" fill="#fff"/><circle cx="96" cy="46" r="7" fill="rgb(' + ac + ')"/><circle cx="96" cy="124" r="7" fill="rgb(' + ac + ')"/><circle cx="220" cy="50" r="7" fill="rgb(' + ac + ')"/><circle cx="220" cy="120" r="7" fill="rgb(' + ac + ')"/><path d="M104 52 L150 80" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M104 118 L150 90" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M212 54 L170 80" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M212 116 L170 90" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/>';
+  else if (kind === 'passing') o = '<circle cx="60" cy="120" r="6" fill="rgb(' + ac + ')"/><circle cx="130" cy="70" r="6" fill="rgb(' + ac + ')"/><circle cx="200" cy="115" r="6" fill="rgb(' + ac + ')"/><circle cx="270" cy="60" r="6" fill="rgb(' + ac + ')"/><path d="M66 116 L126 76" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><path d="M136 74 L194 110" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><path d="M206 110 L264 66" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="60" cy="120" r="3" fill="#fff"/>';
+  else if (kind === 'block') o = '<circle cx="72" cy="45" r="6" fill="rgb(' + ac + ')"/><circle cx="72" cy="85" r="6" fill="rgb(' + ac + ')"/><circle cx="72" cy="125" r="6" fill="rgb(' + ac + ')"/><circle cx="122" cy="65" r="6" fill="rgb(' + ac + ')"/><circle cx="122" cy="105" r="6" fill="rgb(' + ac + ')"/><path d="M60 42 L60 128" stroke="rgb(' + ac + ')" stroke-width="1.5" stroke-dasharray="4 4" opacity=".6"/><circle cx="232" cy="85" r="6" fill="#f4b740"/><circle cx="232" cy="85" r="3" fill="#fff"/>';
+  else if (kind === 'fitness') { for (var c = 0; c < 6; c++) { var cx = 58 + c * 40; o += '<path d="M' + cx + ' 58 l7 14 l-14 0 z" fill="rgb(' + ac + ')"/>'; } o += '<path d="M40 108 L300 108" stroke="rgb(' + ac + ')" stroke-width="2.4" stroke-dasharray="10 6" fill="none" marker-end="url(#' + m + ')"/><g stroke="#eafff2" stroke-width="1.6" opacity=".7" fill="none"><rect x="40" y="128" width="120" height="18"/><path d="M60 128 V146 M80 128 V146 M100 128 V146 M120 128 V146 M140 128 V146"/></g>'; }
+  else if (kind === 'oneTwo') o = '<circle cx="110" cy="112" r="6" fill="rgb(' + ac + ')"/><circle cx="182" cy="60" r="6" fill="rgb(' + ac + ')"/><path d="M116 108 L177 65" stroke="rgb(' + ac + ')" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><path d="M181 66 L150 116" stroke="rgb(' + ac + ')" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><path d="M156 116 L296 92" stroke="#eafff2" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><circle cx="110" cy="112" r="3" fill="#fff"/>';
+  else if (kind === 'setpiece') o = '<circle cx="304" cy="16" r="6" fill="rgb(' + ac + ')"/><circle cx="304" cy="16" r="3" fill="#fff"/><path d="M300 22 Q272 50 250 78" stroke="rgb(' + ac + ')" stroke-width="2.5" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="248" cy="72" r="6" fill="rgb(' + ac + ')"/><circle cx="264" cy="104" r="6" fill="rgb(' + ac + ')"/><circle cx="226" cy="110" r="6" fill="rgb(' + ac + ')"/><circle cx="272" cy="76" r="6" fill="#f4b740"/>';
+  else if (kind === 'transition') o = '<circle cx="60" cy="122" r="6" fill="rgb(' + ac + ')"/><path d="M66 118 L150 90" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><circle cx="156" cy="86" r="6" fill="rgb(' + ac + ')"/><path d="M162 82 L288 60" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><circle cx="230" cy="50" r="6" fill="rgb(' + ac + ')"/><path d="M170 84 L224 54" stroke="#eafff2" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="60" cy="122" r="3" fill="#fff"/>';
+  else o = '<circle cx="160" cy="85" r="5" fill="#fff"/>';
+  return '<svg class="de-scene" viewBox="0 0 320 170" preserveAspectRatio="xMidYMid slice">' + defs + base + o + '</svg>';
+}
+var DE_DRILLS = [
+  { id: 'crossing', name: 'Crossing & Finishing', cat: 'Attack', kind: 'crossing', intensity: 'Medium', cost: '-1.5%', avail: 14,
+    desc: 'Wide players deliver early crosses and byline cut-backs while strikers time runs to attack the near post, far post and pull-back zones. A repeatable pattern that turns wing play into clear goal chances.',
+    improves: 'Wing attacks and box finishing', tactical: 'Build wide overloads and attack the crossing zones with three runners', technical: 'Crossing accuracy, first-touch finishing and heading', physical: 'Repeated high-speed runs and jumping power', mental: 'Timing of runs and composure inside the box',
+    positions: ['AML', 'AMR', 'ST', 'AMC'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['When chasing a goal', 'Against deep defensive blocks', 'When you hold width superiority', 'Late pushes for a winner'],
+    ratings: { a: 5, d: 1, p: 3, t: 4, ph: 3, mn: 3, ov: 4 },
+    aiWhy: 'Use it when you attack with wingers and overlapping full-backs and need more end product from wide areas.', aiAvoid: 'Avoid when you lack aerial or pacey strikers, or against a narrow block with tall centre-backs who win every cross.', aiCombos: 'Pairs well with drills that sharpen movement and final-third timing.',
+    comboDrills: ['Crossing & Finishing', 'One-Two Combinations', 'Transition to Attack'], comboProduces: 'High-quality wing attacks with runners arriving on time.',
+    tips: ['Vary near-post, far-post and cut-back deliveries so defenders cannot set.', 'Ask for two runners in the box plus one at the penalty spot.', 'Rehearse both early crosses and byline cut-backs.', 'Reward first-time finishes to build composure at speed.'] },
+  { id: 'rondo', name: 'Rondo Possession Circle', cat: 'Possession', kind: 'rondo', intensity: 'Easy', cost: '-0.75%', avail: 20,
+    desc: 'A keep-ball circle where outnumbering players retain possession under pressure while two defenders press. It builds fast one and two-touch passing and calm decisions in tight spaces.',
+    improves: 'Ball retention and quick passing under pressure', tactical: 'Keep the ball, open passing angles and break pressure with third-man runs', technical: 'One and two-touch passing, body shape and scanning', physical: 'Light — short reactive movements and pressing', mental: 'Composure, scanning and fast decisions',
+    positions: ['MC', 'DMC', 'AMC'], systems: ['4-3-3', '3-5-2', '4-2-3-1'], situations: ['Ball possession', 'Controlling tempo', 'Seeing out a lead', 'Rebuilding calm after conceding'],
+    ratings: { a: 3, d: 2, p: 5, t: 5, ph: 2, mn: 4, ov: 4 },
+    aiWhy: 'Use it to raise passing sharpness and to teach a possession identity.', aiAvoid: 'Avoid as a stand-alone plan before a physical, direct opponent who wins the second balls.', aiCombos: 'Blends with passing and combination drills to turn retention into progression.',
+    comboDrills: ['Rondo Possession Circle', 'Passing Rhythm', 'One-Two Combinations'], comboProduces: 'Controlled, patient build-up that breaks a low block.',
+    tips: ['Limit touches to force faster decisions.', 'Reward third-man runs, not just safe square passes.', 'Coach the first touch away from pressure.', 'Rotate the two defenders often to keep intensity high.'] },
+  { id: 'shooting', name: 'Shooting Under Pressure', cat: 'Attack', kind: 'shooting', intensity: 'Hard', cost: '-2.25%', avail: 10,
+    desc: 'Attackers receive with a defender closing down and finish first-time or after one touch from the edge of the box. It trains clinical finishing when time and space are scarce.',
+    improves: 'Finishing efficiency and shot power', tactical: 'Attack the space between the lines and shoot early before the block sets', technical: 'Shot power, placement and first-touch set-up', physical: 'Explosive turns and strikes under fatigue', mental: 'Composure and decisiveness in front of goal',
+    positions: ['ST', 'AMC', 'AML', 'AMR'], systems: ['4-4-2', '4-3-3', '4-2-3-1'], situations: ['When chasing a goal', 'Against deep blocks', 'Before difficult matches', 'Sharpening strikers in a goal drought'],
+    ratings: { a: 5, d: 1, p: 2, t: 2, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it when your strikers waste chances or need quicker, sharper finishing.', aiAvoid: 'Avoid heavy loading in the final days before a match, as it is demanding on condition.', aiCombos: 'Follows well after possession and combination work that creates the chances.',
+    comboDrills: ['Passing Rhythm', 'One-Two Combinations', 'Shooting Under Pressure'], comboProduces: 'Chances created through midfield and finished with authority.',
+    tips: ['Serve balls at match speed with a real defender closing down.', 'Demand a positive first touch toward goal.', 'Mix first-time strikes with set-and-shoot.', 'Track conversion so players compete to finish.'] },
+  { id: 'pressing', name: 'Counter-Press Trap', cat: 'Defense', kind: 'pressing', intensity: 'Hard', cost: '-2.25%', avail: 9,
+    desc: 'The moment the ball is lost, the nearest players swarm the carrier within seconds to win it back high up the pitch. It drills pressing triggers, angles and collective aggression.',
+    improves: 'Immediate ball recovery after losing possession', tactical: 'Set pressing traps, cut passing lanes and win the ball high', technical: 'Pressing angles, tackling and interceptions', physical: 'Repeated high-intensity sprints', mental: 'Alertness, aggression and coordinated timing',
+    positions: ['DMC', 'MC', 'ST', 'AML', 'AMR'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Defensive preparation', 'Winning the ball high', 'Against build-from-the-back teams', 'Setting a high tempo'],
+    ratings: { a: 3, d: 5, p: 3, t: 4, ph: 4, mn: 4, ov: 5 },
+    aiWhy: 'Use it to build an aggressive high press and fast recoveries.', aiAvoid: 'Avoid when squad condition is low or against long-ball teams that bypass the press.', aiCombos: 'Works with transition drills to turn recoveries into instant attacks.',
+    comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Defensive Block Shape'], comboProduces: 'High turnovers converted into quick chances.',
+    tips: ['Press on clear triggers: a heavy touch or a backward pass.', 'Keep the group compact so the trap has support.', 'The first presser shows the ball one way; teammates cover the pass.', 'Protect condition before matchday since this drill is demanding.'] },
+  { id: 'passing', name: 'Passing Rhythm', cat: 'Possession', kind: 'passing', intensity: 'Medium', cost: '-1.5%', avail: 15,
+    desc: 'Structured passing patterns move the ball through the thirds with quick combinations and constant support angles. It builds a smooth passing rhythm and clean progression through midfield.',
+    improves: 'Passing tempo and progression through the lines', tactical: 'Circulate the ball, switch play and progress through the thirds', technical: 'Passing weight, first touch and support angles', physical: 'Moderate — constant supporting movement', mental: 'Patience, scanning and pattern recognition',
+    positions: ['MC', 'DMC', 'AMC', 'DL', 'DR'], systems: ['4-3-3', '4-2-3-1', '3-5-2'], situations: ['Ball possession', 'Controlling tempo', 'Breaking a low block', 'Calm build-up from the back'],
+    ratings: { a: 3, d: 2, p: 5, t: 5, ph: 2, mn: 4, ov: 4 },
+    aiWhy: 'Use it to establish a possession identity and cleaner build-up.', aiAvoid: 'Avoid relying on it alone against a fast press without a pressing-resistant midfield.', aiCombos: 'Combines with rondos and finishing to turn possession into shots.',
+    comboDrills: ['Rondo Possession Circle', 'Passing Rhythm', 'Shooting Under Pressure'], comboProduces: 'Patient build-up that arrives cleanly in the final third.',
+    tips: ['Play to the correct foot to keep the rhythm.', 'Switch the point of attack to stretch the block.', 'Encourage one-touch lay-offs to speed the pattern.', 'Keep two support options for the ball carrier at all times.'] },
+  { id: 'block', name: 'Defensive Block Shape', cat: 'Defense', kind: 'block', intensity: 'Easy', cost: '-0.75%', avail: 18,
+    desc: 'The back line and midfield rehearse a compact defensive block, sliding as a unit to deny space and protect central zones. It builds organisation, spacing and disciplined defending.',
+    improves: 'Defensive organisation and compactness', tactical: 'Hold shape, slide as a unit and protect the middle', technical: 'Positioning, marking and covering', physical: 'Low to moderate — short shifts and covering runs', mental: 'Discipline, concentration and communication',
+    positions: ['DC', 'DL', 'DR', 'DMC', 'GK'], systems: ['4-4-2', '5-3-2', '4-5-1'], situations: ['Defensive preparation', 'Protecting a lead', 'Against stronger opponents', 'Low-block game plans'],
+    ratings: { a: 1, d: 5, p: 2, t: 4, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it to tighten a leaky defence or to prepare a low block against a favourite.', aiAvoid: 'Avoid as your only focus if you need to chase games and score more.', aiCombos: 'Pairs with counter-press and transition drills to defend then break.',
+    comboDrills: ['Defensive Block Shape', 'Counter-Press Trap', 'Transition to Attack'], comboProduces: 'A solid block that springs fast counters.',
+    tips: ['Keep the lines close: only a few metres between them.', 'Slide together toward the ball to stay compact.', 'Defend the centre first and force play wide.', 'Communicate the line height on every reset.'] },
+  { id: 'fitness', name: 'Speed & Agility Circuit', cat: 'Physical & Mental', kind: 'fitness', intensity: 'Hard', cost: '-2.25%', avail: 11,
+    desc: 'A circuit of ladders, cones and short sprints develops acceleration, change of direction and repeat-sprint capacity. It sharpens the raw athleticism that underpins every other skill.',
+    improves: 'Speed, agility and repeat-sprint stamina', tactical: 'Support high-tempo pressing and transitions with fitter legs', technical: 'Footwork and balance under speed', physical: 'High — acceleration, agility and conditioning', mental: 'Work rate, focus and resilience',
+    positions: ['AML', 'AMR', 'DL', 'DR', 'ST'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Pre-season base building', 'Preparing for high-tempo games', 'Improving late-game endurance', 'Sharpening explosive players'],
+    ratings: { a: 3, d: 3, p: 2, t: 2, ph: 5, mn: 4, ov: 4 },
+    aiWhy: 'Use it to raise the physical ceiling of the squad and to sustain intensity.', aiAvoid: 'Avoid stacking it in the final days before a match due to the condition cost.', aiCombos: 'Underpins pressing and transition work that both demand top fitness.',
+    comboDrills: ['Speed & Agility Circuit', 'Counter-Press Trap', 'Transition to Attack'], comboProduces: 'A squad that presses and counters at high speed for longer.',
+    tips: ['Prioritise quality of movement over volume.', 'Include multi-directional agility, not just straight sprints.', 'Give full recovery between reps to keep speed high.', 'Schedule it early in the week to protect matchday condition.'] },
+  { id: 'oneTwo', name: 'One-Two Combinations', cat: 'Teamplay', kind: 'oneTwo', intensity: 'Medium', cost: '-1.5%', avail: 13,
+    desc: 'Players rehearse give-and-go wall passes to break lines and slip runners in behind. It builds combination play, timing and understanding between attacking units.',
+    improves: 'Combination play and line-breaking passes', tactical: 'Break defensive lines with give-and-go patterns and third-man runs', technical: 'Wall passing, first-touch control and disguised passes', physical: 'Moderate — sharp supporting bursts', mental: 'Timing, anticipation and partnership understanding',
+    positions: ['AMC', 'MC', 'ST', 'AML', 'AMR'], systems: ['4-3-3', '4-2-3-1', '3-5-2'], situations: ['Breaking a low block', 'Ball possession', 'Creating central chances', 'Quick attacking combinations'],
+    ratings: { a: 4, d: 1, p: 4, t: 5, ph: 2, mn: 3, ov: 4 },
+    aiWhy: 'Use it to unlock compact defences through quick central combinations.', aiAvoid: 'Avoid over-relying on it against very deep, narrow blocks with no space to run into.', aiCombos: 'Links possession build-up to finishing.',
+    comboDrills: ['Passing Rhythm', 'One-Two Combinations', 'Shooting Under Pressure'], comboProduces: 'Central breakthroughs that end in clear chances.',
+    tips: ['Return the wall pass first-time and into space.', 'Time the run to stay onside but attack the gap.', 'Disguise the pass with body shape.', 'Rehearse both bounce passes and set-and-spin combinations.'] },
+  { id: 'setpiece', name: 'Set-Piece Rehearsal', cat: 'Teamplay', kind: 'setpiece', intensity: 'Very Easy', cost: '-0.75%', avail: 22,
+    desc: 'The team rehearses attacking and defending corners, free-kicks and throw-ins with clear roles, routines and zones. It turns dead-ball moments into a reliable source of goals and security.',
+    improves: 'Set-piece efficiency at both ends', tactical: 'Assign roles, zones and routines for corners and free-kicks', technical: 'Delivery quality, blocking and heading', physical: 'Low — timed runs and jumps', mental: 'Discipline, concentration and role clarity',
+    positions: ['DC', 'ST', 'AMC', 'GK', 'MC'], systems: ['4-4-2', '4-3-3', '3-5-2'], situations: ['When chasing a goal', 'Protecting a lead', 'Against strong aerial teams', 'Maximising dead-ball chances'],
+    ratings: { a: 4, d: 4, p: 2, t: 5, ph: 2, mn: 3, ov: 4 },
+    aiWhy: 'Use it to add cheap goals and to stop conceding from set-pieces.', aiAvoid: 'Rarely a wrong choice; least valuable if your takers and aerial threats are weak.', aiCombos: 'Complements crossing and block work for aerial duels.',
+    comboDrills: ['Set-Piece Rehearsal', 'Crossing & Finishing', 'Defensive Block Shape'], comboProduces: 'A dependable dead-ball threat and a secure defensive set-up.',
+    tips: ['Give every player one clear job on each routine.', 'Prepare two or three variations to stay unpredictable.', 'Attack the ball, do not wait for it.', 'Defend zones and key runners with assigned markers.'] },
+  { id: 'transition', name: 'Transition to Attack', cat: 'Attack', kind: 'transition', intensity: 'Hard', cost: '-2.25%', avail: 10,
+    desc: 'The instant the ball is won, players break forward at speed to exploit an unbalanced defence before it recovers. It drills fast vertical passing, supporting runs and clinical counters.',
+    improves: 'Counter-attacking speed and directness', tactical: 'Attack quickly into space before the opponent regains shape', technical: 'Forward passing, first touch in stride and finishing', physical: 'High — explosive sprints from deep', mental: 'Quick decisions and fearless directness',
+    positions: ['ST', 'AML', 'AMR', 'MC', 'DMC'], systems: ['4-3-3', '3-4-3', '4-2-3-1'], situations: ['Counter attacks', 'Against high defensive lines', 'When chasing a goal', 'Beating a dominant possession side'],
+    ratings: { a: 5, d: 2, p: 3, t: 4, ph: 4, mn: 4, ov: 5 },
+    aiWhy: 'Use it against teams that push high and leave space in behind.', aiAvoid: 'Avoid as a primary plan against deep blocks that give no space to counter.', aiCombos: 'Feeds off pressing recoveries and finishes chances at speed.',
+    comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Shooting Under Pressure'], comboProduces: 'Fast, direct counters that punish high lines.',
+    tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] }
+];
+function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }
+function _deBarRow(label, val, ac) { var pct = Math.round(val / 5 * 100); return '<div class="de-bar-row" style="--c:' + ac + '"><span class="de-bar-l">' + label + '</span><span class="de-bar-track"><i style="width:' + pct + '%"></i></span>' + _deStars(val) + '</div>'; }
+function _deSection(icon, title, inner, ac) { return '<div class="de-sec' + (ac ? ' de-sec--accent' : '') + '"' + (ac ? ' style="--c:' + ac + '"' : '') + '><div class="de-sec-h"><span class="de-sec-ic">' + icon + '</span>' + title + '</div><div class="de-sec-b">' + inner + '</div></div>'; }
+function _deCard(d) {
+  var ac = DE_CATS[d.cat];
+  return '<button class="de-card" data-de-action="open" data-de="' + d.id + '" type="button" style="--c:' + ac + '">'
+    + '<span class="de-card-img">' + _deScene(d.kind, ac) + '<span class="de-card-cat" style="--c:' + ac + '">' + d.cat + '</span></span>'
+    + '<span class="de-card-b"><b class="de-card-nm">' + _deEsc(d.name) + '</b>'
+    + '<span class="de-card-meta"><span class="de-chip de-chip--int i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</span><span class="de-chip">' + d.cost + '</span></span>'
+    + '<span class="de-card-foot">' + _deStars(d.ratings.ov) + '<span class="de-card-view">View drill &#8250;</span></span>'
+    + '</span></button>';
+}
+function _deIndex() {
+  var cats = ['All'].concat(Object.keys(DE_CATS));
+  var chips = cats.map(function (c) { var on = _DE_CAT === c; var ac = c === 'All' ? '148,163,184' : DE_CATS[c]; return '<button class="de-fchip' + (on ? ' is-on' : '') + '" data-de-action="filter" data-de="' + c + '" type="button" style="--c:' + ac + '">' + c + '</button>'; }).join('');
+  var list = DE_DRILLS.filter(function (d) { return _DE_CAT === 'All' || d.cat === _DE_CAT; });
+  return '<div class="de-head"><div><h1 class="de-title">Drill Encyclopedia</h1><p class="de-sub">Professional coaching manual — ' + DE_DRILLS.length + ' training drills with tactical analysis, strength ratings and Familista AI insight.</p></div><span class="de-head-badge">&#9917; ' + DE_DRILLS.length + ' Drills</span></div>'
+    + '<div class="de-filters">' + chips + '</div>'
+    + '<div class="de-grid">' + list.map(_deCard).join('') + '</div>';
+}
+function _deDetail(d) {
+  var ac = DE_CATS[d.cat];
+  var purpose = '<ul class="de-obj"><li><b>Improves</b>' + _deEsc(d.improves) + '</li><li><b>Tactical</b>' + _deEsc(d.tactical) + '</li><li><b>Technical</b>' + _deEsc(d.technical) + '</li><li><b>Physical</b>' + _deEsc(d.physical) + '</li><li><b>Mental</b>' + _deEsc(d.mental) + '</li></ul>';
+  var systems = '<div class="de-sys">' + d.systems.map(function (s) { return '<span class="de-sys-b">&#10003; ' + s + '</span>'; }).join('') + '</div>';
+  var sit = '<ul class="de-sit">' + d.situations.map(function (s) { return '<li>' + _deEsc(s) + '</li>'; }).join('') + '</ul>';
+  var ratings = _deBarRow('Attack', d.ratings.a, '248,113,113') + _deBarRow('Defense', d.ratings.d, '56,189,248') + _deBarRow('Possession', d.ratings.p, '52,215,122') + _deBarRow('Teamwork', d.ratings.t, '167,139,250') + _deBarRow('Physical', d.ratings.ph, '251,146,60') + _deBarRow('Mental', d.ratings.mn, '244,183,64') + '<div class="de-bar-ov">' + _deBarRow('Overall', d.ratings.ov, ac) + '</div>';
+  var ai = '<div class="de-ai-row"><span class="de-ai-k de-ai-k--y">Why use it</span><p>' + _deEsc(d.aiWhy) + '</p></div><div class="de-ai-row"><span class="de-ai-k de-ai-k--n">When to avoid</span><p>' + _deEsc(d.aiAvoid) + '</p></div><div class="de-ai-row"><span class="de-ai-k de-ai-k--c">Combines with</span><p>' + _deEsc(d.aiCombos) + '</p></div>';
+  var combos = '<div class="de-combo">' + d.comboDrills.map(function (c, i) { return (i ? '<span class="de-combo-plus">+</span>' : '') + '<span class="de-combo-b">' + _deEsc(c) + '</span>'; }).join('') + '</div><div class="de-combo-out"><b>Produces:</b> ' + _deEsc(d.comboProduces) + '</div>';
+  var tips = '<ul class="de-tips">' + d.tips.map(function (t) { return '<li><span class="de-tip-ic">&#9998;</span>' + _deEsc(t) + '</li>'; }).join('') + '</ul>';
+  return '<button class="de-back" data-de-action="back" type="button">&#8249; Back to Encyclopedia</button>'
+    + '<div class="de-hero" style="--c:' + ac + '"><span class="de-hero-img">' + _deScene(d.kind, ac) + '</span>'
+    + '<div class="de-hero-info"><span class="de-hero-cat" style="--c:' + ac + '">' + d.cat + '</span><h1 class="de-hero-nm">' + _deEsc(d.name) + '</h1>'
+    + '<div class="de-hero-meta"><span class="de-mchip"><i>Intensity</i><b class="i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</b></span><span class="de-mchip"><i>Condition Cost</i><b>' + d.cost + '</b></span><span class="de-mchip"><i>Availability</i><b>Lv ' + d.avail + '</b></span><span class="de-mchip"><i>Overall</i><b>' + _deStars(d.ratings.ov) + '</b></span></div></div></div>'
+    + '<div class="de-cols"><div class="de-col">'
+    + _deSection('&#128203;', 'Official Description', '<p class="de-desc">' + _deEsc(d.desc) + '</p>')
+    + _deSection('&#127919;', 'Main Purpose', purpose)
+    + _deSection('&#128205;', 'Best Positions', _dePosBadges(d.positions))
+    + _deSection('&#9819;', 'Best Tactical Systems', systems)
+    + _deSection('&#9201;', 'Best Match Situations', sit)
+    + '</div><div class="de-col">'
+    + _deSection('&#128202;', 'Strength Rating', '<div class="de-bars">' + ratings + '</div>')
+    + _deSection('&#129302;', 'Familista AI Coach', '<div class="de-ai">' + ai + '</div>', ac)
+    + _deSection('&#128279;', 'Best Drill Combinations', combos)
+    + _deSection('&#128161;', 'Professional Tips', tips)
+    + '</div></div>';
+}
+function _deInner() { if (_DE_SEL) { for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === _DE_SEL) return _deDetail(DE_DRILLS[i]); _DE_SEL = null; } return _deIndex(); }
+function _deRender() { if (typeof document === 'undefined') return; var r = document.getElementById('de-root'); if (r) { r.innerHTML = _deInner(); r.scrollTop = 0; if (r.parentNode && r.parentNode.scrollTo) try { r.parentNode.scrollTo(0, 0); } catch (e) {} } }
+function _deBind() {
+  if (_deBound || typeof document === 'undefined' || !document.addEventListener) return; _deBound = true;
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-de-action]'); if (!el) return;
+    var a = el.getAttribute('data-de-action');
+    if (a === 'open') { _DE_SEL = el.getAttribute('data-de'); _deRender(); }
+    else if (a === 'back') { _DE_SEL = null; _deRender(); }
+    else if (a === 'filter') { _DE_CAT = el.getAttribute('data-de'); _DE_SEL = null; _deRender(); }
+  });
+}
 function renderTrainingWorkspaceHTML() {
-  // Empty Training workspace — no content. Window-manager framework anchors kept (snap layer + hidden taskbar).
-  if (typeof _trBind === 'function') _trBind();
-  return '<div class="page" id="pg-training"><div class="tr-wrap tr-empty"></div>'
-    + '<div class="tr-snap" id="tr-snap" hidden></div>'
-    + '<div class="tr-taskbar" id="tr-taskbar" hidden><div class="tr-tb-items" id="tr-tb-items"></div></div></div>';
+  _DE_SEL = null; _deBind();
+  return '<div class="page" id="pg-training"><div class="de-root" id="de-root">' + _deInner() + '</div></div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts (kept) ──
 function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
