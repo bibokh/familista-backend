@@ -6392,7 +6392,7 @@ if (typeof _sqSetupsLoad === 'function') { _sqSetupsLoad(); }
 var _TR_SECTIONS = [
   { id: 'sessions', t: 'Training Sessions', ac: '56,189,248', d: 'Plan & view sessions' },
   { id: 'attendance', t: 'Attendance', ac: '52,215,122', d: 'Present · absent · late' },
-  { id: 'plan', t: 'Training Plan', ac: '139,92,246', d: 'Weekly Mon–Sun' },
+  { id: 'plan', t: 'Weekly Training Plan', ac: '139,92,246', d: 'Weekly Mon–Sun' },
   { id: 'drills', t: 'Drill Library', ac: '244,183,64', d: '10 drill categories' },
   { id: 'individual', t: 'Individual Training', ac: '236,72,153', d: 'Per-player focus' },
   { id: 'load', t: 'Physical Load', ac: '251,146,60', d: 'Load · fatigue · risk' },
@@ -6409,10 +6409,8 @@ function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false,
 function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
 function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
 var _TR_SESSIONS = [
-  { date: 'Mon 06 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Possession & Rondos', coach: 'Head Coach', notes: 'Build-up under pressure; two-touch limit.', kind: 'possession', inten: 'High', iAc: '248,113,113', diff: 'Advanced', equip: 'Cones · Bibs · Balls', players: '18 / 18' },
-  { date: 'Tue 07 Jul', time: '10:30', loc: 'Gym + Pitch B', dur: '75 min', focus: 'Strength & Speed', coach: 'Fitness Coach', notes: 'Split by position; watch high-load players.', kind: 'fitness', inten: 'High', iAc: '248,113,113', diff: 'Intermediate', equip: 'Ladders · Hurdles', players: '16 / 18' },
-  { date: 'Wed 08 Jul', time: '10:00', loc: 'Main Pitch', dur: '90 min', focus: 'Pressing Triggers', coach: 'Assistant Coach', notes: '11v11 tactical; press on the switch.', kind: 'pressing', inten: 'High', iAc: '248,113,113', diff: 'Advanced', equip: 'Bibs · Balls · Goals', players: '18 / 18' },
-  { date: 'Thu 09 Jul', time: '11:00', loc: 'Main Pitch', dur: '60 min', focus: 'Set Pieces & Finishing', coach: 'Head Coach', notes: 'Attacking corners; recovery for starters.', kind: 'shooting', inten: 'Medium', iAc: '244,183,64', diff: 'Intermediate', equip: 'Balls · Mannequins', players: '17 / 18' }
+  { date: 'Sat 12 Jul 2025', time: '10:00 - 11:30', loc: 'Main Pitch', dur: '90 min', focus: 'Passing & Possession', goal: 'Improve passing & possession under pressure', coach: 'C. Bibo', notes: 'Focus on quick-touch passing and movement.', kind: 'training', inten: 'High', iAc: '248,113,113', players: '18 / 18',
+    drills: [ { t: 'Rondo 5v2', k: 'possession' }, { t: 'Passing Circuit', k: 'passing' }, { t: 'Possession Game', k: 'ssg' }, { t: 'Small Sided Game', k: 'training' } ] }
 ];
 function _trEsc(s) { return (typeof _sqEsc === 'function') ? _sqEsc(s) : String(s == null ? '' : s); }
 function _trStatColor(v) { return v >= 80 ? '52,215,122' : v >= 60 ? '244,183,64' : v >= 45 ? '251,146,60' : '248,113,113'; }
@@ -6442,6 +6440,83 @@ function _trDia(kind, ac) {
   return '<svg class="tr-dia" viewBox="0 0 120 74" preserveAspectRatio="xMidYMid slice"><defs><marker id="' + m + '" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="rgb(' + ac + ')"/></marker></defs>' + base + o + '</svg>';
 }
 function _trThumb(kind, ac, label) { return '<div class="tr-thumb" style="--c:' + ac + '">' + _trDia(kind, ac) + '<span class="tr-thumb-play">&#9654;</span>' + (label ? '<span class="tr-thumb-lb">' + _trEsc(label) + '</span>' : '') + '</div>'; }
+// ── premium "photo" library (self-contained SVG portraits + football scenes + charts; no external assets) ──
+function _trSeedN(s) { return (typeof _sqSeed === 'function') ? _sqSeed(String(s)) : (String(s).split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 0)); }
+function _trFace(seed, sz, ac) {
+  var s = _trSeedN(seed), skins = ['#f1cba4', '#e7b58f', '#d69f76', '#b97f56', '#8d5a3c'], hairs = ['#241d18', '#3b2a1d', '#5a4230', '#12100e', '#c9a15a'];
+  var sk = skins[s % skins.length], hr = hairs[(Math.floor(s / 3)) % hairs.length], jr = 'rgb(' + (ac || '56,189,248') + ')', g = 'f' + (++_TR_DIA_N);
+  return '<span class="tr-face' + (sz ? ' tr-face--' + sz : '') + '"><svg viewBox="0 0 40 44" preserveAspectRatio="xMidYMid slice">'
+    + '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(' + (ac || '56,189,248') + ',.5)"/><stop offset="1" stop-color="#0b1119"/></linearGradient></defs>'
+    + '<rect width="40" height="44" fill="url(#' + g + ')"/>'
+    + '<path d="M2 44 q1 -14 18 -14 t18 14 z" fill="' + jr + '"/>'
+    + '<path d="M2 44 q1 -14 18 -14 t18 14" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1"/>'
+    + '<rect x="16" y="23" width="8" height="9" rx="2" fill="' + sk + '"/>'
+    + '<circle cx="20" cy="16.5" r="9" fill="' + sk + '"/>'
+    + '<path d="M11 16 a9 9 0 0 1 18 0 q-3 -6 -9 -6 t-9 6 z" fill="' + hr + '"/>'
+    + '<circle cx="16.6" cy="16.8" r="1.1" fill="#2a2320"/><circle cx="23.4" cy="16.8" r="1.1" fill="#2a2320"/>'
+    + '<path d="M17.6 20.4 q2.4 1.6 4.8 0" fill="none" stroke="rgba(90,60,45,.7)" stroke-width="0.8" stroke-linecap="round"/>'
+    + '</svg></span>';
+}
+function _trFig(x, y, sc, jr) { return '<g transform="translate(' + x + ',' + y + ') scale(' + sc + ')"><circle cx="0" cy="-10" r="3.3" fill="#e8b58f"/><path d="M-4 -6 q4 -3 8 0 l1.4 11 q-5.4 2.6 -10.8 0 z" fill="' + jr + '"/><rect x="-3.4" y="4.4" width="2.5" height="8" rx="1" fill="#101a24"/><rect x="1" y="4.4" width="2.5" height="8" rx="1" fill="#101a24"/></g>'; }
+function _trScene(kind, ac) {
+  ac = ac || '52,215,122'; var g = 's' + (++_TR_DIA_N), o = '';
+  function pitch(top, bot) { return '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + top + '"/><stop offset="1" stop-color="' + bot + '"/></linearGradient></defs><rect width="160" height="90" fill="url(#' + g + ')"/>'; }
+  if (kind === 'training' || kind === 'referee' || kind === 'ssg') {
+    o = pitch('#2f9b57', '#176036')
+      + '<g opacity=".22" stroke="#eafff2" stroke-width="1" fill="none"><path d="M0 30 H160"/><path d="M0 52 H160"/><path d="M-20 74 H180"/><ellipse cx="80" cy="86" rx="60" ry="10"/></g>'
+      + '<ellipse cx="80" cy="84" rx="70" ry="9" fill="#0d3a20" opacity=".35"/>'
+      + _trFig(46, 52, 2.0, 'rgb(' + ac + ')') + _trFig(84, 46, 1.7, '#eef2f8') + _trFig(112, 58, 2.2, 'rgb(' + ac + ')') + _trFig(66, 66, 2.4, '#eef2f8')
+      + (kind === 'referee' ? _trFig(126, 40, 1.5, '#111') : '')
+      + '<circle cx="96" cy="70" r="3.2" fill="#fff" stroke="#0a1a10" stroke-width="0.7"/>'
+      + '<circle cx="30" cy="72" r="2.4" fill="#f4b740"/><circle cx="130" cy="76" r="2.4" fill="#f4b740"/>';
+  } else if (kind === 'pitch' || kind === 'tactical') {
+    o = pitch('#2a8f50', '#155a33')
+      + '<g opacity=".3" stroke="#eafff2" stroke-width="1.1" fill="none"><rect x="4" y="6" width="152" height="78" rx="3"/><path d="M80 6 V84"/><circle cx="80" cy="45" r="14"/><rect x="4" y="26" width="18" height="38"/><rect x="138" y="26" width="18" height="38"/></g>'
+      + '<circle cx="80" cy="45" r="2.4" fill="#fff"/>'
+      + '<g fill="rgb(' + ac + ')"><circle cx="40" cy="30" r="3"/><circle cx="40" cy="60" r="3"/><circle cx="66" cy="45" r="3"/><circle cx="110" cy="32" r="3"/><circle cx="110" cy="58" r="3"/></g>'
+      + '<path d="M43 31 L63 44 M43 59 L63 46 M69 44 L107 33 M69 46 L107 57" stroke="rgb(' + ac + ')" stroke-width="1.3" stroke-dasharray="3 2" fill="none" opacity=".85"/>';
+  } else if (kind === 'match') {
+    o = '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1830"/><stop offset=".55" stop-color="#12243f"/><stop offset="1" stop-color="#1f6b3e"/></linearGradient><radialGradient id="' + g + 'l" cx="0.5" cy="0" r="0.9"><stop offset="0" stop-color="rgba(255,255,255,.6)"/><stop offset="1" stop-color="rgba(255,255,255,0)"/></radialGradient></defs>'
+      + '<rect width="160" height="90" fill="url(#' + g + ')"/>'
+      + '<ellipse cx="34" cy="6" rx="34" ry="26" fill="url(#' + g + 'l)"/><ellipse cx="126" cy="6" rx="34" ry="26" fill="url(#' + g + 'l)"/>'
+      + '<rect x="16" y="18" width="6" height="4" fill="#fdf6c9"/><rect x="138" y="18" width="6" height="4" fill="#fdf6c9"/>'
+      + '<g opacity=".5" fill="#0a1526"><rect x="0" y="30" width="160" height="14"/></g>'
+      + '<g opacity=".7" fill="#33507a"><circle cx="20" cy="37" r="1"/><circle cx="30" cy="35" r="1"/><circle cx="44" cy="38" r="1"/><circle cx="60" cy="36" r="1"/><circle cx="100" cy="37" r="1"/><circle cx="120" cy="35" r="1"/><circle cx="140" cy="38" r="1"/></g>'
+      + '<g opacity=".28" stroke="#eafff2" stroke-width="1" fill="none"><path d="M0 60 H160"/><ellipse cx="80" cy="90" rx="50" ry="12"/></g>'
+      + _trFig(60, 70, 2.2, '#eef2f8') + _trFig(100, 66, 2.0, 'rgb(' + ac + ')');
+  } else if (kind === 'gym') {
+    o = '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#232a36"/><stop offset="1" stop-color="#12161e"/></linearGradient></defs><rect width="160" height="90" fill="url(#' + g + ')"/>'
+      + '<rect x="0" y="66" width="160" height="24" fill="#1a1f29"/><g opacity=".15" stroke="#4a5468" stroke-width="1"><path d="M0 66 H160"/><path d="M40 66 V90"/><path d="M120 66 V90"/></g>'
+      + '<g stroke="#3a4453" stroke-width="3" fill="none"><path d="M20 14 V70"/><path d="M140 14 V70"/></g>'
+      + '<g fill="rgb(' + ac + ')"><rect x="14" y="24" width="12" height="6" rx="2"/><rect x="14" y="40" width="12" height="6" rx="2"/><rect x="134" y="24" width="12" height="6" rx="2"/><rect x="134" y="40" width="12" height="6" rx="2"/></g>'
+      + _trFig(80, 60, 3.0, 'rgb(' + ac + ')')
+      + '<g stroke="#e7ecf3" stroke-width="3" stroke-linecap="round"><path d="M64 44 H96"/></g><circle cx="62" cy="44" r="4" fill="#2a3340"/><circle cx="98" cy="44" r="4" fill="#2a3340"/>';
+  } else if (kind === 'recovery' || kind === 'cooldown') {
+    o = '<defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#5b3f7a"/><stop offset=".5" stop-color="#c56a63"/><stop offset="1" stop-color="#e0975a"/></linearGradient></defs><rect width="160" height="90" fill="url(#' + g + ')"/>'
+      + '<circle cx="120" cy="26" r="16" fill="rgba(255,240,200,.7)"/>'
+      + '<rect x="0" y="70" width="160" height="20" fill="#2c5138" opacity=".85"/>'
+      + '<ellipse cx="80" cy="76" rx="40" ry="5" fill="#1c3626" opacity=".6"/>'
+      + '<g transform="translate(70,58) scale(2.6)"><circle cx="0" cy="-8" r="3.2" fill="#e8b58f"/><path d="M-2 -5 q3 8 12 8" fill="none" stroke="rgb(' + ac + ')" stroke-width="4" stroke-linecap="round"/><path d="M-2 -5 q-6 3 -8 9" fill="none" stroke="rgb(' + ac + ')" stroke-width="4" stroke-linecap="round"/></g>';
+  } else {
+    o = pitch('#2a8f50', '#155a33') + '<circle cx="80" cy="45" r="14" fill="none" stroke="#eafff2" stroke-width="1.2" opacity=".3"/><circle cx="80" cy="45" r="3" fill="#fff"/>';
+  }
+  return '<svg class="tr-scene" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice">' + o + '</svg>';
+}
+function _trPlayIcon() { return '<span class="tr-vthumb-play"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.5)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></span>'; }
+function _trVthumb(kind, ac, label, cls) { return '<div class="tr-vthumb ' + (cls || '') + '">' + _trScene(kind, ac) + '<span class="tr-vthumb-grad"></span>' + _trPlayIcon() + (label ? '<span class="tr-vthumb-lb">' + _trEsc(label) + '</span>' : '') + '</div>'; }
+function _trSpark(ac) {
+  var g = 'sp' + (++_TR_DIA_N), d = 'M2 40 L16 33 L30 35 L44 24 L58 27 L72 15 L86 18 L98 7';
+  return '<svg class="tr-spark" viewBox="0 0 100 46" preserveAspectRatio="none"><defs><linearGradient id="' + g + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(' + ac + ',.35)"/><stop offset="1" stop-color="rgba(' + ac + ',0)"/></linearGradient></defs>'
+    + '<path d="' + d + ' L98 46 L2 46 Z" fill="url(#' + g + ')"/><path d="' + d + '" fill="none" stroke="rgb(' + ac + ')" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="98" cy="7" r="3" fill="rgb(' + ac + ')"/></svg>';
+}
+function _trBars(ac) {
+  var hs = [11, 16, 13, 21, 18, 27, 24, 33], b = '';
+  for (var i = 0; i < hs.length; i++) b += '<rect x="' + (3 + i * 12) + '" y="' + (40 - hs[i]) + '" width="8" height="' + hs[i] + '" rx="2" fill="rgb(' + ac + ')" opacity="' + (0.45 + i * 0.07).toFixed(2) + '"/>';
+  return '<svg class="tr-bars" viewBox="0 0 100 42" preserveAspectRatio="none">' + b + '</svg>';
+}
+function _trMiniRing(pct, ac) {
+  var d = 34, cx = 17, R = 13, C = 2 * Math.PI * R, p = Math.max(0, Math.min(100, Math.round(pct))), off = C * (1 - p / 100);
+  return '<span class="tr-mring"><svg viewBox="0 0 34 34" width="34" height="34"><circle cx="17" cy="17" r="13" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="3"/><circle cx="17" cy="17" r="13" fill="none" stroke="rgb(' + ac + ')" stroke-width="3" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 17 17)"/><text x="17" y="20.5" text-anchor="middle" font-size="9.5" font-weight="800" fill="#eef2f8">' + p + '</text></svg></span>'; }
 function _trData() {
   var ps = (typeof SQ_DEMO_PLAYERS !== 'undefined' ? SQ_DEMO_PLAYERS : []).slice(0, 14);
   function load(p) { return Math.max(30, Math.min(99, Math.round(50 + (p.form || 6) * 4 + (100 - (p.cond || 85)) * 0.35))); }
@@ -6455,118 +6530,186 @@ function _trData() {
   var attention = ps.filter(function (p) { return (p.cond || 85) < 86 || load(p) >= 85; });
   return { ps: ps, att: att, attRate: attRate, load: load, ready: ready, avgLoad: avgLoad, avgReady: avgReady, best: best, attention: attention };
 }
-function _trOvCard(ac, viz, l, v, s) { return '<div class="tr-ov-card" style="--c:' + ac + '"><span class="tr-ov-viz">' + viz + '</span><span class="tr-ov-txt"><span class="tr-ov-l">' + l + '</span><b class="tr-ov-v">' + _trEsc(v) + '</b><span class="tr-ov-s">' + _trEsc(s) + '</span></span></div>'; }
+function _trOvCard(ac, l, v, s, viz, vizCls) { var cx = /is-photo/.test(vizCls || '') ? ' tr-ov-card--photo' : ''; return '<div class="tr-ov-card' + cx + '" style="--c:' + ac + '"><div class="tr-ov-main"><span class="tr-ov-l">' + _trEsc(l) + '</span><b class="tr-ov-v">' + _trEsc(v) + '</b><span class="tr-ov-s">' + _trEsc(s) + '</span></div><div class="tr-ov-viz ' + (vizCls || '') + '">' + viz + '</div></div>'; }
 function _trOverviewCards() {
-  var D = _trData(), next = _TR_SESSIONS[0];
   return '<div class="tr-ov">'
-    + _trOvCard('56,189,248', _trThumb(next.kind, '56,189,248', ''), 'Next Session', next.date + ' · ' + next.time, next.focus)
-    + _trOvCard('52,215,122', _trRing(D.attRate, '52,215,122'), 'Attendance', D.ps.length + ' players', 'This week')
-    + _trOvCard('251,146,60', _trRing(D.avgLoad, '251,146,60'), 'Training Load', D.avgLoad >= 80 ? 'High' : 'Balanced', 'Team average')
-    + _trOvCard('139,92,246', _trRing(D.avgReady, '139,92,246'), 'Team Readiness', D.avgReady >= 80 ? 'Match ready' : 'Building', 'Fitness index')
-    + _trOvCard('244,183,64', _trAv(D.best ? D.best.name : '?', '244,183,64'), 'Best Trainer', D.best ? _sqLastName(D.best.name) : '—', D.best ? ('Form ' + (D.best.form || 0) + '/10') : '')
-    + _trOvCard('248,113,113', '<span class="tr-ov-count">' + D.attention.length + '</span>', 'Needs Attention', D.attention.slice(0, 2).map(function (p) { return _sqLastName(p.name); }).join(', ') || 'None', 'Monitor load')
+    + _trOvCard('56,189,248', 'Next Session', 'Sat 12 Jul · 10:00', 'Passing & Possession', '<div class="tr-ov-photo">' + _trScene('referee', '52,215,122') + '<span class="tr-vthumb-grad"></span></div>', 'is-photo')
+    + _trOvCard('52,215,122', 'Attendance Rate', '79%', '14 / 18 Players', _trSpark('52,215,122'), 'is-chart')
+    + _trOvCard('244,183,64', 'Training Load', '82%', 'High', _trBars('244,183,64'), 'is-chart')
+    + _trOvCard('52,215,122', 'Team Readiness', '89%', 'Match Ready', _trRing(89, '52,215,122', 62), 'is-ring')
+    + _trOvCard('56,189,248', 'Best Trainer', 'C.BIBO', 'Form 10/10', '<div class="tr-ov-photo">' + _trFace('C.Bibo coach', 'fill', '52,215,122') + '</div>', 'is-photo')
+    + _trOvCard('248,113,113', 'Players Needing Attention', '7', 'View list', '<div class="tr-ov-photo">' + _trFace('needs attention', 'fill', '248,113,113') + '</div>', 'is-photo')
     + '</div>';
 }
+function _trSessRow(ic, l, v) { return '<div class="tr-sess-row"><span class="tr-sess-ic">' + ic + '</span><span class="tr-sess-rl">' + l + '</span><span class="tr-sess-rv">' + v + '</span></div>'; }
 function _trSessions() {
-  return '<div class="tr-sess">' + _TR_SESSIONS.map(function (s) {
-    return '<div class="tr-sess-card" style="--c:56,189,248">'
-      + '<div class="tr-sess-thumb">' + _trThumb(s.kind, '56,189,248', s.dur) + '</div>'
-      + '<div class="tr-sess-info">'
-      + '<div class="tr-sess-top"><b>' + _trEsc(s.focus) + '</b>' + _trPill(s.inten + ' intensity', s.iAc) + '</div>'
-      + '<p class="tr-sess-obj">' + _trEsc(s.notes) + '</p>'
-      + '<div class="tr-sess-meta"><span>&#128198; ' + s.date + '</span><span>&#9200; ' + s.time + '</span><span>&#128205; ' + _trEsc(s.loc) + '</span><span>&#9670; ' + s.diff + '</span></div>'
-      + '<div class="tr-sess-foot">' + _trAv(s.coach, '56,189,248', 'sm') + '<span class="tr-sess-coach">' + _trEsc(s.coach) + '</span><span class="tr-sess-tag">&#127890; ' + _trEsc(s.equip) + '</span><span class="tr-sess-tag">&#128101; ' + s.players + '</span></div>'
-      + '</div></div>';
-  }).join('') + '</div>';
+  var s = _TR_SESSIONS[0];
+  var drills = s.drills.map(function (d) { return '<div class="tr-sess-drill">' + _trVthumb(d.k, '52,215,122', '', 'sm') + '<span class="tr-sess-drill-t">' + _trEsc(d.t) + '</span></div>'; }).join('');
+  return '<div class="tr-sess">'
+    + '<button class="tr-newbtn" type="button">&#43; New Session</button>'
+    + '<div class="tr-sess-main">'
+    + '<div class="tr-sess-detail">'
+    + '<b class="tr-sess-date">' + _trEsc(s.date) + '</b>'
+    + _trSessRow('&#128340;', s.time, '')
+    + _trSessRow('&#128205;', _trEsc(s.loc), '')
+    + _trSessRow('&#9201;', s.dur, '')
+    + '<div class="tr-sess-blk"><span class="tr-sess-k">Goal</span><p>' + _trEsc(s.goal) + '</p></div>'
+    + '<div class="tr-sess-blk"><span class="tr-sess-k">Coach</span><p>' + _trEsc(s.coach) + '</p></div>'
+    + '<div class="tr-sess-blk"><span class="tr-sess-k">Players</span><p>' + s.players + '</p></div>'
+    + '<div class="tr-sess-blk"><span class="tr-sess-k">Intensity</span>' + _trPill(s.inten, s.iAc) + '</div>'
+    + '<div class="tr-sess-blk"><span class="tr-sess-k">Notes</span><p>' + _trEsc(s.notes) + '</p></div>'
+    + '</div>'
+    + '<div class="tr-sess-video">' + _trVthumb('training', '52,215,122', '') + '</div>'
+    + '</div>'
+    + '<div class="tr-sess-drills-h">Drills</div>'
+    + '<div class="tr-sess-drills">' + drills + '<span class="tr-sess-drills-more">&#8250;</span></div>'
+    + '</div>';
 }
+function _trPosAc(pos) { var p = String(pos || '').toUpperCase(); if (p === 'GK') return '244,183,64'; if (/CB|RB|LB|RWB|LWB|DF/.test(p)) return '56,189,248'; if (/DM|CM|AM|MF/.test(p)) return '52,215,122'; return '236,72,153'; }
 function _trAttendance() {
-  var D = _trData(), counts = { Present: 0, Late: 0, Excused: 0, Absent: 0 };
-  D.att.forEach(function (a) { counts[a.s]++; });
-  function chip(k, ac) { return '<span class="tr-att-chip" style="--c:' + ac + '"><b>' + counts[k] + '</b>' + k + '</span>'; }
-  var rows = D.att.map(function (a) {
-    var reason = a.s === 'Absent' ? 'Illness' : a.s === 'Late' ? 'Traffic' : a.s === 'Excused' ? 'Personal' : '—';
-    var ic = a.s === 'Present' ? '&#10003;' : a.s === 'Late' ? '&#9201;' : a.s === 'Excused' ? '&#9432;' : '&#10005;';
-    var tone = a.s === 'Present' ? '52,215,122' : a.s === 'Late' ? '244,183,64' : a.s === 'Excused' ? '148,163,184' : '248,113,113';
-    return '<div class="tr-att-row">' + _trAv(a.p.name, _trPac(a.p), 'sm') + '<span class="tr-att-nm">' + _trEsc(_sqLastName(a.p.name)) + '<i>' + a.p.pos + '</i></span><span class="tr-att-badge" style="--c:' + tone + '">' + ic + ' ' + a.s + '</span><span class="tr-att-r">' + reason + '</span></div>';
+  var players = [
+    { n: 'Ali', pos: 'GK', s: 'present', r: '—' }, { n: 'Olivier', pos: 'RB', s: 'late', r: '—' },
+    { n: 'Vladil', pos: 'CB', s: 'present', r: '—' }, { n: 'Bah', pos: 'CM', s: 'present', r: '—' },
+    { n: 'Lefevre', pos: 'LB', s: 'absent', r: '—' }, { n: 'Bautista', pos: 'DM', s: 'absent', r: 'Illness' },
+    { n: 'Watanabe', pos: 'CM', s: 'present', r: '—' }, { n: 'Pinto', pos: 'LW', s: 'present', r: '—' }
+  ];
+  function cell(active, on, icon, ac) { return '<span class="tr-att-cell' + (on === active ? ' is-on' : '') + '" style="--c:' + ac + '">' + icon + '</span>'; }
+  var rows = players.map(function (p) {
+    var st = p.s;
+    return '<div class="tr-att-row">'
+      + '<span class="tr-att-pl">' + _trFace(p.n + p.pos, 'xs', _trPosAc(p.pos)) + '<span class="tr-att-nm">' + _trEsc(p.n) + '<i>' + p.pos + '</i></span></span>'
+      + cell(st, 'present', '&#10003;', '52,215,122')
+      + cell(st, 'late', '&#9201;', '244,183,64')
+      + cell(st, 'absent', '&#10005;', '248,113,113')
+      + cell(st, 'excused', '&#8615;', '148,163,184')
+      + '<span class="tr-att-r' + (p.r !== '—' ? ' is-note' : '') + '">' + _trEsc(p.r) + '</span>'
+      + '</div>';
   }).join('');
-  return '<div class="tr-att"><div class="tr-att-head">' + _trRing(D.attRate, _trStatColor(D.attRate), 58)
-    + '<div class="tr-att-chips">' + chip('Present', '52,215,122') + chip('Late', '244,183,64') + chip('Excused', '148,163,184') + chip('Absent', '248,113,113') + '</div></div>'
-    + '<div class="tr-att-list">' + rows + '</div></div>';
+  return '<div class="tr-att">'
+    + '<div class="tr-att-head"><span class="tr-att-h-pl">Player</span><span>Present</span><span>Late</span><span>Absent</span><span>Excused</span><span class="tr-att-h-r">Reason</span></div>'
+    + '<div class="tr-att-list">' + rows + '</div>'
+    + '<div class="tr-att-foot"><span class="tr-att-foot-l">Attendance Rate</span><span class="tr-bar tr-bar--lg" style="--c:52,215,122"><i style="width:79%;--c:52,215,122"></i></span><b class="tr-att-foot-v">79%</b></div>'
+    + '</div>';
 }
 function _trPlan() {
-  var days = [['Mon', 'Possession & Passing', 'High', '248,113,113', 'possession'], ['Tue', 'Strength & Speed', 'High', '248,113,113', 'fitness'], ['Wed', 'Pressing & Tactical', 'High', '248,113,113', 'pressing'], ['Thu', 'Set Pieces & Finishing', 'Medium', '244,183,64', 'shooting'], ['Fri', 'Match Prep · Shape', 'Low', '52,215,122', 'tactical'], ['Sat', 'Match Day', 'Match', '56,189,248', 'ssg'], ['Sun', 'Recovery', 'Rest', '148,163,184', 'cooldown']];
-  return '<div class="tr-plan">' + days.map(function (d) {
-    var rest = d[2] === 'Rest';
-    return '<div class="tr-plan-card' + (rest ? ' is-rest' : '') + '" style="--c:' + d[3] + '"><div class="tr-plan-thumb">' + _trDia(d[4], d[3]) + '</div><b class="tr-plan-day">' + d[0] + '</b><span class="tr-plan-focus">' + _trEsc(d[1]) + '</span>' + _trPill(d[2], d[3]) + '</div>';
-  }).join('') + '</div>';
+  var days = [
+    { d: 'MON', f: 'Possession', i: 'High', ac: '248,113,113', sc: 'pitch' },
+    { d: 'TUE', f: 'Strength & Speed', i: 'High', ac: '248,113,113', sc: 'gym' },
+    { d: 'WED', f: 'Pressing & Tactical', i: 'High', ac: '248,113,113', sc: 'pitch' },
+    { d: 'THU', f: 'Set Pieces', i: 'Medium', ac: '244,183,64', sc: 'training' },
+    { d: 'FRI', f: 'Match Prep', i: 'Medium', ac: '244,183,64', sc: 'match' },
+    { d: 'SAT', f: 'Match Day', i: 'vs Union Berlin', ac: '56,189,248', sc: 'match', match: true },
+    { d: 'SUN', f: 'Recovery', i: 'Low', ac: '52,215,122', sc: 'recovery' }
+  ];
+  var head = days.map(function (d) { return '<span class="tr-plan-dh">' + d.d + '</span>'; }).join('');
+  var cards = days.map(function (d) {
+    var cap = d.match
+      ? '<b class="tr-plan-f">Match Day</b><span class="tr-plan-vs">' + _trCrest('U', '56,189,248') + '<i>VS</i>' + _trCrest('F', '52,215,122') + '</span><span class="tr-plan-i" style="--c:56,189,248">vs Union Berlin</span>'
+      : '<b class="tr-plan-f">' + _trEsc(d.f) + '</b><span class="tr-plan-i" style="--c:' + d.ac + '">' + d.i + '</span>';
+    return '<div class="tr-plan-card' + (d.match ? ' is-match' : '') + '" style="--c:' + d.ac + '"><div class="tr-plan-img">' + _trScene(d.sc, d.ac) + '<span class="tr-vthumb-grad"></span></div><div class="tr-plan-cap">' + cap + '</div></div>';
+  }).join('');
+  return '<div class="tr-plan"><div class="tr-plan-head">' + head + '</div><div class="tr-plan-row">' + cards + '</div></div>';
 }
+function _trCrest(letter, ac) { return '<span class="tr-crest" style="--c:' + ac + '">' + _trEsc(letter) + '</span>'; }
 function _trDrills() {
-  var cats = [['Passing', 'Short & long patterns', '56,189,248', 'passing'], ['Shooting', 'Finishing & 1v1 vs GK', '236,72,153', 'shooting'], ['Pressing', 'Triggers & counter-press', '248,113,113', 'pressing'], ['Possession', 'Rondos & positional play', '52,215,122', 'possession'], ['Fitness', 'Endurance & conditioning', '251,146,60', 'fitness'], ['Speed', 'Sprints & agility', '244,183,64', 'speed'], ['Goalkeeper', 'Handling & distribution', '45,212,191', 'gk'], ['Tactical', 'Shape & transitions', '139,92,246', 'tactical'], ['Warm-up', 'Activation & mobility', '148,163,184', 'warmup'], ['Cool-down', 'Stretch & recovery', '96,165,250', 'cooldown']];
-  return '<div class="tr-drills">' + cats.map(function (c) { var n = 3 + _sqSeed(c[0]) % 5; return '<div class="tr-drill" style="--c:' + c[2] + '"><div class="tr-drill-thumb">' + _trThumb(c[3], c[2], '') + '</div><div class="tr-drill-b"><b>' + c[0] + '</b><span>' + _trEsc(c[1]) + '</span><i>' + n + ' drills</i></div></div>'; }).join('') + '</div>';
+  var tabs = ['All', 'Passing', 'Shooting', 'Possession', 'Fitness GK', 'Tactical'];
+  var tabHtml = tabs.map(function (t, i) { return '<button class="tr-tab' + (i === 1 ? ' is-on' : '') + '" type="button">' + t + '</button>'; }).join('');
+  var cards = [{ t: 'Rondo 5v2', k: 'pitch' }, { t: 'Passing Circuit', k: 'passing' }, { t: 'Wall Pass', k: 'tactical' }].map(function (c) {
+    return '<div class="tr-drill"><div class="tr-drill-t">' + _trEsc(c.t) + '</div><div class="tr-drill-thumb">' + _trVthumb(c.k, '52,215,122', '') + '</div></div>';
+  }).join('');
+  return '<div class="tr-drills"><div class="tr-tabs">' + tabHtml + '</div><div class="tr-drill-row">' + cards + '<span class="tr-drill-more">&#8250;</span></div></div>';
 }
 function _trIndividual() {
-  var D = _trData();
-  var focusFor = { GK: 'Distribution & handling', CB: 'Aerial & positioning', RB: 'Overlaps & crossing', LB: 'Overlaps & crossing', DM: 'Screening & passing', CM: 'Box-to-box endurance', LW: '1v1 & final ball', RW: '1v1 & final ball', ST: 'Movement & finishing' };
-  return '<div class="tr-ind">' + D.ps.slice(0, 12).map(function (p) {
-    var prog = 40 + _sqSeed(p.id + 'prog') % 55, inten = _sqSeed(p.id + 'in') % 3, iL = ['Low', 'Medium', 'High'][inten], iAc = ['52,215,122', '244,183,64', '248,113,113'][inten], ac = _trPac(p);
-    var note = (p.cond || 85) < 86 ? 'Manage load — build gradually.' : 'On track — keep sharpness.';
-    return '<div class="tr-ind-item" style="--c:' + ac + '">' + _trAv(p.name, ac, 'lg')
-      + '<div class="tr-ind-body"><div class="tr-ind-head"><b class="tr-ind-nm">' + _trEsc(_sqLastName(p.name)) + '</b><span class="tr-ind-pos" style="--c:' + ac + '">' + p.pos + '</span>' + _trPill(iL + ' load', iAc) + '</div>'
-      + '<div class="tr-ind-focus"><span class="tr-ind-fi">&#127919;</span>' + _trEsc(focusFor[p.pos] || 'General conditioning') + '</div>'
-      + '<p class="tr-ind-note">' + note + '</p></div>'
-      + '<div class="tr-ind-ring">' + _trRing(prog, _trStatColor(prog), 52) + '<span class="tr-ind-rl">Progress</span></div></div>';
-  }).join('') + '</div>';
+  var rows = [
+    { n: 'Ali', pos: 'GK', f: 'GK Handling', load: 'Medium', lac: '244,183,64', p: 72 },
+    { n: 'Olivier', pos: 'RB', f: 'Crossing', load: 'High', lac: '248,113,113', p: 65 },
+    { n: 'Vladil', pos: 'CB', f: 'Strength', load: 'High', lac: '248,113,113', p: 80 },
+    { n: 'Bah', pos: 'CM', f: 'Positioning', load: 'Medium', lac: '244,183,64', p: 60 },
+    { n: 'Lefevre', pos: 'LB', f: 'Endurance', load: 'Medium', lac: '244,183,64', p: 75 }
+  ];
+  var body = rows.map(function (r) {
+    return '<div class="tr-ind-row">'
+      + '<span class="tr-ind-pl">' + _trFace(r.n + r.pos, 'xs', _trPosAc(r.pos)) + '<span class="tr-ind-nm">' + _trEsc(r.n) + '</span></span>'
+      + '<span class="tr-ind-f">' + _trEsc(r.f) + '</span>'
+      + '<span class="tr-ind-load">' + _trPill(r.load, r.lac) + '</span>'
+      + '<span class="tr-ind-prog"><span class="tr-bar" style="--c:' + _trStatColor(r.p) + '"><i style="width:' + r.p + '%;--c:' + _trStatColor(r.p) + '"></i></span><b>' + r.p + '%</b></span>'
+      + '</div>';
+  }).join('');
+  return '<div class="tr-ind"><div class="tr-ind-head"><span class="tr-ind-h-pl">Player</span><span>Focus</span><span>Load</span><span class="tr-ind-h-p">Progress</span></div><div class="tr-ind-list">' + body + '</div></div>';
 }
 function _trLoad() {
-  var D = _trData(), fat = Math.min(99, Math.max(1, 100 - D.avgReady + 10)), rec = D.avgReady, risk = D.avgLoad >= 82 ? 'Elevated' : D.avgLoad >= 70 ? 'Moderate' : 'Low';
-  var riskAc = risk === 'Low' ? '52,215,122' : risk === 'Moderate' ? '244,183,64' : '248,113,113';
-  var gauges = [['Load', D.avgLoad, _trStatColor(100 - D.avgLoad)], ['Fatigue', fat, _trStatColor(100 - fat)], ['Recovery', rec, _trStatColor(rec)], ['Readiness', D.avgReady, _trStatColor(D.avgReady)]];
-  var mini = D.ps.slice(0, 12).map(function (p) { var l = D.load(p), ac = _trStatColor(100 - l); return '<div class="tr-load-row">' + _trAv(p.name, _trPac(p), 'sm') + '<span class="tr-load-nm">' + _trEsc(_sqLastName(p.name)) + '</span><span class="tr-bar" style="--c:' + ac + '"><i style="width:' + l + '%;--c:' + ac + '"></i></span><span class="tr-load-v" style="color:rgb(' + ac + ')">' + l + '%</span></div>'; }).join('');
-  return '<div class="tr-load"><div class="tr-gauges">' + gauges.map(function (g) { return '<div class="tr-gauge" style="--c:' + g[2] + '">' + _trRing(g[1], g[2], 62) + '<span class="tr-gauge-l">' + g[0] + '</span></div>'; }).join('')
-    + '<div class="tr-gauge tr-gauge--risk" style="--c:' + riskAc + '"><span class="tr-gauge-badge" style="--c:' + riskAc + '">&#9888;</span><b class="tr-gauge-rv">' + risk + '</b><span class="tr-gauge-l">Injury Risk</span></div></div>'
-    + '<div class="tr-load-mini"><div class="tr-sub-h">Per-player load</div>' + mini + '</div></div>';
+  var rows = [
+    { n: 'Ali', pos: 'GK', load: 'High', lac: '248,113,113', fat: 78, rec: 52, rdy: 82, risk: 'Medium', rac: '244,183,64' },
+    { n: 'Olivier', pos: 'RB', load: 'Medium', lac: '244,183,64', fat: 62, rec: 66, rdy: 68, risk: 'Low', rac: '52,215,122' },
+    { n: 'Vladil', pos: 'CB', load: 'High', lac: '248,113,113', fat: 75, rec: 45, rdy: 70, risk: 'High', rac: '248,113,113' },
+    { n: 'Bah', pos: 'CM', load: 'Medium', lac: '244,183,64', fat: 55, rec: 70, rdy: 85, risk: 'Low', rac: '52,215,122' }
+  ];
+  var body = rows.map(function (r) {
+    return '<div class="tr-load-row">'
+      + '<span class="tr-load-pl">' + _trFace(r.n + r.pos, 'xs', _trPosAc(r.pos)) + '<span class="tr-load-nm">' + _trEsc(r.n) + '</span></span>'
+      + '<span class="tr-load-c">' + _trPill(r.load, r.lac) + '</span>'
+      + '<span class="tr-load-c">' + _trMiniRing(r.fat, _trStatColor(100 - r.fat)) + '</span>'
+      + '<span class="tr-load-c">' + _trMiniRing(r.rec, _trStatColor(r.rec)) + '</span>'
+      + '<span class="tr-load-c">' + _trMiniRing(r.rdy, _trStatColor(r.rdy)) + '</span>'
+      + '<span class="tr-load-c">' + _trPill(r.risk, r.rac) + '</span>'
+      + '</div>';
+  }).join('');
+  return '<div class="tr-load"><div class="tr-load-head"><span class="tr-load-h-pl">Player</span><span>Load</span><span>Fatigue</span><span>Recovery</span><span>Readiness</span><span>Injury Risk</span></div><div class="tr-load-list">' + body + '</div></div>';
 }
+function _trStarRow(n) { var h = ''; for (var i = 1; i <= 5; i++) { var f = n >= i ? 'is-full' : (n >= i - 0.5 ? 'is-half' : ''); h += '<span class="tr-star ' + f + '">&#9733;</span>'; } return '<span class="tr-stars">' + h + '</span>'; }
 function _trNotes() {
-  var blocks = [['Team Notes', '52,215,122', 'High tempo in possession drills this week. Shape held well in the pressing block — keep the second line compact.'], ['Player Notes', '56,189,248', 'Watanabe leading the group; Pinto sharp in tight spaces. Monitor Bah — slight dip in condition.'], ['Training Feedback', '244,183,64', 'Intensity is good; add more finishing reps under fatigue. Recovery-day attendance excellent.']];
-  return '<div class="tr-notes">' + blocks.map(function (b) { return '<div class="tr-note" style="--c:' + b[1] + '"><b>' + b[0] + '</b><p>' + _trEsc(b[2]) + '</p></div>'; }).join('') + '</div>';
+  var tabs = ['Team Notes', 'Player Notes', 'Session Evaluation'];
+  var tabHtml = tabs.map(function (t, i) { return '<button class="tr-tab' + (i === 1 ? ' is-on' : '') + '" type="button">' + t + '</button>'; }).join('');
+  var notes = [
+    { n: 'Vladil', pos: 'CB', txt: 'Good performance. Strong in duels.', r: 3.5 },
+    { n: 'Olivier', pos: 'RB', txt: 'Very active. Improve crossing quality.', r: 3 },
+    { n: 'Ali', pos: 'GK', txt: 'Excellent handling. Sharp reflexes today.', r: 5 }
+  ];
+  var body = notes.map(function (o) {
+    return '<div class="tr-note">' + _trFace(o.n + o.pos, 'sm', _trPosAc(o.pos))
+      + '<div class="tr-note-b"><div class="tr-note-hd"><b>' + _trEsc(o.n) + '</b><i>' + o.pos + '</i><span class="tr-note-dot">&#8942;</span></div>'
+      + '<p class="tr-note-txt">' + _trEsc(o.txt) + '</p>' + _trStarRow(o.r) + '</div></div>';
+  }).join('');
+  return '<div class="tr-notes"><div class="tr-tabs">' + tabHtml + '</div><div class="tr-notes-list">' + body + '</div></div>';
 }
 function _trReports() {
-  var D = _trData(), ps = D.ps;
-  var best = ps.slice().sort(function (a, b) { return (b.form || 0) - (a.form || 0); })[0];
-  var improved = ps.slice().sort(function (a, b) { return (_sqSeed(b.id + 'imp') % 20) - (_sqSeed(a.id + 'imp') % 20); })[0];
-  var lowAtt = D.att.filter(function (a) { return a.s !== 'Present'; })[0];
-  var highLoad = ps.slice().sort(function (a, b) { return D.load(b) - D.load(a); })[0];
-  var rest = ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0];
-  var potw = best, improvedName = improved ? _sqLastName(improved.name) : '—';
-  var av = function (nm, ac) { return '<span class="tr-rep-viz">' + _trAv(nm, ac, 'lg') + '</span>'; };
-  var ring = function (v, ac) { return '<span class="tr-rep-viz">' + _trRing(v, ac, 50) + '</span>'; };
   var cards = [
-    ['Best Performer', best ? _sqLastName(best.name) : '—', 'Form ' + (best ? best.form : '-') + '/10', '52,215,122', av(best ? best.name : '?', '52,215,122')],
-    ['Most Improved', improvedName, '+' + (5 + _sqSeed((improved ? improved.id : 'x') + 'i') % 10) + '% this week', '56,189,248', av(improved ? improved.name : '?', '56,189,248')],
-    ['Highest Load', highLoad ? _sqLastName(highLoad.name) : '—', D.load(highLoad) + '% load', '251,146,60', ring(D.load(highLoad), '251,146,60')],
-    ['Lowest Attendance', lowAtt ? _sqLastName(lowAtt.p.name) : 'None', 'Status ' + (lowAtt ? lowAtt.s : '—'), '244,183,64', av(lowAtt ? lowAtt.p.name : '?', '244,183,64')],
-    ['Recommended Rest', rest ? _sqLastName(rest.name) : '—', 'Condition ' + (rest ? rest.cond : '-') + '%', '167,139,250', ring(rest ? (rest.cond || 85) : 85, '167,139,250')],
-    ['Coach Rating', '4.6 / 5', 'Session quality this week', '244,183,64', '<span class="tr-rep-viz">' + _trStars(4.6) + '</span>'],
-    ['Player of the Week', potw ? _sqLastName(potw.name) : '—', potw ? potw.pos + ' · Form ' + potw.form + '/10' : '—', '236,72,153', av(potw ? potw.name : '?', '236,72,153')]
+    { l: 'Best Performer', n: 'C.Bibo', s: 'Form 10/10', ac: '52,215,122', seed: 'bibo rep' },
+    { l: 'Most Improved', n: 'Carter', s: '+13% this week', ac: '56,189,248', seed: 'carter rep' },
+    { l: 'Lowest Attendance', n: 'yasser', s: 'Status Excused', ac: '148,163,184', seed: 'yasser rep' },
+    { l: 'Highest Load', n: 'C.Bibo', s: '92% load', ac: '251,146,60', seed: 'bibo load rep' },
+    { l: 'Recommended Rest', n: 'Petrov', s: 'Condition 83%', ac: '167,139,250', seed: 'petrov rep' }
   ];
-  return '<div class="tr-rep">' + cards.map(function (c) { return '<div class="tr-rep-card" style="--c:' + c[3] + '">' + c[4] + '<div class="tr-rep-txt"><span class="tr-ov-l">' + c[0] + '</span><b class="tr-ov-v">' + _trEsc(c[1]) + '</b><span class="tr-ov-s">' + _trEsc(c[2]) + '</span></div></div>'; }).join('') + '</div>';
+  return '<div class="tr-rep">' + cards.map(function (c) {
+    return '<div class="tr-rep-card" style="--c:' + c.ac + '"><div class="tr-rep-txt"><span class="tr-rep-l">' + _trEsc(c.l) + '</span><b class="tr-rep-n">' + _trEsc(c.n) + '</b><span class="tr-rep-s">' + _trEsc(c.s) + '</span></div><span class="tr-rep-viz">' + _trFace(c.seed, 'md', c.ac) + '</span></div>';
+  }).join('') + '</div>';
+}
+function _trBotBig() {
+  return '<span class="tr-robot"><svg viewBox="0 0 120 150" width="100%" height="100%">'
+    + '<defs><linearGradient id="rb1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef5ff"/><stop offset="1" stop-color="#bcd0e8"/></linearGradient><radialGradient id="rb2" cx="0.5" cy="0.4" r="0.6"><stop offset="0" stop-color="#7fe0ff"/><stop offset="1" stop-color="#1f8fd0"/></radialGradient></defs>'
+    + '<line x1="60" y1="6" x2="60" y2="20" stroke="#7dd3fc" stroke-width="3"/><circle cx="60" cy="6" r="5" fill="#7dd3fc"/>'
+    + '<rect x="24" y="18" width="72" height="60" rx="20" fill="url(#rb1)" stroke="#8fb3d6" stroke-width="1.5"/>'
+    + '<rect x="33" y="30" width="54" height="34" rx="15" fill="#0f2233"/>'
+    + '<circle cx="49" cy="47" r="8" fill="url(#rb2)"/><circle cx="71" cy="47" r="8" fill="url(#rb2)"/><circle cx="47" cy="45" r="2.4" fill="#fff"/><circle cx="69" cy="45" r="2.4" fill="#fff"/>'
+    + '<rect x="40" y="84" width="40" height="42" rx="12" fill="url(#rb1)" stroke="#8fb3d6" stroke-width="1.5"/>'
+    + '<text x="60" y="110" text-anchor="middle" font-size="14" font-weight="800" fill="#2f9fd6">AI</text>'
+    + '<rect x="14" y="90" width="22" height="9" rx="4.5" fill="url(#rb1)" transform="rotate(20 25 95)"/>'
+    + '<rect x="84" y="90" width="22" height="9" rx="4.5" fill="url(#rb1)" transform="rotate(-20 95 95)"/>'
+    + '<ellipse cx="60" cy="140" rx="30" ry="5" fill="rgba(56,189,248,.25)"/>'
+    + '</svg></span>';
 }
 function _trAI() {
-  var D = _trData(), best = D.best, low = D.ps.slice().sort(function (a, b) { return (a.cond || 85) - (b.cond || 85); })[0], extra = D.attention[0] || best;
   var recs = [
-    ['Tomorrow — Focus', '&#9889;', 'Sharp finishing under fatigue plus a short pressing block. Keep total load moderate.', '56,189,248', 'High', 92, ['shooting', 'pressing']],
-    ['Player Needs Rest', '&#128564;', (low ? _sqLastName(low.name) : '—') + ' — condition ' + (low ? low.cond : '-') + '%. Give a recovery day or reduced session.', '167,139,250', 'High', 88, ['cooldown']],
-    ['Player Needs Extra Work', '&#43;', (extra ? _sqLastName(extra.name) : '—') + ' — add individual positional reps this week.', '244,183,64', 'Medium', 80, ['passing', 'tactical']],
-    ['Team Weakness To Train', '&#127919;', 'Transition defence after losing the ball — rehearse counter-press triggers.', '248,113,113', 'High', 85, ['pressing', 'possession']],
-    ['Match Preparation', '&#128203;', 'Two tactical sessions plus one set-piece session before match day; taper on Friday.', '52,215,122', 'Medium', 90, ['tactical', 'ssg']]
+    { ic: '&#9889;', ac: '244,183,64', t: 'Tomorrow focus: Strength & Speed', s: 'High intensity recommended' },
+    { ic: '&#9432;', ac: '248,113,113', t: 'Ali is at high load. Consider rest or recovery.', s: '' },
+    { ic: '&#43;', ac: '56,189,248', t: 'Vladil needs extra training in passing.', s: '' },
+    { ic: '&#127919;', ac: '167,139,250', t: 'Team weakness: Final third decision making.', s: '' },
+    { ic: '&#9873;', ac: '52,215,122', t: 'Prepare for next match vs Union Berlin (Sat).', s: '' }
   ];
-  var dName = { shooting: 'Finishing', pressing: 'Pressing', cooldown: 'Recovery', passing: 'Passing', tactical: 'Tactical', possession: 'Possession', ssg: 'Small-Sided' };
-  return '<div class="tr-ai"><div class="tr-ai-head">' + _trBot() + '<div class="tr-ai-hd-t"><b>AIZA · Training Assistant</b><span><span class="tr-ai-dot"></span>Online · analysing squad data</span></div></div>'
-    + '<div class="tr-ai-list">' + recs.map(function (r) {
-      var pAc = r[4] === 'High' ? '248,113,113' : '244,183,64';
-      var chips = r[6].map(function (k) { return '<span class="tr-ai-chip" style="--c:' + r[3] + '">' + _trDia(k, r[3]).replace('class="tr-dia"', 'class="tr-dia tr-ai-mini"') + (dName[k] || k) + '</span>'; }).join('');
-      return '<div class="tr-ai-card" style="--c:' + r[3] + '"><span class="tr-ai-i">' + r[1] + '</span><div class="tr-ai-t"><div class="tr-ai-ct"><b>' + r[0] + '</b>' + _trPill(r[4] + ' priority', pAc) + '</div><p>' + _trEsc(r[2]) + '</p><div class="tr-ai-chips">' + chips + '</div></div><div class="tr-ai-conf">' + _trRing(r[5], r[3], 44) + '<span class="tr-ai-conf-l">Confidence</span></div></div>';
-    }).join('') + '</div></div>';
+  var body = recs.map(function (r) {
+    return '<div class="tr-ai-row"><span class="tr-ai-ic" style="--c:' + r.ac + '">' + r.ic + '</span><div class="tr-ai-tx"><b>' + _trEsc(r.t) + '</b>' + (r.s ? '<span>' + _trEsc(r.s) + '</span>' : '') + '</div></div>';
+  }).join('');
+  return '<div class="tr-ai"><div class="tr-ai-list">' + body + '</div><div class="tr-ai-robot">' + _trBotBig() + '</div></div>';
 }
 function _trBody(id) {
   switch (id) {
@@ -6585,42 +6728,53 @@ function _trBody(id) {
 // NOTE: named uniquely (a legacy `renderTrainingHTML` "Training Management" page still exists further down).
 // The sidebar 'training' route maps to THIS function so the new Training workspace renders, not the legacy one.
 function _trTitle(id) { for (var i = 0; i < _TR_SECTIONS.length; i++) if (_TR_SECTIONS[i].id === id) return _TR_SECTIONS[i].t; return id; }
+function _trSeedDefault() {
+  var vw = (typeof window !== 'undefined' && window.innerWidth) || 1512, vh = (typeof window !== 'undefined' && window.innerHeight) || 950;
+  var L = [['sessions', .078, .200, .279, .470], ['attendance', .360, .200, .228, .330], ['plan', .605, .200, .390, .250], ['drills', .605, .460, .205, .222], ['individual', .823, .462, .173, .220], ['load', .020, .688, .299, .232], ['notes', .336, .688, .202, .232], ['ai', .554, .690, .220, .230], ['reports', .780, .690, .216, .230]];
+  var z = 60;
+  L.forEach(function (a) { var w = _trWin(a[0]); w.open = true; w.min = false; w.pinned = false; w.placed = true; w.x = Math.round(a[1] * vw); w.y = Math.round(a[2] * vh); w.w = Math.max(240, Math.round(a[3] * vw)); w.h = Math.max(180, Math.round(a[4] * vh)); w.z = (++z); });
+  _TR_Z = z; _trFocus = 'sessions';
+}
+function _trDockItems() {
+  return '<span class="tr-tb-item tr-tb-home is-active"><span class="tr-tb-dot"></span>Training Overview</span>'
+    + _TR_SECTIONS.map(function (s) { var w = _TR_WIN[s.id], open = w && w.open && !w.min, act = _trFocus === s.id; return '<button class="tr-tb-item tr-launch-btn tr-dock-item' + (open ? ' is-open' : '') + (act ? ' is-active' : '') + '" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-tb-dot"></span>' + s.t + '</button>'; }).join('');
+}
 function renderTrainingWorkspaceHTML() {
+  var hadWS = (typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem(_TR_WS_KEY));
   _trLoadWS();
-  var launch = _TR_SECTIONS.map(function (s) {
-    var on = _TR_WIN[s.id] && _TR_WIN[s.id].open;
-    return '<button class="tr-launch-btn' + (on ? ' is-on' : '') + '" style="--c:' + s.ac + '" data-action="trOpen" data-tr="' + s.id + '" type="button"><span class="tr-launch-dot"></span><b>' + s.t + '</b><small>' + s.d + '</small></button>';
-  }).join('');
+  var anyOpen = _TR_SECTIONS.some(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; });
+  if (!hadWS && !anyOpen) _trSeedDefault();
   var panels = _TR_SECTIONS.map(function (s) {
     var w = _TR_WIN[s.id], open = w && w.open, vis = open && !w.min;
     var st = '--c:' + s.ac + ';';
     if (open) st += 'left:' + Math.round(w.x) + 'px;top:' + Math.round(w.y) + 'px;width:' + Math.round(w.w) + 'px;height:' + Math.round(w.h) + 'px;right:auto;bottom:auto;margin:0;z-index:' + (w.z || 60) + ';';
     var cls = 'tr-panel' + (open ? ' tr-placed' : '') + (w && w.pinned ? ' tr-pinned' : '') + (_trFocus === s.id ? ' tr-focus' : '');
     return '<div class="' + cls + '" data-trpanel="' + s.id + '" style="' + st + '"' + (vis ? '' : ' hidden') + (open ? ' data-placed="1"' : '') + '>'
-      + '<div class="tr-panel-hd" data-trdrag="1"><span class="tr-panel-t">' + s.t + '</span>'
+      + '<div class="tr-panel-hd" data-trdrag="1"><span class="tr-panel-ico" style="--c:' + s.ac + '"></span><span class="tr-panel-t">' + s.t + '</span>'
       + '<button class="tr-win-btn tr-win-pin' + (w && w.pinned ? ' is-on' : '') + '" data-action="trPin" data-tr="' + s.id + '" type="button" title="Keep on top" aria-label="Pin">&#128204;</button>'
       + '<button class="tr-win-btn tr-win-min" data-action="trMin" data-tr="' + s.id + '" type="button" title="Minimize" aria-label="Minimize">&#8211;</button>'
       + '<button class="tr-win-btn tr-win-x" data-action="trClose" data-tr="' + s.id + '" type="button" title="Close" aria-label="Close">&#10005;</button></div>'
       + '<div class="tr-panel-bd">' + _trBody(s.id) + '</div></div>';
   }).join('');
-  // taskbar (window manager) — lists every open panel; hidden when none open
-  var openIds = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; });
-  var tbItems = openIds.map(function (s) {
-    var w = _TR_WIN[s.id];
-    return '<button class="tr-tb-item' + (w.min ? ' is-min' : '') + (_trFocus === s.id ? ' is-active' : '') + '" style="--c:' + s.ac + '" data-action="trTask" data-tr="' + s.id + '" type="button"><span class="tr-tb-dot"></span>' + s.t + '</button>';
-  }).join('');
-  var taskbar = '<div class="tr-taskbar" id="tr-taskbar"' + (openIds.length ? '' : ' hidden') + '>'
-    + '<div class="tr-tb-items" id="tr-tb-items">' + tbItems + '</div>'
-    + '<div class="tr-tb-arrange-wrap"><button class="tr-tb-arrange" data-action="trArrangeMenu" type="button" title="Arrange windows">&#9638; Arrange</button>'
-    + '<div class="tr-arrange-menu" id="tr-arrange-menu" hidden><button data-action="trArrange" data-mode="cascade" type="button">Cascade</button><button data-action="trArrange" data-mode="tile" type="button">Tile</button><button data-action="trArrange" data-mode="grid" type="button">Grid</button></div></div></div>';
+  var now = new Date(), hh = ('0' + now.getHours()).slice(-2), mm = ('0' + now.getMinutes()).slice(-2), dd = ('0' + now.getDate()).slice(-2), mo = ('0' + (now.getMonth() + 1)).slice(-2);
+  var dock = '<div class="tr-dock" id="tr-taskbar">'
+    + '<div class="tr-dock-l"><span class="tr-dock-coach">' + _trFace('Bibo head coach', 'sm', '52,215,122') + '<span class="tr-dock-coach-t"><b>Bibo</b><i>Head Coach</i></span></span></div>'
+    + '<div class="tr-dock-c" id="tr-tb-items">' + _trDockItems() + '</div>'
+    + '<div class="tr-dock-r"><div class="tr-tb-arrange-wrap"><button class="tr-dock-arr" data-action="trArrangeMenu" type="button" title="Arrange windows">&#9638; Arrange</button>'
+    + '<div class="tr-arrange-menu" id="tr-arrange-menu" hidden><button data-action="trArrange" data-mode="cascade" type="button">Cascade</button><button data-action="trArrange" data-mode="tile" type="button">Tile</button><button data-action="trArrange" data-mode="grid" type="button">Grid</button></div></div>'
+    + '<button class="tr-dock-ico" data-action="trArrange" data-mode="grid" type="button" title="Grid">&#9638;</button>'
+    + '<button class="tr-dock-ico" data-action="trArrange" data-mode="tile" type="button" title="Tile">&#9707;</button>'
+    + '<span class="tr-dock-clock"><b>' + hh + ':' + mm + '</b><i>' + dd + '/' + mo + '/' + now.getFullYear() + '</i></span></div></div>';
   if (typeof _trBind === 'function') _trBind();
   return '<div class="page" id="pg-training">'
     + '<div class="tr-wrap">'
-    + '<div class="tr-head"><h1 class="tr-title">Training</h1><p class="tr-sub">A floating-window workspace — open any section as its own glass window; minimize, pin, snap, arrange &amp; tile. No scrolling needed.</p></div>'
-    + '<div class="tr-sec-h">Training Overview</div>' + _trOverviewCards()
-    + '<div class="tr-sec-h">Sections</div><div class="tr-launch">' + launch + '</div>'
+    + '<div class="tr-head"><span class="tr-head-t">Training Overview</span>'
+    + '<div class="tr-head-ctrl"><button class="tr-arrange-win" data-action="trArrange" data-mode="grid" type="button">&#9638; Arrange Windows</button>'
+    + '<button class="tr-head-ico" data-action="trArrange" data-mode="grid" type="button" title="Grid">&#9638;</button>'
+    + '<button class="tr-head-ico" data-action="trArrange" data-mode="tile" type="button" title="Tile">&#9707;</button></div></div>'
+    + _trOverviewCards()
     + '</div>' + panels
-    + '<div class="tr-snap" id="tr-snap" hidden></div>' + taskbar + '</div>';
+    + '<div class="tr-snap" id="tr-snap" hidden></div>' + dock + '</div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts ──
 function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
@@ -6651,9 +6805,8 @@ function _trFocusTop() { var best = null, bz = -1; for (var i = 0; i < _TR_SECTI
 function _trRenderTaskbar() {
   if (typeof document === 'undefined') return;
   var host = document.getElementById('tr-tb-items'), bar = document.getElementById('tr-taskbar'); if (!host || !bar) return;
-  var openIds = _TR_SECTIONS.filter(function (s) { return _TR_WIN[s.id] && _TR_WIN[s.id].open; });
-  bar.hidden = openIds.length === 0;
-  host.innerHTML = openIds.map(function (s) { var w = _TR_WIN[s.id]; return '<button class="tr-tb-item' + (w.min ? ' is-min' : '') + (w.pinned ? ' is-pin' : '') + (_trFocus === s.id ? ' is-active' : '') + '" style="--c:' + s.ac + '" data-action="trTask" data-tr="' + s.id + '" type="button"><span class="tr-tb-dot"></span>' + s.t + '</button>'; }).join('');
+  bar.hidden = false;                    // full dock is always visible (launcher + switcher), matching the reference
+  host.innerHTML = _trDockItems();
 }
 function trOpen(id) {
   if (!id || typeof document === 'undefined') return; _trBind();
