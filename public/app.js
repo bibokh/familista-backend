@@ -6504,30 +6504,159 @@ var DE_DRILLS = [
     comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Shooting Under Pressure'], comboProduces: 'Fast, direct counters that punish high lines.',
     tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] }
 ];
-// ── Video Explanation (lazy-loaded; auto-detects MP4/WebM, YouTube, Vimeo or any cloud URL — set a URL to replace the placeholder) ──
-var DE_VIDEOS = { crossing: '', rondo: '', shooting: '', pressing: '', passing: '', block: '', fitness: '', oneTwo: '', setpiece: '', transition: '' };
-var DE_VIDEO_DUR = { crossing: '0:48', rondo: '0:40', shooting: '0:52', pressing: '0:55', passing: '0:45', block: '0:50', fitness: '0:58', oneTwo: '0:42', setpiece: '0:47', transition: '0:53' };
-DE_DRILLS.forEach(function (d) { d.videoUrl = DE_VIDEOS[d.id] || ''; d.videoDur = DE_VIDEO_DUR[d.id] || '0:60'; });
-function _deYT(u) { var m = String(u).match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/); return m ? m[1] : ''; }
-function _deVimeo(u) { var m = String(u).match(/vimeo\.com\/(?:video\/)?(\d+)/); return m ? m[1] : ''; }
-function _deEmbed(url) {
-  if (!url) return '';
-  var yt = _deYT(url); if (yt) return '<iframe class="de-vid-frame" src="https://www.youtube-nocookie.com/embed/' + yt + '?autoplay=1&rel=0&modestbranding=1" title="Drill video" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
-  var vi = _deVimeo(url); if (vi) return '<iframe class="de-vid-frame" src="https://player.vimeo.com/video/' + vi + '?autoplay=1" title="Drill video" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
-  return '<video class="de-vid-frame" src="' + _deEsc(url) + '" controls autoplay playsinline preload="metadata"></video>';
+// ══════════ Video Explanation — functional player + exclusive self-authored tactical animations (MP4-ready) ══════════
+// Each drill carries: videoUrl (local MP4 / quality map, blank for now), videoType, duration, thumbnail, fallbackState.
+// When no MP4 exists it plays an original Dartfish-style animated tactical board (canvas). Drop an MP4 into DE_MEDIA[id].url later — no code change.
+var DE_MEDIA = {
+  crossing: { url: '', dur: '0:38', thumb: '' }, rondo: { url: '', dur: '0:34', thumb: '' }, shooting: { url: '', dur: '0:36', thumb: '' },
+  pressing: { url: '', dur: '0:40', thumb: '' }, passing: { url: '', dur: '0:35', thumb: '' }, block: { url: '', dur: '0:37', thumb: '' },
+  fitness: { url: '', dur: '0:33', thumb: '' }, oneTwo: { url: '', dur: '0:36', thumb: '' }, setpiece: { url: '', dur: '0:39', thumb: '' }, transition: { url: '', dur: '0:41', thumb: '' }
+};
+// Tactical scenarios (self-authored). home=[x0,y0,x1,y1,num] (moves over the timeline), opp=[x,y], gkPos=[x,y], ball=[[x,y]...] path, zone=[x,y,w,h], arrows=[[x1,y1,x2,y2]], caps[] rolling coach analysis. Pitch space x:0..100, y:0..64.
+var _DE_SCEN = {
+  crossing: { home: [[68, 8, 88, 6, 7], [52, 6, 80, 9, 2], [74, 26, 86, 22, 9], [71, 42, 84, 40, 11]], opp: [[86, 24], [86, 40]], gkPos: [95, 31], ball: [[68, 8], [88, 6], [86, 26]], zone: [78, 14, 18, 36], arrows: [[88, 6, 85, 26]], caps: ['Positioning: the winger holds width while the full-back prepares to overlap.', 'Ball movement: the winger drives to the byline as the full-back overlaps outside.', 'Player movement: strikers stagger runs to the near post, far post and penalty spot.', 'Common mistake: runners arrive too early and bunch together, so defenders clear easily.', 'Correct execution: attack all three zones on the cut-back. Objective — a clean finish.'] },
+  rondo: { home: [[40, 14, 46, 12, 6], [62, 20, 60, 26, 8], [58, 46, 52, 48, 10], [30, 44, 34, 46, 5], [26, 22, 30, 20, 3]], opp: [[46, 30], [52, 36]], ball: [[40, 14], [60, 26], [34, 46], [46, 20]], zone: [22, 8, 46, 48], arrows: [[42, 16, 58, 24], [58, 26, 36, 44]], caps: ['Positioning: outside players form a diamond around two defenders.', 'Ball movement: circulate first-time to keep the ball away from the pressers.', 'Player movement: open new angles so the carrier always has two options.', 'Common mistake: forcing risky splits when the simple pass keeps possession.', 'Correct execution: quick one and two-touch play. Objective — retain the ball under pressure.'] },
+  shooting: { home: [[55, 30, 72, 28, 10], [50, 46, 66, 40, 9]], opp: [[80, 26], [80, 42]], gkPos: [95, 31], ball: [[55, 30], [72, 28], [95, 29]], zone: [70, 16, 26, 32], arrows: [[72, 28, 94, 29]], caps: ['Positioning: attackers work the space between the lines at the top of the box.', 'Ball movement: a sharp lay-off sets the shot before the block can reset.', 'Player movement: take a positive first touch toward goal, then strike early.', 'Common mistake: taking an extra touch and letting defenders close the angle.', 'Correct execution: first-time or one-touch finish. Objective — beat the keeper under pressure.'] },
+  pressing: { home: [[30, 16, 50, 26, 8], [30, 48, 50, 40, 6], [64, 18, 54, 28, 7], [64, 46, 54, 38, 9]], opp: [[52, 32], [20, 32], [80, 32]], ball: [[52, 32], [50, 31], [44, 30]], zone: [40, 18, 28, 28], arrows: [[50, 26, 54, 30], [50, 40, 54, 34]], caps: ['Positioning: stay compact and set the pressing trap toward the touchline.', 'Ball movement: the moment the ball is lost, the nearest players swarm the carrier.', 'Player movement: cut the passing lanes while the first presser forces one way.', 'Common mistake: pressing alone without support, so one pass breaks the line.', 'Correct execution: press together on the trigger. Objective — win the ball high.'] },
+  passing: { home: [[16, 50, 20, 48, 5], [40, 30, 44, 32, 6], [64, 46, 60, 44, 8], [86, 24, 90, 22, 7]], opp: [[52, 30], [70, 36]], ball: [[16, 50], [44, 32], [60, 44], [90, 22]], zone: [28, 12, 62, 42], arrows: [[20, 48, 44, 32], [44, 32, 60, 44], [60, 44, 90, 22]], caps: ['Positioning: keep staggered lines so every player offers a passing angle.', 'Ball movement: circulate and switch play to move the opponent block.', 'Player movement: support the carrier with two options and progress through the thirds.', 'Common mistake: passing to the wrong foot and killing the rhythm.', 'Correct execution: crisp first-time passing. Objective — progress into the final third.'] },
+  block: { home: [[24, 14, 20, 16, 2], [26, 28, 22, 30, 4], [26, 40, 22, 38, 5], [24, 54, 20, 52, 3], [34, 30, 30, 32, 6]], opp: [[60, 30]], gkPos: [8, 31], ball: [[60, 30], [46, 30], [40, 30]], zone: [16, 18, 26, 28], arrows: [[22, 30, 30, 30]], caps: ['Positioning: hold a compact block and protect the central zone.', 'Ball movement: as the ball travels, the whole line slides across together.', 'Player movement: stay close between the lines and force the play wide.', 'Common mistake: one player steps out and opens a gap through the middle.', 'Correct execution: defend as a unit and stay compact. Objective — deny central space.'] },
+  fitness: { home: [[14, 20, 86, 20, 7], [14, 44, 86, 44, 9]], opp: [], ball: [], zone: [10, 14, 80, 36], arrows: [[14, 20, 86, 20], [14, 44, 86, 44]], caps: ['Positioning: set out the ladder and cone channel for repeat sprints.', 'Ball movement: no ball here — this block builds the athletic base.', 'Player movement: accelerate, change direction sharply and repeat at high speed.', 'Common mistake: sacrificing clean footwork for more volume when tired.', 'Correct execution: quality first, full recovery between reps. Objective — repeat-sprint power.'] },
+  oneTwo: { home: [[40, 44, 56, 40, 10], [60, 26, 72, 24, 8]], opp: [[64, 36]], gkPos: [95, 31], ball: [[40, 44], [62, 26], [78, 34], [95, 31]], zone: [55, 18, 41, 32], arrows: [[46, 42, 62, 28], [64, 26, 78, 34]], caps: ['Positioning: the carrier drives at the defender with a support runner ahead.', 'Ball movement: play the wall pass and receive the return first-time in behind.', 'Player movement: burst past the defender the instant the pass is released.', 'Common mistake: the return pass is too slow, so the defender recovers.', 'Correct execution: quick one-two into space. Objective — break the line and finish.'] },
+  setpiece: { home: [[96, 5, 70, 20, 10], [60, 18, 74, 22, 9], [58, 34, 72, 34, 4], [62, 48, 74, 44, 5]], opp: [[77, 20], [77, 34], [77, 46]], gkPos: [95, 31], ball: [[96, 5], [80, 18], [74, 24]], zone: [66, 12, 30, 40], arrows: [[92, 8, 76, 22]], caps: ['Positioning: assign clear roles and zones for the corner routine.', 'Ball movement: the delivery targets the front-post and central zones.', 'Player movement: attack the ball with timed, blocking runs.', 'Common mistake: standing still and waiting for the ball instead of attacking it.', 'Correct execution: attack the delivery with conviction. Objective — a dead-ball goal.'] },
+  transition: { home: [[20, 50, 20, 50, 6], [40, 40, 64, 30, 8], [30, 20, 70, 18, 7], [55, 44, 84, 34, 9]], opp: [[50, 32], [76, 30]], gkPos: [95, 31], ball: [[20, 50], [52, 34], [84, 32], [95, 30]], zone: [40, 12, 56, 40], arrows: [[22, 50, 52, 34], [52, 34, 84, 32]], caps: ['Positioning: on the recovery, players immediately look forward.', 'Ball movement: the first pass goes forward or sets a forward pass at once.', 'Player movement: runners commit early to stretch the recovering defence.', 'Common mistake: slowing down and letting the block reform.', 'Correct execution: fast, direct counter. Objective — finish before the defence recovers.'] }
+};
+DE_DRILLS.forEach(function (d) { var m = DE_MEDIA[d.id] || {}; d.videoUrl = m.url || ''; d.videoType = d.videoUrl ? 'mp4' : 'animation'; d.duration = m.dur || '0:40'; d.thumbnail = m.thumb || ''; d.fallbackState = _DE_SCEN[d.kind] ? 'animation' : 'placeholder'; });
+function _deMediaKind(d) { if (d.videoUrl) return 'mp4'; if (_DE_SCEN[d.kind]) return 'animation'; return 'placeholder'; }
+function _deDurSec(s) { var p = String(s || '0:40').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
+function _deFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+function _deIcon(n) {
+  var s = '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">';
+  if (n === 'play') return s + '<path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+  if (n === 'pause') return s + '<path d="M6 5h4v14H6zM14 5h4v14h-4z" fill="currentColor"/></svg>';
+  if (n === 'vol') return s + '<path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  if (n === 'mute') return s + '<path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
+  if (n === 'fs') return s + '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  if (n === 'film') return s + '<rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4v16M15 4v16M4 9h16M4 15h16" stroke="currentColor" stroke-width="1.2"/></svg>';
+  return s + '</svg>';
 }
-function _deVideo(d) {
-  var ac = DE_CATS[d.cat], has = !!d.videoUrl, poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
-  var body = has
-    ? poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-dur">' + d.videoDur + '</span>'
-    : poster + '<span class="de-vid-empty"><span class="de-vid-picon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.5)" stroke="rgba(255,255,255,.5)" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="rgba(255,255,255,.7)"/></svg></span><span class="de-vid-soon">Video coming soon</span></span><span class="de-vid-dur">' + d.videoDur + '</span>';
-  return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (has ? '' : ' is-empty') + '" id="de-vid-' + d.id + '">' + body + '</div>') + '</div>';
+var _DE_AC = null;
+function _deBeep(f, dur, type, vol) { try { if (typeof window === 'undefined') return; if (!_DE_AC) _DE_AC = new (window.AudioContext || window.webkitAudioContext)(); var ac = _DE_AC, o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.value = f; o.connect(g); g.connect(ac.destination); var n = ac.currentTime; g.gain.setValueAtTime(vol || .04, n); g.gain.exponentialRampToValueAtTime(.0001, n + (dur || .12)); o.start(n); o.stop(n + (dur || .14)); } catch (e) {} }
+function _deWhistle() { _deBeep(2050, .09, 'square', .04); setTimeout(function () { _deBeep(2300, .12, 'square', .04); }, 110); }
+function _deTick() { _deBeep(1150, .05, 'sine', .028); }
+function _deAnimApi(root, sc, ac, dur) {
+  var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t');
+  var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+  var PADX = 54, PADY = 40, PW = W - 2 * PADX, PH = H - 2 * PADY;
+  var t = 0, playing = false, speed = 1, muted = false, raf = 0, last = 0, cb = null, lastCap = -1;
+  function X(x) { return PADX + x / 100 * PW; } function Y(y) { return PADY + y / 64 * PH; }
+  function ease(u) { return u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u); }
+  function homePos(p, u) { var e = ease(u); return [p[0] + (p[2] - p[0]) * e, p[1] + (p[3] - p[1]) * e]; }
+  function ballPos(u) { var pts = sc.ball; if (!pts || !pts.length) return null; var n = pts.length - 1; if (n <= 0) return pts[0]; var f = u * n, i = Math.min(n - 1, Math.floor(f)), g = f - i; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * g, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * g]; }
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function pitch() {
+    var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2f9b57'); g.addColorStop(1, '#123f26'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.save(); ctx.globalAlpha = .05; for (var s = 0; s < 10; s++) { ctx.fillStyle = (s % 2) ? '#ffffff' : '#000000'; ctx.fillRect(PADX + s * (PW / 10), PADY, PW / 10, PH); } ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2.5; var L = X(0), R = X(100), T = Y(0), B = Y(64);
+    ctx.strokeRect(L, T, R - L, B - T);
+    ctx.beginPath(); ctx.moveTo(X(50), T); ctx.lineTo(X(50), B); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(50), Y(32), X(9) - X(0), 0, 6.283); ctx.stroke();
+    ctx.beginPath(); ctx.arc(X(50), Y(32), 3, 0, 6.283); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fill();
+    ctx.strokeRect(L, Y(14), X(16) - X(0), Y(50) - Y(14)); ctx.strokeRect(X(84), Y(14), R - X(84), Y(50) - Y(14));
+    ctx.strokeRect(L, Y(24), X(6) - X(0), Y(40) - Y(24)); ctx.strokeRect(X(94), Y(24), R - X(94), Y(40) - Y(24));
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath(); ctx.moveTo(L, Y(28)); ctx.lineTo(L, Y(36)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(R, Y(28)); ctx.lineTo(R, Y(36)); ctx.stroke();
+  }
+  function zone(z) { var x = X(z[0]), y = Y(z[1]), w = X(z[0] + z[2]) - X(z[0]), h = Y(z[1] + z[3]) - Y(z[1]), pulse = 0.13 + 0.06 * Math.sin(t * 3); ctx.save(); ctx.fillStyle = 'rgba(' + ac + ',' + pulse.toFixed(3) + ')'; ctx.strokeStyle = 'rgba(' + ac + ',.7)'; ctx.lineWidth = 2.5; ctx.setLineDash([9, 7]); rr(x, y, w, h, 12); ctx.fill(); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
+  function arrow(a, b, c, d) { var x1 = X(a), y1 = Y(b), x2 = X(c), y2 = Y(d); ctx.save(); ctx.strokeStyle = 'rgb(' + ac + ')'; ctx.fillStyle = 'rgb(' + ac + ')'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.setLineDash([11, 8]); ctx.lineDashOffset = -((t * 36) % 19); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); var an = Math.atan2(y2 - y1, x2 - x1); ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 15 * Math.cos(an - 0.42), y2 - 15 * Math.sin(an - 0.42)); ctx.lineTo(x2 - 15 * Math.cos(an + 0.42), y2 - 15 * Math.sin(an + 0.42)); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  function player(px, py, fill, num, tcol) { var cx = X(px), cy = Y(py); ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy + 14, 13, 5, 0, 0, 6.283); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill(); ctx.beginPath(); ctx.arc(cx, cy, 16, 0, 6.283); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke(); if (num !== '' && num != null) { ctx.font = '700 15px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,16,22,.55)'; ctx.strokeText(String(num), cx, cy + 1); ctx.fillStyle = tcol || '#fff'; ctx.fillText(String(num), cx, cy + 1); } ctx.restore(); }
+  function ball(px, py) { var cx = X(px), cy = Y(py); ctx.save(); ctx.beginPath(); ctx.arc(cx, cy + 3, 9, 0, 6.283); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill(); ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 6.283); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.restore(); }
+  function draw() {
+    var u = dur ? t / dur : 0; ctx.clearRect(0, 0, W, H); pitch();
+    if (sc.zone) zone(sc.zone);
+    if (sc.arrows) for (var i = 0; i < sc.arrows.length; i++) { var A = sc.arrows[i]; arrow(A[0], A[1], A[2], A[3]); }
+    for (var k = 4; k >= 1; k--) { var uk = u - 0.045 * k; if (uk <= 0) continue; for (var h = 0; h < sc.home.length; h++) { var pk = homePos(sc.home[h], uk); ctx.beginPath(); ctx.arc(X(pk[0]), Y(pk[1]), 6, 0, 6.283); ctx.fillStyle = 'rgba(' + ac + ',' + (0.16 * (1 - k / 5)).toFixed(3) + ')'; ctx.fill(); } }
+    if (sc.opp) for (var o = 0; o < sc.opp.length; o++) player(sc.opp[o][0], sc.opp[o][1], '#c9d2de', '', '#12212e');
+    if (sc.gkPos) player(sc.gkPos[0], sc.gkPos[1], '#f4b740', '', '#3a2a05');
+    for (var m = 0; m < sc.home.length; m++) { var p = homePos(sc.home[m], u); player(p[0], p[1], 'rgb(' + ac + ')', sc.home[m][4], '#fff'); }
+    var bp = ballPos(u); if (bp) ball(bp[0], bp[1]);
+    var idx = Math.min(sc.caps.length - 1, Math.floor(u * sc.caps.length)); if (idx < 0) idx = 0;
+    if (capEl && idx !== lastCap) { capEl.textContent = sc.caps[idx]; if (playing && !muted && lastCap >= 0) _deTick(); lastCap = idx; }
+  }
+  function emit() { if (cb) cb(t, dur, playing); }
+  function tick(ts) { if (!playing) return; if (canvas && !canvas.isConnected) { playing = false; return; } if (!last) last = ts; var dt = (ts - last) / 1000 * speed; last = ts; t += dt; if (t >= dur) { t = dur; playing = false; } draw(); emit(); if (playing) raf = (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame(tick) : 0); }
+  draw();
+  return {
+    play: function () { if (playing) return; if (t >= dur) { t = 0; lastCap = -1; } playing = true; last = 0; if (!muted) _deWhistle(); if (typeof requestAnimationFrame !== 'undefined') raf = requestAnimationFrame(tick); emit(); },
+    pause: function () { playing = false; if (raf && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(raf); raf = 0; emit(); },
+    isPlaying: function () { return playing; }, seek: function (f) { t = Math.max(0, Math.min(1, f)) * dur; lastCap = -1; draw(); emit(); },
+    setSpeed: function (x) { speed = x; }, toggleMute: function () { muted = !muted; return muted; }, setQuality: function () {}, on: function (f) { cb = f; }
+  };
 }
+function _dePickQuality(obj) { try { var c = (typeof navigator !== 'undefined' && navigator.connection) || {}, dl = c.downlink || 10, et = c.effectiveType || '4g'; if (et === '4g' || dl >= 5) return obj['1080'] || obj.auto || obj['720'] || obj['480']; return obj['720'] || obj['480'] || obj.auto || obj['1080']; } catch (e) { return obj.auto || obj['720'] || obj['1080'] || obj['480']; } }
+function _deVideoStage(d) {
+  var poster = d.thumbnail ? (' poster="' + _deEsc(d.thumbnail) + '"') : '', src = typeof d.videoUrl === 'object' ? _dePickQuality(d.videoUrl) : d.videoUrl;
+  return '<video class="de-pl-video" preload="none" playsinline' + poster + '><source src="' + _deEsc(src) + '" type="video/mp4"></video>';
+}
+function _deMp4Api(root, d) {
+  var v = root.querySelector('.de-pl-video'), cb = null;
+  function e() { if (cb) cb(v.currentTime || 0, v.duration || _deDurSec(d.duration), !v.paused); }
+  v.addEventListener('timeupdate', e); v.addEventListener('play', e); v.addEventListener('pause', e); v.addEventListener('loadedmetadata', e);
+  return {
+    play: function () { var p = v.play && v.play(); if (p && p.catch) p.catch(function () {}); }, pause: function () { v.pause && v.pause(); },
+    isPlaying: function () { return !v.paused; }, seek: function (f) { if (v.duration) v.currentTime = f * v.duration; },
+    setSpeed: function (x) { v.playbackRate = x; }, toggleMute: function () { v.muted = !v.muted; return v.muted; },
+    setQuality: function (q) { if (d.videoUrl && typeof d.videoUrl === 'object' && d.videoUrl[q === 'Auto' ? 'auto' : q.replace('p', '')]) { var ct = v.currentTime; v.querySelector('source').src = d.videoUrl[q === 'Auto' ? 'auto' : q.replace('p', '')]; v.load(); v.currentTime = ct; v.play && v.play(); } }, on: function (f) { cb = f; }
+  };
+}
+function _deWirePlayer(root, api, d) {
+  var ac = DE_CATS[d.cat];
+  var toggle = root.querySelector('.de-pl-toggle'), seek = root.querySelector('.de-pl-seek'), cur = root.querySelector('.de-pl-cur'),
+    speedB = root.querySelector('.de-pl-speed'), muteB = root.querySelector('.de-pl-mute'), fsB = root.querySelector('.de-pl-fs'), qB = root.querySelector('.de-pl-quality');
+  var seeking = false, speeds = [1, 1.5, 2, 0.5], si = 0, quals = ['Auto', '1080p', '720p', '480p'], qi = 0;
+  toggle.addEventListener('click', function () { if (api.isPlaying()) api.pause(); else api.play(); });
+  seek.addEventListener('input', function () { seeking = true; api.seek(seek.value / 1000); });
+  seek.addEventListener('change', function () { seeking = false; });
+  speedB.addEventListener('click', function () { si = (si + 1) % speeds.length; api.setSpeed(speeds[si]); speedB.textContent = speeds[si] + '×'; });
+  muteB.addEventListener('click', function () { var m = api.toggleMute(); muteB.innerHTML = _deIcon(m ? 'mute' : 'vol'); });
+  fsB.addEventListener('click', function () { try { if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); } else { root.requestFullscreen && root.requestFullscreen(); } } catch (e) {} });
+  qB.addEventListener('click', function () { qi = (qi + 1) % quals.length; qB.textContent = quals[qi]; api.setQuality && api.setQuality(quals[qi]); });
+  api.on(function (t, dur, playing) {
+    if (!seeking) seek.value = Math.round(dur ? t / dur * 1000 : 0);
+    var pct = dur ? t / dur * 100 : 0; seek.style.background = 'linear-gradient(90deg,rgba(' + ac + ',.9) ' + pct + '%,rgba(255,255,255,.18) ' + pct + '%)';
+    cur.textContent = _deFmt(t); toggle.innerHTML = _deIcon(playing ? 'pause' : 'play');
+  });
+}
+var _DE_ACTIVE = null;
 function _dePlay(id) {
   if (typeof document === 'undefined') return;
   var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
-  if (!d || !d.videoUrl) return;
-  var el = document.getElementById('de-vid-' + id); if (el) el.innerHTML = _deEmbed(d.videoUrl);   // lazy-load: single request, only when the user presses play
+  if (!d) return; var frame = document.getElementById('de-vid-' + id); if (!frame) return;
+  var kind = _deMediaKind(d); if (kind === 'placeholder') return;
+  if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
+  var ac = DE_CATS[d.cat];
+  var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
+  var hud = kind === 'animation' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Tactical Analysis &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
+  frame.classList.add('is-playing');
+  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>'
+    + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
+    + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
+    + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
+    + '<button class="de-pl-btn de-pl-speed" type="button" aria-label="Playback speed">1×</button>'
+    + '<button class="de-pl-btn de-pl-mute" type="button" aria-label="Mute">' + _deIcon('vol') + '</button>'
+    + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
+    + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
+  var root = frame.querySelector('.de-pl');
+  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration));
+  _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
+  api.play();
+}
+function _deVideo(d) {
+  var ac = DE_CATS[d.cat], kind = _deMediaKind(d), poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
+  var inner;
+  if (kind === 'placeholder') inner = poster + '<span class="de-vid-empty"><span class="de-vid-picon">' + _deIcon('film') + '</span><span class="de-vid-soon">AI 3D Tactical Video will be generated for this drill.</span></span><span class="de-vid-dur">' + d.duration + '</span>';
+  else inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play tactical video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">' + (kind === 'mp4' ? 'HD Video' : 'AI Tactical Analysis') + '</span><span class="de-vid-dur">' + d.duration + '</span>';
+  return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (kind === 'placeholder' ? ' is-empty' : '') + '" id="de-vid-' + d.id + '" style="--c:' + ac + '" data-kind="' + kind + '">' + inner + '</div>') + '</div>';
 }
 function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }
 function _deBarRow(label, val, ac) { var pct = Math.round(val / 5 * 100); return '<div class="de-bar-row" style="--c:' + ac + '"><span class="de-bar-l">' + label + '</span><span class="de-bar-track"><i style="width:' + pct + '%"></i></span>' + _deStars(val) + '</div>'; }
