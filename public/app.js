@@ -6504,6 +6504,31 @@ var DE_DRILLS = [
     comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Shooting Under Pressure'], comboProduces: 'Fast, direct counters that punish high lines.',
     tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] }
 ];
+// ── Video Explanation (lazy-loaded; auto-detects MP4/WebM, YouTube, Vimeo or any cloud URL — set a URL to replace the placeholder) ──
+var DE_VIDEOS = { crossing: '', rondo: '', shooting: '', pressing: '', passing: '', block: '', fitness: '', oneTwo: '', setpiece: '', transition: '' };
+var DE_VIDEO_DUR = { crossing: '0:48', rondo: '0:40', shooting: '0:52', pressing: '0:55', passing: '0:45', block: '0:50', fitness: '0:58', oneTwo: '0:42', setpiece: '0:47', transition: '0:53' };
+DE_DRILLS.forEach(function (d) { d.videoUrl = DE_VIDEOS[d.id] || ''; d.videoDur = DE_VIDEO_DUR[d.id] || '0:60'; });
+function _deYT(u) { var m = String(u).match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/); return m ? m[1] : ''; }
+function _deVimeo(u) { var m = String(u).match(/vimeo\.com\/(?:video\/)?(\d+)/); return m ? m[1] : ''; }
+function _deEmbed(url) {
+  if (!url) return '';
+  var yt = _deYT(url); if (yt) return '<iframe class="de-vid-frame" src="https://www.youtube-nocookie.com/embed/' + yt + '?autoplay=1&rel=0&modestbranding=1" title="Drill video" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  var vi = _deVimeo(url); if (vi) return '<iframe class="de-vid-frame" src="https://player.vimeo.com/video/' + vi + '?autoplay=1" title="Drill video" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>';
+  return '<video class="de-vid-frame" src="' + _deEsc(url) + '" controls autoplay playsinline preload="metadata"></video>';
+}
+function _deVideo(d) {
+  var ac = DE_CATS[d.cat], has = !!d.videoUrl, poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
+  var body = has
+    ? poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-dur">' + d.videoDur + '</span>'
+    : poster + '<span class="de-vid-empty"><span class="de-vid-picon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.5)" stroke="rgba(255,255,255,.5)" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="rgba(255,255,255,.7)"/></svg></span><span class="de-vid-soon">Video coming soon</span></span><span class="de-vid-dur">' + d.videoDur + '</span>';
+  return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (has ? '' : ' is-empty') + '" id="de-vid-' + d.id + '">' + body + '</div>') + '</div>';
+}
+function _dePlay(id) {
+  if (typeof document === 'undefined') return;
+  var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
+  if (!d || !d.videoUrl) return;
+  var el = document.getElementById('de-vid-' + id); if (el) el.innerHTML = _deEmbed(d.videoUrl);   // lazy-load: single request, only when the user presses play
+}
 function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }
 function _deBarRow(label, val, ac) { var pct = Math.round(val / 5 * 100); return '<div class="de-bar-row" style="--c:' + ac + '"><span class="de-bar-l">' + label + '</span><span class="de-bar-track"><i style="width:' + pct + '%"></i></span>' + _deStars(val) + '</div>'; }
 function _deSection(icon, title, inner, ac) { return '<div class="de-sec' + (ac ? ' de-sec--accent' : '') + '"' + (ac ? ' style="--c:' + ac + '"' : '') + '><div class="de-sec-h"><span class="de-sec-ic">' + icon + '</span>' + title + '</div><div class="de-sec-b">' + inner + '</div></div>'; }
@@ -6537,6 +6562,7 @@ function _deDetail(d) {
     + '<div class="de-hero" style="--c:' + ac + '"><span class="de-hero-img">' + _deScene(d.kind, ac) + '</span>'
     + '<div class="de-hero-info"><span class="de-hero-cat" style="--c:' + ac + '">' + d.cat + '</span><h1 class="de-hero-nm">' + _deEsc(d.name) + '</h1>'
     + '<div class="de-hero-meta"><span class="de-mchip"><i>Intensity</i><b class="i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</b></span><span class="de-mchip"><i>Condition Cost</i><b>' + d.cost + '</b></span><span class="de-mchip"><i>Availability</i><b>Lv ' + d.avail + '</b></span><span class="de-mchip"><i>Overall</i><b>' + _deStars(d.ratings.ov) + '</b></span></div></div></div>'
+    + _deVideo(d)
     + '<div class="de-cols"><div class="de-col">'
     + _deSection('&#128203;', 'Official Description', '<p class="de-desc">' + _deEsc(d.desc) + '</p>')
     + _deSection('&#127919;', 'Main Purpose', purpose)
@@ -6560,6 +6586,7 @@ function _deBind() {
     if (a === 'open') { _DE_SEL = el.getAttribute('data-de'); _deRender(); }
     else if (a === 'back') { _DE_SEL = null; _deRender(); }
     else if (a === 'filter') { _DE_CAT = el.getAttribute('data-de'); _DE_SEL = null; _deRender(); }
+    else if (a === 'play') { _dePlay(el.getAttribute('data-de')); }
   });
 }
 function renderTrainingWorkspaceHTML() {
