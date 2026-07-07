@@ -6654,7 +6654,7 @@ function _deAnimApi(root, sc, ac, dur, drill) {
     ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 9, ly + 12); ctx.restore();
   }
   function draw() {
-    var u = wu(t), sh = seg(t), b = ballW(u); setCam(camAt(t, b));
+    var tf = dur ? t / dur : 0, u = wu(tf), sh = seg(tf), b = ballW(u); setCam(camAt(tf, b));
     var sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#0a1420'); sky.addColorStop(.55, '#0e2033'); sky.addColorStop(1, '#0b1a12'); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
     floodlight(-8, -8); floodlight(113, -8); floodlight(-8, 76); floodlight(113, 76);
     stand(0, 68, 105, 68); stand(0, 0, 0, 68); stand(105, 68, 105, 0);
@@ -6675,7 +6675,7 @@ function _deAnimApi(root, sc, ac, dur, drill) {
     // cinematic letterbox for freeze / replay
     if (sh === 'freeze' || sh === 'replay') { ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 40, W, 40); }
     // shot-cut dip-to-black transition
-    var bnd = [0.12, 0.60, 0.72]; for (var bi = 0; bi < bnd.length; bi++) { var dd = Math.abs(t - bnd[bi]); if (dd < 0.028) { ctx.fillStyle = 'rgba(6,9,14,' + (0.8 * (1 - dd / 0.028)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); } }
+    var bnd = [0.12, 0.60, 0.72]; for (var bi = 0; bi < bnd.length; bi++) { var dd = Math.abs(tf - bnd[bi]); if (dd < 0.028) { ctx.fillStyle = 'rgba(6,9,14,' + (0.8 * (1 - dd / 0.028)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); } }
     // HUD text (kept in HTML overlay)
     var idx = Math.min(sc.caps.length - 1, Math.floor(u * sc.caps.length)); if (idx < 0) idx = 0;
     var capTxt = sh === 'freeze' ? 'Freeze-frame analysis — ' + sc.caps[sc.caps.length - 1] : sc.caps[idx];
