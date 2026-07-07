@@ -4525,7 +4525,18 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .de-vid-dur{ position:absolute; right:10px; bottom:10px; font-size:11px; font-weight:800; color:#fff; background:rgba(8,14,22,.82); border-radius:6px; padding:3px 9px; letter-spacing:.02em; }
 .de-vid-frame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#000; }
 .de-vid-badge{ position:absolute; left:10px; top:10px; font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:#0a0f16; background:rgb(var(--c)); border-radius:6px; padding:3px 9px; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+.de-vid-badge--prod{ color:#ffd27a; background:rgba(244,183,64,.16); border:1px solid rgba(244,183,64,.42); box-shadow:none; }
 .de-vid.is-empty .de-vid-soon{ max-width:220px; text-align:center; line-height:1.4; }
+/* premium "cinematic 3D video in production" placeholder (shown until the pre-rendered MP4 is published) */
+.de-vid.is-prod .de-vid-poster .de-scene{ filter:brightness(.5) saturate(.85) blur(1px); }
+.de-vid-prod{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; text-align:center; padding:0 22px; }
+.de-vid-prod-ic{ width:38px; height:38px; color:rgba(255,255,255,.85); }
+.de-vid-prod-ic svg{ width:100%; height:100%; }
+.de-vid-prod-t{ font-size:15px; font-weight:800; color:#f4f7fb; letter-spacing:.01em; }
+.de-vid-prod-s{ font-size:11.5px; color:#aeb8c6; line-height:1.45; max-width:340px; }
+.de-vid-prod-bar{ position:relative; width:190px; max-width:70%; height:4px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:2px; }
+.de-vid-prod-bar i{ position:absolute; top:0; left:-40%; width:40%; height:100%; border-radius:3px; background:linear-gradient(90deg,transparent,rgba(244,183,64,.9),transparent); animation:deProd 1.6s linear infinite; }
+@keyframes deProd{ to{ left:110%; } }
 /* functional player (added — swaps in on Play; drives the MP4 <video> or the self-authored tactical animation) */
 .de-vid.is-playing{ aspect-ratio:auto; max-width:760px; overflow:visible; background:transparent; border:0; }
 .de-pl{ width:100%; }

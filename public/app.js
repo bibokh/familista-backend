@@ -6504,13 +6504,20 @@ var DE_DRILLS = [
     comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Shooting Under Pressure'], comboProduces: 'Fast, direct counters that punish high lines.',
     tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] }
 ];
-// ══════════ Video Explanation — functional player + exclusive self-authored tactical animations (MP4-ready) ══════════
-// Each drill carries: videoUrl (local MP4 / quality map, blank for now), videoType, duration, thumbnail, fallbackState.
-// When no MP4 exists it plays an original Dartfish-style animated tactical board (canvas). Drop an MP4 into DE_MEDIA[id].url later — no code change.
+// ══════════ Premium pre-rendered 3D drill videos (produced externally in Unreal/Blender; the app just streams them) ══════════
+// To PUBLISH a drill's exclusive cinematic video — no code change needed, just fill its entry below:
+//   url:        a single MP4 URL (e.g. '/videos/crossing.mp4' after dropping the file in /public/videos/),
+//               OR a quality map { auto:'...1080.mp4', '1080':'...', '720':'...', '480':'...' } for auto-quality streaming,
+//               OR an HLS/DASH manifest URL with type:'hls'.
+//   type:       'mp4' (default) or 'hls'.
+//   poster:     a still frame shown before play (e.g. '/videos/crossing.jpg').
+//   subtitles:  a WebVTT track URL for the AI-coach commentary / captions (e.g. '/videos/crossing.en.vtt').
+//   dur:        target clip length, 45–60s.
+// Until a url is set, the drill shows a premium "cinematic 3D video in production" placeholder (never the retired low-poly engine).
 var DE_MEDIA = {
-  crossing: { url: '', dur: '0:38', thumb: '' }, rondo: { url: '', dur: '0:34', thumb: '' }, shooting: { url: '', dur: '0:36', thumb: '' },
-  pressing: { url: '', dur: '0:40', thumb: '' }, passing: { url: '', dur: '0:35', thumb: '' }, block: { url: '', dur: '0:37', thumb: '' },
-  fitness: { url: '', dur: '0:33', thumb: '' }, oneTwo: { url: '', dur: '0:36', thumb: '' }, setpiece: { url: '', dur: '0:39', thumb: '' }, transition: { url: '', dur: '0:41', thumb: '' }
+  crossing:   { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:52' }, rondo:    { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:48' }, shooting:   { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:50' },
+  pressing:   { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:55' }, passing:  { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:47' }, block:      { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:49' },
+  fitness:    { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:46' }, oneTwo:   { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:51' }, setpiece:   { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:54' }, transition: { url: '', type: 'mp4', poster: '', subtitles: '', dur: '0:58' }
 };
 // Tactical scenarios (self-authored). home=[x0,y0,x1,y1,num] (moves over the timeline), opp=[x,y], gkPos=[x,y], ball=[[x,y]...] path, zone=[x,y,w,h], arrows=[[x1,y1,x2,y2]], caps[] rolling coach analysis. Pitch space x:0..100, y:0..64.
 var _DE_SCEN = {
@@ -6541,11 +6548,12 @@ var _DE_NOTES = {
 };
 DE_DRILLS.forEach(function (d) {
   var m = DE_MEDIA[d.id] || {};
-  d.videoUrl = m.url || ''; d.videoType = d.videoUrl ? 'mp4' : (_DE_SCEN[d.kind] ? 'scene3d' : 'placeholder'); d.duration = m.dur || '0:40'; d.thumbnail = m.thumb || ''; d.fallbackState = _DE_SCEN[d.kind] ? 'scene3d' : 'placeholder';
-  // future architecture — ready to scale to hundreds of AI videos and swap in real MP4/3D assets with no UI change
-  d.videoTracks = { scene: '3d-perspective', camera: 'auto-timeline', overlays: 'auto-timeline', coachNotes: _DE_NOTES[d.kind] || [], subtitles: { en: _DE_SCEN[d.kind] ? _DE_SCEN[d.kind].caps : [] }, audio: null, langs: ['en'] };
+  d.videoUrl = m.url || ''; d.videoType = m.type || 'mp4'; d.videoFormat = m.type || 'mp4'; d.duration = m.dur || '0:50'; d.poster = m.poster || ''; d.thumbnail = m.poster || ''; d.subtitles = m.subtitles || '';
+  d.published = !!d.videoUrl; d.fallbackState = d.published ? 'stream' : 'production';   // 'production' = premium placeholder until the pre-rendered MP4 is dropped in
+  // future architecture — a per-drill exclusive pre-rendered cinematic 3D clip; ready to scale to hundreds of videos with no UI change
+  d.videoTracks = { scene: 'pre-rendered-3d', source: d.videoUrl || '(pending render)', format: d.videoFormat, quality: (typeof d.videoUrl === 'object' ? 'auto' : 'single'), poster: d.poster, subtitles: d.subtitles, coachNotes: _DE_NOTES[d.kind] || [], audio: null, langs: ['en'] };
 });
-function _deMediaKind(d) { if (d.videoUrl) return 'mp4'; if (_DE_SCEN[d.kind]) return 'animation'; return 'placeholder'; }
+function _deMediaKind(d) { return d.videoUrl ? 'mp4' : 'production'; }   // stream the exclusive MP4, else show the premium production placeholder
 function _deDurSec(s) { var p = String(s || '0:40').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
 function _deFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 function _deIcon(n) {
@@ -6706,8 +6714,11 @@ function _deAnimApi(root, sc, ac, dur, drill) {
 }
 function _dePickQuality(obj) { try { var c = (typeof navigator !== 'undefined' && navigator.connection) || {}, dl = c.downlink || 10, et = c.effectiveType || '4g'; if (et === '4g' || dl >= 5) return obj['1080'] || obj.auto || obj['720'] || obj['480']; return obj['720'] || obj['480'] || obj.auto || obj['1080']; } catch (e) { return obj.auto || obj['720'] || obj['1080'] || obj['480']; } }
 function _deVideoStage(d) {
-  var poster = d.thumbnail ? (' poster="' + _deEsc(d.thumbnail) + '"') : '', src = typeof d.videoUrl === 'object' ? _dePickQuality(d.videoUrl) : d.videoUrl;
-  return '<video class="de-pl-video" preload="none" playsinline' + poster + '><source src="' + _deEsc(src) + '" type="video/mp4"></video>';
+  var poster = d.poster ? (' poster="' + _deEsc(d.poster) + '"') : '', src = typeof d.videoUrl === 'object' ? _dePickQuality(d.videoUrl) : d.videoUrl;
+  var mime = d.videoFormat === 'hls' ? 'application/vnd.apple.mpegurl' : (d.videoFormat === 'dash' ? 'application/dash+xml' : 'video/mp4');
+  var track = d.subtitles ? '<track kind="subtitles" src="' + _deEsc(d.subtitles) + '" srclang="en" label="AI Coach" default>' : '';
+  // streams the pre-rendered cinematic clip: preload=none (no data until Play), progressive/adaptive by format, WebVTT AI-coach captions
+  return '<video class="de-pl-video" preload="none" playsinline crossorigin="anonymous"' + poster + '><source src="' + _deEsc(src) + '" type="' + mime + '">' + track + '</video>';
 }
 function _deMp4Api(root, d) {
   var v = root.querySelector('.de-pl-video'), cb = null;
@@ -6739,17 +6750,15 @@ function _deWirePlayer(root, api, d) {
   });
 }
 var _DE_ACTIVE = null;
-function _dePlay(id) {
+function _dePlay(id) {   // stream the drill's exclusive pre-rendered cinematic MP4 (lazy: built only on Play)
   if (typeof document === 'undefined') return;
   var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
   if (!d) return; var frame = document.getElementById('de-vid-' + id); if (!frame) return;
-  var kind = _deMediaKind(d); if (kind === 'placeholder') return;
+  if (_deMediaKind(d) !== 'mp4') return;   // production placeholder is not playable until the render is published
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
-  var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
-  var hud = kind === 'animation' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Tactical Analysis &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-hud-tr"><span class="de-pl-cam">CAM 1 · WIDE</span></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
   frame.classList.add('is-playing');
-  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>'
+  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + _deVideoStage(d) + '</div>'
     + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
     + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
@@ -6758,16 +6767,16 @@ function _dePlay(id) {
     + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
-  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+  var api = _deMp4Api(root, d);
   _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
   api.play();
 }
 function _deVideo(d) {
   var ac = DE_CATS[d.cat], kind = _deMediaKind(d), poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
   var inner;
-  if (kind === 'placeholder') inner = poster + '<span class="de-vid-empty"><span class="de-vid-picon">' + _deIcon('film') + '</span><span class="de-vid-soon">AI 3D Tactical Video will be generated for this drill.</span></span><span class="de-vid-dur">' + d.duration + '</span>';
-  else inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play tactical video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">' + (kind === 'mp4' ? 'HD Video' : 'AI Tactical Analysis') + '</span><span class="de-vid-dur">' + d.duration + '</span>';
-  return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (kind === 'placeholder' ? ' is-empty' : '') + '" id="de-vid-' + d.id + '" style="--c:' + ac + '" data-kind="' + kind + '">' + inner + '</div>') + '</div>';
+  if (kind === 'mp4') inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play cinematic video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">Cinematic 3D · HD</span><span class="de-vid-dur">' + d.duration + '</span>';
+  else inner = poster + '<span class="de-vid-prod"><span class="de-vid-prod-ic">' + _deIcon('film') + '</span><b class="de-vid-prod-t">Cinematic 3D Tactical Video</b><span class="de-vid-prod-s">Exclusive Unreal-quality render in production — streaming here soon.</span><span class="de-vid-prod-bar"><i></i></span></span><span class="de-vid-badge de-vid-badge--prod">In production</span><span class="de-vid-dur">' + d.duration + '</span>';
+  return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (kind === 'production' ? ' is-prod' : '') + '" id="de-vid-' + d.id + '" style="--c:' + ac + '" data-kind="' + kind + '">' + inner + '</div>') + '</div>';
 }
 function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }
 function _deBarRow(label, val, ac) { var pct = Math.round(val / 5 * 100); return '<div class="de-bar-row" style="--c:' + ac + '"><span class="de-bar-l">' + label + '</span><span class="de-bar-track"><i style="width:' + pct + '%"></i></span>' + _deStars(val) + '</div>'; }
