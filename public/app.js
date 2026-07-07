@@ -6525,7 +6525,26 @@ var _DE_SCEN = {
   setpiece: { home: [[96, 5, 70, 20, 10], [60, 18, 74, 22, 9], [58, 34, 72, 34, 4], [62, 48, 74, 44, 5]], opp: [[77, 20], [77, 34], [77, 46]], gkPos: [95, 31], ball: [[96, 5], [80, 18], [74, 24]], zone: [66, 12, 30, 40], arrows: [[92, 8, 76, 22]], caps: ['Positioning: assign clear roles and zones for the corner routine.', 'Ball movement: the delivery targets the front-post and central zones.', 'Player movement: attack the ball with timed, blocking runs.', 'Common mistake: standing still and waiting for the ball instead of attacking it.', 'Correct execution: attack the delivery with conviction. Objective — a dead-ball goal.'] },
   transition: { home: [[20, 50, 20, 50, 6], [40, 40, 64, 30, 8], [30, 20, 70, 18, 7], [55, 44, 84, 34, 9]], opp: [[50, 32], [76, 30]], gkPos: [95, 31], ball: [[20, 50], [52, 34], [84, 32], [95, 30]], zone: [40, 12, 56, 40], arrows: [[22, 50, 52, 34], [52, 34, 84, 32]], caps: ['Positioning: on the recovery, players immediately look forward.', 'Ball movement: the first pass goes forward or sets a forward pass at once.', 'Player movement: runners commit early to stretch the recovering defence.', 'Common mistake: slowing down and letting the block reform.', 'Correct execution: fast, direct counter. Objective — finish before the defence recovers.'] }
 };
-DE_DRILLS.forEach(function (d) { var m = DE_MEDIA[d.id] || {}; d.videoUrl = m.url || ''; d.videoType = d.videoUrl ? 'mp4' : 'animation'; d.duration = m.dur || '0:40'; d.thumbnail = m.thumb || ''; d.fallbackState = _DE_SCEN[d.kind] ? 'animation' : 'placeholder'; });
+// ball loft per drill (0 ground pass .. 1 lofted cross) + AI coach callouts anchored to home-player index / 'ball', shown per shot segment.
+var _DE_LOFT = { crossing: 1, setpiece: 1, transition: 0.55, shooting: 0.35, oneTwo: 0.2 };
+var _DE_NOTES = {
+  crossing: [{ seg: 'live', a: 1, tx: 'Full-back overlaps to stretch the line', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Player 9 attacks the near post', tn: 'good' }, { seg: 'freeze', a: 3, tx: 'Player 11 holds the far post', tn: 'info' }, { seg: 'replay', a: 'ball', tx: 'Early cross into the danger zone', tn: 'good' }],
+  rondo: [{ seg: 'live', a: 0, tx: 'Quick one-touch pass', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Third-man run opens the angle', tn: 'good' }, { seg: 'replay', a: 4, tx: 'Keep the ball moving', tn: 'info' }],
+  shooting: [{ seg: 'live', a: 1, tx: 'Lay-off sets the shot', tn: 'info' }, { seg: 'freeze', a: 0, tx: 'Shoot early before the block sets', tn: 'good' }, { seg: 'replay', a: 'ball', tx: 'Clinical first-time finish', tn: 'good' }],
+  pressing: [{ seg: 'live', a: 0, tx: 'Press the trigger together', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Cut the passing lane', tn: 'good' }, { seg: 'freeze', a: 1, tx: 'No support here — wrong movement', tn: 'bad' }, { seg: 'replay', a: 0, tx: 'Win the ball high', tn: 'good' }],
+  passing: [{ seg: 'live', a: 1, tx: 'Play to the correct foot', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Exploit the half-space', tn: 'good' }, { seg: 'replay', a: 3, tx: 'Progress into the final third', tn: 'info' }],
+  block: [{ seg: 'live', a: 4, tx: 'Slide across as a unit', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Stay compact — protect the middle', tn: 'good' }, { seg: 'freeze', a: 2, tx: 'Do not step out and leave a gap', tn: 'bad' }],
+  fitness: [{ seg: 'live', a: 0, tx: 'Explode through the channel', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Sharp change of direction', tn: 'good' }, { seg: 'replay', a: 0, tx: 'Full recovery between reps', tn: 'info' }],
+  oneTwo: [{ seg: 'live', a: 0, tx: 'Player attracts the defender', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Return the wall pass first-time', tn: 'good' }, { seg: 'replay', a: 0, tx: 'Burst in behind', tn: 'good' }],
+  setpiece: [{ seg: 'live', a: 0, tx: 'Delivery targets the near post', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Attack the ball with a timed run', tn: 'good' }, { seg: 'freeze', a: 2, tx: 'Do not wait for the ball', tn: 'bad' }],
+  transition: [{ seg: 'live', a: 1, tx: 'First pass goes forward', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Runner commits early', tn: 'good' }, { seg: 'replay', a: 3, tx: 'Finish before the block reforms', tn: 'good' }]
+};
+DE_DRILLS.forEach(function (d) {
+  var m = DE_MEDIA[d.id] || {};
+  d.videoUrl = m.url || ''; d.videoType = d.videoUrl ? 'mp4' : (_DE_SCEN[d.kind] ? 'scene3d' : 'placeholder'); d.duration = m.dur || '0:40'; d.thumbnail = m.thumb || ''; d.fallbackState = _DE_SCEN[d.kind] ? 'scene3d' : 'placeholder';
+  // future architecture — ready to scale to hundreds of AI videos and swap in real MP4/3D assets with no UI change
+  d.videoTracks = { scene: '3d-perspective', camera: 'auto-timeline', overlays: 'auto-timeline', coachNotes: _DE_NOTES[d.kind] || [], subtitles: { en: _DE_SCEN[d.kind] ? _DE_SCEN[d.kind].caps : [] }, audio: null, langs: ['en'] };
+});
 function _deMediaKind(d) { if (d.videoUrl) return 'mp4'; if (_DE_SCEN[d.kind]) return 'animation'; return 'placeholder'; }
 function _deDurSec(s) { var p = String(s || '0:40').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
 function _deFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
@@ -6543,45 +6562,125 @@ var _DE_AC = null;
 function _deBeep(f, dur, type, vol) { try { if (typeof window === 'undefined') return; if (!_DE_AC) _DE_AC = new (window.AudioContext || window.webkitAudioContext)(); var ac = _DE_AC, o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.value = f; o.connect(g); g.connect(ac.destination); var n = ac.currentTime; g.gain.setValueAtTime(vol || .04, n); g.gain.exponentialRampToValueAtTime(.0001, n + (dur || .12)); o.start(n); o.stop(n + (dur || .14)); } catch (e) {} }
 function _deWhistle() { _deBeep(2050, .09, 'square', .04); setTimeout(function () { _deBeep(2300, .12, 'square', .04); }, 110); }
 function _deTick() { _deBeep(1150, .05, 'sine', .028); }
-function _deAnimApi(root, sc, ac, dur) {
-  var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t');
+// Real-time 3D-perspective tactical engine (self-authored; no external 3D lib/assets). Perspective pitch inside a stadium,
+// figures with height + shadows + run cycle, lofted ball arcs, cinematic multi-shot camera (wide/broadcast/zoom/freeze/replay),
+// pitch-projected arrows & zones, and AI coach callouts. Same api as before so the player/controls are unchanged.
+function _deAnimApi(root, sc, ac, dur, drill) {
+  var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t'), camEl = root.querySelector('.de-pl-cam');
   var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
-  var PADX = 54, PADY = 40, PW = W - 2 * PADX, PH = H - 2 * PADY;
-  var t = 0, playing = false, speed = 1, muted = false, raf = 0, last = 0, cb = null, lastCap = -1;
-  function X(x) { return PADX + x / 100 * PW; } function Y(y) { return PADY + y / 64 * PH; }
+  var t = 0, playing = false, speed = 1, muted = false, raf = 0, last = 0, cb = null, lastCap = -1, lastCam = '';
+  var kind = drill ? drill.kind : '', loft = _DE_LOFT[kind] || 0, notes = _DE_NOTES[kind] || [];
+  var CX = 52.5, CZ = 34, P, CAM;
+  function wx(x) { return x * 1.05; } function wz(y) { return y * 1.0625; }
   function ease(u) { return u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u); }
-  function homePos(p, u) { var e = ease(u); return [p[0] + (p[2] - p[0]) * e, p[1] + (p[3] - p[1]) * e]; }
-  function ballPos(u) { var pts = sc.ball; if (!pts || !pts.length) return null; var n = pts.length - 1; if (n <= 0) return pts[0]; var f = u * n, i = Math.min(n - 1, Math.floor(f)), g = f - i; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * g, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * g]; }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function norm(a) { var l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  function lerp3(a, b, u) { return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u]; }
   function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-  function pitch() {
-    var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#2f9b57'); g.addColorStop(1, '#123f26'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.save(); ctx.globalAlpha = .05; for (var s = 0; s < 10; s++) { ctx.fillStyle = (s % 2) ? '#ffffff' : '#000000'; ctx.fillRect(PADX + s * (PW / 10), PADY, PW / 10, PH); } ctx.restore();
-    ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2.5; var L = X(0), R = X(100), T = Y(0), B = Y(64);
-    ctx.strokeRect(L, T, R - L, B - T);
-    ctx.beginPath(); ctx.moveTo(X(50), T); ctx.lineTo(X(50), B); ctx.stroke();
-    ctx.beginPath(); ctx.arc(X(50), Y(32), X(9) - X(0), 0, 6.283); ctx.stroke();
-    ctx.beginPath(); ctx.arc(X(50), Y(32), 3, 0, 6.283); ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.fill();
-    ctx.strokeRect(L, Y(14), X(16) - X(0), Y(50) - Y(14)); ctx.strokeRect(X(84), Y(14), R - X(84), Y(50) - Y(14));
-    ctx.strokeRect(L, Y(24), X(6) - X(0), Y(40) - Y(24)); ctx.strokeRect(X(94), Y(24), R - X(94), Y(40) - Y(24));
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,.85)';
-    ctx.beginPath(); ctx.moveTo(L, Y(28)); ctx.lineTo(L, Y(36)); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(R, Y(28)); ctx.lineTo(R, Y(36)); ctx.stroke();
+  var zc = sc.zone ? [wx(sc.zone[0] + sc.zone[2] / 2), 0, wz(sc.zone[1] + sc.zone[3] / 2)] : [CX, 0, CZ];
+  function wu(t) { if (t < 0.60) return ease(t / 0.60); if (t < 0.72) return 1; return 0.5 + ((t - 0.72) / 0.28) * 0.5; }
+  function seg(t) { return t < 0.12 ? 'wide' : t < 0.60 ? 'live' : t < 0.72 ? 'freeze' : 'replay'; }
+  function homeW(p, u) { return [wx(p[0] + (p[2] - p[0]) * u), 0, wz(p[1] + (p[3] - p[1]) * u)]; }
+  function ballW(u) {
+    var pts = sc.ball; if (!pts || !pts.length) return null; var n = pts.length - 1; if (n <= 0) return [wx(pts[0][0]), 0, wz(pts[0][1])];
+    var f = Math.max(0, Math.min(1, u)) * n, i = Math.min(n - 1, Math.floor(f)), g = f - i;
+    return [wx(pts[i][0] + (pts[i + 1][0] - pts[i][0]) * g), loft * 7 * Math.sin(Math.PI * g), wz(pts[i][1] + (pts[i + 1][1] - pts[i][1]) * g)];
   }
-  function zone(z) { var x = X(z[0]), y = Y(z[1]), w = X(z[0] + z[2]) - X(z[0]), h = Y(z[1] + z[3]) - Y(z[1]), pulse = 0.13 + 0.06 * Math.sin(t * 3); ctx.save(); ctx.fillStyle = 'rgba(' + ac + ',' + pulse.toFixed(3) + ')'; ctx.strokeStyle = 'rgba(' + ac + ',.7)'; ctx.lineWidth = 2.5; ctx.setLineDash([9, 7]); rr(x, y, w, h, 12); ctx.fill(); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
-  function arrow(a, b, c, d) { var x1 = X(a), y1 = Y(b), x2 = X(c), y2 = Y(d); ctx.save(); ctx.strokeStyle = 'rgb(' + ac + ')'; ctx.fillStyle = 'rgb(' + ac + ')'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.setLineDash([11, 8]); ctx.lineDashOffset = -((t * 36) % 19); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); var an = Math.atan2(y2 - y1, x2 - x1); ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 15 * Math.cos(an - 0.42), y2 - 15 * Math.sin(an - 0.42)); ctx.lineTo(x2 - 15 * Math.cos(an + 0.42), y2 - 15 * Math.sin(an + 0.42)); ctx.closePath(); ctx.fill(); ctx.restore(); }
-  function player(px, py, fill, num, tcol) { var cx = X(px), cy = Y(py); ctx.save(); ctx.beginPath(); ctx.ellipse(cx, cy + 14, 13, 5, 0, 0, 6.283); ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.fill(); ctx.beginPath(); ctx.arc(cx, cy, 16, 0, 6.283); ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke(); if (num !== '' && num != null) { ctx.font = '700 15px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(10,16,22,.55)'; ctx.strokeText(String(num), cx, cy + 1); ctx.fillStyle = tcol || '#fff'; ctx.fillText(String(num), cx, cy + 1); } ctx.restore(); }
-  function ball(px, py) { var cx = X(px), cy = Y(py); ctx.save(); ctx.beginPath(); ctx.arc(cx, cy + 3, 9, 0, 6.283); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill(); ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 6.283); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.restore(); }
+  function project(p) { var d = sub(p, CAM.pos), r = CAM.r, u = CAM.u, f = CAM.f; var cxp = dot(d, r), cyp = dot(d, u), czp = dot(d, f); if (czp < 0.05) czp = 0.05; var fl = (H / 2) / Math.tan(CAM.fov / 2); return { x: W / 2 + cxp / czp * fl, y: H / 2 - cyp / czp * fl, z: czp, s: fl / czp }; }
+  function camAt(t, b) {
+    var bx = b ? b[0] : CX, bz = b ? b[2] : CZ, L;
+    if (t < 0.12) { var u = ease(t / 0.12); L = { pos: [CX, 44 - 4 * u, -42 + 6 * u], tgt: [CX, 2, CZ], fov: 0.98, lb: 'CAM 1 · WIDE', sh: 'wide' }; }
+    else if (t < 0.60) { L = { pos: [bx - 6, 24, -24], tgt: [bx, 1.4, bz], fov: 0.78, lb: 'CAM 2 · BROADCAST', sh: 'live' }; }
+    else if (t < 0.72) { var th = (t - 0.60) / 0.12; L = { pos: [zc[0] - 7 + 10 * Math.sin(th * 2.2), 12, -8], tgt: [zc[0], 1.6, zc[2]], fov: 0.5, lb: 'FREEZE FRAME', sh: 'freeze' }; }
+    else { L = { pos: [zc[0] - 13, 7.5, -5], tgt: [bx, 1.2, bz], fov: 0.62, lb: 'SLOW-MO REPLAY', sh: 'replay' }; }
+    return L;
+  }
+  function setCam(c) { CAM = c; CAM.f = norm(sub(c.tgt, c.pos)); CAM.r = norm(cross(CAM.f, [0, 1, 0])); CAM.u = cross(CAM.r, CAM.f); }
+  function poly(pts, fill, stroke, lw, dash) { ctx.save(); if (dash) ctx.setLineDash(dash); ctx.beginPath(); for (var i = 0; i < pts.length; i++) { var q = project(pts[i]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 2; ctx.stroke(); } ctx.restore(); }
+  function line3(a, b, col, lw) { var p = project(a), q = project(b); ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw || 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore(); }
+  function hash(i) { var x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); }
+  function stand(ax, az, bx, bz) {
+    var Mo = 10, Hs = 18; function out(x, z) { var dx = x - CX, dz = z - CZ, l = Math.hypot(dx, dz) || 1; return [x + dx / l * Mo, z + dz / l * Mo]; }
+    var oa = out(ax, az), ob = out(bx, bz); var A = project([ax, 0, az]), B = project([bx, 0, bz]), C = project([ob[0], Hs, ob[1]]), D = project([oa[0], Hs, oa[1]]);
+    if (A.z < 0.1 && B.z < 0.1) return; ctx.save(); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.lineTo(C.x, C.y); ctx.lineTo(D.x, D.y); ctx.closePath();
+    var g = ctx.createLinearGradient(0, Math.min(C.y, D.y), 0, Math.max(A.y, B.y)); g.addColorStop(0, '#0c1a2a'); g.addColorStop(1, '#182b40'); ctx.fillStyle = g; ctx.fill(); ctx.clip();
+    for (var vi = 0; vi < 7; vi++) for (var ui = 0; ui < 26; ui++) { var uu = ui / 25, vv = 0.12 + vi / 7 * 0.8; var tp = { x: A.x + (B.x - A.x) * uu + (D.x - A.x) * vv + (C.x - B.x - D.x + A.x) * uu * vv, y: A.y + (B.y - A.y) * uu + (D.y - A.y) * vv + (C.y - B.y - D.y + A.y) * uu * vv }; var hv = hash(ui * 7 + vi * 131 + (ax + 1)); ctx.fillStyle = hv > 0.72 ? 'rgba(255,255,255,.5)' : hv > 0.4 ? 'rgba(150,170,200,.35)' : 'rgba(90,110,140,.3)'; ctx.fillRect(tp.x, tp.y, 2, 2); }
+    ctx.restore(); poly([[ax, 0, az], [bx, 0, bz], [bx, 1.4, bz], [ax, 1.4, az]], 'rgba(' + ac + ',.28)', 'rgba(' + ac + ',.5)', 1.5); // ad boards at base
+  }
+  function floodlight(x, z) { var base = project([x, 0, z]), top = project([x, 34, z]); if (top.z < 0.1) return; ctx.save(); ctx.strokeStyle = '#2a3546'; ctx.lineWidth = Math.max(2, 3 * top.s); ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.stroke(); var gr = ctx.createRadialGradient(top.x, top.y, 0, top.x, top.y, 34 * top.s); gr.addColorStop(0, 'rgba(230,240,255,.85)'); gr.addColorStop(1, 'rgba(230,240,255,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(top.x, top.y, 34 * top.s, 0, 6.283); ctx.fill(); ctx.fillStyle = '#1c2534'; ctx.fillRect(top.x - 14 * top.s, top.y - 5 * top.s, 28 * top.s, 10 * top.s); ctx.restore(); }
+  function pitchLines() {
+    var strp; for (strp = 0; strp < 10; strp++) { var x0 = strp * 10.5, x1 = (strp + 1) * 10.5; poly([[x0, 0, 0], [x1, 0, 0], [x1, 0, 68], [x0, 0, 68]], strp % 2 ? 'rgba(255,255,255,.045)' : 'rgba(0,0,0,.05)', null); }
+    var wl = 'rgba(255,255,255,.72)';
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], null, wl, 2.4); line3([52.5, 0, 0], [52.5, 0, 68], wl, 2.2);
+    var cc = []; for (var i = 0; i <= 40; i++) { var a = i / 40 * 6.283; cc.push([52.5 + Math.cos(a) * 9.15, 0, 34 + Math.sin(a) * 9.15]); } ctx.save(); ctx.strokeStyle = wl; ctx.lineWidth = 2; ctx.beginPath(); for (var j = 0; j < cc.length; j++) { var q = project(cc[j]); j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore();
+    poly([[0, 0, 13.85], [16.5, 0, 13.85], [16.5, 0, 54.15], [0, 0, 54.15]], null, wl, 2); poly([[105, 0, 13.85], [88.5, 0, 13.85], [88.5, 0, 54.15], [105, 0, 54.15]], null, wl, 2);
+    poly([[0, 0, 24.85], [5.5, 0, 24.85], [5.5, 0, 43.15], [0, 0, 43.15]], null, wl, 2); poly([[105, 0, 24.85], [99.5, 0, 24.85], [99.5, 0, 43.15], [105, 0, 43.15]], null, wl, 2);
+    goal(0, 1); goal(105, -1);
+  }
+  function goal(gx, dir) { var w = 3.66, top = 2.44, z0 = 34 - w, z1 = 34 + w; var col = 'rgba(255,255,255,.95)'; line3([gx, 0, z0], [gx, top, z0], col, 3); line3([gx, 0, z1], [gx, top, z1], col, 3); line3([gx, top, z0], [gx, top, z1], col, 3); for (var n = 0; n <= 4; n++) { var zz = z0 + (z1 - z0) * n / 4; line3([gx, 0, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.3)', 1); line3([gx, top, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.3)', 1); } }
+  function zone3(z) { var pulse = 0.14 + 0.06 * Math.sin(t * 3), x0 = wx(z[0]), z0 = wz(z[1]), x1 = wx(z[0] + z[2]), z1 = wz(z[1] + z[3]); poly([[x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1]], 'rgba(' + ac + ',' + pulse.toFixed(3) + ')', 'rgba(' + ac + ',.75)', 2.5, [10, 7]); }
+  function arrow3(A) {
+    var a = [wx(A[0]), 0, wz(A[1])], b = [wx(A[2]), 0, wz(A[3])], d = norm(sub(b, a)), pp = norm(cross(d, [0, 1, 0])), w = 1.5, hd = 5.5;
+    var hb = [b[0] - d[0] * hd, 0, b[2] - d[2] * hd];
+    var pts = [[a[0] + pp[0] * w, 0, a[2] + pp[2] * w], [hb[0] + pp[0] * w, 0, hb[2] + pp[2] * w], [hb[0] + pp[0] * hd * 0.9, 0, hb[2] + pp[2] * hd * 0.9], b, [hb[0] - pp[0] * hd * 0.9, 0, hb[2] - pp[2] * hd * 0.9], [hb[0] - pp[0] * w, 0, hb[2] - pp[2] * w], [a[0] - pp[0] * w, 0, a[2] - pp[2] * w]];
+    poly(pts, 'rgba(' + ac + ',.82)', 'rgba(255,255,255,.55)', 1.5);
+  }
+  function shadow(p) { var g = project(p), s = g.s; ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.ellipse(g.x, g.y, 0.9 * s, 0.32 * s, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function figure(p3, jersey, num, tcol, moving, idx, keeper) {
+    var base = project(p3); if (base.z <= 0.06) return; var top = project([p3[0], 1.9, p3[2]]); var s = base.y - top.y; if (s < 7) s = 7;
+    var cx = base.x, footY = base.y, hipY = footY - 0.46 * s, shY = footY - 0.82 * s, headY = footY - 0.95 * s, headR = 0.13 * s, lw = Math.max(1.4, 0.12 * s);
+    var ph = moving ? Math.sin(t * 9 + idx * 1.3) : 0, sw = 0.15 * s * ph;
+    ctx.save(); ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0d1a12'; ctx.lineWidth = lw * 1.1; ctx.beginPath(); ctx.moveTo(cx, hipY); ctx.lineTo(cx - 0.1 * s + sw, footY); ctx.moveTo(cx, hipY); ctx.lineTo(cx + 0.1 * s - sw, footY); ctx.stroke();
+    ctx.fillStyle = '#eef2f8'; rr(cx - 0.16 * s, hipY - 0.03 * s, 0.32 * s, 0.17 * s, 0.05 * s); ctx.fill();
+    ctx.fillStyle = keeper ? '#1b1e28' : jersey; rr(cx - 0.18 * s, shY, 0.36 * s, (hipY - shY) + 0.05 * s, 0.08 * s); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,.16)'; rr(cx - 0.18 * s, shY + (hipY - shY) * 0.55, 0.36 * s, (hipY - shY) * 0.5 + 0.05 * s, 0.06 * s); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = Math.max(1, 0.03 * s); rr(cx - 0.18 * s, shY, 0.36 * s, (hipY - shY) + 0.05 * s, 0.08 * s); ctx.stroke();
+    ctx.strokeStyle = keeper ? '#1b1e28' : jersey; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(cx - 0.15 * s, shY + 0.03 * s); ctx.lineTo(cx - 0.22 * s - sw * 0.6, shY + 0.3 * s); ctx.moveTo(cx + 0.15 * s, shY + 0.03 * s); ctx.lineTo(cx + 0.22 * s + sw * 0.6, shY + 0.3 * s); ctx.stroke();
+    if (keeper) { ctx.strokeStyle = '#f4b740'; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(cx - 0.22 * s - sw * 0.6, shY + 0.3 * s); ctx.lineTo(cx - 0.25 * s, shY + 0.33 * s); ctx.moveTo(cx + 0.22 * s + sw * 0.6, shY + 0.3 * s); ctx.lineTo(cx + 0.25 * s, shY + 0.33 * s); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(cx, headY, headR, 0, 6.283); ctx.fillStyle = '#e6b48d'; ctx.fill(); ctx.beginPath(); ctx.arc(cx, headY - headR * 0.28, headR * 1.02, Math.PI, 0); ctx.fillStyle = '#2a1f18'; ctx.fill();
+    if (num !== '' && num != null && s > 24) { ctx.font = '700 ' + Math.round(0.24 * s) + 'px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = Math.max(1.5, 0.04 * s); ctx.strokeStyle = 'rgba(10,16,22,.5)'; ctx.strokeText(String(num), cx, shY + 0.22 * s); ctx.fillStyle = tcol || '#fff'; ctx.fillText(String(num), cx, shY + 0.22 * s); }
+    ctx.restore();
+  }
+  function ball3(p3) { var g = project(p3), s = g.s, r = Math.max(2, 0.24 * s); ctx.save(); ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, 6.283); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.fillStyle = '#0a1a10'; ctx.beginPath(); ctx.arc(g.x - r * 0.2, g.y - r * 0.2, r * 0.32, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function callout(anchor2d, text, tone) {
+    var q = project(anchor2d); if (q.z <= 0.06) return; var col = tone === 'good' ? '52,215,122' : tone === 'bad' ? '248,113,113' : ac;
+    var lx = q.x + 34, ly = q.y - 46; if (lx > W - 150) lx = q.x - 34 - 150;
+    ctx.save(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(q.x, q.y - 8); ctx.lineTo(lx + (lx < q.x ? 150 : 0), ly + 12); ctx.stroke();
+    ctx.beginPath(); ctx.arc(q.x, q.y - 8, 3, 0, 6.283); ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+    ctx.font = '700 11px Inter,Arial,sans-serif'; var tw = ctx.measureText(text).width + 18; ctx.fillStyle = 'rgba(8,12,18,.82)'; rr(lx, ly, tw, 22, 6); ctx.fill(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 9, ly + 12); ctx.restore();
+  }
   function draw() {
-    var u = dur ? t / dur : 0; ctx.clearRect(0, 0, W, H); pitch();
-    if (sc.zone) zone(sc.zone);
-    if (sc.arrows) for (var i = 0; i < sc.arrows.length; i++) { var A = sc.arrows[i]; arrow(A[0], A[1], A[2], A[3]); }
-    for (var k = 4; k >= 1; k--) { var uk = u - 0.045 * k; if (uk <= 0) continue; for (var h = 0; h < sc.home.length; h++) { var pk = homePos(sc.home[h], uk); ctx.beginPath(); ctx.arc(X(pk[0]), Y(pk[1]), 6, 0, 6.283); ctx.fillStyle = 'rgba(' + ac + ',' + (0.16 * (1 - k / 5)).toFixed(3) + ')'; ctx.fill(); } }
-    if (sc.opp) for (var o = 0; o < sc.opp.length; o++) player(sc.opp[o][0], sc.opp[o][1], '#c9d2de', '', '#12212e');
-    if (sc.gkPos) player(sc.gkPos[0], sc.gkPos[1], '#f4b740', '', '#3a2a05');
-    for (var m = 0; m < sc.home.length; m++) { var p = homePos(sc.home[m], u); player(p[0], p[1], 'rgb(' + ac + ')', sc.home[m][4], '#fff'); }
-    var bp = ballPos(u); if (bp) ball(bp[0], bp[1]);
+    var u = wu(t), sh = seg(t), b = ballW(u); setCam(camAt(t, b));
+    var sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#0a1420'); sky.addColorStop(.55, '#0e2033'); sky.addColorStop(1, '#0b1a12'); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    floodlight(-8, -8); floodlight(113, -8); floodlight(-8, 76); floodlight(113, 76);
+    stand(0, 68, 105, 68); stand(0, 0, 0, 68); stand(105, 68, 105, 0);
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], '#227a44', null); pitchLines();
+    if (sc.zone) zone3(sc.zone); if (sc.arrows) for (var i = 0; i < sc.arrows.length; i++) arrow3(sc.arrows[i]);
+    for (var k = 5; k >= 1; k--) { var uk = u - 0.04 * k; if (uk <= 0) continue; for (var h = 0; h < sc.home.length; h++) { var pk = homeW(sc.home[h], uk), g = project(pk); if (g.z <= 0.06) continue; ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(1.5, 0.14 * g.s), 0, 6.283); ctx.fillStyle = 'rgba(' + ac + ',' + (0.18 * (1 - k / 6)).toFixed(3) + ')'; ctx.fill(); } }
+    var ents = [];
+    if (sc.opp) for (var o = 0; o < sc.opp.length; o++) ents.push({ p: [wx(sc.opp[o][0]), 0, wz(sc.opp[o][1])], j: '#cdd6e2', n: '', tc: '#12212e', mv: false, i: 50 + o, gk: false });
+    if (sc.gkPos) ents.push({ p: [wx(sc.gkPos[0]), 0, wz(sc.gkPos[1])], j: '#f4b740', n: '', tc: '#3a2a05', mv: false, i: 40, gk: true });
+    for (var m = 0; m < sc.home.length; m++) { var p0 = homeW(sc.home[m], u), p1 = homeW(sc.home[m], Math.max(0, u - 0.02)); var mv = Math.hypot(p0[0] - p1[0], p0[2] - p1[2]) > 0.15; ents.push({ p: p0, j: 'rgb(' + ac + ')', n: sc.home[m][4], tc: '#fff', mv: mv, i: m, gk: false }); }
+    var bent = b ? { ball: true, p: [b[0], 0, b[2]], b3: b } : null;
+    var all = ents.slice(); if (bent) all.push(bent);
+    for (var si = 0; si < all.length; si++) shadow(all[si].p);
+    all.sort(function (A, B) { return project(B.p).z - project(A.p).z; });
+    for (var di = 0; di < all.length; di++) { var e = all[di]; if (e.ball) ball3(e.b3); else figure(e.p, e.j, e.n, e.tc, e.mv, e.i, e.gk); }
+    // AI coach callouts for the current shot
+    for (var ni = 0; ni < notes.length; ni++) { var nt = notes[ni]; if (nt.seg !== sh) continue; var anc = nt.a === 'ball' ? (b ? [b[0], 1.2, b[2]] : null) : (sc.home[nt.a] ? (function () { var pp = homeW(sc.home[nt.a], u); return [pp[0], 1.7, pp[2]]; })() : null); if (anc) callout(anc, nt.tx, nt.tn); }
+    // cinematic letterbox for freeze / replay
+    if (sh === 'freeze' || sh === 'replay') { ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 40, W, 40); }
+    // shot-cut dip-to-black transition
+    var bnd = [0.12, 0.60, 0.72]; for (var bi = 0; bi < bnd.length; bi++) { var dd = Math.abs(t - bnd[bi]); if (dd < 0.028) { ctx.fillStyle = 'rgba(6,9,14,' + (0.8 * (1 - dd / 0.028)).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); } }
+    // HUD text (kept in HTML overlay)
     var idx = Math.min(sc.caps.length - 1, Math.floor(u * sc.caps.length)); if (idx < 0) idx = 0;
-    if (capEl && idx !== lastCap) { capEl.textContent = sc.caps[idx]; if (playing && !muted && lastCap >= 0) _deTick(); lastCap = idx; }
+    var capTxt = sh === 'freeze' ? 'Freeze-frame analysis — ' + sc.caps[sc.caps.length - 1] : sc.caps[idx];
+    if (capEl && capTxt !== lastCap) { capEl.textContent = capTxt; if (playing && !muted && lastCap !== -1) _deTick(); lastCap = capTxt; }
+    if (camEl && CAM.lb !== lastCam) { camEl.textContent = CAM.lb; lastCam = CAM.lb; }
   }
   function emit() { if (cb) cb(t, dur, playing); }
   function tick(ts) { if (!playing) return; if (canvas && !canvas.isConnected) { playing = false; return; } if (!last) last = ts; var dt = (ts - last) / 1000 * speed; last = ts; t += dt; if (t >= dur) { t = dur; playing = false; } draw(); emit(); if (playing) raf = (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame(tick) : 0); }
@@ -6636,7 +6735,7 @@ function _dePlay(id) {
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
   var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
-  var hud = kind === 'animation' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Tactical Analysis &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
+  var hud = kind === 'animation' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Tactical Analysis &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-hud-tr"><span class="de-pl-cam">CAM 1 · WIDE</span></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
   frame.classList.add('is-playing');
   frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>'
     + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
@@ -6647,7 +6746,7 @@ function _dePlay(id) {
     + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
-  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration));
+  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
   _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
   api.play();
 }

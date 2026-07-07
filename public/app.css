@@ -4534,6 +4534,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .de-pl-hud{ position:absolute; inset:0; pointer-events:none; }
 .de-pl-hud-tl{ position:absolute; left:11px; top:10px; display:flex; align-items:center; gap:7px; font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#eaf0f8; background:rgba(8,12,18,.5); padding:4px 9px; border-radius:6px; }
 .de-pl-hud-tl b{ color:rgb(var(--c)); }
+.de-pl-hud-tr{ position:absolute; right:11px; top:10px; display:flex; align-items:center; gap:7px; }
+.de-pl-cam{ font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#eaf0f8; background:rgba(8,12,18,.55); border:1px solid rgba(255,255,255,.14); padding:4px 9px; border-radius:6px; }
 .de-pl-rec{ width:8px; height:8px; border-radius:50%; background:#ff4d4d; box-shadow:0 0 8px #ff4d4d; animation:dePulse 1.2s infinite; }
 @keyframes dePulse{ 50%{ opacity:.3; } }
 .de-pl-cap{ position:absolute; left:11px; right:11px; bottom:11px; display:flex; align-items:center; gap:9px; background:rgba(8,12,18,.62); border:1px solid rgba(255,255,255,.1); border-radius:9px; padding:8px 12px; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
