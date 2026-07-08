@@ -6546,14 +6546,34 @@ var _DE_NOTES = {
   setpiece: [{ seg: 'live', a: 0, tx: 'Delivery targets the near post', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Attack the ball with a timed run', tn: 'good' }, { seg: 'freeze', a: 2, tx: 'Do not wait for the ball', tn: 'bad' }],
   transition: [{ seg: 'live', a: 1, tx: 'First pass goes forward', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Runner commits early', tn: 'good' }, { seg: 'replay', a: 3, tx: 'Finish before the block reforms', tn: 'good' }]
 };
+// Per-drill training-tutorial storyboard (the 9-step academy structure each drill's exclusive AI-generated 3D training video is built from).
+function _deBuildTutorial(d) {
+  var caps = (_DE_SCEN[d.kind] || {}).caps || [];
+  function capBy(re) { for (var i = 0; i < caps.length; i++) if (re.test(caps[i])) return caps[i].replace(/^[^:]*:\s*/, ''); return ''; }
+  return {
+    title: d.name, style: 'academy-3d-training-tutorial', maxDuration: 60,
+    chapters: [
+      { n: 1, t: 'Intro', d: d.name + ' — ' + d.cat + ' training drill' },
+      { n: 2, t: 'Setup', d: 'Players, cones, zones and goals set up for ' + (d.positions || []).slice(0, 3).join(', ') },
+      { n: 3, t: 'Objective', d: d.improves },
+      { n: 4, t: 'Execution', d: 'Full run at normal speed — ' + String(d.tactical).charAt(0).toLowerCase() + String(d.tactical).slice(1) },
+      { n: 5, t: 'Coaching points', d: (d.tips || []).slice(0, 2).join(' · ') },
+      { n: 6, t: 'Slow-motion', d: 'Slow-motion replay of the key technical action' },
+      { n: 7, t: 'Common mistake', d: capBy(/mistake/i) || 'The typical error coaches must correct' },
+      { n: 8, t: 'Correct execution', d: capBy(/correct/i) || 'The coached, correct pattern' },
+      { n: 9, t: 'Summary', d: d.comboProduces || ('Objective achieved — ' + String(d.improves).toLowerCase()) }
+    ]
+  };
+}
 DE_DRILLS.forEach(function (d) {
   var m = DE_MEDIA[d.id] || {};
   d.videoUrl = m.url || ''; d.videoType = m.type || 'mp4'; d.videoFormat = m.type || 'mp4'; d.duration = m.dur || '0:50'; d.poster = m.poster || ''; d.thumbnail = m.poster || ''; d.subtitles = m.subtitles || '';
-  d.published = !!d.videoUrl; d.fallbackState = d.published ? 'stream' : 'production';   // 'production' = premium placeholder until the pre-rendered MP4 is dropped in
-  // future architecture — a per-drill exclusive pre-rendered cinematic 3D clip; ready to scale to hundreds of videos with no UI change
-  d.videoTracks = { scene: 'pre-rendered-3d', source: d.videoUrl || '(pending render)', format: d.videoFormat, quality: (typeof d.videoUrl === 'object' ? 'auto' : 'single'), poster: d.poster, subtitles: d.subtitles, coachNotes: _DE_NOTES[d.kind] || [], audio: null, langs: ['en'] };
+  d.published = !!d.videoUrl; d.fallbackState = d.published ? 'stream' : 'production';   // 'production' = premium "training video coming soon" placeholder until the MP4 is published
+  d.tutorial = _deBuildTutorial(d);
+  // internal data structure — each drill can later receive its own exclusive AI-generated 3D training video with no UI change
+  d.videoTracks = { style: 'academy-3d-training-tutorial', maxDuration: 60, videoUrl: d.videoUrl || '(pending render)', poster: d.poster, duration: d.duration, subtitles: d.subtitles, quality: (typeof d.videoUrl === 'object' ? 'auto-fallback' : 'single'), chapters: d.tutorial.chapters, langs: ['en'] };
 });
-function _deMediaKind(d) { return d.videoUrl ? 'mp4' : (_DE_SCEN[d.kind] ? 'hybrid' : 'production'); }   // stream the exclusive MP4, else play the in-app hybrid cinematic analysis
+function _deMediaKind(d) { return d.videoUrl ? 'mp4' : 'production'; }   // stream the exclusive training MP4, else show the premium "coming soon" placeholder
 function _deDurSec(s) { var p = String(s || '0:40').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
 function _deFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 function _deIcon(n) {
@@ -6759,18 +6779,15 @@ function _deStepsBar(kind) {   // timeline of analysis steps (from the scenario 
     return '<span class="de-pl-step' + tone + '" data-i="' + i + '"><i>' + (i + 1) + '</i>' + _deEsc(lab) + '</span>';
   }).join('') + '</div>';
 }
-function _dePlay(id) {   // lazy: built only on Play. mp4 -> stream the pre-rendered clip; else play the in-app hybrid cinematic tactical analysis
+function _dePlay(id) {   // stream the drill's exclusive pre-rendered cinematic 3D training MP4 (lazy: built only on Play)
   if (typeof document === 'undefined') return;
   var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
   if (!d) return; var frame = document.getElementById('de-vid-' + id); if (!frame) return;
-  var kind = _deMediaKind(d); if (kind === 'production') return;
+  if (_deMediaKind(d) !== 'mp4') return;   // the "coming soon" placeholder is not playable until the training video is published
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
-  var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
-  var hud = kind === 'hybrid' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Tactical Analysis &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-hud-tr"><span class="de-pl-cam">CAM · DRONE</span></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
-  var steps = kind === 'hybrid' ? _deStepsBar(d.kind) : '';
   frame.classList.add('is-playing');
-  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
+  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + _deVideoStage(d) + '</div>'
     + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
     + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
@@ -6779,15 +6796,18 @@ function _dePlay(id) {   // lazy: built only on Play. mp4 -> stream the pre-rend
     + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
-  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+  var api = _deMp4Api(root, d);
   _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
   api.play();
 }
 function _deVideo(d) {
   var ac = DE_CATS[d.cat], kind = _deMediaKind(d), poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
   var inner;
-  if (kind === 'production') inner = poster + '<span class="de-vid-prod"><span class="de-vid-prod-ic">' + _deIcon('film') + '</span><b class="de-vid-prod-t">Cinematic 3D Tactical Video</b><span class="de-vid-prod-s">Exclusive Unreal-quality render in production — streaming here soon.</span><span class="de-vid-prod-bar"><i></i></span></span><span class="de-vid-badge de-vid-badge--prod">In production</span><span class="de-vid-dur">' + d.duration + '</span>';
-  else inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play tactical analysis"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">' + (kind === 'mp4' ? 'Cinematic 3D · HD' : 'Cinematic Tactical Analysis') + '</span><span class="de-vid-dur">' + d.duration + '</span>';
+  if (kind === 'mp4') inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play training video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">3D Training · HD</span><span class="de-vid-dur">' + d.duration + '</span>';
+  else {
+    var chapters = ((d.tutorial && d.tutorial.chapters) || []).map(function (ch) { return '<span class="de-vid-ch"><i>' + ch.n + '</i>' + _deEsc(ch.t) + '</span>'; }).join('');
+    inner = poster + '<span class="de-vid-prod"><span class="de-vid-prod-badge">Training Tutorial</span><span class="de-vid-prod-ic">' + _deIcon('film') + '</span><b class="de-vid-prod-t">Cinematic 3D training video coming soon</b><span class="de-vid-prod-s">An exclusive academy-style training tutorial for this drill.</span><span class="de-vid-prod-chapters">' + chapters + '</span><span class="de-vid-prod-bar"><i></i></span></span><span class="de-vid-badge de-vid-badge--prod">Coming soon</span><span class="de-vid-dur">' + d.duration + '</span>';
+  }
   return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (kind === 'production' ? ' is-prod' : '') + '" id="de-vid-' + d.id + '" style="--c:' + ac + '" data-kind="' + kind + '">' + inner + '</div>') + '</div>';
 }
 function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }

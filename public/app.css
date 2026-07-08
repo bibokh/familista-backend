@@ -4537,6 +4537,11 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .de-vid-prod-bar{ position:relative; width:190px; max-width:70%; height:4px; border-radius:3px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:2px; }
 .de-vid-prod-bar i{ position:absolute; top:0; left:-40%; width:40%; height:100%; border-radius:3px; background:linear-gradient(90deg,transparent,rgba(244,183,64,.9),transparent); animation:deProd 1.6s linear infinite; }
 @keyframes deProd{ to{ left:110%; } }
+.de-vid-prod{ gap:7px; }
+.de-vid-prod-badge{ font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#7ff0ad; background:rgba(52,215,122,.14); border:1px solid rgba(52,215,122,.4); border-radius:100px; padding:3px 11px; }
+.de-vid-prod-chapters{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:5px; max-width:560px; margin-top:2px; }
+.de-vid-ch{ display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700; color:#c4cdda; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:100px; padding:3px 9px 3px 3px; }
+.de-vid-ch i{ display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; font-style:normal; font-size:8px; font-weight:800; color:#0a0f16; background:rgba(255,255,255,.72); }
 /* functional player (added — swaps in on Play; drives the MP4 <video> or the self-authored tactical animation) */
 .de-vid.is-playing{ aspect-ratio:auto; max-width:760px; overflow:visible; background:transparent; border:0; }
 .de-pl{ width:100%; }
