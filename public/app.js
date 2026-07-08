@@ -6573,7 +6573,7 @@ DE_DRILLS.forEach(function (d) {
   // internal data structure — each drill can later receive its own exclusive AI-generated 3D training video with no UI change
   d.videoTracks = { style: 'academy-3d-training-tutorial', maxDuration: 60, videoUrl: d.videoUrl || '(pending render)', poster: d.poster, duration: d.duration, subtitles: d.subtitles, quality: (typeof d.videoUrl === 'object' ? 'auto-fallback' : 'single'), chapters: d.tutorial.chapters, langs: ['en'] };
 });
-function _deMediaKind(d) { return d.videoUrl ? 'mp4' : 'production'; }   // stream the exclusive training MP4, else show the premium "coming soon" placeholder
+function _deMediaKind(d) { return d.videoUrl ? 'mp4' : (_DE_SCEN[d.kind] ? 'demo' : 'production'); }   // stream the MP4 when published, else play the interactive step-by-step training demo
 function _deDurSec(s) { var p = String(s || '0:40').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
 function _deFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 function _deIcon(n) {
@@ -6722,7 +6722,7 @@ function _deAnimApi(root, sc, ac, dur, drill) {
     var capTxt = sh === 'freeze' ? 'Freeze-frame analysis — ' + sc.caps[sc.caps.length - 1] : sc.caps[idx];
     if (capEl && capTxt !== lastCap) { capEl.textContent = capTxt; if (playing && !muted && lastCap !== -1) _deTick(); lastCap = capTxt; }
     if (camEl && CAM.lb !== lastCam) { camEl.textContent = CAM.lb; lastCam = CAM.lb; }
-    if (stepsEls.length && idx !== lastStep) { for (var qs = 0; qs < stepsEls.length; qs++) stepsEls[qs].classList.toggle('is-on', qs === idx); lastStep = idx; }
+    if (stepsEls.length) { for (var qs = 0; qs < stepsEls.length; qs++) stepsEls[qs].classList.toggle('is-on', qs === idx); lastStep = idx; }
   }
   function emit() { if (cb) cb(t, dur, playing); }
   function tick(ts) { if (!playing) return; if (canvas && !canvas.isConnected) { playing = false; return; } if (!last) last = ts; var dt = (ts - last) / 1000 * speed; last = ts; t += dt; if (t >= dur) { t = dur; playing = false; } draw(); emit(); if (playing) raf = (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame(tick) : 0); }
@@ -6779,15 +6779,18 @@ function _deStepsBar(kind) {   // timeline of analysis steps (from the scenario 
     return '<span class="de-pl-step' + tone + '" data-i="' + i + '"><i>' + (i + 1) + '</i>' + _deEsc(lab) + '</span>';
   }).join('') + '</div>';
 }
-function _dePlay(id) {   // stream the drill's exclusive pre-rendered cinematic 3D training MP4 (lazy: built only on Play)
+function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-rendered clip; demo -> play the interactive step-by-step training demo
   if (typeof document === 'undefined') return;
   var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
   if (!d) return; var frame = document.getElementById('de-vid-' + id); if (!frame) return;
-  if (_deMediaKind(d) !== 'mp4') return;   // the "coming soon" placeholder is not playable until the training video is published
+  var kind = _deMediaKind(d); if (kind === 'production') return;
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
+  var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
+  var hud = kind === 'demo' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Training Demo &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-hud-tr"><span class="de-pl-cam">CAM · DRONE</span></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
+  var steps = kind === 'demo' ? _deStepsBar(d.kind) : '';
   frame.classList.add('is-playing');
-  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + _deVideoStage(d) + '</div>'
+  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
     + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
     + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
@@ -6796,17 +6799,18 @@ function _dePlay(id) {   // stream the drill's exclusive pre-rendered cinematic 
     + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
-  var api = _deMp4Api(root, d);
+  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
   _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
   api.play();
 }
 function _deVideo(d) {
   var ac = DE_CATS[d.cat], kind = _deMediaKind(d), poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
   var inner;
-  if (kind === 'mp4') inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play training video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">3D Training · HD</span><span class="de-vid-dur">' + d.duration + '</span>';
-  else {
+  if (kind === 'production') {   // only if a drill has neither a published MP4 nor a demo scenario
     var chapters = ((d.tutorial && d.tutorial.chapters) || []).map(function (ch) { return '<span class="de-vid-ch"><i>' + ch.n + '</i>' + _deEsc(ch.t) + '</span>'; }).join('');
-    inner = poster + '<span class="de-vid-prod"><span class="de-vid-prod-badge">Training Tutorial</span><span class="de-vid-prod-ic">' + _deIcon('film') + '</span><b class="de-vid-prod-t">Cinematic 3D training video coming soon</b><span class="de-vid-prod-s">An exclusive academy-style training tutorial for this drill.</span><span class="de-vid-prod-chapters">' + chapters + '</span><span class="de-vid-prod-bar"><i></i></span></span><span class="de-vid-badge de-vid-badge--prod">Coming soon</span><span class="de-vid-dur">' + d.duration + '</span>';
+    inner = poster + '<span class="de-vid-prod"><span class="de-vid-prod-badge">Training Tutorial</span><span class="de-vid-prod-ic">' + _deIcon('film') + '</span><b class="de-vid-prod-t">Cinematic 3D training video coming soon</b><span class="de-vid-prod-chapters">' + chapters + '</span><span class="de-vid-prod-bar"><i></i></span></span><span class="de-vid-dur">' + d.duration + '</span>';
+  } else {   // mp4 or demo — both are playable
+    inner = poster + '<button class="de-vid-play" data-de-action="play" data-de="' + d.id + '" type="button" aria-label="Play training video"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="rgba(8,12,18,.55)" stroke="#fff" stroke-width="1.3"/><path d="M9.6 8 L16.5 12 L9.6 16 Z" fill="#fff"/></svg></button><span class="de-vid-badge" style="--c:' + ac + '">' + (kind === 'mp4' ? '3D Training · HD' : 'Interactive Training Demo') + '</span><span class="de-vid-dur">' + d.duration + '</span>';
   }
   return '<div class="de-vidblock">' + _deSection('&#127909;', 'Video Explanation', '<div class="de-vid' + (kind === 'production' ? ' is-prod' : '') + '" id="de-vid-' + d.id + '" style="--c:' + ac + '" data-kind="' + kind + '">' + inner + '</div>') + '</div>';
 }
