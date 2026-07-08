@@ -3400,14 +3400,16 @@ function _sqTacBall(tgt) {
 function _sqTacOverlay(base, tgt, rm) {
   var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity, RGB = meta.ac, T = SQ_TACTICS, F = SQ_TAC_FOCUS, cat = F.cat;
   var ac = 'rgb(' + RGB + ')'; function acA(a) { return 'rgba(' + RGB + ',' + a + ')'; }
-  function Y(y) { return y * 1.5; } function n(v) { return (Math.round(v * 10) / 10); }
-  function pt(x, y) { return n(x) + ' ' + n(Y(y)); }
-  function segL(x1, y1, x2, y2, w, col, dash) { return '<line x1="' + n(x1) + '" y1="' + n(Y(y1)) + '" x2="' + n(x2) + '" y2="' + n(Y(y2)) + '" stroke="' + col + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'; }
-  function arrow(x1, y1, x2, y2, col, cv, w) { var mx = (x1 + x2) / 2 + (cv || 0), my = (y1 + y2) / 2; return '<path d="M' + pt(x1, y1) + ' Q ' + n(mx) + ' ' + n(Y(my)) + ' ' + pt(x2, y2) + '" fill="none" stroke="' + col + '" stroke-width="' + (w || 1.3) + '" stroke-linecap="round" marker-end="url(#sqtm-ar)"/>'; }
+  function n(v) { return (Math.round(v * 10) / 10); }
+  // 90° rotation to a HORIZONTAL pitch (overlay viewBox 150×100): my goal left, opponent goal right.
+  function SX(px, py) { return (100 - py) * 1.5; } function SY(px, py) { return px; }
+  function pt(px, py) { return n(SX(px, py)) + ' ' + n(SY(px, py)); }
+  function segL(x1, y1, x2, y2, w, col, dash) { return '<line x1="' + n(SX(x1, y1)) + '" y1="' + n(SY(x1, y1)) + '" x2="' + n(SX(x2, y2)) + '" y2="' + n(SY(x2, y2)) + '" stroke="' + col + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'; }
+  function arrow(x1, y1, x2, y2, col, cv, w) { var mx = (x1 + x2) / 2 + (cv || 0), my = (y1 + y2) / 2; return '<path d="M' + pt(x1, y1) + ' Q ' + n(SX(mx, my)) + ' ' + n(SY(mx, my)) + ' ' + pt(x2, y2) + '" fill="none" stroke="' + col + '" stroke-width="' + (w || 1.3) + '" stroke-linecap="round" marker-end="url(#sqtm-ar)"/>'; }
   function lane(x1, y1, x2, y2) { return '<path class="sqtac-lane" d="M' + pt(x1, y1) + ' L ' + pt(x2, y2) + '" fill="none" stroke="' + acA(.9) + '" stroke-width="1.05" stroke-linecap="round" stroke-dasharray="3 3" filter="url(#sqtm-glow)"/>'; }
-  function ring(x, y, r, col) { return '<circle class="sqtac-ring" cx="' + n(x) + '" cy="' + n(Y(y)) + '" r="' + n(r * 1.25) + '" fill="none" stroke="' + (col || acA(.6)) + '" stroke-width="0.7" stroke-dasharray="2 2"/>'; }
-  function zone(x, y, w, h, col) { return '<rect x="' + n(x) + '" y="' + n(Y(y)) + '" width="' + n(w) + '" height="' + n(h * 1.5) + '" rx="3" fill="' + (col || acA(.10)) + '" stroke="' + acA(.28) + '" stroke-width="0.4"/>'; }
-  function heat(x, y, r) { return '<circle cx="' + n(x) + '" cy="' + n(Y(y)) + '" r="' + n(r * 1.35) + '" fill="url(#sqtm-heat)"/>'; }
+  function ring(x, y, r, col) { return '<circle class="sqtac-ring" cx="' + n(SX(x, y)) + '" cy="' + n(SY(x, y)) + '" r="' + n(r * 1.25) + '" fill="none" stroke="' + (col || acA(.6)) + '" stroke-width="0.7" stroke-dasharray="2 2"/>'; }
+  function zone(x, y, w, h, col) { var x0 = 100 - (y + h), y0 = x; return '<rect x="' + n(x0 * 1.5) + '" y="' + n(y0) + '" width="' + n(h * 1.5) + '" height="' + n(w) + '" rx="3" fill="' + (col || acA(.10)) + '" stroke="' + acA(.28) + '" stroke-width="0.4"/>'; }
+  function heat(x, y, r) { return '<circle cx="' + n(SX(x, y)) + '" cy="' + n(SY(x, y)) + '" r="' + n(r * 1.35) + '" fill="url(#sqtm-heat)"/>'; }
   function fwList() { var a = []; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.cat === 'fw' && tgt[id]) a.push(tgt[id]); }); return a.sort(function (a1, b1) { return a1.y - b1.y; }); }
   function catLine(c) { var ys = []; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.cat === c && tgt[id]) ys.push(tgt[id].y); }); return ys.length ? ys.reduce(function (a, b) { return a + b; }, 0) / ys.length : null; }
   var byRole = {}; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && tgt[id]) (byRole[r.role] = byRole[r.role] || []).push(tgt[id]); });
@@ -3438,7 +3440,7 @@ function _sqTacOverlay(base, tgt, rm) {
     var dfY = catLine('df'), mfY = catLine('mf'), fwY = catLine('fw');
     if (dfY != null && mfY != null) out += zone(16, Math.min(mfY, fwY == null ? mfY : fwY) - 2, 68, (dfY - Math.min(mfY, fwY == null ? mfY : fwY)) + 8, acA(.08));
     if (T.pressLine === 'High' && fwY != null) out += zone(20, fwY - 9, 60, 15, acA(.10));
-    if (dfY != null) { out += segL(8, dfY, 92, dfY, 0.9, acA(.92), T.offsideTrap ? '0' : '4 3'); if (T.offsideTrap) out += '<text x="50" y="' + n(Y(dfY) - 1.6) + '" fill="' + acA(.95) + '" font-size="3.3" font-weight="700" text-anchor="middle" letter-spacing="0.3">OFFSIDE LINE</text>'; }
+    if (dfY != null) { out += segL(8, dfY, 92, dfY, 0.9, acA(.92), T.offsideTrap ? '0' : '4 3'); if (T.offsideTrap) out += '<text x="' + n((100 - dfY) * 1.5) + '" y="6.5" fill="' + acA(.95) + '" font-size="3.3" font-weight="700" text-anchor="middle" letter-spacing="0.3">OFFSIDE</text>'; }
   } else if (cat === 'transitions') {
     var ph = F.grp === 'transLost' ? 'transLost' : 'transWon', val = (F.grp && F.val) ? F.val : (ph === 'transLost' ? T.transLost : T.transWon);
     if (ph === 'transWon' && val === 'Counter Attack') { var ft = fwList()[0]; if (ft) { out += arrow(50, 64, ft.x, ft.y, acA(.9), 0, 1.6); out += heat(ft.x, ft.y, 9); } }
@@ -3477,36 +3479,41 @@ function _sqTacLegendInner() {
 function _sqTacMyChip(id, pos) {
   var p = _sqP(id); if (!p || !pos) return '';
   var shirt = p.photo ? '<img class="sqfp-photo" src="' + _sqEsc(p.photo) + '" alt="">' : '<span class="sqfp-num">' + p.num + '</span>';
-  return '<div class="sqfp-chip sqtac-chp" data-tid="' + p.id + '" style="left:' + pos.x + '%;top:' + pos.y + '%">'
+  return '<div class="sqfp-chip sqtac-chp" data-tacdrag="my" data-tid="' + p.id + '" style="left:' + (100 - pos.y) + '%;top:' + pos.x + '%">'
     + '<div class="sqfp-shirt sql-pos--' + p.cat + '">' + shirt + (p.captain ? '<span class="sqfp-capt">C</span>' : '') + '</div>'
     + '<div class="sqfp-name">' + _sqEsc(_sqLastName(p.name)) + '</div></div>';
 }
 function _sqTacOppChip(o, pos) {
   if (!pos) return '';
-  return '<div class="sqfp-chip sqfp-chip--opp sqtac-chp" data-oid="' + o.id + '" style="left:' + pos.x + '%;top:' + pos.y + '%">'
+  return '<div class="sqfp-chip sqfp-chip--opp sqtac-chp" data-tacdrag="opp" data-oid="' + o.id + '" style="left:' + (100 - pos.y) + '%;top:' + pos.x + '%">'
     + '<div class="sqfp-shirt sqfp-shirt--opp"><span class="sqfp-num">' + o.n + '</span></div><div class="sqfp-name">Rival</div></div>';
 }
 function _sqTacBoardHtml() {
   if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
+  _sqTacDragBind();
   var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity;
   var tgt = _sqTacComputeMy(), ex = _sqTacExplain(), bp = _sqTacBall(tgt);
   var focus = '<div class="sqtac-bd-focus">' + _SQ_TAC_CATORDER.map(function (k) {
     var m = _SQ_TAC_CATMETA[k], on = (k === SQ_TAC_FOCUS.cat);
     return '<button class="sqtac-bd-fbtn' + (on ? ' is-on' : '') + '" style="--ac:' + m.ac + '" data-cat="' + k + '" data-action="sqTacFocus" type="button"><span class="sqtac-bd-fno">' + m.no + '</span>' + m.tab + '</button>';
   }).join('') + '</div>';
-  var markings = '<svg class="sqfp-markings" viewBox="0 0 100 150" preserveAspectRatio="none">'
-    + '<rect x="2" y="2" width="96" height="146" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
-    + '<line x1="2" y1="75" x2="98" y2="75" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
-    + '<circle cx="50" cy="75" r="11" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
-    + '<rect x="28" y="2" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
-    + '<rect x="28" y="128" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/></svg>';
-  var overlay = '<svg class="sqtac-ovl" viewBox="0 0 100 150" preserveAspectRatio="none">' + _sqTacOverlay(SQ_POS_MY, tgt, _sqTacRoleMap()) + '</svg>';
+  var markings = '<svg class="sqfp-markings" viewBox="0 0 150 100" preserveAspectRatio="none">'
+    + '<rect x="2" y="2" width="146" height="96" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
+    + '<line x1="75" y1="2" x2="75" y2="98" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<circle cx="75" cy="50" r="11" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<circle cx="75" cy="50" r="1" fill="rgba(255,255,255,.28)"/>'
+    + '<rect x="2" y="28" width="20" height="44" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="2" y="40" width="8" height="20" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<rect x="128" y="28" width="20" height="44" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="140" y="40" width="8" height="20" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/></svg>';
+  var overlay = '<svg class="sqtac-ovl" viewBox="0 0 150 100" preserveAspectRatio="none">' + _sqTacOverlay(SQ_POS_MY, tgt, _sqTacRoleMap()) + '</svg>';
   var opp = SQ_OPP_ACTIVE.map(function (o) { return _sqTacOppChip(o, SQ_POS_OPP[o.id]); }).join('');
   var my = (SQ_MY_IDS || []).map(function (id) { return _sqTacMyChip(id, tgt[id]); }).join('');
-  var ball = '<div class="sqtac-ball" style="left:' + bp.x + '%;top:' + bp.y + '%"></div>';
+  var ball = '<div class="sqtac-ball" style="left:' + (100 - bp.y) + '%;top:' + bp.x + '%"></div>';
   return '<div class="sqtac-board-wrap" style="--ac:' + meta.ac + '">'
     + '<div class="sqtac-bd-head"><span class="sqtac-bd-ttl">Interactive Tactical Board</span>'
     +   '<span class="sqtac-bd-sub">' + _sqTacEsc(SQ_FORM.myFormation) + ' <em>vs</em> ' + _sqTacEsc(SQ_FORM.oppFormation) + '</span>'
+    +   '<span class="sqtac-bd-hint">Drag any player to explain</span>'
     +   '<button class="sqtac-bd-replay" data-action="sqTacReplay" type="button">▶ Animate</button></div>'
     + focus
     + '<div class="sqtac-board sqtac-anim" id="sqtac-board">'
@@ -3523,9 +3530,10 @@ function _sqTacApply(animate) {
   var wrap = host.querySelector('.sqtac-board-wrap'); if (wrap) wrap.style.setProperty('--ac', meta.ac);
   board.classList.toggle('sqtac-anim', !!animate);
   var tgt = _sqTacComputeMy();
-  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var t = tgt[id]; if (el && t) { el.style.left = t.x + '%'; el.style.top = t.y + '%'; } });
+  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var t = tgt[id]; if (el && t) { el.style.left = (100 - t.y) + '%'; el.style.top = t.x + '%'; } });
+  SQ_OPP_ACTIVE.forEach(function (o) { var el = board.querySelector('.sqtac-chp[data-oid="' + o.id + '"]'); var p = SQ_POS_OPP[o.id]; if (el && p) { el.style.left = (100 - p.y) + '%'; el.style.top = p.x + '%'; } });
   var ovl = board.querySelector('.sqtac-ovl'); if (ovl) ovl.innerHTML = _sqTacOverlay(SQ_POS_MY, tgt, _sqTacRoleMap());
-  var ball = board.querySelector('.sqtac-ball'); var bp = _sqTacBall(tgt); if (ball && bp) { ball.style.left = bp.x + '%'; ball.style.top = bp.y + '%'; }
+  var ball = board.querySelector('.sqtac-ball'); var bp = _sqTacBall(tgt); if (ball && bp) { ball.style.left = (100 - bp.y) + '%'; ball.style.top = bp.x + '%'; }
   var btns = host.querySelectorAll('.sqtac-bd-fbtn'); for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('is-on', btns[i].getAttribute('data-cat') === SQ_TAC_FOCUS.cat);
   var ex = _sqTacExplain(), ct = host.querySelector('.sqtac-bd-cap-t'), cxx = host.querySelector('.sqtac-bd-cap-x');
   if (ct) ct.textContent = ex.title; if (cxx) cxx.textContent = ex.text;
@@ -3536,9 +3544,37 @@ function sqTacFocus(cat) { if (!_SQ_TAC_CATMETA[cat]) return; SQ_TAC_FOCUS = { c
 function sqTacReplay() {
   var board = document.getElementById('sqtac-board'); if (!board) return;
   board.classList.remove('sqtac-anim');
-  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var b = SQ_POS_MY[id]; if (el && b) { el.style.left = b.x + '%'; el.style.top = b.y + '%'; } });
+  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var b = SQ_POS_MY[id]; if (el && b) { el.style.left = (100 - b.y) + '%'; el.style.top = b.x + '%'; } });
   void board.offsetWidth; // force reflow so the next positions animate from base
   _sqTacApply(true);
+}
+// Manual drag for BOTH teams — the coach can move any player on the board to explain an
+// instruction. Independent of the Formation-board drag (that uses [data-drag]); ours uses
+// [data-tacdrag] + pointer events so it also works on touch. Positions are visual only.
+var _SQ_TAC_DRAGBOUND = false, _sqTacDragObj = null;
+function _sqTacDragBind() {
+  if (_SQ_TAC_DRAGBOUND || typeof document === 'undefined' || !document.addEventListener) return;
+  _SQ_TAC_DRAGBOUND = true;
+  document.addEventListener('pointerdown', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var chip = t.closest('.sqtac-chp[data-tacdrag]'); if (!chip) return;
+    var board = document.getElementById('sqtac-board'); if (!board || !board.contains(chip)) return;
+    var pitch = board.querySelector('.sqfp-pitch'); if (!pitch) return;
+    _sqTacDragObj = { chip: chip, pitch: pitch };
+    board.classList.add('is-dragmode'); chip.classList.add('is-dragging');
+    if (chip.setPointerCapture && e.pointerId != null) { try { chip.setPointerCapture(e.pointerId); } catch (err) {} }
+    e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) {
+    var d = _sqTacDragObj; if (!d) return;
+    var r = d.pitch.getBoundingClientRect(); if (!r.width || !r.height) return;
+    var hx = Math.max(2, Math.min(98, (e.clientX - r.left) / r.width * 100));
+    var hy = Math.max(3, Math.min(97, (e.clientY - r.top) / r.height * 100));
+    d.chip.style.left = hx + '%'; d.chip.style.top = hy + '%';
+  });
+  function end() { if (!_sqTacDragObj) return; _sqTacDragObj.chip.classList.remove('is-dragging'); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
 }
 function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); SQ_TAC_FOCUS = { cat: _SQ_TAC_GRP2CAT[grp] || SQ_TAC_FOCUS.cat, grp: grp, val: val }; _sqRenderTacticsBody(); _sqTacApply(true); }
 function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); SQ_TAC_FOCUS = { cat: scope === 'team' ? 'team' : (_SQ_TAC_GRP2CAT[key] || 'defensive'), grp: key, val: null }; _sqRenderTacticsBody(); _sqTacApply(true); }

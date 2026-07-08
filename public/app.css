@@ -3354,6 +3354,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-bd-ttl::before{ content:""; display:inline-block; width:9px; height:9px; border-radius:50%; background:rgb(var(--ac)); box-shadow:0 0 10px rgba(var(--ac),.85); margin-right:9px; vertical-align:middle; }
 .sqtac-bd-sub{ font-size:12px; font-weight:700; color:#8a94a6; }
 .sqtac-bd-sub em{ font-style:normal; color:#5f6b7e; margin:0 4px; }
+.sqtac-bd-hint{ display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:#7e8aa0; }
+.sqtac-bd-hint::before{ content:""; width:12px; height:12px; border-radius:3px; border:1px dashed rgba(var(--ac),.6); }
 .sqtac-bd-replay{ margin-left:auto; appearance:none; font-size:11.5px; font-weight:800; letter-spacing:.02em; color:#0b1020; background:linear-gradient(135deg,rgb(var(--ac)),rgba(var(--ac),.72)); border:none; border-radius:9px; padding:7px 15px; cursor:pointer; box-shadow:0 4px 14px rgba(var(--ac),.35); transition:transform .12s ease, box-shadow .15s ease; }
 .sqtac-bd-replay:hover{ transform:translateY(-1px); box-shadow:0 7px 20px rgba(var(--ac),.5); }
 .sqtac-bd-replay:active{ transform:translateY(0); }
@@ -3364,10 +3366,13 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-bd-fbtn.is-on{ color:#fff; background:rgba(var(--ac),.14); border-color:rgba(var(--ac),.6); }
 .sqtac-bd-fbtn.is-on .sqtac-bd-fno{ color:#0b1020; background:rgb(var(--ac)); }
 .sqtac-board{ display:flex; justify-content:center; padding:6px 0 2px; }
-.sqtac-board .sqfp-pitch{ width:min(560px,96%); box-shadow:0 20px 60px rgba(0,0,0,.55),0 0 0 1px rgba(var(--ac),.18),0 0 34px rgba(var(--ac),.14); }
+.sqtac-board .sqfp-pitch{ aspect-ratio:3 / 2; width:min(860px,100%); box-shadow:0 20px 60px rgba(0,0,0,.55),0 0 0 1px rgba(var(--ac),.18),0 0 34px rgba(var(--ac),.14); }
 .sqtac-ovl{ position:absolute; inset:0; width:100%; height:100%; z-index:6; pointer-events:none; }
-.sqtac-board .sqtac-chp{ z-index:8; cursor:default; }
+.sqtac-board .sqtac-chp{ z-index:8; cursor:grab; touch-action:none; }
 .sqtac-board .sqtac-chp[data-oid]{ z-index:5; }
+.sqtac-board .sqtac-chp.is-dragging{ cursor:grabbing; z-index:20; }
+.sqtac-board .sqtac-chp.is-dragging .sqfp-shirt{ transform:scale(1.08); box-shadow:0 8px 18px rgba(0,0,0,.55); }
+.sqtac-board.is-dragmode .sqtac-chp{ transition:none !important; }
 .sqtac-anim .sqtac-chp{ transition:left .85s cubic-bezier(.34,1.04,.28,1), top .85s cubic-bezier(.34,1.04,.28,1); }
 .sqtac-anim .sqtac-ball{ transition:left .85s cubic-bezier(.34,1.04,.28,1), top .85s cubic-bezier(.34,1.04,.28,1); }
 .sqtac-ball{ position:absolute; width:12px; height:12px; border-radius:50%; transform:translate(-50%,-50%); z-index:7; background:radial-gradient(circle at 35% 30%,#fff,#c7ced8 68%,#96a0ad); box-shadow:0 2px 6px rgba(0,0,0,.5),0 0 10px rgba(255,255,255,.35); pointer-events:none; }
