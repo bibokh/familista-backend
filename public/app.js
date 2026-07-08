@@ -2757,6 +2757,7 @@ var SQ_SETUPS_KEY = 'familista.squad.setups.v1';
 var SQ_SETUPS = [null, null, null, null];
 var SQ_MY_IDS = null;
 var SQ_POS_MY = {};
+var SQ_MY_SLOT = {};   // id → its formation slot {x,y,c,r} (lets the Tactical Board know each player's role/base without re-running assignment)
 var SQ_POS_OPP = {};
 var SQ_OPP_ACTIVE = [];
 var SQ_OPP_ANCHOR = {};
@@ -2920,8 +2921,8 @@ function _sqBuildMy() {
   var off = _sqMentalityOffset(SQ_FORM.mentality);
   var mSlots = SQ_FORMATIONS[SQ_FORM.myFormation] || SQ_FORMATIONS['4-3-3'];
   var assign = _sqAssignXI(mSlots, SQ_DEMO_PLAYERS);
-  SQ_MY_IDS = []; SQ_POS_MY = {};
-  assign.forEach(function (a) { if (!a.player) return; SQ_MY_IDS.push(a.player.id); var y = a.slot.c === 'gk' ? a.slot.y : Math.max(8, Math.min(92, a.slot.y + off)); SQ_POS_MY[a.player.id] = { x: a.slot.x, y: y }; if (!SQ_MENTALITY[a.player.id]) SQ_MENTALITY[a.player.id] = _sqDefaultInstr(a.player); });
+  SQ_MY_IDS = []; SQ_POS_MY = {}; SQ_MY_SLOT = {};
+  assign.forEach(function (a) { if (!a.player) return; SQ_MY_IDS.push(a.player.id); var y = a.slot.c === 'gk' ? a.slot.y : Math.max(8, Math.min(92, a.slot.y + off)); SQ_POS_MY[a.player.id] = { x: a.slot.x, y: y }; SQ_MY_SLOT[a.player.id] = a.slot; if (!SQ_MENTALITY[a.player.id]) SQ_MENTALITY[a.player.id] = _sqDefaultInstr(a.player); });
   SQ_BENCH_IDS = SQ_DEMO_PLAYERS.filter(function (pl) { return SQ_MY_IDS.indexOf(pl.id) < 0; }).map(function (pl) { return pl.id; });
 }
 function _sqBuildOpp() {
@@ -2930,7 +2931,7 @@ function _sqBuildOpp() {
   SQ_POS_OPP = {}; SQ_OPP_ACTIVE = []; SQ_OPP_ANCHOR = {};
   oAssign.forEach(function (a) { if (!a.player) return; SQ_OPP_ACTIVE.push(a.player); var pos = { x: a.slot.x, y: Math.max(6, Math.min(72, 98 - a.slot.y)) }; SQ_POS_OPP[a.player.id] = pos; SQ_OPP_ANCHOR[a.player.id] = { x: pos.x, y: pos.y }; });
 }
-function _sqBuildBoard() { _sqBuildMy(); _sqBuildOpp(); }
+function _sqBuildBoard() { _sqBuildMy(); _sqBuildOpp(); _sqTacBoardRefresh(); } // keeps the Tactical Board in sync whenever the formation/XI changes
 function _sqMyValid(id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return true; return _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) <= 13; }
 function _sqOppValid(o) { var pos = SQ_POS_OPP[o.id], an = SQ_OPP_ANCHOR[o.id]; if (!pos || !an) return true; return _sqDist(pos.x, pos.y, an.x, an.y) <= 16; }
 function _sqMyStats() {
@@ -3259,17 +3260,295 @@ function _sqTacticsHtml() {
     +   '</div>'
     + '</div>'
     + '<div id="sqtac-body">' + _sqTacticsBody() + '</div>'
+    + '<div id="sqtac-board-host">' + _sqTacBoardHtml() + '</div>'
     + '</div>';
 }
 function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body'); if (b) b.innerHTML = _sqTacticsBody(); }
-function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); }
-function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); _sqRenderTacticsBody(); }
-function sqTacPlayer(pkey, val) { if (!pkey || val == null) return; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); _sqRenderTacticsBody(); }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTERACTIVE TACTICAL BOARD (Squad · Tactics)
+// Reuses the Overview pitch verbatim (same .sqfp-pitch / .sqfp-chip / .sqfp-shirt
+// markup, colours, player style). Always shows My team + Opponent from the SAME
+// source of truth as Formation/Lineup (SQ_POS_MY / SQ_POS_OPP → _sqBuildBoard).
+// Clicking any of the six categories (or changing any option) animates My team into
+// the shape that visually explains that instruction, with movement arrows, passing
+// lanes, zones, pressure/heat areas, defensive block, offside line & support rings.
+// Purely additive — never mutates the source positions or the existing panels/UI.
+// ═══════════════════════════════════════════════════════════════════════════════
+var SQ_TAC_FOCUS = { cat: 'identity', grp: null, val: null };
+var _SQ_TAC_GRP2CAT = {
+  mentality: 'identity', style: 'identity',
+  width: 'attacking', tempo: 'attacking', buildUp: 'attacking', finalThird: 'attacking', crossing: 'attacking',
+  defLine: 'defensive', pressLine: 'defensive', compactness: 'defensive', offsideTrap: 'defensive',
+  transWon: 'transitions', transLost: 'transitions', gkDist: 'transitions'
+};
+var _SQ_TAC_CATMETA = {
+  identity: { ac: '139,92,246', no: '1', title: 'Team Identity', tab: 'Identity' },
+  attacking: { ac: '249,115,22', no: '2', title: 'Attacking', tab: 'Attacking' },
+  defensive: { ac: '20,184,166', no: '3', title: 'Defensive Shape', tab: 'Defense' },
+  transitions: { ac: '245,158,11', no: '4', title: 'Transitions', tab: 'Transitions' },
+  team: { ac: '34,211,238', no: '5', title: 'Team Instructions', tab: 'Team' },
+  players: { ac: '236,72,153', no: '6', title: 'Player Instructions', tab: 'Players' }
+};
+var _SQ_TAC_CATORDER = ['identity', 'attacking', 'defensive', 'transitions', 'team', 'players'];
+// id → { role, cat, occ, pkey, sx, sy } for the current My XI (occ/pkey match _sqTacRoleKeys / the panel)
+function _sqTacRoleMap() {
+  var map = {}, occ = {};
+  (SQ_MY_IDS || []).forEach(function (id) {
+    var s = SQ_MY_SLOT[id]; if (!s) return;
+    var role = _sqSimRole(s), k = (occ[role] = (occ[role] || 0) + 1) - 1;
+    map[id] = { role: role, cat: s.c, occ: k, pkey: role + '#' + k, sx: s.x, sy: s.y };
+  });
+  return map;
+}
+// Compute My-team target positions for the current focus/option, starting from the
+// live formation positions (SQ_POS_MY). Returns { id:{x,y} }. Never mutates SQ_POS_MY.
+function _sqTacComputeMy() {
+  var T = SQ_TACTICS, F = SQ_TAC_FOCUS, cat = F.cat, rm = _sqTacRoleMap(), cx = 50, out = {};
+  (SQ_MY_IDS || []).forEach(function (id) { var b = SQ_POS_MY[id]; if (b) out[id] = { x: b.x, y: b.y }; });
+  function each(fn) { (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id], p = out[id]; if (r && p) fn(id, r, p); }); }
+  function wideRole(r) { return r.role === 'WG' || r.role === 'WM' || r.sx <= 24 || r.sx >= 76; }
+  if (cat === 'identity') {
+    var st = T.style;
+    each(function (id, r, p) {
+      if (r.role === 'GK') return;
+      if (st === 'Tiki-Taka' || st === 'Possession') { p.x = cx + (p.x - cx) * 0.72; p.y -= (r.cat === 'df' ? 2 : 6); }
+      else if (st === 'Long Ball' || st === 'Direct Play') { if (r.cat === 'fw') { p.y -= 10; p.x = cx + (p.x - cx) * 0.6; } else if (r.cat === 'mf') p.y += 3; }
+      else if (st === 'Counter Attack') { if (r.cat === 'df') p.y += 6; else if (r.cat === 'mf') p.y += 8; else p.y -= 4; p.x = cx + (p.x - cx) * 0.9; }
+      else if (st === 'Gegenpress') { p.y -= 8; p.x = cx + (p.x - cx) * 0.85; }
+    });
+  } else if (cat === 'attacking') {
+    var w = T.width, bu = T.buildUp, cr = T.crossing;
+    each(function (id, r, p) {
+      if (r.role === 'GK') return;
+      if (wideRole(r)) { if (w === 'Wide') p.x = cx + (p.x - cx) * 1.34; else if (w === 'Narrow') p.x = cx + (p.x - cx) * 0.55; }
+      if (bu === 'Short Passing') { if (r.role === 'CB') p.x = cx + (p.x - cx) * 1.3; if (r.role === 'DM') p.y += 5; }
+      else if (bu === 'Direct') { if (r.cat === 'fw') p.y -= 7; }
+      if (cr === 'High') { if (r.role === 'WG' || r.role === 'WM') { p.x = cx + (p.x - cx) * 1.3; p.y -= 5; } if (r.role === 'FB') { p.x = cx + (p.x - cx) * 1.2; p.y -= 8; } }
+      if (T.finalThird === 'Work Into Box' && r.cat === 'fw') p.y -= 4;
+      else if (T.finalThird === 'Shoot On Sight' && r.cat === 'fw') p.y -= 2;
+    });
+  } else if (cat === 'defensive') {
+    var lineShift = T.defLine === 'High' ? -9 : T.defLine === 'Deep' ? 9 : 0;
+    var pressShift = T.pressLine === 'High' ? -7 : T.pressLine === 'Low' ? 6 : 0;
+    var squeeze = T.compactness === 'High' ? 0.62 : T.compactness === 'Low' ? 1.2 : 0.85;
+    each(function (id, r, p) {
+      if (r.role === 'GK') { if (T.defLine === 'High') p.y -= 4; return; }
+      p.x = cx + (p.x - cx) * squeeze;
+      if (r.cat === 'df') p.y += lineShift + (T.offsideTrap ? -3 : 0);
+      else if (r.cat === 'mf') p.y += lineShift * 0.6 + pressShift * 0.5;
+      else p.y += pressShift;
+    });
+  } else if (cat === 'transitions') {
+    var ph = F.grp === 'transLost' ? 'transLost' : 'transWon';
+    var val = (F.grp && F.val) ? F.val : (ph === 'transLost' ? T.transLost : T.transWon);
+    each(function (id, r, p) {
+      if (r.role === 'GK') return;
+      if (ph === 'transWon') {
+        if (val === 'Counter Attack') { p.y -= (r.cat === 'fw' ? 16 : r.cat === 'mf' ? 9 : 3); p.x = cx + (p.x - cx) * 1.05; }
+        else p.x = cx + (p.x - cx) * 0.9;
+      } else {
+        if (val === 'Counter Press') { p.x += (50 - p.x) * 0.28; p.y += (46 - p.y) * 0.28; }
+        else { if (r.cat !== 'df') p.y += 8; p.x = cx + (p.x - cx) * 0.78; }
+      }
+    });
+  } else if (cat === 'team') {
+    var tm = T.team || {};
+    each(function (id, r, p) {
+      if (r.role === 'GK') return;
+      if (tm.playWider) p.x = cx + (p.x - cx) * 1.3;
+      if (tm.playNarrow) p.x = cx + (p.x - cx) * 0.6;
+      if (tm.focusLeft) p.x -= 7; if (tm.focusRight) p.x += 7; if (tm.focusCenter) p.x = cx + (p.x - cx) * 0.7;
+      var fb = (r.role === 'FB' || r.role === 'WM' || r.role === 'WG');
+      if (tm.overlapLeft && r.sx < 50 && fb) { p.y -= 12; p.x = cx + (p.x - cx) * 1.2; }
+      if (tm.overlapRight && r.sx > 50 && fb) { p.y -= 12; p.x = cx + (p.x - cx) * 1.2; }
+      if (tm.underlap && r.role === 'FB') { p.y -= 8; p.x = cx + (p.x - cx) * 0.68; }
+      if (tm.timeWasting && r.cat !== 'fw') p.y += 5;
+      if (tm.higherRisk && r.cat === 'fw') p.y -= 5;
+      if (tm.lowerRisk && r.cat === 'df') p.y += 3;
+    });
+  } else { // players
+    var pl = T.players || {};
+    each(function (id, r, p) {
+      var ins = pl[r.pkey]; if (!ins) return;
+      if (r.role === 'GK') { if (ins === 'Sweeper Keeper') p.y -= 7; }
+      else if (r.role === 'FB' || r.role === 'WBL' || r.role === 'WBR') { if (ins === 'Overlap') { p.y -= 13; p.x = cx + (p.x - cx) * 1.22; } else if (ins === 'Invert') { p.x = cx + (p.x - cx) * 0.5; p.y -= 4; } }
+      else if (r.role === 'CB') { if (ins === 'Stopper') p.y -= 5; else if (ins === 'Ball-Playing') p.y -= 2; }
+      else if (r.role === 'DM') { if (ins === 'Roam') p.y -= 6; }
+      else if (r.role === 'CM') { if (ins === 'Box to Box') p.y -= 8; else if (ins === 'Attack') p.y -= 13; }
+      else if (r.role === 'WM' || r.role === 'WG') { if (ins === 'Cut Inside') p.x = cx + (p.x - cx) * 0.5; else if (ins === 'Stay Wide') p.x = cx + (p.x - cx) * 1.3; }
+      else if (r.role === 'AM') { if (ins === 'Attack') p.y -= 9; else if (ins === 'Roam') p.y -= 4; }
+      else if (r.role === 'SS' || r.role === 'ST') { if (ins === 'False 9') p.y += 13; else if (ins === 'Target Man') { p.y -= 4; p.x = cx + (p.x - cx) * 0.5; } else if (ins === 'Press Defender') p.y -= 7; }
+    });
+  }
+  (SQ_MY_IDS || []).forEach(function (id) { var p = out[id]; if (p) { p.x = Math.max(5, Math.min(95, p.x)); p.y = Math.max(6, Math.min(93, p.y)); } });
+  return out;
+}
+// ball spot that illustrates the current instruction
+function _sqTacBall(tgt) {
+  var F = SQ_TAC_FOCUS, cat = F.cat, T = SQ_TACTICS, adv = null;
+  (SQ_MY_IDS || []).forEach(function (id) { var p = tgt[id]; if (p && (!adv || p.y < adv.y)) adv = p; });
+  if (cat === 'attacking') { if (T.crossing === 'High') return { x: (adv && adv.x < 50) ? 16 : 84, y: 26 }; return { x: 50, y: 34 }; }
+  if (cat === 'defensive') return { x: 50, y: 42 };
+  if (cat === 'transitions') { var ph = F.grp === 'transLost' ? 'transLost' : 'transWon'; if (ph === 'transLost') return { x: 50, y: 44 }; return { x: 50, y: ((F.val || T.transWon) === 'Hold Shape') ? 60 : 44 }; }
+  if (cat === 'players') return { x: 50, y: 58 };
+  if (cat === 'identity') { var st = T.style; if (st === 'Long Ball' || st === 'Direct Play') return { x: 50, y: 72 }; if (st === 'Counter Attack') return { x: 50, y: 70 }; return { x: 50, y: 55 }; }
+  if (cat === 'team') { var tm = T.team || {}; if (tm.focusLeft) return { x: 26, y: 52 }; if (tm.focusRight) return { x: 74, y: 52 }; return { x: 50, y: 54 }; }
+  return { x: 50, y: 58 };
+}
+// SVG overlay (viewBox 0 0 100 150 → chip-y × 1.5): movement arrows + tactic glyphs
+function _sqTacOverlay(base, tgt, rm) {
+  var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity, RGB = meta.ac, T = SQ_TACTICS, F = SQ_TAC_FOCUS, cat = F.cat;
+  var ac = 'rgb(' + RGB + ')'; function acA(a) { return 'rgba(' + RGB + ',' + a + ')'; }
+  function Y(y) { return y * 1.5; } function n(v) { return (Math.round(v * 10) / 10); }
+  function pt(x, y) { return n(x) + ' ' + n(Y(y)); }
+  function segL(x1, y1, x2, y2, w, col, dash) { return '<line x1="' + n(x1) + '" y1="' + n(Y(y1)) + '" x2="' + n(x2) + '" y2="' + n(Y(y2)) + '" stroke="' + col + '" stroke-width="' + w + '" stroke-linecap="round"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + '/>'; }
+  function arrow(x1, y1, x2, y2, col, cv, w) { var mx = (x1 + x2) / 2 + (cv || 0), my = (y1 + y2) / 2; return '<path d="M' + pt(x1, y1) + ' Q ' + n(mx) + ' ' + n(Y(my)) + ' ' + pt(x2, y2) + '" fill="none" stroke="' + col + '" stroke-width="' + (w || 1.3) + '" stroke-linecap="round" marker-end="url(#sqtm-ar)"/>'; }
+  function lane(x1, y1, x2, y2) { return '<path class="sqtac-lane" d="M' + pt(x1, y1) + ' L ' + pt(x2, y2) + '" fill="none" stroke="' + acA(.9) + '" stroke-width="1.05" stroke-linecap="round" stroke-dasharray="3 3" filter="url(#sqtm-glow)"/>'; }
+  function ring(x, y, r, col) { return '<circle class="sqtac-ring" cx="' + n(x) + '" cy="' + n(Y(y)) + '" r="' + n(r * 1.25) + '" fill="none" stroke="' + (col || acA(.6)) + '" stroke-width="0.7" stroke-dasharray="2 2"/>'; }
+  function zone(x, y, w, h, col) { return '<rect x="' + n(x) + '" y="' + n(Y(y)) + '" width="' + n(w) + '" height="' + n(h * 1.5) + '" rx="3" fill="' + (col || acA(.10)) + '" stroke="' + acA(.28) + '" stroke-width="0.4"/>'; }
+  function heat(x, y, r) { return '<circle cx="' + n(x) + '" cy="' + n(Y(y)) + '" r="' + n(r * 1.35) + '" fill="url(#sqtm-heat)"/>'; }
+  function fwList() { var a = []; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.cat === 'fw' && tgt[id]) a.push(tgt[id]); }); return a.sort(function (a1, b1) { return a1.y - b1.y; }); }
+  function catLine(c) { var ys = []; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.cat === c && tgt[id]) ys.push(tgt[id].y); }); return ys.length ? ys.reduce(function (a, b) { return a + b; }, 0) / ys.length : null; }
+  var byRole = {}; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && tgt[id]) (byRole[r.role] = byRole[r.role] || []).push(tgt[id]); });
+  var defs = '<defs>'
+    + '<marker id="sqtm-ar" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="3.1" markerHeight="3.1" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="' + ac + '"/></marker>'
+    + '<filter id="sqtm-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="0.7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    + '<radialGradient id="sqtm-heat"><stop offset="0%" stop-color="' + acA(.5) + '"/><stop offset="100%" stop-color="' + acA(0) + '"/></radialGradient>'
+    + '</defs>';
+  var out = '';
+  if (cat === 'identity') {
+    var st = T.style;
+    if (st === 'Tiki-Taka' || st === 'Possession' || st === 'Gegenpress') {
+      var cen = []; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && (r.cat === 'mf' || r.role === 'SS') && tgt[id]) cen.push(tgt[id]); });
+      cen.sort(function (a, b) { return a.y - b.y; });
+      for (var i = 0; i < cen.length - 1; i++) out += lane(cen[i].x, cen[i].y, cen[i + 1].x, cen[i + 1].y);
+      if (cen.length >= 3) out += lane(cen[0].x, cen[0].y, cen[2].x, cen[2].y);
+      cen.forEach(function (p) { out += ring(p.x, p.y, 4); });
+    } else if (st === 'Long Ball' || st === 'Direct Play') {
+      var deep = null; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && (r.role === 'CB' || r.role === 'GK') && tgt[id] && (!deep || tgt[id].y > deep.y)) deep = tgt[id]; });
+      var f0 = fwList()[0]; if (deep && f0) { out += lane(deep.x, deep.y, f0.x, f0.y); out += heat(f0.x, f0.y, 9); out += ring(f0.x, f0.y, 4, acA(.85)); }
+    } else if (st === 'Counter Attack') { out += zone(18, 56, 64, 34, acA(.09)); var fc = fwList()[0]; if (fc) out += arrow(50, 66, fc.x, fc.y, acA(.9), 0, 1.4); }
+  } else if (cat === 'attacking') {
+    if (T.width === 'Wide' || T.crossing === 'High') { out += zone(4, 18, 15, 58, acA(.09)); out += zone(81, 18, 15, 58, acA(.09)); }
+    if (T.crossing === 'High') { out += arrow(12, 22, 40, 14, acA(.85), 6, 1.2); out += arrow(88, 22, 60, 14, acA(.85), -6, 1.2); out += heat(42, 14, 8); out += heat(58, 14, 8); }
+    if (T.buildUp === 'Short Passing') { var cbs = byRole.CB || []; if (cbs.length >= 2) out += lane(cbs[0].x, cbs[0].y, cbs[1].x, cbs[1].y); }
+    out += zone(28, 4, 44, 15, acA(.07));
+  } else if (cat === 'defensive') {
+    var dfY = catLine('df'), mfY = catLine('mf'), fwY = catLine('fw');
+    if (dfY != null && mfY != null) out += zone(16, Math.min(mfY, fwY == null ? mfY : fwY) - 2, 68, (dfY - Math.min(mfY, fwY == null ? mfY : fwY)) + 8, acA(.08));
+    if (T.pressLine === 'High' && fwY != null) out += zone(20, fwY - 9, 60, 15, acA(.10));
+    if (dfY != null) { out += segL(8, dfY, 92, dfY, 0.9, acA(.92), T.offsideTrap ? '0' : '4 3'); if (T.offsideTrap) out += '<text x="50" y="' + n(Y(dfY) - 1.6) + '" fill="' + acA(.95) + '" font-size="3.3" font-weight="700" text-anchor="middle" letter-spacing="0.3">OFFSIDE LINE</text>'; }
+  } else if (cat === 'transitions') {
+    var ph = F.grp === 'transLost' ? 'transLost' : 'transWon', val = (F.grp && F.val) ? F.val : (ph === 'transLost' ? T.transLost : T.transWon);
+    if (ph === 'transWon' && val === 'Counter Attack') { var ft = fwList()[0]; if (ft) { out += arrow(50, 64, ft.x, ft.y, acA(.9), 0, 1.6); out += heat(ft.x, ft.y, 9); } }
+    else if (ph === 'transWon') out += zone(24, 48, 52, 32, acA(.08));
+    else if (val === 'Counter Press') { out += heat(50, 46, 11); (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (!r || r.role === 'GK') return; var p = tgt[id]; if (p && _sqDist(p.x, p.y, 50, 46) < 42) out += arrow(p.x, p.y, 50 + (p.x < 50 ? 6 : -6), 50, acA(.8), 0, 1.05); }); }
+    else out += zone(20, 52, 60, 32, acA(.09));
+  } else if (cat === 'team') {
+    var tm = T.team || {};
+    if (tm.focusLeft) out += zone(4, 14, 40, 64, acA(.09)); if (tm.focusRight) out += zone(56, 14, 40, 64, acA(.09)); if (tm.focusCenter) out += zone(32, 14, 36, 64, acA(.09));
+    if (tm.playWider) { out += zone(4, 18, 14, 58, acA(.09)); out += zone(82, 18, 14, 58, acA(.09)); }
+  } else if (cat === 'players' && F.grp) {
+    var tid = null; (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.pkey === F.grp) tid = id; });
+    if (tid && tgt[tid]) { out += heat(tgt[tid].x, tgt[tid].y, 8); out += ring(tgt[tid].x, tgt[tid].y, 5, acA(.85)); }
+  }
+  // universal smooth movement arrows for every player that shifted
+  (SQ_MY_IDS || []).forEach(function (id) { var b = base[id], t = tgt[id]; if (!b || !t) return; if (_sqDist(b.x, b.y, t.x, t.y) < 3.2) return; out += arrow(b.x, b.y, t.x, t.y, acA(.92), (b.x < 50 ? -2 : 2), 1.3); });
+  return defs + out;
+}
+// coach caption for the current instruction
+function _sqTacExplain() {
+  var F = SQ_TAC_FOCUS, T = SQ_TACTICS, cat = F.cat;
+  if (cat === 'identity') { var st = T.style, mI = { 'Tiki-Taka': 'Short passing triangles, constant support angles and rotations to keep the ball high up the pitch.', 'Possession': 'Patient build-up — the team stays compact and central to circulate the ball and pull the block apart.', 'Direct Play': 'Quick vertical passing — midfield and forwards stretch the pitch to attack at speed.', 'Long Ball': 'Bypass midfield — the striker stretches onto the last line as the target, with runners for the second ball.', 'Counter Attack': 'Sit in a compact block, then break vertically at pace the instant the ball is won.', 'Gegenpress': 'Squeeze high and compact to win the ball back immediately after losing it.', 'Balanced': 'A balanced identity with no strong bias between possession and directness.' }; return { title: 'Identity · ' + st, text: mI[st] || mI.Balanced }; }
+  if (cat === 'attacking') { var parts = []; if (T.width === 'Wide') parts.push('wingers hug the touchline to stretch the defence'); else if (T.width === 'Narrow') parts.push('wide players tuck inside to overload the centre'); if (T.buildUp === 'Short Passing') parts.push('centre-backs split and the pivot drops to build short'); else if (T.buildUp === 'Direct') parts.push('forwards push high for direct balls'); if (T.crossing === 'High') parts.push('full-backs overlap to deliver crosses into the box'); return { title: 'Attacking · ' + T.width + ' / ' + T.tempo, text: (parts.length ? parts.join('; ') + '.' : 'Balanced attacking shape across width, tempo and final-third entries.').replace(/^./, function (c) { return c.toUpperCase(); }) }; }
+  if (cat === 'defensive') { var d = []; d.push(T.defLine === 'High' ? 'a high defensive line pushes the whole block up' : T.defLine === 'Deep' ? 'a deep line protects the space behind' : 'a standard defensive line'); d.push(T.compactness === 'High' ? 'squeezed narrow and compact' : T.compactness === 'Low' ? 'spread to cover width' : 'balanced compactness'); if (T.pressLine === 'High') d.push('forwards press high'); if (T.offsideTrap) d.push('the back line steps up as one to spring the offside trap'); return { title: 'Defensive Shape · Line ' + T.defLine, text: d.join(', ').replace(/^./, function (c) { return c.toUpperCase(); }) + '.' }; }
+  if (cat === 'transitions') { var ph = F.grp === 'transLost' ? 'transLost' : 'transWon', val = (F.grp && F.val) ? F.val : (ph === 'transLost' ? T.transLost : T.transWon); if (ph === 'transWon') return { title: 'Transition · Possession Won', text: val === 'Counter Attack' ? 'The instant the ball is won, forwards and midfield sprint vertically to break at speed.' : 'Hold shape and recycle — keep the structure and control the tempo rather than forcing the counter.' }; return { title: 'Transition · Possession Lost', text: val === 'Counter Press' ? 'Collapse onto the ball immediately to win it back in the opponent’s half.' : 'Regroup — drop quickly into a compact block and deny the counter.' }; }
+  if (cat === 'team') { var tm = T.team || {}, on = _SQ_TAC_TEAM.filter(function (t) { return tm[t[0]]; }).map(function (t) { return t[1]; }); return { title: 'Team Instructions', text: on.length ? 'Active: ' + on.join(', ') + ' — the shape shifts to reflect these instructions.' : 'No team instructions active — toggle Play Wider, Overlap, Focus Left/Right and more to reshape the team.' }; }
+  var rm = _sqTacRoleMap(), lbl = '';
+  if (F.grp) { (SQ_MY_IDS || []).forEach(function (id) { var r = rm[id]; if (r && r.pkey === F.grp) { var p = _sqP(id); lbl = (p ? _sqLastName(p.name) : r.role) + ' → ' + (F.val || ''); } }); }
+  return { title: 'Player Instructions', text: lbl ? lbl + '. The highlighted player moves into the position that role demands.' : 'Set a role per player — Overlap, Invert, False 9, Target Man, Box-to-Box and more — and watch each one reposition.' };
+}
+function _sqTacLegendInner() {
+  var items = [['arrow', 'Movement run'], ['lane', 'Passing lane'], ['ring', 'Support / receive'], ['zone', 'Tactical zone'], ['heat', 'Pressure / heat']];
+  return items.map(function (it) { return '<span class="sqtac-lg"><i class="sqtac-lg-i sqtac-lg-i--' + it[0] + '"></i>' + it[1] + '</span>'; }).join('');
+}
+// player chips — same visual markup as the Overview pitch (identical shirt/name style), non-draggable
+function _sqTacMyChip(id, pos) {
+  var p = _sqP(id); if (!p || !pos) return '';
+  var shirt = p.photo ? '<img class="sqfp-photo" src="' + _sqEsc(p.photo) + '" alt="">' : '<span class="sqfp-num">' + p.num + '</span>';
+  return '<div class="sqfp-chip sqtac-chp" data-tid="' + p.id + '" style="left:' + pos.x + '%;top:' + pos.y + '%">'
+    + '<div class="sqfp-shirt sql-pos--' + p.cat + '">' + shirt + (p.captain ? '<span class="sqfp-capt">C</span>' : '') + '</div>'
+    + '<div class="sqfp-name">' + _sqEsc(_sqLastName(p.name)) + '</div></div>';
+}
+function _sqTacOppChip(o, pos) {
+  if (!pos) return '';
+  return '<div class="sqfp-chip sqfp-chip--opp sqtac-chp" data-oid="' + o.id + '" style="left:' + pos.x + '%;top:' + pos.y + '%">'
+    + '<div class="sqfp-shirt sqfp-shirt--opp"><span class="sqfp-num">' + o.n + '</span></div><div class="sqfp-name">Rival</div></div>';
+}
+function _sqTacBoardHtml() {
+  if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
+  var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity;
+  var tgt = _sqTacComputeMy(), ex = _sqTacExplain(), bp = _sqTacBall(tgt);
+  var focus = '<div class="sqtac-bd-focus">' + _SQ_TAC_CATORDER.map(function (k) {
+    var m = _SQ_TAC_CATMETA[k], on = (k === SQ_TAC_FOCUS.cat);
+    return '<button class="sqtac-bd-fbtn' + (on ? ' is-on' : '') + '" style="--ac:' + m.ac + '" data-cat="' + k + '" data-action="sqTacFocus" type="button"><span class="sqtac-bd-fno">' + m.no + '</span>' + m.tab + '</button>';
+  }).join('') + '</div>';
+  var markings = '<svg class="sqfp-markings" viewBox="0 0 100 150" preserveAspectRatio="none">'
+    + '<rect x="2" y="2" width="96" height="146" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
+    + '<line x1="2" y1="75" x2="98" y2="75" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<circle cx="50" cy="75" r="11" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
+    + '<rect x="28" y="2" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/>'
+    + '<rect x="28" y="128" width="44" height="20" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="0.5"/></svg>';
+  var overlay = '<svg class="sqtac-ovl" viewBox="0 0 100 150" preserveAspectRatio="none">' + _sqTacOverlay(SQ_POS_MY, tgt, _sqTacRoleMap()) + '</svg>';
+  var opp = SQ_OPP_ACTIVE.map(function (o) { return _sqTacOppChip(o, SQ_POS_OPP[o.id]); }).join('');
+  var my = (SQ_MY_IDS || []).map(function (id) { return _sqTacMyChip(id, tgt[id]); }).join('');
+  var ball = '<div class="sqtac-ball" style="left:' + bp.x + '%;top:' + bp.y + '%"></div>';
+  return '<div class="sqtac-board-wrap" style="--ac:' + meta.ac + '">'
+    + '<div class="sqtac-bd-head"><span class="sqtac-bd-ttl">Interactive Tactical Board</span>'
+    +   '<span class="sqtac-bd-sub">' + _sqTacEsc(SQ_FORM.myFormation) + ' <em>vs</em> ' + _sqTacEsc(SQ_FORM.oppFormation) + '</span>'
+    +   '<button class="sqtac-bd-replay" data-action="sqTacReplay" type="button">▶ Animate</button></div>'
+    + focus
+    + '<div class="sqtac-board sqtac-anim" id="sqtac-board">'
+    +   '<div class="sqfp-pitch has-opp">' + markings + overlay + ball + opp + my + '</div></div>'
+    + '<div class="sqtac-bd-cap"><b class="sqtac-bd-cap-t">' + ex.title + '</b><span class="sqtac-bd-cap-x">' + ex.text + '</span></div>'
+    + '<div class="sqtac-bd-legend">' + _sqTacLegendInner() + '</div>'
+    + '</div>';
+}
+// Re-position the persistent chips + refresh overlay/caption in place → smooth CSS glide.
+function _sqTacApply(animate) {
+  var host = document.getElementById('sqtac-board-host'); if (!host) return;
+  var board = document.getElementById('sqtac-board'); if (!board) { host.innerHTML = _sqTacBoardHtml(); return; }
+  var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity;
+  var wrap = host.querySelector('.sqtac-board-wrap'); if (wrap) wrap.style.setProperty('--ac', meta.ac);
+  board.classList.toggle('sqtac-anim', !!animate);
+  var tgt = _sqTacComputeMy();
+  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var t = tgt[id]; if (el && t) { el.style.left = t.x + '%'; el.style.top = t.y + '%'; } });
+  var ovl = board.querySelector('.sqtac-ovl'); if (ovl) ovl.innerHTML = _sqTacOverlay(SQ_POS_MY, tgt, _sqTacRoleMap());
+  var ball = board.querySelector('.sqtac-ball'); var bp = _sqTacBall(tgt); if (ball && bp) { ball.style.left = bp.x + '%'; ball.style.top = bp.y + '%'; }
+  var btns = host.querySelectorAll('.sqtac-bd-fbtn'); for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('is-on', btns[i].getAttribute('data-cat') === SQ_TAC_FOCUS.cat);
+  var ex = _sqTacExplain(), ct = host.querySelector('.sqtac-bd-cap-t'), cxx = host.querySelector('.sqtac-bd-cap-x');
+  if (ct) ct.textContent = ex.title; if (cxx) cxx.textContent = ex.text;
+}
+// Rebuild the whole board (used when the formation / XI actually changed → players differ).
+function _sqTacBoardRefresh() { var host = document.getElementById('sqtac-board-host'); if (host) host.innerHTML = _sqTacBoardHtml(); }
+function sqTacFocus(cat) { if (!_SQ_TAC_CATMETA[cat]) return; SQ_TAC_FOCUS = { cat: cat, grp: null, val: null }; _sqTacApply(true); }
+function sqTacReplay() {
+  var board = document.getElementById('sqtac-board'); if (!board) return;
+  board.classList.remove('sqtac-anim');
+  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var b = SQ_POS_MY[id]; if (el && b) { el.style.left = b.x + '%'; el.style.top = b.y + '%'; } });
+  void board.offsetWidth; // force reflow so the next positions animate from base
+  _sqTacApply(true);
+}
+function sqTacSet(grp, val) { if (!grp || val == null) return; SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); SQ_TAC_FOCUS = { cat: _SQ_TAC_GRP2CAT[grp] || SQ_TAC_FOCUS.cat, grp: grp, val: val }; _sqRenderTacticsBody(); _sqTacApply(true); }
+function sqTacToggle(scope, key) { if (!key) return; if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); SQ_TAC_FOCUS = { cat: scope === 'team' ? 'team' : (_SQ_TAC_GRP2CAT[key] || 'defensive'), grp: key, val: null }; _sqRenderTacticsBody(); _sqTacApply(true); }
+function sqTacPlayer(pkey, val) { if (!pkey || val == null) return; if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); SQ_TAC_FOCUS = { cat: 'players', grp: pkey, val: val }; _sqRenderTacticsBody(); _sqTacApply(true); }
 // open a section's floating panel; if it is already open, just bring it to the front (no duplicate). UI-only.
 function sqTacTab(id) {
   if (!id) return;
   _sqTacFpBind();
-  if (_SQ_TAC_PANELS[id]) { _sqTacFront(id); _sqRenderTacticsBody(); return; } // already open → front, never duplicate
+  if (_SQ_TAC_CATMETA[id]) SQ_TAC_FOCUS = { cat: id, grp: null, val: null }; // opening a section visualizes it on the board
+  if (_SQ_TAC_PANELS[id]) { _sqTacFront(id); _sqRenderTacticsBody(); _sqTacApply(true); return; } // already open → front, never duplicate
   var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
   var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
   var w = Math.min(660, vw - 32), h = Math.min(460, vh - 150);
@@ -3278,6 +3557,7 @@ function sqTacTab(id) {
   var y = Math.max(76, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 28, vh - 60));
   _SQ_TAC_PANELS[id] = { x: x, y: y, w: w, h: h, z: (++_SQ_TAC_Z) };
   _sqRenderTacticsBody();
+  _sqTacApply(true);
 }
 function sqTacClose(id) { if (id && _SQ_TAC_PANELS[id]) { delete _SQ_TAC_PANELS[id]; _sqRenderTacticsBody(); } } // closes only via its own X / Close
 
