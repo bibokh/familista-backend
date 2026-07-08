@@ -4552,6 +4552,15 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .de-pl-cap{ position:absolute; left:11px; right:11px; bottom:11px; display:flex; align-items:center; gap:9px; background:rgba(8,12,18,.62); border:1px solid rgba(255,255,255,.1); border-radius:9px; padding:8px 12px; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
 .de-pl-cap-dot{ flex:0 0 auto; width:9px; height:9px; border-radius:50%; background:rgb(var(--c)); box-shadow:0 0 8px rgba(var(--c),.7); }
 .de-pl-cap-t{ font-size:12px; font-weight:600; color:#eef2f8; line-height:1.35; }
+/* analysis step timeline (hybrid engine) — sits between the stage and the controls */
+.de-pl-steps{ display:flex; gap:6px; padding:8px 10px; background:rgba(10,15,22,.95); border:1px solid rgba(255,255,255,.1); border-top:0; overflow-x:auto; scrollbar-width:none; }
+.de-pl-steps::-webkit-scrollbar{ display:none; }
+.de-pl-step{ display:inline-flex; align-items:center; gap:6px; flex:0 0 auto; font-size:10.5px; font-weight:700; color:#8a94a6; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:100px; padding:4px 11px 4px 4px; white-space:nowrap; transition:all .15s ease; }
+.de-pl-step i{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; font-style:normal; font-size:9px; font-weight:800; color:#0a0f16; background:#8a94a6; }
+.de-pl-step.is-on{ color:#eef2f8; background:rgba(var(--c),.16); border-color:rgba(var(--c),.5); }
+.de-pl-step.is-on i{ background:rgb(var(--c)); }
+.de-pl-step.is-bad.is-on{ color:#ffb4b4; background:rgba(248,113,113,.16); border-color:rgba(248,113,113,.55); } .de-pl-step.is-bad.is-on i{ background:#f87171; }
+.de-pl-step.is-good.is-on{ color:#8ef0b4; background:rgba(52,215,122,.16); border-color:rgba(52,215,122,.55); } .de-pl-step.is-good.is-on i{ background:#34d77a; }
 .de-pl-bar{ display:flex; align-items:center; gap:9px; padding:9px 11px; background:rgba(10,15,22,.95); border:1px solid rgba(255,255,255,.1); border-radius:0 0 12px 12px; }
 .de-pl-btn{ appearance:none; border:0; background:none; color:#cbd5e1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; padding:4px 6px; border-radius:6px; font-size:11.5px; font-weight:800; line-height:1; min-width:24px; }
 .de-pl-btn:hover{ color:#fff; background:rgba(255,255,255,.1); }
