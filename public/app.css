@@ -3449,6 +3449,44 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-toast.is-on{ opacity:1; transform:translateX(-50%) translateY(0); }
 @media (max-width:1040px){ .sqtac-3col{ flex-direction:column; } .sqtac-side{ flex-basis:100%; max-width:none; order:3; } .sqtac-center{ flex-basis:100%; order:1; } .sqtac-side--left{ order:2; } .sqtac-side--right{ order:3; } }
 
+/* ── Team Balance widget (reuses existing balance/chemistry/fitness/morale engines) ── */
+.sqtac-bal{ display:flex; flex-direction:column; gap:7px; }
+.sqtac-bal-row{ display:flex; justify-content:space-between; align-items:center; font-size:11px; }
+.sqtac-bal-row span{ color:#8a94a6; font-weight:700; }
+.sqtac-bal-row b{ color:#eef2f8; font-weight:800; }
+.sqtac-bal-bar{ display:flex; flex-direction:column; gap:3px; }
+.sqtac-bal-bt{ display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#9aa6ba; }
+.sqtac-bal-track{ height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+.sqtac-bal-track>i{ display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,#34d77a,#16a34a); }
+.sqtac-side--right .sqtac-bal-track>i{ background:linear-gradient(90deg,#fb923c,#f43f5e); }
+/* ── Yellow legal-position markers while dragging (position engine) ── */
+.sqtac-markers{ position:absolute; inset:0; z-index:9; pointer-events:none; }
+.sqtac-mk{ position:absolute; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:2px; }
+.sqtac-mk>i{ width:15px; height:15px; border-radius:50%; background:rgba(250,204,21,.28); border:2px dashed #facc15; box-shadow:0 0 10px rgba(250,204,21,.6); animation:sqtacMk 1.1s ease-in-out infinite; }
+.sqtac-mk>b{ font-size:8px; font-weight:800; color:#fde047; letter-spacing:.03em; text-shadow:0 1px 3px rgba(0,0,0,.7); }
+@keyframes sqtacMk{ 0%,100%{ transform:scale(1); opacity:.72; } 50%{ transform:scale(1.18); opacity:1; } }
+/* ── Fit-one-screen: the whole Tactical page fits the viewport; pitch scales to available height ── */
+#sq-sub-tactics{ display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
+#sq-sub-tactics .sq-sub-header{ flex:0 0 auto; }
+#sqtac-body{ flex:0 0 auto; }
+#sqtac-body .sqtac-scroll{ padding-top:10px; padding-bottom:6px; }
+#sqtac-body .sqtac-note{ margin-bottom:9px; }
+#sqtac-body .sqtac-summary{ margin-bottom:9px; }
+#sqtac-body .sqtac-tabs{ margin-bottom:0; }
+#sqtac-board-host{ flex:1 1 auto; min-height:0; display:flex; }
+#sqtac-board-host .sqtac-board-wrap{ margin:0 auto; padding:4px 24px 10px; height:100%; width:100%; display:flex; flex-direction:column; min-height:0; }
+#sqtac-board-host .sqtac-3col{ flex:1 1 auto; min-height:0; align-items:stretch; }
+.sqtac-center{ display:flex; flex-direction:column; min-height:0; }
+.sqtac-center>.sqtac-bd-head,
+.sqtac-center>.sqtac-forms,
+.sqtac-center>.sqtac-toolbar,
+.sqtac-center>.sqtac-bd-cap,
+.sqtac-center>.sqtac-bd-legend{ flex:0 0 auto; }
+.sqtac-center>.sqtac-board{ flex:1 1 auto; min-height:0; align-items:center; }
+.sqtac-board .sqfp-pitch{ width:auto; height:100%; max-height:100%; max-width:100%; }
+.sqtac-side{ max-height:100%; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; }
+@media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } .sqtac-side{ max-height:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); } }
+
 .sql-meta{ display:flex; align-items:baseline; gap:10px; padding:22px 32px 12px; }
 .sql-meta-title{ font-size:18px; font-weight:700; color:var(--tx-1,#f1f5f9); letter-spacing:-.3px; }
 .sql-meta-count{ font-size:12.5px; color:var(--tx-3,#7e8aa0); }

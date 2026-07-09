@@ -3626,6 +3626,30 @@ function _sqTacDrawSvg() {
   return '<defs><marker id="sqtd-ar" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="3.4" markerHeight="3.4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f8fafc"/></marker></defs>' + body;
 }
 // side panels — permanent, one per team; reuse existing tokens (glass + accents)
+// Team Balance — reuses the existing engines (_sqMyStats/_sqOppStats for Balance, the same
+// chemistry formula used elsewhere = 100 - stdev(condition)*2.5, avg condition = Fitness, avg morale).
+function _sqTacTeamMetrics(side) {
+  if (side === 'opp') {
+    var os = (typeof _sqOppStats === 'function') ? _sqOppStats() : { ovr: 0, balance: 0 };
+    var seed = (typeof _sqSeed === 'function') ? _sqSeed(SQ_FORM.oppFormation + ':' + ((SQ_OPP_ACTIVE || []).length)) : 7;
+    return { formation: SQ_FORM.oppFormation, balance: os.balance || 0, chemistry: 58 + (seed % 32), fitness: 74 + (seed % 18), morale: Math.min(100, 60 + (seed % 30)), preset: SQ_TAC_OPP.plan, ovr: os.ovr || 0 };
+  }
+  var ms = (typeof _sqMyStats === 'function') ? _sqMyStats() : { ovr: 0, balance: 0 };
+  var conds = [], mors = [];
+  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id); if (!p) return; conds.push(p.cond != null ? p.cond : 90); mors.push((typeof _sqMoralePct === 'function') ? _sqMoralePct(p.morale) : 70); });
+  var avg = function (a) { return a.length ? Math.round(a.reduce(function (x, y) { return x + y; }, 0) / a.length) : 0; };
+  var c = avg(conds), varc = conds.length > 1 ? conds.reduce(function (a, x) { return a + (x - c) * (x - c); }, 0) / conds.length : 0;
+  var chem = Math.max(0, Math.min(100, Math.round(100 - Math.sqrt(varc) * 2.5)));
+  return { formation: SQ_FORM.myFormation, balance: ms.balance || 0, chemistry: chem, fitness: c, morale: avg(mors), preset: SQ_TACTICS.style, ovr: ms.ovr || 0 };
+}
+function _sqTacBalanceHtml(side) {
+  var m = _sqTacTeamMetrics(side);
+  function row(l, v) { return '<div class="sqtac-bal-row"><span>' + l + '</span><b>' + _sqTacEsc(v) + '</b></div>'; }
+  function bar(l, v) { return '<div class="sqtac-bal-bar"><div class="sqtac-bal-bt"><span>' + l + '</span><span>' + v + '%</span></div><div class="sqtac-bal-track"><i style="width:' + v + '%"></i></div></div>'; }
+  return '<div class="sqtac-bal">' + row('Formation', m.formation)
+    + bar('Balance', m.balance) + bar('Chemistry', m.chemistry) + bar('Fitness', m.fitness) + bar('Morale', m.morale)
+    + row('Tactical preset', m.preset) + '</div>';
+}
 function _sqTacLeftPanel() {
   var focus = SQ_TAC_FOCUS.cat, meta = _SQ_TAC_CATMETA[focus] || _SQ_TAC_CATMETA.identity;
   var presets = Object.keys(_SQ_TAC_PRESETS).map(function (p) { return '<button class="sqtac-chip sqtac-preset" data-action="sqTacPreset" data-preset="' + _sqTacEsc(p) + '" type="button"><span class="sqtac-chip-dot"></span>' + _sqTacEsc(p) + '</button>'; }).join('');
@@ -3634,6 +3658,7 @@ function _sqTacLeftPanel() {
   var focusChips = _SQ_TAC_CATORDER.map(function (k) { var m = _SQ_TAC_CATMETA[k]; return '<button class="sqtac-bd-fbtn' + (k === focus ? ' is-on' : '') + '" style="--ac:' + m.ac + '" data-cat="' + k + '" data-action="sqTacFocus" type="button"><span class="sqtac-bd-fno">' + m.no + '</span>' + m.tab + '</button>'; }).join('');
   return '<div class="sqtac-side-hd"><span class="sqtac-side-dot sqtac-side-dot--my"></span>FC FAMILISTA</div>'
     + '<div class="sqtac-sec"><span class="sqtac-sec-l">Formation</span>' + _sqTacFormSelect('my', 'sqtac-form-sel--panel') + '</div>'
+    + '<div class="sqtac-sec"><span class="sqtac-sec-l">Team Balance</span>' + _sqTacBalanceHtml('my') + '</div>'
     + '<div class="sqtac-sec"><span class="sqtac-sec-l">Tactical Presets</span><div class="sqtac-chiprow">' + presets + '</div>' + savedHtml + '</div>'
     + '<div class="sqtac-sec"><div class="sqtac-actrow">'
     +   '<button class="sqtac-act" data-action="sqTacNewPlan" type="button">New Plan</button>'
@@ -3652,6 +3677,7 @@ function _sqTacRightPanel() {
   var styleHtml = styles.map(function (s) { return '<button class="sqtac-chip sqtac-preset' + (s === SQ_TAC_OPP.plan ? ' is-on' : '') + '" data-action="sqTacOppStyle" data-style="' + _sqTacEsc(s) + '" type="button"><span class="sqtac-chip-dot"></span>' + s + '</button>'; }).join('');
   return '<div class="sqtac-side-hd"><span class="sqtac-side-dot sqtac-side-dot--opp"></span>OPPONENT</div>'
     + '<div class="sqtac-sec"><span class="sqtac-sec-l">Opponent Formation</span>' + _sqTacFormSelect('opp', 'sqtac-form-sel--panel') + '</div>'
+    + '<div class="sqtac-sec"><span class="sqtac-sec-l">Team Balance</span>' + _sqTacBalanceHtml('opp') + '</div>'
     + '<div class="sqtac-sec"><span class="sqtac-sec-l">Opponent Tactical Plans</span><div class="sqtac-chiprow">' + planHtml + '</div></div>'
     + '<div class="sqtac-sec"><span class="sqtac-sec-l">Opponent Presets</span><div class="sqtac-chiprow">' + styleHtml + '</div></div>'
     + '<div class="sqtac-sec"><div class="sqtac-actrow"><button class="sqtac-act" data-action="sqTacOppNewPlan" type="button">New Opponent Plan</button></div></div>'
@@ -3668,6 +3694,12 @@ function _sqTacBind() {
   _SQ_TAC_BOUND2 = true;
   _sqTacPresetsLoad();
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sqtac-form-sel')) sqTacFormation(s.getAttribute('data-side'), s.value); });
+  // double-click any of my players → the exact same player-info panel used elsewhere (sqOpenPlayer modal)
+  document.addEventListener('dblclick', function (e) {
+    var board = document.getElementById('sqtac-board'); if (!board) return;
+    var chip = e.target && e.target.closest ? e.target.closest('.sqtac-chp[data-tid]') : null;
+    if (chip && board.contains(chip) && typeof sqOpenPlayer === 'function') sqOpenPlayer(chip.getAttribute('data-tid'));
+  });
   document.addEventListener('pointerdown', function (e) {
     var board = document.getElementById('sqtac-board'); if (!board) return;
     var pitch = board.querySelector('.sqfp-pitch'); if (!pitch) return;
@@ -3682,6 +3714,7 @@ function _sqTacBind() {
       var starts = moving.map(function (el) { return { el: el, ox: parseFloat(el.style.left) || 0, oy: parseFloat(el.style.top) || 0 }; });
       _sqTacDragObj = { pitch: pitch, moving: starts, sx: e.clientX, sy: e.clientY };
       board.classList.add('is-dragmode'); moving.forEach(function (el) { el.classList.add('is-dragging'); });
+      if (moving.length === 1) _sqTacShowMarkers(moving[0]); // yellow legal-position markers (reuses SQ_ZONES / _sqAllowedZonesAny)
       e.preventDefault();
     } else {
       var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
@@ -3708,7 +3741,7 @@ function _sqTacBind() {
     }
   });
   function up() {
-    if (_sqTacDragObj) { _sqTacDragObj.moving.forEach(function (m) { m.el.classList.remove('is-dragging'); }); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
+    if (_sqTacDragObj) { var mv = _sqTacDragObj.moving; mv.forEach(function (m) { m.el.classList.remove('is-dragging'); }); if (mv.length === 1) _sqTacSnap(mv[0].el); _sqTacClearMarkers(); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
     if (_sqTacDrawing) {
       _sqTacDrawing = null; var cur = SQ_TAC_DRAW.cur; SQ_TAC_DRAW.cur = null;
       if (cur && cur.pts.length) { var far = _sqDist(cur.pts[0].x, cur.pts[0].y, cur.pts[cur.pts.length - 1].x, cur.pts[cur.pts.length - 1].y); if (cur.pts.length > 3 || far > 2.5) { SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.redo = []; SQ_TAC_DRAW.shapes.push(cur); } }
@@ -3723,6 +3756,26 @@ function _sqTacEraseAt(x, y) {
   for (var i = SQ_TAC_DRAW.shapes.length - 1; i >= 0; i--) { var pts = SQ_TAC_DRAW.shapes[i].pts; for (var j = 0; j < pts.length; j++) { if (_sqDist(pts[j].x, pts[j].y, x, y) < best) { idx = i; break; } } if (idx >= 0) break; }
   if (idx >= 0) { SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.redo = []; SQ_TAC_DRAW.shapes.splice(idx, 1); _sqTacRenderDraw(); _sqTacRenderToolbar(); }
 }
+// ── yellow legal-position markers while dragging (reuse the position engine: SQ_ZONES + _sqAllowedZonesAny) ──
+function _sqTacClearMarkers() { if (typeof document === 'undefined') return; var m = document.querySelectorAll('.sqtac-markers'); for (var i = 0; i < m.length; i++) if (m[i].parentNode) m[i].parentNode.removeChild(m[i]); }
+function _sqTacShowMarkers(chip) {
+  var board = document.getElementById('sqtac-board'); if (!board) return;
+  var pitch = board.querySelector('.sqfp-pitch'); if (!pitch) return;
+  _sqTacClearMarkers();
+  var zones = [], tid = chip.getAttribute('data-tid');
+  if (tid) { var p = _sqP(tid); var allowed = p ? _sqAllowedZonesAny(p) : []; allowed.forEach(function (z) { var Z = SQ_ZONES[z]; if (Z) zones.push({ x: Z.x, y: Z.y, label: Z.label }); }); }
+  else { for (var k in SQ_ZONES) { var Zo = SQ_ZONES[k]; zones.push({ x: Zo.x, y: 98 - Zo.y, label: Zo.label }); } } // opponent = point-mirrored zones
+  var lay = document.createElement('div'); lay.className = 'sqtac-markers';
+  lay.innerHTML = zones.map(function (z) { return '<span class="sqtac-mk" style="left:' + (100 - z.y) + '%;top:' + z.x + '%"><i></i><b>' + _sqTacEsc(z.label) + '</b></span>'; }).join('');
+  pitch.appendChild(lay);
+}
+function _sqTacSnap(chip) {
+  var tid = chip.getAttribute('data-tid'); if (!tid) return; var p = _sqP(tid); if (!p) return;
+  var px = parseFloat(chip.style.top) || 0, py = 100 - (parseFloat(chip.style.left) || 0); // horizontal → portrait
+  var allowed = _sqAllowedZonesAny(p), best = null, bd = 1e9;
+  allowed.forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = (Z.x - px) * (Z.x - px) + (Z.y - py) * (Z.y - py); if (d < bd) { bd = d; best = Z; } });
+  if (best && bd < 225) { chip.style.left = (100 - best.y) + '%'; chip.style.top = best.x + '%'; }
+}
 // ── action handlers ──
 function sqTacTool(tool) { if (!tool) return; SQ_TAC_DRAW.tool = tool; if (tool !== 'select') { SQ_TAC_SEL = {}; var b = document.getElementById('sqtac-board'); if (b) { var ns = b.querySelectorAll('.sqtac-chp.is-selected'); for (var i = 0; i < ns.length; i++) ns[i].classList.remove('is-selected'); } } _sqTacRenderDraw(); _sqTacRenderToolbar(); }
 function sqTacUndo() { if (!SQ_TAC_DRAW.undo.length) return; SQ_TAC_DRAW.redo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.shapes = JSON.parse(SQ_TAC_DRAW.undo.pop()); _sqTacRenderDraw(); _sqTacRenderToolbar(); }
@@ -3733,6 +3786,7 @@ function sqTacFormation(side, name) {
   if (side === 'opp') { SQ_FORM.oppFormation = name; SQ_FORM.showOpp = true; if (typeof SQ_POS_OPP2 !== 'undefined') SQ_POS_OPP2 = {}; _sqBuildOpp(); }
   else { SQ_FORM.myFormation = name; _sqBuildMy(); }
   _sqTacBoardRefresh(); _sqRenderTacticsBody();
+  if (typeof _sqRenderFormationBody === 'function') _sqRenderFormationBody(); // one source of truth → Formation/Overview page stays in sync
 }
 function sqTacPreset(name) { var p = _SQ_TAC_PRESETS[name] || (SQ_TAC_PRESETS && SQ_TAC_PRESETS[name]); if (!p) return; for (var k in p) SQ_TACTICS[k] = p[k]; _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true); }
 function sqTacNewPlan() { var d = { mentality: 'Balanced', style: 'Balanced', width: 'Balanced', tempo: 'Normal', buildUp: 'Mixed', finalThird: 'Mixed', crossing: 'Mixed', defLine: 'Standard', pressLine: 'Medium', compactness: 'Balanced', offsideTrap: false, transWon: 'Counter Attack', transLost: 'Counter Press', gkDist: 'Mixed' }; for (var k in d) SQ_TACTICS[k] = d[k]; SQ_TACTICS.team = {}; SQ_TACTICS.players = {}; _sqTacSyncMentality(); _sqTacticsSave(); _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true); }
@@ -3822,6 +3876,7 @@ function sqPickFormation(name, side) {
   var sb = document.querySelector('.sqfp-side--lib .sqlib-body'); var st = sb ? sb.scrollTop : 0;
   _sqRenderFormationBody();
   var sb2 = document.querySelector('.sqfp-side--lib .sqlib-body'); if (sb2) sb2.scrollTop = st;
+  if (typeof _sqTacBoardRefresh === 'function') _sqTacBoardRefresh(); // keep the Tactical board in sync (one source of truth)
 }
 
 // ── Mentality modal ──
