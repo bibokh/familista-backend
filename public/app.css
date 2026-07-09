@@ -3488,8 +3488,8 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-center>.sqtac-toolbar{ flex:0 0 auto; margin-bottom:6px; }
 .sqtac-center>.sqtac-bd-cap{ flex:0 0 auto; margin-top:6px; padding:7px 13px; }
 .sqtac-center>.sqtac-bd-legend{ flex:0 0 auto; margin-top:5px; }
-.sqtac-center>.sqtac-board{ flex:1 1 auto; min-height:0; align-items:center; padding:0; }
-.sqtac-board .sqfp-pitch{ width:auto; height:100%; max-height:100%; max-width:100%; }
+.sqtac-center>.sqtac-board{ flex:1 1 auto; min-height:0; align-items:stretch; justify-content:stretch; padding:0; }
+.sqtac-board .sqfp-pitch{ width:100%; height:100%; max-width:100%; max-height:100%; aspect-ratio:auto; }
 .sqtac-forms-l{ min-width:132px; }
 /* slim, NON-scrolling side panels — compressed into visible groups */
 .sqtac-side{ flex:0 0 236px; max-width:236px; max-height:100%; overflow:hidden; padding:11px 12px 12px; }
@@ -3511,7 +3511,7 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-side .sqtac-selfocus{ padding:5px 10px; }
 .sqtac-side .sqtac-form-sel{ padding:6px 26px 6px 10px; font-size:11.5px; }
 @media (max-width:1200px){ .sqtac-side{ flex-basis:210px; max-width:210px; } }
-@media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } #sq-sub-tactics .sq-sub-title-row{ display:flex; } #sqtac-body .sqtac-note,#sqtac-body .sqtac-summary{ display:block; } .sqtac-side{ flex-basis:100%; max-width:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); } }
+@media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } #sq-sub-tactics .sq-sub-title-row{ display:flex; } #sqtac-body .sqtac-note,#sqtac-body .sqtac-summary{ display:block; } .sqtac-side{ flex-basis:100%; max-width:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); aspect-ratio:3 / 2; } }
 
 .sql-meta{ display:flex; align-items:baseline; gap:10px; padding:22px 32px 12px; }
 .sql-meta-title{ font-size:18px; font-weight:700; color:var(--tx-1,#f1f5f9); letter-spacing:-.3px; }
