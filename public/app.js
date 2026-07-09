@@ -3767,12 +3767,32 @@ function _sqTacTeamMetrics(side) {
   return { formation: SQ_FORM.myFormation, balance: ms.balance || 0, chemistry: chem, fitness: c, morale: avg(mors), preset: SQ_TACTICS.style, ovr: ms.ovr || 0 };
 }
 function _sqTacBalanceHtml(side) {
-  var m = _sqTacTeamMetrics(side);
-  function row(l, v) { return '<div class="sqtac-bal-row"><span>' + l + '</span><b>' + _sqTacEsc(v) + '</b></div>'; }
-  function bar(l, v) { return '<div class="sqtac-bal-bar"><div class="sqtac-bal-bt"><span>' + l + '</span><span>' + v + '%</span></div><div class="sqtac-bal-track"><i style="width:' + v + '%"></i></div></div>'; }
-  return '<div class="sqtac-bal">' + row('Formation', m.formation)
-    + bar('Balance', m.balance) + bar('Chemistry', m.chemistry) + bar('Fitness', m.fitness) + bar('Morale', m.morale)
-    + row('Tactical preset', m.preset) + '</div>';
+  var m = _sqTacTeamMetrics(side), t = side === 'opp' ? 'opp' : 'my';
+  function stat(l, v, key) { return '<div class="sqtac-bal2' + (v < 70 ? ' is-low' : '') + '" data-bal="' + t + '" data-balkey="' + key + '"><div class="sqtac-bal2-top"><span>' + l + '</span><b class="sqtac-bal2-v">' + v + '%</b></div><div class="sqtac-bal2-track"><i style="width:' + v + '%"></i></div></div>'; }
+  return '<div class="sqtac-bal">'
+    + '<div class="sqtac-bal-top"><span>' + _sqTacEsc(m.formation) + '</span><b>' + _sqTacEsc(m.preset) + '</b></div>'
+    + '<div class="sqtac-bal-grid">' + stat('Balance', m.balance, 'balance') + stat('Chem', m.chemistry, 'chemistry') + stat('Fitness', m.fitness, 'fitness') + stat('Morale', m.morale, 'morale') + '</div>'
+    + '<div class="sqtac-bal-warn" data-balwarn="' + t + '"></div></div>';
+}
+// Live Team Balance from the current on-pitch positions — reuses the Overview engine
+// (_sqNearestAllowedDist + _sqPosScore for my players, anchor proximity for the opponent).
+function _sqTacLiveBalance(team) {
+  var board = document.getElementById('sqtac-board'); if (!board) return null;
+  var sc = 0, n = 0, out = 0, partial = 0;
+  if (team === 'opp') {
+    (SQ_OPP_ACTIVE || []).forEach(function (o) { var el = board.querySelector('.sqtac-chp[data-oid="' + o.id + '"]'); var an = SQ_OPP_ANCHOR[o.id]; if (!el || !an) return; var px = parseFloat(el.style.top) || 0, py = 100 - (parseFloat(el.style.left) || 0); n++; var d = _sqDist(px, py, an.x, an.y); sc += _sqPosScore(d); if (d > 16) out++; else if (d > 9) partial++; });
+    return { balance: n ? Math.round(sc / n) : 0, out: out, partial: partial };
+  }
+  (SQ_MY_IDS || []).forEach(function (id) { var el = board.querySelector('.sqtac-chp[data-tid="' + id + '"]'); var p = _sqP(id); if (!el || !p) return; var px = parseFloat(el.style.top) || 0, py = 100 - (parseFloat(el.style.left) || 0); n++; var d = _sqNearestAllowedDist(px, py, _sqAllowedZonesAny(p)); sc += _sqPosScore(d); if (d > 13) out++; else if (d > 8) partial++; });
+  var posBal = n ? sc / n : 0, exec = (typeof _sqTeamExec === 'function') ? _sqTeamExec() : 75;
+  return { balance: Math.max(0, Math.min(100, Math.round(posBal * 0.7 + exec * 0.3))), out: out, partial: partial };
+}
+function _sqTacUpdateLiveBalance(team) {
+  var host = document.getElementById('sqtac-board-host'); if (!host) return; var lb = _sqTacLiveBalance(team); if (!lb) return;
+  var cell = host.querySelector('[data-bal="' + team + '"][data-balkey="balance"]');
+  if (cell) { var v = cell.querySelector('.sqtac-bal2-v'), bar = cell.querySelector('.sqtac-bal2-track>i'); if (v) v.textContent = lb.balance + '%'; if (bar) bar.style.width = lb.balance + '%'; cell.classList.toggle('is-low', lb.balance < 70); }
+  var warn = host.querySelector('[data-balwarn="' + team + '"]');
+  if (warn) { if (lb.out > 0 || lb.partial > 0) { warn.textContent = '⚠ ' + (lb.out ? lb.out + ' Out of Position · ' : '') + 'Reduced Efficiency'; warn.classList.add('is-on'); } else { warn.textContent = ''; warn.classList.remove('is-on'); } }
 }
 function _sqTacLeftPanel() {
   var focus = SQ_TAC_FOCUS.cat, meta = _SQ_TAC_CATMETA[focus] || _SQ_TAC_CATMETA.identity;
@@ -3831,15 +3851,17 @@ function _sqTacBind() {
     var tool = SQ_TAC_DRAW.tool, t = e.target, r = pitch.getBoundingClientRect(); if (!r.width || !r.height) return;
     if (tool === 'select') {
       var chip = t && t.closest ? t.closest('.sqtac-chp[data-tacdrag]') : null;
-      if (!chip || !board.contains(chip)) return;
-      var kid = chip.getAttribute('data-tid'), key = kid ? ('my:' + kid) : ('opp:' + chip.getAttribute('data-oid'));
+      if (!chip || !board.contains(chip)) { _sqTacClearMarkers(); return; } // click on empty pitch clears the position areas
+      var kid = chip.getAttribute('data-tid'), key = kid ? ('my:' + kid) : ('opp:' + chip.getAttribute('data-oid')), tm = kid ? 'my' : 'opp';
       if (e.shiftKey) { if (SQ_TAC_SEL[key]) { delete SQ_TAC_SEL[key]; chip.classList.remove('is-selected'); } else { SQ_TAC_SEL[key] = 1; chip.classList.add('is-selected'); } e.preventDefault(); return; }
       var selNodes = board.querySelectorAll('.sqtac-chp.is-selected'), moving = [];
       if (SQ_TAC_SEL[key] && selNodes.length) { for (var i = 0; i < selNodes.length; i++) moving.push(selNodes[i]); } else { moving = [chip]; }
       var starts = moving.map(function (el) { return { el: el, ox: parseFloat(el.style.left) || 0, oy: parseFloat(el.style.top) || 0 }; });
-      _sqTacDragObj = { pitch: pitch, moving: starts, sx: e.clientX, sy: e.clientY };
+      _sqTacDragObj = { pitch: pitch, moving: starts, sx: e.clientX, sy: e.clientY, team: tm };
       board.classList.add('is-dragmode'); moving.forEach(function (el) { el.classList.add('is-dragging'); });
-      if (moving.length === 1) _sqTacShowMarkers(moving[0]); // yellow legal-position markers (reuses SQ_ZONES / _sqAllowedZonesAny)
+      // click OR drag → show every trained position area (yellow role rectangles, reuse SQ_ZONES / _sqAllowedZonesAny) + live feedback
+      if (moving.length === 1) { _sqTacShowMarkers(moving[0]); _sqTacFeedback(moving[0]); }
+      _sqTacUpdateLiveBalance(tm);
       e.preventDefault();
     } else {
       var x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
@@ -3856,6 +3878,7 @@ function _sqTacBind() {
       var dx = (e.clientX - d.sx) / r.width * 100, dy = (e.clientY - d.sy) / r.height * 100;
       d.moving.forEach(function (m) { m.el.style.left = Math.max(2, Math.min(98, m.ox + dx)) + '%'; m.el.style.top = Math.max(3, Math.min(97, m.oy + dy)) + '%'; });
       if (d.moving.length === 1) _sqTacFeedback(d.moving[0].el); // live green/red as it moves in/out of a trained position
+      _sqTacUpdateLiveBalance(d.team); // live Team Balance + out-of-position penalty for the dragged team
       return;
     }
     if (_sqTacDrawing && SQ_TAC_DRAW.cur) {
@@ -3867,7 +3890,7 @@ function _sqTacBind() {
     }
   });
   function up() {
-    if (_sqTacDragObj) { var mv = _sqTacDragObj.moving; mv.forEach(function (m) { m.el.classList.remove('is-dragging'); _sqTacFeedback(m.el); }); _sqTacClearMarkers(); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
+    if (_sqTacDragObj) { var mv = _sqTacDragObj.moving; mv.forEach(function (m) { m.el.classList.remove('is-dragging'); _sqTacFeedback(m.el); }); _sqTacUpdateLiveBalance(_sqTacDragObj.team); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; } // markers persist after drop until the next click
     if (_sqTacDrawing) {
       _sqTacDrawing = null; var cur = SQ_TAC_DRAW.cur; SQ_TAC_DRAW.cur = null;
       if (cur && cur.pts.length) { var far = _sqDist(cur.pts[0].x, cur.pts[0].y, cur.pts[cur.pts.length - 1].x, cur.pts[cur.pts.length - 1].y); if (cur.pts.length > 3 || far > 2.5) { SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.redo = []; SQ_TAC_DRAW.shapes.push(cur); } }

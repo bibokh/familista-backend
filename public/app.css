@@ -3449,16 +3449,23 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-toast.is-on{ opacity:1; transform:translateX(-50%) translateY(0); }
 @media (max-width:1040px){ .sqtac-3col{ flex-direction:column; } .sqtac-side{ flex-basis:100%; max-width:none; order:3; } .sqtac-center{ flex-basis:100%; order:1; } .sqtac-side--left{ order:2; } .sqtac-side--right{ order:3; } }
 
-/* ── Team Balance widget (reuses existing balance/chemistry/fitness/morale engines) ── */
-.sqtac-bal{ display:flex; flex-direction:column; gap:7px; }
-.sqtac-bal-row{ display:flex; justify-content:space-between; align-items:center; font-size:11px; }
-.sqtac-bal-row span{ color:#8a94a6; font-weight:700; }
-.sqtac-bal-row b{ color:#eef2f8; font-weight:800; }
-.sqtac-bal-bar{ display:flex; flex-direction:column; gap:3px; }
-.sqtac-bal-bt{ display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#9aa6ba; }
-.sqtac-bal-track{ height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
-.sqtac-bal-track>i{ display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,#34d77a,#16a34a); }
-.sqtac-side--right .sqtac-bal-track>i{ background:linear-gradient(90deg,#fb923c,#f43f5e); }
+/* ── Team Balance widget — compact 2×2 stat grid; Balance updates live while dragging ── */
+.sqtac-bal{ display:flex; flex-direction:column; gap:5px; }
+.sqtac-bal-top{ display:flex; justify-content:space-between; align-items:center; font-size:10.5px; }
+.sqtac-bal-top span{ color:#8a94a6; font-weight:700; }
+.sqtac-bal-top b{ color:#eef2f8; font-weight:800; }
+.sqtac-bal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px 9px; }
+.sqtac-bal2{ min-width:0; }
+.sqtac-bal2-top{ display:flex; justify-content:space-between; align-items:baseline; gap:4px; }
+.sqtac-bal2-top span{ font-size:8.5px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:#8a94a6; }
+.sqtac-bal2-v{ font-size:11px; font-weight:800; color:#eef2f8; }
+.sqtac-bal2-track{ height:4px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:2px; }
+.sqtac-bal2-track>i{ display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,#34d77a,#16a34a); transition:width .12s ease; }
+.sqtac-side--right .sqtac-bal2-track>i{ background:linear-gradient(90deg,#fb923c,#f43f5e); }
+.sqtac-bal2.is-low .sqtac-bal2-v{ color:#f87171; }
+.sqtac-bal2.is-low .sqtac-bal2-track>i{ background:linear-gradient(90deg,#f59e0b,#ef4444); }
+.sqtac-bal-warn{ display:none; font-size:9px; font-weight:800; color:#fca5a5; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.32); border-radius:6px; padding:4px 7px; letter-spacing:.01em; }
+.sqtac-bal-warn.is-on{ display:block; }
 /* ── Yellow legal-position markers while dragging (position engine) ── */
 .sqtac-markers{ position:absolute; inset:0; z-index:9; pointer-events:none; }
 .sqtac-mk{ position:absolute; transform:translate(-50%,-50%); width:46px; height:32px; border-radius:7px; display:flex; align-items:center; justify-content:center; background:rgba(250,204,21,.16); border:2px dashed #facc15; box-shadow:0 0 12px rgba(250,204,21,.4); animation:sqtacMk 1.2s ease-in-out infinite; }
@@ -3492,25 +3499,33 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-board .sqfp-pitch{ width:100%; height:100%; max-width:100%; max-height:100%; aspect-ratio:auto; }
 .sqtac-forms-l{ min-width:132px; }
 /* slim, NON-scrolling side panels — compressed into visible groups */
-.sqtac-side{ flex:0 0 236px; max-width:236px; max-height:100%; overflow:hidden; padding:11px 12px 12px; }
-.sqtac-side-hd{ padding-bottom:8px; margin-bottom:9px; }
-.sqtac-side .sqtac-sec{ margin-bottom:9px; }
-.sqtac-side .sqtac-sec-l{ margin-bottom:5px; }
-.sqtac-side .sqtac-bal{ gap:5px; }
-.sqtac-side .sqtac-bal-track{ height:4px; }
-.sqtac-side .sqtac-chiprow{ gap:5px; }
-.sqtac-side .sqtac-chip{ padding:5px 9px; font-size:10.5px; }
-.sqtac-side .sqtac-act{ padding:6px 8px; font-size:10.5px; }
-.sqtac-side .sqtac-focusrow{ margin-bottom:8px; }
-.sqtac-side .sqtac-bd-fbtn{ padding:5px 9px; font-size:10.5px; }
-.sqtac-side .sqtac-qedit{ padding:9px; }
-.sqtac-side .sqtac-qedit .sqtac-fields{ gap:9px; }
-.sqtac-side .sqtac-qedit .sqtac-seg{ gap:3px; padding:3px; }
-.sqtac-side .sqtac-qedit .sqtac-seg-b{ padding:4px 8px; font-size:10.5px; }
-.sqtac-side .sqtac-qedit .sqtac-players{ gap:5px; }
-.sqtac-side .sqtac-selfocus{ padding:5px 10px; }
-.sqtac-side .sqtac-form-sel{ padding:6px 26px 6px 10px; font-size:11.5px; }
-@media (max-width:1200px){ .sqtac-side{ flex-basis:210px; max-width:210px; } }
+.sqtac-side{ flex:0 0 244px; max-width:244px; max-height:100%; overflow:hidden; padding:9px 11px 10px; display:flex; flex-direction:column; }
+.sqtac-side-hd{ padding-bottom:6px; margin-bottom:7px; }
+.sqtac-side .sqtac-sec{ margin-bottom:7px; }
+.sqtac-side .sqtac-sec:last-child{ margin-bottom:0; }
+.sqtac-side .sqtac-sec-l{ margin-bottom:4px; font-size:9px; }
+.sqtac-side .sqtac-chiprow{ gap:4px; }
+.sqtac-side .sqtac-chip{ padding:4px 8px; font-size:10px; }
+.sqtac-side .sqtac-chip-dot{ width:6px; height:6px; }
+.sqtac-side .sqtac-actrow{ gap:4px; }
+.sqtac-side .sqtac-act{ padding:5px 7px; font-size:10px; }
+.sqtac-side .sqtac-focusrow{ margin-bottom:7px; gap:4px; }
+.sqtac-side .sqtac-bd-fbtn{ padding:4px 8px; font-size:10px; gap:5px; }
+.sqtac-side .sqtac-bd-fno{ width:14px; height:14px; font-size:8.5px; }
+.sqtac-side .sqtac-qedit{ padding:8px; }
+.sqtac-side .sqtac-qedit .sqtac-fields{ gap:7px; }
+.sqtac-side .sqtac-qedit .sqtac-field-l{ font-size:8.5px; }
+.sqtac-side .sqtac-qedit .sqtac-seg{ gap:2px; padding:2px; }
+.sqtac-side .sqtac-qedit .sqtac-seg-b{ padding:3px 7px; font-size:10px; }
+.sqtac-side .sqtac-qedit .sqtac-team{ gap:5px; }
+/* Players section → two compact columns so all 11 rows stay visible */
+.sqtac-side .sqtac-qedit .sqtac-players{ grid-template-columns:1fr 1fr; gap:6px 8px; }
+.sqtac-side .sqtac-qedit .sqtac-prow{ flex-direction:column; align-items:stretch; gap:3px; }
+.sqtac-side .sqtac-qedit .sqtac-prow .sqtac-badge{ min-width:0; align-self:flex-start; padding:2px 6px; font-size:9.5px; }
+.sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg-b{ padding:2px 5px; font-size:9px; }
+.sqtac-side .sqtac-selfocus{ padding:4px 9px; font-size:11px; }
+.sqtac-side .sqtac-form-sel{ padding:5px 24px 5px 9px; font-size:11px; }
+@media (max-width:1240px){ .sqtac-side{ flex-basis:212px; max-width:212px; } }
 @media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } #sq-sub-tactics .sq-sub-title-row{ display:flex; } #sqtac-body .sqtac-note,#sqtac-body .sqtac-summary{ display:block; } .sqtac-side{ flex-basis:100%; max-width:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); aspect-ratio:3 / 2; } }
 
 .sql-meta{ display:flex; align-items:baseline; gap:10px; padding:22px 32px 12px; }
