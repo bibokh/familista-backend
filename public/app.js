@@ -3730,6 +3730,7 @@ function _sqTacBind() {
       var d = _sqTacDragObj, r = d.pitch.getBoundingClientRect(); if (!r.width) return;
       var dx = (e.clientX - d.sx) / r.width * 100, dy = (e.clientY - d.sy) / r.height * 100;
       d.moving.forEach(function (m) { m.el.style.left = Math.max(2, Math.min(98, m.ox + dx)) + '%'; m.el.style.top = Math.max(3, Math.min(97, m.oy + dy)) + '%'; });
+      if (d.moving.length === 1) _sqTacFeedback(d.moving[0].el); // live green/red as it moves in/out of a trained position
       return;
     }
     if (_sqTacDrawing && SQ_TAC_DRAW.cur) {
@@ -3741,7 +3742,7 @@ function _sqTacBind() {
     }
   });
   function up() {
-    if (_sqTacDragObj) { var mv = _sqTacDragObj.moving; mv.forEach(function (m) { m.el.classList.remove('is-dragging'); }); if (mv.length === 1) _sqTacSnap(mv[0].el); _sqTacClearMarkers(); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
+    if (_sqTacDragObj) { var mv = _sqTacDragObj.moving; mv.forEach(function (m) { m.el.classList.remove('is-dragging'); _sqTacFeedback(m.el); }); _sqTacClearMarkers(); var b = document.getElementById('sqtac-board'); if (b) b.classList.remove('is-dragmode'); _sqTacDragObj = null; }
     if (_sqTacDrawing) {
       _sqTacDrawing = null; var cur = SQ_TAC_DRAW.cur; SQ_TAC_DRAW.cur = null;
       if (cur && cur.pts.length) { var far = _sqDist(cur.pts[0].x, cur.pts[0].y, cur.pts[cur.pts.length - 1].x, cur.pts[cur.pts.length - 1].y); if (cur.pts.length > 3 || far > 2.5) { SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.redo = []; SQ_TAC_DRAW.shapes.push(cur); } }
@@ -3763,18 +3764,25 @@ function _sqTacShowMarkers(chip) {
   var pitch = board.querySelector('.sqfp-pitch'); if (!pitch) return;
   _sqTacClearMarkers();
   var zones = [], tid = chip.getAttribute('data-tid');
+  // Trained positions only — same engine the Overview uses for validity: SQ_ALLOWED[p.pos] via _sqAllowedZonesAny.
   if (tid) { var p = _sqP(tid); var allowed = p ? _sqAllowedZonesAny(p) : []; allowed.forEach(function (z) { var Z = SQ_ZONES[z]; if (Z) zones.push({ x: Z.x, y: Z.y, label: Z.label }); }); }
-  else { for (var k in SQ_ZONES) { var Zo = SQ_ZONES[k]; zones.push({ x: Zo.x, y: 98 - Zo.y, label: Zo.label }); } } // opponent = point-mirrored zones
+  else { var an = SQ_OPP_ANCHOR[chip.getAttribute('data-oid')]; if (an) zones.push({ x: an.x, y: an.y, label: '' }); } // opponent's trained position = its assigned formation slot
   var lay = document.createElement('div'); lay.className = 'sqtac-markers';
-  lay.innerHTML = zones.map(function (z) { return '<span class="sqtac-mk" style="left:' + (100 - z.y) + '%;top:' + z.x + '%"><i></i><b>' + _sqTacEsc(z.label) + '</b></span>'; }).join('');
+  lay.innerHTML = zones.map(function (z) { return '<span class="sqtac-mk" style="left:' + (100 - z.y) + '%;top:' + z.x + '%">' + (z.label ? '<b>' + _sqTacEsc(z.label) + '</b>' : '') + '</span>'; }).join('');
   pitch.appendChild(lay);
 }
-function _sqTacSnap(chip) {
-  var tid = chip.getAttribute('data-tid'); if (!tid) return; var p = _sqP(tid); if (!p) return;
+// In / out of a trained position — reuses the exact validity engine (_sqNearestAllowedDist for mine, anchor proximity = _sqOppValid for opponents).
+function _sqTacInPos(chip) {
   var px = parseFloat(chip.style.top) || 0, py = 100 - (parseFloat(chip.style.left) || 0); // horizontal → portrait
-  var allowed = _sqAllowedZonesAny(p), best = null, bd = 1e9;
-  allowed.forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = (Z.x - px) * (Z.x - px) + (Z.y - py) * (Z.y - py); if (d < bd) { bd = d; best = Z; } });
-  if (best && bd < 225) { chip.style.left = (100 - best.y) + '%'; chip.style.top = best.x + '%'; }
+  var tid = chip.getAttribute('data-tid');
+  if (tid) { var p = _sqP(tid); return p ? (_sqNearestAllowedDist(px, py, _sqAllowedZonesAny(p)) <= 13) : true; }
+  var an = SQ_OPP_ANCHOR[chip.getAttribute('data-oid')]; return an ? (_sqDist(px, py, an.x, an.y) <= 16) : true;
+}
+// Green in-position / red out-of-position feedback — never forces the player back.
+function _sqTacFeedback(chip) {
+  var ok = _sqTacInPos(chip);
+  chip.classList.toggle('is-inpos', ok); chip.classList.toggle('is-outpos', !ok);
+  if (ok) chip.removeAttribute('title'); else chip.setAttribute('title', 'Out of preferred position');
 }
 // ── action handlers ──
 function sqTacTool(tool) { if (!tool) return; SQ_TAC_DRAW.tool = tool; if (tool !== 'select') { SQ_TAC_SEL = {}; var b = document.getElementById('sqtac-board'); if (b) { var ns = b.querySelectorAll('.sqtac-chp.is-selected'); for (var i = 0; i < ns.length; i++) ns[i].classList.remove('is-selected'); } } _sqTacRenderDraw(); _sqTacRenderToolbar(); }
