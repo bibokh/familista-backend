@@ -3468,27 +3468,50 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-chp.is-inpos .sqfp-shirt{ border-color:#34d77a !important; box-shadow:0 0 0 3px rgba(52,215,122,.9),0 3px 9px rgba(0,0,0,.5) !important; }
 .sqtac-chp.is-outpos .sqfp-shirt{ border-color:#f87171 !important; box-shadow:0 0 0 3px rgba(248,113,113,.9),0 3px 9px rgba(0,0,0,.5) !important; }
 .sqtac-chp.is-outpos::after{ content:"!"; position:absolute; top:-3px; right:9px; width:14px; height:14px; border-radius:50%; background:#f87171; color:#160406; font-size:10px; font-weight:900; line-height:14px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.55); z-index:6; }
-/* ── Fit-one-screen: the whole Tactical page fits the viewport; pitch scales to available height ── */
+/* ── One-screen tactical workspace: large centred pitch, slim non-scrolling side panels ── */
 #sq-sub-tactics{ display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
-#sq-sub-tactics .sq-sub-header{ flex:0 0 auto; }
+#sq-sub-tactics .sq-sub-header{ flex:0 0 auto; padding:8px 22px 0; }
+#sq-sub-tactics .sq-sub-title-row{ display:none; }           /* redundant title — reclaim height for the pitch */
 #sqtac-body{ flex:0 0 auto; }
-#sqtac-body .sqtac-scroll{ padding-top:10px; padding-bottom:6px; }
-#sqtac-body .sqtac-note{ margin-bottom:9px; }
-#sqtac-body .sqtac-summary{ margin-bottom:9px; }
-#sqtac-body .sqtac-tabs{ margin-bottom:0; }
+#sqtac-body .sqtac-scroll{ padding:6px 22px 2px; max-width:none; }
+#sqtac-body .sqtac-note{ display:none; }                     /* info duplicated in the side panels */
+#sqtac-body .sqtac-summary{ display:none; }
+#sqtac-body .sqtac-tabs{ margin:0; gap:6px; }
+#sqtac-body .sqtac-tab{ padding:6px 12px; font-size:12px; }
 #sqtac-board-host{ flex:1 1 auto; min-height:0; display:flex; }
-#sqtac-board-host .sqtac-board-wrap{ margin:0 auto; padding:4px 24px 10px; height:100%; width:100%; display:flex; flex-direction:column; min-height:0; }
-#sqtac-board-host .sqtac-3col{ flex:1 1 auto; min-height:0; align-items:stretch; }
+#sqtac-board-host .sqtac-board-wrap{ margin:0 auto; padding:6px 20px 8px; height:100%; width:100%; max-width:none; display:flex; flex-direction:column; min-height:0; }
+#sqtac-board-host .sqtac-3col{ flex:1 1 auto; min-height:0; gap:12px; align-items:stretch; }
+/* centre column = pitch-dominant */
 .sqtac-center{ display:flex; flex-direction:column; min-height:0; }
-.sqtac-center>.sqtac-bd-head,
-.sqtac-center>.sqtac-forms,
-.sqtac-center>.sqtac-toolbar,
-.sqtac-center>.sqtac-bd-cap,
-.sqtac-center>.sqtac-bd-legend{ flex:0 0 auto; }
-.sqtac-center>.sqtac-board{ flex:1 1 auto; min-height:0; align-items:center; }
+.sqtac-center>.sqtac-bd-head{ flex:0 0 auto; margin-bottom:6px; }
+.sqtac-center>.sqtac-forms{ flex:0 0 auto; margin:0 0 6px; gap:10px; }
+.sqtac-center>.sqtac-toolbar{ flex:0 0 auto; margin-bottom:6px; }
+.sqtac-center>.sqtac-bd-cap{ flex:0 0 auto; margin-top:6px; padding:7px 13px; }
+.sqtac-center>.sqtac-bd-legend{ flex:0 0 auto; margin-top:5px; }
+.sqtac-center>.sqtac-board{ flex:1 1 auto; min-height:0; align-items:center; padding:0; }
 .sqtac-board .sqfp-pitch{ width:auto; height:100%; max-height:100%; max-width:100%; }
-.sqtac-side{ max-height:100%; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; }
-@media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } .sqtac-side{ max-height:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); } }
+.sqtac-forms-l{ min-width:132px; }
+/* slim, NON-scrolling side panels — compressed into visible groups */
+.sqtac-side{ flex:0 0 236px; max-width:236px; max-height:100%; overflow:hidden; padding:11px 12px 12px; }
+.sqtac-side-hd{ padding-bottom:8px; margin-bottom:9px; }
+.sqtac-side .sqtac-sec{ margin-bottom:9px; }
+.sqtac-side .sqtac-sec-l{ margin-bottom:5px; }
+.sqtac-side .sqtac-bal{ gap:5px; }
+.sqtac-side .sqtac-bal-track{ height:4px; }
+.sqtac-side .sqtac-chiprow{ gap:5px; }
+.sqtac-side .sqtac-chip{ padding:5px 9px; font-size:10.5px; }
+.sqtac-side .sqtac-act{ padding:6px 8px; font-size:10.5px; }
+.sqtac-side .sqtac-focusrow{ margin-bottom:8px; }
+.sqtac-side .sqtac-bd-fbtn{ padding:5px 9px; font-size:10.5px; }
+.sqtac-side .sqtac-qedit{ padding:9px; }
+.sqtac-side .sqtac-qedit .sqtac-fields{ gap:9px; }
+.sqtac-side .sqtac-qedit .sqtac-seg{ gap:3px; padding:3px; }
+.sqtac-side .sqtac-qedit .sqtac-seg-b{ padding:4px 8px; font-size:10.5px; }
+.sqtac-side .sqtac-qedit .sqtac-players{ gap:5px; }
+.sqtac-side .sqtac-selfocus{ padding:5px 10px; }
+.sqtac-side .sqtac-form-sel{ padding:6px 26px 6px 10px; font-size:11.5px; }
+@media (max-width:1200px){ .sqtac-side{ flex-basis:210px; max-width:210px; } }
+@media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } #sq-sub-tactics .sq-sub-title-row{ display:flex; } #sqtac-body .sqtac-note,#sqtac-body .sqtac-summary{ display:block; } .sqtac-side{ flex-basis:100%; max-width:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); } }
 
 .sql-meta{ display:flex; align-items:baseline; gap:10px; padding:22px 32px 12px; }
 .sql-meta-title{ font-size:18px; font-weight:700; color:var(--tx-1,#f1f5f9); letter-spacing:-.3px; }
