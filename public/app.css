@@ -3501,14 +3501,16 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* slim, NON-scrolling side panels — compressed into visible groups */
 .sqtac-side{ flex:0 0 244px; max-width:244px; max-height:100%; overflow:hidden; padding:9px 11px 10px; display:flex; flex-direction:column; }
 .sqtac-side-hd{ padding-bottom:6px; margin-bottom:7px; }
-.sqtac-side .sqtac-sec{ margin-bottom:7px; }
+.sqtac-side .sqtac-sec{ margin-bottom:6px; }
 .sqtac-side .sqtac-sec:last-child{ margin-bottom:0; }
 .sqtac-side .sqtac-sec-l{ margin-bottom:4px; font-size:9px; }
 .sqtac-side .sqtac-chiprow{ gap:4px; }
 .sqtac-side .sqtac-chip{ padding:4px 8px; font-size:10px; }
 .sqtac-side .sqtac-chip-dot{ width:6px; height:6px; }
-.sqtac-side .sqtac-actrow{ gap:4px; }
-.sqtac-side .sqtac-act{ padding:5px 7px; font-size:10px; }
+/* actions on ONE row (same footprint as the opponent's single button) so the FC-side Quick Edit
+   is not pushed down — keeps both Players panels the same height. Same rule on both panels. */
+.sqtac-side .sqtac-actrow{ gap:3px; flex-wrap:nowrap; }
+.sqtac-side .sqtac-act{ padding:5px 4px; font-size:9px; min-width:0; }
 .sqtac-side .sqtac-focusrow{ margin-bottom:7px; gap:4px; }
 .sqtac-side .sqtac-bd-fbtn{ padding:4px 8px; font-size:10px; gap:5px; }
 .sqtac-side .sqtac-bd-fno{ width:14px; height:14px; font-size:8.5px; }
