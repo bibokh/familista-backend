@@ -3523,10 +3523,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* Players section → two dense columns so all 11 rows + Selected Focus stay visible without scrolling */
 .sqtac-side .sqtac-qedit .sqtac-players{ grid-template-columns:1fr 1fr; gap:1px 5px; }
 .sqtac-side .sqtac-qedit .sqtac-prow{ flex-direction:column; align-items:stretch; gap:0; }
-.sqtac-side .sqtac-qedit .sqtac-prow .sqtac-badge{ min-width:0; align-self:flex-start; padding:0 3px; font-size:8px; line-height:1.3; border-radius:4px; }
+.sqtac-side .sqtac-qedit .sqtac-prow .sqtac-badge{ min-width:0; align-self:flex-start; padding:0 3px; font-size:8px; line-height:1.2; border-radius:4px; }
 .sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg{ padding:1px; gap:1px; border-radius:6px; }
-.sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg-b{ padding:0 3px; font-size:7.5px; line-height:1.5; border-radius:4px; }
-.sqtac-side .sqtac-selfocus{ padding:3px 8px; font-size:10px; }
+.sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg-b{ padding:0 3px; font-size:7.5px; line-height:1.4; border-radius:4px; }
+.sqtac-side .sqtac-selfocus{ padding:2px 7px; font-size:9.5px; }
 .sqtac-side .sqtac-form-sel{ padding:4px 22px 4px 8px; font-size:10.5px; }
 @media (max-width:1240px){ .sqtac-side{ flex-basis:212px; max-width:212px; } }
 @media (max-width:1040px){ #sq-sub-tactics{ height:auto; overflow:visible; } #sq-sub-tactics .sq-sub-title-row{ display:flex; } #sqtac-body .sqtac-note,#sqtac-body .sqtac-summary{ display:block; } .sqtac-side{ flex-basis:100%; max-width:none; overflow:visible; } .sqtac-board .sqfp-pitch{ height:auto; width:min(860px,100%); aspect-ratio:3 / 2; } }
