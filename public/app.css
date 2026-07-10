@@ -3450,11 +3450,11 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 @media (max-width:1040px){ .sqtac-3col{ flex-direction:column; } .sqtac-side{ flex-basis:100%; max-width:none; order:3; } .sqtac-center{ flex-basis:100%; order:1; } .sqtac-side--left{ order:2; } .sqtac-side--right{ order:3; } }
 
 /* ── Team Balance widget — compact 2×2 stat grid; Balance updates live while dragging ── */
-.sqtac-bal{ display:flex; flex-direction:column; gap:5px; }
-.sqtac-bal-top{ display:flex; justify-content:space-between; align-items:center; font-size:10.5px; }
+.sqtac-bal{ display:flex; flex-direction:column; gap:4px; }
+.sqtac-bal-top{ display:flex; justify-content:space-between; align-items:center; font-size:10px; }
 .sqtac-bal-top span{ color:#8a94a6; font-weight:700; }
 .sqtac-bal-top b{ color:#eef2f8; font-weight:800; }
-.sqtac-bal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:5px 9px; }
+.sqtac-bal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:3px 9px; }
 .sqtac-bal2{ min-width:0; }
 .sqtac-bal2-top{ display:flex; justify-content:space-between; align-items:baseline; gap:4px; }
 .sqtac-bal2-top span{ font-size:8.5px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:#8a94a6; }
@@ -3477,10 +3477,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-chp.is-outpos::after{ content:"!"; position:absolute; top:-3px; right:9px; width:14px; height:14px; border-radius:50%; background:#f87171; color:#160406; font-size:10px; font-weight:900; line-height:14px; text-align:center; box-shadow:0 1px 4px rgba(0,0,0,.55); z-index:6; }
 /* ── One-screen tactical workspace: large centred pitch, slim non-scrolling side panels ── */
 #sq-sub-tactics{ display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
-#sq-sub-tactics .sq-sub-header{ flex:0 0 auto; padding:8px 22px 0; }
+#sq-sub-tactics .sq-sub-header{ flex:0 0 auto; padding:4px 22px 0; }
 #sq-sub-tactics .sq-sub-title-row{ display:none; }           /* redundant title — reclaim height for the pitch */
 #sqtac-body{ flex:0 0 auto; }
-#sqtac-body .sqtac-scroll{ padding:6px 22px 2px; max-width:none; }
+#sqtac-body .sqtac-scroll{ padding:3px 22px 2px; max-width:none; }
 #sqtac-body .sqtac-note{ display:none; }                     /* info duplicated in the side panels */
 #sqtac-body .sqtac-summary{ display:none; }
 #sqtac-body .sqtac-tabs{ margin:0; gap:6px; }
@@ -3521,11 +3521,11 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqtac-side .sqtac-qedit .sqtac-seg-b{ padding:3px 7px; font-size:10px; }
 .sqtac-side .sqtac-qedit .sqtac-team{ gap:5px; }
 /* Players section → two compact columns so all 11 rows stay visible without scrolling */
-.sqtac-side .sqtac-qedit .sqtac-players{ grid-template-columns:1fr 1fr; gap:4px 7px; }
-.sqtac-side .sqtac-qedit .sqtac-prow{ flex-direction:column; align-items:stretch; gap:2px; }
-.sqtac-side .sqtac-qedit .sqtac-prow .sqtac-badge{ min-width:0; align-self:flex-start; padding:1px 5px; font-size:9px; }
+.sqtac-side .sqtac-qedit .sqtac-players{ grid-template-columns:1fr 1fr; gap:3px 6px; }
+.sqtac-side .sqtac-qedit .sqtac-prow{ flex-direction:column; align-items:stretch; gap:1px; }
+.sqtac-side .sqtac-qedit .sqtac-prow .sqtac-badge{ min-width:0; align-self:flex-start; padding:0 4px; font-size:8.5px; line-height:1.5; }
 .sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg{ padding:1px; gap:1px; }
-.sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg-b{ padding:2px 4px; font-size:8.5px; }
+.sqtac-side .sqtac-qedit .sqtac-players .sqtac-seg-b{ padding:1px 4px; font-size:8px; }
 .sqtac-side .sqtac-selfocus{ padding:4px 9px; font-size:11px; }
 .sqtac-side .sqtac-form-sel{ padding:5px 24px 5px 9px; font-size:11px; }
 @media (max-width:1240px){ .sqtac-side{ flex-basis:212px; max-width:212px; } }
