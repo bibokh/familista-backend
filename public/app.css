@@ -3501,9 +3501,9 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 /* slim, NON-scrolling side panels — compressed into visible groups */
 .sqtac-side{ flex:0 0 244px; max-width:244px; max-height:100%; overflow:hidden; padding:6px 10px 7px; display:flex; flex-direction:column; }
 .sqtac-side-hd{ padding-bottom:4px; margin-bottom:4px; }
-.sqtac-side .sqtac-sec{ margin-bottom:4px; }
+.sqtac-side .sqtac-sec{ margin-bottom:3px; }
 .sqtac-side .sqtac-sec:last-child{ margin-bottom:0; }
-.sqtac-side .sqtac-sec-l{ margin-bottom:3px; font-size:8.5px; }
+.sqtac-side .sqtac-sec-l{ margin-bottom:2px; font-size:8.5px; }
 .sqtac-side .sqtac-chiprow{ gap:4px; }
 .sqtac-side .sqtac-chip{ padding:2px 6px; font-size:9.5px; }
 .sqtac-side .sqtac-chip-dot{ width:5px; height:5px; }
@@ -3511,10 +3511,10 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
    is not pushed down — keeps both Players panels the same height. Same rule on both panels. */
 .sqtac-side .sqtac-actrow{ gap:3px; flex-wrap:nowrap; }
 .sqtac-side .sqtac-act{ padding:5px 4px; font-size:9px; min-width:0; }
-.sqtac-side .sqtac-focusrow{ margin-bottom:4px; gap:3px; }
+.sqtac-side .sqtac-focusrow{ margin-bottom:3px; gap:3px; }
 .sqtac-side .sqtac-bd-fbtn{ padding:2px 6px; font-size:9.5px; gap:4px; }
 .sqtac-side .sqtac-bd-fno{ width:13px; height:13px; font-size:8px; }
-.sqtac-side .sqtac-qedit{ padding:5px; }
+.sqtac-side .sqtac-qedit{ padding:4px; }
 .sqtac-side .sqtac-qedit .sqtac-fields{ gap:7px; }
 .sqtac-side .sqtac-qedit .sqtac-field-l{ font-size:8.5px; }
 .sqtac-side .sqtac-qedit .sqtac-seg{ gap:2px; padding:2px; }
