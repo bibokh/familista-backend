@@ -8060,9 +8060,412 @@ function _deBind() {
     else if (a === 'play') { _dePlay(el.getAttribute('data-de')); }
   });
 }
+// ════════════════════════════════════════════════════════════════════════════
+// TRAINING CENTRE — AI Training Management Center (premium rebuild).
+// Multi-section workspace synced live to the shared squad / formation / tactics
+// state (SQ_DEMO_PLAYERS, SQ_FORM, SQ_TACTICS). The existing Drill Encyclopedia
+// is preserved as the "Drills" section. All derived numbers reuse the app's
+// deterministic-mock conventions (_sqSeed) — no stored data is changed.
+// ════════════════════════════════════════════════════════════════════════════
+var _TRN = { tab: 'dashboard', player: null };
+var _trnBound = false;
+var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Session Builder'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports']];
+var TRN_TYPE = {
+  match:     { c: '244,63,94',   l: 'Match' },
+  tactical:  { c: '167,139,250', l: 'Tactical' },
+  technical: { c: '52,211,153',  l: 'Technical' },
+  physical:  { c: '244,183,64',  l: 'Physical' },
+  gym:       { c: '251,146,60',  l: 'Gym' },
+  mental:    { c: '96,165,250',  l: 'Mental' },
+  recovery:  { c: '45,212,191',  l: 'Recovery' },
+  rest:      { c: '100,116,139', l: 'Rest' }
+};
+// weekly micro-cycle around a Saturday match day (MD)
+var TRN_WEEK = [
+  { d: 'Sun', type: 'rest',      title: 'Day Off',                 load: 0,   intensity: 'None',   focus: 'Full rest & family time',        dur: 0 },
+  { d: 'Mon', type: 'recovery',  title: 'Recovery & Regeneration', load: 210, intensity: 'Low',    focus: 'Pool, mobility, massage',        dur: 55 },
+  { d: 'Tue', type: 'technical', title: 'Technical & Possession',  load: 460, intensity: 'Medium', focus: 'Rondos, first touch, passing',   dur: 80 },
+  { d: 'Wed', type: 'tactical',  title: 'Tactical Shape · MD-3',   load: 620, intensity: 'High',   focus: 'Pressing traps & block shape',   dur: 90 },
+  { d: 'Thu', type: 'physical',  title: 'High-Intensity Physical', load: 680, intensity: 'High',   focus: 'Speed, power, small-sided games', dur: 85 },
+  { d: 'Fri', type: 'tactical',  title: 'Activation · MD-1',       load: 300, intensity: 'Low',    focus: 'Set pieces & match tempo',       dur: 60 },
+  { d: 'Sat', type: 'match',     title: 'Match Day',               load: 900, intensity: 'Max',    focus: 'Matchday vs opponent',           dur: 95 }
+];
+function _trnToday() { var i; try { i = new Date().getDay(); } catch (e) { i = 3; } return i; }
+function _trnLast(n) { return (typeof _sqLastName === 'function') ? _sqLastName(n) : String(n || '').split(' ').pop(); }
+function _trnClamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+// per-player training profile (deterministic, presentation-only)
+function _trnProfiles() {
+  return (SQ_DEMO_PLAYERS || []).map(function (p) {
+    var s = _sqSeed(p.id + ':trn') % 1000, s2 = _sqSeed(p.id + ':trn2') % 1000;
+    var avail = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+    var attend = avail === 'injured' ? 'injured' : avail === 'suspended' ? 'excused'
+      : (s % 100 < 6 ? 'late' : s % 100 < 9 ? 'excused' : s % 100 < 11 ? 'absent' : 'present');
+    var fitness = p.cond;
+    var fatigue = _trnClamp(Math.round(100 - p.cond + (s % 26) + (p.age - 24) * 0.7), 6, 96);
+    var sharpness = _trnClamp(Math.round(fitness * 0.5 + p.form * 5 + (s2 % 14) - 4), 30, 99);
+    var readiness = _trnClamp(Math.round(fitness - fatigue * 0.35 + p.form * 1.6), 20, 99);
+    var rating = _trnClamp(6.3 + (p.qual - 75) * 0.04 + (p.form - 6) * 0.12 + ((s2 % 20) - 10) * 0.03, 5.4, 9.7);
+    var effort = _trnClamp(Math.round(72 + (p.form - 5) * 3 + (s % 16)), 55, 99);
+    var improve = Math.round((s2 % 46) / 10 * 10) / 10;             // +0.0 .. +4.5 this week
+    var load = _trnClamp(Math.round(320 + (effort - 72) * 6 + (s % 190)), 180, 720);
+    var attendancePct = avail === 'injured' ? _trnClamp(60 + s % 20, 55, 82) : _trnClamp(88 + s2 % 12, 84, 100);
+    var seasonPct = _trnClamp(attendancePct - (s % 6), 70, 100);
+    var technical = _trnClamp(Math.round(p.qual - 4 + (p.cat === 'mf' || p.cat === 'fw' ? 5 : 0) + (s % 8)), 45, 99);
+    var tactical = _trnClamp(Math.round(p.qual - 6 + (p.cat === 'df' || p.pos === 'DM' ? 6 : 0) + (s2 % 8)), 45, 99);
+    var physical = _trnClamp(Math.round(p.qual - 5 + (p.cat === 'df' || p.cat === 'fw' ? 4 : 0) + (s % 9)), 45, 99);
+    return { p: p, avail: avail, attend: attend, fitness: fitness, fatigue: fatigue, sharpness: sharpness, readiness: readiness, rating: rating, effort: effort, improve: improve, load: load, attendancePct: attendancePct, seasonPct: seasonPct, technical: technical, tactical: tactical, physical: physical };
+  });
+}
+function _trnTeam() {
+  var ps = _trnProfiles(), n = ps.length || 1, sum = function (f) { var t = 0; ps.forEach(function (x) { t += f(x); }); return t; };
+  var fitness = Math.round(sum(function (x) { return x.fitness; }) / n);
+  var fatigue = Math.round(sum(function (x) { return x.fatigue; }) / n);
+  var sharpness = Math.round(sum(function (x) { return x.sharpness; }) / n);
+  var readiness = Math.round(sum(function (x) { return x.readiness; }) / n);
+  var rating = sum(function (x) { return x.rating; }) / n;
+  var effort = Math.round(sum(function (x) { return x.effort; }) / n);
+  var present = ps.filter(function (x) { return x.attend === 'present' || x.attend === 'late'; }).length;
+  var attendance = Math.round(present / n * 100);
+  var injured = ps.filter(function (x) { return x.avail === 'injured'; }).length;
+  var acute = sum(function (x) { return x.load; });
+  var chronic = Math.round(acute * 0.9);
+  var acwr = Math.round(acute / (chronic || 1) * 100) / 100;
+  var risk = (fatigue >= 62 || injured >= 3) ? 'High' : (fatigue >= 48 || injured >= 1) ? 'Moderate' : 'Low';
+  var riskPct = _trnClamp(Math.round(fatigue * 0.7 + injured * 8 + (acwr > 1.3 ? 12 : 0)), 6, 96);
+  return { ps: ps, n: n, fitness: fitness, fatigue: fatigue, sharpness: sharpness, readiness: readiness, rating: rating, effort: effort, attendance: attendance, present: present, injured: injured, acute: acute, chronic: chronic, acwr: acwr, risk: risk, riskPct: riskPct, weeklyLoad: acute };
+}
+// ── small UI atoms ──
+function _trnTone(v) { return v >= 75 ? 'adv' : v >= 55 ? 'bal' : v >= 40 ? 'slt' : 'risk'; }
+function _trnStat(label, val, sub, tone) {
+  return '<div class="trn-stat trn-stat--' + (tone || 'n') + '"><span class="trn-stat-l">' + label + '</span>'
+    + '<span class="trn-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
+}
+function _trnBar(label, pct, tone, right) {
+  var p = _trnClamp(Math.round(pct), 2, 100);
+  return '<div class="trn-mtr trn-mtr--' + (tone || _trnTone(pct)) + '"><span class="trn-mtr-l">' + label + '</span>'
+    + '<span class="trn-mtr-track"><i style="width:' + p + '%"></i></span>'
+    + '<b class="trn-mtr-v">' + (right == null ? p + '%' : right) + '</b></div>';
+}
+function _trnRing(pct, label, unit, tone) {
+  var p = _trnClamp(Math.round(pct), 0, 100), r = 30, c = 2 * Math.PI * r, off = c * (1 - p / 100);
+  var col = tone === 'risk' ? '#fb7185' : tone === 'slt' ? '#fbbf24' : tone === 'bal' ? '#60a5fa' : '#4ade80';
+  return '<div class="trn-ring"><svg viewBox="0 0 76 76" width="76" height="76" aria-hidden="true"><circle cx="38" cy="38" r="' + r + '" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="6"/>'
+    + '<circle cx="38" cy="38" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + c.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 38 38)"/></svg>'
+    + '<span class="trn-ring-c"><b style="color:' + col + '">' + p + (unit || '') + '</b></span></div><span class="trn-ring-l">' + label + '</span>';
+}
+function _trnPanel(title, tag, inner, cls) {
+  return '<section class="trn-panel ' + (cls || '') + '"><div class="trn-panel-h"><h3>' + title + '</h3>' + (tag ? '<span class="trn-panel-tag">' + tag + '</span>' : '') + '</div><div class="trn-panel-b">' + inner + '</div></section>';
+}
+function _trnSpark(vals, col) {
+  var w = 240, h = 46, mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals), rg = (mx - mn) || 1;
+  var pts = vals.map(function (v, i) { return (i / (vals.length - 1) * w).toFixed(1) + ',' + (h - 4 - (v - mn) / rg * (h - 10)).toFixed(1); }).join(' ');
+  var area = '0,' + h + ' ' + pts + ' ' + w + ',' + h;
+  return '<svg class="trn-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none"><polygon points="' + area + '" fill="rgba(' + col + ',.14)"/><polyline points="' + pts + '" fill="none" stroke="rgb(' + col + ')" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function _trnAvatar(p) {
+  return '<span class="trn-av trn-av--' + p.cat + '">' + (p.photo ? '<img src="' + _sqEsc(p.photo) + '" alt="">' : _sqInitials(p.name)) + '</span>';
+}
+// ── AI recommendation engine (reads tactics + fitness + formation) ──
+function _trnAIRecs() {
+  var t = _trnTeam(), tac = SQ_TACTICS || {}, feel = (typeof _sqTeamFeel === 'function') ? _sqTeamFeel() : { attacking: 78, defensive: 78 };
+  var recs = [];
+  function rec(sev, icon, title, body) { recs.push({ sev: sev, icon: icon, title: title, body: body }); }
+  if (t.fatigue >= 55) rec('high', '&#128564;', 'Recovery needed', 'Squad fatigue is at ' + t.fatigue + '%. Insert an extra regeneration block and reduce Thursday intensity.');
+  if (t.injured >= 1) rec('high', '&#127973;', 'Rest key players', t.injured + ' player(s) flagged in the medical room — keep them on individual reconditioning, not full contact.');
+  if (feel.defensive < 74) rec('med', '&#128737;', 'Weak defending', 'Defensive rating is ' + feel.defensive + '. Add defensive-shape and pressing-trap drills this week.');
+  if ((tac.pressLine === 'High' || tac.mentality === 'Attacking' || tac.mentality === 'All Out Attack')) rec('med', '&#9889;', 'Prepare high press', 'Your press line is aggressive — train pressing triggers and rest-defence to cover the space in behind.');
+  if (feel.attacking < 78) rec('med', '&#127919;', 'Increase finishing', 'Sharpen the front line with finishing and small-sided games in the final third.');
+  rec('low', '&#128260;', 'Train transitions', 'Rehearse ' + (tac.transWon || 'counter-attack') + ' after winning it and ' + (tac.transLost || 'counter-press') + ' on loss to match your tactical plan.');
+  rec('low', '&#129309;', 'Improve chemistry', 'Team-bonding and positional-play sessions will lift chemistry across the ' + (SQ_FORM.myFormation || '4-3-3') + '.');
+  return recs;
+}
+// formation → recommended drill categories
+function _trnFormationFocus() {
+  var f = SQ_FORM.myFormation || '4-3-3';
+  var map = {
+    '4-3-3': ['Wide overloads & inverted wingers', 'Midfield rondos (3v1 / 4v2)', 'High-press triggers'],
+    '4-4-2': ['Strike-partnership combinations', 'Compact two banks of four', 'Direct transition play'],
+    '3-5-2': ['Wing-back stamina & overlaps', 'Central overloads', 'Back-three covering angles'],
+    '4-2-3-1': ['No.10 pockets of space', 'Double-pivot screening', 'Final-third creativity'],
+    '5-3-2': ['Low-block compactness', 'Counter-attacking outlets', 'Wing-back recovery runs']
+  };
+  return { f: f, items: map[f] || map['4-3-3'] };
+}
+// ── section renderers ──
+function _trnDashboard() {
+  var t = _trnTeam(), today = TRN_WEEK[_trnToday()], nxt = TRN_WEEK[(_trnToday() + 1) % 7];
+  var recs = _trnAIRecs(), topRec = recs[0];
+  var cards = '<div class="trn-dash">'
+    + _trnStat('Today\'s training', '<span class="trn-badge" style="--c:' + TRN_TYPE[today.type].c + '">' + TRN_TYPE[today.type].l + '</span>', '', 'blue')
+    + _trnStat('Next session', nxt.d + ' · <span class="trn-badge" style="--c:' + TRN_TYPE[nxt.type].c + '">' + TRN_TYPE[nxt.type].l + '</span>', '', 'violet')
+    + _trnStat('Weekly load', t.weeklyLoad, '<i>AU</i>', 'amber')
+    + _trnStat('Team fitness', t.fitness, '<i>%</i>', 'green')
+    + _trnStat('Team fatigue', t.fatigue, '<i>%</i>', t.fatigue >= 55 ? 'red' : 'teal')
+    + _trnStat('Team sharpness', t.sharpness, '<i>%</i>', 'green')
+    + _trnStat('Attendance', t.attendance, '<i>%</i>', 'blue')
+    + _trnStat('Average rating', t.rating.toFixed(2), '<i>/10</i>', 'green')
+    + _trnStat('AI recommendation', '<span class="trn-badge" style="--c:' + (topRec.sev === 'high' ? '251,113,133' : '244,183,64') + '">' + topRec.title + '</span>', '', 'violet')
+    + _trnStat('Injury risk', t.risk, '<i>' + t.riskPct + '%</i>', t.risk === 'High' ? 'red' : t.risk === 'Moderate' ? 'amber' : 'green')
+    + '</div>';
+  // AI banner
+  var banner = '<div class="trn-aibanner"><span class="trn-aibanner-ic">' + topRec.icon + '</span><div><b>AI Coach · ' + topRec.title + '</b><p>' + topRec.body + '</p></div><button class="trn-aibanner-go" data-trn-tab="ai" type="button">Open AI Coach &#8250;</button></div>';
+  // week strip
+  var ti = _trnToday();
+  var strip = '<div class="trn-weekstrip">' + TRN_WEEK.map(function (d, i) {
+    return '<div class="trn-wk' + (i === ti ? ' is-today' : '') + '" style="--c:' + TRN_TYPE[d.type].c + '"><span class="trn-wk-d">' + d.d + '</span><span class="trn-wk-dot"></span><span class="trn-wk-t">' + TRN_TYPE[d.type].l + '</span><span class="trn-wk-load">' + (d.load || '–') + '</span></div>';
+  }).join('') + '</div>';
+  // best players podium
+  var best = _trnBestPlayers();
+  var podium = '<div class="trn-podium">' + best.today.slice(0, 3).map(function (b, i) {
+    return '<div class="trn-pod trn-pod--' + (i + 1) + '"><span class="trn-medal">' + (i === 0 ? '&#129351;' : i === 1 ? '&#129352;' : '&#129353;') + '</span>' + _trnAvatar(b.p) + '<span class="trn-pod-nm">' + _sqEsc(_trnLast(b.p.name)) + '</span><span class="trn-pod-v">' + b.rating.toFixed(2) + '</span></div>';
+  }).join('') + '</div>';
+  var awards = '<div class="trn-awards">' + best.awards.map(function (a) {
+    return '<div class="trn-award"><span class="trn-award-l">' + a.label + '</span><span class="trn-award-p">' + _trnAvatar(a.x.p) + '<b>' + _sqEsc(_trnLast(a.x.p.name)) + '</b></span><span class="trn-award-v">' + a.val + '</span></div>';
+  }).join('') + '</div>';
+  return banner + cards
+    + '<div class="trn-grid2">'
+    + _trnPanel('This week &middot; micro-cycle', (SQ_FORM.myFormation || '4-3-3') + ' &middot; ' + (SQ_TACTICS.style || 'Balanced'), strip)
+    + _trnPanel('Team readiness', t.readiness + '%', '<div class="trn-readrow">' + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + _trnRing(t.fitness, 'Fitness', '%', _trnTone(t.fitness)) + _trnRing(100 - t.fatigue, 'Freshness', '%', _trnTone(100 - t.fatigue)) + _trnRing(t.sharpness, 'Sharpness', '%', _trnTone(t.sharpness)) + '</div>')
+    + '</div>'
+    + '<div class="trn-grid2">'
+    + _trnPanel('Best training players &middot; today', 'Podium', podium)
+    + _trnPanel('Session leaders', 'Awards', awards)
+    + '</div>';
+}
+function _trnBestPlayers() {
+  var ps = _trnProfiles();
+  function top(f) { return ps.slice().sort(function (a, b) { return f(b) - f(a); })[0]; }
+  var today = ps.slice().sort(function (a, b) { return b.rating - a.rating; });
+  var awards = [
+    { label: 'Most improved', x: top(function (x) { return x.improve; }), val: '+' + top(function (x) { return x.improve; }).improve.toFixed(1) },
+    { label: 'Hardest worker', x: top(function (x) { return x.effort; }), val: top(function (x) { return x.effort; }).effort + '%' },
+    { label: 'Highest attendance', x: top(function (x) { return x.seasonPct; }), val: top(function (x) { return x.seasonPct; }).seasonPct + '%' },
+    { label: 'Best fitness', x: top(function (x) { return x.fitness; }), val: top(function (x) { return x.fitness; }).fitness + '%' },
+    { label: 'Best technical', x: top(function (x) { return x.technical; }), val: top(function (x) { return x.technical; }).technical },
+    { label: 'Best tactical', x: top(function (x) { return x.tactical; }), val: top(function (x) { return x.tactical; }).tactical },
+    { label: 'Most consistent', x: top(function (x) { return x.rating + x.seasonPct / 20; }), val: top(function (x) { return x.rating + x.seasonPct / 20; }).rating.toFixed(2) }
+  ];
+  return { today: today, awards: awards };
+}
+function _trnCalendar() {
+  var ti = _trnToday();
+  var week = '<div class="trn-cal-week">' + TRN_WEEK.map(function (d, i) {
+    var tt = TRN_TYPE[d.type];
+    return '<div class="trn-cal-day' + (i === ti ? ' is-today' : '') + '" style="--c:' + tt.c + '">'
+      + '<div class="trn-cal-day-h"><span>' + d.d + '</span>' + (i === ti ? '<em>Today</em>' : '') + '</div>'
+      + '<div class="trn-cal-card"><span class="trn-badge" style="--c:' + tt.c + '">' + tt.l + '</span>'
+      + '<b class="trn-cal-ttl">' + d.title + '</b><span class="trn-cal-focus">' + d.focus + '</span>'
+      + '<div class="trn-cal-meta"><span>&#9201; ' + (d.dur ? d.dur + '\'' : '—') + '</span><span>&#9889; ' + d.intensity + '</span><span>' + (d.load ? d.load + ' AU' : '—') + '</span></div></div></div>';
+  }).join('') + '</div>';
+  // month grid (4 weeks) — repeating micro-cycle with a couple of gym/mental days
+  var monthTypes = ['recovery', 'technical', 'tactical', 'physical', 'tactical', 'match', 'rest'];
+  var cells = '';
+  for (var wk = 0; wk < 4; wk++) for (var dd = 0; dd < 7; dd++) {
+    var ty = (wk === 1 && dd === 1) ? 'gym' : (wk === 2 && dd === 3) ? 'mental' : monthTypes[dd];
+    var tt2 = TRN_TYPE[ty];
+    cells += '<div class="trn-mo-cell" style="--c:' + tt2.c + '" title="' + tt2.l + '"><span class="trn-mo-n">' + (wk * 7 + dd + 1) + '</span><span class="trn-mo-dot"></span></div>';
+  }
+  var legend = '<div class="trn-legend">' + Object.keys(TRN_TYPE).map(function (k) { return '<span class="trn-leg"><i style="background:rgb(' + TRN_TYPE[k].c + ')"></i>' + TRN_TYPE[k].l + '</span>'; }).join('') + '</div>';
+  return _trnPanel('Weekly schedule', 'Drag sessions to re-plan', week)
+    + '<div class="trn-grid2">'
+    + _trnPanel('Monthly schedule', 'Match days &middot; recovery &middot; gym &middot; mental', '<div class="trn-mo-head">' + ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</div><div class="trn-mo-grid">' + cells + '</div>')
+    + _trnPanel('Session types', 'Legend', legend + '<p class="trn-note">The plan auto-adapts to the next fixture — match day sets the MD-countdown intensity curve (MD-3 peak, MD-1 activation).</p>')
+    + '</div>';
+}
+function _trnSessions() {
+  var blocks = [
+    ['Warm Up', 'recovery', 15, 'Low', 'Full squad', 'Cones, ladders', 120, 88],
+    ['Technical', 'technical', 20, 'Medium', 'Full squad', 'Balls, mannequins', 260, 91],
+    ['Tactical', 'tactical', 25, 'High', 'Outfield 10', 'Poles, bibs', 380, 94],
+    ['Physical', 'physical', 20, 'High', 'Full squad', 'GPS vests, hurdles', 420, 90],
+    ['Small-Sided Games', 'tactical', 20, 'High', '8v8', 'Mini-goals', 400, 95],
+    ['Finishing', 'technical', 15, 'Medium', 'Attackers + GK', 'Balls, goals', 240, 92],
+    ['Recovery', 'recovery', 10, 'Low', 'Full squad', 'Foam rollers', 70, 86]
+  ];
+  var totalDur = 0, totalLoad = 0, aiSum = 0;
+  var chain = blocks.map(function (b, i) {
+    totalDur += b[2]; totalLoad += b[6]; aiSum += b[7];
+    var tt = TRN_TYPE[b[1]];
+    return (i ? '<div class="trn-arrow">&#8595;</div>' : '')
+      + '<div class="trn-block" style="--c:' + tt.c + '" draggable="true">'
+      + '<div class="trn-block-h"><span class="trn-block-no">' + (i + 1) + '</span><b>' + b[0] + '</b><span class="trn-block-ai">AI ' + b[7] + '</span></div>'
+      + '<div class="trn-block-m"><span>&#9201; ' + b[2] + '\'</span><span>&#9889; ' + b[3] + '</span><span>&#128101; ' + b[4] + '</span></div>'
+      + '<div class="trn-block-m trn-block-m--sub"><span>&#128296; ' + b[5] + '</span><span>Load ' + b[6] + ' AU</span></div>'
+      + '<span class="trn-block-bar"><i style="width:' + Math.round(b[6] / 420 * 100) + '%;background:rgb(' + tt.c + ')"></i></span>'
+      + '</div>';
+  }).join('');
+  var aiScore = Math.round(aiSum / blocks.length);
+  var summary = '<div class="trn-sess-sum">'
+    + _trnStat('Total duration', totalDur, '<i>min</i>', 'blue')
+    + _trnStat('Expected load', totalLoad, '<i>AU</i>', 'amber')
+    + _trnStat('Blocks', blocks.length, '', 'violet')
+    + _trnStat('Session AI score', aiScore, '<i>/100</i>', 'green')
+    + '</div>';
+  var palette = '<div class="trn-palette">' + ['Warm Up', 'Technical', 'Tactical', 'Physical', 'Small-Sided Games', 'Finishing', 'Set Pieces', 'Recovery', 'Gym', 'Mental'].map(function (x) { return '<span class="trn-pal">+ ' + x + '</span>'; }).join('') + '</div>';
+  return summary
+    + '<div class="trn-grid-sess">'
+    + _trnPanel('Session builder', TRN_WEEK[_trnToday()].title, '<div class="trn-chain">' + chain + '</div>')
+    + _trnPanel('Add block', 'Drag into the session', palette + '<p class="trn-note">Every block carries duration, intensity, players, equipment and an expected training load. The AI score rates block sequencing against today\'s MD-plan and squad readiness.</p>' + _trnPanel('Load curve', '', '<div class="trn-loadcurve">' + blocks.map(function (b) { var tt = TRN_TYPE[b[1]]; return '<span style="height:' + Math.round(b[6] / 420 * 100) + '%;background:rgb(' + tt.c + ')" title="' + b[0] + '"></span>'; }).join('') + '</div>'))
+    + '</div>';
+}
+function _trnDrills() {
+  _DE_SEL = _DE_SEL || null;
+  return '<div class="trn-drills"><div class="de-root" id="de-root">' + _deInner() + '</div></div>';
+}
+function _trnAttendance() {
+  var ps = _trnProfiles();
+  var lab = { present: ['Present', 'ok'], late: ['Late', 'late'], excused: ['Excused', 'exc'], absent: ['Absent', 'abs'], injured: ['Injured', 'inj'] };
+  var counts = { present: 0, late: 0, excused: 0, absent: 0, injured: 0 };
+  ps.forEach(function (x) { counts[x.attend]++; });
+  var summary = '<div class="trn-att-sum">'
+    + _trnStat('Present', counts.present, '', 'green')
+    + _trnStat('Late', counts.late, '', 'amber')
+    + _trnStat('Excused', counts.excused, '', 'blue')
+    + _trnStat('Absent', counts.absent, '', counts.absent ? 'red' : 'muted')
+    + _trnStat('Injured', counts.injured, '', counts.injured ? 'red' : 'muted')
+    + _trnStat('Attendance', Math.round((counts.present + counts.late) / (ps.length || 1) * 100), '<i>%</i>', 'green')
+    + '</div>';
+  var rows = ps.map(function (x) {
+    var l = lab[x.attend];
+    var note = x.attend === 'injured' ? 'Medical room · reconditioning' : x.attend === 'late' ? 'Arrived 10\' late' : x.attend === 'excused' ? 'Permission granted' : x.attend === 'absent' ? 'Unexcused — follow up' : 'On time, full effort';
+    return '<tr class="trn-att-row"><td class="trn-att-p">' + _trnAvatar(x.p) + '<span><b>' + _sqEsc(_trnLast(x.p.name)) + '</b><i>' + x.p.pos + ' · #' + x.p.num + '</i></span></td>'
+      + '<td><span class="trn-att-badge trn-att-badge--' + l[1] + '">' + l[0] + '</span></td>'
+      + '<td class="trn-att-note">' + note + '</td>'
+      + '<td class="trn-att-pct"><span class="trn-mini"><i style="width:' + x.attendancePct + '%"></i></span>' + x.attendancePct + '%</td>'
+      + '<td class="trn-att-pct"><span class="trn-mini"><i style="width:' + x.seasonPct + '%"></i></span>' + x.seasonPct + '%</td></tr>';
+  }).join('');
+  var table = '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Player</th><th>Status</th><th>Note</th><th>Month %</th><th>Season %</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  return summary + _trnPanel('Attendance register &middot; today', ps.length + ' players', table);
+}
+function _trnLoad() {
+  var t = _trnTeam();
+  var acwrTone = (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'adv' : (t.acwr > 1.5 || t.acwr < 0.6) ? 'risk' : 'slt';
+  var gauges = '<div class="trn-gauges">'
+    + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.acute / 40, 0, 100), 'Acute load', '', 'bal') + '<em>' + t.acute + ' AU</em></div>'
+    + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.chronic / 40, 0, 100), 'Chronic load', '', 'bal') + '<em>' + t.chronic + ' AU</em></div>'
+    + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.acwr / 2 * 100, 0, 100), 'ACWR', '', acwrTone) + '<em>' + t.acwr.toFixed(2) + '</em></div>'
+    + '<div class="trn-gauge">' + _trnRing(t.fatigue, 'Fatigue', '%', t.fatigue >= 55 ? 'risk' : 'slt') + '<em>' + (t.fatigue >= 55 ? 'Elevated' : 'Normal') + '</em></div>'
+    + '<div class="trn-gauge">' + _trnRing(100 - t.fatigue, 'Recovery', '%', _trnTone(100 - t.fatigue)) + '<em>Regen</em></div>'
+    + '<div class="trn-gauge">' + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + '<em>' + (t.readiness >= 70 ? 'Match-ready' : 'Managed') + '</em></div>'
+    + '</div>';
+  var metrics = [['Sprint load', 74, '2.4k m'], ['Acceleration', 68, '312 efforts'], ['Distance', 82, '9.6 km/pl'], ['High-speed running', 71, '640 m/pl'], ['Explosive actions', 66, '48/pl']];
+  var bars = metrics.map(function (m) { return _trnBar(m[0], m[1], _trnTone(m[1]), m[2]); }).join('');
+  // 14-day team load trend
+  var trend = []; for (var i = 0; i < 14; i++) { trend.push(280 + (_sqSeed('load' + i) % 260)); }
+  var spark = '<div class="trn-trend">' + _trnSpark(trend, '96,165,250') + '<div class="trn-trend-x"><span>2 wks ago</span><span>Today</span></div></div>';
+  var players = t.ps.slice().sort(function (a, b) { return a.readiness - b.readiness; }).slice(0, 8).map(function (x) {
+    return '<div class="trn-readp"><span class="trn-readp-nm">' + _trnAvatar(x.p) + _sqEsc(_trnLast(x.p.name)) + '</span><span class="trn-mini trn-mini--wide"><i class="trn-mini--' + _trnTone(x.readiness) + '" style="width:' + x.readiness + '%"></i></span><b>' + x.readiness + '%</b></div>';
+  }).join('');
+  return _trnPanel('Team load monitoring', 'Acute : Chronic Workload Ratio', gauges)
+    + '<div class="trn-grid2">'
+    + _trnPanel('GPS output', 'Per player · last session', '<div class="trn-loadbars">' + bars + '</div>')
+    + _trnPanel('14-day load trend', t.weeklyLoad + ' AU this week', spark)
+    + '</div>'
+    + _trnPanel('Player readiness watch', 'Lowest first · manage minutes', '<div class="trn-readlist">' + players + '</div>');
+}
+function _trnIndividual() {
+  var ps = _trnProfiles();
+  var sel = _TRN.player && ps.filter(function (x) { return x.p.id === _TRN.player; })[0];
+  if (!sel) sel = ps.slice().sort(function (a, b) { return b.improve - a.improve; })[0];
+  var chips = ps.map(function (x) { return '<button class="trn-pchip' + (x.p.id === sel.p.id ? ' is-on' : '') + '" data-trn-act="player" data-trn-id="' + x.p.id + '" type="button">' + _trnAvatar(x.p) + _sqEsc(_trnLast(x.p.name)) + '</button>'; }).join('');
+  var p = sel.p, s = _sqSeed(p.id + ':attr');
+  var attrs = [['Weak foot', 42], ['Passing', 12], ['Speed', 30], ['Strength', 24], ['Stamina', 18], ['Vision', 8], ['Finishing', p.cat === 'fw' ? 6 : 40], ['Heading', 26], ['Dribbling', 14], ['Defending', p.cat === 'df' ? 4 : 44], ['Mental', 16], ['Leadership', p.captain ? 4 : 30]];
+  var bars = attrs.map(function (a, i) {
+    var base = _trnClamp(p.qual - a[1] + (_sqSeed(p.id + a[0]) % 10), 30, 95);
+    var delta = Math.round((_sqSeed(p.id + a[0] + 'd') % 20) / 10 * 10) / 10;
+    return '<div class="trn-attr"><span class="trn-attr-l">' + a[0] + '</span><span class="trn-attr-track"><i class="trn-mini--' + _trnTone(base) + '" style="width:' + base + '%"></i></span><b>' + base + '</b><em class="trn-attr-d">+' + delta.toFixed(1) + '</em></div>';
+  }).join('');
+  var focusPool = ['Weak-foot finishing', 'First-touch under pressure', 'Explosive acceleration', 'Aerial duels', 'Vision & through-balls', 'Defensive positioning', 'Long-range shooting', 'Ball retention'];
+  var focus = focusPool[s % focusPool.length];
+  var head = '<div class="trn-ind-head">' + _trnAvatar(p) + '<div class="trn-ind-id"><b>' + _sqEsc(p.name) + '</b><span>' + p.pos + ' · ' + p.roles + ' · ' + p.age + ' yrs</span></div>'
+    + '<div class="trn-ind-focus"><span>Personal focus</span><b>' + focus + '</b></div>'
+    + '<div class="trn-ind-kpi">' + _trnStat('Weekly gain', '+' + sel.improve.toFixed(1), '', 'green') + _trnStat('Effort', sel.effort, '<i>%</i>', 'amber') + _trnStat('Rating', sel.rating.toFixed(2), '', 'blue') + '</div></div>';
+  return '<div class="trn-pselect">' + chips + '</div>'
+    + _trnPanel('Individual programme', p.pos + ' · ' + p.qual + ' OVR', head + '<div class="trn-attrs">' + bars + '</div>');
+}
+function _trnAI() {
+  var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = SQ_TACTICS || {};
+  var list = recs.map(function (r) {
+    return '<div class="trn-rec trn-rec--' + r.sev + '"><span class="trn-rec-ic">' + r.icon + '</span><div class="trn-rec-b"><b>' + r.title + '</b><p>' + r.body + '</p></div><span class="trn-rec-sev">' + (r.sev === 'high' ? 'Priority' : r.sev === 'med' ? 'Advised' : 'Optional') + '</span></div>';
+  }).join('');
+  var tactical = '<div class="trn-tac-int"><div class="trn-tac-head"><span class="trn-badge" style="--c:167,139,250">' + ff.f + '</span> recommended focus</div>'
+    + '<ul class="trn-tac-list">' + ff.items.map(function (x) { return '<li>&#9656; ' + x + '</li>'; }).join('') + '</ul>'
+    + '<div class="trn-tac-chips">' + [['Mentality', tac.mentality || 'Balanced'], ['Pressing', tac.pressLine || 'Medium'], ['Possession', tac.style || 'Balanced'], ['Transitions', tac.transWon || 'Counter'], ['Width', tac.width || 'Balanced'], ['Def line', tac.defLine || 'Standard']].map(function (c) { return '<span class="trn-tac-chip"><i>' + c[0] + '</i><b>' + _sqEsc(c[1]) + '</b></span>'; }).join('') + '</div></div>';
+  var t = _trnTeam();
+  var medical = '<div class="trn-med">' + [['Fitness', t.fitness + '%', _trnTone(t.fitness)], ['Fatigue', t.fatigue + '%', t.fatigue >= 55 ? 'risk' : 'slt'], ['Injury risk', t.risk, t.risk === 'High' ? 'risk' : t.risk === 'Moderate' ? 'slt' : 'adv'], ['In medical room', t.injured + '', t.injured ? 'risk' : 'adv'], ['Est. return-to-play', (t.injured ? (7 + (t.injured * 3)) + ' days' : 'None'), 'bal']].map(function (m) { return '<div class="trn-med-row trn-med-row--' + m[2] + '"><span>' + m[0] + '</span><b>' + m[1] + '</b></div>'; }).join('') + '</div>';
+  return _trnPanel('AI training recommendations', 'Reads tactics · fitness · calendar', '<div class="trn-recs">' + list + '</div>')
+    + '<div class="trn-grid2">'
+    + _trnPanel('Tactical integration', 'Auto-synced to Formation & Tactics', tactical)
+    + _trnPanel('Medical integration', 'Training ↔ fitness ↔ availability', medical)
+    + '</div>';
+}
+function _trnReports() {
+  var t = _trnTeam(), feel = (typeof _sqTeamFeel === 'function') ? _sqTeamFeel() : { attacking: 78, defensive: 78, tacticalBalance: 82 };
+  var report = function (title, tag, rows) { return '<div class="trn-report"><div class="trn-report-h"><b>' + title + '</b><span>' + tag + '</span></div>' + rows + '<button class="trn-report-pdf" type="button">&#128196; Export PDF</button></div>'; };
+  function line(l, v) { return '<div class="trn-report-l"><span>' + l + '</span><b>' + v + '</b></div>'; }
+  var daily = report('Daily report', new Date().toDateString().slice(0, 10) || 'Today', line('Session', TRN_WEEK[_trnToday()].title) + line('Attendance', t.attendance + '%') + line('Avg rating', t.rating.toFixed(2)) + line('Load', TRN_WEEK[_trnToday()].load + ' AU'));
+  var weekly = report('Weekly report', 'Micro-cycle', line('Weekly load', t.weeklyLoad + ' AU') + line('ACWR', t.acwr.toFixed(2)) + line('Sharpness', t.sharpness + '%') + line('Injury risk', t.risk));
+  var monthly = report('Monthly report', '4-week block', line('Avg attendance', (t.attendance - 2) + '%') + line('Fitness trend', '+4%') + line('Improvement', '+2.3 avg') + line('Sessions', '22'));
+  var season = report('Season report', '2025/26', line('Total sessions', '138') + line('Avg attendance', '93%') + line('Squad fitness', t.fitness + '%') + line('Team rating', t.rating.toFixed(2)));
+  var analytics = [['Attendance', t.attendance], ['Training load', _trnClamp(t.weeklyLoad / 40, 0, 100)], ['Improvement', 68], ['Fitness', t.fitness], ['Morale', Math.round(t.ps.reduce(function (a, x) { return a + _sqMoralePct(x.p.morale); }, 0) / t.n)], ['Tactical progress', feel.tacticalBalance || 82], ['Technical progress', Math.round(t.ps.reduce(function (a, x) { return a + x.technical; }, 0) / t.n)], ['Physical progress', Math.round(t.ps.reduce(function (a, x) { return a + x.physical; }, 0) / t.n)]];
+  var bars = analytics.map(function (a) { return _trnBar(a[0], a[1], _trnTone(a[1])); }).join('');
+  return '<div class="trn-reports">' + daily + weekly + monthly + season + '</div>'
+    + _trnPanel('Coach analytics', 'Season progress', '<div class="trn-analytics">' + bars + '</div>');
+}
+function _trnHead() {
+  var t = _trnTeam();
+  return '<div class="trn-head"><div class="trn-head-id"><span class="trn-head-ic">' + TRN_TABS_ICON + '</span><div><h1>Training Centre</h1><p>AI training management · synced with Lineup, Formation &amp; Tactics</p></div></div>'
+    + '<div class="trn-head-chips">'
+    + '<span class="trn-hchip"><i>Formation</i><b>' + (SQ_FORM.myFormation || '4-3-3') + '</b></span>'
+    + '<span class="trn-hchip"><i>Style</i><b>' + (SQ_TACTICS.style || 'Balanced') + '</b></span>'
+    + '<span class="trn-hchip"><i>Fitness</i><b>' + t.fitness + '%</b></span>'
+    + '<span class="trn-hchip"><i>Readiness</i><b>' + t.readiness + '%</b></span>'
+    + '<span class="trn-hchip trn-hchip--' + (t.risk === 'High' ? 'risk' : t.risk === 'Moderate' ? 'slt' : 'adv') + '"><i>Injury risk</i><b>' + t.risk + '</b></span>'
+    + '</div></div>';
+}
+var TRN_TABS_ICON = '<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>';
+function _trnNav() {
+  return '<div class="trn-nav">' + TRN_TABS.map(function (x) { return '<button class="trn-tab' + (_TRN.tab === x[0] ? ' is-active' : '') + '" data-trn-tab="' + x[0] + '" type="button">' + x[1] + '</button>'; }).join('') + '</div>';
+}
+function _trnBody() {
+  switch (_TRN.tab) {
+    case 'calendar': return _trnCalendar();
+    case 'sessions': return _trnSessions();
+    case 'drills': return _trnDrills();
+    case 'attendance': return _trnAttendance();
+    case 'load': return _trnLoad();
+    case 'individual': return _trnIndividual();
+    case 'ai': return _trnAI();
+    case 'reports': return _trnReports();
+    default: return _trnDashboard();
+  }
+}
+function _trnInner() { return _trnHead() + _trnNav() + '<div class="trn-bodywrap" id="trn-body">' + _trnBody() + '</div>'; }
+function _trnRender() {
+  var b = document.getElementById('trn-body'); if (b) { b.innerHTML = _trnBody(); b.scrollTop = 0; }
+  var nav = document.querySelector('.trn-nav'); if (nav) { var bs = nav.querySelectorAll('.trn-tab'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('is-active', bs[i].getAttribute('data-trn-tab') === _TRN.tab); }
+  var hd = document.querySelector('.trn-head'); if (hd) { var nh = _trnHead(); var tmp = document.createElement('div'); tmp.innerHTML = nh; if (tmp.firstChild) hd.parentNode.replaceChild(tmp.firstChild, hd); }
+}
+function _trnAction(act, el) {
+  if (act === 'player') { _TRN.player = el.getAttribute('data-trn-id'); _trnRender(); }
+}
+function _trnBind() {
+  if (_trnBound || typeof document === 'undefined' || !document.addEventListener) return; _trnBound = true;
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-trn-tab],[data-trn-act]');
+    if (!el) return;
+    var tab = el.getAttribute('data-trn-tab');
+    if (tab) { _TRN.tab = tab; _trnRender(); }
+    else { _trnAction(el.getAttribute('data-trn-act'), el); }
+  });
+}
 function renderTrainingWorkspaceHTML() {
-  _DE_SEL = null; _deBind();
-  return '<div class="page" id="pg-training"><div class="de-root" id="de-root">' + _deInner() + '</div></div>';
+  _DE_SEL = null;
+  if (typeof _sqLoad === 'function') _sqLoad();
+  if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
+  if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // build shared board so _sqMyStats/_sqTeamFeel sync
+  _deBind(); _trnBind();
+  return '<div class="page" id="pg-training"><div class="trn-root" id="trn-root">' + _trnInner() + '</div></div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts (kept) ──
 function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
