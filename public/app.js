@@ -2328,6 +2328,7 @@ function _sqLineupHtml() {
     +     '</tr></thead>'
     +     '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
     +   '</table></div>'
+    + '</div>'
     + '</div>';
 }
 
