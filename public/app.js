@@ -4833,6 +4833,165 @@ function _sqTcStats(my, op) {
     + _sqBarPair('Tactical execution', my.exec, op.exec, '%') + '</div>';
   return '<div class="sqtc-statswrap"><div class="sqtc-stats-hd"><span>My Team</span><span>Opponent</span></div>' + bars + '</div>';
 }
+// ══════════════════════════════════════════════════════════════════════════════
+// Formation section windows — compact PROFESSIONAL dashboards that fit one glass
+// window with no internal scrolling. Every value is read live from the same source
+// of truth (SQ_FORM / SQ_POS / SQ_MY_IDS / opponent) via the existing engines
+// (_sqMatchup / _sqFormMatch / _sqCmdMatchups / _sqTeamSW / _sqHeatGrid / _sqRoleMap
+// / SQ_INSTR) — presentation only, no new calculation, AI or backend.
+// ──────────────────────────────────────────────────────────────────────────────
+function _sqCwMeter(label, pct, suffix) {
+  var p = Math.max(2, Math.min(100, Math.round(pct)));
+  var t = p >= 56 ? 'adv' : p >= 46 ? 'bal' : p >= 40 ? 'slt' : 'risk';
+  return '<div class="sqcw-mtr sqcw-mtr--' + t + '"><span class="sqcw-mtr-l">' + label + '</span>'
+    + '<span class="sqcw-mtr-track"><i style="width:' + p + '%"></i></span>'
+    + '<b class="sqcw-mtr-v">' + p + (suffix == null ? '%' : suffix) + '</b></div>';
+}
+function _sqCwMatchup(my, op) {
+  var fm = _sqFormMatch(), mu = _sqMatchup(), mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp');
+  var cl = function (v) { return Math.max(1, Math.min(99, Math.round(v))); };
+  function tags(arr, cls) { return '<div class="sqcw-tags">' + (arr && arr.length ? arr : ['—']).map(function (x) { return '<span class="sqcw-tag sqcw-tag--' + cls + '">' + _sqEsc(x) + '</span>'; }).join('') + '</div>'; }
+  var advOur = (fm.adv && fm.adv.length) ? fm.adv : mySW.strengths;
+  var advOpp = opSW.strengths, risks = (fm.risk && fm.risk.length) ? fm.risk : mySW.weaknesses;
+  var bars = [
+    ['Attack', cl((mu.widthAdv + mu.counter) / 2)], ['Midfield', cl(mu.midCtrl)], ['Defence', cl(mu.defStab)],
+    ['Pressing', cl(mu.press)], ['Transition', cl((mu.counter + mu.defStab) / 2)], ['Width control', cl(mu.widthAdv)],
+    ['Counter', cl(mu.counter)], ['Set pieces', cl(50 + (mu.myOvr - mu.oppOvr) * 1.5)]
+  ].map(function (b) { return _sqCwMeter(b[0], b[1]); }).join('');
+  var toneCls = { vstrong: 'adv', adv: 'adv', bal: 'bal', dis: 'slt', risk: 'risk' };
+  var battles = mus.map(function (m) {
+    var tc = toneCls[m.tone] || 'bal';
+    return '<div class="sqcw-duel sqcw-duel--' + tc + '"><span class="sqcw-duel-p">' + _sqEsc(m.myName) + ' <em>' + m.myPos + '</em></span>'
+      + '<span class="sqcw-duel-sc"><b>' + m.myEff + '</b><i>' + (m.diff > 1 ? '&#9656;' : m.diff < -1 ? '&#9666;' : '=') + '</i><b>' + m.oppEff + '</b></span>'
+      + '<span class="sqcw-duel-o"><em>' + m.oppPos + '</em> #' + m.oppNum + '</span></div>';
+  }).join('');
+  var strong = mus.filter(function (m) { return m.tone === 'adv' || m.tone === 'vstrong'; }).map(function (m) { return m.myName; });
+  var weak = mus.filter(function (m) { return m.tone === 'risk' || m.tone === 'dis'; }).map(function (m) { return m.myName; });
+  var order = [['attack', cl((mu.widthAdv + mu.counter) / 2)], ['midfield control', mu.midCtrl], ['the high press', mu.press], ['the wings', mu.widthAdv], ['transitions', cl((mu.counter + mu.defStab) / 2)]];
+  order.sort(function (a, b) { return b[1] - a[1]; });
+  var rec = 'Impose the game through ' + order[0][0] + ' (' + order[0][1] + '%)' + (weak.length ? '; protect ' + _sqEsc(weak[0]) + ' against the ' + (mu.defStab < 50 ? 'break' : 'counter') + '.' : '.');
+  return '<div class="sqcw-mx">'
+    + '<div class="sqcw-mx-a">'
+    +   '<div class="sqcw-mx-eff">' + _sqmxRing(fm.eff) + '<span class="sqcw-mx-vs">' + my.formation + ' <i>vs</i> ' + op.formation + '</span></div>'
+    +   '<div class="sqcw-mx-col"><h6 class="sqcw-h sqcw-h--adv">Our advantages</h6>' + tags(advOur, 's') + '</div>'
+    +   '<div class="sqcw-mx-col"><h6 class="sqcw-h sqcw-h--opp">Opponent advantages</h6>' + tags(advOpp, 'o') + '</div>'
+    +   '<div class="sqcw-mx-col"><h6 class="sqcw-h sqcw-h--risk">Risks</h6>' + tags(risks, 'w') + '</div>'
+    + '</div>'
+    + '<div class="sqcw-sub"><h6 class="sqcw-h">Phase comparison</h6><div class="sqcw-mx-bars">' + bars + '</div></div>'
+    + '<div class="sqcw-sub sqcw-grow"><h6 class="sqcw-h">Position battles</h6><div class="sqcw-mx-duels">' + battles + '</div></div>'
+    + '<div class="sqcw-mx-foot">'
+    +   '<div class="sqcw-fcol"><h6 class="sqcw-h sqcw-h--adv">Strong matchups</h6><p class="sqcw-p">' + (strong.length ? _sqEsc(strong.join(', ')) : 'None decisive') + '</p></div>'
+    +   '<div class="sqcw-fcol"><h6 class="sqcw-h sqcw-h--risk">Weak matchups</h6><p class="sqcw-p">' + (weak.length ? _sqEsc(weak.join(', ')) : 'None exposed') + '</p></div>'
+    +   '<div class="sqcw-fcol sqcw-fcol--rec"><h6 class="sqcw-h">Tactical recommendation</h6><p class="sqcw-p">' + rec + '</p></div>'
+    + '</div></div>';
+}
+function _sqCwHeatmap() {
+  function panel(side, label, col) {
+    var g = _sqHeatGrid(side), cells = '', rl = ['ATT', 'MID', 'DEF'];
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) { var v = g.grid[r][c], pct = Math.round(v / g.max * 100); cells += '<div class="sqcw-hc" style="background:rgba(' + col + ',' + (0.05 + pct / 100 * 0.72).toFixed(2) + ')"><span>' + (v ? pct : 0) + '</span></div>'; }
+    function colSum(ci) { return g.grid[0][ci] + g.grid[1][ci] + g.grid[2][ci]; }
+    var tot = colSum(0) + colSum(1) + colSum(2) || 1;
+    var lcr = [['Left', colSum(0)], ['Centre', colSum(1)], ['Right', colSum(2)]].map(function (x) { return '<span class="sqcw-lcr"><i>' + x[0] + '</i><b>' + Math.round(x[1] / tot * 100) + '%</b></span>'; }).join('');
+    return '<div class="sqcw-heat"><div class="sqcw-heat-hd" style="color:rgb(' + col + ')">' + _sqEsc(label) + '</div>'
+      + '<div class="sqcw-heat-body"><div class="sqcw-heat-rl">' + rl.map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</div><div class="sqcw-heat-cells">' + cells + '</div></div>'
+      + '<div class="sqcw-lcr-row">' + lcr + '</div></div>';
+  }
+  var mg = _sqHeatGrid('my');
+  function band(g, r) { return g.grid[r][0] + g.grid[r][1] + g.grid[r][2]; }
+  var attB = band(mg, 0), midB = band(mg, 1), defB = band(mg, 2), tB = attB + midB + defB || 1;
+  var focus = (attB >= midB && attB >= defB) ? 'the attacking third' : (defB >= midB ? 'deeper build-up areas' : 'central midfield');
+  var interp = 'Your presence concentrates in ' + focus + ' (' + Math.round(Math.max(attB, midB, defB) / tB * 100) + '% of committed quality). Brighter cells show where each side loads the pitch — attack the zones where your green outweighs the opponent’s blue.';
+  return '<div class="sqcw-heatwrap">' + panel('my', _sqClubName(), '74,222,128') + panel('opp', 'Opponent', '96,165,250') + '</div>'
+    + '<div class="sqcw-note">' + _sqEsc(interp) + '</div>';
+}
+function _sqCwStats(my, op) {
+  var rows = [
+    ['Team OVR', my.ovr, op.ovr, ''], ['Team balance', my.balance, op.balance, '%'],
+    ['Starting XI OVR', my.xiOvr, op.xiOvr, ''], ['Starting XI balance', my.xiBalance, op.xiBalance, '%'],
+    ['Bench OVR', my.benchOvr, op.benchOvr, ''], ['Bench balance', my.benchBalance, op.benchBalance, '%'],
+    ['Tactical compatibility', my.compat, op.compat, '%'], ['Formation efficiency', my.formEff, op.formEff, '%'],
+    ['Tactical execution', my.exec, op.exec, '%']
+  ];
+  var cards = rows.map(function (r) {
+    var mv = r[1], ov = r[2], mx = Math.max(mv, ov, 1), mw = Math.round(mv / mx * 100), ow = Math.round(ov / mx * 100);
+    var win = mv > ov ? 'my' : ov > mv ? 'op' : 'even';
+    return '<div class="sqcw-st sqcw-st--' + win + '"><div class="sqcw-st-l">' + r[0] + '</div>'
+      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--my"><i style="width:' + mw + '%"></i></span><b>' + mv + r[3] + '</b></div>'
+      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--op"><i style="width:' + ow + '%"></i></span><b>' + ov + r[3] + '</b></div></div>';
+  }).join('');
+  return '<div class="sqcw-stwrap"><div class="sqcw-st-hd"><span>' + _sqEsc(_sqClubName()) + '</span><span>Opponent</span></div><div class="sqcw-st-grid">' + cards + '</div></div>';
+}
+function _sqCwZones() {
+  function counts(side) {
+    var c = [0, 0, 0];
+    if (side === 'my') { (SQ_MY_IDS || []).forEach(function (id) { var pos = SQ_POS_MY[id]; if (!pos) return; c[pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2]++; }); }
+    else { _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; }); }
+    return c;
+  }
+  var myg = _sqHeatGrid('my').grid, opg = _sqHeatGrid('opp').grid, mc = counts('my'), oc = counts('opp'), mu = _sqMatchup();
+  function band(g, r) { return g[r][0] + g[r][1] + g[r][2]; }
+  var bands = [['Attacking third', 0], ['Middle third', 1], ['Defensive third', 2]];
+  var rows = bands.map(function (b) {
+    var mv = band(myg, b[1]), ov = band(opg, 2 - b[1]), tot = mv + ov || 1, ctrl = Math.round(mv / tot * 100);
+    var myN = mc[b[1]], opN = oc[2 - b[1]], sup = myN - opN;
+    var status = sup >= 2 ? ['Overload', 'adv'] : sup <= -2 ? ['Weak area', 'risk'] : ctrl >= 56 ? ['Controlled', 'adv'] : ctrl <= 44 ? ['Under pressure', 'risk'] : ['Contested', 'bal'];
+    var act = sup >= 2 ? 'Circulate through the overload and switch late' : sup <= -2 ? 'Drop a body in to cover the extra man' : ctrl >= 56 ? 'Sustain control, progress at speed' : ctrl <= 44 ? 'Compress the space and press the carrier' : 'Fight for second balls to tip it your way';
+    return '<div class="sqcw-zn sqcw-zn--' + status[1] + '">'
+      + '<div class="sqcw-zn-hd"><span class="sqcw-zn-nm">' + b[0] + '</span><span class="sqcw-zn-badge sqcw-zn-badge--' + status[1] + '">' + status[0] + '</span></div>'
+      + '<div class="sqcw-zn-bar"><i style="width:' + ctrl + '%"></i></div>'
+      + '<div class="sqcw-zn-stats"><span>Control<b>' + ctrl + '%</b></span><span>Numbers<b>' + myN + ' v ' + opN + '</b></span><span>Edge<b>' + (sup > 0 ? '+' + sup : sup) + '</b></span></div>'
+      + '<div class="sqcw-zn-act">&#9656; ' + act + '</div></div>';
+  }).join('');
+  var overloads = bands.filter(function (b) { return (mc[b[1]] - oc[2 - b[1]]) >= 2; }).map(function (b) { return b[0].split(' ')[0]; });
+  var weaks = bands.filter(function (b) { return (mc[b[1]] - oc[2 - b[1]]) <= -2; }).map(function (b) { return b[0].split(' ')[0]; });
+  var summary = '<div class="sqcw-zn-sum">'
+    + '<span class="sqcw-chip sqcw-chip--adv">Overloads: ' + (overloads.length ? overloads.join(', ') : '—') + '</span>'
+    + '<span class="sqcw-chip sqcw-chip--risk">Weak areas: ' + (weaks.length ? weaks.join(', ') : '—') + '</span>'
+    + '<span class="sqcw-chip sqcw-chip--' + (mu.press >= 52 ? 'adv' : 'bal') + '">Pressure zone ' + mu.press + '%</span></div>';
+  return '<div class="sqcw-zones">' + rows + '</div>' + summary;
+}
+function _sqCwSetpieces() {
+  var ps = (SQ_MY_IDS || []).map(_sqP).filter(Boolean), rm = _sqRoleMap();
+  var byQ = ps.slice().sort(function (a, b) { return b.qual - a.qual; });
+  function byRole(bg) { for (var id in rm) { if (rm[id].indexOf(bg) >= 0) { var p = _sqP(id); if (p) return p; } } return null; }
+  function pick(poss, exclude) { return ps.filter(function (p) { return poss.indexOf(p.pos) >= 0 && !(exclude && exclude.indexOf(p.id) >= 0); }).sort(function (a, b) { return b.qual - a.qual; })[0] || null; }
+  var cap = byRole('C') || byQ[0], vice = byRole('VC') || byQ[1];
+  var pen = byRole('P') || pick(['ST', 'CF', 'RW', 'LW']) || byQ[0];
+  var fk = byRole('FK') || pick(['AM', 'CM', 'LW', 'RW']) || byQ[0];
+  var ifk = pick(['AM', 'CM', 'DM'], [fk ? fk.id : null]) || byQ[1];
+  var lc = pick(['RW', 'RM', 'RB', 'CM']) || byQ[2];
+  var rc = pick(['LW', 'LM', 'LB', 'AM'], [lc ? lc.id : null]) || byQ[3];
+  function card(label, p, kind) {
+    return '<div class="sqcw-sp sqcw-sp--' + (kind || 'std') + '"><span class="sqcw-sp-l">' + label + '</span>'
+      + (p ? '<span class="sqcw-sp-p">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my') + '<span class="sqcw-sp-meta"><b>' + _sqEsc(_sqLastName(p.name)) + '</b><i>' + p.pos + ' &middot; ' + p.qual + '</i></span></span>' : '<span class="sqcw-sp-empty">—</span>') + '</div>';
+  }
+  var aer = ps.filter(function (p) { return p.cat === 'fw' || p.pos === 'CB'; }).sort(function (a, b) { return b.qual - a.qual; }).slice(0, 2);
+  var defs = ps.filter(function (p) { return p.pos === 'CB' || p.pos === 'DM'; }).sort(function (a, b) { return b.qual - a.qual; }).slice(0, 2);
+  var aerLabel = aer.length ? aer.map(function (p) { return _sqLastName(p.name); }).join(', ') : '—';
+  var defLabel = defs.length ? defs.map(function (p) { return _sqLastName(p.name); }).join(', ') : '—';
+  return '<div class="sqcw-sps">'
+    + card('Penalties', pen) + card('Direct free kicks', fk) + card('Indirect free kicks', ifk)
+    + card('Left corners', lc) + card('Right corners', rc)
+    + card('Captain', cap, 'cap') + card('Vice-captain', vice, 'cap')
+    + '<div class="sqcw-sp sqcw-sp--wide"><span class="sqcw-sp-l">Primary aerial targets</span><span class="sqcw-sp-txt">' + _sqEsc(aerLabel) + '</span></div>'
+    + '<div class="sqcw-sp sqcw-sp--wide"><span class="sqcw-sp-l">Defensive set-piece roles</span><span class="sqcw-sp-txt">' + _sqEsc(defLabel) + ' &middot; mark posts &amp; hold the zonal line</span></div>'
+    + '</div>';
+}
+var SQ_POSROLE = { GK: 'Goalkeeper', CB: 'Centre-back', LB: 'Full-back', RB: 'Full-back', LWB: 'Wing-back', RWB: 'Wing-back', DM: 'Anchor', CM: 'Box-to-box', AM: 'Playmaker', LM: 'Wide mid', RM: 'Wide mid', LW: 'Winger', RW: 'Winger', ST: 'Striker', CF: 'Forward' };
+function _sqCwInstructions() {
+  var rm = _sqRoleMap();
+  function roleLabel(p, id) { var b = rm[id]; if (b && b.length) { for (var i = 0; i < b.length; i++) if (SQ_ROLE_LABEL[b[i]]) return SQ_ROLE_LABEL[b[i]]; } return SQ_POSROLE[p.pos] || p.pos; }
+  function movement(t) { return { att: 'Attack the box', press: 'Press high', wide: 'Hug the touchline', def: 'Hold the shape', sup: 'Drop &amp; support', neutral: 'Hold position' }[t] || 'Hold position'; }
+  function possession(t, cat) { if (t === 'att') return 'Run in behind'; if (t === 'wide') return 'Stretch the play'; if (t === 'sup') return 'Link &amp; recycle'; if (cat === 'df') return 'Build from the back'; if (cat === 'mf') return 'Dictate tempo'; if (cat === 'gk') return 'Start attacks'; return 'Support the ball'; }
+  function defensive(t, cat) { if (t === 'press') return 'Lead the press'; if (t === 'def') return 'Track runners back'; if (cat === 'df') return 'Hold the line'; if (cat === 'gk') return 'Sweep behind'; if (cat === 'fw') return 'First defender'; return 'Screen &amp; recover'; }
+  var rows = (SQ_MY_IDS || []).map(function (id) {
+    var p = _sqP(id); if (!p) return '';
+    var instr = SQ_INSTR[_sqInstrOf(id)] || SQ_INSTR.hold, t = instr.type, col = _sqInstrColor(t);
+    return '<div class="sqcw-in"><div class="sqcw-in-hd"><span class="sqcw-in-dot" style="background:' + col + '"></span><b class="sqcw-in-nm">' + _sqEsc(_sqLastName(p.name)) + '</b><span class="sqcw-in-pos">' + p.pos + '</span><span class="sqcw-in-role">' + roleLabel(p, id) + '</span></div>'
+      + '<div class="sqcw-in-g"><span><i>Movement</i>' + movement(t) + '</span><span><i>Possession</i>' + possession(t, p.cat) + '</span><span><i>Defensive</i>' + defensive(t, p.cat) + '</span></div></div>';
+  }).join('');
+  return '<div class="sqcw-ins">' + rows + '</div>';
+}
 // ── coaching helpers: instruction markers, position zones, player comparison ──
 function _sqInstrArrow(type) {
   switch (type) {
@@ -5006,18 +5165,18 @@ function _sqCmdOverlayHtml(tab, my, op) {
 // section content + the proven multi-panel pattern. Overview is the background (no window).
 var _SQ_CMD_WZ = 60, _SQ_CMD_WBOUND = false, _sqCmdWDrag = null;
 var _SQ_CMD_WINMETA = {
-  matchup: { title: 'Matchup', w: 1180, h: 820 }, heatmap: { title: 'Heatmap', w: 640, h: 470 },
-  stats: { title: 'Stats', w: 640, h: 620 }, zones: { title: 'Zones', w: 600, h: 400 },
-  setpieces: { title: 'Set Pieces', w: 680, h: 560 }, instructions: { title: 'Instructions', w: 740, h: 620 }
+  matchup: { title: 'Matchup', w: 1060, h: 494 }, heatmap: { title: 'Heatmap', w: 700, h: 412 },
+  stats: { title: 'Stats', w: 720, h: 430 }, zones: { title: 'Zones', w: 660, h: 374 },
+  setpieces: { title: 'Set Pieces', w: 700, h: 344 }, instructions: { title: 'Instructions', w: 900, h: 362 }
 };
 function _sqCmdSectionContent(key, my, op) {
   switch (key) {
-    case 'matchup': return _sqMxBuild(my, op).full;
-    case 'heatmap': return _sqTcHeatmap();
-    case 'stats': return _sqTcStats(my, op);
-    case 'zones': return _sqTcZones();
-    case 'setpieces': return _sqTcSetpieces();
-    case 'instructions': return _sqTcInstructions();
+    case 'matchup': return _sqCwMatchup(my, op);
+    case 'heatmap': return _sqCwHeatmap();
+    case 'stats': return _sqCwStats(my, op);
+    case 'zones': return _sqCwZones();
+    case 'setpieces': return _sqCwSetpieces();
+    case 'instructions': return _sqCwInstructions();
     case 'simulation': return _sqTcSimulation(my, op);
   }
   return '';
@@ -5119,8 +5278,13 @@ function _sqCmdInner() {
   }
   var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
   var content = _sqTcOverview(my, op);                       // Overview pitch ALWAYS visible in the background
-  var windows = ''; for (var wk in SQ_FORM.cmdWins) { if (wk === 'simulation') continue; windows += _sqCmdWindowHtml(wk, my, op); }
-  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div>' + windows + '</div>';
+  // Floating section windows render INLINE (position:fixed → viewport-relative, exactly like the
+  // Simulation glass panels). No ancestor of #sqfp-body sets transform/filter/contain, so a fixed
+  // element resolves against the viewport and the centre/clamp maths stays true. Multiple stay open.
+  var wins = '';
+  for (var wk in SQ_FORM.cmdWins) { if (wk === 'simulation') continue; wins += _sqCmdWindowHtml(wk, my, op); }
+  if (wins) _sqCmdWinBind();
+  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div>' + wins + '</div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
 // ── Tactical Simulation 2.0 — professional scene-based analysis engine ──────────
