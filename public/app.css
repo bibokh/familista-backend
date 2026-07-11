@@ -4396,6 +4396,26 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .sqmx-sub-bd{ flex:1 1 auto; min-height:0; overflow:auto; padding:14px; scrollbar-width:thin; }
 .sqmx-sub::after{ content:''; position:absolute; right:3px; bottom:3px; width:14px; height:14px; pointer-events:none; opacity:.5;
   background:linear-gradient(135deg,transparent 46%,rgba(255,255,255,.85) 46% 58%,transparent 58% 66%,rgba(255,255,255,.85) 66% 78%,transparent 78%); }
+/* ══ Formation command-centre — shared floating glass WINDOWS (one per section, multiple open at once) ══ */
+.sqcw{ position:fixed; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; resize:both;
+  min-width:320px; min-height:200px; max-width:96vw; max-height:90vh;
+  background:linear-gradient(168deg,rgba(18,28,52,.82),rgba(9,14,26,.8));
+  -webkit-backdrop-filter:blur(18px) saturate(1.2); backdrop-filter:blur(18px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.16); border-radius:16px; box-shadow:0 26px 80px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.04) inset;
+  animation:sqtcPop .16s ease both; }
+.sqcw.is-min{ height:auto !important; min-height:0; resize:none; }
+.sqcw-hd{ flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:10px 12px; cursor:move; user-select:none; border-bottom:1px solid rgba(255,255,255,.09); background:linear-gradient(180deg,rgba(255,255,255,.05),transparent); border-radius:16px 16px 0 0; }
+.sqcw.is-min .sqcw-hd{ border-bottom:none; border-radius:16px; }
+.sqcw-ttl{ flex:1 1 auto; min-width:0; font-size:13.5px; font-weight:800; color:#f1f5f9; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sqcw-btn{ flex:0 0 auto; width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:#e3eaf4; font-size:13px; font-weight:800; line-height:1; cursor:pointer; transition:all .15s ease; }
+.sqcw-btn:hover{ background:rgba(255,255,255,.14); color:#fff; }
+.sqcw-btn--x:hover{ background:rgba(239,68,68,.22); border-color:rgba(239,68,68,.5); color:#fff; }
+.sqcw-bd{ flex:1 1 auto; min-height:0; overflow:auto; padding:14px; scrollbar-width:thin; }
+.sqcw-grip{ position:absolute; right:3px; bottom:3px; width:14px; height:14px; pointer-events:none; opacity:.5;
+  background:linear-gradient(135deg,transparent 46%,rgba(255,255,255,.85) 46% 58%,transparent 58% 66%,rgba(255,255,255,.85) 66% 78%,transparent 78%); }
+.sqcw--matchup .sqmx-full{ display:flex; flex-direction:column; gap:16px; }
+.sqcw--matchup .sqmx-fsec{ display:flex; flex-direction:column; gap:9px; }
+.sqcw--matchup .sqmx-fh{ margin:0; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#8a94a6; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,.08); }
 
 /* ═══════════ Club Workspace · Training module — premium football OS (reference replication) ═══════════ */
 .tr-wrap{ padding:14px 20px 0; max-width:none; }

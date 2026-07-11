@@ -3095,7 +3095,7 @@ function _sqFormationBodyLegacy() {
   var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
-function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdOverlay === 'simulation') _sqSimBoot(); else _sqSimStop(); } }
+function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdWins && SQ_FORM.cmdWins.simulation && !SQ_FORM.cmdWins.simulation.min) _sqSimBoot(); else _sqSimStop(); } }
 
 // ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
 function _sqTacEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -4775,8 +4775,15 @@ function _sqMxBuild(my, op) {
     + sub('battles', 'Position Battles', '<div class="sqmx-pos-list">' + posCards + '</div>')
     + sub('scores', 'Tactical Scores', '<div class="sqmx-scores">' + scoreCards + '</div>')
     + sub('analysis', 'Tactical Analysis', '<div class="sqmx-tac">' + swCol(_sqEsc(_sqClubName()), mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div>');
+  // full inline composition — every Matchup section shown at once inside its floating window (same components/data)
+  var full = '<div class="sqmx-full">'
+    + '<section class="sqmx-fsec"><h5 class="sqmx-fh">Summary</h5>' + engine + '</section>'
+    + '<section class="sqmx-fsec"><h5 class="sqmx-fh">Position Battles</h5><div class="sqmx-pos-list">' + posCards + '</div></section>'
+    + '<section class="sqmx-fsec"><h5 class="sqmx-fh">Tactical Scores</h5><div class="sqmx-scores">' + scoreCards + '</div></section>'
+    + '<section class="sqmx-fsec"><h5 class="sqmx-fh">Tactical Analysis</h5><div class="sqmx-tac">' + swCol(_sqEsc(_sqClubName()), mySW, 'my') + swCol('Opponent', opSW, 'opp') + '</div></section>'
+    + '</div>';
   if (typeof _sqMxBind === 'function') _sqMxBind();
-  return { launch: launch, subs: subs };
+  return { launch: launch, subs: subs, full: full };
 }
 function _sqHeatGrid(side) {
   var grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], max = 1;
@@ -4990,15 +4997,106 @@ function _sqCmdOverlayHtml(tab, my, op) {
     + '<div class="sqtc-ov sqtc-ov--' + tab + (isMx ? ' sqtc-ov--float sqtc-ov--launch' : '') + '">' + hd
     + '<div class="sqtc-ov-body">' + inner + '</div></div>' + mxSubs;
 }
+// ══════════════════════════════════════════════════════════════════════════════
+// Formation command-centre — shared floating glass WINDOW manager. Every section
+// (Matchup / Heatmap / Stats / Zones / Set Pieces / Instructions / Simulation) opens
+// as its own premium glass window over the always-visible Overview pitch. Multiple
+// windows stay open at once; each is draggable, resizable, minimizable, closable and
+// brought-to-front on click. One source of truth (SQ_FORM.cmdWins); reuses existing
+// section content + the proven multi-panel pattern. Overview is the background (no window).
+var _SQ_CMD_WZ = 60, _SQ_CMD_WBOUND = false, _sqCmdWDrag = null;
+var _SQ_CMD_WINMETA = {
+  matchup: { title: 'Matchup', w: 680, h: 520 }, heatmap: { title: 'Heatmap', w: 560, h: 470 },
+  stats: { title: 'Stats', w: 600, h: 470 }, zones: { title: 'Zones', w: 560, h: 470 },
+  setpieces: { title: 'Set Pieces', w: 560, h: 450 }, instructions: { title: 'Instructions', w: 600, h: 460 },
+  simulation: { title: 'AI Simulation', w: 920, h: 620 }
+};
+function _sqCmdSectionContent(key, my, op) {
+  switch (key) {
+    case 'matchup': return _sqMxBuild(my, op).full;
+    case 'heatmap': return _sqTcHeatmap();
+    case 'stats': return _sqTcStats(my, op);
+    case 'zones': return _sqTcZones();
+    case 'setpieces': return _sqTcSetpieces();
+    case 'instructions': return _sqTcInstructions();
+    case 'simulation': return _sqTcSimulation(my, op);
+  }
+  return '';
+}
+function _sqCmdWindowHtml(key, my, op) {
+  var w = SQ_FORM.cmdWins[key]; if (!w) return '';
+  var meta = _SQ_CMD_WINMETA[key] || { title: key, w: 560, h: 440 };
+  var st = 'left:' + Math.round(w.x) + 'px;top:' + Math.round(w.y) + 'px;width:' + Math.round(w.w) + 'px;' + (w.min ? '' : 'height:' + Math.round(w.h) + 'px;') + 'z-index:' + w.z + ';';
+  return '<div class="sqcw sqcw--' + key + (w.min ? ' is-min' : '') + '" data-cmdwin="' + key + '" style="' + st + '">'
+    + '<div class="sqcw-hd" data-cwdrag="1"><span class="sqcw-ttl">' + meta.title + '</span>'
+    +   '<button class="sqcw-btn" data-action="sqCmdWinMin" data-win="' + key + '" type="button" aria-label="' + (w.min ? 'Restore' : 'Minimize') + '">' + (w.min ? '&#9633;' : '&#8211;') + '</button>'
+    +   '<button class="sqcw-btn sqcw-btn--x" data-action="sqCmdWinClose" data-win="' + key + '" type="button" aria-label="Close">&#10005;</button></div>'
+    + (w.min ? '' : '<div class="sqcw-bd">' + _sqCmdSectionContent(key, my, op) + '</div><span class="sqcw-grip" aria-hidden="true"></span>')
+    + '</div>';
+}
+// open (or bring-to-front + restore) a section window — never navigates, never closes the others
+function sqCmdWin(key) {
+  if (!key || key === 'overview' || typeof document === 'undefined') return;
+  if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
+  _sqCmdWinBind();
+  if (SQ_FORM.cmdWins[key]) { SQ_FORM.cmdWins[key].z = (++_SQ_CMD_WZ); SQ_FORM.cmdWins[key].min = false; _sqRenderFormationBody(); return; }
+  var meta = _SQ_CMD_WINMETA[key] || { w: 560, h: 440 };
+  var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
+  var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+  var w = Math.min(meta.w, vw - 32), h = Math.min(meta.h, vh - 120);
+  var n = 0; for (var k in SQ_FORM.cmdWins) n++;                         // cascade so windows don't perfectly overlap
+  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 34 - 60, vw - 90));
+  var y = Math.max(70, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 30, vh - 60));
+  SQ_FORM.cmdWins[key] = { x: x, y: y, w: w, h: h, z: (++_SQ_CMD_WZ), min: false };
+  _sqRenderFormationBody();
+}
+function sqCmdWinClose(key) { if (key && SQ_FORM.cmdWins && SQ_FORM.cmdWins[key]) { delete SQ_FORM.cmdWins[key]; _sqRenderFormationBody(); } }
+function sqCmdWinMin(key) { if (key && SQ_FORM.cmdWins && SQ_FORM.cmdWins[key]) { SQ_FORM.cmdWins[key].min = !SQ_FORM.cmdWins[key].min; _sqRenderFormationBody(); } }
+function _sqCmdWinFront(key) { if (SQ_FORM.cmdWins && SQ_FORM.cmdWins[key]) SQ_FORM.cmdWins[key].z = (++_SQ_CMD_WZ); }
+// drag by header + bring-to-front + sync pos/size (drag AND native CSS resize) + viewport clamp — bound once
+function _sqCmdWinBind() {
+  if (_SQ_CMD_WBOUND || typeof document === 'undefined' || !document.addEventListener) return;
+  _SQ_CMD_WBOUND = true;
+  document.addEventListener('mousedown', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var win = t.closest('.sqcw'); if (!win) return;
+    var wk = win.getAttribute('data-cmdwin'); _sqCmdWinFront(wk); if (SQ_FORM.cmdWins && SQ_FORM.cmdWins[wk]) win.style.zIndex = SQ_FORM.cmdWins[wk].z;
+    if (t.closest('button')) return;
+    var h = t.closest('[data-cwdrag]'); if (!h) return;
+    var r = win.getBoundingClientRect();
+    _sqCmdWDrag = { win: win, key: wk, dx: e.clientX - r.left, dy: e.clientY - r.top };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!_sqCmdWDrag) return;
+    var win = _sqCmdWDrag.win, vw = window.innerWidth, vh = window.innerHeight, w = win.offsetWidth;
+    var x = Math.max(6, Math.min(e.clientX - _sqCmdWDrag.dx, vw - Math.min(w, vw) - 6));
+    var y = Math.max(6, Math.min(e.clientY - _sqCmdWDrag.dy, vh - 44));
+    win.style.left = x + 'px'; win.style.top = y + 'px';
+    var p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[_sqCmdWDrag.key]; if (p) { p.x = x; p.y = y; }
+  });
+  document.addEventListener('mouseup', function () {
+    _sqCmdWDrag = null;
+    var els = document.querySelectorAll('.sqcw');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (p && !p.min) { var r = el.getBoundingClientRect(); p.x = r.left; p.y = r.top; p.w = el.offsetWidth; p.h = el.offsetHeight; } }
+  });
+  window.addEventListener('resize', function () {
+    var vw = window.innerWidth, vh = window.innerHeight, els = document.querySelectorAll('.sqcw');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (!p) continue; p.x = Math.max(6, Math.min(p.x, vw - 80)); p.y = Math.max(6, Math.min(p.y, vh - 44)); el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; }
+  });
+}
 function _sqCmdInner() {
-  var my = _sqTeamReport('my'), op = _sqTeamReport('opp'), ov = SQ_FORM.cmdOverlay;
-  var isSim = ov === 'simulation'; // simulation = full command-centre screen (its own top bar)
-  var heads = isSim ? '' : '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
-  var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) { var k = _sqCmdTabKey(t); var active = (k === 'overview') ? !ov : (ov === k); return '<button class="sqtc-tab' + (active ? ' is-active' : '') + '" data-action="sqCmdOverlay" data-tab="' + k + '" type="button">' + t + '</button>'; }).join('') + '</div>';
-  var content;
-  if (isSim) { content = _sqTcSimulation(my, op); } // replaces the overview + popup with the command centre
-  else { content = _sqTcOverview(my, op); if (ov && ov !== 'overview') content += _sqCmdOverlayHtml(ov, my, op); }
-  return '<div class="sqtc' + (isSim ? ' sqtc--sim' : '') + '">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div></div>';
+  var my = _sqTeamReport('my'), op = _sqTeamReport('opp');
+  if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
+  var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
+  var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) {
+    var k = _sqCmdTabKey(t);
+    if (k === 'overview') { var noWin = true; for (var q in SQ_FORM.cmdWins) noWin = false; return '<button class="sqtc-tab' + (noWin ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="overview" type="button">' + t + '</button>'; }
+    return '<button class="sqtc-tab' + (SQ_FORM.cmdWins[k] ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="' + k + '" type="button">' + t + '</button>';
+  }).join('') + '</div>';
+  var content = _sqTcOverview(my, op);                       // Overview pitch ALWAYS visible in the background
+  var windows = ''; for (var wk in SQ_FORM.cmdWins) windows += _sqCmdWindowHtml(wk, my, op);
+  return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div>' + windows + '</div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
 // ── Tactical Simulation 2.0 — professional scene-based analysis engine ──────────
@@ -6306,7 +6404,7 @@ function sqSimWIScope(s) { if (!_sqSim.el) return; if (_sqSim.wi) _sqSim.wi.scop
 function sqSimWICancel() { _sqSim.wi = { type: null, val: null, scope: (_sqSim.wi && _sqSim.wi.scope) || 'scenario' }; _sqSimWIPaint(); }
 function sqSimWIApply() {
   if (!_sqSim.el || !_sqSim.wi || !_sqSim.wi.type) return; var wi = _sqSim.wi;
-  if (wi.type === 'Formation') { if (typeof SQ_FORM !== 'undefined') { SQ_FORM.myFormation = wi.val; SQ_FORM.cmdOverlay = 'simulation'; } if (typeof _sqRenderFormationBody === 'function') _sqRenderFormationBody(); return; }
+  if (wi.type === 'Formation') { if (typeof SQ_FORM !== 'undefined') { SQ_FORM.myFormation = wi.val; if (typeof sqCmdWin === 'function') { sqCmdWin('simulation'); return; } } if (typeof _sqRenderFormationBody === 'function') _sqRenderFormationBody(); return; }
   var opt = _SQ_WI_OPTS.filter(function (o) { return o.type === wi.type && o.val === wi.val; })[0]; if (!opt) return;
   _sqSim.dstate = _sqSim.dstate || _sqSimDNew();
   Object.keys(opt.mod).forEach(function (k) { if (['press', 'compact', 'counter', 'chance', 'control', 'poss', 'tilt'].indexOf(k) >= 0) _sqSim.dstate[k] = (_sqSim.dstate[k] || 0) + opt.mod[k]; });
@@ -39512,6 +39610,9 @@ async function tosBoardSnapshot() {
         case 'sqSimReport':       if (typeof sqSimReport === 'function')       sqSimReport(); break;
         case 'sqCmdOverlay':      if (typeof sqCmdOverlay === 'function')      sqCmdOverlay(el.dataset.tab); break;
         case 'sqCmdOverlayClose': if (typeof sqCmdOverlayClose === 'function') sqCmdOverlayClose(); break;
+        case 'sqCmdWin':          if (typeof sqCmdWin === 'function')          sqCmdWin(el.dataset.tab); break;
+        case 'sqCmdWinClose':     if (typeof sqCmdWinClose === 'function')     sqCmdWinClose(el.dataset.win); break;
+        case 'sqCmdWinMin':       if (typeof sqCmdWinMin === 'function')       sqCmdWinMin(el.dataset.win); break;
         case 'sqMxOpen':          if (typeof sqMxOpen === 'function')          sqMxOpen(el.dataset.mx); break;
         case 'sqMxClose':         if (typeof sqMxClose === 'function')         sqMxClose(el.dataset.mx); break;
         case 'trOpen':            if (typeof trOpen === 'function')            trOpen(el.dataset.tr); break;
