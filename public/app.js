@@ -3095,7 +3095,7 @@ function _sqFormationBodyLegacy() {
   var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
-function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdWins && SQ_FORM.cmdWins.simulation && !SQ_FORM.cmdWins.simulation.min) _sqSimBoot(); else _sqSimStop(); } }
+function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); } }
 
 // ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
 function _sqTacEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -5006,10 +5006,9 @@ function _sqCmdOverlayHtml(tab, my, op) {
 // section content + the proven multi-panel pattern. Overview is the background (no window).
 var _SQ_CMD_WZ = 60, _SQ_CMD_WBOUND = false, _sqCmdWDrag = null;
 var _SQ_CMD_WINMETA = {
-  matchup: { title: 'Matchup', w: 680, h: 520 }, heatmap: { title: 'Heatmap', w: 560, h: 470 },
-  stats: { title: 'Stats', w: 600, h: 470 }, zones: { title: 'Zones', w: 560, h: 470 },
-  setpieces: { title: 'Set Pieces', w: 560, h: 450 }, instructions: { title: 'Instructions', w: 600, h: 460 },
-  simulation: { title: 'AI Simulation', w: 920, h: 620 }
+  matchup: { title: 'Matchup', w: 1180, h: 820 }, heatmap: { title: 'Heatmap', w: 640, h: 470 },
+  stats: { title: 'Stats', w: 640, h: 620 }, zones: { title: 'Zones', w: 600, h: 400 },
+  setpieces: { title: 'Set Pieces', w: 680, h: 560 }, instructions: { title: 'Instructions', w: 740, h: 620 }
 };
 function _sqCmdSectionContent(key, my, op) {
   switch (key) {
@@ -5034,20 +5033,39 @@ function _sqCmdWindowHtml(key, my, op) {
     + (w.min ? '' : '<div class="sqcw-bd">' + _sqCmdSectionContent(key, my, op) + '</div><span class="sqcw-grip" aria-hidden="true"></span>')
     + '</div>';
 }
-// open (or bring-to-front + restore) a section window — never navigates, never closes the others
-function sqCmdWin(key) {
-  if (!key || key === 'overview' || typeof document === 'undefined') return;
-  if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
-  _sqCmdWinBind();
-  if (SQ_FORM.cmdWins[key]) { SQ_FORM.cmdWins[key].z = (++_SQ_CMD_WZ); SQ_FORM.cmdWins[key].min = false; _sqRenderFormationBody(); return; }
-  var meta = _SQ_CMD_WINMETA[key] || { w: 560, h: 440 };
+// Visible application workspace = the area BELOW the top nav/section tabs and inside the viewport.
+// Windows centre and clamp against THIS box (never under the header, never off-screen / under the taskbar).
+function _sqCmdWorkspace() {
   var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
   var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
-  var w = Math.min(meta.w, vw - 32), h = Math.min(meta.h, vh - 120);
-  var n = 0; for (var k in SQ_FORM.cmdWins) n++;                         // cascade so windows don't perfectly overlap
-  var x = Math.max(12, Math.min(Math.round((vw - w) / 2) + (n % 5) * 34 - 60, vw - 90));
-  var y = Math.max(70, Math.min(Math.round((vh - h) / 2) - 30 + (n % 5) * 30, vh - 60));
-  SQ_FORM.cmdWins[key] = { x: x, y: y, w: w, h: h, z: (++_SQ_CMD_WZ), min: false };
+  var top = 100;
+  try { var nav = document.querySelector('.sqtc-nav') || document.querySelector('#sqfp-body') || document.querySelector('.sq-sub-header'); if (nav) { var r = nav.getBoundingClientRect(); if (r.bottom) top = Math.max(top, Math.round(r.bottom + 8)); } } catch (e) {}
+  var m = 12;
+  return { top: top, left: m, right: vw - m, bottom: vh - m, w: (vw - m) - m, h: (vh - m) - top };
+}
+function _sqCmdClamp(x, y, w, h, b) {
+  b = b || _sqCmdWorkspace();
+  x = Math.max(b.left, Math.min(x, b.right - Math.min(w, b.w)));
+  y = Math.max(b.top, Math.min(y, b.bottom - Math.min(h, b.h)));
+  return { x: x, y: y };
+}
+// open (or bring-to-front + restore) a section window — never navigates, never closes the others.
+// Simulation is NOT a window: it switches to the full Simulation workspace (SQ_FORM.cmdSim).
+function sqCmdWin(key) {
+  if (!key || typeof document === 'undefined') return;
+  if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
+  if (key === 'overview') { if (SQ_FORM.cmdSim) { SQ_FORM.cmdSim = false; _sqRenderFormationBody(); } return; }
+  if (key === 'simulation') { SQ_FORM.cmdSim = true; _sqRenderFormationBody(); return; } // full independent workspace
+  SQ_FORM.cmdSim = false;                                                                 // opening a section window leaves the sim view
+  _sqCmdWinBind();
+  if (SQ_FORM.cmdWins[key]) { SQ_FORM.cmdWins[key].z = (++_SQ_CMD_WZ); SQ_FORM.cmdWins[key].min = false; _sqRenderFormationBody(); return; }
+  var meta = _SQ_CMD_WINMETA[key] || { w: 640, h: 520 };
+  var b = _sqCmdWorkspace();
+  var w = Math.min(meta.w, b.w - 8), h = Math.min(meta.h, b.h - 8);
+  var n = 0; for (var k in SQ_FORM.cmdWins) n++;                                           // cascade a touch so several don't perfectly overlap
+  var cx = b.left + Math.round((b.w - w) / 2) + (n % 4) * 26, cy = b.top + Math.round((b.h - h) / 2) + (n % 4) * 22;
+  var pos = _sqCmdClamp(cx, cy, w, h, b);
+  SQ_FORM.cmdWins[key] = { x: pos.x, y: pos.y, w: w, h: h, z: (++_SQ_CMD_WZ), min: false };
   _sqRenderFormationBody();
 }
 function sqCmdWinClose(key) { if (key && SQ_FORM.cmdWins && SQ_FORM.cmdWins[key]) { delete SQ_FORM.cmdWins[key]; _sqRenderFormationBody(); } }
@@ -5069,33 +5087,39 @@ function _sqCmdWinBind() {
   });
   document.addEventListener('mousemove', function (e) {
     if (!_sqCmdWDrag) return;
-    var win = _sqCmdWDrag.win, vw = window.innerWidth, vh = window.innerHeight, w = win.offsetWidth;
-    var x = Math.max(6, Math.min(e.clientX - _sqCmdWDrag.dx, vw - Math.min(w, vw) - 6));
-    var y = Math.max(6, Math.min(e.clientY - _sqCmdWDrag.dy, vh - 44));
+    var win = _sqCmdWDrag.win, b = _sqCmdWorkspace(), w = win.offsetWidth;
+    var x = Math.max(b.left, Math.min(e.clientX - _sqCmdWDrag.dx, b.right - Math.min(w, b.w)));
+    var y = Math.max(b.top, Math.min(e.clientY - _sqCmdWDrag.dy, b.bottom - 44));   // keep the header inside the workspace
     win.style.left = x + 'px'; win.style.top = y + 'px';
     var p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[_sqCmdWDrag.key]; if (p) { p.x = x; p.y = y; }
   });
   document.addEventListener('mouseup', function () {
     _sqCmdWDrag = null;
-    var els = document.querySelectorAll('.sqcw');
-    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (p && !p.min) { var r = el.getBoundingClientRect(); p.x = r.left; p.y = r.top; p.w = el.offsetWidth; p.h = el.offsetHeight; } }
+    var b = _sqCmdWorkspace(), els = document.querySelectorAll('.sqcw');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (p && !p.min) { var r = el.getBoundingClientRect(); p.w = Math.min(el.offsetWidth, b.w); p.h = Math.min(el.offsetHeight, b.h); var c = _sqCmdClamp(r.left, r.top, p.w, p.h, b); p.x = c.x; p.y = c.y; el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; el.style.width = p.w + 'px'; el.style.height = p.h + 'px'; } }
   });
   window.addEventListener('resize', function () {
-    var vw = window.innerWidth, vh = window.innerHeight, els = document.querySelectorAll('.sqcw');
-    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (!p) continue; p.x = Math.max(6, Math.min(p.x, vw - 80)); p.y = Math.max(6, Math.min(p.y, vh - 44)); el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; }
+    var b = _sqCmdWorkspace(), els = document.querySelectorAll('.sqcw');
+    for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (!p) continue; p.w = Math.min(p.w, b.w); p.h = Math.min(p.h, b.h); var c = _sqCmdClamp(p.x, p.y, p.w, p.h, b); p.x = c.x; p.y = c.y; el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; }
   });
 }
 function _sqCmdInner() {
   var my = _sqTeamReport('my'), op = _sqTeamReport('opp');
   if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
-  var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
+  var isSim = !!SQ_FORM.cmdSim;
+  var noWin = true; for (var q in SQ_FORM.cmdWins) { if (q !== 'simulation') noWin = false; }
   var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) {
     var k = _sqCmdTabKey(t);
-    if (k === 'overview') { var noWin = true; for (var q in SQ_FORM.cmdWins) noWin = false; return '<button class="sqtc-tab' + (noWin ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="overview" type="button">' + t + '</button>'; }
-    return '<button class="sqtc-tab' + (SQ_FORM.cmdWins[k] ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="' + k + '" type="button">' + t + '</button>';
+    var active = (k === 'overview') ? (!isSim && noWin) : (k === 'simulation') ? isSim : (!isSim && !!SQ_FORM.cmdWins[k]);
+    return '<button class="sqtc-tab' + (active ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="' + k + '" type="button">' + t + '</button>';
   }).join('') + '</div>';
+  if (isSim) { // Simulation = complete independent workspace (NOT a floating window), with a clear Back control
+    var back = '<div class="sqtc-simbar"><button class="sqtc-simback" data-action="sqCmdWin" data-tab="overview" type="button">&#8592; Back to Formation Overview</button></div>';
+    return '<div class="sqtc sqtc--sim">' + nav + back + '<div class="sqtc-content sqtc-content--sim">' + _sqTcSimulation(my, op) + '</div></div>';
+  }
+  var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
   var content = _sqTcOverview(my, op);                       // Overview pitch ALWAYS visible in the background
-  var windows = ''; for (var wk in SQ_FORM.cmdWins) windows += _sqCmdWindowHtml(wk, my, op);
+  var windows = ''; for (var wk in SQ_FORM.cmdWins) { if (wk === 'simulation') continue; windows += _sqCmdWindowHtml(wk, my, op); }
   return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div>' + windows + '</div>';
 }
 function _sqCmdPanelHtml() { return _sqCmdInner(); }
