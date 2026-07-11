@@ -2132,12 +2132,185 @@ function _sqInitials(name) {
   return ((parts[0] || '').charAt(0) + (parts[parts.length - 1] || '').charAt(0)).toUpperCase();
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// SQUAD · LINEUP — premium presentation layer (upgraded UI/UX only). Same data,
+// same columns, same interactions. New .sqlu-* classes leave every shared .sql-*
+// class (used by Formation / modals) untouched. All derived numbers reuse the
+// existing engines / formulas — no stored player data is changed.
+// ══════════════════════════════════════════════════════════════════════════════
+var SQ_LU = { q: '', pos: 'all', quick: {} };
+var _SQ_LU_BOUND = false;
+// Derived match availability (presentation only — never written back to the player).
+// Consistent with the app's deterministic-mock pattern (_sqStat / contract / stats).
+function _sqLuAvail(p) {
+  if (!p) return 'available';
+  if (p.cond >= 92) return 'available';                       // clearly fresh → always available
+  var s = _sqSeed(p.id + ':av') % 100;
+  if (p.cond < 86 && s < 42) return 'injured';                // carrying a knock (biased to lower condition)
+  if (p.qual < 80 && s >= 42 && s < 62) return 'suspended';   // squad player serving a ban
+  return 'available';
+}
+// Squad status — same tiers already used by the contract panel (qual-based).
+function _sqLuStatusLabel(p) { return p.qual >= 85 ? 'Key player' : p.qual >= 80 ? 'First team' : p.qual >= 76 ? 'Rotation' : 'Squad player'; }
+// Vice-captain = highest-quality non-captain (same derivation Formation uses for its VC badge).
+function _sqLuViceId() {
+  var best = null;
+  SQ_DEMO_PLAYERS.forEach(function (p) { if (p.captain) return; if (!best || p.qual > best.qual) best = p; });
+  return best ? best.id : null;
+}
+var LU_QF = {
+  elite:     function (p) { return p.qual >= 85; },
+  fit:       function (p) { return p.cond >= 90; },
+  morale:    function (p) { return _sqMoralePct(p.morale) >= 76; },
+  youth:     function (p) { return p.age <= 21; },
+  left:      function (p) { return p.foot === 'Left'; },
+  key:       function (p) { return p.qual >= 85; },
+  available: function (p) { return _sqLuAvail(p) === 'available'; },
+  injured:   function (p) { return _sqLuAvail(p) === 'injured'; },
+  suspended: function (p) { return _sqLuAvail(p) === 'suspended'; }
+};
+function _sqLineupFiltered() {
+  var q = SQ_LU.q, pos = SQ_LU.pos, quick = SQ_LU.quick;
+  return SQ_DEMO_PLAYERS.filter(function (p) {
+    if (pos !== 'all' && p.cat !== pos) return false;
+    for (var k in quick) { if (quick[k] && LU_QF[k] && !LU_QF[k](p)) return false; }
+    if (q) {
+      var hay = (p.name + ' ' + p.pos + ' ' + p.roles + ' ' + p.natName + ' #' + p.num + ' ' + _sqLuStatusLabel(p) + ' ' + p.foot).toLowerCase();
+      if (hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+// ── aggregate dashboard stats (whole squad; reuse existing formulas) ──
+function _sqLineupStats() {
+  var ps = SQ_DEMO_PLAYERS, n = ps.length || 1;
+  var sum = function (f) { var s = 0; ps.forEach(function (p) { s += f(p); }); return s; };
+  var avgOvr = Math.round(sum(function (p) { return p.qual; }) / n);
+  var avgFit = Math.round(sum(function (p) { return p.cond; }) / n);
+  var avgMor = Math.round(sum(function (p) { return _sqMoralePct(p.morale); }) / n);
+  var mc = sum(function (p) { return p.cond; }) / n;
+  var varc = sum(function (p) { return (p.cond - mc) * (p.cond - mc); }) / n;
+  var chem = Math.max(0, Math.min(100, Math.round(100 - Math.sqrt(varc) * 2.5)));  // same chemistry formula used elsewhere
+  var balance = 0;
+  try { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); balance = (typeof _sqMyStats === 'function') ? (_sqMyStats().balance || 0) : 0; } catch (e) { balance = 0; }
+  var inj = 0, susp = 0, avail = 0;
+  ps.forEach(function (p) { var a = _sqLuAvail(p); if (a === 'injured') inj++; else if (a === 'suspended') susp++; else avail++; });
+  return { total: ps.length, ovr: avgOvr, balance: balance, fit: avgFit, morale: avgMor, chem: chem, injured: inj, suspended: susp, available: avail };
+}
+function _sqLuDash() {
+  var s = _sqLineupStats();
+  function card(key, label, val, sub, tone) {
+    return '<div class="sqlu-stat sqlu-stat--' + (tone || 'n') + '"><span class="sqlu-stat-l">' + label + '</span>'
+      + '<span class="sqlu-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
+  }
+  return '<div class="sqlu-dash">'
+    + card('total', 'Total players', s.total, '', 'blue')
+    + card('ovr', 'Average OVR', s.ovr, '', 'green')
+    + card('bal', 'Team balance', s.balance, '<i>%</i>', 'green')
+    + card('fit', 'Average fitness', s.fit, '<i>%</i>', 'teal')
+    + card('mor', 'Average morale', s.morale, '<i>%</i>', 'amber')
+    + card('chem', 'Average chemistry', s.chem, '<i>%</i>', 'violet')
+    + card('inj', 'Injured', s.injured, '', s.injured ? 'red' : 'muted')
+    + card('susp', 'Suspended', s.suspended, '', s.suspended ? 'red' : 'muted')
+    + card('avail', 'Available', s.available, '', 'green')
+    + '</div>';
+}
+// ── premium filter / search toolbar ──
+var _SQLU_ICON_SEARCH = '<svg class="sqlu-search-ic" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+function _sqLuToolbar() {
+  var f = _sqLineupFiltered().length, t = SQ_DEMO_PLAYERS.length;
+  var seg = [['all', 'All'], ['gk', 'GK'], ['df', 'DEF'], ['mf', 'MID'], ['fw', 'FWD']].map(function (o) {
+    return '<button class="sqlu-seg' + (SQ_LU.pos === o[0] ? ' is-active' : '') + '" data-action="sqLuFilterPos" data-pos="' + o[0] + '" type="button">' + o[1] + '</button>';
+  }).join('');
+  var pills = [['elite', 'OVR 85+'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['youth', 'Youth U21'], ['left', 'Left foot'], ['key', 'Key player'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Suspended']].map(function (o) {
+    return '<button class="sqlu-pill' + (SQ_LU.quick[o[0]] ? ' is-active' : '') + '" data-action="sqLuQuick" data-qf="' + o[0] + '" type="button">' + o[1] + '</button>';
+  }).join('');
+  return '<div class="sqlu-meta">'
+    + '<div class="sqlu-meta-l"><span class="sqlu-meta-title">Squad</span><span class="sqlu-meta-count" id="sq-lineup-count">' + (f === t ? t + ' players' : f + ' of ' + t + ' players') + '</span></div>'
+    + '<button class="sq-mbtn sq-mbtn--add" data-action="sqAddPlayer" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add player</button>'
+    + '</div>'
+    + '<div class="sqlu-filters">'
+    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH + '<input class="sqlu-search-input" type="text" placeholder="Search name, position, role, nationality…" value="' + _sqEsc(SQ_LU.q) + '" aria-label="Search players"></div>'
+    +   '<div class="sqlu-seg-group">' + seg + '</div>'
+    +   '<div class="sqlu-pill-group">' + pills + '</div>'
+    + '</div>';
+}
+// ── premium cell renderers ──
+function _sqLuPos(p) { return '<span class="sqlu-pos sqlu-pos--cat-' + p.cat + ' sqlu-pos--' + p.pos + '">' + p.pos + '</span>'; }
+function _sqLuQual(q) {
+  var t = q >= 87 ? ['elite', 'Elite'] : q >= 82 ? ['excellent', 'Excellent'] : q >= 78 ? ['good', 'Good'] : ['avg', 'Average'];
+  return '<span class="sqlu-qual sqlu-qual--' + t[0] + '"><b>' + q + '</b><i>' + t[1] + '</i></span>';
+}
+function _sqLuCond(v) {
+  var tone = v >= 85 ? 'is-hi' : v >= 70 ? 'is-mid' : 'is-lo';
+  return '<div class="sqlu-cond"><div class="sqlu-cond-fill ' + tone + '" style="width:' + Math.min(100, v) + '%"></div><span class="sqlu-cond-v">' + v + '%</span></div>';
+}
+function _sqLuMorale(m) {
+  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Content' ? 'ok' : 'low';
+  return '<span class="sqlu-mor sqlu-mor--' + t + '"><i></i>' + m + '</span>';
+}
+function _sqLuForm(f) {
+  var t = f >= 7 ? 'up' : f >= 5 ? 'mid' : 'down', g = f >= 7 ? '▲' : f >= 5 ? '▬' : '▼';
+  return '<span class="sqlu-form sqlu-form--' + t + '">' + g + ' ' + f + '</span>';
+}
+function _sqLuRoles(roles, cat) {
+  return String(roles || '').split('·').map(function (r) { r = r.trim(); return r ? '<span class="sqlu-role sqlu-role--' + cat + '">' + _sqEsc(r) + '</span>' : ''; }).join('');
+}
+function _sqLuAvatar(p) {
+  if (p.photo) return '<span class="sqlu-av"><img src="' + _sqEsc(p.photo) + '" alt=""></span>';
+  return '<span class="sqlu-av sqlu-av--' + p.cat + '">' + _sqInitials(p.name) + '</span>';
+}
+var _SQLU_YOUTH = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c0-4.5 0-6.5-2.2-8.7C7.6 11.1 4.5 11 4.5 11s.1 3.1 2.3 5.3C9 18.5 11 18.9 12 19v3z"/><path d="M12 16c0-3.6 1-5.4 3.2-6.9C17.6 7.5 20 7.5 20 7.5s0 2.9-2.4 4.9C15.6 13.7 13.4 14 12 14v2z"/></svg>';
+var _SQLU_INJ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
+function _sqLuIdentity(p, viceId) {
+  var av = _sqLuAvatar(p), badges = '';
+  if (p.captain) badges += '<span class="sqlu-bdg sqlu-bdg--c" title="Captain">C</span>';
+  if (p.id === viceId) badges += '<span class="sqlu-bdg sqlu-bdg--vc" title="Vice-captain">VC</span>';
+  if (p.age <= 21) badges += '<span class="sqlu-bdg sqlu-bdg--youth" title="Youth (U21)">' + _SQLU_YOUTH + '</span>';
+  var av2 = _sqLuAvail(p);
+  if (av2 === 'injured') badges += '<span class="sqlu-bdg sqlu-bdg--inj" title="Injured">' + _SQLU_INJ + '</span>';
+  if (av2 === 'suspended') badges += '<span class="sqlu-bdg sqlu-bdg--susp" title="Suspended">!</span>';
+  return '<div class="sqlu-id">' + av + '<span class="sqlu-id-nm">' + _sqEsc(p.name) + '</span>' + (badges ? '<span class="sqlu-id-bdgs">' + badges + '</span>' : '') + '</div>';
+}
+// Custom (self-contained) quick-action icons. Edit reuses ICON_EDIT lazily at call
+// time — it is assigned later in source order, so it must NOT be captured at load.
+var _SQLU_ACT_ICONS = {
+  details: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1.5 12S5.5 5 12 5s10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  medical: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 1 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+  training: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>',
+  role: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>'
+};
+function _sqLuActions(id) {
+  var acts = [['edit', 'Edit'], ['details', 'Details'], ['medical', 'Medical'], ['training', 'Training'], ['role', 'Tactical role']];
+  return '<div class="sqlu-acts">' + acts.map(function (a) {
+    var ic = a[0] === 'edit' ? ICON_EDIT : _SQLU_ACT_ICONS[a[0]];
+    return '<button class="sqlu-act" data-action="sqLuAct" data-lu-act="' + a[0] + '" data-player-id="' + id + '" title="' + a[1] + '" aria-label="' + a[1] + '" type="button">' + ic + '</button>';
+  }).join('') + '</div>';
+}
+function sqLuAct(id, which) {
+  if (!id) return;
+  if (which === 'edit') { if (typeof sqEditPlayerOpen === 'function') sqEditPlayerOpen(id); return; }
+  var tab = which === 'training' ? 'trainer' : which === 'role' ? 'playstyle' : which === 'medical' ? 'trainer' : 'overview';
+  if (typeof sqOpenPlayer === 'function') { sqOpenPlayer(id); if (tab !== 'overview') { SQ_UI.tab = tab; if (typeof _sqRenderPlayerModal === 'function') _sqRenderPlayerModal(); } }
+}
+function sqLuFilterPos(pos) { SQ_LU.pos = pos || 'all'; _sqRerenderLineupToolbar(); _sqRerenderLineupRows(); }
+function sqLuQuick(k) { if (!k) return; SQ_LU.quick[k] = !SQ_LU.quick[k]; _sqRerenderLineupToolbar(); _sqRerenderLineupRows(); }
+function _sqLuBind() {
+  if (_SQ_LU_BOUND || typeof document === 'undefined' || !document.addEventListener) return;
+  _SQ_LU_BOUND = true;
+  document.addEventListener('input', function (e) {
+    var s = e.target;
+    if (s && s.classList && s.classList.contains('sqlu-search-input')) { SQ_LU.q = String(s.value || '').toLowerCase(); _sqRerenderLineupRows(); }
+  });
+}
+
 function _sqLineupHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
   var rows = _sqLineupRows();
 
-  return '<div class="sq-sub" id="sq-sub-lineup" style="display:none">'
+  _sqLuBind();
+  return '<div class="sq-sub sq-sub--lineup" id="sq-sub-lineup" style="display:none">'
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
     +   '<div class="sql-tabs">'
@@ -2146,14 +2319,15 @@ function _sqLineupHtml() {
     +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
     +   '</div>'
     + '</div>'
-    + '<div class="sql-meta"><div class="sql-meta-l"><span class="sql-meta-title">Squad</span><span class="sql-meta-count" id="sq-lineup-count">' + SQ_DEMO_PLAYERS.length + ' players</span></div>'
-    + '<button class="sq-mbtn sq-mbtn--add" data-action="sqAddPlayer" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add player</button></div>'
-    + '<div class="sql-tablewrap"><table class="sql-table">'
-    +   '<thead><tr>'
-    +     '<th>Pos</th><th>#</th><th>Name</th><th>Roles</th><th>Nat</th><th>Age</th><th>Value</th><th>Form</th><th>Condition</th><th>Morale</th><th>Quality</th>'
-    +   '</tr></thead>'
-    +   '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
-    + '</table></div>'
+    + '<div class="sqlu-wrap">'
+    +   '<div id="sq-lu-dash">' + _sqLuDash() + '</div>'
+    +   '<div id="sq-lu-toolbar">' + _sqLuToolbar() + '</div>'
+    +   '<div class="sqlu-tablewrap"><table class="sqlu-table">'
+    +     '<thead><tr>'
+    +       '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th><th class="sqlu-th-roles">Roles</th><th class="sqlu-th-nat">Nat</th><th class="sqlu-th-age">Age</th><th class="sqlu-th-val">Value</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">Condition</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">Quality</th>'
+    +     '</tr></thead>'
+    +     '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
+    +   '</table></div>'
     + '</div>';
 }
 
@@ -2468,29 +2642,38 @@ function _sqAvatar(p) {
 }
 
 function _sqLineupRows() {
-  return SQ_DEMO_PLAYERS.map(function (p) {
+  var list = _sqLineupFiltered();
+  if (!list.length) return '<tr class="sqlu-empty-row"><td colspan="11"><div class="sqlu-empty">No players match the current search or filters.</div></td></tr>';
+  var viceId = _sqLuViceId();
+  return list.map(function (p) {
     var code = SQ_NAT[p.natName] || (p.natName || '').slice(0, 3).toUpperCase();
-    return '<tr class="sql-row" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
-      + '<td class="sql-c-pos"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span></td>'
-      + '<td class="sql-c-num">' + p.num + '</td>'
-      + '<td class="sql-c-name"><span class="sql-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt" title="Captain">C</span>' : '') + '</span></td>'
-      + '<td class="sql-c-roles">' + _sqEsc(p.roles) + '</td>'
-      + '<td class="sql-c-nat"><span class="sql-flag">' + (p.nat || '🏳️') + '</span><span class="sql-natc">' + code + '</span></td>'
-      + '<td class="sql-c-age">' + p.age + '</td>'
-      + '<td class="sql-c-val">' + _sqEsc(p.value) + '</td>'
-      + '<td class="sql-c-form">' + _sqFormChip(p.form) + '</td>'
-      + '<td class="sql-c-cond"><div class="sql-condwrap"><span>' + p.cond + '%</span>' + _sqBar(p.cond) + '</div></td>'
-      + '<td class="sql-c-mor">' + _sqMorale(p.morale) + '</td>'
-      + '<td class="sql-c-qual">' + _sqQual(p.qual) + '</td>'
+    return '<tr class="sqlu-row sqlu-row--' + p.cat + '" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
+      + '<td class="sqlu-c-pos">' + _sqLuPos(p) + '</td>'
+      + '<td class="sqlu-c-num">' + p.num + '</td>'
+      + '<td class="sqlu-c-name">' + _sqLuIdentity(p, viceId) + '</td>'
+      + '<td class="sqlu-c-roles"><div class="sqlu-roles">' + _sqLuRoles(p.roles, p.cat) + '</div></td>'
+      + '<td class="sqlu-c-nat"><span class="sqlu-nat"><span class="sqlu-flag">' + (p.nat || '🏳️') + '</span><span class="sqlu-natc">' + code + '</span></span></td>'
+      + '<td class="sqlu-c-age">' + p.age + '</td>'
+      + '<td class="sqlu-c-val"><span class="sqlu-val">' + _sqEsc(p.value) + '</span></td>'
+      + '<td class="sqlu-c-form">' + _sqLuForm(p.form) + '</td>'
+      + '<td class="sqlu-c-cond">' + _sqLuCond(p.cond) + '</td>'
+      + '<td class="sqlu-c-mor">' + _sqLuMorale(p.morale) + '</td>'
+      + '<td class="sqlu-c-qual">' + _sqLuQual(p.qual) + _sqLuActions(p.id) + '</td>'
       + '</tr>';
   }).join('');
 }
-function _sqRerenderLineup() {
+function _sqLuUpdateCount() {
+  var c = document.getElementById('sq-lineup-count');
+  if (c) { var f = _sqLineupFiltered().length, t = SQ_DEMO_PLAYERS.length; c.textContent = (f === t ? t + ' players' : f + ' of ' + t + ' players'); }
+}
+function _sqRerenderLineupRows() {
   var tb = document.getElementById('sq-lineup-tbody');
   if (tb) tb.innerHTML = _sqLineupRows();
-  var c = document.getElementById('sq-lineup-count');
-  if (c) c.textContent = SQ_DEMO_PLAYERS.length + ' players';
+  _sqLuUpdateCount();
 }
+function _sqRerenderLineupToolbar() { var t = document.getElementById('sq-lu-toolbar'); if (t) t.innerHTML = _sqLuToolbar(); }
+function _sqRerenderLineupDash() { var d = document.getElementById('sq-lu-dash'); if (d) d.innerHTML = _sqLuDash(); }
+function _sqRerenderLineup() { _sqRerenderLineupDash(); _sqRerenderLineupToolbar(); _sqRerenderLineupRows(); }
 function _sqHideModals() {
   ['sq-pl-modal', 'sq-form-modal', 'sq-confirm-modal', 'sq-setups-modal', 'sq-sp-modal', 'sq-lib-modal', 'sq-ment-modal', 'sq-tac-modal', 'sq-plan-modal'].forEach(function (id) {
     var e = document.getElementById(id); if (e) e.style.display = 'none';
@@ -39733,6 +39916,9 @@ async function tosBoardSnapshot() {
           break;
         }
         case 'sqOpenPlayer':  if (typeof sqOpenPlayer === 'function')  sqOpenPlayer(el.dataset.playerId); break;
+        case 'sqLuAct':       if (typeof sqLuAct === 'function')       sqLuAct(el.dataset.playerId, el.dataset.luAct); break;
+        case 'sqLuFilterPos': if (typeof sqLuFilterPos === 'function') sqLuFilterPos(el.dataset.pos);    break;
+        case 'sqLuQuick':     if (typeof sqLuQuick === 'function')     sqLuQuick(el.dataset.qf);         break;
         case 'sqClosePlayer': if (typeof sqClosePlayer === 'function') sqClosePlayer();                   break;
         case 'sqPlayerTab':   if (typeof sqPlayerTab === 'function')   sqPlayerTab(el.dataset.tab);        break;
         case 'sqAddPlayer':    if (typeof sqAddPlayer === 'function')     sqAddPlayer();                              break;
