@@ -35,6 +35,14 @@ Two options — pick one:
 
 The migration only adds nullable/defaulted columns to `Player`, so it applies with no data backfill and cannot fail on existing rows.
 
+### 2a. (Alternative) One-time CLUB_ADMIN import endpoint — no shell / DATABASE_URL needed
+`POST /api/v1/training/admin/import-squad` (CLUB_ADMIN only) imports the squad into the caller's club, runs the verification, and returns the full report. It is **self-disabling**: once the club has imported players (`Player.legacyId` present) it refuses to import again and only returns the current report — so it can never mutate data twice. Idempotent (upsert on `legacyId`) and rollback-safe (`--rollback`).
+
+Trigger it once while logged in as a CLUB_ADMIN (browser console):
+```js
+await api('/training/admin/import-squad', { method: 'POST' }).then(r => console.log(JSON.stringify(r.data, null, 2)));
+```
+
 ### 2. Import the Squad (dry-run first)
 ```bash
 # Preview — writes nothing, prints the old-id -> new-UUID mapping:

@@ -9,6 +9,10 @@ router.get('/',                  ctrl.getSessions);
 router.get('/form',              ctrl.getForm);
 // Stage 2: PostgreSQL-only training reports (daily | weekly | monthly | season).
 router.get('/reports',           ctrl.getReport);
+// One-time CLUB_ADMIN Squad import + verification. Registered before the
+// dynamic /:id routes so "admin" is never captured as an id. Self-disables
+// after the first successful import (see controller).
+router.post('/admin/import-squad', authorize('CLUB_ADMIN'), ctrl.seedSquadOnce);
 router.post('/',                 authorize('CLUB_ADMIN','HEAD_COACH'), ctrl.createSession);
 // New clean Create-Session flow (POST /api/v1/training/sessions). Replaces
 // the legacy POST / for the New Session button; the legacy route is kept

@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import * as trainingService from '../services/training.service';
+import { importSquadForClub, verifyForClub } from '../services/squad-import.service';
+import { prisma } from '../config/database';
 import { sendSuccess, sendCreated, sendNoContent, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -131,6 +133,44 @@ export async function getReport(req: Request, res: Response, next: NextFunction)
     const report = await trainingService.getTrainingReport(req.user!.clubId, parsed.data.query.range ?? 'weekly');
     return sendSuccess(res, report);
   } catch (err) { return next(err); }
+}
+
+// ── One-time CLUB_ADMIN Squad import + verification ─────────────────────────
+// Self-disabling: once the club has imported players (Player.legacyId present),
+// this endpoint refuses to import again and only returns the current report, so
+// it cannot mutate data a second time. The import itself is idempotent (upsert
+// on legacyId) and rollback-safe (prisma/seeds/import-squad.ts --rollback).
+export async function seedSquadOnce(req: Request, res: Response, next: NextFunction) {
+  try {
+    const clubId = req.user!.clubId;
+    if (!clubId) throw new BadRequestError('No active club context');
+
+    const already = await prisma.player.count({ where: { clubId, legacyId: { not: null } } });
+    if (already > 0) {
+      const report = await verifyForClub(clubId);
+      return sendSuccess(res, {
+        status: 'disabled',
+        reason: 'Squad already imported for this club — endpoint is now inert (no data changed).',
+        report,
+      }, 'Import endpoint disabled (already imported)');
+    }
+
+    const importResult = await importSquadForClub(clubId);
+    const report = await verifyForClub(clubId);
+    return sendSuccess(res, {
+      status: 'imported',
+      import: { created: importResult.created, updated: importResult.updated, total: importResult.total, viceId: importResult.viceId },
+      mapping: importResult.mapping,
+      report,
+      note: 'Import successful. This endpoint is now self-disabled: further calls will not re-import (Player.legacyId already present).',
+    }, 'Squad imported and verified');
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      const meta = err.meta ? ` ${JSON.stringify(err.meta)}` : '';
+      return next(new BadRequestError(`Squad import failed [${err.code}]${meta}`));
+    }
+    return next(err);
+  }
 }
 
 export async function createNewSession(req: Request, res: Response, next: NextFunction) {
