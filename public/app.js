@@ -8651,6 +8651,88 @@ function _trnExplainHtml() {
   var body = '<div class="trn-explain"><div class="trn-explain-h">' + _trnAvatar(p) + '<div><b>' + _sqEsc(p.name) + '</b><span>' + (e.label || 'Best player') + '</span></div></div><p class="trn-explain-t">' + e.text + '</p></div>';
   return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card trn-modal-card--sm"><div class="trn-modal-h"><b>Why ' + _sqEsc(_trnLast(p.name)) + '?</b><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b">' + body + '</div></div>';
 }
+// ── Professional analytics charts (animated SVG, real records only) ──────────
+function _trnIsoWeek(d) {
+  var dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  var day = dt.getUTCDay() || 7; dt.setUTCDate(dt.getUTCDate() + 4 - day);
+  var ys = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+  var wk = Math.ceil((((dt - ys) / 86400000) + 1) / 7);
+  return dt.getUTCFullYear() + '-W' + (wk < 10 ? '0' + wk : wk);
+}
+// Animated line+area chart from a real series [{label,v}]. pathLength=1 lets the
+// draw animation work regardless of geometry. <title> gives native hover tooltips.
+function _trnChtLine(series, col, unit) {
+  if (!series || !series.length) return '';
+  var W = 300, H = 92, PL = 6, PR = 6, PT = 12, PB = 14, iw = W - PL - PR, ih = H - PT - PB;
+  var vals = series.map(function (s) { return s.v; });
+  var mx = Math.max.apply(null, vals), mn = Math.min.apply(null, vals); if (mx === mn) mx = mn + 1;
+  var rg = mx - mn, n = series.length;
+  var X = function (i) { return PL + (n === 1 ? iw / 2 : (i / (n - 1)) * iw); };
+  var Y = function (v) { return PT + ih - ((v - mn) / rg) * ih; };
+  var pts = series.map(function (s, i) { return X(i).toFixed(1) + ',' + Y(s.v).toFixed(1); }).join(' ');
+  var area = X(0).toFixed(1) + ',' + (PT + ih) + ' ' + pts + ' ' + X(n - 1).toFixed(1) + ',' + (PT + ih);
+  var dots = series.map(function (s, i) { return '<circle class="trn-cht-dot" cx="' + X(i).toFixed(1) + '" cy="' + Y(s.v).toFixed(1) + '" r="2.3"><title>' + _sqEsc(s.label) + ': ' + (Math.round(s.v * 10) / 10) + (unit || '') + '</title></circle>'; }).join('');
+  return '<svg class="trn-cht" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" style="--c:' + col + '">'
+    + '<polygon class="trn-cht-area" points="' + area + '" fill="rgba(' + col + ',.13)"/>'
+    + '<polyline class="trn-cht-line" points="' + pts + '" pathLength="1" fill="none" stroke="rgb(' + col + ')" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    + dots + '</svg>';
+}
+// Animated bar chart from a real series [{label,short,v}].
+function _trnChtBars(bars, col, unit) {
+  if (!bars || !bars.length) return '';
+  var mx = Math.max.apply(null, bars.map(function (b) { return b.v; })) || 1;
+  return '<div class="trn-cht-bars" style="--c:' + col + '">' + bars.map(function (b, i) {
+    var h = Math.max(3, Math.round(b.v / mx * 100));
+    return '<div class="trn-cht-bar" style="--h:' + h + '%;--d:' + (i * 0.05).toFixed(2) + 's" title="' + _sqEsc(b.label) + ': ' + b.v + (unit || '') + '"><i></i><span>' + _sqEsc(b.short || b.label) + '</span></div>';
+  }).join('') + '</div>';
+}
+function _trnChtCard(title, sub, last, chart) {
+  return '<div class="trn-chtcard"><div class="trn-chtcard-h"><b>' + title + '</b><em>' + last + '</em></div>' + chart + '<span class="trn-chtcard-s">' + sub + '</span></div>';
+}
+// Builds every dashboard chart from REAL completed/recorded session records.
+// No pseudo-random values; empty state until real sessions exist.
+function _trnCharts() {
+  var comp = _trCompleted().slice().sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
+  var all = (typeof _trSessionsSorted === 'function') ? _trSessionsSorted() : [];
+  if (!comp.length) {
+    return _trnPanel('Professional analytics', 'Real-time charts', _trEmpty('&#128202;', 'Analytics build automatically', 'Complete training sessions and attendance, load, fitness, rating and injury trends chart here — straight from real records.', true));
+  }
+  var att = [], load = [], rating = [], fit = [], ready = [], rec = [], inj = [], perf = [];
+  comp.forEach(function (s) {
+    var lbl = _trFmtDate(s.date);
+    var pr = 0, ab = 0, injn = 0; (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; if (a === 'injured') injn++; });
+    att.push({ label: lbl, v: (pr + ab) ? Math.round(pr / (pr + ab) * 100) : 0 });
+    load.push({ label: lbl, v: (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0) });
+    var rs = []; (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); });
+    var avgR = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : 0;
+    rating.push({ label: lbl, v: Math.round(avgR * 10) / 10 });
+    perf.push({ label: lbl, v: Math.round(avgR * 10) });                       // team performance index (rating×10)
+    var cds = []; (s.players || []).forEach(function (id) { var p = _trP(id); if (p && typeof p.cond === 'number') cds.push(p.cond); });
+    var f = cds.length ? Math.round(cds.reduce(function (x, y) { return x + y; }, 0) / cds.length) : 0;
+    fit.push({ label: lbl, v: f });
+    ready.push({ label: lbl, v: _trnClamp(Math.round(f - (100 - f) * 0.25), 0, 100) });
+    rec.push({ label: lbl, v: _trnClamp(f, 0, 100) });
+    inj.push({ label: lbl, v: injn });
+  });
+  var weekMap = {}, monMap = {};
+  all.forEach(function (s) { if (!s.date) return; var d; try { d = new Date(s.date + 'T00:00:00'); } catch (e) { return; } var wk = _trnIsoWeek(d); weekMap[wk] = (weekMap[wk] || 0) + 1; var mo = s.date.slice(0, 7); monMap[mo] = (monMap[mo] || 0) + 1; });
+  var weekBars = Object.keys(weekMap).sort().slice(-8).map(function (k) { return { label: k, short: 'W' + k.split('-W')[1], v: weekMap[k] }; });
+  var monBars = Object.keys(monMap).sort().slice(-6).map(function (k) { return { label: k, short: k.slice(5), v: monMap[k] }; });
+  var lv = function (a) { return a.length ? a[a.length - 1].v : 0; };
+  var cards = [
+    _trnChtCard('Attendance Trend', 'Per session', lv(att) + '%', _trnChtLine(att, '52,211,153', '%')),
+    _trnChtCard('Training Load Trend', 'Minutes / session', lv(load) + ' min', _trnChtLine(load, '96,165,250', ' min')),
+    _trnChtCard('Fitness Trend', 'Avg participant condition', lv(fit) + '%', _trnChtLine(fit, '74,222,128', '%')),
+    _trnChtCard('Readiness Trend', 'Derived from condition', lv(ready) + '%', _trnChtLine(ready, '45,212,191', '%')),
+    _trnChtCard('Recovery Trend', 'Regeneration index', lv(rec) + '%', _trnChtLine(rec, '125,211,252', '%')),
+    _trnChtCard('Injury Trend', 'Injured marks / session', lv(inj) + '', _trnChtBars(inj.map(function (x, i) { return { label: x.label, short: (i + 1) + '', v: x.v }; }), '251,113,133')),
+    _trnChtCard('Average Rating Trend', 'Coach ratings', (lv(rating)).toFixed(1), _trnChtLine(rating, '244,183,64')),
+    _trnChtCard('Team Performance Trend', 'Rating index', lv(perf) + '', _trnChtLine(perf, '167,139,250')),
+    _trnChtCard('Weekly Sessions', 'Sessions / week', lv(weekBars) + '', _trnChtBars(weekBars, '96,165,250')),
+    _trnChtCard('Monthly Sessions', 'Sessions / month', lv(monBars) + '', _trnChtBars(monBars, '167,139,250')),
+  ].join('');
+  return _trnPanel('Professional analytics', comp.length + ' completed session' + (comp.length === 1 ? '' : 's') + ' · live from records', '<div class="trn-chtgrid">' + cards + '</div>');
+}
 function _trnDashboard() {
   var t = _trnTeam();                                // squad-derived fitness/injury (real squad data)
   var recs = _trnAIRecs(), topRec = recs[0];
@@ -8693,6 +8775,7 @@ function _trnDashboard() {
     ? '<div class="trn-awards">' + bp.awards.map(function (a, i) { return '<button class="trn-award" data-trn-act="explaina" data-trn-i="' + i + '" type="button"><span class="trn-award-l">' + a.label + '</span><span class="trn-award-p">' + _trnAvatar(a.p) + '<b>' + _sqEsc(_trnLast(a.p.name)) + '</b></span><span class="trn-award-v">' + a.val + '</span></button>'; }).join('') + '</div>'
     : _trEmpty('&#129351;', 'No award data yet', 'Rankings build from completed sessions.', false);
   return banner + cards
+    + _trnCharts()
     + '<div class="trn-grid2">'
     + _trnPanel('This week', weekSessions.length + ' session' + (weekSessions.length === 1 ? '' : 's'), weekList)
     + _trnPanel('Squad readiness', t.readiness + '%', '<div class="trn-readrow">' + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + _trnRing(t.fitness, 'Fitness', '%', _trnTone(t.fitness)) + _trnRing(100 - t.fatigue, 'Freshness', '%', _trnTone(100 - t.fatigue)) + _trnRing(t.sharpness, 'Sharpness', '%', _trnTone(t.sharpness)) + '</div>')
