@@ -8436,6 +8436,19 @@ async function _trPullBackend(cb) {
     if (!Array.isArray(rows)) return;
     _trLoadDB(); var sc = _trScope();
     var mapped = rows.map(function (r) { return _trBackendToClient(r, sc); });
+    // Hydrate REAL attendance from PostgreSQL (TrainingAttendanceRecord) for the
+    // most-recent sessions, so reports/attendance/best-discipline reflect the
+    // real DB records after a fresh login — not just ratings. Bounded + parallel.
+    var recent = mapped.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); }).slice(0, 40);
+    await Promise.all(recent.map(function (s) {
+      if (!s.backendId) return null;
+      return TrainingAPI.getAttendance(s.backendId).then(function (ar) {
+        var items = (ar && ((ar.data && ar.data.items) || ar.items)) || [];
+        var att = {};
+        items.forEach(function (it) { if (it && it.mark && _TR_MARK_DN[it.mark]) att[it.playerId] = _TR_MARK_DN[it.mark]; });
+        s.attendance = att; s._needsAttendance = false;
+      }).catch(function () { /* keep this session's attendance empty on error */ });
+    }));
     // Replace only this club's sessions with the backend set; keep other clubs.
     TR_DB.sessions = (TR_DB.sessions || []).filter(function (x) { return x.club !== sc.club; }).concat(mapped);
     _trSaveDB(); _TR_PULLED = true;
