@@ -274,6 +274,16 @@ model Player {
   paymentStatus PaymentStatus @default(PAID)
   isActive      Boolean       @default(true)
   notes         String?       @db.Text
+
+  // ── Squad-migration additions (Training/Squad phase — all optional/defaulted so the migration is additive & safe) ──
+  // legacyId provides a stable, idempotent mapping from the old client-side Squad id (e.g. "sq-8")
+  // to this backend Player UUID, so the import can run more than once without creating duplicates.
+  legacyId         String?  @unique
+  roles            String?              // e.g. "BBM · CM" (preserved from the Squad UI)
+  morale           String?              // "Excellent" | "Good" | "Content" | "Poor"
+  isCaptain        Boolean  @default(false)
+  isViceCaptain    Boolean  @default(false)
+  trainedPositions String?              // comma-separated allowed positions (e.g. "CM,DM,AM")
   joinedAt      DateTime      @default(now())
 
   clubId String
@@ -4258,6 +4268,7 @@ enum AttendanceMark {
   ABSENT
   LATE
   EXCUSED
+  INJURED
 }
 
 enum OperationsPaymentState {
@@ -4805,6 +4816,20 @@ model TrainingSession {
   possession    Int         @default(11)
   conditionForm Int         @default(13)
 
+  // ── Training-persistence additions (all optional/defaulted so the migration is additive & safe) ──
+  // These mirror the fields the Training workspace already tracks client-side, so a session can be
+  // fully persisted in PostgreSQL (planning → completion) instead of localStorage.
+  startTime     String?              // "10:00"
+  sessionType   String?              // technical | tactical | physical | recovery | gym | mental | match
+  objective     String?
+  tacticalFocus String?
+  formation     String?
+  status        String   @default("planned")   // draft | planned | in_progress | completed | cancelled
+  sessionRating Float?
+  bestPlayerId  String?              // Player.id of the session's best performer
+  coachNote     String?  @db.Text
+  completedAt   DateTime?
+
   playerStats PlayerTrainingStat[]
 
   createdAt DateTime @default(now())
@@ -4812,6 +4837,7 @@ model TrainingSession {
 
   @@index([clubId])
   @@index([scheduledAt])
+  @@index([status])
 }
 
 model PlayerTrainingStat {
@@ -4821,9 +4847,10 @@ model PlayerTrainingStat {
   playerId  String
   player    Player          @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
-  attended Boolean @default(true)
-  rating   Float?
-  notes    String?
+  attended      Boolean @default(true)
+  rating        Float?
+  notes         String?
+  participation String?             // full | partial (persisted training participation, additive)
 
   @@unique([sessionId, playerId])
   @@index([sessionId])

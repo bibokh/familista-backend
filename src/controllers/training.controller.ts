@@ -37,7 +37,7 @@ const updateSchema = z.object({
   }).refine((b) => Object.keys(b).length > 0, { message: 'No fields supplied to update' }),
 });
 
-const ATTENDANCE_MARKS = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'] as const;
+const ATTENDANCE_MARKS = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'INJURED'] as const;
 const attendanceSchema = z.object({
   body: z.object({
     marks: z.array(z.object({
@@ -59,15 +59,79 @@ function zerr(err: z.ZodError): BadRequestError {
 // the old code interferes. `notes` maps to TrainingSession.description.
 const newSessionSchema = z.object({
   body: z.object({
-    title:       z.string().trim().min(1).max(200),
-    scheduledAt: DATE_OR_ISO,
-    duration:    z.number().int().min(1).max(480),
-    location:    z.string().trim().max(200).optional(),
-    notes:       z.string().max(4000).optional(),
-    drills:      z.array(z.enum(DRILLS)).optional(),
-    playerIds:   z.array(z.string().uuid()).optional(),
+    title:         z.string().trim().min(1).max(200),
+    scheduledAt:   DATE_OR_ISO,
+    duration:      z.number().int().min(1).max(480),
+    location:      z.string().trim().max(200).optional(),
+    notes:         z.string().max(4000).optional(),
+    drills:        z.array(z.enum(DRILLS)).optional(),
+    playerIds:     z.array(z.string().uuid()).optional(),
+    startTime:     z.string().trim().max(10).optional(),
+    sessionType:   z.string().trim().max(40).optional(),
+    objective:     z.string().trim().max(500).optional(),
+    tacticalFocus: z.string().trim().max(60).optional(),
+    formation:     z.string().trim().max(20).optional(),
   }),
 });
+
+// ── Stage 2: performance / completion / reports ─────────────────────────────
+const performanceSchema = z.object({
+  body: z.object({
+    marks: z.array(z.object({
+      playerId:      z.string().uuid(),
+      rating:        z.number().min(0).max(10).nullable().optional(),
+      participation: z.enum(['full', 'partial']).nullable().optional(),
+      notes:         z.string().max(500).nullable().optional(),
+    })).min(1),
+  }),
+});
+
+const completeSchema = z.object({
+  body: z.object({
+    sessionRating: z.number().min(0).max(10).nullable().optional(),
+    bestPlayerId:  z.string().uuid().nullable().optional(),
+    coachNote:     z.string().max(2000).nullable().optional(),
+    performance:   z.array(z.object({
+      playerId:      z.string().uuid(),
+      rating:        z.number().min(0).max(10).nullable().optional(),
+      participation: z.enum(['full', 'partial']).nullable().optional(),
+      notes:         z.string().max(500).nullable().optional(),
+    })).optional(),
+  }),
+});
+
+const reportSchema = z.object({
+  query: z.object({
+    range: z.enum(['daily', 'weekly', 'monthly', 'season']).optional(),
+  }),
+});
+
+export async function savePerformance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = performanceSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const result = await trainingService.savePerformance(req.params.id, req.user!.clubId, parsed.data.body.marks);
+    return sendSuccess(res, result, 'Performance saved');
+  } catch (err) { return next(err); }
+}
+
+export async function completeSession(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = completeSchema.safeParse({ body: req.body });
+    if (!parsed.success) throw zerr(parsed.error);
+    const result = await trainingService.completeSession(req.params.id, req.user!.clubId, parsed.data.body);
+    return sendSuccess(res, result, 'Session completed');
+  } catch (err) { return next(err); }
+}
+
+export async function getReport(req: Request, res: Response, next: NextFunction) {
+  try {
+    const parsed = reportSchema.safeParse({ query: req.query });
+    if (!parsed.success) throw zerr(parsed.error);
+    const report = await trainingService.getTrainingReport(req.user!.clubId, parsed.data.query.range ?? 'weekly');
+    return sendSuccess(res, report);
+  } catch (err) { return next(err); }
+}
 
 export async function createNewSession(req: Request, res: Response, next: NextFunction) {
   try {

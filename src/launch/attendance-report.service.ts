@@ -13,7 +13,7 @@ export interface LaunchActor {
   role?:  string;
 }
 
-const ALL_MARKS: AttendanceMark[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+const ALL_MARKS: AttendanceMark[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'INJURED'];
 
 export interface AttendanceRollup {
   scope:      { kind: 'TRAINING' | 'MATCH'; teamId?: string; playerId?: string };
@@ -43,7 +43,7 @@ export async function trainingAttendanceReport(actor: LaunchActor, opts: { teamI
     prisma.trainingAttendanceRecord.findMany({ where, orderBy: { recordedAt: 'desc' }, take: 200 }),
     prisma.trainingAttendanceRecord.groupBy({ by: ['mark'], where, _count: { _all: true } }),
   ]);
-  const tallies: Record<AttendanceMark, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+  const tallies: Record<AttendanceMark, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, INJURED: 0 };
   for (const r of byMark) tallies[r.mark] = r._count._all;
   const total = ALL_MARKS.reduce((s, m) => s + tallies[m], 0);
   const rate = total ? (tallies.PRESENT + tallies.LATE) / total : 0;
@@ -68,7 +68,7 @@ export async function matchAttendanceReport(actor: LaunchActor, opts: { teamId?:
     prisma.matchAttendanceRecord.findMany({ where, orderBy: { recordedAt: 'desc' }, take: 200 }),
     prisma.matchAttendanceRecord.groupBy({ by: ['mark'], where, _count: { _all: true } }),
   ]);
-  const tallies: Record<AttendanceMark, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+  const tallies: Record<AttendanceMark, number> = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, INJURED: 0 };
   for (const r of byMark) tallies[r.mark] = r._count._all;
   const total = ALL_MARKS.reduce((s, m) => s + tallies[m], 0);
   const rate = total ? (tallies.PRESENT + tallies.LATE) / total : 0;

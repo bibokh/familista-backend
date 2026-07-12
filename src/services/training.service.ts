@@ -26,13 +26,19 @@ export interface AttendanceMarkDto {
 // frontend expects (with playerStats.player), so it can land straight in
 // the Sessions list.
 export interface CleanCreateSessionDto {
-  title:       string;
-  scheduledAt: string;
-  duration:    number;
-  location?:   string;
-  notes?:      string;
-  drills?:     DrillType[];
-  playerIds?:  string[];
+  title:         string;
+  scheduledAt:   string;
+  duration:      number;
+  location?:     string;
+  notes?:        string;
+  drills?:       DrillType[];
+  playerIds?:    string[];
+  // Stage 2 planning metadata (additive, all optional).
+  startTime?:    string;
+  sessionType?:  string;
+  objective?:    string;
+  tacticalFocus?: string;
+  formation?:    string;
 }
 
 export async function createCleanSession(clubId: string, dto: CleanCreateSessionDto) {
@@ -62,11 +68,18 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
   return prisma.trainingSession.create({
     data: {
       clubId,
-      title:       dto.title,
-      description: dto.notes ?? null,
-      scheduledAt: new Date(dto.scheduledAt),
-      duration:    dto.duration,
-      drills:      dto.drills ?? [],
+      title:         dto.title,
+      description:   dto.notes ?? null,
+      location:      dto.location ?? null,
+      scheduledAt:   new Date(dto.scheduledAt),
+      duration:      dto.duration,
+      drills:        dto.drills ?? [],
+      startTime:     dto.startTime ?? null,
+      sessionType:   dto.sessionType ?? null,
+      objective:     dto.objective ?? null,
+      tacticalFocus: dto.tacticalFocus ?? null,
+      formation:     dto.formation ?? null,
+      status:        'planned',
       ...(validPlayerIds.length && {
         playerStats: {
           create: validPlayerIds.map((pid) => ({ playerId: pid })),
@@ -232,12 +245,13 @@ export async function deleteTrainingSession(id: string, clubId: string) {
 // ─────────────────────────────────────────────────────────────────────────
 
 function summariseMarks(marks: AttendanceMark[]) {
-  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+  const counts = { present: 0, absent: 0, late: 0, excused: 0, injured: 0 };
   for (const m of marks) {
     if      (m === 'PRESENT') counts.present++;
     else if (m === 'ABSENT')  counts.absent++;
     else if (m === 'LATE')    counts.late++;
     else if (m === 'EXCUSED') counts.excused++;
+    else if (m === 'INJURED') counts.injured++;
   }
   return counts;
 }
@@ -319,6 +333,222 @@ export async function setTrainingAttendance(
   );
 
   return getTrainingAttendance(sessionId, clubId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Stage 2 — full session lifecycle persistence (planning → completion) and
+// PostgreSQL-only reports. All player references are real Player UUIDs; every
+// write is pre-validated against the caller's active club roster so a stale
+// client id can never poison a row.
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface PerformanceMarkDto {
+  playerId:      string;
+  rating?:       number | null;
+  participation?: string | null;   // "full" | "partial"
+  notes?:        string | null;
+}
+
+async function assertOwnedPlayers(clubId: string, playerIds: string[]) {
+  if (playerIds.length === 0) return;
+  const owned = await prisma.player.findMany({
+    where:  { id: { in: playerIds }, clubId },
+    select: { id: true },
+  });
+  if (owned.length !== new Set(playerIds).size) throw new ForbiddenError();
+}
+
+// Upsert per-player ratings / participation / notes onto PlayerTrainingStat
+// (the row that ties a session to a real Player UUID).
+export async function savePerformance(
+  sessionId: string,
+  clubId: string,
+  marks: PerformanceMarkDto[],
+) {
+  await getTrainingById(sessionId, clubId);
+  await assertOwnedPlayers(clubId, marks.map((m) => m.playerId));
+
+  await prisma.$transaction(
+    marks.map((m) =>
+      prisma.playerTrainingStat.upsert({
+        where:  { sessionId_playerId: { sessionId, playerId: m.playerId } },
+        create: {
+          sessionId,
+          playerId:      m.playerId,
+          rating:        m.rating ?? null,
+          participation: m.participation ?? null,
+          notes:         m.notes ?? null,
+        },
+        update: {
+          ...(m.rating        !== undefined && { rating:        m.rating }),
+          ...(m.participation !== undefined && { participation: m.participation }),
+          ...(m.notes         !== undefined && { notes:         m.notes }),
+        },
+      }),
+    ),
+  );
+
+  // Mark the session in-progress once performance is recorded (matches client flow).
+  await prisma.trainingSession.updateMany({
+    where: { id: sessionId, status: { in: ['draft', 'planned'] } },
+    data:  { status: 'in_progress' },
+  });
+
+  return getTrainingById(sessionId, clubId);
+}
+
+export interface CompleteSessionDto {
+  sessionRating?: number | null;
+  bestPlayerId?:  string | null;
+  coachNote?:     string | null;
+  performance?:   PerformanceMarkDto[];
+}
+
+// Persist session completion in Postgres: status/completedAt/sessionRating/
+// bestPlayerId/coachNote, plus any final per-player ratings in one flow.
+export async function completeSession(
+  sessionId: string,
+  clubId: string,
+  dto: CompleteSessionDto,
+) {
+  await getTrainingById(sessionId, clubId);
+
+  if (dto.bestPlayerId) await assertOwnedPlayers(clubId, [dto.bestPlayerId]);
+  if (dto.performance && dto.performance.length) {
+    await savePerformance(sessionId, clubId, dto.performance);
+  }
+
+  await prisma.trainingSession.update({
+    where: { id: sessionId },
+    data: {
+      status:        'completed',
+      completedAt:   new Date(),
+      sessionRating: dto.sessionRating ?? null,
+      bestPlayerId:  dto.bestPlayerId ?? null,
+      coachNote:     dto.coachNote ?? null,
+    },
+  });
+
+  return getTrainingById(sessionId, clubId);
+}
+
+// ── Reports (PostgreSQL only) ──────────────────────────────────────────────
+// range: daily (today) | weekly (7d) | monthly (30d) | season (all).
+function rangeWindow(range: string): { from: Date | null; label: string } {
+  const now = new Date();
+  const start = new Date(now);
+  if (range === 'daily')   { start.setHours(0, 0, 0, 0); return { from: start, label: 'Daily' }; }
+  if (range === 'weekly')  { start.setDate(now.getDate() - 7);  return { from: start, label: 'Weekly' }; }
+  if (range === 'monthly') { start.setDate(now.getDate() - 30); return { from: start, label: 'Monthly' }; }
+  return { from: null, label: 'Season' }; // season = everything for the club
+}
+
+export async function getTrainingReport(clubId: string, range: string) {
+  const { from, label } = rangeWindow(range);
+
+  const sessionWhere: Prisma.TrainingSessionWhereInput = from
+    ? { clubId, scheduledAt: { gte: from } }
+    : { clubId };
+  const attWhere: Prisma.TrainingAttendanceRecordWhereInput = from
+    ? { clubId, recordedAt: { gte: from } }
+    : { clubId };
+
+  const [sessions, players, attendance] = await Promise.all([
+    prisma.trainingSession.findMany({
+      where: sessionWhere,
+      include: { playerStats: { select: { playerId: true, rating: true, participation: true } } },
+      orderBy: { scheduledAt: 'desc' },
+    }),
+    prisma.player.findMany({
+      where:  { clubId, isActive: true },
+      select: { id: true, firstName: true, lastName: true, number: true, position: true },
+    }),
+    prisma.trainingAttendanceRecord.findMany({
+      where: attWhere,
+      select: { playerId: true, mark: true, trainingSessionId: true },
+    }),
+  ]);
+
+  const completed = sessions.filter((s) => s.status === 'completed');
+
+  // Attendance summary across the window (from real attendance rows).
+  const attCounts = { present: 0, late: 0, absent: 0, excused: 0, injured: 0 };
+  for (const r of attendance) {
+    if      (r.mark === 'PRESENT') attCounts.present++;
+    else if (r.mark === 'LATE')    attCounts.late++;
+    else if (r.mark === 'ABSENT')  attCounts.absent++;
+    else if (r.mark === 'EXCUSED') attCounts.excused++;
+    else if (r.mark === 'INJURED') attCounts.injured++;
+  }
+  const attended = attCounts.present + attCounts.late;
+  const attDenom = attended + attCounts.absent;
+  const attendancePct = attDenom ? Math.round((attended / attDenom) * 100) : null;
+
+  const sessionRatings = completed
+    .map((s) => s.sessionRating)
+    .filter((r): r is number => typeof r === 'number');
+  const avgSessionRating = sessionRatings.length
+    ? +(sessionRatings.reduce((a, b) => a + b, 0) / sessionRatings.length).toFixed(2)
+    : null;
+
+  // Per-player aggregates (real UUIDs) from PlayerTrainingStat + attendance rows.
+  const attByPlayer = new Map<string, { present: number; late: number; absent: number; excused: number; injured: number }>();
+  for (const r of attendance) {
+    const a = attByPlayer.get(r.playerId) || { present: 0, late: 0, absent: 0, excused: 0, injured: 0 };
+    if      (r.mark === 'PRESENT') a.present++;
+    else if (r.mark === 'LATE')    a.late++;
+    else if (r.mark === 'ABSENT')  a.absent++;
+    else if (r.mark === 'EXCUSED') a.excused++;
+    else if (r.mark === 'INJURED') a.injured++;
+    attByPlayer.set(r.playerId, a);
+  }
+  const ratingsByPlayer = new Map<string, number[]>();
+  for (const s of completed) {
+    for (const st of s.playerStats) {
+      if (typeof st.rating === 'number') {
+        const arr = ratingsByPlayer.get(st.playerId) || [];
+        arr.push(st.rating);
+        ratingsByPlayer.set(st.playerId, arr);
+      }
+    }
+  }
+
+  const perPlayer = players.map((p) => {
+    const a = attByPlayer.get(p.id) || { present: 0, late: 0, absent: 0, excused: 0, injured: 0 };
+    const att = a.present + a.late;
+    const denom = att + a.absent;
+    const ratings = ratingsByPlayer.get(p.id) || [];
+    return {
+      playerId:      p.id,
+      name:          `${p.firstName} ${p.lastName}`,
+      number:        p.number,
+      position:      p.position,
+      attendancePct: denom ? Math.round((att / denom) * 100) : null,
+      avgRating:     ratings.length ? +(ratings.reduce((x, y) => x + y, 0) / ratings.length).toFixed(2) : null,
+      sessions:      denom,
+    };
+  });
+
+  const rated = perPlayer.filter((p) => p.avgRating != null);
+  const topPlayers = rated.slice().sort((a, b) => (b.avgRating! - a.avgRating!)).slice(0, 5);
+  const bestPlayer = topPlayers[0] || null;
+
+  return {
+    range: label,
+    from:  from ? from.toISOString() : null,
+    to:    new Date().toISOString(),
+    totals: {
+      sessions:   sessions.length,
+      completed:  completed.length,
+      planned:    sessions.filter((s) => s.status === 'planned').length,
+      inProgress: sessions.filter((s) => s.status === 'in_progress').length,
+    },
+    attendance: { ...attCounts, attendancePct },
+    avgSessionRating,
+    bestPlayer,
+    topPlayers,
+    perPlayer,
+  };
 }
 
 export async function getTrainingForm(clubId: string) {
