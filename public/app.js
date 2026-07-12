@@ -8132,43 +8132,75 @@ function _trnToday() { var i; try { i = new Date().getDay(); } catch (e) { i = 3
 function _trnLast(n) { return (typeof _sqLastName === 'function') ? _sqLastName(n) : String(n || '').split(' ').pop(); }
 function _trnClamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 // per-player training profile (deterministic, presentation-only)
+// Most-recent real attendance mark recorded for a player across sessions, else null.
+function _trnLastMark(pid, sessions) {
+  var best = null, bt = -1;
+  (sessions || []).forEach(function (s) { var a = (s.attendance || {})[pid]; if (a == null) return; var t = s.completedAt || (s.date ? Date.parse(s.date) : 0) || 0; if (t >= bt) { bt = t; best = a; } });
+  return best;
+}
+// Real coach-rating trend for a player (last completed rating − first), from stored records only.
+function _trnTrendDelta(agg) {
+  if (!agg || !agg.seq || agg.seq.length < 2) return 0;
+  var seq = agg.seq.slice().sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
+  return Math.round((seq[seq.length - 1].r - seq[0].r) * 10) / 10;
+}
+// Real training volume (minutes a player was present/late for) across the given sessions.
+function _trnPlayerLoad(pid, sessions) {
+  var mins = 0;
+  (sessions || []).forEach(function (s) { if ((s.players || []).indexOf(pid) < 0) return; var a = (s.attendance || {})[pid]; if (a === 'present' || a === 'late') mins += (parseInt(s.duration, 10) || 0); });
+  return mins;
+}
+// Per-player training profile — derived ONLY from real data: Player.condition
+// (fitness), real stored attendance/ratings via _trPlayerAgg, and real training
+// volume. No pseudo-random seeding. Metrics with no real source (fatigue/
+// readiness/sharpness) are transparent functions of these real inputs.
 function _trnProfiles() {
+  var recorded = (typeof _trRecorded === 'function') ? _trRecorded() : [];
+  var completed = (typeof _trCompleted === 'function') ? _trCompleted() : [];
   return (SQ_DEMO_PLAYERS || []).map(function (p) {
-    var s = _sqSeed(p.id + ':trn') % 1000, s2 = _sqSeed(p.id + ':trn2') % 1000;
+    var agg = (typeof _trPlayerAgg === 'function') ? _trPlayerAgg(p.id, recorded) : { attendancePct: null };
+    var cagg = (typeof _trPlayerAgg === 'function') ? _trPlayerAgg(p.id, completed) : { avgRating: null, seq: [] };
     var avail = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
-    var attend = avail === 'injured' ? 'injured' : avail === 'suspended' ? 'excused'
-      : (s % 100 < 6 ? 'late' : s % 100 < 9 ? 'excused' : s % 100 < 11 ? 'absent' : 'present');
-    var fitness = p.cond;
-    var fatigue = _trnClamp(Math.round(100 - p.cond + (s % 26) + (p.age - 24) * 0.7), 6, 96);
-    var sharpness = _trnClamp(Math.round(fitness * 0.5 + p.form * 5 + (s2 % 14) - 4), 30, 99);
-    var readiness = _trnClamp(Math.round(fitness - fatigue * 0.35 + p.form * 1.6), 20, 99);
-    var rating = _trnClamp(6.3 + (p.qual - 75) * 0.04 + (p.form - 6) * 0.12 + ((s2 % 20) - 10) * 0.03, 5.4, 9.7);
-    var effort = _trnClamp(Math.round(72 + (p.form - 5) * 3 + (s % 16)), 55, 99);
-    var improve = Math.round((s2 % 46) / 10 * 10) / 10;             // +0.0 .. +4.5 this week
-    var load = _trnClamp(Math.round(320 + (effort - 72) * 6 + (s % 190)), 180, 720);
-    var attendancePct = avail === 'injured' ? _trnClamp(60 + s % 20, 55, 82) : _trnClamp(88 + s2 % 12, 84, 100);
-    var seasonPct = _trnClamp(attendancePct - (s % 6), 70, 100);
-    var technical = _trnClamp(Math.round(p.qual - 4 + (p.cat === 'mf' || p.cat === 'fw' ? 5 : 0) + (s % 8)), 45, 99);
-    var tactical = _trnClamp(Math.round(p.qual - 6 + (p.cat === 'df' || p.pos === 'DM' ? 6 : 0) + (s2 % 8)), 45, 99);
-    var physical = _trnClamp(Math.round(p.qual - 5 + (p.cat === 'df' || p.cat === 'fw' ? 4 : 0) + (s % 9)), 45, 99);
+    var injured = avail === 'injured';
+    var fitness = (typeof p.cond === 'number') ? p.cond : 85;                 // REAL Player.condition
+    var attend = _trnLastMark(p.id, recorded);                               // REAL last mark, else null
+    var rating = (cagg.avgRating != null) ? cagg.avgRating : null;           // REAL avg rating (completed), else null
+    var attendancePct = agg.attendancePct;                                   // REAL, null when no sessions
+    var seasonPct = attendancePct;
+    var improve = _trnTrendDelta(cagg);                                       // REAL rating trend, 0 when <2 ratings
+    var load = _trnPlayerLoad(p.id, recorded);                               // REAL minutes trained
+    var fatigue = _trnClamp(Math.round(100 - fitness + (injured ? 15 : 0)), 2, 98);
+    var readiness = injured ? _trnClamp(Math.round(fitness * 0.4), 5, 55)
+      : _trnClamp(Math.round(fitness - fatigue * 0.25 + (rating != null ? (rating - 6.5) * 3 : 0)), 20, 99);
+    var sharpness = (rating != null) ? _trnClamp(Math.round(rating * 10), 30, 99) : _trnClamp(fitness, 30, 99);
+    var effort = (attendancePct != null) ? attendancePct : null;
+    var technical = _trnClamp(Math.round(p.qual + (p.cat === 'mf' || p.cat === 'fw' ? 2 : -2)), 40, 99);
+    var tactical = _trnClamp(Math.round(p.qual + (p.cat === 'df' || p.pos === 'DM' ? 2 : -2)), 40, 99);
+    var physical = _trnClamp(Math.round(p.qual + (p.cat === 'df' || p.cat === 'fw' ? 1 : -1)), 40, 99);
     return { p: p, avail: avail, attend: attend, fitness: fitness, fatigue: fatigue, sharpness: sharpness, readiness: readiness, rating: rating, effort: effort, improve: improve, load: load, attendancePct: attendancePct, seasonPct: seasonPct, technical: technical, tactical: tactical, physical: physical };
   });
 }
 function _trnTeam() {
-  var ps = _trnProfiles(), n = ps.length || 1, sum = function (f) { var t = 0; ps.forEach(function (x) { t += f(x); }); return t; };
+  var ps = _trnProfiles(), n = ps.length || 1, sum = function (f) { var t = 0; ps.forEach(function (x) { t += (f(x) || 0); }); return t; };
   var fitness = Math.round(sum(function (x) { return x.fitness; }) / n);
   var fatigue = Math.round(sum(function (x) { return x.fatigue; }) / n);
   var sharpness = Math.round(sum(function (x) { return x.sharpness; }) / n);
   var readiness = Math.round(sum(function (x) { return x.readiness; }) / n);
-  var rating = sum(function (x) { return x.rating; }) / n;
-  var effort = Math.round(sum(function (x) { return x.effort; }) / n);
-  var present = ps.filter(function (x) { return x.attend === 'present' || x.attend === 'late'; }).length;
-  var attendance = Math.round(present / n * 100);
+  var rArr = ps.map(function (x) { return x.rating; }).filter(function (r) { return typeof r === 'number'; });
+  var rating = rArr.length ? (rArr.reduce(function (a, b) { return a + b; }, 0) / rArr.length) : null;   // REAL, null when none
+  var effArr = ps.map(function (x) { return x.effort; }).filter(function (e) { return typeof e === 'number'; });
+  var effort = effArr.length ? Math.round(effArr.reduce(function (a, b) { return a + b; }, 0) / effArr.length) : null;
+  // REAL attendance: only players with recorded sessions count toward the rate.
+  var withData = ps.filter(function (x) { return x.attendancePct != null; });
+  var present = withData.filter(function (x) { return x.attend === 'present' || x.attend === 'late'; }).length;
+  var attendance = withData.length ? Math.round(present / withData.length * 100) : null;
   var injured = ps.filter(function (x) { return x.avail === 'injured'; }).length;
-  var acute = sum(function (x) { return x.load; });
-  var chronic = Math.round(acute * 0.9);
-  var acwr = Math.round(acute / (chronic || 1) * 100) / 100;
-  var risk = (fatigue >= 62 || injured >= 3) ? 'High' : (fatigue >= 48 || injured >= 1) ? 'Moderate' : 'Low';
+  // REAL team training load from actual sessions: acute = last 7 days, chronic = 28-day weekly avg.
+  var recorded = (typeof _trRecorded === 'function') ? _trRecorded() : [];
+  var winMin = function (days) { var now = Date.now(), ms = days * 86400000, m = 0; recorded.forEach(function (s) { var d = s.completedAt || (s.date ? Date.parse(s.date) : 0) || 0; if (d && (now - d) <= ms) m += (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 1); }); return m; };
+  var acute = winMin(7), chronic = Math.round(winMin(28) / 4);
+  var acwr = chronic ? Math.round(acute / chronic * 100) / 100 : 0;
+  var risk = (injured >= 3 || fatigue >= 62) ? 'High' : (injured >= 1 || fatigue >= 48) ? 'Moderate' : 'Low';
   var riskPct = _trnClamp(Math.round(fatigue * 0.7 + injured * 8 + (acwr > 1.3 ? 12 : 0)), 6, 96);
   return { ps: ps, n: n, fitness: fitness, fatigue: fatigue, sharpness: sharpness, readiness: readiness, rating: rating, effort: effort, attendance: attendance, present: present, injured: injured, acute: acute, chronic: chronic, acwr: acwr, risk: risk, riskPct: riskPct, weeklyLoad: acute };
 }
@@ -8729,38 +8761,54 @@ function _trnLoad() {
     + '<div class="trn-gauge">' + _trnRing(100 - t.fatigue, 'Recovery', '%', _trnTone(100 - t.fatigue)) + '<em>Regen</em></div>'
     + '<div class="trn-gauge">' + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + '<em>' + (t.readiness >= 70 ? 'Match-ready' : 'Managed') + '</em></div>'
     + '</div>';
-  var metrics = [['Sprint load', 74, '2.4k m'], ['Acceleration', 68, '312 efforts'], ['Distance', 82, '9.6 km/pl'], ['High-speed running', 71, '640 m/pl'], ['Explosive actions', 66, '48/pl']];
-  var bars = metrics.map(function (m) { return _trnBar(m[0], m[1], _trnTone(m[1]), m[2]); }).join('');
-  // 14-day team load trend
-  var trend = []; for (var i = 0; i < 14; i++) { trend.push(280 + (_sqSeed('load' + i) % 260)); }
-  var spark = '<div class="trn-trend">' + _trnSpark(trend, '96,165,250') + '<div class="trn-trend-x"><span>2 wks ago</span><span>Today</span></div></div>';
+  // Real training volume per player (minutes present/late), from stored sessions — replaces fabricated GPS output.
+  var recorded = (typeof _trRecorded === 'function') ? _trRecorded() : [];
+  var volP = t.ps.slice().filter(function (x) { return x.load > 0; }).sort(function (a, b) { return b.load - a.load; }).slice(0, 6);
+  var maxLoad = volP.length ? volP[0].load : 1;
+  var bars = volP.length
+    ? volP.map(function (x) { return _trnBar(_trnLast(x.p.name), _trnClamp(Math.round(x.load / maxLoad * 100), 0, 100), _trnTone(x.readiness), x.load + ' min'); }).join('')
+    : _trEmpty('&#128200;', 'No training minutes recorded yet', 'Record attendance on a session and per-player training load appears here.', false);
+  // Real 14-day team training-minutes trend from stored sessions.
+  var trend = [], hasTrend = false;
+  for (var i = 13; i >= 0; i--) {
+    var dayStart = new Date(); dayStart.setHours(0, 0, 0, 0); dayStart.setDate(dayStart.getDate() - i);
+    var dayStr = ''; try { dayStr = dayStart.toISOString().slice(0, 10); } catch (e) {}
+    var mins = 0; recorded.forEach(function (s) { if (s.date === dayStr) { mins += (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 1); } });
+    if (mins > 0) hasTrend = true; trend.push(mins);
+  }
+  var spark = hasTrend
+    ? '<div class="trn-trend">' + _trnSpark(trend, '96,165,250') + '<div class="trn-trend-x"><span>2 wks ago</span><span>Today</span></div></div>'
+    : _trEmpty('&#128202;', 'No load history yet', 'Training minutes accumulate as you record sessions.', false);
   var players = t.ps.slice().sort(function (a, b) { return a.readiness - b.readiness; }).slice(0, 8).map(function (x) {
     return '<div class="trn-readp"><span class="trn-readp-nm">' + _trnAvatar(x.p) + _sqEsc(_trnLast(x.p.name)) + '</span><span class="trn-mini trn-mini--wide"><i class="trn-mini--' + _trnTone(x.readiness) + '" style="width:' + x.readiness + '%"></i></span><b>' + x.readiness + '%</b></div>';
   }).join('');
   return _trnPanel('Team load monitoring', 'Acute : Chronic Workload Ratio', gauges)
     + '<div class="trn-grid2">'
-    + _trnPanel('GPS output', 'Per player · last session', '<div class="trn-loadbars">' + bars + '</div>')
-    + _trnPanel('14-day load trend', t.weeklyLoad + ' AU this week', spark)
+    + _trnPanel('Training volume', 'Real minutes · per player', '<div class="trn-loadbars">' + bars + '</div>')
+    + _trnPanel('14-day load trend', t.weeklyLoad + ' min this week', spark)
     + '</div>'
-    + _trnPanel('Player readiness watch', 'Lowest first · manage minutes', '<div class="trn-readlist">' + players + '</div>');
+    + _trnPanel('Player readiness watch', 'Lowest first · from condition &amp; ratings', '<div class="trn-readlist">' + players + '</div>');
 }
 function _trnIndividual() {
   var ps = _trnProfiles();
   var sel = _TRN.player && ps.filter(function (x) { return x.p.id === _TRN.player; })[0];
   if (!sel) sel = ps.slice().sort(function (a, b) { return b.improve - a.improve; })[0];
   var chips = ps.map(function (x) { return '<button class="trn-pchip' + (x.p.id === sel.p.id ? ' is-on' : '') + '" data-trn-act="player" data-trn-id="' + x.p.id + '" type="button">' + _trnAvatar(x.p) + _sqEsc(_trnLast(x.p.name)) + '</button>'; }).join('');
-  var p = sel.p, s = _sqSeed(p.id + ':attr');
+  var p = sel.p;
+  // Attribute estimates derived deterministically from the player's REAL overall
+  // rating and position (no pseudo-random seeding, no fabricated weekly gains).
   var attrs = [['Weak foot', 42], ['Passing', 12], ['Speed', 30], ['Strength', 24], ['Stamina', 18], ['Vision', 8], ['Finishing', p.cat === 'fw' ? 6 : 40], ['Heading', 26], ['Dribbling', 14], ['Defending', p.cat === 'df' ? 4 : 44], ['Mental', 16], ['Leadership', p.captain ? 4 : 30]];
-  var bars = attrs.map(function (a, i) {
-    var base = _trnClamp(p.qual - a[1] + (_sqSeed(p.id + a[0]) % 10), 30, 95);
-    var delta = Math.round((_sqSeed(p.id + a[0] + 'd') % 20) / 10 * 10) / 10;
-    return '<div class="trn-attr"><span class="trn-attr-l">' + a[0] + '</span><span class="trn-attr-track"><i class="trn-mini--' + _trnTone(base) + '" style="width:' + base + '%"></i></span><b>' + base + '</b><em class="trn-attr-d">+' + delta.toFixed(1) + '</em></div>';
+  var bars = attrs.map(function (a) {
+    var base = _trnClamp(Math.round((typeof p.qual === 'number' ? p.qual : 70) - a[1]), 30, 95);
+    return '<div class="trn-attr"><span class="trn-attr-l">' + a[0] + '</span><span class="trn-attr-track"><i class="trn-mini--' + _trnTone(base) + '" style="width:' + base + '%"></i></span><b>' + base + '</b></div>';
   }).join('');
-  var focusPool = ['Weak-foot finishing', 'First-touch under pressure', 'Explosive acceleration', 'Aerial duels', 'Vision & through-balls', 'Defensive positioning', 'Long-range shooting', 'Ball retention'];
-  var focus = focusPool[s % focusPool.length];
+  // Personal focus derived from the player's real position category (deterministic).
+  var focus = p.cat === 'gk' ? 'Distribution & handling' : p.cat === 'df' ? 'Defensive positioning' : p.cat === 'fw' ? 'Finishing & movement' : 'Vision & ball retention';
+  var ratingTxt = (sel.rating != null) ? sel.rating.toFixed(2) : '—';
+  var effortTxt = (sel.effort != null) ? sel.effort : '—';
   var head = '<div class="trn-ind-head">' + _trnAvatar(p) + '<div class="trn-ind-id"><b>' + _sqEsc(p.name) + '</b><span>' + p.pos + ' · ' + p.roles + ' · ' + p.age + ' yrs</span></div>'
     + '<div class="trn-ind-focus"><span>Personal focus</span><b>' + focus + '</b></div>'
-    + '<div class="trn-ind-kpi">' + _trnStat('Weekly gain', '+' + sel.improve.toFixed(1), '', 'green') + _trnStat('Effort', sel.effort, '<i>%</i>', 'amber') + _trnStat('Rating', sel.rating.toFixed(2), '', 'blue') + '</div></div>';
+    + '<div class="trn-ind-kpi">' + _trnStat('Rating trend', (sel.improve >= 0 ? '+' : '') + sel.improve.toFixed(1), '', 'green') + _trnStat('Attendance', effortTxt, effortTxt === '—' ? '' : '<i>%</i>', 'amber') + _trnStat('Avg rating', ratingTxt, '', 'blue') + '</div></div>';
   return '<div class="trn-pselect">' + chips + '</div>'
     + _trnPanel('Individual programme', p.pos + ' · ' + p.qual + ' OVR', head + '<div class="trn-attrs">' + bars + '</div>');
 }
