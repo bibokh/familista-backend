@@ -8271,13 +8271,145 @@ function trCreateSession(data) {
     status: 'planned', attendance: {}, attendanceNotes: '', performance: {},
     sessionRating: null, bestPlayer: null, coachNote: '', completedAt: null
   };
-  TR_DB.sessions = TR_DB.sessions || []; TR_DB.sessions.push(s); _trSaveDB(); return s.id;
+  TR_DB.sessions = TR_DB.sessions || []; TR_DB.sessions.push(s); _trSaveDB(); _trSyncCreate(s); return s.id;
 }
 function trUpdateSession(id, patch) { var s = _trSession(id); if (!s) return false; for (var k in patch) s[k] = patch[k]; _trSaveDB(); return true; }
-function trDeleteSession(id) { _trLoadDB(); TR_DB.sessions = (TR_DB.sessions || []).filter(function (s) { return s.id !== id; }); _trSaveDB(); return true; }
-function trSaveAttendance(id, map, notes) { var s = _trSession(id); if (!s) return false; s.attendance = {}; for (var k in map) if (map[k]) s.attendance[k] = map[k]; if (notes != null) s.attendanceNotes = notes; if (s.status === 'planned') s.status = 'in_progress'; _trSaveDB(); return true; }
-function trSavePerformance(id, map) { var s = _trSession(id); if (!s) return false; s.performance = {}; for (var k in map) if (map[k]) s.performance[k] = map[k]; if (s.status === 'planned') s.status = 'in_progress'; _trSaveDB(); return true; }
-function trCompleteSession(id, info) { var s = _trSession(id); if (!s) return false; s.status = 'completed'; s.completedAt = Date.now(); s.sessionRating = info.sessionRating || null; s.bestPlayer = info.bestPlayer || null; s.coachNote = info.coachNote || ''; _trSaveDB(); return true; }
+function trDeleteSession(id) { _trLoadDB(); var s = _trSession(id); var bid = s && s.backendId; TR_DB.sessions = (TR_DB.sessions || []).filter(function (s) { return s.id !== id; }); _trSaveDB(); _trSyncDelete(bid); return true; }
+function trSaveAttendance(id, map, notes) { var s = _trSession(id); if (!s) return false; s.attendance = {}; for (var k in map) if (map[k]) s.attendance[k] = map[k]; if (notes != null) s.attendanceNotes = notes; if (s.status === 'planned') s.status = 'in_progress'; _trSaveDB(); _trSyncAttendance(s); return true; }
+function trSavePerformance(id, map) { var s = _trSession(id); if (!s) return false; s.performance = {}; for (var k in map) if (map[k]) s.performance[k] = map[k]; if (s.status === 'planned') s.status = 'in_progress'; _trSaveDB(); _trSyncPerformance(s); return true; }
+function trCompleteSession(id, info) { var s = _trSession(id); if (!s) return false; s.status = 'completed'; s.completedAt = Date.now(); s.sessionRating = info.sessionRating || null; s.bestPlayer = info.bestPlayer || null; s.coachNote = info.coachNote || ''; _trSaveDB(); _trSyncComplete(s); return true; }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Stage 2 — backend persistence sync (PostgreSQL).
+// The localStorage store above stays the immediate UI store so the module can
+// never break; when an authenticated club with imported real players is active
+// (_trBackendOn), every training write is ALSO persisted to PostgreSQL against
+// real Player UUIDs, and Training entry does a backend-first read. On the demo
+// squad or when logged out, _trBackendOn() is false and NOTHING here runs — so
+// current behaviour is byte-for-byte preserved.
+// ─────────────────────────────────────────────────────────────────────────
+var _TR_MARK_UP = { present: 'PRESENT', late: 'LATE', absent: 'ABSENT', excused: 'EXCUSED', injured: 'INJURED' };
+var _TR_MARK_DN = { PRESENT: 'present', LATE: 'late', ABSENT: 'absent', EXCUSED: 'excused', INJURED: 'injured' };
+function _trBackendOn() {
+  try {
+    if (typeof _sqBackendSquad !== 'function') return false;
+    var b = _sqBackendSquad();
+    if (!b || !b.length) return false;                                   // demo squad → stay on localStorage
+    if (typeof window === 'undefined' || !window.State || !window.State.user) return false;
+    if (typeof TrainingAPI === 'undefined') return false;
+    return true;
+  } catch (e) { return false; }
+}
+function _trIsUuid(x) { return typeof x === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x); }
+function _trSchedIso(s) {
+  try { var t = (s.startTime && /^\d{2}:\d{2}/.test(s.startTime)) ? s.startTime : '10:00'; return new Date((s.date || new Date().toISOString().slice(0, 10)) + 'T' + t + ':00').toISOString(); }
+  catch (e) { return new Date().toISOString(); }
+}
+// Ensure a backend row exists for a client session; returns its UUID or null.
+async function _trEnsureBackend(s) {
+  if (!_trBackendOn() || !s) return null;
+  if (s.backendId) return s.backendId;
+  try {
+    var pids = (s.players || []).filter(_trIsUuid);
+    var resp = await TrainingAPI.createSession({
+      title:         s.objective ? (s.objective.slice(0, 120)) : ((TR_TYPES.reduce(function (m, t) { m[t[0]] = t[1]; return m; }, {})[s.type] || 'Training') + ' Session'),
+      scheduledAt:   _trSchedIso(s),
+      duration:      parseInt(s.duration, 10) || 90,
+      location:      s.location || undefined,
+      notes:         s.objective || undefined,
+      playerIds:     pids,
+      startTime:     s.startTime || undefined,
+      sessionType:   s.type || undefined,
+      objective:     s.objective || undefined,
+      tacticalFocus: s.tacticalFocus || undefined,
+      formation:     s.formation || undefined,
+    });
+    var row = resp && (resp.data || resp);
+    if (row && row.id) { s.backendId = row.id; _trSaveDB(); return row.id; }
+  } catch (e) { /* best-effort: localStorage remains the store */ }
+  return null;
+}
+function _trSyncCreate(s) { if (_trBackendOn()) { _trEnsureBackend(s); } }
+async function _trSyncAttendance(s) {
+  if (!_trBackendOn() || !s) return;
+  try {
+    var bid = await _trEnsureBackend(s); if (!bid) return;
+    var marks = [];
+    var att = s.attendance || {};
+    for (var pid in att) { if (_trIsUuid(pid) && _TR_MARK_UP[att[pid]]) marks.push({ playerId: pid, mark: _TR_MARK_UP[att[pid]] }); }
+    if (marks.length) await TrainingAPI.saveAttendance(bid, { marks: marks });
+  } catch (e) {}
+}
+async function _trSyncPerformance(s) {
+  if (!_trBackendOn() || !s) return;
+  try {
+    var bid = await _trEnsureBackend(s); if (!bid) return;
+    var marks = _trPerfMarks(s); if (marks.length) await TrainingAPI.savePerformance(bid, { marks: marks });
+  } catch (e) {}
+}
+function _trPerfMarks(s) {
+  var marks = [], perf = s.performance || {};
+  for (var pid in perf) {
+    if (!_trIsUuid(pid)) continue;
+    var p = perf[pid] || {};
+    var m = { playerId: pid };
+    if (typeof p.rating === 'number') m.rating = p.rating;
+    if (p.participation === 'full' || p.participation === 'partial') m.participation = p.participation;
+    if (m.rating !== undefined || m.participation !== undefined) marks.push(m);
+  }
+  return marks;
+}
+async function _trSyncComplete(s) {
+  if (!_trBackendOn() || !s) return;
+  try {
+    var bid = await _trEnsureBackend(s); if (!bid) return;
+    await TrainingAPI.complete(bid, {
+      sessionRating: (typeof s.sessionRating === 'number') ? s.sessionRating : undefined,
+      bestPlayerId:  _trIsUuid(s.bestPlayer) ? s.bestPlayer : undefined,
+      coachNote:     s.coachNote || undefined,
+      performance:   _trPerfMarks(s),
+    });
+  } catch (e) {}
+}
+function _trSyncDelete(backendId) { if (_trBackendOn() && backendId && _trIsUuid(backendId)) { try { TrainingAPI.remove(backendId); } catch (e) {} } }
+// Backend-first read: replace this club's sessions with PostgreSQL rows (mapped
+// to the client shape) so a fresh login on any device sees the same sessions.
+// Best-effort and additive — on any failure the existing localStorage sessions
+// are kept untouched.
+function _trBackendToClient(row, sc) {
+  var d = ''; try { d = new Date(row.scheduledAt).toISOString().slice(0, 10); } catch (e) {}
+  var players = (row.playerStats || []).map(function (st) { return st.playerId; });
+  var perf = {};
+  (row.playerStats || []).forEach(function (st) {
+    if (typeof st.rating === 'number' || st.participation) perf[st.playerId] = { rating: (typeof st.rating === 'number' ? st.rating : null), participation: st.participation || null };
+  });
+  return {
+    id: 'be-' + row.id, backendId: row.id, createdAt: Date.parse(row.createdAt) || Date.now(),
+    club: sc.club, team: sc.team, season: sc.season,
+    date: d, startTime: row.startTime || '10:00', duration: row.duration || 90,
+    type: row.sessionType || 'technical', objective: row.objective || '', location: row.location || 'Main Pitch',
+    players: players, formation: row.formation || '4-3-3', tacticalFocus: row.tacticalFocus || 'Possession',
+    drills: [], status: row.status || 'planned', attendance: {}, attendanceNotes: '', performance: perf,
+    sessionRating: (typeof row.sessionRating === 'number' ? row.sessionRating : null),
+    bestPlayer: row.bestPlayerId || null, coachNote: row.coachNote || '', completedAt: Date.parse(row.completedAt) || null,
+    _needsAttendance: true,
+  };
+}
+var _TR_PULLED = false;
+async function _trPullBackend(cb) {
+  if (!_trBackendOn()) return;
+  try {
+    var resp = await TrainingAPI.list('limit=200');
+    var rows = (resp && (resp.data || resp)) || [];
+    if (!Array.isArray(rows)) return;
+    _trLoadDB(); var sc = _trScope();
+    var mapped = rows.map(function (r) { return _trBackendToClient(r, sc); });
+    // Replace only this club's sessions with the backend set; keep other clubs.
+    TR_DB.sessions = (TR_DB.sessions || []).filter(function (x) { return x.club !== sc.club; }).concat(mapped);
+    _trSaveDB(); _TR_PULLED = true;
+    if (typeof cb === 'function') cb();
+  } catch (e) { /* keep localStorage sessions */ }
+}
 // ── automatic calculations (from stored records only) ──
 function _trCompleted() { return _trAllSessions().filter(function (s) { return s.status === 'completed'; }); }
 function _trRecorded() { return _trAllSessions().filter(function (s) { return s.status === 'completed' || s.status === 'in_progress'; }); }
@@ -8777,6 +8909,12 @@ function renderTrainingWorkspaceHTML() {
   if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // build shared board so _sqMyStats/_sqTeamFeel sync
   _trLoadDB();                                                                        // load persisted training records
   _deBind(); _trnBind();
+  // Backend-first read: when an authenticated club with real imported players is
+  // active, pull the canonical sessions from PostgreSQL and re-render. Inert on
+  // the demo squad / logged out (see _trBackendOn). Runs once per load.
+  if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) {
+    try { _trPullBackend(function () { try { _trnRender(); } catch (e) {} }); } catch (e) {}
+  }
   return '<div class="page" id="pg-training"><div class="trn-root" id="trn-root">' + _trnInner() + '</div></div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts (kept) ──
@@ -31199,6 +31337,11 @@ const TrainingAPI = {
   // Training Attendance MVP
   getAttendance(id)        { return FamilistaAPI.get('/training/' + id + '/attendance'); },
   saveAttendance(id, body) { return FamilistaAPI.put('/training/' + id + '/attendance', body); },
+  // Stage 2 — full lifecycle persistence + PostgreSQL reports.
+  createSession(body)      { return FamilistaAPI.post('/training/sessions', body); },
+  savePerformance(id, body){ return FamilistaAPI.put('/training/' + id + '/performance', body); },
+  complete(id, body)       { return FamilistaAPI.post('/training/' + id + '/complete', body); },
+  report(range)            { return FamilistaAPI.get('/training/reports?range=' + encodeURIComponent(range || 'weekly')); },
 };
 
 // In-memory draft for the Attendance panel — keyed by sessionId so a stale
