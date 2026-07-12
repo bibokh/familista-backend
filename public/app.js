@@ -2621,9 +2621,47 @@ var SQ_LS_KEY = 'familista.squad.lineup.v1';
 function _sqSave() {
   try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_LS_KEY, JSON.stringify(SQ_DEMO_PLAYERS)); } catch (e) {}
 }
+// ── Backend Squad adapter ──────────────────────────────────────────────────
+// Once the Squad has been imported into the backend (real Player rows), the
+// authenticated `State.players` becomes the single source of truth for the
+// WHOLE Squad workspace (Squad / Lineup / Formation / Tactics / Training) — so
+// they all use the SAME players by real UUID. When there are no backend players
+// (e.g. the public/logged-out demo), it safely falls back to the local squad,
+// so the hardcoded SQ_DEMO_PLAYERS dependency is only bypassed once backend
+// loading actually succeeds. Maps the backend Player shape -> the Squad shape.
+var SQ_POSREV = { GK: 'GK', DC: 'CB', DL: 'LB', DR: 'RB', DMC: 'DM', MC: 'CM', ML: 'LM', MR: 'RM', AMC: 'AM', AML: 'LW', AMR: 'RW', ST: 'ST' };
+var SQ_CATOF = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df', DM: 'mf', CM: 'mf', AM: 'mf', LM: 'mf', RM: 'mf', LW: 'mf', RW: 'mf', ST: 'fw', CF: 'fw' };
+function _sqFmtValue(v) { v = +v || 0; if (v >= 1e6) return '€' + (Math.round(v / 1e5) / 10) + 'M'; if (v >= 1e3) return '€' + Math.round(v / 1e3) + 'K'; return '€' + v; }
+function _sqAgeFromDob(dob) { try { var d = new Date(dob), n = new Date(); var a = n.getFullYear() - d.getFullYear(); if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) a--; return (a > 0 && a < 60) ? a : 24; } catch (e) { return 24; } }
+function _sqAdaptBackendPlayer(bp) {
+  var pos = SQ_POSREV[bp.position] || 'CM';
+  var name = ((bp.firstName || '') + ' ' + (bp.lastName || '')).trim() || bp.name || 'Player';
+  return {
+    id: bp.id, pos: pos, cat: SQ_CATOF[pos] || 'mf', num: bp.number || 0, name: name,
+    roles: bp.roles || pos, nat: bp.flag || '🏳️', natName: bp.nationality || '—',
+    age: _sqAgeFromDob(bp.dateOfBirth), value: _sqFmtValue(bp.marketValue), form: 6,
+    cond: (typeof bp.condition === 'number') ? bp.condition : 85, morale: bp.morale || 'Good',
+    qual: bp.overallRating || 70, foot: bp.preferredFoot === 'LEFT' ? 'Left' : bp.preferredFoot === 'BOTH' ? 'Both' : 'Right',
+    height: bp.height ? (Math.round(bp.height) / 100).toFixed(2) + 'm' : '1.80m',
+    captain: !!bp.isCaptain, _backend: true
+  };
+}
+function _sqBackendSquad() {
+  try {
+    var ps = (typeof window !== 'undefined' && window.State && Array.isArray(window.State.players)) ? window.State.players : null;
+    if (!ps || !ps.length) return null;
+    var active = ps.filter(function (p) { return p && p.isActive !== false; });
+    if (!active.length) return null;
+    return active.map(_sqAdaptBackendPlayer);
+  } catch (e) { return null; }
+}
 function _sqLoad() {
   try {
+    // 1) Real backend Squad (authoritative, real Player UUIDs) — the whole workspace follows it.
+    var backend = _sqBackendSquad();
+    if (backend && backend.length) { SQ_DEMO_PLAYERS.length = 0; for (var b = 0; b < backend.length; b++) SQ_DEMO_PLAYERS.push(backend[b]); return; }
     if (typeof window === 'undefined' || !window.localStorage) return;
+    // 2) Last-saved squad, then 3) the built-in demo (fallback until the backend Squad exists).
     var raw = window.localStorage.getItem(SQ_LS_KEY);
     if (raw) {
       var arr = JSON.parse(raw);
