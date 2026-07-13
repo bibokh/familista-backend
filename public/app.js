@@ -9393,7 +9393,16 @@ var TRN_TABS_ICON = '<svg fill="none" stroke="currentColor" stroke-width="1.8" s
 function _trnNav() {
   return '<div class="trn-nav">' + TRN_TABS.map(function (x) { return '<button class="trn-tab' + (_TRN.tab === x[0] ? ' is-active' : '') + '" data-trn-tab="' + x[0] + '" type="button">' + x[1] + '</button>'; }).join('') + '</div>';
 }
+// Loading skeleton — shown briefly while the authenticated backend pull is in
+// flight (inert on the demo squad, where _trBackendOn() is false).
+function _trnSkeleton() {
+  var stat = '<div class="trn-sk-stat"></div>';
+  var card = '<div class="trn-sk-card"><div class="trn-sk-line"></div><div class="trn-sk-chart"></div><div class="trn-sk-line trn-sk-line--sm"></div></div>';
+  return '<div class="trn-sk" aria-hidden="true"><div class="trn-sk-stats">' + new Array(8).join(0).split(0).map(function () { return stat; }).join('') + '</div>'
+    + '<div class="trn-sk-grid">' + new Array(7).join(0).split(0).map(function () { return card; }).join('') + '</div></div>';
+}
 function _trnBody() {
+  if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) return _trnSkeleton();
   switch (_TRN.tab) {
     case 'calendar': return _trnCalendar();
     case 'sessions': return _trnSessions();
@@ -9407,7 +9416,7 @@ function _trnBody() {
   }
 }
 function _trnInner() { return _trnHead() + _trnNav() + '<div class="trn-bodywrap" id="trn-body">' + _trnBody() + '</div>' + '<div id="trn-modal" class="trn-modal"' + (_TRN.modal ? '' : ' hidden') + '>' + _trnModalHtml() + '</div>'; }
-function _trnRenderBody() { var b = document.getElementById('trn-body'); if (b) { b.innerHTML = _trnBody(); } }
+function _trnRenderBody() { var b = document.getElementById('trn-body'); if (b) { b.innerHTML = _trnBody(); b.classList.remove('trn-anim'); void b.offsetWidth; b.classList.add('trn-anim'); } }
 function _trnRenderModal() { var m = document.getElementById('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
 function _trnRender() {
   _trnRenderBody();
