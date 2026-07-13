@@ -4982,6 +4982,20 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .trn-rcustom{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:11px; }
 .trn-rcustom label{ display:flex; flex-direction:column; gap:4px; font-size:10.5px; font-weight:700; color:#8a94a6; text-transform:uppercase; letter-spacing:.04em; }
 .trn-rmetrics{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:9px; margin-bottom:14px; }
+/* player analytics */
+.trn-pach{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:9px; }
+.trn-pachi{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:11px 12px; border-radius:12px; background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.09); transition:transform .18s,box-shadow .18s; }
+.trn-pachi:hover{ transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.3); }
+.trn-pachi-ic{ font-size:20px; }
+.trn-pachi b{ font-size:11.5px; font-weight:800; color:#e7ecf4; }
+.trn-pachi em{ font-size:13px; font-weight:900; font-style:normal; color:#f8fafc; }
+.trn-pnotes{ display:flex; flex-direction:column; gap:8px; }
+.trn-pnote{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+.trn-pnote span{ font-size:9.5px; font-weight:800; color:#7f8a9c; text-transform:uppercase; letter-spacing:.04em; }
+.trn-pnote p{ margin:3px 0 0; font-size:12px; color:#cdd5e1; line-height:1.4; }
+.trn-aisum{ display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border-radius:12px; background:linear-gradient(150deg,rgba(129,140,248,.14),rgba(129,140,248,.03)); border:1px solid rgba(129,140,248,.24); }
+.trn-aisum-ic{ font-size:22px; flex:0 0 auto; }
+.trn-aisum p{ margin:0; font-size:12.5px; color:#e2e8f4; line-height:1.5; }
 /* podium + awards */
 .trn-podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .trn-pod{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 6px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); }

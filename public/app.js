@@ -2640,6 +2640,7 @@ function _sqAdaptBackendPlayer(bp) {
     id: bp.id, pos: pos, cat: SQ_CATOF[pos] || 'mf', num: bp.number || 0, name: name,
     roles: bp.roles || pos, nat: bp.flag || '🏳️', natName: bp.nationality || '—',
     age: _sqAgeFromDob(bp.dateOfBirth), value: _sqFmtValue(bp.marketValue), form: 6,
+    weight: (typeof bp.weight === 'number') ? bp.weight : undefined,
     cond: (typeof bp.condition === 'number') ? bp.condition : 85, morale: bp.morale || 'Good',
     qual: bp.overallRating || 70, foot: bp.preferredFoot === 'LEFT' ? 'Left' : bp.preferredFoot === 'BOTH' ? 'Both' : 'Right',
     height: bp.height ? (Math.round(bp.height) / 100).toFixed(2) + 'm' : '1.80m',
@@ -8885,6 +8886,42 @@ function _trnLoad() {
     + '</div>'
     + _trnPanel('Player readiness watch', 'Lowest first · from condition &amp; ratings', '<div class="trn-readlist">' + players + '</div>');
 }
+// Per-player analytics computed ONLY from real completed/recorded session records.
+function _trnPlayerAnalytics(pid) {
+  var recorded = _trRecorded();
+  var comp = _trCompleted().filter(function (s) { return (s.players || []).indexOf(pid) >= 0; }).sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
+  var agg = _trPlayerAgg(pid, recorded);
+  var perfSeries = [], attSeries = [], loadSeries = [], notes = [];
+  comp.forEach(function (s) {
+    var lbl = _trFmtDate(s.date), pf = (s.performance || {})[pid], a = (s.attendance || {})[pid];
+    if (pf && typeof pf.rating === 'number') perfSeries.push({ label: lbl, v: pf.rating });
+    attSeries.push({ label: lbl, v: a === 'present' ? 100 : a === 'late' ? 60 : a === 'excused' ? 40 : a === 'injured' ? 20 : 0 });
+    loadSeries.push({ label: lbl, v: (a === 'present' || a === 'late') ? (parseInt(s.duration, 10) || 0) : 0 });
+    if (pf && pf.note) notes.push({ date: s.date, text: pf.note });
+    if (s.coachNote) notes.push({ date: s.date, text: s.coachNote, team: true });
+  });
+  var mvp = comp.filter(function (s) { return s.bestPlayer === pid; }).length;
+  var trend = _trnTrendDelta(agg);
+  var ach = [];
+  if (mvp > 0) ach.push({ t: 'Session MVP', v: mvp + '×', ic: '&#129351;' });
+  if (agg.attendancePct != null && agg.attendancePct >= 95 && agg.required >= 3) ach.push({ t: 'Ever-present', v: agg.attendancePct + '%', ic: '&#9989;' });
+  if (agg.avgRating != null && agg.avgRating >= 8) ach.push({ t: 'Top performer', v: agg.avgRating.toFixed(1), ic: '&#11088;' });
+  if (trend >= 1) ach.push({ t: 'Rising form', v: '+' + trend.toFixed(1), ic: '&#128200;' });
+  if (agg.required >= 10) ach.push({ t: 'Veteran', v: agg.required + ' sess', ic: '&#127941;' });
+  return { comp: comp, agg: agg, perfSeries: perfSeries, attSeries: attSeries, loadSeries: loadSeries, notes: notes, mvp: mvp, trend: trend, ach: ach, minutes: _trnPlayerLoad(pid, recorded) };
+}
+function _trnPlayerAiSummary(p, an) {
+  if (!an.comp.length) return _sqEsc(_trnLast(p.name)) + ' has no completed training records yet — analytics populate automatically after the first completed session.';
+  var s = _sqEsc(p.name) + ' has completed ' + an.comp.length + ' session' + (an.comp.length === 1 ? '' : 's');
+  if (an.agg.attendancePct != null) s += ' at ' + an.agg.attendancePct + '% attendance';
+  if (an.agg.avgRating != null) s += ', average coach rating ' + an.agg.avgRating.toFixed(2);
+  s += '. ';
+  if (an.trend >= 0.5) s += 'Form is trending up (+' + an.trend.toFixed(1) + '). ';
+  else if (an.trend <= -0.5) s += 'Form has dipped (' + an.trend.toFixed(1) + ') — individual focus advised. ';
+  if (an.mvp > 0) s += 'Named session MVP ' + an.mvp + ' time' + (an.mvp === 1 ? '' : 's') + '. ';
+  if (an.agg.absent > 0) s += an.agg.absent + ' absence' + (an.agg.absent === 1 ? '' : 's') + ' logged. ';
+  return s.trim();
+}
 function _trnIndividual() {
   var ps = _trnProfiles();
   var sel = _TRN.player && ps.filter(function (x) { return x.p.id === _TRN.player; })[0];
@@ -8905,8 +8942,55 @@ function _trnIndividual() {
   var head = '<div class="trn-ind-head">' + _trnAvatar(p) + '<div class="trn-ind-id"><b>' + _sqEsc(p.name) + '</b><span>' + p.pos + ' · ' + p.roles + ' · ' + p.age + ' yrs</span></div>'
     + '<div class="trn-ind-focus"><span>Personal focus</span><b>' + focus + '</b></div>'
     + '<div class="trn-ind-kpi">' + _trnStat('Rating trend', (sel.improve >= 0 ? '+' : '') + sel.improve.toFixed(1), '', 'green') + _trnStat('Attendance', effortTxt, effortTxt === '—' ? '' : '<i>%</i>', 'amber') + _trnStat('Avg rating', ratingTxt, '', 'blue') + '</div></div>';
+  // ── Player analytics (real records) ──
+  var an = _trnPlayerAnalytics(p.id);
+  var profile = '<div class="trn-rmetrics">'
+    + _trnStat('Position', p.pos, '', 'violet')
+    + _trnStat('Age', p.age, '<i>yrs</i>', 'blue')
+    + _trnStat('Height', (p.height || '—'), '', 'teal')
+    + _trnStat('Weight', (p.weight ? p.weight + 'kg' : '—'), '', 'teal')
+    + _trnStat('Preferred foot', (p.foot || '—'), '', 'blue')
+    + _trnStat('Overall', p.qual, '<i>OVR</i>', 'amber')
+    + _trnStat('Attendance', an.agg.attendancePct == null ? '—' : an.agg.attendancePct, an.agg.attendancePct == null ? '' : '<i>%</i>', 'green')
+    + _trnStat('Avg rating', an.agg.avgRating == null ? '—' : an.agg.avgRating.toFixed(2), '', 'blue')
+    + _trnStat('Training minutes', an.minutes, '', 'teal')
+    + _trnStat('Sessions', an.agg.required, '', 'violet')
+    + '</div>';
+  var graphs = an.comp.length
+    ? '<div class="trn-chtgrid">'
+      + _trnChtCard('Performance', 'Coach rating / session', (an.perfSeries.length ? an.perfSeries[an.perfSeries.length - 1].v : 0).toFixed ? (an.perfSeries.length ? an.perfSeries[an.perfSeries.length - 1].v.toFixed(1) : '0') : '0', _trnChtLine(an.perfSeries, '96,165,250'))
+      + _trnChtCard('Attendance', 'Status / session', (an.agg.attendancePct == null ? '—' : an.agg.attendancePct + '%'), _trnChtLine(an.attSeries, '52,211,153', '%'))
+      + _trnChtCard('Training load', 'Minutes / session', (an.loadSeries.length ? an.loadSeries[an.loadSeries.length - 1].v : 0) + ' min', _trnChtLine(an.loadSeries, '167,139,250', ' min'))
+      + '</div>'
+      + '<div class="trn-readrow">' + _trnRing(sel.fitness, 'Fitness', '%', _trnTone(sel.fitness)) + _trnRing(_trnClamp(100 - sel.fatigue, 0, 100), 'Recovery', '%', _trnTone(100 - sel.fatigue)) + _trnRing(sel.readiness, 'Readiness', '%', _trnTone(sel.readiness)) + '</div>'
+    : _trEmpty('&#128202;', 'No performance history yet', 'Performance, attendance and load graphs build from this player\'s completed sessions.', false);
+  var awards = an.ach.length
+    ? '<div class="trn-pach">' + an.ach.map(function (a) { return '<div class="trn-pachi"><span class="trn-pachi-ic">' + a.ic + '</span><b>' + a.t + '</b><em>' + a.v + '</em></div>'; }).join('') + '</div>'
+    : _trEmpty('&#127942;', 'No awards yet', 'Awards unlock from real training performance.', false);
+  var notes = an.notes.length
+    ? '<div class="trn-pnotes">' + an.notes.slice(-8).reverse().map(function (n) { return '<div class="trn-pnote"><span>' + _trFmtDate(n.date) + (n.team ? ' · team' : '') + '</span><p>' + _sqEsc(n.text) + '</p></div>'; }).join('') + '</div>'
+    : '<p class="trn-note">No coach notes recorded yet.</p>';
+  var progress = an.comp.length
+    ? '<div class="trn-rmetrics">'
+      + _trnStat('Season sessions', an.comp.length, '', 'violet')
+      + _trnStat('Rating trend', (an.trend >= 0 ? '+' : '') + an.trend.toFixed(1), '', an.trend >= 0 ? 'green' : 'red')
+      + _trnStat('MVP awards', an.mvp, '', 'amber')
+      + _trnStat('Present', an.agg.present, '', 'green')
+      + _trnStat('Late', an.agg.late, '', 'amber')
+      + _trnStat('Absent', an.agg.absent, '', an.agg.absent ? 'red' : 'muted')
+      + '</div>'
+    : '<p class="trn-note">Season progress builds from completed sessions.</p>';
+  var summary = '<div class="trn-aisum"><span class="trn-aisum-ic">&#129504;</span><p>' + _trnPlayerAiSummary(p, an) + '</p></div>';
   return '<div class="trn-pselect">' + chips + '</div>'
-    + _trnPanel('Individual programme', p.pos + ' · ' + p.qual + ' OVR', head + '<div class="trn-attrs">' + bars + '</div>');
+    + _trnPanel('Individual programme', p.pos + ' · ' + p.qual + ' OVR', head + '<div class="trn-attrs">' + bars + '</div>')
+    + _trnPanel('Player profile', 'Real player data', profile)
+    + _trnPanel('Performance analytics', an.comp.length + ' completed session' + (an.comp.length === 1 ? '' : 's'), graphs)
+    + '<div class="trn-grid2">'
+    + _trnPanel('Awards &amp; achievements', 'From real records', awards)
+    + _trnPanel('Season progress', 'This season', progress)
+    + '</div>'
+    + _trnPanel('AI summary', 'Auto-generated from records', summary)
+    + _trnPanel('Coach notes', an.notes.length + ' note' + (an.notes.length === 1 ? '' : 's'), notes);
 }
 function _trnAI() {
   var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = SQ_TACTICS || {};
