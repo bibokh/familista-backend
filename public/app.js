@@ -8290,7 +8290,10 @@ function _trDefaultDraft() {
   var today; try { today = new Date().toISOString().slice(0, 10); } catch (e) { today = '2026-07-12'; }
   var xi = (typeof SQ_MY_IDS !== 'undefined' && SQ_MY_IDS && SQ_MY_IDS.length) ? SQ_MY_IDS.slice() : (SQ_DEMO_PLAYERS || []).map(function (p) { return p.id; });
   var foc = (SQ_TACTICS && SQ_TACTICS.style && SQ_TACTICS.style !== 'Balanced') ? SQ_TACTICS.style : 'Possession';
-  return { date: today, startTime: '10:00', duration: 90, type: 'technical', objective: '', location: 'Main Pitch', players: xi, formation: (SQ_FORM.myFormation || '4-3-3'), tacticalFocus: foc, drills: [] };
+  var base = { date: today, startTime: '10:00', duration: 90, type: 'technical', objective: '', location: 'Main Pitch', players: xi, formation: (SQ_FORM.myFormation || '4-3-3'), tacticalFocus: foc, drills: [], intensity: 'Medium', pitch: 'Main Pitch', weather: '', temperature: '', equipment: '', coach: '' };
+  // Prefill from a duplicated session or a saved template (real config, new date).
+  if (_TRN.tpl) { var t = _TRN.tpl; ['startTime', 'duration', 'type', 'objective', 'location', 'formation', 'tacticalFocus', 'intensity', 'pitch', 'weather', 'temperature', 'equipment', 'coach'].forEach(function (k) { if (t[k] != null && t[k] !== '') base[k] = t[k]; }); if (Array.isArray(t.drills)) base.drills = t.drills.slice(); if (Array.isArray(t.players) && t.players.length) base.players = t.players.slice(); _TRN.tpl = null; }
+  return base;
 }
 // ── CRUD ──
 function trCreateSession(data) {
@@ -8301,6 +8304,7 @@ function trCreateSession(data) {
     type: data.type || 'technical', objective: (data.objective || '').trim(), location: data.location || 'Main Pitch',
     players: (data.players || []).slice(), formation: data.formation || (SQ_FORM.myFormation || '4-3-3'),
     tacticalFocus: data.tacticalFocus || 'Possession', drills: (data.drills || []).slice(),
+    intensity: data.intensity || 'Medium', pitch: data.pitch || '', weather: data.weather || '', temperature: data.temperature || '', equipment: data.equipment || '', coach: data.coach || '',
     status: 'planned', attendance: {}, attendanceNotes: '', performance: {},
     sessionRating: null, bestPlayer: null, coachNote: '', completedAt: null
   };
@@ -8356,6 +8360,12 @@ async function _trEnsureBackend(s) {
       objective:     s.objective || undefined,
       tacticalFocus: s.tacticalFocus || undefined,
       formation:     s.formation || undefined,
+      intensity:     s.intensity || undefined,
+      pitch:         s.pitch || undefined,
+      weather:       s.weather || undefined,
+      temperature:   s.temperature || undefined,
+      equipment:     s.equipment || undefined,
+      coachName:     s.coach || undefined,
     });
     var row = resp && (resp.data || resp);
     if (row && row.id) { s.backendId = row.id; _trSaveDB(); return row.id; }
@@ -8422,6 +8432,7 @@ function _trBackendToClient(row, sc) {
     date: d, startTime: row.startTime || '10:00', duration: row.duration || 90,
     type: row.sessionType || 'technical', objective: row.objective || '', location: row.location || 'Main Pitch',
     players: players, formation: row.formation || '4-3-3', tacticalFocus: row.tacticalFocus || 'Possession',
+    intensity: row.intensity || 'Medium', pitch: row.pitch || '', weather: row.weather || '', temperature: row.temperature || '', equipment: row.equipment || '', coach: row.coachName || '',
     drills: [], status: row.status || 'planned', attendance: {}, attendanceNotes: '', performance: perf,
     sessionRating: (typeof row.sessionRating === 'number' ? row.sessionRating : null),
     bestPlayer: row.bestPlayerId || null, coachNote: row.coachNote || '', completedAt: Date.parse(row.completedAt) || null,
@@ -8526,6 +8537,27 @@ function _trStatusBadge(s) { var m = TR_STATUS[s.status] || ['—', 'muted']; re
 function _trAttChip(a) { var m = { present: ['Present', 'ok'], late: ['Late', 'late'], excused: ['Excused', 'exc'], absent: ['Absent', 'abs'], injured: ['Injured', 'inj'] }[a]; return m ? '<span class="trn-att-badge trn-att-badge--' + m[1] + '">' + m[0] + '</span>' : ''; }
 function _trFmtDate(d) { try { var dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); } catch (e) { return d; } }
 // ── Sessions manager (list + detail) ──
+var TR_TPL_KEY = 'familista.training.templates.v1';
+function _trTplLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(TR_TPL_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trTplSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(TR_TPL_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trnSessionConfig(s) { return { name: (s.objective || _trTypeMeta(s.type).l + ' session'), startTime: s.startTime, duration: s.duration, type: s.type, objective: s.objective, location: s.location, formation: s.formation, tacticalFocus: s.tacticalFocus, intensity: s.intensity, pitch: s.pitch, weather: s.weather, temperature: s.temperature, equipment: s.equipment, coach: s.coach, drills: (s.drills || []).slice(), players: (s.players || []).slice() }; }
+function _trnCmpMetrics(s) {
+  var pr = 0, ab = 0, rs = []; (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); });
+  return { att: (pr + ab) ? Math.round(pr / (pr + ab) * 100) : null, avg: rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : null, load: (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0), dur: s.duration, present: pr, absent: ab };
+}
+function _trnCompare(a, b) {
+  if (!a || !b) return '<p class="trn-note">Select two sessions to compare.</p>';
+  var ma = _trnCmpMetrics(a), mb = _trnCmpMetrics(b), row = function (l, va, vb) { return '<tr><td>' + l + '</td><td>' + va + '</td><td>' + vb + '</td></tr>'; };
+  return '<div class="trn-att-wrap"><table class="trn-cmp-table"><thead><tr><th>Metric</th><th>' + _trFmtDate(a.date) + '</th><th>' + _trFmtDate(b.date) + '</th></tr></thead><tbody>'
+    + row('Category', _trTypeMeta(a.type).l, _trTypeMeta(b.type).l)
+    + row('Intensity', _sqEsc(a.intensity || '—'), _sqEsc(b.intensity || '—'))
+    + row('Attendance', ma.att == null ? '—' : ma.att + '%', mb.att == null ? '—' : mb.att + '%')
+    + row('Avg rating', ma.avg == null ? '—' : ma.avg.toFixed(2), mb.avg == null ? '—' : mb.avg.toFixed(2))
+    + row('Training load', ma.load + ' AU', mb.load + ' AU')
+    + row('Duration', ma.dur + ' min', mb.dur + ' min')
+    + row('Present / Absent', ma.present + ' / ' + ma.absent, mb.present + ' / ' + mb.absent)
+    + '</tbody></table></div>';
+}
 function _trnSessionsReal() {
   if (_TRN.open) { var s = _trSession(_TRN.open); if (s) return _trnSessionDetail(s); _TRN.open = null; }
   var sessions = _trSessionsSorted();
@@ -8545,7 +8577,28 @@ function _trnSessionsReal() {
       + '<span class="trn-scard-foot"><span>' + s.formation + ' &middot; ' + _sqEsc(s.tacticalFocus) + '</span>' + (s.status === 'completed' && p ? '<span class="trn-scard-mvp">&#11088; ' + _sqEsc(_trnLast(p.name)) + (s.sessionRating ? ' &middot; ' + s.sessionRating + '/10' : '') + '</span>' : '<span class="trn-scard-open">Open &#8250;</span>') + '</span>'
       + '</button>';
   }).join('');
-  return top + '<div class="trn-scards">' + cards + '</div>';
+  var tpls = _trTplLoad();
+  var tplStrip = tpls.length ? _trnPanel('Session templates', tpls.length + ' saved', '<div class="trn-tpls">' + tpls.map(function (t, i) { return '<div class="trn-tpl"><b>' + _sqEsc(t.name || _trTypeMeta(t.type).l) + '</b><span>' + _trTypeMeta(t.type).l + ' &middot; ' + t.duration + '\'</span><div class="trn-tpl-a"><button class="trn-btn trn-btn--sm trn-btn--primary" data-trn-act="applytpl" data-trn-i="' + i + '" type="button">Use</button><button class="trn-btn trn-btn--sm" data-trn-act="deltpl" data-trn-i="' + i + '" type="button">Delete</button></div></div>'; }).join('') + '</div>') : '';
+  var cmp = (_TRN.cmp || []).filter(function (id) { return !!_trSession(id); });
+  var recent = sessions.slice(0, 10);
+  var cmpChips = recent.map(function (s2) { var on = cmp.indexOf(s2.id) >= 0; return '<button class="trn-cmpchip' + (on ? ' is-on' : '') + '" data-trn-act="cmptoggle" data-trn-id="' + s2.id + '" type="button">' + _trFmtDate(s2.date) + '</button>'; }).join('');
+  var cmpResult = cmp.length === 2 ? _trnCompare(_trSession(cmp[0]), _trSession(cmp[1])) : '<p class="trn-note">Select two sessions above to compare them side by side.</p>';
+  var cmpSection = _trnPanel('Session comparison', 'Pick two sessions', '<div class="trn-cmpchips">' + cmpChips + '</div>' + cmpResult);
+  return top + tplStrip + cmpSection + '<div class="trn-scards">' + cards + '</div>';
+}
+// Session timeline (duration breakdown) — phase minutes derived from the real total duration.
+function _trnTimeline(s) {
+  var dur = parseInt(s.duration, 10) || 90, isMatch = s.type === 'match';
+  var phases = isMatch
+    ? [['Warm-up', 0.17, '251,146,60'], ['Activation', 0.15, '52,211,153'], ['Match', 0.55, '244,63,94'], ['Cool-down', 0.13, '96,165,250']]
+    : [['Warm-up', 0.18, '251,146,60'], ['Main block', 0.5, '52,211,153'], ['Small-sided game', 0.2, '167,139,250'], ['Cool-down', 0.12, '96,165,250']];
+  var acc = 0, segs = phases.map(function (p, i) { var m = i === phases.length - 1 ? Math.max(1, dur - acc) : Math.round(dur * p[1]); acc += m; return { label: p[0], min: m, col: p[2] }; });
+  return '<div class="trn-timeline">' + segs.map(function (g) { return '<div class="trn-tl-seg" style="--c:' + g.col + ';flex:' + g.min + ' 1 0" title="' + g.label + ': ' + g.min + ' min"><b>' + g.label + '</b><span>' + g.min + '\'</span></div>'; }).join('') + '</div>';
+}
+function _trnSessionContext(s) {
+  var tm = _trTypeMeta(s.type);
+  var rows = [['Category', tm.l], ['Intensity', s.intensity || '—'], ['Duration', s.duration + ' min'], ['Pitch', s.pitch || s.location || '—'], ['Coach', s.coach || '—'], ['Weather', s.weather || '—'], ['Temperature', s.temperature || '—'], ['Equipment', s.equipment || '—']];
+  return '<div class="trn-rmetrics">' + rows.map(function (r) { return _trnStat(r[0], _sqEsc(r[1] === '' ? '—' : r[1]), '', 'violet'); }).join('') + '</div>';
 }
 function _trnSessionDetail(s) {
   var tm = _trTypeMeta(s.type);
@@ -8555,7 +8608,10 @@ function _trnSessionDetail(s) {
     + '<div class="trn-det-title"><span class="trn-badge" style="--c:' + tm.c + '">' + tm.l + '</span>' + _trStatusBadge(s) + '<b>' + (_sqEsc(s.objective) || tm.l + ' session') + '</b></div>'
     + '<div class="trn-det-meta"><span>&#128197; ' + _trFmtDate(s.date) + '</span><span>&#9201; ' + s.startTime + ' · ' + s.duration + '\'</span><span>&#128205; ' + _sqEsc(s.location) + '</span><span>&#9917; ' + s.formation + ' · ' + _sqEsc(s.tacticalFocus) + '</span></div>'
     + (s.status !== 'completed' ? '<button class="trn-btn trn-btn--danger-ghost" data-trn-act="delsession" data-trn-id="' + s.id + '" type="button">Delete</button>' : '') + '</div>';
-  if (s.status === 'completed') return head + _trnCompletedView(s);
+  var tools = '<div class="trn-stools"><button class="trn-btn trn-btn--sm" data-trn-act="dupsession" data-trn-id="' + s.id + '" type="button">&#128203; Duplicate</button><button class="trn-btn trn-btn--sm" data-trn-act="savetemplate" data-trn-id="' + s.id + '" type="button">&#11088; Save as template</button></div>';
+  var extras = tools
+    + '<div class="trn-grid2">' + _trnPanel('Session context', 'Real coach-entered data', _trnSessionContext(s)) + _trnPanel('Session timeline', 'Duration breakdown', _trnTimeline(s)) + '</div>';
+  if (s.status === 'completed') return head + extras + _trnCompletedView(s);
   // attendance center
   var attStates = [['present', 'Present'], ['late', 'Late'], ['absent', 'Absent'], ['excused', 'Excused'], ['injured', 'Injured']];
   var attRows = players.map(function (p) {
@@ -8594,7 +8650,7 @@ function _trnSessionDetail(s) {
   } else {
     completeBar = '<div class="trn-completebar"><div><b>Finished training?</b><span>Confirm the summary, add a session rating &amp; best player. Reports update automatically.</span></div><button class="trn-btn trn-btn--complete" data-trn-act="complete" type="button">&#10003; Complete Session</button></div>';
   }
-  return head + attPanel + perfPanel + completeBar;
+  return head + extras + attPanel + perfPanel + completeBar;
 }
 function _trnCompletedView(s) {
   var players = (s.players || []).map(_trP).filter(Boolean);
@@ -8625,6 +8681,12 @@ function _trnModalHtml() {
       + '<div class="trn-frow"><div class="trn-afield"><label>Training type</label><select id="trn-f-type" class="trn-input">' + TR_TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (d.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div>'
       + '<div class="trn-afield"><label>Location</label><select id="trn-f-loc" class="trn-input">' + TR_LOCS.map(function (l) { return '<option' + (d.location === l ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select></div></div>'
       + '<div class="trn-afield"><label>Main objective</label><input id="trn-f-obj" class="trn-input" type="text" value="' + _sqEsc(d.objective) + '" placeholder="e.g. sharpen pressing triggers"></div>'
+      + '<div class="trn-frow"><div class="trn-afield"><label>Intensity</label><select id="trn-f-int" class="trn-input">' + ['Low', 'Medium', 'High', 'Max'].map(function (x) { return '<option' + (d.intensity === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>'
+      + '<div class="trn-afield"><label>Pitch</label><input id="trn-f-pitch" class="trn-input" type="text" value="' + _sqEsc(d.pitch || '') + '" placeholder="e.g. Main grass"></div>'
+      + '<div class="trn-afield"><label>Coach</label><input id="trn-f-coach" class="trn-input" type="text" value="' + _sqEsc(d.coach || '') + '" placeholder="Session lead"></div></div>'
+      + '<div class="trn-frow"><div class="trn-afield"><label>Weather</label><input id="trn-f-weather" class="trn-input" type="text" value="' + _sqEsc(d.weather || '') + '" placeholder="e.g. Clear"></div>'
+      + '<div class="trn-afield"><label>Temperature</label><input id="trn-f-temp" class="trn-input" type="text" value="' + _sqEsc(d.temperature || '') + '" placeholder="e.g. 18°C"></div>'
+      + '<div class="trn-afield"><label>Equipment</label><input id="trn-f-equip" class="trn-input" type="text" value="' + _sqEsc(d.equipment || '') + '" placeholder="e.g. Cones, bibs, goals"></div></div>'
       + '</div>';
   } else if (step === 2) {
     var rows = (SQ_DEMO_PLAYERS || []).map(function (p) {
@@ -9243,7 +9305,7 @@ function _trnToast(m) { try { if (typeof showToast === 'function') showToast(m, 
 function _trnReadStep(step) {
   var d = _TRN.draft; if (!d || typeof document === 'undefined') return;
   function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
-  if (step === 1) { var x; if ((x = v('trn-f-date')) != null) d.date = x; if ((x = v('trn-f-time')) != null) d.startTime = x; if ((x = v('trn-f-dur')) != null) d.duration = x; if ((x = v('trn-f-type')) != null) d.type = x; if ((x = v('trn-f-loc')) != null) d.location = x; if ((x = v('trn-f-obj')) != null) d.objective = x; }
+  if (step === 1) { var x; if ((x = v('trn-f-date')) != null) d.date = x; if ((x = v('trn-f-time')) != null) d.startTime = x; if ((x = v('trn-f-dur')) != null) d.duration = x; if ((x = v('trn-f-type')) != null) d.type = x; if ((x = v('trn-f-loc')) != null) d.location = x; if ((x = v('trn-f-obj')) != null) d.objective = x; if ((x = v('trn-f-int')) != null) d.intensity = x; if ((x = v('trn-f-pitch')) != null) d.pitch = x; if ((x = v('trn-f-coach')) != null) d.coach = x; if ((x = v('trn-f-weather')) != null) d.weather = x; if ((x = v('trn-f-temp')) != null) d.temperature = x; if ((x = v('trn-f-equip')) != null) d.equipment = x; }
   else if (step === 3) { var y; if ((y = v('trn-f-form')) != null) d.formation = y; if ((y = v('trn-f-foc')) != null) d.tacticalFocus = y; }
 }
 function _trnOpenSession(id) {
@@ -9291,6 +9353,11 @@ function _trnAction(act, el) {
     case 'delsession': if (typeof window === 'undefined' || window.confirm('Delete this session? This cannot be undone.')) { trDeleteSession(id); _TRN.open = null; _trnRender(); } break;
     case 'explainp': { var b1 = _trnBestPlayers(), it = b1.podium[parseInt(el.getAttribute('data-trn-i'), 10)]; if (it) { var ag = it.agg; _TRN.explain = { pid: it.p.id, label: 'Best training player', text: 'Average coach rating ' + it.rating.toFixed(2) + (ag.attendancePct == null ? '' : ', ' + ag.attendancePct + '% attendance') + ', across ' + ag.completed + ' completed session' + (ag.completed === 1 ? '' : 's') + '.' }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
+    case 'dupsession': { var ds = _trSession(id); if (ds) { _TRN.tpl = _trnSessionConfig(ds); _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnToast('Session duplicated — set a new date'); _trnRender(); } break; }
+    case 'savetemplate': { var ts = _trSession(id); if (ts) { var tl = _trTplLoad(); tl.push(_trnSessionConfig(ts)); _trTplSave(tl); _trnToast('Saved as template'); _trnRender(); } break; }
+    case 'applytpl': { var ai = parseInt(el.getAttribute('data-trn-i'), 10), at = _trTplLoad()[ai]; if (at) { _TRN.tpl = at; _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnRender(); } break; }
+    case 'deltpl': { var di = parseInt(el.getAttribute('data-trn-i'), 10), dl = _trTplLoad(); if (di >= 0 && di < dl.length) { dl.splice(di, 1); _trTplSave(dl); _trnRenderBody(); } break; }
+    case 'cmptoggle': { _TRN.cmp = _TRN.cmp || []; var ci = _TRN.cmp.indexOf(id); if (ci >= 0) _TRN.cmp.splice(ci, 1); else { if (_TRN.cmp.length >= 2) _TRN.cmp.shift(); _TRN.cmp.push(id); } _trnRenderBody(); break; }
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
     case 'repcustom': { var rf = document.getElementById('trn-rep-from'), rt = document.getElementById('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
     case 'exportcsv': _trnExportCsv(); break;
