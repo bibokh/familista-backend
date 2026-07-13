@@ -9427,7 +9427,51 @@ function _trnBody() {
     default: return _trnDashboard();
   }
 }
-function _trnInner() { return _trnHead() + _trnNav() + '<div class="trn-bodywrap" id="trn-body">' + _trnBody() + '</div>' + '<div id="trn-modal" class="trn-modal"' + (_TRN.modal ? '' : ' hidden') + '>' + _trnModalHtml() + '</div>'; }
+// ── AI Chat Assistant — answers ONLY from real training records (heuristic intent parser, no LLM/no fabrication) ──
+function _trnChatAnswer(q) {
+  q = (q || '').toLowerCase().trim();
+  if (!q) return { text: 'Ask me about training, players, load, recovery or attendance — I answer from your real records.' };
+  var comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam(), ai = _trnAiInsights();
+  var noData = !comp.length, E = function (s) { return _sqEsc(s); };
+  var named = null; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var last = String(_trnLast(p.name)).toLowerCase(), first = String(p.name).split(' ')[0].toLowerCase(); if ((last && q.indexOf(last) >= 0) || (first.length > 3 && q.indexOf(first) >= 0)) named = p; });
+  if (/improv|develop|progress/.test(q)) { if (noData) return { text: 'No completed sessions yet — I can measure improvement once ratings are recorded.' }; var mi = _trMostImproved(comp); return mi ? { text: E(mi.p.name) + ' has improved most — coach rating up +' + mi.delta.toFixed(1) + ' across recent sessions.', route: { act: 'gotoplayer', id: mi.p.id } } : { text: 'Not enough rated sessions yet to measure improvement.' }; }
+  if (/declin|regress|dropp|getting worse|worse form/.test(q)) { if (noData) return { text: 'No completed sessions yet to assess form.' }; var worst = null; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, comp), d = _trnTrendDelta(a); if (a.seq && a.seq.length >= 2 && (worst === null || d < worst.d)) worst = { p: p, d: d }; }); return (worst && worst.d < 0) ? { text: E(worst.p.name) + '’s form is trending down (' + worst.d.toFixed(1) + ') — consider individual focus.', route: { act: 'gotoplayer', id: worst.p.id } } : { text: 'No player is clearly declining — form is stable or improving.' }; }
+  if (/rest|recover|manage|tired|fatigue|load off/.test(q)) { var r = ai.riskP[0]; return r ? { text: E(_trnLast(r.x.p.name)) + ' should be managed — readiness ' + r.x.readiness + '% (' + r.lvl + ' risk). ' + E(ai.recovery), route: { act: 'gototab', v: 'load' } } : { text: 'No players need forced recovery — squad readiness is good. ' + E(ai.recovery) }; }
+  if (/start|line.?up|\bxi\b|who.*play|pick/.test(q)) { if (noData) return { text: 'Once you record sessions I can suggest starters from real form + readiness.' }; var ranked = t.ps.slice().filter(function (x) { return x.avail !== 'injured'; }).map(function (x) { var a = _trPlayerAgg(x.p.id, comp); return { name: x.p.name, score: (a.avgRating || 6) * 10 + x.readiness * 0.3 }; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 5); return { text: 'Best-placed to start on form + readiness: ' + ranked.map(function (z) { return E(_trnLast(z.name)); }).join(', ') + '.', route: { act: 'gototab', v: 'individual' } }; }
+  if (/best.*(day|session|training)/.test(q)) { if (noData) return { text: 'No completed sessions yet.' }; var best = null; comp.forEach(function (s) { var rs = []; (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); var avg = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : 0; if (!best || avg > best.avg) best = { s: s, avg: avg }; }); return { text: 'Best training day: ' + _trFmtDate(best.s.date) + ' — average rating ' + best.avg.toFixed(2) + '.', route: { act: 'gotosession', id: best.s.id } }; }
+  if (/worst.*(day|session|training)/.test(q)) { if (noData) return { text: 'No completed sessions yet.' }; var wst = null; comp.forEach(function (s) { var rs = []; (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); var avg = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : 0; if (!wst || avg < wst.avg) wst = { s: s, avg: avg }; }); return { text: 'Lowest-rated session: ' + _trFmtDate(wst.s.date) + ' — average rating ' + wst.avg.toFixed(2) + '. Review drill difficulty.', route: { act: 'gotosession', id: wst.s.id } }; }
+  if (/risk|dangerous|injur/.test(q)) { if (named) { var pp = t.ps.filter(function (x) { return x.p.id === named.id; })[0]; if (pp) { var f = []; if (pp.avail === 'injured') f.push('currently injured'); if (pp.readiness < 60) f.push('low readiness (' + pp.readiness + '%)'); if (pp.fatigue >= 55) f.push('elevated fatigue (' + pp.fatigue + '%)'); return { text: E(named.name) + ' risk — ' + (f.length ? f.join(', ') + '.' : 'no elevated risk (readiness ' + pp.readiness + '%).'), route: { act: 'gotoplayer', id: named.id } }; } } return { text: 'Team injury risk is ' + t.risk + ' (' + t.riskPct + '%). ' + (ai.riskP.length ? 'Highest: ' + E(_trnLast(ai.riskP[0].x.p.name)) + '.' : 'No individual red flags.'), route: { act: 'gototab', v: 'load' } }; }
+  if (/generat|plan|tomorrow|next week|weekly|month|micro|macro|cycle/.test(q)) { return { text: 'Recommended micro-cycle from your real load: ' + ai.plan.map(function (d) { return d.d + ' — ' + d.f + ' (' + d.i + ')'; }).join('; ') + '. ' + (ai.hasData ? (ai.heavy ? 'Mid-week intensity reduced due to high workload.' : 'Balanced load progression.') : 'Baseline plan; adapts as load data accumulates.'), route: { act: 'gototab', v: 'ai' } }; }
+  if (/explain.*(session|today|training)|today.*session|last session/.test(q)) { return ai.post ? { text: E(ai.post.text), route: { act: 'gotosession', id: ai.post.session.id } } : { text: 'No completed session to explain yet — complete one and I’ll summarise it.' }; }
+  if (/attendance/.test(q)) { if (noData) return { text: 'No attendance recorded yet.' }; var win = function (a0, a1) { var now = Date.now(), n = 0, d = 0; recorded.forEach(function (s) { var dd = (now - (s.completedAt || Date.parse(s.date) || 0)) / 86400000; if (dd >= a0 && dd < a1) (s.players || []).forEach(function (id) { var m = (s.attendance || {})[id]; if (m === 'present' || m === 'late') { n++; d++; } else if (m === 'absent') d++; }); }); return d ? Math.round(n / d * 100) : null; }; var cur = win(0, 7), prev = win(7, 14); if (cur != null && prev != null) { var diff = cur - prev; return { text: 'Attendance is ' + cur + '% this week vs ' + prev + '% the week before (' + (diff >= 0 ? '+' : '') + diff + '%). ' + (diff < 0 ? 'The dip is worth addressing.' : 'Trending well.'), route: { act: 'gototab', v: 'attendance' } }; } return { text: 'Current attendance is ' + (cur == null ? '—' : cur + '%') + '.', route: { act: 'gototab', v: 'attendance' } }; }
+  if (/fitness|readiness|fresh|condition|sharp/.test(q)) { return { text: 'Team fitness ' + t.fitness + '%, readiness ' + t.readiness + '%, freshness ' + (100 - t.fatigue) + '%, injury risk ' + t.risk + '.', route: { act: 'gototab', v: 'load' } }; }
+  if (/strength|weak|good at|bad at/.test(q)) { return { text: (ai.strengths.length ? 'Strengths: ' + ai.strengths.map(E).join('; ') + '. ' : '') + (ai.weaknesses.length ? 'Weaknesses: ' + ai.weaknesses.map(E).join('; ') + '.' : (ai.strengths.length ? '' : 'Not enough data yet.')), route: { act: 'gototab', v: 'ai' } }; }
+  return { text: 'I answer from your real records. Try: “who improved most”, “who should rest tomorrow”, “generate next week’s training”, “best training day”, “explain today’s session”, or “why is [player] high risk”.' };
+}
+function _trnChatAsk(q) {
+  q = (q || '').trim(); if (!q) return;
+  _TRN.chat = _TRN.chat || []; _TRN.chat.push({ role: 'user', text: _sqEsc(q) });
+  var a = _trnChatAnswer(q); _TRN.chat.push({ role: 'ai', text: a.text, route: a.route || null });
+  _TRN.chatDraft = ''; _trnRenderChat();
+}
+function _trnChatInner() {
+  var open = !!_TRN.chatOpen;
+  var fab = '<button class="trn-fab" data-trn-act="chattoggle" type="button" aria-label="AI Assistant">' + (open ? '&#10005;' : '&#129504;') + '</button>';
+  if (!open) return fab;
+  var msgs = _TRN.chat || [];
+  var body = msgs.length
+    ? msgs.map(function (m) { return '<div class="trn-cmsg trn-cmsg--' + m.role + '">' + (m.role === 'ai' ? '<span class="trn-cmsg-ic">&#129504;</span>' : '') + '<div class="trn-cmsg-b">' + m.text + (m.route ? ' <button class="trn-cmsg-go" data-trn-act="' + m.route.act + '"' + (m.route.id ? ' data-trn-id="' + m.route.id + '"' : '') + (m.route.v ? ' data-trn-v="' + m.route.v + '"' : '') + ' type="button">Open &#8250;</button>' : '') + '</div></div>'; }).join('')
+    : '<div class="trn-cwelcome"><b>&#129504; AI Assistant</b><p>Ask about training, players, load, recovery or attendance — every answer comes from your real records.</p></div>';
+  var chips = ['Who improved most?', 'Who should rest tomorrow?', 'Generate next week’s training', 'Best training day', 'Explain today’s session', 'Who should start?'].map(function (c) { return '<button class="trn-cchip" data-trn-act="chatq" data-trn-v="' + _sqEsc(c) + '" type="button">' + c + '</button>'; }).join('');
+  var panel = '<div class="trn-chatpanel"><div class="trn-chat-h"><b>&#129504; AI Assistant</b><span>Real records</span><button class="trn-chat-x" data-trn-act="chattoggle" type="button">&#10005;</button></div>'
+    + '<div class="trn-chat-msgs" id="trn-chat-msgs">' + body + '</div>'
+    + '<div class="trn-chat-chips">' + chips + '</div>'
+    + '<div class="trn-chat-inp"><input id="trn-chat-in" class="trn-input" type="text" placeholder="Ask the assistant…" autocomplete="off" value="' + _sqEsc(_TRN.chatDraft || '') + '"><button class="trn-btn trn-btn--primary trn-btn--sm" data-trn-act="chatsend" type="button">Send</button></div></div>';
+  return fab + panel;
+}
+function _trnChatPanelHtml() { return '<div id="trn-chat" class="trn-chat">' + _trnChatInner() + '</div>'; }
+function _trnRenderChat() { if (typeof document === 'undefined') return; var el = document.getElementById('trn-chat'); if (!el) return; el.innerHTML = _trnChatInner(); var m = document.getElementById('trn-chat-msgs'); if (m) m.scrollTop = m.scrollHeight; if (_TRN.chatOpen) { var inp = document.getElementById('trn-chat-in'); if (inp) try { inp.focus(); } catch (e) {} } }
+function _trnInner() { return _trnHead() + _trnNav() + '<div class="trn-bodywrap" id="trn-body">' + _trnBody() + '</div>' + '<div id="trn-modal" class="trn-modal"' + (_TRN.modal ? '' : ' hidden') + '>' + _trnModalHtml() + '</div>' + _trnChatPanelHtml(); }
 function _trnRenderBody() { var b = document.getElementById('trn-body'); if (b) { b.innerHTML = _trnBody(); b.classList.remove('trn-anim'); void b.offsetWidth; b.classList.add('trn-anim'); } }
 function _trnRenderModal() { var m = document.getElementById('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
 function _trnRender() {
@@ -9488,6 +9532,9 @@ function _trnAction(act, el) {
     case 'delsession': if (typeof window === 'undefined' || window.confirm('Delete this session? This cannot be undone.')) { trDeleteSession(id); _TRN.open = null; _trnRender(); } break;
     case 'explainp': { var b1 = _trnBestPlayers(), it = b1.podium[parseInt(el.getAttribute('data-trn-i'), 10)]; if (it) { var ag = it.agg; _TRN.explain = { pid: it.p.id, label: 'Best training player', text: 'Average coach rating ' + it.rating.toFixed(2) + (ag.attendancePct == null ? '' : ', ' + ag.attendancePct + '% attendance') + ', across ' + ag.completed + ' completed session' + (ag.completed === 1 ? '' : 's') + '.' }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
+    case 'chattoggle': _TRN.chatOpen = !_TRN.chatOpen; _TRN.chat = _TRN.chat || []; _trnRenderChat(); break;
+    case 'chatq': _trnChatAsk(el.getAttribute('data-trn-v')); break;
+    case 'chatsend': { var ci = document.getElementById('trn-chat-in'); _trnChatAsk(ci ? ci.value : ''); break; }
     case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
     case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = document.getElementById('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
     case 'gotoplayer': _TRN.modal = null; _TRN.tab = 'individual'; _TRN.player = id; _trnRender(); break;
@@ -9516,8 +9563,13 @@ function _trnBind() {
   // Live global-search input (CSP-safe delegated listener) — updates only the
   // results container so the input keeps focus while typing.
   document.addEventListener('input', function (e) {
-    var el = e.target; if (!el || el.id !== 'trn-search') return;
-    _TRN.q = el.value; var r = document.getElementById('trn-search-results'); if (r) r.innerHTML = _trnSearchResults();
+    var el = e.target; if (!el) return;
+    if (el.id === 'trn-search') { _TRN.q = el.value; var r = document.getElementById('trn-search-results'); if (r) r.innerHTML = _trnSearchResults(); }
+    else if (el.id === 'trn-chat-in') { _TRN.chatDraft = el.value; }
+  });
+  // Enter to send in the AI assistant.
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target && e.target.id === 'trn-chat-in') { e.preventDefault(); _trnChatAsk(e.target.value); }
   });
 }
 function renderTrainingWorkspaceHTML() {
