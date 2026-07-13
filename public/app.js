@@ -9126,6 +9126,40 @@ function _trnIndividual() {
     + _trnPanel('AI summary', 'Auto-generated from records', summary)
     + _trnPanel('Coach notes', an.notes.length + ' note' + (an.notes.length === 1 ? '' : 's'), notes);
 }
+// AI insights computed from real completed/recorded records + real team state.
+function _trnAiInsights() {
+  var comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam(), tac = SQ_TACTICS || {};
+  var per = []; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return; per.push({ p: p, a: a }); });
+  var teamAtt = null; (function () { var n = 0, dn = 0; recorded.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; dn++; } else if (a === 'absent') dn++; }); }); teamAtt = dn ? Math.round(n / dn * 100) : null; })();
+  var rArr = []; comp.forEach(function (s) { (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rArr.push(pf.rating); }); });
+  var teamRating = rArr.length ? rArr.reduce(function (x, y) { return x + y; }, 0) / rArr.length : null;
+  var strengths = [], weaknesses = [];
+  if (comp.length) {
+    if (teamAtt != null) { if (teamAtt >= 90) strengths.push('Excellent attendance (' + teamAtt + '%)'); else if (teamAtt < 75) weaknesses.push('Attendance needs work (' + teamAtt + '%)'); }
+    if (teamRating != null) { if (teamRating >= 7.5) strengths.push('High training performance (avg ' + teamRating.toFixed(1) + ')'); else if (teamRating < 6.5) weaknesses.push('Training ratings below target (avg ' + teamRating.toFixed(1) + ')'); }
+    if (t.injured === 0) strengths.push('Full squad availability'); else weaknesses.push(t.injured + ' player(s) in the medical room');
+    if (t.acwr > 1.3) weaknesses.push('Workload spiking (ACWR ' + t.acwr.toFixed(2) + ')'); else if (t.acwr >= 0.8 && t.acwr <= 1.3) strengths.push('Balanced workload (ACWR ' + t.acwr.toFixed(2) + ')');
+    var topR = per.filter(function (x) { return x.a.avgRating != null; }).sort(function (a, b) { return b.a.avgRating - a.a.avgRating; })[0];
+    if (topR) strengths.push('Standout: ' + _trnLast(topR.p.name) + ' (' + topR.a.avgRating.toFixed(1) + ')');
+  }
+  var riskP = t.ps.slice().map(function (x) { var score = _trnClamp((100 - x.readiness) + (x.avail === 'injured' ? 40 : 0) + (x.fatigue > 60 ? 15 : 0), 0, 140); return { x: x, score: score, lvl: score >= 70 ? 'High' : score >= 45 ? 'Moderate' : 'Low' }; }).sort(function (a, b) { return b.score - a.score; }).filter(function (r) { return r.lvl !== 'Low'; }).slice(0, 5);
+  var indiv = per.slice().sort(function (a, b) { var sa = (a.a.avgRating || 6) + (a.a.attendancePct || 80) / 20, sb = (b.a.avgRating || 6) + (b.a.attendancePct || 80) / 20; return sa - sb; }).slice(0, 4).map(function (x) { var focus = (x.a.attendancePct != null && x.a.attendancePct < 75) ? 'Attendance & commitment' : x.p.cat === 'fw' ? 'Finishing & movement' : x.p.cat === 'df' ? 'Defensive positioning' : x.p.cat === 'gk' ? 'Distribution & handling' : 'Ball retention'; return { p: x.p, a: x.a, focus: focus }; });
+  var latest = comp.slice().sort(function (a, b) { return (b.completedAt || 0) - (a.completedAt || 0); })[0], post = null;
+  if (latest) {
+    var pr = 0, ab = 0, rs = []; (latest.players || []).forEach(function (id) { var a = (latest.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; var pf = (latest.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); });
+    var la = (pr + ab) ? Math.round(pr / (pr + ab) * 100) : null, lavg = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : null, bp = _trP(latest.bestPlayer);
+    var txt = (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l) + ' on ' + _trFmtDate(latest.date) + '. ';
+    if (la != null) txt += la + '% attended' + (ab ? ' (' + ab + ' absent)' : '') + '. ';
+    if (lavg != null) txt += 'Average rating ' + lavg.toFixed(2) + '. ';
+    if (bp) txt += 'Standout: ' + _trnLast(bp.name) + '. ';
+    if (lavg != null && lavg < 6.5) txt += 'Intensity/quality dipped — review drill difficulty. ';
+    else if (lavg != null && lavg >= 8) txt += 'Strong quality — repeat the structure. ';
+    post = { session: latest, text: txt.trim() };
+  }
+  var heavy = t.acwr > 1.3 || t.fatigue >= 55;
+  var plan = [{ d: 'Mon', f: 'Recovery & regeneration', i: 'Low' }, { d: 'Tue', f: (tac.style || 'Possession') + ' & technical', i: 'Medium' }, { d: 'Wed', f: 'Tactical shape (MD-3)', i: heavy ? 'Medium' : 'High' }, { d: 'Thu', f: 'High-intensity physical', i: heavy ? 'Medium' : 'High' }, { d: 'Fri', f: 'Activation & set pieces (MD-1)', i: 'Low' }, { d: 'Sat', f: 'Match day', i: 'Max' }, { d: 'Sun', f: 'Day off', i: 'Rest' }];
+  return { strengths: strengths, weaknesses: weaknesses, riskP: riskP, indiv: indiv, post: post, plan: plan, hasData: comp.length > 0, heavy: heavy };
+}
 function _trnAI() {
   var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = SQ_TACTICS || {};
   var list = recs.map(function (r) {
@@ -9136,7 +9170,32 @@ function _trnAI() {
     + '<div class="trn-tac-chips">' + [['Mentality', tac.mentality || 'Balanced'], ['Pressing', tac.pressLine || 'Medium'], ['Possession', tac.style || 'Balanced'], ['Transitions', tac.transWon || 'Counter'], ['Width', tac.width || 'Balanced'], ['Def line', tac.defLine || 'Standard']].map(function (c) { return '<span class="trn-tac-chip"><i>' + c[0] + '</i><b>' + _sqEsc(c[1]) + '</b></span>'; }).join('') + '</div></div>';
   var t = _trnTeam();
   var medical = '<div class="trn-med">' + [['Fitness', t.fitness + '%', _trnTone(t.fitness)], ['Fatigue', t.fatigue + '%', t.fatigue >= 55 ? 'risk' : 'slt'], ['Injury risk', t.risk, t.risk === 'High' ? 'risk' : t.risk === 'Moderate' ? 'slt' : 'adv'], ['In medical room', t.injured + '', t.injured ? 'risk' : 'adv'], ['Est. return-to-play', (t.injured ? (7 + (t.injured * 3)) + ' days' : 'None'), 'bal']].map(function (m) { return '<div class="trn-med-row trn-med-row--' + m[2] + '"><span>' + m[0] + '</span><b>' + m[1] + '</b></div>'; }).join('') + '</div>';
+  var ai = _trnAiInsights();
+  var swHtml = (ai.strengths.length || ai.weaknesses.length)
+    ? '<div class="trn-sw"><div class="trn-swcol trn-swcol--s"><h4>Strengths</h4>' + (ai.strengths.length ? ai.strengths.map(function (x) { return '<div class="trn-swrow">&#9650; ' + _sqEsc(x) + '</div>'; }).join('') : '<p class="trn-note">—</p>') + '</div>'
+      + '<div class="trn-swcol trn-swcol--w"><h4>Weaknesses</h4>' + (ai.weaknesses.length ? ai.weaknesses.map(function (x) { return '<div class="trn-swrow">&#9660; ' + _sqEsc(x) + '</div>'; }).join('') : '<p class="trn-note">None flagged</p>') + '</div></div>'
+    : _trEmpty('&#129504;', 'No analysis yet', 'Strengths and weaknesses generate from completed sessions.', false);
+  var riskHtml = ai.riskP.length
+    ? '<div class="trn-risklist">' + ai.riskP.map(function (r) { var tone = r.lvl === 'High' ? 'risk' : 'slt'; return '<div class="trn-riskrow"><span class="trn-readp-nm">' + _trnAvatar(r.x.p) + _sqEsc(_trnLast(r.x.p.name)) + '</span><span class="trn-risk-badge trn-risk-badge--' + tone + '">' + r.lvl + ' risk</span><b>' + r.x.readiness + '%</b></div>'; }).join('') + '</div>'
+    : '<p class="trn-note">No elevated injury risk — squad readiness is good.</p>';
+  var indivHtml = ai.indiv.length
+    ? '<div class="trn-airecs">' + ai.indiv.map(function (x) { return '<div class="trn-airec"><span class="trn-airec-p">' + _trnAvatar(x.p) + '<b>' + _sqEsc(_trnLast(x.p.name)) + '</b></span><span class="trn-airec-f">' + x.focus + '</span></div>'; }).join('') + '</div>'
+    : _trEmpty('&#127919;', 'No individual data yet', 'Player recommendations build from real training data.', false);
+  var postHtml = ai.post
+    ? '<div class="trn-aisum"><span class="trn-aisum-ic">&#128203;</span><p>' + _sqEsc(ai.post.text) + '</p></div>'
+    : _trEmpty('&#128203;', 'No completed sessions yet', 'Post-session analysis generates after each completed session.', false);
+  var planHtml = '<div class="trn-plan">' + ai.plan.map(function (d) { var tone = d.i === 'Max' ? 'risk' : d.i === 'High' ? 'slt' : d.i === 'Rest' ? 'muted' : 'adv'; return '<div class="trn-planrow"><span class="trn-plan-d">' + d.d + '</span><b class="trn-plan-f">' + _sqEsc(d.f) + '</b><span class="trn-plan-i trn-plan-i--' + tone + '">' + d.i + '</span></div>'; }).join('') + '</div>'
+    + '<p class="trn-note">' + (ai.hasData ? (ai.heavy ? 'Auto-adjusted: high workload detected, mid-week intensity reduced.' : 'Balanced micro-cycle from current workload &amp; tactical style.') : 'Baseline plan — adapts automatically as real load data accumulates.') + '</p>';
   return _trnPanel('AI training recommendations', 'Reads tactics · fitness · calendar', '<div class="trn-recs">' + list + '</div>')
+    + '<div class="trn-grid2">'
+    + _trnPanel('Team strengths &amp; weaknesses', 'From real records', swHtml)
+    + _trnPanel('Injury risk prediction', 'From readiness · load · availability', riskHtml)
+    + '</div>'
+    + '<div class="trn-grid2">'
+    + _trnPanel('Individual recommendations', 'Players to focus on', indivHtml)
+    + _trnPanel('Automatic post-session analysis', 'Latest completed session', postHtml)
+    + '</div>'
+    + _trnPanel('AI weekly training plan', 'Micro-cycle from real data', planHtml)
     + '<div class="trn-grid2">'
     + _trnPanel('Tactical integration', 'Auto-synced to Formation & Tactics', tactical)
     + _trnPanel('Medical integration', 'Training ↔ fitness ↔ availability', medical)
