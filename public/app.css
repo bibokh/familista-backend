@@ -7412,3 +7412,40 @@ body.club-theme .pm2-vid-title{ font-size: 12px; font-weight: 700; color: var(--
 body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 /* END PHASE B.4 SQUAD ─────────────────────────────────────────── */
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   TRAINING CENTRE — Phase 1 UI/UX redesign (additive override, CSS-only).
+   Simpler, cleaner, larger cards, more whitespace, softer borders, calmer
+   hierarchy. Overrides visual properties only — no layout/JS/feature change.
+   ══════════════════════════════════════════════════════════════════════ */
+/* header + nav: more air, clearer title */
+.trn-head{ align-items:flex-start; margin-bottom:24px; gap:20px; }
+.trn-head-id h1{ font-size:23px; letter-spacing:-.4px; }
+.trn-head-id p{ font-size:12.5px; margin-top:3px; }
+.trn-hchip{ padding:7px 14px; border-radius:12px; border-color:rgba(255,255,255,.06); background:rgba(255,255,255,.03); }
+.trn-nav{ gap:7px; margin-bottom:24px; padding-bottom:2px; }
+.trn-tab{ padding:9px 18px; font-size:13px; border-radius:12px; border-color:rgba(255,255,255,.06); background:rgba(255,255,255,.025); }
+.trn-tab.is-active{ box-shadow:0 6px 20px rgba(74,222,128,.28); }
+/* panels: bigger, softer, cleaner (no header divider = less clutter) */
+.trn-panel{ padding:21px 23px 23px; border:1px solid rgba(255,255,255,.055); border-radius:20px; box-shadow:0 8px 28px rgba(0,0,0,.2); margin-bottom:20px; background:linear-gradient(168deg,rgba(22,32,56,.46),rgba(11,16,30,.42)); }
+.trn-panel-h{ margin-bottom:17px; padding-bottom:0; border-bottom:0; align-items:baseline; }
+.trn-panel-h h3{ font-size:15.5px; font-weight:800; letter-spacing:-.3px; }
+.trn-panel-tag{ font-size:10.5px; color:#7c8698; }
+.trn-panel .trn-panel{ background:rgba(255,255,255,.018); border-radius:16px; }
+.trn-grid2{ gap:18px; }
+/* KPI / stat cards: larger, calmer, stronger number hierarchy */
+.trn-dash{ grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:14px; margin-bottom:22px; }
+.trn-stat{ padding:15px 17px; border-radius:16px; border:1px solid rgba(255,255,255,.05); box-shadow:0 5px 18px rgba(0,0,0,.18); background:linear-gradient(168deg,rgba(19,28,49,.9),rgba(12,18,32,.92)); }
+.trn-stat-l{ font-size:9.5px; letter-spacing:.07em; margin-bottom:9px; }
+.trn-stat-v{ font-size:24px; line-height:1; }
+.trn-stat-v i{ font-size:12px; margin-left:2px; }
+.trn-rmetrics{ grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:18px; }
+.trn-att-sum,.trn-csum{ gap:12px; }
+/* charts + cards: more breathing room, softer edges */
+.trn-chtgrid{ grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:16px; }
+.trn-chtcard{ padding:15px 16px 14px; border-radius:16px; border-color:rgba(255,255,255,.06); }
+.trn-scards{ gap:14px; }
+.trn-scard{ border-radius:16px; }
+.trn-report{ border-radius:16px; }
+/* header action buttons a touch larger for reach */
+.trn-bell{ width:36px; height:36px; border-radius:11px; font-size:16px; }
