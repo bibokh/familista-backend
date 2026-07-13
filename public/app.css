@@ -5072,11 +5072,14 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .trn-bell:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.22); transform:translateY(-1px); }
 .trn-bell-badge{ position:absolute; top:-5px; right:-5px; min-width:16px; height:16px; padding:0 4px; border-radius:9px; background:#fb7185; color:#fff; font-size:9.5px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(251,113,133,.5); }
 .trn-notifs{ display:flex; flex-direction:column; gap:8px; }
-.trn-notif{ display:flex; gap:11px; align-items:flex-start; padding:10px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-left-width:3px; animation:trnFade .35s ease both; }
+.trn-notif{ display:flex; gap:11px; align-items:center; width:100%; text-align:left; appearance:none; cursor:pointer; padding:10px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-left-width:3px; animation:trnFade .35s ease both; transition:background .15s,border-color .15s,transform .12s; }
+.trn-notif:hover{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); transform:translateX(2px); }
 .trn-notif--adv{ border-left-color:#4ade80; } .trn-notif--slt{ border-left-color:#fbbf24; } .trn-notif--risk{ border-left-color:#fb7185; } .trn-notif--bal{ border-left-color:#60a5fa; }
 .trn-notif-ic{ font-size:17px; flex:0 0 auto; }
+.trn-notif-b{ flex:1 1 auto; min-width:0; }
 .trn-notif-b b{ font-size:12px; font-weight:800; color:#e7ecf4; display:block; }
 .trn-notif-b p{ margin:2px 0 0; font-size:11.5px; color:#c3ccd9; line-height:1.4; }
+.trn-notif-go{ flex:0 0 auto; font-size:16px; font-weight:900; color:#7f8a9c; }
 /* global search */
 .trn-search-input{ width:100%; margin-bottom:12px; }
 .trn-src-results{ max-height:52vh; overflow-y:auto; }

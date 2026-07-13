@@ -8670,7 +8670,7 @@ function _trnCompletedView(s) {
 function _trnNotifHtml() {
   var notes = _trnNotifications();
   var body = notes.length
-    ? '<div class="trn-notifs">' + notes.map(function (n) { return '<div class="trn-notif trn-notif--' + n.tone + '"><span class="trn-notif-ic">' + n.ic + '</span><div class="trn-notif-b"><b>' + n.type + '</b><p>' + n.text + '</p></div></div>'; }).join('') + '</div>'
+    ? '<div class="trn-notifs">' + notes.map(function (n) { var attr = ' data-trn-act="' + (n.act || 'closemodal') + '"' + (n.id ? ' data-trn-id="' + n.id + '"' : '') + (n.v ? ' data-trn-v="' + n.v + '"' : ''); return '<button class="trn-notif trn-notif--' + n.tone + '"' + attr + ' type="button"><span class="trn-notif-ic">' + n.ic + '</span><div class="trn-notif-b"><b>' + n.type + '</b><p>' + n.text + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>'
     : _trEmpty('&#128276;', 'No notifications', 'Alerts appear here as training, attendance and fitness data update — all from real records.', false);
   return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card trn-modal-card--sm"><div class="trn-modal-h"><b>&#128276; Notifications</b><span class="trn-modal-step">' + notes.length + ' from real records</span><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b">' + body + '</div></div>';
 }
@@ -9196,7 +9196,16 @@ function _trnAiInsights() {
   }
   var heavy = t.acwr > 1.3 || t.fatigue >= 55;
   var plan = [{ d: 'Mon', f: 'Recovery & regeneration', i: 'Low' }, { d: 'Tue', f: (tac.style || 'Possession') + ' & technical', i: 'Medium' }, { d: 'Wed', f: 'Tactical shape (MD-3)', i: heavy ? 'Medium' : 'High' }, { d: 'Thu', f: 'High-intensity physical', i: heavy ? 'Medium' : 'High' }, { d: 'Fri', f: 'Activation & set pieces (MD-1)', i: 'Low' }, { d: 'Sat', f: 'Match day', i: 'Max' }, { d: 'Sun', f: 'Day off', i: 'Rest' }];
-  return { strengths: strengths, weaknesses: weaknesses, riskP: riskP, indiv: indiv, post: post, plan: plan, hasData: comp.length > 0, heavy: heavy };
+  var recovery = !comp.length ? 'Recovery guidance appears once sessions are recorded.'
+    : (t.acwr > 1.3) ? 'High acute:chronic ratio (' + t.acwr.toFixed(2) + ') — prioritise recovery: pool & mobility, cut high-intensity volume ~20% before the next block.'
+    : (t.fatigue >= 55) ? 'Elevated fatigue (' + t.fatigue + '%). Add a recovery day before the next high-intensity block.'
+    : 'Recovery on track — maintain regeneration routine and monitor readiness daily.';
+  var workload = !comp.length ? 'Workload advice generates from real training load.'
+    : (t.acwr > 1.5) ? 'Acute:chronic ratio high-risk (' + t.acwr.toFixed(2) + ') — deload this microcycle.'
+    : (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'Workload in the safe 0.8–1.3 zone (ACWR ' + t.acwr.toFixed(2) + ') — progress load modestly.'
+    : (t.acwr > 0 && t.acwr < 0.8) ? 'Chronic load is low (ACWR ' + t.acwr.toFixed(2) + ') — build volume gradually to avoid spikes.'
+    : 'Insufficient load history yet — accumulate sessions to compute ACWR.';
+  return { strengths: strengths, weaknesses: weaknesses, riskP: riskP, indiv: indiv, post: post, plan: plan, hasData: comp.length > 0, heavy: heavy, recovery: recovery, workload: workload };
 }
 function _trnAI() {
   var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = SQ_TACTICS || {};
@@ -9224,11 +9233,13 @@ function _trnAI() {
     : _trEmpty('&#128203;', 'No completed sessions yet', 'Post-session analysis generates after each completed session.', false);
   var planHtml = '<div class="trn-plan">' + ai.plan.map(function (d) { var tone = d.i === 'Max' ? 'risk' : d.i === 'High' ? 'slt' : d.i === 'Rest' ? 'muted' : 'adv'; return '<div class="trn-planrow"><span class="trn-plan-d">' + d.d + '</span><b class="trn-plan-f">' + _sqEsc(d.f) + '</b><span class="trn-plan-i trn-plan-i--' + tone + '">' + d.i + '</span></div>'; }).join('') + '</div>'
     + '<p class="trn-note">' + (ai.hasData ? (ai.heavy ? 'Auto-adjusted: high workload detected, mid-week intensity reduced.' : 'Balanced micro-cycle from current workload &amp; tactical style.') : 'Baseline plan — adapts automatically as real load data accumulates.') + '</p>';
+  var wrHtml = '<div class="trn-recos"><div class="trn-reco trn-reco--ai"><span>&#129504;</span><div><b>Workload recommendation</b><p>' + _sqEsc(ai.workload) + '</p></div></div><div class="trn-reco trn-reco--rec"><span>&#128167;</span><div><b>Recovery recommendation</b><p>' + _sqEsc(ai.recovery) + '</p></div></div></div>';
   return _trnPanel('AI training recommendations', 'Reads tactics · fitness · calendar', '<div class="trn-recs">' + list + '</div>')
     + '<div class="trn-grid2">'
     + _trnPanel('Team strengths &amp; weaknesses', 'From real records', swHtml)
     + _trnPanel('Injury risk prediction', 'From readiness · load · availability', riskHtml)
     + '</div>'
+    + _trnPanel('Workload &amp; recovery recommendations', 'From real ACWR · fatigue · load', wrHtml)
     + '<div class="trn-grid2">'
     + _trnPanel('Individual recommendations', 'Players to focus on', indivHtml)
     + _trnPanel('Automatic post-session analysis', 'Latest completed session', postHtml)
@@ -9365,14 +9376,15 @@ function _trnReports() {
 function _trnNotifications() {
   var out = [], comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam();
   var latest = comp.slice().sort(function (a, b) { return (b.completedAt || 0) - (a.completedAt || 0); })[0];
-  if (latest) out.push({ ic: '&#9989;', type: 'Training completed', text: (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l) + ' · ' + _trFmtDate(latest.date), tone: 'adv' });
-  if (latest && latest.bestPlayer) { var bp = _trP(latest.bestPlayer); if (bp) out.push({ ic: '&#11088;', type: 'Best player updated', text: _sqEsc(_trnLast(bp.name)) + (latest.sessionRating ? ' · ' + latest.sessionRating + '/10' : ''), tone: 'slt' }); }
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required >= 3 && a.attendancePct != null && a.attendancePct < 70) out.push({ ic: '&#9888;&#65039;', type: 'Attendance alert', text: _sqEsc(_trnLast(p.name)) + ' attendance ' + a.attendancePct + '%', tone: 'risk' }); });
-  t.ps.forEach(function (x) { if (x.avail === 'injured') out.push({ ic: '&#127973;', type: 'Injury alert', text: _sqEsc(_trnLast(x.p.name)) + ' flagged injured', tone: 'risk' }); });
-  t.ps.filter(function (x) { return x.fitness < 65; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128201;', type: 'Low fitness warning', text: _sqEsc(_trnLast(x.p.name)) + ' fitness ' + x.fitness + '%', tone: 'slt' }); });
-  t.ps.filter(function (x) { return x.readiness < 50; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128308;', type: 'Readiness warning', text: _sqEsc(_trnLast(x.p.name)) + ' readiness ' + x.readiness + '%', tone: 'slt' }); });
-  t.ps.filter(function (x) { return x.avail !== 'injured' && x.fitness >= 90 && x.readiness >= 85; }).slice(0, 2).forEach(function (x) { out.push({ ic: '&#128170;', type: 'Recovery completed', text: _sqEsc(_trnLast(x.p.name)) + ' back to full readiness', tone: 'adv' }); });
-  var recs = _trnAIRecs(); if (recs && recs.length) out.push({ ic: '&#129504;', type: 'AI recommendation available', text: _sqEsc(recs[0].title), tone: 'bal' });
+  // Each notification carries a real route: {act, id?/v?} → clicking opens the relevant page/record.
+  if (latest) out.push({ ic: '&#9989;', type: 'Training completed', text: (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l) + ' · ' + _trFmtDate(latest.date), tone: 'adv', act: 'gotosession', id: latest.id });
+  if (latest && latest.bestPlayer) { var bp = _trP(latest.bestPlayer); if (bp) out.push({ ic: '&#11088;', type: 'Best player updated', text: _sqEsc(_trnLast(bp.name)) + (latest.sessionRating ? ' · ' + latest.sessionRating + '/10' : ''), tone: 'slt', act: 'gotoplayer', id: latest.bestPlayer }); }
+  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required >= 3 && a.attendancePct != null && a.attendancePct < 70) out.push({ ic: '&#9888;&#65039;', type: 'Attendance alert', text: _sqEsc(_trnLast(p.name)) + ' attendance ' + a.attendancePct + '%', tone: 'risk', act: 'gototab', v: 'attendance' }); });
+  t.ps.forEach(function (x) { if (x.avail === 'injured') out.push({ ic: '&#127973;', type: 'Injury alert', text: _sqEsc(_trnLast(x.p.name)) + ' flagged injured', tone: 'risk', act: 'gotoplayer', id: x.p.id }); });
+  t.ps.filter(function (x) { return x.fitness < 65; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128201;', type: 'Low fitness warning', text: _sqEsc(_trnLast(x.p.name)) + ' fitness ' + x.fitness + '%', tone: 'slt', act: 'gotoplayer', id: x.p.id }); });
+  t.ps.filter(function (x) { return x.readiness < 50; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128308;', type: 'Readiness warning', text: _sqEsc(_trnLast(x.p.name)) + ' readiness ' + x.readiness + '%', tone: 'slt', act: 'gototab', v: 'load' }); });
+  t.ps.filter(function (x) { return x.avail !== 'injured' && x.fitness >= 90 && x.readiness >= 85; }).slice(0, 2).forEach(function (x) { out.push({ ic: '&#128170;', type: 'Recovery completed', text: _sqEsc(_trnLast(x.p.name)) + ' back to full readiness', tone: 'adv', act: 'gotoplayer', id: x.p.id }); });
+  var recs = _trnAIRecs(); if (recs && recs.length) out.push({ ic: '&#129504;', type: 'AI recommendation available', text: _sqEsc(recs[0].title), tone: 'bal', act: 'gototab', v: 'ai' });
   return out;
 }
 function _trnHead() {
