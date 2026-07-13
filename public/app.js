@@ -8674,9 +8674,39 @@ function _trnNotifHtml() {
     : _trEmpty('&#128276;', 'No notifications', 'Alerts appear here as training, attendance and fitness data update — all from real records.', false);
   return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card trn-modal-card--sm"><div class="trn-modal-h"><b>&#128276; Notifications</b><span class="trn-modal-step">' + notes.length + ' from real records</span><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b">' + body + '</div></div>';
 }
+// Global search across real Training data: players, sessions, medical (availability), and section shortcuts.
+function _trnSearch(q) {
+  q = (q || '').trim().toLowerCase();
+  if (!q) return { players: [], sessions: [], hints: [] };
+  var players = (SQ_DEMO_PLAYERS || []).filter(function (p) {
+    var med = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+    return String(p.name).toLowerCase().indexOf(q) >= 0 || String(p.pos).toLowerCase().indexOf(q) >= 0 || String(p.num).indexOf(q) >= 0 || String(p.roles || '').toLowerCase().indexOf(q) >= 0 || (q === 'injured' && med === 'injured') || (q === 'medical' && med !== 'available');
+  }).slice(0, 8);
+  var sessions = _trSessionsSorted().filter(function (s) {
+    return String(s.objective || '').toLowerCase().indexOf(q) >= 0 || _trTypeMeta(s.type).l.toLowerCase().indexOf(q) >= 0 || String(s.date || '').indexOf(q) >= 0 || String(s.coach || '').toLowerCase().indexOf(q) >= 0 || String(s.location || '').toLowerCase().indexOf(q) >= 0;
+  }).slice(0, 8);
+  var sections = [['reports', 'Reports'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['ai', 'AI Coach'], ['individual', 'Player analytics'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills']];
+  var hints = sections.filter(function (s) { return s[1].toLowerCase().indexOf(q) >= 0 || (q === 'medical' && s[0] === 'load') || (q === 'ai notes' && s[0] === 'ai') || (q === 'training' && s[0] === 'sessions'); }).slice(0, 5);
+  return { players: players, sessions: sessions, hints: hints };
+}
+function _trnSearchResults() {
+  var q = _TRN.q || '', r = _trnSearch(q);
+  if (!q.trim()) return '<p class="trn-note">Search players, sessions, coaches, dates, medical status or a section…</p>';
+  var total = r.players.length + r.sessions.length + r.hints.length;
+  if (!total) return _trEmpty('&#128269;', 'No matches', 'Try a player name, session objective, date or a section like “reports”.', false);
+  var out = '';
+  if (r.players.length) out += '<div class="trn-src-grp"><h5>Players</h5>' + r.players.map(function (p) { var med = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available'; return '<button class="trn-src-item" data-trn-act="gotoplayer" data-trn-id="' + p.id + '" type="button">' + _trnAvatar(p) + '<span><b>' + _sqEsc(p.name) + '</b><i>' + p.pos + ' · #' + p.num + (med !== 'available' ? ' · ' + med : '') + '</i></span></button>'; }).join('') + '</div>';
+  if (r.sessions.length) out += '<div class="trn-src-grp"><h5>Sessions</h5>' + r.sessions.map(function (s) { var tm = _trTypeMeta(s.type); return '<button class="trn-src-item" data-trn-act="gotosession" data-trn-id="' + s.id + '" type="button"><span class="trn-badge" style="--c:' + tm.c + '">' + tm.l + '</span><span><b>' + (_sqEsc(s.objective) || tm.l + ' session') + '</b><i>' + _trFmtDate(s.date) + ' · ' + s.status + '</i></span></button>'; }).join('') + '</div>';
+  if (r.hints.length) out += '<div class="trn-src-grp"><h5>Sections</h5>' + r.hints.map(function (h) { return '<button class="trn-src-item trn-src-item--sec" data-trn-act="gototab" data-trn-v="' + h[0] + '" type="button"><span class="trn-src-secic">&#8250;</span><b>Open ' + h[1] + '</b></button>'; }).join('') + '</div>';
+  return out;
+}
+function _trnSearchHtml() {
+  return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card trn-modal-card--sm"><div class="trn-modal-h"><b>&#128269; Search</b><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b"><input id="trn-search" class="trn-input trn-search-input" type="text" placeholder="Players, sessions, coaches, dates, medical, sections…" value="' + _sqEsc(_TRN.q || '') + '" autocomplete="off"><div id="trn-search-results" class="trn-src-results">' + _trnSearchResults() + '</div></div></div>';
+}
 function _trnModalHtml() {
   if (_TRN.modal === 'explain') return _trnExplainHtml();
   if (_TRN.modal === 'notif') return _trnNotifHtml();
+  if (_TRN.modal === 'search') return _trnSearchHtml();
   if (_TRN.modal !== 'create') return '';
   var d = _TRN.draft || _trDefaultDraft(), step = _TRN.step || 1;
   var dots = '<div class="trn-steps">' + [1, 2, 3].map(function (n) { return '<span class="trn-stepdot' + (step === n ? ' is-on' : step > n ? ' is-done' : '') + '">' + n + '</span>' + (n < 3 ? '<i class="trn-stepline"></i>' : ''); }).join('') + '</div>';
@@ -9347,7 +9377,8 @@ function _trnNotifications() {
 }
 function _trnHead() {
   var t = _trnTeam(), notes = _trnNotifications(), nn = notes.length;
-  var bell = '<button class="trn-bell" data-trn-act="notif" type="button" aria-label="Notifications">&#128276;' + (nn ? '<span class="trn-bell-badge">' + (nn > 9 ? '9+' : nn) + '</span>' : '') + '</button>';
+  var search = '<button class="trn-bell trn-search-btn" data-trn-act="search" type="button" aria-label="Search">&#128269;</button>';
+  var bell = search + '<button class="trn-bell" data-trn-act="notif" type="button" aria-label="Notifications">&#128276;' + (nn ? '<span class="trn-bell-badge">' + (nn > 9 ? '9+' : nn) + '</span>' : '') + '</button>';
   return '<div class="trn-head"><div class="trn-head-id"><span class="trn-head-ic">' + TRN_TABS_ICON + '</span><div><h1>Training Centre</h1><p>AI training management · synced with Lineup, Formation &amp; Tactics</p></div></div>'
     + '<div class="trn-head-chips">'
     + '<span class="trn-hchip"><i>Formation</i><b>' + (SQ_FORM.myFormation || '4-3-3') + '</b></span>'
@@ -9437,6 +9468,10 @@ function _trnAction(act, el) {
     case 'explainp': { var b1 = _trnBestPlayers(), it = b1.podium[parseInt(el.getAttribute('data-trn-i'), 10)]; if (it) { var ag = it.agg; _TRN.explain = { pid: it.p.id, label: 'Best training player', text: 'Average coach rating ' + it.rating.toFixed(2) + (ag.attendancePct == null ? '' : ', ' + ag.attendancePct + '% attendance') + ', across ' + ag.completed + ' completed session' + (ag.completed === 1 ? '' : 's') + '.' }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
+    case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = document.getElementById('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
+    case 'gotoplayer': _TRN.modal = null; _TRN.tab = 'individual'; _TRN.player = id; _trnRender(); break;
+    case 'gotosession': _TRN.modal = null; _trnOpenSession(id); break;
+    case 'gototab': _TRN.modal = null; _TRN.tab = v; _trnRender(); break;
     case 'dupsession': { var ds = _trSession(id); if (ds) { _TRN.tpl = _trnSessionConfig(ds); _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnToast('Session duplicated — set a new date'); _trnRender(); } break; }
     case 'savetemplate': { var ts = _trSession(id); if (ts) { var tl = _trTplLoad(); tl.push(_trnSessionConfig(ts)); _trTplSave(tl); _trnToast('Saved as template'); _trnRender(); } break; }
     case 'applytpl': { var ai = parseInt(el.getAttribute('data-trn-i'), 10), at = _trTplLoad()[ai]; if (at) { _TRN.tpl = at; _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnRender(); } break; }
@@ -9456,6 +9491,12 @@ function _trnBind() {
     var tab = el.getAttribute('data-trn-tab');
     if (tab) { _TRN.tab = tab; _trnRender(); }
     else { _trnAction(el.getAttribute('data-trn-act'), el); }
+  });
+  // Live global-search input (CSP-safe delegated listener) — updates only the
+  // results container so the input keeps focus while typing.
+  document.addEventListener('input', function (e) {
+    var el = e.target; if (!el || el.id !== 'trn-search') return;
+    _TRN.q = el.value; var r = document.getElementById('trn-search-results'); if (r) r.innerHTML = _trnSearchResults();
   });
 }
 function renderTrainingWorkspaceHTML() {

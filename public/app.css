@@ -5077,6 +5077,17 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .trn-notif-ic{ font-size:17px; flex:0 0 auto; }
 .trn-notif-b b{ font-size:12px; font-weight:800; color:#e7ecf4; display:block; }
 .trn-notif-b p{ margin:2px 0 0; font-size:11.5px; color:#c3ccd9; line-height:1.4; }
+/* global search */
+.trn-search-input{ width:100%; margin-bottom:12px; }
+.trn-src-results{ max-height:52vh; overflow-y:auto; }
+.trn-src-grp{ margin-bottom:12px; }
+.trn-src-grp h5{ margin:0 0 6px; font-size:10px; font-weight:800; color:#8a94a6; text-transform:uppercase; letter-spacing:.05em; }
+.trn-src-item{ display:flex; align-items:center; gap:9px; width:100%; text-align:left; appearance:none; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.03); border-radius:9px; padding:8px 10px; margin-bottom:5px; cursor:pointer; transition:background .15s,border-color .15s,transform .12s; }
+.trn-src-item:hover{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.16); transform:translateX(2px); }
+.trn-src-item b{ font-size:12.5px; font-weight:700; color:#e7ecf4; display:block; }
+.trn-src-item i{ font-size:10.5px; color:#8a94a6; font-style:normal; }
+.trn-src-item--sec{ color:#93c5fd; } .trn-src-item--sec b{ color:#93c5fd; }
+.trn-src-secic{ font-weight:900; color:#60a5fa; }
 /* podium + awards */
 .trn-podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .trn-pod{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 6px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); }
