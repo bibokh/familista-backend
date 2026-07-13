@@ -8924,26 +8924,127 @@ function _trnAI() {
     + _trnPanel('Medical integration', 'Training ↔ fitness ↔ availability', medical)
     + '</div>';
 }
+// ── Advanced reports (real records only): range selector + metrics + charts + export ──
+function _trnRepLabel(range) { return range === 'daily' ? 'Latest session' : range === 'weekly' ? 'Last 7 days' : range === 'monthly' ? 'Last 30 days' : range === 'season' ? 'Full season' : (_TRN.repFrom || '…') + ' → ' + (_TRN.repTo || '…'); }
+function _trnRepFilter(sessions, range, from, to) {
+  if (range === 'season') return sessions.slice();
+  if (range === 'custom') return sessions.filter(function (s) { return s.date && (!from || s.date >= from) && (!to || s.date <= to); });
+  if (range === 'daily') { var srt = sessions.slice().sort(function (a, b) { return (b.completedAt || Date.parse(b.date) || 0) - (a.completedAt || Date.parse(a.date) || 0); }); return srt.length ? [srt[0]] : []; }
+  return _trFilterByRange(sessions, range === 'monthly' ? 31 : 7);
+}
+function _trnRepData(range) {
+  var completed = _trCompleted(), recorded = _trRecorded();
+  var from = _TRN.repFrom, to = _TRN.repTo;
+  var sessions = _trnRepFilter(completed, range, from, to);
+  var recSessions = _trnRepFilter(recorded, range, from, to);
+  var marks = { present: 0, late: 0, absent: 0, excused: 0, injured: 0 }, ratings = [], minutes = 0;
+  sessions.forEach(function (s) {
+    minutes += (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0);
+    (s.players || []).forEach(function (id) {
+      var a = (s.attendance || {})[id]; if (a && marks[a] != null) marks[a]++;
+      var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') ratings.push(pf.rating);
+    });
+  });
+  var att = marks.present + marks.late, den = att + marks.absent;
+  var total = marks.present + marks.late + marks.absent + marks.excused + marks.injured;
+  var per = [];
+  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recSessions); if (a.required < 1) return; per.push({ p: p, a: a, _dem: a.absent * 2 + a.late }); });
+  var topAtt = null, worstAtt = null, topRat = null, worstDisc = null;
+  per.forEach(function (r) {
+    if (r.a.attendancePct != null) { if (!topAtt || r.a.attendancePct > topAtt.a.attendancePct) topAtt = r; if (!worstAtt || r.a.attendancePct < worstAtt.a.attendancePct) worstAtt = r; }
+    if (r.a.avgRating != null && (!topRat || r.a.avgRating > topRat.a.avgRating)) topRat = r;
+    if (!worstDisc || r._dem > worstDisc._dem) worstDisc = r;
+  });
+  var t = _trnTeam();
+  return {
+    range: range, sessions: sessions, recSessions: recSessions, sessionCount: sessions.length,
+    attPct: den ? Math.round(att / den * 100) : null,
+    latePct: total ? Math.round(marks.late / total * 100) : null, absentPct: total ? Math.round(marks.absent / total * 100) : null, excusedPct: total ? Math.round(marks.excused / total * 100) : null,
+    avgRating: ratings.length ? ratings.reduce(function (x, y) { return x + y; }, 0) / ratings.length : null, minutes: minutes, marks: marks,
+    bestPlayer: _trBestPlayer(sessions), mostImproved: _trMostImproved(sessions), highestDiscipline: _trBestDiscipline(recSessions),
+    lowestDiscipline: (worstDisc && worstDisc._dem > 0) ? worstDisc : null, topAttendance: topAtt, worstAttendance: worstAtt, topRating: topRat,
+    fitness: t.fitness, readiness: t.readiness, recovery: _trnClamp(100 - t.fatigue, 0, 100), injuryRisk: t.risk, per: per
+  };
+}
+function _trnExportCsv() {
+  if (typeof document === 'undefined') return;
+  var range = _TRN.repRange || 'weekly', d = _trnRepData(range);
+  var rows = [['Player', 'Position', 'Sessions', 'Present', 'Late', 'Absent', 'Excused', 'Injured', 'Attendance %', 'Avg rating']];
+  d.per.forEach(function (r) { var a = r.a; rows.push([_trnLast(r.p.name), r.p.pos, a.required, a.present, a.late, a.absent, a.excused, a.injured, a.attendancePct == null ? '' : a.attendancePct, a.avgRating == null ? '' : a.avgRating.toFixed(2)]); });
+  var csv = rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+  try {
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' }), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'training-report-' + range + '.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); _trnToast('Report exported (Excel/CSV)');
+  } catch (e) { _trnToast('Export failed'); }
+}
+function _trnPrintReport() {
+  if (typeof window === 'undefined') return;
+  var range = _TRN.repRange || 'weekly', d = _trnRepData(range), nm = function (r) { return r ? _trnLast(r.p.name) : '—'; };
+  var h = '<html><head><title>Training Report</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:26px;color:#111}h1{font-size:20px;margin:0 0 4px}p.sub{color:#666;margin:0 0 16px}table{border-collapse:collapse;width:100%;margin-top:14px}td,th{border:1px solid #d1d5db;padding:6px 9px;font-size:12px;text-align:left}th{background:#f3f4f6}.m{display:inline-block;margin:4px 20px 8px 0;font-size:13px}.m span{color:#666;font-size:11px;display:block}.m b{font-size:17px}</style></head><body>';
+  h += '<h1>Training Report</h1><p class="sub">' + _trnRepLabel(range) + ' · generated ' + new Date().toLocaleString() + '</p>';
+  var M = [['Sessions', d.sessionCount], ['Attendance', d.attPct == null ? '—' : d.attPct + '%'], ['Avg rating', d.avgRating == null ? '—' : d.avgRating.toFixed(2)], ['Training minutes', d.minutes], ['Fitness', d.fitness + '%'], ['Recovery', d.recovery + '%'], ['Readiness', d.readiness + '%'], ['Injury risk', d.injuryRisk], ['Best player', nm(d.bestPlayer)], ['Most improved', d.mostImproved ? _trnLast(d.mostImproved.p.name) : '—'], ['Top attendance', nm(d.topAttendance)], ['Top rating', nm(d.topRating)]];
+  h += '<div>' + M.map(function (m) { return '<span class="m"><span>' + m[0] + '</span><b>' + m[1] + '</b></span>'; }).join('') + '</div>';
+  h += '<table><thead><tr><th>Player</th><th>Pos</th><th>Sessions</th><th>Present</th><th>Late</th><th>Absent</th><th>Attendance %</th><th>Avg rating</th></tr></thead><tbody>';
+  d.per.forEach(function (r) { var a = r.a; h += '<tr><td>' + _sqEsc(_trnLast(r.p.name)) + '</td><td>' + r.p.pos + '</td><td>' + a.required + '</td><td>' + a.present + '</td><td>' + a.late + '</td><td>' + a.absent + '</td><td>' + (a.attendancePct == null ? '—' : a.attendancePct + '%') + '</td><td>' + (a.avgRating == null ? '—' : a.avgRating.toFixed(2)) + '</td></tr>'; });
+  h += '</tbody></table></body></html>';
+  try { var w = window.open('', '_blank'); if (!w) { _trnToast('Allow pop-ups to export'); return; } w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { try { w.print(); } catch (e) {} }, 350); } catch (e) { _trnToast('Export failed'); }
+}
 function _trnReports() {
-  var completed = _trCompleted();
-  if (!completed.length) return _trnPanel('Reports', 'No data yet', _trEmpty('&#128202;', 'No completed sessions yet', 'Complete a session and your daily, weekly and monthly reports will generate automatically from real data.', true));
-  var wk = _trFilterByRange(completed, 7), mo = _trFilterByRange(completed, 31), recorded = _trRecorded();
+  var completed = _trCompleted(), recorded = _trRecorded(), range = _TRN.repRange || 'weekly';
+  var ranges = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['season', 'Season'], ['custom', 'Custom']];
+  var rtabs = ranges.map(function (r) { return '<button class="trn-rtab' + (range === r[0] ? ' is-on' : '') + '" data-trn-act="reprange" data-trn-v="' + r[0] + '" type="button">' + r[1] + '</button>'; }).join('');
+  var custom = range === 'custom' ? '<div class="trn-rcustom"><label>From <input id="trn-rep-from" class="trn-input" type="date" value="' + (_TRN.repFrom || '') + '"></label><label>To <input id="trn-rep-to" class="trn-input" type="date" value="' + (_TRN.repTo || '') + '"></label><button class="trn-rbtn trn-rbtn--go" data-trn-act="repcustom" type="button">Apply</button></div>' : '';
+  var expo = '<div class="trn-rexports"><button class="trn-rbtn" data-trn-act="exportpdf" type="button">&#8681; PDF</button><button class="trn-rbtn" data-trn-act="exportcsv" type="button">&#8681; Excel</button><button class="trn-rbtn" data-trn-act="printrep" type="button">&#128438; Print</button></div>';
+  var controls = '<div class="trn-rctrl"><div class="trn-rtabs">' + rtabs + '</div>' + expo + '</div>' + custom;
+  if (!completed.length) return _trnPanel('Advanced reports', 'Analytics centre', controls + _trEmpty('&#128202;', 'No completed sessions yet', 'Daily, weekly, monthly, season and custom-range reports — with charts and PDF/Excel export — generate automatically from real records.', true));
+  var d = _trnRepData(range), nm = function (r) { return r ? _sqEsc(_trnLast(r.p.name)) : '—'; };
+  var metrics = '<div class="trn-rmetrics">'
+    + _trnStat('Sessions', d.sessionCount, '', 'violet')
+    + _trnStat('Attendance', d.attPct == null ? '—' : d.attPct, d.attPct == null ? '' : '<i>%</i>', 'green')
+    + _trnStat('Avg rating', d.avgRating == null ? '—' : d.avgRating.toFixed(2), '', 'blue')
+    + _trnStat('Training minutes', d.minutes, '', 'teal')
+    + _trnStat('Load', d.minutes, '<i>AU</i>', 'blue')
+    + _trnStat('Fitness', d.fitness, '<i>%</i>', 'green')
+    + _trnStat('Recovery', d.recovery, '<i>%</i>', 'teal')
+    + _trnStat('Readiness', d.readiness, '<i>%</i>', 'green')
+    + _trnStat('Injury risk', d.injuryRisk, '', d.injuryRisk === 'High' ? 'red' : d.injuryRisk === 'Moderate' ? 'amber' : 'green')
+    + _trnStat('Late', d.latePct == null ? '—' : d.latePct, d.latePct == null ? '' : '<i>%</i>', 'amber')
+    + _trnStat('Absent', d.absentPct == null ? '—' : d.absentPct, d.absentPct == null ? '' : '<i>%</i>', d.absentPct ? 'red' : 'muted')
+    + _trnStat('Excused', d.excusedPct == null ? '—' : d.excusedPct, d.excusedPct == null ? '' : '<i>%</i>', 'violet')
+    + _trnStat('Best player', nm(d.bestPlayer), '', 'amber')
+    + _trnStat('Most improved', d.mostImproved ? _sqEsc(_trnLast(d.mostImproved.p.name)) : '—', '', 'green')
+    + _trnStat('Top attendance', nm(d.topAttendance), '', 'green')
+    + _trnStat('Top rating', nm(d.topRating), '', 'blue')
+    + _trnStat('Highest discipline', nm(d.highestDiscipline), '', 'teal')
+    + _trnStat('Lowest discipline', nm(d.lowestDiscipline), '', d.lowestDiscipline ? 'red' : 'muted')
+    + _trnStat('Worst attendance', nm(d.worstAttendance), '', d.worstAttendance ? 'amber' : 'muted')
+    + '</div>';
+  var srt = d.sessions.slice().sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
+  var ser = function (fn) { return srt.map(function (s) { return { label: _trFmtDate(s.date), v: fn(s) }; }); };
+  var attS = ser(function (s) { var pr = 0, ab = 0; (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; }); return (pr + ab) ? Math.round(pr / (pr + ab) * 100) : 0; });
+  var ratS = ser(function (s) { var rs = []; (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); return rs.length ? Math.round(rs.reduce(function (x, y) { return x + y; }, 0) / rs.length * 10) / 10 : 0; });
+  var loadS = ser(function (s) { return (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0); });
+  var lv = function (a) { return a.length ? a[a.length - 1].v : 0; };
+  var charts = '<div class="trn-chtgrid">'
+    + _trnChtCard('Attendance', 'Per session', lv(attS) + '%', _trnChtLine(attS, '52,211,153', '%'))
+    + _trnChtCard('Average rating', 'Per session', (lv(ratS)).toFixed(1), _trnChtLine(ratS, '244,183,64'))
+    + _trnChtCard('Training load', 'Minutes / session', lv(loadS) + ' min', _trnChtLine(loadS, '96,165,250', ' min'))
+    + '</div>';
   function avgRating(ss) { var rs = []; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && pf.rating) rs.push(pf.rating); }); }); return rs.length ? (rs.reduce(function (x, y) { return x + y; }, 0) / rs.length) : null; }
-  function attRate(ss) { var n = 0, d = 0; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; d++; } else if (a === 'absent') d++; }); }); return d ? Math.round(n / d * 100) : null; }
-  function absLate(ss) { var ab = 0, la = 0; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'absent') ab++; if (a === 'late') la++; }); }); return { ab: ab, la: la }; }
+  function attRate(ss) { var n = 0, dn = 0; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; dn++; } else if (a === 'absent') dn++; }); }); return dn ? Math.round(n / dn * 100) : null; }
   var report = function (title, tag, rows) { return '<div class="trn-report"><div class="trn-report-h"><b>' + title + '</b><span>' + tag + '</span></div>' + rows + '</div>'; };
   function line(l, v) { return '<div class="trn-report-l"><span>' + l + '</span><b>' + v + '</b></div>'; }
-  function nm(b) { return b ? _sqEsc(_trnLast(b.p.name)) : '—'; }
   var latest = completed.slice().sort(function (a, b) { return (b.completedAt || 0) - (a.completedAt || 0); })[0];
-  var dBest = _trP(latest.bestPlayer), dAbs = []; (latest.players || []).forEach(function (id) { if ((latest.attendance || {})[id] === 'absent') { var p = _trP(id); if (p) dAbs.push(_trnLast(p.name)); } });
-  var dAtt = attRate([latest]), dAvg = avgRating([latest]);
-  var daily = report('Daily report', _trFmtDate(latest.date), line('Session', (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l)) + line('Attendance', (dAtt == null ? '—' : dAtt + '%')) + line('Best player', dBest ? _sqEsc(_trnLast(dBest.name)) : '—') + line('Avg rating', (dAvg == null ? '—' : dAvg.toFixed(2))) + line('Absent', dAbs.length ? _sqEsc(dAbs.join(', ')) : 'None') + (latest.coachNote ? line('Coach note', _sqEsc(latest.coachNote)) : ''));
-  var wBest = _trBestPlayer(wk), wDisc = _trBestDiscipline(recorded), wAvg = avgRating(wk), wAtt = attRate(wk), wAL = absLate(wk);
-  var weekly = report('Weekly report', 'Last 7 days', line('Total sessions', wk.length) + line('Attendance rate', (wAtt == null ? '—' : wAtt + '%')) + line('Best player', nm(wBest)) + line('Most committed', nm(wDisc)) + line('Highest avg rating', (wAvg == null ? '—' : wAvg.toFixed(2))) + line('Absences / late', wAL.ab + ' / ' + wAL.la));
-  var mBest = _trBestPlayer(mo), mImp = _trMostImproved(completed), mAvg = avgRating(mo), mAtt = attRate(mo);
-  var mAbs = null; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, _trFilterByRange(recorded, 31)); if (a.required < 1) return; if (!mAbs || a.absent > mAbs.a.absent) mAbs = { p: p, a: a }; });
-  var monthly = report('Monthly report', 'Last 30 days', line('Completed sessions', mo.length) + line('Attendance %', (mAtt == null ? '—' : mAtt + '%')) + line('Best player', nm(mBest)) + line('Most improved', mImp ? _sqEsc(_trnLast(mImp.p.name)) + ' (+' + mImp.delta.toFixed(1) + ')' : '—') + line('Most absent', (mAbs && mAbs.a.absent > 0) ? _sqEsc(_trnLast(mAbs.p.name)) + ' (' + mAbs.a.absent + ')' : 'None') + line('Team avg rating', (mAvg == null ? '—' : mAvg.toFixed(2))));
-  return '<div class="trn-reports trn-reports--3">' + daily + weekly + monthly + '</div>';
+  var dAtt = attRate([latest]), dAvg = avgRating([latest]), dBest = _trP(latest.bestPlayer);
+  var daily = report('Daily report', _trFmtDate(latest.date), line('Session', (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l)) + line('Attendance', dAtt == null ? '—' : dAtt + '%') + line('Best player', dBest ? _sqEsc(_trnLast(dBest.name)) : '—') + line('Avg rating', dAvg == null ? '—' : dAvg.toFixed(2)) + (latest.coachNote ? line('Coach note', _sqEsc(latest.coachNote)) : ''));
+  var wk = _trFilterByRange(completed, 7), wBest = _trBestPlayer(wk);
+  var weekly = report('Weekly report', 'Last 7 days', line('Total sessions', wk.length) + line('Attendance rate', attRate(wk) == null ? '—' : attRate(wk) + '%') + line('Best player', nm(wBest)) + line('Highest avg rating', avgRating(wk) == null ? '—' : avgRating(wk).toFixed(2)));
+  var mo = _trFilterByRange(completed, 31), mBest = _trBestPlayer(mo), mImp = _trMostImproved(completed);
+  var monthly = report('Monthly report', 'Last 30 days', line('Completed sessions', mo.length) + line('Attendance %', attRate(mo) == null ? '—' : attRate(mo) + '%') + line('Best player', nm(mBest)) + line('Most improved', mImp ? _sqEsc(_trnLast(mImp.p.name)) + ' (+' + mImp.delta.toFixed(1) + ')' : '—') + line('Team avg rating', avgRating(mo) == null ? '—' : avgRating(mo).toFixed(2)));
+  var sBest = _trBestPlayer(completed);
+  var season = report('Season report', completed.length + ' sessions', line('Completed sessions', completed.length) + line('Attendance %', attRate(completed) == null ? '—' : attRate(completed) + '%') + line('Best player', nm(sBest)) + line('Most improved', mImp ? _sqEsc(_trnLast(mImp.p.name)) : '—') + line('Season avg rating', avgRating(completed) == null ? '—' : avgRating(completed).toFixed(2)));
+  var cards = '<div class="trn-reports trn-reports--3">' + daily + weekly + monthly + season + '</div>';
+  return _trnPanel('Advanced reports', d.sessionCount + ' session' + (d.sessionCount === 1 ? '' : 's') + ' · ' + _trnRepLabel(range), controls + metrics + charts + cards);
 }
 function _trnHead() {
   var t = _trnTeam();
@@ -9034,6 +9135,10 @@ function _trnAction(act, el) {
     case 'delsession': if (typeof window === 'undefined' || window.confirm('Delete this session? This cannot be undone.')) { trDeleteSession(id); _TRN.open = null; _trnRender(); } break;
     case 'explainp': { var b1 = _trnBestPlayers(), it = b1.podium[parseInt(el.getAttribute('data-trn-i'), 10)]; if (it) { var ag = it.agg; _TRN.explain = { pid: it.p.id, label: 'Best training player', text: 'Average coach rating ' + it.rating.toFixed(2) + (ag.attendancePct == null ? '' : ', ' + ag.attendancePct + '% attendance') + ', across ' + ag.completed + ' completed session' + (ag.completed === 1 ? '' : 's') + '.' }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
+    case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
+    case 'repcustom': { var rf = document.getElementById('trn-rep-from'), rt = document.getElementById('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
+    case 'exportcsv': _trnExportCsv(); break;
+    case 'exportpdf': case 'printrep': _trnPrintReport(); break;
   }
 }
 function _trnBind() {

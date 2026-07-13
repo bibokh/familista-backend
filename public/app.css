@@ -4969,6 +4969,19 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .trn-cht-bar > span{ font-size:8.5px; font-weight:700; color:#7f8a9c; white-space:nowrap; }
 @keyframes trnGrow{ to{ height:var(--h); } }
 @media (prefers-reduced-motion:reduce){ .trn-cht-line,.trn-cht-area,.trn-cht-dot,.trn-cht-bar>i{ animation:none; stroke-dashoffset:0; opacity:1; height:var(--h); } }
+/* advanced reports */
+.trn-rctrl{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px; }
+.trn-rtabs{ display:inline-flex; gap:2px; padding:3px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:11px; }
+.trn-rtab{ appearance:none; border:0; background:transparent; color:#9aa4b4; font-size:11.5px; font-weight:800; padding:6px 12px; border-radius:8px; cursor:pointer; transition:background .16s,color .16s; }
+.trn-rtab:hover{ color:#e7ecf4; }
+.trn-rtab.is-on{ background:linear-gradient(180deg,rgba(96,165,250,.28),rgba(96,165,250,.14)); color:#fff; box-shadow:0 4px 12px rgba(96,165,250,.24); }
+.trn-rexports{ display:inline-flex; gap:6px; }
+.trn-rbtn{ appearance:none; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:#cdd5e1; font-size:11px; font-weight:800; padding:6px 11px; border-radius:9px; cursor:pointer; transition:transform .14s,background .16s,border-color .16s; }
+.trn-rbtn:hover{ background:rgba(255,255,255,.09); border-color:rgba(255,255,255,.2); transform:translateY(-1px); }
+.trn-rbtn--go{ background:linear-gradient(180deg,rgba(74,222,128,.28),rgba(74,222,128,.14)); border-color:rgba(74,222,128,.4); color:#fff; }
+.trn-rcustom{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); border-radius:11px; }
+.trn-rcustom label{ display:flex; flex-direction:column; gap:4px; font-size:10.5px; font-weight:700; color:#8a94a6; text-transform:uppercase; letter-spacing:.04em; }
+.trn-rmetrics{ display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:9px; margin-bottom:14px; }
 /* podium + awards */
 .trn-podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .trn-pod{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 6px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); }
