@@ -73,6 +73,12 @@ const newSessionSchema = z.object({
     objective:     z.string().trim().max(500).optional(),
     tacticalFocus: z.string().trim().max(60).optional(),
     formation:     z.string().trim().max(20).optional(),
+    intensity:     z.string().trim().max(20).optional(),
+    pitch:         z.string().trim().max(60).optional(),
+    weather:       z.string().trim().max(40).optional(),
+    temperature:   z.string().trim().max(20).optional(),
+    equipment:     z.string().trim().max(200).optional(),
+    coachName:     z.string().trim().max(80).optional(),
   }),
 });
 

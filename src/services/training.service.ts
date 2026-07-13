@@ -39,6 +39,13 @@ export interface CleanCreateSessionDto {
   objective?:    string;
   tacticalFocus?: string;
   formation?:    string;
+  // Session-analytics context (additive, all optional).
+  intensity?:    string;
+  pitch?:        string;
+  weather?:      string;
+  temperature?:  string;
+  equipment?:    string;
+  coachName?:    string;
 }
 
 export async function createCleanSession(clubId: string, dto: CleanCreateSessionDto) {
@@ -79,6 +86,12 @@ export async function createCleanSession(clubId: string, dto: CleanCreateSession
       objective:     dto.objective ?? null,
       tacticalFocus: dto.tacticalFocus ?? null,
       formation:     dto.formation ?? null,
+      intensity:     dto.intensity ?? null,
+      pitch:         dto.pitch ?? null,
+      weather:       dto.weather ?? null,
+      temperature:   dto.temperature ?? null,
+      equipment:     dto.equipment ?? null,
+      coachName:     dto.coachName ?? null,
       status:        'planned',
       ...(validPlayerIds.length && {
         playerStats: {

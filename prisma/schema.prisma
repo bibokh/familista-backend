@@ -4830,6 +4830,15 @@ model TrainingSession {
   coachNote     String?  @db.Text
   completedAt   DateTime?
 
+  // ── Session-analytics additions (all optional so the migration is additive & safe) ──
+  // Real coach-entered session context — persisted so Session Analytics reads real data.
+  intensity     String?              // Low | Medium | High | Max
+  pitch         String?
+  weather       String?
+  temperature   String?
+  equipment     String?
+  coachName     String?
+
   playerStats PlayerTrainingStat[]
 
   createdAt DateTime @default(now())
