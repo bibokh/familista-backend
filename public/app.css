@@ -4996,6 +4996,22 @@ body.club-theme .nav-item--workspace.active .nav-icon{ color: var(--pitch-400) !
 .trn-aisum{ display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border-radius:12px; background:linear-gradient(150deg,rgba(129,140,248,.14),rgba(129,140,248,.03)); border:1px solid rgba(129,140,248,.24); }
 .trn-aisum-ic{ font-size:22px; flex:0 0 auto; }
 .trn-aisum p{ margin:0; font-size:12.5px; color:#e2e8f4; line-height:1.5; }
+/* load & fitness pro */
+.trn-risklist{ display:flex; flex-direction:column; gap:7px; }
+.trn-riskrow{ display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:9px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); }
+.trn-riskrow .trn-readp-nm{ flex:1 1 auto; display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:#dfe6f0; min-width:0; }
+.trn-riskrow > b{ font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; color:#f1f5f9; }
+.trn-risk-badge{ font-size:9.5px; font-weight:800; padding:2px 8px; border-radius:20px; text-transform:uppercase; letter-spacing:.03em; }
+.trn-risk-badge--risk{ background:rgba(251,113,133,.18); color:#fda4af; }
+.trn-risk-badge--slt{ background:rgba(251,191,36,.18); color:#fcd34d; }
+.trn-risk-badge--adv{ background:rgba(74,222,128,.16); color:#86efac; }
+.trn-recos{ display:flex; flex-direction:column; gap:10px; }
+.trn-reco{ display:flex; gap:11px; align-items:flex-start; padding:11px 13px; border-radius:12px; border:1px solid rgba(255,255,255,.09); }
+.trn-reco--rec{ background:linear-gradient(150deg,rgba(45,212,191,.13),transparent); border-color:rgba(45,212,191,.24); }
+.trn-reco--ai{ background:linear-gradient(150deg,rgba(129,140,248,.13),transparent); border-color:rgba(129,140,248,.24); }
+.trn-reco > span{ font-size:20px; flex:0 0 auto; }
+.trn-reco b{ font-size:11.5px; font-weight:800; color:#e7ecf4; display:block; margin-bottom:2px; }
+.trn-reco p{ margin:0; font-size:12px; color:#c3ccd9; line-height:1.45; }
 /* podium + awards */
 .trn-podium{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .trn-pod{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 6px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); }

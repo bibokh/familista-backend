@@ -8847,6 +8847,23 @@ function _trnAttendance() {
   var table = '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Player</th><th>Sessions</th><th>P / L / A</th><th>Attendance %</th><th>Commitment</th></tr></thead><tbody>' + tr + '</tbody></table></div>';
   return summary + _trnPanel('Attendance register', 'Across ' + sessions + ' recorded session' + (sessions === 1 ? '' : 's'), table);
 }
+// Professional workload analytics from real completed-session records only.
+function _trnLoadData() {
+  var comp = _trCompleted().slice().sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
+  var sess = comp.map(function (s) { return { date: s.date, t: (s.completedAt || Date.parse(s.date) || 0), load: (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0), players: s.players || [] }; });
+  var acwrSeries = sess.map(function (cur) {
+    var acute = 0, chronic = 0;
+    sess.forEach(function (o) { var dd = (cur.t - o.t) / 86400000; if (dd >= 0 && dd < 7) acute += o.load; if (dd >= 0 && dd < 28) chronic += o.load; });
+    chronic = chronic / 4; return { label: _trFmtDate(cur.date), v: chronic ? Math.round(acute / chronic * 100) / 100 : 0 };
+  });
+  var wk = {}, mo = {};
+  sess.forEach(function (s) { if (!s.date) return; var d; try { d = new Date(s.date + 'T00:00:00'); } catch (e) { return; } wk[_trnIsoWeek(d)] = (wk[_trnIsoWeek(d)] || 0) + s.load; mo[s.date.slice(0, 7)] = (mo[s.date.slice(0, 7)] || 0) + s.load; });
+  var weekBars = Object.keys(wk).sort().slice(-8).map(function (k) { return { label: k, short: 'W' + k.split('-W')[1], v: wk[k] }; });
+  var monBars = Object.keys(mo).sort().slice(-6).map(function (k) { return { label: k, short: k.slice(5), v: mo[k] }; });
+  var fatS = [], recS = [], reaS = [];
+  comp.forEach(function (s) { var cds = []; (s.players || []).forEach(function (id) { var p = _trP(id); if (p && typeof p.cond === 'number') cds.push(p.cond); }); var f = cds.length ? Math.round(cds.reduce(function (x, y) { return x + y; }, 0) / cds.length) : 0; var lbl = _trFmtDate(s.date); recS.push({ label: lbl, v: f }); fatS.push({ label: lbl, v: _trnClamp(100 - f, 0, 100) }); reaS.push({ label: lbl, v: _trnClamp(Math.round(f - (100 - f) * 0.25), 0, 100) }); });
+  return { sess: sess, acwrSeries: acwrSeries, weekBars: weekBars, monBars: monBars, fatS: fatS, recS: recS, reaS: reaS, loadTimeline: sess.map(function (s) { return { label: _trFmtDate(s.date), v: s.load }; }) };
+}
 function _trnLoad() {
   var t = _trnTeam();
   var acwrTone = (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'adv' : (t.acwr > 1.5 || t.acwr < 0.6) ? 'risk' : 'slt';
@@ -8879,10 +8896,41 @@ function _trnLoad() {
   var players = t.ps.slice().sort(function (a, b) { return a.readiness - b.readiness; }).slice(0, 8).map(function (x) {
     return '<div class="trn-readp"><span class="trn-readp-nm">' + _trnAvatar(x.p) + _sqEsc(_trnLast(x.p.name)) + '</span><span class="trn-mini trn-mini--wide"><i class="trn-mini--' + _trnTone(x.readiness) + '" style="width:' + x.readiness + '%"></i></span><b>' + x.readiness + '%</b></div>';
   }).join('');
+  // ── Professional workload analytics (real records) ──
+  var d = _trnLoadData();
+  var lv = function (a) { return a.length ? a[a.length - 1].v : 0; };
+  var histCharts = d.sess.length
+    ? '<div class="trn-chtgrid">'
+      + _trnChtCard('ACWR History', 'Acute : chronic', lv(d.acwrSeries).toFixed(2), _trnChtLine(d.acwrSeries, '244,183,64'))
+      + _trnChtCard('Weekly Load', 'AU / week', lv(d.weekBars) + '', _trnChtBars(d.weekBars, '96,165,250'))
+      + _trnChtCard('Monthly Load', 'AU / month', lv(d.monBars) + '', _trnChtBars(d.monBars, '167,139,250'))
+      + _trnChtCard('Fatigue Trend', 'Per session', lv(d.fatS) + '%', _trnChtLine(d.fatS, '251,113,133', '%'))
+      + _trnChtCard('Recovery Trend', 'Per session', lv(d.recS) + '%', _trnChtLine(d.recS, '45,212,191', '%'))
+      + _trnChtCard('Readiness Trend', 'Per session', lv(d.reaS) + '%', _trnChtLine(d.reaS, '74,222,128', '%'))
+      + _trnChtCard('Training Minutes Timeline', 'AU / session', lv(d.loadTimeline) + '', _trnChtLine(d.loadTimeline, '125,211,252'))
+      + '</div>'
+    : _trEmpty('&#128202;', 'No workload history yet', 'ACWR history, weekly/monthly load and recovery trends build automatically from completed sessions.', false);
+  var riskRows = t.ps.slice().map(function (x) { var score = _trnClamp((100 - x.readiness) + (x.avail === 'injured' ? 40 : 0) + (x.fatigue > 60 ? 15 : 0), 0, 140); return { x: x, score: score, lvl: score >= 70 ? 'High' : score >= 45 ? 'Moderate' : 'Low' }; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 8);
+  var riskList = '<div class="trn-risklist">' + riskRows.map(function (r) { var tone = r.lvl === 'High' ? 'risk' : r.lvl === 'Moderate' ? 'slt' : 'adv'; return '<div class="trn-riskrow"><span class="trn-readp-nm">' + _trnAvatar(r.x.p) + _sqEsc(_trnLast(r.x.p.name)) + '</span><span class="trn-risk-badge trn-risk-badge--' + tone + '">' + r.lvl + '</span><b>' + r.x.readiness + '%</b></div>'; }).join('') + '</div>';
+  var recRec = !d.sess.length ? 'Recovery guidance appears once sessions are recorded.'
+    : (t.acwr > 1.3) ? 'Workload spiking (ACWR ' + t.acwr.toFixed(2) + '). Prioritise recovery — pool & mobility, cut high-intensity volume ~20% before the next block.'
+    : (t.acwr > 0 && t.acwr < 0.8) ? 'Chronic load is low (ACWR ' + t.acwr.toFixed(2) + '). Build volume gradually to avoid undertraining and spikes.'
+    : (t.fatigue >= 55) ? 'Elevated fatigue (' + t.fatigue + '%). Insert a recovery day before the next high-intensity session.'
+    : 'Workload balanced. Maintain current periodisation and monitor readiness daily.';
+  var aiRec = !d.sess.length ? 'AI workload advice generates from real training load.'
+    : (t.injured >= 1 ? t.injured + ' player(s) flagged injured — manage minutes and avoid contact drills for them. ' : '')
+      + (t.acwr > 1.5 ? 'Acute:chronic ratio is high-risk; deload this microcycle. ' : t.acwr >= 0.8 && t.acwr <= 1.3 ? 'Ratio in the safe 0.8–1.3 zone; progress load modestly. ' : '')
+      + (riskRows[0] && riskRows[0].lvl === 'High' ? 'Highest risk: ' + _trnLast(riskRows[0].x.p.name) + ' — individualise load.' : 'No individual red flags.');
+  var recos = '<div class="trn-recos"><div class="trn-reco trn-reco--rec"><span>&#128167;</span><div><b>Recovery recommendation</b><p>' + recRec + '</p></div></div><div class="trn-reco trn-reco--ai"><span>&#129504;</span><div><b>AI workload recommendation</b><p>' + aiRec + '</p></div></div></div>';
   return _trnPanel('Team load monitoring', 'Acute : Chronic Workload Ratio', gauges)
+    + _trnPanel('Workload analytics', d.sess.length + ' completed session' + (d.sess.length === 1 ? '' : 's') + ' · live from records', histCharts)
     + '<div class="trn-grid2">'
     + _trnPanel('Training volume', 'Real minutes · per player', '<div class="trn-loadbars">' + bars + '</div>')
     + _trnPanel('14-day load trend', t.weeklyLoad + ' min this week', spark)
+    + '</div>'
+    + '<div class="trn-grid2">'
+    + _trnPanel('Player risk ranking', 'Highest workload risk first', riskList)
+    + _trnPanel('Recommendations', 'Recovery &amp; AI workload', recos)
     + '</div>'
     + _trnPanel('Player readiness watch', 'Lowest first · from condition &amp; ratings', '<div class="trn-readlist">' + players + '</div>');
 }
