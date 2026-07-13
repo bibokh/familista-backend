@@ -8667,8 +8667,16 @@ function _trnCompletedView(s) {
   return _trnPanel('Completed session summary', _trFmtDate(s.date), sum + mvp + '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Player</th><th>Attendance</th><th>Participation</th><th>Rating</th></tr></thead><tbody>' + rows + '</tbody></table></div>');
 }
 // ── create-session modal + best-player explanation modal ──
+function _trnNotifHtml() {
+  var notes = _trnNotifications();
+  var body = notes.length
+    ? '<div class="trn-notifs">' + notes.map(function (n) { return '<div class="trn-notif trn-notif--' + n.tone + '"><span class="trn-notif-ic">' + n.ic + '</span><div class="trn-notif-b"><b>' + n.type + '</b><p>' + n.text + '</p></div></div>'; }).join('') + '</div>'
+    : _trEmpty('&#128276;', 'No notifications', 'Alerts appear here as training, attendance and fitness data update — all from real records.', false);
+  return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card trn-modal-card--sm"><div class="trn-modal-h"><b>&#128276; Notifications</b><span class="trn-modal-step">' + notes.length + ' from real records</span><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b">' + body + '</div></div>';
+}
 function _trnModalHtml() {
   if (_TRN.modal === 'explain') return _trnExplainHtml();
+  if (_TRN.modal === 'notif') return _trnNotifHtml();
   if (_TRN.modal !== 'create') return '';
   var d = _TRN.draft || _trDefaultDraft(), step = _TRN.step || 1;
   var dots = '<div class="trn-steps">' + [1, 2, 3].map(function (n) { return '<span class="trn-stepdot' + (step === n ? ' is-on' : step > n ? ' is-done' : '') + '">' + n + '</span>' + (n < 3 ? '<i class="trn-stepline"></i>' : ''); }).join('') + '</div>';
@@ -9323,8 +9331,23 @@ function _trnReports() {
   var cards = '<div class="trn-reports trn-reports--3">' + daily + weekly + monthly + season + '</div>';
   return _trnPanel('Advanced reports', d.sessionCount + ' session' + (d.sessionCount === 1 ? '' : 's') + ' · ' + _trnRepLabel(range), controls + metrics + charts + cards);
 }
+// Professional notifications derived from real records + real team state.
+function _trnNotifications() {
+  var out = [], comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam();
+  var latest = comp.slice().sort(function (a, b) { return (b.completedAt || 0) - (a.completedAt || 0); })[0];
+  if (latest) out.push({ ic: '&#9989;', type: 'Training completed', text: (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l) + ' · ' + _trFmtDate(latest.date), tone: 'adv' });
+  if (latest && latest.bestPlayer) { var bp = _trP(latest.bestPlayer); if (bp) out.push({ ic: '&#11088;', type: 'Best player updated', text: _sqEsc(_trnLast(bp.name)) + (latest.sessionRating ? ' · ' + latest.sessionRating + '/10' : ''), tone: 'slt' }); }
+  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required >= 3 && a.attendancePct != null && a.attendancePct < 70) out.push({ ic: '&#9888;&#65039;', type: 'Attendance alert', text: _sqEsc(_trnLast(p.name)) + ' attendance ' + a.attendancePct + '%', tone: 'risk' }); });
+  t.ps.forEach(function (x) { if (x.avail === 'injured') out.push({ ic: '&#127973;', type: 'Injury alert', text: _sqEsc(_trnLast(x.p.name)) + ' flagged injured', tone: 'risk' }); });
+  t.ps.filter(function (x) { return x.fitness < 65; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128201;', type: 'Low fitness warning', text: _sqEsc(_trnLast(x.p.name)) + ' fitness ' + x.fitness + '%', tone: 'slt' }); });
+  t.ps.filter(function (x) { return x.readiness < 50; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128308;', type: 'Readiness warning', text: _sqEsc(_trnLast(x.p.name)) + ' readiness ' + x.readiness + '%', tone: 'slt' }); });
+  t.ps.filter(function (x) { return x.avail !== 'injured' && x.fitness >= 90 && x.readiness >= 85; }).slice(0, 2).forEach(function (x) { out.push({ ic: '&#128170;', type: 'Recovery completed', text: _sqEsc(_trnLast(x.p.name)) + ' back to full readiness', tone: 'adv' }); });
+  var recs = _trnAIRecs(); if (recs && recs.length) out.push({ ic: '&#129504;', type: 'AI recommendation available', text: _sqEsc(recs[0].title), tone: 'bal' });
+  return out;
+}
 function _trnHead() {
-  var t = _trnTeam();
+  var t = _trnTeam(), notes = _trnNotifications(), nn = notes.length;
+  var bell = '<button class="trn-bell" data-trn-act="notif" type="button" aria-label="Notifications">&#128276;' + (nn ? '<span class="trn-bell-badge">' + (nn > 9 ? '9+' : nn) + '</span>' : '') + '</button>';
   return '<div class="trn-head"><div class="trn-head-id"><span class="trn-head-ic">' + TRN_TABS_ICON + '</span><div><h1>Training Centre</h1><p>AI training management · synced with Lineup, Formation &amp; Tactics</p></div></div>'
     + '<div class="trn-head-chips">'
     + '<span class="trn-hchip"><i>Formation</i><b>' + (SQ_FORM.myFormation || '4-3-3') + '</b></span>'
@@ -9332,6 +9355,7 @@ function _trnHead() {
     + '<span class="trn-hchip"><i>Fitness</i><b>' + t.fitness + '%</b></span>'
     + '<span class="trn-hchip"><i>Readiness</i><b>' + t.readiness + '%</b></span>'
     + '<span class="trn-hchip trn-hchip--' + (t.risk === 'High' ? 'risk' : t.risk === 'Moderate' ? 'slt' : 'adv') + '"><i>Injury risk</i><b>' + t.risk + '</b></span>'
+    + bell
     + '</div></div>';
 }
 var TRN_TABS_ICON = '<svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>';
@@ -9412,6 +9436,7 @@ function _trnAction(act, el) {
     case 'delsession': if (typeof window === 'undefined' || window.confirm('Delete this session? This cannot be undone.')) { trDeleteSession(id); _TRN.open = null; _trnRender(); } break;
     case 'explainp': { var b1 = _trnBestPlayers(), it = b1.podium[parseInt(el.getAttribute('data-trn-i'), 10)]; if (it) { var ag = it.agg; _TRN.explain = { pid: it.p.id, label: 'Best training player', text: 'Average coach rating ' + it.rating.toFixed(2) + (ag.attendancePct == null ? '' : ', ' + ag.attendancePct + '% attendance') + ', across ' + ag.completed + ' completed session' + (ag.completed === 1 ? '' : 's') + '.' }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
+    case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
     case 'dupsession': { var ds = _trSession(id); if (ds) { _TRN.tpl = _trnSessionConfig(ds); _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnToast('Session duplicated — set a new date'); _trnRender(); } break; }
     case 'savetemplate': { var ts = _trSession(id); if (ts) { var tl = _trTplLoad(); tl.push(_trnSessionConfig(ts)); _trTplSave(tl); _trnToast('Saved as template'); _trnRender(); } break; }
     case 'applytpl': { var ai = parseInt(el.getAttribute('data-trn-i'), 10), at = _trTplLoad()[ai]; if (at) { _TRN.tpl = at; _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnRender(); } break; }
