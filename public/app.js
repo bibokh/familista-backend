@@ -8821,31 +8821,55 @@ function _trnDrills() {
   _DE_SEL = _DE_SEL || null;
   return '<div class="trn-drills"><div class="de-root" id="de-root">' + _deInner() + '</div></div>';
 }
+// Consecutive-attendance streaks for a player, from real records (present/late = attended).
+function _trnAttStreaks(pid, recorded) {
+  var seq = recorded.filter(function (s) { return (s.players || []).indexOf(pid) >= 0; }).sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); }).map(function (s) { return (s.attendance || {})[pid]; });
+  var longest = 0, cur = 0;
+  seq.forEach(function (m) { if (m === 'present' || m === 'late') { cur++; if (cur > longest) longest = cur; } else if (m === 'absent') { cur = 0; } });
+  var trailAbs = 0; for (var i = seq.length - 1; i >= 0; i--) { if (seq[i] === 'absent') trailAbs++; else if (seq[i]) break; }
+  return { longest: longest, currentAbsent: trailAbs };
+}
 function _trnAttendance() {
   var recorded = _trRecorded();
-  if (!recorded.length) return _trnPanel('Attendance register', 'No data yet', _trEmpty('&#9989;', 'No attendance recorded yet', 'Open a planned session, record attendance, and it will aggregate here automatically.', true));
+  if (!recorded.length) return _trnPanel('Attendance analytics', 'No data yet', _trEmpty('&#9989;', 'No attendance recorded yet', 'Record attendance on a session and the register, history chart, calendar, ranking and streaks build here automatically.', true));
   var rows = [], tot = { present: 0, late: 0, absent: 0, excused: 0, injured: 0 }, sessions = recorded.length;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return;['present', 'late', 'absent', 'excused', 'injured'].forEach(function (k) { tot[k] += a[k]; }); rows.push({ p: p, a: a }); });
+  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return;['present', 'late', 'absent', 'excused', 'injured'].forEach(function (k) { tot[k] += a[k]; }); var st = _trnAttStreaks(p.id, recorded); rows.push({ p: p, a: a, st: st }); });
   rows.sort(function (x, y) { return (y.a.attendancePct || 0) - (x.a.attendancePct || 0); });
   var attNum = tot.present + tot.late, attDen = attNum + tot.absent, overall = attDen ? Math.round(attNum / attDen * 100) : 0;
+  var totalMarks = tot.present + tot.late + tot.absent + tot.excused + tot.injured;
+  var pct = function (n) { return totalMarks ? Math.round(n / totalMarks * 100) : 0; };
   var summary = '<div class="trn-att-sum">'
     + _trnStat('Sessions', sessions, '', 'violet')
-    + _trnStat('Present', tot.present, '', 'green')
-    + _trnStat('Late', tot.late, '', 'amber')
-    + _trnStat('Absent', tot.absent, '', tot.absent ? 'red' : 'muted')
-    + _trnStat('Injured', tot.injured, '', tot.injured ? 'red' : 'muted')
     + _trnStat('Attendance', overall, '<i>%</i>', 'green')
+    + _trnStat('Late', pct(tot.late), '<i>%</i>', 'amber')
+    + _trnStat('Absent', pct(tot.absent), '<i>%</i>', tot.absent ? 'red' : 'muted')
+    + _trnStat('Excused', pct(tot.excused), '<i>%</i>', 'violet')
+    + _trnStat('Injured', tot.injured, '', tot.injured ? 'red' : 'muted')
     + '</div>';
+  // Real attendance history + calendar
+  var srt = recorded.slice().sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
+  var pctOf = function (s) { var pr = 0, ab = 0; (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; }); return (pr + ab) ? Math.round(pr / (pr + ab) * 100) : 0; };
+  var hist = srt.map(function (s) { return { label: _trFmtDate(s.date), v: pctOf(s) }; });
+  var history = _trnChtCard('Attendance History', 'Per session', overall + '%', _trnChtLine(hist, '52,211,153', '%'));
+  var calendar = '<div class="trn-attcal">' + srt.slice(-16).map(function (s) { var pc = pctOf(s), tone = pc >= 90 ? 'adv' : pc >= 75 ? 'bal' : pc >= 50 ? 'slt' : 'risk'; return '<div class="trn-attcal-c trn-attcal-c--' + tone + '" title="' + _trFmtDate(s.date) + ': ' + pc + '%"><span>' + (s.date || '').slice(5) + '</span><b>' + pc + '%</b></div>'; }).join('') + '</div>';
+  // Ranking (top + bottom) + streaks table
+  var ranked = rows.filter(function (r) { return r.a.attendancePct != null; });
+  var rankHtml = '<div class="trn-rankcols"><div class="trn-rankcol"><h4>Top attendance</h4>' + ranked.slice(0, 5).map(function (r, i) { return '<div class="trn-rankrow"><em>' + (i + 1) + '</em>' + _trnAvatar(r.p) + '<span>' + _sqEsc(_trnLast(r.p.name)) + '</span><b class="trn-rankv trn-rankv--adv">' + r.a.attendancePct + '%</b></div>'; }).join('') + '</div>'
+    + '<div class="trn-rankcol"><h4>Needs attention</h4>' + ranked.slice(-5).reverse().map(function (r, i) { return '<div class="trn-rankrow"><em>' + (i + 1) + '</em>' + _trnAvatar(r.p) + '<span>' + _sqEsc(_trnLast(r.p.name)) + '</span><b class="trn-rankv trn-rankv--' + (r.a.attendancePct >= 75 ? 'bal' : 'risk') + '">' + r.a.attendancePct + '%</b></div>'; }).join('') + '</div></div>';
   var tr = rows.map(function (r) {
     var a = r.a;
     return '<tr class="trn-att-row"><td class="trn-att-p">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>' + r.p.pos + ' · #' + r.p.num + '</i></span></td>'
       + '<td class="trn-att-pct">' + a.required + '</td>'
       + '<td><span class="trn-att-badge trn-att-badge--ok">' + a.present + '</span> <span class="trn-att-badge trn-att-badge--late">' + a.late + '</span> <span class="trn-att-badge trn-att-badge--abs">' + a.absent + '</span></td>'
       + '<td class="trn-att-pct"><span class="trn-mini"><i style="width:' + (a.attendancePct || 0) + '%"></i></span>' + (a.attendancePct == null ? '—' : a.attendancePct + '%') + '</td>'
-      + '<td class="trn-att-pct">' + (a.commitment == null ? '—' : a.commitment) + '</td></tr>';
+      + '<td class="trn-att-pct">' + r.st.longest + '</td>'
+      + '<td class="trn-att-pct">' + (r.st.currentAbsent ? '<b style="color:#fda4af">' + r.st.currentAbsent + '</b>' : '0') + '</td></tr>';
   }).join('');
-  var table = '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Player</th><th>Sessions</th><th>P / L / A</th><th>Attendance %</th><th>Commitment</th></tr></thead><tbody>' + tr + '</tbody></table></div>';
-  return summary + _trnPanel('Attendance register', 'Across ' + sessions + ' recorded session' + (sessions === 1 ? '' : 's'), table);
+  var table = '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Player</th><th>Sessions</th><th>P / L / A</th><th>Attendance %</th><th>Longest streak</th><th>Absent streak</th></tr></thead><tbody>' + tr + '</tbody></table></div>';
+  return summary
+    + '<div class="trn-grid2">' + _trnPanel('Attendance history', 'Trend from records', '<div class="trn-chtgrid">' + history + '</div>') + _trnPanel('Attendance calendar', 'Recent sessions', calendar) + '</div>'
+    + _trnPanel('Attendance ranking', 'From real records', rankHtml)
+    + _trnPanel('Attendance register', 'Across ' + sessions + ' recorded session' + (sessions === 1 ? '' : 's') + ' · streaks included', table);
 }
 // Professional workload analytics from real completed-session records only.
 function _trnLoadData() {
