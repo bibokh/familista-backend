@@ -8108,7 +8108,7 @@ function _deBind() {
 // ════════════════════════════════════════════════════════════════════════════
 var _TRN = { tab: 'dashboard', player: null };
 var _trnBound = false;
-var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports']];
+var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics']];
 var TRN_TYPE = {
   match:     { c: '244,63,94',   l: 'Match' },
   tactical:  { c: '167,139,250', l: 'Tactical' },
@@ -8834,6 +8834,154 @@ function _trnCharts() {
   ].join('');
   return _trnPanel('Professional analytics', comp.length + ' completed session' + (comp.length === 1 ? '' : 's') + ' · live from records', '<div class="trn-chtgrid">' + cards + '</div>');
 }
+// ── Phase 2 · Professional Analytics — radar/scatter/bubble from real records ──
+function _trnRadar(axes, seriesList) {
+  var n = axes.length; if (!n) return '';
+  var W = 250, H = 230, cx = W / 2, cy = H / 2 + 4, R = 74;
+  var ang = function (i) { return (Math.PI * 2 * i / n) - Math.PI / 2; };
+  var pt = function (i, val) { var r = R * _trnClamp(val, 0, 100) / 100; return [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))]; };
+  var rings = ''; [0.25, 0.5, 0.75, 1].forEach(function (f) { var pts = axes.map(function (a, i) { var p = pt(i, f * 100); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '); rings += '<polygon points="' + pts + '" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="1"/>'; });
+  var spokes = '', labels = '';
+  axes.forEach(function (a, i) { var e = pt(i, 100), l = pt(i, 120); spokes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '" stroke="rgba(255,255,255,.06)"/>'; labels += '<text x="' + l[0].toFixed(1) + '" y="' + l[1].toFixed(1) + '" font-size="8" fill="#8a94a6" text-anchor="middle" dominant-baseline="middle">' + _sqEsc(a.label) + '</text>'; });
+  var polys = seriesList.map(function (s) { var pts = axes.map(function (a, i) { var p = pt(i, s.values[i] || 0); return p[0].toFixed(1) + ',' + p[1].toFixed(1); }).join(' '); return '<polygon class="trn-radar-poly" points="' + pts + '" fill="rgba(' + s.color + ',.15)" stroke="rgb(' + s.color + ')" stroke-width="2"/>'; }).join('');
+  return '<svg class="trn-radar" viewBox="0 0 ' + W + ' ' + H + '">' + rings + spokes + polys + labels + '</svg>';
+}
+function _trnScatter(points, opts) {
+  opts = opts || {}; if (!points.length) return _trEmpty('&#128200;', 'No data in range', opts.need || 'This chart needs attendance and performance records.', false);
+  var W = 300, H = 210, PL = 34, PR = 12, PT = 12, PB = 28, iw = W - PL - PR, ih = H - PT - PB;
+  var xs = points.map(function (p) { return p.x; }), ys = points.map(function (p) { return p.y; });
+  var xmin = opts.xmin != null ? opts.xmin : Math.min.apply(null, xs), xmax = opts.xmax != null ? opts.xmax : Math.max.apply(null, xs); if (xmax === xmin) xmax = xmin + 1;
+  var ymin = opts.ymin != null ? opts.ymin : Math.min.apply(null, ys), ymax = opts.ymax != null ? opts.ymax : Math.max.apply(null, ys); if (ymax === ymin) ymax = ymin + 1;
+  var X = function (v) { return PL + (v - xmin) / (xmax - xmin) * iw; }, Y = function (v) { return PT + ih - (v - ymin) / (ymax - ymin) * ih; };
+  var grid = '<line x1="' + PL + '" y1="' + (PT + ih) + '" x2="' + (PL + iw) + '" y2="' + (PT + ih) + '" stroke="rgba(255,255,255,.14)"/><line x1="' + PL + '" y1="' + PT + '" x2="' + PL + '" y2="' + (PT + ih) + '" stroke="rgba(255,255,255,.14)"/>';
+  var dots = points.map(function (p) { var c = p.color || opts.col || '96,165,250', r = p.r || 4.5, act = p.id ? ' data-trn-act="gotoplayer" data-trn-id="' + p.id + '"' : ''; return '<circle class="trn-sc-dot" cx="' + X(p.x).toFixed(1) + '" cy="' + Y(p.y).toFixed(1) + '" r="' + r + '" fill="rgba(' + c + ',.85)" stroke="rgb(' + c + ')"' + act + '><title>' + _sqEsc(p.label) + '</title></circle>'; }).join('');
+  var ax = '<text x="' + (PL + iw / 2) + '" y="' + (H - 5) + '" font-size="8.5" fill="#8a94a6" text-anchor="middle">' + _sqEsc(opts.xlabel || '') + '</text><text x="11" y="' + (PT + ih / 2) + '" font-size="8.5" fill="#8a94a6" text-anchor="middle" transform="rotate(-90 11 ' + (PT + ih / 2) + ')">' + _sqEsc(opts.ylabel || '') + '</text>';
+  return '<svg class="trn-scatter" viewBox="0 0 ' + W + ' ' + H + '">' + grid + dots + ax + '</svg>';
+}
+function _trnAnData() {
+  var an = _TRN.an || {}, view = an.view || 'weekly', days = view === 'weekly' ? 7 : view === 'monthly' ? 31 : null;
+  var filt = function (list) { return list.filter(function (s) { if (an.type && s.type !== an.type) return false; if (days) { var d = s.completedAt || Date.parse(s.date) || 0; if (!d || (Date.now() - d) > days * 86400000) return false; } return true; }); };
+  var comp = filt(_trCompleted()), rec = filt(_trRecorded()), profiles = _trnProfiles();
+  var rows = profiles.map(function (x) { var a = _trPlayerAgg(x.p.id, rec), ca = _trPlayerAgg(x.p.id, comp); return { p: x.p, prof: x, fitness: x.fitness, readiness: x.readiness, recovery: _trnClamp(100 - x.fatigue, 0, 100), attendance: a.attendancePct, rating: ca.avgRating, load: _trnPlayerLoad(x.p.id, rec), technical: x.technical, physical: x.physical, mental: x.tactical, riskScore: _trnClamp((100 - x.readiness) + (x.avail === 'injured' ? 40 : 0), 0, 140) }; });
+  var frows = rows.filter(function (x) { return (!an.pid || x.p.id === an.pid) && (!an.pos || x.p.cat === an.pos); });
+  return { view: view, days: days, comp: comp, rec: rec, rows: rows, frows: frows, an: an };
+}
+function _trnAnKpis(d) {
+  var t = _trnTeam(), comp = d.comp, rec = d.rec, rows = d.rows;
+  var n = 0, dn = 0; rec.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; dn++; } else if (a === 'absent') dn++; }); });
+  var att = dn ? Math.round(n / dn * 100) : null;
+  var rs = []; comp.forEach(function (s) { (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); });
+  var avgR = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : null;
+  var perf = avgR != null ? Math.round(avgR * 10) : null;
+  var eff = (att != null && avgR != null) ? Math.round(att * (avgR / 10)) : null;
+  var inj = rows.filter(function (r) { return r.prof.avail === 'injured'; }).length;
+  var avail = rows.length ? Math.round((rows.length - inj) / rows.length * 100) : 100;
+  var trends = []; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, comp); if (a.seq && a.seq.length >= 2) trends.push(_trnTrendDelta(a)); });
+  var dev = trends.length ? _trnClamp(Math.round(50 + (trends.reduce(function (x, y) { return x + y; }, 0) / trends.length) * 10), 0, 100) : null;
+  var loads = rows.map(function (r) { return r.load; }).filter(function (l) { return l > 0; });
+  var avgLoad = loads.length ? Math.round(loads.reduce(function (x, y) { return x + y; }, 0) / loads.length) : null;
+  return [
+    { k: 'Team Performance Index', v: perf, unit: '', tip: 'Average coach rating × 10 across completed sessions in the selected range.', empty: perf == null },
+    { k: 'Training Efficiency', v: eff, unit: '', tip: 'Attendance % × (average rating ÷ 10) — turning up AND performing.', empty: eff == null },
+    { k: 'Team Readiness', v: t.readiness, unit: '%', tip: 'Derived from real Player.condition, injury status and recent ratings.', empty: false },
+    { k: 'Average Fitness', v: t.fitness, unit: '%', tip: 'Mean of real Player.condition across the squad.', empty: false },
+    { k: 'Attendance Rate', v: att, unit: '%', tip: 'Present+Late ÷ (Present+Late+Absent) over recorded sessions in range.', empty: att == null },
+    { k: 'Medical Availability', v: avail, unit: '%', tip: 'Share of squad not flagged injured (real availability).', empty: false },
+    { k: 'Player Development Index', v: dev, unit: '', tip: '50 baseline ± average coach-rating trend across players (needs ≥2 rated sessions).', empty: dev == null },
+    { k: 'Average Training Load', v: avgLoad, unit: 'min', tip: 'Mean real training minutes per player (present/late × duration) in range.', empty: avgLoad == null }
+  ];
+}
+function _trnAnCompare() {
+  var rec = _trRecorded(), comp = _trCompleted(), now = Date.now();
+  var win = function (list, a0, a1, fn) { return fn(list.filter(function (s) { var d = s.completedAt || Date.parse(s.date) || 0, dd = (now - d) / 86400000; return d && dd >= a0 && dd < a1; })); };
+  var attFn = function (ss) { var n = 0, d = 0; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; d++; } else if (a === 'absent') d++; }); }); return d ? Math.round(n / d * 100) : null; };
+  var ratFn = function (ss) { var rs = []; ss.forEach(function (s) { (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); }); return rs.length ? +(rs.reduce(function (x, y) { return x + y; }, 0) / rs.length).toFixed(2) : null; };
+  var loadFn = function (ss) { var m = 0; ss.forEach(function (s) { m += (parseInt(s.duration, 10) || 0) * ((s.players || []).length || 0); }); return m; };
+  var out = [];
+  [['Week', 'Attendance', rec, 7, attFn, '%'], ['Week', 'Avg rating', comp, 7, ratFn, ''], ['Week', 'Load', comp, 7, loadFn, ' AU'], ['Month', 'Attendance', rec, 31, attFn, '%'], ['Month', 'Avg rating', comp, 31, ratFn, ''], ['Season', 'Avg rating', comp, 1000, ratFn, '']].forEach(function (c) { out.push({ period: c[0], metric: c[1], cur: win(c[2], 0, c[3], c[4]), prev: win(c[2], c[3], c[3] * 2, c[4]), unit: c[5] }); });
+  return out;
+}
+function _trnAnPositions(d) {
+  var groups = { gk: 'Goalkeepers', df: 'Defenders', mf: 'Midfielders', fw: 'Attackers' }, out = [];
+  Object.keys(groups).forEach(function (cat) {
+    var g = d.rows.filter(function (r) { return r.p.cat === cat; }); if (!g.length) return;
+    var avg = function (fn) { var v = g.map(fn).filter(function (x) { return typeof x === 'number'; }); return v.length ? Math.round(v.reduce(function (a, b) { return a + b; }, 0) / v.length) : null; };
+    var inj = g.filter(function (r) { return r.prof.avail === 'injured'; }).length;
+    var rv = g.map(function (r) { return r.rating; }).filter(function (x) { return typeof x === 'number'; });
+    out.push({ cat: cat, name: groups[cat], n: g.length, fitness: avg(function (r) { return r.fitness; }), readiness: avg(function (r) { return r.readiness; }), attendance: avg(function (r) { return r.attendance; }), load: avg(function (r) { return r.load; }), rating: rv.length ? +(rv.reduce(function (a, b) { return a + b; }, 0) / rv.length).toFixed(1) : null, avail: Math.round((g.length - inj) / g.length * 100) });
+  });
+  return out;
+}
+function _trnAnInsights(d, cmp) {
+  var out = [];
+  var att = cmp.filter(function (c) { return c.period === 'Week' && c.metric === 'Attendance'; })[0];
+  if (att && att.cur != null && att.prev != null) { var diff = att.cur - att.prev; out.push((diff >= 0 ? 'Team attendance improved ' : 'Attendance dropped ') + Math.abs(diff) + '% vs last week (' + att.prev + '% → ' + att.cur + '%).'); }
+  var rat = cmp.filter(function (c) { return c.period === 'Month' && c.metric === 'Avg rating'; })[0];
+  if (rat && rat.cur != null && rat.prev != null) { var d2 = +(rat.cur - rat.prev).toFixed(2); out.push('Average rating this month ' + (d2 >= 0 ? 'up ' : 'down ') + Math.abs(d2) + ' vs last month.'); }
+  var pos = _trnAnPositions(d); if (pos.length > 1) { var byLoad = pos.slice().filter(function (p) { return p.load != null; }).sort(function (a, b) { return b.load - a.load; }); if (byLoad.length && byLoad[0].load) out.push(byLoad[0].name + ' carry the highest training load (' + byLoad[0].load + ' min avg).'); }
+  var risky = d.rows.filter(function (r) { return r.load > 0 && r.recovery < 60; }); if (risky.length) out.push(risky.length + ' player' + (risky.length === 1 ? '' : 's') + ' have high load and low recovery — monitor.');
+  var inj = d.rows.filter(function (r) { return r.prof.avail === 'injured'; }); if (inj.length) out.push(inj.length + ' player' + (inj.length === 1 ? '' : 's') + ' currently unavailable (medical).');
+  if (!out.length) out.push('Not enough completed sessions yet to surface trends — insights build automatically as you record training.');
+  return out;
+}
+function _trnAnColor(r) { return r.readiness >= 75 ? '74,222,128' : r.readiness >= 55 ? '96,165,250' : r.readiness >= 40 ? '251,191,36' : '251,113,133'; }
+function _trnAnalytics() {
+  _TRN.an = _TRN.an || { view: 'weekly', type: '', pid: '', pos: '', pidA: '', pidB: '' };
+  var an = _TRN.an, d = _trnAnData();
+  var rangeLbl = an.view === 'weekly' ? 'Last 7 days' : an.view === 'monthly' ? 'Last 30 days' : 'Full season';
+  var views = [['weekly', 'Weekly'], ['monthly', 'Monthly'], ['season', 'Season']].map(function (v) { return '<button class="trn-rtab' + (an.view === v[0] ? ' is-on' : '') + '" data-trn-act="anview" data-trn-v="' + v[0] + '" type="button">' + v[1] + '</button>'; }).join('');
+  var sel = function (key, opts) { return '<select class="trn-input trn-ansel" data-trn-anset="' + key + '">' + opts + '</select>'; };
+  var posO = '<option value="">All positions</option>' + [['gk', 'Goalkeepers'], ['df', 'Defenders'], ['mf', 'Midfielders'], ['fw', 'Attackers']].map(function (p) { return '<option value="' + p[0] + '"' + (an.pos === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('');
+  var typeO = '<option value="">All types</option>' + TR_TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (an.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+  var plO = function (curr) { return '<option value="">Player…</option>' + (SQ_DEMO_PLAYERS || []).map(function (p) { return '<option value="' + p.id + '"' + (curr === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join(''); };
+  var filters = '<div class="trn-rctrl"><div class="trn-rtabs">' + views + '</div><div class="trn-anfilters">' + sel('pos', posO) + sel('type', typeO) + sel('pid', '<option value="">All players</option>' + (SQ_DEMO_PLAYERS || []).map(function (p) { return '<option value="' + p.id + '"' + (an.pid === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join('')) + '</div></div>';
+  // KPIs
+  var kpis = _trnAnKpis(d);
+  var kpiHtml = '<div class="trn-rmetrics">' + kpis.map(function (k) { return '<div class="trn-stat trn-stat--violet" title="' + _sqEsc(k.tip) + '"><span class="trn-stat-l">' + k.k + '</span><span class="trn-stat-v">' + (k.empty ? '—' : k.v + (k.unit ? '<i>' + k.unit + '</i>' : '')) + '</span></div>'; }).join('') + '</div>';
+  // Player comparison radar
+  var pa = an.pidA || (d.rows[0] && d.rows[0].p.id), pb = an.pidB || (d.rows[1] && d.rows[1].p.id);
+  var rA = d.rows.filter(function (r) { return r.p.id === pa; })[0], rB = d.rows.filter(function (r) { return r.p.id === pb; })[0];
+  var axes = [{ label: 'Fitness' }, { label: 'Readiness' }, { label: 'Attend' }, { label: 'Rating' }, { label: 'Recovery' }, { label: 'Technical' }, { label: 'Physical' }, { label: 'Mental' }];
+  var toV = function (r) { return r ? [r.fitness, r.readiness, r.attendance || 0, (r.rating != null ? r.rating * 10 : 0), r.recovery, r.technical, r.physical, r.mental] : []; };
+  var cmpRadar = (rA && rB) ? _trnRadar(axes, [{ name: _trnLast(rA.p.name), color: '96,165,250', values: toV(rA) }, { name: _trnLast(rB.p.name), color: '244,183,64', values: toV(rB) }]) : _trEmpty('&#128101;', 'Select two players', 'Pick two players to compare their profiles.', false);
+  var cmpLegend = (rA && rB) ? '<div class="trn-anleg"><span class="trn-anleg-i"><i style="background:#60a5fa"></i>' + _sqEsc(_trnLast(rA.p.name)) + '</span><span class="trn-anleg-i"><i style="background:#f4b740"></i>' + _sqEsc(_trnLast(rB.p.name)) + '</span></div>' : '';
+  var cmpSel = '<div class="trn-anfilters">' + sel('pidA', plO(pa)) + '<span class="trn-anvs">vs</span>' + sel('pidB', plO(pb)) + '</div>';
+  var comparePanel = _trnPanel('Player comparison', 'Radar profile · real metrics', cmpSel + cmpRadar + cmpLegend + '<p class="trn-note">Rating is scaled ×10; Technical/Physical/Mental are derived from overall rating &amp; position. Fitness = real condition; attendance &amp; rating from real records.</p>');
+  // Team balance by department radar (avg per dept on the same axes)
+  var pos = _trnAnPositions(d);
+  var deptSeries = pos.slice(0, 4).map(function (p, i) { var cols = ['96,165,250', '52,211,153', '244,183,64', '167,139,250']; return { name: p.name, color: cols[i], values: [p.fitness || 0, p.readiness || 0, p.attendance || 0, (p.rating != null ? p.rating * 10 : 0), 0, 0, 0, 0] }; });
+  // department radar only needs the first 4 real axes
+  var deptAxes = [{ label: 'Fitness' }, { label: 'Readiness' }, { label: 'Attend' }, { label: 'Rating' }];
+  var deptSeries4 = pos.slice(0, 4).map(function (p, i) { var cols = ['96,165,250', '52,211,153', '244,183,64', '167,139,250']; return { name: p.name, color: cols[i], values: [p.fitness || 0, p.readiness || 0, p.attendance || 0, (p.rating != null ? p.rating * 10 : 0)] }; });
+  var deptRadar = pos.length ? _trnRadar(deptAxes, deptSeries4) : _trEmpty('&#9917;', 'No squad data', 'Department balance appears once players are loaded.', false);
+  var posTable = pos.length ? '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Department</th><th>Players</th><th>Fitness</th><th>Readiness</th><th>Attend</th><th>Load</th><th>Rating</th><th>Avail</th></tr></thead><tbody>' + pos.map(function (p) { return '<tr><td><b>' + p.name + '</b></td><td>' + p.n + '</td><td>' + (p.fitness == null ? '—' : p.fitness + '%') + '</td><td>' + (p.readiness == null ? '—' : p.readiness + '%') + '</td><td>' + (p.attendance == null ? '—' : p.attendance + '%') + '</td><td>' + (p.load == null ? '—' : p.load) + '</td><td>' + (p.rating == null ? '—' : p.rating) + '</td><td>' + p.avail + '%</td></tr>'; }).join('') + '</tbody></table></div>' : '';
+  var deptPanel = _trnPanel('Team &amp; position analytics', 'By department · ' + rangeLbl, '<div class="trn-grid2"><div>' + deptRadar + (pos.length ? '<div class="trn-anleg">' + deptSeries4.map(function (s) { return '<span class="trn-anleg-i"><i style="background:rgb(' + s.color + ')"></i>' + _sqEsc(s.name) + '</span>'; }).join('') + '</div>' : '') + '</div><div>' + posTable + '</div></div>');
+  // Time comparisons
+  var cmp = _trnAnCompare();
+  var cmpRows = cmp.map(function (c) { var has = c.cur != null && c.prev != null; var diff = has ? +(c.cur - c.prev).toFixed(2) : null; var pctv = (has && c.prev) ? Math.round((c.cur - c.prev) / Math.abs(c.prev) * 100) : null; var tone = diff == null ? 'muted' : diff >= 0 ? 'adv' : 'risk'; return '<tr><td>' + c.period + '</td><td>' + c.metric + '</td><td>' + (c.prev == null ? '—' : c.prev + c.unit) + '</td><td>' + (c.cur == null ? '—' : c.cur + c.unit) + '</td><td class="trn-an-' + tone + '">' + (diff == null ? '—' : (diff >= 0 ? '+' : '') + diff + c.unit) + '</td><td class="trn-an-' + tone + '">' + (pctv == null ? '—' : (pctv >= 0 ? '+' : '') + pctv + '%') + '</td></tr>'; }).join('');
+  var cmpTable = '<div class="trn-att-wrap"><table class="trn-att-table"><thead><tr><th>Period</th><th>Metric</th><th>Previous</th><th>Current</th><th>Change</th><th>%</th></tr></thead><tbody>' + cmpRows + '</tbody></table></div>';
+  var insights = _trnAnInsights(d, cmp);
+  var insightHtml = '<div class="trn-notifs">' + insights.map(function (x) { return '<div class="trn-notif trn-notif--bal" style="cursor:default"><span class="trn-notif-ic">&#128161;</span><div class="trn-notif-b"><p>' + _sqEsc(x) + '</p></div></div>'; }).join('') + '</div>';
+  var insightPanel = _trnPanel('What the coach should know', 'Deterministic — from real records, not ML', insightHtml + '<div style="margin-top:14px">' + cmpTable + '</div>');
+  // Advanced (scatter + bubble), collapsible
+  var withData = d.rows.filter(function (r) { return r.load > 0 || r.rating != null || r.attendance != null; });
+  var maxLoad = Math.max.apply(null, d.rows.map(function (r) { return r.load; }).concat([1]));
+  var sp = function (fx, fy, xl, yl, need) { var pts = d.rows.filter(function (r) { return fx(r) != null && fy(r) != null; }).map(function (r) { return { x: fx(r), y: fy(r), label: _trnLast(r.p.name) + ' · ' + xl + ' ' + fx(r) + ', ' + yl + ' ' + fy(r), id: r.p.id, color: _trnAnColor(r) }; }); return _trnScatter(pts, { xlabel: xl, ylabel: yl, need: need }); };
+  var scLoadPerf = sp(function (r) { return r.load > 0 ? r.load : null; }, function (r) { return r.rating != null ? +(r.rating * 10).toFixed(0) : null; }, 'Load (min)', 'Performance', 'Needs training load + ratings.');
+  var scFitReady = sp(function (r) { return r.fitness; }, function (r) { return r.readiness; }, 'Fitness', 'Readiness', 'Needs squad condition.');
+  var scAttRat = sp(function (r) { return r.attendance; }, function (r) { return r.rating != null ? +(r.rating * 10).toFixed(0) : null; }, 'Attendance %', 'Rating', 'Needs attendance + ratings.');
+  var scRecRisk = sp(function (r) { return r.recovery; }, function (r) { return r.riskScore; }, 'Recovery', 'Injury risk', 'Needs condition data.');
+  var bubblePts = d.rows.filter(function (r) { return r.load > 0 && r.rating != null; }).map(function (r) { return { x: r.load, y: +(r.rating * 10).toFixed(0), r: _trnClamp(4 + r.load / maxLoad * 12, 4, 18), label: _trnLast(r.p.name) + ' · load ' + r.load + 'min, rating ' + r.rating.toFixed(1) + ', readiness ' + r.readiness + '%', id: r.p.id, color: _trnAnColor(r) }; });
+  var bubble = bubblePts.length ? _trnScatter(bubblePts, { xlabel: 'Training load (min)', ylabel: 'Performance', need: '' }) : _trEmpty('&#128200;', 'No load + rating data yet', 'The bubble chart needs sessions with attendance and ratings.', false);
+  var advanced = '<details class="trn-adv"><summary>Advanced charts · scatter &amp; bubble (click a point to open the player)</summary>'
+    + '<div class="trn-grid2">' + _trnPanel('Load vs Performance', 'Each point = a player', scLoadPerf) + _trnPanel('Fitness vs Readiness', 'Each point = a player', scFitReady) + '</div>'
+    + '<div class="trn-grid2">' + _trnPanel('Attendance vs Rating', 'Each point = a player', scAttRat) + _trnPanel('Recovery vs Injury risk', 'Each point = a player', scRecRisk) + '</div>'
+    + _trnPanel('Load · Performance · Minutes (bubble)', 'X load · Y performance · size minutes · colour readiness', bubble + '<p class="trn-note">Bubble size = training minutes; colour = readiness (green→red). Click a bubble to open that player.</p>')
+    + '</details>';
+  return '<div class="trn-an">' + filters
+    + _trnPanel('Executive KPIs', rangeLbl + ' · hover a card for how it’s calculated', kpiHtml)
+    + comparePanel + deptPanel + insightPanel + advanced + '</div>';
+}
 function _trnDashboard() {
   var t = _trnTeam();                                // squad-derived fitness/injury (real squad data)
   var recs = _trnAIRecs(), topRec = recs[0];
@@ -9424,6 +9572,7 @@ function _trnBody() {
     case 'individual': return _trnIndividual();
     case 'ai': return _trnAI();
     case 'reports': return _trnReports();
+    case 'analytics': return _trnAnalytics();
     default: return _trnDashboard();
   }
 }
@@ -9545,6 +9694,7 @@ function _trnAction(act, el) {
     case 'applytpl': { var ai = parseInt(el.getAttribute('data-trn-i'), 10), at = _trTplLoad()[ai]; if (at) { _TRN.tpl = at; _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnRender(); } break; }
     case 'deltpl': { var di = parseInt(el.getAttribute('data-trn-i'), 10), dl = _trTplLoad(); if (di >= 0 && di < dl.length) { dl.splice(di, 1); _trTplSave(dl); _trnRenderBody(); } break; }
     case 'cmptoggle': { _TRN.cmp = _TRN.cmp || []; var ci = _TRN.cmp.indexOf(id); if (ci >= 0) _TRN.cmp.splice(ci, 1); else { if (_TRN.cmp.length >= 2) _TRN.cmp.shift(); _TRN.cmp.push(id); } _trnRenderBody(); break; }
+    case 'anview': _TRN.an = _TRN.an || {}; _TRN.an.view = v; _trnRenderBody(); break;
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
     case 'repcustom': { var rf = document.getElementById('trn-rep-from'), rt = document.getElementById('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
     case 'exportcsv': _trnExportCsv(); break;
@@ -9570,6 +9720,11 @@ function _trnBind() {
   // Enter to send in the AI assistant.
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target && e.target.id === 'trn-chat-in') { e.preventDefault(); _trnChatAsk(e.target.value); }
+  });
+  // Analytics shared filters — <select> change updates _TRN.an and re-renders charts.
+  document.addEventListener('change', function (e) {
+    var el = e.target; if (!el || !el.getAttribute) return; var k = el.getAttribute('data-trn-anset'); if (!k) return;
+    _TRN.an = _TRN.an || {}; _TRN.an[k] = el.value; _trnRenderBody();
   });
 }
 function renderTrainingWorkspaceHTML() {

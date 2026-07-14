@@ -7449,3 +7449,26 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .trn-report{ border-radius:16px; }
 /* header action buttons a touch larger for reach */
 .trn-bell{ width:36px; height:36px; border-radius:11px; font-size:16px; }
+
+/* ── Phase 2 · Professional Analytics ── */
+.trn-anfilters{ display:inline-flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.trn-ansel{ min-width:120px; padding:6px 10px; font-size:12px; }
+.trn-anvs{ font-size:11px; font-weight:800; color:#8a94a6; }
+.trn-radar{ width:100%; max-width:280px; height:auto; display:block; margin:0 auto; }
+.trn-radar-poly{ transition:opacity .2s; }
+.trn-scatter{ width:100%; height:auto; display:block; }
+.trn-sc-dot{ stroke-width:1.5; cursor:pointer; transition:r .12s,opacity .12s; }
+.trn-sc-dot[data-trn-act]:hover{ r:6.5; }
+.trn-anleg{ display:flex; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:8px; }
+.trn-anleg-i{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#cdd5e1; }
+.trn-anleg-i i{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+.trn-an-adv{ color:#86efac; font-weight:800; } .trn-an-risk{ color:#fda4af; font-weight:800; } .trn-an-muted{ color:#7f8a9c; }
+.trn-adv{ margin-bottom:20px; border:1px solid rgba(255,255,255,.07); border-radius:16px; background:rgba(255,255,255,.015); overflow:hidden; }
+.trn-adv > summary{ cursor:pointer; list-style:none; padding:15px 20px; font-size:13px; font-weight:800; color:#cbd5e1; display:flex; align-items:center; gap:8px; user-select:none; }
+.trn-adv > summary::-webkit-details-marker{ display:none; }
+.trn-adv > summary::before{ content:'▸'; color:#8b5cf6; font-size:12px; transition:transform .18s; }
+.trn-adv[open] > summary::before{ transform:rotate(90deg); }
+.trn-adv > summary:hover{ color:#fff; }
+.trn-adv[open] > summary{ border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:4px; }
+.trn-adv > .trn-grid2, .trn-adv > .trn-panel{ margin:14px; }
+@media (max-width:760px){ .trn-anfilters{ width:100%; } .trn-ansel{ flex:1 1 auto; } }
