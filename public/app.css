@@ -7538,3 +7538,13 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .trn-tl2s{ flex:0 0 auto; font-size:9.5px; font-weight:800; padding:2px 9px; border-radius:12px; }
 .trn-tl2s--done{ background:rgba(74,222,128,.16); color:#86efac; } .trn-tl2s--pend{ background:rgba(148,163,184,.14); color:#cbd5e1; }
 @media (max-width:600px){ .trn-checks{ grid-template-columns:1fr; } }
+
+/* ── Phase 5 · Medical Intelligence ── */
+.trn-rtp{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.trn-rtp-stage{ display:flex; align-items:center; gap:7px; padding:8px 12px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); }
+.trn-rtp-stage span{ display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:rgba(148,163,184,.2); color:#cbd5e1; font-size:10px; font-weight:900; }
+.trn-rtp-stage b{ font-size:11.5px; font-weight:700; color:#c3ccd9; }
+.trn-rtp-stage.is-on{ background:linear-gradient(150deg,rgba(45,212,191,.2),rgba(45,212,191,.08)); border-color:rgba(45,212,191,.4); }
+.trn-rtp-stage.is-on span{ background:#2dd4bf; color:#04211d; } .trn-rtp-stage.is-on b{ color:#eafffb; }
+.trn-rtpnames{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; }
+.trn-stat--teal{ --sc:#2dd4bf; }

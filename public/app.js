@@ -8108,7 +8108,7 @@ function _deBind() {
 // ════════════════════════════════════════════════════════════════════════════
 var _TRN = { tab: 'dashboard', player: null };
 var _trnBound = false;
-var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive'], ['match', 'Match Prep']];
+var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive'], ['match', 'Match Prep'], ['med', 'Medical']];
 var TRN_TYPE = {
   match:     { c: '244,63,94',   l: 'Match' },
   tactical:  { c: '167,139,250', l: 'Tactical' },
@@ -9299,6 +9299,122 @@ function _trnMatch() {
     + _trnPanel('AI match brief &amp; pre-match checklist', 'Deterministic — from real records', '<div class="trn-grid2"><div>' + briefHtml + '</div><div>' + checkHtml + '</div></div>')
     + advanced + '</div>';
 }
+// ── Phase 5 · Medical Intelligence Dashboard (real records; deterministic) ──
+function _trnMedData() {
+  var t = _trnTeam(), profiles = _trnProfiles(), ld = (typeof _trnLoadData === 'function') ? _trnLoadData() : { fatS: [], recS: [], reaS: [] }, rec = _trRecorded();
+  var rows = profiles.map(function (x) {
+    var riskScore = _trnClamp((100 - x.readiness) + (x.avail === 'injured' ? 40 : 0) + (x.fatigue > 60 ? 15 : 0), 0, 140);
+    var lvl = riskScore >= 70 ? 'High' : riskScore >= 45 ? 'Moderate' : 'Low';
+    return { p: x.p, prof: x, fitness: x.fitness, readiness: x.readiness, fatigue: x.fatigue, recovery: _trnClamp(100 - x.fatigue, 0, 100), avail: x.avail, riskScore: riskScore, lvl: lvl, load: _trnPlayerLoad(x.p.id, rec) };
+  });
+  var buckets = { Healthy: [], Limited: [], Recovery: [], Injured: [], RTP: [] };
+  rows.forEach(function (r) { if (r.avail === 'injured') { buckets.Injured.push(r); buckets.RTP.push(r); } else if (r.avail === 'suspended') { } else if (r.readiness < 50) buckets.Recovery.push(r); else if (r.readiness < 70 || r.fitness < 70) buckets.Limited.push(r); else buckets.Healthy.push(r); });
+  var total = rows.length, inj = buckets.Injured.length;
+  var avail = total ? Math.round((total - inj) / total * 100) : 100;
+  var recA = rows.map(function (r) { return r.recovery; }), avgRec = recA.length ? Math.round(recA.reduce(function (a, b) { return a + b; }, 0) / recA.length) : null;
+  var fatA = rows.map(function (r) { return r.fatigue; }), avgFat = fatA.length ? Math.round(fatA.reduce(function (a, b) { return a + b; }, 0) / fatA.length) : null;
+  var restricted = buckets.Limited.length + buckets.Recovery.length + inj;
+  var riskAvg = rows.length ? Math.round(rows.reduce(function (a, b) { return a + b.riskScore; }, 0) / rows.length) : null;
+  var clearance = total ? Math.round(buckets.Healthy.length / total * 100) : null;
+  return { t: t, rows: rows, buckets: buckets, ld: ld, avail: avail, avgRec: avgRec, avgFat: avgFat, restricted: restricted, riskAvg: riskAvg, clearance: clearance, injured: inj, hasSessions: _trCompleted().length > 0 };
+}
+function _trnMedRecs(md) {
+  var t = md.t, out = [];
+  var low = md.rows.filter(function (r) { return r.avail !== 'injured'; }).sort(function (a, b) { return a.readiness - b.readiness; })[0];
+  if (low && low.readiness < 45) out.push('Rest today: ' + _trnLast(low.p.name) + ' (readiness ' + low.readiness + '%).');
+  else if (low && low.readiness < 55) out.push('Individual training only for ' + _trnLast(low.p.name) + ' (readiness ' + low.readiness + '%).');
+  if (t.acwr > 1.3) out.push('Reduce workload — ACWR ' + t.acwr.toFixed(2) + ' (>1.3).');
+  if (t.fatigue >= 55) out.push('Recovery session recommended — team fatigue ' + t.fatigue + '%.');
+  md.rows.filter(function (r) { return r.avail !== 'injured' && r.recovery < 55; }).slice(0, 2).forEach(function (r) { out.push('Monitor ' + _trnLast(r.p.name) + ' — recovery ' + r.recovery + '%.'); });
+  if (md.injured > 0) out.push(md.injured + ' injured player(s) — individual rehab, reassess before team training.');
+  if (t.readiness >= 80 && t.fatigue < 45) out.push('Squad ready for full training — recovery balanced.');
+  if (!out.length) out.push('No medical actions required — squad recovery and readiness are healthy.');
+  return out;
+}
+function _trnMedAssistant(md) {
+  var parts = [];
+  var hi = md.rows.slice().sort(function (a, b) { return b.riskScore - a.riskScore; })[0];
+  if (hi && hi.lvl !== 'Low') parts.push('Highest medical priority: ' + _trnLast(hi.p.name) + ' (' + hi.lvl + ' risk).');
+  var recPri = md.rows.filter(function (r) { return r.avail !== 'injured' && r.recovery < 60; }).map(function (r) { return _trnLast(r.p.name); });
+  if (recPri.length) parts.push('Recovery priorities: ' + recPri.slice(0, 3).join(', ') + '.');
+  parts.push(md.injured > 0 ? 'Return-to-play: ' + md.injured + ' player(s).' : 'No players in return-to-play.');
+  var restr = md.buckets.Limited.length; if (restr) parts.push(restr + ' player(s) on limited training.');
+  parts.push('Squad medical status: ' + md.avail + '% available, avg recovery ' + (md.avgRec == null ? '—' : md.avgRec + '%') + '.');
+  return parts.join(' ');
+}
+function _trnMedPrint() {
+  if (typeof window === 'undefined') return;
+  var md = _trnMedData(), nm = function (v) { return v == null ? '—' : v; };
+  var K = [['Medical Availability', md.avail + '%'], ['Average Recovery', nm(md.avgRec != null ? md.avgRec + '%' : null)], ['Average Fatigue', nm(md.avgFat != null ? md.avgFat + '%' : null)], ['Players Restricted', md.restricted], ['Return-to-play', md.injured], ['Injury Risk Avg', nm(md.riskAvg != null ? Math.round(md.riskAvg / 1.4) : null)], ['Medical Clearance', nm(md.clearance != null ? md.clearance + '%' : null)]];
+  var h = '<html><head><title>Medical Report</title><style>body{font-family:Arial,Helvetica,sans-serif;padding:26px;color:#111}h1{font-size:22px;margin:0 0 4px}p.sub{color:#666;margin:0 0 16px}.m{display:inline-block;margin:6px 22px 10px 0}.m span{display:block;color:#666;font-size:11px}.m b{font-size:19px}table{border-collapse:collapse;width:100%;margin-top:12px}td,th{border:1px solid #d1d5db;padding:6px 9px;font-size:12px;text-align:left}th{background:#f3f4f6}</style></head><body>';
+  h += '<h1>Medical Report</h1><p class="sub">Generated ' + new Date().toLocaleString() + '</p>';
+  h += '<div>' + K.map(function (k) { return '<span class="m"><span>' + k[0] + '</span><b>' + k[1] + '</b></span>'; }).join('') + '</div>';
+  h += '<h3>Medical recommendations</h3><ul>' + _trnMedRecs(md).map(function (x) { return '<li>' + _sqEsc(x) + '</li>'; }).join('') + '</ul>';
+  h += '<h3>Squad medical status</h3><table><thead><tr><th>Player</th><th>Availability</th><th>Recovery</th><th>Readiness</th><th>Risk</th></tr></thead><tbody>' + md.rows.map(function (r) { return '<tr><td>' + _sqEsc(_trnLast(r.p.name)) + '</td><td>' + (r.avail === 'injured' ? 'Injured' : r.readiness < 50 ? 'Recovery' : r.readiness < 70 ? 'Limited' : 'Healthy') + '</td><td>' + r.recovery + '%</td><td>' + r.readiness + '%</td><td>' + r.lvl + '</td></tr>'; }).join('') + '</tbody></table>';
+  h += '</body></html>';
+  try { var w = window.open('', '_blank'); if (!w) { _trnToast('Allow pop-ups to export'); return; } w.document.write(h); w.document.close(); w.focus(); setTimeout(function () { try { w.print(); } catch (e) {} }, 350); } catch (e) { _trnToast('Export failed'); }
+}
+function _trnMed() {
+  var md = _trnMedData(), t = md.t;
+  var expo = '<div class="trn-rexports"><button class="trn-rbtn" data-trn-act="medpdf" type="button">&#8681; PDF</button><button class="trn-rbtn" data-trn-act="medpdf" type="button">&#128438; Print</button><button class="trn-rbtn" data-trn-act="exportcsv" type="button">&#8681; Excel</button></div>';
+  var controls = '<div class="trn-rctrl"><div class="trn-rtabs"><span class="trn-rtab is-on">Squad medical</span></div>' + expo + '</div>';
+  // 13) Medical KPIs
+  var kpis = [
+    ['Medical Availability', md.avail, '%', 'Share of squad not injured.', false],
+    ['Average Recovery', md.avgRec, '%', 'Mean of (100 − fatigue) across the squad, from real condition & load.', md.avgRec == null],
+    ['Average Fatigue', md.avgFat, '%', 'Mean fatigue derived from real Player.condition (100 − condition, injury-adjusted).', md.avgFat == null],
+    ['Players Restricted', md.restricted, '', 'Injured + limited + recovery players.', false],
+    ['Return-to-play', md.injured, '', 'Players currently injured / in RTP.', false],
+    ['Injury Risk Average', md.riskAvg != null ? Math.round(md.riskAvg / 1.4) : null, '', 'Mean per-player risk index (readiness + injury + fatigue), normalised to 100.', md.riskAvg == null],
+    ['Medical Clearance', md.clearance, '%', 'Share of squad fully healthy (readiness ≥70% & fitness ≥70%).', md.clearance == null]
+  ];
+  var kpiHtml = '<div class="trn-rmetrics">' + kpis.map(function (k) { return '<div class="trn-stat trn-stat--teal" title="' + _sqEsc(k[3]) + '"><span class="trn-stat-l">' + k[0] + '</span><span class="trn-stat-v">' + (k[4] ? '—' : k[1] + (k[2] ? '<i>' + k[2] + '</i>' : '')) + '</span></div>'; }).join('') + '</div>';
+  // 2) Squad medical overview (buckets)
+  var order = ['Healthy', 'Limited', 'Recovery', 'Injured', 'RTP'];
+  var availHtml = '<div class="trn-avwrap">' + order.map(function (k) { var g = md.buckets[k]; return '<div class="trn-avcol"><h4 class="trn-subh">' + k + ' (' + g.length + ')</h4>' + (g.length ? '<div class="trn-avcards">' + g.map(function (r) { var cls = k === 'Healthy' ? 'available' : k === 'Limited' ? 'limited' : k === 'Recovery' ? 'recovery' : 'injured'; return '<button class="trn-avcard trn-avcard--' + cls + '" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>rec ' + r.recovery + '% · ' + r.lvl + '</i></span></button>'; }).join('') + '</div>' : '<p class="trn-note" style="margin:0">None</p>') + '</div>'; }).join('') + '</div>';
+  // 5+10) Recovery & fatigue
+  var rings = '<div class="trn-readrow">' + _trnRing(md.avgRec == null ? 0 : md.avgRec, 'Recovery', '%', _trnTone(md.avgRec || 0)) + _trnRing(md.avgFat == null ? 0 : md.avgFat, 'Fatigue', '%', md.avgFat >= 55 ? 'risk' : 'slt') + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + _trnRing(md.avail, 'Availability', '%', _trnTone(md.avail)) + '</div>';
+  var acwrTone = (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'adv' : (t.acwr > 1.5 || t.acwr < 0.6) ? 'risk' : 'slt';
+  var loadGauges = '<div class="trn-gauges">' + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.acute / 40, 0, 100), 'Acute fatigue', '', 'bal') + '<em>' + t.acute + ' AU</em></div>' + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.chronic / 40, 0, 100), 'Chronic fatigue', '', 'bal') + '<em>' + t.chronic + ' AU</em></div>' + '<div class="trn-gauge">' + _trnRing(_trnClamp(t.acwr / 2 * 100, 0, 100), 'Recovery balance', '', acwrTone) + '<em>ACWR ' + t.acwr.toFixed(2) + '</em></div>' + '</div>';
+  var lv = function (a) { return a && a.length ? a[a.length - 1].v : 0; };
+  var recTrend = md.ld.recS && md.ld.recS.length ? _trnChtCard('Recovery Trend', 'Per session', lv(md.ld.recS) + '%', _trnChtLine(md.ld.recS, '45,212,191', '%')) : '';
+  var fatTrend = md.ld.fatS && md.ld.fatS.length ? _trnChtCard('Fatigue Trend', 'Per session', lv(md.ld.fatS) + '%', _trnChtLine(md.ld.fatS, '251,113,133', '%')) : '';
+  var recFatBody = (recTrend || fatTrend) ? '<div class="trn-chtgrid">' + recTrend + fatTrend + '</div>' : _trEmpty('&#128202;', 'No recovery/fatigue history yet', 'Recovery and fatigue trends build from completed sessions.', false);
+  // 6) Medical risk analysis
+  var risks = md.rows.filter(function (r) { return r.lvl !== 'Low' || r.avail === 'injured' || r.recovery < 55; }).sort(function (a, b) { return b.riskScore - a.riskScore; }).slice(0, 8);
+  var riskHtml = risks.length
+    ? '<div class="trn-notifs">' + risks.map(function (r) { var reasons = []; if (r.avail === 'injured') reasons.push('injured'); if (r.readiness < 50) reasons.push('low readiness ' + r.readiness + '%'); if (r.fatigue >= 60) reasons.push('fatigue ' + r.fatigue + '%'); if (r.recovery < 55) reasons.push('recovery ' + r.recovery + '%'); if (t.acwr > 1.3) reasons.push('team ACWR ' + t.acwr.toFixed(2)); var sev = r.avail === 'injured' ? 'critical' : r.lvl === 'High' ? 'high' : 'medium'; return '<button class="trn-notif trn-alert-' + sev + '" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button"><span class="trn-sevtag trn-sevtag--' + sev + '">' + (sev === 'critical' ? 'Critical' : sev === 'high' ? 'High' : 'Medium') + '</span><div class="trn-notif-b"><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><p>' + (reasons.length ? reasons.join(' · ') : 'monitor') + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>'
+    : '<p class="trn-note">No medical risks flagged — squad is in good shape.</p>';
+  var recs = _trnMedRecs(md);
+  var recHtml = '<div class="trn-decs">' + recs.map(function (x) { return '<div class="trn-dec"><span class="trn-dec-ic">&#127973;</span><div><b>' + _sqEsc(x) + '</b></div></div>'; }).join('') + '</div>';
+  // 9) Medical alerts
+  var alerts = [];
+  if (md.injured > 0) alerts.push({ sev: 'critical', t: 'Unavailable', txt: md.injured + ' player(s) injured' });
+  md.rows.filter(function (r) { return r.avail !== 'injured' && r.readiness < 45; }).slice(0, 3).forEach(function (r) { alerts.push({ sev: 'high', t: 'High injury risk', txt: _trnLast(r.p.name) + ' readiness ' + r.readiness + '%', id: r.p.id }); });
+  md.rows.filter(function (r) { return r.avail !== 'injured' && r.recovery < 55 && r.readiness >= 45; }).slice(0, 2).forEach(function (r) { alerts.push({ sev: 'medium', t: 'Low recovery', txt: _trnLast(r.p.name) + ' recovery ' + r.recovery + '%', id: r.p.id }); });
+  if (md.buckets.Healthy.length === md.rows.length && md.rows.length) alerts.push({ sev: 'low', t: 'Ready to return', txt: 'Full squad medically cleared' });
+  if (!alerts.length) alerts.push({ sev: 'low', t: 'All clear', txt: 'No medical alerts' });
+  var alertHtml = '<div class="trn-notifs">' + alerts.map(function (a) { var attr = a.id ? ' data-trn-act="gotoplayer" data-trn-id="' + a.id + '"' : ' data-trn-act="gototab" data-trn-v="load"'; return '<button class="trn-notif trn-alert-' + a.sev + '"' + attr + ' type="button"><span class="trn-sevtag trn-sevtag--' + a.sev + '">' + a.sev.charAt(0).toUpperCase() + a.sev.slice(1) + '</span><div class="trn-notif-b"><b>' + a.t + '</b><p>' + _sqEsc(a.txt) + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>';
+  var assistantHtml = '<div class="trn-aisum"><span class="trn-aisum-ic">&#129658;</span><p>' + _sqEsc(_trnMedAssistant(md)) + '</p></div>';
+  // Advanced: RTP + injury timeline + medical timeline (honest empties where no data)
+  var rtpStages = ['Phase 1', 'Phase 2', 'Phase 3', 'Individual training', 'Partial team training', 'Full team training', 'Match available'];
+  var rtpHtml = md.injured > 0
+    ? '<div class="trn-rtp">' + rtpStages.map(function (s, i) { return '<div class="trn-rtp-stage' + (i === 0 ? ' is-on' : '') + '"><span>' + (i + 1) + '</span><b>' + s + '</b></div>'; }).join('') + '</div><div class="trn-rtpnames">' + md.buckets.Injured.map(function (r) { return '<button class="trn-avcard trn-avcard--injured" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>Phase 1 · assessment</i></span></button>'; }).join('') + '</div><p class="trn-note">Injured players enter at assessment. Stage-by-stage RTP progression requires stored physio/medical records (not yet integrated) — shown here as the standard workflow, not fabricated progress.</p>'
+    : _trEmpty('&#127973;', 'No players in return-to-play', 'RTP stages appear when a player is flagged injured. Detailed rehab tracking needs physio records.', false);
+  var injTimeline = _trEmpty('&#128203;', 'No injury history available', 'Injury dates, recovery progress and expected-return timelines appear once injury/physio records are stored. No data is fabricated.', false);
+  var medStages = ['Assessment', 'Recovery', 'Rehabilitation', 'Training', 'Return', 'Completed'];
+  var medTlHtml = '<div class="trn-rtp">' + medStages.map(function (s) { return '<div class="trn-rtp-stage"><span>&#8226;</span><b>' + s + '</b></div>'; }).join('') + '</div><p class="trn-note">Standard medical pathway. Per-player stage tracking requires stored medical records.</p>';
+  var advanced = '<details class="trn-adv"><summary>Return-to-play · injury timeline · medical timeline</summary>'
+    + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Return-to-play (RTP)</h3><span class="trn-panel-tag">Workflow</span></div>' + rtpHtml + '</div>'
+    + '<div class="trn-grid2" style="margin:14px"><div class="trn-panel"><div class="trn-panel-h"><h3>Injury timeline</h3></div>' + injTimeline + '</div><div class="trn-panel"><div class="trn-panel-h"><h3>Medical timeline</h3></div>' + medTlHtml + '</div></div>'
+    + '</details>';
+  return '<div class="trn-an">' + controls
+    + _trnPanel('Medical KPIs &amp; squad health', 'Hover for calculations', kpiHtml + '<div style="margin-top:14px">' + availHtml + '</div>')
+    + _trnPanel('Recovery &amp; fatigue monitoring', 'From real condition &amp; load', rings + '<div style="margin-top:14px">' + loadGauges + '</div><div style="margin-top:14px">' + recFatBody + '</div>')
+    + _trnPanel('Medical risk &amp; recommendations', 'Players to watch · deterministic', '<div class="trn-grid2"><div><h4 class="trn-subh">Risk analysis</h4>' + riskHtml + '</div><div><h4 class="trn-subh">Recommendations</h4>' + recHtml + '</div></div>')
+    + _trnPanel('AI medical assistant &amp; alerts', 'Deterministic — from real records, not ML', assistantHtml + '<div style="margin-top:14px">' + alertHtml + '</div>')
+    + advanced + '</div>';
+}
 function _trnDashboard() {
   var t = _trnTeam();                                // squad-derived fitness/injury (real squad data)
   var recs = _trnAIRecs(), topRec = recs[0];
@@ -9892,6 +10008,7 @@ function _trnBody() {
     case 'analytics': return _trnAnalytics();
     case 'exec': return _trnExec();
     case 'match': return _trnMatch();
+    case 'med': return _trnMed();
     default: return _trnDashboard();
   }
 }
@@ -10016,6 +10133,7 @@ function _trnAction(act, el) {
     case 'anview': _TRN.an = _TRN.an || {}; _TRN.an.view = v; _trnRenderBody(); break;
     case 'exview': _TRN.exView = v; _trnRenderBody(); break;
     case 'execpdf': _trnExecPrint(); break;
+    case 'medpdf': _trnMedPrint(); break;
     case 'mnotesave': { var mt = document.getElementById('trn-mnote'); var txt = mt ? mt.value.trim() : ''; if (txt) { var ml = _trMnLoad(); ml.push({ text: txt, ts: Date.now() }); _trMnSave(ml); _trnToast('Match note saved'); } _trnRenderBody(); break; }
     case 'mnotedel': { var mi = parseInt(el.getAttribute('data-trn-i'), 10), ml2 = _trMnLoad(); if (mi >= 0 && mi < ml2.length) { ml2.splice(mi, 1); _trMnSave(ml2); } _trnRenderBody(); break; }
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
