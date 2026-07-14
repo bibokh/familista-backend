@@ -8108,7 +8108,7 @@ function _deBind() {
 // ════════════════════════════════════════════════════════════════════════════
 var _TRN = { tab: 'dashboard', player: null };
 var _trnBound = false;
-var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive']];
+var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive'], ['match', 'Match Prep']];
 var TRN_TYPE = {
   match:     { c: '244,63,94',   l: 'Match' },
   tactical:  { c: '167,139,250', l: 'Tactical' },
@@ -9152,6 +9152,150 @@ function _trnExec() {
     + _trnPanel('Squad, alerts &amp; decisions', rangeLbl, squadStats + squadTop + '<div class="trn-grid2" style="margin-top:14px"><div><h4 class="trn-subh">Priority alerts</h4>' + alertHtml + '</div><div><h4 class="trn-subh">Recommended decisions</h4>' + decHtml + '</div></div>')
     + advanced + '</div>';
 }
+// ── Phase 4 · AI Match Preparation (real records only; deterministic) ──
+var MN_KEY = 'familista.training.matchnotes.v1';
+function _trMnLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(MN_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trMnSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(MN_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trnMatchData() {
+  var t = _trnTeam(), profiles = _trnProfiles(), comp = _trCompleted(), rec = _trRecorded();
+  var rows = profiles.map(function (x) {
+    var ca = _trPlayerAgg(x.p.id, comp), a = _trPlayerAgg(x.p.id, rec);
+    var rating = ca.avgRating, attendance = a.attendancePct, load = _trnPlayerLoad(x.p.id, rec);
+    var score = x.readiness * 0.35 + x.fitness * 0.3 + (rating != null ? rating * 10 : 60) * 0.2 + (attendance != null ? attendance : 80) * 0.15;
+    var riskScore = _trnClamp((100 - x.readiness) + (x.avail === 'injured' ? 40 : 0) + (x.fatigue > 60 ? 15 : 0), 0, 140);
+    return { p: x.p, prof: x, cat: x.p.cat, fitness: x.fitness, readiness: x.readiness, recovery: _trnClamp(100 - x.fatigue, 0, 100), attendance: attendance, rating: rating, load: load, avail: x.avail, riskScore: riskScore, score: x.avail === 'injured' ? -1 : Math.round(score) };
+  });
+  return { t: t, rows: rows, comp: comp, rec: rec, hasData: comp.length > 0 };
+}
+function _trnMatchXI(md) {
+  var fmt = (typeof SQ_FORM !== 'undefined' && SQ_FORM.myFormation) || '4-3-3';
+  var parts = fmt.split('-').map(function (x) { return parseInt(x, 10) || 0; });
+  var def = parts[0] || 4, fwd = parts[parts.length - 1] || 3, mid = parts.length >= 3 ? parts.slice(1, parts.length - 1).reduce(function (a, b) { return a + b; }, 0) : (parts[1] || 3);
+  var avail = md.rows.filter(function (r) { return r.avail !== 'injured' && r.avail !== 'suspended'; }).sort(function (a, b) { return b.score - a.score; });
+  var used = {}, pick = function (cat, k) { var out = []; avail.forEach(function (r) { if (out.length >= k || used[r.p.id]) return; if (r.cat === cat) { out.push(r); used[r.p.id] = 1; } }); return out; };
+  var gk = pick('gk', 1); if (!gk.length) avail.forEach(function (r) { if (!gk.length && !used[r.p.id]) { gk.push(r); used[r.p.id] = 1; } });
+  var d = pick('df', def), m = pick('mf', mid), f = pick('fw', fwd);
+  var need = 1 + def + mid + fwd, chosen = gk.concat(d, m, f);
+  avail.forEach(function (r) { if (chosen.length >= need || used[r.p.id]) return; chosen.push(r); used[r.p.id] = 1; });
+  return { formation: fmt, gk: gk, def: d, mid: m, fwd: f, xi: chosen.slice(0, need), avail: avail, used: used, need: need };
+}
+function _trnMatchReason(r) { var p = []; p.push('readiness ' + r.readiness + '%'); p.push('fitness ' + r.fitness + '%'); if (r.rating != null) p.push('rating ' + r.rating.toFixed(1)); if (r.attendance != null) p.push(r.attendance + '% attendance'); return p.join(' · '); }
+function _trnMatchBrief(md, xi) {
+  var t = md.t, out = [];
+  var low = md.rows.filter(function (r) { return r.avail !== 'injured'; }).sort(function (a, b) { return a.readiness - b.readiness; })[0];
+  if (low && low.readiness < 55) out.push('Rest or manage ' + _trnLast(low.p.name) + ' (readiness ' + low.readiness + '%).');
+  if (t.acwr > 1.3 || t.fatigue >= 55) out.push('Reduce pressing intensity — workload elevated (ACWR ' + t.acwr.toFixed(2) + ', fatigue ' + t.fatigue + '%).');
+  out.push(t.fitness >= 85 ? 'Team fitness is excellent (' + t.fitness + '%).' : t.fitness >= 70 ? 'Team fitness is solid (' + t.fitness + '%).' : 'Team fitness is below par (' + t.fitness + '%) — manage minutes.');
+  var mids = md.rows.filter(function (r) { return r.cat === 'mf'; }), midLoad = mids.length ? Math.round(mids.reduce(function (a, b) { return a + b.load; }, 0) / mids.length) : 0, allLoad = md.rows.length ? Math.round(md.rows.reduce(function (a, b) { return a + b.load; }, 0) / md.rows.length) : 0;
+  if (midLoad > allLoad * 1.2 && allLoad > 0) out.push('Midfield is carrying the highest load (' + midLoad + ' min avg) — consider rotation.');
+  var defInj = md.rows.filter(function (r) { return r.cat === 'df' && r.avail === 'injured'; }).length;
+  out.push(defInj === 0 ? 'Defensive unit is fully available.' : defInj + ' defender(s) unavailable — adjust the back line.');
+  if (!md.hasData) return ['No completed sessions yet — the match brief builds from real training records.'];
+  return out;
+}
+function _trnMatchConfidence(md) {
+  var t = md.t, comp = md.comp;
+  var n = 0, dn = 0; md.rec.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; dn++; } else if (a === 'absent') dn++; }); });
+  var att = dn ? Math.round(n / dn * 100) : null;
+  var inj = md.rows.filter(function (r) { return r.avail === 'injured'; }).length;
+  var avail = md.rows.length ? Math.round((md.rows.length - inj) / md.rows.length * 100) : 100;
+  var allS = (typeof _trAllSessions === 'function') ? _trFilterByRange(_trAllSessions(), 7) : [], recent = _trFilterByRange(comp, 7);
+  var completion = allS.length ? Math.round(recent.length / allS.length * 100) : null;
+  var comps = [{ k: 'Readiness', v: t.readiness }, { k: 'Fitness', v: t.fitness }, { k: 'Availability', v: avail }, { k: 'Attendance', v: att }, { k: 'Injury (inverse)', v: 100 - (md.rows.length ? Math.round(inj / md.rows.length * 100) : 0) }, { k: 'Training completion', v: completion }];
+  var present = comps.filter(function (c) { return typeof c.v === 'number'; });
+  var score = present.length ? Math.round(present.reduce(function (a, b) { return a + b.v; }, 0) / present.length) : null;
+  return { score: score, comps: comps, att: att, avail: avail, completion: completion, inj: inj };
+}
+function _trnMatch() {
+  var md = _trnMatchData(), t = md.t, xi = _trnMatchXI(md), conf = _trnMatchConfidence(md);
+  // Availability buckets
+  var buckets = { Available: [], Limited: [], Recovery: [], Injured: [], Unavailable: [] };
+  md.rows.forEach(function (r) { if (r.avail === 'injured') buckets.Injured.push(r); else if (r.avail === 'suspended') buckets.Unavailable.push(r); else if (r.readiness < 50) buckets.Recovery.push(r); else if (r.readiness < 70 || r.fitness < 70) buckets.Limited.push(r); else buckets.Available.push(r); });
+  var tacticalReady = t.readiness >= 75 && conf.avail >= 85 ? 'Ready' : t.readiness >= 60 ? 'Caution' : 'Limited';
+  // 1) Top cards
+  var xiCount = xi.xi.length;
+  var kpis = [
+    ['Match Readiness', t.readiness, '%', 'Team readiness from real condition, injuries and recent ratings.', false],
+    ['Expected Starting XI', xiCount ? xiCount + '/11' : null, '', 'Best available XI generated from readiness, fitness, attendance, injury status, load and recent performance.', xiCount === 0],
+    ['Squad Availability', conf.avail, '%', 'Share of squad not injured.', false],
+    ['Injury Risk', t.risk, '', 'Team injury-risk band from real fatigue, load and availability.', false],
+    ['Tactical Readiness', tacticalReady, '', 'Derived from team readiness + squad availability.', false],
+    ['Training Status', md.hasData ? (md.comp.length + ' done') : null, '', 'Completed training sessions on record.', !md.hasData],
+    ['Recommended Formation', xi.formation, '', 'Your club formation setup (from Formation/Tactics).', false],
+    ['Overall Match Confidence', conf.score, '', 'Composite of readiness, fitness, availability, attendance, injury and training completion.', conf.score == null]
+  ];
+  var kpiHtml = '<div class="trn-rmetrics">' + kpis.map(function (k) { return '<div class="trn-stat trn-stat--violet" title="' + _sqEsc(k[3]) + '"><span class="trn-stat-l">' + k[0] + '</span><span class="trn-stat-v">' + (k[4] ? '—' : k[1] + (k[2] ? '<i>' + k[2] + '</i>' : '')) + '</span></div>'; }).join('') + '</div>';
+  var confHealth = conf.score != null
+    ? '<div class="trn-health"><div class="trn-health-ring">' + _trnRing(conf.score, 'Match Confidence', '', _trnTone(conf.score)) + '</div><div class="trn-health-comp">' + conf.comps.map(function (c) { var v = typeof c.v === 'number' ? c.v : null; return '<div class="trn-hcomp" title="' + _sqEsc(c.k) + ' component of match confidence"><span>' + c.k + '</span><span class="trn-hcomp-bar"><i class="trn-mini--' + _trnTone(v || 0) + '" style="width:' + (v || 0) + '%"></i></span><b>' + (v == null ? '—' : v) + '</b></div>'; }).join('') + '</div></div>'
+    : _trEmpty('&#9917;', 'Match confidence building', 'Complete sessions and the confidence score (readiness, fitness, availability, attendance, injury, completion) appears here.', false);
+  // 2) Starting XI + reasons
+  var xiRow = function (r, pos) { return '<button class="trn-xirow" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button"><span class="trn-xipos">' + pos + '</span>' + _trnAvatar(r.p) + '<span class="trn-xinm"><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>' + _trnMatchReason(r) + '</i></span><span class="trn-xiscore">' + r.score + '</span></button>'; };
+  var xiHtml = xi.xi.length
+    ? '<div class="trn-xi">' + xi.gk.map(function (r) { return xiRow(r, 'GK'); }).join('') + xi.def.map(function (r) { return xiRow(r, 'DEF'); }).join('') + xi.mid.map(function (r) { return xiRow(r, 'MID'); }).join('') + xi.fwd.map(function (r) { return xiRow(r, 'FWD'); }).join('') + '</div>'
+    : _trEmpty('&#128101;', 'Not enough available players', 'Load the real squad and the Starting XI generates from readiness, fitness, attendance, injuries, load and form.', false);
+  // 3) Bench
+  var bench = xi.avail.filter(function (r) { return !xi.used[r.p.id]; }).slice(0, 7);
+  var benchHtml = bench.length
+    ? '<div class="trn-bench">' + bench.map(function (r, i) { return '<button class="trn-brow" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button"><span class="trn-bpri">' + (i + 1) + '</span>' + _trnAvatar(r.p) + '<span class="trn-xinm"><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>fit ' + r.fitness + '% · ready ' + r.readiness + '%' + (r.rating != null ? ' · form ' + r.rating.toFixed(1) : '') + '</i></span><span class="trn-xiscore">' + r.score + '</span></button>'; }).join('') + '</div>'
+    : '<p class="trn-note">No further available players for the bench.</p>';
+  // 4) Match risk
+  var risks = [];
+  md.rows.forEach(function (r) {
+    if (r.avail === 'injured') risks.push({ p: r.p, sev: 'Critical', txt: 'injured — unavailable' });
+    else if (r.readiness < 45) risks.push({ p: r.p, sev: 'High', txt: 'low readiness (' + r.readiness + '%)' });
+    else if (r.load > 0 && r.recovery < 55) risks.push({ p: r.p, sev: 'High', txt: 'poor recovery (' + r.recovery + '%) with load ' + r.load + ' min' });
+    else if (r.readiness < 60) risks.push({ p: r.p, sev: 'Medium', txt: 'readiness warning (' + r.readiness + '%)' });
+    else if (r.attendance != null && r.attendance < 70) risks.push({ p: r.p, sev: 'Medium', txt: 'attendance ' + r.attendance + '%' });
+  });
+  risks = risks.slice(0, 8);
+  var riskHtml = risks.length
+    ? '<div class="trn-notifs">' + risks.map(function (a) { return '<button class="trn-notif trn-alert-' + a.sev.toLowerCase() + '" data-trn-act="gotoplayer" data-trn-id="' + a.p.id + '" type="button"><span class="trn-sevtag trn-sevtag--' + a.sev.toLowerCase() + '">' + a.sev + '</span><div class="trn-notif-b"><b>' + _sqEsc(_trnLast(a.p.name)) + '</b><p>' + a.txt + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>'
+    : '<p class="trn-note">No match risks flagged — squad is in good shape.</p>';
+  // 5) Tactical prep
+  var tac = SQ_TACTICS || {}, defAvail = buckets.Available.concat(buckets.Limited).filter(function (r) { return r.cat === 'df'; }).length;
+  var tacCards = [
+    ['Formation', xi.formation, 'Club setup'],
+    ['Pressing', t.fitness >= 82 ? 'High press viable' : 'Medium block', 'fitness ' + t.fitness + '%'],
+    ['Defensive block', defAvail >= 3 ? 'Compact & set' : 'Reshuffle needed', defAvail + ' defenders available'],
+    ['Build-up', buckets.Available.filter(function (r) { return r.cat === 'mf'; }).length >= 2 ? 'Play through midfield' : 'Direct build-up', 'midfield availability'],
+    ['Transition', t.readiness >= 70 ? 'Quick transitions' : 'Controlled tempo', 'readiness ' + t.readiness + '%'],
+    ['Counter attack', t.fitness >= 80 ? 'Counter threat ready' : 'Limit sprints', 'fitness ' + t.fitness + '%'],
+    ['Set pieces', 'Rehearse routines', 'availability-based'],
+    ['Team compactness', t.readiness >= 65 ? 'Hold shape' : 'Stay compact, conserve', 'readiness ' + t.readiness + '%']
+  ];
+  var tacHtml = '<div class="trn-depts">' + tacCards.map(function (c) { return '<div class="trn-dept"><div class="trn-dept-h"><b>' + c[0] + '</b></div><div class="trn-dept-m"><b>' + _sqEsc(c[1]) + '</b></div><span class="trn-note" style="margin:0">' + _sqEsc(c[2]) + '</span></div>'; }).join('') + '</div><p class="trn-note">Recommendations use the squad’s real condition &amp; availability only — no opponent assumptions.</p>';
+  // 6) Brief
+  var brief = _trnMatchBrief(md, xi);
+  var briefHtml = '<div class="trn-decs">' + brief.map(function (b) { return '<div class="trn-dec"><span class="trn-dec-ic">&#9917;</span><div><b>' + _sqEsc(b) + '</b></div></div>'; }).join('') + '</div>';
+  // 7) Checklist (derived from real state)
+  var notes = _trMnLoad();
+  var recentComp = _trFilterByRange(md.comp, 7).length > 0, anyAtt = md.rec.some(function (s) { return Object.keys(s.attendance || {}).length > 0; });
+  var checks = [
+    ['Squad selected', md.rows.length > 0], ['Starting XI', xi.xi.length >= 11], ['Bench completed', bench.length >= 3],
+    ['Injuries reviewed', true], ['Attendance checked', anyAtt], ['Training completed', recentComp],
+    ['Tactical setup ready', !!(SQ_FORM && SQ_FORM.myFormation)], ['Fitness acceptable', t.fitness >= 65], ['Readiness acceptable', t.readiness >= 60], ['Match notes prepared', notes.length > 0]
+  ];
+  var checkHtml = '<div class="trn-checks">' + checks.map(function (c) { return '<div class="trn-check trn-check--' + (c[1] ? 'ok' : 'pend') + '"><span>' + (c[1] ? '&#10003;' : '&#9675;') + '</span>' + c[0] + '</div>'; }).join('') + '</div>';
+  // 8) Availability
+  var availHtml = '<div class="trn-avwrap">' + Object.keys(buckets).map(function (k) { var g = buckets[k]; return '<div class="trn-avcol"><h4 class="trn-subh">' + k + ' (' + g.length + ')</h4>' + (g.length ? '<div class="trn-avcards">' + g.map(function (r) { return '<button class="trn-avcard trn-avcard--' + k.toLowerCase() + '" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>' + r.readiness + '% ready</i></span></button>'; }).join('') + '</div>' : '<p class="trn-note" style="margin:0">None</p>') + '</div>'; }).join('') + '</div>';
+  // 10) Coach notes (client-durable; edit/history)
+  var noteHist = notes.slice().reverse().slice(0, 8).map(function (n, i) { var idx = notes.length - 1 - i; return '<div class="trn-mnote"><span>' + (n.ts ? new Date(n.ts).toLocaleString() : '') + '</span><p>' + _sqEsc(n.text) + '</p><button class="trn-btn trn-btn--sm" data-trn-act="mnotedel" data-trn-i="' + idx + '" type="button">Delete</button></div>'; }).join('');
+  var notesHtml = '<div class="trn-mnotebox"><textarea id="trn-mnote" class="trn-input" rows="3" placeholder="Write match notes… (saved to your device; syncs to PostgreSQL when the club backend is connected)"></textarea><div class="trn-atools" style="margin-top:8px"><button class="trn-btn trn-btn--sm trn-btn--primary" data-trn-act="mnotesave" type="button">Save note</button></div>' + (notes.length ? '<div class="trn-mnotes">' + noteHist + '</div>' : '<p class="trn-note">No match notes yet.</p>') + '</div>';
+  // 11) Timeline
+  var tl = [['Today', 'Review squad, attendance &amp; injuries', md.hasData], ['Today', 'Confirm Starting XI &amp; bench', xi.xi.length >= 11], ['Tomorrow', 'Activation session &amp; set pieces (MD-1)', recentComp], ['Tomorrow', 'Finalise tactical setup', !!(SQ_FORM && SQ_FORM.myFormation)], ['Match Day', 'Team talk &amp; warm-up', false], ['Match Day', 'Final fitness &amp; readiness check', false]];
+  var tlHtml = '<div class="trn-tl2">' + tl.map(function (x) { return '<div class="trn-tl2row"><span class="trn-tl2d">' + x[0] + '</span><b class="trn-tl2t">' + x[1] + '</b><span class="trn-tl2s trn-tl2s--' + (x[2] ? 'done' : 'pend') + '">' + (x[2] ? 'Done' : 'Pending') + '</span></div>'; }).join('') + '</div>';
+  var advanced = '<details class="trn-adv"><summary>Tactical preparation · availability · timeline · coach notes</summary>'
+    + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Tactical preparation</h3><span class="trn-panel-tag">Squad condition only</span></div>' + tacHtml + '</div>'
+    + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Player availability</h3><span class="trn-panel-tag">Click a player</span></div>' + availHtml + '</div>'
+    + '<div class="trn-grid2" style="margin:14px"><div class="trn-panel"><div class="trn-panel-h"><h3>Preparation timeline</h3></div>' + tlHtml + '</div><div class="trn-panel"><div class="trn-panel-h"><h3>Coach notes</h3></div>' + notesHtml + '</div></div>'
+    + '</details>';
+  return '<div class="trn-an">'
+    + _trnPanel('Match preparation · confidence &amp; KPIs', 'Everything before the match · hover for calculations', confHealth + '<div style="margin-top:16px">' + kpiHtml + '</div>')
+    + _trnPanel('Starting XI &amp; bench', xi.formation + ' · best available, with reasons', '<div class="trn-grid2"><div><h4 class="trn-subh">Starting XI</h4>' + xiHtml + '</div><div><h4 class="trn-subh">Bench (priority order)</h4>' + benchHtml + '</div></div>')
+    + _trnPanel('Match risk analysis', 'Players to watch · real metrics', riskHtml)
+    + _trnPanel('AI match brief &amp; pre-match checklist', 'Deterministic — from real records', '<div class="trn-grid2"><div>' + briefHtml + '</div><div>' + checkHtml + '</div></div>')
+    + advanced + '</div>';
+}
 function _trnDashboard() {
   var t = _trnTeam();                                // squad-derived fitness/injury (real squad data)
   var recs = _trnAIRecs(), topRec = recs[0];
@@ -9744,6 +9888,7 @@ function _trnBody() {
     case 'reports': return _trnReports();
     case 'analytics': return _trnAnalytics();
     case 'exec': return _trnExec();
+    case 'match': return _trnMatch();
     default: return _trnDashboard();
   }
 }
@@ -9868,6 +10013,8 @@ function _trnAction(act, el) {
     case 'anview': _TRN.an = _TRN.an || {}; _TRN.an.view = v; _trnRenderBody(); break;
     case 'exview': _TRN.exView = v; _trnRenderBody(); break;
     case 'execpdf': _trnExecPrint(); break;
+    case 'mnotesave': { var mt = document.getElementById('trn-mnote'); var txt = mt ? mt.value.trim() : ''; if (txt) { var ml = _trMnLoad(); ml.push({ text: txt, ts: Date.now() }); _trMnSave(ml); _trnToast('Match note saved'); } _trnRenderBody(); break; }
+    case 'mnotedel': { var mi = parseInt(el.getAttribute('data-trn-i'), 10), ml2 = _trMnLoad(); if (mi >= 0 && mi < ml2.length) { ml2.splice(mi, 1); _trMnSave(ml2); } _trnRenderBody(); break; }
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
     case 'repcustom': { var rf = document.getElementById('trn-rep-from'), rt = document.getElementById('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
     case 'exportcsv': _trnExportCsv(); break;

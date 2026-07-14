@@ -7505,3 +7505,36 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .trn-dec{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:11px; background:rgba(74,222,128,.06); border:1px solid rgba(74,222,128,.16); }
 .trn-dec-ic{ font-size:15px; flex:0 0 auto; } .trn-dec b{ font-size:12.5px; font-weight:800; color:#e7ecf4; display:block; } .trn-dec i{ font-size:11px; font-style:normal; color:#8a94a6; }
 @media (max-width:760px){ .trn-health-comp{ grid-template-columns:1fr; } }
+
+/* ── Phase 4 · Match Preparation ── */
+.trn-xi,.trn-bench{ display:flex; flex-direction:column; gap:6px; }
+.trn-xirow,.trn-brow{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; appearance:none; cursor:pointer; padding:8px 10px; border-radius:11px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); transition:transform .13s,background .15s; }
+.trn-xirow:hover,.trn-brow:hover{ transform:translateX(2px); background:rgba(255,255,255,.07); }
+.trn-xipos{ flex:0 0 38px; font-size:9.5px; font-weight:800; color:#8a94a6; text-align:center; text-transform:uppercase; }
+.trn-bpri{ flex:0 0 20px; font-size:12px; font-weight:900; color:#a78bfa; text-align:center; }
+.trn-xinm{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; }
+.trn-xinm b{ font-size:12.5px; font-weight:800; color:#e7ecf4; }
+.trn-xinm i{ font-size:10.5px; font-style:normal; color:#8a94a6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trn-xiscore{ flex:0 0 auto; font-size:13px; font-weight:900; color:#86efac; font-variant-numeric:tabular-nums; }
+.trn-checks{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+.trn-check{ display:flex; align-items:center; gap:9px; padding:8px 11px; border-radius:9px; font-size:12px; font-weight:700; }
+.trn-check span{ font-size:14px; font-weight:900; }
+.trn-check--ok{ background:rgba(74,222,128,.09); border:1px solid rgba(74,222,128,.2); color:#dbe3ee; } .trn-check--ok span{ color:#4ade80; }
+.trn-check--pend{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); color:#9aa4b4; } .trn-check--pend span{ color:#8a94a6; }
+.trn-avwrap{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+.trn-avcards{ display:flex; flex-direction:column; gap:6px; }
+.trn-avcard{ display:flex; align-items:center; gap:8px; width:100%; text-align:left; appearance:none; cursor:pointer; padding:7px 9px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); border-left-width:3px; transition:transform .13s,background .15s; }
+.trn-avcard:hover{ transform:translateX(2px); background:rgba(255,255,255,.07); }
+.trn-avcard span{ min-width:0; display:flex; flex-direction:column; } .trn-avcard b{ font-size:12px; font-weight:800; color:#e7ecf4; } .trn-avcard i{ font-size:10px; font-style:normal; color:#8a94a6; }
+.trn-avcard--available{ border-left-color:#4ade80; } .trn-avcard--limited{ border-left-color:#fbbf24; } .trn-avcard--recovery{ border-left-color:#60a5fa; } .trn-avcard--injured{ border-left-color:#fb7185; } .trn-avcard--unavailable{ border-left-color:#64748b; }
+.trn-mnotebox textarea{ width:100%; resize:vertical; font-family:inherit; }
+.trn-mnotes{ display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.trn-mnote{ padding:9px 11px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.06); }
+.trn-mnote span{ font-size:9.5px; font-weight:700; color:#7f8a9c; } .trn-mnote p{ margin:3px 0 6px; font-size:12px; color:#cdd5e1; line-height:1.4; }
+.trn-tl2{ display:flex; flex-direction:column; gap:6px; }
+.trn-tl2row{ display:flex; align-items:center; gap:10px; padding:8px 11px; border-radius:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.05); }
+.trn-tl2d{ flex:0 0 78px; font-size:10px; font-weight:800; color:#a78bfa; text-transform:uppercase; }
+.trn-tl2t{ flex:1 1 auto; font-size:12px; font-weight:700; color:#dfe6f0; min-width:0; }
+.trn-tl2s{ flex:0 0 auto; font-size:9.5px; font-weight:800; padding:2px 9px; border-radius:12px; }
+.trn-tl2s--done{ background:rgba(74,222,128,.16); color:#86efac; } .trn-tl2s--pend{ background:rgba(148,163,184,.14); color:#cbd5e1; }
+@media (max-width:600px){ .trn-checks{ grid-template-columns:1fr; } }
