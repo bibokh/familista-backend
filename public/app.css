@@ -7472,3 +7472,36 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .trn-adv[open] > summary{ border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:4px; }
 .trn-adv > .trn-grid2, .trn-adv > .trn-panel{ margin:14px; }
 @media (max-width:760px){ .trn-anfilters{ width:100%; } .trn-ansel{ flex:1 1 auto; } }
+
+/* ── Phase 3 · Executive Dashboard ── */
+.trn-health{ display:flex; align-items:center; gap:22px; flex-wrap:wrap; }
+.trn-health-ring{ flex:0 0 auto; }
+.trn-health-comp{ flex:1 1 260px; min-width:0; display:grid; grid-template-columns:1fr 1fr; gap:8px 20px; }
+.trn-hcomp{ display:flex; align-items:center; gap:9px; font-size:11.5px; }
+.trn-hcomp > span{ flex:0 0 108px; color:#9aa4b4; font-weight:700; }
+.trn-hcomp-bar{ flex:1 1 auto; height:6px; border-radius:4px; background:rgba(255,255,255,.07); overflow:hidden; min-width:40px; }
+.trn-hcomp-bar > i{ display:block; height:100%; border-radius:4px; }
+.trn-hcomp > b{ flex:0 0 30px; text-align:right; font-weight:800; color:#eef2f8; font-variant-numeric:tabular-nums; }
+.trn-depts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; }
+.trn-dept{ display:flex; flex-direction:column; gap:9px; padding:14px 15px; border-radius:14px; background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.015)); border:1px solid rgba(255,255,255,.07); transition:transform .16s,box-shadow .16s; }
+.trn-dept:hover{ transform:translateY(-2px); box-shadow:0 10px 26px rgba(0,0,0,.3); }
+.trn-dept-h{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.trn-dept-h b{ font-size:12.5px; font-weight:800; color:#e7ecf4; }
+.trn-dept-trend{ font-size:9.5px; font-weight:800; padding:2px 8px; border-radius:12px; }
+.trn-dept-trend--adv{ background:rgba(74,222,128,.16); color:#86efac; } .trn-dept-trend--slt{ background:rgba(251,191,36,.16); color:#fcd34d; } .trn-dept-trend--risk{ background:rgba(251,113,133,.16); color:#fda4af; } .trn-dept-trend--bal{ background:rgba(96,165,250,.16); color:#93c5fd; }
+.trn-dept-m{ display:flex; align-items:baseline; gap:8px; }
+.trn-dept-m b{ font-size:20px; font-weight:900; color:#f8fafc; font-variant-numeric:tabular-nums; }
+.trn-dept-m span{ font-size:10.5px; color:#8a94a6; font-weight:700; }
+.trn-exsquad{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; margin-top:12px; }
+.trn-exp{ display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:left; appearance:none; cursor:pointer; padding:11px 13px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07); transition:transform .14s,background .16s; }
+.trn-exp:hover{ transform:translateY(-2px); background:rgba(255,255,255,.07); }
+.trn-exp > span{ font-size:9.5px; font-weight:800; color:#8a94a6; text-transform:uppercase; letter-spacing:.04em; }
+.trn-exp > b{ font-size:13.5px; font-weight:800; color:#eef2f8; } .trn-exp > i{ font-size:11px; font-style:normal; color:#93c5fd; font-weight:700; }
+.trn-subh{ margin:0 0 8px; font-size:11px; font-weight:800; color:#8a94a6; text-transform:uppercase; letter-spacing:.04em; }
+.trn-sevtag{ flex:0 0 auto; font-size:9px; font-weight:900; padding:3px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.03em; align-self:flex-start; }
+.trn-sevtag--critical{ background:rgba(244,63,94,.22); color:#fb7185; } .trn-sevtag--high{ background:rgba(251,146,60,.2); color:#fdba74; } .trn-sevtag--medium{ background:rgba(251,191,36,.18); color:#fcd34d; } .trn-sevtag--low{ background:rgba(74,222,128,.16); color:#86efac; }
+.trn-alert-critical{ border-left-color:#f43f5e!important; } .trn-alert-high{ border-left-color:#fb923c!important; } .trn-alert-medium{ border-left-color:#fbbf24!important; } .trn-alert-low{ border-left-color:#4ade80!important; }
+.trn-decs{ display:flex; flex-direction:column; gap:8px; }
+.trn-dec{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:11px; background:rgba(74,222,128,.06); border:1px solid rgba(74,222,128,.16); }
+.trn-dec-ic{ font-size:15px; flex:0 0 auto; } .trn-dec b{ font-size:12.5px; font-weight:800; color:#e7ecf4; display:block; } .trn-dec i{ font-size:11px; font-style:normal; color:#8a94a6; }
+@media (max-width:760px){ .trn-health-comp{ grid-template-columns:1fr; } }
