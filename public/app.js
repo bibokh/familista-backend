@@ -9230,8 +9230,11 @@ function _trnMatch() {
     : _trEmpty('&#9917;', 'Match confidence building', 'Complete sessions and the confidence score (readiness, fitness, availability, attendance, injury, completion) appears here.', false);
   // 2) Starting XI + reasons
   var xiRow = function (r, pos) { return '<button class="trn-xirow" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button"><span class="trn-xipos">' + pos + '</span>' + _trnAvatar(r.p) + '<span class="trn-xinm"><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>' + _trnMatchReason(r) + '</i></span><span class="trn-xiscore">' + r.score + '</span></button>'; };
+  var posOf = function (cat) { return cat === 'gk' ? 'GK' : cat === 'df' ? 'DEF' : cat === 'fw' ? 'FWD' : 'MID'; };
+  // Fill players (added to reach 11 when a line was short) — render them too so the full XI always shows.
+  var xiExtra = xi.xi.slice(xi.gk.length + xi.def.length + xi.mid.length + xi.fwd.length);
   var xiHtml = xi.xi.length
-    ? '<div class="trn-xi">' + xi.gk.map(function (r) { return xiRow(r, 'GK'); }).join('') + xi.def.map(function (r) { return xiRow(r, 'DEF'); }).join('') + xi.mid.map(function (r) { return xiRow(r, 'MID'); }).join('') + xi.fwd.map(function (r) { return xiRow(r, 'FWD'); }).join('') + '</div>'
+    ? '<div class="trn-xi">' + xi.gk.map(function (r) { return xiRow(r, 'GK'); }).join('') + xi.def.map(function (r) { return xiRow(r, 'DEF'); }).join('') + xi.mid.map(function (r) { return xiRow(r, 'MID'); }).join('') + xi.fwd.map(function (r) { return xiRow(r, 'FWD'); }).join('') + xiExtra.map(function (r) { return xiRow(r, posOf(r.cat)); }).join('') + '</div>'
     : _trEmpty('&#128101;', 'Not enough available players', 'Load the real squad and the Starting XI generates from readiness, fitness, attendance, injuries, load and form.', false);
   // 3) Bench
   var bench = xi.avail.filter(function (r) { return !xi.used[r.p.id]; }).slice(0, 7);
