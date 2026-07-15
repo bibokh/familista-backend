@@ -7632,20 +7632,80 @@ function _deIntKey(s) { return s === 'Very Easy' ? 've' : s === 'Easy' ? 'e' : s
 function _deStars(n) { var h = ''; for (var i = 1; i <= 5; i++) { var f = n >= i ? 'is-full' : (n >= i - 0.5 ? 'is-half' : ''); h += '<span class="de-star ' + f + '">&#9733;</span>'; } return '<span class="de-stars">' + h + '</span>'; }
 function _deScene(kind, ac) {
   ac = ac || '52,215,122'; var m = 'dm' + (++_DE_N), o = '';
-  var defs = '<defs><linearGradient id="' + m + 'g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f9b57"/><stop offset="1" stop-color="#12482a"/></linearGradient><marker id="' + m + '" markerWidth="7" markerHeight="7" refX="5.5" refY="3.5" orient="auto"><path d="M0 0 L7 3.5 L0 7 z" fill="rgb(' + ac + ')"/></marker></defs>';
-  var base = '<rect x="0" y="0" width="320" height="170" fill="url(#' + m + 'g)"/><g opacity=".26" stroke="#eafff2" stroke-width="1.4" fill="none"><rect x="10" y="10" width="300" height="150" rx="4"/><path d="M160 10 V160"/><circle cx="160" cy="85" r="30"/><rect x="10" y="45" width="40" height="80"/><rect x="270" y="45" width="40" height="80"/><rect x="10" y="62" width="15" height="46"/><rect x="295" y="62" width="15" height="46"/></g>';
-  if (kind === 'crossing') o = '<circle cx="272" cy="42" r="7" fill="rgb(' + ac + ')"/><path d="M270 48 Q200 20 92 68" stroke="rgb(' + ac + ')" stroke-width="2.5" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="86" cy="66" r="6" fill="#fff"/><circle cx="78" cy="104" r="6" fill="rgb(' + ac + ')"/><circle cx="120" cy="120" r="6" fill="rgb(' + ac + ')"/><path d="M80 98 L86 74" stroke="#eafff2" stroke-width="2" fill="none" marker-end="url(#' + m + ')"/>';
-  else if (kind === 'rondo') { for (var i = 0; i < 7; i++) { var a = i / 7 * 6.283 - 1.57, x = 160 + Math.cos(a) * 70, y = 85 + Math.sin(a) * 46; o += '<circle cx="' + x.toFixed(0) + '" cy="' + y.toFixed(0) + '" r="6" fill="rgb(' + ac + ')"/>'; } o += '<circle cx="150" cy="78" r="6" fill="#f4b740"/><circle cx="172" cy="94" r="6" fill="#f4b740"/><circle cx="160" cy="85" r="4" fill="#fff"/><path d="M96 68 Q160 30 224 68" stroke="rgb(' + ac + ')" stroke-width="2" stroke-dasharray="5 4" fill="none" opacity=".85" marker-end="url(#' + m + ')"/>'; }
-  else if (kind === 'shooting') o = '<circle cx="120" cy="70" r="7" fill="rgb(' + ac + ')"/><circle cx="130" cy="112" r="7" fill="rgb(' + ac + ')"/><path d="M127 70 L300 74" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><path d="M137 110 L300 92" stroke="#eafff2" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><circle cx="210" cy="86" r="6" fill="#f4b740"/><circle cx="120" cy="70" r="3" fill="#fff"/>';
-  else if (kind === 'pressing') o = '<circle cx="160" cy="85" r="6" fill="#fff"/><circle cx="96" cy="46" r="7" fill="rgb(' + ac + ')"/><circle cx="96" cy="124" r="7" fill="rgb(' + ac + ')"/><circle cx="220" cy="50" r="7" fill="rgb(' + ac + ')"/><circle cx="220" cy="120" r="7" fill="rgb(' + ac + ')"/><path d="M104 52 L150 80" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M104 118 L150 90" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M212 54 L170 80" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/><path d="M212 116 L170 90" stroke="rgb(' + ac + ')" stroke-width="2.4" fill="none" marker-end="url(#' + m + ')"/>';
-  else if (kind === 'passing') o = '<circle cx="60" cy="120" r="6" fill="rgb(' + ac + ')"/><circle cx="130" cy="70" r="6" fill="rgb(' + ac + ')"/><circle cx="200" cy="115" r="6" fill="rgb(' + ac + ')"/><circle cx="270" cy="60" r="6" fill="rgb(' + ac + ')"/><path d="M66 116 L126 76" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><path d="M136 74 L194 110" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><path d="M206 110 L264 66" stroke="rgb(' + ac + ')" stroke-width="2.2" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="60" cy="120" r="3" fill="#fff"/>';
-  else if (kind === 'block') o = '<circle cx="72" cy="45" r="6" fill="rgb(' + ac + ')"/><circle cx="72" cy="85" r="6" fill="rgb(' + ac + ')"/><circle cx="72" cy="125" r="6" fill="rgb(' + ac + ')"/><circle cx="122" cy="65" r="6" fill="rgb(' + ac + ')"/><circle cx="122" cy="105" r="6" fill="rgb(' + ac + ')"/><path d="M60 42 L60 128" stroke="rgb(' + ac + ')" stroke-width="1.5" stroke-dasharray="4 4" opacity=".6"/><circle cx="232" cy="85" r="6" fill="#f4b740"/><circle cx="232" cy="85" r="3" fill="#fff"/>';
-  else if (kind === 'fitness') { for (var c = 0; c < 6; c++) { var cx = 58 + c * 40; o += '<path d="M' + cx + ' 58 l7 14 l-14 0 z" fill="rgb(' + ac + ')"/>'; } o += '<path d="M40 108 L300 108" stroke="rgb(' + ac + ')" stroke-width="2.4" stroke-dasharray="10 6" fill="none" marker-end="url(#' + m + ')"/><g stroke="#eafff2" stroke-width="1.6" opacity=".7" fill="none"><rect x="40" y="128" width="120" height="18"/><path d="M60 128 V146 M80 128 V146 M100 128 V146 M120 128 V146 M140 128 V146"/></g>'; }
-  else if (kind === 'oneTwo') o = '<circle cx="110" cy="112" r="6" fill="rgb(' + ac + ')"/><circle cx="182" cy="60" r="6" fill="rgb(' + ac + ')"/><path d="M116 108 L177 65" stroke="rgb(' + ac + ')" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><path d="M181 66 L150 116" stroke="rgb(' + ac + ')" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><path d="M156 116 L296 92" stroke="#eafff2" stroke-width="2.2" fill="none" marker-end="url(#' + m + ')"/><circle cx="110" cy="112" r="3" fill="#fff"/>';
-  else if (kind === 'setpiece') o = '<circle cx="304" cy="16" r="6" fill="rgb(' + ac + ')"/><circle cx="304" cy="16" r="3" fill="#fff"/><path d="M300 22 Q272 50 250 78" stroke="rgb(' + ac + ')" stroke-width="2.5" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="248" cy="72" r="6" fill="rgb(' + ac + ')"/><circle cx="264" cy="104" r="6" fill="rgb(' + ac + ')"/><circle cx="226" cy="110" r="6" fill="rgb(' + ac + ')"/><circle cx="272" cy="76" r="6" fill="#f4b740"/>';
-  else if (kind === 'transition') o = '<circle cx="60" cy="122" r="6" fill="rgb(' + ac + ')"/><path d="M66 118 L150 90" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><circle cx="156" cy="86" r="6" fill="rgb(' + ac + ')"/><path d="M162 82 L288 60" stroke="rgb(' + ac + ')" stroke-width="2.6" fill="none" marker-end="url(#' + m + ')"/><circle cx="230" cy="50" r="6" fill="rgb(' + ac + ')"/><path d="M170 84 L224 54" stroke="#eafff2" stroke-width="2" stroke-dasharray="5 4" fill="none" marker-end="url(#' + m + ')"/><circle cx="60" cy="122" r="3" fill="#fff"/>';
-  else o = '<circle cx="160" cy="85" r="5" fill="#fff"/>';
-  return '<svg class="de-scene" viewBox="0 0 320 170" preserveAspectRatio="xMidYMid slice">' + defs + base + o + '</svg>';
+  var C = 'rgb(' + ac + ')', OPP = '#f4b740';
+  var defs = '<defs>'
+    + '<linearGradient id="' + m + 'lz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(255,255,255,.13)"/><stop offset=".55" stop-color="rgba(0,0,0,0)"/><stop offset="1" stop-color="rgba(0,0,0,.2)"/></linearGradient>'
+    + '<radialGradient id="' + m + 'vg" cx="50%" cy="40%" r="75%"><stop offset="52%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,.32)"/></radialGradient>'
+    + '<marker id="' + m + 'p" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 .8 L8 4 L0 7.2 L2.6 4 z" fill="' + C + '"/></marker>'
+    + '<marker id="' + m + 'r" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 .8 L8 4 L0 7.2 L2.6 4 z" fill="#eafff2"/></marker>'
+    + '<marker id="' + m + 'o" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 .8 L8 4 L0 7.2 L2.6 4 z" fill="' + OPP + '"/></marker>'
+    + '</defs>';
+  var stripes = ''; for (var s = 0; s < 8; s++) stripes += '<rect x="' + (s * 40) + '" y="0" width="40" height="170" fill="' + (s % 2 ? '#2c9350' : '#31a05a') + '"/>';
+  var mk = '<g opacity=".5" stroke="#eafff2" stroke-width="1.25" fill="none">'
+    + '<rect x="9" y="8" width="302" height="154" rx="5"/>'
+    + '<path d="M160 8 V162"/><circle cx="160" cy="85" r="26"/>'
+    + '<rect x="9" y="45" width="46" height="80"/><rect x="9" y="63" width="17" height="44"/><path d="M55 66 A26 26 0 0 1 55 104"/>'
+    + '<rect x="265" y="45" width="46" height="80"/><rect x="294" y="63" width="17" height="44"/><path d="M265 66 A26 26 0 0 0 265 104"/>'
+    + '<path d="M9 14 A6 6 0 0 1 15 8 M305 8 A6 6 0 0 1 311 14 M15 162 A6 6 0 0 1 9 156 M311 156 A6 6 0 0 1 305 162"/>'
+    + '</g>'
+    + '<g fill="#eafff2" opacity=".65"><circle cx="160" cy="85" r="1.7"/><circle cx="45" cy="85" r="1.5"/><circle cx="275" cy="85" r="1.5"/></g>'
+    + '<rect x="4" y="70" width="6" height="30" fill="rgba(255,255,255,.45)"/><rect x="310" y="70" width="6" height="30" fill="rgba(255,255,255,.45)"/>';
+  var base = stripes + '<rect x="0" y="0" width="320" height="170" fill="url(#' + m + 'lz)"/>' + mk;
+  function tok(x, y, col, n) {
+    return '<ellipse cx="' + x + '" cy="' + (y + 7) + '" rx="7.6" ry="2.5" fill="rgba(0,0,0,.32)"/>'
+      + '<circle cx="' + x + '" cy="' + y + '" r="7.6" fill="' + col + '" stroke="rgba(255,255,255,.92)" stroke-width="1.3"/>'
+      + '<circle cx="' + (x - 2.2) + '" cy="' + (y - 2.4) + '" r="2.4" fill="rgba(255,255,255,.42)"/>'
+      + (n != null ? '<text x="' + x + '" y="' + (y + 3) + '" font-size="8.2" font-weight="800" text-anchor="middle" fill="#08160d" font-family="system-ui,Arial,sans-serif">' + n + '</text>' : '');
+  }
+  function ball(x, y) {
+    return '<ellipse cx="' + x + '" cy="' + (y + 5.5) + '" rx="4.8" ry="1.7" fill="rgba(0,0,0,.3)"/>'
+      + '<circle cx="' + x + '" cy="' + y + '" r="5.3" fill="#fff" stroke="#0d2a18" stroke-width=".9"/>'
+      + '<path d="M' + x + ' ' + (y - 3) + ' l2.8 2 l-1.1 3.3 h-3.4 l-1.1-3.3 z" fill="#0d2a18"/>';
+  }
+  function pass(x1, y1, x2, y2) { return '<path d="M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2 + '" stroke="' + C + '" stroke-width="2.4" fill="none" marker-end="url(#' + m + 'p)"/>'; }
+  function passC(x1, y1, cx, cy, x2, y2) { return '<path d="M' + x1 + ' ' + y1 + ' Q' + cx + ' ' + cy + ' ' + x2 + ' ' + y2 + '" stroke="' + C + '" stroke-width="2.6" fill="none" marker-end="url(#' + m + 'p)"/>'; }
+  function shot(x1, y1, x2, y2) { return '<path d="M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2 + '" stroke="' + C + '" stroke-width="3.2" fill="none" marker-end="url(#' + m + 'p)"/>'; }
+  function run(x1, y1, x2, y2) { return '<path d="M' + x1 + ' ' + y1 + ' L' + x2 + ' ' + y2 + '" stroke="#eafff2" stroke-width="2.1" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + 'r)"/>'; }
+  function runC(x1, y1, cx, cy, x2, y2) { return '<path d="M' + x1 + ' ' + y1 + ' Q' + cx + ' ' + cy + ' ' + x2 + ' ' + y2 + '" stroke="#eafff2" stroke-width="2.1" stroke-dasharray="6 4" fill="none" marker-end="url(#' + m + 'r)"/>'; }
+  function zone(x, y, w, h) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" fill="' + C + '" opacity=".13" stroke="' + C + '" stroke-opacity=".4" stroke-dasharray="5 4"/>'; }
+  if (kind === 'crossing') {
+    o = zone(9, 45, 46, 80) + runC(94, 108, 70, 84, 82, 74) + runC(126, 126, 100, 100, 104, 92)
+      + passC(258, 50, 176, 16, 84, 70)
+      + tok(268, 44, C, 7) + ball(256, 52) + tok(96, 106, C, 9) + tok(128, 128, C, 11) + tok(64, 86, OPP);
+  } else if (kind === 'rondo') {
+    for (var i = 0; i < 6; i++) { var a = i / 6 * 6.283 - 1.57, x = 160 + Math.cos(a) * 78, y = 85 + Math.sin(a) * 50; o += tok(Math.round(x), Math.round(y), C, i + 1); }
+    o += passC(96, 60, 160, 34, 224, 60) + passC(238, 96, 200, 138, 150, 132)
+      + tok(150, 80, OPP) + tok(172, 92, OPP) + ball(150, 68);
+  } else if (kind === 'shooting') {
+    o = zone(265, 45, 46, 80) + shot(154, 70, 300, 76) + shot(150, 110, 300, 92) + pass(100, 88, 146, 74)
+      + tok(150, 66, C, 9) + tok(150, 112, C, 11) + tok(100, 88, C, 7) + ball(150, 74) + tok(300, 86, OPP);
+  } else if (kind === 'pressing') {
+    o = run(102, 52, 150, 80) + run(102, 118, 150, 90) + run(214, 54, 172, 80) + run(214, 116, 172, 90)
+      + tok(160, 85, OPP) + ball(160, 85) + tok(96, 46, C, 6) + tok(96, 124, C, 8) + tok(216, 52, C, 4) + tok(216, 120, C, 11);
+  } else if (kind === 'passing') {
+    o = passC(62, 120, 92, 88, 124, 72) + passC(134, 70, 168, 88, 196, 110) + passC(206, 108, 240, 82, 266, 62)
+      + tok(56, 120, C, 6) + tok(128, 68, C, 8) + tok(200, 114, C, 10) + tok(272, 58, C, 7) + ball(56, 112);
+  } else if (kind === 'block') {
+    o = zone(40, 32, 40, 106) + tok(60, 42, C, 2) + tok(60, 74, C, 4) + tok(60, 106, C, 5) + tok(60, 138, C, 3)
+      + tok(110, 58, C, 6) + tok(110, 118, C, 8)
+      + run(150, 60, 120, 70) + run(150, 110, 120, 100)
+      + tok(232, 85, OPP) + ball(232, 85);
+  } else if (kind === 'fitness') {
+    for (var c = 0; c < 6; c++) { var cxx = 52 + c * 38; o += '<path d="M' + cxx + ' 52 l6 13 l-12 0 z" fill="' + OPP + '"/><path d="M' + cxx + ' 55 l3.5 8 l-7 0 z" fill="#ffe6a6"/>'; }
+    o += run(40, 108, 300, 108) + tok(40, 108, C, 7)
+      + '<g stroke="#eafff2" stroke-width="1.6" opacity=".75" fill="none"><rect x="150" y="128" width="130" height="20" rx="2"/><path d="M172 128 V148 M194 128 V148 M216 128 V148 M238 128 V148 M260 128 V148"/></g>';
+  } else if (kind === 'oneTwo') {
+    o = pass(114, 112, 176, 66) + pass(180, 68, 152, 112) + runC(114, 112, 150, 130, 216, 108) + pass(160, 112, 290, 90)
+      + tok(108, 116, C, 8) + tok(184, 62, C, 10) + ball(114, 106) + tok(292, 90, OPP);
+  } else if (kind === 'setpiece') {
+    o = zone(265, 45, 46, 80) + passC(298, 20, 262, 50, 238, 82)
+      + runC(214, 110, 224, 92, 234, 84) + runC(268, 108, 264, 94, 260, 90) + runC(226, 62, 232, 78, 236, 82)
+      + tok(306, 14, C, 7) + ball(298, 22) + tok(236, 80, C, 9) + tok(260, 104, C, 11) + tok(216, 110, C, 10) + tok(300, 88, OPP);
+  } else if (kind === 'transition') {
+    o = passC(62, 122, 104, 96, 148, 88) + passC(160, 84, 210, 66, 256, 58) + runC(156, 92, 200, 74, 226, 56)
+      + tok(56, 122, C, 6) + ball(62, 114) + tok(152, 88, C, 8) + tok(230, 50, C, 10) + tok(300, 100, OPP);
+  } else { o = tok(160, 85, C) + ball(178, 85); }
+  return '<svg class="de-scene" viewBox="0 0 320 170" preserveAspectRatio="xMidYMid slice">' + defs + base + o + '<rect x="0" y="0" width="320" height="170" fill="url(#' + m + 'vg)"/></svg>';
 }
 var DE_DRILLS = [
   { id: 'crossing', name: 'Crossing & Finishing', cat: 'Attack', kind: 'crossing', intensity: 'Medium', cost: '-1.5%', avail: 14,
@@ -8242,28 +8302,61 @@ function _deVideo(d) {
 function _dePosBadges(best) { var set = {}; best.forEach(function (p) { set[p] = 1; }); return '<div class="de-pos">' + DE_POS_ALL.map(function (p) { return '<span class="de-pos-b' + (set[p] ? ' is-on' : '') + '">' + p + '</span>'; }).join('') + '</div>'; }
 function _deBarRow(label, val, ac) { var pct = Math.round(val / 5 * 100); return '<div class="de-bar-row" style="--c:' + ac + '"><span class="de-bar-l">' + label + '</span><span class="de-bar-track"><i style="width:' + pct + '%"></i></span>' + _deStars(val) + '</div>'; }
 function _deSection(icon, title, inner, ac) { return '<div class="de-sec' + (ac ? ' de-sec--accent' : '') + '"' + (ac ? ' style="--c:' + ac + '"' : '') + '><div class="de-sec-h"><span class="de-sec-ic">' + icon + '</span>' + title + '</div><div class="de-sec-b">' + inner + '</div></div>'; }
+var DE_CAT_DESC = {
+  'Attack': 'Finishing, wide play and creating chances',
+  'Possession': 'Ball retention, positional structure and control',
+  'Defense': 'Compactness, pressing cues and defending the box',
+  'Transition': 'Winning and losing the ball at speed',
+  'Teamplay': 'Building play and moving as one connected unit',
+  'Physical & Mental': 'Athletic conditioning and mental sharpness',
+  'Goalkeeper': 'Distribution, sweeping and shot-stopping',
+  'Set Pieces': 'Rehearsed corners and free-kick routines'
+};
+function _deCatCount(c) { var n = 0; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].cat === c) n++; return n; }
 function _deCard(d) {
   var ac = DE_CATS[d.cat];
+  var pos = (d.positions || []).slice(0, 4).map(function (p) { return '<span class="de-card-pos-b">' + p + '</span>'; }).join('');
   return '<button class="de-card" data-de-action="open" data-de="' + d.id + '" type="button" style="--c:' + ac + '">'
-    + '<span class="de-card-img">' + _deScene(d.kind, ac) + '<span class="de-card-cat" style="--c:' + ac + '">' + d.cat + '</span></span>'
-    + '<span class="de-card-b"><b class="de-card-nm">' + _deEsc(d.name) + '</b>'
-    + '<span class="de-card-meta"><span class="de-chip de-chip--int i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</span><span class="de-chip">' + d.cost + '</span></span>'
+    + '<span class="de-card-img">' + _deScene(d.kind, ac) + '<span class="de-card-cat" style="--c:' + ac + '">' + d.cat + '</span><span class="de-card-diff">' + _deEsc(_deDifficulty(d)) + '</span></span>'
+    + '<span class="de-card-b">'
+    + '<b class="de-card-nm">' + _deEsc(d.name) + '</b>'
+    + '<span class="de-card-focus">' + _deEsc(d.improves) + '</span>'
+    + '<span class="de-card-meta"><span class="de-chip de-chip--int i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</span><span class="de-chip de-chip--i">' + _deIcon('clock') + _deEsc(_deTrainDur(d)) + '</span><span class="de-chip de-chip--i">' + _deIcon('users') + _deEsc(_dePlayers(d)) + '</span></span>'
+    + (pos ? '<span class="de-card-pos">' + pos + '</span>' : '')
     + '<span class="de-card-foot">' + _deStars(d.ratings.ov) + '<span class="de-card-view">View drill &#8250;</span></span>'
     + '</span></button>';
 }
 function _deIndex() {
-  var cats = ['All'].concat(Object.keys(DE_CATS));
-  var chips = cats.map(function (c) { var on = _DE_CAT === c; var ac = c === 'All' ? '148,163,184' : DE_CATS[c]; return '<button class="de-fchip' + (on ? ' is-on' : '') + '" data-de-action="filter" data-de="' + c + '" type="button" style="--c:' + ac + '">' + c + '</button>'; }).join('');
-  var list = DE_DRILLS.filter(function (d) { return _DE_CAT === 'All' || d.cat === _DE_CAT; });
-  return '<div class="de-head"><div><h1 class="de-title">Drill Encyclopedia</h1><p class="de-sub">Professional coaching manual — ' + DE_DRILLS.length + ' training drills with tactical analysis, strength ratings and Familista AI insight.</p></div><span class="de-head-badge">&#9917; ' + DE_DRILLS.length + ' Drills</span></div>'
-    + '<div class="de-filters">' + chips + '</div>'
-    + '<div class="de-grid">' + list.map(_deCard).join('') + '</div>';
+  var keys = Object.keys(DE_CATS);
+  var cats = ['All'].concat(keys);
+  var chips = cats.map(function (c) {
+    var on = _DE_CAT === c, ac = c === 'All' ? '148,163,184' : DE_CATS[c];
+    var n = c === 'All' ? DE_DRILLS.length : _deCatCount(c);
+    return '<button class="de-fchip' + (on ? ' is-on' : '') + '" data-de-action="filter" data-de="' + c + '" type="button" style="--c:' + ac + '">' + c + '<i class="de-fchip-n">' + n + '</i></button>';
+  }).join('');
+  var head = '<div class="de-head"><div><span class="de-head-eyebrow">Familista Coaching Manual</span><h1 class="de-title">Drill Encyclopedia</h1><p class="de-sub">' + DE_DRILLS.length + ' professional first-team drills across ' + keys.length + ' categories — each with a tactical board, animated movements, full coaching detail and live squad integration.</p></div><span class="de-head-badge">&#9917; ' + DE_DRILLS.length + ' Drills</span></div>'
+    + '<div class="de-filters">' + chips + '</div>';
+  var body;
+  if (_DE_CAT === 'All') {
+    body = keys.map(function (c) {
+      var list = DE_DRILLS.filter(function (d) { return d.cat === c; });
+      if (!list.length) return '';
+      return '<section class="de-group" style="--c:' + DE_CATS[c] + '">'
+        + '<div class="de-group-h"><span class="de-group-bar"></span><h2 class="de-group-t">' + c + '</h2><span class="de-group-n">' + list.length + ' drill' + (list.length === 1 ? '' : 's') + '</span><span class="de-group-d">' + (DE_CAT_DESC[c] || '') + '</span></div>'
+        + '<div class="de-grid">' + list.map(_deCard).join('') + '</div></section>';
+    }).join('');
+  } else {
+    var one = DE_DRILLS.filter(function (d) { return d.cat === _DE_CAT; });
+    body = '<div class="de-grid">' + one.map(_deCard).join('') + '</div>';
+  }
+  return head + body;
 }
 // Setup / logistics for a drill — uses explicit fields when present, else derives
 // sensible professional defaults from intensity + category so every drill (incl.
 // the original library) shows a complete coaching module. No fabricated data.
-function _deDifficulty(d) { if (d.difficulty) return d.difficulty; var i = _deIntKey(d.intensity); return i === 'easy' ? 'Beginner' : i === 'hard' ? 'Advanced' : 'Intermediate'; }
-function _deTrainDur(d) { if (d.trainDur) return d.trainDur; var i = _deIntKey(d.intensity); return i === 'easy' ? '15 min' : i === 'hard' ? '22 min' : '18 min'; }
+function _deDifficulty(d) { if (d.difficulty) return d.difficulty; var i = _deIntKey(d.intensity); return i === 'h' ? 'Advanced' : (i === 've' || i === 'e') ? 'Beginner' : 'Intermediate'; }
+function _deTrainDur(d) { if (d.trainDur) return d.trainDur; var i = _deIntKey(d.intensity); return i === 'h' ? '22 min' : (i === 've' || i === 'e') ? '15 min' : '18 min'; }
+function _deNutLvl(d) { var i = _deIntKey(d.intensity); return i === 'h' ? 'high' : (i === 've' || i === 'e') ? 'low' : 'medium'; }
 function _dePlayers(d) { return d.players || '10–16'; }
 function _dePitch(d) { return d.pitch || 'Half pitch · ~40×30 m'; }
 function _deEquip(d) { return d.equipment || 'Balls, cones, bibs, mini-goals'; }
@@ -8290,6 +8383,63 @@ var _DE_CORRECTIONS = {
 };
 function _deMistakes(d) { if (d.mistakes && d.mistakes.length) return d.mistakes; return _DE_MISTAKES[d.cat] || _DE_MISTAKES['Possession']; }
 function _deCorrections(d) { if (d.corrections && d.corrections.length) return d.corrections; return _DE_CORRECTIONS[d.cat] || _DE_CORRECTIONS['Possession']; }
+// ── Live Squad Integration: connects the drill to the SAME real shared data used
+//    everywhere else (Lineup/Formation/Tactics/Medical/Load/Readiness/Nutrition/
+//    Psychology/Match Prep). All values derived from real state; honest fallbacks. ──
+var DE_CAT_STYLE = {
+  'Attack': 'attacking, wing-play and direct systems', 'Possession': 'possession and control systems',
+  'Defense': 'defensive, low-block and counter systems', 'Transition': 'counter-attacking and gegenpress systems',
+  'Teamplay': 'possession and balanced build-up', 'Physical & Mental': 'high-press and high-tempo systems',
+  'Goalkeeper': 'play-out and balanced systems', 'Set Pieces': 'every system — dead-ball value'
+};
+var DE_CAT_MENTAL = {
+  'Attack': 'confidence &amp; decision-making', 'Possession': 'focus &amp; concentration',
+  'Defense': 'discipline &amp; concentration', 'Transition': 'quick decisions under pressure',
+  'Teamplay': 'communication &amp; cohesion', 'Physical & Mental': 'resilience &amp; competitiveness',
+  'Goalkeeper': 'composure &amp; concentration', 'Set Pieces': 'role discipline &amp; focus'
+};
+function _deIntRow(icon, label, val, tone) { return '<div class="de-int-row' + (tone ? ' de-int-row--' + tone : '') + '"><span class="de-int-ic">' + icon + '</span><span class="de-int-tx"><span class="de-int-k">' + label + '</span><span class="de-int-v">' + val + '</span></span></div>'; }
+function _deIntegration(d) {
+  var form = (typeof SQ_FORM !== 'undefined' && SQ_FORM && SQ_FORM.myFormation) ? SQ_FORM.myFormation : '4-3-3';
+  var style = (typeof SQ_TACTICS !== 'undefined' && SQ_TACTICS && SQ_TACTICS.style) ? SQ_TACTICS.style : 'Balanced';
+  var t = null; try { if (typeof _trnTeam === 'function') t = _trnTeam(); } catch (e) { t = null; }
+  var profs = []; try { if (typeof _trnProfiles === 'function') profs = _trnProfiles() || []; } catch (e) { profs = []; }
+  var myIds = (typeof SQ_MY_IDS !== 'undefined' && SQ_MY_IDS) ? SQ_MY_IDS : [];
+  var lvl = _deNutLvl(d), N = (typeof _TRN_NUT !== 'undefined' && _TRN_NUT[lvl]) ? _TRN_NUT[lvl] : null;
+  var durMin = parseInt(_deTrainDur(d), 10) || 18;
+  var last = (typeof _trnLast === 'function') ? _trnLast : function (n) { return String(n || '').split(' ').pop(); };
+  var formMatch = (d.systems || []).indexOf(form) >= 0;
+  var formVal = '<b>' + form + '</b> — ' + (formMatch ? '<span class="de-int-ok">matches this drill’s best systems</span>' : 'best systems: ' + (d.systems || []).join(', '));
+  function posMatch(pp) { pp = String(pp || ''); return (d.positions || []).some(function (dp) { return dp === pp || dp.indexOf(pp) >= 0 || pp.indexOf(dp) >= 0; }); }
+  var cover = profs.filter(function (x) { return posMatch(x.p.pos); });
+  var inj = cover.filter(function (x) { return x.avail === 'injured'; });
+  var avail = cover.filter(function (x) { return x.avail !== 'injured'; });
+  var inXI = cover.filter(function (x) { return myIds.indexOf(x.p.id) >= 0; });
+  var names = avail.slice(0, 3).map(function (x) { return _deEsc(last(x.p.name)); }).join(', ');
+  var squadVal = cover.length ? '<b>' + avail.length + '</b> available in these roles' + (inXI.length ? ' · <b>' + inXI.length + '</b> in your XI' : '') + (inj.length ? ' · <span class="de-int-warn">' + inj.length + ' injured</span>' : '') + (names ? ' <i>(' + names + ')</i>' : '') : 'Trains ' + (d.positions || []).join(', ');
+  var tacVal = 'Your style <b>' + _deEsc(style) + '</b> — well suited to ' + (DE_CAT_STYLE[d.cat] || 'this work');
+  var medVal, medTone = '';
+  if (t) {
+    var advice = lvl === 'high' ? ((t.fatigue >= 55 || t.risk === 'High') ? 'fatigue elevated — cap volume, rest the recovery group' : 'squad fresh enough — monitor high-risk players')
+      : lvl === 'low' ? 'low load — safe for recovery days &amp; returning players' : 'moderate load — fits most of the week';
+    medVal = 'Readiness <b>' + t.readiness + '%</b> · Fatigue <b>' + t.fatigue + '%</b> · Risk <b>' + t.risk + '</b> — ' + advice;
+    medTone = (lvl === 'high' && (t.fatigue >= 55 || t.risk === 'High')) ? 'warn' : 'ok';
+  } else medVal = 'Intensity <b>' + d.intensity + '</b> — align with squad readiness on the day';
+  var nutVal = N ? '<b>' + N.carb + '</b> carbs · <b>' + N.prot + '</b> protein · hydration <b>' + Math.round(N.fhr * durMin / 60) + ' ml</b>' : 'Match fuelling to the ' + lvl + '-intensity load';
+  var psyVal = 'Develops ' + (DE_CAT_MENTAL[d.cat] || 'focus') + (t && t.rating != null ? ' · squad confidence tracked live' : '');
+  var mdSlot = lvl === 'high' ? 'MD-4 / MD-3 (peak load)' : lvl === 'low' ? 'MD-1 / recovery' : 'MD-3 / MD-2';
+  var ctx = null; try { if (typeof _trnSessionCtx === 'function') ctx = _trnSessionCtx(); } catch (e) { ctx = null; }
+  var matchVal = 'Programme at <b>' + mdSlot + '</b>' + (ctx && ctx.real ? ' · fits your ' + _deEsc(ctx.when) : '');
+  return '<div class="de-int">'
+    + _deIntRow(_deIcon('grid'), 'Lineup &amp; Formation', formVal, formMatch ? 'ok' : '')
+    + _deIntRow(_deIcon('users'), 'Squad availability', squadVal, inj.length ? 'warn' : '')
+    + _deIntRow('&#9819;', 'Tactics', tacVal)
+    + _deIntRow('&#10010;', 'Medical · Load &amp; Fitness', medVal, medTone)
+    + _deIntRow('&#127869;', 'Nutrition', nutVal)
+    + _deIntRow('&#129504;', 'Psychology', psyVal)
+    + _deIntRow('&#9917;', 'Match Preparation', matchVal)
+    + '</div>';
+}
 function _deDetail(d) {
   var ac = DE_CATS[d.cat];
   var purpose = '<ul class="de-obj"><li><b>Improves</b>' + _deEsc(d.improves) + '</li><li><b>Tactical</b>' + _deEsc(d.tactical) + '</li><li><b>Technical</b>' + _deEsc(d.technical) + '</li><li><b>Physical</b>' + _deEsc(d.physical) + '</li><li><b>Mental</b>' + _deEsc(d.mental) + '</li></ul>';
@@ -8316,6 +8466,7 @@ function _deDetail(d) {
     + '<button class="de-add" data-de-action="addsession" data-de="' + d.id + '" type="button" style="--c:' + ac + '"><i>' + _deIcon('plus') + '</i>Add directly to today\'s training session</button>'
     + '</div></div>'
     + _deSection('&#9881;', 'Session Setup', setup)
+    + _deSection('&#128279;', 'Live Squad Integration', _deIntegration(d), ac)
     + _deVideo(d)
     + '<div class="de-cols"><div class="de-col">'
     + _deSection('&#128203;', 'Official Description', '<p class="de-desc">' + _deEsc(d.desc) + '</p>')
