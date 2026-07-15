@@ -8707,6 +8707,7 @@ function _trnModalHtml() {
   if (_TRN.modal === 'explain') return _trnExplainHtml();
   if (_TRN.modal === 'notif') return _trnNotifHtml();
   if (_TRN.modal === 'search') return _trnSearchHtml();
+  if (_TRN.modal === 'medprofile') return _trnMedProfileHtml();
   if (_TRN.modal !== 'create') return '';
   var d = _TRN.draft || _trDefaultDraft(), step = _TRN.step || 1;
   var dots = '<div class="trn-steps">' + [1, 2, 3].map(function (n) { return '<span class="trn-stepdot' + (step === n ? ' is-on' : step > n ? ' is-done' : '') + '">' + n + '</span>' + (n < 3 ? '<i class="trn-stepline"></i>' : ''); }).join('') + '</div>';
@@ -9342,6 +9343,49 @@ function _trnMedAssistant(md) {
   parts.push('Squad medical status: ' + md.avail + '% available, avg recovery ' + (md.avgRec == null ? '—' : md.avgRec + '%') + '.');
   return parts.join(' ');
 }
+// Deterministic medical action for a player (from real readiness/fitness/recovery/availability).
+function _trnMedAction(r) {
+  if (r.avail === 'injured') return 'Medical Review';
+  if (r.readiness < 40) return 'Rest';
+  if (r.readiness < 50 || r.recovery < 50) return 'Recovery';
+  if (r.readiness < 60) return 'Individual Training';
+  if (r.readiness < 70 || r.fitness < 70) return 'Partial Team Training';
+  if (r.readiness >= 80 && r.fitness >= 80) return 'Match Available';
+  return 'Full Training';
+}
+function _trnMedRestriction(r) {
+  var a = _trnMedAction(r);
+  return a === 'Medical Review' ? 'No team training — under medical assessment' : a === 'Rest' ? 'Full rest — no training' : a === 'Recovery' ? 'Recovery/regeneration only' : a === 'Individual Training' ? 'Individual training only' : a === 'Partial Team Training' ? 'Partial team training — modified load' : 'No restrictions';
+}
+// Player medical notes — client-durable (edit/history); PostgreSQL persistence needs an additive backend field.
+var MEDN_KEY = 'familista.training.mednotes.v1';
+function _trMedNLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(MEDN_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trMedNSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(MEDN_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trnMedProfileHtml() {
+  var md = _trnMedData(), pid = _TRN.medPlayer, r = md.rows.filter(function (x) { return x.p.id === pid; })[0];
+  if (!r) return '';
+  var p = r.p, injured = r.avail === 'injured', action = _trnMedAction(r), cleared = (r.avail !== 'injured' && r.readiness >= 70 && r.fitness >= 70);
+  var stat = injured ? 'Injured' : r.readiness < 50 ? 'Recovery' : r.readiness < 70 ? 'Limited' : 'Healthy';
+  var stats = '<div class="trn-rmetrics">'
+    + _trnStat('Availability', injured ? 'Out' : 'Available', '', injured ? 'red' : 'green')
+    + _trnStat('Clearance', cleared ? 'Cleared' : 'Restricted', '', cleared ? 'green' : 'amber')
+    + _trnStat('Recovery', r.recovery, '<i>%</i>', 'teal')
+    + _trnStat('Readiness', r.readiness, '<i>%</i>', _trnTone(r.readiness) === 'adv' ? 'green' : 'amber')
+    + _trnStat('Fatigue', r.fatigue, '<i>%</i>', r.fatigue >= 55 ? 'red' : 'amber')
+    + _trnStat('Workload', r.load, '<i>min</i>', 'violet')
+    + '</div>';
+  var rtp = injured ? 'Phase 1 · assessment' : 'N/A — available';
+  var curInj = injured ? 'Currently flagged injured — awaiting medical assessment. Detailed diagnosis requires stored medical records.' : 'No current injury.';
+  var notes = _trMedNLoad().filter(function (n) { return n.pid === pid; });
+  var noteHist = notes.slice().reverse().slice(0, 6).map(function (n) { var idx = _trMedNLoad().indexOf(n); return '<div class="trn-mnote"><span>' + (n.ts ? new Date(n.ts).toLocaleString() : '') + '</span><p>' + _sqEsc(n.text) + '</p><button class="trn-btn trn-btn--sm" data-trn-act="mednotedel" data-trn-i="' + idx + '" type="button">Delete</button></div>'; }).join('');
+  var rows = [['Current injury', curInj], ['RTP stage', rtp], ['Restrictions', _trnMedRestriction(r)], ['Recommended action', action], ['Position', p.pos + ' · #' + p.num]];
+  var info = '<div class="trn-medprof-rows">' + rows.map(function (x) { return '<div class="trn-medprof-row"><span>' + x[0] + '</span><b>' + _sqEsc(x[1]) + '</b></div>'; }).join('') + '</div>';
+  var body = '<div class="trn-medprof-head">' + _trnAvatar(p) + '<div><b>' + _sqEsc(p.name) + '</b><span>' + stat + ' · ' + r.lvl + ' risk</span></div><span class="trn-medact trn-medact--' + action.toLowerCase().replace(/[^a-z]/g, '') + '">' + action + '</span></div>'
+    + stats + info
+    + '<h4 class="trn-subh" style="margin-top:14px">Injury history</h4>' + _trEmpty('&#128203;', 'No injury history available', 'Injury dates and recovery progress appear once medical/physio records are stored — not fabricated.', false)
+    + '<h4 class="trn-subh" style="margin-top:14px">Medical notes</h4><div class="trn-mnotebox"><textarea id="trn-mednote" class="trn-input" rows="2" placeholder="Add a medical note for ' + _sqEsc(_trnLast(p.name)) + '… (saved to device; syncs to PostgreSQL when the medical backend field is connected)"></textarea><div class="trn-atools" style="margin-top:8px"><button class="trn-btn trn-btn--sm trn-btn--primary" data-trn-act="mednotesave" type="button">Save note</button></div>' + (notes.length ? '<div class="trn-mnotes">' + noteHist + '</div>' : '<p class="trn-note">No medical notes yet.</p>') + '</div>';
+  return '<div class="trn-modal-bd" data-trn-act="closemodal"></div><div class="trn-modal-card"><div class="trn-modal-h"><b>&#127973; Medical profile — ' + _sqEsc(_trnLast(p.name)) + '</b><button class="trn-modal-x" data-trn-act="closemodal" type="button">&#10005;</button></div><div class="trn-modal-b">' + body + '</div></div>';
+}
 function _trnMedPrint() {
   if (typeof window === 'undefined') return;
   var md = _trnMedData(), nm = function (v) { return v == null ? '—' : v; };
@@ -9371,7 +9415,11 @@ function _trnMed() {
   var kpiHtml = '<div class="trn-rmetrics">' + kpis.map(function (k) { return '<div class="trn-stat trn-stat--teal" title="' + _sqEsc(k[3]) + '"><span class="trn-stat-l">' + k[0] + '</span><span class="trn-stat-v">' + (k[4] ? '—' : k[1] + (k[2] ? '<i>' + k[2] + '</i>' : '')) + '</span></div>'; }).join('') + '</div>';
   // 2) Squad medical overview (buckets)
   var order = ['Healthy', 'Limited', 'Recovery', 'Injured', 'RTP'];
-  var availHtml = '<div class="trn-avwrap">' + order.map(function (k) { var g = md.buckets[k]; return '<div class="trn-avcol"><h4 class="trn-subh">' + k + ' (' + g.length + ')</h4>' + (g.length ? '<div class="trn-avcards">' + g.map(function (r) { var cls = k === 'Healthy' ? 'available' : k === 'Limited' ? 'limited' : k === 'Recovery' ? 'recovery' : 'injured'; return '<button class="trn-avcard trn-avcard--' + cls + '" data-trn-act="gotoplayer" data-trn-id="' + r.p.id + '" type="button">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>rec ' + r.recovery + '% · ' + r.lvl + '</i></span></button>'; }).join('') + '</div>' : '<p class="trn-note" style="margin:0">None</p>') + '</div>'; }).join('') + '</div>';
+  var availHtml = '<div class="trn-avwrap">' + order.map(function (k) { var g = md.buckets[k]; return '<div class="trn-avcol"><h4 class="trn-subh">' + k + ' (' + g.length + ')</h4>' + (g.length ? '<div class="trn-avcards">' + g.map(function (r) { var cls = k === 'Healthy' ? 'available' : k === 'Limited' ? 'limited' : k === 'Recovery' ? 'recovery' : 'injured'; return '<button class="trn-avcard trn-avcard--' + cls + '" data-trn-act="medprofile" data-trn-id="' + r.p.id + '" type="button">' + _trnAvatar(r.p) + '<span><b>' + _sqEsc(_trnLast(r.p.name)) + '</b><i>rec ' + r.recovery + '% · ' + r.lvl + '</i></span></button>'; }).join('') + '</div>' : '<p class="trn-note" style="margin:0">None</p>') + '</div>'; }).join('') + '</div>';
+  // Deterministic medical actions per player (Rest/Recovery/Individual/Partial/Full/Match Available/Medical Review).
+  var actGroups = {}; md.rows.forEach(function (r) { var a = _trnMedAction(r); (actGroups[a] = actGroups[a] || []).push(r); });
+  var actOrder = ['Medical Review', 'Rest', 'Recovery', 'Individual Training', 'Partial Team Training', 'Full Training', 'Match Available'];
+  var actionsHtml = '<div class="trn-medacts">' + actOrder.filter(function (a) { return actGroups[a]; }).map(function (a) { var g = actGroups[a]; return '<div class="trn-medactgrp"><div class="trn-medactgrp-h"><span class="trn-medact trn-medact--' + a.toLowerCase().replace(/[^a-z]/g, '') + '">' + a + '</span><b>' + g.length + '</b></div><div class="trn-medactnames">' + g.map(function (r) { return '<button class="trn-tag2" data-trn-act="medprofile" data-trn-id="' + r.p.id + '" type="button">' + _sqEsc(_trnLast(r.p.name)) + '</button>'; }).join('') + '</div></div>'; }).join('') + '</div>';
   // 5+10) Recovery & fatigue
   var rings = '<div class="trn-readrow">' + _trnRing(md.avgRec == null ? 0 : md.avgRec, 'Recovery', '%', _trnTone(md.avgRec || 0)) + _trnRing(md.avgFat == null ? 0 : md.avgFat, 'Fatigue', '%', md.avgFat >= 55 ? 'risk' : 'slt') + _trnRing(t.readiness, 'Readiness', '%', _trnTone(t.readiness)) + _trnRing(md.avail, 'Availability', '%', _trnTone(md.avail)) + '</div>';
   var acwrTone = (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'adv' : (t.acwr > 1.5 || t.acwr < 0.6) ? 'risk' : 'slt';
@@ -9392,7 +9440,7 @@ function _trnMed() {
   if (md.injured > 0) alerts.push({ sev: 'critical', t: 'Unavailable', txt: md.injured + ' player(s) injured' });
   md.rows.filter(function (r) { return r.avail !== 'injured' && r.readiness < 45; }).slice(0, 3).forEach(function (r) { alerts.push({ sev: 'high', t: 'High injury risk', txt: _trnLast(r.p.name) + ' readiness ' + r.readiness + '%', id: r.p.id }); });
   md.rows.filter(function (r) { return r.avail !== 'injured' && r.recovery < 55 && r.readiness >= 45; }).slice(0, 2).forEach(function (r) { alerts.push({ sev: 'medium', t: 'Low recovery', txt: _trnLast(r.p.name) + ' recovery ' + r.recovery + '%', id: r.p.id }); });
-  if (md.buckets.Healthy.length === md.rows.length && md.rows.length) alerts.push({ sev: 'low', t: 'Ready to return', txt: 'Full squad medically cleared' });
+  if (md.buckets.Healthy.length) alerts.push({ sev: 'cleared', t: 'Cleared', txt: md.buckets.Healthy.length + ' player(s) cleared for full training' });
   if (!alerts.length) alerts.push({ sev: 'low', t: 'All clear', txt: 'No medical alerts' });
   var alertHtml = '<div class="trn-notifs">' + alerts.map(function (a) { var attr = a.id ? ' data-trn-act="gotoplayer" data-trn-id="' + a.id + '"' : ' data-trn-act="gototab" data-trn-v="load"'; return '<button class="trn-notif trn-alert-' + a.sev + '"' + attr + ' type="button"><span class="trn-sevtag trn-sevtag--' + a.sev + '">' + a.sev.charAt(0).toUpperCase() + a.sev.slice(1) + '</span><div class="trn-notif-b"><b>' + a.t + '</b><p>' + _sqEsc(a.txt) + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>';
   var assistantHtml = '<div class="trn-aisum"><span class="trn-aisum-ic">&#129658;</span><p>' + _sqEsc(_trnMedAssistant(md)) + '</p></div>';
@@ -9404,9 +9452,12 @@ function _trnMed() {
   var injTimeline = _trEmpty('&#128203;', 'No injury history available', 'Injury dates, recovery progress and expected-return timelines appear once injury/physio records are stored. No data is fabricated.', false);
   var medStages = ['Assessment', 'Recovery', 'Rehabilitation', 'Training', 'Return', 'Completed'];
   var medTlHtml = '<div class="trn-rtp">' + medStages.map(function (s) { return '<div class="trn-rtp-stage"><span>&#8226;</span><b>' + s + '</b></div>'; }).join('') + '</div><p class="trn-note">Standard medical pathway. Per-player stage tracking requires stored medical records.</p>';
-  var advanced = '<details class="trn-adv"><summary>Return-to-play · injury timeline · medical timeline</summary>'
+  var syncNote = '<div class="trn-syncrow">' + ['Lineup', 'Formation', 'Tactics', 'Training', 'AI Coach', 'Match Prep', 'Executive', 'Notifications', 'Individual'].map(function (x) { return '<span class="trn-synctag">&#10003; ' + x + '</span>'; }).join('') + '</div><p class="trn-note">Injury &amp; availability status is the same real signal read by every module — flagging a player injured removes them from the generated lineup, match XI, executive availability and notifications automatically.</p>';
+  var advanced = '<details class="trn-adv"><summary>Medical actions · return-to-play · timelines · synchronisation</summary>'
+    + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Medical actions</h3><span class="trn-panel-tag">Deterministic · per player</span></div>' + actionsHtml + '</div>'
     + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Return-to-play (RTP)</h3><span class="trn-panel-tag">Workflow</span></div>' + rtpHtml + '</div>'
     + '<div class="trn-grid2" style="margin:14px"><div class="trn-panel"><div class="trn-panel-h"><h3>Injury timeline</h3></div>' + injTimeline + '</div><div class="trn-panel"><div class="trn-panel-h"><h3>Medical timeline</h3></div>' + medTlHtml + '</div></div>'
+    + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Synchronisation</h3><span class="trn-panel-tag">One shared status</span></div>' + syncNote + '</div>'
     + '</details>';
   return '<div class="trn-an">' + controls
     + _trnPanel('Medical KPIs &amp; squad health', 'Hover for calculations', kpiHtml + '<div style="margin-top:14px">' + availHtml + '</div>')
@@ -10230,6 +10281,9 @@ function _trnAction(act, el) {
     case 'exview': _TRN.exView = v; _trnRenderBody(); break;
     case 'execpdf': _trnExecPrint(); break;
     case 'medpdf': _trnMedPrint(); break;
+    case 'medprofile': _TRN.medPlayer = id; _TRN.modal = 'medprofile'; _trnRenderModal(); break;
+    case 'mednotesave': { var mn = document.getElementById('trn-mednote'); var mtxt = mn ? mn.value.trim() : ''; if (mtxt && _TRN.medPlayer) { var mnl = _trMedNLoad(); mnl.push({ pid: _TRN.medPlayer, text: mtxt, ts: Date.now() }); _trMedNSave(mnl); _trnToast('Medical note saved'); } _trnRenderModal(); break; }
+    case 'mednotedel': { var mni = parseInt(el.getAttribute('data-trn-i'), 10), mnl2 = _trMedNLoad(); if (mni >= 0 && mni < mnl2.length) { mnl2.splice(mni, 1); _trMedNSave(mnl2); } _trnRenderModal(); break; }
     case 'mnotesave': { var mt = document.getElementById('trn-mnote'); var txt = mt ? mt.value.trim() : ''; if (txt) { var ml = _trMnLoad(); ml.push({ text: txt, ts: Date.now() }); _trMnSave(ml); _trnToast('Match note saved'); } _trnRenderBody(); break; }
     case 'mnotedel': { var mi = parseInt(el.getAttribute('data-trn-i'), 10), ml2 = _trMnLoad(); if (mi >= 0 && mi < ml2.length) { ml2.splice(mi, 1); _trMnSave(ml2); } _trnRenderBody(); break; }
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
