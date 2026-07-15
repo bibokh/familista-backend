@@ -9994,9 +9994,10 @@ function _trnSkeleton() {
   return '<div class="trn-sk" aria-hidden="true"><div class="trn-sk-stats">' + new Array(8).join(0).split(0).map(function () { return stat; }).join('') + '</div>'
     + '<div class="trn-sk-grid">' + new Array(7).join(0).split(0).map(function () { return card; }).join('') + '</div></div>';
 }
-function _trnBody() {
-  if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) return _trnSkeleton();
-  switch (_TRN.tab) {
+// Renders a section's content by key — the exact same functions/logic as before,
+// just callable per-window. No feature/logic change.
+function _trnSectionHtml(key) {
+  switch (key) {
     case 'calendar': return _trnCalendar();
     case 'sessions': return _trnSessions();
     case 'drills': return _trnDrills();
@@ -10011,6 +10012,10 @@ function _trnBody() {
     case 'med': return _trnMed();
     default: return _trnDashboard();
   }
+}
+function _trnBody() {
+  if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) return _trnSkeleton();
+  return _trnSectionHtml(_TRN.tab || 'dashboard');
 }
 // ── AI Chat Assistant — answers ONLY from real training records (heuristic intent parser, no LLM/no fabrication) ──
 function _trnChatAnswer(q) {
@@ -10056,12 +10061,99 @@ function _trnChatInner() {
 }
 function _trnChatPanelHtml() { return '<div id="trn-chat" class="trn-chat">' + _trnChatInner() + '</div>'; }
 function _trnRenderChat() { if (typeof document === 'undefined') return; var el = document.getElementById('trn-chat'); if (!el) return; el.innerHTML = _trnChatInner(); var m = document.getElementById('trn-chat-msgs'); if (m) m.scrollTop = m.scrollHeight; if (_TRN.chatOpen) { var inp = document.getElementById('trn-chat-in'); if (inp) try { inp.focus(); } catch (e) {} } }
-function _trnInner() { return _trnHead() + _trnNav() + '<div class="trn-bodywrap" id="trn-body">' + _trnBody() + '</div>' + '<div id="trn-modal" class="trn-modal"' + (_TRN.modal ? '' : ' hidden') + '>' + _trnModalHtml() + '</div>' + _trnChatPanelHtml(); }
-function _trnRenderBody() { var b = document.getElementById('trn-body'); if (b) { b.innerHTML = _trnBody(); b.classList.remove('trn-anim'); void b.offsetWidth; b.classList.add('trn-anim'); } }
+// ── Premium floating-window workspace (UI shell only — every section's content is
+//    the SAME render function as before, just shown inside a draggable window) ──
+var _trnWinBound = false;
+function _trnWinTitle(key) { for (var i = 0; i < TRN_TABS.length; i++) if (TRN_TABS[i][0] === key) return TRN_TABS[i][1]; return key; }
+function _trnWinDefault(key) {
+  var open = 0, k; for (k in (_TRN.win || {})) if (_TRN.win[k].open) open++;
+  var vw = (typeof window !== 'undefined' && window.innerWidth) || 1280, off = (open % 8) * 30;
+  return { open: false, min: false, max: false, x: 34 + off, y: 16 + off, w: Math.min(700, Math.max(320, vw - 90)), h: 470, z: 0, px: 0, py: 0, pw: 0, ph: 0 };
+}
+function _trnWinOpen(key, silent) {
+  _TRN.win = _TRN.win || {}; _TRN.winZ = _TRN.winZ || 10;
+  var st = _TRN.win[key]; if (!st) { st = _trnWinDefault(key); _TRN.win[key] = st; }
+  st.open = true; st.min = false; st.z = ++_TRN.winZ;
+  if (!silent) _trnDeskRender();
+}
+function _trnWinClose(key) { if (_TRN.win && _TRN.win[key]) _TRN.win[key].open = false; _trnDeskRender(); }
+function _trnWinMin(key) { if (_TRN.win && _TRN.win[key]) _TRN.win[key].min = true; _trnDeskRender(); }
+function _trnWinMax(key) {
+  var st = _TRN.win && _TRN.win[key]; if (!st) return;
+  if (st.max) { st.max = false; if (st.pw) { st.x = st.px; st.y = st.py; st.w = st.pw; st.h = st.ph; } }
+  else { st.px = st.x; st.py = st.y; st.pw = st.w; st.ph = st.h; st.max = true; }
+  st.z = ++_TRN.winZ; _trnDeskRender();
+}
+function _trnWinFront(key) {
+  var st = _TRN.win && _TRN.win[key]; if (!st) return; st.z = ++_TRN.winZ;
+  if (typeof document !== 'undefined') { var el = document.querySelector('.trnw[data-trnw="' + key + '"]'); if (el) el.style.zIndex = st.z; }
+}
+function _trnWinHtml(key) {
+  var st = _TRN.win[key]; if (!st || !st.open || st.min) return '';
+  var style = st.max ? 'left:0;top:0;width:100%;height:100%;z-index:' + st.z + ';' : 'left:' + Math.round(st.x) + 'px;top:' + Math.round(st.y) + 'px;width:' + Math.round(st.w) + 'px;height:' + Math.round(st.h) + 'px;z-index:' + st.z + ';';
+  return '<section class="trnw' + (st.max ? ' is-max' : '') + '" data-trnw="' + key + '" style="' + style + '">'
+    + '<header class="trnw-bar" data-trnw-drag="' + key + '"><span class="trnw-dot"></span><span class="trnw-title">' + _trnWinTitle(key) + '</span>'
+    + '<span class="trnw-ctrls"><button class="trnw-btn" data-trn-act="winmin" data-trn-v="' + key + '" type="button" aria-label="Minimize">&#8211;</button>'
+    + '<button class="trnw-btn" data-trn-act="winmax" data-trn-v="' + key + '" type="button" aria-label="Maximize">&#9633;</button>'
+    + '<button class="trnw-btn trnw-btn--x" data-trn-act="winclose" data-trn-v="' + key + '" type="button" aria-label="Close">&#10005;</button></span></header>'
+    + '<div class="trnw-body trn-anim" id="trnw-body-' + key + '">' + _trnSectionHtml(key) + '</div>'
+    + (st.max ? '' : '<span class="trnw-resize" data-trnw-resize="' + key + '"></span>') + '</section>';
+}
+function _trnMinTray() {
+  var mins = []; for (var k in (_TRN.win || {})) if (_TRN.win[k].open && _TRN.win[k].min) mins.push(k);
+  if (!mins.length) return '';
+  return '<div class="trn-mintray">' + mins.map(function (key) { return '<button class="trn-minchip" data-trn-act="winopen" data-trn-v="' + key + '" type="button">' + _trnWinTitle(key) + '</button>'; }).join('') + '</div>';
+}
+function _trnDeskInner() {
+  var keys = []; for (var k in (_TRN.win || {})) if (_TRN.win[k].open && !_TRN.win[k].min) keys.push(k);
+  keys.sort(function (a, b) { return _TRN.win[a].z - _TRN.win[b].z; });
+  var wins = keys.map(function (key) { return _trnWinHtml(key); }).join('');
+  var empty = keys.length ? '' : '<div class="trn-deskempty">' + _trEmpty('&#128421;', 'Your workspace', 'Open any panel from the toolbar above — Dashboard, Analytics, AI Coach, Reports and more. Windows are draggable, resizable and stay open together.', false) + '</div>';
+  return wins + empty + _trnMinTray();
+}
+function _trnDeskRender() { if (typeof document === 'undefined') return; var d = document.getElementById('trn-desk'); if (d) d.innerHTML = _trnDeskInner(); }
+function _trnToolbar() {
+  var btns = TRN_TABS.map(function (x) { var on = _TRN.win && _TRN.win[x[0]] && _TRN.win[x[0]].open && !_TRN.win[x[0]].min; return '<button class="trn-qa' + (on ? ' is-on' : '') + '" data-trn-act="winopen" data-trn-v="' + x[0] + '" type="button">' + x[1] + '</button>'; }).join('');
+  var extra = '<span class="trn-qa-sep"></span><button class="trn-qa" data-trn-act="notif" type="button">&#128276; Notifications</button><button class="trn-qa" data-trn-act="search" type="button">&#128269; Search</button>';
+  return '<div class="trn-toolbar"><div class="trn-qawrap">' + btns + extra + '</div></div>';
+}
+function _trnWinBind() {
+  if (_trnWinBound || typeof document === 'undefined' || !document.addEventListener) return; _trnWinBound = true;
+  var drag = null;
+  document.addEventListener('mousedown', function (e) {
+    var win = e.target.closest && e.target.closest('.trnw'); if (!win) return; var key = win.getAttribute('data-trnw');
+    _trnWinFront(key);
+    if (e.target.closest('.trnw-ctrls')) return;
+    var st = _TRN.win && _TRN.win[key]; if (!st || st.max) return;
+    var rs = e.target.closest('[data-trnw-resize]'), bar = e.target.closest('[data-trnw-drag]');
+    if (rs) { drag = { key: key, mode: 'resize', sx: e.clientX, sy: e.clientY, w: st.w, h: st.h }; e.preventDefault(); }
+    else if (bar) { drag = { key: key, mode: 'move', sx: e.clientX, sy: e.clientY, x: st.x, y: st.y }; e.preventDefault(); }
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!drag) return; var st = _TRN.win[drag.key], el = document.querySelector('.trnw[data-trnw="' + drag.key + '"]'); if (!st || !el) return;
+    if (drag.mode === 'move') { st.x = Math.max(0, drag.x + (e.clientX - drag.sx)); st.y = Math.max(0, drag.y + (e.clientY - drag.sy)); el.style.left = st.x + 'px'; el.style.top = st.y + 'px'; }
+    else { st.w = Math.max(300, drag.w + (e.clientX - drag.sx)); st.h = Math.max(190, drag.h + (e.clientY - drag.sy)); el.style.width = st.w + 'px'; el.style.height = st.h + 'px'; }
+  });
+  document.addEventListener('mouseup', function () {
+    if (!drag) return; var st = _TRN.win[drag.key], desk = document.getElementById('trn-desk'), el = document.querySelector('.trnw[data-trnw="' + drag.key + '"]');
+    if (st && el && drag.mode === 'move' && desk) { var dw = desk.clientWidth, dh = desk.clientHeight; if (st.x < 14) st.x = 0; if (st.y < 14) st.y = 0; if (st.w < dw && st.x + st.w > dw - 14) st.x = Math.max(0, dw - st.w); if (st.h < dh && st.y + st.h > dh - 14) st.y = Math.max(0, dh - st.h); el.style.left = st.x + 'px'; el.style.top = st.y + 'px'; }
+    drag = null;
+  });
+  document.addEventListener('dblclick', function (e) { var bar = e.target.closest && e.target.closest('[data-trnw-drag]'); if (!bar) return; var win = e.target.closest('.trnw'); if (win) _trnWinMax(win.getAttribute('data-trnw')); });
+}
+function _trnInner() {
+  if (!_TRN.win) { _TRN.win = {}; _TRN.winZ = 10; _trnWinOpen('dashboard', true); }
+  return _trnHead() + _trnToolbar() + '<div class="trn-desk" id="trn-desk">' + _trnDeskInner() + '</div>' + '<div id="trn-modal" class="trn-modal"' + (_TRN.modal ? '' : ' hidden') + '>' + _trnModalHtml() + '</div>' + _trnChatPanelHtml();
+}
+// Re-render only the OPEN window bodies (light path for in-window actions/filters).
+function _trnRenderBody() {
+  if (typeof document === 'undefined') return; var legacy = document.getElementById('trn-body'); if (legacy) { legacy.innerHTML = _trnBody(); return; }
+  for (var k in (_TRN.win || {})) { var st = _TRN.win[k]; if (st && st.open && !st.min) { var b = document.getElementById('trnw-body-' + k); if (b) { b.innerHTML = _trnSectionHtml(k); } } }
+}
 function _trnRenderModal() { var m = document.getElementById('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
 function _trnRender() {
-  _trnRenderBody();
-  var nav = document.querySelector('.trn-nav'); if (nav) { var bs = nav.querySelectorAll('.trn-tab'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('is-active', bs[i].getAttribute('data-trn-tab') === _TRN.tab); }
+  _trnDeskRender();
+  var tb = document.querySelector('.trn-toolbar'); if (tb) { var nt = _trnToolbar(); var t0 = document.createElement('div'); t0.innerHTML = nt; if (t0.firstChild) tb.parentNode.replaceChild(t0.firstChild, tb); }
   var hd = document.querySelector('.trn-head'); if (hd) { var nh = _trnHead(); var tmp = document.createElement('div'); tmp.innerHTML = nh; if (tmp.firstChild) hd.parentNode.replaceChild(tmp.firstChild, hd); }
   _trnRenderModal();
 }
@@ -10080,7 +10172,7 @@ function _trnOpenSession(id) {
     var pf = s.performance && s.performance[pid];
     _TRN.perf[pid] = pf ? { participation: pf.participation || 'full', rating: pf.rating || 0, note: pf.note || '' } : { participation: 'full', rating: 0, note: '' };
   });
-  _trnRender();
+  _trnWinOpen('sessions'); _trnRenderModal();
 }
 function _trnAction(act, el) {
   var id = el ? el.getAttribute('data-trn-id') : null, v = el ? el.getAttribute('data-trn-v') : null;
@@ -10094,7 +10186,7 @@ function _trnAction(act, el) {
     case 'selall': _TRN.draft.players = (SQ_DEMO_PLAYERS || []).map(function (p) { return p.id; }); _trnRenderModal(); break;
     case 'clrall': _TRN.draft.players = []; _trnRenderModal(); break;
     case 'toggled': { var dd = _TRN.draft.drills, j = dd.indexOf(id); if (j >= 0) dd.splice(j, 1); else dd.push(id); _trnRenderModal(); break; }
-    case 'createsession': { _trnReadStep(3); var d = _TRN.draft; if (!d.date) d.date = new Date().toISOString().slice(0, 10); trCreateSession(d); _TRN.modal = null; _TRN.tab = 'sessions'; _TRN.open = null; _trnToast('Session created'); _trnRender(); break; }
+    case 'createsession': { _trnReadStep(3); var d = _TRN.draft; if (!d.date) d.date = new Date().toISOString().slice(0, 10); trCreateSession(d); _TRN.modal = null; _TRN.tab = 'sessions'; _TRN.open = null; _trnWinOpen('sessions', true); _trnToast('Session created'); _trnRender(); break; }
     case 'open': case 'opensession': _trnOpenSession(id); break;
     case 'back': _TRN.open = null; _TRN.completing = false; _trnRender(); break;
     case 'att': if (_TRN.att) _TRN.att[id] = v; _trnRenderBody(); break;
@@ -10122,9 +10214,13 @@ function _trnAction(act, el) {
     case 'chatsend': { var ci = document.getElementById('trn-chat-in'); _trnChatAsk(ci ? ci.value : ''); break; }
     case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
     case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = document.getElementById('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
-    case 'gotoplayer': _TRN.modal = null; _TRN.tab = 'individual'; _TRN.player = id; _trnRender(); break;
+    case 'gotoplayer': _TRN.modal = null; _TRN.player = id; _trnWinOpen('individual'); _trnRenderModal(); break;
     case 'gotosession': _TRN.modal = null; _trnOpenSession(id); break;
-    case 'gototab': _TRN.modal = null; _TRN.tab = v; _trnRender(); break;
+    case 'gototab': _TRN.modal = null; _trnWinOpen(v); _trnRenderModal(); break;
+    case 'winopen': _trnWinOpen(v); break;
+    case 'winclose': _trnWinClose(v); break;
+    case 'winmin': _trnWinMin(v); break;
+    case 'winmax': _trnWinMax(v); break;
     case 'dupsession': { var ds = _trSession(id); if (ds) { _TRN.tpl = _trnSessionConfig(ds); _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnToast('Session duplicated — set a new date'); _trnRender(); } break; }
     case 'savetemplate': { var ts = _trSession(id); if (ts) { var tl = _trTplLoad(); tl.push(_trnSessionConfig(ts)); _trTplSave(tl); _trnToast('Saved as template'); _trnRender(); } break; }
     case 'applytpl': { var ai = parseInt(el.getAttribute('data-trn-i'), 10), at = _trTplLoad()[ai]; if (at) { _TRN.tpl = at; _TRN.open = null; _TRN.draft = _trDefaultDraft(); _TRN.step = 1; _TRN.modal = 'create'; _trnRender(); } break; }
@@ -10174,7 +10270,7 @@ function renderTrainingWorkspaceHTML() {
   if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
   if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // build shared board so _sqMyStats/_sqTeamFeel sync
   _trLoadDB();                                                                        // load persisted training records
-  _deBind(); _trnBind();
+  _deBind(); _trnBind(); _trnWinBind();
   // Backend-first read: when an authenticated club with real imported players is
   // active, pull the canonical sessions from PostgreSQL and re-render. Inert on
   // the demo squad / logged out (see _trBackendOn). Runs once per load.
