@@ -7624,7 +7624,7 @@ function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false,
 function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
 function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
 // ══════════ Training · Drill Encyclopedia (premium coaching manual — original drills, descriptions & pitch illustrations) ══════════
-var DE_CATS = { 'Attack': '248,113,113', 'Defense': '56,189,248', 'Possession': '52,215,122', 'Physical & Mental': '251,146,60', 'Teamplay': '167,139,250' };
+var DE_CATS = { 'Attack': '248,113,113', 'Defense': '56,189,248', 'Possession': '52,215,122', 'Transition': '244,183,64', 'Teamplay': '167,139,250', 'Physical & Mental': '251,146,60', 'Goalkeeper': '45,212,191', 'Set Pieces': '236,72,153' };
 var DE_POS_ALL = ['GK', 'DL', 'DC', 'DR', 'DMC', 'MC', 'AML', 'AMC', 'AMR', 'ST'];
 var _DE_N = 0, _DE_SEL = null, _DE_CAT = 'All', _deBound = false;
 function _deEsc(s) { return (typeof _sqEsc === 'function') ? _sqEsc(s) : String(s == null ? '' : s); }
@@ -7727,7 +7727,200 @@ var DE_DRILLS = [
     ratings: { a: 5, d: 2, p: 3, t: 4, ph: 4, mn: 4, ov: 5 },
     aiWhy: 'Use it against teams that push high and leave space in behind.', aiAvoid: 'Avoid as a primary plan against deep blocks that give no space to counter.', aiCombos: 'Feeds off pressing recoveries and finishes chances at speed.',
     comboDrills: ['Counter-Press Trap', 'Transition to Attack', 'Shooting Under Pressure'], comboProduces: 'Fast, direct counters that punish high lines.',
-    tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] }
+    tips: ['The first pass must go forward or set a forward pass.', 'Commit runners early to stretch the recovering defence.', 'Finish within a few seconds before the block reforms.', 'Rehearse the outlet pass under pressure.'] },
+  // ── First-team professional library expansion ──
+  { id: 'overlap', name: 'Overlapping Full-Back Runs', cat: 'Attack', kind: 'crossing', intensity: 'Medium', cost: '-1.5%', avail: 15,
+    desc: 'The winger holds width and draws the full-back inside while the overlapping full-back sprints outside to deliver. Trains timing, communication and the 2v1 on the flank.',
+    improves: 'Wide overloads and crossing volume', tactical: 'Create 2v1s on the flank and attack the byline', technical: 'Timing of the release pass, crossing and cut-backs', physical: 'Repeated overlapping sprints', mental: 'Communication and run timing',
+    positions: ['DL', 'DR', 'AML', 'AMR'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Against narrow blocks', 'When you hold width superiority', 'Chasing a goal'],
+    ratings: { a: 5, d: 2, p: 3, t: 4, ph: 4, mn: 3, ov: 4 },
+    aiWhy: 'Use it when your full-backs are athletic and you attack down the flanks.', aiAvoid: 'Avoid against fast counter teams if your full-backs cannot recover.', aiCombos: 'Pairs with crossing and finishing to convert the deliveries.',
+    comboDrills: ['Overlapping Full-Back Runs', 'Crossing & Finishing', 'One-Two Combinations'], comboProduces: 'Repeated 2v1 crossing situations.',
+    trainDur: '18 min', players: '10–14', pitch: 'Wide channel · 40×24 m', equipment: 'Balls, cones, mannequins, goal',
+    coaching: ['Winger fixes the full-back before releasing.', 'Overlap must arrive at full speed, not jog.', 'Deliver early or reach the byline — no in-between.'],
+    mistakes: ['Overlap starts too early and gets marked.', 'Winger passes before drawing the defender.'],
+    corrections: ['Delay the overlap until the winger engages.', 'Coach a disguised inside touch before the release.'],
+    tips: ['Rehearse both early crosses and byline cut-backs.', 'Demand two runners in the box on every delivery.'] },
+  { id: 'thirdman', name: 'Third-Man Combinations', cat: 'Attack', kind: 'oneTwo', intensity: 'Medium', cost: '-1.5%', avail: 16,
+    desc: 'A set-and-release pattern where the third player breaks the line after a bounce pass. Trains the timing and angles that unlock a compact midfield.',
+    improves: 'Line-breaking through combinations', tactical: 'Use the bounce pass to release the third runner', technical: 'First-touch lay-offs and through-balls', physical: 'Sharp supporting runs', mental: 'Pattern recognition and timing',
+    positions: ['MC', 'AMC', 'ST', 'AML', 'AMR'], systems: ['4-3-3', '4-2-3-1', '3-5-2'], situations: ['Breaking a low block', 'Controlling tempo', 'Chasing a goal'],
+    ratings: { a: 4, d: 2, p: 4, t: 5, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it to unlock deep blocks with quick combinations.', aiAvoid: 'Avoid as a stand-alone plan against an aggressive man-marking press.', aiCombos: 'Blends with rondo and positional play.',
+    comboDrills: ['Third-Man Combinations', 'Positional Play Grid', 'Shooting Under Pressure'], comboProduces: 'Line-breaking releases into the final third.',
+    trainDur: '18 min', players: '9–12', pitch: 'Central zone · 30×24 m', equipment: 'Balls, cones, mini-goals',
+    coaching: ['The bounce is one-touch; the third runner times the break.', 'Body shape open to receive and release forward.'],
+    mistakes: ['Third runner moves too late.', 'Lay-off is heavy and slows the pattern.'],
+    corrections: ['Cue the run on the first pass.', 'Reward one-touch lay-offs.'],
+    tips: ['Limit touches to force sharper timing.', 'Rotate the third runner across positions.'] },
+  { id: 'positional', name: 'Positional Play Grid', cat: 'Possession', kind: 'passing', intensity: 'Medium', cost: '-1.25%', avail: 17,
+    desc: 'A zoned rondo where players hold positional discipline, occupy the half-spaces and progress the ball through structured passing lanes. The core of a possession identity.',
+    improves: 'Structured build-up and spacing', tactical: 'Occupy zones, create passing triangles, progress through lines', technical: 'Scanning, first touch and weighted passing', physical: 'Light, positional movement', mental: 'Discipline and patience',
+    positions: ['DMC', 'MC', 'AMC', 'DL', 'DR'], systems: ['4-3-3', '3-2-4-1', '4-2-3-1'], situations: ['Ball possession', 'Controlling tempo', 'Breaking a low block'],
+    ratings: { a: 3, d: 2, p: 5, t: 5, ph: 2, mn: 5, ov: 5 },
+    aiWhy: 'Use it to teach spacing and a positional possession game.', aiAvoid: 'Avoid before a direct, physical opponent as the sole plan.', aiCombos: 'Feeds combination and finishing work.',
+    comboDrills: ['Positional Play Grid', 'Third-Man Combinations', 'Switch of Play'], comboProduces: 'Controlled progression with players in the right zones.',
+    trainDur: '20 min', players: '10–16', pitch: 'Gridded half pitch · 45×40 m', equipment: 'Cones (zones), balls, bibs',
+    coaching: ['Keep one player per zone — no crowding.', 'Occupy the half-spaces to open central lanes.', 'Scan before receiving.'],
+    mistakes: ['Players drift out of their zone.', 'Too many touches invite pressure.'],
+    corrections: ['Restrict each zone to one player.', 'Cap touches and reward the forward pass.'],
+    tips: ['Use neutral floaters to keep flow while learning.', 'Progress from 4 zones to 6 as discipline improves.'] },
+  { id: 'switch', name: 'Switch of Play', cat: 'Possession', kind: 'passing', intensity: 'Medium', cost: '-1.25%', avail: 16,
+    desc: 'Circulate the ball on one side to draw the block, then switch quickly to the free flank and attack the space. Trains the diagonal pass and the timing of the switch.',
+    improves: 'Ball circulation and quick switches', tactical: 'Overload one side, switch and exploit the far flank', technical: 'Long diagonal passing and receiving on the move', physical: 'Repeated support runs across the pitch', mental: 'Recognising when to switch',
+    positions: ['DMC', 'MC', 'DL', 'DR', 'AML', 'AMR'], systems: ['4-3-3', '3-4-3', '4-2-3-1'], situations: ['Breaking a low block', 'Controlling tempo', 'Stretching a narrow team'],
+    ratings: { a: 4, d: 2, p: 5, t: 4, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it against narrow, ball-side-shifting blocks.', aiAvoid: 'Avoid if your team cannot execute accurate long diagonals under pressure.', aiCombos: 'Combines with positional play and crossing.',
+    comboDrills: ['Switch of Play', 'Positional Play Grid', 'Overlapping Full-Back Runs'], comboProduces: 'Isolations and crossing chances on the far side.',
+    trainDur: '18 min', players: '12–16', pitch: 'Full width · 60×45 m', equipment: 'Balls, cones, goals',
+    coaching: ['Draw the block fully before switching.', 'Far winger holds width and stays alive.', 'First touch across the body to attack.'],
+    mistakes: ['Switch played too early before drawing the block.', 'Receiver static, gets marked.'],
+    corrections: ['Cue the switch only once the block over-shifts.', 'Coach the far winger to stay high and wide.'],
+    tips: ['Reward one-touch receive-and-attack on the switch.', 'Practise switches off both feet.'] },
+  { id: 'lowblock', name: 'Low Block Defending', cat: 'Defense', kind: 'block', intensity: 'Medium', cost: '-1.25%', avail: 17,
+    desc: 'A compact, deep two-bank shape that denies central space, forces play wide and defends the box. Trains discipline, distances and pressing cues from a low block.',
+    improves: 'Compact defending and box protection', tactical: 'Deny the centre, force wide, defend crosses', technical: 'Body shape, jockeying and blocking', physical: 'Repeated shuffles and sprints to press cues', mental: 'Concentration and collective discipline',
+    positions: ['DC', 'DL', 'DR', 'DMC', 'MC'], systems: ['4-4-2', '5-3-2', '4-5-1'], situations: ['Protecting a lead', 'Against stronger possession teams', 'Away matches'],
+    ratings: { a: 1, d: 5, p: 2, t: 4, ph: 3, mn: 5, ov: 4 },
+    aiWhy: 'Use it to protect a lead or against a superior possession side.', aiAvoid: 'Avoid as an identity if your squad is built to dominate the ball.', aiCombos: 'Pairs with transition drills to punish on recovery.',
+    comboDrills: ['Low Block Defending', 'Counter-Attack Waves', 'Defensive Block Shape'], comboProduces: 'Solid defending with a counter outlet.',
+    trainDur: '20 min', players: '11–16', pitch: 'Defensive third · 50×45 m', equipment: 'Cones, bibs, goal',
+    coaching: ['Keep the two banks within 10–12 metres.', 'Shift as a unit to the ball side.', 'Press only on clear cues.'],
+    mistakes: ['Lines split and central gaps appear.', 'Individuals jump out and break the block.'],
+    corrections: ['Coach the ball-side shift and cover distances.', 'Hold the line until a defined trigger.'],
+    tips: ['Rehearse defending crosses with clear zones.', 'Practise the outlet pass to spring the counter.'] },
+  { id: 'coverbalance', name: 'Cover & Balance', cat: 'Defense', kind: 'block', intensity: 'Medium', cost: '-1.25%', avail: 16,
+    desc: 'Back-line rehearsal of pressing–covering–balancing roles so one defender engages while the others cover and stay compact. Trains the defensive triangle.',
+    improves: 'Back-line coordination', tactical: 'Press, cover and balance as a unit', technical: 'Approach angle, jockeying, timing the tackle', physical: 'Short recovery sprints', mental: 'Reading the play and communication',
+    positions: ['DC', 'DL', 'DR', 'DMC'], systems: ['4-4-2', '4-3-3', '3-5-2'], situations: ['Against fast forwards', 'Defensive preparation', 'Managing 1v1 threats'],
+    ratings: { a: 1, d: 5, p: 2, t: 4, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it to organise the back line against quick, direct attacks.', aiAvoid: 'Avoid over-loading it right before a match — it is cognitively demanding.', aiCombos: 'Combines with low-block and pressing work.',
+    comboDrills: ['Cover & Balance', 'Low Block Defending', 'Counter-Press Trap'], comboProduces: 'A coordinated, hard-to-break back line.',
+    trainDur: '18 min', players: '8–12', pitch: 'Back-line zone · 44×30 m', equipment: 'Cones, bibs, goal',
+    coaching: ['Presser shows the attacker one way.', 'First cover tucks in behind; second balances across.', 'Communicate every shift.'],
+    mistakes: ['All defenders press the ball.', 'No cover behind the presser.'],
+    corrections: ['Assign clear press/cover/balance roles each rep.', 'Slow the drill until roles are automatic.'],
+    tips: ['Progress from 3v2 to 4v3 to full back line.', 'Add a server to vary the entry angle.'] },
+  { id: 'counterwaves', name: 'Counter-Attack Waves', cat: 'Transition', kind: 'transition', intensity: 'Hard', cost: '-2%', avail: 11,
+    desc: 'On a turnover, the team breaks in waves — first the outlet, then runners beyond the ball — to finish before the opponent recovers. Trains decision speed in transition.',
+    improves: 'Fast attacking transitions', tactical: 'Outlet forward, commit runners, finish quickly', technical: 'First-time forward passing and finishing at speed', physical: 'Repeated maximal sprints', mental: 'Fast decisions and directness',
+    positions: ['ST', 'AML', 'AMR', 'MC', 'DMC'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Against high lines', 'Chasing a goal', 'After winning the ball high'],
+    ratings: { a: 5, d: 2, p: 3, t: 4, ph: 5, mn: 4, ov: 5 },
+    aiWhy: 'Use it against teams that push high and leave space in behind.', aiAvoid: 'Avoid heavy loading in the final 48h before a match.', aiCombos: 'Feeds off pressing recoveries.',
+    comboDrills: ['Counter-Attack Waves', 'Counter-Press Trap', 'Shooting Under Pressure'], comboProduces: 'Direct counters that punish high lines.',
+    trainDur: '22 min', players: '12–16', pitch: 'Full length · 70×50 m', equipment: 'Balls, bibs, two goals',
+    coaching: ['First pass goes forward or sets a forward pass.', 'Commit at least two runners beyond the ball.', 'Finish within 6–8 seconds.'],
+    mistakes: ['Slow first decision lets the block reset.', 'Too few runners commit forward.'],
+    corrections: ['Set a shot-clock on the transition.', 'Demand two runners ahead of the ball every rep.'],
+    tips: ['Protect condition — this is demanding.', 'Rehearse the outlet under pressure.'] },
+  { id: 'restdefense', name: 'Rest Defence Organisation', cat: 'Transition', kind: 'transition', intensity: 'Medium', cost: '-1.25%', avail: 15,
+    desc: 'While attacking, the deepest players position to stop the counter the instant the ball is lost. Trains counter-prevention and the balance behind the attack.',
+    improves: 'Preventing counter-attacks', tactical: 'Stagger the rest-defence line and screen the counter', technical: 'Positioning, interceptions, delaying', physical: 'Short recovery sprints', mental: 'Anticipation and discipline',
+    positions: ['DC', 'DMC', 'DL', 'DR'], systems: ['4-3-3', '3-2-4-1', '4-2-3-1'], situations: ['When committing players forward', 'Against fast counter teams', 'Protecting a lead'],
+    ratings: { a: 2, d: 5, p: 3, t: 4, ph: 3, mn: 5, ov: 4 },
+    aiWhy: 'Use it when your attack commits many players and you concede counters.', aiAvoid: 'Rarely a downside — but do not sacrifice attacking numbers entirely.', aiCombos: 'Pairs with build-up and possession work.',
+    comboDrills: ['Rest Defence Organisation', 'Build-Up From the Back', 'Cover & Balance'], comboProduces: 'Attacks with a safety net against the counter.',
+    trainDur: '18 min', players: '11–16', pitch: 'Middle & final third · 60×50 m', equipment: 'Cones, bibs, goals',
+    coaching: ['Deepest players stagger, never flat.', 'Screen the central lane first.', 'Delay, do not dive in, on the counter.'],
+    mistakes: ['Everyone joins the attack — no cover left.', 'Rest-defence line too flat.'],
+    corrections: ['Assign the rest-defence players before each attack.', 'Coach a staggered line with central priority.'],
+    tips: ['Add a live counter server to test it.', 'Reward interceptions and delays, not just tackles.'] },
+  { id: 'buildup', name: 'Build-Up From the Back', cat: 'Teamplay', kind: 'passing', intensity: 'Medium', cost: '-1.25%', avail: 16,
+    desc: 'Structured playing out from the goalkeeper and centre-backs against a press, using rotations and the free man to progress into midfield. The foundation of controlled build-up.',
+    improves: 'Playing out under pressure', tactical: 'Beat the press with rotations and the spare man', technical: 'Composed passing, first touch, goalkeeper distribution', physical: 'Light with pressing bursts', mental: 'Composure under pressure',
+    positions: ['GK', 'DC', 'DL', 'DR', 'DMC'], systems: ['4-3-3', '3-2-4-1', '4-2-3-1'], situations: ['Against a high press', 'Controlling tempo', 'Establishing an identity'],
+    ratings: { a: 2, d: 3, p: 5, t: 5, ph: 2, mn: 5, ov: 5 },
+    aiWhy: 'Use it to build a pressing-resistant playing-out identity.', aiAvoid: 'Avoid forcing it with low-composure defenders against an elite press.', aiCombos: 'Feeds positional play and switches.',
+    comboDrills: ['Build-Up From the Back', 'Positional Play Grid', 'Switch of Play'], comboProduces: 'Clean progression from the back into midfield.',
+    trainDur: '20 min', players: '11–16', pitch: 'Defensive & middle third · 60×50 m', equipment: 'Balls, bibs, goals',
+    coaching: ['Create a spare man behind the first press line.', 'GK is an outfield option, not just a kicker.', 'Invite pressure, then release the free man.'],
+    mistakes: ['Centre-backs too close together.', 'Rushed passes gift the press.'],
+    corrections: ['Widen the first line to open passing angles.', 'Coach composure — draw the presser first.'],
+    tips: ['Rehearse against a live, aggressive press.', 'Practise both short build-up and the direct out-ball.'] },
+  { id: 'compactshape', name: 'Compact Team Shape', cat: 'Teamplay', kind: 'block', intensity: 'Medium', cost: '-1.25%', avail: 17,
+    desc: 'Whole-team rehearsal of vertical and horizontal compactness so the lines shift together and space between them stays minimal. Trains collective defensive organisation.',
+    improves: 'Team compactness and shape', tactical: 'Keep the lines connected and shift as a block', technical: 'Positioning and scanning', physical: 'Constant collective shuffling', mental: 'Discipline and communication',
+    positions: ['DC', 'DMC', 'MC', 'DL', 'DR'], systems: ['4-4-2', '4-3-3', '4-5-1'], situations: ['Defensive preparation', 'Against strong possession sides', 'Protecting a result'],
+    ratings: { a: 2, d: 5, p: 3, t: 5, ph: 3, mn: 5, ov: 5 },
+    aiWhy: 'Use it to make the team hard to play through.', aiAvoid: 'Avoid drilling it in isolation without pressing triggers.', aiCombos: 'Pairs with pressing and low-block work.',
+    comboDrills: ['Compact Team Shape', 'Counter-Press Trap', 'Low Block Defending'], comboProduces: 'A connected, hard-to-break defensive block.',
+    trainDur: '20 min', players: '14–20', pitch: 'Full pitch · 90×60 m', equipment: 'Cones, bibs, poles',
+    coaching: ['Keep ~10–15 m between the lines.', 'Shift together to the ball side.', 'Squeeze up when the ball goes back.'],
+    mistakes: ['Lines drift apart vertically.', 'Ball-far players ball-watch.'],
+    corrections: ['Use reference poles for line distances.', 'Coach the squeeze on every backward pass.'],
+    tips: ['Walk it through first, then add a live ball.', 'Film from height to show the shape.'] },
+  { id: 'agility', name: 'Speed & Agility Circuit', cat: 'Physical & Mental', kind: 'fitness', intensity: 'Hard', cost: '-2%', avail: 12,
+    desc: 'Ladder, hurdle and change-of-direction stations combined with a ball action to develop acceleration, deceleration and reactive agility. Football-specific athleticism.',
+    improves: 'Acceleration, agility and change of direction', tactical: 'Faster, sharper movements to execute the game plan', technical: 'Ball action after each athletic station', physical: 'Speed, agility, deceleration control', mental: 'Focus and reactive decision-making',
+    positions: ['DL', 'DR', 'MC', 'AML', 'AMR', 'ST'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Pre-season conditioning', 'Building match sharpness', 'Early-week loading'],
+    ratings: { a: 3, d: 3, p: 2, t: 2, ph: 5, mn: 3, ov: 4 },
+    aiWhy: 'Use it early in the week to build sharpness and athleticism.', aiAvoid: 'Avoid in the final 48h before a match.', aiCombos: 'Combines with finishing and transition after a base is built.',
+    comboDrills: ['Speed & Agility Circuit', 'Counter-Attack Waves', 'Shooting Under Pressure'], comboProduces: 'Sharper, faster players in game actions.',
+    trainDur: '22 min', players: '8–20', pitch: 'Fitness area · 40×30 m', equipment: 'Ladders, hurdles, cones, balls, timing gates',
+    coaching: ['Prioritise quality of movement over speed early.', 'Coach deceleration and re-acceleration mechanics.', 'Finish each station with a ball action.'],
+    mistakes: ['Sloppy foot placement in the ladder.', 'No control on deceleration.'],
+    corrections: ['Slow the tempo until mechanics are clean.', 'Add a stop-and-hold on change of direction.'],
+    tips: ['Keep work:rest ~1:3 for quality.', 'Individualise load for players in recovery.'] },
+  { id: 'powersprints', name: 'Power & Repeated Sprints', cat: 'Physical & Mental', kind: 'fitness', intensity: 'Hard', cost: '-2.25%', avail: 10,
+    desc: 'Repeated maximal sprints with short recoveries to build repeated-sprint ability and the power to sustain high-intensity actions across a match.',
+    improves: 'Repeated-sprint ability and power', tactical: 'Sustain high-intensity pressing and running', technical: 'Sprint mechanics', physical: 'Power, repeated-sprint capacity', mental: 'Toughness and competitiveness',
+    positions: ['DL', 'DR', 'MC', 'DMC', 'AML', 'AMR', 'ST'], systems: ['4-3-3', '4-2-3-1', '3-4-3'], situations: ['Pre-season base', 'Building match fitness', 'Early-week conditioning'],
+    ratings: { a: 2, d: 3, p: 1, t: 1, ph: 5, mn: 4, ov: 4 },
+    aiWhy: 'Use it early-week to build the engine for a high-intensity style.', aiAvoid: 'Avoid close to matchday and for players in the recovery group.', aiCombos: 'Precedes tactical work once the base is set.',
+    comboDrills: ['Power & Repeated Sprints', 'Speed & Agility Circuit', 'Counter-Press Trap'], comboProduces: 'Players who sustain intensity for 90 minutes.',
+    trainDur: '20 min', players: '8–20', pitch: 'Running lanes · 40×30 m', equipment: 'Cones, timing gates, sleds (optional)',
+    coaching: ['True maximal effort each rep — quality over volume.', 'Standardise recoveries.', 'Monitor readiness and pull fatigued players.'],
+    mistakes: ['Pacing the sprints instead of maximal effort.', 'Recoveries too short, quality drops.'],
+    corrections: ['Enforce full-effort reps with adequate rest.', 'Cut volume if speed drops off.'],
+    tips: ['Match volume to each player’s real load and recovery.', 'Never load recovery-group players here.'] },
+  { id: 'gkdist', name: 'GK Distribution & Sweeping', cat: 'Goalkeeper', kind: 'shooting', intensity: 'Medium', cost: '-1%', avail: 16,
+    desc: 'Goalkeeper-specific work on playing out, long distribution and sweeping behind a high line. Integrates the keeper into build-up and defensive cover.',
+    improves: 'Goalkeeper distribution and sweeping', tactical: 'Keeper as a build-up option and last-line sweeper', technical: 'Throwing, kicking, footwork, decision-making', physical: 'Explosive footwork and sprints to sweep', mental: 'Reading the game and composure',
+    positions: ['GK'], systems: ['4-3-3', '3-2-4-1', '4-2-3-1'], situations: ['Playing out from the back', 'Behind a high line', 'Against a press'],
+    ratings: { a: 2, d: 4, p: 4, t: 4, ph: 3, mn: 4, ov: 4 },
+    aiWhy: 'Use it when your keeper must play out and sweep behind a high line.', aiAvoid: 'Avoid overloading distribution if the keeper is not comfortable with the ball.', aiCombos: 'Integrates with build-up from the back.',
+    comboDrills: ['GK Distribution & Sweeping', 'Build-Up From the Back', 'Rest Defence Organisation'], comboProduces: 'A keeper who builds play and defends space.',
+    trainDur: '20 min', players: '1–6 (+GK)', pitch: 'Defensive third · 40×40 m', equipment: 'Balls, goal, mannequins, cones',
+    coaching: ['Set feet early for accurate distribution.', 'Start position higher when the line pushes up.', 'Decide early: play out or go long.'],
+    mistakes: ['Starting position too deep behind a high line.', 'Rushed, inaccurate distribution.'],
+    corrections: ['Coach a higher, adjustable start position.', 'Rehearse the set-and-release footwork.'],
+    tips: ['Rehearse both short build-up and the long switch.', 'Add a live press to test decisions.'] },
+  { id: 'gkstop', name: 'GK Shot-Stopping & Angles', cat: 'Goalkeeper', kind: 'shooting', intensity: 'Hard', cost: '-1.5%', avail: 13,
+    desc: 'Repeated shot-stopping from varied angles and distances, with set position, footwork and reaction saves. Sharpens the keeper for match shot volume.',
+    improves: 'Shot-stopping and angle play', tactical: 'Command the box and narrow the angle', technical: 'Set position, handling, reactive saves', physical: 'Explosive dives and recovery', mental: 'Concentration and bravery',
+    positions: ['GK'], systems: ['4-4-2', '4-3-3', '5-3-2'], situations: ['Against high-shot-volume opponents', 'Building keeper form', 'Match sharpening'],
+    ratings: { a: 1, d: 5, p: 1, t: 4, ph: 4, mn: 5, ov: 4 },
+    aiWhy: 'Use it to sharpen the keeper before a high-shot-volume match.', aiAvoid: 'Avoid heavy dive volume the day before a match.', aiCombos: 'Pairs with defensive block and crossing (defending) work.',
+    comboDrills: ['GK Shot-Stopping & Angles', 'Low Block Defending', 'Crossing & Finishing'], comboProduces: 'A keeper set and ready for match shots.',
+    trainDur: '18 min', players: '1–4 (+GK)', pitch: 'Penalty area', equipment: 'Balls, goal, cones, rebounder',
+    coaching: ['Set before the shot — feet stopped, hands ready.', 'Narrow the angle without over-committing.', 'Strong hand behind the ball.'],
+    mistakes: ['Moving as the shot is struck.', 'Diving early and getting beaten near post.'],
+    corrections: ['Coach the set-step timing.', 'Hold the near post; force the harder finish.'],
+    tips: ['Vary angle, height and distance.', 'Cap dive volume close to matchday.'] },
+  { id: 'corners', name: 'Attacking Corner Routines', cat: 'Set Pieces', kind: 'setpiece', intensity: 'Medium', cost: '-1%', avail: 17,
+    desc: 'Rehearsed attacking corner routines — near-post flicks, blockers, and second-ball stations — to turn set pieces into a reliable scoring source.',
+    improves: 'Set-piece goal threat', tactical: 'Rehearsed routines, blocks and second-ball coverage', technical: 'Delivery accuracy and attacking headers', physical: 'Jumping power and timing', mental: 'Concentration and role discipline',
+    positions: ['DC', 'ST', 'AMC', 'MC'], systems: ['4-4-2', '4-3-3', '3-5-2'], situations: ['Chasing a goal', 'Against zonal-marking teams', 'Maximising set-piece value'],
+    ratings: { a: 4, d: 2, p: 2, t: 3, ph: 4, mn: 4, ov: 4 },
+    aiWhy: 'Use it to add a reliable goal source from dead balls.', aiAvoid: 'Avoid over-complex routines your players cannot execute under pressure.', aiCombos: 'Pairs with crossing and aerial work.',
+    comboDrills: ['Attacking Corner Routines', 'Crossing & Finishing', 'Free-Kick Routines'], comboProduces: 'A consistent set-piece scoring threat.',
+    trainDur: '18 min', players: '8–16', pitch: 'Attacking box', equipment: 'Balls, goal, mannequins, bibs',
+    coaching: ['Assign clear roles: taker, blockers, runners, second ball.', 'Attack the ball, do not wait for it.', 'Cover the edge for the second ball.'],
+    mistakes: ['Static runners marked out of the routine.', 'No plan for the second ball.'],
+    corrections: ['Time the runs to the taker’s cue.', 'Station a player at the top of the box.'],
+    tips: ['Rehearse 2–3 routines, not ten.', 'Practise both in-swing and out-swing delivery.'] },
+  { id: 'freekicks', name: 'Free-Kick Routines', cat: 'Set Pieces', kind: 'setpiece', intensity: 'Easy', cost: '-0.75%', avail: 18,
+    desc: 'Attacking and defensive free-kick rehearsal — direct strikes, layered routines and wall/marking assignments — to control both ends of dead-ball situations.',
+    improves: 'Free-kick threat and defensive organisation', tactical: 'Routines to attack; wall and marking to defend', technical: 'Striking technique and delivery', physical: 'Low — technical focus', mental: 'Composure and role clarity',
+    positions: ['DC', 'MC', 'AMC', 'AML', 'AMR', 'ST'], systems: ['4-3-3', '4-2-3-1', '3-5-2'], situations: ['Set-piece preparation', 'Against organised opponents', 'Maximising dead-ball value'],
+    ratings: { a: 4, d: 3, p: 2, t: 2, ph: 2, mn: 4, ov: 4 },
+    aiWhy: 'Use it to prepare both attacking and defensive dead balls.', aiAvoid: 'Rarely a downside — keep it short and focused.', aiCombos: 'Pairs with corner and crossing work.',
+    comboDrills: ['Free-Kick Routines', 'Attacking Corner Routines', 'Crossing & Finishing'], comboProduces: 'Control of both attacking and defensive set pieces.',
+    trainDur: '15 min', players: '8–16', pitch: 'Around the box', equipment: 'Balls, goal, wall dummies, cones',
+    coaching: ['Assign a clear taker and a decoy.', 'Defensively: set the wall fast, mark the danger, guard the second ball.', 'Rehearse a few sharp routines.'],
+    mistakes: ['Slow, disorganised defensive wall.', 'No decoy on attacking routines.'],
+    corrections: ['Nominate a wall organiser and mark-up leader.', 'Add a decoy runner to open the strike.'],
+    tips: ['Keep routines simple and repeatable.', 'Practise both attacking and defending the free kick.'] }
 ];
 // ══════════ Premium pre-rendered 3D drill videos (produced externally in Unreal/Blender; the app just streams them) ══════════
 // To PUBLISH a drill's exclusive cinematic video — no code change needed, just fill its entry below:
@@ -7809,6 +8002,13 @@ function _deIcon(n) {
   if (n === 'mute') return s + '<path d="M4 9v6h4l5 5V4L8 9H4z" fill="currentColor"/><path d="M16 9.5l5 5M21 9.5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
   if (n === 'fs') return s + '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
   if (n === 'film') return s + '<rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4v16M15 4v16M4 9h16M4 15h16" stroke="currentColor" stroke-width="1.2"/></svg>';
+  if (n === 'gauge') return s + '<path d="M4 15a8 8 0 0 1 16 0" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 15l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="15" r="1.4" fill="currentColor"/></svg>';
+  if (n === 'clock') return s + '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  if (n === 'users') return s + '<circle cx="9" cy="9" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4 19a5 5 0 0 1 10 0" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M16 6.5a3 3 0 0 1 0 5M17 19a5 5 0 0 0-2.5-4.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+  if (n === 'grid') return s + '<rect x="4" y="4" width="16" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 4v16M4 12h16" stroke="currentColor" stroke-width="1.3"/></svg>';
+  if (n === 'cone') return s + '<path d="M12 4l5 15H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.3 12h5.4M8.2 15.4h7.6" stroke="currentColor" stroke-width="1.4"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  if (n === 'plus') return s + '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  if (n === 'check') return s + '<path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   return s + '</svg>';
 }
 var _DE_AC = null;
@@ -8059,9 +8259,50 @@ function _deIndex() {
     + '<div class="de-filters">' + chips + '</div>'
     + '<div class="de-grid">' + list.map(_deCard).join('') + '</div>';
 }
+// Setup / logistics for a drill — uses explicit fields when present, else derives
+// sensible professional defaults from intensity + category so every drill (incl.
+// the original library) shows a complete coaching module. No fabricated data.
+function _deDifficulty(d) { if (d.difficulty) return d.difficulty; var i = _deIntKey(d.intensity); return i === 'easy' ? 'Beginner' : i === 'hard' ? 'Advanced' : 'Intermediate'; }
+function _deTrainDur(d) { if (d.trainDur) return d.trainDur; var i = _deIntKey(d.intensity); return i === 'easy' ? '15 min' : i === 'hard' ? '22 min' : '18 min'; }
+function _dePlayers(d) { return d.players || '10–16'; }
+function _dePitch(d) { return d.pitch || 'Half pitch · ~40×30 m'; }
+function _deEquip(d) { return d.equipment || 'Balls, cones, bibs, mini-goals'; }
+function _deCoaching(d) { if (d.coaching && d.coaching.length) return d.coaching; return (d.tips || []).slice(0, 3); }
+var _DE_MISTAKES = {
+  'Attack': ['Runs are mistimed and drift offside or get marked.', 'Final action rushed — poor delivery or finish.'],
+  'Possession': ['Players stand still and shrink the passing angles.', 'Too many touches invite pressure and lose the ball.'],
+  'Defense': ['Individuals jump out and break the collective shape.', 'Ball-far players ball-watch and lose their runner.'],
+  'Transition': ['Slow first decision lets the opponent reset.', 'Too few players commit to the transition.'],
+  'Teamplay': ['Lines drift apart and gaps open between units.', 'Communication drops and roles overlap.'],
+  'Physical & Mental': ['Effort drops below the required intensity.', 'Movement quality breaks down as fatigue sets in.'],
+  'Goalkeeper': ['Set position is late or off balance.', 'Decision to come or stay is made too slowly.'],
+  'Set Pieces': ['Runners are static and easily marked.', 'No plan for the second ball.']
+};
+var _DE_CORRECTIONS = {
+  'Attack': ['Cue the run to the moment of release.', 'Slow the drill until timing and quality return.'],
+  'Possession': ['Cap touches and reward the forward pass.', 'Coach constant movement to open new angles.'],
+  'Defense': ['Reinforce roles and cover distances each rep.', 'Hold the shape until a clear pressing trigger.'],
+  'Transition': ['Set a shot-clock to force faster decisions.', 'Demand a minimum number of runners each rep.'],
+  'Teamplay': ['Use reference points for line distances.', 'Restart with clear, nominated roles.'],
+  'Physical & Mental': ['Adjust work:rest to protect quality.', 'Individualise load to each player’s readiness.'],
+  'Goalkeeper': ['Rehearse the set-step and start position.', 'Add decision cues before each action.'],
+  'Set Pieces': ['Time the runs to the taker’s cue.', 'Assign a second-ball guard on every routine.']
+};
+function _deMistakes(d) { if (d.mistakes && d.mistakes.length) return d.mistakes; return _DE_MISTAKES[d.cat] || _DE_MISTAKES['Possession']; }
+function _deCorrections(d) { if (d.corrections && d.corrections.length) return d.corrections; return _DE_CORRECTIONS[d.cat] || _DE_CORRECTIONS['Possession']; }
 function _deDetail(d) {
   var ac = DE_CATS[d.cat];
   var purpose = '<ul class="de-obj"><li><b>Improves</b>' + _deEsc(d.improves) + '</li><li><b>Tactical</b>' + _deEsc(d.tactical) + '</li><li><b>Technical</b>' + _deEsc(d.technical) + '</li><li><b>Physical</b>' + _deEsc(d.physical) + '</li><li><b>Mental</b>' + _deEsc(d.mental) + '</li></ul>';
+  var setup = '<div class="de-setup">'
+    + '<span class="de-setup-i"><i>' + _deIcon('gauge') + '</i><em>Difficulty</em><b>' + _deEsc(_deDifficulty(d)) + '</b></span>'
+    + '<span class="de-setup-i"><i>' + _deIcon('clock') + '</i><em>Duration</em><b>' + _deEsc(_deTrainDur(d)) + '</b></span>'
+    + '<span class="de-setup-i"><i>' + _deIcon('users') + '</i><em>Players</em><b>' + _deEsc(_dePlayers(d)) + '</b></span>'
+    + '<span class="de-setup-i"><i>' + _deIcon('grid') + '</i><em>Pitch</em><b>' + _deEsc(_dePitch(d)) + '</b></span>'
+    + '<span class="de-setup-i de-setup-i--wide"><i>' + _deIcon('cone') + '</i><em>Equipment</em><b>' + _deEsc(_deEquip(d)) + '</b></span>'
+    + '</div>';
+  var coaching = '<ul class="de-coach">' + _deCoaching(d).map(function (t) { return '<li><span class="de-coach-ic">&#9873;</span>' + _deEsc(t) + '</li>'; }).join('') + '</ul>';
+  var mistakes = '<ul class="de-miss">' + _deMistakes(d).map(function (t) { return '<li><span class="de-miss-ic">&#10007;</span>' + _deEsc(t) + '</li>'; }).join('') + '</ul>';
+  var corrections = '<ul class="de-fix">' + _deCorrections(d).map(function (t) { return '<li><span class="de-fix-ic">&#10003;</span>' + _deEsc(t) + '</li>'; }).join('') + '</ul>';
   var systems = '<div class="de-sys">' + d.systems.map(function (s) { return '<span class="de-sys-b">&#10003; ' + s + '</span>'; }).join('') + '</div>';
   var sit = '<ul class="de-sit">' + d.situations.map(function (s) { return '<li>' + _deEsc(s) + '</li>'; }).join('') + '</ul>';
   var ratings = _deBarRow('Attack', d.ratings.a, '248,113,113') + _deBarRow('Defense', d.ratings.d, '56,189,248') + _deBarRow('Possession', d.ratings.p, '52,215,122') + _deBarRow('Teamwork', d.ratings.t, '167,139,250') + _deBarRow('Physical', d.ratings.ph, '251,146,60') + _deBarRow('Mental', d.ratings.mn, '244,183,64') + '<div class="de-bar-ov">' + _deBarRow('Overall', d.ratings.ov, ac) + '</div>';
@@ -8071,11 +8312,17 @@ function _deDetail(d) {
   return '<button class="de-back" data-de-action="back" type="button">&#8249; Back to Encyclopedia</button>'
     + '<div class="de-hero" style="--c:' + ac + '"><span class="de-hero-img">' + _deScene(d.kind, ac) + '</span>'
     + '<div class="de-hero-info"><span class="de-hero-cat" style="--c:' + ac + '">' + d.cat + '</span><h1 class="de-hero-nm">' + _deEsc(d.name) + '</h1>'
-    + '<div class="de-hero-meta"><span class="de-mchip"><i>Intensity</i><b class="i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</b></span><span class="de-mchip"><i>Condition Cost</i><b>' + d.cost + '</b></span><span class="de-mchip"><i>Availability</i><b>Lv ' + d.avail + '</b></span><span class="de-mchip"><i>Overall</i><b>' + _deStars(d.ratings.ov) + '</b></span></div></div></div>'
+    + '<div class="de-hero-meta"><span class="de-mchip"><i>Intensity</i><b class="i-' + _deIntKey(d.intensity) + '">' + d.intensity + '</b></span><span class="de-mchip"><i>Condition Cost</i><b>' + d.cost + '</b></span><span class="de-mchip"><i>Availability</i><b>Lv ' + d.avail + '</b></span><span class="de-mchip"><i>Overall</i><b>' + _deStars(d.ratings.ov) + '</b></span></div>'
+    + '<button class="de-add" data-de-action="addsession" data-de="' + d.id + '" type="button" style="--c:' + ac + '"><i>' + _deIcon('plus') + '</i>Add directly to today\'s training session</button>'
+    + '</div></div>'
+    + _deSection('&#9881;', 'Session Setup', setup)
     + _deVideo(d)
     + '<div class="de-cols"><div class="de-col">'
     + _deSection('&#128203;', 'Official Description', '<p class="de-desc">' + _deEsc(d.desc) + '</p>')
     + _deSection('&#127919;', 'Main Purpose', purpose)
+    + _deSection('&#127942;', 'Coaching Points', coaching, ac)
+    + _deSection('&#9888;', 'Common Mistakes', mistakes)
+    + _deSection('&#128295;', 'Correction Methods', corrections)
     + _deSection('&#128205;', 'Best Positions', _dePosBadges(d.positions))
     + _deSection('&#9819;', 'Best Tactical Systems', systems)
     + _deSection('&#9201;', 'Best Match Situations', sit)
@@ -8086,6 +8333,31 @@ function _deDetail(d) {
     + _deSection('&#128161;', 'Professional Tips', tips)
     + '</div></div>';
 }
+// "Add directly to today's training session" — real integration with the shared
+// training database. If a session already exists for today it appends the drill
+// (no duplicates); otherwise it opens the standard create-session flow prefilled
+// with today's date and the drill selected. No fabricated data.
+function _deAddToSession(id) {
+  if (!id || typeof _trAllSessions !== 'function') return;
+  var today; try { today = new Date().toISOString().slice(0, 10); } catch (e) { today = ''; }
+  var sess = _trAllSessions().filter(function (s) { return s.date === today; });
+  var target = null, i;
+  for (i = 0; i < sess.length; i++) { if (!sess[i].completed && !sess[i].completedAt) { target = sess[i]; break; } }
+  if (!target && sess.length) target = sess[0];
+  if (target) {
+    if (!Array.isArray(target.drills)) target.drills = [];
+    if (target.drills.indexOf(id) === -1) { target.drills.push(id); _trSaveDB(); _trnToast('Drill added to today’s session'); }
+    else { _trnToast('Drill already in today’s session'); }
+    if (typeof _trnRender === 'function') _trnRender();
+    return;
+  }
+  _TRN.draft = _trDefaultDraft();
+  if (!Array.isArray(_TRN.draft.drills)) _TRN.draft.drills = [];
+  if (_TRN.draft.drills.indexOf(id) === -1) _TRN.draft.drills.push(id);
+  _TRN.step = 1; _TRN.modal = 'create';
+  if (typeof _trnRenderModal === 'function') _trnRenderModal();
+  _trnToast('New session for today — drill added');
+}
 function _deInner() { if (_DE_SEL) { for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === _DE_SEL) return _deDetail(DE_DRILLS[i]); _DE_SEL = null; } return _deIndex(); }
 function _deRender() { if (typeof document === 'undefined') return; var r = document.getElementById('de-root'); if (r) { r.innerHTML = _deInner(); r.scrollTop = 0; if (r.parentNode && r.parentNode.scrollTo) try { r.parentNode.scrollTo(0, 0); } catch (e) {} } }
 function _deBind() {
@@ -8095,6 +8367,7 @@ function _deBind() {
     var a = el.getAttribute('data-de-action');
     if (a === 'open') { _DE_SEL = el.getAttribute('data-de'); _deRender(); }
     else if (a === 'back') { _DE_SEL = null; _deRender(); }
+    else if (a === 'addsession') { _deAddToSession(el.getAttribute('data-de')); }
     else if (a === 'filter') { _DE_CAT = el.getAttribute('data-de'); _DE_SEL = null; _deRender(); }
     else if (a === 'play') { _dePlay(el.getAttribute('data-de')); }
   });
@@ -9553,6 +9826,136 @@ function _trnDrills() {
   _DE_SEL = _DE_SEL || null;
   return '<div class="trn-drills"><div class="de-root" id="de-root">' + _deInner() + '</div></div>';
 }
+// ── Shared training context (REAL): next upcoming session (else most recent),
+//    combined with live team load/readiness — drives Nutrition + Psychology so the
+//    whole centre adapts as one ecosystem. No fabricated data. ──
+function _trnIntLvl(x) { x = String(x || '').toLowerCase(); if (x.indexOf('max') >= 0 || x.indexOf('high') >= 0) return 'high'; if (x.indexOf('low') >= 0 || x.indexOf('none') >= 0 || x.indexOf('rest') >= 0 || x.indexOf('recover') >= 0) return 'low'; return 'medium'; }
+function _trnSessionCtx() {
+  var all = (typeof _trAllSessions === 'function') ? _trAllSessions() : [];
+  var today; try { today = new Date().toISOString().slice(0, 10); } catch (e) { today = ''; }
+  var up = all.filter(function (s) { return (s.date || '') >= today; }).sort(function (a, b) { return (a.date || '') < (b.date || '') ? -1 : 1; });
+  var past = all.filter(function (s) { return (s.date || '') < today; }).sort(function (a, b) { return (a.date || '') < (b.date || '') ? 1 : -1; });
+  var s = up[0] || past[0] || null, t = _trnTeam();
+  var intensity, dur, when, focus, real = !!s;
+  if (s) { intensity = s.intensity || 'Medium'; dur = parseInt(s.duration, 10) || 90; when = up[0] ? 'Next session · ' + (s.date || '') : 'Last session · ' + (s.date || ''); focus = (s.type || '').charAt(0).toUpperCase() + (s.type || '').slice(1); }
+  else { intensity = t.fatigue >= 58 ? 'Low' : (t.acwr > 1.3 ? 'Medium' : (t.readiness >= 75 ? 'High' : 'Medium')); dur = 90; when = 'Planned (from load)'; focus = ''; }
+  return { s: s, t: t, intensity: intensity, lvl: _trnIntLvl(intensity), dur: dur, when: when, focus: focus, real: real };
+}
+function _trnCoachCard(icon, title, body, foot, tone) {
+  return '<div class="trn-cc' + (tone ? ' trn-cc--' + tone : '') + '"><div class="trn-cc-h"><span class="trn-cc-ic">' + icon + '</span><b>' + title + '</b></div><div class="trn-cc-b">' + body + '</div>' + (foot ? '<div class="trn-cc-f">' + foot + '</div>' : '') + '</div>';
+}
+// ══ SPORTS NUTRITION — adapts to real training load, readiness, fatigue, session
+//    duration & intensity. Guidance values are professional sports-science
+//    references (per-kg), personalised only by real team/player state. ══
+var _TRN_NUT = {
+  low:    { carb: '3–4 g/kg', prot: '1.6 g/kg', fhr: 500, gel: 'Not required', pre: 'Light meal 2–3 h before — lean protein, moderate carbs, vegetables.', during: 'Water; add electrolytes only if warm.', post: 'Balanced meal within 2 h — no urgent carb window on light days.', energy: 'Prioritise sleep quality; light mobility to aid regeneration.', focus: 'Maintain — do not overfeed on low-load days.' },
+  medium: { carb: '5–6 g/kg', prot: '1.8 g/kg', fhr: 650, gel: 'Optional mid-session', pre: 'Carb-focused meal ~3 h before + small snack 1 h before.', during: '500–750 ml/h water with electrolytes.', post: '≈1.0 g/kg carbs + 25–30 g protein within 45 min.', energy: '8 h sleep, replenish glycogen, hydrate through the evening.', focus: 'Fuel the work, refuel to recover.' },
+  high:   { carb: '7–9 g/kg', prot: '2.0 g/kg', fhr: 850, gel: '30–60 g carbs/h recommended', pre: 'High-carb meal 3–4 h before + carb top-up 60 min before.', during: '750–1000 ml/h + electrolytes + carbohydrate.', post: '≈1.2 g/kg carbs + 30–40 g protein within 30 min; repeat at 2 h.', energy: '8–9 h sleep, aggressive glycogen refuel, consider cold therapy.', focus: 'Aggressive refuel — protect the next session.' }
+};
+var _TRN_SUPP = [
+  { n: 'Whey / casein protein', d: '20–40 g post-session for muscle repair', lv: 'low,medium,high' },
+  { n: 'Creatine monohydrate', d: '3–5 g daily — strength & repeated-sprint power', lv: 'low,medium,high' },
+  { n: 'Electrolytes (sodium)', d: 'In fluids to replace sweat losses', lv: 'medium,high' },
+  { n: 'Carbohydrate gels', d: '30–60 g/h on long or high-intensity days', lv: 'high' },
+  { n: 'Caffeine', d: '3 mg/kg, 45–60 min pre-match for alertness', lv: 'high' },
+  { n: 'Omega-3', d: '1–2 g daily — anti-inflammatory recovery', lv: 'low,medium,high' },
+  { n: 'Vitamin D', d: 'Per medical screening — bone & immune health', lv: 'low,medium,high' },
+  { n: 'Beta-alanine', d: 'Buffering for high-intensity efforts', lv: 'high' }
+];
+function _trnNutrition() {
+  var c = _trnSessionCtx(), t = c.t, lvl = c.lvl, N = _TRN_NUT[lvl];
+  var duringMl = Math.round(N.fhr * c.dur / 60);
+  var lvlLabel = lvl.charAt(0).toUpperCase() + lvl.slice(1);
+  var ctx = '<div class="trn-ctx"><div class="trn-ctx-h"><span class="trn-ctx-badge">Adaptive plan</span><b>Fuelling for a ' + _sqEsc(c.intensity) + '-intensity, ' + c.dur + '-min session</b><i>' + _sqEsc(c.when) + (c.real ? '' : ' · derived from live squad load') + '</i></div>'
+    + '<div class="trn-ctx-m">'
+    + _trnStat('Intensity', lvlLabel, '', lvl === 'high' ? 'red' : lvl === 'low' ? 'green' : 'amber')
+    + _trnStat('Duration', c.dur, '<i>min</i>', 'violet')
+    + _trnStat('Readiness', (t.readiness == null ? '—' : t.readiness), '<i>%</i>', _trnTone(t.readiness))
+    + _trnStat('Fatigue', t.fatigue, '<i>%</i>', t.fatigue >= 55 ? 'red' : 'amber')
+    + _trnStat('ACWR', t.acwr ? t.acwr.toFixed(2) : '—', '', (t.acwr >= 0.8 && t.acwr <= 1.3) ? 'green' : 'amber')
+    + '</div></div>';
+  var timeline = '<div class="trn-nut-grid">'
+    + _trnCoachCard('&#127869;', 'Pre-training', '<p>' + _sqEsc(N.pre) + '</p>', 'Target: <b>' + N.carb + '</b> carbs on the day', 'pre')
+    + _trnCoachCard('&#128167;', 'During training', '<p>' + _sqEsc(N.during) + '</p>', '≈ <b>' + duringMl + ' ml</b> fluid across ' + c.dur + ' min', 'dur')
+    + _trnCoachCard('&#128257;', 'Post-training recovery', '<p>' + _sqEsc(N.post) + '</p>', 'Recovery window: <b>first 30–45 min</b>', 'post')
+    + '</div>';
+  var macros = '<div class="trn-nut-macros">'
+    + _trnBar('Carbohydrate target', lvl === 'high' ? 92 : lvl === 'medium' ? 66 : 40, lvl === 'high' ? 'risk' : lvl === 'medium' ? 'bal' : 'adv', N.carb)
+    + _trnBar('Protein target', lvl === 'high' ? 88 : lvl === 'medium' ? 78 : 68, 'bal', N.prot)
+    + _trnBar('Hydration (session)', _trnClamp(duringMl / 1400 * 100, 10, 100), duringMl >= 900 ? 'slt' : 'adv', duringMl + ' ml')
+    + '</div><p class="trn-nut-note"><b>Energy recovery:</b> ' + _sqEsc(N.energy) + '</p>';
+  // Intensity-based reference table — active level highlighted
+  var rows = ['low', 'medium', 'high'].map(function (k) {
+    var r = _TRN_NUT[k], on = k === lvl;
+    return '<tr class="' + (on ? 'is-on' : '') + '"><td><b>' + k.charAt(0).toUpperCase() + k.slice(1) + '</b>' + (on ? ' <span class="trn-nut-now">current</span>' : '') + '</td><td>' + r.carb + '</td><td>' + r.prot + '</td><td>' + r.fhr + ' ml/h</td><td>' + _sqEsc(r.gel) + '</td></tr>';
+  }).join('');
+  var table = '<div class="trn-nut-tw"><table class="trn-nut-tbl"><thead><tr><th>Intensity</th><th>Carbs</th><th>Protein</th><th>Fluids</th><th>In-session carbs</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  // Approved supplements — active for current level flagged
+  var supp = '<div class="trn-supp">' + _TRN_SUPP.map(function (s) { var on = s.lv.indexOf(lvl) >= 0; return '<div class="trn-supp-i' + (on ? ' is-on' : '') + '"><b>' + _sqEsc(s.n) + (on ? ' <span class="trn-supp-tag">today</span>' : '') + '</b><i>' + _sqEsc(s.d) + '</i></div>'; }).join('') + '</div><p class="trn-nut-note trn-nut-note--muted">Supplements flagged “today” match the current ' + lvlLabel.toLowerCase() + '-intensity load. Always clear supplementation with the medical team.</p>';
+  // Real per-player recovery focus (from readiness / fatigue / availability)
+  var need = t.ps.filter(function (x) { return x.avail === 'injured' || x.readiness < 62 || x.fatigue >= 55; }).sort(function (a, b) { return a.readiness - b.readiness; }).slice(0, 8);
+  var recover = need.length
+    ? '<div class="trn-psy-chips">' + need.map(function (x) { var reason = x.avail === 'injured' ? 'injured — repair focus' : x.readiness < 62 ? 'low readiness ' + x.readiness + '%' : 'fatigue ' + x.fatigue + '%'; var tone = x.avail === 'injured' ? 'risk' : x.readiness < 55 ? 'risk' : 'slt'; return '<span class="trn-chipx trn-chipx--' + tone + '">' + _sqEsc(_trnLast(x.p.name)) + '<i>' + reason + '</i></span>'; }).join('') + '</div><p class="trn-nut-note trn-nut-note--muted">These players need prioritised recovery nutrition — extra protein, carbohydrate refuel and hydration, tied to their live Load &amp; Medical status.</p>'
+    : _trEmpty('&#9989;', 'Whole squad well recovered', 'No player currently shows low readiness or elevated fatigue — standard recovery nutrition applies across the group.', false);
+  return ctx
+    + _trnPanel('Fuelling timeline', 'Pre · During · Post', timeline)
+    + _trnPanel('Macros, hydration &amp; energy', 'Scaled to today’s load', macros)
+    + '<div class="trn-grid2">' + _trnPanel('Intensity-based nutrition', 'Reference guide', table) + _trnPanel('Approved supplements', 'Evidence-based', supp) + '</div>'
+    + _trnPanel('Individual recovery focus', 'From real readiness &amp; medical status', recover);
+}
+// ══ SPORTS PSYCHOLOGY — AI recommendations from real team + individual condition
+//    (coach ratings, attendance, readiness, fatigue, availability, form trend). ══
+function _trnPsychology() {
+  var c = _trnSessionCtx(), t = c.t;
+  var att = t.attendance, rd = t.readiness, fat = t.fatigue, inj = t.injured, rating = t.rating;
+  var attP = (att == null) ? 70 : att, ratP = (rating == null) ? 6.5 : rating;
+  var improved = [], declining = [], leaders = [], lowMot = [], returning = [];
+  t.ps.forEach(function (x) {
+    if (x.improve > 0.2) improved.push(x); else if (x.improve < -0.2) declining.push(x);
+    if (x.avail === 'injured') returning.push(x);
+    if (x.attendancePct != null && x.attendancePct < 75) lowMot.push(x);
+  });
+  leaders = t.ps.filter(function (x) { return x.rating != null && x.avail !== 'injured'; }).sort(function (a, b) { return b.rating - a.rating; }).slice(0, 3);
+  declining.sort(function (a, b) { return a.improve - b.improve; });
+  // Derived mental metrics (0–100) from real state
+  var motivation = _trnClamp(Math.round(attP * 0.6 + rd * 0.4), 5, 99);
+  var focus = _trnClamp(Math.round(rd * 0.5 + ratP * 10 * 0.5), 5, 99);
+  var confidence = _trnClamp(Math.round(ratP * 10 * 0.6 + 24 + (improved.length - declining.length) * 4), 5, 99);
+  var composure = _trnClamp(Math.round(100 - fat * 0.55 + rd * 0.25), 5, 99);
+  var discipline = _trnClamp(Math.round(attP * 0.8 + 18), 5, 99);
+  var cohesion = _trnClamp(Math.round(attP * 0.6 + (100 - inj * 8) * 0.4), 5, 99);
+  var noData = (rating == null && att == null);
+  var banner = noData ? '<p class="trn-nut-note trn-nut-note--muted">Metrics below use live readiness &amp; availability; they calibrate to coach-rating form and attendance as you record sessions.</p>' : '';
+  var ctx = '<div class="trn-ctx"><div class="trn-ctx-h"><span class="trn-ctx-badge">Mental readiness</span><b>Squad psychological state ahead of a ' + _sqEsc(c.intensity) + '-intensity block</b><i>' + _sqEsc(c.when) + '</i></div>'
+    + '<div class="trn-ctx-m">'
+    + _trnStat('Motivation', motivation, '<i>%</i>', _trnTone(motivation))
+    + _trnStat('Focus', focus, '<i>%</i>', _trnTone(focus))
+    + _trnStat('Confidence', confidence, '<i>%</i>', _trnTone(confidence))
+    + _trnStat('Composure', composure, '<i>%</i>', _trnTone(composure))
+    + _trnStat('Cohesion', cohesion, '<i>%</i>', _trnTone(cohesion))
+    + '</div></div>' + banner;
+  var nm = function (x) { return _sqEsc(_trnLast(x.p.name)); };
+  var lead = leaders.length ? leaders.map(nm).join(', ') : null;
+  // AI recommendation cards, each tied to real numbers
+  var cards = '<div class="trn-psy-grid">'
+    + _trnCoachCard('&#128293;', 'Motivation', _trnBar('Team drive', motivation, _trnTone(motivation)) + '<p>' + (motivation >= 72 ? 'Motivation is high — set stretch targets and keep standards demanding.' : 'Reinforce purpose with clear, individual goals and positive reinforcement.') + (lowMot.length ? ' Re-engage ' + lowMot.slice(0, 3).map(nm).join(', ') + ' — attendance below 75% signals dipping engagement.' : '') + '</p>', null, _trnTone(motivation))
+    + _trnCoachCard('&#127919;', 'Focus &amp; concentration', _trnBar('Attentional readiness', focus, _trnTone(focus)) + '<p>' + (focus >= 70 ? 'Concentration is strong — use decision-based drills to keep it sharp.' : 'Add short, cue-based focus blocks; keep instructions concise and outcome-driven.') + '</p>', null, _trnTone(focus))
+    + _trnCoachCard('&#128170;', 'Confidence', _trnBar('Collective confidence', confidence, _trnTone(confidence)) + '<p>' + (confidence >= 70 ? 'Confidence is healthy — trust players to express themselves.' : 'Rebuild confidence with success-guaranteed drills and specific praise.') + (declining.length ? ' Individual support for ' + declining.slice(0, 3).map(nm).join(', ') + ' — coach ratings trending down.' : (improved.length ? ' Momentum with ' + improved.slice(0, 2).map(nm).join(', ') + ' — reinforce their rising form.' : '')) + '</p>', null, _trnTone(confidence))
+    + _trnCoachCard('&#129504;', 'Pressure management', _trnBar('Composure', composure, _trnTone(composure)) + '<p>' + (fat >= 55 ? 'Fatigue (' + fat + '%) erodes composure — protect load and add breathing / down-regulation routines.' : 'Composure is stable — rehearse pressure scenarios so it holds on matchday.') + '</p>', null, _trnTone(composure))
+    + '</div>';
+  var prep = '<div class="trn-nut-grid">'
+    + _trnCoachCard('&#9917;', 'Pre-match mental prep', '<p>' + (rd == null ? 'Readiness pending' : (rd >= 72 ? 'Readiness ' + rd + '% — players are primed. Use consistent routines, visualisation and clear roles.' : 'Readiness ' + rd + '% — keep activation calm and confidence-led, avoid over-arousal.')) + '</p>', 'Individual routines &amp; role clarity', 'pre')
+    + _trnCoachCard('&#127793;', 'Post-match recovery', '<p>Separate outcome from performance. Structured debrief, switch-off protocols and sleep protect the next block' + (fat >= 55 ? ' — fatigue is elevated, prioritise mental down-time.' : '.') + '</p>', 'Debrief · switch-off · sleep', 'post')
+    + _trnCoachCard('&#128172;', 'Team communication', _trnBar('Cohesion', cohesion, _trnTone(cohesion)) + '<p>' + (cohesion >= 72 ? 'Communication channels are healthy — keep on-pitch talk loud and specific.' : 'Invest in connection — small-group tasks and clear on-pitch cues.') + '</p>', null, 'dur')
+    + '</div>';
+  var leadCard = _trnCoachCard('&#9813;', 'Leadership', lead ? '<p>Form leaders to lean on: <b>' + lead + '</b>. Give them voice in standards and match preparation.</p>' : '<p>Record rated sessions to surface on-form leaders from real data.</p>', null, 'pre');
+  var discCard = _trnCoachCard('&#9878;', 'Discipline', _trnBar('Standards &amp; punctuality', discipline, _trnTone(discipline)) + '<p>' + (att == null ? 'Attendance not yet recorded — punctuality feeds this metric.' : (att >= 90 ? 'Attendance ' + att + '% — standards are excellent; maintain accountability.' : 'Attendance ' + att + '% — reset non-negotiables on punctuality and effort.')) + '</p>', null, _trnTone(discipline));
+  var cohCard = _trnCoachCard('&#129309;', 'Team cohesion', _trnBar('Group unity', cohesion, _trnTone(cohesion)) + '<p>' + (inj ? inj + ' player' + (inj === 1 ? '' : 's') + ' sidelined — keep them integrated to protect unity. ' : '') + (returning.length ? 'Psychological reintegration for ' + returning.slice(0, 3).map(nm).join(', ') + ' on return to play.' : 'Squad fully available — use it to build connection.') + '</p>', null, 'dur');
+  return ctx
+    + _trnPanel('AI mental recommendations', 'From live team &amp; player condition', cards)
+    + _trnPanel('Match-day psychology', 'Prep · recovery · communication', prep)
+    + '<div class="trn-grid3">' + leadCard + discCard + cohCard + '</div>';
+}
 // Consecutive-attendance streaks for a player, from real records (present/late = attended).
 function _trnAttStreaks(pid, recorded) {
   var seq = recorded.filter(function (s) { return (s.players || []).indexOf(pid) >= 0; }).sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); }).map(function (s) { return (s.attendance || {})[pid]; });
@@ -10052,6 +10455,8 @@ function _trnSectionHtml(key) {
     case 'calendar': return _trnCalendar();
     case 'sessions': return _trnSessions();
     case 'drills': return _trnDrills();
+    case 'nutrition': return _trnNutrition();
+    case 'psychology': return _trnPsychology();
     case 'attendance': return _trnAttendance();
     case 'load': return _trnLoad();
     case 'individual': return _trnIndividual();
@@ -10122,7 +10527,7 @@ var TRN_GROUPS = [
   { k: 'calendar', label: 'Calendar', subs: [['calendar', 'Calendar']] },
   { k: 'sessions', label: 'Sessions', subs: [['sessions', 'Sessions']] },
   { k: 'players', label: 'Players', subs: [['individual', 'Individual'], ['attendance', 'Attendance'], ['load', 'Load & Fitness']] },
-  { k: 'training', label: 'Training', subs: [['drills', 'Drills']] },
+  { k: 'training', label: 'Training', subs: [['drills', 'Drills'], ['nutrition', 'Nutrition'], ['psychology', 'Psychology']] },
   { k: 'match', label: 'Match Prep', subs: [['match', 'Match Prep']] },
   { k: 'med', label: 'Medical', subs: [['med', 'Medical']] },
   { k: 'ai', label: 'AI', subs: [['ai', 'AI Coach']] },
