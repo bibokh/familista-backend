@@ -8012,6 +8012,11 @@ var _DE_SCEN = {
 };
 // ball loft per drill (0 ground pass .. 1 lofted cross) + AI coach callouts anchored to home-player index / 'ball', shown per shot segment.
 var _DE_LOFT = { crossing: 1, setpiece: 1, transition: 0.55, shooting: 0.35, oneTwo: 0.2 };
+// positioning-zone labels (professional telestration tags) + step helpers derived from the caps storyboard.
+var _DE_ZLAB = { crossing: 'Cut-back zone', rondo: 'Possession grid', shooting: 'Shooting zone', pressing: 'Pressing trap', passing: 'Progression lane', block: 'Compact block', fitness: 'Sprint channel', oneTwo: 'Combination zone', setpiece: 'Delivery zone', transition: 'Counter lane' };
+function _deStepLabel(cap) { var p = String(cap).split(':')[0]; var map = { 'Positioning': 'Set-up & shape', 'Ball movement': 'Ball movement', 'Player movement': 'Off-ball movement', 'Common mistake': 'Common mistake', 'Correct execution': 'Correct execution' }; return map[p] || p; }
+function _deStepTone(cap) { if (/mistake/i.test(cap)) return 'bad'; if (/correct/i.test(cap)) return 'good'; if (/player movement/i.test(cap)) return 'good'; return 'info'; }
+function _deStepText(cap) { return String(cap).replace(/^[^:]*:\s*/, ''); }
 var _DE_NOTES = {
   crossing: [{ seg: 'live', a: 1, tx: 'Full-back overlaps to stretch the line', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Player 9 attacks the near post', tn: 'good' }, { seg: 'freeze', a: 3, tx: 'Player 11 holds the far post', tn: 'info' }, { seg: 'replay', a: 'ball', tx: 'Early cross into the danger zone', tn: 'good' }],
   rondo: [{ seg: 'live', a: 0, tx: 'Quick one-touch pass', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Third-man run opens the angle', tn: 'good' }, { seg: 'replay', a: 4, tx: 'Keep the ball moving', tn: 'info' }],
@@ -8069,6 +8074,10 @@ function _deIcon(n) {
   if (n === 'cone') return s + '<path d="M12 4l5 15H7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.3 12h5.4M8.2 15.4h7.6" stroke="currentColor" stroke-width="1.4"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   if (n === 'plus') return s + '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   if (n === 'check') return s + '<path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if (n === 'prev') return s + '<path d="M18 6L9 12l9 6zM6 5v14" stroke="currentColor" stroke-width="2" fill="currentColor" stroke-linejoin="round"/></svg>';
+  if (n === 'next') return s + '<path d="M6 6l9 6-9 6zM18 5v14" stroke="currentColor" stroke-width="2" fill="currentColor" stroke-linejoin="round"/></svg>';
+  if (n === 'replay') return s + '<path d="M20 8a8 8 0 1 0 1.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 3v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if (n === 'cam') return s + '<rect x="3" y="7" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15 10.5l6-3v9l-6-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
   return s + '</svg>';
 }
 var _DE_AC = null;
@@ -8078,145 +8087,138 @@ function _deTick() { _deBeep(1150, .05, 'sine', .028); }
 // Real-time 3D-perspective tactical engine (self-authored; no external 3D lib/assets). Perspective pitch inside a stadium,
 // figures with height + shadows + run cycle, lofted ball arcs, cinematic multi-shot camera (wide/broadcast/zoom/freeze/replay),
 // pitch-projected arrows & zones, and AI coach callouts. Same api as before so the player/controls are unchanged.
+// ── Professional tactical-analysis engine (self-authored; no external 3D lib/assets).
+//    Clean telestration board like elite coaching software: premium turf, crisp lines,
+//    numbered PLAYER TOKENS (not game figures), coach-selectable stable cameras
+//    (tactical top / broadcast / side / free), passing lines, movement arrows,
+//    positioning zones, spotlight highlights, a timing indicator and step-by-step
+//    coaching callouts. Motion is eased & phased per coaching step (no robotic cuts). ──
 function _deAnimApi(root, sc, ac, dur, drill) {
   var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t'), camEl = root.querySelector('.de-pl-cam');
+  var stTitleEl = root.querySelector('.de-pl-steptitle'), stNumEl = root.querySelector('.de-pl-stepnum');
   var stepsEls = (root && root.querySelectorAll) ? root.querySelectorAll('.de-pl-step') : [];
   var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+  var kind = drill ? drill.kind : '', loft = _DE_LOFT[kind] || 0;
+  var caps = sc.caps || [], N = caps.length || 5, zlab = _DE_ZLAB[kind] || 'Key zone';
   var t = 0, playing = false, speed = 1, muted = false, raf = 0, last = 0, cb = null, lastCap = -1, lastCam = '', lastStep = -1;
-  var kind = drill ? drill.kind : '', loft = _DE_LOFT[kind] || 0, notes = _DE_NOTES[kind] || [];
-  var CX = 52.5, CZ = 34, P, CAM;
-  function wx(x) { return x * 1.05; } function wz(y) { return y * 1.0625; }
-  function ease(u) { return u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u); }
+  var MODES = ['tactical', 'broadcast', 'side', 'free'], MODE_LB = { tactical: 'TACTICAL VIEW', broadcast: 'BROADCAST', side: 'SIDE VIEW', free: 'FREE CAMERA' };
+  var mode = 'tactical', CAM = null, camS = null, orbit = 0;
+  function c01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function ease(u) { u = c01(u); return u * u * (3 - 2 * u); }
+  function smoother(u) { u = c01(u); return u * u * u * (u * (u * 6 - 15) + 10); }
   function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
   function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
   function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
   function norm(a) { var l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
-  function lerp3(a, b, u) { return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u]; }
+  function wx(x) { return x * 1.05; } function wz(y) { return y * 1.0625; }
   function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
-  var zc = sc.zone ? [wx(sc.zone[0] + sc.zone[2] / 2), 0, wz(sc.zone[1] + sc.zone[3] / 2)] : [CX, 0, CZ];
-  function wu(t) { if (t < 0.62) return ease(t / 0.62); if (t < 0.76) return 1; return 0.5 + ((t - 0.76) / 0.24) * 0.5; }
-  function seg(t) { return t < 0.62 ? 'live' : t < 0.76 ? 'freeze' : 'replay'; }
-  function homeW(p, u) { return [wx(p[0] + (p[2] - p[0]) * u), 0, wz(p[1] + (p[3] - p[1]) * u)]; }
-  function ballW(u) {
-    var pts = sc.ball; if (!pts || !pts.length) return null; var n = pts.length - 1; if (n <= 0) return [wx(pts[0][0]), 0, wz(pts[0][1])];
-    var f = Math.max(0, Math.min(1, u)) * n, i = Math.min(n - 1, Math.floor(f)), g = f - i;
-    return [wx(pts[i][0] + (pts[i + 1][0] - pts[i][0]) * g), loft * 7 * Math.sin(Math.PI * g), wz(pts[i][1] + (pts[i + 1][1] - pts[i][1]) * g)];
+  function tint(tri, d) { var p = String(tri).split(',').map(Number); function c(v) { return Math.max(0, Math.min(255, Math.round(v + d))); } return 'rgb(' + c(p[0]) + ',' + c(p[1]) + ',' + c(p[2]) + ')'; }
+  var CXp = 52.5, CZp = 34, zc = sc.zone ? [wx(sc.zone[0] + sc.zone[2] / 2), 0, wz(sc.zone[1] + sc.zone[3] / 2)] : [CXp, 0, CZp];
+  // ── progression: smooth but phased per coaching step (settles at each step boundary) ──
+  function prog() { var f = c01(dur ? t / dur : 0); var st = Math.min(N - 1, Math.floor(f * N)); var loc = f * N - st; return { u: (st + smoother(loc)) / N, st: st, loc: loc, f: f }; }
+  function stepAt() { var f = c01(dur ? t / dur : 0.999); if (f >= 1) f = 0.999; return Math.min(N - 1, Math.floor(f * N)); }
+  function homeAt(p, u) { return [wx(p[0] + (p[2] - p[0]) * u), 0, wz(p[1] + (p[3] - p[1]) * u)]; }
+  function ballAt(u) { var pts = sc.ball; if (!pts || !pts.length) return null; var n = pts.length - 1; if (n <= 0) return [wx(pts[0][0]), 0, wz(pts[0][1])]; var f = c01(u) * n, i = Math.min(n - 1, Math.floor(f)), g = f - i; return [wx(pts[i][0] + (pts[i + 1][0] - pts[i][0]) * g), loft * 6.5 * Math.sin(Math.PI * g), wz(pts[i][1] + (pts[i + 1][1] - pts[i][1]) * g)]; }
+  function ballSeg(u) { var pts = sc.ball; if (!pts || pts.length < 2) return { seg: 0, g: 0, n: 0 }; var n = pts.length - 1, f = c01(u) * n, i = Math.min(n - 1, Math.floor(f)); return { seg: i, g: f - i, n: n }; }
+  // ── camera: coach-selectable, stable presets with smooth easing ──
+  function preset(md, u) {
+    var b = ballAt(u), fx = b ? b[0] : CXp;
+    if (md === 'tactical') return { pos: [52.5, 92, 9], tgt: [52.5, 0, 37], fov: 0.66 };
+    if (md === 'broadcast') return { pos: [fx * 0.46 + 22, 33, -22], tgt: [fx * 0.7 + 15, 1.1, 34], fov: 0.72 };
+    if (md === 'side') return { pos: [52.5, 15, -32], tgt: [52.5, 1.1, 34], fov: 0.70 };
+    orbit += 0.0016; return { pos: [52.5 + Math.cos(orbit) * 70, 50, 34 + Math.sin(orbit) * 54], tgt: [52.5, 0, 34], fov: 0.72 };
   }
-  function project(p) { var d = sub(p, CAM.pos), r = CAM.r, u = CAM.u, f = CAM.f; var cxp = dot(d, r), cyp = dot(d, u), czp = dot(d, f); if (czp < 0.05) czp = 0.05; var fl = (H / 2) / Math.tan(CAM.fov / 2); return { x: W / 2 + cxp / czp * fl, y: H / 2 - cyp / czp * fl, z: czp, s: fl / czp }; }
-  function camAt(tf, b) {
-    var bx = b ? b[0] : CX, bz = b ? b[2] : CZ;
-    var KF = [
-      { t: 0.00, pos: [CX - 4, 58, 4], tgt: [CX, 0, 40], fov: 0.95, lb: 'CAM · DRONE' },
-      { t: 0.16, pos: [CX, 46, -18], tgt: [CX, 0.5, 34], fov: 0.98, lb: 'CAM · TACTICAL' },
-      { t: 0.34, pos: [bx - 6, 23, -24], tgt: [bx, 1.4, bz], fov: 0.80, lb: 'CAM · BROADCAST' },
-      { t: 0.50, pos: [bx - 9, 11, -11], tgt: [bx, 1.2, bz], fov: 0.72, lb: 'FOLLOW BALL' },
-      { t: 0.62, pos: [116, 10, 28], tgt: [95, 1.5, 34], fov: 0.64, lb: 'BEHIND GOAL' },
-      { t: 0.76, pos: [zc[0] - 6, 12, -8], tgt: [zc[0], 1.6, zc[2]], fov: 0.52, lb: 'FREEZE FRAME' },
-      { t: 0.90, pos: [zc[0] - 12, 7.5, -5], tgt: [bx, 1.2, bz], fov: 0.62, lb: 'SLOW-MO REPLAY' },
-      { t: 1.01, pos: [zc[0] - 12, 7.5, -5], tgt: [bx, 1.2, bz], fov: 0.62, lb: 'SLOW-MO REPLAY' }
-    ];
-    var i = 0; for (; i < KF.length - 1; i++) { if (tf < KF[i + 1].t) break; }
-    var A = KF[i], B = KF[Math.min(i + 1, KF.length - 1)], sp = (B.t - A.t) || 1, l = ease((tf - A.t) / sp);
-    return { pos: lerp3(A.pos, B.pos, l), tgt: lerp3(A.tgt, B.tgt, l), fov: A.fov + (B.fov - A.fov) * l, lb: A.lb };
-  }
-  function setCam(c) { CAM = c; CAM.f = norm(sub(c.tgt, c.pos)); CAM.r = norm(cross(CAM.f, [0, 1, 0])); CAM.u = cross(CAM.r, CAM.f); }
+  function setCam(c) { CAM = c; CAM.f = norm(sub(c.tgt, c.pos)); var up = [0, 1, 0]; if (Math.abs(dot(CAM.f, up)) > 0.998) up = [0, 0, 1]; CAM.r = norm(cross(CAM.f, up)); CAM.u = cross(CAM.r, CAM.f); }
+  function project(p) { var d = sub(p, CAM.pos), czp = dot(d, CAM.f); if (czp < 0.05) czp = 0.05; var fl = (H / 2) / Math.tan(CAM.fov / 2); return { x: W / 2 + dot(d, CAM.r) / czp * fl, y: H / 2 - dot(d, CAM.u) / czp * fl, z: czp, s: fl / czp }; }
   function poly(pts, fill, stroke, lw, dash) { ctx.save(); if (dash) ctx.setLineDash(dash); ctx.beginPath(); for (var i = 0; i < pts.length; i++) { var q = project(pts[i]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 2; ctx.stroke(); } ctx.restore(); }
-  function line3(a, b, col, lw) { var p = project(a), q = project(b); ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw || 2; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore(); }
-  function hash(i) { var x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); }
-  function stand(ax, az, bx, bz) {
-    var Mo = 10, Hs = 18; function out(x, z) { var dx = x - CX, dz = z - CZ, l = Math.hypot(dx, dz) || 1; return [x + dx / l * Mo, z + dz / l * Mo]; }
-    var oa = out(ax, az), ob = out(bx, bz); var A = project([ax, 0, az]), B = project([bx, 0, bz]), C = project([ob[0], Hs, ob[1]]), D = project([oa[0], Hs, oa[1]]);
-    if (A.z < 0.1 && B.z < 0.1) return; ctx.save(); ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.lineTo(C.x, C.y); ctx.lineTo(D.x, D.y); ctx.closePath();
-    var g = ctx.createLinearGradient(0, Math.min(C.y, D.y), 0, Math.max(A.y, B.y)); g.addColorStop(0, '#0c1a2a'); g.addColorStop(1, '#182b40'); ctx.fillStyle = g; ctx.fill(); ctx.clip();
-    for (var vi = 0; vi < 7; vi++) for (var ui = 0; ui < 26; ui++) { var uu = ui / 25, vv = 0.12 + vi / 7 * 0.8; var tp = { x: A.x + (B.x - A.x) * uu + (D.x - A.x) * vv + (C.x - B.x - D.x + A.x) * uu * vv, y: A.y + (B.y - A.y) * uu + (D.y - A.y) * vv + (C.y - B.y - D.y + A.y) * uu * vv }; var hv = hash(ui * 7 + vi * 131 + (ax + 1)); ctx.fillStyle = hv > 0.72 ? 'rgba(255,255,255,.5)' : hv > 0.4 ? 'rgba(150,170,200,.35)' : 'rgba(90,110,140,.3)'; ctx.fillRect(tp.x, tp.y, 2, 2); }
-    ctx.restore(); poly([[ax, 0, az], [bx, 0, bz], [bx, 1.4, bz], [ax, 1.4, az]], 'rgba(' + ac + ',.28)', 'rgba(' + ac + ',.5)', 1.5); // ad boards at base
-  }
-  function floodlight(x, z) { var base = project([x, 0, z]), top = project([x, 34, z]); if (top.z < 0.1) return; ctx.save(); ctx.strokeStyle = '#2a3546'; ctx.lineWidth = Math.max(2, 3 * top.s); ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(top.x, top.y); ctx.stroke(); var gr = ctx.createRadialGradient(top.x, top.y, 0, top.x, top.y, 34 * top.s); gr.addColorStop(0, 'rgba(230,240,255,.85)'); gr.addColorStop(1, 'rgba(230,240,255,0)'); ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(top.x, top.y, 34 * top.s, 0, 6.283); ctx.fill(); ctx.fillStyle = '#1c2534'; ctx.fillRect(top.x - 14 * top.s, top.y - 5 * top.s, 28 * top.s, 10 * top.s); ctx.restore(); }
-  function pitchLines() {
-    var strp; for (strp = 0; strp < 10; strp++) { var x0 = strp * 10.5, x1 = (strp + 1) * 10.5; poly([[x0, 0, 0], [x1, 0, 0], [x1, 0, 68], [x0, 0, 68]], strp % 2 ? 'rgba(255,255,255,.045)' : 'rgba(0,0,0,.05)', null); }
-    var wl = 'rgba(255,255,255,.72)';
-    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], null, wl, 2.4); line3([52.5, 0, 0], [52.5, 0, 68], wl, 2.2);
-    var cc = []; for (var i = 0; i <= 40; i++) { var a = i / 40 * 6.283; cc.push([52.5 + Math.cos(a) * 9.15, 0, 34 + Math.sin(a) * 9.15]); } ctx.save(); ctx.strokeStyle = wl; ctx.lineWidth = 2; ctx.beginPath(); for (var j = 0; j < cc.length; j++) { var q = project(cc[j]); j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore();
+  function line3(a, b, col, lw, dash, off) { var p = project(a), q = project(b); ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw || 2; ctx.lineCap = 'round'; if (dash) { ctx.setLineDash(dash); if (off != null) ctx.lineDashOffset = off; } ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore(); }
+  function head(a, b, col) { var p = project(a), q = project(b); if (q.z <= 0.05) return; var ang = Math.atan2(q.y - p.y, q.x - p.x), L = Math.max(6, q.s * 0.5); ctx.save(); ctx.fillStyle = col; ctx.translate(q.x, q.y); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(-L, -L * 0.52); ctx.lineTo(-L, L * 0.52); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  function arcPts(a, b, bend) { var mx = (a[0] + b[0]) / 2, mz = (a[2] + b[2]) / 2, dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, px = -dz / l, pz = dx / l, cx = mx + px * bend, cz = mz + pz * bend, o = []; for (var i = 0; i <= 14; i++) { var u = i / 14, k = 1 - u; o.push([k * k * a[0] + 2 * k * u * cx + u * u * b[0], 0, k * k * a[2] + 2 * k * u * cz + u * u * b[2]]); } return o; }
+  // ── pitch (clean analysis board) ──
+  function pitch() {
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], '#1c7a3c', null);
+    for (var s = 0; s < 12; s++) { var x0 = s * 8.75, x1 = (s + 1) * 8.75; poly([[x0, 0, 0], [x1, 0, 0], [x1, 0, 68], [x0, 0, 68]], s % 2 ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.05)', null); }
+    var c = project([CXp, 0, CZp]); if (c.z > 0.06) { var R = Math.max(150, 4.6 * c.s), g = ctx.createRadialGradient(c.x, c.y - R * 0.2, 0, c.x, c.y, R); g.addColorStop(0, 'rgba(210,235,255,.10)'); g.addColorStop(1, 'rgba(210,235,255,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+    var wl = 'rgba(255,255,255,.82)';
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], null, wl, 2.4); line3([52.5, 0, 0], [52.5, 0, 68], wl, 2);
+    var cc = []; for (var i = 0; i <= 44; i++) { var a = i / 44 * 6.283; cc.push([52.5 + Math.cos(a) * 9.15, 0, 34 + Math.sin(a) * 9.15]); } ctx.save(); ctx.strokeStyle = wl; ctx.lineWidth = 2; ctx.beginPath(); for (var j = 0; j < cc.length; j++) { var q = project(cc[j]); j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore();
+    var sp = project([52.5, 0, 34]); if (sp.z > 0.06) { ctx.fillStyle = wl; ctx.beginPath(); ctx.arc(sp.x, sp.y, Math.max(1.5, sp.s * 0.05), 0, 6.283); ctx.fill(); }
     poly([[0, 0, 13.85], [16.5, 0, 13.85], [16.5, 0, 54.15], [0, 0, 54.15]], null, wl, 2); poly([[105, 0, 13.85], [88.5, 0, 13.85], [88.5, 0, 54.15], [105, 0, 54.15]], null, wl, 2);
     poly([[0, 0, 24.85], [5.5, 0, 24.85], [5.5, 0, 43.15], [0, 0, 43.15]], null, wl, 2); poly([[105, 0, 24.85], [99.5, 0, 24.85], [99.5, 0, 43.15], [105, 0, 43.15]], null, wl, 2);
     goal(0, 1); goal(105, -1);
   }
-  function goal(gx, dir) { var w = 3.66, top = 2.44, z0 = 34 - w, z1 = 34 + w; var col = 'rgba(255,255,255,.95)'; line3([gx, 0, z0], [gx, top, z0], col, 3); line3([gx, 0, z1], [gx, top, z1], col, 3); line3([gx, top, z0], [gx, top, z1], col, 3); for (var n = 0; n <= 4; n++) { var zz = z0 + (z1 - z0) * n / 4; line3([gx, 0, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.3)', 1); line3([gx, top, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.3)', 1); } }
-  function zone3(z) { var pulse = 0.14 + 0.06 * Math.sin(t * 3), x0 = wx(z[0]), z0 = wz(z[1]), x1 = wx(z[0] + z[2]), z1 = wz(z[1] + z[3]); poly([[x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1]], 'rgba(' + ac + ',' + pulse.toFixed(3) + ')', 'rgba(' + ac + ',.75)', 2.5, [10, 7]); }
-  function arrow3(A) {
-    var a = [wx(A[0]), 0, wz(A[1])], b = [wx(A[2]), 0, wz(A[3])], d = norm(sub(b, a)), pp = norm(cross(d, [0, 1, 0])), w = 1.5, hd = 5.5;
-    var hb = [b[0] - d[0] * hd, 0, b[2] - d[2] * hd];
-    var pts = [[a[0] + pp[0] * w, 0, a[2] + pp[2] * w], [hb[0] + pp[0] * w, 0, hb[2] + pp[2] * w], [hb[0] + pp[0] * hd * 0.9, 0, hb[2] + pp[2] * hd * 0.9], b, [hb[0] - pp[0] * hd * 0.9, 0, hb[2] - pp[2] * hd * 0.9], [hb[0] - pp[0] * w, 0, hb[2] - pp[2] * w], [a[0] - pp[0] * w, 0, a[2] - pp[2] * w]];
-    poly(pts, 'rgba(' + ac + ',.82)', 'rgba(255,255,255,.55)', 1.5);
-  }
-  function tint(tri, d) { var p = String(tri).split(',').map(Number); function c(v) { return Math.max(0, Math.min(255, Math.round(v + d))); } return 'rgb(' + c(p[0]) + ',' + c(p[1]) + ',' + c(p[2]) + ')'; }
-  function shadow(p) { var g = project(p), s = g.s; if (g.z <= 0.06) return; ctx.save(); var rg = ctx.createRadialGradient(g.x + 0.12 * s, g.y + 0.04 * s, 0, g.x + 0.12 * s, g.y + 0.04 * s, 1.15 * s); rg.addColorStop(0, 'rgba(0,0,0,.46)'); rg.addColorStop(.62, 'rgba(0,0,0,.22)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(g.x + 0.12 * s, g.y + 0.04 * s, 1.0 * s, 0.34 * s, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
-  function figure(p3, jt, num, tcol, moving, idx, keeper) {
-    var base = project(p3); if (base.z <= 0.06) return; var top = project([p3[0], 1.92, p3[2]]); var s = base.y - top.y; if (s < 8) s = 8;
-    var cx = base.x, footY = base.y, hipY = footY - 0.48 * s, chestY = footY - 0.86 * s, headY = footY - 0.99 * s, headR = 0.125 * s;
-    var r1 = moving ? Math.sin(t * 9 + idx * 1.3) : 0.28, r2 = moving ? Math.sin(t * 9 + idx * 1.3 + Math.PI) : -0.28;
-    var kit = keeper ? '30,34,44' : String(jt), kitLite = tint(kit, 44), kitDark = tint(kit, -34), skin = '#e7b48c', skinSh = '#cf9a72', boot = '#12151b', shortsC = keeper ? '#20242e' : '#eef2f8';
-    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    function leg(dir, ph) { var hx = cx + dir * 0.06 * s, kx = cx + dir * 0.05 * s + ph * 0.13 * s, ky = hipY + (0.24 - Math.abs(ph) * 0.04) * s, fx = cx + dir * 0.02 * s + ph * 0.2 * s, fy = footY - Math.max(0, ph) * 0.05 * s; ctx.strokeStyle = shortsC; ctx.lineWidth = 0.15 * s; ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 0.1 * s; ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(fx, fy - 0.04 * s); ctx.stroke(); ctx.strokeStyle = boot; ctx.lineWidth = 0.08 * s; ctx.beginPath(); ctx.moveTo(fx, fy - 0.04 * s); ctx.lineTo(fx + dir * 0.07 * s, fy); ctx.stroke(); }
-    leg(-1, r1); leg(1, r2);
-    var tw = 0.19 * s, tg = ctx.createLinearGradient(cx - tw, chestY, cx + tw, hipY); tg.addColorStop(0, kitLite); tg.addColorStop(1, 'rgb(' + kit + ')'); ctx.fillStyle = tg; rr(cx - tw, chestY, tw * 2, (hipY - chestY) + 0.06 * s, 0.08 * s); ctx.fill();
-    ctx.fillStyle = kitDark; rr(cx + tw * 0.15, chestY + (hipY - chestY) * 0.28, tw * 0.85, (hipY - chestY) * 0.72 + 0.06 * s, 0.06 * s); ctx.fill();
-    function arm(dir, ph) { var sx = cx + dir * 0.16 * s, ex = cx + dir * 0.23 * s - ph * 0.07 * s, ey = chestY + 0.29 * s; ctx.strokeStyle = kitLite; ctx.lineWidth = 0.1 * s; ctx.beginPath(); ctx.moveTo(sx, chestY + 0.04 * s); ctx.lineTo(ex, ey); ctx.stroke(); ctx.strokeStyle = skin; ctx.lineWidth = 0.08 * s; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + dir * 0.01 * s, ey + 0.14 * s); ctx.stroke(); if (keeper) { ctx.fillStyle = '#f4b740'; ctx.beginPath(); ctx.arc(ex + dir * 0.01 * s, ey + 0.15 * s, 0.05 * s, 0, 6.283); ctx.fill(); } }
-    arm(-1, r2); arm(1, r1);
-    ctx.strokeStyle = skinSh; ctx.lineWidth = 0.09 * s; ctx.beginPath(); ctx.moveTo(cx, chestY); ctx.lineTo(cx, chestY - 0.05 * s); ctx.stroke();
-    var hg = ctx.createRadialGradient(cx - headR * 0.35, headY - headR * 0.35, headR * 0.2, cx, headY, headR); hg.addColorStop(0, '#f2c8a0'); hg.addColorStop(1, skinSh); ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, headY, headR, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#241a12'; ctx.beginPath(); ctx.arc(cx, headY - headR * 0.15, headR * 1.02, Math.PI * 1.04, Math.PI * 1.96); ctx.fill();
-    if (num !== '' && num != null && s > 22) { ctx.font = '800 ' + Math.round(0.25 * s) + 'px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = keeper ? '#f4b740' : 'rgba(255,255,255,.96)'; ctx.fillText(String(num), cx, chestY + (hipY - chestY) * 0.44); }
-    ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = Math.max(1, 0.02 * s); rr(cx - tw, chestY, tw * 2, (hipY - chestY) + 0.06 * s, 0.08 * s); ctx.stroke();
+  function goal(gx, dir) { var w = 3.66, top = 2.44, z0 = 34 - w, z1 = 34 + w, col = 'rgba(255,255,255,.92)'; line3([gx, 0, z0], [gx, top, z0], col, 2.6); line3([gx, 0, z1], [gx, top, z1], col, 2.6); line3([gx, top, z0], [gx, top, z1], col, 2.6); for (var n = 0; n <= 4; n++) { var zz = z0 + (z1 - z0) * n / 4; line3([gx, 0, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.22)', 1); line3([gx, top, zz], [gx + dir * 2, 0, zz], 'rgba(255,255,255,.22)', 1); } }
+  // ── telestration overlays ──
+  function zone(z, revealed) { if (!revealed) return; var pulse = 0.12 + 0.05 * Math.sin(t * 2.4), x0 = wx(z[0]), z0 = wz(z[1]), x1 = wx(z[0] + z[2]), z1 = wz(z[1] + z[3]); poly([[x0, 0, z0], [x1, 0, z0], [x1, 0, z1], [x0, 0, z1]], 'rgba(' + ac + ',' + pulse.toFixed(3) + ')', 'rgba(' + ac + ',.7)', 2, [9, 6]); var lp = project([(x0 + x1) / 2, 0, z0]); if (lp.z > 0.06) { ctx.save(); ctx.font = '700 11px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; var tw = ctx.measureText(zlab).width + 14; ctx.fillStyle = 'rgba(8,13,20,.78)'; rr(lp.x - tw / 2, lp.y - 20, tw, 16, 5); ctx.fill(); ctx.fillStyle = 'rgb(' + ac + ')'; ctx.fillText(zlab.toUpperCase(), lp.x, lp.y - 6); ctx.restore(); } }
+  function passLines(u) { var pts = sc.ball; if (!pts || pts.length < 2) return; var bs = ballSeg(u), b = ballAt(u); var off = -(t * 26) % 16; for (var j = 0; j < bs.seg; j++) { line3([wx(pts[j][0]), 0.05, wz(pts[j][1])], [wx(pts[j + 1][0]), 0.05, wz(pts[j + 1][1])], 'rgba(' + ac + ',.5)', 2); head([wx(pts[j][0]), 0, wz(pts[j][1])], [wx(pts[j + 1][0]), 0, wz(pts[j + 1][1])], 'rgba(' + ac + ',.5)'); } if (b) { var a0 = [wx(pts[bs.seg][0]), 0.05, wz(pts[bs.seg][1])]; line3(a0, [b[0], 0.05, b[2]], 'rgb(' + ac + ')', 2.6, [10, 7], off); head(a0, [b[0], 0, b[2]], 'rgb(' + ac + ')'); } }
+  function runArrows(u) { if (!sc.arrows) return; var rev = ease(u * 1.4), off = -(t * 20) % 14; for (var i = 0; i < sc.arrows.length; i++) { var A = sc.arrows[i], a = [wx(A[0]), 0, wz(A[1])], b = [wx(A[2]), 0, wz(A[3])], pts = arcPts(a, b, 6); var lim = Math.max(1, Math.floor(rev * (pts.length - 1))); ctx.save(); ctx.setLineDash([9, 6]); ctx.lineDashOffset = off; ctx.strokeStyle = 'rgba(234,255,242,.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); for (var k = 0; k <= lim; k++) { var q = project(pts[k]); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore(); if (lim >= pts.length - 1) head(pts[pts.length - 2], pts[pts.length - 1], 'rgba(234,255,242,.9)'); } }
+  function shadow(p) { var g = project(p); if (g.z <= 0.06) return; var s = g.s; ctx.save(); var rg = ctx.createRadialGradient(g.x, g.y + 0.02 * s, 0, g.x, g.y + 0.02 * s, 0.6 * s); rg.addColorStop(0, 'rgba(0,0,0,.42)'); rg.addColorStop(.7, 'rgba(0,0,0,.2)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(g.x, g.y + 0.02 * s, 0.55 * s, 0.2 * s, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function spotlight(p) { var g = project(p); if (g.z <= 0.06) return; var s = g.s, R = (0.7 + 0.08 * Math.sin(t * 4)) * s; ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max(1.4, 0.06 * s); ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.4, 0, 0, 6.283); ctx.stroke(); ctx.restore(); }
+  function token(p3, kit, num, role, moving, dir) {
+    var base = project(p3); if (base.z <= 0.06) return; var topp = project([p3[0], 1.75, p3[2]]); var h = Math.max(11, base.y - topp.y), w = Math.max(9, h * 0.6), cx = base.x, topY = base.y - h;
+    ctx.save(); ctx.lineJoin = 'round';
+    if (moving && dir) { var dl = Math.hypot(dir[0], dir[2]) || 1, nx = dir[0] / dl, nz = dir[2] / dl; var tp = project([p3[0] - nx * 2.6, 0, p3[2] - nz * 2.6]); if (tp.z > 0.06) { ctx.strokeStyle = 'rgba(' + kit + ',.5)'; ctx.lineWidth = Math.max(2, w * 0.5); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(tp.x, tp.y); ctx.lineTo(base.x, base.y); ctx.stroke(); } }
+    var g = ctx.createLinearGradient(cx - w / 2, topY, cx + w / 2, base.y); g.addColorStop(0, tint(kit, 48)); g.addColorStop(1, 'rgb(' + kit + ')');
+    rr(cx - w / 2, topY, w, h * 0.92, w * 0.34); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = Math.max(1.2, w * 0.1); ctx.strokeStyle = role === 'opp' ? 'rgba(255,255,255,.7)' : 'rgba(255,255,255,.94)'; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(cx, topY, w * 0.48, w * 0.2, 0, 0, 6.283); ctx.fillStyle = tint(kit, 66); ctx.fill();
+    if (num != null && num !== '' && w > 9) { ctx.font = '800 ' + Math.round(w * 0.66) + 'px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = role === 'gk' ? '#0a0f16' : '#fff'; ctx.fillText(String(num), cx, topY + h * 0.46); }
     ctx.restore();
   }
-  function ball3(p3) { var g = project(p3), s = g.s, r = Math.max(2, 0.24 * s); ctx.save(); ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, 6.283); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.fillStyle = '#0a1a10'; ctx.beginPath(); ctx.arc(g.x - r * 0.2, g.y - r * 0.2, r * 0.32, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function ball3(p3) { var g = project(p3); if (g.z <= 0.06) return; var s = g.s, r = Math.max(2.4, 0.22 * s); ctx.save(); var rg = ctx.createRadialGradient(g.x - r * 0.3, g.y - r * 0.35, r * 0.1, g.x, g.y, r); rg.addColorStop(0, '#fff'); rg.addColorStop(1, '#c8d2dc'); ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, 6.283); ctx.fillStyle = rg; ctx.fill(); ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.fillStyle = '#0a1a10'; ctx.beginPath(); ctx.arc(g.x + r * 0.05, g.y + r * 0.05, r * 0.28, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function tempo(p3) { var g = project(p3); if (g.z <= 0.06) return; var ph = (t * 1.6) % 1, R = (0.5 + ph * 1.1) * g.s; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.5; ctx.strokeStyle = 'rgb(' + ac + ')'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.4, 0, 0, 6.283); ctx.stroke(); ctx.restore(); }
   function callout(anchor2d, text, tone) {
     var q = project(anchor2d); if (q.z <= 0.06) return; var col = tone === 'good' ? '52,215,122' : tone === 'bad' ? '248,113,113' : ac;
-    var lx = q.x + 34, ly = q.y - 46; if (lx > W - 150) lx = q.x - 34 - 150;
-    ctx.save(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(q.x, q.y - 8); ctx.lineTo(lx + (lx < q.x ? 150 : 0), ly + 12); ctx.stroke();
-    ctx.beginPath(); ctx.arc(q.x, q.y - 8, 3, 0, 6.283); ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
-    ctx.font = '700 11px Inter,Arial,sans-serif'; var tw = ctx.measureText(text).width + 18; ctx.fillStyle = 'rgba(8,12,18,.82)'; rr(lx, ly, tw, 22, 6); ctx.fill(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 9, ly + 12); ctx.restore();
+    var lx = q.x + 30, ly = q.y - 42; if (lx > W - 160) lx = q.x - 30 - 150;
+    ctx.save(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(q.x, q.y - 6); ctx.lineTo(lx + (lx < q.x ? 150 : 0), ly + 11); ctx.stroke();
+    ctx.beginPath(); ctx.arc(q.x, q.y - 6, 2.6, 0, 6.283); ctx.fillStyle = 'rgb(' + col + ')'; ctx.fill();
+    ctx.font = '700 11px Inter,Arial,sans-serif'; var tw = ctx.measureText(text).width + 16; ctx.fillStyle = 'rgba(8,13,20,.86)'; rr(lx, ly, tw, 21, 6); ctx.fill(); ctx.strokeStyle = 'rgb(' + col + ')'; ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(text, lx + 8, ly + 11); ctx.restore();
   }
-  function grassLight() { var c = project([CX, 0, CZ]); if (c.z <= 0.06) return; var R = Math.max(190, 4.4 * c.s); var g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, R); g.addColorStop(0, 'rgba(255,250,232,.1)'); g.addColorStop(1, 'rgba(255,250,232,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore(); }
-  function halfSpaces() { var col = 'rgba(255,255,255,.1)'; line3([0, 0, 22.67], [105, 0, 22.67], col, 1.4); line3([0, 0, 45.33], [105, 0, 45.33], col, 1.4); }
-  function heat(z) { var g = project([wx(z[0] + z[2] / 2), 0, wz(z[1] + z[3] / 2)]); if (g.z <= 0.06) return; var R = 1.4 * g.s, rg = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, R); rg.addColorStop(0, 'rgba(' + ac + ',.3)'); rg.addColorStop(.6, 'rgba(' + ac + ',.1)'); rg.addColorStop(1, 'rgba(' + ac + ',0)'); ctx.save(); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.44, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
-  function vignette() { var g = ctx.createRadialGradient(W / 2, H * 0.46, H * 0.3, W / 2, H * 0.5, H * 0.92); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.44)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  function timingBar(st, loc) { var pad = 12, y = 12, cw = 26, gap = 6, x = W - pad - (cw * N + gap * (N - 1)); ctx.save(); for (var i = 0; i < N; i++) { var bx = x + i * (cw + gap); ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(bx, y, cw, 4, 2); ctx.fill(); var fillw = i < st ? cw : i === st ? cw * ease(loc) : 0; if (fillw > 0) { var tone = _deStepTone(caps[i]); ctx.fillStyle = tone === 'bad' ? '#fb7185' : tone === 'good' ? '#4ade80' : 'rgb(' + ac + ')'; rr(bx, y, fillw, 4, 2); ctx.fill(); } } ctx.restore(); }
+  function vignette() { var g = ctx.createRadialGradient(W / 2, H * 0.44, H * 0.34, W / 2, H * 0.5, H * 0.96); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.42)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
   function draw() {
-    var tf = dur ? t / dur : 0, u = wu(tf), sh = seg(tf), b = ballW(u); setCam(camAt(tf, b));
-    var sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#0a1420'); sky.addColorStop(.55, '#0e2033'); sky.addColorStop(1, '#0b1a12'); ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-    floodlight(-8, -8); floodlight(113, -8); floodlight(-8, 76); floodlight(113, 76);
-    stand(0, 68, 105, 68); stand(0, 0, 0, 68); stand(105, 68, 105, 0);
-    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], '#1f7c3d', null); pitchLines(); grassLight(); halfSpaces();
-    if (sc.zone) { heat(sc.zone); zone3(sc.zone); } if (sc.arrows) for (var i = 0; i < sc.arrows.length; i++) arrow3(sc.arrows[i]);
-    for (var k = 5; k >= 1; k--) { var uk = u - 0.04 * k; if (uk <= 0) continue; for (var h = 0; h < sc.home.length; h++) { var pk = homeW(sc.home[h], uk), g = project(pk); if (g.z <= 0.06) continue; ctx.beginPath(); ctx.arc(g.x, g.y, Math.max(1.5, 0.13 * g.s), 0, 6.283); ctx.fillStyle = 'rgba(' + ac + ',' + (0.16 * (1 - k / 6)).toFixed(3) + ')'; ctx.fill(); } }
+    if (!ctx) return; var pr = prog(), u = pr.u, st = pr.st, b = ballAt(u);
+    var tg = preset(mode, u); if (!camS) camS = { pos: tg.pos.slice(), tgt: tg.tgt.slice(), fov: tg.fov }; var k = 0.16; for (var ci = 0; ci < 3; ci++) { camS.pos[ci] += (tg.pos[ci] - camS.pos[ci]) * k; camS.tgt[ci] += (tg.tgt[ci] - camS.tgt[ci]) * k; } camS.fov += (tg.fov - camS.fov) * k; setCam({ pos: camS.pos.slice(), tgt: camS.tgt.slice(), fov: camS.fov });
+    var bg = ctx.createRadialGradient(W / 2, H * 0.36, H * 0.18, W / 2, H * 0.58, H * 1.08); bg.addColorStop(0, '#10202f'); bg.addColorStop(1, '#070d15'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    pitch();
+    zone(sc.zone, !!sc.zone); passLines(u); runArrows(u);
+    // carrier highlight (nearest home player to the ball)
+    var carrier = -1, bd = 1e9; for (var m = 0; m < sc.home.length; m++) { var hp = homeAt(sc.home[m], u); if (b) { var dd = Math.hypot(hp[0] - b[0], hp[2] - b[2]); if (dd < bd) { bd = dd; carrier = m; } } }
+    if (carrier >= 0 && bd < 6) spotlight(homeAt(sc.home[carrier], u));
     var ents = [];
-    if (sc.opp) for (var o = 0; o < sc.opp.length; o++) ents.push({ p: [wx(sc.opp[o][0]), 0, wz(sc.opp[o][1])], j: '205,214,226', n: '', mv: false, i: 50 + o, gk: false });
-    if (sc.gkPos) ents.push({ p: [wx(sc.gkPos[0]), 0, wz(sc.gkPos[1])], j: '244,183,64', n: '', mv: false, i: 40, gk: true });
-    for (var m = 0; m < sc.home.length; m++) { var p0 = homeW(sc.home[m], u), p1 = homeW(sc.home[m], Math.max(0, u - 0.02)); var mv = Math.hypot(p0[0] - p1[0], p0[2] - p1[2]) > 0.12; ents.push({ p: p0, j: ac, n: sc.home[m][4], mv: mv, i: m, gk: false }); }
-    var bent = b ? { ball: true, p: [b[0], 0, b[2]], b3: b } : null;
-    var all = ents.slice(); if (bent) all.push(bent);
+    if (sc.opp) for (var o = 0; o < sc.opp.length; o++) ents.push({ p: [wx(sc.opp[o][0]), 0, wz(sc.opp[o][1])], j: '156,171,191', n: '', role: 'opp', mv: false, dir: null });
+    if (sc.gkPos) ents.push({ p: [wx(sc.gkPos[0]), 0, wz(sc.gkPos[1])], j: '244,183,64', n: '', role: 'gk', mv: false, dir: null });
+    for (var mm = 0; mm < sc.home.length; mm++) { var p0 = homeAt(sc.home[mm], u), p1 = homeAt(sc.home[mm], Math.max(0, u - 0.02)); var dir = [p0[0] - p1[0], 0, p0[2] - p1[2]], mv = Math.hypot(dir[0], dir[2]) > 0.1; ents.push({ p: p0, j: ac, n: sc.home[mm][4], role: 'home', mv: mv, dir: mv ? dir : null }); }
+    var bent = b ? { ball: true, p: [b[0], 0, b[2]], b3: b } : null, all = ents.slice(); if (bent) all.push(bent);
     for (var si = 0; si < all.length; si++) shadow(all[si].p);
     all.sort(function (A, B) { return project(B.p).z - project(A.p).z; });
-    for (var di = 0; di < all.length; di++) { var e = all[di]; if (e.ball) ball3(e.b3); else figure(e.p, e.j, e.n, '#fff', e.mv, e.i, e.gk); }
-    for (var ni = 0; ni < notes.length; ni++) { var nt = notes[ni]; if (nt.seg !== sh) continue; var anc = nt.a === 'ball' ? (b ? [b[0], 1.2, b[2]] : null) : (sc.home[nt.a] ? (function () { var pp = homeW(sc.home[nt.a], u); return [pp[0], 1.7, pp[2]]; })() : null); if (anc) callout(anc, nt.tx, nt.tn); }
-    if (sh === 'freeze' || sh === 'replay') { ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(0, 0, W, 40); ctx.fillRect(0, H - 40, W, 40); }
-    vignette();
-    var idx = Math.min(sc.caps.length - 1, Math.floor(u * sc.caps.length)); if (idx < 0) idx = 0;
-    var capTxt = sh === 'freeze' ? 'Freeze-frame analysis — ' + sc.caps[sc.caps.length - 1] : sc.caps[idx];
-    if (capEl && capTxt !== lastCap) { capEl.textContent = capTxt; if (playing && !muted && lastCap !== -1) _deTick(); lastCap = capTxt; }
-    if (camEl && CAM.lb !== lastCam) { camEl.textContent = CAM.lb; lastCam = CAM.lb; }
-    if (stepsEls.length) { for (var qs = 0; qs < stepsEls.length; qs++) stepsEls[qs].classList.toggle('is-on', qs === idx); lastStep = idx; }
+    for (var di = 0; di < all.length; di++) { var e = all[di]; if (e.ball) ball3(e.b3); else token(e.p, e.j, e.n, e.role, e.mv, e.dir); }
+    if (b) tempo(b);
+    // step coaching callout anchored to the action
+    var tone = _deStepTone(caps[st]); if ((tone === 'good' || tone === 'bad') && carrier >= 0) { var cp = homeAt(sc.home[carrier], u); callout([cp[0], 1.4, cp[2]], _deStepLabel(caps[st]), tone); }
+    timingBar(st, pr.loc); vignette();
+    var capTxt = _deStepText(caps[st]) || caps[st];
+    if (capEl && capTxt !== lastCap) { capEl.textContent = capTxt; if (playing && !muted && lastStep !== st && lastStep !== -1) _deTick(); lastCap = capTxt; }
+    if (stTitleEl && st !== lastStep) { stTitleEl.textContent = _deStepLabel(caps[st]); stTitleEl.className = 'de-pl-steptitle de-tone-' + tone; if (stNumEl) stNumEl.textContent = 'STEP ' + (st + 1) + ' / ' + N; }
+    if (camEl && MODE_LB[mode] !== lastCam) { camEl.textContent = MODE_LB[mode]; lastCam = MODE_LB[mode]; }
+    if (stepsEls.length && st !== lastStep) { for (var qs = 0; qs < stepsEls.length; qs++) stepsEls[qs].classList.toggle('is-on', qs === st); }
+    lastStep = st;
   }
-  function emit() { if (cb) cb(t, dur, playing); }
+  function emit() { if (cb) cb(t, dur, playing, { step: stepAt(), steps: N, cam: mode, camLabel: MODE_LB[mode] }); }
   function tick(ts) { if (!playing) return; if (canvas && !canvas.isConnected) { playing = false; return; } if (!last) last = ts; var dt = (ts - last) / 1000 * speed; last = ts; t += dt; if (t >= dur) { t = dur; playing = false; } draw(); emit(); if (playing) raf = (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame(tick) : 0); }
+  function gotoStep(i) { i = Math.max(0, Math.min(N - 1, i)); t = (i / N) * dur + 0.0001; lastCap = -1; lastStep = -1; playing = false; if (raf && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(raf); raf = 0; draw(); emit(); }
   draw();
   return {
-    play: function () { if (playing) return; if (t >= dur) { t = 0; lastCap = -1; } playing = true; last = 0; if (!muted) _deWhistle(); if (typeof requestAnimationFrame !== 'undefined') raf = requestAnimationFrame(tick); emit(); },
+    play: function () { if (playing) return; if (t >= dur) { t = 0; lastCap = -1; lastStep = -1; } playing = true; last = 0; if (!muted) _deWhistle(); if (typeof requestAnimationFrame !== 'undefined') raf = requestAnimationFrame(tick); emit(); },
     pause: function () { playing = false; if (raf && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(raf); raf = 0; emit(); },
-    isPlaying: function () { return playing; }, seek: function (f) { t = Math.max(0, Math.min(1, f)) * dur; lastCap = -1; draw(); emit(); },
-    setSpeed: function (x) { speed = x; }, toggleMute: function () { muted = !muted; return muted; }, setQuality: function () {}, on: function (f) { cb = f; }
+    isPlaying: function () { return playing; },
+    seek: function (f) { t = Math.max(0, Math.min(1, f)) * dur; lastCap = -1; lastStep = -1; draw(); emit(); },
+    setSpeed: function (x) { speed = x; }, toggleMute: function () { muted = !muted; return muted; }, setQuality: function () {},
+    nextStep: function () { gotoStep(stepAt() + 1); }, prevStep: function () { gotoStep(stepAt() - 1); }, gotoStep: gotoStep,
+    replay: function () { t = 0; lastCap = -1; lastStep = -1; this.play(); },
+    cycleCam: function () { mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length]; camS = null; lastCam = ''; draw(); emit(); return MODE_LB[mode]; },
+    setCam: function (md) { if (MODE_LB[md]) { mode = md; camS = null; lastCam = ''; draw(); emit(); } return MODE_LB[mode]; },
+    on: function (f) { cb = f; }
   };
 }
 function _dePickQuality(obj) { try { var c = (typeof navigator !== 'undefined' && navigator.connection) || {}, dl = c.downlink || 10, et = c.effectiveType || '4g'; if (et === '4g' || dl >= 5) return obj['1080'] || obj.auto || obj['720'] || obj['480']; return obj['720'] || obj['480'] || obj.auto || obj['1080']; } catch (e) { return obj.auto || obj['720'] || obj['1080'] || obj['480']; } }
@@ -8241,7 +8243,9 @@ function _deMp4Api(root, d) {
 function _deWirePlayer(root, api, d) {
   var ac = DE_CATS[d.cat];
   var toggle = root.querySelector('.de-pl-toggle'), seek = root.querySelector('.de-pl-seek'), cur = root.querySelector('.de-pl-cur'),
-    speedB = root.querySelector('.de-pl-speed'), muteB = root.querySelector('.de-pl-mute'), fsB = root.querySelector('.de-pl-fs'), qB = root.querySelector('.de-pl-quality');
+    speedB = root.querySelector('.de-pl-speed'), muteB = root.querySelector('.de-pl-mute'), fsB = root.querySelector('.de-pl-fs'), qB = root.querySelector('.de-pl-quality'),
+    prevB = root.querySelector('.de-pl-prev'), nextB = root.querySelector('.de-pl-next'), replayB = root.querySelector('.de-pl-replay'), camB = root.querySelector('.de-pl-cam-btn'),
+    stepEls = root.querySelectorAll('.de-pl-step');
   var seeking = false, speeds = [1, 1.5, 2, 0.5], si = 0, quals = ['Auto', '1080p', '720p', '480p'], qi = 0;
   toggle.addEventListener('click', function () { if (api.isPlaying()) api.pause(); else api.play(); });
   seek.addEventListener('input', function () { seeking = true; api.seek(seek.value / 1000); });
@@ -8249,19 +8253,25 @@ function _deWirePlayer(root, api, d) {
   speedB.addEventListener('click', function () { si = (si + 1) % speeds.length; api.setSpeed(speeds[si]); speedB.textContent = speeds[si] + '×'; });
   muteB.addEventListener('click', function () { var m = api.toggleMute(); muteB.innerHTML = _deIcon(m ? 'mute' : 'vol'); });
   fsB.addEventListener('click', function () { try { if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); } else { root.requestFullscreen && root.requestFullscreen(); } } catch (e) {} });
-  qB.addEventListener('click', function () { qi = (qi + 1) % quals.length; qB.textContent = quals[qi]; api.setQuality && api.setQuality(quals[qi]); });
-  api.on(function (t, dur, playing) {
+  if (qB) qB.addEventListener('click', function () { qi = (qi + 1) % quals.length; qB.textContent = quals[qi]; api.setQuality && api.setQuality(quals[qi]); });
+  if (prevB && api.prevStep) prevB.addEventListener('click', function () { api.prevStep(); });
+  if (nextB && api.nextStep) nextB.addEventListener('click', function () { api.nextStep(); });
+  if (replayB && api.replay) replayB.addEventListener('click', function () { api.replay(); });
+  if (camB && api.cycleCam) camB.addEventListener('click', function () { var lb = api.cycleCam(); camB.querySelector('span').textContent = lb.replace(' VIEW', ''); });
+  if (stepEls.length && api.gotoStep) for (var i = 0; i < stepEls.length; i++) (function (el) { el.addEventListener('click', function () { api.gotoStep(parseInt(el.getAttribute('data-i'), 10) || 0); }); })(stepEls[i]);
+  api.on(function (t, dur, playing, ex) {
     if (!seeking) seek.value = Math.round(dur ? t / dur * 1000 : 0);
     var pct = dur ? t / dur * 100 : 0; seek.style.background = 'linear-gradient(90deg,rgba(' + ac + ',.9) ' + pct + '%,rgba(255,255,255,.18) ' + pct + '%)';
     cur.textContent = _deFmt(t); toggle.innerHTML = _deIcon(playing ? 'pause' : 'play');
+    if (ex && stepEls.length) for (var q = 0; q < stepEls.length; q++) stepEls[q].classList.toggle('is-on', q === ex.step);
   });
 }
 var _DE_ACTIVE = null;
-function _deStepsBar(kind) {   // timeline of analysis steps (from the scenario captions) — includes Common mistake / Correct execution
-  var sc = _DE_SCEN[kind]; if (!sc) return '';
+function _deStepsBar(kind) {   // clickable coaching-step rail (jump to any step) derived from the storyboard
+  var sc = _DE_SCEN[kind]; if (!sc || !sc.caps) return '';
   return '<div class="de-pl-steps">' + sc.caps.map(function (cap, i) {
-    var lab = String(cap).split(':')[0], tone = /mistake/i.test(lab) ? ' is-bad' : /correct/i.test(lab) ? ' is-good' : '';
-    return '<span class="de-pl-step' + tone + '" data-i="' + i + '"><i>' + (i + 1) + '</i>' + _deEsc(lab) + '</span>';
+    var tone = _deStepTone(cap), tc = tone === 'bad' ? ' is-bad' : tone === 'good' ? ' is-good' : '';
+    return '<button class="de-pl-step' + tc + '" data-i="' + i + '" type="button"><i>' + (i + 1) + '</i>' + _deEsc(_deStepLabel(cap)) + '</button>';
   }).join('') + '</div>';
 }
 function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-rendered clip; demo -> play the interactive step-by-step training demo
@@ -8271,17 +8281,27 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
   var kind = _deMediaKind(d); if (kind === 'production') return;
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
+  var demo = kind === 'demo';
   var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
-  var hud = kind === 'demo' ? '<div class="de-pl-hud"><div class="de-pl-hud-tl"><span class="de-pl-rec"></span>Training Demo &middot; <b>' + _deEsc(d.name) + '</b></div><div class="de-pl-hud-tr"><span class="de-pl-cam">CAM · DRONE</span></div><div class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></div></div>' : '';
-  var steps = kind === 'demo' ? _deStepsBar(d.kind) : '';
+  var hud = demo ? '<div class="de-pl-hud">'
+    + '<div class="de-pl-hud-tl"><span class="de-pl-badge">Tactical Analysis</span><b>' + _deEsc(d.name) + '</b></div>'
+    + '<div class="de-pl-hud-tr"><span class="de-pl-stepnum">STEP 1 / 5</span><span class="de-pl-cam">TACTICAL VIEW</span></div>'
+    + '<div class="de-pl-lower"><span class="de-pl-steptitle de-tone-info">Set-up &amp; shape</span><span class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></span></div>'
+    + '</div>' : '';
+  var steps = demo ? _deStepsBar(d.kind) : '';
+  var stepCtrls = demo ? '<button class="de-pl-btn de-pl-prev" type="button" aria-label="Previous step" title="Previous step">' + _deIcon('prev') + '</button>' : '';
+  var stepCtrlsR = demo ? '<button class="de-pl-btn de-pl-next" type="button" aria-label="Next step" title="Next step">' + _deIcon('next') + '</button><button class="de-pl-btn de-pl-replay" type="button" aria-label="Replay" title="Replay">' + _deIcon('replay') + '</button>' : '';
+  var camCtrl = demo ? '<button class="de-pl-btn de-pl-cam-btn" type="button" aria-label="Camera view" title="Switch camera">' + _deIcon('cam') + '<span>TACTICAL</span></button>' : '';
+  var qCtrl = demo ? '' : '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>';
   frame.classList.add('is-playing');
-  frame.innerHTML = '<div class="de-pl" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
-    + '<div class="de-pl-bar"><button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>'
+  frame.innerHTML = '<div class="de-pl' + (demo ? ' is-demo' : '') + '" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
+    + '<div class="de-pl-bar">' + stepCtrls + '<button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>' + stepCtrlsR
     + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
+    + camCtrl
     + '<button class="de-pl-btn de-pl-speed" type="button" aria-label="Playback speed">1×</button>'
     + '<button class="de-pl-btn de-pl-mute" type="button" aria-label="Mute">' + _deIcon('vol') + '</button>'
-    + '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>'
+    + qCtrl
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
   var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);

@@ -7720,3 +7720,26 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .de-sec-h{ font-size:13.5px; margin-bottom:13px; padding-bottom:11px; border-bottom:1px solid rgba(255,255,255,.06); }
 .de-desc{ font-size:13px; line-height:1.65; }
 .de-obj li,.de-sit li,.de-coach li,.de-miss li,.de-fix li,.de-tips li{ line-height:1.5; }
+
+/* ══ Tactical-analysis player — professional coaching-software presentation ══ */
+.de-pl-stage{ background:radial-gradient(120% 120% at 50% 35%,#0f2032,#070d15); }
+.de-pl.is-demo .de-pl-stage{ border-color:rgba(255,255,255,.12); }
+.de-pl-badge{ font-size:9px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:#0a0f16; background:rgb(var(--c)); border-radius:5px; padding:3px 7px; }
+.de-pl-hud-tl{ gap:8px; background:rgba(8,12,18,.46); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+.de-pl-hud-tl b{ color:#eaf0f8; font-size:10.5px; }
+.de-pl-stepnum{ font-size:9.5px; font-weight:800; letter-spacing:.08em; color:#cdd7e4; background:rgba(8,12,18,.55); border:1px solid rgba(255,255,255,.14); padding:4px 9px; border-radius:6px; font-variant-numeric:tabular-nums; }
+.de-pl-lower{ position:absolute; left:11px; right:11px; bottom:11px; display:flex; flex-direction:column; align-items:flex-start; gap:7px; pointer-events:none; }
+.de-pl-steptitle{ font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:4px 11px; border-radius:100px; background:rgba(8,12,18,.72); border:1px solid rgba(255,255,255,.14); color:#eaf0f8; }
+.de-pl-steptitle.de-tone-good{ color:#8ef0b4; border-color:rgba(52,215,122,.55); background:rgba(52,215,122,.14); }
+.de-pl-steptitle.de-tone-bad{ color:#ffb4b4; border-color:rgba(248,113,113,.55); background:rgba(248,113,113,.14); }
+.de-pl-steptitle.de-tone-info{ color:#eaf0f8; border-color:rgba(var(--c),.5); background:rgba(var(--c),.14); }
+.de-pl-lower .de-pl-cap{ position:static; left:auto; right:auto; bottom:auto; width:100%; align-self:stretch; }
+.de-pl-btn svg{ width:16px; height:16px; }
+.de-pl-toggle{ background:rgba(var(--c),.16); }
+.de-pl-toggle:hover{ background:rgba(var(--c),.28); }
+.de-pl-cam-btn{ gap:5px; }
+.de-pl-cam-btn span{ font-size:9.5px; font-weight:800; letter-spacing:.04em; }
+.de-pl-prev,.de-pl-next,.de-pl-replay{ color:#dbe3ee; }
+.de-pl-step{ cursor:pointer; appearance:none; }
+.de-pl-step:hover{ color:#eef2f8; background:rgba(255,255,255,.08); }
+@media (max-width:600px){ .de-pl-cam-btn span,.de-pl-quality,.de-pl-speed{ display:none; } .de-pl-hud-tl b{ display:none; } }
