@@ -10115,7 +10115,42 @@ function _trnRenderChat() { if (typeof document === 'undefined') return; var el 
 // ── Premium floating-window workspace (UI shell only — every section's content is
 //    the SAME render function as before, just shown inside a draggable window) ──
 var _trnWinBound = false;
-function _trnWinTitle(key) { for (var i = 0; i < TRN_TABS.length; i++) if (TRN_TABS[i][0] === key) return TRN_TABS[i][1]; return key; }
+// Consolidated top-level sections (10). Extra sections become internal sub-tabs
+// inside their group window — nothing removed, only reorganised.
+var TRN_GROUPS = [
+  { k: 'dashboard', label: 'Dashboard', subs: [['dashboard', 'Dashboard']] },
+  { k: 'calendar', label: 'Calendar', subs: [['calendar', 'Calendar']] },
+  { k: 'sessions', label: 'Sessions', subs: [['sessions', 'Sessions']] },
+  { k: 'players', label: 'Players', subs: [['individual', 'Individual'], ['attendance', 'Attendance'], ['load', 'Load & Fitness']] },
+  { k: 'training', label: 'Training', subs: [['drills', 'Drills']] },
+  { k: 'match', label: 'Match Prep', subs: [['match', 'Match Prep']] },
+  { k: 'med', label: 'Medical', subs: [['med', 'Medical']] },
+  { k: 'ai', label: 'AI', subs: [['ai', 'AI Coach']] },
+  { k: 'analytics', label: 'Analytics', subs: [['analytics', 'Analytics'], ['exec', 'Executive']] },
+  { k: 'reports', label: 'Reports', subs: [['reports', 'Reports']] }
+];
+function _trnGroup(key) { for (var i = 0; i < TRN_GROUPS.length; i++) if (TRN_GROUPS[i].k === key) return TRN_GROUPS[i]; return null; }
+// Which top-level group + sub a raw section belongs to (so click-throughs still work).
+function _trnGroupFor(section) {
+  for (var i = 0; i < TRN_GROUPS.length; i++) { var g = TRN_GROUPS[i]; for (var j = 0; j < g.subs.length; j++) if (g.subs[j][0] === section) return { group: g.k, sub: section }; }
+  return { group: section, sub: section };
+}
+function _trnSubNav(key, g) {
+  if (!g || g.subs.length < 2) return '';
+  var active = (_TRN.sub && _TRN.sub[key]) || g.subs[0][0];
+  return '<div class="trn-subnav">' + g.subs.map(function (s) { return '<button class="trn-subtab' + (active === s[0] ? ' is-on' : '') + '" data-trn-act="subnav" data-trn-v="' + key + ':' + s[0] + '" type="button">' + s[1] + '</button>'; }).join('') + '</div>';
+}
+// Window body content for a top-level group: sub-nav (if grouped) + the active sub's real section.
+function _trnWinContent(key) {
+  var g = _trnGroup(key);
+  if (!g) return _trnSectionHtml(key);
+  if (g.subs.length < 2) return _trnSectionHtml(g.subs[0][0]);
+  var active = (_TRN.sub && _TRN.sub[key]) || g.subs[0][0];
+  return _trnSubNav(key, g) + _trnSectionHtml(active);
+}
+// Open the top-level window that contains a raw section, selecting its sub-tab.
+function _trnOpenSection(section) { var gf = _trnGroupFor(section); _TRN.sub = _TRN.sub || {}; _TRN.sub[gf.group] = gf.sub; _trnWinOpen(gf.group); }
+function _trnWinTitle(key) { var g = _trnGroup(key); if (g) return g.label; for (var i = 0; i < TRN_TABS.length; i++) if (TRN_TABS[i][0] === key) return TRN_TABS[i][1]; return key; }
 function _trnWinDefault(key) {
   var open = 0, k; for (k in (_TRN.win || {})) if (_TRN.win[k].open) open++;
   var vw = (typeof window !== 'undefined' && window.innerWidth) || 1280, off = (open % 8) * 30;
@@ -10147,7 +10182,7 @@ function _trnWinHtml(key) {
     + '<span class="trnw-ctrls"><button class="trnw-btn" data-trn-act="winmin" data-trn-v="' + key + '" type="button" aria-label="Minimize">&#8211;</button>'
     + '<button class="trnw-btn" data-trn-act="winmax" data-trn-v="' + key + '" type="button" aria-label="Maximize">&#9633;</button>'
     + '<button class="trnw-btn trnw-btn--x" data-trn-act="winclose" data-trn-v="' + key + '" type="button" aria-label="Close">&#10005;</button></span></header>'
-    + '<div class="trnw-body trn-anim" id="trnw-body-' + key + '">' + _trnSectionHtml(key) + '</div>'
+    + '<div class="trnw-body trn-anim" id="trnw-body-' + key + '">' + _trnWinContent(key) + '</div>'
     + (st.max ? '' : '<span class="trnw-resize" data-trnw-resize="' + key + '"></span>') + '</section>';
 }
 function _trnMinTray() {
@@ -10164,7 +10199,7 @@ function _trnDeskInner() {
 }
 function _trnDeskRender() { if (typeof document === 'undefined') return; var d = document.getElementById('trn-desk'); if (d) d.innerHTML = _trnDeskInner(); }
 function _trnToolbar() {
-  var btns = TRN_TABS.map(function (x) { var on = _TRN.win && _TRN.win[x[0]] && _TRN.win[x[0]].open && !_TRN.win[x[0]].min; return '<button class="trn-qa' + (on ? ' is-on' : '') + '" data-trn-act="winopen" data-trn-v="' + x[0] + '" type="button">' + x[1] + '</button>'; }).join('');
+  var btns = TRN_GROUPS.map(function (x) { var on = _TRN.win && _TRN.win[x.k] && _TRN.win[x.k].open && !_TRN.win[x.k].min; return '<button class="trn-qa' + (on ? ' is-on' : '') + '" data-trn-act="winopen" data-trn-v="' + x.k + '" type="button">' + x.label + '</button>'; }).join('');
   var extra = '<span class="trn-qa-sep"></span><button class="trn-qa" data-trn-act="notif" type="button">&#128276; Notifications</button><button class="trn-qa" data-trn-act="search" type="button">&#128269; Search</button>';
   return '<div class="trn-toolbar"><div class="trn-qawrap">' + btns + extra + '</div></div>';
 }
@@ -10199,7 +10234,7 @@ function _trnInner() {
 // Re-render only the OPEN window bodies (light path for in-window actions/filters).
 function _trnRenderBody() {
   if (typeof document === 'undefined') return; var legacy = document.getElementById('trn-body'); if (legacy) { legacy.innerHTML = _trnBody(); return; }
-  for (var k in (_TRN.win || {})) { var st = _TRN.win[k]; if (st && st.open && !st.min) { var b = document.getElementById('trnw-body-' + k); if (b) { b.innerHTML = _trnSectionHtml(k); } } }
+  for (var k in (_TRN.win || {})) { var st = _TRN.win[k]; if (st && st.open && !st.min) { var b = document.getElementById('trnw-body-' + k); if (b) { b.innerHTML = _trnWinContent(k); } } }
 }
 function _trnRenderModal() { var m = document.getElementById('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
 function _trnRender() {
@@ -10265,9 +10300,10 @@ function _trnAction(act, el) {
     case 'chatsend': { var ci = document.getElementById('trn-chat-in'); _trnChatAsk(ci ? ci.value : ''); break; }
     case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
     case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = document.getElementById('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
-    case 'gotoplayer': _TRN.modal = null; _TRN.player = id; _trnWinOpen('individual'); _trnRenderModal(); break;
+    case 'gotoplayer': _TRN.modal = null; _TRN.player = id; _trnOpenSection('individual'); _trnRenderModal(); break;
     case 'gotosession': _TRN.modal = null; _trnOpenSession(id); break;
-    case 'gototab': _TRN.modal = null; _trnWinOpen(v); _trnRenderModal(); break;
+    case 'gototab': _TRN.modal = null; _trnOpenSection(v); _trnRenderModal(); break;
+    case 'subnav': { var parts = (v || '').split(':'); if (parts.length === 2) { _TRN.sub = _TRN.sub || {}; _TRN.sub[parts[0]] = parts[1]; var bd = document.getElementById('trnw-body-' + parts[0]); if (bd) bd.innerHTML = _trnWinContent(parts[0]); } break; }
     case 'winopen': _trnWinOpen(v); break;
     case 'winclose': _trnWinClose(v); break;
     case 'winmin': _trnWinMin(v); break;
