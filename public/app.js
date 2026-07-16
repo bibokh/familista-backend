@@ -8054,7 +8054,9 @@ var _DE_TL = {
       { n: 5, team: 'def', track: [[42, 40], [44, 40], [48, 40], [54, 40], [58, 40], [64, 38], [72, 36], [50, 40], [70, 38]] },
       { n: 2, team: 'def', track: [[56, 16], [57, 16], [60, 16], [66, 14], [74, 14], [82, 14], [90, 16], [58, 16], [84, 14]] },
       { n: 6, team: 'def', track: [[46, 32], [48, 32], [52, 32], [58, 32], [62, 32], [70, 30], [78, 30], [52, 32], [74, 30]] },
-      { n: '', team: 'gk', track: [[103, 34]] }
+      { n: '', team: 'gk', track: [[103, 34]] },
+      { n: 11, team: 'att', track: [[50, 50], [52, 50], [58, 50], [66, 52], [74, 52], [82, 50], [92, 48], [52, 50], [80, 50]], bend: [0, 0, 0, 3, 3, 0, 0, 0, 0] },
+      { n: 3, team: 'def', track: [[52, 48], [54, 48], [58, 48], [62, 46], [66, 44], [72, 42], [80, 40], [54, 46], [74, 42]] }
     ],
     ball: { track: [[28, 34], [44, 26], [56, 30], [58, 30], [58, 30], [80, 26], [100, 33], [50, 30], [92, 32]], seg: ['pass', 'carry', 'hold', 'hold', 'pass', 'loft', 'cut', 'pass'] },
     steps: [
@@ -8461,6 +8463,8 @@ function _deWirePlayer(root, api, d) {
   });
 }
 var _DE_ACTIVE = null;
+// Tear down the active player — dispose the 3D engine (frees WebGL/GPU) or pause the 2.5D one.
+function _deStopActive() { if (!_DE_ACTIVE) return; try { if (_DE_ACTIVE.dispose) _DE_ACTIVE.dispose(); else if (_DE_ACTIVE.pause) _DE_ACTIVE.pause(); } catch (e) {} _DE_ACTIVE = null; }
 function _deStepsBar(kind, tl) {   // clickable coaching-step rail (jump to any step)
   if (tl && tl.steps) {           // structured timeline: rich rail with title + duration
     return '<div class="de-pl-steps">' + tl.steps.map(function (s, i) {
@@ -8479,30 +8483,47 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
   var d = null; for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === id) { d = DE_DRILLS[i]; break; }
   if (!d) return; var frame = document.getElementById('de-vid-' + id); if (!frame) return;
   var kind = _deMediaKind(d); if (kind === 'production') return;
-  if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
+  _deStopActive();
   var ac = DE_CATS[d.cat];
   var demo = kind === 'demo';
-  var tl = (typeof _DE_TL !== 'undefined') ? _DE_TL[id] : null, useTL = demo && !!tl;
-  var s0 = useTL ? tl.steps[0] : null;
-  var initTitle = useTL ? s0.title : 'Set-up & shape';
-  var initTone = useTL ? (/mistake/i.test(s0.title) ? 'bad' : /correct/i.test(s0.title) ? 'good' : 'info') : 'info';
-  var initNum = 'STEP 1 / ' + (useTL ? tl.steps.length : 5);
-  var camMap = { tactical: 'TACTICAL', broadcast: 'BROADCAST', side: 'SIDE VIEW', focus: 'FOCUS' };
-  var initCam = useTL ? (camMap[s0.cam] || 'TACTICAL') : 'TACTICAL VIEW';
-  var totalTxt = useTL ? _deFmt(_deTLTotal(tl)) : d.duration;
+  var tl = (typeof _DE_TL !== 'undefined') ? _DE_TL[id] : null;
+  var useTL = demo && !!tl;
+  var use3D = demo && !!tl && _DE_3D_ON && id === 'transition';   // genuine Babylon.js 3D prototype: Transition to Attack only
+  frame.classList.add('is-playing');
+  frame.innerHTML = _dePlShell(d, ac, kind, useTL ? tl : null, use3D);
+  var root = frame.querySelector('.de-pl');
+  if (use3D) { _deBuild3D(id, d, tl, ac, root, frame); return; }
+  var api;
+  if (useTL) { try { api = _deTLApi(root, tl, ac, d); } catch (e) { try { api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d); } catch (e2) { api = null; } } }
+  else if (kind === 'mp4') api = _deMp4Api(root, d);
+  else api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+  if (!api) { frame.classList.remove('is-playing'); return; }
+  _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
+  api.play();
+}
+// Player shell markup — shared by the 2.5D and the 3D engines (3D adds a loading overlay).
+function _dePlShell(d, ac, kind, tl, use3D) {
+  var demo = kind === 'demo', s0 = tl ? tl.steps[0] : null;
+  var camMap = { tactical: 'TACTICAL', broadcast: 'BROADCAST', top: 'TOP VIEW', side: 'SIDE VIEW', focus: 'FOCUS' };
+  var initTitle = tl ? s0.title : 'Set-up & shape';
+  var initTone = tl ? (/mistake/i.test(s0.title) ? 'bad' : /correct/i.test(s0.title) ? 'good' : 'info') : 'info';
+  var initNum = 'STEP 1 / ' + (tl ? tl.steps.length : 5);
+  var initCam = use3D ? 'BROADCAST' : (tl ? (camMap[s0.cam] || 'TACTICAL') : 'TACTICAL VIEW');
+  var totalTxt = tl ? _deFmt(_deTLTotal(tl)) : d.duration;
   var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
+  var loading = use3D ? '<div class="de-pl-loading"><span class="de-pl-spinner"></span><b>Loading 3D presentation…</b><i>Preparing pitch, players &amp; lighting</i></div>' : '';
+  var badge = use3D ? '<span class="de-pl-badge de-pl-badge--3d">3D · Babylon</span>' : '<span class="de-pl-badge">Tactical Analysis</span>';
   var hud = demo ? '<div class="de-pl-hud">'
-    + '<div class="de-pl-hud-tl"><span class="de-pl-badge">Tactical Analysis</span><b>' + _deEsc(d.name) + '</b></div>'
+    + '<div class="de-pl-hud-tl">' + badge + '<b>' + _deEsc(d.name) + '</b></div>'
     + '<div class="de-pl-hud-tr"><span class="de-pl-stepnum">' + initNum + '</span><span class="de-pl-cam">' + initCam + '</span></div>'
     + '<div class="de-pl-lower"><span class="de-pl-steptitle de-tone-' + initTone + '">' + _deEsc(initTitle) + '</span><span class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></span></div>'
     + '</div>' : '';
-  var steps = demo ? _deStepsBar(d.kind, useTL ? tl : null) : '';
+  var steps = demo ? _deStepsBar(d.kind, tl) : '';
   var stepCtrls = demo ? '<button class="de-pl-btn de-pl-prev" type="button" aria-label="Previous step" title="Previous step">' + _deIcon('prev') + '</button>' : '';
   var stepCtrlsR = demo ? '<button class="de-pl-btn de-pl-next" type="button" aria-label="Next step" title="Next step">' + _deIcon('next') + '</button><button class="de-pl-btn de-pl-replay" type="button" aria-label="Replay" title="Replay">' + _deIcon('replay') + '</button>' : '';
-  var camCtrl = demo ? '<button class="de-pl-btn de-pl-cam-btn" type="button" aria-label="Camera view" title="Switch camera">' + _deIcon('cam') + '<span>TACTICAL</span></button>' : '';
+  var camCtrl = demo ? '<button class="de-pl-btn de-pl-cam-btn" type="button" aria-label="Camera view" title="Switch camera">' + _deIcon('cam') + '<span>' + initCam.replace(' VIEW', '') + '</span></button>' : '';
   var qCtrl = demo ? '' : '<button class="de-pl-btn de-pl-quality" type="button" aria-label="Quality">Auto</button>';
-  frame.classList.add('is-playing');
-  frame.innerHTML = '<div class="de-pl' + (demo ? ' is-demo' : '') + '" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
+  return '<div class="de-pl' + (demo ? ' is-demo' : '') + (use3D ? ' is-3d' : '') + '" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + loading + '</div>' + steps
     + '<div class="de-pl-bar">' + stepCtrls + '<button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>' + stepCtrlsR
     + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + totalTxt + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
@@ -8511,16 +8532,43 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
     + '<button class="de-pl-btn de-pl-mute" type="button" aria-label="Mute">' + _deIcon('vol') + '</button>'
     + qCtrl
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
-  var root = frame.querySelector('.de-pl');
-  // Pilot: the new professional presentation engine for timeline drills, with a
-  // safe fallback to the current tactical-board player if it fails to build.
-  var api;
-  if (useTL) { try { api = _deTLApi(root, tl, ac, d); } catch (e) { try { api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d); } catch (e2) { api = null; } } }
-  else if (kind === 'mp4') api = _deMp4Api(root, d);
-  else api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+}
+// ── Genuine 3D engine (Babylon.js) — lazy-loaded, with safe fallback to 2.5D ──
+var _DE_3D_ON = true, _DE_3D_LOADING = false, _DE_3D_QUEUE = [];
+var _DE_Q = (function () { try { var c = navigator.hardwareConcurrency || 4, m = navigator.deviceMemory || 4; if (c <= 2 || m <= 2) return 'low'; if (c <= 4 || m <= 4) return 'medium'; return 'high'; } catch (e) { return 'medium'; } })();
+function _deVerTag() { try { var s = document.querySelector('script[src*="app.js?v="]'); return s ? (s.src.split('?v=')[1] || '') : ''; } catch (e) { return ''; } }
+function _deLoad3D(cb) {
+  if (window._de3dLoaded && window._de3dApi) { cb(true); return; }
+  _DE_3D_QUEUE.push(cb); if (_DE_3D_LOADING) return; _DE_3D_LOADING = true;
+  function flush(ok) { _DE_3D_LOADING = false; var q = _DE_3D_QUEUE.slice(); _DE_3D_QUEUE = []; q.forEach(function (f) { try { f(ok); } catch (e) {} }); }
+  function inject(src, done) { var s = document.createElement('script'); s.src = src; s.async = true; s.onload = function () { done(true); }; s.onerror = function () { done(false); }; document.head.appendChild(s); }
+  var v = _deVerTag();
+  inject('/vendor/babylon.js', function (ok1) {
+    if (!ok1) { flush(false); return; }
+    inject('/vendor/babylonjs.loaders.min.js', function () {
+      inject('/de3d.js' + (v ? '?v=' + v : ''), function (ok3) { flush(ok3 && !!window._de3dApi); });
+    });
+  });
+}
+function _deFallback2D(id, d, tl, ac, root, frame) {
+  var lo = root.querySelector('.de-pl-loading'); if (lo && lo.parentNode) lo.parentNode.removeChild(lo);
+  root.classList.remove('is-3d'); var b3 = root.querySelector('.de-pl-badge--3d'); if (b3) { b3.classList.remove('de-pl-badge--3d'); b3.textContent = 'Tactical Analysis'; }
+  var oldc = root.querySelector('.de-pl-canvas'); if (oldc) { var nc = document.createElement('canvas'); nc.className = 'de-pl-canvas'; nc.width = 960; nc.height = 540; oldc.parentNode.replaceChild(nc, oldc); }
+  var api; try { api = _deTLApi(root, tl, ac, d); } catch (e) { try { api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d); } catch (e2) { api = null; } }
   if (!api) { frame.classList.remove('is-playing'); return; }
-  _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
-  api.play();
+  _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api; api.play();
+}
+function _deBuild3D(id, d, tl, ac, root, frame) {
+  _deLoad3D(function (ok) {
+    if (!ok || typeof window._de3dApi === 'undefined') { _deFallback2D(id, d, tl, ac, root, frame); return; }
+    var api; try { api = window._de3dApi(root, tl, ac, d, { quality: _DE_Q }); } catch (e) { _deFallback2D(id, d, tl, ac, root, frame); return; }
+    api.ready(function (success) {
+      if (!root.isConnected) { try { api.dispose && api.dispose(); } catch (e) {} return; }   // user navigated away mid-load
+      if (!success) { _deFallback2D(id, d, tl, ac, root, frame); return; }
+      var lo = root.querySelector('.de-pl-loading'); if (lo && lo.parentNode) lo.parentNode.removeChild(lo);
+      _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api; api.play();
+    });
+  });
 }
 function _deVideo(d) {
   var ac = DE_CATS[d.cat], kind = _deMediaKind(d), poster = '<div class="de-vid-poster">' + _deScene(d.kind, ac) + '</div><span class="de-vid-grad"></span>';
@@ -8744,7 +8792,7 @@ function _deAddToSession(id) {
   _trnToast('New session for today — drill added');
 }
 function _deInner() { if (_DE_SEL) { for (var i = 0; i < DE_DRILLS.length; i++) if (DE_DRILLS[i].id === _DE_SEL) return _deDetail(DE_DRILLS[i]); _DE_SEL = null; } return _deIndex(); }
-function _deRender() { if (typeof document === 'undefined') return; var r = document.getElementById('de-root'); if (r) { r.innerHTML = _deInner(); r.scrollTop = 0; if (r.parentNode && r.parentNode.scrollTo) try { r.parentNode.scrollTo(0, 0); } catch (e) {} } }
+function _deRender() { if (typeof document === 'undefined') return; _deStopActive(); var r = document.getElementById('de-root'); if (r) { r.innerHTML = _deInner(); r.scrollTop = 0; if (r.parentNode && r.parentNode.scrollTo) try { r.parentNode.scrollTo(0, 0); } catch (e) {} } }
 function _deBind() {
   if (_deBound || typeof document === 'undefined' || !document.addEventListener) return; _deBound = true;
   document.addEventListener('click', function (e) {

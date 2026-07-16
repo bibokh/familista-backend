@@ -7750,3 +7750,14 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .de-pl-step-tx b{ font-size:10.5px; font-weight:800; color:inherit; }
 .de-pl-step-tx em{ font-style:normal; font-size:8.5px; font-weight:700; color:#8a94a6; letter-spacing:.03em; font-variant-numeric:tabular-nums; }
 .de-pl-step--tl.is-on .de-pl-step-tx em{ color:#c8d2e0; }
+
+/* ══ 3D presentation engine (Babylon) — loading state + badge ══ */
+.de-pl.is-3d .de-pl-stage{ background:radial-gradient(120% 120% at 50% 30%,#12283a,#060b12); }
+.de-pl-canvas{ touch-action:none; }
+.de-pl-badge--3d{ color:#0a0f16; background:linear-gradient(120deg,#5cf0b0,#37b6ff); }
+.de-pl-loading{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; background:radial-gradient(120% 120% at 50% 35%,#0f2233,#070d15); z-index:6; }
+.de-pl-loading b{ font-size:14px; font-weight:800; color:#eef3f9; letter-spacing:.01em; }
+.de-pl-loading i{ font-style:normal; font-size:11.5px; color:#8fa0b4; }
+.de-pl-spinner{ width:44px; height:44px; border-radius:50%; border:3px solid rgba(255,255,255,.14); border-top-color:rgb(var(--c,52,215,122)); animation:dePlSpin .8s linear infinite; }
+@keyframes dePlSpin{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce){ .de-pl-spinner{ animation-duration:2s; } }
