@@ -2,3 +2,5 @@
 # checkout (core.autocrlf=true) can never introduce CRLF that breaks them.
 *.sh  text eol=lf
 *.sql text eol=lf
+
+*.glb binary
