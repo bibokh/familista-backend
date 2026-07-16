@@ -7743,3 +7743,10 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .de-pl-step{ cursor:pointer; appearance:none; }
 .de-pl-step:hover{ color:#eef2f8; background:rgba(255,255,255,.08); }
 @media (max-width:600px){ .de-pl-cam-btn span,.de-pl-quality,.de-pl-speed{ display:none; } .de-pl-hud-tl b{ display:none; } }
+
+/* ══ Timeline presentation engine — richer step rail (pilot drills) ══ */
+.de-pl-step--tl{ padding:4px 12px 4px 4px; align-items:center; }
+.de-pl-step-tx{ display:inline-flex; flex-direction:column; align-items:flex-start; line-height:1.1; }
+.de-pl-step-tx b{ font-size:10.5px; font-weight:800; color:inherit; }
+.de-pl-step-tx em{ font-style:normal; font-size:8.5px; font-weight:700; color:#8a94a6; letter-spacing:.03em; font-variant-numeric:tabular-nums; }
+.de-pl-step--tl.is-on .de-pl-step-tx em{ color:#c8d2e0; }

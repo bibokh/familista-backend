@@ -8029,6 +8029,200 @@ var _DE_NOTES = {
   setpiece: [{ seg: 'live', a: 0, tx: 'Delivery targets the near post', tn: 'info' }, { seg: 'freeze', a: 1, tx: 'Attack the ball with a timed run', tn: 'good' }, { seg: 'freeze', a: 2, tx: 'Do not wait for the ball', tn: 'bad' }],
   transition: [{ seg: 'live', a: 1, tx: 'First pass goes forward', tn: 'info' }, { seg: 'freeze', a: 2, tx: 'Runner commits early', tn: 'good' }, { seg: 'replay', a: 3, tx: 'Finish before the block reforms', tn: 'good' }]
 };
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFESSIONAL TRAINING PRESENTATION ENGINE (pilot) — a reusable, data-driven
+// 2.5D tactical-analysis presentation. Chosen over WebGL/Three.js because the
+// frontend is raw-served (no bundler) and the server CSP is scriptSrc 'self'
+// (external/CDN scripts blocked) — a heavy bundle would harm load. This engine
+// needs no external assets, loads instantly, and renders an elite-club coaching
+// presentation (human silhouettes, natural motion, pro overlays, camera modes)
+// from a structured step timeline. Only the 3 pilot drills below carry a timeline;
+// every other drill keeps the existing player (fallback). If the timeline engine
+// throws, _dePlay falls back to the current tactical-board player.
+// Coordinates are real pitch metres: x 0..105 (attacking → +x), z 0..68.
+// ═══════════════════════════════════════════════════════════════════════════
+var _DE_TL = {
+  // ── Transition to Attack — large-space transition, attacking → right goal ──
+  transition: {
+    players: [
+      { n: 6, team: 'att', track: [[28, 34], [30, 33], [34, 34], [36, 36], [38, 38], [40, 40], [42, 42], [34, 34], [34, 34]] },
+      { n: 8, team: 'att', track: [[40, 46], [42, 42], [48, 40], [54, 44], [58, 46], [60, 42], [62, 40], [46, 44], [50, 42]] },
+      { n: 10, team: 'att', track: [[44, 26], [46, 26], [52, 28], [58, 26], [62, 26], [70, 24], [78, 26], [50, 30], [60, 26]] },
+      { n: 7, team: 'att', track: [[52, 12], [55, 12], [62, 12], [72, 10], [80, 10], [88, 12], [96, 16], [55, 14], [80, 12]], bend: [0, 0, 0, 4, 4, 0, 0, 0, 0] },
+      { n: 9, team: 'att', track: [[48, 38], [50, 38], [56, 36], [66, 34], [74, 32], [84, 30], [99, 33], [52, 36], [86, 32]] },
+      { n: 4, team: 'def', track: [[42, 30], [44, 30], [48, 30], [54, 30], [58, 30], [64, 30], [70, 30], [50, 30], [66, 30]] },
+      { n: 5, team: 'def', track: [[42, 40], [44, 40], [48, 40], [54, 40], [58, 40], [64, 38], [72, 36], [50, 40], [70, 38]] },
+      { n: 2, team: 'def', track: [[56, 16], [57, 16], [60, 16], [66, 14], [74, 14], [82, 14], [90, 16], [58, 16], [84, 14]] },
+      { n: 6, team: 'def', track: [[46, 32], [48, 32], [52, 32], [58, 32], [62, 32], [70, 30], [78, 30], [52, 32], [74, 30]] },
+      { n: '', team: 'gk', track: [[103, 34]] }
+    ],
+    ball: { track: [[28, 34], [44, 26], [56, 30], [58, 30], [58, 30], [80, 26], [100, 33], [50, 30], [92, 32]], seg: ['pass', 'carry', 'hold', 'hold', 'pass', 'loft', 'cut', 'pass'] },
+    steps: [
+      { key: 'org', title: 'Initial Organisation', note: 'Ball just regained — stay compact and look forward immediately.', cam: 'tactical', dur: 4, overlays: { zone: [22, 22, 26, 24, 'Regain'], guide: { depth: [22, 48] } } },
+      { key: 'first', title: 'First Action', note: 'The first pass goes forward or sets a forward pass at once.', cam: 'broadcast', dur: 3, overlays: { pass: [[0, 2]] } },
+      { key: 'progress', title: 'Ball Progression', note: 'Carry into midfield and commit the defence.', cam: 'broadcast', dur: 5, overlays: { run: [3, 4] } },
+      { key: 'offball', title: 'Off-ball Movement', note: 'Runners break early to stretch the recovering line.', cam: 'broadcast', dur: 4, overlays: { run: [3, 4], zone: [78, 22, 22, 24, 'Space behind the defence'] } },
+      { key: 'defreact', title: 'Defensive Reaction', note: 'Defenders recover and shift — attack before the block reforms.', cam: 'side', dur: 4, overlays: { press: [5, 6, 8] } },
+      { key: 'exploit', title: 'Exploitation', note: 'Release the through ball into the space behind.', cam: 'focus', dur: 4, overlays: { pass: [[2, 4]], zone: [78, 20, 24, 26, 'Space behind the defence'] } },
+      { key: 'finish', title: 'Finishing', note: 'Finish quickly and decisively before recovery.', cam: 'focus', dur: 3, overlays: { pass: [[4, 9]], highlight: 4 }, freeze: false },
+      { key: 'mistake', title: 'Common Mistake', note: 'Slowing down lets the block reform — the counter dies.', cam: 'tactical', dur: 4, overlays: { highlight: 0 }, freeze: true },
+      { key: 'correct', title: 'Correct Execution', note: 'Fast, direct, vertical — finish before the defence recovers.', cam: 'broadcast', dur: 5, overlays: { run: [3, 4] }, freeze: true }
+    ]
+  },
+  // ── Overlapping Full-Back Runs — coordinated attacking movement, right flank ──
+  overlap: {
+    players: [
+      { n: 7, team: 'att', track: [[60, 10], [70, 10], [76, 8], [84, 7], [88, 7], [88, 7], [88, 7]] },
+      { n: 2, team: 'att', track: [[52, 8], [58, 8], [70, 6], [82, 6], [90, 10], [92, 12], [93, 14]], bend: [0, 0, 5, 4, 0, 0, 0] },
+      { n: 10, team: 'att', track: [[58, 30], [62, 30], [66, 32], [70, 34], [76, 34], [80, 36], [86, 38]] },
+      { n: 9, team: 'att', track: [[70, 24], [74, 24], [78, 22], [82, 22], [88, 20], [92, 22], [97, 24]] },
+      { n: 11, team: 'att', track: [[64, 46], [68, 46], [72, 44], [78, 42], [84, 42], [90, 40], [96, 38]] },
+      { n: 4, team: 'def', track: [[86, 26], [86, 26], [87, 25], [89, 26], [92, 26], [94, 26], [97, 27]] },
+      { n: 5, team: 'def', track: [[84, 40], [84, 40], [85, 39], [87, 38], [90, 37], [93, 36], [96, 35]] },
+      { n: 3, team: 'def', track: [[64, 14], [70, 12], [76, 10], [84, 10], [90, 12], [92, 14], [94, 16]] },
+      { n: '', team: 'gk', track: [[103, 31]] }
+    ],
+    ball: { track: [[60, 10], [72, 10], [82, 8], [90, 14], [88, 22], [88, 22], [100, 26]], seg: ['carry', 'carry', 'carry', 'pass', 'hold', 'pass'] },
+    steps: [
+      { key: 'org', title: 'Initial Organisation', note: 'Winger holds width; the full-back prepares to overlap.', cam: 'tactical', dur: 4, overlays: { zone: [70, 4, 20, 22, 'Attacking channel'], guide: { width: [4, 26] } } },
+      { key: 'first', title: 'First Action', note: 'Winger drives at the full-back to fix and commit him.', cam: 'broadcast', dur: 4, overlays: { run: [0] } },
+      { key: 'overlap', title: 'Overlap Run', note: 'Full-back overlaps outside to the byline — 2v1 on the flank.', cam: 'broadcast', dur: 5, overlays: { run: [1] } },
+      { key: 'delivery', title: 'Ball Movement', note: 'Early cut-back into the danger zone before the block sets.', cam: 'focus', dur: 4, overlays: { pass: [[1, 3]], zone: [86, 16, 16, 30, 'Cut-back zone'] } },
+      { key: 'runs', title: 'Off-ball Movement', note: 'Attack near post, penalty spot and far post together.', cam: 'broadcast', dur: 4, overlays: { run: [3, 4] } },
+      { key: 'defreact', title: 'Defensive Reaction', note: 'Defenders collapse to the ball — attack the gaps they leave.', cam: 'side', dur: 4, overlays: { press: [5, 6] } },
+      { key: 'finish', title: 'Correct Execution', note: 'Two runners attacking the delivery — a clean finish.', cam: 'focus', dur: 4, overlays: { pass: [[3, 8]], highlight: 3 }, freeze: true }
+    ]
+  },
+  // ── Rondo Possession Circle — small-space possession, central ──
+  rondo: {
+    players: [
+      { n: 6, team: 'att', track: [[40, 22], [40, 22], [41, 21], [39, 23], [40, 22], [40, 22]] },
+      { n: 8, team: 'att', track: [[62, 22], [62, 22], [63, 21], [62, 24], [62, 22], [62, 22]] },
+      { n: 10, team: 'att', track: [[68, 34], [68, 34], [69, 33], [68, 36], [68, 34], [68, 34]] },
+      { n: 5, team: 'att', track: [[62, 46], [62, 46], [61, 47], [63, 45], [62, 46], [62, 46]] },
+      { n: 3, team: 'att', track: [[40, 46], [40, 46], [39, 45], [41, 47], [40, 46], [40, 46]] },
+      { n: 4, team: 'att', track: [[34, 34], [34, 34], [35, 33], [33, 35], [34, 34], [34, 34]] },
+      { n: '', team: 'def', track: [[50, 30], [52, 28], [55, 32], [58, 36], [50, 30], [50, 30]] },
+      { n: '', team: 'def', track: [[56, 38], [54, 40], [50, 36], [47, 32], [56, 38], [56, 38]] }
+    ],
+    ball: { track: [[40, 22], [62, 22], [68, 34], [62, 46], [40, 46], [52, 34]], seg: ['pass', 'pass', 'pass', 'pass', 'pass'] },
+    steps: [
+      { key: 'org', title: 'Initial Organisation', note: 'Outside players form a diamond around two defenders.', cam: 'tactical', dur: 4, overlays: { zone: [30, 16, 44, 36, 'Possession grid'] } },
+      { key: 'circulate', title: 'Ball Movement', note: 'Circulate first-time to keep the ball from the pressers.', cam: 'broadcast', dur: 4, overlays: { pass: [[0, 1]] } },
+      { key: 'thirdman', title: 'Off-ball Movement', note: 'Open a new angle so the carrier always has two options.', cam: 'broadcast', dur: 4, overlays: { pass: [[1, 2]], run: [3] } },
+      { key: 'press', title: 'Defensive Reaction', note: 'Defenders shift together to close the passing lane.', cam: 'side', dur: 4, overlays: { press: [6, 7] } },
+      { key: 'mistake', title: 'Common Mistake', note: 'Forcing a risky split when the simple pass keeps the ball.', cam: 'tactical', dur: 4, overlays: { highlight: 2 }, freeze: true },
+      { key: 'correct', title: 'Correct Execution', note: 'Quick one and two-touch play — retain under pressure.', cam: 'broadcast', dur: 4, overlays: { pass: [[2, 3]] }, freeze: true }
+    ]
+  }
+};
+function _deTLHas(id) { return !!(_DE_TL && _DE_TL[id]); }
+function _deTLTotal(tl) { var s = 0; for (var i = 0; i < tl.steps.length; i++) s += (tl.steps[i].dur || 3.5); return s; }
+// The reusable presentation engine (one implementation for every timeline drill).
+function _deTLApi(root, tl, ac, drill) {
+  var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t'), camEl = root.querySelector('.de-pl-cam');
+  var stTitleEl = root.querySelector('.de-pl-steptitle'), stNumEl = root.querySelector('.de-pl-stepnum'), stepsEls = (root && root.querySelectorAll) ? root.querySelectorAll('.de-pl-step') : [];
+  var ctx = canvas.getContext('2d'), W = canvas.width, H = canvas.height;
+  var steps = tl.steps, N = steps.length, players = tl.players, ball = tl.ball;
+  var bounds = [], acc = 0; for (var i = 0; i < N; i++) { bounds.push(acc); acc += (steps[i].dur || 3.5); } var TOTAL = acc; bounds.push(acc);
+  var t = 0, playing = false, speed = 1, muted = false, raf = 0, last = 0, cb = null, lastCap = -1, lastStep = -1, lastCam = '';
+  var camOverride = null, camS = null, MODE_LB = { tactical: 'TACTICAL', broadcast: 'BROADCAST', side: 'SIDE VIEW', focus: 'FOCUS' }, MODES = ['tactical', 'broadcast', 'side', 'focus'];
+  function c01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+  function ease(u) { u = c01(u); return u * u * (3 - 2 * u); }
+  function smoother(u) { u = c01(u); return u * u * u * (u * (u * 6 - 15) + 10); }
+  function outEase(u) { u = c01(u); return 1 - (1 - u) * (1 - u); }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function crs(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function norm(a) { var l = Math.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  function tint(tri, d) { var p = String(tri).split(',').map(Number); function c(v) { return Math.max(0, Math.min(255, Math.round(v + d))); } return 'rgb(' + c(p[0]) + ',' + c(p[1]) + ',' + c(p[2]) + ')'; }
+  var TEAM = { att: ac, def: '224,104,95', gk: '244,192,78', neu: '154,166,182' };
+  function stepAt() { var tt = c01(t / TOTAL) * TOTAL; for (var i = N - 1; i >= 0; i--) if (tt >= bounds[i]) return i; return 0; }
+  function frac(st) { var d = steps[st].dur || 3.5; return c01((t - bounds[st]) / d); }
+  function trk(pl, i) { var a = pl.track; return a[Math.min(i, a.length - 1)]; }
+  function posAt(pl, st, lo) { var f = steps[st].freeze ? 1 : lo, e = smoother(f), a = trk(pl, st), b = trk(pl, st + 1); if (pl.bend && pl.bend[st]) { var bd = pl.bend[st], mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2, dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, cx = mx - dz / l * bd, cz = mz + dx / l * bd, k = 1 - e; return [k * k * a[0] + 2 * k * e * cx + e * e * b[0], 0, k * k * a[1] + 2 * k * e * cz + e * e * b[1]]; } return [a[0] + (b[0] - a[0]) * e, 0, a[1] + (b[1] - a[1]) * e]; }
+  function faceOf(pl, st, lo) { var p0 = posAt(pl, st, lo), p1 = posAt(pl, st, Math.max(0, lo - 0.04)); var d = [p0[0] - p1[0], 0, p0[2] - p1[2]]; if (Math.hypot(d[0], d[2]) > 0.05) return norm(d); var bp = ballAt(st, lo); return bp ? norm([bp[0] - p0[0], 0, bp[2] - p0[2]]) : [1, 0, 0]; }
+  function ballAt(st, lo) { var a = ball.track[Math.min(st, ball.track.length - 1)], b = ball.track[Math.min(st + 1, ball.track.length - 1)], ty = (ball.seg && ball.seg[st]) || 'pass'; if (ty === 'cut') return [b[0], 0, b[1]]; if (ty === 'hold') return [a[0], 0, a[1]]; var f = steps[st].freeze ? 1 : lo, e = ty === 'pass' ? outEase(f) : ty === 'carry' ? ease(f) : outEase(f), arc = ty === 'loft' ? 5 * Math.sin(Math.PI * f) : 0; return [a[0] + (b[0] - a[0]) * e, arc, a[1] + (b[1] - a[1]) * e]; }
+  // camera
+  function preset(md, foc) { var fx = foc ? foc[0] : 52.5, fz = foc ? foc[2] : 34; if (md === 'tactical') return { pos: [52.5, 60, -8], tgt: [52.5, 0, 40], fov: 0.74 }; if (md === 'broadcast') return { pos: [fx * 0.42 + 20, 30, -28], tgt: [fx * 0.7 + 14, 1, 34], fov: 0.7 }; if (md === 'side') return { pos: [52.5, 15, -33], tgt: [52.5, 1, 34], fov: 0.72 }; return { pos: [fx - 12, 20, -15], tgt: [fx, 1, fz], fov: 0.56 }; }
+  function setCam(c) { CAM = c; CAM.f = norm(sub(c.tgt, c.pos)); var up = [0, 1, 0]; if (Math.abs(dot(CAM.f, up)) > 0.998) up = [0, 0, 1]; CAM.r = norm(crs(CAM.f, up)); CAM.u = crs(CAM.r, CAM.f); }
+  var CAM = null;
+  function project(p) { var d = sub(p, CAM.pos), z = dot(d, CAM.f); if (z < 0.05) z = 0.05; var fl = (H / 2) / Math.tan(CAM.fov / 2); return { x: W / 2 + dot(d, CAM.r) / z * fl, y: H / 2 - dot(d, CAM.u) / z * fl, z: z, s: fl / z }; }
+  function poly(pts, fill, stroke, lw, dash) { ctx.save(); if (dash) ctx.setLineDash(dash); ctx.beginPath(); for (var i = 0; i < pts.length; i++) { var q = project(pts[i]); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.closePath(); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 2; ctx.stroke(); } ctx.restore(); }
+  function line3(a, b, col, lw, dash, off) { var p = project(a), q = project(b); ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw || 2; ctx.lineCap = 'round'; if (dash) { ctx.setLineDash(dash); if (off != null) ctx.lineDashOffset = off; } ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); ctx.restore(); }
+  function head(a, b, col) { var p = project(a), q = project(b); if (q.z <= 0.05) return; var ang = Math.atan2(q.y - p.y, q.x - p.x), L = Math.max(6, q.s * 0.5); ctx.save(); ctx.fillStyle = col; ctx.translate(q.x, q.y); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(2, 0); ctx.lineTo(-L, -L * 0.5); ctx.lineTo(-L, L * 0.5); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  function arcPts(a, b, bend) { var mx = (a[0] + b[0]) / 2, mz = (a[2] + b[2]) / 2, dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, cx = mx - dz / l * bend, cz = mz + dx / l * bend, o = []; for (var i = 0; i <= 14; i++) { var u = i / 14, k = 1 - u; o.push([k * k * a[0] + 2 * k * u * cx + u * u * b[0], 0, k * k * a[2] + 2 * k * u * cz + u * u * b[2]]); } return o; }
+  function pitch() {
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], '#1c7a3c', null);
+    for (var s = 0; s < 12; s++) poly([[s * 8.75, 0, 0], [(s + 1) * 8.75, 0, 0], [(s + 1) * 8.75, 0, 68], [s * 8.75, 0, 68]], s % 2 ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.05)', null);
+    var wl = 'rgba(255,255,255,.82)';
+    poly([[0, 0, 0], [105, 0, 0], [105, 0, 68], [0, 0, 68]], null, wl, 2.4); line3([52.5, 0, 0], [52.5, 0, 68], wl, 2);
+    var cc = []; for (var i = 0; i <= 44; i++) { var a = i / 44 * 6.283; cc.push([52.5 + Math.cos(a) * 9.15, 0, 34 + Math.sin(a) * 9.15]); } ctx.save(); ctx.strokeStyle = wl; ctx.lineWidth = 2; ctx.beginPath(); for (var j = 0; j < cc.length; j++) { var q = project(cc[j]); j ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore();
+    poly([[0, 0, 13.85], [16.5, 0, 13.85], [16.5, 0, 54.15], [0, 0, 54.15]], null, wl, 2); poly([[105, 0, 13.85], [88.5, 0, 13.85], [88.5, 0, 54.15], [105, 0, 54.15]], null, wl, 2);
+    poly([[0, 0, 24.85], [5.5, 0, 24.85], [5.5, 0, 43.15], [0, 0, 43.15]], null, wl, 2); poly([[105, 0, 24.85], [99.5, 0, 24.85], [99.5, 0, 43.15], [105, 0, 43.15]], null, wl, 2);
+    goal(0, 1); goal(105, -1);
+  }
+  function goal(gx, dir) { var w = 3.66, tp = 2.44, z0 = 34 - w, z1 = 34 + w, col = 'rgba(255,255,255,.9)'; line3([gx, 0, z0], [gx, tp, z0], col, 2.4); line3([gx, 0, z1], [gx, tp, z1], col, 2.4); line3([gx, tp, z0], [gx, tp, z1], col, 2.4); }
+  function overlay(st, lo) {
+    var ov = steps[st].overlays || {};
+    if (ov.zone) { var z = ov.zone, pulse = 0.11 + 0.05 * Math.sin(t * 2.4); poly([[z[0], 0, z[1]], [z[0] + z[2], 0, z[1]], [z[0] + z[2], 0, z[1] + z[3]], [z[0], 0, z[1] + z[3]]], 'rgba(' + ac + ',' + pulse.toFixed(3) + ')', 'rgba(' + ac + ',.7)', 2, [9, 6]); if (z[4]) { var lp = project([z[0] + z[2] / 2, 0, z[1]]); if (lp.z > 0.06) { ctx.save(); ctx.font = '700 12px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; var tw = ctx.measureText(z[4]).width + 16; ctx.fillStyle = 'rgba(8,13,20,.82)'; rr(lp.x - tw / 2, lp.y - 22, tw, 18, 5); ctx.fill(); ctx.fillStyle = 'rgb(' + ac + ')'; ctx.fillText(z[4].toUpperCase(), lp.x, lp.y - 7); ctx.restore(); } } }
+    if (ov.guide) { var col = 'rgba(255,255,255,.28)'; if (ov.guide.width) ov.guide.width.forEach(function (zz) { line3([0, 0.02, zz], [105, 0.02, zz], col, 1.4, [7, 6]); }); if (ov.guide.depth) ov.guide.depth.forEach(function (xx) { line3([xx, 0.02, 0], [xx, 0.02, 68], col, 1.4, [7, 6]); }); }
+    if (ov.run) { var off = -(t * 22) % 15; ov.run.forEach(function (pi) { var pl = players[pi], a = trk(pl, st), b = trk(pl, st + 1), pts = arcPts([a[0], 0, a[1]], [b[0], 0, b[1]], (pl.bend && pl.bend[st]) || 0); ctx.save(); ctx.setLineDash([9, 6]); ctx.lineDashOffset = off; ctx.strokeStyle = 'rgba(234,255,242,.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); for (var k = 0; k < pts.length; k++) { var q = project(pts[k]); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore(); head(pts[pts.length - 2], pts[pts.length - 1], 'rgba(234,255,242,.9)'); }); }
+    if (ov.pass) { var off2 = -(t * 26) % 16; ov.pass.forEach(function (pr) { var A = posAt(players[pr[0]], st, lo), B = posAt(players[pr[1]], st, lo); line3([A[0], 0.05, A[2]], [B[0], 0.05, B[2]], 'rgb(' + ac + ')', 2.6); head([A[0], 0, A[2]], [B[0], 0, B[2]], 'rgb(' + ac + ')'); }); }
+    if (ov.press) ov.press.forEach(function (pi) { var p = posAt(players[pi], st, lo), g = project([p[0], 0, p[2]]); if (g.z > 0.06) { ctx.save(); ctx.strokeStyle = 'rgba(248,113,113,.9)'; ctx.lineWidth = 2; var R = (0.55 + 0.08 * Math.sin(t * 5)) * g.s; ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.4, 0, 0, 6.283); ctx.stroke(); ctx.restore(); } });
+  }
+  function shadow(p) { var g = project(p); if (g.z <= 0.06) return; var s = g.s; ctx.save(); var rg = ctx.createRadialGradient(g.x, g.y + 0.02 * s, 0, g.x, g.y + 0.02 * s, 0.6 * s); rg.addColorStop(0, 'rgba(0,0,0,.42)'); rg.addColorStop(.7, 'rgba(0,0,0,.2)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(g.x, g.y + 0.02 * s, 0.55 * s, 0.2 * s, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function silhouette(p3, team, num, face, hi) {
+    var base = project(p3); if (base.z <= 0.06) return; var hd = project([p3[0], 1.82, p3[2]]); var s = base.y - hd.y; if (s < 10) s = 10;
+    var col = TEAM[team] || TEAM.neu, cx = base.x, footY = base.y, hipY = footY - s * 0.46, chestY = footY - s * 0.82, headY = footY - s, headR = s * 0.13, shW = s * 0.3, hipW = s * 0.2;
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (hi) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max(1.5, 0.05 * s); ctx.beginPath(); ctx.ellipse(cx, footY, 0.5 * s, 0.19 * s, 0, 0, 6.283); ctx.stroke(); }
+    ctx.strokeStyle = tint(col, -26); ctx.lineWidth = s * 0.1; ctx.beginPath(); ctx.moveTo(cx - hipW * 0.4, hipY); ctx.lineTo(cx - hipW * 0.55, footY); ctx.moveTo(cx + hipW * 0.4, hipY); ctx.lineTo(cx + hipW * 0.55, footY); ctx.stroke();
+    var grd = ctx.createLinearGradient(cx, chestY, cx, hipY); grd.addColorStop(0, tint(col, 40)); grd.addColorStop(1, 'rgb(' + col + ')'); ctx.fillStyle = grd; ctx.beginPath(); ctx.moveTo(cx - shW, chestY + s * 0.05); ctx.quadraticCurveTo(cx - shW, chestY, cx - shW * 0.7, chestY); ctx.lineTo(cx + shW * 0.7, chestY); ctx.quadraticCurveTo(cx + shW, chestY, cx + shW, chestY + s * 0.05); ctx.lineTo(cx + hipW, hipY); ctx.lineTo(cx - hipW, hipY); ctx.closePath(); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = Math.max(1, 0.02 * s); ctx.stroke();
+    var hg = ctx.createRadialGradient(cx - headR * 0.3, headY - headR * 0.3, headR * 0.2, cx, headY, headR); hg.addColorStop(0, '#f0c8a4'); hg.addColorStop(1, '#cf9d76'); ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, headY, headR, 0, 6.283); ctx.fill();
+    if (face) { var fp = project([p3[0] + face[0] * 1.1, 0, p3[2] + face[2] * 1.1]); if (fp.z > 0.06) { ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = Math.max(1.4, 0.05 * s); ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(fp.x, fp.y); ctx.stroke(); } }
+    if (num !== '' && num != null && s > 16) { ctx.font = '800 ' + Math.round(s * 0.26) + 'px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = team === 'gk' ? '#0a0f16' : 'rgba(255,255,255,.96)'; ctx.fillText(String(num), cx, (chestY + hipY) / 2 + s * 0.02); }
+    ctx.restore();
+  }
+  function ball3(p3) { var g = project(p3); if (g.z <= 0.06) return; var s = g.s, r = Math.max(2.4, 0.2 * s); ctx.save(); var rg = ctx.createRadialGradient(g.x - r * 0.3, g.y - r * 0.35, r * 0.1, g.x, g.y, r); rg.addColorStop(0, '#fff'); rg.addColorStop(1, '#c8d2dc'); ctx.beginPath(); ctx.arc(g.x, g.y, r, 0, 6.283); ctx.fillStyle = rg; ctx.fill(); ctx.lineWidth = Math.max(1, 0.03 * s); ctx.strokeStyle = '#0a1a10'; ctx.stroke(); ctx.fillStyle = '#0a1a10'; ctx.beginPath(); ctx.arc(g.x + r * 0.05, g.y + r * 0.05, r * 0.28, 0, 6.283); ctx.fill(); ctx.restore(); }
+  function timingBar(st, lo) { var pad = 12, y = 12, cw = 22, gap = 5, x = W - pad - (cw * N + gap * (N - 1)); ctx.save(); for (var i = 0; i < N; i++) { var bx = x + i * (cw + gap); ctx.fillStyle = 'rgba(255,255,255,.14)'; rr(bx, y, cw, 4, 2); ctx.fill(); var fw = i < st ? cw : i === st ? cw * ease(lo) : 0; if (fw > 0) { ctx.fillStyle = steps[i].freeze ? '#f4b740' : 'rgb(' + ac + ')'; rr(bx, y, fw, 4, 2); ctx.fill(); } } ctx.restore(); }
+  function vignette() { var g = ctx.createRadialGradient(W / 2, H * 0.44, H * 0.34, W / 2, H * 0.5, H * 0.96); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.42)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); }
+  function draw() {
+    if (!ctx) return; var st = stepAt(), lo = frac(st), sd = steps[st], b = ballAt(st, lo);
+    var md = camOverride || sd.cam || 'tactical', tg = preset(md, b);
+    if (!camS) camS = { pos: tg.pos.slice(), tgt: tg.tgt.slice(), fov: tg.fov }; var k = 0.14; for (var ci = 0; ci < 3; ci++) { camS.pos[ci] += (tg.pos[ci] - camS.pos[ci]) * k; camS.tgt[ci] += (tg.tgt[ci] - camS.tgt[ci]) * k; } camS.fov += (tg.fov - camS.fov) * k; setCam({ pos: camS.pos.slice(), tgt: camS.tgt.slice(), fov: camS.fov });
+    var bg = ctx.createRadialGradient(W / 2, H * 0.36, H * 0.18, W / 2, H * 0.58, H * 1.08); bg.addColorStop(0, '#10202f'); bg.addColorStop(1, '#070d15'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    pitch(); overlay(st, lo);
+    var ents = []; for (var m = 0; m < players.length; m++) { var pl = players[m], p = posAt(pl, st, lo); ents.push({ p: p, pl: pl, face: faceOf(pl, st, lo), hi: sd.overlays && sd.overlays.highlight === m }); }
+    var be = b ? { ball: true, p: [b[0], 0, b[2]], b3: b } : null, all = ents.slice(); if (be) all.push(be);
+    for (var s0 = 0; s0 < all.length; s0++) shadow(all[s0].p);
+    all.sort(function (A, B) { return project(B.p).z - project(A.p).z; });
+    for (var di = 0; di < all.length; di++) { var e = all[di]; if (e.ball) ball3(e.b3); else silhouette(e.p, e.pl.team, e.pl.n, e.face, e.hi); }
+    if (sd.freeze) { ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, 34); ctx.fillRect(0, H - 34, W, 34); }
+    timingBar(st, lo); vignette();
+    if (capEl && sd.note !== lastCap) { capEl.textContent = sd.note; if (playing && !muted && lastStep !== st && lastStep !== -1) _deTick(); lastCap = sd.note; }
+    if (stTitleEl && st !== lastStep) { var tone = /mistake/i.test(sd.title) ? 'bad' : /correct/i.test(sd.title) ? 'good' : 'info'; stTitleEl.textContent = sd.title; stTitleEl.className = 'de-pl-steptitle de-tone-' + tone; if (stNumEl) stNumEl.textContent = 'STEP ' + (st + 1) + ' / ' + N; }
+    if (camEl && MODE_LB[md] !== lastCam) { camEl.textContent = MODE_LB[md]; lastCam = MODE_LB[md]; }
+    if (stepsEls.length && st !== lastStep) for (var qs = 0; qs < stepsEls.length; qs++) stepsEls[qs].classList.toggle('is-on', qs === st);
+    lastStep = st;
+  }
+  function emit() { if (cb) cb(t, TOTAL, playing, { step: stepAt(), steps: N, cam: (camOverride || steps[stepAt()].cam), camLabel: MODE_LB[camOverride || steps[stepAt()].cam] }); }
+  function tick(ts) { if (!playing) return; if (canvas && !canvas.isConnected) { playing = false; return; } if (!last) last = ts; var dt = (ts - last) / 1000 * speed; last = ts; t += dt; if (t >= TOTAL) { t = TOTAL - 0.001; playing = false; } draw(); emit(); if (playing) raf = (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame(tick) : 0); }
+  function goto(i) { i = Math.max(0, Math.min(N - 1, i)); t = bounds[i] + 0.001; lastCap = -1; lastStep = -1; playing = false; if (raf && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(raf); raf = 0; draw(); emit(); }
+  draw();
+  return {
+    play: function () { if (playing) return; if (t >= TOTAL - 0.01) { t = 0; lastStep = -1; } playing = true; last = 0; if (!muted) _deWhistle(); if (typeof requestAnimationFrame !== 'undefined') raf = requestAnimationFrame(tick); emit(); },
+    pause: function () { playing = false; if (raf && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(raf); raf = 0; emit(); },
+    isPlaying: function () { return playing; }, seek: function (f) { t = Math.max(0, Math.min(1, f)) * TOTAL; lastCap = -1; lastStep = -1; draw(); emit(); },
+    setSpeed: function (x) { speed = x; }, toggleMute: function () { muted = !muted; return muted; }, setQuality: function () {},
+    nextStep: function () { goto(stepAt() + 1); }, prevStep: function () { goto(stepAt() - 1); }, gotoStep: goto,
+    replay: function () { t = 0; lastStep = -1; this.play(); },
+    cycleCam: function () { var cur = camOverride || steps[stepAt()].cam; camOverride = MODES[(MODES.indexOf(cur) + 1) % MODES.length]; camS = null; lastCam = ''; draw(); emit(); return MODE_LB[camOverride]; },
+    setCam: function (md) { if (MODE_LB[md]) { camOverride = md; camS = null; lastCam = ''; draw(); emit(); } return MODE_LB[camOverride || steps[stepAt()].cam]; },
+    on: function (f) { cb = f; }
+  };
+}
 // Per-drill training-tutorial storyboard (the 9-step academy structure each drill's exclusive AI-generated 3D training video is built from).
 function _deBuildTutorial(d) {
   var caps = (_DE_SCEN[d.kind] || {}).caps || [];
@@ -8267,7 +8461,13 @@ function _deWirePlayer(root, api, d) {
   });
 }
 var _DE_ACTIVE = null;
-function _deStepsBar(kind) {   // clickable coaching-step rail (jump to any step) derived from the storyboard
+function _deStepsBar(kind, tl) {   // clickable coaching-step rail (jump to any step)
+  if (tl && tl.steps) {           // structured timeline: rich rail with title + duration
+    return '<div class="de-pl-steps">' + tl.steps.map(function (s, i) {
+      var tc = /mistake/i.test(s.title) ? ' is-bad' : /correct/i.test(s.title) ? ' is-good' : '';
+      return '<button class="de-pl-step de-pl-step--tl' + tc + '" data-i="' + i + '" type="button"><i>' + (i + 1) + '</i><span class="de-pl-step-tx"><b>' + _deEsc(s.title) + '</b><em>' + _deFmt(s.dur || 3.5) + '</em></span></button>';
+    }).join('') + '</div>';
+  }
   var sc = _DE_SCEN[kind]; if (!sc || !sc.caps) return '';
   return '<div class="de-pl-steps">' + sc.caps.map(function (cap, i) {
     var tone = _deStepTone(cap), tc = tone === 'bad' ? ' is-bad' : tone === 'good' ? ' is-good' : '';
@@ -8282,13 +8482,21 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
   if (_DE_ACTIVE && _DE_ACTIVE.pause) { try { _DE_ACTIVE.pause(); } catch (e) {} }
   var ac = DE_CATS[d.cat];
   var demo = kind === 'demo';
+  var tl = (typeof _DE_TL !== 'undefined') ? _DE_TL[id] : null, useTL = demo && !!tl;
+  var s0 = useTL ? tl.steps[0] : null;
+  var initTitle = useTL ? s0.title : 'Set-up & shape';
+  var initTone = useTL ? (/mistake/i.test(s0.title) ? 'bad' : /correct/i.test(s0.title) ? 'good' : 'info') : 'info';
+  var initNum = 'STEP 1 / ' + (useTL ? tl.steps.length : 5);
+  var camMap = { tactical: 'TACTICAL', broadcast: 'BROADCAST', side: 'SIDE VIEW', focus: 'FOCUS' };
+  var initCam = useTL ? (camMap[s0.cam] || 'TACTICAL') : 'TACTICAL VIEW';
+  var totalTxt = useTL ? _deFmt(_deTLTotal(tl)) : d.duration;
   var stage = kind === 'mp4' ? _deVideoStage(d) : '<canvas class="de-pl-canvas" width="960" height="540"></canvas>';
   var hud = demo ? '<div class="de-pl-hud">'
     + '<div class="de-pl-hud-tl"><span class="de-pl-badge">Tactical Analysis</span><b>' + _deEsc(d.name) + '</b></div>'
-    + '<div class="de-pl-hud-tr"><span class="de-pl-stepnum">STEP 1 / 5</span><span class="de-pl-cam">TACTICAL VIEW</span></div>'
-    + '<div class="de-pl-lower"><span class="de-pl-steptitle de-tone-info">Set-up &amp; shape</span><span class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></span></div>'
+    + '<div class="de-pl-hud-tr"><span class="de-pl-stepnum">' + initNum + '</span><span class="de-pl-cam">' + initCam + '</span></div>'
+    + '<div class="de-pl-lower"><span class="de-pl-steptitle de-tone-' + initTone + '">' + _deEsc(initTitle) + '</span><span class="de-pl-cap"><span class="de-pl-cap-dot"></span><span class="de-pl-cap-t"></span></span></div>'
     + '</div>' : '';
-  var steps = demo ? _deStepsBar(d.kind) : '';
+  var steps = demo ? _deStepsBar(d.kind, useTL ? tl : null) : '';
   var stepCtrls = demo ? '<button class="de-pl-btn de-pl-prev" type="button" aria-label="Previous step" title="Previous step">' + _deIcon('prev') + '</button>' : '';
   var stepCtrlsR = demo ? '<button class="de-pl-btn de-pl-next" type="button" aria-label="Next step" title="Next step">' + _deIcon('next') + '</button><button class="de-pl-btn de-pl-replay" type="button" aria-label="Replay" title="Replay">' + _deIcon('replay') + '</button>' : '';
   var camCtrl = demo ? '<button class="de-pl-btn de-pl-cam-btn" type="button" aria-label="Camera view" title="Switch camera">' + _deIcon('cam') + '<span>TACTICAL</span></button>' : '';
@@ -8296,7 +8504,7 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
   frame.classList.add('is-playing');
   frame.innerHTML = '<div class="de-pl' + (demo ? ' is-demo' : '') + '" style="--c:' + ac + '"><div class="de-pl-stage">' + stage + hud + '</div>' + steps
     + '<div class="de-pl-bar">' + stepCtrls + '<button class="de-pl-btn de-pl-toggle" type="button" aria-label="Play/Pause">' + _deIcon('pause') + '</button>' + stepCtrlsR
-    + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + d.duration + '</i></span>'
+    + '<span class="de-pl-time"><b class="de-pl-cur">0:00</b> / <i>' + totalTxt + '</i></span>'
     + '<input class="de-pl-seek" type="range" min="0" max="1000" value="0" aria-label="Seek">'
     + camCtrl
     + '<button class="de-pl-btn de-pl-speed" type="button" aria-label="Playback speed">1×</button>'
@@ -8304,7 +8512,13 @@ function _dePlay(id) {   // lazy (built only on Play): mp4 -> stream the pre-ren
     + qCtrl
     + '<button class="de-pl-btn de-pl-fs" type="button" aria-label="Fullscreen">' + _deIcon('fs') + '</button></div></div>';
   var root = frame.querySelector('.de-pl');
-  var api = kind === 'mp4' ? _deMp4Api(root, d) : _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+  // Pilot: the new professional presentation engine for timeline drills, with a
+  // safe fallback to the current tactical-board player if it fails to build.
+  var api;
+  if (useTL) { try { api = _deTLApi(root, tl, ac, d); } catch (e) { try { api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d); } catch (e2) { api = null; } } }
+  else if (kind === 'mp4') api = _deMp4Api(root, d);
+  else api = _deAnimApi(root, _DE_SCEN[d.kind], ac, _deDurSec(d.duration), d);
+  if (!api) { frame.classList.remove('is-playing'); return; }
   _deWirePlayer(root, api, d); frame._deApi = api; _DE_ACTIVE = api;
   api.play();
 }
