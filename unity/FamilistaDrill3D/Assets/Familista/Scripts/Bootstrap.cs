@@ -45,6 +45,10 @@ namespace Familista.Drill3D
 
             QualityManager.Set("high");
 
+            // Visual-only stadium rig (lighting, HDRI sky, floodlights, nets, PBR
+            // materials). Additive — does not touch the drill engine, JSON or bridge.
+            engGo.AddComponent<StadiumRig>();
+
             // Standalone test: load a drill from StreamingAssets if the bridge hasn't
             // pushed one shortly after start (works in the Editor and the WebGL build).
             var loader = engGo.AddComponent<SampleLoader>();

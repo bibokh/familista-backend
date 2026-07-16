@@ -9,7 +9,7 @@ namespace Familista.Drill3D
 {
     public class CameraDirector : MonoBehaviour
     {
-        public static readonly string[] Modes = { "broadcast", "tactical", "top", "side", "focus" };
+        public static readonly string[] Modes = { "broadcast", "tactical", "top", "side", "focus", "replay" };
 
         Camera cam;
         string mode = "broadcast";
@@ -44,6 +44,7 @@ namespace Familista.Drill3D
                 case "top": p = new Vector3(0, 82, 0.2f); t = Vector3.zero; f = 48; break;
                 case "side": p = new Vector3(0, 15, -54); t = new Vector3(0, 1.2f, 0); f = 46; break;
                 case "focus": p = new Vector3(fx - 3, 13, fz - 20); t = new Vector3(fx, 1.2f, fz); f = 34; break;
+                case "replay": { float a = Time.time * 0.3f; p = new Vector3(fx + Mathf.Cos(a) * 26f, 10f, fz + Mathf.Sin(a) * 26f); t = new Vector3(fx, 1.1f, fz); f = 33; break; } // slow broadcast-replay orbit
                 default: p = new Vector3(fx * 0.4f - 4, 24, -50); t = new Vector3(fx * 0.55f, 1.2f, fz * 0.5f); f = 42; break; // broadcast
             }
         }

@@ -65,6 +65,7 @@ namespace Familista.Drill3D
             BuildPitchPrefab(report);
             EnsureSceneInBuild(report);
             ConfigureWebGL(report);
+            FamilistaPipeline.BuildPipeline(report);   // PBR grass/HDRI materials, skybox, LOD, Linear colour
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();

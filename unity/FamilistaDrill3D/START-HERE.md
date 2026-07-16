@@ -17,3 +17,9 @@ Do these 8 steps, in order:
 
 That's it. Familista sends the drill JSON (`window.FamilistaDrill.get("transition")`)
 to the running build via `window.FamilistaUnity.load(...)`.
+
+**Visual pipeline (Phase 1):** `Familista → Setup All` also runs the asset pipeline —
+PBR grass (vendored CC0 Poly Haven textures), HDRI stadium sky/lighting, floodlights,
+reflection probe, goal nets, LOD, soft shadows and a replay camera. See
+`ASSET-PIPELINE.md` for the full plan and legal asset sources. The drill engine, JSON
+and bridge are untouched.
