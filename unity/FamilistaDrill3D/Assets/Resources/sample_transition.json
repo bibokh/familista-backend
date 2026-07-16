@@ -1,0 +1,2165 @@
+{
+  "schema": "familista.drill.v1",
+  "drill": "transition",
+  "name": "Transition to Attack",
+  "pitch": {
+    "length": 105,
+    "width": 68,
+    "units": "metres",
+    "attackingDirection": "+x"
+  },
+  "teamKits": {
+    "att": "blue",
+    "def": "red",
+    "gk": "goalkeeper"
+  },
+  "totalSteps": 9,
+  "roster": [
+    {
+      "uuid": "sq-1",
+      "number": 6,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-2",
+      "number": 8,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-3",
+      "number": 10,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-4",
+      "number": 7,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-5",
+      "number": 9,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-6",
+      "number": 4,
+      "team": "def",
+      "position": "DEF"
+    },
+    {
+      "uuid": "sq-7",
+      "number": 5,
+      "team": "def",
+      "position": "DEF"
+    },
+    {
+      "uuid": "sq-8",
+      "number": 2,
+      "team": "def",
+      "position": "DEF"
+    },
+    {
+      "uuid": "sq-9",
+      "number": 6,
+      "team": "def",
+      "position": "DEF"
+    },
+    {
+      "uuid": "sq-10",
+      "number": null,
+      "team": "gk",
+      "position": "GK"
+    },
+    {
+      "uuid": "sq-11",
+      "number": 11,
+      "team": "att",
+      "position": "ATT"
+    },
+    {
+      "uuid": "sq-12",
+      "number": 3,
+      "team": "def",
+      "position": "DEF"
+    }
+  ],
+  "steps": [
+    {
+      "index": 1,
+      "key": "org",
+      "title": "Initial Organisation",
+      "cameraMode": "tactical",
+      "durationSec": 4,
+      "coachingNote": "Ball just regained — stay compact and look forward immediately.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-1",
+        "passTarget": null,
+        "start": [
+          28,
+          34
+        ],
+        "target": [
+          44,
+          26
+        ],
+        "trajectory": "ground"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            28,
+            34
+          ],
+          "target": [
+            30,
+            33
+          ],
+          "waypoints": [],
+          "speedMps": 0.56,
+          "animState": "jog",
+          "bodyDirDeg": 117
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            40,
+            46
+          ],
+          "target": [
+            42,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 1.12,
+          "animState": "jog",
+          "bodyDirDeg": 153
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            44,
+            26
+          ],
+          "target": [
+            46,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            52,
+            12
+          ],
+          "target": [
+            55,
+            12
+          ],
+          "waypoints": [],
+          "speedMps": 0.75,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            48,
+            38
+          ],
+          "target": [
+            50,
+            38
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            42,
+            30
+          ],
+          "target": [
+            44,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            42,
+            40
+          ],
+          "target": [
+            44,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            56,
+            16
+          ],
+          "target": [
+            57,
+            16
+          ],
+          "waypoints": [],
+          "speedMps": 0.25,
+          "animState": "idle",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            46,
+            32
+          ],
+          "target": [
+            48,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -90
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            50,
+            50
+          ],
+          "target": [
+            52,
+            50
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            52,
+            48
+          ],
+          "target": [
+            54,
+            48
+          ],
+          "waypoints": [],
+          "speedMps": 0.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "key": "first",
+      "title": "First Action",
+      "cameraMode": "broadcast",
+      "durationSec": 3,
+      "coachingNote": "The first pass goes forward or sets a forward pass at once.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-3",
+        "passTarget": "sq-3",
+        "start": [
+          44,
+          26
+        ],
+        "target": [
+          56,
+          30
+        ],
+        "trajectory": "dribble"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            30,
+            33
+          ],
+          "target": [
+            34,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 1.37,
+          "animState": "shortPass",
+          "bodyDirDeg": 76
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            42,
+            42
+          ],
+          "target": [
+            48,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 2.11,
+          "animState": "jog",
+          "bodyDirDeg": 108
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            46,
+            26
+          ],
+          "target": [
+            52,
+            28
+          ],
+          "waypoints": [],
+          "speedMps": 2.11,
+          "animState": "receive",
+          "bodyDirDeg": 72
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            55,
+            12
+          ],
+          "target": [
+            62,
+            12
+          ],
+          "waypoints": [],
+          "speedMps": 2.33,
+          "animState": "sprint",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            50,
+            38
+          ],
+          "target": [
+            56,
+            36
+          ],
+          "waypoints": [],
+          "speedMps": 2.11,
+          "animState": "jog",
+          "bodyDirDeg": 108
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            44,
+            30
+          ],
+          "target": [
+            48,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 1.33,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            44,
+            40
+          ],
+          "target": [
+            48,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 1.33,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            57,
+            16
+          ],
+          "target": [
+            60,
+            16
+          ],
+          "waypoints": [],
+          "speedMps": 1,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            48,
+            32
+          ],
+          "target": [
+            52,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 1.33,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -98
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            52,
+            50
+          ],
+          "target": [
+            58,
+            50
+          ],
+          "waypoints": [],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            54,
+            48
+          ],
+          "target": [
+            58,
+            48
+          ],
+          "waypoints": [],
+          "speedMps": 1.33,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "key": "progress",
+      "title": "Ball Progression",
+      "cameraMode": "broadcast",
+      "durationSec": 5,
+      "coachingNote": "Carry into midfield and commit the defence.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-3",
+        "passTarget": null,
+        "start": [
+          56,
+          30
+        ],
+        "target": [
+          58,
+          30
+        ],
+        "trajectory": "stationary"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            34,
+            34
+          ],
+          "target": [
+            36,
+            36
+          ],
+          "waypoints": [],
+          "speedMps": 0.57,
+          "animState": "jog",
+          "bodyDirDeg": 45
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            48,
+            40
+          ],
+          "target": [
+            54,
+            44
+          ],
+          "waypoints": [],
+          "speedMps": 1.44,
+          "animState": "jog",
+          "bodyDirDeg": 56
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            52,
+            28
+          ],
+          "target": [
+            58,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 1.26,
+          "animState": "jog",
+          "bodyDirDeg": 108
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            62,
+            12
+          ],
+          "target": [
+            72,
+            10
+          ],
+          "waypoints": [],
+          "speedMps": 2.04,
+          "animState": "jog",
+          "bodyDirDeg": 101
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            56,
+            36
+          ],
+          "target": [
+            66,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 2.04,
+          "animState": "jog",
+          "bodyDirDeg": 101
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            48,
+            30
+          ],
+          "target": [
+            54,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 1.2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            48,
+            40
+          ],
+          "target": [
+            54,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 1.2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            60,
+            16
+          ],
+          "target": [
+            66,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 1.26,
+          "animState": "jog",
+          "bodyDirDeg": 108
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            52,
+            32
+          ],
+          "target": [
+            58,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 1.2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -95
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            58,
+            50
+          ],
+          "target": [
+            66,
+            52
+          ],
+          "waypoints": [],
+          "speedMps": 1.65,
+          "animState": "jog",
+          "bodyDirDeg": 76
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            58,
+            48
+          ],
+          "target": [
+            62,
+            46
+          ],
+          "waypoints": [],
+          "speedMps": 0.89,
+          "animState": "jog",
+          "bodyDirDeg": 117
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "key": "offball",
+      "title": "Off-ball Movement",
+      "cameraMode": "broadcast",
+      "durationSec": 4,
+      "coachingNote": "Runners break early to stretch the recovering line.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-9",
+        "passTarget": null,
+        "start": [
+          58,
+          30
+        ],
+        "target": [
+          58,
+          30
+        ],
+        "trajectory": "stationary"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            36,
+            36
+          ],
+          "target": [
+            38,
+            38
+          ],
+          "waypoints": [],
+          "speedMps": 0.71,
+          "animState": "jog",
+          "bodyDirDeg": 45
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            54,
+            44
+          ],
+          "target": [
+            58,
+            46
+          ],
+          "waypoints": [],
+          "speedMps": 1.12,
+          "animState": "jog",
+          "bodyDirDeg": 63
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            58,
+            26
+          ],
+          "target": [
+            62,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 1,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            72,
+            10
+          ],
+          "target": [
+            80,
+            10
+          ],
+          "waypoints": [
+            [
+              76,
+              14
+            ]
+          ],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            66,
+            34
+          ],
+          "target": [
+            74,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            54,
+            30
+          ],
+          "target": [
+            58,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 1,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            54,
+            40
+          ],
+          "target": [
+            58,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 1,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            66,
+            14
+          ],
+          "target": [
+            74,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            58,
+            32
+          ],
+          "target": [
+            62,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 1,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -95
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            66,
+            52
+          ],
+          "target": [
+            74,
+            52
+          ],
+          "waypoints": [
+            [
+              70,
+              55
+            ]
+          ],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            62,
+            46
+          ],
+          "target": [
+            66,
+            44
+          ],
+          "waypoints": [],
+          "speedMps": 1.12,
+          "animState": "jog",
+          "bodyDirDeg": 117
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "key": "defreact",
+      "title": "Defensive Reaction",
+      "cameraMode": "side",
+      "durationSec": 4,
+      "coachingNote": "Defenders recover and shift — attack before the block reforms.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-6",
+        "passTarget": null,
+        "start": [
+          58,
+          30
+        ],
+        "target": [
+          80,
+          26
+        ],
+        "trajectory": "ground"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            38,
+            38
+          ],
+          "target": [
+            40,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 0.71,
+          "animState": "jog",
+          "bodyDirDeg": 45
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            58,
+            46
+          ],
+          "target": [
+            60,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 1.12,
+          "animState": "jog",
+          "bodyDirDeg": 153
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            62,
+            26
+          ],
+          "target": [
+            70,
+            24
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            80,
+            10
+          ],
+          "target": [
+            88,
+            12
+          ],
+          "waypoints": [
+            [
+              83.03,
+              14.88
+            ]
+          ],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 76
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            74,
+            32
+          ],
+          "target": [
+            84,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 2.55,
+          "animState": "sprint",
+          "bodyDirDeg": 101
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            58,
+            30
+          ],
+          "target": [
+            64,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 1.5,
+          "animState": "press",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            58,
+            40
+          ],
+          "target": [
+            64,
+            38
+          ],
+          "waypoints": [],
+          "speedMps": 1.58,
+          "animState": "press",
+          "bodyDirDeg": 108
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            74,
+            14
+          ],
+          "target": [
+            82,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            62,
+            32
+          ],
+          "target": [
+            70,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "press",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -95
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            74,
+            52
+          ],
+          "target": [
+            82,
+            50
+          ],
+          "waypoints": [
+            [
+              78.73,
+              53.91
+            ]
+          ],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            66,
+            44
+          ],
+          "target": [
+            72,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 1.58,
+          "animState": "jog",
+          "bodyDirDeg": 108
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "key": "exploit",
+      "title": "Exploitation",
+      "cameraMode": "focus",
+      "durationSec": 4,
+      "coachingNote": "Release the through ball into the space behind.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-5",
+        "passTarget": "sq-5",
+        "start": [
+          80,
+          26
+        ],
+        "target": [
+          100,
+          33
+        ],
+        "trajectory": "lofted"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            40,
+            40
+          ],
+          "target": [
+            42,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 0.71,
+          "animState": "jog",
+          "bodyDirDeg": 45
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            60,
+            42
+          ],
+          "target": [
+            62,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 0.71,
+          "animState": "jog",
+          "bodyDirDeg": 135
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            70,
+            24
+          ],
+          "target": [
+            78,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "longPass",
+          "bodyDirDeg": 76
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            88,
+            12
+          ],
+          "target": [
+            96,
+            16
+          ],
+          "waypoints": [],
+          "speedMps": 2.24,
+          "animState": "sprint",
+          "bodyDirDeg": 63
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            84,
+            30
+          ],
+          "target": [
+            99,
+            33
+          ],
+          "waypoints": [],
+          "speedMps": 3.82,
+          "animState": "firstTouch",
+          "bodyDirDeg": 79
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            64,
+            30
+          ],
+          "target": [
+            70,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 1.5,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            64,
+            38
+          ],
+          "target": [
+            72,
+            36
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            82,
+            14
+          ],
+          "target": [
+            90,
+            16
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 76
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            70,
+            30
+          ],
+          "target": [
+            78,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 2,
+          "animState": "jog",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "goalkeeperReaction",
+          "bodyDirDeg": -109
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            82,
+            50
+          ],
+          "target": [
+            92,
+            48
+          ],
+          "waypoints": [],
+          "speedMps": 2.55,
+          "animState": "sprint",
+          "bodyDirDeg": 101
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            72,
+            42
+          ],
+          "target": [
+            80,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 2.06,
+          "animState": "jog",
+          "bodyDirDeg": 104
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "key": "finish",
+      "title": "Finishing",
+      "cameraMode": "focus",
+      "durationSec": 3,
+      "coachingNote": "Finish quickly and decisively before recovery.",
+      "freeze": false,
+      "ball": {
+        "owner": "sq-5",
+        "passTarget": "sq-10",
+        "start": [
+          100,
+          33
+        ],
+        "target": [
+          50,
+          30
+        ],
+        "trajectory": "reset"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            42,
+            42
+          ],
+          "target": [
+            34,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 3.77,
+          "animState": "sprint",
+          "bodyDirDeg": -135
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            62,
+            40
+          ],
+          "target": [
+            46,
+            44
+          ],
+          "waypoints": [],
+          "speedMps": 5.5,
+          "animState": "sprint",
+          "bodyDirDeg": -76
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            78,
+            26
+          ],
+          "target": [
+            50,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 9.43,
+          "animState": "sprint",
+          "bodyDirDeg": -82
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            96,
+            16
+          ],
+          "target": [
+            55,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 13.68,
+          "animState": "sprint",
+          "bodyDirDeg": -93
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            99,
+            33
+          ],
+          "target": [
+            52,
+            36
+          ],
+          "waypoints": [],
+          "speedMps": 15.7,
+          "animState": "shoot",
+          "bodyDirDeg": -86
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            70,
+            30
+          ],
+          "target": [
+            50,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 6.67,
+          "animState": "sprint",
+          "bodyDirDeg": -90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            72,
+            36
+          ],
+          "target": [
+            50,
+            40
+          ],
+          "waypoints": [],
+          "speedMps": 7.45,
+          "animState": "sprint",
+          "bodyDirDeg": -80
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            90,
+            16
+          ],
+          "target": [
+            58,
+            16
+          ],
+          "waypoints": [],
+          "speedMps": 10.67,
+          "animState": "sprint",
+          "bodyDirDeg": -90
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            78,
+            30
+          ],
+          "target": [
+            52,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 8.69,
+          "animState": "sprint",
+          "bodyDirDeg": -86
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "goalkeeperReaction",
+          "bodyDirDeg": -108
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            92,
+            48
+          ],
+          "target": [
+            52,
+            50
+          ],
+          "waypoints": [],
+          "speedMps": 13.35,
+          "animState": "sprint",
+          "bodyDirDeg": -87
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            80,
+            40
+          ],
+          "target": [
+            54,
+            46
+          ],
+          "waypoints": [],
+          "speedMps": 8.89,
+          "animState": "sprint",
+          "bodyDirDeg": -77
+        }
+      ]
+    },
+    {
+      "index": 8,
+      "key": "mistake",
+      "title": "Common Mistake",
+      "cameraMode": "tactical",
+      "durationSec": 4,
+      "coachingNote": "Slowing down lets the block reform — the counter dies.",
+      "freeze": true,
+      "ball": {
+        "owner": "sq-3",
+        "passTarget": null,
+        "start": [
+          50,
+          30
+        ],
+        "target": [
+          92,
+          32
+        ],
+        "trajectory": "ground"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            34,
+            34
+          ],
+          "target": [
+            34,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 104
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            46,
+            44
+          ],
+          "target": [
+            50,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 1.12,
+          "animState": "jog",
+          "bodyDirDeg": 117
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            50,
+            30
+          ],
+          "target": [
+            60,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 2.69,
+          "animState": "sprint",
+          "bodyDirDeg": 112
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            55,
+            14
+          ],
+          "target": [
+            80,
+            12
+          ],
+          "waypoints": [],
+          "speedMps": 6.27,
+          "animState": "sprint",
+          "bodyDirDeg": 95
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            52,
+            36
+          ],
+          "target": [
+            86,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 8.56,
+          "animState": "sprint",
+          "bodyDirDeg": 97
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            50,
+            30
+          ],
+          "target": [
+            66,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 4,
+          "animState": "sprint",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            50,
+            40
+          ],
+          "target": [
+            70,
+            38
+          ],
+          "waypoints": [],
+          "speedMps": 5.02,
+          "animState": "sprint",
+          "bodyDirDeg": 96
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            58,
+            16
+          ],
+          "target": [
+            84,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 6.52,
+          "animState": "sprint",
+          "bodyDirDeg": 94
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            52,
+            32
+          ],
+          "target": [
+            74,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 5.52,
+          "animState": "sprint",
+          "bodyDirDeg": 95
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -94
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            52,
+            50
+          ],
+          "target": [
+            80,
+            50
+          ],
+          "waypoints": [],
+          "speedMps": 7,
+          "animState": "sprint",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            54,
+            46
+          ],
+          "target": [
+            74,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 5.1,
+          "animState": "sprint",
+          "bodyDirDeg": 101
+        }
+      ]
+    },
+    {
+      "index": 9,
+      "key": "correct",
+      "title": "Correct Execution",
+      "cameraMode": "broadcast",
+      "durationSec": 5,
+      "coachingNote": "Fast, direct, vertical — finish before the defence recovers.",
+      "freeze": true,
+      "ball": {
+        "owner": "sq-5",
+        "passTarget": null,
+        "start": [
+          92,
+          32
+        ],
+        "target": [
+          92,
+          32
+        ],
+        "trajectory": "ground"
+      },
+      "players": [
+        {
+          "uuid": "sq-1",
+          "number": 6,
+          "team": "att",
+          "start": [
+            34,
+            34
+          ],
+          "target": [
+            34,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 92
+        },
+        {
+          "uuid": "sq-2",
+          "number": 8,
+          "team": "att",
+          "start": [
+            50,
+            42
+          ],
+          "target": [
+            50,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 103
+        },
+        {
+          "uuid": "sq-3",
+          "number": 10,
+          "team": "att",
+          "start": [
+            60,
+            26
+          ],
+          "target": [
+            60,
+            26
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 79
+        },
+        {
+          "uuid": "sq-4",
+          "number": 7,
+          "team": "att",
+          "start": [
+            80,
+            12
+          ],
+          "target": [
+            80,
+            12
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 31
+        },
+        {
+          "uuid": "sq-5",
+          "number": 9,
+          "team": "att",
+          "start": [
+            86,
+            32
+          ],
+          "target": [
+            86,
+            32
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 90
+        },
+        {
+          "uuid": "sq-6",
+          "number": 4,
+          "team": "def",
+          "start": [
+            66,
+            30
+          ],
+          "target": [
+            66,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 86
+        },
+        {
+          "uuid": "sq-7",
+          "number": 5,
+          "team": "def",
+          "start": [
+            70,
+            38
+          ],
+          "target": [
+            70,
+            38
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 105
+        },
+        {
+          "uuid": "sq-8",
+          "number": 2,
+          "team": "def",
+          "start": [
+            84,
+            14
+          ],
+          "target": [
+            84,
+            14
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 24
+        },
+        {
+          "uuid": "sq-9",
+          "number": 6,
+          "team": "def",
+          "start": [
+            74,
+            30
+          ],
+          "target": [
+            74,
+            30
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 84
+        },
+        {
+          "uuid": "sq-10",
+          "number": null,
+          "team": "gk",
+          "start": [
+            103,
+            34
+          ],
+          "target": [
+            103,
+            34
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": -100
+        },
+        {
+          "uuid": "sq-11",
+          "number": 11,
+          "team": "att",
+          "start": [
+            80,
+            50
+          ],
+          "target": [
+            80,
+            50
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 146
+        },
+        {
+          "uuid": "sq-12",
+          "number": 3,
+          "team": "def",
+          "start": [
+            74,
+            42
+          ],
+          "target": [
+            74,
+            42
+          ],
+          "waypoints": [],
+          "speedMps": 0,
+          "animState": "idle",
+          "bodyDirDeg": 119
+        }
+      ]
+    }
+  ]
+}
