@@ -8120,6 +8120,51 @@ var _DE_TL = {
 };
 function _deTLHas(id) { return !!(_DE_TL && _DE_TL[id]); }
 function _deTLTotal(tl) { var s = 0; for (var i = 0; i < tl.steps.length; i++) s += (tl.steps[i].dur || 3.5); return s; }
+// ── Familista → 3D-renderer drill contract (schema familista.drill.v1) ──
+// Emits the exact JSON a Unity/Babylon renderer consumes. Player UUIDs come from
+// the LIVE shared squad state (SQ_MY_IDS / real imported Player UUIDs) — the squad
+// is NEVER hardcoded in the renderer; Familista sends it per drill. Animation
+// states map to the Mixamo/DeepMotion clip names in the shared Animator Controller.
+function _deDrillRoster(tl) {
+  var squad = (typeof SQ_MY_IDS !== 'undefined' && SQ_MY_IDS && SQ_MY_IDS.length) ? SQ_MY_IDS.slice()
+    : (typeof SQ_DEMO_PLAYERS !== 'undefined' && SQ_DEMO_PLAYERS) ? SQ_DEMO_PLAYERS.map(function (p) { return p.id; }) : [];
+  return tl.players.map(function (pl, i) {
+    return { uuid: squad[i] || ('FAMILISTA-P' + (i + 1)), number: pl.n === '' ? null : pl.n, team: pl.team, position: pl.team === 'gk' ? 'GK' : pl.team === 'def' ? 'DEF' : 'ATT' };
+  });
+}
+function _deDrillJSON(id) {
+  var tl = (typeof _DE_TL !== 'undefined') ? _DE_TL[id] : null; if (!tl) return null;
+  var roster = _deDrillRoster(tl), steps = tl.steps, N = steps.length, ball = tl.ball;
+  function trk(pl, i) { var a = pl.track; return a[Math.min(i, a.length - 1)]; }
+  function r2(v) { return Math.round(v * 100) / 100; }
+  function animFor(m, st, spd) {
+    var s = steps[st], ov = s.overlays || {}, ty = (ball.seg && ball.seg[st]) || 'pass', action = null;
+    if (ov.pass) ov.pass.forEach(function (pr) { if (pr[0] === m) action = (s.key === 'finish' ? 'shoot' : ty === 'loft' ? 'longPass' : 'shortPass'); if (pr[1] === m) action = (ty === 'loft' ? 'firstTouch' : 'receive'); });
+    if (ov.press && ov.press.indexOf(m) >= 0) action = 'press';
+    if (roster[m].team === 'gk' && (s.key === 'finish' || s.key === 'exploit')) action = 'goalkeeperReaction';
+    if (action) return action;
+    return spd < 0.4 ? 'idle' : spd < 2.2 ? 'jog' : 'sprint';
+  }
+  var name = id; for (var di = 0; di < DE_DRILLS.length; di++) if (DE_DRILLS[di].id === id) name = DE_DRILLS[di].name;
+  var out = { schema: 'familista.drill.v1', drill: id, name: name, pitch: { length: 105, width: 68, units: 'metres', attackingDirection: '+x' }, teamKits: { att: 'blue', def: 'red', gk: 'goalkeeper' }, totalSteps: N, roster: roster, steps: [] };
+  for (var st = 0; st < N; st++) {
+    var s = steps[st], dur = s.dur || 3.5, ty = (ball.seg && ball.seg[st]) || 'pass';
+    var bA = ball.track[Math.min(st, ball.track.length - 1)], bB = ball.track[Math.min(st + 1, ball.track.length - 1)];
+    var owner = null, bd = 1e9; for (var m0 = 0; m0 < tl.players.length; m0++) { var pp = trk(tl.players[m0], st); var dd = Math.hypot(pp[0] - bA[0], pp[1] - bA[1]); if (dd < bd) { bd = dd; owner = roster[m0].uuid; } }
+    var passTarget = (s.overlays && s.overlays.pass && s.overlays.pass[0]) ? roster[s.overlays.pass[0][1]].uuid : null;
+    var plist = tl.players.map(function (pl, m) {
+      var a = trk(pl, st), b = trk(pl, st + 1), spd = Math.hypot(b[0] - a[0], b[1] - a[1]) / dur;
+      var wp = (pl.bend && pl.bend[st]) ? [(function () { var mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2, dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [r2(mx - dz / l * pl.bend[st]), r2(mz + dx / l * pl.bend[st])]; })()] : [];
+      var dir = spd > 0.05 ? Math.round(Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI) : Math.round(Math.atan2(bA[0] - a[0], bA[1] - a[1]) * 180 / Math.PI);
+      return { uuid: roster[m].uuid, number: roster[m].number, team: roster[m].team, start: [r2(a[0]), r2(a[1])], target: [r2(b[0]), r2(b[1])], waypoints: wp, speedMps: r2(spd), animState: animFor(m, st, spd), bodyDirDeg: dir };
+    });
+    out.steps.push({ index: st + 1, key: s.key, title: s.title, cameraMode: s.cam, durationSec: dur, coachingNote: s.note, freeze: !!s.freeze,
+      ball: { owner: owner, passTarget: passTarget, start: [r2(bA[0]), r2(bA[1])], target: [r2(bB[0]), r2(bB[1])], trajectory: ty === 'loft' ? 'lofted' : ty === 'carry' ? 'dribble' : ty === 'hold' ? 'stationary' : ty === 'cut' ? 'reset' : 'ground' },
+      players: plist });
+  }
+  return out;
+}
+if (typeof window !== 'undefined') { window.FamilistaDrill = { get: _deDrillJSON, list: function () { return (typeof _DE_TL !== 'undefined') ? Object.keys(_DE_TL) : []; }, schema: 'familista.drill.v1' }; }
 // The reusable presentation engine (one implementation for every timeline drill).
 function _deTLApi(root, tl, ac, drill) {
   var canvas = root.querySelector('.de-pl-canvas'), capEl = root.querySelector('.de-pl-cap-t'), camEl = root.querySelector('.de-pl-cam');
