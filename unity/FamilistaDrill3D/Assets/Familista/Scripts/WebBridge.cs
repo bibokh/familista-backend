@@ -33,6 +33,7 @@ namespace Familista.Drill3D
         public void GotoStep(string index) { int i; if (engine && int.TryParse(index, out i)) engine.GotoStep(i); }
         public void Replay() { if (engine) engine.Replay(); }
         public void SetCamera(string mode) { if (engine) engine.SetCamera(mode); }
+        public void SetSpeed(string s) { float v; if (engine && float.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) engine.SetSpeed(v); }
         public void SetQuality(string q) { QualityManager.Set(q); }
         public void Unload() { if (engine) engine.Unload(); }
     }

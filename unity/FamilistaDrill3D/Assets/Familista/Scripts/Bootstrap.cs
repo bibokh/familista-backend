@@ -45,11 +45,10 @@ namespace Familista.Drill3D
 
             QualityManager.Set("high");
 
-#if UNITY_EDITOR
-            var sample = Resources.Load<TextAsset>("sample_transition");
-            if (sample != null) { engine.LoadJson(sample.text); engine.Play(); }
-            else Debug.Log("[Familista] No sample_transition in Resources.");
-#endif
+            // Standalone test: load a drill from StreamingAssets if the bridge hasn't
+            // pushed one shortly after start (works in the Editor and the WebGL build).
+            var loader = engGo.AddComponent<SampleLoader>();
+            loader.engine = engine;
         }
     }
 }

@@ -18,12 +18,16 @@ namespace Familista.Drill3D
         int step = 0;
         float t = 0f, total = 0f;
         bool playing = false;
+        float playbackSpeed = 1f;
         float[] bounds;
+        Material matBlue, matRed, matGK, matPitch;
 
         readonly List<GameObject> spawned = new List<GameObject>();
         readonly Dictionary<string, PlayerController> byUuid = new Dictionary<string, PlayerController>();
         BallController ball;
         GameObject pitch;
+
+        public bool HasDrill { get { return drill != null; } }
 
         static readonly Color BLUE = new Color(0.22f, 0.47f, 0.88f);
         static readonly Color RED = new Color(0.84f, 0.26f, 0.26f);
@@ -43,6 +47,11 @@ namespace Familista.Drill3D
         {
             Clear();
             drill = d;
+            // Optional wizard-created materials (Familista > Setup All). Falls back to flat colours.
+            if (matBlue == null) matBlue = Resources.Load<Material>("KitBlue");
+            if (matRed == null) matRed = Resources.Load<Material>("KitRed");
+            if (matGK == null) matGK = Resources.Load<Material>("KitGK");
+            if (matPitch == null) matPitch = Resources.Load<Material>("PitchMat");
             if (pitch == null) BuildPitch();
             if (ball == null) BuildBall();
 
@@ -83,7 +92,8 @@ namespace Familista.Drill3D
             pitch.name = "Pitch";
             pitch.transform.localScale = new Vector3(10.5f, 1f, 6.8f); // Unity plane is 10x10 => 105 x 68
             var mr = pitch.GetComponent<Renderer>();
-            mr.material.color = new Color(0.13f, 0.5f, 0.24f);
+            if (matPitch != null) mr.sharedMaterial = matPitch;
+            else mr.material.color = new Color(0.13f, 0.5f, 0.24f);
         }
 
         void BuildBall()
@@ -98,10 +108,12 @@ namespace Familista.Drill3D
 
         void ApplyKit(GameObject go, string team)
         {
+            Material kit = team == "def" ? matRed : team == "gk" ? matGK : matBlue;
             Color c = team == "def" ? RED : team == "gk" ? GK : BLUE;
             foreach (var rend in go.GetComponentsInChildren<Renderer>())
             {
                 if (rend.GetComponent<TextMesh>() != null) continue;
+                if (kit != null) { rend.sharedMaterial = kit; continue; }
                 foreach (var m in rend.materials)
                 {
                     if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
@@ -147,7 +159,7 @@ namespace Familista.Drill3D
             if (drill == null) return;
             if (playing)
             {
-                t += Time.deltaTime;
+                t += Time.deltaTime * playbackSpeed;
                 if (t >= total) { t = total - 0.001f; playing = false; Emit(); }
             }
             int s = StepAt();
@@ -182,6 +194,7 @@ namespace Familista.Drill3D
             ApplyStep(i); Emit();
         }
         public void SetCamera(string mode) { if (cameraDirector != null) cameraDirector.SetMode(mode); Emit(); }
+        public void SetSpeed(float s) { playbackSpeed = Mathf.Clamp(s, 0.1f, 4f); }
 
         public void Unload()
         {

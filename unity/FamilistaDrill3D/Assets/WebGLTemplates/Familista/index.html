@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{{ PRODUCT_NAME }}}</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #070d15; overflow: hidden; }
+    #familista-unity-root { position: absolute; inset: 0; }
+    #unity-canvas { width: 100%; height: 100%; display: block; background: #070d15; }
+    #familista-loading { position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px; color: #e6edf5; font-family: system-ui, Arial, sans-serif; }
+    #familista-loading .bar { width: 200px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+    #familista-loading .bar > i { display: block; height: 100%; width: 0%; background: #37b6ff; }
+    #familista-loading b { font-size: 14px; font-weight: 700; }
+    #familista-loading span { font-size: 11px; color: #8fa0b4; }
+  </style>
+</head>
+<body>
+  <div id="familista-unity-root">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+    <div id="familista-loading"><b>Loading 3D presentation…</b><div class="bar"><i></i></div><span id="familista-pct">0%</span></div>
+  </div>
+
+  <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+  <script>
+  (function () {
+    var canvas = document.querySelector("#unity-canvas");
+    var loading = document.querySelector("#familista-loading");
+    var pct = document.querySelector("#familista-pct");
+    var bar = loading.querySelector(".bar > i");
+
+    var config = {
+      dataUrl: "Build/{{{ DATA_FILENAME }}}",
+      frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+      codeUrl: "Build/{{{ CODE_FILENAME }}}",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "{{{ COMPANY_NAME }}}",
+      productName: "{{{ PRODUCT_NAME }}}",
+      productVersion: "{{{ PRODUCT_VERSION }}}",
+    };
+
+    // ---- Familista <-> Unity bridge (matches the Familista page contract) ----
+    window.FamilistaUnity = window.FamilistaUnity || {};
+    var FU = window.FamilistaUnity;
+    FU.instance = null;
+    FU.ready = false;
+    FU._listeners = FU._listeners || [];
+    // Unity -> JS (called from FamilistaBridge.jslib)
+    FU.onEvent = function (type, payload) {
+      var data = payload; try { data = JSON.parse(payload); } catch (e) {}
+      FU._listeners.forEach(function (fn) { try { fn(type, data); } catch (e) {} });
+    };
+    FU.on = function (fn) { FU._listeners.push(fn); };
+    function send(method, arg) { if (FU.instance) FU.instance.SendMessage("FamilistaEngine", method, arg === undefined ? "" : String(arg)); }
+    // JS -> Unity API
+    FU.load = function (drillJson) { send("LoadDrill", typeof drillJson === "string" ? drillJson : JSON.stringify(drillJson)); };
+    FU.play = function () { send("Play"); };
+    FU.pause = function () { send("Pause"); };
+    FU.next = function () { send("NextStep"); };
+    FU.prev = function () { send("PrevStep"); };
+    FU.goto = function (i) { send("GotoStep", i); };
+    FU.replay = function () { send("Replay"); };
+    FU.camera = function (mode) { send("SetCamera", mode); };   // broadcast|tactical|top|side|focus
+    FU.speed = function (x) { send("SetSpeed", x); };
+    FU.quality = function (q) { send("SetQuality", q); };        // low|medium|high
+    FU.unload = function () { send("Unload"); };
+
+    // responsive resize
+    function resize() {
+      var r = document.getElementById("familista-unity-root").getBoundingClientRect();
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(r.width * dpr));
+      canvas.height = Math.max(1, Math.floor(r.height * dpr));
+      canvas.style.width = r.width + "px";
+      canvas.style.height = r.height + "px";
+    }
+    window.addEventListener("resize", resize);
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(document.getElementById("familista-unity-root"));
+    resize();
+
+    createUnityInstance(canvas, config, function (p) {
+      var v = Math.round(p * 100); if (pct) pct.textContent = v + "%"; if (bar) bar.style.width = v + "%";
+    }).then(function (instance) {
+      FU.instance = instance; FU.ready = true;
+      if (loading) loading.style.display = "none";
+      resize();
+      if (typeof FU.onReady === "function") { try { FU.onReady(); } catch (e) {} }
+    }).catch(function (err) {
+      if (loading) loading.innerHTML = "<b>Failed to load 3D engine</b><span>" + err + "</span>";
+      console.error("[FamilistaUnity]", err);
+    });
+  })();
+  </script>
+</body>
+</html>
