@@ -148,7 +148,8 @@
         if (sm) { shadow = new B.ShadowGenerator(sm, sun); shadow.useBlurExponentialShadowMap = true; shadow.blurKernel = 16; shadow.darkness = 0.55; }
         buildPitch(); ensureOverlays();
         ballMesh = B.MeshBuilder.CreateSphere('ball', { diameter: 0.7, segments: 12 }, scene); var bm = new B.PBRMaterial('bm', scene); bm.albedoColor = new B.Color3(0.98, 0.98, 0.98); bm.metallic = 0; bm.roughness = 0.35; ballMesh.material = bm; if (shadow) shadow.addShadowCaster(ballMesh);
-        B.SceneLoader.LoadAssetContainerAsync('/vendor/', 'player.glb', scene).then(function (cont) {
+        var glbName = 'player.glb' + (opts.ver ? '?v=' + opts.ver : '');
+        B.SceneLoader.LoadAssetContainerAsync('/vendor/', glbName, scene, null, '.glb').then(function (cont) {
           try {
             if (disposed) { try { cont.dispose(); } catch (e) {} return; }
             container = cont;

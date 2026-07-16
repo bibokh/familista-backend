@@ -8561,8 +8561,11 @@ function _deFallback2D(id, d, tl, ac, root, frame) {
 function _deBuild3D(id, d, tl, ac, root, frame) {
   _deLoad3D(function (ok) {
     if (!ok || typeof window._de3dApi === 'undefined') { _deFallback2D(id, d, tl, ac, root, frame); return; }
-    var api; try { api = window._de3dApi(root, tl, ac, d, { quality: _DE_Q }); } catch (e) { _deFallback2D(id, d, tl, ac, root, frame); return; }
+    var api; try { api = window._de3dApi(root, tl, ac, d, { quality: _DE_Q, ver: _deVerTag() }); } catch (e) { _deFallback2D(id, d, tl, ac, root, frame); return; }
+    var settled = false;
+    var to = setTimeout(function () { if (settled) return; settled = true; try { api.dispose && api.dispose(); } catch (e) {} if (root.isConnected) _deFallback2D(id, d, tl, ac, root, frame); }, 22000);
     api.ready(function (success) {
+      if (settled) return; settled = true; clearTimeout(to);
       if (!root.isConnected) { try { api.dispose && api.dispose(); } catch (e) {} return; }   // user navigated away mid-load
       if (!success) { _deFallback2D(id, d, tl, ac, root, frame); return; }
       var lo = root.querySelector('.de-pl-loading'); if (lo && lo.parentNode) lo.parentNode.removeChild(lo);
