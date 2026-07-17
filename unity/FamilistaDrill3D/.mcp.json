@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mcp-unity": {
+      "command": "node",
+      "args": [
+        "C:/Users/khatab atiya/Downloads/mcp-unity/Server~/build/index.js"
+      ],
+      "env": {
+        "UNITY_PORT": "8090"
+      }
+    }
+  }
+}
