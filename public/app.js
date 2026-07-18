@@ -833,6 +833,14 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   3,
   },
+  {
+    slug:    'video-intelligence',
+    label:   'Video Intelligence',
+    svgPath: 'M2 5.5A2.5 2.5 0 014.5 3h7A2.5 2.5 0 0114 5.5v2.086l3.243-1.802A1 1 0 0118.5 6.66v6.68a1 1 0 01-1.257.876L14 12.414V14.5A2.5 2.5 0 0111.5 17h-7A2.5 2.5 0 012 14.5v-9zM6 8.25a.75.75 0 011.166-.624l2.5 1.75a.75.75 0 010 1.248l-2.5 1.75A.75.75 0 016 11.75v-3.5z',
+    color:   '#2dd4bf',
+    enabled: true,
+    order:   4,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -1305,7 +1313,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (9)
-    'club-home': 1, 'squad': 1, 'training': 1,
+    'club-home': 1, 'squad': 1, 'training': 1, 'video-intelligence': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1333,7 +1341,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'video-intelligence':'Video Intelligence',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1554,6 +1562,7 @@ function _buildPageTemplateMap() {
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
+    'video-intelligence':          renderVideoIntelligenceHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -43379,3 +43388,565 @@ async function tosBoardSnapshot() {
     }
   });
 })();
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VIDEO INTELLIGENCE — AI Video & Match Analysis
+// Club-workspace module. Client-durable (localStorage + IndexedDB blob adapter)
+// following the same convention as the Training Centre (TR_DB). Scoped to the
+// active club/team via _trScope() so one club never sees another's analyses.
+// Real squad players come from SQ_DEMO_PLAYERS (no duplicate player store).
+// Honest: no fabricated stats, no fake AI results, no fake integrations.
+// ═══════════════════════════════════════════════════════════════════════════
+var VI_KEY = 'familista.video.v1';
+var VI_DB = { projects: [] };
+var _VI_LOADED = false;
+function _viEsc(s) { return (typeof _esc === 'function') ? _esc(s) : String(s == null ? '' : s); }
+function _viScope() { return (typeof _trScope === 'function') ? _trScope() : { club: 'FC Familista', team: 'First Team', season: '2025/26' }; }
+function _viUid() { return 'vi_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function _viLoad() { if (_VI_LOADED) return VI_DB; _VI_LOADED = true; try { var raw = window.localStorage.getItem(VI_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.projects)) VI_DB = o; } } catch (e) {} return VI_DB; }
+function _viSave() { try { window.localStorage.setItem(VI_KEY, JSON.stringify(VI_DB)); } catch (e) {} }
+function _viProjects() { _viLoad(); var sc = _viScope(); return (VI_DB.projects || []).filter(function (p) { return p.club === sc.club; }); }
+function _viProject(id) { _viLoad(); var a = (VI_DB.projects || []).filter(function (p) { return p.id === id; }); return a[0] || null; }
+function _viTouch(p) { p.updatedAt = Date.now(); _viSave(); }
+function viCreateProject(d) {
+  _viLoad(); var sc = _viScope();
+  var p = { id: _viUid(), club: sc.club, team: sc.team, season: sc.season, createdAt: Date.now(), updatedAt: Date.now(),
+    title: d.title || 'Untitled analysis', ourTeam: d.ourTeam || sc.club, opponent: d.opponent || '', date: d.date || '', competition: d.competition || '', homeAway: d.homeAway || 'home', score: d.score || '', ageGroup: d.ageGroup || 'First Team', analyst: d.analyst || '', notes: d.notes || '',
+    video: d.video || null, status: d.video ? 'ready' : 'awaiting-video', archived: false,
+    events: [], annotations: [], clips: [], playlists: [], reports: [] };
+  VI_DB.projects = VI_DB.projects || []; VI_DB.projects.push(p); _viSave(); return p;
+}
+function viDeleteProject(id) { _viLoad(); VI_DB.projects = (VI_DB.projects || []).filter(function (p) { return p.id !== id; }); _viSave(); try { _viBlobDel(id); } catch (e) {} }
+// ── IndexedDB blob adapter (dev-safe local fallback; production would use the
+//    platform WL_ASSETS / S3 storage). Uploaded files persist across reload. ──
+function _viIdb(cb) { try { var r = window.indexedDB.open('familista-video', 1); r.onupgradeneeded = function () { r.result.createObjectStore('blobs'); }; r.onsuccess = function () { cb(r.result); }; r.onerror = function () { cb(null); }; } catch (e) { cb(null); } }
+function _viBlobPut(id, blob, cb) { _viIdb(function (db) { if (!db) { cb && cb(false); return; } try { var t = db.transaction('blobs', 'readwrite'); t.objectStore('blobs').put(blob, id); t.oncomplete = function () { cb && cb(true); }; t.onerror = function () { cb && cb(false); }; } catch (e) { cb && cb(false); } }); }
+function _viBlobGet(id, cb) { _viIdb(function (db) { if (!db) { cb(null); return; } try { var t = db.transaction('blobs', 'readonly'); var q = t.objectStore('blobs').get(id); q.onsuccess = function () { cb(q.result || null); }; q.onerror = function () { cb(null); }; } catch (e) { cb(null); } }); }
+function _viBlobDel(id) { _viIdb(function (db) { if (!db) return; try { db.transaction('blobs', 'readwrite').objectStore('blobs').delete(id); } catch (e) {} }); }
+
+// ── Real squad players (from Squad — no duplicate DB) ──
+function _viPlayers() { var arr = (typeof SQ_DEMO_PLAYERS !== 'undefined' && SQ_DEMO_PLAYERS) ? SQ_DEMO_PLAYERS : []; return arr.map(function (p) { return { id: p.id, name: p.name, num: p.num, pos: p.pos }; }); }
+function _viPlayerName(id) { var ps = _viPlayers(); for (var i = 0; i < ps.length; i++) if (ps[i].id === id) return ps[i].name; return id; }
+
+// ── Football event taxonomy (configurable categories) ──
+var VI_EVENTS = {
+  Attacking: { color: '56,189,248', types: ['Pass', 'Progressive pass', 'Through ball', 'Cross', 'Dribble', 'Shot', 'Shot on target', 'Goal', 'Chance created', 'Final-third entry', 'Penalty-area entry'] },
+  Defending: { color: '244,63,94', types: ['Press', 'Tackle', 'Interception', 'Block', 'Clearance', 'Recovery', 'Duel', 'Defensive error'] },
+  Transitions: { color: '244,183,64', types: ['Attacking transition', 'Defensive transition', 'Counterattack', 'Counter-press', 'Turnover'] },
+  'Set pieces': { color: '167,139,250', types: ['Corner', 'Free kick', 'Penalty', 'Throw-in', 'Goal kick'] },
+  Goalkeeper: { color: '45,212,191', types: ['Save', 'Claim', 'Distribution', 'One-v-one', 'Error'] }
+};
+function _viCatOf(type) { for (var c in VI_EVENTS) if (VI_EVENTS[c].types.indexOf(type) >= 0) return c; return 'Attacking'; }
+function _viCatColor(cat) { return (VI_EVENTS[cat] || VI_EVENTS.Attacking).color; }
+
+// ── Honest integration providers (extensible VideoProvider adapter) ──
+function VideoProvider(id, name, status, note) { return { id: id, name: name, status: status, note: note, connect: function () { return { ok: false, reason: 'not-configured' }; } }; }
+var VI_PROVIDERS = [
+  VideoProvider('upload', 'File Upload', 'Available', 'MP4 / MOV / WebM — works now (local storage adapter).'),
+  VideoProvider('url', 'External Video URL', 'Available', 'Direct MP4/HLS link that the browser can play.'),
+  VideoProvider('rtmp', 'Generic RTMP / HLS Stream', 'Requires API Credentials', 'Add a stream endpoint to enable.'),
+  VideoProvider('veo', 'Veo', 'Planned', 'Adapter interface ready; needs Veo API credentials.'),
+  VideoProvider('pixellot', 'Pixellot', 'Planned', 'Adapter interface ready; needs Pixellot API credentials.'),
+  VideoProvider('spiideo', 'Spiideo', 'Planned', 'Adapter interface ready; needs Spiideo API credentials.'),
+  VideoProvider('hudl', 'Hudl Focus', 'Planned', 'Adapter interface ready; needs Hudl credentials.'),
+  VideoProvider('panoris', 'Panoris', 'Planned', 'Adapter interface ready.'),
+  VideoProvider('provispo', 'Provispo', 'Planned', 'Adapter interface ready.'),
+  VideoProvider('cloud', 'Cloud Storage Import', 'Not Connected', 'Import from a cloud bucket once storage is linked.')
+];
+
+var VI_TABS = [['overview', 'Overview'], ['library', 'Video Library'], ['workspace', 'Analysis Workspace'], ['live', 'Live Tagging'], ['team', 'Team Intelligence'], ['player', 'Player Intelligence'], ['reports', 'Reports'], ['integrations', 'Integrations']];
+var _VI = { tab: 'overview', projectId: null, modal: null, draft: null, evDraft: null, annTool: null, playerFilter: null, live: null };
+var _viBound = false;
+
+function renderVideoIntelligenceHTML() {
+  _viLoad();
+  if (typeof document !== 'undefined') { setTimeout(function () { try { _viBind(); } catch (e) {} }, 0); }
+  return '<div class="page" id="pg-video-intelligence"><div class="vi-root" id="vi-root">' + _viInner() + '</div><div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div></div>';
+}
+function _viInner() {
+  return _viHead() + _viTabNav() + '<div class="vi-body" id="vi-body">' + _viSectionHtml(_VI.tab) + '</div>';
+}
+function _viRender() { if (typeof document === 'undefined') return; var r = document.getElementById('vi-root'); if (r) r.innerHTML = _viInner() + '<div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div>'; }
+function _viRenderModal() { var m = document.getElementById('vi-modal'); if (m) { m.innerHTML = _viModalHtml(); m.hidden = !_VI.modal; } }
+function _viToast(msg) { try { if (typeof showToast === 'function') showToast(msg, 'success'); } catch (e) {} }
+
+function _viHead() {
+  return '<div class="vi-head"><div class="vi-head-l">'
+    + '<span class="vi-head-ic"><svg viewBox="0 0 24 24" width="24" height="24" fill="none"><rect x="2.5" y="5.5" width="13" height="13" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M15.5 9.5 L21 6.5 v11 l-5.5-3" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 9.5 L11.5 12 L7 14.5 Z" fill="currentColor"/></svg></span>'
+    + '<div><h1 class="vi-title">Video Intelligence</h1><p class="vi-sub">AI Video &amp; Match Analysis</p></div></div>'
+    + '<div class="vi-head-desc">Upload, tag, study and transform football video into actionable team and player intelligence.</div></div>';
+}
+function _viTabNav() {
+  return '<div class="vi-tabs">' + VI_TABS.map(function (t) {
+    return '<button class="vi-tab' + (_VI.tab === t[0] ? ' is-on' : '') + '" data-vi-act="tab" data-vi="' + t[0] + '" type="button">' + t[1] + '</button>';
+  }).join('') + '</div>';
+}
+function _viSectionHtml(tab) {
+  switch (tab) {
+    case 'library': return _viLibrary();
+    case 'workspace': return _viWorkspace();
+    case 'live': return _viLive();
+    case 'team': return _viTeam();
+    case 'player': return _viPlayer();
+    case 'reports': return _viReports();
+    case 'integrations': return _viIntegrations();
+    default: return _viOverview();
+  }
+}
+
+// ── small atoms ──
+function _viStat(label, val, sub, tone) { return '<div class="vi-stat vi-stat--' + (tone || 'n') + '"><span class="vi-stat-l">' + label + '</span><span class="vi-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>'; }
+function _viPanel(title, tag, inner, cls) { return '<section class="vi-panel ' + (cls || '') + '"><div class="vi-panel-h"><h3>' + title + '</h3>' + (tag ? '<span class="vi-panel-tag">' + tag + '</span>' : '') + '</div><div class="vi-panel-b">' + inner + '</div></section>'; }
+function _viEmpty(icon, title, sub) { return '<div class="vi-empty"><span class="vi-empty-ic">' + icon + '</span><b>' + title + '</b><p>' + sub + '</p></div>'; }
+function _viFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+
+// ── 1. OVERVIEW ──
+function _viOverview() {
+  var ps = _viProjects();
+  var withVideo = ps.filter(function (p) { return p.video; });
+  var awaiting = ps.filter(function (p) { return p.status === 'awaiting-video' || (!p.video); });
+  var completed = ps.filter(function (p) { return p.status === 'completed'; });
+  var events = 0, clips = 0, reports = 0; ps.forEach(function (p) { events += (p.events || []).length; clips += (p.clips || []).length; reports += (p.reports || []).length; });
+  var recent = ps.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+  var playerCounts = {}; ps.forEach(function (p) { (p.events || []).forEach(function (e) { (e.players || []).forEach(function (pid) { playerCounts[pid] = (playerCounts[pid] || 0) + 1; }); }); });
+  var topPlayer = Object.keys(playerCounts).sort(function (a, b) { return playerCounts[b] - playerCounts[a]; })[0];
+  var cards = '<div class="vi-grid">'
+    + _viStat('Uploaded matches', withVideo.length, '', 'cyan')
+    + _viStat('Awaiting analysis', awaiting.length, '', awaiting.length ? 'amber' : 'muted')
+    + _viStat('Completed analyses', completed.length, '', 'green')
+    + _viStat('Tagged events', events, '', 'teal')
+    + _viStat('Generated clips', clips, '', 'violet')
+    + _viStat('Player reports', reports, '', 'cyan')
+    + _viStat('Most recent match', recent ? _viEsc(recent.opponent || recent.title) : '—', '', 'muted')
+    + _viStat('Most analysed player', topPlayer ? _viEsc(_viPlayerName(topPlayer)) : '—', '', 'muted')
+    + '</div>';
+  var quick = '<div class="vi-qa">'
+    + '<button class="vi-qa-b" data-vi-act="upload" type="button"><span>⤴</span>Upload Match Video</button>'
+    + '<button class="vi-qa-b" data-vi-act="newanalysis" type="button"><span>✚</span>Start New Analysis</button>'
+    + '<button class="vi-qa-b" data-vi-act="tab" data-vi="live" type="button"><span>●</span>Open Live Tagging</button>'
+    + '<button class="vi-qa-b" data-vi-act="tab" data-vi="player" type="button"><span>▦</span>Create Player Report</button>'
+    + '<button class="vi-qa-b" data-vi-act="tab" data-vi="integrations" type="button"><span>🔌</span>Connect Camera System</button>'
+    + '</div>';
+  var rows = ps.length
+    ? '<div class="vi-tw"><table class="vi-table"><thead><tr><th>Match</th><th>Opponent</th><th>Date</th><th>Competition</th><th>Progress</th><th>Analyst</th><th>Status</th><th></th></tr></thead><tbody>'
+      + ps.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; }).slice(0, 8).map(function (p) {
+        var prog = _viProgress(p);
+        return '<tr><td><b>' + _viEsc(p.title) + '</b></td><td>' + _viEsc(p.opponent || '—') + '</td><td>' + _viEsc(p.date || '—') + '</td><td>' + _viEsc(p.competition || '—') + '</td>'
+          + '<td><span class="vi-mini"><i style="width:' + prog + '%"></i></span>' + prog + '%</td><td>' + _viEsc(p.analyst || '—') + '</td>'
+          + '<td><span class="vi-badge vi-badge--' + (p.status === 'completed' ? 'ok' : p.video ? 'work' : 'wait') + '">' + _viStatusLabel(p) + '</span></td>'
+          + '<td><button class="vi-link" data-vi-act="open" data-vi="' + p.id + '" type="button">Open ›</button></td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : _viEmpty('🎬', 'No analyses yet', 'Upload a match video or start a new analysis to see your intelligence build here. Nothing is fabricated — every number reflects your real work.');
+  return cards + '<div class="vi-grid2">' + _viPanel('Recent analyses', 'From your real projects', rows) + _viPanel('Quick actions', '', quick) + '</div>';
+}
+function _viProgress(p) { var n = (p.events || []).length + (p.clips || []).length + (p.annotations || []).length; if (p.status === 'completed') return 100; if (!p.video) return 0; return Math.min(95, 10 + n * 3); }
+function _viStatusLabel(p) { return p.status === 'completed' ? 'Completed' : p.video ? 'In analysis' : 'Awaiting video'; }
+
+// ── 2. VIDEO LIBRARY ──
+function _viLibrary() {
+  var ps = _viProjects().filter(function (p) { return !p.archived; });
+  var f = _VI.libFilter || {};
+  var list = ps.filter(function (p) {
+    if (f.q) { var q = f.q.toLowerCase(); if ((p.title + ' ' + p.opponent + ' ' + p.competition).toLowerCase().indexOf(q) < 0) return false; }
+    if (f.comp && p.competition !== f.comp) return false;
+    if (f.status && _viStatusKey(p) !== f.status) return false;
+    return true;
+  });
+  var comps = {}; ps.forEach(function (p) { if (p.competition) comps[p.competition] = 1; });
+  var bar = '<div class="vi-libbar">'
+    + '<input class="vi-input vi-search" id="vi-lib-q" type="text" placeholder="Search matches…" value="' + _viEsc(f.q || '') + '" data-vi-act="libsearch">'
+    + '<select class="vi-input" id="vi-lib-comp" data-vi-act="libfilter" data-vi="comp"><option value="">All competitions</option>' + Object.keys(comps).map(function (c) { return '<option' + (f.comp === c ? ' selected' : '') + '>' + _viEsc(c) + '</option>'; }).join('') + '</select>'
+    + '<select class="vi-input" id="vi-lib-status" data-vi-act="libfilter" data-vi="status"><option value="">Any status</option><option value="ready"' + (f.status === 'ready' ? ' selected' : '') + '>In analysis</option><option value="awaiting-video"' + (f.status === 'awaiting-video' ? ' selected' : '') + '>Awaiting video</option><option value="completed"' + (f.status === 'completed' ? ' selected' : '') + '>Completed</option></select>'
+    + '<button class="vi-btn vi-btn--primary" data-vi-act="upload" type="button">⤴ Upload match video</button></div>';
+  var grid = list.length
+    ? '<div class="vi-vidgrid">' + list.map(function (p) {
+      return '<div class="vi-vidcard"><div class="vi-vidthumb"><span class="vi-vidthumb-ic">' + (p.video ? '▶' : '🎬') + '</span><span class="vi-vidcat">' + _viEsc(p.competition || 'Match') + '</span></div>'
+        + '<div class="vi-vidcard-b"><b class="vi-vidcard-t">' + _viEsc(p.title) + '</b><span class="vi-vidcard-m">' + _viEsc(p.ourTeam || '') + ' vs ' + _viEsc(p.opponent || '—') + (p.score ? ' · ' + _viEsc(p.score) : '') + '</span>'
+        + '<span class="vi-vidcard-m2">' + _viEsc(p.date || '') + (p.homeAway ? ' · ' + p.homeAway : '') + ' · <span class="vi-badge vi-badge--' + (p.status === 'completed' ? 'ok' : p.video ? 'work' : 'wait') + '">' + _viStatusLabel(p) + '</span></span>'
+        + '<div class="vi-vidcard-acts"><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="open" data-vi="' + p.id + '" type="button">Open analysis</button>'
+        + '<button class="vi-btn vi-btn--sm" data-vi-act="rename" data-vi="' + p.id + '" type="button">Rename</button>'
+        + '<button class="vi-btn vi-btn--sm" data-vi-act="archive" data-vi="' + p.id + '" type="button">Archive</button>'
+        + '<button class="vi-btn vi-btn--sm vi-btn--danger" data-vi-act="delete" data-vi="' + p.id + '" type="button">Delete</button></div></div></div>';
+    }).join('') + '</div>'
+    : _viEmpty('📁', ps.length ? 'No matches match your filter' : 'Your video library is empty', 'Upload an MP4/MOV/WebM or add a video URL, enter the match information, and it appears here. Uploads are stored locally (dev-safe); production uses the platform storage backend.');
+  return bar + grid;
+}
+function _viStatusKey(p) { return p.status === 'completed' ? 'completed' : p.video ? 'ready' : 'awaiting-video'; }
+
+// ── 3. ANALYSIS WORKSPACE ──
+function _viWorkspace() {
+  var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+  if (!p) return _viEmpty('🎞️', 'No analysis open', 'Create or open an analysis from the Video Library. The workspace gives you a video player, tactical annotations, event tagging and a timeline in one screen.') + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="newanalysis" type="button">✚ Start new analysis</button></div>';
+  _VI.projectId = p.id;
+  var vid = p.video
+    ? '<video class="vi-video" id="vi-video" ' + (p.video.kind === 'url' ? 'src="' + _viEsc(p.video.url) + '"' : '') + ' controls preload="metadata" crossorigin="anonymous"></video>'
+    : '<div class="vi-video vi-video--none"><b>No video attached</b><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Attach a video</button></div>';
+  var players = _viPlayers();
+  // LEFT
+  var left = '<div class="vi-ws-panel vi-ws-l">'
+    + '<div class="vi-ws-sec"><h4>Match</h4><div class="vi-ws-match"><b>' + _viEsc(p.title) + '</b><span>' + _viEsc(p.ourTeam || '') + ' vs ' + _viEsc(p.opponent || '—') + '</span><span>' + _viEsc(p.competition || '') + ' · ' + _viEsc(p.date || '') + '</span></div></div>'
+    + '<div class="vi-ws-sec"><h4>Player roster <i>(' + players.length + ')</i></h4><div class="vi-roster">' + players.slice(0, 26).map(function (pl) { return '<button class="vi-roster-p' + (((_VI.evDraft || {}).players || []).indexOf(pl.id) >= 0 ? ' is-on' : '') + '" data-vi-act="evplayer" data-vi="' + pl.id + '" type="button"><em>' + (pl.num || '') + '</em>' + _viEsc((pl.name || '').split(' ').pop()) + '</button>'; }).join('') + '</div></div>'
+    + '<div class="vi-ws-sec"><h4>Event categories</h4><div class="vi-cats">' + Object.keys(VI_EVENTS).map(function (c) { return '<div class="vi-cat" style="--c:' + VI_EVENTS[c].color + '"><span class="vi-cat-h">' + c + '</span><div class="vi-cat-t">' + VI_EVENTS[c].types.map(function (t) { return '<button class="vi-chip-ev" data-vi-act="evtype" data-vi="' + _viEsc(t) + '" type="button">' + _viEsc(t) + '</button>'; }).join('') + '</div></div>'; }).join('') + '</div></div>'
+    + '<div class="vi-ws-sec"><h4>Saved clips <i>(' + (p.clips || []).length + ')</i></h4>' + ((p.clips || []).length ? '<div class="vi-cliplist">' + p.clips.map(function (c) { return '<button class="vi-clip-i" data-vi-act="seekclip" data-vi="' + c.id + '" type="button"><b>' + _viEsc(c.name) + '</b><i>' + _viFmt(c.t0) + '–' + _viFmt(c.t1) + '</i></button>'; }).join('') + '</div>' : '<p class="vi-muted">No clips yet — mark in/out on the timeline.</p>') + '</div>';
+  // CENTER
+  var toolbar = '<div class="vi-anntools">' + [['circle', '◯ Circle'], ['arrow', '↗ Arrow'], ['line', '／ Line'], ['zone', '▭ Zone'], ['spotlight', '◎ Spotlight'], ['free', '✎ Free'], ['text', 'T Text'], ['connect', '⇄ Connect']].map(function (t) { return '<button class="vi-anntool' + (_VI.annTool === t[0] ? ' is-on' : '') + '" data-vi-act="anntool" data-vi="' + t[0] + '" type="button">' + t[1] + '</button>'; }).join('') + '<span class="vi-annsp"></span><button class="vi-anntool" data-vi-act="annclear" type="button">Clear</button><button class="vi-anntool" data-vi-act="annsave" type="button">Save frame</button></div>';
+  var center = '<div class="vi-ws-center"><div class="vi-stage"><div class="vi-videowrap" id="vi-videowrap">' + vid + '<canvas class="vi-canvas" id="vi-canvas"></canvas></div></div>' + toolbar
+    + '<div class="vi-transport"><button class="vi-tp" data-vi-act="vseek" data-vi="-1" type="button">⏴ frame</button><button class="vi-tp" data-vi-act="vplay" type="button">▶ / ⏸</button><button class="vi-tp" data-vi-act="vseek" data-vi="1" type="button">frame ⏵</button>'
+    + '<button class="vi-tp" data-vi-act="vspeed" type="button" id="vi-speed">1×</button><span class="vi-tptime" id="vi-time">0:00 / 0:00</span>'
+    + '<button class="vi-tp" data-vi-act="markin" type="button">◧ In</button><button class="vi-tp" data-vi-act="markout" type="button">Out ◨</button><button class="vi-tp vi-tp--primary" data-vi-act="addevent" type="button">＋ Tag event here</button></div></div>';
+  // RIGHT
+  var d = _VI.evDraft || { type: 'Pass', players: [], success: 'success', phase: '', rating: 0, tags: '', notes: '' };
+  var right = '<div class="vi-ws-panel vi-ws-r"><div class="vi-ws-sec"><h4>Event details</h4>'
+    + '<label class="vi-fl">Type</label><div class="vi-evtype">' + _viEsc(d.type) + ' <span class="vi-badge" style="background:rgba(' + _viCatColor(_viCatOf(d.type)) + ',.16);color:rgb(' + _viCatColor(_viCatOf(d.type)) + ')">' + _viCatOf(d.type) + '</span></div>'
+    + '<label class="vi-fl">Players</label><div class="vi-evpl">' + (((d.players) || []).length ? d.players.map(function (id) { return '<span class="vi-chipx">' + _viEsc(_viPlayerName(id)) + '</span>'; }).join('') : '<span class="vi-muted">Pick from roster →</span>') + '</div>'
+    + '<label class="vi-fl">Outcome</label><div class="vi-seg"><button class="vi-seg-b' + (d.success === 'success' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:success" type="button">Success</button><button class="vi-seg-b' + (d.success === 'fail' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:fail" type="button">Fail</button></div>'
+    + '<label class="vi-fl">Phase of play</label><select class="vi-input" id="vi-ev-phase"><option value="">—</option>' + ['Build-up', 'Progression', 'Final third', 'Transition', 'Set piece', 'Defensive block'].map(function (x) { return '<option' + (d.phase === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select>'
+    + '<label class="vi-fl">Rating</label><div class="vi-stars">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="vi-star' + (d.rating >= n ? ' is-on' : '') + '" data-vi-act="evrate" data-vi="' + n + '" type="button">★</button>'; }).join('') + '</div>'
+    + '<label class="vi-fl">Tags</label><input class="vi-input" id="vi-ev-tags" type="text" placeholder="comma,separated" value="' + _viEsc(d.tags || '') + '">'
+    + '<label class="vi-fl">Notes</label><textarea class="vi-input" id="vi-ev-notes" rows="2" placeholder="Coaching note…">' + _viEsc(d.notes || '') + '</textarea>'
+    + '<div class="vi-ws-sec"><h4>Clip</h4><p class="vi-muted">Set In/Out on the transport, then</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="saveclip" type="button">Save clip from In/Out</button></div>'
+    + '<button class="vi-btn vi-btn--primary vi-btn--wide" data-vi-act="savews" type="button">Save analysis</button></div>';
+  // BOTTOM timeline
+  var timeline = _viTimeline(p);
+  return '<div class="vi-ws" id="vi-ws" data-project="' + p.id + '">' + left + center + right + '</div>' + timeline;
+}
+function _viTimeline(p) {
+  var dur = (p.video && p.video.duration) || 0;
+  var tracks = { Attacking: [], Defending: [], Transitions: [], 'Set pieces': [], Goalkeeper: [] };
+  (p.events || []).forEach(function (e) { var c = _viCatOf(e.type); (tracks[c] = tracks[c] || []).push(e); });
+  var rows = Object.keys(VI_EVENTS).map(function (c) {
+    var markers = (tracks[c] || []).map(function (e) { var left = dur ? (e.t0 / dur * 100) : 0; return '<button class="vi-tl-mark" style="left:' + left.toFixed(2) + '%;--c:' + VI_EVENTS[c].color + '" data-vi-act="seekevent" data-vi="' + e.id + '" title="' + _viEsc(e.type) + ' @ ' + _viFmt(e.t0) + '"></button>'; }).join('');
+    return '<div class="vi-tl-row"><span class="vi-tl-lbl" style="--c:' + VI_EVENTS[c].color + '">' + c + '</span><div class="vi-tl-track">' + markers + '<div class="vi-tl-head" id="vi-tl-head-' + c.replace(/[^a-z]/gi, '') + '"></div></div></div>';
+  }).join('');
+  return '<div class="vi-timeline" id="vi-timeline"><div class="vi-tl-head-row"><span class="vi-tl-lbl">Timeline</span><div class="vi-tl-scale" id="vi-tl-scale"><b>' + (p.events || []).length + '</b> events · <b>' + (p.clips || []).length + '</b> clips' + (dur ? ' · ' + _viFmt(dur) : '') + '</div></div>' + rows + '</div>';
+}
+
+// ── 4. LIVE TAGGING ──
+function _viLive() {
+  var lv = _VI.live;
+  if (!lv) {
+    return _viPanel('Live tagging', 'Tag while the match is played or streamed', _viEmpty('●', 'Start a live tagging session', 'Tag a live stream URL, a normal video source, or run a manual match clock. Fast buttons, one-click player selection, running clock and undo — every tag is saved to a real analysis project.')
+      + '<div class="vi-live-start"><button class="vi-btn vi-btn--primary" data-vi-act="livestart" type="button">● Start live session</button></div>');
+  }
+  var p = _viProject(lv.projectId);
+  var clockStr = _viFmt(lv.clock || 0) + ' · ' + (lv.half === 2 ? '2nd half' : '1st half');
+  var quickTypes = ['Pass', 'Shot', 'Goal', 'Tackle', 'Interception', 'Recovery', 'Turnover', 'Counterattack', 'Corner', 'Free kick', 'Save', 'Duel'];
+  var players = _viPlayers();
+  return '<div class="vi-live">'
+    + '<div class="vi-live-top"><div class="vi-live-clock" id="vi-live-clock">' + clockStr + '</div>'
+    + '<div class="vi-live-ctrls"><button class="vi-btn vi-btn--sm" data-vi-act="liveclock" data-vi="toggle" type="button">' + (lv.running ? '⏸ Pause' : '▶ Start') + '</button>'
+    + '<button class="vi-btn vi-btn--sm" data-vi-act="liveclock" data-vi="half" type="button">Switch half</button>'
+    + '<button class="vi-btn vi-btn--sm" data-vi-act="liveundo" type="button">↶ Undo last</button>'
+    + '<span class="vi-live-status">● ' + (lv.running ? 'Tagging' : 'Paused') + ' · saved to “' + _viEsc(p ? p.title : '—') + '”</span>'
+    + '<button class="vi-btn vi-btn--sm vi-btn--danger" data-vi-act="livestop" type="button">Stop</button></div></div>'
+    + '<div class="vi-live-sel"><span class="vi-fl">Player:</span>' + players.slice(0, 22).map(function (pl) { return '<button class="vi-live-pl' + (lv.player === pl.id ? ' is-on' : '') + '" data-vi-act="livesel" data-vi="' + pl.id + '" type="button">' + (pl.num || '') + '</button>'; }).join('') + '</div>'
+    + '<div class="vi-live-grid">' + quickTypes.map(function (t) { return '<button class="vi-live-b" style="--c:' + _viCatColor(_viCatOf(t)) + '" data-vi-act="livetag" data-vi="' + _viEsc(t) + '" type="button">' + _viEsc(t) + '</button>'; }).join('') + '</div>'
+    + '<div class="vi-live-log">' + ((p && p.events || []).slice(-10).reverse().map(function (e) { return '<div class="vi-live-logi"><i>' + _viFmt(e.t0) + '</i>' + _viEsc(e.type) + (e.players && e.players.length ? ' · ' + _viEsc(_viPlayerName(e.players[0])) : '') + '</div>'; }).join('') || '<p class="vi-muted">No tags yet — pick a player and hit an action.</p>') + '</div></div>';
+}
+
+// ── 5. TEAM INTELLIGENCE ──
+function _viTeam() {
+  var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+  if (!p || !(p.events || []).length) return _viPanel('Team intelligence', 'Computed from real tags only', _viEmpty('▦', 'Insufficient data', 'Team metrics are calculated only from actual tagged events (and tracking coordinates when available). Tag events in the Analysis Workspace, then team shape, passing volume, recoveries, turnovers, final-third entries and the shot count build here. Nothing is fabricated.'));
+  var ev = p.events || [];
+  var cnt = function (types) { return ev.filter(function (e) { return types.indexOf(e.type) >= 0; }).length; };
+  var shots = cnt(['Shot', 'Shot on target', 'Goal']), goals = cnt(['Goal']), rec = cnt(['Recovery', 'Interception']), turn = cnt(['Turnover', 'Defensive error']), f3 = cnt(['Final-third entry', 'Penalty-area entry']), press = cnt(['Press', 'Counter-press']), setp = ev.filter(function (e) { return _viCatOf(e.type) === 'Set pieces'; }).length;
+  var stats = '<div class="vi-grid">' + _viStat('Tagged events', ev.length, '', 'teal') + _viStat('Shots', shots, '', 'cyan') + _viStat('Goals', goals, '', 'green') + _viStat('Ball recoveries', rec, '', 'teal') + _viStat('Turnovers', turn, '', turn ? 'amber' : 'muted') + _viStat('Final-third entries', f3, '', 'cyan') + _viStat('Pressure events', press, '', 'violet') + _viStat('Set pieces', setp, '', 'violet') + '</div>';
+  // passing network / avg positions from event x,y when present
+  var located = ev.filter(function (e) { return typeof e.x === 'number' && typeof e.y === 'number'; });
+  var net = located.length >= 3
+    ? _viPitchNetwork(located)
+    : _viEmpty('◎', 'No positional data yet', 'Average positions, team shape and the passing network draw here once events carry pitch locations. Click a pitch spot when tagging to add coordinates — approximate only (no calibrated tracking).');
+  return stats + '<div class="vi-grid2">' + _viPanel('Shape &amp; passing network', 'Approx positions from tagged events', net) + _viPanel('Phases &amp; set pieces', 'From tags', _viPhaseBars(ev)) + '</div>';
+}
+function _viPitchNetwork(located) {
+  var byP = {}; located.forEach(function (e) { (e.players || []).forEach(function (pid) { byP[pid] = byP[pid] || { x: 0, y: 0, n: 0 }; byP[pid].x += e.x; byP[pid].y += e.y; byP[pid].n++; }); });
+  var nodes = Object.keys(byP).map(function (pid) { var b = byP[pid]; return { pid: pid, x: b.x / b.n, y: b.y / b.n, n: b.n }; });
+  var svg = '<svg viewBox="0 0 320 200" class="vi-pitch"><rect x="0" y="0" width="320" height="200" fill="#0e2a18"/><g stroke="rgba(255,255,255,.4)" fill="none" stroke-width="1.4"><rect x="8" y="8" width="304" height="184"/><line x1="160" y1="8" x2="160" y2="192"/><circle cx="160" cy="100" r="26"/></g>';
+  svg += nodes.map(function (n) { var cx = 8 + n.x / 100 * 304, cy = 8 + n.y / 100 * 184, r = Math.min(16, 6 + n.n); return '<circle cx="' + cx.toFixed(0) + '" cy="' + cy.toFixed(0) + '" r="' + r + '" fill="rgba(56,189,248,.85)"/><text x="' + cx.toFixed(0) + '" y="' + (cy + 3).toFixed(0) + '" font-size="8" fill="#04121f" text-anchor="middle" font-weight="800">' + (_viPlayerName(n.pid).split(' ').pop().slice(0, 6)) + '</text>'; }).join('');
+  return svg + '</svg><p class="vi-muted">Node size = involvement. Positions are approximate from tagged coordinates — not calibrated tracking.</p>';
+}
+function _viPhaseBars(ev) {
+  var ph = {}; ev.forEach(function (e) { if (e.phase) ph[e.phase] = (ph[e.phase] || 0) + 1; });
+  var keys = Object.keys(ph); if (!keys.length) return '<p class="vi-muted">Add a “phase of play” to events to see the phase breakdown.</p>';
+  var max = Math.max.apply(null, keys.map(function (k) { return ph[k]; }));
+  return '<div class="vi-bars">' + keys.map(function (k) { return '<div class="vi-bar"><span>' + _viEsc(k) + '</span><span class="vi-bar-t"><i style="width:' + (ph[k] / max * 100) + '%"></i></span><b>' + ph[k] + '</b></div>'; }).join('') + '</div>';
+}
+
+// ── 6. PLAYER INTELLIGENCE ──
+function _viPlayer() {
+  var players = _viPlayers();
+  var all = _viProjects();
+  var counts = {}; all.forEach(function (p) { (p.events || []).forEach(function (e) { (e.players || []).forEach(function (pid) { counts[pid] = counts[pid] || { n: 0, ok: 0, clips: 0 }; counts[pid].n++; if (e.success === 'success') counts[pid].ok++; }); }); });
+  all.forEach(function (p) { (p.clips || []).forEach(function (c) { (c.players || []).forEach(function (pid) { counts[pid] = counts[pid] || { n: 0, ok: 0, clips: 0 }; counts[pid].clips++; }); }); });
+  var sel = _VI.playerFilter || (Object.keys(counts)[0]) || (players[0] && players[0].id);
+  var chips = '<div class="vi-plchips">' + players.map(function (pl) { var c = counts[pl.id]; return '<button class="vi-plchip' + (sel === pl.id ? ' is-on' : '') + '" data-vi-act="selplayer" data-vi="' + pl.id + '" type="button"><em>' + (pl.num || '') + '</em>' + _viEsc(pl.name.split(' ').pop()) + (c ? '<i>' + c.n + '</i>' : '') + '</button>'; }).join('') + '</div>';
+  var c = counts[sel];
+  var body = c
+    ? '<div class="vi-grid">' + _viStat('Tagged actions', c.n, '', 'teal') + _viStat('Successful', c.ok, '', 'green') + _viStat('Unsuccessful', c.n - c.ok, '', (c.n - c.ok) ? 'amber' : 'muted') + _viStat('Success rate', c.n ? Math.round(c.ok / c.n * 100) : 0, '<i>%</i>', 'cyan') + _viStat('Player clips', c.clips, '', 'violet') + _viStat('Matches analysed', all.filter(function (p) { return (p.events || []).some(function (e) { return (e.players || []).indexOf(sel) >= 0; }); }).length, '', 'muted') + '</div>'
+      + '<div class="vi-grid2">' + _viPanel('Tagged actions', 'From real events', _viPlayerActions(sel, all)) + _viPanel('Heatmap', 'Location data required', _viEmpty('🔥', 'No location data', 'A heatmap draws when tagged events carry pitch coordinates for this player. Add locations while tagging.')) + '</div>'
+      + '<div style="margin-top:12px"><button class="vi-btn vi-btn--primary" data-vi-act="playerreport" data-vi="' + sel + '" type="button">▦ Create player report</button></div>'
+    : _viEmpty('👤', 'No tagged actions for this player yet', 'Assign this player to events in the Analysis Workspace. Their analysed minutes, successful/unsuccessful actions, clips and involvement build here from your real tags. Connected to the real Squad — no duplicate player data.');
+  return _viPanel('Player intelligence', 'Connected to your Squad', chips) + body;
+}
+function _viPlayerActions(pid, all) {
+  var rows = []; all.forEach(function (p) { (p.events || []).forEach(function (e) { if ((e.players || []).indexOf(pid) >= 0) rows.push({ p: p, e: e }); }); });
+  if (!rows.length) return '<p class="vi-muted">No actions tagged.</p>';
+  return '<div class="vi-tw"><table class="vi-table"><thead><tr><th>Time</th><th>Action</th><th>Outcome</th><th>Match</th></tr></thead><tbody>' + rows.slice(0, 40).map(function (r) { return '<tr><td>' + _viFmt(r.e.t0) + '</td><td><span class="vi-badge" style="background:rgba(' + _viCatColor(_viCatOf(r.e.type)) + ',.16);color:rgb(' + _viCatColor(_viCatOf(r.e.type)) + ')">' + _viEsc(r.e.type) + '</span></td><td>' + (r.e.success === 'success' ? '✓' : '✗') + '</td><td>' + _viEsc(r.p.opponent || r.p.title) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+}
+
+// ── 7. REPORTS ──
+function _viReports() {
+  var ps = _viProjects();
+  var reports = []; ps.forEach(function (p) { (p.reports || []).forEach(function (r) { reports.push({ p: p, r: r }); }); });
+  var types = ['Match Analysis Report', 'Team Tactical Report', 'Individual Player Report', 'Opposition Report', 'Set-Piece Report', 'Custom Report'];
+  var create = '<div class="vi-repnew">' + types.map(function (t) { return '<button class="vi-repnew-b" data-vi-act="newreport" data-vi="' + _viEsc(t) + '" type="button"><b>' + _viEsc(t) + '</b><span>Build from saved analysis data</span></button>'; }).join('') + '</div>';
+  var list = reports.length
+    ? '<div class="vi-tw"><table class="vi-table"><thead><tr><th>Report</th><th>Type</th><th>Match</th><th>Created</th><th></th></tr></thead><tbody>' + reports.sort(function (a, b) { return b.r.createdAt - a.r.createdAt; }).map(function (x) { return '<tr><td><b>' + _viEsc(x.r.title) + '</b></td><td>' + _viEsc(x.r.type) + '</td><td>' + _viEsc(x.p.opponent || x.p.title) + '</td><td>' + new Date(x.r.createdAt).toLocaleDateString() + '</td><td><button class="vi-link" data-vi-act="openreport" data-vi="' + x.p.id + ':' + x.r.id + '" type="button">Preview ›</button> <button class="vi-link" data-vi-act="printreport" data-vi="' + x.p.id + ':' + x.r.id + '" type="button">Print</button></td></tr>'; }).join('') + '</tbody></table></div>'
+    : _viEmpty('📄', 'No reports yet', 'Create a professional Familista report from any saved analysis. Reports pull real event statistics, clips, annotated frames and coach comments — nothing invented.');
+  return _viPanel('Create a report', 'Professional Familista reports', create) + _viPanel('Your reports', 'Saved drafts &amp; finals', list);
+}
+
+// ── 8. INTEGRATIONS ──
+function _viIntegrations() {
+  var cards = '<div class="vi-intgrid">' + VI_PROVIDERS.map(function (v) {
+    var tone = v.status === 'Available' ? 'ok' : v.status === 'Requires API Credentials' ? 'warn' : v.status === 'Not Connected' ? 'muted' : v.status === 'Unsupported' ? 'off' : 'plan';
+    return '<div class="vi-intcard vi-intcard--' + tone + '"><div class="vi-intcard-h"><b>' + _viEsc(v.name) + '</b><span class="vi-intstatus">' + v.status + '</span></div><p>' + _viEsc(v.note) + '</p>'
+      + (v.status === 'Available' && v.id === 'upload' ? '<button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="upload" type="button">Use file upload</button>' : (v.status === 'Available' && v.id === 'url' ? '<button class="vi-btn vi-btn--sm" data-vi-act="upload" type="button">Add video URL</button>' : '<button class="vi-btn vi-btn--sm" disabled>' + (v.status === 'Requires API Credentials' ? 'Add credentials' : 'Not available') + '</button>')) + '</div>';
+  }).join('') + '</div>';
+  var ai = _viPanel('AI Analysis <span class="vi-beta">Beta</span>', 'Honest status', _viEmpty('🤖', 'AI processing service not configured', 'Manual tagging is fully functional today. Automatic event suggestions, player/ball detection, team-colour separation, camera calibration and formation estimation run only when a real AI backend is connected — no detections or results are ever fabricated. Interfaces & jobs are prepared for later AI services.'));
+  return _viPanel('Camera &amp; video integrations', 'Real status only — no fake connections', cards) + ai;
+}
+
+// ── Modals ──
+function _viModalHtml() {
+  if (_VI.modal === 'upload') return _viUploadModal();
+  if (_VI.modal === 'rename') return _viRenameModal();
+  if (_VI.modal === 'report') return _viReportModal();
+  return '';
+}
+function _viUploadModal() {
+  var d = _VI.draft || {};
+  return '<div class="vi-modal-bg" data-vi-act="closemodal"></div><div class="vi-modal-box"><div class="vi-modal-h"><h3>Upload / attach match video</h3><button class="vi-modal-x" data-vi-act="closemodal" type="button">✕</button></div><div class="vi-modal-b">'
+    + '<div class="vi-drop"><input type="file" id="vi-file" accept="video/mp4,video/quicktime,video/webm" class="vi-file"><label for="vi-file" class="vi-drop-l"><b>Choose MP4 / MOV / WebM</b><span id="vi-file-name">' + (d.videoName ? _viEsc(d.videoName) : 'or drag a file here') + '</span></label></div>'
+    + '<div class="vi-or">or</div><label class="vi-fl">External video URL (MP4 / HLS)</label><input class="vi-input" id="vi-url" type="text" placeholder="https://…" value="' + _viEsc(d.videoUrl || '') + '">'
+    + '<div id="vi-uprog" class="vi-uprog" hidden><span class="vi-uprog-b"><i id="vi-uprog-i"></i></span><em id="vi-uprog-t">0%</em></div>'
+    + '<div class="vi-form2"><div><label class="vi-fl">Match title</label><input class="vi-input" id="vi-f-title" value="' + _viEsc(d.title || '') + '"></div>'
+    + '<div><label class="vi-fl">Our team</label><input class="vi-input" id="vi-f-our" value="' + _viEsc(d.ourTeam || (_viScope().club)) + '"></div>'
+    + '<div><label class="vi-fl">Opponent</label><input class="vi-input" id="vi-f-opp" value="' + _viEsc(d.opponent || '') + '"></div>'
+    + '<div><label class="vi-fl">Match date</label><input class="vi-input" id="vi-f-date" type="date" value="' + _viEsc(d.date || '') + '"></div>'
+    + '<div><label class="vi-fl">Competition</label><input class="vi-input" id="vi-f-comp" value="' + _viEsc(d.competition || '') + '"></div>'
+    + '<div><label class="vi-fl">Home / away</label><select class="vi-input" id="vi-f-ha"><option value="home"' + (d.homeAway === 'home' ? ' selected' : '') + '>Home</option><option value="away"' + (d.homeAway === 'away' ? ' selected' : '') + '>Away</option></select></div>'
+    + '<div><label class="vi-fl">Final score</label><input class="vi-input" id="vi-f-score" placeholder="2-1" value="' + _viEsc(d.score || '') + '"></div>'
+    + '<div><label class="vi-fl">Age group</label><input class="vi-input" id="vi-f-age" value="' + _viEsc(d.ageGroup || 'First Team') + '"></div>'
+    + '<div><label class="vi-fl">Analyst</label><input class="vi-input" id="vi-f-analyst" value="' + _viEsc(d.analyst || '') + '"></div>'
+    + '<div class="vi-form2-wide"><label class="vi-fl">Notes</label><textarea class="vi-input" id="vi-f-notes" rows="2">' + _viEsc(d.notes || '') + '</textarea></div></div>'
+    + '</div><div class="vi-modal-f"><button class="vi-btn" data-vi-act="closemodal" type="button">Cancel</button><button class="vi-btn vi-btn--primary" data-vi-act="createproject" type="button">Create analysis</button></div></div>';
+}
+function _viRenameModal() {
+  var p = _viProject(_VI.renameId); if (!p) return '';
+  return '<div class="vi-modal-bg" data-vi-act="closemodal"></div><div class="vi-modal-box vi-modal-box--sm"><div class="vi-modal-h"><h3>Rename analysis</h3><button class="vi-modal-x" data-vi-act="closemodal" type="button">✕</button></div><div class="vi-modal-b"><label class="vi-fl">Title</label><input class="vi-input" id="vi-rename" value="' + _viEsc(p.title) + '"></div><div class="vi-modal-f"><button class="vi-btn" data-vi-act="closemodal" type="button">Cancel</button><button class="vi-btn vi-btn--primary" data-vi-act="dorename" type="button">Save</button></div></div>';
+}
+function _viReportModal() {
+  var r = _VI.reportView; if (!r) return '';
+  var p = _viProject(r.pid); var rep = p && (p.reports || []).filter(function (x) { return x.id === r.rid; })[0]; if (!rep) return '';
+  return '<div class="vi-modal-bg" data-vi-act="closemodal"></div><div class="vi-modal-box vi-modal-box--lg" id="vi-report-print"><div class="vi-modal-h"><h3>' + _viEsc(rep.title) + '</h3><button class="vi-modal-x" data-vi-act="closemodal" type="button">✕</button></div><div class="vi-modal-b vi-report">' + _viReportBody(p, rep) + '</div><div class="vi-modal-f"><button class="vi-btn" data-vi-act="closemodal" type="button">Close</button><button class="vi-btn vi-btn--primary" data-vi-act="printreport" data-vi="' + p.id + ':' + rep.id + '" type="button">Print / PDF</button></div></div>';
+}
+function _viReportBody(p, rep) {
+  var ev = p.events || [];
+  var cntCat = {}; ev.forEach(function (e) { var c = _viCatOf(e.type); cntCat[c] = (cntCat[c] || 0) + 1; });
+  return '<div class="vi-rep-head"><div><h2>' + _viEsc(rep.type) + '</h2><p>' + _viEsc(p.ourTeam) + ' vs ' + _viEsc(p.opponent || '—') + ' · ' + _viEsc(p.competition || '') + ' · ' + _viEsc(p.date || '') + (p.score ? ' · ' + _viEsc(p.score) : '') + '</p></div><span class="vi-rep-brand">FAMILISTA · Video Intelligence</span></div>'
+    + '<div class="vi-rep-sec"><h4>Event statistics</h4><div class="vi-grid">' + Object.keys(VI_EVENTS).map(function (c) { return _viStat(c, cntCat[c] || 0, '', 'muted'); }).join('') + '</div></div>'
+    + '<div class="vi-rep-sec"><h4>Tagged events (' + ev.length + ')</h4>' + (ev.length ? '<div class="vi-tw"><table class="vi-table"><thead><tr><th>Time</th><th>Type</th><th>Players</th><th>Outcome</th></tr></thead><tbody>' + ev.slice(0, 60).map(function (e) { return '<tr><td>' + _viFmt(e.t0) + '</td><td>' + _viEsc(e.type) + '</td><td>' + (e.players || []).map(function (id) { return _viEsc(_viPlayerName(id).split(' ').pop()); }).join(', ') + '</td><td>' + (e.success === 'success' ? '✓' : '✗') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="vi-muted">No events tagged.</p>') + '</div>'
+    + '<div class="vi-rep-sec"><h4>Clips (' + (p.clips || []).length + ')</h4>' + ((p.clips || []).length ? '<ul class="vi-rep-clips">' + p.clips.map(function (c) { return '<li><b>' + _viEsc(c.name) + '</b> — ' + _viFmt(c.t0) + '–' + _viFmt(c.t1) + (c.notes ? ' · ' + _viEsc(c.notes) : '') + '</li>'; }).join('') + '</ul>' : '<p class="vi-muted">No clips.</p>') + '</div>'
+    + '<div class="vi-rep-sec"><h4>Coach comments</h4><p>' + (_viEsc(p.notes) || '<span class="vi-muted">—</span>') + '</p></div>';
+}
+
+// ── Reads from the live workspace inputs into the event draft ──
+function _viReadEvInputs() {
+  var d = _VI.evDraft = _VI.evDraft || { type: 'Pass', players: [], success: 'success', rating: 0 };
+  function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+  var ph = v('vi-ev-phase'); if (ph !== undefined) d.phase = ph;
+  var tg = v('vi-ev-tags'); if (tg !== undefined) d.tags = tg;
+  var nt = v('vi-ev-notes'); if (nt !== undefined) d.notes = nt;
+  return d;
+}
+function _viCurTime() { var v = document.getElementById('vi-video'); return v ? (v.currentTime || 0) : 0; }
+
+// ── Delegated interactions ──
+function _viBind() {
+  if (_viBound || typeof document === 'undefined') return; _viBound = true;
+  document.addEventListener('click', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-vi-act]'); if (!el) return;
+    var a = el.getAttribute('data-vi-act'), v = el.getAttribute('data-vi');
+    if (a === 'tab') { _VI.tab = v; _viRender(); if (v === 'workspace') setTimeout(_viWireVideo, 30); }
+    else if (a === 'upload') { _VI.draft = _VI.draft || {}; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); }
+    else if (a === 'newanalysis') { _VI.draft = {}; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); }
+    else if (a === 'closemodal') { _VI.modal = null; _viRenderModal(); }
+    else if (a === 'createproject') { _viDoCreate(); }
+    else if (a === 'open') { _VI.projectId = v; _VI.tab = 'workspace'; _VI.evDraft = null; _viRender(); setTimeout(_viWireVideo, 30); }
+    else if (a === 'attach') { _VI.draft = { attachTo: v }; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); }
+    else if (a === 'rename') { _VI.renameId = v; _VI.modal = 'rename'; _viRenderModal(); }
+    else if (a === 'dorename') { var p = _viProject(_VI.renameId); var i = document.getElementById('vi-rename'); if (p && i) { p.title = i.value || p.title; _viTouch(p); } _VI.modal = null; _viRender(); _viToast('Renamed'); }
+    else if (a === 'archive') { var pa = _viProject(v); if (pa) { pa.archived = !pa.archived; _viTouch(pa); } _viRender(); }
+    else if (a === 'delete') { if (window.confirm('Delete this analysis and its events/clips? This cannot be undone.')) { viDeleteProject(v); _viRender(); _viToast('Deleted'); } }
+    else if (a === 'libfilter') { var sel = el.value; _VI.libFilter = _VI.libFilter || {}; _VI.libFilter[v] = sel; _viRender(); }
+    else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; _viRenderWs(); }
+    else if (a === 'evplayer') { var d = _VI.evDraft = _viReadEvInputs(); d.players = d.players || []; var ix = d.players.indexOf(v); if (ix >= 0) d.players.splice(ix, 1); else d.players.push(v); _viRenderWs(); }
+    else if (a === 'evfield') { var parts = v.split(':'); _VI.evDraft = _viReadEvInputs(); _VI.evDraft[parts[0]] = parts[1]; _viRenderWs(); }
+    else if (a === 'evrate') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.rating = parseInt(v, 10) || 0; _viRenderWs(); }
+    else if (a === 'anntool') { _VI.annTool = (_VI.annTool === v ? null : v); _viRenderWs(); }
+    else if (a === 'annclear') { _viAnnClear(); }
+    else if (a === 'annsave') { _viAnnSaveFrame(); }
+    else if (a === 'vplay') { var vv = document.getElementById('vi-video'); if (vv) { if (vv.paused) vv.play(); else vv.pause(); } }
+    else if (a === 'vseek') { var vs = document.getElementById('vi-video'); if (vs) vs.currentTime = Math.max(0, vs.currentTime + (parseInt(v, 10) || 0) * (1 / 25)); }
+    else if (a === 'vspeed') { _viCycleSpeed(); }
+    else if (a === 'markin') { _VI.markIn = _viCurTime(); _viToast('In: ' + _viFmt(_VI.markIn)); }
+    else if (a === 'markout') { _VI.markOut = _viCurTime(); _viToast('Out: ' + _viFmt(_VI.markOut)); }
+    else if (a === 'addevent') { _viAddEvent(); }
+    else if (a === 'saveclip') { _viSaveClip(); }
+    else if (a === 'savews' || a === 'savews') { var pw = _viProject(_VI.projectId); if (pw) { _viTouch(pw); _viToast('Analysis saved'); } }
+    else if (a === 'seekevent') { _viSeekEvent(v); }
+    else if (a === 'seekclip') { _viSeekClip(v); }
+    else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
+    else if (a === 'playerreport') { _viCreatePlayerReport(v); }
+    else if (a === 'newreport') { _viCreateReport(v); }
+    else if (a === 'openreport') { var pr = v.split(':'); _VI.reportView = { pid: pr[0], rid: pr[1] }; _VI.modal = 'report'; _viRenderModal(); }
+    else if (a === 'printreport') { var pp = v.split(':'); _viPrintReport(pp[0], pp[1]); }
+    else if (a === 'livestart') { _viLiveStart(); }
+    else if (a === 'livestop') { _viLiveStop(); }
+    else if (a === 'liveclock') { _viLiveClock(v); }
+    else if (a === 'livesel') { _VI.live.player = (_VI.live.player === v ? null : v); _viRender(); }
+    else if (a === 'livetag') { _viLiveTag(v); }
+    else if (a === 'liveundo') { _viLiveUndo(); }
+  });
+  // live search (input)
+  document.addEventListener('input', function (e) {
+    var el = e.target; if (!el || !el.getAttribute) return;
+    if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
+  });
+}
+function _viRenderWs() { var body = document.getElementById('vi-body'); if (body && _VI.tab === 'workspace') { body.innerHTML = _viWorkspace(); setTimeout(_viWireVideo, 20); } }
+
+function _viDoCreate() {
+  var d = _VI.draft || {};
+  function v(id) { var e = document.getElementById(id); return e ? e.value : ''; }
+  var url = v('vi-url').trim();
+  var data = { title: v('vi-f-title') || (v('vi-f-opp') ? _viScope().club + ' vs ' + v('vi-f-opp') : 'New analysis'), ourTeam: v('vi-f-our'), opponent: v('vi-f-opp'), date: v('vi-f-date'), competition: v('vi-f-comp'), homeAway: v('vi-f-ha'), score: v('vi-f-score'), ageGroup: v('vi-f-age'), analyst: v('vi-f-analyst'), notes: v('vi-f-notes') };
+  var file = _VI.pendingFile;
+  if (file) {
+    var id = _viUid();
+    _viBlobPut(id, file, function (ok) {
+      if (!ok) { _viToast('Upload failed — file not stored'); return; }
+      data.video = { kind: 'file', blobId: id, name: file.name, size: file.size, type: file.type, duration: 0 };
+      _viFinishCreate(data);
+    });
+  } else if (url) {
+    data.video = { kind: 'url', url: url, name: url.split('/').pop(), duration: 0 };
+    _viFinishCreate(data);
+  } else {
+    _viFinishCreate(data); // project without video yet (awaiting-video) — honest, not pretending upload happened
+  }
+}
+function _viFinishCreate(data) {
+  var p;
+  if (_VI.draft && _VI.draft.attachTo) { p = _viProject(_VI.draft.attachTo); if (p) { p.video = data.video; p.status = data.video ? 'ready' : p.status; _viTouch(p); } }
+  else { p = viCreateProject(data); }
+  _VI.pendingFile = null; _VI.draft = null; _VI.modal = null; _VI.projectId = p ? p.id : null; _VI.tab = 'workspace'; _viRender(); setTimeout(_viWireVideo, 40);
+  _viToast(data.video ? 'Analysis created' : 'Analysis created (attach a video when ready)');
+}
+
+// video wiring — object URL from IndexedDB for file videos, time display, canvas sizing
+function _viWireVideo() {
+  var vid = document.getElementById('vi-video'); if (!vid) return;
+  var p = _viProject(_VI.projectId); if (!p || !p.video) { _viWireCanvas(); return; }
+  if (p.video.kind === 'file' && p.video.blobId && !vid.src) {
+    _viBlobGet(p.video.blobId, function (blob) { if (blob) { try { vid.src = URL.createObjectURL(blob); } catch (e) {} } });
+  }
+  vid.onloadedmetadata = function () { if (vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); var tl = document.getElementById('vi-timeline'); if (tl) tl.outerHTML = _viTimeline(p); } _viTimeDisp(); };
+  vid.ontimeupdate = function () { _viTimeDisp(); _viMovePlayheads(); };
+  _viTimeDisp(); _viWireCanvas();
+}
+function _viTimeDisp() { var vid = document.getElementById('vi-video'), t = document.getElementById('vi-time'); if (vid && t) t.textContent = _viFmt(vid.currentTime) + ' / ' + _viFmt(vid.duration || 0); }
+function _viMovePlayheads() { var vid = document.getElementById('vi-video'); if (!vid || !vid.duration) return; var pct = vid.currentTime / vid.duration * 100; ['Attacking', 'Defending', 'Transitions', 'Setpieces', 'Goalkeeper'].forEach(function (c) { var h = document.getElementById('vi-tl-head-' + c); if (h) h.style.left = pct + '%'; }); }
+function _viCycleSpeed() { var vid = document.getElementById('vi-video'), b = document.getElementById('vi-speed'); if (!vid) return; var seq = [1, 1.5, 2, 0.5, 0.25], i = (seq.indexOf(vid.playbackRate) + 1) % seq.length; vid.playbackRate = seq[i]; if (b) b.textContent = seq[i] + '×'; }
+
+// annotation canvas (drawn per-frame; saved with timestamp)
+function _viWireCanvas() {
+  var cv = document.getElementById('vi-canvas'), wrap = document.getElementById('vi-videowrap'); if (!cv || !wrap) return;
+  function size() { cv.width = wrap.clientWidth; cv.height = wrap.clientHeight; _viAnnRedraw(); }
+  size(); if (window.ResizeObserver && !cv._ro) { cv._ro = new ResizeObserver(size); cv._ro.observe(wrap); }
+  var ctx = cv.getContext('2d'); var start = null, path = null;
+  cv.onpointerdown = function (ev) { if (!_VI.annTool) return; var r = cv.getBoundingClientRect(); start = { x: ev.clientX - r.left, y: ev.clientY - r.top }; path = [start]; };
+  cv.onpointermove = function (ev) { if (!_VI.annTool || !start) return; var r = cv.getBoundingClientRect(); var cur = { x: ev.clientX - r.left, y: ev.clientY - r.top }; path.push(cur); _viAnnRedraw(); _viAnnDrawShape(ctx, _VI.annTool, start, cur, path); };
+  cv.onpointerup = function (ev) { if (!_VI.annTool || !start) { start = null; return; } var r = cv.getBoundingClientRect(); var end = { x: ev.clientX - r.left, y: ev.clientY - r.top }; _viAnnCommit(_VI.annTool, start, end, path); start = null; path = null; };
+}
+function _viAnnColor() { return '#38f5c8'; }
+function _viAnnDrawShape(ctx, tool, a, b, path) {
+  ctx.save(); ctx.strokeStyle = _viAnnColor(); ctx.fillStyle = 'rgba(56,245,200,.18)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  if (tool === 'circle') { var r = Math.hypot(b.x - a.x, b.y - a.y); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.283); ctx.stroke(); }
+  else if (tool === 'arrow') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); var ang = Math.atan2(b.y - a.y, b.x - a.x); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 12 * Math.cos(ang - 0.4), b.y - 12 * Math.sin(ang - 0.4)); ctx.lineTo(b.x - 12 * Math.cos(ang + 0.4), b.y - 12 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fillStyle = _viAnnColor(); ctx.fill(); }
+  else if (tool === 'line') { ctx.setLineDash([8, 5]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+  else if (tool === 'zone') { ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.fill(); ctx.stroke(); }
+  else if (tool === 'spotlight') { var rr = Math.hypot(b.x - a.x, b.y - a.y) || 40; ctx.save(); ctx.beginPath(); ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.arc(a.x, a.y, rr, 0, 6.283, true); ctx.fillStyle = 'rgba(4,10,18,.55)'; ctx.fill('evenodd'); ctx.restore(); }
+  else if (tool === 'connect') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; var dist = Math.round(Math.hypot(b.x - a.x, b.y - a.y) / 10); ctx.fillStyle = '#04121f'; ctx.fillRect(mx - 16, my - 9, 32, 16); ctx.fillStyle = _viAnnColor(); ctx.font = '11px Inter,Arial'; ctx.textAlign = 'center'; ctx.fillText('~' + dist + 'm', mx, my + 3); }
+  else if (tool === 'free') { ctx.beginPath(); (path || []).forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
+  ctx.restore();
+}
+function _viAnnCommit(tool, a, b, path) {
+  var p = _viProject(_VI.projectId); if (!p) return;
+  if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } p.annotations.push({ id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, w: 0, h: 0, label: String(txt).slice(0, 200), color: _viAnnColor(), dur: 3 }); }
+  else { p.annotations.push({ id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), dur: 3 }); }
+  _viTouch(p); _viAnnRedraw();
+}
+function _viAnnClear() { var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime(); p.annotations = (p.annotations || []).filter(function (an) { return Math.abs(an.t - t) > 0.6; }); _viTouch(p); _viAnnRedraw(); }
+function _viAnnRedraw() {
+  var cv = document.getElementById('vi-canvas'); if (!cv) return; var ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
+  (p.annotations || []).forEach(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return; if (an.kind === 'text') { ctx.save(); ctx.font = '600 14px Inter,Arial'; var w = ctx.measureText(an.label).width + 14; ctx.fillStyle = 'rgba(4,12,20,.8)'; ctx.fillRect(an.x, an.y - 16, w, 22); ctx.fillStyle = an.color; ctx.fillText(an.label, an.x + 7, an.y); ctx.restore(); } else { _viAnnDrawShape(ctx, an.kind, { x: an.x, y: an.y }, { x: an.x2, y: an.y2 }, an.path); } });
+}
+function _viAnnSaveFrame() {
+  var cv = document.getElementById('vi-canvas'), vid = document.getElementById('vi-video'); if (!cv || !vid) return;
+  try { var out = document.createElement('canvas'); out.width = cv.width; out.height = cv.height; var c = out.getContext('2d'); c.drawImage(vid, 0, 0, out.width, out.height); c.drawImage(cv, 0, 0); var a = document.createElement('a'); a.download = 'familista-frame-' + _viFmt(vid.currentTime).replace(':', 'm') + 's.png'; a.href = out.toDataURL('image/png'); a.click(); _viToast('Frame saved'); } catch (e) { _viToast('Could not export frame (video CORS)'); }
+}
+
+function _viAddEvent() {
+  var p = _viProject(_VI.projectId); if (!p) { _viToast('Open an analysis first'); return; }
+  var d = _viReadEvInputs();
+  var t = _viCurTime();
+  var ev = { id: _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t, success: d.success || 'success', phase: d.phase || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || '') };
+  p.events.push(ev); _viTouch(p);
+  _VI.evDraft = { type: d.type, players: [], success: 'success', rating: 0, phase: d.phase };
+  _viRenderWs(); _viToast('Event tagged: ' + ev.type + ' @ ' + _viFmt(t));
+}
+function _viSaveClip() {
+  var p = _viProject(_VI.projectId); if (!p) return;
+  var t0 = _VI.markIn != null ? _VI.markIn : Math.max(0, _viCurTime() - 4), t1 = _VI.markOut != null ? _VI.markOut : _viCurTime() + 4;
+  if (t1 <= t0) t1 = t0 + 6;
+  var name = window.prompt('Clip name:', 'Clip ' + ((p.clips || []).length + 1)); if (name === null) return;
+  var d = _VI.evDraft || {};
+  p.clips.push({ id: _viUid(), name: name || ('Clip ' + (p.clips.length + 1)), t0: t0, t1: t1, pre: 0, post: 0, players: (d.players || []).slice(), cat: d.type ? _viCatOf(d.type) : '', notes: '', playlist: '' });
+  _VI.markIn = null; _VI.markOut = null; _viTouch(p); _viRenderWs(); _viToast('Clip saved (timestamps — server-side render pending)');
+}
+function _viSeekEvent(id) { var p = _viProject(_VI.projectId); if (!p) return; var e = (p.events || []).filter(function (x) { return x.id === id; })[0]; var v = document.getElementById('vi-video'); if (e && v) { v.currentTime = e.t0; v.pause(); } }
+function _viSeekClip(id) { var p = _viProject(_VI.projectId); if (!p) return; var c = (p.clips || []).filter(function (x) { return x.id === id; })[0]; var v = document.getElementById('vi-video'); if (c && v) { v.currentTime = c.t0; v.play(); } }
+
+// reports
+function _viCreateReport(type) { var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0]; if (!p) { _viToast('Create an analysis first'); return; } var rep = { id: _viUid(), type: type, title: type + ' — ' + (p.opponent || p.title), createdAt: Date.now(), sections: [] }; p.reports = p.reports || []; p.reports.push(rep); _viTouch(p); _VI.reportView = { pid: p.id, rid: rep.id }; _VI.modal = 'report'; _viRender(); _viRenderModal(); _viToast('Report created from real analysis data'); }
+function _viCreatePlayerReport(pid) { var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0]; if (!p) return; var rep = { id: _viUid(), type: 'Individual Player Report', title: 'Player report — ' + _viPlayerName(pid), createdAt: Date.now(), player: pid, sections: [] }; p.reports = p.reports || []; p.reports.push(rep); _viTouch(p); _VI.reportView = { pid: p.id, rid: rep.id }; _VI.modal = 'report'; _VI.tab = 'reports'; _viRender(); _viRenderModal(); }
+function _viPrintReport(pid, rid) { var p = _viProject(pid); var rep = p && (p.reports || []).filter(function (x) { return x.id === rid; })[0]; if (!rep) return; try { var w = window.open('', '_blank'); w.document.write('<html><head><title>' + _viEsc(rep.title) + '</title><style>body{font-family:Inter,Arial,sans-serif;padding:28px;color:#111}h2{margin:0}table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left}.b{color:#0aa}</style></head><body>' + _viReportBody(p, rep).replace(/vi-[a-z-]+/g, '') + '</body></html>'); w.document.close(); setTimeout(function () { try { w.print(); } catch (e) {} }, 300); } catch (e) { _viToast('Popup blocked'); } }
+
+// live tagging
+function _viLiveStart() { var p = _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0]; if (!p) { p = viCreateProject({ title: 'Live session ' + new Date().toLocaleDateString() }); } _VI.live = { projectId: p.id, clock: 0, half: 1, running: false, player: null, timer: null }; _viRender(); }
+function _viLiveStop() { if (_VI.live && _VI.live.timer) clearInterval(_VI.live.timer); _VI.live = null; _viRender(); _viToast('Live session ended'); }
+function _viLiveClock(cmd) { var lv = _VI.live; if (!lv) return; if (cmd === 'toggle') { lv.running = !lv.running; if (lv.running) { lv.timer = setInterval(function () { lv.clock++; var c = document.getElementById('vi-live-clock'); if (c) c.textContent = _viFmt(lv.clock) + ' · ' + (lv.half === 2 ? '2nd half' : '1st half'); }, 1000); } else if (lv.timer) { clearInterval(lv.timer); lv.timer = null; } } else if (cmd === 'half') { lv.half = lv.half === 1 ? 2 : 1; } _viRender(); }
+function _viLiveTag(type) { var lv = _VI.live; if (!lv) return; var p = _viProject(lv.projectId); if (!p) return; var ev = { id: _viUid(), type: type, team: 'ours', players: lv.player ? [lv.player] : [], t0: lv.clock, t1: lv.clock, success: 'success', phase: '', rating: 0, tags: [], notes: '', live: true }; p.events.push(ev); _viTouch(p); _viRender(); }
+function _viLiveUndo() { var lv = _VI.live; if (!lv) return; var p = _viProject(lv.projectId); if (!p || !p.events.length) return; var last = p.events[p.events.length - 1]; if (last && last.live) { p.events.pop(); _viTouch(p); _viRender(); _viToast('Undone'); } }
+
+// upload modal wiring (file input + drag + URL)
+function _viWireUpload() {
+  var inp = document.getElementById('vi-file'); if (!inp) return;
+  inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; if (!/video\/(mp4|quicktime|webm)/.test(f.type) && !/\.(mp4|mov|webm)$/i.test(f.name)) { _viToast('Unsupported file type'); return; } if (f.size > 800 * 1024 * 1024) { _viToast('File too large (max 800MB in local mode)'); return; } _VI.pendingFile = f; var n = document.getElementById('vi-file-name'); if (n) n.textContent = f.name + ' (' + Math.round(f.size / 1048576) + ' MB)'; var pr = document.getElementById('vi-uprog'); if (pr) { pr.hidden = false; var i = document.getElementById('vi-uprog-i'), tt = document.getElementById('vi-uprog-t'); var pct = 0; var iv = setInterval(function () { pct = Math.min(100, pct + 20); if (i) i.style.width = pct + '%'; if (tt) tt.textContent = pct + '%'; if (pct >= 100) { clearInterval(iv); if (tt) tt.textContent = 'Ready'; } }, 60); } };
+  var drop = document.querySelector('.vi-drop'); if (drop) { drop.ondragover = function (e) { e.preventDefault(); drop.classList.add('is-over'); }; drop.ondragleave = function () { drop.classList.remove('is-over'); }; drop.ondrop = function (e) { e.preventDefault(); drop.classList.remove('is-over'); if (e.dataTransfer && e.dataTransfer.files[0]) { inp.files = e.dataTransfer.files; inp.onchange(); } }; }
+}
