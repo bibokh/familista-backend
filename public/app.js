@@ -977,13 +977,13 @@ function _updateTopbarBack(page) {
 (function () {
   function onPopState(e) {
     var page = (e && e.state && e.state.page) ||
-               (location.hash || '').replace(/^#/, '') ||
+               (location.hash || '').replace(/^#/, '').split(/[\/?]/)[0] ||
                'owner-home';
     try { navTo(page, null, { fromPopState: true }); } catch (_) {}
   }
   function initHash() {
     try {
-      var hashPage = (location.hash || '').replace(/^#/, '');
+      var hashPage = (location.hash || '').replace(/^#/, '').split(/[\/?]/)[0];
       if (hashPage) {
         // Deep-link arrived; route to it (also runs through the
         // allow-list guard inside navTo).
@@ -43461,15 +43461,64 @@ var _viBound = false;
 
 function renderVideoIntelligenceHTML() {
   _viLoad();
-  if (typeof document !== 'undefined') { setTimeout(function () { try { _viBind(); } catch (e) {} }, 0); }
+  if (!_VI.projectId) { try { _viRestoreOpen(); } catch (e) {} }
+  if (typeof document !== 'undefined') { setTimeout(function () { try { _viBind(); if (_VI.tab === 'workspace') _viWireVideo(); } catch (e) {} }, 0); }
   return '<div class="page" id="pg-video-intelligence"><div class="vi-root" id="vi-root">' + _viInner() + '</div><div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div></div>';
 }
 function _viInner() {
-  return _viHead() + _viTabNav() + '<div class="vi-body" id="vi-body">' + _viSectionHtml(_VI.tab) + '</div>';
+  var body;
+  try { body = _viSectionHtml(_VI.tab); }
+  catch (e) { body = _viErrorBox('This view could not be loaded', String(e && e.message || e)); }
+  return _viHead() + _viTabNav() + '<div class="vi-body" id="vi-body">' + body + '</div>';
 }
 function _viRender() { if (typeof document === 'undefined') return; var r = document.getElementById('vi-root'); if (r) r.innerHTML = _viInner() + '<div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div>'; }
 function _viRenderModal() { var m = document.getElementById('vi-modal'); if (m) { m.innerHTML = _viModalHtml(); m.hidden = !_VI.modal; } }
 function _viToast(msg) { try { if (typeof showToast === 'function') showToast(msg, 'success'); } catch (e) {} }
+function _viErrorBox(title, msg) { return '<div class="vi-errbox"><span class="vi-errbox-ic">⚠️</span><b>' + _viEsc(title) + '</b><p>' + _viEsc(msg || '') + '</p><button class="vi-btn vi-btn--sm" data-vi-act="tab" data-vi="library" type="button">← Back to Video Library</button></div>'; }
+
+// ── Durable open-analysis selection (survives refresh; not transient) ──
+// The opened analysis is persisted per-club in localStorage AND reflected in
+// the URL hash (#video-intelligence/analysis/<id>) so a reload re-opens the
+// exact same VideoAnalysisProject by its persisted id — never by index/title.
+function _viOpenKey() { return 'familista.video.open.' + (_viScope().club || 'default'); }
+function _viPersistOpen() {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    if (_VI.projectId) window.localStorage.setItem(_viOpenKey(), JSON.stringify({ projectId: _VI.projectId, tab: _VI.tab || 'workspace', at: Date.now() }));
+    else window.localStorage.removeItem(_viOpenKey());
+  } catch (e) {}
+}
+function _viHashId() { try { var m = (location.hash || '').match(/analysis\/([A-Za-z0-9_]+)/); return m ? m[1] : null; } catch (e) { return null; } }
+function _viSetHash(id) {
+  try {
+    if (typeof history === 'undefined' || !history.replaceState) return;
+    history.replaceState({ page: 'video-intelligence' }, '', '#video-intelligence' + (id ? '/analysis/' + id : ''));
+  } catch (e) {}
+}
+function _viRestoreOpen() {
+  // URL deep-link wins; else the durable per-club pointer.
+  var id = _viHashId(), tab = null;
+  if (!id) { try { var raw = window.localStorage.getItem(_viOpenKey()); if (raw) { var o = JSON.parse(raw); if (o && o.projectId) { id = o.projectId; tab = o.tab; } } } catch (e) {} }
+  if (id && _viProject(id)) { _VI.projectId = id; if (!_VI.tab || _VI.tab === 'overview') _VI.tab = tab || 'workspace'; _VI.openError = null; }
+}
+// Robust "Open analysis": resolves the persisted id, switches to the workspace,
+// persists + deep-links the selection, and never silently stays on the Library.
+function _viOpenAnalysis(id) {
+  _VI.evDraft = null;
+  var p = id ? _viProject(id) : null;
+  if (!p) { _VI.projectId = id || null; _VI.tab = 'workspace'; _VI.openError = 'Analysis not found for id "' + String(id || '') + '". It may have been deleted or was created in a different club workspace.'; _viRender(); return; }
+  _VI.openError = null;
+  _VI.projectId = p.id;
+  _VI.tab = 'workspace';
+  _viPersistOpen();
+  _viSetHash(p.id);
+  _viRender();
+  setTimeout(function () { try { _viWireVideo(); } catch (e) {} try { var ws = document.getElementById('vi-ws'); if (ws && ws.scrollIntoView) ws.scrollIntoView({ block: 'nearest' }); } catch (e) {} }, 30);
+}
+// Match-title / matchup helpers — show saved data cleanly; never invent an opponent.
+function _viMatchTitle(p) { var t = (p.title || '').replace(/\s*vs\.?\s*(—|–|-)?\s*$/i, '').trim(); return t || (p.ourTeam || 'Match analysis'); }
+function _viMatchup(p) { var our = _viEsc(p.ourTeam || _viScope().club || ''); return p.opponent ? our + ' vs ' + _viEsc(p.opponent) : our + ' · <span class="vi-na">Opponent not provided</span>'; }
+function _viHA(p) { return p.homeAway === 'away' ? 'Away' : p.homeAway === 'home' ? 'Home' : ''; }
 
 function _viHead() {
   return '<div class="vi-head"><div class="vi-head-l">'
@@ -43562,8 +43611,8 @@ function _viLibrary() {
   var grid = list.length
     ? '<div class="vi-vidgrid">' + list.map(function (p) {
       return '<div class="vi-vidcard"><div class="vi-vidthumb"><span class="vi-vidthumb-ic">' + (p.video ? '▶' : '🎬') + '</span><span class="vi-vidcat">' + _viEsc(p.competition || 'Match') + '</span></div>'
-        + '<div class="vi-vidcard-b"><b class="vi-vidcard-t">' + _viEsc(p.title) + '</b><span class="vi-vidcard-m">' + _viEsc(p.ourTeam || '') + ' vs ' + _viEsc(p.opponent || '—') + (p.score ? ' · ' + _viEsc(p.score) : '') + '</span>'
-        + '<span class="vi-vidcard-m2">' + _viEsc(p.date || '') + (p.homeAway ? ' · ' + p.homeAway : '') + ' · <span class="vi-badge vi-badge--' + (p.status === 'completed' ? 'ok' : p.video ? 'work' : 'wait') + '">' + _viStatusLabel(p) + '</span></span>'
+        + '<div class="vi-vidcard-b"><b class="vi-vidcard-t">' + _viEsc(_viMatchTitle(p)) + '</b><span class="vi-vidcard-m">' + _viMatchup(p) + (p.score ? ' · ' + _viEsc(p.score) : '') + '</span>'
+        + '<span class="vi-vidcard-m2">' + (p.date ? _viEsc(p.date) : '<span class="vi-na">Date not provided</span>') + (_viHA(p) ? ' · ' + _viHA(p) : '') + ' · <span class="vi-badge vi-badge--' + (p.status === 'completed' ? 'ok' : p.video ? 'work' : 'wait') + '">' + _viStatusLabel(p) + '</span>' + (p.video ? '' : ' · <span class="vi-na">Video not linked</span>') + '</span>'
         + '<div class="vi-vidcard-acts"><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="open" data-vi="' + p.id + '" type="button">Open analysis</button>'
         + '<button class="vi-btn vi-btn--sm" data-vi-act="rename" data-vi="' + p.id + '" type="button">Rename</button>'
         + '<button class="vi-btn vi-btn--sm" data-vi-act="archive" data-vi="' + p.id + '" type="button">Archive</button>'
@@ -43576,16 +43625,21 @@ function _viStatusKey(p) { return p.status === 'completed' ? 'completed' : p.vid
 
 // ── 3. ANALYSIS WORKSPACE ──
 function _viWorkspace() {
+  // A real "not found" (deleted / wrong club) must never silently fall back to
+  // the Library or to an unrelated most-recent project.
+  if (_VI.openError && !_viProject(_VI.projectId)) {
+    return _viEmpty('⚠️', 'Analysis not found', _VI.openError) + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="tab" data-vi="library" type="button">← Back to Video Library</button></div>';
+  }
   var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
   if (!p) return _viEmpty('🎞️', 'No analysis open', 'Create or open an analysis from the Video Library. The workspace gives you a video player, tactical annotations, event tagging and a timeline in one screen.') + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="newanalysis" type="button">✚ Start new analysis</button></div>';
   _VI.projectId = p.id;
   var vid = p.video
     ? '<video class="vi-video" id="vi-video" ' + (p.video.kind === 'url' ? 'src="' + _viEsc(p.video.url) + '"' : '') + ' controls preload="metadata" crossorigin="anonymous"></video>'
-    : '<div class="vi-video vi-video--none"><b>No video attached</b><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Attach a video</button></div>';
+    : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. It may have been created before a video was attached, or the stored file isn’t available on this device. Reattach a video to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach a video</button></div>';
   var players = _viPlayers();
   // LEFT
   var left = '<div class="vi-ws-panel vi-ws-l">'
-    + '<div class="vi-ws-sec"><h4>Match</h4><div class="vi-ws-match"><b>' + _viEsc(p.title) + '</b><span>' + _viEsc(p.ourTeam || '') + ' vs ' + _viEsc(p.opponent || '—') + '</span><span>' + _viEsc(p.competition || '') + ' · ' + _viEsc(p.date || '') + '</span></div></div>'
+    + '<div class="vi-ws-sec"><h4>Match</h4><div class="vi-ws-match"><b>' + _viEsc(_viMatchTitle(p)) + '</b><span>' + _viMatchup(p) + '</span><span>' + (p.competition ? _viEsc(p.competition) + ' · ' : '') + (p.date ? _viEsc(p.date) : '<span class="vi-na">Date not provided</span>') + '</span></div></div>'
     + '<div class="vi-ws-sec"><h4>Player roster <i>(' + players.length + ')</i></h4><div class="vi-roster">' + players.slice(0, 26).map(function (pl) { return '<button class="vi-roster-p' + (((_VI.evDraft || {}).players || []).indexOf(pl.id) >= 0 ? ' is-on' : '') + '" data-vi-act="evplayer" data-vi="' + pl.id + '" type="button"><em>' + (pl.num || '') + '</em>' + _viEsc((pl.name || '').split(' ').pop()) + '</button>'; }).join('') + '</div></div>'
     + '<div class="vi-ws-sec"><h4>Event categories</h4><div class="vi-cats">' + Object.keys(VI_EVENTS).map(function (c) { return '<div class="vi-cat" style="--c:' + VI_EVENTS[c].color + '"><span class="vi-cat-h">' + c + '</span><div class="vi-cat-t">' + VI_EVENTS[c].types.map(function (t) { return '<button class="vi-chip-ev" data-vi-act="evtype" data-vi="' + _viEsc(t) + '" type="button">' + _viEsc(t) + '</button>'; }).join('') + '</div></div>'; }).join('') + '</div></div>'
     + '<div class="vi-ws-sec"><h4>Saved clips <i>(' + (p.clips || []).length + ')</i></h4>' + ((p.clips || []).length ? '<div class="vi-cliplist">' + p.clips.map(function (c) { return '<button class="vi-clip-i" data-vi-act="seekclip" data-vi="' + c.id + '" type="button"><b>' + _viEsc(c.name) + '</b><i>' + _viFmt(c.t0) + '–' + _viFmt(c.t1) + '</i></button>'; }).join('') + '</div>' : '<p class="vi-muted">No clips yet — mark in/out on the timeline.</p>') + '</div>';
@@ -43785,12 +43839,12 @@ function _viBind() {
     else if (a === 'newanalysis') { _VI.draft = {}; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); }
     else if (a === 'closemodal') { _VI.modal = null; _viRenderModal(); }
     else if (a === 'createproject') { _viDoCreate(); }
-    else if (a === 'open') { _VI.projectId = v; _VI.tab = 'workspace'; _VI.evDraft = null; _viRender(); setTimeout(_viWireVideo, 30); }
+    else if (a === 'open') { _viOpenAnalysis(v); }
     else if (a === 'attach') { _VI.draft = { attachTo: v }; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); }
     else if (a === 'rename') { _VI.renameId = v; _VI.modal = 'rename'; _viRenderModal(); }
     else if (a === 'dorename') { var p = _viProject(_VI.renameId); var i = document.getElementById('vi-rename'); if (p && i) { p.title = i.value || p.title; _viTouch(p); } _VI.modal = null; _viRender(); _viToast('Renamed'); }
     else if (a === 'archive') { var pa = _viProject(v); if (pa) { pa.archived = !pa.archived; _viTouch(pa); } _viRender(); }
-    else if (a === 'delete') { if (window.confirm('Delete this analysis and its events/clips? This cannot be undone.')) { viDeleteProject(v); _viRender(); _viToast('Deleted'); } }
+    else if (a === 'delete') { var dp = _viProject(v); if (window.confirm('Delete “' + (dp ? _viMatchTitle(dp) : 'this analysis') + '”?\nThis permanently removes the analysis and its events, annotations and clips. This cannot be undone.')) { viDeleteProject(v); if (v === _VI.projectId) { _VI.projectId = null; _VI.openError = null; _viPersistOpen(); _viSetHash(null); } _viRender(); _viToast('Deleted'); } }
     else if (a === 'libfilter') { var sel = el.value; _VI.libFilter = _VI.libFilter || {}; _VI.libFilter[v] = sel; _viRender(); }
     else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; _viRenderWs(); }
     else if (a === 'evplayer') { var d = _VI.evDraft = _viReadEvInputs(); d.players = d.players || []; var ix = d.players.indexOf(v); if (ix >= 0) d.players.splice(ix, 1); else d.players.push(v); _viRenderWs(); }
@@ -43827,7 +43881,7 @@ function _viBind() {
     if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
   });
 }
-function _viRenderWs() { var body = document.getElementById('vi-body'); if (body && _VI.tab === 'workspace') { body.innerHTML = _viWorkspace(); setTimeout(_viWireVideo, 20); } }
+function _viRenderWs() { var body = document.getElementById('vi-body'); if (body && _VI.tab === 'workspace') { try { body.innerHTML = _viWorkspace(); } catch (e) { body.innerHTML = _viErrorBox('The workspace could not be loaded', String(e && e.message || e)); } setTimeout(_viWireVideo, 20); } }
 
 function _viDoCreate() {
   var d = _VI.draft || {};
@@ -43853,7 +43907,7 @@ function _viFinishCreate(data) {
   var p;
   if (_VI.draft && _VI.draft.attachTo) { p = _viProject(_VI.draft.attachTo); if (p) { p.video = data.video; p.status = data.video ? 'ready' : p.status; _viTouch(p); } }
   else { p = viCreateProject(data); }
-  _VI.pendingFile = null; _VI.draft = null; _VI.modal = null; _VI.projectId = p ? p.id : null; _VI.tab = 'workspace'; _viRender(); setTimeout(_viWireVideo, 40);
+  _VI.pendingFile = null; _VI.draft = null; _VI.modal = null; _VI.projectId = p ? p.id : null; _VI.tab = 'workspace'; _VI.openError = null; if (p) { _viPersistOpen(); _viSetHash(p.id); } _viRender(); setTimeout(_viWireVideo, 40);
   _viToast(data.video ? 'Analysis created' : 'Analysis created (attach a video when ready)');
 }
 
@@ -43862,11 +43916,17 @@ function _viWireVideo() {
   var vid = document.getElementById('vi-video'); if (!vid) return;
   var p = _viProject(_VI.projectId); if (!p || !p.video) { _viWireCanvas(); return; }
   if (p.video.kind === 'file' && p.video.blobId && !vid.src) {
-    _viBlobGet(p.video.blobId, function (blob) { if (blob) { try { vid.src = URL.createObjectURL(blob); } catch (e) {} } });
+    _viBlobGet(p.video.blobId, function (blob) { if (blob) { try { vid.src = URL.createObjectURL(blob); } catch (e) { _viVideoUnavailable(p); } } else { _viVideoUnavailable(p); } });
   }
   vid.onloadedmetadata = function () { if (vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); var tl = document.getElementById('vi-timeline'); if (tl) tl.outerHTML = _viTimeline(p); } _viTimeDisp(); };
   vid.ontimeupdate = function () { _viTimeDisp(); _viMovePlayheads(); };
   _viTimeDisp(); _viWireCanvas();
+}
+function _viVideoUnavailable(p) {
+  var wrap = document.getElementById('vi-videowrap'); if (!wrap || wrap.querySelector('.vi-video-missing')) return;
+  var note = document.createElement('div'); note.className = 'vi-video-missing';
+  note.innerHTML = '<b>Video file not available on this device</b><span>The stored file for this analysis isn’t present here (it may have been uploaded on another device or cleared from local storage). All your tags, clips and reports are safe — reattach the video to keep working.</span><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + (p ? p.id : '') + '" type="button">Reattach a video</button>';
+  wrap.appendChild(note);
 }
 function _viTimeDisp() { var vid = document.getElementById('vi-video'), t = document.getElementById('vi-time'); if (vid && t) t.textContent = _viFmt(vid.currentTime) + ' / ' + _viFmt(vid.duration || 0); }
 function _viMovePlayheads() { var vid = document.getElementById('vi-video'); if (!vid || !vid.duration) return; var pct = vid.currentTime / vid.duration * 100; ['Attacking', 'Defending', 'Transitions', 'Setpieces', 'Goalkeeper'].forEach(function (c) { var h = document.getElementById('vi-tl-head-' + c); if (h) h.style.left = pct + '%'; }); }
