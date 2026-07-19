@@ -44185,11 +44185,16 @@ function _viwLayersTab(p) {
 
 /* ---------- CENTER: video stage + transport + seek bar ---------- */
 function _viwCenter(p, vidHtml) {
-  return '<section class="viw-center"><div class="viw-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div></div>' + _viwSeekbar() + _viwTransport(p) + '</section>';
+  return '<section class="viw-center"><div class="viw-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div></div>' + _viwSeekbar(p) + _viwTransport(p) + '</section>';
 }
-function _viwSeekbar() {
-  return '<div class="viw-seek" id="viw-seek" data-viw-act="seekbar"><div class="viw-seek-buf" id="viw-seek-buf"></div><div class="viw-seek-fill" id="viw-seek-fill"></div><div class="viw-seek-in" id="viw-seek-in" hidden></div><div class="viw-seek-out" id="viw-seek-out" hidden></div><div class="viw-seek-head" id="viw-seek-head"></div><div class="viw-seek-tip" id="viw-seek-tip" hidden></div></div>';
+function _viwSeekTicksHtml(p) {
+  var dur = _viwDur(); if (!dur) return '';
+  return (p.events || []).map(function (e) { var l = (e.t0 / dur) * 100; if (l < 0 || l > 100) return ''; return '<span class="viw-seek-tick" style="left:' + l.toFixed(3) + '%;--c:' + VI_EVENTS[_viCatOf(e.type)].color + '"></span>'; }).join('');
 }
+function _viwSeekbar(p) {
+  return '<div class="viw-seek" id="viw-seek" data-viw-act="seekbar"><div class="viw-seek-buf" id="viw-seek-buf"></div><div class="viw-seek-fill" id="viw-seek-fill"></div><div class="viw-seek-ticks" id="viw-seek-ticks">' + _viwSeekTicksHtml(p) + '</div><div class="viw-seek-in" id="viw-seek-in" hidden></div><div class="viw-seek-out" id="viw-seek-out" hidden></div><div class="viw-seek-head" id="viw-seek-head"></div><div class="viw-seek-tip" id="viw-seek-tip" hidden></div></div>';
+}
+function _viwRefreshSeekTicks() { var el = document.getElementById('viw-seek-ticks'); var p = _viProject(_VI.projectId); if (el && p) el.innerHTML = _viwSeekTicksHtml(p); }
 function _viwTransport(p) {
   function b(act, dv, label, title, cls) { return '<button class="viw-tp' + (cls ? ' ' + cls : '') + '" data-viw-act="' + act + '"' + (dv != null ? ' data-viw="' + dv + '"' : '') + ' title="' + title + '" type="button">' + label + '</button>'; }
   var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -44330,6 +44335,7 @@ function _viwSyncTransport() {
   var mute = document.getElementById('viw-mute'); if (mute) mute.textContent = v.muted || v.volume === 0 ? '🔇' : '🔊';
   var vol = document.getElementById('viw-vol'); if (vol) vol.value = v.muted ? 0 : v.volume;
   var play = document.querySelector('.viw-tp--play'); if (play) play.textContent = v.paused ? '▶' : '⏸';
+  if (typeof _viwRefreshSeekTicks === 'function') _viwRefreshSeekTicks();
 }
 function _viwSeekTo(t, keepPlaying) {
   var v = _viwVid(); if (!v) return;
@@ -44588,7 +44594,7 @@ function _viAddEvent() {
   p.events.push(ev); _viTouch(p);
   _VI.ws.recentE = ([ev.type].concat((_VI.ws.recentE || []).filter(function (x) { return x !== ev.type; }))).slice(0, 8);
   _VI.evDraft = { type: d.type, players: [], success: 'success', rating: 0, phase: d.phase, dur: 0 };
-  _viwUpdateTimeline(); _viwUpdateInspector(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft();
+  _viwUpdateTimeline(); _viwUpdateInspector(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft();
   _viwAutosave('saved'); _viToast('Event tagged: ' + ev.type + ' @ ' + _viFmt(t));
 }
 function _viSaveClip() {
