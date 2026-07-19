@@ -44279,11 +44279,26 @@ function _viwTimeline(p) {
 function _viwWire() {
   var wrap = document.getElementById('viw'); if (!wrap) return;
   _viwWireSeek(); _viwWireTimeline(); _viwWireResizers(); _viwKeys();
-  _viwSyncTransport();
+  _viwSyncTransport(); _viwFit();
+  if (!_viwFitBound && typeof window !== 'undefined') { _viwFitBound = true; window.addEventListener('resize', function () { if (_VI.ws) { clearTimeout(_VI.ws._fitt); _VI.ws._fitt = setTimeout(_viwFit, 120); } }); }
   if (!_VI.ws._raf) { _VI.ws._raf = true; _viwRaf(); }
   var undo = document.getElementById('viw-undo'), redo = document.getElementById('viw-redo');
   if (undo) undo.disabled = !(_VI.ws.undo && _VI.ws.undo.length);
   if (redo) redo.disabled = !(_VI.ws.redo && _VI.ws.redo.length);
+}
+var _viwFitBound = false;
+// Size the workspace grid so the video stage + pro timeline fit the viewport
+// exactly (no full-page scroll), measuring the real top offset regardless of
+// the surrounding chrome. Skips the stacked responsive layout (<=1200px).
+function _viwFit() {
+  if (_VI.ws && _VI.ws.maximized) return;
+  var viw = document.getElementById('viw'), tl = document.getElementById('viw-tl');
+  if (!viw || !tl || typeof window === 'undefined') return;
+  if (window.innerWidth <= 1200) { viw.style.height = ''; return; }
+  var top = viw.getBoundingClientRect().top;
+  var tlH = tl.getBoundingClientRect().height;
+  var avail = window.innerHeight - top - tlH - 22;
+  viw.style.height = (avail > 340 ? avail : 340) + 'px';
 }
 function _viwRaf() {
   var v = _viwVid(), wrap = document.getElementById('viw');
