@@ -43633,9 +43633,12 @@ function _viWorkspace() {
   var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
   if (!p) return _viEmpty('🎞️', 'No analysis open', 'Create or open an analysis from the Video Library. The workspace gives you a video player, tactical annotations, event tagging and a timeline in one screen.') + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="newanalysis" type="button">✚ Start new analysis</button></div>';
   _VI.projectId = p.id;
+  // The central stage ALWAYS renders one honest state. src is set in
+  // _viWireVideo (after error/metadata handlers attach) to avoid a load race.
   var vid = p.video
-    ? '<video class="vi-video" id="vi-video" ' + (p.video.kind === 'url' ? 'src="' + _viEsc(p.video.url) + '"' : '') + ' controls preload="metadata" crossorigin="anonymous"></video>'
-    : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. It may have been created before a video was attached, or the stored file isn’t available on this device. Reattach a video to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach a video</button></div>';
+    ? '<video class="vi-video" id="vi-video" controls playsinline preload="metadata" crossorigin="anonymous"></video>'
+      + '<div class="vi-vstatus" id="vi-vstatus"><span class="vi-vspin"></span><b>Loading video…</b><span class="vi-vstatus-sub">Preparing the player.</span></div>'
+    : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. It may have been created before a video was attached, or the stored file isn’t available on this device. Reattach the original MP4/MOV/WebM to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
   var players = _viPlayers();
   // LEFT
   var left = '<div class="vi-ws-panel vi-ws-l">'
@@ -43911,22 +43914,61 @@ function _viFinishCreate(data) {
   _viToast(data.video ? 'Analysis created' : 'Analysis created (attach a video when ready)');
 }
 
-// video wiring — object URL from IndexedDB for file videos, time display, canvas sizing
+// video wiring — object URL from IndexedDB for file videos, time display, canvas
+// sizing. The central stage always shows exactly one honest state:
+// loading → playable | video not linked | unavailable | failed.
 function _viWireVideo() {
-  var vid = document.getElementById('vi-video'); if (!vid) return;
-  var p = _viProject(_VI.projectId); if (!p || !p.video) { _viWireCanvas(); return; }
-  if (p.video.kind === 'file' && p.video.blobId && !vid.src) {
-    _viBlobGet(p.video.blobId, function (blob) { if (blob) { try { vid.src = URL.createObjectURL(blob); } catch (e) { _viVideoUnavailable(p); } } else { _viVideoUnavailable(p); } });
-  }
-  vid.onloadedmetadata = function () { if (vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); var tl = document.getElementById('vi-timeline'); if (tl) tl.outerHTML = _viTimeline(p); } _viTimeDisp(); };
+  var vid = document.getElementById('vi-video');
+  var p = _viProject(_VI.projectId);
+  if (!p || !p.video) { _viWireCanvas(); return; }        // "Video not linked" panel is already rendered
+  if (!vid) { _viWireCanvas(); return; }
+  var isStr = (typeof p.video === 'string');
+  var url = isStr ? p.video : p.video.url;
+  var kind = isStr ? 'url' : (p.video.kind || (url ? 'url' : ''));
+  // Handlers first (attached before src is set → no load race).
+  vid.onerror = function () { _viSetVideoStatus('failed', p); };
+  vid.onstalled = function () { if (vid.networkState === 3) _viSetVideoStatus('failed', p); };
+  vid.onloadedmetadata = function () {
+    _viSetVideoStatus(null, p);
+    if (!isStr && vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); var tl = document.getElementById('vi-timeline'); if (tl) tl.outerHTML = _viTimeline(p); }
+    _viTimeDisp();
+  };
+  vid.oncanplay = function () { _viSetVideoStatus(null, p); };
   vid.ontimeupdate = function () { _viTimeDisp(); _viMovePlayheads(); };
+  if (!vid.getAttribute('src')) {
+    if (kind === 'file' && p.video.blobId) {
+      _viSetVideoStatus('loading', p);
+      _viBlobGet(p.video.blobId, function (blob) { if (blob) { try { vid.src = URL.createObjectURL(blob); vid.load(); } catch (e) { _viSetVideoStatus('failed', p); } } else { _viSetVideoStatus('unavailable', p); } });
+    } else if (kind === 'url' && url) {
+      _viSetVideoStatus('loading', p); vid.src = url; vid.load();
+    } else {
+      // truthy video object with nothing usable (e.g. {kind:'file'} but no blobId)
+      _viSetVideoStatus('unavailable', p);
+    }
+  } else if (vid.readyState >= 1) { _viSetVideoStatus(null, p); }
   _viTimeDisp(); _viWireCanvas();
 }
-function _viVideoUnavailable(p) {
-  var wrap = document.getElementById('vi-videowrap'); if (!wrap || wrap.querySelector('.vi-video-missing')) return;
-  var note = document.createElement('div'); note.className = 'vi-video-missing';
-  note.innerHTML = '<b>Video file not available on this device</b><span>The stored file for this analysis isn’t present here (it may have been uploaded on another device or cleared from local storage). All your tags, clips and reports are safe — reattach the video to keep working.</span><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + (p ? p.id : '') + '" type="button">Reattach a video</button>';
-  wrap.appendChild(note);
+// Central-stage honest state overlay (never leaves the stage blank).
+function _viSetVideoStatus(state, p) {
+  var el = document.getElementById('vi-vstatus'); if (!el) return;
+  if (!state) { el.hidden = true; el.className = 'vi-vstatus'; return; }
+  var pid = p ? p.id : '';
+  var url = p && p.video && (typeof p.video === 'string' ? p.video : p.video.url);
+  var isBlobUrl = url && String(url).indexOf('blob:') === 0;
+  el.hidden = false;
+  if (state === 'loading') {
+    el.className = 'vi-vstatus';
+    el.innerHTML = '<span class="vi-vspin"></span><b>Loading video…</b><span class="vi-vstatus-sub">Fetching the stored file and preparing the player.</span>';
+  } else if (state === 'unavailable') {
+    el.className = 'vi-vstatus vi-vstatus--warn';
+    el.innerHTML = '<span class="vi-vstatus-ic">🎬</span><b>Video file not available on this device</b><span class="vi-vstatus-sub">The uploaded file for this analysis isn’t stored in this browser — it was uploaded on another device, or its local copy was cleared. Your tags, clips, players and reports are safe. Reattach the original MP4/MOV/WebM to keep working.</span><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + pid + '" type="button">Reattach video</button>';
+  } else if (state === 'failed') {
+    el.className = 'vi-vstatus vi-vstatus--warn';
+    var why = isBlobUrl
+      ? 'This analysis pointed at a temporary in-browser file from a previous session, which cannot be recovered after a refresh. Reattach the original MP4/MOV/WebM.'
+      : 'The source could not be played — it may be an unsupported format, an expired link, or a blocked cross-origin source. Reattach the original MP4/MOV/WebM to continue.';
+    el.innerHTML = '<span class="vi-vstatus-ic">⚠️</span><b>Video failed to load</b><span class="vi-vstatus-sub">' + why + '</span><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + pid + '" type="button">Reattach video</button>';
+  }
 }
 function _viTimeDisp() { var vid = document.getElementById('vi-video'), t = document.getElementById('vi-time'); if (vid && t) t.textContent = _viFmt(vid.currentTime) + ' / ' + _viFmt(vid.duration || 0); }
 function _viMovePlayheads() { var vid = document.getElementById('vi-video'); if (!vid || !vid.duration) return; var pct = vid.currentTime / vid.duration * 100; ['Attacking', 'Defending', 'Transitions', 'Setpieces', 'Goalkeeper'].forEach(function (c) { var h = document.getElementById('vi-tl-head-' + c); if (h) h.style.left = pct + '%'; }); }
