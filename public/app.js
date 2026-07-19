@@ -43548,7 +43548,7 @@ function _viSectionHtml(tab) {
 function _viStat(label, val, sub, tone) { return '<div class="vi-stat vi-stat--' + (tone || 'n') + '"><span class="vi-stat-l">' + label + '</span><span class="vi-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>'; }
 function _viPanel(title, tag, inner, cls) { return '<section class="vi-panel ' + (cls || '') + '"><div class="vi-panel-h"><h3>' + title + '</h3>' + (tag ? '<span class="vi-panel-tag">' + tag + '</span>' : '') + '</div><div class="vi-panel-b">' + inner + '</div></section>'; }
 function _viEmpty(icon, title, sub) { return '<div class="vi-empty"><span class="vi-empty-ic">' + icon + '</span><b>' + title + '</b><p>' + sub + '</p></div>'; }
-function _viFmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+function _viFmt(sec) { if (!isFinite(sec)) return '0:00'; sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ':' + (s < 10 ? '0' : '') + s; }
 
 // ── 1. OVERVIEW ──
 function _viOverview() {
