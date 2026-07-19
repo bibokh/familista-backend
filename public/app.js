@@ -43827,6 +43827,7 @@ function _viReadEvInputs() {
   var ph = v('vi-ev-phase'); if (ph !== undefined) d.phase = ph;
   var tg = v('vi-ev-tags'); if (tg !== undefined) d.tags = tg;
   var nt = v('vi-ev-notes'); if (nt !== undefined) d.notes = nt;
+  var du = v('viw-ev-dur'); if (du !== undefined && du !== '') d.dur = parseFloat(du) || 0;
   return d;
 }
 function _viCurTime() { var v = document.getElementById('vi-video'); return v ? (v.currentTime || 0) : 0; }
@@ -43835,6 +43836,8 @@ function _viCurTime() { var v = document.getElementById('vi-video'); return v ? 
 function _viBind() {
   if (_viBound || typeof document === 'undefined') return; _viBound = true;
   document.addEventListener('click', function (e) {
+    var vw = e.target && e.target.closest && e.target.closest('[data-viw-act]');
+    if (vw && typeof _viwAct === 'function') { try { _viwAct(vw.getAttribute('data-viw-act'), vw.getAttribute('data-viw'), e); } catch (er) {} }
     var el = e.target && e.target.closest && e.target.closest('[data-vi-act]'); if (!el) return;
     var a = el.getAttribute('data-vi-act'), v = el.getAttribute('data-vi');
     if (a === 'tab') { _VI.tab = v; _viRender(); if (v === 'workspace') setTimeout(_viWireVideo, 30); }
@@ -43849,10 +43852,21 @@ function _viBind() {
     else if (a === 'archive') { var pa = _viProject(v); if (pa) { pa.archived = !pa.archived; _viTouch(pa); } _viRender(); }
     else if (a === 'delete') { var dp = _viProject(v); if (window.confirm('Delete “' + (dp ? _viMatchTitle(dp) : 'this analysis') + '”?\nThis permanently removes the analysis and its events, annotations and clips. This cannot be undone.')) { viDeleteProject(v); if (v === _VI.projectId) { _VI.projectId = null; _VI.openError = null; _viPersistOpen(); _viSetHash(null); } _viRender(); _viToast('Deleted'); } }
     else if (a === 'libfilter') { var sel = el.value; _VI.libFilter = _VI.libFilter || {}; _VI.libFilter[v] = sel; _viRender(); }
-    else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; _viRenderWs(); }
-    else if (a === 'evplayer') { var d = _VI.evDraft = _viReadEvInputs(); d.players = d.players || []; var ix = d.players.indexOf(v); if (ix >= 0) d.players.splice(ix, 1); else d.players.push(v); _viRenderWs(); }
-    else if (a === 'evfield') { var parts = v.split(':'); _VI.evDraft = _viReadEvInputs(); _VI.evDraft[parts[0]] = parts[1]; _viRenderWs(); }
-    else if (a === 'evrate') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.rating = parseInt(v, 10) || 0; _viRenderWs(); }
+    else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; if (_VI.ws) _VI.ws.recentE = ([v].concat((_VI.ws.recentE || []).filter(function (x) { return x !== v; }))).slice(0, 8); _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); }
+    else if (a === 'evplayer') { var d = _VI.evDraft = _viReadEvInputs(); d.players = d.players || []; var ix = d.players.indexOf(v); if (ix >= 0) d.players.splice(ix, 1); else { d.players.push(v); if (_VI.ws) _VI.ws.recentP = ([v].concat((_VI.ws.recentP || []).filter(function (x) { return x !== v; }))).slice(0, 8); } _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'players') _viwUpdateLeft(); }
+    else if (a === 'evfield') { var parts = v.split(':'); _VI.evDraft = _viReadEvInputs(); _VI.evDraft[parts[0]] = parts[1]; _viwUpdateInspector(); }
+    else if (a === 'evrate') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.rating = parseInt(v, 10) || 0; _viwUpdateInspector(); }
+    else if (a === 'pinev') { var pn = _VI.ws.pinned = _VI.ws.pinned || []; var pi = pn.indexOf(v); if (pi >= 0) pn.splice(pi, 1); else pn.push(v); if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); _viwUpdateLeft(); }
+    else if (a === 'clearplayers') { if (_VI.evDraft) _VI.evDraft.players = []; _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'players') _viwUpdateLeft(); }
+    else if (a === 'cliploop') { _viwClipOp('loop', v); }
+    else if (a === 'cliprename') { _viwClipOp('rename', v); }
+    else if (a === 'clipdup') { _viwClipOp('dup', v); }
+    else if (a === 'clipdel') { _viwClipOp('del', v); }
+    else if (a === 'annhide') { _viwLayerOp('hide', v); }
+    else if (a === 'annlock') { _viwLayerOp('lock', v); }
+    else if (a === 'anndup') { _viwLayerOp('dup', v); }
+    else if (a === 'anndel') { _viwLayerOp('del', v); }
+    else if (a === 'annseek') { _viwLayerOp('seek', v); }
     else if (a === 'anntool') { _VI.annTool = (_VI.annTool === v ? null : v); _viRenderWs(); }
     else if (a === 'annclear') { _viAnnClear(); }
     else if (a === 'annsave') { _viAnnSaveFrame(); }
@@ -43864,8 +43878,8 @@ function _viBind() {
     else if (a === 'addevent') { _viAddEvent(); }
     else if (a === 'saveclip') { _viSaveClip(); }
     else if (a === 'savews' || a === 'savews') { var pw = _viProject(_VI.projectId); if (pw) { _viTouch(pw); _viToast('Analysis saved'); } }
-    else if (a === 'seekevent') { _viSeekEvent(v); }
-    else if (a === 'seekclip') { _viSeekClip(v); }
+    else if (a === 'seekevent') { if (_VI.ws) _VI.ws.selEvent = v; _viSeekEvent(v); if (typeof _viwUpdateTimeline === 'function' && _VI.tab === 'workspace') _viwUpdateTimeline(); }
+    else if (a === 'seekclip') { if (_VI.ws) _VI.ws.selClip = v; _viSeekClip(v); if (typeof _viwUpdateTimeline === 'function' && _VI.tab === 'workspace') _viwUpdateTimeline(); if (_VI.ws && _VI.ws.leftTab === 'clips') _viwUpdateLeft(); }
     else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
     else if (a === 'playerreport') { _viCreatePlayerReport(v); }
     else if (a === 'newreport') { _viCreateReport(v); }
@@ -43882,6 +43896,7 @@ function _viBind() {
   document.addEventListener('input', function (e) {
     var el = e.target; if (!el || !el.getAttribute) return;
     if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
+    else if (el.getAttribute('data-viw-act') && typeof _viwInput === 'function') { try { _viwInput(el); } catch (er) {} }
   });
 }
 function _viRenderWs() { var body = document.getElementById('vi-body'); if (body && _VI.tab === 'workspace') { try { body.innerHTML = _viWorkspace(); } catch (e) { body.innerHTML = _viErrorBox('The workspace could not be loaded', String(e && e.message || e)); } setTimeout(_viWireVideo, 20); } }
@@ -43920,8 +43935,8 @@ function _viFinishCreate(data) {
 function _viWireVideo() {
   var vid = document.getElementById('vi-video');
   var p = _viProject(_VI.projectId);
-  if (!p || !p.video) { _viWireCanvas(); return; }        // "Video not linked" panel is already rendered
-  if (!vid) { _viWireCanvas(); return; }
+  if (!p || !p.video) { _viWireCanvas(); if (typeof _viwWire === 'function') _viwWire(); return; }        // "Video not linked" panel is already rendered
+  if (!vid) { _viWireCanvas(); if (typeof _viwWire === 'function') _viwWire(); return; }
   var isStr = (typeof p.video === 'string');
   var url = isStr ? p.video : p.video.url;
   var kind = isStr ? 'url' : (p.video.kind || (url ? 'url' : ''));
@@ -43930,11 +43945,13 @@ function _viWireVideo() {
   vid.onstalled = function () { if (vid.networkState === 3) _viSetVideoStatus('failed', p); };
   vid.onloadedmetadata = function () {
     _viSetVideoStatus(null, p);
-    if (!isStr && vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); var tl = document.getElementById('vi-timeline'); if (tl) tl.outerHTML = _viTimeline(p); }
-    _viTimeDisp();
+    if (!isStr && vid.duration && (!p.video.duration || Math.abs(p.video.duration - vid.duration) > 1)) { p.video.duration = vid.duration; _viSave(); }
+    if (typeof _viwSyncTransport === 'function') _viwSyncTransport();
+    if (typeof _viwUpdateTimeline === 'function') _viwUpdateTimeline();
   };
   vid.oncanplay = function () { _viSetVideoStatus(null, p); };
-  vid.ontimeupdate = function () { _viTimeDisp(); _viMovePlayheads(); };
+  vid.onplay = function () { if (typeof _viwSyncTransport === 'function') _viwSyncTransport(); };
+  vid.onpause = function () { if (typeof _viwSyncTransport === 'function') _viwSyncTransport(); };
   if (!vid.getAttribute('src')) {
     if (kind === 'file' && p.video.blobId) {
       _viSetVideoStatus('loading', p);
@@ -43946,7 +43963,7 @@ function _viWireVideo() {
       _viSetVideoStatus('unavailable', p);
     }
   } else if (vid.readyState >= 1) { _viSetVideoStatus(null, p); }
-  _viTimeDisp(); _viWireCanvas();
+  _viWireCanvas(); if (typeof _viwWire === 'function') _viwWire(); if (typeof _viwSyncTransport === 'function') _viwSyncTransport();
 }
 // Central-stage honest state overlay (never leaves the stage blank).
 function _viSetVideoStatus(state, p) {
@@ -44051,4 +44068,596 @@ function _viWireUpload() {
   var inp = document.getElementById('vi-file'); if (!inp) return;
   inp.onchange = function () { var f = inp.files && inp.files[0]; if (!f) return; if (!/video\/(mp4|quicktime|webm)/.test(f.type) && !/\.(mp4|mov|webm)$/i.test(f.name)) { _viToast('Unsupported file type'); return; } if (f.size > 800 * 1024 * 1024) { _viToast('File too large (max 800MB in local mode)'); return; } _VI.pendingFile = f; var n = document.getElementById('vi-file-name'); if (n) n.textContent = f.name + ' (' + Math.round(f.size / 1048576) + ' MB)'; var pr = document.getElementById('vi-uprog'); if (pr) { pr.hidden = false; var i = document.getElementById('vi-uprog-i'), tt = document.getElementById('vi-uprog-t'); var pct = 0; var iv = setInterval(function () { pct = Math.min(100, pct + 20); if (i) i.style.width = pct + '%'; if (tt) tt.textContent = pct + '%'; if (pct >= 100) { clearInterval(iv); if (tt) tt.textContent = 'Ready'; } }, 60); } };
   var drop = document.querySelector('.vi-drop'); if (drop) { drop.ondragover = function (e) { e.preventDefault(); drop.classList.add('is-over'); }; drop.ondragleave = function () { drop.classList.remove('is-over'); }; drop.ondrop = function (e) { e.preventDefault(); drop.classList.remove('is-over'); if (e.dataTransfer && e.dataTransfer.files[0]) { inp.files = e.dataTransfer.files; inp.onchange(); } }; }
+}
+
+/* ==================== FAMILISTA PRO VIDEO ANALYSIS WORKSPACE (upgrade — overrides basic _viWorkspace / annotation / event fns above) ==================== */
+
+/* ============================================================
+   FAMILISTA PRO VIDEO ANALYSIS WORKSPACE  (upgrade of _viWorkspace)
+   Vanilla JS. Reuses data model: p.events / p.clips / p.annotations /
+   p.video, _viPlayers(), VI_EVENTS, _viTouch, _viFmt, _viEsc, _viProject,
+   _viWireVideo, _viWireCanvas, _viAnnRedraw, _viSeekEvent, _viSeekClip.
+   No video remount on sub-updates; rAF playhead; pointer-capture seeking.
+   ============================================================ */
+
+function _viwState() {
+  var d = { leftTab: 'players', evCat: 'Attacking', tool: 'select', zoom: 1, pan: 0,
+    annColor: '#38f5c8', annWidth: 3, annOpacity: 1, annDash: false,
+    leftW: 274, rightW: 300, maximized: false, distraction: false,
+    playerQ: '', eventQ: '', clipQ: '', pinned: [], recentP: [], recentE: [],
+    undo: [], redo: [], selEvent: null, selClip: null, save: 'idle' };
+  try { var raw = window.localStorage.getItem('familista.video.wsprefs'); if (raw) { var o = JSON.parse(raw); if (o) { if (o.leftW) d.leftW = o.leftW; if (o.rightW) d.rightW = o.rightW; if (o.pinned) d.pinned = o.pinned; } } } catch (e) {}
+  return d;
+}
+function _viwSavePrefs() { try { var w = _VI.ws; window.localStorage.setItem('familista.video.wsprefs', JSON.stringify({ leftW: w.leftW, rightW: w.rightW, pinned: w.pinned })); } catch (e) {} }
+function _viwFps(p) { return (p && p.video && p.video.fps) ? p.video.fps : 25; } // approximate fallback (labelled internally)
+function _viwFrame(p) { return 1 / _viwFps(p); }
+function _viwVid() { return document.getElementById('vi-video'); }
+function _viwDur() { var v = _viwVid(); return v && isFinite(v.duration) && v.duration > 0 ? v.duration : ((_viProject(_VI.projectId) || {}).video || {}).duration || 0; }
+
+/* ---------- SHELL ---------- */
+function _viWorkspace() {
+  if (_VI.openError && !_viProject(_VI.projectId)) {
+    return _viEmpty('⚠️', 'Analysis not found', _VI.openError) + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="tab" data-vi="library" type="button">← Back to Video Library</button></div>';
+  }
+  var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+  if (!p) return _viEmpty('🎞️', 'No analysis open', 'Create or open an analysis from the Video Library. The workspace gives you a video player, tactical annotations, event tagging and a timeline in one screen.') + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="newanalysis" type="button">✚ Start new analysis</button></div>';
+  _VI.projectId = p.id;
+  if (!_VI.ws) _VI.ws = _viwState();
+  var w = _VI.ws;
+  var vid = p.video
+    ? '<video class="vi-video" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video>'
+      + '<canvas class="vi-canvas" id="vi-canvas"></canvas>'
+      + '<div class="vi-vstatus" id="vi-vstatus"><span class="vi-vspin"></span><b>Loading video…</b><span class="vi-vstatus-sub">Preparing the player.</span></div>'
+      + _viwDock()
+    : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. Reattach the original MP4/MOV/WebM to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
+  var cls = 'viw' + (w.maximized ? ' is-max' : '') + (w.distraction ? ' is-distraction' : '');
+  return '<div class="' + cls + '" id="viw" style="--viw-l:' + w.leftW + 'px;--viw-r:' + w.rightW + 'px">'
+    + _viwLeft(p) + '<div class="viw-grip" data-viw-act="grip" data-viw="left" title="Drag to resize"></div>'
+    + _viwCenter(p, vid) + '<div class="viw-grip" data-viw-act="grip" data-viw="right" title="Drag to resize"></div>'
+    + _viwInspector(p)
+    + '</div>' + _viwTimeline(p);
+}
+
+/* ---------- LEFT: fixed-height tabbed command panel ---------- */
+function _viwLeft(p) {
+  var w = _VI.ws;
+  var tabs = [['players', 'Players', '👥'], ['events', 'Events', '⚑'], ['clips', 'Clips', '✂'], ['layers', 'Layers', '▤']];
+  var nav = '<div class="viw-ltabs">' + tabs.map(function (t) { return '<button class="viw-ltab' + (w.leftTab === t[0] ? ' is-on' : '') + '" data-viw-act="ltab" data-viw="' + t[0] + '" type="button"><em>' + t[2] + '</em>' + t[1] + '</button>'; }).join('') + '</div>';
+  return '<aside class="viw-left" id="viw-left"><div class="viw-panel-h"><b>Command</b><button class="viw-mini" data-viw-act="collapseL" title="Collapse">‹</button></div>' + nav + '<div class="viw-lbody" id="viw-lbody">' + _viwLeftBody(p) + '</div></aside>';
+}
+function _viwLeftBody(p) {
+  switch (_VI.ws.leftTab) {
+    case 'events': return _viwEventsTab(p);
+    case 'clips': return _viwClipsTab(p);
+    case 'layers': return _viwLayersTab(p);
+    default: return _viwPlayersTab(p);
+  }
+}
+function _viwPlayersTab(p) {
+  var w = _VI.ws, q = (w.playerQ || '').toLowerCase();
+  var players = _viPlayers();
+  var sel = ((_VI.evDraft || {}).players) || [];
+  var list = players.filter(function (pl) { return !q || (pl.name + ' ' + (pl.num || '')).toLowerCase().indexOf(q) >= 0; });
+  var recent = (w.recentP || []).map(function (id) { var m = players.filter(function (x) { return x.id === id; })[0]; return m ? '<button class="viw-pchip" data-vi-act="evplayer" data-vi="' + m.id + '" type="button"><em>' + (m.num || '') + '</em>' + _viEsc(m.name.split(' ').pop()) + '</button>' : ''; }).join('');
+  return '<div class="viw-search"><input class="vi-input" id="viw-pq" type="text" placeholder="Search players…" value="' + _viEsc(w.playerQ || '') + '" data-viw-act="pq"></div>'
+    + (recent ? '<div class="viw-sublbl">Recent</div><div class="viw-prow">' + recent + '</div>' : '')
+    + '<div class="viw-sublbl">Squad <i>(' + list.length + ')</i>' + (sel.length ? ' · <a data-vi-act="clearplayers">clear</a>' : '') + '</div>'
+    + '<div class="viw-pgrid">' + list.map(function (pl) { return '<button class="viw-pcell' + (sel.indexOf(pl.id) >= 0 ? ' is-on' : '') + '" data-vi-act="evplayer" data-vi="' + pl.id + '" type="button" title="' + _viEsc(pl.name) + '"><em>' + (pl.num || '') + '</em><span>' + _viEsc(pl.name.split(' ').pop()) + '</span></button>'; }).join('') + '</div>';
+}
+function _viwEventsTab(p) {
+  var w = _VI.ws, q = (w.eventQ || '').toLowerCase();
+  var cats = [['Attacking', 'Attack'], ['Defending', 'Defence'], ['Transitions', 'Transition'], ['Set pieces', 'Set Pieces'], ['Goalkeeper', 'GK']];
+  var seg = '<div class="viw-seg2">' + cats.map(function (c) { return '<button class="viw-seg2-b' + (w.evCat === c[0] ? ' is-on' : '') + '" style="--c:' + VI_EVENTS[c[0]].color + '" data-viw-act="evcat" data-viw="' + c[0] + '" type="button">' + c[1] + '</button>'; }).join('') + '</div>';
+  var types = VI_EVENTS[w.evCat].types.filter(function (t) { return !q || t.toLowerCase().indexOf(q) >= 0; });
+  var pinned = (w.pinned || []).filter(function (t) { return !q || t.toLowerCase().indexOf(q) >= 0; });
+  var recent = (w.recentE || []).slice(0, 6);
+  var chip = function (t, pin) { return '<button class="viw-echip" style="--c:' + VI_EVENTS[_viCatOf(t)].color + '" data-vi-act="evtype" data-vi="' + _viEsc(t) + '" type="button"><span>' + _viEsc(t) + '</span><i class="viw-star' + (pin ? ' is-on' : '') + '" data-vi-act="pinev" data-vi="' + _viEsc(t) + '" title="Pin">★</i></button>'; };
+  return '<div class="viw-search"><input class="vi-input" id="viw-eq" type="text" placeholder="Search events…" value="' + _viEsc(w.eventQ || '') + '" data-viw-act="eq"></div>'
+    + seg
+    + (pinned.length ? '<div class="viw-sublbl">Pinned</div><div class="viw-echips">' + pinned.map(function (t) { return chip(t, true); }).join('') + '</div>' : '')
+    + (recent.length ? '<div class="viw-sublbl">Recent</div><div class="viw-echips">' + recent.map(function (t) { return chip(t, (w.pinned || []).indexOf(t) >= 0); }).join('') + '</div>' : '')
+    + '<div class="viw-sublbl">' + w.evCat + '</div><div class="viw-echips">' + types.map(function (t) { return chip(t, (w.pinned || []).indexOf(t) >= 0); }).join('') + '</div>'
+    + '<p class="viw-hint">Pick a type to tag at the current time (or press <b>T</b> after selecting).</p>';
+}
+function _viwClipsTab(p) {
+  var w = _VI.ws, q = (w.clipQ || '').toLowerCase();
+  var clips = (p.clips || []).filter(function (c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; });
+  return '<div class="viw-search"><input class="vi-input" id="viw-cq" type="text" placeholder="Search clips…" value="' + _viEsc(w.clipQ || '') + '" data-viw-act="cq"></div>'
+    + '<div class="viw-sublbl">Saved clips <i>(' + clips.length + ')</i></div>'
+    + (clips.length ? '<div class="viw-cliplist">' + clips.map(function (c) {
+        return '<div class="viw-clip' + (w.selClip === c.id ? ' is-on' : '') + '">'
+          + '<button class="viw-clip-main" data-vi-act="seekclip" data-vi="' + c.id + '" type="button"><b>' + _viEsc(c.name) + '</b><i>' + _viFmt(c.t0) + ' – ' + _viFmt(c.t1) + '</i></button>'
+          + '<div class="viw-clip-acts"><button data-vi-act="cliploop" data-vi="' + c.id + '" title="Loop">⟳</button><button data-vi-act="cliprename" data-vi="' + c.id + '" title="Rename">✎</button><button data-vi-act="clipdup" data-vi="' + c.id + '" title="Duplicate">⧉</button><button data-vi-act="clipdel" data-vi="' + c.id + '" title="Delete">🗑</button></div></div>';
+      }).join('') + '</div>' : '<p class="viw-hint">Set <b>I</b> / <b>O</b> on the transport, then Save clip. Clips appear here.</p>');
+}
+function _viwLayersTab(p) {
+  var w = _VI.ws;
+  var anns = (p.annotations || []).slice().sort(function (a, b) { return a.t - b.t; });
+  return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i></div>'
+    + (anns.length ? '<div class="viw-layers">' + anns.map(function (a) {
+        var name = a.label ? a.label : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1));
+        return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
+          + '<button class="viw-layer-main" data-vi-act="annseek" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's</i></button>'
+          + '<div class="viw-layer-acts"><button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
+      }).join('') + '</div>' : '<p class="viw-hint">Draw on the paused video with the annotation tools. Saved shapes appear here as editable layers.</p>');
+}
+
+/* ---------- CENTER: video stage + transport + seek bar ---------- */
+function _viwCenter(p, vidHtml) {
+  return '<section class="viw-center"><div class="viw-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div></div>' + _viwSeekbar() + _viwTransport(p) + '</section>';
+}
+function _viwSeekbar() {
+  return '<div class="viw-seek" id="viw-seek" data-viw-act="seekbar"><div class="viw-seek-buf" id="viw-seek-buf"></div><div class="viw-seek-fill" id="viw-seek-fill"></div><div class="viw-seek-in" id="viw-seek-in" hidden></div><div class="viw-seek-out" id="viw-seek-out" hidden></div><div class="viw-seek-head" id="viw-seek-head"></div><div class="viw-seek-tip" id="viw-seek-tip" hidden></div></div>';
+}
+function _viwTransport(p) {
+  function b(act, dv, label, title, cls) { return '<button class="viw-tp' + (cls ? ' ' + cls : '') + '" data-viw-act="' + act + '"' + (dv != null ? ' data-viw="' + dv + '"' : '') + ' title="' + title + '" type="button">' + label + '</button>'; }
+  var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
+  var spd = '<div class="viw-spdwrap"><button class="viw-tp viw-spd" data-viw-act="spdmenu" id="viw-spd" title="Playback speed" type="button">1×</button><div class="viw-spdmenu" id="viw-spdmenu" hidden>' + speeds.map(function (s) { return '<button data-viw-act="speed" data-viw="' + s + '" type="button">' + s + '×</button>'; }).join('') + '</div></div>';
+  return '<div class="viw-transport">'
+    + '<div class="viw-tp-g">' + b('nudge', -5, '«5s', 'Back 5s (Shift+←)') + b('nudge', -1, '‹1s', 'Back 1s (←)') + b('frame', -1, '⏮', 'Previous frame (,)') + '</div>'
+    + '<div class="viw-tp-g">' + b('play', null, '▶', 'Play / Pause (Space / K)', 'viw-tp--play') + '</div>'
+    + '<div class="viw-tp-g">' + b('frame', 1, '⏭', 'Next frame (.)') + b('nudge', 1, '1s›', 'Forward 1s (→)') + b('nudge', 5, '5s»', 'Forward 5s (Shift+→)') + '</div>'
+    + '<div class="viw-tp-time"><span id="viw-cur">0:00</span><i>/</i><span id="viw-dur">0:00</span></div>'
+    + '<div class="viw-tp-g">' + spd + '</div>'
+    + '<div class="viw-tp-g viw-vol"><button class="viw-tp" data-viw-act="mute" id="viw-mute" title="Mute (M)" type="button">🔊</button><input class="viw-volsl" id="viw-vol" type="range" min="0" max="1" step="0.05" value="1" data-viw-act="volinput" title="Volume"></div>'
+    + '<div class="viw-tp-g">' + b('markin', null, 'I◧', 'Set clip In (I)') + b('jumpin', null, '⇤', 'Jump to In') + b('jumpout', null, '⇥', 'Jump to Out') + b('markout', null, '◨O', 'Set clip Out (O)') + '</div>'
+    + '<div class="viw-tp-g">' + b('loop', null, '⟳', 'Loop selected clip', 'viw-tp--loop') + b('saveclip2', null, '✂ Clip', 'Save clip from In/Out', 'viw-tp--primary') + b('addevent2', null, '＋ Tag', 'Tag event here (T)', 'viw-tp--primary') + '</div>'
+    + '<div class="viw-tp-g viw-tp-r">' + b('maximize', null, '⤢', 'Maximize video') + b('full', null, '⛶', 'Fullscreen (F)') + '</div>'
+    + '</div>';
+}
+
+/* ---------- ANNOTATION DOCK ---------- */
+function _viwDock() {
+  var w = _VI.ws;
+  var tools = [['select', '↖', 'Select', 'V'], ['circle', '◯', 'Circle', 'C'], ['arrow', '↗', 'Arrow', 'A'], ['line', '／', 'Line', ''], ['zone', '▭', 'Zone', 'Z'], ['spotlight', '◎', 'Spotlight', 'S'], ['free', '✎', 'Free draw', ''], ['text', 'T', 'Text', ''], ['connect', '⇄', 'Connect players', ''], ['distance', '↔', 'Distance', ''], ['angle', '∠', 'Angle', ''], ['sequence', '①', 'Numbered sequence', ''], ['eraser', '⌫', 'Eraser', 'E']];
+  var t = tools.map(function (x) { return '<button class="viw-dtool' + (w.tool === x[0] ? ' is-on' : '') + '" data-viw-act="tool" data-viw="' + x[0] + '" title="' + x[2] + (x[3] ? ' (' + x[3] + ')' : '') + '" type="button">' + x[1] + '</button>'; }).join('');
+  var colors = ['#38f5c8', '#38bdf8', '#4ade80', '#f43f5e', '#fbbf24', '#a78bfa', '#ffffff'];
+  var sw = colors.map(function (c) { return '<button class="viw-sw' + (w.annColor === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-viw-act="anncolor" data-viw="' + c + '" title="' + c + '"></button>'; }).join('');
+  return '<div class="viw-dock" id="viw-dock"><div class="viw-dock-grip" data-viw-act="dockgrip" title="Drag dock">⋮⋮</div>'
+    + '<div class="viw-dtools">' + t + '</div>'
+    + '<div class="viw-dock-sep"></div>'
+    + '<div class="viw-dsw">' + sw + '</div>'
+    + '<div class="viw-dstyle"><label title="Thickness">◍<input type="range" id="viw-annw" min="1" max="8" step="1" value="' + w.annWidth + '" data-viw-act="annwidth"></label>'
+    + '<label title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="' + w.annOpacity + '" data-viw-act="annopacity"></label>'
+    + '<button class="viw-dtool viw-dashbtn' + (w.annDash ? ' is-on' : '') + '" data-viw-act="anndash" title="Dashed / solid" type="button">- -</button></div>'
+    + '<div class="viw-dock-sep"></div>'
+    + '<div class="viw-dtools"><button class="viw-dtool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button">↶</button><button class="viw-dtool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button">↷</button><button class="viw-dtool" data-viw-act="clearframe" title="Clear this frame" type="button">✖</button><button class="viw-dtool" data-viw-act="saveframe" title="Save frame PNG" type="button">📷</button></div>'
+    + '</div>';
+}
+
+/* ---------- RIGHT: Event Inspector ---------- */
+function _viwInspector(p) {
+  var d = _VI.evDraft || { type: 'Pass', players: [], success: 'success', phase: '', rating: 0, tags: '', notes: '' };
+  var cat = _viCatOf(d.type);
+  var players = _viPlayers();
+  var chips = ((d.players) || []).map(function (id) { return '<span class="viw-chipx" data-vi-act="evplayer" data-vi="' + id + '">' + _viEsc(_viPlayerName(id)) + ' ✕</span>'; }).join('') || '<span class="vi-muted">Pick from the Players tab or search →</span>';
+  var tags = (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+  return '<aside class="viw-right" id="viw-right"><div class="viw-panel-h"><b>Event Inspector</b><span class="viw-save" id="viw-save" data-state="idle">Ready</span></div><div class="viw-rbody">'
+    + '<div class="viw-isec"><label class="viw-fl">Event</label><div class="viw-evtype" style="--c:' + VI_EVENTS[cat].color + '">' + _viEsc(d.type) + '<span class="viw-evcat">' + cat + '</span></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Timestamp</label><input class="vi-input" id="viw-ev-t" type="text" value="' + _viFmt(d.t0 != null ? d.t0 : _viwCurTimeSafe()) + '" data-viw-act="evtime"></div><div><label class="viw-fl">Duration (s)</label><input class="vi-input" id="viw-ev-dur" type="number" min="0" step="1" value="' + (d.dur || 0) + '"></div></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Players</label><input class="vi-input viw-mini-in" id="viw-ev-pq" type="text" placeholder="Search to add player…" data-viw-act="evpq"><div class="viw-evpl">' + chips + '</div><div class="viw-evpl-res" id="viw-ev-pres" hidden></div></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Outcome</label><div class="viw-seg"><button class="viw-seg-b' + (d.success === 'success' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:success" type="button">Success</button><button class="viw-seg-b viw-seg-b--fail' + (d.success === 'fail' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:fail" type="button">Fail</button></div></div>'
+    + '<div><label class="viw-fl">Phase</label><select class="vi-input" id="vi-ev-phase"><option value="">—</option>' + ['Build-up', 'Progression', 'Final third', 'Transition', 'Set piece', 'Defensive block'].map(function (x) { return '<option' + (d.phase === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Rating</label><div class="vi-stars">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="vi-star' + (d.rating >= n ? ' is-on' : '') + '" data-vi-act="evrate" data-vi="' + n + '" type="button">★</button>'; }).join('') + '</div></div><div><label class="viw-fl">Position</label><div class="viw-pos' + (d.x != null ? ' is-set' : '') + '" data-viw-act="pospick" title="Click, then click on the pitch/video">' + (d.x != null ? 'x' + Math.round(d.x) + ' y' + Math.round(d.y) : 'Set on video') + '</div></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Tags</label><div class="viw-tags">' + tags.map(function (t) { return '<span class="viw-tag">' + _viEsc(t) + '</span>'; }).join('') + '<input class="vi-input viw-mini-in" id="vi-ev-tags" type="text" placeholder="comma,separated" value="' + _viEsc(d.tags || '') + '"></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Notes</label><textarea class="vi-input" id="vi-ev-notes" rows="2" placeholder="Coaching note…">' + _viEsc(d.notes || '') + '</textarea></div>'
+    + '<div class="viw-isave"><button class="vi-btn vi-btn--sm vi-btn--primary" data-viw-act="addevent2" type="button">Save Event</button><button class="vi-btn vi-btn--sm" data-viw-act="saveclip2" type="button">Save Clip</button><button class="vi-btn vi-btn--sm" data-viw-act="savews2" type="button">Save Analysis</button></div>'
+    + '</div></aside>';
+}
+function _viwCurTimeSafe() { var v = _viwVid(); return v ? (v.currentTime || 0) : 0; }
+
+/* ---------- PRO TIMELINE (native horizontal scroll = pan when zoomed) ---------- */
+function _viwTimeline(p) {
+  var w = _VI.ws, dur = _viwDur();
+  var zoom = w.zoom || 1;
+  var lanes = [['Attacking', 'Attacking'], ['Defending', 'Defending'], ['Transitions', 'Transitions'], ['Set pieces', 'Set Pieces'], ['Goalkeeper', 'Goalkeeper']];
+  var evByCat = {}; (p.events || []).forEach(function (e) { var c = _viCatOf(e.type); (evByCat[c] = evByCat[c] || []).push(e); });
+  function pos(t) { return dur ? ((t / dur) * 100) : 0; } // percent of the (zoomed) inner track
+  var ruler = '';
+  if (dur) { var n = Math.min(24, Math.max(8, Math.round(8 * zoom))); var step = dur / n; for (var i = 0; i <= n; i++) { var tt = step * i; ruler += '<span class="viw-tick" style="left:' + pos(tt).toFixed(3) + '%">' + _viFmt(tt) + '</span>'; } }
+  var laneRows = lanes.map(function (c) {
+    var marks = (evByCat[c[0]] || []).map(function (e) {
+      return '<button class="viw-mk' + (w.selEvent === e.id ? ' is-sel' : '') + '" style="left:' + pos(e.t0).toFixed(3) + '%;--c:' + VI_EVENTS[c[0]].color + '" data-vi-act="seekevent" data-vi="' + e.id + '" data-viw-mk="' + e.id + '" title="' + _viEsc(e.type) + (e.players && e.players.length ? ' · ' + _viEsc(_viPlayerName(e.players[0])) : '') + ' · ' + _viFmt(e.t0) + ' · ' + (e.success === 'fail' ? 'Fail' : 'Success') + '"></button>';
+    }).join('');
+    return '<div class="viw-lane"><span class="viw-lane-lbl" style="--c:' + VI_EVENTS[c[0]].color + '">' + c[1] + '</span><div class="viw-lane-tr">' + marks + '</div></div>';
+  }).join('');
+  var clipSegs = (p.clips || []).map(function (c) {
+    var l = pos(c.t0), width = dur ? ((c.t1 - c.t0) / dur * 100) : 0;
+    return '<div class="viw-clipseg' + (w.selClip === c.id ? ' is-sel' : '') + '" style="left:' + l.toFixed(3) + '%;width:' + Math.max(0.4, width).toFixed(3) + '%" data-viw-clip="' + c.id + '" title="' + _viEsc(c.name) + '"><span class="viw-clipseg-h viw-clipseg-in" data-viw-act="cliphandle" data-viw="' + c.id + ':in"></span><span class="viw-clipseg-lbl" data-vi-act="seekclip" data-vi="' + c.id + '">' + _viEsc(c.name) + '</span><span class="viw-clipseg-h viw-clipseg-out" data-viw-act="cliphandle" data-viw="' + c.id + ':out"></span></div>';
+  }).join('');
+  var mini = '<div class="viw-mini-tl" id="viw-mini" data-viw-act="minipan"' + (zoom > 1 ? '' : ' hidden') + '><div class="viw-mini-view" id="viw-mini-view"></div>' + (p.events || []).map(function (e) { return '<span class="viw-mini-mk" style="left:' + (dur ? (e.t0 / dur * 100) : 0).toFixed(2) + '%;--c:' + VI_EVENTS[_viCatOf(e.type)].color + '"></span>'; }).join('') + '</div>';
+  return '<div class="viw-tl" id="viw-tl"><div class="viw-tl-bar"><div class="viw-tl-info"><b>' + (p.events || []).length + '</b> events · <b>' + (p.clips || []).length + '</b> clips' + (dur ? ' · ' + _viFmt(dur) : ' · no duration') + ' <span class="viw-fpsnote" title="Approximate when the file exposes no frame-rate metadata">~' + _viwFps(p) + 'fps</span></div>'
+    + '<div class="viw-tl-zoom"><button data-viw-act="zoom" data-viw="out" title="Zoom out (-)">－</button><button data-viw-act="zoom" data-viw="fit" title="Fit whole video">Fit</button><button data-viw-act="zoom" data-viw="in" title="Zoom in (+)">＋</button><span class="viw-zlvl">' + Math.round(zoom * 100) + '%</span></div></div>'
+    + '<div class="viw-tl-scroll" id="viw-tl-scroll"><div class="viw-tl-inner" id="viw-tl-inner" style="width:' + (zoom * 100).toFixed(1) + '%">'
+    + '<div class="viw-tl-ruler" id="viw-tl-ruler" data-viw-act="tlseek">' + ruler + '</div>'
+    + '<div class="viw-tl-lanes" data-viw-act="tlseek">' + laneRows + '<div class="viw-cliplane"><span class="viw-lane-lbl viw-lane-lbl--clip">Clips</span><div class="viw-lane-tr">' + clipSegs + '</div></div>'
+    + '<div class="viw-tl-head" id="viw-tl-head"></div></div></div></div>' + mini + '</div>';
+}
+
+/* ---------- WIRING (idempotent, called after mount) ---------- */
+function _viwWire() {
+  var wrap = document.getElementById('viw'); if (!wrap) return;
+  _viwWireSeek(); _viwWireTimeline(); _viwWireResizers(); _viwKeys();
+  _viwSyncTransport();
+  if (!_VI.ws._raf) { _VI.ws._raf = true; _viwRaf(); }
+  var undo = document.getElementById('viw-undo'), redo = document.getElementById('viw-redo');
+  if (undo) undo.disabled = !(_VI.ws.undo && _VI.ws.undo.length);
+  if (redo) redo.disabled = !(_VI.ws.redo && _VI.ws.redo.length);
+}
+function _viwRaf() {
+  var v = _viwVid(), wrap = document.getElementById('viw');
+  if (!wrap || _VI.tab !== 'workspace') { _VI.ws._raf = false; return; }
+  if (v) {
+    var dur = _viwDur();
+    if (dur) {
+      var pctFull = v.currentTime / dur;
+      var fill = document.getElementById('viw-seek-fill'), head = document.getElementById('viw-seek-head');
+      if (fill) fill.style.width = (pctFull * 100).toFixed(3) + '%';
+      if (head) head.style.left = (pctFull * 100).toFixed(3) + '%';
+      var buf = document.getElementById('viw-seek-buf');
+      if (buf && v.buffered && v.buffered.length) { try { buf.style.width = (v.buffered.end(v.buffered.length - 1) / dur * 100).toFixed(2) + '%'; } catch (e) {} }
+      var th = document.getElementById('viw-tl-head');
+      if (th) th.style.left = ((v.currentTime / dur) * 100).toFixed(3) + '%';
+      var sc = document.getElementById('viw-tl-scroll'), mv = document.getElementById('viw-mini-view');
+      if (sc && mv && sc.scrollWidth > sc.clientWidth) { mv.style.left = (sc.scrollLeft / sc.scrollWidth * 100).toFixed(2) + '%'; mv.style.width = (sc.clientWidth / sc.scrollWidth * 100).toFixed(2) + '%'; }
+      // loop selected clip
+      if (_VI.ws.loopClip) { var c = (_viProject(_VI.projectId).clips || []).filter(function (x) { return x.id === _VI.ws.loopClip; })[0]; if (c && (v.currentTime >= c.t1 || v.currentTime < c.t0 - 0.1)) v.currentTime = c.t0; }
+    }
+    var cur = document.getElementById('viw-cur'); if (cur) cur.textContent = _viFmt(v.currentTime);
+  }
+  requestAnimationFrame(_viwRaf);
+}
+function _viwSyncTransport() {
+  var v = _viwVid(); if (!v) return;
+  var dur = document.getElementById('viw-dur'); if (dur) dur.textContent = _viFmt(_viwDur());
+  var spd = document.getElementById('viw-spd'); if (spd) spd.textContent = (v.playbackRate || 1) + '×';
+  var mute = document.getElementById('viw-mute'); if (mute) mute.textContent = v.muted || v.volume === 0 ? '🔇' : '🔊';
+  var vol = document.getElementById('viw-vol'); if (vol) vol.value = v.muted ? 0 : v.volume;
+  var play = document.querySelector('.viw-tp--play'); if (play) play.textContent = v.paused ? '▶' : '⏸';
+}
+function _viwSeekTo(t, keepPlaying) {
+  var v = _viwVid(); if (!v) return;
+  var dur = _viwDur(); if (dur) t = Math.max(0, Math.min(dur, t));
+  try { v.currentTime = t; } catch (e) {}
+  _viwRafOnce();
+}
+function _viwRafOnce() { var v = _viwVid(); var dur = _viwDur(); if (!v || !dur) return; var pct = (v.currentTime / dur * 100); var f = document.getElementById('viw-seek-fill'), h = document.getElementById('viw-seek-head'), th = document.getElementById('viw-tl-head'), cur = document.getElementById('viw-cur'); if (f) f.style.width = pct.toFixed(3) + '%'; if (h) h.style.left = pct.toFixed(3) + '%'; if (th) th.style.left = pct.toFixed(3) + '%'; if (cur) cur.textContent = _viFmt(v.currentTime); }
+
+function _viwWireSeek() {
+  var bar = document.getElementById('viw-seek'); if (!bar || bar._wired) return; bar._wired = true;
+  var tip = document.getElementById('viw-seek-tip');
+  function timeAt(clientX) { var r = bar.getBoundingClientRect(); var x = Math.max(0, Math.min(r.width, clientX - r.left)); return (x / r.width) * _viwDur(); }
+  var dragging = false, wasPlaying = false;
+  bar.addEventListener('pointerdown', function (ev) {
+    var v = _viwVid(); if (!v || !_viwDur()) return;
+    dragging = true; wasPlaying = !v.paused; if (wasPlaying) v.pause();
+    try { bar.setPointerCapture(ev.pointerId); } catch (e) {}
+    _viwSeekTo(timeAt(ev.clientX), false); ev.preventDefault();
+  });
+  bar.addEventListener('pointermove', function (ev) {
+    var r = bar.getBoundingClientRect(); var x = Math.max(0, Math.min(r.width, ev.clientX - r.left));
+    if (tip) { tip.hidden = false; tip.style.left = (x / r.width * 100) + '%'; tip.textContent = _viFmt((x / r.width) * _viwDur()); }
+    if (dragging) { _viwSeekTo(timeAt(ev.clientX), false); }
+  });
+  bar.addEventListener('pointerleave', function () { if (tip && !dragging) tip.hidden = true; });
+  function end(ev) { if (!dragging) return; dragging = false; try { bar.releasePointerCapture(ev.pointerId); } catch (e) {} if (tip) tip.hidden = true; var v = _viwVid(); if (v && wasPlaying) v.play(); }
+  bar.addEventListener('pointerup', end); bar.addEventListener('pointercancel', end);
+}
+
+function _viwWireTimeline() {
+  var lanes = document.querySelectorAll('#viw-tl [data-viw-act="tlseek"]');
+  [].forEach.call(lanes, function (el) {
+    if (el._wired) return; el._wired = true;
+    var dragging = false;
+    function timeAt(clientX) { var inner = document.getElementById('viw-tl-inner'); var r = inner.getBoundingClientRect(); var x = Math.max(0, Math.min(r.width, clientX - r.left)); return (x / r.width) * _viwDur(); }
+    el.addEventListener('pointerdown', function (ev) { if (ev.target.closest('.viw-mk,.viw-clipseg-h,.viw-clipseg-lbl')) return; var v = _viwVid(); if (!v || !_viwDur()) return; dragging = true; try { el.setPointerCapture(ev.pointerId); } catch (e) {} _viwSeekTo(timeAt(ev.clientX)); ev.preventDefault(); });
+    el.addEventListener('pointermove', function (ev) { if (dragging) _viwSeekTo(timeAt(ev.clientX)); });
+    function end(ev) { dragging = false; try { el.releasePointerCapture(ev.pointerId); } catch (e) {} }
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  });
+  // clip boundary drag
+  var handles = document.querySelectorAll('#viw-tl [data-viw-act="cliphandle"]');
+  [].forEach.call(handles, function (h) {
+    if (h._wired) return; h._wired = true;
+    var info = (h.getAttribute('data-viw') || '').split(':'), cid = info[0], side = info[1];
+    var dragging = false;
+    function timeAt(clientX) { var inner = document.getElementById('viw-tl-inner'); var r = inner.getBoundingClientRect(); var x = Math.max(0, Math.min(r.width, clientX - r.left)); return (x / r.width) * _viwDur(); }
+    h.addEventListener('pointerdown', function (ev) { dragging = true; try { h.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); ev.stopPropagation(); });
+    h.addEventListener('pointermove', function (ev) { if (!dragging) return; var p = _viProject(_VI.projectId); var c = (p.clips || []).filter(function (x) { return x.id === cid; })[0]; if (!c) return; var t = timeAt(ev.clientX); if (side === 'in') c.t0 = Math.min(t, c.t1 - 0.2); else c.t1 = Math.max(t, c.t0 + 0.2); var seg = h.closest('.viw-clipseg'); var dur = _viwDur(); if (seg && dur) { seg.style.left = (c.t0 / dur * 100 * (_VI.ws.zoom || 1)).toFixed(3) + '%'; seg.style.width = Math.max(0.4, (c.t1 - c.t0) / dur * 100 * (_VI.ws.zoom || 1)).toFixed(3) + '%'; } });
+    function end(ev) { if (!dragging) return; dragging = false; try { h.releasePointerCapture(ev.pointerId); } catch (e) {} var p = _viProject(_VI.projectId); _viTouch(p); _viwAutosave('saved'); _viwUpdateLeft(); }
+    h.addEventListener('pointerup', end); h.addEventListener('pointercancel', end);
+  });
+  // minimap pan
+  var mini = document.getElementById('viw-mini');
+  if (mini && !mini._wired) {
+    mini._wired = true; var mdrag = false;
+    function panTo(clientX) { var sc = document.getElementById('viw-tl-scroll'); if (!sc) return; var r = mini.getBoundingClientRect(); var frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width)); sc.scrollLeft = frac * sc.scrollWidth - sc.clientWidth / 2; }
+    mini.addEventListener('pointerdown', function (ev) { mdrag = true; try { mini.setPointerCapture(ev.pointerId); } catch (e) {} panTo(ev.clientX); ev.preventDefault(); });
+    mini.addEventListener('pointermove', function (ev) { if (mdrag) panTo(ev.clientX); });
+    function mend(ev) { mdrag = false; try { mini.releasePointerCapture(ev.pointerId); } catch (e) {} }
+    mini.addEventListener('pointerup', mend); mini.addEventListener('pointercancel', mend);
+  }
+}
+
+function _viwWireResizers() {
+  var grips = document.querySelectorAll('#viw [data-viw-act="grip"]');
+  [].forEach.call(grips, function (g) {
+    if (g._wired) return; g._wired = true;
+    var side = g.getAttribute('data-viw'); var dragging = false, startX = 0, startW = 0;
+    g.addEventListener('pointerdown', function (ev) { dragging = true; startX = ev.clientX; startW = side === 'left' ? _VI.ws.leftW : _VI.ws.rightW; try { g.setPointerCapture(ev.pointerId); } catch (e) {} document.body.style.cursor = 'col-resize'; ev.preventDefault(); });
+    g.addEventListener('pointermove', function (ev) { if (!dragging) return; var dx = ev.clientX - startX; var val = side === 'left' ? startW + dx : startW - dx; val = Math.max(180, Math.min(460, val)); if (side === 'left') _VI.ws.leftW = val; else _VI.ws.rightW = val; var wrap = document.getElementById('viw'); if (wrap) { wrap.style.setProperty('--viw-l', _VI.ws.leftW + 'px'); wrap.style.setProperty('--viw-r', _VI.ws.rightW + 'px'); } });
+    function end(ev) { if (!dragging) return; dragging = false; try { g.releasePointerCapture(ev.pointerId); } catch (e) {} document.body.style.cursor = ''; _viwSavePrefs(); }
+    g.addEventListener('pointerup', end); g.addEventListener('pointercancel', end);
+  });
+}
+
+/* ---------- KEYBOARD ---------- */
+var _viwKeysBound = false;
+function _viwKeys() {
+  if (_viwKeysBound) return; _viwKeysBound = true;
+  document.addEventListener('keydown', function (ev) {
+    if (_VI.tab !== 'workspace' || !document.getElementById('viw')) return;
+    var t = ev.target, tag = t && t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+    var v = _viwVid(); var meta = ev.ctrlKey || ev.metaKey; var k = ev.key;
+    if (meta && (k === 'z' || k === 'Z')) { ev.preventDefault(); if (ev.shiftKey) _viwRedo(); else _viwUndo(); return; }
+    if (meta) return;
+    var p = _viProject(_VI.projectId);
+    switch (k) {
+      case ' ': case 'k': case 'K': ev.preventDefault(); _viwPlayPause(); break;
+      case 'ArrowLeft': ev.preventDefault(); _viwNudge(ev.shiftKey ? -5 : -1); break;
+      case 'ArrowRight': ev.preventDefault(); _viwNudge(ev.shiftKey ? 5 : 1); break;
+      case ',': ev.preventDefault(); _viwStepFrame(-1); break;
+      case '.': ev.preventDefault(); _viwStepFrame(1); break;
+      case 'j': case 'J': ev.preventDefault(); _viwNudge(-1); break;
+      case 'l': case 'L': ev.preventDefault(); _viwNudge(1); break;
+      case 'i': case 'I': ev.preventDefault(); _viwMark('in'); break;
+      case 'o': case 'O': ev.preventDefault(); _viwMark('out'); break;
+      case 'f': case 'F': ev.preventDefault(); _viwFull(); break;
+      case 'm': case 'M': ev.preventDefault(); _viwMute(); break;
+      case 't': case 'T': ev.preventDefault(); _viAddEvent(); break;
+      case '+': case '=': ev.preventDefault(); _viwZoom('in'); break;
+      case '-': case '_': ev.preventDefault(); _viwZoom('out'); break;
+      case 'v': case 'V': _viwSetTool('select'); break;
+      case 'c': case 'C': _viwSetTool('circle'); break;
+      case 'a': case 'A': _viwSetTool('arrow'); break;
+      case 'z': case 'Z': _viwSetTool('zone'); break;
+      case 's': case 'S': _viwSetTool('spotlight'); break;
+      case 'e': case 'E': _viwSetTool('eraser'); break;
+      case 'Escape': _viwSetTool('select'); break;
+    }
+  });
+}
+
+/* ---------- TRANSPORT ACTIONS ---------- */
+function _viwPlayPause() { var v = _viwVid(); if (!v) return; if (v.paused) v.play(); else v.pause(); setTimeout(_viwSyncTransport, 0); }
+function _viwNudge(sec) { var v = _viwVid(); if (!v) return; _viwSeekTo(v.currentTime + sec); }
+function _viwStepFrame(dir) { var v = _viwVid(); if (!v) return; if (!v.paused) v.pause(); _viwSeekTo(v.currentTime + dir * _viwFrame(_viProject(_VI.projectId))); setTimeout(_viwSyncTransport, 0); }
+function _viwSpeed(val) { var v = _viwVid(); if (!v) return; v.playbackRate = parseFloat(val) || 1; var b = document.getElementById('viw-spd'); if (b) b.textContent = v.playbackRate + '×'; var m = document.getElementById('viw-spdmenu'); if (m) m.hidden = true; }
+function _viwMute() { var v = _viwVid(); if (!v) return; v.muted = !v.muted; _viwSyncTransport(); }
+function _viwVolume(val) { var v = _viwVid(); if (!v) return; v.volume = parseFloat(val); v.muted = v.volume === 0; _viwSyncTransport(); }
+function _viwFull() { var wrap = document.getElementById('vi-videowrap'); if (!wrap) return; try { if (document.fullscreenElement) document.exitFullscreen(); else wrap.requestFullscreen(); } catch (e) {} }
+function _viwMark(side) { var v = _viwVid(); if (!v) return; if (side === 'in') { _VI.markIn = v.currentTime; _viwShowMarks(); _viToast('In: ' + _viFmt(v.currentTime)); } else { _VI.markOut = v.currentTime; _viwShowMarks(); _viToast('Out: ' + _viFmt(v.currentTime)); } }
+function _viwShowMarks() { var dur = _viwDur(); if (!dur) return; var inEl = document.getElementById('viw-seek-in'), outEl = document.getElementById('viw-seek-out'); if (inEl) { if (_VI.markIn != null) { inEl.hidden = false; inEl.style.left = (_VI.markIn / dur * 100) + '%'; } else inEl.hidden = true; } if (outEl) { if (_VI.markOut != null) { outEl.hidden = false; outEl.style.left = (_VI.markOut / dur * 100) + '%'; } else outEl.hidden = true; } }
+function _viwJump(side) { if (side === 'in' && _VI.markIn != null) _viwSeekTo(_VI.markIn); else if (side === 'out' && _VI.markOut != null) _viwSeekTo(_VI.markOut); else _viToast('Set clip ' + (side === 'in' ? 'In (I)' : 'Out (O)') + ' first'); }
+function _viwLoop() { var w = _VI.ws; if (w.loopClip) { w.loopClip = null; _viToast('Loop off'); } else if (w.selClip) { w.loopClip = w.selClip; _viToast('Looping clip'); } else { var p = _viProject(_VI.projectId); var c = (p.clips || [])[0]; if (c) { w.selClip = c.id; w.loopClip = c.id; _viwSeekTo(c.t0); _viToast('Looping ' + c.name); } else _viToast('No clip selected'); } var b = document.querySelector('.viw-tp--loop'); if (b) b.classList.toggle('is-on', !!w.loopClip); }
+function _viwZoom(dir) { var w = _VI.ws; if (dir === 'in') w.zoom = Math.min(12, (w.zoom || 1) * 1.6); else if (dir === 'out') w.zoom = Math.max(1, (w.zoom || 1) / 1.6); else { w.zoom = 1; w.pan = 0; } if (w.zoom === 1) w.pan = 0; _viwUpdateTimeline(); }
+
+/* ---------- LEFT/INSPECTOR/TIMELINE TARGETED UPDATES (no video remount) ---------- */
+function _viwSetLeftTab(t) { _VI.ws.leftTab = t; _viwUpdateLeft(); var nav = document.querySelectorAll('.viw-ltab'); [].forEach.call(nav, function (b) { b.classList.toggle('is-on', b.getAttribute('data-viw') === t); }); }
+function _viwUpdateLeft() { var b = document.getElementById('viw-lbody'); if (b) b.innerHTML = _viwLeftBody(_viProject(_VI.projectId)); }
+function _viwUpdateInspector() { var r = document.getElementById('viw-right'); if (r) { var np = r.parentNode; var tmp = document.createElement('div'); tmp.innerHTML = _viwInspector(_viProject(_VI.projectId)); np.replaceChild(tmp.firstChild, r); } }
+function _viwUpdateTimeline() { var old = document.getElementById('viw-tl'); if (!old) return; var tmp = document.createElement('div'); tmp.innerHTML = _viwTimeline(_viProject(_VI.projectId)); var neu = tmp.firstChild; old.parentNode.replaceChild(neu, old); _viwWireTimeline(); _viwRafOnce();
+  // centre the playhead after a zoom change
+  var sc = document.getElementById('viw-tl-scroll'), v = _viwVid(), dur = _viwDur();
+  if (sc && v && dur && (_VI.ws.zoom || 1) > 1) { var target = (v.currentTime / dur) * sc.scrollWidth - sc.clientWidth / 2; sc.scrollLeft = Math.max(0, target); }
+}
+function _viwSetTool(t) { _VI.ws.tool = t; _VI.annTool = (t === 'select' || t === 'eraser') ? null : t; var dock = document.querySelectorAll('.viw-dtool'); [].forEach.call(dock, function (b) { b.classList.toggle('is-on', b.getAttribute('data-viw') === t); }); _viwCursor(); }
+function _viwCursor() { var cv = document.getElementById('vi-canvas'); if (!cv) return; var t = _VI.ws.tool; cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; cv.style.pointerEvents = (t === 'select') ? 'none' : 'auto'; }
+
+/* ---------- ANNOTATION UNDO / REDO / LAYER OPS ---------- */
+function _viwPushUndo(op) { _VI.ws.undo = _VI.ws.undo || []; _VI.ws.undo.push(op); if (_VI.ws.undo.length > 60) _VI.ws.undo.shift(); _VI.ws.redo = []; _viwUndoBtns(); }
+function _viwUndoBtns() { var u = document.getElementById('viw-undo'), r = document.getElementById('viw-redo'); if (u) u.disabled = !(_VI.ws.undo && _VI.ws.undo.length); if (r) r.disabled = !(_VI.ws.redo && _VI.ws.redo.length); }
+function _viwUndo() { var w = _VI.ws, p = _viProject(_VI.projectId); if (!w.undo || !w.undo.length) return; var op = w.undo.pop(); if (op.t === 'add') { p.annotations = (p.annotations || []).filter(function (a) { return a.id !== op.ann.id; }); w.redo.push(op); } else if (op.t === 'del') { p.annotations.push(op.ann); w.redo.push(op); } _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwUndoBtns(); _viwAutosave('saved'); }
+function _viwRedo() { var w = _VI.ws, p = _viProject(_VI.projectId); if (!w.redo || !w.redo.length) return; var op = w.redo.pop(); if (op.t === 'add') { p.annotations.push(op.ann); w.undo.push(op); } else if (op.t === 'del') { p.annotations = (p.annotations || []).filter(function (a) { return a.id !== op.ann.id; }); w.undo.push(op); } _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwUndoBtns(); _viwAutosave('saved'); }
+
+/* ---------- AUTOSAVE INDICATOR ---------- */
+function _viwAutosave(state) { var el = document.getElementById('viw-save'); if (!el) return; el.setAttribute('data-state', state); el.textContent = state === 'saving' ? 'Saving…' : state === 'error' ? 'Error' : 'Saved'; if (state === 'saved') { clearTimeout(_VI.ws._savet); _VI.ws._savet = setTimeout(function () { var e2 = document.getElementById('viw-save'); if (e2) { e2.setAttribute('data-state', 'idle'); e2.textContent = 'Ready'; } }, 1600); } }
+
+/* ===== Annotation engine upgrade + event/clip/layer ops (replaces the old
+   _viWireCanvas / _viAnnColor / _viAnnDrawShape / _viAnnCommit / _viAnnClear /
+   _viAnnRedraw / _viAddEvent / _viSaveClip). Honest uncalibrated distances. ===== */
+
+function _viAnnColor() { return (_VI.ws && _VI.ws.annColor) || '#38f5c8'; }
+function _viAnnApply(ctx) { var w = _VI.ws || {}; ctx.lineWidth = w.annWidth || 3; ctx.globalAlpha = (w.annOpacity == null ? 1 : w.annOpacity); ctx.setLineDash(w.annDash ? [8, 5] : []); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+function _viRelDist(a, b) { var cv = document.getElementById('vi-canvas'); var W = cv ? cv.width : 640; var d = Math.hypot(b.x - a.x, b.y - a.y); return Math.round(d / W * 100); } // uncalibrated: % of frame width
+
+function _viAnnDrawShape(ctx, tool, a, b, path, an) {
+  ctx.save();
+  var col = (an && an.color) || _viAnnColor();
+  ctx.strokeStyle = col; ctx.fillStyle = 'rgba(56,245,200,.16)';
+  if (an) { ctx.lineWidth = an.width || 3; ctx.globalAlpha = (an.opacity == null ? 1 : an.opacity); ctx.setLineDash(an.dash ? [8, 5] : []); } else { _viAnnApply(ctx); }
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (tool === 'circle') { var r = Math.hypot(b.x - a.x, b.y - a.y); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.283); ctx.stroke(); }
+  else if (tool === 'arrow') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); var ang = Math.atan2(b.y - a.y, b.x - a.x); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 13 * Math.cos(ang - 0.4), b.y - 13 * Math.sin(ang - 0.4)); ctx.lineTo(b.x - 13 * Math.cos(ang + 0.4), b.y - 13 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
+  else if (tool === 'line') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+  else if (tool === 'zone') { ctx.fillStyle = col.replace(')', ',.14)').replace('rgb', 'rgba'); ctx.globalAlpha = Math.min(ctx.globalAlpha, .4); ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
+  else if (tool === 'spotlight') { var rr = Math.hypot(b.x - a.x, b.y - a.y) || 40; ctx.beginPath(); ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.arc(a.x, a.y, rr, 0, 6.283, true); ctx.fillStyle = 'rgba(4,10,18,.55)'; ctx.fill('evenodd'); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, 6.283); ctx.stroke(); }
+  else if (tool === 'distance') { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); _viAnnLabel(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, '≈' + _viRelDist(a, b) + '% w', col); }
+  else if (tool === 'free') { ctx.beginPath(); (path || []).forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.stroke(); }
+  ctx.restore();
+}
+function _viAnnLabel(ctx, x, y, txt, col) { ctx.save(); ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.font = '700 11px Inter,Arial'; var w = ctx.measureText(txt).width + 10; ctx.fillStyle = 'rgba(4,12,20,.85)'; ctx.fillRect(x - w / 2, y - 9, w, 16); ctx.fillStyle = col || '#38f5c8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y); ctx.restore(); }
+function _viAnnDrawPoints(ctx, an) {
+  var pts = an.points || []; if (!pts.length) return; ctx.save(); var col = an.color || '#38f5c8';
+  ctx.strokeStyle = col; ctx.lineWidth = an.width || 3; ctx.globalAlpha = (an.opacity == null ? 1 : an.opacity); ctx.setLineDash(an.dash ? [8, 5] : []); ctx.lineJoin = 'round';
+  if (an.kind === 'connect') {
+    if (an.fill && pts.length >= 3) { ctx.beginPath(); pts.forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.closePath(); ctx.globalAlpha = Math.min(.22, an.opacity || 1); ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = (an.opacity == null ? 1 : an.opacity); }
+    ctx.beginPath(); pts.forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); if (an.fill) ctx.closePath(); ctx.stroke();
+  } else if (an.kind === 'sequence') { ctx.beginPath(); pts.forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.stroke(); }
+  else if (an.kind === 'angle' && pts.length >= 3) { ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; _viAnnLabel(ctx, pts[1].x, pts[1].y - 14, Math.round(deg) + '°', col); }
+  // nodes + numbers
+  ctx.setLineDash([]); pts.forEach(function (pt, i) { ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, 6.283); ctx.fill(); if (an.kind === 'sequence' || an.kind === 'connect') { ctx.fillStyle = '#04121f'; ctx.font = '700 9px Inter,Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), pt.x, pt.y); } });
+  // relative segment length for distance-style connect
+  if (an.kind === 'connect' && pts.length === 2) _viAnnLabel(ctx, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2, '≈' + _viRelDist(pts[0], pts[1]) + '% w', col);
+  ctx.restore();
+}
+
+function _viAnnCommit(tool, a, b, path) {
+  var p = _viProject(_VI.projectId); if (!p) return; var w = _VI.ws || {};
+  var an;
+  if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, label: String(txt).slice(0, 200), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dur: 3 }; }
+  else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, dur: 3 }; }
+  p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
+}
+function _viAnnCommitPoints(kind, points) {
+  var p = _viProject(_VI.projectId); if (!p || points.length < 2) return; var w = _VI.ws || {};
+  var an = { id: _viUid(), t: _viCurTime(), kind: kind, points: points.slice(), fill: (kind === 'connect' && points.length >= 3), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, dur: 3 };
+  p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft();
+}
+function _viAnnClear() { var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime(); var removed = (p.annotations || []).filter(function (an) { return Math.abs(an.t - t) <= 0.6; }); if (!removed.length) return; p.annotations = (p.annotations || []).filter(function (an) { return Math.abs(an.t - t) > 0.6; }); removed.forEach(function (an) { _viwPushUndo({ t: 'del', ann: an }); }); _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwAutosave('saved'); }
+function _viAnnEraseAt(x, y) {
+  var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
+  var near = (p.annotations || []).filter(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return false; var px = an.x, py = an.y; if (an.points && an.points.length) { px = an.points[0].x; py = an.points[0].y; } return Math.hypot((px || 0) - x, (py || 0) - y) < 26 || (an.x2 != null && Math.hypot(an.x2 - x, an.y2 - y) < 26); });
+  if (!near.length) return; var an = near[near.length - 1]; p.annotations = p.annotations.filter(function (a) { return a.id !== an.id; }); _viwPushUndo({ t: 'del', ann: an }); _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwAutosave('saved');
+}
+function _viAnnRedraw() {
+  var cv = document.getElementById('vi-canvas'); if (!cv) return; var ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
+  var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
+  (p.annotations || []).forEach(function (an) {
+    if (an.hidden) return; if (Math.abs(an.t - t) > (an.dur || 3)) return;
+    if (an.kind === 'text') { ctx.save(); ctx.globalAlpha = an.opacity == null ? 1 : an.opacity; ctx.font = '600 14px Inter,Arial'; var w = ctx.measureText(an.label).width + 14; ctx.fillStyle = 'rgba(4,12,20,.8)'; ctx.fillRect(an.x, an.y - 16, w, 22); ctx.fillStyle = an.color; ctx.fillText(an.label, an.x + 7, an.y); ctx.restore(); }
+    else if (an.points) { _viAnnDrawPoints(ctx, an); }
+    else { _viAnnDrawShape(ctx, an.kind, { x: an.x, y: an.y }, { x: an.x2, y: an.y2 }, an.path, an); }
+  });
+}
+function _viAnnSnap(pt) {
+  var p = _viProject(_VI.projectId); if (!p) return pt; var t = _viCurTime(); var best = null, bd = 18;
+  (p.annotations || []).forEach(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return; var cands = []; if (an.points) an.points.forEach(function (q) { cands.push(q); }); else { if (an.x != null) cands.push({ x: an.x, y: an.y }); if (an.x2 != null) cands.push({ x: an.x2, y: an.y2 }); } cands.forEach(function (q) { var d = Math.hypot(q.x - pt.x, q.y - pt.y); if (d < bd) { bd = d; best = q; } }); });
+  return best ? { x: best.x, y: best.y, snapped: true } : pt;
+}
+
+function _viWireCanvas() {
+  var cv = document.getElementById('vi-canvas'), wrap = document.getElementById('vi-videowrap'); if (!cv || !wrap) return;
+  function size() { var w = wrap.clientWidth, h = wrap.clientHeight; if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } _viAnnRedraw(); }
+  size(); if (window.ResizeObserver && !cv._ro) { cv._ro = new ResizeObserver(size); cv._ro.observe(wrap); }
+  if (typeof _viwCursor === 'function') _viwCursor();
+  if (cv._wired) return; cv._wired = true;
+  var ctx = cv.getContext('2d'); var start = null, path = null, moved = false;
+  var MULTI = { connect: 99, sequence: 99, angle: 3 };
+  function rel(ev) { var r = cv.getBoundingClientRect(); return { x: (ev.clientX - r.left) * (cv.width / r.width), y: (ev.clientY - r.top) * (cv.height / r.height) }; }
+  cv.addEventListener('pointerdown', function (ev) {
+    if (_VI.ws.armPos) { var q = rel(ev); var d = _VI.evDraft = _VI.evDraft || {}; d.x = Math.round(q.x / cv.width * 100); d.y = Math.round(q.y / cv.height * 100); _VI.ws.armPos = false; if (_VI.ws.tool === 'select') cv.style.pointerEvents = 'none'; _viwCursor(); if (typeof _viwUpdateInspector === 'function') _viwUpdateInspector(); _viToast('Position set (x' + d.x + ' y' + d.y + ')'); return; }
+    var tool = _VI.ws.tool; if (!tool || tool === 'select') return;
+    if (tool === 'eraser') { _viAnnEraseAt(rel(ev).x, rel(ev).y); return; }
+    if (MULTI[tool]) { var q = _viAnnSnap(rel(ev)); _VI.ws.pending = _VI.ws.pending || { kind: tool, points: [] }; if (_VI.ws.pending.kind !== tool) _VI.ws.pending = { kind: tool, points: [] }; _VI.ws.pending.points.push({ x: q.x, y: q.y }); _viwDrawPending(); if (_VI.ws.pending.points.length >= MULTI[tool]) _viwCommitPending(); return; }
+    start = rel(ev); path = [start]; moved = false; try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+  });
+  cv.addEventListener('pointermove', function (ev) {
+    var tool = _VI.ws.tool; if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) return;
+    var cur = rel(ev); path.push(cur); moved = true; _viAnnRedraw(); _viAnnDrawShape(ctx, tool, start, cur, path);
+  });
+  function up(ev) { var tool = _VI.ws.tool; if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) { start = null; return; } var end = rel(ev); if (tool === 'text' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} }
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('dblclick', function () { if (_VI.ws.pending && _VI.ws.pending.points.length >= 2) _viwCommitPending(); });
+}
+function _viwDrawPending() { _viAnnRedraw(); var pend = _VI.ws.pending; if (!pend) return; var cv = document.getElementById('vi-canvas'); var ctx = cv.getContext('2d'); _viAnnDrawPoints(ctx, { kind: pend.kind, points: pend.points, color: _viAnnColor(), width: _VI.ws.annWidth, opacity: _VI.ws.annOpacity, fill: false }); }
+function _viwCommitPending() { var pend = _VI.ws.pending; _VI.ws.pending = null; if (pend && pend.points.length >= 2) _viAnnCommitPoints(pend.kind, pend.points); else _viAnnRedraw(); }
+
+/* ---- event / clip / layer operations (targeted updates, no video remount) ---- */
+function _viAddEvent() {
+  var p = _viProject(_VI.projectId); if (!p) { _viToast('Open an analysis first'); return; }
+  var d = _viReadEvInputs(); var v = document.getElementById('vi-video'); var t = (d.t0 != null && d._tedit) ? d.t0 : (v ? (v.currentTime || 0) : 0);
+  var ev = { id: _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t + (d.dur ? +d.dur : 0), success: d.success || 'success', phase: d.phase || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || ''), x: d.x, y: d.y };
+  p.events.push(ev); _viTouch(p);
+  _VI.ws.recentE = ([ev.type].concat((_VI.ws.recentE || []).filter(function (x) { return x !== ev.type; }))).slice(0, 8);
+  _VI.evDraft = { type: d.type, players: [], success: 'success', rating: 0, phase: d.phase, dur: 0 };
+  _viwUpdateTimeline(); _viwUpdateInspector(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft();
+  _viwAutosave('saved'); _viToast('Event tagged: ' + ev.type + ' @ ' + _viFmt(t));
+}
+function _viSaveClip() {
+  var p = _viProject(_VI.projectId); if (!p) return; var v = document.getElementById('vi-video'); var cur = v ? v.currentTime : 0;
+  var t0 = _VI.markIn != null ? _VI.markIn : Math.max(0, cur - 4), t1 = _VI.markOut != null ? _VI.markOut : cur + 4;
+  if (t1 <= t0) t1 = t0 + 6;
+  var name = window.prompt('Clip name:', 'Clip ' + ((p.clips || []).length + 1)); if (name === null) return;
+  var d = _VI.evDraft || {};
+  var clip = { id: _viUid(), name: name || ('Clip ' + (p.clips.length + 1)), t0: t0, t1: t1, pre: 0, post: 0, players: (d.players || []).slice(), cat: d.type ? _viCatOf(d.type) : '', notes: '', playlist: '' };
+  p.clips.push(clip); _VI.markIn = null; _VI.markOut = null; _viTouch(p);
+  var inEl = document.getElementById('viw-seek-in'), outEl = document.getElementById('viw-seek-out'); if (inEl) inEl.hidden = true; if (outEl) outEl.hidden = true;
+  _viwUpdateTimeline(); if (_VI.ws.leftTab === 'clips') _viwUpdateLeft();
+  _viwAutosave('saved'); _viToast('Clip saved: ' + clip.name + ' (' + _viFmt(t0) + '–' + _viFmt(t1) + ')');
+}
+function _viwClipOp(op, id) {
+  var p = _viProject(_VI.projectId); if (!p) return; var c = (p.clips || []).filter(function (x) { return x.id === id; })[0]; if (!c) return;
+  if (op === 'loop') { _VI.ws.selClip = id; _VI.ws.loopClip = (_VI.ws.loopClip === id ? null : id); if (_VI.ws.loopClip) _viwSeekTo(c.t0); var b = document.querySelector('.viw-tp--loop'); if (b) b.classList.toggle('is-on', !!_VI.ws.loopClip); _viToast(_VI.ws.loopClip ? 'Looping ' + c.name : 'Loop off'); }
+  else if (op === 'rename') { var n = window.prompt('Rename clip:', c.name); if (n != null) { c.name = n || c.name; _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); } }
+  else if (op === 'dup') { p.clips.push({ id: _viUid(), name: c.name + ' copy', t0: c.t0, t1: c.t1, players: (c.players || []).slice(), cat: c.cat, notes: c.notes, playlist: c.playlist }); _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); }
+  else if (op === 'del') { if (!window.confirm('Delete clip “' + c.name + '”?')) return; p.clips = p.clips.filter(function (x) { return x.id !== id; }); if (_VI.ws.loopClip === id) _VI.ws.loopClip = null; _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); }
+}
+function _viwLayerOp(op, id) {
+  var p = _viProject(_VI.projectId); if (!p) return; var a = (p.annotations || []).filter(function (x) { return x.id === id; })[0]; if (!a) return;
+  if (op === 'hide') { a.hidden = !a.hidden; }
+  else if (op === 'lock') { a.locked = !a.locked; }
+  else if (op === 'dup') { var c = JSON.parse(JSON.stringify(a)); c.id = _viUid(); c.t = a.t; p.annotations.push(c); _viwPushUndo({ t: 'add', ann: c }); }
+  else if (op === 'del') { p.annotations = p.annotations.filter(function (x) { return x.id !== id; }); _viwPushUndo({ t: 'del', ann: a }); }
+  else if (op === 'seek') { _viwSeekTo(a.t); }
+  _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwAutosave('saved');
+}
+
+/* ===== Workspace action dispatchers (data-viw-act) + input routing ===== */
+function _viwAct(a, v, ev) {
+  switch (a) {
+    case 'ltab': _viwSetLeftTab(v); break;
+    case 'collapseL': _viwToggleMax(); break;
+    case 'evcat': _VI.ws.evCat = v; _viwUpdateLeft(); break;
+    case 'tool': _viwSetTool(v); break;
+    case 'anncolor': _VI.ws.annColor = v; _viwRefreshDock(); break;
+    case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); break;
+    case 'undo': _viwUndo(); break;
+    case 'redo': _viwRedo(); break;
+    case 'clearframe': _viAnnClear(); break;
+    case 'saveframe': _viAnnSaveFrame(); break;
+    case 'nudge': _viwNudge(parseFloat(v)); break;
+    case 'frame': _viwStepFrame(parseInt(v, 10)); break;
+    case 'play': _viwPlayPause(); break;
+    case 'spdmenu': var m = document.getElementById('viw-spdmenu'); if (m) m.hidden = !m.hidden; break;
+    case 'speed': _viwSpeed(v); break;
+    case 'mute': _viwMute(); break;
+    case 'markin': _viwMark('in'); break;
+    case 'markout': _viwMark('out'); break;
+    case 'jumpin': _viwJump('in'); break;
+    case 'jumpout': _viwJump('out'); break;
+    case 'loop': _viwLoop(); break;
+    case 'addevent2': _viAddEvent(); break;
+    case 'saveclip2': _viSaveClip(); break;
+    case 'savews2': var pw = _viProject(_VI.projectId); if (pw) { _viTouch(pw); _viwAutosave('saved'); _viToast('Analysis saved'); } break;
+    case 'maximize': _viwToggleMax(); break;
+    case 'full': _viwFull(); break;
+    case 'zoom': _viwZoom(v); break;
+    case 'pospick': _viwArmPos(); break;
+    // pointer-driven (handled in _viwWire, no click action): grip, dockgrip, seekbar, tlseek, cliphandle, minipan
+  }
+}
+function _viwToggleMax() { _VI.ws.maximized = !_VI.ws.maximized; var w = document.getElementById('viw'); if (w) { w.classList.toggle('is-max', _VI.ws.maximized); setTimeout(function () { _viWireCanvas(); }, 30); } }
+function _viwRefreshDock() { var d = document.getElementById('viw-dock'); if (!d) return; var tmp = document.createElement('div'); tmp.innerHTML = _viwDock(); if (tmp.firstChild) { d.parentNode.replaceChild(tmp.firstChild, d); } }
+function _viwArmPos() { _VI.ws.armPos = true; var box = document.querySelector('.viw-pos'); if (box) { box.classList.add('is-arming'); box.textContent = 'Click on the video…'; } var cv = document.getElementById('vi-canvas'); if (cv) { cv.style.pointerEvents = 'auto'; cv.style.cursor = 'crosshair'; } _viToast('Click a spot on the video to set the position'); }
+function _viwInput(el) {
+  var a = el.getAttribute('data-viw-act');
+  if (a === 'pq') { _VI.ws.playerQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-pq'); }
+  else if (a === 'eq') { _VI.ws.eventQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-eq'); }
+  else if (a === 'cq') { _VI.ws.clipQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-cq'); }
+  else if (a === 'annwidth') { _VI.ws.annWidth = parseInt(el.value, 10) || 3; }
+  else if (a === 'annopacity') { _VI.ws.annOpacity = parseFloat(el.value); }
+  else if (a === 'volinput') { _viwVolume(el.value); }
+  else if (a === 'evtime') { var d = _VI.evDraft = _VI.evDraft || {}; var parts = (el.value || '').split(':'); var secs = parts.length === 2 ? (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) : parseFloat(el.value); if (isFinite(secs)) { d.t0 = secs; d._tedit = true; _viwSeekTo(secs); } }
+  else if (a === 'evpq') { _viwEvPlayerSearch(el.value); }
+}
+function _viwFocusRestore(id) { var el = document.getElementById(id); if (el) { el.focus(); try { var l = el.value.length; el.setSelectionRange(l, l); } catch (e) {} } }
+function _viwEvPlayerSearch(q) {
+  var box = document.getElementById('viw-ev-pres'); if (!box) return; q = (q || '').toLowerCase();
+  if (!q) { box.hidden = true; box.innerHTML = ''; return; }
+  var sel = ((_VI.evDraft || {}).players) || [];
+  var res = _viPlayers().filter(function (pl) { return sel.indexOf(pl.id) < 0 && (pl.name + ' ' + (pl.num || '')).toLowerCase().indexOf(q) >= 0; }).slice(0, 6);
+  box.hidden = !res.length; box.innerHTML = res.map(function (pl) { return '<button data-vi-act="evplayer" data-vi="' + pl.id + '" type="button">' + (pl.num ? pl.num + ' · ' : '') + _viEsc(pl.name) + '</button>'; }).join('');
 }
