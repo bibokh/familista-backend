@@ -43866,6 +43866,9 @@ function _viBind() {
     else if (a === 'clipdel') { _viwClipOp('del', v); }
     else if (a === 'annhide') { _viwLayerOp('hide', v); }
     else if (a === 'annlock') { _viwLayerOp('lock', v); }
+    else if (a === 'annrename') { _viwLayerOp('rename', v); }
+    else if (a === 'anndur') { _viwLayerOp('dur', v); }
+    else if (a === 'annsel') { _viwLayerOp('sel', v); }
     else if (a === 'anndup') { _viwLayerOp('dup', v); }
     else if (a === 'anndel') { _viwLayerOp('del', v); }
     else if (a === 'annseek') { _viwLayerOp('seek', v); }
@@ -44141,22 +44144,25 @@ function _vipHeader(p) {
 }
 function _vipToolbar() {
   var w = _VI.ws;
-  var tools = [['select','▚','Select'],['circle','◯','Circle'],['arrow','↗','Arrow'],['line','／','Line'],['zone','▭','Zone'],['spotlight','◎','Spotlight'],['text','T','Text'],['free','✎','Free Draw']];
-  var t = tools.map(function(x){ return '<button class="viw-dtool vip-tool'+(w.tool===x[0]?' is-on':'')+'" data-viw-act="tool" data-viw="'+x[0]+'" title="'+x[2]+'" type="button"><em>'+x[1]+'</em><span>'+x[2]+'</span></button>'; }).join('');
-  var colors = ['#ffffff','#f43f5e','#fb923c','#4ade80','#2dd4bf','#38bdf8','#a78bfa','#e5e7eb'];
+  var tools = [['select','▚','Select','V'],['circle','◯','Circle','C'],['arrow','↗','Arrow','A'],['rect','▭','Rectangle','R'],['line','／','Line',''],['zone','◨','Zone','Z'],['spotlight','◎','Spotlight','S'],['free','✎','Free Draw',''],['text','T','Text',''],['connect','⧉','Connect',''],['distance','↔','Distance',''],['angle','∠','Angle',''],['sequence','①','Sequence',''],['eraser','⌫','Eraser','E']];
+  var t = tools.map(function(x){ return '<button class="viw-dtool vip-tool'+(w.tool===x[0]?' is-on':'')+'" data-viw-act="tool" data-viw="'+x[0]+'" title="'+x[2]+(x[3]?' ('+x[3]+')':'')+'" type="button"><em>'+x[1]+'</em><span>'+x[2]+'</span></button>'; }).join('');
+  var colors = ['#ffffff','#f43f5e','#fb923c','#fbbf24','#4ade80','#2dd4bf','#38bdf8','#a78bfa'];
   var sw = colors.map(function(c){ return '<button class="vip-sw'+(w.annColor===c?' is-on':'')+'" style="--sw:'+c+'" data-viw-act="anncolor" data-viw="'+c+'" title="'+c+'"></button>'; }).join('');
   return '<div class="vip-toolbar">'
     + '<div class="vip-tools">' + t + '</div>'
     + '<div class="vip-tsep"></div>'
     + '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button>'
     + '<button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Delete</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>'
     + '<div class="vip-tsep"></div>'
     + '<div class="vip-sws">' + sw + '</div>'
     + '<div class="vip-tsep"></div>'
+    + '<label class="vip-thick" title="Thickness">▭<input type="range" id="viw-annw" min="1" max="10" step="1" value="'+(w.annWidth||3)+'" data-viw-act="annwidth"></label>'
+    + '<label class="vip-thick" title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="'+(w.annOpacity==null?1:w.annOpacity)+'" data-viw-act="annopacity"></label>'
+    + '<button class="viw-dtool vip-tool vip-fillbtn'+(w.annFill?' is-on':'')+'" data-viw-act="annfill" title="Fill shape" type="button"><em>◧</em></button>'
     + '<button class="viw-dtool vip-tool vip-dashbtn'+(w.annDash?' is-on':'')+'" data-viw-act="anndash" title="Solid / dashed" type="button"><em>'+(w.annDash?'┄':'──')+'</em></button>'
-    + '<label class="vip-thick" title="Line thickness">◐<input type="range" id="viw-annw" min="1" max="8" step="1" value="'+(w.annWidth||3)+'" data-viw-act="annwidth"></label>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em></button>'
     + '</div>';
 }
 function _vipInsights(p) {
@@ -44199,6 +44205,7 @@ function _vipAI(p) {
 function _vipSyncTool() {
   var sws = document.querySelectorAll('.vip-sw'); [].forEach.call(sws, function(b){ b.classList.toggle('is-on', b.getAttribute('data-viw') === _VI.ws.annColor); });
   var dash = document.querySelector('.vip-dashbtn'); if (dash) { dash.classList.toggle('is-on', !!_VI.ws.annDash); var em = dash.querySelector('em'); if (em) em.textContent = _VI.ws.annDash ? '┄' : '──'; }
+  var fill = document.querySelector('.vip-fillbtn'); if (fill) fill.classList.toggle('is-on', !!_VI.ws.annFill);
 }
 
 /* ---------- SHELL ---------- */
@@ -44295,13 +44302,13 @@ function _viwClipsTab(p) {
 function _viwLayersTab(p) {
   var w = _VI.ws;
   var anns = (p.annotations || []).slice().sort(function (a, b) { return a.t - b.t; });
-  return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i></div>'
+  return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i> · <a data-viw-act="tool" data-viw="select">select tool</a></div>'
     + (anns.length ? '<div class="viw-layers">' + anns.map(function (a) {
         var name = a.label ? a.label : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1));
-        return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
-          + '<button class="viw-layer-main" data-vi-act="annseek" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's</i></button>'
-          + '<div class="viw-layer-acts"><button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
-      }).join('') + '</div>' : '<p class="viw-hint">Draw on the paused video with the annotation tools. Saved shapes appear here as editable layers.</p>');
+        return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + (w.selAnn === a.id ? ' is-sel' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
+          + '<button class="viw-layer-main" data-vi-act="annsel" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's</i></button>'
+          + '<div class="viw-layer-acts"><button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock/Unlock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="annrename" data-vi="' + a.id + '" title="Rename">✎</button><button data-vi-act="anndur" data-vi="' + a.id + '" title="On-screen duration">⏱</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
+      }).join('') + '</div>' : '<p class="viw-hint">Draw on the paused video with the annotation tools. Saved shapes appear here as editable layers — click one to select, then drag on the video to move, or use the actions.</p>');
 }
 
 /* ---------- CENTER: video stage + transport + seek bar ---------- */
@@ -44321,9 +44328,9 @@ function _viwTransport(p) {
   var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
   var spd = '<div class="viw-spdwrap"><button class="viw-tp viw-spd" data-viw-act="spdmenu" id="viw-spd" title="Playback speed" type="button">1.0×</button><div class="viw-spdmenu" id="viw-spdmenu" hidden>' + speeds.map(function (s) { return '<button data-viw-act="speed" data-viw="' + s + '" type="button">' + s + '×</button>'; }).join('') + '</div></div>';
   return '<div class="viw-transport">'
-    + '<div class="viw-tp-g">' + b('frame', -1, '⏮', 'Previous frame (,)') + b('nudge', -5, '−5s', 'Back 5s (Shift+←)') + b('nudge', -1, '−1s', 'Back 1s (←)') + '</div>'
+    + '<div class="viw-tp-g">' + b('prevev', null, '⤝', 'Previous event ([)') + b('frame', -1, '⏮', 'Previous frame (,)') + b('nudge', -5, '−5s', 'Back 5s (Shift+←)') + b('nudge', -1, '−1s', 'Back 1s (←)') + '</div>'
     + '<div class="viw-tp-g">' + b('play', null, '▶', 'Play / Pause (Space / K)', 'viw-tp--play') + '</div>'
-    + '<div class="viw-tp-g">' + b('nudge', 1, '+1s', 'Forward 1s (→)') + b('nudge', 5, '+5s', 'Forward 5s (Shift+→)') + b('frame', 1, '⏭', 'Next frame (.)') + '</div>'
+    + '<div class="viw-tp-g">' + b('nudge', 1, '+1s', 'Forward 1s (→)') + b('nudge', 5, '+5s', 'Forward 5s (Shift+→)') + b('frame', 1, '⏭', 'Next frame (.)') + b('nextev', null, '⤞', 'Next event (])') + '</div>'
     + '<div class="viw-tp-time"><span id="viw-cur">0:00</span><i>/</i><span id="viw-dur">0:00</span></div>'
     + '<div class="viw-tp-g">' + spd + '</div>'
     + '<div class="viw-tp-g viw-vol"><button class="viw-tp" data-viw-act="mute" id="viw-mute" title="Mute (M)" type="button">🔊</button><input class="viw-volsl" id="viw-vol" type="range" min="0" max="1" step="0.05" value="1" data-viw-act="volinput" title="Volume"></div>'
@@ -44584,7 +44591,11 @@ function _viwKeys() {
       case 'z': case 'Z': _viwSetTool('zone'); break;
       case 's': case 'S': _viwSetTool('spotlight'); break;
       case 'e': case 'E': _viwSetTool('eraser'); break;
-      case 'Escape': _viwSetTool('select'); break;
+      case 'r': case 'R': _viwSetTool('rect'); break;
+      case '[': ev.preventDefault(); _viwStepEvent(-1); break;
+      case ']': ev.preventDefault(); _viwStepEvent(1); break;
+      case 'Delete': case 'Backspace': if (_VI.ws.selAnn) { ev.preventDefault(); _viAnnDeleteSelected(); } break;
+      case 'Escape': if (_VI.ws.selAnn) { _VI.ws.selAnn = null; _viAnnRedraw(); } else _viwSetTool('select'); break;
     }
   });
 }
@@ -44593,6 +44604,17 @@ function _viwKeys() {
 function _viwPlayPause() { var v = _viwVid(); if (!v) return; if (v.paused) v.play(); else v.pause(); setTimeout(_viwSyncTransport, 0); }
 function _viwNudge(sec) { var v = _viwVid(); if (!v) return; _viwSeekTo(v.currentTime + sec); }
 function _viwStepFrame(dir) { var v = _viwVid(); if (!v) return; if (!v.paused) v.pause(); _viwSeekTo(v.currentTime + dir * _viwFrame(_viProject(_VI.projectId))); setTimeout(_viwSyncTransport, 0); }
+function _viwStepEvent(dir) {
+  var p = _viProject(_VI.projectId), v = _viwVid(); if (!p || !v) return;
+  var evs = (p.events || []).slice().sort(function (a, b) { return a.t0 - b.t0; });
+  if (!evs.length) { _viToast('No events tagged yet'); return; }
+  var cur = v.currentTime, eps = 0.25, target = null;
+  if (dir > 0) { for (var i = 0; i < evs.length; i++) { if (evs[i].t0 > cur + eps) { target = evs[i]; break; } } }
+  else { for (var j = evs.length - 1; j >= 0; j--) { if (evs[j].t0 < cur - eps) { target = evs[j]; break; } } }
+  if (!target) { _viToast(dir > 0 ? 'Last event' : 'First event'); return; }
+  _VI.ws.selEvent = target.id; _viwSeekTo(target.t0); if (typeof _viwUpdateTimeline === 'function') _viwUpdateTimeline();
+  _viToast((dir > 0 ? '▶ ' : '◀ ') + target.type + ' @ ' + _viFmt(target.t0));
+}
 function _viwSpeed(val) { var v = _viwVid(); if (!v) return; v.playbackRate = parseFloat(val) || 1; var b = document.getElementById('viw-spd'); if (b) b.textContent = v.playbackRate + '×'; var m = document.getElementById('viw-spdmenu'); if (m) m.hidden = true; }
 function _viwMute() { var v = _viwVid(); if (!v) return; v.muted = !v.muted; _viwSyncTransport(); }
 function _viwVolume(val) { var v = _viwVid(); if (!v) return; v.volume = parseFloat(val); v.muted = v.volume === 0; _viwSyncTransport(); }
@@ -44612,8 +44634,8 @@ function _viwUpdateTimeline() { var old = document.getElementById('viw-tl'); if 
   var sc = document.getElementById('viw-tl-scroll'), v = _viwVid(), dur = _viwDur();
   if (sc && v && dur && (_VI.ws.zoom || 1) > 1) { var target = (v.currentTime / dur) * sc.scrollWidth - sc.clientWidth / 2; sc.scrollLeft = Math.max(0, target); }
 }
-function _viwSetTool(t) { _VI.ws.tool = t; _VI.annTool = (t === 'select' || t === 'eraser') ? null : t; var dock = document.querySelectorAll('.viw-dtool'); [].forEach.call(dock, function (b) { b.classList.toggle('is-on', b.getAttribute('data-viw') === t); }); _viwCursor(); }
-function _viwCursor() { var cv = document.getElementById('vi-canvas'); if (!cv) return; var t = _VI.ws.tool; cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; cv.style.pointerEvents = (t === 'select') ? 'none' : 'auto'; }
+function _viwSetTool(t) { _VI.ws.tool = t; _VI.annTool = (t === 'select' || t === 'eraser') ? null : t; if (t !== 'select') { _VI.ws.selAnn = null; } var dock = document.querySelectorAll('.viw-dtool'); [].forEach.call(dock, function (b) { b.classList.toggle('is-on', b.getAttribute('data-viw') === t); }); _viwCursor(); if (typeof _viAnnRedraw === 'function') _viAnnRedraw(); }
+function _viwCursor() { var cv = document.getElementById('vi-canvas'); if (!cv) return; var t = _VI.ws.tool; cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; cv.style.pointerEvents = 'auto'; }
 
 /* ---------- ANNOTATION UNDO / REDO / LAYER OPS ---------- */
 function _viwPushUndo(op) { _VI.ws.undo = _VI.ws.undo || []; _VI.ws.undo.push(op); if (_VI.ws.undo.length > 60) _VI.ws.undo.shift(); _VI.ws.redo = []; _viwUndoBtns(); }
@@ -44638,7 +44660,8 @@ function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   ctx.strokeStyle = col; ctx.fillStyle = 'rgba(56,245,200,.16)';
   if (an) { ctx.lineWidth = an.width || 3; ctx.globalAlpha = (an.opacity == null ? 1 : an.opacity); ctx.setLineDash(an.dash ? [8, 5] : []); } else { _viAnnApply(ctx); }
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (tool === 'circle') { var r = Math.hypot(b.x - a.x, b.y - a.y); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.283); ctx.stroke(); }
+  if (tool === 'circle') { var r = Math.hypot(b.x - a.x, b.y - a.y); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.283); if (an && an.fill) { ctx.save(); ctx.globalAlpha = Math.min(ctx.globalAlpha, .22); ctx.fillStyle = col; ctx.fill(); ctx.restore(); } ctx.stroke(); }
+  else if (tool === 'rect') { ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); if (an && an.fill) { ctx.save(); ctx.globalAlpha = Math.min(ctx.globalAlpha, .22); ctx.fillStyle = col; ctx.fill(); ctx.restore(); } ctx.stroke(); }
   else if (tool === 'arrow') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); var ang = Math.atan2(b.y - a.y, b.x - a.x); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 13 * Math.cos(ang - 0.4), b.y - 13 * Math.sin(ang - 0.4)); ctx.lineTo(b.x - 13 * Math.cos(ang + 0.4), b.y - 13 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
   else if (tool === 'line') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
   else if (tool === 'zone') { ctx.fillStyle = col.replace(')', ',.14)').replace('rgb', 'rgba'); ctx.globalAlpha = Math.min(ctx.globalAlpha, .4); ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
@@ -44667,7 +44690,7 @@ function _viAnnCommit(tool, a, b, path) {
   var p = _viProject(_VI.projectId); if (!p) return; var w = _VI.ws || {};
   var an;
   if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, label: String(txt).slice(0, 200), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dur: 3 }; }
-  else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, dur: 3 }; }
+  else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, fill: !!w.annFill, dur: 3 }; }
   p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
 }
 function _viAnnCommitPoints(kind, points) {
@@ -44681,6 +44704,26 @@ function _viAnnEraseAt(x, y) {
   var near = (p.annotations || []).filter(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return false; var px = an.x, py = an.y; if (an.points && an.points.length) { px = an.points[0].x; py = an.points[0].y; } return Math.hypot((px || 0) - x, (py || 0) - y) < 26 || (an.x2 != null && Math.hypot(an.x2 - x, an.y2 - y) < 26); });
   if (!near.length) return; var an = near[near.length - 1]; p.annotations = p.annotations.filter(function (a) { return a.id !== an.id; }); _viwPushUndo({ t: 'del', ann: an }); _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwAutosave('saved');
 }
+/* ---- selection / move / delete (edit annotations after drawing) ---- */
+function _viAnnBBox(an) {
+  if (an.points && an.points.length) { var xs = an.points.map(function (q) { return q.x; }), ys = an.points.map(function (q) { return q.y; }); return { x1: Math.min.apply(null, xs), y1: Math.min.apply(null, ys), x2: Math.max.apply(null, xs), y2: Math.max.apply(null, ys) }; }
+  if (an.kind === 'circle') { var r = Math.hypot((an.x2 - an.x), (an.y2 - an.y)); return { x1: an.x - r, y1: an.y - r, x2: an.x + r, y2: an.y + r }; }
+  if (an.kind === 'text') { return { x1: an.x, y1: an.y - 16, x2: an.x + 130, y2: an.y + 8 }; }
+  var ax2 = an.x2 == null ? an.x : an.x2, ay2 = an.y2 == null ? an.y : an.y2;
+  return { x1: Math.min(an.x, ax2), y1: Math.min(an.y, ay2), x2: Math.max(an.x, ax2), y2: Math.max(an.y, ay2) };
+}
+function _viAnnHit(x, y) {
+  var p = _viProject(_VI.projectId); if (!p) return null; var t = _viCurTime(); var hit = null;
+  (p.annotations || []).forEach(function (an) { if (an.hidden || an.locked) return; if (Math.abs(an.t - t) > (an.dur || 3)) return; var b = _viAnnBBox(an), pad = 12; if (x >= b.x1 - pad && x <= b.x2 + pad && y >= b.y1 - pad && y <= b.y2 + pad) hit = an; });
+  return hit;
+}
+function _viAnnMove(an, dx, dy) { if (an.points) an.points.forEach(function (q) { q.x += dx; q.y += dy; }); if (an.x != null) an.x += dx; if (an.y != null) an.y += dy; if (an.x2 != null) an.x2 += dx; if (an.y2 != null) an.y2 += dy; }
+function _viAnnSelected() { var p = _viProject(_VI.projectId); if (!p || !_VI.ws.selAnn) return null; return (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0] || null; }
+function _viAnnDeleteSelected() {
+  var p = _viProject(_VI.projectId); if (!p) return; var an = _viAnnSelected(); if (!an) { _viToast('Select an annotation first (Select tool)'); return; }
+  if (an.locked) { _viToast('Annotation is locked'); return; }
+  p.annotations = p.annotations.filter(function (a) { return a.id !== an.id; }); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'del', ann: an }); _VI.ws.selAnn = null; _viTouch(p); _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Annotation deleted');
+}
 function _viAnnRedraw() {
   var cv = document.getElementById('vi-canvas'); if (!cv) return; var ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
   var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
@@ -44690,6 +44733,8 @@ function _viAnnRedraw() {
     else if (an.points) { _viAnnDrawPoints(ctx, an); }
     else { _viAnnDrawShape(ctx, an.kind, { x: an.x, y: an.y }, { x: an.x2, y: an.y2 }, an.path, an); }
   });
+  // selection outline
+  if (_VI.ws && _VI.ws.selAnn) { var sa = (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0]; if (sa && !sa.hidden && Math.abs(sa.t - t) <= (sa.dur || 3)) { var b = _viAnnBBox(sa); ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.globalAlpha = 1; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.strokeRect(b.x1 - 7, b.y1 - 7, (b.x2 - b.x1) + 14, (b.y2 - b.y1) + 14); ctx.setLineDash([]); [[b.x1 - 7, b.y1 - 7], [b.x2 + 7, b.y1 - 7], [b.x1 - 7, b.y2 + 7], [b.x2 + 7, b.y2 + 7]].forEach(function (c) { ctx.fillStyle = '#04121f'; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.beginPath(); ctx.rect(c[0] - 3, c[1] - 3, 6, 6); ctx.fill(); ctx.stroke(); }); ctx.restore(); } }
 }
 function _viAnnSnap(pt) {
   var p = _viProject(_VI.projectId); if (!p) return pt; var t = _viCurTime(); var best = null, bd = 18;
@@ -44703,21 +44748,34 @@ function _viWireCanvas() {
   size(); if (window.ResizeObserver && !cv._ro) { cv._ro = new ResizeObserver(size); cv._ro.observe(wrap); }
   if (typeof _viwCursor === 'function') _viwCursor();
   if (cv._wired) return; cv._wired = true;
-  var ctx = cv.getContext('2d'); var start = null, path = null, moved = false;
+  var ctx = cv.getContext('2d'); var start = null, path = null, moved = false, selDrag = null;
   var MULTI = { connect: 99, sequence: 99, angle: 3 };
   function rel(ev) { var r = cv.getBoundingClientRect(); return { x: (ev.clientX - r.left) * (cv.width / r.width), y: (ev.clientY - r.top) * (cv.height / r.height) }; }
   cv.addEventListener('pointerdown', function (ev) {
-    if (_VI.ws.armPos) { var q = rel(ev); var d = _VI.evDraft = _VI.evDraft || {}; d.x = Math.round(q.x / cv.width * 100); d.y = Math.round(q.y / cv.height * 100); _VI.ws.armPos = false; if (_VI.ws.tool === 'select') cv.style.pointerEvents = 'none'; _viwCursor(); if (typeof _viwUpdateInspector === 'function') _viwUpdateInspector(); _viToast('Position set (x' + d.x + ' y' + d.y + ')'); return; }
-    var tool = _VI.ws.tool; if (!tool || tool === 'select') return;
+    if (_VI.ws.armPos) { var q = rel(ev); var d = _VI.evDraft = _VI.evDraft || {}; d.x = Math.round(q.x / cv.width * 100); d.y = Math.round(q.y / cv.height * 100); _VI.ws.armPos = false; _viwCursor(); if (typeof _viwUpdateInspector === 'function') _viwUpdateInspector(); _viToast('Position set (x' + d.x + ' y' + d.y + ')'); return; }
+    var tool = _VI.ws.tool;
+    if (!tool || tool === 'select') { // hit-test → select + begin move
+      var q2 = rel(ev); var hit = _viAnnHit(q2.x, q2.y); _VI.ws.selAnn = hit ? hit.id : null;
+      if (hit) { selDrag = { id: hit.id, last: q2, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
+      _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
+      return;
+    }
     if (tool === 'eraser') { _viAnnEraseAt(rel(ev).x, rel(ev).y); return; }
     if (MULTI[tool]) { var q = _viAnnSnap(rel(ev)); _VI.ws.pending = _VI.ws.pending || { kind: tool, points: [] }; if (_VI.ws.pending.kind !== tool) _VI.ws.pending = { kind: tool, points: [] }; _VI.ws.pending.points.push({ x: q.x, y: q.y }); _viwDrawPending(); if (_VI.ws.pending.points.length >= MULTI[tool]) _viwCommitPending(); return; }
     start = rel(ev); path = [start]; moved = false; try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
   });
   cv.addEventListener('pointermove', function (ev) {
-    var tool = _VI.ws.tool; if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) return;
+    var tool = _VI.ws.tool;
+    if ((!tool || tool === 'select') && selDrag) { var q = rel(ev); var an = _viAnnSelected(); if (an && !an.locked) { _viAnnMove(an, q.x - selDrag.last.x, q.y - selDrag.last.y); selDrag.last = q; selDrag.moved = true; _viAnnRedraw(); } return; }
+    if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) return;
     var cur = rel(ev); path.push(cur); moved = true; _viAnnRedraw(); _viAnnDrawShape(ctx, tool, start, cur, path);
   });
-  function up(ev) { var tool = _VI.ws.tool; if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) { start = null; return; } var end = rel(ev); if (tool === 'text' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} }
+  function up(ev) {
+    var tool = _VI.ws.tool;
+    if ((!tool || tool === 'select')) { if (selDrag && selDrag.moved) { var p = _viProject(_VI.projectId); _viTouch(p); _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); } if (selDrag) { try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} } selDrag = null; return; }
+    if (tool === 'eraser' || MULTI[tool] || !start) { start = null; return; }
+    var end = rel(ev); if (tool === 'text' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+  }
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('dblclick', function () { if (_VI.ws.pending && _VI.ws.pending.points.length >= 2) _viwCommitPending(); });
 }
@@ -44758,6 +44816,9 @@ function _viwLayerOp(op, id) {
   var p = _viProject(_VI.projectId); if (!p) return; var a = (p.annotations || []).filter(function (x) { return x.id === id; })[0]; if (!a) return;
   if (op === 'hide') { a.hidden = !a.hidden; }
   else if (op === 'lock') { a.locked = !a.locked; }
+  else if (op === 'rename') { var nm = window.prompt('Layer name:', a.label || (a.kind ? a.kind.charAt(0).toUpperCase() + a.kind.slice(1) : 'Layer')); if (nm == null) return; a.label = String(nm).slice(0, 60); }
+  else if (op === 'dur') { var ds = window.prompt('Annotation duration on screen (seconds):', a.dur || 3); if (ds == null) return; var dn = parseFloat(ds); if (isFinite(dn) && dn > 0) a.dur = Math.min(60, dn); }
+  else if (op === 'sel') { _VI.ws.selAnn = a.id; _viwSetTool('select'); _viwSeekTo(a.t); }
   else if (op === 'dup') { var c = JSON.parse(JSON.stringify(a)); c.id = _viUid(); c.t = a.t; p.annotations.push(c); _viwPushUndo({ t: 'add', ann: c }); }
   else if (op === 'del') { p.annotations = p.annotations.filter(function (x) { return x.id !== id; }); _viwPushUndo({ t: 'del', ann: a }); }
   else if (op === 'seek') { _viwSeekTo(a.t); }
@@ -44775,6 +44836,10 @@ function _viwAct(a, v, ev) {
     case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); _vipSyncTool(); break;
     case 'undo': _viwUndo(); break;
     case 'redo': _viwRedo(); break;
+    case 'delsel': _viAnnDeleteSelected(); break;
+    case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); break;
+    case 'prevev': _viwStepEvent(-1); break;
+    case 'nextev': _viwStepEvent(1); break;
     case 'clearframe': _viAnnClear(); break;
     case 'saveframe': _viAnnSaveFrame(); break;
     case 'nudge': _viwNudge(parseFloat(v)); break;
