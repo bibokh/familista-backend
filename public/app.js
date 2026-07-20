@@ -43456,6 +43456,36 @@ function _viNoteTplOp(op, id) {
   else if (op === 'del') { if (!window.confirm('Delete note template “' + t.name + '”?')) return; VI_DB.noteTemplates = VI_DB.noteTemplates.filter(function (x) { return x.id !== id; }); }
   _viSave(); _viwUpdateInspector();
 }
+/* ---- Phase 6: customizable quick-tag buttons (persisted, club-scoped) ---- */
+function _viQuickTags() { _viLoad(); var sc = _viScope(); return (VI_DB.quickTags || []).filter(function (t) { return t.club === sc.club; }).sort(function (a, b) { return (a.order || 0) - (b.order || 0); }); }
+function _viQtSaveNew() {
+  var d = _VI.evDraft || {};
+  var name = window.prompt('Quick-tag button name:', d.type || 'Quick tag'); if (!name) return;
+  var type = window.prompt('Event type for this button:', d.type || 'Pass'); if (!type) return;
+  var outcome = (window.prompt('Default outcome — success / fail / partial:', d.success || 'success') || 'success').toLowerCase();
+  if (['success', 'fail', 'partial'].indexOf(outcome) < 0) outcome = 'success';
+  var scope = (window.prompt('Scope — us / opp:', 'us') || 'us').toLowerCase() === 'opp' ? 'opp' : 'us';
+  var hotkey = (window.prompt('Keyboard hotkey (single character, optional):', '') || '').slice(0, 1);
+  _viLoad(); VI_DB.quickTags = VI_DB.quickTags || [];
+  VI_DB.quickTags.push({ id: _viUid(), club: _viScope().club, name: String(name).slice(0, 30), type: type, outcome: outcome, scope: scope, color: (VI_EVENTS[_viCatOf(type)] || VI_EVENTS.Attacking).color, hotkey: hotkey, order: VI_DB.quickTags.length, enabled: true, createdAt: Date.now() });
+  _viSave(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); _viToast('Quick-tag created: ' + name);
+}
+function _viQtApply(id) {
+  var qt = _viQuickTags().filter(function (x) { return x.id === id; })[0]; if (!qt || qt.enabled === false) return;
+  var p = _viProject(_VI.projectId); if (!p) { _viToast('Open an analysis first'); return; }
+  var v = document.getElementById('vi-video'); var t = v ? (v.currentTime || 0) : 0; var d = _VI.evDraft || {};
+  p.events.push({ id: _viUid(), type: qt.type, team: qt.scope === 'opp' ? 'opp' : 'ours', players: (d.players || []).slice(), t0: t, t1: t, success: qt.outcome, phase: '', situation: '', rating: 0, tags: [], notes: '', quickTagId: qt.id });
+  _viTouch(p); _VI.ws._undoneEv = null;
+  _VI.ws.recentE = ([qt.type].concat((_VI.ws.recentE || []).filter(function (x) { return x !== qt.type; }))).slice(0, 8);
+  _viwUpdateTimeline(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft(); _viwAutosave('saved');
+  _viToast('Tagged: ' + qt.name + ' (' + (qt.scope === 'opp' ? 'opp' : 'us') + ') @ ' + _viFmt(t));
+}
+function _viQtOp(op, id) {
+  _viLoad(); var qt = (VI_DB.quickTags || []).filter(function (x) { return x.id === id; })[0]; if (!qt) return;
+  if (op === 'del') { if (!window.confirm('Delete quick-tag “' + qt.name + '”?')) return; VI_DB.quickTags = VI_DB.quickTags.filter(function (x) { return x.id !== id; }); }
+  else if (op === 'toggle') { qt.enabled = qt.enabled === false; }
+  _viSave(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft();
+}
 function viCreateProject(d) {
   _viLoad(); var sc = _viScope();
   var p = { id: _viUid(), club: sc.club, team: sc.team, season: sc.season, createdAt: Date.now(), updatedAt: Date.now(),
@@ -43488,19 +43518,35 @@ function _viCatOf(type) { for (var c in VI_EVENTS) if (VI_EVENTS[c].types.indexO
 function _viCatColor(cat) { return (VI_EVENTS[cat] || VI_EVENTS.Attacking).color; }
 
 // ── Honest integration providers (extensible VideoProvider adapter) ──
-function VideoProvider(id, name, status, note) { return { id: id, name: name, status: status, note: note, connect: function () { return { ok: false, reason: 'not-configured' }; } }; }
+/* Phase 6: honest provider adapter architecture.
+   state ∈ available | credentials | planned | not-connected | unsupported.
+   caps: import (VOD import), live (live stream), webhook (event push).
+   auth: none | url | apikey | oauth. connect() never fabricates success:
+   an adapter reports "connected" only when a real backend confirms it. */
+function VideoProvider(id, name, state, note, opts) {
+  opts = opts || {};
+  return { id: id, name: name, state: state, note: note, category: opts.category || 'source', caps: opts.caps || [], auth: opts.auth || 'none',
+    connect: function () { return { ok: false, state: (state === 'available' ? 'available' : (opts.auth && opts.auth !== 'none' ? 'credentials' : 'not-connected')), reason: 'No backend credentials configured for this provider in this environment.' }; } };
+}
 var VI_PROVIDERS = [
-  VideoProvider('upload', 'File Upload', 'Available', 'MP4 / MOV / WebM — works now (local storage adapter).'),
-  VideoProvider('url', 'External Video URL', 'Available', 'Direct MP4/HLS link that the browser can play.'),
-  VideoProvider('rtmp', 'Generic RTMP / HLS Stream', 'Requires API Credentials', 'Add a stream endpoint to enable.'),
-  VideoProvider('veo', 'Veo', 'Planned', 'Adapter interface ready; needs Veo API credentials.'),
-  VideoProvider('pixellot', 'Pixellot', 'Planned', 'Adapter interface ready; needs Pixellot API credentials.'),
-  VideoProvider('spiideo', 'Spiideo', 'Planned', 'Adapter interface ready; needs Spiideo API credentials.'),
-  VideoProvider('hudl', 'Hudl Focus', 'Planned', 'Adapter interface ready; needs Hudl credentials.'),
-  VideoProvider('panoris', 'Panoris', 'Planned', 'Adapter interface ready.'),
-  VideoProvider('provispo', 'Provispo', 'Planned', 'Adapter interface ready.'),
-  VideoProvider('cloud', 'Cloud Storage Import', 'Not Connected', 'Import from a cloud bucket once storage is linked.')
+  VideoProvider('upload', 'File Upload', 'available', 'MP4 / MOV / WebM — works now (client-durable storage adapter).', { category: 'source', caps: ['import'], auth: 'none' }),
+  VideoProvider('url', 'External Video URL', 'available', 'Direct MP4/HLS link the browser can play.', { category: 'source', caps: ['import'], auth: 'url' }),
+  VideoProvider('rtmp', 'Generic RTMP / HLS', 'credentials', 'Add a stream endpoint URL to enable a live source.', { category: 'live', caps: ['live'], auth: 'url' }),
+  VideoProvider('veo', 'Veo', 'credentials', 'VOD import + live. Adapter interface ready; needs Veo API credentials.', { category: 'camera', caps: ['import', 'live', 'webhook'], auth: 'oauth' }),
+  VideoProvider('pixellot', 'Pixellot', 'credentials', 'VOD import + live. Adapter interface ready; needs Pixellot API key.', { category: 'camera', caps: ['import', 'live'], auth: 'apikey' }),
+  VideoProvider('spiideo', 'Spiideo', 'credentials', 'VOD import + live. Adapter interface ready; needs Spiideo credentials.', { category: 'camera', caps: ['import', 'live'], auth: 'oauth' }),
+  VideoProvider('hudl', 'Hudl Focus', 'credentials', 'VOD import. Adapter interface ready; needs Hudl credentials.', { category: 'camera', caps: ['import'], auth: 'oauth' }),
+  VideoProvider('panoris', 'Panoris', 'planned', 'Adapter interface planned.', { category: 'camera', caps: ['import'], auth: 'apikey' }),
+  VideoProvider('provispo', 'Provispo', 'planned', 'Adapter interface planned.', { category: 'camera', caps: ['import'], auth: 'apikey' }),
+  VideoProvider('cloud', 'Cloud Storage Import', 'not-connected', 'Import from a cloud bucket once storage is linked.', { category: 'storage', caps: ['import'], auth: 'apikey' })
 ];
+var VI_PROVIDER_STATE = { available: { label: 'Connected', tone: 'ok' }, credentials: { label: 'Credentials Required', tone: 'warn' }, planned: { label: 'Planned', tone: 'plan' }, 'not-connected': { label: 'Not Connected', tone: 'muted' }, unsupported: { label: 'Unsupported', tone: 'off' } };
+function _viProviderConnect(id) {
+  var pr = VI_PROVIDERS.filter(function (x) { return x.id === id; })[0]; if (!pr) return;
+  if (pr.state === 'available') { if (id === 'upload' || id === 'url') { _VI.draft = {}; _VI.modal = 'upload'; _viRenderModal(); setTimeout(_viWireUpload, 20); } return; }
+  var r = pr.connect();
+  _viToast(pr.name + ': ' + (r.state === 'credentials' ? 'credentials required — connect from server settings. ' : '') + r.reason);
+}
 
 var VI_TABS = [['overview', 'Overview'], ['library', 'Video Library'], ['workspace', 'Analysis Workspace'], ['live', 'Live Tagging'], ['team', 'Team Intelligence'], ['player', 'Player Intelligence'], ['reports', 'Reports'], ['integrations', 'Integrations']];
 var _VI = { tab: 'overview', projectId: null, modal: null, draft: null, evDraft: null, annTool: null, playerFilter: null, live: null };
@@ -43814,10 +43860,16 @@ function _viReports() {
 
 // ── 8. INTEGRATIONS ──
 function _viIntegrations() {
+  var capLabel = { import: 'VOD import', live: 'Live', webhook: 'Webhooks' };
   var cards = '<div class="vi-intgrid">' + VI_PROVIDERS.map(function (v) {
-    var tone = v.status === 'Available' ? 'ok' : v.status === 'Requires API Credentials' ? 'warn' : v.status === 'Not Connected' ? 'muted' : v.status === 'Unsupported' ? 'off' : 'plan';
-    return '<div class="vi-intcard vi-intcard--' + tone + '"><div class="vi-intcard-h"><b>' + _viEsc(v.name) + '</b><span class="vi-intstatus">' + v.status + '</span></div><p>' + _viEsc(v.note) + '</p>'
-      + (v.status === 'Available' && v.id === 'upload' ? '<button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="upload" type="button">Use file upload</button>' : (v.status === 'Available' && v.id === 'url' ? '<button class="vi-btn vi-btn--sm" data-vi-act="upload" type="button">Add video URL</button>' : '<button class="vi-btn vi-btn--sm" disabled>' + (v.status === 'Requires API Credentials' ? 'Add credentials' : 'Not available') + '</button>')) + '</div>';
+    var st = VI_PROVIDER_STATE[v.state] || VI_PROVIDER_STATE['not-connected']; var tone = st.tone;
+    var caps = (v.caps || []).map(function (c) { return '<span class="vi-intcap">' + (capLabel[c] || c) + '</span>'; }).join('');
+    var authLbl = v.auth === 'none' ? 'No auth' : v.auth === 'url' ? 'Endpoint URL' : v.auth === 'apikey' ? 'API key' : v.auth === 'oauth' ? 'OAuth' : v.auth;
+    var btn = v.state === 'available'
+      ? '<button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="provconnect" data-vi="' + v.id + '" type="button">' + (v.id === 'url' ? 'Add video URL' : 'Use ' + _viEsc(v.name)) + '</button>'
+      : '<button class="vi-btn vi-btn--sm" data-vi-act="provconnect" data-vi="' + v.id + '" type="button">' + (v.state === 'credentials' ? 'Add credentials' : v.state === 'planned' ? 'On roadmap' : 'Not connected') + '</button>';
+    return '<div class="vi-intcard vi-intcard--' + tone + '"><div class="vi-intcard-h"><b>' + _viEsc(v.name) + '</b><span class="vi-intstatus vi-intstatus--' + tone + '">' + st.label + '</span></div><p>' + _viEsc(v.note) + '</p>'
+      + '<div class="vi-intmeta"><span class="vi-intauth">🔑 ' + authLbl + '</span>' + caps + '</div>' + btn + '</div>';
   }).join('') + '</div>';
   var ai = _viPanel('AI Analysis <span class="vi-beta">Beta</span>', 'Honest status', _viEmpty('🤖', 'AI processing service not configured', 'Manual tagging is fully functional today. Automatic event suggestions, player/ball detection, team-colour separation, camera calibration and formation estimation run only when a real AI backend is connected — no detections or results are ever fabricated. Interfaces & jobs are prepared for later AI services.'));
   return _viPanel('Camera &amp; video integrations', 'Real status only — no fake connections', cards) + ai;
@@ -43937,6 +43989,7 @@ function _viBind() {
     else if (a === 'seekclip') { if (_VI.ws) _VI.ws.selClip = v; _viSeekClip(v); if (typeof _viwUpdateTimeline === 'function' && _VI.tab === 'workspace') _viwUpdateTimeline(); if (_VI.ws && _VI.ws.leftTab === 'clips') _viwUpdateLeft(); }
     else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
     else if (a === 'playerreport') { _viCreatePlayerReport(v); }
+    else if (a === 'provconnect') { _viProviderConnect(v); }
     else if (a === 'newreport') { _viCreateReport(v); }
     else if (a === 'openreport') { var pr = v.split(':'); _VI.reportView = { pid: pr[0], rid: pr[1] }; _VI.modal = 'report'; _viRenderModal(); }
     else if (a === 'printreport') { var pp = v.split(':'); _viPrintReport(pp[0], pp[1]); }
@@ -44217,7 +44270,7 @@ function _vipToolbar() {
 }
 function _vipInsights(p) {
   var ev = (p.events || []).slice();
-  var out = { pattern: null, top: null, trend: null };
+  var out = { pattern: null, top: null, trend: null, tendency: null, zone: null, setpiece: null, transition: null, sample: ev.length };
   if (ev.length >= 3) {
     var byCat = {}; ev.forEach(function(e){ var c = _viCatOf(e.type); byCat[c] = (byCat[c]||0)+1; });
     var topCat = Object.keys(byCat).sort(function(a,b){ return byCat[b]-byCat[a]; })[0];
@@ -44225,16 +44278,36 @@ function _vipInsights(p) {
     if (dur > 0) { var seg = dur/6, best = -1, bi = 0; for (var i=0;i<6;i++){ var lo=seg*i, hi=seg*(i+1); var n=ev.filter(function(e){return e.t0>=lo&&e.t0<hi;}).length; if(n>best){best=n;bi=i;} } win = { a: _viFmt(seg*bi), b: _viFmt(seg*(bi+1)), n: best }; }
     out.pattern = { cat: topCat, count: byCat[topCat], win: win };
   }
+  // top performer by tagged involvement
   var inv = {}; ev.forEach(function(e){ (e.players||[]).forEach(function(id){ inv[id] = (inv[id]||0)+1; }); });
   var ids = Object.keys(inv); if (ids.length) { var tp = ids.sort(function(a,b){ return inv[b]-inv[a]; })[0]; out.top = { id: tp, count: inv[tp] }; }
+  // outcome trend (1st vs 2nd half)
   var withOutcome = ev.filter(function(e){ return e.success === 'success' || e.success === 'fail'; });
   if (withOutcome.length >= 4) {
     var half = _viwDur()/2 || 0; var f = withOutcome.filter(function(e){return e.t0<half;}), s = withOutcome.filter(function(e){return e.t0>=half;});
     function rate(a){ return a.length ? Math.round(a.filter(function(e){return e.success==='success';}).length/a.length*100) : null; }
     var r1 = rate(f), r2 = rate(s);
-    if (r1 != null && r2 != null) out.trend = { r1: r1, r2: r2, up: r2 >= r1 };
-    else out.trend = { overall: rate(withOutcome) };
+    if (r1 != null && r2 != null) out.trend = { r1: r1, r2: r2, up: r2 >= r1, n: withOutcome.length };
+    else out.trend = { overall: rate(withOutcome), n: withOutcome.length };
   }
+  // attacking-side tendency + high-frequency zone (from events with a pitch position set)
+  var pos = ev.filter(function(e){ return e.x != null; });
+  if (pos.length >= 3) {
+    var L = 0, C = 0, R = 0; pos.forEach(function(e){ if (e.x < 38) L++; else if (e.x > 62) R++; else C++; });
+    var side = (R > L && R >= C) ? 'right' : (L > R && L >= C) ? 'left' : 'central';
+    out.tendency = { side: side, l: L, c: C, r: R, n: pos.length, pct: Math.round(Math.max(L, C, R) / pos.length * 100) };
+  }
+  if (pos.length >= 4) {
+    var grid = {}; pos.forEach(function(e){ var cx = Math.min(2, Math.floor(e.x / 33.4)), cy = Math.min(2, Math.floor((e.y == null ? 50 : e.y) / 33.4)); var k = cx + ',' + cy; grid[k] = (grid[k] || 0) + 1; });
+    var bk = Object.keys(grid).sort(function(a,b){ return grid[b]-grid[a]; })[0]; var pt = bk.split(',');
+    out.zone = { label: ['defensive', 'middle', 'attacking'][+pt[1]] + ' ' + ['left', 'centre', 'right'][+pt[0]], count: grid[bk], n: pos.length, pct: Math.round(grid[bk] / pos.length * 100) };
+  }
+  // set-piece distribution
+  var sp = ev.filter(function(e){ return _viCatOf(e.type) === 'Set pieces'; });
+  if (sp.length >= 2) { var spc = {}; sp.forEach(function(e){ spc[e.type] = (spc[e.type] || 0) + 1; }); var st = Object.keys(spc).sort(function(a,b){ return spc[b]-spc[a]; })[0]; out.setpiece = { top: st, count: spc[st], n: sp.length, kinds: Object.keys(spc).length }; }
+  // transition trend
+  var tr = ev.filter(function(e){ return _viCatOf(e.type) === 'Transitions'; });
+  if (tr.length >= 2) { var half2 = _viwDur()/2 || 0; var t1 = tr.filter(function(e){return e.t0<half2;}).length, t2 = tr.filter(function(e){return e.t0>=half2;}).length; out.transition = { n: tr.length, t1: t1, t2: t2, up: t2 >= t1 }; }
   return out;
 }
 function _vipAI(p) {
@@ -44247,11 +44320,25 @@ function _vipAI(p) {
     : '<div class="vip-ai-c vip-ai-c--top"><div class="vip-ai-h"><b>Top Performer</b></div><p class="vip-ai-empty">Link players to events to rank involvement.</p></div>';
   var trend = ai.trend
     ? (ai.trend.r1 != null
-        ? '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b><span class="vip-ai-arrow ' + (ai.trend.up ? 'is-up' : 'is-down') + '">' + (ai.trend.up ? '▲' : '▼') + '</span></div><p>Success rate ' + (ai.trend.up ? 'rising' : 'falling') + ': <b>' + ai.trend.r1 + '%</b> → <b>' + ai.trend.r2 + '%</b> (1st → 2nd half).</p></div>'
-        : '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b></div><p>Overall success rate across tagged actions: <b>' + ai.trend.overall + '%</b>.</p></div>')
+        ? '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b><span class="vip-ai-arrow ' + (ai.trend.up ? 'is-up' : 'is-down') + '">' + (ai.trend.up ? '▲' : '▼') + '</span></div><p>Success rate ' + (ai.trend.up ? 'rising' : 'falling') + ': <b>' + ai.trend.r1 + '%</b> → <b>' + ai.trend.r2 + '%</b> (1st → 2nd half).</p>' + _vipAiSrc(ai.trend.n) + '</div>'
+        : '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b></div><p>Overall success rate across tagged actions: <b>' + ai.trend.overall + '%</b>.</p>' + _vipAiSrc(ai.trend.n) + '</div>')
     : '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b></div><p class="vip-ai-empty">Mark outcomes on your events to compute trends.</p></div>';
-  return '<section class="vip-ai"><div class="vip-ai-top"><b>AI Insights</b><span class="vip-ai-beta">BETA</span></div>' + pat + top + trend + '</section>';
+  var tendency = ai.tendency
+    ? '<div class="vip-ai-c vip-ai-c--tend"><div class="vip-ai-h"><b>Team Tendency</b></div><p>Actions favour the <b>' + ai.tendency.side + '</b> channel (' + ai.tendency.pct + '% of located events · L ' + ai.tendency.l + ' · C ' + ai.tendency.c + ' · R ' + ai.tendency.r + ').</p>' + _vipAiSrc(ai.tendency.n, 'events with a pitch position') + '</div>'
+    : '<div class="vip-ai-c vip-ai-c--tend"><div class="vip-ai-h"><b>Team Tendency</b></div><p class="vip-ai-empty">Set pitch positions on events (Position picker) to compute side preference — needs ≥3.</p></div>';
+  var zone = ai.zone
+    ? '<div class="vip-ai-c vip-ai-c--zone"><div class="vip-ai-h"><b>High-Frequency Zone</b><span class="vip-ai-badge">' + ai.zone.pct + '%</span></div><p>Most located actions occur in the <b>' + ai.zone.label + '</b> third (' + ai.zone.count + ' of ' + ai.zone.n + ').</p>' + _vipAiSrc(ai.zone.n, 'events with a pitch position') + '</div>'
+    : '';
+  var setp = ai.setpiece
+    ? '<div class="vip-ai-c vip-ai-c--sp"><div class="vip-ai-h"><b>Set-Piece Distribution</b></div><p><b>' + _viEsc(ai.setpiece.top) + '</b> is the most tagged set piece (' + ai.setpiece.count + ' of ' + ai.setpiece.n + ' across ' + ai.setpiece.kinds + ' types).</p><button class="vip-ai-btn" data-viw-act="focuscat" data-viw="Set pieces" type="button">View set pieces</button></div>'
+    : '';
+  var transition = ai.transition
+    ? '<div class="vip-ai-c vip-ai-c--tr"><div class="vip-ai-h"><b>Transition Trend</b><span class="vip-ai-arrow ' + (ai.transition.up ? 'is-up' : 'is-down') + '">' + (ai.transition.up ? '▲' : '▼') + '</span></div><p>Transition events ' + (ai.transition.up ? 'increased' : 'eased') + ' after the half: <b>' + ai.transition.t1 + '</b> → <b>' + ai.transition.t2 + '</b>.</p><button class="vip-ai-btn" data-viw-act="focuscat" data-viw="Transitions" type="button">View transitions</button></div>'
+    : '';
+  var srcNote = '<div class="vip-ai-foot">Computed from <b>' + ai.sample + '</b> tagged events on this analysis — deterministic statistics, no model inference. Cards appear as data becomes sufficient.</div>';
+  return '<section class="vip-ai"><div class="vip-ai-top"><b>AI Insights</b><span class="vip-ai-beta">STATS</span></div>' + pat + tendency + top + trend + zone + setp + transition + srcNote + '</section>';
 }
+function _vipAiSrc(n, what) { return '<span class="vip-ai-src">n=' + (n || 0) + ' ' + (what || 'events') + '</span>'; }
 function _vipSyncTool() {
   var sws = document.querySelectorAll('.vip-sw'); [].forEach.call(sws, function(b){ b.classList.toggle('is-on', b.getAttribute('data-viw') === _VI.ws.annColor); });
   var dash = document.querySelector('.vip-dashbtn'); if (dash) { dash.classList.toggle('is-on', !!_VI.ws.annDash); var em = dash.querySelector('em'); if (em) em.textContent = _VI.ws.annDash ? '┄' : '──'; }
@@ -44343,8 +44430,12 @@ function _viwEventsTab(p) {
         return '<div class="vip-feed-i' + (w.selEvent === e.id ? ' is-sel' : '') + '" style="--c:' + VI_EVENTS[_viCatOf(e.type)].color + '"><button class="vip-feed-main" data-vi-act="seekevent" data-vi="' + e.id + '" type="button"><span class="vip-feed-t">' + _viFmt(e.t0) + '</span><span class="vip-feed-ty">' + _viEsc(e.type) + '</span>' + (pl ? '<span class="vip-feed-pl">' + pl + '</span>' : '') + '<i class="vip-feed-oc vip-feed-oc--' + oc + '"></i></button>'
           + '<div class="vip-feed-acts"><button data-vi-act="evedit" data-vi="' + e.id + '" title="Edit">✎</button><button data-vi-act="evdel" data-vi="' + e.id + '" title="Delete">🗑</button></div></div>';
       }).join('') + '</div>' : '<p class="viw-hint">Tag events with the buttons above or press <b>T</b>. They appear here and on the timeline instantly.</p>');
+  var qts = _viQuickTags();
+  var qtbar = '<div class="viw-sublbl">Quick tags <i>(' + qts.length + ')</i> · <a data-viw-act="qtnew">＋ build</a></div>'
+    + (qts.length ? '<div class="vip-qtags">' + qts.map(function (qt) { return '<button class="vip-qtbtn' + (qt.enabled === false ? ' is-off' : '') + '" style="--c:' + qt.color + '" data-viw-act="qtapply" data-viw="' + qt.id + '" title="' + _viEsc(qt.type) + ' · ' + qt.outcome + ' · ' + (qt.scope === 'opp' ? 'opponent' : 'us') + (qt.hotkey ? ' · key [' + _viEsc(qt.hotkey) + ']' : '') + '" type="button"><span>' + _viEsc(qt.name) + '</span>' + (qt.hotkey ? '<em>' + _viEsc(qt.hotkey) + '</em>' : '') + '<i data-viw-act="qtdel" data-viw="' + qt.id + '" title="Delete">✕</i></button>'; }).join('') + '</div>' : '<p class="viw-hint">Build reusable one-click tag buttons with a type, default outcome, team scope and a hotkey.</p>');
   return '<div class="viw-search"><input class="vi-input" id="viw-eq" type="text" placeholder="Search events…" value="' + _viEsc(w.eventQ || '') + '" data-viw-act="eq"></div>'
     + quick
+    + qtbar
     + seg
     + (pinned.length ? '<div class="viw-sublbl">Favorites</div><div class="viw-echips">' + pinned.map(function (t) { return chip(t, true); }).join('') + '</div>' : '')
     + (recent.length ? '<div class="viw-sublbl">Recent</div><div class="viw-echips">' + recent.map(function (t) { return chip(t, (w.pinned || []).indexOf(t) >= 0); }).join('') + '</div>' : '')
@@ -44653,6 +44744,8 @@ function _viwKeys() {
     var v = _viwVid(); var meta = ev.ctrlKey || ev.metaKey; var k = ev.key;
     if (meta && (k === 'z' || k === 'Z')) { ev.preventDefault(); if (ev.shiftKey) _viwRedo(); else _viwUndo(); return; }
     if (meta) return;
+    var qk = _viQuickTags().filter(function (x) { return x.enabled !== false && x.hotkey && x.hotkey === k; })[0];
+    if (qk) { ev.preventDefault(); _viQtApply(qk.id); return; }
     var p = _viProject(_VI.projectId);
     switch (k) {
       case ' ': case 'k': case 'K': ev.preventDefault(); _viwPlayPause(); break;
@@ -44965,6 +45058,9 @@ function _viwAct(a, v, ev) {
     case 'notetplrename': _viNoteTplOp('rename', v); break;
     case 'notetpldel': _viNoteTplOp('del', v); break;
     case 'clippl': _VI.ws.clipPlaylist = v || ''; _viwUpdateLeft(); break;
+    case 'qtnew': _viQtSaveNew(); break;
+    case 'qtapply': _viQtApply(v); break;
+    case 'qtdel': _viQtOp('del', v); break;
     case 'clearframe': _viAnnClear(); break;
     case 'saveframe': _viAnnSaveFrame(); break;
     case 'nudge': _viwNudge(parseFloat(v)); break;
