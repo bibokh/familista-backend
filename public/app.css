@@ -8047,6 +8047,21 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vip-dashbtn em{ font-size:12px; } .vip-fillbtn.is-on,.vip-dashbtn.is-on{ background:linear-gradient(160deg,rgba(45,212,191,.34),rgba(56,189,248,.18)); color:#7ff3dd; border-color:rgba(45,212,191,.62); }
 .viw-layer.is-sel{ border-color:rgba(45,212,191,.6)!important; box-shadow:inset 3px 0 0 #2dd4bf; }
 .viw-sublbl a[data-viw-act]{ color:#38bdf8; cursor:pointer; }
+/* Phase 5: quick-tag + one-click outcome + live feed */
+.vip-quickbar{ display:flex; align-items:center; gap:6px; margin:2px 0 8px; }
+.vip-qtag{ flex:1; border:1px solid rgba(45,212,191,.3); background:rgba(45,212,191,.06); color:#8a97ac; border-radius:9px; padding:7px 8px; font-size:11px; font-weight:700; cursor:pointer; } .vip-qtag.is-on{ background:linear-gradient(160deg,rgba(45,212,191,.28),rgba(56,189,248,.14)); color:#7ff3dd; border-color:rgba(45,212,191,.55); box-shadow:0 0 14px -5px rgba(45,212,191,.7); }
+.vip-qoutcome{ display:flex; gap:3px; } .vip-qo{ width:30px; height:32px; border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.04); color:#8a97ac; border-radius:8px; font-size:13px; cursor:pointer; } .vip-qo.is-on{ background:rgba(74,222,128,.2); color:#86efac; border-color:rgba(74,222,128,.4); } .vip-qo--fail.is-on{ background:rgba(244,63,94,.2); color:#fca5a5; border-color:rgba(244,63,94,.4); } .vip-qo--part.is-on{ background:rgba(251,191,36,.2); color:#fcd34d; border-color:rgba(251,191,36,.4); }
+.vip-feed{ display:flex; flex-direction:column; gap:3px; }
+.vip-feed-i{ display:flex; align-items:center; border:1px solid rgba(255,255,255,.06); border-left:2px solid rgb(var(--c)); background:rgba(255,255,255,.02); border-radius:8px; overflow:hidden; } .vip-feed-i.is-sel{ background:rgba(45,212,191,.08); border-color:rgba(45,212,191,.5); }
+.vip-feed-main{ flex:1; min-width:0; display:flex; align-items:center; gap:7px; background:none; border:0; color:#cbd5e1; padding:6px 8px; cursor:pointer; text-align:left; }
+.vip-feed-t{ font-size:10px; font-variant-numeric:tabular-nums; color:#7f8ca0; min-width:34px; } .vip-feed-ty{ font-size:11px; color:#eaf1fb; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .vip-feed-pl{ font-size:10px; color:#8a97ac; } .vip-feed-oc{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; } .vip-feed-oc--ok{ background:#4ade80; } .vip-feed-oc--fail{ background:#f43f5e; } .vip-feed-oc--part{ background:#fbbf24; }
+.vip-feed-acts{ display:flex; } .vip-feed-acts button{ border:0; background:none; color:#7f8ca0; width:24px; height:32px; cursor:pointer; font-size:11px; } .vip-feed-acts button:hover{ color:#5eead4; background:rgba(255,255,255,.05); }
+/* Phase 5: templates manager */
+.vip-tpls{ display:flex; flex-direction:column; gap:5px; margin-bottom:8px; }
+.vip-tpl{ display:flex; align-items:center; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.02); border-radius:9px; overflow:hidden; } .vip-tpl-main{ flex:1; min-width:0; text-align:left; background:none; border:0; padding:7px 9px; cursor:pointer; } .vip-tpl-main b{ display:block; font-size:11.5px; color:#eaf1fb; border-left:2px solid rgb(var(--c,148,163,184)); padding-left:6px; } .vip-tpl-main i{ font-style:normal; font-size:9.5px; color:#7f8ca0; padding-left:6px; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .vip-tpl-acts{ display:flex; } .vip-tpl-acts button{ border:0; background:none; color:#7f8ca0; width:26px; height:36px; cursor:pointer; } .vip-tpl-acts button:hover{ color:#5eead4; }
+.vip-tpl-save{ width:100%; margin-top:4px; }
+.vip-plfilter{ display:flex; flex-wrap:wrap; gap:4px; margin:2px 0 4px; } .vip-plchip{ border:1px solid rgba(56,189,248,.3); background:rgba(56,189,248,.06); color:#93a0b4; border-radius:14px; padding:3px 10px; font-size:10px; font-weight:600; cursor:pointer; } .vip-plchip.is-on{ background:rgba(56,189,248,.2); color:#7dd3fc; border-color:rgba(56,189,248,.5); }
+.vip-clip-pl{ font-size:8.5px; font-weight:700; color:#7dd3fc; background:rgba(56,189,248,.16); border-radius:8px; padding:1px 6px; margin-left:5px; vertical-align:middle; }
 .vip-center .viw-stage .vi-videowrap{ border-radius:14px; }
 
 /* ---- D · EVENT INSPECTOR ---- */

@@ -43409,6 +43409,53 @@ function _viSave() { try { window.localStorage.setItem(VI_KEY, JSON.stringify(VI
 function _viProjects() { _viLoad(); var sc = _viScope(); return (VI_DB.projects || []).filter(function (p) { return p.club === sc.club; }); }
 function _viProject(id) { _viLoad(); var a = (VI_DB.projects || []).filter(function (p) { return p.id === id; }); return a[0] || null; }
 function _viTouch(p) { p.updatedAt = Date.now(); _viSave(); }
+/* ---- Phase 5: reusable event / note templates (persisted in the module's
+   client-durable store — survives refresh + login on the device; club-scoped) ---- */
+function _viTemplates() { _viLoad(); var sc = _viScope(); return (VI_DB.templates || []).filter(function (t) { return t.club === sc.club; }); }
+function _viNoteTemplates() { _viLoad(); var sc = _viScope(); return (VI_DB.noteTemplates || []).filter(function (t) { return t.club === sc.club; }); }
+function _viTplSaveCurrent() {
+  var d = (typeof _viReadEvInputs === 'function') ? _viReadEvInputs() : (_VI.evDraft || {});
+  var name = window.prompt('Template name:', (d.type || 'Event') + ' template'); if (!name) return;
+  _viLoad(); VI_DB.templates = VI_DB.templates || [];
+  VI_DB.templates.push({ id: _viUid(), club: _viScope().club, name: String(name).slice(0, 60), type: d.type || 'Pass', success: d.success || 'success', phase: d.phase || '', situation: d.situation || '', tags: d.tags || '', rating: d.rating || 0, dur: d.dur || 0, notes: d.notes || '', createdAt: Date.now() });
+  _viSave(); _viwUpdateInspector(); _viToast('Template saved: ' + name);
+}
+function _viTplApply(id) {
+  var t = _viTemplates().filter(function (x) { return x.id === id; })[0]; if (!t) return;
+  _VI.evDraft = { type: t.type, players: ((_VI.evDraft || {}).players || []).slice(), success: t.success, phase: t.phase, situation: t.situation, tags: t.tags, rating: t.rating, dur: t.dur, notes: t.notes };
+  if (_VI.ws) _VI.ws.insTab = 'event';
+  _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); _viToast('Template applied: ' + t.name);
+}
+function _viTplOp(op, id) {
+  _viLoad(); var t = (VI_DB.templates || []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
+  if (op === 'rename') { var n = window.prompt('Rename template:', t.name); if (n == null) return; t.name = String(n).slice(0, 60) || t.name; }
+  else if (op === 'dup') { var c = JSON.parse(JSON.stringify(t)); c.id = _viUid(); c.name = t.name + ' copy'; c.createdAt = Date.now(); VI_DB.templates.push(c); }
+  else if (op === 'del') { if (!window.confirm('Delete template “' + t.name + '”?')) return; VI_DB.templates = VI_DB.templates.filter(function (x) { return x.id !== id; }); }
+  _viSave(); _viwUpdateInspector(); _viToast(op === 'del' ? 'Template deleted' : 'Template updated');
+}
+function _viNoteTplSave() {
+  var name = window.prompt('Note template name:'); if (!name) return;
+  var text = window.prompt('Note text — placeholders {player} {event} {time} {opponent} are supported:', 'Good {event} by {player} at {time}.'); if (text == null) return;
+  _viLoad(); VI_DB.noteTemplates = VI_DB.noteTemplates || [];
+  VI_DB.noteTemplates.push({ id: _viUid(), club: _viScope().club, name: String(name).slice(0, 60), text: String(text).slice(0, 400), createdAt: Date.now() });
+  _viSave(); _viwUpdateInspector(); _viToast('Note template saved');
+}
+function _viNoteTplApply(id) {
+  var t = _viNoteTemplates().filter(function (x) { return x.id === id; })[0]; if (!t) return;
+  var d = _VI.evDraft = _VI.evDraft || {};
+  var player = (d.players && d.players.length) ? _viPlayerName(d.players[0]) : 'the player';
+  var opp = ((_viProject(_VI.projectId) || {}).opponent) || 'the opponent';
+  var txt = t.text.replace(/\{player\}/g, player).replace(/\{event\}/g, (d.type || 'action')).replace(/\{time\}/g, _viFmt(_viwCurTimeSafe())).replace(/\{opponent\}/g, opp);
+  d.notes = (d.notes ? d.notes + ' ' : '') + txt;
+  if (_VI.ws) _VI.ws.insTab = 'event';
+  _viwUpdateInspector(); _viToast('Note template applied');
+}
+function _viNoteTplOp(op, id) {
+  _viLoad(); var t = (VI_DB.noteTemplates || []).filter(function (x) { return x.id === id; })[0]; if (!t) return;
+  if (op === 'rename') { var n = window.prompt('Rename note template:', t.name); if (n == null) return; t.name = String(n).slice(0, 60) || t.name; }
+  else if (op === 'del') { if (!window.confirm('Delete note template “' + t.name + '”?')) return; VI_DB.noteTemplates = VI_DB.noteTemplates.filter(function (x) { return x.id !== id; }); }
+  _viSave(); _viwUpdateInspector();
+}
 function viCreateProject(d) {
   _viLoad(); var sc = _viScope();
   var p = { id: _viUid(), club: sc.club, team: sc.team, season: sc.season, createdAt: Date.now(), updatedAt: Date.now(),
@@ -43853,14 +43900,17 @@ function _viBind() {
     else if (a === 'archive') { var pa = _viProject(v); if (pa) { pa.archived = !pa.archived; _viTouch(pa); } _viRender(); }
     else if (a === 'delete') { var dp = _viProject(v); if (window.confirm('Delete “' + (dp ? _viMatchTitle(dp) : 'this analysis') + '”?\nThis permanently removes the analysis and its events, annotations and clips. This cannot be undone.')) { viDeleteProject(v); if (v === _VI.projectId) { _VI.projectId = null; _VI.openError = null; _viPersistOpen(); _viSetHash(null); } _viRender(); _viToast('Deleted'); } }
     else if (a === 'libfilter') { var sel = el.value; _VI.libFilter = _VI.libFilter || {}; _VI.libFilter[v] = sel; _viRender(); }
-    else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; if (_VI.ws) _VI.ws.recentE = ([v].concat((_VI.ws.recentE || []).filter(function (x) { return x !== v; }))).slice(0, 8); _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); }
+    else if (a === 'evtype') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.type = v; if (_VI.ws) _VI.ws.recentE = ([v].concat((_VI.ws.recentE || []).filter(function (x) { return x !== v; }))).slice(0, 8); if (_VI.ws && _VI.ws.quickTag) { _viAddEvent(); } else { _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); } }
+    else if (a === 'evedit') { _viEventOp('edit', v); }
+    else if (a === 'evdel') { _viEventOp('del', v); }
     else if (a === 'evplayer') { var d = _VI.evDraft = _viReadEvInputs(); d.players = d.players || []; var ix = d.players.indexOf(v); if (ix >= 0) d.players.splice(ix, 1); else { d.players.push(v); if (_VI.ws) _VI.ws.recentP = ([v].concat((_VI.ws.recentP || []).filter(function (x) { return x !== v; }))).slice(0, 8); } _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'players') _viwUpdateLeft(); }
-    else if (a === 'evfield') { var parts = v.split(':'); _VI.evDraft = _viReadEvInputs(); _VI.evDraft[parts[0]] = parts[1]; _viwUpdateInspector(); }
+    else if (a === 'evfield') { var parts = v.split(':'); _VI.evDraft = _viReadEvInputs(); _VI.evDraft[parts[0]] = parts[1]; _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); }
     else if (a === 'evrate') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.rating = parseInt(v, 10) || 0; _viwUpdateInspector(); }
     else if (a === 'pinev') { var pn = _VI.ws.pinned = _VI.ws.pinned || []; var pi = pn.indexOf(v); if (pi >= 0) pn.splice(pi, 1); else pn.push(v); if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); _viwUpdateLeft(); }
     else if (a === 'clearplayers') { if (_VI.evDraft) _VI.evDraft.players = []; _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'players') _viwUpdateLeft(); }
     else if (a === 'evtagdel') { var dd = _VI.evDraft = _viReadEvInputs(); dd.tags = (dd.tags || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s && s !== v; }).join(','); _viwUpdateInspector(); }
     else if (a === 'cliploop') { _viwClipOp('loop', v); }
+    else if (a === 'clippl2') { _viwClipOp('playlist', v); }
     else if (a === 'cliprename') { _viwClipOp('rename', v); }
     else if (a === 'clipdup') { _viwClipOp('dup', v); }
     else if (a === 'clipdel') { _viwClipOp('del', v); }
@@ -44281,23 +44331,42 @@ function _viwEventsTab(p) {
   var pinned = (w.pinned || []).filter(function (t) { return !q || t.toLowerCase().indexOf(q) >= 0; });
   var recent = (w.recentE || []).slice(0, 6);
   var chip = function (t, pin) { return '<button class="viw-echip" style="--c:' + VI_EVENTS[_viCatOf(t)].color + '" data-vi-act="evtype" data-vi="' + _viEsc(t) + '" type="button"><span>' + _viEsc(t) + '</span><i class="viw-star' + (pin ? ' is-on' : '') + '" data-vi-act="pinev" data-vi="' + _viEsc(t) + '" title="Pin">★</i></button>'; };
+  var d = _VI.evDraft || {};
+  var quick = '<div class="vip-quickbar"><button class="vip-qtag' + (w.quickTag ? ' is-on' : '') + '" data-viw-act="quicktag" title="One-click tagging: clicking an event type tags it instantly at the current time" type="button">⚡ Quick-tag ' + (w.quickTag ? 'ON' : 'OFF') + '</button>'
+    + '<div class="vip-qoutcome"><button class="vip-qo' + (d.success === 'success' || !d.success ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:success" title="Outcome: Successful (1)" type="button">✓</button><button class="vip-qo vip-qo--fail' + (d.success === 'fail' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:fail" title="Outcome: Unsuccessful (2)" type="button">✕</button><button class="vip-qo vip-qo--part' + (d.success === 'partial' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:partial" title="Outcome: Partial (3)" type="button">≈</button></div></div>';
+  // live event feed (chronological, most-recent first)
+  var evs = (p.events || []).slice().sort(function (a, b) { return b.t0 - a.t0; });
+  var feed = '<div class="viw-sublbl">Live feed <i>(' + evs.length + ')</i>' + (evs.length ? ' · <a data-viw-act="undolast">undo last</a>' : '') + (w._undoneEv ? ' · <a data-viw-act="restorelast">restore</a>' : '') + '</div>'
+    + (evs.length ? '<div class="vip-feed">' + evs.slice(0, 60).map(function (e) {
+        var oc = e.success === 'fail' ? 'fail' : e.success === 'partial' ? 'part' : 'ok';
+        var pl = (e.players && e.players.length) ? _viEsc(_viPlayerName(e.players[0]).split(' ').pop()) : '';
+        return '<div class="vip-feed-i' + (w.selEvent === e.id ? ' is-sel' : '') + '" style="--c:' + VI_EVENTS[_viCatOf(e.type)].color + '"><button class="vip-feed-main" data-vi-act="seekevent" data-vi="' + e.id + '" type="button"><span class="vip-feed-t">' + _viFmt(e.t0) + '</span><span class="vip-feed-ty">' + _viEsc(e.type) + '</span>' + (pl ? '<span class="vip-feed-pl">' + pl + '</span>' : '') + '<i class="vip-feed-oc vip-feed-oc--' + oc + '"></i></button>'
+          + '<div class="vip-feed-acts"><button data-vi-act="evedit" data-vi="' + e.id + '" title="Edit">✎</button><button data-vi-act="evdel" data-vi="' + e.id + '" title="Delete">🗑</button></div></div>';
+      }).join('') + '</div>' : '<p class="viw-hint">Tag events with the buttons above or press <b>T</b>. They appear here and on the timeline instantly.</p>');
   return '<div class="viw-search"><input class="vi-input" id="viw-eq" type="text" placeholder="Search events…" value="' + _viEsc(w.eventQ || '') + '" data-viw-act="eq"></div>'
+    + quick
     + seg
-    + (pinned.length ? '<div class="viw-sublbl">Pinned</div><div class="viw-echips">' + pinned.map(function (t) { return chip(t, true); }).join('') + '</div>' : '')
+    + (pinned.length ? '<div class="viw-sublbl">Favorites</div><div class="viw-echips">' + pinned.map(function (t) { return chip(t, true); }).join('') + '</div>' : '')
     + (recent.length ? '<div class="viw-sublbl">Recent</div><div class="viw-echips">' + recent.map(function (t) { return chip(t, (w.pinned || []).indexOf(t) >= 0); }).join('') + '</div>' : '')
     + '<div class="viw-sublbl">' + w.evCat + '</div><div class="viw-echips">' + types.map(function (t) { return chip(t, (w.pinned || []).indexOf(t) >= 0); }).join('') + '</div>'
-    + '<p class="viw-hint">Pick a type to tag at the current time (or press <b>T</b> after selecting).</p>';
+    + feed;
 }
 function _viwClipsTab(p) {
   var w = _VI.ws, q = (w.clipQ || '').toLowerCase();
-  var clips = (p.clips || []).filter(function (c) { return !q || (c.name || '').toLowerCase().indexOf(q) >= 0; });
+  var all = (p.clips || []);
+  var playlists = []; all.forEach(function (c) { if (c.playlist && playlists.indexOf(c.playlist) < 0) playlists.push(c.playlist); });
+  var pf = w.clipPlaylist || '';
+  var clips = all.filter(function (c) { return (!q || (c.name || '').toLowerCase().indexOf(q) >= 0) && (!pf || (c.playlist || '') === pf); });
+  var filterBar = playlists.length ? '<div class="vip-plfilter"><button class="vip-plchip' + (!pf ? ' is-on' : '') + '" data-viw-act="clippl" data-viw="" type="button">All</button>' + playlists.map(function (pl) { return '<button class="vip-plchip' + (pf === pl ? ' is-on' : '') + '" data-viw-act="clippl" data-viw="' + _viEsc(pl) + '" type="button">' + _viEsc(pl) + '</button>'; }).join('') + '</div>' : '';
   return '<div class="viw-search"><input class="vi-input" id="viw-cq" type="text" placeholder="Search clips…" value="' + _viEsc(w.clipQ || '') + '" data-viw-act="cq"></div>'
+    + filterBar
     + '<div class="viw-sublbl">Saved clips <i>(' + clips.length + ')</i></div>'
     + (clips.length ? '<div class="viw-cliplist">' + clips.map(function (c) {
+        var dur = Math.max(0, (c.t1 - c.t0));
         return '<div class="viw-clip' + (w.selClip === c.id ? ' is-on' : '') + '">'
-          + '<button class="viw-clip-main" data-vi-act="seekclip" data-vi="' + c.id + '" type="button"><b>' + _viEsc(c.name) + '</b><i>' + _viFmt(c.t0) + ' – ' + _viFmt(c.t1) + '</i></button>'
-          + '<div class="viw-clip-acts"><button data-vi-act="cliploop" data-vi="' + c.id + '" title="Loop">⟳</button><button data-vi-act="cliprename" data-vi="' + c.id + '" title="Rename">✎</button><button data-vi-act="clipdup" data-vi="' + c.id + '" title="Duplicate">⧉</button><button data-vi-act="clipdel" data-vi="' + c.id + '" title="Delete">🗑</button></div></div>';
-      }).join('') + '</div>' : '<p class="viw-hint">Set <b>I</b> / <b>O</b> on the transport, then Save clip. Clips appear here.</p>');
+          + '<button class="viw-clip-main" data-vi-act="seekclip" data-vi="' + c.id + '" type="button"><b>' + _viEsc(c.name) + (c.playlist ? ' <span class="vip-clip-pl">' + _viEsc(c.playlist) + '</span>' : '') + '</b><i>' + _viFmt(c.t0) + ' – ' + _viFmt(c.t1) + ' · ' + dur.toFixed(1) + 's</i></button>'
+          + '<div class="viw-clip-acts"><button data-vi-act="cliploop" data-vi="' + c.id + '" title="Loop">⟳</button><button data-vi-act="clippl2" data-vi="' + c.id + '" title="Move to playlist">📁</button><button data-vi-act="cliprename" data-vi="' + c.id + '" title="Rename">✎</button><button data-vi-act="clipdup" data-vi="' + c.id + '" title="Duplicate">⧉</button><button data-vi-act="clipdel" data-vi="' + c.id + '" title="Delete">🗑</button></div></div>';
+      }).join('') + '</div>' : '<p class="viw-hint">Set <b>I</b> / <b>O</b> on the transport, then Save clip. Assign clips to playlists with 📁.</p>');
 }
 function _viwLayersTab(p) {
   var w = _VI.ws;
@@ -44365,7 +44434,22 @@ function _viwInspector(p) {
   var tabs = '<div class="vip-instabs"><button class="vip-instab' + (insTab === 'event' ? ' is-on' : '') + '" data-viw-act="instab" data-viw="event" type="button">Event Inspector</button><button class="vip-instab' + (insTab === 'template' ? ' is-on' : '') + '" data-viw-act="instab" data-viw="template" type="button">Template</button></div>';
   var head = '<div class="viw-panel-h vip-inhead">' + tabs + '<span class="viw-save" id="viw-save" data-state="idle">Ready</span></div>';
   if (insTab === 'template') {
-    return '<aside class="viw-right" id="viw-right">' + head + '<div class="viw-rbody"><div class="vip-tpl-empty"><span>▤</span><b>Event templates</b><p>Save your common event set-ups (type, players, phase, tags) as reusable templates. Templates are built from your real tagged events — nothing is pre-populated.</p><button class="vi-btn vi-btn--sm" data-viw-act="instab" data-viw="event" type="button">Back to inspector</button></div></div></aside>';
+    var tpls = _viTemplates(), ntpls = _viNoteTemplates();
+    var tplList = tpls.length ? '<div class="vip-tpls">' + tpls.map(function (t) {
+      return '<div class="vip-tpl"><button class="vip-tpl-main" data-viw-act="tplapply" data-viw="' + t.id + '" type="button" title="Apply to a new event"><b style="--c:' + VI_EVENTS[_viCatOf(t.type)].color + '">' + _viEsc(t.name) + '</b><i>' + _viEsc(t.type) + ' · ' + (t.success === 'fail' ? 'Unsuccessful' : t.success === 'partial' ? 'Partial' : 'Successful') + (t.phase ? ' · ' + _viEsc(t.phase) : '') + '</i></button>'
+        + '<div class="vip-tpl-acts"><button data-viw-act="tplrename" data-viw="' + t.id + '" title="Rename">✎</button><button data-viw-act="tpldup" data-viw="' + t.id + '" title="Duplicate">⧉</button><button data-viw-act="tpldel" data-viw="' + t.id + '" title="Delete">🗑</button></div></div>';
+    }).join('') + '</div>' : '<p class="viw-hint">No event templates yet. Set up an event in the inspector, then “Save current as template”.</p>';
+    var ntplList = ntpls.length ? '<div class="vip-tpls">' + ntpls.map(function (t) {
+      return '<div class="vip-tpl"><button class="vip-tpl-main" data-viw-act="notetplapply" data-viw="' + t.id + '" type="button" title="Apply to notes"><b>' + _viEsc(t.name) + '</b><i>' + _viEsc(t.text.slice(0, 46)) + (t.text.length > 46 ? '…' : '') + '</i></button>'
+        + '<div class="vip-tpl-acts"><button data-viw-act="notetplrename" data-viw="' + t.id + '" title="Rename">✎</button><button data-viw-act="notetpldel" data-viw="' + t.id + '" title="Delete">🗑</button></div></div>';
+    }).join('') + '</div>' : '<p class="viw-hint">No note templates. Use placeholders {player} {event} {time} {opponent}.</p>';
+    return '<aside class="viw-right" id="viw-right">' + head + '<div class="viw-rbody">'
+      + '<div class="viw-isec"><label class="viw-fl">Event templates <i>(' + tpls.length + ')</i></label>' + tplList
+      + '<button class="vi-btn vi-btn--sm vi-btn--primary vip-tpl-save" data-viw-act="tplsave" type="button">＋ Save current as template</button></div>'
+      + '<div class="viw-isec"><label class="viw-fl">Note templates <i>(' + ntpls.length + ')</i></label>' + ntplList
+      + '<button class="vi-btn vi-btn--sm vip-tpl-save" data-viw-act="notetplsave" type="button">＋ New note template</button></div>'
+      + '<p class="viw-hint">Templates persist for <b>' + _viEsc(_viScope().club) + '</b> across refresh and login on this device.</p>'
+      + '</div></aside>';
   }
   var chips = ((d.players) || []).map(function (id) { return '<span class="viw-chipx" data-vi-act="evplayer" data-vi="' + id + '">' + _viEsc(_viPlayerName(id)) + ' ✕</span>'; }).join('') || '<span class="vi-muted">Pick from the Players tab or search →</span>';
   var tags = (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
@@ -44594,6 +44678,10 @@ function _viwKeys() {
       case 'r': case 'R': _viwSetTool('rect'); break;
       case '[': ev.preventDefault(); _viwStepEvent(-1); break;
       case ']': ev.preventDefault(); _viwStepEvent(1); break;
+      case '1': ev.preventDefault(); _viwSetOutcome('success'); break;
+      case '2': ev.preventDefault(); _viwSetOutcome('fail'); break;
+      case '3': ev.preventDefault(); _viwSetOutcome('partial'); break;
+      case 'u': case 'U': ev.preventDefault(); _viwUndoLastEvent(); break;
       case 'Delete': case 'Backspace': if (_VI.ws.selAnn) { ev.preventDefault(); _viAnnDeleteSelected(); } break;
       case 'Escape': if (_VI.ws.selAnn) { _VI.ws.selAnn = null; _viAnnRedraw(); } else _viwSetTool('select'); break;
     }
@@ -44604,6 +44692,7 @@ function _viwKeys() {
 function _viwPlayPause() { var v = _viwVid(); if (!v) return; if (v.paused) v.play(); else v.pause(); setTimeout(_viwSyncTransport, 0); }
 function _viwNudge(sec) { var v = _viwVid(); if (!v) return; _viwSeekTo(v.currentTime + sec); }
 function _viwStepFrame(dir) { var v = _viwVid(); if (!v) return; if (!v.paused) v.pause(); _viwSeekTo(v.currentTime + dir * _viwFrame(_viProject(_VI.projectId))); setTimeout(_viwSyncTransport, 0); }
+function _viwSetOutcome(val) { var d = _VI.evDraft = _viReadEvInputs(); d.success = val; _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'events') _viwUpdateLeft(); _viToast('Outcome: ' + (val === 'fail' ? 'Unsuccessful' : val === 'partial' ? 'Partial' : 'Successful')); }
 function _viwStepEvent(dir) {
   var p = _viProject(_VI.projectId), v = _viwVid(); if (!p || !v) return;
   var evs = (p.events || []).slice().sort(function (a, b) { return a.t0 - b.t0; });
@@ -44786,12 +44875,34 @@ function _viwCommitPending() { var pend = _VI.ws.pending; _VI.ws.pending = null;
 function _viAddEvent() {
   var p = _viProject(_VI.projectId); if (!p) { _viToast('Open an analysis first'); return; }
   var d = _viReadEvInputs(); var v = document.getElementById('vi-video'); var t = (d.t0 != null && d._tedit) ? d.t0 : (v ? (v.currentTime || 0) : 0);
-  var ev = { id: _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t + (d.dur ? +d.dur : 0), success: d.success || 'success', phase: d.phase || '', situation: d.situation || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || ''), x: d.x, y: d.y };
-  p.events.push(ev); _viTouch(p);
+  var existing = d._editId ? (p.events || []).filter(function (x) { return x.id === d._editId; })[0] : null;
+  var ev = { id: existing ? existing.id : _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t + (d.dur ? +d.dur : 0), success: d.success || 'success', phase: d.phase || '', situation: d.situation || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || ''), x: d.x, y: d.y };
+  if (existing) { for (var kk in ev) existing[kk] = ev[kk]; } else { p.events.push(ev); } _viTouch(p);
   _VI.ws.recentE = ([ev.type].concat((_VI.ws.recentE || []).filter(function (x) { return x !== ev.type; }))).slice(0, 8);
   _VI.evDraft = { type: d.type, players: [], success: 'success', rating: 0, phase: d.phase, dur: 0 };
+  _VI.ws._undoneEv = null;
   _viwUpdateTimeline(); _viwUpdateInspector(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft();
   _viwAutosave('saved'); _viToast('Event tagged: ' + ev.type + ' @ ' + _viFmt(t));
+}
+function _viwUndoLastEvent() {
+  var p = _viProject(_VI.projectId); if (!p || !(p.events || []).length) { _viToast('No events to undo'); return; }
+  var last = p.events.reduce(function (a, b) { return (b.t0 >= a.t0) ? b : a; }, p.events[0]);
+  // most-recently-created = highest index of newest push; use array order (last pushed)
+  last = p.events[p.events.length - 1];
+  _VI.ws._undoneEv = last; p.events = p.events.filter(function (e) { return e.id !== last.id; }); _viTouch(p);
+  _viwUpdateTimeline(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft(); _viwAutosave('saved');
+  _viToast('Removed last event: ' + last.type + ' — press Restore to undo');
+}
+function _viwRestoreLastEvent() {
+  var p = _viProject(_VI.projectId); if (!p || !_VI.ws._undoneEv) return;
+  if ((p.events || []).some(function (e) { return e.id === _VI.ws._undoneEv.id; })) { _VI.ws._undoneEv = null; return; } // no duplicates
+  p.events.push(_VI.ws._undoneEv); _VI.ws._undoneEv = null; _viTouch(p);
+  _viwUpdateTimeline(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Event restored');
+}
+function _viEventOp(op, id) {
+  var p = _viProject(_VI.projectId); if (!p) return; var e = (p.events || []).filter(function (x) { return x.id === id; })[0]; if (!e) return;
+  if (op === 'edit') { _VI.evDraft = { type: e.type, players: (e.players || []).slice(), success: e.success, phase: e.phase, situation: e.situation, tags: (e.tags || []).join(','), rating: e.rating, dur: (e.t1 - e.t0) || 0, notes: e.notes, x: e.x, y: e.y, t0: e.t0, _tedit: true, _editId: e.id }; _VI.ws.selEvent = e.id; _viwSeekTo(e.t0); _viwUpdateInspector(); _viToast('Editing: ' + e.type + ' — change fields then Save Event'); }
+  else if (op === 'del') { p.events = p.events.filter(function (x) { return x.id !== id; }); if (_VI.ws.selEvent === id) _VI.ws.selEvent = null; _viTouch(p); _viwUpdateTimeline(); _viwRefreshSeekTicks(); if (_VI.ws.leftTab === 'events') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Event deleted'); }
 }
 function _viSaveClip() {
   var p = _viProject(_VI.projectId); if (!p) return; var v = document.getElementById('vi-video'); var cur = v ? v.currentTime : 0;
@@ -44808,6 +44919,7 @@ function _viSaveClip() {
 function _viwClipOp(op, id) {
   var p = _viProject(_VI.projectId); if (!p) return; var c = (p.clips || []).filter(function (x) { return x.id === id; })[0]; if (!c) return;
   if (op === 'loop') { _VI.ws.selClip = id; _VI.ws.loopClip = (_VI.ws.loopClip === id ? null : id); if (_VI.ws.loopClip) _viwSeekTo(c.t0); var b = document.querySelector('.viw-tp--loop'); if (b) b.classList.toggle('is-on', !!_VI.ws.loopClip); _viToast(_VI.ws.loopClip ? 'Looping ' + c.name : 'Loop off'); }
+  else if (op === 'playlist') { var pl = window.prompt('Move clip to playlist (blank = none):', c.playlist || ''); if (pl == null) return; c.playlist = String(pl).slice(0, 40).trim(); _viTouch(p); _viwUpdateLeft(); _viwAutosave('saved'); _viToast(c.playlist ? 'Moved to “' + c.playlist + '”' : 'Removed from playlist'); }
   else if (op === 'rename') { var n = window.prompt('Rename clip:', c.name); if (n != null) { c.name = n || c.name; _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); } }
   else if (op === 'dup') { p.clips.push({ id: _viUid(), name: c.name + ' copy', t0: c.t0, t1: c.t1, players: (c.players || []).slice(), cat: c.cat, notes: c.notes, playlist: c.playlist }); _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); }
   else if (op === 'del') { if (!window.confirm('Delete clip “' + c.name + '”?')) return; p.clips = p.clips.filter(function (x) { return x.id !== id; }); if (_VI.ws.loopClip === id) _VI.ws.loopClip = null; _viTouch(p); _viwUpdateLeft(); _viwUpdateTimeline(); _viwAutosave('saved'); }
@@ -44840,6 +44952,19 @@ function _viwAct(a, v, ev) {
     case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); break;
     case 'prevev': _viwStepEvent(-1); break;
     case 'nextev': _viwStepEvent(1); break;
+    case 'quicktag': _VI.ws.quickTag = !_VI.ws.quickTag; _viwUpdateLeft(); _viToast('Quick-tag ' + (_VI.ws.quickTag ? 'ON — click a type to tag instantly' : 'OFF')); break;
+    case 'undolast': _viwUndoLastEvent(); break;
+    case 'restorelast': _viwRestoreLastEvent(); break;
+    case 'tplsave': _viTplSaveCurrent(); break;
+    case 'tplapply': _viTplApply(v); break;
+    case 'tplrename': _viTplOp('rename', v); break;
+    case 'tpldup': _viTplOp('dup', v); break;
+    case 'tpldel': _viTplOp('del', v); break;
+    case 'notetplsave': _viNoteTplSave(); break;
+    case 'notetplapply': _viNoteTplApply(v); break;
+    case 'notetplrename': _viNoteTplOp('rename', v); break;
+    case 'notetpldel': _viNoteTplOp('del', v); break;
+    case 'clippl': _VI.ws.clipPlaylist = v || ''; _viwUpdateLeft(); break;
     case 'clearframe': _viAnnClear(); break;
     case 'saveframe': _viAnnSaveFrame(); break;
     case 'nudge': _viwNudge(parseFloat(v)); break;
