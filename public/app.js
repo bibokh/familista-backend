@@ -43825,6 +43825,7 @@ function _viReadEvInputs() {
   var d = _VI.evDraft = _VI.evDraft || { type: 'Pass', players: [], success: 'success', rating: 0 };
   function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
   var ph = v('vi-ev-phase'); if (ph !== undefined) d.phase = ph;
+  var si = v('vi-ev-situation'); if (si !== undefined) d.situation = si;
   var tg = v('vi-ev-tags'); if (tg !== undefined) d.tags = tg;
   var nt = v('vi-ev-notes'); if (nt !== undefined) d.notes = nt;
   var du = v('viw-ev-dur'); if (du !== undefined && du !== '') d.dur = parseFloat(du) || 0;
@@ -43858,6 +43859,7 @@ function _viBind() {
     else if (a === 'evrate') { _VI.evDraft = _viReadEvInputs(); _VI.evDraft.rating = parseInt(v, 10) || 0; _viwUpdateInspector(); }
     else if (a === 'pinev') { var pn = _VI.ws.pinned = _VI.ws.pinned || []; var pi = pn.indexOf(v); if (pi >= 0) pn.splice(pi, 1); else pn.push(v); if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); _viwUpdateLeft(); }
     else if (a === 'clearplayers') { if (_VI.evDraft) _VI.evDraft.players = []; _viwUpdateInspector(); if (_VI.ws && _VI.ws.leftTab === 'players') _viwUpdateLeft(); }
+    else if (a === 'evtagdel') { var dd = _VI.evDraft = _viReadEvInputs(); dd.tags = (dd.tags || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s && s !== v; }).join(','); _viwUpdateInspector(); }
     else if (a === 'cliploop') { _viwClipOp('loop', v); }
     else if (a === 'cliprename') { _viwClipOp('rename', v); }
     else if (a === 'clipdup') { _viwClipOp('dup', v); }
@@ -44095,6 +44097,110 @@ function _viwFrame(p) { return 1 / _viwFps(p); }
 function _viwVid() { return document.getElementById('vi-video'); }
 function _viwDur() { var v = _viwVid(); return v && isFinite(v.duration) && v.duration > 0 ? v.duration : ((_viProject(_VI.projectId) || {}).video || {}).duration || 0; }
 
+/* ---------- PRO SHELL: full-viewport desktop analysis application ----------
+   Matches the authoritative reference: global nav + header + command panel +
+   docked telestration toolbar + dominant video + pro transport + multi-track
+   timeline + Event Inspector + AI Insights. Reuses the working engine
+   (seek/timeline/annotation/transport/event ops) and every DOM hook id. */
+function _vipNav(p) {
+  var real = { 'club-home': 'Home', 'squad': 'Squad', 'training': 'Training', 'video-intelligence': 'Video Intelligence' };
+  var items = [['club-home','Home','M10 2 2 8v9h5v-5h6v5h5V8z'],['squad','Squad','M7 9a3 3 0 100-6 3 3 0 000 6zm6 0a3 3 0 100-6 3 3 0 000 6zM2 17c0-2.8 2.2-5 5-5s5 2.2 5 5zm9.2-4.6A5 5 0 0118 17h-4c0-1.8-.7-3.4-1.8-4.6z'],['tactics','Tactics','M4 4h12v12H4zM10 4v12M4 10h12'],['training','Training','M10 3a7 7 0 100 14 7 7 0 000-14zm0 3v4l3 2'],['video-intelligence','Video Intelligence','M3 6a2 2 0 012-2h6a2 2 0 012 2v1.5l4-2v7l-4-2V14a2 2 0 01-2 2H5a2 2 0 01-2-2z'],['reports','Reports','M5 3h7l3 3v11H5zM8 9h4M8 12h4'],['opponents','Opponents','M10 2 3 5v5c0 4 3 6.5 7 8 4-1.5 7-4 7-8V5z'],['performance','Performance','M3 15l4-5 3 3 4-6 3 4v3H3z'],['scouting','Scouting','M9 3a5 5 0 104 8l4 4 1.5-1.5-4-4A5 5 0 009 3z'],['data-hub','Data Hub','M10 3c3.9 0 7 1.1 7 2.5S13.9 8 10 8 3 6.9 3 5.5 6.1 3 10 3zM3 5.5v9c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-9']];
+  var lib = [['clips','Clips','M6 4a2 2 0 100 4 2 2 0 000-4zM6 12a2 2 0 100 4 2 2 0 000-4zM16 5 8 9m8 6-8-4'],['playlists','Playlists','M3 5h10M3 9h10M3 13h6m6-3v6l4-3z'],['bookmarks','Bookmarks','M5 3h10v14l-5-4-5 4z'],['notes','Notes','M4 3h9l3 3v11H4zM7 9h6M7 12h6']];
+  function icon(d){ return '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></svg>'; }
+  function row(it, active){ var isReal = real[it[0]]; var on = it[0] === 'video-intelligence'; return '<button class="vip-nav-i'+(on?' is-on':'')+(isReal?'':' is-soft')+'"'+(isReal && !on?' data-nav="'+it[0]+'"':'')+(isReal || on?'':' data-vip-soft="'+it[1]+'"')+' type="button">'+icon(it[2])+'<span>'+it[1]+'</span></button>'; }
+  var sc = _viScope();
+  return '<nav class="vip-nav">'
+    + '<div class="vip-brand"><span class="vip-brand-logo">◆</span><div><b>Familista</b><i>VIDEO INTELLIGENCE PRO</i></div></div>'
+    + '<button class="vip-club" type="button"><span class="vip-club-crest">'+_viEsc((sc.club||'FC')[0])+'</span><div><b>'+_viEsc(sc.club||'FC Familista')+'</b><i>Pro Workspace</i></div><em>▾</em></button>'
+    + '<div class="vip-nav-sec">Club Workspace</div>'
+    + '<div class="vip-nav-list">' + items.map(function(it){ return row(it); }).join('') + '</div>'
+    + '<div class="vip-nav-sec">My Library</div>'
+    + '<div class="vip-nav-list">' + lib.map(function(it){ return row(it); }).join('') + '</div>'
+    + '<div class="vip-nav-user"><span class="vip-nav-av">'+_viEsc((sc.club||'A')[0])+'</span><div><b>'+_viEsc(sc.club||'Analyst')+'</b><i>Analyst</i></div><button class="vip-nav-out" data-nav="club-home" title="Exit workspace" type="button">⎋</button></div>'
+    + '</nav>';
+}
+function _vipHeader(p) {
+  var sc = _viScope();
+  var comp = p.competition || 'Match analysis';
+  var our = _viEsc(p.ourTeam || sc.club || 'FC Familista'), opp = _viEsc(p.opponent || '');
+  var score = p.score ? _viEsc(p.score) : '';
+  return '<header class="vip-header">'
+    + '<div class="vip-h-title">Video Intelligence Pro</div>'
+    + '<div class="vip-h-search"><span>⌕</span><input type="text" placeholder="Search players, matches, events…" aria-label="Search"><em>⌘K</em></div>'
+    + '<div class="vip-h-chips">'
+    +   '<div class="vip-h-chip"><i class="vip-h-flag"></i><div><b>'+_viEsc(comp)+'</b><span>'+(opp?our+' '+(score?score:'vs')+' '+opp:our)+'</span></div><em>▾</em></div>'
+    +   '<div class="vip-h-chip"><i class="vip-h-crest">'+_viEsc((sc.club||'F')[0])+'</i><div><b>'+_viEsc(sc.club||'FC Familista')+'</b><span>'+_viEsc(sc.team||'First Team')+'</span></div><em>▾</em></div>'
+    + '</div>'
+    + '<div class="vip-h-right">'
+    +   '<span class="vip-h-stat is-ok">◉ GPS Active</span>'
+    +   '<span class="vip-h-stat is-ai">✦ AI Assist On</span>'
+    +   '<button class="vip-h-ic" title="Notifications" type="button">◔<i class="vip-h-dot"></i></button>'
+    +   '<span class="vip-h-av">'+_viEsc((sc.club||'MB')[0])+'</span>'
+    + '</div>'
+    + '</header>';
+}
+function _vipToolbar() {
+  var w = _VI.ws;
+  var tools = [['select','▚','Select'],['circle','◯','Circle'],['arrow','↗','Arrow'],['line','／','Line'],['zone','▭','Zone'],['spotlight','◎','Spotlight'],['text','T','Text'],['free','✎','Free Draw']];
+  var t = tools.map(function(x){ return '<button class="viw-dtool vip-tool'+(w.tool===x[0]?' is-on':'')+'" data-viw-act="tool" data-viw="'+x[0]+'" title="'+x[2]+'" type="button"><em>'+x[1]+'</em><span>'+x[2]+'</span></button>'; }).join('');
+  var colors = ['#ffffff','#f43f5e','#fb923c','#4ade80','#2dd4bf','#38bdf8','#a78bfa','#e5e7eb'];
+  var sw = colors.map(function(c){ return '<button class="vip-sw'+(w.annColor===c?' is-on':'')+'" style="--sw:'+c+'" data-viw-act="anncolor" data-viw="'+c+'" title="'+c+'"></button>'; }).join('');
+  return '<div class="vip-toolbar">'
+    + '<div class="vip-tools">' + t + '</div>'
+    + '<div class="vip-tsep"></div>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button>'
+    + '<div class="vip-tsep"></div>'
+    + '<div class="vip-sws">' + sw + '</div>'
+    + '<div class="vip-tsep"></div>'
+    + '<button class="viw-dtool vip-tool vip-dashbtn'+(w.annDash?' is-on':'')+'" data-viw-act="anndash" title="Solid / dashed" type="button"><em>'+(w.annDash?'┄':'──')+'</em></button>'
+    + '<label class="vip-thick" title="Line thickness">◐<input type="range" id="viw-annw" min="1" max="8" step="1" value="'+(w.annWidth||3)+'" data-viw-act="annwidth"></label>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em></button>'
+    + '</div>';
+}
+function _vipInsights(p) {
+  var ev = (p.events || []).slice();
+  var out = { pattern: null, top: null, trend: null };
+  if (ev.length >= 3) {
+    var byCat = {}; ev.forEach(function(e){ var c = _viCatOf(e.type); byCat[c] = (byCat[c]||0)+1; });
+    var topCat = Object.keys(byCat).sort(function(a,b){ return byCat[b]-byCat[a]; })[0];
+    var dur = _viwDur() || 0, win = null;
+    if (dur > 0) { var seg = dur/6, best = -1, bi = 0; for (var i=0;i<6;i++){ var lo=seg*i, hi=seg*(i+1); var n=ev.filter(function(e){return e.t0>=lo&&e.t0<hi;}).length; if(n>best){best=n;bi=i;} } win = { a: _viFmt(seg*bi), b: _viFmt(seg*(bi+1)), n: best }; }
+    out.pattern = { cat: topCat, count: byCat[topCat], win: win };
+  }
+  var inv = {}; ev.forEach(function(e){ (e.players||[]).forEach(function(id){ inv[id] = (inv[id]||0)+1; }); });
+  var ids = Object.keys(inv); if (ids.length) { var tp = ids.sort(function(a,b){ return inv[b]-inv[a]; })[0]; out.top = { id: tp, count: inv[tp] }; }
+  var withOutcome = ev.filter(function(e){ return e.success === 'success' || e.success === 'fail'; });
+  if (withOutcome.length >= 4) {
+    var half = _viwDur()/2 || 0; var f = withOutcome.filter(function(e){return e.t0<half;}), s = withOutcome.filter(function(e){return e.t0>=half;});
+    function rate(a){ return a.length ? Math.round(a.filter(function(e){return e.success==='success';}).length/a.length*100) : null; }
+    var r1 = rate(f), r2 = rate(s);
+    if (r1 != null && r2 != null) out.trend = { r1: r1, r2: r2, up: r2 >= r1 };
+    else out.trend = { overall: rate(withOutcome) };
+  }
+  return out;
+}
+function _vipAI(p) {
+  var ai = _vipInsights(p);
+  var pat = ai.pattern
+    ? '<div class="vip-ai-c vip-ai-c--pat"><div class="vip-ai-h"><b>Pattern Detected</b></div><p>Most tagged actions are <b style="color:' + 'rgb(' + VI_EVENTS[ai.pattern.cat].color + ')">' + _viEsc(ai.pattern.cat) + '</b> (' + ai.pattern.count + ')' + (ai.pattern.win && ai.pattern.win.n > 1 ? ', clustering between <b>' + ai.pattern.win.a + '–' + ai.pattern.win.b + '</b>.' : '.') + '</p><button class="vip-ai-btn" data-viw-act="focuscat" data-viw="' + ai.pattern.cat + '" type="button">View Pattern</button></div>'
+    : '<div class="vip-ai-c vip-ai-c--pat"><div class="vip-ai-h"><b>Pattern Detected</b></div><p class="vip-ai-empty">Tag a few events to surface tactical patterns. Nothing is inferred until you have real tags.</p></div>';
+  var top = ai.top
+    ? '<div class="vip-ai-c vip-ai-c--top"><div class="vip-ai-h"><b>Top Performer</b><span class="vip-ai-badge">' + ai.top.count + '</span></div><div class="vip-ai-player"><span class="vip-ai-av">' + _viEsc((_viPlayerName(ai.top.id)||'?').split(' ').pop()[0]) + '</span><div><b>' + _viEsc(_viPlayerName(ai.top.id)) + '</b><i>' + ai.top.count + ' tagged involvements</i></div></div></div>'
+    : '<div class="vip-ai-c vip-ai-c--top"><div class="vip-ai-h"><b>Top Performer</b></div><p class="vip-ai-empty">Link players to events to rank involvement.</p></div>';
+  var trend = ai.trend
+    ? (ai.trend.r1 != null
+        ? '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b><span class="vip-ai-arrow ' + (ai.trend.up ? 'is-up' : 'is-down') + '">' + (ai.trend.up ? '▲' : '▼') + '</span></div><p>Success rate ' + (ai.trend.up ? 'rising' : 'falling') + ': <b>' + ai.trend.r1 + '%</b> → <b>' + ai.trend.r2 + '%</b> (1st → 2nd half).</p></div>'
+        : '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b></div><p>Overall success rate across tagged actions: <b>' + ai.trend.overall + '%</b>.</p></div>')
+    : '<div class="vip-ai-c vip-ai-c--trend"><div class="vip-ai-h"><b>Key Trend</b></div><p class="vip-ai-empty">Mark outcomes on your events to compute trends.</p></div>';
+  return '<section class="vip-ai"><div class="vip-ai-top"><b>AI Insights</b><span class="vip-ai-beta">BETA</span></div>' + pat + top + trend + '</section>';
+}
+function _vipSyncTool() {
+  var sws = document.querySelectorAll('.vip-sw'); [].forEach.call(sws, function(b){ b.classList.toggle('is-on', b.getAttribute('data-viw') === _VI.ws.annColor); });
+  var dash = document.querySelector('.vip-dashbtn'); if (dash) { dash.classList.toggle('is-on', !!_VI.ws.annDash); var em = dash.querySelector('em'); if (em) em.textContent = _VI.ws.annDash ? '┄' : '──'; }
+}
+
 /* ---------- SHELL ---------- */
 function _viWorkspace() {
   if (_VI.openError && !_viProject(_VI.projectId)) {
@@ -44105,18 +44211,25 @@ function _viWorkspace() {
   _VI.projectId = p.id;
   if (!_VI.ws) _VI.ws = _viwState();
   var w = _VI.ws;
+  if (!w.insTab) w.insTab = 'event';
   var vid = p.video
     ? '<video class="vi-video" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video>'
       + '<canvas class="vi-canvas" id="vi-canvas"></canvas>'
       + '<div class="vi-vstatus" id="vi-vstatus"><span class="vi-vspin"></span><b>Loading video…</b><span class="vi-vstatus-sub">Preparing the player.</span></div>'
-      + _viwDock()
     : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. Reattach the original MP4/MOV/WebM to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
-  var cls = 'viw' + (w.maximized ? ' is-max' : '') + (w.distraction ? ' is-distraction' : '');
-  return '<div class="' + cls + '" id="viw" style="--viw-l:' + w.leftW + 'px;--viw-r:' + w.rightW + 'px">'
-    + _viwLeft(p) + '<div class="viw-grip" data-viw-act="grip" data-viw="left" title="Drag to resize"></div>'
-    + _viwCenter(p, vid) + '<div class="viw-grip" data-viw-act="grip" data-viw="right" title="Drag to resize"></div>'
-    + _viwInspector(p)
-    + '</div>' + _viwTimeline(p);
+  var cls = 'vip-shell' + (w.maximized ? ' is-max' : '');
+  return '<div class="' + cls + '" id="viw">'
+    + _vipNav(p)
+    + '<div class="vip-main">'
+    +   _vipHeader(p)
+    +   '<div class="vip-body">'
+    +     _viwLeft(p)
+    +     '<section class="vip-center">' + _vipToolbar() + _viwCenter(p, vid) + '</section>'
+    +     '<aside class="vip-rightcol">' + _viwInspector(p) + _vipAI(p) + '</aside>'
+    +     _viwTimeline(p)
+    +   '</div>'
+    + '</div>'
+    + '</div>';
 }
 
 /* ---------- LEFT: fixed-height tabbed command panel ---------- */
@@ -44124,7 +44237,7 @@ function _viwLeft(p) {
   var w = _VI.ws;
   var tabs = [['players', 'Players', '👥'], ['events', 'Events', '⚑'], ['clips', 'Clips', '✂'], ['layers', 'Layers', '▤']];
   var nav = '<div class="viw-ltabs">' + tabs.map(function (t) { return '<button class="viw-ltab' + (w.leftTab === t[0] ? ' is-on' : '') + '" data-viw-act="ltab" data-viw="' + t[0] + '" type="button"><em>' + t[2] + '</em>' + t[1] + '</button>'; }).join('') + '</div>';
-  return '<aside class="viw-left" id="viw-left"><div class="viw-panel-h"><b>Command</b><button class="viw-mini" data-viw-act="collapseL" title="Collapse">‹</button></div>' + nav + '<div class="viw-lbody" id="viw-lbody">' + _viwLeftBody(p) + '</div></aside>';
+  return '<aside class="viw-left" id="viw-left">' + nav + '<div class="viw-lbody" id="viw-lbody">' + _viwLeftBody(p) + '</div></aside>';
 }
 function _viwLeftBody(p) {
   switch (_VI.ws.leftTab) {
@@ -44140,10 +44253,18 @@ function _viwPlayersTab(p) {
   var sel = ((_VI.evDraft || {}).players) || [];
   var list = players.filter(function (pl) { return !q || (pl.name + ' ' + (pl.num || '')).toLowerCase().indexOf(q) >= 0; });
   var recent = (w.recentP || []).map(function (id) { var m = players.filter(function (x) { return x.id === id; })[0]; return m ? '<button class="viw-pchip" data-vi-act="evplayer" data-vi="' + m.id + '" type="button"><em>' + (m.num || '') + '</em>' + _viEsc(m.name.split(' ').pop()) + '</button>' : ''; }).join('');
-  return '<div class="viw-search"><input class="vi-input" id="viw-pq" type="text" placeholder="Search players…" value="' + _viEsc(w.playerQ || '') + '" data-viw-act="pq"></div>'
+  var cats = Object.keys(VI_EVENTS);
+  var catBtns = cats.map(function (c) {
+    return '<div class="vip-catgrp"><span class="vip-catgrp-h" style="--c:' + VI_EVENTS[c].color + '">' + c + '</span><div class="vip-catgrid">'
+      + VI_EVENTS[c].types.map(function (t) { return '<button class="vip-cat" style="--c:' + VI_EVENTS[c].color + '" data-vi-act="evtype" data-vi="' + _viEsc(t) + '" type="button"><i></i><span>' + _viEsc(t) + '</span></button>'; }).join('')
+      + '</div></div>';
+  }).join('');
+  return '<div class="viw-search vip-psearch"><input class="vi-input" id="viw-pq" type="text" placeholder="Search players…" value="' + _viEsc(w.playerQ || '') + '" data-viw-act="pq"><button class="vip-filter" title="Filter" type="button">⏷</button></div>'
+    + '<div class="vip-allsel"><span>All Players</span><em>▾</em></div>'
     + (recent ? '<div class="viw-sublbl">Recent</div><div class="viw-prow">' + recent + '</div>' : '')
     + '<div class="viw-sublbl">Squad <i>(' + list.length + ')</i>' + (sel.length ? ' · <a data-vi-act="clearplayers">clear</a>' : '') + '</div>'
-    + '<div class="viw-pgrid">' + list.map(function (pl) { return '<button class="viw-pcell' + (sel.indexOf(pl.id) >= 0 ? ' is-on' : '') + '" data-vi-act="evplayer" data-vi="' + pl.id + '" type="button" title="' + _viEsc(pl.name) + '"><em>' + (pl.num || '') + '</em><span>' + _viEsc(pl.name.split(' ').pop()) + '</span></button>'; }).join('') + '</div>';
+    + '<div class="vip-plist">' + list.map(function (pl) { return '<button class="vip-prow' + (sel.indexOf(pl.id) >= 0 ? ' is-on' : '') + '" data-vi-act="evplayer" data-vi="' + pl.id + '" type="button" title="' + _viEsc(pl.name) + '"><em>' + (pl.num || '') + '</em><span class="vip-prow-n">' + _viEsc(pl.name) + '</span><span class="vip-prow-pos">' + _viEsc(pl.pos || '') + '</span><i class="vip-prow-dot"></i></button>'; }).join('') + '</div>'
+    + '<div class="vip-catwrap"><div class="viw-sublbl">Event Categories</div>' + catBtns + '<button class="vip-addcustom" data-viw-act="addcustom" type="button">＋ Add Custom Event</button></div>';
 }
 function _viwEventsTab(p) {
   var w = _VI.ws, q = (w.eventQ || '').toLowerCase();
@@ -44185,7 +44306,7 @@ function _viwLayersTab(p) {
 
 /* ---------- CENTER: video stage + transport + seek bar ---------- */
 function _viwCenter(p, vidHtml) {
-  return '<section class="viw-center"><div class="viw-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div></div>' + _viwSeekbar(p) + _viwTransport(p) + '</section>';
+  return '<section class="viw-center"><div class="viw-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div></div>' + _viwTransport(p) + _viwSeekbar(p) + '</section>';
 }
 function _viwSeekTicksHtml(p) {
   var dur = _viwDur(); if (!dur) return '';
@@ -44198,17 +44319,15 @@ function _viwRefreshSeekTicks() { var el = document.getElementById('viw-seek-tic
 function _viwTransport(p) {
   function b(act, dv, label, title, cls) { return '<button class="viw-tp' + (cls ? ' ' + cls : '') + '" data-viw-act="' + act + '"' + (dv != null ? ' data-viw="' + dv + '"' : '') + ' title="' + title + '" type="button">' + label + '</button>'; }
   var speeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2];
-  var spd = '<div class="viw-spdwrap"><button class="viw-tp viw-spd" data-viw-act="spdmenu" id="viw-spd" title="Playback speed" type="button">1×</button><div class="viw-spdmenu" id="viw-spdmenu" hidden>' + speeds.map(function (s) { return '<button data-viw-act="speed" data-viw="' + s + '" type="button">' + s + '×</button>'; }).join('') + '</div></div>';
+  var spd = '<div class="viw-spdwrap"><button class="viw-tp viw-spd" data-viw-act="spdmenu" id="viw-spd" title="Playback speed" type="button">1.0×</button><div class="viw-spdmenu" id="viw-spdmenu" hidden>' + speeds.map(function (s) { return '<button data-viw-act="speed" data-viw="' + s + '" type="button">' + s + '×</button>'; }).join('') + '</div></div>';
   return '<div class="viw-transport">'
-    + '<div class="viw-tp-g">' + b('nudge', -5, '«5s', 'Back 5s (Shift+←)') + b('nudge', -1, '‹1s', 'Back 1s (←)') + b('frame', -1, '⏮', 'Previous frame (,)') + '</div>'
+    + '<div class="viw-tp-g">' + b('frame', -1, '⏮', 'Previous frame (,)') + b('nudge', -5, '−5s', 'Back 5s (Shift+←)') + b('nudge', -1, '−1s', 'Back 1s (←)') + '</div>'
     + '<div class="viw-tp-g">' + b('play', null, '▶', 'Play / Pause (Space / K)', 'viw-tp--play') + '</div>'
-    + '<div class="viw-tp-g">' + b('frame', 1, '⏭', 'Next frame (.)') + b('nudge', 1, '1s›', 'Forward 1s (→)') + b('nudge', 5, '5s»', 'Forward 5s (Shift+→)') + '</div>'
+    + '<div class="viw-tp-g">' + b('nudge', 1, '+1s', 'Forward 1s (→)') + b('nudge', 5, '+5s', 'Forward 5s (Shift+→)') + b('frame', 1, '⏭', 'Next frame (.)') + '</div>'
     + '<div class="viw-tp-time"><span id="viw-cur">0:00</span><i>/</i><span id="viw-dur">0:00</span></div>'
     + '<div class="viw-tp-g">' + spd + '</div>'
     + '<div class="viw-tp-g viw-vol"><button class="viw-tp" data-viw-act="mute" id="viw-mute" title="Mute (M)" type="button">🔊</button><input class="viw-volsl" id="viw-vol" type="range" min="0" max="1" step="0.05" value="1" data-viw-act="volinput" title="Volume"></div>'
-    + '<div class="viw-tp-g">' + b('markin', null, 'I◧', 'Set clip In (I)') + b('jumpin', null, '⇤', 'Jump to In') + b('jumpout', null, '⇥', 'Jump to Out') + b('markout', null, '◨O', 'Set clip Out (O)') + '</div>'
-    + '<div class="viw-tp-g">' + b('loop', null, '⟳', 'Loop selected clip', 'viw-tp--loop') + b('saveclip2', null, '✂ Clip', 'Save clip from In/Out', 'viw-tp--primary') + b('addevent2', null, '＋ Tag', 'Tag event here (T)', 'viw-tp--primary') + '</div>'
-    + '<div class="viw-tp-g viw-tp-r">' + b('maximize', null, '⤢', 'Maximize video') + b('full', null, '⛶', 'Fullscreen (F)') + '</div>'
+    + '<div class="viw-tp-g viw-tp-r">' + b('markin', null, 'IN', 'Set clip In (I)', 'viw-tp--io') + b('markout', null, 'OUT', 'Set clip Out (O)', 'viw-tp--io') + b('loop', null, '⟳', 'Loop selected clip', 'viw-tp--loop') + b('saveclip2', null, '＋ Clip', 'Save clip from In/Out', 'viw-tp--primary') + b('addevent2', null, '＋ Tag', 'Tag event here (T)', 'viw-tp--primary') + b('full', null, '⤢', 'Fullscreen (F)') + b('settings', null, '⚙', 'Player settings') + '</div>'
     + '</div>';
 }
 
@@ -44233,21 +44352,30 @@ function _viwDock() {
 
 /* ---------- RIGHT: Event Inspector ---------- */
 function _viwInspector(p) {
-  var d = _VI.evDraft || { type: 'Pass', players: [], success: 'success', phase: '', rating: 0, tags: '', notes: '' };
+  var d = _VI.evDraft || { type: 'Pass', players: [], success: 'success', phase: '', situation: '', rating: 0, tags: '', notes: '' };
   var cat = _viCatOf(d.type);
-  var players = _viPlayers();
+  var insTab = (_VI.ws && _VI.ws.insTab) || 'event';
+  var tabs = '<div class="vip-instabs"><button class="vip-instab' + (insTab === 'event' ? ' is-on' : '') + '" data-viw-act="instab" data-viw="event" type="button">Event Inspector</button><button class="vip-instab' + (insTab === 'template' ? ' is-on' : '') + '" data-viw-act="instab" data-viw="template" type="button">Template</button></div>';
+  var head = '<div class="viw-panel-h vip-inhead">' + tabs + '<span class="viw-save" id="viw-save" data-state="idle">Ready</span></div>';
+  if (insTab === 'template') {
+    return '<aside class="viw-right" id="viw-right">' + head + '<div class="viw-rbody"><div class="vip-tpl-empty"><span>▤</span><b>Event templates</b><p>Save your common event set-ups (type, players, phase, tags) as reusable templates. Templates are built from your real tagged events — nothing is pre-populated.</p><button class="vi-btn vi-btn--sm" data-viw-act="instab" data-viw="event" type="button">Back to inspector</button></div></div></aside>';
+  }
   var chips = ((d.players) || []).map(function (id) { return '<span class="viw-chipx" data-vi-act="evplayer" data-vi="' + id + '">' + _viEsc(_viPlayerName(id)) + ' ✕</span>'; }).join('') || '<span class="vi-muted">Pick from the Players tab or search →</span>';
   var tags = (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean);
-  return '<aside class="viw-right" id="viw-right"><div class="viw-panel-h"><b>Event Inspector</b><span class="viw-save" id="viw-save" data-state="idle">Ready</span></div><div class="viw-rbody">'
-    + '<div class="viw-isec"><label class="viw-fl">Event</label><div class="viw-evtype" style="--c:' + VI_EVENTS[cat].color + '">' + _viEsc(d.type) + '<span class="viw-evcat">' + cat + '</span></div>'
-    + '<div class="viw-row2"><div><label class="viw-fl">Timestamp</label><input class="vi-input" id="viw-ev-t" type="text" value="' + _viFmt(d.t0 != null ? d.t0 : _viwCurTimeSafe()) + '" data-viw-act="evtime"></div><div><label class="viw-fl">Duration (s)</label><input class="vi-input" id="viw-ev-dur" type="number" min="0" step="1" value="' + (d.dur || 0) + '"></div></div></div>'
-    + '<div class="viw-isec"><label class="viw-fl">Players</label><input class="vi-input viw-mini-in" id="viw-ev-pq" type="text" placeholder="Search to add player…" data-viw-act="evpq"><div class="viw-evpl">' + chips + '</div><div class="viw-evpl-res" id="viw-ev-pres" hidden></div></div>'
-    + '<div class="viw-row2"><div><label class="viw-fl">Outcome</label><div class="viw-seg"><button class="viw-seg-b' + (d.success === 'success' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:success" type="button">Success</button><button class="viw-seg-b viw-seg-b--fail' + (d.success === 'fail' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:fail" type="button">Fail</button></div></div>'
-    + '<div><label class="viw-fl">Phase</label><select class="vi-input" id="vi-ev-phase"><option value="">—</option>' + ['Build-up', 'Progression', 'Final third', 'Transition', 'Set piece', 'Defensive block'].map(function (x) { return '<option' + (d.phase === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>'
-    + '<div class="viw-row2"><div><label class="viw-fl">Rating</label><div class="vi-stars">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="vi-star' + (d.rating >= n ? ' is-on' : '') + '" data-vi-act="evrate" data-vi="' + n + '" type="button">★</button>'; }).join('') + '</div></div><div><label class="viw-fl">Position</label><div class="viw-pos' + (d.x != null ? ' is-set' : '') + '" data-viw-act="pospick" title="Click, then click on the pitch/video">' + (d.x != null ? 'x' + Math.round(d.x) + ' y' + Math.round(d.y) : 'Set on video') + '</div></div></div>'
-    + '<div class="viw-isec"><label class="viw-fl">Tags</label><div class="viw-tags">' + tags.map(function (t) { return '<span class="viw-tag">' + _viEsc(t) + '</span>'; }).join('') + '<input class="vi-input viw-mini-in" id="vi-ev-tags" type="text" placeholder="comma,separated" value="' + _viEsc(d.tags || '') + '"></div></div>'
-    + '<div class="viw-isec"><label class="viw-fl">Notes</label><textarea class="vi-input" id="vi-ev-notes" rows="2" placeholder="Coaching note…">' + _viEsc(d.notes || '') + '</textarea></div>'
-    + '<div class="viw-isave"><button class="vi-btn vi-btn--sm vi-btn--primary" data-viw-act="addevent2" type="button">Save Event</button><button class="vi-btn vi-btn--sm" data-viw-act="saveclip2" type="button">Save Clip</button><button class="vi-btn vi-btn--sm" data-viw-act="savews2" type="button">Save Analysis</button></div>'
+  var notes = d.notes || '';
+  var px = (d.x != null ? d.x : 50), py = (d.y != null ? d.y : 50);
+  return '<aside class="viw-right" id="viw-right">' + head + '<div class="viw-rbody">'
+    + '<div class="viw-isec"><label class="viw-fl">Event</label><div class="viw-evtype" style="--c:' + VI_EVENTS[cat].color + '"><span class="vip-evtype-ic">⚑</span>' + _viEsc(d.type) + '<span class="viw-evcat">' + cat + '</span></div></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Timestamp</label><input class="vi-input" id="viw-ev-t" type="text" value="' + _viFmt(d.t0 != null ? d.t0 : _viwCurTimeSafe()) + '" data-viw-act="evtime"></div><div><label class="viw-fl">Duration (s)</label><input class="vi-input" id="viw-ev-dur" type="number" min="0" step="0.05" value="' + (d.dur || 0) + '"></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Players Involved</label><div class="viw-evpl">' + chips + '</div><div class="vip-addpl"><input class="vi-input viw-mini-in" id="viw-ev-pq" type="text" placeholder="Search to add player…" data-viw-act="evpq"><button class="vip-addpl-b" title="Add player" type="button">＋</button></div><div class="viw-evpl-res" id="viw-ev-pres" hidden></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Outcome</label><div class="viw-seg vip-seg3"><button class="viw-seg-b' + (d.success === 'success' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:success" type="button">Successful</button><button class="viw-seg-b viw-seg-b--fail' + (d.success === 'fail' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:fail" type="button">Unsuccessful</button><button class="viw-seg-b viw-seg-b--partial' + (d.success === 'partial' ? ' is-on' : '') + '" data-vi-act="evfield" data-vi="success:partial" type="button">Partial</button></div></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Phase</label><select class="vi-input" id="vi-ev-phase"><option value="">—</option>' + ['Build-up', 'Progression', 'Final third', 'Transition', 'Set piece', 'Defensive block'].map(function (x) { return '<option' + (d.phase === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>'
+    + '<div><label class="viw-fl">Situation</label><select class="vi-input" id="vi-ev-situation" data-viw-act="evsituation"><option value="">—</option>' + ['Open Play', 'Set Piece', 'Counter', 'Transition', 'Pressing'].map(function (x) { return '<option' + (d.situation === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div></div>'
+    + '<div class="viw-row2"><div><label class="viw-fl">Rating</label><div class="vi-stars">' + [1, 2, 3, 4, 5].map(function (n) { return '<button class="vi-star' + (d.rating >= n ? ' is-on' : '') + '" data-vi-act="evrate" data-vi="' + n + '" type="button">★</button>'; }).join('') + '</div></div><div><label class="viw-fl">Position</label><div class="vip-pitch' + (d.x != null ? ' is-set' : '') + '" data-viw-act="pospick" title="Click, then click on the video to set position"><span class="vip-pitch-dot" style="left:' + px + '%;top:' + py + '%"></span></div></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Tags</label><div class="viw-tags">' + tags.map(function (t) { return '<span class="viw-tag">' + _viEsc(t) + ' <i data-vi-act="evtagdel" data-vi="' + _viEsc(t) + '">✕</i></span>'; }).join('') + '<input class="vi-input viw-mini-in" id="vi-ev-tags" type="text" placeholder="comma,separated" value="' + _viEsc(d.tags || '') + '"></div></div>'
+    + '<div class="viw-isec"><label class="viw-fl">Notes <span class="vip-count"><span id="viw-notes-count">' + notes.length + '</span>/250</span></label><textarea class="vi-input" id="vi-ev-notes" rows="3" maxlength="250" placeholder="Coaching note…" data-viw-act="notescount">' + _viEsc(notes) + '</textarea></div>'
+    + '<div class="vip-isave"><button class="vi-btn vi-btn--sm vi-btn--primary vip-savebig" data-viw-act="savews2" type="button">Save Analysis</button><button class="vi-btn vi-btn--sm" data-viw-act="saveclip2" type="button">Save Clip</button></div>'
+    + '<div class="vip-export"><button class="vip-export-b" data-viw-act="exportmenu" type="button">Export <em>▾</em></button><div class="vip-export-menu" id="vip-export-menu" hidden><button data-viw-act="exportreport" type="button">Analysis report (print)</button><button data-viw-act="saveframe" type="button">Current frame (PNG)</button></div></div>'
     + '</div></aside>';
 }
 function _viwCurTimeSafe() { var v = _viwVid(); return v ? (v.currentTime || 0) : 0; }
@@ -44256,28 +44384,35 @@ function _viwCurTimeSafe() { var v = _viwVid(); return v ? (v.currentTime || 0) 
 function _viwTimeline(p) {
   var w = _VI.ws, dur = _viwDur();
   var zoom = w.zoom || 1;
+  var collapsed = !!w.tlCollapsed;
   var lanes = [['Attacking', 'Attacking'], ['Defending', 'Defending'], ['Transitions', 'Transitions'], ['Set pieces', 'Set Pieces'], ['Goalkeeper', 'Goalkeeper']];
   var evByCat = {}; (p.events || []).forEach(function (e) { var c = _viCatOf(e.type); (evByCat[c] = evByCat[c] || []).push(e); });
   function pos(t) { return dur ? ((t / dur) * 100) : 0; } // percent of the (zoomed) inner track
   var ruler = '';
   if (dur) { var n = Math.min(24, Math.max(8, Math.round(8 * zoom))); var step = dur / n; for (var i = 0; i <= n; i++) { var tt = step * i; ruler += '<span class="viw-tick" style="left:' + pos(tt).toFixed(3) + '%">' + _viFmt(tt) + '</span>'; } }
   var laneRows = lanes.map(function (c) {
-    var marks = (evByCat[c[0]] || []).map(function (e) {
-      return '<button class="viw-mk' + (w.selEvent === e.id ? ' is-sel' : '') + '" style="left:' + pos(e.t0).toFixed(3) + '%;--c:' + VI_EVENTS[c[0]].color + '" data-vi-act="seekevent" data-vi="' + e.id + '" data-viw-mk="' + e.id + '" title="' + _viEsc(e.type) + (e.players && e.players.length ? ' · ' + _viEsc(_viPlayerName(e.players[0])) : '') + ' · ' + _viFmt(e.t0) + ' · ' + (e.success === 'fail' ? 'Fail' : 'Success') + '"></button>';
+    var list = evByCat[c[0]] || [];
+    var marks = list.map(function (e) {
+      return '<button class="viw-mk' + (w.selEvent === e.id ? ' is-sel' : '') + '" style="left:' + pos(e.t0).toFixed(3) + '%;--c:' + VI_EVENTS[c[0]].color + '" data-vi-act="seekevent" data-vi="' + e.id + '" data-viw-mk="' + e.id + '" title="' + _viEsc(e.type) + (e.players && e.players.length ? ' · ' + _viEsc(_viPlayerName(e.players[0])) : '') + ' · ' + _viFmt(e.t0) + ' · ' + (e.success === 'fail' ? 'Unsuccessful' : e.success === 'partial' ? 'Partial' : 'Successful') + '"></button>';
     }).join('');
-    return '<div class="viw-lane"><span class="viw-lane-lbl" style="--c:' + VI_EVENTS[c[0]].color + '">' + c[1] + '</span><div class="viw-lane-tr">' + marks + '</div></div>';
+    return '<div class="viw-lane"><span class="viw-lane-lbl" style="--c:' + VI_EVENTS[c[0]].color + '"><i class="viw-lane-eye">◉</i>' + c[1] + '<b class="viw-lane-ct">' + list.length + '</b></span><div class="viw-lane-tr">' + marks + '</div></div>';
   }).join('');
   var clipSegs = (p.clips || []).map(function (c) {
     var l = pos(c.t0), width = dur ? ((c.t1 - c.t0) / dur * 100) : 0;
     return '<div class="viw-clipseg' + (w.selClip === c.id ? ' is-sel' : '') + '" style="left:' + l.toFixed(3) + '%;width:' + Math.max(0.4, width).toFixed(3) + '%" data-viw-clip="' + c.id + '" title="' + _viEsc(c.name) + '"><span class="viw-clipseg-h viw-clipseg-in" data-viw-act="cliphandle" data-viw="' + c.id + ':in"></span><span class="viw-clipseg-lbl" data-vi-act="seekclip" data-vi="' + c.id + '">' + _viEsc(c.name) + '</span><span class="viw-clipseg-h viw-clipseg-out" data-viw-act="cliphandle" data-viw="' + c.id + ':out"></span></div>';
   }).join('');
+  var notes = (p.annotations || []).filter(function (a) { return a.t != null; });
+  var noteMarks = notes.map(function (a) { var nm = a.label ? a.label : (a.kind ? a.kind.charAt(0).toUpperCase() + a.kind.slice(1) : 'Note'); return '<span class="viw-noteseg" style="left:' + pos(a.t).toFixed(3) + '%;--c:' + (a.color ? '255,255,255' : '148,163,184') + '" data-vi-act="annseek" data-vi="' + a.id + '" title="' + _viEsc(nm) + ' · ' + _viFmt(a.t) + '"></span>'; }).join('');
   var mini = '<div class="viw-mini-tl" id="viw-mini" data-viw-act="minipan"' + (zoom > 1 ? '' : ' hidden') + '><div class="viw-mini-view" id="viw-mini-view"></div>' + (p.events || []).map(function (e) { return '<span class="viw-mini-mk" style="left:' + (dur ? (e.t0 / dur * 100) : 0).toFixed(2) + '%;--c:' + VI_EVENTS[_viCatOf(e.type)].color + '"></span>'; }).join('') + '</div>';
-  return '<div class="viw-tl" id="viw-tl"><div class="viw-tl-bar"><div class="viw-tl-info"><b>' + (p.events || []).length + '</b> events · <b>' + (p.clips || []).length + '</b> clips' + (dur ? ' · ' + _viFmt(dur) : ' · no duration') + ' <span class="viw-fpsnote" title="Approximate when the file exposes no frame-rate metadata">~' + _viwFps(p) + 'fps</span></div>'
-    + '<div class="viw-tl-zoom"><button data-viw-act="zoom" data-viw="out" title="Zoom out (-)">－</button><button data-viw-act="zoom" data-viw="fit" title="Fit whole video">Fit</button><button data-viw-act="zoom" data-viw="in" title="Zoom in (+)">＋</button><span class="viw-zlvl">' + Math.round(zoom * 100) + '%</span></div></div>'
+  return '<div class="viw-tl' + (collapsed ? ' is-collapsed' : '') + '" id="viw-tl"><div class="viw-tl-bar">'
+    + '<div class="viw-tl-exp"><button data-viw-act="tlexpand" title="Expand all lanes" type="button">⤢ Expand All</button><button data-viw-act="tlcollapse" title="Collapse all lanes" type="button">⤡ Collapse All</button><span class="viw-tl-info"><b>' + (p.events || []).length + '</b> events · <b>' + (p.clips || []).length + '</b> clips · <b>' + notes.length + '</b> notes</span></div>'
+    + '<div class="viw-tl-zoom"><button data-viw-act="zoom" data-viw="out" title="Zoom out (-)">－</button><button data-viw-act="zoom" data-viw="in" title="Zoom in (+)">＋</button><button data-viw-act="zoom" data-viw="fit" title="Fit whole video">Fit</button><span class="viw-fpsnote" title="Approximate when the file exposes no frame-rate metadata">~' + _viwFps(p) + 'fps</span><span class="viw-zlvl">' + Math.round(zoom * 100) + '%</span></div></div>'
     + '<div class="viw-tl-scroll" id="viw-tl-scroll"><div class="viw-tl-inner" id="viw-tl-inner" style="width:' + (zoom * 100).toFixed(1) + '%">'
     + '<div class="viw-tl-ruler" id="viw-tl-ruler" data-viw-act="tlseek">' + ruler + '</div>'
-    + '<div class="viw-tl-lanes" data-viw-act="tlseek">' + laneRows + '<div class="viw-cliplane"><span class="viw-lane-lbl viw-lane-lbl--clip">Clips</span><div class="viw-lane-tr">' + clipSegs + '</div></div>'
-    + '<div class="viw-tl-head" id="viw-tl-head"></div></div></div></div>' + mini + '</div>';
+    + '<div class="viw-tl-lanes" data-viw-act="tlseek">' + laneRows
+    + '<div class="viw-lane viw-cliplane"><span class="viw-lane-lbl viw-lane-lbl--clip"><i class="viw-lane-eye">◉</i>Clips<b class="viw-lane-ct">' + (p.clips || []).length + '</b></span><div class="viw-lane-tr">' + clipSegs + '</div></div>'
+    + '<div class="viw-lane viw-noteslane"><span class="viw-lane-lbl viw-lane-lbl--notes"><i class="viw-lane-eye">◉</i>Notes<b class="viw-lane-ct">' + notes.length + '</b></span><div class="viw-lane-tr">' + noteMarks + '</div></div>'
+    + '<div class="viw-tl-head" id="viw-tl-head"><span class="viw-tl-head-t" id="viw-tl-head-t">0:00</span></div></div></div></div>' + mini + '</div>';
 }
 
 /* ---------- WIRING (idempotent, called after mount) ---------- */
@@ -44296,6 +44431,8 @@ var _viwFitBound = false;
 // exactly (no full-page scroll), measuring the real top offset regardless of
 // the surrounding chrome. Skips the stacked responsive layout (<=1200px).
 function _viwFit() {
+  // Pro shell is a fixed 100dvh grid — it sizes itself; no measured height needed.
+  if (document.querySelector('.vip-shell')) { var vs = document.getElementById('viw'); if (vs) vs.style.height = ''; return; }
   if (_VI.ws && _VI.ws.maximized) return;
   var viw = document.getElementById('viw'), tl = document.getElementById('viw-tl');
   if (!viw || !tl || typeof window === 'undefined') return;
@@ -44319,6 +44456,7 @@ function _viwRaf() {
       if (buf && v.buffered && v.buffered.length) { try { buf.style.width = (v.buffered.end(v.buffered.length - 1) / dur * 100).toFixed(2) + '%'; } catch (e) {} }
       var th = document.getElementById('viw-tl-head');
       if (th) th.style.left = ((v.currentTime / dur) * 100).toFixed(3) + '%';
+      var thb = document.getElementById('viw-tl-head-t'); if (thb) thb.textContent = _viFmt(v.currentTime);
       var sc = document.getElementById('viw-tl-scroll'), mv = document.getElementById('viw-mini-view');
       if (sc && mv && sc.scrollWidth > sc.clientWidth) { mv.style.left = (sc.scrollLeft / sc.scrollWidth * 100).toFixed(2) + '%'; mv.style.width = (sc.clientWidth / sc.scrollWidth * 100).toFixed(2) + '%'; }
       // loop selected clip
@@ -44590,7 +44728,7 @@ function _viwCommitPending() { var pend = _VI.ws.pending; _VI.ws.pending = null;
 function _viAddEvent() {
   var p = _viProject(_VI.projectId); if (!p) { _viToast('Open an analysis first'); return; }
   var d = _viReadEvInputs(); var v = document.getElementById('vi-video'); var t = (d.t0 != null && d._tedit) ? d.t0 : (v ? (v.currentTime || 0) : 0);
-  var ev = { id: _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t + (d.dur ? +d.dur : 0), success: d.success || 'success', phase: d.phase || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || ''), x: d.x, y: d.y };
+  var ev = { id: _viUid(), type: d.type || 'Pass', team: 'ours', players: (d.players || []).slice(), t0: t, t1: t + (d.dur ? +d.dur : 0), success: d.success || 'success', phase: d.phase || '', situation: d.situation || '', rating: d.rating || 0, tags: (d.tags || '').split(',').map(function (s) { return s.trim(); }).filter(Boolean), notes: _viEsc(d.notes || ''), x: d.x, y: d.y };
   p.events.push(ev); _viTouch(p);
   _VI.ws.recentE = ([ev.type].concat((_VI.ws.recentE || []).filter(function (x) { return x !== ev.type; }))).slice(0, 8);
   _VI.evDraft = { type: d.type, players: [], success: 'success', rating: 0, phase: d.phase, dur: 0 };
@@ -44633,8 +44771,8 @@ function _viwAct(a, v, ev) {
     case 'collapseL': _viwToggleMax(); break;
     case 'evcat': _VI.ws.evCat = v; _viwUpdateLeft(); break;
     case 'tool': _viwSetTool(v); break;
-    case 'anncolor': _VI.ws.annColor = v; _viwRefreshDock(); break;
-    case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); break;
+    case 'anncolor': _VI.ws.annColor = v; _viwRefreshDock(); _vipSyncTool(); break;
+    case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); _vipSyncTool(); break;
     case 'undo': _viwUndo(); break;
     case 'redo': _viwRedo(); break;
     case 'clearframe': _viAnnClear(); break;
@@ -44657,12 +44795,27 @@ function _viwAct(a, v, ev) {
     case 'full': _viwFull(); break;
     case 'zoom': _viwZoom(v); break;
     case 'pospick': _viwArmPos(); break;
+    case 'instab': _VI.ws.insTab = v; _viwUpdateInspector(); break;
+    case 'evsituation': break; // handled via _viwInput
+    case 'addcustom': _viwAddCustomEvent(); break;
+    case 'settings': var sm = document.getElementById('viw-spdmenu'); if (sm) sm.hidden = !sm.hidden; break;
+    case 'tlexpand': _VI.ws.tlCollapsed = false; _viwUpdateTimeline(); break;
+    case 'tlcollapse': _VI.ws.tlCollapsed = true; _viwUpdateTimeline(); break;
+    case 'focuscat': _VI.ws.leftTab = 'events'; _VI.ws.evCat = v; _viwSetLeftTab('events'); _viToast('Filtered events: ' + v); break;
+    case 'exportmenu': var em = document.getElementById('vip-export-menu'); if (em) em.hidden = !em.hidden; break;
+    case 'exportreport': var em2 = document.getElementById('vip-export-menu'); if (em2) em2.hidden = true; _viCreateReport('Match Analysis'); break;
     // pointer-driven (handled in _viwWire, no click action): grip, dockgrip, seekbar, tlseek, cliphandle, minipan
   }
 }
+function _viwAddCustomEvent() {
+  var name = window.prompt('Custom event type:'); if (!name) return;
+  name = String(name).slice(0, 40);
+  if (VI_EVENTS[_VI.ws.evCat] && VI_EVENTS[_VI.ws.evCat].types.indexOf(name) < 0) VI_EVENTS[_VI.ws.evCat].types.push(name);
+  _VI.evDraft = _VI.evDraft || {}; _VI.evDraft.type = name; _viwUpdateLeft(); _viwUpdateInspector(); _viToast('Custom event ready: ' + name);
+}
 function _viwToggleMax() { _VI.ws.maximized = !_VI.ws.maximized; var w = document.getElementById('viw'); if (w) { w.classList.toggle('is-max', _VI.ws.maximized); setTimeout(function () { _viWireCanvas(); }, 30); } }
 function _viwRefreshDock() { var d = document.getElementById('viw-dock'); if (!d) return; var tmp = document.createElement('div'); tmp.innerHTML = _viwDock(); if (tmp.firstChild) { d.parentNode.replaceChild(tmp.firstChild, d); } }
-function _viwArmPos() { _VI.ws.armPos = true; var box = document.querySelector('.viw-pos'); if (box) { box.classList.add('is-arming'); box.textContent = 'Click on the video…'; } var cv = document.getElementById('vi-canvas'); if (cv) { cv.style.pointerEvents = 'auto'; cv.style.cursor = 'crosshair'; } _viToast('Click a spot on the video to set the position'); }
+function _viwArmPos() { _VI.ws.armPos = true; var box = document.querySelector('.vip-pitch') || document.querySelector('.viw-pos'); if (box) box.classList.add('is-arming'); var cv = document.getElementById('vi-canvas'); if (cv) { cv.style.pointerEvents = 'auto'; cv.style.cursor = 'crosshair'; } _viToast('Click a spot on the video to set the position'); }
 function _viwInput(el) {
   var a = el.getAttribute('data-viw-act');
   if (a === 'pq') { _VI.ws.playerQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-pq'); }
@@ -44673,6 +44826,8 @@ function _viwInput(el) {
   else if (a === 'volinput') { _viwVolume(el.value); }
   else if (a === 'evtime') { var d = _VI.evDraft = _VI.evDraft || {}; var parts = (el.value || '').split(':'); var secs = parts.length === 2 ? (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) : parseFloat(el.value); if (isFinite(secs)) { d.t0 = secs; d._tedit = true; _viwSeekTo(secs); } }
   else if (a === 'evpq') { _viwEvPlayerSearch(el.value); }
+  else if (a === 'evsituation') { var ds = _VI.evDraft = _VI.evDraft || {}; ds.situation = el.value; }
+  else if (a === 'notescount') { var dn = _VI.evDraft = _VI.evDraft || {}; dn.notes = el.value; var cc = document.getElementById('viw-notes-count'); if (cc) cc.textContent = (el.value || '').length; }
 }
 function _viwFocusRestore(id) { var el = document.getElementById(id); if (el) { el.focus(); try { var l = el.value.length; el.setSelectionRange(l, l); } catch (e) {} } }
 function _viwEvPlayerSearch(q) {
