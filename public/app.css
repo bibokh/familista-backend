@@ -8039,7 +8039,7 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vip-addcustom{ width:100%; border:1px dashed rgba(255,255,255,.16); background:rgba(255,255,255,.02); color:#8a97ac; border-radius:9px; padding:8px; font-size:11px; cursor:pointer; margin-top:4px; } .vip-addcustom:hover{ color:#5eead4; border-color:rgba(45,212,191,.4); }
 
 /* ---- C · TOOLBAR ---- */
-.vip-toolbar{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; background:linear-gradient(180deg,#101a2e,#0b1220); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:6px 8px; flex:0 0 auto; box-shadow:inset 0 1px 0 rgba(255,255,255,.04); }
+.vip-toolbar{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; background:linear-gradient(180deg,#101a2e,#0b1220); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:6px 8px; flex:0 0 auto; box-shadow:inset 0 1px 0 rgba(255,255,255,.04); max-height:132px; overflow-y:auto; }
 .vip-tools{ display:flex; gap:3px; }
 .vip-tool{ display:flex; flex-direction:column; align-items:center; gap:2px; min-width:46px; width:auto; height:auto; padding:5px 6px; border-radius:9px; } .vip-tool em{ font-style:normal; font-size:14px; line-height:1; } .vip-tool span{ font-size:8.5px; opacity:.8; }
 .vip-tsep{ width:1px; align-self:stretch; background:rgba(255,255,255,.08); margin:2px 3px; }

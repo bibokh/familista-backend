@@ -44344,7 +44344,7 @@ function _vipHeader(p) {
 }
 function _vipToolbar() {
   var w = _VI.ws;
-  var tools = [['select','▚','Select','V'],['circle','◯','Circle','C'],['arrow','↗','Arrow','A'],['rect','▭','Rectangle','R'],['line','／','Line',''],['zone','◨','Zone','Z'],['spotlight','◎','Spotlight','S'],['free','✎','Free Draw',''],['text','T','Text',''],['connect','⧉','Connect',''],['distance','↔','Distance',''],['angle','∠','Angle',''],['sequence','①','Sequence',''],['eraser','⌫','Eraser','E']];
+  var tools = [['select','▚','Select','V'],['circle','◯','Circle','C'],['arrow','↗','Arrow','A'],['rect','▭','Rectangle','R'],['line','／','Line',''],['curve','⤳','Curved lane',''],['zone','◨','Zone','Z'],['spotlight','◎','Spotlight','S'],['xmark','✕','X marker',''],['omark','⭘','O marker',''],['cone','◔','Vision cone',''],['connect','⧉','Formation',''],['distance','↔','Distance',''],['angle','∠','Angle',''],['sequence','①','Sequence',''],['timer','⏱','Timer',''],['free','✎','Free Draw',''],['text','T','Text',''],['track','⌖','Track',''],['eraser','⌫','Eraser','E']];
   var t = tools.map(function(x){ return '<button class="viw-dtool vip-tool'+(w.tool===x[0]?' is-on':'')+'" data-viw-act="tool" data-viw="'+x[0]+'" title="'+x[2]+(x[3]?' ('+x[3]+')':'')+'" type="button"><em>'+x[1]+'</em><span>'+x[2]+'</span></button>'; }).join('');
   var colors = ['#ffffff','#f43f5e','#fb923c','#fbbf24','#4ade80','#2dd4bf','#38bdf8','#a78bfa'];
   var sw = colors.map(function(c){ return '<button class="vip-sw'+(w.annColor===c?' is-on':'')+'" style="--sw:'+c+'" data-viw-act="anncolor" data-viw="'+c+'" title="'+c+'"></button>'; }).join('');
@@ -44356,6 +44356,10 @@ function _vipToolbar() {
     + '<button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Delete</span></button>'
     + '<button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button>'
     + '<button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>'
+    + '<div class="vip-tsep"></div>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="trackprev" title="Previous tracking keyframe" type="button"><em>⟝</em><span>Key</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="tracknext" title="Next tracking keyframe" type="button"><em>⟞</em><span>Key</span></button>'
+    + '<button class="viw-dtool vip-tool" data-viw-act="trackdel" title="Delete keyframe at current time" type="button"><em>⌦</em><span>Key</span></button>'
     + '<div class="vip-tsep"></div>'
     + '<div class="vip-sws">' + sw + '</div>'
     + '<div class="vip-tsep"></div>'
@@ -44562,8 +44566,9 @@ function _viwLayersTab(p) {
   return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i> · <a data-viw-act="tool" data-viw="select">select tool</a></div>'
     + (anns.length ? '<div class="viw-layers">' + anns.map(function (a) {
         var name = a.label ? a.label : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1));
+        var meta = a.kind === 'track' ? ((a.keys || []).length + ' keyframes · manual') : (a.kind === 'timer' ? 'timer overlay' : ('@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's'));
         return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + (w.selAnn === a.id ? ' is-sel' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
-          + '<button class="viw-layer-main" data-vi-act="annsel" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's</i></button>'
+          + '<button class="viw-layer-main" data-vi-act="annsel" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>' + meta + '</i></button>'
           + '<div class="viw-layer-acts"><button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock/Unlock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="annrename" data-vi="' + a.id + '" title="Rename">✎</button><button data-vi-act="anndur" data-vi="' + a.id + '" title="On-screen duration">⏱</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
       }).join('') + '</div>' : '<p class="viw-hint">Draw on the paused video with the annotation tools. Saved shapes appear here as editable layers — click one to select, then drag on the video to move, or use the actions.</p>');
 }
@@ -44742,6 +44747,7 @@ function _viwRaf() {
       if (_VI.ws.loopClip) { var c = (_viProject(_VI.projectId).clips || []).filter(function (x) { return x.id === _VI.ws.loopClip; })[0]; if (c && (v.currentTime >= c.t1 || v.currentTime < c.t0 - 0.1)) v.currentTime = c.t0; }
     }
     var cur = document.getElementById('viw-cur'); if (cur) cur.textContent = _viFmt(v.currentTime);
+    if (!v.paused) { var pr = _viProject(_VI.projectId); if (pr && (pr.annotations || []).some(function (a) { return a.kind === 'track' || a.kind === 'timer'; })) { try { _viAnnRedraw(); } catch (e) {} } }
   }
   requestAnimationFrame(_viwRaf);
 }
@@ -44947,6 +44953,10 @@ function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   else if (tool === 'spotlight') { var rr = Math.hypot(b.x - a.x, b.y - a.y) || 40; ctx.beginPath(); ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.arc(a.x, a.y, rr, 0, 6.283, true); ctx.fillStyle = 'rgba(4,10,18,.55)'; ctx.fill('evenodd'); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, 6.283); ctx.stroke(); }
   else if (tool === 'distance') { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); _viAnnLabel(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, '≈' + _viRelDist(a, b) + '% w', col); }
   else if (tool === 'free') { ctx.beginPath(); (path || []).forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.stroke(); }
+  else if (tool === 'xmark') { var xr = Math.max(13, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.moveTo(a.x - xr, a.y - xr); ctx.lineTo(a.x + xr, a.y + xr); ctx.moveTo(a.x + xr, a.y - xr); ctx.lineTo(a.x - xr, a.y + xr); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + xr + 10, an.label, col); }
+  else if (tool === 'omark') { var or = Math.max(12, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.arc(a.x, a.y, or, 0, 6.283); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + or + 10, an.label, col); }
+  else if (tool === 'cone') { var L = Math.hypot(b.x - a.x, b.y - a.y) || 60; var dir = Math.atan2(b.y - a.y, b.x - a.x); var half = ((an && an.coneAngle) || 40) * Math.PI / 360; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.arc(a.x, a.y, L, dir - half, dir + half); ctx.closePath(); ctx.save(); ctx.globalAlpha = Math.min((an && an.opacity != null ? an.opacity : 1), .3); ctx.fillStyle = col; ctx.fill(); ctx.restore(); ctx.stroke(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, 6.283); ctx.fill(); }
+  else if (tool === 'curve') { var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; var nx = -(b.y - a.y), ny = (b.x - a.x); var nl = Math.hypot(nx, ny) || 1; var off = (an && an.bend != null ? an.bend : 0.3) * Math.hypot(b.x - a.x, b.y - a.y); var cxp = mx + nx / nl * off, cyp = my + ny / nl * off; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(cxp, cyp, b.x, b.y); ctx.stroke(); var ta = Math.atan2(b.y - cyp, b.x - cxp); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 13 * Math.cos(ta - 0.4), b.y - 13 * Math.sin(ta - 0.4)); ctx.lineTo(b.x - 13 * Math.cos(ta + 0.4), b.y - 13 * Math.sin(ta + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
   ctx.restore();
 }
 function _viAnnLabel(ctx, x, y, txt, col) { ctx.save(); ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.font = '700 11px Inter,Arial'; var w = ctx.measureText(txt).width + 10; ctx.fillStyle = 'rgba(4,12,20,.85)'; ctx.fillRect(x - w / 2, y - 9, w, 16); ctx.fillStyle = col || '#38f5c8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y); ctx.restore(); }
@@ -44969,6 +44979,7 @@ function _viAnnCommit(tool, a, b, path) {
   var p = _viProject(_VI.projectId); if (!p) return; var w = _VI.ws || {};
   var an;
   if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, label: String(txt).slice(0, 200), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dur: 3 }; }
+  else if (tool === 'timer') { an = { id: _viUid(), t: _viCurTime(), kind: 'timer', x: a.x, y: a.y, start: 0, countdown: false, size: 22, color: _viAnnColor(), opacity: (w.annOpacity == null ? 1 : w.annOpacity), dur: 600 }; }
   else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, fill: !!w.annFill, dur: 3 }; }
   p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
 }
@@ -44985,8 +44996,11 @@ function _viAnnEraseAt(x, y) {
 }
 /* ---- selection / move / delete (edit annotations after drawing) ---- */
 function _viAnnBBox(an) {
+  if (an.kind === 'track' && an.keys && an.keys.length) { var kx = an.keys.map(function (q) { return q.x; }), ky = an.keys.map(function (q) { return q.y; }); return { x1: Math.min.apply(null, kx) - 14, y1: Math.min.apply(null, ky) - 14, x2: Math.max.apply(null, kx) + 14, y2: Math.max.apply(null, ky) + 14 }; }
   if (an.points && an.points.length) { var xs = an.points.map(function (q) { return q.x; }), ys = an.points.map(function (q) { return q.y; }); return { x1: Math.min.apply(null, xs), y1: Math.min.apply(null, ys), x2: Math.max.apply(null, xs), y2: Math.max.apply(null, ys) }; }
   if (an.kind === 'circle') { var r = Math.hypot((an.x2 - an.x), (an.y2 - an.y)); return { x1: an.x - r, y1: an.y - r, x2: an.x + r, y2: an.y + r }; }
+  if (an.kind === 'xmark' || an.kind === 'omark') { var mr = Math.max(13, Math.hypot((an.x2 || an.x) - an.x, (an.y2 || an.y) - an.y)); return { x1: an.x - mr, y1: an.y - mr, x2: an.x + mr, y2: an.y + mr }; }
+  if (an.kind === 'timer') { return { x1: an.x, y1: an.y, x2: an.x + 120, y2: an.y + 36 }; }
   if (an.kind === 'text') { return { x1: an.x, y1: an.y - 16, x2: an.x + 130, y2: an.y + 8 }; }
   var ax2 = an.x2 == null ? an.x : an.x2, ay2 = an.y2 == null ? an.y : an.y2;
   return { x1: Math.min(an.x, ax2), y1: Math.min(an.y, ay2), x2: Math.max(an.x, ax2), y2: Math.max(an.y, ay2) };
@@ -44996,7 +45010,7 @@ function _viAnnHit(x, y) {
   (p.annotations || []).forEach(function (an) { if (an.hidden || an.locked) return; if (Math.abs(an.t - t) > (an.dur || 3)) return; var b = _viAnnBBox(an), pad = 12; if (x >= b.x1 - pad && x <= b.x2 + pad && y >= b.y1 - pad && y <= b.y2 + pad) hit = an; });
   return hit;
 }
-function _viAnnMove(an, dx, dy) { if (an.points) an.points.forEach(function (q) { q.x += dx; q.y += dy; }); if (an.x != null) an.x += dx; if (an.y != null) an.y += dy; if (an.x2 != null) an.x2 += dx; if (an.y2 != null) an.y2 += dy; }
+function _viAnnMove(an, dx, dy) { if (an.keys) an.keys.forEach(function (k) { k.x += dx; k.y += dy; }); if (an.points) an.points.forEach(function (q) { q.x += dx; q.y += dy; }); if (an.x != null) an.x += dx; if (an.y != null) an.y += dy; if (an.x2 != null) an.x2 += dx; if (an.y2 != null) an.y2 += dy; }
 function _viAnnSelected() { var p = _viProject(_VI.projectId); if (!p || !_VI.ws.selAnn) return null; return (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0] || null; }
 function _viAnnDeleteSelected() {
   var p = _viProject(_VI.projectId); if (!p) return; var an = _viAnnSelected(); if (!an) { _viToast('Select an annotation first (Select tool)'); return; }
@@ -45007,14 +45021,63 @@ function _viAnnRedraw() {
   var cv = document.getElementById('vi-canvas'); if (!cv) return; var ctx = cv.getContext('2d'); ctx.clearRect(0, 0, cv.width, cv.height);
   var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
   (p.annotations || []).forEach(function (an) {
-    if (an.hidden) return; if (Math.abs(an.t - t) > (an.dur || 3)) return;
+    if (an.hidden) return;
+    if (an.kind === 'track') { _viTrackDraw(ctx, an, t); return; }
+    if (Math.abs(an.t - t) > (an.dur || 3)) return;
     if (an.kind === 'text') { ctx.save(); ctx.globalAlpha = an.opacity == null ? 1 : an.opacity; ctx.font = '600 14px Inter,Arial'; var w = ctx.measureText(an.label).width + 14; ctx.fillStyle = 'rgba(4,12,20,.8)'; ctx.fillRect(an.x, an.y - 16, w, 22); ctx.fillStyle = an.color; ctx.fillText(an.label, an.x + 7, an.y); ctx.restore(); }
+    else if (an.kind === 'timer') { _viTimerDraw(ctx, an, t); }
     else if (an.points) { _viAnnDrawPoints(ctx, an); }
     else { _viAnnDrawShape(ctx, an.kind, { x: an.x, y: an.y }, { x: an.x2, y: an.y2 }, an.path, an); }
   });
   // selection outline
   if (_VI.ws && _VI.ws.selAnn) { var sa = (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0]; if (sa && !sa.hidden && Math.abs(sa.t - t) <= (sa.dur || 3)) { var b = _viAnnBBox(sa); ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.globalAlpha = 1; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.strokeRect(b.x1 - 7, b.y1 - 7, (b.x2 - b.x1) + 14, (b.y2 - b.y1) + 14); ctx.setLineDash([]); [[b.x1 - 7, b.y1 - 7], [b.x2 + 7, b.y1 - 7], [b.x1 - 7, b.y2 + 7], [b.x2 + 7, b.y2 + 7]].forEach(function (c) { ctx.fillStyle = '#04121f'; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.beginPath(); ctx.rect(c[0] - 3, c[1] - 3, 6, 6); ctx.fill(); ctx.stroke(); }); ctx.restore(); } }
 }
+/* ---- timer overlay (video-tied stopwatch / countdown) ---- */
+function _viTimerDraw(ctx, an, t) {
+  var el = (t - an.t) + (an.start || 0); if (an.countdown) { el = (an.start || 0) - (t - an.t); if (el < 0) el = 0; }
+  var mm = Math.floor(Math.max(0, el) / 60), ss = Math.floor(Math.max(0, el) % 60); var txt = mm + ':' + (ss < 10 ? '0' : '') + ss;
+  ctx.save(); ctx.globalAlpha = an.opacity == null ? 1 : an.opacity; var fs = an.size || 22; ctx.font = '800 ' + fs + 'px Inter,Arial'; var w = ctx.measureText(txt).width + 22, h = fs + 12;
+  ctx.fillStyle = 'rgba(4,12,20,.82)'; if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(an.x, an.y, w, h, 8); ctx.fill(); } else ctx.fillRect(an.x, an.y, w, h);
+  ctx.fillStyle = an.color || '#38f5c8'; ctx.textBaseline = 'middle'; ctx.fillText('⏱ ' + txt, an.x + 11, an.y + h / 2); ctx.restore();
+}
+/* ---- manual / assisted tracking (interpolated between manual keyframes) ---- */
+function _viTrackKeys(an) { return (an.keys || []).slice().sort(function (a, b) { return a.t - b.t; }); }
+function _viTrackInterp(an, t) {
+  var ks = _viTrackKeys(an); if (!ks.length) return null;
+  if (t <= ks[0].t) return { x: ks[0].x, y: ks[0].y, edge: true };
+  if (t >= ks[ks.length - 1].t) return { x: ks[ks.length - 1].x, y: ks[ks.length - 1].y, edge: true };
+  for (var i = 0; i < ks.length - 1; i++) { if (t >= ks[i].t && t <= ks[i + 1].t) { var f = (t - ks[i].t) / ((ks[i + 1].t - ks[i].t) || 1); return { x: ks[i].x + (ks[i + 1].x - ks[i].x) * f, y: ks[i].y + (ks[i + 1].y - ks[i].y) * f }; } }
+  return { x: ks[0].x, y: ks[0].y };
+}
+function _viTrackDraw(ctx, an, t) {
+  var ks = _viTrackKeys(an); if (!ks.length) return; var col = an.color || '#38f5c8';
+  ctx.save(); ctx.globalAlpha = an.opacity == null ? 1 : an.opacity;
+  // path between keyframes
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.setLineDash([7, 5]); ctx.beginPath(); ks.forEach(function (k, i) { i ? ctx.lineTo(k.x, k.y) : ctx.moveTo(k.x, k.y); }); ctx.stroke(); ctx.setLineDash([]);
+  // keyframe dots
+  ks.forEach(function (k) { ctx.fillStyle = '#04121f'; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.x, k.y, 4, 0, 6.283); ctx.fill(); ctx.stroke(); });
+  // interpolated anchor box at current time
+  var pos = _viTrackInterp(an, t); if (pos) { var s = an.boxSize || 26; ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.setLineDash([]); ctx.strokeRect(pos.x - s / 2, pos.y - s / 2, s, s); ctx.fillStyle = col; ctx.font = '700 9px Inter,Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom'; var lbl = (an.label || 'Track') + ' · manual'; ctx.fillStyle = 'rgba(4,12,20,.8)'; var lw = ctx.measureText(lbl).width + 8; ctx.fillRect(pos.x - s / 2, pos.y - s / 2 - 14, lw, 13); ctx.fillStyle = col; ctx.fillText(lbl, pos.x - s / 2 + 4, pos.y - s / 2 - 2); }
+  ctx.restore();
+}
+function _viTrackClick(x, y) {
+  var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
+  var active = _VI.ws.trackId ? (p.annotations || []).filter(function (a) { return a.id === _VI.ws.trackId && a.kind === 'track'; })[0] : null;
+  if (active) {
+    var ex = active.keys.filter(function (k) { return Math.abs(k.t - t) < 0.05; })[0];
+    if (ex) { ex.x = x; ex.y = y; } else active.keys.push({ t: t, x: x, y: y });
+    active.t = _viTrackKeys(active)[0].t; _viTouch(p); _viAnnRedraw(); _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft();
+    _viToast('Keyframe @ ' + _viFmt(t) + ' · ' + active.keys.length + ' total (Manual / Assisted)');
+  } else {
+    var n = (p.annotations || []).filter(function (a) { return a.kind === 'track'; }).length + 1;
+    var an = { id: _viUid(), t: t, kind: 'track', keys: [{ t: t, x: x, y: y }], color: _viAnnColor(), opacity: (_VI.ws.annOpacity == null ? 1 : _VI.ws.annOpacity), label: 'Track ' + n, provider: 'manual', dur: 1e9 };
+    p.annotations.push(an); _VI.ws.selAnn = an.id; _VI.ws.trackId = an.id; if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft();
+    _viToast('Manual tracking started — seek to a later frame and click to add keyframes');
+  }
+}
+function _viTrackActive() { var p = _viProject(_VI.projectId); if (!p) return null; return _VI.ws.trackId ? (p.annotations || []).filter(function (a) { return a.id === _VI.ws.trackId && a.kind === 'track'; })[0] : (p.annotations || []).filter(function (a) { return a.kind === 'track'; }).slice(-1)[0]; }
+function _viTrackKeyStep(dir) { var an = _viTrackActive(); if (!an) { _viToast('No tracking layer — select the Track tool and click a player'); return; } var ks = _viTrackKeys(an); if (!ks.length) return; var t = _viCurTime(), target = null; if (dir > 0) { for (var i = 0; i < ks.length; i++) if (ks[i].t > t + 0.05) { target = ks[i]; break; } } else { for (var j = ks.length - 1; j >= 0; j--) if (ks[j].t < t - 0.05) { target = ks[j]; break; } } if (!target) { _viToast(dir > 0 ? 'Last keyframe' : 'First keyframe'); return; } _VI.ws.trackId = an.id; _viwSeekTo(target.t); }
+function _viTrackDelKey() { var an = _viTrackActive(); if (!an) return; var p = _viProject(_VI.projectId); var t = _viCurTime(); var before = an.keys.length; an.keys = an.keys.filter(function (k) { return Math.abs(k.t - t) > 0.2; }); if (an.keys.length === before) { _viToast('No keyframe near this time'); return; } if (!an.keys.length) { p.annotations = p.annotations.filter(function (a) { return a.id !== an.id; }); if (_VI.ws.trackId === an.id) _VI.ws.trackId = null; } else an.t = _viTrackKeys(an)[0].t; _viTouch(p); _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Keyframe removed'); }
 function _viAnnSnap(pt) {
   var p = _viProject(_VI.projectId); if (!p) return pt; var t = _viCurTime(); var best = null, bd = 18;
   (p.annotations || []).forEach(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return; var cands = []; if (an.points) an.points.forEach(function (q) { cands.push(q); }); else { if (an.x != null) cands.push({ x: an.x, y: an.y }); if (an.x2 != null) cands.push({ x: an.x2, y: an.y2 }); } cands.forEach(function (q) { var d = Math.hypot(q.x - pt.x, q.y - pt.y); if (d < bd) { bd = d; best = q; } }); });
@@ -45035,11 +45098,14 @@ function _viWireCanvas() {
     var tool = _VI.ws.tool;
     if (!tool || tool === 'select') { // hit-test → select + begin move
       var q2 = rel(ev); var hit = _viAnnHit(q2.x, q2.y); _VI.ws.selAnn = hit ? hit.id : null;
+      if (hit && hit.kind === 'track') _VI.ws.trackId = hit.id;
       if (hit) { selDrag = { id: hit.id, last: q2, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
       _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
       return;
     }
     if (tool === 'eraser') { _viAnnEraseAt(rel(ev).x, rel(ev).y); return; }
+    if (tool === 'track') { var qt = rel(ev); _viTrackClick(qt.x, qt.y); return; }
+    if (tool === 'timer') { _viAnnCommit('timer', rel(ev), rel(ev)); return; }
     if (MULTI[tool]) { var q = _viAnnSnap(rel(ev)); _VI.ws.pending = _VI.ws.pending || { kind: tool, points: [] }; if (_VI.ws.pending.kind !== tool) _VI.ws.pending = { kind: tool, points: [] }; _VI.ws.pending.points.push({ x: q.x, y: q.y }); _viwDrawPending(); if (_VI.ws.pending.points.length >= MULTI[tool]) _viwCommitPending(); return; }
     start = rel(ev); path = [start]; moved = false; try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
   });
@@ -45053,7 +45119,7 @@ function _viWireCanvas() {
     var tool = _VI.ws.tool;
     if ((!tool || tool === 'select')) { if (selDrag && selDrag.moved) { var p = _viProject(_VI.projectId); _viTouch(p); _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); } if (selDrag) { try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} } selDrag = null; return; }
     if (tool === 'eraser' || MULTI[tool] || !start) { start = null; return; }
-    var end = rel(ev); if (tool === 'text' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+    var end = rel(ev); if (tool === 'text' || tool === 'xmark' || tool === 'omark' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
   }
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('dblclick', function () { if (_VI.ws.pending && _VI.ws.pending.points.length >= 2) _viwCommitPending(); });
@@ -45139,6 +45205,9 @@ function _viwAct(a, v, ev) {
     case 'undo': _viwUndo(); break;
     case 'redo': _viwRedo(); break;
     case 'delsel': _viAnnDeleteSelected(); break;
+    case 'trackprev': _viTrackKeyStep(-1); break;
+    case 'tracknext': _viTrackKeyStep(1); break;
+    case 'trackdel': _viTrackDelKey(); break;
     case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); break;
     case 'prevev': _viwStepEvent(-1); break;
     case 'nextev': _viwStepEvent(1); break;
