@@ -43884,7 +43884,46 @@ var VI_FORMATIONS = {
   '3-5-2': [[50,90],[28,76],[50,78],[72,76],[14,54],[36,52],[50,50],[64,52],[86,54],[38,26],[62,26]],
   '4-1-4-1': [[50,90],[16,74],[38,78],[62,78],[84,74],[50,60],[18,44],[40,42],[60,42],[82,44],[50,22]]
 };
-function _viBoardGet() { _viLoad(); VI_DB.boards = VI_DB.boards || {}; var c = _viScope().club; if (!VI_DB.boards[c]) VI_DB.boards[c] = _viBoardDefault(); var b = VI_DB.boards[c]; b.tool = b.tool || 'move'; b.color = b.color || '#38f5c8'; b.form = b.form || '4-3-3'; return b; }
+function _viBoardGet() { _viLoad(); VI_DB.boards = VI_DB.boards || {}; var c = _viScope().club; if (!VI_DB.boards[c]) VI_DB.boards[c] = _viBoardDefault(); var b = VI_DB.boards[c]; b.tool = b.tool || 'move'; b.color = b.color || '#38f5c8'; b.form = b.form || '4-3-3'; b.anim = b.anim || { dur: 2.5, easing: 'ease' }; return b; }
+/* ---- Coach Board: manual tactical movement (before/after) animation ---- */
+function _viBoardSnap(which) { var b = _viBoardGet(); function cap(arr) { return (arr || []).map(function (t) { return { id: t.id, x: t.x, y: t.y }; }); } b[which] = { home: cap(b.home), away: cap(b.away), balls: cap(b.balls) }; b.updatedAt = Date.now(); _viBoardSave(); _viRender(); _viToast(which === 'start' ? 'Start positions set' : 'End positions set — press ▶ Preview'); }
+function _viBoardDrawGhost(ctx, cv, b, map, ef) {
+  _viBoardDrawArrows(ctx, b, cv);
+  for (var id in map) { var m = map[id]; var sx = m.sx / 100 * cv.width, sy = m.sy / 100 * cv.height; var cx = (m.sx + (m.ex - m.sx) * ef) / 100 * cv.width, cy = (m.sy + (m.ey - m.sy) * ef) / 100 * cv.height; ctx.save(); ctx.globalAlpha = .32; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 6.283); ctx.fill(); ctx.globalAlpha = .85; ctx.strokeStyle = '#38f5c8'; ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx, cy); ctx.stroke(); ctx.restore(); }
+}
+function _viBoardPreview() {
+  var b = _viBoardGet(); if (!b.start || !b.end) { _viToast('Set Start and Set End positions first'); return; }
+  var pitch = document.getElementById('vib-pitch'); if (!pitch) return;
+  function idx(arr) { var o = {}; (arr || []).forEach(function (t) { o[t.id] = t; }); return o; }
+  var es = idx(b.end.home.concat(b.end.away, b.end.balls)); var map = {};
+  b.start.home.concat(b.start.away, b.start.balls).forEach(function (s) { var e = es[s.id]; if (e && (e.x !== s.x || e.y !== s.y)) map[s.id] = { sx: s.x, sy: s.y, ex: e.x, ey: e.y }; });
+  if (!Object.keys(map).length) { _viToast('No movement between Start and End'); return; }
+  var dur = ((b.anim && b.anim.dur) || 2.5) * 1000, ease = (b.anim && b.anim.easing) || 'ease';
+  var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null;
+  if (_VI.boardAnim && _VI.boardAnim.raf) cancelAnimationFrame(_VI.boardAnim.raf);
+  _VI.boardAnim = { playing: true, t0: performance.now(), dur: dur, map: map, ease: ease };
+  function frame(now) {
+    var a = _VI.boardAnim; if (!a || !a.playing) return;
+    var f = Math.min(1, (now - a.t0) / a.dur); var ef = a.ease === 'linear' ? f : (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2);
+    for (var id in a.map) { var m = a.map[id]; var el = pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } }
+    if (ctx) _viBoardDrawGhost(ctx, cv, b, a.map, ef);
+    if (f < 1) a.raf = requestAnimationFrame(frame); else a.playing = false;
+  }
+  _VI.boardAnim.raf = requestAnimationFrame(frame);
+  _viToast('Manual Tactical Animation — previewing (' + Object.keys(map).length + ' moving)');
+}
+function _viBoardAnimPause() { if (_VI.boardAnim) { _VI.boardAnim.playing = !_VI.boardAnim.playing; if (_VI.boardAnim.playing) { _VI.boardAnim.t0 = performance.now() - (_VI.boardAnim._el || 0); _viBoardPreviewResume(); } else { _VI.boardAnim._el = performance.now() - _VI.boardAnim.t0; } } }
+function _viBoardPreviewResume() { var a = _VI.boardAnim; if (!a) return; var b = _viBoardGet(); var pitch = document.getElementById('vib-pitch'); var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null; function frame(now) { if (!_VI.boardAnim || !_VI.boardAnim.playing) return; var f = Math.min(1, (now - a.t0) / a.dur); var ef = a.ease === 'linear' ? f : (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2); for (var id in a.map) { var m = a.map[id]; var el = pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } } if (ctx) _viBoardDrawGhost(ctx, cv, b, a.map, ef); if (f < 1) a.raf = requestAnimationFrame(frame); else a.playing = false; } a.raf = requestAnimationFrame(frame); }
+function _viBoardAnimReset() {
+  if (_VI.boardAnim) { _VI.boardAnim.playing = false; if (_VI.boardAnim.raf) cancelAnimationFrame(_VI.boardAnim.raf); _VI.boardAnim = null; }
+  var b = _viBoardGet(); var pitch = document.getElementById('vib-pitch'); if (pitch) b.home.concat(b.away, b.balls).forEach(function (t) { var el = pitch.querySelector('[data-vib-tok="' + t.id + '"]'); if (el) { el.style.left = t.x + '%'; el.style.top = t.y + '%'; } });
+  var cv = document.getElementById('vib-canvas'); if (cv) _viBoardDrawArrows(cv.getContext('2d'), b, cv);
+}
+function _viBoardExportJSON() {
+  var b = _viBoardGet();
+  var data = { type: 'familista.coachboard.animation.v1', label: 'Manual Tactical Animation', club: _viScope().club, formation: b.form, start: b.start || null, end: b.end || null, duration: (b.anim && b.anim.dur) || 2.5, easing: (b.anim && b.anim.easing) || 'ease', arrows: b.arrows || [], tokens: { home: b.home, away: b.away, balls: b.balls }, calibration: null, camera: null, note: 'Manual tactical animation — not AI tracking. Animated render (MP4/GIF) requires a future render service.', exportedAt: new Date().toISOString() };
+  try { var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'familista-coachboard-sequence.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); _viToast('Sequence data exported (JSON)'); } catch (e) { _viToast('Export blocked by the browser'); }
+}
 function _viBoardSave() { _viSave(); }
 function _viBoardMk(x, y, num, side) { return { id: _viUid(), x: x, y: y, num: num, side: side }; }
 function _viBoardFormation(name, side) {
@@ -43905,7 +43944,8 @@ function _viBoard() {
     +   '<div class="vib-grp"><label class="vib-lbl">Home formation</label><select class="vi-input vib-sel" data-vi-act="boardform">' + forms + '</select></div>'
     +   '<div class="vib-grp"><label class="vib-lbl">Tools</label><div class="vib-tools">' + toolBtns + '</div></div>'
     +   '<div class="vib-grp"><label class="vib-lbl">Colour</label><div class="vib-sws">' + sw + '</div></div>'
-    +   '<div class="vib-grp vib-grp--r"><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="away" type="button">＋ Opponent</button><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="ball" type="button">＋ Ball</button><button class="vi-btn vi-btn--sm" data-vi-act="boardclear" data-vi="arrows" type="button">Clear draw</button><button class="vi-btn vi-btn--sm" data-vi-act="boardreset" type="button">Reset</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardsnap" type="button">📷 Save image</button></div>'
+    +   '<div class="vib-grp"><label class="vib-lbl">Manual Tactical Animation</label><div class="vib-anim"><button class="vi-btn vi-btn--sm" data-vi-act="boardsetstart" title="Capture current positions as START" type="button">Set Start</button><button class="vi-btn vi-btn--sm" data-vi-act="boardsetend" title="Capture current positions as END" type="button">Set End</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardpreview" type="button">▶ Preview</button><button class="vi-btn vi-btn--sm" data-vi-act="boardanimpause" title="Pause/Resume" type="button">⏸</button><button class="vi-btn vi-btn--sm" data-vi-act="boardanimreset" title="Reset animation" type="button">⟲</button><label class="vib-dur" title="Duration"><input type="range" min="0.5" max="6" step="0.5" value="' + ((b.anim && b.anim.dur) || 2.5) + '" data-vi-act="boarddur"><span>' + ((b.anim && b.anim.dur) || 2.5) + 's</span></label><button class="vi-btn vi-btn--sm" data-vi-act="boardease" title="Easing" type="button">' + ((b.anim && b.anim.easing === 'linear') ? 'Linear' : 'Smooth') + '</button></div></div>'
+    +   '<div class="vib-grp vib-grp--r"><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="away" type="button">＋ Opponent</button><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="ball" type="button">＋ Ball</button><button class="vi-btn vi-btn--sm" data-vi-act="boardclear" data-vi="arrows" type="button">Clear draw</button><button class="vi-btn vi-btn--sm" data-vi-act="boardreset" type="button">Reset</button><button class="vi-btn vi-btn--sm" data-vi-act="boardexport" title="Export sequence data (JSON)" type="button">⬇ JSON</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardsnap" type="button">📷 Save image</button></div>'
     + '</div>'
     + '<div class="vib-stage" id="vib-stage"><div class="vib-pitch" id="vib-pitch">'
     +   '<div class="vib-mark vib-mark--mid"></div><div class="vib-mark vib-mark--circle"></div><div class="vib-mark vib-mark--boxT"></div><div class="vib-mark vib-mark--boxB"></div><div class="vib-mark vib-mark--spotT"></div><div class="vib-mark vib-mark--spotB"></div>'
@@ -43957,6 +43997,13 @@ function _viBoardAct(op, v) {
   else if (op === 'boardclear') { b.arrows = []; _viBoardSave(); _viRender(); }
   else if (op === 'boardreset') { if (window.confirm('Reset the board to the default formation?')) { VI_DB.boards[_viScope().club] = _viBoardDefault(); _viBoardSave(); _viRender(); } }
   else if (op === 'boardsnap') { _viBoardSnapshot(); }
+  else if (op === 'boardsetstart') { _viBoardSnap('start'); }
+  else if (op === 'boardsetend') { _viBoardSnap('end'); }
+  else if (op === 'boardpreview') { _viBoardPreview(); }
+  else if (op === 'boardanimpause') { _viBoardAnimPause(); }
+  else if (op === 'boardanimreset') { _viBoardAnimReset(); }
+  else if (op === 'boardease') { b.anim = b.anim || {}; b.anim.easing = (b.anim.easing === 'linear') ? 'ease' : 'linear'; _viBoardSave(); _viRender(); }
+  else if (op === 'boardexport') { _viBoardExportJSON(); }
 }
 function _viBoardSnapshot() {
   var pitch = document.getElementById('vib-pitch'); if (!pitch) return;
@@ -44085,7 +44132,7 @@ function _viBind() {
     else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
     else if (a === 'playerreport') { _viCreatePlayerReport(v); }
     else if (a === 'provconnect') { _viProviderConnect(v); }
-    else if (a === 'boardtool' || a === 'boardcolor' || a === 'boardadd' || a === 'boardclear' || a === 'boardreset' || a === 'boardsnap') { _viBoardAct(a, v); }
+    else if (a === 'boardtool' || a === 'boardcolor' || a === 'boardadd' || a === 'boardclear' || a === 'boardreset' || a === 'boardsnap' || a === 'boardsetstart' || a === 'boardsetend' || a === 'boardpreview' || a === 'boardanimpause' || a === 'boardanimreset' || a === 'boardease' || a === 'boardexport') { _viBoardAct(a, v); }
     else if (a === 'newreport') { _viCreateReport(v); }
     else if (a === 'openreport') { var pr = v.split(':'); _VI.reportView = { pid: pr[0], rid: pr[1] }; _VI.modal = 'report'; _viRenderModal(); }
     else if (a === 'printreport') { var pp = v.split(':'); _viPrintReport(pp[0], pp[1]); }
@@ -44101,6 +44148,7 @@ function _viBind() {
     var el = e.target; if (!el || !el.getAttribute) return;
     if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
     else if (el.getAttribute('data-vi-act') === 'boardform') { _viBoardAct('boardform', el.value); }
+    else if (el.getAttribute('data-vi-act') === 'boarddur') { var bd = _viBoardGet(); bd.anim = bd.anim || {}; bd.anim.dur = parseFloat(el.value) || 2.5; _viBoardSave(); var sp = el.parentNode && el.parentNode.querySelector('span'); if (sp) sp.textContent = bd.anim.dur + 's'; }
     else if (el.getAttribute('data-viw-act') && typeof _viwInput === 'function') { try { _viwInput(el); } catch (er) {} }
   });
 }
@@ -44367,6 +44415,9 @@ function _vipToolbar() {
     + '<label class="vip-thick" title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="'+(w.annOpacity==null?1:w.annOpacity)+'" data-viw-act="annopacity"></label>'
     + '<button class="viw-dtool vip-tool vip-fillbtn'+(w.annFill?' is-on':'')+'" data-viw-act="annfill" title="Fill shape" type="button"><em>◧</em></button>'
     + '<button class="viw-dtool vip-tool vip-dashbtn'+(w.annDash?' is-on':'')+'" data-viw-act="anndash" title="Solid / dashed" type="button"><em>'+(w.annDash?'┄':'──')+'</em></button>'
+    + '<div class="vip-tsep"></div>'
+    + (function(){ var cal=(_viProject(_VI.projectId)||{}).calib; var badge = (cal&&cal.status==='calibrated') ? '<span class="vip-calib is-on" title="'+cal.refLen+' m reference (flat, no perspective)">📐 '+cal.refLen+' m</span>' : (cal&&cal.status==='invalid') ? '<span class="vip-calib is-bad">Invalid calib</span>' : '<span class="vip-calib">Not calibrated</span>';
+      return badge + '<button class="viw-dtool vip-tool'+(_VI.ws.calibrating?' is-on':'')+'" data-viw-act="calibrate" title="Calibrate pitch — draw a known distance" type="button"><em>📐</em><span>Calibrate</span></button>' + (cal?'<button class="viw-dtool vip-tool" data-viw-act="calibreset" title="Reset calibration" type="button"><em>⟲</em></button>':''); })()
     + '</div>';
 }
 function _vipInsights(p) {
@@ -44938,6 +44989,22 @@ function _viwAutosave(state) { var el = document.getElementById('viw-save'); if 
 function _viAnnColor() { return (_VI.ws && _VI.ws.annColor) || '#38f5c8'; }
 function _viAnnApply(ctx) { var w = _VI.ws || {}; ctx.lineWidth = w.annWidth || 3; ctx.globalAlpha = (w.annOpacity == null ? 1 : w.annOpacity); ctx.setLineDash(w.annDash ? [8, 5] : []); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
 function _viRelDist(a, b) { var cv = document.getElementById('vi-canvas'); var W = cv ? cv.width : 640; var d = Math.hypot(b.x - a.x, b.y - a.y); return Math.round(d / W * 100); } // uncalibrated: % of frame width
+/* ---- pitch calibration (flat, non-perspective; honest metres only when calibrated) ---- */
+function _viDistPct(a, b) { var cv = document.getElementById('vi-canvas'); var W = cv ? cv.width : 640; return Math.hypot(b.x - a.x, b.y - a.y) / W * 100; }
+function _viDistLabel(a, b) { var pct = _viDistPct(a, b); var p = _viProject(_VI.projectId); if (p && p.calib && p.calib.status === 'calibrated' && p.calib.mPerPct > 0) { return (pct * p.calib.mPerPct).toFixed(1) + ' m'; } return '≈' + Math.round(pct) + '% w · est'; }
+function _viCalibrate() { _VI.ws.calibrating = true; if (typeof _viwSetTool === 'function') _viwSetTool('distance'); _viToast('Calibrate: draw a line along a known pitch distance, then enter its length'); }
+function _viCalibrateCommit(a, b) {
+  _VI.ws.calibrating = false; var pct = _viDistPct(a, b); var p = _viProject(_VI.projectId); if (!p) return;
+  if (pct < 1) { _viToast('Reference line too short — try again'); _viAnnRedraw(); return; }
+  var known = { 'goal width': 7.32, 'penalty-area width': 40.32, 'penalty-area depth': 16.5, 'goal-area width': 18.32, 'goal-area depth': 5.5, 'centre-circle diameter': 18.3 };
+  var hint = Object.keys(known).map(function (k) { return k + ' = ' + known[k] + ' m'; }).join('\n');
+  var v = window.prompt('Real length of this line in metres.\nCommon references:\n' + hint, '7.32'); if (v == null) { _viAnnRedraw(); return; }
+  var L = parseFloat(v);
+  if (!isFinite(L) || L <= 0) { p.calib = { status: 'invalid' }; _viTouch(p); _viToast('Invalid calibration — no metres shown'); _viAnnRedraw(); if (typeof _vipRefreshToolbar === 'function') _vipRefreshToolbar(); return; }
+  p.calib = { status: 'calibrated', mPerPct: L / pct, refLen: L, refPct: pct, flat: true, homography: null };
+  _viTouch(p); _viAnnRedraw(); _viToast('Calibrated: ' + L + ' m reference — distances now show metres (flat, no perspective)'); if (typeof _vipRefreshToolbar === 'function') _vipRefreshToolbar();
+}
+function _vipRefreshToolbar() { var el = document.querySelector('.vip-toolbar'); if (!el) return; var tmp = document.createElement('div'); tmp.innerHTML = _vipToolbar(); if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el); }
 
 function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   ctx.save();
@@ -44951,7 +45018,7 @@ function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   else if (tool === 'line') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
   else if (tool === 'zone') { ctx.fillStyle = col.replace(')', ',.14)').replace('rgb', 'rgba'); ctx.globalAlpha = Math.min(ctx.globalAlpha, .4); ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
   else if (tool === 'spotlight') { var rr = Math.hypot(b.x - a.x, b.y - a.y) || 40; ctx.beginPath(); ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.arc(a.x, a.y, rr, 0, 6.283, true); ctx.fillStyle = 'rgba(4,10,18,.55)'; ctx.fill('evenodd'); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, 6.283); ctx.stroke(); }
-  else if (tool === 'distance') { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); _viAnnLabel(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, '≈' + _viRelDist(a, b) + '% w', col); }
+  else if (tool === 'distance') { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); _viAnnLabel(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, _viDistLabel(a, b), col); }
   else if (tool === 'free') { ctx.beginPath(); (path || []).forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.stroke(); }
   else if (tool === 'xmark') { var xr = Math.max(13, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.moveTo(a.x - xr, a.y - xr); ctx.lineTo(a.x + xr, a.y + xr); ctx.moveTo(a.x + xr, a.y - xr); ctx.lineTo(a.x - xr, a.y + xr); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + xr + 10, an.label, col); }
   else if (tool === 'omark') { var or = Math.max(12, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.arc(a.x, a.y, or, 0, 6.283); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + or + 10, an.label, col); }
@@ -44971,12 +45038,13 @@ function _viAnnDrawPoints(ctx, an) {
   // nodes + numbers
   ctx.setLineDash([]); pts.forEach(function (pt, i) { ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(pt.x, pt.y, 6, 0, 6.283); ctx.fill(); if (an.kind === 'sequence' || an.kind === 'connect') { ctx.fillStyle = '#04121f'; ctx.font = '700 9px Inter,Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), pt.x, pt.y); } });
   // relative segment length for distance-style connect
-  if (an.kind === 'connect' && pts.length === 2) _viAnnLabel(ctx, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2, '≈' + _viRelDist(pts[0], pts[1]) + '% w', col);
+  if (an.kind === 'connect' && pts.length === 2) _viAnnLabel(ctx, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2, _viDistLabel(pts[0], pts[1]), col);
   ctx.restore();
 }
 
 function _viAnnCommit(tool, a, b, path) {
   var p = _viProject(_VI.projectId); if (!p) return; var w = _VI.ws || {};
+  if (tool === 'distance' && _VI.ws.calibrating) { _viCalibrateCommit(a, b); return; }
   var an;
   if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, label: String(txt).slice(0, 200), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dur: 3 }; }
   else if (tool === 'timer') { an = { id: _viUid(), t: _viCurTime(), kind: 'timer', x: a.x, y: a.y, start: 0, countdown: false, size: 22, color: _viAnnColor(), opacity: (w.annOpacity == null ? 1 : w.annOpacity), dur: 600 }; }
@@ -45208,6 +45276,8 @@ function _viwAct(a, v, ev) {
     case 'trackprev': _viTrackKeyStep(-1); break;
     case 'tracknext': _viTrackKeyStep(1); break;
     case 'trackdel': _viTrackDelKey(); break;
+    case 'calibrate': _viCalibrate(); _vipRefreshToolbar(); break;
+    case 'calibreset': var pc = _viProject(_VI.projectId); if (pc) { pc.calib = null; _viTouch(pc); _viAnnRedraw(); _vipRefreshToolbar(); _viToast('Calibration reset — distances show relative/estimated units'); } break;
     case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); break;
     case 'prevev': _viwStepEvent(-1); break;
     case 'nextev': _viwStepEvent(1); break;
