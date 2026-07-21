@@ -44111,6 +44111,9 @@ function _viBind() {
     else if (a === 'annhide') { _viwLayerOp('hide', v); }
     else if (a === 'annlock') { _viwLayerOp('lock', v); }
     else if (a === 'annrename') { _viwLayerOp('rename', v); }
+    else if (a === 'annlink') { _viwLayerOp('link', v); }
+    else if (a === 'anndisp') { _viwLayerOp('disp', v); }
+    else if (a === 'annreverse') { _viwLayerOp('reverse', v); }
     else if (a === 'anndur') { _viwLayerOp('dur', v); }
     else if (a === 'annsel') { _viwLayerOp('sel', v); }
     else if (a === 'anndup') { _viwLayerOp('dup', v); }
@@ -44617,10 +44620,12 @@ function _viwLayersTab(p) {
   return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i> · <a data-viw-act="tool" data-viw="select">select tool</a></div>'
     + (anns.length ? '<div class="viw-layers">' + anns.map(function (a) {
         var name = a.label ? a.label : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1));
-        var meta = a.kind === 'track' ? ((a.keys || []).length + ' keyframes · manual') : (a.kind === 'timer' ? 'timer overlay' : ('@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's'));
+        var isXO = a.kind === 'xmark' || a.kind === 'omark';
+        var meta = a.kind === 'track' ? ((a.keys || []).length + ' keyframes · manual') : (a.kind === 'timer' ? 'timer overlay' : isXO ? ('marker' + (a.player ? ' · #' + (_viPlayers().filter(function (x) { return x.id === a.player; })[0] || {}).num : a.label ? ' · ' + _viEsc(a.label) : '') + (a.disp ? ' · ' + a.disp : '')) : ('@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's'));
+        var extra = isXO ? '<button data-vi-act="annlink" data-vi="' + a.id + '" title="Link to player / label">👤</button><button data-vi-act="anndisp" data-vi="' + a.id + '" title="Display mode">⟳</button>' : (a.kind === 'curve' ? '<button data-vi-act="annreverse" data-vi="' + a.id + '" title="Reverse direction">⇄</button>' : '');
         return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + (w.selAnn === a.id ? ' is-sel' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
           + '<button class="viw-layer-main" data-vi-act="annsel" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>' + meta + '</i></button>'
-          + '<div class="viw-layer-acts"><button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock/Unlock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="annrename" data-vi="' + a.id + '" title="Rename">✎</button><button data-vi-act="anndur" data-vi="' + a.id + '" title="On-screen duration">⏱</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
+          + '<div class="viw-layer-acts">' + extra + '<button data-vi-act="annlock" data-vi="' + a.id + '" title="Lock/Unlock">' + (a.locked ? '🔒' : '🔓') + '</button><button data-vi-act="annrename" data-vi="' + a.id + '" title="Rename">✎</button><button data-vi-act="anndup" data-vi="' + a.id + '" title="Duplicate">⧉</button><button data-vi-act="anndel" data-vi="' + a.id + '" title="Delete">🗑</button></div></div>';
       }).join('') + '</div>' : '<p class="viw-hint">Draw on the paused video with the annotation tools. Saved shapes appear here as editable layers — click one to select, then drag on the video to move, or use the actions.</p>');
 }
 
@@ -45020,11 +45025,26 @@ function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   else if (tool === 'spotlight') { var rr = Math.hypot(b.x - a.x, b.y - a.y) || 40; ctx.beginPath(); ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height); ctx.arc(a.x, a.y, rr, 0, 6.283, true); ctx.fillStyle = 'rgba(4,10,18,.55)'; ctx.fill('evenodd'); ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, rr, 0, 6.283); ctx.stroke(); }
   else if (tool === 'distance') { ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); _viAnnLabel(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, _viDistLabel(a, b), col); }
   else if (tool === 'free') { ctx.beginPath(); (path || []).forEach(function (pt, i) { i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y); }); ctx.stroke(); }
-  else if (tool === 'xmark') { var xr = Math.max(13, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.moveTo(a.x - xr, a.y - xr); ctx.lineTo(a.x + xr, a.y + xr); ctx.moveTo(a.x + xr, a.y - xr); ctx.lineTo(a.x - xr, a.y + xr); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + xr + 10, an.label, col); }
-  else if (tool === 'omark') { var or = Math.max(12, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.arc(a.x, a.y, or, 0, 6.283); ctx.stroke(); if (an && an.label) _viAnnLabel(ctx, a.x, a.y + or + 10, an.label, col); }
+  else if (tool === 'xmark') { var xr = Math.max(13, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.moveTo(a.x - xr, a.y - xr); ctx.lineTo(a.x + xr, a.y + xr); ctx.moveTo(a.x + xr, a.y - xr); ctx.lineTo(a.x - xr, a.y + xr); ctx.stroke(); var xl = an ? _viMarkerLabel(an) : ''; if (xl) _viAnnLabel(ctx, a.x, a.y + xr + 10, xl, col); }
+  else if (tool === 'omark') { var or = Math.max(12, Math.hypot(b.x - a.x, b.y - a.y) || 0); ctx.setLineDash([]); ctx.lineWidth = Math.max(3, (an && an.width) || 4); ctx.beginPath(); ctx.arc(a.x, a.y, or, 0, 6.283); ctx.stroke(); var ol = an ? _viMarkerLabel(an) : ''; if (ol) _viAnnLabel(ctx, a.x, a.y + or + 10, ol, col); }
   else if (tool === 'cone') { var L = Math.hypot(b.x - a.x, b.y - a.y) || 60; var dir = Math.atan2(b.y - a.y, b.x - a.x); var half = ((an && an.coneAngle) || 40) * Math.PI / 360; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.arc(a.x, a.y, L, dir - half, dir + half); ctx.closePath(); ctx.save(); ctx.globalAlpha = Math.min((an && an.opacity != null ? an.opacity : 1), .3); ctx.fillStyle = col; ctx.fill(); ctx.restore(); ctx.stroke(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, 6.283); ctx.fill(); }
   else if (tool === 'curve') { var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2; var nx = -(b.y - a.y), ny = (b.x - a.x); var nl = Math.hypot(nx, ny) || 1; var off = (an && an.bend != null ? an.bend : 0.3) * Math.hypot(b.x - a.x, b.y - a.y); var cxp = mx + nx / nl * off, cyp = my + ny / nl * off; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(cxp, cyp, b.x, b.y); ctx.stroke(); var ta = Math.atan2(b.y - cyp, b.x - cxp); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 13 * Math.cos(ta - 0.4), b.y - 13 * Math.sin(ta - 0.4)); ctx.lineTo(b.x - 13 * Math.cos(ta + 0.4), b.y - 13 * Math.sin(ta + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
   ctx.restore();
+}
+/* X/O marker label: resolves a linked squad player live (auto-updates on squad change), or a custom label */
+function _viMarkerLabel(an) {
+  var pl = an.player ? _viPlayers().filter(function (p) { return p.id === an.player; })[0] : null;
+  var num = pl ? (pl.num || '') : (an.num || '');
+  var name = pl ? _viEsc(pl.name).split(' ').pop() : '';
+  var role = pl ? (pl.pos || '') : (an.role || '');
+  switch (an.disp) {
+    case 'num': return String(num || '');
+    case 'name': return name || an.label || '';
+    case 'numname': return ((num ? num + ' ' : '') + (name || an.label || '')).trim();
+    case 'role': return role || an.label || '';
+    case 'symbol': return '';
+    default: return an.label || (pl ? ((num ? num + ' ' : '') + name).trim() : '');
+  }
 }
 function _viAnnLabel(ctx, x, y, txt, col) { ctx.save(); ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.font = '700 11px Inter,Arial'; var w = ctx.measureText(txt).width + 10; ctx.fillStyle = 'rgba(4,12,20,.85)'; ctx.fillRect(x - w / 2, y - 9, w, 16); ctx.fillStyle = col || '#38f5c8'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, x, y); ctx.restore(); }
 function _viAnnDrawPoints(ctx, an) {
@@ -45079,7 +45099,11 @@ function _viAnnHit(x, y) {
   return hit;
 }
 function _viAnnMove(an, dx, dy) { if (an.keys) an.keys.forEach(function (k) { k.x += dx; k.y += dy; }); if (an.points) an.points.forEach(function (q) { q.x += dx; q.y += dy; }); if (an.x != null) an.x += dx; if (an.y != null) an.y += dy; if (an.x2 != null) an.x2 += dx; if (an.y2 != null) an.y2 += dy; }
+/* editable curved-path control points */
+function _viCurveHandles(an) { var mx = (an.x + an.x2) / 2, my = (an.y + an.y2) / 2; var nx = -(an.y2 - an.y), ny = (an.x2 - an.x); var nl = Math.hypot(nx, ny) || 1; var off = (an.bend == null ? 0.3 : an.bend) * Math.hypot(an.x2 - an.x, an.y2 - an.y); return { start: { x: an.x, y: an.y }, end: { x: an.x2, y: an.y2 }, ctrl: { x: mx + nx / nl * off, y: my + ny / nl * off } }; }
+function _viCurveHandleDrag(an, handle, px, py) { if (handle === 'start') { an.x = px; an.y = py; } else if (handle === 'end') { an.x2 = px; an.y2 = py; } else if (handle === 'ctrl') { var mx = (an.x + an.x2) / 2, my = (an.y + an.y2) / 2; var nx = -(an.y2 - an.y), ny = (an.x2 - an.x); var nl = Math.hypot(nx, ny) || 1; var dist = Math.hypot(an.x2 - an.x, an.y2 - an.y) || 1; an.bend = ((px - mx) * nx + (py - my) * ny) / nl / dist; } }
 function _viAnnSelected() { var p = _viProject(_VI.projectId); if (!p || !_VI.ws.selAnn) return null; return (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0] || null; }
+function _viApplyStyleToSel(prop, val) { var an = _viAnnSelected(); if (an && !an.locked) { an[prop] = val; var p = _viProject(_VI.projectId); if (p) _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); } }
 function _viAnnDeleteSelected() {
   var p = _viProject(_VI.projectId); if (!p) return; var an = _viAnnSelected(); if (!an) { _viToast('Select an annotation first (Select tool)'); return; }
   if (an.locked) { _viToast('Annotation is locked'); return; }
@@ -45098,7 +45122,10 @@ function _viAnnRedraw() {
     else { _viAnnDrawShape(ctx, an.kind, { x: an.x, y: an.y }, { x: an.x2, y: an.y2 }, an.path, an); }
   });
   // selection outline
-  if (_VI.ws && _VI.ws.selAnn) { var sa = (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0]; if (sa && !sa.hidden && Math.abs(sa.t - t) <= (sa.dur || 3)) { var b = _viAnnBBox(sa); ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.globalAlpha = 1; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.strokeRect(b.x1 - 7, b.y1 - 7, (b.x2 - b.x1) + 14, (b.y2 - b.y1) + 14); ctx.setLineDash([]); [[b.x1 - 7, b.y1 - 7], [b.x2 + 7, b.y1 - 7], [b.x1 - 7, b.y2 + 7], [b.x2 + 7, b.y2 + 7]].forEach(function (c) { ctx.fillStyle = '#04121f'; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.beginPath(); ctx.rect(c[0] - 3, c[1] - 3, 6, 6); ctx.fill(); ctx.stroke(); }); ctx.restore(); } }
+  if (_VI.ws && _VI.ws.selAnn) { var sa = (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0]; if (sa && !sa.hidden && (sa.kind === 'track' || Math.abs(sa.t - t) <= (sa.dur || 3))) { var b = _viAnnBBox(sa); ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.globalAlpha = 1; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.strokeRect(b.x1 - 7, b.y1 - 7, (b.x2 - b.x1) + 14, (b.y2 - b.y1) + 14); ctx.setLineDash([]);
+      if (sa.kind === 'curve') { var hs = _viCurveHandles(sa); ctx.strokeStyle = 'rgba(127,243,221,.5)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo((hs.start.x + hs.end.x) / 2, (hs.start.y + hs.end.y) / 2); ctx.lineTo(hs.ctrl.x, hs.ctrl.y); ctx.stroke(); ctx.setLineDash([]); [['start', hs.start], ['end', hs.end], ['ctrl', hs.ctrl]].forEach(function (h) { ctx.fillStyle = h[0] === 'ctrl' ? '#fbbf24' : '#7ff3dd'; ctx.strokeStyle = '#04121f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(h[1].x, h[1].y, 6, 0, 6.283); ctx.fill(); ctx.stroke(); }); }
+      else { [[b.x1 - 7, b.y1 - 7], [b.x2 + 7, b.y1 - 7], [b.x1 - 7, b.y2 + 7], [b.x2 + 7, b.y2 + 7]].forEach(function (c) { ctx.fillStyle = '#04121f'; ctx.strokeStyle = sa.locked ? '#fbbf24' : '#7ff3dd'; ctx.beginPath(); ctx.rect(c[0] - 3, c[1] - 3, 6, 6); ctx.fill(); ctx.stroke(); }); }
+      ctx.restore(); } }
 }
 /* ---- timer overlay (video-tied stopwatch / countdown) ---- */
 function _viTimerDraw(ctx, an, t) {
@@ -45164,8 +45191,11 @@ function _viWireCanvas() {
   cv.addEventListener('pointerdown', function (ev) {
     if (_VI.ws.armPos) { var q = rel(ev); var d = _VI.evDraft = _VI.evDraft || {}; d.x = Math.round(q.x / cv.width * 100); d.y = Math.round(q.y / cv.height * 100); _VI.ws.armPos = false; _viwCursor(); if (typeof _viwUpdateInspector === 'function') _viwUpdateInspector(); _viToast('Position set (x' + d.x + ' y' + d.y + ')'); return; }
     var tool = _VI.ws.tool;
-    if (!tool || tool === 'select') { // hit-test → select + begin move
-      var q2 = rel(ev); var hit = _viAnnHit(q2.x, q2.y); _VI.ws.selAnn = hit ? hit.id : null;
+    if (!tool || tool === 'select') { // hit-test → select + begin move (or curve handle edit)
+      var q2 = rel(ev);
+      var sel = _viAnnSelected();
+      if (sel && sel.kind === 'curve' && !sel.locked) { var hs = _viCurveHandles(sel); var hh = Math.hypot(q2.x - hs.start.x, q2.y - hs.start.y) < 12 ? 'start' : Math.hypot(q2.x - hs.end.x, q2.y - hs.end.y) < 12 ? 'end' : Math.hypot(q2.x - hs.ctrl.x, q2.y - hs.ctrl.y) < 12 ? 'ctrl' : null; if (hh) { selDrag = { id: sel.id, handle: hh, last: q2, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} return; } }
+      var hit = _viAnnHit(q2.x, q2.y); _VI.ws.selAnn = hit ? hit.id : null;
       if (hit && hit.kind === 'track') _VI.ws.trackId = hit.id;
       if (hit) { selDrag = { id: hit.id, last: q2, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
       _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
@@ -45179,7 +45209,7 @@ function _viWireCanvas() {
   });
   cv.addEventListener('pointermove', function (ev) {
     var tool = _VI.ws.tool;
-    if ((!tool || tool === 'select') && selDrag) { var q = rel(ev); var an = _viAnnSelected(); if (an && !an.locked) { _viAnnMove(an, q.x - selDrag.last.x, q.y - selDrag.last.y); selDrag.last = q; selDrag.moved = true; _viAnnRedraw(); } return; }
+    if ((!tool || tool === 'select') && selDrag) { var q = rel(ev); var an = _viAnnSelected(); if (an && !an.locked) { if (selDrag.handle) { _viCurveHandleDrag(an, selDrag.handle, q.x, q.y); } else { _viAnnMove(an, q.x - selDrag.last.x, q.y - selDrag.last.y); } selDrag.last = q; selDrag.moved = true; _viAnnRedraw(); } return; }
     if (!tool || tool === 'select' || tool === 'eraser' || MULTI[tool] || !start) return;
     var cur = rel(ev); path.push(cur); moved = true; _viAnnRedraw(); _viAnnDrawShape(ctx, tool, start, cur, path);
   });
@@ -45252,6 +45282,10 @@ function _viwLayerOp(op, id) {
   var p = _viProject(_VI.projectId); if (!p) return; var a = (p.annotations || []).filter(function (x) { return x.id === id; })[0]; if (!a) return;
   if (op === 'hide') { a.hidden = !a.hidden; }
   else if (op === 'lock') { a.locked = !a.locked; }
+  else if (op === 'link') { var q = window.prompt('Link X/O to a squad player — enter shirt number or name (blank = keep as custom label):', ''); if (q == null) return; q = q.trim(); if (!q) { a.player = null; } else { var ps = _viPlayers(); var m = ps.filter(function (x) { return String(x.num) === q; })[0] || ps.filter(function (x) { return x.name.toLowerCase().indexOf(q.toLowerCase()) >= 0; })[0]; if (m) { a.player = m.id; a.disp = a.disp || 'numname'; _viToast('Linked to ' + m.name); } else { a.player = null; a.label = q.slice(0, 40); a.disp = a.disp || 'name'; _viToast('Custom label set'); } } }
+  else if (op === 'disp') { var modes = ['symbol', 'num', 'name', 'numname', 'role']; a.disp = modes[(modes.indexOf(a.disp || 'numname') + 1) % modes.length]; _viToast('Display: ' + a.disp); }
+  else if (op === 'unlink') { a.player = null; _viToast('Unlinked (label kept)'); }
+  else if (op === 'reverse') { var sx = a.x, sy = a.y; a.x = a.x2; a.y = a.y2; a.x2 = sx; a.y2 = sy; if (a.bend != null) a.bend = -a.bend; }
   else if (op === 'rename') { var nm = window.prompt('Layer name:', a.label || (a.kind ? a.kind.charAt(0).toUpperCase() + a.kind.slice(1) : 'Layer')); if (nm == null) return; a.label = String(nm).slice(0, 60); }
   else if (op === 'dur') { var ds = window.prompt('Annotation duration on screen (seconds):', a.dur || 3); if (ds == null) return; var dn = parseFloat(ds); if (isFinite(dn) && dn > 0) a.dur = Math.min(60, dn); }
   else if (op === 'sel') { _VI.ws.selAnn = a.id; _viwSetTool('select'); _viwSeekTo(a.t); }
@@ -45268,8 +45302,8 @@ function _viwAct(a, v, ev) {
     case 'collapseL': _viwToggleMax(); break;
     case 'evcat': _VI.ws.evCat = v; _viwUpdateLeft(); break;
     case 'tool': _viwSetTool(v); break;
-    case 'anncolor': _VI.ws.annColor = v; _viwRefreshDock(); _vipSyncTool(); break;
-    case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); _vipSyncTool(); break;
+    case 'anncolor': _VI.ws.annColor = v; _viwRefreshDock(); _vipSyncTool(); _viApplyStyleToSel('color', v); break;
+    case 'anndash': _VI.ws.annDash = !_VI.ws.annDash; _viwRefreshDock(); _vipSyncTool(); _viApplyStyleToSel('dash', _VI.ws.annDash); break;
     case 'undo': _viwUndo(); break;
     case 'redo': _viwRedo(); break;
     case 'delsel': _viAnnDeleteSelected(); break;
@@ -45278,7 +45312,7 @@ function _viwAct(a, v, ev) {
     case 'trackdel': _viTrackDelKey(); break;
     case 'calibrate': _viCalibrate(); _vipRefreshToolbar(); break;
     case 'calibreset': var pc = _viProject(_VI.projectId); if (pc) { pc.calib = null; _viTouch(pc); _viAnnRedraw(); _vipRefreshToolbar(); _viToast('Calibration reset — distances show relative/estimated units'); } break;
-    case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); break;
+    case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); _viApplyStyleToSel('fill', _VI.ws.annFill); break;
     case 'prevev': _viwStepEvent(-1); break;
     case 'nextev': _viwStepEvent(1); break;
     case 'quicktag': _VI.ws.quickTag = !_VI.ws.quickTag; _viwUpdateLeft(); _viToast('Quick-tag ' + (_VI.ws.quickTag ? 'ON — click a type to tag instantly' : 'OFF')); break;
@@ -45343,8 +45377,8 @@ function _viwInput(el) {
   if (a === 'pq') { _VI.ws.playerQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-pq'); }
   else if (a === 'eq') { _VI.ws.eventQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-eq'); }
   else if (a === 'cq') { _VI.ws.clipQ = el.value; _viwUpdateLeft(); _viwFocusRestore('viw-cq'); }
-  else if (a === 'annwidth') { _VI.ws.annWidth = parseInt(el.value, 10) || 3; }
-  else if (a === 'annopacity') { _VI.ws.annOpacity = parseFloat(el.value); }
+  else if (a === 'annwidth') { _VI.ws.annWidth = parseInt(el.value, 10) || 3; _viApplyStyleToSel('width', _VI.ws.annWidth); }
+  else if (a === 'annopacity') { _VI.ws.annOpacity = parseFloat(el.value); _viApplyStyleToSel('opacity', _VI.ws.annOpacity); }
   else if (a === 'volinput') { _viwVolume(el.value); }
   else if (a === 'evtime') { var d = _VI.evDraft = _VI.evDraft || {}; var parts = (el.value || '').split(':'); var secs = parts.length === 2 ? (parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10)) : parseFloat(el.value); if (isFinite(secs)) { d.t0 = secs; d._tedit = true; _viwSeekTo(secs); } }
   else if (a === 'evpq') { _viwEvPlayerSearch(el.value); }
