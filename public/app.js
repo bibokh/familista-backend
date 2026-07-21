@@ -43884,36 +43884,57 @@ var VI_FORMATIONS = {
   '3-5-2': [[50,90],[28,76],[50,78],[72,76],[14,54],[36,52],[50,50],[64,52],[86,54],[38,26],[62,26]],
   '4-1-4-1': [[50,90],[16,74],[38,78],[62,78],[84,74],[50,60],[18,44],[40,42],[60,42],[82,44],[50,22]]
 };
-function _viBoardGet() { _viLoad(); VI_DB.boards = VI_DB.boards || {}; var c = _viScope().club; if (!VI_DB.boards[c]) VI_DB.boards[c] = _viBoardDefault(); var b = VI_DB.boards[c]; b.tool = b.tool || 'move'; b.color = b.color || '#38f5c8'; b.form = b.form || '4-3-3'; b.anim = b.anim || { dur: 2.5, easing: 'ease' }; return b; }
-/* ---- Coach Board: manual tactical movement (before/after) animation ---- */
-function _viBoardSnap(which) { var b = _viBoardGet(); function cap(arr) { return (arr || []).map(function (t) { return { id: t.id, x: t.x, y: t.y }; }); } b[which] = { home: cap(b.home), away: cap(b.away), balls: cap(b.balls) }; b.updatedAt = Date.now(); _viBoardSave(); _viRender(); _viToast(which === 'start' ? 'Start positions set' : 'End positions set — press ▶ Preview'); }
+var _viBoardKeysBound = false;
+function _viBoardGet() {
+  _viLoad(); VI_DB.boards = VI_DB.boards || {}; var c = _viScope().club; if (!VI_DB.boards[c]) VI_DB.boards[c] = _viBoardDefault(); var b = VI_DB.boards[c];
+  b.tool = b.tool || 'move'; b.color = b.color || '#38f5c8'; b.form = b.form || '4-3-3'; b.anim = b.anim || { dur: 2.5, easing: 'ease' };
+  b.visuals = b.visuals || { ghost: true, path: true, trail: false, dest: false, possession: false };
+  b.seqTitle = b.seqTitle || 'Untitled sequence'; b.seqCategory = b.seqCategory || 'Tactical'; b.loop = !!b.loop;
+  if (!b.steps) { b.steps = (b.start && b.end) ? [{ id: _viUid(), title: 'Step 1', notes: '', dur: b.anim.dur, pause: 0.5, easing: b.anim.easing, start: b.start, end: b.end }] : []; b.stepIx = 0; }
+  if (b.stepIx == null || b.stepIx >= b.steps.length) b.stepIx = Math.max(0, b.steps.length - 1);
+  return b;
+}
+function _viBoardStep() { var b = _viBoardGet(); return b.steps[b.stepIx] || null; }
+function _viBoardCapture() { var b = _viBoardGet(); function cap(arr) { return (arr || []).map(function (t) { return { id: t.id, x: t.x, y: t.y }; }); } return { home: cap(b.home), away: cap(b.away), balls: cap(b.balls) }; }
+function _viBoardApply(snap) { if (!snap) return; var b = _viBoardGet(); function idx(a) { var o = {}; (a || []).forEach(function (t) { o[t.id] = t; }); return o; } var m = idx((snap.home || []).concat(snap.away || [], snap.balls || [])); b.home.concat(b.away, b.balls).forEach(function (t) { if (m[t.id]) { t.x = m[t.id].x; t.y = m[t.id].y; } }); }
+/* ---- Coach Board: multi-step manual tactical sequences ---- */
+function _viBoardEase(ease, f) { switch (ease) { case 'linear': return f; case 'in': return f * f; case 'out': return 1 - (1 - f) * (1 - f); default: return f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2; } }
+function _viBoardSnap(which) { var b = _viBoardGet(); if (!b.steps.length) { b.steps.push({ id: _viUid(), title: 'Step 1', notes: '', dur: 2.5, pause: 0.5, easing: 'ease', start: null, end: null }); b.stepIx = 0; } var st = b.steps[b.stepIx]; st[which] = _viBoardCapture(); b.updatedAt = Date.now(); _viBoardSave(); _viRender(); _viToast(which === 'start' ? 'Start positions set for ' + (st.title || 'step') : 'End positions set — press ▶ Preview Step'); }
+function _viBoardSetDOM(snap) { var pitch = document.getElementById('vib-pitch'); if (!pitch || !snap) return; (snap.home || []).concat(snap.away || [], snap.balls || []).forEach(function (t) { var el = pitch.querySelector('[data-vib-tok="' + t.id + '"]'); if (el) { el.style.left = t.x + '%'; el.style.top = t.y + '%'; } }); }
+function _viBoardBuildMap(step) { if (!step || !step.start || !step.end) return {}; function idx(arr) { var o = {}; (arr || []).forEach(function (t) { o[t.id] = t; }); return o; } var es = idx(step.end.home.concat(step.end.away, step.end.balls)); var map = {}; step.start.home.concat(step.start.away, step.start.balls).forEach(function (s) { var e = es[s.id]; if (e && (e.x !== s.x || e.y !== s.y)) { var isBall = (step.start.balls || []).some(function (x) { return x.id === s.id; }); map[s.id] = { sx: s.x, sy: s.y, ex: e.x, ey: e.y, ball: isBall }; } }); return map; }
 function _viBoardDrawGhost(ctx, cv, b, map, ef) {
-  _viBoardDrawArrows(ctx, b, cv);
-  for (var id in map) { var m = map[id]; var sx = m.sx / 100 * cv.width, sy = m.sy / 100 * cv.height; var cx = (m.sx + (m.ex - m.sx) * ef) / 100 * cv.width, cy = (m.sy + (m.ey - m.sy) * ef) / 100 * cv.height; ctx.save(); ctx.globalAlpha = .32; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(sx, sy, 9, 0, 6.283); ctx.fill(); ctx.globalAlpha = .85; ctx.strokeStyle = '#38f5c8'; ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx, cy); ctx.stroke(); ctx.restore(); }
+  _viBoardDrawArrows(ctx, b, cv); var vis = b.visuals || {};
+  for (var id in map) { var m = map[id]; var sx = m.sx / 100 * cv.width, sy = m.sy / 100 * cv.height, ex = m.ex / 100 * cv.width, ey = m.ey / 100 * cv.height; var cx = (m.sx + (m.ex - m.sx) * ef) / 100 * cv.width, cy = (m.sy + (m.ey - m.sy) * ef) / 100 * cv.height; var col = m.ball ? '#ffffff' : '#38f5c8';
+    ctx.save();
+    if (vis.ghost !== false) { ctx.globalAlpha = .32; ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.arc(sx, sy, m.ball ? 6 : 9, 0, 6.283); ctx.fill(); }
+    if (vis.path !== false) { ctx.globalAlpha = .8; ctx.strokeStyle = col; ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(cx, cy); ctx.stroke(); ctx.setLineDash([]); }
+    if (vis.dest) { ctx.globalAlpha = .55; ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ex, ey, 12, 0, 6.283); ctx.stroke(); }
+    if (vis.trail) { ctx.globalAlpha = .18; ctx.fillStyle = col; for (var tt = 0.2; tt < ef; tt += 0.2) { var tx = (m.sx + (m.ex - m.sx) * tt) / 100 * cv.width, ty = (m.sy + (m.ey - m.sy) * tt) / 100 * cv.height; ctx.beginPath(); ctx.arc(tx, ty, m.ball ? 4 : 6, 0, 6.283); ctx.fill(); } }
+    if (vis.possession && m.ball) { ctx.globalAlpha = .9; ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, 6.283); ctx.stroke(); }
+    ctx.restore(); }
 }
-function _viBoardPreview() {
-  var b = _viBoardGet(); if (!b.start || !b.end) { _viToast('Set Start and Set End positions first'); return; }
-  var pitch = document.getElementById('vib-pitch'); if (!pitch) return;
-  function idx(arr) { var o = {}; (arr || []).forEach(function (t) { o[t.id] = t; }); return o; }
-  var es = idx(b.end.home.concat(b.end.away, b.end.balls)); var map = {};
-  b.start.home.concat(b.start.away, b.start.balls).forEach(function (s) { var e = es[s.id]; if (e && (e.x !== s.x || e.y !== s.y)) map[s.id] = { sx: s.x, sy: s.y, ex: e.x, ey: e.y }; });
-  if (!Object.keys(map).length) { _viToast('No movement between Start and End'); return; }
-  var dur = ((b.anim && b.anim.dur) || 2.5) * 1000, ease = (b.anim && b.anim.easing) || 'ease';
-  var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null;
+function _viBoardRun(map, durMs, ease, onDone) {
+  var pitch = document.getElementById('vib-pitch'); var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null; var b = _viBoardGet();
+  if (!Object.keys(map).length) { if (onDone) onDone(); return; }
   if (_VI.boardAnim && _VI.boardAnim.raf) cancelAnimationFrame(_VI.boardAnim.raf);
-  _VI.boardAnim = { playing: true, t0: performance.now(), dur: dur, map: map, ease: ease };
-  function frame(now) {
-    var a = _VI.boardAnim; if (!a || !a.playing) return;
-    var f = Math.min(1, (now - a.t0) / a.dur); var ef = a.ease === 'linear' ? f : (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2);
-    for (var id in a.map) { var m = a.map[id]; var el = pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } }
-    if (ctx) _viBoardDrawGhost(ctx, cv, b, a.map, ef);
-    if (f < 1) a.raf = requestAnimationFrame(frame); else a.playing = false;
-  }
+  _VI.boardAnim = { playing: true, t0: performance.now(), dur: durMs, map: map, ease: ease, onDone: onDone, el: 0 };
+  function frame(now) { var a = _VI.boardAnim; if (!a || !a.playing) return; var f = Math.min(1, (now - a.t0) / a.dur); var ef = _viBoardEase(a.ease, f); for (var id in a.map) { var m = a.map[id]; var el = pitch && pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } } if (ctx) _viBoardDrawGhost(ctx, cv, b, a.map, ef); if (f < 1) a.raf = requestAnimationFrame(frame); else { a.playing = false; if (a.onDone) a.onDone(); } }
   _VI.boardAnim.raf = requestAnimationFrame(frame);
-  _viToast('Manual Tactical Animation — previewing (' + Object.keys(map).length + ' moving)');
 }
-function _viBoardAnimPause() { if (_VI.boardAnim) { _VI.boardAnim.playing = !_VI.boardAnim.playing; if (_VI.boardAnim.playing) { _VI.boardAnim.t0 = performance.now() - (_VI.boardAnim._el || 0); _viBoardPreviewResume(); } else { _VI.boardAnim._el = performance.now() - _VI.boardAnim.t0; } } }
-function _viBoardPreviewResume() { var a = _VI.boardAnim; if (!a) return; var b = _viBoardGet(); var pitch = document.getElementById('vib-pitch'); var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null; function frame(now) { if (!_VI.boardAnim || !_VI.boardAnim.playing) return; var f = Math.min(1, (now - a.t0) / a.dur); var ef = a.ease === 'linear' ? f : (f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2); for (var id in a.map) { var m = a.map[id]; var el = pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } } if (ctx) _viBoardDrawGhost(ctx, cv, b, a.map, ef); if (f < 1) a.raf = requestAnimationFrame(frame); else a.playing = false; } a.raf = requestAnimationFrame(frame); }
+function _viBoardPreview() { var st = _viBoardStep(); if (!st || !st.start || !st.end) { _viToast('Set Start and Set End for this step first'); return; } var map = _viBoardBuildMap(st); if (!Object.keys(map).length) { _viToast('No movement in this step'); return; } _viBoardSetDOM(st.start); _viBoardRun(map, (st.dur || 2.5) * 1000, st.easing || 'ease', null); _viToast('Manual Tactical Animation — previewing step'); }
+function _viBoardAnimPause() { var a = _VI.boardAnim; if (!a) { if (_VI.boardSeq && _VI.boardSeq.playing != null) { _VI.boardSeq.playing = !_VI.boardSeq.playing; } return; } if (a.playing) { a.playing = false; a.el = performance.now() - a.t0; if (_VI.boardSeq) _VI.boardSeq.playing = false; } else { a.playing = true; a.t0 = performance.now() - (a.el || 0); if (_VI.boardSeq) _VI.boardSeq.playing = true; var pitch = document.getElementById('vib-pitch'); var cv = document.getElementById('vib-canvas'); var ctx = cv ? cv.getContext('2d') : null; var b = _viBoardGet(); function frame(now) { var a2 = _VI.boardAnim; if (!a2 || !a2.playing) return; var f = Math.min(1, (now - a2.t0) / a2.dur); var ef = _viBoardEase(a2.ease, f); for (var id in a2.map) { var m = a2.map[id]; var el = pitch && pitch.querySelector('[data-vib-tok="' + id + '"]'); if (el) { el.style.left = (m.sx + (m.ex - m.sx) * ef) + '%'; el.style.top = (m.sy + (m.ey - m.sy) * ef) + '%'; } } if (ctx) _viBoardDrawGhost(ctx, cv, b, a2.map, ef); if (f < 1) a2.raf = requestAnimationFrame(frame); else { a2.playing = false; if (a2.onDone) a2.onDone(); } } a.raf = requestAnimationFrame(frame); } }
+function _viBoardSeqIndicatorSync() { var b = _viBoardGet(); var ind = document.getElementById('vib-seqind'); var st = b.steps[b.stepIx]; if (ind) ind.textContent = b.steps.length ? ('Step ' + (b.stepIx + 1) + ' of ' + b.steps.length + (st && st.title ? ' — ' + st.title : '')) : 'No steps'; var pind = document.getElementById('vib-present-ind'); if (pind) pind.textContent = b.steps.length ? ((b.stepIx + 1) + ' / ' + b.steps.length + (st && st.title ? ' · ' + st.title : '')) : ''; var pnotes = document.getElementById('vib-present-notes'); if (pnotes) pnotes.textContent = (st && st.notes) || ''; }
+function _viBoardPlaySeq(fromIx) { var b = _viBoardGet(); if (!b.steps.length) { _viToast('Add steps first'); return; } _VI.boardSeq = { playing: true, ix: (fromIx == null ? 0 : fromIx) }; _viBoardSeqRunStep(); }
+function _viBoardSeqRunStep() {
+  var s = _VI.boardSeq; if (!s || !s.playing) return; var b = _viBoardGet();
+  if (s.ix >= b.steps.length) { if (b.loop) { s.ix = 0; } else { s.playing = false; _viToast('Sequence complete'); return; } }
+  b.stepIx = s.ix; var step = b.steps[s.ix]; _viBoardSeqIndicatorSync();
+  if (!step.start || !step.end) { s.ix++; _viBoardSeqRunStep(); return; }
+  _viBoardSetDOM(step.start);
+  var map = _viBoardBuildMap(step);
+  _viBoardRun(map, (step.dur || 2.5) * 1000, step.easing || 'ease', function () { var s2 = _VI.boardSeq; if (!s2 || !s2.playing) return; setTimeout(function () { var s3 = _VI.boardSeq; if (!s3 || !s3.playing) return; s3.ix++; _viBoardSeqRunStep(); }, (step.pause || 0) * 1000); });
+}
+function _viBoardSeqStop() { if (_VI.boardSeq) _VI.boardSeq.playing = false; _VI.boardSeq = null; _viBoardAnimReset(); }
 function _viBoardAnimReset() {
   if (_VI.boardAnim) { _VI.boardAnim.playing = false; if (_VI.boardAnim.raf) cancelAnimationFrame(_VI.boardAnim.raf); _VI.boardAnim = null; }
   var b = _viBoardGet(); var pitch = document.getElementById('vib-pitch'); if (pitch) b.home.concat(b.away, b.balls).forEach(function (t) { var el = pitch.querySelector('[data-vib-tok="' + t.id + '"]'); if (el) { el.style.left = t.x + '%'; el.style.top = t.y + '%'; } });
@@ -43921,8 +43942,44 @@ function _viBoardAnimReset() {
 }
 function _viBoardExportJSON() {
   var b = _viBoardGet();
-  var data = { type: 'familista.coachboard.animation.v1', label: 'Manual Tactical Animation', club: _viScope().club, formation: b.form, start: b.start || null, end: b.end || null, duration: (b.anim && b.anim.dur) || 2.5, easing: (b.anim && b.anim.easing) || 'ease', arrows: b.arrows || [], tokens: { home: b.home, away: b.away, balls: b.balls }, calibration: null, camera: null, note: 'Manual tactical animation — not AI tracking. Animated render (MP4/GIF) requires a future render service.', exportedAt: new Date().toISOString() };
-  try { var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'familista-coachboard-sequence.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); _viToast('Sequence data exported (JSON)'); } catch (e) { _viToast('Export blocked by the browser'); }
+  var data = { type: 'familista.coachboard.sequence.v2', label: 'Manual Tactical Animation', club: _viScope().club, title: b.seqTitle, category: b.seqCategory, formation: b.form, loop: !!b.loop, visuals: b.visuals || {}, arrows: b.arrows || [], tokens: { home: b.home, away: b.away, balls: b.balls }, steps: (b.steps || []).map(function (s) { return { id: s.id, title: s.title, notes: s.notes, dur: s.dur, pause: s.pause, easing: s.easing, start: s.start, end: s.end }; }), calibration: null, camera: null, note: 'Manual tactical animation — not AI tracking. Animated MP4/GIF render requires a future render service.', exportedAt: new Date().toISOString() };
+  try { var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); var url = URL.createObjectURL(blob); var a = document.createElement('a'); a.href = url; a.download = 'familista-coachboard-sequence.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); _viToast('Sequence data exported (JSON, ' + (b.steps || []).length + ' steps)'); } catch (e) { _viToast('Export blocked by the browser'); }
+}
+/* ---- step operations ---- */
+function _viBoardStepOp(op) {
+  var b = _viBoardGet();
+  if (op === 'add') { b.steps.push({ id: _viUid(), title: 'Step ' + (b.steps.length + 1), notes: '', dur: 2.5, pause: 0.5, easing: 'ease', start: _viBoardCapture(), end: null }); b.stepIx = b.steps.length - 1; }
+  else if (op === 'dup') { var s = b.steps[b.stepIx]; if (!s) return; var c = JSON.parse(JSON.stringify(s)); c.id = _viUid(); c.title = (s.title || 'Step') + ' copy'; b.steps.splice(b.stepIx + 1, 0, c); b.stepIx++; }
+  else if (op === 'del') { if (!b.steps.length) return; b.steps.splice(b.stepIx, 1); b.stepIx = Math.max(0, Math.min(b.stepIx, b.steps.length - 1)); }
+  else if (op === 'prev') { if (b.stepIx > 0) { b.stepIx--; var st = b.steps[b.stepIx]; if (st && st.start) _viBoardApply(st.start); } }
+  else if (op === 'next') { if (b.stepIx < b.steps.length - 1) { b.stepIx++; var st2 = b.steps[b.stepIx]; if (st2 && st2.start) _viBoardApply(st2.start); } }
+  else if (op === 'moveup') { if (b.stepIx > 0) { var t = b.steps[b.stepIx]; b.steps[b.stepIx] = b.steps[b.stepIx - 1]; b.steps[b.stepIx - 1] = t; b.stepIx--; } }
+  else if (op === 'movedown') { if (b.stepIx < b.steps.length - 1) { var t2 = b.steps[b.stepIx]; b.steps[b.stepIx] = b.steps[b.stepIx + 1]; b.steps[b.stepIx + 1] = t2; b.stepIx++; } }
+  else if (op === 'resetstep') { var sr = b.steps[b.stepIx]; if (sr) { sr.start = null; sr.end = null; } }
+  else if (op === 'clearseq') { if (!window.confirm('Clear the entire sequence (all steps)?')) return; b.steps = []; b.stepIx = 0; }
+  b.updatedAt = Date.now(); _viBoardSave(); _viRender();
+}
+/* ---- presentation mode ---- */
+function _viBoardPresent(on) { _VI.boardPresent = !!on; if (!on) { _viBoardSeqStop(); } _viRender(); if (on) _viToast('Presentation mode — Esc to exit'); }
+/* ---- sequence library (client-durable, per club) ---- */
+function _viBoardSeqLib() { _viLoad(); var sc = _viScope(); return (VI_DB.sequences || []).filter(function (s) { return s.club === sc.club; }); }
+function _viBoardSeqSave() {
+  var b = _viBoardGet(); var name = window.prompt('Sequence name:', b.seqTitle || 'Sequence'); if (!name) return;
+  _viLoad(); VI_DB.sequences = VI_DB.sequences || [];
+  var snap = { id: _viUid(), club: _viScope().club, name: String(name).slice(0, 60), category: b.seqCategory || 'Tactical', form: b.form, steps: JSON.parse(JSON.stringify(b.steps || [])), tokens: { home: JSON.parse(JSON.stringify(b.home)), away: JSON.parse(JSON.stringify(b.away)), balls: JSON.parse(JSON.stringify(b.balls)) }, arrows: JSON.parse(JSON.stringify(b.arrows || [])), visuals: b.visuals, loop: b.loop, createdAt: Date.now() };
+  VI_DB.sequences.push(snap); b.seqTitle = snap.name; _viBoardSave(); _viRender(); _viToast('Sequence saved on this device: ' + snap.name);
+}
+function _viBoardSeqLoad(id) {
+  var s = _viBoardSeqLib().filter(function (x) { return x.id === id; })[0]; if (!s) return; var b = _viBoardGet();
+  b.form = s.form; b.steps = JSON.parse(JSON.stringify(s.steps || [])); b.stepIx = 0; b.home = JSON.parse(JSON.stringify(s.tokens.home)); b.away = JSON.parse(JSON.stringify(s.tokens.away)); b.balls = JSON.parse(JSON.stringify(s.tokens.balls)); b.arrows = JSON.parse(JSON.stringify(s.arrows || [])); b.visuals = s.visuals || b.visuals; b.loop = s.loop; b.seqTitle = s.name; b.seqCategory = s.category;
+  b.updatedAt = Date.now(); _viBoardSave(); _viRender(); _viToast('Loaded: ' + s.name);
+}
+function _viBoardSeqOp(op, id) {
+  _viLoad(); var s = (VI_DB.sequences || []).filter(function (x) { return x.id === id; })[0]; if (!s) return;
+  if (op === 'rename') { var n = window.prompt('Rename sequence:', s.name); if (n == null) return; s.name = String(n).slice(0, 60) || s.name; }
+  else if (op === 'dup') { var c = JSON.parse(JSON.stringify(s)); c.id = _viUid(); c.name = s.name + ' copy'; c.createdAt = Date.now(); VI_DB.sequences.push(c); }
+  else if (op === 'del') { if (!window.confirm('Delete sequence “' + s.name + '”?')) return; VI_DB.sequences = VI_DB.sequences.filter(function (x) { return x.id !== id; }); }
+  _viBoardSave(); _viRender();
 }
 function _viBoardSave() { _viSave(); }
 function _viBoardMk(x, y, num, side) { return { id: _viUid(), x: x, y: y, num: num, side: side }; }
@@ -43939,20 +43996,38 @@ function _viBoard() {
   var colors = ['#38f5c8', '#38bdf8', '#f43f5e', '#fbbf24', '#a78bfa', '#ffffff'];
   var sw = colors.map(function (c) { return '<button class="vib-sw' + (b.color === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vi-act="boardcolor" data-vi="' + c + '"></button>'; }).join('');
   var tokens = function (arr, side) { return arr.map(function (tk) { return '<div class="vib-tok vib-tok--' + side + '" data-vib-tok="' + tk.id + '" data-vib-side="' + side + '" style="left:' + tk.x + '%;top:' + tk.y + '%">' + (side === 'ball' ? '' : (tk.num || '')) + '</div>'; }).join(''); };
-  return '<div class="vib" id="vib">'
+  var st = b.steps[b.stepIx];
+  var vis = b.visuals || {};
+  var visTog = '<div class="vib-vis">' + [['ghost', 'Ghost'], ['path', 'Path'], ['trail', 'Trail'], ['dest', 'Target'], ['possession', 'Possession']].map(function (v) { return '<button class="vib-vistog' + (vis[v[0]] ? ' is-on' : '') + '" data-vi-act="boardvis" data-vi="' + v[0] + '" type="button">' + v[1] + '</button>'; }).join('') + '</div>';
+  var stepEditor = st ? ('<div class="vib-stepeditor"><input class="vi-input vib-steptitle" placeholder="Step title" value="' + _viEsc(st.title || '') + '" data-vi-act="stepfield" data-vi="title"><input class="vi-input vib-stepnotes" placeholder="Step notes for presentation…" value="' + _viEsc(st.notes || '') + '" data-vi-act="stepfield" data-vi="notes"><label class="vib-dur">Dur<input type="range" min="0.5" max="6" step="0.5" value="' + (st.dur || 2.5) + '" data-vi-act="stepfield" data-vi="dur"><span>' + (st.dur || 2.5) + 's</span></label><label class="vib-dur">Pause<input type="range" min="0" max="4" step="0.5" value="' + (st.pause || 0) + '" data-vi-act="stepfield" data-vi="pause"><span>' + (st.pause || 0) + 's</span></label><select class="vi-input vib-sel" data-vi-act="stepease">' + [['ease', 'Ease-in-out'], ['in', 'Ease-in'], ['out', 'Ease-out'], ['linear', 'Linear']].map(function (o) { return '<option value="' + o[0] + '"' + ((st.easing || 'ease') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' + visTog + '</div>') : '<div class="vib-stepeditor"><span class="vib-empty">No steps yet — press ＋ Step to start a sequence.</span></div>';
+  var lib = _viBoardSeqLib(); var cat = b.seqCategory || 'Tactical';
+  var catSel = '<select class="vi-input vib-sel" data-vi-act="boardcat" title="Sequence category">' + ['Tactical', 'Training', 'Set Piece', 'Build-up', 'Defending', 'Transition', 'Custom'].map(function (o) { return '<option' + (cat === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>';
+  var loadSel = '<select class="vi-input vib-sel" data-vi-act="boardload"><option value="">Load… (' + lib.length + ')</option>' + lib.map(function (s) { return '<option value="' + s.id + '">' + _viEsc(s.name) + ' · ' + _viEsc(s.category || '') + '</option>'; }).join('') + '</select>';
+  var seqBar = '<div class="vib-bar vib-bar--seq">'
+    + '<div class="vib-grp"><label class="vib-lbl">Sequence · Manual Tactical Animation</label><div class="vib-anim"><span class="vib-seqind" id="vib-seqind">' + (b.steps.length ? ('Step ' + (b.stepIx + 1) + ' of ' + b.steps.length + (st && st.title ? ' — ' + _viEsc(st.title) : '')) : 'No steps') + '</span></div></div>'
+    + '<div class="vib-grp"><label class="vib-lbl">Steps</label><div class="vib-anim"><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="prev" title="Previous step">◀</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="next" title="Next step">▶</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="add" title="Add step">＋ Step</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="dup" title="Duplicate">⧉</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="del" title="Delete">🗑</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="moveup" title="Move up">↑</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="movedown" title="Move down">↓</button></div></div>'
+    + '<div class="vib-grp"><label class="vib-lbl">Capture</label><div class="vib-anim"><button class="vi-btn vi-btn--sm" data-vi-act="boardsetstart" title="Capture positions as this step START">Set Start</button><button class="vi-btn vi-btn--sm" data-vi-act="boardsetend" title="Capture positions as this step END">Set End</button><button class="vi-btn vi-btn--sm" data-vi-act="stepop" data-vi="resetstep" title="Reset step">⟲</button></div></div>'
+    + '<div class="vib-grp"><label class="vib-lbl">Playback</label><div class="vib-anim"><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardpreview" title="Preview current step">▶ Step</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="seqplay" title="Preview entire sequence">⏵ Sequence</button><button class="vi-btn vi-btn--sm" data-vi-act="boardanimpause" title="Pause / Resume">⏸</button><button class="vi-btn vi-btn--sm" data-vi-act="seqstop" title="Stop">⏹</button><button class="vi-btn vi-btn--sm' + (b.loop ? ' is-on-btn' : '') + '" data-vi-act="boardloop" title="Loop sequence">🔁 Loop</button><button class="vi-btn vi-btn--sm" data-vi-act="boardpresent" title="Presentation mode">⛶ Present</button></div></div>'
+    + '<div class="vib-grp vib-grp--r"><label class="vib-lbl">Sequence library · saved on this device</label><div class="vib-anim">' + catSel + '<button class="vi-btn vi-btn--sm" data-vi-act="boardseqsave">💾 Save</button>' + loadSel + '<button class="vi-btn vi-btn--sm" data-vi-act="boardexport" title="Export sequence data (JSON)">⬇ JSON</button><button class="vi-btn vi-btn--sm" disabled title="Requires a future render service">🎞 Export Video — Render Service Required</button></div></div>'
+    + '</div>';
+  var present = '';
+  if (_VI.boardPresent) { present = '<div class="vib-present-bar"><div class="vib-present-info"><b>' + _viEsc(b.seqTitle || 'Sequence') + '</b><span id="vib-present-ind">' + (b.steps.length ? ((b.stepIx + 1) + ' / ' + b.steps.length + (st && st.title ? ' · ' + _viEsc(st.title) : '')) : '') + '</span><i id="vib-present-notes">' + (st && st.notes ? _viEsc(st.notes) : '') + '</i></div><div class="vib-present-ctrl"><button data-vi-act="stepop" data-vi="prev" title="Previous">◀</button><button data-vi-act="seqplay" title="Play / Replay">▶</button><button data-vi-act="boardanimpause" title="Pause">⏸</button><button data-vi-act="stepop" data-vi="next" title="Next">▶▌</button><button class="' + (b.loop ? 'is-on' : '') + '" data-vi-act="boardloop" title="Loop">🔁</button><button class="vib-present-exit" data-vi-act="boardpresentexit" title="Exit (Esc)">✕ Exit</button></div></div>'; }
+  return '<div class="vib' + (_VI.boardPresent ? ' is-present' : '') + '" id="vib">'
     + '<div class="vib-bar">'
     +   '<div class="vib-grp"><label class="vib-lbl">Home formation</label><select class="vi-input vib-sel" data-vi-act="boardform">' + forms + '</select></div>'
     +   '<div class="vib-grp"><label class="vib-lbl">Tools</label><div class="vib-tools">' + toolBtns + '</div></div>'
     +   '<div class="vib-grp"><label class="vib-lbl">Colour</label><div class="vib-sws">' + sw + '</div></div>'
-    +   '<div class="vib-grp"><label class="vib-lbl">Manual Tactical Animation</label><div class="vib-anim"><button class="vi-btn vi-btn--sm" data-vi-act="boardsetstart" title="Capture current positions as START" type="button">Set Start</button><button class="vi-btn vi-btn--sm" data-vi-act="boardsetend" title="Capture current positions as END" type="button">Set End</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardpreview" type="button">▶ Preview</button><button class="vi-btn vi-btn--sm" data-vi-act="boardanimpause" title="Pause/Resume" type="button">⏸</button><button class="vi-btn vi-btn--sm" data-vi-act="boardanimreset" title="Reset animation" type="button">⟲</button><label class="vib-dur" title="Duration"><input type="range" min="0.5" max="6" step="0.5" value="' + ((b.anim && b.anim.dur) || 2.5) + '" data-vi-act="boarddur"><span>' + ((b.anim && b.anim.dur) || 2.5) + 's</span></label><button class="vi-btn vi-btn--sm" data-vi-act="boardease" title="Easing" type="button">' + ((b.anim && b.anim.easing === 'linear') ? 'Linear' : 'Smooth') + '</button></div></div>'
-    +   '<div class="vib-grp vib-grp--r"><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="away" type="button">＋ Opponent</button><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="ball" type="button">＋ Ball</button><button class="vi-btn vi-btn--sm" data-vi-act="boardclear" data-vi="arrows" type="button">Clear draw</button><button class="vi-btn vi-btn--sm" data-vi-act="boardreset" type="button">Reset</button><button class="vi-btn vi-btn--sm" data-vi-act="boardexport" title="Export sequence data (JSON)" type="button">⬇ JSON</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardsnap" type="button">📷 Save image</button></div>'
+    +   '<div class="vib-grp vib-grp--r"><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="away" type="button">＋ Opponent</button><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="ball" type="button">＋ Ball</button><button class="vi-btn vi-btn--sm" data-vi-act="boardclear" data-vi="arrows" type="button">Clear draw</button><button class="vi-btn vi-btn--sm" data-vi-act="boardreset" type="button">Reset board</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardsnap" type="button">📷 Save image</button></div>'
     + '</div>'
+    + seqBar
+    + present
     + '<div class="vib-stage" id="vib-stage"><div class="vib-pitch" id="vib-pitch">'
     +   '<div class="vib-mark vib-mark--mid"></div><div class="vib-mark vib-mark--circle"></div><div class="vib-mark vib-mark--boxT"></div><div class="vib-mark vib-mark--boxB"></div><div class="vib-mark vib-mark--spotT"></div><div class="vib-mark vib-mark--spotB"></div>'
     +   '<canvas class="vib-canvas" id="vib-canvas"></canvas>'
     +   tokens(b.home, 'home') + tokens(b.away, 'away') + tokens(b.balls, 'ball')
     + '</div></div>'
-    + '<p class="vib-hint">Drag players and the ball to build shapes. Pick a draw tool + colour to add arrows, passing lanes and zones. The board persists for <b>' + _viEsc(_viScope().club) + '</b> on this device.</p>'
+    + stepEditor
+    + '<p class="vib-hint">Build a multi-step tactical sequence: set Start/End per step, ▶ preview a step or ⏵ the whole sequence, then ⛶ Present. Saved on this device for <b>' + _viEsc(_viScope().club) + '</b>. Movement is <b>manual tactical animation</b>, not AI tracking.</p>'
     + '</div>';
 }
 function _viBoardDrawArrows(ctx, b, cv) {
@@ -43970,6 +44045,7 @@ function _viBoardWire() {
   var b = _viBoardGet(); var ctx = cv.getContext('2d');
   function size() { cv.width = pitch.clientWidth; cv.height = pitch.clientHeight; _viBoardDrawArrows(ctx, b, cv); }
   size(); if (window.ResizeObserver && !cv._ro) { cv._ro = new ResizeObserver(size); cv._ro.observe(pitch); }
+  if (!_viBoardKeysBound) { _viBoardKeysBound = true; document.addEventListener('keydown', function (e) { if (_VI.boardPresent && e.key === 'Escape') { e.preventDefault(); _viBoardPresent(false); } }); }
   if (pitch._wired) return; pitch._wired = true;
   function rel(ev) { var r = pitch.getBoundingClientRect(); return { x: Math.max(0, Math.min(100, (ev.clientX - r.left) / r.width * 100)), y: Math.max(0, Math.min(100, (ev.clientY - r.top) / r.height * 100)) }; }
   var drag = null, draw = null;
@@ -44004,6 +44080,14 @@ function _viBoardAct(op, v) {
   else if (op === 'boardanimreset') { _viBoardAnimReset(); }
   else if (op === 'boardease') { b.anim = b.anim || {}; b.anim.easing = (b.anim.easing === 'linear') ? 'ease' : 'linear'; _viBoardSave(); _viRender(); }
   else if (op === 'boardexport') { _viBoardExportJSON(); }
+  else if (op === 'stepop') { _viBoardStepOp(v); }
+  else if (op === 'seqplay') { _viBoardPlaySeq(0); }
+  else if (op === 'seqstop') { _viBoardSeqStop(); }
+  else if (op === 'boardloop') { b.loop = !b.loop; _viBoardSave(); _viRender(); }
+  else if (op === 'boardpresent') { _viBoardPresent(true); }
+  else if (op === 'boardpresentexit') { _viBoardPresent(false); }
+  else if (op === 'boardseqsave') { _viBoardSeqSave(); }
+  else if (op === 'boardvis') { b.visuals = b.visuals || {}; b.visuals[v] = !b.visuals[v]; _viBoardSave(); _viRender(); }
 }
 function _viBoardSnapshot() {
   var pitch = document.getElementById('vib-pitch'); if (!pitch) return;
@@ -44135,7 +44219,7 @@ function _viBind() {
     else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
     else if (a === 'playerreport') { _viCreatePlayerReport(v); }
     else if (a === 'provconnect') { _viProviderConnect(v); }
-    else if (a === 'boardtool' || a === 'boardcolor' || a === 'boardadd' || a === 'boardclear' || a === 'boardreset' || a === 'boardsnap' || a === 'boardsetstart' || a === 'boardsetend' || a === 'boardpreview' || a === 'boardanimpause' || a === 'boardanimreset' || a === 'boardease' || a === 'boardexport') { _viBoardAct(a, v); }
+    else if (a === 'boardtool' || a === 'boardcolor' || a === 'boardadd' || a === 'boardclear' || a === 'boardreset' || a === 'boardsnap' || a === 'boardsetstart' || a === 'boardsetend' || a === 'boardpreview' || a === 'boardanimpause' || a === 'boardanimreset' || a === 'boardease' || a === 'boardexport' || a === 'stepop' || a === 'seqplay' || a === 'seqstop' || a === 'boardloop' || a === 'boardpresent' || a === 'boardpresentexit' || a === 'boardseqsave' || a === 'boardvis') { _viBoardAct(a, v); }
     else if (a === 'newreport') { _viCreateReport(v); }
     else if (a === 'openreport') { var pr = v.split(':'); _VI.reportView = { pid: pr[0], rid: pr[1] }; _VI.modal = 'report'; _viRenderModal(); }
     else if (a === 'printreport') { var pp = v.split(':'); _viPrintReport(pp[0], pp[1]); }
@@ -44152,6 +44236,10 @@ function _viBind() {
     if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
     else if (el.getAttribute('data-vi-act') === 'boardform') { _viBoardAct('boardform', el.value); }
     else if (el.getAttribute('data-vi-act') === 'boarddur') { var bd = _viBoardGet(); bd.anim = bd.anim || {}; bd.anim.dur = parseFloat(el.value) || 2.5; _viBoardSave(); var sp = el.parentNode && el.parentNode.querySelector('span'); if (sp) sp.textContent = bd.anim.dur + 's'; }
+    else if (el.getAttribute('data-vi-act') === 'stepfield') { var stf = _viBoardStep(); if (stf) { var fld = el.getAttribute('data-vi'); if (fld === 'dur' || fld === 'pause') { stf[fld] = parseFloat(el.value); var sp2 = el.parentNode && el.parentNode.querySelector('span'); if (sp2) sp2.textContent = stf[fld] + 's'; } else { stf[fld] = el.value; if (typeof _viBoardSeqIndicatorSync === 'function') _viBoardSeqIndicatorSync(); } _viBoardSave(); } }
+    else if (el.getAttribute('data-vi-act') === 'stepease') { var ste = _viBoardStep(); if (ste) { ste.easing = el.value; _viBoardSave(); } }
+    else if (el.getAttribute('data-vi-act') === 'boardcat') { var bcg = _viBoardGet(); bcg.seqCategory = el.value; _viBoardSave(); }
+    else if (el.getAttribute('data-vi-act') === 'boardload') { if (el.value) _viBoardSeqLoad(el.value); }
     else if (el.getAttribute('data-viw-act') && typeof _viwInput === 'function') { try { _viwInput(el); } catch (er) {} }
   });
 }

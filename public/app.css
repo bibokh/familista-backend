@@ -8094,6 +8094,20 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vib-tok--away{ background:radial-gradient(circle at 35% 30%,#fb7185,#9f1239); color:#fff; }
 .vib-tok--ball{ width:17px; height:17px; background:radial-gradient(circle at 35% 30%,#fff,#cbd5e1); border-color:#0b1220; }
 .vib-anim{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; } .vib-dur{ display:flex; align-items:center; gap:5px; color:#8a97ac; font-size:10px; } .vib-dur input{ width:70px; accent-color:#2dd4bf; } .vib-dur span{ min-width:26px; font-variant-numeric:tabular-nums; }
+/* multi-step sequence bar + step editor + library */
+.vib-bar--seq{ background:linear-gradient(168deg,rgba(18,27,46,.62),rgba(9,14,26,.58)); }
+.vib-seqind{ font-size:12px; font-weight:700; color:#7ff3dd; background:rgba(45,212,191,.1); border:1px solid rgba(45,212,191,.3); border-radius:8px; padding:5px 12px; white-space:nowrap; }
+.vi-btn.is-on-btn{ background:rgba(167,139,250,.24); color:#c4b5fd; border-color:rgba(167,139,250,.5); }
+.vib-stepeditor{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; background:linear-gradient(168deg,rgba(18,27,46,.5),rgba(9,14,26,.5)); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:9px 12px; }
+.vib-steptitle{ width:160px; height:32px; } .vib-stepnotes{ flex:1; min-width:180px; height:32px; } .vib-empty{ color:#8a97ac; font-size:12px; }
+.vib-vis{ display:flex; gap:4px; flex-wrap:wrap; } .vib-vistog{ border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#93a0b4; border-radius:7px; padding:5px 9px; font-size:10px; font-weight:600; cursor:pointer; } .vib-vistog.is-on{ background:rgba(45,212,191,.2); color:#7ff3dd; border-color:rgba(45,212,191,.45); }
+/* presentation mode */
+.vib.is-present{ position:fixed; inset:0; z-index:200; background:radial-gradient(120% 120% at 50% 0%,#0b1424,#05070d); padding:14px 18px 18px; margin:0; display:flex; flex-direction:column; gap:12px; overflow:hidden; }
+.vib.is-present .vib-bar,.vib.is-present .vib-bar--seq,.vib.is-present .vib-stepeditor,.vib.is-present .vib-hint{ display:none; }
+.vib.is-present .vib-stage{ flex:1 1 auto; align-items:center; } .vib.is-present .vib-pitch{ height:min(84vh,940px); }
+.vib-present-bar{ display:flex; align-items:center; justify-content:space-between; gap:14px; background:linear-gradient(180deg,rgba(20,30,52,.8),rgba(10,15,28,.75)); border:1px solid rgba(255,255,255,.08); border-radius:13px; padding:10px 16px; }
+.vib-present-info b{ font-size:16px; color:#eaf1fb; } .vib-present-info span{ font-size:12px; color:#7ff3dd; margin-left:12px; font-weight:700; } .vib-present-info i{ display:block; font-style:normal; font-size:12px; color:#a9b6c9; margin-top:3px; }
+.vib-present-ctrl{ display:flex; gap:6px; } .vib-present-ctrl button{ min-width:40px; height:38px; border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:#dbe6f3; border-radius:9px; cursor:pointer; font-size:14px; } .vib-present-ctrl button:hover{ color:#7ff3dd; border-color:rgba(45,212,191,.4); } .vib-present-ctrl button.is-on{ background:rgba(167,139,250,.24); color:#c4b5fd; } .vib-present-exit{ color:#fca5a5!important; border-color:rgba(244,63,94,.4)!important; font-weight:700; }
 .vib-hint{ font-size:11px; color:#8a97ac; margin:0; text-align:center; } .vib-hint b{ color:#cfe6ff; }
 @media (max-width:900px){ .vib-pitch{ height:auto; width:100%; max-width:420px; } }
 
