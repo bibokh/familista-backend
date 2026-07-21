@@ -43548,7 +43548,7 @@ function _viProviderConnect(id) {
   _viToast(pr.name + ': ' + (r.state === 'credentials' ? 'credentials required — connect from server settings. ' : '') + r.reason);
 }
 
-var VI_TABS = [['overview', 'Overview'], ['library', 'Video Library'], ['workspace', 'Analysis Workspace'], ['live', 'Live Tagging'], ['team', 'Team Intelligence'], ['player', 'Player Intelligence'], ['reports', 'Reports'], ['integrations', 'Integrations']];
+var VI_TABS = [['overview', 'Overview'], ['library', 'Video Library'], ['workspace', 'Analysis Workspace'], ['board', 'Coach Board'], ['live', 'Live Tagging'], ['team', 'Team Intelligence'], ['player', 'Player Intelligence'], ['reports', 'Reports'], ['integrations', 'Integrations']];
 var _VI = { tab: 'overview', projectId: null, modal: null, draft: null, evDraft: null, annTool: null, playerFilter: null, live: null };
 var _viBound = false;
 
@@ -43564,7 +43564,7 @@ function _viInner() {
   catch (e) { body = _viErrorBox('This view could not be loaded', String(e && e.message || e)); }
   return _viHead() + _viTabNav() + '<div class="vi-body" id="vi-body">' + body + '</div>';
 }
-function _viRender() { if (typeof document === 'undefined') return; var r = document.getElementById('vi-root'); if (r) r.innerHTML = _viInner() + '<div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div>'; }
+function _viRender() { if (typeof document === 'undefined') return; var r = document.getElementById('vi-root'); if (r) r.innerHTML = _viInner() + '<div id="vi-modal" class="vi-modal"' + (_VI.modal ? '' : ' hidden') + '>' + _viModalHtml() + '</div>'; if (_VI.tab === 'board' && typeof _viBoardWire === 'function') setTimeout(_viBoardWire, 20); }
 function _viRenderModal() { var m = document.getElementById('vi-modal'); if (m) { m.innerHTML = _viModalHtml(); m.hidden = !_VI.modal; } }
 function _viToast(msg) { try { if (typeof showToast === 'function') showToast(msg, 'success'); } catch (e) {} }
 function _viErrorBox(title, msg) { return '<div class="vi-errbox"><span class="vi-errbox-ic">⚠️</span><b>' + _viEsc(title) + '</b><p>' + _viEsc(msg || '') + '</p><button class="vi-btn vi-btn--sm" data-vi-act="tab" data-vi="library" type="button">← Back to Video Library</button></div>'; }
@@ -43628,6 +43628,7 @@ function _viSectionHtml(tab) {
   switch (tab) {
     case 'library': return _viLibrary();
     case 'workspace': return _viWorkspace();
+    case 'board': return _viBoard();
     case 'live': return _viLive();
     case 'team': return _viTeam();
     case 'player': return _viPlayer();
@@ -43875,6 +43876,100 @@ function _viIntegrations() {
   return _viPanel('Camera &amp; video integrations', 'Real status only — no fake connections', cards) + ai;
 }
 
+/* ==================== COACH BOARD / TACTICAL BOARD (client-durable, per club) ==================== */
+var VI_FORMATIONS = {
+  '4-3-3': [[50,90],[16,74],[38,78],[62,78],[84,74],[28,56],[50,54],[72,56],[22,30],[50,24],[78,30]],
+  '4-4-2': [[50,90],[16,74],[38,78],[62,78],[84,74],[16,50],[40,52],[60,52],[84,50],[38,26],[62,26]],
+  '4-2-3-1': [[50,90],[16,74],[38,78],[62,78],[84,74],[38,58],[62,58],[22,40],[50,36],[78,40],[50,20]],
+  '3-5-2': [[50,90],[28,76],[50,78],[72,76],[14,54],[36,52],[50,50],[64,52],[86,54],[38,26],[62,26]],
+  '4-1-4-1': [[50,90],[16,74],[38,78],[62,78],[84,74],[50,60],[18,44],[40,42],[60,42],[82,44],[50,22]]
+};
+function _viBoardGet() { _viLoad(); VI_DB.boards = VI_DB.boards || {}; var c = _viScope().club; if (!VI_DB.boards[c]) VI_DB.boards[c] = _viBoardDefault(); var b = VI_DB.boards[c]; b.tool = b.tool || 'move'; b.color = b.color || '#38f5c8'; b.form = b.form || '4-3-3'; return b; }
+function _viBoardSave() { _viSave(); }
+function _viBoardMk(x, y, num, side) { return { id: _viUid(), x: x, y: y, num: num, side: side }; }
+function _viBoardFormation(name, side) {
+  var f = VI_FORMATIONS[name] || VI_FORMATIONS['4-3-3'];
+  return f.map(function (pt, i) { var x = pt[0], y = side === 'away' ? (100 - pt[1]) : pt[1]; return _viBoardMk(x, y, i + 1, side); });
+}
+function _viBoardDefault() { return { form: '4-3-3', home: _viBoardFormation('4-3-3', 'home'), away: [], balls: [{ id: 'ball', x: 50, y: 50 }], arrows: [], tool: 'move', color: '#38f5c8', updatedAt: Date.now() }; }
+function _viBoard() {
+  var b = _viBoardGet();
+  var forms = Object.keys(VI_FORMATIONS).map(function (f) { return '<option' + (b.form === f ? ' selected' : '') + '>' + f + '</option>'; }).join('');
+  var tools = [['move', '↖', 'Move'], ['arrow', '↗', 'Arrow'], ['line', '／', 'Line'], ['dash', '┄', 'Dashed'], ['zone', '▭', 'Zone']];
+  var toolBtns = tools.map(function (t) { return '<button class="vib-tool' + (b.tool === t[0] ? ' is-on' : '') + '" data-vi-act="boardtool" data-vi="' + t[0] + '" title="' + t[2] + '" type="button"><em>' + t[1] + '</em>' + t[2] + '</button>'; }).join('');
+  var colors = ['#38f5c8', '#38bdf8', '#f43f5e', '#fbbf24', '#a78bfa', '#ffffff'];
+  var sw = colors.map(function (c) { return '<button class="vib-sw' + (b.color === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vi-act="boardcolor" data-vi="' + c + '"></button>'; }).join('');
+  var tokens = function (arr, side) { return arr.map(function (tk) { return '<div class="vib-tok vib-tok--' + side + '" data-vib-tok="' + tk.id + '" data-vib-side="' + side + '" style="left:' + tk.x + '%;top:' + tk.y + '%">' + (side === 'ball' ? '' : (tk.num || '')) + '</div>'; }).join(''); };
+  return '<div class="vib" id="vib">'
+    + '<div class="vib-bar">'
+    +   '<div class="vib-grp"><label class="vib-lbl">Home formation</label><select class="vi-input vib-sel" data-vi-act="boardform">' + forms + '</select></div>'
+    +   '<div class="vib-grp"><label class="vib-lbl">Tools</label><div class="vib-tools">' + toolBtns + '</div></div>'
+    +   '<div class="vib-grp"><label class="vib-lbl">Colour</label><div class="vib-sws">' + sw + '</div></div>'
+    +   '<div class="vib-grp vib-grp--r"><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="away" type="button">＋ Opponent</button><button class="vi-btn vi-btn--sm" data-vi-act="boardadd" data-vi="ball" type="button">＋ Ball</button><button class="vi-btn vi-btn--sm" data-vi-act="boardclear" data-vi="arrows" type="button">Clear draw</button><button class="vi-btn vi-btn--sm" data-vi-act="boardreset" type="button">Reset</button><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="boardsnap" type="button">📷 Save image</button></div>'
+    + '</div>'
+    + '<div class="vib-stage" id="vib-stage"><div class="vib-pitch" id="vib-pitch">'
+    +   '<div class="vib-mark vib-mark--mid"></div><div class="vib-mark vib-mark--circle"></div><div class="vib-mark vib-mark--boxT"></div><div class="vib-mark vib-mark--boxB"></div><div class="vib-mark vib-mark--spotT"></div><div class="vib-mark vib-mark--spotB"></div>'
+    +   '<canvas class="vib-canvas" id="vib-canvas"></canvas>'
+    +   tokens(b.home, 'home') + tokens(b.away, 'away') + tokens(b.balls, 'ball')
+    + '</div></div>'
+    + '<p class="vib-hint">Drag players and the ball to build shapes. Pick a draw tool + colour to add arrows, passing lanes and zones. The board persists for <b>' + _viEsc(_viScope().club) + '</b> on this device.</p>'
+    + '</div>';
+}
+function _viBoardDrawArrows(ctx, b, cv) {
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  (b.arrows || []).forEach(function (a) {
+    var x1 = a.x1 / 100 * cv.width, y1 = a.y1 / 100 * cv.height, x2 = a.x2 / 100 * cv.width, y2 = a.y2 / 100 * cv.height;
+    ctx.save(); ctx.strokeStyle = a.color || '#38f5c8'; ctx.fillStyle = a.color || '#38f5c8'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.setLineDash(a.kind === 'dash' ? [10, 7] : []);
+    if (a.kind === 'zone') { ctx.globalAlpha = .18; ctx.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); ctx.globalAlpha = 1; ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); }
+    else { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); if (a.kind === 'arrow' || a.kind === 'dash') { var ang = Math.atan2(y2 - y1, x2 - x1); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - 15 * Math.cos(ang - 0.4), y2 - 15 * Math.sin(ang - 0.4)); ctx.lineTo(x2 - 15 * Math.cos(ang + 0.4), y2 - 15 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill(); } }
+    ctx.restore();
+  });
+}
+function _viBoardWire() {
+  var pitch = document.getElementById('vib-pitch'), cv = document.getElementById('vib-canvas'); if (!pitch || !cv) return;
+  var b = _viBoardGet(); var ctx = cv.getContext('2d');
+  function size() { cv.width = pitch.clientWidth; cv.height = pitch.clientHeight; _viBoardDrawArrows(ctx, b, cv); }
+  size(); if (window.ResizeObserver && !cv._ro) { cv._ro = new ResizeObserver(size); cv._ro.observe(pitch); }
+  if (pitch._wired) return; pitch._wired = true;
+  function rel(ev) { var r = pitch.getBoundingClientRect(); return { x: Math.max(0, Math.min(100, (ev.clientX - r.left) / r.width * 100)), y: Math.max(0, Math.min(100, (ev.clientY - r.top) / r.height * 100)) }; }
+  var drag = null, draw = null;
+  pitch.addEventListener('pointerdown', function (ev) {
+    var tk = ev.target.closest('[data-vib-tok]');
+    if (b.tool === 'move' && tk) { var id = tk.getAttribute('data-vib-tok'); drag = { el: tk, id: id }; try { pitch.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); return; }
+    if (b.tool !== 'move') { var q = rel(ev); draw = { x1: q.x, y1: q.y, x2: q.x, y2: q.y, kind: b.tool, color: b.color }; try { pitch.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); }
+  });
+  pitch.addEventListener('pointermove', function (ev) {
+    if (drag) { var q = rel(ev); drag.el.style.left = q.x + '%'; drag.el.style.top = q.y + '%'; drag._q = q; return; }
+    if (draw) { var p = rel(ev); draw.x2 = p.x; draw.y2 = p.y; _viBoardDrawArrows(ctx, b, cv); var x1 = draw.x1 / 100 * cv.width, y1 = draw.y1 / 100 * cv.height, x2 = draw.x2 / 100 * cv.width, y2 = draw.y2 / 100 * cv.height; ctx.save(); ctx.strokeStyle = draw.color; ctx.lineWidth = 3; ctx.setLineDash(draw.kind === 'dash' ? [10, 7] : []); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore(); }
+  });
+  function end(ev) {
+    if (drag) { var q = drag._q; if (q) { var all = b.home.concat(b.away, b.balls); var t = all.filter(function (x) { return x.id === drag.id; })[0]; if (t) { t.x = q.x; t.y = q.y; b.updatedAt = Date.now(); _viBoardSave(); } } drag = null; try { pitch.releasePointerCapture(ev.pointerId); } catch (e) {} return; }
+    if (draw) { if (Math.hypot(draw.x2 - draw.x1, draw.y2 - draw.y1) > 1.5) { b.arrows.push(draw); b.updatedAt = Date.now(); _viBoardSave(); } _viBoardDrawArrows(ctx, b, cv); draw = null; try { pitch.releasePointerCapture(ev.pointerId); } catch (e) {} }
+  }
+  pitch.addEventListener('pointerup', end); pitch.addEventListener('pointercancel', end);
+}
+function _viBoardAct(op, v) {
+  var b = _viBoardGet();
+  if (op === 'boardtool') { b.tool = v; _viBoardSave(); _viRender(); }
+  else if (op === 'boardcolor') { b.color = v; _viBoardSave(); _viRender(); }
+  else if (op === 'boardform') { b.form = v; b.home = _viBoardFormation(v, 'home'); _viBoardSave(); _viRender(); }
+  else if (op === 'boardadd') { if (v === 'ball') b.balls.push({ id: _viUid(), x: 50, y: 50 }); else { var n = b.away.length + 1; b.away.push(_viBoardMk(50, 15 + (b.away.length % 9) * 4, n, 'away')); } b.updatedAt = Date.now(); _viBoardSave(); _viRender(); }
+  else if (op === 'boardclear') { b.arrows = []; _viBoardSave(); _viRender(); }
+  else if (op === 'boardreset') { if (window.confirm('Reset the board to the default formation?')) { VI_DB.boards[_viScope().club] = _viBoardDefault(); _viBoardSave(); _viRender(); } }
+  else if (op === 'boardsnap') { _viBoardSnapshot(); }
+}
+function _viBoardSnapshot() {
+  var pitch = document.getElementById('vib-pitch'); if (!pitch) return;
+  var W = 900, H = 600, c = document.createElement('canvas'); c.width = W; c.height = H; var x = c.getContext('2d'); var b = _viBoardGet();
+  x.fillStyle = '#0c5e33'; x.fillRect(0, 0, W, H);
+  for (var i = 0; i < 10; i++) { x.fillStyle = i % 2 ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.04)'; x.fillRect(0, i * H / 10, W, H / 10); }
+  x.strokeStyle = 'rgba(255,255,255,.6)'; x.lineWidth = 2; x.strokeRect(24, 24, W - 48, H - 48); x.beginPath(); x.moveTo(24, H / 2); x.lineTo(W - 24, H / 2); x.stroke(); x.beginPath(); x.arc(W / 2, H / 2, 66, 0, 6.2832); x.stroke();
+  (b.arrows || []).forEach(function (a) { var x1 = a.x1 / 100 * W, y1 = a.y1 / 100 * H, x2 = a.x2 / 100 * W, y2 = a.y2 / 100 * H; x.save(); x.strokeStyle = a.color || '#38f5c8'; x.fillStyle = a.color || '#38f5c8'; x.lineWidth = 4; x.setLineDash(a.kind === 'dash' ? [12, 8] : []); if (a.kind === 'zone') { x.globalAlpha = .2; x.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); x.globalAlpha = 1; x.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); } else { x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); } x.restore(); });
+  function tok(arr, fill, txt) { arr.forEach(function (t) { var cx = t.x / 100 * W, cy = t.y / 100 * H; x.beginPath(); x.arc(cx, cy, txt ? 15 : 9, 0, 6.2832); x.fillStyle = fill; x.fill(); x.lineWidth = 2; x.strokeStyle = '#fff'; x.stroke(); if (txt) { x.fillStyle = '#04121f'; x.font = '700 13px Inter,Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(t.num || ''), cx, cy); } }); }
+  tok(b.home, '#2dd4bf', true); tok(b.away, '#f43f5e', true); tok(b.balls, '#ffffff', false);
+  try { var url = c.toDataURL('image/png'); var a = document.createElement('a'); a.href = url; a.download = 'familista-coachboard.png'; document.body.appendChild(a); a.click(); a.remove(); _viToast('Board image exported'); } catch (e) { _viToast('Export blocked by the browser'); }
+}
+
 // ── Modals ──
 function _viModalHtml() {
   if (_VI.modal === 'upload') return _viUploadModal();
@@ -43990,6 +44085,7 @@ function _viBind() {
     else if (a === 'selplayer') { _VI.playerFilter = v; _viRender(); }
     else if (a === 'playerreport') { _viCreatePlayerReport(v); }
     else if (a === 'provconnect') { _viProviderConnect(v); }
+    else if (a === 'boardtool' || a === 'boardcolor' || a === 'boardadd' || a === 'boardclear' || a === 'boardreset' || a === 'boardsnap') { _viBoardAct(a, v); }
     else if (a === 'newreport') { _viCreateReport(v); }
     else if (a === 'openreport') { var pr = v.split(':'); _VI.reportView = { pid: pr[0], rid: pr[1] }; _VI.modal = 'report'; _viRenderModal(); }
     else if (a === 'printreport') { var pp = v.split(':'); _viPrintReport(pp[0], pp[1]); }
@@ -44004,6 +44100,7 @@ function _viBind() {
   document.addEventListener('input', function (e) {
     var el = e.target; if (!el || !el.getAttribute) return;
     if (el.getAttribute('data-vi-act') === 'libsearch') { _VI.libFilter = _VI.libFilter || {}; _VI.libFilter.q = el.value; var body = document.getElementById('vi-body'); if (body) body.innerHTML = _viLibrary(); }
+    else if (el.getAttribute('data-vi-act') === 'boardform') { _viBoardAct('boardform', el.value); }
     else if (el.getAttribute('data-viw-act') && typeof _viwInput === 'function') { try { _viwInput(el); } catch (er) {} }
   });
 }

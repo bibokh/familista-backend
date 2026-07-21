@@ -8069,6 +8069,31 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vip-qtbtn{ display:inline-flex; align-items:center; gap:5px; border:1px solid rgba(var(--c),.4); background:linear-gradient(160deg,rgba(var(--c),.16),rgba(var(--c),.06)); color:#eef4fb; border-radius:9px; padding:6px 9px; font-size:11px; font-weight:600; cursor:pointer; transition:all .12s; } .vip-qtbtn::before{ content:''; width:7px; height:7px; border-radius:2px; background:rgb(var(--c)); box-shadow:0 0 6px rgb(var(--c)); } .vip-qtbtn:hover{ transform:translateY(-1px); box-shadow:0 5px 14px -7px rgb(var(--c)); } .vip-qtbtn.is-off{ opacity:.45; filter:grayscale(.6); }
 .vip-qtbtn em{ font-style:normal; font-size:8.5px; font-weight:800; color:#04121f; background:rgb(var(--c)); border-radius:4px; padding:1px 5px; } .vip-qtbtn i{ font-style:normal; color:#8a97ac; font-size:10px; margin-left:1px; } .vip-qtbtn i:hover{ color:#fca5a5; }
 .vip-center .viw-stage .vi-videowrap{ border-radius:14px; }
+/* ==================== COACH BOARD ==================== */
+.vib{ display:flex; flex-direction:column; gap:12px; min-height:0; }
+.vib-bar{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px; background:linear-gradient(168deg,rgba(21,31,53,.7),rgba(10,15,28,.66)); border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:11px 14px; }
+.vib-grp{ display:flex; flex-direction:column; gap:5px; } .vib-grp--r{ margin-left:auto; flex-direction:row; align-items:center; gap:7px; flex-wrap:wrap; }
+.vib-lbl{ font-size:9px; text-transform:uppercase; letter-spacing:.1em; color:#6b7890; font-weight:700; }
+.vib-sel{ height:34px; min-width:120px; }
+.vib-tools{ display:flex; gap:4px; } .vib-tool{ display:flex; align-items:center; gap:5px; border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.04); color:#cbd5e1; border-radius:9px; padding:7px 10px; font-size:11px; font-weight:600; cursor:pointer; transition:all .12s; } .vib-tool em{ font-style:normal; font-size:13px; } .vib-tool:hover{ color:#eafffb; border-color:rgba(45,212,191,.4); } .vib-tool.is-on{ background:linear-gradient(160deg,rgba(45,212,191,.3),rgba(56,189,248,.16)); color:#7ff3dd; border-color:rgba(45,212,191,.6); }
+.vib-sws{ display:flex; gap:5px; } .vib-sw{ width:22px; height:22px; border-radius:7px; border:2px solid transparent; background:var(--sw); cursor:pointer; box-shadow:inset 0 0 0 1px rgba(0,0,0,.3); } .vib-sw:hover{ transform:scale(1.1); } .vib-sw.is-on{ border-color:#fff; box-shadow:0 0 0 2px rgba(45,212,191,.5); }
+.vib-stage{ flex:1 1 auto; display:flex; justify-content:center; align-items:flex-start; min-height:0; }
+.vib-pitch{ position:relative; height:min(70vh,640px); aspect-ratio:2/3; background:repeating-linear-gradient(0deg,#0f7a44 0 10%,#0c6b3b 10% 20%); border:2px solid rgba(255,255,255,.55); border-radius:10px; box-shadow:0 26px 60px -30px rgba(0,0,0,.85),inset 0 0 60px rgba(0,0,0,.35); touch-action:none; overflow:hidden; }
+.vib-mark{ position:absolute; border-color:rgba(255,255,255,.5); pointer-events:none; }
+.vib-mark--mid{ left:0; right:0; top:50%; border-top:2px solid rgba(255,255,255,.5); }
+.vib-mark--circle{ left:50%; top:50%; width:22%; aspect-ratio:1; border:2px solid rgba(255,255,255,.5); border-radius:50%; transform:translate(-50%,-50%); }
+.vib-mark--boxT{ left:26%; right:26%; top:0; height:16%; border:2px solid rgba(255,255,255,.5); border-top:0; }
+.vib-mark--boxB{ left:26%; right:26%; bottom:0; height:16%; border:2px solid rgba(255,255,255,.5); border-bottom:0; }
+.vib-mark--spotT{ left:50%; top:11%; width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.6); transform:translateX(-50%); }
+.vib-mark--spotB{ left:50%; bottom:11%; width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.6); transform:translateX(-50%); }
+.vib-canvas{ position:absolute; inset:0; pointer-events:none; z-index:2; }
+.vib-tok{ position:absolute; width:30px; height:30px; border-radius:50%; transform:translate(-50%,-50%); display:grid; place-items:center; font-weight:800; font-size:12px; cursor:grab; z-index:3; border:2px solid rgba(255,255,255,.85); box-shadow:0 4px 10px rgba(0,0,0,.5); user-select:none; touch-action:none; }
+.vib-tok:active{ cursor:grabbing; }
+.vib-tok--home{ background:radial-gradient(circle at 35% 30%,#5eead4,#0f766e); color:#04121f; }
+.vib-tok--away{ background:radial-gradient(circle at 35% 30%,#fb7185,#9f1239); color:#fff; }
+.vib-tok--ball{ width:17px; height:17px; background:radial-gradient(circle at 35% 30%,#fff,#cbd5e1); border-color:#0b1220; }
+.vib-hint{ font-size:11px; color:#8a97ac; margin:0; text-align:center; } .vib-hint b{ color:#cfe6ff; }
+@media (max-width:900px){ .vib-pitch{ height:auto; width:100%; max-width:420px; } }
 
 /* ---- D · EVENT INSPECTOR ---- */
 .vip-rightcol .viw-right{ flex:1 1 auto; min-height:0; }
