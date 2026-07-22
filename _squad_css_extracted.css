@@ -1,0 +1,98 @@
+/* Squad page — ultra-premium full-bleed cards */
+.sq-prem-cards{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 0 32px 48px;
+  max-width: 1400px;
+}
+.sq-prem-card{
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  min-height: 480px;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid rgba(255,255,255,.07);
+  box-shadow: 0 8px 40px rgba(0,0,0,.55);
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1), box-shadow .35s ease, border-color .35s ease;
+  display: flex;
+  flex-direction: column;
+}
+.sq-prem-card:hover{ transform: translateY(-12px) scale(1.015); }
+.sq-prem-card--lineup:hover{ box-shadow: 0 36px 90px rgba(245,158,11,.32), 0 0 0 1px rgba(245,158,11,.4); border-color: rgba(245,158,11,.4); }
+.sq-prem-card--formation:hover{ box-shadow: 0 36px 90px rgba(139,92,246,.32), 0 0 0 1px rgba(139,92,246,.4); border-color: rgba(139,92,246,.4); }
+.sq-prem-card--tactics:hover{ box-shadow: 0 36px 90px rgba(249,115,22,.32), 0 0 0 1px rgba(249,115,22,.4); border-color: rgba(249,115,22,.4); }
+.sq-prem-illus{
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.sq-prem-illus svg{ width: 100%; height: 100%; display: block; }
+.sq-prem-gradient{
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 28%, rgba(5,8,20,.82) 56%, rgba(5,8,20,.97) 80%, #050814 100%);
+  z-index: 1;
+}
+.sq-prem-body{
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: 22px 24px 26px;
+}
+.sq-prem-badge{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 100px;
+  margin-bottom: 14px;
+}
+.sq-prem-card--lineup .sq-prem-badge{ background: rgba(245,158,11,.12); color: #fbbf24; border: 1px solid rgba(245,158,11,.28); }
+.sq-prem-card--formation .sq-prem-badge{ background: rgba(139,92,246,.12); color: #c4b5fd; border: 1px solid rgba(139,92,246,.28); }
+.sq-prem-card--tactics .sq-prem-badge{ background: rgba(249,115,22,.12); color: #fb923c; border: 1px solid rgba(249,115,22,.28); }
+.sq-prem-title{
+  font-size: 28px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0 0 8px;
+  letter-spacing: -.6px;
+  line-height: 1.1;
+}
+.sq-prem-desc{
+  font-size: 13.5px;
+  color: #94a3b8;
+  margin: 0 0 20px;
+  line-height: 1.55;
+}
+.sq-prem-cta{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sq-prem-open{
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(241,245,249,.6);
+  letter-spacing: -.1px;
+}
+.sq-prem-arrow{
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  color: #f1f5f9;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.sq-prem-card:hover .sq-prem-arrow{
+  background: rgba(255,255,255,.16);
+  transform: translateX(4px);
+}

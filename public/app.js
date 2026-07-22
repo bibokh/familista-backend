@@ -44515,14 +44515,14 @@ function _viWireUpload() {
 
 function _viwState() {
   var d = { leftTab: 'players', evCat: 'Attacking', tool: 'select', zoom: 1, pan: 0,
-    annColor: '#38f5c8', annWidth: 3, annOpacity: 1, annDash: false, anim3d: true,
+    annColor: '#38f5c8', annWidth: 3, annOpacity: 1, annDash: false, anim3d: true, fit: 'fill', focus: false,
     leftW: 274, rightW: 300, maximized: false, distraction: false,
     playerQ: '', eventQ: '', clipQ: '', pinned: [], recentP: [], recentE: [],
     undo: [], redo: [], selEvent: null, selClip: null, save: 'idle' };
-  try { var raw = window.localStorage.getItem('familista.video.wsprefs'); if (raw) { var o = JSON.parse(raw); if (o) { if (o.leftW) d.leftW = o.leftW; if (o.rightW) d.rightW = o.rightW; if (o.pinned) d.pinned = o.pinned; } } } catch (e) {}
+  try { var raw = window.localStorage.getItem('familista.video.wsprefs'); if (raw) { var o = JSON.parse(raw); if (o) { if (o.leftW) d.leftW = o.leftW; if (o.rightW) d.rightW = o.rightW; if (o.pinned) d.pinned = o.pinned; if (o.fit) d.fit = o.fit; } } } catch (e) {}
   return d;
 }
-function _viwSavePrefs() { try { var w = _VI.ws; window.localStorage.setItem('familista.video.wsprefs', JSON.stringify({ leftW: w.leftW, rightW: w.rightW, pinned: w.pinned })); } catch (e) {} }
+function _viwSavePrefs() { try { var w = _VI.ws; window.localStorage.setItem('familista.video.wsprefs', JSON.stringify({ leftW: w.leftW, rightW: w.rightW, pinned: w.pinned, fit: w.fit, focus: w.focus })); } catch (e) {} }
 function _viwFps(p) { return (p && p.video && p.video.fps) ? p.video.fps : 25; } // approximate fallback (labelled internally)
 function _viwFrame(p) { return 1 / _viwFps(p); }
 function _viwVid() { return document.getElementById('vi-video'); }
@@ -44573,7 +44573,7 @@ function _vipHeader(p) {
 function _vipToolbar() {
   var w = _VI.ws;
   function tb(x) { return '<button class="viw-dtool vip-tool' + (w.tool === x[0] ? ' is-on' : '') + '" data-viw-act="tool" data-viw="' + x[0] + '" title="' + x[2] + (x[3] ? ' (' + x[3] + ')' : '') + '" type="button"><em>' + x[1] + '</em><span>' + x[2] + '</span></button>'; }
-  function grp(label, arr, extra) { return '<div class="vip-tgroup"><span class="vip-glabel">' + label + '</span><div class="vip-tools">' + (arr ? arr.map(tb).join('') : '') + (extra || '') + '</div></div>'; }
+  function grp(label, arr, extra, cat) { return '<div class="vip-tgroup" data-cat="' + (cat || 'sel') + '"><span class="vip-glabel">' + label + '</span><div class="vip-tools">' + (arr ? arr.map(tb).join('') : '') + (extra || '') + '</div></div>'; }
   var G = {
     Select: [['select', '▚', 'Select', 'V']],
     Player: [['xmark', '✕', 'X marker', ''], ['omark', '⭘', 'O marker', ''], ['spotlight', '◎', 'Spotlight', 'S'], ['text', 'T', 'Label', ''], ['track', '⌖', 'Track', '']],
@@ -44586,22 +44586,22 @@ function _vipToolbar() {
   var colors = ['#ffffff', '#f43f5e', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa'];
   var sw = colors.map(function (c) { return '<button class="vip-sw' + (w.annColor === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-viw-act="anncolor" data-viw="' + c + '" title="' + c + '"></button>'; }).join('');
   var keyBtns = '<button class="viw-dtool vip-tool" data-viw-act="trackprev" title="Previous tracking keyframe (Manual / Assisted)" type="button"><em>⟝</em><span>Prev</span></button><button class="viw-dtool vip-tool" data-viw-act="tracknext" title="Next tracking keyframe" type="button"><em>⟞</em><span>Next</span></button><button class="viw-dtool vip-tool" data-viw-act="trackdel" title="Delete keyframe at current time" type="button"><em>⌦</em><span>Del</span></button>';
-  var editBtns = '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button><button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button><button class="viw-dtool vip-tool" data-viw-act="dupsel" title="Duplicate selected" type="button"><em>⧉</em><span>Dup</span></button><button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Del</span></button><button class="viw-dtool vip-tool" data-viw-act="locksel" title="Lock / unlock selected" type="button"><em>🔒</em><span>Lock</span></button><button class="viw-dtool vip-tool" data-viw-act="hidesel" title="Hide / show selected" type="button"><em>◌</em><span>Hide</span></button><button class="viw-dtool vip-tool" data-viw-act="bringfwd" title="Bring forward" type="button"><em>⤒</em><span>Fwd</span></button><button class="viw-dtool vip-tool" data-viw-act="sendback" title="Send backward" type="button"><em>⤓</em><span>Back</span></button><button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button><button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>';
+  var editBtns = '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button><button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button><button class="viw-dtool vip-tool" data-viw-act="dupsel" title="Duplicate selected" type="button"><em>⧉</em><span>Dup</span></button><button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Del</span></button><button class="viw-dtool vip-tool" data-viw-act="locksel" title="Lock / unlock selected" type="button"><em>🔒</em><span>Lock</span></button><button class="viw-dtool vip-tool" data-viw-act="hidesel" title="Hide / show selected" type="button"><em>◌</em><span>Hide</span></button><button class="viw-dtool vip-tool" data-viw-act="bringfwd" title="Bring forward" type="button"><em>⤒</em><span>Fwd</span></button><button class="viw-dtool vip-tool" data-viw-act="sendback" title="Send backward" type="button"><em>⤓</em><span>Back</span></button><button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button><button class="viw-dtool vip-tool vip-tool--danger" data-viw-act="clearcanvas" title="Clear ALL telestration on this analysis (confirm)" type="button"><em>🧹</em><span>Clear All</span></button><button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>';
   var styleCtl = '<div class="vip-sws">' + sw + '</div><label class="vip-thick" title="Thickness">▭<input type="range" id="viw-annw" min="1" max="10" step="1" value="' + (w.annWidth || 3) + '" data-viw-act="annwidth"></label><label class="vip-thick" title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="' + (w.annOpacity == null ? 1 : w.annOpacity) + '" data-viw-act="annopacity"></label><button class="viw-dtool vip-tool vip-fillbtn' + (w.annFill ? ' is-on' : '') + '" data-viw-act="annfill" title="Fill" type="button"><em>◧</em></button><button class="viw-dtool vip-tool vip-dashbtn' + (w.annDash ? ' is-on' : '') + '" data-viw-act="anndash" title="Solid / dashed" type="button"><em>' + (w.annDash ? '┄' : '──') + '</em></button>';
   var cal = (_viProject(_VI.projectId) || {}).calib; var calBadge = (cal && cal.status === 'calibrated') ? '<span class="vip-calib is-on" title="' + cal.refLen + ' m reference (flat, no perspective)">📐 ' + cal.refLen + ' m</span>' : (cal && cal.status === 'invalid') ? '<span class="vip-calib is-bad">Invalid</span>' : '<span class="vip-calib">Not calibrated</span>';
   var calCtl = calBadge + '<button class="viw-dtool vip-tool' + (_VI.ws.calibrating ? ' is-on' : '') + '" data-viw-act="calibrate" title="Calibrate pitch — draw a known distance" type="button"><em>📐</em><span>Calib</span></button>' + (cal ? '<button class="viw-dtool vip-tool" data-viw-act="calibreset" title="Reset calibration" type="button"><em>⟲</em></button>' : '');
   return '<div class="vip-toolbar">'
-    + grp('Select', G.Select) + '<div class="vip-tsep"></div>'
-    + grp('Players', G.Player) + '<div class="vip-tsep"></div>'
-    + grp('Shapes', G.Shapes) + '<div class="vip-tsep"></div>'
-    + grp('Lines', G.Lines) + '<div class="vip-tsep"></div>'
-    + grp('Analysis', G.Analysis) + '<div class="vip-tsep"></div>'
-    + grp('Content', G.Content) + '<div class="vip-tsep"></div>'
-    + '<div class="vip-tgroup vip-tgroup--3d"><span class="vip-glabel vip-glabel--3d">3D Tools</span><div class="vip-tools">' + G.D3.map(tb).join('') + '<button class="viw-dtool vip-tool vip-anim3d' + (w.anim3d !== false ? ' is-on' : '') + '" data-viw-act="anim3d" title="Toggle 3D flow animation for new elements" type="button"><em>✦</em><span>Anim</span></button>' + '</div></div><div class="vip-tsep"></div>'
-    + grp('Keyframe', null, keyBtns) + '<div class="vip-tsep"></div>'
-    + grp('Edit', null, editBtns) + '<div class="vip-tsep"></div>'
-    + '<div class="vip-tgroup"><span class="vip-glabel">Style</span><div class="vip-tools vip-styg">' + styleCtl + '</div></div><div class="vip-tsep"></div>'
-    + '<div class="vip-tgroup"><span class="vip-glabel">Measure</span><div class="vip-tools">' + calCtl + '</div></div><div class="vip-tsep"></div>'
+    + grp('Select', G.Select, '', 'sel') + '<div class="vip-tsep"></div>'
+    + grp('Players', G.Player, '', 'player') + '<div class="vip-tsep"></div>'
+    + grp('Shapes', G.Shapes, '', 'shape') + '<div class="vip-tsep"></div>'
+    + grp('Lines', G.Lines, '', 'line') + '<div class="vip-tsep"></div>'
+    + grp('Analysis', G.Analysis, '', 'track') + '<div class="vip-tsep"></div>'
+    + grp('Content', G.Content, '', 'content') + '<div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup vip-tgroup--3d" data-cat="d3"><span class="vip-glabel vip-glabel--3d">3D Tools</span><div class="vip-tools">' + G.D3.map(tb).join('') + '<button class="viw-dtool vip-tool vip-anim3d' + (w.anim3d !== false ? ' is-on' : '') + '" data-viw-act="anim3d" title="Toggle 3D flow animation for new elements" type="button"><em>✦</em><span>Anim</span></button>' + '</div></div><div class="vip-tsep"></div>'
+    + grp('Keyframe', null, keyBtns, 'track') + '<div class="vip-tsep"></div>'
+    + grp('Edit', null, editBtns, 'edit') + '<div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup" data-cat="content"><span class="vip-glabel">Style</span><div class="vip-tools vip-styg">' + styleCtl + '</div></div><div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup" data-cat="measure"><span class="vip-glabel">Measure</span><div class="vip-tools">' + calCtl + '</div></div><div class="vip-tsep"></div>'
     + '<span class="vip-2dbadge vip-2dbadge--3d" title="2D telestration + 3D perspective render (canvas 2.5D: extrusion, shaded faces, lighting, drop shadow, flow animation). Full WebGL/pitch-homography perspective engine is not connected. Tracking is Manual / Assisted — Computer Vision Service Required for automatic tracking.">2D + 3D Render</span>'
     + '</div>';
 }
@@ -44694,11 +44694,11 @@ function _viWorkspace() {
   var w = _VI.ws;
   if (!w.insTab) w.insTab = 'event';
   var vid = p.video
-    ? '<video class="vi-video" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video>'
+    ? '<video class="vi-video vi-fit-' + (w.fit || 'fill') + '" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video>'
       + '<canvas class="vi-canvas" id="vi-canvas"></canvas>'
       + '<div class="vi-vstatus" id="vi-vstatus"><span class="vi-vspin"></span><b>Loading video…</b><span class="vi-vstatus-sub">Preparing the player.</span></div>'
     : '<div class="vi-video vi-video--none"><span class="vi-vnl-ic">🎬</span><b>Video not linked</b><p>This analysis has no linked video. Reattach the original MP4/MOV/WebM to continue — no video relationship is assumed or fabricated.</p><button class="vi-btn vi-btn--sm vi-btn--primary" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
-  var cls = 'vip-shell' + (w.maximized ? ' is-max' : '');
+  var cls = 'vip-shell' + (w.maximized ? ' is-max' : '') + (w.focus ? ' is-focus' : '');
   return '<div class="' + cls + '" id="viw">'
     + _vipNav(p)
     + '<div class="vip-main">'
@@ -44836,7 +44836,7 @@ function _viwTransport(p) {
     + '<div class="viw-tp-time"><span id="viw-cur">0:00</span><i>/</i><span id="viw-dur">0:00</span></div>'
     + '<div class="viw-tp-g">' + spd + '</div>'
     + '<div class="viw-tp-g viw-vol"><button class="viw-tp" data-viw-act="mute" id="viw-mute" title="Mute (M)" type="button">🔊</button><input class="viw-volsl" id="viw-vol" type="range" min="0" max="1" step="0.05" value="1" data-viw-act="volinput" title="Volume"></div>'
-    + '<div class="viw-tp-g viw-tp-r">' + b('markin', null, 'IN', 'Set clip In (I)', 'viw-tp--io') + b('markout', null, 'OUT', 'Set clip Out (O)', 'viw-tp--io') + b('loop', null, '⟳', 'Loop selected clip', 'viw-tp--loop') + b('saveclip2', null, '＋ Clip', 'Save clip from In/Out', 'viw-tp--primary') + b('addevent2', null, '＋ Tag', 'Tag event here (T)', 'viw-tp--primary') + b('full', null, '⤢', 'Fullscreen (F)') + b('settings', null, '⚙', 'Player settings') + '</div>'
+    + '<div class="viw-tp-g viw-tp-r">' + b('markin', null, 'IN', 'Set clip In (I)', 'viw-tp--io') + b('markout', null, 'OUT', 'Set clip Out (O)', 'viw-tp--io') + b('loop', null, '⟳', 'Loop selected clip', 'viw-tp--loop') + b('saveclip2', null, '＋ Clip', 'Save clip from In/Out', 'viw-tp--primary') + b('addevent2', null, '＋ Tag', 'Tag event here (T)', 'viw-tp--primary') + b('fitmode', null, (({ fill: 'Fill', fit: 'Fit', original: '1:1' })[_VI.ws.fit] || 'Fill'), 'Video fit: Fill Workspace / Fit Source / Original ratio', 'viw-tp--fit') + b('focus', null, '⤢', 'Focus mode — hide side panels (F)', 'viw-tp--focus') + b('full', null, '⛶', 'Fullscreen (Shift+F)') + '</div>'
     + '</div>';
 }
 
@@ -45100,7 +45100,7 @@ function _viwKeys() {
       case 'l': case 'L': ev.preventDefault(); _viwNudge(1); break;
       case 'i': case 'I': ev.preventDefault(); _viwMark('in'); break;
       case 'o': case 'O': ev.preventDefault(); _viwMark('out'); break;
-      case 'f': case 'F': ev.preventDefault(); _viwFull(); break;
+      case 'f': case 'F': ev.preventDefault(); if (ev.shiftKey) _viwFull(); else _viwFocus(); break;
       case 'm': case 'M': ev.preventDefault(); _viwMute(); break;
       case 't': case 'T': ev.preventDefault(); _viAddEvent(); break;
       case '+': case '=': ev.preventDefault(); _viwZoom('in'); break;
@@ -45119,7 +45119,7 @@ function _viwKeys() {
       case '3': ev.preventDefault(); _viwSetOutcome('partial'); break;
       case 'u': case 'U': ev.preventDefault(); _viwUndoLastEvent(); break;
       case 'Delete': case 'Backspace': if (_VI.ws.selAnn) { ev.preventDefault(); _viAnnDeleteSelected(); } break;
-      case 'Escape': if (_VI.ws.selAnn) { _VI.ws.selAnn = null; _viAnnRedraw(); } else _viwSetTool('select'); break;
+      case 'Escape': if (_VI.ws.focus) { _viwFocus(); } else if (_VI.ws.selAnn) { _VI.ws.selAnn = null; _viAnnRedraw(); } else _viwSetTool('select'); break;
     }
   });
 }
@@ -45337,6 +45337,7 @@ function _viAnnCommitPoints(kind, points) {
   p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft();
 }
 function _viAnnClear() { var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime(); var removed = (p.annotations || []).filter(function (an) { return Math.abs(an.t - t) <= 0.6; }); if (!removed.length) return; p.annotations = (p.annotations || []).filter(function (an) { return Math.abs(an.t - t) > 0.6; }); removed.forEach(function (an) { _viwPushUndo({ t: 'del', ann: an }); }); _viTouch(p); _viAnnRedraw(); _viwUpdateLeft(); _viwAutosave('saved'); }
+function _viAnnClearAll() { var p = _viProject(_VI.projectId); if (!p || !(p.annotations || []).length) { _viToast('Canvas already clear'); return; } if (!window.confirm('Clear ALL telestration on this analysis (' + p.annotations.length + ' element' + (p.annotations.length === 1 ? '' : 's') + ')? This cannot be undone.')) return; p.annotations = []; _VI.ws.selAnn = null; _VI.ws.trackId = null; _viTouch(p); _viAnnRedraw(); if (typeof _viwUpdateLeft === 'function') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Canvas cleared'); }
 function _viAnnEraseAt(x, y) {
   var p = _viProject(_VI.projectId); if (!p) return; var t = _viCurTime();
   var near = (p.annotations || []).filter(function (an) { if (Math.abs(an.t - t) > (an.dur || 3)) return false; var px = an.x, py = an.y; if (an.points && an.points.length) { px = an.points[0].x; py = an.points[0].y; } return Math.hypot((px || 0) - x, (py || 0) - y) < 26 || (an.x2 != null && Math.hypot(an.x2 - x, an.y2 - y) < 26); });
@@ -45618,6 +45619,9 @@ function _viwAct(a, v, ev) {
     case 'saveclip2': _viSaveClip(); break;
     case 'savews2': var pw = _viProject(_VI.projectId); if (pw) { _viTouch(pw); _viwAutosave('saved'); _viToast('Analysis saved'); } break;
     case 'maximize': _viwToggleMax(); break;
+    case 'fitmode': _viwFitMode(); break;
+    case 'focus': _viwFocus(); break;
+    case 'clearcanvas': _viAnnClearAll(); break;
     case 'full': _viwFull(); break;
     case 'zoom': _viwZoom(v); break;
     case 'pospick': _viwArmPos(); break;
@@ -45640,6 +45644,8 @@ function _viwAddCustomEvent() {
   _VI.evDraft = _VI.evDraft || {}; _VI.evDraft.type = name; _viwUpdateLeft(); _viwUpdateInspector(); _viToast('Custom event ready: ' + name);
 }
 function _viwToggleMax() { _VI.ws.maximized = !_VI.ws.maximized; var w = document.getElementById('viw'); if (w) { w.classList.toggle('is-max', _VI.ws.maximized); setTimeout(function () { _viWireCanvas(); }, 30); } }
+function _viwFitMode() { var seq = ['fill', 'fit', 'original']; _VI.ws.fit = seq[(seq.indexOf(_VI.ws.fit || 'fill') + 1) % seq.length]; var v = document.getElementById('vi-video'); if (v) { v.classList.remove('vi-fit-fill', 'vi-fit-fit', 'vi-fit-original'); v.classList.add('vi-fit-' + _VI.ws.fit); } var btn = document.querySelector('.viw-tp--fit'); if (btn) btn.textContent = ({ fill: 'Fill', fit: 'Fit', original: '1:1' })[_VI.ws.fit]; try { _viwSavePrefs(); } catch (e) {} setTimeout(_viWireCanvas, 20); _viToast('Video fit: ' + ({ fill: 'Fill Workspace', fit: 'Fit Source', original: 'Original ratio' })[_VI.ws.fit]); }
+function _viwFocus() { _VI.ws.focus = !_VI.ws.focus; var w = document.getElementById('viw'); if (w) { w.classList.toggle('is-focus', _VI.ws.focus); var b = document.querySelector('.viw-tp--focus'); if (b) b.classList.toggle('is-on', _VI.ws.focus); setTimeout(function () { _viWireCanvas(); _viwFit(); }, 40); } _viToast(_VI.ws.focus ? 'Focus mode — side panels hidden (Esc to exit)' : 'Focus mode off'); }
 function _viwRefreshDock() { var d = document.getElementById('viw-dock'); if (!d) return; var tmp = document.createElement('div'); tmp.innerHTML = _viwDock(); if (tmp.firstChild) { d.parentNode.replaceChild(tmp.firstChild, d); } }
 function _viwArmPos() { _VI.ws.armPos = true; var box = document.querySelector('.vip-pitch') || document.querySelector('.viw-pos'); if (box) box.classList.add('is-arming'); var cv = document.getElementById('vi-canvas'); if (cv) { cv.style.pointerEvents = 'auto'; cv.style.cursor = 'crosshair'; } _viToast('Click a spot on the video to set the position'); }
 function _viwInput(el) {
