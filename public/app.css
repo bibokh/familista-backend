@@ -8045,6 +8045,12 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vip-tsep{ width:1px; align-self:stretch; background:rgba(255,255,255,.08); margin:2px 3px; }
 .vip-tgroup{ display:flex; flex-direction:column; gap:2px; } .vip-glabel{ font-size:7.5px; text-transform:uppercase; letter-spacing:.08em; color:#5b6a80; font-weight:700; text-align:center; padding:0 2px; } .vip-tgroup .vip-tools{ align-items:flex-start; } .vip-styg{ align-items:center; gap:5px; }
 .vip-2dbadge{ align-self:center; font-size:9px; font-weight:800; letter-spacing:.03em; color:#a78bfa; background:rgba(167,139,250,.14); border:1px solid rgba(167,139,250,.4); border-radius:100px; padding:4px 10px; white-space:nowrap; cursor:help; }
+.vip-2dbadge--3d{ color:#7ff3dd; background:linear-gradient(160deg,rgba(45,212,191,.2),rgba(56,189,248,.12)); border-color:rgba(45,212,191,.5); box-shadow:0 0 12px -4px rgba(45,212,191,.6); }
+/* 3D Tools group — premium */
+.vip-tgroup--3d{ background:linear-gradient(180deg,rgba(45,212,191,.12),rgba(56,189,248,.05)); border:1px solid rgba(45,212,191,.35); border-radius:11px; padding:2px 5px 4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.06); }
+.vip-glabel--3d{ color:#7ff3dd; font-weight:800; } .vip-glabel--3d::before{ content:'◆ '; }
+.vip-tgroup--3d .vip-tool em{ text-shadow:0 0 8px rgba(45,212,191,.5); } .vip-anim3d.is-on{ background:linear-gradient(160deg,rgba(45,212,191,.34),rgba(56,189,248,.18))!important; color:#7ff3dd!important; }
+.viw-3dtag{ display:inline-block; font-size:8px; font-weight:800; color:#04121f; background:linear-gradient(160deg,#7ff3dd,#38bdf8); border-radius:4px; padding:0 4px; margin-right:4px; vertical-align:middle; }
 .vip-sws{ display:flex; gap:4px; align-items:center; }
 .vip-sw{ width:20px; height:20px; border-radius:6px; border:2px solid transparent; background:var(--sw); cursor:pointer; box-shadow:inset 0 0 0 1px rgba(0,0,0,.3); } .vip-sw:hover{ transform:scale(1.1); } .vip-sw.is-on{ border-color:#fff; box-shadow:0 0 0 2px rgba(45,212,191,.55); }
 .vip-thick{ display:flex; align-items:center; gap:4px; color:#8a97ac; font-size:12px; } .vip-thick input{ width:54px; accent-color:#2dd4bf; }

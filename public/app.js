@@ -44515,7 +44515,7 @@ function _viWireUpload() {
 
 function _viwState() {
   var d = { leftTab: 'players', evCat: 'Attacking', tool: 'select', zoom: 1, pan: 0,
-    annColor: '#38f5c8', annWidth: 3, annOpacity: 1, annDash: false,
+    annColor: '#38f5c8', annWidth: 3, annOpacity: 1, annDash: false, anim3d: true,
     leftW: 274, rightW: 300, maximized: false, distraction: false,
     playerQ: '', eventQ: '', clipQ: '', pinned: [], recentP: [], recentE: [],
     undo: [], redo: [], selEvent: null, selClip: null, save: 'idle' };
@@ -44580,7 +44580,8 @@ function _vipToolbar() {
     Shapes: [['circle', '◯', 'Circle', 'C'], ['rect', '▭', 'Rectangle', 'R'], ['triangle', '△', 'Triangle', ''], ['zone', '◨', 'Zone', 'Z'], ['connect', '⬠', 'Formation', '']],
     Lines: [['line', '／', 'Line', ''], ['arrow', '↗', 'Arrow', 'A'], ['curve', '⤳', 'Curved', ''], ['distance', '↔', 'Distance', '']],
     Analysis: [['angle', '∠', 'Angle', ''], ['cone', '◔', 'Vision', ''], ['sequence', '①', 'Sequence', ''], ['timer', '⏱', 'Timer', '']],
-    Content: [['free', '✎', 'Free', ''], ['eraser', '⌫', 'Eraser', 'E']]
+    Content: [['free', '✎', 'Free', ''], ['eraser', '⌫', 'Eraser', 'E']],
+    D3: [['d3arrow', '➤', '3D Arrow', ''], ['d3line', '━', '3D Line', ''], ['d3zone', '⬛', '3D Zone', ''], ['d3formarea', '⬠', '3D Form Area', ''], ['d3formline', '⌇', '3D Form Line', ''], ['d3cone', '◭', '3D Vision', ''], ['d3distance', '⇔', '3D Distance', ''], ['d3spot', '☀', '3D Spotlight', ''], ['d3label', '🏷', '3D Label', ''], ['d3marker', '◉', '3D Marker', '']]
   };
   var colors = ['#ffffff', '#f43f5e', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa'];
   var sw = colors.map(function (c) { return '<button class="vip-sw' + (w.annColor === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-viw-act="anncolor" data-viw="' + c + '" title="' + c + '"></button>'; }).join('');
@@ -44596,11 +44597,12 @@ function _vipToolbar() {
     + grp('Lines', G.Lines) + '<div class="vip-tsep"></div>'
     + grp('Analysis', G.Analysis) + '<div class="vip-tsep"></div>'
     + grp('Content', G.Content) + '<div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup vip-tgroup--3d"><span class="vip-glabel vip-glabel--3d">3D Tools</span><div class="vip-tools">' + G.D3.map(tb).join('') + '<button class="viw-dtool vip-tool vip-anim3d' + (w.anim3d !== false ? ' is-on' : '') + '" data-viw-act="anim3d" title="Toggle 3D flow animation for new elements" type="button"><em>✦</em><span>Anim</span></button>' + '</div></div><div class="vip-tsep"></div>'
     + grp('Keyframe', null, keyBtns) + '<div class="vip-tsep"></div>'
     + grp('Edit', null, editBtns) + '<div class="vip-tsep"></div>'
     + '<div class="vip-tgroup"><span class="vip-glabel">Style</span><div class="vip-tools vip-styg">' + styleCtl + '</div></div><div class="vip-tsep"></div>'
     + '<div class="vip-tgroup"><span class="vip-glabel">Measure</span><div class="vip-tools">' + calCtl + '</div></div><div class="vip-tsep"></div>'
-    + '<span class="vip-2dbadge" title="Flat 2D telestration. 3D Telestration — Perspective Engine Required (not connected). Tracking is Manual / Assisted — Computer Vision Service Required for automatic tracking.">2D Telestration</span>'
+    + '<span class="vip-2dbadge vip-2dbadge--3d" title="2D telestration + 3D perspective render (canvas 2.5D: extrusion, shaded faces, lighting, drop shadow, flow animation). Full WebGL/pitch-homography perspective engine is not connected. Tracking is Manual / Assisted — Computer Vision Service Required for automatic tracking.">2D + 3D Render</span>'
     + '</div>';
 }
 function _vipInsights(p) {
@@ -44799,9 +44801,11 @@ function _viwLayersTab(p) {
   var anns = (p.annotations || []).slice().sort(function (a, b) { return a.t - b.t; });
   return '<div class="viw-sublbl">Annotations <i>(' + anns.length + ')</i> · <a data-viw-act="tool" data-viw="select">select tool</a></div>'
     + (anns.length ? '<div class="viw-layers">' + anns.map(function (a) {
-        var name = a.label ? a.label : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1));
         var isXO = a.kind === 'xmark' || a.kind === 'omark';
-        var meta = a.kind === 'track' ? ((a.keys || []).length + ' keyframes · manual') : (a.kind === 'timer' ? 'timer overlay' : isXO ? ('marker' + (a.player ? ' · #' + (_viPlayers().filter(function (x) { return x.id === a.player; })[0] || {}).num : a.label ? ' · ' + _viEsc(a.label) : '') + (a.disp ? ' · ' + a.disp : '')) : ('@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's'));
+        var is3d = a.kind && a.kind.indexOf('d3') === 0;
+        var d3names = { d3arrow: '3D Arrow', d3line: '3D Line', d3zone: '3D Zone', d3formarea: '3D Formation Area', d3formline: '3D Formation Line', d3cone: '3D Vision Cone', d3distance: '3D Distance', d3spot: '3D Spotlight', d3label: '3D Label', d3marker: '3D Marker' };
+        var name = a.label ? a.label : (is3d ? (d3names[a.kind] || '3D') : (a.kind.charAt(0).toUpperCase() + a.kind.slice(1)));
+        var meta = is3d ? ('<span class="viw-3dtag">3D</span> perspective' + (a.anim !== false ? ' · animated' : '')) : (a.kind === 'track' ? ((a.keys || []).length + ' keyframes · manual') : (a.kind === 'timer' ? 'timer overlay' : isXO ? ('marker' + (a.player ? ' · #' + (_viPlayers().filter(function (x) { return x.id === a.player; })[0] || {}).num : a.label ? ' · ' + _viEsc(a.label) : '') + (a.disp ? ' · ' + a.disp : '')) : ('@ ' + _viFmt(a.t) + ' · ' + (a.dur || 3) + 's')));
         var extra = isXO ? '<button data-vi-act="annlink" data-vi="' + a.id + '" title="Link to player / label">👤</button><button data-vi-act="anndisp" data-vi="' + a.id + '" title="Display mode">⟳</button>' : (a.kind === 'curve' ? '<button data-vi-act="annreverse" data-vi="' + a.id + '" title="Reverse direction">⇄</button>' : '');
         return '<div class="viw-layer' + (a.locked ? ' is-lock' : '') + (a.hidden ? ' is-hidden' : '') + (w.selAnn === a.id ? ' is-sel' : '') + '"><button class="viw-layer-eye" data-vi-act="annhide" data-vi="' + a.id + '" title="Show/Hide">' + (a.hidden ? '◌' : '●') + '</button>'
           + '<button class="viw-layer-main" data-vi-act="annsel" data-vi="' + a.id + '" type="button"><b style="color:' + (a.color || '#38f5c8') + '">' + _viEsc(name) + '</b><i>' + meta + '</i></button>'
@@ -44983,7 +44987,7 @@ function _viwRaf() {
       if (_VI.ws.loopClip) { var c = (_viProject(_VI.projectId).clips || []).filter(function (x) { return x.id === _VI.ws.loopClip; })[0]; if (c && (v.currentTime >= c.t1 || v.currentTime < c.t0 - 0.1)) v.currentTime = c.t0; }
     }
     var cur = document.getElementById('viw-cur'); if (cur) cur.textContent = _viFmt(v.currentTime);
-    if (!v.paused) { var pr = _viProject(_VI.projectId); if (pr && (pr.annotations || []).some(function (a) { return a.kind === 'track' || a.kind === 'timer'; })) { try { _viAnnRedraw(); } catch (e) {} } }
+    var pr = _viProject(_VI.projectId); if (pr && (pr.annotations || []).some(function (a) { return (!v.paused && (a.kind === 'track' || a.kind === 'timer')) || (a.kind && a.kind.indexOf('d3') === 0 && a.anim !== false && !a.hidden); })) { try { _viAnnRedraw(); } catch (e) {} }
   }
   requestAnimationFrame(_viwRaf);
 }
@@ -45191,7 +45195,77 @@ function _viCalibrateCommit(a, b) {
 }
 function _vipRefreshToolbar() { var el = document.querySelector('.vip-toolbar'); if (!el) return; var tmp = document.createElement('div'); tmp.innerHTML = _vipToolbar(); if (tmp.firstChild) el.parentNode.replaceChild(tmp.firstChild, el); }
 
+/* ============================================================
+   FAMILISTA 3D TELESTRATION — perspective-extrusion render engine
+   (canvas 2.5D: extruded faces + shading + lighting gradients + drop shadow
+   + tube strokes + spotlight vignette + flow animation). Genuinely 3D-looking,
+   honestly a perspective render — not a WebGL scene. Kinds: d3zone/d3arrow/
+   d3line/d3formarea/d3formline/d3cone/d3spot/d3marker/d3label/d3distance. ============================================================ */
+function _vi3dIs(kind) { return !!kind && kind.indexOf('d3') === 0; }
+function _vi3dPhase() { return (Date.now() % 1600) / 1600; }
+function _vi3dPulse() { return 0.5 + 0.5 * Math.sin(Date.now() / 480); }
+function _vi3dAdj(hex, f) { hex = hex || '#38f5c8'; if (hex[0] !== '#') return hex; var n = parseInt(hex.slice(1), 16); var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; function c(v) { return Math.max(0, Math.min(255, Math.round(v + (f > 0 ? (255 - v) * f : v * f)))); } return 'rgb(' + c(r) + ',' + c(g) + ',' + c(b) + ')'; }
+function _vi3dRGBA(hex, a, f) { f = f || 0; hex = hex || '#38f5c8'; if (hex[0] !== '#') hex = '#38f5c8'; var n = parseInt(hex.slice(1), 16); var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; function c(v) { return Math.max(0, Math.min(255, Math.round(v + (f > 0 ? (255 - v) * f : v * f)))); } return 'rgba(' + c(r) + ',' + c(g) + ',' + c(b) + ',' + a + ')'; }
+function _viRoundRect(ctx, x, y, w, h, r) { if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; } ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function _vi3dCard(ctx, cx, cy, txt, col, op) { ctx.save(); ctx.font = '700 13px Inter,Arial'; var w = ctx.measureText(txt).width + 22, h = 26, x = cx - w / 2, y = cy - h / 2; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4; var g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, _vi3dAdj(col, -0.02)); g.addColorStop(1, _vi3dAdj(col, -0.42)); ctx.globalAlpha = op; ctx.fillStyle = g; _viRoundRect(ctx, x, y, w, h, 7); ctx.fill(); ctx.shadowColor = 'transparent'; ctx.strokeStyle = _vi3dAdj(col, 0.45); ctx.lineWidth = 1.5; _viRoundRect(ctx, x, y, w, h, 7); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, cx, cy); ctx.restore(); }
+function _vi3dDrawShape(ctx, kind, a, b, an, ph) {
+  var col = (an && an.color) || _viAnnColor(); var op = (an && an.opacity != null) ? an.opacity : (_VI.ws.annOpacity == null ? 1 : _VI.ws.annOpacity); var anim = an ? (an.anim !== false) : (_VI.ws.anim3d !== false);
+  var cvw = ctx.canvas.width, cvh = ctx.canvas.height; ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 1;
+  if (kind === 'd3zone' || kind === 'd3formarea') {
+    var x1 = Math.min(a.x, b.x), y1 = Math.min(a.y, b.y), x2 = Math.max(a.x, b.x), y2 = Math.max(a.y, b.y); var H = (an && an.h) || 30;
+    ctx.save(); ctx.globalAlpha = op * 0.4; try { ctx.filter = 'blur(6px)'; } catch (e) {} ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.ellipse((x1 + x2) / 2, y2 + 7, (x2 - x1) / 2 * 0.96, 12, 0, 0, 6.283); ctx.fill(); ctx.filter = 'none'; ctx.restore();
+    ctx.globalAlpha = op;
+    var fg = ctx.createLinearGradient(0, y2 - H, 0, y2); fg.addColorStop(0, _vi3dAdj(col, -0.28)); fg.addColorStop(1, _vi3dAdj(col, -0.58)); ctx.fillStyle = fg; ctx.beginPath(); ctx.moveTo(x1, y2); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - H); ctx.lineTo(x1, y2 - H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = _vi3dAdj(col, -0.42); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x1, y2); ctx.lineTo(x1, y2 - H); ctx.lineTo(x1, y1 - H); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = _vi3dAdj(col, -0.32); ctx.beginPath(); ctx.moveTo(x2, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2, y2 - H); ctx.lineTo(x2, y1 - H); ctx.closePath(); ctx.fill();
+    var tg = ctx.createLinearGradient(x1, y1 - H, x2, y2 - H); tg.addColorStop(0, _vi3dRGBA(col, Math.min(0.62, op * 0.62), 0.28)); tg.addColorStop(1, _vi3dRGBA(col, Math.min(0.4, op * 0.4), -0.12)); ctx.fillStyle = tg; ctx.beginPath(); ctx.rect(x1, y1 - H, x2 - x1, y2 - y1); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.rect(x1, y1 - H, x2 - x1, y2 - y1); ctx.clip(); ctx.strokeStyle = _vi3dRGBA(col, 0.4, 0.45); ctx.lineWidth = 2; var off = anim ? ph * 14 : 0; for (var sx = x1 - (y2 - y1) - 14 + off; sx < x2 + 4; sx += 14) { ctx.beginPath(); ctx.moveTo(sx, y2 - H); ctx.lineTo(sx + (y2 - y1), y1 - H); ctx.stroke(); } ctx.restore();
+    ctx.strokeStyle = _vi3dRGBA(col, 1, 0.55); ctx.lineWidth = 2; ctx.strokeRect(x1, y1 - H, x2 - x1, y2 - y1);
+    ctx.strokeStyle = _vi3dRGBA(col, 0.45, -0.35); ctx.lineWidth = 1.5; ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+  } else if (kind === 'd3arrow') {
+    var ang = Math.atan2(b.y - a.y, b.x - a.x); var th = (an && an.width) ? an.width * 2 + 6 : 13; var hs = (an && an.headSize) || 20; var hx = b.x - hs * 0.7 * Math.cos(ang), hy = b.y - hs * 0.7 * Math.sin(ang);
+    ctx.save(); ctx.globalAlpha = op * 0.4; try { ctx.filter = 'blur(3px)'; } catch (e) {} ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = th + 3; ctx.beginPath(); ctx.moveTo(a.x + 3, a.y + 6); ctx.lineTo(hx + 3, hy + 6); ctx.stroke(); ctx.filter = 'none'; ctx.restore();
+    ctx.globalAlpha = op; ctx.strokeStyle = _vi3dAdj(col, -0.48); ctx.lineWidth = th; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = th - 3; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(hx, hy); ctx.stroke();
+    var ox = Math.sin(ang) * th * 0.22, oy = -Math.cos(ang) * th * 0.22; ctx.strokeStyle = _vi3dAdj(col, 0.55); ctx.lineWidth = Math.max(2, th * 0.32); ctx.beginPath(); ctx.moveTo(a.x + ox, a.y + oy); ctx.lineTo(hx + ox, hy + oy); ctx.stroke();
+    if (anim) { ctx.save(); ctx.strokeStyle = _vi3dRGBA(col, 0.95, 0.6); ctx.lineWidth = Math.max(2, th * 0.4); ctx.setLineDash([9, 15]); ctx.lineDashOffset = -ph * 24; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(hx, hy); ctx.stroke(); ctx.restore(); }
+    ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - hs * Math.cos(ang - 0.46), b.y - hs * Math.sin(ang - 0.46)); ctx.lineTo(b.x - hs * 0.55 * Math.cos(ang), b.y - hs * 0.55 * Math.sin(ang)); ctx.lineTo(b.x - hs * Math.cos(ang + 0.46), b.y - hs * Math.sin(ang + 0.46)); ctx.closePath(); var hg = ctx.createLinearGradient(b.x - hs * Math.cos(ang), b.y - hs * Math.sin(ang), b.x, b.y); hg.addColorStop(0, _vi3dAdj(col, 0.45)); hg.addColorStop(1, _vi3dAdj(col, -0.32)); ctx.fillStyle = hg; ctx.fill(); ctx.strokeStyle = _vi3dAdj(col, 0.5); ctx.lineWidth = 1.5; ctx.stroke();
+  } else if (kind === 'd3line' || kind === 'd3formline') {
+    var lth = (an && an.width) ? an.width * 2 + 4 : 11; ctx.globalAlpha = op;
+    if (an && an.glow !== false) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 12; ctx.strokeStyle = col; ctx.lineWidth = lth - 2; ctx.setLineDash(an && an.dash ? [12, 8] : []); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore(); }
+    ctx.strokeStyle = _vi3dAdj(col, -0.45); ctx.lineWidth = lth; ctx.setLineDash(an && an.dash ? [12, 8] : []); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = lth - 3; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    var la = Math.atan2(b.y - a.y, b.x - a.x); ctx.setLineDash([]); ctx.strokeStyle = _vi3dAdj(col, 0.5); ctx.lineWidth = Math.max(2, lth * 0.3); ctx.beginPath(); ctx.moveTo(a.x + Math.sin(la) * lth * 0.2, a.y - Math.cos(la) * lth * 0.2); ctx.lineTo(b.x + Math.sin(la) * lth * 0.2, b.y - Math.cos(la) * lth * 0.2); ctx.stroke();
+  } else if (kind === 'd3spot') {
+    var r = Math.hypot(b.x - a.x, b.y - a.y) || 60; var pr = anim ? (0.96 + 0.08 * _vi3dPulse()) : 1; r *= pr; var ry = r * 0.5;
+    ctx.save(); ctx.globalAlpha = op * 0.55; ctx.beginPath(); ctx.rect(0, 0, cvw, cvh); ctx.ellipse(a.x, a.y, r, ry, 0, 0, 6.283, true); ctx.fillStyle = 'rgba(2,6,12,.72)'; ctx.fill('evenodd'); ctx.restore();
+    ctx.save(); ctx.globalAlpha = op; var bg = ctx.createLinearGradient(a.x, a.y - r * 2.6, a.x, a.y); bg.addColorStop(0, _vi3dRGBA(col, 0, 0.5)); bg.addColorStop(1, _vi3dRGBA(col, 0.16, 0.4)); ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(a.x - r * 0.22, a.y - r * 2.6); ctx.lineTo(a.x + r * 0.22, a.y - r * 2.6); ctx.lineTo(a.x + r, a.y); ctx.lineTo(a.x - r, a.y); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.globalAlpha = op; var rg = ctx.createRadialGradient(a.x, a.y - ry * 0.3, r * 0.08, a.x, a.y, r); rg.addColorStop(0, _vi3dRGBA(col, 0.6, 0.5)); rg.addColorStop(0.65, _vi3dRGBA(col, 0.22, 0.2)); rg.addColorStop(1, _vi3dRGBA(col, 0, 0)); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(a.x, a.y, r, ry, 0, 0, 6.283); ctx.fill(); ctx.strokeStyle = _vi3dRGBA(col, 0.95, 0.5); ctx.lineWidth = 2.5; ctx.stroke(); ctx.restore();
+  } else if (kind === 'd3cone') {
+    var cang = Math.atan2(b.y - a.y, b.x - a.x); var L = Math.hypot(b.x - a.x, b.y - a.y) || 90; var half = ((an && an.coneAngle) || 46) * Math.PI / 360; ctx.globalAlpha = op;
+    var cg = ctx.createLinearGradient(a.x, a.y, a.x + Math.cos(cang) * L, a.y + Math.sin(cang) * L); cg.addColorStop(0, _vi3dRGBA(col, 0.52, 0.4)); cg.addColorStop(1, _vi3dRGBA(col, 0.04, 0)); ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.arc(a.x, a.y, L, cang - half, cang + half); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = _vi3dRGBA(col, 0.75, 0.4); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(a.x, a.y, L, cang - half, cang + half); ctx.stroke();
+    ctx.strokeStyle = _vi3dRGBA(col, 0.6, 0.3); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + Math.cos(cang - half) * L, a.y + Math.sin(cang - half) * L); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + Math.cos(cang + half) * L, a.y + Math.sin(cang + half) * L); ctx.stroke();
+    ctx.fillStyle = _vi3dAdj(col, 0.4); ctx.beginPath(); ctx.arc(a.x, a.y, 5, 0, 6.283); ctx.fill();
+  } else if (kind === 'd3marker') {
+    var mr = Math.max(14, Math.hypot(b.x - a.x, b.y - a.y) || 16);
+    ctx.save(); ctx.globalAlpha = op * 0.45; try { ctx.filter = 'blur(3px)'; } catch (e) {} ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.beginPath(); ctx.ellipse(a.x, a.y + mr * 0.5, mr * 0.95, mr * 0.36, 0, 0, 6.283); ctx.fill(); ctx.filter = 'none'; ctx.restore();
+    ctx.globalAlpha = op; var mg = ctx.createRadialGradient(a.x - mr * 0.3, a.y - mr * 0.35, mr * 0.2, a.x, a.y, mr); mg.addColorStop(0, _vi3dAdj(col, 0.5)); mg.addColorStop(1, _vi3dAdj(col, -0.32)); ctx.fillStyle = mg; ctx.beginPath(); ctx.ellipse(a.x, a.y, mr, mr * 0.72, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = _vi3dAdj(col, 0.6); ctx.lineWidth = 2.5; ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(a.x, a.y - 2, mr * 0.68, mr * 0.42, 0, 3.7, 5.7); ctx.stroke();
+    if (an && an.label) { ctx.fillStyle = '#04121f'; ctx.font = '800 ' + Math.round(mr * 0.85) + 'px Inter,Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(an.label, a.x, a.y); }
+  } else if (kind === 'd3label') {
+    var lt = (an && an.label) || 'Label'; ctx.globalAlpha = op; ctx.font = '700 13px Inter,Arial'; var lw = ctx.measureText(lt).width + 22, lh = 26;
+    ctx.strokeStyle = _vi3dRGBA(col, 0.85, 0.3); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a.x, a.y + lh / 2); ctx.lineTo(a.x, a.y + lh / 2 + 18); ctx.stroke(); ctx.fillStyle = _vi3dAdj(col, 0.3); ctx.beginPath(); ctx.arc(a.x, a.y + lh / 2 + 18, 3.5, 0, 6.283); ctx.fill();
+    _vi3dCard(ctx, a.x, a.y, lt, col, op);
+  } else if (kind === 'd3distance') {
+    ctx.globalAlpha = op; ctx.setLineDash([7, 5]); ctx.strokeStyle = _vi3dRGBA(col, 0.92, 0.3); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
+    [a, b].forEach(function (pt) { ctx.save(); ctx.globalAlpha = op * 0.4; try { ctx.filter = 'blur(2px)'; } catch (e) {} ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.beginPath(); ctx.ellipse(pt.x, pt.y + 2, 6, 3, 0, 0, 6.283); ctx.fill(); ctx.filter = 'none'; ctx.restore(); ctx.strokeStyle = _vi3dAdj(col, 0.4); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x, pt.y - 16); ctx.stroke(); ctx.fillStyle = _vi3dAdj(col, 0.5); ctx.beginPath(); ctx.arc(pt.x, pt.y - 18, 4, 0, 6.283); ctx.fill(); });
+    _vi3dCard(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2 - 22, _viDistLabel(a, b), col, op);
+  }
+  ctx.restore();
+}
 function _viAnnDrawShape(ctx, tool, a, b, path, an) {
+  if (_vi3dIs(tool)) { _vi3dDrawShape(ctx, tool, a, b, an, _vi3dPhase()); return; }
   ctx.save();
   var col = (an && an.color) || _viAnnColor();
   ctx.strokeStyle = col; ctx.fillStyle = 'rgba(56,245,200,.16)';
@@ -45249,6 +45323,11 @@ function _viAnnCommit(tool, a, b, path) {
   var an;
   if (tool === 'text') { var txt = window.prompt('Annotation text:'); if (!txt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: 'text', x: a.x, y: a.y, label: String(txt).slice(0, 200), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dur: 3 }; }
   else if (tool === 'timer') { an = { id: _viUid(), t: _viCurTime(), kind: 'timer', x: a.x, y: a.y, start: 0, countdown: false, size: 22, color: _viAnnColor(), opacity: (w.annOpacity == null ? 1 : w.annOpacity), dur: 600 }; }
+  else if (_vi3dIs(tool)) {
+    if (tool === 'd3label') { var lt = window.prompt('3D label text:'); if (!lt) { _viAnnRedraw(); return; } an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, label: String(lt).slice(0, 60), color: _viAnnColor(), opacity: w.annOpacity, anim: w.anim3d !== false, dur: 1e9 }; }
+    else if (tool === 'd3marker') { var mn = window.prompt('Marker number / label (blank ok):', '') || ''; an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: (b.x !== a.x ? b.x : a.x + 16), y2: (b.y !== a.y ? b.y : a.y + 16), label: mn.slice(0, 6), color: _viAnnColor(), opacity: w.annOpacity, anim: false, dur: 1e9 }; }
+    else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, color: _viAnnColor(), opacity: w.annOpacity, width: w.annWidth, dash: w.annDash, h: (tool === 'd3zone' || tool === 'd3formarea') ? 30 : 0, anim: w.anim3d !== false, dur: 1e9 }; }
+  }
   else { an = { id: _viUid(), t: _viCurTime(), kind: tool, x: a.x, y: a.y, x2: b.x, y2: b.y, path: (tool === 'free' ? path : null), color: _viAnnColor(), width: w.annWidth, opacity: w.annOpacity, dash: w.annDash, fill: !!w.annFill, dur: 3 }; }
   p.annotations.push(an); if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: an }); _viTouch(p); _viAnnRedraw(); if (typeof _viwAutosave === 'function') _viwAutosave('saved'); if (typeof _viwUpdateLeft === 'function' && _VI.ws.leftTab === 'layers') _viwUpdateLeft();
 }
@@ -45402,7 +45481,7 @@ function _viWireCanvas() {
     var tool = _VI.ws.tool;
     if ((!tool || tool === 'select')) { if (selDrag && selDrag.moved) { var p = _viProject(_VI.projectId); _viTouch(p); _viwAutosave('saved'); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); } if (selDrag) { try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} } selDrag = null; return; }
     if (tool === 'eraser' || MULTI[tool] || !start) { start = null; return; }
-    var end = rel(ev); if (tool === 'text' || tool === 'xmark' || tool === 'omark' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+    var end = rel(ev); if (tool === 'text' || tool === 'xmark' || tool === 'omark' || tool === 'd3label' || tool === 'd3marker' || moved || Math.hypot(end.x - start.x, end.y - start.y) > 3) _viAnnCommit(tool, start, end, path); start = null; path = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
   }
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('dblclick', function () { if (_VI.ws.pending && _VI.ws.pending.points.length >= 2) _viwCommitPending(); });
@@ -45503,6 +45582,7 @@ function _viwAct(a, v, ev) {
     case 'calibrate': _viCalibrate(); _vipRefreshToolbar(); break;
     case 'calibreset': var pc = _viProject(_VI.projectId); if (pc) { pc.calib = null; _viTouch(pc); _viAnnRedraw(); _vipRefreshToolbar(); _viToast('Calibration reset — distances show relative/estimated units'); } break;
     case 'annfill': _VI.ws.annFill = !_VI.ws.annFill; _vipSyncTool(); _viApplyStyleToSel('fill', _VI.ws.annFill); break;
+    case 'anim3d': _VI.ws.anim3d = _VI.ws.anim3d === false; var ab = document.querySelector('.vip-anim3d'); if (ab) ab.classList.toggle('is-on', _VI.ws.anim3d !== false); var sa3 = _viAnnSelected(); if (sa3 && _vi3dIs(sa3.kind)) { sa3.anim = _VI.ws.anim3d !== false; var p3 = _viProject(_VI.projectId); if (p3) _viTouch(p3); } _viToast('3D flow animation ' + (_VI.ws.anim3d !== false ? 'ON' : 'OFF')); break;
     case 'prevev': _viwStepEvent(-1); break;
     case 'nextev': _viwStepEvent(1); break;
     case 'quicktag': _VI.ws.quickTag = !_VI.ws.quickTag; _viwUpdateLeft(); _viToast('Quick-tag ' + (_VI.ws.quickTag ? 'ON — click a type to tag instantly' : 'OFF')); break;
