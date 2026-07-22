@@ -44572,32 +44572,35 @@ function _vipHeader(p) {
 }
 function _vipToolbar() {
   var w = _VI.ws;
-  var tools = [['select','▚','Select','V'],['circle','◯','Circle','C'],['arrow','↗','Arrow','A'],['rect','▭','Rectangle','R'],['line','／','Line',''],['curve','⤳','Curved lane',''],['zone','◨','Zone','Z'],['spotlight','◎','Spotlight','S'],['xmark','✕','X marker',''],['omark','⭘','O marker',''],['cone','◔','Vision cone',''],['connect','⧉','Formation',''],['distance','↔','Distance',''],['angle','∠','Angle',''],['sequence','①','Sequence',''],['timer','⏱','Timer',''],['free','✎','Free Draw',''],['text','T','Text',''],['track','⌖','Track',''],['eraser','⌫','Eraser','E']];
-  var t = tools.map(function(x){ return '<button class="viw-dtool vip-tool'+(w.tool===x[0]?' is-on':'')+'" data-viw-act="tool" data-viw="'+x[0]+'" title="'+x[2]+(x[3]?' ('+x[3]+')':'')+'" type="button"><em>'+x[1]+'</em><span>'+x[2]+'</span></button>'; }).join('');
-  var colors = ['#ffffff','#f43f5e','#fb923c','#fbbf24','#4ade80','#2dd4bf','#38bdf8','#a78bfa'];
-  var sw = colors.map(function(c){ return '<button class="vip-sw'+(w.annColor===c?' is-on':'')+'" style="--sw:'+c+'" data-viw-act="anncolor" data-viw="'+c+'" title="'+c+'"></button>'; }).join('');
+  function tb(x) { return '<button class="viw-dtool vip-tool' + (w.tool === x[0] ? ' is-on' : '') + '" data-viw-act="tool" data-viw="' + x[0] + '" title="' + x[2] + (x[3] ? ' (' + x[3] + ')' : '') + '" type="button"><em>' + x[1] + '</em><span>' + x[2] + '</span></button>'; }
+  function grp(label, arr, extra) { return '<div class="vip-tgroup"><span class="vip-glabel">' + label + '</span><div class="vip-tools">' + (arr ? arr.map(tb).join('') : '') + (extra || '') + '</div></div>'; }
+  var G = {
+    Select: [['select', '▚', 'Select', 'V']],
+    Player: [['xmark', '✕', 'X marker', ''], ['omark', '⭘', 'O marker', ''], ['spotlight', '◎', 'Spotlight', 'S'], ['text', 'T', 'Label', ''], ['track', '⌖', 'Track', '']],
+    Shapes: [['circle', '◯', 'Circle', 'C'], ['rect', '▭', 'Rectangle', 'R'], ['triangle', '△', 'Triangle', ''], ['zone', '◨', 'Zone', 'Z'], ['connect', '⬠', 'Formation', '']],
+    Lines: [['line', '／', 'Line', ''], ['arrow', '↗', 'Arrow', 'A'], ['curve', '⤳', 'Curved', ''], ['distance', '↔', 'Distance', '']],
+    Analysis: [['angle', '∠', 'Angle', ''], ['cone', '◔', 'Vision', ''], ['sequence', '①', 'Sequence', ''], ['timer', '⏱', 'Timer', '']],
+    Content: [['free', '✎', 'Free', ''], ['eraser', '⌫', 'Eraser', 'E']]
+  };
+  var colors = ['#ffffff', '#f43f5e', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa'];
+  var sw = colors.map(function (c) { return '<button class="vip-sw' + (w.annColor === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-viw-act="anncolor" data-viw="' + c + '" title="' + c + '"></button>'; }).join('');
+  var keyBtns = '<button class="viw-dtool vip-tool" data-viw-act="trackprev" title="Previous tracking keyframe (Manual / Assisted)" type="button"><em>⟝</em><span>Prev</span></button><button class="viw-dtool vip-tool" data-viw-act="tracknext" title="Next tracking keyframe" type="button"><em>⟞</em><span>Next</span></button><button class="viw-dtool vip-tool" data-viw-act="trackdel" title="Delete keyframe at current time" type="button"><em>⌦</em><span>Del</span></button>';
+  var editBtns = '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button><button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button><button class="viw-dtool vip-tool" data-viw-act="dupsel" title="Duplicate selected" type="button"><em>⧉</em><span>Dup</span></button><button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Del</span></button><button class="viw-dtool vip-tool" data-viw-act="locksel" title="Lock / unlock selected" type="button"><em>🔒</em><span>Lock</span></button><button class="viw-dtool vip-tool" data-viw-act="hidesel" title="Hide / show selected" type="button"><em>◌</em><span>Hide</span></button><button class="viw-dtool vip-tool" data-viw-act="bringfwd" title="Bring forward" type="button"><em>⤒</em><span>Fwd</span></button><button class="viw-dtool vip-tool" data-viw-act="sendback" title="Send backward" type="button"><em>⤓</em><span>Back</span></button><button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button><button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>';
+  var styleCtl = '<div class="vip-sws">' + sw + '</div><label class="vip-thick" title="Thickness">▭<input type="range" id="viw-annw" min="1" max="10" step="1" value="' + (w.annWidth || 3) + '" data-viw-act="annwidth"></label><label class="vip-thick" title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="' + (w.annOpacity == null ? 1 : w.annOpacity) + '" data-viw-act="annopacity"></label><button class="viw-dtool vip-tool vip-fillbtn' + (w.annFill ? ' is-on' : '') + '" data-viw-act="annfill" title="Fill" type="button"><em>◧</em></button><button class="viw-dtool vip-tool vip-dashbtn' + (w.annDash ? ' is-on' : '') + '" data-viw-act="anndash" title="Solid / dashed" type="button"><em>' + (w.annDash ? '┄' : '──') + '</em></button>';
+  var cal = (_viProject(_VI.projectId) || {}).calib; var calBadge = (cal && cal.status === 'calibrated') ? '<span class="vip-calib is-on" title="' + cal.refLen + ' m reference (flat, no perspective)">📐 ' + cal.refLen + ' m</span>' : (cal && cal.status === 'invalid') ? '<span class="vip-calib is-bad">Invalid</span>' : '<span class="vip-calib">Not calibrated</span>';
+  var calCtl = calBadge + '<button class="viw-dtool vip-tool' + (_VI.ws.calibrating ? ' is-on' : '') + '" data-viw-act="calibrate" title="Calibrate pitch — draw a known distance" type="button"><em>📐</em><span>Calib</span></button>' + (cal ? '<button class="viw-dtool vip-tool" data-viw-act="calibreset" title="Reset calibration" type="button"><em>⟲</em></button>' : '');
   return '<div class="vip-toolbar">'
-    + '<div class="vip-tools">' + t + '</div>'
-    + '<div class="vip-tsep"></div>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="undo" id="viw-undo" title="Undo (Ctrl+Z)" type="button"><em>↶</em><span>Undo</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="redo" id="viw-redo" title="Redo (Ctrl+Shift+Z)" type="button"><em>↷</em><span>Redo</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="delsel" title="Delete selected (Del)" type="button"><em>🗑</em><span>Delete</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="clearframe" title="Clear this frame" type="button"><em>✖</em><span>Clear</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="saveframe" title="Save frame PNG" type="button"><em>📷</em><span>Frame</span></button>'
-    + '<div class="vip-tsep"></div>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="trackprev" title="Previous tracking keyframe" type="button"><em>⟝</em><span>Key</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="tracknext" title="Next tracking keyframe" type="button"><em>⟞</em><span>Key</span></button>'
-    + '<button class="viw-dtool vip-tool" data-viw-act="trackdel" title="Delete keyframe at current time" type="button"><em>⌦</em><span>Key</span></button>'
-    + '<div class="vip-tsep"></div>'
-    + '<div class="vip-sws">' + sw + '</div>'
-    + '<div class="vip-tsep"></div>'
-    + '<label class="vip-thick" title="Thickness">▭<input type="range" id="viw-annw" min="1" max="10" step="1" value="'+(w.annWidth||3)+'" data-viw-act="annwidth"></label>'
-    + '<label class="vip-thick" title="Opacity">◐<input type="range" id="viw-anno" min="0.2" max="1" step="0.1" value="'+(w.annOpacity==null?1:w.annOpacity)+'" data-viw-act="annopacity"></label>'
-    + '<button class="viw-dtool vip-tool vip-fillbtn'+(w.annFill?' is-on':'')+'" data-viw-act="annfill" title="Fill shape" type="button"><em>◧</em></button>'
-    + '<button class="viw-dtool vip-tool vip-dashbtn'+(w.annDash?' is-on':'')+'" data-viw-act="anndash" title="Solid / dashed" type="button"><em>'+(w.annDash?'┄':'──')+'</em></button>'
-    + '<div class="vip-tsep"></div>'
-    + (function(){ var cal=(_viProject(_VI.projectId)||{}).calib; var badge = (cal&&cal.status==='calibrated') ? '<span class="vip-calib is-on" title="'+cal.refLen+' m reference (flat, no perspective)">📐 '+cal.refLen+' m</span>' : (cal&&cal.status==='invalid') ? '<span class="vip-calib is-bad">Invalid calib</span>' : '<span class="vip-calib">Not calibrated</span>';
-      return badge + '<button class="viw-dtool vip-tool'+(_VI.ws.calibrating?' is-on':'')+'" data-viw-act="calibrate" title="Calibrate pitch — draw a known distance" type="button"><em>📐</em><span>Calibrate</span></button>' + (cal?'<button class="viw-dtool vip-tool" data-viw-act="calibreset" title="Reset calibration" type="button"><em>⟲</em></button>':''); })()
+    + grp('Select', G.Select) + '<div class="vip-tsep"></div>'
+    + grp('Players', G.Player) + '<div class="vip-tsep"></div>'
+    + grp('Shapes', G.Shapes) + '<div class="vip-tsep"></div>'
+    + grp('Lines', G.Lines) + '<div class="vip-tsep"></div>'
+    + grp('Analysis', G.Analysis) + '<div class="vip-tsep"></div>'
+    + grp('Content', G.Content) + '<div class="vip-tsep"></div>'
+    + grp('Keyframe', null, keyBtns) + '<div class="vip-tsep"></div>'
+    + grp('Edit', null, editBtns) + '<div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup"><span class="vip-glabel">Style</span><div class="vip-tools vip-styg">' + styleCtl + '</div></div><div class="vip-tsep"></div>'
+    + '<div class="vip-tgroup"><span class="vip-glabel">Measure</span><div class="vip-tools">' + calCtl + '</div></div><div class="vip-tsep"></div>'
+    + '<span class="vip-2dbadge" title="Flat 2D telestration. 3D Telestration — Perspective Engine Required (not connected). Tracking is Manual / Assisted — Computer Vision Service Required for automatic tracking.">2D Telestration</span>'
     + '</div>';
 }
 function _vipInsights(p) {
@@ -45196,6 +45199,7 @@ function _viAnnDrawShape(ctx, tool, a, b, path, an) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (tool === 'circle') { var r = Math.hypot(b.x - a.x, b.y - a.y); ctx.beginPath(); ctx.arc(a.x, a.y, r, 0, 6.283); if (an && an.fill) { ctx.save(); ctx.globalAlpha = Math.min(ctx.globalAlpha, .22); ctx.fillStyle = col; ctx.fill(); ctx.restore(); } ctx.stroke(); }
   else if (tool === 'rect') { ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); if (an && an.fill) { ctx.save(); ctx.globalAlpha = Math.min(ctx.globalAlpha, .22); ctx.fillStyle = col; ctx.fill(); ctx.restore(); } ctx.stroke(); }
+  else if (tool === 'triangle') { var tlx = Math.min(a.x, b.x), trx = Math.max(a.x, b.x), tby = Math.max(a.y, b.y), tty = Math.min(a.y, b.y); ctx.beginPath(); ctx.moveTo((tlx + trx) / 2, tty); ctx.lineTo(trx, tby); ctx.lineTo(tlx, tby); ctx.closePath(); if (an && an.fill) { ctx.save(); ctx.globalAlpha = Math.min(ctx.globalAlpha, .22); ctx.fillStyle = col; ctx.fill(); ctx.restore(); } ctx.stroke(); }
   else if (tool === 'arrow') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); var ang = Math.atan2(b.y - a.y, b.x - a.x); ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - 13 * Math.cos(ang - 0.4), b.y - 13 * Math.sin(ang - 0.4)); ctx.lineTo(b.x - 13 * Math.cos(ang + 0.4), b.y - 13 * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); }
   else if (tool === 'line') { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
   else if (tool === 'zone') { ctx.fillStyle = col.replace(')', ',.14)').replace('rgb', 'rgba'); ctx.globalAlpha = Math.min(ctx.globalAlpha, .4); ctx.beginPath(); ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y)); ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); }
@@ -45281,6 +45285,10 @@ function _viCurveHandles(an) { var mx = (an.x + an.x2) / 2, my = (an.y + an.y2) 
 function _viCurveHandleDrag(an, handle, px, py) { if (handle === 'start') { an.x = px; an.y = py; } else if (handle === 'end') { an.x2 = px; an.y2 = py; } else if (handle === 'ctrl') { var mx = (an.x + an.x2) / 2, my = (an.y + an.y2) / 2; var nx = -(an.y2 - an.y), ny = (an.x2 - an.x); var nl = Math.hypot(nx, ny) || 1; var dist = Math.hypot(an.x2 - an.x, an.y2 - an.y) || 1; an.bend = ((px - mx) * nx + (py - my) * ny) / nl / dist; } }
 function _viAnnSelected() { var p = _viProject(_VI.projectId); if (!p || !_VI.ws.selAnn) return null; return (p.annotations || []).filter(function (a) { return a.id === _VI.ws.selAnn; })[0] || null; }
 function _viApplyStyleToSel(prop, val) { var an = _viAnnSelected(); if (an && !an.locked) { an[prop] = val; var p = _viProject(_VI.projectId); if (p) _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); } }
+function _viAnnDupSel() { var p = _viProject(_VI.projectId); var an = _viAnnSelected(); if (!p || !an) { _viToast('Select an annotation first'); return; } var c = JSON.parse(JSON.stringify(an)); c.id = _viUid(); if (c.x != null) { c.x += 12; c.y += 12; } if (c.x2 != null) { c.x2 += 12; c.y2 += 12; } if (c.points) c.points.forEach(function (q) { q.x += 12; q.y += 12; }); if (c.keys) c.keys.forEach(function (k) { k.x += 12; k.y += 12; }); p.annotations.push(c); _VI.ws.selAnn = c.id; if (typeof _viwPushUndo === 'function') _viwPushUndo({ t: 'add', ann: c }); _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); _viwAutosave('saved'); _viToast('Duplicated'); }
+function _viAnnLockSel() { var an = _viAnnSelected(); if (!an) return; an.locked = !an.locked; var p = _viProject(_VI.projectId); _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); _viToast(an.locked ? 'Locked' : 'Unlocked'); }
+function _viAnnHideSel() { var an = _viAnnSelected(); if (!an) return; an.hidden = !an.hidden; var p = _viProject(_VI.projectId); _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); _viToast(an.hidden ? 'Hidden' : 'Shown'); }
+function _viAnnZOrder(dir) { var p = _viProject(_VI.projectId); var an = _viAnnSelected(); if (!p || !an) { _viToast('Select an annotation first'); return; } var i = p.annotations.indexOf(an); if (i < 0) return; if (dir > 0 && i < p.annotations.length - 1) { p.annotations.splice(i, 1); p.annotations.splice(i + 1, 0, an); } else if (dir < 0 && i > 0) { p.annotations.splice(i, 1); p.annotations.splice(i - 1, 0, an); } else { return; } _viTouch(p); _viAnnRedraw(); if (_VI.ws.leftTab === 'layers') _viwUpdateLeft(); _viToast(dir > 0 ? 'Brought forward' : 'Sent backward'); }
 function _viAnnDeleteSelected() {
   var p = _viProject(_VI.projectId); if (!p) return; var an = _viAnnSelected(); if (!an) { _viToast('Select an annotation first (Select tool)'); return; }
   if (an.locked) { _viToast('Annotation is locked'); return; }
@@ -45484,6 +45492,11 @@ function _viwAct(a, v, ev) {
     case 'undo': _viwUndo(); break;
     case 'redo': _viwRedo(); break;
     case 'delsel': _viAnnDeleteSelected(); break;
+    case 'dupsel': _viAnnDupSel(); break;
+    case 'locksel': _viAnnLockSel(); break;
+    case 'hidesel': _viAnnHideSel(); break;
+    case 'bringfwd': _viAnnZOrder(1); break;
+    case 'sendback': _viAnnZOrder(-1); break;
     case 'trackprev': _viTrackKeyStep(-1); break;
     case 'tracknext': _viTrackKeyStep(1); break;
     case 'trackdel': _viTrackDelKey(); break;
