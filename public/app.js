@@ -45916,14 +45916,32 @@ function _vistHead(ctx, pts, size, col) { if (pts.length < 2) return; var p = pt
 function _vistDashSegs(pts, dash, gap) { var out = [], seg = [], total = 0, i; for (i = 1; i < pts.length; i++) { var l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(l); total += l; } var acc = 0, on = true, cur = [pts[0]]; for (i = 1; i < pts.length; i++) { cur.push(pts[i]); acc += seg[i - 1]; if (acc >= (on ? dash : gap)) { if (on && cur.length > 1) out.push(cur); acc = 0; on = !on; cur = [pts[i]]; } } if (on && cur.length > 1) out.push(cur); return out; }
 function _vistRound(ctx, x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; } ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 
+function _vistBall(ctx, x, y, r) {
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(x, y + r * 0.95, r * 0.95, r * 0.42, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
+  var g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.2, x, y, r); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#c6ccd4');
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.stroke();
+  ctx.fillStyle = 'rgba(18,22,28,.92)'; ctx.beginPath(); for (var i = 0; i < 5; i++) { var a = i / 5 * 6.283 - 1.571; var rr = r * 0.36; var px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
 function _vistArrow(ctx, an, prog, W, H) {
-  var pts = _vistTrim(_vistSample(an, W, H), Math.max(prog, 0.001)); if (pts.length < 2) return; var col = an.color, hw = (an.width || 6);
+  var pts = _vistTrim(_vistSample(an, W, H), Math.max(prog, 0.001)); if (pts.length < 2) return;
+  var col = an.color, hw = (an.width || 6), isPass = an.tool === 'pass', animating = prog < 0.992, ph = (Date.now() % 1600) / 1600;
   ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if (an.tool === 'darrow' || an.dash) { _vistDashSegs(pts, 20, 13).forEach(function (sg) { _vistArrowTube(ctx, sg, hw, col, an.shadow !== false); }); }
-  else if (an.tool === 'run') { ctx.save(); ctx.setLineDash([3, 7]); ctx.strokeStyle = col; ctx.lineWidth = hw * 0.9; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.restore(); }
+  else if (an.tool === 'run') { ctx.save(); ctx.setLineDash([hw * 0.5, hw * 1.5]); ctx.lineDashOffset = -ph * 46; ctx.strokeStyle = _vistShade(col, -.34); ctx.lineWidth = hw * 1.15; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = hw * 0.85; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.restore(); }
   else { if (an.glow !== false) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 6; _vistArrowTube(ctx, pts, hw, col, an.shadow !== false); ctx.restore(); } else _vistArrowTube(ctx, pts, hw, col, an.shadow !== false); }
-  if (prog > 0.05 && an.tool !== 'line') _vistHead(ctx, pts, hw * 2.4 + 7, col);
-  if (prog < 0.995) { var tip = pts[pts.length - 1]; var gg = ctx.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, hw * 1.8); gg.addColorStop(0, _vistRGBA(col, .55)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(tip.x, tip.y, hw * 1.8, 0, 7); ctx.fill(); }
+  if (an.tool !== 'run' && pts.length > 2) { ctx.save(); ctx.setLineDash([hw * 0.5, hw * 3.2]); ctx.lineDashOffset = -ph * 64; ctx.strokeStyle = 'rgba(255,255,255,.32)'; ctx.lineWidth = Math.max(1.4, hw * 0.26); ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.restore(); }
+  if (isPass) {
+    if (!animating) _vistHead(ctx, pts, hw * 2.3 + 7, col);
+    var tip = pts[pts.length - 1];
+    if (animating) { var q = pts[Math.max(0, pts.length - 5)]; var g2 = ctx.createLinearGradient(q.x, q.y, tip.x, tip.y); g2.addColorStop(0, 'rgba(255,255,255,0)'); g2.addColorStop(1, 'rgba(255,255,255,.55)'); ctx.strokeStyle = g2; ctx.lineWidth = hw * 0.5; ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(tip.x, tip.y); ctx.stroke(); }
+    _vistBall(ctx, tip.x, tip.y, Math.max(5.5, hw * 0.95));
+  } else {
+    if (prog > 0.05 && an.tool !== 'line') _vistHead(ctx, pts, hw * 2.4 + 7, col);
+    if (animating) { var tip2 = pts[pts.length - 1]; var gg = ctx.createRadialGradient(tip2.x, tip2.y, 0, tip2.x, tip2.y, hw * 1.8); gg.addColorStop(0, _vistRGBA(col, .55)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(tip2.x, tip2.y, hw * 1.8, 0, 7); ctx.fill(); }
+  }
   ctx.restore();
 }
 function _vistPoly(ctx, an, prog, W, H, env) {
@@ -45954,7 +45972,7 @@ function _vistDrawOne(ctx, an, T, W, H, presenting) {
   else if (tool === 'spot') { _vistSpot(ctx, a, b, col, an, env); }
   else if (tool === 'plabel' || tool === 'text' || tool === 'banner') { _vistLabel(ctx, a, an, env, tool); }
   else if (tool === 'offside') { _vistOffside(ctx, an, env, W, H); }
-  else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env); }
+  else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env, W); }
   else if (tool === 'angle') { _vistAngle(ctx, an, env, W, H); }
   else if (tool === 'cone') { _vistCone(ctx, a, b, col, an, env); }
   else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { _vistZone(ctx, an, env, W, H); }
@@ -45988,7 +46006,7 @@ function _vistLabel(ctx, a, an, env, tool) {
   ctx.fillStyle = '#f4f7fb'; ctx.textAlign = 'left'; ctx.fillText(txt, x + bar + pad, y + th / 2 + 0.5);
 }
 function _vistOffside(ctx, an, env, W, H) { var x = an.a.x * W; var side = an.side || 72; var dir = an.dir || 1; var gx0 = dir > 0 ? x : x - side; var col = an.color; ctx.save(); var g = ctx.createLinearGradient(gx0, 0, gx0 + side, 0); if (dir > 0) { g.addColorStop(0, _vistRGBA(col, .2)); g.addColorStop(1, _vistRGBA(col, 0)); } else { g.addColorStop(0, _vistRGBA(col, 0)); g.addColorStop(1, _vistRGBA(col, .2)); } ctx.fillStyle = g; ctx.fillRect(gx0, 0, side, H); ctx.setLineDash([12, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H * Math.min(1, env.reveal * 1.2)); ctx.stroke(); ctx.restore(); }
-function _vistDistance(ctx, a, b, col, env) { var bb = { x: a.x + (b.x - a.x) * env.reveal, y: a.y + (b.y - a.y) * env.reveal }; ctx.save(); ctx.setLineDash([8, 5]); ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); [a, bb].forEach(function (p) { ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (env.reveal > 0.5) { var W = ctx.canvas.width; var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var t = (Math.hypot(b.x - a.x, b.y - a.y) / W * 38).toFixed(1) + ' m'; ctx.font = '800 11.5px ui-monospace,monospace'; var w = ctx.measureText(t).width + 14; ctx.fillStyle = 'rgba(10,13,18,.9)'; _vistRound(ctx, mx - w / 2, my - 22, w, 18, 5); ctx.fill(); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, mx, my - 13); } ctx.restore(); }
+function _vistDistance(ctx, a, b, col, env, W) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); var t = metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
 function _vistAngle(ctx, an, env, W, H) { var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 3) { if (pts.length) { ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); } return; } ctx.save(); ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = an.color; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); ctx.shadowColor = 'transparent'; var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 26, a1, a2); ctx.strokeStyle = _vistRGBA(an.color, .8); ctx.lineWidth = 2; ctx.stroke(); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; ctx.font = '800 12px ui-monospace,monospace'; ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(Math.round(deg) + '°', pts[1].x, pts[1].y - 16); ctx.restore(); }
 function _vistCone(ctx, apex, edge, col, an, env) { var ang = Math.atan2(edge.y - apex.y, edge.x - apex.x); var L = Math.max(40, Math.hypot(edge.x - apex.x, edge.y - apex.y)) * env.reveal; var half = ((an.coneAngle || 46) * Math.PI / 360); ctx.save(); var g = ctx.createLinearGradient(apex.x, apex.y, apex.x + Math.cos(ang) * L, apex.y + Math.sin(ang) * L); g.addColorStop(0, _vistRGBA(col, .5)); g.addColorStop(1, _vistRGBA(col, .03)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(apex.x, apex.y); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.closePath(); ctx.fill(); ctx.strokeStyle = _vistRGBA(col, .8); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.stroke(); ctx.beginPath(); ctx.arc(apex.x, apex.y, 4, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.restore(); }
 function _vistZone(ctx, an, env, W, H) {
@@ -45999,9 +46017,12 @@ function _vistZone(ctx, an, env, W, H) {
   var open = (an.tool === 'fline'); var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9; pts.forEach(function (p) { minx = Math.min(minx, p.x); miny = Math.min(miny, p.y); maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); });
   function shape() { ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); if (!open) ctx.closePath(); }
   ctx.save(); ctx.lineJoin = 'round';
-  if (!open && pts.length >= 3) { shape(); var fg = ctx.createLinearGradient(0, miny, 0, maxy); fg.addColorStop(0, _vistRGBA(col, 0.07)); fg.addColorStop(1, _vistRGBA(col, 0.26)); ctx.fillStyle = fg; ctx.fill(); }
-  if (an.tool === 'szone') { ctx.save(); shape(); ctx.clip(); ctx.strokeStyle = _vistRGBA(col, 0.42); ctx.lineWidth = 1.5; var step = an.dense || 12; for (var x = minx - (maxy - miny) - 12; x < maxx + 4; x += step) { ctx.beginPath(); ctx.moveTo(x, maxy); ctx.lineTo(x + (maxy - miny), miny); ctx.stroke(); } ctx.restore(); }
-  shape(); ctx.strokeStyle = _vistRGBA(col, 0.95); ctx.lineWidth = 2.2; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  var rev = env.reveal == null ? 1 : env.reveal;
+  if (rev < 0.999) { ctx.beginPath(); ctx.rect(minx - 6, miny - 6, (maxx - minx + 12) * rev, (maxy - miny + 12)); ctx.clip(); }
+  if (!open && pts.length >= 3) { shape(); var fg = ctx.createLinearGradient(0, miny, 0, maxy); fg.addColorStop(0, _vistRGBA(col, 0.08)); fg.addColorStop(1, _vistRGBA(col, 0.30)); ctx.fillStyle = fg; ctx.fill(); }
+  if (an.tool === 'szone') { ctx.save(); shape(); ctx.clip(); var step = an.dense || 12; var soff = (Date.now() % 1400) / 1400 * step; ctx.strokeStyle = _vistRGBA(col, 0.5); ctx.lineWidth = Math.max(2, step * 0.34); for (var x = minx - (maxy - miny) - step + soff; x < maxx + 4; x += step) { ctx.beginPath(); ctx.moveTo(x, maxy); ctx.lineTo(x + (maxy - miny), miny); ctx.stroke(); } ctx.restore(); }
+  shape(); ctx.strokeStyle = _vistRGBA(col, 0.98); ctx.lineWidth = 2.4; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 10; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  ctx.save(); shape(); ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
   if (an.tool === 'fline' || an.tool === 'farea') { pts.forEach(function (p, i) { ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.fillStyle = '#08101a'; ctx.font = '700 9px ui-monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), p.x, p.y); }); }
   ctx.restore();
 }
@@ -46267,7 +46288,7 @@ function _vistRaf() {
   var viw = document.getElementById('viw'); if (!viw || !document.querySelector('.vi-studio') || _VI.tab !== 'workspace') { _VIST._raf = false; return; }
   var v = _viwVid(), dur = _viwDur();
   if (v && dur) { var pct = (v.currentTime / dur) * 100; var f = document.getElementById('vist-seek-fill'), h = document.getElementById('vist-seek-head'); if (f) f.style.width = pct + '%'; if (h) h.style.left = pct + '%'; var c = document.getElementById('vist-cur'); if (c) c.textContent = _viFmt(v.currentTime); var dd = document.getElementById('vist-dur'); if (dd && dd.textContent !== _viFmt(dur)) dd.textContent = _viFmt(dur); var pb = document.getElementById('vist-play'); if (pb) pb.textContent = v.paused ? '▶' : '❚❚'; }
-  if (v && !v.paused) _vistRedraw();
+  if ((v && !v.paused) || _vistAnns().length) _vistRedraw();
   requestAnimationFrame(_vistRaf);
 }
 
