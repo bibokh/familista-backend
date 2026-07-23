@@ -45792,3 +45792,505 @@ function _viwEvPlayerSearch(q) {
   var res = _viPlayers().filter(function (pl) { return sel.indexOf(pl.id) < 0 && (pl.name + ' ' + (pl.num || '')).toLowerCase().indexOf(q) >= 0; }).slice(0, 6);
   box.hidden = !res.length; box.innerHTML = res.map(function (pl) { return '<button data-vi-act="evplayer" data-vi="' + pl.id + '" type="button">' + (pl.num ? pl.num + ' · ' : '') + _viEsc(pl.name) + '</button>'; }).join('');
 }
+
+
+/* ===== STUDIO WORKSPACE (viwpro19) ===== */
+/* ============================================================================
+   FAMILISTA ANALYSER — STUDIO WORKSPACE (minimal, video-centered, broadcast
+   telestration + animation engine). Replaces the crowded VIP dashboard shell.
+   Reuses only safe primitives: video/time (_viwVid/_viwDur/_viwPlayPause/
+   _viwNudge/_viwStepFrame/_viwMark/_viwSeekTo/_viwFps/_viFmt/_viBlobGet),
+   data (_viProject/_viTouch/_viUid/_viSave), ui (_viToast/_viEsc).
+   Annotations persist in p.annotations (studio schema; normalised coords). ==== */
+var _VIST = { tool: 'select', sel: null, draft: null, drag: null, phase: 0, loop: false,
+  stepsOpen: false, def: { color: '#ff3d3d', opacity: 1, width: 6, fill: false, dash: false, shadow: true, glow: true, animType: 'drawon', animDur: 1.2 } };
+var _VIST_COLORS = ['#ffffff', '#ff3d3d', '#ffd23b', '#49a8ff', '#0e1216'];
+function _vistClamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function _vistEase(t) { t = _vistClamp(t, 0, 1); return t * t * (3 - 2 * t); }
+function _vistShade(hex, f) { if (!hex || hex[0] !== '#') return hex || '#ff3d3d'; var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; function c(v) { return Math.max(0, Math.min(255, Math.round(v + (f > 0 ? (255 - v) * f : v * f)))); } return 'rgb(' + c(r) + ',' + c(g) + ',' + c(b) + ')'; }
+function _vistRGBA(hex, a) { if (!hex || hex[0] !== '#') return hex; var n = parseInt(hex.slice(1), 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+
+/* ---- tool registry ---- */
+var _VIST_GK = { arrow: 'seg', curve: 'seg', darrow: 'seg', run: 'seg', pass: 'seg', line: 'seg', offside: 'seg', distance: 'seg', cone: 'seg', zone: 'seg', szone: 'seg',
+  ring: 'rad', dring: 'rad', spot: 'rad', plabel: 'pt', text: 'pt', banner: 'pt', polygon: 'poly', farea: 'poly', fline: 'poly', angle: 'poly3', free: 'freehand' };
+function _vistIcon(n) {
+  var P = {
+    select: '<path d="M5 3l7 17 2.2-6.8L21 11z"/>', ring: '<ellipse cx="12" cy="13" rx="8" ry="4"/>',
+    dring: '<ellipse cx="12" cy="13" rx="8" ry="4"/><ellipse cx="12" cy="13" rx="5" ry="2.4"/>',
+    spot: '<circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>',
+    plabel: '<path d="M4 8h9l6 4-6 4H4z"/><circle cx="8" cy="12" r="1.3" fill="currentColor" stroke="none"/>',
+    arrow: '<path d="M4 18 18 6"/><path d="M11 5h8v8"/>', curve: '<path d="M4 18C8 8 14 8 19 12"/><path d="M13 5l6 1-2 6"/>',
+    darrow: '<path d="M4 18h2M9 15h2M14 12h2"/><path d="M18 8l2 2-2 2M18 8l-3 4"/>', run: '<path d="M4 16c2-3 3 3 5 0s3 3 5 0 3 3 4 0"/><path d="M20 12l1 4-4 0"/>',
+    pass: '<circle cx="5" cy="18" r="1.6" fill="currentColor" stroke="none"/><path d="M6 17 18 6"/><path d="M11 5h8v8"/>',
+    fline: '<circle cx="6" cy="8" r="1.5"/><circle cx="18" cy="8" r="1.5"/><circle cx="12" cy="17" r="1.5"/><path d="M6 8 18 8M6 8 12 17M18 8 12 17"/>',
+    farea: '<path d="M12 4 20 10 17 19 7 19 4 10z"/><path d="M7 12 17 12"/>', zone: '<rect x="4" y="6" width="16" height="12" rx="1.5"/>',
+    szone: '<rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M7 17 10 8M12 17 15 8M17 17 19 11"/>', polygon: '<path d="M12 4 20 10 17 19 7 19 4 10z"/>',
+    cone: '<path d="M12 5 4 19h16z" opacity=".5"/><path d="M12 5 4 19M12 5 20 19"/>', offside: '<path d="M12 3v18"/><path d="M15 3h4v18h-4z" fill="currentColor" opacity=".25" stroke="none"/>',
+    distance: '<path d="M4 12h16"/><path d="M7 9 4 12l3 3M17 9l3 3-3 3"/>', angle: '<path d="M5 19V5"/><path d="M5 19h14"/><path d="M5 12a7 7 0 0 0 7 7"/>',
+    text: '<path d="M5 6h14M12 6v13M9 19h6"/>', banner: '<rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 12h10"/>',
+    free: '<path d="M4 16c3 0 3-8 6-8s3 8 6 8 4-4 4-4"/>', eraser: '<path d="M8 20 4 16l9-9 4 4-9 9z"/><path d="M14 20h6"/>',
+    undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h3"/>',
+    dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/>', del: '<path d="M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', fwd: '<path d="M12 19V5M6 11l6-6 6 6"/>', back: '<path d="M12 5v14M6 13l6 6 6-6"/>'
+  };
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (P[n] || '') + '</svg>';
+}
+var _VIST_GROUPS = [
+  [['select', 'Select']],
+  [['ring', 'Player ring'], ['dring', 'Double ring'], ['spot', 'Cinematic spotlight'], ['plabel', 'Player label']],
+  [['arrow', 'Straight arrow'], ['curve', 'Curved arrow'], ['darrow', 'Dashed arrow'], ['run', 'Animated run path'], ['pass', 'Pass arrow']],
+  [['fline', 'Formation line'], ['farea', 'Formation area'], ['zone', 'Filled tactical zone'], ['szone', 'Striped tactical zone'], ['polygon', 'Polygon'], ['cone', 'Vision cone']],
+  [['offside', 'Offside / terrain line'], ['distance', 'Distance'], ['angle', 'Angle']],
+  [['text', 'Text label'], ['banner', 'Overlay banner'], ['free', 'Free draw'], ['eraser', 'Eraser']]
+];
+var _VIST_EDIT = [['undo', 'Undo'], ['redo', 'Redo'], ['dup', 'Duplicate'], ['del', 'Delete'], ['lock', 'Lock / unlock'], ['fwd', 'Bring forward'], ['back', 'Send backward']];
+function _vistToolName(t) { for (var g = 0; g < _VIST_GROUPS.length; g++) for (var i = 0; i < _VIST_GROUPS[g].length; i++) if (_VIST_GROUPS[g][i][0] === t) return _VIST_GROUPS[g][i][1]; return t; }
+
+/* ---- shell ---- */
+function _viStudioShell(p) {
+  var w = _VI.ws;
+  var vidHtml = p.video
+    ? '<video class="vi-video vi-fit-' + (w.fit || 'fill') + '" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video><canvas class="vi-canvas" id="vi-canvas"></canvas><div class="vi-vstatus" id="vi-vstatus" hidden></div>'
+    : '<div class="vist-novid"><span class="vist-novid-ic">🎬</span><b>No video linked</b><p>Reattach the original MP4/MOV/WebM to analyse — nothing is fabricated.</p><button class="vist-btn vist-btn--p" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
+  var rail = _VIST_GROUPS.map(function (g, gi) {
+    return g.map(function (t) { return '<button class="vist-tool' + (_VIST.tool === t[0] ? ' is-on' : '') + '" data-vst-act="tool" data-vst="' + t[0] + '" data-tip="' + t[1] + '" type="button">' + _vistIcon(t[0]) + '</button>'; }).join('')
+      + (gi < _VIST_GROUPS.length - 1 ? '<div class="vist-rsep"></div>' : '');
+  }).join('');
+  var edit = _VIST_EDIT.map(function (e) { return '<button class="vist-tool vist-tool--sm' + (e[0] === 'del' ? ' vist-tool--danger' : '') + '" data-vst-act="' + e[0] + '" data-tip="' + e[1] + '" type="button">' + _vistIcon(e[0]) + '</button>'; }).join('');
+  var sw = _VIST_COLORS.map(function (c) { return '<button class="vist-sw' + (_VIST.def.color === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vst-act="color" data-vst="' + c + '" title="' + c + '"></button>'; }).join('');
+  var top = '<div class="vist-top"><div class="vist-brand"><span class="vist-mk">◈</span><b>FAMILISTA</b><i>Analyser</i></div>'
+    + '<div class="vist-title">' + _viEsc(p.title || 'Analysis') + (p.opponent ? ' <span>vs ' + _viEsc(p.opponent) + '</span>' : '') + '</div><div class="vist-sp"></div>'
+    + '<button class="vist-tbtn" data-vi-act="attach" data-vi="' + p.id + '" type="button">Import video</button>'
+    + '<button class="vist-tbtn" data-vst-act="saveframe" type="button">Save frame</button>'
+    + '<button class="vist-tbtn vist-tbtn--p" data-vst-act="present" type="button">▶ Play explanation</button></div>';
+  var stage = '<div class="vist-stage" id="vist-stage"><div class="vi-videowrap" id="vi-videowrap">' + vidHtml + '</div>'
+    + '<div class="vist-badges"><span class="vist-badge" id="vist-toolbadge">' + _vistToolName(_VIST.tool) + '</span></div>'
+    + '<div class="vist-fit"><button class="' + ((w.fit || 'fill') === 'fill' ? 'is-on' : '') + '" data-vst-act="fit" data-vst="fill" type="button">Fill</button><button class="' + (w.fit === 'fit' ? 'is-on' : '') + '" data-vst-act="fit" data-vst="fit" type="button">Fit</button><button class="' + (w.fit === 'original' ? 'is-on' : '') + '" data-vst-act="fit" data-vst="original" type="button">1:1</button></div>'
+    + '<div class="vist-set" id="vist-set" hidden></div></div>';
+  var steps = '<aside class="vist-steps' + (_VIST.stepsOpen ? ' is-open' : '') + '" id="vist-steps"><button class="vist-steps-tab" data-vst-act="stepstoggle" type="button"><span>Presentation</span></button><div class="vist-steps-body" id="vist-steps-body"></div></aside>';
+  var transport = '<div class="vist-transport">'
+    + '<div class="vist-seek" id="vist-seek" data-vst-act="seek"><div class="vist-seek-fill" id="vist-seek-fill"></div><div class="vist-seek-head" id="vist-seek-head"></div><div class="vist-seek-marks" id="vist-seek-marks"></div></div>'
+    + '<div class="vist-tp">'
+    + '<button class="vist-tpb" data-vst-act="frame" data-vst="-1" title="Previous frame">⏮</button>'
+    + '<button class="vist-tpb" data-vst-act="nudge" data-vst="-5" title="−5s">−5s</button>'
+    + '<button class="vist-tpb" data-vst-act="nudge" data-vst="-1" title="−1s">−1s</button>'
+    + '<button class="vist-tpb vist-tpb--play" id="vist-play" data-vst-act="play" title="Play / Pause (Space)">▶</button>'
+    + '<button class="vist-tpb" data-vst-act="nudge" data-vst="1" title="+1s">+1s</button>'
+    + '<button class="vist-tpb" data-vst-act="nudge" data-vst="5" title="+5s">+5s</button>'
+    + '<button class="vist-tpb" data-vst-act="frame" data-vst="1" title="Next frame">⏭</button>'
+    + '<span class="vist-tc mono"><span id="vist-cur">0:00</span><i>/</i><span id="vist-dur">0:00</span></span>'
+    + '<div class="vist-tp-sp"></div>'
+    + '<div class="vist-swrap">' + sw + '</div>'
+    + '<div class="vist-editg">' + edit + '</div>'
+    + '<button class="vist-tpb vist-tpb--io" data-vst-act="markin" title="Set In">IN</button>'
+    + '<button class="vist-tpb vist-tpb--io" data-vst-act="markout" title="Set Out">OUT</button>'
+    + '</div></div>';
+  return '<div class="vi-studio" id="viw">' + top + '<div class="vist-body">'
+    + '<div class="vist-rail">' + rail + '</div>' + stage + steps + '</div>' + transport + '</div>';
+}
+
+/* ---- geometry / px conversion (annotations stored normalised 0..1 of stage) ---- */
+function _vistWH() { var wrap = document.getElementById('vi-videowrap'); return wrap ? { w: wrap.clientWidth || 1, h: wrap.clientHeight || 1 } : { w: 1, h: 1 }; }
+function _vistPx(pt, W, H) { return { x: pt.x * W, y: pt.y * H }; }
+function _vistN(x, y, W, H) { return { x: x / W, y: y / H }; }
+function _vistProj(p) { return _viProject(_VI.projectId); }
+function _vistAnns() { var p = _vistProj(); return p ? (p.annotations = p.annotations || []) : []; }
+function _vistSel() { var id = _VIST.sel; if (!id) return null; return _vistAnns().filter(function (a) { return a.id === id; })[0] || null; }
+
+/* ---- sampling & premium renderers (broadcast) ---- */
+function _vistSample(an, W, H) {
+  var a = _vistPx(an.a, W, H), b = _vistPx(an.b, W, H), pts = [], i, t;
+  if (an.tool === 'curve' || an.tool === 'pass' || an.tool === 'run') {
+    var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, nx = -(b.y - a.y), ny = (b.x - a.x), nl = Math.hypot(nx, ny) || 1;
+    var bend = (an.bend == null ? (an.tool === 'run' ? 0 : -0.14) : an.bend) * Math.hypot(b.x - a.x, b.y - a.y);
+    var cx = mx + nx / nl * bend, cy = my + ny / nl * bend;
+    for (i = 0; i <= 48; i++) { t = i / 48; var mt = 1 - t; pts.push({ x: mt * mt * a.x + 2 * mt * t * cx + t * t * b.x, y: mt * mt * a.y + 2 * mt * t * cy + t * t * b.y }); }
+  } else { for (i = 0; i <= 32; i++) { t = i / 32; pts.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); } }
+  if (an.tool === 'run') { var out = []; for (i = 0; i < pts.length; i++) { var pp = pts[i], pa = pts[Math.max(0, i - 1)], pb = pts[Math.min(pts.length - 1, i + 1)]; var dx = pb.x - pa.x, dy = pb.y - pa.y, dl = Math.hypot(dx, dy) || 1; var amp = Math.sin(i / pts.length * Math.PI * 7) * 7; out.push({ x: pp.x + (-dy / dl) * amp, y: pp.y + (dx / dl) * amp }); } return out; }
+  return pts;
+}
+function _vistTrim(pts, prog) { if (prog >= 1) return pts.slice(); var total = 0, seg = [], i; for (i = 1; i < pts.length; i++) { var l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(l); total += l; } var target = total * prog, acc = 0, out = [pts[0]]; for (i = 1; i < pts.length; i++) { if (acc + seg[i - 1] >= target) { var r = (target - acc) / (seg[i - 1] || 1); out.push({ x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * r, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * r }); break; } acc += seg[i - 1]; out.push(pts[i]); } return out; }
+function _vistRibbon(ctx, pts, hw, off) { var L = [], R = [], i; for (i = 0; i < pts.length; i++) { var a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; var dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1; var nx = -dy / dl, ny = dx / dl; var cx = pts[i].x + nx * (off || 0), cy = pts[i].y + ny * (off || 0); L.push({ x: cx + nx * hw, y: cy + ny * hw }); R.push({ x: cx - nx * hw, y: cy - ny * hw }); } ctx.beginPath(); L.forEach(function (p, i2) { i2 ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); for (i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i].x, R[i].y); ctx.closePath(); }
+function _vistArrowTube(ctx, pts, hw, col, sh) { if (pts.length < 2) return; if (sh) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 4; _vistRibbon(ctx, pts, hw, 0); ctx.fillStyle = _vistShade(col, -.34); ctx.fill(); ctx.restore(); } _vistRibbon(ctx, pts, hw * 0.97, 0); var a = pts[0], b = pts[pts.length - 1]; var g = ctx.createLinearGradient(a.x, a.y, b.x, b.y); g.addColorStop(0, _vistShade(col, -.06)); g.addColorStop(.55, col); g.addColorStop(1, _vistShade(col, .2)); ctx.fillStyle = g; ctx.fill(); _vistRibbon(ctx, pts, hw, 0); ctx.lineWidth = 1.3; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke(); _vistRibbon(ctx, pts, hw * 0.32, -hw * 0.5); ctx.fillStyle = 'rgba(255,255,255,.30)'; ctx.fill(); }
+function _vistHead(ctx, pts, size, col) { if (pts.length < 2) return; var p = pts[pts.length - 1], q = pts[pts.length - 2]; var ang = Math.atan2(p.y - q.y, p.x - q.x); function pt(d, a) { return { x: p.x - size * d * Math.cos(ang + a), y: p.y - size * d * Math.sin(ang + a) }; } var l = pt(1, -0.46), r = pt(1, 0.46), notch = pt(0.52, 0); ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(l.x, l.y); ctx.lineTo(notch.x, notch.y); ctx.lineTo(r.x, r.y); ctx.closePath(); var g = ctx.createLinearGradient(notch.x, notch.y, p.x, p.y); g.addColorStop(0, _vistShade(col, -.08)); g.addColorStop(1, _vistShade(col, .22)); ctx.fillStyle = g; ctx.fill(); ctx.restore(); ctx.lineWidth = 1.3; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 1.7, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fill(); }
+function _vistDashSegs(pts, dash, gap) { var out = [], seg = [], total = 0, i; for (i = 1; i < pts.length; i++) { var l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(l); total += l; } var acc = 0, on = true, cur = [pts[0]]; for (i = 1; i < pts.length; i++) { cur.push(pts[i]); acc += seg[i - 1]; if (acc >= (on ? dash : gap)) { if (on && cur.length > 1) out.push(cur); acc = 0; on = !on; cur = [pts[i]]; } } if (on && cur.length > 1) out.push(cur); return out; }
+function _vistRound(ctx, x, y, w, h, r) { ctx.beginPath(); if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; } ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function _vistArrow(ctx, an, prog, W, H) {
+  var pts = _vistTrim(_vistSample(an, W, H), Math.max(prog, 0.001)); if (pts.length < 2) return; var col = an.color, hw = (an.width || 6);
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (an.tool === 'darrow' || an.dash) { _vistDashSegs(pts, 20, 13).forEach(function (sg) { _vistArrowTube(ctx, sg, hw, col, an.shadow !== false); }); }
+  else if (an.tool === 'run') { ctx.save(); ctx.setLineDash([3, 7]); ctx.strokeStyle = col; ctx.lineWidth = hw * 0.9; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.restore(); }
+  else { if (an.glow !== false) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 6; _vistArrowTube(ctx, pts, hw, col, an.shadow !== false); ctx.restore(); } else _vistArrowTube(ctx, pts, hw, col, an.shadow !== false); }
+  if (prog > 0.05 && an.tool !== 'line') _vistHead(ctx, pts, hw * 2.4 + 7, col);
+  if (prog < 0.995) { var tip = pts[pts.length - 1]; var gg = ctx.createRadialGradient(tip.x, tip.y, 0, tip.x, tip.y, hw * 1.8); gg.addColorStop(0, _vistRGBA(col, .55)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(tip.x, tip.y, hw * 1.8, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+function _vistPoly(ctx, an, prog, W, H, env) {
+  var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 2) return; var col = an.color;
+  var cx = 0, cy = 0; pts.forEach(function (p) { cx += p.x; cy += p.y; }); cx /= pts.length; cy /= pts.length;
+  var sc = env.scale; pts = pts.map(function (p) { return { x: cx + (p.x - cx) * sc, y: cy + (p.y - cy) * sc }; });
+  var closed = (an.tool === 'polygon' || an.tool === 'farea' || an.fill || an.tool === 'zone' || an.tool === 'szone');
+  function shape() { ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); if (closed) ctx.closePath(); }
+  ctx.save(); ctx.globalAlpha = env.alpha * (an.opacity == null ? 1 : an.opacity); ctx.lineJoin = 'round';
+  if (closed && pts.length >= 3) { var minY = 1e9, maxY = -1e9; pts.forEach(function (p) { minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }); var fg = ctx.createLinearGradient(0, minY, 0, maxY); fg.addColorStop(0, _vistRGBA(col, 0.07)); fg.addColorStop(1, _vistRGBA(col, 0.24)); shape(); ctx.fillStyle = fg; ctx.fill(); }
+  ctx.restore();
+}
+function _vistDrawOne(ctx, an, T, W, H, presenting) {
+  var env = { alpha: 1, scale: 1, dx: 0, dy: 0, reveal: 1, pulse: 0, on: true };
+  if (presenting) {
+    var t0 = an.t || 0, d = (an.anim && an.anim.dur) || 1.2, type = (an.anim && an.anim.type) || 'drawon';
+    if (T < t0 - 0.001 && type !== 'fadeout') return;
+    var pe = _vistEase(d > 0 ? (T - t0) / d : 1), raw = d > 0 ? (T - t0) / d : 1;
+    if (type === 'fade') env.alpha = pe; else if (type === 'grow') { env.scale = 0.6 + 0.4 * pe; env.alpha = pe; } else if (type === 'slide') { env.alpha = pe; env.dy = (1 - pe) * 26; } else if (type === 'drawon') { env.reveal = pe; env.alpha = Math.min(1, pe * 3); } else if (type === 'pulse') { env.pulse = 0.5 + 0.5 * Math.sin(T * 4); } else if (type === 'fadeout') { env.alpha = 1 - pe; if (raw > 1) return; }
+  }
+  var op = env.alpha * (an.opacity == null ? 1 : an.opacity);
+  ctx.save(); ctx.translate(env.dx, env.dy); ctx.globalAlpha = op;
+  var W2 = W, H2 = H, col = an.color, tool = an.tool;
+  var a = an.a ? _vistPx(an.a, W, H) : null, b = an.b ? _vistPx(an.b, W, H) : null;
+  if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { _vistArrow(ctx, an, env.reveal, W, H); }
+  else if (tool === 'free') { var fp = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); var tp = _vistTrim(fp, env.reveal); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = an.width || 5; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 5; } ctx.strokeStyle = col; ctx.beginPath(); tp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
+  else if (tool === 'ring' || tool === 'dring') { _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
+  else if (tool === 'spot') { _vistSpot(ctx, a, b, col, an, env); }
+  else if (tool === 'plabel' || tool === 'text' || tool === 'banner') { _vistLabel(ctx, a, an, env, tool); }
+  else if (tool === 'offside') { _vistOffside(ctx, an, env, W, H); }
+  else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env); }
+  else if (tool === 'angle') { _vistAngle(ctx, an, env, W, H); }
+  else if (tool === 'cone') { _vistCone(ctx, a, b, col, an, env); }
+  else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { _vistZone(ctx, an, env, W, H); }
+  ctx.restore();
+}
+function _vistRing(ctx, c, edge, col, an, env, dbl) {
+  var rx = Math.max(16, Math.hypot(edge.x - c.x, edge.y - c.y)) * env.scale * (1 + env.pulse * 0.06); var ry = rx * 0.42;
+  ctx.save(); ctx.beginPath(); ctx.ellipse(c.x, c.y + ry * 0.55, rx * 0.92, ry * 0.85, 0, 0, 7); ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fill();
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, ry / rx); var gg = ctx.createRadialGradient(0, 0, rx * 0.15, 0, 0, rx); gg.addColorStop(0, _vistRGBA(col, .22)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, 7); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 14; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, 7); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.stroke();
+  if (dbl) { ctx.beginPath(); ctx.ellipse(c.x, c.y, rx * 0.66, ry * 0.66, 0, 0, 7); ctx.strokeStyle = _vistRGBA(col, .9); ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, rx + 1.6, ry + 0.7, 0, 0, 7); ctx.strokeStyle = 'rgba(0,0,0,.32)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+}
+function _vistSpot(ctx, c, edge, col, an, env) {
+  var rx = Math.max(22, Math.hypot(edge.x - c.x, edge.y - c.y)) * (1 + env.pulse * 0.05); var ry = rx * 0.62; var cvw = ctx.canvas.width, cvh = ctx.canvas.height;
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, ry / rx); var R = rx * 2.7; var dg = ctx.createRadialGradient(0, 0, rx * 0.62, 0, 0, R); dg.addColorStop(0, 'rgba(5,7,11,0)'); dg.addColorStop(0.30, 'rgba(5,7,11,' + (0.34 * env.alpha) + ')'); dg.addColorStop(1, 'rgba(5,7,11,' + (0.72 * env.alpha) + ')'); ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, ry / rx); var gg = ctx.createRadialGradient(0, 0, 0, 0, 0, rx); gg.addColorStop(0, _vistRGBA(col, .3)); gg.addColorStop(.7, _vistRGBA(col, .08)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, 7); ctx.strokeStyle = _vistRGBA(col, .95); ctx.lineWidth = 2.4; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 16; } ctx.stroke(); ctx.shadowColor = 'transparent';
+}
+function _vistLabel(ctx, a, an, env, tool) {
+  var txt = an.text || (tool === 'banner' ? 'OVERLAY' : 'Label'); var rise = (1 - env.alpha) * 10 + env.dy;
+  var big = tool === 'banner'; var fs = an.size || (big ? 20 : 13);
+  ctx.font = '800 ' + fs + 'px "Segoe UI",system-ui,Arial'; ctx.textBaseline = 'middle';
+  var bar = 5, pad = 13, th = fs + 14; var tw = Math.ceil(ctx.measureText(txt).width); var w = tw + pad * 2 + bar; var x = a.x - w / 2, y = a.y - th - 14 - rise;
+  if (tool === 'plabel') { ctx.beginPath(); ctx.moveTo(a.x, y + th); ctx.lineTo(a.x, a.y - 4); ctx.strokeStyle = _vistRGBA(an.color, .85); ctx.lineWidth = 1.8; ctx.stroke(); ctx.beginPath(); ctx.arc(a.x, a.y - 2, 3.4, 0, 7); ctx.fillStyle = an.color; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.stroke(); }
+  else { y = a.y - th / 2; x = a.x - w / 2; }
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 13; ctx.shadowOffsetY = 4; _vistRound(ctx, x, y, w, th, 7); var g = ctx.createLinearGradient(0, y, 0, y + th); g.addColorStop(0, 'rgba(21,25,31,.97)'); g.addColorStop(1, 'rgba(12,15,20,.97)'); ctx.fillStyle = g; ctx.fill(); ctx.shadowColor = 'transparent';
+  _vistRound(ctx, x, y, w, th, 7); ctx.strokeStyle = 'rgba(255,255,255,.09)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.save(); _vistRound(ctx, x, y, w, th, 7); ctx.clip(); ctx.fillStyle = an.color; ctx.fillRect(x, y, bar, th); ctx.restore();
+  ctx.fillStyle = '#f4f7fb'; ctx.textAlign = 'left'; ctx.fillText(txt, x + bar + pad, y + th / 2 + 0.5);
+}
+function _vistOffside(ctx, an, env, W, H) { var x = an.a.x * W; var side = an.side || 72; var dir = an.dir || 1; var gx0 = dir > 0 ? x : x - side; var col = an.color; ctx.save(); var g = ctx.createLinearGradient(gx0, 0, gx0 + side, 0); if (dir > 0) { g.addColorStop(0, _vistRGBA(col, .2)); g.addColorStop(1, _vistRGBA(col, 0)); } else { g.addColorStop(0, _vistRGBA(col, 0)); g.addColorStop(1, _vistRGBA(col, .2)); } ctx.fillStyle = g; ctx.fillRect(gx0, 0, side, H); ctx.setLineDash([12, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H * Math.min(1, env.reveal * 1.2)); ctx.stroke(); ctx.restore(); }
+function _vistDistance(ctx, a, b, col, env) { var bb = { x: a.x + (b.x - a.x) * env.reveal, y: a.y + (b.y - a.y) * env.reveal }; ctx.save(); ctx.setLineDash([8, 5]); ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); [a, bb].forEach(function (p) { ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (env.reveal > 0.5) { var W = ctx.canvas.width; var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var t = (Math.hypot(b.x - a.x, b.y - a.y) / W * 38).toFixed(1) + ' m'; ctx.font = '800 11.5px ui-monospace,monospace'; var w = ctx.measureText(t).width + 14; ctx.fillStyle = 'rgba(10,13,18,.9)'; _vistRound(ctx, mx - w / 2, my - 22, w, 18, 5); ctx.fill(); ctx.fillStyle = col; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, mx, my - 13); } ctx.restore(); }
+function _vistAngle(ctx, an, env, W, H) { var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 3) { if (pts.length) { ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); } return; } ctx.save(); ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = an.color; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); ctx.shadowColor = 'transparent'; var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 26, a1, a2); ctx.strokeStyle = _vistRGBA(an.color, .8); ctx.lineWidth = 2; ctx.stroke(); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; ctx.font = '800 12px ui-monospace,monospace'; ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(Math.round(deg) + '°', pts[1].x, pts[1].y - 16); ctx.restore(); }
+function _vistCone(ctx, apex, edge, col, an, env) { var ang = Math.atan2(edge.y - apex.y, edge.x - apex.x); var L = Math.max(40, Math.hypot(edge.x - apex.x, edge.y - apex.y)) * env.reveal; var half = ((an.coneAngle || 46) * Math.PI / 360); ctx.save(); var g = ctx.createLinearGradient(apex.x, apex.y, apex.x + Math.cos(ang) * L, apex.y + Math.sin(ang) * L); g.addColorStop(0, _vistRGBA(col, .5)); g.addColorStop(1, _vistRGBA(col, .03)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(apex.x, apex.y); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.closePath(); ctx.fill(); ctx.strokeStyle = _vistRGBA(col, .8); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.stroke(); ctx.beginPath(); ctx.arc(apex.x, apex.y, 4, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.restore(); }
+function _vistZone(ctx, an, env, W, H) {
+  var pts = an.pts ? an.pts.map(function (p) { return _vistPx(p, W, H); }) : null;
+  if (!pts && an.a && an.b) { var a = _vistPx(an.a, W, H), b = _vistPx(an.b, W, H); pts = [{ x: a.x, y: a.y }, { x: b.x, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y }]; }
+  if (!pts || pts.length < 2) return; var col = an.color;
+  var cx = 0, cy = 0; pts.forEach(function (p) { cx += p.x; cy += p.y; }); cx /= pts.length; cy /= pts.length; var sc = env.scale; pts = pts.map(function (p) { return { x: cx + (p.x - cx) * sc, y: cy + (p.y - cy) * sc }; });
+  var open = (an.tool === 'fline'); var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9; pts.forEach(function (p) { minx = Math.min(minx, p.x); miny = Math.min(miny, p.y); maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); });
+  function shape() { ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); if (!open) ctx.closePath(); }
+  ctx.save(); ctx.lineJoin = 'round';
+  if (!open && pts.length >= 3) { shape(); var fg = ctx.createLinearGradient(0, miny, 0, maxy); fg.addColorStop(0, _vistRGBA(col, 0.07)); fg.addColorStop(1, _vistRGBA(col, 0.26)); ctx.fillStyle = fg; ctx.fill(); }
+  if (an.tool === 'szone') { ctx.save(); shape(); ctx.clip(); ctx.strokeStyle = _vistRGBA(col, 0.42); ctx.lineWidth = 1.5; var step = an.dense || 12; for (var x = minx - (maxy - miny) - 12; x < maxx + 4; x += step) { ctx.beginPath(); ctx.moveTo(x, maxy); ctx.lineTo(x + (maxy - miny), miny); ctx.stroke(); } ctx.restore(); }
+  shape(); ctx.strokeStyle = _vistRGBA(col, 0.95); ctx.lineWidth = 2.2; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  if (an.tool === 'fline' || an.tool === 'farea') { pts.forEach(function (p, i) { ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.fillStyle = '#08101a'; ctx.font = '700 9px ui-monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), p.x, p.y); }); }
+  ctx.restore();
+}
+
+/* ---- redraw ---- */
+function _vistRedraw() {
+  var cv = document.getElementById('vi-canvas'); if (!cv) return; var ctx = cv.getContext('2d');
+  var wrap = document.getElementById('vi-videowrap'); var W = wrap ? (wrap.clientWidth || cv.width) : cv.width, H = wrap ? (wrap.clientHeight || cv.height) : cv.height;
+  var dpr = cv.width / (W || 1);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  var p = _vistProj(); if (!p) return; var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0; var presenting = !!(v && !v.paused);
+  (p.annotations || []).slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); }).forEach(function (an) { if (an.hidden) return; if (!an.tool) return; try { _vistDrawOne(ctx, an, T, W, H, presenting); } catch (e) {} });
+  // in-progress draft
+  if (_VIST.draft) { try { _vistDrawOne(ctx, _VIST.draft, T, W, H, false); } catch (e) {} }
+  // selection outline + handles
+  var sel = _vistSel(); if (sel && !sel.hidden) { _vistDrawSelection(ctx, sel, W, H); }
+}
+function _vistBBox(an, W, H) {
+  var xs = [], ys = [];
+  if (an.pts) an.pts.forEach(function (p) { xs.push(p.x * W); ys.push(p.y * H); });
+  if (an.a) { xs.push(an.a.x * W); ys.push(an.a.y * H); }
+  if (an.b) { xs.push(an.b.x * W); ys.push(an.b.y * H); }
+  if (!xs.length) return null;
+  var pad = (an.tool === 'ring' || an.tool === 'dring' || an.tool === 'spot') ? 4 : 10;
+  if (an.tool === 'ring' || an.tool === 'dring' || an.tool === 'spot') { var c = _vistPx(an.a, W, H), e = _vistPx(an.b, W, H); var r = Math.hypot(e.x - c.x, e.y - c.y); return { x1: c.x - r, y1: c.y - r * 0.5, x2: c.x + r, y2: c.y + r * 0.5 }; }
+  if (an.tool === 'plabel' || an.tool === 'text' || an.tool === 'banner') { var a = _vistPx(an.a, W, H); var fs = an.size || 14; var w = 40 + (an.text || '').length * fs * 0.6; return { x1: a.x - w / 2, y1: a.y - fs - 30, x2: a.x + w / 2, y2: a.y + 6 }; }
+  if (an.tool === 'offside') { var x = an.a.x * W; return { x1: x - 8, y1: 0, x2: x + 8, y2: H }; }
+  return { x1: Math.min.apply(null, xs) - pad, y1: Math.min.apply(null, ys) - pad, x2: Math.max.apply(null, xs) + pad, y2: Math.max.apply(null, ys) + pad };
+}
+function _vistDrawSelection(ctx, an, W, H) {
+  var b = _vistBBox(an, W, H); if (!b) return; ctx.save(); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.strokeStyle = an.locked ? '#fbbf24' : '#2dd4bf'; ctx.strokeRect(b.x1 - 4, b.y1 - 4, (b.x2 - b.x1) + 8, (b.y2 - b.y1) + 8); ctx.setLineDash([]);
+  // handles: endpoints for seg/rad, vertices for poly
+  var hs = _vistHandles(an, W, H); hs.forEach(function (h) { ctx.beginPath(); ctx.arc(h.x, h.y, 5, 0, 7); ctx.fillStyle = '#0b0d10'; ctx.fill(); ctx.strokeStyle = an.locked ? '#fbbf24' : '#2dd4bf'; ctx.lineWidth = 1.8; ctx.stroke(); }); ctx.restore();
+}
+function _vistHandles(an, W, H) {
+  var gk = _VIST_GK[an.tool]; var out = [];
+  if (gk === 'seg' || gk === 'rad') { out.push({ k: 'a', x: an.a.x * W, y: an.a.y * H }); out.push({ k: 'b', x: an.b.x * W, y: an.b.y * H }); }
+  else if (gk === 'poly' || gk === 'poly3' || gk === 'freehand') { (an.pts || []).forEach(function (p, i) { if (an.tool === 'free' && i % 6 !== 0 && i !== an.pts.length - 1) return; out.push({ k: i, x: p.x * W, y: p.y * H }); }); }
+  else if (gk === 'pt') { /* move-only */ }
+  return out;
+}
+function _vistHit(x, y, W, H) {
+  var anns = _vistAnns(); for (var i = anns.length - 1; i >= 0; i--) { var an = anns[i]; if (an.hidden || an.locked) continue; var b = _vistBBox(an, W, H); if (!b) continue; if (x >= b.x1 - 8 && x <= b.x2 + 8 && y >= b.y1 - 8 && y <= b.y2 + 8) return an; } return null;
+}
+/* ---- studio: creation / editing / persistence ---- */
+function _vistPersist() { var p = _vistProj(); if (p) { try { _viTouch(p); } catch (e) {} try { if (typeof _viSave === 'function') _viSave(); } catch (e) {} } }
+function _vistMaxZ() { var m = 0; _vistAnns().forEach(function (a) { if ((a.z || 0) > m) m = a.z || 0; }); return m; }
+function _vistToolColor(t) { var M = { ring: '#ffd23b', dring: '#ffd23b', spot: '#ffffff', plabel: '#ffd23b', text: '#ffd23b', banner: '#ffd23b', arrow: '#ff3d3d', curve: '#ff3d3d', darrow: '#ff3d3d', run: '#ffd23b', pass: '#ffffff', line: '#ffffff', fline: '#ffffff', farea: '#ff3d3d', zone: '#ff3d3d', szone: '#ff3d3d', polygon: '#ff3d3d', cone: '#ffd23b', offside: '#ffffff', distance: '#49a8ff', angle: '#ffd23b', free: '#ffd23b' }; return M[t] || '#ff3d3d'; }
+function _vistPickColor(t) { return _VIST.def.userPicked ? _VIST.def.color : _vistToolColor(t); }
+function _vistPushUndo(op) { _VIST.undo = _VIST.undo || []; _VIST.undo.push(op); if (_VIST.undo.length > 60) _VIST.undo.shift(); _VIST.redo = []; }
+function _vistCommit(an) { var p = _vistProj(); if (!p) return; p.annotations = p.annotations || []; p.annotations.push(an); _vistPushUndo({ t: 'add', an: an }); _VIST.sel = an.id; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); _vistRefreshSettings(); }
+function _vistCommitMake(tool, geo) {
+  var v = _viwVid(); var an = { id: _viUid(), tool: tool, t: v ? (v.currentTime || 0) : 0,
+    color: _vistPickColor(tool), opacity: _VIST.def.opacity, width: _VIST.def.width, fill: _VIST.def.fill,
+    dash: (tool === 'darrow' ? true : _VIST.def.dash), shadow: _VIST.def.shadow, glow: _VIST.def.glow,
+    anim: { type: _VIST.def.animType, dur: _VIST.def.animDur }, z: _vistMaxZ() + 1 };
+  if (geo.a) { an.a = geo.a; an.b = geo.b; } if (geo.pts) an.pts = geo.pts.slice();
+  if (tool === 'cone') an.coneAngle = 46; if (tool === 'szone') an.dense = 12; if (tool === 'offside') { an.dir = 1; an.side = 72; an.a = geo.a; an.b = geo.b || geo.a; }
+  if (tool === 'curve' || tool === 'pass') an.bend = -0.14;
+  _vistCommit(an);
+}
+function _vistCreatePt(tool, N) {
+  var prompt0 = tool === 'banner' ? 'Overlay banner text:' : tool === 'text' ? 'Text label:' : 'Player label (number / name):';
+  var txt = window.prompt(prompt0); if (!txt) { return; }
+  var v = _viwVid(); var an = { id: _viUid(), tool: tool, t: v ? (v.currentTime || 0) : 0, a: N, text: String(txt).slice(0, 80), color: _vistPickColor(tool), opacity: _VIST.def.opacity, size: tool === 'banner' ? 20 : 14, glow: _VIST.def.glow, shadow: _VIST.def.shadow, anim: { type: _VIST.def.animType, dur: _VIST.def.animDur }, z: _vistMaxZ() + 1 };
+  _vistCommit(an);
+}
+function _vistPolyClick(tool, N, gk) {
+  if (!_VIST.draft || _VIST.draft.tool !== tool) { _VIST.draft = { tool: tool, pts: [N], color: _vistPickColor(tool), opacity: _VIST.def.opacity, width: _VIST.def.width, fill: _VIST.def.fill, glow: _VIST.def.glow, shadow: _VIST.def.shadow, dense: 12 }; }
+  else _VIST.draft.pts.push(N);
+  if (gk === 'poly3' && _VIST.draft.pts.length >= 3) { _vistCommitMake(tool, { pts: _VIST.draft.pts }); _VIST.draft = null; }
+  _vistRedraw();
+}
+function _vistDelete(id) { var p = _vistProj(); if (!p) return; var an = (p.annotations || []).filter(function (a) { return a.id === id; })[0]; if (!an) return; if (an.locked) { _viToast('Object is locked'); return; } p.annotations = p.annotations.filter(function (a) { return a.id !== id; }); _vistPushUndo({ t: 'del', an: an }); if (_VIST.sel === id) _VIST.sel = null; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); _vistRefreshSettings(); }
+function _vistDupSel() { var s = _vistSel(); if (!s) { _viToast('Select an object first'); return; } var c = JSON.parse(JSON.stringify(s)); c.id = _viUid(); c.z = _vistMaxZ() + 1; function off(pt) { pt.x += 0.02; pt.y += 0.02; } if (c.a) off(c.a); if (c.b) off(c.b); if (c.pts) c.pts.forEach(off); var p = _vistProj(); p.annotations.push(c); _vistPushUndo({ t: 'add', an: c }); _VIST.sel = c.id; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); _vistRefreshSettings(); _viToast('Duplicated'); }
+function _vistLockSel() { var s = _vistSel(); if (!s) return; s.locked = !s.locked; _vistPersist(); _vistRedraw(); _vistRefreshSettings(); _viToast(s.locked ? 'Locked' : 'Unlocked'); }
+function _vistToggleHide(id) { var p = _vistProj(); var a = (p.annotations || []).filter(function (x) { return x.id === id; })[0]; if (!a) return; a.hidden = !a.hidden; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); }
+function _vistZ(dir) { var s = _vistSel(); var p = _vistProj(); if (!s || !p) { _viToast('Select an object first'); return; } var i = p.annotations.indexOf(s); if (dir > 0 && i < p.annotations.length - 1) { p.annotations.splice(i, 1); p.annotations.splice(i + 1, 0, s); } else if (dir < 0 && i > 0) { p.annotations.splice(i, 1); p.annotations.splice(i - 1, 0, s); } p.annotations.forEach(function (a, ix) { a.z = ix; }); _vistPersist(); _vistRedraw(); }
+function _vistUndo() { if (!_VIST.undo || !_VIST.undo.length) return; var op = _VIST.undo.pop(); var p = _vistProj(); if (op.t === 'add') { p.annotations = p.annotations.filter(function (a) { return a.id !== op.an.id; }); } else if (op.t === 'del') { p.annotations.push(op.an); } _VIST.redo = _VIST.redo || []; _VIST.redo.push(op); if (_VIST.sel && !p.annotations.filter(function (a) { return a.id === _VIST.sel; }).length) _VIST.sel = null; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); _vistRefreshSettings(); }
+function _vistRedoOp() { if (!_VIST.redo || !_VIST.redo.length) return; var op = _VIST.redo.pop(); var p = _vistProj(); if (op.t === 'add') { p.annotations.push(op.an); } else if (op.t === 'del') { p.annotations = p.annotations.filter(function (a) { return a.id !== op.an.id; }); } _VIST.undo.push(op); _vistPersist(); _vistRedraw(); _vistRefreshSteps(); }
+
+/* ---- pointer wiring ---- */
+function _vistSize() { var cv = document.getElementById('vi-canvas'), wrap = document.getElementById('vi-videowrap'); if (!cv || !wrap) return; var dpr = Math.min(2, window.devicePixelRatio || 1); var W = wrap.clientWidth, H = wrap.clientHeight; var bw = Math.max(1, Math.round(W * dpr)), bh = Math.max(1, Math.round(H * dpr)); if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; } _vistRedraw(); }
+function _vistWireCanvas() {
+  var cv = document.getElementById('vi-canvas'), wrap = document.getElementById('vi-videowrap'); if (!cv || !wrap) return;
+  _vistSize();
+  if (!cv._vstRO && window.ResizeObserver) { cv._vstRO = new ResizeObserver(function () { _vistSize(); }); cv._vstRO.observe(wrap); }
+  if (cv._vstWired) return; cv._vstWired = true;
+  function whcss() { return { W: wrap.clientWidth || 1, H: wrap.clientHeight || 1 }; }
+  function rel(ev) { var r = cv.getBoundingClientRect(); return { x: ev.clientX - r.left, y: ev.clientY - r.top }; }
+  function nrm(pt, d) { return { x: pt.x / d.W, y: pt.y / d.H }; }
+  var down = null;
+  cv.addEventListener('pointerdown', function (ev) {
+    var d = whcss(), P = rel(ev), N = nrm(P, d), tool = _VIST.tool;
+    if (tool === 'select') { _vistSelectDown(P, N, d, ev, cv); return; }
+    if (tool === 'eraser') { var hit = _vistHit(P.x, P.y, d.W, d.H); if (hit) _vistDelete(hit.id); return; }
+    var gk = _VIST_GK[tool];
+    if (gk === 'pt') { _vistCreatePt(tool, N); return; }
+    if (gk === 'poly' || gk === 'poly3') { _vistPolyClick(tool, N, gk); return; }
+    down = { tool: tool, gk: gk, a: N, moved: false, pts: [N] };
+    _VIST.draft = { tool: tool, a: N, b: N, pts: [N], color: _vistPickColor(tool), width: _VIST.def.width, opacity: _VIST.def.opacity, glow: _VIST.def.glow, shadow: _VIST.def.shadow, dash: (tool === 'darrow' ? true : _VIST.def.dash), fill: _VIST.def.fill, coneAngle: 46, dense: 12, dir: 1, side: 72, bend: (tool === 'curve' || tool === 'pass' ? -0.14 : 0) };
+    try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+  });
+  cv.addEventListener('pointermove', function (ev) {
+    var d = whcss(), P = rel(ev), N = nrm(P, d);
+    if (_VIST.drag) { _vistSelectMove(N, d); return; }
+    if (!down) return; down.moved = true;
+    if (down.gk === 'freehand') { down.pts.push(N); _VIST.draft.pts = down.pts; } else { _VIST.draft.b = N; if (down.tool === 'offside') _VIST.draft.a = { x: N.x, y: down.a.y }; }
+    _vistRedraw();
+  });
+  function up(ev) {
+    if (_VIST.drag) { _vistSelectUp(); try { cv.releasePointerCapture(ev.pointerId); } catch (e) {} return; }
+    if (!down) return; var d = whcss(), P = rel(ev), N = nrm(P, d); _VIST.draft = null;
+    if (down.gk === 'freehand') { if (down.pts.length > 2) _vistCommitMake(down.tool, { pts: down.pts }); else _vistRedraw(); }
+    else { var moved = down.moved && (Math.abs(N.x - down.a.x) > 0.004 || Math.abs(N.y - down.a.y) > 0.004); var b = moved ? N : { x: down.a.x + (down.gk === 'rad' ? 0.07 : 0.14), y: down.a.y + (down.gk === 'rad' ? 0 : 0.03) }; if (down.tool === 'offside') { _vistCommitMake('offside', { a: { x: (moved ? N.x : down.a.x), y: 0 }, b: b }); } else _vistCommitMake(down.tool, { a: down.a, b: b }); }
+    down = null; try { cv.releasePointerCapture(ev.pointerId); } catch (e) {}
+  }
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('dblclick', function () { if (_VIST.draft && _VIST.draft.pts && _VIST.draft.pts.length >= 2 && (_VIST.tool === 'polygon' || _VIST.tool === 'farea' || _VIST.tool === 'fline')) { _vistCommitMake(_VIST.tool, { pts: _VIST.draft.pts }); _VIST.draft = null; _vistRedraw(); } });
+}
+function _vistSelectDown(P, N, d, ev, cv) {
+  var sel = _vistSel();
+  if (sel && !sel.locked) { var hs = _vistHandles(sel, d.W, d.H); for (var i = 0; i < hs.length; i++) { if (Math.hypot(hs[i].x - P.x, hs[i].y - P.y) < 10) { _VIST.drag = { mode: 'handle', h: hs[i].k, last: N, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} return; } } }
+  var hit = _vistHit(P.x, P.y, d.W, d.H); _VIST.sel = hit ? hit.id : null;
+  if (hit && !hit.locked) { _VIST.drag = { mode: 'move', last: N, moved: false }; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
+  _vistRedraw(); _vistRefreshSettings(); _vistRefreshSteps();
+}
+function _vistSelectMove(N, d) { var sel = _vistSel(); if (!sel || sel.locked || !_VIST.drag) return; var dx = N.x - _VIST.drag.last.x, dy = N.y - _VIST.drag.last.y; _VIST.drag.last = N; _VIST.drag.moved = true; if (_VIST.drag.mode === 'move') { _vistMoveAnn(sel, dx, dy); } else { var h = _VIST.drag.h; if (h === 'a') { sel.a.x += dx; sel.a.y += dy; } else if (h === 'b') { sel.b.x += dx; sel.b.y += dy; } else if (typeof h === 'number' && sel.pts && sel.pts[h]) { sel.pts[h].x += dx; sel.pts[h].y += dy; } } _vistRedraw(); }
+function _vistSelectUp() { if (_VIST.drag && _VIST.drag.moved) _vistPersist(); _VIST.drag = null; }
+function _vistMoveAnn(an, dx, dy) { if (an.a) { an.a.x += dx; an.a.y += dy; } if (an.b) { an.b.x += dx; an.b.y += dy; } if (an.pts) an.pts.forEach(function (p) { p.x += dx; p.y += dy; }); }
+
+/* ---- controls ---- */
+function _vistSetTool(t) { _VIST.tool = t; _VIST.draft = null; if (t !== 'select') _VIST.sel = null; var viw = document.getElementById('viw'); if (viw) { [].forEach.call(viw.querySelectorAll('.vist-tool[data-vst-act="tool"]'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === t); }); } var tb = document.getElementById('vist-toolbadge'); if (tb) tb.textContent = _vistToolName(t); var cv = document.getElementById('vi-canvas'); if (cv) cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; _vistRefreshSettings(); _vistRedraw(); }
+function _vistSetFit(v) { _VI.ws.fit = v; var vid = document.getElementById('vi-video'); if (vid) { vid.classList.remove('vi-fit-fill', 'vi-fit-fit', 'vi-fit-original'); vid.classList.add('vi-fit-' + v); } var viw = document.getElementById('viw'); if (viw) [].forEach.call(viw.querySelectorAll('.vist-fit button'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === v); }); try { if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); } catch (e) {} setTimeout(_vistSize, 20); }
+function _vistPresent() { var v = _viwVid(); if (!v) { _viToast('Load a video to play the presentation'); return; } _VIST.sel = null; var steps = _vistStepList(); if (steps.length) { try { v.currentTime = Math.max(0, steps[0].t - 0.05); } catch (e) {} } v.loop = _VIST.loop; try { v.play(); } catch (e) {} _vistRefreshSettings(); _viToast('Playing presentation'); }
+function _vistStepList() { return _vistAnns().slice().sort(function (a, b) { return (a.t || 0) - (b.t || 0); }); }
+function _vistStepSeek(dir) { var v = _viwVid(); if (!v) return; var steps = _vistStepList(); if (!steps.length) return; var T = v.currentTime || 0, target = null; if (dir > 0) { for (var i = 0; i < steps.length; i++) if (steps[i].t > T + 0.05) { target = steps[i]; break; } } else { for (var j = steps.length - 1; j >= 0; j--) if (steps[j].t < T - 0.05) { target = steps[j]; break; } } if (!target) { _viToast(dir > 0 ? 'Last step' : 'First step'); return; } if (!v.paused) v.pause(); _viwSeekTo(target.t); _VIST.sel = target.id; _vistRefreshSteps(); _vistRefreshSettings(); }
+function _vistStepReorder(id, dir) { var steps = _vistStepList(); var i = steps.map(function (s) { return s.id; }).indexOf(id); var j = i + dir; if (i < 0 || j < 0 || j >= steps.length) return; var a = steps[i], b = steps[j]; var tt = a.t; a.t = b.t; b.t = tt; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); }
+function _vistSaveFrame() { var v = _viwVid(), cv = document.getElementById('vi-canvas'); if (!v) { _viToast('No video'); return; } try { var c = document.createElement('canvas'); c.width = v.videoWidth || 1280; c.height = v.videoHeight || 720; var x = c.getContext('2d'); x.drawImage(v, 0, 0, c.width, c.height); if (cv) x.drawImage(cv, 0, 0, c.width, c.height); var a = document.createElement('a'); a.download = 'familista-frame.png'; a.href = c.toDataURL('image/png'); a.click(); _viToast('Frame saved'); } catch (e) { _viToast('Could not export frame (video may be cross-origin protected)'); } }
+function _vistRefreshMarks() { var el = document.getElementById('vist-seek-marks'); var dur = _viwDur(); if (!el || !dur) return; var h = ''; if (_VI.markIn != null) h += '<span class="vist-mk-in" style="left:' + (_VI.markIn / dur * 100) + '%"></span>'; if (_VI.markOut != null) h += '<span class="vist-mk-out" style="left:' + (_VI.markOut / dur * 100) + '%"></span>'; el.innerHTML = h; }
+
+/* ---- delegated action + inputs ---- */
+function _vistAct(act, val, ev) {
+  switch (act) {
+    case 'tool': _vistSetTool(val); break;
+    case 'color': _VIST.def.color = val; _VIST.def.userPicked = true; var s = _vistSel(); if (s) { s.color = val; _vistPersist(); } var viw = document.getElementById('viw'); if (viw) [].forEach.call(viw.querySelectorAll('.vist-sw'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === val); }); _vistRedraw(); _vistRefreshSettings(); break;
+    case 'togglefill': _vistToggle('fill'); break;
+    case 'toggledash': _vistToggle('dash'); break;
+    case 'toggleglow': _vistToggle('glow'); break;
+    case 'toggleshadow': _vistToggle('shadow'); break;
+    case 'undo': _vistUndo(); break;
+    case 'redo': _vistRedoOp(); break;
+    case 'dup': _vistDupSel(); break;
+    case 'del': if (_VIST.sel) _vistDelete(_VIST.sel); else _viToast('Select an object first'); break;
+    case 'lock': _vistLockSel(); break;
+    case 'fwd': _vistZ(1); break;
+    case 'back': _vistZ(-1); break;
+    case 'settime': var st = _vistSel(); if (st) { var v0 = _viwVid(); st.t = v0 ? (v0.currentTime || 0) : 0; _vistPersist(); _vistRefreshSettings(); _vistRefreshSteps(); _viToast('Start time set'); } break;
+    case 'play': _viwPlayPause(); break;
+    case 'frame': _viwStepFrame(parseInt(val, 10)); break;
+    case 'nudge': _viwNudge(parseFloat(val)); break;
+    case 'markin': _viwMark('in'); _vistRefreshMarks(); break;
+    case 'markout': _viwMark('out'); _vistRefreshMarks(); break;
+    case 'fit': _vistSetFit(val); break;
+    case 'present': case 'stepplay': _vistPresent(); break;
+    case 'stepprev': _vistStepSeek(-1); break;
+    case 'stepnext': _vistStepSeek(1); break;
+    case 'steploop': _VIST.loop = !_VIST.loop; var vl = _viwVid(); if (vl) vl.loop = _VIST.loop; _vistRefreshSteps(); break;
+    case 'stepstoggle': _VIST.stepsOpen = !_VIST.stepsOpen; var sp = document.getElementById('vist-steps'); if (sp) sp.classList.toggle('is-open', _VIST.stepsOpen); _vistRefreshSteps(); setTimeout(_vistSize, 20); break;
+    case 'saveframe': _vistSaveFrame(); break;
+    case 'stepsel': _VIST.sel = val; var ss = _vistSel(); if (ss) _viwSeekTo(ss.t); _vistRefreshSteps(); _vistRefreshSettings(); _vistRedraw(); break;
+    case 'stepup': _vistStepReorder(val, -1); break;
+    case 'stepdown': _vistStepReorder(val, 1); break;
+    case 'stepdup': _VIST.sel = val; _vistDupSel(); break;
+    case 'stephide': _vistToggleHide(val); break;
+    case 'stepdel': _vistDelete(val); break;
+  }
+}
+function _vistToggle(prop) { _VIST.def[prop] = !_VIST.def[prop]; var s = _vistSel(); if (s) { s[prop] = _VIST.def[prop]; _vistPersist(); } _vistRedraw(); _vistRefreshSettings(); }
+function _vistInput(el) {
+  var k = el.getAttribute('data-vst-in'); var v = el.value; var s = _vistSel();
+  if (k === 'opacity') { var o = parseFloat(v); _VIST.def.opacity = o; if (s) s.opacity = o; }
+  else if (k === 'width') { var w = parseInt(v, 10); _VIST.def.width = w; if (s) s.width = w; }
+  else if (k === 'animtype') { _VIST.def.animType = v; if (s) { s.anim = s.anim || {}; s.anim.type = v; } }
+  else if (k === 'animdur') { var du = parseFloat(v); _VIST.def.animDur = du; if (s) { s.anim = s.anim || {}; s.anim.dur = du; } _vistRefreshSteps(); }
+  else if (k === 'text' && s) { s.text = v.slice(0, 80); }
+  else if (k === 'size' && s) { s.size = parseInt(v, 10); }
+  else if (k === 'cone' && s) { s.coneAngle = parseInt(v, 10); }
+  else if (k === 'dense') { _VIST.def.dense = parseInt(v, 10); if (s) s.dense = parseInt(v, 10); }
+  else if (k === 'stepdur') { var id = el.getAttribute('data-vst'); var an = _vistAnns().filter(function (a) { return a.id === id; })[0]; if (an) { an.anim = an.anim || {}; an.anim.dur = parseFloat(v); _vistPersist(); } return; }
+  if (s) _vistPersist(); _vistRedraw();
+}
+
+/* ---- tool settings popover ---- */
+function _vistRefreshSettings() {
+  var box = document.getElementById('vist-set'); if (!box) return;
+  var sel = _vistSel(); var show = (_VIST.tool !== 'select') || !!sel;
+  if (!show) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false; var tgt = sel || _VIST.def; var tool = sel ? sel.tool : _VIST.tool;
+  var col = sel ? sel.color : (_VIST.def.userPicked ? _VIST.def.color : _vistToolColor(tool));
+  var rows = [];
+  rows.push('<div class="vist-set-hd"><b>' + (sel ? 'Editing' : 'Tool') + '</b><span>' + _viEsc(_vistToolName(tool)) + '</span></div>');
+  var swc = _VIST_COLORS.map(function (c) { return '<button class="vist-sw' + (col === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vst-act="color" data-vst="' + c + '"></button>'; }).join('');
+  rows.push('<div class="vist-sr"><label>Colour</label><div class="vist-sr-sw">' + swc + '</div></div>');
+  rows.push('<div class="vist-sr"><label>Opacity</label><input type="range" min="0.2" max="1" step="0.05" value="' + (sel ? (sel.opacity == null ? 1 : sel.opacity) : _VIST.def.opacity) + '" data-vst-in="opacity"></div>');
+  var lineish = ['plabel', 'text', 'banner'].indexOf(tool) < 0;
+  if (lineish) rows.push('<div class="vist-sr"><label>Thickness</label><input type="range" min="2" max="14" step="1" value="' + (sel ? (sel.width || 6) : _VIST.def.width) + '" data-vst-in="width"></div>');
+  var fillable = ['zone', 'szone', 'polygon', 'farea'].indexOf(tool) >= 0;
+  if (fillable) rows.push(_vistTog('Fill', 'togglefill', sel ? sel.fill : _VIST.def.fill));
+  if (lineish) rows.push(_vistTog('Dashed', 'toggledash', sel ? sel.dash : _VIST.def.dash));
+  rows.push(_vistTog('Glow', 'toggleglow', (sel ? sel.glow : _VIST.def.glow) !== false));
+  rows.push(_vistTog('Shadow', 'toggleshadow', (sel ? sel.shadow : _VIST.def.shadow) !== false));
+  if (tool === 'szone') rows.push('<div class="vist-sr"><label>Stripe gap</label><input type="range" min="7" max="22" step="1" value="' + (sel ? (sel.dense || 12) : (_VIST.def.dense || 12)) + '" data-vst-in="dense"></div>');
+  if (tool === 'cone' && sel) rows.push('<div class="vist-sr"><label>Vision angle</label><input type="range" min="15" max="140" step="5" value="' + (sel.coneAngle || 46) + '" data-vst-in="cone"></div>');
+  if (['plabel', 'text', 'banner'].indexOf(tool) >= 0 && sel) { rows.push('<div class="vist-sr"><label>Text</label><input type="text" class="vist-in" value="' + _viEsc(sel.text || '') + '" data-vst-in="text"></div>'); rows.push('<div class="vist-sr"><label>Font size</label><input type="range" min="10" max="40" step="1" value="' + (sel.size || 14) + '" data-vst-in="size"></div>'); }
+  rows.push('<div class="vist-sr"><label>Animation</label><select class="vist-in" data-vst-in="animtype"><option value="drawon"' + optSel(tgt, 'drawon') + '>Draw-on</option><option value="fade"' + optSel(tgt, 'fade') + '>Fade in</option><option value="grow"' + optSel(tgt, 'grow') + '>Grow</option><option value="slide"' + optSel(tgt, 'slide') + '>Slide in</option><option value="pulse"' + optSel(tgt, 'pulse') + '>Pulse</option><option value="instant"' + optSel(tgt, 'instant') + '>Instant</option><option value="fadeout"' + optSel(tgt, 'fadeout') + '>Fade out</option></select></div>');
+  rows.push('<div class="vist-sr"><label>Duration</label><input type="range" min="0.3" max="4" step="0.1" value="' + (sel && sel.anim ? sel.anim.dur : _VIST.def.animDur) + '" data-vst-in="animdur"></div>');
+  if (sel) {
+    rows.push('<div class="vist-sr"><label>Start</label><span class="vist-val mono">' + _viFmt(sel.t) + '</span><button class="vist-mini" data-vst-act="settime">Set to current</button></div>');
+    rows.push('<div class="vist-set-acts"><button class="vist-mini" data-vst-act="fwd">▲ Fwd</button><button class="vist-mini" data-vst-act="back">▼ Back</button><button class="vist-mini' + (sel.locked ? ' is-on' : '') + '" data-vst-act="lock">' + (sel.locked ? '🔒' : '🔓') + '</button><button class="vist-mini" data-vst-act="dup">⧉</button><button class="vist-mini vist-mini--danger" data-vst-act="del">🗑</button></div>');
+  }
+  box.innerHTML = rows.join('');
+  function optSel(t, v) { var cur = (t.anim ? t.anim.type : t.animType) || 'drawon'; return cur === v ? ' selected' : ''; }
+}
+function _vistTog(label, act, on) { return '<div class="vist-sr"><label>' + label + '</label><button class="vist-tog' + (on ? ' is-on' : '') + '" data-vst-act="' + act + '">' + (on ? 'On' : 'Off') + '</button></div>'; }
+function optSel() { return ''; }
+
+/* ---- presentation steps panel ---- */
+function _vistRefreshSteps() {
+  var body = document.getElementById('vist-steps-body'); if (!body) return;
+  var steps = _vistStepList(); var v = _viwVid();
+  var speed = v ? (v.playbackRate || 1) : 1;
+  var head = '<div class="vist-steps-hd"><b>Presentation</b><span>' + steps.length + ' step' + (steps.length === 1 ? '' : 's') + '</span></div>'
+    + '<div class="vist-steps-ctl"><button class="vist-mini" data-vst-act="stepprev" title="Previous">◀</button><button class="vist-mini vist-mini--p" data-vst-act="stepplay" title="Play">▶ Play</button><button class="vist-mini" data-vst-act="stepnext" title="Next">▶</button><button class="vist-mini' + (_VIST.loop ? ' is-on' : '') + '" data-vst-act="steploop" title="Loop">⟳</button><select class="vist-in vist-spd" data-vst-in="__spd">' + [0.5, 1, 1.5, 2].map(function (s) { return '<option value="' + s + '"' + (speed === s ? ' selected' : '') + '>' + s + '×</option>'; }).join('') + '</select></div>';
+  var list = steps.length ? steps.map(function (an, i) {
+    return '<div class="vist-step' + (_VIST.sel === an.id ? ' is-on' : '') + (an.hidden ? ' is-hidden' : '') + '" data-vst-act="stepsel" data-vst="' + an.id + '"><span class="vist-step-n">' + (i + 1) + '</span><span class="vist-step-sw" style="background:' + an.color + '"></span><div class="vist-step-b"><div class="vist-step-t">' + _viEsc(_vistToolName(an.tool)) + '</div><div class="vist-step-s mono">' + _viFmt(an.t) + ' · ' + ((an.anim && an.anim.dur) || 1.2).toFixed(1) + 's · ' + ((an.anim && an.anim.type) || 'drawon') + '</div></div>'
+      + '<div class="vist-step-a"><button data-vst-act="stepup" data-vst="' + an.id + '" title="Up">↑</button><button data-vst-act="stepdown" data-vst="' + an.id + '" title="Down">↓</button><button data-vst-act="stephide" data-vst="' + an.id + '" title="Show/Hide">' + (an.hidden ? '◌' : '◉') + '</button><button data-vst-act="stepdup" data-vst="' + an.id + '" title="Duplicate">⧉</button><button data-vst-act="stepdel" data-vst="' + an.id + '" title="Delete">🗑</button></div></div>';
+  }).join('') : '<div class="vist-steps-empty">No drawings yet. Pick a tool and draw on the video — each drawing becomes a step you can time and animate.</div>';
+  body.innerHTML = head + '<div class="vist-steps-list">' + list + '</div>';
+}
+
+/* ---- keyboard ---- */
+function _vistKey(ev) {
+  if (_VI.tab !== 'workspace' || !document.querySelector('.vi-studio')) return;
+  var t = ev.target, tag = t && t.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  var k = ev.key, meta = ev.ctrlKey || ev.metaKey;
+  if (meta && (k === 'z' || k === 'Z')) { ev.preventDefault(); if (ev.shiftKey) _vistRedoOp(); else _vistUndo(); return; }
+  if (meta) return;
+  switch (k) {
+    case ' ': case 'k': ev.preventDefault(); _viwPlayPause(); break;
+    case 'ArrowLeft': ev.preventDefault(); _viwNudge(ev.shiftKey ? -5 : -1); break;
+    case 'ArrowRight': ev.preventDefault(); _viwNudge(ev.shiftKey ? 5 : 1); break;
+    case ',': ev.preventDefault(); _viwStepFrame(-1); break;
+    case '.': ev.preventDefault(); _viwStepFrame(1); break;
+    case 'v': case 'V': _vistSetTool('select'); break;
+    case 'Delete': case 'Backspace': if (_VIST.sel) { ev.preventDefault(); _vistDelete(_VIST.sel); } break;
+    case 'Escape': if (_VIST.sel) { _VIST.sel = null; _vistRedraw(); _vistRefreshSettings(); } else _vistSetTool('select'); break;
+  }
+}
+/* ---- seek wiring + rAF ---- */
+function _vistWireSeek() { var bar = document.getElementById('vist-seek'); if (!bar || bar._vstWired) return; bar._vstWired = true; var dragging = false; function seek(cx) { var r = bar.getBoundingClientRect(); var dur = _viwDur(); if (!dur) return; _viwSeekTo(Math.max(0, Math.min(1, (cx - r.left) / r.width)) * dur, true); } bar.addEventListener('pointerdown', function (ev) { dragging = true; try { bar.setPointerCapture(ev.pointerId); } catch (e) {} seek(ev.clientX); ev.preventDefault(); }); bar.addEventListener('pointermove', function (ev) { if (dragging) seek(ev.clientX); }); bar.addEventListener('pointerup', function (ev) { dragging = false; try { bar.releasePointerCapture(ev.pointerId); } catch (e) {} }); }
+function _vistRaf() {
+  var viw = document.getElementById('viw'); if (!viw || !document.querySelector('.vi-studio') || _VI.tab !== 'workspace') { _VIST._raf = false; return; }
+  var v = _viwVid(), dur = _viwDur();
+  if (v && dur) { var pct = (v.currentTime / dur) * 100; var f = document.getElementById('vist-seek-fill'), h = document.getElementById('vist-seek-head'); if (f) f.style.width = pct + '%'; if (h) h.style.left = pct + '%'; var c = document.getElementById('vist-cur'); if (c) c.textContent = _viFmt(v.currentTime); var dd = document.getElementById('vist-dur'); if (dd && dd.textContent !== _viFmt(dur)) dd.textContent = _viFmt(dur); var pb = document.getElementById('vist-play'); if (pb) pb.textContent = v.paused ? '▶' : '❚❚'; }
+  if (v && !v.paused) _vistRedraw();
+  requestAnimationFrame(_vistRaf);
+}
+
+/* ---- mount ---- */
+function _vistMount() {
+  var viw = document.getElementById('viw'); if (!viw || !document.querySelector('.vi-studio')) return;
+  if (!viw._vstBound) { viw._vstBound = true;
+    viw.addEventListener('click', function (ev) { var el = ev.target.closest('[data-vst-act]'); if (!el) return; var act = el.getAttribute('data-vst-act'); if (act === 'seek') return; if (el.tagName === 'SELECT') return; ev.preventDefault(); _vistAct(act, el.getAttribute('data-vst'), ev); });
+    viw.addEventListener('input', function (ev) { var el = ev.target; if (el && el.getAttribute && el.getAttribute('data-vst-in')) { if (el.getAttribute('data-vst-in') === '__spd') return; _vistInput(el); } });
+  }
+  _vistWireCanvas(); _vistWireSeek(); _vistRefreshSteps(); _vistRefreshSettings(); _vistRefreshMarks();
+  if (!_VIST._keys) { _VIST._keys = true; document.addEventListener('keydown', _vistKey); }
+  if (!_VIST._raf) { _VIST._raf = true; _vistRaf(); }
+}
+
+/* ============================ OVERRIDES ============================ */
+function _viWorkspace() {
+  if (_VI.openError && !_viProject(_VI.projectId)) { return _viEmpty('⚠️', 'Analysis not found', _VI.openError) + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="tab" data-vi="library" type="button">← Back to Video Library</button></div>'; }
+  var p = _viProject(_VI.projectId) || _viProjects().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0];
+  if (!p) return _viEmpty('🎞️', 'No analysis open', 'Create or open an analysis from the Video Library.') + '<div style="text-align:center;margin-top:14px"><button class="vi-btn vi-btn--primary" data-vi-act="newanalysis" type="button">✚ Start new analysis</button></div>';
+  _VI.projectId = p.id; if (!_VI.ws) _VI.ws = _viwState();
+  return _viStudioShell(p);
+}
+function _viWireCanvas() { if (document.querySelector('.vi-studio')) { _vistWireCanvas(); } }
+function _viwWire() { if (document.querySelector('.vi-studio')) { _vistMount(); } }
+function _viAnnRedraw() { if (document.querySelector('.vi-studio')) { _vistRedraw(); } }
