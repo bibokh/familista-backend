@@ -8366,3 +8366,21 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .vist-swrap{ display:flex; gap:5px; align-items:center; padding:0 4px; }
 .vist-editg{ display:flex; gap:2px; padding:0 6px; border-left:1px solid #20252c; border-right:1px solid #20252c; margin:0 4px; }
 @media (max-width:900px){ .vist-title{ display:none; } .vist-steps.is-open{ width:210px; } }
+
+/* ---- studio viwpro21: tracking / calibration / animation editor / timeline ---- */
+.vist-track{ margin-top:8px; padding:9px 10px; border:1px solid rgba(45,212,191,.28); border-radius:9px; background:rgba(45,212,191,.06); }
+.vist-track-h{ display:flex; align-items:center; gap:8px; } .vist-track-h b{ font-size:11.5px; }
+.vist-tstate{ margin-left:auto; font-size:10px; font-weight:800; padding:2px 8px; border-radius:100px; font-family:ui-monospace,monospace; }
+.vist-tstate[data-st="Tracking"]{ color:#0b0d10; background:#4ade80; }
+.vist-tstate[data-st="Manual keyframe"]{ color:#0b0d10; background:#ffd23b; }
+.vist-tstate[data-st="Interpolated"]{ color:#0b0d10; background:#49a8ff; }
+.vist-tstate[data-st="Correction required"]{ color:#0b0d10; background:#fb7a45; }
+.vist-tstate[data-st="Tracking lost"]{ color:#fff; background:#ff5a5a; }
+.vist-track-note{ font-size:10px; color:#8b94a1; line-height:1.5; margin:5px 0 7px; }
+.vist-cal{ display:flex; align-items:center; gap:6px; margin-top:9px; padding-top:9px; border-top:1px solid #20252c; }
+.vist-cal-s{ flex:1; font-size:10.5px; font-weight:700; color:#8b94a1; } .vist-cal-s.is-on{ color:#4ade80; }
+.vist-tlwrap{ padding:8px 12px 10px; border-bottom:1px solid #20252c; }
+.vist-tl{ position:relative; height:26px; border-radius:6px; background:#0a0d11; border:1px solid #20252c; overflow:hidden; touch-action:none; }
+.vist-tlb{ position:absolute; top:4px; height:18px; min-width:6px; border-radius:4px; cursor:grab; opacity:.85; box-shadow:inset 0 0 0 1px rgba(0,0,0,.35); }
+.vist-tlb:hover{ opacity:1; } .vist-tlb.is-on{ opacity:1; box-shadow:0 0 0 2px rgba(45,212,191,.7); }
+.vist-tl-cap{ font-size:9px; color:#5c6570; text-align:center; margin-top:4px; letter-spacing:.04em; }

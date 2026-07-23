@@ -45812,7 +45812,7 @@ function _vistRGBA(hex, a) { if (!hex || hex[0] !== '#') return hex; var n = par
 
 /* ---- tool registry ---- */
 var _VIST_GK = { arrow: 'seg', curve: 'seg', darrow: 'seg', run: 'seg', pass: 'seg', line: 'seg', offside: 'seg', distance: 'seg', cone: 'seg', zone: 'seg', szone: 'seg',
-  ring: 'rad', dring: 'rad', spot: 'rad', plabel: 'pt', text: 'pt', banner: 'pt', polygon: 'poly', farea: 'poly', fline: 'poly', angle: 'poly3', free: 'freehand' };
+  ring: 'rad', dring: 'rad', spot: 'rad', plabel: 'pt', text: 'pt', banner: 'pt', polygon: 'poly', farea: 'poly', fline: 'poly', angle: 'poly3', free: 'freehand', track: 'special', calibrate: 'special' };
 function _vistIcon(n) {
   var P = {
     select: '<path d="M5 3l7 17 2.2-6.8L21 11z"/>', ring: '<ellipse cx="12" cy="13" rx="8" ry="4"/>',
@@ -45829,6 +45829,7 @@ function _vistIcon(n) {
     distance: '<path d="M4 12h16"/><path d="M7 9 4 12l3 3M17 9l3 3-3 3"/>', angle: '<path d="M5 19V5"/><path d="M5 19h14"/><path d="M5 12a7 7 0 0 0 7 7"/>',
     text: '<path d="M5 6h14M12 6v13M9 19h6"/>', banner: '<rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 12h10"/>',
     free: '<path d="M4 16c3 0 3-8 6-8s3 8 6 8 4-4 4-4"/>', eraser: '<path d="M8 20 4 16l9-9 4 4-9 9z"/><path d="M14 20h6"/>',
+    track: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/>', calibrate: '<path d="M3 20 21 4"/><path d="M4 5h4v4M20 19h-4v-4" /><rect x="3" y="4" width="18" height="16" rx="1" opacity=".4"/>',
     undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h3"/>',
     dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/>', del: '<path d="M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', fwd: '<path d="M12 19V5M6 11l6-6 6 6"/>', back: '<path d="M12 5v14M6 13l6 6 6-6"/>'
@@ -45841,6 +45842,7 @@ var _VIST_GROUPS = [
   [['arrow', 'Straight arrow'], ['curve', 'Curved arrow'], ['darrow', 'Dashed arrow'], ['run', 'Animated run path'], ['pass', 'Pass arrow']],
   [['fline', 'Formation line'], ['farea', 'Formation area'], ['zone', 'Filled tactical zone'], ['szone', 'Striped tactical zone'], ['polygon', 'Polygon'], ['cone', 'Vision cone']],
   [['offside', 'Offside / terrain line'], ['distance', 'Distance'], ['angle', 'Angle']],
+  [['track', 'Track player / ball'], ['calibrate', 'Calibrate pitch']],
   [['text', 'Text label'], ['banner', 'Overlay banner'], ['free', 'Free draw'], ['eraser', 'Eraser']]
 ];
 var _VIST_EDIT = [['undo', 'Undo'], ['redo', 'Redo'], ['dup', 'Duplicate'], ['del', 'Delete'], ['lock', 'Lock / unlock'], ['fwd', 'Bring forward'], ['back', 'Send backward']];
@@ -45956,26 +45958,23 @@ function _vistPoly(ctx, an, prog, W, H, env) {
 }
 function _vistDrawOne(ctx, an, T, W, H, presenting) {
   var env = { alpha: 1, scale: 1, dx: 0, dy: 0, reveal: 1, pulse: 0, on: true };
-  if (presenting) {
-    var t0 = an.t || 0, d = (an.anim && an.anim.dur) || 1.2, type = (an.anim && an.anim.type) || 'drawon';
-    if (T < t0 - 0.001 && type !== 'fadeout') return;
-    var pe = _vistEase(d > 0 ? (T - t0) / d : 1), raw = d > 0 ? (T - t0) / d : 1;
-    if (type === 'fade') env.alpha = pe; else if (type === 'grow') { env.scale = 0.6 + 0.4 * pe; env.alpha = pe; } else if (type === 'slide') { env.alpha = pe; env.dy = (1 - pe) * 26; } else if (type === 'drawon') { env.reveal = pe; env.alpha = Math.min(1, pe * 3); } else if (type === 'pulse') { env.pulse = 0.5 + 0.5 * Math.sin(T * 4); } else if (type === 'fadeout') { env.alpha = 1 - pe; if (raw > 1) return; }
-  }
+  if (presenting) { env = _vistEnv(an, T); if (!env.on) return; }
   var op = env.alpha * (an.opacity == null ? 1 : an.opacity);
   ctx.save(); ctx.translate(env.dx, env.dy); ctx.globalAlpha = op;
-  var W2 = W, H2 = H, col = an.color, tool = an.tool;
+  var col = an.color, tool = an.tool;
   var a = an.a ? _vistPx(an.a, W, H) : null, b = an.b ? _vistPx(an.b, W, H) : null;
+  if (_vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); an._state = _anch.state; }
   if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { _vistArrow(ctx, an, env.reveal, W, H); }
   else if (tool === 'free') { var fp = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); var tp = _vistTrim(fp, env.reveal); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = an.width || 5; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 5; } ctx.strokeStyle = col; ctx.beginPath(); tp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
   else if (tool === 'ring' || tool === 'dring') { _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
   else if (tool === 'spot') { _vistSpot(ctx, a, b, col, an, env); }
   else if (tool === 'plabel' || tool === 'text' || tool === 'banner') { _vistLabel(ctx, a, an, env, tool); }
   else if (tool === 'offside') { _vistOffside(ctx, an, env, W, H); }
-  else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env, W); }
+  else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env, W, H, an); }
   else if (tool === 'angle') { _vistAngle(ctx, an, env, W, H); }
   else if (tool === 'cone') { _vistCone(ctx, a, b, col, an, env); }
   else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { _vistZone(ctx, an, env, W, H); }
+  if (an.keys && an.keys.length && a && _vistTrackable(tool) && (presenting || _VIST.sel === an.id)) _vistTrackBadge(ctx, a, an._state || 'Tracking');
   ctx.restore();
 }
 function _vistRing(ctx, c, edge, col, an, env, dbl) {
@@ -46006,7 +46005,7 @@ function _vistLabel(ctx, a, an, env, tool) {
   ctx.fillStyle = '#f4f7fb'; ctx.textAlign = 'left'; ctx.fillText(txt, x + bar + pad, y + th / 2 + 0.5);
 }
 function _vistOffside(ctx, an, env, W, H) { var x = an.a.x * W; var side = an.side || 72; var dir = an.dir || 1; var gx0 = dir > 0 ? x : x - side; var col = an.color; ctx.save(); var g = ctx.createLinearGradient(gx0, 0, gx0 + side, 0); if (dir > 0) { g.addColorStop(0, _vistRGBA(col, .2)); g.addColorStop(1, _vistRGBA(col, 0)); } else { g.addColorStop(0, _vistRGBA(col, 0)); g.addColorStop(1, _vistRGBA(col, .2)); } ctx.fillStyle = g; ctx.fillRect(gx0, 0, side, H); ctx.setLineDash([12, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H * Math.min(1, env.reveal * 1.2)); ctx.stroke(); ctx.restore(); }
-function _vistDistance(ctx, a, b, col, env, W) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); var t = metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
+function _vistDistance(ctx, a, b, col, env, W, H, an) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres, est = false; var pj = _vistProj(); if (pj && pj.calib && pj.calib.H && an && an.a && an.b) { var pa = _vistApplyH(pj.calib.H, an.a.x, an.a.y), pb2 = _vistApplyH(pj.calib.H, an.b.x, an.b.y); metres = Math.hypot(pb2.x - pa.x, pb2.y - pa.y); } else { metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); est = true; } var t = (est ? '≈ ' : '') + metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
 function _vistAngle(ctx, an, env, W, H) { var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 3) { if (pts.length) { ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); } return; } ctx.save(); ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = an.color; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); ctx.shadowColor = 'transparent'; var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 26, a1, a2); ctx.strokeStyle = _vistRGBA(an.color, .8); ctx.lineWidth = 2; ctx.stroke(); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; ctx.font = '800 12px ui-monospace,monospace'; ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(Math.round(deg) + '°', pts[1].x, pts[1].y - 16); ctx.restore(); }
 function _vistCone(ctx, apex, edge, col, an, env) { var ang = Math.atan2(edge.y - apex.y, edge.x - apex.x); var L = Math.max(40, Math.hypot(edge.x - apex.x, edge.y - apex.y)) * env.reveal; var half = ((an.coneAngle || 46) * Math.PI / 360); ctx.save(); var g = ctx.createLinearGradient(apex.x, apex.y, apex.x + Math.cos(ang) * L, apex.y + Math.sin(ang) * L); g.addColorStop(0, _vistRGBA(col, .5)); g.addColorStop(1, _vistRGBA(col, .03)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(apex.x, apex.y); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.closePath(); ctx.fill(); ctx.strokeStyle = _vistRGBA(col, .8); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.stroke(); ctx.beginPath(); ctx.arc(apex.x, apex.y, 4, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.restore(); }
 function _vistZone(ctx, an, env, W, H) {
@@ -46037,6 +46036,7 @@ function _vistRedraw() {
   (p.annotations || []).slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); }).forEach(function (an) { if (an.hidden) return; if (!an.tool) return; try { _vistDrawOne(ctx, an, T, W, H, presenting); } catch (e) {} });
   // in-progress draft
   if (_VIST.draft) { try { _vistDrawOne(ctx, _VIST.draft, T, W, H, false); } catch (e) {} }
+  try { _vistCalibDraw(ctx, W, H); } catch (e) {}
   // selection outline + handles
   var sel = _vistSel(); if (sel && !sel.hidden) { _vistDrawSelection(ctx, sel, W, H); }
 }
@@ -46119,6 +46119,8 @@ function _vistWireCanvas() {
     var d = whcss(), P = rel(ev), N = nrm(P, d), tool = _VIST.tool;
     if (tool === 'select') { _vistSelectDown(P, N, d, ev, cv); return; }
     if (tool === 'eraser') { var hit = _vistHit(P.x, P.y, d.W, d.H); if (hit) _vistDelete(hit.id); return; }
+    if (tool === 'track') { _vistTrackClick(N); return; }
+    if (tool === 'calibrate') { _vistCalibClick(N); return; }
     var gk = _VIST_GK[tool];
     if (gk === 'pt') { _vistCreatePt(tool, N); return; }
     if (gk === 'poly' || gk === 'poly3') { _vistPolyClick(tool, N, gk); return; }
@@ -46155,7 +46157,7 @@ function _vistSelectUp() { if (_VIST.drag && _VIST.drag.moved) _vistPersist(); _
 function _vistMoveAnn(an, dx, dy) { if (an.a) { an.a.x += dx; an.a.y += dy; } if (an.b) { an.b.x += dx; an.b.y += dy; } if (an.pts) an.pts.forEach(function (p) { p.x += dx; p.y += dy; }); }
 
 /* ---- controls ---- */
-function _vistSetTool(t) { _VIST.tool = t; _VIST.draft = null; if (t !== 'select') _VIST.sel = null; var viw = document.getElementById('viw'); if (viw) { [].forEach.call(viw.querySelectorAll('.vist-tool[data-vst-act="tool"]'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === t); }); } var tb = document.getElementById('vist-toolbadge'); if (tb) tb.textContent = _vistToolName(t); var cv = document.getElementById('vi-canvas'); if (cv) cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; _vistRefreshSettings(); _vistRedraw(); }
+function _vistSetTool(t) { _VIST.tool = t; _VIST.draft = null; if (t !== 'select' && t !== 'track') _VIST.sel = null; if (t === 'calibrate') { _VIST.calib = { pts: [] }; _viToast('Calibrate: click 4 pitch reference points — TL, TR, BR, BL of a known rectangle.'); } else if (_VIST.calib) { _VIST.calib = null; } if (t === 'track') { var st = _vistSel(); _viToast(st && _vistTrackable(st.tool) ? 'Track: click the player on this frame, seek forward, click again to correct.' : 'Track: click a player to create a tracking anchor, then seek + click to correct.'); } var viw = document.getElementById('viw'); if (viw) { [].forEach.call(viw.querySelectorAll('.vist-tool[data-vst-act="tool"]'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === t); }); } var tb = document.getElementById('vist-toolbadge'); if (tb) tb.textContent = _vistToolName(t); var cv = document.getElementById('vi-canvas'); if (cv) cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; _vistRefreshSettings(); _vistRedraw(); }
 function _vistSetFit(v) { _VI.ws.fit = v; var vid = document.getElementById('vi-video'); if (vid) { vid.classList.remove('vi-fit-fill', 'vi-fit-fit', 'vi-fit-original'); vid.classList.add('vi-fit-' + v); } var viw = document.getElementById('viw'); if (viw) [].forEach.call(viw.querySelectorAll('.vist-fit button'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === v); }); try { if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); } catch (e) {} setTimeout(_vistSize, 20); }
 function _vistPresent() { var v = _viwVid(); if (!v) { _viToast('Load a video to play the presentation'); return; } _VIST.sel = null; var steps = _vistStepList(); if (steps.length) { try { v.currentTime = Math.max(0, steps[0].t - 0.05); } catch (e) {} } v.loop = _VIST.loop; try { v.play(); } catch (e) {} _vistRefreshSettings(); _viToast('Playing presentation'); }
 function _vistStepList() { return _vistAnns().slice().sort(function (a, b) { return (a.t || 0) - (b.t || 0); }); }
@@ -46199,6 +46201,13 @@ function _vistAct(act, val, ev) {
     case 'stepdup': _VIST.sel = val; _vistDupSel(); break;
     case 'stephide': _vistToggleHide(val); break;
     case 'stepdel': _vistDelete(val); break;
+    case 'calibreset': _vistCalibReset(); break;
+    case 'kfadd': _vistKfAdd(); break;
+    case 'kfprev': _vistKfStep(-1); break;
+    case 'kfnext': _vistKfStep(1); break;
+    case 'kfdel': _vistKfDel(); break;
+    case 'endset': { var se = _vistSel(); if (se) { var ve = _viwVid(); se.endT = ve ? (ve.currentTime || 0) : 0; _vistPersist(); _vistRefreshSettings(); _viToast('End time set'); } } break;
+    case 'endclear': { var scx = _vistSel(); if (scx) { scx.endT = null; _vistPersist(); _vistRefreshSettings(); _viToast('End time cleared'); } } break;
   }
 }
 function _vistToggle(prop) { _VIST.def[prop] = !_VIST.def[prop]; var s = _vistSel(); if (s) { s[prop] = _VIST.def[prop]; _vistPersist(); } _vistRedraw(); _vistRefreshSettings(); }
@@ -46212,6 +46221,9 @@ function _vistInput(el) {
   else if (k === 'size' && s) { s.size = parseInt(v, 10); }
   else if (k === 'cone' && s) { s.coneAngle = parseInt(v, 10); }
   else if (k === 'dense') { _VIST.def.dense = parseInt(v, 10); if (s) s.dense = parseInt(v, 10); }
+  else if (k === 'delay') { var dl = parseFloat(v); if (s) { s.anim = s.anim || {}; s.anim.delay = dl; } _vistRefreshSteps(); }
+  else if (k === 'exit' && s) { s.anim = s.anim || {}; s.anim.exit = v; }
+  else if (k === 'ease') { _VIST.def.ease = v; if (s) { s.anim = s.anim || {}; s.anim.ease = v; } }
   else if (k === 'stepdur') { var id = el.getAttribute('data-vst'); var an = _vistAnns().filter(function (a) { return a.id === id; })[0]; if (an) { an.anim = an.anim || {}; an.anim.dur = parseFloat(v); _vistPersist(); } return; }
   if (s) _vistPersist(); _vistRedraw();
 }
@@ -46223,6 +46235,8 @@ function _vistRefreshSettings() {
   if (!show) { box.hidden = true; box.innerHTML = ''; return; }
   box.hidden = false; var tgt = sel || _VIST.def; var tool = sel ? sel.tool : _VIST.tool;
   var col = sel ? sel.color : (_VIST.def.userPicked ? _VIST.def.color : _vistToolColor(tool));
+  var _calRow = (function () { var pcal = _vistProj(); var on = pcal && pcal.calib && pcal.calib.H; return '<div class="vist-cal"><span class="vist-cal-s' + (on ? ' is-on' : '') + '">' + (on ? '📐 Calibrated · metres' : 'Not calibrated') + '</span><button class="vist-mini" data-vst-act="tool" data-vst="calibrate">Calibrate</button>' + (on ? '<button class="vist-mini" data-vst-act="calibreset">Reset</button>' : '') + '</div>'; })();
+  if ((tool === 'calibrate' || tool === 'track') && !sel) { box.innerHTML = '<div class="vist-set-hd"><b>' + (tool === 'calibrate' ? 'Calibrate' : 'Track') + '</b><span>Manual / Assisted</span></div><div class="vist-track-note">' + (tool === 'calibrate' ? 'Click 4 known pitch points (TL, TR, BR, BL of a rectangle), then enter its real size to enable metres &amp; pitch-plane distance.' : 'Click a player to create a tracking anchor. Seek forward and click again to add a correction keyframe — the ring stays attached between keyframes (interpolated). Automatic tracking needs a CV service (not connected).') + '</div>' + _calRow; return; }
   var rows = [];
   rows.push('<div class="vist-set-hd"><b>' + (sel ? 'Editing' : 'Tool') + '</b><span>' + _viEsc(_vistToolName(tool)) + '</span></div>');
   var swc = _VIST_COLORS.map(function (c) { return '<button class="vist-sw' + (col === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vst-act="color" data-vst="' + c + '"></button>'; }).join('');
@@ -46240,10 +46254,16 @@ function _vistRefreshSettings() {
   if (['plabel', 'text', 'banner'].indexOf(tool) >= 0 && sel) { rows.push('<div class="vist-sr"><label>Text</label><input type="text" class="vist-in" value="' + _viEsc(sel.text || '') + '" data-vst-in="text"></div>'); rows.push('<div class="vist-sr"><label>Font size</label><input type="range" min="10" max="40" step="1" value="' + (sel.size || 14) + '" data-vst-in="size"></div>'); }
   rows.push('<div class="vist-sr"><label>Animation</label><select class="vist-in" data-vst-in="animtype"><option value="drawon"' + optSel(tgt, 'drawon') + '>Draw-on</option><option value="fade"' + optSel(tgt, 'fade') + '>Fade in</option><option value="grow"' + optSel(tgt, 'grow') + '>Grow</option><option value="slide"' + optSel(tgt, 'slide') + '>Slide in</option><option value="pulse"' + optSel(tgt, 'pulse') + '>Pulse</option><option value="instant"' + optSel(tgt, 'instant') + '>Instant</option><option value="fadeout"' + optSel(tgt, 'fadeout') + '>Fade out</option></select></div>');
   rows.push('<div class="vist-sr"><label>Duration</label><input type="range" min="0.3" max="4" step="0.1" value="' + (sel && sel.anim ? sel.anim.dur : _VIST.def.animDur) + '" data-vst-in="animdur"></div>');
+  rows.push('<div class="vist-sr"><label>Delay</label><input type="range" min="0" max="3" step="0.1" value="' + ((sel && sel.anim && sel.anim.delay) || 0) + '" data-vst-in="delay"></div>');
+  rows.push('<div class="vist-sr"><label>Easing</label><select class="vist-in" data-vst-in="ease">' + ['ease', 'linear', 'easein', 'easeout'].map(function (e) { var cur = (sel && sel.anim && sel.anim.ease) || _VIST.def.ease || 'ease'; return '<option value="' + e + '"' + (cur === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div>');
   if (sel) {
-    rows.push('<div class="vist-sr"><label>Start</label><span class="vist-val mono">' + _viFmt(sel.t) + '</span><button class="vist-mini" data-vst-act="settime">Set to current</button></div>');
+    rows.push('<div class="vist-sr"><label>Exit</label><select class="vist-in" data-vst-in="exit">' + ['fade', 'wipe', 'none'].map(function (e) { var cur = (sel.anim && sel.anim.exit) || 'fade'; return '<option value="' + e + '"' + (cur === e ? ' selected' : '') + '>' + e + '</option>'; }).join('') + '</select></div>');
+    rows.push('<div class="vist-sr"><label>Start</label><span class="vist-val mono">' + _viFmt(sel.t) + '</span><button class="vist-mini" data-vst-act="settime">Set</button></div>');
+    rows.push('<div class="vist-sr"><label>End</label><span class="vist-val mono">' + (sel.endT != null ? _viFmt(sel.endT) : '—') + '</span><button class="vist-mini" data-vst-act="endset">Set</button><button class="vist-mini" data-vst-act="endclear">✕</button></div>');
+    if (_vistTrackable(sel.tool)) { var nk = (sel.keys || []).length; var v0 = _viwVid(); var stnow = nk ? (_vistAnchor(sel, v0 ? (v0.currentTime || 0) : 0).state || 'Tracking') : '—'; rows.push('<div class="vist-track"><div class="vist-track-h"><b>Tracking</b><span class="vist-tstate" data-st="' + _viEsc(stnow) + '">' + _viEsc(stnow) + '</span></div><div class="vist-track-note">Manual / Assisted · ' + nk + ' keyframe' + (nk === 1 ? '' : 's') + ' — CV service required for automatic.</div><div class="vist-set-acts"><button class="vist-mini vist-mini--p" data-vst-act="tool" data-vst="track">＋ Track-click</button><button class="vist-mini" data-vst-act="kfprev">◀</button><button class="vist-mini" data-vst-act="kfnext">▶</button><button class="vist-mini vist-mini--danger" data-vst-act="kfdel">✕ Key</button></div></div>'); }
     rows.push('<div class="vist-set-acts"><button class="vist-mini" data-vst-act="fwd">▲ Fwd</button><button class="vist-mini" data-vst-act="back">▼ Back</button><button class="vist-mini' + (sel.locked ? ' is-on' : '') + '" data-vst-act="lock">' + (sel.locked ? '🔒' : '🔓') + '</button><button class="vist-mini" data-vst-act="dup">⧉</button><button class="vist-mini vist-mini--danger" data-vst-act="del">🗑</button></div>');
   }
+  rows.push(_calRow);
   box.innerHTML = rows.join('');
   function optSel(t, v) { var cur = (t.anim ? t.anim.type : t.animType) || 'drawon'; return cur === v ? ' selected' : ''; }
 }
@@ -46261,7 +46281,10 @@ function _vistRefreshSteps() {
     return '<div class="vist-step' + (_VIST.sel === an.id ? ' is-on' : '') + (an.hidden ? ' is-hidden' : '') + '" data-vst-act="stepsel" data-vst="' + an.id + '"><span class="vist-step-n">' + (i + 1) + '</span><span class="vist-step-sw" style="background:' + an.color + '"></span><div class="vist-step-b"><div class="vist-step-t">' + _viEsc(_vistToolName(an.tool)) + '</div><div class="vist-step-s mono">' + _viFmt(an.t) + ' · ' + ((an.anim && an.anim.dur) || 1.2).toFixed(1) + 's · ' + ((an.anim && an.anim.type) || 'drawon') + '</div></div>'
       + '<div class="vist-step-a"><button data-vst-act="stepup" data-vst="' + an.id + '" title="Up">↑</button><button data-vst-act="stepdown" data-vst="' + an.id + '" title="Down">↓</button><button data-vst-act="stephide" data-vst="' + an.id + '" title="Show/Hide">' + (an.hidden ? '◌' : '◉') + '</button><button data-vst-act="stepdup" data-vst="' + an.id + '" title="Duplicate">⧉</button><button data-vst-act="stepdel" data-vst="' + an.id + '" title="Delete">🗑</button></div></div>';
   }).join('') : '<div class="vist-steps-empty">No drawings yet. Pick a tool and draw on the video — each drawing becomes a step you can time and animate.</div>';
-  body.innerHTML = head + '<div class="vist-steps-list">' + list + '</div>';
+  var dur = _viwDur() || 10;
+  var tl = '<div class="vist-tlwrap"><div class="vist-tl" id="vist-tl">' + steps.map(function (an) { var left = (an.t / dur * 100); var wd = Math.max(2.5, ((an.anim && an.anim.dur) || 1.2) / dur * 100); return '<div class="vist-tlb' + (_VIST.sel === an.id ? ' is-on' : '') + '" data-vst-tlb="' + an.id + '" style="left:' + left.toFixed(2) + '%;width:' + wd.toFixed(2) + '%;background:' + an.color + '" title="' + _viEsc(_vistToolName(an.tool)) + ' @ ' + _viFmt(an.t) + '"></div>'; }).join('') + '</div><div class="vist-tl-cap">drag blocks to retime</div></div>';
+  body.innerHTML = head + tl + '<div class="vist-steps-list">' + list + '</div>';
+  _vistWireTimeline();
 }
 
 /* ---- keyboard ---- */
@@ -46315,3 +46338,85 @@ function _viWorkspace() {
 function _viWireCanvas() { if (document.querySelector('.vi-studio')) { _vistWireCanvas(); } }
 function _viwWire() { if (document.querySelector('.vi-studio')) { _vistMount(); } }
 function _viAnnRedraw() { if (document.querySelector('.vi-studio')) { _vistRedraw(); } }
+
+/* ===== STUDIO viwpro21 — tracking, calibration, animation editor, timeline ===== */
+/* ---- animation env (delay / entry / hold / exit / easing) ---- */
+function _vistEaseF(name, t) { t = _vistClamp(t, 0, 1); if (name === 'linear') return t; if (name === 'easeout') return 1 - (1 - t) * (1 - t); if (name === 'easein') return t * t; return t * t * (3 - 2 * t); }
+function _vistEnv(an, T) {
+  var env = { alpha: 1, scale: 1, dx: 0, dy: 0, reveal: 1, pulse: 0, on: true };
+  var A = an.anim || {}; var t0 = (an.t || 0) + (A.delay || 0); var d = A.dur || 1.2; var type = A.type || 'drawon'; var ease = A.ease || 'ease';
+  if (T < t0 - 0.001 && type !== 'fadeout') { env.on = false; return env; }
+  var pe = _vistEaseF(ease, d > 0 ? (T - t0) / d : 1);
+  if (type === 'fade') env.alpha = pe; else if (type === 'grow') { env.scale = 0.6 + 0.4 * pe; env.alpha = pe; } else if (type === 'slide') { env.alpha = pe; env.dy = (1 - pe) * 26; } else if (type === 'drawon') { env.reveal = pe; env.alpha = Math.min(1, pe * 3); } else if (type === 'pulse') { env.pulse = 0.5 + 0.5 * Math.sin(T * 4); } else if (type === 'instant') { } else if (type === 'fadeout') { env.alpha = 1 - pe; if ((T - t0) / d > 1) env.on = false; }
+  if (an.endT != null && T >= an.endT) { var ex = A.exit || 'fade'; var ed = A.exitDur || Math.min(0.8, d); var ep = _vistClamp((T - an.endT) / ed, 0, 1); if (ex === 'none') { } else if (ex === 'wipe') { env.reveal = Math.min(env.reveal, 1 - ep); if (ep >= 1) env.on = false; } else { env.alpha *= (1 - ep); if (ep >= 1) env.on = false; } }
+  return env;
+}
+/* ---- 4-point homography (image[0..1] -> pitch metres) ---- */
+function _vistGauss(A, b) { var n = b.length, col, r, r2, c, piv, f, i; for (col = 0; col < n; col++) { piv = col; for (r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r; if (Math.abs(A[piv][col]) < 1e-12) return null; var tA = A[piv]; A[piv] = A[col]; A[col] = tA; var tb = b[piv]; b[piv] = b[col]; b[col] = tb; for (r2 = 0; r2 < n; r2++) { if (r2 === col) continue; f = A[r2][col] / A[col][col]; for (c = col; c < n; c++) A[r2][c] -= f * A[col][c]; b[r2] -= f * b[col]; } } var x = []; for (i = 0; i < n; i++) x.push(b[i] / A[i][i]); return x; }
+function _vistSolveH(src, dst) { var A = [], b = [], i; for (i = 0; i < 4; i++) { var x = src[i].x, y = src[i].y, X = dst[i].x, Y = dst[i].y; A.push([x, y, 1, 0, 0, 0, -X * x, -X * y]); b.push(X); A.push([0, 0, 0, x, y, 1, -Y * x, -Y * y]); b.push(Y); } var h = _vistGauss(A, b); if (!h) return null; h.push(1); return h; }
+function _vistApplyH(h, x, y) { var d = h[6] * x + h[7] * y + h[8]; if (Math.abs(d) < 1e-9) d = 1e-9; return { x: (h[0] * x + h[1] * y + h[2]) / d, y: (h[3] * x + h[4] * y + h[5]) / d }; }
+function _vistCalibStart() { _VIST.tool = 'calibrate'; _VIST.calib = { pts: [] }; _vistSetTool('calibrate'); _viToast('Calibrate: click 4 pitch reference points (a known rectangle: TL, TR, BR, BL).'); }
+function _vistCalibClick(N) {
+  _VIST.calib = _VIST.calib || { pts: [] }; _VIST.calib.pts.push({ x: N.x, y: N.y }); _vistRedraw();
+  if (_VIST.calib.pts.length >= 4) {
+    var wv = window.prompt('Real WIDTH of that rectangle in metres (TL→TR):', '40.32'); if (wv == null) { _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
+    var hv = window.prompt('Real HEIGHT of that rectangle in metres (TL→BL):', '16.5'); if (hv == null) { _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
+    var w = parseFloat(wv), h = parseFloat(hv); if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) { _viToast('Invalid dimensions'); _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
+    var dst = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+    var H = _vistSolveH(_VIST.calib.pts, dst);
+    var p = _vistProj(); var v = _viwVid();
+    if (H && p) { p.calib = { pts: _VIST.calib.pts.slice(), H: H, w: w, h: h, at: v ? (v.currentTime || 0) : 0 }; _vistPersist(); _viToast('Pitch calibrated — distances now show real metres (single camera pose).'); }
+    else _viToast('Calibration failed — points may be collinear. Try again.');
+    _VIST.calib = null; _vistSetTool('select'); _vistRefreshSettings(); _vistRedraw();
+  }
+}
+function _vistCalibReset() { var p = _vistProj(); if (p) { p.calib = null; _vistPersist(); } _VIST.calib = null; _vistRefreshSettings(); _vistRedraw(); _viToast('Calibration cleared'); }
+function _vistCalibDraw(ctx, W, H) {
+  var p = _vistProj(); var pts = (_VIST.calib && _VIST.calib.pts) || (_VIST.tool === 'calibrate' ? [] : (p && p.calib ? null : null));
+  var show = (_VIST.tool === 'calibrate') ? ((_VIST.calib && _VIST.calib.pts) || []) : null;
+  if (!show) return;
+  ctx.save(); ctx.strokeStyle = '#2dd4bf'; ctx.fillStyle = '#2dd4bf'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); show.forEach(function (pt, i) { var x = pt.x * W, y = pt.y * H; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); if (show.length >= 4) ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+  show.forEach(function (pt, i) { var x = pt.x * W, y = pt.y * H; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fillStyle = '#0b0d10'; ctx.fill(); ctx.strokeStyle = '#2dd4bf'; ctx.lineWidth = 2; ctx.stroke(); ctx.fillStyle = '#2dd4bf'; ctx.font = '800 10px ui-monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(['TL', 'TR', 'BR', 'BL'][i] || (i + 1), x, y - 12); });
+  ctx.restore();
+}
+/* ---- manual / assisted keyframe tracking ---- */
+function _vistTrackable(tool) { return ['ring', 'dring', 'spot', 'plabel'].indexOf(tool) >= 0; }
+function _vistAnchor(an, T) {
+  var ks = (an.keys || []).slice().sort(function (a, b) { return a.t - b.t; });
+  if (!ks.length) return { x: an.a.x, y: an.a.y, state: null };
+  function near(t) { return Math.abs(T - t) < 0.12; }
+  if (ks.length === 1) { return { x: ks[0].x, y: ks[0].y, state: near(ks[0].t) ? 'Manual keyframe' : 'Tracking' }; }
+  if (T <= ks[0].t) return { x: ks[0].x, y: ks[0].y, state: near(ks[0].t) ? 'Manual keyframe' : 'Tracking' };
+  if (T >= ks[ks.length - 1].t) return { x: ks[ks.length - 1].x, y: ks[ks.length - 1].y, state: near(ks[ks.length - 1].t) ? 'Manual keyframe' : 'Tracking lost' };
+  for (var i = 0; i < ks.length - 1; i++) { if (T >= ks[i].t && T <= ks[i + 1].t) { var gap = ks[i + 1].t - ks[i].t; var f = gap > 0 ? (T - ks[i].t) / gap : 0; var st = near(ks[i].t) || near(ks[i + 1].t) ? 'Manual keyframe' : (gap > 1.6 ? 'Correction required' : 'Interpolated'); return { x: ks[i].x + (ks[i + 1].x - ks[i].x) * f, y: ks[i].y + (ks[i + 1].y - ks[i].y) * f, state: st }; } }
+  return { x: ks[0].x, y: ks[0].y, state: 'Tracking' };
+}
+function _vistTrackClick(N) {
+  var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0; var sel = _vistSel();
+  if (sel && _vistTrackable(sel.tool)) {
+    sel.keys = sel.keys || []; var ex = null; for (var i = 0; i < sel.keys.length; i++) if (Math.abs(sel.keys[i].t - T) < 0.06) ex = sel.keys[i];
+    if (ex) { ex.x = N.x; ex.y = N.y; } else sel.keys.push({ t: T, x: N.x, y: N.y });
+    sel.keys.sort(function (a, b) { return a.t - b.t; }); sel.a = { x: sel.keys[0].x, y: sel.keys[0].y }; sel.t = Math.min(sel.t == null ? T : sel.t, sel.keys[0].t);
+    _vistPersist(); _vistRedraw(); _vistRefreshSettings(); _viToast('Keyframe @ ' + _viFmt(T) + ' · ' + sel.keys.length + ' total (Manual / Assisted)');
+  } else {
+    var an = { id: _viUid(), tool: 'dring', t: T, a: { x: N.x, y: N.y }, keys: [{ t: T, x: N.x, y: N.y }], color: '#ffd23b', opacity: 1, width: _VIST.def.width, glow: true, shadow: true, anim: { type: 'fade', dur: 0.5 }, z: _vistMaxZ() + 1 };
+    _vistCommit(an); _viToast('Tracking anchor created — move the video forward a few frames and click the player again to correct (adds a keyframe).');
+  }
+}
+function _vistKfAdd() { var s = _vistSel(); if (!s || !_vistTrackable(s.tool)) { _viToast('Select a ring / label / spotlight, then Track-click the player'); return; } var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0; var pos = _vistAnchor(s, T); s.keys = s.keys || []; s.keys.push({ t: T, x: pos.x, y: pos.y }); s.keys.sort(function (a, b) { return a.t - b.t; }); _vistPersist(); _vistRefreshSettings(); _vistRedraw(); _viToast('Keyframe added @ ' + _viFmt(T)); }
+function _vistKfStep(dir) { var s = _vistSel(); if (!s || !s.keys || !s.keys.length) return; var v = _viwVid(); var T = v ? v.currentTime : 0; var ks = s.keys.slice().sort(function (a, b) { return a.t - b.t; }); var tgt = null; if (dir > 0) { for (var i = 0; i < ks.length; i++) if (ks[i].t > T + 0.05) { tgt = ks[i]; break; } } else { for (var j = ks.length - 1; j >= 0; j--) if (ks[j].t < T - 0.05) { tgt = ks[j]; break; } } if (tgt) { _viwSeekTo(tgt.t); _vistRefreshSettings(); } else _viToast(dir > 0 ? 'Last keyframe' : 'First keyframe'); }
+function _vistKfDel() { var s = _vistSel(); if (!s || !s.keys || !s.keys.length) return; var v = _viwVid(); var T = v ? v.currentTime : 0; var before = s.keys.length; s.keys = s.keys.filter(function (k) { return Math.abs(k.t - T) > 0.15; }); if (s.keys.length === before) { _viToast('No keyframe near this time'); return; } if (s.keys.length) s.a = { x: s.keys[0].x, y: s.keys[0].y }; _vistPersist(); _vistRefreshSettings(); _vistRedraw(); _viToast('Keyframe removed (' + s.keys.length + ' left)'); }
+function _vistTrackBadge(ctx, a, state) {
+  if (!state) return; var col = state === 'Tracking' ? '#4ade80' : state === 'Manual keyframe' ? '#ffd23b' : state === 'Interpolated' ? '#49a8ff' : state === 'Correction required' ? '#fb7a45' : '#ff5a5a';
+  ctx.save(); ctx.font = '800 9px ui-monospace,monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; var tw = ctx.measureText(state).width + 14; var x = a.x + 12, y = a.y - 20;
+  ctx.fillStyle = 'rgba(8,11,16,.85)'; _vistRound(ctx, x, y - 8, tw, 15, 4); ctx.fill(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x + 6, y - 0.5, 3, 0, 7); ctx.fill(); ctx.fillStyle = col; ctx.fillText(state, x + 12, y); ctx.restore();
+}
+/* ---- step-timeline dragging ---- */
+function _vistWireTimeline() {
+  var body = document.getElementById('vist-steps-body'); if (!body || body._vstTl) return; body._vstTl = true;
+  var drag = null;
+  body.addEventListener('pointerdown', function (ev) { var b = ev.target.closest && ev.target.closest('[data-vst-tlb]'); if (!b) return; var tl = document.getElementById('vist-tl'); if (!tl) return; drag = { id: b.getAttribute('data-vst-tlb'), tl: tl }; try { b.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); });
+  body.addEventListener('pointermove', function (ev) { if (!drag) return; var r = drag.tl.getBoundingClientRect(); var dur = _viwDur() || 10; var t = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur; var an = _vistAnns().filter(function (a) { return a.id === drag.id; })[0]; if (an) { an.t = t; var b = drag.tl.querySelector('[data-vst-tlb="' + drag.id + '"]'); if (b) b.style.left = (t / dur * 100) + '%'; _vistRedraw(); } });
+  body.addEventListener('pointerup', function () { if (drag) { _vistPersist(); _vistRefreshSteps(); _vistRefreshSettings(); drag = null; } });
+}
