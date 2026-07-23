@@ -45963,7 +45963,7 @@ function _vistDrawOne(ctx, an, T, W, H, presenting) {
   ctx.save(); ctx.translate(env.dx, env.dy); ctx.globalAlpha = op;
   var col = an.color, tool = an.tool;
   var a = an.a ? _vistPx(an.a, W, H) : null, b = an.b ? _vistPx(an.b, W, H) : null;
-  if (_vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); an._state = _anch.state; }
+  if (_vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); var _ddx = _anch.x - an.a.x, _ddy = _anch.y - an.a.y; a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); if (an.b) b = _vistPx({ x: an.b.x + _ddx, y: an.b.y + _ddy }, W, H); an._state = _anch.state; }
   if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { _vistArrow(ctx, an, env.reveal, W, H); }
   else if (tool === 'free') { var fp = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); var tp = _vistTrim(fp, env.reveal); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = an.width || 5; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 5; } ctx.strokeStyle = col; ctx.beginPath(); tp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
   else if (tool === 'ring' || tool === 'dring') { _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
@@ -46400,7 +46400,7 @@ function _vistTrackClick(N) {
     sel.keys.sort(function (a, b) { return a.t - b.t; }); sel.a = { x: sel.keys[0].x, y: sel.keys[0].y }; sel.t = Math.min(sel.t == null ? T : sel.t, sel.keys[0].t);
     _vistPersist(); _vistRedraw(); _vistRefreshSettings(); _viToast('Keyframe @ ' + _viFmt(T) + ' · ' + sel.keys.length + ' total (Manual / Assisted)');
   } else {
-    var an = { id: _viUid(), tool: 'dring', t: T, a: { x: N.x, y: N.y }, keys: [{ t: T, x: N.x, y: N.y }], color: '#ffd23b', opacity: 1, width: _VIST.def.width, glow: true, shadow: true, anim: { type: 'fade', dur: 0.5 }, z: _vistMaxZ() + 1 };
+    var an = { id: _viUid(), tool: 'dring', t: T, a: { x: N.x, y: N.y }, b: { x: N.x + 0.06, y: N.y }, keys: [{ t: T, x: N.x, y: N.y }], color: '#ffd23b', opacity: 1, width: _VIST.def.width, glow: true, shadow: true, anim: { type: 'fade', dur: 0.5 }, z: _vistMaxZ() + 1 };
     _vistCommit(an); _viToast('Tracking anchor created — move the video forward a few frames and click the player again to correct (adds a keyframe).');
   }
 }
