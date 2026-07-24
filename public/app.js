@@ -45963,7 +45963,8 @@ function _vistDrawOne(ctx, an, T, W, H, presenting) {
   ctx.save(); ctx.translate(env.dx, env.dy); ctx.globalAlpha = op;
   var col = an.color, tool = an.tool;
   var a = an.a ? _vistPx(an.a, W, H) : null, b = an.b ? _vistPx(an.b, W, H) : null;
-  if (_vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); var _ddx = _anch.x - an.a.x, _ddy = _anch.y - an.a.y; a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); if (an.b) b = _vistPx({ x: an.b.x + _ddx, y: an.b.y + _ddy }, W, H); an._state = _anch.state; }
+  if (an.pin && an.pitch) { var _cam = _vistCamH(T); if (_cam && _cam.Hinv) { var _cl = {}; for (var _k in an) _cl[_k] = an[_k]; an = _cl; if (an.pitch.a) an.a = _vistApplyH(_cam.Hinv, an.pitch.a.X, an.pitch.a.Y); if (an.pitch.b) an.b = _vistApplyH(_cam.Hinv, an.pitch.b.X, an.pitch.b.Y); if (an.pitch.pts) an.pts = an.pitch.pts.map(function (P) { return _vistApplyH(_cam.Hinv, P.X, P.Y); }); a = an.a ? _vistPx(an.a, W, H) : a; b = an.b ? _vistPx(an.b, W, H) : b; } }
+  if (!an.pin && _vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); var _ddx = _anch.x - an.a.x, _ddy = _anch.y - an.a.y; a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); if (an.b) b = _vistPx({ x: an.b.x + _ddx, y: an.b.y + _ddy }, W, H); an._state = _anch.state; }
   if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { _vistArrow(ctx, an, env.reveal, W, H); }
   else if (tool === 'free') { var fp = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); var tp = _vistTrim(fp, env.reveal); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = an.width || 5; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 5; } ctx.strokeStyle = col; ctx.beginPath(); tp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
   else if (tool === 'ring' || tool === 'dring') { _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
@@ -46005,7 +46006,7 @@ function _vistLabel(ctx, a, an, env, tool) {
   ctx.fillStyle = '#f4f7fb'; ctx.textAlign = 'left'; ctx.fillText(txt, x + bar + pad, y + th / 2 + 0.5);
 }
 function _vistOffside(ctx, an, env, W, H) { var x = an.a.x * W; var side = an.side || 72; var dir = an.dir || 1; var gx0 = dir > 0 ? x : x - side; var col = an.color; ctx.save(); var g = ctx.createLinearGradient(gx0, 0, gx0 + side, 0); if (dir > 0) { g.addColorStop(0, _vistRGBA(col, .2)); g.addColorStop(1, _vistRGBA(col, 0)); } else { g.addColorStop(0, _vistRGBA(col, 0)); g.addColorStop(1, _vistRGBA(col, .2)); } ctx.fillStyle = g; ctx.fillRect(gx0, 0, side, H); ctx.setLineDash([12, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H * Math.min(1, env.reveal * 1.2)); ctx.stroke(); ctx.restore(); }
-function _vistDistance(ctx, a, b, col, env, W, H, an) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres, est = false; var pj = _vistProj(); if (pj && pj.calib && pj.calib.H && an && an.a && an.b) { var pa = _vistApplyH(pj.calib.H, an.a.x, an.a.y), pb2 = _vistApplyH(pj.calib.H, an.b.x, an.b.y); metres = Math.hypot(pb2.x - pa.x, pb2.y - pa.y); } else { metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); est = true; } var t = (est ? '≈ ' : '') + metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
+function _vistDistance(ctx, a, b, col, env, W, H, an) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres, est = false; var pj = _vistProj(); if (an && an.pin && an.pitch && an.pitch.a && an.pitch.b) { metres = Math.hypot(an.pitch.b.X - an.pitch.a.X, an.pitch.b.Y - an.pitch.a.Y); } else if (pj && pj.calib && pj.calib.H && an && an.a && an.b) { var pa = _vistApplyH(pj.calib.H, an.a.x, an.a.y), pb2 = _vistApplyH(pj.calib.H, an.b.x, an.b.y); metres = Math.hypot(pb2.x - pa.x, pb2.y - pa.y); } else { metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); est = true; } var t = (est ? '≈ ' : '') + metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
 function _vistAngle(ctx, an, env, W, H) { var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 3) { if (pts.length) { ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); } return; } ctx.save(); ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = an.color; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); ctx.shadowColor = 'transparent'; var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 26, a1, a2); ctx.strokeStyle = _vistRGBA(an.color, .8); ctx.lineWidth = 2; ctx.stroke(); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; ctx.font = '800 12px ui-monospace,monospace'; ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(Math.round(deg) + '°', pts[1].x, pts[1].y - 16); ctx.restore(); }
 function _vistCone(ctx, apex, edge, col, an, env) { var ang = Math.atan2(edge.y - apex.y, edge.x - apex.x); var L = Math.max(40, Math.hypot(edge.x - apex.x, edge.y - apex.y)) * env.reveal; var half = ((an.coneAngle || 46) * Math.PI / 360); ctx.save(); var g = ctx.createLinearGradient(apex.x, apex.y, apex.x + Math.cos(ang) * L, apex.y + Math.sin(ang) * L); g.addColorStop(0, _vistRGBA(col, .5)); g.addColorStop(1, _vistRGBA(col, .03)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(apex.x, apex.y); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.closePath(); ctx.fill(); ctx.strokeStyle = _vistRGBA(col, .8); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.stroke(); ctx.beginPath(); ctx.arc(apex.x, apex.y, 4, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.restore(); }
 function _vistZone(ctx, an, env, W, H) {
@@ -46208,6 +46209,8 @@ function _vistAct(act, val, ev) {
     case 'kfdel': _vistKfDel(); break;
     case 'endset': { var se = _vistSel(); if (se) { var ve = _viwVid(); se.endT = ve ? (ve.currentTime || 0) : 0; _vistPersist(); _vistRefreshSettings(); _viToast('End time set'); } } break;
     case 'endclear': { var scx = _vistSel(); if (scx) { scx.endT = null; _vistPersist(); _vistRefreshSettings(); _viToast('End time cleared'); } } break;
+    case 'pin': _vistPinToggle(); break;
+    case 'addcamkey': _vistAddCamKey(); break;
   }
 }
 function _vistToggle(prop) { _VIST.def[prop] = !_VIST.def[prop]; var s = _vistSel(); if (s) { s[prop] = _VIST.def[prop]; _vistPersist(); } _vistRedraw(); _vistRefreshSettings(); }
@@ -46261,9 +46264,11 @@ function _vistRefreshSettings() {
     rows.push('<div class="vist-sr"><label>Start</label><span class="vist-val mono">' + _viFmt(sel.t) + '</span><button class="vist-mini" data-vst-act="settime">Set</button></div>');
     rows.push('<div class="vist-sr"><label>End</label><span class="vist-val mono">' + (sel.endT != null ? _viFmt(sel.endT) : '—') + '</span><button class="vist-mini" data-vst-act="endset">Set</button><button class="vist-mini" data-vst-act="endclear">✕</button></div>');
     if (_vistTrackable(sel.tool)) { var nk = (sel.keys || []).length; var v0 = _viwVid(); var stnow = nk ? (_vistAnchor(sel, v0 ? (v0.currentTime || 0) : 0).state || 'Tracking') : '—'; rows.push('<div class="vist-track"><div class="vist-track-h"><b>Tracking</b><span class="vist-tstate" data-st="' + _viEsc(stnow) + '">' + _viEsc(stnow) + '</span></div><div class="vist-track-note">Manual / Assisted · ' + nk + ' keyframe' + (nk === 1 ? '' : 's') + ' — CV service required for automatic.</div><div class="vist-set-acts"><button class="vist-mini vist-mini--p" data-vst-act="tool" data-vst="track">＋ Track-click</button><button class="vist-mini" data-vst-act="kfprev">◀</button><button class="vist-mini" data-vst-act="kfnext">▶</button><button class="vist-mini vist-mini--danger" data-vst-act="kfdel">✕ Key</button></div></div>'); }
+    rows.push(_vistPinRow(sel));
     rows.push('<div class="vist-set-acts"><button class="vist-mini" data-vst-act="fwd">▲ Fwd</button><button class="vist-mini" data-vst-act="back">▼ Back</button><button class="vist-mini' + (sel.locked ? ' is-on' : '') + '" data-vst-act="lock">' + (sel.locked ? '🔒' : '🔓') + '</button><button class="vist-mini" data-vst-act="dup">⧉</button><button class="vist-mini vist-mini--danger" data-vst-act="del">🗑</button></div>');
   }
   rows.push(_calRow);
+  rows.push(_vistCvRow());
   box.innerHTML = rows.join('');
   function optSel(t, v) { var cur = (t.anim ? t.anim.type : t.animType) || 'drawon'; return cur === v ? ' selected' : ''; }
 }
@@ -46359,13 +46364,21 @@ function _vistCalibStart() { _VIST.tool = 'calibrate'; _VIST.calib = { pts: [] }
 function _vistCalibClick(N) {
   _VIST.calib = _VIST.calib || { pts: [] }; _VIST.calib.pts.push({ x: N.x, y: N.y }); _vistRedraw();
   if (_VIST.calib.pts.length >= 4) {
+    var p = _vistProj(); var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0;
+    if (_VIST.calib.mode === 'camkey') {
+      if (!p || !p.calib) { _viToast('Set base calibration first.'); _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
+      p.camKeys = p.camKeys || [{ t: p.calib.at || 0, pts: p.calib.pts.slice() }];
+      p.camKeys = p.camKeys.filter(function (k) { return Math.abs(k.t - T) > 0.06; });
+      p.camKeys.push({ t: T, pts: _VIST.calib.pts.slice() }); p.camKeys.sort(_vistByT);
+      _vistPersist(); _viToast('Camera keyframe @ ' + _viFmt(T) + ' — pinned graphics now reproject across the camera move (' + p.camKeys.length + ' keys).');
+      _VIST.calib = null; _vistSetTool('select'); _vistRefreshSettings(); _vistRedraw(); return;
+    }
     var wv = window.prompt('Real WIDTH of that rectangle in metres (TL→TR):', '40.32'); if (wv == null) { _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
     var hv = window.prompt('Real HEIGHT of that rectangle in metres (TL→BL):', '16.5'); if (hv == null) { _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
     var w = parseFloat(wv), h = parseFloat(hv); if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) { _viToast('Invalid dimensions'); _VIST.calib = null; _vistSetTool('select'); _vistRedraw(); return; }
     var dst = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
     var H = _vistSolveH(_VIST.calib.pts, dst);
-    var p = _vistProj(); var v = _viwVid();
-    if (H && p) { p.calib = { pts: _VIST.calib.pts.slice(), H: H, w: w, h: h, at: v ? (v.currentTime || 0) : 0 }; _vistPersist(); _viToast('Pitch calibrated — distances now show real metres (single camera pose).'); }
+    if (H && p) { p.calib = { pts: _VIST.calib.pts.slice(), H: H, w: w, h: h, at: T }; p.camKeys = [{ t: T, pts: _VIST.calib.pts.slice() }]; _vistPersist(); _viToast('Pitch calibrated — real metres enabled. Add camera keyframes (Pin panel) so graphics follow a moving camera.'); }
     else _viToast('Calibration failed — points may be collinear. Try again.');
     _VIST.calib = null; _vistSetTool('select'); _vistRefreshSettings(); _vistRedraw();
   }
@@ -46420,3 +46433,49 @@ function _vistWireTimeline() {
   body.addEventListener('pointermove', function (ev) { if (!drag) return; var r = drag.tl.getBoundingClientRect(); var dur = _viwDur() || 10; var t = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur; var an = _vistAnns().filter(function (a) { return a.id === drag.id; })[0]; if (an) { an.t = t; var b = drag.tl.querySelector('[data-vst-tlb="' + drag.id + '"]'); if (b) b.style.left = (t / dur * 100) + '%'; _vistRedraw(); } });
   body.addEventListener('pointerup', function () { if (drag) { _vistPersist(); _vistRefreshSteps(); _vistRefreshSettings(); drag = null; } });
 }
+
+/* ===== viwpro23 — camera anchoring (pitch reprojection) + CV provider interface ===== */
+function _vistByT(a, b) { return a.t - b.t; }
+function _vistCamKeys() { var p = _vistProj(); if (!p || !p.calib) return null; if (p.camKeys && p.camKeys.length) return p.camKeys.slice().sort(_vistByT); return [{ t: p.calib.at || 0, pts: p.calib.pts }]; }
+function _vistCamPtsAt(T) { var ks = _vistCamKeys(); if (!ks) return null; if (ks.length === 1 || T <= ks[0].t) return ks[0].pts; if (T >= ks[ks.length - 1].t) return ks[ks.length - 1].pts; for (var i = 0; i < ks.length - 1; i++) { if (T >= ks[i].t && T <= ks[i + 1].t) { var g = ks[i + 1].t - ks[i].t; var f = g > 0 ? (T - ks[i].t) / g : 0; var out = []; for (var j = 0; j < 4; j++) out.push({ x: ks[i].pts[j].x + (ks[i + 1].pts[j].x - ks[i].pts[j].x) * f, y: ks[i].pts[j].y + (ks[i + 1].pts[j].y - ks[i].pts[j].y) * f }); return out; } } return ks[0].pts; }
+function _vistCamH(T) { var p = _vistProj(); if (!p || !p.calib) return null; var pts = _vistCamPtsAt(T); if (!pts) return null; var w = p.calib.w, h = p.calib.h; var dst = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]; var H = _vistSolveH(pts, dst); var Hinv = _vistSolveH(dst, pts); if (!H || !Hinv) return null; return { H: H, Hinv: Hinv }; }
+function _vistPinToggle() {
+  var s = _vistSel(); if (!s) { _viToast('Select an object first'); return; }
+  var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0; var cam = _vistCamH(T);
+  if (!cam) { _viToast('Calibrate the pitch first (Calibrate tool), then pin.'); return; }
+  if (!s.pin) {
+    s.pitch = {};
+    if (s.a) { var pa = _vistApplyH(cam.H, s.a.x, s.a.y); s.pitch.a = { X: pa.x, Y: pa.y }; }
+    if (s.b) { var pb = _vistApplyH(cam.H, s.b.x, s.b.y); s.pitch.b = { X: pb.x, Y: pb.y }; }
+    if (s.pts) s.pitch.pts = s.pts.map(function (pt) { var pp = _vistApplyH(cam.H, pt.x, pt.y); return { X: pp.x, Y: pp.y }; });
+    s.pin = true; _viToast('Pinned to pitch — reprojects with the camera between camera keyframes.');
+  } else { s.pin = false; s.pitch = null; _viToast('Unpinned (screen-fixed).'); }
+  _vistPersist(); _vistRefreshSettings(); _vistRedraw();
+}
+function _vistAddCamKey() { var p = _vistProj(); if (!p || !p.calib) { _viToast('Set base calibration first (Calibrate).'); return; } _VIST.calib = { pts: [], mode: 'camkey' }; _vistSetTool('calibrate'); _viToast('Camera keyframe: click the SAME 4 pitch points at this (moved) camera position.'); }
+function _vistPinRow(sel) { var p = _vistProj(); var cal = !!(p && p.calib && p.calib.H); var nk = (p && p.camKeys ? p.camKeys.length : (cal ? 1 : 0)); return '<div class="vist-track"><div class="vist-track-h"><b>Pitch anchor</b><span class="vist-tstate" data-st="' + (sel.pin ? 'Tracking' : '—') + '">' + (sel.pin ? 'Pinned' : 'Screen') + '</span></div><div class="vist-track-note">' + (cal ? ('Pin to the pitch plane; the graphic reprojects with the camera between camera keyframes (' + nk + '). Automatic camera-motion estimation = Provider Required.') : 'Calibrate the pitch first to enable pitch anchoring.') + '</div><div class="vist-set-acts"><button class="vist-mini' + (sel.pin ? ' is-on' : '') + '" data-vst-act="pin"' + (cal ? '' : ' disabled') + '>📌 ' + (sel.pin ? 'Pinned' : 'Pin to pitch') + '</button><button class="vist-mini" data-vst-act="addcamkey"' + (cal ? '' : ' disabled') + '>＋ Camera key</button></div></div>'; }
+function _vistCvRow() { var st = (typeof VI_CV !== 'undefined') ? VI_CV.status() : { connected: false }; return '<div class="vist-cal"><span class="vist-cal-s' + (st.connected ? ' is-on' : '') + '">🧠 Computer Vision: ' + (st.connected ? st.name : 'Provider Required') + '</span></div>'; }
+/* ---- Computer-Vision provider interface (honest, architecture-ready; no fake results) ---- */
+var VI_CV = (function () {
+  var provider = null;
+  var caps = { playerDetection: 'Provider Required', ballDetection: 'Provider Required', multiObjectTracking: 'Provider Required', segmentation: 'Provider Required', fieldLineDetection: 'Provider Required', pitchCalibration: 'Manual / Assisted', cameraMotion: 'Provider Required', automaticKeyframes: 'Provider Required', depthMasking: 'Provider Required', virtualCamera: 'Provider Required' };
+  function na(op) { return { ok: false, status: provider ? 'Error' : 'Provider Required', op: op, message: provider ? (provider.name + ': ' + op + ' not implemented') : 'No computer-vision provider connected. The Manual / Assisted workflow (manual keyframes, manual camera keyframes, calibration) is available in-app.' }; }
+  return {
+    version: '1.0',
+    status: function () { return { connected: !!provider, name: provider ? provider.name : null, capabilities: caps }; },
+    capability: function (k) { return caps[k] || 'Not Yet Implemented'; },
+    registerProvider: function (prov) { provider = prov || null; return { ok: !!provider, status: provider ? 'Connected' : 'Provider Required' }; },
+    initProvider: function (cfg) { return provider && provider.init ? provider.init(cfg) : na('initProvider'); },
+    startTracking: function (target) { return provider && provider.startTracking ? provider.startTracking(target) : na('startTracking'); },
+    stopTracking: function (id) { return provider && provider.stopTracking ? provider.stopTracking(id) : na('stopTracking'); },
+    trackForward: function (id, n) { return provider && provider.trackForward ? provider.trackForward(id, n) : na('trackForward'); },
+    trackBackward: function (id, n) { return provider && provider.trackBackward ? provider.trackBackward(id, n) : na('trackBackward'); },
+    correctTarget: function (id, pos) { return provider && provider.correctTarget ? provider.correctTarget(id, pos) : na('correctTarget'); },
+    updateKeyframe: function (id, kf) { return provider && provider.updateKeyframe ? provider.updateKeyframe(id, kf) : na('updateKeyframe'); },
+    getConfidence: function (id) { return provider && provider.getConfidence ? provider.getConfidence(id) : na('getConfidence'); },
+    reportLost: function (id) { return provider && provider.reportLost ? provider.reportLost(id) : na('reportLost'); },
+    recoverTarget: function (id) { return provider && provider.recoverTarget ? provider.recoverTarget(id) : na('recoverTarget'); },
+    generateMasks: function (frame) { return provider && provider.generateMasks ? provider.generateMasks(frame) : na('generateMasks'); },
+    estimateCameraTransform: function (a, b) { return provider && provider.estimateCameraTransform ? provider.estimateCameraTransform(a, b) : na('estimateCameraTransform'); }
+  };
+})();
