@@ -45804,7 +45804,7 @@ function _viwEvPlayerSearch(q) {
    Annotations persist in p.annotations (studio schema; normalised coords). ==== */
 var _VIST = { tool: 'select', sel: null, draft: null, drag: null, phase: 0, loop: false,
   stepsOpen: false, def: { color: '#ff3d3d', opacity: 1, width: 6, fill: false, dash: false, shadow: true, glow: true, animType: 'drawon', animDur: 1.2 } };
-var _VIST_COLORS = ['#ffffff', '#ff3d3d', '#ffd23b', '#49a8ff', '#0e1216'];
+var _VIST_COLORS = ['#ffffff', '#ff3d3d', '#ffd23b', '#49a8ff', '#3ddc84', '#0e1216'];
 function _vistClamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function _vistEase(t) { t = _vistClamp(t, 0, 1); return t * t * (3 - 2 * t); }
 function _vistShade(hex, f) { if (!hex || hex[0] !== '#') return hex || '#ff3d3d'; var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255; function c(v) { return Math.max(0, Math.min(255, Math.round(v + (f > 0 ? (255 - v) * f : v * f)))); } return 'rgb(' + c(r) + ',' + c(g) + ',' + c(b) + ')'; }
@@ -45812,7 +45812,8 @@ function _vistRGBA(hex, a) { if (!hex || hex[0] !== '#') return hex; var n = par
 
 /* ---- tool registry ---- */
 var _VIST_GK = { arrow: 'seg', curve: 'seg', darrow: 'seg', run: 'seg', pass: 'seg', line: 'seg', offside: 'seg', distance: 'seg', cone: 'seg', zone: 'seg', szone: 'seg',
-  ring: 'rad', dring: 'rad', spot: 'rad', plabel: 'pt', text: 'pt', banner: 'pt', polygon: 'poly', farea: 'poly', fline: 'poly', angle: 'poly3', free: 'freehand', track: 'special', calibrate: 'special' };
+  ring: 'rad', dring: 'rad', spot: 'rad', plabel: 'pt', text: 'pt', banner: 'pt', polygon: 'poly', farea: 'poly', fline: 'poly', angle: 'poly3', free: 'freehand', track: 'special', calibrate: 'special',
+  xmark: 'rad', omark: 'rad', circle: 'rad', ellipse: 'seg', rect: 'seg', dline: 'seg', seqn: 'poly', timer: 'pt', image: 'pt' };
 function _vistIcon(n) {
   var P = {
     select: '<path d="M5 3l7 17 2.2-6.8L21 11z"/>', ring: '<ellipse cx="12" cy="13" rx="8" ry="4"/>',
@@ -45830,6 +45831,11 @@ function _vistIcon(n) {
     text: '<path d="M5 6h14M12 6v13M9 19h6"/>', banner: '<rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 12h10"/>',
     free: '<path d="M4 16c3 0 3-8 6-8s3 8 6 8 4-4 4-4"/>', eraser: '<path d="M8 20 4 16l9-9 4 4-9 9z"/><path d="M14 20h6"/>',
     track: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="8" stroke-dasharray="3 3"/>', calibrate: '<path d="M3 20 21 4"/><path d="M4 5h4v4M20 19h-4v-4" /><rect x="3" y="4" width="18" height="16" rx="1" opacity=".4"/>',
+    xmark: '<path d="M6 6l12 12M18 6 6 18"/>', omark: '<circle cx="12" cy="12" r="7"/>',
+    line: '<path d="M4 19 20 5"/>', dline: '<path d="M4 19l3-2.6M10 14l3-2.6M16 9l3-2.6"/>',
+    rect: '<rect x="4" y="6" width="16" height="12" rx="1"/>', circle: '<circle cx="12" cy="12" r="8"/>', ellipse: '<ellipse cx="12" cy="12" rx="9" ry="5.5"/>',
+    seqn: '<circle cx="6" cy="17" r="3"/><circle cx="12" cy="9" r="3"/><circle cx="18" cy="15" r="3"/>',
+    timer: '<circle cx="12" cy="13" r="7"/><path d="M12 13V9M9 3h6"/>', image: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/>',
     undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-3"/>', redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h3"/>',
     dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V4h12"/>', del: '<path d="M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13"/>',
     lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>', fwd: '<path d="M12 19V5M6 11l6-6 6 6"/>', back: '<path d="M12 5v14M6 13l6 6 6-6"/>'
@@ -45838,12 +45844,12 @@ function _vistIcon(n) {
 }
 var _VIST_GROUPS = [
   [['select', 'Select']],
-  [['ring', 'Player ring'], ['dring', 'Double ring'], ['spot', 'Cinematic spotlight'], ['plabel', 'Player label']],
-  [['arrow', 'Straight arrow'], ['curve', 'Curved arrow'], ['darrow', 'Dashed arrow'], ['run', 'Animated run path'], ['pass', 'Pass arrow']],
-  [['fline', 'Formation line'], ['farea', 'Formation area'], ['zone', 'Filled tactical zone'], ['szone', 'Striped tactical zone'], ['polygon', 'Polygon'], ['cone', 'Vision cone']],
-  [['offside', 'Offside / terrain line'], ['distance', 'Distance'], ['angle', 'Angle']],
+  [['ring', 'Player ring'], ['dring', 'Double ring'], ['spot', 'Cinematic spotlight'], ['plabel', 'Player label'], ['xmark', 'Marker X'], ['omark', 'Marker O']],
+  [['arrow', 'Straight arrow'], ['curve', 'Curved arrow'], ['darrow', 'Dashed run arrow'], ['run', 'Movement path'], ['pass', 'Pass / ball-travel arrow'], ['line', 'Straight line'], ['dline', 'Dashed line'], ['fline', 'Connect players / formation line']],
+  [['rect', 'Rectangle'], ['circle', 'Circle'], ['ellipse', 'Ellipse'], ['polygon', 'Polygon'], ['zone', 'Tactical zone'], ['szone', 'Striped tactical zone'], ['farea', 'Formation area'], ['cone', 'Vision cone']],
+  [['offside', 'Offside / terrain line'], ['distance', 'Distance (m)'], ['angle', 'Angle'], ['seqn', 'Sequence numbering']],
   [['track', 'Track player / ball'], ['calibrate', 'Calibrate pitch']],
-  [['text', 'Text label'], ['banner', 'Overlay banner'], ['free', 'Free draw'], ['eraser', 'Eraser']]
+  [['text', 'Text label'], ['banner', 'Broadcast label'], ['timer', 'Timer'], ['image', 'Image / logo'], ['free', 'Free draw'], ['eraser', 'Eraser']]
 ];
 var _VIST_EDIT = [['undo', 'Undo'], ['redo', 'Redo'], ['dup', 'Duplicate'], ['del', 'Delete'], ['lock', 'Lock / unlock'], ['fwd', 'Bring forward'], ['back', 'Send backward']];
 function _vistToolName(t) { for (var g = 0; g < _VIST_GROUPS.length; g++) for (var i = 0; i < _VIST_GROUPS[g].length; i++) if (_VIST_GROUPS[g][i][0] === t) return _VIST_GROUPS[g][i][1]; return t; }
@@ -45854,10 +45860,7 @@ function _viStudioShell(p) {
   var vidHtml = p.video
     ? '<video class="vi-video vi-fit-' + (w.fit || 'fill') + '" id="vi-video" playsinline preload="metadata" crossorigin="anonymous"></video><canvas class="vi-canvas" id="vi-canvas"></canvas><div class="vi-vstatus" id="vi-vstatus" hidden></div>'
     : '<div class="vist-novid"><span class="vist-novid-ic">🎬</span><b>No video linked</b><p>Reattach the original MP4/MOV/WebM to analyse — nothing is fabricated.</p><button class="vist-btn vist-btn--p" data-vi-act="attach" data-vi="' + p.id + '" type="button">Reattach video</button></div>';
-  var rail = _VIST_GROUPS.map(function (g, gi) {
-    return g.map(function (t) { return '<button class="vist-tool' + (_VIST.tool === t[0] ? ' is-on' : '') + '" data-vst-act="tool" data-vst="' + t[0] + '" data-tip="' + t[1] + '" type="button">' + _vistIcon(t[0]) + '</button>'; }).join('')
-      + (gi < _VIST_GROUPS.length - 1 ? '<div class="vist-rsep"></div>' : '');
-  }).join('');
+  var rail = _VIST_RAIL.map(function (tk) { return '<button class="vist-tool' + (_VIST.tool === tk ? ' is-on' : '') + '" data-vst-act="tool" data-vst="' + tk + '" data-tip="' + _vistToolName(tk) + '" type="button">' + _vistIcon(tk) + '</button>'; }).join('');
   var edit = _VIST_EDIT.map(function (e) { return '<button class="vist-tool vist-tool--sm' + (e[0] === 'del' ? ' vist-tool--danger' : '') + '" data-vst-act="' + e[0] + '" data-tip="' + e[1] + '" type="button">' + _vistIcon(e[0]) + '</button>'; }).join('');
   var sw = _VIST_COLORS.map(function (c) { return '<button class="vist-sw' + (_VIST.def.color === c ? ' is-on' : '') + '" style="--sw:' + c + '" data-vst-act="color" data-vst="' + c + '" title="' + c + '"></button>'; }).join('');
   var top = '<div class="vist-top"><div class="vist-brand"><span class="vist-mk">◈</span><b>FAMILISTA</b><i>Analyser</i></div>'
@@ -45872,6 +45875,7 @@ function _viStudioShell(p) {
   var steps = '<aside class="vist-steps' + (_VIST.stepsOpen ? ' is-open' : '') + '" id="vist-steps"><button class="vist-steps-tab" data-vst-act="stepstoggle" type="button"><span>Presentation</span></button><div class="vist-steps-body" id="vist-steps-body"></div></aside>';
   var transport = '<div class="vist-transport">'
     + '<div class="vist-seek" id="vist-seek" data-vst-act="seek"><div class="vist-seek-fill" id="vist-seek-fill"></div><div class="vist-seek-head" id="vist-seek-head"></div><div class="vist-seek-marks" id="vist-seek-marks"></div></div>'
+    + '<div class="vist-objtl" id="vist-objtl" title="Telestration objects — drag to retime"></div>'
     + '<div class="vist-tp">'
     + '<button class="vist-tpb" data-vst-act="frame" data-vst="-1" title="Previous frame">⏮</button>'
     + '<button class="vist-tpb" data-vst-act="nudge" data-vst="-5" title="−5s">−5s</button>'
@@ -45886,9 +45890,10 @@ function _viStudioShell(p) {
     + '<div class="vist-editg">' + edit + '</div>'
     + '<button class="vist-tpb vist-tpb--io" data-vst-act="markin" title="Set In">IN</button>'
     + '<button class="vist-tpb vist-tpb--io" data-vst-act="markout" title="Set Out">OUT</button>'
+    + '<button class="vist-tpb" data-vst-act="fs" title="Full screen">⛶</button>'
     + '</div></div>';
   return '<div class="vi-studio" id="viw">' + top + '<div class="vist-body">'
-    + '<div class="vist-rail">' + rail + '</div>' + stage + steps + '</div>' + transport + '</div>';
+    + '<div class="vist-rail">' + rail + '</div><div class="vist-center">' + _vistTopbar() + stage + '</div>' + steps + '</div>' + transport + '</div>';
 }
 
 /* ---- geometry / px conversion (annotations stored normalised 0..1 of stage) ---- */
@@ -45975,6 +45980,14 @@ function _vistDrawOne(ctx, an, T, W, H, presenting) {
   else if (tool === 'angle') { _vistAngle(ctx, an, env, W, H); }
   else if (tool === 'cone') { _vistCone(ctx, a, b, col, an, env); }
   else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { _vistZone(ctx, an, env, W, H); }
+  else if (tool === 'xmark' || tool === 'omark') { _vistMarkXO(ctx, a, b, col, an, env, tool === 'xmark'); }
+  else if (tool === 'circle') { _vistRing(ctx, a, b, col, an, env, false); }
+  else if (tool === 'ellipse') { _vistEllipseR(ctx, a, b, col, an, env); }
+  else if (tool === 'rect') { var x1 = Math.min(a.x, b.x), y1 = Math.min(a.y, b.y), rw = Math.abs(b.x - a.x) * env.scale, rh = Math.abs(b.y - a.y) * env.scale; ctx.save(); if (an.fill) { ctx.fillStyle = _vistRGBA(col, .16); ctx.fillRect(x1, y1, rw, rh); } ctx.setLineDash(an.dash ? [10, 7] : []); ctx.strokeStyle = col; ctx.lineWidth = an.width || 4; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } ctx.strokeRect(x1, y1, rw, rh); ctx.restore(); }
+  else if (tool === 'dline') { ctx.save(); ctx.setLineDash([12, 8]); ctx.strokeStyle = col; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore(); }
+  else if (tool === 'seqn') { _vistSeqnR(ctx, an, env, W, H); }
+  else if (tool === 'timer') { _vistTimerR(ctx, a, an, env, T); }
+  else if (tool === 'image') { _vistImageR(ctx, a, b, an, env, W, H); }
   if (an.keys && an.keys.length && a && _vistTrackable(tool) && (presenting || _VIST.sel === an.id)) _vistTrackBadge(ctx, a, an._state || 'Tracking');
   ctx.restore();
 }
@@ -46071,7 +46084,7 @@ function _vistHit(x, y, W, H) {
 /* ---- studio: creation / editing / persistence ---- */
 function _vistPersist() { var p = _vistProj(); if (p) { try { _viTouch(p); } catch (e) {} try { if (typeof _viSave === 'function') _viSave(); } catch (e) {} } }
 function _vistMaxZ() { var m = 0; _vistAnns().forEach(function (a) { if ((a.z || 0) > m) m = a.z || 0; }); return m; }
-function _vistToolColor(t) { var M = { ring: '#ffd23b', dring: '#ffd23b', spot: '#ffffff', plabel: '#ffd23b', text: '#ffd23b', banner: '#ffd23b', arrow: '#ff3d3d', curve: '#ff3d3d', darrow: '#ff3d3d', run: '#ffd23b', pass: '#ffffff', line: '#ffffff', fline: '#ffffff', farea: '#ff3d3d', zone: '#ff3d3d', szone: '#ff3d3d', polygon: '#ff3d3d', cone: '#ffd23b', offside: '#ffffff', distance: '#49a8ff', angle: '#ffd23b', free: '#ffd23b' }; return M[t] || '#ff3d3d'; }
+function _vistToolColor(t) { var M = { ring: '#ffd23b', dring: '#ffd23b', spot: '#ffffff', plabel: '#ffd23b', text: '#ffd23b', banner: '#ffd23b', arrow: '#ff3d3d', curve: '#ff3d3d', darrow: '#ff3d3d', run: '#ffd23b', pass: '#ffffff', line: '#ffffff', dline: '#ffffff', fline: '#ffffff', farea: '#ff3d3d', zone: '#ff3d3d', szone: '#ff3d3d', polygon: '#ff3d3d', cone: '#ffd23b', offside: '#ffffff', distance: '#49a8ff', angle: '#ffd23b', free: '#ffd23b', xmark: '#ff3d3d', omark: '#ffd23b', circle: '#ffffff', ellipse: '#ffd23b', rect: '#ff3d3d', seqn: '#ffd23b', timer: '#ffffff', image: '#ffffff' }; return M[t] || '#ff3d3d'; }
 function _vistPickColor(t) { return _VIST.def.userPicked ? _VIST.def.color : _vistToolColor(t); }
 function _vistPushUndo(op) { _VIST.undo = _VIST.undo || []; _VIST.undo.push(op); if (_VIST.undo.length > 60) _VIST.undo.shift(); _VIST.redo = []; }
 function _vistCommit(an) { var p = _vistProj(); if (!p) return; p.annotations = p.annotations || []; p.annotations.push(an); _vistPushUndo({ t: 'add', an: an }); _VIST.sel = an.id; _vistPersist(); _vistRedraw(); _vistRefreshSteps(); _vistRefreshSettings(); }
@@ -46122,6 +46135,8 @@ function _vistWireCanvas() {
     if (tool === 'eraser') { var hit = _vistHit(P.x, P.y, d.W, d.H); if (hit) _vistDelete(hit.id); return; }
     if (tool === 'track') { _vistTrackClick(N); return; }
     if (tool === 'calibrate') { _vistCalibClick(N); return; }
+    if (tool === 'image') { _vistImagePick(N); return; }
+    if (tool === 'timer') { var vt = _viwVid(); _vistCommit({ id: _viUid(), tool: 'timer', t: vt ? (vt.currentTime || 0) : 0, a: N, color: _vistPickColor('timer'), size: 16, opacity: 1, anim: { type: 'fade', dur: 0.4 }, z: _vistMaxZ() + 1 }); return; }
     var gk = _VIST_GK[tool];
     if (gk === 'pt') { _vistCreatePt(tool, N); return; }
     if (gk === 'poly' || gk === 'poly3') { _vistPolyClick(tool, N, gk); return; }
@@ -46158,7 +46173,7 @@ function _vistSelectUp() { if (_VIST.drag && _VIST.drag.moved) _vistPersist(); _
 function _vistMoveAnn(an, dx, dy) { if (an.a) { an.a.x += dx; an.a.y += dy; } if (an.b) { an.b.x += dx; an.b.y += dy; } if (an.pts) an.pts.forEach(function (p) { p.x += dx; p.y += dy; }); }
 
 /* ---- controls ---- */
-function _vistSetTool(t) { _VIST.tool = t; _VIST.draft = null; if (t !== 'select' && t !== 'track') _VIST.sel = null; if (t === 'calibrate') { _VIST.calib = { pts: [] }; _viToast('Calibrate: click 4 pitch reference points — TL, TR, BR, BL of a known rectangle.'); } else if (_VIST.calib) { _VIST.calib = null; } if (t === 'track') { var st = _vistSel(); _viToast(st && _vistTrackable(st.tool) ? 'Track: click the player on this frame, seek forward, click again to correct.' : 'Track: click a player to create a tracking anchor, then seek + click to correct.'); } var viw = document.getElementById('viw'); if (viw) { [].forEach.call(viw.querySelectorAll('.vist-tool[data-vst-act="tool"]'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === t); }); } var tb = document.getElementById('vist-toolbadge'); if (tb) tb.textContent = _vistToolName(t); var cv = document.getElementById('vi-canvas'); if (cv) cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; _vistRefreshSettings(); _vistRedraw(); }
+function _vistSetTool(t) { _VIST.tool = t; _VIST.draft = null; if (t !== 'select' && t !== 'track') _VIST.sel = null; if (t === 'calibrate') { _VIST.calib = { pts: [] }; _viToast('Calibrate: click 4 pitch reference points — TL, TR, BR, BL of a known rectangle.'); } else if (_VIST.calib) { _VIST.calib = null; } if (t === 'track') { var st = _vistSel(); _viToast(st && _vistTrackable(st.tool) ? 'Track: click the player on this frame, seek forward, click again to correct.' : 'Track: click a player to create a tracking anchor, then seek + click to correct.'); } if (typeof _vistSyncTools === 'function') _vistSyncTools(); var tb = document.getElementById('vist-toolbadge'); if (tb) tb.textContent = _vistToolName(t); var cv = document.getElementById('vi-canvas'); if (cv) cv.style.cursor = (t === 'select') ? 'default' : (t === 'eraser') ? 'cell' : 'crosshair'; _vistRefreshSettings(); _vistRedraw(); }
 function _vistSetFit(v) { _VI.ws.fit = v; var vid = document.getElementById('vi-video'); if (vid) { vid.classList.remove('vi-fit-fill', 'vi-fit-fit', 'vi-fit-original'); vid.classList.add('vi-fit-' + v); } var viw = document.getElementById('viw'); if (viw) [].forEach.call(viw.querySelectorAll('.vist-fit button'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === v); }); try { if (typeof _viwSavePrefs === 'function') _viwSavePrefs(); } catch (e) {} setTimeout(_vistSize, 20); }
 function _vistPresent() { var v = _viwVid(); if (!v) { _viToast('Load a video to play the presentation'); return; } _VIST.sel = null; var steps = _vistStepList(); if (steps.length) { try { v.currentTime = Math.max(0, steps[0].t - 0.05); } catch (e) {} } v.loop = _VIST.loop; try { v.play(); } catch (e) {} _vistRefreshSettings(); _viToast('Playing presentation'); }
 function _vistStepList() { return _vistAnns().slice().sort(function (a, b) { return (a.t || 0) - (b.t || 0); }); }
@@ -46211,6 +46226,7 @@ function _vistAct(act, val, ev) {
     case 'endclear': { var scx = _vistSel(); if (scx) { scx.endT = null; _vistPersist(); _vistRefreshSettings(); _viToast('End time cleared'); } } break;
     case 'pin': _vistPinToggle(); break;
     case 'addcamkey': _vistAddCamKey(); break;
+    case 'fs': { var el = document.getElementById('vist-stage') || document.getElementById('viw'); try { if (document.fullscreenElement) document.exitFullscreen(); else if (el && el.requestFullscreen) el.requestFullscreen(); } catch (e) {} setTimeout(_vistSize, 200); } break;
   }
 }
 function _vistToggle(prop) { _VIST.def[prop] = !_VIST.def[prop]; var s = _vistSel(); if (s) { s[prop] = _VIST.def[prop]; _vistPersist(); } _vistRedraw(); _vistRefreshSettings(); }
@@ -46290,6 +46306,7 @@ function _vistRefreshSteps() {
   var tl = '<div class="vist-tlwrap"><div class="vist-tl" id="vist-tl">' + steps.map(function (an) { var left = (an.t / dur * 100); var wd = Math.max(2.5, ((an.anim && an.anim.dur) || 1.2) / dur * 100); return '<div class="vist-tlb' + (_VIST.sel === an.id ? ' is-on' : '') + '" data-vst-tlb="' + an.id + '" style="left:' + left.toFixed(2) + '%;width:' + wd.toFixed(2) + '%;background:' + an.color + '" title="' + _viEsc(_vistToolName(an.tool)) + ' @ ' + _viFmt(an.t) + '"></div>'; }).join('') + '</div><div class="vist-tl-cap">drag blocks to retime</div></div>';
   body.innerHTML = head + tl + '<div class="vist-steps-list">' + list + '</div>';
   _vistWireTimeline();
+  if (typeof _vistRefreshObjTl === 'function') _vistRefreshObjTl();
 }
 
 /* ---- keyboard ---- */
@@ -46327,7 +46344,7 @@ function _vistMount() {
     viw.addEventListener('click', function (ev) { var el = ev.target.closest('[data-vst-act]'); if (!el) return; var act = el.getAttribute('data-vst-act'); if (act === 'seek') return; if (el.tagName === 'SELECT') return; ev.preventDefault(); _vistAct(act, el.getAttribute('data-vst'), ev); });
     viw.addEventListener('input', function (ev) { var el = ev.target; if (el && el.getAttribute && el.getAttribute('data-vst-in')) { if (el.getAttribute('data-vst-in') === '__spd') return; _vistInput(el); } });
   }
-  _vistWireCanvas(); _vistWireSeek(); _vistRefreshSteps(); _vistRefreshSettings(); _vistRefreshMarks();
+  _vistWireCanvas(); _vistWireSeek(); _vistRefreshSteps(); _vistRefreshSettings(); _vistRefreshMarks(); _vistRefreshObjTl(); _vistWireObjTl(); _vistWireSetDrag();
   if (!_VIST._keys) { _VIST._keys = true; document.addEventListener('keydown', _vistKey); }
   if (!_VIST._raf) { _VIST._raf = true; _vistRaf(); }
 }
@@ -46479,3 +46496,116 @@ var VI_CV = (function () {
     estimateCameraTransform: function (a, b) { return provider && provider.estimateCameraTransform ? provider.estimateCameraTransform(a, b) : na('estimateCameraTransform'); }
   };
 })();
+
+/* ===== viwpro24 — Once-style layout: top toolbar, new tools, draggable settings, object timeline ===== */
+var _VIST_RAIL = ['select', 'ring', 'dring', 'spot', 'plabel', 'arrow', 'curve', 'darrow', 'run', 'pass', 'szone', 'free', 'eraser'];
+function _vistTopbar() {
+  var html = '<div class="vist-topbar" id="vist-topbar">';
+  _VIST_GROUPS.forEach(function (g, gi) {
+    html += '<div class="vist-tbg">';
+    g.forEach(function (t) { html += '<button class="vist-ttool' + (_VIST.tool === t[0] ? ' is-on' : '') + '" data-vst-act="tool" data-vst="' + t[0] + '" data-tipb="' + t[1] + '" type="button">' + _vistIcon(t[0]) + '</button>'; });
+    html += '</div>';
+    if (gi < _VIST_GROUPS.length - 1) html += '<span class="vist-tbsep"></span>';
+  });
+  html += '</div>';
+  return html;
+}
+function _vistSyncTools() {
+  var viw = document.getElementById('viw'); if (!viw) return;
+  [].forEach.call(viw.querySelectorAll('.vist-tool[data-vst-act="tool"],.vist-ttool'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-vst') === _VIST.tool); });
+}
+/* ---- draggable / collapsible settings panel ---- */
+function _vistWireSetDrag() {
+  var box = document.getElementById('vist-set'); if (!box || box._vstDrag) return; box._vstDrag = true;
+  var drag = null;
+  box.addEventListener('pointerdown', function (ev) {
+    var h = ev.target.closest && ev.target.closest('.vist-set-hd'); if (!h || ev.target.closest('button')) return;
+    var r = box.getBoundingClientRect(), pr = box.parentNode.getBoundingClientRect();
+    drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top, pw: pr.width, ph: pr.height, px: pr.left, py: pr.top };
+    try { box.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault();
+  });
+  box.addEventListener('pointermove', function (ev) {
+    if (!drag) return;
+    var x = _vistClamp(ev.clientX - drag.px - drag.dx, 4, drag.pw - 80);
+    var y = _vistClamp(ev.clientY - drag.py - drag.dy, 4, drag.ph - 40);
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.bottom = 'auto';
+  });
+  function up(ev) { if (drag) { drag = null; try { box.releasePointerCapture(ev.pointerId); } catch (e) {} } }
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+}
+/* ---- extra renderers ---- */
+function _vistMarkXO(ctx, a, b, col, an, env, isX) {
+  var r = Math.max(11, Math.hypot(b.x - a.x, b.y - a.y)) * env.scale; ctx.save(); ctx.lineCap = 'round';
+  if (an.shadow !== false) { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 3; }
+  ctx.lineWidth = Math.max(4, (an.width || 6)); ctx.strokeStyle = _vistShade(col, -.35);
+  function draw() { ctx.beginPath(); if (isX) { ctx.moveTo(a.x - r, a.y - r); ctx.lineTo(a.x + r, a.y + r); ctx.moveTo(a.x + r, a.y - r); ctx.lineTo(a.x - r, a.y + r); } else { ctx.arc(a.x, a.y, r, 0, 7); } ctx.stroke(); }
+  draw(); ctx.shadowColor = 'transparent'; ctx.lineWidth = Math.max(2.4, (an.width || 6) - 2.2); ctx.strokeStyle = col; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } draw(); ctx.restore();
+}
+function _vistEllipseR(ctx, a, b, col, an, env) {
+  var x1 = Math.min(a.x, b.x), y1 = Math.min(a.y, b.y), x2 = Math.max(a.x, b.x), y2 = Math.max(a.y, b.y);
+  var cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.max(6, (x2 - x1) / 2) * env.scale, ry = Math.max(6, (y2 - y1) / 2) * env.scale;
+  ctx.save(); if (an.fill) { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); ctx.fillStyle = _vistRGBA(col, .18); ctx.fill(); }
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, 7); ctx.lineWidth = an.width || 4; ctx.setLineDash(an.dash ? [10, 7] : []); ctx.strokeStyle = col; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 8; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx + 1.4, ry + 1.4, 0, 0, 7); ctx.setLineDash([]); ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+}
+function _vistSeqnR(ctx, an, env, W, H) {
+  var pts = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); if (!pts.length) return; var col = an.color;
+  ctx.save();
+  if (pts.length > 1) { ctx.setLineDash([4, 6]); ctx.strokeStyle = _vistRGBA(col, .6); ctx.lineWidth = 2; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); ctx.setLineDash([]); }
+  var upto = Math.max(1, Math.ceil(pts.length * (env.reveal == null ? 1 : env.reveal)));
+  pts.slice(0, upto).forEach(function (p, i) {
+    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.shadowColor = 'transparent';
+    ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.stroke();
+    ctx.fillStyle = (col === '#ffd23b' || col === '#ffffff') ? '#14180f' : '#fff'; ctx.font = '800 11px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), p.x, p.y);
+  });
+  ctx.restore();
+}
+function _vistTimerR(ctx, a, an, env, T) {
+  var el = Math.max(0, T - (an.t || 0)); var mm = Math.floor(el / 60), ss = (el % 60);
+  var txt = '⏱ ' + mm + ':' + (ss < 10 ? '0' : '') + ss.toFixed(1);
+  ctx.save(); ctx.font = '800 ' + (an.size || 16) + 'px ui-monospace,monospace'; ctx.textBaseline = 'middle';
+  var w = ctx.measureText(txt).width + 22, h = (an.size || 16) + 14;
+  ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  _vistRound(ctx, a.x - w / 2, a.y - h / 2, w, h, 8); ctx.fillStyle = 'rgba(12,15,20,.94)'; ctx.fill(); ctx.shadowColor = 'transparent';
+  _vistRound(ctx, a.x - w / 2, a.y - h / 2, w, h, 8); ctx.strokeStyle = _vistRGBA(an.color, .6); ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(txt, a.x, a.y + 0.5); ctx.restore();
+}
+function _vistImagePick(N) {
+  var inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = function () {
+    var f = inp.files && inp.files[0]; if (!f) return;
+    if (f.size > 3 * 1024 * 1024) { _viToast('Image too large (max ~3 MB)'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var v = _viwVid(); var sc = Math.min(1, 160 / (img.naturalWidth || 160));
+        var an = { id: _viUid(), tool: 'image', t: v ? (v.currentTime || 0) : 0, a: N, b: { x: N.x + 0.12 * sc * (img.naturalWidth / 160), y: N.y + 0.12 * sc * (img.naturalHeight / 160) }, src: rd.result, opacity: 1, anim: { type: 'fade', dur: 0.5 }, z: _vistMaxZ() + 1 };
+        _VIST._imgs = _VIST._imgs || {}; _VIST._imgs[an.id] = img;
+        _vistCommit(an); _viToast('Image placed');
+      };
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+function _vistImageR(ctx, a, b, an, env, W, H) {
+  _VIST._imgs = _VIST._imgs || {}; var im = _VIST._imgs[an.id];
+  if (!im) { im = new Image(); im.onload = function () { _vistRedraw(); }; im.src = an.src; _VIST._imgs[an.id] = im; }
+  if (im.complete && im.naturalWidth) { ctx.save(); if (an.shadow !== false) { ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4; } ctx.drawImage(im, a.x, a.y, Math.max(20, b.x - a.x), Math.max(20, b.y - a.y)); ctx.restore(); }
+}
+/* ---- object timeline strip (in transport) ---- */
+function _vistRefreshObjTl() {
+  var el = document.getElementById('vist-objtl'); if (!el) return;
+  var dur = _viwDur() || 10; var steps = _vistStepList();
+  el.innerHTML = steps.map(function (an) { var left = (an.t / dur * 100); var wd = Math.max(1.6, (((an.anim && an.anim.dur) || 1.2)) / dur * 100); return '<div class="vist-tlb' + (_VIST.sel === an.id ? ' is-on' : '') + (an.hidden ? ' is-hid' : '') + '" data-vst-tlb="' + an.id + '" style="left:' + left.toFixed(2) + '%;width:' + wd.toFixed(2) + '%;background:' + an.color + '" title="' + _viEsc(_vistToolName(an.tool)) + ' @ ' + _viFmt(an.t) + '"></div>'; }).join('');
+}
+function _vistWireObjTl() {
+  var el = document.getElementById('vist-objtl'); if (!el || el._vstW) return; el._vstW = true;
+  var drag = null;
+  el.addEventListener('pointerdown', function (ev) { var bl = ev.target.closest && ev.target.closest('[data-vst-tlb]'); if (!bl) return; drag = bl.getAttribute('data-vst-tlb'); _VIST.sel = drag; _vistRefreshSettings(); try { el.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); });
+  el.addEventListener('pointermove', function (ev) { if (!drag) return; var r = el.getBoundingClientRect(); var dur = _viwDur() || 10; var t = _vistClamp((ev.clientX - r.left) / r.width, 0, 1) * dur; var an = _vistAnns().filter(function (a) { return a.id === drag; })[0]; if (an) { an.t = t; _vistRefreshObjTl(); _vistRedraw(); } });
+  el.addEventListener('pointerup', function () { if (drag) { drag = null; _vistPersist(); _vistRefreshSteps(); _vistRefreshSettings(); } });
+}
