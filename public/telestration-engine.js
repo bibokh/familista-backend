@@ -70,7 +70,26 @@
   TE.PitchCoordinateSystem = PitchCoordinateSystem;
 
   /* ── Camera projection layer (ortho tactical / perspective pitch) ───────── */
-  var MODES = { ORTHOGRAPHIC_TACTICAL: 'ORTHOGRAPHIC_TACTICAL', PERSPECTIVE_PITCH: 'PERSPECTIVE_PITCH' };
+  var MODES = { ORTHOGRAPHIC_TACTICAL: 'ORTHOGRAPHIC_TACTICAL', PERSPECTIVE_PITCH: 'PERSPECTIVE_PITCH', HOMOGRAPHY_PITCH: 'HOMOGRAPHY_PITCH' };
+
+  /* ── Planar homography: 4-point DLT solve + world→image → GPU clip matrix ─ */
+  function _gauss(A, b) {
+    var n = b.length, i, j, k; var M = A.map(function (r, idx) { return r.concat([b[idx]]); });
+    for (i = 0; i < n; i++) {
+      var p = i; for (j = i + 1; j < n; j++) if (Math.abs(M[j][i]) > Math.abs(M[p][i])) p = j;
+      var tmp = M[i]; M[i] = M[p]; M[p] = tmp; if (Math.abs(M[i][i]) < 1e-12) return null;
+      for (j = i + 1; j < n; j++) { var f = M[j][i] / M[i][i]; for (k = i; k <= n; k++) M[j][k] -= f * M[i][k]; }
+    }
+    var x = new Array(n);
+    for (i = n - 1; i >= 0; i--) { var s = M[i][n]; for (j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / M[i][i]; }
+    return x;
+  }
+  // src[i] {x,y} → dst[i] {x,y}; returns 9-element homography [h0..h8].
+  TE.solveHomography = function (src, dst) {
+    var A = [], b = [], i; for (i = 0; i < 4; i++) { var x = src[i].x, y = src[i].y, X = dst[i].x, Y = dst[i].y; A.push([x, y, 1, 0, 0, 0, -X * x, -X * y]); b.push(X); A.push([0, 0, 0, x, y, 1, -Y * x, -Y * y]); b.push(Y); }
+    var h = _gauss(A, b); if (!h) return null; h.push(1); return h;
+  };
+  TE.applyHomography = function (h, x, y) { var d = h[6] * x + h[7] * y + h[8]; if (Math.abs(d) < 1e-9) d = 1e-9; return { x: (h[0] * x + h[1] * y + h[2]) / d, y: (h[3] * x + h[4] * y + h[5]) / d }; };
   function CameraProjection(scene, coords) {
     this.scene = scene; this.coords = coords;
     var cam = new BABYLON.ArcRotateCamera('te-cam', -Math.PI / 2, 0.85, 150, BABYLON.Vector3.Zero(), scene);
@@ -94,6 +113,36 @@
     cam.orthoTop = half; cam.orthoBottom = -half; cam.orthoLeft = -half * aspect; cam.orthoRight = half * aspect;
   };
   CameraProjection.prototype.onResize = function () { if (this.mode === MODES.ORTHOGRAPHIC_TACTICAL) this._applyOrtho(); };
+  // Install a planar homography (world ground X,Z → normalized image u,v in 0..1)
+  // as the camera's projection so every ground vertex lands exactly on the pitch
+  // in the underlying video. The graphics are therefore locked to the grass.
+  CameraProjection.prototype.setHomography = function (h, opts) {
+    opts = opts || {}; var kH = opts.heightLift == null ? 0.02 : opts.heightLift; var scene = this.scene, cam = this.camera;
+    var M = BABYLON.Matrix.FromValues(
+      2 * h[0] - h[6], h[6] - 2 * h[3], 0.5 * h[6], h[6],
+      0, kH, 0, 0,
+      2 * h[1] - h[7], h[7] - 2 * h[4], 0.5 * h[7], h[7],
+      2 * h[2] - h[8], h[8] - 2 * h[5], 0.5 * h[8], h[8]
+    );
+    cam.mode = BABYLON.Camera.PERSPECTIVE_CAMERA;
+    cam.getViewMatrix = function () { return BABYLON.Matrix.IdentityReadOnly; };
+    cam.freezeProjectionMatrix(M);
+    this._Hworld = h; this.mode = MODES.HOMOGRAPHY_PITCH;
+    scene.meshes.forEach(function (m) { m.alwaysSelectAsActiveMesh = true; });
+    try { scene.fogMode = BABYLON.Scene.FOGMODE_NONE; } catch (e) {}
+    return this;
+  };
+  // corr = [{px,py,ix,iy} × 4]: pitch-space (0..100) ↔ image (0..1) correspondences.
+  CameraProjection.prototype.setHomographyFromCorrespondences = function (corr, opts) {
+    var c = this.coords, self = this;
+    var src = corr.map(function (p) { var w = c.pitchToWorld(p.px, p.py, 0); return { x: w.x, y: w.z }; });
+    var dst = corr.map(function (p) { return { x: p.ix, y: p.iy }; });
+    var h = TE.solveHomography(src, dst); if (!h) return null; this.setHomography(h, opts); return h;
+  };
+  // Project a pitch-space point (0..100) to normalized image (0..1) with the current H.
+  CameraProjection.prototype.projectPitch = function (px, py) {
+    if (!this._Hworld) return null; var w = this.coords.pitchToWorld(px, py, 0); return TE.applyHomography(this._Hworld, w.x, w.z);
+  };
   CameraProjection.MODES = MODES;
   TE.CameraProjection = CameraProjection;
   TE.MODES = MODES;
@@ -491,6 +540,9 @@
       engine: eng, canvas: canvas,
       setScene: function (specs) { eng.registry.clear(); var maxT = 0; (specs || []).forEach(function (s) { var o = TE.createObject(s); if (o) eng.registry.add(o); var a = s.animation || {}; maxT = Math.max(maxT, (s.start || 0) + (a.delay || 0) + (a.dur || a.duration || 1)); }); eng.timeline.duration = Math.max(2, maxT + 0.4); return ctrl; },
       setMode: function (m) { eng.setProjectionMode(m); return ctrl; },
+      setHomography: function (corr, o) { eng.projection.setHomographyFromCorrespondences(corr, o); return ctrl; },
+      setHomographyMatrix: function (h, o) { eng.projection.setHomography(h, o); return ctrl; },
+      projectPitch: function (px, py) { return eng.projection.projectPitch(px, py); },
       play: function () { eng.timeline.play(); return ctrl; }, pause: function () { eng.timeline.pause(); return ctrl; }, reset: function () { eng.timeline.reset(); return ctrl; }, seek: function (t) { eng.timeline.seek(t); return ctrl; },
       start: function () { eng.start(); return ctrl; },
       snapshot: function (t) { if (t != null) { eng.timeline.time = t; eng.timeline.playing = false; eng.registry.each(function (o) { if (o.updateAt) o.updateAt(t); }); } for (var i = 0; i < 3; i++) eng.scene.render(); return canvas.toDataURL('image/jpeg', 0.86); },
