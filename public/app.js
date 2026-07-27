@@ -46742,18 +46742,34 @@ function _teAnnSig(anns) { try { return (anns || []).map(function (a) { return a
 function _teMountVI(force) {
   if (window._TE_OFF || typeof window.FamilistaTE === 'undefined') return;
   var wrap = document.getElementById('vi-videowrap'); if (!wrap) return;
-  var proj = (typeof _vistProj === 'function') ? _vistProj() : null; var anns = proj ? (proj.annotations || []) : [];
+  var proj = (typeof _vistProj === 'function') ? _vistProj() : null;
+  var corners = proj && proj.teCorners; // [{ix,iy}×4] image coords of pitch corners TL,TR,BR,BL (0..1)
+  if (!corners || corners.length < 4) { _teUnmountVI(); return; } // not pitch-calibrated → keep legacy 2D renderer
+  var anns = proj ? (proj.annotations || []) : [];
   if (!_TE_VI) {
     if (_TE_VI_boot) return; _TE_VI_boot = true;
     window.FamilistaTE.loadBabylon(function (ok) {
       _TE_VI_boot = false; if (!ok || window._TE_OFF) return;
-      try { _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: false, mode: window.FamilistaTE.MODES.PERSPECTIVE_PITCH, duration: 6, zIndex: 34 }); _TE_VI.start(); var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden'; _TE_VI_sig = ''; _teMountVI(true); } catch (e) { _TE_VI = null; }
+      try { _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: true, noPitch: true, duration: 6, zIndex: 34 }); _TE_VI.start(); var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden'; _TE_VI_sig = ''; _teMountVI(true); } catch (e) { _TE_VI = null; }
     });
     return;
   }
-  var sig = _teAnnSig(anns);
-  if (force || sig !== _TE_VI_sig) { _TE_VI_sig = sig; try { _TE_VI.setScene(window.FamilistaTE.fromViAnnotations(anns)); _TE_VI.play(); } catch (e) {} }
+  var sig = _teAnnSig(anns) + '|' + JSON.stringify(corners);
+  if (force || sig !== _TE_VI_sig) {
+    _TE_VI_sig = sig;
+    try {
+      _TE_VI.setScene(window.FamilistaTE.fromViAnnotations(anns));
+      var corr = [{ px: 0, py: 0 }, { px: 100, py: 0 }, { px: 100, py: 100 }, { px: 0, py: 100 }].map(function (p, i) { return { px: p.px, py: p.py, ix: corners[i].ix, iy: corners[i].iy }; });
+      _TE_VI.setHomography(corr); // lock graphics to the video's pitch plane
+      _TE_VI.play();
+    } catch (e) {}
+  }
 }
+/* Pitch calibration entry point: 4 image points (0..1) for pitch corners TL,TR,BR,BL.
+   Once set, the calibrated project renders telestration through the homography-locked
+   engine (graphics embedded in the grass) instead of the flat 2D overlay. */
+function _teCalibrateVI(corners) { var p = (typeof _vistProj === 'function') ? _vistProj() : null; if (!p) return false; p.teCorners = corners; try { if (typeof _vistPersist === 'function') _vistPersist(); } catch (e) {} _teUnmountVI(); _teMountVI(true); return true; }
+window._teCalibrateVI = _teCalibrateVI;
 function _teUnmountVI() { try { if (_TE_VI) { _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = ''; }
 
 var _TE_SIM = null;
