@@ -5992,7 +5992,7 @@ function _sqSimArrowSvg(arrows) {
   });
   return s;
 }
-function _sqSimZonesHtml(zones) { return (zones || []).map(function (z) { var x = Math.max(3, Math.min(97, z.x)), y = Math.max(4, Math.min(96, z.y)), w = Math.max(2, Math.min(97 - x, z.w)), h = Math.max(2, Math.min(96 - y, z.h)); return '<div class="sqsim-zone sqsim-zone--' + z.kind + '" style="left:' + x + '%;top:' + y + '%;width:' + w + '%;height:' + h + '%">' + (z.label ? '<span>' + _sqEsc(z.label) + '</span>' : '') + '</div>'; }).join(''); }
+function _sqSimZonesHtml(zones) { var stripe = 'background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 1px,transparent 1px,transparent 7px);'; return (zones || []).map(function (z) { var x = Math.max(3, Math.min(97, z.x)), y = Math.max(4, Math.min(96, z.y)), w = Math.max(2, Math.min(97 - x, z.w)), h = Math.max(2, Math.min(96 - y, z.h)); return '<div class="sqsim-zone sqsim-zone--' + z.kind + '" style="left:' + x + '%;top:' + y + '%;width:' + w + '%;height:' + h + '%;' + stripe + '">' + (z.label ? '<span>' + _sqEsc(z.label) + '</span>' : '') + '</div>'; }).join(''); }
 function _sqSimInfoHtml(sc, total) {
   var h = '<div class="sqsim-scno">Scene ' + sc.no + ' / ' + total + '</div><div class="sqsim-sctitle">' + _sqEsc(sc.title) + '</div><div class="sqsim-sctext">' + sc.text + '</div>';
   if (sc.bullets && sc.bullets.length) h += '<div class="sqsim-bullets">' + sc.bullets.map(function (b) { return '<div class="sqsim-bl sqsim-bl--' + (b.k || 'n') + '">' + _sqEsc(b.t) + '</div>'; }).join('') + '</div>';
@@ -8220,13 +8220,30 @@ function _deTLApi(root, tl, ac, drill) {
     goal(0, 1); goal(105, -1);
   }
   function goal(gx, dir) { var w = 3.66, tp = 2.44, z0 = 34 - w, z1 = 34 + w, col = 'rgba(255,255,255,.9)'; line3([gx, 0, z0], [gx, tp, z0], col, 2.4); line3([gx, 0, z1], [gx, tp, z1], col, 2.4); line3([gx, tp, z0], [gx, tp, z1], col, 2.4); }
+  function _ribbonVW(pts, hws) { var L = [], R = [], i, n = pts.length; for (i = 0; i < n; i++) { var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]; var dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1; var nx = -dy / dl, ny = dx / dl; L.push({ x: pts[i].x + nx * hws[i], y: pts[i].y + ny * hws[i] }); R.push({ x: pts[i].x - nx * hws[i], y: pts[i].y - ny * hws[i] }); } ctx.beginPath(); L.forEach(function (p, i2) { i2 ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); for (i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i].x, R[i].y); ctx.closePath(); }
+  function _zonePaint(zx, zz, zw, zh, col) {
+    var quad = [[zx, 0, zz], [zx + zw, 0, zz], [zx + zw, 0, zz + zh], [zx, 0, zz + zh]].map(function (p) { return project(p); });
+    function qpath() { ctx.beginPath(); quad.forEach(function (q, i) { i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); }); ctx.closePath(); }
+    ctx.save(); qpath(); ctx.fillStyle = 'rgba(' + col + ',.12)'; ctx.fill(); ctx.clip();
+    ctx.strokeStyle = 'rgba(' + col + ',.20)'; ctx.lineWidth = 1.3; var step = 2.4, kmin = zx - (zz + zh), kmax = zx + zw - zz, kk;
+    for (kk = Math.floor(kmin); kk <= kmax; kk += step) { var a = project([kk + zz, 0, zz]), b = project([kk + zz + zh, 0, zz + zh]); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    ctx.restore(); ctx.save(); qpath(); ctx.strokeStyle = 'rgba(' + col + ',.6)'; ctx.lineWidth = 1.8; ctx.stroke(); ctx.restore();
+  }
+  function _lane(A, B, col, bend) {
+    var raw = arcPts([A[0], 0, A[2]], [B[0], 0, B[2]], bend || 0); var pts = raw.map(function (p) { return project(p); });
+    var hws = pts.map(function (q, i) { var f = i / (pts.length - 1); var wm = 0.30 + (0.12 - 0.30) * f; return Math.max(1.1, wm * q.s); });
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2; _ribbonVW(pts, hws); ctx.fillStyle = tint(col, -60); ctx.fill(); ctx.restore();
+    _ribbonVW(pts, hws); var g = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[pts.length - 1].x, pts[pts.length - 1].y); g.addColorStop(0, tint(col, -40)); g.addColorStop(.55, tint(col, -18)); g.addColorStop(1, tint(col, -4)); ctx.fillStyle = g; ctx.fill();
+    var hh = hws.map(function (w) { return w * 0.26; }); _ribbonVW(pts, hh); ctx.fillStyle = 'rgba(255,255,255,.13)'; ctx.fill();
+    head(raw[raw.length - 2], [B[0], 0, B[2]], tint(col, -18));
+  }
   function overlay(st, lo) {
     var ov = steps[st].overlays || {};
-    if (ov.zone) { var z = ov.zone, pulse = 0.11 + 0.05 * Math.sin(t * 2.4); poly([[z[0], 0, z[1]], [z[0] + z[2], 0, z[1]], [z[0] + z[2], 0, z[1] + z[3]], [z[0], 0, z[1] + z[3]]], 'rgba(' + ac + ',' + pulse.toFixed(3) + ')', 'rgba(' + ac + ',.7)', 2, [9, 6]); if (z[4]) { var lp = project([z[0] + z[2] / 2, 0, z[1]]); if (lp.z > 0.06) { ctx.save(); ctx.font = '700 12px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; var tw = ctx.measureText(z[4]).width + 16; ctx.fillStyle = 'rgba(8,13,20,.82)'; rr(lp.x - tw / 2, lp.y - 22, tw, 18, 5); ctx.fill(); ctx.fillStyle = 'rgb(' + ac + ')'; ctx.fillText(z[4].toUpperCase(), lp.x, lp.y - 7); ctx.restore(); } } }
+    if (ov.zone) { var z = ov.zone; _zonePaint(z[0], z[1], z[2], z[3], ac); if (z[4]) { var lp = project([z[0] + z[2] / 2, 0, z[1]]); if (lp.z > 0.06) { ctx.save(); ctx.font = '700 12px Inter,Arial,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; var tw = ctx.measureText(z[4]).width + 16; ctx.fillStyle = 'rgba(8,13,20,.82)'; rr(lp.x - tw / 2, lp.y - 22, tw, 18, 5); ctx.fill(); ctx.fillStyle = 'rgb(' + ac + ')'; ctx.fillText(z[4].toUpperCase(), lp.x, lp.y - 7); ctx.restore(); } } }
     if (ov.guide) { var col = 'rgba(255,255,255,.28)'; if (ov.guide.width) ov.guide.width.forEach(function (zz) { line3([0, 0.02, zz], [105, 0.02, zz], col, 1.4, [7, 6]); }); if (ov.guide.depth) ov.guide.depth.forEach(function (xx) { line3([xx, 0.02, 0], [xx, 0.02, 68], col, 1.4, [7, 6]); }); }
     if (ov.run) { var off = -(t * 22) % 15; ov.run.forEach(function (pi) { var pl = players[pi], a = trk(pl, st), b = trk(pl, st + 1), pts = arcPts([a[0], 0, a[1]], [b[0], 0, b[1]], (pl.bend && pl.bend[st]) || 0); ctx.save(); ctx.setLineDash([9, 6]); ctx.lineDashOffset = off; ctx.strokeStyle = 'rgba(234,255,242,.85)'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); for (var k = 0; k < pts.length; k++) { var q = project(pts[k]); k ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore(); head(pts[pts.length - 2], pts[pts.length - 1], 'rgba(234,255,242,.9)'); }); }
-    if (ov.pass) { var off2 = -(t * 26) % 16; ov.pass.forEach(function (pr) { var A = posAt(players[pr[0]], st, lo), B = posAt(players[pr[1]], st, lo); line3([A[0], 0.05, A[2]], [B[0], 0.05, B[2]], 'rgb(' + ac + ')', 2.6); head([A[0], 0, A[2]], [B[0], 0, B[2]], 'rgb(' + ac + ')'); }); }
-    if (ov.press) ov.press.forEach(function (pi) { var p = posAt(players[pi], st, lo), g = project([p[0], 0, p[2]]); if (g.z > 0.06) { ctx.save(); ctx.strokeStyle = 'rgba(248,113,113,.9)'; ctx.lineWidth = 2; var R = (0.55 + 0.08 * Math.sin(t * 5)) * g.s; ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.4, 0, 0, 6.283); ctx.stroke(); ctx.restore(); } });
+    if (ov.pass) { ov.pass.forEach(function (pr) { var A = posAt(players[pr[0]], st, lo), B = posAt(players[pr[1]], st, lo); _lane(A, B, ac, 0); }); }
+    if (ov.press) ov.press.forEach(function (pi) { var p = posAt(players[pi], st, lo), g = project([p[0], 0, p[2]]); if (g.z > 0.06) { ctx.save(); ctx.strokeStyle = 'rgba(248,113,113,.9)'; ctx.lineWidth = 2; var R = (0.55 + 0.08 * Math.sin(t * 5)) * g.s; ctx.beginPath(); ctx.ellipse(g.x, g.y, R, R * 0.4, 0, 0, 6.283); ctx.stroke(); ctx.beginPath(); ctx.ellipse(g.x, g.y, R * 0.62, R * 0.62 * 0.4, 0, 0, 6.283); ctx.strokeStyle = 'rgba(248,113,113,.5)'; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); } });
   }
   function shadow(p) { var g = project(p); if (g.z <= 0.06) return; var s = g.s; ctx.save(); var rg = ctx.createRadialGradient(g.x, g.y + 0.02 * s, 0, g.x, g.y + 0.02 * s, 0.6 * s); rg.addColorStop(0, 'rgba(0,0,0,.42)'); rg.addColorStop(.7, 'rgba(0,0,0,.2)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = rg; ctx.beginPath(); ctx.ellipse(g.x, g.y + 0.02 * s, 0.55 * s, 0.2 * s, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
   function silhouette(p3, team, num, face, hi) {
