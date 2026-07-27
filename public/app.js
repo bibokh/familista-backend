@@ -45971,16 +45971,17 @@ function _vistDrawOne(ctx, an, T, W, H, presenting) {
   var a = an.a ? _vistPx(an.a, W, H) : null, b = an.b ? _vistPx(an.b, W, H) : null;
   if (an.pin && an.pitch) { var _cam = _vistCamH(T); if (_cam && _cam.Hinv) { var _cl = {}; for (var _k in an) _cl[_k] = an[_k]; an = _cl; if (an.pitch.a) an.a = _vistApplyH(_cam.Hinv, an.pitch.a.X, an.pitch.a.Y); if (an.pitch.b) an.b = _vistApplyH(_cam.Hinv, an.pitch.b.X, an.pitch.b.Y); if (an.pitch.pts) an.pts = an.pitch.pts.map(function (P) { return _vistApplyH(_cam.Hinv, P.X, P.Y); }); a = an.a ? _vistPx(an.a, W, H) : a; b = an.b ? _vistPx(an.b, W, H) : b; } }
   if (!an.pin && _vistTrackable(tool) && an.keys && an.keys.length) { var _anch = _vistAnchor(an, T); var _ddx = _anch.x - an.a.x, _ddy = _anch.y - an.a.y; a = _vistPx({ x: _anch.x, y: _anch.y }, W, H); if (an.b) b = _vistPx({ x: an.b.x + _ddx, y: an.b.y + _ddy }, W, H); an._state = _anch.state; }
-  if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { _vistArrow(ctx, an, env.reveal, W, H); }
+  var _hom = null; try { _hom = _vistPitchHom(T); } catch (e) {}
+  if (tool === 'arrow' || tool === 'curve' || tool === 'darrow' || tool === 'run' || tool === 'pass' || tool === 'line') { if (_hom && an.a && an.b && tool !== 'line' && tool !== 'darrow') _vistArrowPitch(ctx, an, _hom, env.reveal, W, H); else _vistArrow(ctx, an, env.reveal, W, H); }
   else if (tool === 'free') { var fp = (an.pts || []).map(function (p) { return _vistPx(p, W, H); }); var tp = _vistTrim(fp, env.reveal); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.lineWidth = an.width || 5; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 5; } ctx.strokeStyle = col; ctx.beginPath(); tp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); }
-  else if (tool === 'ring' || tool === 'dring') { _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
-  else if (tool === 'spot') { _vistSpot(ctx, a, b, col, an, env); }
+  else if (tool === 'ring' || tool === 'dring') { if (_hom && an.a && an.b) _vistRingPitch(ctx, an, env, tool === 'dring', _hom, W, H); else _vistRing(ctx, a, b, col, an, env, tool === 'dring'); }
+  else if (tool === 'spot') { if (_hom && an.a && an.b) _vistSpotPitch(ctx, an, _hom, env, W, H); else _vistSpot(ctx, a, b, col, an, env); }
   else if (tool === 'plabel' || tool === 'text' || tool === 'banner') { _vistLabel(ctx, a, an, env, tool); }
   else if (tool === 'offside') { _vistOffside(ctx, an, env, W, H); }
   else if (tool === 'distance') { _vistDistance(ctx, a, b, col, env, W, H, an); }
   else if (tool === 'angle') { _vistAngle(ctx, an, env, W, H); }
   else if (tool === 'cone') { _vistCone(ctx, a, b, col, an, env); }
-  else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { _vistZone(ctx, an, env, W, H); }
+  else if (tool === 'zone' || tool === 'szone' || tool === 'polygon' || tool === 'farea' || tool === 'fline') { if (_hom && tool !== 'fline' && (an.pts || (an.a && an.b))) _vistZonePitch(ctx, an, _hom, env, W, H); else _vistZone(ctx, an, env, W, H); }
   else if (tool === 'xmark' || tool === 'omark') { _vistMarkXO(ctx, a, b, col, an, env, tool === 'xmark'); }
   else if (tool === 'circle') { _vistRing(ctx, a, b, col, an, env, false); }
   else if (tool === 'ellipse') { _vistEllipseR(ctx, a, b, col, an, env); }
@@ -46003,10 +46004,29 @@ function _vistRing(ctx, c, edge, col, an, env, dbl) {
   ctx.beginPath(); ctx.ellipse(c.x, c.y, rx + 1.6, ry + 0.7, 0, 0, 7); ctx.strokeStyle = 'rgba(0,0,0,.32)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
 }
 function _vistSpot(ctx, c, edge, col, an, env) {
-  var rx = Math.max(22, Math.hypot(edge.x - c.x, edge.y - c.y)) * (1 + env.pulse * 0.05); var ry = rx * 0.62; var cvw = ctx.canvas.width, cvh = ctx.canvas.height;
-  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, ry / rx); var R = rx * 2.7; var dg = ctx.createRadialGradient(0, 0, rx * 0.62, 0, 0, R); dg.addColorStop(0, 'rgba(5,7,11,0)'); dg.addColorStop(0.30, 'rgba(5,7,11,' + (0.34 * env.alpha) + ')'); dg.addColorStop(1, 'rgba(5,7,11,' + (0.72 * env.alpha) + ')'); ctx.fillStyle = dg; ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.fill(); ctx.restore();
-  ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1, ry / rx); var gg = ctx.createRadialGradient(0, 0, 0, 0, 0, rx); gg.addColorStop(0, _vistRGBA(col, .3)); gg.addColorStop(.7, _vistRGBA(col, .08)); gg.addColorStop(1, _vistRGBA(col, 0)); ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 7); ctx.fill(); ctx.restore();
-  ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, ry, 0, 0, 7); ctx.strokeStyle = _vistRGBA(col, .95); ctx.lineWidth = 2.4; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 16; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  // True inverse spotlight: softly darken the whole frame, keep a small feathered
+  // illuminated pocket around the passer. No solid disc, no visible circular border.
+  var m = (ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1, e: 0, f: 0 });
+  var sx = m.a || 1, sy = m.d || 1, tx = m.e || 0, ty = m.f || 0;
+  var cvw = ctx.canvas.width, cvh = ctx.canvas.height;
+  var al = (env.alpha == null ? 1 : env.alpha);
+  var cxd = c.x * sx + tx, cyd = c.y * sy + ty;
+  var rr = Math.max(70, Math.hypot(edge.x - c.x, edge.y - c.y) * 1.55) * (1 + env.pulse * 0.04);
+  var rxd = rr * sx, ryd = rxd * 0.66;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(3,5,9,' + (0.6 * al) + ')'; ctx.fillRect(0, 0, cvw, cvh);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.translate(cxd, cyd); ctx.scale(1, ryd / rxd);
+  var hole = ctx.createRadialGradient(0, 0, rxd * 0.30, 0, 0, rxd);
+  hole.addColorStop(0, 'rgba(0,0,0,1)'); hole.addColorStop(0.62, 'rgba(0,0,0,0.82)'); hole.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = hole; ctx.beginPath(); ctx.arc(0, 0, rxd, 0, 7); ctx.fill();
+  ctx.restore();
+  // faint warm lift centred on the passer (very restrained, no border)
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(c.x, c.y); ctx.scale(1, ryd / rxd);
+  var lg = ctx.createRadialGradient(0, 0, 0, 0, 0, rr * 0.72);
+  lg.addColorStop(0, _vistRGBA(col, 0.10 * al)); lg.addColorStop(1, _vistRGBA(col, 0));
+  ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(0, 0, rr * 0.72, 0, 7); ctx.fill(); ctx.restore();
 }
 function _vistLabel(ctx, a, an, env, tool) {
   var txt = an.text || (tool === 'banner' ? 'OVERLAY' : 'Label'); var rise = (1 - env.alpha) * 10 + env.dy;
@@ -46021,7 +46041,7 @@ function _vistLabel(ctx, a, an, env, tool) {
   ctx.fillStyle = '#f4f7fb'; ctx.textAlign = 'left'; ctx.fillText(txt, x + bar + pad, y + th / 2 + 0.5);
 }
 function _vistOffside(ctx, an, env, W, H) { var x = an.a.x * W; var side = an.side || 72; var dir = an.dir || 1; var gx0 = dir > 0 ? x : x - side; var col = an.color; ctx.save(); var g = ctx.createLinearGradient(gx0, 0, gx0 + side, 0); if (dir > 0) { g.addColorStop(0, _vistRGBA(col, .2)); g.addColorStop(1, _vistRGBA(col, 0)); } else { g.addColorStop(0, _vistRGBA(col, 0)); g.addColorStop(1, _vistRGBA(col, .2)); } ctx.fillStyle = g; ctx.fillRect(gx0, 0, side, H); ctx.setLineDash([12, 7]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 9; } ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H * Math.min(1, env.reveal * 1.2)); ctx.stroke(); ctx.restore(); }
-function _vistDistance(ctx, a, b, col, env, W, H, an) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres, est = false; var pj = _vistProj(); if (an && an.pin && an.pitch && an.pitch.a && an.pitch.b) { metres = Math.hypot(an.pitch.b.X - an.pitch.a.X, an.pitch.b.Y - an.pitch.a.Y); } else if (pj && pj.calib && pj.calib.H && an && an.a && an.b) { var pa = _vistApplyH(pj.calib.H, an.a.x, an.a.y), pb2 = _vistApplyH(pj.calib.H, an.b.x, an.b.y); metres = Math.hypot(pb2.x - pa.x, pb2.y - pa.y); } else { metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); est = true; } var t = (est ? '≈ ' : '') + metres.toFixed(1) + ' m'; ctx.font = '800 12px ui-monospace,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 16; ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 8; ctx.fillStyle = 'rgba(10,13,18,.92)'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.fill(); ctx.shadowColor = 'transparent'; _vistRound(ctx, mx - w / 2, my - 24, w, 19, 6); ctx.strokeStyle = _vistRGBA(col, .5); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = col; ctx.fillText(t, mx, my - 14.5); } ctx.restore(); }
+function _vistDistance(ctx, a, b, col, env, W, H, an) { var rev = env.reveal == null ? 1 : env.reveal; var bb = { x: a.x + (b.x - a.x) * rev, y: a.y + (b.y - a.y) * rev }; var ang = Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2; ctx.save(); ctx.lineCap = 'round'; if (col === '#ffffff') { ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4; } ctx.setLineDash([9, 6]); ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(bb.x, bb.y); ctx.stroke(); ctx.setLineDash([]); ctx.shadowColor = 'transparent'; [a, bb].forEach(function (p) { ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 7, p.y - Math.sin(ang) * 7); ctx.lineTo(p.x + Math.cos(ang) * 7, p.y + Math.sin(ang) * 7); ctx.lineWidth = 2.4; ctx.strokeStyle = col; ctx.stroke(); ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fillStyle = col; ctx.fill(); }); if (rev > 0.5) { var mx = (a.x + bb.x) / 2, my = (a.y + bb.y) / 2; var metres, est = false; var pj = _vistProj(); if (an && an.pin && an.pitch && an.pitch.a && an.pitch.b) { metres = Math.hypot(an.pitch.b.X - an.pitch.a.X, an.pitch.b.Y - an.pitch.a.Y); } else if (pj && pj.calib && pj.calib.H && an && an.a && an.b) { var pa = _vistApplyH(pj.calib.H, an.a.x, an.a.y), pb2 = _vistApplyH(pj.calib.H, an.b.x, an.b.y); metres = Math.hypot(pb2.x - pa.x, pb2.y - pa.y); } else { metres = (Math.hypot(b.x - a.x, b.y - a.y) / (W || ctx.canvas.width) * 60); est = true; } var t = (est ? '≈ ' : '') + metres.toFixed(1) + ' m'; var perp = ang; var offx = Math.cos(perp) * 16, offy = Math.sin(perp) * 16; var lx = mx + offx, ly = my + offy; ctx.font = '800 13px "Segoe UI",system-ui,Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; var w = ctx.measureText(t).width + 20, ch = 22; ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3; _vistRound(ctx, lx - w / 2, ly - ch / 2, w, ch, 6); ctx.fillStyle = 'rgba(9,12,17,.95)'; ctx.fill(); ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0; ctx.save(); _vistRound(ctx, lx - w / 2, ly - ch / 2, w, ch, 6); ctx.clip(); ctx.fillStyle = col; ctx.fillRect(lx - w / 2, ly + ch / 2 - 2.4, w, 2.4); ctx.restore(); _vistRound(ctx, lx - w / 2, ly - ch / 2, w, ch, 6); ctx.strokeStyle = _vistRGBA(col, .55); ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = '#f4f7fb'; ctx.fillText(t, lx, ly - 0.5); } ctx.restore(); }
 function _vistAngle(ctx, an, env, W, H) { var pts = an.pts.map(function (p) { return _vistPx(p, W, H); }); if (pts.length < 3) { if (pts.length) { ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.beginPath(); pts.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); } return; } ctx.save(); ctx.strokeStyle = an.color; ctx.lineWidth = an.width || 4; ctx.lineCap = 'round'; if (an.glow !== false) { ctx.shadowColor = an.color; ctx.shadowBlur = 6; } ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); ctx.lineTo(pts[1].x, pts[1].y); ctx.lineTo(pts[2].x, pts[2].y); ctx.stroke(); ctx.shadowColor = 'transparent'; var a1 = Math.atan2(pts[0].y - pts[1].y, pts[0].x - pts[1].x), a2 = Math.atan2(pts[2].y - pts[1].y, pts[2].x - pts[1].x); ctx.beginPath(); ctx.arc(pts[1].x, pts[1].y, 26, a1, a2); ctx.strokeStyle = _vistRGBA(an.color, .8); ctx.lineWidth = 2; ctx.stroke(); var deg = Math.abs(a1 - a2) * 180 / Math.PI; if (deg > 180) deg = 360 - deg; ctx.font = '800 12px ui-monospace,monospace'; ctx.fillStyle = an.color; ctx.textAlign = 'center'; ctx.fillText(Math.round(deg) + '°', pts[1].x, pts[1].y - 16); ctx.restore(); }
 function _vistCone(ctx, apex, edge, col, an, env) { var ang = Math.atan2(edge.y - apex.y, edge.x - apex.x); var L = Math.max(40, Math.hypot(edge.x - apex.x, edge.y - apex.y)) * env.reveal; var half = ((an.coneAngle || 46) * Math.PI / 360); ctx.save(); var g = ctx.createLinearGradient(apex.x, apex.y, apex.x + Math.cos(ang) * L, apex.y + Math.sin(ang) * L); g.addColorStop(0, _vistRGBA(col, .5)); g.addColorStop(1, _vistRGBA(col, .03)); ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(apex.x, apex.y); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.closePath(); ctx.fill(); ctx.strokeStyle = _vistRGBA(col, .8); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(apex.x, apex.y, L, ang - half, ang + half); ctx.stroke(); ctx.beginPath(); ctx.arc(apex.x, apex.y, 4, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.restore(); }
 function _vistZone(ctx, an, env, W, H) {
@@ -46040,6 +46060,86 @@ function _vistZone(ctx, an, env, W, H) {
   ctx.save(); shape(); ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
   if (an.tool === 'fline' || an.tool === 'farea') { pts.forEach(function (p, i) { ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.fillStyle = '#08101a'; ctx.font = '700 9px ui-monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(i + 1), p.x, p.y); }); }
   ctx.restore();
+}
+
+/* ===== viwpro26 — PITCH-SPACE renderer: graphics built in calibrated metres, projected onto the grass ===== */
+function _vistPitchHom(T) {
+  var p = _vistProj(); if (!p || !p.calib || !p.calib.H) return null;
+  var cam = null; try { cam = _vistCamH(T); } catch (e) {}
+  if (cam && cam.H && cam.Hinv) return { H: cam.H, Hinv: cam.Hinv };
+  var w = p.calib.w, h = p.calib.h; if (!(w > 0) || !(h > 0)) return null;
+  var dst = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+  var Hinv = _vistSolveH(dst, p.calib.pts); if (!Hinv) return null;
+  return { H: p.calib.H, Hinv: Hinv };
+}
+function _vistToScr(hom, X, Y, W, H) { var n = _vistApplyH(hom.Hinv, X, Y); return { x: n.x * W, y: n.y * H }; }
+function _vistScaleAt(hom, X, Y, W, H) { var o = _vistToScr(hom, X, Y, W, H), dx = _vistToScr(hom, X + 0.75, Y, W, H), dy = _vistToScr(hom, X, Y + 0.75, W, H); return (Math.hypot(dx.x - o.x, dx.y - o.y) + Math.hypot(dy.x - o.x, dy.y - o.y)) / 1.5; }
+function _vistRibbonVW(ctx, pts, hws, off) {
+  var L = [], R = [], i, n = pts.length; for (i = 0; i < n; i++) { var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]; var dx = b.x - a.x, dy = b.y - a.y, dl = Math.hypot(dx, dy) || 1; var nx = -dy / dl, ny = dx / dl; var hw = hws[i]; var cx = pts[i].x + nx * (off || 0), cy = pts[i].y + ny * (off || 0); L.push({ x: cx + nx * hw, y: cy + ny * hw }); R.push({ x: cx - nx * hw, y: cy - ny * hw }); }
+  ctx.beginPath(); L.forEach(function (p, i2) { i2 ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); for (i = R.length - 1; i >= 0; i--) ctx.lineTo(R[i].x, R[i].y); ctx.closePath();
+}
+function _vistArrowPitch(ctx, an, hom, prog, W, H) {
+  var A = _vistApplyH(hom.H, an.a.x, an.a.y), B = _vistApplyH(hom.H, an.b.x, an.b.y);
+  var mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2, vx = B.x - A.x, vy = B.y - A.y, vl = Math.hypot(vx, vy) || 1;
+  var nx = -vy / vl, ny = vx / vl, isRun = an.tool === 'run', isPass = an.tool === 'pass';
+  var bend = (an.bend == null ? (isRun ? 0.10 : -0.16) : an.bend) * vl, cbx = mx + nx * bend, cby = my + ny * bend;
+  var N = isRun ? 60 : 54, samp = [], i, t; for (i = 0; i <= N; i++) { t = i / N; var mt = 1 - t; samp.push({ X: mt * mt * A.x + 2 * mt * t * cbx + t * t * B.x, Y: mt * mt * A.y + 2 * mt * t * cby + t * t * B.y }); }
+  var scrAll = samp.map(function (s) { return _vistToScr(hom, s.X, s.Y, W, H); });
+  var pts = _vistTrim(scrAll, Math.max(prog, 0.001)); if (pts.length < 2) return;
+  var col = an.color, deep = _vistShade(col, -.16); ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (isRun) {
+    var u = Math.max(5, W * 0.011); var segs = _vistDashSegs(pts, u, u * 0.95);
+    ctx.strokeStyle = _vistShade(col, -.14); ctx.lineWidth = 2.6; segs.forEach(function (sg) { ctx.beginPath(); sg.forEach(function (p, i2) { i2 ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.stroke(); });
+    if (prog > 0.06) _vistHead(ctx, pts, 12, _vistShade(col, -.05));
+    ctx.restore(); return;
+  }
+  var wm0 = 0.30, wm1 = 0.12, hws = []; for (i = 0; i < pts.length; i++) { var f = i / (pts.length - 1); var wm = wm0 + (wm1 - wm0) * f; var si = Math.min(N, Math.round(f * N)); var sc = _vistScaleAt(hom, samp[si].X, samp[si].Y, W, H); hws.push(Math.max(1.1, wm * sc)); }
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2; _vistRibbonVW(ctx, pts, hws, 0); ctx.fillStyle = _vistShade(col, -.34); ctx.fill(); ctx.restore();
+  _vistRibbonVW(ctx, pts, hws, 0); var g = ctx.createLinearGradient(pts[0].x, pts[0].y, pts[pts.length - 1].x, pts[pts.length - 1].y); g.addColorStop(0, _vistShade(col, -.24)); g.addColorStop(.55, deep); g.addColorStop(1, _vistShade(col, -.02)); ctx.fillStyle = g; ctx.fill();
+  _vistRibbonVW(ctx, pts, hws, 0); ctx.lineWidth = 0.8; ctx.strokeStyle = 'rgba(0,0,0,.42)'; ctx.stroke();
+  var hh = hws.map(function (w) { return w * 0.26; }); _vistRibbonVW(ctx, pts, hh, -hws[0] * 0.42); ctx.fillStyle = 'rgba(255,255,255,.13)'; ctx.fill();
+  var animating = prog < 0.992, tipS = hws[hws.length - 1];
+  if (isPass) { if (!animating) _vistHead(ctx, pts, Math.max(9, tipS * 3.2), deep); var tip = pts[pts.length - 1]; _vistBall(ctx, tip.x, tip.y, Math.max(5, tipS * 1.5)); }
+  else { if (prog > 0.05) _vistHead(ctx, pts, Math.max(9, tipS * 3.2), deep); }
+  ctx.restore();
+}
+function _vistZonePitch(ctx, an, hom, env, W, H) {
+  var src = an.pts ? an.pts : (an.a && an.b ? [an.a, { x: an.b.x, y: an.a.y }, an.b, { x: an.a.x, y: an.b.y }] : null); if (!src) return;
+  var P = src.map(function (p) { return _vistApplyH(hom.H, p.x, p.y); });
+  var scr = P.map(function (m) { return _vistToScr(hom, m.x, m.y, W, H); }); var col = an.color;
+  function poly() { ctx.beginPath(); scr.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.closePath(); }
+  var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9; scr.forEach(function (p) { minx = Math.min(minx, p.x); miny = Math.min(miny, p.y); maxx = Math.max(maxx, p.x); maxy = Math.max(maxy, p.y); });
+  ctx.save(); var rev = env.reveal == null ? 1 : env.reveal; if (rev < 0.999) { ctx.beginPath(); ctx.rect(minx - 4, miny - 4, (maxx - minx + 8) * rev, (maxy - miny + 8)); ctx.clip(); }
+  poly(); var fg = ctx.createLinearGradient(0, miny, 0, maxy); fg.addColorStop(0, _vistRGBA(col, 0.05)); fg.addColorStop(1, _vistRGBA(col, 0.17)); ctx.fillStyle = fg; ctx.fill();
+  ctx.save(); poly(); ctx.clip();
+  var pminx = 1e9, pminy = 1e9, pmaxx = -1e9, pmaxy = -1e9; P.forEach(function (m) { pminx = Math.min(pminx, m.x); pminy = Math.min(pminy, m.y); pmaxx = Math.max(pmaxx, m.x); pmaxy = Math.max(pmaxy, m.y); });
+  var stepM = 1.6; ctx.strokeStyle = _vistRGBA(col, 0.22); ctx.lineWidth = 1.3; var kmin = pminx - pmaxy, kmax = pmaxx - pminy, k;
+  for (k = Math.floor(kmin); k <= kmax; k += stepM) { var s1 = _vistToScr(hom, k + pminy, pminy, W, H), s2 = _vistToScr(hom, k + pmaxy, pmaxy, W, H); ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.stroke(); }
+  ctx.restore();
+  poly(); ctx.strokeStyle = _vistRGBA(col, 0.62); ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.restore();
+}
+function _vistRingPitch(ctx, an, env, dbl, hom, W, H) {
+  var C = _vistApplyH(hom.H, an.a.x, an.a.y), E = _vistApplyH(hom.H, an.b.x, an.b.y); var rM = Math.max(0.7, Math.hypot(E.x - C.x, E.y - C.y)); var col = an.color, ap = env.appear == null ? 1 : env.appear;
+  function rp(rad) { var out = [], i; for (i = 0; i <= 48; i++) { var a = i / 48 * 6.2832; out.push(_vistToScr(hom, C.x + Math.cos(a) * rad, C.y + Math.sin(a) * rad, W, H)); } return out; }
+  function path(pp) { ctx.beginPath(); pp.forEach(function (p, i) { i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }); ctx.closePath(); }
+  ctx.save(); var outer = rp(rM);
+  path(outer); ctx.fillStyle = _vistRGBA(col, 0.05); ctx.fill();
+  path(outer); ctx.strokeStyle = _vistRGBA(col, 0.5); ctx.lineWidth = 4; if (an.glow !== false) { ctx.shadowColor = col; ctx.shadowBlur = 7; } ctx.stroke(); ctx.shadowColor = 'transparent';
+  path(outer); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  if (dbl) { path(rp(rM * 0.62)); ctx.strokeStyle = _vistRGBA(col, 0.9); ctx.lineWidth = 1.6; ctx.stroke(); }
+  if (ap < 1) { path(rp(rM * (1 + 0.5 * ap))); ctx.strokeStyle = _vistRGBA(col, 0.5 * (1 - ap)); ctx.lineWidth = 2; ctx.stroke(); }
+  ctx.restore();
+}
+function _vistSpotPitch(ctx, an, hom, env, W, H) {
+  var C = _vistApplyH(hom.H, an.a.x, an.a.y), E = _vistApplyH(hom.H, an.b.x, an.b.y); var rM = Math.max(3.5, Math.hypot(E.x - C.x, E.y - C.y) * 1.5);
+  var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9, i; for (i = 0; i < 28; i++) { var a = i / 28 * 6.2832; var s = _vistToScr(hom, C.x + Math.cos(a) * rM, C.y + Math.sin(a) * rM, W, H); minx = Math.min(minx, s.x); miny = Math.min(miny, s.y); maxx = Math.max(maxx, s.x); maxy = Math.max(maxy, s.y); }
+  var rxS = Math.max(24, (maxx - minx) / 2), ryS = Math.max(14, (maxy - miny) / 2), cxS = (minx + maxx) / 2, cyS = (miny + maxy) / 2;
+  var m = (ctx.getTransform ? ctx.getTransform() : { a: 1, d: 1, e: 0, f: 0 }); var sx = m.a || 1, sy = m.d || 1, tx = m.e || 0, ty = m.f || 0; var al = env.alpha == null ? 1 : env.alpha; var cvw = ctx.canvas.width, cvh = ctx.canvas.height;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(3,5,9,' + (0.58 * al) + ')'; ctx.fillRect(0, 0, cvw, cvh);
+  ctx.globalCompositeOperation = 'destination-out'; var Cxd = cxS * sx + tx, Cyd = cyS * sy + ty, Rxd = rxS * sx, Ryd = ryS * sy; ctx.translate(Cxd, Cyd); ctx.scale(1, Ryd / Rxd);
+  var hole = ctx.createRadialGradient(0, 0, Rxd * 0.3, 0, 0, Rxd); hole.addColorStop(0, 'rgba(0,0,0,1)'); hole.addColorStop(0.6, 'rgba(0,0,0,0.82)'); hole.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = hole; ctx.beginPath(); ctx.arc(0, 0, Rxd, 0, 7); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(cxS, cyS); ctx.scale(1, ryS / rxS); var lg = ctx.createRadialGradient(0, 0, 0, 0, 0, rxS * 0.7); lg.addColorStop(0, _vistRGBA(an.color, 0.09 * al)); lg.addColorStop(1, _vistRGBA(an.color, 0)); ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(0, 0, rxS * 0.7, 0, 7); ctx.fill(); ctx.restore();
 }
 
 /* ---- redraw ---- */
