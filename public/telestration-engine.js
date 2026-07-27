@@ -291,6 +291,10 @@
     opts = opts || {};
     this.canvas = canvas;
     this.engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, alpha: true, antialias: true }, true);
+    // Compile shaders synchronously so the first rendered frame is deterministic
+    // (reliable screenshots/thumbnails; no blank frame while parallel compile
+    // resolves across rAF ticks). Telestration scenes are small — negligible cost.
+    try { var _caps = this.engine.getCaps(); if (_caps) _caps.parallelShaderCompile = undefined; } catch (e) {}
     this.engine.setHardwareScalingLevel(1 / Math.min(2, window.devicePixelRatio || 1));
     var scene = new BABYLON.Scene(this.engine); scene.clearColor = new BABYLON.Color4(0.03, 0.05, 0.08, opts.transparent ? 0 : 1); this.scene = scene;
     this.coords = new PitchCoordinateSystem(opts.pitch || {});
