@@ -46729,3 +46729,50 @@ function _vistWireObjTl() {
   el.addEventListener('pointermove', function (ev) { if (!drag) return; var r = el.getBoundingClientRect(); var dur = _viwDur() || 10; var t = _vistClamp((ev.clientX - r.left) / r.width, 0, 1) * dur; var an = _vistAnns().filter(function (a) { return a.id === drag; })[0]; if (an) { an.t = t; _vistRefreshObjTl(); _vistRedraw(); } });
   el.addEventListener('pointerup', function () { if (drag) { drag = null; _vistPersist(); _vistRefreshSteps(); _vistRefreshSettings(); } });
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   viwpro28 (te-integrate) — render tactical objects through the new Babylon
+   telestration engine (public/telestration-engine.js) inside the real
+   Video Intelligence workspace and AI Tactical Simulation.
+   The legacy 2D renderer stays mounted underneath (editing + safe fallback);
+   set window._TE_OFF = true to disable the engine layer entirely.
+   ═══════════════════════════════════════════════════════════════════════════ */
+var _TE_VI = null, _TE_VI_sig = '', _TE_VI_boot = false;
+function _teAnnSig(anns) { try { return (anns || []).map(function (a) { return a.id + ':' + a.tool + ':' + (a.t || 0) + ':' + (a.hidden ? 1 : 0) + ':' + (a.color || ''); }).join('|'); } catch (e) { return '' + Date.now(); } }
+function _teMountVI(force) {
+  if (window._TE_OFF || typeof window.FamilistaTE === 'undefined') return;
+  var wrap = document.getElementById('vi-videowrap'); if (!wrap) return;
+  var proj = (typeof _vistProj === 'function') ? _vistProj() : null; var anns = proj ? (proj.annotations || []) : [];
+  if (!_TE_VI) {
+    if (_TE_VI_boot) return; _TE_VI_boot = true;
+    window.FamilistaTE.loadBabylon(function (ok) {
+      _TE_VI_boot = false; if (!ok || window._TE_OFF) return;
+      try { _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: false, mode: window.FamilistaTE.MODES.PERSPECTIVE_PITCH, duration: 6, zIndex: 34 }); _TE_VI.start(); var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden'; _TE_VI_sig = ''; _teMountVI(true); } catch (e) { _TE_VI = null; }
+    });
+    return;
+  }
+  var sig = _teAnnSig(anns);
+  if (force || sig !== _TE_VI_sig) { _TE_VI_sig = sig; try { _TE_VI.setScene(window.FamilistaTE.fromViAnnotations(anns)); _TE_VI.play(); } catch (e) {} }
+}
+function _teUnmountVI() { try { if (_TE_VI) { _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = ''; }
+
+var _TE_SIM = null;
+function _teMountSim(host, tlKey, step) {
+  if (typeof window.FamilistaTE === 'undefined') return Promise.resolve(null);
+  var tl = (typeof _DE_TL !== 'undefined') ? (_DE_TL[tlKey] || _DE_TL[Object.keys(_DE_TL)[0]]) : null; if (!tl || !host) return Promise.resolve(null);
+  return new Promise(function (res) {
+    window.FamilistaTE.loadBabylon(function (ok) {
+      if (!ok) return res(null);
+      try { if (_TE_SIM) _TE_SIM.dispose(); _TE_SIM = window.FamilistaTE.mountOn(host, { transparent: false, mode: window.FamilistaTE.MODES.PERSPECTIVE_PITCH, duration: 4, zIndex: 34 }); _TE_SIM.setScene(window.FamilistaTE.fromSimStep(tl, step || 0)); _TE_SIM.start(); res(_TE_SIM); } catch (e) { res(null); }
+    });
+  });
+}
+window._teMountVI = _teMountVI; window._teMountSim = _teMountSim; window._teUnmountVI = _teUnmountVI;
+
+/* Wire the engine into the live VI studio: render annotations through it on
+   every telestration redraw (scene rebuild is throttled by annotation signature). */
+if (typeof _vistRedraw === 'function' && !_vistRedraw._teWrapped) {
+  var _vistRedraw_orig = _vistRedraw;
+  _vistRedraw = function () { var r = _vistRedraw_orig.apply(this, arguments); try { _teMountVI(); } catch (e) {} return r; };
+  _vistRedraw._teWrapped = true;
+}

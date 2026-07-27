@@ -190,7 +190,7 @@
     this.shadow = BABYLON.MeshBuilder.CreateRibbon('arwsh', { pathArray: [sl, sr], sideOrientation: BABYLON.Mesh.DOUBLESIDE }, scene); this.shadow.material = this.shadowMat; this.shadow.position.x += 0.3; this.shadow.position.z += 0.3;
     // arrowhead
     var tip = pts[n - 1], prev = pts[Math.max(0, n - 3)]; var ang = Math.atan2(tip.x - prev.x, tip.z - prev.z);
-    var hs = Math.max(1.6, hw0 * 3.0); this.head = BABYLON.MeshBuilder.CreateDisc('arwh', { radius: hs, tessellation: 3 }, scene); this.head.rotation.x = Math.PI / 2; this.head.rotation.y = ang; this.head.position = new BABYLON.Vector3(tip.x, (this.spec.depth || 0.06) + 0.005, tip.z); this.head.material = this.headMat;
+    var hs = Math.max(1.4, hw0 * ((st.headScale) || 3.0)); this.head = BABYLON.MeshBuilder.CreateDisc('arwh', { radius: hs, tessellation: 3 }, scene); this.head.rotation.x = Math.PI / 2; this.head.rotation.y = ang; this.head.position = new BABYLON.Vector3(tip.x, (this.spec.depth || 0.06) + 0.005, tip.z); this.head.material = this.headMat;
     this.meshes = this.meshes.filter(function (m) { return m === this.spark; }, this).concat([this.ribbon, this.shadow, this.head]);
     this._lastTip = tip; this.setVisible(this.visible);
   };
@@ -280,10 +280,84 @@
   };
   TE.TacticalLabel = TacticalLabel;
 
+  /* ── 5) Spotlight (illuminated ground pocket + real light pooling) ───────── */
+  function Spotlight(spec) { Primitive.call(this, spec); }
+  Spotlight.prototype = Object.create(Primitive.prototype);
+  Spotlight.prototype.build = function (engine) {
+    this.engine = engine; var scene = engine.scene, coords = engine.coords, st = this.spec.style || {}, g = this.spec.geometry;
+    var pos = coords.pitchToWorld(g.at.x, g.at.y, 0.012); var rad = st.radius || 9;
+    var disc = BABYLON.MeshBuilder.CreateDisc('spot', { radius: rad, tessellation: 48 }, scene); disc.rotation.x = Math.PI / 2; disc.position = pos; disc.scaling.y = 0.62;
+    var tex = new BABYLON.DynamicTexture('sptex', { width: 256, height: 256 }, scene, false); var cx = tex.getContext();
+    var c = col3(st.color || '#ffffff'); var rgb = Math.round(c.r * 255) + ',' + Math.round(c.g * 255) + ',' + Math.round(c.b * 255);
+    var grd = cx.createRadialGradient(128, 128, 8, 128, 128, 128); grd.addColorStop(0, 'rgba(' + rgb + ',0.5)'); grd.addColorStop(0.5, 'rgba(' + rgb + ',0.15)'); grd.addColorStop(1, 'rgba(' + rgb + ',0)'); cx.fillStyle = grd; cx.fillRect(0, 0, 256, 256); tex.update(); tex.hasAlpha = true;
+    var m = new BABYLON.StandardMaterial('spm', scene); m.diffuseTexture = tex; m.emissiveTexture = tex; m.emissiveColor = new BABYLON.Color3(1, 1, 1); m.opacityTexture = tex; m.specularColor = new BABYLON.Color3(0, 0, 0); m.backFaceCulling = false; disc.material = m; this.mat = m; this._base = st.opacity == null ? 1 : st.opacity;
+    try { var sl = new BABYLON.SpotLight('sl', new BABYLON.Vector3(pos.x, 24, pos.z), new BABYLON.Vector3(0, -1, 0), Math.PI / 3, 10, scene); sl.diffuse = c; sl.specular = new BABYLON.Color3(0, 0, 0); sl.intensity = st.light == null ? 0.7 : st.light; this.light = sl; this._lightBase = sl.intensity; } catch (e) {}
+    this.meshes = [disc]; this.setVisible(this.visible);
+  };
+  Spotlight.prototype.setVisible = function (v) { Primitive.prototype.setVisible.call(this, v); if (this.light) this.light.setEnabled(v); };
+  Spotlight.prototype.dispose = function () { if (this.light) { try { this.light.dispose(); } catch (e) {} } Primitive.prototype.dispose.call(this); };
+  Spotlight.prototype.updateAt = function (t) {
+    var se = this.startEnd(); if (t < se.s) { this.setVisible(false); return; } this.setVisible(this.visible);
+    var p = this.localProgress(t); if (this.mat) this.mat.alpha = this._base * p; if (this.light) this.light.intensity = (this._lightBase || 0.7) * p;
+    var pulse = 1 + 0.03 * Math.sin(t * 3); if (this.meshes[0]) this.meshes[0].scaling.x = pulse;
+  };
+  TE.Spotlight = Spotlight;
+
+  /* ── 6) Passing Lane (soft, wide, translucent tapered ground ribbon) ────── */
+  function PassingLane(spec) {
+    spec.style = spec.style || {};
+    if (spec.style.thickness == null) spec.style.thickness = 1.15;
+    if (spec.style.opacity == null) spec.style.opacity = 0.5;
+    if (spec.style.headScale == null) spec.style.headScale = 1.7;
+    if (spec.style.travel == null) spec.style.travel = false;
+    TacticalArrow.call(this, spec);
+  }
+  PassingLane.prototype = Object.create(TacticalArrow.prototype);
+  PassingLane.prototype.constructor = PassingLane;
+  TE.PassingLane = PassingLane;
+
+  /* ── 7) Connection Line (ground dashed line + metre label) ──────────────── */
+  function ConnectionLine(spec) { Primitive.call(this, spec); }
+  ConnectionLine.prototype = Object.create(Primitive.prototype);
+  ConnectionLine.prototype.build = function (engine) {
+    this.engine = engine; var scene = engine.scene, coords = engine.coords, st = this.spec.style || {}, g = this.spec.geometry;
+    var wa = coords.pitchToWorld(g.a.x, g.a.y, 0.05), wb = coords.pitchToWorld(g.b.x, g.b.y, 0.05); this._wa = wa; this._wb = wb;
+    this.line = BABYLON.MeshBuilder.CreateDashedLines('conn', { points: [wa, wb], dashSize: 3, gapSize: 2, dashNb: 46 }, scene); this.line.color = col3(st.color || '#5ec8ff');
+    var dots = [wa, wb].map(function (p) { var d = BABYLON.MeshBuilder.CreateDisc('cd', { radius: 0.55, tessellation: 14 }, scene); d.rotation.x = Math.PI / 2; d.scaling.y = 0.62; d.position = p.clone(); d.material = emissiveMat(scene, st.color || '#5ec8ff', 1); return d; });
+    // metres from pitch-space distance
+    var metres = Math.hypot((g.b.x - g.a.x) / coords.bounds.x * coords.LX, (g.b.y - g.a.y) / coords.bounds.y * coords.LZ);
+    var mid = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
+    this.lbl = new TacticalLabel({ id: this.id + '-m', type: 'tactical-label', text: metres.toFixed(1) + ' m', geometry: { at: mid }, style: { color: st.color || '#5ec8ff', height: 3.4 }, animation: { type: 'fade', delay: (this.spec.animation && this.spec.animation.delay || 0), duration: 0.4 }, start: this.spec.start || 0 });
+    this.lbl.build(engine);
+    this.meshes = [this.line].concat(dots).concat(this.lbl.meshes);
+    this._lineMat = null; this.setVisible(this.visible);
+  };
+  ConnectionLine.prototype.updateAt = function (t) {
+    var se = this.startEnd(); if (t < se.s) { this.setVisible(false); return; } this.setVisible(this.visible);
+    var p = this.localProgress(t); if (this.line) this.line.alpha = p; if (this.lbl) this.lbl.updateAt(t);
+  };
+  TE.ConnectionLine = ConnectionLine;
+
+  /* ── 8) Receiver Ring (ground ring + one arrival pulse) ─────────────────── */
+  function ReceiverRing(spec) { PlayerRing.call(this, spec); }
+  ReceiverRing.prototype = Object.create(PlayerRing.prototype);
+  ReceiverRing.prototype.constructor = ReceiverRing;
+  ReceiverRing.prototype.build = function (engine) {
+    PlayerRing.prototype.build.call(this, engine); var scene = engine.scene, st = this.spec.style || {};
+    this.pulse = BABYLON.MeshBuilder.CreateTorus('rpulse', { diameter: (st.radius || 2.3) * 2, thickness: (st.radius || 2.3) * 0.12, tessellation: 40 }, scene);
+    this.pulse.position = this._pos.clone(); this.pulse.scaling.z = 0.62; this.pulse.material = emissiveMat(scene, st.color || '#ffffff', 0.6);
+    this.meshes.push(this.pulse); this.setVisible(this.visible);
+  };
+  ReceiverRing.prototype.updateAt = function (t) {
+    PlayerRing.prototype.updateAt.call(this, t); var se = this.startEnd();
+    if (this.pulse) { var appear = clamp01((t - se.s) / 0.6); if (appear < 1 && t >= se.s) { var s = 1 + 0.9 * appear; this.pulse.scaling.x = s; this.pulse.scaling.z = 0.62 * s; if (this.pulse.material) this.pulse.material.alpha = 0.6 * (1 - appear); this.pulse.setEnabled(this.visible); } else { this.pulse.setEnabled(false); } }
+  };
+  TE.ReceiverRing = ReceiverRing;
+
   function roundRect(cx, x, y, w, h, r) { cx.beginPath(); cx.moveTo(x + r, y); cx.arcTo(x + w, y, x + w, y + h, r); cx.arcTo(x + w, y + h, x, y + h, r); cx.arcTo(x, y + h, x, y, r); cx.arcTo(x, y, x + w, y, r); cx.closePath(); }
 
   /* ── Factory ────────────────────────────────────────────────────────────── */
-  var TYPES = { 'tactical-arrow': TacticalArrow, 'tactical-zone': TacticalZone, 'player-ring': PlayerRing, 'tactical-label': TacticalLabel };
+  var TYPES = { 'tactical-arrow': TacticalArrow, 'tactical-zone': TacticalZone, 'player-ring': PlayerRing, 'tactical-label': TacticalLabel, 'spotlight': Spotlight, 'passing-lane': PassingLane, 'connection-line': ConnectionLine, 'receiver-ring': ReceiverRing };
   TE.createObject = function (spec) { var C = TYPES[spec.type]; return C ? new C(spec) : null; };
 
   /* ── The engine (renderer + scene + pitch + single render loop) ─────────── */
@@ -303,8 +377,11 @@
     var hemi = new BABYLON.HemisphericLight('h', new BABYLON.Vector3(0, 1, 0), scene); hemi.intensity = 0.9;
     var dir = new BABYLON.DirectionalLight('d', new BABYLON.Vector3(-0.4, -1, 0.6), scene); dir.intensity = 0.6;
     // glow layer (GPU) for controlled soft glow on emissive primitives
-    try { this.glow = new BABYLON.GlowLayer('glow', scene, { blurKernelSize: 24 }); this.glow.intensity = 0.55; } catch (e) {}
-    this._buildPitch();
+    try { this.glow = new BABYLON.GlowLayer('glow', scene, { blurKernelSize: 24 }); this.glow.intensity = 0.5; } catch (e) {}
+    // professional depth: gentle exponential fog toward the far pitch
+    try { scene.fogMode = BABYLON.Scene.FOGMODE_EXP2; scene.fogColor = new BABYLON.Color3(0.03, 0.05, 0.08); scene.fogDensity = opts.transparent ? 0 : 0.0035; } catch (e) {}
+    this._pitchOn = opts.pitch !== false && !opts.noPitch;
+    if (this._pitchOn) this._buildPitch();
     this.projection = new CameraProjection(scene, this.coords);
     this.registry = new ObjectRegistry(this);
     this.timeline = new AnimationTimeline(opts.duration || 6);
@@ -352,6 +429,76 @@
     engine.registry.add(new TacticalLabel({ id: 'label-1', type: 'tactical-label', z: 7, text: 'THIRD-MAN RUN', geometry: { at: { x: 70, y: 26 } }, style: { color: '#f2c230', height: 7 }, animation: { type: 'fade', delay: 2.0, duration: 0.4, easing: 'easeOutCubic' }, start: 0 }));
     engine.timeline.duration = 3.0;
   }
+
+  /* ── Data converters: existing module data → engine scene specs ─────────── */
+  // Video Intelligence: _vist annotations (normalized 0..1 coords) → engine specs.
+  TE.fromViAnnotations = function (anns, opts) {
+    opts = opts || {}; var specs = [], z = 0;
+    function P(p) { return { x: (p.x || 0) * 100, y: (p.y || 0) * 100 }; }
+    (anns || []).forEach(function (an) {
+      if (!an || an.hidden || !an.tool) return; var col = an.color || '#f2c230'; var t = an.t || 0; z += 1;
+      var anim = { type: 'fade', delay: 0, duration: 0.5 };
+      try {
+        if (an.tool === 'pass' || an.tool === 'arrow' || an.tool === 'curve' || an.tool === 'line') {
+          var a = P(an.a), b = P(an.b); var mid = { x: (a.x + b.x) / 2 + (an.bend || -0.14) * (b.y - a.y) * 0.6, y: (a.y + b.y) / 2 - (an.bend || -0.14) * (b.x - a.x) * 0.6 };
+          specs.push({ id: an.id || 'a' + z, type: 'tactical-arrow', z: z, depth: 0.06, geometry: { start: a, control: mid, end: b }, style: { color: col, thickness: 0.85, opacity: 0.95, headScale: 3.0, travel: an.tool === 'pass' }, animation: { type: 'draw-on', delay: 0.3, duration: 1.3 }, start: t });
+        } else if (an.tool === 'run' || an.tool === 'darrow') {
+          var ra = P(an.a), rb = P(an.b);
+          specs.push({ id: an.id || 'r' + z, type: 'tactical-arrow', z: z, depth: 0.05, geometry: { start: ra, control: { x: (ra.x + rb.x) / 2, y: (ra.y + rb.y) / 2 }, end: rb }, style: { color: col, thickness: 0.55, opacity: 0.9, headScale: 2.4, travel: false }, animation: { type: 'draw-on', delay: 0.2, duration: 1.2 }, start: t });
+        } else if (an.tool === 'szone' || an.tool === 'zone' || an.tool === 'polygon' || an.tool === 'farea') {
+          var corners = an.pts ? an.pts.map(P) : (an.a && an.b ? [P(an.a), { x: P(an.b).x, y: P(an.a).y }, P(an.b), { x: P(an.a).x, y: P(an.b).y }] : null);
+          if (corners) specs.push({ id: an.id || 'z' + z, type: 'tactical-zone', z: z, geometry: { corners: corners }, style: { color: col, opacity: 0.8, stripeSpacing: 30, stripeAngle: 45 }, animation: { type: 'reveal', delay: 0.4, duration: 0.8 }, start: t });
+        } else if (an.tool === 'ring' || an.tool === 'dring' || an.tool === 'circle') {
+          var c = P(an.a), e = P(an.b || an.a); var radp = Math.max(1.4, Math.hypot(e.x - c.x, e.y - c.y) * 0.9);
+          specs.push({ id: an.id || 'g' + z, type: 'receiver-ring', z: z, geometry: { at: c }, style: { color: col, radius: radp }, animation: { type: 'fade', delay: 0.2, duration: 0.4 }, start: t });
+        } else if (an.tool === 'spot') {
+          var sc = P(an.a), se2 = P(an.b || an.a);
+          specs.push({ id: an.id || 's' + z, type: 'spotlight', z: 0, geometry: { at: sc }, style: { color: col, radius: Math.max(6, Math.hypot(se2.x - sc.x, se2.y - sc.y) * 1.6), light: 0.7 }, animation: { type: 'fade', delay: 0, duration: 0.45 }, start: t });
+        } else if (an.tool === 'distance') {
+          specs.push({ id: an.id || 'c' + z, type: 'connection-line', z: z, geometry: { a: P(an.a), b: P(an.b) }, style: { color: col }, animation: { type: 'fade', delay: 0.5, duration: 0.5 }, start: t });
+        } else if (an.tool === 'plabel' || an.tool === 'text' || an.tool === 'banner') {
+          specs.push({ id: an.id || 'l' + z, type: 'tactical-label', z: z + 10, text: an.text || 'Label', geometry: { at: P(an.a) }, style: { color: col, height: 6 }, animation: { type: 'fade', delay: 0.4, duration: 0.4 }, start: t });
+        }
+      } catch (e) {}
+    });
+    return specs;
+  };
+  // AI Tactical Simulation: a drill/tactical timeline step (metres) → engine specs.
+  TE.fromSimStep = function (tl, step, opts) {
+    opts = opts || {}; var specs = [], z = 0; var LX = 105, LZ = 68; step = step || 0;
+    function P(xz) { return { x: (xz[0] || 0) / LX * 100, y: (xz[1] || 0) / LZ * 100 }; }
+    function pos(i) { var pl = tl.players && tl.players[i]; if (!pl || !pl.track) return null; var tr = pl.track[Math.min(step, pl.track.length - 1)]; return tr ? P(tr) : null; }
+    var s = (tl.steps && tl.steps[step]) || {}; var ov = s.overlays || {};
+    if (ov.zone) { var Z = ov.zone; var c0 = P([Z[0], Z[1]]), c1 = P([Z[0] + Z[2], Z[1] + Z[3]]); specs.push({ id: 'z0', type: 'tactical-zone', z: 1, geometry: { corners: [{ x: c0.x, y: c0.y }, { x: c1.x, y: c0.y }, { x: c1.x, y: c1.y }, { x: c0.x, y: c1.y }] }, style: { color: '#5ec8ff', opacity: 0.8, stripeSpacing: 30, stripeAngle: 45 }, animation: { type: 'reveal', delay: 1.4, duration: 0.8 }, start: 0 }); if (Z[4]) specs.push({ id: 'zl', type: 'tactical-label', z: 12, text: String(Z[4]).toUpperCase(), geometry: { at: { x: (c0.x + c1.x) / 2, y: c0.y } }, style: { color: '#5ec8ff', height: 5 }, animation: { type: 'fade', delay: 1.6, duration: 0.4 }, start: 0 }); }
+    (ov.pass || []).forEach(function (pr, k) { var a = pos(pr[0]), b = pos(pr[1]); if (!a || !b) return; z++; specs.push({ id: 'pl' + k, type: 'passing-lane', z: 5, depth: 0.06, geometry: { start: a, control: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 6 }, end: b }, style: { color: '#f2c230', thickness: 1.0, opacity: 0.55 }, animation: { type: 'draw-on', delay: 0.35, duration: 1.4 }, start: 0 }); specs.push({ id: 'rr' + k, type: 'receiver-ring', z: 6, geometry: { at: b }, style: { color: '#ffffff', radius: 2.3 }, animation: { type: 'fade', delay: 2.0, duration: 0.4 }, start: 0 }); });
+    (ov.run || []).forEach(function (i, k) { var a = pos(i); var pl = tl.players && tl.players[i]; var nxt = pl && pl.track ? pl.track[Math.min(step + 1, pl.track.length - 1)] : null; if (!a || !nxt) return; var b = P(nxt); specs.push({ id: 'ru' + k, type: 'tactical-arrow', z: 4, depth: 0.05, geometry: { start: a, control: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, end: b }, style: { color: '#eaf7ee', thickness: 0.55, headScale: 2.4, opacity: 0.9 }, animation: { type: 'draw-on', delay: 1.2, duration: 1.0 }, start: 0 }); });
+    (ov.press || []).forEach(function (i, k) { var a = pos(i); if (!a) return; specs.push({ id: 'ps' + k, type: 'spotlight', z: 0, geometry: { at: a }, style: { color: '#f87171', radius: 7, light: 0.5 }, animation: { type: 'fade', delay: 0, duration: 0.5 }, start: 0 }); });
+    if (ov.highlight != null) { var hp = pos(ov.highlight); if (hp) specs.push({ id: 'hl', type: 'spotlight', z: 0, geometry: { at: hp }, style: { color: '#ffffff', radius: 8, light: 0.7 }, animation: { type: 'fade', delay: 0, duration: 0.45 }, start: 0 }); }
+    return specs;
+  };
+
+  /* ── Mount controller: run the engine inside an existing host element ────── */
+  TE.mountOn = function (host, opts) {
+    opts = opts || {}; var canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:' + (opts.zIndex || 40) + ';';
+    var w = Math.max(2, host.clientWidth || 960), h = Math.max(2, host.clientHeight || 540);
+    canvas.width = Math.round(w * Math.min(2, window.devicePixelRatio || 1)); canvas.height = Math.round(h * Math.min(2, window.devicePixelRatio || 1));
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.appendChild(canvas);
+    var eng = new TelestrationEngine(canvas, { transparent: opts.transparent !== false, noPitch: !!opts.noPitch, duration: opts.duration || 4 });
+    eng.setProjectionMode(opts.mode || TE.MODES.PERSPECTIVE_PITCH);
+    var ctrl = {
+      engine: eng, canvas: canvas,
+      setScene: function (specs) { eng.registry.clear(); var maxT = 0; (specs || []).forEach(function (s) { var o = TE.createObject(s); if (o) eng.registry.add(o); var a = s.animation || {}; maxT = Math.max(maxT, (s.start || 0) + (a.delay || 0) + (a.dur || a.duration || 1)); }); eng.timeline.duration = Math.max(2, maxT + 0.4); return ctrl; },
+      setMode: function (m) { eng.setProjectionMode(m); return ctrl; },
+      play: function () { eng.timeline.play(); return ctrl; }, pause: function () { eng.timeline.pause(); return ctrl; }, reset: function () { eng.timeline.reset(); return ctrl; }, seek: function (t) { eng.timeline.seek(t); return ctrl; },
+      start: function () { eng.start(); return ctrl; },
+      snapshot: function (t) { if (t != null) { eng.timeline.time = t; eng.timeline.playing = false; eng.registry.each(function (o) { if (o.updateAt) o.updateAt(t); }); } for (var i = 0; i < 3; i++) eng.scene.render(); return canvas.toDataURL('image/jpeg', 0.86); },
+      resize: function () { var nw = Math.max(2, host.clientWidth), nh = Math.max(2, host.clientHeight); canvas.width = Math.round(nw * Math.min(2, window.devicePixelRatio || 1)); canvas.height = Math.round(nh * Math.min(2, window.devicePixelRatio || 1)); eng.engine.resize(); eng.projection.onResize(); return ctrl; },
+      dispose: function () { try { eng.dispose(); } catch (e) {} if (canvas.parentNode) canvas.parentNode.removeChild(canvas); }
+    };
+    return ctrl;
+  };
 
   TE.openTest = function () {
     if (document.getElementById('te-test-overlay')) return;
