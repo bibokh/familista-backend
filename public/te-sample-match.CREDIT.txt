@@ -1,0 +1,7 @@
+te-sample-match.webm — real football broadcast clip used ONLY as a sample video
+for the Telestration Engine (Video Intelligence) homography verification.
+
+Title:   "Goal by Rafael Leao"
+Author:  Saggittarius A
+Source:  https://commons.wikimedia.org/wiki/File:Goal_by_Rafael_Leao.webm
+License: CC BY-SA 4.0 — https://creativecommons.org/licenses/by-sa/4.0
