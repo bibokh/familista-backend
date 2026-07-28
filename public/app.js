@@ -46166,7 +46166,11 @@ function _vistRedraw() {
   var dpr = cv.width / (W || 1);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   var p = _vistProj(); if (!p) return; var v = _viwVid(); var T = v ? (v.currentTime || 0) : 0; var presenting = !!(v && !v.paused);
-  (p.annotations || []).slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); }).forEach(function (an) { if (an.hidden) return; if (!an.tool) return; try { _vistDrawOne(ctx, an, T, W, H, presenting); } catch (e) {} });
+  // When the pitch-space engine is active it renders the committed annotations embedded
+  // in the grass; the 2D canvas then draws only live draft + selection (stays editable).
+  if (!(typeof _TE_VI !== 'undefined' && _TE_VI)) {
+    (p.annotations || []).slice().sort(function (a, b) { return (a.z || 0) - (b.z || 0); }).forEach(function (an) { if (an.hidden) return; if (!an.tool) return; try { _vistDrawOne(ctx, an, T, W, H, presenting); } catch (e) {} });
+  }
   // in-progress draft
   if (_VIST.draft) { try { _vistDrawOne(ctx, _VIST.draft, T, W, H, false); } catch (e) {} }
   try { _vistCalibDraw(ctx, W, H); } catch (e) {}
@@ -46745,7 +46749,19 @@ var _TE_CORNER_PTS = [{ px: 0, py: 0 }, { px: 100, py: 0 }, { px: 100, py: 100 }
 function _tePitchPts(proj) { return (proj && proj.tePts && proj.tePts.length >= 4) ? proj.tePts : _TE_CORNER_PTS; }
 function _teKeyImg(k) { return k.img || k.corners; }
 function _teLerpImg(a, b, f) { return a.map(function (c, i) { var d = b[i] || c; return { ix: c.ix + (d.ix - c.ix) * f, iy: c.iy + (d.iy - c.iy) * f }; }); }
-function _teImgAt(proj, t) { var ks = proj && proj.teCamKeys; if (ks && ks.length) { if (t <= ks[0].t) return _teKeyImg(ks[0]); if (t >= ks[ks.length - 1].t) return _teKeyImg(ks[ks.length - 1]); for (var i = 1; i < ks.length; i++) { if (t <= ks[i].t) { var f = (t - ks[i - 1].t) / ((ks[i].t - ks[i - 1].t) || 1); return _teLerpImg(_teKeyImg(ks[i - 1]), _teKeyImg(ks[i]), f); } } return _teKeyImg(ks[ks.length - 1]); } return (proj && (proj.teImg || proj.teCorners)) || null; }
+function _teImgAt(proj, t) {
+  var ks = proj && proj.teCamKeys;
+  if (ks && ks.length) {
+    // Shot-aware: interpolate only within the shot segment containing t; snap at shot cuts.
+    var s = 0, j; for (j = 0; j < ks.length; j++) { if (ks[j].shot && ks[j].t <= t) s = j; }
+    var e = ks.length - 1; for (j = s + 1; j < ks.length; j++) { if (ks[j].shot) { e = j - 1; break; } }
+    if (t <= ks[s].t) return _teKeyImg(ks[s]);
+    if (t >= ks[e].t) return _teKeyImg(ks[e]);
+    for (var i = s + 1; i <= e; i++) { if (t <= ks[i].t) { var f = (t - ks[i - 1].t) / ((ks[i].t - ks[i - 1].t) || 1); return _teLerpImg(_teKeyImg(ks[i - 1]), _teKeyImg(ks[i]), f); } }
+    return _teKeyImg(ks[e]);
+  }
+  return (proj && (proj.teImg || proj.teCorners)) || null;
+}
 function _teCorrAt(proj, t) { if (!proj) return null; var pts = _tePitchPts(proj), img = _teImgAt(proj, t); if (!img || img.length < pts.length) return null; return pts.map(function (p, i) { return { px: p.px, py: p.py, ix: img[i].ix, iy: img[i].iy }; }); }
 // Interpolate the pitch-corner homography at video time t from calibration keyframes
 // (assisted camera tracking). Falls back to a single static calibration.
@@ -46777,7 +46793,8 @@ function _teMountVI(force) {
       _TE_VI_boot = false; if (!ok || window._TE_OFF) return;
       try {
         _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: true, noPitch: true, duration: 6, zIndex: 34 }); _TE_VI.start();
-        var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden';
+        var oc = document.getElementById('vi-canvas'); if (oc) { oc.style.zIndex = '40'; oc.style.background = 'transparent'; } // stays interactive above the engine; draws only draft/selection
+        try { _vistRedraw(); } catch (e) {}
         // per-frame homography lock (assisted camera tracking): reproject every frame
         try { _TE_VI._teObs = _TE_VI.engine.scene.onBeforeRenderObservable.add(_teApplyHomographyNow); } catch (e) {}
         _TE_VI_sig = ''; _teMountVI(true);
@@ -46793,7 +46810,7 @@ function _teCalibrateVI(imgPts, pitchPts) { var p = (typeof _vistProj === 'funct
 /* Camera keyframe at video time t (assisted tracking through pan/zoom/tilt). */
 function _teCalibrateVIKeyframe(t, imgPts, pitchPts) { var p = (typeof _vistProj === 'function') ? _vistProj() : null; if (!p) return false; if (pitchPts) p.tePts = pitchPts; p.teCamKeys = (p.teCamKeys || []).filter(function (k) { return Math.abs(k.t - t) > 0.03; }); p.teCamKeys.push({ t: t, img: imgPts }); p.teCamKeys.sort(function (a, b) { return a.t - b.t; }); try { if (typeof _vistPersist === 'function') _vistPersist(); } catch (e) {} _teUnmountVI(); _teMountVI(true); return true; }
 window._teCalibrateVI = _teCalibrateVI; window._teCalibrateVIKeyframe = _teCalibrateVIKeyframe;
-function _teUnmountVI() { try { if (_TE_VI) { if (_TE_VI._teObs && _TE_VI.engine) { try { _TE_VI.engine.scene.onBeforeRenderObservable.remove(_TE_VI._teObs); } catch (e) {} } _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = ''; }
+function _teUnmountVI() { try { if (_TE_VI) { if (_TE_VI._teObs && _TE_VI.engine) { try { _TE_VI.engine.scene.onBeforeRenderObservable.remove(_TE_VI._teObs); } catch (e) {} } _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) { oc.style.zIndex = ''; oc.style.visibility = ''; } try { if (typeof _vistRedraw === 'function') _vistRedraw(); } catch (e) {} }
 
 var _TE_SIM = null;
 function _teMountSim(host, tlKey, step) {
@@ -46831,6 +46848,7 @@ function _teAutoStep() {
   var W = 640, H = Math.max(2, Math.round(640 * v.videoHeight / v.videoWidth)); _TE_autoCanvas.width = W; _TE_autoCanvas.height = H;
   try { _TE_autoCanvas.getContext('2d').drawImage(v, 0, 0, W, H); } catch (e) { return; }
   var proj = (typeof _vistProj === 'function') ? _vistProj() : null;
+  if (proj && ((proj.teImg && proj.teImg.length) || (proj.teCamKeys && proj.teCamKeys.length))) return; // manual calibration has priority — never override it
   var initH = _TE_autoH || (proj && proj.teCorners && _teCornersToH(proj.teCorners)) || _teCornersToH([{ ix: 0.28, iy: 0.30 }, { ix: 0.72, iy: 0.30 }, { ix: 0.98, iy: 0.92 }, { ix: 0.02, iy: 0.92 }]);
   if (!initH) return;
   try { var r = window.TE_PitchAI.registerFrame(_TE_autoCanvas, initH, {}); if (r && r.inliers >= 12 && r.h) { _TE_autoH = r.h; if (proj) { proj.teCorners = [[0, 0], [100, 0], [100, 100], [0, 100]].map(function (p) { var q = window.TE_PitchAI.applyH(r.h, p[0], p[1]); return { ix: q[0], iy: q[1] }; }); } } } catch (e) {}
