@@ -86,32 +86,36 @@
   function segAngle(s) { return Math.atan2(s[3] - s[1], s[2] - s[0]); }
   function angDiff(a, b) { var d = Math.abs(a - b) % Math.PI; return Math.min(d, Math.PI - d); }
   function ptSegDist(px, py, s) { var x1 = s[0], y1 = s[1], x2 = s[2], y2 = s[3]; var dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1; var t = ((px - x1) * dx + (py - y1) * dy) / L2; t = Math.max(0, Math.min(1, t)); var cx = x1 + t * dx, cy = y1 + t * dy; return { d: Math.hypot(px - cx, py - cy), x: cx, y: cy }; }
-
-  // hNorm: pitch(0..100)→normalized image(0..1). Returns refined hNorm + inlier count.
-  AI.refine = function (segs, W, H, hNorm, opts) {
-    opts = opts || {}; var iters = opts.iters || 4, angTol = (opts.angTol || 12) * Math.PI / 180, distTol = opts.distTol || 22, perLine = opts.perLine || 8;
-    var hpix = [hNorm[0] * W, hNorm[1] * W, hNorm[2] * W, hNorm[3] * H, hNorm[4] * H, hNorm[5] * H, hNorm[6], hNorm[7], hNorm[8]];
-    var inliers = 0;
-    for (var it = 0; it < iters; it++) {
-      var src = [], dst = [];
-      for (var li = 0; li < MODEL.length; li++) {
-        var seg = MODEL[li]; var pa = applyH(hpix, seg.a[0], seg.a[1]), pb = applyH(hpix, seg.b[0], seg.b[1]);
-        var mAng = Math.atan2(pb[1] - pa[1], pb[0] - pa[0]);
-        // gather detected segments matching this projected model line (angle + proximity)
-        for (var si = 0; si < segs.length; si++) {
-          var s = segs[si]; if (angDiff(segAngle(s), mAng) > angTol) continue;
-          var mx = (s[0] + s[2]) / 2, my = (s[1] + s[3]) / 2; // detected seg midpoint
-          // distance from detected midpoint to the projected model line segment
-          var pd = ptSegDist(mx, my, [pa[0], pa[1], pb[0], pb[1]]); if (pd.d > distTol) continue;
-          // sample model points, correspond to nearest point on detected segment
-          for (var k = 0; k <= perLine; k++) { var f = k / perLine; var mpx = seg.a[0] + (seg.b[0] - seg.a[0]) * f, mpy = seg.a[1] + (seg.b[1] - seg.a[1]) * f; var proj = applyH(hpix, mpx, mpy); var near = ptSegDist(proj[0], proj[1], s); if (near.d <= distTol) { src.push([mpx, mpy]); dst.push([near.x, near.y]); } }
-        }
-      }
-      inliers = src.length; if (src.length < 8) break;
-      var hnew = solveHLS(src, dst); if (!hnew) break; hpix = hnew;
+  // Perpendicular foot on the INFINITE line through s (no clamp) — correct point-on-line target.
+  function footOnLine(px, py, s) { var x1 = s[0], y1 = s[1], x2 = s[2], y2 = s[3]; var dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1; var t = ((px - x1) * dx + (py - y1) * dy) / L2; var cx = x1 + t * dx, cy = y1 + t * dy; return { d: Math.hypot(px - cx, py - cy), x: cx, y: cy }; }
+  // Build correspondences (model point ↔ foot on the single best-matching detected line) for the current H.
+  function correspondences(segs, hpix, angTol, distTol, perLine) {
+    var src = [], dst = [], cost = 0;
+    for (var li = 0; li < MODEL.length; li++) {
+      var seg = MODEL[li]; var pa = applyH(hpix, seg.a[0], seg.a[1]), pb = applyH(hpix, seg.b[0], seg.b[1]);
+      var mAng = Math.atan2(pb[1] - pa[1], pb[0] - pa[0]), mmx = (pa[0] + pb[0]) / 2, mmy = (pa[1] + pb[1]) / 2;
+      var best = null, bestD = distTol;
+      for (var si = 0; si < segs.length; si++) { var s = segs[si]; if (angDiff(segAngle(s), mAng) > angTol) continue; var f = footOnLine(mmx, mmy, s); if (f.d < bestD) { bestD = f.d; best = s; } }
+      if (!best) continue;
+      for (var k = 0; k <= perLine; k++) { var t = k / perLine; var mpx = seg.a[0] + (seg.b[0] - seg.a[0]) * t, mpy = seg.a[1] + (seg.b[1] - seg.a[1]) * t; var proj = applyH(hpix, mpx, mpy); var foot = footOnLine(proj[0], proj[1], best); src.push([mpx, mpy]); dst.push([foot.x, foot.y]); cost += foot.d; }
     }
-    var hn = [hpix[0] / W, hpix[1] / W, hpix[2] / W, hpix[3] / H, hpix[4] / H, hpix[5] / H, hpix[6], hpix[7], hpix[8]];
-    return { h: hn, inliers: inliers };
+    return { src: src, dst: dst, cost: src.length ? cost / src.length : 1e9, n: src.length };
+  }
+  // hNorm: pitch(0..100)→normalized image(0..1). Guarded ICP-to-lines: never returns a worse fit than the input.
+  AI.refine = function (segs, W, H, hNorm, opts) {
+    opts = opts || {}; var iters = opts.iters || 6, angTol = (opts.angTol || 12) * Math.PI / 180, distTol = opts.distTol || 26, perLine = opts.perLine || 8;
+    function toPix(hn) { return [hn[0] * W, hn[1] * W, hn[2] * W, hn[3] * H, hn[4] * H, hn[5] * H, hn[6], hn[7], hn[8]]; }
+    function toNorm(hp) { return [hp[0] / W, hp[1] / W, hp[2] / W, hp[3] / H, hp[4] / H, hp[5] / H, hp[6], hp[7], hp[8]]; }
+    var hpix = toPix(hNorm);
+    var base = correspondences(segs, hpix, angTol, distTol, perLine);
+    var bestH = hpix, bestCost = base.cost, bestN = base.n;
+    for (var it = 0; it < iters; it++) {
+      var c = correspondences(segs, hpix, angTol, distTol, perLine); if (c.n < 8) break;
+      var hnew = solveHLS(c.src, c.dst); if (!hnew) break;
+      var cn = correspondences(segs, hnew, angTol, distTol, perLine);
+      if (cn.cost < bestCost) { bestCost = cn.cost; bestH = hnew; bestN = cn.n; hpix = hnew; } else { break; } // guard: stop if no improvement
+    }
+    return { h: toNorm(bestH), inliers: bestN, cost: bestCost };
   };
 
   AI.registerFrame = function (canvas, hInit, opts) {
