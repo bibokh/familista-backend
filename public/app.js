@@ -46815,3 +46815,30 @@ if (typeof _vistRedraw === 'function' && !_vistRedraw._teWrapped) {
   _vistRedraw = function () { var r = _vistRedraw_orig.apply(this, arguments); try { _teMountVI(); } catch (e) {} return r; };
   _vistRedraw._teWrapped = true;
 }
+
+/* ═══ Phase 4: automatic pitch registration (OpenCV) → drives the homography engine ═══
+   Guarded by window._TE_AUTO (default off). When enabled on a mounted VI engine, it
+   samples the current video frame, runs TE_PitchAI.registerFrame (green-mask → white
+   lines on pitch → Hough → line-model homography, initialised from the prior frame or
+   manual calibration) and updates proj.teCorners → the Babylon camera tracks the pitch
+   automatically. Foundation only; robustness on hard broadcast shots needs a trained model. */
+var _TE_autoCanvas = null, _TE_autoIv = 0, _TE_autoH = null;
+function _teCornersToH(corners) { if (!window.FamilistaTE) return null; return window.FamilistaTE.solveHomography([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], corners.map(function (c) { return { x: c.ix, y: c.iy }; })); }
+function _teAutoStep() {
+  if (!window._TE_AUTO || !window.TE_PitchAI || !window.TE_PitchAI.ready() || !_TE_VI) return;
+  var v = document.getElementById('vi-video'); if (!v || !v.videoWidth) return;
+  _TE_autoCanvas = _TE_autoCanvas || document.createElement('canvas');
+  var W = 640, H = Math.max(2, Math.round(640 * v.videoHeight / v.videoWidth)); _TE_autoCanvas.width = W; _TE_autoCanvas.height = H;
+  try { _TE_autoCanvas.getContext('2d').drawImage(v, 0, 0, W, H); } catch (e) { return; }
+  var proj = (typeof _vistProj === 'function') ? _vistProj() : null;
+  var initH = _TE_autoH || (proj && proj.teCorners && _teCornersToH(proj.teCorners)) || _teCornersToH([{ ix: 0.28, iy: 0.30 }, { ix: 0.72, iy: 0.30 }, { ix: 0.98, iy: 0.92 }, { ix: 0.02, iy: 0.92 }]);
+  if (!initH) return;
+  try { var r = window.TE_PitchAI.registerFrame(_TE_autoCanvas, initH, {}); if (r && r.inliers >= 12 && r.h) { _TE_autoH = r.h; if (proj) { proj.teCorners = [[0, 0], [100, 0], [100, 100], [0, 100]].map(function (p) { var q = window.TE_PitchAI.applyH(r.h, p[0], p[1]); return { ix: q[0], iy: q[1] }; }); } } } catch (e) {}
+}
+function _teAutoRegister(on) {
+  window._TE_AUTO = !!on;
+  if (on) { if (window.TE_PitchAI) window.TE_PitchAI.load(function () {}); if (!_TE_autoIv) _TE_autoIv = setInterval(_teAutoStep, 200); }
+  else { if (_TE_autoIv) { clearInterval(_TE_autoIv); _TE_autoIv = 0; } }
+  return window._TE_AUTO;
+}
+window._teAutoRegister = _teAutoRegister;
