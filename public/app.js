@@ -46739,38 +46739,55 @@ function _vistWireObjTl() {
    ═══════════════════════════════════════════════════════════════════════════ */
 var _TE_VI = null, _TE_VI_sig = '', _TE_VI_boot = false;
 function _teAnnSig(anns) { try { return (anns || []).map(function (a) { return a.id + ':' + a.tool + ':' + (a.t || 0) + ':' + (a.hidden ? 1 : 0) + ':' + (a.color || ''); }).join('|'); } catch (e) { return '' + Date.now(); } }
+function _teVideoTime() { var v = document.getElementById('vi-video'); return v ? (v.currentTime || 0) : 0; }
+function _teLerpCorners(a, b, f) { return a.map(function (c, i) { return { ix: c.ix + (b[i].ix - c.ix) * f, iy: c.iy + (b[i].iy - c.iy) * f }; }); }
+// Interpolate the pitch-corner homography at video time t from calibration keyframes
+// (assisted camera tracking). Falls back to a single static calibration.
+function _teCornersAt(proj, t) {
+  if (!proj) return null; var ks = proj.teCamKeys;
+  if (ks && ks.length) {
+    if (t <= ks[0].t) return ks[0].corners;
+    if (t >= ks[ks.length - 1].t) return ks[ks.length - 1].corners;
+    for (var i = 1; i < ks.length; i++) { if (t <= ks[i].t) { var f = (t - ks[i - 1].t) / ((ks[i].t - ks[i - 1].t) || 1); return _teLerpCorners(ks[i - 1].corners, ks[i].corners, f); } }
+    return ks[ks.length - 1].corners;
+  }
+  return proj.teCorners || null;
+}
+function _teCalibrated(proj) { return !!(proj && ((proj.teCorners && proj.teCorners.length >= 4) || (proj.teCamKeys && proj.teCamKeys.length))); }
+// Re-lock the homography to the current frame's interpolated pitch corners (runs each engine frame).
+function _teApplyHomographyNow() {
+  if (!_TE_VI) return; var proj = (typeof _vistProj === 'function') ? _vistProj() : null; var c = _teCornersAt(proj, _teVideoTime()); if (!c || c.length < 4) return;
+  try { var corr = [{ px: 0, py: 0 }, { px: 100, py: 0 }, { px: 100, py: 100 }, { px: 0, py: 100 }].map(function (p, i) { return { px: p.px, py: p.py, ix: c[i].ix, iy: c[i].iy }; }); _TE_VI.setHomography(corr); } catch (e) {}
+}
 function _teMountVI(force) {
   if (window._TE_OFF || typeof window.FamilistaTE === 'undefined') return;
   var wrap = document.getElementById('vi-videowrap'); if (!wrap) return;
   var proj = (typeof _vistProj === 'function') ? _vistProj() : null;
-  var corners = proj && proj.teCorners; // [{ix,iy}×4] image coords of pitch corners TL,TR,BR,BL (0..1)
-  if (!corners || corners.length < 4) { _teUnmountVI(); return; } // not pitch-calibrated → keep legacy 2D renderer
+  if (!_teCalibrated(proj)) { _teUnmountVI(); return; } // not pitch-calibrated → keep legacy 2D renderer
   var anns = proj ? (proj.annotations || []) : [];
   if (!_TE_VI) {
     if (_TE_VI_boot) return; _TE_VI_boot = true;
     window.FamilistaTE.loadBabylon(function (ok) {
       _TE_VI_boot = false; if (!ok || window._TE_OFF) return;
-      try { _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: true, noPitch: true, duration: 6, zIndex: 34 }); _TE_VI.start(); var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden'; _TE_VI_sig = ''; _teMountVI(true); } catch (e) { _TE_VI = null; }
+      try {
+        _TE_VI = window.FamilistaTE.mountOn(wrap, { transparent: true, noPitch: true, duration: 6, zIndex: 34 }); _TE_VI.start();
+        var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = 'hidden';
+        // per-frame homography lock (assisted camera tracking): reproject every frame
+        try { _TE_VI._teObs = _TE_VI.engine.scene.onBeforeRenderObservable.add(_teApplyHomographyNow); } catch (e) {}
+        _TE_VI_sig = ''; _teMountVI(true);
+      } catch (e) { _TE_VI = null; }
     });
     return;
   }
-  var sig = _teAnnSig(anns) + '|' + JSON.stringify(corners);
-  if (force || sig !== _TE_VI_sig) {
-    _TE_VI_sig = sig;
-    try {
-      _TE_VI.setScene(window.FamilistaTE.fromViAnnotations(anns));
-      var corr = [{ px: 0, py: 0 }, { px: 100, py: 0 }, { px: 100, py: 100 }, { px: 0, py: 100 }].map(function (p, i) { return { px: p.px, py: p.py, ix: corners[i].ix, iy: corners[i].iy }; });
-      _TE_VI.setHomography(corr); // lock graphics to the video's pitch plane
-      _TE_VI.play();
-    } catch (e) {}
-  }
+  var sig = _teAnnSig(anns);
+  if (force || sig !== _TE_VI_sig) { _TE_VI_sig = sig; try { _TE_VI.setScene(window.FamilistaTE.fromViAnnotations(anns)); _teApplyHomographyNow(); _TE_VI.play(); } catch (e) {} }
 }
-/* Pitch calibration entry point: 4 image points (0..1) for pitch corners TL,TR,BR,BL.
-   Once set, the calibrated project renders telestration through the homography-locked
-   engine (graphics embedded in the grass) instead of the flat 2D overlay. */
+/* Static pitch calibration: 4 image points (0..1) for pitch corners TL,TR,BR,BL. */
 function _teCalibrateVI(corners) { var p = (typeof _vistProj === 'function') ? _vistProj() : null; if (!p) return false; p.teCorners = corners; try { if (typeof _vistPersist === 'function') _vistPersist(); } catch (e) {} _teUnmountVI(); _teMountVI(true); return true; }
-window._teCalibrateVI = _teCalibrateVI;
-function _teUnmountVI() { try { if (_TE_VI) { _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = ''; }
+/* Camera keyframe at video time t (assisted tracking through pan/zoom/tilt). */
+function _teCalibrateVIKeyframe(t, corners) { var p = (typeof _vistProj === 'function') ? _vistProj() : null; if (!p) return false; p.teCamKeys = (p.teCamKeys || []).filter(function (k) { return Math.abs(k.t - t) > 0.03; }); p.teCamKeys.push({ t: t, corners: corners }); p.teCamKeys.sort(function (a, b) { return a.t - b.t; }); try { if (typeof _vistPersist === 'function') _vistPersist(); } catch (e) {} _teUnmountVI(); _teMountVI(true); return true; }
+window._teCalibrateVI = _teCalibrateVI; window._teCalibrateVIKeyframe = _teCalibrateVIKeyframe;
+function _teUnmountVI() { try { if (_TE_VI) { if (_TE_VI._teObs && _TE_VI.engine) { try { _TE_VI.engine.scene.onBeforeRenderObservable.remove(_TE_VI._teObs); } catch (e) {} } _TE_VI.dispose(); _TE_VI = null; } } catch (e) {} _TE_VI_boot = false; _TE_VI_sig = ''; var oc = document.getElementById('vi-canvas'); if (oc) oc.style.visibility = ''; }
 
 var _TE_SIM = null;
 function _teMountSim(host, tlKey, step) {
