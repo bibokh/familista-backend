@@ -11279,7 +11279,7 @@ function renderTrainingWorkspaceHTML() {
   if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) {
     try { _trPullBackend(function () { try { _trnRender(); } catch (e) {} }); } catch (e) {}
   }
-  return '<div class="page" id="pg-training"><div class="trn-root" id="trn-root">' + _trnInner() + '</div></div>';
+  return '<div class="page" id="pg-training">' + _famBackBtn() + '<div class="trn-root" id="trn-root">' + _trnInner() + '</div></div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts (kept) ──
 function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
@@ -43412,9 +43412,26 @@ async function tosBoardSnapshot() {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderVideoIntelligenceHTML() {
   return '<div class="page active" id="pg-video-intelligence">'
-    + '<div class="vi-reset">'
-    + '<h1 class="vi-reset-title">Video Intelligence</h1>'
-    + '<p class="vi-reset-line">This module has been reset.</p>'
-    + '<p class="vi-reset-line">Ready for a completely new architecture.</p>'
+    + _famBackBtn()
+    + '<div class="vi-notice-wrap">'
+    +   '<div class="vi-notice">'
+    +     '<div class="vi-notice-badge">VIDEO INTELLIGENCE</div>'
+    +     '<div class="vi-notice-status"><span class="vi-notice-dot"></span><b>Currently being updated</b></div>'
+    +     '<p class="vi-notice-sub">A new professional version is under development.</p>'
+    +   '</div>'
     + '</div></div>';
+}
+// ── Shared "Back" button (Training Centre + Video Intelligence): returns to the
+// previous internal page via browser history; falls back to the club Home page
+// when there is no prior internal page. Consistent Familista styling.
+function _famBackBtn() { return '<button class="fam-back" type="button" aria-label="Back"><span class="fam-back-ic">←</span>Back</button>'; }
+function _famGoBack() {
+  var before = (document.querySelector('.page.active') || {}).id; var went = false;
+  try { window.history.back(); went = true; } catch (e) {}
+  setTimeout(function () { var after = (document.querySelector('.page.active') || {}).id; if (!went || after === before) { try { navTo('club-home'); } catch (_) {} } }, 320);
+}
+window._famGoBack = _famGoBack;
+if (typeof document !== 'undefined' && !window._famBackBound) {
+  window._famBackBound = true;
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.fam-back'); if (b) { e.preventDefault(); _famGoBack(); } });
 }

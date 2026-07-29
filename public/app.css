@@ -7732,8 +7732,17 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 @keyframes dePlSpin{ to{ transform:rotate(360deg); } }
 @media (prefers-reduced-motion:reduce){ .de-pl-spinner{ animation-duration:2s; } }
 
-/* ══════════════════════ VIDEO INTELLIGENCE — reset (clean module) ══════════════════════ */
-#pg-video-intelligence{ padding:0; }
-.vi-reset{ min-height:60vh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; color:#e7ecf4; }
-.vi-reset-title{ margin:0 0 6px; font:800 30px Inter,system-ui,Arial; letter-spacing:.3px; color:#fff; }
-.vi-reset-line{ margin:0; font:500 15px Inter,system-ui,Arial; color:#8ea3bd; }
+/* ══════════════════════ Back button (Training + Video Intelligence) ══════════════════════ */
+.fam-back{ position:absolute; top:12px; left:14px; z-index:40; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 13px 0 10px; border-radius:9px; border:1px solid var(--bd); background:var(--card); color:var(--tx); font:600 12.5px Inter,system-ui,Arial; cursor:pointer; transition:border-color var(--trans),background var(--trans),color var(--trans); }
+.fam-back:hover{ border-color:var(--bd-2); background:var(--bg-3); }
+.fam-back .fam-back-ic{ font-size:15px; line-height:1; margin-top:-1px; }
+
+/* ══════════════════════ VIDEO INTELLIGENCE — update notice ══════════════════════ */
+#pg-video-intelligence{ padding:0; position:relative; }
+.vi-notice-wrap{ min-height:72vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+.vi-notice{ text-align:center; max-width:520px; width:100%; padding:36px 32px; border-radius:16px; background:var(--card); border:1px solid var(--bd); box-shadow:0 24px 70px -34px rgba(0,0,0,.6); }
+.vi-notice-badge{ font:800 11px Inter,system-ui,Arial; letter-spacing:3px; color:var(--tx-3); text-transform:uppercase; margin-bottom:18px; }
+.vi-notice-status{ display:inline-flex; align-items:center; gap:10px; font:700 21px Inter,system-ui,Arial; color:var(--tx); }
+.vi-notice-dot{ width:10px; height:10px; border-radius:50%; background:var(--green,#3ddc84); flex:none; animation:viNoticePulse 1.6s ease-out infinite; }
+@keyframes viNoticePulse{ 0%{ box-shadow:0 0 0 0 rgba(61,220,132,.55);} 70%{ box-shadow:0 0 0 11px rgba(61,220,132,0);} 100%{ box-shadow:0 0 0 0 rgba(61,220,132,0);} }
+.vi-notice-sub{ margin:15px 0 0; font:500 14px Inter,system-ui,Arial; color:var(--tx-3); }
