@@ -43617,7 +43617,7 @@ function _acCoaches() { return AC_STAGES.reduce(function (s, st) { return s + (s
 // Training/Medical/Reports/Video Intelligence). It is an entry point, not a
 // separate module. Aggregation-ready + scalable to unlimited clubs/age groups.
 function _viEscSafe(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-var AC_COACHES = { foundation: 'Miguel Santos', discovery: 'Sofia Almeida', development: 'Ahmed Hassan', performance: 'Lucas Meyer', elite: 'David Silva', propath: 'Marco Rossi' };
+var AC_COACHES = { foundation: 'Miguel Santos', discovery: 'Sofia Almeida', development: 'Ahmed Hassan', performance: 'Lucas Meyer', elite: 'David Silva', propath: 'Marco Rossi', firstteam: 'Head Coach' };
 function _acStageAvg(id) { var pl = _acInStage(id); return pl.length ? Math.round(pl.reduce(function (a, p) { return a + p.overall; }, 0) / pl.length) : 0; }
 function _acResponsible(id) { return AC_COACHES[id] || '—'; }
 function _acRole() { try { return String((window.State && State.user && State.user.role) || '').toUpperCase(); } catch (e) { return ''; } }
@@ -43654,18 +43654,23 @@ function _acTeamCard(s) {
     + '</' + (can ? 'button' : 'div') + '>';
 }
 function _acFirstTeamCard() {
-  return '<button class="ac-tcard ac-tcard--ft" data-ac-open="firstteam" type="button" style="--acc:#4ade80">'
+  var can = _acCanOpen('firstteam');
+  var foot = can
+    ? '<span class="ac-tcard-open">Open First Team <b>→</b></span>'
+    : '<span class="ac-tcard-lock"><span class="ac-lockic">🔒</span><b>Locked</b><i>Not your responsibility</i></span>';
+  return '<' + (can ? 'button' : 'div') + ' class="ac-tcard ac-tcard--ft' + (can ? '' : ' is-locked') + '"' + (can ? ' data-ac-open="firstteam" type="button"' : '') + ' style="--acc:#4ade80">'
     + '<div class="ac-tcard-top"><span class="ac-tcard-crest">1</span><div class="ac-tcard-id"><b>First Team</b><i>Professional</i></div></div>'
     + '<div class="ac-tcard-stats"><div><b>' + (typeof SQ_DEMO_PLAYERS !== 'undefined' ? SQ_DEMO_PLAYERS.length : '—') + '</b><span>Players</span></div><div><b>—</b><span>Senior squad</span></div><div><b>—</b><span></span></div></div>'
     + '<div class="ac-tcard-resp"><span>Responsible Coach</span><b>Head Coach</b></div>'
-    + '<div class="ac-tcard-foot"><span class="ac-tcard-open">Open First Team <b>→</b></span></div>'
-    + '</button>';
+    + '<div class="ac-tcard-foot">' + foot + '</div>'
+    + '</' + (can ? 'button' : 'div') + '>';
 }
 
 // Enter an age-group team → set scope and load the EXISTING club software.
 function _acOpen(id) {
+  if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
   if (id === 'firstteam') { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } navTo('squad'); return; }
-  var s = _acStage(id); if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
+  var s = _acStage(id);
   window.ACADEMY_SCOPE = { id: s.id, label: s.label, name: s.name, accent: s.accent };
   navTo('squad');
 }
