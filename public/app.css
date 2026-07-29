@@ -7736,6 +7736,8 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .fam-back{ position:absolute; top:12px; left:14px; z-index:40; display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 13px 0 10px; border-radius:9px; border:1px solid var(--bd); background:var(--card); color:var(--tx); font:600 12.5px Inter,system-ui,Arial; cursor:pointer; transition:border-color var(--trans),background var(--trans),color var(--trans); }
 .fam-back:hover{ border-color:var(--bd-2); background:var(--bg-3); }
 .fam-back .fam-back-ic{ font-size:15px; line-height:1; margin-top:-1px; }
+/* make room at the top-left of the Training page for the restored Back button */
+#pg-training .trn-root{ padding-top:46px; }
 
 /* ══════════════════════ VIDEO INTELLIGENCE — update notice ══════════════════════ */
 #pg-video-intelligence{ padding:0; position:relative; }
