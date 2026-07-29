@@ -61,9 +61,9 @@
 .vs-radial{ position:fixed; z-index:80; width:2px; height:2px; pointer-events:none; }
 .vs-radial.open{ pointer-events:auto; }
 .vs-ritem{ position:absolute; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; left:0; top:0;
-  background:var(--vs-panel2); border:1px solid var(--vs-line2); color:var(--vs-txt); display:grid; place-items:center;
+  background:linear-gradient(180deg,rgba(30,44,70,.98),rgba(18,27,44,.98)); border:1.5px solid rgba(34,224,255,.32); color:#eafaff; display:grid; place-items:center;
   cursor:pointer; opacity:0; transform:scale(.4); transition:transform .22s cubic-bezier(.2,1.4,.4,1),opacity .16s, border-color .12s, background .12s;
-  box-shadow:0 12px 30px -12px rgba(0,0,0,.7); }
+  box-shadow:0 12px 30px -10px rgba(0,0,0,.8), 0 0 20px -6px rgba(34,224,255,.4); }
 .vs-radial.open .vs-ritem{ opacity:1; transform:scale(1); }
 .vs-ritem:hover{ border-color:var(--vs-cyan); background:rgba(34,224,255,.16); color:#fff; box-shadow:var(--vs-glow); }
 .vs-ritem svg{ width:22px; height:22px; }
