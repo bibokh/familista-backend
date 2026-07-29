@@ -834,6 +834,14 @@ var CLUB_NAV_ITEMS = [
     order:   3,
   },
   {
+    slug:    'academy',
+    label:   'Academy',
+    svgPath: 'M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z',
+    color:   '#a78bfa',
+    enabled: true,
+    order:   3.5,
+  },
+  {
     slug:    'video-intelligence',
     label:   'Video Intelligence',
     svgPath: 'M2 5.5A2.5 2.5 0 014.5 3h7A2.5 2.5 0 0114 5.5v2.086l3.243-1.802A1 1 0 0118.5 6.66v6.68a1 1 0 01-1.257.876L14 12.414V14.5A2.5 2.5 0 0111.5 17h-7A2.5 2.5 0 012 14.5v-9zM6 8.25a.75.75 0 011.166-.624l2.5 1.75a.75.75 0 010 1.248l-2.5 1.75A.75.75 0 016 11.75v-3.5z',
@@ -1247,6 +1255,7 @@ function _flushPendingRender() {
     case 'pg-gis-financial':    renderGIS('gis-financial');   break;
     case 'pg-gis-performance':  renderGIS('gis-performance'); break;
     case 'pg-training':    renderTrainingPage();    break;
+    case 'pg-academy':     if (typeof renderAcademyPage === 'function') renderAcademyPage(); break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
     case 'pg-analytics':   renderAnalyticsPage();   break;
@@ -1312,8 +1321,8 @@ function navTo(page, el, _opts) {
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
-    // CLUB WORKSPACE (9)
-    'club-home': 1, 'squad': 1, 'training': 1, 'video-intelligence': 1,
+    // CLUB WORKSPACE (10)
+    'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'video-intelligence': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1341,7 +1350,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'video-intelligence':'Video Intelligence',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'video-intelligence':'Video Intelligence',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1562,6 +1571,7 @@ function _buildPageTemplateMap() {
     'club-home':                   renderClubHomeHTML,
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
+    'academy':                     renderAcademyHTML,
     'video-intelligence':          renderVideoIntelligenceHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
@@ -43434,4 +43444,295 @@ window._famGoBack = _famGoBack;
 if (typeof document !== 'undefined' && !window._famBackBound) {
   window._famBackBound = true;
   document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('.fam-back'); if (b) { e.preventDefault(); _famGoBack(); } });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACADEMY — youth-development operating system (Club Workspace module)
+// Holistic, age-appropriate development. Reuses the Familista design system,
+// nav, auth and page architecture. Own durable data store (localStorage), no
+// duplicate player records, no fabricated results (shows "Insufficient Data").
+// ═══════════════════════════════════════════════════════════════════════════
+var AC_KEY = 'familista.academy.v1';
+var _AC = { tab: 'dashboard', stage: 'foundation' };
+var AC_DB = { players: [], seeded: false };
+var _AC_LOADED = false;
+
+var AC_DIMS = [
+  ['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'],
+  ['psychological', 'Psychological'], ['social', 'Social & Cultural'],
+  ['educational', 'Educational & Citizenship'], ['medical', 'Medical'],
+  ['nutrition', 'Nutrition'], ['decision', 'Decision Making']
+];
+
+var AC_STAGES = [
+  { id: 'foundation', label: 'U5–U7', name: 'Foundation', accent: '#7dd3fc', coachN: 3,
+    summary: 'First contact with football. The goal is joy, movement and a love of the ball — never results.',
+    objectives: ['Fall in love with the game', 'Fundamental movement & coordination', 'Ball familiarity with both feet', 'Simple cooperation and sharing', 'Feeling safe, included and happy'],
+    curriculum: ['Movement & agility games', 'Dribbling in free space', 'Ball-mastery play', 'Small-sided fun games (2v2/3v3)', 'Coordination & balance circuits'],
+    methodology: 'Play-based, game-first. Short activities, maximum touches, lots of encouragement. No drills-in-lines, no elimination games.',
+    tech: ['Running with the ball', 'Both-foot touches', 'Stopping & starting'],
+    tac: ['Find space to receive', 'Simple idea of teammates', 'No positional complexity'],
+    phys: ['Agility, balance, coordination', 'Fundamental movement skills', 'Fun physical literacy'],
+    psych: ['Enjoyment above all', 'Confidence to try', 'Comfort in the group'],
+    social: ['Sharing & turn-taking', 'Listening & simple rules', 'Belonging & friendship'],
+    edu: ['Respect for coach & teammates', 'Kind behaviour', 'Basic responsibility for kit'],
+    philosophy: 'Everyone plays, everyone touches the ball. Result is irrelevant — smiles are the KPI.',
+    guidelines: ['Talk less, let them play', 'Praise effort not outcome', 'Equal playing time always', 'Age-appropriate ball & goal sizes'],
+    standards: ['Attends with enthusiasm', 'Attempts skills without fear', 'Cooperates in small groups'],
+    promotion: ['Comfortable & confident with the ball', 'Enjoys team play', 'Ready for more structured discovery'],
+    ai: ['Keep sessions short and playful', 'Protect enjoyment — avoid early specialisation', 'Celebrate effort publicly'] },
+
+  { id: 'discovery', label: 'U8–U10', name: 'Discovery', accent: '#4ade80', coachN: 4,
+    summary: 'Technical discovery. Players explore what they can do with the ball and grow in confidence.',
+    objectives: ['Technical discovery & repetition', '1v1 dribbling confidence', 'Passing & receiving basics', 'Early spatial awareness', 'Growing self-belief'],
+    curriculum: ['Dribbling & feints', 'Passing pairs & triangles', 'Ball control under light pressure', '3v3 / 4v4 games', 'Finishing games'],
+    methodology: 'Guided discovery — pose problems, let players find solutions. High repetition inside games, not isolated drills.',
+    tech: ['Dribbling & change of direction', 'Short passing accuracy', 'First touch to move'],
+    tac: ['Create & use space', 'Support the ball carrier', 'Simple width & depth'],
+    phys: ['Coordination & speed', 'Multi-directional movement', 'Fun conditioning through games'],
+    psych: ['Confidence to take players on', 'Resilience after mistakes', 'Curiosity to try new skills'],
+    social: ['Play with different teammates', 'Fair play & honesty', 'Communication basics'],
+    edu: ['Punctuality & preparation', 'Respect for opponents & officials', 'Care for equipment'],
+    philosophy: 'Encourage the brave. Reward players who try to beat opponents and keep the ball.',
+    guidelines: ['Encourage risk & creativity', 'Do not over-coach positions', 'Rotate positions often', 'Feedback in questions, not commands'],
+    standards: ['Confident 1v1', 'Passes & receives under light pressure', 'Understands basic space'],
+    promotion: ['Solid individual technique', 'Beginning to read simple game situations', 'Ready for positional understanding'],
+    ai: ['Maximise 1v1 opportunities', 'Delay position specialisation', 'Balance technique with game context'] },
+
+  { id: 'development', label: 'U11–U13', name: 'Development', accent: '#a78bfa', coachN: 4,
+    summary: 'The golden age of learning. Positional understanding, decision making and tactical principles begin.',
+    objectives: ['Positional understanding', 'Decision making under pressure', 'Core tactical principles', 'Monitor physical/biological maturation', 'Technical consolidation'],
+    curriculum: ['Positional games (rondos)', 'Building up & switching play', 'Pressing & defending principles', '7v7 → 9v9 → 11v11 transition', 'Position-specific technique'],
+    methodology: 'Principle-led coaching. Introduce the "why". Track maturation (bio-banding awareness) to protect late developers.',
+    tech: ['Technique at speed', 'Both-foot competence', 'Receiving on the half-turn'],
+    tac: ['Principles of attack & defence', 'Roles within a shape', 'Transition moments'],
+    phys: ['Monitor growth & load', 'Movement mechanics', 'Speed & agility foundations'],
+    psych: ['Handle competition healthily', 'Focus & concentration', 'Coachability'],
+    social: ['Teamwork & shared goals', 'Leadership beginnings', 'Conflict resolution'],
+    edu: ['Balance school & football', 'Goal-setting habits', 'Responsibility for own kit & recovery'],
+    philosophy: 'Play out from the back, dominate the ball, defend as a unit — learn principles over instructions.',
+    guidelines: ['Coach principles not scripts', 'Protect late developers (maturation)', 'Encourage decision making', 'Manage training & match load'],
+    standards: ['Executes tactical principles', 'Makes good decisions under moderate pressure', 'Reliable technique at speed'],
+    promotion: ['Tactical maturity', 'Consistent technique under pressure', 'Physical & psychological readiness for performance stage'],
+    ai: ['Bio-band where possible', 'Prioritise decision-making games', 'Watch training load during growth spurts'] },
+
+  { id: 'performance', label: 'U14–U16', name: 'Performance', accent: '#f59e0b', coachN: 3,
+    summary: 'Performance habits form. Position-specific development, tactical intelligence and structured S&C.',
+    objectives: ['Performance habits & professionalism', 'Position-specific mastery', 'Tactical intelligence', 'Strength & conditioning', 'Psychological resilience'],
+    curriculum: ['Unit & team tactics', 'Position-specific sessions', 'Structured strength & conditioning', 'Game-model application', 'Individual development plans'],
+    methodology: 'Periodised, position-specific. Individual Development Plans (IDPs) guide each player. Video & data feedback introduced.',
+    tech: ['Position-specific technical excellence', 'Execution under high pressure', 'Weak-foot reliability'],
+    tac: ['Reads the game', 'Understands the game model', 'Manages tactical roles & responsibilities'],
+    phys: ['Structured S&C', 'Speed, power & robustness', 'Injury-prevention (movement quality)'],
+    psych: ['Resilience & self-regulation', 'Dealing with setbacks', 'Competitive mindset'],
+    social: ['Team-first behaviour', 'Leadership on & off pitch', 'Representing the club well'],
+    edu: ['Education & football balance safeguarded', 'Time management', 'Personal accountability'],
+    philosophy: 'Compete to win the right way. Apply the club game model with intensity and intelligence.',
+    guidelines: ['Individual Development Plans for all', 'Introduce S&C safely', 'Use video & data feedback', 'Protect education pathway'],
+    standards: ['Performs position role at level', 'Tactically intelligent', 'Physically robust & professional habits'],
+    promotion: ['Consistent match performance', 'Physical readiness', 'Professional standards & tactical maturity'],
+    ai: ['Build IDPs from assessment gaps', 'Monitor S&C load carefully', 'Track education alongside performance'] },
+
+  { id: 'elite', label: 'U17–U19', name: 'Elite', accent: '#f472b6', coachN: 3,
+    summary: 'Elite performance & preparation. Match preparation, individual plans and professional standards.',
+    objectives: ['Elite performance level', 'Match preparation & analysis', 'Individual development plans', 'Professional standards', 'Transition readiness'],
+    curriculum: ['Opposition analysis & prep', 'High-intensity tactical work', 'Advanced S&C & recovery', 'Individual video analysis', 'Career & lifestyle education'],
+    methodology: 'Near-professional environment. Analysis-led preparation, monitored load, and clear pro-pathway conversations.',
+    tech: ['Elite execution under fatigue', 'Detail & consistency', 'Decisive final actions'],
+    tac: ['Game management', 'Adapts within matches', 'Advanced role understanding'],
+    phys: ['High-performance S&C', 'Recovery & monitoring', 'Robustness for senior demands'],
+    psych: ['Performing under scrutiny', 'Emotional control', 'Professional mentality'],
+    social: ['Role-model behaviour', 'Handling media & expectation', 'Mentoring younger players'],
+    edu: ['Career planning & life skills', 'Financial & lifestyle literacy', 'Dual-career support'],
+    philosophy: 'Perform like professionals. Prepare, execute and review to senior-football standards.',
+    guidelines: ['Individualised match prep', 'Manage load & recovery strictly', 'Honest pro-pathway feedback', 'Support wellbeing under pressure'],
+    standards: ['Performs to near-senior level', 'Professional preparation & recovery', 'Consistent decisive performances'],
+    promotion: ['First-team training readiness', 'Physical & mental senior readiness', 'Consistency vs elite opposition'],
+    ai: ['Individualise match preparation', 'Guard wellbeing & load', 'Prepare realistic career pathways'] },
+
+  { id: 'propath', label: 'U20–U23', name: 'Professional Path', accent: '#f87171', coachN: 3,
+    summary: 'First-team readiness & professional pathway. Career, contract and high-performance monitoring.',
+    objectives: ['First-team readiness', 'Professional pathway & loans', 'Contract & career preparation', 'High-performance monitoring', 'Full senior standards'],
+    curriculum: ['First-team integration & training', 'Loan management & review', 'Elite recovery & monitoring', 'Contract & career education', 'Leadership & professionalism'],
+    methodology: 'Bridge to senior football. Loan pathways, first-team exposure and full performance monitoring.',
+    tech: ['Senior-level technical reliability', 'Consistency at high intensity', 'Impact in decisive moments'],
+    tac: ['Full game-model mastery', 'Adaptability across systems', 'Match-winning game management'],
+    phys: ['Senior physical standards', 'Elite recovery & availability', 'Long-term robustness'],
+    psych: ['Professional resilience', 'Consistency & focus', 'Handling competition for places'],
+    social: ['Professional conduct', 'Squad leadership', 'Representing the club publicly'],
+    edu: ['Contract & financial literacy', 'Career & post-career planning', 'Independent professional habits'],
+    philosophy: 'Ready for senior football. Compete for a first-team place with full professional standards.',
+    guidelines: ['Plan loans & first-team exposure', 'Monitor availability & load', 'Support contract & career decisions', 'Full professional accountability'],
+    standards: ['Trains/plays to senior level', 'Available & professional consistently', 'Contributes in first-team environment'],
+    promotion: ['First-team / professional contract readiness', 'Proven senior-level performance', 'Full professional standards met'],
+    ai: ['Match loan level to development need', 'Monitor availability & workload', 'Support career & contract decisions'] }
+];
+
+function _acStage(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STAGES[i].id === id) return AC_STAGES[i]; return AC_STAGES[0]; }
+function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STAGES[i].id === id) return i; return 0; }
+
+// ── durable roster (seeded once, deterministic) — the academy's own youth players ──
+function _acLoad() {
+  if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
+  try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
+  if (!AC_DB.seeded || !AC_DB.players.length) { _acSeed(); }
+  return AC_DB;
+}
+function _acSave() { try { window.localStorage.setItem(AC_KEY, JSON.stringify(AC_DB)); } catch (e) {} }
+function _acRng(seed) { var s = seed % 2147483647; if (s <= 0) s += 2147483646; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+function _acSeed() {
+  var FN = ['Liam', 'Noah', 'Adam', 'Yanis', 'Omar', 'Leo', 'Rayan', 'Tomas', 'Mika', 'Elias', 'Aaron', 'Samir', 'Nael', 'Ilyas', 'Enzo', 'Malik', 'Timo', 'Youssef', 'Diego', 'Kai'];
+  var LN = ['Diaz', 'Bakri', 'Nowak', 'Silva', 'Haddad', 'Meyer', 'Kone', 'Rossi', 'Petit', 'Ferreira', 'Ahmed', 'Novak', 'Traore', 'Weber', 'Costa', 'Sow', 'Berg', 'Reyes', 'Hassan', 'Lang'];
+  var players = [], gid = 1;
+  AC_STAGES.forEach(function (st, si) {
+    var n = 8 + (si % 3);                                  // 8–10 players per stage
+    var rng = _acRng(1000 * (si + 7) + 13);
+    for (var k = 0; k < n; k++) {
+      var base = 46 + Math.round(rng() * 30) + si * 3;     // older stages skew higher
+      var dims = {}; AC_DIMS.forEach(function (d) { dims[d[0]] = Math.max(30, Math.min(96, base + Math.round((rng() - 0.5) * 26))); });
+      var overall = Math.round(AC_DIMS.reduce(function (a, d) { return a + dims[d[0]]; }, 0) / AC_DIMS.length);
+      var attend = 78 + Math.round(rng() * 21);
+      var minAge = parseInt(st.label.replace(/[^0-9]/g, '').slice(0, 2), 10) - 1;
+      players.push({ id: 'ac' + (gid++), name: FN[(si * 5 + k) % FN.length] + ' ' + LN[(si * 3 + k) % LN.length],
+        stage: st.id, age: minAge + (k % 3), entryYear: 2026 - Math.min(6, si + 1 + (k % 3)),
+        dims: dims, overall: overall, attendance: attend,
+        coachEval: Math.max(40, Math.min(95, overall + Math.round((rng() - 0.5) * 12))),
+        aiEval: Math.max(40, Math.min(95, overall + Math.round((rng() - 0.5) * 10))),
+        attention: (overall < 52 || attend < 82) });
+    }
+  });
+  AC_DB = { players: players, seeded: true }; _acSave();
+}
+function _acInStage(id) { _acLoad(); return AC_DB.players.filter(function (p) { return p.stage === id; }); }
+function _acAll() { _acLoad(); return AC_DB.players; }
+function _acAvgOverall() { var a = _acAll(); return a.length ? Math.round(a.reduce(function (s, p) { return s + p.overall; }, 0) / a.length) : 0; }
+function _acAvgDim(dk) { var a = _acAll(); return a.length ? Math.round(a.reduce(function (s, p) { return s + (p.dims[dk] || 0); }, 0) / a.length) : 0; }
+function _acReadyPromotion() { var a = _acAll(); return a.filter(function (p) { return p.overall >= 78 && p.attendance >= 88; }).length; }
+function _acAttention() { return _acAll().filter(function (p) { return p.attention; }).length; }
+function _acCoaches() { return AC_STAGES.reduce(function (s, st) { return s + (st.coachN || 0); }, 0); }
+
+// ── render ──
+function renderAcademyHTML() {
+  _acLoad();
+  if (typeof document !== 'undefined') setTimeout(function () { try { renderAcademyPage(); } catch (e) {} }, 0);
+  return '<div class="page" id="pg-academy">' + _famBackBtn() + _acShell() + '</div>';
+}
+var AC_TABS = [['dashboard', 'Dashboard'], ['devpath', 'Development Path'], ['agegroups', 'Age Groups'], ['players', 'Players'], ['curriculum', 'Curriculum'], ['coaches', 'Coaches'], ['assessments', 'Assessments'], ['promotion', 'Promotion'], ['reports', 'Reports'], ['dna', 'Academy DNA']];
+function _acShell() {
+  var tabs = AC_TABS.map(function (t) { return '<button class="ac-tab' + (_AC.tab === t[0] ? ' is-on' : '') + '" data-ac-tab="' + t[0] + '" type="button">' + t[1] + '</button>'; }).join('');
+  return '<div class="ac-root">'
+    + '<div class="ac-head"><div class="ac-brand"><span class="ac-mk">◇</span><div><b>Academy</b><i>Youth Development · FC Familista</i></div></div>'
+    + '<div class="ac-headmeta"><span>' + _acAll().length + ' players</span><span>' + AC_STAGES.length + ' stages</span><span>' + _acCoaches() + ' coaches</span></div></div>'
+    + '<div class="ac-tabs">' + tabs + '</div>'
+    + '<div class="ac-body" id="ac-body">' + _acBodyHTML() + '</div></div>';
+}
+function renderAcademyPage() { var el = document.getElementById('ac-body'); if (!el) return; el.innerHTML = _acBodyHTML(); var tb = document.querySelector('.ac-tabs'); if (tb) [].forEach.call(tb.querySelectorAll('.ac-tab'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-ac-tab') === _AC.tab); }); var hm = document.querySelector('.ac-headmeta'); }
+function _acBodyHTML() {
+  switch (_AC.tab) {
+    case 'dashboard': return _acDashboard();
+    case 'devpath': return _acDevPath();
+    case 'agegroups': return _acAgeGroups();
+    case 'players': return _acPlayers();
+    default: return _acSoon(_AC.tab);
+  }
+}
+function _acProg(label, pct, accent) { pct = Math.max(0, Math.min(100, pct || 0)); return '<div class="ac-prog"><div class="ac-prog-t"><span>' + label + '</span><b>' + pct + '</b></div><div class="ac-prog-bar"><i style="width:' + pct + '%;background:' + (accent || 'var(--pitch-400,#4ade80)') + '"></i></div></div>'; }
+function _acCard(label, value, sub, accent) { return '<div class="ac-card"><div class="ac-card-l">' + label + '</div><div class="ac-card-v" style="color:' + (accent || 'var(--tx)') + '">' + value + '</div>' + (sub ? '<div class="ac-card-s">' + sub + '</div>' : '') + '</div>'; }
+
+function _acDashboard() {
+  var cards = ''
+    + _acCard('Total Academy Players', _acAll().length, 'across ' + AC_STAGES.length + ' stages', '#a78bfa')
+    + _acCard('Active Age Groups', AC_STAGES.filter(function (s) { return _acInStage(s.id).length; }).length + ' / ' + AC_STAGES.length, 'U5 → U23')
+    + _acCard('Academy Coaches', _acCoaches(), 'across all stages')
+    + _acCard('Ready for Promotion', _acReadyPromotion(), 'awaiting coach sign-off', '#4ade80')
+    + _acCard('Requiring Attention', _acAttention(), 'flagged for review', '#f59e0b')
+    + _acCard('Avg Development Score', _acAvgOverall(), 'academy-wide', '#7dd3fc');
+  var path = AC_STAGES.map(function (s, i) {
+    return '<button class="ac-node" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><span class="ac-node-lab">' + s.label + '</span><span class="ac-node-name">' + s.name + '</span><span class="ac-node-n">' + _acInStage(s.id).length + '</span></button>'
+      + '<span class="ac-arrow">→</span>';
+  }).join('');
+  path += '<div class="ac-node ac-node--ft"><span class="ac-node-lab">First Team</span><span class="ac-node-name">Professional</span></div>';
+  var overview = AC_DIMS.map(function (d, i) { return _acProg(d[1], _acAvgDim(d[0]), AC_STAGES[i % AC_STAGES.length].accent); }).join('');
+  return '<div class="ac-cards">' + cards + '</div>'
+    + '<div class="ac-sec"><h3>Development Path</h3><div class="ac-path">' + path + '</div></div>'
+    + '<div class="ac-sec"><h3>Academy Development Overview</h3><div class="ac-overview">' + overview + '</div></div>';
+}
+
+function _acDevPath() {
+  var rows = AC_STAGES.map(function (s) {
+    var pl = _acInStage(s.id); var ready = pl.filter(function (p) { return p.overall >= 78 && p.attendance >= 88; }).length; var att = pl.filter(function (p) { return p.attention; }).length;
+    var avg = pl.length ? Math.round(pl.reduce(function (a, p) { return a + p.overall; }, 0) / pl.length) : 0;
+    return '<button class="ac-pathrow" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button">'
+      + '<div class="ac-pathrow-l"><span class="ac-dot" style="background:' + s.accent + '"></span><b>' + s.label + '</b><i>' + s.name + '</i></div>'
+      + '<div class="ac-pathrow-m">' + s.summary + '</div>'
+      + '<div class="ac-pathrow-r"><span>' + pl.length + ' players</span><span class="ac-badge ac-badge--ok">' + ready + ' ready</span>' + (att ? '<span class="ac-badge ac-badge--warn">' + att + ' attention</span>' : '') + '<span>avg ' + avg + '</span></div></button>';
+  }).join('');
+  return '<div class="ac-sec"><h3>Development Path — U5 to Professional</h3><div class="ac-pathlist">' + rows
+    + '<div class="ac-pathrow ac-pathrow--ft"><div class="ac-pathrow-l"><span class="ac-dot" style="background:var(--pitch-400,#4ade80)"></span><b>First Team</b><i>Professional football</i></div><div class="ac-pathrow-m">Graduation target — first-team squad & professional pathway.</div><div class="ac-pathrow-r"><span>' + _acReadyPromotion() + ' near-ready across academy</span></div></div>'
+    + '</div><p class="ac-hint">Click any stage to open its age-group programme.</p></div>';
+}
+
+function _acAgeGroups() {
+  var sel = AC_STAGES.map(function (s) { return '<button class="ac-pill' + (_AC.stage === s.id ? ' is-on' : '') + '" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><b>' + s.label + '</b><i>' + s.name + '</i></button>'; }).join('');
+  var st = _acStage(_AC.stage); var pl = _acInStage(st.id);
+  function list(arr) { return '<ul class="ac-list">' + arr.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'; }
+  function block(title, body) { return '<div class="ac-block"><h4>' + title + '</h4>' + body + '</div>'; }
+  var players = pl.length ? '<div class="ac-plrow">' + pl.slice(0, 12).map(function (p) { return '<span class="ac-chip" title="Overall ' + p.overall + '">' + _viEscSafe(p.name) + ' · ' + p.overall + '</span>'; }).join('') + '</div>' : '<div class="ac-empty">No players in this stage yet. <b>Add academy players</b> to begin.</div>';
+  var content = '<div class="ac-stagehead" style="--acc:' + st.accent + '"><span class="ac-dot" style="background:' + st.accent + '"></span><div><b>' + st.label + ' · ' + st.name + '</b><i>' + st.summary + '</i></div></div>'
+    + '<div class="ac-grid2">'
+    + block('Development Objectives', list(st.objectives))
+    + block('Training Methodology', '<p>' + st.methodology + '</p>')
+    + block('Curriculum', list(st.curriculum))
+    + block('Match Philosophy', '<p>' + st.philosophy + '</p>')
+    + block('Technical Priorities', list(st.tech))
+    + block('Tactical Priorities', list(st.tac))
+    + block('Physical Priorities', list(st.phys))
+    + block('Psychological Priorities', list(st.psych))
+    + block('Social & Cultural Priorities', list(st.social))
+    + block('Educational Priorities', list(st.edu))
+    + block('Coach Guidelines', list(st.guidelines))
+    + block('Performance Standards', list(st.standards))
+    + block('Promotion Criteria', list(st.promotion))
+    + block('Current Coaches', '<div class="ac-plrow"><span class="ac-chip">' + st.coachN + ' assigned coaches</span></div>')
+    + block('Current Players (' + pl.length + ')', players)
+    + block('AI Recommendations', list(st.ai))
+    + '</div>';
+  return '<div class="ac-sec"><div class="ac-pills">' + sel + '</div><div class="ac-stage">' + content + '</div></div>';
+}
+
+function _acPlayers() {
+  var st = _acStage(_AC.stage);
+  var sel = AC_STAGES.map(function (s) { return '<button class="ac-pill' + (_AC.stage === s.id ? ' is-on' : '') + '" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><b>' + s.label + '</b></button>'; }).join('');
+  var pl = _acInStage(st.id);
+  var rows = pl.length ? pl.map(function (p) {
+    return '<div class="ac-prow"><div class="ac-prow-n"><b>' + _viEscSafe(p.name) + '</b><i>' + st.label + ' · age ' + p.age + '</i></div>'
+      + '<div class="ac-prow-scores"><span title="Overall">OVR <b>' + p.overall + '</b></span><span>TEC ' + p.dims.technical + '</span><span>TAC ' + p.dims.tactical + '</span><span>PHY ' + p.dims.physical + '</span><span>PSY ' + p.dims.psychological + '</span></div>'
+      + '<div class="ac-prow-r"><span>Att ' + p.attendance + '%</span>' + (p.attention ? '<span class="ac-badge ac-badge--warn">attention</span>' : (p.overall >= 78 ? '<span class="ac-badge ac-badge--ok">on track</span>' : '')) + '</div></div>';
+  }).join('') : '<div class="ac-empty">No academy players in this stage. <b>Add players</b> to start tracking development.</div>';
+  return '<div class="ac-sec"><div class="ac-pills">' + sel + '</div>'
+    + '<div class="ac-plist">' + rows + '</div>'
+    + '<p class="ac-hint">Full development profiles, the interactive Development Wheel and assessments arrive in Academy Phase 2.</p></div>';
+}
+
+function _acSoon(tab) {
+  var meta = { curriculum: ['Curriculum', 'Season objectives, monthly themes and weekly priorities linked to the Training module — organised by age group and development objective.'],
+    coaches: ['Coaches', 'Academy coach profiles, stage assignments and coaching-quality tracking.'],
+    assessments: ['Assessments', 'Nine-dimension assessments with scores, evidence, trends and benchmark comparison.'],
+    promotion: ['Promotion Engine', 'AI promotion recommendations with confidence, reasons and blocking factors — always confirmed by a coach, never automatic.'],
+    reports: ['Reports', 'Academy and player development reports for staff and parents.'],
+    dna: ['Academy DNA', 'Evaluates the academy itself (identity, development quality, pathway) from real platform data — shows “Insufficient Data” where data is missing.'] };
+  var m = meta[tab] || ['Academy', ''];
+  return '<div class="ac-sec"><div class="ac-soon"><span class="ac-soon-ic">◇</span><h3>' + m[0] + '</h3><p>' + m[1] + '</p><div class="ac-soon-tag">Arriving in a later Academy phase</div>'
+    + '<button class="ac-btn" data-ac-tab="dashboard" type="button">Back to Dashboard</button></div></div>';
+}
+
+function _viEscSafe(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+// delegated interactions
+if (typeof document !== 'undefined' && !window._acBound) {
+  window._acBound = true;
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest && e.target.closest('[data-ac-tab]'); if (t) { _AC.tab = t.getAttribute('data-ac-tab'); renderAcademyPage(); return; }
+    var s = e.target.closest && e.target.closest('[data-ac-stage]'); if (s) { _AC.stage = s.getAttribute('data-ac-stage'); if (_AC.tab !== 'players') _AC.tab = 'agegroups'; renderAcademyPage(); return; }
+  });
 }
