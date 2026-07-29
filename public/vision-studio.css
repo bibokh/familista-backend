@@ -1,0 +1,137 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   FAMILISTA VISION STUDIO — original video-analysis workspace skin (Phase 1)
+   A cinematic, video-first HUD that replaces the crowded studio chrome. Reuses
+   the existing telestration engine, annotations, playback and projects — only the
+   visual interface + interaction system are new. Scoped under .vi-studio.vs-mode.
+   ════════════════════════════════════════════════════════════════════════════ */
+:root{
+  --vs-cyan:#22e0ff; --vs-violet:#8b6bff; --vs-lime:#a6f43a; --vs-amber:#ffb020;
+  --vs-coral:#ff5d63; --vs-white:#eef4fb; --vs-bg:#060a13;
+  --vs-panel:rgba(13,20,34,.82); --vs-panel2:rgba(18,27,44,.92);
+  --vs-line:rgba(120,160,210,.14); --vs-line2:rgba(120,160,210,.26);
+  --vs-txt:#dfeaf6; --vs-dim:#8ea3bd;
+  --vs-glow:0 0 0 1px rgba(34,224,255,.28), 0 8px 30px -10px rgba(34,224,255,.35);
+}
+/* ── container: fill viewport, cinematic, no scroll ── */
+.vi-studio.vs-mode{ position:fixed; inset:0; height:100vh; width:100vw; z-index:60;
+  background:radial-gradient(130% 90% at 50% -20%, #101c33 0%, #070d1a 55%, #03060d 100%);
+  display:flex; flex-direction:column; overflow:hidden; font-family:Inter,system-ui,Arial; }
+.vi-studio.vs-mode *{ box-sizing:border-box; }
+/* hide legacy chrome */
+.vi-studio.vs-mode > .vist-top,
+.vi-studio.vs-mode .vist-rail,
+.vi-studio.vs-mode .vist-topbar,
+.vi-studio.vs-mode > .vist-transport,
+.vi-studio.vs-mode .vist-steps,
+.vi-studio.vs-mode .vist-badges,
+.vi-studio.vs-mode .vist-fit,
+.vi-studio.vs-mode .vist-set{ display:none !important; }
+.vi-studio.vs-mode .vist-body{ flex:1 1 auto; min-height:0; margin:52px 0 108px; display:flex; }
+.vi-studio.vs-mode .vist-center{ flex:1; min-width:0; min-height:0; display:flex; }
+.vi-studio.vs-mode .vist-stage{ position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:10px 18px; }
+.vi-studio.vs-mode .vi-videowrap{ position:relative; background:#04070e; border-radius:14px; overflow:hidden;
+  box-shadow:0 30px 90px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(120,160,210,.10), inset 0 0 0 1px rgba(255,255,255,.02); }
+.vi-studio.vs-mode #vi-video{ display:block; width:100%; height:100%; object-fit:cover; }
+.vi-studio.vs-mode #vi-canvas{ position:absolute; inset:0; }
+/* corner HUD ticks */
+.vi-studio.vs-mode .vi-videowrap::before,.vi-studio.vs-mode .vi-videowrap::after{
+  content:''; position:absolute; width:26px; height:26px; border:2px solid rgba(34,224,255,.5); pointer-events:none; z-index:5; }
+.vi-studio.vs-mode .vi-videowrap::before{ left:9px; top:9px; border-right:0; border-bottom:0; border-radius:6px 0 0 0; }
+.vi-studio.vs-mode .vi-videowrap::after{ right:9px; bottom:9px; border-left:0; border-top:0; border-radius:0 0 6px 0; }
+
+/* ── top bar ── */
+.vs-top{ position:absolute; top:0; left:0; right:0; height:52px; z-index:64; display:flex; align-items:center; gap:12px; padding:0 14px;
+  background:linear-gradient(180deg,rgba(8,13,24,.92),rgba(8,13,24,.55) 70%,transparent); }
+.vs-brand{ display:flex; align-items:center; gap:9px; }
+.vs-logo{ width:26px; height:26px; border-radius:8px; display:grid; place-items:center; color:#04121a; font-weight:900;
+  background:conic-gradient(from 210deg,var(--vs-cyan),var(--vs-violet),var(--vs-lime),var(--vs-cyan)); box-shadow:var(--vs-glow); }
+.vs-ttl{ font-weight:800; letter-spacing:.4px; color:#fff; font-size:13.5px; }
+.vs-ttl small{ display:block; font-weight:600; font-size:9.5px; letter-spacing:2.4px; color:var(--vs-cyan); opacity:.9; }
+.vs-proj{ color:var(--vs-dim); font-size:12px; font-weight:600; padding-left:12px; border-left:1px solid var(--vs-line2); max-width:32vw; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.vs-sp{ flex:1; }
+.vs-btn{ height:32px; padding:0 12px; border-radius:9px; border:1px solid var(--vs-line2); background:rgba(20,30,48,.7);
+  color:var(--vs-txt); font:700 12px Inter,Arial; cursor:pointer; display:inline-flex; align-items:center; gap:7px; transition:.14s; }
+.vs-btn:hover{ border-color:var(--vs-cyan); color:#fff; box-shadow:0 0 0 1px rgba(34,224,255,.25); }
+.vs-btn.vs-ic{ width:32px; padding:0; justify-content:center; font-size:15px; }
+.vs-btn.on{ background:rgba(34,224,255,.16); border-color:var(--vs-cyan); color:#eafeff; }
+.vs-save{ font:700 11px Inter,Arial; color:var(--vs-lime); display:inline-flex; align-items:center; gap:6px; padding:0 6px; }
+.vs-save i{ width:7px; height:7px; border-radius:50%; background:var(--vs-lime); box-shadow:0 0 8px var(--vs-lime); }
+
+/* ── radial tool menu ── */
+.vs-radial{ position:fixed; z-index:80; width:2px; height:2px; pointer-events:none; }
+.vs-radial.open{ pointer-events:auto; }
+.vs-ritem{ position:absolute; width:52px; height:52px; margin:-26px 0 0 -26px; border-radius:50%; left:0; top:0;
+  background:var(--vs-panel2); border:1px solid var(--vs-line2); color:var(--vs-txt); display:grid; place-items:center;
+  cursor:pointer; opacity:0; transform:scale(.4); transition:transform .22s cubic-bezier(.2,1.4,.4,1),opacity .16s, border-color .12s, background .12s;
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.7); }
+.vs-radial.open .vs-ritem{ opacity:1; transform:scale(1); }
+.vs-ritem:hover{ border-color:var(--vs-cyan); background:rgba(34,224,255,.16); color:#fff; box-shadow:var(--vs-glow); }
+.vs-ritem svg{ width:22px; height:22px; }
+.vs-ritem .vs-rtip{ position:absolute; bottom:-19px; font:700 9.5px Inter,Arial; color:var(--vs-cyan); white-space:nowrap; opacity:0; transition:.12s; }
+.vs-ritem:hover .vs-rtip{ opacity:1; }
+.vs-rhub{ position:absolute; left:0; top:0; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%;
+  background:var(--vs-cyan); box-shadow:0 0 0 4px rgba(34,224,255,.18),0 0 18px var(--vs-cyan); }
+
+/* ── contextual inspector ── */
+.vs-insp{ position:absolute; z-index:70; width:250px; right:18px; top:66px; padding:12px; border-radius:14px;
+  background:var(--vs-panel); border:1px solid var(--vs-line2); backdrop-filter:blur(9px); box-shadow:0 20px 60px -20px rgba(0,0,0,.85); display:none; }
+.vs-insp.show{ display:block; }
+.vs-insp h4{ margin:0 0 9px; font:800 11px Inter,Arial; letter-spacing:1.6px; text-transform:uppercase; color:var(--vs-cyan); display:flex; align-items:center; gap:7px; }
+.vs-insp h4 .vs-dot{ width:9px; height:9px; border-radius:3px; }
+.vs-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; font:600 11px Inter,Arial; color:var(--vs-dim); }
+.vs-row input[type=range]{ flex:1; accent-color:var(--vs-cyan); height:3px; }
+.vs-row select,.vs-row input[type=text]{ background:#0c1526; border:1px solid var(--vs-line2); color:var(--vs-txt); border-radius:7px; padding:5px 7px; font:600 11px Inter,Arial; }
+.vs-sw{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 2px; }
+.vs-sw b{ width:22px; height:22px; border-radius:7px; cursor:pointer; border:2px solid transparent; }
+.vs-sw b.on{ border-color:#fff; box-shadow:0 0 0 2px rgba(255,255,255,.25); }
+.vs-inspbtns{ display:flex; gap:6px; margin-top:10px; }
+.vs-inspbtns button{ flex:1; height:30px; border-radius:8px; border:1px solid var(--vs-line2); background:rgba(20,30,48,.7); color:var(--vs-txt); font:700 11px Inter,Arial; cursor:pointer; }
+.vs-inspbtns button.danger{ color:#ffd0d2; border-color:rgba(255,93,99,.5); }
+.vs-inspbtns button:hover{ border-color:var(--vs-cyan); }
+
+/* ── timeline ── */
+.vs-tl{ position:absolute; left:0; right:0; bottom:0; height:108px; z-index:64; padding:8px 14px 12px;
+  background:linear-gradient(0deg,rgba(6,11,22,.96),rgba(6,11,22,.72) 60%,transparent); display:flex; flex-direction:column; gap:6px; }
+.vs-tp{ display:flex; align-items:center; gap:8px; }
+.vs-pp{ width:36px; height:36px; border-radius:11px; border:1px solid var(--vs-cyan); background:rgba(34,224,255,.14); color:#eafeff; font-size:15px; cursor:pointer; display:grid; place-items:center; }
+.vs-pp:hover{ background:rgba(34,224,255,.26); }
+.vs-tcode{ font:700 12px "JetBrains Mono",monospace; color:var(--vs-txt); }
+.vs-tcode i{ color:var(--vs-dim); font-style:normal; margin:0 4px; }
+.vs-zoom{ margin-left:auto; display:flex; gap:5px; }
+.vs-zoom button{ width:26px; height:26px; border-radius:7px; border:1px solid var(--vs-line2); background:rgba(20,30,48,.7); color:var(--vs-txt); cursor:pointer; font-weight:800; }
+.vs-track{ position:relative; height:12px; border-radius:6px; background:rgba(120,160,210,.08); border:1px solid var(--vs-line); cursor:pointer; }
+.vs-track .vs-fill{ position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,rgba(34,224,255,.4),rgba(139,107,255,.4)); border-radius:6px; }
+.vs-track .vs-head{ position:absolute; top:-4px; width:3px; height:20px; background:var(--vs-cyan); border-radius:2px; box-shadow:0 0 10px var(--vs-cyan); transform:translateX(-1.5px); }
+.vs-track .vs-mk{ position:absolute; top:-3px; width:2px; height:18px; border-radius:2px; opacity:.85; }
+.vs-objs{ position:relative; height:34px; border-radius:8px; background:rgba(120,160,210,.05); border:1px solid var(--vs-line); overflow:hidden; }
+.vs-objs:empty::after{ content:'Object animation tracks — draw on the video to add tactical objects'; position:absolute; inset:0; display:flex; align-items:center; padding-left:12px; font:600 10.5px Inter,Arial; color:#43536b; }
+.vs-obar{ position:absolute; height:9px; border-radius:5px; cursor:pointer; box-shadow:inset 0 0 0 1px rgba(0,0,0,.35); opacity:.9; }
+.vs-obar.sel{ box-shadow:0 0 0 2px var(--vs-cyan); opacity:1; }
+
+/* ── floating panels (layers / AI coach / export) ── */
+.vs-panel{ position:absolute; z-index:72; width:290px; max-height:70vh; overflow:auto; right:18px; top:66px; padding:14px; border-radius:16px;
+  background:var(--vs-panel); border:1px solid var(--vs-line2); backdrop-filter:blur(10px); box-shadow:0 24px 70px -22px rgba(0,0,0,.9); display:none; }
+.vs-panel.show{ display:block; }
+.vs-panel h3{ margin:0 0 10px; font:800 13px Inter,Arial; color:#fff; display:flex; align-items:center; gap:8px; }
+.vs-panel h3 .vs-x{ margin-left:auto; cursor:pointer; color:var(--vs-dim); font-size:16px; }
+.vs-plist{ display:flex; flex-direction:column; gap:6px; }
+.vs-pitem{ display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:9px; background:rgba(20,30,48,.55); border:1px solid var(--vs-line); color:var(--vs-txt); font:600 12px Inter,Arial; cursor:pointer; }
+.vs-pitem:hover{ border-color:var(--vs-cyan); }
+.vs-pitem .vs-cc{ width:11px; height:11px; border-radius:3px; flex:none; }
+.vs-pitem .vs-meta{ margin-left:auto; font:600 10px Inter,Arial; color:var(--vs-dim); }
+.vs-note{ font:600 11px Inter,Arial; color:var(--vs-dim); line-height:1.5; margin:2px 0 10px; }
+.vs-tag{ display:inline-block; font:800 9px Inter,Arial; letter-spacing:1px; text-transform:uppercase; color:var(--vs-amber); border:1px solid rgba(255,176,32,.4); border-radius:5px; padding:2px 6px; }
+.vs-toast{ position:absolute; left:50%; bottom:120px; transform:translateX(-50%); z-index:90; background:var(--vs-panel2); border:1px solid var(--vs-cyan);
+  color:#eafeff; font:700 12px Inter,Arial; padding:9px 15px; border-radius:10px; box-shadow:var(--vs-glow); opacity:0; transition:.2s; pointer-events:none; }
+.vs-toast.show{ opacity:1; }
+
+/* ── responsive ── */
+@media(max-width:900px){
+  .vs-proj{ display:none; } .vs-btn span.lbl{ display:none; } .vs-btn{ padding:0 9px; }
+  .vi-studio.vs-mode .vist-body{ margin:48px 0 100px; }
+  .vs-insp,.vs-panel{ right:10px; width:min(88vw,250px); }
+}
+@media(max-width:620px){
+  .vi-studio.vs-mode .vist-stage{ padding:6px; }
+  .vs-tl{ height:96px; }
+}
