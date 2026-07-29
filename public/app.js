@@ -43611,128 +43611,82 @@ function _acReadyPromotion() { var a = _acAll(); return a.filter(function (p) { 
 function _acAttention() { return _acAll().filter(function (p) { return p.attention; }).length; }
 function _acCoaches() { return AC_STAGES.reduce(function (s, st) { return s + (st.coachN || 0); }, 0); }
 
-// ── render ──
+// ── Academy = an operating structure: each age group is a full team. The
+// Academy page is a responsibility-gated PORTAL — opening a card enters that
+// team's scope and loads the EXISTING club software (Squad/Formation/Tactics/
+// Training/Medical/Reports/Video Intelligence). It is an entry point, not a
+// separate module. Aggregation-ready + scalable to unlimited clubs/age groups.
+function _viEscSafe(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+var AC_COACHES = { foundation: 'Miguel Santos', discovery: 'Sofia Almeida', development: 'Ahmed Hassan', performance: 'Lucas Meyer', elite: 'David Silva', propath: 'Marco Rossi' };
+function _acStageAvg(id) { var pl = _acInStage(id); return pl.length ? Math.round(pl.reduce(function (a, p) { return a + p.overall; }, 0) / pl.length) : 0; }
+function _acResponsible(id) { return AC_COACHES[id] || '—'; }
+function _acRole() { try { return String((window.State && State.user && State.user.role) || '').toUpperCase(); } catch (e) { return ''; } }
+function _acIsManager() { return /ADMIN|MANAGER|OWNER|DIRECTOR|SUPER|HEAD|PRESIDENT/.test(_acRole()); }
+function _acMyName() { try { var u = window.State && State.user; return u ? ([u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || '') : ''; } catch (e) { return ''; } }
+// Responsibility-based access: managers oversee all; a coach opens only their own team.
+function _acCanOpen(id) { if (_acIsManager()) return true; var me = _acMyName().toLowerCase(); return !!me && _acResponsible(id).toLowerCase() === me; }
+
 function renderAcademyHTML() {
   _acLoad();
   if (typeof document !== 'undefined') setTimeout(function () { try { renderAcademyPage(); } catch (e) {} }, 0);
-  return '<div class="page" id="pg-academy">' + _famBackBtn() + _acShell() + '</div>';
+  return '<div class="page" id="pg-academy">' + _famBackBtn() + '<div id="ac-portal-slot">' + _acPortal() + '</div></div>';
 }
-var AC_TABS = [['dashboard', 'Dashboard'], ['devpath', 'Development Path'], ['agegroups', 'Age Groups'], ['players', 'Players'], ['curriculum', 'Curriculum'], ['coaches', 'Coaches'], ['assessments', 'Assessments'], ['promotion', 'Promotion'], ['reports', 'Reports'], ['dna', 'Academy DNA']];
-function _acShell() {
-  var tabs = AC_TABS.map(function (t) { return '<button class="ac-tab' + (_AC.tab === t[0] ? ' is-on' : '') + '" data-ac-tab="' + t[0] + '" type="button">' + t[1] + '</button>'; }).join('');
-  return '<div class="ac-root">'
-    + '<div class="ac-head"><div class="ac-brand"><span class="ac-mk">◇</span><div><b>Academy</b><i>Youth Development · FC Familista</i></div></div>'
-    + '<div class="ac-headmeta"><span>' + _acAll().length + ' players</span><span>' + AC_STAGES.length + ' stages</span><span>' + _acCoaches() + ' coaches</span></div></div>'
-    + '<div class="ac-tabs">' + tabs + '</div>'
-    + '<div class="ac-body" id="ac-body">' + _acBodyHTML() + '</div></div>';
-}
-function renderAcademyPage() { var el = document.getElementById('ac-body'); if (!el) return; el.innerHTML = _acBodyHTML(); var tb = document.querySelector('.ac-tabs'); if (tb) [].forEach.call(tb.querySelectorAll('.ac-tab'), function (b) { b.classList.toggle('is-on', b.getAttribute('data-ac-tab') === _AC.tab); }); var hm = document.querySelector('.ac-headmeta'); }
-function _acBodyHTML() {
-  switch (_AC.tab) {
-    case 'dashboard': return _acDashboard();
-    case 'devpath': return _acDevPath();
-    case 'agegroups': return _acAgeGroups();
-    case 'players': return _acPlayers();
-    default: return _acSoon(_AC.tab);
-  }
-}
-function _acProg(label, pct, accent) { pct = Math.max(0, Math.min(100, pct || 0)); return '<div class="ac-prog"><div class="ac-prog-t"><span>' + label + '</span><b>' + pct + '</b></div><div class="ac-prog-bar"><i style="width:' + pct + '%;background:' + (accent || 'var(--pitch-400,#4ade80)') + '"></i></div></div>'; }
-function _acCard(label, value, sub, accent) { return '<div class="ac-card"><div class="ac-card-l">' + label + '</div><div class="ac-card-v" style="color:' + (accent || 'var(--tx)') + '">' + value + '</div>' + (sub ? '<div class="ac-card-s">' + sub + '</div>' : '') + '</div>'; }
+function renderAcademyPage() { var el = document.getElementById('ac-portal-slot'); if (el) el.innerHTML = _acPortal(); }
 
-function _acDashboard() {
-  var cards = ''
-    + _acCard('Total Academy Players', _acAll().length, 'across ' + AC_STAGES.length + ' stages', '#a78bfa')
-    + _acCard('Active Age Groups', AC_STAGES.filter(function (s) { return _acInStage(s.id).length; }).length + ' / ' + AC_STAGES.length, 'U5 → U23')
-    + _acCard('Academy Coaches', _acCoaches(), 'across all stages')
-    + _acCard('Ready for Promotion', _acReadyPromotion(), 'awaiting coach sign-off', '#4ade80')
-    + _acCard('Requiring Attention', _acAttention(), 'flagged for review', '#f59e0b')
-    + _acCard('Avg Development Score', _acAvgOverall(), 'academy-wide', '#7dd3fc');
-  var path = AC_STAGES.map(function (s, i) {
-    return '<button class="ac-node" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><span class="ac-node-lab">' + s.label + '</span><span class="ac-node-name">' + s.name + '</span><span class="ac-node-n">' + _acInStage(s.id).length + '</span></button>'
-      + '<span class="ac-arrow">→</span>';
-  }).join('');
-  path += '<div class="ac-node ac-node--ft"><span class="ac-node-lab">First Team</span><span class="ac-node-name">Professional</span></div>';
-  var overview = AC_DIMS.map(function (d, i) { return _acProg(d[1], _acAvgDim(d[0]), AC_STAGES[i % AC_STAGES.length].accent); }).join('');
-  return '<div class="ac-cards">' + cards + '</div>'
-    + '<div class="ac-sec"><h3>Development Path</h3><div class="ac-path">' + path + '</div></div>'
-    + '<div class="ac-sec"><h3>Academy Development Overview</h3><div class="ac-overview">' + overview + '</div></div>';
+function _acPortal() {
+  var cards = AC_STAGES.map(_acTeamCard).join('') + _acFirstTeamCard();
+  return '<div class="ac-portal">'
+    + '<div class="ac-portal-head"><div><h1>Academy</h1><p>Every age group is a complete team. Open a card to enter its full workspace — Squad, Formation, Tactics, Training, Medical, Reports & Video Intelligence.</p></div>'
+    + '<div class="ac-portal-meta"><span>' + AC_STAGES.length + ' age-group teams</span><span>' + _acAll().length + ' players</span></div></div>'
+    + '<div class="ac-portal-grid">' + cards + '</div></div>';
+}
+function _acTeamCard(s) {
+  var pl = _acInStage(s.id).length, can = _acCanOpen(s.id), resp = _acResponsible(s.id), avg = _acStageAvg(s.id);
+  var crest = s.label.replace(/U/g, '').split('–')[0];
+  var foot = can
+    ? '<span class="ac-tcard-open">Open Academy <b>→</b></span>'
+    : '<span class="ac-tcard-lock"><span class="ac-lockic">🔒</span><b>Locked</b><i>Not your responsibility</i></span>';
+  return '<' + (can ? 'button' : 'div') + ' class="ac-tcard' + (can ? '' : ' is-locked') + '"' + (can ? ' data-ac-open="' + s.id + '" type="button"' : '') + ' style="--acc:' + s.accent + '">'
+    + '<div class="ac-tcard-top"><span class="ac-tcard-crest">' + crest + '</span><div class="ac-tcard-id"><b>' + s.label + '</b><i>' + s.name + ' Stage</i></div></div>'
+    + '<div class="ac-tcard-stats"><div><b>' + pl + '</b><span>Players</span></div><div><b>' + s.coachN + '</b><span>Coaches</span></div><div><b>' + (avg || '—') + '</b><span>Dev Score</span></div></div>'
+    + '<div class="ac-tcard-resp"><span>Responsible Coach</span><b>' + _viEscSafe(resp) + '</b></div>'
+    + '<div class="ac-tcard-foot">' + foot + '</div>'
+    + '</' + (can ? 'button' : 'div') + '>';
+}
+function _acFirstTeamCard() {
+  return '<button class="ac-tcard ac-tcard--ft" data-ac-open="firstteam" type="button" style="--acc:#4ade80">'
+    + '<div class="ac-tcard-top"><span class="ac-tcard-crest">1</span><div class="ac-tcard-id"><b>First Team</b><i>Professional</i></div></div>'
+    + '<div class="ac-tcard-stats"><div><b>' + (typeof SQ_DEMO_PLAYERS !== 'undefined' ? SQ_DEMO_PLAYERS.length : '—') + '</b><span>Players</span></div><div><b>—</b><span>Senior squad</span></div><div><b>—</b><span></span></div></div>'
+    + '<div class="ac-tcard-resp"><span>Responsible Coach</span><b>Head Coach</b></div>'
+    + '<div class="ac-tcard-foot"><span class="ac-tcard-open">Open First Team <b>→</b></span></div>'
+    + '</button>';
 }
 
-function _acDevPath() {
-  var rows = AC_STAGES.map(function (s) {
-    var pl = _acInStage(s.id); var ready = pl.filter(function (p) { return p.overall >= 78 && p.attendance >= 88; }).length; var att = pl.filter(function (p) { return p.attention; }).length;
-    var avg = pl.length ? Math.round(pl.reduce(function (a, p) { return a + p.overall; }, 0) / pl.length) : 0;
-    return '<button class="ac-pathrow" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button">'
-      + '<div class="ac-pathrow-l"><span class="ac-dot" style="background:' + s.accent + '"></span><b>' + s.label + '</b><i>' + s.name + '</i></div>'
-      + '<div class="ac-pathrow-m">' + s.summary + '</div>'
-      + '<div class="ac-pathrow-r"><span>' + pl.length + ' players</span><span class="ac-badge ac-badge--ok">' + ready + ' ready</span>' + (att ? '<span class="ac-badge ac-badge--warn">' + att + ' attention</span>' : '') + '<span>avg ' + avg + '</span></div></button>';
-  }).join('');
-  return '<div class="ac-sec"><h3>Development Path — U5 to Professional</h3><div class="ac-pathlist">' + rows
-    + '<div class="ac-pathrow ac-pathrow--ft"><div class="ac-pathrow-l"><span class="ac-dot" style="background:var(--pitch-400,#4ade80)"></span><b>First Team</b><i>Professional football</i></div><div class="ac-pathrow-m">Graduation target — first-team squad & professional pathway.</div><div class="ac-pathrow-r"><span>' + _acReadyPromotion() + ' near-ready across academy</span></div></div>'
-    + '</div><p class="ac-hint">Click any stage to open its age-group programme.</p></div>';
+// Enter an age-group team → set scope and load the EXISTING club software.
+function _acOpen(id) {
+  if (id === 'firstteam') { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } navTo('squad'); return; }
+  var s = _acStage(id); if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
+  window.ACADEMY_SCOPE = { id: s.id, label: s.label, name: s.name, accent: s.accent };
+  navTo('squad');
 }
+function _acExitScope() { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } navTo('academy'); }
+window._acOpen = _acOpen; window._acExitScope = _acExitScope;
 
-function _acAgeGroups() {
-  var sel = AC_STAGES.map(function (s) { return '<button class="ac-pill' + (_AC.stage === s.id ? ' is-on' : '') + '" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><b>' + s.label + '</b><i>' + s.name + '</i></button>'; }).join('');
-  var st = _acStage(_AC.stage); var pl = _acInStage(st.id);
-  function list(arr) { return '<ul class="ac-list">' + arr.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>'; }
-  function block(title, body) { return '<div class="ac-block"><h4>' + title + '</h4>' + body + '</div>'; }
-  var players = pl.length ? '<div class="ac-plrow">' + pl.slice(0, 12).map(function (p) { return '<span class="ac-chip" title="Overall ' + p.overall + '">' + _viEscSafe(p.name) + ' · ' + p.overall + '</span>'; }).join('') + '</div>' : '<div class="ac-empty">No players in this stage yet. <b>Add academy players</b> to begin.</div>';
-  var content = '<div class="ac-stagehead" style="--acc:' + st.accent + '"><span class="ac-dot" style="background:' + st.accent + '"></span><div><b>' + st.label + ' · ' + st.name + '</b><i>' + st.summary + '</i></div></div>'
-    + '<div class="ac-grid2">'
-    + block('Development Objectives', list(st.objectives))
-    + block('Training Methodology', '<p>' + st.methodology + '</p>')
-    + block('Curriculum', list(st.curriculum))
-    + block('Match Philosophy', '<p>' + st.philosophy + '</p>')
-    + block('Technical Priorities', list(st.tech))
-    + block('Tactical Priorities', list(st.tac))
-    + block('Physical Priorities', list(st.phys))
-    + block('Psychological Priorities', list(st.psych))
-    + block('Social & Cultural Priorities', list(st.social))
-    + block('Educational Priorities', list(st.edu))
-    + block('Coach Guidelines', list(st.guidelines))
-    + block('Performance Standards', list(st.standards))
-    + block('Promotion Criteria', list(st.promotion))
-    + block('Current Coaches', '<div class="ac-plrow"><span class="ac-chip">' + st.coachN + ' assigned coaches</span></div>')
-    + block('Current Players (' + pl.length + ')', players)
-    + block('AI Recommendations', list(st.ai))
-    + '</div>';
-  return '<div class="ac-sec"><div class="ac-pills">' + sel + '</div><div class="ac-stage">' + content + '</div></div>';
+// Scope banner: while inside an age-group team, show which team + a way back.
+var AC_SCOPE_PAGES = { squad: 1, training: 1, 'video-intelligence': 1 };
+function _acEnsureBanner() {
+  var scope = window.ACADEMY_SCOPE;
+  var active = (document.querySelector('.page.active') || {}).id || '';
+  var page = active.replace(/^pg-/, '');
+  if (page === 'academy' || page === 'club-home' || page === 'owner-home' || page === 'clubs') { if (scope) { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } } }
+  scope = window.ACADEMY_SCOPE;
+  var bar = document.getElementById('acsb');
+  if (!scope || !AC_SCOPE_PAGES[page]) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'acsb'; document.body.appendChild(bar); bar.addEventListener('click', function (e) { if (e.target.closest('[data-acsb-back]')) { e.preventDefault(); _acExitScope(); } }); }
+  bar.innerHTML = '<span class="acsb-dot" style="background:' + (scope.accent || '#a78bfa') + '"></span><b>Academy · ' + _viEscSafe(scope.label) + '</b><i>' + _viEscSafe(scope.name) + ' Stage · full team workspace</i><button class="acsb-back" data-acsb-back type="button">← Back to Academy</button>';
 }
-
-function _acPlayers() {
-  var st = _acStage(_AC.stage);
-  var sel = AC_STAGES.map(function (s) { return '<button class="ac-pill' + (_AC.stage === s.id ? ' is-on' : '') + '" data-ac-stage="' + s.id + '" style="--acc:' + s.accent + '" type="button"><b>' + s.label + '</b></button>'; }).join('');
-  var pl = _acInStage(st.id);
-  var rows = pl.length ? pl.map(function (p) {
-    return '<div class="ac-prow"><div class="ac-prow-n"><b>' + _viEscSafe(p.name) + '</b><i>' + st.label + ' · age ' + p.age + '</i></div>'
-      + '<div class="ac-prow-scores"><span title="Overall">OVR <b>' + p.overall + '</b></span><span>TEC ' + p.dims.technical + '</span><span>TAC ' + p.dims.tactical + '</span><span>PHY ' + p.dims.physical + '</span><span>PSY ' + p.dims.psychological + '</span></div>'
-      + '<div class="ac-prow-r"><span>Att ' + p.attendance + '%</span>' + (p.attention ? '<span class="ac-badge ac-badge--warn">attention</span>' : (p.overall >= 78 ? '<span class="ac-badge ac-badge--ok">on track</span>' : '')) + '</div></div>';
-  }).join('') : '<div class="ac-empty">No academy players in this stage. <b>Add players</b> to start tracking development.</div>';
-  return '<div class="ac-sec"><div class="ac-pills">' + sel + '</div>'
-    + '<div class="ac-plist">' + rows + '</div>'
-    + '<p class="ac-hint">Full development profiles, the interactive Development Wheel and assessments arrive in Academy Phase 2.</p></div>';
-}
-
-function _acSoon(tab) {
-  var meta = { curriculum: ['Curriculum', 'Season objectives, monthly themes and weekly priorities linked to the Training module — organised by age group and development objective.'],
-    coaches: ['Coaches', 'Academy coach profiles, stage assignments and coaching-quality tracking.'],
-    assessments: ['Assessments', 'Nine-dimension assessments with scores, evidence, trends and benchmark comparison.'],
-    promotion: ['Promotion Engine', 'AI promotion recommendations with confidence, reasons and blocking factors — always confirmed by a coach, never automatic.'],
-    reports: ['Reports', 'Academy and player development reports for staff and parents.'],
-    dna: ['Academy DNA', 'Evaluates the academy itself (identity, development quality, pathway) from real platform data — shows “Insufficient Data” where data is missing.'] };
-  var m = meta[tab] || ['Academy', ''];
-  return '<div class="ac-sec"><div class="ac-soon"><span class="ac-soon-ic">◇</span><h3>' + m[0] + '</h3><p>' + m[1] + '</p><div class="ac-soon-tag">Arriving in a later Academy phase</div>'
-    + '<button class="ac-btn" data-ac-tab="dashboard" type="button">Back to Dashboard</button></div></div>';
-}
-
-function _viEscSafe(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-
-// delegated interactions
-if (typeof document !== 'undefined' && !window._acBound) {
-  window._acBound = true;
-  document.addEventListener('click', function (e) {
-    var t = e.target.closest && e.target.closest('[data-ac-tab]'); if (t) { _AC.tab = t.getAttribute('data-ac-tab'); renderAcademyPage(); return; }
-    var s = e.target.closest && e.target.closest('[data-ac-stage]'); if (s) { _AC.stage = s.getAttribute('data-ac-stage'); if (_AC.tab !== 'players') _AC.tab = 'agegroups'; renderAcademyPage(); return; }
-  });
+if (typeof document !== 'undefined' && !window._acPortalBound) {
+  window._acPortalBound = true;
+  document.addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-ac-open]'); if (t) { e.preventDefault(); _acOpen(t.getAttribute('data-ac-open')); } });
+  setInterval(function () { try { if (document.querySelector('.page.active')) _acEnsureBanner(); } catch (e) {} }, 400);
 }
