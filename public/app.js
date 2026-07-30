@@ -44243,11 +44243,137 @@ function _atSecSquad(id) {
     + '<div class="at-squad-bar">' + _atFilterBar(c.idx) + '<button class="at-btn at-btn--add" type="button" data-at-add-player>+ Add Academy Player</button></div>'
     + '<div class="at-squad-grid" id="at-pllist">' + cards + '</div>';
 }
+/* ── Coaching Staff — premium redesign (visual + frontend-computed only) ──
+   The stored staff record is exactly { name, role, responsible }. Every other
+   attribute shown below (department, accent, description, coverage state) is
+   derived from that existing role string via static lookup tables — nothing
+   is invented, saved, or added to the data model. No photo/qualification/
+   nationality field exists, so cards always use an initials avatar and omit
+   those fields entirely, per the source data. */
+var AT_STAFF_DEPTS = ['Technical Coaching', 'Goalkeeping', 'Athletic Performance', 'Match Analysis', 'Medical Support', 'Player Welfare', 'Team Operations'];
+var AT_ROLE_META = {
+  'Head Coach': { dept: 'Technical Coaching', tone: 'gold', desc: 'Owns the football methodology, team development and match preparation.' },
+  'Assistant Coach': { dept: 'Technical Coaching', tone: 'blue', desc: 'Supports session delivery, unit coaching and individual player development.' },
+  'Goalkeeping Coach': { dept: 'Goalkeeping', tone: 'teal', desc: 'Leads goalkeeper-specific technical and tactical development.' },
+  'Fitness Coach': { dept: 'Athletic Performance', tone: 'orange', desc: 'Manages physical preparation, load, speed, strength and recovery.' },
+  'Welfare Officer': { dept: 'Player Welfare', tone: 'cyan', desc: 'Supports player wellbeing, safeguarding and day-to-day welfare needs.' }
+};
+function _atRoleMeta(role) { return AT_ROLE_META[role] || { dept: 'Team Operations', tone: 'silver', desc: "Supports the age group's day-to-day football operations." }; }
+// Recommended core/support structure per development stage — Familista
+// guidance only (never auto-created); indexed to match AC_STAGES order.
+var AT_STAFF_TIERS = [
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching']],
+    support: [['Player Welfare Contact', 'Player Welfare'], ['Team Coordinator', 'Team Operations']] },
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching']],
+    support: [['Goalkeeping Coach', 'Goalkeeping'], ['Team Coordinator', 'Team Operations'], ['Player Welfare Contact', 'Player Welfare']] },
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Goalkeeping Coach', 'Goalkeeping']],
+    support: [['Athletic / Movement Coach', 'Athletic Performance'], ['Physiotherapy / First-Aid Support', 'Medical Support'], ['Team Manager', 'Team Operations'], ['Player Welfare Contact', 'Player Welfare']] },
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Goalkeeping Coach', 'Goalkeeping'], ['Athletic Performance Coach', 'Athletic Performance']],
+    support: [['Performance Analyst', 'Match Analysis'], ['Physiotherapist', 'Medical Support'], ['Team Manager', 'Team Operations'], ['Sport Psychologist', 'Player Welfare'], ['Safeguarding Contact', 'Player Welfare']] },
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Goalkeeping Coach', 'Goalkeeping'], ['Strength & Conditioning Coach', 'Athletic Performance'], ['Performance Analyst', 'Match Analysis']],
+    support: [['Physiotherapist', 'Medical Support'], ['Team Manager', 'Team Operations'], ['Sport Psychologist', 'Player Welfare'], ['Nutrition Specialist', 'Medical Support'], ['Club Doctor', 'Medical Support']] },
+  { core: [['Head Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Assistant Coach', 'Technical Coaching'], ['Individual Development Coach', 'Technical Coaching'], ['Goalkeeping Coach', 'Goalkeeping'], ['Strength & Conditioning Coach', 'Athletic Performance'], ['Performance Analyst', 'Match Analysis'], ['Physiotherapist', 'Medical Support'], ['Team Manager', 'Team Operations']],
+    support: [['Club Doctor', 'Medical Support'], ['Sport Psychologist', 'Player Welfare'], ['Nutrition Specialist', 'Medical Support'], ['Rehabilitation Specialist', 'Medical Support']] }
+];
+// Match actual staff (by department, greedily) against the recommended slots
+// for this stage. Real staff are never hidden or fabricated — this only
+// decides which recommended slot each existing person visually fills.
+function _atStaffCoverage(id) {
+  var idx = Math.min(_acStageIdx(id), AT_STAFF_TIERS.length - 1);
+  var tier = AT_STAFF_TIERS[idx];
+  var staff = _atTeam(id).staff, used = {};
+  function consume(dept) { for (var i = 0; i < staff.length; i++) { if (used[i]) continue; if (_atRoleMeta(staff[i].role).dept === dept) { used[i] = true; return staff[i]; } } return null; }
+  var coreSlots = tier.core.map(function (sl) { return { role: sl[0], dept: sl[1], person: consume(sl[1]) }; });
+  var supportSlots = tier.support.map(function (sl) { return { role: sl[0], dept: sl[1], person: consume(sl[1]) }; });
+  var deptState = {};
+  AT_STAFF_DEPTS.forEach(function (d) {
+    var filled = coreSlots.concat(supportSlots).some(function (s) { return s.dept === d && s.person; });
+    var inCore = coreSlots.some(function (s) { return s.dept === d; });
+    var inSupport = supportSlots.some(function (s) { return s.dept === d; });
+    deptState[d] = filled ? 'filled' : (inCore ? 'missing' : (inSupport ? 'shared' : 'optional'));
+  });
+  var coreFilled = coreSlots.filter(function (s) { return s.person; }).length;
+  var supportFilled = supportSlots.filter(function (s) { return s.person; }).length;
+  return { coreSlots: coreSlots, supportSlots: supportSlots, deptState: deptState, coreFilled: coreFilled, coreTotal: coreSlots.length, supportFilled: supportFilled, supportTotal: supportSlots.length };
+}
+function _atStaffHeadCoach(id) { var t = _atTeam(id); for (var i = 0; i < t.staff.length; i++) if (t.staff[i].responsible) return t.staff[i]; return t.staff[0] || null; }
+function _atStaffCard(s, id, accent, isHead) {
+  var meta = _atRoleMeta(s.role);
+  return '<div class="acs-card acs-card--' + meta.tone + (isHead ? ' acs-card--head' : '') + '" style="--acc:' + accent + '">'
+    + '<div class="acs-card-top">'
+      + '<span class="acs-av">' + _viEscSafe(_atInitials(s.name)) + '</span>'
+      + '<div class="acs-card-id"><b>' + _viEscSafe(s.name) + '</b><i>' + _viEscSafe(s.role) + '</i></div>'
+      + (s.responsible ? '<span class="acs-lead">Lead</span>' : '')
+    + '</div>'
+    + '<span class="acs-dept">' + _viEscSafe(meta.dept) + '</span>'
+    + '<p class="acs-desc">' + _viEscSafe(meta.desc) + '</p>'
+  + '</div>';
+}
 function _atSecStaff(id) {
-  var t = _atTeam(id);
-  var rows = t.staff.map(function (s) { return '<tr><td><b>' + _viEscSafe(s.name) + '</b></td><td>' + _viEscSafe(s.role) + '</td><td>' + (s.responsible ? '<span class="at-ok">Responsible</span>' : '—') + '</td></tr>'; }).join('');
-  return _atSecHead(id, 'Coaching Staff', 'Staff assigned to this age group only.')
-    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Name</th><th>Role</th><th>Responsibility</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  var c = _atCtx(id), t = _atTeam(id), staff = t.staff;
+  var head = _atStaffHeadCoach(id);
+  var others = staff.filter(function (s) { return s !== head; });
+  var cov = _atStaffCoverage(id);
+  var players = _acInStage(id).length;
+  var onField = staff.filter(function (s) { return s.role !== 'Welfare Officer'; }).length;
+  var ratio = onField ? (players / onField).toFixed(1) : '—';
+  var coveragePct = cov.coreTotal ? Math.round(cov.coreFilled / cov.coreTotal * 100) : 100;
+  var missingCore = cov.coreTotal - cov.coreFilled;
+
+  var statStrip = '<div class="acs-stats">'
+    + '<div class="acs-stat"><b>' + staff.length + '</b><span>Actual Staff</span></div>'
+    + '<div class="acs-stat"><b>' + cov.coreTotal + '</b><span>Recommended Core</span></div>'
+    + '<div class="acs-stat"><b>' + coveragePct + '%</b><span>Coverage</span></div>'
+    + '<div class="acs-stat"><b>' + missingCore + '</b><span>Missing Roles</span></div>'
+    + '<div class="acs-stat"><b>' + players + '</b><span>Players</span></div>'
+    + '<div class="acs-stat"><b>1:' + ratio + '</b><span>Player : Coach</span></div>'
+  + '</div>';
+
+  var deptRows = AT_STAFF_DEPTS.map(function (d) {
+    var st = cov.deptState[d];
+    var label = { filled: 'Filled', shared: 'Shared', missing: 'Missing', optional: 'Optional' }[st];
+    return '<div class="acs-dept-row acs-dept-row--' + st + '"><i class="acs-dept-dot"></i><span class="acs-dept-name">' + _viEscSafe(d) + '</span><span class="acs-dept-state">' + label + '</span></div>';
+  }).join('');
+
+  var headCard = head
+    ? '<div class="acs-feature" style="--acc:' + c.accent + '">'
+        + '<span class="acs-feature-av">' + _viEscSafe(_atInitials(head.name)) + '</span>'
+        + '<div class="acs-feature-body">'
+          + '<span class="acs-feature-kicker">Head Coach · ' + _viEscSafe(c.label) + '</span>'
+          + '<b class="acs-feature-name">' + _viEscSafe(head.name) + '</b>'
+          + '<p class="acs-feature-desc">' + _viEscSafe(_atRoleMeta(head.role).desc) + '</p>'
+          + '<div class="acs-feature-meta"><span>' + _viEscSafe(c.label) + '</span><span>' + _viEscSafe(c.name) + ' Stage</span></div>'
+        + '</div>'
+      + '</div>'
+    : '<div class="acs-feature acs-feature--empty" style="--acc:' + c.accent + '">No Head Coach assigned yet for ' + _viEscSafe(c.label) + '.</div>';
+
+  var otherCards = others.length
+    ? others.map(function (s) { return _atStaffCard(s, id, c.accent, false); }).join('')
+    : '<div class="at-empty">No additional staff recorded for ' + _viEscSafe(c.label) + ' yet.</div>';
+
+  function slotRow(sl) {
+    return '<div class="acs-slot' + (sl.person ? ' acs-slot--filled' : ' acs-slot--empty') + '">'
+      + '<span class="acs-slot-role">' + _viEscSafe(sl.role) + '</span>'
+      + (sl.person ? '<span class="acs-slot-person">' + _viEscSafe(sl.person.name) + '</span>' : '<span class="acs-slot-open">Open role</span>')
+    + '</div>';
+  }
+  var recBlock = '<div class="acs-rec-grid">'
+    + '<div class="acs-rec-col"><h4>Core staff · ' + cov.coreFilled + ' of ' + cov.coreTotal + ' filled</h4>' + cov.coreSlots.map(slotRow).join('') + '</div>'
+    + '<div class="acs-rec-col"><h4>Shared / specialist support · ' + cov.supportFilled + ' of ' + cov.supportTotal + '</h4>' + cov.supportSlots.map(slotRow).join('') + '</div>'
+  + '</div>';
+
+  return _atSecHead(id, 'Coaching Staff', 'The staffing structure for ' + c.label + ' only — recommendations are Familista guidance, not automatically-created people.')
+    + statStrip
+    + '<div class="acs-layout">'
+      + '<div class="acs-col-main">'
+        + _atCard('Head Coach', headCard)
+        + _atCard('Core Coaching Staff · ' + others.length, '<div class="acs-grid">' + otherCards + '</div>')
+        + _atCard('Recommended Staff Structure', recBlock, c.label)
+      + '</div>'
+      + '<div class="acs-col-side">'
+        + _atCard('Staff Coverage', '<div class="acs-dept-list">' + deptRows + '</div>')
+      + '</div>'
+    + '</div>';
 }
 // Lineup pitch — starters placed into the age-group formation (GK + rows).
 function _atLineupPitch(id) {
