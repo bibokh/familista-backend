@@ -43645,9 +43645,9 @@ function renderAcademyHTML() {
 function renderAcademyPage() { var el = document.getElementById('ac-portal-slot'); if (el) el.innerHTML = _acPortal(); }
 
 function _acPortal() {
-  var cards = AC_STAGES.map(_acTeamCard).join('') + _acFirstTeamCard();
+  var cards = AC_STAGES.map(_acTeamCard).join('');
   return '<div class="ac-portal">'
-    + '<div class="ac-portal-head"><div><h1>Academy</h1><p>Every age group is a complete team. Open a card to enter its full workspace — Squad, Formation, Tactics, Training, Medical, Reports & Video Intelligence.</p></div>'
+    + '<div class="ac-portal-head"><div><h1>Academy</h1><p>Every age group is a complete team. Open a card to enter its full workspace — Squad, Lineup, Formation, Tactics, Training, Medical, Reports & Video Intelligence. The First Team is managed separately in the Squad section.</p></div>'
     + '<div class="ac-portal-meta"><span>' + AC_STAGES.length + ' age-group teams</span><span>' + _acAll().length + ' players</span></div></div>'
     + '<div class="ac-portal-grid">' + cards + '</div></div>';
 }
@@ -43722,7 +43722,7 @@ function _atTeam(id) {
       id: id,
       formation: { name: _atDefaultFormation(id) },
       tactics: _atDefaultTactics(id),
-      lineup: {},                        // { posIndex: playerId }
+      lineup: { starters: [], subs: [], captain: null, gk: null, history: [] },
       training: { sessions: [] },
       attendance: {},                    // { sessionId: { playerId: 'present'|'absent'|'late' } }
       medical: [],
@@ -43736,20 +43736,97 @@ function _atTeam(id) {
   }
   return db.teams[id];
 }
-// Younger groups play small-sided; older groups play 11-a-side.
+// Match format & formation adapt to the stage — never force senior 11-a-side
+// onto young groups. Starters = sum(formation digits) + 1 (goalkeeper).
 function _atDefaultFormation(id) {
   var i = _acStageIdx(id);
-  if (i <= 0) return '2-3-1';            // U5–U7  (7-a-side fun)
-  if (i === 1) return '3-2-3';           // U8–U10 (small-sided)
-  if (i === 2) return '2-3-2-1';         // U11–U13 (9v9 → 11v11)
-  return '4-3-3';                        // U14+ full 11
+  if (i <= 0) return '2-2';              // U5–U7  → 5v5
+  if (i === 1) return '2-3-1';           // U8–U10 → 7v7
+  if (i === 2) return '3-2-3';           // U11–U13 → 9v9
+  if (i === 3) return '3-2-3';           // U14–U16 → 9v9 (also 11v11 available)
+  return '4-3-3';                        // U17+ full 11v11
 }
 function _atFormationsFor(id) {
   var i = _acStageIdx(id);
-  if (i <= 0) return ['2-3-1', '3-1-2', '1-3-2'];
-  if (i === 1) return ['3-2-3', '2-3-3', '3-3-2'];
-  if (i === 2) return ['2-3-2-1', '3-2-3', '3-4-1'];
-  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1'];
+  if (i <= 0) return ['1-1', '2-1', '2-2'];                       // 3v3 / 4v4 / 5v5
+  if (i === 1) return ['2-2', '2-3-1', '3-2-1'];                  // 5v5 / 7v7
+  if (i === 2) return ['3-2-1', '2-3-2', '3-2-3'];                // 7v7 / 8v8 / 9v9
+  if (i === 3) return ['3-2-3', '4-4-2', '4-3-3', '4-2-3-1'];     // 9v9 / 11v11
+  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1']; // 11v11
+}
+// Number of on-pitch starters (incl. GK) implied by a formation string.
+function _atStarterCount(f) { return String(f).split('-').reduce(function (a, n) { return a + (parseInt(n, 10) || 0); }, 0) + 1; }
+function _atFormatLabel(id) {
+  var n = _atStarterCount(_atTeam(id).formation.name);
+  return n + 'v' + n;
+}
+
+/* ── Player model ──────────────────────────────────────────────────────────
+   The isolated roster comes from AC_DB (players tagged by stage). We ENRICH
+   each player deterministically (from a hash of its id) with the extra fields
+   a professional list/profile needs — no reseed, no storage migration, and no
+   leakage between groups (a player's stage decides its team). */
+function _atHash(s) { var h = 5381; s = String(s); for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h; }
+var AT_OUTFIELD = ['CB', 'RB', 'LB', 'CB', 'CDM', 'CM', 'CAM', 'CM', 'RW', 'ST', 'LW', 'ST'];
+function _atEnrich(p, i, idx) {
+  var r = _acRng(_atHash(p.id) + 1);
+  var pos = (i === 0) ? 'GK' : AT_OUTFIELD[(i - 1) % AT_OUTFIELD.length];
+  var sec = (i === 0) ? 'SW' : AT_OUTFIELD[(i + 3) % AT_OUTFIELD.length];
+  var foot = ['Right', 'Right', 'Right', 'Left', 'Both'][Math.floor(r() * 5)];
+  var avail = (p.attention && r() < 0.45) ? 'Injured' : (r() < 0.14 ? 'Doubtful' : 'Available');
+  var fitness = avail === 'Injured' ? 38 + Math.floor(r() * 26) : 80 + Math.floor(r() * 20);
+  var morale = ['Excellent', 'Good', 'Good', 'Okay', 'Low'][Math.floor(r() * 5)];
+  var form = 4 + Math.floor(r() * 7);                                  // /10
+  var injury = avail === 'Injured' ? ['Ankle sprain', 'Minor knock', 'Hamstring strain', 'Growth-plate rest'][Math.floor(r() * 4)] : 'None';
+  var number = 1 + (_atHash(p.id + 'n') % 33);
+  var promotion = Math.max(15, Math.min(99, p.overall + Math.round((r() - 0.45) * 22) + (idx - 3) * 4));
+  var devStatus = p.attention ? 'Needs attention' : (p.overall >= 72 ? 'Ahead of stage' : 'On track');
+  return {
+    id: p.id, name: p.name, age: p.age, stage: p.stage, dims: p.dims, overall: p.overall,
+    attendance: p.attendance, attention: p.attention, entryYear: p.entryYear,
+    number: number, pos: pos, secondary: sec, foot: foot, availability: avail,
+    fitness: fitness, morale: morale, form: form, injury: injury,
+    devScore: p.overall, promotion: promotion, devStatus: devStatus
+  };
+}
+// Enriched, isolated roster for one age group (stable order → stable numbers/positions).
+function _atRoster(id) { var idx = _acStageIdx(id); return _acInStage(id).map(function (p, i) { return _atEnrich(p, i, idx); }); }
+function _atFindPlayer(id, pid) { var r = _atRoster(id); for (var i = 0; i < r.length; i++) if (r[i].id === pid) return r[i]; return null; }
+function _atInitials(name) { return String(name || '').split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
+
+// Normalised, auto-seeded lineup for a team (starters default to best-available
+// by position for the current format). Persisted per team → fully isolated.
+function _atLineup(id) {
+  var t = _atTeam(id);
+  if (!t.lineup || Array.isArray(t.lineup) || typeof t.lineup !== 'object') t.lineup = {};
+  var lu = t.lineup;
+  if (!Array.isArray(lu.starters)) lu.starters = [];
+  if (!Array.isArray(lu.subs)) lu.subs = [];
+  if (!('captain' in lu)) lu.captain = null;
+  if (!('gk' in lu)) lu.gk = null;
+  if (!Array.isArray(lu.history)) lu.history = [];
+  var roster = _atRoster(id), ids = roster.map(function (p) { return p.id; });
+  // drop any stale ids (roster is stable but be safe)
+  lu.starters = lu.starters.filter(function (x) { return ids.indexOf(x) >= 0; });
+  lu.subs = lu.subs.filter(function (x) { return ids.indexOf(x) >= 0 && lu.starters.indexOf(x) < 0; });
+  var need = _atStarterCount(t.formation.name);
+  if (!lu.starters.length) {
+    // seed: GK first, then next available outfield up to the format size
+    var gk = roster.filter(function (p) { return p.pos === 'GK' && p.availability !== 'Injured'; })[0] || roster.filter(function (p) { return p.pos === 'GK'; })[0];
+    var picked = [];
+    if (gk) picked.push(gk.id);
+    roster.forEach(function (p) { if (picked.length < need && p.pos !== 'GK' && p.availability !== 'Injured') picked.push(p.id); });
+    roster.forEach(function (p) { if (picked.length < need && picked.indexOf(p.id) < 0) picked.push(p.id); });
+    lu.starters = picked;
+    if (gk) lu.gk = gk.id;
+    if (!lu.captain) { var cap = roster.filter(function (p) { return picked.indexOf(p.id) >= 0 && p.pos !== 'GK'; }).sort(function (a, b) { return b.overall - a.overall; })[0]; if (cap) lu.captain = cap.id; }
+    var rest = roster.filter(function (p) { return picked.indexOf(p.id) < 0; }).slice(0, Math.max(3, Math.round(need / 2)));
+    lu.subs = rest.map(function (p) { return p.id; });
+    _atSave();
+  }
+  // keep starters within format size if formation shrank
+  if (lu.starters.length > need) { lu.subs = lu.starters.slice(need).concat(lu.subs); lu.starters = lu.starters.slice(0, need); }
+  return lu;
 }
 function _atDefaultTactics(id) {
   var i = _acStageIdx(id);
@@ -43807,10 +43884,11 @@ function _atEnter(id) {
   if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
   _atTeam(id);                 // ensure isolated store exists
   AT.active = id; AT.section = 'dashboard';
+  AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL';
   navTo('academy-team');
 }
-function _atBack() { AT.active = null; navTo('academy'); }
-function _atGo(section) { AT.section = section; renderAcademyTeamPage(); }
+function _atBack() { AT.active = null; AT.openPlayer = null; navTo('academy'); }
+function _atGo(section) { AT.section = section; AT.openPlayer = null; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; renderAcademyTeamPage(); }
 window._atEnter = _atEnter; window._atBack = _atBack; window._atGo = _atGo;
 
 // ── Shell ──
@@ -43833,14 +43911,28 @@ function renderAcademyTeamPage() {
         + '<b>' + _viEscSafe(c.label) + '</b>'
         + '<i>' + _viEscSafe(c.name) + ' Stage · Responsible Coach: ' + _viEscSafe(_acResponsible(id)) + '</i></div>'
       + '</div>'
-      + '<div class="at-head-meta"><span>' + _acInStage(id).length + ' players</span><span>' + (c.stage.coachN || 0) + ' coaches</span><span>Dev ' + (_acStageAvg(id) || '—') + '</span></div>'
+      + '<div class="at-head-meta">'
+        + '<span>' + _acInStage(id).length + ' players</span>'
+        + '<span>' + (c.stage.coachN || 0) + ' coaches</span>'
+        + '<span>Dev ' + (_acStageAvg(id) || '—') + '</span>'
+        + '<span>' + _viEscSafe(_atTeam(id).formation.name) + ' · ' + _atFormatLabel(id) + '</span>'
+        + '<span>Next: ' + _viEscSafe(_atNextEvent(id)) + '</span>'
+      + '</div>'
     + '</div>'
     + '<div class="at-body">'
       + '<nav class="at-nav">' + AT_SECTIONS.map(function (s) {
           return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
         }).join('') + '</nav>'
       + '<div class="at-content" id="at-content">' + _atSection(id, AT.section) + '</div>'
-    + '</div>';
+    + '</div>'
+    + _atPlayerModal(id);
+}
+// Next scheduled session/match label for the header.
+function _atNextEvent(id) {
+  var t = _atTeam(id);
+  if (t.training && t.training.sessions.length) { var s = t.training.sessions[t.training.sessions.length - 1]; return s.title + ' (' + s.date + ')'; }
+  if (t.matches && t.matches.length) { var m = t.matches[t.matches.length - 1]; return 'vs ' + m.opp + ' (' + m.date + ')'; }
+  return 'No session scheduled';
 }
 
 // ── Section router ──
@@ -43894,17 +43986,102 @@ function _atSecDashboard(id) {
       + _atCard('Philosophy', '<p class="at-p">' + _viEscSafe(st.philosophy) + '</p>')
     + '</div>';
 }
+/* ── Age-adaptive player profile config ─────────────────────────────────── */
+var AT_TABS_MASTER = [
+  ['overview', 'Overview', 0], ['development', 'Development', 0], ['skills', 'Skills', 0],
+  ['physical', 'Physical', 1], ['tactical', 'Tactical', 2], ['psychological', 'Psychological', 2],
+  ['social', 'Social', 0], ['medical', 'Medical', 3], ['attendance', 'Attendance', 0],
+  ['assessments', 'Assessments', 2], ['goals', 'Goals', 0], ['match', 'Match Stats', 3],
+  ['readiness', 'Readiness', 3], ['promotion', 'Promotion', 3], ['video', 'Video', 4],
+  ['contract', 'Contract', 4], ['reports', 'Reports', 2]
+];
+function _atProfileTabs(idx) { return AT_TABS_MASTER.filter(function (m) { return idx >= m[2]; }); }
+function _atPosGroup(pos) { if (pos === 'GK') return 'GK'; if (/^(CB|RB|LB|RWB|LWB|SW)$/.test(pos)) return 'DEF'; if (/^(CDM|CM|CAM|RM|LM|DM|AM)$/.test(pos)) return 'MID'; return 'FWD'; }
+function _atAttr(p, key) { var base = (p.dims && p.dims[key] != null) ? p.dims[key] : p.overall; var r = _acRng(_atHash(p.id + key)); return Math.max(18, Math.min(99, Math.round(base + (r() - 0.5) * 10))); }
+// Skills shown per stage — youth-appropriate labels, mapped to a dimension.
+function _atSkillSet(idx) {
+  if (idx === 0) return [['Enjoyment', 'psychological'], ['Ball familiarity', 'technical'], ['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
+  if (idx === 1) return [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing', 'technical'], ['First touch', 'technical'], ['Coordination', 'physical'], ['Agility', 'physical'], ['Creativity', 'tactical'], ['Confidence', 'psychological'], ['Decision-making', 'decision']];
+  if (idx === 2) return [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Decision-making', 'decision'], ['Game intelligence', 'tactical'], ['Speed', 'physical'], ['Agility', 'physical'], ['Communication', 'social']];
+  if (idx === 3) return [['Technical quality', 'technical'], ['Tactical understanding', 'tactical'], ['Strength', 'physical'], ['Speed', 'physical'], ['Decision-making', 'decision'], ['Match performance', 'tactical'], ['Discipline', 'educational'], ['Psychological readiness', 'psychological']];
+  return [['Technical performance', 'technical'], ['Tactical execution', 'tactical'], ['Physical readiness', 'physical'], ['Consistency', 'psychological'], ['Mentality', 'psychological'], ['Leadership', 'social'], ['First-team readiness', 'decision']];
+}
+function _atBars(p, pairs) {
+  return '<div class="at-bars">' + pairs.map(function (pr) {
+    var v = _atAttr(p, pr[1]);
+    return '<div class="at-bar"><span class="at-bar-l">' + _viEscSafe(pr[0]) + '</span><span class="at-bar-t"><i style="width:' + v + '%"></i></span><b>' + v + '</b></div>';
+  }).join('') + '</div>';
+}
+function _atAvailTone(a) { return a === 'Injured' ? 'danger' : (a === 'Doubtful' ? 'warn' : 'ok'); }
+function _atChip(label, val, tone) { return '<span class="at-plchip' + (tone ? ' at-plchip--' + tone : '') + '"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></span>'; }
+
+// One player row — clickable (opens the age-appropriate profile). In lineup
+// mode it also carries role + start/bench/captain/GK actions.
+function _atPlRow(p, idx, mode, lu) {
+  var pro = idx >= 3;
+  var role = '', roleTone = '', actions = '';
+  if (mode === 'lineup') {
+    var isStart = lu.starters.indexOf(p.id) >= 0, isSub = lu.subs.indexOf(p.id) >= 0;
+    role = isStart ? 'Starter' : (isSub ? 'Sub' : 'Reserve');
+    roleTone = isStart ? 'ok' : (isSub ? 'warn' : '');
+    var capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
+    actions = '<span class="at-plact">'
+      + (isStart
+        ? '<button class="at-mini" type="button" data-at-bench="' + p.id + '">Bench</button>'
+        : '<button class="at-mini at-mini--go" type="button" data-at-start="' + p.id + '">Start</button>')
+      + '<button class="at-mini' + (capOn ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '" title="Captain">C</button>'
+      + (p.pos === 'GK' ? '<button class="at-mini' + (gkOn ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '" title="Goalkeeper">GK</button>' : '')
+      + '</span>';
+  }
+  return '<div class="at-plrow" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
+    + '<span class="at-plnum">#' + p.number + '</span>'
+    + '<button class="at-plinfo" type="button" data-at-player="' + p.id + '">'
+      + '<span class="at-plav" style="background:' + _atCtx(p.stage).accent + '">' + _atInitials(p.name) + '</span>'
+      + '<span class="at-plmain"><b>' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></span>'
+    + '</button>'
+    + '<span class="at-plstats">'
+      + _atChip('Avail', p.availability, _atAvailTone(p.availability))
+      + _atChip('Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : 'ok')
+      + _atChip('Morale', p.morale, p.morale === 'Low' ? 'warn' : '')
+      + _atChip(pro ? 'Dev' : 'Level', p.devScore, '')
+      + _atChip('Form', p.form + '/10', '')
+      + _atChip('Att', p.attendance + '%', p.attendance < 80 ? 'warn' : 'ok')
+      + (pro ? _atChip('Promo', p.promotion, p.promotion >= 75 ? 'ok' : '') : '')
+    + '</span>'
+    + '<span class="at-plright">'
+      + (mode === 'lineup' ? '<span class="at-plbadge at-plbadge--' + roleTone + '">' + role + '</span>' : (p.injury !== 'None' ? '<span class="at-plbadge at-plbadge--danger">' + _viEscSafe(p.injury) + '</span>' : '<span class="at-plbadge at-plbadge--' + (p.devStatus === 'Needs attention' ? 'warn' : 'ok') + '">' + _viEscSafe(p.devStatus) + '</span>'))
+      + actions
+    + '</span>'
+  + '</div>';
+}
+function _atFilterBar(idx) {
+  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
+  var pos = ['ALL', 'GK', 'DEF', 'MID', 'FWD'].map(function (g) { return '<button class="at-fbtn' + (pf === g ? ' is-on' : '') + '" type="button" data-at-posfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('');
+  var av = ['ALL', 'Available', 'Doubtful', 'Injured'].map(function (g) { return '<button class="at-fbtn' + (af === g ? ' is-on' : '') + '" type="button" data-at-availfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('');
+  return '<div class="at-filterbar">'
+    + '<input class="at-search" type="text" placeholder="Search players…" data-at-search value="' + _viEscSafe(AT.q || '') + '">'
+    + '<div class="at-fgroup"><span>Position</span>' + pos + '</div>'
+    + '<div class="at-fgroup"><span>Availability</span>' + av + '</div>'
+  + '</div>';
+}
+function _atPlayerList(id, mode) {
+  var roster = _atRoster(id), idx = _acStageIdx(id);
+  var lu = (mode === 'lineup') ? _atLineup(id) : null;
+  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
+  var list = roster.filter(function (p) {
+    if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false;
+    if (af !== 'ALL' && p.availability !== af) return false;
+    return true;
+  });
+  var rows = list.map(function (p) { return _atPlRow(p, idx, mode, lu); }).join('') || '<div class="at-empty">No players match the current filters.</div>';
+  return '<div class="at-pllist" id="at-pllist">' + rows + '</div>';
+}
+
 function _atSecSquad(id) {
-  var c = _atCtx(id), pl = _acInStage(id), pro = _atShowProKpis(id);
-  var rows = pl.map(function (p) {
-    return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + p.age + '</td>'
-      + (pro ? '<td>' + p.overall + '</td>' : '<td>—</td>')
-      + '<td>' + (p.attendance || 0) + '%</td>'
-      + '<td>' + (p.attention ? '<span class="at-flag">Attention</span>' : '<span class="at-ok">On track</span>') + '</td></tr>';
-  }).join('');
-  var head = pro ? '<th>Overall</th>' : '<th>Level</th>';
-  return _atSecHead(id, 'Players / Squad', 'Isolated roster — these players belong only to ' + c.label + '. Total: ' + pl.length + '.')
-    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Age</th>' + head + '<th>Attendance</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  var c = _atCtx(id), roster = _atRoster(id);
+  return _atSecHead(id, 'Players / Squad', 'Isolated roster — these ' + roster.length + ' players belong only to ' + c.label + '. Click any player for their age-appropriate profile.')
+    + _atFilterBar(c.idx)
+    + _atPlayerList(id, 'squad');
 }
 function _atSecStaff(id) {
   var t = _atTeam(id);
@@ -43912,12 +44089,145 @@ function _atSecStaff(id) {
   return _atSecHead(id, 'Coaching Staff', 'Staff assigned to this age group only.')
     + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Name</th><th>Role</th><th>Responsibility</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
+// Lineup pitch — starters placed into the age-group formation (GK + rows).
+function _atLineupPitch(id) {
+  var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
+  var starters = lu.starters.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
+  var gk = starters.filter(function (p) { return p.id === lu.gk; })[0] || starters.filter(function (p) { return p.pos === 'GK'; })[0] || starters[0];
+  var outfield = starters.filter(function (p) { return !gk || p.id !== gk.id; });
+  var rows = String(t.formation.name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
+  function chip(p) {
+    if (!p) return '<span class="at-pcell at-pcell--empty"></span>';
+    var cap = lu.captain === p.id ? '<i class="at-pcap">C</i>' : '';
+    return '<span class="at-pcell"><span class="at-dot" style="background:' + c.accent + '">' + p.number + cap + '</span><em>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</em></span>';
+  }
+  var html = '<div class="at-pitch"><div class="at-pitch-line at-pitch-gk">' + (gk ? chip(gk) : '<span class="at-pcell"><span class="at-dot" style="background:' + c.accent + '">GK</span></span>') + '</div>';
+  var k = 0;
+  rows.forEach(function (n) {
+    var cells = '';
+    for (var i = 0; i < n; i++) cells += chip(outfield[k++]);
+    html += '<div class="at-pitch-line">' + cells + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
 function _atSecLineup(id) {
-  var pl = _acInStage(id), t = _atTeam(id);
-  var picked = pl.slice(0, 11);
-  var rows = picked.map(function (p, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + p.age + '</td></tr>'; }).join('');
-  return _atSecHead(id, 'Lineup', 'Match-day selection for ' + _atCtx(id).label + ' (formation ' + _viEscSafe(t.formation.name) + ').')
-    + _atCard('Selected (' + picked.length + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>#</th><th>Player</th><th>Age</th></tr></thead><tbody>' + rows + '</tbody></table></div>');
+  var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
+  var need = _atStarterCount(t.formation.name);
+  var pills = opts.map(function (f) { return '<button class="at-pill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + ' <em>' + _atStarterCount(f) + 'v' + _atStarterCount(f) + '</em></button>'; }).join('');
+  var capName = lu.captain ? (_atFindPlayer(id, lu.captain) || {}).name : null;
+  var hist = lu.history.length
+    ? '<ul class="at-histlist">' + lu.history.slice().reverse().slice(0, 6).map(function (h) { return '<li><b>' + _viEscSafe(h.formation) + '</b> · ' + h.starters + ' starters · <i>' + _viEscSafe(h.at) + '</i></li>'; }).join('') + '</ul>'
+    : '<div class="at-empty">No saved lineups yet.</div>';
+  return _atSecHead(id, 'Lineup', 'Match-day squad for ' + c.label + ' (' + _atFormatLabel(id) + '). Only this age group’s players — changes never affect the First Team or other groups.')
+    + '<div class="at-lineup">'
+      + '<div class="at-lineup-pitch">'
+        + '<div class="at-form-current">Formation <b>' + _viEscSafe(t.formation.name) + '</b> · ' + _atFormatLabel(id) + ' · Captain: <b>' + _viEscSafe(capName || '—') + '</b></div>'
+        + '<div class="at-pills at-pills--sm">' + pills + '</div>'
+        + '<div class="at-pitch-wrap">' + _atLineupPitch(id) + '</div>'
+        + '<div class="at-lineup-actions">'
+          + '<button class="at-btn" type="button" data-at-save-lineup>Save lineup</button>'
+          + '<button class="at-btn at-btn--ghost" type="button" data-at-reset-lineup>Reset</button>'
+          + '<span class="at-lineup-count">' + lu.starters.length + '/' + need + ' starters · ' + lu.subs.length + ' subs</span>'
+        + '</div>'
+        + _atCard('Lineup history', hist)
+      + '</div>'
+      + '<div class="at-lineup-list">'
+        + _atFilterBar(c.idx)
+        + _atPlayerList(id, 'lineup')
+      + '</div>'
+    + '</div>';
+}
+
+/* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
+function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; renderAcademyTeamPage(); }
+function _atClosePlayer() { AT.openPlayer = null; renderAcademyTeamPage(); }
+window._atOpenPlayer = _atOpenPlayer; window._atClosePlayer = _atClosePlayer;
+function _atPlayerModal(id) {
+  if (!AT.openPlayer) return '';
+  var p = _atFindPlayer(id, AT.openPlayer); if (!p) return '';
+  var c = _atCtx(id), idx = c.idx;
+  var tabs = _atProfileTabs(idx);
+  var tab = tabs.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
+  var tabStrip = tabs.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
+  return '<div class="at-modal-back" data-at-close-player>'
+    + '<div class="at-modal" style="--acc:' + c.accent + '" role="dialog">'
+      + '<div class="at-modal-head">'
+        + '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>'
+        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + '</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></div>'
+        + '<button class="at-modal-x" type="button" data-at-close-player>✕</button>'
+      + '</div>'
+      + '<div class="at-ptabs">' + tabStrip + '</div>'
+      + '<div class="at-modal-body">' + _atProfileBody(id, p, tab, idx) + '</div>'
+    + '</div>'
+  + '</div>';
+}
+function _atFact(label, val) { return '<div class="at-fact"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></div>'; }
+function _atProfileBody(id, p, tab, idx) {
+  var st = _acStage(id);
+  switch (tab) {
+    case 'overview': {
+      var facts = _atFact('Position', p.pos) + _atFact('Secondary', p.secondary) + _atFact('Preferred foot', p.foot) + _atFact('Age', p.age)
+        + _atFact('Availability', p.availability) + _atFact('Fitness', p.fitness + '%') + _atFact('Morale', p.morale)
+        + _atFact('Attendance', p.attendance + '%') + _atFact(idx >= 3 ? 'Dev score' : 'Development', p.devScore) + _atFact('Current form', p.form + '/10')
+        + _atFact('Status', p.devStatus) + (idx >= 3 ? _atFact('Promotion readiness', p.promotion) : _atFact('Entry year', p.entryYear));
+      return '<div class="at-facts">' + facts + '</div>'
+        + _atCard('Coach note', '<p class="at-p">' + _viEscSafe(p.name.split(' ')[0]) + ' is at the ' + _viEscSafe(st.name) + ' stage — ' + _viEscSafe((st.summary || '').toLowerCase()) + '</p>');
+    }
+    case 'development':
+      return '<div class="at-facts">' + _atFact('Development score', p.devScore) + _atFact('Status', p.devStatus) + _atFact('Trend', p.form >= 7 ? 'Improving' : (p.form <= 4 ? 'Watch' : 'Steady')) + _atFact('In academy since', p.entryYear) + '</div>'
+        + _atCard('Individual development goals', '<ul class="at-list">' + (st.objectives || []).slice(0, 4).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>')
+        + _atCard('Next stage', '<p class="at-p">' + _viEscSafe((st.promotion || ['—'])[0]) + '</p>');
+    case 'skills':
+      return _atCard(st.label + ' skill profile', _atBars(p, _atSkillSet(idx)));
+    case 'physical': {
+      var phys = idx < 2 ? [['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Agility', 'physical']]
+        : (idx < 4 ? [['Speed', 'physical'], ['Agility', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical']]
+          : [['Speed', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical'], ['Power', 'physical'], ['Load tolerance', 'medical']]);
+      return '<div class="at-facts">' + _atFact('Fitness', p.fitness + '%') + _atFact('Availability', p.availability) + '</div>' + _atCard('Physical profile', _atBars(p, phys));
+    }
+    case 'tactical':
+      return _atCard('Tactical attributes', _atBars(p, [['Positioning', 'tactical'], ['Decision-making', 'decision'], ['Game intelligence', 'tactical'], ['Scanning', 'tactical']]))
+        + _atCard('Stage principles', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
+    case 'psychological':
+      return _atCard('Psychological', _atBars(p, [['Confidence', 'psychological'], ['Focus', 'psychological'], ['Resilience', 'psychological'], ['Coachability', 'social']]));
+    case 'social':
+      return _atCard('Social & character', _atBars(p, [['Teamwork', 'social'], ['Communication', 'social'], ['Listening', 'social'], ['Respect', 'educational']]));
+    case 'medical':
+      return '<div class="at-facts">' + _atFact('Availability', p.availability) + _atFact('Injury', p.injury) + _atFact('Fitness', p.fitness + '%') + '</div>'
+        + _atCard('Welfare note', '<p class="at-p">' + (p.injury === 'None' ? 'No current issues — routine load monitoring for the ' + _viEscSafe(st.name) + ' stage.' : 'Managing ' + _viEscSafe(p.injury.toLowerCase()) + ' — individual return-to-play plan in place.') + '</p>');
+    case 'attendance':
+      return '<div class="at-facts">' + _atFact('Attendance', p.attendance + '%') + _atFact('Rating', p.attendance >= 90 ? 'Excellent' : (p.attendance >= 80 ? 'Good' : 'Needs improvement')) + '</div>'
+        + _atCard('Attendance', '<div class="at-bars"><div class="at-bar"><span class="at-bar-l">Season attendance</span><span class="at-bar-t"><i style="width:' + p.attendance + '%"></i></span><b>' + p.attendance + '%</b></div></div>');
+    case 'assessments': {
+      var dims = idx < 2 ? [['technical', 'Ball skills'], ['physical', 'Coordination'], ['social', 'Teamwork'], ['psychological', 'Enjoyment']]
+        : (idx < 4 ? [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'], ['psychological', 'Mentality'], ['decision', 'Decisions']] : AC_DIMS);
+      return _atCard('Latest assessment', _atBars(p, dims.map(function (d) { return [d[1], d[0]]; })));
+    }
+    case 'goals':
+      return _atCard('Development goals', '<ul class="at-checklist">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>');
+    case 'match': {
+      var r = _acRng(_atHash(p.id + 'm')); var apps = 4 + Math.floor(r() * 16), mins = apps * (40 + Math.floor(r() * 40)), g = Math.floor(r() * (p.pos === 'ST' ? 12 : 5)), a = Math.floor(r() * 8);
+      return '<div class="at-facts">' + _atFact('Appearances', apps) + _atFact('Minutes', mins) + _atFact('Goals', g) + _atFact('Assists', a) + _atFact('Avg rating', (6 + r() * 2.5).toFixed(1)) + '</div>';
+    }
+    case 'readiness':
+      return '<div class="at-facts">' + _atFact('First-team readiness', p.promotion + '%') + _atFact('Physical', p.fitness + '%') + _atFact('Form', p.form + '/10') + '</div>'
+        + _atCard('Readiness note', '<p class="at-p">Tracked against senior standards for the ' + _viEscSafe(st.name) + ' stage.</p>');
+    case 'promotion':
+      return '<div class="at-facts">' + _atFact('Promotion readiness', p.promotion + '%') + _atFact('Recommendation', p.promotion >= 78 ? 'Ready to step up' : (p.promotion >= 60 ? 'On track' : 'Continue developing')) + '</div>'
+        + _atCard('Promotion criteria', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
+    case 'video':
+      return '<div class="at-notice"><div class="at-notice-badge">VIDEO · ' + _viEscSafe(_atCtx(id).label) + '</div><div class="at-notice-status"><span class="at-notice-dot"></span><b>Currently being updated</b></div><p>Individual video assessment for this age group is under development.</p></div>';
+    case 'contract': {
+      var scholar = idx >= 5 ? 'Professional' : 'Scholarship';
+      return '<div class="at-facts">' + _atFact('Status', scholar) + _atFact('Loan', idx >= 5 && p.promotion < 70 ? 'Loan candidate' : 'None') + _atFact('Pathway', p.promotion >= 78 ? 'First-team pathway' : 'Development') + '</div>'
+        + _atCard('Pathway note', '<p class="at-p">' + (idx >= 5 ? 'Professional pathway & first-team readiness monitored.' : 'Scholarship & education pathway safeguarded alongside football.') + '</p>');
+    }
+    case 'reports':
+      return '<div class="at-facts">' + _atFact('Coach evaluation', (p.dims && p.overall) || p.overall) + _atFact('AI evaluation', p.devScore) + '</div>'
+        + _atCard('Summary', '<p class="at-p">' + _viEscSafe(p.name.split(' ')[0]) + ' — ' + _viEscSafe(p.devStatus) + ' at the ' + _viEscSafe(st.name) + ' stage. Focus: ' + _viEscSafe((st.objectives || ['—'])[0]) + '.</p>');
+    default: return '';
+  }
 }
 function _atSecFormation(id) {
   var t = _atTeam(id), opts = _atFormationsFor(id);
@@ -44077,6 +44387,68 @@ if (typeof document !== 'undefined' && !window._atBound) {
       team4.matches.push({ date: new Date().toISOString().slice(0, 10), opp: 'Rivals ' + _atCtx(id).label, result: '' });
       _atSave(); renderAcademyTeamPage(); return;
     }
+    // ── Player profile modal ──
+    if (t.classList && t.classList.contains('at-modal-back')) { e.preventDefault(); _atClosePlayer(); return; }
+    if (t.closest && t.closest('.at-modal-x')) { e.preventDefault(); _atClosePlayer(); return; }
+    var openP = t.closest && t.closest('[data-at-player]');
+    if (openP) { e.preventDefault(); _atOpenPlayer(id, openP.getAttribute('data-at-player')); return; }
+    var ptab = t.closest && t.closest('[data-at-ptab]');
+    if (ptab) { e.preventDefault(); AT.profileTab = ptab.getAttribute('data-at-ptab'); renderAcademyTeamPage(); return; }
+    // ── Lineup management (all scoped to AT.active) ──
+    var startB = t.closest && t.closest('[data-at-start]');
+    if (startB) {
+      e.preventDefault();
+      var pid = startB.getAttribute('data-at-start'), lu = _atLineup(id), need = _atStarterCount(_atTeam(id).formation.name);
+      lu.subs = lu.subs.filter(function (x) { return x !== pid; });
+      if (lu.starters.indexOf(pid) < 0) {
+        if (lu.starters.length >= need) { var moved = lu.starters.pop(); if (moved && lu.subs.indexOf(moved) < 0) lu.subs.unshift(moved); }
+        lu.starters.push(pid);
+      }
+      _atSave(); renderAcademyTeamPage(); return;
+    }
+    var benchB = t.closest && t.closest('[data-at-bench]');
+    if (benchB) {
+      e.preventDefault();
+      var pid2 = benchB.getAttribute('data-at-bench'), lu2 = _atLineup(id);
+      lu2.starters = lu2.starters.filter(function (x) { return x !== pid2; });
+      if (lu2.subs.indexOf(pid2) < 0) lu2.subs.push(pid2);
+      if (lu2.captain === pid2) lu2.captain = null;
+      if (lu2.gk === pid2) lu2.gk = null;
+      _atSave(); renderAcademyTeamPage(); return;
+    }
+    var capB = t.closest && t.closest('[data-at-captain]');
+    if (capB) { e.preventDefault(); var pid3 = capB.getAttribute('data-at-captain'), lu3 = _atLineup(id); lu3.captain = (lu3.captain === pid3) ? null : pid3; _atSave(); renderAcademyTeamPage(); return; }
+    var gkB = t.closest && t.closest('[data-at-gk]');
+    if (gkB) {
+      e.preventDefault();
+      var pid4 = gkB.getAttribute('data-at-gk'), lu4 = _atLineup(id);
+      lu4.gk = (lu4.gk === pid4) ? null : pid4;
+      if (lu4.gk && lu4.starters.indexOf(pid4) < 0) { lu4.subs = lu4.subs.filter(function (x) { return x !== pid4; }); lu4.starters.unshift(pid4); }
+      _atSave(); renderAcademyTeamPage(); return;
+    }
+    var saveL = t.closest && t.closest('[data-at-save-lineup]');
+    if (saveL) {
+      e.preventDefault();
+      var lu5 = _atLineup(id);
+      lu5.history.push({ formation: _atTeam(id).formation.name, starters: lu5.starters.length, at: new Date().toLocaleString() });
+      if (lu5.history.length > 20) lu5.history = lu5.history.slice(-20);
+      _atSave(); renderAcademyTeamPage();
+      try { showToast('Lineup saved for ' + _atCtx(id).label, 'success'); } catch (_) {}
+      return;
+    }
+    var resetL = t.closest && t.closest('[data-at-reset-lineup]');
+    if (resetL) {
+      e.preventDefault();
+      var team5 = _atTeam(id); var keepHist = (team5.lineup && team5.lineup.history) || [];
+      team5.lineup = { starters: [], subs: [], captain: null, gk: null, history: keepHist };
+      _atLineup(id); _atSave(); renderAcademyTeamPage();
+      try { showToast('Lineup reset', 'info'); } catch (_) {}
+      return;
+    }
+    var pf = t.closest && t.closest('[data-at-posfilter]');
+    if (pf) { e.preventDefault(); AT.posF = pf.getAttribute('data-at-posfilter'); renderAcademyTeamPage(); return; }
+    var af = t.closest && t.closest('[data-at-availfilter]');
+    if (af) { e.preventDefault(); AT.availF = af.getAttribute('data-at-availfilter'); renderAcademyTeamPage(); return; }
   });
   document.addEventListener('change', function (e) {
     var id = AT.active; if (!id || !_acCanOpen(id)) return;
@@ -44089,5 +44461,13 @@ if (typeof document !== 'undefined' && !window._atBound) {
     var id = AT.active; if (!id || !_acCanOpen(id)) return;
     var setg = e.target.getAttribute && e.target.getAttribute('data-at-setting');
     if (setg) { var team = _atTeam(id); team.settings[setg] = e.target.value; _atSave(); return; }
+    // Player search — filter rows in place so the input keeps focus (no re-render).
+    if (e.target.getAttribute && e.target.getAttribute('data-at-search') !== null && e.target.classList.contains('at-search')) {
+      AT.q = e.target.value || '';
+      var q = AT.q.toLowerCase();
+      var rows = document.querySelectorAll('#at-pllist .at-plrow');
+      for (var i = 0; i < rows.length; i++) { var nm = rows[i].getAttribute('data-name') || ''; rows[i].style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none'; }
+      return;
+    }
   });
 }
