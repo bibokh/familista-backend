@@ -43651,17 +43651,38 @@ function _acPortal() {
     + '<div class="ac-portal-meta"><span>' + AC_STAGES.length + ' age-group teams</span><span>' + _acAll().length + ' players</span></div></div>'
     + '<div class="ac-portal-grid">' + cards + '</div></div>';
 }
+// Purely-derived visual status for a portal card — reads only EXISTING
+// per-team data (roster availability/attention/promotion + training dates).
+// No new stored field, no logic/permission change — presentational only.
+function _acCardStatus(id) {
+  var roster = _atRoster(id);
+  if (roster.some(function (p) { return p.availability === 'Injured'; })) return { label: 'Medical Alert', tone: 'danger', icon: '✚' };
+  if (roster.some(function (p) { return p.devStatus === 'Needs attention' || p.attention; })) return { label: 'Attention Needed', tone: 'warn', icon: '!' };
+  if (roster.some(function (p) { return p.promotion >= 78; })) return { label: 'Promotion Ready', tone: 'cyan', icon: '▲' };
+  var t = _atTeam(id), today = ''; try { today = new Date().toISOString().slice(0, 10); } catch (e) {}
+  if (t.training && t.training.sessions.some(function (s) { return s.date === today; })) return { label: 'Training Today', tone: 'accent', icon: '●' };
+  return { label: 'Healthy', tone: 'ok', icon: '✓' };
+}
 function _acTeamCard(s) {
   var pl = _acInStage(s.id).length, can = _acCanOpen(s.id), resp = _acResponsible(s.id), avg = _acStageAvg(s.id);
   var crest = s.label.replace(/U/g, '').split('–')[0];
-  var foot = can
-    ? '<span class="ac-tcard-open">Open Academy <b>→</b></span>'
-    : '<span class="ac-tcard-lock"><span class="ac-lockic">🔒</span><b>Locked</b><i>Not your responsibility</i></span>';
+  var status = _acCardStatus(s.id);
+  var cta = can
+    ? '<span class="ac-tcard-cta-btn"><span>Open Workspace</span><b class="ac-tcard-cta-arrow">→</b></span>'
+    : '<span class="ac-tcard-cta-btn ac-tcard-cta-btn--locked"><span class="ac-lockic">🔒</span><span>Locked</span><i>Not your responsibility</i></span>';
   return '<' + (can ? 'button' : 'div') + ' class="ac-tcard' + (can ? '' : ' is-locked') + '"' + (can ? ' data-ac-open="' + s.id + '" type="button"' : '') + ' style="--acc:' + s.accent + '">'
-    + '<div class="ac-tcard-top"><span class="ac-tcard-crest">' + crest + '</span><div class="ac-tcard-id"><b>' + s.label + '</b><i>' + s.name + ' Stage</i></div></div>'
-    + '<div class="ac-tcard-stats"><div><b>' + pl + '</b><span>Players</span></div><div><b>' + s.coachN + '</b><span>Coaches</span></div><div><b>' + (avg || '—') + '</b><span>Dev Score</span></div></div>'
-    + '<div class="ac-tcard-resp"><span>Responsible Coach</span><b>' + _viEscSafe(resp) + '</b></div>'
-    + '<div class="ac-tcard-foot">' + foot + '</div>'
+    + '<div class="ac-tcard-hero">'
+      + '<span class="ac-tcard-badge">' + _viEscSafe(crest) + '</span>'
+      + '<div class="ac-tcard-hero-txt"><b>' + _viEscSafe(s.label) + '</b><i>' + _viEscSafe(s.name) + ' Stage</i></div>'
+      + '<span class="ac-tcard-status ac-tcard-status--' + status.tone + '"><i>' + status.icon + '</i>' + _viEscSafe(status.label) + '</span>'
+    + '</div>'
+    + '<div class="ac-tcard-kpis">'
+      + '<div class="ac-tcard-kpi"><i class="ac-tcard-kpi-ic">👥</i><b>' + pl + '</b><span>Players</span></div>'
+      + '<div class="ac-tcard-kpi"><i class="ac-tcard-kpi-ic">🧑‍🏫</i><b>' + s.coachN + '</b><span>Coaches</span></div>'
+      + '<div class="ac-tcard-kpi"><i class="ac-tcard-kpi-ic">📈</i><b>' + (avg || '—') + '</b><span>Dev Score</span></div>'
+    + '</div>'
+    + '<div class="ac-tcard-coach"><span class="ac-tcard-coach-av">' + _viEscSafe(_atInitials(resp)) + '</span><span class="ac-tcard-coach-txt"><b>' + _viEscSafe(resp) + '</b><i>Responsible Coach</i></span></div>'
+    + '<div class="ac-tcard-cta">' + cta + '</div>'
     + '</' + (can ? 'button' : 'div') + '>';
 }
 function _acFirstTeamCard() {
@@ -43846,6 +43867,23 @@ function _atFindPlayer(id, pid) { var r = _atRoster(id); for (var i = 0; i < r.l
 // dev-status → tone (colour coding)
 function _atDevTone(s) { return s === 'Needs attention' ? 'warn' : (s === 'Medical Monitoring' || s === 'Return to Training' ? 'danger' : (s === 'Recently Promoted' ? 'accent' : (s === 'Ahead of stage' ? 'cyan' : 'ok'))); }
 function _atInitials(name) { return String(name || '').split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
+// Presentational status chip for a player card — derived purely from EXISTING
+// fields (availability/promotion/devStatus/devScore); does not alter them.
+function _atStatusChip(p) {
+  if (p.availability === 'Injured') return { label: 'Medical', tone: 'danger' };
+  if (p.promotion >= 78) return { label: 'Promotion Ready', tone: 'cyan' };
+  if (p.devStatus === 'Needs attention') return { label: 'Needs Attention', tone: 'warn' };
+  if (p.devScore >= 85) return { label: 'Outstanding Progress', tone: 'accent' };
+  if (p.devStatus === 'Ahead of stage') return { label: 'Ahead of Stage', tone: 'cyan' };
+  if (p.devStatus === 'Recently Promoted') return { label: 'Recently Promoted', tone: 'accent' };
+  return { label: 'On Track', tone: 'ok' };
+}
+// Categorical morale mapped to a bar-fill percentage for display only (the
+// stored value + label shown remain the original word, e.g. "Good").
+function _atMoraleVal(m) { return { Excellent: 96, Good: 74, Okay: 50, Low: 26 }[m] || 50; }
+function _atMiniBar(label, pct, text, tone) {
+  return '<div class="at-sc-bar' + (tone ? ' at-sc-bar--' + tone : '') + '"><span class="at-sc-bar-l">' + _viEscSafe(label) + '</span><span class="at-sc-bar-t"><i style="width:' + Math.max(4, Math.min(100, pct)) + '%"></i></span><b class="at-sc-bar-v">' + _viEscSafe(String(text)) + '</b></div>';
+}
 
 // Normalised, auto-seeded lineup for a team (starters default to best-available
 // by position for the current format). Persisted per team → fully isolated.
@@ -44164,22 +44202,34 @@ function _atIdentityStrip(id) {
   + '</div>';
 }
 // Premium roster card (development-focused, no adult transfer-market fields).
+// Every field previously shown here is still shown; only presentation changed.
 function _atSquadCard(p, idx, accent) {
-  var tone = _atDevTone(p.devStatus);
+  var chip = _atStatusChip(p);
+  var availTone = _atAvailTone(p.availability);
   var av = p.photo ? '<span class="at-sc-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-sc-av" style="background:' + accent + '">' + _atInitials(p.name) + '</span>';
-  var mini = [
-    ['Avail', p.availability === 'Available' ? 'Avail' : p.availability, _atAvailTone(p.availability)],
-    ['Att', p.attendance + '%', p.attendance < 80 ? 'warn' : 'ok'],
-    ['Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : 'ok'],
-    ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
-    ['Form', p.form + '/10', p.form <= 4 ? 'warn' : '']
-  ];
+  var stageLbl = _acStage(p.stage).label;
+  var bars = [
+    ['Development', p.devScore, String(p.devScore), p.devScore < 45 ? 'warn' : ''],
+    ['Attendance', p.attendance, p.attendance + '%', p.attendance < 80 ? 'warn' : ''],
+    ['Fitness', p.fitness, p.fitness + '%', p.fitness < 60 ? 'warn' : ''],
+    ['Morale', _atMoraleVal(p.morale), p.morale, p.morale === 'Low' ? 'warn' : ''],
+    ['Current Form', p.form * 10, p.form + '/10', p.form <= 4 ? 'warn' : '']
+  ].map(function (b) { return _atMiniBar(b[0], b[1], b[2], b[3]); }).join('');
+  var quick = [['view', 'View Profile'], ['edit', 'Edit'], ['assess', 'Assessment'], ['attendance', 'Attendance'], ['medical', 'Medical'], ['notes', 'Coach Notes']]
+    .map(function (q) { return '<button class="at-sc-qa" type="button" data-at-quick="' + q[0] + '" data-at-quick-player="' + p.id + '">' + q[1] + '</button>'; }).join('');
   return '<button class="at-sc" type="button" data-at-player="' + p.id + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '" data-posg="' + _atPosGroup(p.pos) + '" style="--acc:' + accent + '">'
+    + '<span class="at-sc-badges">'
+      + '<span class="at-sc-status at-plbadge--' + chip.tone + '">' + _viEscSafe(chip.label) + '</span>'
+      + '<span class="at-sc-avail at-sc-avail--' + availTone + '"><i></i>' + _viEscSafe(p.availability) + '</span>'
+    + '</span>'
     + '<span class="at-sc-num">#' + p.number + '</span>'
-    + '<span class="at-sc-top">' + av + '<span class="at-sc-id"><b>' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' · Age ' + p.age + '</i></span></span>'
-    + '<span class="at-sc-status at-plbadge--' + tone + '">' + _viEscSafe(p.devStatus) + '</span>'
-    + '<span class="at-sc-mini">' + mini.map(function (m) { return '<span class="at-sc-chip' + (m[2] ? ' at-sc-chip--' + m[2] : '') + '"><i>' + _viEscSafe(m[0]) + '</i><b>' + _viEscSafe(String(m[1])) + '</b></span>'; }).join('') + '</span>'
-    + '<span class="at-sc-dev"><span class="at-sc-dev-l">Development</span><span class="at-sc-dev-t"><i style="width:' + Math.min(100, p.devScore) + '%;background:' + accent + '"></i></span><b>' + p.devScore + '</b></span>'
+    + '<span class="at-sc-top">' + av
+      + '<span class="at-sc-id"><b>' + _viEscSafe(p.name) + '</b>'
+      + '<i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i>'
+      + '<em>' + _viEscSafe(stageLbl) + '</em></span>'
+    + '</span>'
+    + '<span class="at-sc-bars">' + bars + '</span>'
+    + '<span class="at-sc-quick">' + quick + '</span>'
   + '</button>';
 }
 function _atSecSquad(id) {
@@ -44580,6 +44630,19 @@ if (typeof document !== 'undefined' && !window._atBound) {
     // ── Player profile modal ──
     if (t.classList && t.classList.contains('at-modal-back')) { e.preventDefault(); _atClosePlayer(); return; }
     if (t.closest && t.closest('.at-modal-x')) { e.preventDefault(); _atClosePlayer(); return; }
+    // Card quick-actions (hover-revealed) — jump straight into the existing
+    // profile modal at the relevant tab/mode. Reuses _atOpenPlayer/AT.editing;
+    // no new data, permission, or route — same modal, same tabs, as clicking
+    // the card then navigating manually.
+    var qa = t.closest && t.closest('[data-at-quick]');
+    if (qa) {
+      e.preventDefault(); e.stopPropagation();
+      var qpid = qa.getAttribute('data-at-quick-player'), qkind = qa.getAttribute('data-at-quick');
+      _atOpenPlayer(id, qpid);
+      var qtab = { view: 'overview', assess: 'overview', attendance: 'attendance', medical: 'medical', notes: 'notes', edit: 'overview' }[qkind] || 'overview';
+      AT.profileTab = qtab; AT.editing = (qkind === 'edit'); renderAcademyTeamPage();
+      return;
+    }
     var openP = t.closest && t.closest('[data-at-player]');
     if (openP) { e.preventDefault(); _atOpenPlayer(id, openP.getAttribute('data-at-player')); return; }
     var ptab = t.closest && t.closest('[data-at-ptab]');
