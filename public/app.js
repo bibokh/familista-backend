@@ -43975,11 +43975,11 @@ function _atEnter(id) {
   if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
   _atTeam(id);                 // ensure isolated store exists
   AT.active = id; AT.section = 'dashboard';
-  AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL';
+  AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null;
   navTo('academy-team');
 }
-function _atBack() { AT.active = null; AT.openPlayer = null; navTo('academy'); }
-function _atGo(section) { AT.section = section; AT.openPlayer = null; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; renderAcademyTeamPage(); }
+function _atBack() { AT.active = null; AT.openPlayer = null; AT.staffEdit = null; navTo('academy'); }
+function _atGo(section) { AT.section = section; AT.openPlayer = null; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null; renderAcademyTeamPage(); }
 window._atEnter = _atEnter; window._atBack = _atBack; window._atGo = _atGo;
 
 // ── Shell ──
@@ -44297,20 +44297,96 @@ function _atStaffCoverage(id) {
   return { coreSlots: coreSlots, supportSlots: supportSlots, deptState: deptState, coreFilled: coreFilled, coreTotal: coreSlots.length, supportFilled: supportFilled, supportTotal: supportSlots.length };
 }
 function _atStaffHeadCoach(id) { var t = _atTeam(id); for (var i = 0; i < t.staff.length; i++) if (t.staff[i].responsible) return t.staff[i]; return t.staff[0] || null; }
-function _atStaffCard(s, id, accent, isHead) {
+// Every staff record gets a stable id lazily (bookkeeping only — never shown,
+// same convention already used for sessions/matches ids elsewhere in this file).
+function _atStaffEnsureIds(id) {
+  var t = _atTeam(id), changed = false;
+  t.staff.forEach(function (s) { if (!s.id) { s.id = 'stf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); changed = true; } });
+  if (changed) _atSave();
+  return t.staff;
+}
+function _atStaffFind(id, sid) { var staff = _atStaffEnsureIds(id); for (var i = 0; i < staff.length; i++) if (staff[i].id === sid) return staff[i]; return null; }
+var AT_STAFF_ROLES = ['Assistant Coach', 'Goalkeeping Coach', 'Fitness Coach', 'Welfare Officer'];
+
+// Large, name-first staff card — the dominant content on the page.
+function _atStaffCard(s, accent) {
   var meta = _atRoleMeta(s.role);
-  return '<div class="acs-card acs-card--' + meta.tone + (isHead ? ' acs-card--head' : '') + '" style="--acc:' + accent + '">'
-    + '<div class="acs-card-top">'
-      + '<span class="acs-av">' + _viEscSafe(_atInitials(s.name)) + '</span>'
-      + '<div class="acs-card-id"><b>' + _viEscSafe(s.name) + '</b><i>' + _viEscSafe(s.role) + '</i></div>'
-      + (s.responsible ? '<span class="acs-lead">Lead</span>' : '')
+  var av = s.photo ? '<span class="acs-card-av" style="background-image:url(' + s.photo + ')"></span>' : '<span class="acs-card-av" style="background:' + meta.tone + '">' + _viEscSafe(_atInitials(s.name)) + '</span>';
+  return '<div class="acs-card acs-card--' + meta.tone + '" style="--acc:' + accent + '">'
+    + av
+    + '<div class="acs-card-body">'
+      + '<b class="acs-card-name">' + _viEscSafe(s.name) + '</b>'
+      + '<span class="acs-card-role">' + _viEscSafe(s.role) + '</span>'
+      + '<span class="acs-dept">' + _viEscSafe(meta.dept) + '</span>'
+      + '<p class="acs-desc">' + _viEscSafe(meta.desc) + '</p>'
     + '</div>'
-    + '<span class="acs-dept">' + _viEscSafe(meta.dept) + '</span>'
-    + '<p class="acs-desc">' + _viEscSafe(meta.desc) + '</p>'
+    + '<button class="acs-edit-btn" type="button" data-at-staff-edit="' + s.id + '">Edit</button>'
+  + '</div>';
+}
+// Dominant, large-portrait Head Coach feature.
+function _atStaffFeature(head, id, accent) {
+  if (!head) return '<div class="acs-feature acs-feature--empty"><p>No Head Coach assigned yet for this age group.</p><button class="at-btn" type="button" data-at-add-staff>+ Add Staff Member</button></div>';
+  var meta = _atRoleMeta(head.role);
+  var av = head.photo ? '<span class="acs-feature-av" style="background-image:url(' + head.photo + ')"></span>' : '<span class="acs-feature-av" style="background:' + accent + '">' + _viEscSafe(_atInitials(head.name)) + '</span>';
+  return '<div class="acs-feature" style="--acc:' + accent + '">'
+    + av
+    + '<div class="acs-feature-body">'
+      + '<span class="acs-feature-kicker">Head Coach</span>'
+      + '<b class="acs-feature-name">' + _viEscSafe(head.name) + '</b>'
+      + '<span class="acs-feature-role">' + _viEscSafe(head.role) + ' · ' + _viEscSafe(meta.dept) + '</span>'
+      + '<p class="acs-feature-desc">' + _viEscSafe(meta.desc) + '</p>'
+      + '<button class="at-btn" type="button" data-at-staff-edit="' + head.id + '">Edit Profile</button>'
+    + '</div>'
+  + '</div>';
+}
+function _atStaffCompact(staffCount, cov, players, ratio, coveragePct, missingCore) {
+  var bar = AT_STAFF_DEPTS.map(function (d) { return '<i class="acs-cbar-seg acs-cbar-seg--' + cov.deptState[d] + '" title="' + _viEscSafe(d) + ' · ' + cov.deptState[d] + '"></i>'; }).join('');
+  return '<div class="acs-compact">'
+    + '<div class="acs-compact-line">'
+      + '<span><b>' + staffCount + '</b> actual staff</span>'
+      + '<span><b>' + cov.coreTotal + '</b> recommended core</span>'
+      + '<span><b>' + coveragePct + '%</b> coverage</span>'
+      + '<span><b>' + missingCore + '</b> missing essential</span>'
+      + '<span><b>1:' + ratio + '</b> player : coach</span>'
+    + '</div>'
+    + '<div class="acs-cbar">' + bar + '</div>'
+  + '</div>';
+}
+function _atStaffPanel(id) {
+  var sid = AT.staffEdit; if (!sid) return '';
+  var isNew = sid === '__new__';
+  var s = isNew ? { id: '__new__', name: '', role: 'Assistant Coach', responsible: false } : _atStaffFind(id, sid);
+  if (!s) return '';
+  var c = _atCtx(id), meta = _atRoleMeta(s.role), isHead = !!s.responsible && !isNew;
+  var av = s.photo ? '<span class="acs-panel-av" style="background-image:url(' + s.photo + ')"></span>' : '<span class="acs-panel-av" style="background:' + c.accent + '">' + _viEscSafe(_atInitials(s.name || '?')) + '</span>';
+  var roleField = isHead
+    ? '<div class="acs-panel-static"><span>Role</span><b>Head Coach</b></div>'
+    : '<label class="acs-pfield"><span>Role</span><select data-field="role">' + AT_STAFF_ROLES.map(function (r) { return '<option' + (s.role === r ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></label>';
+  return '<div class="acs-panel-back">'
+    + '<div class="acs-panel" style="--acc:' + c.accent + '">'
+      + '<div class="acs-panel-head">' + av
+        + '<div class="acs-panel-id"><b>' + (isNew ? 'New Staff Member' : _viEscSafe(s.name)) + '</b><i>' + _viEscSafe(s.role) + ' · ' + _viEscSafe(meta.dept) + '</i></div>'
+        + '<button class="acs-panel-x" type="button">✕</button>'
+      + '</div>'
+      + '<div class="acs-panel-body">'
+        + '<label class="acs-pfield"><span>Full name</span><input class="at-input" data-field="name" value="' + _viEscSafe(s.name) + '" placeholder="Coach name"></label>'
+        + roleField
+        + '<div class="acs-panel-static"><span>Department</span><b>' + _viEscSafe(meta.dept) + '</b></div>'
+        + '<div class="acs-panel-static"><span>Responsibility</span><b>' + _viEscSafe(meta.desc) + '</b></div>'
+        + '<div class="acs-panel-static"><span>Current age group</span><b>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</b></div>'
+        + (isNew ? '' : '<label class="acs-photo-row">Photo<span class="at-btn at-btn--ghost">Change photo<input type="file" accept="image/*" data-acs-photo="' + s.id + '" hidden></span></label>')
+      + '</div>'
+      + '<div class="acs-panel-actions">'
+        + '<button class="at-btn" type="button" data-acs-save="' + s.id + '">' + (isNew ? 'Add staff member' : 'Save changes') + '</button>'
+        + '<button class="at-btn at-btn--ghost" type="button" data-acs-cancel>Cancel</button>'
+        + (isNew || isHead ? '' : '<button class="acs-remove-btn" type="button" data-acs-remove="' + s.id + '">Remove</button>')
+      + '</div>'
+    + '</div>'
   + '</div>';
 }
 function _atSecStaff(id) {
-  var c = _atCtx(id), t = _atTeam(id), staff = t.staff;
+  var c = _atCtx(id);
+  var staff = _atStaffEnsureIds(id);
   var head = _atStaffHeadCoach(id);
   var others = staff.filter(function (s) { return s !== head; });
   var cov = _atStaffCoverage(id);
@@ -44320,36 +44396,14 @@ function _atSecStaff(id) {
   var coveragePct = cov.coreTotal ? Math.round(cov.coreFilled / cov.coreTotal * 100) : 100;
   var missingCore = cov.coreTotal - cov.coreFilled;
 
-  var statStrip = '<div class="acs-stats">'
-    + '<div class="acs-stat"><b>' + staff.length + '</b><span>Actual Staff</span></div>'
-    + '<div class="acs-stat"><b>' + cov.coreTotal + '</b><span>Recommended Core</span></div>'
-    + '<div class="acs-stat"><b>' + coveragePct + '%</b><span>Coverage</span></div>'
-    + '<div class="acs-stat"><b>' + missingCore + '</b><span>Missing Roles</span></div>'
-    + '<div class="acs-stat"><b>' + players + '</b><span>Players</span></div>'
-    + '<div class="acs-stat"><b>1:' + ratio + '</b><span>Player : Coach</span></div>'
+  var header = '<div class="acs-head">'
+    + '<div class="acs-head-txt"><h2>Coaching Staff</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage · ' + staff.length + ' staff assigned</span></div>'
+    + '<button class="at-btn" type="button" data-at-add-staff>+ Add Staff Member</button>'
   + '</div>';
 
-  var deptRows = AT_STAFF_DEPTS.map(function (d) {
-    var st = cov.deptState[d];
-    var label = { filled: 'Filled', shared: 'Shared', missing: 'Missing', optional: 'Optional' }[st];
-    return '<div class="acs-dept-row acs-dept-row--' + st + '"><i class="acs-dept-dot"></i><span class="acs-dept-name">' + _viEscSafe(d) + '</span><span class="acs-dept-state">' + label + '</span></div>';
-  }).join('');
-
-  var headCard = head
-    ? '<div class="acs-feature" style="--acc:' + c.accent + '">'
-        + '<span class="acs-feature-av">' + _viEscSafe(_atInitials(head.name)) + '</span>'
-        + '<div class="acs-feature-body">'
-          + '<span class="acs-feature-kicker">Head Coach · ' + _viEscSafe(c.label) + '</span>'
-          + '<b class="acs-feature-name">' + _viEscSafe(head.name) + '</b>'
-          + '<p class="acs-feature-desc">' + _viEscSafe(_atRoleMeta(head.role).desc) + '</p>'
-          + '<div class="acs-feature-meta"><span>' + _viEscSafe(c.label) + '</span><span>' + _viEscSafe(c.name) + ' Stage</span></div>'
-        + '</div>'
-      + '</div>'
-    : '<div class="acs-feature acs-feature--empty" style="--acc:' + c.accent + '">No Head Coach assigned yet for ' + _viEscSafe(c.label) + '.</div>';
-
   var otherCards = others.length
-    ? others.map(function (s) { return _atStaffCard(s, id, c.accent, false); }).join('')
-    : '<div class="at-empty">No additional staff recorded for ' + _viEscSafe(c.label) + ' yet.</div>';
+    ? '<div class="acs-grid">' + others.map(function (s) { return _atStaffCard(s, c.accent); }).join('') + '</div>'
+    : '<div class="at-empty at-empty-box">No additional staff yet — use + Add Staff Member to build out the coaching team.</div>';
 
   function slotRow(sl) {
     return '<div class="acs-slot' + (sl.person ? ' acs-slot--filled' : ' acs-slot--empty') + '">'
@@ -44357,23 +44411,21 @@ function _atSecStaff(id) {
       + (sl.person ? '<span class="acs-slot-person">' + _viEscSafe(sl.person.name) + '</span>' : '<span class="acs-slot-open">Open role</span>')
     + '</div>';
   }
+  var recOpen = !!AT.staffRecOpen;
   var recBlock = '<div class="acs-rec-grid">'
     + '<div class="acs-rec-col"><h4>Core staff · ' + cov.coreFilled + ' of ' + cov.coreTotal + ' filled</h4>' + cov.coreSlots.map(slotRow).join('') + '</div>'
     + '<div class="acs-rec-col"><h4>Shared / specialist support · ' + cov.supportFilled + ' of ' + cov.supportTotal + '</h4>' + cov.supportSlots.map(slotRow).join('') + '</div>'
   + '</div>';
 
-  return _atSecHead(id, 'Coaching Staff', 'The staffing structure for ' + c.label + ' only — recommendations are Familista guidance, not automatically-created people.')
-    + statStrip
-    + '<div class="acs-layout">'
-      + '<div class="acs-col-main">'
-        + _atCard('Head Coach', headCard)
-        + _atCard('Core Coaching Staff · ' + others.length, '<div class="acs-grid">' + otherCards + '</div>')
-        + _atCard('Recommended Staff Structure', recBlock, c.label)
-      + '</div>'
-      + '<div class="acs-col-side">'
-        + _atCard('Staff Coverage', '<div class="acs-dept-list">' + deptRows + '</div>')
-      + '</div>'
-    + '</div>';
+  return header
+    + _atStaffFeature(head, id, c.accent)
+    + otherCards
+    + _atStaffCompact(staff.length, cov, players, ratio, coveragePct, missingCore)
+    + '<div class="acs-rec-wrap">'
+      + '<button class="acs-rec-toggle" type="button" data-acs-rec-toggle>' + (recOpen ? '▾ Hide Recommended Staff Structure' : '▸ View Recommended Staff Structure') + '</button>'
+      + (recOpen ? '<div class="acs-rec-body">' + recBlock + '</div>' : '')
+    + '</div>'
+    + _atStaffPanel(id);
 }
 // Lineup pitch — starters placed into the age-group formation (GK + rows).
 function _atLineupPitch(id) {
@@ -44828,6 +44880,41 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (pf) { e.preventDefault(); AT.posF = pf.getAttribute('data-at-posfilter'); renderAcademyTeamPage(); return; }
     var af = t.closest && t.closest('[data-at-availfilter]');
     if (af) { e.preventDefault(); AT.availF = af.getAttribute('data-at-availfilter'); renderAcademyTeamPage(); return; }
+    // ── Coaching Staff (all scoped + persisted to AT.active via the same
+    // _atTeam/_atSave local store already used for lineup/tactics/notes) ──
+    if (t.closest && t.closest('[data-at-add-staff]')) { e.preventDefault(); AT.staffEdit = '__new__'; renderAcademyTeamPage(); return; }
+    var stEdit = t.closest && t.closest('[data-at-staff-edit]');
+    if (stEdit) { e.preventDefault(); AT.staffEdit = stEdit.getAttribute('data-at-staff-edit'); renderAcademyTeamPage(); return; }
+    if (t.classList && t.classList.contains('acs-panel-back')) { e.preventDefault(); AT.staffEdit = null; renderAcademyTeamPage(); return; }
+    if (t.closest && (t.closest('.acs-panel-x') || t.closest('[data-acs-cancel]'))) { e.preventDefault(); AT.staffEdit = null; renderAcademyTeamPage(); return; }
+    var stSave = t.closest && t.closest('[data-acs-save]');
+    if (stSave) {
+      e.preventDefault();
+      var panel = document.querySelector('.acs-panel');
+      var nameI = panel.querySelector('[data-field="name"]'), roleI = panel.querySelector('[data-field="role"]');
+      var name = (nameI ? nameI.value : '').trim();
+      if (!name) { try { showToast('Enter a name first', 'error'); } catch (_) {} return; }
+      if (AT.staffEdit === '__new__') {
+        var staffList = _atStaffEnsureIds(id);
+        staffList.push({ id: 'stf' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name, role: roleI ? roleI.value : 'Assistant Coach', responsible: false });
+        _atSave();
+        try { showToast('Staff member added', 'success'); } catch (_) {}
+      } else {
+        var person = _atStaffFind(id, stSave.getAttribute('data-acs-save'));
+        if (person) { person.name = name; if (roleI) person.role = roleI.value; _atSave(); try { showToast('Staff member saved', 'success'); } catch (_) {} }
+      }
+      AT.staffEdit = null; renderAcademyTeamPage(); return;
+    }
+    var stRemove = t.closest && t.closest('[data-acs-remove]');
+    if (stRemove) {
+      e.preventDefault();
+      var rid = stRemove.getAttribute('data-acs-remove'), team6 = _atTeam(id);
+      team6.staff = team6.staff.filter(function (s) { return s.id !== rid; });
+      _atSave(); AT.staffEdit = null; renderAcademyTeamPage();
+      try { showToast('Staff member removed', 'info'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-acs-rec-toggle]')) { e.preventDefault(); AT.staffRecOpen = !AT.staffRecOpen; renderAcademyTeamPage(); return; }
     // ── Squad / profile management (all scoped + persisted to AT.active) ──
     function pov(pid) { var ov = _atOverlay(id); if (!ov[pid]) ov[pid] = {}; return ov[pid]; }
     if (t.closest && t.closest('[data-at-add-player]')) {
@@ -44924,6 +45011,21 @@ if (typeof document !== 'undefined' && !window._atBound) {
         try { showToast('Photo updated', 'success'); } catch (_) {}
       };
       reader.readAsDataURL(file);
+      return;
+    }
+    // Coaching-staff photo upload — same data-URL-into-local-store pattern as
+    // the player photo above; no new backend, same _atSave() persistence.
+    var stPhotoId = e.target.getAttribute && e.target.getAttribute('data-acs-photo');
+    if (stPhotoId && e.target.files && e.target.files[0]) {
+      var sfile = e.target.files[0];
+      var sreader = new FileReader();
+      sreader.onload = function () {
+        var surl = String(sreader.result || '');
+        if (surl.length > 220000) { try { showToast('Image too large — use a smaller photo', 'error'); } catch (_) {} return; }
+        var person = _atStaffFind(id, stPhotoId);
+        if (person) { person.photo = surl; _atSave(); renderAcademyTeamPage(); try { showToast('Photo updated', 'success'); } catch (_) {} }
+      };
+      sreader.readAsDataURL(sfile);
       return;
     }
   });
