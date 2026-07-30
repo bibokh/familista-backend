@@ -8319,3 +8319,74 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 .acs-panel-actions{ display:flex; gap:8px; padding:16px 20px; border-top:1px solid var(--bd); }
 .acs-remove-btn{ margin-left:auto; font:700 11.5px Inter; color:#f87171; background:none; border:1px solid rgba(248,113,113,.35); border-radius:9px; padding:9px 13px; cursor:pointer; }
 .acs-remove-btn:hover{ background:rgba(248,113,113,.1); }
+
+/* ══════════ ACADEMY · Lineup — premium redesign (dedicated namespace, Formation/Squad untouched) ══════════ */
+.at-lu-head{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+.at-lu-head-txt h2{ margin:0 0 3px; font:800 22px Inter; color:#fff; }
+.at-lu-head-txt span{ font:600 12.5px Inter; color:var(--tx-3); }
+.at-lu-head-txt span b{ color:#fff; font-weight:800; }
+.at-lupills{ display:flex; gap:4px; background:var(--bg-3); border:1px solid var(--bd-2); border-radius:12px; padding:4px; }
+.at-lupill{ font:800 12px Inter; color:var(--tx-2); background:none; border:none; border-radius:9px; padding:8px 14px; cursor:pointer; transition:all .15s ease; }
+.at-lupill:hover{ color:#fff; }
+.at-lupill.is-on{ color:#06101a; background:var(--acc,#a78bfa); }
+
+.at-lu-summary{ display:flex; flex-wrap:wrap; gap:16px; background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:12px 16px; margin-bottom:16px; }
+.at-lu-summary span{ font:600 12px Inter; color:var(--tx-3); }
+.at-lu-summary span b{ font:800 14px Inter; color:#fff; margin-right:4px; }
+.at-lu-flag{ padding:2px 10px; border-radius:20px; }
+.at-lu-flag--warn{ background:rgba(245,158,11,.12); } .at-lu-flag--warn b{ color:#fcd34d; }
+.at-lu-flag--danger{ background:rgba(248,113,113,.12); } .at-lu-flag--danger b{ color:#f87171; }
+
+.at-lu-layout{ display:grid; grid-template-columns:minmax(340px,440px) 1fr; gap:20px; align-items:start; }
+@media(max-width:1080px){ .at-lu-layout{ grid-template-columns:1fr; } }
+
+/* Pitch — richer texture + markings, own namespace */
+.at-lupitch-wrap{ max-width:440px; margin:0 auto 14px; }
+.at-lupitch{
+  position:relative; overflow:hidden; border-radius:16px; padding:20px 16px; aspect-ratio:2/3;
+  display:flex; flex-direction:column; gap:16px;
+  background:
+    repeating-linear-gradient(180deg, rgba(255,255,255,.025) 0 15px, transparent 15px 30px),
+    radial-gradient(120% 70% at 50% 0%, #124a2c 0%, transparent 60%),
+    linear-gradient(180deg, #0e4229 0%, #0a2f1c 55%, #082419 100%);
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04), inset 0 30px 60px -30px rgba(0,0,0,.6), 0 24px 50px -28px rgba(0,0,0,.7);
+}
+.at-lupitch::before{ /* halfway line */ content:""; position:absolute; left:8%; right:8%; top:50%; height:2px; background:rgba(255,255,255,.16); }
+.at-lupitch::after{ /* centre circle */ content:""; position:absolute; left:50%; top:50%; width:34%; aspect-ratio:1; border:2px solid rgba(255,255,255,.16); border-radius:50%; transform:translate(-50%,-50%); }
+.at-lupitch-line{ position:relative; z-index:1; display:flex; justify-content:space-around; align-items:center; flex:1; }
+.at-lupitch-gk{ flex:0 0 auto; }
+.at-lucell{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+.at-lucell--empty{ opacity:.32; }
+.at-lucell em{ font:700 9px Inter; color:#eaf2ff; font-style:normal; text-shadow:0 1px 3px rgba(0,0,0,.7); max-width:58px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-ludot{ position:relative; width:30px; height:30px; border-radius:50%; box-shadow:0 3px 10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.35); display:grid; place-items:center; font:800 10px Inter; color:#06101a; }
+.at-ludot--empty{ background:rgba(255,255,255,.08); box-shadow:none; border:2px dashed rgba(255,255,255,.28); color:rgba(255,255,255,.4); font-size:8px; }
+.at-ludot--gk{ width:34px; height:34px; outline:2px solid #f4b942; outline-offset:2px; }
+.at-lucap{ position:absolute; top:-5px; right:-5px; width:14px; height:14px; border-radius:50%; background:#fcd34d; color:#06101a; font:800 8px Inter; display:grid; place-items:center; font-style:normal; box-shadow:0 2px 5px rgba(0,0,0,.5); }
+
+.at-lu-savebar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+
+/* Player selection panel — premium cards replacing the old crowded rows */
+.at-lu-playercol{ min-width:0; }
+.at-lucard{ display:flex; flex-direction:column; gap:10px; background:var(--card); border:1px solid var(--bd); border-left:3px solid var(--bd-2); border-radius:13px; padding:13px 15px; margin-bottom:9px; transition:border-color .15s ease, background .15s ease; }
+.at-lucard:hover{ border-left-color:var(--acc,#a78bfa); background:color-mix(in srgb, var(--acc,#a78bfa) 4%, var(--card)); }
+.at-lucard--warn{ border-left-color:#f4b942; }
+.at-lucard--danger{ border-left-color:#f87171; opacity:.82; }
+.at-lucard-top{ display:flex; align-items:center; gap:10px; }
+.at-lucard-num{ font:800 11px Inter; color:var(--tx-3); flex:none; width:26px; }
+.at-lucard-info{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; background:none; border:none; padding:0; cursor:pointer; text-align:left; }
+.at-lucard-av{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; font:800 12.5px Inter; color:#06101a; flex:none; }
+.at-lucard-id{ min-width:0; display:flex; flex-direction:column; }
+.at-lucard-id b{ font:700 13.5px Inter; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.at-lucard-id i{ font:600 10.5px Inter; color:var(--tx-3); font-style:normal; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.at-lucard-capbadge{ font-style:normal; display:inline-grid; place-items:center; width:15px; height:15px; border-radius:50%; background:#fcd34d; color:#06101a; font-weight:800; font-size:9px; vertical-align:middle; }
+.at-lucard-state{ flex:none; font:700 9.5px Inter; letter-spacing:.2px; border-radius:20px; padding:3px 9px; white-space:nowrap; }
+.at-lucard-stats{ display:flex; flex-wrap:wrap; gap:0; border-top:1px solid var(--bd); border-bottom:1px solid var(--bd); padding:8px 0; }
+.at-lucard-stat{ display:flex; align-items:baseline; gap:5px; padding:2px 10px; border-right:1px solid var(--bd); }
+.at-lucard-stat:last-child{ border-right:none; }
+.at-lucard-stat i{ font:600 9.5px Inter; color:var(--tx-3); font-style:normal; }
+.at-lucard-stat b{ font:800 11.5px Inter; color:var(--tx); }
+.at-lucard-stat--warn b{ color:#fcd34d; }
+.at-lucard-stat--ok b{ color:#86efac; }
+.at-lucard-actions{ display:flex; gap:6px; }
+@media(max-width:640px){ .at-lucard-stats{ overflow-x:auto; flex-wrap:nowrap; } .at-lucard-stat{ flex:none; } }

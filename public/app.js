@@ -44106,43 +44106,44 @@ function _atBars(p, pairs) {
 function _atAvailTone(a) { return a === 'Injured' ? 'danger' : (a === 'Doubtful' ? 'warn' : 'ok'); }
 function _atChip(label, val, tone) { return '<span class="at-plchip' + (tone ? ' at-plchip--' + tone : '') + '"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></span>'; }
 
-// One player row — clickable (opens the age-appropriate profile). In lineup
-// mode it also carries role + start/bench/captain/GK actions.
+// Premium lineup player card — avatar/id, restrained stat strip, clear
+// Starter/Bench/Reserve state, and the existing start/bench/captain/GK
+// actions (same data-at-* attributes; only presentation changed).
+function _atLuStat(label, val, tone) { return '<span class="at-lucard-stat' + (tone ? ' at-lucard-stat--' + tone : '') + '"><i>' + _viEscSafe(label) + '</i><b>' + _viEscSafe(String(val)) + '</b></span>'; }
 function _atPlRow(p, idx, mode, lu) {
   var pro = idx >= 3;
-  var role = '', roleTone = '', actions = '';
-  if (mode === 'lineup') {
-    var isStart = lu.starters.indexOf(p.id) >= 0, isSub = lu.subs.indexOf(p.id) >= 0;
-    role = isStart ? 'Starter' : (isSub ? 'Sub' : 'Reserve');
-    roleTone = isStart ? 'ok' : (isSub ? 'warn' : '');
-    var capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
-    actions = '<span class="at-plact">'
-      + (isStart
-        ? '<button class="at-mini" type="button" data-at-bench="' + p.id + '">Bench</button>'
-        : '<button class="at-mini at-mini--go" type="button" data-at-start="' + p.id + '">Start</button>')
-      + '<button class="at-mini' + (capOn ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '" title="Captain">C</button>'
-      + (p.pos === 'GK' ? '<button class="at-mini' + (gkOn ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '" title="Goalkeeper">GK</button>' : '')
-      + '</span>';
-  }
-  return '<div class="at-plrow" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
-    + '<span class="at-plnum">#' + p.number + '</span>'
-    + '<button class="at-plinfo" type="button" data-at-player="' + p.id + '">'
-      + '<span class="at-plav" style="background:' + _atCtx(p.stage).accent + '">' + _atInitials(p.name) + '</span>'
-      + '<span class="at-plmain"><b>' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></span>'
-    + '</button>'
-    + '<span class="at-plstats">'
-      + _atChip('Avail', p.availability, _atAvailTone(p.availability))
-      + _atChip('Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : 'ok')
-      + _atChip('Morale', p.morale, p.morale === 'Low' ? 'warn' : '')
-      + _atChip(pro ? 'Dev' : 'Level', p.devScore, '')
-      + _atChip('Form', p.form + '/10', '')
-      + _atChip('Att', p.attendance + '%', p.attendance < 80 ? 'warn' : 'ok')
-      + (pro ? _atChip('Promo', p.promotion, p.promotion >= 75 ? 'ok' : '') : '')
-    + '</span>'
-    + '<span class="at-plright">'
-      + (mode === 'lineup' ? '<span class="at-plbadge at-plbadge--' + roleTone + '">' + role + '</span>' : (p.injury !== 'None' ? '<span class="at-plbadge at-plbadge--danger">' + _viEscSafe(p.injury) + '</span>' : '<span class="at-plbadge at-plbadge--' + (p.devStatus === 'Needs attention' ? 'warn' : 'ok') + '">' + _viEscSafe(p.devStatus) + '</span>'))
-      + actions
-    + '</span>'
+  var isStart = lu.starters.indexOf(p.id) >= 0, isSub = lu.subs.indexOf(p.id) >= 0;
+  var state = isStart ? 'Starter' : (isSub ? 'Bench' : 'Reserve');
+  var stateTone = isStart ? 'ok' : (isSub ? 'warn' : '');
+  var capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
+  var availTone = _atAvailTone(p.availability), cardTone = availTone === 'ok' ? '' : availTone; // '' Available, 'warn' Doubtful, 'danger' Injured
+  var stats = [
+    ['Avail', p.availability, _atAvailTone(p.availability)],
+    ['Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : ''],
+    ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
+    [pro ? 'Dev' : 'Level', p.devScore, ''],
+    ['Form', p.form + '/10', '']
+  ];
+  if (pro) stats.push(['Promo', p.promotion, p.promotion >= 75 ? 'ok' : '']);
+  var statRow = stats.map(function (s) { return _atLuStat(s[0], s[1], s[2]); }).join('');
+  var actions = '<span class="at-lucard-actions">'
+    + (isStart
+      ? '<button class="at-mini" type="button" data-at-bench="' + p.id + '">Bench</button>'
+      : '<button class="at-mini at-mini--go" type="button" data-at-start="' + p.id + '">Start</button>')
+    + '<button class="at-mini' + (capOn ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '" title="Captain">C</button>'
+    + (p.pos === 'GK' ? '<button class="at-mini' + (gkOn ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '" title="Goalkeeper">GK</button>' : '')
+  + '</span>';
+  return '<div class="at-lucard' + (cardTone ? ' at-lucard--' + cardTone : '') + '" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
+    + '<div class="at-lucard-top">'
+      + '<span class="at-lucard-num">#' + p.number + '</span>'
+      + '<button class="at-lucard-info" type="button" data-at-player="' + p.id + '">'
+        + '<span class="at-lucard-av" style="background:' + _atCtx(p.stage).accent + '">' + _atInitials(p.name) + '</span>'
+        + '<span class="at-lucard-id"><b>' + _viEscSafe(p.name) + (capOn ? ' <i class="at-lucard-capbadge">C</i>' : '') + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></span>'
+      + '</button>'
+      + '<span class="at-lucard-state at-plbadge--' + stateTone + '">' + state + '</span>'
+    + '</div>'
+    + '<div class="at-lucard-stats">' + statRow + '</div>'
+    + actions
   + '</div>';
 }
 function _atFilterBar(idx) {
@@ -44428,23 +44429,25 @@ function _atSecStaff(id) {
     + _atStaffPanel(id);
 }
 // Lineup pitch — starters placed into the age-group formation (GK + rows).
+// Dedicated Lineup-page pitch (own classnames — the standalone Formation
+// page keeps its separate .at-pitch/.at-dot markup untouched).
 function _atLineupPitch(id) {
   var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
   var starters = lu.starters.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
   var gk = starters.filter(function (p) { return p.id === lu.gk; })[0] || starters.filter(function (p) { return p.pos === 'GK'; })[0] || starters[0];
   var outfield = starters.filter(function (p) { return !gk || p.id !== gk.id; });
   var rows = String(t.formation.name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
-  function chip(p) {
-    if (!p) return '<span class="at-pcell at-pcell--empty"></span>';
-    var cap = lu.captain === p.id ? '<i class="at-pcap">C</i>' : '';
-    return '<span class="at-pcell"><span class="at-dot" style="background:' + c.accent + '">' + p.number + cap + '</span><em>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</em></span>';
+  function cell(p, isGk) {
+    if (!p) return '<span class="at-lucell at-lucell--empty' + (isGk ? ' at-lucell--gk' : '') + '"><span class="at-ludot at-ludot--empty">' + (isGk ? 'GK' : '') + '</span></span>';
+    var cap = lu.captain === p.id ? '<i class="at-lucap">C</i>' : '';
+    return '<span class="at-lucell' + (isGk ? ' at-lucell--gk' : '') + '"><span class="at-ludot' + (isGk ? ' at-ludot--gk' : '') + '" style="background:' + c.accent + '">' + p.number + cap + '</span><em>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</em></span>';
   }
-  var html = '<div class="at-pitch"><div class="at-pitch-line at-pitch-gk">' + (gk ? chip(gk) : '<span class="at-pcell"><span class="at-dot" style="background:' + c.accent + '">GK</span></span>') + '</div>';
+  var html = '<div class="at-lupitch"><div class="at-lupitch-line at-lupitch-gk">' + cell(gk, true) + '</div>';
   var k = 0;
   rows.forEach(function (n) {
     var cells = '';
-    for (var i = 0; i < n; i++) cells += chip(outfield[k++]);
-    html += '<div class="at-pitch-line">' + cells + '</div>';
+    for (var i = 0; i < n; i++) cells += cell(outfield[k++], false);
+    html += '<div class="at-lupitch-line">' + cells + '</div>';
   });
   html += '</div>';
   return html;
@@ -44452,25 +44455,44 @@ function _atLineupPitch(id) {
 function _atSecLineup(id) {
   var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
   var need = _atStarterCount(t.formation.name);
-  var pills = opts.map(function (f) { return '<button class="at-pill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + ' <em>' + _atStarterCount(f) + 'v' + _atStarterCount(f) + '</em></button>'; }).join('');
+  var roster = _atRoster(id);
   var capName = lu.captain ? (_atFindPlayer(id, lu.captain) || {}).name : null;
+  var unavailCount = roster.filter(function (p) { return p.availability !== 'Available'; }).length;
+  var injuredCount = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
+  var unfilled = Math.max(0, need - lu.starters.length);
+
+  var pills = opts.map(function (f) { return '<button class="at-lupill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('');
+
+  var header = '<div class="at-lu-head">'
+    + '<div class="at-lu-head-txt"><h2>Lineup</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(_atFormatLabel(id)) + ' · Formation <b>' + _viEscSafe(t.formation.name) + '</b></span></div>'
+    + '<div class="at-lupills">' + pills + '</div>'
+  + '</div>';
+
+  var summary = '<div class="at-lu-summary">'
+    + '<span><b>' + lu.starters.length + '/' + need + '</b> starters</span>'
+    + '<span><b>' + lu.subs.length + '</b> subs</span>'
+    + '<span><b>' + _viEscSafe(capName || '—') + '</b> captain</span>'
+    + (unfilled ? '<span class="at-lu-flag at-lu-flag--warn"><b>' + unfilled + '</b> unfilled</span>' : '')
+    + (unavailCount ? '<span class="at-lu-flag at-lu-flag--warn"><b>' + unavailCount + '</b> unavailable</span>' : '')
+    + (injuredCount ? '<span class="at-lu-flag at-lu-flag--danger"><b>' + injuredCount + '</b> injured</span>' : '')
+  + '</div>';
+
   var hist = lu.history.length
-    ? '<ul class="at-histlist">' + lu.history.slice().reverse().slice(0, 6).map(function (h) { return '<li><b>' + _viEscSafe(h.formation) + '</b> · ' + h.starters + ' starters · <i>' + _viEscSafe(h.at) + '</i></li>'; }).join('') + '</ul>'
+    ? '<ul class="at-histlist">' + lu.history.slice().reverse().slice(0, 4).map(function (h) { return '<li><b>' + _viEscSafe(h.formation) + '</b> · ' + h.starters + ' starters · <i>' + _viEscSafe(h.at) + '</i></li>'; }).join('') + '</ul>'
     : '<div class="at-empty">No saved lineups yet.</div>';
-  return _atSecHead(id, 'Lineup', 'Match-day squad for ' + c.label + ' (' + _atFormatLabel(id) + '). Only this age group’s players — changes never affect the First Team or other groups.')
-    + '<div class="at-lineup">'
-      + '<div class="at-lineup-pitch">'
-        + '<div class="at-form-current">Formation <b>' + _viEscSafe(t.formation.name) + '</b> · ' + _atFormatLabel(id) + ' · Captain: <b>' + _viEscSafe(capName || '—') + '</b></div>'
-        + '<div class="at-pills at-pills--sm">' + pills + '</div>'
-        + '<div class="at-pitch-wrap">' + _atLineupPitch(id) + '</div>'
-        + '<div class="at-lineup-actions">'
-          + '<button class="at-btn" type="button" data-at-save-lineup>Save lineup</button>'
+
+  return header
+    + summary
+    + '<div class="at-lu-layout">'
+      + '<div class="at-lu-pitchcol">'
+        + '<div class="at-lupitch-wrap">' + _atLineupPitch(id) + '</div>'
+        + '<div class="at-lu-savebar">'
+          + '<button class="at-btn" type="button" data-at-save-lineup>Save Lineup</button>'
           + '<button class="at-btn at-btn--ghost" type="button" data-at-reset-lineup>Reset</button>'
-          + '<span class="at-lineup-count">' + lu.starters.length + '/' + need + ' starters · ' + lu.subs.length + ' subs</span>'
         + '</div>'
         + _atCard('Lineup history', hist)
       + '</div>'
-      + '<div class="at-lineup-list">'
+      + '<div class="at-lu-playercol">'
         + _atFilterBar(c.idx)
         + _atPlayerList(id, 'lineup')
       + '</div>'
@@ -45037,7 +45059,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (e.target.getAttribute && e.target.getAttribute('data-at-search') !== null && e.target.classList.contains('at-search')) {
       AT.q = e.target.value || '';
       var q = AT.q.toLowerCase();
-      var rows = document.querySelectorAll('#at-pllist .at-plrow, #at-pllist .at-sc');
+      var rows = document.querySelectorAll('#at-pllist .at-lucard, #at-pllist .at-sc');
       for (var i = 0; i < rows.length; i++) { var nm = rows[i].getAttribute('data-name') || ''; rows[i].style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none'; }
       return;
     }
