@@ -43768,7 +43768,12 @@ function _atFormatLabel(id) {
    leakage between groups (a player's stage decides its team). */
 function _atHash(s) { var h = 5381; s = String(s); for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h; }
 var AT_OUTFIELD = ['CB', 'RB', 'LB', 'CB', 'CDM', 'CM', 'CAM', 'CM', 'RW', 'ST', 'LW', 'ST'];
-function _atEnrich(p, i, idx) {
+// Age range parsed from the age-group label — the source of realistic ages
+// (fixes the old 56/58 bug that came from the seed).
+function _atStageRange(id) { var m = String(_acStage(id).label).match(/\d+/g) || ['0', '0']; return [parseInt(m[0], 10), parseInt(m[1] || m[0], 10)]; }
+function _atAgeFromDob(dob) { try { var d = new Date(dob), n = new Date('2026-07-30'); var a = n.getFullYear() - d.getFullYear(); var m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return (a >= 0 && a < 40) ? a : null; } catch (e) { return null; } }
+function _atPad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+function _atEnrich(p, i, idx, id) {
   var r = _acRng(_atHash(p.id) + 1);
   var pos = (i === 0) ? 'GK' : AT_OUTFIELD[(i - 1) % AT_OUTFIELD.length];
   var sec = (i === 0) ? 'SW' : AT_OUTFIELD[(i + 3) % AT_OUTFIELD.length];
@@ -43781,17 +43786,65 @@ function _atEnrich(p, i, idx) {
   var number = 1 + (_atHash(p.id + 'n') % 33);
   var promotion = Math.max(15, Math.min(99, p.overall + Math.round((r() - 0.45) * 22) + (idx - 3) * 4));
   var devStatus = p.attention ? 'Needs attention' : (p.overall >= 72 ? 'Ahead of stage' : 'On track');
+  // realistic age strictly inside the age-group range
+  var rng = _atStageRange(id), lo = rng[0], hi = rng[1], span = Math.max(1, hi - lo + 1);
+  var age = lo + (_atHash(p.id + 'a') % span);
+  var byr = 2026 - age;
+  var dob = byr + '-' + _atPad2(1 + (_atHash(p.id + 'mo') % 12)) + '-' + _atPad2(1 + (_atHash(p.id + 'dy') % 27));
+  var hR = idx < 1 ? [104, 124] : idx < 2 ? [120, 142] : idx < 3 ? [135, 162] : idx < 4 ? [152, 178] : idx < 5 ? [166, 187] : [172, 192];
+  var height = hR[0] + (_atHash(p.id + 'h') % (hR[1] - hR[0]));
+  var weight = Math.round(height * 0.30 + (_atHash(p.id + 'w') % 9) + idx);
+  var NAT = ['Portugal', 'Spain', 'France', 'Morocco', 'Brazil', 'Germany', 'Italy', 'Senegal', 'Belgium', 'Netherlands', 'England', 'Argentina'];
+  var SY = ['Reception', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6', 'Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12', 'Year 13', 'College', 'University'];
   return {
-    id: p.id, name: p.name, age: p.age, stage: p.stage, dims: p.dims, overall: p.overall,
+    id: p.id, name: p.name, stage: p.stage, dims: p.dims, overall: p.overall,
     attendance: p.attendance, attention: p.attention, entryYear: p.entryYear,
     number: number, pos: pos, secondary: sec, foot: foot, availability: avail,
     fitness: fitness, morale: morale, form: form, injury: injury,
-    devScore: p.overall, promotion: promotion, devStatus: devStatus
+    devScore: p.overall, promotion: promotion, devStatus: devStatus,
+    age: age, dob: dob, height: height, weight: weight,
+    nationality: NAT[_atHash(p.id + 'nt') % NAT.length], joining: (byr + 5 + (_atHash(p.id + 'jn') % 4)) + '-09-01',
+    schoolYear: SY[Math.max(0, Math.min(SY.length - 1, age - 4))], guardian: '', emergency: '',
+    medicalRestrictions: 'None', medical: injury === 'None' ? 'Fit' : 'Monitoring', photo: null,
+    notes: [], assessments: []
   };
 }
-// Enriched, isolated roster for one age group (stable order → stable numbers/positions).
-function _atRoster(id) { var idx = _acStageIdx(id); return _acInStage(id).map(function (p, i) { return _atEnrich(p, i, idx); }); }
+// Per-team editable overlay (isolated in the team store, keyed by player id).
+function _atOverlay(id) { var t = _atTeam(id); if (!t.players || typeof t.players !== 'object') t.players = {}; return t.players; }
+function _atApplyOverlay(base, o) {
+  if (!o) return base;
+  var p = {}; for (var k in base) p[k] = base[k];
+  if (o.info) { for (var f in o.info) { if (o.info[f] !== undefined && o.info[f] !== '') p[f] = o.info[f]; } if (o.info.dob) { var a = _atAgeFromDob(o.info.dob); if (a != null) p.age = a; } }
+  ['availability', 'morale', 'medical', 'medicalRestrictions', 'devStatus', 'photo'].forEach(function (kk) { if (o[kk] !== undefined && o[kk] !== null) p[kk] = o[kk]; });
+  if (typeof o.attendance === 'number') p.attendance = o.attendance;
+  p.notes = (o.notes || []).slice(); p.assessments = (o.assessments || []).slice();
+  p.archived = !!o.archived; p.promoted = !!o.promoted;
+  if (p.availability === 'Injured' && p.injury === 'None') p.injury = 'Under review';
+  if (p.availability !== 'Injured' && o.availability) p.injury = 'None';
+  return p;
+}
+function _atNewBase(pid, o, idx, id) {
+  var rng = _atStageRange(id), mid = Math.round((rng[0] + rng[1]) / 2), byr = 2026 - mid;
+  var base = {
+    id: pid, name: 'New Player', stage: id, dims: {}, overall: 55, attendance: 92, attention: false, entryYear: 2026,
+    number: 1 + (_atHash(pid + 'n') % 33), pos: 'CM', secondary: 'CAM', foot: 'Right', availability: 'Available',
+    fitness: 92, morale: 'Good', form: 6, injury: 'None', devScore: 55, promotion: 50, devStatus: 'On track',
+    age: mid, dob: byr + '-01-15', height: rng[0] * 6 + 90, weight: 40 + mid, nationality: '—', joining: '2026-09-01',
+    schoolYear: '—', guardian: '', emergency: '', medicalRestrictions: 'None', medical: 'Fit', photo: null, notes: [], assessments: []
+  };
+  AC_DIMS.forEach(function (d) { base.dims[d[0]] = 48 + (_atHash(pid + d[0]) % 20); });
+  return _atApplyOverlay(base, o);
+}
+// Enriched, isolated roster (base seeded players + coach-added, minus archived).
+function _atRoster(id) {
+  var idx = _acStageIdx(id), ov = _atOverlay(id);
+  var list = _acInStage(id).map(function (p, i) { return _atApplyOverlay(_atEnrich(p, i, idx, id), ov[p.id]); });
+  Object.keys(ov).forEach(function (pid) { if (ov[pid] && ov[pid].__new) list.push(_atNewBase(pid, ov[pid], idx, id)); });
+  return list.filter(function (p) { return !p.archived; });
+}
 function _atFindPlayer(id, pid) { var r = _atRoster(id); for (var i = 0; i < r.length; i++) if (r[i].id === pid) return r[i]; return null; }
+// dev-status → tone (colour coding)
+function _atDevTone(s) { return s === 'Needs attention' ? 'warn' : (s === 'Medical Monitoring' || s === 'Return to Training' ? 'danger' : (s === 'Recently Promoted' ? 'accent' : (s === 'Ahead of stage' ? 'cyan' : 'ok'))); }
 function _atInitials(name) { return String(name || '').split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
 
 // Normalised, auto-seeded lineup for a team (starters default to best-available
@@ -44077,11 +44130,68 @@ function _atPlayerList(id, mode) {
   return '<div class="at-pllist" id="at-pllist">' + rows + '</div>';
 }
 
+// Age-group summary tiles (all values from THIS group only).
+function _atSquadSummary(id) {
+  var roster = _atRoster(id);
+  var n = roster.length || 1;
+  var avail = roster.filter(function (p) { return p.availability === 'Available'; }).length;
+  var inj = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
+  var attAvg = Math.round(roster.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / n);
+  var devAvg = Math.round(roster.reduce(function (a, p) { return a + (p.devScore || 0); }, 0) / n);
+  var ready = Math.round(roster.reduce(function (a, p) { return a + (p.availability !== 'Injured' ? p.fitness : 0); }, 0) / n);
+  var attn = roster.filter(function (p) { return p.devStatus === 'Needs attention' || p.attention; }).length;
+  var nextStage = roster.filter(function (p) { return p.promotion >= 75 || p.devStatus === 'Ahead of stage'; }).length;
+  var tiles = [
+    ['Total Players', roster.length, 'accent'], ['Available', avail, 'ok'], ['Injured', inj, inj ? 'danger' : ''],
+    ['Attendance Avg', attAvg + '%', attAvg >= 85 ? 'ok' : 'warn'], ['Avg Development', devAvg, 'accent'],
+    ['Training Readiness', ready + '%', ready >= 80 ? 'ok' : 'warn'], ['Needs Attention', attn, attn ? 'warn' : 'ok'],
+    ['Ready for Next Stage', nextStage, 'cyan']
+  ];
+  return '<div class="at-sum">' + tiles.map(function (t) { return '<div class="at-sum-tile at-sum-tile--' + (t[2] || '') + '"><b>' + t[1] + '</b><span>' + t[0] + '</span></div>'; }).join('') + '</div>';
+}
+// Age-group identity header for the squad page.
+function _atIdentityStrip(id) {
+  var c = _atCtx(id), st = c.stage, t = _atTeam(id);
+  var chips = [
+    ['Development stage', st.name], ['Responsible coach', _acResponsible(id)], ['Players', _atRoster(id).length],
+    ['Coaches', st.coachN], ['Formation', t.formation.name + ' · ' + _atFormatLabel(id)],
+    ['Current objective', (t.settings && t.settings.focus) || (st.objectives || ['—'])[0]], ['Next session', _atNextEvent(id)]
+  ];
+  return '<div class="at-ident" style="--acc:' + c.accent + '">'
+    + '<div class="at-ident-top"><span class="at-ident-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
+      + '<div class="at-ident-h"><span class="at-ident-kicker">ACADEMY AGE GROUP</span><b>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(st.name) + '</b></div></div>'
+    + '<div class="at-ident-chips">' + chips.map(function (k) { return '<div class="at-ident-chip"><span>' + _viEscSafe(k[0]) + '</span><b>' + _viEscSafe(String(k[1])) + '</b></div>'; }).join('') + '</div>'
+  + '</div>';
+}
+// Premium roster card (development-focused, no adult transfer-market fields).
+function _atSquadCard(p, idx, accent) {
+  var tone = _atDevTone(p.devStatus);
+  var av = p.photo ? '<span class="at-sc-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-sc-av" style="background:' + accent + '">' + _atInitials(p.name) + '</span>';
+  var mini = [
+    ['Avail', p.availability === 'Available' ? 'Avail' : p.availability, _atAvailTone(p.availability)],
+    ['Att', p.attendance + '%', p.attendance < 80 ? 'warn' : 'ok'],
+    ['Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : 'ok'],
+    ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
+    ['Form', p.form + '/10', p.form <= 4 ? 'warn' : '']
+  ];
+  return '<button class="at-sc" type="button" data-at-player="' + p.id + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '" data-posg="' + _atPosGroup(p.pos) + '" style="--acc:' + accent + '">'
+    + '<span class="at-sc-num">#' + p.number + '</span>'
+    + '<span class="at-sc-top">' + av + '<span class="at-sc-id"><b>' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' · Age ' + p.age + '</i></span></span>'
+    + '<span class="at-sc-status at-plbadge--' + tone + '">' + _viEscSafe(p.devStatus) + '</span>'
+    + '<span class="at-sc-mini">' + mini.map(function (m) { return '<span class="at-sc-chip' + (m[2] ? ' at-sc-chip--' + m[2] : '') + '"><i>' + _viEscSafe(m[0]) + '</i><b>' + _viEscSafe(String(m[1])) + '</b></span>'; }).join('') + '</span>'
+    + '<span class="at-sc-dev"><span class="at-sc-dev-l">Development</span><span class="at-sc-dev-t"><i style="width:' + Math.min(100, p.devScore) + '%;background:' + accent + '"></i></span><b>' + p.devScore + '</b></span>'
+  + '</button>';
+}
 function _atSecSquad(id) {
   var c = _atCtx(id), roster = _atRoster(id);
-  return _atSecHead(id, 'Players / Squad', 'Isolated roster — these ' + roster.length + ' players belong only to ' + c.label + '. Click any player for their age-appropriate profile.')
-    + _atFilterBar(c.idx)
-    + _atPlayerList(id, 'squad');
+  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
+  var list = roster.filter(function (p) { if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false; if (af !== 'ALL' && p.availability !== af) return false; return true; });
+  var cards = list.map(function (p) { return _atSquadCard(p, c.idx, c.accent); }).join('') || '<div class="at-empty">No players match the current filters.</div>';
+  return _atSecHead(id, 'Players / Squad', 'Isolated youth roster — these ' + roster.length + ' players belong only to ' + c.label + '. Click any player for their development profile.')
+    + _atIdentityStrip(id)
+    + _atSquadSummary(id)
+    + '<div class="at-squad-bar">' + _atFilterBar(c.idx) + '<button class="at-btn at-btn--add" type="button" data-at-add-player>+ Add Academy Player</button></div>'
+    + '<div class="at-squad-grid" id="at-pllist">' + cards + '</div>';
 }
 function _atSecStaff(id) {
   var t = _atTeam(id);
@@ -44140,94 +44250,174 @@ function _atSecLineup(id) {
 }
 
 /* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
-function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; renderAcademyTeamPage(); }
-function _atClosePlayer() { AT.openPlayer = null; renderAcademyTeamPage(); }
+/* ── Academy player profile — premium modal, 12 tabs, editable & persisted ── */
+function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; AT.editing = false; renderAcademyTeamPage(); }
+function _atClosePlayer() { AT.openPlayer = null; AT.editing = false; renderAcademyTeamPage(); }
 window._atOpenPlayer = _atOpenPlayer; window._atClosePlayer = _atClosePlayer;
+
+var AT_ACAD_TABS = [
+  ['overview', 'Overview'], ['development', 'Development'], ['technical', 'Technical'], ['tactical', 'Tactical'],
+  ['physical', 'Physical'], ['psychological', 'Psychological'], ['social', 'Social & Behaviour'], ['attendance', 'Attendance'],
+  ['medical', 'Medical'], ['goals', 'Goals'], ['notes', 'Coach Notes'], ['history', 'History']
+];
+function _atTabPriority(idx) {
+  return [
+    ['overview', 'development', 'social', 'attendance', 'physical'],
+    ['technical', 'development', 'social', 'attendance'],
+    ['technical', 'tactical', 'development', 'psychological'],
+    ['tactical', 'physical', 'technical', 'development'],
+    ['tactical', 'physical', 'development', 'psychological'],
+    ['tactical', 'physical', 'development', 'medical']
+  ][idx] || [];
+}
+function _atFact(label, val) { return '<div class="at-fact"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></div>'; }
+function _atTabAttrs(tab, idx) {
+  var T = {
+    technical: idx < 1 ? [['Ball familiarity', 'technical'], ['Running with ball', 'technical'], ['Both feet', 'technical']]
+      : idx < 2 ? [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing basics', 'technical'], ['First touch', 'technical']]
+        : idx < 3 ? [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Receiving', 'technical']]
+          : [['Technique', 'technical'], ['Passing range', 'technical'], ['Finishing', 'technical'], ['First touch', 'technical'], ['Weak foot', 'technical']],
+    tactical: idx < 2 ? [['Find space', 'tactical'], ['Awareness', 'tactical'], ['Simple decisions', 'decision']]
+      : idx < 3 ? [['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Game understanding', 'tactical'], ['Decision-making', 'decision']]
+        : [['Positioning', 'tactical'], ['Game intelligence', 'tactical'], ['Transitions', 'tactical'], ['Decision-making', 'decision'], ['Role execution', 'tactical']],
+    physical: idx < 1 ? [['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Agility', 'physical']]
+      : idx < 4 ? [['Speed', 'physical'], ['Agility', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical']]
+        : [['Speed', 'physical'], ['Power', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical'], ['Load tolerance', 'medical']],
+    psychological: [['Confidence', 'psychological'], ['Focus', 'psychological'], ['Resilience', 'psychological'], ['Coachability', 'social']],
+    social: [['Teamwork', 'social'], ['Communication', 'social'], ['Listening', 'social'], ['Respect', 'educational']]
+  };
+  return T[tab] || [];
+}
+function _atDevDims(idx) {
+  if (idx <= 0) return [['Enjoyment', 'psychological'], ['Coordination', 'physical'], ['Ball skills', 'technical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
+  if (idx === 1) return [['Technical', 'technical'], ['Coordination', 'physical'], ['Decision', 'decision'], ['Teamwork', 'social'], ['Confidence', 'psychological'], ['Creativity', 'tactical']];
+  if (idx === 2) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Mentality', 'psychological'], ['Social', 'social']];
+  if (idx === 3) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Discipline', 'educational'], ['Mentality', 'psychological']];
+  return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Leadership', 'social'], ['Mentality', 'psychological']];
+}
+function _atRadar(items, accent) {
+  var n = items.length, cx = 120, cy = 120, R = 82;
+  function pt(i, r) { var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+  var grid = '';
+  [0.25, 0.5, 0.75, 1].forEach(function (f) { grid += '<polygon points="' + items.map(function (_x, i) { var q = pt(i, R * f); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '" fill="none" stroke="rgba(255,255,255,.08)"/>'; });
+  var axes = '', labels = '', poly = items.map(function (it, i) { var q = pt(i, R * Math.max(0.06, Math.min(1, it.val / 100))); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
+  items.forEach(function (it, i) { var e = pt(i, R); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '" stroke="rgba(255,255,255,.08)"/>'; var lp = pt(i, R + 16); labels += '<text x="' + lp[0].toFixed(1) + '" y="' + lp[1].toFixed(1) + '" fill="#9aa0ad" font-size="9" font-family="Inter" text-anchor="middle" dominant-baseline="middle">' + _viEscSafe(it.label) + '</text>'; });
+  return '<svg class="at-radar" viewBox="0 0 240 240">' + grid + axes + '<polygon points="' + poly + '" fill="' + accent + '33" stroke="' + accent + '" stroke-width="2"/>' + labels + '</svg>';
+}
+function _atModalActions(p) {
+  return '<div class="at-modal-actions">'
+    + '<button class="at-act" type="button" data-at-edit>✎ Edit</button>'
+    + '<button class="at-act" type="button" data-at-cycle-avail>◑ Availability</button>'
+    + '<button class="at-act" type="button" data-at-add-assess>＋ Assessment</button>'
+    + '<button class="at-act" type="button" data-at-jump-notes>✎ Coach note</button>'
+    + '<button class="at-act at-act--go" type="button" data-at-promote>▲ Promote</button>'
+    + '<button class="at-act at-act--warn" type="button" data-at-archive>⛃ Archive</button>'
+  + '</div>';
+}
 function _atPlayerModal(id) {
   if (!AT.openPlayer) return '';
   var p = _atFindPlayer(id, AT.openPlayer); if (!p) return '';
-  var c = _atCtx(id), idx = c.idx;
-  var tabs = _atProfileTabs(idx);
-  var tab = tabs.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
-  var tabStrip = tabs.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
+  var c = _atCtx(id), idx = c.idx, pri = _atTabPriority(idx);
+  var tab = AT_ACAD_TABS.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
+  var tabStrip = AT_ACAD_TABS.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + (pri.indexOf(t[0]) >= 0 ? ' at-ptab--pri' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
+  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
   return '<div class="at-modal-back" data-at-close-player>'
-    + '<div class="at-modal" style="--acc:' + c.accent + '" role="dialog">'
-      + '<div class="at-modal-head">'
-        + '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>'
-        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + '</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></div>'
+    + '<div class="at-modal at-modal--lg" style="--acc:' + c.accent + '" role="dialog">'
+      + '<div class="at-modal-head">' + av
+        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b>'
+          + '<i>' + _viEscSafe(p.pos) + ' · Age ' + p.age + ' · Dev ' + p.devScore + ' · <span class="at-plbadge--' + _atDevTone(p.devStatus) + '" style="padding:1px 7px;border-radius:20px;font-size:10px;">' + _viEscSafe(p.devStatus) + '</span></i></div>'
         + '<button class="at-modal-x" type="button" data-at-close-player>✕</button>'
       + '</div>'
+      + (AT.editing ? '' : _atModalActions(p))
       + '<div class="at-ptabs">' + tabStrip + '</div>'
       + '<div class="at-modal-body">' + _atProfileBody(id, p, tab, idx) + '</div>'
     + '</div>'
   + '</div>';
 }
-function _atFact(label, val) { return '<div class="at-fact"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></div>'; }
+function _atEditForm(id, p) {
+  function fld(label, key, val, type) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><input class="at-input" data-field="' + key + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + _viEscSafe(val == null ? '' : String(val)) + '"></label>'; }
+  function selFld(label, key, val, opts) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><select class="at-input" data-field="' + key + '">' + opts.map(function (o) { return '<option' + (val === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>'; }
+  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + _atCtx(id).accent + '">' + _atInitials(p.name) + '</span>';
+  return '<div class="at-editwrap">'
+    + '<div class="at-photo-row">' + av + '<label class="at-btn at-btn--ghost">＋ Add / change photo<input type="file" accept="image/*" data-at-photo hidden></label></div>'
+    + '<div class="at-eform">'
+      + fld('Full name', 'name', p.name) + fld('Date of birth', 'dob', p.dob, 'date') + fld('Shirt number', 'number', p.number, 'number')
+      + fld('Height (cm)', 'height', p.height, 'number') + fld('Weight (kg)', 'weight', p.weight, 'number')
+      + selFld('Preferred foot', 'foot', p.foot, ['Right', 'Left', 'Both'])
+      + selFld('Primary position', 'pos', p.pos, ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'ST'])
+      + fld('Secondary positions', 'secondary', p.secondary) + fld('Nationality', 'nationality', p.nationality)
+      + fld('Joining date', 'joining', p.joining, 'date') + fld('School year', 'schoolYear', p.schoolYear)
+      + fld('Parent/guardian contact', 'guardian', p.guardian) + fld('Emergency contact', 'emergency', p.emergency)
+      + fld('Medical restrictions', 'medicalRestrictions', p.medicalRestrictions)
+    + '</div>'
+    + '<div class="at-lineup-actions"><button class="at-btn" type="button" data-at-save-player>Save changes</button><button class="at-btn at-btn--ghost" type="button" data-at-cancel-edit>Cancel</button><span class="at-note-hint">Age is calculated from date of birth and stays within the age group.</span></div>'
+  + '</div>';
+}
 function _atProfileBody(id, p, tab, idx) {
   var st = _acStage(id);
-  switch (tab) {
-    case 'overview': {
-      var facts = _atFact('Position', p.pos) + _atFact('Secondary', p.secondary) + _atFact('Preferred foot', p.foot) + _atFact('Age', p.age)
-        + _atFact('Availability', p.availability) + _atFact('Fitness', p.fitness + '%') + _atFact('Morale', p.morale)
-        + _atFact('Attendance', p.attendance + '%') + _atFact(idx >= 3 ? 'Dev score' : 'Development', p.devScore) + _atFact('Current form', p.form + '/10')
-        + _atFact('Status', p.devStatus) + (idx >= 3 ? _atFact('Promotion readiness', p.promotion) : _atFact('Entry year', p.entryYear));
-      return '<div class="at-facts">' + facts + '</div>'
-        + _atCard('Coach note', '<p class="at-p">' + _viEscSafe(p.name.split(' ')[0]) + ' is at the ' + _viEscSafe(st.name) + ' stage — ' + _viEscSafe((st.summary || '').toLowerCase()) + '</p>');
-    }
-    case 'development':
-      return '<div class="at-facts">' + _atFact('Development score', p.devScore) + _atFact('Status', p.devStatus) + _atFact('Trend', p.form >= 7 ? 'Improving' : (p.form <= 4 ? 'Watch' : 'Steady')) + _atFact('In academy since', p.entryYear) + '</div>'
-        + _atCard('Individual development goals', '<ul class="at-list">' + (st.objectives || []).slice(0, 4).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>')
-        + _atCard('Next stage', '<p class="at-p">' + _viEscSafe((st.promotion || ['—'])[0]) + '</p>');
-    case 'skills':
-      return _atCard(st.label + ' skill profile', _atBars(p, _atSkillSet(idx)));
-    case 'physical': {
-      var phys = idx < 2 ? [['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Agility', 'physical']]
-        : (idx < 4 ? [['Speed', 'physical'], ['Agility', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical']]
-          : [['Speed', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical'], ['Power', 'physical'], ['Load tolerance', 'medical']]);
-      return '<div class="at-facts">' + _atFact('Fitness', p.fitness + '%') + _atFact('Availability', p.availability) + '</div>' + _atCard('Physical profile', _atBars(p, phys));
-    }
-    case 'tactical':
-      return _atCard('Tactical attributes', _atBars(p, [['Positioning', 'tactical'], ['Decision-making', 'decision'], ['Game intelligence', 'tactical'], ['Scanning', 'tactical']]))
-        + _atCard('Stage principles', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
-    case 'psychological':
-      return _atCard('Psychological', _atBars(p, [['Confidence', 'psychological'], ['Focus', 'psychological'], ['Resilience', 'psychological'], ['Coachability', 'social']]));
-    case 'social':
-      return _atCard('Social & character', _atBars(p, [['Teamwork', 'social'], ['Communication', 'social'], ['Listening', 'social'], ['Respect', 'educational']]));
-    case 'medical':
-      return '<div class="at-facts">' + _atFact('Availability', p.availability) + _atFact('Injury', p.injury) + _atFact('Fitness', p.fitness + '%') + '</div>'
-        + _atCard('Welfare note', '<p class="at-p">' + (p.injury === 'None' ? 'No current issues — routine load monitoring for the ' + _viEscSafe(st.name) + ' stage.' : 'Managing ' + _viEscSafe(p.injury.toLowerCase()) + ' — individual return-to-play plan in place.') + '</p>');
-    case 'attendance':
-      return '<div class="at-facts">' + _atFact('Attendance', p.attendance + '%') + _atFact('Rating', p.attendance >= 90 ? 'Excellent' : (p.attendance >= 80 ? 'Good' : 'Needs improvement')) + '</div>'
-        + _atCard('Attendance', '<div class="at-bars"><div class="at-bar"><span class="at-bar-l">Season attendance</span><span class="at-bar-t"><i style="width:' + p.attendance + '%"></i></span><b>' + p.attendance + '%</b></div></div>');
-    case 'assessments': {
-      var dims = idx < 2 ? [['technical', 'Ball skills'], ['physical', 'Coordination'], ['social', 'Teamwork'], ['psychological', 'Enjoyment']]
-        : (idx < 4 ? [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'], ['psychological', 'Mentality'], ['decision', 'Decisions']] : AC_DIMS);
-      return _atCard('Latest assessment', _atBars(p, dims.map(function (d) { return [d[1], d[0]]; })));
-    }
-    case 'goals':
-      return _atCard('Development goals', '<ul class="at-checklist">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>');
-    case 'match': {
-      var r = _acRng(_atHash(p.id + 'm')); var apps = 4 + Math.floor(r() * 16), mins = apps * (40 + Math.floor(r() * 40)), g = Math.floor(r() * (p.pos === 'ST' ? 12 : 5)), a = Math.floor(r() * 8);
-      return '<div class="at-facts">' + _atFact('Appearances', apps) + _atFact('Minutes', mins) + _atFact('Goals', g) + _atFact('Assists', a) + _atFact('Avg rating', (6 + r() * 2.5).toFixed(1)) + '</div>';
-    }
-    case 'readiness':
-      return '<div class="at-facts">' + _atFact('First-team readiness', p.promotion + '%') + _atFact('Physical', p.fitness + '%') + _atFact('Form', p.form + '/10') + '</div>'
-        + _atCard('Readiness note', '<p class="at-p">Tracked against senior standards for the ' + _viEscSafe(st.name) + ' stage.</p>');
-    case 'promotion':
-      return '<div class="at-facts">' + _atFact('Promotion readiness', p.promotion + '%') + _atFact('Recommendation', p.promotion >= 78 ? 'Ready to step up' : (p.promotion >= 60 ? 'On track' : 'Continue developing')) + '</div>'
-        + _atCard('Promotion criteria', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
-    case 'video':
-      return '<div class="at-notice"><div class="at-notice-badge">VIDEO · ' + _viEscSafe(_atCtx(id).label) + '</div><div class="at-notice-status"><span class="at-notice-dot"></span><b>Currently being updated</b></div><p>Individual video assessment for this age group is under development.</p></div>';
-    case 'contract': {
-      var scholar = idx >= 5 ? 'Professional' : 'Scholarship';
-      return '<div class="at-facts">' + _atFact('Status', scholar) + _atFact('Loan', idx >= 5 && p.promotion < 70 ? 'Loan candidate' : 'None') + _atFact('Pathway', p.promotion >= 78 ? 'First-team pathway' : 'Development') + '</div>'
-        + _atCard('Pathway note', '<p class="at-p">' + (idx >= 5 ? 'Professional pathway & first-team readiness monitored.' : 'Scholarship & education pathway safeguarded alongside football.') + '</p>');
-    }
-    case 'reports':
-      return '<div class="at-facts">' + _atFact('Coach evaluation', (p.dims && p.overall) || p.overall) + _atFact('AI evaluation', p.devScore) + '</div>'
-        + _atCard('Summary', '<p class="at-p">' + _viEscSafe(p.name.split(' ')[0]) + ' — ' + _viEscSafe(p.devStatus) + ' at the ' + _viEscSafe(st.name) + ' stage. Focus: ' + _viEscSafe((st.objectives || ['—'])[0]) + '.</p>');
-    default: return '';
+  if (tab === 'overview') {
+    if (AT.editing) return _atEditForm(id, p);
+    var facts = _atFact('Position', p.pos) + _atFact('Secondary', p.secondary) + _atFact('Preferred foot', p.foot) + _atFact('Age', p.age + ' yrs')
+      + _atFact('Height', p.height + ' cm') + _atFact('Weight', p.weight + ' kg') + _atFact('Nationality', p.nationality) + _atFact('School year', p.schoolYear)
+      + _atFact('Availability', p.availability) + _atFact('Fitness', p.fitness + '%') + _atFact('Morale', p.morale) + _atFact('Joined', p.joining);
+    return '<div class="at-ov"><div class="at-ov-ring" style="--v:' + Math.min(100, p.devScore) + ';--acc:' + _atCtx(id).accent + '"><b>' + p.devScore + '</b><span>Dev score</span></div>'
+      + '<div class="at-ov-facts"><div class="at-facts">' + facts + '</div></div></div>'
+      + _atCard('Coach note', '<p class="at-p">' + (p.notes.length ? _viEscSafe(p.notes[p.notes.length - 1].text) : (_viEscSafe(p.name.split(' ')[0]) + ' is at the ' + _viEscSafe(st.name) + ' stage — ' + _viEscSafe((st.summary || '').toLowerCase()))) + '</p>');
   }
+  if (tab === 'development') {
+    var dd = _atDevDims(idx).map(function (d) { return { label: d[0], val: _atAttr(p, d[1]), key: d[1] }; });
+    var bench = _acStageAvg(id) || 60;
+    var sorted = dd.slice().sort(function (a, b) { return b.val - a.val; });
+    var strengths = sorted.slice(0, 2).map(function (x) { return x.label; }).join(', ');
+    var areas = sorted.slice(-2).map(function (x) { return x.label; }).join(', ');
+    var prevRows = dd.map(function (d) { var prev = Math.max(15, d.val - (p.form >= 7 ? 5 : (p.form <= 4 ? -2 : 2))); var delta = d.val - prev; return '<div class="at-cmp"><span>' + _viEscSafe(d.label) + '</span><b>' + prev + ' → ' + d.val + '</b><i class="at-delta at-delta--' + (delta >= 0 ? 'up' : 'down') + '">' + (delta >= 0 ? '▲ +' + delta : '▼ ' + delta) + '</i></div>'; }).join('');
+    var trend = p.form >= 7 ? 'Improving' : (p.form <= 4 ? 'Needs a lift' : 'Steady');
+    var priority = sorted[sorted.length - 1].label;
+    return '<div class="at-devwrap">'
+      + '<div class="at-devcol">' + _atRadar(dd, _atCtx(id).accent) + '</div>'
+      + '<div class="at-devcol">'
+        + '<div class="at-facts">' + _atFact('Development score', p.devScore) + _atFact('Stage benchmark', bench) + _atFact('Trend', trend) + _atFact('Promotion readiness', p.promotion + '%') + '</div>'
+        + _atCard('Progress by category', _atBars(p, _atDevDims(idx)))
+      + '</div>'
+    + '</div>'
+    + '<div class="at-grid2">'
+      + _atCard('Story', '<p class="at-p"><b>Strengths:</b> ' + _viEscSafe(strengths) + '<br><b>Areas to improve:</b> ' + _viEscSafe(areas) + '<br><b>Coach priority next cycle:</b> ' + _viEscSafe(priority) + '<br><b>Ready for next stage:</b> ' + (p.promotion >= 78 ? 'Yes — ready' : (p.promotion >= 60 ? 'Approaching' : 'Keep developing')) + '</p>')
+      + _atCard('Previous vs current', '<div class="at-cmplist">' + prevRows + '</div>')
+    + '</div>';
+  }
+  if (tab === 'technical' || tab === 'tactical' || tab === 'physical' || tab === 'psychological' || tab === 'social') {
+    var titleMap = { technical: 'Technical', tactical: 'Tactical', physical: 'Physical', psychological: 'Psychological', social: 'Social & Behaviour' };
+    var extra = '';
+    if (tab === 'physical') extra = '<div class="at-facts">' + _atFact('Fitness', p.fitness + '%') + _atFact('Availability', p.availability) + '</div>';
+    if (tab === 'tactical') extra = _atCard('Stage principles', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
+    return extra + _atCard(titleMap[tab] + ' — ' + st.label + ' focus', _atBars(p, _atTabAttrs(tab, idx)));
+  }
+  if (tab === 'attendance') {
+    return '<div class="at-facts">' + _atFact('Attendance', p.attendance + '%') + _atFact('Rating', p.attendance >= 90 ? 'Excellent' : (p.attendance >= 80 ? 'Good' : 'Needs improvement')) + '</div>'
+      + _atCard('Season attendance', '<div class="at-bars"><div class="at-bar"><span class="at-bar-l">Attendance</span><span class="at-bar-t"><i style="width:' + p.attendance + '%"></i></span><b>' + p.attendance + '%</b></div></div>')
+      + _atCard('Update attendance', '<div class="at-inline"><input class="at-input" type="number" min="0" max="100" value="' + p.attendance + '" data-at-attendance-input><button class="at-btn" type="button" data-at-save-attendance>Update</button></div>');
+  }
+  if (tab === 'medical') {
+    var statuses = ['Fit', 'Monitoring', 'Return to Training', 'Medical Monitoring', 'Injured'];
+    return '<div class="at-facts">' + _atFact('Status', p.medical) + _atFact('Availability', p.availability) + _atFact('Injury', p.injury) + _atFact('Fitness', p.fitness + '%') + '</div>'
+      + _atCard('Medical restrictions', '<p class="at-p">' + _viEscSafe(p.medicalRestrictions || 'None') + '</p>')
+      + _atCard('Update medical status', '<div class="at-inline"><select class="at-input" data-at-medical-input>' + statuses.map(function (s) { return '<option' + (p.medical === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><button class="at-btn" type="button" data-at-save-medical>Update</button></div>');
+  }
+  if (tab === 'goals') {
+    return _atCard('Development goals · ' + st.label, '<ul class="at-checklist">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>')
+      + _atCard('Individual focus', '<p class="at-p">Priority for ' + _viEscSafe(p.name.split(' ')[0]) + ': ' + _viEscSafe((st.tech || ['—'])[0]) + ' &amp; ' + _viEscSafe((st.tac || ['—'])[0]) + '.</p>');
+  }
+  if (tab === 'notes') {
+    var list = p.notes.length ? p.notes.slice().reverse().map(function (n) { return '<div class="at-noteitem"><i>' + _viEscSafe(n.date) + '</i><p>' + _viEscSafe(n.text) + '</p></div>'; }).join('') : '<div class="at-empty">No coach notes yet.</div>';
+    return _atCard('Add coach note', '<div class="at-inline"><input class="at-input at-input--grow" type="text" placeholder="Write a development note…" data-at-note-input><button class="at-btn" type="button" data-at-save-note>Add note</button></div>')
+      + '<div class="at-notelist">' + list + '</div>';
+  }
+  if (tab === 'history') {
+    var asx = p.assessments.length ? p.assessments.slice().reverse().map(function (a) { return '<div class="at-noteitem"><i>' + _viEscSafe(a.date) + '</i><p>Assessment · avg ' + a.avg + (a.note ? ' — ' + _viEscSafe(a.note) : '') + '</p></div>'; }).join('') : '<div class="at-empty">No assessments recorded yet — use ＋ Assessment.</div>';
+    return _atCard('Player history', '<div class="at-facts">' + _atFact('Joined', p.joining) + _atFact('In academy since', p.entryYear) + _atFact('Stage', st.label) + _atFact('Status', p.devStatus) + '</div>')
+      + _atCard('Assessment history', '<div class="at-notelist">' + asx + '</div>');
+  }
+  return '';
 }
 function _atSecFormation(id) {
   var t = _atTeam(id), opts = _atFormationsFor(id);
@@ -44449,6 +44639,84 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (pf) { e.preventDefault(); AT.posF = pf.getAttribute('data-at-posfilter'); renderAcademyTeamPage(); return; }
     var af = t.closest && t.closest('[data-at-availfilter]');
     if (af) { e.preventDefault(); AT.availF = af.getAttribute('data-at-availfilter'); renderAcademyTeamPage(); return; }
+    // ── Squad / profile management (all scoped + persisted to AT.active) ──
+    function pov(pid) { var ov = _atOverlay(id); if (!ov[pid]) ov[pid] = {}; return ov[pid]; }
+    if (t.closest && t.closest('[data-at-add-player]')) {
+      e.preventDefault();
+      var npid = 'atp' + Date.now(); var ov = _atOverlay(id); ov[npid] = { __new: true, info: { name: 'New Player' } };
+      _atSave(); AT.openPlayer = npid; AT.profileTab = 'overview'; AT.editing = true; renderAcademyTeamPage();
+      try { showToast('New player added to ' + _atCtx(id).label + ' — edit details', 'success'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-at-edit]')) { e.preventDefault(); AT.editing = true; renderAcademyTeamPage(); return; }
+    if (t.closest && t.closest('[data-at-cancel-edit]')) { e.preventDefault(); AT.editing = false; renderAcademyTeamPage(); return; }
+    if (t.closest && t.closest('[data-at-save-player]')) {
+      e.preventDefault();
+      var o = pov(AT.openPlayer); o.info = o.info || {};
+      var modal = document.querySelector('.at-modal'); if (modal) modal.querySelectorAll('[data-field]').forEach(function (el) { var v = el.value; if (el.getAttribute('data-field') === 'number' || el.getAttribute('data-field') === 'height' || el.getAttribute('data-field') === 'weight') v = parseInt(v, 10) || 0; o.info[el.getAttribute('data-field')] = v; });
+      _atSave(); AT.editing = false; renderAcademyTeamPage();
+      try { showToast('Player saved', 'success'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-at-cycle-avail]')) {
+      e.preventDefault();
+      var cur = (_atFindPlayer(id, AT.openPlayer) || {}).availability || 'Available';
+      var ord = ['Available', 'Doubtful', 'Injured']; var o2 = pov(AT.openPlayer); o2.availability = ord[(ord.indexOf(cur) + 1) % 3];
+      o2.medical = o2.availability === 'Injured' ? 'Injured' : 'Fit';
+      _atSave(); renderAcademyTeamPage();
+      try { showToast('Availability: ' + o2.availability, 'info'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-at-jump-notes]')) { e.preventDefault(); AT.profileTab = 'notes'; renderAcademyTeamPage(); return; }
+    if (t.closest && t.closest('[data-at-add-assess]')) {
+      e.preventDefault();
+      var pl = _atFindPlayer(id, AT.openPlayer); var dims = _atDevDims(_acStageIdx(id));
+      var vals = dims.map(function (d) { return _atAttr(pl, d[1]); }); var avg = Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length);
+      var o3 = pov(AT.openPlayer); o3.assessments = o3.assessments || []; o3.assessments.push({ date: new Date().toISOString().slice(0, 10), avg: avg, note: 'Coach assessment' });
+      _atSave(); AT.profileTab = 'history'; renderAcademyTeamPage();
+      try { showToast('Assessment recorded', 'success'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-at-save-attendance]')) {
+      e.preventDefault();
+      var ai = document.querySelector('[data-at-attendance-input]'); if (ai) { var o4 = pov(AT.openPlayer); o4.attendance = Math.max(0, Math.min(100, parseInt(ai.value, 10) || 0)); _atSave(); renderAcademyTeamPage(); try { showToast('Attendance updated', 'success'); } catch (_) {} }
+      return;
+    }
+    if (t.closest && t.closest('[data-at-save-medical]')) {
+      e.preventDefault();
+      var mi = document.querySelector('[data-at-medical-input]'); if (mi) { var o5 = pov(AT.openPlayer); o5.medical = mi.value; if (mi.value === 'Injured') o5.availability = 'Injured'; else if (o5.availability === 'Injured') o5.availability = 'Available'; _atSave(); renderAcademyTeamPage(); try { showToast('Medical status updated', 'success'); } catch (_) {} }
+      return;
+    }
+    if (t.closest && t.closest('[data-at-save-note]')) {
+      e.preventDefault();
+      var ni = document.querySelector('[data-at-note-input]'); var txt = ni ? ni.value.trim() : '';
+      if (!txt) { try { showToast('Write a note first', 'error'); } catch (_) {} return; }
+      var o6 = pov(AT.openPlayer); o6.notes = o6.notes || []; o6.notes.push({ date: new Date().toISOString().slice(0, 10), text: txt });
+      _atSave(); renderAcademyTeamPage();
+      try { showToast('Note added', 'success'); } catch (_) {}
+      return;
+    }
+    if (t.closest && t.closest('[data-at-promote]')) {
+      e.preventDefault();
+      var pid = AT.openPlayer, idx0 = _acStageIdx(id), last = AC_STAGES.length - 1;
+      if (idx0 < last) {
+        var nextId = AC_STAGES[idx0 + 1].id, ovc = _atOverlay(id);
+        if (pid.indexOf('atp') === 0) { _atOverlay(nextId)[pid] = ovc[pid]; delete ovc[pid]; }
+        else { _acLoad(); AC_DB.players.forEach(function (pp) { if (pp.id === pid) pp.stage = nextId; }); _acSave(); delete ovc[pid]; }
+        _atSave(); AT.openPlayer = null; renderAcademyTeamPage();
+        try { showToast('Promoted to ' + AC_STAGES[idx0 + 1].label, 'success'); } catch (_) {}
+      } else {
+        var o7 = pov(pid); o7.promoted = true; o7.devStatus = 'Recently Promoted'; _atSave(); renderAcademyTeamPage();
+        try { showToast('Flagged for First Team review', 'success'); } catch (_) {}
+      }
+      return;
+    }
+    if (t.closest && t.closest('[data-at-archive]')) {
+      e.preventDefault();
+      var o8 = pov(AT.openPlayer); o8.archived = true; _atSave(); AT.openPlayer = null; renderAcademyTeamPage();
+      try { showToast('Player archived', 'info'); } catch (_) {}
+      return;
+    }
   });
   document.addEventListener('change', function (e) {
     var id = AT.active; if (!id || !_acCanOpen(id)) return;
@@ -44456,6 +44724,19 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (tac) { var team = _atTeam(id); team.tactics[tac.getAttribute('data-at-tactic')] = tac.value; _atSave(); return; }
     var att = e.target.getAttribute && e.target.getAttribute('data-at-att');
     if (att && e.target.checked) { var parts = att.split('|'); var team2 = _atTeam(id); (team2.attendance[parts[0]] = team2.attendance[parts[0]] || {})[parts[1]] = parts[2]; _atSave(); return; }
+    // Player photo upload → stored (as a data URL) in the player's overlay.
+    if (e.target.getAttribute && e.target.getAttribute('data-at-photo') !== null && e.target.files && e.target.files[0] && AT.openPlayer) {
+      var file = e.target.files[0];
+      var reader = new FileReader();
+      reader.onload = function () {
+        var url = String(reader.result || '');
+        if (url.length > 220000) { try { showToast('Image too large — use a smaller photo', 'error'); } catch (_) {} return; }
+        var ov = _atOverlay(id); (ov[AT.openPlayer] = ov[AT.openPlayer] || {}).photo = url; _atSave(); renderAcademyTeamPage();
+        try { showToast('Photo updated', 'success'); } catch (_) {}
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
   });
   document.addEventListener('input', function (e) {
     var id = AT.active; if (!id || !_acCanOpen(id)) return;
@@ -44465,7 +44746,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (e.target.getAttribute && e.target.getAttribute('data-at-search') !== null && e.target.classList.contains('at-search')) {
       AT.q = e.target.value || '';
       var q = AT.q.toLowerCase();
-      var rows = document.querySelectorAll('#at-pllist .at-plrow');
+      var rows = document.querySelectorAll('#at-pllist .at-plrow, #at-pllist .at-sc');
       for (var i = 0; i < rows.length; i++) { var nm = rows[i].getAttribute('data-name') || ''; rows[i].style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none'; }
       return;
     }
