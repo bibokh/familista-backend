@@ -44216,7 +44216,7 @@ function _atSquadCard(p, idx, accent) {
     ['Current Form', p.form * 10, p.form + '/10', p.form <= 4 ? 'warn' : '']
   ].map(function (b) { return _atMiniBar(b[0], b[1], b[2], b[3]); }).join('');
   var quick = [['view', 'View Profile'], ['edit', 'Edit'], ['assess', 'Assessment'], ['attendance', 'Attendance'], ['medical', 'Medical'], ['notes', 'Coach Notes']]
-    .map(function (q) { return '<button class="at-sc-qa" type="button" data-at-quick="' + q[0] + '" data-at-quick-player="' + p.id + '">' + q[1] + '</button>'; }).join('');
+    .map(function (q) { return '<span class="at-sc-qa" data-at-quick="' + q[0] + '" data-at-quick-player="' + p.id + '">' + q[1] + '</span>'; }).join('');
   return '<button class="at-sc" type="button" data-at-player="' + p.id + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '" data-posg="' + _atPosGroup(p.pos) + '" style="--acc:' + accent + '">'
     + '<span class="at-sc-badges">'
       + '<span class="at-sc-status at-plbadge--' + chip.tone + '">' + _viEscSafe(chip.label) + '</span>'
