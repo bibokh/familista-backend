@@ -1256,6 +1256,7 @@ function _flushPendingRender() {
     case 'pg-gis-performance':  renderGIS('gis-performance'); break;
     case 'pg-training':    renderTrainingPage();    break;
     case 'pg-academy':     if (typeof renderAcademyPage === 'function') renderAcademyPage(); break;
+    case 'pg-academy-team': if (typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage(); break;
     case 'pg-medical':     renderMedicalPage();     break;
     case 'pg-performance': renderPerformancePage(); break;
     case 'pg-analytics':   renderAnalyticsPage();   break;
@@ -1322,7 +1323,7 @@ function navTo(page, el, _opts) {
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (10)
-    'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'video-intelligence': 1,
+    'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1350,7 +1351,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'video-intelligence':'Video Intelligence',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1389,7 +1390,16 @@ function navTo(page, el, _opts) {
     if (page === 'clubs'      && typeof renderClubs === 'function')      renderClubs();
     if (page === 'club-home'  && typeof renderClubHome === 'function')   renderClubHome();
     if (page === 'squad'      && typeof resetSquadView === 'function')   resetSquadView();
+    if (page === 'academy-team' && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
   } catch (_) {}
+  // Academy Team Workspace is a child of Academy — keep the Academy sidebar
+  // item highlighted so the user stays visibly inside Academy, not First Team.
+  if (page === 'academy-team') {
+    try {
+      var _acNav = document.querySelector('.nav-item[data-page="academy"]');
+      if (_acNav) _acNav.classList.add('active');
+    } catch (_) {}
+  }
 
   // Lazy-load page data
   if (page === 'medical')     loadMedicalData();
@@ -1572,6 +1582,7 @@ function _buildPageTemplateMap() {
     'squad':                       renderSquadHTML,
     'training':                    renderTrainingWorkspaceHTML,
     'academy':                     renderAcademyHTML,
+    'academy-team':                renderAcademyTeamHTML,
     'video-intelligence':          renderVideoIntelligenceHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
@@ -43666,32 +43677,417 @@ function _acFirstTeamCard() {
     + '</' + (can ? 'button' : 'div') + '>';
 }
 
-// Enter an age-group team → set scope and load the EXISTING club software.
+// Open a portal card. First Team is fully independent (its own workspace at
+// 'squad'). Each age group opens a DEDICATED Academy Team Workspace with its
+// own isolated data — it never touches First-Team state.
 function _acOpen(id) {
   if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
-  if (id === 'firstteam') { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } navTo('squad'); return; }
-  var s = _acStage(id);
-  window.ACADEMY_SCOPE = { id: s.id, label: s.label, name: s.name, accent: s.accent };
-  navTo('squad');
+  if (id === 'firstteam') { navTo('squad'); return; }   // First Team = independent workspace
+  _atEnter(id);
 }
-function _acExitScope() { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } navTo('academy'); }
-window._acOpen = _acOpen; window._acExitScope = _acExitScope;
-
-// Scope banner: while inside an age-group team, show which team + a way back.
-var AC_SCOPE_PAGES = { squad: 1, training: 1, 'video-intelligence': 1 };
-function _acEnsureBanner() {
-  var scope = window.ACADEMY_SCOPE;
-  var active = (document.querySelector('.page.active') || {}).id || '';
-  var page = active.replace(/^pg-/, '');
-  if (page === 'academy' || page === 'club-home' || page === 'owner-home' || page === 'clubs') { if (scope) { try { delete window.ACADEMY_SCOPE; } catch (e) { window.ACADEMY_SCOPE = null; } } }
-  scope = window.ACADEMY_SCOPE;
-  var bar = document.getElementById('acsb');
-  if (!scope || !AC_SCOPE_PAGES[page]) { if (bar) bar.remove(); return; }
-  if (!bar) { bar = document.createElement('div'); bar.id = 'acsb'; document.body.appendChild(bar); bar.addEventListener('click', function (e) { if (e.target.closest('[data-acsb-back]')) { e.preventDefault(); _acExitScope(); } }); }
-  bar.innerHTML = '<span class="acsb-dot" style="background:' + (scope.accent || '#a78bfa') + '"></span><b>Academy · ' + _viEscSafe(scope.label) + '</b><i>' + _viEscSafe(scope.name) + ' Stage · full team workspace</i><button class="acsb-back" data-acsb-back type="button">← Back to Academy</button>';
-}
+window._acOpen = _acOpen;
 if (typeof document !== 'undefined' && !window._acPortalBound) {
   window._acPortalBound = true;
   document.addEventListener('click', function (e) { var t = e.target.closest && e.target.closest('[data-ac-open]'); if (t) { e.preventDefault(); _acOpen(t.getAttribute('data-ac-open')); } });
-  setInterval(function () { try { if (document.querySelector('.page.active')) _acEnsureBanner(); } catch (e) {} }, 400);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   ACADEMY TEAM WORKSPACE
+   A dedicated, self-contained management shell for ONE academy age group.
+   Strict isolation: every read/write is keyed by the age-group team id
+   (academyTeamId). No age group ever reads or writes First-Team state, and no
+   age group can see another age group's data. The First Team keeps its own
+   independent workspace ('squad') untouched.
+   ════════════════════════════════════════════════════════════════════════ */
+var AT_KEY = 'familista.academy.teams.v1';
+var AT = { active: null, section: 'dashboard' };
+var _AT_DB = null;
+
+// Per-team scoped store. teams[<academyTeamId>] holds everything that team
+// owns. Players are sourced from AC_DB filtered by stage (already isolated),
+// so a player belongs to exactly one age group and can never leak across teams.
+function _atLoad() {
+  if (_AT_DB) return _AT_DB;
+  _AT_DB = { teams: {} };
+  try { var raw = window.localStorage.getItem(AT_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.teams) _AT_DB = o; } } catch (e) {}
+  return _AT_DB;
+}
+function _atSave() { try { window.localStorage.setItem(AT_KEY, JSON.stringify(_atLoad())); } catch (e) {} }
+// Get (creating if needed) the isolated data bucket for one academy team.
+function _atTeam(id) {
+  var db = _atLoad();
+  if (!db.teams[id]) {
+    var st = _acStage(id);
+    db.teams[id] = {
+      id: id,
+      formation: { name: _atDefaultFormation(id) },
+      tactics: _atDefaultTactics(id),
+      lineup: {},                        // { posIndex: playerId }
+      training: { sessions: [] },
+      attendance: {},                    // { sessionId: { playerId: 'present'|'absent'|'late' } }
+      medical: [],
+      assessments: [],
+      matches: [],
+      reports: [],
+      staff: _atDefaultStaff(id),
+      settings: { focus: (st.objectives && st.objectives[0]) || '' }
+    };
+    _atSave();
+  }
+  return db.teams[id];
+}
+// Younger groups play small-sided; older groups play 11-a-side.
+function _atDefaultFormation(id) {
+  var i = _acStageIdx(id);
+  if (i <= 0) return '2-3-1';            // U5–U7  (7-a-side fun)
+  if (i === 1) return '3-2-3';           // U8–U10 (small-sided)
+  if (i === 2) return '2-3-2-1';         // U11–U13 (9v9 → 11v11)
+  return '4-3-3';                        // U14+ full 11
+}
+function _atFormationsFor(id) {
+  var i = _acStageIdx(id);
+  if (i <= 0) return ['2-3-1', '3-1-2', '1-3-2'];
+  if (i === 1) return ['3-2-3', '2-3-3', '3-3-2'];
+  if (i === 2) return ['2-3-2-1', '3-2-3', '3-4-1'];
+  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1'];
+}
+function _atDefaultTactics(id) {
+  var i = _acStageIdx(id);
+  // Younger = simpler defaults, less intensity; older = more structured.
+  return {
+    mentality: i < 2 ? 'Encourage' : (i < 4 ? 'Balanced' : 'Positive'),
+    tempo: i < 2 ? 'Relaxed' : 'Medium',
+    width: 'Balanced',
+    pressing: i < 2 ? 'Low' : (i < 4 ? 'Medium' : 'High'),
+    line: i < 2 ? 'Deep' : 'Medium',
+    build: i < 1 ? 'Direct fun' : 'Play out from the back'
+  };
+}
+function _atDefaultStaff(id) {
+  var head = _acResponsible(id);
+  var st = _acStage(id), n = st.coachN || 3;
+  var roles = ['Head Coach', 'Assistant Coach', 'Goalkeeping Coach', 'Fitness Coach', 'Welfare Officer'];
+  var pool = ['Miguel Santos', 'Sofia Almeida', 'Ahmed Hassan', 'Lucas Meyer', 'David Silva', 'Marco Rossi', 'Nadia Cheb', 'Paulo Reis', 'Karim B.', 'Ines Costa'];
+  var staff = [{ name: head, role: 'Head Coach', responsible: true }];
+  for (var k = 1; k < n; k++) staff.push({ name: pool[(_acStageIdx(id) * 2 + k) % pool.length], role: roles[k % roles.length], responsible: false });
+  return staff;
+}
+
+// Age-group context object used everywhere in the workspace.
+function _atCtx(id) {
+  var st = _acStage(id);
+  return { id: id, label: st.label, name: st.name, accent: st.accent, stage: st, idx: _acStageIdx(id) };
+}
+// KPIs shown adapt by stage: youngest groups don't show professional metrics.
+function _atShowProKpis(id) { return _acStageIdx(id) >= 3; }         // U14+ (Performance and up)
+function _atShowPromotion(id) { return _acStageIdx(id) >= 4; }       // U17+ (Elite / Pro-Path)
+
+// The ordered section navigation for a team workspace.
+var AT_SECTIONS = [
+  ['dashboard', 'Dashboard', '📊'],
+  ['squad', 'Players / Squad', '👥'],
+  ['staff', 'Coaching Staff', '🧑‍🏫'],
+  ['lineup', 'Lineup', '📋'],
+  ['formation', 'Formation', '⚽'],
+  ['tactics', 'Tactics', '🎯'],
+  ['training', 'Training', '🏃'],
+  ['sessions', 'Sessions & Attendance', '🗓️'],
+  ['matchprep', 'Match Preparation', '🧠'],
+  ['matches', 'Matches', '🏟️'],
+  ['medical', 'Medical', '➕'],
+  ['assessments', 'Assessments', '📈'],
+  ['devpath', 'Development Path', '🌱'],
+  ['reports', 'Reports', '📄'],
+  ['video', 'Video Intelligence', '🎥'],
+  ['settings', 'Age-group Settings', '⚙️']
+];
+
+// ── Enter / leave ──
+function _atEnter(id) {
+  if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
+  _atTeam(id);                 // ensure isolated store exists
+  AT.active = id; AT.section = 'dashboard';
+  navTo('academy-team');
+}
+function _atBack() { AT.active = null; navTo('academy'); }
+function _atGo(section) { AT.section = section; renderAcademyTeamPage(); }
+window._atEnter = _atEnter; window._atBack = _atBack; window._atGo = _atGo;
+
+// ── Shell ──
+function renderAcademyTeamHTML() {
+  if (typeof document !== 'undefined') setTimeout(function () { try { renderAcademyTeamPage(); } catch (e) {} }, 0);
+  return '<div class="page" id="pg-academy-team"><div id="at-shell"></div></div>';
+}
+function renderAcademyTeamPage() {
+  var el = document.getElementById('at-shell'); if (!el) return;
+  var id = AT.active;
+  // Guard: no team selected, or the current user is not allowed → bounce out.
+  if (!id || !_acStage(id) || !_acCanOpen(id)) { _atBack(); return; }
+  var c = _atCtx(id);
+  el.innerHTML =
+    '<div class="at-head" style="--acc:' + c.accent + '">'
+      + '<button class="at-back" type="button" data-at-back>← Back to Academy</button>'
+      + '<div class="at-head-id">'
+        + '<span class="at-head-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
+        + '<div class="at-head-txt"><span class="at-head-kicker">ACADEMY</span>'
+        + '<b>' + _viEscSafe(c.label) + '</b>'
+        + '<i>' + _viEscSafe(c.name) + ' Stage · Responsible Coach: ' + _viEscSafe(_acResponsible(id)) + '</i></div>'
+      + '</div>'
+      + '<div class="at-head-meta"><span>' + _acInStage(id).length + ' players</span><span>' + (c.stage.coachN || 0) + ' coaches</span><span>Dev ' + (_acStageAvg(id) || '—') + '</span></div>'
+    + '</div>'
+    + '<div class="at-body">'
+      + '<nav class="at-nav">' + AT_SECTIONS.map(function (s) {
+          return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
+        }).join('') + '</nav>'
+      + '<div class="at-content" id="at-content">' + _atSection(id, AT.section) + '</div>'
+    + '</div>';
+}
+
+// ── Section router ──
+function _atSection(id, sec) {
+  switch (sec) {
+    case 'dashboard':  return _atSecDashboard(id);
+    case 'squad':      return _atSecSquad(id);
+    case 'staff':      return _atSecStaff(id);
+    case 'lineup':     return _atSecLineup(id);
+    case 'formation':  return _atSecFormation(id);
+    case 'tactics':    return _atSecTactics(id);
+    case 'training':   return _atSecTraining(id);
+    case 'sessions':   return _atSecSessions(id);
+    case 'matchprep':  return _atSecMatchPrep(id);
+    case 'matches':    return _atSecMatches(id);
+    case 'medical':    return _atSecMedical(id);
+    case 'assessments':return _atSecAssessments(id);
+    case 'devpath':    return _atSecDevPath(id);
+    case 'reports':    return _atSecReports(id);
+    case 'video':      return _atSecVideo(id);
+    case 'settings':   return _atSecSettings(id);
+    default:           return _atSecDashboard(id);
+  }
+}
+function _atCard(title, body, sub) {
+  return '<div class="at-card"><div class="at-card-h">' + _viEscSafe(title) + (sub ? '<span>' + _viEscSafe(sub) + '</span>' : '') + '</div><div class="at-card-b">' + body + '</div></div>';
+}
+function _atSecHead(id, title, desc) {
+  var c = _atCtx(id);
+  return '<div class="at-sec-head"><h2>' + _viEscSafe(title) + '</h2><p>' + _viEscSafe(desc) + '</p><span class="at-sec-tag" style="background:' + c.accent + '22;color:' + c.accent + ';border-color:' + c.accent + '55">' + _viEscSafe(c.label + ' · ' + c.name) + '</span></div>';
+}
+
+// ── Sections ──
+function _atSecDashboard(id) {
+  var c = _atCtx(id), st = c.stage, pl = _acInStage(id), t = _atTeam(id);
+  var pro = _atShowProKpis(id);
+  var kpis = pro
+    ? [['Players', pl.length], ['Avg Overall', _acStageAvg(id) || '—'], ['Avg Attendance', Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / (pl.length || 1)) + '%'], ['Sessions', t.training.sessions.length], ['Needs Attention', pl.filter(function (p) { return p.attention; }).length]]
+    : [['Players', pl.length], ['Coaches', st.coachN], ['Sessions', t.training.sessions.length], ['Enjoyment', 'High'], ['Focus', 'Fun & skills']];
+  var kh = '<div class="at-kpis">' + kpis.map(function (k) { return '<div class="at-kpi"><b>' + k[1] + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>';
+  var obj = '<ul class="at-list">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>';
+  var ai = '<ul class="at-list">' + (st.ai || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>';
+  return _atSecHead(id, c.label + ' Dashboard', st.summary)
+    + kh
+    + '<div class="at-grid2">'
+      + _atCard('Stage Objectives', obj)
+      + _atCard('Coaching Focus (AI)', ai)
+    + '</div>'
+    + '<div class="at-grid2">'
+      + _atCard('Methodology', '<p class="at-p">' + _viEscSafe(st.methodology) + '</p>')
+      + _atCard('Philosophy', '<p class="at-p">' + _viEscSafe(st.philosophy) + '</p>')
+    + '</div>';
+}
+function _atSecSquad(id) {
+  var c = _atCtx(id), pl = _acInStage(id), pro = _atShowProKpis(id);
+  var rows = pl.map(function (p) {
+    return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + p.age + '</td>'
+      + (pro ? '<td>' + p.overall + '</td>' : '<td>—</td>')
+      + '<td>' + (p.attendance || 0) + '%</td>'
+      + '<td>' + (p.attention ? '<span class="at-flag">Attention</span>' : '<span class="at-ok">On track</span>') + '</td></tr>';
+  }).join('');
+  var head = pro ? '<th>Overall</th>' : '<th>Level</th>';
+  return _atSecHead(id, 'Players / Squad', 'Isolated roster — these players belong only to ' + c.label + '. Total: ' + pl.length + '.')
+    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Age</th>' + head + '<th>Attendance</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _atSecStaff(id) {
+  var t = _atTeam(id);
+  var rows = t.staff.map(function (s) { return '<tr><td><b>' + _viEscSafe(s.name) + '</b></td><td>' + _viEscSafe(s.role) + '</td><td>' + (s.responsible ? '<span class="at-ok">Responsible</span>' : '—') + '</td></tr>'; }).join('');
+  return _atSecHead(id, 'Coaching Staff', 'Staff assigned to this age group only.')
+    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Name</th><th>Role</th><th>Responsibility</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _atSecLineup(id) {
+  var pl = _acInStage(id), t = _atTeam(id);
+  var picked = pl.slice(0, 11);
+  var rows = picked.map(function (p, i) { return '<tr><td>' + (i + 1) + '</td><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + p.age + '</td></tr>'; }).join('');
+  return _atSecHead(id, 'Lineup', 'Match-day selection for ' + _atCtx(id).label + ' (formation ' + _viEscSafe(t.formation.name) + ').')
+    + _atCard('Selected (' + picked.length + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>#</th><th>Player</th><th>Age</th></tr></thead><tbody>' + rows + '</tbody></table></div>');
+}
+function _atSecFormation(id) {
+  var t = _atTeam(id), opts = _atFormationsFor(id);
+  var pills = opts.map(function (f) { return '<button class="at-pill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('');
+  var pitch = _atPitch(t.formation.name, _atCtx(id).accent);
+  return _atSecHead(id, 'Formation', 'This formation belongs ONLY to ' + _atCtx(id).label + ' — changing it never affects the First Team or any other age group.')
+    + '<div class="at-form-current">Current formation: <b>' + _viEscSafe(t.formation.name) + '</b></div>'
+    + '<div class="at-pills">' + pills + '</div>'
+    + '<div class="at-pitch-wrap">' + pitch + '</div>';
+}
+function _atPitch(name, accent) {
+  var rows = String(name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
+  var lines = 1 + rows.length;                 // GK + outfield lines
+  var html = '<div class="at-pitch"><div class="at-pitch-line at-pitch-gk"><span class="at-dot" style="background:' + accent + '">GK</span></div>';
+  rows.forEach(function (n) {
+    var dots = '';
+    for (var i = 0; i < n; i++) dots += '<span class="at-dot" style="background:' + accent + '"></span>';
+    html += '<div class="at-pitch-line">' + dots + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+function _atSecTactics(id) {
+  var t = _atTeam(id), tc = t.tactics;
+  function sel(key, label, opts) {
+    return '<label class="at-field"><span>' + label + '</span><select data-at-tactic="' + key + '">' + opts.map(function (o) { return '<option' + (tc[key] === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>';
+  }
+  var form =
+    sel('mentality', 'Mentality', ['Encourage', 'Balanced', 'Positive', 'Attacking', 'Cautious'])
+    + sel('tempo', 'Tempo', ['Relaxed', 'Medium', 'High'])
+    + sel('width', 'Width', ['Narrow', 'Balanced', 'Wide'])
+    + sel('pressing', 'Pressing', ['Low', 'Medium', 'High'])
+    + sel('line', 'Defensive Line', ['Deep', 'Medium', 'High'])
+    + sel('build', 'Build-up', ['Direct fun', 'Play out from the back', 'Mixed']);
+  return _atSecHead(id, 'Tactics', 'Tactical settings scoped to ' + _atCtx(id).label + ' only.')
+    + '<div class="at-fields">' + form + '</div>';
+}
+function _atSecTraining(id) {
+  var t = _atTeam(id), st = _acStage(id);
+  var tmpl = (st.curriculum || []).map(function (x) { return '<button class="at-chip" type="button" data-at-add-session="' + _viEscSafe(x).replace(/"/g, '&quot;') + '">+ ' + _viEscSafe(x) + '</button>'; }).join('');
+  var list = t.training.sessions.length
+    ? t.training.sessions.slice().reverse().map(function (s) { return '<tr><td>' + _viEscSafe(s.date) + '</td><td><b>' + _viEscSafe(s.title) + '</b></td><td>' + _viEscSafe(s.focus) + '</td><td><button class="at-del" type="button" data-at-del-session="' + s.id + '">✕</button></td></tr>'; }).join('')
+    : '<tr><td colspan="4" class="at-empty">No sessions yet — add one from the age-appropriate templates above. These sessions belong only to ' + _viEscSafe(_atCtx(id).label) + '.</td></tr>';
+  return _atSecHead(id, 'Training', st.methodology)
+    + _atCard('Age-appropriate session templates', '<div class="at-chips">' + tmpl + '</div>', st.label)
+    + _atCard('Planned sessions (' + t.training.sessions.length + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Date</th><th>Session</th><th>Focus</th><th></th></tr></thead><tbody>' + list + '</tbody></table></div>');
+}
+function _atSecSessions(id) {
+  var t = _atTeam(id), pl = _acInStage(id);
+  if (!t.training.sessions.length) return _atSecHead(id, 'Sessions & Attendance', 'Create training sessions first, then record attendance here.') + '<div class="at-empty at-empty-box">No sessions to track yet.</div>';
+  var last = t.training.sessions[t.training.sessions.length - 1];
+  var att = t.attendance[last.id] || {};
+  var rows = pl.map(function (p) { var v = att[p.id] || 'present'; return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + ['present', 'late', 'absent'].map(function (s) { return '<label class="at-att"><input type="radio" name="att_' + p.id + '" value="' + s + '"' + (v === s ? ' checked' : '') + ' data-at-att="' + last.id + '|' + p.id + '|' + s + '"> ' + s + '</label>'; }).join('') + '</td></tr>'; }).join('');
+  return _atSecHead(id, 'Sessions & Attendance', 'Attendance for the latest session — scoped to ' + _atCtx(id).label + '.')
+    + _atCard('Latest: ' + _viEscSafe(last.title) + ' (' + _viEscSafe(last.date) + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Attendance</th></tr></thead><tbody>' + rows + '</tbody></table></div>');
+}
+function _atSecMatchPrep(id) {
+  var st = _acStage(id);
+  return _atSecHead(id, 'Match Preparation', 'Preparation priorities adapted to the ' + st.name + ' stage.')
+    + '<div class="at-grid2">'
+      + _atCard('Tactical focus', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
+      + _atCard('Technical focus', '<ul class="at-list">' + (st.tech || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
+    + '</div>';
+}
+function _atSecMatches(id) {
+  var t = _atTeam(id);
+  var rows = t.matches.length ? t.matches.map(function (m) { return '<tr><td>' + _viEscSafe(m.date) + '</td><td>' + _viEscSafe(m.opp) + '</td><td>' + _viEscSafe(m.result || '—') + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="at-empty">No fixtures recorded for ' + _viEscSafe(_atCtx(id).label) + ' yet.</td></tr>';
+  return _atSecHead(id, 'Matches', 'Fixtures & results for this age group only.')
+    + '<div class="at-actions"><button class="at-btn" type="button" data-at-add-match>+ Add fixture</button></div>'
+    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Date</th><th>Opponent</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _atSecMedical(id) {
+  var t = _atTeam(id);
+  var rows = t.medical.length ? t.medical.map(function (m) { return '<tr><td><b>' + _viEscSafe(m.player) + '</b></td><td>' + _viEscSafe(m.issue) + '</td><td>' + _viEscSafe(m.status) + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="at-empty">No medical records for ' + _viEscSafe(_atCtx(id).label) + '. Player welfare is monitored per age group.</td></tr>';
+  return _atSecHead(id, 'Medical', 'Medical & welfare records scoped to this age group.')
+    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Issue</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _atSecAssessments(id) {
+  var st = _acStage(id), pl = _acInStage(id);
+  // Assessment priorities differ by stage (younger → fewer, softer dimensions).
+  var dims = _acStageIdx(id) < 2 ? [['technical', 'Ball skills'], ['physical', 'Coordination'], ['social', 'Teamwork'], ['psychological', 'Enjoyment']]
+    : (_acStageIdx(id) < 4 ? [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'], ['psychological', 'Mentality'], ['decision', 'Decisions']]
+      : AC_DIMS);
+  var head = dims.map(function (d) { return '<th>' + _viEscSafe(d[1]) + '</th>'; }).join('');
+  var rows = pl.slice(0, 12).map(function (p) { return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td>' + dims.map(function (d) { return '<td>' + (p.dims[d[0]] || '—') + '</td>'; }).join('') + '</tr>'; }).join('');
+  return _atSecHead(id, 'Assessments', 'Assessment priorities adapt to the ' + st.name + ' stage.')
+    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+function _atSecDevPath(id) {
+  var st = _acStage(id), idx = _acStageIdx(id);
+  var path = AC_STAGES.map(function (s, i) { return '<div class="at-path-node' + (i === idx ? ' is-on' : '') + (i < idx ? ' done' : '') + '" style="--acc:' + s.accent + '"><b>' + _viEscSafe(s.label) + '</b><span>' + _viEscSafe(s.name) + '</span></div>'; }).join('<span class="at-path-arrow">→</span>');
+  var prom = _atShowPromotion(id)
+    ? _atCard('Promotion readiness', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
+    : _atCard('What comes next', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
+  return _atSecHead(id, 'Development Path', 'Where ' + _atCtx(id).label + ' sits in the club pathway.')
+    + '<div class="at-path">' + path + '</div>'
+    + prom;
+}
+function _atSecReports(id) {
+  var pl = _acInStage(id), t = _atTeam(id);
+  return _atSecHead(id, 'Reports', 'Reporting scoped to ' + _atCtx(id).label + '.')
+    + '<div class="at-grid3">'
+      + _atCard('Squad size', '<div class="at-big">' + pl.length + '</div>')
+      + _atCard('Training sessions', '<div class="at-big">' + t.training.sessions.length + '</div>')
+      + _atCard('Avg attendance', '<div class="at-big">' + Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / (pl.length || 1)) + '%</div>')
+    + '</div>';
+}
+function _atSecVideo(id) {
+  return _atSecHead(id, 'Video Intelligence', 'Age-group video analysis.')
+    + '<div class="at-notice"><div class="at-notice-badge">VIDEO INTELLIGENCE · ' + _viEscSafe(_atCtx(id).label) + '</div><div class="at-notice-status"><span class="at-notice-dot"></span><b>Currently being updated</b></div><p>A new professional version is under development. When ready it will be scoped to this age group.</p></div>';
+}
+function _atSecSettings(id) {
+  var c = _atCtx(id), t = _atTeam(id);
+  return _atSecHead(id, 'Age-group Settings', 'Configuration for ' + c.label + '.')
+    + '<div class="at-fields">'
+      + '<label class="at-field"><span>Team name</span><input class="at-input" value="' + _viEscSafe(c.label + ' · ' + c.name) + '" disabled></label>'
+      + '<label class="at-field"><span>Responsible coach</span><input class="at-input" value="' + _viEscSafe(_acResponsible(id)) + '" disabled></label>'
+      + '<label class="at-field"><span>Primary focus</span><input class="at-input" data-at-setting="focus" value="' + _viEscSafe(t.settings.focus || '') + '"></label>'
+      + '<label class="at-field"><span>Match format</span><input class="at-input" value="' + (_acStageIdx(id) <= 0 ? '7-a-side' : _acStageIdx(id) === 1 ? 'Small-sided' : _acStageIdx(id) === 2 ? '9v9 → 11v11' : '11-a-side') + '" disabled></label>'
+    + '</div>';
+}
+
+// ── Workspace interactions (all writes keyed by AT.active — never First Team) ──
+if (typeof document !== 'undefined' && !window._atBound) {
+  window._atBound = true;
+  document.addEventListener('click', function (e) {
+    var id = AT.active; if (!id) return;
+    var t = e.target;
+    var back = t.closest && t.closest('[data-at-back]');
+    if (back) { e.preventDefault(); _atBack(); return; }
+    if (!_acCanOpen(id)) return;                         // hard permission gate on every write
+    var go = t.closest && t.closest('[data-at-go]');
+    if (go) { e.preventDefault(); _atGo(go.getAttribute('data-at-go')); return; }
+    var fm = t.closest && t.closest('[data-at-formation]');
+    if (fm) { e.preventDefault(); var team = _atTeam(id); team.formation.name = fm.getAttribute('data-at-formation'); _atSave(); renderAcademyTeamPage(); return; }
+    var addS = t.closest && t.closest('[data-at-add-session]');
+    if (addS) {
+      e.preventDefault();
+      var title = addS.getAttribute('data-at-add-session');
+      var team2 = _atTeam(id);
+      team2.training.sessions.push({ id: 'ses' + Date.now(), title: title, focus: _acStage(id).name, date: new Date().toISOString().slice(0, 10) });
+      _atSave(); renderAcademyTeamPage();
+      try { showToast('Session added to ' + _atCtx(id).label, 'success'); } catch (_) {}
+      return;
+    }
+    var delS = t.closest && t.closest('[data-at-del-session]');
+    if (delS) {
+      e.preventDefault();
+      var sid = delS.getAttribute('data-at-del-session'), team3 = _atTeam(id);
+      team3.training.sessions = team3.training.sessions.filter(function (s) { return s.id !== sid; });
+      delete team3.attendance[sid]; _atSave(); renderAcademyTeamPage(); return;
+    }
+    var addM = t.closest && t.closest('[data-at-add-match]');
+    if (addM) {
+      e.preventDefault();
+      var team4 = _atTeam(id);
+      team4.matches.push({ date: new Date().toISOString().slice(0, 10), opp: 'Rivals ' + _atCtx(id).label, result: '' });
+      _atSave(); renderAcademyTeamPage(); return;
+    }
+  });
+  document.addEventListener('change', function (e) {
+    var id = AT.active; if (!id || !_acCanOpen(id)) return;
+    var tac = e.target.closest && e.target.closest('[data-at-tactic]');
+    if (tac) { var team = _atTeam(id); team.tactics[tac.getAttribute('data-at-tactic')] = tac.value; _atSave(); return; }
+    var att = e.target.getAttribute && e.target.getAttribute('data-at-att');
+    if (att && e.target.checked) { var parts = att.split('|'); var team2 = _atTeam(id); (team2.attendance[parts[0]] = team2.attendance[parts[0]] || {})[parts[1]] = parts[2]; _atSave(); return; }
+  });
+  document.addEventListener('input', function (e) {
+    var id = AT.active; if (!id || !_acCanOpen(id)) return;
+    var setg = e.target.getAttribute && e.target.getAttribute('data-at-setting');
+    if (setg) { var team = _atTeam(id); team.settings[setg] = e.target.value; _atSave(); return; }
+  });
 }
