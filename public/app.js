@@ -44311,7 +44311,7 @@ var AT_STAFF_ROLES = ['Assistant Coach', 'Goalkeeping Coach', 'Fitness Coach', '
 // Large, name-first staff card — the dominant content on the page.
 function _atStaffCard(s, accent) {
   var meta = _atRoleMeta(s.role);
-  var av = s.photo ? '<span class="acs-card-av" style="background-image:url(' + s.photo + ')"></span>' : '<span class="acs-card-av" style="background:' + meta.tone + '">' + _viEscSafe(_atInitials(s.name)) + '</span>';
+  var av = s.photo ? '<span class="acs-card-av" style="background-image:url(' + s.photo + ')"></span>' : '<span class="acs-card-av">' + _viEscSafe(_atInitials(s.name)) + '</span>';
   return '<div class="acs-card acs-card--' + meta.tone + '" style="--acc:' + accent + '">'
     + av
     + '<div class="acs-card-body">'
