@@ -8627,13 +8627,26 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 @media (max-width:1240px){ #at-lu-home .sqf-cards{ grid-template-columns:repeat(2,1fr); } }
 @media (max-width:820px){ #at-lu-home .sqf-cards{ grid-template-columns:1fr; max-width:560px; } }
 
-.at-lumod-back{ display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-.at-lumod-backbtn{
-  font:700 12px Inter; color:var(--tx-2); background:var(--bg-3);
-  border:1px solid var(--bd-2); border-radius:10px; padding:9px 15px; cursor:pointer;
-  transition:color .15s ease, border-color .15s ease;
+/* The Academy module header reuses the First Team .sq-sub-header / .sq-back-btn
+   / .sql-tabs classes verbatim. The only adjustment: that header was written
+   for a full-bleed page, while here it sits inside .at-content which already
+   carries its own padding — so drop the outer padding and tighten the rhythm.
+   Scoped to .at-lumod-header, so the First Team header is unaffected. */
+.at-lumod-header{ padding:0; margin-bottom:18px; }
+.at-lumod-header .sq-back-btn{ margin-bottom:14px; }
+.at-lumod-header .sql-tabs{ margin-top:0; }
+.at-lumod-header .sql-tab:focus-visible{ outline:2px solid var(--acc,#a78bfa); outline-offset:2px; }
+
+/* ═══ Shared Formation tools — professional empty state ═══
+   Used when a tool's data genuinely does not exist for the rendered team
+   context (e.g. an Academy age group has no scouted opponent squad), instead
+   of inventing values. Additive only — no First Team rule is changed. */
+.sqtc-empty{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  min-height:180px; padding:28px 24px; text-align:center;
+  background:rgba(255,255,255,.02); border:1px dashed rgba(255,255,255,.12); border-radius:14px;
 }
-.at-lumod-backbtn:hover{ color:#fff; border-color:var(--acc,#a78bfa); }
-.at-lumod-backbtn:focus-visible{ outline:2px solid var(--acc,#a78bfa); outline-offset:2px; }
-.at-lumod-crumb{ font:700 11.5px Inter; color:var(--tx-3); letter-spacing:.2px; }
-.at-lumod-crumb i{ font-style:normal; color:var(--bd-2); margin:0 5px; }
+.sqtc-empty b{ font:800 14px Inter,system-ui,Arial; color:#e8eef8; }
+.sqtc-empty span{ font:500 12.5px/1.6 Inter,system-ui,Arial; color:#8b95a8; max-width:420px; }
+/* Academy host for the shared command centre */
+.at-formation-cmd{ margin-top:4px; }

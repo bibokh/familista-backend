@@ -3348,7 +3348,13 @@ function _sqFormationBodyLegacy() {
   var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
-function _sqRenderFormationBody() { var b = document.getElementById('sqfp-body'); if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); } }
+function _sqRenderFormationBody() {
+  var b = document.getElementById('sqfp-body');
+  if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); return; }
+  // The same command centre is also hosted by the Academy Formation workspace,
+  // which owns its own container — refresh that instead when it is the one open.
+  if (document.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
+}
 
 // ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
 function _sqTacEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -4612,7 +4618,22 @@ function _sqBenchMy() {
   var bal = Math.max(50, Math.min(94, 60 + distinct * 7 + Math.min(8, ps.length)));
   return { ovr: _sqMeanQ(ps), balance: bal, n: ps.length };
 }
-function _sqTeamReport(side) {
+function _sqTeamReport(side, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type !== 'first') {
+    // Academy: all values from this age group's own roster/lineup/formation.
+    var xi = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
+    var bn = (C.benchIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
+    var avg = function (a, k) { return a.length ? Math.round(a.reduce(function (s, p) { return s + (p[k] || 0); }, 0) / a.length) : 0; };
+    var slots = C.formationSlots || [];
+    var cover = slots.length ? Math.round(Math.min(1, xi.length / slots.length) * 100) : 0;
+    var xiO = avg(xi, 'qual'), bnO = avg(bn, 'qual');
+    var mFit = avg(xi, 'cond');
+    var bal = slots.length ? Math.round(100 - Math.abs(slots.length - xi.length) / slots.length * 100) : 0;
+    return { name: C.label, formation: C.formation, ovr: Math.round(xiO * 0.82 + bnO * 0.18), balance: bal,
+      xiOvr: xiO, xiBalance: bal, benchOvr: bnO, benchBalance: bn.length ? bal : 0,
+      compat: cover, formEff: cover, exec: mFit };
+  }
   if (side === 'my') {
     var my = _sqMyStats(), formEff = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency, bench = _sqBenchMy();
     return { name: 'My Team', formation: SQ_FORM.myFormation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
@@ -4625,8 +4646,9 @@ function _sqTeamReport(side) {
 }
 // role badges derived from the real lineup (captain flag + role strings + quality)
 var SQ_ROLE_LABEL = { C: 'Captain', VC: 'Vice-captain', P: 'Penalty taker', FK: 'Free-kick taker', CK: 'Corner taker', PM: 'Playmaker', TM: 'Target man' };
-function _sqRoleMap() {
-  var ps = (SQ_MY_IDS || []).map(_sqP).filter(Boolean), map = {};
+function _sqRoleMap(ctx) {
+  var C = _sqCtx(ctx);
+  var ps = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean), map = {};
   function add(p, b) { if (!p) return; (map[p.id] = map[p.id] || []); if (map[p.id].indexOf(b) < 0) map[p.id].push(b); }
   var byQ = ps.slice().sort(function (a, b) { return b.qual - a.qual; });
   add(ps.filter(function (p) { return p.captain; })[0], 'C');
@@ -4747,14 +4769,15 @@ function _sqMdPitch(side) {
   return '<div class="sqmd-pitch sqmd-pitch--' + side + '">' + _sqMdField() + zones + cards + warn + '</div>';
 }
 function _sqMdFieldShared() { return _sqMdField(); }
-function _sqMdPitchShared() {
-  var cards = '', oop = false, so = SQ_FORM.showOpp;
-  if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
-  var rm = _sqRoleMap();
+function _sqMdPitchShared(ctx) {
+  var C = _sqCtx(ctx);
+  var cards = '', oop = false, so = SQ_FORM.showOpp && C.hasOpponent;
+  if (C.type === 'first' && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
+  var rm = _sqRoleMap(C);
   // My team — depth (pos.y) → horizontal L, width (pos.x) → vertical T. Always the full pitch
   // (GK at left goal, attack toward right). The opponent overlays the same field when toggled on.
-  (SQ_MY_IDS || []).forEach(function (id) {
-    var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return;
+  (C.starterIds || []).forEach(function (id) {
+    var p = _sqCtxP(id, C), pos = C.posMy[id]; if (!p || !pos) return;
     var L = Math.max(6, Math.min(94, 100 - pos.y));
     var T = Math.max(6, Math.min(94, pos.x));
     var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16;
@@ -4788,14 +4811,16 @@ function _sqMdSummary(rep, side) {
     + stat('XI OVR', rep.xiOvr, '') + stat('XI Bal', rep.xiBalance, '%')
     + stat('Bench OVR', rep.benchOvr, '') + stat('Bench Bal', rep.benchBalance, '%') + '</div></div>';
 }
-function _sqMdBench(side) {
+function _sqMdBench(side, ctx) {
+  var C = _sqCtx(ctx);
   if (side === 'my') {
-    var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
-    var chips = ids.map(_sqP).filter(Boolean).map(function (p) {
+    var ids = (C.benchIds || []).concat((C.reserve || []).map(function (p) { return p.id; }));
+    var chips = ids.map(function (id) { return _sqCtxP(id, C); }).filter(Boolean).map(function (p) {
       return '<div class="sqmd-bench-chip sql-pos--' + p.cat + '" data-sub="' + p.id + '" data-tier="bench" title="Drag onto a starter to substitute"><span class="sqmd-bc-av sqmd-bc-av--my">' + _sqImgTag('sqmd-bc-img', p.photo, _sqLastName(p.name), p.id) + '</span>'
         + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqmd-bc-sub">' + p.pos + ' · ' + p.qual + '</span></span></div>';
     }).join('');
-    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">My Team bench <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
+    var benchLbl = C.type === 'first' ? 'My Team bench' : _sqEsc(C.label) + ' bench';
+    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">' + benchLbl + ' <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
   }
   var oIds = (SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds());
   var chips2 = oIds.map(_sqOppFind).filter(Boolean).map(function (p) {
@@ -4872,11 +4897,16 @@ function _sqTeamFeel() {
   var pm = (typeof _sqPlanMetrics === 'function') ? _sqPlanMetrics() : { depthScore: 70 };
   return { tacticalBalance: my.balance, attacking: an ? Math.round(att / an) : my.ovr, defensive: dn ? Math.round(def / dn) : my.ovr, depth: pm.depthScore, condition: cn ? Math.round(cond / cn) : 85 };
 }
-function _sqTcHead(side, rep) {
-  var name = side === 'my' ? _sqClubName() : 'Opponent', cur = side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation;
+function _sqTcHead(side, rep, ctx) {
+  var C = _sqCtx(ctx);
+  var isAc = C.type !== 'first';
+  var name = isAc ? C.label : (side === 'my' ? _sqClubName() : 'Opponent');
+  var cur = isAc ? C.formation : (side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation);
   var ini = name.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase() || 'FC';
   function chip(l, v, s) { return '<span class="sqtc-chip"><i>' + l + '</i><b>' + v + (s || '') + '</b></span>'; }
-  var sel = '<select class="sqtc-form-sel" data-side="' + side + '" aria-label="Formation">' + (SQ_FORM_NAMES || []).map(function (n) { return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
+  // Academy: only the formats actually configured for this age group.
+  var opts = isAc ? (C.formationOptions || [cur]) : (SQ_FORM_NAMES || []);
+  var sel = '<select class="sqtc-form-sel" data-side="' + side + '"' + (isAc ? ' data-at-formsel="1"' : '') + ' aria-label="Formation">' + opts.map(function (n) { return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
   return '<div class="sqtc-head sqtc-head--' + side + '"><span class="sqtc-badge sqtc-badge--' + side + '">' + ini + '</span>'
     + '<div class="sqtc-head-id"><span class="sqtc-head-nm">' + _sqEsc(name) + '</span>' + sel + '</div>'
     + '<div class="sqtc-chips">' + chip('OVR', rep.ovr, '') + chip('Bal', rep.balance, '%') + chip('XI', rep.xiOvr, '') + chip('XI bal', rep.xiBalance, '%') + chip('Bench', rep.benchOvr, '') + chip('Bench bal', rep.benchBalance, '%') + '</div></div>';
@@ -4886,20 +4916,23 @@ function _sqTcSummaryCards() {
   function card(l, v, s) { var pct = Math.max(4, Math.min(100, v)); return '<div class="sqtc-scard"><span class="sqtc-scard-l">' + l + '</span><b class="sqtc-scard-v">' + v + (s || '') + '</b><span class="sqtc-scard-bar"><i style="width:' + pct + '%"></i></span></div>'; }
   return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
 }
-function _sqTcOverview(my, op) {
-  var so = SQ_FORM.showOpp;
-  var toggle = '<button class="sqtc-opp-toggle' + (so ? ' is-on' : '') + '" data-action="sqCmdToggleOpp" type="button">' + (so ? 'Hide opponent' : 'Show opponent') + '</button>';
-  var top = '<div class="sqtc-shared-top"><span class="sqtc-side-lbl sqtc-side-lbl--my">' + _sqEsc(_sqClubName()) + ' · ' + my.formation + '</span>'
+function _sqTcOverview(my, op, ctx) {
+  var C = _sqCtx(ctx);
+  var so = SQ_FORM.showOpp && C.hasOpponent;
+  var toggle = C.hasOpponent
+    ? '<button class="sqtc-opp-toggle' + (so ? ' is-on' : '') + '" data-action="sqCmdToggleOpp" type="button">' + (so ? 'Hide opponent' : 'Show opponent') + '</button>'
+    : '<span class="sqtc-side-lbl sqtc-side-lbl--solo">' + _sqEsc(C.format) + '</span>';
+  var top = '<div class="sqtc-shared-top"><span class="sqtc-side-lbl sqtc-side-lbl--my">' + _sqEsc(C.type === 'first' ? _sqClubName() : C.label) + ' · ' + my.formation + '</span>'
     + toggle
-    + (so ? '<span class="sqtc-side-lbl sqtc-side-lbl--opp">Opponent · ' + op.formation + '</span>' : '<span class="sqtc-side-lbl sqtc-side-lbl--solo">My Team view</span>')
+    + (so ? '<span class="sqtc-side-lbl sqtc-side-lbl--opp">Opponent · ' + op.formation + '</span>' : '<span class="sqtc-side-lbl sqtc-side-lbl--solo">' + (C.type === 'first' ? 'My Team view' : 'Age-group view') + '</span>')
     + '</div>';
-  var benches = '<div class="sqtc-shared-benches' + (so ? '' : ' is-solo') + '"><div class="sqtc-bench-col">' + _sqMdBench('my') + '</div>'
-    + (so ? '<div class="sqtc-bench-col">' + _sqMdBench('opp') + '</div>' : '') + '</div>';
+  var benches = '<div class="sqtc-shared-benches' + (so ? '' : ' is-solo') + '"><div class="sqtc-bench-col">' + _sqMdBench('my', C) + '</div>'
+    + (so ? '<div class="sqtc-bench-col">' + _sqMdBench('opp', C) + '</div>' : '') + '</div>';
   return '<div class="sqtc-overview">'
     + top
-    + '<div class="sqtc-shared-wrap">' + _sqMdPitchShared() + '</div>'
+    + '<div class="sqtc-shared-wrap">' + _sqMdPitchShared(C) + '</div>'
     + benches
-    + _sqTcSummaryCards()
+    + (C.type === 'first' ? _sqTcSummaryCards() : '')
     + '</div>';
 }
 // ── Matchup popup: floating controller + independent floating glass sub-panels (one per tab) — UI only, no data/calc change ──
@@ -5038,26 +5071,46 @@ function _sqMxBuild(my, op) {
   if (typeof _sqMxBind === 'function') _sqMxBind();
   return { launch: launch, subs: subs, full: full };
 }
-function _sqHeatGrid(side) {
+function _sqHeatGrid(side, ctx) {
   var grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], max = 1;
+  var C = _sqCtx(ctx);
   if (side === 'my') {
-    (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id), pos = SQ_POS_MY[id]; if (!p || !pos) return; var row = pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2, col = pos.x < 37 ? 0 : pos.x < 63 ? 1 : 2, d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); grid[row][col] += _sqEffQual(p, d); });
+    (C.starterIds || []).forEach(function (id) { var p = _sqCtxP(id, C), pos = C.posMy[id]; if (!p || !pos) return; var row = pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2, col = pos.x < 37 ? 0 : pos.x < 63 ? 1 : 2, d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); grid[row][col] += _sqEffQual(p, d); });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) { if (!a.player) return; var s = a.slot, row = s.y < 42 ? 0 : s.y < 67 ? 1 : 2, col = s.x < 37 ? 0 : s.x < 63 ? 1 : 2; grid[row][col] += a.player.qual; });
   }
   for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) max = Math.max(max, grid[r][c]);
   return { grid: grid, max: max };
 }
-function _sqTcHeatmap() {
+function _sqTcHeatmap(ctx) {
+  var C = _sqCtx(ctx);
   function gridHtml(side, label, col) {
-    var g = _sqHeatGrid(side), cells = '';
+    var g = _sqHeatGrid(side, C), cells = '';
     for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) { var v = g.grid[r][c], pct = Math.round(v / g.max * 100); cells += '<div class="sqtc-heat-cell" style="background:rgba(' + col + ',' + (0.06 + pct / 100 * 0.72).toFixed(2) + ')"><span>' + (v ? pct : 0) + '</span></div>'; }
     return '<div class="sqtc-heat"><div class="sqtc-heat-hd">' + label + '</div><div class="sqtc-heat-body"><div class="sqtc-heat-ax"><span>Attack</span><span>Midfield</span><span>Defence</span></div><div class="sqtc-heat-grid">' + cells + '</div></div></div>';
   }
-  return '<div class="sqtc-heatwrap">' + gridHtml('my', _sqEsc(_sqClubName()), '74,222,128') + gridHtml('opp', 'Opponent', '96,165,250') + '</div><div class="sqtc-note">Brighter zones show where each side concentrates quality and presence — derived live from the formation. (Ready for live match heatmaps.)</div>';
+  // Without an opponent squad (Academy age groups have none) only the team's own
+  // occupation is real — the opponent grid is omitted rather than invented.
+  var mine = gridHtml('my', _sqEsc(C.label), '74,222,128');
+  if (!C.hasOpponent) {
+    return '<div class="sqtc-heatwrap">' + mine + '</div><div class="sqtc-note">Brighter zones show where ' + _sqEsc(C.label) + ' concentrates quality and presence — derived live from the selected lineup and formation. No opponent squad is recorded for this age group, so no opponent grid is shown.</div>';
+  }
+  return '<div class="sqtc-heatwrap">' + mine + gridHtml('opp', 'Opponent', '96,165,250') + '</div><div class="sqtc-note">Brighter zones show where each side concentrates quality and presence — derived live from the formation. (Ready for live match heatmaps.)</div>';
 }
-function _sqTcZones() {
-  var myg = _sqHeatGrid('my').grid, opg = _sqHeatGrid('opp').grid;
+function _sqTcZones(ctx) {
+  var C = _sqCtx(ctx);
+  if (!C.hasOpponent) {
+    var g = _sqHeatGrid('my', C).grid;
+    var tot = 0, r0, c0; for (r0 = 0; r0 < 3; r0++) for (c0 = 0; c0 < 3; c0++) tot += g[r0][c0];
+    tot = tot || 1;
+    var bandsSolo = [['Attacking third', 0], ['Middle third', 1], ['Defensive third', 2]];
+    var rowsSolo = bandsSolo.map(function (b) {
+      var v = g[b[1]][0] + g[b[1]][1] + g[b[1]][2], pct = Math.round(v / tot * 100);
+      return '<div class="sqtc-zone"><div class="sqtc-zone-l">' + b[0] + '</div><div class="sqtc-zone-bar"><i class="sqtc-zone-my" style="width:' + pct + '%"></i></div><div class="sqtc-zone-w sqtc-zone-w--my">' + pct + '%</div></div>';
+    }).join('');
+    return '<div class="sqtc-zoneswrap">' + rowsSolo + '</div><div class="sqtc-note">Share of this age group’s committed quality in each third. Zone control against an opponent is unavailable — no opponent squad is recorded for this age group.</div>';
+  }
+  var myg = _sqHeatGrid('my', C).grid, opg = _sqHeatGrid('opp', C).grid;
   function band(g, r) { return g[r][0] + g[r][1] + g[r][2]; }
   var bands = [['Attacking third', 0], ['Middle third', 1], ['Defensive third', 2]];
   var rows = bands.map(function (b) {
@@ -5067,17 +5120,32 @@ function _sqTcZones() {
   }).join('');
   return '<div class="sqtc-zoneswrap">' + rows + '</div><div class="sqtc-note">Zone control compares the quality each side commits to each third of the pitch.</div>';
 }
-function _sqTcSetpieces() {
-  var rm = _sqRoleMap(), find = function (b) { for (var id in rm) { if (rm[id].indexOf(b) >= 0) { var p = _sqP(id); if (p) return p; } } return null; };
+function _sqTcSetpieces(ctx) {
+  var C = _sqCtx(ctx);
+  var rm = _sqRoleMap(C), find = function (b) { for (var id in rm) { if (rm[id].indexOf(b) >= 0) { var p = _sqCtxP(id, C); if (p) return p; } } return null; };
   var items = [['Penalties', 'P'], ['Free kicks', 'FK'], ['Corners', 'CK'], ['Captain', 'C'], ['Vice-captain', 'VC']];
   var cards = items.map(function (it) { var p = find(it[1]); return '<div class="sqtc-spc"><span class="sqtc-spc-l">' + it[0] + '</span>' + (p ? '<div class="sqtc-spc-p">' + _sqMdAvatar(p.photo, (_sqLastName(p.name) || '?').slice(0, 1), 'my') + '<span class="sqtc-spc-meta"><span class="sqtc-spc-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqtc-spc-o">' + p.pos + ' · ' + p.qual + '</span></span></div>' : '<span class="sqtc-spc-empty">—</span>') + '</div>'; }).join('');
   return '<div class="sqtc-setpieces">' + cards + '</div><div class="sqtc-note">Designated takers are derived from the lineup — captaincy, role profiles and quality.</div>';
 }
-function _sqTcInstructions() {
-  var rows = (SQ_MY_IDS || []).map(function (id) { var p = _sqP(id); if (!p) return ''; var k = _sqInstrOf(id), instr = SQ_INSTR[k] || SQ_INSTR.hold; return '<div class="sqtc-instr"><span class="sqtc-instr-dot" style="background:' + _sqInstrColor(instr.type) + '"></span><span class="sqtc-instr-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqtc-instr-pos">' + p.pos + '</span><span class="sqtc-instr-r">' + instr.label + '</span></div>'; }).join('');
+function _sqTcInstructions(ctx) {
+  var C = _sqCtx(ctx);
+  var rows = (C.starterIds || []).map(function (id) { var p = _sqCtxP(id, C); if (!p) return ''; var k = _sqInstrOf(id), instr = SQ_INSTR[k] || SQ_INSTR.hold; return '<div class="sqtc-instr"><span class="sqtc-instr-dot" style="background:' + _sqInstrColor(instr.type) + '"></span><span class="sqtc-instr-nm">' + _sqEsc(_sqLastName(p.name)) + '</span><span class="sqtc-instr-pos">' + p.pos + '</span><span class="sqtc-instr-r">' + instr.label + '</span></div>'; }).join('');
+  if (!rows) return '<div class="sqtc-empty"><b>No players selected</b><span>Pick a starting lineup for this team to see per-player instructions.</span></div>';
   return '<div class="sqtc-instrs">' + rows + '</div><div class="sqtc-note">Live tactical instructions per player — the basis for future AI recommendations.</div>';
 }
-function _sqTcStats(my, op) {
+function _sqTcStats(my, op, ctx) {
+  var C = _sqCtx(ctx);
+  if (!C.hasOpponent) {
+    // Solo report — only this team's own real values, no opponent column.
+    function row(l, v, s) { return '<div class="sqcw-mtr sqcw-mtr--bal"><span class="sqcw-mtr-l">' + l + '</span><span class="sqcw-mtr-track"><i style="width:' + Math.max(2, Math.min(100, v)) + '%"></i></span><b class="sqcw-mtr-v">' + v + (s || '') + '</b></div>'; }
+    return '<div class="sqtc-statswrap"><div class="sqtc-stats-hd"><span>' + _sqEsc(C.label) + '</span><span></span></div>'
+      + '<div class="sqmd-bars">' + row('Team OVR', my.ovr, '') + row('Team Balance', my.balance, '%')
+      + row('Selected XI OVR', my.xiOvr, '') + row('Selected XI Balance', my.xiBalance, '%')
+      + row('Bench OVR', my.benchOvr, '') + row('Bench Balance', my.benchBalance, '%')
+      + row('Tactical compatibility', my.compat, '%') + row('Formation efficiency', my.formEff, '%')
+      + row('Tactical execution', my.exec, '%') + '</div></div>'
+      + '<div class="sqtc-note">Values are computed from this age group’s own players and saved formation. No opponent squad is recorded for this age group, so no comparison is shown.</div>';
+  }
   var bars = '<div class="sqmd-bars">'
     + _sqBarPair('Team OVR', my.ovr, op.ovr, '') + _sqBarPair('Team Balance', my.balance, op.balance, '%')
     + _sqBarPair('Starting XI OVR', my.xiOvr, op.xiOvr, '') + _sqBarPair('Starting XI Balance', my.xiBalance, op.xiBalance, '%')
@@ -5384,6 +5452,70 @@ function _sqCmpPopup(id) {
   }
   return html + '</div>';
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   EXPLICIT TEAM CONTEXT
+   The Formation command centre used to read module globals directly, which
+   meant it could only ever describe the First Team. It now receives a context
+   object describing WHICH team it is rendering. Every First Team call site
+   passes nothing, so `_sqCtx(undefined)` returns the First Team context backed
+   by the very same globals as before — same data, same behaviour, same result.
+   The Academy passes its own context built from the selected age group.
+   No global is ever reassigned; the context is threaded as a parameter.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// Small-sided shapes for the Academy formats (3v3 → 9v9). Same slot geometry
+// language as SQ_FORMATIONS (x = width %, y = depth %, c = category, r = role),
+// so every existing renderer can draw them unchanged. Kept in their own table
+// so SQ_FORMATIONS — and therefore the First Team — is untouched.
+var SQ_FORMATIONS_SMALL = {
+  '1-1':     _GK.concat(_ln('df', 70, [50], ['CB']), _ln('fw', 34, [50], ['ST'])),                                            // 3v3
+  '2-1':     _GK.concat(_ln('df', 72, [32, 68], ['LB', 'RB']), _ln('fw', 34, [50], ['ST'])),                                  // 4v4
+  '2-2':     _GK.concat(_ln('df', 72, [32, 68], ['LB', 'RB']), _ln('fw', 36, [32, 68], ['ST', 'ST'])),                        // 5v5
+  '3-1-2':   _GK.concat(_ln('df', 74, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [50], ['CM']), _ln('fw', 30, [34, 66], ['ST', 'ST'])),      // 7v7
+  '1-3-2':   _GK.concat(_ln('df', 74, [50], ['CB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 30, [34, 66], ['ST', 'ST'])),      // 7v7
+  '2-3-1':   _GK.concat(_ln('df', 74, [32, 68], ['LB', 'RB']), _ln('mf', 50, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [50], ['ST'])),      // 7v7
+  '3-2-1':   _GK.concat(_ln('df', 74, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 50, [34, 66], ['CM', 'CM']), _ln('fw', 28, [50], ['ST'])),      // 7v7
+  '2-3-2':   _GK.concat(_ln('df', 76, [32, 68], ['LB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),  // 8v8
+  '3-3-2':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])), // 9v9
+  '2-3-3':   _GK.concat(_ln('df', 76, [32, 68], ['LB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [22, 50, 78], ['LW', 'ST', 'RW'])), // 9v9
+  '3-2-3':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [34, 66], ['CM', 'CM']), _ln('fw', 28, [22, 50, 78], ['LW', 'ST', 'RW'])), // 9v9
+  '3-4-1':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 50, [16, 39, 61, 84], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 26, [50], ['ST'])), // 9v9
+  '2-3-2-1': _GK.concat(_ln('df', 78, [32, 68], ['LB', 'RB']), _ln('mf', 58, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('mf', 40, [34, 66], ['AM', 'AM']), _ln('fw', 24, [50], ['ST'])) // 9v9
+};
+// Resolve a formation name to real slots. Small-sided table first, then the
+// First Team table. Never silently substitutes another shape.
+function _sqSlotsFor(name) { return SQ_FORMATIONS_SMALL[name] || SQ_FORMATIONS[name] || null; }
+
+// The First Team context — a live description of the existing globals.
+function _sqFirstCtx() {
+  return {
+    type: 'first', teamId: 'first-team',
+    label: (typeof _sqClubName === 'function' ? _sqClubName() : 'My Team'),
+    get roster() { return SQ_DEMO_PLAYERS; },
+    get reserve() { return SQ_RESERVE; },
+    get starterIds() { return SQ_MY_IDS || []; },
+    get benchIds() { return SQ_BENCH_IDS || []; },
+    get posMy() { return SQ_POS_MY; },
+    get slotMy() { return SQ_MY_SLOT; },
+    get formation() { return SQ_FORM.myFormation; },
+    get formationSlots() { return _sqSlotsFor(SQ_FORM.myFormation); },
+    get tactics() { return SQ_FORM; },
+    format: '11v11', hasOpponent: true,
+    permissions: { canEdit: true },
+    save: function () { /* First Team keeps its own existing save flow */ }
+  };
+}
+// Resolve the context for a render call. Absent → First Team, exactly as before.
+function _sqCtx(ctx) { return ctx || _sqFirstCtx(); }
+// Context-aware player lookup (First Team default preserves the old behaviour).
+function _sqCtxP(id, ctx) {
+  var c = _sqCtx(ctx);
+  if (c.type === 'first') return _sqP(id);
+  var r = c.roster || [];
+  for (var i = 0; i < r.length; i++) if (r[i].id === id) return r[i];
+  return null;
+}
+
 var SQ_CMD_TABS = ['Overview', 'Matchup', 'Heatmap', 'Stats', 'Zones', 'Set Pieces', 'Instructions', 'Simulation'];
 function _sqCmdTabKey(t) { return t.toLowerCase().replace(/\s+/g, ''); }
 function _sqCmdOverlayHtml(tab, my, op) {
@@ -5422,7 +5554,26 @@ var _SQ_CMD_WINMETA = {
   stats: { title: 'Stats', w: 720, h: 430 }, zones: { title: 'Zones', w: 660, h: 374 },
   setpieces: { title: 'Set Pieces', w: 700, h: 344 }, instructions: { title: 'Instructions', w: 900, h: 362 }
 };
-function _sqCmdSectionContent(key, my, op) {
+// Professional empty state for a tool whose data genuinely does not exist for
+// the given team (rather than inventing numbers to fill the panel).
+function _sqCmdEmpty(title, why) {
+  return '<div class="sqtc-empty"><b>' + _sqEsc(title) + '</b><span>' + _sqEsc(why) + '</span></div>';
+}
+function _sqCmdSectionContent(key, my, op, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type !== 'first') {
+    // Academy — the same shared tool renderers, driven by this age group's context.
+    switch (key) {
+      case 'matchup': return _sqCmdEmpty('Matchup unavailable', 'Matchup compares your shape against a scouted opponent squad. No opponent squad is recorded for ' + C.label + ', so there is nothing to compare yet.');
+      case 'heatmap': return _sqTcHeatmap(C);
+      case 'stats': return _sqTcStats(my, op, C);
+      case 'zones': return _sqTcZones(C);
+      case 'setpieces': return _sqTcSetpieces(C);
+      case 'instructions': return _sqTcInstructions(C);
+      case 'simulation': return _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + C.label + ', so a match cannot be simulated yet.');
+    }
+    return '';
+  }
   switch (key) {
     case 'matchup': return _sqCwMatchup(my, op);
     case 'heatmap': return _sqCwHeatmap();
@@ -5434,7 +5585,7 @@ function _sqCmdSectionContent(key, my, op) {
   }
   return '';
 }
-function _sqCmdWindowHtml(key, my, op) {
+function _sqCmdWindowHtml(key, my, op, ctx) {
   var w = SQ_FORM.cmdWins[key]; if (!w) return '';
   var meta = _SQ_CMD_WINMETA[key] || { title: key, w: 560, h: 440 };
   var st = 'left:' + Math.round(w.x) + 'px;top:' + Math.round(w.y) + 'px;width:' + Math.round(w.w) + 'px;' + (w.min ? '' : 'height:' + Math.round(w.h) + 'px;') + 'z-index:' + w.z + ';';
@@ -5442,7 +5593,7 @@ function _sqCmdWindowHtml(key, my, op) {
     + '<div class="sqcw-hd" data-cwdrag="1"><span class="sqcw-ttl">' + meta.title + '</span>'
     +   '<button class="sqcw-btn" data-action="sqCmdWinMin" data-win="' + key + '" type="button" aria-label="' + (w.min ? 'Restore' : 'Minimize') + '">' + (w.min ? '&#9633;' : '&#8211;') + '</button>'
     +   '<button class="sqcw-btn sqcw-btn--x" data-action="sqCmdWinClose" data-win="' + key + '" type="button" aria-label="Close">&#10005;</button></div>'
-    + (w.min ? '' : '<div class="sqcw-bd">' + _sqCmdSectionContent(key, my, op) + '</div><span class="sqcw-grip" aria-hidden="true"></span>')
+    + (w.min ? '' : '<div class="sqcw-bd">' + _sqCmdSectionContent(key, my, op, ctx) + '</div><span class="sqcw-grip" aria-hidden="true"></span>')
     + '</div>';
 }
 // Visible application workspace = the area BELOW the top nav/section tabs and inside the viewport.
@@ -5515,10 +5666,11 @@ function _sqCmdWinBind() {
     for (var i = 0; i < els.length; i++) { var el = els[i], p = SQ_FORM.cmdWins && SQ_FORM.cmdWins[el.getAttribute('data-cmdwin')]; if (!p) continue; p.w = Math.min(p.w, b.w); p.h = Math.min(p.h, b.h); var c = _sqCmdClamp(p.x, p.y, p.w, p.h, b); p.x = c.x; p.y = c.y; el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; }
   });
 }
-function _sqCmdInner() {
-  var my = _sqTeamReport('my'), op = _sqTeamReport('opp');
+function _sqCmdInner(ctx) {
+  var C = _sqCtx(ctx);
+  var my = _sqTeamReport('my', C), op = _sqTeamReport('opp', C);
   if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
-  var isSim = !!SQ_FORM.cmdSim;
+  var isSim = !!SQ_FORM.cmdSim && C.hasOpponent;
   var noWin = true; for (var q in SQ_FORM.cmdWins) { if (q !== 'simulation') noWin = false; }
   var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) {
     var k = _sqCmdTabKey(t);
@@ -5529,17 +5681,18 @@ function _sqCmdInner() {
     var back = '<div class="sqtc-simbar"><button class="sqtc-simback" data-action="sqCmdWin" data-tab="overview" type="button">&#8592; Back to Formation Overview</button></div>';
     return '<div class="sqtc sqtc--sim">' + nav + back + '<div class="sqtc-content sqtc-content--sim">' + _sqTcSimulation(my, op) + '</div></div>';
   }
-  var heads = '<div class="sqtc-heads' + (SQ_FORM.showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my) + (SQ_FORM.showOpp ? _sqTcHead('opp', op) : '') + '</div>';
-  var content = _sqTcOverview(my, op);                       // Overview pitch ALWAYS visible in the background
+  var showOpp = SQ_FORM.showOpp && C.hasOpponent;
+  var heads = '<div class="sqtc-heads' + (showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my, C) + (showOpp ? _sqTcHead('opp', op, C) : '') + '</div>';
+  var content = _sqTcOverview(my, op, C);                    // Overview pitch ALWAYS visible in the background
   // Floating section windows render INLINE (position:fixed → viewport-relative, exactly like the
   // Simulation glass panels). No ancestor of #sqfp-body sets transform/filter/contain, so a fixed
   // element resolves against the viewport and the centre/clamp maths stays true. Multiple stay open.
   var wins = '';
-  for (var wk in SQ_FORM.cmdWins) { if (wk === 'simulation') continue; wins += _sqCmdWindowHtml(wk, my, op); }
+  for (var wk in SQ_FORM.cmdWins) { if (wk === 'simulation') continue; wins += _sqCmdWindowHtml(wk, my, op, C); }
   if (wins) _sqCmdWinBind();
   return '<div class="sqtc">' + heads + nav + '<div class="sqtc-content sqtc-content--overview">' + content + '</div>' + wins + '</div>';
 }
-function _sqCmdPanelHtml() { return _sqCmdInner(); }
+function _sqCmdPanelHtml(ctx) { return _sqCmdInner(ctx); }
 // ── Tactical Simulation 2.0 — professional scene-based analysis engine ──────────
 // Reads My + Opponent formation automatically and plays a 10-scene tactical timeline.
 // Architecture is attribute-ready: _sqSimModel builds per-player objects carrying
@@ -7476,7 +7629,16 @@ function _sqInitFormationDrag() {
   if (_sqDragInit || typeof document === 'undefined') return;
   _sqDragInit = true;
   document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sq-instr-sel')) { if (typeof sqSetInstr === 'function') sqSetInstr(s.getAttribute('data-instr-player'), s.value); } });
-  document.addEventListener('change', function (e) { var s = e.target; if (s && s.classList && s.classList.contains('sqtc-form-sel')) { if (typeof sqPickFormation === 'function') sqPickFormation(s.value, s.getAttribute('data-side')); } });
+  document.addEventListener('change', function (e) {
+    var s = e.target; if (!s || !s.classList || !s.classList.contains('sqtc-form-sel')) return;
+    // Academy formation selects write to that age group's own saved formation.
+    if (s.getAttribute('data-at-formsel')) {
+      var aid = (typeof AT !== 'undefined') ? AT.active : null;
+      if (aid && typeof _acCanOpen === 'function' && _acCanOpen(aid)) { _atTeam(aid).formation.name = s.value; _atSave(); renderAcademyTeamPage(); }
+      return;
+    }
+    if (typeof sqPickFormation === 'function') sqPickFormation(s.value, s.getAttribute('data-side'));
+  });
   document.addEventListener('pointerdown', function (e) {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub], .sqmd-bench-chip[data-sub-opp]');
     if (subc && subc.closest('#sq-sub-formation')) { var isOppSub = subc.hasAttribute('data-sub-opp'); _sqSubDrag = { id: subc.getAttribute(isOppSub ? 'data-sub-opp' : 'data-sub'), tier: subc.getAttribute('data-tier'), side: isOppSub ? 'opp' : 'my', sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
@@ -44595,9 +44757,9 @@ function _atHubPitch(id, mode) {
   return '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + turf + overlay + dots + '</svg>';
 }
 function _atSecLineupHub(id) {
-  if (AT.luView === 'lineup') return _atLuBackBar('Lineup') + _atSecLineup(id);
-  if (AT.luView === 'formation') return _atLuBackBar('Formation') + _atSecFormation(id);
-  if (AT.luView === 'tactics') return _atLuBackBar('Tactics') + _atSecTactics(id);
+  if (AT.luView === 'lineup') return _atLuBackBar('lineup') + _atSecLineup(id);
+  if (AT.luView === 'formation') return _atLuBackBar('formation') + _atSecFormation(id);
+  if (AT.luView === 'tactics') return _atLuBackBar('tactics') + _atSecTactics(id);
 
   var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), tc = t.tactics;
   var need = _atStarterCount(t.formation.name), fmt = _atFormatLabel(id);
@@ -44645,8 +44807,24 @@ function _atSecLineupHub(id) {
     + '<div class="sqf-cards">' + cardHtml + '</div>'
   + '</div>';
 }
-function _atLuBackBar(label) {
-  return '<div class="at-lumod-back"><button class="at-lumod-backbtn" type="button" data-at-lumod-back>← Back to Lineup modules</button><span class="at-lumod-crumb">Lineup <i>/</i> ' + _viEscSafe(label) + '</span></div>';
+// Persistent module navigation inside every opened Academy tool. This is the
+// First Team Squad sub-page header verbatim — the same .sq-sub-header /
+// .sq-back-btn / .sql-tabs / .sql-tab / .is-active classes and the same
+// back-then-tabs structure — so size, spacing, active state and hierarchy come
+// from the First Team's own CSS. Only the click target differs, because the
+// tabs must switch the Academy module (data-at-lumod) for the selected age
+// group rather than the First Team page.
+function _atLuBackBar(active) {
+  var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
+  var tabs = [['lineup', 'Lineup'], ['formation', 'Formation'], ['tactics', 'Tactics']].map(function (t) {
+    return t[0] === active
+      ? '<button class="sql-tab is-active" type="button">' + t[1] + '</button>'
+      : '<button class="sql-tab" data-at-lumod="' + t[0] + '" type="button">' + t[1] + '</button>';
+  }).join('');
+  return '<div class="sq-sub-header at-lumod-header">'
+    + '<button class="sq-back-btn" type="button" data-at-lumod-back>' + backSvg + 'Lineup modules</button>'
+    + '<div class="sql-tabs">' + tabs + '</div>'
+  + '</div>';
 }
 function _atSecLineup(id) {
   var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
@@ -44878,14 +45056,54 @@ function _atProfileBody(id, p, tab, idx) {
   }
   return '';
 }
+/* Build the explicit team context for an Academy age group. Everything comes
+   from this group's own store — roster, lineup, formation, tactics, format and
+   permissions — and the board positions are derived from the real slot geometry
+   of the saved formation, so a 5v5 side draws five players, never eleven. */
+function _atFormationCtx(id) {
+  var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
+  var roster = _atRoster(id);
+  var slots = _sqSlotsFor(t.formation.name) || [];
+  // Map the Academy player shape onto the fields the shared renderers read.
+  // Only real values are carried over; nothing is fabricated.
+  var CAT = function (pos) { var g = _atPosGroup(pos); return g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw'; };
+  var mapped = roster.map(function (p) {
+    return { id: p.id, name: p.name, num: p.number, n: p.number, pos: p.pos, cat: CAT(p.pos),
+      qual: p.devScore, cond: p.fitness, photo: p.photo || null, captain: lu.captain === p.id,
+      roles: '', secondary: p.secondary, foot: p.foot, age: p.age,
+      availability: p.availability, morale: p.morale, form: p.form };
+  });
+  var byId = {}; mapped.forEach(function (p) { byId[p.id] = p; });
+  // Starters occupy the formation slots in saved order; GK takes the GK slot.
+  var starters = (lu.starters || []).filter(function (pid) { return byId[pid]; });
+  var gkId = lu.gk || (starters.filter(function (pid) { return byId[pid].cat === 'gk'; })[0]);
+  var ordered = [], posMy = {}, slotMy = {};
+  var gkSlot = slots.filter(function (s) { return s.c === 'gk'; })[0];
+  var outSlots = slots.filter(function (s) { return s.c !== 'gk'; });
+  if (gkSlot && gkId) { ordered.push(gkId); posMy[gkId] = { x: gkSlot.x, y: gkSlot.y }; slotMy[gkId] = gkSlot; }
+  starters.filter(function (pid) { return pid !== gkId; }).forEach(function (pid, i) {
+    var s = outSlots[i]; if (!s) return;                       // never place more players than the format allows
+    ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
+  });
+  return {
+    type: 'academy', teamId: id, label: c.label + ' · ' + c.name,
+    roster: mapped, reserve: [],
+    starterIds: ordered, benchIds: (lu.subs || []).filter(function (pid) { return byId[pid]; }),
+    posMy: posMy, slotMy: slotMy,
+    formation: t.formation.name, formationSlots: slots,
+    formationOptions: _atFormationsFor(id),
+    tactics: t.tactics, format: _atFormatLabel(id),
+    hasOpponent: false,                                        // no opponent squad exists for an age group
+    permissions: { canEdit: _acCanOpen(id) },
+    save: function () { _atSave(); }
+  };
+}
 function _atSecFormation(id) {
-  var t = _atTeam(id), opts = _atFormationsFor(id);
-  var pills = opts.map(function (f) { return '<button class="at-pill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('');
-  var pitch = _atPitch(t.formation.name, _atCtx(id).accent);
-  return _atSecHead(id, 'Formation', 'This formation belongs ONLY to ' + _atCtx(id).label + ' — changing it never affects the First Team or any other age group.')
-    + '<div class="at-form-current">Current formation: <b>' + _viEscSafe(t.formation.name) + '</b></div>'
-    + '<div class="at-pills">' + pills + '</div>'
-    + '<div class="at-pitch-wrap">' + pitch + '</div>';
+  var ctx = _atFormationCtx(id);
+  // The real First Team Formation command centre, rendered with the Academy
+  // context: same Overview / Matchup / Heatmap / Stats / Zones / Set Pieces /
+  // Instructions / Simulation navigation and the same components.
+  return '<div class="sqfp-board sqfp-board--cmd at-formation-cmd">' + _sqCmdPanelHtml(ctx) + '</div>';
 }
 function _atPitch(name, accent) {
   var rows = String(name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
