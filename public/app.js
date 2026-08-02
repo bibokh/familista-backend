@@ -43950,14 +43950,14 @@ function _atCtx(id) {
 function _atShowProKpis(id) { return _acStageIdx(id) >= 3; }         // U14+ (Performance and up)
 function _atShowPromotion(id) { return _acStageIdx(id) >= 4; }       // U17+ (Elite / Pro-Path)
 
-// The ordered section navigation for a team workspace.
+// The ordered section navigation for a team workspace. Formation and Tactics
+// are not sidebar entries — they live inside the Lineup module hub, exactly
+// like the First Team Squad area. Coaching Staff is not part of the Academy
+// age-group interface.
 var AT_SECTIONS = [
   ['dashboard', 'Dashboard', '📊'],
   ['squad', 'Players / Squad', '👥'],
-  ['staff', 'Coaching Staff', '🧑‍🏫'],
   ['lineup', 'Lineup', '📋'],
-  ['formation', 'Formation', '⚽'],
-  ['tactics', 'Tactics', '🎯'],
   ['training', 'Training', '🏃'],
   ['sessions', 'Sessions & Attendance', '🗓️'],
   ['matchprep', 'Match Preparation', '🧠'],
@@ -43975,11 +43975,11 @@ function _atEnter(id) {
   if (!_acCanOpen(id)) { try { showToast('Locked — not your responsibility', 'error'); } catch (e) {} return; }
   _atTeam(id);                 // ensure isolated store exists
   AT.active = id; AT.section = 'dashboard';
-  AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null;
+  AT.openPlayer = null; AT.profileTab = 'overview'; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null; AT.luSel = null; AT.luView = null;
   navTo('academy-team');
 }
 function _atBack() { AT.active = null; AT.openPlayer = null; AT.staffEdit = null; navTo('academy'); }
-function _atGo(section) { AT.section = section; AT.openPlayer = null; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null; renderAcademyTeamPage(); }
+function _atGo(section) { AT.section = section; AT.openPlayer = null; AT.q = ''; AT.posF = 'ALL'; AT.availF = 'ALL'; AT.staffEdit = null; AT.luSel = null; AT.luView = null; renderAcademyTeamPage(); }
 window._atEnter = _atEnter; window._atBack = _atBack; window._atGo = _atGo;
 
 // ── Shell ──
@@ -44027,14 +44027,18 @@ function _atNextEvent(id) {
 }
 
 // ── Section router ──
+// 'lineup' is the module hub: it holds the Academy Lineup, Formation and
+// Tactics tools, mirroring the First Team Squad hub. 'staff', 'formation' and
+// 'tactics' are no longer routable sections — a stale value (e.g. a bookmarked
+// Coaching Staff view) is redirected to the Lineup hub instead of rendering.
 function _atSection(id, sec) {
+  if (sec === 'staff' || sec === 'formation' || sec === 'tactics') {
+    AT.section = 'lineup'; AT.luView = null; sec = 'lineup';
+  }
   switch (sec) {
     case 'dashboard':  return _atSecDashboard(id);
     case 'squad':      return _atSecSquad(id);
-    case 'staff':      return _atSecStaff(id);
-    case 'lineup':     return _atSecLineup(id);
-    case 'formation':  return _atSecFormation(id);
-    case 'tactics':    return _atSecTactics(id);
+    case 'lineup':     return _atSecLineupHub(id);
     case 'training':   return _atSecTraining(id);
     case 'sessions':   return _atSecSessions(id);
     case 'matchprep':  return _atSecMatchPrep(id);
@@ -44106,44 +44110,57 @@ function _atBars(p, pairs) {
 function _atAvailTone(a) { return a === 'Injured' ? 'danger' : (a === 'Doubtful' ? 'warn' : 'ok'); }
 function _atChip(label, val, tone) { return '<span class="at-plchip' + (tone ? ' at-plchip--' + tone : '') + '"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></span>'; }
 
-// Premium lineup player card — avatar/id, restrained stat strip, clear
-// Starter/Bench/Reserve state, and the existing start/bench/captain/GK
-// actions (same data-at-* attributes; only presentation changed).
-function _atLuStat(label, val, tone) { return '<span class="at-lucard-stat' + (tone ? ' at-lucard-stat--' + tone : '') + '"><i>' + _viEscSafe(label) + '</i><b>' + _viEscSafe(String(val)) + '</b></span>'; }
+/* ── Academy Lineup · matchday selection room ──────────────────────────────
+   Presentation only. Every player comes from _atRoster(id) (the same source
+   the Academy Players/Squad page uses), every mutation goes through the
+   existing data-at-start / -bench / -captain / -gk / -formation /
+   -save-lineup / -reset-lineup handlers. No new data, route or backend. */
+
+// Avatar face: real photo when the roster has one, polished initials plate otherwise.
+function _atLuFace(p, cls) {
+  return p.photo
+    ? '<span class="' + cls + '" style="background-image:url(' + p.photo + ')"></span>'
+    : '<span class="' + cls + '">' + _viEscSafe(_atInitials(p.name)) + '</span>';
+}
+// One obvious status per player — never several competing labels.
+function _atLuStatus(p, lu) {
+  if (lu.starters.indexOf(p.id) >= 0) return { key: 'starter', label: 'Starter' };
+  if (lu.subs.indexOf(p.id) >= 0) return { key: 'sub', label: 'Substitute' };
+  if (p.availability === 'Injured') return { key: 'injured', label: 'Injured' };
+  if (p.availability === 'Doubtful') return { key: 'doubtful', label: 'Doubtful' };
+  return { key: 'free', label: 'Not selected' };
+}
+// Named, unambiguous controls — no bare letters. Same handlers as before.
+function _atLuActions(p, lu, big) {
+  var isStart = lu.starters.indexOf(p.id) >= 0, capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
+  var k = big ? ' lux-act--lg' : '';
+  return (isStart
+      ? '<button class="lux-act' + k + '" type="button" data-at-bench="' + p.id + '">Move to bench</button>'
+      : '<button class="lux-act lux-act--go' + k + '" type="button" data-at-start="' + p.id + '">Add to starting XI</button>')
+    + '<button class="lux-act' + (capOn ? ' is-on' : '') + k + '" type="button" data-at-captain="' + p.id + '"><i class="lux-band"></i>' + (capOn ? 'Captain' : 'Make captain') + '</button>'
+    + (p.pos === 'GK' ? '<button class="lux-act' + (gkOn ? ' is-on' : '') + k + '" type="button" data-at-gk="' + p.id + '">' + (gkOn ? 'Goalkeeper' : 'Set goalkeeper') + '</button>' : '');
+}
+// Selection-board card. Keeps every value the roster carries.
 function _atPlRow(p, idx, mode, lu) {
-  var pro = idx >= 3;
-  var isStart = lu.starters.indexOf(p.id) >= 0, isSub = lu.subs.indexOf(p.id) >= 0;
-  var state = isStart ? 'Starter' : (isSub ? 'Bench' : 'Reserve');
-  var stateTone = isStart ? 'ok' : (isSub ? 'warn' : '');
-  var capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
-  var availTone = _atAvailTone(p.availability), cardTone = availTone === 'ok' ? '' : availTone; // '' Available, 'warn' Doubtful, 'danger' Injured
-  var stats = [
-    ['Avail', p.availability, _atAvailTone(p.availability)],
-    ['Fit', p.fitness + '%', p.fitness < 60 ? 'warn' : ''],
-    ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
-    [pro ? 'Dev' : 'Level', p.devScore, ''],
-    ['Form', p.form + '/10', '']
-  ];
-  if (pro) stats.push(['Promo', p.promotion, p.promotion >= 75 ? 'ok' : '']);
-  var statRow = stats.map(function (s) { return _atLuStat(s[0], s[1], s[2]); }).join('');
-  var actions = '<span class="at-lucard-actions">'
-    + (isStart
-      ? '<button class="at-mini" type="button" data-at-bench="' + p.id + '">Bench</button>'
-      : '<button class="at-mini at-mini--go" type="button" data-at-start="' + p.id + '">Start</button>')
-    + '<button class="at-mini' + (capOn ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '" title="Captain">C</button>'
-    + (p.pos === 'GK' ? '<button class="at-mini' + (gkOn ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '" title="Goalkeeper">GK</button>' : '')
-  + '</span>';
-  return '<div class="at-lucard' + (cardTone ? ' at-lucard--' + cardTone : '') + '" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
-    + '<div class="at-lucard-top">'
-      + '<span class="at-lucard-num">#' + p.number + '</span>'
-      + '<button class="at-lucard-info" type="button" data-at-player="' + p.id + '">'
-        + '<span class="at-lucard-av" style="background:' + _atCtx(p.stage).accent + '">' + _atInitials(p.name) + '</span>'
-        + '<span class="at-lucard-id"><b>' + _viEscSafe(p.name) + (capOn ? ' <i class="at-lucard-capbadge">C</i>' : '') + '</b><i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i></span>'
+  var pro = idx >= 3, st = _atLuStatus(p, lu), capOn = lu.captain === p.id;
+  var sel = AT.luSel === p.id;
+  var vals = [['Fitness', p.fitness + '%', p.fitness < 60 ? 'warn' : ''], ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
+    [pro ? 'Development' : 'Level', p.devScore, ''], ['Form', p.form + '/10', p.form <= 4 ? 'warn' : '']];
+  if (pro) vals.push(['Promotion', p.promotion, p.promotion >= 75 ? 'ok' : '']);
+  return '<div class="lux-card lux-card--' + st.key + (sel ? ' is-sel' : '') + '" data-at-luselect="' + p.id + '" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
+    + '<div class="lux-card-head">'
+      + '<button class="lux-card-who" type="button" data-at-player="' + p.id + '">'
+        + _atLuFace(p, 'lux-card-face')
+        + '<span class="lux-card-id">'
+          + '<b>' + _viEscSafe(p.name) + (capOn ? '<i class="lux-band lux-band--inline"></i>' : '') + '</b>'
+          + '<i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · ' + p.age + ' yrs</i>'
+        + '</span>'
       + '</button>'
-      + '<span class="at-lucard-state at-plbadge--' + stateTone + '">' + state + '</span>'
+      + '<span class="lux-card-shirt">' + p.number + '</span>'
     + '</div>'
-    + '<div class="at-lucard-stats">' + statRow + '</div>'
-    + actions
+    + '<div class="lux-card-status"><span class="lux-tag lux-tag--' + st.key + '">' + st.label + '</span><span class="lux-card-avail lux-card-avail--' + _atAvailTone(p.availability) + '">' + _viEscSafe(p.availability) + '</span></div>'
+    + '<div class="lux-card-vals">' + vals.map(function (v) { return '<span class="lux-val' + (v[2] ? ' lux-val--' + v[2] : '') + '"><i>' + _viEscSafe(v[0]) + '</i><b>' + _viEscSafe(String(v[1])) + '</b></span>'; }).join('') + '</div>'
+    + '<div class="lux-card-acts">' + _atLuActions(p, lu, false) + '</div>'
   + '</div>';
 }
 function _atFilterBar(idx) {
@@ -44431,26 +44448,205 @@ function _atSecStaff(id) {
 // Lineup pitch — starters placed into the age-group formation (GK + rows).
 // Dedicated Lineup-page pitch (own classnames — the standalone Formation
 // page keeps its separate .at-pitch/.at-dot markup untouched).
+// Tactical slot coordinates (% of pitch) derived from the SAME formation
+// string the existing logic stores. Values are clamped well inside the
+// touchlines so a token can never sit on or past the boundary.
+function _atLuSlots(formationName) {
+  var rows = String(formationName).split('-').map(function (n) { return parseInt(n, 10) || 0; }).filter(function (n) { return n > 0; });
+  var out = [], top = 20, bottom = 72, lines = rows.length;
+  rows.forEach(function (n, li) {
+    var y = lines <= 1 ? 46 : bottom - li * ((bottom - top) / (lines - 1));
+    for (var i = 0; i < n; i++) {
+      var raw = (i + 1) * 100 / (n + 1);
+      out.push({ x: 50 + (raw - 50) * 0.74, y: y });
+    }
+  });
+  return out;
+}
+function _atLuToken(p, pos, opts) {
+  var style = 'left:' + pos.x.toFixed(2) + '%;top:' + pos.y.toFixed(2) + '%';
+  if (!p) {
+    return '<span class="lux-tok lux-tok--empty' + (opts.gk ? ' lux-tok--gk' : '') + '" style="' + style + '">'
+      + '<span class="lux-tok-shirt"><i class="lux-tok-plus">+</i></span>'
+      + '<span class="lux-tok-name">Open slot</span>'
+      + '<span class="lux-tok-pos">' + (opts.gk ? 'GK' : _viEscSafe(opts.role || '—')) + '</span>'
+    + '</span>';
+  }
+  var last = p.name.split(' ').slice(-1)[0];
+  var warn = p.availability !== 'Available';
+  return '<button class="lux-tok' + (opts.gk ? ' lux-tok--gk' : '') + (opts.cap ? ' lux-tok--cap' : '') + (AT.luSel === p.id ? ' is-sel' : '') + '" type="button" style="' + style + '" data-at-luselect="' + p.id + '">'
+    + '<span class="lux-tok-shirt">'
+      + (p.photo ? '<span class="lux-tok-photo" style="background-image:url(' + p.photo + ')"></span>' : '')
+      + '<b class="lux-tok-num">' + p.number + '</b>'
+      + (opts.cap ? '<i class="lux-band lux-band--tok"></i>' : '')
+      + (warn ? '<i class="lux-tok-warn lux-tok-warn--' + _atAvailTone(p.availability) + '" title="' + _viEscSafe(p.availability) + '"></i>' : '')
+    + '</span>'
+    + '<span class="lux-tok-name">' + _viEscSafe(last) + '</span>'
+    + '<span class="lux-tok-pos">' + _viEscSafe(p.pos) + '</span>'
+  + '</button>';
+}
 function _atLineupPitch(id) {
   var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
   var starters = lu.starters.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
   var gk = starters.filter(function (p) { return p.id === lu.gk; })[0] || starters.filter(function (p) { return p.pos === 'GK'; })[0] || starters[0];
   var outfield = starters.filter(function (p) { return !gk || p.id !== gk.id; });
-  var rows = String(t.formation.name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
-  function cell(p, isGk) {
-    if (!p) return '<span class="at-lucell at-lucell--empty' + (isGk ? ' at-lucell--gk' : '') + '"><span class="at-ludot at-ludot--empty">' + (isGk ? 'GK' : '') + '</span></span>';
-    var cap = lu.captain === p.id ? '<i class="at-lucap">C</i>' : '';
-    return '<span class="at-lucell' + (isGk ? ' at-lucell--gk' : '') + '"><span class="at-ludot' + (isGk ? ' at-ludot--gk' : '') + '" style="background:' + c.accent + '">' + p.number + cap + '</span><em>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</em></span>';
-  }
-  var html = '<div class="at-lupitch"><div class="at-lupitch-line at-lupitch-gk">' + cell(gk, true) + '</div>';
-  var k = 0;
-  rows.forEach(function (n) {
-    var cells = '';
-    for (var i = 0; i < n; i++) cells += cell(outfield[k++], false);
-    html += '<div class="at-lupitch-line">' + cells + '</div>';
+  var slots = _atLuSlots(t.formation.name);
+  var roleOf = function (y) { return y > 60 ? 'DEF' : (y > 38 ? 'MID' : 'FWD'); };
+  var tokens = slots.map(function (s, i) {
+    var p = outfield[i] || null;
+    return _atLuToken(p, s, { gk: false, cap: !!(p && lu.captain === p.id), role: roleOf(s.y) });
+  }).join('');
+  return '<div class="lux-pitch" style="--acc:' + c.accent + '">'
+    + '<span class="lux-mk lux-mk-out"></span>'
+    + '<span class="lux-mk lux-mk-half"></span>'
+    + '<span class="lux-mk lux-mk-circle"></span>'
+    + '<span class="lux-mk lux-mk-spot"></span>'
+    + '<span class="lux-mk lux-mk-box lux-mk-box--btm"></span>'
+    + '<span class="lux-mk lux-mk-six lux-mk-six--btm"></span>'
+    + '<span class="lux-mk lux-mk-box lux-mk-box--top"></span>'
+    + '<span class="lux-mk lux-mk-six lux-mk-six--top"></span>'
+    + '<span class="lux-pitch-stamp">' + _viEscSafe(t.formation.name) + '</span>'
+    + tokens
+    + _atLuToken(gk, { x: 50, y: 88 }, { gk: true, cap: !!(gk && lu.captain === gk.id) })
+  + '</div>';
+}
+// Substitutes strip — reads lu.subs only; never invents a player.
+function _atLuBench(id, lu) {
+  var subs = lu.subs.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
+  var body = subs.length
+    ? subs.map(function (p) {
+        return '<button class="lux-sub' + (AT.luSel === p.id ? ' is-sel' : '') + '" type="button" data-at-luselect="' + p.id + '">'
+          + _atLuFace(p, 'lux-sub-face')
+          + '<span class="lux-sub-id"><b>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</b><i>' + p.number + ' · ' + _viEscSafe(p.pos) + '</i></span>'
+          + '<span class="lux-sub-avail lux-sub-avail--' + _atAvailTone(p.availability) + '" title="' + _viEscSafe(p.availability) + '"></span>'
+        + '</button>';
+      }).join('')
+    : '<span class="lux-bench-empty">No substitutes named yet — use “Move to bench” on any player.</span>';
+  return '<div class="lux-bench"><span class="lux-bench-tag">Substitutes<b>' + subs.length + '</b></span><div class="lux-bench-row">' + body + '</div></div>';
+}
+// Inspector for the player the coach is looking at — existing fields only.
+function _atLuInspector(id, lu, idx) {
+  var p = AT.luSel ? _atFindPlayer(id, AT.luSel) : null;
+  if (!p) return '<div class="lux-insp lux-insp--idle">Select any player to inspect their condition and lineup status.</div>';
+  var st = _atLuStatus(p, lu), pro = idx >= 3;
+  var bars = [['Fitness', p.fitness, p.fitness + '%'], ['Form', p.form * 10, p.form + '/10'], [pro ? 'Development' : 'Level', p.devScore, p.devScore]];
+  return '<div class="lux-insp" style="--acc:' + _atCtx(p.stage).accent + '">'
+    + '<div class="lux-insp-top">'
+      + _atLuFace(p, 'lux-insp-face')
+      + '<div class="lux-insp-id"><b>' + _viEscSafe(p.name) + '</b><i>#' + p.number + ' · ' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · ' + p.age + ' yrs</i></div>'
+      + '<span class="lux-tag lux-tag--' + st.key + '">' + st.label + '</span>'
+    + '</div>'
+    + '<div class="lux-insp-bars">' + bars.map(function (b) {
+        return '<div class="lux-insp-bar"><span>' + _viEscSafe(b[0]) + '</span><i><em style="width:' + Math.max(4, Math.min(100, b[1])) + '%"></em></i><b>' + _viEscSafe(String(b[2])) + '</b></div>';
+      }).join('') + '</div>'
+    + '<div class="lux-insp-meta"><span>Morale<b>' + _viEscSafe(p.morale) + '</b></span><span>Availability<b class="lux-av--' + _atAvailTone(p.availability) + '">' + _viEscSafe(p.availability) + '</b></span>'
+      + (pro ? '<span>Promotion<b>' + p.promotion + '</b></span>' : '<span>Attendance<b>' + p.attendance + '%</b></span>') + '</div>'
+    + '<div class="lux-insp-acts">' + _atLuActions(p, lu, true) + '</div>'
+  + '</div>';
+}
+/* ── Academy Lineup module hub ─────────────────────────────────────────────
+   Same structure the First Team Squad hub uses (.sqf-cards / .sqf-card /
+   .sqf-head / .sqf-prev / .sqf-stats / .sqf-btn), so card scale, grid,
+   spacing, hover, action bar and responsive behaviour are literally the same
+   CSS. Only the content is Academy: this age group's format, formation,
+   lineup and tactics. The First Team implementation is untouched.          */
+var AT_HUB_ICONS = {
+  ball: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8l3.8 2.8-1.45 4.5h-4.7L8.2 10.8 12 8z"/><path d="M12 3v5M20.5 9.8l-4.7 1M16.9 17.7l-2.55-3.4M9.65 14.3 7.1 17.7M3.5 9.8l4.7 1"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="13" r="8"/><circle cx="11" cy="13" r="3.2"/><path d="M13.4 10.6 19 5M19 5h-3.6M19 5v3.6"/></svg>',
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1"/><circle cx="9" cy="7" r="3"/><path d="M22 19v-1a4 4 0 0 0-3-3.87M16 4.13a4 4 0 0 1 0 7.75"/></svg>',
+  sliders: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="7" cy="18" r="2" fill="currentColor" stroke="none"/></svg>',
+  cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.6"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg>',
+  expand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>'
+};
+// Landscape pitch preview drawn from this age group's real formation string.
+function _atHubPitch(id, mode) {
+  var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
+  var rows = String(t.formation.name).split('-').map(function (n) { return parseInt(n, 10) || 0; }).filter(function (n) { return n > 0; });
+  var starters = lu.starters.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
+  var gk = starters.filter(function (p) { return p.id === lu.gk; })[0] || starters.filter(function (p) { return p.pos === 'GK'; })[0] || starters[0];
+  var outfield = starters.filter(function (p) { return !gk || p.id !== gk.id; });
+  var turf = '<rect width="412" height="158" fill="#12482c"/>'
+    + '<rect x="0" width="51.5" height="158" fill="#165533"/><rect x="103" width="51.5" height="158" fill="#165533"/><rect x="206" width="51.5" height="158" fill="#165533"/><rect x="309" width="51.5" height="158" fill="#165533"/>'
+    + '<g fill="none" stroke="rgba(235,253,245,0.40)" stroke-width="1.3"><rect x="7" y="10" width="398" height="138" rx="2"/><line x1="206" y1="10" x2="206" y2="148"/><circle cx="206" cy="79" r="26"/><rect x="7" y="44" width="40" height="70"/><rect x="7" y="62" width="18" height="34"/><rect x="365" y="44" width="40" height="70"/><rect x="387" y="62" width="18" height="34"/></g>';
+  var dots = '', lines = rows.length, k = 0;
+  // GK first, then each formation line advancing up the pitch (left → right).
+  dots += '<circle cx="26" cy="79" r="7.5" fill="#f0c14b" stroke="rgba(0,0,0,.4)" stroke-width="1"/>';
+  rows.forEach(function (n, li) {
+    var x = 84 + li * (250 / Math.max(1, lines - 1 || 1));
+    if (lines === 1) x = 200;
+    for (var i = 0; i < n; i++) {
+      var y = (i + 1) * 158 / (n + 1);
+      var has = mode === 'tactics' ? true : !!outfield[k];
+      k++;
+      dots += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7.5" fill="' + (has ? c.accent : 'rgba(255,255,255,.14)') + '" stroke="rgba(0,0,0,.35)" stroke-width="1"/>';
+    }
   });
-  html += '</div>';
-  return html;
+  var overlay = '';
+  if (mode === 'tactics') {
+    var tc = t.tactics, hi = tc.pressing === 'High' ? 1 : (tc.pressing === 'Medium' ? .62 : .32);
+    overlay = '<defs><radialGradient id="ahz" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="rgba(249,115,22,' + (0.40 * hi).toFixed(2) + ')"/><stop offset="100%" stop-color="rgba(249,115,22,0)"/></radialGradient>'
+      + '<marker id="ahh" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#fb923c"/></marker></defs>'
+      + '<ellipse cx="300" cy="50" rx="52" ry="40" fill="url(#ahz)"/><ellipse cx="300" cy="112" rx="48" ry="36" fill="url(#ahz)" opacity=".85"/>'
+      + '<path d="M120 46 C 190 26 250 30 306 50" fill="none" stroke="#fb923c" stroke-width="2.6" stroke-linecap="round" marker-end="url(#ahh)"/>'
+      + '<path d="M130 118 C 210 132 268 126 322 92" fill="none" stroke="#fb923c" stroke-width="2.6" stroke-linecap="round" marker-end="url(#ahh)"/>';
+  }
+  return '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + turf + overlay + dots + '</svg>';
+}
+function _atSecLineupHub(id) {
+  if (AT.luView === 'lineup') return _atLuBackBar('Lineup') + _atSecLineup(id);
+  if (AT.luView === 'formation') return _atLuBackBar('Formation') + _atSecFormation(id);
+  if (AT.luView === 'tactics') return _atLuBackBar('Tactics') + _atSecTactics(id);
+
+  var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), tc = t.tactics;
+  var need = _atStarterCount(t.formation.name), fmt = _atFormatLabel(id);
+  var capP = lu.captain ? _atFindPlayer(id, lu.captain) : null;
+  var I = AT_HUB_ICONS;
+
+  var cards = [
+    { id: 'lineup', label: 'Lineup', sub: 'Match-day squad selection', pill: fmt,
+      plabel: 'Match-day squad · ' + fmt, ac: '245,158,11', ac2: '251,191,36',
+      icon: I.ball, btnIcon: I.users, btnLabel: 'Manage lineup', prev: _atHubPitch(id, 'lineup'),
+      stats: [{ l: 'Starters', v: lu.starters.length + '<small> / ' + need + '</small>' }, { l: 'Subs', v: String(lu.subs.length) }, { l: 'Captain', v: capP ? '#' + capP.number : '—' }] },
+    { id: 'formation', label: 'Formation', sub: 'Team shape &amp; structure', pill: t.formation.name,
+      plabel: 'Team shape · ' + fmt, ac: '139,92,246', ac2: '196,181,253',
+      icon: I.grid, btnIcon: I.sliders, btnLabel: 'Edit formation', prev: _atHubPitch(id, 'formation'),
+      stats: [{ l: 'Shape', v: _viEscSafe(t.formation.name) }, { l: 'Def line', v: _viEscSafe(tc.line) }, { l: 'Width', v: _viEscSafe(tc.width) }] },
+    { id: 'tactics', label: 'Tactics', sub: 'Movement &amp; pressing patterns', pill: _viEscSafe(tc.pressing) + ' press',
+      plabel: 'Press map · build-up', ac: '249,115,22', ac2: '251,146,60',
+      icon: I.target, btnIcon: I.cross, btnLabel: 'Set tactics', prev: _atHubPitch(id, 'tactics'),
+      stats: [{ l: 'Pressing', v: _viEscSafe(tc.pressing) }, { l: 'Tempo', v: _viEscSafe(tc.tempo) }, { l: 'Build-up', v: _viEscSafe(tc.build) }] }
+  ];
+
+  var cardHtml = cards.map(function (k) {
+    var statHtml = k.stats.map(function (s) {
+      return '<div class="sqf-stat"><div class="sqf-sl">' + s.l + '</div><div class="sqf-sv">' + s.v + '</div></div>';
+    }).join('');
+    return '<div class="sqf-card sqf-card--' + k.id + '" data-at-lumod="' + k.id + '" style="--ac:' + k.ac + ';--ac2:' + k.ac2 + '">'
+      + '<div class="sqf-head">'
+      +   '<div class="sqf-icon">' + k.icon + '</div>'
+      +   '<div class="sqf-titles"><div class="sqf-title">' + k.label + '</div><div class="sqf-sub">' + k.sub + '</div></div>'
+      +   '<div class="sqf-pill">' + k.pill + '</div>'
+      + '</div>'
+      + '<div class="sqf-prev">' + k.prev
+      +   '<div class="sqf-gloss"></div>'
+      +   '<div class="sqf-plabel">' + k.plabel + '</div>'
+      +   '<div class="sqf-pexp">' + I.expand + '</div>'
+      + '</div>'
+      + '<div class="sqf-stats">' + statHtml + '</div>'
+      + '<div class="sqf-btn"><span class="l">' + k.btnIcon + '<span>' + k.btnLabel + '</span></span><span class="a">' + I.arrow + '</span></div>'
+      + '</div>';
+  }).join('');
+
+  return '<div id="at-lu-home">'
+    + '<div style="padding:6px 4px 22px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Lineup</h1>'
+    +   '<p style="margin:6px 0 0;font-size:13.5px;color:var(--tx-3,#64748b)">' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(fmt) + ' — select a module to manage this age group</p></div>'
+    + '<div class="sqf-cards">' + cardHtml + '</div>'
+  + '</div>';
+}
+function _atLuBackBar(label) {
+  return '<div class="at-lumod-back"><button class="at-lumod-backbtn" type="button" data-at-lumod-back>← Back to Lineup modules</button><span class="at-lumod-crumb">Lineup <i>/</i> ' + _viEscSafe(label) + '</span></div>';
 }
 function _atSecLineup(id) {
   var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
@@ -44459,44 +44655,57 @@ function _atSecLineup(id) {
   var capName = lu.captain ? (_atFindPlayer(id, lu.captain) || {}).name : null;
   var unavailCount = roster.filter(function (p) { return p.availability !== 'Available'; }).length;
   var injuredCount = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
-  var unfilled = Math.max(0, need - lu.starters.length);
+  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
+  var shown = roster.filter(function (p) {
+    if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false;
+    if (af !== 'ALL' && p.availability !== af) return false;
+    return true;
+  }).length;
 
-  var pills = opts.map(function (f) { return '<button class="at-lupill' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('');
-
-  var header = '<div class="at-lu-head">'
-    + '<div class="at-lu-head-txt"><h2>Lineup</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(_atFormatLabel(id)) + ' · Formation <b>' + _viEscSafe(t.formation.name) + '</b></span></div>'
-    + '<div class="at-lupills">' + pills + '</div>'
+  var cmd = '<div class="lux-cmd" style="--acc:' + c.accent + '">'
+    + '<div class="lux-cmd-title"><h2>Lineup</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + '</span></div>'
+    + '<div class="lux-cmd-read">'
+      + '<span class="lux-read"><i>Formation</i><b>' + _viEscSafe(t.formation.name) + '</b></span>'
+      + '<span class="lux-read"><i>Starting XI</i><b class="' + (lu.starters.length < need ? 'lux-num--warn' : '') + '">' + lu.starters.length + '/' + need + '</b></span>'
+      + '<span class="lux-read"><i>Substitutes</i><b>' + lu.subs.length + '</b></span>'
+      + '<span class="lux-read lux-read--cap"><i>Captain</i><b>' + _viEscSafe(capName || 'Not set') + '</b></span>'
+      + '<span class="lux-read"><i>Unavailable</i><b class="' + (unavailCount ? 'lux-num--warn' : '') + '">' + unavailCount + '</b></span>'
+      + '<span class="lux-read"><i>Injured</i><b class="' + (injuredCount ? 'lux-num--bad' : '') + '">' + injuredCount + '</b></span>'
+    + '</div>'
+    + '<div class="lux-cmd-acts">'
+      + '<button class="lux-save" type="button" data-at-save-lineup>Save Lineup</button>'
+      + '<button class="lux-reset" type="button" data-at-reset-lineup>Reset</button>'
+    + '</div>'
   + '</div>';
 
-  var summary = '<div class="at-lu-summary">'
-    + '<span><b>' + lu.starters.length + '/' + need + '</b> starters</span>'
-    + '<span><b>' + lu.subs.length + '</b> subs</span>'
-    + '<span><b>' + _viEscSafe(capName || '—') + '</b> captain</span>'
-    + (unfilled ? '<span class="at-lu-flag at-lu-flag--warn"><b>' + unfilled + '</b> unfilled</span>' : '')
-    + (unavailCount ? '<span class="at-lu-flag at-lu-flag--warn"><b>' + unavailCount + '</b> unavailable</span>' : '')
-    + (injuredCount ? '<span class="at-lu-flag at-lu-flag--danger"><b>' + injuredCount + '</b> injured</span>' : '')
+  var formationSel = '<div class="lux-formbar"><span class="lux-formbar-lab">Formation</span><div class="lux-seg">'
+    + opts.map(function (f) { return '<button class="lux-seg-btn' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
+  + '</div></div>';
+
+  var board = '<div class="lux-board">'
+    + '<div class="lux-board-head">'
+      + '<input class="lux-search at-search" type="text" placeholder="Search by name, position or number…" data-at-search value="' + _viEscSafe(AT.q || '') + '">'
+      + '<div class="lux-filters">'
+        + '<div class="lux-fgrp">' + ['ALL', 'GK', 'DEF', 'MID', 'FWD'].map(function (g) { return '<button class="lux-fbtn' + (pf === g ? ' is-on' : '') + '" type="button" data-at-posfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('') + '</div>'
+        + '<div class="lux-fgrp">' + ['ALL', 'Available', 'Doubtful', 'Injured'].map(function (g) { return '<button class="lux-fbtn' + (af === g ? ' is-on' : '') + '" type="button" data-at-availfilter="' + g + '">' + (g === 'ALL' ? 'Any' : g) + '</button>'; }).join('') + '</div>'
+        + '<span class="lux-count">' + shown + ' of ' + roster.length + '</span>'
+      + '</div>'
+    + '</div>'
+    + _atLuInspector(id, lu, c.idx)
+    + '<div class="lux-scroll">' + _atPlayerList(id, 'lineup') + '</div>'
   + '</div>';
 
-  var hist = lu.history.length
-    ? '<ul class="at-histlist">' + lu.history.slice().reverse().slice(0, 4).map(function (h) { return '<li><b>' + _viEscSafe(h.formation) + '</b> · ' + h.starters + ' starters · <i>' + _viEscSafe(h.at) + '</i></li>'; }).join('') + '</ul>'
-    : '<div class="at-empty">No saved lineups yet.</div>';
-
-  return header
-    + summary
-    + '<div class="at-lu-layout">'
-      + '<div class="at-lu-pitchcol">'
-        + '<div class="at-lupitch-wrap">' + _atLineupPitch(id) + '</div>'
-        + '<div class="at-lu-savebar">'
-          + '<button class="at-btn" type="button" data-at-save-lineup>Save Lineup</button>'
-          + '<button class="at-btn at-btn--ghost" type="button" data-at-reset-lineup>Reset</button>'
-        + '</div>'
-        + _atCard('Lineup history', hist)
-      + '</div>'
-      + '<div class="at-lu-playercol">'
-        + _atFilterBar(c.idx)
-        + _atPlayerList(id, 'lineup')
-      + '</div>'
-    + '</div>';
+  return '<div class="lux-room">'
+    + cmd
+    + '<div class="lux-grid">'
+      + '<section class="lux-stage">'
+        + formationSel
+        + '<div class="lux-pitch-wrap">' + _atLineupPitch(id) + '</div>'
+        + _atLuBench(id, lu)
+      + '</section>'
+      + '<aside class="lux-side">' + board + '</aside>'
+    + '</div>'
+  + '</div>';
 }
 
 /* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
@@ -44879,6 +45088,19 @@ if (typeof document !== 'undefined' && !window._atBound) {
       if (lu4.gk && lu4.starters.indexOf(pid4) < 0) { lu4.subs = lu4.subs.filter(function (x) { return x !== pid4; }); lu4.starters.unshift(pid4); }
       _atSave(); renderAcademyTeamPage(); return;
     }
+    // Lineup module hub → open the existing Academy tool (same age group).
+    var luMod = t.closest && t.closest('[data-at-lumod]');
+    if (luMod) { e.preventDefault(); AT.luView = luMod.getAttribute('data-at-lumod'); AT.luSel = null; renderAcademyTeamPage(); return; }
+    if (t.closest && t.closest('[data-at-lumod-back]')) { e.preventDefault(); AT.luView = null; AT.luSel = null; renderAcademyTeamPage(); return; }
+    // Inspector focus — pure UI state (no data/permission change). Checked
+    // after the action buttons above so a click on those is never swallowed.
+    var luSel = t.closest && t.closest('[data-at-luselect]');
+    if (luSel) {
+      e.preventDefault();
+      var lsid = luSel.getAttribute('data-at-luselect');
+      AT.luSel = (AT.luSel === lsid) ? null : lsid;
+      renderAcademyTeamPage(); return;
+    }
     var saveL = t.closest && t.closest('[data-at-save-lineup]');
     if (saveL) {
       e.preventDefault();
@@ -45059,7 +45281,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (e.target.getAttribute && e.target.getAttribute('data-at-search') !== null && e.target.classList.contains('at-search')) {
       AT.q = e.target.value || '';
       var q = AT.q.toLowerCase();
-      var rows = document.querySelectorAll('#at-pllist .at-lucard, #at-pllist .at-sc');
+      var rows = document.querySelectorAll('#at-pllist .lux-card, #at-pllist .at-sc');
       for (var i = 0; i < rows.length; i++) { var nm = rows[i].getAttribute('data-name') || ''; rows[i].style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none'; }
       return;
     }
