@@ -5681,6 +5681,14 @@ function _sqCmdInner(ctx) {
     var back = '<div class="sqtc-simbar"><button class="sqtc-simback" data-action="sqCmdWin" data-tab="overview" type="button">&#8592; Back to Formation Overview</button></div>';
     return '<div class="sqtc sqtc--sim">' + nav + back + '<div class="sqtc-content sqtc-content--sim">' + _sqTcSimulation(my, op) + '</div></div>';
   }
+  // Simulation requested for a team with no opponent squad (Academy age group):
+  // show the professional empty state rather than silently doing nothing.
+  if (SQ_FORM.cmdSim && !C.hasOpponent) {
+    var backA = '<div class="sqtc-simbar"><button class="sqtc-simback" data-action="sqCmdWin" data-tab="overview" type="button">&#8592; Back to Formation Overview</button></div>';
+    return '<div class="sqtc sqtc--sim">' + nav + backA + '<div class="sqtc-content sqtc-content--sim">'
+      + _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + C.label + ', so a match cannot be simulated yet.')
+      + '</div></div>';
+  }
   var showOpp = SQ_FORM.showOpp && C.hasOpponent;
   var heads = '<div class="sqtc-heads' + (showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my, C) + (showOpp ? _sqTcHead('opp', op, C) : '') + '</div>';
   var content = _sqTcOverview(my, op, C);                    // Overview pitch ALWAYS visible in the background
