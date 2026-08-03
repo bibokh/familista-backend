@@ -2174,7 +2174,7 @@ var _SQ_LU_STATE = {};
 function _sqLuState(ctx) { var k = _sqCtx(ctx).ctxId || _sqCtx(ctx).teamId || 'first-team'; if (!_SQ_LU_STATE[k]) _SQ_LU_STATE[k] = { q: '', pos: 'all', quick: {} }; return _SQ_LU_STATE[k]; }
 var _SQ_LU_ACTIVE = null;                 // the context the mounted Lineup page is rendering
 function _sqLuUseCtx(c) { _SQ_LU_ACTIVE = c || null; }
-function _sqLuCtx() { return _SQ_LU_ACTIVE || _sqFirstCtx(); }
+function _sqLuCtx() { if (typeof _trPageCtx === 'function' && _trPageCtx('pg-squad')) return _sqFirstCtx(); return _SQ_LU_ACTIVE || _sqFirstCtx(); }
 try { Object.defineProperty(typeof globalThis !== 'undefined' ? globalThis : window, 'SQ_LU', { get: function () { return _sqLuState(_sqLuCtx()); }, set: function () {}, configurable: true }); } catch (e) {}
 var _SQ_LU_BOUND = false;
 // Derived match availability (presentation only — never written back to the player).
@@ -3433,7 +3433,7 @@ var _SQ_TAC_SECS = [
 var _SQ_TAC_PANEL_STATE = {};            // ctxId -> open panels keyed by section id
 var _SQ_TAC_ACTIVE = null;               // the context the mounted Tactics page is rendering
 function _sqTacUseCtx(c) { _SQ_TAC_ACTIVE = c || null; }
-function _sqTacCtx() { return _SQ_TAC_ACTIVE || _sqFirstCtx(); }
+function _sqTacCtx() { if (typeof _trPageCtx === 'function' && _trPageCtx('pg-squad')) return _sqFirstCtx(); return _SQ_TAC_ACTIVE || _sqFirstCtx(); }
 function _sqTacCtxId() { var c = _sqTacCtx(); return c.ctxId || c.teamId || 'first-team'; }
 function _sqTacPanels() { var k = _sqTacCtxId(); if (!_SQ_TAC_PANEL_STATE[k]) _SQ_TAC_PANEL_STATE[k] = {}; return _SQ_TAC_PANEL_STATE[k]; }
 try { Object.defineProperty(typeof globalThis !== 'undefined' ? globalThis : window, '_SQ_TAC_PANELS', { get: _sqTacPanels, set: function () {}, configurable: true }); } catch (e) {}
@@ -9183,7 +9183,14 @@ function _trFirstCtx() {
     types: TR_TYPES, backend: true, canEdit: true
   };
 }
-function _trCtx() { return _TR_CTX || _trFirstCtx(); }
+// The mounted page decides the team. Pages stay in the DOM once visited, so
+// returning to the First Team must not keep reading the age group that happened
+// to be opened last — the active page answers, not the last mount.
+function _trPageCtx(firstPageId) {
+  try { if (typeof document !== 'undefined') { var a = document.querySelector('.page.active'); if (a && a.id === firstPageId) return true; } } catch (e) {}
+  return false;
+}
+function _trCtx() { if (_trPageCtx('pg-training')) return _trFirstCtx(); return _TR_CTX || _trFirstCtx(); }
 function _trUseCtx(c) { _TR_CTX = c || null; }
 function _trRoster() { var r = _trCtx().roster; return r || []; }
 function _trAvail(p) { var c = _trCtx(); if (typeof c.avail === 'function') return c.avail(p); return (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available'; }
