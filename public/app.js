@@ -44215,6 +44215,7 @@ function renderAcademyTeamPage() {
   var id = AT.active;
   // Guard: no team selected, or the current user is not allowed → bounce out.
   if (!id || !_acStage(id) || !_acCanOpen(id)) { _atBack(); return; }
+  _atResolveSection();          // settle a retired/unknown section before the nav is built
   var c = _atCtx(id);
   el.innerHTML =
     '<div class="at-head" style="--acc:' + c.accent + '">'
@@ -44253,6 +44254,16 @@ function _atNextEvent(id) {
 // 'squad' is the module hub: it opens the Academy Lineup, Formation and Tactics
 // tools, mirroring the First Team Squad hub. Retired sections resolve through
 // AT_REDIRECT so a stale state always lands on a real page.
+// Settle the current section to one the workspace still has. Called before the
+// shell renders, so a redirected view also highlights the right sidebar item
+// instead of leaving the navigation with nothing selected.
+function _atResolveSection() {
+  var sec = AT.section;
+  if (AT_REDIRECT[sec]) sec = AT_REDIRECT[sec];
+  if (sec !== 'dashboard' && sec !== 'squad' && sec !== 'training') sec = 'dashboard';
+  if (sec !== AT.section) { AT.section = sec; AT.luView = null; }
+  return sec;
+}
 function _atSection(id, sec) {
   if (AT_REDIRECT[sec]) { sec = AT_REDIRECT[sec]; AT.section = sec; }
   switch (sec) {
