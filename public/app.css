@@ -8650,3 +8650,64 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 .sqtc-empty span{ font:500 12.5px/1.6 Inter,system-ui,Arial; color:#8b95a8; max-width:420px; }
 /* Academy host for the shared command centre */
 .at-formation-cmd{ margin-top:4px; }
+
+/* ═══════════ ACADEMY · Squad modules (Lineup / Tactics / Training hosts) ═══════════
+   The Academy modules render the First Team components (.sqlu-*, .sqtac-*,
+   .trn-*) with an age-group context. These rules only host and adapt them —
+   no First Team selector is redefined here.                                  */
+
+/* ── Lineup ── */
+.atlu-wrap{ padding:0 0 30px; }
+.atlu-wrap .sqlu-dash{ grid-template-columns:repeat(6,minmax(0,1fr)); }
+@media(max-width:1180px){ .atlu-wrap .sqlu-dash{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media(max-width:760px){ .atlu-wrap .sqlu-dash{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.atlu-head{ padding:2px 2px 16px; }
+.atlu-head h1{ margin:0; font:800 24px/1.1 Inter,system-ui,Arial; letter-spacing:-.5px; color:var(--tx-1,#f1f5f9); }
+.atlu-head p{ margin:6px 0 0; font:500 13.5px Inter,system-ui,Arial; color:var(--tx-3,#64748b); }
+
+.atlu-stage{ display:flex; gap:16px; align-items:stretch; margin:0 0 16px; }
+@media(max-width:960px){ .atlu-stage{ flex-direction:column; } }
+.atlu-stage .atlu-pitch{ flex:none; display:flex; justify-content:center; }
+.atlu-stage .atlu-pitch .lux-pitch{ flex:none; height:472px; }
+@media(max-width:960px){ .atlu-stage .atlu-pitch .lux-pitch{ height:380px; } }
+.atlu-stage .lux-bench{ flex:1; min-width:0; align-self:flex-start; }
+.atlu-formbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.atlu-formbar-l{ font:800 9.5px Inter,system-ui,Arial; letter-spacing:.08em; text-transform:uppercase; color:#8a94a6; }
+.atlu-formbar-fmt{ font:700 11.5px Inter,system-ui,Arial; color:#8a94a6; }
+.atlu-seg{ display:inline-flex; background:#0d1522; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:3px; gap:2px; }
+.atlu-seg-b{ border:0; background:transparent; color:#9aa4b6; font:700 12px Inter,system-ui,Arial; padding:6px 12px; border-radius:8px; cursor:pointer; transition:background .14s ease,color .14s ease; }
+.atlu-seg-b:hover{ color:#e6ecf6; }
+.atlu-seg-b.is-on{ background:rgba(139,92,246,.20); color:#c4b5fd; box-shadow:inset 0 0 0 1px rgba(139,92,246,.42); }
+.atlu-seg-b:focus-visible{ outline:2px solid #a78bfa; outline-offset:2px; }
+
+.atlu-savebar{ display:flex; gap:8px; }
+.atlu-open{ cursor:pointer; display:block; }
+.atlu-status{ display:inline-block; font:700 10.5px Inter,system-ui,Arial; padding:3px 9px; border-radius:20px; white-space:nowrap; border:1px solid transparent; }
+.atlu-status--starter{ background:rgba(52,211,153,.14); color:#6ee7b7; border-color:rgba(52,211,153,.34); }
+.atlu-status--sub{ background:rgba(56,189,248,.13); color:#7dd3fc; border-color:rgba(56,189,248,.32); }
+.atlu-status--injured{ background:rgba(244,63,94,.14); color:#fda4af; border-color:rgba(244,63,94,.34); }
+.atlu-status--doubtful{ background:rgba(245,158,11,.14); color:#fcd34d; border-color:rgba(245,158,11,.34); }
+.atlu-status--free{ background:rgba(148,163,184,.12); color:#94a3b8; border-color:rgba(148,163,184,.26); }
+.atlu-acts{ display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+.atlu-act{ border:1px solid rgba(255,255,255,.10); background:#111a29; color:#9aa4b6; font:700 10.5px Inter,system-ui,Arial; padding:4px 9px; border-radius:8px; cursor:pointer; white-space:nowrap; transition:color .14s ease,border-color .14s ease,background .14s ease; }
+.atlu-act:hover{ color:#e6ecf6; border-color:rgba(255,255,255,.22); }
+.atlu-act--go{ color:#6ee7b7; border-color:rgba(52,211,153,.32); }
+.atlu-act.is-on{ background:rgba(245,158,11,.16); color:#fcd34d; border-color:rgba(245,158,11,.40); }
+.atlu-act:focus-visible{ outline:2px solid #a78bfa; outline-offset:2px; }
+.sqlu-row.atlu-row--starter td:first-child{ box-shadow:inset 3px 0 0 rgba(52,211,153,.65); }
+.sqlu-row.atlu-row--sub td:first-child{ box-shadow:inset 3px 0 0 rgba(56,189,248,.55); }
+
+/* ── Tactics ── */
+.attac-wrap{ padding:0 0 30px; }
+.attac-wrap .sqtac-summary{ margin:0 0 18px; }
+.attac-secs{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+@media(max-width:1100px){ .attac-secs{ grid-template-columns:1fr; } }
+.attac-sec{ background:linear-gradient(168deg,#101a30,#0b1220); border:1px solid rgba(255,255,255,.08); border-radius:14px; overflow:hidden; }
+.attac-sec-h{ display:flex; align-items:center; gap:10px; padding:12px 15px; border-bottom:1px solid rgba(255,255,255,.07); background:linear-gradient(90deg,rgba(var(--ac),.13),transparent 62%); }
+.attac-sec-h h3{ margin:0; font:800 13.5px Inter,system-ui,Arial; color:#eef2f8; letter-spacing:-.2px; }
+.attac-sec-no{ flex:none; width:22px; height:22px; border-radius:7px; display:grid; place-items:center; font:800 11px Inter,system-ui,Arial; color:rgb(var(--ac)); background:rgba(var(--ac),.16); box-shadow:inset 0 0 0 1px rgba(var(--ac),.36); }
+.attac-sec-b{ padding:14px 15px 16px; }
+
+/* ── Training host ── */
+.at-trn-host{ margin:-4px -2px 0; }
+.at-trn-host .trn-root{ min-height:60vh; }

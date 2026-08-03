@@ -3362,7 +3362,7 @@ function _sqRenderFormationBody() {
 function _sqTacEsc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 // segmented single-select control (team: 'my' default, or 'opp' → edits the opponent tactics)
 function _sqTacSeg(grp, opts, cur, team) {
-  var tt = team === 'opp' ? ' data-team="opp"' : '';
+  var tt = (team && team !== 'my') ? ' data-team="' + team + '"' : '';
   return '<div class="sqtac-seg">' + opts.map(function (o) {
     var on = (o === cur);
     return '<button class="sqtac-seg-b' + (on ? ' is-on' : '') + '" data-action="sqTacSet" data-grp="' + grp + '" data-val="' + _sqTacEsc(o) + '"' + tt + ' type="button">' + _sqTacEsc(o) + '</button>';
@@ -3370,7 +3370,7 @@ function _sqTacSeg(grp, opts, cur, team) {
 }
 // ON/OFF pill toggle (scope: 'root' for top-level flags, 'team' for team-instruction flags)
 function _sqTacSwitch(scope, key, on, team) {
-  var tt = team === 'opp' ? ' data-team="opp"' : '';
+  var tt = (team && team !== 'my') ? ' data-team="' + team + '"' : '';
   return '<button class="sqtac-sw' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="' + scope + '" data-key="' + key + '"' + tt + ' type="button" aria-pressed="' + (on ? 'true' : 'false') + '">'
     + '<span class="sqtac-sw-track"><span class="sqtac-sw-thumb"></span></span><span class="sqtac-sw-txt">' + (on ? 'ON' : 'OFF') + '</span></button>';
 }
@@ -3426,9 +3426,9 @@ function _sqTacFpBind() {
   });
 }
 // per-position player-instruction rows, derived live from the CURRENT formation (my or opponent)
-function _sqTacRoleKeys(team) {
+function _sqTacRoleKeys(team, slotsIn) {
   var fm = team === 'opp' ? SQ_FORM.oppFormation : SQ_FORM.myFormation;
-  var slots = SQ_FORMATIONS[fm] || SQ_FORMATIONS['4-3-3'], seen = {}, out = [];
+  var slots = slotsIn || SQ_FORMATIONS[fm] || SQ_FORMATIONS['4-3-3'], seen = {}, out = [];
   slots.forEach(function (s) {
     var role = _sqSimRole(s), occ = (seen[role] = (seen[role] || 0) + 1) - 1;
     var opts = _SQ_TAC_ROLEOPTS[role] || ['Default'];
@@ -3436,9 +3436,9 @@ function _sqTacRoleKeys(team) {
   });
   return out;
 }
-function _sqTacPlayerRows(team) {
-  var T = team === 'opp' ? SQ_TACTICS_OPP : SQ_TACTICS, tt = team === 'opp' ? ' data-team="opp"' : '';
-  return _sqTacRoleKeys(team).map(function (r) {
+function _sqTacPlayerRows(team, Tin, slotsIn) {
+  var T = Tin || (team === 'opp' ? SQ_TACTICS_OPP : SQ_TACTICS), tt = (team && team !== 'my') ? ' data-team="' + team + '"' : '';
+  return _sqTacRoleKeys(team, slotsIn).map(function (r) {
     var cur = (T.players || {})[r.key]; if (r.opts.indexOf(cur) < 0) cur = r.opts[0];
     var seg = '<div class="sqtac-seg sqtac-seg--sm">' + r.opts.map(function (o) {
       return '<button class="sqtac-seg-b' + (o === cur ? ' is-on' : '') + '" data-action="sqTacPlayer" data-pkey="' + _sqTacEsc(r.key) + '" data-val="' + _sqTacEsc(o) + '"' + tt + ' type="button">' + _sqTacEsc(o) + '</button>';
@@ -3448,8 +3448,8 @@ function _sqTacPlayerRows(team) {
 }
 function _sqTacPosClass(b) { b = String(b); if (b === 'GK') return 'gk'; if (/B$|CB|WB/.test(b)) return 'df'; if (/M$|DM|AM|CM/.test(b)) return 'mf'; return 'fw'; }
 // compact live summary cards (reflect current config; update on every change)
-function _sqTacSummary() {
-  var T = SQ_TACTICS, cards = [
+function _sqTacSummary(Tin) {
+  var T = Tin || SQ_TACTICS, cards = [
     ['Mentality', T.mentality, '139,92,246'], ['Team Style', T.style, '236,72,153'], ['Pressing', T.pressLine, '20,184,166'],
     ['Width', T.width, '249,115,22'], ['Tempo', T.tempo, '245,158,11'], ['Def. Line', T.defLine, '34,211,238']
   ];
@@ -3458,8 +3458,8 @@ function _sqTacSummary() {
   }).join('') + '</div>';
 }
 // content for one internal section (compact field grid) — team 'my' (default) or 'opp'
-function _sqTacSecContent(id, team) {
-  var T = team === 'opp' ? SQ_TACTICS_OPP : SQ_TACTICS, tt = team === 'opp' ? ' data-team="opp"' : '';
+function _sqTacSecContent(id, team, Tin, slotsIn) {
+  var T = Tin || (team === 'opp' ? SQ_TACTICS_OPP : SQ_TACTICS), tt = (team && team !== 'my') ? ' data-team="' + team + '"' : '';
   if (id === 'identity') return '<div class="sqtac-fields">'
     + _sqTacField('Mentality', _sqTacSeg('mentality', _SQ_TAC_MENT, T.mentality, team), true)
     + _sqTacField('Team Style', _sqTacSeg('style', _SQ_TAC_STYLE, T.style, team), true) + '</div>';
@@ -3483,7 +3483,7 @@ function _sqTacSecContent(id, team) {
     return '<button class="sqtac-chip' + (on ? ' is-on' : '') + '" data-action="sqTacToggle" data-scope="team" data-key="' + t[0] + '"' + tt + ' type="button" aria-pressed="' + (on ? 'true' : 'false') + '"><span class="sqtac-chip-dot"></span>' + t[1] + '</button>';
   }).join('') + '</div>';
   // players
-  return '<div class="sqtac-players">' + _sqTacPlayerRows(team) + '</div>';
+  return '<div class="sqtac-players">' + _sqTacPlayerRows(team, Tin, slotsIn) + '</div>';
 }
 function _sqTacFloatPanel(id) {
   var sec = null; for (var i = 0; i < _SQ_TAC_SECS.length; i++) if (_SQ_TAC_SECS[i].id === id) sec = _SQ_TAC_SECS[i];
@@ -4225,17 +4225,20 @@ function sqTacOppNewPlan() { SQ_TAC_OPP.plan = 'Balanced'; SQ_FORM.oppFormation 
 function _sqTacClip(txt, msg) { try { if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt); } catch (e) {} _sqTacToast(msg); }
 function _sqTacToast(msg) { if (typeof document === 'undefined' || !document.body) return; var el = document.getElementById('sqtac-toast'); if (!el) { el = document.createElement('div'); el.id = 'sqtac-toast'; el.className = 'sqtac-toast'; document.body.appendChild(el); } el.textContent = msg; el.classList.add('is-on'); if (_sqTacToast._t) clearTimeout(_sqTacToast._t); _sqTacToast._t = setTimeout(function () { el.classList.remove('is-on'); }, 1700); }
 function sqTacSet(grp, val, team) {
+  if (team === 'academy') { _atTacSet(grp, val); return; }
   if (!grp || val == null) return;
   if (team === 'opp') { SQ_TACTICS_OPP[grp] = val; _sqTacOppSave(); SQ_TAC_FOCUS_OPP = { cat: _SQ_TAC_GRP2CAT[grp] || SQ_TAC_FOCUS_OPP.cat, grp: grp, val: val }; SQ_TAC_ACTIVE = 'opp'; _sqTacRenderSides(); _sqTacApply(true); return; }
   SQ_TACTICS[grp] = val; if (grp === 'mentality') _sqTacSyncMentality(); _sqTacticsSave(); SQ_TAC_FOCUS = { cat: _SQ_TAC_GRP2CAT[grp] || SQ_TAC_FOCUS.cat, grp: grp, val: val }; SQ_TAC_ACTIVE = 'my'; _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true);
 }
 function sqTacToggle(scope, key, team) {
   if (!key) return;
+  if (team === 'academy') { _atTacToggle(scope, key); return; }
   if (team === 'opp') { if (scope === 'team') { if (!SQ_TACTICS_OPP.team) SQ_TACTICS_OPP.team = {}; SQ_TACTICS_OPP.team[key] = !SQ_TACTICS_OPP.team[key]; } else { SQ_TACTICS_OPP[key] = !SQ_TACTICS_OPP[key]; } _sqTacOppSave(); SQ_TAC_FOCUS_OPP = { cat: scope === 'team' ? 'team' : (_SQ_TAC_GRP2CAT[key] || 'defensive'), grp: key, val: null }; SQ_TAC_ACTIVE = 'opp'; _sqTacRenderSides(); _sqTacApply(true); return; }
   if (scope === 'team') { if (!SQ_TACTICS.team) SQ_TACTICS.team = {}; SQ_TACTICS.team[key] = !SQ_TACTICS.team[key]; } else { SQ_TACTICS[key] = !SQ_TACTICS[key]; } _sqTacticsSave(); SQ_TAC_FOCUS = { cat: scope === 'team' ? 'team' : (_SQ_TAC_GRP2CAT[key] || 'defensive'), grp: key, val: null }; SQ_TAC_ACTIVE = 'my'; _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true);
 }
 function sqTacPlayer(pkey, val, team) {
   if (!pkey || val == null) return;
+  if (team === 'academy') { _atTacPlayer(pkey, val); return; }
   if (team === 'opp') { if (!SQ_TACTICS_OPP.players) SQ_TACTICS_OPP.players = {}; SQ_TACTICS_OPP.players[pkey] = val; _sqTacOppSave(); SQ_TAC_FOCUS_OPP = { cat: 'players', grp: pkey, val: val }; SQ_TAC_ACTIVE = 'opp'; _sqTacRenderSides(); _sqTacApply(true); return; }
   if (!SQ_TACTICS.players) SQ_TACTICS.players = {}; SQ_TACTICS.players[pkey] = val; _sqTacticsSave(); SQ_TAC_FOCUS = { cat: 'players', grp: pkey, val: val }; SQ_TAC_ACTIVE = 'my'; _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true);
 }
@@ -9082,6 +9085,51 @@ function _deBind() {
 // ════════════════════════════════════════════════════════════════════════════
 var _TRN = { tab: 'dashboard', player: null };
 var _trnBound = false;
+// ══════════ Training · explicit team context ══════════
+// The Training system is shared by the First Team workspace and every Academy
+// age-group workspace. Each host declares WHICH team it is rendering when it
+// mounts; nothing is swapped or restored around individual calls and no First
+// Team global is ever written from Academy. When no host has declared a team,
+// the First Team context is used, so the First Team path is unchanged.
+var _TR_CTX = null;
+function _trFirstCtx() {
+  return {
+    type: 'first', teamId: 'first-team', label: 'First Team',
+    get roster() { return SQ_DEMO_PLAYERS || []; },
+    get xi() { return (typeof SQ_MY_IDS !== 'undefined' && SQ_MY_IDS && SQ_MY_IDS.length) ? SQ_MY_IDS.slice() : (SQ_DEMO_PLAYERS || []).map(function (p) { return p.id; }); },
+    get formation() { return (typeof SQ_FORM !== 'undefined' && SQ_FORM.myFormation) || '4-3-3'; },
+    get formationOptions() { return (typeof SQ_FORM_NAMES !== 'undefined') ? SQ_FORM_NAMES : ['4-3-3', '4-4-2']; },
+    get tactics() { return SQ_TACTICS || {}; },
+    types: TR_TYPES, backend: true, canEdit: true
+  };
+}
+function _trCtx() { return _TR_CTX || _trFirstCtx(); }
+function _trUseCtx(c) { _TR_CTX = c || null; }
+function _trRoster() { var r = _trCtx().roster; return r || []; }
+function _trAvail(p) { var c = _trCtx(); if (typeof c.avail === 'function') return c.avail(p); return (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available'; }
+function _trFormationName() { return _trCtx().formation || '4-3-3'; }
+function _trFormNames() { var o = _trCtx().formationOptions; return (o && o.length) ? o : ['4-3-3', '4-4-2']; }
+function _trTac() { return _trCtx().tactics || {}; }
+function _trFeel() { var c = _trCtx(); return (typeof c.feel === 'function') ? c.feel() : ((typeof _sqTeamFeel === 'function') ? _sqTeamFeel() : { attacking: 78, defensive: 78 }); }
+function _trTypes() { return _trCtx().types || TR_TYPES; }
+// Squad-selection label: 'Starting XI' only for 11-a-side, otherwise the real
+// small-sided count (e.g. 'Starting 7') so an age group is never mislabelled.
+function _trXiLabel() { var c = _trCtx(); if (c.xiLabel) return c.xiLabel; var n = 0; String(_trFormationName()).split('-').forEach(function (x) { n += parseInt(x, 10) || 0; }); n += 1; return n === 11 ? 'Starting XI' : 'Starting ' + n; }
+// The First Team page and an Academy workspace can both be mounted at once (the
+// hidden page stays in the DOM). Every Training DOM lookup resolves inside the
+// Academy host first, so an Academy click never re-renders the First Team page.
+function _trnEl(id) {
+  if (typeof document === 'undefined') return null;
+  var host = document.querySelector('.at-trn-host');
+  if (host) { var e = host.querySelector('[id="' + id + '"]'); if (e) return e; }
+  return document.getElementById(id);
+}
+function _trnSel(sel) {
+  if (typeof document === 'undefined') return null;
+  var host = document.querySelector('.at-trn-host');
+  if (host) { var e = host.querySelector(sel); if (e) return e; }
+  return document.querySelector(sel);
+}
 var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive'], ['match', 'Match Prep'], ['med', 'Medical']];
 var TRN_TYPE = {
   match:     { c: '244,63,94',   l: 'Match' },
@@ -9132,10 +9180,10 @@ function _trnPlayerLoad(pid, sessions) {
 function _trnProfiles() {
   var recorded = (typeof _trRecorded === 'function') ? _trRecorded() : [];
   var completed = (typeof _trCompleted === 'function') ? _trCompleted() : [];
-  return (SQ_DEMO_PLAYERS || []).map(function (p) {
+  return _trRoster().map(function (p) {
     var agg = (typeof _trPlayerAgg === 'function') ? _trPlayerAgg(p.id, recorded) : { attendancePct: null };
     var cagg = (typeof _trPlayerAgg === 'function') ? _trPlayerAgg(p.id, completed) : { avgRating: null, seq: [] };
-    var avail = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+    var avail = _trAvail(p);
     var injured = avail === 'injured';
     var fitness = (typeof p.cond === 'number') ? p.cond : 85;                 // REAL Player.condition
     var attend = _trnLastMark(p.id, recorded);                               // REAL last mark, else null
@@ -9212,7 +9260,7 @@ function _trnAvatar(p) {
 }
 // ── AI recommendation engine (reads tactics + fitness + formation) ──
 function _trnAIRecs() {
-  var t = _trnTeam(), tac = SQ_TACTICS || {}, feel = (typeof _sqTeamFeel === 'function') ? _sqTeamFeel() : { attacking: 78, defensive: 78 };
+  var t = _trnTeam(), tac = _trTac(), feel = _trFeel();
   var recs = [];
   function rec(sev, icon, title, body) { recs.push({ sev: sev, icon: icon, title: title, body: body }); }
   if (t.fatigue >= 55) rec('high', '&#128564;', 'Recovery needed', 'Squad fatigue is at ' + t.fatigue + '%. Insert an extra regeneration block and reduce Thursday intensity.');
@@ -9221,12 +9269,12 @@ function _trnAIRecs() {
   if ((tac.pressLine === 'High' || tac.mentality === 'Attacking' || tac.mentality === 'All Out Attack')) rec('med', '&#9889;', 'Prepare high press', 'Your press line is aggressive — train pressing triggers and rest-defence to cover the space in behind.');
   if (feel.attacking < 78) rec('med', '&#127919;', 'Increase finishing', 'Sharpen the front line with finishing and small-sided games in the final third.');
   rec('low', '&#128260;', 'Train transitions', 'Rehearse ' + (tac.transWon || 'counter-attack') + ' after winning it and ' + (tac.transLost || 'counter-press') + ' on loss to match your tactical plan.');
-  rec('low', '&#129309;', 'Improve chemistry', 'Team-bonding and positional-play sessions will lift chemistry across the ' + (SQ_FORM.myFormation || '4-3-3') + '.');
+  rec('low', '&#129309;', 'Improve chemistry', 'Team-bonding and positional-play sessions will lift chemistry across the ' + _trFormationName() + '.');
   return recs;
 }
 // formation → recommended drill categories
 function _trnFormationFocus() {
-  var f = SQ_FORM.myFormation || '4-3-3';
+  var f = _trFormationName();
   var map = {
     '4-3-3': ['Wide overloads & inverted wingers', 'Midfield rondos (3v1 / 4v2)', 'High-press triggers'],
     '4-4-2': ['Strike-partnership combinations', 'Compact two banks of four', 'Direct transition play'],
@@ -9252,19 +9300,19 @@ var TR_TYPES = [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical
 var TR_FOCI = ['Possession', 'Pressing', 'Transitions', 'Defensive Shape', 'Attacking Play', 'Set Pieces', 'Finishing', 'Build-up', 'Fitness', 'Team Shape'];
 var TR_LOCS = ['Main Pitch', 'Training Ground', 'Indoor Hall', 'Gym', 'Stadium', 'Recovery Centre'];
 var TR_STATUS = { draft: ['Draft', 'muted'], planned: ['Planned', 'blue'], in_progress: ['In Progress', 'amber'], completed: ['Completed', 'green'], cancelled: ['Cancelled', 'red'] };
-function _trScope() { var club = (typeof _sqClubName === 'function') ? _sqClubName() : 'FC Familista'; return { club: club, team: 'First Team', season: '2025/26' }; }
+function _trScope() { var club = (typeof _sqClubName === 'function') ? _sqClubName() : 'FC Familista'; var c = _trCtx(); return { club: club, team: c.label || 'First Team', teamId: c.teamId || 'first-team', season: '2025/26' }; }
 function _trLoadDB() { if (_TR_LOADED) return TR_DB; _TR_LOADED = true; try { if (typeof window !== 'undefined' && window.localStorage) { var raw = window.localStorage.getItem(TR_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.sessions)) TR_DB = o; } } } catch (e) {} return TR_DB; }
 function _trSaveDB() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(TR_KEY, JSON.stringify(TR_DB)); } catch (e) {} }
-function _trAllSessions() { _trLoadDB(); var sc = _trScope(); return (TR_DB.sessions || []).filter(function (s) { return s.club === sc.club; }); }
+function _trAllSessions() { _trLoadDB(); var sc = _trScope(); return (TR_DB.sessions || []).filter(function (s) { return s.club === sc.club && (s.teamId || 'first-team') === sc.teamId; }); }
 function _trSessionsSorted() { return _trAllSessions().slice().sort(function (a, b) { var ka = (a.date || '') + (a.startTime || ''), kb = (b.date || '') + (b.startTime || ''); return ka < kb ? 1 : ka > kb ? -1 : 0; }); }
 function _trSession(id) { _trLoadDB(); var a = (TR_DB.sessions || []).filter(function (s) { return s.id === id; }); return a[0] || null; }
-function _trP(id) { for (var i = 0; i < SQ_DEMO_PLAYERS.length; i++) if (SQ_DEMO_PLAYERS[i].id === id) return SQ_DEMO_PLAYERS[i]; return null; }
+function _trP(id) { var r = _trRoster(); for (var i = 0; i < r.length; i++) if (r[i].id === id) return r[i]; return null; }
 function _trUid() { return 'trs-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36); }
 function _trDefaultDraft() {
   var today; try { today = new Date().toISOString().slice(0, 10); } catch (e) { today = '2026-07-12'; }
-  var xi = (typeof SQ_MY_IDS !== 'undefined' && SQ_MY_IDS && SQ_MY_IDS.length) ? SQ_MY_IDS.slice() : (SQ_DEMO_PLAYERS || []).map(function (p) { return p.id; });
-  var foc = (SQ_TACTICS && SQ_TACTICS.style && SQ_TACTICS.style !== 'Balanced') ? SQ_TACTICS.style : 'Possession';
-  var base = { date: today, startTime: '10:00', duration: 90, type: 'technical', objective: '', location: 'Main Pitch', players: xi, formation: (SQ_FORM.myFormation || '4-3-3'), tacticalFocus: foc, drills: [], intensity: 'Medium', pitch: 'Main Pitch', weather: '', temperature: '', equipment: '', coach: '' };
+  var xi = (_trCtx().xi || []).slice();
+  var tc0 = _trTac(); var foc = (tc0.style && tc0.style !== 'Balanced') ? tc0.style : 'Possession';
+  var base = { date: today, startTime: '10:00', duration: 90, type: 'technical', objective: '', location: 'Main Pitch', players: xi, formation: _trFormationName(), tacticalFocus: foc, drills: [], intensity: 'Medium', pitch: 'Main Pitch', weather: '', temperature: '', equipment: '', coach: '' };
   // Prefill from a duplicated session or a saved template (real config, new date).
   if (_TRN.tpl) { var t = _TRN.tpl; ['startTime', 'duration', 'type', 'objective', 'location', 'formation', 'tacticalFocus', 'intensity', 'pitch', 'weather', 'temperature', 'equipment', 'coach'].forEach(function (k) { if (t[k] != null && t[k] !== '') base[k] = t[k]; }); if (Array.isArray(t.drills)) base.drills = t.drills.slice(); if (Array.isArray(t.players) && t.players.length) base.players = t.players.slice(); _TRN.tpl = null; }
   return base;
@@ -9273,10 +9321,10 @@ function _trDefaultDraft() {
 function trCreateSession(data) {
   _trLoadDB(); var sc = _trScope();
   var s = {
-    id: _trUid(), createdAt: Date.now(), club: sc.club, team: sc.team, season: sc.season,
+    id: _trUid(), createdAt: Date.now(), club: sc.club, team: sc.team, teamId: sc.teamId, season: sc.season,
     date: data.date, startTime: data.startTime, duration: parseInt(data.duration, 10) || 90,
     type: data.type || 'technical', objective: (data.objective || '').trim(), location: data.location || 'Main Pitch',
-    players: (data.players || []).slice(), formation: data.formation || (SQ_FORM.myFormation || '4-3-3'),
+    players: (data.players || []).slice(), formation: data.formation || _trFormationName(),
     tacticalFocus: data.tacticalFocus || 'Possession', drills: (data.drills || []).slice(),
     intensity: data.intensity || 'Medium', pitch: data.pitch || '', weather: data.weather || '', temperature: data.temperature || '', equipment: data.equipment || '', coach: data.coach || '',
     status: 'planned', attendance: {}, attendanceNotes: '', performance: {},
@@ -9303,6 +9351,7 @@ var _TR_MARK_UP = { present: 'PRESENT', late: 'LATE', absent: 'ABSENT', excused:
 var _TR_MARK_DN = { PRESENT: 'present', LATE: 'late', ABSENT: 'absent', EXCUSED: 'excused', INJURED: 'injured' };
 function _trBackendOn() {
   try {
+    if (_trCtx().backend === false) return false;                        // Academy age group → client store only
     if (typeof _sqBackendSquad !== 'function') return false;
     var b = _sqBackendSquad();
     if (!b || !b.length) return false;                                   // demo squad → stay on localStorage
@@ -9468,7 +9517,7 @@ function _trFilterByRange(sessions, days) {
 }
 function _trBestPlayer(sessions) {
   var best = null;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) {
+  _trRoster().forEach(function (p) {
     var a = _trPlayerAgg(p.id, sessions);
     if (a.avgRating == null) return;
     var mvp = sessions.filter(function (s) { return s.bestPlayer === p.id; }).length;
@@ -9479,7 +9528,7 @@ function _trBestPlayer(sessions) {
 }
 function _trMostImproved(sessions) {
   var best = null;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) {
+  _trRoster().forEach(function (p) {
     var a = _trPlayerAgg(p.id, sessions);
     if (a.seq.length < 2) return;
     var seq = a.seq.slice().sort(function (x, y) { return x.t - y.t; });
@@ -9494,12 +9543,12 @@ function _trMostImproved(sessions) {
 }
 function _trHighestAttendance(sessions) {
   var best = null;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, sessions); if (a.attendancePct == null || a.required < 1) return; if (!best || a.attendancePct > best.agg.attendancePct || (a.attendancePct === best.agg.attendancePct && a.required > best.agg.required)) best = { p: p, agg: a }; });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, sessions); if (a.attendancePct == null || a.required < 1) return; if (!best || a.attendancePct > best.agg.attendancePct || (a.attendancePct === best.agg.attendancePct && a.required > best.agg.required)) best = { p: p, agg: a }; });
   return best;
 }
 function _trBestDiscipline(sessions) {
   var best = null;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, sessions); if (a.required < 1) return; var demerit = a.late * 1 + a.absent * 3; if (!best || demerit < best.demerit || (demerit === best.demerit && a.required > best.agg.required)) best = { p: p, agg: a, demerit: demerit }; });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, sessions); if (a.required < 1) return; var demerit = a.late * 1 + a.absent * 3; if (!best || demerit < best.demerit || (demerit === best.demerit && a.required > best.agg.required)) best = { p: p, agg: a, demerit: demerit }; });
   return best;
 }
 // ── shared UI atoms for the training data engine ──
@@ -9589,7 +9638,7 @@ function _trnSessionDetail(s) {
   // attendance center
   var attStates = [['present', 'Present'], ['late', 'Late'], ['absent', 'Absent'], ['excused', 'Excused'], ['injured', 'Injured']];
   var attRows = players.map(function (p) {
-    var cur = att[p.id] || '', avail = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+    var cur = att[p.id] || '', avail = _trAvail(p);
     var btns = attStates.map(function (a) { return '<button class="trn-astate trn-astate--' + a[0] + (cur === a[0] ? ' is-on' : '') + '" data-trn-act="att" data-trn-id="' + p.id + '" data-trn-v="' + a[0] + '" type="button">' + a[1] + '</button>'; }).join('');
     return '<div class="trn-arow"><span class="trn-arow-p">' + _trnAvatar(p) + '<span><b>' + _sqEsc(_trnLast(p.name)) + '</b><i>' + p.pos + ' · #' + p.num + (avail !== 'available' ? ' · <em class="trn-unavail">' + avail + '</em>' : '') + '</i></span></span><span class="trn-astates">' + btns + '</span></div>';
   }).join('');
@@ -9652,8 +9701,8 @@ function _trnNotifHtml() {
 function _trnSearch(q) {
   q = (q || '').trim().toLowerCase();
   if (!q) return { players: [], sessions: [], hints: [] };
-  var players = (SQ_DEMO_PLAYERS || []).filter(function (p) {
-    var med = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+  var players = _trRoster().filter(function (p) {
+    var med = _trAvail(p);
     return String(p.name).toLowerCase().indexOf(q) >= 0 || String(p.pos).toLowerCase().indexOf(q) >= 0 || String(p.num).indexOf(q) >= 0 || String(p.roles || '').toLowerCase().indexOf(q) >= 0 || (q === 'injured' && med === 'injured') || (q === 'medical' && med !== 'available');
   }).slice(0, 8);
   var sessions = _trSessionsSorted().filter(function (s) {
@@ -9669,7 +9718,7 @@ function _trnSearchResults() {
   var total = r.players.length + r.sessions.length + r.hints.length;
   if (!total) return _trEmpty('&#128269;', 'No matches', 'Try a player name, session objective, date or a section like “reports”.', false);
   var out = '';
-  if (r.players.length) out += '<div class="trn-src-grp"><h5>Players</h5>' + r.players.map(function (p) { var med = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available'; return '<button class="trn-src-item" data-trn-act="gotoplayer" data-trn-id="' + p.id + '" type="button">' + _trnAvatar(p) + '<span><b>' + _sqEsc(p.name) + '</b><i>' + p.pos + ' · #' + p.num + (med !== 'available' ? ' · ' + med : '') + '</i></span></button>'; }).join('') + '</div>';
+  if (r.players.length) out += '<div class="trn-src-grp"><h5>Players</h5>' + r.players.map(function (p) { var med = _trAvail(p); return '<button class="trn-src-item" data-trn-act="gotoplayer" data-trn-id="' + p.id + '" type="button">' + _trnAvatar(p) + '<span><b>' + _sqEsc(p.name) + '</b><i>' + p.pos + ' · #' + p.num + (med !== 'available' ? ' · ' + med : '') + '</i></span></button>'; }).join('') + '</div>';
   if (r.sessions.length) out += '<div class="trn-src-grp"><h5>Sessions</h5>' + r.sessions.map(function (s) { var tm = _trTypeMeta(s.type); return '<button class="trn-src-item" data-trn-act="gotosession" data-trn-id="' + s.id + '" type="button"><span class="trn-badge" style="--c:' + tm.c + '">' + tm.l + '</span><span><b>' + (_sqEsc(s.objective) || tm.l + ' session') + '</b><i>' + _trFmtDate(s.date) + ' · ' + s.status + '</i></span></button>'; }).join('') + '</div>';
   if (r.hints.length) out += '<div class="trn-src-grp"><h5>Sections</h5>' + r.hints.map(function (h) { return '<button class="trn-src-item trn-src-item--sec" data-trn-act="gototab" data-trn-v="' + h[0] + '" type="button"><span class="trn-src-secic">&#8250;</span><b>Open ' + h[1] + '</b></button>'; }).join('') + '</div>';
   return out;
@@ -9691,7 +9740,7 @@ function _trnModalHtml() {
       + '<div class="trn-frow"><div class="trn-afield"><label>Date</label><input id="trn-f-date" class="trn-input" type="date" value="' + d.date + '"></div>'
       + '<div class="trn-afield"><label>Start time</label><input id="trn-f-time" class="trn-input" type="time" value="' + d.startTime + '"></div>'
       + '<div class="trn-afield"><label>Duration (min)</label><input id="trn-f-dur" class="trn-input" type="number" min="20" max="180" value="' + d.duration + '"></div></div>'
-      + '<div class="trn-frow"><div class="trn-afield"><label>Training type</label><select id="trn-f-type" class="trn-input">' + TR_TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (d.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div>'
+      + '<div class="trn-frow"><div class="trn-afield"><label>Training type</label><select id="trn-f-type" class="trn-input">' + _trTypes().map(function (t) { return '<option value="' + t[0] + '"' + (d.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div>'
       + '<div class="trn-afield"><label>Location</label><select id="trn-f-loc" class="trn-input">' + TR_LOCS.map(function (l) { return '<option' + (d.location === l ? ' selected' : '') + '>' + l + '</option>'; }).join('') + '</select></div></div>'
       + '<div class="trn-afield"><label>Main objective</label><input id="trn-f-obj" class="trn-input" type="text" value="' + _sqEsc(d.objective) + '" placeholder="e.g. sharpen pressing triggers"></div>'
       + '<div class="trn-frow"><div class="trn-afield"><label>Intensity</label><select id="trn-f-int" class="trn-input">' + ['Low', 'Medium', 'High', 'Max'].map(function (x) { return '<option' + (d.intensity === x ? ' selected' : '') + '>' + x + '</option>'; }).join('') + '</select></div>'
@@ -9702,14 +9751,14 @@ function _trnModalHtml() {
       + '<div class="trn-afield"><label>Equipment</label><input id="trn-f-equip" class="trn-input" type="text" value="' + _sqEsc(d.equipment || '') + '" placeholder="e.g. Cones, bibs, goals"></div></div>'
       + '</div>';
   } else if (step === 2) {
-    var rows = (SQ_DEMO_PLAYERS || []).map(function (p) {
-      var on = d.players.indexOf(p.id) >= 0, avail = (typeof _sqLuAvail === 'function') ? _sqLuAvail(p) : 'available';
+    var rows = _trRoster().map(function (p) {
+      var on = d.players.indexOf(p.id) >= 0, avail = _trAvail(p);
       return '<button class="trn-psel' + (on ? ' is-on' : '') + (avail !== 'available' ? ' is-unavail' : '') + '" data-trn-act="togglep" data-trn-id="' + p.id + '" type="button">' + _trnAvatar(p) + '<span class="trn-psel-nm">' + _sqEsc(_trnLast(p.name)) + '</span><span class="trn-psel-pos">' + p.pos + '</span>' + (avail !== 'available' ? '<span class="trn-psel-flag">' + avail + '</span>' : '<span class="trn-psel-check">&#10003;</span>') + '</button>';
     }).join('');
-    body = '<div class="trn-ptools"><span>' + d.players.length + ' of ' + (SQ_DEMO_PLAYERS || []).length + ' selected</span><span class="trn-ptools-b"><button class="trn-btn trn-btn--sm" data-trn-act="selall" type="button">Select all</button><button class="trn-btn trn-btn--sm" data-trn-act="clrall" type="button">Clear all</button></span></div><div class="trn-pgrid">' + rows + '</div><p class="trn-note">Injured / unavailable players are flagged — you can still call them in for modified work.</p>';
+    body = '<div class="trn-ptools"><span>' + d.players.length + ' of ' + _trRoster().length + ' selected</span><span class="trn-ptools-b"><button class="trn-btn trn-btn--sm" data-trn-act="selall" type="button">Select all</button><button class="trn-btn trn-btn--sm" data-trn-act="clrall" type="button">Clear all</button></span></div><div class="trn-pgrid">' + rows + '</div><p class="trn-note">Injured / unavailable players are flagged — you can still call them in for modified work.</p>';
   } else {
     var drills = (typeof DE_DRILLS !== 'undefined' ? DE_DRILLS : []).map(function (dr) { var on = d.drills.indexOf(dr.id) >= 0, ac = (typeof DE_CATS !== 'undefined' && DE_CATS[dr.cat]) ? DE_CATS[dr.cat] : '148,163,184'; return '<button class="trn-dsel' + (on ? ' is-on' : '') + '" style="--c:' + ac + '" data-trn-act="toggled" data-trn-id="' + dr.id + '" type="button"><b>' + _sqEsc(dr.name) + '</b><span>' + dr.cat + '</span></button>'; }).join('');
-    body = '<div class="trn-frow"><div class="trn-afield"><label>Formation (session override)</label><select id="trn-f-form" class="trn-input">' + (typeof SQ_FORM_NAMES !== 'undefined' ? SQ_FORM_NAMES : ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '5-3-2']).map(function (f) { return '<option' + (d.formation === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div>'
+    body = '<div class="trn-frow"><div class="trn-afield"><label>Formation (session override)</label><select id="trn-f-form" class="trn-input">' + (_trFormNames().length ? _trFormNames() : ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '5-3-2']).map(function (f) { return '<option' + (d.formation === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div>'
       + '<div class="trn-afield"><label>Tactical focus</label><select id="trn-f-foc" class="trn-input">' + TR_FOCI.map(function (f) { return '<option' + (d.tacticalFocus === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div></div>'
       + '<div class="trn-afield"><label>Drills from the Encyclopedia (optional · ' + d.drills.length + ' selected)</label><div class="trn-dgrid">' + drills + '</div></div>'
       + '<p class="trn-note">Formation &amp; tactical focus default to the club setup and only apply to this session — they don\'t change your saved Formation / Tactics.</p>';
@@ -9851,7 +9900,7 @@ function _trnAnKpis(d) {
   var eff = (att != null && avgR != null) ? Math.round(att * (avgR / 10)) : null;
   var inj = rows.filter(function (r) { return r.prof.avail === 'injured'; }).length;
   var avail = rows.length ? Math.round((rows.length - inj) / rows.length * 100) : 100;
-  var trends = []; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, comp); if (a.seq && a.seq.length >= 2) trends.push(_trnTrendDelta(a)); });
+  var trends = []; _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, comp); if (a.seq && a.seq.length >= 2) trends.push(_trnTrendDelta(a)); });
   var dev = trends.length ? _trnClamp(Math.round(50 + (trends.reduce(function (x, y) { return x + y; }, 0) / trends.length) * 10), 0, 100) : null;
   var loads = rows.map(function (r) { return r.load; }).filter(function (l) { return l > 0; });
   var avgLoad = loads.length ? Math.round(loads.reduce(function (x, y) { return x + y; }, 0) / loads.length) : null;
@@ -9907,9 +9956,9 @@ function _trnAnalytics() {
   var views = [['weekly', 'Weekly'], ['monthly', 'Monthly'], ['season', 'Season']].map(function (v) { return '<button class="trn-rtab' + (an.view === v[0] ? ' is-on' : '') + '" data-trn-act="anview" data-trn-v="' + v[0] + '" type="button">' + v[1] + '</button>'; }).join('');
   var sel = function (key, opts) { return '<select class="trn-input trn-ansel" data-trn-anset="' + key + '">' + opts + '</select>'; };
   var posO = '<option value="">All positions</option>' + [['gk', 'Goalkeepers'], ['df', 'Defenders'], ['mf', 'Midfielders'], ['fw', 'Attackers']].map(function (p) { return '<option value="' + p[0] + '"' + (an.pos === p[0] ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('');
-  var typeO = '<option value="">All types</option>' + TR_TYPES.map(function (t) { return '<option value="' + t[0] + '"' + (an.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
-  var plO = function (curr) { return '<option value="">Player…</option>' + (SQ_DEMO_PLAYERS || []).map(function (p) { return '<option value="' + p.id + '"' + (curr === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join(''); };
-  var filters = '<div class="trn-rctrl"><div class="trn-rtabs">' + views + '</div><div class="trn-anfilters">' + sel('pos', posO) + sel('type', typeO) + sel('pid', '<option value="">All players</option>' + (SQ_DEMO_PLAYERS || []).map(function (p) { return '<option value="' + p.id + '"' + (an.pid === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join('')) + '</div></div>';
+  var typeO = '<option value="">All types</option>' + _trTypes().map(function (t) { return '<option value="' + t[0] + '"' + (an.type === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('');
+  var plO = function (curr) { return '<option value="">Player…</option>' + _trRoster().map(function (p) { return '<option value="' + p.id + '"' + (curr === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join(''); };
+  var filters = '<div class="trn-rctrl"><div class="trn-rtabs">' + views + '</div><div class="trn-anfilters">' + sel('pos', posO) + sel('type', typeO) + sel('pid', '<option value="">All players</option>' + _trRoster().map(function (p) { return '<option value="' + p.id + '"' + (an.pid === p.id ? ' selected' : '') + '>' + _sqEsc(_trnLast(p.name)) + '</option>'; }).join('')) + '</div></div>';
   // KPIs
   var kpis = _trnAnKpis(d);
   var kpiHtml = '<div class="trn-rmetrics">' + kpis.map(function (k) { return '<div class="trn-stat trn-stat--violet" title="' + _sqEsc(k.tip) + '"><span class="trn-stat-l">' + k.k + '</span><span class="trn-stat-v">' + (k.empty ? '—' : k.v + (k.unit ? '<i>' + k.unit + '</i>' : '')) + '</span></div>'; }).join('') + '</div>';
@@ -9971,7 +10020,7 @@ function _trnExecData() {
   var inj = profiles.filter(function (x) { return x.avail === 'injured'; }).length;
   var avail = profiles.length ? Math.round((profiles.length - inj) / profiles.length * 100) : 100;
   var injRate = profiles.length ? Math.round(inj / profiles.length * 100) : 0;
-  var trends = []; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, comp); if (a.seq && a.seq.length >= 2) trends.push(_trnTrendDelta(a)); });
+  var trends = []; _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, comp); if (a.seq && a.seq.length >= 2) trends.push(_trnTrendDelta(a)); });
   var dev = trends.length ? _trnClamp(Math.round(50 + (trends.reduce(function (x, y) { return x + y; }, 0) / trends.length) * 10), 0, 100) : null;
   var weeks = {}; _trCompleted().forEach(function (s) { if (s.date) { try { weeks[_trnIsoWeek(new Date(s.date + 'T00:00:00'))] = 1; } catch (e) {} } });
   var wkKeys = Object.keys(weeks).length; var seasonProg = wkKeys ? _trnClamp(Math.round(wkKeys / 12 * 100), 0, 100) : null;
@@ -10031,7 +10080,7 @@ function _trnExecDecisions(d) {
 function _trnExecTrends() {
   var comp = _trCompleted().slice().sort(function (a, b) { return (a.completedAt || Date.parse(a.date) || 0) - (b.completedAt || Date.parse(b.date) || 0); });
   if (!comp.length) return _trEmpty('&#128202;', 'No executive trends yet', 'Monthly performance, injury, attendance, readiness, fitness, load and availability trends build from completed sessions.', false);
-  var total = (SQ_DEMO_PLAYERS || []).length || 1;
+  var total = _trRoster().length || 1;
   var perfS = [], attS = [], injS = [], loadS = [], fitS = [], readyS = [], availS = [], cum = [], run = 0;
   comp.forEach(function (s) {
     var lbl = _trFmtDate(s.date), pr = 0, ab = 0, injn = 0, rs = [], cds = [];
@@ -10143,7 +10192,7 @@ function _trnMatchData() {
   return { t: t, rows: rows, comp: comp, rec: rec, hasData: comp.length > 0 };
 }
 function _trnMatchXI(md) {
-  var fmt = (typeof SQ_FORM !== 'undefined' && SQ_FORM.myFormation) || '4-3-3';
+  var fmt = _trFormationName();
   var parts = fmt.split('-').map(function (x) { return parseInt(x, 10) || 0; });
   var def = parts[0] || 4, fwd = parts[parts.length - 1] || 3, mid = parts.length >= 3 ? parts.slice(1, parts.length - 1).reduce(function (a, b) { return a + b; }, 0) : (parts[1] || 3);
   var avail = md.rows.filter(function (r) { return r.avail !== 'injured' && r.avail !== 'suspended'; }).sort(function (a, b) { return b.score - a.score; });
@@ -10191,7 +10240,7 @@ function _trnMatch() {
   var xiCount = xi.xi.length;
   var kpis = [
     ['Match Readiness', t.readiness, '%', 'Team readiness from real condition, injuries and recent ratings.', false],
-    ['Expected Starting XI', xiCount ? xiCount + '/11' : null, '', 'Best available XI generated from readiness, fitness, attendance, injury status, load and recent performance.', xiCount === 0],
+    ['Expected ' + _trXiLabel(), xiCount ? xiCount + '/' + xi.need : null, '', 'Best available XI generated from readiness, fitness, attendance, injury status, load and recent performance.', xiCount === 0],
     ['Squad Availability', conf.avail, '%', 'Share of squad not injured.', false],
     ['Injury Risk', t.risk, '', 'Team injury-risk band from real fatigue, load and availability.', false],
     ['Tactical Readiness', tacticalReady, '', 'Derived from team readiness + squad availability.', false],
@@ -10210,7 +10259,7 @@ function _trnMatch() {
   var xiExtra = xi.xi.slice(xi.gk.length + xi.def.length + xi.mid.length + xi.fwd.length);
   var xiHtml = xi.xi.length
     ? '<div class="trn-xi">' + xi.gk.map(function (r) { return xiRow(r, 'GK'); }).join('') + xi.def.map(function (r) { return xiRow(r, 'DEF'); }).join('') + xi.mid.map(function (r) { return xiRow(r, 'MID'); }).join('') + xi.fwd.map(function (r) { return xiRow(r, 'FWD'); }).join('') + xiExtra.map(function (r) { return xiRow(r, posOf(r.cat)); }).join('') + '</div>'
-    : _trEmpty('&#128101;', 'Not enough available players', 'Load the real squad and the Starting XI generates from readiness, fitness, attendance, injuries, load and form.', false);
+    : _trEmpty('&#128101;', 'Not enough available players', 'Load the real squad and the ' + _trXiLabel() + ' generates from readiness, fitness, attendance, injuries, load and form.', false);
   // 3) Bench
   var bench = xi.avail.filter(function (r) { return !xi.used[r.p.id]; }).slice(0, 7);
   var benchHtml = bench.length
@@ -10230,7 +10279,7 @@ function _trnMatch() {
     ? '<div class="trn-notifs">' + risks.map(function (a) { return '<button class="trn-notif trn-alert-' + a.sev.toLowerCase() + '" data-trn-act="gotoplayer" data-trn-id="' + a.p.id + '" type="button"><span class="trn-sevtag trn-sevtag--' + a.sev.toLowerCase() + '">' + a.sev + '</span><div class="trn-notif-b"><b>' + _sqEsc(_trnLast(a.p.name)) + '</b><p>' + a.txt + '</p></div><span class="trn-notif-go">&#8250;</span></button>'; }).join('') + '</div>'
     : '<p class="trn-note">No match risks flagged — squad is in good shape.</p>';
   // 5) Tactical prep
-  var tac = SQ_TACTICS || {}, defAvail = buckets.Available.concat(buckets.Limited).filter(function (r) { return r.cat === 'df'; }).length;
+  var tac = _trTac(), defAvail = buckets.Available.concat(buckets.Limited).filter(function (r) { return r.cat === 'df'; }).length;
   var tacCards = [
     ['Formation', xi.formation, 'Club setup'],
     ['Pressing', t.fitness >= 82 ? 'High press viable' : 'Medium block', 'fitness ' + t.fitness + '%'],
@@ -10249,9 +10298,9 @@ function _trnMatch() {
   var notes = _trMnLoad();
   var recentComp = _trFilterByRange(md.comp, 7).length > 0, anyAtt = md.rec.some(function (s) { return Object.keys(s.attendance || {}).length > 0; });
   var checks = [
-    ['Squad selected', md.rows.length > 0], ['Starting XI', xi.xi.length >= 11], ['Bench completed', bench.length >= 3],
+    ['Squad selected', md.rows.length > 0], [_trXiLabel(), xi.xi.length >= xi.need], ['Bench completed', bench.length >= 3],
     ['Injuries reviewed', true], ['Attendance checked', anyAtt], ['Training completed', recentComp],
-    ['Tactical setup ready', !!(SQ_FORM && SQ_FORM.myFormation)], ['Fitness acceptable', t.fitness >= 65], ['Readiness acceptable', t.readiness >= 60], ['Match notes prepared', notes.length > 0]
+    ['Tactical setup ready', !!_trFormationName()], ['Fitness acceptable', t.fitness >= 65], ['Readiness acceptable', t.readiness >= 60], ['Match notes prepared', notes.length > 0]
   ];
   var checkHtml = '<div class="trn-checks">' + checks.map(function (c) { return '<div class="trn-check trn-check--' + (c[1] ? 'ok' : 'pend') + '"><span>' + (c[1] ? '&#10003;' : '&#9675;') + '</span>' + c[0] + '</div>'; }).join('') + '</div>';
   // 8) Availability
@@ -10260,7 +10309,7 @@ function _trnMatch() {
   var noteHist = notes.slice().reverse().slice(0, 8).map(function (n, i) { var idx = notes.length - 1 - i; return '<div class="trn-mnote"><span>' + (n.ts ? new Date(n.ts).toLocaleString() : '') + '</span><p>' + _sqEsc(n.text) + '</p><button class="trn-btn trn-btn--sm" data-trn-act="mnotedel" data-trn-i="' + idx + '" type="button">Delete</button></div>'; }).join('');
   var notesHtml = '<div class="trn-mnotebox"><textarea id="trn-mnote" class="trn-input" rows="3" placeholder="Write match notes… (saved to your device; syncs to PostgreSQL when the club backend is connected)"></textarea><div class="trn-atools" style="margin-top:8px"><button class="trn-btn trn-btn--sm trn-btn--primary" data-trn-act="mnotesave" type="button">Save note</button></div>' + (notes.length ? '<div class="trn-mnotes">' + noteHist + '</div>' : '<p class="trn-note">No match notes yet.</p>') + '</div>';
   // 11) Timeline
-  var tl = [['Today', 'Review squad, attendance &amp; injuries', md.hasData], ['Today', 'Confirm Starting XI &amp; bench', xi.xi.length >= 11], ['Tomorrow', 'Activation session &amp; set pieces (MD-1)', recentComp], ['Tomorrow', 'Finalise tactical setup', !!(SQ_FORM && SQ_FORM.myFormation)], ['Match Day', 'Team talk &amp; warm-up', false], ['Match Day', 'Final fitness &amp; readiness check', false]];
+  var tl = [['Today', 'Review squad, attendance &amp; injuries', md.hasData], ['Today', 'Confirm ' + _trXiLabel() + ' &amp; bench', xi.xi.length >= xi.need], ['Tomorrow', 'Activation session &amp; set pieces (MD-1)', recentComp], ['Tomorrow', 'Finalise tactical setup', !!_trFormationName()], ['Match Day', 'Team talk &amp; warm-up', false], ['Match Day', 'Final fitness &amp; readiness check', false]];
   var tlHtml = '<div class="trn-tl2">' + tl.map(function (x) { return '<div class="trn-tl2row"><span class="trn-tl2d">' + x[0] + '</span><b class="trn-tl2t">' + x[1] + '</b><span class="trn-tl2s trn-tl2s--' + (x[2] ? 'done' : 'pend') + '">' + (x[2] ? 'Done' : 'Pending') + '</span></div>'; }).join('') + '</div>';
   var advanced = '<details class="trn-adv"><summary>Tactical preparation · availability · timeline · coach notes</summary>'
     + '<div class="trn-panel" style="margin:14px"><div class="trn-panel-h"><h3>Tactical preparation</h3><span class="trn-panel-tag">Squad condition only</span></div>' + tacHtml + '</div>'
@@ -10269,7 +10318,7 @@ function _trnMatch() {
     + '</details>';
   return '<div class="trn-an">'
     + _trnPanel('Match preparation · confidence &amp; KPIs', 'Everything before the match · hover for calculations', confHealth + '<div style="margin-top:16px">' + kpiHtml + '</div>')
-    + _trnPanel('Starting XI &amp; bench', xi.formation + ' · best available, with reasons', '<div class="trn-grid2"><div><h4 class="trn-subh">Starting XI</h4>' + xiHtml + '</div><div><h4 class="trn-subh">Bench (priority order)</h4>' + benchHtml + '</div></div>')
+    + _trnPanel(_trXiLabel() + ' &amp; bench', xi.formation + ' · best available, with reasons', '<div class="trn-grid2"><div><h4 class="trn-subh">' + _trXiLabel() + '</h4>' + xiHtml + '</div><div><h4 class="trn-subh">Bench (priority order)</h4>' + benchHtml + '</div></div>')
     + _trnPanel('Match risk analysis', 'Players to watch · real metrics', riskHtml)
     + _trnPanel('AI match brief &amp; pre-match checklist', 'Deterministic — from real records', '<div class="trn-grid2"><div>' + briefHtml + '</div><div>' + checkHtml + '</div></div>')
     + advanced + '</div>';
@@ -10497,7 +10546,7 @@ function _trnBestPlayers() {
   var day = _trFilterByRange(completed, 1), wk = _trFilterByRange(completed, 7), mo = _trFilterByRange(completed, 31);
   var basis = wk.length ? wk : completed;
   var ranked = [];
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, basis); if (a.avgRating == null) return; var mvp = basis.filter(function (s) { return s.bestPlayer === p.id; }).length; ranked.push({ p: p, rating: a.avgRating, agg: a, score: a.avgRating * 10 + (a.attendancePct || 0) * 0.25 + mvp * 8 }); });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, basis); if (a.avgRating == null) return; var mvp = basis.filter(function (s) { return s.bestPlayer === p.id; }).length; ranked.push({ p: p, rating: a.avgRating, agg: a, score: a.avgRating * 10 + (a.attendancePct || 0) * 0.25 + mvp * 8 }); });
   ranked.sort(function (a, b) { return b.score - a.score; });
   function ex(agg, extra) { var parts = []; if (agg.avgRating != null) parts.push('average rating ' + agg.avgRating.toFixed(1)); if (agg.attendancePct != null) parts.push(agg.attendancePct + '% attendance'); parts.push(agg.completed + ' session' + (agg.completed === 1 ? '' : 's') + ' completed'); return parts.join(', ') + (extra ? '. ' + extra : '.'); }
   var awards = [];
@@ -10669,7 +10718,7 @@ function _trnAttendance() {
   var recorded = _trRecorded();
   if (!recorded.length) return _trnPanel('Attendance analytics', 'No data yet', _trEmpty('&#9989;', 'No attendance recorded yet', 'Record attendance on a session and the register, history chart, calendar, ranking and streaks build here automatically.', true));
   var rows = [], tot = { present: 0, late: 0, absent: 0, excused: 0, injured: 0 }, sessions = recorded.length;
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return;['present', 'late', 'absent', 'excused', 'injured'].forEach(function (k) { tot[k] += a[k]; }); var st = _trnAttStreaks(p.id, recorded); rows.push({ p: p, a: a, st: st }); });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return;['present', 'late', 'absent', 'excused', 'injured'].forEach(function (k) { tot[k] += a[k]; }); var st = _trnAttStreaks(p.id, recorded); rows.push({ p: p, a: a, st: st }); });
   rows.sort(function (x, y) { return (y.a.attendancePct || 0) - (x.a.attendancePct || 0); });
   var attNum = tot.present + tot.late, attDen = attNum + tot.absent, overall = attDen ? Math.round(attNum / attDen * 100) : 0;
   var totalMarks = tot.present + tot.late + tot.absent + tot.excused + tot.injured;
@@ -10902,8 +10951,8 @@ function _trnIndividual() {
 }
 // AI insights computed from real completed/recorded records + real team state.
 function _trnAiInsights() {
-  var comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam(), tac = SQ_TACTICS || {};
-  var per = []; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return; per.push({ p: p, a: a }); });
+  var comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam(), tac = _trTac();
+  var per = []; _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required < 1) return; per.push({ p: p, a: a }); });
   var teamAtt = null; (function () { var n = 0, dn = 0; recorded.forEach(function (s) { (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') { n++; dn++; } else if (a === 'absent') dn++; }); }); teamAtt = dn ? Math.round(n / dn * 100) : null; })();
   var rArr = []; comp.forEach(function (s) { (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rArr.push(pf.rating); }); });
   var teamRating = rArr.length ? rArr.reduce(function (x, y) { return x + y; }, 0) / rArr.length : null;
@@ -10944,7 +10993,7 @@ function _trnAiInsights() {
   return { strengths: strengths, weaknesses: weaknesses, riskP: riskP, indiv: indiv, post: post, plan: plan, hasData: comp.length > 0, heavy: heavy, recovery: recovery, workload: workload };
 }
 function _trnAI() {
-  var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = SQ_TACTICS || {};
+  var recs = _trnAIRecs(), ff = _trnFormationFocus(), tac = _trTac();
   var list = recs.map(function (r) {
     return '<div class="trn-rec trn-rec--' + r.sev + '"><span class="trn-rec-ic">' + r.icon + '</span><div class="trn-rec-b"><b>' + r.title + '</b><p>' + r.body + '</p></div><span class="trn-rec-sev">' + (r.sev === 'high' ? 'Priority' : r.sev === 'med' ? 'Advised' : 'Optional') + '</span></div>';
   }).join('');
@@ -11010,7 +11059,7 @@ function _trnRepData(range) {
   var att = marks.present + marks.late, den = att + marks.absent;
   var total = marks.present + marks.late + marks.absent + marks.excused + marks.injured;
   var per = [];
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recSessions); if (a.required < 1) return; per.push({ p: p, a: a, _dem: a.absent * 2 + a.late }); });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, recSessions); if (a.required < 1) return; per.push({ p: p, a: a, _dem: a.absent * 2 + a.late }); });
   var topAtt = null, worstAtt = null, topRat = null, worstDisc = null;
   per.forEach(function (r) {
     if (r.a.attendancePct != null) { if (!topAtt || r.a.attendancePct > topAtt.a.attendancePct) topAtt = r; if (!worstAtt || r.a.attendancePct < worstAtt.a.attendancePct) worstAtt = r; }
@@ -11115,7 +11164,7 @@ function _trnNotifications() {
   // Each notification carries a real route: {act, id?/v?} → clicking opens the relevant page/record.
   if (latest) out.push({ ic: '&#9989;', type: 'Training completed', text: (_sqEsc(latest.objective) || _trTypeMeta(latest.type).l) + ' · ' + _trFmtDate(latest.date), tone: 'adv', act: 'gotosession', id: latest.id });
   if (latest && latest.bestPlayer) { var bp = _trP(latest.bestPlayer); if (bp) out.push({ ic: '&#11088;', type: 'Best player updated', text: _sqEsc(_trnLast(bp.name)) + (latest.sessionRating ? ' · ' + latest.sessionRating + '/10' : ''), tone: 'slt', act: 'gotoplayer', id: latest.bestPlayer }); }
-  (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required >= 3 && a.attendancePct != null && a.attendancePct < 70) out.push({ ic: '&#9888;&#65039;', type: 'Attendance alert', text: _sqEsc(_trnLast(p.name)) + ' attendance ' + a.attendancePct + '%', tone: 'risk', act: 'gototab', v: 'attendance' }); });
+  _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, recorded); if (a.required >= 3 && a.attendancePct != null && a.attendancePct < 70) out.push({ ic: '&#9888;&#65039;', type: 'Attendance alert', text: _sqEsc(_trnLast(p.name)) + ' attendance ' + a.attendancePct + '%', tone: 'risk', act: 'gototab', v: 'attendance' }); });
   t.ps.forEach(function (x) { if (x.avail === 'injured') out.push({ ic: '&#127973;', type: 'Injury alert', text: _sqEsc(_trnLast(x.p.name)) + ' flagged injured', tone: 'risk', act: 'gotoplayer', id: x.p.id }); });
   t.ps.filter(function (x) { return x.fitness < 65; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128201;', type: 'Low fitness warning', text: _sqEsc(_trnLast(x.p.name)) + ' fitness ' + x.fitness + '%', tone: 'slt', act: 'gotoplayer', id: x.p.id }); });
   t.ps.filter(function (x) { return x.readiness < 50; }).slice(0, 3).forEach(function (x) { out.push({ ic: '&#128308;', type: 'Readiness warning', text: _sqEsc(_trnLast(x.p.name)) + ' readiness ' + x.readiness + '%', tone: 'slt', act: 'gototab', v: 'load' }); });
@@ -11129,8 +11178,10 @@ function _trnHead() {
   var bell = search + '<button class="trn-bell" data-trn-act="notif" type="button" aria-label="Notifications">&#128276;' + (nn ? '<span class="trn-bell-badge">' + (nn > 9 ? '9+' : nn) + '</span>' : '') + '</button>';
   return '<div class="trn-head"><div class="trn-head-id"><span class="trn-head-ic">' + TRN_TABS_ICON + '</span><div><h1>Training Centre</h1><p>AI training management · synced with Lineup, Formation &amp; Tactics</p></div></div>'
     + '<div class="trn-head-chips">'
-    + '<span class="trn-hchip"><i>Formation</i><b>' + (SQ_FORM.myFormation || '4-3-3') + '</b></span>'
-    + '<span class="trn-hchip"><i>Style</i><b>' + (SQ_TACTICS.style || 'Balanced') + '</b></span>'
+    // Team chip only when a non-default team is mounted, so the First Team header is unchanged.
+    + (_trCtx().type === 'first' ? '' : '<span class="trn-hchip"><i>Team</i><b>' + _sqEsc(_trCtx().label) + '</b></span>')
+    + '<span class="trn-hchip"><i>Formation</i><b>' + _trFormationName() + '</b></span>'
+    + '<span class="trn-hchip"><i>Style</i><b>' + (_trTac().style || 'Balanced') + '</b></span>'
     + '<span class="trn-hchip"><i>Fitness</i><b>' + t.fitness + '%</b></span>'
     + '<span class="trn-hchip"><i>Readiness</i><b>' + t.readiness + '%</b></span>'
     + '<span class="trn-hchip trn-hchip--' + (t.risk === 'High' ? 'risk' : t.risk === 'Moderate' ? 'slt' : 'adv') + '"><i>Injury risk</i><b>' + t.risk + '</b></span>'
@@ -11180,9 +11231,9 @@ function _trnChatAnswer(q) {
   if (!q) return { text: 'Ask me about training, players, load, recovery or attendance — I answer from your real records.' };
   var comp = _trCompleted(), recorded = _trRecorded(), t = _trnTeam(), ai = _trnAiInsights();
   var noData = !comp.length, E = function (s) { return _sqEsc(s); };
-  var named = null; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var last = String(_trnLast(p.name)).toLowerCase(), first = String(p.name).split(' ')[0].toLowerCase(); if ((last && q.indexOf(last) >= 0) || (first.length > 3 && q.indexOf(first) >= 0)) named = p; });
+  var named = null; _trRoster().forEach(function (p) { var last = String(_trnLast(p.name)).toLowerCase(), first = String(p.name).split(' ')[0].toLowerCase(); if ((last && q.indexOf(last) >= 0) || (first.length > 3 && q.indexOf(first) >= 0)) named = p; });
   if (/improv|develop|progress/.test(q)) { if (noData) return { text: 'No completed sessions yet — I can measure improvement once ratings are recorded.' }; var mi = _trMostImproved(comp); return mi ? { text: E(mi.p.name) + ' has improved most — coach rating up +' + mi.delta.toFixed(1) + ' across recent sessions.', route: { act: 'gotoplayer', id: mi.p.id } } : { text: 'Not enough rated sessions yet to measure improvement.' }; }
-  if (/declin|regress|dropp|getting worse|worse form/.test(q)) { if (noData) return { text: 'No completed sessions yet to assess form.' }; var worst = null; (SQ_DEMO_PLAYERS || []).forEach(function (p) { var a = _trPlayerAgg(p.id, comp), d = _trnTrendDelta(a); if (a.seq && a.seq.length >= 2 && (worst === null || d < worst.d)) worst = { p: p, d: d }; }); return (worst && worst.d < 0) ? { text: E(worst.p.name) + '’s form is trending down (' + worst.d.toFixed(1) + ') — consider individual focus.', route: { act: 'gotoplayer', id: worst.p.id } } : { text: 'No player is clearly declining — form is stable or improving.' }; }
+  if (/declin|regress|dropp|getting worse|worse form/.test(q)) { if (noData) return { text: 'No completed sessions yet to assess form.' }; var worst = null; _trRoster().forEach(function (p) { var a = _trPlayerAgg(p.id, comp), d = _trnTrendDelta(a); if (a.seq && a.seq.length >= 2 && (worst === null || d < worst.d)) worst = { p: p, d: d }; }); return (worst && worst.d < 0) ? { text: E(worst.p.name) + '’s form is trending down (' + worst.d.toFixed(1) + ') — consider individual focus.', route: { act: 'gotoplayer', id: worst.p.id } } : { text: 'No player is clearly declining — form is stable or improving.' }; }
   if (/rest|recover|manage|tired|fatigue|load off/.test(q)) { var r = ai.riskP[0]; return r ? { text: E(_trnLast(r.x.p.name)) + ' should be managed — readiness ' + r.x.readiness + '% (' + r.lvl + ' risk). ' + E(ai.recovery), route: { act: 'gototab', v: 'load' } } : { text: 'No players need forced recovery — squad readiness is good. ' + E(ai.recovery) }; }
   if (/start|line.?up|\bxi\b|who.*play|pick/.test(q)) { if (noData) return { text: 'Once you record sessions I can suggest starters from real form + readiness.' }; var ranked = t.ps.slice().filter(function (x) { return x.avail !== 'injured'; }).map(function (x) { var a = _trPlayerAgg(x.p.id, comp); return { name: x.p.name, score: (a.avgRating || 6) * 10 + x.readiness * 0.3 }; }).sort(function (a, b) { return b.score - a.score; }).slice(0, 5); return { text: 'Best-placed to start on form + readiness: ' + ranked.map(function (z) { return E(_trnLast(z.name)); }).join(', ') + '.', route: { act: 'gototab', v: 'individual' } }; }
   if (/best.*(day|session|training)/.test(q)) { if (noData) return { text: 'No completed sessions yet.' }; var best = null; comp.forEach(function (s) { var rs = []; (s.players || []).forEach(function (id) { var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); }); var avg = rs.length ? rs.reduce(function (x, y) { return x + y; }, 0) / rs.length : 0; if (!best || avg > best.avg) best = { s: s, avg: avg }; }); return { text: 'Best training day: ' + _trFmtDate(best.s.date) + ' — average rating ' + best.avg.toFixed(2) + '.', route: { act: 'gotosession', id: best.s.id } }; }
@@ -11217,7 +11268,7 @@ function _trnChatInner() {
   return fab + panel;
 }
 function _trnChatPanelHtml() { return '<div id="trn-chat" class="trn-chat">' + _trnChatInner() + '</div>'; }
-function _trnRenderChat() { if (typeof document === 'undefined') return; var el = document.getElementById('trn-chat'); if (!el) return; el.innerHTML = _trnChatInner(); var m = document.getElementById('trn-chat-msgs'); if (m) m.scrollTop = m.scrollHeight; if (_TRN.chatOpen) { var inp = document.getElementById('trn-chat-in'); if (inp) try { inp.focus(); } catch (e) {} } }
+function _trnRenderChat() { if (typeof document === 'undefined') return; var el = _trnEl('trn-chat'); if (!el) return; el.innerHTML = _trnChatInner(); var m = _trnEl('trn-chat-msgs'); if (m) m.scrollTop = m.scrollHeight; if (_TRN.chatOpen) { var inp = document.getElementById('trn-chat-in'); if (inp) try { inp.focus(); } catch (e) {} } }
 // ── Premium floating-window workspace (UI shell only — every section's content is
 //    the SAME render function as before, just shown inside a draggable window) ──
 var _trnWinBound = false;
@@ -11278,7 +11329,7 @@ function _trnWinMax(key) {
 }
 function _trnWinFront(key) {
   var st = _TRN.win && _TRN.win[key]; if (!st) return; st.z = ++_TRN.winZ;
-  if (typeof document !== 'undefined') { var el = document.querySelector('.trnw[data-trnw="' + key + '"]'); if (el) el.style.zIndex = st.z; }
+  if (typeof document !== 'undefined') { var el = _trnSel('.trnw[data-trnw="' + key + '"]'); if (el) el.style.zIndex = st.z; }
 }
 function _trnWinHtml(key) {
   var st = _TRN.win[key]; if (!st || !st.open || st.min) return '';
@@ -11303,7 +11354,7 @@ function _trnDeskInner() {
   var empty = keys.length ? '' : '<div class="trn-deskempty">' + _trEmpty('&#128421;', 'Your workspace', 'Open any panel from the toolbar above — Dashboard, Analytics, AI Coach, Reports and more. Windows are draggable, resizable and stay open together.', false) + '</div>';
   return wins + empty + _trnMinTray();
 }
-function _trnDeskRender() { if (typeof document === 'undefined') return; var d = document.getElementById('trn-desk'); if (d) d.innerHTML = _trnDeskInner(); }
+function _trnDeskRender() { if (typeof document === 'undefined') return; var d = _trnEl('trn-desk'); if (d) d.innerHTML = _trnDeskInner(); }
 function _trnToolbar() {
   var btns = TRN_GROUPS.map(function (x) { var on = _TRN.win && _TRN.win[x.k] && _TRN.win[x.k].open && !_TRN.win[x.k].min; return '<button class="trn-qa' + (on ? ' is-on' : '') + '" data-trn-act="winopen" data-trn-v="' + x.k + '" type="button">' + x.label + '</button>'; }).join('');
   var extra = '<span class="trn-qa-sep"></span><button class="trn-qa" data-trn-act="notif" type="button">&#128276; Notifications</button><button class="trn-qa" data-trn-act="search" type="button">&#128269; Search</button>';
@@ -11322,12 +11373,12 @@ function _trnWinBind() {
     else if (bar) { drag = { key: key, mode: 'move', sx: e.clientX, sy: e.clientY, x: st.x, y: st.y }; e.preventDefault(); }
   });
   document.addEventListener('mousemove', function (e) {
-    if (!drag) return; var st = _TRN.win[drag.key], el = document.querySelector('.trnw[data-trnw="' + drag.key + '"]'); if (!st || !el) return;
+    if (!drag) return; var st = _TRN.win[drag.key], el = _trnSel('.trnw[data-trnw="' + drag.key + '"]'); if (!st || !el) return;
     if (drag.mode === 'move') { st.x = Math.max(0, drag.x + (e.clientX - drag.sx)); st.y = Math.max(0, drag.y + (e.clientY - drag.sy)); el.style.left = st.x + 'px'; el.style.top = st.y + 'px'; }
     else { st.w = Math.max(300, drag.w + (e.clientX - drag.sx)); st.h = Math.max(190, drag.h + (e.clientY - drag.sy)); el.style.width = st.w + 'px'; el.style.height = st.h + 'px'; }
   });
   document.addEventListener('mouseup', function () {
-    if (!drag) return; var st = _TRN.win[drag.key], desk = document.getElementById('trn-desk'), el = document.querySelector('.trnw[data-trnw="' + drag.key + '"]');
+    if (!drag) return; var st = _TRN.win[drag.key], desk = _trnEl('trn-desk'), el = _trnSel('.trnw[data-trnw="' + drag.key + '"]');
     if (st && el && drag.mode === 'move' && desk) { var dw = desk.clientWidth, dh = desk.clientHeight; if (st.x < 14) st.x = 0; if (st.y < 14) st.y = 0; if (st.w < dw && st.x + st.w > dw - 14) st.x = Math.max(0, dw - st.w); if (st.h < dh && st.y + st.h > dh - 14) st.y = Math.max(0, dh - st.h); el.style.left = st.x + 'px'; el.style.top = st.y + 'px'; }
     drag = null;
   });
@@ -11339,20 +11390,20 @@ function _trnInner() {
 }
 // Re-render only the OPEN window bodies (light path for in-window actions/filters).
 function _trnRenderBody() {
-  if (typeof document === 'undefined') return; var legacy = document.getElementById('trn-body'); if (legacy) { legacy.innerHTML = _trnBody(); return; }
-  for (var k in (_TRN.win || {})) { var st = _TRN.win[k]; if (st && st.open && !st.min) { var b = document.getElementById('trnw-body-' + k); if (b) { b.innerHTML = _trnWinContent(k); } } }
+  if (typeof document === 'undefined') return; var legacy = _trnEl('trn-body'); if (legacy) { legacy.innerHTML = _trnBody(); return; }
+  for (var k in (_TRN.win || {})) { var st = _TRN.win[k]; if (st && st.open && !st.min) { var b = _trnEl('trnw-body-' + k); if (b) { b.innerHTML = _trnWinContent(k); } } }
 }
-function _trnRenderModal() { var m = document.getElementById('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
+function _trnRenderModal() { var m = _trnEl('trn-modal'); if (!m) return; m.innerHTML = _trnModalHtml(); m.hidden = !_TRN.modal; }
 function _trnRender() {
   _trnDeskRender();
-  var tb = document.querySelector('.trn-toolbar'); if (tb) { var nt = _trnToolbar(); var t0 = document.createElement('div'); t0.innerHTML = nt; if (t0.firstChild) tb.parentNode.replaceChild(t0.firstChild, tb); }
-  var hd = document.querySelector('.trn-head'); if (hd) { var nh = _trnHead(); var tmp = document.createElement('div'); tmp.innerHTML = nh; if (tmp.firstChild) hd.parentNode.replaceChild(tmp.firstChild, hd); }
+  var tb = _trnSel('.trn-toolbar'); if (tb) { var nt = _trnToolbar(); var t0 = document.createElement('div'); t0.innerHTML = nt; if (t0.firstChild) tb.parentNode.replaceChild(t0.firstChild, tb); }
+  var hd = _trnSel('.trn-head'); if (hd) { var nh = _trnHead(); var tmp = document.createElement('div'); tmp.innerHTML = nh; if (tmp.firstChild) hd.parentNode.replaceChild(tmp.firstChild, hd); }
   _trnRenderModal();
 }
 function _trnToast(m) { try { if (typeof showToast === 'function') showToast(m, 'success'); } catch (e) {} }
 function _trnReadStep(step) {
   var d = _TRN.draft; if (!d || typeof document === 'undefined') return;
-  function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+  function v(id) { var e = _trnEl(id); return e ? e.value : undefined; }
   if (step === 1) { var x; if ((x = v('trn-f-date')) != null) d.date = x; if ((x = v('trn-f-time')) != null) d.startTime = x; if ((x = v('trn-f-dur')) != null) d.duration = x; if ((x = v('trn-f-type')) != null) d.type = x; if ((x = v('trn-f-loc')) != null) d.location = x; if ((x = v('trn-f-obj')) != null) d.objective = x; if ((x = v('trn-f-int')) != null) d.intensity = x; if ((x = v('trn-f-pitch')) != null) d.pitch = x; if ((x = v('trn-f-coach')) != null) d.coach = x; if ((x = v('trn-f-weather')) != null) d.weather = x; if ((x = v('trn-f-temp')) != null) d.temperature = x; if ((x = v('trn-f-equip')) != null) d.equipment = x; }
   else if (step === 3) { var y; if ((y = v('trn-f-form')) != null) d.formation = y; if ((y = v('trn-f-foc')) != null) d.tacticalFocus = y; }
 }
@@ -11375,7 +11426,7 @@ function _trnAction(act, el) {
     case 'stepnext': _trnReadStep(_TRN.step); _TRN.step = Math.min(3, (_TRN.step || 1) + 1); _trnRenderModal(); break;
     case 'stepback': _trnReadStep(_TRN.step); _TRN.step = Math.max(1, (_TRN.step || 1) - 1); _trnRenderModal(); break;
     case 'togglep': { var a = _TRN.draft.players, i = a.indexOf(id); if (i >= 0) a.splice(i, 1); else a.push(id); _trnRenderModal(); break; }
-    case 'selall': _TRN.draft.players = (SQ_DEMO_PLAYERS || []).map(function (p) { return p.id; }); _trnRenderModal(); break;
+    case 'selall': _TRN.draft.players = _trRoster().map(function (p) { return p.id; }); _trnRenderModal(); break;
     case 'clrall': _TRN.draft.players = []; _trnRenderModal(); break;
     case 'toggled': { var dd = _TRN.draft.drills, j = dd.indexOf(id); if (j >= 0) dd.splice(j, 1); else dd.push(id); _trnRenderModal(); break; }
     case 'createsession': { _trnReadStep(3); var d = _TRN.draft; if (!d.date) d.date = new Date().toISOString().slice(0, 10); trCreateSession(d); _TRN.modal = null; _TRN.tab = 'sessions'; _TRN.open = null; _trnWinOpen('sessions', true); _trnToast('Session created'); _trnRender(); break; }
@@ -11383,7 +11434,7 @@ function _trnAction(act, el) {
     case 'back': _TRN.open = null; _TRN.completing = false; _trnRender(); break;
     case 'att': if (_TRN.att) _TRN.att[id] = v; _trnRenderBody(); break;
     case 'markall': { var sm = _trSession(_TRN.open); if (sm) (sm.players || []).forEach(function (pid) { _TRN.att[pid] = 'present'; }); _trnRenderBody(); break; }
-    case 'saveatt': { var en = document.getElementById('trn-attnote'); trSaveAttendance(_TRN.open, _TRN.att, en ? en.value : ''); _trnToast('Attendance saved'); _trnRender(); break; }
+    case 'saveatt': { var en = _trnEl('trn-attnote'); trSaveAttendance(_TRN.open, _TRN.att, en ? en.value : ''); _trnToast('Attendance saved'); _trnRender(); break; }
     case 'rate': _TRN.perf[id] = _TRN.perf[id] || { participation: 'full', rating: 0 }; _TRN.perf[id].rating = parseInt(v, 10) || 0; _trnRenderBody(); break;
     case 'part': _TRN.perf[id] = _TRN.perf[id] || { participation: 'full', rating: 0 }; _TRN.perf[id].participation = v; _trnRenderBody(); break;
     case 'rateall': { var sr = _trSession(_TRN.open); if (sr) (sr.players || []).forEach(function (pid) { _TRN.perf[pid] = _TRN.perf[pid] || { participation: 'full', rating: 0 }; _TRN.perf[pid].rating = parseInt(v, 10) || 0; }); _trnRenderBody(); break; }
@@ -11392,9 +11443,9 @@ function _trnAction(act, el) {
     case 'srate': _TRN.sr = parseInt(v, 10) || 0; _trnRenderBody(); break;
     case 'cancelcomplete': _TRN.completing = false; _trnRenderBody(); break;
     case 'confirmcomplete': {
-      trSaveAttendance(_TRN.open, _TRN.att, (document.getElementById('trn-attnote') || {}).value || '');
+      trSaveAttendance(_TRN.open, _TRN.att, (_trnEl('trn-attnote') || {}).value || '');
       trSavePerformance(_TRN.open, _TRN.perf);
-      var bpEl = document.getElementById('trn-bestp'), cnEl = document.getElementById('trn-cnote');
+      var bpEl = _trnEl('trn-bestp'), cnEl = _trnEl('trn-cnote');
       trCompleteSession(_TRN.open, { sessionRating: _TRN.sr || null, bestPlayer: bpEl ? bpEl.value : '', coachNote: cnEl ? cnEl.value : '' });
       _TRN.completing = false; _trnToast('Session completed'); _trnRender(); break;
     }
@@ -11403,13 +11454,13 @@ function _trnAction(act, el) {
     case 'explaina': { var b2 = _trnBestPlayers(), aw = b2.awards[parseInt(el.getAttribute('data-trn-i'), 10)]; if (aw) { _TRN.explain = { pid: aw.p.id, label: aw.label, text: aw.text }; _TRN.modal = 'explain'; _trnRenderModal(); } break; }
     case 'chattoggle': _TRN.chatOpen = !_TRN.chatOpen; _TRN.chat = _TRN.chat || []; _trnRenderChat(); break;
     case 'chatq': _trnChatAsk(el.getAttribute('data-trn-v')); break;
-    case 'chatsend': { var ci = document.getElementById('trn-chat-in'); _trnChatAsk(ci ? ci.value : ''); break; }
+    case 'chatsend': { var ci = _trnEl('trn-chat-in'); _trnChatAsk(ci ? ci.value : ''); break; }
     case 'notif': _TRN.modal = 'notif'; _trnRenderModal(); break;
-    case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = document.getElementById('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
+    case 'search': _TRN.modal = 'search'; _trnRenderModal(); setTimeout(function () { try { var si = _trnEl('trn-search'); if (si) si.focus(); } catch (e) {} }, 30); break;
     case 'gotoplayer': _TRN.modal = null; _TRN.player = id; _trnOpenSection('individual'); _trnRenderModal(); break;
     case 'gotosession': _TRN.modal = null; _trnOpenSession(id); break;
     case 'gototab': _TRN.modal = null; _trnOpenSection(v); _trnRenderModal(); break;
-    case 'subnav': { var parts = (v || '').split(':'); if (parts.length === 2) { _TRN.sub = _TRN.sub || {}; _TRN.sub[parts[0]] = parts[1]; var bd = document.getElementById('trnw-body-' + parts[0]); if (bd) bd.innerHTML = _trnWinContent(parts[0]); } break; }
+    case 'subnav': { var parts = (v || '').split(':'); if (parts.length === 2) { _TRN.sub = _TRN.sub || {}; _TRN.sub[parts[0]] = parts[1]; var bd = _trnEl('trnw-body-' + parts[0]); if (bd) bd.innerHTML = _trnWinContent(parts[0]); } break; }
     case 'winopen': _trnWinOpen(v); break;
     case 'winclose': _trnWinClose(v); break;
     case 'winmin': _trnWinMin(v); break;
@@ -11424,12 +11475,12 @@ function _trnAction(act, el) {
     case 'execpdf': _trnExecPrint(); break;
     case 'medpdf': _trnMedPrint(); break;
     case 'medprofile': _TRN.medPlayer = id; _TRN.modal = 'medprofile'; _trnRenderModal(); break;
-    case 'mednotesave': { var mn = document.getElementById('trn-mednote'); var mtxt = mn ? mn.value.trim() : ''; if (mtxt && _TRN.medPlayer) { var mnl = _trMedNLoad(); mnl.push({ pid: _TRN.medPlayer, text: mtxt, ts: Date.now() }); _trMedNSave(mnl); _trnToast('Medical note saved'); } _trnRenderModal(); break; }
+    case 'mednotesave': { var mn = _trnEl('trn-mednote'); var mtxt = mn ? mn.value.trim() : ''; if (mtxt && _TRN.medPlayer) { var mnl = _trMedNLoad(); mnl.push({ pid: _TRN.medPlayer, text: mtxt, ts: Date.now() }); _trMedNSave(mnl); _trnToast('Medical note saved'); } _trnRenderModal(); break; }
     case 'mednotedel': { var mni = parseInt(el.getAttribute('data-trn-i'), 10), mnl2 = _trMedNLoad(); if (mni >= 0 && mni < mnl2.length) { mnl2.splice(mni, 1); _trMedNSave(mnl2); } _trnRenderModal(); break; }
-    case 'mnotesave': { var mt = document.getElementById('trn-mnote'); var txt = mt ? mt.value.trim() : ''; if (txt) { var ml = _trMnLoad(); ml.push({ text: txt, ts: Date.now() }); _trMnSave(ml); _trnToast('Match note saved'); } _trnRenderBody(); break; }
+    case 'mnotesave': { var mt = _trnEl('trn-mnote'); var txt = mt ? mt.value.trim() : ''; if (txt) { var ml = _trMnLoad(); ml.push({ text: txt, ts: Date.now() }); _trMnSave(ml); _trnToast('Match note saved'); } _trnRenderBody(); break; }
     case 'mnotedel': { var mi = parseInt(el.getAttribute('data-trn-i'), 10), ml2 = _trMnLoad(); if (mi >= 0 && mi < ml2.length) { ml2.splice(mi, 1); _trMnSave(ml2); } _trnRenderBody(); break; }
     case 'reprange': _TRN.repRange = v; _trnRenderBody(); break;
-    case 'repcustom': { var rf = document.getElementById('trn-rep-from'), rt = document.getElementById('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
+    case 'repcustom': { var rf = _trnEl('trn-rep-from'), rt = _trnEl('trn-rep-to'); _TRN.repFrom = rf ? rf.value : ''; _TRN.repTo = rt ? rt.value : ''; _TRN.repRange = 'custom'; _trnRenderBody(); break; }
     case 'exportcsv': _trnExportCsv(); break;
     case 'exportpdf': case 'printrep': _trnPrintReport(); break;
   }
@@ -11447,7 +11498,7 @@ function _trnBind() {
   // results container so the input keeps focus while typing.
   document.addEventListener('input', function (e) {
     var el = e.target; if (!el) return;
-    if (el.id === 'trn-search') { _TRN.q = el.value; var r = document.getElementById('trn-search-results'); if (r) r.innerHTML = _trnSearchResults(); }
+    if (el.id === 'trn-search') { _TRN.q = el.value; var r = _trnEl('trn-search-results'); if (r) r.innerHTML = _trnSearchResults(); }
     else if (el.id === 'trn-chat-in') { _TRN.chatDraft = el.value; }
   });
   // Enter to send in the AI assistant.
@@ -11462,6 +11513,7 @@ function _trnBind() {
 }
 function renderTrainingWorkspaceHTML() {
   _DE_SEL = null;
+  _trUseCtx(null);                                                                    // this host renders the First Team
   if (typeof _sqLoad === 'function') _sqLoad();
   if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
   if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // build shared board so _sqMyStats/_sqTeamFeel sync
@@ -44123,25 +44175,23 @@ function _atCtx(id) {
 function _atShowProKpis(id) { return _acStageIdx(id) >= 3; }         // U14+ (Performance and up)
 function _atShowPromotion(id) { return _acStageIdx(id) >= 4; }       // U17+ (Elite / Pro-Path)
 
-// The ordered section navigation for a team workspace. Formation and Tactics
-// are not sidebar entries — they live inside the Lineup module hub, exactly
-// like the First Team Squad area. Coaching Staff is not part of the Academy
-// age-group interface.
+// The age-group workspace navigates like the First Team: a dashboard, the squad
+// (which opens the Lineup / Formation / Tactics module hub) and Training (which
+// owns sessions and attendance). Everything else was folded into those three.
 var AT_SECTIONS = [
   ['dashboard', 'Dashboard', '📊'],
   ['squad', 'Players / Squad', '👥'],
-  ['lineup', 'Lineup', '📋'],
-  ['training', 'Training', '🏃'],
-  ['sessions', 'Sessions & Attendance', '🗓️'],
-  ['matchprep', 'Match Preparation', '🧠'],
-  ['matches', 'Matches', '🏟️'],
-  ['medical', 'Medical', '➕'],
-  ['assessments', 'Assessments', '📈'],
-  ['devpath', 'Development Path', '🌱'],
-  ['reports', 'Reports', '📄'],
-  ['video', 'Video Intelligence', '🎥'],
-  ['settings', 'Age-group Settings', '⚙️']
+  ['training', 'Training', '🏃']
 ];
+// Sections that are no longer part of the age-group workspace. A stale state —
+// a bookmarked view, a saved section, an old deep link — lands on the page that
+// now owns that work instead of an empty screen. No stored record is removed.
+var AT_REDIRECT = {
+  staff: 'squad', lineup: 'squad', formation: 'squad', tactics: 'squad',
+  sessions: 'training', matchprep: 'training', medical: 'training',
+  matches: 'dashboard', assessments: 'dashboard', devpath: 'dashboard',
+  reports: 'dashboard', video: 'dashboard', settings: 'dashboard'
+};
 
 // ── Enter / leave ──
 function _atEnter(id) {
@@ -44200,29 +44250,16 @@ function _atNextEvent(id) {
 }
 
 // ── Section router ──
-// 'lineup' is the module hub: it holds the Academy Lineup, Formation and
-// Tactics tools, mirroring the First Team Squad hub. 'staff', 'formation' and
-// 'tactics' are no longer routable sections — a stale value (e.g. a bookmarked
-// Coaching Staff view) is redirected to the Lineup hub instead of rendering.
+// 'squad' is the module hub: it opens the Academy Lineup, Formation and Tactics
+// tools, mirroring the First Team Squad hub. Retired sections resolve through
+// AT_REDIRECT so a stale state always lands on a real page.
 function _atSection(id, sec) {
-  if (sec === 'staff' || sec === 'formation' || sec === 'tactics') {
-    AT.section = 'lineup'; AT.luView = null; sec = 'lineup';
-  }
+  if (AT_REDIRECT[sec]) { sec = AT_REDIRECT[sec]; AT.section = sec; }
   switch (sec) {
     case 'dashboard':  return _atSecDashboard(id);
-    case 'squad':      return _atSecSquad(id);
-    case 'lineup':     return _atSecLineupHub(id);
+    case 'squad':      return _atSecSquadHub(id);
     case 'training':   return _atSecTraining(id);
-    case 'sessions':   return _atSecSessions(id);
-    case 'matchprep':  return _atSecMatchPrep(id);
-    case 'matches':    return _atSecMatches(id);
-    case 'medical':    return _atSecMedical(id);
-    case 'assessments':return _atSecAssessments(id);
-    case 'devpath':    return _atSecDevPath(id);
-    case 'reports':    return _atSecReports(id);
-    case 'video':      return _atSecVideo(id);
-    case 'settings':   return _atSecSettings(id);
-    default:           return _atSecDashboard(id);
+    default:           AT.section = 'dashboard'; return _atSecDashboard(id);
   }
 }
 function _atCard(title, body, sub) {
@@ -44767,7 +44804,7 @@ function _atHubPitch(id, mode) {
   }
   return '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">' + turf + overlay + dots + '</svg>';
 }
-function _atSecLineupHub(id) {
+function _atSecSquadHub(id) {
   if (AT.luView === 'lineup') return _atLuBackBar('lineup') + _atSecLineup(id);
   if (AT.luView === 'formation') return _atLuBackBar('formation') + _atSecFormation(id);
   if (AT.luView === 'tactics') return _atLuBackBar('tactics') + _atSecTactics(id);
@@ -44813,7 +44850,7 @@ function _atSecLineupHub(id) {
   }).join('');
 
   return '<div id="at-lu-home">'
-    + '<div style="padding:6px 4px 22px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Lineup</h1>'
+    + '<div style="padding:6px 4px 22px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Players / Squad</h1>'
     +   '<p style="margin:6px 0 0;font-size:13.5px;color:var(--tx-3,#64748b)">' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(fmt) + ' — select a module to manage this age group</p></div>'
     + '<div class="sqf-cards">' + cardHtml + '</div>'
   + '</div>';
@@ -44833,67 +44870,154 @@ function _atLuBackBar(active) {
       : '<button class="sql-tab" data-at-lumod="' + t[0] + '" type="button">' + t[1] + '</button>';
   }).join('');
   return '<div class="sq-sub-header at-lumod-header">'
-    + '<button class="sq-back-btn" type="button" data-at-lumod-back>' + backSvg + 'Lineup modules</button>'
+    + '<button class="sq-back-btn" type="button" data-at-lumod-back>' + backSvg + 'Squad modules</button>'
     + '<div class="sql-tabs">' + tabs + '</div>'
   + '</div>';
 }
-function _atSecLineup(id) {
-  var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
-  var need = _atStarterCount(t.formation.name);
-  var roster = _atRoster(id);
-  var capName = lu.captain ? (_atFindPlayer(id, lu.captain) || {}).name : null;
-  var unavailCount = roster.filter(function (p) { return p.availability !== 'Available'; }).length;
-  var injuredCount = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
+/* ── Academy Lineup ────────────────────────────────────────────────────────
+   Built on the First Team squad-presentation components: the same .sqlu-dash
+   summary strip, the same .sqlu-meta / .sqlu-filters toolbar, and the same
+   .sqlu-table with _sqLuCond / _sqLuForm rendering the bars and trends. Only
+   the columns differ, because an Academy player has development, attendance
+   and readiness where a senior professional has a market value and a
+   nationality — those are never invented here. Every mutation still goes
+   through the existing data-at-start / -bench / -captain / -gk / -formation /
+   -save-lineup / -reset-lineup handlers, keyed to this age group. */
+function _atLuPos(p) {
+  var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
+  return '<span class="sqlu-pos sqlu-pos--cat-' + cat + '">' + _viEscSafe(p.pos) + '</span>';
+}
+// Development tier — the Academy equivalent of the First Team quality chip.
+function _atLuDev(v) {
+  var t = v >= 80 ? ['elite', 'Advanced'] : v >= 70 ? ['excellent', 'Ahead'] : v >= 60 ? ['good', 'On track'] : ['avg', 'Developing'];
+  return '<span class="sqlu-qual sqlu-qual--' + t[0] + '"><b>' + v + '</b><i>' + t[1] + '</i></span>';
+}
+function _atLuMorale(m) {
+  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Okay' || m === 'Content' ? 'ok' : 'low';
+  return '<span class="sqlu-mor sqlu-mor--' + t + '"><i></i>' + _viEscSafe(m) + '</span>';
+}
+function _atLuAvatar(p) {
+  var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
+  if (p.photo) return '<span class="sqlu-av"><img src="' + _viEscSafe(p.photo) + '" alt=""></span>';
+  return '<span class="sqlu-av sqlu-av--' + cat + '">' + _viEscSafe(_atInitials(p.name)) + '</span>';
+}
+function _atLuIdentity(p, lu) {
+  var b = '';
+  if (lu.captain === p.id) b += '<span class="sqlu-bdg sqlu-bdg--c" title="Captain">C</span>';
+  if (lu.gk === p.id) b += '<span class="sqlu-bdg sqlu-bdg--vc" title="Goalkeeper">GK</span>';
+  if (p.availability === 'Injured') b += '<span class="sqlu-bdg sqlu-bdg--inj" title="' + _viEscSafe(p.injury) + '">' + _SQLU_INJ + '</span>';
+  if (p.availability === 'Doubtful') b += '<span class="sqlu-bdg sqlu-bdg--susp" title="Doubtful">!</span>';
+  return '<div class="sqlu-id">' + _atLuAvatar(p) + '<span class="sqlu-id-nm">' + _viEscSafe(p.name) + '</span>'
+    + (b ? '<span class="sqlu-id-bdgs">' + b + '</span>' : '') + '</div>';
+}
+function _atLuFiltered(id) {
   var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  var shown = roster.filter(function (p) {
+  return _atRoster(id).filter(function (p) {
     if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false;
     if (af !== 'ALL' && p.availability !== af) return false;
     return true;
-  }).length;
-
-  var cmd = '<div class="lux-cmd" style="--acc:' + c.accent + '">'
-    + '<div class="lux-cmd-title"><h2>Lineup</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + '</span></div>'
-    + '<div class="lux-cmd-read">'
-      + '<span class="lux-read"><i>Formation</i><b>' + _viEscSafe(t.formation.name) + '</b></span>'
-      + '<span class="lux-read"><i>Starting XI</i><b class="' + (lu.starters.length < need ? 'lux-num--warn' : '') + '">' + lu.starters.length + '/' + need + '</b></span>'
-      + '<span class="lux-read"><i>Substitutes</i><b>' + lu.subs.length + '</b></span>'
-      + '<span class="lux-read lux-read--cap"><i>Captain</i><b>' + _viEscSafe(capName || 'Not set') + '</b></span>'
-      + '<span class="lux-read"><i>Unavailable</i><b class="' + (unavailCount ? 'lux-num--warn' : '') + '">' + unavailCount + '</b></span>'
-      + '<span class="lux-read"><i>Injured</i><b class="' + (injuredCount ? 'lux-num--bad' : '') + '">' + injuredCount + '</b></span>'
+  });
+}
+function _atLuDash(id) {
+  var t = _atTeam(id), lu = _atLineup(id), roster = _atRoster(id), n = roster.length || 1;
+  var need = _atStarterCount(t.formation.name);
+  var cap = lu.captain ? _atFindPlayer(id, lu.captain) : null;
+  var avg = function (f) { return Math.round(roster.reduce(function (a, p) { return a + (f(p) || 0); }, 0) / n); };
+  function card(label, val, sub, tone) {
+    return '<div class="sqlu-stat sqlu-stat--' + (tone || 'n') + '"><span class="sqlu-stat-l">' + label + '</span>'
+      + '<span class="sqlu-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
+  }
+  var inj = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
+  var dbt = roster.filter(function (p) { return p.availability === 'Doubtful'; }).length;
+  return '<div class="sqlu-dash">'
+    + card('Squad size', roster.length, '', 'blue')
+    + card('Match format', _atFormatLabel(id), '', 'violet')
+    + card('Formation', _viEscSafe(t.formation.name), '', 'violet')
+    + card(_atXiLabel(id), lu.starters.length, '<i>/' + need + '</i>', lu.starters.length === need ? 'green' : 'amber')
+    + card('Substitutes', lu.subs.length, '', 'teal')
+    + card('Captain', cap ? '#' + cap.number : '—', '', cap ? 'green' : 'muted')
+    + card('Average development', avg(function (p) { return p.devScore; }), '', 'green')
+    + card('Average fitness', avg(function (p) { return p.fitness; }), '<i>%</i>', 'teal')
+    + card('Average attendance', avg(function (p) { return p.attendance; }), '<i>%</i>', 'amber')
+    + card('Doubtful', dbt, '', dbt ? 'amber' : 'muted')
+    + card('Injured', inj, '', inj ? 'red' : 'muted')
+    + card('Available', roster.length - inj - dbt, '', 'green')
+    + '</div>';
+}
+// 'Starting XI' only when eleven really take the field.
+function _atXiLabel(id) { var n = _atStarterCount(_atTeam(id).formation.name); return n === 11 ? 'Starting XI' : 'Starting ' + n; }
+function _atLuToolbar(id) {
+  var roster = _atRoster(id), f = _atLuFiltered(id).length, tot = roster.length;
+  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
+  var seg = [['ALL', 'All'], ['GK', 'GK'], ['DEF', 'DEF'], ['MID', 'MID'], ['FWD', 'FWD']].map(function (o) {
+    return '<button class="sqlu-seg' + (pf === o[0] ? ' is-active' : '') + '" data-at-posfilter="' + o[0] + '" type="button">' + o[1] + '</button>';
+  }).join('');
+  var pills = [['ALL', 'Any availability'], ['Available', 'Available'], ['Doubtful', 'Doubtful'], ['Injured', 'Injured']].map(function (o) {
+    return '<button class="sqlu-pill' + (af === o[0] ? ' is-active' : '') + '" data-at-availfilter="' + o[0] + '" type="button">' + o[1] + '</button>';
+  }).join('');
+  return '<div class="sqlu-meta">'
+    + '<div class="sqlu-meta-l"><span class="sqlu-meta-title">Squad</span><span class="sqlu-meta-count">' + (f === tot ? tot + ' players' : f + ' of ' + tot + ' players') + '</span></div>'
+    + '<div class="atlu-savebar">'
+    +   '<button class="sq-mbtn sq-mbtn--add" type="button" data-at-save-lineup>Save lineup</button>'
+    +   '<button class="sq-mbtn" type="button" data-at-reset-lineup>Reset</button>'
     + '</div>'
-    + '<div class="lux-cmd-acts">'
-      + '<button class="lux-save" type="button" data-at-save-lineup>Save Lineup</button>'
-      + '<button class="lux-reset" type="button" data-at-reset-lineup>Reset</button>'
     + '</div>'
-  + '</div>';
+    + '<div class="sqlu-filters">'
+    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH + '<input class="sqlu-search-input at-search" type="text" placeholder="Search name, position, squad number…" data-at-search value="' + _viEscSafe(AT.q || '') + '" aria-label="Search players"></div>'
+    +   '<div class="sqlu-seg-group">' + seg + '</div>'
+    +   '<div class="sqlu-pill-group">' + pills + '</div>'
+    + '</div>';
+}
+function _atLuRows(id) {
+  var lu = _atLineup(id), list = _atLuFiltered(id);
+  if (!list.length) return '<tr class="sqlu-empty-row"><td colspan="12"><div class="sqlu-empty">No players match the current search or filters.</div></td></tr>';
+  return list.map(function (p) {
+    var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
+    var st = _atLuStatus(p, lu), isStart = lu.starters.indexOf(p.id) >= 0;
+    var acts = (isStart
+        ? '<button class="atlu-act" type="button" data-at-bench="' + p.id + '">Bench</button>'
+        : '<button class="atlu-act atlu-act--go" type="button" data-at-start="' + p.id + '">Start</button>')
+      + '<button class="atlu-act' + (lu.captain === p.id ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '">Captain</button>'
+      + (p.pos === 'GK' ? '<button class="atlu-act' + (lu.gk === p.id ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '">Goalkeeper</button>' : '');
+    return '<tr class="sqlu-row sqlu-row--' + cat + ' atlu-row--' + st.key + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
+      + '<td class="sqlu-c-pos">' + _atLuPos(p) + '</td>'
+      + '<td class="sqlu-c-num">' + p.number + '</td>'
+      + '<td class="sqlu-c-name"><span class="atlu-open" data-at-player="' + p.id + '">' + _atLuIdentity(p, lu) + '</span></td>'
+      + '<td class="sqlu-c-roles"><div class="sqlu-roles"><span class="sqlu-role sqlu-role--' + cat + '">' + _viEscSafe(p.secondary) + '</span></div></td>'
+      + '<td class="sqlu-c-nat">' + _viEscSafe(p.foot) + '</td>'
+      + '<td class="sqlu-c-age">' + p.age + '</td>'
+      + '<td class="sqlu-c-val"><span class="atlu-status atlu-status--' + st.key + '">' + st.label + '</span></td>'
+      + '<td class="sqlu-c-form">' + _sqLuForm(p.form) + '</td>'
+      + '<td class="sqlu-c-cond">' + _sqLuCond(p.fitness) + '</td>'
+      + '<td class="sqlu-c-cond">' + _sqLuCond(p.attendance) + '</td>'
+      + '<td class="sqlu-c-mor">' + _atLuMorale(p.morale) + '</td>'
+      + '<td class="sqlu-c-qual">' + _atLuDev(p.devScore) + '<div class="atlu-acts">' + acts + '</div></td>'
+      + '</tr>';
+  }).join('');
+}
+function _atSecLineup(id) {
+  var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
+  var formationSel = '<div class="atlu-formbar"><span class="atlu-formbar-l">Formation</span><div class="atlu-seg">'
+    + opts.map(function (f) { return '<button class="atlu-seg-b' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
+    + '</div><span class="atlu-formbar-fmt">' + _viEscSafe(_atFormatLabel(id)) + '</span></div>';
 
-  var formationSel = '<div class="lux-formbar"><span class="lux-formbar-lab">Formation</span><div class="lux-seg">'
-    + opts.map(function (f) { return '<button class="lux-seg-btn' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
-  + '</div></div>';
-
-  var board = '<div class="lux-board">'
-    + '<div class="lux-board-head">'
-      + '<input class="lux-search at-search" type="text" placeholder="Search by name, position or number…" data-at-search value="' + _viEscSafe(AT.q || '') + '">'
-      + '<div class="lux-filters">'
-        + '<div class="lux-fgrp">' + ['ALL', 'GK', 'DEF', 'MID', 'FWD'].map(function (g) { return '<button class="lux-fbtn' + (pf === g ? ' is-on' : '') + '" type="button" data-at-posfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('') + '</div>'
-        + '<div class="lux-fgrp">' + ['ALL', 'Available', 'Doubtful', 'Injured'].map(function (g) { return '<button class="lux-fbtn' + (af === g ? ' is-on' : '') + '" type="button" data-at-availfilter="' + g + '">' + (g === 'ALL' ? 'Any' : g) + '</button>'; }).join('') + '</div>'
-        + '<span class="lux-count">' + shown + ' of ' + roster.length + '</span>'
-      + '</div>'
-    + '</div>'
-    + _atLuInspector(id, lu, c.idx)
-    + '<div class="lux-scroll">' + _atPlayerList(id, 'lineup') + '</div>'
-  + '</div>';
-
-  return '<div class="lux-room">'
-    + cmd
-    + '<div class="lux-grid">'
-      + '<section class="lux-stage">'
-        + formationSel
-        + '<div class="lux-pitch-wrap">' + _atLineupPitch(id) + '</div>'
-        + _atLuBench(id, lu)
-      + '</section>'
-      + '<aside class="lux-side">' + board + '</aside>'
-    + '</div>'
+  return '<div class="sqlu-wrap atlu-wrap">'
+    + '<div class="atlu-head"><h1>Lineup</h1><p>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + '</p></div>'
+    + _atLuDash(id)
+    + '<section class="atlu-stage">' + formationSel
+    +   '<div class="atlu-pitch">' + _atLineupPitch(id) + '</div>'
+    +   _atLuBench(id, lu)
+    + '</section>'
+    + _atLuToolbar(id)
+    + '<div class="sqlu-tablewrap"><table class="sqlu-table">'
+    +   '<thead><tr>'
+    +     '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th>'
+    +     '<th class="sqlu-th-roles">2nd position</th><th class="sqlu-th-nat">Foot</th><th class="sqlu-th-age">Age</th>'
+    +     '<th class="sqlu-th-val">Selection</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">Fitness</th>'
+    +     '<th class="sqlu-th-cond">Attendance</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">Development</th>'
+    +   '</tr></thead>'
+    +   '<tbody id="at-pllist">' + _atLuRows(id) + '</tbody>'
+    + '</table></div>'
   + '</div>';
 }
 
@@ -45128,30 +45252,143 @@ function _atPitch(name, accent) {
   html += '</div>';
   return html;
 }
-function _atSecTactics(id) {
-  var t = _atTeam(id), tc = t.tactics;
-  function sel(key, label, opts) {
-    return '<label class="at-field"><span>' + label + '</span><select data-at-tactic="' + key + '">' + opts.map(function (o) { return '<option' + (tc[key] === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>';
+/* ── Academy Tactics ───────────────────────────────────────────────────────
+   The real First Team Tactics system rendered with this age group's own record:
+   the same six sections, the same .sqtac-* summary, segmented controls, team
+   instruction chips and per-position player instructions. Writes go to
+   teams[<ageGroupId>].tactics2 through _atTacSet / _atTacToggle / _atTacPlayer —
+   SQ_TACTICS is never read or written from here, so no First Team value can
+   appear in an Academy age group or vice versa. */
+// This group's full tactics record, seeded once from its existing simple
+// settings (mentality / tempo / width / pressing / line / build) so nothing the
+// coach already chose is lost and nothing is invented.
+function _atTactics(id) {
+  var t = _atTeam(id);
+  if (!t.tactics2 || typeof t.tactics2 !== 'object') {
+    var o = t.tactics || {}, i = _acStageIdx(id);
+    t.tactics2 = {
+      mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
+      style: i < 2 ? 'Possession' : 'Balanced',
+      width: o.width || 'Balanced',
+      tempo: o.tempo === 'Relaxed' ? 'Slow' : (o.tempo === 'High' ? 'Fast' : 'Normal'),
+      buildUp: o.build === 'Play out from the back' ? 'Short Passing' : (o.build === 'Direct fun' ? 'Direct' : 'Mixed'),
+      finalThird: 'Mixed', crossing: 'Mixed',
+      defLine: o.line === 'Deep' ? 'Deep' : (o.line === 'High' ? 'High' : 'Standard'),
+      pressLine: o.pressing || 'Medium',
+      compactness: 'Balanced', offsideTrap: false,
+      transWon: 'Counter Attack', transLost: i < 2 ? 'Regroup' : 'Counter Press',
+      gkDist: i < 2 ? 'Short' : 'Mixed',
+      team: {}, players: {}
+    };
+    _atSave();
   }
-  var form =
-    sel('mentality', 'Mentality', ['Encourage', 'Balanced', 'Positive', 'Attacking', 'Cautious'])
-    + sel('tempo', 'Tempo', ['Relaxed', 'Medium', 'High'])
-    + sel('width', 'Width', ['Narrow', 'Balanced', 'Wide'])
-    + sel('pressing', 'Pressing', ['Low', 'Medium', 'High'])
-    + sel('line', 'Defensive Line', ['Deep', 'Medium', 'High'])
-    + sel('build', 'Build-up', ['Direct fun', 'Play out from the back', 'Mixed']);
-  return _atSecHead(id, 'Tactics', 'Tactical settings scoped to ' + _atCtx(id).label + ' only.')
-    + '<div class="at-fields">' + form + '</div>';
+  if (!_atTacticsRec(id).team) _atTacticsRec(id).team = {};
+  if (!_atTacticsRec(id).players) _atTacticsRec(id).players = {};
+  return t.tactics2;
+}
+function _atTacticsRec(id) { return _atTeam(id).tactics2; }
+// Younger groups configure fewer sections — the options they don't use are not
+// shown rather than shown empty. Player instructions arrive with the age at
+// which individual roles start being coached.
+function _atTacSections(id) {
+  var i = _acStageIdx(id);
+  return _SQ_TAC_SECS.filter(function (s) {
+    if (i < 1 && (s.id === 'transitions' || s.id === 'players')) return false;
+    if (i < 2 && s.id === 'players') return false;
+    return true;
+  });
+}
+function _atTacWrite(id, fn) {
+  if (!id || !_acCanOpen(id)) return;
+  _atTactics(id); fn(_atTacticsRec(id));
+  // Keep the simple record the dashboard, hub cards and Formation summary read.
+  var T = _atTacticsRec(id), s = _atTeam(id).tactics;
+  s.pressing = T.pressLine; s.tempo = T.tempo === 'Slow' ? 'Relaxed' : (T.tempo === 'Fast' ? 'High' : 'Medium');
+  s.width = T.width; s.line = T.defLine === 'Standard' ? 'Medium' : T.defLine;
+  s.build = T.buildUp === 'Short Passing' ? 'Play out from the back' : (T.buildUp === 'Direct' ? 'Direct fun' : 'Mixed');
+  s.mentality = T.mentality;
+  _atSave(); renderAcademyTeamPage();
+}
+function _atTacSet(grp, val) { if (!grp || val == null) return; _atTacWrite(AT.active, function (T) { T[grp] = val; }); }
+function _atTacToggle(scope, key) { _atTacWrite(AT.active, function (T) { if (scope === 'team') { T.team = T.team || {}; T.team[key] = !T.team[key]; } else { T[key] = !T[key]; } }); }
+function _atTacPlayer(pkey, val) { _atTacWrite(AT.active, function (T) { T.players = T.players || {}; T.players[pkey] = val; }); }
+function _atSecTactics(id) {
+  var c = _atCtx(id), T = _atTactics(id), t = _atTeam(id);
+  var slots = _sqSlotsFor(t.formation.name) || [];
+  var secs = _atTacSections(id);
+  var body = secs.map(function (s) {
+    return '<section class="attac-sec" style="--ac:' + s.ac + '">'
+      + '<header class="attac-sec-h"><span class="attac-sec-no">' + s.no + '</span><h3>' + s.title + '</h3>'
+      + (s.id === 'players' || s.id === 'team' ? '<em class="sqtac-fp-tag">' + _viEscSafe(t.formation.name) + '</em>' : '') + '</header>'
+      + '<div class="attac-sec-b">' + _sqTacSecContent(s.id, 'academy', T, slots) + '</div>'
+      + '</section>';
+  }).join('');
+  return '<div class="attac-wrap">'
+    + '<div class="atlu-head"><h1>Tactics</h1><p>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + ' — saved for this age group only</p></div>'
+    + _sqTacSummary(T)
+    + '<div class="attac-secs">' + body + '</div>'
+  + '</div>';
+}
+/* ── Academy Training ──────────────────────────────────────────────────────
+   The real First Team Training Centre, mounted with this age group's explicit
+   team context: its own roster, formation, match format, tactics and — through
+   the teamId stamped on every record — its own sessions, attendance, ratings
+   and reports. Sessions and attendance now live here rather than in a separate
+   sidebar page. Academy records stay on the client store (backend:false), so no
+   backend, schema, API or permission is touched. */
+// The age group's session/attendance records, moved into the shared training
+// store once so the unified workspace can work with them. The originals stay in
+// the Academy store; only real stored values are carried across, and a session
+// with no recorded marks stays 'planned' so it never counts as attendance.
+function _atTrainingImport(id) {
+  var t = _atTeam(id);
+  if (!t.training || !Array.isArray(t.training.sessions) || !t.training.sessions.length) return;
+  if (!t.training.imported || typeof t.training.imported !== 'object') t.training.imported = {};
+  var db = _trLoadDB(); db.sessions = db.sessions || [];
+  var club = (typeof _sqClubName === 'function') ? _sqClubName() : 'FC Familista';
+  var ids = _atRoster(id).map(function (p) { return p.id; });
+  var changed = false;
+  t.training.sessions.forEach(function (s) {
+    if (t.training.imported[s.id]) return;
+    var att = (t.attendance && t.attendance[s.id]) || {}, marks = {};
+    Object.keys(att).forEach(function (pid) { if (att[pid]) marks[pid] = att[pid]; });
+    var has = Object.keys(marks).length > 0;
+    db.sessions.push({
+      id: 'trs-ac-' + id + '-' + s.id, createdAt: Date.now(), club: club, team: _acStage(id).label, teamId: id, season: '2025/26',
+      date: s.date, startTime: '', duration: 0, type: 'technical', objective: s.title || '', location: '',
+      players: ids.slice(), formation: t.formation.name, tacticalFocus: s.focus || '', drills: [],
+      intensity: '', pitch: '', weather: '', temperature: '', equipment: '', coach: _acResponsible(id),
+      status: has ? 'in_progress' : 'planned', attendance: marks, attendanceNotes: '', performance: {},
+      sessionRating: null, bestPlayer: null, coachNote: '', completedAt: null
+    });
+    t.training.imported[s.id] = 1; changed = true;
+  });
+  if (changed) { _trSaveDB(); _atSave(); }
+}
+// Explicit team context handed to the shared Training system.
+function _atTrainingCtx(id) {
+  var fc = _atFormationCtx(id), st = _acStage(id), i = _acStageIdx(id);
+  return {
+    type: 'academy', teamId: id, label: fc.label,
+    roster: fc.roster,
+    xi: (fc.starterIds || []).slice(),
+    formation: fc.formation,
+    formationOptions: fc.formationOptions,
+    tactics: _atTactics(id),
+    // Real recorded availability, not a derived senior-squad guess.
+    avail: function (p) { return p.availability === 'Injured' ? 'injured' : (p.availability === 'Doubtful' ? 'suspended' : 'available'); },
+    // Younger groups train in fewer categories; nothing is added that the stage does not use.
+    types: i < 2 ? [['technical', 'Technical'], ['physical', 'Physical'], ['mental', 'Mental'], ['match', 'Match Prep']] : TR_TYPES,
+    xiLabel: _atXiLabel(id),
+    stage: st.name, backend: false, canEdit: _acCanOpen(id)
+  };
 }
 function _atSecTraining(id) {
-  var t = _atTeam(id), st = _acStage(id);
-  var tmpl = (st.curriculum || []).map(function (x) { return '<button class="at-chip" type="button" data-at-add-session="' + _viEscSafe(x).replace(/"/g, '&quot;') + '">+ ' + _viEscSafe(x) + '</button>'; }).join('');
-  var list = t.training.sessions.length
-    ? t.training.sessions.slice().reverse().map(function (s) { return '<tr><td>' + _viEscSafe(s.date) + '</td><td><b>' + _viEscSafe(s.title) + '</b></td><td>' + _viEscSafe(s.focus) + '</td><td><button class="at-del" type="button" data-at-del-session="' + s.id + '">✕</button></td></tr>'; }).join('')
-    : '<tr><td colspan="4" class="at-empty">No sessions yet — add one from the age-appropriate templates above. These sessions belong only to ' + _viEscSafe(_atCtx(id).label) + '.</td></tr>';
-  return _atSecHead(id, 'Training', st.methodology)
-    + _atCard('Age-appropriate session templates', '<div class="at-chips">' + tmpl + '</div>', st.label)
-    + _atCard('Planned sessions (' + t.training.sessions.length + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Date</th><th>Session</th><th>Focus</th><th></th></tr></thead><tbody>' + list + '</tbody></table></div>');
+  _trLoadDB(); _atTrainingImport(id);
+  _trUseCtx(_atTrainingCtx(id));                       // this host renders the selected age group
+  if (typeof _deBind === 'function') _deBind();
+  _trnBind(); if (typeof _trnWinBind === 'function') _trnWinBind();
+  return '<div class="at-trn-host"><div class="trn-root">' + _trnInner() + '</div></div>';
 }
 function _atSecSessions(id) {
   var t = _atTeam(id), pl = _acInStage(id);
@@ -45510,7 +45747,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (e.target.getAttribute && e.target.getAttribute('data-at-search') !== null && e.target.classList.contains('at-search')) {
       AT.q = e.target.value || '';
       var q = AT.q.toLowerCase();
-      var rows = document.querySelectorAll('#at-pllist .lux-card, #at-pllist .at-sc');
+      var rows = document.querySelectorAll('#at-pllist .sqlu-row, #at-pllist .lux-card, #at-pllist .at-sc');
       for (var i = 0; i < rows.length; i++) { var nm = rows[i].getAttribute('data-name') || ''; rows[i].style.display = (!q || nm.indexOf(q) >= 0) ? '' : 'none'; }
       return;
     }
