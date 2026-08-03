@@ -5673,10 +5673,11 @@ function _sqCmdInner(ctx) {
   var my = _sqTeamReport('my', C), op = _sqTeamReport('opp', C);
   if (!SQ_FORM.cmdWins) SQ_FORM.cmdWins = {};
   var isSim = !!SQ_FORM.cmdSim && C.hasOpponent;
+  var simView = !!SQ_FORM.cmdSim;                 // sim is the open view (runnable, or its empty state)
   var noWin = true; for (var q in SQ_FORM.cmdWins) { if (q !== 'simulation') noWin = false; }
   var nav = '<div class="sqtc-nav">' + SQ_CMD_TABS.map(function (t) {
     var k = _sqCmdTabKey(t);
-    var active = (k === 'overview') ? (!isSim && noWin) : (k === 'simulation') ? isSim : (!isSim && !!SQ_FORM.cmdWins[k]);
+    var active = (k === 'overview') ? (!simView && noWin) : (k === 'simulation') ? simView : (!simView && !!SQ_FORM.cmdWins[k]);
     return '<button class="sqtc-tab' + (active ? ' is-active' : '') + '" data-action="sqCmdWin" data-tab="' + k + '" type="button">' + t + '</button>';
   }).join('') + '</div>';
   if (isSim) { // Simulation = complete independent workspace (NOT a floating window), with a clear Back control
