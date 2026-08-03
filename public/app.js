@@ -2168,7 +2168,14 @@ function _sqInitials(name) {
 // class (used by Formation / modals) untouched. All derived numbers reuse the
 // existing engines / formulas — no stored player data is changed.
 // ══════════════════════════════════════════════════════════════════════════════
-var SQ_LU = { q: '', pos: 'all', quick: {} };
+// Lineup filter/search state, per team context — the First Team's search never
+// survives into an age group and vice versa.
+var _SQ_LU_STATE = {};
+function _sqLuState(ctx) { var k = _sqCtx(ctx).ctxId || _sqCtx(ctx).teamId || 'first-team'; if (!_SQ_LU_STATE[k]) _SQ_LU_STATE[k] = { q: '', pos: 'all', quick: {} }; return _SQ_LU_STATE[k]; }
+var _SQ_LU_ACTIVE = null;                 // the context the mounted Lineup page is rendering
+function _sqLuUseCtx(c) { _SQ_LU_ACTIVE = c || null; }
+function _sqLuCtx() { return _SQ_LU_ACTIVE || _sqFirstCtx(); }
+try { Object.defineProperty(typeof globalThis !== 'undefined' ? globalThis : window, 'SQ_LU', { get: function () { return _sqLuState(_sqLuCtx()); }, set: function () {}, configurable: true }); } catch (e) {}
 var _SQ_LU_BOUND = false;
 // Derived match availability (presentation only — never written back to the player).
 // Consistent with the app's deterministic-mock pattern (_sqStat / contract / stats).
@@ -2181,11 +2188,11 @@ function _sqLuAvail(p) {
   return 'available';
 }
 // Squad status — same tiers already used by the contract panel (qual-based).
-function _sqLuStatusLabel(p) { return p.qual >= 85 ? 'Key player' : p.qual >= 80 ? 'First team' : p.qual >= 76 ? 'Rotation' : 'Squad player'; }
+function _sqLuStatusLabel(p, ctx) { var C = _sqCtx(ctx); if (typeof C.statusLabel === 'function') return C.statusLabel(p); return p.qual >= 85 ? 'Key player' : p.qual >= 80 ? 'First team' : p.qual >= 76 ? 'Rotation' : 'Squad player'; }
 // Vice-captain = highest-quality non-captain (same derivation Formation uses for its VC badge).
-function _sqLuViceId() {
+function _sqLuViceId(ctx) {
   var best = null;
-  SQ_DEMO_PLAYERS.forEach(function (p) { if (p.captain) return; if (!best || p.qual > best.qual) best = p; });
+  (_sqCtx(ctx).roster || []).forEach(function (p) { if (p.captain) return; if (!best || p.qual > best.qual) best = p; });
   return best ? best.id : null;
 }
 var LU_QF = {
@@ -2199,21 +2206,22 @@ var LU_QF = {
   injured:   function (p) { return _sqLuAvail(p) === 'injured'; },
   suspended: function (p) { return _sqLuAvail(p) === 'suspended'; }
 };
-function _sqLineupFiltered() {
-  var q = SQ_LU.q, pos = SQ_LU.pos, quick = SQ_LU.quick;
-  return SQ_DEMO_PLAYERS.filter(function (p) {
+function _sqLineupFiltered(ctx) {
+  var C = _sqCtx(ctx), st = _sqLuState(C), q = st.q, pos = st.pos, quick = st.quick;
+  var qf = C.quickFilters || LU_QF;
+  return (C.roster || []).filter(function (p) {
     if (pos !== 'all' && p.cat !== pos) return false;
-    for (var k in quick) { if (quick[k] && LU_QF[k] && !LU_QF[k](p)) return false; }
+    for (var k in quick) { if (quick[k] && qf[k] && !qf[k](p)) return false; }
     if (q) {
-      var hay = (p.name + ' ' + p.pos + ' ' + p.roles + ' ' + p.natName + ' #' + p.num + ' ' + _sqLuStatusLabel(p) + ' ' + p.foot).toLowerCase();
+      var hay = (p.name + ' ' + p.pos + ' ' + (p.roles || '') + ' ' + (p.natName || '') + ' #' + p.num + ' ' + _sqLuStatusLabel(p, C) + ' ' + p.foot).toLowerCase();
       if (hay.indexOf(q) < 0) return false;
     }
     return true;
   });
 }
 // ── aggregate dashboard stats (whole squad; reuse existing formulas) ──
-function _sqLineupStats() {
-  var ps = SQ_DEMO_PLAYERS, n = ps.length || 1;
+function _sqLineupStats(ctx) {
+  var C = _sqCtx(ctx), ps = C.roster || [], n = ps.length || 1;
   var sum = function (f) { var s = 0; ps.forEach(function (p) { s += f(p); }); return s; };
   var avgOvr = Math.round(sum(function (p) { return p.qual; }) / n);
   var avgFit = Math.round(sum(function (p) { return p.cond; }) / n);
@@ -2222,20 +2230,27 @@ function _sqLineupStats() {
   var varc = sum(function (p) { return (p.cond - mc) * (p.cond - mc); }) / n;
   var chem = Math.max(0, Math.min(100, Math.round(100 - Math.sqrt(varc) * 2.5)));  // same chemistry formula used elsewhere
   var balance = 0;
-  try { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); balance = (typeof _sqMyStats === 'function') ? (_sqMyStats().balance || 0) : 0; } catch (e) { balance = 0; }
+  try {
+    if (C.type === 'first') { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); balance = (typeof _sqMyStats === 'function') ? (_sqMyStats().balance || 0) : 0; }
+    else { balance = (typeof C.balance === 'number') ? C.balance : 0; }
+  } catch (e) { balance = 0; }
   var inj = 0, susp = 0, avail = 0;
-  ps.forEach(function (p) { var a = _sqLuAvail(p); if (a === 'injured') inj++; else if (a === 'suspended') susp++; else avail++; });
+  ps.forEach(function (p) { var a = _sqLuAvailOf(p, C); if (a === 'injured') inj++; else if (a === 'suspended') susp++; else avail++; });
   return { total: ps.length, ovr: avgOvr, balance: balance, fit: avgFit, morale: avgMor, chem: chem, injured: inj, suspended: susp, available: avail };
 }
-function _sqLuDash() {
-  var s = _sqLineupStats();
+// Availability for a player in a given team: the First Team derives it, an age
+// group has it recorded, so the context answers when it knows.
+function _sqLuAvailOf(p, ctx) { var C = _sqCtx(ctx); return (typeof C.avail === 'function') ? C.avail(p) : _sqLuAvail(p); }
+function _sqLuDash(ctx) {
+  var C = _sqCtx(ctx), s = _sqLineupStats(C);
   function card(key, label, val, sub, tone) {
     return '<div class="sqlu-stat sqlu-stat--' + (tone || 'n') + '"><span class="sqlu-stat-l">' + label + '</span>'
       + '<span class="sqlu-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
   }
+  var L = C.dashLabels || {};
   return '<div class="sqlu-dash">'
     + card('total', 'Total players', s.total, '', 'blue')
-    + card('ovr', 'Average OVR', s.ovr, '', 'green')
+    + card('ovr', L.ovr || 'Average OVR', s.ovr, '', 'green')
     + card('bal', 'Team balance', s.balance, '<i>%</i>', 'green')
     + card('fit', 'Average fitness', s.fit, '<i>%</i>', 'teal')
     + card('mor', 'Average morale', s.morale, '<i>%</i>', 'amber')
@@ -2247,20 +2262,21 @@ function _sqLuDash() {
 }
 // ── premium filter / search toolbar ──
 var _SQLU_ICON_SEARCH = '<svg class="sqlu-search-ic" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
-function _sqLuToolbar() {
-  var f = _sqLineupFiltered().length, t = SQ_DEMO_PLAYERS.length;
+function _sqLuToolbar(ctx) {
+  var C = _sqCtx(ctx), st = _sqLuState(C);
+  var f = _sqLineupFiltered(C).length, t = (C.roster || []).length;
   var seg = [['all', 'All'], ['gk', 'GK'], ['df', 'DEF'], ['mf', 'MID'], ['fw', 'FWD']].map(function (o) {
-    return '<button class="sqlu-seg' + (SQ_LU.pos === o[0] ? ' is-active' : '') + '" data-action="sqLuFilterPos" data-pos="' + o[0] + '" type="button">' + o[1] + '</button>';
+    return '<button class="sqlu-seg' + (st.pos === o[0] ? ' is-active' : '') + '" data-action="sqLuFilterPos" data-pos="' + o[0] + '" type="button">' + o[1] + '</button>';
   }).join('');
-  var pills = [['elite', 'OVR 85+'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['youth', 'Youth U21'], ['left', 'Left foot'], ['key', 'Key player'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Suspended']].map(function (o) {
-    return '<button class="sqlu-pill' + (SQ_LU.quick[o[0]] ? ' is-active' : '') + '" data-action="sqLuQuick" data-qf="' + o[0] + '" type="button">' + o[1] + '</button>';
+  var pills = (C.quickPills || [['elite', 'OVR 85+'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['youth', 'Youth U21'], ['left', 'Left foot'], ['key', 'Key player'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Suspended']]).map(function (o) {
+    return '<button class="sqlu-pill' + (st.quick[o[0]] ? ' is-active' : '') + '" data-action="sqLuQuick" data-qf="' + o[0] + '" type="button">' + o[1] + '</button>';
   }).join('');
   return '<div class="sqlu-meta">'
     + '<div class="sqlu-meta-l"><span class="sqlu-meta-title">Squad</span><span class="sqlu-meta-count" id="sq-lineup-count">' + (f === t ? t + ' players' : f + ' of ' + t + ' players') + '</span></div>'
-    + '<button class="sq-mbtn sq-mbtn--add" data-action="sqAddPlayer" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add player</button>'
+    + '<button class="sq-mbtn sq-mbtn--add" data-action="' + (C.addAction || 'sqAddPlayer') + '" type="button"><svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add player</button>'
     + '</div>'
     + '<div class="sqlu-filters">'
-    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH + '<input class="sqlu-search-input" type="text" placeholder="Search name, position, role, nationality…" value="' + _sqEsc(SQ_LU.q) + '" aria-label="Search players"></div>'
+    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH + '<input class="sqlu-search-input" type="text" placeholder="' + (C.searchHint || 'Search name, position, role, nationality…') + '" value="' + _sqEsc(st.q) + '" aria-label="Search players"></div>'
     +   '<div class="sqlu-seg-group">' + seg + '</div>'
     +   '<div class="sqlu-pill-group">' + pills + '</div>'
     + '</div>';
@@ -2276,7 +2292,7 @@ function _sqLuCond(v) {
   return '<div class="sqlu-cond"><div class="sqlu-cond-fill ' + tone + '" style="width:' + Math.min(100, v) + '%"></div><span class="sqlu-cond-v">' + v + '%</span></div>';
 }
 function _sqLuMorale(m) {
-  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Content' ? 'ok' : 'low';
+  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : (m === 'Content' || m === 'Okay') ? 'ok' : 'low';
   return '<span class="sqlu-mor sqlu-mor--' + t + '"><i></i>' + m + '</span>';
 }
 function _sqLuForm(f) {
@@ -2292,12 +2308,12 @@ function _sqLuAvatar(p) {
 }
 var _SQLU_YOUTH = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c0-4.5 0-6.5-2.2-8.7C7.6 11.1 4.5 11 4.5 11s.1 3.1 2.3 5.3C9 18.5 11 18.9 12 19v3z"/><path d="M12 16c0-3.6 1-5.4 3.2-6.9C17.6 7.5 20 7.5 20 7.5s0 2.9-2.4 4.9C15.6 13.7 13.4 14 12 14v2z"/></svg>';
 var _SQLU_INJ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 6v12M6 12h12"/></svg>';
-function _sqLuIdentity(p, viceId) {
-  var av = _sqLuAvatar(p), badges = '';
+function _sqLuIdentity(p, viceId, ctx) {
+  var C = _sqCtx(ctx), av = _sqLuAvatar(p), badges = '';
   if (p.captain) badges += '<span class="sqlu-bdg sqlu-bdg--c" title="Captain">C</span>';
   if (p.id === viceId) badges += '<span class="sqlu-bdg sqlu-bdg--vc" title="Vice-captain">VC</span>';
-  if (p.age <= 21) badges += '<span class="sqlu-bdg sqlu-bdg--youth" title="Youth (U21)">' + _SQLU_YOUTH + '</span>';
-  var av2 = _sqLuAvail(p);
+  if (C.type === 'first' && p.age <= 21) badges += '<span class="sqlu-bdg sqlu-bdg--youth" title="Youth (U21)">' + _SQLU_YOUTH + '</span>';
+  var av2 = _sqLuAvailOf(p, C);
   if (av2 === 'injured') badges += '<span class="sqlu-bdg sqlu-bdg--inj" title="Injured">' + _SQLU_INJ + '</span>';
   if (av2 === 'suspended') badges += '<span class="sqlu-bdg sqlu-bdg--susp" title="Suspended">!</span>';
   return '<div class="sqlu-id">' + av + '<span class="sqlu-id-nm">' + _sqEsc(p.name) + '</span>' + (badges ? '<span class="sqlu-id-bdgs">' + badges + '</span>' : '') + '</div>';
@@ -2310,11 +2326,13 @@ var _SQLU_ACT_ICONS = {
   training: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>',
   role: '<svg fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>'
 };
-function _sqLuActions(id) {
-  var acts = [['edit', 'Edit'], ['details', 'Details'], ['medical', 'Medical'], ['training', 'Training'], ['role', 'Tactical role']];
+function _sqLuActions(id, ctx) {
+  var C = _sqCtx(ctx);
+  var acts = C.rowActions || [['edit', 'Edit'], ['details', 'Details'], ['medical', 'Medical'], ['training', 'Training'], ['role', 'Tactical role']];
+  var act = C.rowAction || 'sqLuAct';
   return '<div class="sqlu-acts">' + acts.map(function (a) {
     var ic = a[0] === 'edit' ? ICON_EDIT : _SQLU_ACT_ICONS[a[0]];
-    return '<button class="sqlu-act" data-action="sqLuAct" data-lu-act="' + a[0] + '" data-player-id="' + id + '" title="' + a[1] + '" aria-label="' + a[1] + '" type="button">' + ic + '</button>';
+    return '<button class="sqlu-act" data-action="' + act + '" data-lu-act="' + a[0] + '" data-player-id="' + id + '" title="' + a[1] + '" aria-label="' + a[1] + '" type="button">' + ic + '</button>';
   }).join('') + '</div>';
 }
 function sqLuAct(id, which) {
@@ -2334,12 +2352,26 @@ function _sqLuBind() {
   });
 }
 
-function _sqLineupHtml() {
-  if (typeof _sqLoad === 'function') _sqLoad();
+function _sqLineupHtml(ctx) {
+  var C = _sqCtx(ctx);
+  _sqLuUseCtx(C);
+  if (C.type === 'first' && typeof _sqLoad === 'function') _sqLoad();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
-  var rows = _sqLineupRows();
+  var rows = _sqLineupRows(C);
+  var TH = C.columns || {};
 
   _sqLuBind();
+  var wrap = '<div class="sqlu-wrap">'
+    +   '<div id="sq-lu-dash">' + _sqLuDash(C) + '</div>'
+    +   '<div id="sq-lu-toolbar">' + _sqLuToolbar(C) + '</div>'
+    +   '<div class="sqlu-tablewrap"><table class="sqlu-table">'
+    +     '<thead><tr>'
+    +       '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th><th class="sqlu-th-roles">' + (TH.roles || 'Roles') + '</th><th class="sqlu-th-nat">' + (TH.nat || 'Nat') + '</th><th class="sqlu-th-age">Age</th><th class="sqlu-th-val">' + (TH.val || 'Value') + '</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">' + (TH.cond || 'Condition') + '</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">' + (TH.qual || 'Quality') + '</th>'
+    +     '</tr></thead>'
+    +     '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
+    +   '</table></div>'
+    + '</div>';
+  if (C.bodyOnly) return wrap;
   return '<div class="sq-sub sq-sub--lineup" id="sq-sub-lineup" style="display:none">'
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
@@ -2350,11 +2382,11 @@ function _sqLineupHtml() {
     +   '</div>'
     + '</div>'
     + '<div class="sqlu-wrap">'
-    +   '<div id="sq-lu-dash">' + _sqLuDash() + '</div>'
-    +   '<div id="sq-lu-toolbar">' + _sqLuToolbar() + '</div>'
+    +   '<div id="sq-lu-dash">' + _sqLuDash(C) + '</div>'
+    +   '<div id="sq-lu-toolbar">' + _sqLuToolbar(C) + '</div>'
     +   '<div class="sqlu-tablewrap"><table class="sqlu-table">'
     +     '<thead><tr>'
-    +       '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th><th class="sqlu-th-roles">Roles</th><th class="sqlu-th-nat">Nat</th><th class="sqlu-th-age">Age</th><th class="sqlu-th-val">Value</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">Condition</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">Quality</th>'
+    +       '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th><th class="sqlu-th-roles">' + (TH.roles || 'Roles') + '</th><th class="sqlu-th-nat">' + (TH.nat || 'Nat') + '</th><th class="sqlu-th-age">Age</th><th class="sqlu-th-val">' + (TH.val || 'Value') + '</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">' + (TH.cond || 'Condition') + '</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">' + (TH.qual || 'Quality') + '</th>'
     +     '</tr></thead>'
     +     '<tbody id="sq-lineup-tbody">' + rows + '</tbody>'
     +   '</table></div>'
@@ -2711,38 +2743,49 @@ function _sqAvatar(p) {
   return _sqDefaultPlayerSvg();
 }
 
-function _sqLineupRows() {
-  var list = _sqLineupFiltered();
+function _sqLineupRows(ctx) {
+  var C = _sqCtx(ctx), list = _sqLineupFiltered(C);
   if (!list.length) return '<tr class="sqlu-empty-row"><td colspan="11"><div class="sqlu-empty">No players match the current search or filters.</div></td></tr>';
-  var viceId = _sqLuViceId();
+  var viceId = _sqLuViceId(C);
   return list.map(function (p) {
     var code = SQ_NAT[p.natName] || (p.natName || '').slice(0, 3).toUpperCase();
-    return '<tr class="sqlu-row sqlu-row--' + p.cat + '" data-action="sqOpenPlayer" data-player-id="' + p.id + '">'
+    // The two columns that describe a professional career read differently for a
+    // child; the context supplies what it actually records instead.
+    var natCell = (typeof C.natCell === 'function') ? C.natCell(p)
+      : '<span class="sqlu-nat"><span class="sqlu-flag">' + (p.nat || '🏳️') + '</span><span class="sqlu-natc">' + code + '</span></span>';
+    var valCell = (typeof C.valCell === 'function') ? C.valCell(p) : '<span class="sqlu-val">' + _sqEsc(p.value) + '</span>';
+    return '<tr class="sqlu-row sqlu-row--' + p.cat + '" data-action="' + (C.openAction || 'sqOpenPlayer') + '" data-player-id="' + p.id + '">'
       + '<td class="sqlu-c-pos">' + _sqLuPos(p) + '</td>'
       + '<td class="sqlu-c-num">' + p.num + '</td>'
-      + '<td class="sqlu-c-name">' + _sqLuIdentity(p, viceId) + '</td>'
+      + '<td class="sqlu-c-name">' + _sqLuIdentity(p, viceId, C) + '</td>'
       + '<td class="sqlu-c-roles"><div class="sqlu-roles">' + _sqLuRoles(p.roles, p.cat) + '</div></td>'
-      + '<td class="sqlu-c-nat"><span class="sqlu-nat"><span class="sqlu-flag">' + (p.nat || '🏳️') + '</span><span class="sqlu-natc">' + code + '</span></span></td>'
+      + '<td class="sqlu-c-nat">' + natCell + '</td>'
       + '<td class="sqlu-c-age">' + p.age + '</td>'
-      + '<td class="sqlu-c-val"><span class="sqlu-val">' + _sqEsc(p.value) + '</span></td>'
+      + '<td class="sqlu-c-val">' + valCell + '</td>'
       + '<td class="sqlu-c-form">' + _sqLuForm(p.form) + '</td>'
       + '<td class="sqlu-c-cond">' + _sqLuCond(p.cond) + '</td>'
       + '<td class="sqlu-c-mor">' + _sqLuMorale(p.morale) + '</td>'
-      + '<td class="sqlu-c-qual">' + _sqLuQual(p.qual) + _sqLuActions(p.id) + '</td>'
+      + '<td class="sqlu-c-qual">' + _sqLuQual(p.qual) + _sqLuActions(p.id, C) + '</td>'
       + '</tr>';
   }).join('');
 }
+function _sqLuEl(id) {
+  if (typeof document === 'undefined') return null;
+  var act = document.querySelector('.page.active');
+  if (act) { var a = act.querySelector('[id="' + id + '"]'); if (a) return a; }
+  return document.getElementById(id);
+}
 function _sqLuUpdateCount() {
-  var c = document.getElementById('sq-lineup-count');
-  if (c) { var f = _sqLineupFiltered().length, t = SQ_DEMO_PLAYERS.length; c.textContent = (f === t ? t + ' players' : f + ' of ' + t + ' players'); }
+  var C = _sqLuCtx(), c = _sqLuEl('sq-lineup-count');
+  if (c) { var f = _sqLineupFiltered(C).length, t = (C.roster || []).length; c.textContent = (f === t ? t + ' players' : f + ' of ' + t + ' players'); }
 }
 function _sqRerenderLineupRows() {
-  var tb = document.getElementById('sq-lineup-tbody');
-  if (tb) tb.innerHTML = _sqLineupRows();
+  var tb = _sqLuEl('sq-lineup-tbody');
+  if (tb) tb.innerHTML = _sqLineupRows(_sqLuCtx());
   _sqLuUpdateCount();
 }
-function _sqRerenderLineupToolbar() { var t = document.getElementById('sq-lu-toolbar'); if (t) t.innerHTML = _sqLuToolbar(); }
-function _sqRerenderLineupDash() { var d = document.getElementById('sq-lu-dash'); if (d) d.innerHTML = _sqLuDash(); }
+function _sqRerenderLineupToolbar() { var t = _sqLuEl('sq-lu-toolbar'); if (t) t.innerHTML = _sqLuToolbar(_sqLuCtx()); }
+function _sqRerenderLineupDash() { var d = _sqLuEl('sq-lu-dash'); if (d) d.innerHTML = _sqLuDash(_sqLuCtx()); }
 function _sqRerenderLineup() { _sqRerenderLineupDash(); _sqRerenderLineupToolbar(); _sqRerenderLineupRows(); }
 function _sqHideModals() {
   ['sq-pl-modal', 'sq-form-modal', 'sq-confirm-modal', 'sq-setups-modal', 'sq-sp-modal', 'sq-lib-modal', 'sq-ment-modal', 'sq-tac-modal', 'sq-plan-modal'].forEach(function (id) {
@@ -3387,7 +3430,13 @@ var _SQ_TAC_SECS = [
 ];
 // floating-panel UI state (all UI-only — never persisted, never read by Simulation)
 // Multiple panels may be open at once: one entry per open section id → its own {x,y,w,h,z}.
-var _SQ_TAC_PANELS = {};                 // open panels keyed by section id
+var _SQ_TAC_PANEL_STATE = {};            // ctxId -> open panels keyed by section id
+var _SQ_TAC_ACTIVE = null;               // the context the mounted Tactics page is rendering
+function _sqTacUseCtx(c) { _SQ_TAC_ACTIVE = c || null; }
+function _sqTacCtx() { return _SQ_TAC_ACTIVE || _sqFirstCtx(); }
+function _sqTacCtxId() { var c = _sqTacCtx(); return c.ctxId || c.teamId || 'first-team'; }
+function _sqTacPanels() { var k = _sqTacCtxId(); if (!_SQ_TAC_PANEL_STATE[k]) _SQ_TAC_PANEL_STATE[k] = {}; return _SQ_TAC_PANEL_STATE[k]; }
+try { Object.defineProperty(typeof globalThis !== 'undefined' ? globalThis : window, '_SQ_TAC_PANELS', { get: _sqTacPanels, set: function () {}, configurable: true }); } catch (e) {}
 var _SQ_TAC_Z = 1200;                    // z-index counter for bring-to-front
 var _SQ_TAC_BOUND = false, _SQ_TAC_DRAG = null;
 function _sqTacFront(id) { if (_SQ_TAC_PANELS[id]) _SQ_TAC_PANELS[id].z = (++_SQ_TAC_Z); } // raise one panel above the rest
@@ -3485,7 +3534,8 @@ function _sqTacSecContent(id, team, Tin, slotsIn) {
   // players
   return '<div class="sqtac-players">' + _sqTacPlayerRows(team, Tin, slotsIn) + '</div>';
 }
-function _sqTacFloatPanel(id) {
+function _sqTacFloatPanel(id, ctx) {
+  var C = _sqCtx(ctx), TT = C.tacticsRecord || null, SL = C.formationSlots || null, TEAM = C.tacticsTeam || null;
   var sec = null; for (var i = 0; i < _SQ_TAC_SECS.length; i++) if (_SQ_TAC_SECS[i].id === id) sec = _SQ_TAC_SECS[i];
   if (!sec) return '';
   var p = _SQ_TAC_PANELS[id]; if (!p) return '';
@@ -3494,26 +3544,37 @@ function _sqTacFloatPanel(id) {
     + '<div class="sqtac-fp-hd" data-tacdrag="1">'
     +   '<span class="sqtac-fp-no">' + sec.no + '</span>'
     +   '<span class="sqtac-fp-ttl">' + sec.title
-    +     (sec.id === 'players' || sec.id === 'team' ? ' <em class="sqtac-fp-tag">' + SQ_FORM.myFormation + '</em>' : '') + '</span>'
+    +     (sec.id === 'players' || sec.id === 'team' ? ' <em class="sqtac-fp-tag">' + (C.formation || SQ_FORM.myFormation) + '</em>' : '') + '</span>'
     +   '<button class="sqtac-fp-close" data-action="sqTacClose" data-tid="' + id + '" type="button">Close</button>'
     +   '<button class="sqtac-fp-x" data-action="sqTacClose" data-tid="' + id + '" type="button" aria-label="Close">&#10005;</button>'
     + '</div>'
-    + '<div class="sqtac-fp-bd">' + _sqTacSecContent(sec.id) + '</div>'
+    + '<div class="sqtac-fp-bd">' + _sqTacSecContent(sec.id, TEAM, TT, SL) + '</div>'
     + '<span class="sqtac-fp-grip" aria-hidden="true"></span>'
     + '</div>';
 }
-function _sqTacticsBody() {
-  var tabs = '<div class="sqtac-tabs">' + _SQ_TAC_SECS.map(function (s) {
-    var on = (s.id === SQ_TAC_FOCUS.cat);   // the focused section's tab is highlighted (visualized on the pitch)
+function _sqTacticsBody(ctx) {
+  var C = _sqCtx(ctx), secs = C.tacticsSections || _SQ_TAC_SECS;
+  var focus = (C.type === 'first') ? SQ_TAC_FOCUS.cat : (C.tacticsFocus || null);
+  var tabs = '<div class="sqtac-tabs">' + secs.map(function (s) {
+    var on = (s.id === focus);   // the focused section's tab is highlighted (visualized on the pitch)
     return '<button class="sqtac-tab' + (on ? ' is-active' : '') + '" style="--ac:' + s.ac + '" data-action="sqTacFocus" data-cat="' + s.id + '" type="button"><span class="sqtac-tab-no">' + s.no + '</span>' + s.tab + '</button>';
   }).join('') + '</div>';
   return '<div class="sqtac-scroll">'
-    + '<div class="sqtac-note">Configure the team <b>before</b> the match — stored and read automatically by <b>Simulation</b> as the initial tactical state. No analysis on this page.</div>'
-    + _sqTacSummary() + tabs + '</div>';
+    + '<div class="sqtac-note">' + (C.tacticsNote || 'Configure the team <b>before</b> the match — stored and read automatically by <b>Simulation</b> as the initial tactical state. No analysis on this page.') + '</div>'
+    + _sqTacSummary(C.tacticsRecord || null) + tabs
+    + (C.type === 'first' ? '' : _sqTacPanelLayer(C))
+    + '</div>';
+}
+// Every open section, drawn as the same floating panel the First Team uses.
+function _sqTacPanelLayer(ctx) {
+  var C = _sqCtx(ctx), open = _sqTacPanels(), out = '';
+  for (var k in open) out += _sqTacFloatPanel(k, C);
+  return out;
 }
 function _sqTacticsHtml() {
   if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
+  _sqTacUseCtx(null);
   return '<div class="sq-sub" id="sq-sub-tactics" style="display:none">'
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
@@ -3531,7 +3592,7 @@ function _sqTacticsHtml() {
     + '<div id="sqtac-board-host">' + _sqTacBoardHtml() + '</div>'
     + '</div>';
 }
-function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body'); if (b) b.innerHTML = _sqTacticsBody(); }
+function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body'); if (b) b.innerHTML = _sqTacticsBody(_sqTacCtx()); }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INTERACTIVE TACTICAL BOARD (Squad · Tactics)
@@ -3931,6 +3992,7 @@ function _sqTacBoardRefresh() { var host = document.getElementById('sqtac-board-
 function sqTacFocus(cat, team) {
   if (!_SQ_TAC_CATMETA[cat]) return;
   if (team === 'opp') { SQ_TAC_FOCUS_OPP = { cat: cat, grp: null, val: null }; SQ_TAC_ACTIVE = 'opp'; _sqTacRenderSides(); _sqTacApply(true); return; }
+  if (_sqTacCtx().type !== 'first') { sqTacTab(cat); return; }
   SQ_TAC_FOCUS = { cat: cat, grp: null, val: null }; SQ_TAC_ACTIVE = 'my'; _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true);
 }
 // Animate: reset to the base formation, glide the team into the selected instruction shape
@@ -4246,6 +4308,20 @@ function sqTacPlayer(pkey, val, team) {
 function sqTacTab(id) {
   if (!id) return;
   _sqTacFpBind();
+  var C = _sqTacCtx();
+  if (C.type !== 'first') {
+    // Academy: same panel system, this age group's own open set.
+    var P = _sqTacPanels();
+    if (P[id]) { _sqTacFront(id); if (typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage(); return; }
+    var vwA = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
+    var vhA = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
+    var wA = Math.min(660, vwA - 32), hA = Math.min(460, vhA - 150), nA = 0; for (var kA in P) nA++;
+    P[id] = { x: Math.max(12, Math.min(Math.round((vwA - wA) / 2) + (nA % 5) * 30 - 60, vwA - 90)),
+              y: Math.max(76, Math.min(Math.round((vhA - hA) / 2) - 30 + (nA % 5) * 28, vhA - 60)),
+              w: wA, h: hA, z: (++_SQ_TAC_Z) };
+    if (typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
+    return;
+  }
   if (_SQ_TAC_CATMETA[id]) SQ_TAC_FOCUS = { cat: id, grp: null, val: null }; // opening a section visualizes it on the board
   if (_SQ_TAC_PANELS[id]) { _sqTacFront(id); _sqRenderTacticsBody(); _sqTacApply(true); return; } // already open → front, never duplicate
   var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
@@ -4258,7 +4334,12 @@ function sqTacTab(id) {
   _sqRenderTacticsBody();
   _sqTacApply(true);
 }
-function sqTacClose(id) { if (id && _SQ_TAC_PANELS[id]) { delete _SQ_TAC_PANELS[id]; _sqRenderTacticsBody(); } } // closes only via its own X / Close
+function sqTacClose(id) {
+  if (!id || !_SQ_TAC_PANELS[id]) return;
+  delete _SQ_TAC_PANELS[id];
+  if (_sqTacCtx().type !== 'first') { if (typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage(); return; }
+  _sqRenderTacticsBody();
+} // closes only via its own X / Close
 
 function _sqFormationHtml() {
   if (typeof _sqLoad === 'function') _sqLoad();
@@ -7822,13 +7903,13 @@ if (typeof _sqSetupsLoad === 'function') { _sqSetupsLoad(); }
 // close-only-by-X, no outside-close, no duplicate). Uses existing player data; no heavy backend/AI.
 var _TR_SECTIONS = [];
 // ── Training desktop window-manager state (taskbar / minimize / pin / snap / persistence) ──
-var _TR_Z = 60, _trDrag = null, _trBound = false;
-var _TR_WIN = {};          // per-panel window state: id -> {open,min,pinned,x,y,w,h,z,placed}
-var _trFocus = null;       // currently focused panel id
+// _TR_Z / _TR_WIN / _trFocus are bound to the active team context further down —
+// each team keeps its own panel layout, focus and stacking order.
+var _trDrag = null, _trBound = false;
 var _TR_WS_KEY = 'familista.training.workspace.v1';
 function _trWin(id) { if (!_TR_WIN[id]) _TR_WIN[id] = { open: false, min: false, pinned: false, x: 0, y: 0, w: 0, h: 0, z: 0, placed: false }; return _TR_WIN[id]; }
-function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_TR_WS_KEY, JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
-function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_TR_WS_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
+function _trSaveWS() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_trNs(_TR_WS_KEY), JSON.stringify({ win: _TR_WIN, focus: _trFocus, z: _TR_Z })); } catch (e) {} }
+function _trLoadWS() { try { if (typeof window === 'undefined' || !window.localStorage) return; var raw = window.localStorage.getItem(_trNs(_TR_WS_KEY)); if (raw) { var o = JSON.parse(raw); if (o && o.win) { _TR_WIN = o.win; _trFocus = o.focus || null; _TR_Z = o.z || 60; } } } catch (e) {} }
 // ══════════ Training · Drill Encyclopedia (premium coaching manual — original drills, descriptions & pitch illustrations) ══════════
 var DE_CATS = { 'Attack': '248,113,113', 'Defense': '56,189,248', 'Possession': '52,215,122', 'Transition': '244,183,64', 'Teamplay': '167,139,250', 'Physical & Mental': '251,146,60', 'Goalkeeper': '45,212,191', 'Set Pieces': '236,72,153' };
 var DE_POS_ALL = ['GK', 'DL', 'DC', 'DR', 'DMC', 'MC', 'AML', 'AMC', 'AMR', 'ST'];
@@ -9083,7 +9164,6 @@ function _deBind() {
 // is preserved as the "Drills" section. All derived numbers reuse the app's
 // deterministic-mock conventions (_sqSeed) — no stored data is changed.
 // ════════════════════════════════════════════════════════════════════════════
-var _TRN = { tab: 'dashboard', player: null };
 var _trnBound = false;
 // ══════════ Training · explicit team context ══════════
 // The Training system is shared by the First Team workspace and every Academy
@@ -9115,19 +9195,62 @@ function _trTypes() { return _trCtx().types || TR_TYPES; }
 // Squad-selection label: 'Starting XI' only for 11-a-side, otherwise the real
 // small-sided count (e.g. 'Starting 7') so an age group is never mislabelled.
 function _trXiLabel() { var c = _trCtx(); if (c.xiLabel) return c.xiLabel; var n = 0; String(_trFormationName()).split('-').forEach(function (x) { n += parseInt(x, 10) || 0; }); n += 1; return n === 11 ? 'Starting XI' : 'Starting ' + n; }
-// The First Team page and an Academy workspace can both be mounted at once (the
-// hidden page stays in the DOM). Every Training DOM lookup resolves inside the
-// Academy host first, so an Academy click never re-renders the First Team page.
+
+// ══════════ Training · per-context isolation ══════════
+// Every team is a separate context: its own saved records, its own window
+// layout, its own drafts, its own filters. Nothing is shared between them —
+// the components are shared, the data is not. The First Team keeps the exact
+// storage keys it has always used, so existing records are untouched.
+function _trCtxId() { var c = _trCtx(); return c.ctxId || c.teamId || 'first-team'; }
+function _trNs(base) { var id = _trCtxId(); return id === 'first-team' ? base : base + '::' + id; }
+function _trBucket(store, make) { var id = _trCtxId(); if (!store[id]) store[id] = make(); return store[id]; }
+var _TRN_UI = {};                       // ctxId -> workspace UI state (tab, windows, draft, filters)
+var _TR_DBS = {};                       // ctxId -> { sessions: [] }
+var _TR_DB_LOADED = {};                 // ctxId -> loaded flag
+var _TR_PULLS = {};                     // ctxId -> backend-pull flag
+var _TR_WS = {};                        // ctxId -> legacy panel window-manager state
+function _trnUi() { return _trBucket(_TRN_UI, function () { return { tab: 'dashboard', player: null }; }); }
+function _trDb() { return _trBucket(_TR_DBS, function () { return { sessions: [] }; }); }
+function _trWsState() { return _trBucket(_TR_WS, function () { return { win: {}, focus: null, z: 60 }; }); }
+// The module reads _TRN / TR_DB / _TR_WIN / _trFocus / _TR_Z as plain globals in
+// ~270 places. Binding those names to the active context's own object keeps one
+// implementation while giving every team a genuinely separate store — there is
+// no shared object to swap, save or restore.
+(function (G) {
+  if (!G || typeof Object.defineProperty !== 'function') return;
+  function bind(name, get, set) {
+    try { Object.defineProperty(G, name, { get: get, set: set || function () {}, configurable: true }); } catch (e) {}
+  }
+  bind('_TRN', _trnUi);
+  bind('TR_DB', _trDb);
+  bind('_TR_PULLED', function () { return !!_TR_PULLS[_trCtxId()]; }, function (v) { _TR_PULLS[_trCtxId()] = !!v; });
+  bind('_TR_WIN', function () { return _trWsState().win; }, function (v) { _trWsState().win = v || {}; });
+  bind('_trFocus', function () { return _trWsState().focus; }, function (v) { _trWsState().focus = v; });
+  bind('_TR_Z', function () { return _trWsState().z; }, function (v) { _trWsState().z = v; });
+})(typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : null));
+
+// The First Team page and an Academy workspace can both stay mounted, so DOM
+// lookups resolve inside the page the coach is actually looking at. Resolving
+// by "an Academy host exists" instead would let an Academy mount hijack the
+// First Team's windows — closing a panel would appear to do nothing.
+function _trnHost() {
+  if (typeof document === 'undefined') return null;
+  return document.querySelector('.page.active .at-trn-host') || null;
+}
 function _trnEl(id) {
   if (typeof document === 'undefined') return null;
-  var host = document.querySelector('.at-trn-host');
+  var host = _trnHost();
   if (host) { var e = host.querySelector('[id="' + id + '"]'); if (e) return e; }
+  var act = document.querySelector('.page.active');
+  if (act) { var a = act.querySelector('[id="' + id + '"]'); if (a) return a; }
   return document.getElementById(id);
 }
 function _trnSel(sel) {
   if (typeof document === 'undefined') return null;
-  var host = document.querySelector('.at-trn-host');
+  var host = _trnHost();
   if (host) { var e = host.querySelector(sel); if (e) return e; }
+  var act = document.querySelector('.page.active');
+  if (act) { var a = act.querySelector(sel); if (a) return a; }
   return document.querySelector(sel);
 }
 var TRN_TABS = [['dashboard', 'Dashboard'], ['calendar', 'Calendar'], ['sessions', 'Sessions'], ['drills', 'Drills'], ['attendance', 'Attendance'], ['load', 'Load & Fitness'], ['individual', 'Individual'], ['ai', 'AI Coach'], ['reports', 'Reports'], ['analytics', 'Analytics'], ['exec', 'Executive'], ['match', 'Match Prep'], ['med', 'Medical']];
@@ -9294,15 +9417,20 @@ function _trnFormationFocus() {
 // no data). Simple coach workflow: create → attendance → ratings → complete.
 // ════════════════════════════════════════════════════════════════════════════
 var TR_KEY = 'familista.training.data.v2';
-var TR_DB = { sessions: [] };
-var _TR_LOADED = false;
+// TR_DB is bound to the active team context further down.
 var TR_TYPES = [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'], ['recovery', 'Recovery'], ['gym', 'Gym'], ['mental', 'Mental'], ['match', 'Match Prep']];
 var TR_FOCI = ['Possession', 'Pressing', 'Transitions', 'Defensive Shape', 'Attacking Play', 'Set Pieces', 'Finishing', 'Build-up', 'Fitness', 'Team Shape'];
 var TR_LOCS = ['Main Pitch', 'Training Ground', 'Indoor Hall', 'Gym', 'Stadium', 'Recovery Centre'];
 var TR_STATUS = { draft: ['Draft', 'muted'], planned: ['Planned', 'blue'], in_progress: ['In Progress', 'amber'], completed: ['Completed', 'green'], cancelled: ['Cancelled', 'red'] };
 function _trScope() { var club = (typeof _sqClubName === 'function') ? _sqClubName() : 'FC Familista'; var c = _trCtx(); return { club: club, team: c.label || 'First Team', teamId: c.teamId || 'first-team', season: '2025/26' }; }
-function _trLoadDB() { if (_TR_LOADED) return TR_DB; _TR_LOADED = true; try { if (typeof window !== 'undefined' && window.localStorage) { var raw = window.localStorage.getItem(TR_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.sessions)) TR_DB = o; } } } catch (e) {} return TR_DB; }
-function _trSaveDB() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(TR_KEY, JSON.stringify(TR_DB)); } catch (e) {} }
+function _trLoadDB() {
+  var id = _trCtxId(), db = _trDb();
+  if (_TR_DB_LOADED[id]) return db;
+  _TR_DB_LOADED[id] = true;
+  try { if (typeof window !== 'undefined' && window.localStorage) { var raw = window.localStorage.getItem(_trNs(TR_KEY)); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.sessions)) db.sessions = o.sessions; } } } catch (e) {}
+  return db;
+}
+function _trSaveDB() { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_trNs(TR_KEY), JSON.stringify(TR_DB)); } catch (e) {} }
 function _trAllSessions() { _trLoadDB(); var sc = _trScope(); return (TR_DB.sessions || []).filter(function (s) { return s.club === sc.club && (s.teamId || 'first-team') === sc.teamId; }); }
 function _trSessionsSorted() { return _trAllSessions().slice().sort(function (a, b) { var ka = (a.date || '') + (a.startTime || ''), kb = (b.date || '') + (b.startTime || ''); return ka < kb ? 1 : ka > kb ? -1 : 0; }); }
 function _trSession(id) { _trLoadDB(); var a = (TR_DB.sessions || []).filter(function (s) { return s.id === id; }); return a[0] || null; }
@@ -9462,7 +9590,7 @@ function _trBackendToClient(row, sc) {
     _needsAttendance: true,
   };
 }
-var _TR_PULLED = false;
+// _TR_PULLED is bound to the active team context (see the isolation block).
 async function _trPullBackend(cb) {
   if (!_trBackendOn()) return;
   try {
@@ -9561,8 +9689,8 @@ function _trAttChip(a) { var m = { present: ['Present', 'ok'], late: ['Late', 'l
 function _trFmtDate(d) { try { var dt = new Date(d + 'T00:00:00'); return dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }); } catch (e) { return d; } }
 // ── Sessions manager (list + detail) ──
 var TR_TPL_KEY = 'familista.training.templates.v1';
-function _trTplLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(TR_TPL_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
-function _trTplSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(TR_TPL_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trTplLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(_trNs(TR_TPL_KEY)); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trTplSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_trNs(TR_TPL_KEY), JSON.stringify(list || [])); } catch (e) {} }
 function _trnSessionConfig(s) { return { name: (s.objective || _trTypeMeta(s.type).l + ' session'), startTime: s.startTime, duration: s.duration, type: s.type, objective: s.objective, location: s.location, formation: s.formation, tacticalFocus: s.tacticalFocus, intensity: s.intensity, pitch: s.pitch, weather: s.weather, temperature: s.temperature, equipment: s.equipment, coach: s.coach, drills: (s.drills || []).slice(), players: (s.players || []).slice() }; }
 function _trnCmpMetrics(s) {
   var pr = 0, ab = 0, rs = []; (s.players || []).forEach(function (id) { var a = (s.attendance || {})[id]; if (a === 'present' || a === 'late') pr++; else if (a === 'absent') ab++; var pf = (s.performance || {})[id]; if (pf && typeof pf.rating === 'number') rs.push(pf.rating); });
@@ -10178,8 +10306,8 @@ function _trnExec() {
 }
 // ── Phase 4 · AI Match Preparation (real records only; deterministic) ──
 var MN_KEY = 'familista.training.matchnotes.v1';
-function _trMnLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(MN_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
-function _trMnSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(MN_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trMnLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(_trNs(MN_KEY)); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trMnSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_trNs(MN_KEY), JSON.stringify(list || [])); } catch (e) {} }
 function _trnMatchData() {
   var t = _trnTeam(), profiles = _trnProfiles(), comp = _trCompleted(), rec = _trRecorded();
   var rows = profiles.map(function (x) {
@@ -10382,8 +10510,8 @@ function _trnMedRestriction(r) {
 }
 // Player medical notes — client-durable (edit/history); PostgreSQL persistence needs an additive backend field.
 var MEDN_KEY = 'familista.training.mednotes.v1';
-function _trMedNLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(MEDN_KEY); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
-function _trMedNSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(MEDN_KEY, JSON.stringify(list || [])); } catch (e) {} }
+function _trMedNLoad() { try { if (typeof window !== 'undefined' && window.localStorage) { var r = window.localStorage.getItem(_trNs(MEDN_KEY)); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } } catch (e) {} return []; }
+function _trMedNSave(list) { try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(_trNs(MEDN_KEY), JSON.stringify(list || [])); } catch (e) {} }
 function _trnMedProfileHtml() {
   var md = _trnMedData(), pid = _TRN.medPlayer, r = md.rows.filter(function (x) { return x.p.id === pid; })[0];
   if (!r) return '';
@@ -43385,6 +43513,8 @@ async function tosBoardSnapshot() {
           break;
         }
         case 'sqOpenPlayer':  if (typeof sqOpenPlayer === 'function')  sqOpenPlayer(el.dataset.playerId); break;
+        case 'atLuOpenPlayer': if (typeof atLuOpenPlayer === 'function') atLuOpenPlayer(el.dataset.playerId); break;
+        case 'atLuAct':       if (typeof atLuAct === 'function')       atLuAct(el.dataset.playerId, el.dataset.luAct); break;
         case 'sqLuAct':       if (typeof sqLuAct === 'function')       sqLuAct(el.dataset.playerId, el.dataset.luAct); break;
         case 'sqLuFilterPos': if (typeof sqLuFilterPos === 'function') sqLuFilterPos(el.dataset.pos);    break;
         case 'sqLuQuick':     if (typeof sqLuQuick === 'function')     sqLuQuick(el.dataset.qf);         break;
@@ -44885,323 +45015,6 @@ function _atLuBackBar(active) {
     + '<div class="sql-tabs">' + tabs + '</div>'
   + '</div>';
 }
-/* ── Academy Lineup ────────────────────────────────────────────────────────
-   Built on the First Team squad-presentation components: the same .sqlu-dash
-   summary strip, the same .sqlu-meta / .sqlu-filters toolbar, and the same
-   .sqlu-table with _sqLuCond / _sqLuForm rendering the bars and trends. Only
-   the columns differ, because an Academy player has development, attendance
-   and readiness where a senior professional has a market value and a
-   nationality — those are never invented here. Every mutation still goes
-   through the existing data-at-start / -bench / -captain / -gk / -formation /
-   -save-lineup / -reset-lineup handlers, keyed to this age group. */
-function _atLuPos(p) {
-  var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
-  return '<span class="sqlu-pos sqlu-pos--cat-' + cat + '">' + _viEscSafe(p.pos) + '</span>';
-}
-// Development tier — the Academy equivalent of the First Team quality chip.
-function _atLuDev(v) {
-  var t = v >= 80 ? ['elite', 'Advanced'] : v >= 70 ? ['excellent', 'Ahead'] : v >= 60 ? ['good', 'On track'] : ['avg', 'Developing'];
-  return '<span class="sqlu-qual sqlu-qual--' + t[0] + '"><b>' + v + '</b><i>' + t[1] + '</i></span>';
-}
-function _atLuMorale(m) {
-  var t = m === 'Excellent' ? 'exc' : m === 'Good' ? 'good' : m === 'Okay' || m === 'Content' ? 'ok' : 'low';
-  return '<span class="sqlu-mor sqlu-mor--' + t + '"><i></i>' + _viEscSafe(m) + '</span>';
-}
-function _atLuAvatar(p) {
-  var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
-  if (p.photo) return '<span class="sqlu-av"><img src="' + _viEscSafe(p.photo) + '" alt=""></span>';
-  return '<span class="sqlu-av sqlu-av--' + cat + '">' + _viEscSafe(_atInitials(p.name)) + '</span>';
-}
-function _atLuIdentity(p, lu) {
-  var b = '';
-  if (lu.captain === p.id) b += '<span class="sqlu-bdg sqlu-bdg--c" title="Captain">C</span>';
-  if (lu.gk === p.id) b += '<span class="sqlu-bdg sqlu-bdg--vc" title="Goalkeeper">GK</span>';
-  if (p.availability === 'Injured') b += '<span class="sqlu-bdg sqlu-bdg--inj" title="' + _viEscSafe(p.injury) + '">' + _SQLU_INJ + '</span>';
-  if (p.availability === 'Doubtful') b += '<span class="sqlu-bdg sqlu-bdg--susp" title="Doubtful">!</span>';
-  return '<div class="sqlu-id">' + _atLuAvatar(p) + '<span class="sqlu-id-nm">' + _viEscSafe(p.name) + '</span>'
-    + (b ? '<span class="sqlu-id-bdgs">' + b + '</span>' : '') + '</div>';
-}
-function _atLuFiltered(id) {
-  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  return _atRoster(id).filter(function (p) {
-    if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false;
-    if (af !== 'ALL' && p.availability !== af) return false;
-    return true;
-  });
-}
-function _atLuDash(id) {
-  var t = _atTeam(id), lu = _atLineup(id), roster = _atRoster(id), n = roster.length || 1;
-  var need = _atStarterCount(t.formation.name);
-  var cap = lu.captain ? _atFindPlayer(id, lu.captain) : null;
-  var avg = function (f) { return Math.round(roster.reduce(function (a, p) { return a + (f(p) || 0); }, 0) / n); };
-  function card(label, val, sub, tone) {
-    return '<div class="sqlu-stat sqlu-stat--' + (tone || 'n') + '"><span class="sqlu-stat-l">' + label + '</span>'
-      + '<span class="sqlu-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
-  }
-  var inj = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
-  var dbt = roster.filter(function (p) { return p.availability === 'Doubtful'; }).length;
-  return '<div class="sqlu-dash">'
-    + card('Squad size', roster.length, '', 'blue')
-    + card('Match format', _atFormatLabel(id), '', 'violet')
-    + card('Formation', _viEscSafe(t.formation.name), '', 'violet')
-    + card(_atXiLabel(id), lu.starters.length, '<i>/' + need + '</i>', lu.starters.length === need ? 'green' : 'amber')
-    + card('Substitutes', lu.subs.length, '', 'teal')
-    + card('Captain', cap ? '#' + cap.number : '—', '', cap ? 'green' : 'muted')
-    + card('Average development', avg(function (p) { return p.devScore; }), '', 'green')
-    + card('Average fitness', avg(function (p) { return p.fitness; }), '<i>%</i>', 'teal')
-    + card('Average attendance', avg(function (p) { return p.attendance; }), '<i>%</i>', 'amber')
-    + card('Doubtful', dbt, '', dbt ? 'amber' : 'muted')
-    + card('Injured', inj, '', inj ? 'red' : 'muted')
-    + card('Available', roster.length - inj - dbt, '', 'green')
-    + '</div>';
-}
-// 'Starting XI' only when eleven really take the field.
-function _atXiLabel(id) { var n = _atStarterCount(_atTeam(id).formation.name); return n === 11 ? 'Starting XI' : 'Starting ' + n; }
-function _atLuToolbar(id) {
-  var roster = _atRoster(id), f = _atLuFiltered(id).length, tot = roster.length;
-  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  var seg = [['ALL', 'All'], ['GK', 'GK'], ['DEF', 'DEF'], ['MID', 'MID'], ['FWD', 'FWD']].map(function (o) {
-    return '<button class="sqlu-seg' + (pf === o[0] ? ' is-active' : '') + '" data-at-posfilter="' + o[0] + '" type="button">' + o[1] + '</button>';
-  }).join('');
-  var pills = [['ALL', 'Any availability'], ['Available', 'Available'], ['Doubtful', 'Doubtful'], ['Injured', 'Injured']].map(function (o) {
-    return '<button class="sqlu-pill' + (af === o[0] ? ' is-active' : '') + '" data-at-availfilter="' + o[0] + '" type="button">' + o[1] + '</button>';
-  }).join('');
-  return '<div class="sqlu-meta">'
-    + '<div class="sqlu-meta-l"><span class="sqlu-meta-title">Squad</span><span class="sqlu-meta-count">' + (f === tot ? tot + ' players' : f + ' of ' + tot + ' players') + '</span></div>'
-    + '<div class="atlu-savebar">'
-    +   '<button class="sq-mbtn sq-mbtn--add" type="button" data-at-save-lineup>Save lineup</button>'
-    +   '<button class="sq-mbtn" type="button" data-at-reset-lineup>Reset</button>'
-    + '</div>'
-    + '</div>'
-    + '<div class="sqlu-filters">'
-    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH + '<input class="sqlu-search-input at-search" type="text" placeholder="Search name, position, squad number…" data-at-search value="' + _viEscSafe(AT.q || '') + '" aria-label="Search players"></div>'
-    +   '<div class="sqlu-seg-group">' + seg + '</div>'
-    +   '<div class="sqlu-pill-group">' + pills + '</div>'
-    + '</div>';
-}
-function _atLuRows(id) {
-  var lu = _atLineup(id), list = _atLuFiltered(id);
-  if (!list.length) return '<tr class="sqlu-empty-row"><td colspan="12"><div class="sqlu-empty">No players match the current search or filters.</div></td></tr>';
-  return list.map(function (p) {
-    var g = _atPosGroup(p.pos), cat = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
-    var st = _atLuStatus(p, lu), isStart = lu.starters.indexOf(p.id) >= 0;
-    var acts = (isStart
-        ? '<button class="atlu-act" type="button" data-at-bench="' + p.id + '">Bench</button>'
-        : '<button class="atlu-act atlu-act--go" type="button" data-at-start="' + p.id + '">Start</button>')
-      + '<button class="atlu-act' + (lu.captain === p.id ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '">Captain</button>'
-      + (p.pos === 'GK' ? '<button class="atlu-act' + (lu.gk === p.id ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '">Goalkeeper</button>' : '');
-    return '<tr class="sqlu-row sqlu-row--' + cat + ' atlu-row--' + st.key + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
-      + '<td class="sqlu-c-pos">' + _atLuPos(p) + '</td>'
-      + '<td class="sqlu-c-num">' + p.number + '</td>'
-      + '<td class="sqlu-c-name"><span class="atlu-open" data-at-player="' + p.id + '">' + _atLuIdentity(p, lu) + '</span></td>'
-      + '<td class="sqlu-c-roles"><div class="sqlu-roles"><span class="sqlu-role sqlu-role--' + cat + '">' + _viEscSafe(p.secondary) + '</span></div></td>'
-      + '<td class="sqlu-c-nat">' + _viEscSafe(p.foot) + '</td>'
-      + '<td class="sqlu-c-age">' + p.age + '</td>'
-      + '<td class="sqlu-c-val"><span class="atlu-status atlu-status--' + st.key + '">' + st.label + '</span></td>'
-      + '<td class="sqlu-c-form">' + _sqLuForm(p.form) + '</td>'
-      + '<td class="sqlu-c-cond">' + _sqLuCond(p.fitness) + '</td>'
-      + '<td class="sqlu-c-cond">' + _sqLuCond(p.attendance) + '</td>'
-      + '<td class="sqlu-c-mor">' + _atLuMorale(p.morale) + '</td>'
-      + '<td class="sqlu-c-qual">' + _atLuDev(p.devScore) + '<div class="atlu-acts">' + acts + '</div></td>'
-      + '</tr>';
-  }).join('');
-}
-function _atSecLineup(id) {
-  var c = _atCtx(id), t = _atTeam(id), lu = _atLineup(id), opts = _atFormationsFor(id);
-  var formationSel = '<div class="atlu-formbar"><span class="atlu-formbar-l">Formation</span><div class="atlu-seg">'
-    + opts.map(function (f) { return '<button class="atlu-seg-b' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
-    + '</div><span class="atlu-formbar-fmt">' + _viEscSafe(_atFormatLabel(id)) + '</span></div>';
-
-  return '<div class="sqlu-wrap atlu-wrap">'
-    + '<div class="atlu-head"><h1>Lineup</h1><p>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + '</p></div>'
-    + _atLuDash(id)
-    + '<section class="atlu-stage">' + formationSel
-    +   '<div class="atlu-pitch">' + _atLineupPitch(id) + '</div>'
-    +   _atLuBench(id, lu)
-    + '</section>'
-    + _atLuToolbar(id)
-    + '<div class="sqlu-tablewrap"><table class="sqlu-table">'
-    +   '<thead><tr>'
-    +     '<th class="sqlu-th-pos">Pos</th><th class="sqlu-th-num">#</th><th class="sqlu-th-name">Name</th>'
-    +     '<th class="sqlu-th-roles">2nd position</th><th class="sqlu-th-nat">Foot</th><th class="sqlu-th-age">Age</th>'
-    +     '<th class="sqlu-th-val">Selection</th><th class="sqlu-th-form">Form</th><th class="sqlu-th-cond">Fitness</th>'
-    +     '<th class="sqlu-th-cond">Attendance</th><th class="sqlu-th-mor">Morale</th><th class="sqlu-th-qual">Development</th>'
-    +   '</tr></thead>'
-    +   '<tbody id="at-pllist">' + _atLuRows(id) + '</tbody>'
-    + '</table></div>'
-  + '</div>';
-}
-
-/* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
-/* ── Academy player profile — premium modal, 12 tabs, editable & persisted ── */
-function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; AT.editing = false; renderAcademyTeamPage(); }
-function _atClosePlayer() { AT.openPlayer = null; AT.editing = false; renderAcademyTeamPage(); }
-window._atOpenPlayer = _atOpenPlayer; window._atClosePlayer = _atClosePlayer;
-
-var AT_ACAD_TABS = [
-  ['overview', 'Overview'], ['development', 'Development'], ['technical', 'Technical'], ['tactical', 'Tactical'],
-  ['physical', 'Physical'], ['psychological', 'Psychological'], ['social', 'Social & Behaviour'], ['attendance', 'Attendance'],
-  ['medical', 'Medical'], ['goals', 'Goals'], ['notes', 'Coach Notes'], ['history', 'History']
-];
-function _atTabPriority(idx) {
-  return [
-    ['overview', 'development', 'social', 'attendance', 'physical'],
-    ['technical', 'development', 'social', 'attendance'],
-    ['technical', 'tactical', 'development', 'psychological'],
-    ['tactical', 'physical', 'technical', 'development'],
-    ['tactical', 'physical', 'development', 'psychological'],
-    ['tactical', 'physical', 'development', 'medical']
-  ][idx] || [];
-}
-function _atFact(label, val) { return '<div class="at-fact"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></div>'; }
-function _atTabAttrs(tab, idx) {
-  var T = {
-    technical: idx < 1 ? [['Ball familiarity', 'technical'], ['Running with ball', 'technical'], ['Both feet', 'technical']]
-      : idx < 2 ? [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing basics', 'technical'], ['First touch', 'technical']]
-        : idx < 3 ? [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Receiving', 'technical']]
-          : [['Technique', 'technical'], ['Passing range', 'technical'], ['Finishing', 'technical'], ['First touch', 'technical'], ['Weak foot', 'technical']],
-    tactical: idx < 2 ? [['Find space', 'tactical'], ['Awareness', 'tactical'], ['Simple decisions', 'decision']]
-      : idx < 3 ? [['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Game understanding', 'tactical'], ['Decision-making', 'decision']]
-        : [['Positioning', 'tactical'], ['Game intelligence', 'tactical'], ['Transitions', 'tactical'], ['Decision-making', 'decision'], ['Role execution', 'tactical']],
-    physical: idx < 1 ? [['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Agility', 'physical']]
-      : idx < 4 ? [['Speed', 'physical'], ['Agility', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical']]
-        : [['Speed', 'physical'], ['Power', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical'], ['Load tolerance', 'medical']],
-    psychological: [['Confidence', 'psychological'], ['Focus', 'psychological'], ['Resilience', 'psychological'], ['Coachability', 'social']],
-    social: [['Teamwork', 'social'], ['Communication', 'social'], ['Listening', 'social'], ['Respect', 'educational']]
-  };
-  return T[tab] || [];
-}
-function _atDevDims(idx) {
-  if (idx <= 0) return [['Enjoyment', 'psychological'], ['Coordination', 'physical'], ['Ball skills', 'technical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
-  if (idx === 1) return [['Technical', 'technical'], ['Coordination', 'physical'], ['Decision', 'decision'], ['Teamwork', 'social'], ['Confidence', 'psychological'], ['Creativity', 'tactical']];
-  if (idx === 2) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Mentality', 'psychological'], ['Social', 'social']];
-  if (idx === 3) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Discipline', 'educational'], ['Mentality', 'psychological']];
-  return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Leadership', 'social'], ['Mentality', 'psychological']];
-}
-function _atRadar(items, accent) {
-  var n = items.length, cx = 120, cy = 120, R = 82;
-  function pt(i, r) { var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
-  var grid = '';
-  [0.25, 0.5, 0.75, 1].forEach(function (f) { grid += '<polygon points="' + items.map(function (_x, i) { var q = pt(i, R * f); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '" fill="none" stroke="rgba(255,255,255,.08)"/>'; });
-  var axes = '', labels = '', poly = items.map(function (it, i) { var q = pt(i, R * Math.max(0.06, Math.min(1, it.val / 100))); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
-  items.forEach(function (it, i) { var e = pt(i, R); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '" stroke="rgba(255,255,255,.08)"/>'; var lp = pt(i, R + 16); labels += '<text x="' + lp[0].toFixed(1) + '" y="' + lp[1].toFixed(1) + '" fill="#9aa0ad" font-size="9" font-family="Inter" text-anchor="middle" dominant-baseline="middle">' + _viEscSafe(it.label) + '</text>'; });
-  return '<svg class="at-radar" viewBox="0 0 240 240">' + grid + axes + '<polygon points="' + poly + '" fill="' + accent + '33" stroke="' + accent + '" stroke-width="2"/>' + labels + '</svg>';
-}
-function _atModalActions(p) {
-  return '<div class="at-modal-actions">'
-    + '<button class="at-act" type="button" data-at-edit>✎ Edit</button>'
-    + '<button class="at-act" type="button" data-at-cycle-avail>◑ Availability</button>'
-    + '<button class="at-act" type="button" data-at-add-assess>＋ Assessment</button>'
-    + '<button class="at-act" type="button" data-at-jump-notes>✎ Coach note</button>'
-    + '<button class="at-act at-act--go" type="button" data-at-promote>▲ Promote</button>'
-    + '<button class="at-act at-act--warn" type="button" data-at-archive>⛃ Archive</button>'
-  + '</div>';
-}
-function _atPlayerModal(id) {
-  if (!AT.openPlayer) return '';
-  var p = _atFindPlayer(id, AT.openPlayer); if (!p) return '';
-  var c = _atCtx(id), idx = c.idx, pri = _atTabPriority(idx);
-  var tab = AT_ACAD_TABS.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
-  var tabStrip = AT_ACAD_TABS.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + (pri.indexOf(t[0]) >= 0 ? ' at-ptab--pri' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
-  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
-  return '<div class="at-modal-back" data-at-close-player>'
-    + '<div class="at-modal at-modal--lg" style="--acc:' + c.accent + '" role="dialog">'
-      + '<div class="at-modal-head">' + av
-        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b>'
-          + '<i>' + _viEscSafe(p.pos) + ' · Age ' + p.age + ' · Dev ' + p.devScore + ' · <span class="at-plbadge--' + _atDevTone(p.devStatus) + '" style="padding:1px 7px;border-radius:20px;font-size:10px;">' + _viEscSafe(p.devStatus) + '</span></i></div>'
-        + '<button class="at-modal-x" type="button" data-at-close-player>✕</button>'
-      + '</div>'
-      + (AT.editing ? '' : _atModalActions(p))
-      + '<div class="at-ptabs">' + tabStrip + '</div>'
-      + '<div class="at-modal-body">' + _atProfileBody(id, p, tab, idx) + '</div>'
-    + '</div>'
-  + '</div>';
-}
-function _atEditForm(id, p) {
-  function fld(label, key, val, type) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><input class="at-input" data-field="' + key + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + _viEscSafe(val == null ? '' : String(val)) + '"></label>'; }
-  function selFld(label, key, val, opts) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><select class="at-input" data-field="' + key + '">' + opts.map(function (o) { return '<option' + (val === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>'; }
-  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + _atCtx(id).accent + '">' + _atInitials(p.name) + '</span>';
-  return '<div class="at-editwrap">'
-    + '<div class="at-photo-row">' + av + '<label class="at-btn at-btn--ghost">＋ Add / change photo<input type="file" accept="image/*" data-at-photo hidden></label></div>'
-    + '<div class="at-eform">'
-      + fld('Full name', 'name', p.name) + fld('Date of birth', 'dob', p.dob, 'date') + fld('Shirt number', 'number', p.number, 'number')
-      + fld('Height (cm)', 'height', p.height, 'number') + fld('Weight (kg)', 'weight', p.weight, 'number')
-      + selFld('Preferred foot', 'foot', p.foot, ['Right', 'Left', 'Both'])
-      + selFld('Primary position', 'pos', p.pos, ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'ST'])
-      + fld('Secondary positions', 'secondary', p.secondary) + fld('Nationality', 'nationality', p.nationality)
-      + fld('Joining date', 'joining', p.joining, 'date') + fld('School year', 'schoolYear', p.schoolYear)
-      + fld('Parent/guardian contact', 'guardian', p.guardian) + fld('Emergency contact', 'emergency', p.emergency)
-      + fld('Medical restrictions', 'medicalRestrictions', p.medicalRestrictions)
-    + '</div>'
-    + '<div class="at-lineup-actions"><button class="at-btn" type="button" data-at-save-player>Save changes</button><button class="at-btn at-btn--ghost" type="button" data-at-cancel-edit>Cancel</button><span class="at-note-hint">Age is calculated from date of birth and stays within the age group.</span></div>'
-  + '</div>';
-}
-function _atProfileBody(id, p, tab, idx) {
-  var st = _acStage(id);
-  if (tab === 'overview') {
-    if (AT.editing) return _atEditForm(id, p);
-    var facts = _atFact('Position', p.pos) + _atFact('Secondary', p.secondary) + _atFact('Preferred foot', p.foot) + _atFact('Age', p.age + ' yrs')
-      + _atFact('Height', p.height + ' cm') + _atFact('Weight', p.weight + ' kg') + _atFact('Nationality', p.nationality) + _atFact('School year', p.schoolYear)
-      + _atFact('Availability', p.availability) + _atFact('Fitness', p.fitness + '%') + _atFact('Morale', p.morale) + _atFact('Joined', p.joining);
-    return '<div class="at-ov"><div class="at-ov-ring" style="--v:' + Math.min(100, p.devScore) + ';--acc:' + _atCtx(id).accent + '"><b>' + p.devScore + '</b><span>Dev score</span></div>'
-      + '<div class="at-ov-facts"><div class="at-facts">' + facts + '</div></div></div>'
-      + _atCard('Coach note', '<p class="at-p">' + (p.notes.length ? _viEscSafe(p.notes[p.notes.length - 1].text) : (_viEscSafe(p.name.split(' ')[0]) + ' is at the ' + _viEscSafe(st.name) + ' stage — ' + _viEscSafe((st.summary || '').toLowerCase()))) + '</p>');
-  }
-  if (tab === 'development') {
-    var dd = _atDevDims(idx).map(function (d) { return { label: d[0], val: _atAttr(p, d[1]), key: d[1] }; });
-    var bench = _acStageAvg(id) || 60;
-    var sorted = dd.slice().sort(function (a, b) { return b.val - a.val; });
-    var strengths = sorted.slice(0, 2).map(function (x) { return x.label; }).join(', ');
-    var areas = sorted.slice(-2).map(function (x) { return x.label; }).join(', ');
-    var prevRows = dd.map(function (d) { var prev = Math.max(15, d.val - (p.form >= 7 ? 5 : (p.form <= 4 ? -2 : 2))); var delta = d.val - prev; return '<div class="at-cmp"><span>' + _viEscSafe(d.label) + '</span><b>' + prev + ' → ' + d.val + '</b><i class="at-delta at-delta--' + (delta >= 0 ? 'up' : 'down') + '">' + (delta >= 0 ? '▲ +' + delta : '▼ ' + delta) + '</i></div>'; }).join('');
-    var trend = p.form >= 7 ? 'Improving' : (p.form <= 4 ? 'Needs a lift' : 'Steady');
-    var priority = sorted[sorted.length - 1].label;
-    return '<div class="at-devwrap">'
-      + '<div class="at-devcol">' + _atRadar(dd, _atCtx(id).accent) + '</div>'
-      + '<div class="at-devcol">'
-        + '<div class="at-facts">' + _atFact('Development score', p.devScore) + _atFact('Stage benchmark', bench) + _atFact('Trend', trend) + _atFact('Promotion readiness', p.promotion + '%') + '</div>'
-        + _atCard('Progress by category', _atBars(p, _atDevDims(idx)))
-      + '</div>'
-    + '</div>'
-    + '<div class="at-grid2">'
-      + _atCard('Story', '<p class="at-p"><b>Strengths:</b> ' + _viEscSafe(strengths) + '<br><b>Areas to improve:</b> ' + _viEscSafe(areas) + '<br><b>Coach priority next cycle:</b> ' + _viEscSafe(priority) + '<br><b>Ready for next stage:</b> ' + (p.promotion >= 78 ? 'Yes — ready' : (p.promotion >= 60 ? 'Approaching' : 'Keep developing')) + '</p>')
-      + _atCard('Previous vs current', '<div class="at-cmplist">' + prevRows + '</div>')
-    + '</div>';
-  }
-  if (tab === 'technical' || tab === 'tactical' || tab === 'physical' || tab === 'psychological' || tab === 'social') {
-    var titleMap = { technical: 'Technical', tactical: 'Tactical', physical: 'Physical', psychological: 'Psychological', social: 'Social & Behaviour' };
-    var extra = '';
-    if (tab === 'physical') extra = '<div class="at-facts">' + _atFact('Fitness', p.fitness + '%') + _atFact('Availability', p.availability) + '</div>';
-    if (tab === 'tactical') extra = _atCard('Stage principles', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
-    return extra + _atCard(titleMap[tab] + ' — ' + st.label + ' focus', _atBars(p, _atTabAttrs(tab, idx)));
-  }
-  if (tab === 'attendance') {
-    return '<div class="at-facts">' + _atFact('Attendance', p.attendance + '%') + _atFact('Rating', p.attendance >= 90 ? 'Excellent' : (p.attendance >= 80 ? 'Good' : 'Needs improvement')) + '</div>'
-      + _atCard('Season attendance', '<div class="at-bars"><div class="at-bar"><span class="at-bar-l">Attendance</span><span class="at-bar-t"><i style="width:' + p.attendance + '%"></i></span><b>' + p.attendance + '%</b></div></div>')
-      + _atCard('Update attendance', '<div class="at-inline"><input class="at-input" type="number" min="0" max="100" value="' + p.attendance + '" data-at-attendance-input><button class="at-btn" type="button" data-at-save-attendance>Update</button></div>');
-  }
-  if (tab === 'medical') {
-    var statuses = ['Fit', 'Monitoring', 'Return to Training', 'Medical Monitoring', 'Injured'];
-    return '<div class="at-facts">' + _atFact('Status', p.medical) + _atFact('Availability', p.availability) + _atFact('Injury', p.injury) + _atFact('Fitness', p.fitness + '%') + '</div>'
-      + _atCard('Medical restrictions', '<p class="at-p">' + _viEscSafe(p.medicalRestrictions || 'None') + '</p>')
-      + _atCard('Update medical status', '<div class="at-inline"><select class="at-input" data-at-medical-input>' + statuses.map(function (s) { return '<option' + (p.medical === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><button class="at-btn" type="button" data-at-save-medical>Update</button></div>');
-  }
-  if (tab === 'goals') {
-    return _atCard('Development goals · ' + st.label, '<ul class="at-checklist">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>')
-      + _atCard('Individual focus', '<p class="at-p">Priority for ' + _viEscSafe(p.name.split(' ')[0]) + ': ' + _viEscSafe((st.tech || ['—'])[0]) + ' &amp; ' + _viEscSafe((st.tac || ['—'])[0]) + '.</p>');
-  }
-  if (tab === 'notes') {
-    var list = p.notes.length ? p.notes.slice().reverse().map(function (n) { return '<div class="at-noteitem"><i>' + _viEscSafe(n.date) + '</i><p>' + _viEscSafe(n.text) + '</p></div>'; }).join('') : '<div class="at-empty">No coach notes yet.</div>';
-    return _atCard('Add coach note', '<div class="at-inline"><input class="at-input at-input--grow" type="text" placeholder="Write a development note…" data-at-note-input><button class="at-btn" type="button" data-at-save-note>Add note</button></div>')
-      + '<div class="at-notelist">' + list + '</div>';
-  }
-  if (tab === 'history') {
-    var asx = p.assessments.length ? p.assessments.slice().reverse().map(function (a) { return '<div class="at-noteitem"><i>' + _viEscSafe(a.date) + '</i><p>Assessment · avg ' + a.avg + (a.note ? ' — ' + _viEscSafe(a.note) : '') + '</p></div>'; }).join('') : '<div class="at-empty">No assessments recorded yet — use ＋ Assessment.</div>';
-    return _atCard('Player history', '<div class="at-facts">' + _atFact('Joined', p.joining) + _atFact('In academy since', p.entryYear) + _atFact('Stage', st.label) + _atFact('Status', p.devStatus) + '</div>')
-      + _atCard('Assessment history', '<div class="at-notelist">' + asx + '</div>');
-  }
-  return '';
-}
 /* Build the explicit team context for an Academy age group. Everything comes
    from this group's own store — roster, lineup, formation, tactics, format and
    permissions — and the board positions are derived from the real slot geometry
@@ -45323,22 +45136,184 @@ function _atTacWrite(id, fn) {
 function _atTacSet(grp, val) { if (!grp || val == null) return; _atTacWrite(AT.active, function (T) { T[grp] = val; }); }
 function _atTacToggle(scope, key) { _atTacWrite(AT.active, function (T) { if (scope === 'team') { T.team = T.team || {}; T.team[key] = !T.team[key]; } else { T[key] = !T[key]; } }); }
 function _atTacPlayer(pkey, val) { _atTacWrite(AT.active, function (T) { T.players = T.players || {}; T.players[pkey] = val; }); }
+/* ── Academy Lineup ──────────────────────────────────────────────────────
+   This is the First Team Lineup page, rendered with the age group's context —
+   the same _sqLineupHtml markup, the same summary strip, the same toolbar and
+   the same table, with identical interactions. Two columns say something a
+   child does not have: nationality and market value. The context replaces
+   those with what an academy actually records, preferred foot and match-day
+   selection, and nothing is invented to fill them. */
+function _atLuAvailOf(p) { return p.availability === 'Injured' ? 'injured' : (p.availability === 'Doubtful' ? 'suspended' : 'available'); }
+// 'Starting XI' only when eleven really take the field.
+function _atXiLabel(id) { var n = _atStarterCount(_atTeam(id).formation.name); return n === 11 ? 'Starting XI' : 'Starting ' + n; }
+var AT_LU_QF = {
+  ahead:     function (p) { return p.devScore >= 70; },
+  fit:       function (p) { return p.cond >= 90; },
+  morale:    function (p) { return p.morale === 'Excellent' || p.morale === 'Good'; },
+  attend:    function (p) { return (p.attendance || 0) >= 90; },
+  left:      function (p) { return p.foot === 'Left'; },
+  starter:   function (p) { return !!p.__starter; },
+  sub:       function (p) { return !!p.__sub; },
+  available: function (p) { return _atLuAvailOf(p) === 'available'; },
+  injured:   function (p) { return _atLuAvailOf(p) === 'injured'; },
+  suspended: function (p) { return _atLuAvailOf(p) === 'suspended'; }
+};
+// Selection cell: reads the age group's saved lineup and drives it with the
+// same handlers the workspace already uses.
+function _atLuSelCell(p) {
+  var lu = _atLineup(AT.active);
+  var st = p.__starter ? ['starter', 'Starter'] : p.__sub ? ['sub', 'Substitute']
+    : p.availability === 'Injured' ? ['injured', 'Injured']
+    : p.availability === 'Doubtful' ? ['doubtful', 'Doubtful'] : ['free', 'Not selected'];
+  var toggle = p.__starter
+    ? '<button class="atlu-act" type="button" data-at-bench="' + p.id + '">Bench</button>'
+    : '<button class="atlu-act atlu-act--go" type="button" data-at-start="' + p.id + '">Start</button>';
+  var cap = '<button class="atlu-act' + (lu.captain === p.id ? ' is-on' : '') + '" type="button" data-at-captain="' + p.id + '">Captain</button>';
+  var gk = p.pos === 'GK' ? '<button class="atlu-act' + (lu.gk === p.id ? ' is-on' : '') + '" type="button" data-at-gk="' + p.id + '">GK</button>' : '';
+  return '<span class="atlu-status atlu-status--' + st[0] + '">' + st[1] + '</span>'
+    + '<div class="atlu-acts">' + toggle + cap + gk + '</div>';
+}
+function _atLineupCtx(id) {
+  var fc = _atFormationCtx(id), lu = _atLineup(id), c = _atCtx(id);
+  var starters = {}, subs = {};
+  (lu.starters || []).forEach(function (x) { starters[x] = 1; });
+  (lu.subs || []).forEach(function (x) { subs[x] = 1; });
+  var src = _atRoster(id), byId = {};
+  src.forEach(function (p) { byId[p.id] = p; });
+  var roster = fc.roster.map(function (p) {
+    var o = byId[p.id] || {}, r = {};
+    for (var k in p) r[k] = p[k];
+    r.roles = o.secondary || '';
+    r.devScore = o.devScore; r.attendance = o.attendance; r.availability = o.availability;
+    r.foot = o.foot; r.injury = o.injury; r.promotion = o.promotion; r.devStatus = o.devStatus;
+    r.__starter = !!starters[p.id]; r.__sub = !!subs[p.id];
+    return r;
+  });
+  return {
+    type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
+    roster: roster,
+    balance: fc.starterIds.length && _atStarterCount(_atTeam(id).formation.name)
+      ? Math.round(fc.starterIds.length / _atStarterCount(_atTeam(id).formation.name) * 100) : 0,
+    avail: _atLuAvailOf,
+    statusLabel: function (p) { return p.devStatus || 'On track'; },
+    columns: { roles: 'Second position', nat: 'Foot', val: 'Selection', cond: 'Fitness', qual: 'Development' },
+    dashLabels: { ovr: 'Average development' },
+    natCell: function (p) { return '<span class="sqlu-natc">' + _viEscSafe(p.foot || '—') + '</span>'; },
+    valCell: _atLuSelCell,
+    quickFilters: AT_LU_QF,
+    quickPills: [['ahead', 'Ahead of stage'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['attend', 'Attendance 90%+'], ['left', 'Left foot'], ['starter', 'Starting'], ['sub', 'Substitute'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Doubtful']],
+    searchHint: 'Search name, position, squad number, foot…',
+    openAction: 'atLuOpenPlayer', rowAction: 'atLuAct', addAction: 'atLuAddPlayer',
+    rowActions: [['edit', 'Edit'], ['details', 'Profile'], ['medical', 'Medical'], ['training', 'Attendance'], ['role', 'Assessment']],
+    permissions: { canEdit: _acCanOpen(id) }
+  };
+}
+// The Lineup row actions open the age group's own player profile at the tab the
+// icon promises — the same jump the Squad page already makes.
+function atLuOpenPlayer(pid) { if (AT.active && pid) _atOpenPlayer(AT.active, pid); }
+function atLuAct(pid, which) {
+  if (!AT.active || !pid) return;
+  var tab = { edit: 'overview', details: 'overview', medical: 'medical', training: 'attendance', role: 'development' }[which] || 'overview';
+  _atOpenPlayer(AT.active, pid); AT.profileTab = tab; AT.editing = (which === 'edit'); renderAcademyTeamPage();
+}
+function atLuAddPlayer() { var b = document.querySelector('[data-at-add-player]'); if (b) b.click(); }
+window.atLuOpenPlayer = atLuOpenPlayer; window.atLuAct = atLuAct; window.atLuAddPlayer = atLuAddPlayer;
+
+function _atSecLineup(id) {
+  var ctx = _atLineupCtx(id), t = _atTeam(id), opts = _atFormationsFor(id);
+  _sqLuUseCtx(ctx);                                  // the mounted Lineup page renders this team
+  var formationSel = '<div class="atlu-formbar"><span class="atlu-formbar-l">Formation</span><div class="atlu-seg">'
+    + opts.map(function (f) { return '<button class="atlu-seg-b' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
+    + '</div><span class="atlu-formbar-fmt">' + _viEscSafe(_atFormatLabel(id)) + '</span>'
+    + '<span class="atlu-formbar-sp"></span>'
+    + '<button class="sq-mbtn sq-mbtn--add" type="button" data-at-save-lineup>Save lineup</button>'
+    + '<button class="sq-mbtn" type="button" data-at-reset-lineup>Reset</button></div>';
+  // The First Team page carries its own sub-header; inside Academy the module
+  // tabs are already above, so only the page body is mounted here.
+  ctx.bodyOnly = true;
+  return '<div class="atlu-host">' + formationSel + _sqLineupHtml(ctx) + '</div>';
+}
+
+/* ── Academy Tactics ───────────────────────────────────────────────────────
+   The real First Team Tactics system rendered with this age group's own record:
+   the same six sections, the same .sqtac-* summary, segmented controls, team
+   instruction chips and per-position player instructions. Writes go to
+   teams[<ageGroupId>].tactics2 through _atTacSet / _atTacToggle / _atTacPlayer —
+   SQ_TACTICS is never read or written from here, so no First Team value can
+   appear in an Academy age group or vice versa. */
+// This group's full tactics record, seeded once from its existing simple
+// settings (mentality / tempo / width / pressing / line / build) so nothing the
+// coach already chose is lost and nothing is invented.
+function _atTactics(id) {
+  var t = _atTeam(id);
+  if (!t.tactics2 || typeof t.tactics2 !== 'object') {
+    var o = t.tactics || {}, i = _acStageIdx(id);
+    t.tactics2 = {
+      mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
+      style: i < 2 ? 'Possession' : 'Balanced',
+      width: o.width || 'Balanced',
+      tempo: o.tempo === 'Relaxed' ? 'Slow' : (o.tempo === 'High' ? 'Fast' : 'Normal'),
+      buildUp: o.build === 'Play out from the back' ? 'Short Passing' : (o.build === 'Direct fun' ? 'Direct' : 'Mixed'),
+      finalThird: 'Mixed', crossing: 'Mixed',
+      defLine: o.line === 'Deep' ? 'Deep' : (o.line === 'High' ? 'High' : 'Standard'),
+      pressLine: o.pressing || 'Medium',
+      compactness: 'Balanced', offsideTrap: false,
+      transWon: 'Counter Attack', transLost: i < 2 ? 'Regroup' : 'Counter Press',
+      gkDist: i < 2 ? 'Short' : 'Mixed',
+      team: {}, players: {}
+    };
+    _atSave();
+  }
+  if (!_atTacticsRec(id).team) _atTacticsRec(id).team = {};
+  if (!_atTacticsRec(id).players) _atTacticsRec(id).players = {};
+  return t.tactics2;
+}
+function _atTacticsRec(id) { return _atTeam(id).tactics2; }
+// Younger groups configure fewer sections — the options they don't use are not
+// shown rather than shown empty. Player instructions arrive with the age at
+// which individual roles start being coached.
+function _atTacSections(id) {
+  var i = _acStageIdx(id);
+  return _SQ_TAC_SECS.filter(function (s) {
+    if (i < 1 && (s.id === 'transitions' || s.id === 'players')) return false;
+    if (i < 2 && s.id === 'players') return false;
+    return true;
+  });
+}
+function _atTacWrite(id, fn) {
+  if (!id || !_acCanOpen(id)) return;
+  _atTactics(id); fn(_atTacticsRec(id));
+  // Keep the simple record the dashboard, hub cards and Formation summary read.
+  var T = _atTacticsRec(id), s = _atTeam(id).tactics;
+  s.pressing = T.pressLine; s.tempo = T.tempo === 'Slow' ? 'Relaxed' : (T.tempo === 'Fast' ? 'High' : 'Medium');
+  s.width = T.width; s.line = T.defLine === 'Standard' ? 'Medium' : T.defLine;
+  s.build = T.buildUp === 'Short Passing' ? 'Play out from the back' : (T.buildUp === 'Direct' ? 'Direct fun' : 'Mixed');
+  s.mentality = T.mentality;
+  _atSave(); renderAcademyTeamPage();
+}
+function _atTacSet(grp, val) { if (!grp || val == null) return; _atTacWrite(AT.active, function (T) { T[grp] = val; }); }
+function _atTacToggle(scope, key) { _atTacWrite(AT.active, function (T) { if (scope === 'team') { T.team = T.team || {}; T.team[key] = !T.team[key]; } else { T[key] = !T[key]; } }); }
+function _atTacPlayer(pkey, val) { _atTacWrite(AT.active, function (T) { T.players = T.players || {}; T.players[pkey] = val; }); }
+// The tactics context for an age group: the same page, its own record.
+function _atTacticsCtx(id) {
+  var t = _atTeam(id), c = _atCtx(id);
+  return {
+    type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
+    formation: t.formation.name,
+    tacticsRecord: _atTactics(id),
+    tacticsSections: _atTacSections(id),
+    tacticsTeam: 'academy',
+    formationSlots: _sqSlotsFor(t.formation.name) || [],
+    tacticsNote: 'Set up ' + _viEscSafe(c.label) + ' <b>before</b> the match. Every choice is saved to this age group only — no other team reads or writes it.',
+    permissions: { canEdit: _acCanOpen(id) }
+  };
+}
 function _atSecTactics(id) {
-  var c = _atCtx(id), T = _atTactics(id), t = _atTeam(id);
-  var slots = _sqSlotsFor(t.formation.name) || [];
-  var secs = _atTacSections(id);
-  var body = secs.map(function (s) {
-    return '<section class="attac-sec" style="--ac:' + s.ac + '">'
-      + '<header class="attac-sec-h"><span class="attac-sec-no">' + s.no + '</span><h3>' + s.title + '</h3>'
-      + (s.id === 'players' || s.id === 'team' ? '<em class="sqtac-fp-tag">' + _viEscSafe(t.formation.name) + '</em>' : '') + '</header>'
-      + '<div class="attac-sec-b">' + _sqTacSecContent(s.id, 'academy', T, slots) + '</div>'
-      + '</section>';
-  }).join('');
-  return '<div class="attac-wrap">'
-    + '<div class="atlu-head"><h1>Tactics</h1><p>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' · ' + _viEscSafe(_atFormatLabel(id)) + ' — saved for this age group only</p></div>'
-    + _sqTacSummary(T)
-    + '<div class="attac-secs">' + body + '</div>'
-  + '</div>';
+  var ctx = _atTacticsCtx(id);
+  _sqTacUseCtx(ctx);                                 // the mounted Tactics page renders this team
+  // The First Team page body, verbatim: the same note, the same live summary
+  // cards, the same six numbered section tabs and the same floating panels.
+  return '<div class="attac-wrap" id="sqtac-body">' + _sqTacticsBody(ctx) + '</div>';
 }
 /* ── Academy Training ──────────────────────────────────────────────────────
    The real First Team Training Centre, mounted with this age group's explicit
@@ -45380,7 +45355,7 @@ function _atTrainingImport(id) {
 function _atTrainingCtx(id) {
   var fc = _atFormationCtx(id), st = _acStage(id), i = _acStageIdx(id);
   return {
-    type: 'academy', teamId: id, label: fc.label,
+    type: 'academy', teamId: id, ctxId: 'academy:' + id, label: fc.label,
     roster: fc.roster,
     xi: (fc.starterIds || []).slice(),
     formation: fc.formation,
