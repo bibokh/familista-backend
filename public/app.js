@@ -3349,11 +3349,13 @@ function _sqFormationBodyLegacy() {
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
 function _sqRenderFormationBody() {
+  // The same command centre is hosted by two workspaces. The First Team's
+  // #sqfp-body stays in the DOM even while hidden, so the Academy host is
+  // checked first — otherwise an Academy click would re-render the First Team
+  // panel and leave the Academy view untouched.
+  if (document.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') { _sqSimStop(); renderAcademyTeamPage(); return; }
   var b = document.getElementById('sqfp-body');
-  if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); return; }
-  // The same command centre is also hosted by the Academy Formation workspace,
-  // which owns its own container — refresh that instead when it is the one open.
-  if (document.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
+  if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); }
 }
 
 // ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
