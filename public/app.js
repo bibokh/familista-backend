@@ -4883,9 +4883,10 @@ function _sqMdPitchShared(ctx) {
       cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / '), null) + '</div>';
     });
   }
+  var selId = (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null);
   var zones = '';
-  if (SQ_FORM.cmdSel) { var ss = _sqSideOf(SQ_FORM.cmdSel); zones = '<div class="sqmd-zonelayer">' + _sqMdZonesShared(SQ_FORM.cmdSel, ss) + '</div>'; }
-  var popup = SQ_FORM.cmdSel ? _sqCmpPopup(SQ_FORM.cmdSel) : '';
+  if (selId && C.type === 'first') { var ss = _sqSideOf(selId); zones = '<div class="sqmd-zonelayer">' + _sqMdZonesShared(selId, ss) + '</div>'; }
+  var popup = (selId && C.type === 'first') ? _sqCmpPopup(selId) : '';
   var warn = oop ? '<div class="sqmd-oop">⚠ Out of position — reduced efficiency</div>' : '';
   return '<div class="sqmd-pitch sqmd-pitch--shared' + (so ? ' sqmd-pitch--overlay' : ' sqmd-pitch--solo') + '">' + _sqMdFieldShared() + zones + cards + popup + warn + '</div>';
 }
@@ -7709,7 +7710,11 @@ function sqSimScene(idx) { idx = parseInt(idx, 10); if (isNaN(idx) || !_sqSim.el
 function sqCmdTab(tab) { if (!tab) return; SQ_FORM.cmdTab = tab; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' || SQ_FORM.cmdOverlay === tab) ? null : tab; if (SQ_FORM.cmdOverlay) SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
-function sqCmdSelect(id) { SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody(); }
+function sqCmdSelect(id, ctx) {
+  var C = ctx ? _sqCtx(ctx) : _sqFirstCtx();
+  if (C.type !== 'first' && typeof _atBoardSel === 'function') { _atBoardSel(id); return; }
+  SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody();
+}
 function sqCmdToggleOpp() { SQ_FORM.showOpp = !SQ_FORM.showOpp; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
 function sqCmdInstr(id, key) { if (!id || !SQ_INSTR[key]) return; SQ_MENTALITY[id] = key; _sqRenderFormationBody(); }
 function sqCommand() { SQ_FORM.showCmd = !SQ_FORM.showCmd; if (SQ_FORM.showCmd) { SQ_FORM.showMent = false; SQ_FORM.showLib = false; SQ_FORM.showTac = false; SQ_FORM.showPlan = false; } _sqRenderFormationBody(); }
@@ -7720,6 +7725,30 @@ function _sqShowZones(pitch, zones) { _sqHideZones(pitch); var wrap = document.c
 function _sqShowAnchor(pitch, x, y) { _sqHideZones(pitch); var wrap = document.createElement('div'); wrap.className = 'sqfp-zones'; var d = document.createElement('div'); d.className = 'sqfp-zone sqfp-zone--anchor'; d.style.left = x + '%'; d.style.top = y + '%'; d.innerHTML = '<span>HOME</span>'; wrap.appendChild(d); pitch.appendChild(wrap); }
 function _sqHideZones(pitch) { var w = pitch.querySelector('.sqfp-zones'); if (w) w.parentNode.removeChild(w); }
 var _sqCmdMove = null;
+// The board a pointer lands on decides the team. The First Team's board lives
+// in #sq-sub-formation; an Academy age group hosts the same board inside
+// .at-formation-cmd, so the same movement logic serves both without either
+// writing into the other's state.
+function _sqBoardHostCtx(el) {
+  if (!el || !el.closest) return null;
+  if (el.closest('.at-formation-cmd')) {
+    var id = (typeof AT !== 'undefined') ? AT.active : null;
+    return (id && typeof _atFormationCtx === 'function') ? _atFormationCtx(id) : null;
+  }
+  if (el.closest('#sq-sub-formation')) return _sqFirstCtx();
+  return null;
+}
+// Commit a moved player back to whichever team owns the board.
+function _sqBoardCommit(ctx, side, id, x, y) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') { if (side === 'opp') SQ_POS_OPP2[id] = { x: x, y: y }; else SQ_POS_MY[id] = { x: x, y: y }; return; }
+  if (typeof C.movePlayer === 'function') C.movePlayer(side, id, x, y);
+}
+function _sqBoardRerender(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type !== 'first' && typeof renderAcademyTeamPage === 'function') { renderAcademyTeamPage(); return; }
+  _sqRenderFormationBody();
+}
 function _sqInitFormationDrag() {
   if (_sqDragInit || typeof document === 'undefined') return;
   _sqDragInit = true;
@@ -7738,7 +7767,15 @@ function _sqInitFormationDrag() {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub], .sqmd-bench-chip[data-sub-opp]');
     if (subc && subc.closest('#sq-sub-formation')) { var isOppSub = subc.hasAttribute('data-sub-opp'); _sqSubDrag = { id: subc.getAttribute(isOppSub ? 'data-sub-opp' : 'data-sub'), tier: subc.getAttribute('data-tier'), side: isOppSub ? 'opp' : 'my', sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
     var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove], .sqmd-slot[data-cmdmove-opp]');
-    if (slot && slot.closest('#sq-sub-formation')) { var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp'); var pp = isOpp ? _sqOppFind(sid) : _sqP(sid); var hd = 0; if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); } _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', allowed: pp ? _sqAllowedZonesAny(pp) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false }; e.preventDefault(); return; }
+    var slotCtx = slot ? _sqBoardHostCtx(slot) : null;
+    if (slot && slotCtx) {
+      if (slotCtx.permissions && slotCtx.permissions.canEdit === false) return;
+      var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp');
+      var pp = isOpp ? _sqOppFind(sid) : _sqCtxP(sid, slotCtx); var hd = 0;
+      if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
+      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, allowed: pp ? _sqAllowedZonesAny(pp) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
+      e.preventDefault(); return;
+    }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
     if (!chip || !chip.closest('#sq-sub-formation')) return;
     var pitch = chip.closest('.sqfp-pitch'); if (!pitch) return;
@@ -7777,7 +7814,18 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointerup', function (e) {
     if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); if (sd.side === 'opp') { var ot = el && el.closest && el.closest('.sqmd-card[data-team="opp"]'); if (ot) { _sqOppSubstitute(sd.id, ot.getAttribute('data-id')); } } else { var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } } return; }
-    if (_sqCmdMove) { var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch); if (cm.moved) { var isSharedSave = cm.pitch && cm.pitch.classList && cm.pitch.classList.contains('sqmd-pitch--shared'); if (isSharedSave) { var W = Math.max(0, Math.min(100, cm.T)); var D = Math.max(0, Math.min(100, (cm.side === 'opp') ? cm.L : (100 - cm.L))); if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: W, y: D }; else SQ_POS_MY[cm.id] = { x: W, y: D }; } else { if (cm.side === 'opp') SQ_POS_OPP2[cm.id] = { x: cm.T, y: cm.L }; else SQ_POS_MY[cm.id] = { x: cm.T, y: 100 - cm.L }; } _sqRenderFormationBody(); } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id); } return; }
+    if (_sqCmdMove) {
+      var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch);
+      if (cm.moved) {
+        var isSharedSave = cm.pitch && cm.pitch.classList && cm.pitch.classList.contains('sqmd-pitch--shared');
+        var W, D;
+        if (isSharedSave) { W = Math.max(0, Math.min(100, cm.T)); D = Math.max(0, Math.min(100, (cm.side === 'opp') ? cm.L : (100 - cm.L))); }
+        else { W = cm.T; D = (cm.side === 'opp') ? cm.L : (100 - cm.L); }
+        _sqBoardCommit(cm.ctx, cm.side, cm.id, W, D);
+        _sqBoardRerender(cm.ctx);
+      } else if (typeof sqCmdSelect === 'function') { sqCmdSelect(cm.id, cm.ctx); }
+      return;
+    }
     var d = _sqDrag; if (!d) return; _sqDrag = null;
     if (!d.moved) { if (d.team === 'my' && typeof sqOpenPlayer === 'function') sqOpenPlayer(d.id); return; }
     if (d.team === 'my') SQ_POS_MY[d.id] = { x: d.cx, y: d.cy }; else SQ_POS_OPP[d.id] = { x: d.cx, y: d.cy };
@@ -45210,6 +45258,7 @@ function _atFormationCtx(id) {
       availability: p.availability, morale: p.morale, form: p.form };
   });
   var byId = {}; mapped.forEach(function (p) { byId[p.id] = p; });
+  var board = _atBoard(id);
   // Starters occupy the formation slots in saved order; GK takes the GK slot.
   var starters = (lu.starters || []).filter(function (pid) { return byId[pid]; });
   var gkId = lu.gk || (starters.filter(function (pid) { return byId[pid].cat === 'gk'; })[0]);
@@ -45221,8 +45270,14 @@ function _atFormationCtx(id) {
     var s = outSlots[i]; if (!s) return;                       // never place more players than the format allows
     ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
   });
+  // Anything the coach has dragged wins over the formation's default slot, so a
+  // player stays exactly where they were dropped. Positions saved under a
+  // different formation are ignored, since the shape they belonged to is gone.
+  if (board.formation === t.formation.name) {
+    ordered.forEach(function (pid) { var b = board.posMy[pid]; if (b) posMy[pid] = { x: b.x, y: b.y }; });
+  }
   return {
-    type: 'academy', teamId: id, label: c.label + ' · ' + c.name,
+    type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
     roster: mapped, reserve: [],
     starterIds: ordered, benchIds: (lu.subs || []).filter(function (pid) { return byId[pid]; }),
     posMy: posMy, slotMy: slotMy,
@@ -45230,9 +45285,38 @@ function _atFormationCtx(id) {
     formationOptions: _atFormationsFor(id),
     tactics: t.tactics, format: _atFormatLabel(id),
     hasOpponent: false,                                        // no opponent squad exists for an age group
+    selected: board.sel || null,
     permissions: { canEdit: _acCanOpen(id) },
+    // Dropping a player writes straight into this age group's own board.
+    movePlayer: function (side, pid, x, y) {
+      if (side !== 'my' || !_acCanOpen(id)) return;
+      var b = _atBoard(id);
+      b.formation = _atTeam(id).formation.name;
+      b.posMy[pid] = { x: x, y: y };
+      _atSave();
+    },
+    resetBoard: function () { var b = _atBoard(id); b.posMy = {}; b.formation = _atTeam(id).formation.name; _atSave(); },
     save: function () { _atSave(); }
   };
+}
+// Per-age-group board state: dragged positions, the selected player and the
+// tactical drawings. Held in this team's own bucket — no other team reads it.
+function _atBoard(id) {
+  var t = _atTeam(id);
+  if (!t.board || typeof t.board !== 'object') t.board = {};
+  var b = t.board;
+  if (!b.posMy || typeof b.posMy !== 'object') b.posMy = {};
+  if (!('formation' in b)) b.formation = t.formation.name;
+  if (!('sel' in b)) b.sel = null;
+  if (!b.draw || typeof b.draw !== 'object') b.draw = { tool: 'select', shapes: [], undo: [], redo: [], cur: null };
+  return b;
+}
+// Selecting a player on an Academy board highlights it for that group only.
+function _atBoardSel(pid) {
+  var id = AT.active; if (!id) return;
+  var b = _atBoard(id);
+  b.sel = (b.sel === pid) ? null : pid;
+  _atSave(); renderAcademyTeamPage();
 }
 function _atSecFormation(id) {
   var ctx = _atFormationCtx(id);
