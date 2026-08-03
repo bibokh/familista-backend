@@ -45015,6 +45015,176 @@ function _atLuBackBar(active) {
     + '<div class="sql-tabs">' + tabs + '</div>'
   + '</div>';
 }
+/* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
+/* ── Academy player profile — premium modal, 12 tabs, editable & persisted ── */
+function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; AT.editing = false; renderAcademyTeamPage(); }
+function _atClosePlayer() { AT.openPlayer = null; AT.editing = false; renderAcademyTeamPage(); }
+window._atOpenPlayer = _atOpenPlayer; window._atClosePlayer = _atClosePlayer;
+
+var AT_ACAD_TABS = [
+  ['overview', 'Overview'], ['development', 'Development'], ['technical', 'Technical'], ['tactical', 'Tactical'],
+  ['physical', 'Physical'], ['psychological', 'Psychological'], ['social', 'Social & Behaviour'], ['attendance', 'Attendance'],
+  ['medical', 'Medical'], ['goals', 'Goals'], ['notes', 'Coach Notes'], ['history', 'History']
+];
+function _atTabPriority(idx) {
+  return [
+    ['overview', 'development', 'social', 'attendance', 'physical'],
+    ['technical', 'development', 'social', 'attendance'],
+    ['technical', 'tactical', 'development', 'psychological'],
+    ['tactical', 'physical', 'technical', 'development'],
+    ['tactical', 'physical', 'development', 'psychological'],
+    ['tactical', 'physical', 'development', 'medical']
+  ][idx] || [];
+}
+function _atFact(label, val) { return '<div class="at-fact"><span>' + _viEscSafe(label) + '</span><b>' + _viEscSafe(String(val)) + '</b></div>'; }
+function _atTabAttrs(tab, idx) {
+  var T = {
+    technical: idx < 1 ? [['Ball familiarity', 'technical'], ['Running with ball', 'technical'], ['Both feet', 'technical']]
+      : idx < 2 ? [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing basics', 'technical'], ['First touch', 'technical']]
+        : idx < 3 ? [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Receiving', 'technical']]
+          : [['Technique', 'technical'], ['Passing range', 'technical'], ['Finishing', 'technical'], ['First touch', 'technical'], ['Weak foot', 'technical']],
+    tactical: idx < 2 ? [['Find space', 'tactical'], ['Awareness', 'tactical'], ['Simple decisions', 'decision']]
+      : idx < 3 ? [['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Game understanding', 'tactical'], ['Decision-making', 'decision']]
+        : [['Positioning', 'tactical'], ['Game intelligence', 'tactical'], ['Transitions', 'tactical'], ['Decision-making', 'decision'], ['Role execution', 'tactical']],
+    physical: idx < 1 ? [['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Agility', 'physical']]
+      : idx < 4 ? [['Speed', 'physical'], ['Agility', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical']]
+        : [['Speed', 'physical'], ['Power', 'physical'], ['Strength', 'physical'], ['Stamina', 'physical'], ['Load tolerance', 'medical']],
+    psychological: [['Confidence', 'psychological'], ['Focus', 'psychological'], ['Resilience', 'psychological'], ['Coachability', 'social']],
+    social: [['Teamwork', 'social'], ['Communication', 'social'], ['Listening', 'social'], ['Respect', 'educational']]
+  };
+  return T[tab] || [];
+}
+function _atDevDims(idx) {
+  if (idx <= 0) return [['Enjoyment', 'psychological'], ['Coordination', 'physical'], ['Ball skills', 'technical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
+  if (idx === 1) return [['Technical', 'technical'], ['Coordination', 'physical'], ['Decision', 'decision'], ['Teamwork', 'social'], ['Confidence', 'psychological'], ['Creativity', 'tactical']];
+  if (idx === 2) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Mentality', 'psychological'], ['Social', 'social']];
+  if (idx === 3) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Discipline', 'educational'], ['Mentality', 'psychological']];
+  return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Leadership', 'social'], ['Mentality', 'psychological']];
+}
+function _atRadar(items, accent) {
+  var n = items.length, cx = 120, cy = 120, R = 82;
+  function pt(i, r) { var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+  var grid = '';
+  [0.25, 0.5, 0.75, 1].forEach(function (f) { grid += '<polygon points="' + items.map(function (_x, i) { var q = pt(i, R * f); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '" fill="none" stroke="rgba(255,255,255,.08)"/>'; });
+  var axes = '', labels = '', poly = items.map(function (it, i) { var q = pt(i, R * Math.max(0.06, Math.min(1, it.val / 100))); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ');
+  items.forEach(function (it, i) { var e = pt(i, R); axes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + e[0].toFixed(1) + '" y2="' + e[1].toFixed(1) + '" stroke="rgba(255,255,255,.08)"/>'; var lp = pt(i, R + 16); labels += '<text x="' + lp[0].toFixed(1) + '" y="' + lp[1].toFixed(1) + '" fill="#9aa0ad" font-size="9" font-family="Inter" text-anchor="middle" dominant-baseline="middle">' + _viEscSafe(it.label) + '</text>'; });
+  return '<svg class="at-radar" viewBox="0 0 240 240">' + grid + axes + '<polygon points="' + poly + '" fill="' + accent + '33" stroke="' + accent + '" stroke-width="2"/>' + labels + '</svg>';
+}
+function _atModalActions(p) {
+  return '<div class="at-modal-actions">'
+    + '<button class="at-act" type="button" data-at-edit>✎ Edit</button>'
+    + '<button class="at-act" type="button" data-at-cycle-avail>◑ Availability</button>'
+    + '<button class="at-act" type="button" data-at-add-assess>＋ Assessment</button>'
+    + '<button class="at-act" type="button" data-at-jump-notes>✎ Coach note</button>'
+    + '<button class="at-act at-act--go" type="button" data-at-promote>▲ Promote</button>'
+    + '<button class="at-act at-act--warn" type="button" data-at-archive>⛃ Archive</button>'
+  + '</div>';
+}
+function _atPlayerModal(id) {
+  if (!AT.openPlayer) return '';
+  var p = _atFindPlayer(id, AT.openPlayer); if (!p) return '';
+  var c = _atCtx(id), idx = c.idx, pri = _atTabPriority(idx);
+  var tab = AT_ACAD_TABS.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
+  var tabStrip = AT_ACAD_TABS.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + (pri.indexOf(t[0]) >= 0 ? ' at-ptab--pri' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
+  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
+  return '<div class="at-modal-back" data-at-close-player>'
+    + '<div class="at-modal at-modal--lg" style="--acc:' + c.accent + '" role="dialog">'
+      + '<div class="at-modal-head">' + av
+        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b>'
+          + '<i>' + _viEscSafe(p.pos) + ' · Age ' + p.age + ' · Dev ' + p.devScore + ' · <span class="at-plbadge--' + _atDevTone(p.devStatus) + '" style="padding:1px 7px;border-radius:20px;font-size:10px;">' + _viEscSafe(p.devStatus) + '</span></i></div>'
+        + '<button class="at-modal-x" type="button" data-at-close-player>✕</button>'
+      + '</div>'
+      + (AT.editing ? '' : _atModalActions(p))
+      + '<div class="at-ptabs">' + tabStrip + '</div>'
+      + '<div class="at-modal-body">' + _atProfileBody(id, p, tab, idx) + '</div>'
+    + '</div>'
+  + '</div>';
+}
+function _atEditForm(id, p) {
+  function fld(label, key, val, type) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><input class="at-input" data-field="' + key + '"' + (type ? ' type="' + type + '"' : '') + ' value="' + _viEscSafe(val == null ? '' : String(val)) + '"></label>'; }
+  function selFld(label, key, val, opts) { return '<label class="at-efield"><span>' + _viEscSafe(label) + '</span><select class="at-input" data-field="' + key + '">' + opts.map(function (o) { return '<option' + (val === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>'; }
+  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + _atCtx(id).accent + '">' + _atInitials(p.name) + '</span>';
+  return '<div class="at-editwrap">'
+    + '<div class="at-photo-row">' + av + '<label class="at-btn at-btn--ghost">＋ Add / change photo<input type="file" accept="image/*" data-at-photo hidden></label></div>'
+    + '<div class="at-eform">'
+      + fld('Full name', 'name', p.name) + fld('Date of birth', 'dob', p.dob, 'date') + fld('Shirt number', 'number', p.number, 'number')
+      + fld('Height (cm)', 'height', p.height, 'number') + fld('Weight (kg)', 'weight', p.weight, 'number')
+      + selFld('Preferred foot', 'foot', p.foot, ['Right', 'Left', 'Both'])
+      + selFld('Primary position', 'pos', p.pos, ['GK', 'CB', 'RB', 'LB', 'CDM', 'CM', 'CAM', 'RM', 'LM', 'RW', 'LW', 'ST'])
+      + fld('Secondary positions', 'secondary', p.secondary) + fld('Nationality', 'nationality', p.nationality)
+      + fld('Joining date', 'joining', p.joining, 'date') + fld('School year', 'schoolYear', p.schoolYear)
+      + fld('Parent/guardian contact', 'guardian', p.guardian) + fld('Emergency contact', 'emergency', p.emergency)
+      + fld('Medical restrictions', 'medicalRestrictions', p.medicalRestrictions)
+    + '</div>'
+    + '<div class="at-lineup-actions"><button class="at-btn" type="button" data-at-save-player>Save changes</button><button class="at-btn at-btn--ghost" type="button" data-at-cancel-edit>Cancel</button><span class="at-note-hint">Age is calculated from date of birth and stays within the age group.</span></div>'
+  + '</div>';
+}
+function _atProfileBody(id, p, tab, idx) {
+  var st = _acStage(id);
+  if (tab === 'overview') {
+    if (AT.editing) return _atEditForm(id, p);
+    var facts = _atFact('Position', p.pos) + _atFact('Secondary', p.secondary) + _atFact('Preferred foot', p.foot) + _atFact('Age', p.age + ' yrs')
+      + _atFact('Height', p.height + ' cm') + _atFact('Weight', p.weight + ' kg') + _atFact('Nationality', p.nationality) + _atFact('School year', p.schoolYear)
+      + _atFact('Availability', p.availability) + _atFact('Fitness', p.fitness + '%') + _atFact('Morale', p.morale) + _atFact('Joined', p.joining);
+    return '<div class="at-ov"><div class="at-ov-ring" style="--v:' + Math.min(100, p.devScore) + ';--acc:' + _atCtx(id).accent + '"><b>' + p.devScore + '</b><span>Dev score</span></div>'
+      + '<div class="at-ov-facts"><div class="at-facts">' + facts + '</div></div></div>'
+      + _atCard('Coach note', '<p class="at-p">' + (p.notes.length ? _viEscSafe(p.notes[p.notes.length - 1].text) : (_viEscSafe(p.name.split(' ')[0]) + ' is at the ' + _viEscSafe(st.name) + ' stage — ' + _viEscSafe((st.summary || '').toLowerCase()))) + '</p>');
+  }
+  if (tab === 'development') {
+    var dd = _atDevDims(idx).map(function (d) { return { label: d[0], val: _atAttr(p, d[1]), key: d[1] }; });
+    var bench = _acStageAvg(id) || 60;
+    var sorted = dd.slice().sort(function (a, b) { return b.val - a.val; });
+    var strengths = sorted.slice(0, 2).map(function (x) { return x.label; }).join(', ');
+    var areas = sorted.slice(-2).map(function (x) { return x.label; }).join(', ');
+    var prevRows = dd.map(function (d) { var prev = Math.max(15, d.val - (p.form >= 7 ? 5 : (p.form <= 4 ? -2 : 2))); var delta = d.val - prev; return '<div class="at-cmp"><span>' + _viEscSafe(d.label) + '</span><b>' + prev + ' → ' + d.val + '</b><i class="at-delta at-delta--' + (delta >= 0 ? 'up' : 'down') + '">' + (delta >= 0 ? '▲ +' + delta : '▼ ' + delta) + '</i></div>'; }).join('');
+    var trend = p.form >= 7 ? 'Improving' : (p.form <= 4 ? 'Needs a lift' : 'Steady');
+    var priority = sorted[sorted.length - 1].label;
+    return '<div class="at-devwrap">'
+      + '<div class="at-devcol">' + _atRadar(dd, _atCtx(id).accent) + '</div>'
+      + '<div class="at-devcol">'
+        + '<div class="at-facts">' + _atFact('Development score', p.devScore) + _atFact('Stage benchmark', bench) + _atFact('Trend', trend) + _atFact('Promotion readiness', p.promotion + '%') + '</div>'
+        + _atCard('Progress by category', _atBars(p, _atDevDims(idx)))
+      + '</div>'
+    + '</div>'
+    + '<div class="at-grid2">'
+      + _atCard('Story', '<p class="at-p"><b>Strengths:</b> ' + _viEscSafe(strengths) + '<br><b>Areas to improve:</b> ' + _viEscSafe(areas) + '<br><b>Coach priority next cycle:</b> ' + _viEscSafe(priority) + '<br><b>Ready for next stage:</b> ' + (p.promotion >= 78 ? 'Yes — ready' : (p.promotion >= 60 ? 'Approaching' : 'Keep developing')) + '</p>')
+      + _atCard('Previous vs current', '<div class="at-cmplist">' + prevRows + '</div>')
+    + '</div>';
+  }
+  if (tab === 'technical' || tab === 'tactical' || tab === 'physical' || tab === 'psychological' || tab === 'social') {
+    var titleMap = { technical: 'Technical', tactical: 'Tactical', physical: 'Physical', psychological: 'Psychological', social: 'Social & Behaviour' };
+    var extra = '';
+    if (tab === 'physical') extra = '<div class="at-facts">' + _atFact('Fitness', p.fitness + '%') + _atFact('Availability', p.availability) + '</div>';
+    if (tab === 'tactical') extra = _atCard('Stage principles', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
+    return extra + _atCard(titleMap[tab] + ' — ' + st.label + ' focus', _atBars(p, _atTabAttrs(tab, idx)));
+  }
+  if (tab === 'attendance') {
+    return '<div class="at-facts">' + _atFact('Attendance', p.attendance + '%') + _atFact('Rating', p.attendance >= 90 ? 'Excellent' : (p.attendance >= 80 ? 'Good' : 'Needs improvement')) + '</div>'
+      + _atCard('Season attendance', '<div class="at-bars"><div class="at-bar"><span class="at-bar-l">Attendance</span><span class="at-bar-t"><i style="width:' + p.attendance + '%"></i></span><b>' + p.attendance + '%</b></div></div>')
+      + _atCard('Update attendance', '<div class="at-inline"><input class="at-input" type="number" min="0" max="100" value="' + p.attendance + '" data-at-attendance-input><button class="at-btn" type="button" data-at-save-attendance>Update</button></div>');
+  }
+  if (tab === 'medical') {
+    var statuses = ['Fit', 'Monitoring', 'Return to Training', 'Medical Monitoring', 'Injured'];
+    return '<div class="at-facts">' + _atFact('Status', p.medical) + _atFact('Availability', p.availability) + _atFact('Injury', p.injury) + _atFact('Fitness', p.fitness + '%') + '</div>'
+      + _atCard('Medical restrictions', '<p class="at-p">' + _viEscSafe(p.medicalRestrictions || 'None') + '</p>')
+      + _atCard('Update medical status', '<div class="at-inline"><select class="at-input" data-at-medical-input>' + statuses.map(function (s) { return '<option' + (p.medical === s ? ' selected' : '') + '>' + s + '</option>'; }).join('') + '</select><button class="at-btn" type="button" data-at-save-medical>Update</button></div>');
+  }
+  if (tab === 'goals') {
+    return _atCard('Development goals · ' + st.label, '<ul class="at-checklist">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>')
+      + _atCard('Individual focus', '<p class="at-p">Priority for ' + _viEscSafe(p.name.split(' ')[0]) + ': ' + _viEscSafe((st.tech || ['—'])[0]) + ' &amp; ' + _viEscSafe((st.tac || ['—'])[0]) + '.</p>');
+  }
+  if (tab === 'notes') {
+    var list = p.notes.length ? p.notes.slice().reverse().map(function (n) { return '<div class="at-noteitem"><i>' + _viEscSafe(n.date) + '</i><p>' + _viEscSafe(n.text) + '</p></div>'; }).join('') : '<div class="at-empty">No coach notes yet.</div>';
+    return _atCard('Add coach note', '<div class="at-inline"><input class="at-input at-input--grow" type="text" placeholder="Write a development note…" data-at-note-input><button class="at-btn" type="button" data-at-save-note>Add note</button></div>')
+      + '<div class="at-notelist">' + list + '</div>';
+  }
+  if (tab === 'history') {
+    var asx = p.assessments.length ? p.assessments.slice().reverse().map(function (a) { return '<div class="at-noteitem"><i>' + _viEscSafe(a.date) + '</i><p>Assessment · avg ' + a.avg + (a.note ? ' — ' + _viEscSafe(a.note) : '') + '</p></div>'; }).join('') : '<div class="at-empty">No assessments recorded yet — use ＋ Assessment.</div>';
+    return _atCard('Player history', '<div class="at-facts">' + _atFact('Joined', p.joining) + _atFact('In academy since', p.entryYear) + _atFact('Stage', st.label) + _atFact('Status', p.devStatus) + '</div>')
+      + _atCard('Assessment history', '<div class="at-notelist">' + asx + '</div>');
+  }
+  return '';
+}
 /* Build the explicit team context for an Academy age group. Everything comes
    from this group's own store — roster, lineup, formation, tactics, format and
    permissions — and the board positions are derived from the real slot geometry
