@@ -8708,3 +8708,8 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 /* ── Training host ── */
 .at-trn-host{ margin:-4px -2px 0; }
 .at-trn-host .trn-root{ min-height:60vh; }
+
+/* Academy host for the shared tactical board — the board's own rules are the
+   First Team's; only the surrounding padding changes inside .at-content. */
+.attac-board .sqtac-board-wrap{ margin:22px 0 0; padding:0 0 30px; max-width:none; }
+.sqtac-bd-team{ font:800 10px Inter,system-ui,Arial; letter-spacing:.08em; text-transform:uppercase; color:rgb(var(--ac)); background:rgba(var(--ac),.14); border:1px solid rgba(var(--ac),.34); padding:3px 9px; border-radius:7px; margin-left:8px; }
