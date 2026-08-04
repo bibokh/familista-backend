@@ -716,6 +716,31 @@ async function tryAutoLogin() {
  * tab buttons and nav buttons are themselves the legitimate triggers of a
  * re-render, so treating a focused button as "editing" would break them.
  */
+// Navigation guard. isEditingUIActive() answers "is the coach mid-edit?" and is
+// the right question for suppressing a background re-render that would steal
+// focus. It is the wrong question for a sidebar click: a focused filter select
+// or search box in a dense workspace is not an edit in progress, and blocking
+// on it swallowed every navigation until focus happened to move. Clicking a
+// sidebar item is an unambiguous request to leave, so only a real dialog —
+// modal, drawer, edit panel — can hold it.
+function isNavBlocked() {
+  if (typeof document === 'undefined') return false;
+  if (document.body.classList.contains('app-editing')) return true;
+  if (document.querySelector('.modal-bg.open')) return true;
+  if (document.querySelector('.drawer.open, .edit-panel.open, [id*="edit"][class*="open"], [id*="drawer"][class*="open"]')) return true;
+  return false;
+}
+// Let go of whatever control has focus so the page we are leaving cannot keep
+// re-render suppression on after it is hidden.
+function _navReleaseFocus() {
+  try {
+    var ae = document.activeElement;
+    if (ae && ae !== document.body && typeof ae.blur === 'function') {
+      var tag = ae.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || ae.isContentEditable) ae.blur();
+    }
+  } catch (e) {}
+}
 function isEditingUIActive() {
   // 1. Observer-maintained flag (primary truth, survives focus transitions)
   if (document.body.classList.contains('app-editing')) return true;
@@ -1302,9 +1327,12 @@ function _restoreFocusIn(container, saved) {
 // ── NAVIGATION ──
 function navTo(page, el, _opts) {
   _opts = _opts || {};
-  // Global guard: never switch pages / rebuild containers while an editing UI
-  // (modal, card detail, edit drawer, or focused form control) is active.
-  if (isEditingUIActive()) return;
+  // Never switch pages out from under an open dialog — but a focused control is
+  // not a dialog, so release it and carry on.
+  if (isNavBlocked()) return;
+  _navReleaseFocus();
+  const _leaving = (document.querySelector('.page.active') || {}).id || '';
+  if (_leaving && _leaving !== 'pg-' + page) _pageDeactivate(_leaving);
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -1338,7 +1366,7 @@ function navTo(page, el, _opts) {
   try { if (typeof _ensurePageMounted === 'function') _ensurePageMounted(page); } catch (_) {}
 
   const pg = document.getElementById('pg-' + page);
-  if (pg) pg.classList.add('active');
+  if (pg) { pg.classList.add('active'); _pageActivate('pg-' + page); }
 
   if (el) {
     el.classList.add('active');
@@ -1914,6 +1942,33 @@ function renderClubHomeHTML() {
     + '</div>';
 }
 
+// Deactivate the workspace we are leaving: close its transient overlays and
+// mark it inert so nothing of it can render or sit above the page we open.
+// Saved state — window layout, drafts, filters, drawings — is untouched, so
+// returning restores exactly what the coach left behind.
+function _pageDeactivate(pageId) {
+  if (typeof document === 'undefined') return;
+  var pg = document.getElementById(pageId); if (!pg) return;
+  try {
+    // any modal belonging to that page closes with it
+    pg.querySelectorAll('.trn-modal, .sq-plm, .sq-fm, .sq-cf').forEach(function (m) {
+      if (m.classList.contains('trn-modal')) { m.hidden = true; m.innerHTML = ''; }
+      else m.style.display = 'none';
+    });
+    if (pageId === 'pg-training') {
+      // the Training Centre keeps its window layout in _TRN.win; only the live
+      // modal is dropped, so reopening Training restores the same desktop.
+      if (typeof _TRN !== 'undefined') _TRN.modal = null;
+    }
+    pg.setAttribute('aria-hidden', 'true');
+    pg.setAttribute('inert', '');
+  } catch (e) {}
+}
+function _pageActivate(pageId) {
+  if (typeof document === 'undefined') return;
+  var pg = document.getElementById(pageId); if (!pg) return;
+  try { pg.removeAttribute('aria-hidden'); pg.removeAttribute('inert'); } catch (e) {}
+}
 function _sqSubHtml(id, label, color, svgPath) {
   return '<div class="sq-sub" id="sq-sub-' + id + '" style="display:none">'
     + '<div class="sq-sub-header">'
