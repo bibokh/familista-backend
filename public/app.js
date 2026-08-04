@@ -4831,6 +4831,11 @@ function _sqBenchMy() {
 }
 function _sqTeamReport(side, ctx) {
   var C = _sqCtx(ctx);
+  if (C.type !== 'first' && side === 'opp') {
+    // Same header and the same chips; an age group configures an opponent shape,
+    // not a scouted squad, so the ratings read as placeholders.
+    return { name: 'Opponent', formation: C.oppFormation || '', ovr: '—', balance: '—', xiOvr: '—', xiBalance: '—', benchOvr: '—', benchBalance: '—', formEff: '—' };
+  }
   if (C.type !== 'first') {
     // Academy: all values from this age group's own roster/lineup/formation.
     var xi = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
@@ -4848,6 +4853,11 @@ function _sqTeamReport(side, ctx) {
   if (side === 'my') {
     var my = _sqMyStats(), formEff = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency, bench = _sqBenchMy();
     return { name: 'My Team', formation: SQ_FORM.myFormation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
+  }
+  if (C.type !== 'first') {
+    // Same header, same chips; an age group records no opponent ratings, so the
+    // numbers read as placeholders instead of being invented.
+    return { name: 'Opponent', formation: C.oppFormation || '', ovr: '—', balance: '—', xiOvr: '—', xiBalance: '—', benchOvr: '—', benchBalance: '—', formEff: '—' };
   }
   var op = _sqCmdOppStats(), formEffO = _sqMetricsFor(SQ_FORM.oppFormation, _sqOppXi()).efficiency;
   var oBench = _sqOppBench(), benchOvrO = oBench.ovr, benchBalO = oBench.balance;
@@ -4971,7 +4981,8 @@ function _sqMdPitch(side) {
       if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
       var L = Math.max(8, Math.min(92, pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
-      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / '), null) + '</div>';
+      var oSel = (C.type === 'first') ? (SQ_FORM.cmdSel === p.id) : (C.selected === p.id);
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.type === 'first' ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
     });
   }
   var selSide = SQ_FORM.cmdSel ? _sqSideOf(SQ_FORM.cmdSel) : null;
@@ -4982,7 +4993,7 @@ function _sqMdPitch(side) {
 function _sqMdFieldShared() { return _sqMdField(); }
 function _sqMdPitchShared(ctx) {
   var C = _sqCtx(ctx);
-  var cards = '', oop = false, so = SQ_FORM.showOpp && C.hasOpponent;
+  var cards = '', oop = false, so = _sqShowOpp(C) && C.hasOpponent;
   if (C.type === 'first' && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
   var rm = _sqRoleMap(C);
   // My team — depth (pos.y) → horizontal L, width (pos.x) → vertical T. Always the full pitch
@@ -4999,13 +5010,22 @@ function _sqMdPitchShared(ctx) {
   // Opponent — only when toggled on. SAME full pitch as a transparent overlay (defends right goal,
   // attacks toward left), so the coach can read how My Team reacts to opponent movement. One field only.
   if (so) {
-    _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) {
-      if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
+    // An age group has no scouted opponent squad, so its overlay is the shape it
+    // configured: one marker per slot of the chosen opponent formation. Ratings
+    // are shown as placeholders rather than made up.
+    var oppAssign = (C.type === 'first')
+      ? _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi())
+      : (C.oppActive || []).map(function (o) { return { player: o, slot: (C.oppSlot || {})[o.id] || { x: 50, y: 50 } }; });
+    oppAssign.forEach(function (a) {
+      if (!a.player) return; var p = a.player, s = a.slot;
+      var pos = (C.type === 'first' ? SQ_POS_OPP2[p.id] : (C.posOpp2 || {})[p.id]) || { x: s.x, y: s.y };
       var L = Math.max(6, Math.min(94, pos.y));
       var T = Math.max(6, Math.min(94, pos.x));
-      var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16;
+      var d = (C.type === 'first') ? _sqOppPenDist(p, s, pos) : 0;
+      var q = (C.type === 'first') ? _sqEffQual(p, d) : null, bad = d > 16;
       if (bad) oop = true;
-      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, SQ_FORM.cmdSel === p.id, p.cat, _sqPlayerAllPos(p).join(' / '), null) + '</div>';
+      var oSel = (C.type === 'first') ? (SQ_FORM.cmdSel === p.id) : (C.selected === p.id);
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.type === 'first' ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
     });
   }
   var selId = (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null);
@@ -5036,6 +5056,10 @@ function _sqMdBench(side, ctx) {
     }).join('');
     var benchLbl = C.type === 'first' ? 'My Team bench' : _sqEsc(C.label) + ' bench';
     return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">' + benchLbl + ' <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
+  }
+  if (C.type !== 'first') {
+    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Opponent bench <em class="sqmd-bench-hint">set up the opponent shape from the formation control</em></span>'
+      + '<div class="sqmd-bench-row"><span class="sqmd-bench-empty">No opponent squad recorded — the overlay shows the ' + _sqEsc(C.oppFormation || '') + ' shape only</span></div></div>';
   }
   var oIds = (SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds());
   var chips2 = oIds.map(_sqOppFind).filter(Boolean).map(function (p) {
@@ -5115,12 +5139,13 @@ function _sqTeamFeel() {
 function _sqTcHead(side, rep, ctx) {
   var C = _sqCtx(ctx);
   var isAc = C.type !== 'first';
-  var name = isAc ? C.label : (side === 'my' ? _sqClubName() : 'Opponent');
-  var cur = isAc ? C.formation : (side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation);
+  var name = (side === 'opp') ? 'Opponent' : (isAc ? C.label : _sqClubName());
+  var cur = isAc ? (side === 'opp' ? (C.oppFormation || '') : C.formation) : (side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation);
   var ini = name.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase() || 'FC';
   function chip(l, v, s) { return '<span class="sqtc-chip"><i>' + l + '</i><b>' + v + (s || '') + '</b></span>'; }
   // Academy: only the formats actually configured for this age group.
   var opts = isAc ? (C.formationOptions || [cur]) : (SQ_FORM_NAMES || []);
+  if (isAc && side === 'opp' && opts.indexOf(cur) < 0 && cur) opts = [cur].concat(opts);
   var sel = '<select class="sqtc-form-sel" data-side="' + side + '"' + (isAc ? ' data-at-formsel="1"' : '') + ' aria-label="Formation">' + opts.map(function (n) { return '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select>';
   return '<div class="sqtc-head sqtc-head--' + side + '"><span class="sqtc-badge sqtc-badge--' + side + '">' + ini + '</span>'
     + '<div class="sqtc-head-id"><span class="sqtc-head-nm">' + _sqEsc(name) + '</span>' + sel + '</div>'
@@ -5151,9 +5176,11 @@ function _sqTcSummaryCards(ctx) {
   function card(l, v, s) { var pct = Math.max(4, Math.min(100, v)); return '<div class="sqtc-scard"><span class="sqtc-scard-l">' + l + '</span><b class="sqtc-scard-v">' + v + (s || '') + '</b><span class="sqtc-scard-bar"><i style="width:' + pct + '%"></i></span></div>'; }
   return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
 }
+// Whether the opponent overlay is on, for whichever team's board this is.
+function _sqShowOpp(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? !!SQ_FORM.showOpp : !!C.showOpp; }
 function _sqTcOverview(my, op, ctx) {
   var C = _sqCtx(ctx);
-  var so = SQ_FORM.showOpp && C.hasOpponent;
+  var so = _sqShowOpp(C) && C.hasOpponent;
   var toggle = C.hasOpponent
     ? '<button class="sqtc-opp-toggle' + (so ? ' is-on' : '') + '" data-action="sqCmdToggleOpp" type="button">' + (so ? 'Hide opponent' : 'Show opponent') + '</button>'
     : '<span class="sqtc-side-lbl sqtc-side-lbl--solo">' + _sqEsc(C.format) + '</span>';
@@ -5928,7 +5955,7 @@ function _sqCmdInner(ctx) {
       + _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + C.label + ', so a match cannot be simulated yet.')
       + '</div></div>';
   }
-  var showOpp = SQ_FORM.showOpp && C.hasOpponent;
+  var showOpp = _sqShowOpp(C) && C.hasOpponent;
   var heads = '<div class="sqtc-heads' + (showOpp ? '' : ' is-solo') + '">' + _sqTcHead('my', my, C) + (showOpp ? _sqTcHead('opp', op, C) : '') + '</div>';
   var content = _sqTcOverview(my, op, C);                    // Overview pitch ALWAYS visible in the background
   // Floating section windows render INLINE (position:fixed → viewport-relative, exactly like the
@@ -7866,7 +7893,13 @@ function sqCmdSelect(id, ctx) {
   if (C.type !== 'first' && typeof _atBoardSel === 'function') { _atBoardSel(id); return; }
   SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody();
 }
-function sqCmdToggleOpp() { SQ_FORM.showOpp = !SQ_FORM.showOpp; SQ_FORM.cmdSel = null; _sqRenderFormationBody(); }
+function sqCmdToggleOpp(ctx) {
+  // the toggle belongs to the board it was clicked on
+  var C = ctx ? _sqCtx(ctx) : ((typeof document !== 'undefined' && document.querySelector('.page.active .at-formation-cmd') && typeof _sqBoardHostCtx === 'function')
+    ? (_sqBoardHostCtx(document.querySelector('.page.active .at-formation-cmd')) || _sqFirstCtx()) : _sqFirstCtx());
+  if (C.type !== 'first' && typeof C.toggleOpp === 'function') { C.toggleOpp(); return; }
+  SQ_FORM.showOpp = !SQ_FORM.showOpp; SQ_FORM.cmdSel = null; _sqRenderFormationBody();
+}
 function sqCmdInstr(id, key) {
   if (!id || !SQ_INSTR[key]) return;
   // the instruction goes to whichever team's board is showing this player
@@ -7916,7 +7949,11 @@ function _sqInitFormationDrag() {
     // Academy formation selects write to that age group's own saved formation.
     if (s.getAttribute('data-at-formsel')) {
       var aid = (typeof AT !== 'undefined') ? AT.active : null;
-      if (aid && typeof _acCanOpen === 'function' && _acCanOpen(aid)) { _atTeam(aid).formation.name = s.value; _atSave(); renderAcademyTeamPage(); }
+      if (aid && typeof _acCanOpen === 'function' && _acCanOpen(aid)) {
+        if (s.getAttribute('data-side') === 'opp') { var os = _atOppSetup(aid); os.formation = s.value; os.pos = {}; }
+        else { _atTeam(aid).formation.name = s.value; _atBoard(aid).formation = s.value; }
+        _atSave(); renderAcademyTeamPage();
+      }
       return;
     }
     if (typeof sqPickFormation === 'function') sqPickFormation(s.value, s.getAttribute('data-side'));
@@ -45442,15 +45479,26 @@ function _atFormationCtx(id) {
     formation: t.formation.name, formationSlots: slots,
     formationOptions: _atFormationsFor(id),
     tactics: t.tactics, format: _atFormatLabel(id),
-    hasOpponent: false,                                        // no opponent squad exists for an age group
+    // An age group configures an opponent shape rather than scouting a squad,
+    // so the overlay, its toggle and its formation control all work — the
+    // markers just carry placeholders where a senior opponent has ratings.
+    hasOpponent: true,
+    get showOpp() { return !!_atOppSetup(id).show; },
+    toggleOpp: function () { var o = _atOppSetup(id); o.show = !o.show; _atBoard(id).sel = null; _atSave(); renderAcademyTeamPage(); },
+    get oppFormation() { return _atOppSetup(id).formation; },
+    get oppActive() { return _atOppShape(id).players; },
+    get oppSlot() { return _atOppShape(id).slot; },
+    get posOpp() { return _atOppShape(id).pos; },
+    get posOpp2() { return _atOppShape(id).pos; },
     selected: board.sel || null,
     instr: board.instr || {},
     setInstr: function (pid, key) { if (!_acCanOpen(id)) return; var b = _atBoard(id); b.instr[pid] = key; _atSave(); renderAcademyTeamPage(); },
     permissions: { canEdit: _acCanOpen(id) },
     // Dropping a player writes straight into this age group's own board.
     movePlayer: function (side, pid, x, y) {
-      if (side !== 'my' || !_acCanOpen(id)) return;
+      if (!_acCanOpen(id)) return;
       var b = _atBoard(id);
+      if (side === 'opp') { _atOppSetup(id).pos[pid] = { x: x, y: y }; _atSave(); return; }
       b.formation = _atTeam(id).formation.name;
       b.posMy[pid] = { x: x, y: y };
       _atSave();
