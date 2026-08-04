@@ -7522,8 +7522,12 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 /* ══════════════════════════════════════════════════════════════════════
    TRAINING CENTRE — Premium floating-window workspace (UI shell only)
    ══════════════════════════════════════════════════════════════════════ */
-#pg-training{ height:calc(100vh - 92px); min-height:560px; overflow:hidden; display:flex; }
-#pg-training > .trn-root{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
+/* Training is a flex column ONLY while it is the active page. Written as
+   #pg-training (id specificity) this beat .page{display:none}, so once the
+   page had been mounted it rendered on every route — the sidebar and header
+   moved to Academy while the Training Centre stayed painted over it. */
+#pg-training.active{ height:calc(100vh - 92px); min-height:560px; overflow:hidden; display:flex; }
+#pg-training.active > .trn-root{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
 .trn-toolbar{ margin:0 0 12px; }
 .trn-qawrap{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px; background:linear-gradient(168deg,rgba(20,28,50,.5),rgba(11,16,30,.44)); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.07); border-radius:14px; }
 .trn-qa{ appearance:none; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.03); color:#aeb8c8; font-size:12px; font-weight:700; padding:7px 13px; border-radius:9px; cursor:pointer; white-space:nowrap; transition:all .15s; }
@@ -7556,7 +7560,7 @@ body.club-theme .pm2-vid-meta{ font-size: 10px; color: var(--t-tertiary); }
 .trn-minchip:hover{ transform:translateY(-2px); color:#fff; }
 /* the AI chat FAB should sit above windows */
 .trn-fab,.trn-chatpanel{ z-index:100000; }
-@media (max-width:820px){ #pg-training{ height:auto; min-height:0; overflow:visible; } .trn-desk{ height:auto; min-height:70vh; } }
+@media (max-width:820px){ #pg-training.active{ height:auto; min-height:0; overflow:visible; } .trn-desk{ height:auto; min-height:70vh; } }
 
 /* ── Phase 5 completion · Medical actions + player profile ── */
 .trn-sevtag--cleared{ background:rgba(74,222,128,.16); color:#86efac; } .trn-alert-cleared{ border-left-color:#4ade80!important; }
