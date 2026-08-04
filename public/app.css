@@ -8632,9 +8632,7 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
    for a full-bleed page, while here it sits inside .at-content which already
    carries its own padding — so drop the outer padding and tighten the rhythm.
    Scoped to .at-lumod-header, so the First Team header is unaffected. */
-.at-lumod-header{ padding:0; margin-bottom:18px; }
 .at-lumod-header .sq-back-btn{ margin-bottom:14px; }
-.at-lumod-header .sql-tabs{ margin-top:0; }
 .at-lumod-header .sql-tab:focus-visible{ outline:2px solid var(--acc,#a78bfa); outline-offset:2px; }
 
 /* ═══ Shared Formation tools — professional empty state ═══
@@ -8696,10 +8694,10 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 /* ── Tactics ── */
 /* The Academy Tactics page renders the First Team body, so it only needs the
    Academy content padding reset — every tactics rule stays the First Team's. */
-.attac-wrap .sqtac-scroll{ padding:0 32px 44px; max-width:1180px; }
+.attac-wrap .sqtac-scroll{ padding:16px 32px 44px; max-width:1180px; }
 
 /* ── Lineup host ── */
-.atlu-host .sqlu-wrap{ padding:0 20px 40px; }
+.atlu-host .sqlu-wrap{ padding:14px 20px 40px; }
 .attac-wrap, .atlu-host, .at-trn-host, .at-formation-cmd{ color:var(--tx-1,#f1f5f9); }
 
 /* ── Training host ── */
