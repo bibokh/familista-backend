@@ -3447,12 +3447,14 @@ function _sqFormationBodyLegacy() {
   return toolbar + hud + board + _sqBenchStripHtml() + hint;
 }
 function _sqRenderFormationBody() {
-  // The same command centre is hosted by two workspaces. The First Team's
-  // #sqfp-body stays in the DOM even while hidden, so the Academy host is
-  // checked first — otherwise an Academy click would re-render the First Team
-  // panel and leave the Academy view untouched.
-  if (document.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') { _sqSimStop(); renderAcademyTeamPage(); return; }
-  var b = document.getElementById('sqfp-body');
+  // The same command centre is hosted by two workspaces and both stay mounted,
+  // so the re-render must go to the one on the page being looked at. Matching an
+  // Academy host anywhere in the document sent every First Team re-render to the
+  // hidden Academy view, which left the First Team panel stale — closing a tool
+  // window there appeared to do nothing.
+  var act = document.querySelector('.page.active');
+  if (act && act.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') { _sqSimStop(); renderAcademyTeamPage(); return; }
+  var b = (act && act.querySelector('#sqfp-body')) || document.getElementById('sqfp-body');
   if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); }
 }
 
