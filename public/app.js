@@ -45618,10 +45618,17 @@ function _atLineupCtx(id) {
       ? Math.round(fc.starterIds.length / _atStarterCount(_atTeam(id).formation.name) * 100) : 0,
     avail: _atLuAvailOf,
     statusLabel: function (p) { return p.devStatus || 'On track'; },
-    columns: { roles: 'Second position', nat: 'Foot', val: 'Selection', cond: 'Fitness', qual: 'Development' },
+    // The First Team's own headers stay; an age group simply has different
+    // things to put in them. Nothing is removed because a child has no passport
+    // on file or no transfer fee.
+    columns: {},
     dashLabels: { ovr: 'Average development' },
-    natCell: function (p) { return '<span class="sqlu-natc">' + _viEscSafe(p.foot || '—') + '</span>'; },
-    valCell: _atLuSelCell,
+    // Nationality is not recorded for an academy player; the column keeps its
+    // shape and shows the preferred foot, which is.
+    natCell: function (p) { return '<span class="sqlu-nat"><span class="sqlu-flag">&#9917;</span><span class="sqlu-natc">' + _viEscSafe((p.foot || '—').slice(0, 3).toUpperCase()) + '</span></span>'; },
+    // Market value has no meaning for a child; the column shows the development
+    // value the academy does keep, with match-day selection beneath it.
+    valCell: function (p) { return '<span class="sqlu-val">Dev ' + (p.devScore == null ? '—' : p.devScore) + '</span>' + _atLuSelCell(p); },
     quickFilters: AT_LU_QF,
     quickPills: [['ahead', 'Ahead of stage'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['attend', 'Attendance 90%+'], ['left', 'Left foot'], ['starter', 'Starting'], ['sub', 'Substitute'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Doubtful']],
     searchHint: 'Search name, position, squad number, foot…',
