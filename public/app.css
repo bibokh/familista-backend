@@ -8701,7 +8701,7 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 
 /* ── Training host ── */
 .at-trn-host{ margin:-4px -2px 0; }
-.at-trn-host .trn-root{ min-height:60vh; }
+.at-trn-host > .trn-root{ display:flex; flex-direction:column; flex:1 1 auto; min-height:60vh; min-width:0; padding:16px 22px 42px; }
 
 /* Academy host for the shared tactical board — the board's own rules are the
    First Team's; only the surrounding padding changes inside .at-content. */
