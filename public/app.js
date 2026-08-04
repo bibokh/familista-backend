@@ -5068,8 +5068,28 @@ function _sqTcHead(side, rep, ctx) {
     + '<div class="sqtc-head-id"><span class="sqtc-head-nm">' + _sqEsc(name) + '</span>' + sel + '</div>'
     + '<div class="sqtc-chips">' + chip('OVR', rep.ovr, '') + chip('Bal', rep.balance, '%') + chip('XI', rep.xiOvr, '') + chip('XI bal', rep.xiBalance, '%') + chip('Bench', rep.benchOvr, '') + chip('Bench bal', rep.benchBalance, '%') + '</div></div>';
 }
-function _sqTcSummaryCards() {
-  var f = _sqTeamFeel();
+// The same five readings for an age group, from its own stored values only:
+// development scores by line, real fitness, and how deep the squad is for the
+// format it plays. Nothing is estimated that the group does not record.
+function _sqCtxFeel(ctx) {
+  var C = _sqCtx(ctx);
+  var xi = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
+  var all = C.roster || [];
+  var mean = function (a, k) { return a.length ? Math.round(a.reduce(function (s, p) { return s + (p[k] || 0); }, 0) / a.length) : 0; };
+  var att = xi.filter(function (p) { return p.cat === 'fw' || (p.cat === 'mf' && /AM|LW|RW/.test(p.pos)); });
+  var def = xi.filter(function (p) { return p.cat === 'df' || p.cat === 'gk' || /DM/.test(p.pos); });
+  var need = (C.formationSlots || []).length || xi.length || 1;
+  return {
+    tacticalBalance: Math.round(Math.min(1, xi.length / need) * 100),
+    attacking: att.length ? mean(att, 'qual') : mean(xi, 'qual'),
+    defensive: def.length ? mean(def, 'qual') : mean(xi, 'qual'),
+    depth: Math.round(Math.min(1, all.length / (need + 3)) * 100),
+    condition: mean(all, 'cond')
+  };
+}
+function _sqTcSummaryCards(ctx) {
+  var C = _sqCtx(ctx);
+  var f = (C.type === 'first') ? _sqTeamFeel() : _sqCtxFeel(C);
   function card(l, v, s) { var pct = Math.max(4, Math.min(100, v)); return '<div class="sqtc-scard"><span class="sqtc-scard-l">' + l + '</span><b class="sqtc-scard-v">' + v + (s || '') + '</b><span class="sqtc-scard-bar"><i style="width:' + pct + '%"></i></span></div>'; }
   return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
 }
@@ -5089,7 +5109,7 @@ function _sqTcOverview(my, op, ctx) {
     + top
     + '<div class="sqtc-shared-wrap">' + _sqMdPitchShared(C) + '</div>'
     + benches
-    + (C.type === 'first' ? _sqTcSummaryCards() : '')
+    + _sqTcSummaryCards(C)
     + '</div>';
 }
 // ── Matchup popup: floating controller + independent floating glass sub-panels (one per tab) — UI only, no data/calc change ──
@@ -45324,7 +45344,7 @@ function _atFormationCtx(id) {
   var mapped = roster.map(function (p) {
     return { id: p.id, name: p.name, num: p.number, n: p.number, pos: p.pos, cat: CAT(p.pos),
       qual: p.devScore, cond: p.fitness, photo: p.photo || null, captain: lu.captain === p.id,
-      roles: '', secondary: p.secondary, foot: p.foot, age: p.age,
+      roles: p.secondary || '', secondary: p.secondary, foot: p.foot, age: p.age,
       availability: p.availability, morale: p.morale, form: p.form };
   });
   var byId = {}; mapped.forEach(function (p) { byId[p.id] = p; });
@@ -45665,6 +45685,7 @@ function _atTacticsCtx(id) {
     tacticsOpp: o.tactics,
     tacticsSections: _atTacSections(id),
     tacticsTeam: 'academy',
+    get tacticsFocus() { return _sqTbUi().focus.cat; },
     formationSlots: fc.formationSlots,
     // the board reads the age group's real starters, positions and slot geometry
     roster: fc.roster, starterIds: fc.starterIds, posMy: fc.posMy, slotMy: fc.slotMy,
