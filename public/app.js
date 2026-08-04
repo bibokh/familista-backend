@@ -3649,7 +3649,12 @@ function _sqTacticsHtml() {
     + '<div id="sqtac-board-host">' + _sqTacBoardHtml() + '</div>'
     + '</div>';
 }
-function _sqRenderTacticsBody() { var b = document.getElementById('sqtac-body'); if (b) b.innerHTML = _sqTacticsBody(_sqTacCtx()); }
+function _sqRenderTacticsBody() {
+  // both pages can be mounted, so rewrite the body of the one being looked at
+  var act = (typeof document !== 'undefined') ? document.querySelector('.page.active') : null;
+  var el = (act && act.querySelector('#sqtac-body')) || document.getElementById('sqtac-body');
+  if (el) el.innerHTML = _sqTacticsBody(_sqTacCtx());
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INTERACTIVE TACTICAL BOARD (Squad · Tactics)
