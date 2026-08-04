@@ -3609,7 +3609,9 @@ function _sqTacFloatPanel(id, ctx) {
 }
 function _sqTacticsBody(ctx) {
   var C = _sqCtx(ctx), secs = C.tacticsSections || _SQ_TAC_SECS;
-  var focus = (C.type === 'first') ? SQ_TAC_FOCUS.cat : (C.tacticsFocus || null);
+  // SQ_TAC_FOCUS is already bound per board, so both teams read the focused
+  // section from the same place and highlight the same tab.
+  var focus = SQ_TAC_FOCUS.cat;
   var tabs = '<div class="sqtac-tabs">' + secs.map(function (s) {
     var on = (s.id === focus);   // the focused section's tab is highlighted (visualized on the pitch)
     return '<button class="sqtac-tab' + (on ? ' is-active' : '') + '" style="--ac:' + s.ac + '" data-action="sqTacFocus" data-cat="' + s.id + '" type="button"><span class="sqtac-tab-no">' + s.no + '</span>' + s.tab + '</button>';
