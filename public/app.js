@@ -4095,7 +4095,9 @@ function _sqTacOverlayOpp(base, tgt, rm) {
 }
 // Re-render only the two side panels + toolbar in place — never touches the pitch (keeps drag/drawings).
 function _sqTacRenderSides() {
-  var host = document.getElementById('sqtac-board-host'); if (!host) return;
+  var act = (typeof document !== 'undefined') ? document.querySelector('.page.active') : null;
+  var host = (act && act.querySelector('#sqtac-board-host')) || document.getElementById('sqtac-board-host');
+  if (!host) return;
   var meta = _SQ_TAC_CATMETA[SQ_TAC_FOCUS.cat] || _SQ_TAC_CATMETA.identity;
   var wrap = host.querySelector('.sqtac-board-wrap'); if (wrap) wrap.style.setProperty('--ac', meta.ac);
   var l = document.getElementById('sqtac-left'); if (l) l.innerHTML = _sqTacLeftPanel();
@@ -4106,7 +4108,6 @@ function _sqTacBoardRefresh() { var host = document.getElementById('sqtac-board-
 function sqTacFocus(cat, team) {
   if (!_SQ_TAC_CATMETA[cat]) return;
   if (team === 'opp') { SQ_TAC_FOCUS_OPP = { cat: cat, grp: null, val: null }; SQ_TAC_ACTIVE = 'opp'; _sqTacRenderSides(); _sqTacApply(true); return; }
-  if (_sqTacCtx().type !== 'first') { sqTacTab(cat); return; }
   SQ_TAC_FOCUS = { cat: cat, grp: null, val: null }; SQ_TAC_ACTIVE = 'my'; _sqRenderTacticsBody(); _sqTacRenderSides(); _sqTacApply(true);
 }
 // Animate: reset to the base formation, glide the team into the selected instruction shape
