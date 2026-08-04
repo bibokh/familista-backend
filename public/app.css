@@ -8657,10 +8657,6 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
    no First Team selector is redefined here.                                  */
 
 /* ── Lineup ── */
-.atlu-wrap{ padding:0 0 30px; }
-.atlu-wrap .sqlu-dash{ grid-template-columns:repeat(6,minmax(0,1fr)); }
-@media(max-width:1180px){ .atlu-wrap .sqlu-dash{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
-@media(max-width:760px){ .atlu-wrap .sqlu-dash{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
 .atlu-head{ padding:2px 2px 16px; }
 .atlu-head h1{ margin:0; font:800 24px/1.1 Inter,system-ui,Arial; letter-spacing:-.5px; color:var(--tx-1,#f1f5f9); }
 .atlu-head p{ margin:6px 0 0; font:500 13.5px Inter,system-ui,Arial; color:var(--tx-3,#64748b); }
@@ -8700,10 +8696,11 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 /* ── Tactics ── */
 /* The Academy Tactics page renders the First Team body, so it only needs the
    Academy content padding reset — every tactics rule stays the First Team's. */
-.attac-wrap .sqtac-scroll{ padding:0 0 30px; max-width:none; }
+.attac-wrap .sqtac-scroll{ padding:0 32px 44px; max-width:1180px; }
 
 /* ── Lineup host ── */
-.atlu-host .sqlu-wrap{ padding:0 0 30px; }
+.atlu-host .sqlu-wrap{ padding:0 20px 40px; }
+.attac-wrap, .atlu-host, .at-trn-host, .at-formation-cmd{ color:var(--tx-1,#f1f5f9); }
 
 /* ── Training host ── */
 .at-trn-host{ margin:-4px -2px 0; }
@@ -8711,5 +8708,5 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 
 /* Academy host for the shared tactical board — the board's own rules are the
    First Team's; only the surrounding padding changes inside .at-content. */
-.attac-board .sqtac-board-wrap{ margin:22px 0 0; padding:0 0 30px; max-width:none; }
+.attac-board .sqtac-board-wrap{ margin:26px auto 0; padding:0 24px 40px; max-width:1360px; }
 .sqtac-bd-team{ font:800 10px Inter,system-ui,Arial; letter-spacing:.08em; text-transform:uppercase; color:rgb(var(--ac)); background:rgba(var(--ac),.14); border:1px solid rgba(var(--ac),.34); padding:3px 9px; border-radius:7px; margin-left:8px; }
