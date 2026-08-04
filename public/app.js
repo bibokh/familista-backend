@@ -3617,7 +3617,7 @@ function _sqTacticsBody(ctx) {
   return '<div class="sqtac-scroll">'
     + '<div class="sqtac-note">' + (C.tacticsNote || 'Configure the team <b>before</b> the match — stored and read automatically by <b>Simulation</b> as the initial tactical state. No analysis on this page.') + '</div>'
     + _sqTacSummary(C.tacticsRecord || null) + tabs
-    + (C.type === 'first' ? '' : _sqTacPanelLayer(C))
+    + _sqTacPanelLayer(C)
     + '</div>';
 }
 // Every open section, drawn as the same floating panel the First Team uses.
@@ -4268,7 +4268,11 @@ function _sqTacRightPanel() {
 }
 // live in-place re-renders (never rebuild the pitch)
 function _sqTacRenderDraw() { var b = _sqTacBoardEl(); if (!b) return; var s = b.querySelector('.sqtac-drawsvg'); if (s) s.innerHTML = _sqTacDrawSvg(); b.setAttribute('data-tool', SQ_TAC_DRAW.tool); }
-function _sqTacRenderToolbar() { var tb = document.querySelector('.sqtac-toolbar'); if (tb) tb.outerHTML = _sqTacToolbar(); }
+function _sqTacRenderToolbar() {
+  var host = (typeof document !== 'undefined') ? (document.querySelector('.page.active') || document) : null;
+  var tb = host ? host.querySelector('.sqtac-toolbar') : null;
+  if (tb) tb.outerHTML = _sqTacToolbar();
+}
 
 // ── single delegated binder: formation change + player drag/multi-select + drawing ──
 var _SQ_TAC_BOUND2 = false, _sqTacDragObj = null, _sqTacDrawing = null;
@@ -4374,7 +4378,7 @@ function _sqTacFeedback(chip) {
   if (ok) chip.removeAttribute('title'); else chip.setAttribute('title', 'Out of preferred position');
 }
 // ── action handlers ──
-function sqTacTool(tool) { if (!tool) return; SQ_TAC_DRAW.tool = tool; if (tool !== 'select') { SQ_TAC_SEL = {}; var b = document.getElementById('sqtac-board'); if (b) { var ns = b.querySelectorAll('.sqtac-chp.is-selected'); for (var i = 0; i < ns.length; i++) ns[i].classList.remove('is-selected'); } } _sqTacRenderDraw(); _sqTacRenderToolbar(); }
+function sqTacTool(tool) { if (!tool) return; SQ_TAC_DRAW.tool = tool; if (tool !== 'select') { SQ_TAC_SEL = {}; var b = _sqTacBoardEl(); if (b) { var ns = b.querySelectorAll('.sqtac-chp.is-selected'); for (var i = 0; i < ns.length; i++) ns[i].classList.remove('is-selected'); } } _sqTacRenderDraw(); _sqTacRenderToolbar(); }
 function sqTacUndo() { if (!SQ_TAC_DRAW.undo.length) return; SQ_TAC_DRAW.redo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.shapes = JSON.parse(SQ_TAC_DRAW.undo.pop()); _sqTacRenderDraw(); _sqTacRenderToolbar(); }
 function sqTacRedo() { if (!SQ_TAC_DRAW.redo.length) return; SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.shapes = JSON.parse(SQ_TAC_DRAW.redo.pop()); _sqTacRenderDraw(); _sqTacRenderToolbar(); }
 function sqTacClearDraw() { if (!SQ_TAC_DRAW.shapes.length) return; SQ_TAC_DRAW.undo.push(JSON.stringify(SQ_TAC_DRAW.shapes)); SQ_TAC_DRAW.redo = []; SQ_TAC_DRAW.shapes = []; _sqTacRenderDraw(); _sqTacRenderToolbar(); }
@@ -4449,6 +4453,7 @@ function sqTacTab(id) {
   }
   if (_SQ_TAC_CATMETA[id]) SQ_TAC_FOCUS = { cat: id, grp: null, val: null }; // opening a section visualizes it on the board
   if (_SQ_TAC_PANELS[id]) { _sqTacFront(id); _sqRenderTacticsBody(); _sqTacApply(true); return; } // already open → front, never duplicate
+  _sqTacFpBind();
   var vw = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1280;
   var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : 800;
   var w = Math.min(660, vw - 32), h = Math.min(460, vh - 150);
