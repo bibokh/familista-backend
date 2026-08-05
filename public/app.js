@@ -44545,10 +44545,31 @@ var AT_OUTFIELD = ['CB', 'RB', 'LB', 'CB', 'CDM', 'CM', 'CAM', 'CM', 'RW', 'ST',
 function _atStageRange(id) { var m = String(_acStage(id).label).match(/\d+/g) || ['0', '0']; return [parseInt(m[0], 10), parseInt(m[1] || m[0], 10)]; }
 function _atAgeFromDob(dob) { try { var d = new Date(dob), n = new Date('2026-07-30'); var a = n.getFullYear() - d.getFullYear(); var m = n.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && n.getDate() < d.getDate())) a--; return (a >= 0 && a < 40) ? a : null; } catch (e) { return null; } }
 function _atPad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+// The outfield roles this age group needs, in the order the formation lists
+// them. Roster positions follow the shape rather than a fixed cycle, and the
+// list repeats when the squad is deeper than the starting eleven.
+function _atSquadRoles(id) {
+  var slots = (typeof _sqSlotsFor === 'function') ? (_sqSlotsFor(_atDefaultFormation(id)) || []) : [];
+  var MAP = { LB: 'LB', RB: 'RB', CB: 'CB', DM: 'CDM', CM: 'CM', AM: 'CAM', LM: 'CM', RM: 'CM',
+    LW: 'LW', RW: 'RW', ST: 'ST', WM: 'CM', WG: 'RW', SS: 'ST', FB: 'RB', WBL: 'LB', WBR: 'RB' };
+  var out = [];
+  slots.forEach(function (s) {
+    if (s.c === 'gk') return;
+    var r = MAP[s.r] || (s.c === 'df' ? 'CB' : s.c === 'mf' ? 'CM' : 'ST');
+    out.push(r);
+  });
+  return out.length ? out : AT_OUTFIELD;
+}
 function _atEnrich(p, i, idx, id) {
   var r = _acRng(_atHash(p.id) + 1);
-  var pos = (i === 0) ? 'GK' : AT_OUTFIELD[(i - 1) % AT_OUTFIELD.length];
-  var sec = (i === 0) ? 'SW' : AT_OUTFIELD[(i + 3) % AT_OUTFIELD.length];
+  // Position comes from the shape this age group actually plays, so the squad
+  // contains the lines the formation asks for. The old fixed cycle listed the
+  // forwards last, and a roster of eight or ten never reached them — every side
+  // ended up with four defenders and no strikers, which is why forward slots were
+  // filled by defenders and correctly flagged as out of position.
+  var line = _atSquadRoles(id);
+  var pos = (i === 0) ? 'GK' : line[(i - 1) % line.length];
+  var sec = (i === 0) ? 'SW' : line[(i + 3) % line.length];
   var foot = ['Right', 'Right', 'Right', 'Left', 'Both'][Math.floor(r() * 5)];
   var avail = (p.attention && r() < 0.45) ? 'Injured' : (r() < 0.14 ? 'Doubtful' : 'Available');
   var fitness = avail === 'Injured' ? 38 + Math.floor(r() * 26) : 80 + Math.floor(r() * 20);
@@ -44655,10 +44676,27 @@ function _atLineup(id) {
   if (!lu.starters.length) {
     // seed: GK first, then next available outfield up to the format size
     var gk = roster.filter(function (p) { return p.pos === 'GK' && p.availability !== 'Injured'; })[0] || roster.filter(function (p) { return p.pos === 'GK'; })[0];
-    var picked = [];
-    if (gk) picked.push(gk.id);
-    roster.forEach(function (p) { if (picked.length < need && p.pos !== 'GK' && p.availability !== 'Injured') picked.push(p.id); });
-    roster.forEach(function (p) { if (picked.length < need && picked.indexOf(p.id) < 0) picked.push(p.id); });
+    // Seed the group the shape actually asks for: fill each outfield slot with an
+    // available player of that line before falling back. Taking the first N in
+    // roster order seated defenders in forward slots, which the position check
+    // then correctly flagged.
+    var picked = [], used = {};
+    if (gk) { picked.push(gk.id); used[gk.id] = 1; }
+    var slots = (typeof _sqSlotsFor === 'function') ? (_sqSlotsFor(t.formation.name) || []) : [];
+    var fit = function (p, cat, allowInjured) {
+      if (used[p.id] || p.pos === 'GK') return false;
+      if (!allowInjured && p.availability === 'Injured') return false;
+      var g = _atPosGroup(p.pos), c = g === 'GK' ? 'gk' : g === 'DEF' ? 'df' : g === 'MID' ? 'mf' : 'fw';
+      return c === cat;
+    };
+    slots.forEach(function (s) {
+      if (s.c === 'gk' || picked.length >= need) return;
+      var m = roster.filter(function (p) { return fit(p, s.c, false); })[0]
+           || roster.filter(function (p) { return fit(p, s.c, true); })[0];
+      if (m) { picked.push(m.id); used[m.id] = 1; }
+    });
+    roster.forEach(function (p) { if (picked.length < need && !used[p.id] && p.availability !== 'Injured') { picked.push(p.id); used[p.id] = 1; } });
+    roster.forEach(function (p) { if (picked.length < need && !used[p.id]) { picked.push(p.id); used[p.id] = 1; } });
     lu.starters = picked;
     if (gk) lu.gk = gk.id;
     if (!lu.captain) { var cap = roster.filter(function (p) { return picked.indexOf(p.id) >= 0 && p.pos !== 'GK'; }).sort(function (a, b) { return b.overall - a.overall; })[0]; if (cap) lu.captain = cap.id; }
