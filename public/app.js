@@ -5874,7 +5874,34 @@ var SQ_FORMATIONS_SMALL = {
 };
 // Resolve a formation name to real slots. Small-sided table first, then the
 // First Team table. Never silently substitutes another shape.
-function _sqSlotsFor(name) { return SQ_FORMATIONS_SMALL[name] || SQ_FORMATIONS[name] || null; }
+// Small-sided shapes were authored on the eleven-a-side coordinate space, so a
+// five-a-side team occupied only the middle third of the pitch and left the
+// flanks and the far third empty. The pitch drawn is the whole pitch, so the
+// shape is stretched to fill the same span an eleven-a-side shape does — the
+// relative structure is untouched, only the spread.
+var _SQ_SMALL_CACHE = {};
+function _sqSpreadSmall(name, slots) {
+  if (_SQ_SMALL_CACHE[name]) return _SQ_SMALL_CACHE[name];
+  var out = slots.map(function (s) { var o = {}; for (var k in s) o[k] = s[k]; return o; });
+  var field = out.filter(function (s) { return s.c !== 'gk'; });
+  if (field.length) {
+    var xs = field.map(function (s) { return s.x; }), ys = field.map(function (s) { return s.y; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    // the span an eleven-a-side shape uses, so both read at the same scale
+    var X0 = 14, X1 = 86, Y0 = 22, Y1 = 78;
+    field.forEach(function (s) {
+      s.x = (x1 > x0) ? X0 + (s.x - x0) / (x1 - x0) * (X1 - X0) : 50;
+      s.y = (y1 > y0) ? Y0 + (s.y - y0) / (y1 - y0) * (Y1 - Y0) : 50;
+    });
+  }
+  _SQ_SMALL_CACHE[name] = out;
+  return out;
+}
+function _sqSlotsFor(name) {
+  if (SQ_FORMATIONS_SMALL[name]) return _sqSpreadSmall(name, SQ_FORMATIONS_SMALL[name]);
+  return SQ_FORMATIONS[name] || null;
+}
 
 // The First Team context — a live description of the existing globals.
 function _sqFirstCtx() {
@@ -44802,7 +44829,7 @@ function renderAcademyTeamPage() {
       + '<nav class="at-nav">' + AT_SECTIONS.map(function (s) {
           return '<button class="at-nav-item' + (AT.section === s[0] ? ' is-on' : '') + '" type="button" data-at-go="' + s[0] + '"><span class="at-nav-ic">' + s[2] + '</span>' + s[1] + '</button>';
         }).join('') + '</nav>'
-      + '<div class="at-content" id="at-content">' + _atSection(id, AT.section) + '</div>'
+      + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '') + '" id="at-content">' + _atSection(id, AT.section) + '</div>'
     + '</div>'
     + _atPlayerModal(id);
 }
