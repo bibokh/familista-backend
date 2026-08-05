@@ -3343,11 +3343,29 @@ function _sqOppStats() {
 // ── matchup engine ──
 function _sqEdge(a, b) { if (a + b <= 0) return 50; return Math.max(5, Math.min(95, Math.round(a / (a + b) * 100))); }
 function _sqMeanQual(arr) { if (!arr.length) return 0; var s = 0; arr.forEach(function (p) { s += p.qual; }); return s / arr.length; }
-function _sqMatchup() {
-  var mF = SQ_FORMATIONS[SQ_FORM.myFormation], oF = SQ_FORMATIONS[SQ_FORM.oppFormation];
+// Shapes and squads for whichever team's board this is. An age group compares
+// its own formation against the opponent shape it configured; where it records
+// no opponent ratings, the two sides are treated as evenly matched on quality
+// so the comparison reflects shape alone rather than an invented rating.
+function _sqMuShapes(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') return { mF: SQ_FORMATIONS[SQ_FORM.myFormation], oF: SQ_FORMATIONS[SQ_FORM.oppFormation] };
+  return { mF: C.formationSlots || [], oF: _sqSlotsFor(C.oppFormation) || C.formationSlots || [] };
+}
+function _sqMatchup(ctx) {
+  var C = _sqCtx(ctx), SH = _sqMuShapes(C);
+  var mF = SH.mF, oF = SH.oF;
   var ms = _sqShape(mF), os = _sqShape(oF);
-  var myPl = (SQ_MY_IDS || []).map(_sqFind).filter(Boolean);
-  var myOvr = _sqMeanQual(myPl.length ? myPl : SQ_DEMO_PLAYERS), oppOvr = _sqMeanQual((typeof _sqOppXi === 'function') ? _sqOppXi() : SQ_OPP_DEF);
+  var myPl = (C.type === 'first') ? (SQ_MY_IDS || []).map(_sqFind).filter(Boolean)
+    : (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
+  var myOvr, oppOvr;
+  if (C.type === 'first') {
+    myOvr = _sqMeanQual(myPl.length ? myPl : SQ_DEMO_PLAYERS);
+    oppOvr = _sqMeanQual((typeof _sqOppXi === 'function') ? _sqOppXi() : SQ_OPP_DEF);
+  } else {
+    myOvr = _sqMeanQual(myPl.length ? myPl : (C.roster || []));
+    oppOvr = myOvr;                                  // no opponent ratings recorded — shape decides
+  }
   var midCtrl = _sqEdge(ms.mid * myOvr, os.mid * oppOvr);
   var defStab = _sqEdge((ms.def + 0.7) * myOvr, (os.fwd + 0.7) * oppOvr);
   var widthAdv = _sqEdge(_sqWide(mF) * myOvr, _sqWide(oF) * oppOvr);
@@ -5105,8 +5123,16 @@ function _sqMdBench(side, ctx) {
     return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">' + benchLbl + ' <em class="sqmd-bench-hint">drag onto a starter to swap</em></span><div class="sqmd-bench-row">' + (chips || '<span class="sqmd-bench-empty">No substitutes named</span>') + '</div></div>';
   }
   if (C.type !== 'first') {
-    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Opponent bench <em class="sqmd-bench-hint">set up the opponent shape from the formation control</em></span>'
-      + '<div class="sqmd-bench-row"><span class="sqmd-bench-empty">No opponent squad recorded — the overlay shows the ' + _sqEsc(C.oppFormation || '') + ' shape only</span></div></div>';
+    // No opponent squad is recorded for an age group, so the bench holds the
+    // tactical placeholders that belong to this group's own opponent setup —
+    // numbered, positioned, swappable, and labelled for what they are.
+    var ob = (C.oppBench || []);
+    var obChips = ob.map(function (o) {
+      return '<div class="sqmd-bench-chip sqmd-bench-chip--opp sql-pos--' + o.cat + '" data-sub-opp="' + o.id + '" data-tier="bench" title="Drag onto an opponent marker to swap"><span class="sqmd-bc-av sqmd-bc-av--opp">' + o.n + '</span>'
+        + '<span class="sqmd-bc-meta"><span class="sqmd-bc-nm">Sub ' + o.n + '</span><span class="sqmd-bc-sub">' + _sqEsc(o.pos) + ' · —</span></span></div>';
+    }).join('');
+    return '<div class="sqmd-bench"><span class="sqmd-bench-lbl">Opponent bench <em class="sqmd-bench-hint">tactical placeholders · no squad recorded</em></span>'
+      + '<div class="sqmd-bench-row">' + (obChips || '<span class="sqmd-bench-empty">Choose an opponent formation to build the bench</span>') + '</div></div>';
   }
   var oIds = (SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds());
   var chips2 = oIds.map(_sqOppFind).filter(Boolean).map(function (p) {
@@ -5121,7 +5147,36 @@ function _sqBarPair(label, mv, ov, suffix) {
     + '<div class="sqmd-bar-track sqmd-bar-track--my"><i style="width:' + mp + '%"></i><em>' + mv + (suffix || '') + '</em></div>'
     + '<div class="sqmd-bar-track sqmd-bar-track--opp"><i style="width:' + op + '%"></i><em>' + ov + (suffix || '') + '</em></div></div>';
 }
-function _sqCmdMatchups() {
+// Positional battles for an age group: its real starters set against the slots
+// of the opponent shape it configured. The opponent has no ratings recorded, so
+// each duel reports our player's effectiveness and marks the opponent side as
+// not recorded rather than inventing a number to beat.
+function _sqCtxMatchups(ctx) {
+  var C = _sqCtx(ctx), rows = [];
+  var oppSlots = _sqSlotsFor(C.oppFormation) || [];
+  var used = {};
+  (C.starterIds || []).forEach(function (id) {
+    var p = _sqCtxP(id, C), pos = (C.posMy || {})[id];
+    if (!p || !pos) return;
+    // the opponent slot facing this player: nearest by width, mirrored in depth
+    var best = null, bd = 1e9;
+    oppSlots.forEach(function (s, i) {
+      if (used[i]) return;
+      var d = Math.abs(s.x - pos.x) + Math.abs((100 - s.y) - pos.y) * 0.6;
+      if (d < bd) { bd = d; best = { s: s, i: i }; }
+    });
+    if (!best) return;
+    used[best.i] = 1;
+    var dist = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C);
+    var eff = _sqEffQual(p, dist);
+    rows.push({ myName: _sqLastName(p.name), myPos: p.pos, myEff: eff, oppPos: best.s.r || String(best.s.c).toUpperCase(),
+      oppNum: best.i + 1, oppEff: '—', diff: 0, tone: 'bal' });
+  });
+  return rows;
+}
+function _sqCmdMatchups(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type !== 'first') return _sqCtxMatchups(C);
   var myPs = (SQ_MY_IDS || []).map(_sqP).filter(Boolean);
   var conf = [['ST', ['CB'], 0], ['LW', ['RB'], 0], ['RW', ['LB'], 0], ['CM', ['CM'], 0], ['DM', ['CM', 'AM'], 0], ['CB', ['ST'], 0], ['LB', ['RW'], 0], ['RB', ['LW'], 0]], rows = [];
   conf.forEach(function (c) {
@@ -5138,9 +5193,10 @@ function _sqCmdMatchups() {
   });
   return rows;
 }
-function _sqTeamSW(side) {
-  var slots = SQ_FORMATIONS[side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation] || [];
-  var sh = _sqShape(slots), wide = _sqWide(slots), rep = _sqTeamReport(side), S = [], W = [];
+function _sqTeamSW(side, ctx) {
+  var C = _sqCtx(ctx), SH = _sqMuShapes(C);
+  var slots = (side === 'my' ? SH.mF : SH.oF) || [];
+  var sh = _sqShape(slots), wide = _sqWide(slots), rep = _sqTeamReport(side, C), S = [], W = [];
   if (sh.mid >= 4) S.push('Midfield overload'); else if (sh.mid >= 3 && rep.compat >= 85) S.push('Midfield control');
   if (wide >= 4) S.push('Wide attacking threat');
   if (sh.fwd >= 3) S.push('Front-line firepower');
@@ -5155,8 +5211,8 @@ function _sqTeamSW(side) {
   if (sh.mid <= 2) W.push('Outnumbered in midfield');
   return { strengths: S.length ? S.slice(0, 4) : ['Compact, organised shape'], weaknesses: W.length ? W.slice(0, 4) : ['No glaring weakness'] };
 }
-function _sqFormMatch() {
-  var mu = _sqMatchup(), adv = [], risk = [];
+function _sqFormMatch(ctx) {
+  var mu = _sqMatchup(ctx), adv = [], risk = [];
   if (mu.widthAdv >= 56) adv.push('Wing overloads');
   if (mu.press >= 56) adv.push('High-press superiority');
   if (mu.midCtrl >= 56) adv.push('Midfield control');
@@ -5477,8 +5533,9 @@ function _sqCwMeter(label, pct, suffix) {
     + '<span class="sqcw-mtr-track"><i style="width:' + p + '%"></i></span>'
     + '<b class="sqcw-mtr-v">' + p + (suffix == null ? '%' : suffix) + '</b></div>';
 }
-function _sqCwMatchup(my, op) {
-  var fm = _sqFormMatch(), mu = _sqMatchup(), mus = _sqCmdMatchups(), mySW = _sqTeamSW('my'), opSW = _sqTeamSW('opp');
+function _sqCwMatchup(my, op, ctx) {
+  var C = _sqCtx(ctx);
+  var fm = _sqFormMatch(C), mu = _sqMatchup(C), mus = _sqCmdMatchups(C), mySW = _sqTeamSW('my', C), opSW = _sqTeamSW('opp', C);
   var cl = function (v) { return Math.max(1, Math.min(99, Math.round(v))); };
   function tags(arr, cls) { return '<div class="sqcw-tags">' + (arr && arr.length ? arr : ['—']).map(function (x) { return '<span class="sqcw-tag sqcw-tag--' + cls + '">' + _sqEsc(x) + '</span>'; }).join('') + '</div>'; }
   var advOur = (fm.adv && fm.adv.length) ? fm.adv : mySW.strengths;
@@ -5534,7 +5591,8 @@ function _sqCwHeatmap() {
   return '<div class="sqcw-heatwrap">' + panel('my', _sqClubName(), '74,222,128') + panel('opp', 'Opponent', '96,165,250') + '</div>'
     + '<div class="sqcw-note">' + _sqEsc(interp) + '</div>';
 }
-function _sqCwStats(my, op) {
+function _sqCwStats(my, op, ctx) {
+  var C = _sqCtx(ctx);
   var rows = [
     ['Team OVR', my.ovr, op.ovr, ''], ['Team balance', my.balance, op.balance, '%'],
     ['Starting XI OVR', my.xiOvr, op.xiOvr, ''], ['Starting XI balance', my.xiBalance, op.xiBalance, '%'],
@@ -5542,23 +5600,39 @@ function _sqCwStats(my, op) {
     ['Tactical compatibility', my.compat, op.compat, '%'], ['Formation efficiency', my.formEff, op.formEff, '%'],
     ['Tactical execution', my.exec, op.exec, '%']
   ];
+  // A value the team does not record stays in its row and reads plainly rather
+  // than rendering an empty bar or an undefined percentage.
+  var num = function (v) { return (typeof v === 'number' && isFinite(v)) ? v : null; };
   var cards = rows.map(function (r) {
-    var mv = r[1], ov = r[2], mx = Math.max(mv, ov, 1), mw = Math.round(mv / mx * 100), ow = Math.round(ov / mx * 100);
-    var win = mv > ov ? 'my' : ov > mv ? 'op' : 'even';
+    var mv = num(r[1]), ov = num(r[2]);
+    var mx = Math.max(mv == null ? 0 : mv, ov == null ? 0 : ov, 1);
+    var mw = mv == null ? 0 : Math.round(mv / mx * 100), ow = ov == null ? 0 : Math.round(ov / mx * 100);
+    var win = (mv != null && ov != null) ? (mv > ov ? 'my' : ov > mv ? 'op' : 'even') : 'even';
+    var lbl = function (v) { return v == null ? '<i class="sqcw-st-na">Not recorded</i>' : (v + r[3]); };
     return '<div class="sqcw-st sqcw-st--' + win + '"><div class="sqcw-st-l">' + r[0] + '</div>'
-      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--my"><i style="width:' + mw + '%"></i></span><b>' + mv + r[3] + '</b></div>'
-      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--op"><i style="width:' + ow + '%"></i></span><b>' + ov + r[3] + '</b></div></div>';
+      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--my"><i style="width:' + mw + '%"></i></span><b>' + lbl(mv) + '</b></div>'
+      + '<div class="sqcw-st-row"><span class="sqcw-st-t sqcw-st-t--op"><i style="width:' + ow + '%"></i></span><b>' + lbl(ov) + '</b></div></div>';
   }).join('');
-  return '<div class="sqcw-stwrap"><div class="sqcw-st-hd"><span>' + _sqEsc(_sqClubName()) + '</span><span>Opponent</span></div><div class="sqcw-st-grid">' + cards + '</div></div>';
+  var mine = (C.type === 'first') ? _sqClubName() : C.label;
+  return '<div class="sqcw-stwrap"><div class="sqcw-st-hd"><span>' + _sqEsc(mine) + '</span><span>Opponent</span></div><div class="sqcw-st-grid">' + cards + '</div></div>';
 }
-function _sqCwZones() {
+function _sqCwZones(ctx) {
+  var C = _sqCtx(ctx);
   function counts(side) {
     var c = [0, 0, 0];
-    if (side === 'my') { (SQ_MY_IDS || []).forEach(function (id) { var pos = SQ_POS_MY[id]; if (!pos) return; c[pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2]++; }); }
-    else { _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; }); }
+    if (side === 'my') {
+      var ids = (C.type === 'first') ? (SQ_MY_IDS || []) : (C.starterIds || []);
+      var pm = (C.type === 'first') ? SQ_POS_MY : (C.posMy || {});
+      ids.forEach(function (id) { var pos = pm[id]; if (!pos) return; c[pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2]++; });
+    } else if (C.type === 'first') {
+      _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
+    } else {
+      // the opponent shape the age group configured, counted the same way
+      (C.oppActive || []).forEach(function (o) { var s = (C.oppSlot || {})[o.id] || (C.posOpp || {})[o.id]; if (!s) return; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
+    }
     return c;
   }
-  var myg = _sqHeatGrid('my').grid, opg = _sqHeatGrid('opp').grid, mc = counts('my'), oc = counts('opp'), mu = _sqMatchup();
+  var myg = _sqHeatGrid('my', C).grid, opg = _sqHeatGrid('opp', C).grid, mc = counts('my'), oc = counts('opp'), mu = _sqMatchup(C);
   function band(g, r) { return g[r][0] + g[r][1] + g[r][2]; }
   var bands = [['Attacking third', 0], ['Middle third', 1], ['Defensive third', 2]];
   var rows = bands.map(function (b) {
@@ -5880,10 +5954,10 @@ function _sqCmdSectionContent(key, my, op, ctx) {
   if (C.type !== 'first') {
     // Academy — the same shared tool renderers, driven by this age group's context.
     switch (key) {
-      case 'matchup': return _sqCmdEmpty('Matchup unavailable', 'Matchup compares your shape against a scouted opponent squad. No opponent squad is recorded for ' + C.label + ', so there is nothing to compare yet.');
+      case 'matchup': return _sqCwMatchup(my, op, C);
       case 'heatmap': return _sqTcHeatmap(C);
-      case 'stats': return _sqTcStats(my, op, C);
-      case 'zones': return _sqTcZones(C);
+      case 'stats': return _sqCwStats(my, op, C);
+      case 'zones': return _sqCwZones(C);
       case 'setpieces': return _sqTcSetpieces(C);
       case 'instructions': return _sqTcInstructions(C);
       case 'simulation': return _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + C.label + ', so a match cannot be simulated yet.');
@@ -5891,10 +5965,10 @@ function _sqCmdSectionContent(key, my, op, ctx) {
     return '';
   }
   switch (key) {
-    case 'matchup': return _sqCwMatchup(my, op);
+    case 'matchup': return _sqCwMatchup(my, op, C);
     case 'heatmap': return _sqCwHeatmap();
-    case 'stats': return _sqCwStats(my, op);
-    case 'zones': return _sqCwZones();
+    case 'stats': return _sqCwStats(my, op, C);
+    case 'zones': return _sqCwZones(C);
     case 'setpieces': return _sqCwSetpieces();
     case 'instructions': return _sqCwInstructions();
     case 'simulation': return _sqTcSimulation(my, op);
@@ -8011,7 +8085,8 @@ function _sqInitFormationDrag() {
   });
   document.addEventListener('pointerdown', function (e) {
     var subc = e.target.closest && e.target.closest('.sqsub-chip[data-sub], .sqmd-bench-chip[data-sub], .sqmd-bench-chip[data-sub-opp]');
-    if (subc && subc.closest('#sq-sub-formation')) { var isOppSub = subc.hasAttribute('data-sub-opp'); _sqSubDrag = { id: subc.getAttribute(isOppSub ? 'data-sub-opp' : 'data-sub'), tier: subc.getAttribute('data-tier'), side: isOppSub ? 'opp' : 'my', sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
+    var subCtx = subc ? _sqBoardHostCtx(subc) : null;
+    if (subc && subCtx) { var isOppSub = subc.hasAttribute('data-sub-opp'); _sqSubDrag = { id: subc.getAttribute(isOppSub ? 'data-sub-opp' : 'data-sub'), tier: subc.getAttribute('data-tier'), side: isOppSub ? 'opp' : 'my', ctx: subCtx, sx: e.clientX, sy: e.clientY, moved: false, ghost: null }; e.preventDefault(); return; }
     var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove], .sqmd-slot[data-cmdmove-opp]');
     var slotCtx = slot ? _sqBoardHostCtx(slot) : null;
     if (slot && slotCtx) {
@@ -8059,7 +8134,9 @@ function _sqInitFormationDrag() {
     d.chip.classList.toggle('is-invalid', !ok);
   });
   document.addEventListener('pointerup', function (e) {
-    if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); if (sd.side === 'opp') { var ot = el && el.closest && el.closest('.sqmd-card[data-team="opp"]'); if (ot) { _sqOppSubstitute(sd.id, ot.getAttribute('data-id')); } } else { var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSubstitute(sd.id, tgt.getAttribute('data-id')); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqMoveToBench(sd.id); } } } } return; }
+    if (_sqSubDrag) { var sd = _sqSubDrag; _sqSubDrag = null; if (sd.ghost && sd.ghost.parentNode) sd.ghost.parentNode.removeChild(sd.ghost); _sqSubHighlight(null); if (sd.moved) { var el = document.elementFromPoint(e.clientX, e.clientY); var SC = _sqCtx(sd.ctx);
+        if (sd.side === 'opp') { var ot = el && el.closest && el.closest('.sqmd-card[data-team="opp"]'); if (ot) { _sqSwapOpp(sd.id, ot.getAttribute('data-id'), SC); } }
+        else { var tgt = el && el.closest && (el.closest('.sqfp-chip[data-team="my"]') || el.closest('.sqmd-card[data-team="my"]')); if (tgt) { _sqSwapMy(sd.id, tgt.getAttribute('data-id'), SC); } else { var bz = el && el.closest && el.closest('.sqsub-bench'); if (bz) { _sqBenchOut(sd.id, SC); } } } } return; }
     if (_sqCmdMove) {
       var cm = _sqCmdMove; _sqCmdMove = null; _sqCmdHideZones(cm.pitch);
       if (cm.moved) {
@@ -8124,6 +8201,24 @@ function _sqBenchStripHtml() {
 }
 function _sqMakeGhost(id) { var p = _sqP(id) || _sqOppFind(id); var g = document.createElement('div'); g.className = 'sqsub-ghost sql-pos--' + (p ? p.cat : 'mf'); g.textContent = p ? (p.num != null ? p.num : p.n) : '?'; document.body.appendChild(g); return g; }
 function _sqSubHighlight(el) { var prev = document.querySelector('.sqfp-chip.sqsub-target, .sqmd-card.sqsub-target'); if (prev) prev.classList.remove('sqsub-target'); var side = (_sqSubDrag && _sqSubDrag.side === 'opp') ? 'opp' : 'my'; var t = el && el.closest && (el.closest('.sqfp-chip[data-team="' + side + '"]') || el.closest('.sqmd-card[data-team="' + side + '"]')); if (t) t.classList.add('sqsub-target'); }
+// Swapping a player, for whichever team owns the board. The First Team keeps
+// its own routine untouched; an age group writes the swap into its own lineup
+// so the change persists with that group and nowhere else.
+function _sqSwapMy(inId, outId, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') { _sqSubstitute(inId, outId); return; }
+  if (typeof C.swapPlayers === 'function') C.swapPlayers('my', inId, outId);
+}
+function _sqSwapOpp(inId, outId, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') { _sqOppSubstitute(inId, outId); return; }
+  if (typeof C.swapPlayers === 'function') C.swapPlayers('opp', inId, outId);
+}
+function _sqBenchOut(id, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') { _sqMoveToBench(id); return; }
+  if (typeof C.benchPlayer === 'function') C.benchPlayer(id);
+}
 function _sqSubstitute(inId, outId) {
   if (!inId || !outId || inId === outId) return;
   var my = SQ_MY_IDS || []; var idx = my.indexOf(outId); if (idx < 0) return;
@@ -45518,14 +45613,26 @@ function _atFormationCtx(id) {
   var prefSet = {}; preferred.forEach(function (x) { prefSet[x] = 1; });
   // named starters first, then the rest of the age group, so a short lineup still
   // fields the full complement the format calls for
-  var pool = preferred.map(function (pid) { return byId[pid]; }).filter(Boolean)
-    .concat(mapped.filter(function (pl) { return !prefSet[pl.id]; }));
-  var assign = _sqAssignXI(slots, pool);
-  assign.forEach(function (a2) {
+  // The coach's selection comes first: the named group is seated into the shape
+  // on its own, so a swap sticks. Any slot still empty is then filled from the
+  // rest of the age group, so the format is always fully fielded.
+  var chosen = preferred.map(function (pid) { return byId[pid]; }).filter(Boolean);
+  var placed = {};
+  _sqAssignXI(slots, chosen).forEach(function (a2) {
     if (!a2.player) return;
     var s = a2.slot, pid = a2.player.id;
+    placed[slots.indexOf(s)] = pid;
     ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
   });
+  var openSlots = slots.filter(function (s, i) { return !placed[i]; });
+  if (openSlots.length) {
+    var rest = mapped.filter(function (pl) { return !prefSet[pl.id] && !slotMy[pl.id]; });
+    _sqAssignXI(openSlots, rest).forEach(function (a3) {
+      if (!a3.player) return;
+      var s = a3.slot, pid = a3.player.id;
+      ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
+    });
+  }
   // Anything the coach has dragged wins over the formation's default slot, so a
   // player stays exactly where they were dropped. Positions saved under a
   // different formation are ignored, since the shape they belonged to is gone.
@@ -45574,6 +45681,46 @@ function _atFormationCtx(id) {
       b.posMy[pid] = { x: x, y: y };
       _atSave();
     },
+    // Swapping, for this age group only. A starter and a substitute exchange
+    // places in the saved lineup, so the change persists here and nowhere else.
+    swapPlayers: function (side, inId, outId) {
+      if (!inId || !outId || inId === outId || !_acCanOpen(id)) return;
+      if (side === 'opp') {
+        var o = _atOppSetup(id);
+        o.benchSwap = o.benchSwap || {};
+        o.benchSwap[outId] = inId; o.benchSwap[inId] = outId;   // the two markers exchange slots
+        _atSave(); renderAcademyTeamPage(); return;
+      }
+      var lu = _atLineup(id);
+      // The shape on screen is filled from the whole roster, so the saved list can
+      // hold fewer names than are actually playing. Seed it from what the coach
+      // is looking at before swapping, so a swap always acts on the visible XI.
+      var shown = (_atFormationCtx(id).starterIds || []);
+      if (shown.length && shown.join() !== (lu.starters || []).join()) lu.starters = shown.slice();
+      var i = (lu.starters || []).indexOf(outId);
+      if (i < 0) return;
+      if ((lu.starters || []).indexOf(inId) >= 0) return;
+      lu.starters[i] = inId;
+      lu.subs = (lu.subs || []).filter(function (x) { return x !== inId; });
+      if (lu.subs.indexOf(outId) < 0) lu.subs.push(outId);
+      if (lu.captain === outId) lu.captain = inId;
+      if (lu.gk === outId) { var pin = _atFindPlayer(id, inId); lu.gk = (pin && pin.pos === 'GK') ? inId : null; }
+      // the dropped-in player inherits the slot the outgoing player held
+      var b = _atBoard(id);
+      if (b.posMy[outId]) { b.posMy[inId] = b.posMy[outId]; delete b.posMy[outId]; }
+      _atPlayerHistory(id, inId, 'selected', { formation: _atTeam(id).formation.name });
+      _atPlayerHistory(id, outId, 'benched', { formation: _atTeam(id).formation.name });
+      _atSave(); renderAcademyTeamPage();
+    },
+    benchPlayer: function (pid) {
+      if (!_acCanOpen(id)) return;
+      var lu = _atLineup(id);
+      lu.starters = (lu.starters || []).filter(function (x) { return x !== pid; });
+      if ((lu.subs || []).indexOf(pid) < 0) lu.subs.push(pid);
+      _atPlayerHistory(id, pid, 'benched', { formation: _atTeam(id).formation.name });
+      _atSave(); renderAcademyTeamPage();
+    },
+    get oppBench() { return _atOppBench(id); },
     resetBoard: function () { var b = _atBoard(id); b.posMy = {}; b.formation = _atTeam(id).formation.name; _atSave(); },
     save: function () { _atSave(); }
   };
@@ -45859,6 +46006,50 @@ function _atOppSetup(id) {
   return o;
 }
 // Shape markers for the opponent formation — positions only, no names, no ratings.
+// The opponent's substitutes: the same placeholders as the markers on the pitch,
+// sized to the match format the age group plays, stored with that group's own
+// opponent setup. No squad, no ratings — a tactical bench, nothing more.
+function _atOppBench(id) {
+  var o = _atOppSetup(id), slots = _sqSlotsFor(o.formation) || [];
+  var n = Math.max(3, Math.min(7, Math.round(slots.length / 2)));
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    out.push({ id: 'atoppsub-' + id + '-' + i, n: slots.length + i + 1, pos: 'SUB', cat: i === 0 ? 'gk' : (i < 3 ? 'df' : 'mf') });
+  }
+  return out;
+}
+// ── Player development history ─────────────────────────────────────────────
+// A player keeps one identity for their whole time at the club. Every notable
+// moment is appended under that id, tagged with the age group it happened in,
+// so moving up a stage adds to the record rather than replacing it. Nothing is
+// ever removed here; promotion and archiving append too.
+var AT_HISTORY_KEY = 'familista.academy.playerhistory.v1';
+var _AT_HIST = null;
+function _atHistLoad() {
+  if (_AT_HIST) return _AT_HIST;
+  _AT_HIST = { players: {} };
+  try { var raw = window.localStorage.getItem(AT_HISTORY_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.players) _AT_HIST = o; } } catch (e) {}
+  return _AT_HIST;
+}
+function _atHistSave() { try { window.localStorage.setItem(AT_HISTORY_KEY, JSON.stringify(_atHistLoad())); } catch (e) {} }
+function _atPlayerHistory(teamId, playerId, event, detail) {
+  if (!playerId || !event) return;
+  var db = _atHistLoad();
+  var rec = db.players[playerId] || (db.players[playerId] = { id: playerId, entries: [] });
+  var last = rec.entries[rec.entries.length - 1];
+  // don't record the same thing twice in a row for the same team
+  if (last && last.event === event && last.teamId === teamId && last.formation === (detail && detail.formation)) return;
+  var e = { ts: Date.now(), teamId: teamId, event: event };
+  if (detail) for (var k in detail) e[k] = detail[k];
+  rec.entries.push(e);
+  if (rec.entries.length > 400) rec.entries.splice(0, rec.entries.length - 400);
+  _atHistSave();
+}
+// Everything recorded for one player, across every age group they have been in.
+function _atPlayerCareer(playerId) {
+  var rec = _atHistLoad().players[playerId];
+  return rec ? rec.entries.slice() : [];
+}
 function _atOppShape(id) {
   var o = _atOppSetup(id), slots = _sqSlotsFor(o.formation) || [];
   var players = [], pos = {}, slotMap = {};
@@ -46266,10 +46457,15 @@ if (typeof document !== 'undefined' && !window._atBound) {
         var nextId = AC_STAGES[idx0 + 1].id, ovc = _atOverlay(id);
         if (pid.indexOf('atp') === 0) { _atOverlay(nextId)[pid] = ovc[pid]; delete ovc[pid]; }
         else { _acLoad(); AC_DB.players.forEach(function (pp) { if (pp.id === pid) pp.stage = nextId; }); _acSave(); delete ovc[pid]; }
+        // the player keeps one identity; moving up a stage is another entry in
+        // their record, not a new player
+        _atPlayerHistory(id, pid, 'promoted', { to: nextId, from: id, stage: AC_STAGES[idx0 + 1].label });
         _atSave(); AT.openPlayer = null; renderAcademyTeamPage();
         try { showToast('Promoted to ' + AC_STAGES[idx0 + 1].label, 'success'); } catch (_) {}
       } else {
-        var o7 = pov(pid); o7.promoted = true; o7.devStatus = 'Recently Promoted'; _atSave(); renderAcademyTeamPage();
+        var o7 = pov(pid); o7.promoted = true; o7.devStatus = 'Recently Promoted';
+        _atPlayerHistory(id, pid, 'flagged-for-first-team', { stage: AC_STAGES[idx0].label });
+        _atSave(); renderAcademyTeamPage();
         try { showToast('Flagged for First Team review', 'success'); } catch (_) {}
       }
       return;
