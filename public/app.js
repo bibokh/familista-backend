@@ -1984,6 +1984,35 @@ function _sqSubHtml(id, label, color, svgPath) {
     + '</div>';
 }
 
+// The Squad hub cards. One renderer for every workspace: the First Team opens a
+// card through its squad router, an age group through its module router, and the
+// card itself — head, preview, stats and action bar — is the same in both.
+// A card supplies { id,label,sub,pill,plabel,ac,ac2,icon,btnIcon,btnLabel } plus
+// an illustration under either 'illus' or 'prev'.
+function _sqHubCards(cards, opt) {
+  opt = opt || {};
+  return (cards || []).map(function (c) {
+    var statHtml = (c.stats || []).map(function (s) {
+      return '<div class="sqf-stat"><div class="sqf-sl">' + s.l + '</div><div class="sqf-sv">' + s.v + '</div></div>';
+    }).join('');
+    var open = opt.openAttr ? (opt.openAttr + '="' + c.id + '"')
+      : ('data-action="' + (opt.open || 'squadNav') + '" data-squad-page="' + c.id + '"');
+    return '<div class="sqf-card sqf-card--' + c.id + '" ' + open + ' style="--ac:' + c.ac + ';--ac2:' + c.ac2 + '">'
+      + '<div class="sqf-head">'
+      +   '<div class="sqf-icon">' + c.icon + '</div>'
+      +   '<div class="sqf-titles"><div class="sqf-title">' + c.label + '</div><div class="sqf-sub">' + c.sub + '</div></div>'
+      +   '<div class="sqf-pill">' + c.pill + '</div>'
+      + '</div>'
+      + '<div class="sqf-prev">' + (c.illus || c.prev || '')
+      +   '<div class="sqf-gloss"></div>'
+      +   '<div class="sqf-plabel">' + c.plabel + '</div>'
+      +   '<div class="sqf-pexp">' + (opt.expand || '') + '</div>'
+      + '</div>'
+      + '<div class="sqf-stats">' + statHtml + '</div>'
+      + '<div class="sqf-btn"><span class="l">' + c.btnIcon + '<span>' + c.btnLabel + '</span></span><span class="a">' + (opt.arrow || '') + '</span></div>'
+      + '</div>';
+  }).join('');
+}
 function renderSquadHTML() {
   // ---- Lineup preview: top-down green pitch, 4-3-3, glossy 3D player discs, captain armband, match ball
   var iLu = '<svg viewBox="0 0 412 158" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">'
@@ -2097,25 +2126,7 @@ function renderSquadHTML() {
       iconColor: '#fb923c', iconPath: 'M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z', illus: iTc },
   ];
 
-  var cardHtml = cards.map(function (c) {
-    var statHtml = c.stats.map(function (s) {
-      return '<div class="sqf-stat"><div class="sqf-sl">' + s.l + '</div><div class="sqf-sv">' + s.v + '</div></div>';
-    }).join('');
-    return '<div class="sqf-card sqf-card--' + c.id + '" data-action="squadNav" data-squad-page="' + c.id + '" style="--ac:' + c.ac + ';--ac2:' + c.ac2 + '">'
-      + '<div class="sqf-head">'
-      +   '<div class="sqf-icon">' + c.icon + '</div>'
-      +   '<div class="sqf-titles"><div class="sqf-title">' + c.label + '</div><div class="sqf-sub">' + c.sub + '</div></div>'
-      +   '<div class="sqf-pill">' + c.pill + '</div>'
-      + '</div>'
-      + '<div class="sqf-prev">' + c.illus
-      +   '<div class="sqf-gloss"></div>'
-      +   '<div class="sqf-plabel">' + c.plabel + '</div>'
-      +   '<div class="sqf-pexp">' + expandIcon + '</div>'
-      + '</div>'
-      + '<div class="sqf-stats">' + statHtml + '</div>'
-      + '<div class="sqf-btn"><span class="l">' + c.btnIcon + '<span>' + c.btnLabel + '</span></span><span class="a">' + arrowRight + '</span></div>'
-      + '</div>';
-  }).join('');
+  var cardHtml = _sqHubCards(cards, { open: 'squadNav', expand: expandIcon, arrow: arrowRight });
 
   var subHtml = cards.map(function (c) {
     return c.id === 'lineup'
@@ -2676,32 +2687,50 @@ function _sqPlayerPanel(p, tab) {
   }
 }
 
+// The player profile. One shell for every squad: close control, identity head,
+// action toolbar, tab rail and panel body are rendered here and nowhere else.
+// A squad context supplies its own identity fields, tab set and panel bodies —
+// the First Team its six senior tabs, an age group its development tabs — but
+// the frame they sit in is shared, so a change here reaches every workspace.
+function _sqProfileInner(cfg) {
+  cfg = cfg || {};
+  var tabHtml = (cfg.tabs || []).map(function (t) {
+    return '<button class="sq-plm-tab' + (cfg.tab === t[0] ? ' is-active' : '') + (t[2] ? ' ' + t[2] : '') + '"'
+      + ' ' + (cfg.tabAttr ? cfg.tabAttr(t[0]) : 'data-action="sqPlayerTab" data-tab="' + t[0] + '"')
+      + ' type="button">' + t[1] + '</button>';
+  }).join('');
+  var meta = (cfg.meta || []).join('');
+  return '<button class="sq-plm-close" ' + (cfg.closeAttr || 'data-action="sqClosePlayer"') + ' type="button" aria-label="Close">✕</button>'
+    + '<div class="sq-plm-head">'
+    +   '<div class="sq-plm-avatar ' + (cfg.avatarCls || '') + '">' + (cfg.avatar || '') + '</div>'
+    +   '<div class="sq-plm-id">'
+    +     '<div class="sq-plm-name">' + (cfg.name || '') + '</div>'
+    +     '<div class="sq-plm-sub">' + meta + '</div>'
+    +   '</div>'
+    +   (cfg.badge ? '<div class="sq-plm-qual"><span class="sq-plm-qual-n">' + cfg.badge.n + '</span><span class="sq-plm-qual-l">' + cfg.badge.l + '</span></div>' : '')
+    + '</div>'
+    + (cfg.toolbar ? '<div class="sq-plm-toolbar">' + cfg.toolbar + '</div>' : '')
+    + '<div class="sq-plm-body">'
+    +   '<div class="sq-plm-side">' + tabHtml + '</div>'
+    +   '<div class="sq-plm-content">' + (cfg.body || '') + '</div>'
+    + '</div>';
+}
 function _sqRenderPlayerModal() {
   var p = _sqFind(SQ_UI.playerId);
   var dlg = document.getElementById('sq-plm-dialog');
   if (!p || !dlg) return;
-  var tabs = [['overview', 'Overview'], ['skills', 'Skills'], ['playstyle', 'Playstyle'], ['stats', 'Stats'], ['trainer', 'Personal trainer'], ['contract', 'Contract']];
-  var tabHtml = tabs.map(function (t) {
-    return '<button class="sq-plm-tab' + (SQ_UI.tab === t[0] ? ' is-active' : '') + '" data-action="sqPlayerTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
-  }).join('');
-  dlg.innerHTML =
-      '<button class="sq-plm-close" data-action="sqClosePlayer" type="button" aria-label="Close">✕</button>'
-    + '<div class="sq-plm-head">'
-    +   '<div class="sq-plm-avatar sql-pos--' + p.cat + '">' + _sqAvatar(p) + '</div>'
-    +   '<div class="sq-plm-id">'
-    +     '<div class="sq-plm-name">' + _sqEsc(p.name) + (p.captain ? '<span class="sql-capt">C</span>' : '') + '</div>'
-    +     '<div class="sq-plm-sub"><span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span><span>#' + p.num + '</span><span>' + p.nat + ' ' + p.natName + '</span><span>' + p.age + ' yrs</span></div>'
-    +   '</div>'
-    +   '<div class="sq-plm-qual"><span class="sq-plm-qual-n">' + p.qual + '</span><span class="sq-plm-qual-l">Quality</span></div>'
-    + '</div>'
-    + '<div class="sq-plm-toolbar">'
-    +   '<button class="sq-mbtn" data-action="sqEditPlayer" data-player-id="' + p.id + '" type="button">' + ICON_EDIT + 'Edit player</button>'
-    +   '<button class="sq-mbtn sq-mbtn--danger" data-action="sqDeletePlayer" data-player-id="' + p.id + '" type="button">' + ICON_TRASH + 'Delete</button>'
-    + '</div>'
-    + '<div class="sq-plm-body">'
-    +   '<div class="sq-plm-side">' + tabHtml + '</div>'
-    +   '<div class="sq-plm-content">' + _sqPlayerPanel(p, SQ_UI.tab) + '</div>'
-    + '</div>';
+  dlg.innerHTML = _sqProfileInner({
+    tabs: [['overview', 'Overview'], ['skills', 'Skills'], ['playstyle', 'Playstyle'], ['stats', 'Stats'], ['trainer', 'Personal trainer'], ['contract', 'Contract']],
+    tab: SQ_UI.tab,
+    avatarCls: 'sql-pos--' + p.cat,
+    avatar: _sqAvatar(p),
+    name: _sqEsc(p.name) + (p.captain ? '<span class="sql-capt">C</span>' : ''),
+    meta: ['<span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span>', '<span>#' + p.num + '</span>', '<span>' + p.nat + ' ' + p.natName + '</span>', '<span>' + p.age + ' yrs</span>'],
+    badge: { n: p.qual, l: 'Quality' },
+    toolbar: '<button class="sq-mbtn" data-action="sqEditPlayer" data-player-id="' + p.id + '" type="button">' + ICON_EDIT + 'Edit player</button>'
+      + '<button class="sq-mbtn sq-mbtn--danger" data-action="sqDeletePlayer" data-player-id="' + p.id + '" type="button">' + ICON_TRASH + 'Delete</button>',
+    body: _sqPlayerPanel(p, SQ_UI.tab),
+  });
 }
 function sqOpenPlayer(id) {
   if (!_sqFind(id)) return;
@@ -45149,25 +45178,7 @@ function _atSecSquadHub(id) {
       stats: [{ l: 'Pressing', v: _viEscSafe(tc.pressing) }, { l: 'Tempo', v: _viEscSafe(tc.tempo) }, { l: 'Build-up', v: _viEscSafe(tc.build) }] }
   ];
 
-  var cardHtml = cards.map(function (k) {
-    var statHtml = k.stats.map(function (s) {
-      return '<div class="sqf-stat"><div class="sqf-sl">' + s.l + '</div><div class="sqf-sv">' + s.v + '</div></div>';
-    }).join('');
-    return '<div class="sqf-card sqf-card--' + k.id + '" data-at-lumod="' + k.id + '" style="--ac:' + k.ac + ';--ac2:' + k.ac2 + '">'
-      + '<div class="sqf-head">'
-      +   '<div class="sqf-icon">' + k.icon + '</div>'
-      +   '<div class="sqf-titles"><div class="sqf-title">' + k.label + '</div><div class="sqf-sub">' + k.sub + '</div></div>'
-      +   '<div class="sqf-pill">' + k.pill + '</div>'
-      + '</div>'
-      + '<div class="sqf-prev">' + k.prev
-      +   '<div class="sqf-gloss"></div>'
-      +   '<div class="sqf-plabel">' + k.plabel + '</div>'
-      +   '<div class="sqf-pexp">' + I.expand + '</div>'
-      + '</div>'
-      + '<div class="sqf-stats">' + statHtml + '</div>'
-      + '<div class="sqf-btn"><span class="l">' + k.btnIcon + '<span>' + k.btnLabel + '</span></span><span class="a">' + I.arrow + '</span></div>'
-      + '</div>';
-  }).join('');
+  var cardHtml = _sqHubCards(cards, { openAttr: 'data-at-lumod', expand: I.expand, arrow: I.arrow });
 
   return '<div id="at-lu-home">'
     + '<div style="padding:6px 4px 22px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Players / Squad</h1>'
@@ -45264,18 +45275,25 @@ function _atPlayerModal(id) {
   var p = _atFindPlayer(id, AT.openPlayer); if (!p) return '';
   var c = _atCtx(id), idx = c.idx, pri = _atTabPriority(idx);
   var tab = AT_ACAD_TABS.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
-  var tabStrip = AT_ACAD_TABS.map(function (t) { return '<button class="at-ptab' + (tab === t[0] ? ' is-on' : '') + (pri.indexOf(t[0]) >= 0 ? ' at-ptab--pri' : '') + '" type="button" data-at-ptab="' + t[0] + '">' + t[1] + '</button>'; }).join('');
-  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
-  return '<div class="at-modal-back" data-at-close-player>'
-    + '<div class="at-modal at-modal--lg" style="--acc:' + c.accent + '" role="dialog">'
-      + '<div class="at-modal-head">' + av
-        + '<div class="at-modal-id"><span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</span><b>#' + p.number + ' ' + _viEscSafe(p.name) + '</b>'
-          + '<i>' + _viEscSafe(p.pos) + ' · Age ' + p.age + ' · Dev ' + p.devScore + ' · <span class="at-plbadge--' + _atDevTone(p.devStatus) + '" style="padding:1px 7px;border-radius:20px;font-size:10px;">' + _viEscSafe(p.devStatus) + '</span></i></div>'
-        + '<button class="at-modal-x" type="button" data-at-close-player>✕</button>'
-      + '</div>'
-      + (AT.editing ? '' : _atModalActions(p))
-      + '<div class="at-ptabs">' + tabStrip + '</div>'
-      + '<div class="at-modal-body">' + _atProfileBody(id, p, tab, idx) + '</div>'
+  var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>'
+    : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
+  return '<div class="sq-plm at-plm" style="--acc:' + c.accent + '">'
+    + '<div class="sq-plm-backdrop" data-at-close-player></div>'
+    + '<div class="sq-plm-dialog" role="dialog">'
+      + _sqProfileInner({
+          tabs: AT_ACAD_TABS.map(function (t) { return [t[0], t[1], pri.indexOf(t[0]) >= 0 ? 'sq-plm-tab--pri' : '']; }),
+          tab: tab,
+          tabAttr: function (k) { return 'data-at-ptab="' + k + '"'; },
+          closeAttr: 'data-at-close-player',
+          avatar: av,
+          name: '#' + p.number + ' ' + _viEscSafe(p.name),
+          meta: ['<span class="at-modal-kicker">ACADEMY · ' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage</span>',
+            '<span>' + _viEscSafe(p.pos) + '</span>', '<span>Age ' + p.age + '</span>',
+            '<span class="at-plbadge--' + _atDevTone(p.devStatus) + '" style="padding:1px 7px;border-radius:6px">' + _viEscSafe(p.devStatus) + '</span>'],
+          badge: { n: p.devScore, l: 'Development' },
+          toolbar: AT.editing ? '' : _atModalActions(p),
+          body: _atProfileBody(id, p, tab, idx),
+        })
     + '</div>'
   + '</div>';
 }
@@ -45975,6 +45993,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     }
     // ── Player profile modal ──
     if (t.classList && t.classList.contains('at-modal-back')) { e.preventDefault(); _atClosePlayer(); return; }
+    if (t.closest && t.closest('[data-at-close-player]')) { e.preventDefault(); _atClosePlayer(); return; }
     if (t.closest && t.closest('.at-modal-x')) { e.preventDefault(); _atClosePlayer(); return; }
     // Card quick-actions (hover-revealed) — jump straight into the existing
     // profile modal at the relevant tab/mode. Reuses _atOpenPlayer/AT.editing;
