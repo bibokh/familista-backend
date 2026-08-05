@@ -45680,6 +45680,9 @@ function _atLineupCtx(id) {
     quickPills: [['ahead', 'Ahead of stage'], ['fit', 'Fitness 90%+'], ['morale', 'Morale ↑'], ['attend', 'Attendance 90%+'], ['left', 'Left foot'], ['starter', 'Starting'], ['sub', 'Substitute'], ['available', 'Available'], ['injured', 'Injured'], ['suspended', 'Doubtful']],
     searchHint: 'Search name, position, squad number, foot…',
     openAction: 'atLuOpenPlayer', rowAction: 'atLuAct', addAction: 'atLuAddPlayer',
+    // the workspace already shows the module tabs above, so the shared page
+    // mounts its body without its own sub-header
+    bodyOnly: true,
     rowActions: [['edit', 'Edit'], ['details', 'Profile'], ['medical', 'Medical'], ['training', 'Attendance'], ['role', 'Assessment']],
     permissions: { canEdit: _acCanOpen(id) }
   };
