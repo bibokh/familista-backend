@@ -12418,7 +12418,7 @@ function _dashAcademyCtx(id) {
   return {
     type: 'academy',
     id: id,
-    cls: 'dash-v2--academy',
+    cls: 'dash-v2--academy dash-v2--' + id,
     accent: c.accent,
     widgets: [
       { id: 'ad-hero', region: 'hero', tag: 'section', cls: 'hero-club', body: function () {
