@@ -8726,3 +8726,26 @@ button.ac-tcard:hover .ac-tcard-cta-arrow{ transform:translateX(3px); }
 .sq-plm-tab--pri::after{ content:"•"; margin-left:4px; color:var(--acc,#a78bfa); }
 .sq-plm-tab--pri.is-active::after{ color:#06101a; }
 .at-plm .sq-plm-toolbar .at-modal-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ── Dashboard engine · academy context ────────────────────────────────────
+   An age group's dashboard is the First Team's dashboard in a different key.
+   The frame, the rail and the cards are the same components; the group's
+   accent is the one thing that changes, and it runs as a hairline along the
+   metric rail and a tick beside each card title. Nothing else is restyled. */
+body.club-theme #at-content .dash-v2{ padding:0; }
+body.club-theme .dash-v2--academy .hero-emblem{ background:rgba(255,255,255,.04); }
+body.club-theme .dash-v2--academy .hero-emblem-glyph{
+  font-size:24px; font-weight:800; letter-spacing:-.02em; color:var(--dash-ac,#a78bfa);
+}
+body.club-theme .dash-v2--academy .kpi-tile{ border-top:2px solid var(--dash-ac,#a78bfa); }
+body.club-theme .dash-v2--academy .d-card-title{ display:flex; align-items:center; gap:9px; }
+body.club-theme .dash-v2--academy .d-card-title::before{
+  content:""; width:3px; height:12px; border-radius:2px; background:var(--dash-ac,#a78bfa); flex:0 0 auto;
+}
+
+/* Two body shapes the engine can render: a short list of points, and a
+   paragraph. Both sit in the standard card body. */
+body.club-theme .d-notes{ margin:0; padding:0 0 0 17px; display:flex; flex-direction:column; gap:9px; }
+body.club-theme .d-notes li{ font-size:13px; line-height:1.55; color:var(--tx-2,#cbd5e1); }
+body.club-theme .d-notes li::marker{ color:var(--dash-ac,#f4b740); }
+body.club-theme .d-prose{ margin:0; font-size:13px; line-height:1.65; color:var(--tx-2,#cbd5e1); }

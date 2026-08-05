@@ -12300,24 +12300,153 @@ function _renderHomeWidgets(ctx) {
 }
 
 // ── DASHBOARD (Phase B.2 — Premium Club Hero) ──
+/* ── Shared Dashboard Engine ───────────────────────────────────────────────
+   One dashboard, many squads. The engine owns the frame: regions, the widget
+   chrome, and how a widget reaches the screen. A context owns the content:
+   which widgets appear, in which region, and what each one says. The First
+   Team shows club form, readiness and alerts; an academy age group shows its
+   stage objectives and coaching focus. Neither has a dashboard of its own —
+   they are two contexts of this one.
+
+   Regions, in reading order:
+     hero  a single full-width band
+     kpi   the metric rail beneath it
+     main  the wide column
+     side  the narrow column
+
+   Two mount modes, one renderer. The First Team paints into its slots after
+   its data loads (_dashPaint); an age group renders in one pass, inline
+   (_dashRender). Both draw the same widgets through the same components.  */
+
+function _dashCtx(ctx) { return ctx || _dashFirstCtx(); }
+
+// ── widget components — the vocabulary every dashboard is built from ──────
+function _dashCardHead(title, action) {
+  return '<div class="d-card-hdr"><h2 class="d-card-title">' + title + '</h2>' + (action || '') + '</div>';
+}
+function _dashCardLink(label, page) {
+  return '<button class="d-card-action" data-action="navTo" data-page="' + page + '">' + label + '</button>';
+}
+function _dashKpiTile(icon, val, lbl, sub, valCls) {
+  return '<div class="kpi-tile"><div class="kpi-icon">' + icon + '</div>'
+    + '<div class="kpi-val' + (valCls == null ? '' : ' ' + valCls) + '">' + val + '</div>'
+    + '<div class="kpi-lbl">' + lbl + '</div><div class="kpi-sub">' + sub + '</div></div>';
+}
+function _dashRows(rows) { return '<div class="d-card-body">' + rows + '</div>'; }
+function _dashEmpty(icon, title, sub) {
+  return '<div class="d-empty"><div class="d-empty-icon">' + icon + '</div>'
+    + '<div class="d-empty-title">' + title + '</div><div class="d-empty-sub">' + sub + '</div></div>';
+}
+// A plain bulleted panel — the shape stage objectives and coaching notes take.
+function _dashNotes(items) {
+  if (!items || !items.length) return _dashRows(_dashEmpty('—', 'Nothing set', 'Add notes for this group to see them here.'));
+  return _dashRows('<ul class="d-notes">' + items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>');
+}
+function _dashProse(text) { return _dashRows('<p class="d-prose">' + text + '</p>'); }
+
+// ── layout — regions render in a fixed order, whatever the context supplies ─
+function _dashPick(ctx, region) {
+  return (ctx.widgets || []).filter(function (w) { return w.region === region; });
+}
+function _dashSlot(w, inline, pad) {
+  var tag = w.tag || 'div';
+  var body = inline ? (w.head ? _dashCardHead(w.head, w.action) : '') + (w.body ? w.body() : '') : '';
+  return pad + '<' + tag + ' class="' + w.cls + '" id="' + w.id + '">' + body + '</' + tag + '>';
+}
+function _dashShellHtml(ctx, inline) {
+  var C = _dashCtx(ctx), L = [];
+  L.push('  <div class="dash-v2' + (C.cls ? ' ' + C.cls : '') + '"' + (C.accent ? ' style="--dash-ac:' + C.accent + '"' : '') + '>');
+  _dashPick(C, 'hero').forEach(function (w) { L.push(_dashSlot(w, inline, '    ')); });
+  _dashPick(C, 'kpi').forEach(function (w) { L.push(_dashSlot(w, inline, '    ')); });
+  L.push('    <section class="dash-grid-v2">');
+  L.push('      <div class="dash-col-main">');
+  _dashPick(C, 'main').forEach(function (w) { L.push(_dashSlot(w, inline, '        ')); });
+  L.push('      </div>');
+  L.push('      <div class="dash-col-side">');
+  _dashPick(C, 'side').forEach(function (w) { L.push(_dashSlot(w, inline, '        ')); });
+  L.push('      </div>');
+  L.push('    </section>');
+  L.push('  </div>');
+  return L.join('\n');
+}
+// Fill each widget's slot in place. Used when the data arrives after the frame.
+function _dashPaint(ctx, map) {
+  var C = _dashCtx(ctx);
+  (C.widgets || []).forEach(function (w) {
+    var el = document.getElementById(w.id);
+    if (!el) return;
+    var fn = (map && map[w.id]) || w.body;
+    if (!fn) return;
+    el.innerHTML = (w.head ? _dashCardHead(w.head, w.action) : '') + fn();
+  });
+}
+// Render frame and content together, for a dashboard whose data is already in hand.
+function _dashRender(ctx) { return _dashShellHtml(ctx, true); }
+
+// ── First Team context ────────────────────────────────────────────────────
+function _dashFirstCtx() {
+  return {
+    type: 'first',
+    widgets: [
+      { id: 'dash-hero',            region: 'hero', tag: 'section', cls: 'hero-club' },
+      { id: 'dash-kpi',             region: 'kpi',  tag: 'section', cls: 'kpi-row-v2' },
+      { id: 'dash-readiness',       region: 'main', cls: 'd-card' },
+      { id: 'dash-recent',          region: 'main', cls: 'd-card' },
+      { id: 'dash-training-today',  region: 'side', cls: 'd-card' },
+      { id: 'dash-top-performers',  region: 'side', cls: 'd-card' },
+      { id: 'dash-alerts',          region: 'side', cls: 'd-card' },
+    ],
+  };
+}
+
+// ── Academy context — same engine, an age group's widgets ─────────────────
+function _dashAcademyCtx(id) {
+  var c = _atCtx(id), st = c.stage, pl = _acInStage(id), team = _atTeam(id);
+  var pro = _atShowProKpis(id);
+  var avgAtt = pl.length ? Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / pl.length) : 0;
+  var tiles = pro
+    ? [['👥', pl.length, 'PLAYERS', 'in this age group', ''],
+       ['⭐', _acStageAvg(id) || '—', 'AVG OVERALL', 'stage average', 'gold'],
+       ['📋', avgAtt + '%', 'ATTENDANCE', 'sessions attended', ''],
+       ['⚡', team.training.sessions.length, 'SESSIONS', 'on the plan', ''],
+       ['🎓', st.coachN, 'COACHES', 'assigned to the group', '']]
+    : [['👥', pl.length, 'PLAYERS', 'in this age group', ''],
+       ['🎓', st.coachN, 'COACHES', 'assigned to the group', ''],
+       ['⚡', team.training.sessions.length, 'SESSIONS', 'on the plan', ''],
+       ['🙂', 'High', 'ENJOYMENT', 'how the group is doing', ''],
+       ['🎯', 'Fun & skills', 'FOCUS', 'what this stage works on', '']];
+  return {
+    type: 'academy',
+    id: id,
+    cls: 'dash-v2--academy',
+    accent: c.accent,
+    widgets: [
+      { id: 'ad-hero', region: 'hero', tag: 'section', cls: 'hero-club', body: function () {
+          return '<div class="hero-club-id">'
+            + '<div class="hero-emblem"><span class="hero-emblem-glyph">' + _viEscSafe(c.label) + '</span></div>'
+            + '<div>'
+            + '<h1 class="hero-club-name">' + _viEscSafe(c.name) + ' Stage</h1>'
+            + '<div class="hero-meta">' + _viEscSafe(st.summary) + '</div>'
+            + '</div>'
+            + '</div>';
+        } },
+      { id: 'ad-kpi', region: 'kpi', tag: 'section', cls: 'kpi-row-v2', body: function () {
+          return tiles.map(function (k) { return _dashKpiTile(k[0], k[1], k[2], k[3], k[4]); }).join('');
+        } },
+      { id: 'ad-objectives', region: 'main', cls: 'd-card', head: 'STAGE OBJECTIVES',
+        body: function () { return _dashNotes((st.objectives || []).map(_viEscSafe)); } },
+      { id: 'ad-methodology', region: 'main', cls: 'd-card', head: 'METHODOLOGY',
+        body: function () { return _dashProse(_viEscSafe(st.methodology)); } },
+      { id: 'ad-focus', region: 'side', cls: 'd-card', head: 'COACHING FOCUS',
+        body: function () { return _dashNotes((st.ai || []).map(_viEscSafe)); } },
+      { id: 'ad-philosophy', region: 'side', cls: 'd-card', head: 'PHILOSOPHY',
+        body: function () { return _dashProse(_viEscSafe(st.philosophy)); } },
+    ],
+  };
+}
+
 function renderDashboardHTML() {
-  return `<div class="page" id="pg-dashboard">
-  <div class="dash-v2">
-    <section class="hero-club" id="dash-hero"></section>
-    <section class="kpi-row-v2" id="dash-kpi"></section>
-    <section class="dash-grid-v2">
-      <div class="dash-col-main">
-        <div class="d-card" id="dash-readiness"></div>
-        <div class="d-card" id="dash-recent"></div>
-      </div>
-      <div class="dash-col-side">
-        <div class="d-card" id="dash-training-today"></div>
-        <div class="d-card" id="dash-top-performers"></div>
-        <div class="d-card" id="dash-alerts"></div>
-      </div>
-    </section>
-  </div>
-</div>`;
+  return '<div class="page" id="pg-dashboard">\n' + _dashShellHtml(_dashFirstCtx(), false) + '\n</div>';
 }
 
 // Countdown — single 1 s interval, updates only digit spans (tabular-nums
@@ -12451,180 +12580,176 @@ function renderDashboard() {
     var top = _dashTopPerformers(5);
     var alerts = _dashAlerts();
 
-    // ── HERO ──
-    var heroEl = document.getElementById('dash-hero');
-    if (heroEl) {
-      var emblemHtml = club.emblem
-        ? '<img class="hero-emblem-img" src="' + _esc(club.emblem) + '" alt="' + _esc(club.name) + '" onerror="this.style.display=\'none\'">'
-        : '<span class="hero-emblem-glyph">⚽</span>';
-      var meta = [club.city, club.country, club.level ? 'Level ' + club.level : '', club.rating ? '⭐ ' + Number(club.rating).toFixed(1) : '']
-        .filter(Boolean).join(' · ');
-
-      var fixtureHtml = '';
-      if (nextMatch) {
-        var dt = new Date(nextMatch.scheduledAt);
-        var when = dt.toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
-        var venue = nextMatch.venue || (nextMatch.isHome ? 'Home' : 'Away');
-        var competition = nextMatch.competitionName || nextMatch.competition || '';
-        var homeName = nextMatch.homeTeam || club.name;
-        var awayName = nextMatch.awayTeam || 'Opponent';
-        var isHome = (homeName || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1 || nextMatch.isHome;
-        fixtureHtml =
-          '<div class="hero-fixture">'
-          + '<div class="hf-label">NEXT FIXTURE' + (competition ? ' · ' + _esc(competition) : '') + '</div>'
-          + '<div class="hf-teams">'
-          + '  <div class="hf-team home"><div class="hf-crest">' + (isHome && club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">' : '🏠') + '</div><div class="hf-name">' + _esc(homeName) + '</div><div class="hf-side">Home</div></div>'
-          + '  <div class="hf-vs">vs</div>'
-          + '  <div class="hf-team away"><div class="hf-crest">⚔️</div><div class="hf-name">' + _esc(awayName) + '</div><div class="hf-side">Away</div></div>'
+    var _M = {};
+    _M['dash-hero'] = function () {
+      var _H = '';
+        var emblemHtml = club.emblem
+          ? '<img class="hero-emblem-img" src="' + _esc(club.emblem) + '" alt="' + _esc(club.name) + '" onerror="this.style.display=\'none\'">'
+          : '<span class="hero-emblem-glyph">⚽</span>';
+        var meta = [club.city, club.country, club.level ? 'Level ' + club.level : '', club.rating ? '⭐ ' + Number(club.rating).toFixed(1) : '']
+          .filter(Boolean).join(' · ');
+  
+        var fixtureHtml = '';
+        if (nextMatch) {
+          var dt = new Date(nextMatch.scheduledAt);
+          var when = dt.toLocaleString(undefined, { weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+          var venue = nextMatch.venue || (nextMatch.isHome ? 'Home' : 'Away');
+          var competition = nextMatch.competitionName || nextMatch.competition || '';
+          var homeName = nextMatch.homeTeam || club.name;
+          var awayName = nextMatch.awayTeam || 'Opponent';
+          var isHome = (homeName || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1 || nextMatch.isHome;
+          fixtureHtml =
+            '<div class="hero-fixture">'
+            + '<div class="hf-label">NEXT FIXTURE' + (competition ? ' · ' + _esc(competition) : '') + '</div>'
+            + '<div class="hf-teams">'
+            + '  <div class="hf-team home"><div class="hf-crest">' + (isHome && club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">' : '🏠') + '</div><div class="hf-name">' + _esc(homeName) + '</div><div class="hf-side">Home</div></div>'
+            + '  <div class="hf-vs">vs</div>'
+            + '  <div class="hf-team away"><div class="hf-crest">⚔️</div><div class="hf-name">' + _esc(awayName) + '</div><div class="hf-side">Away</div></div>'
+            + '</div>'
+            + '<div class="hf-countdown" id="hf-countdown">'
+            + '<span class="hfc-block"><span class="hfc-val" id="hfc-days">00</span><span class="hfc-lbl">DAYS</span></span>'
+            + '<span class="hfc-sep">:</span>'
+            + '<span class="hfc-block"><span class="hfc-val" id="hfc-hours">00</span><span class="hfc-lbl">HRS</span></span>'
+            + '<span class="hfc-sep">:</span>'
+            + '<span class="hfc-block"><span class="hfc-val" id="hfc-mins">00</span><span class="hfc-lbl">MIN</span></span>'
+            + '<span class="hfc-sep">:</span>'
+            + '<span class="hfc-block"><span class="hfc-val" id="hfc-secs">00</span><span class="hfc-lbl">SEC</span></span>'
+            + '</div>'
+            + '<div class="hf-when">' + _esc(when) + ' · ' + _esc(venue) + '</div>'
+            + '<button class="hf-cta" data-action="navTo" data-page="match-center">▶ MATCH CENTER</button>'
+            + '</div>';
+        } else {
+          fixtureHtml =
+            '<div class="hero-fixture hero-fixture--empty">'
+            + '<div class="hf-label">NEXT FIXTURE</div>'
+            + '<div class="hf-empty">No upcoming match scheduled</div>'
+            + '<button class="hf-cta secondary" data-action="navTo" data-page="matches">View matches →</button>'
+            + '</div>';
+        }
+  
+        _H =
+          '<div class="hero-watermark">' + (club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.remove()">' : '⚽') + '</div>'
+          + '<div class="hero-content">'
+          + '<div class="hero-identity">'
+          + '<div class="hero-emblem">' + emblemHtml + '</div>'
+          + '<div>'
+          + '<h1 class="hero-club-name">' + _esc(club.name) + '</h1>'
+          + '<div class="hero-meta">' + (meta || 'Premium football management') + '</div>'
           + '</div>'
-          + '<div class="hf-countdown" id="hf-countdown">'
-          + '<span class="hfc-block"><span class="hfc-val" id="hfc-days">00</span><span class="hfc-lbl">DAYS</span></span>'
-          + '<span class="hfc-sep">:</span>'
-          + '<span class="hfc-block"><span class="hfc-val" id="hfc-hours">00</span><span class="hfc-lbl">HRS</span></span>'
-          + '<span class="hfc-sep">:</span>'
-          + '<span class="hfc-block"><span class="hfc-val" id="hfc-mins">00</span><span class="hfc-lbl">MIN</span></span>'
-          + '<span class="hfc-sep">:</span>'
-          + '<span class="hfc-block"><span class="hfc-val" id="hfc-secs">00</span><span class="hfc-lbl">SEC</span></span>'
           + '</div>'
-          + '<div class="hf-when">' + _esc(when) + ' · ' + _esc(venue) + '</div>'
-          + '<button class="hf-cta" data-action="navTo" data-page="match-center">▶ MATCH CENTER</button>'
+          + fixtureHtml
           + '</div>';
-      } else {
-        fixtureHtml =
-          '<div class="hero-fixture hero-fixture--empty">'
-          + '<div class="hf-label">NEXT FIXTURE</div>'
-          + '<div class="hf-empty">No upcoming match scheduled</div>'
-          + '<button class="hf-cta secondary" data-action="navTo" data-page="matches">View matches →</button>'
+  
+        if (nextMatch) {
+          try { _dashStartCountdown(new Date(nextMatch.scheduledAt).getTime()); } catch (_) {}
+        } else if (_dashCountdownTimer) {
+          clearInterval(_dashCountdownTimer); _dashCountdownTimer = null;
+        }
+      return _H;
+    };
+    _M['dash-kpi'] = function () {
+      var _H = '';
+        var formDots = form.length
+          ? form.map(function (r) { var cls = r === 'W' ? 'fw' : r === 'L' ? 'fl' : r === 'D' ? 'fd' : 'fn'; return '<span class="form-dot ' + cls + '">' + r + '</span>'; }).join('')
+          : '<span class="kpi-empty">No matches yet</span>';
+        _H = ''
+          + _dashKpiTile('👥', sq.total, 'SQUAD', (sq.total - sq.injured) + ' available · ' + sq.injured + ' injured')
+          + _dashKpiTile('⚡', tThis, 'TRAINING', 'sessions this week')
+          + _dashKpiTile('📈', formDots, 'FORM', 'last ' + form.length + ' matches', 'form-row')
+          + _dashKpiTile('⭐', (sq.avgRating || '—'), 'AVG RATING', 'overall squad', 'gold')
+          + _dashKpiTile('⚠️', alerts.length, 'ALERTS', (alerts.length ? 'attention needed' : 'all clear'), (alerts.length ? 'critical' : ''));
+      return _H;
+    };
+    _M['dash-readiness'] = function () {
+      var _H = '';
+        var fitnessPct = sq.avgCond || 0;
+        var moralePct = sq.total ? Math.max(40, Math.min(100, sq.avgRating)) : 0;
+        _H = ''
+          + _dashCardHead('SQUAD READINESS', _dashCardLink('View Squad →', 'squad'))
+          + '<div class="readiness-gauges">'
+          + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FITNESS</span><span class="gauge-val">' + fitnessPct + '%</span></div><div class="gauge-bar"><div class="gauge-fill pitch" style="width:' + fitnessPct + '%;"></div></div></div>'
+          + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FORM</span><span class="gauge-val">' + moralePct + '</span></div><div class="gauge-bar"><div class="gauge-fill gold" style="width:' + moralePct + '%;"></div></div></div>'
+          + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">INJURED</span><span class="gauge-val ' + (sq.injured ? 'critical' : '') + '">' + sq.injured + '</span></div><div class="gauge-bar"><div class="gauge-fill critical" style="width:' + (sq.total ? Math.round((sq.injured / sq.total) * 100) : 0) + '%;"></div></div></div>'
+          + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">ACTIVE</span><span class="gauge-val">' + (sq.total - sq.injured) + '</span></div><div class="gauge-bar"><div class="gauge-fill royal" style="width:' + (sq.total ? Math.round(((sq.total - sq.injured) / sq.total) * 100) : 0) + '%;"></div></div></div>'
           + '</div>';
-      }
-
-      heroEl.innerHTML =
-        '<div class="hero-watermark">' + (club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.remove()">' : '⚽') + '</div>'
-        + '<div class="hero-content">'
-        + '<div class="hero-identity">'
-        + '<div class="hero-emblem">' + emblemHtml + '</div>'
-        + '<div>'
-        + '<h1 class="hero-club-name">' + _esc(club.name) + '</h1>'
-        + '<div class="hero-meta">' + (meta || 'Premium football management') + '</div>'
-        + '</div>'
-        + '</div>'
-        + fixtureHtml
-        + '</div>';
-
-      if (nextMatch) {
-        try { _dashStartCountdown(new Date(nextMatch.scheduledAt).getTime()); } catch (_) {}
-      } else if (_dashCountdownTimer) {
-        clearInterval(_dashCountdownTimer); _dashCountdownTimer = null;
-      }
-    }
-
-    // ── KPI ROW ──
-    var kpiEl = document.getElementById('dash-kpi');
-    if (kpiEl) {
-      var formDots = form.length
-        ? form.map(function (r) { var cls = r === 'W' ? 'fw' : r === 'L' ? 'fl' : r === 'D' ? 'fd' : 'fn'; return '<span class="form-dot ' + cls + '">' + r + '</span>'; }).join('')
-        : '<span class="kpi-empty">No matches yet</span>';
-      kpiEl.innerHTML = ''
-        + '<div class="kpi-tile"><div class="kpi-icon">👥</div><div class="kpi-val">' + sq.total + '</div><div class="kpi-lbl">SQUAD</div><div class="kpi-sub">' + (sq.total - sq.injured) + ' available · ' + sq.injured + ' injured</div></div>'
-        + '<div class="kpi-tile"><div class="kpi-icon">⚡</div><div class="kpi-val">' + tThis + '</div><div class="kpi-lbl">TRAINING</div><div class="kpi-sub">sessions this week</div></div>'
-        + '<div class="kpi-tile"><div class="kpi-icon">📈</div><div class="kpi-val form-row">' + formDots + '</div><div class="kpi-lbl">FORM</div><div class="kpi-sub">last ' + form.length + ' matches</div></div>'
-        + '<div class="kpi-tile"><div class="kpi-icon">⭐</div><div class="kpi-val gold">' + (sq.avgRating || '—') + '</div><div class="kpi-lbl">AVG RATING</div><div class="kpi-sub">overall squad</div></div>'
-        + '<div class="kpi-tile"><div class="kpi-icon">⚠️</div><div class="kpi-val ' + (alerts.length ? 'critical' : '') + '">' + alerts.length + '</div><div class="kpi-lbl">ALERTS</div><div class="kpi-sub">' + (alerts.length ? 'attention needed' : 'all clear') + '</div></div>';
-    }
-
-    // ── SQUAD READINESS ──
-    var readyEl = document.getElementById('dash-readiness');
-    if (readyEl) {
-      var fitnessPct = sq.avgCond || 0;
-      var moralePct = sq.total ? Math.max(40, Math.min(100, sq.avgRating)) : 0;
-      readyEl.innerHTML = ''
-        + '<div class="d-card-hdr"><h2 class="d-card-title">SQUAD READINESS</h2><button class="d-card-action" data-action="navTo" data-page="squad">View Squad →</button></div>'
-        + '<div class="readiness-gauges">'
-        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FITNESS</span><span class="gauge-val">' + fitnessPct + '%</span></div><div class="gauge-bar"><div class="gauge-fill pitch" style="width:' + fitnessPct + '%;"></div></div></div>'
-        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">FORM</span><span class="gauge-val">' + moralePct + '</span></div><div class="gauge-bar"><div class="gauge-fill gold" style="width:' + moralePct + '%;"></div></div></div>'
-        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">INJURED</span><span class="gauge-val ' + (sq.injured ? 'critical' : '') + '">' + sq.injured + '</span></div><div class="gauge-bar"><div class="gauge-fill critical" style="width:' + (sq.total ? Math.round((sq.injured / sq.total) * 100) : 0) + '%;"></div></div></div>'
-        + '  <div class="gauge"><div class="gauge-top"><span class="gauge-lbl">ACTIVE</span><span class="gauge-val">' + (sq.total - sq.injured) + '</span></div><div class="gauge-bar"><div class="gauge-fill royal" style="width:' + (sq.total ? Math.round(((sq.total - sq.injured) / sq.total) * 100) : 0) + '%;"></div></div></div>'
-        + '</div>';
-    }
-
-    // ── RECENT RESULTS ──
-    var recentEl = document.getElementById('dash-recent');
-    if (recentEl) {
-      var rows = recent.length
-        ? recent.map(function (m) {
-            var isHome = (m.homeTeam || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1;
-            var r = (m.result || '').toUpperCase();
-            var cls = r === 'WIN' ? 'rb-w' : r === 'LOSS' ? 'rb-l' : 'rb-d';
-            var rChip = r ? r[0] : '?';
-            var competition = m.competitionName || m.competition || '—';
-            return '<div class="result-row-v2">'
-                 + '<div class="rr-badge ' + cls + '">' + rChip + '</div>'
-                 + '<div class="rr-body">'
-                 + '<div class="rr-teams"><span class="' + (isHome ? 'rr-home' : '') + '">' + _esc(m.homeTeam || '—') + '</span> vs <span class="' + (!isHome ? 'rr-home' : '') + '">' + _esc(m.awayTeam || '—') + '</span></div>'
-                 + '<div class="rr-meta">' + _esc(competition) + ' · ' + new Date(m.scheduledAt).toLocaleDateString(undefined, { day:'numeric', month:'short' }) + '</div>'
-                 + '</div>'
-                 + '<div class="rr-score">' + (m.homeScore != null ? m.homeScore : '?') + ' — ' + (m.awayScore != null ? m.awayScore : '?') + '</div>'
-                 + '</div>';
-          }).join('')
-        : '<div class="d-empty"><div class="d-empty-icon">⚽</div><div class="d-empty-title">No matches played yet</div><div class="d-empty-sub">Results will appear here.</div></div>';
-      recentEl.innerHTML = ''
-        + '<div class="d-card-hdr"><h2 class="d-card-title">RECENT RESULTS</h2><button class="d-card-action" data-action="navTo" data-page="matches">All matches →</button></div>'
-        + '<div class="d-card-body">' + rows + '</div>';
-    }
-
-    // ── TRAINING TODAY ──
-    var trainEl = document.getElementById('dash-training-today');
-    if (trainEl) {
-      var trainRows = tToday.length
-        ? tToday.map(function (t) {
-            var dt = new Date(t.scheduledAt);
-            var hh = dt.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
-            return '<div class="training-row">'
-                 + '<div class="tr-time">' + hh + '</div>'
-                 + '<div class="tr-body"><div class="tr-title">' + _esc(t.title || 'Training session') + '</div><div class="tr-meta">' + _esc(t.location || 'Pitch') + ' · ' + (t.duration || 90) + ' min</div></div>'
-                 + '</div>';
-          }).join('')
-        : '<div class="d-empty"><div class="d-empty-icon">🌙</div><div class="d-empty-title">Rest day</div><div class="d-empty-sub">No sessions scheduled.</div></div>';
-      trainEl.innerHTML = ''
-        + '<div class="d-card-hdr"><h2 class="d-card-title">TRAINING TODAY</h2><button class="d-card-action" data-action="navTo" data-page="training">→</button></div>'
-        + '<div class="d-card-body">' + trainRows + '</div>';
-    }
-
-    // ── TOP PERFORMERS ──
-    var topEl = document.getElementById('dash-top-performers');
-    if (topEl) {
-      var topRows = top.length
-        ? top.map(function (p, i) {
-            var photo = (typeof _pcPhotoUrl === 'function' ? _pcPhotoUrl(p) : p.avatar) || '';
-            var initials = (typeof _pcInitials === 'function' ? _pcInitials(p) : ((p.firstName || '?')[0] + (p.lastName || '')[0]));
-            return '<div class="performer-row">'
-                 + '<div class="pf-rank">' + (i + 1) + '</div>'
-                 + '<div class="pf-avatar">' + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials)) + '</div>'
-                 + '<div class="pf-body"><div class="pf-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="pf-pos">' + _esc(p.position || '—') + '</div></div>'
-                 + '<div class="pf-rating">' + (p.overallRating || '—') + '</div>'
-                 + '</div>';
-          }).join('')
-        : '<div class="d-empty"><div class="d-empty-icon">👥</div><div class="d-empty-title">No players</div><div class="d-empty-sub">Add players to see top performers.</div></div>';
-      topEl.innerHTML = ''
-        + '<div class="d-card-hdr"><h2 class="d-card-title">TOP PERFORMERS</h2><button class="d-card-action" data-action="navTo" data-page="squad">All →</button></div>'
-        + '<div class="d-card-body">' + topRows + '</div>';
-    }
-
-    // ── ALERTS ──
-    var alertEl = document.getElementById('dash-alerts');
-    if (alertEl) {
-      var alertRows = alerts.length
-        ? alerts.map(function (a) {
-            return '<div class="alert-row alert-' + a.tone + '">'
-                 + '<div class="al-icon">' + a.icon + '</div>'
-                 + '<div class="al-body"><div class="al-title">' + _esc(a.title) + '</div><div class="al-detail">' + _esc(a.detail) + '</div></div>'
-                 + '</div>';
-          }).join('')
-        : '<div class="d-empty"><div class="d-empty-icon">✅</div><div class="d-empty-title">All clear</div><div class="d-empty-sub">No active alerts.</div></div>';
-      alertEl.innerHTML = ''
-        + '<div class="d-card-hdr"><h2 class="d-card-title">ALERTS</h2></div>'
-        + '<div class="d-card-body">' + alertRows + '</div>';
-    }
+      return _H;
+    };
+    _M['dash-recent'] = function () {
+      var _H = '';
+        var rows = recent.length
+          ? recent.map(function (m) {
+              var isHome = (m.homeTeam || '').toLowerCase().indexOf((club.name || 'familista').toLowerCase()) !== -1;
+              var r = (m.result || '').toUpperCase();
+              var cls = r === 'WIN' ? 'rb-w' : r === 'LOSS' ? 'rb-l' : 'rb-d';
+              var rChip = r ? r[0] : '?';
+              var competition = m.competitionName || m.competition || '—';
+              return '<div class="result-row-v2">'
+                   + '<div class="rr-badge ' + cls + '">' + rChip + '</div>'
+                   + '<div class="rr-body">'
+                   + '<div class="rr-teams"><span class="' + (isHome ? 'rr-home' : '') + '">' + _esc(m.homeTeam || '—') + '</span> vs <span class="' + (!isHome ? 'rr-home' : '') + '">' + _esc(m.awayTeam || '—') + '</span></div>'
+                   + '<div class="rr-meta">' + _esc(competition) + ' · ' + new Date(m.scheduledAt).toLocaleDateString(undefined, { day:'numeric', month:'short' }) + '</div>'
+                   + '</div>'
+                   + '<div class="rr-score">' + (m.homeScore != null ? m.homeScore : '?') + ' — ' + (m.awayScore != null ? m.awayScore : '?') + '</div>'
+                   + '</div>';
+            }).join('')
+          : '<div class="d-empty"><div class="d-empty-icon">⚽</div><div class="d-empty-title">No matches played yet</div><div class="d-empty-sub">Results will appear here.</div></div>';
+        _H = ''
+          + _dashCardHead('RECENT RESULTS', _dashCardLink('All matches →', 'matches'))
+          + '<div class="d-card-body">' + rows + '</div>';
+      return _H;
+    };
+    _M['dash-training-today'] = function () {
+      var _H = '';
+        var trainRows = tToday.length
+          ? tToday.map(function (t) {
+              var dt = new Date(t.scheduledAt);
+              var hh = dt.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+              return '<div class="training-row">'
+                   + '<div class="tr-time">' + hh + '</div>'
+                   + '<div class="tr-body"><div class="tr-title">' + _esc(t.title || 'Training session') + '</div><div class="tr-meta">' + _esc(t.location || 'Pitch') + ' · ' + (t.duration || 90) + ' min</div></div>'
+                   + '</div>';
+            }).join('')
+          : '<div class="d-empty"><div class="d-empty-icon">🌙</div><div class="d-empty-title">Rest day</div><div class="d-empty-sub">No sessions scheduled.</div></div>';
+        _H = ''
+          + _dashCardHead('TRAINING TODAY', _dashCardLink('→', 'training'))
+          + '<div class="d-card-body">' + trainRows + '</div>';
+      return _H;
+    };
+    _M['dash-top-performers'] = function () {
+      var _H = '';
+        var topRows = top.length
+          ? top.map(function (p, i) {
+              var photo = (typeof _pcPhotoUrl === 'function' ? _pcPhotoUrl(p) : p.avatar) || '';
+              var initials = (typeof _pcInitials === 'function' ? _pcInitials(p) : ((p.firstName || '?')[0] + (p.lastName || '')[0]));
+              return '<div class="performer-row">'
+                   + '<div class="pf-rank">' + (i + 1) + '</div>'
+                   + '<div class="pf-avatar">' + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials)) + '</div>'
+                   + '<div class="pf-body"><div class="pf-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="pf-pos">' + _esc(p.position || '—') + '</div></div>'
+                   + '<div class="pf-rating">' + (p.overallRating || '—') + '</div>'
+                   + '</div>';
+            }).join('')
+          : '<div class="d-empty"><div class="d-empty-icon">👥</div><div class="d-empty-title">No players</div><div class="d-empty-sub">Add players to see top performers.</div></div>';
+        _H = ''
+          + _dashCardHead('TOP PERFORMERS', _dashCardLink('All →', 'squad'))
+          + '<div class="d-card-body">' + topRows + '</div>';
+      return _H;
+    };
+    _M['dash-alerts'] = function () {
+      var _H = '';
+        var alertRows = alerts.length
+          ? alerts.map(function (a) {
+              return '<div class="alert-row alert-' + a.tone + '">'
+                   + '<div class="al-icon">' + a.icon + '</div>'
+                   + '<div class="al-body"><div class="al-title">' + _esc(a.title) + '</div><div class="al-detail">' + _esc(a.detail) + '</div></div>'
+                   + '</div>';
+            }).join('')
+          : '<div class="d-empty"><div class="d-empty-icon">✅</div><div class="d-empty-title">All clear</div><div class="d-empty-sub">No active alerts.</div></div>';
+        _H = ''
+          + _dashCardHead('ALERTS')
+          + '<div class="d-card-body">' + alertRows + '</div>';
+      return _H;
+    };
+    _dashPaint(_dashFirstCtx(), _M);
   } catch (err) {
     try { console.error('[dashboard-v2] render failed:', err && err.stack || err); } catch (_) {}
   }
@@ -44892,24 +45017,7 @@ function _atSecHead(id, title, desc) {
 
 // ── Sections ──
 function _atSecDashboard(id) {
-  var c = _atCtx(id), st = c.stage, pl = _acInStage(id), t = _atTeam(id);
-  var pro = _atShowProKpis(id);
-  var kpis = pro
-    ? [['Players', pl.length], ['Avg Overall', _acStageAvg(id) || '—'], ['Avg Attendance', Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / (pl.length || 1)) + '%'], ['Sessions', t.training.sessions.length], ['Needs Attention', pl.filter(function (p) { return p.attention; }).length]]
-    : [['Players', pl.length], ['Coaches', st.coachN], ['Sessions', t.training.sessions.length], ['Enjoyment', 'High'], ['Focus', 'Fun & skills']];
-  var kh = '<div class="at-kpis">' + kpis.map(function (k) { return '<div class="at-kpi"><b>' + k[1] + '</b><span>' + k[0] + '</span></div>'; }).join('') + '</div>';
-  var obj = '<ul class="at-list">' + (st.objectives || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>';
-  var ai = '<ul class="at-list">' + (st.ai || []).map(function (o) { return '<li>' + _viEscSafe(o) + '</li>'; }).join('') + '</ul>';
-  return _atSecHead(id, c.label + ' Dashboard', st.summary)
-    + kh
-    + '<div class="at-grid2">'
-      + _atCard('Stage Objectives', obj)
-      + _atCard('Coaching Focus (AI)', ai)
-    + '</div>'
-    + '<div class="at-grid2">'
-      + _atCard('Methodology', '<p class="at-p">' + _viEscSafe(st.methodology) + '</p>')
-      + _atCard('Philosophy', '<p class="at-p">' + _viEscSafe(st.philosophy) + '</p>')
-    + '</div>';
+  return _dashRender(_dashAcademyCtx(id));
 }
 /* ── Age-adaptive player profile config ─────────────────────────────────── */
 var AT_TABS_MASTER = [
