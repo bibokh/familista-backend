@@ -3202,10 +3202,14 @@ function _sqAllowedZonesAny(p, ctx) {
   }
   return p.pos ? (SQ_ALLOWED[p.pos] || _sqDefaultAllowed(p.cat)) : _sqDefaultAllowed(p.cat);
 }
-function _sqCanonZone(x, y) { var best = 'MC', bd = 1e9, k; for (k in SQ_ZONES) { var Z = SQ_ZONES[k]; var d = (Z.x - x) * (Z.x - x) + (Z.y - y) * (Z.y - y); if (d < bd) { bd = d; best = k; } } return best; }
+function _sqCanonZone(x, y, ctx) { var M = _sqZoneMap(ctx); var best = 'MC', bd = 1e9, k; for (k in M) { var Z = M[k]; var d = (Z.x - x) * (Z.x - x) + (Z.y - y) * (Z.y - y); if (d < bd) { bd = d; best = k; } } return best; }
 
 function _ln(c, y, xs, rs) { return xs.map(function (x, i) { return { c: c, x: x, y: y, r: (rs && rs[i]) || c.toUpperCase() }; }); }
 var _GK = [{ c: 'gk', x: 50, y: 88, r: 'GK' }];
+// A small-sided keeper starts a touch deeper so the central defender in front
+// still clears them; _mid73 drops the middle of a back three to its own depth.
+var _GK3 = [{ c: 'gk', x: 50, y: 89, r: 'GK' }];
+function _mid73(s, i) { return (i === 1) ? { c: s.c, x: s.x, y: 73, r: s.r } : s; }
 var SQ_FORMATIONS = {
   '4-4-2': _GK.concat(_ln('df', 76, [14, 38, 62, 86], ['LB', 'CB', 'CB', 'RB']), _ln('mf', 52, [14, 38, 62, 86], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 24, [38, 62], ['ST', 'ST'])),
   '4-3-3': _GK.concat(_ln('df', 76, [14, 38, 62, 86], ['LB', 'CB', 'CB', 'RB']), _ln('mf', 54, [27, 50, 73], ['CM', 'CM', 'CM']), _ln('fw', 24, [20, 50, 80], ['LW', 'ST', 'RW'])),
@@ -3291,7 +3295,7 @@ function _sqExecFor(p) {
   var success = Math.round(score / 11);
   return { key: key, instr: instr, score: score, correct: correct, tacErr: tacErr, posErr: posErr, miss: miss, success: success };
 }
-function _sqTeamExec() { var ids = SQ_MY_IDS || [], s = 0, n = 0; ids.forEach(function (id) { var p = _sqP(id); if (!p) return; n++; s += _sqExecFor(p).score; }); return n ? Math.round(s / n) : 0; }
+function _sqTeamExec(ctx) { var C = _sqCtx(ctx); var ids = C.starterIds || [], s = 0, n = 0; ids.forEach(function (id) { var p = _sqCtxP(id, C); if (!p) return; n++; s += _sqExecFor(p).score; }); return n ? Math.round(s / n) : 0; }
 function _sqTrainingFor(ex) {
   var arr = [['Positioning Training', ex.posErr], ['Movement Off The Ball', ex.miss], ['Tactical Awareness', ex.tacErr], ['Transition Training', Math.round((100 - ex.score) / 20)]];
   if (ex.instr.type === 'press') arr.push(['Pressing Training', Math.round((100 - ex.score) / 15)]);
@@ -3302,22 +3306,23 @@ function _sqTrainingFor(ex) {
 }
 function _sqExpected(ex) { var t = ex.instr.type; return t === 'att' ? 'time the run to arrive in the box' : t === 'def' ? 'hold the defensive line and screen the back four' : t === 'wide' ? 'hug the touchline to stretch the play' : t === 'press' ? 'trigger the press and cut the passing lane' : t === 'sup' ? 'drop off to link play and create space' : 'keep positional discipline'; }
 
-function _sqMetricsFor(name, players) {
-  var slots = SQ_FORMATIONS[name]; if (!slots) return { ovr: 0, balance: 0, compat: 0, efficiency: 0 };
-  var assign = _sqAssignXI(slots, players), qs = 0, sc = 0, n = 0;
-  assign.forEach(function (a) { if (!a.player) return; n++; qs += a.player.qual; var z = _sqCanonZone(a.slot.x, a.slot.y); sc += _sqPosScore(_sqNearestAllowedDist(SQ_ZONES[z].x, SQ_ZONES[z].y, _sqAllowedZonesAny(a.player))); });
+function _sqMetricsFor(name, players, ctx) {
+  var slots = _sqSlotsFor(name); if (!slots) return { ovr: 0, balance: 0, compat: 0, efficiency: 0 };
+  var ZM = _sqZoneMap(ctx);
+  var assign = _sqAssignXI(slots, players, ctx), qs = 0, sc = 0, n = 0;
+  assign.forEach(function (a) { if (!a.player) return; n++; qs += a.player.qual; var z = _sqCanonZone(a.slot.x, a.slot.y, ctx); sc += _sqPosScore(_sqNearestAllowedDist(ZM[z].x, ZM[z].y, _sqAllowedZonesAny(a.player, ctx), ctx)); });
   var ovr = n ? Math.round(qs / n) : 0, balance = n ? Math.round(sc / n) : 0, compat = _sqCompat(slots, players);
   var ovrScaled = Math.max(0, Math.min(100, Math.round((ovr - 60) / 40 * 100)));
   var efficiency = Math.round(0.45 * balance + 0.30 * compat + 0.25 * ovrScaled);
   return { ovr: ovr, balance: balance, compat: compat, efficiency: efficiency };
 }
 
-function _sqAssignXI(slots, players) {
+function _sqAssignXI(slots, players, ctx) {
   var pool = players.slice().sort(function (a, b) { return b.qual - a.qual; });
   var used = {}, out = [], i;
   slots.forEach(function (s) {
-    var z = _sqCanonZone(s.x, s.y), pick = null;
-    for (i = 0; i < pool.length; i++) { var p = pool[i]; if (!used[p.id] && p.cat === s.c && _sqAllowedZonesAny(p).indexOf(z) >= 0) { pick = p; break; } }
+    var z = _sqCanonZone(s.x, s.y, ctx), pick = null;
+    for (i = 0; i < pool.length; i++) { var p = pool[i]; if (!used[p.id] && p.cat === s.c && _sqAllowedZonesAny(p, ctx).indexOf(z) >= 0) { pick = p; break; } }
     if (!pick) for (i = 0; i < pool.length; i++) { var p2 = pool[i]; if (!used[p2.id] && p2.cat === s.c) { pick = p2; break; } }
     if (!pick) for (i = 0; i < pool.length; i++) { var p3 = pool[i]; if (!used[p3.id]) { pick = p3; break; } }
     if (pick) used[pick.id] = 1;
@@ -3353,14 +3358,15 @@ function _sqBuildOpp() {
 function _sqBuildBoard() { _sqBuildMy(); _sqBuildOpp(); _sqTacBoardRefresh(); } // keeps the Tactical Board in sync whenever the formation/XI changes
 function _sqMyValid(id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return true; return _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) <= 13; }
 function _sqOppValid(o) { var pos = SQ_POS_OPP[o.id], an = SQ_OPP_ANCHOR[o.id]; if (!pos || !an) return true; return _sqDist(pos.x, pos.y, an.x, an.y) <= 16; }
-function _sqMyStats() {
+function _sqMyStats(ctx) {
+  var C = _sqCtx(ctx);
   var qs = 0, sc = 0, n = 0;
   var eff = 0;
-  (SQ_MY_IDS || []).forEach(function (id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return; n++; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
-  var posBal = n ? Math.round(sc / n) : 0, ovrRaw = n ? Math.round(eff / n) : 0, exec = _sqTeamExec();
+  (C.starterIds || []).forEach(function (id) { var p = _sqCtxP(id, C); var pos = (C.posMy || {})[id]; if (!p || !pos) return; n++; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
+  var posBal = n ? Math.round(sc / n) : 0, ovrRaw = n ? Math.round(eff / n) : 0, exec = _sqTeamExec(C);
   var bal = Math.max(0, Math.min(100, Math.round(posBal * 0.7 + exec * 0.3)));
   var ovr = Math.max(0, Math.min(99, ovrRaw + Math.round((bal - 80) / 10) + Math.round((exec - 75) / 14)));
-  return { ovr: ovr, balance: bal, compat: _sqCompat(SQ_FORMATIONS[SQ_FORM.myFormation] || [], SQ_DEMO_PLAYERS), exec: exec };
+  return { ovr: ovr, balance: bal, compat: _sqCompat(_sqSlotsFor(C.formation) || [], C.roster || []), exec: exec };
 }
 function _sqOppStats() {
   var qs = 0, sc = 0, n = 0;
@@ -4903,9 +4909,10 @@ var SQ_ARCH = { GK: { p: 2, t: 0, m: 4 }, CB: { p: 6, t: -3, m: 2 }, LB: { p: 4,
 function _sqSubRatings(qual, pos, seed) { var a = SQ_ARCH[pos] || { p: 0, t: 0, m: 0 }; function v(b, k) { var r = (_sqSeed(seed + k) % 7) - 3; return Math.max(40, Math.min(99, qual + b + r)); } return { phys: v(a.p, 'p'), tech: v(a.t, 't'), ment: v(a.m, 'm') }; }
 function _sqMatchLabel(d) { return d >= 6 ? ['Strong advantage', 'vstrong'] : d >= 2 ? ['Slight advantage', 'adv'] : d >= -1 ? ['Balanced', 'bal'] : d >= -5 ? ['Slight disadvantage', 'dis'] : ['High-risk matchup', 'risk']; }
 function _sqMeanQ(arr) { if (!arr.length) return 0; var s = 0; arr.forEach(function (p) { s += p.qual; }); return Math.round(s / arr.length); }
-function _sqBenchMy() {
-  var ids = (SQ_BENCH_IDS || []).concat(SQ_RESERVE.map(function (p) { return p.id; }));
-  var ps = ids.map(_sqP).filter(Boolean), cats = {};
+function _sqBenchMy(ctx) {
+  var C = _sqCtx(ctx);
+  var ids = (C.benchIds || []).concat((C.reserve || []).map(function (p) { return p.id; }));
+  var ps = ids.map(function (id) { return _sqCtxP(id, C); }).filter(Boolean), cats = {};
   ps.forEach(function (p) { cats[p.cat] = 1; });
   var distinct = Object.keys(cats).length;
   var bal = Math.max(50, Math.min(94, 60 + distinct * 7 + Math.min(8, ps.length)));
@@ -4918,23 +4925,9 @@ function _sqTeamReport(side, ctx) {
     // not a scouted squad, so the ratings read as placeholders.
     return { name: 'Opponent', formation: C.oppFormation || '', ovr: '—', balance: '—', xiOvr: '—', xiBalance: '—', benchOvr: '—', benchBalance: '—', formEff: '—' };
   }
-  if (C.type !== 'first') {
-    // Academy: all values from this age group's own roster/lineup/formation.
-    var xi = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
-    var bn = (C.benchIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
-    var avg = function (a, k) { return a.length ? Math.round(a.reduce(function (s, p) { return s + (p[k] || 0); }, 0) / a.length) : 0; };
-    var slots = C.formationSlots || [];
-    var cover = slots.length ? Math.round(Math.min(1, xi.length / slots.length) * 100) : 0;
-    var xiO = avg(xi, 'qual'), bnO = avg(bn, 'qual');
-    var mFit = avg(xi, 'cond');
-    var bal = slots.length ? Math.round(100 - Math.abs(slots.length - xi.length) / slots.length * 100) : 0;
-    return { name: C.label, formation: C.formation, ovr: Math.round(xiO * 0.82 + bnO * 0.18), balance: bal,
-      xiOvr: xiO, xiBalance: bal, benchOvr: bnO, benchBalance: bn.length ? bal : 0,
-      compat: cover, formEff: cover, exec: mFit };
-  }
   if (side === 'my') {
-    var my = _sqMyStats(), formEff = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency, bench = _sqBenchMy();
-    return { name: 'My Team', formation: SQ_FORM.myFormation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
+    var my = _sqMyStats(C), formEff = _sqMetricsFor(C.formation, C.roster || [], C).efficiency, bench = _sqBenchMy(C);
+    return { name: C.type === 'first' ? 'My Team' : C.label, formation: C.formation, ovr: Math.round(my.ovr * 0.82 + bench.ovr * 0.18), balance: Math.round(my.balance * 0.85 + bench.balance * 0.15), xiOvr: my.ovr, xiBalance: my.balance, benchOvr: bench.ovr, benchBalance: bench.balance, compat: my.compat, formEff: formEff, exec: my.exec };
   }
   if (C.type !== 'first') {
     // Same header, same chips; an age group records no opponent ratings, so the
@@ -5103,7 +5096,7 @@ function _sqMdPitchShared(ctx) {
       var pos = (C.type === 'first' ? SQ_POS_OPP2[p.id] : (C.posOpp2 || {})[p.id]) || { x: s.x, y: s.y };
       var L = Math.max(6, Math.min(94, pos.y));
       var T = Math.max(6, Math.min(94, pos.x));
-      var d = (C.type === 'first') ? _sqOppPenDist(p, s, pos) : 0;
+      var d = _sqOppPenDist(p, s, pos);
       var q = (C.type === 'first') ? _sqEffQual(p, d) : null, bad = d > 16;
       if (bad) oop = true;
       var oSel = (C.type === 'first') ? (SQ_FORM.cmdSel === p.id) : (C.selected === p.id);
@@ -5638,8 +5631,8 @@ function _sqCwZones(ctx) {
   function counts(side) {
     var c = [0, 0, 0];
     if (side === 'my') {
-      var ids = (C.type === 'first') ? (SQ_MY_IDS || []) : (C.starterIds || []);
-      var pm = (C.type === 'first') ? SQ_POS_MY : (C.posMy || {});
+      var ids = C.starterIds || [];
+      var pm = C.posMy || {};
       ids.forEach(function (id) { var pos = pm[id]; if (!pos) return; c[pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2]++; });
     } else if (C.type === 'first') {
       _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
@@ -5851,6 +5844,12 @@ function _sqCmpPopup(id, ctx) {
       + row('Role fit', a.fit, b.fit, '%', a.fit >= b.fit)
       + row('Success', a.success, b.success, '%', a.success >= b.success)
       + '<div class="sqcmp-verdict">' + _sqEsc(c.betterSelf ? _sqLastName(c.p.name) : _sqLastName(c.alt.p.name)) + ' is more ready for ' + c.pos + '</div>';
+  } else {
+    // Every player opens the same panel. When nobody else in the squad plays
+    // this position the section says so, rather than disappearing and leaving
+    // a shorter panel for some players than for others.
+    html += '<div class="sqcmp-sec">Best starter at ' + c.pos + ' (same team)</div>'
+      + '<div class="sqcmp-only">' + _sqEsc(_sqLastName(c.p.name)) + ' is the only ' + c.pos + ' in this squad.</div>';
   }
   if (c.opp) {
     html += '<div class="sqcmp-sec">vs Opponent ' + c.opp.pos + ' #' + c.opp.n + '</div>'
@@ -5874,49 +5873,47 @@ function _sqCmpPopup(id, ctx) {
 // language as SQ_FORMATIONS (x = width %, y = depth %, c = category, r = role),
 // so every existing renderer can draw them unchanged. Kept in their own table
 // so SQ_FORMATIONS — and therefore the First Team — is untouched.
+// Small-sided shapes, authored for the format they are played in. A seven-a-side
+// team is not an eleven-a-side team with four players removed: the pitch is
+// shorter and narrower, the back line sits higher, the midfield band is tighter,
+// and the wide players start further infield. These coordinates are written for
+// each format directly — none are derived from the eleven-a-side table. Every
+// slot keeps at least fourteen units of clearance from every other, so no two
+// players overlap and no two share a tactical zone.
 var SQ_FORMATIONS_SMALL = {
-  '1-1':     _GK.concat(_ln('df', 70, [50], ['CB']), _ln('fw', 34, [50], ['ST'])),                                            // 3v3
-  '2-1':     _GK.concat(_ln('df', 72, [32, 68], ['LB', 'RB']), _ln('fw', 34, [50], ['ST'])),                                  // 4v4
-  '2-2':     _GK.concat(_ln('df', 72, [32, 68], ['LB', 'RB']), _ln('fw', 36, [32, 68], ['ST', 'ST'])),                        // 5v5
-  '3-1-2':   _GK.concat(_ln('df', 74, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [50], ['CM']), _ln('fw', 30, [34, 66], ['ST', 'ST'])),      // 7v7
-  '1-3-2':   _GK.concat(_ln('df', 74, [50], ['CB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 30, [34, 66], ['ST', 'ST'])),      // 7v7
-  '2-3-1':   _GK.concat(_ln('df', 74, [32, 68], ['LB', 'RB']), _ln('mf', 50, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [50], ['ST'])),      // 7v7
-  '3-2-1':   _GK.concat(_ln('df', 74, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 50, [34, 66], ['CM', 'CM']), _ln('fw', 28, [50], ['ST'])),      // 7v7
-  '2-3-2':   _GK.concat(_ln('df', 76, [32, 68], ['LB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),  // 8v8
-  '3-3-2':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])), // 9v9
-  '2-3-3':   _GK.concat(_ln('df', 76, [32, 68], ['LB', 'RB']), _ln('mf', 52, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('fw', 28, [22, 50, 78], ['LW', 'ST', 'RW'])), // 9v9
-  '3-2-3':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 52, [34, 66], ['CM', 'CM']), _ln('fw', 28, [22, 50, 78], ['LW', 'ST', 'RW'])), // 9v9
-  '3-4-1':   _GK.concat(_ln('df', 76, [22, 50, 78], ['LB', 'CB', 'RB']), _ln('mf', 50, [16, 39, 61, 84], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 26, [50], ['ST'])), // 9v9
-  '2-3-2-1': _GK.concat(_ln('df', 78, [32, 68], ['LB', 'RB']), _ln('mf', 58, [22, 50, 78], ['LM', 'CM', 'RM']), _ln('mf', 40, [34, 66], ['AM', 'AM']), _ln('fw', 24, [50], ['ST'])) // 9v9
+  // 3v3 — a keeper, a defender and a forward on a central spine.
+  '1-1':     _GK3.concat(_ln('df', 68, [50], ['CB']), _ln('fw', 34, [50], ['ST'])),
+  // 4v4 — a flat pair in front of the keeper, one forward.
+  '2-1':     _GK3.concat(_ln('df', 68, [34, 66], ['LB', 'RB']), _ln('fw', 34, [50], ['ST'])),
+  // 5v5 — two back, two up, the shape most small-sided leagues start with.
+  '2-2':     _GK3.concat(_ln('df', 68, [32, 68], ['LB', 'RB']), _ln('fw', 34, [32, 68], ['ST', 'ST'])),
+  // 5v5 diamond — a defender, two wide midfielders, a striker.
+  '1-2-1':   _GK3.concat(_ln('df', 70, [50], ['CB']), _ln('mf', 50, [28, 72], ['LM', 'RM']), _ln('fw', 28, [50], ['ST'])),
+  // 7v7 — a back two, a midfield three holding the width, one striker.
+  '2-3-1':   _GK3.concat(_ln('df', 70, [30, 70], ['LB', 'RB']), _ln('mf', 50, [18, 50, 82], ['LM', 'CM', 'RM']), _ln('fw', 28, [50], ['ST'])),
+  // 7v7 — a back three, a central pair, one striker.
+  '3-2-1':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 50, [36, 64], ['CM', 'CM']), _ln('fw', 28, [50], ['ST'])),
+  // 7v7 — a back three, a single pivot, two forwards.
+  '3-1-2':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 52, [50], ['CM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
+  // 7v7 — one defender, a midfield three, two forwards.
+  '1-3-2':   _GK3.concat(_ln('df', 72, [50], ['CB']), _ln('mf', 52, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
+  // 8v8 — the seven-a-side midfield with a second striker added.
+  '2-3-2':   _GK3.concat(_ln('df', 72, [30, 70], ['LB', 'RB']), _ln('mf', 52, [18, 50, 82], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
+  // 9v9 — three across the back, three across midfield, two forwards.
+  '3-3-2':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 27, [36, 64], ['ST', 'ST'])),
+  // 9v9 — a back two, midfield three, a front three with real width.
+  '2-3-3':   _GK3.concat(_ln('df', 73, [30, 70], ['LB', 'RB']), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 27, [18, 50, 82], ['LW', 'ST', 'RW'])),
+  // 9v9 — a back three, a central pair, a front three.
+  '3-2-3':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [34, 66], ['CM', 'CM']), _ln('fw', 27, [18, 50, 82], ['LW', 'ST', 'RW'])),
+  // 9v9 — a back three behind a midfield four, one striker.
+  '3-4-1':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [14, 38, 62, 86], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 26, [50], ['ST'])),
+  // 9v9 — a back two, midfield three, two attacking midfielders, one striker.
+  '2-3-2-1': _GK3.concat(_ln('df', 76, [30, 70], ['LB', 'RB']), _ln('mf', 58, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('mf', 40, [34, 66], ['AM', 'AM']), _ln('fw', 22, [50], ['ST']))
 };
 // Resolve a formation name to real slots. Small-sided table first, then the
 // First Team table. Never silently substitutes another shape.
-// Small-sided shapes were authored on the eleven-a-side coordinate space, so a
-// five-a-side team occupied only the middle third of the pitch and left the
-// flanks and the far third empty. The pitch drawn is the whole pitch, so the
-// shape is stretched to fill the same span an eleven-a-side shape does — the
-// relative structure is untouched, only the spread.
-var _SQ_SMALL_CACHE = {};
-function _sqSpreadSmall(name, slots) {
-  if (_SQ_SMALL_CACHE[name]) return _SQ_SMALL_CACHE[name];
-  var out = slots.map(function (s) { var o = {}; for (var k in s) o[k] = s[k]; return o; });
-  var field = out.filter(function (s) { return s.c !== 'gk'; });
-  if (field.length) {
-    var xs = field.map(function (s) { return s.x; }), ys = field.map(function (s) { return s.y; });
-    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
-    var y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
-    // the span an eleven-a-side shape uses, so both read at the same scale
-    var X0 = 14, X1 = 86, Y0 = 22, Y1 = 78;
-    field.forEach(function (s) {
-      s.x = (x1 > x0) ? X0 + (s.x - x0) / (x1 - x0) * (X1 - X0) : 50;
-      s.y = (y1 > y0) ? Y0 + (s.y - y0) / (y1 - y0) * (Y1 - Y0) : 50;
-    });
-  }
-  _SQ_SMALL_CACHE[name] = out;
-  return out;
-}
 function _sqSlotsFor(name) {
-  if (SQ_FORMATIONS_SMALL[name]) return _sqSpreadSmall(name, SQ_FORMATIONS_SMALL[name]);
+  if (SQ_FORMATIONS_SMALL[name]) return SQ_FORMATIONS_SMALL[name];
   return SQ_FORMATIONS[name] || null;
 }
 
@@ -44700,11 +44697,13 @@ function _atDefaultFormation(id) {
 }
 function _atFormationsFor(id) {
   var i = _acStageIdx(id);
-  if (i <= 0) return ['1-1', '2-1', '2-2'];                       // 3v3 / 4v4 / 5v5
-  if (i === 1) return ['2-2', '2-3-1', '3-2-1'];                  // 5v5 / 7v7
-  if (i === 2) return ['3-2-1', '2-3-2', '3-2-3'];                // 7v7 / 8v8 / 9v9
-  if (i === 3) return ['3-2-3', '4-4-2', '4-3-3', '4-2-3-1'];     // 9v9 / 11v11
-  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1']; // 11v11
+  // One match format per age group, and every option fields exactly that many
+  // players. Mixing a 5v5 shape into a 7v7 group left the team a player short.
+  if (i <= 0) return ['2-2', '1-2-1'];                                // 5v5
+  if (i === 1) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2'];           // 7v7
+  if (i === 2) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1']; // 9v9
+  if (i === 3) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1']; // 9v9
+  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1'];   // 11v11
 }
 // Number of on-pitch starters (incl. GK) implied by a formation string.
 function _atStarterCount(f) { return String(f).split('-').reduce(function (a, n) { return a + (parseInt(n, 10) || 0); }, 0) + 1; }
@@ -45898,7 +45897,11 @@ function _atOppSetup(id) {
   var b = _atBoard(id);
   if (!b.opp || typeof b.opp !== 'object') b.opp = {};
   var o = b.opp;
-  if (!o.formation) o.formation = _atFormationsFor(id)[0];
+  // The opponent plays the same format as the team facing it — a 7v7 side never
+  // lines up against five players.
+  if (!o.formation || _atStarterCount(o.formation) !== _atStarterCount(_atTeam(id).formation.name)) {
+    o.formation = _atTeam(id).formation.name; o.pos = {};
+  }
   if (!o.tactics || typeof o.tactics !== 'object') {
     o.tactics = { mentality: 'Balanced', style: 'Balanced', width: 'Balanced', tempo: 'Normal', buildUp: 'Mixed', finalThird: 'Mixed', crossing: 'Mixed',
       defLine: 'Standard', pressLine: 'Medium', compactness: 'Balanced', offsideTrap: false,

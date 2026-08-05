@@ -8759,3 +8759,7 @@ body.club-theme .dash-v2--development{ --dash-ac:#a78bfa; }
 body.club-theme .dash-v2--performance{ --dash-ac:#f59e0b; }
 body.club-theme .dash-v2--elite      { --dash-ac:#f472b6; }
 body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
+
+/* Player comparison — the section still appears when the squad has no second
+   player in that position, so every player opens the same panel. */
+.sqcmp-only{ padding:7px 2px 2px; font-size:11.5px; line-height:1.5; color:#94a3b8; }
