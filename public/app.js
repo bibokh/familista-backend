@@ -3465,37 +3465,16 @@ function _sqStatGrp(title, st, opp) {
     + '<div class="sqfp-stat sqfp-stat--bal"><span>Balance</span><b>' + st.balance + '%</b></div>'
     + '<div class="sqfp-stat"><span>Compat</span><b>' + st.compat + '%</b></div>' + ex + '</div>';
 }
-function _sqFormationBody() {
-  if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
-  return '<div class="sqfp-board sqfp-board--cmd">' + _sqCmdPanelHtml() + '</div>';
+// The Formation command centre. One implementation: Overview, Matchup, Heatmap,
+// Stats, Zones, Set Pieces, Instructions and Simulation all hang off this. Every
+// workspace calls it with a team context — the First Team passes none and gets
+// its own, an age group passes its own. Nothing else builds a Formation board.
+function _sqFormationBody(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first' && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
+  return '<div class="sqfp-board sqfp-board--cmd">' + _sqCmdPanelHtml(C) + '</div>';
 }
-function _sqFormationBodyLegacy() {
-  var so = SQ_FORM.showOpp;
-  var toolbar = '<div class="sqfp-toolbar">'
-    + '<div class="sqfp-seg">'
-    +   '<button class="sqfp-segbtn' + (!so ? ' is-active' : '') + '" data-action="sqFormTeam" data-team="my" type="button">My Team</button>'
-    +   '<button class="sqfp-segbtn' + (so ? ' is-active' : '') + '" data-action="sqFormTeam" data-team="opp" type="button">Opponent Team</button>'
-    + '</div>'
-    + _sqCtrlBtn('Formations: ' + SQ_FORM.myFormation, 'sqFormLibrary', '', SQ_FORM.showLib)
-    + _sqCtrlBtn('Mentality', 'sqMentality', '', SQ_FORM.showMent)
-    + _sqCtrlBtn('Tactical analysis', 'sqTactical', '', SQ_FORM.showTac)
-    + _sqCtrlBtn('Squad planning', 'sqPlanning', '', SQ_FORM.showPlan)
-    + _sqCtrlBtn('Match-day', 'sqCommand', '', SQ_FORM.showCmd)
-    + _sqCtrlBtn('Roles', 'sqFormToggle', ' data-key="roles"', SQ_FORM.showRoles)
-    + _sqCtrlBtn('Condition &amp; Morale', 'sqFormToggle', ' data-key="cond"', SQ_FORM.showCond)
-    + _sqCtrlBtn('Approach: ' + SQ_FORM.mentality, 'sqFormMentality', '', false)
-    + _sqCtrlBtn('Set Piece Takers', 'sqFormSetPieces', '', false)
-    + '</div>';
-  if (SQ_FORM.showCmd) { return toolbar + '<div class="sqfp-board sqfp-board--cmd">' + _sqCmdPanelHtml() + '</div>'; }
-  var hud = '<div class="sqfp-hud">' + _sqStatGrp('My Team · ' + SQ_FORM.myFormation, _sqMyStats(), false);
-  if (so) hud += _sqStatGrp('Opponent · ' + SQ_FORM.oppFormation, _sqOppStats(), true);
-  hud += '</div>';
-  if (so) { var mu = _sqMatchup(); hud += '<div class="sqfp-mustrip"><span>Matchup <b>' + mu.matchup + '%</b></span><span>Tactical advantage <b>' + mu.tacAdv + '%</b></span><span>Strength <b>' + mu.strength + '%</b></span><span>Weakness <b>' + mu.weakness + '%</b></span></div>'; }
-  var hint = '<div class="sqfp-hint">Arrows show each player’s instruction — open Mentality to change roles, Tactical analysis for execution &amp; alerts, Squad planning for depth &amp; squad size.</div>';
-  var side = SQ_FORM.showMent ? _sqMentPanelHtml() : SQ_FORM.showLib ? _sqLibPanelHtml() : SQ_FORM.showTac ? _sqTacPanelHtml() : SQ_FORM.showPlan ? _sqPlanPanelHtml() : SQ_FORM.showCmd ? _sqCmdPanelHtml() : '';
-  var board = '<div class="sqfp-board' + ((SQ_FORM.showMent || SQ_FORM.showLib || SQ_FORM.showTac || SQ_FORM.showPlan || SQ_FORM.showCmd) ? ' has-side' : '') + '"><div class="sqfp-stage">' + _sqPitchHtml() + '</div>' + side + '</div>';
-  return toolbar + hud + board + _sqBenchStripHtml() + hint;
-}
+
 function _sqRenderFormationBody() {
   // The same command centre is hosted by two workspaces and both stay mounted,
   // so the re-render must go to the one on the page being looked at. Matching an
@@ -3505,7 +3484,7 @@ function _sqRenderFormationBody() {
   var act = document.querySelector('.page.active');
   if (act && act.querySelector('.at-formation-cmd') && typeof renderAcademyTeamPage === 'function') { _sqSimStop(); renderAcademyTeamPage(); return; }
   var b = (act && act.querySelector('#sqfp-body')) || document.getElementById('sqfp-body');
-  if (b) { b.innerHTML = _sqFormationBody(); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); }
+  if (b) { b.innerHTML = _sqFormationBody(null); if (SQ_FORM.cmdSim) _sqSimBoot(); else _sqSimStop(); }
 }
 
 // ══════════ Squad · Tactics — coach configuration center (config only, no AI) ══════════
@@ -3680,10 +3659,20 @@ function _sqTacPanelLayer(ctx) {
   for (var k in open) out += _sqTacFloatPanel(k, C);
   return out;
 }
+// The Tactics page. One implementation: the note, the live summary cards, the
+// six numbered section tabs, the floating section panels and the full
+// interactive board. Both workspaces mount it with a team context.
+function _sqTacticsMount(ctx, bodyCls, boardCls) {
+  var C = _sqCtx(ctx);
+  _sqTacUseCtx(C.type === 'first' ? null : C);
+  _sqTbUse(C.type === 'first' ? null : C);
+  if (C.type === 'first' && typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
+  _sqTacBind(); _sqTacFpBind();
+  return '<div' + (bodyCls ? ' class="' + bodyCls + '"' : '') + ' id="sqtac-body">' + _sqTacticsBody(C) + '</div>'
+    + '<div id="sqtac-board-host"' + (boardCls ? ' class="' + boardCls + '"' : '') + '>' + _sqTacBoardHtml(C) + '</div>';
+}
 function _sqTacticsHtml() {
-  if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
   var backSvg = '<svg fill="currentColor" viewBox="0 0 20 20" style="width:16px;height:16px"><path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd"/></svg>';
-  _sqTacUseCtx(null);
   return '<div class="sq-sub" id="sq-sub-tactics" style="display:none">'
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
@@ -3697,8 +3686,7 @@ function _sqTacticsHtml() {
     +     '<h1 class="sq-sub-title">Tactics</h1>'
     +   '</div>'
     + '</div>'
-    + '<div id="sqtac-body">' + _sqTacticsBody() + '</div>'
-    + '<div id="sqtac-board-host">' + _sqTacBoardHtml() + '</div>'
+    + _sqTacticsMount(null)
     + '</div>';
 }
 function _sqRenderTacticsBody() {
@@ -4546,7 +4534,7 @@ function _sqFormationHtml() {
     +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
     +   '</div>'
     + '</div>'
-    + '<div id="sqfp-body">' + _sqFormationBody() + '</div>'
+    + '<div id="sqfp-body">' + _sqFormationBody(null) + '</div>'
     + '</div>';
 }
 function sqFormTeam(t) { SQ_FORM.showOpp = (t === 'opp'); _sqRenderFormationBody(); }
@@ -44679,21 +44667,11 @@ function _atDevTone(s) { return s === 'Needs attention' ? 'warn' : (s === 'Medic
 function _atInitials(name) { return String(name || '').split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase(); }
 // Presentational status chip for a player card — derived purely from EXISTING
 // fields (availability/promotion/devStatus/devScore); does not alter them.
-function _atStatusChip(p) {
-  if (p.availability === 'Injured') return { label: 'Medical', tone: 'danger' };
-  if (p.promotion >= 78) return { label: 'Promotion Ready', tone: 'cyan' };
-  if (p.devStatus === 'Needs attention') return { label: 'Needs Attention', tone: 'warn' };
-  if (p.devScore >= 85) return { label: 'Outstanding Progress', tone: 'accent' };
-  if (p.devStatus === 'Ahead of stage') return { label: 'Ahead of Stage', tone: 'cyan' };
-  if (p.devStatus === 'Recently Promoted') return { label: 'Recently Promoted', tone: 'accent' };
-  return { label: 'On Track', tone: 'ok' };
-}
+
 // Categorical morale mapped to a bar-fill percentage for display only (the
 // stored value + label shown remain the original word, e.g. "Good").
 function _atMoraleVal(m) { return { Excellent: 96, Good: 74, Okay: 50, Low: 26 }[m] || 50; }
-function _atMiniBar(label, pct, text, tone) {
-  return '<div class="at-sc-bar' + (tone ? ' at-sc-bar--' + tone : '') + '"><span class="at-sc-bar-l">' + _viEscSafe(label) + '</span><span class="at-sc-bar-t"><i style="width:' + Math.max(4, Math.min(100, pct)) + '%"></i></span><b class="at-sc-bar-v">' + _viEscSafe(String(text)) + '</b></div>';
-}
+
 
 // Normalised, auto-seeded lineup for a team (starters default to best-available
 // by position for the current format). Persisted per team → fully isolated.
@@ -44947,37 +44925,11 @@ function _atChip(label, val, tone) { return '<span class="at-plchip' + (tone ? '
 
 // Selection-board card. Keeps every value the roster carries.
 
-function _atFilterBar(idx) {
-  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  var pos = ['ALL', 'GK', 'DEF', 'MID', 'FWD'].map(function (g) { return '<button class="at-fbtn' + (pf === g ? ' is-on' : '') + '" type="button" data-at-posfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('');
-  var av = ['ALL', 'Available', 'Doubtful', 'Injured'].map(function (g) { return '<button class="at-fbtn' + (af === g ? ' is-on' : '') + '" type="button" data-at-availfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('');
-  return '<div class="at-filterbar">'
-    + '<input class="at-search" type="text" placeholder="Search players…" data-at-search value="' + _viEscSafe(AT.q || '') + '">'
-    + '<div class="at-fgroup"><span>Position</span>' + pos + '</div>'
-    + '<div class="at-fgroup"><span>Availability</span>' + av + '</div>'
-  + '</div>';
-}
+
 
 
 // Age-group summary tiles (all values from THIS group only).
-function _atSquadSummary(id) {
-  var roster = _atRoster(id);
-  var n = roster.length || 1;
-  var avail = roster.filter(function (p) { return p.availability === 'Available'; }).length;
-  var inj = roster.filter(function (p) { return p.availability === 'Injured'; }).length;
-  var attAvg = Math.round(roster.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / n);
-  var devAvg = Math.round(roster.reduce(function (a, p) { return a + (p.devScore || 0); }, 0) / n);
-  var ready = Math.round(roster.reduce(function (a, p) { return a + (p.availability !== 'Injured' ? p.fitness : 0); }, 0) / n);
-  var attn = roster.filter(function (p) { return p.devStatus === 'Needs attention' || p.attention; }).length;
-  var nextStage = roster.filter(function (p) { return p.promotion >= 75 || p.devStatus === 'Ahead of stage'; }).length;
-  var tiles = [
-    ['Total Players', roster.length, 'accent'], ['Available', avail, 'ok'], ['Injured', inj, inj ? 'danger' : ''],
-    ['Attendance Avg', attAvg + '%', attAvg >= 85 ? 'ok' : 'warn'], ['Avg Development', devAvg, 'accent'],
-    ['Training Readiness', ready + '%', ready >= 80 ? 'ok' : 'warn'], ['Needs Attention', attn, attn ? 'warn' : 'ok'],
-    ['Ready for Next Stage', nextStage, 'cyan']
-  ];
-  return '<div class="at-sum">' + tiles.map(function (t) { return '<div class="at-sum-tile at-sum-tile--' + (t[2] || '') + '"><b>' + t[1] + '</b><span>' + t[0] + '</span></div>'; }).join('') + '</div>';
-}
+
 // Age-group identity header for the squad page.
 function _atIdentityStrip(id) {
   var c = _atCtx(id), st = c.stage, t = _atTeam(id);
@@ -44994,46 +44946,8 @@ function _atIdentityStrip(id) {
 }
 // Premium roster card (development-focused, no adult transfer-market fields).
 // Every field previously shown here is still shown; only presentation changed.
-function _atSquadCard(p, idx, accent) {
-  var chip = _atStatusChip(p);
-  var availTone = _atAvailTone(p.availability);
-  var av = p.photo ? '<span class="at-sc-av" style="background-image:url(' + p.photo + ')"></span>' : '<span class="at-sc-av" style="background:' + accent + '">' + _atInitials(p.name) + '</span>';
-  var stageLbl = _acStage(p.stage).label;
-  var bars = [
-    ['Development', p.devScore, String(p.devScore), p.devScore < 45 ? 'warn' : ''],
-    ['Attendance', p.attendance, p.attendance + '%', p.attendance < 80 ? 'warn' : ''],
-    ['Fitness', p.fitness, p.fitness + '%', p.fitness < 60 ? 'warn' : ''],
-    ['Morale', _atMoraleVal(p.morale), p.morale, p.morale === 'Low' ? 'warn' : ''],
-    ['Current Form', p.form * 10, p.form + '/10', p.form <= 4 ? 'warn' : '']
-  ].map(function (b) { return _atMiniBar(b[0], b[1], b[2], b[3]); }).join('');
-  var quick = [['view', 'View Profile'], ['edit', 'Edit'], ['assess', 'Assessment'], ['attendance', 'Attendance'], ['medical', 'Medical'], ['notes', 'Coach Notes']]
-    .map(function (q) { return '<span class="at-sc-qa" data-at-quick="' + q[0] + '" data-at-quick-player="' + p.id + '">' + q[1] + '</span>'; }).join('');
-  return '<button class="at-sc" type="button" data-at-player="' + p.id + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '" data-posg="' + _atPosGroup(p.pos) + '" style="--acc:' + accent + '">'
-    + '<span class="at-sc-badges">'
-      + '<span class="at-sc-status at-plbadge--' + chip.tone + '">' + _viEscSafe(chip.label) + '</span>'
-      + '<span class="at-sc-avail at-sc-avail--' + availTone + '"><i></i>' + _viEscSafe(p.availability) + '</span>'
-    + '</span>'
-    + '<span class="at-sc-num">#' + p.number + '</span>'
-    + '<span class="at-sc-top">' + av
-      + '<span class="at-sc-id"><b>' + _viEscSafe(p.name) + '</b>'
-      + '<i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · Age ' + p.age + '</i>'
-      + '<em>' + _viEscSafe(stageLbl) + '</em></span>'
-    + '</span>'
-    + '<span class="at-sc-bars">' + bars + '</span>'
-    + '<span class="at-sc-quick">' + quick + '</span>'
-  + '</button>';
-}
-function _atSecSquad(id) {
-  var c = _atCtx(id), roster = _atRoster(id);
-  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  var list = roster.filter(function (p) { if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false; if (af !== 'ALL' && p.availability !== af) return false; return true; });
-  var cards = list.map(function (p) { return _atSquadCard(p, c.idx, c.accent); }).join('') || '<div class="at-empty">No players match the current filters.</div>';
-  return _atSecHead(id, 'Players / Squad', 'Isolated youth roster — these ' + roster.length + ' players belong only to ' + c.label + '. Click any player for their development profile.')
-    + _atIdentityStrip(id)
-    + _atSquadSummary(id)
-    + '<div class="at-squad-bar">' + _atFilterBar(c.idx) + '<button class="at-btn at-btn--add" type="button" data-at-add-player>+ Add Academy Player</button></div>'
-    + '<div class="at-squad-grid" id="at-pllist">' + cards + '</div>';
-}
+
+
 /* ── Coaching Staff — premium redesign (visual + frontend-computed only) ──
    The stored staff record is exactly { name, role, responsible }. Every other
    attribute shown below (department, accent, description, coverage state) is
@@ -45615,11 +45529,9 @@ function _atBoardSel(pid) {
   _atSave(); renderAcademyTeamPage();
 }
 function _atSecFormation(id) {
-  var ctx = _atFormationCtx(id);
-  // The real First Team Formation command centre, rendered with the Academy
-  // context: same Overview / Matchup / Heatmap / Stats / Zones / Set Pieces /
-  // Instructions / Simulation navigation and the same components.
-  return '<div class="sqfp-board sqfp-board--cmd at-formation-cmd">' + _sqCmdPanelHtml(ctx) + '</div>';
+  // The same Formation board the First Team mounts, given this age group's
+  // context. The host marks which workspace is showing it and nothing more.
+  return '<div class="at-formation-cmd">' + _sqFormationBody(_atFormationCtx(id)) + '</div>';
 }
 function _atPitch(name, accent) {
   var rows = String(name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
@@ -45784,18 +45696,10 @@ function atLuAddPlayer() { var b = document.querySelector('[data-at-add-player]'
 window.atLuOpenPlayer = atLuOpenPlayer; window.atLuAct = atLuAct; window.atLuAddPlayer = atLuAddPlayer;
 
 function _atSecLineup(id) {
-  var ctx = _atLineupCtx(id), t = _atTeam(id), opts = _atFormationsFor(id);
-  _sqLuUseCtx(ctx);                                  // the mounted Lineup page renders this team
-  var formationSel = '<div class="atlu-formbar"><span class="atlu-formbar-l">Formation</span><div class="atlu-seg">'
-    + opts.map(function (f) { return '<button class="atlu-seg-b' + (t.formation.name === f ? ' is-on' : '') + '" type="button" data-at-formation="' + f + '">' + f + '</button>'; }).join('')
-    + '</div><span class="atlu-formbar-fmt">' + _viEscSafe(_atFormatLabel(id)) + '</span>'
-    + '<span class="atlu-formbar-sp"></span>'
-    + '<button class="sq-mbtn sq-mbtn--add" type="button" data-at-save-lineup>Save lineup</button>'
-    + '<button class="sq-mbtn" type="button" data-at-reset-lineup>Reset</button></div>';
-  // The First Team page carries its own sub-header; inside Academy the module
-  // tabs are already above, so only the page body is mounted here.
-  ctx.bodyOnly = true;
-  return '<div class="atlu-host">' + formationSel + _sqLineupHtml(ctx) + '</div>';
+  // The same Lineup page the First Team mounts, given this age group's context.
+  // The formation selector lives in Formation for both teams, so there is no
+  // Academy-only chrome here any more.
+  return '<div class="atlu-host">' + _sqLineupHtml(_atLineupCtx(id)) + '</div>';
 }
 
 /* ── Academy Tactics ───────────────────────────────────────────────────────
@@ -45955,16 +45859,8 @@ function _atTacticsCtx(id) {
   };
 }
 function _atSecTactics(id) {
-  var ctx = _atTacticsCtx(id);
-  _sqTacUseCtx(ctx);                                 // the mounted Tactics page renders this team
-  _sqTbUse(ctx);                                     // …and so does the tactical board
-  _sqTacBind(); _sqTacFpBind();
-  // The First Team page, verbatim: the same note, live summary cards, six
-  // numbered section tabs, floating panels, and the full interactive board —
-  // draw tools, arrows, zones, undo/redo/clear, animation and the opponent
-  // panel — all reading this age group only.
-  return '<div class="attac-wrap" id="sqtac-body">' + _sqTacticsBody(ctx) + '</div>'
-    + '<div id="sqtac-board-host" class="attac-board">' + _sqTacBoardHtml(ctx) + '</div>';
+  // The same Tactics page the First Team mounts, given this age group's context.
+  return _sqTacticsMount(_atTacticsCtx(id), 'attac-wrap', 'attac-board');
 }
 /* ── Academy Training ──────────────────────────────────────────────────────
    The real First Team Training Centre, mounted with this age group's explicit
