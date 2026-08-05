@@ -3137,10 +3137,42 @@ var SQ_ZONES = {
 var SQ_ALLOWED = {
   GK: ['GK'], RB: ['DR', 'WBR'], LB: ['DL', 'WBL'], CB: ['DCL', 'DC', 'DCR'],
   DM: ['DM', 'MCL', 'MC', 'MCR'], CM: ['ML', 'MCL', 'MC', 'MCR', 'MR'],
-  LW: ['ML', 'AML', 'FL'], RW: ['MR', 'AMR', 'FR'], ST: ['ST', 'AMC', 'FL', 'FR']
+  LW: ['ML', 'AML', 'FL'], RW: ['MR', 'AMR', 'FR'], ST: ['ST', 'AMC', 'FL', 'FR'],
+  // academy rosters also record these; without them every holder and playmaker
+  // fell through to the broad category default
+  CDM: ['DM', 'MCL', 'MC', 'MCR'], CAM: ['AMC', 'MCL', 'MC', 'MCR', 'AML', 'AMR'],
+  RWB: ['DR', 'WBR', 'MR'], LWB: ['DL', 'WBL', 'ML'], SW: ['DCL', 'DC', 'DCR'],
+  RM: ['MR', 'AMR'], LM: ['ML', 'AML']
 };
 function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? ['DL', 'DCL', 'DC', 'DCR', 'DR'] : cat === 'mf' ? ['ML', 'MCL', 'MC', 'MCR', 'MR', 'DM', 'AML', 'AMC', 'AMR'] : ['FL', 'ST', 'FR', 'AMC']; }
-function _sqAllowedZonesAny(p) { return p.pos ? (SQ_ALLOWED[p.pos] || _sqDefaultAllowed(p.cat)) : _sqDefaultAllowed(p.cat); }
+// Zone anchors for a team. The First Team is judged against the 11-a-side map;
+// a small-sided age group is judged against the real geometry of its own shape,
+// because a 5v5 full-back stands at x=32 where an 11-a-side full-back stands at
+// x=13 — measuring one against the other marked almost every wide player out of
+// position.
+function _sqZoneMap(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first' || !C.formationSlots || !C.formationSlots.length) return SQ_ZONES;
+  var m = {}, seen = {};
+  C.formationSlots.forEach(function (s) {
+    var base = s.r || String(s.c).toUpperCase();
+    seen[base] = (seen[base] || 0) + 1;
+    var key = seen[base] > 1 ? base + seen[base] : base;
+    m[key] = { x: s.x, y: s.y, label: base, c: s.c };
+  });
+  return m;
+}
+function _sqAllowedZonesAny(p, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type !== 'first' && C.formationSlots && C.formationSlots.length) {
+    // in a small-sided shape any slot on the player's own line is a valid home
+    var m = _sqZoneMap(C), out = [], k;
+    for (k in m) if (m[k].c === p.cat) out.push(k);
+    if (!out.length) for (k in m) out.push(k);
+    return out;
+  }
+  return p.pos ? (SQ_ALLOWED[p.pos] || _sqDefaultAllowed(p.cat)) : _sqDefaultAllowed(p.cat);
+}
 function _sqCanonZone(x, y) { var best = 'MC', bd = 1e9, k; for (k in SQ_ZONES) { var Z = SQ_ZONES[k]; var d = (Z.x - x) * (Z.x - x) + (Z.y - y) * (Z.y - y); if (d < bd) { bd = d; best = k; } } return best; }
 
 function _ln(c, y, xs, rs) { return xs.map(function (x, i) { return { c: c, x: x, y: y, r: (rs && rs[i]) || c.toUpperCase() }; }); }
@@ -3265,7 +3297,7 @@ function _sqAssignXI(slots, players) {
   return out;
 }
 function _sqDist(ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); }
-function _sqNearestAllowedDist(x, y, zones) { var m = 1e9; zones.forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = _sqDist(x, y, Z.x, Z.y); if (d < m) m = d; }); return m; }
+function _sqNearestAllowedDist(x, y, zones, ctx) { var M = _sqZoneMap(ctx), m = 1e9; (zones || []).forEach(function (z) { var Z = M[z] || SQ_ZONES[z]; if (!Z) return; var d = _sqDist(x, y, Z.x, Z.y); if (d < m) m = d; }); return m === 1e9 ? 0 : m; }
 function _sqPosScore(d) { if (d <= 8) return 100; if (d >= 28) return 35; return Math.round(100 - (d - 8) / 20 * 65); }
 function _sqCompat(slots, players) {
   var demand = { gk: 0, df: 0, mf: 0, fw: 0 }, supply = { gk: 0, df: 0, mf: 0, fw: 0 };
@@ -5017,7 +5049,7 @@ function _sqMdPitchShared(ctx) {
     var p = _sqCtxP(id, C), pos = C.posMy[id]; if (!p || !pos) return;
     var L = Math.max(6, Math.min(94, 100 - pos.y));
     var T = Math.max(6, Math.min(94, pos.x));
-    var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16;
+    var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
     cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
@@ -5659,9 +5691,11 @@ function _sqMdZones(id, side) {
   }).join('');
 }
 function _sqMdZonesShared(id, side, ctx) {
-  var p = (side === 'opp') ? _sqOppFind(id) : _sqCtxP(id, _sqCtx(ctx)); if (!p) return '';
-  return (_sqAllowedZonesAny(p) || []).map(function (z) {
-    var Z = SQ_ZONES[z]; if (!Z) return '';
+  var C = _sqCtx(ctx);
+  var p = (side === 'opp') ? _sqOppFind(id) : _sqCtxP(id, C); if (!p) return '';
+  var M = _sqZoneMap(C);
+  return (_sqAllowedZonesAny(p, C) || []).map(function (z) {
+    var Z = M[z] || SQ_ZONES[z]; if (!Z) return '';
     return '<div class="sqmd-zone" style="' + _sqZoneRectShared(Z, side) + '"><span>' + Z.label + '</span></div>';
   }).join('');
 }
@@ -5673,11 +5707,13 @@ function _sqCmdOppStats() {
 }
 var SQ_POS_CAT = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df', WB: 'df', FB: 'df', DM: 'mf', CM: 'mf', AM: 'mf', LM: 'mf', MC: 'mf', MR: 'mf', ML: 'mf', RM: 'mf', LW: 'fw', RW: 'fw', ST: 'fw', CF: 'fw' };
 function _sqPlayerAllPos(p) { var arr = [p.pos].concat(POS_RELATED[p.pos] || []), seen = {}, out = []; arr.forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
-function _sqCmdShowZones(pitch, id, side) {
-  _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqOppFind(id) : _sqP(id); if (!p || !pitch) return;
+function _sqCmdShowZones(pitch, id, side, ctx) {
+  var C = _sqCtx(ctx);
+  _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqOppFind(id) : _sqCtxP(id, C); if (!p || !pitch) return;
+  var ZM = _sqZoneMap(C);
   var isShared = pitch.classList && pitch.classList.contains('sqmd-pitch--shared');
   var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
-  (_sqAllowedZonesAny(p) || []).forEach(function (z) { var Z = SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.cssText = isShared ? _sqZoneRectShared(Z, side) : _sqZoneRect(Z, side); d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
+  (_sqAllowedZonesAny(p, C) || []).forEach(function (z) { var Z = ZM[z] || SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.cssText = isShared ? _sqZoneRectShared(Z, side) : _sqZoneRect(Z, side); d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
   pitch.appendChild(wrap);
 }
 function _sqCmdHideZones(pitch) { if (!pitch) return; var w = pitch.querySelector('.sqmd-zonelayer'); if (w && w.parentNode) w.parentNode.removeChild(w); }
@@ -5708,7 +5744,7 @@ function _sqCmpPopup(id, ctx) {
   var C = _sqCtx(ctx);
   var c = _sqCmpData(id, C); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
-  var posSel = (C.posMy || SQ_POS_MY)[id], oop = posSel ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p)) > 16) : false;
+  var posSel = (C.posMy || SQ_POS_MY)[id], oop = posSel ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C), C) > 16) : false;
   var curKey = _sqInstrOf(id, C);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
@@ -7983,7 +8019,7 @@ function _sqInitFormationDrag() {
       var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp');
       var pp = isOpp ? _sqOppFind(sid) : _sqCtxP(sid, slotCtx); var hd = 0;
       if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
-      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, allowed: pp ? _sqAllowedZonesAny(pp) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
+      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
       e.preventDefault(); return;
     }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
@@ -7998,7 +8034,7 @@ function _sqInitFormationDrag() {
     if (_sqSubDrag) { var sd = _sqSubDrag; if (!sd.moved) { if (Math.abs(e.clientX - sd.sx) + Math.abs(e.clientY - sd.sy) < 6) return; sd.moved = true; sd.ghost = _sqMakeGhost(sd.id); } if (sd.ghost) { sd.ghost.style.left = e.clientX + 'px'; sd.ghost.style.top = e.clientY + 'px'; } _sqSubHighlight(document.elementFromPoint(e.clientX, e.clientY)); return; }
     if (_sqCmdMove) {
       var cm = _sqCmdMove;
-      if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id, cm.side); }
+      if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id, cm.side, cm.ctx); }
       var rc = cm.pitch.getBoundingClientRect();
       var L = Math.max(4, Math.min(96, (e.clientX - rc.left) / rc.width * 100)), T = Math.max(6, Math.min(94, (e.clientY - rc.top) / rc.height * 100));
       cm.L = L; cm.T = T; cm.slot.style.left = L + '%'; cm.slot.style.top = T + '%';
@@ -8009,7 +8045,7 @@ function _sqInitFormationDrag() {
         bx = Math.max(0, Math.min(100, T));
         by = Math.max(0, Math.min(100, (cm.side === 'opp') ? L : (100 - L)));
       } else { bx = T; by = (cm.side === 'opp') ? L : (100 - L); }
-      var dcur = _sqNearestAllowedDist(bx, by, cm.allowed);
+      var dcur = _sqNearestAllowedDist(bx, by, cm.allowed, cm.ctx);
       var ok = (cm.side === 'opp') ? (Math.max(0, dcur - (cm.homeDist || 0)) <= 16) : (dcur <= 16);
       var card = cm.slot.querySelector('.sqmd-card'); if (card) card.classList.toggle('is-bad', !ok);
       return;
@@ -45472,12 +45508,22 @@ function _atFormationCtx(id) {
   // Starters occupy the formation slots in saved order; GK takes the GK slot.
   var starters = (lu.starters || []).filter(function (pid) { return byId[pid]; });
   var gkId = lu.gk || (starters.filter(function (pid) { return byId[pid].cat === 'gk'; })[0]);
+  // Fill the shape with the First Team's own assignment engine, so every slot of
+  // the format gets a player and each one lands on the line they actually play.
+  // Seating by saved order left later slots empty and put forwards in defensive
+  // slots, which is what raised the out-of-position warnings.
   var ordered = [], posMy = {}, slotMy = {};
-  var gkSlot = slots.filter(function (s) { return s.c === 'gk'; })[0];
-  var outSlots = slots.filter(function (s) { return s.c !== 'gk'; });
-  if (gkSlot && gkId) { ordered.push(gkId); posMy[gkId] = { x: gkSlot.x, y: gkSlot.y }; slotMy[gkId] = gkSlot; }
-  starters.filter(function (pid) { return pid !== gkId; }).forEach(function (pid, i) {
-    var s = outSlots[i]; if (!s) return;                       // never place more players than the format allows
+  var namedGk = gkId ? [gkId] : [];
+  var preferred = namedGk.concat(starters.filter(function (pid) { return pid !== gkId; }));
+  var prefSet = {}; preferred.forEach(function (x) { prefSet[x] = 1; });
+  // named starters first, then the rest of the age group, so a short lineup still
+  // fields the full complement the format calls for
+  var pool = preferred.map(function (pid) { return byId[pid]; }).filter(Boolean)
+    .concat(mapped.filter(function (pl) { return !prefSet[pl.id]; }));
+  var assign = _sqAssignXI(slots, pool);
+  assign.forEach(function (a2) {
+    if (!a2.player) return;
+    var s = a2.slot, pid = a2.player.id;
     ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
   });
   // Anything the coach has dragged wins over the formation's default slot, so a
@@ -45489,7 +45535,17 @@ function _atFormationCtx(id) {
   return {
     type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
     roster: mapped, reserve: [],
-    starterIds: ordered, benchIds: (lu.subs || []).filter(function (pid) { return byId[pid]; }),
+    // The bench is every eligible player not in the starting group — named subs
+    // first, then the rest of the age group — so squad depth reflects the real
+    // roster rather than only those already promoted to the bench list.
+    starterIds: ordered,
+    benchIds: (function () {
+      var inXI = {}; ordered.forEach(function (x) { inXI[x] = 1; });
+      var named = (lu.subs || []).filter(function (pid) { return byId[pid] && !inXI[pid]; });
+      var seen = {}; named.forEach(function (x) { seen[x] = 1; });
+      var rest = mapped.filter(function (pl) { return !inXI[pl.id] && !seen[pl.id]; }).map(function (pl) { return pl.id; });
+      return named.concat(rest);
+    })(),
     posMy: posMy, slotMy: slotMy,
     formation: t.formation.name, formationSlots: slots,
     formationOptions: _atFormationsFor(id),
