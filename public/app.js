@@ -12062,21 +12062,32 @@ function _trnBind() {
     _TRN.an = _TRN.an || {}; _TRN.an[k] = el.value; _trnRenderBody();
   });
 }
-function renderTrainingWorkspaceHTML() {
+// ══════════ Training Centre · the one mount ══════════
+// There is a single Training Centre. This function owns its whole root: the
+// setup, the root element and the component tree. Every workspace that shows
+// the Training Centre calls this and passes a team context — the First Team
+// passes none and gets its own, an age group passes its own. Nothing else
+// builds a Training Centre root, so any change here reaches every team.
+function _trnMount(ctx) {
   _DE_SEL = null;
-  _trUseCtx(null);                                                                    // this host renders the First Team
-  if (typeof _sqLoad === 'function') _sqLoad();
-  if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
-  if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // build shared board so _sqMyStats/_sqTeamFeel sync
-  _trLoadDB();                                                                        // load persisted training records
+  _trUseCtx(ctx || null);
+  var C = _trCtx();
+  if (C.type === 'first') {
+    if (typeof _sqLoad === 'function') _sqLoad();
+    if (typeof _sqTacticsLoad === 'function') _sqTacticsLoad();
+    if (typeof _sqBuildBoard === 'function') { try { _sqBuildBoard(); } catch (e) {} }   // shared board so _sqMyStats/_sqTeamFeel sync
+  }
+  _trLoadDB();                                                                          // persisted training records for this team
   _deBind(); _trnBind(); _trnWinBind();
-  // Backend-first read: when an authenticated club with real imported players is
-  // active, pull the canonical sessions from PostgreSQL and re-render. Inert on
-  // the demo squad / logged out (see _trBackendOn). Runs once per load.
+  // Backend-first read, where this team has one: pull the canonical sessions and
+  // re-render. Inert on the demo squad, logged out, or an age group.
   if (typeof _trBackendOn === 'function' && _trBackendOn() && !_TR_PULLED) {
     try { _trPullBackend(function () { try { _trnRender(); } catch (e) {} }); } catch (e) {}
   }
-  return '<div class="page" id="pg-training">' + _famBackBtn() + '<div class="trn-root" id="trn-root">' + _trnInner() + '</div></div>';
+  return '<div class="trn-root" id="trn-root">' + _trnInner() + '</div>';
+}
+function renderTrainingWorkspaceHTML() {
+  return '<div class="page" id="pg-training">' + _famBackBtn() + _trnMount(null) + '</div>';
 }
 // ── Training desktop window manager: taskbar, minimize, pin, snap, arrange, persistence, shortcuts (kept) ──
 function _trPanelEl(id) { return typeof document !== 'undefined' ? document.querySelector('.tr-panel[data-trpanel="' + id + '"]') : null; }
@@ -44929,52 +44940,13 @@ function _atChip(label, val, tone) { return '<span class="at-plchip' + (tone ? '
    -save-lineup / -reset-lineup handlers. No new data, route or backend. */
 
 // Avatar face: real photo when the roster has one, polished initials plate otherwise.
-function _atLuFace(p, cls) {
-  return p.photo
-    ? '<span class="' + cls + '" style="background-image:url(' + p.photo + ')"></span>'
-    : '<span class="' + cls + '">' + _viEscSafe(_atInitials(p.name)) + '</span>';
-}
+
 // One obvious status per player — never several competing labels.
-function _atLuStatus(p, lu) {
-  if (lu.starters.indexOf(p.id) >= 0) return { key: 'starter', label: 'Starter' };
-  if (lu.subs.indexOf(p.id) >= 0) return { key: 'sub', label: 'Substitute' };
-  if (p.availability === 'Injured') return { key: 'injured', label: 'Injured' };
-  if (p.availability === 'Doubtful') return { key: 'doubtful', label: 'Doubtful' };
-  return { key: 'free', label: 'Not selected' };
-}
+
 // Named, unambiguous controls — no bare letters. Same handlers as before.
-function _atLuActions(p, lu, big) {
-  var isStart = lu.starters.indexOf(p.id) >= 0, capOn = lu.captain === p.id, gkOn = lu.gk === p.id;
-  var k = big ? ' lux-act--lg' : '';
-  return (isStart
-      ? '<button class="lux-act' + k + '" type="button" data-at-bench="' + p.id + '">Move to bench</button>'
-      : '<button class="lux-act lux-act--go' + k + '" type="button" data-at-start="' + p.id + '">Add to starting XI</button>')
-    + '<button class="lux-act' + (capOn ? ' is-on' : '') + k + '" type="button" data-at-captain="' + p.id + '"><i class="lux-band"></i>' + (capOn ? 'Captain' : 'Make captain') + '</button>'
-    + (p.pos === 'GK' ? '<button class="lux-act' + (gkOn ? ' is-on' : '') + k + '" type="button" data-at-gk="' + p.id + '">' + (gkOn ? 'Goalkeeper' : 'Set goalkeeper') + '</button>' : '');
-}
+
 // Selection-board card. Keeps every value the roster carries.
-function _atPlRow(p, idx, mode, lu) {
-  var pro = idx >= 3, st = _atLuStatus(p, lu), capOn = lu.captain === p.id;
-  var sel = AT.luSel === p.id;
-  var vals = [['Fitness', p.fitness + '%', p.fitness < 60 ? 'warn' : ''], ['Morale', p.morale, p.morale === 'Low' ? 'warn' : ''],
-    [pro ? 'Development' : 'Level', p.devScore, ''], ['Form', p.form + '/10', p.form <= 4 ? 'warn' : '']];
-  if (pro) vals.push(['Promotion', p.promotion, p.promotion >= 75 ? 'ok' : '']);
-  return '<div class="lux-card lux-card--' + st.key + (sel ? ' is-sel' : '') + '" data-at-luselect="' + p.id + '" data-posg="' + _atPosGroup(p.pos) + '" data-name="' + _viEscSafe((p.name + ' ' + p.pos + ' ' + p.number).toLowerCase()) + '">'
-    + '<div class="lux-card-head">'
-      + '<button class="lux-card-who" type="button" data-at-player="' + p.id + '">'
-        + _atLuFace(p, 'lux-card-face')
-        + '<span class="lux-card-id">'
-          + '<b>' + _viEscSafe(p.name) + (capOn ? '<i class="lux-band lux-band--inline"></i>' : '') + '</b>'
-          + '<i>' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · ' + p.age + ' yrs</i>'
-        + '</span>'
-      + '</button>'
-      + '<span class="lux-card-shirt">' + p.number + '</span>'
-    + '</div>'
-    + '<div class="lux-card-status"><span class="lux-tag lux-tag--' + st.key + '">' + st.label + '</span><span class="lux-card-avail lux-card-avail--' + _atAvailTone(p.availability) + '">' + _viEscSafe(p.availability) + '</span></div>'
-    + '<div class="lux-card-vals">' + vals.map(function (v) { return '<span class="lux-val' + (v[2] ? ' lux-val--' + v[2] : '') + '"><i>' + _viEscSafe(v[0]) + '</i><b>' + _viEscSafe(String(v[1])) + '</b></span>'; }).join('') + '</div>'
-    + '<div class="lux-card-acts">' + _atLuActions(p, lu, false) + '</div>'
-  + '</div>';
-}
+
 function _atFilterBar(idx) {
   var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
   var pos = ['ALL', 'GK', 'DEF', 'MID', 'FWD'].map(function (g) { return '<button class="at-fbtn' + (pf === g ? ' is-on' : '') + '" type="button" data-at-posfilter="' + g + '">' + (g === 'ALL' ? 'All' : g) + '</button>'; }).join('');
@@ -44985,18 +44957,7 @@ function _atFilterBar(idx) {
     + '<div class="at-fgroup"><span>Availability</span>' + av + '</div>'
   + '</div>';
 }
-function _atPlayerList(id, mode) {
-  var roster = _atRoster(id), idx = _acStageIdx(id);
-  var lu = (mode === 'lineup') ? _atLineup(id) : null;
-  var pf = AT.posF || 'ALL', af = AT.availF || 'ALL';
-  var list = roster.filter(function (p) {
-    if (pf !== 'ALL' && _atPosGroup(p.pos) !== pf) return false;
-    if (af !== 'ALL' && p.availability !== af) return false;
-    return true;
-  });
-  var rows = list.map(function (p) { return _atPlRow(p, idx, mode, lu); }).join('') || '<div class="at-empty">No players match the current filters.</div>';
-  return '<div class="at-pllist" id="at-pllist">' + rows + '</div>';
-}
+
 
 // Age-group summary tiles (all values from THIS group only).
 function _atSquadSummary(id) {
@@ -45108,25 +45069,8 @@ var AT_STAFF_TIERS = [
 // Match actual staff (by department, greedily) against the recommended slots
 // for this stage. Real staff are never hidden or fabricated — this only
 // decides which recommended slot each existing person visually fills.
-function _atStaffCoverage(id) {
-  var idx = Math.min(_acStageIdx(id), AT_STAFF_TIERS.length - 1);
-  var tier = AT_STAFF_TIERS[idx];
-  var staff = _atTeam(id).staff, used = {};
-  function consume(dept) { for (var i = 0; i < staff.length; i++) { if (used[i]) continue; if (_atRoleMeta(staff[i].role).dept === dept) { used[i] = true; return staff[i]; } } return null; }
-  var coreSlots = tier.core.map(function (sl) { return { role: sl[0], dept: sl[1], person: consume(sl[1]) }; });
-  var supportSlots = tier.support.map(function (sl) { return { role: sl[0], dept: sl[1], person: consume(sl[1]) }; });
-  var deptState = {};
-  AT_STAFF_DEPTS.forEach(function (d) {
-    var filled = coreSlots.concat(supportSlots).some(function (s) { return s.dept === d && s.person; });
-    var inCore = coreSlots.some(function (s) { return s.dept === d; });
-    var inSupport = supportSlots.some(function (s) { return s.dept === d; });
-    deptState[d] = filled ? 'filled' : (inCore ? 'missing' : (inSupport ? 'shared' : 'optional'));
-  });
-  var coreFilled = coreSlots.filter(function (s) { return s.person; }).length;
-  var supportFilled = supportSlots.filter(function (s) { return s.person; }).length;
-  return { coreSlots: coreSlots, supportSlots: supportSlots, deptState: deptState, coreFilled: coreFilled, coreTotal: coreSlots.length, supportFilled: supportFilled, supportTotal: supportSlots.length };
-}
-function _atStaffHeadCoach(id) { var t = _atTeam(id); for (var i = 0; i < t.staff.length; i++) if (t.staff[i].responsible) return t.staff[i]; return t.staff[0] || null; }
+
+
 // Every staff record gets a stable id lazily (bookkeeping only — never shown,
 // same convention already used for sessions/matches ids elsewhere in this file).
 function _atStaffEnsureIds(id) {
@@ -45169,19 +45113,7 @@ function _atStaffFeature(head, id, accent) {
     + '</div>'
   + '</div>';
 }
-function _atStaffCompact(staffCount, cov, players, ratio, coveragePct, missingCore) {
-  var bar = AT_STAFF_DEPTS.map(function (d) { return '<i class="acs-cbar-seg acs-cbar-seg--' + cov.deptState[d] + '" title="' + _viEscSafe(d) + ' · ' + cov.deptState[d] + '"></i>'; }).join('');
-  return '<div class="acs-compact">'
-    + '<div class="acs-compact-line">'
-      + '<span><b>' + staffCount + '</b> actual staff</span>'
-      + '<span><b>' + cov.coreTotal + '</b> recommended core</span>'
-      + '<span><b>' + coveragePct + '%</b> coverage</span>'
-      + '<span><b>' + missingCore + '</b> missing essential</span>'
-      + '<span><b>1:' + ratio + '</b> player : coach</span>'
-    + '</div>'
-    + '<div class="acs-cbar">' + bar + '</div>'
-  + '</div>';
-}
+
 function _atStaffPanel(id) {
   var sid = AT.staffEdit; if (!sid) return '';
   var isNew = sid === '__new__';
@@ -45214,148 +45146,20 @@ function _atStaffPanel(id) {
     + '</div>'
   + '</div>';
 }
-function _atSecStaff(id) {
-  var c = _atCtx(id);
-  var staff = _atStaffEnsureIds(id);
-  var head = _atStaffHeadCoach(id);
-  var others = staff.filter(function (s) { return s !== head; });
-  var cov = _atStaffCoverage(id);
-  var players = _acInStage(id).length;
-  var onField = staff.filter(function (s) { return s.role !== 'Welfare Officer'; }).length;
-  var ratio = onField ? (players / onField).toFixed(1) : '—';
-  var coveragePct = cov.coreTotal ? Math.round(cov.coreFilled / cov.coreTotal * 100) : 100;
-  var missingCore = cov.coreTotal - cov.coreFilled;
 
-  var header = '<div class="acs-head">'
-    + '<div class="acs-head-txt"><h2>Coaching Staff</h2><span>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(c.name) + ' Stage · ' + staff.length + ' staff assigned</span></div>'
-    + '<button class="at-btn" type="button" data-at-add-staff>+ Add Staff Member</button>'
-  + '</div>';
-
-  var otherCards = others.length
-    ? '<div class="acs-grid">' + others.map(function (s) { return _atStaffCard(s, c.accent); }).join('') + '</div>'
-    : '<div class="at-empty at-empty-box">No additional staff yet — use + Add Staff Member to build out the coaching team.</div>';
-
-  function slotRow(sl) {
-    return '<div class="acs-slot' + (sl.person ? ' acs-slot--filled' : ' acs-slot--empty') + '">'
-      + '<span class="acs-slot-role">' + _viEscSafe(sl.role) + '</span>'
-      + (sl.person ? '<span class="acs-slot-person">' + _viEscSafe(sl.person.name) + '</span>' : '<span class="acs-slot-open">Open role</span>')
-    + '</div>';
-  }
-  var recOpen = !!AT.staffRecOpen;
-  var recBlock = '<div class="acs-rec-grid">'
-    + '<div class="acs-rec-col"><h4>Core staff · ' + cov.coreFilled + ' of ' + cov.coreTotal + ' filled</h4>' + cov.coreSlots.map(slotRow).join('') + '</div>'
-    + '<div class="acs-rec-col"><h4>Shared / specialist support · ' + cov.supportFilled + ' of ' + cov.supportTotal + '</h4>' + cov.supportSlots.map(slotRow).join('') + '</div>'
-  + '</div>';
-
-  return header
-    + _atStaffFeature(head, id, c.accent)
-    + otherCards
-    + _atStaffCompact(staff.length, cov, players, ratio, coveragePct, missingCore)
-    + '<div class="acs-rec-wrap">'
-      + '<button class="acs-rec-toggle" type="button" data-acs-rec-toggle>' + (recOpen ? '▾ Hide Recommended Staff Structure' : '▸ View Recommended Staff Structure') + '</button>'
-      + (recOpen ? '<div class="acs-rec-body">' + recBlock + '</div>' : '')
-    + '</div>'
-    + _atStaffPanel(id);
-}
 // Lineup pitch — starters placed into the age-group formation (GK + rows).
 // Dedicated Lineup-page pitch (own classnames — the standalone Formation
 // page keeps its separate .at-pitch/.at-dot markup untouched).
 // Tactical slot coordinates (% of pitch) derived from the SAME formation
 // string the existing logic stores. Values are clamped well inside the
 // touchlines so a token can never sit on or past the boundary.
-function _atLuSlots(formationName) {
-  var rows = String(formationName).split('-').map(function (n) { return parseInt(n, 10) || 0; }).filter(function (n) { return n > 0; });
-  var out = [], top = 20, bottom = 72, lines = rows.length;
-  rows.forEach(function (n, li) {
-    var y = lines <= 1 ? 46 : bottom - li * ((bottom - top) / (lines - 1));
-    for (var i = 0; i < n; i++) {
-      var raw = (i + 1) * 100 / (n + 1);
-      out.push({ x: 50 + (raw - 50) * 0.74, y: y });
-    }
-  });
-  return out;
-}
-function _atLuToken(p, pos, opts) {
-  var style = 'left:' + pos.x.toFixed(2) + '%;top:' + pos.y.toFixed(2) + '%';
-  if (!p) {
-    return '<span class="lux-tok lux-tok--empty' + (opts.gk ? ' lux-tok--gk' : '') + '" style="' + style + '">'
-      + '<span class="lux-tok-shirt"><i class="lux-tok-plus">+</i></span>'
-      + '<span class="lux-tok-name">Open slot</span>'
-      + '<span class="lux-tok-pos">' + (opts.gk ? 'GK' : _viEscSafe(opts.role || '—')) + '</span>'
-    + '</span>';
-  }
-  var last = p.name.split(' ').slice(-1)[0];
-  var warn = p.availability !== 'Available';
-  return '<button class="lux-tok' + (opts.gk ? ' lux-tok--gk' : '') + (opts.cap ? ' lux-tok--cap' : '') + (AT.luSel === p.id ? ' is-sel' : '') + '" type="button" style="' + style + '" data-at-luselect="' + p.id + '">'
-    + '<span class="lux-tok-shirt">'
-      + (p.photo ? '<span class="lux-tok-photo" style="background-image:url(' + p.photo + ')"></span>' : '')
-      + '<b class="lux-tok-num">' + p.number + '</b>'
-      + (opts.cap ? '<i class="lux-band lux-band--tok"></i>' : '')
-      + (warn ? '<i class="lux-tok-warn lux-tok-warn--' + _atAvailTone(p.availability) + '" title="' + _viEscSafe(p.availability) + '"></i>' : '')
-    + '</span>'
-    + '<span class="lux-tok-name">' + _viEscSafe(last) + '</span>'
-    + '<span class="lux-tok-pos">' + _viEscSafe(p.pos) + '</span>'
-  + '</button>';
-}
-function _atLineupPitch(id) {
-  var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
-  var starters = lu.starters.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
-  var gk = starters.filter(function (p) { return p.id === lu.gk; })[0] || starters.filter(function (p) { return p.pos === 'GK'; })[0] || starters[0];
-  var outfield = starters.filter(function (p) { return !gk || p.id !== gk.id; });
-  var slots = _atLuSlots(t.formation.name);
-  var roleOf = function (y) { return y > 60 ? 'DEF' : (y > 38 ? 'MID' : 'FWD'); };
-  var tokens = slots.map(function (s, i) {
-    var p = outfield[i] || null;
-    return _atLuToken(p, s, { gk: false, cap: !!(p && lu.captain === p.id), role: roleOf(s.y) });
-  }).join('');
-  return '<div class="lux-pitch" style="--acc:' + c.accent + '">'
-    + '<span class="lux-mk lux-mk-out"></span>'
-    + '<span class="lux-mk lux-mk-half"></span>'
-    + '<span class="lux-mk lux-mk-circle"></span>'
-    + '<span class="lux-mk lux-mk-spot"></span>'
-    + '<span class="lux-mk lux-mk-box lux-mk-box--btm"></span>'
-    + '<span class="lux-mk lux-mk-six lux-mk-six--btm"></span>'
-    + '<span class="lux-mk lux-mk-box lux-mk-box--top"></span>'
-    + '<span class="lux-mk lux-mk-six lux-mk-six--top"></span>'
-    + '<span class="lux-pitch-stamp">' + _viEscSafe(t.formation.name) + '</span>'
-    + tokens
-    + _atLuToken(gk, { x: 50, y: 88 }, { gk: true, cap: !!(gk && lu.captain === gk.id) })
-  + '</div>';
-}
+
+
+
 // Substitutes strip — reads lu.subs only; never invents a player.
-function _atLuBench(id, lu) {
-  var subs = lu.subs.map(function (pid) { return _atFindPlayer(id, pid); }).filter(Boolean);
-  var body = subs.length
-    ? subs.map(function (p) {
-        return '<button class="lux-sub' + (AT.luSel === p.id ? ' is-sel' : '') + '" type="button" data-at-luselect="' + p.id + '">'
-          + _atLuFace(p, 'lux-sub-face')
-          + '<span class="lux-sub-id"><b>' + _viEscSafe(p.name.split(' ').slice(-1)[0]) + '</b><i>' + p.number + ' · ' + _viEscSafe(p.pos) + '</i></span>'
-          + '<span class="lux-sub-avail lux-sub-avail--' + _atAvailTone(p.availability) + '" title="' + _viEscSafe(p.availability) + '"></span>'
-        + '</button>';
-      }).join('')
-    : '<span class="lux-bench-empty">No substitutes named yet — use “Move to bench” on any player.</span>';
-  return '<div class="lux-bench"><span class="lux-bench-tag">Substitutes<b>' + subs.length + '</b></span><div class="lux-bench-row">' + body + '</div></div>';
-}
+
 // Inspector for the player the coach is looking at — existing fields only.
-function _atLuInspector(id, lu, idx) {
-  var p = AT.luSel ? _atFindPlayer(id, AT.luSel) : null;
-  if (!p) return '<div class="lux-insp lux-insp--idle">Select any player to inspect their condition and lineup status.</div>';
-  var st = _atLuStatus(p, lu), pro = idx >= 3;
-  var bars = [['Fitness', p.fitness, p.fitness + '%'], ['Form', p.form * 10, p.form + '/10'], [pro ? 'Development' : 'Level', p.devScore, p.devScore]];
-  return '<div class="lux-insp" style="--acc:' + _atCtx(p.stage).accent + '">'
-    + '<div class="lux-insp-top">'
-      + _atLuFace(p, 'lux-insp-face')
-      + '<div class="lux-insp-id"><b>' + _viEscSafe(p.name) + '</b><i>#' + p.number + ' · ' + _viEscSafe(p.pos) + ' · ' + _viEscSafe(p.secondary) + ' · ' + _viEscSafe(p.foot) + ' foot · ' + p.age + ' yrs</i></div>'
-      + '<span class="lux-tag lux-tag--' + st.key + '">' + st.label + '</span>'
-    + '</div>'
-    + '<div class="lux-insp-bars">' + bars.map(function (b) {
-        return '<div class="lux-insp-bar"><span>' + _viEscSafe(b[0]) + '</span><i><em style="width:' + Math.max(4, Math.min(100, b[1])) + '%"></em></i><b>' + _viEscSafe(String(b[2])) + '</b></div>';
-      }).join('') + '</div>'
-    + '<div class="lux-insp-meta"><span>Morale<b>' + _viEscSafe(p.morale) + '</b></span><span>Availability<b class="lux-av--' + _atAvailTone(p.availability) + '">' + _viEscSafe(p.availability) + '</b></span>'
-      + (pro ? '<span>Promotion<b>' + p.promotion + '</b></span>' : '<span>Attendance<b>' + p.attendance + '%</b></span>') + '</div>'
-    + '<div class="lux-insp-acts">' + _atLuActions(p, lu, true) + '</div>'
-  + '</div>';
-}
+
 /* ── Academy Lineup module hub ─────────────────────────────────────────────
    Same structure the First Team Squad hub uses (.sqf-cards / .sqf-card /
    .sqf-head / .sqf-prev / .sqf-stats / .sqf-btn), so card scale, grid,
@@ -46218,85 +46022,20 @@ function _atTrainingCtx(id) {
 }
 function _atSecTraining(id) {
   _trLoadDB(); _atTrainingImport(id);
-  _trUseCtx(_atTrainingCtx(id));                       // this host renders the selected age group
-  if (typeof _deBind === 'function') _deBind();
-  _trnBind(); if (typeof _trnWinBind === 'function') _trnWinBind();
-  return '<div class="at-trn-host"><div class="trn-root">' + _trnInner() + '</div></div>';
+  // The same Training Centre the First Team mounts, given this age group's
+  // context. The host is a plain pass-through: it contributes no sizing, no
+  // padding and no scrolling of its own.
+  return '<div class="at-trn-host">' + _trnMount(_atTrainingCtx(id)) + '</div>';
 }
-function _atSecSessions(id) {
-  var t = _atTeam(id), pl = _acInStage(id);
-  if (!t.training.sessions.length) return _atSecHead(id, 'Sessions & Attendance', 'Create training sessions first, then record attendance here.') + '<div class="at-empty at-empty-box">No sessions to track yet.</div>';
-  var last = t.training.sessions[t.training.sessions.length - 1];
-  var att = t.attendance[last.id] || {};
-  var rows = pl.map(function (p) { var v = att[p.id] || 'present'; return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td><td>' + ['present', 'late', 'absent'].map(function (s) { return '<label class="at-att"><input type="radio" name="att_' + p.id + '" value="' + s + '"' + (v === s ? ' checked' : '') + ' data-at-att="' + last.id + '|' + p.id + '|' + s + '"> ' + s + '</label>'; }).join('') + '</td></tr>'; }).join('');
-  return _atSecHead(id, 'Sessions & Attendance', 'Attendance for the latest session — scoped to ' + _atCtx(id).label + '.')
-    + _atCard('Latest: ' + _viEscSafe(last.title) + ' (' + _viEscSafe(last.date) + ')', '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Attendance</th></tr></thead><tbody>' + rows + '</tbody></table></div>');
-}
-function _atSecMatchPrep(id) {
-  var st = _acStage(id);
-  return _atSecHead(id, 'Match Preparation', 'Preparation priorities adapted to the ' + st.name + ' stage.')
-    + '<div class="at-grid2">'
-      + _atCard('Tactical focus', '<ul class="at-list">' + (st.tac || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
-      + _atCard('Technical focus', '<ul class="at-list">' + (st.tech || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
-    + '</div>';
-}
-function _atSecMatches(id) {
-  var t = _atTeam(id);
-  var rows = t.matches.length ? t.matches.map(function (m) { return '<tr><td>' + _viEscSafe(m.date) + '</td><td>' + _viEscSafe(m.opp) + '</td><td>' + _viEscSafe(m.result || '—') + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="at-empty">No fixtures recorded for ' + _viEscSafe(_atCtx(id).label) + ' yet.</td></tr>';
-  return _atSecHead(id, 'Matches', 'Fixtures & results for this age group only.')
-    + '<div class="at-actions"><button class="at-btn" type="button" data-at-add-match>+ Add fixture</button></div>'
-    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Date</th><th>Opponent</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-}
-function _atSecMedical(id) {
-  var t = _atTeam(id);
-  var rows = t.medical.length ? t.medical.map(function (m) { return '<tr><td><b>' + _viEscSafe(m.player) + '</b></td><td>' + _viEscSafe(m.issue) + '</td><td>' + _viEscSafe(m.status) + '</td></tr>'; }).join('') : '<tr><td colspan="3" class="at-empty">No medical records for ' + _viEscSafe(_atCtx(id).label) + '. Player welfare is monitored per age group.</td></tr>';
-  return _atSecHead(id, 'Medical', 'Medical & welfare records scoped to this age group.')
-    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th><th>Issue</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-}
-function _atSecAssessments(id) {
-  var st = _acStage(id), pl = _acInStage(id);
-  // Assessment priorities differ by stage (younger → fewer, softer dimensions).
-  var dims = _acStageIdx(id) < 2 ? [['technical', 'Ball skills'], ['physical', 'Coordination'], ['social', 'Teamwork'], ['psychological', 'Enjoyment']]
-    : (_acStageIdx(id) < 4 ? [['technical', 'Technical'], ['tactical', 'Tactical'], ['physical', 'Physical'], ['psychological', 'Mentality'], ['decision', 'Decisions']]
-      : AC_DIMS);
-  var head = dims.map(function (d) { return '<th>' + _viEscSafe(d[1]) + '</th>'; }).join('');
-  var rows = pl.slice(0, 12).map(function (p) { return '<tr><td><b>' + _viEscSafe(p.name) + '</b></td>' + dims.map(function (d) { return '<td>' + (p.dims[d[0]] || '—') + '</td>'; }).join('') + '</tr>'; }).join('');
-  return _atSecHead(id, 'Assessments', 'Assessment priorities adapt to the ' + st.name + ' stage.')
-    + '<div class="at-tablewrap"><table class="at-table"><thead><tr><th>Player</th>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
-}
-function _atSecDevPath(id) {
-  var st = _acStage(id), idx = _acStageIdx(id);
-  var path = AC_STAGES.map(function (s, i) { return '<div class="at-path-node' + (i === idx ? ' is-on' : '') + (i < idx ? ' done' : '') + '" style="--acc:' + s.accent + '"><b>' + _viEscSafe(s.label) + '</b><span>' + _viEscSafe(s.name) + '</span></div>'; }).join('<span class="at-path-arrow">→</span>');
-  var prom = _atShowPromotion(id)
-    ? _atCard('Promotion readiness', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>')
-    : _atCard('What comes next', '<ul class="at-list">' + (st.promotion || []).map(function (x) { return '<li>' + _viEscSafe(x) + '</li>'; }).join('') + '</ul>');
-  return _atSecHead(id, 'Development Path', 'Where ' + _atCtx(id).label + ' sits in the club pathway.')
-    + '<div class="at-path">' + path + '</div>'
-    + prom;
-}
-function _atSecReports(id) {
-  var pl = _acInStage(id), t = _atTeam(id);
-  return _atSecHead(id, 'Reports', 'Reporting scoped to ' + _atCtx(id).label + '.')
-    + '<div class="at-grid3">'
-      + _atCard('Squad size', '<div class="at-big">' + pl.length + '</div>')
-      + _atCard('Training sessions', '<div class="at-big">' + t.training.sessions.length + '</div>')
-      + _atCard('Avg attendance', '<div class="at-big">' + Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / (pl.length || 1)) + '%</div>')
-    + '</div>';
-}
-function _atSecVideo(id) {
-  return _atSecHead(id, 'Video Intelligence', 'Age-group video analysis.')
-    + '<div class="at-notice"><div class="at-notice-badge">VIDEO INTELLIGENCE · ' + _viEscSafe(_atCtx(id).label) + '</div><div class="at-notice-status"><span class="at-notice-dot"></span><b>Currently being updated</b></div><p>A new professional version is under development. When ready it will be scoped to this age group.</p></div>';
-}
-function _atSecSettings(id) {
-  var c = _atCtx(id), t = _atTeam(id);
-  return _atSecHead(id, 'Age-group Settings', 'Configuration for ' + c.label + '.')
-    + '<div class="at-fields">'
-      + '<label class="at-field"><span>Team name</span><input class="at-input" value="' + _viEscSafe(c.label + ' · ' + c.name) + '" disabled></label>'
-      + '<label class="at-field"><span>Responsible coach</span><input class="at-input" value="' + _viEscSafe(_acResponsible(id)) + '" disabled></label>'
-      + '<label class="at-field"><span>Primary focus</span><input class="at-input" data-at-setting="focus" value="' + _viEscSafe(t.settings.focus || '') + '"></label>'
-      + '<label class="at-field"><span>Match format</span><input class="at-input" value="' + (_acStageIdx(id) <= 0 ? '7-a-side' : _acStageIdx(id) === 1 ? 'Small-sided' : _acStageIdx(id) === 2 ? '9v9 → 11v11' : '11-a-side') + '" disabled></label>'
-    + '</div>';
-}
+
+
+
+
+
+
+
+
+
 
 // ── Workspace interactions (all writes keyed by AT.active — never First Team) ──
 if (typeof document !== 'undefined' && !window._atBound) {
