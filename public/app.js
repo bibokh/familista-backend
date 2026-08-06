@@ -3228,7 +3228,13 @@ var SQ_ALLOWED = {
   // fell through to the broad category default
   CDM: ['DM', 'MCL', 'MC', 'MCR'], CAM: ['AMC', 'MCL', 'MC', 'MCR', 'AML', 'AMR'],
   RWB: ['DR', 'WBR', 'MR'], LWB: ['DL', 'WBL', 'ML'], SW: ['DCL', 'DC', 'DCR'],
-  RM: ['MR', 'AMR'], LM: ['ML', 'AML']
+  RM: ['MR', 'AMR'], LM: ['ML', 'AML'],
+  // Side-specific names the small-sided shapes use. A left centre-back is a
+  // centre-back with a side, so it inherits the same zones.
+  LCB: ['DCL', 'DC', 'DCR'], RCB: ['DCR', 'DC', 'DCL'],
+  LCM: ['MCL', 'MC', 'MCR'], RCM: ['MCR', 'MC', 'MCL'],
+  DCM: ['DM', 'MCL', 'MC', 'MCR'],
+  CF: ['ST', 'AMC'], SS: ['AMC', 'ST']
 };
 function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? ['DL', 'DCL', 'DC', 'DCR', 'DR'] : cat === 'mf' ? ['ML', 'MCL', 'MC', 'MCR', 'MR', 'DM', 'AML', 'AMC', 'AMR'] : ['FL', 'ST', 'FR', 'AMC']; }
 // Zone anchors for a team. The First Team is judged against the 11-a-side map;
@@ -3289,6 +3295,13 @@ var _GK = [{ c: 'gk', x: 50, y: 88, r: 'GK' }];
 // A small-sided keeper starts a touch deeper so the central defender in front
 // still clears them; _mid73 drops the middle of a back three to its own depth.
 var _GK3 = [{ c: 'gk', x: 50, y: 89, r: 'GK' }];
+// Small depth nudges so a back three's middle sits behind its partners and a
+// central forward leads the line. Same slot language, one line each.
+function _mid70(v, i) { return (i === 1) ? { c: v.c, x: v.x, y: 70, r: v.r } : v; }
+function _mid72(v, i) { return (i === 1) ? { c: v.c, x: v.x, y: 72, r: v.r } : v; }
+function _mid74(v, i) { return (i === 1) ? { c: v.c, x: v.x, y: 74, r: v.r } : v; }
+function _ctrUp(v, i) { return (i === 1) ? { c: v.c, x: v.x, y: v.y - 2, r: v.r } : v; }
+function _innerDown(v, i) { return (i === 1 || i === 2) ? { c: v.c, x: v.x, y: v.y + 2, r: v.r } : v; }
 function _mid73(s, i) { return (i === 1) ? { c: s.c, x: s.x, y: 73, r: s.r } : s; }
 var SQ_FORMATIONS = {
   '4-4-2': _GK.concat(_ln('df', 76, [14, 38, 62, 86], ['LB', 'CB', 'CB', 'RB']), _ln('mf', 52, [14, 38, 62, 86], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 24, [38, 62], ['ST', 'ST'])),
@@ -5936,34 +5949,37 @@ function _sqCmpPopup(id, ctx) {
 // slot keeps at least fourteen units of clearance from every other, so no two
 // players overlap and no two share a tactical zone.
 var SQ_FORMATIONS_SMALL = {
-  // 3v3 — a keeper, a defender and a forward on a central spine.
+  /* 3v3 */
   '1-1':     _GK3.concat(_ln('df', 68, [50], ['CB']), _ln('fw', 34, [50], ['ST'])),
-  // 4v4 — a flat pair in front of the keeper, one forward.
+  /* 4v4 */
   '2-1':     _GK3.concat(_ln('df', 68, [34, 66], ['LB', 'RB']), _ln('fw', 34, [50], ['ST'])),
-  // 5v5 — two back, two up, the shape most small-sided leagues start with.
+  /* 5v5 - four outfield: the flat square, the diamond, the Y, the arrow, and the
+     two lopsided shapes coaches use to chase a game or protect a lead. */
   '2-2':     _GK3.concat(_ln('df', 68, [32, 68], ['LB', 'RB']), _ln('fw', 34, [32, 68], ['ST', 'ST'])),
-  // 5v5 diamond — a defender, two wide midfielders, a striker.
   '1-2-1':   _GK3.concat(_ln('df', 70, [50], ['CB']), _ln('mf', 50, [28, 72], ['LM', 'RM']), _ln('fw', 28, [50], ['ST'])),
-  // 7v7 — a back two, a midfield three holding the width, one striker.
+  '2-1-1':   _GK3.concat(_ln('df', 70, [34, 66], ['LB', 'RB']), _ln('mf', 50, [50], ['CM']), _ln('fw', 28, [50], ['ST'])),
+  '1-1-2':   _GK3.concat(_ln('df', 72, [50], ['CB']), _ln('mf', 52, [50], ['CM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
+  '3-1':     _GK3.concat(_ln('df', 68, [24, 50, 76], ['LB', 'CB', 'RB']).map(_mid70), _ln('fw', 32, [50], ['ST'])),
+  '1-3':     _GK3.concat(_ln('df', 70, [50], ['CB']), _ln('fw', 34, [24, 50, 76], ['LW', 'CF', 'RW']).map(_ctrUp)),
+  /* 7v7 - six outfield */
   '2-3-1':   _GK3.concat(_ln('df', 70, [30, 70], ['LB', 'RB']), _ln('mf', 50, [18, 50, 82], ['LM', 'CM', 'RM']), _ln('fw', 28, [50], ['ST'])),
-  // 7v7 — a back three, a central pair, one striker.
-  '3-2-1':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 50, [36, 64], ['CM', 'CM']), _ln('fw', 28, [50], ['ST'])),
-  // 7v7 — a back three, a single pivot, two forwards.
-  '3-1-2':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 52, [50], ['CM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
-  // 7v7 — one defender, a midfield three, two forwards.
+  '3-2-1':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LCB', 'CB', 'RCB']).map(_mid73), _ln('mf', 50, [36, 64], ['LCM', 'RCM']), _ln('fw', 28, [50], ['ST'])),
+  '3-1-2':   _GK3.concat(_ln('df', 71, [22, 50, 78], ['LCB', 'CB', 'RCB']).map(_mid73), _ln('mf', 52, [50], ['CDM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
   '1-3-2':   _GK3.concat(_ln('df', 72, [50], ['CB']), _ln('mf', 52, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
-  // 8v8 — the seven-a-side midfield with a second striker added.
+  '2-1-3':   _GK3.concat(_ln('df', 71, [30, 70], ['LB', 'RB']), _ln('mf', 52, [50], ['CM']), _ln('fw', 28, [20, 50, 80], ['LW', 'CF', 'RW']).map(_ctrUp)),
+  '2-2-2':   _GK3.concat(_ln('df', 71, [30, 70], ['LB', 'RB']), _ln('mf', 50, [32, 68], ['LCM', 'RCM']), _ln('fw', 27, [34, 66], ['ST', 'ST'])),
+  '3-3':     _GK3.concat(_ln('df', 70, [22, 50, 78], ['LCB', 'CB', 'RCB']).map(_mid72), _ln('fw', 32, [24, 50, 76], ['LW', 'CF', 'RW']).map(_ctrUp)),
+  /* 8v8 - seven outfield */
   '2-3-2':   _GK3.concat(_ln('df', 72, [30, 70], ['LB', 'RB']), _ln('mf', 52, [18, 50, 82], ['LM', 'CM', 'RM']), _ln('fw', 28, [34, 66], ['ST', 'ST'])),
-  // 9v9 — three across the back, three across midfield, two forwards.
-  '3-3-2':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 27, [36, 64], ['ST', 'ST'])),
-  // 9v9 — a back two, midfield three, a front three with real width.
-  '2-3-3':   _GK3.concat(_ln('df', 73, [30, 70], ['LB', 'RB']), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 27, [18, 50, 82], ['LW', 'ST', 'RW'])),
-  // 9v9 — a back three, a central pair, a front three.
-  '3-2-3':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [34, 66], ['CM', 'CM']), _ln('fw', 27, [18, 50, 82], ['LW', 'ST', 'RW'])),
-  // 9v9 — a back three behind a midfield four, one striker.
-  '3-4-1':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LB', 'CB', 'RB']).map(_mid73), _ln('mf', 51, [14, 38, 62, 86], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 26, [50], ['ST'])),
-  // 9v9 — a back two, midfield three, two attacking midfielders, one striker.
-  '2-3-2-1': _GK3.concat(_ln('df', 76, [30, 70], ['LB', 'RB']), _ln('mf', 58, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('mf', 40, [34, 66], ['AM', 'AM']), _ln('fw', 22, [50], ['ST']))
+  /* 9v9 - eight outfield */
+  '3-3-2':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LCB', 'CB', 'RCB']).map(_mid73), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 27, [36, 64], ['ST', 'ST'])),
+  '2-3-3':   _GK3.concat(_ln('df', 73, [30, 70], ['LB', 'RB']), _ln('mf', 51, [20, 50, 80], ['LM', 'CM', 'RM']), _ln('fw', 28, [18, 50, 82], ['LW', 'CF', 'RW']).map(_ctrUp)),
+  '3-2-3':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LCB', 'CB', 'RCB']).map(_mid73), _ln('mf', 51, [34, 66], ['LCM', 'RCM']), _ln('fw', 28, [18, 50, 82], ['LW', 'CF', 'RW']).map(_ctrUp)),
+  '3-4-1':   _GK3.concat(_ln('df', 71, [20, 50, 80], ['LCB', 'CB', 'RCB']).map(_mid73), _ln('mf', 51, [14, 38, 62, 86], ['LM', 'LCM', 'RCM', 'RM']).map(_innerDown), _ln('fw', 26, [50], ['ST'])),
+  '2-3-2-1': _GK3.concat(_ln('df', 76, [30, 70], ['LB', 'RB']), _ln('mf', 58, [20, 50, 80], ['LM', 'CDM', 'RM']), _ln('mf', 40, [34, 66], ['CAM', 'CAM']), _ln('fw', 22, [50], ['ST'])),
+  '3-1-3-1': _GK3.concat(_ln('df', 72, [20, 50, 80], ['LCB', 'CB', 'RCB']).map(_mid74), _ln('mf', 56, [50], ['CDM']), _ln('mf', 38, [20, 50, 80], ['LM', 'CAM', 'RM']), _ln('fw', 20, [50], ['ST'])),
+  '2-4-2':   _GK3.concat(_ln('df', 73, [28, 72], ['LB', 'RB']), _ln('mf', 51, [14, 38, 62, 86], ['LM', 'LCM', 'RCM', 'RM']).map(_innerDown), _ln('fw', 27, [36, 64], ['ST', 'ST'])),
+  '4-3-1':   _GK3.concat(_ln('df', 72, [14, 38, 62, 86], ['LB', 'LCB', 'RCB', 'RB']).map(_innerDown), _ln('mf', 51, [28, 50, 72], ['LCM', 'CM', 'RCM']), _ln('fw', 27, [50], ['ST']))
 };
 // Resolve a formation name to real slots. Small-sided table first, then the
 // First Team table. Never silently substitutes another shape.
@@ -44759,13 +44775,12 @@ function _atDefaultFormation(id) {
 }
 function _atFormationsFor(id) {
   var i = _acStageIdx(id);
-  // One match format per age group, and every option fields exactly that many
-  // players. Mixing a 5v5 shape into a 7v7 group left the team a player short.
-  if (i <= 0) return ['2-2', '1-2-1'];                                // 5v5
-  if (i === 1) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2'];           // 7v7
-  if (i === 2) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1']; // 9v9
-  if (i === 3) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1']; // 9v9
-  return ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2', '3-4-3', '4-1-4-1'];   // 11v11
+  // The complete set for the format the group plays - and for an eleven-a-side
+  // group, the same professional library the First Team picks from.
+  if (i <= 0) return ['2-2', '1-2-1', '2-1-1', '1-1-2', '3-1', '1-3'];               // 5v5
+  if (i === 1) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2', '2-1-3', '2-2-2', '3-3']; // 7v7
+  if (i === 2 || i === 3) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1', '3-1-3-1', '2-4-2', '4-3-1']; // 9v9
+  return (typeof SQ_FORM_NAMES !== 'undefined' && SQ_FORM_NAMES.length) ? SQ_FORM_NAMES.slice() : Object.keys(SQ_FORMATIONS);
 }
 // Number of on-pitch starters (incl. GK) implied by a formation string.
 function _atStarterCount(f) { return String(f).split('-').reduce(function (a, n) { return a + (parseInt(n, 10) || 0); }, 0) + 1; }
