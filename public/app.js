@@ -3326,6 +3326,28 @@ var SQ_FORMATIONS = {
   '4-4-1-1': _GK.concat(_ln('df', 76, [14, 38, 62, 86], ['LB', 'CB', 'CB', 'RB']), _ln('mf', 54, [14, 38, 62, 86], ['LM', 'CM', 'CM', 'RM']), _ln('fw', 38, [50], ['SS']), _ln('fw', 22, [50], ['ST'])),
   '4-2-1-3': _GK.concat(_ln('df', 76, [14, 38, 62, 86], ['LB', 'CB', 'CB', 'RB']), _ln('mf', 60, [36, 64], ['DM', 'DM']), _ln('mf', 44, [50], ['AM']), _ln('fw', 24, [20, 50, 80], ['LW', 'ST', 'RW']))
 };
+// Position names, resolved once per formation. A line with two of the same role
+// becomes a left and a right one; a line with three keeps the middle unsided.
+// So a back three reads LCB, CB, RCB and a midfield pair LCM, RCM — the same
+// template every time that formation is picked, never approximated.
+var SQ_ROLE_ALIAS = { DM: 'CDM', AMC: 'CAM', AML: 'LAM', AMR: 'RAM', WBL: 'LWB', WBR: 'RWB' };
+function _sqNameSlots(slots) {
+  var byLine = {}, out = slots.map(function (v) { return { c: v.c, x: v.x, y: v.y, r: SQ_ROLE_ALIAS[v.r] || v.r }; });
+  out.forEach(function (v, i) { var k = v.c + ':' + v.r; (byLine[k] = byLine[k] || []).push(i); });
+  Object.keys(byLine).forEach(function (k) {
+    var idx = byLine[k];
+    if (idx.length < 2) return;
+    idx.sort(function (a, b) { return out[a].x - out[b].x; });
+    var base = out[idx[0]].r;
+    if (/^[LR]/.test(base) && base.length > 2) return;      // already sided
+    if (idx.length === 2) { out[idx[0]].r = 'L' + base; out[idx[1]].r = 'R' + base; return; }
+    if (idx.length === 3) { out[idx[0]].r = 'L' + base; out[idx[2]].r = 'R' + base; return; }
+    out[idx[0]].r = 'L' + base; out[idx[idx.length - 1]].r = 'R' + base;
+    for (var i = 1; i < idx.length - 1; i++) out[idx[i]].r = base;
+  });
+  return out;
+}
+(function () { Object.keys(SQ_FORMATIONS).forEach(function (k) { SQ_FORMATIONS[k] = _sqNameSlots(SQ_FORMATIONS[k]); }); })();
 var SQ_FORM_NAMES = Object.keys(SQ_FORMATIONS);
 function _sqShape(slots) { var d = 0, m = 0, f = 0; slots.forEach(function (s) { if (s.c === 'df') d++; else if (s.c === 'mf') m++; else if (s.c === 'fw') f++; }); return { def: d, mid: m, fwd: f }; }
 function _sqWide(slots) { var n = 0; slots.forEach(function (s) { if (s.x <= 20 || s.x >= 80) n++; }); return n; }
@@ -3410,17 +3432,53 @@ function _sqMetricsFor(name, players, ctx) {
   return { ovr: ovr, balance: balance, compat: compat, efficiency: efficiency };
 }
 
+// How well a player fits one slot of a shape. A specialist in the exact role
+// outranks someone who lists it as a secondary, who outranks a related position,
+// who outranks anyone merely on the same line. Quality only breaks ties, so a
+// better player never displaces a specialist — a left-back is not a striker
+// because the formation changed.
+function _sqSlotFit(p, slot) {
+  if (!p || !slot) return -1;
+  var role = slot.r || String(slot.c).toUpperCase();
+  var base = role.replace(/^[LR](?=[A-Z]{2})/, '');
+  var pos = String(p.pos || '').toUpperCase();
+  var alt = String(p.secondary || p.roles || '').toUpperCase();
+  var rel = (typeof POS_RELATED !== 'undefined' && POS_RELATED[pos]) ? POS_RELATED[pos] : [];
+  var score;
+  if (pos === role) score = 6000;
+  else if (pos === base) score = 5200;
+  else if (alt && (alt.indexOf(role) >= 0 || alt.indexOf(base) >= 0)) score = 4400;
+  else if (rel.indexOf(role) >= 0 || rel.indexOf(base) >= 0) score = 3600;
+  else if (p.cat === slot.c) score = 2800;
+  else if ((p.cat === 'gk') !== (slot.c === 'gk')) score = 200;   // never swap a keeper out of goal
+  else score = 1200;
+  var fit = (typeof _sqRoleFit === 'function') ? _sqRoleFit(p, base) : 0;
+  return score * 100 + fit * 10 + (p.qual || 0);
+}
+// Fill a shape. Every slot gets the best available player for it, decided
+// best-pair-first so a strong candidate cannot take a slot another player fits
+// better. Any slot still open afterwards takes the best remaining player, so a
+// valid formation is never left short while the squad still has someone.
 function _sqAssignXI(slots, players, ctx) {
-  var pool = players.slice().sort(function (a, b) { return b.qual - a.qual; });
-  var used = {}, out = [], i;
-  slots.forEach(function (s) {
-    var z = _sqCanonZone(s.x, s.y, ctx), pick = null;
-    for (i = 0; i < pool.length; i++) { var p = pool[i]; if (!used[p.id] && p.cat === s.c && _sqAllowedZonesAny(p, ctx).indexOf(z) >= 0) { pick = p; break; } }
-    if (!pick) for (i = 0; i < pool.length; i++) { var p2 = pool[i]; if (!used[p2.id] && p2.cat === s.c) { pick = p2; break; } }
-    if (!pick) for (i = 0; i < pool.length; i++) { var p3 = pool[i]; if (!used[p3.id]) { pick = p3; break; } }
-    if (pick) used[pick.id] = 1;
-    out.push({ slot: s, player: pick || null });
+  var pool = (players || []).filter(Boolean);
+  var out = (slots || []).map(function (s) { return { slot: s, player: null }; });
+  if (!out.length) return out;
+  var pairs = [];
+  out.forEach(function (o, si) {
+    pool.forEach(function (p, pi) { pairs.push({ si: si, pi: pi, v: _sqSlotFit(p, o.slot) }); });
   });
+  pairs.sort(function (a, b) {
+    if (b.v !== a.v) return b.v - a.v;
+    if (a.si !== b.si) return a.si - b.si;                        // stable, so the same squad always lands the same way
+    return a.pi - b.pi;
+  });
+  var slotTaken = {}, playerUsed = {}, filled = 0;
+  for (var i = 0; i < pairs.length && filled < out.length; i++) {
+    var pr = pairs[i];
+    if (slotTaken[pr.si] || playerUsed[pr.pi]) continue;
+    slotTaken[pr.si] = 1; playerUsed[pr.pi] = 1; filled++;
+    out[pr.si].player = pool[pr.pi];
+  }
   return out;
 }
 function _sqDist(ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); }
@@ -5264,6 +5322,14 @@ function _sqBarPair(label, mv, ov, suffix) {
 // A squad's name on screen: the club for the First Team, the age group for an
 // academy side. The only thing either has to say about who it is.
 function _sqCtxName(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? _sqClubName() : C.label; }
+// One opponent marker, found on whichever board is asking.
+function _sqCtxOppFind(id, ctx) {
+  var C = _sqCtx(ctx), xi = _sqCtxOppXi(C), i;
+  for (i = 0; i < xi.length; i++) if (xi[i].id === id) return xi[i];
+  var b = (C.type === 'first') ? (typeof _sqOppBenchList === 'function' ? _sqOppBenchList() : []) : (C.oppBench || []);
+  for (i = 0; i < b.length; i++) if (b[i].id === id) return b[i];
+  return (C.type === 'first' && typeof _sqOppFind === 'function') ? _sqOppFind(id) : null;
+}
 function _sqCtxOppXi(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? _sqOppXi() : (C.oppActive || []); }
 function _sqCmdMatchups(ctx) {
   var C = _sqCtx(ctx);
@@ -5863,7 +5929,7 @@ var SQ_POS_CAT = { GK: 'gk', CB: 'df', LB: 'df', RB: 'df', LWB: 'df', RWB: 'df',
 function _sqPlayerAllPos(p) { var arr = [p.pos].concat(POS_RELATED[p.pos] || []), seen = {}, out = []; arr.forEach(function (x) { if (x && !seen[x]) { seen[x] = 1; out.push(x); } }); return out; }
 function _sqCmdShowZones(pitch, id, side, ctx) {
   var C = _sqCtx(ctx);
-  _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqOppFind(id) : _sqCtxP(id, C); if (!p || !pitch) return;
+  _sqCmdHideZones(pitch); var p = (side === 'opp') ? _sqCtxOppFind(id, C) : _sqCtxP(id, C); if (!p || !pitch) return;
   var ZM = _sqZoneMap(C);
   var isShared = pitch.classList && pitch.classList.contains('sqmd-pitch--shared');
   var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
@@ -8248,8 +8314,8 @@ function _sqInitFormationDrag() {
     if (slot && slotCtx) {
       var readOnly = !!(slotCtx.permissions && slotCtx.permissions.canEdit === false);
       var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp');
-      var pp = isOpp ? _sqOppFind(sid) : _sqCtxP(sid, slotCtx); var hd = 0;
-      if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
+      var pp = isOpp ? _sqCtxOppFind(sid, slotCtx) : _sqCtxP(sid, slotCtx); var hd = 0;
+      if (isOpp && pp) { var asn = _sqAssignXI(_sqSlotsFor(slotCtx.type === 'first' ? SQ_FORM.oppFormation : slotCtx.oppFormation) || [], _sqCtxOppXi(slotCtx), slotCtx), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
       _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, readOnly: readOnly, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
       e.preventDefault(); return;
     }
@@ -44632,7 +44698,7 @@ function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STA
 
 // ── durable roster (seeded once, deterministic) — the academy's own youth players ──
 // Bumped whenever the seeded squad sizes change.
-var AC_ROSTER_V = 2;
+var AC_ROSTER_V = 4;
 function _acLoad() {
   if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
   try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
@@ -44650,7 +44716,7 @@ function _acSeed() {
   AC_STAGES.forEach(function (st, si) {
     // Enough players to field the format and still name five substitutes, so
     // every group can demonstrate the full matchday workflow.
-    var n = _atStarterCount(_atDefaultFormation(st.id)) + 5;
+    var n = _atStarterCount(_atDefaultFormation(st.id)) + 6;
     var rng = _acRng(1000 * (si + 7) + 13);
     for (var k = 0; k < n; k++) {
       var base = 46 + Math.round(rng() * 30) + si * 3;     // older stages skew higher
@@ -44852,16 +44918,19 @@ function _atPad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
 // The outfield roles this age group needs, in the order the formation lists
 // them. Roster positions follow the shape rather than a fixed cycle, and the
 // list repeats when the squad is deeper than the starting eleven.
-function _atSquadRoles(id) {
+function _atSquadRoles(id, size) {
+  // A squad that can field any shape its format offers. The cycle covers every
+  // line and both flanks before it repeats, so even a small group has a right
+  // back and a winger, and a large one gains depth evenly instead of stacking
+  // centre-backs. Shaping the squad around one formation left every other shape
+  // with a hole, which is what put a holding midfielder on the wing.
   var slots = (typeof _sqSlotsFor === 'function') ? (_sqSlotsFor(_atDefaultFormation(id)) || []) : [];
-  var MAP = { LB: 'LB', RB: 'RB', CB: 'CB', DM: 'CDM', CM: 'CM', AM: 'CAM', LM: 'CM', RM: 'CM',
-    LW: 'LW', RW: 'RW', ST: 'ST', WM: 'CM', WG: 'RW', SS: 'ST', FB: 'RB', WBL: 'LB', WBR: 'RB' };
+  var onPitch = slots.length || 11;
+  var n = Math.max(onPitch - 1, (size || (onPitch + 6)) - 2);      // outfield places; two keepers
+  var CYCLE = ['CB', 'LB', 'RB', 'CM', 'ST', 'CB', 'CDM', 'LW', 'RW', 'CM', 'ST',
+               'LB', 'RB', 'CAM', 'CB', 'CM', 'LW', 'RW', 'ST', 'CDM', 'CB'];
   var out = [];
-  slots.forEach(function (s) {
-    if (s.c === 'gk') return;
-    var r = MAP[s.r] || (s.c === 'df' ? 'CB' : s.c === 'mf' ? 'CM' : 'ST');
-    out.push(r);
-  });
+  for (var i = 0; i < n; i++) out.push(CYCLE[i % CYCLE.length]);
   return out.length ? out : AT_OUTFIELD;
 }
 function _atEnrich(p, i, idx, id) {
@@ -44871,9 +44940,10 @@ function _atEnrich(p, i, idx, id) {
   // forwards last, and a roster of eight or ten never reached them — every side
   // ended up with four defenders and no strikers, which is why forward slots were
   // filled by defenders and correctly flagged as out of position.
-  var line = _atSquadRoles(id);
-  var pos = (i === 0) ? 'GK' : line[(i - 1) % line.length];
-  var sec = (i === 0) ? 'SW' : line[(i + 3) % line.length];
+  // Two keepers, then the outfield cycle — a squad always has cover in goal.
+  var line = _atSquadRoles(id, (typeof _acInStage === 'function') ? _acInStage(id).length : 0);
+  var pos = (i < 2) ? 'GK' : line[(i - 2) % line.length];
+  var sec = (i < 2) ? 'SW' : line[(i + 3) % line.length];
   var foot = ['Right', 'Right', 'Right', 'Left', 'Both'][Math.floor(r() * 5)];
   var avail = (p.attention && r() < 0.45) ? 'Injured' : (r() < 0.14 ? 'Doubtful' : 'Available');
   var fitness = avail === 'Injured' ? 38 + Math.floor(r() * 26) : 80 + Math.floor(r() * 20);
@@ -45649,27 +45719,28 @@ function _atFormationCtx(id) {
   // The coach's selection comes first: the named group is seated into the shape
   // on its own, so a swap sticks. Any slot still empty is then filled from the
   // rest of the age group, so the format is always fully fielded.
-  var chosen = preferred.map(function (pid) { return byId[pid]; }).filter(Boolean);
-  var placed = {};
-  _sqAssignXI(slots, chosen).forEach(function (a2) {
-    if (!a2.player) return;
-    var s = a2.slot, pid = a2.player.id;
-    placed[slots.indexOf(s)] = pid;
-    ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
+  // One pass over the whole eligible squad. The engine seats every slot with the
+  // player who fits it best, so changing formation reorganises the side rather
+  // than shuffling whoever happened to be named. The coach's own picks carry a
+  // preference so they keep their place when the fit is comparable, and anyone
+  // benched stays benched.
+  var benchedSet = {}; (lu.subs || []).forEach(function (x) { benchedSet[x] = 1; });
+  var eligible = mapped.filter(function (pl) { return !benchedSet[pl.id]; });
+  var pref = eligible.map(function (pl) {
+    return prefSet[pl.id] ? { p: pl, boost: 1 } : { p: pl, boost: 0 };
   });
-  var openSlots = slots.filter(function (s, i) { return !placed[i]; });
-  if (openSlots.length) {
-    // A player the coach has benched stays benched. Filling an open slot from
-    // the whole age group used to pull them straight back onto the pitch, so a
-    // substitution put the new player on without ever taking the old one off.
-    var benched = {}; (lu.subs || []).forEach(function (x) { benched[x] = 1; });
-    var rest = mapped.filter(function (pl) { return !prefSet[pl.id] && !slotMy[pl.id] && !benched[pl.id]; });
-    _sqAssignXI(openSlots, rest).forEach(function (a3) {
-      if (!a3.player) return;
-      var s = a3.slot, pid = a3.player.id;
-      ordered.push(pid); posMy[pid] = { x: s.x, y: s.y }; slotMy[pid] = s;
-    });
-  }
+  // A named starter is worth a small edge, never enough to seat a keeper in attack.
+  var scored = pref.map(function (o) {
+    var q = {}; for (var k in o.p) q[k] = o.p[k];
+    q.qual = (o.p.qual || 0) + (o.boost ? 12 : 0);
+    q.__id = o.p.id;
+    return q;
+  });
+  _sqAssignXI(slots, scored).forEach(function (a2) {
+    if (!a2.player) return;
+    var sl = a2.slot, pid = a2.player.__id || a2.player.id;
+    ordered.push(pid); posMy[pid] = { x: sl.x, y: sl.y }; slotMy[pid] = sl;
+  });
   // Anything the coach has dragged wins over the formation's default slot, so a
   // player stays exactly where they were dropped. Positions saved under a
   // different formation are ignored, since the shape they belonged to is gone.
