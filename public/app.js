@@ -3259,17 +3259,27 @@ var SQ_ROLE_ZONE = {
   GK: 'GK',
   LB: 'DL', RB: 'DR', LWB: 'WBL', RWB: 'WBR',
   LCB: 'DCL', RCB: 'DCR', CB: 'DC', SW: 'DC',
-  CDM: 'DM', DM: 'DM',
+  CDM: 'DM', DM: 'DM', LDM: 'DML', RDM: 'DMR',
   LCM: 'MCL', RCM: 'MCR', CM: 'MC', LM: 'ML', RM: 'MR', WM: 'MC',
-  CAM: 'AMC', AM: 'AMC', SS: 'AMC', LAM: 'AML', RAM: 'AMR',
-  LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'ST', FB: 'DR'
+  CAM: 'AMC', AM: 'AMC', SS: 'SS', LAM: 'AML', RAM: 'AMR',
+  LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'CF', FB: 'DR'
 };
+// Zones the eleven-a-side board does not name, added for the academy shapes
+// only — the First Team's own table is untouched. A left wing-back is wider and
+// higher than a left-back; a second striker sits behind the centre-forward.
+var SQ_ZONES_EXT = {
+  DML: { x: 32, y: 63, label: 'DML' }, DMR: { x: 68, y: 63, label: 'DMR' },
+  SS:  { x: 50, y: 30, label: 'SS' },  CF:  { x: 50, y: 22, label: 'CF' }
+};
+function _sqZoneDef(z) { return SQ_ZONES[z] || SQ_ZONES_EXT[z] || null; }
 // When a shape fields two of the same role, the left one keeps the left-hand
 // zone. These chains say where the next one goes.
 var SQ_ZONE_ALT = {
   DC: ['DCL', 'DCR', 'DC'], DCL: ['DC', 'DCR'], DCR: ['DC', 'DCL'],
   MC: ['MCL', 'MCR', 'MC'], MCL: ['MC', 'MCR'], MCR: ['MC', 'MCL'],
-  ST: ['FL', 'FR', 'AMC'], AMC: ['MC', 'AML', 'AMR'], DM: ['MCL', 'MCR'],
+  ST: ['CF', 'FL', 'FR', 'AMC'], CF: ['ST', 'SS', 'AMC'], SS: ['AMC', 'CF', 'ST'],
+  AMC: ['SS', 'MC', 'AML', 'AMR'], DM: ['DML', 'DMR', 'MCL', 'MCR'],
+  DML: ['DM', 'MCL'], DMR: ['DM', 'MCR'],
   DL: ['WBL', 'ML'], DR: ['WBR', 'MR'], ML: ['AML', 'WBL'], MR: ['AMR', 'WBR'],
   FL: ['AML', 'ST'], FR: ['AMR', 'ST'], WBL: ['DL', 'ML'], WBR: ['DR', 'MR']
 };
@@ -3286,10 +3296,10 @@ function _sqZoneMap(ctx) {
   order.forEach(function (o) {
     var s = o.s, role = s.r || String(s.c).toUpperCase();
     var want = SQ_ROLE_ZONE[role] || SQ_ROLE_ZONE[role.replace(/^[LR](?=[A-Z]{2})/, '')] || null;
-    var pick = (want && !used[want]) ? want : null;
+    var pick = (want && !used[want] && _sqZoneDef(want)) ? want : null;
     if (!pick && want) {
       var alts = SQ_ZONE_ALT[want] || [];
-      for (var i = 0; i < alts.length && !pick; i++) if (!used[alts[i]]) pick = alts[i];
+      for (var i = 0; i < alts.length && !pick; i++) if (!used[alts[i]] && _sqZoneDef(alts[i])) pick = alts[i];
     }
     if (!pick) {                       // last resort: the nearest zone still free
       var bd = 1e9;
@@ -3465,21 +3475,23 @@ function _sqMetricsFor(name, players, ctx) {
 // who outranks anyone merely on the same line. Quality only breaks ties, so a
 // better player never displaces a specialist — a left-back is not a striker
 // because the formation changed.
-function _sqSlotFit(p, slot) {
+function _sqSlotFit(p, slot, strict) {
   if (!p || !slot) return -1;
   var role = slot.r || String(slot.c).toUpperCase();
   var base = role.replace(/^[LR](?=[A-Z]{2})/, '');
   var pos = String(p.pos || '').toUpperCase();
-  var alt = String(p.secondary || p.roles || '').toUpperCase();
+  var alt = String(p.secondary || p.roles || '').toUpperCase().split(/[,\s/]+/).filter(Boolean);
   var rel = (typeof POS_RELATED !== 'undefined' && POS_RELATED[pos]) ? POS_RELATED[pos] : [];
   var score;
-  if (pos === role) score = 6000;
+  if (pos === role) score = 6000;                                   // exact primary
   else if (pos === base) score = 5200;
-  else if (alt && (alt.indexOf(role) >= 0 || alt.indexOf(base) >= 0)) score = 4400;
+  else if (alt.indexOf(role) >= 0) score = 4400;                    // exact secondary
+  else if (alt.indexOf(base) >= 0) score = 4000;
   else if (rel.indexOf(role) >= 0 || rel.indexOf(base) >= 0) score = 3600;
-  else if (p.cat === slot.c) score = 2800;
-  else if ((p.cat === 'gk') !== (slot.c === 'gk')) score = 200;   // never swap a keeper out of goal
-  else score = 1200;
+  else if (p.cat === slot.c) score = 2800;                          // same positional family
+  else score = strict ? 0 : 1200;                                   // unrelated: not a candidate for an age group
+  if ((p.cat === 'gk') !== (slot.c === 'gk')) score = strict ? 0 : 200;   // a keeper only keeps goal
+  if (!score) return -1;
   var fit = (typeof _sqRoleFit === 'function') ? _sqRoleFit(p, base) : 0;
   return score * 100 + fit * 10 + (p.qual || 0);
 }
@@ -3488,12 +3500,15 @@ function _sqSlotFit(p, slot) {
 // better. Any slot still open afterwards takes the best remaining player, so a
 // valid formation is never left short while the squad still has someone.
 function _sqAssignXI(slots, players, ctx) {
+  // An age group leaves a slot open rather than filling it with someone who
+  // cannot play there; the First Team board fills every slot as it always has.
+  var strict = !!(ctx && ctx.type && ctx.type !== 'first');
   var pool = (players || []).filter(Boolean);
   var out = (slots || []).map(function (s) { return { slot: s, player: null }; });
   if (!out.length) return out;
   var pairs = [];
   out.forEach(function (o, si) {
-    pool.forEach(function (p, pi) { pairs.push({ si: si, pi: pi, v: _sqSlotFit(p, o.slot) }); });
+    pool.forEach(function (p, pi) { pairs.push({ si: si, pi: pi, v: _sqSlotFit(p, o.slot, strict) }); });
   });
   pairs.sort(function (a, b) {
     if (b.v !== a.v) return b.v - a.v;
@@ -3503,6 +3518,7 @@ function _sqAssignXI(slots, players, ctx) {
   var slotTaken = {}, playerUsed = {}, filled = 0;
   for (var i = 0; i < pairs.length && filled < out.length; i++) {
     var pr = pairs[i];
+    if (pr.v < 0) break;                          // nobody left who can play this role
     if (slotTaken[pr.si] || playerUsed[pr.pi]) continue;
     slotTaken[pr.si] = 1; playerUsed[pr.pi] = 1; filled++;
     out[pr.si].player = pool[pr.pi];
@@ -5105,9 +5121,25 @@ function _sqBenchMy(ctx) {
 function _sqTeamReport(side, ctx) {
   var C = _sqCtx(ctx);
   if (C.type !== 'first' && side === 'opp') {
-    // Same header and the same chips; an age group configures an opponent shape,
-    // not a scouted squad, so the ratings read as placeholders.
-    return { name: 'Opponent', formation: C.oppFormation || '', ovr: '—', balance: '—', xiOvr: '—', xiBalance: '—', benchOvr: '—', benchBalance: '—', formEff: '—' };
+    // An age group configures an opponent shape rather than scouting a squad, so
+    // there are no ratings to report — but how well that shape is being held is
+    // measurable, and it is measured the same way ours is: how far each marker
+    // sits from the slot its role owns.
+    var oSlots = _sqSlotsFor(C.oppFormation) || [];
+    var oXi = _sqCtxOppXi(C), oPos = C.posOpp2 || C.posOpp || {}, oSlot = C.oppSlot || {};
+    var sc = 0, n = 0;
+    oXi.forEach(function (o) {
+      var home = oSlot[o.id]; if (!home) return;
+      var at = oPos[o.id] || home;
+      n++; sc += _sqPosScore(_sqDist(at.x, at.y, home.x, home.y));
+    });
+    var oBal = n ? Math.round(sc / n) : 0;
+    var oBench = (C.oppBench || []).length;
+    var oCover = oSlots.length ? Math.round(Math.min(1, oXi.length / oSlots.length) * 100) : 0;
+    var oBenchBal = oBench ? Math.max(50, Math.min(94, 60 + Math.min(8, oBench) * 4)) : 0;
+    return { name: 'Opponent', formation: C.oppFormation || '',
+      ovr: '—', balance: Math.round(oBal * 0.85 + oBenchBal * 0.15), xiOvr: '—', xiBalance: oBal,
+      benchOvr: '—', benchBalance: oBenchBal, compat: oCover, formEff: oCover, exec: oBal };
   }
   if (side === 'my') {
     var my = _sqMyStats(C), formEff = _sqMetricsFor(C.formation, C.roster || [], C).efficiency, bench = _sqBenchMy(C);
@@ -44962,6 +44994,24 @@ function _atSquadRoles(id, size) {
   for (var i = 0; i < n; i++) out.push(CYCLE[i % CYCLE.length]);
   return out.length ? out : AT_OUTFIELD;
 }
+// What else a player can credibly do. One primary, then two to four related
+// roles with the side kept honest: a left-back covers the left wing-back and
+// left centre-back berths, never the right ones. This is what lets a formation
+// change reseat a squad without inventing strikers out of full-backs.
+var AT_ALT_POS = {
+  GK:  ['SW'],
+  LB:  ['LWB', 'LCB', 'LM'],   RB:  ['RWB', 'RCB', 'RM'],
+  LWB: ['LB', 'LM', 'LW'],     RWB: ['RB', 'RM', 'RW'],
+  CB:  ['LCB', 'RCB', 'CDM'],  LCB: ['CB', 'LB', 'CDM'],   RCB: ['CB', 'RB', 'CDM'],
+  CDM: ['CM', 'LCM', 'RCM', 'CB'],
+  CM:  ['LCM', 'RCM', 'CDM', 'CAM'], LCM: ['CM', 'CDM', 'LM'], RCM: ['CM', 'CDM', 'RM'],
+  LM:  ['LW', 'LWB', 'LCM'],   RM:  ['RW', 'RWB', 'RCM'],
+  CAM: ['CM', 'SS', 'LW', 'RW'],
+  LW:  ['LM', 'CAM', 'ST'],    RW:  ['RM', 'CAM', 'ST'],
+  SS:  ['CAM', 'ST', 'CF'],    CF: ['ST', 'SS', 'CAM'],
+  ST:  ['CF', 'SS', 'LW', 'RW']
+};
+function _atAltPos(pos) { return (AT_ALT_POS[pos] || []).slice(); }
 function _atEnrich(p, i, idx, id) {
   var r = _acRng(_atHash(p.id) + 1);
   // Position comes from the shape this age group actually plays, so the squad
@@ -44972,7 +45022,7 @@ function _atEnrich(p, i, idx, id) {
   // Two keepers, then the outfield cycle — a squad always has cover in goal.
   var line = _atSquadRoles(id, (typeof _acInStage === 'function') ? _acInStage(id).length : 0);
   var pos = (i < 2) ? 'GK' : line[(i - 2) % line.length];
-  var sec = (i < 2) ? 'SW' : line[(i + 3) % line.length];
+  var sec = _atAltPos(pos).join(',') || 'SW';
   var foot = ['Right', 'Right', 'Right', 'Left', 'Both'][Math.floor(r() * 5)];
   var avail = (p.attention && r() < 0.45) ? 'Injured' : (r() < 0.14 ? 'Doubtful' : 'Available');
   var fitness = avail === 'Injured' ? 38 + Math.floor(r() * 26) : 80 + Math.floor(r() * 20);
@@ -45840,9 +45890,11 @@ function _atFormationCtx(id) {
       if (lu.subs.indexOf(outId) < 0) lu.subs.push(outId);
       if (lu.captain === outId) lu.captain = inId;
       if (lu.gk === outId) { var pin = _atFindPlayer(id, inId); lu.gk = (pin && pin.pos === 'GK') ? inId : null; }
-      // the dropped-in player inherits the slot the outgoing player held
+      // A substitution changes who is on the pitch, not where anyone stands.
+      // The formation reseats the side; carrying the outgoing player's dragged
+      // coordinate across pinned the substitute and distorted the shape.
       var b = _atBoard(id);
-      if (b.posMy[outId]) { b.posMy[inId] = b.posMy[outId]; delete b.posMy[outId]; }
+      delete b.posMy[outId]; delete b.posMy[inId];
       _atPlayerHistory(id, inId, 'selected', { formation: _atTeam(id).formation.name });
       _atPlayerHistory(id, outId, 'benched', { formation: _atTeam(id).formation.name });
       _atSave(); renderAcademyTeamPage();
