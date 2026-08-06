@@ -45596,7 +45596,11 @@ function _atFormationCtx(id) {
   });
   var openSlots = slots.filter(function (s, i) { return !placed[i]; });
   if (openSlots.length) {
-    var rest = mapped.filter(function (pl) { return !prefSet[pl.id] && !slotMy[pl.id]; });
+    // A player the coach has benched stays benched. Filling an open slot from
+    // the whole age group used to pull them straight back onto the pitch, so a
+    // substitution put the new player on without ever taking the old one off.
+    var benched = {}; (lu.subs || []).forEach(function (x) { benched[x] = 1; });
+    var rest = mapped.filter(function (pl) { return !prefSet[pl.id] && !slotMy[pl.id] && !benched[pl.id]; });
     _sqAssignXI(openSlots, rest).forEach(function (a3) {
       if (!a3.player) return;
       var s = a3.slot, pid = a3.player.id;
