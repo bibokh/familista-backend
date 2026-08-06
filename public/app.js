@@ -3242,6 +3242,8 @@ function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? 
 // 7v7 or 11v11 — so one set of position rules governs every squad. Each slot
 // takes the nearest of the zones its role is allowed to occupy, and a zone is
 // claimed only once, so no two players ever share one.
+// Which player is selected, on whichever board is asking.
+function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null); }
 function _sqZoneMap(ctx) {
   var C = _sqCtx(ctx);
   if (C.type === 'first' || !C.formationSlots || !C.formationSlots.length) return SQ_ZONES;
@@ -5132,14 +5134,14 @@ function _sqMdPitch(side) {
       var L = Math.max(8, Math.min(92, 100 - pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
       var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
-      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) {
       if (!a.player) return; var p = a.player, s = a.slot, pos = SQ_POS_OPP2[p.id] || { x: s.x, y: s.y };
       var L = Math.max(8, Math.min(92, pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqOppPenDist(p, s, pos), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
-      var oSel = (C.type === 'first') ? (SQ_FORM.cmdSel === p.id) : (C.selected === p.id);
+      var oSel = _sqSelIdOf(C) === p.id;
       cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.type === 'first' ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
     });
   }
@@ -5163,7 +5165,7 @@ function _sqMdPitchShared(ctx) {
     var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
-    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, SQ_FORM.cmdSel === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
+    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
   });
   // Opponent — only when toggled on. SAME full pitch as a transparent overlay (defends right goal,
   // attacks toward left), so the coach can read how My Team reacts to opponent movement. One field only.
@@ -5182,11 +5184,11 @@ function _sqMdPitchShared(ctx) {
       var d = _sqOppPenDist(p, s, pos);
       var q = (C.type === 'first') ? _sqEffQual(p, d) : null, bad = d > 16;
       if (bad) oop = true;
-      var oSel = (C.type === 'first') ? (SQ_FORM.cmdSel === p.id) : (C.selected === p.id);
+      var oSel = _sqSelIdOf(C) === p.id;
       cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.type === 'first' ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
     });
   }
-  var selId = (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null);
+  var selId = _sqSelIdOf(C);
   var zones = '', popup = '';
   if (selId) {
     var ss = (C.type === 'first') ? _sqSideOf(selId) : ((C.starterIds || []).indexOf(selId) >= 0 ? 'my' : 'opp');
@@ -44195,8 +44197,8 @@ async function tosBoardSnapshot() {
         case 'sqTacOppStyle':     if (typeof sqTacOppStyle === 'function')     sqTacOppStyle(el.dataset.style); break;
         case 'sqTacOppNewPlan':   if (typeof sqTacOppNewPlan === 'function')   sqTacOppNewPlan(); break;
         case 'sqCmdTab':          if (typeof sqCmdTab === 'function')          sqCmdTab(el.dataset.tab); break;
-        case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id); break;
-        case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(); break;
+        case 'sqCmdSelect':       if (typeof sqCmdSelect === 'function')       sqCmdSelect(el.dataset.id, _sqBoardHostCtx(el)); break;
+        case 'sqCmdToggleOpp':    if (typeof sqCmdToggleOpp === 'function')    sqCmdToggleOpp(_sqBoardHostCtx(el)); break;
         case 'sqSimReplay':       if (typeof sqSimReplay === 'function')       sqSimReplay(); break;
         case 'sqSimCtl':          if (typeof sqSimCtl === 'function')          sqSimCtl(el.dataset.ctl, el.dataset.val); break;
         case 'sqSimScene':        if (typeof sqSimScene === 'function')        sqSimScene(el.dataset.idx); break;
