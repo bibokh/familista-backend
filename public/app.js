@@ -44748,7 +44748,7 @@ function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STA
 
 // ── durable roster (seeded once, deterministic) — the academy's own youth players ──
 // Bumped whenever the seeded squad sizes change.
-var AC_ROSTER_V = 5;
+var AC_ROSTER_V = 6;
 function _acLoad() {
   if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
   try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
@@ -44980,16 +44980,20 @@ function _atPad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
 // them. Roster positions follow the shape rather than a fixed cycle, and the
 // list repeats when the squad is deeper than the starting eleven.
 function _atSquadRoles(id, size) {
-  // A squad that can field any shape its format offers. The cycle covers every
-  // line and both flanks before it repeats, so even a small group has a right
-  // back and a winger, and a large one gains depth evenly instead of stacking
-  // centre-backs. Shaping the squad around one formation left every other shape
-  // with a hole, which is what put a holding midfielder on the wing.
+  // Depth first, then breadth. The cycle covers a full back line, a full
+  // midfield and a full front line before it repeats, so every formation the
+  // format offers finds cover on every line and every substitution has someone
+  // who can genuinely take the slot. Ordered so a short roster still reaches a
+  // right-back and a winger.
   var slots = (typeof _sqSlotsFor === 'function') ? (_sqSlotsFor(_atDefaultFormation(id)) || []) : [];
   var onPitch = slots.length || 11;
   var n = Math.max(onPitch - 1, (size || (onPitch + 6)) - 2);      // outfield places; two keepers
-  var CYCLE = ['CB', 'LB', 'RB', 'CM', 'ST', 'CB', 'CDM', 'LW', 'RW', 'CM', 'ST',
-               'LB', 'RB', 'CAM', 'CB', 'CM', 'LW', 'RW', 'ST', 'CDM', 'CB'];
+  // Cover arrives early: a second striker and a second centre-back are in the
+  // first eleven names, so a bench always has someone for every line.
+  var CYCLE = ['CB', 'LB', 'RB', 'CM', 'ST',            // the spine and both flanks
+               'CB', 'CDM', 'LW', 'RW', 'ST',           // second centre-back, both wings, second striker
+               'LM', 'RM', 'CM', 'LB', 'RB',            // width and depth through the middle
+               'CB', 'CAM', 'CF', 'LCM', 'RCM', 'CDM'];
   var out = [];
   for (var i = 0; i < n; i++) out.push(CYCLE[i % CYCLE.length]);
   return out.length ? out : AT_OUTFIELD;
@@ -44999,16 +45003,20 @@ function _atSquadRoles(id, size) {
 // left centre-back berths, never the right ones. This is what lets a formation
 // change reseat a squad without inventing strikers out of full-backs.
 var AT_ALT_POS = {
-  GK:  ['SW'],
-  LB:  ['LWB', 'LCB', 'LM'],   RB:  ['RWB', 'RCB', 'RM'],
-  LWB: ['LB', 'LM', 'LW'],     RWB: ['RB', 'RM', 'RW'],
-  CB:  ['LCB', 'RCB', 'CDM'],  LCB: ['CB', 'LB', 'CDM'],   RCB: ['CB', 'RB', 'CDM'],
-  CDM: ['CM', 'LCM', 'RCM', 'CB'],
-  CM:  ['LCM', 'RCM', 'CDM', 'CAM'], LCM: ['CM', 'CDM', 'LM'], RCM: ['CM', 'CDM', 'RM'],
-  LM:  ['LW', 'LWB', 'LCM'],   RM:  ['RW', 'RWB', 'RCM'],
-  CAM: ['CM', 'SS', 'LW', 'RW'],
-  LW:  ['LM', 'CAM', 'ST'],    RW:  ['RM', 'CAM', 'ST'],
-  SS:  ['CAM', 'ST', 'CF'],    CF: ['ST', 'SS', 'CAM'],
+  GK:  [],
+  CB:  ['LCB', 'RCB', 'CDM'],
+  LCB: ['CB', 'RCB', 'LB', 'CDM'],   RCB: ['CB', 'LCB', 'RB', 'CDM'],
+  LB:  ['LWB', 'LCB', 'LM'],         RB:  ['RWB', 'RCB', 'RM'],
+  LWB: ['LB', 'LM', 'LW'],           RWB: ['RB', 'RM', 'RW'],
+  CDM: ['LDM', 'RDM', 'CM', 'CB'],
+  LDM: ['CDM', 'LCM', 'CM'],         RDM: ['CDM', 'RCM', 'CM'],
+  CM:  ['LCM', 'RCM', 'CDM', 'CAM'],
+  LCM: ['CM', 'RCM', 'CDM', 'LM'],   RCM: ['CM', 'LCM', 'CDM', 'RM'],
+  LM:  ['LW', 'LWB', 'LCM'],         RM:  ['RW', 'RWB', 'RCM'],
+  CAM: ['LAM', 'RAM', 'CM', 'SS'],
+  LAM: ['CAM', 'LW', 'LM'],          RAM: ['CAM', 'RW', 'RM'],
+  LW:  ['LM', 'LWB', 'ST'],          RW:  ['RM', 'RWB', 'ST'],
+  SS:  ['CAM', 'ST', 'CF'],          CF: ['ST', 'SS', 'CAM'],
   ST:  ['CF', 'SS', 'LW', 'RW']
 };
 function _atAltPos(pos) { return (AT_ALT_POS[pos] || []).slice(); }
@@ -45890,6 +45898,9 @@ function _atFormationCtx(id) {
       if (lu.subs.indexOf(outId) < 0) lu.subs.push(outId);
       if (lu.captain === outId) lu.captain = inId;
       if (lu.gk === outId) { var pin = _atFindPlayer(id, inId); lu.gk = (pin && pin.pos === 'GK') ? inId : null; }
+      // The substitute takes the exact slot the outgoing player held, so the
+      // shape is unchanged and the new player is judged on how well he fits
+      // THAT role. Only the seat is inherited, never a dragged coordinate.
       // A substitution changes who is on the pitch, not where anyone stands.
       // The formation reseats the side; carrying the outgoing player's dragged
       // coordinate across pinned the substitute and distorted the shape.
