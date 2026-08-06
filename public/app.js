@@ -796,6 +796,63 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
 // end of app.css and win via cascade source order. The Deep Space Neural
 // look stays available for any future opt-out — flip `body.fos-neural-theme`
 // off if you ever want the bare theme.
+/* ── Inline style rescue ──────────────────────────────────────────────────
+   Production serves a Content-Security-Policy of `style-src 'self'`, with no
+   'unsafe-inline'. The browser therefore drops every style="..." attribute the
+   app writes — which is how a player marker is placed on the pitch. Without
+   this, all eleven markers stack in the top-left corner and no formation is
+   drawn at all.
+
+   The same declarations set through the CSSOM are not blocked, so this watches
+   for markup entering the page and re-applies each element's own style
+   attribute verbatim. It changes nothing about what the app renders; it only
+   makes what it already rendered take effect. Where inline styles are allowed
+   the detection below finds them working and the observer is never installed.  */
+(function () {
+  function inlineStylesBlocked() {
+    try {
+      var probe = document.createElement('div');
+      probe.setAttribute('style', 'position:absolute;left:-9999px;width:7px');
+      document.body.appendChild(probe);
+      var w = getComputedStyle(probe).width;
+      probe.parentNode.removeChild(probe);
+      return w !== '7px';
+    } catch (e) { return false; }
+  }
+  function reapply(el) {
+    var decl = el.getAttribute && el.getAttribute('style');
+    if (!decl) return;
+    decl.split(';').forEach(function (d) {
+      var i = d.indexOf(':');
+      if (i < 0) return;
+      var prop = d.slice(0, i).trim(), val = d.slice(i + 1).trim();
+      if (!prop || !val) return;
+      var bang = val.indexOf('!important');
+      if (bang >= 0) el.style.setProperty(prop, val.slice(0, bang).trim(), 'important');
+      else el.style.setProperty(prop, val);
+    });
+  }
+  function sweep(node) {
+    if (!node || node.nodeType !== 1) return;
+    reapply(node);
+    var kids = node.querySelectorAll ? node.querySelectorAll('[style]') : [];
+    for (var i = 0; i < kids.length; i++) reapply(kids[i]);
+  }
+  function start() {
+    if (!document.body || !window.MutationObserver) return;
+    if (!inlineStylesBlocked()) return;          // nothing to rescue
+    sweep(document.body);
+    new MutationObserver(function (recs) {
+      for (var i = 0; i < recs.length; i++) {
+        var r = recs[i];
+        if (r.type === 'attributes') { reapply(r.target); continue; }
+        for (var j = 0; j < r.addedNodes.length; j++) sweep(r.addedNodes[j]);
+      }
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
+})();
 (function () {
   function applyTheme() {
     try {
@@ -5954,7 +6011,7 @@ function _sqCmdOverlayHtml(tab, my, op) {
     case 'zones': inner = _sqTcZones(); break;
     case 'setpieces': inner = _sqTcSetpieces(); break;
     case 'instructions': inner = _sqTcInstructions(); break;
-    case 'simulation': inner = _sqTcSimulation(my, op); break;
+    case 'simulation': inner = _sqTcSimulation(my, op, null); break;
     default: return '';
   }
   // Matchup opens as a floating glass controller: draggable header, resizable, NO click-outside backdrop
@@ -5995,7 +6052,7 @@ function _sqCmdSectionContent(key, my, op, ctx) {
     case 'zones': return _sqCwZones(C);
     case 'setpieces': return _sqCwSetpieces(C);
     case 'instructions': return _sqCwInstructions(C);
-    case 'simulation': return C.hasOpponent === false ? _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + _sqEsc(C.label) + ', so a match cannot be simulated.') : _sqTcSimulation(my, op);
+    case 'simulation': return C.hasOpponent === false ? _sqCmdEmpty('Simulation unavailable', 'The tactical simulation plays your shape against an opponent formation. No opponent squad is recorded for ' + _sqEsc(C.label) + ', so a match cannot be simulated.') : _sqTcSimulation(my, op, C);
   }
   return '';
 }
@@ -6094,7 +6151,7 @@ function _sqCmdInner(ctx) {
   }).join('') + '</div>';
   if (isSim) { // Simulation = complete independent workspace (NOT a floating window), with a clear Back control
     var back = '<div class="sqtc-simbar"><button class="sqtc-simback" data-action="sqCmdWin" data-tab="overview" type="button">&#8592; Back to Formation Overview</button></div>';
-    return '<div class="sqtc sqtc--sim">' + nav + back + '<div class="sqtc-content sqtc-content--sim">' + _sqTcSimulation(my, op) + '</div></div>';
+    return '<div class="sqtc sqtc--sim">' + nav + back + '<div class="sqtc-content sqtc-content--sim">' + _sqTcSimulation(my, op, C) + '</div></div>';
   }
   // Simulation requested for a team with no opponent squad (Academy age group):
   // show the professional empty state rather than silently doing nothing.
@@ -6131,9 +6188,9 @@ function _sqSimRole(s) {
   if (s.c === 'mf') { if (wide) return 'WM'; if (s.y >= 60) return 'DM'; if (s.y <= 44) return 'AM'; return 'CM'; }
   return wide ? 'WG' : (s.y >= 34 ? 'SS' : 'ST'); // deep central forward = second striker
 }
-function _sqSimModel(mf, of) {
+function _sqSimModel(mf, of, ctx) {
   function team(f, side) {
-    var slots = SQ_FORMATIONS[f] || SQ_FORMATIONS['4-3-3'];
+    var slots = _sqSlotsFor(f) || SQ_FORMATIONS['4-3-3'];
     return { f: f, players: slots.map(function (s, i) {
       // 'my' attacks right; the opponent is a true 180° tactical-board mirror (point reflection through
       // the centre) — length flips (baseL) AND width flips (baseT) so LB↔RB, LWB↔RWB, LM↔RM, etc.
@@ -7769,8 +7826,11 @@ function _sqSimReportOverlayHtml() {
     + '</div></div></div>';
 }
 var _SQ_CAM =['scale(1)', 'scale(1.12) translate(-5%,3%)', 'scale(1.2) translate(5%,-4%)', 'scale(1.1) translate(-3%,5%)', 'scale(1.24) translate(-8%,-3%)', 'scale(1.08) translate(6%,2%)', 'scale(1.16) translate(3%,-5%)', 'scale(1.06) translate(-4%,0)', 'scale(1.18) translate(6%,4%)', 'scale(1.02)'];
-function _sqTcSimulation(my, op) {
-  var M = _sqSimModel(SQ_FORM.myFormation, SQ_FORM.oppFormation);
+function _sqTcSimulation(my, op, ctx) {
+  var C = _sqCtx(ctx);
+  // The simulation plays the shape this squad actually lines up in, against the
+  // shape its own opponent lines up in — not the First Team's.
+  var M = _sqSimModel(C.formation, C.oppFormation || SQ_FORM.oppFormation, C);
   _sqSim.model = M; _sqSim.scenes = _sqSimScenes(M); _sqSim.ctx = _sqSimCtx(M); _sqSim.ctxOpp = _sqSimCtx({ my: M.opp, opp: M.my });
   _sqSim.ctx.tac = 1; // mark my-side context so the Tactics-page config only modifies my team's metrics
   var styleVars = '--sqx-h1:145;--sqx-h2:300';
@@ -7780,7 +7840,7 @@ function _sqTcSimulation(my, op) {
   var myPoss = Math.round(cl(50 + c.midEdge * 4 + (c.me.fw - c.op.fw) * 2, 28, 72)), opPoss = 100 - myPoss;
   var myBal = Math.round(cl((myMv.compact + myMv.adv + (100 - myMv.risk)) / 3, 20, 98)), opBal = Math.round(cl((opMv.compact + opMv.adv + (100 - opMv.risk)) / 3, 20, 98));
   var myThr = Math.round(cl((myMv.counter + myMv.adv) / 2 + (c.me.fw - 2) * 4, 20, 95)), opThr = Math.round(cl((opMv.counter + opMv.adv) / 2 + (co.me.fw - 2) * 4, 20, 95));
-  var myMent = SQ_FORM.mentality || 'Balanced', opMent = c.op.fw >= 2 ? 'Attacking' : (c.op.def >= 5 ? 'Defensive' : 'Balanced');
+  var myMent = ((C.tactics && C.tactics.mentality) || SQ_FORM.mentality) || 'Balanced', opMent = c.op.fw >= 2 ? 'Attacking' : (c.op.def >= 5 ? 'Defensive' : 'Balanced');
   function balLbl(v) { return v >= 80 ? 'GOOD' : v >= 60 ? 'AVERAGE' : 'RISK'; }
   function ini(n) { return (String(n || '').split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2) || 'FC').toUpperCase(); }
   function ring(sd, v) { var col = sd === 'my' ? '#34d77a' : '#e85bd0'; return '<div class="sqcc-ring sqcc-ring--' + sd + '" style="background:conic-gradient(' + col + ' ' + (v * 3.6).toFixed(0) + 'deg,rgba(255,255,255,.07) 0)"><span class="sqcc-ring-in"><b>' + v + '%</b><i>' + balLbl(v) + '</i></span></div>'; }
@@ -7807,7 +7867,7 @@ function _sqTcSimulation(my, op) {
     + '<button class="sqsim-sx" data-action="sqSimCtl" data-ctl="speed" data-val="2" type="button">2x</button></span>'
     + '<button class="sqcc-tb sqcc-tb--mx" data-action="sqSimCtl" data-ctl="matrix" data-role="mx" title="Matrix mode" type="button">◉</button></div>';
   var top = '<div class="sqcc-top">'
-    + '<div class="sqcc-tm sqcc-tm--my"><span class="sqcc-badge sqcc-badge--my">' + ini(_sqClubName()) + '</span><div class="sqcc-tm-id"><b>' + _sqEsc(_sqClubName()) + '</b><i>' + _sqEsc(M.my.f) + ' · ' + myMent.toUpperCase() + '</i></div></div>'
+    + '<div class="sqcc-tm sqcc-tm--my"><span class="sqcc-badge sqcc-badge--my">' + ini(_sqCtxName(C)) + '</span><div class="sqcc-tm-id"><b>' + _sqEsc(_sqClubName()) + '</b><i>' + _sqEsc(M.my.f) + ' · ' + myMent.toUpperCase() + '</i></div></div>'
     + '<div class="sqcc-center"><div class="sqcc-ai">AI TACTICAL INTELLIGENCE</div>'
     + '<div class="sqcc-score"><span class="sqcc-sc">0</span><span class="sqcc-clock" data-role="clock">00:00<i>FIRST HALF</i></span><span class="sqcc-sc">0</span></div>' + ctl + '</div>'
     + '<div class="sqcc-tm sqcc-tm--op"><div class="sqcc-tm-id sqcc-tm-id--r"><b>OPPONENT</b><i>' + _sqEsc(M.opp.f) + ' · ' + opMent.toUpperCase() + '</i></div><span class="sqcc-badge sqcc-badge--op">' + ini('OP') + '</span></div>'
@@ -7845,11 +7905,11 @@ function _sqTcSimulation(my, op) {
     + '<div class="sqcc-sec"><span class="sqcc-sec-h sqcc-sec-h--m">KEY BATTLE</span><div data-role="battle"></div></div>'
     + '</div>';
   var cards = '<div class="sqcc-scenarios">' + _sqSimCardsHtml(M, _sqSim.scenes) + '</div>';
-  var legend = '<div class="sqcc-legend"><span class="sqcc-lg sqcc-lg--my">' + _sqEsc(_sqClubName()) + ' (' + _sqEsc(M.my.f) + ')</span><span class="sqcc-lg sqcc-lg--op">Opponent (' + _sqEsc(M.opp.f) + ')</span>'
+  var legend = '<div class="sqcc-legend"><span class="sqcc-lg sqcc-lg--my">' + _sqEsc(_sqCtxName(C)) + ' (' + _sqEsc(M.my.f) + ')</span><span class="sqcc-lg sqcc-lg--op">Opponent (' + _sqEsc(M.opp.f) + ')</span>'
     + '<span class="sqcc-lg2 sqcc-lg2--pass">Pass</span><span class="sqcc-lg2 sqcc-lg2--run">Movement</span><span class="sqcc-lg2 sqcc-lg2--press">Press</span><span class="sqcc-lg2 sqcc-lg2--def">Cover</span><span class="sqcc-lg2 sqcc-lg2--zone">Space</span></div>';
   var intel = _sqSimIntelHtml();
   return '<div class="sqsim sqsim--holo sqcc" data-myf="' + _sqEsc(M.my.f) + '" data-oppf="' + _sqEsc(M.opp.f) + '" style="' + styleVars + '">'
-    + top + '<div class="sqcc-body">' + panel('my', _sqClubName(), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
+    + top + '<div class="sqcc-body">' + panel('my', _sqCtxName(C), myBal, myPoss, myThr, myMent) + stage + panel('op', 'Opponent', opBal, opPoss, opThr, opMent) + '</div>'
     + intel + analysis + cards + legend + _sqSimBrainOverlayHtml() + _sqSimDOverlayHtml() + _sqSimOAIOverlayHtml() + _sqSimWIOverlayHtml() + _sqSimPredOverlayHtml() + _sqSimReportOverlayHtml() + '</div>';
 }
 // ── engine state machine ──
