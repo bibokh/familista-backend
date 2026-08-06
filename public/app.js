@@ -8099,21 +8099,29 @@ function sqCmdOverlay(tab) { SQ_FORM.cmdOverlay = (!tab || tab === 'overview' ||
 function sqCmdOverlayClose() { SQ_FORM.cmdOverlay = null; _sqRenderFormationBody(); }
 function sqCmdSelect(id, ctx) {
   var C = ctx ? _sqCtx(ctx) : _sqFirstCtx();
-  if (C.type !== 'first' && typeof _atBoardSel === 'function') { _atBoardSel(id); return; }
+  if (C.type !== 'first' && typeof _atBoardSel === 'function') { _atBoardSel(id, C.teamId); return; }
   SQ_FORM.cmdSel = (SQ_FORM.cmdSel === id) ? null : id; _sqRenderFormationBody();
 }
 function sqCmdToggleOpp(ctx) {
-  // the toggle belongs to the board it was clicked on
-  var C = ctx ? _sqCtx(ctx) : ((typeof document !== 'undefined' && document.querySelector('.page.active .at-formation-cmd') && typeof _sqBoardHostCtx === 'function')
-    ? (_sqBoardHostCtx(document.querySelector('.page.active .at-formation-cmd')) || _sqFirstCtx()) : _sqFirstCtx());
+  // The toggle belongs to the board it was clicked on. If that board is an age
+  // group's and its team cannot be resolved, the click does nothing — it must
+  // never land on the First Team instead.
+  var C = ctx ? _sqCtx(ctx) : null;
+  if (!C) {
+    var hostT = (typeof document !== 'undefined') ? document.querySelector('.page.active .at-formation-cmd') : null;
+    if (hostT) { C = _sqBoardHostCtx(hostT); if (!C) return; }
+    else C = _sqFirstCtx();
+  }
   if (C.type !== 'first' && typeof C.toggleOpp === 'function') { C.toggleOpp(); return; }
   SQ_FORM.showOpp = !SQ_FORM.showOpp; SQ_FORM.cmdSel = null; _sqRenderFormationBody();
 }
 function sqCmdInstr(id, key) {
   if (!id || !SQ_INSTR[key]) return;
-  // the instruction goes to whichever team's board is showing this player
-  var C = (typeof _sqBoardHostCtx === 'function' && typeof document !== 'undefined')
-    ? (_sqBoardHostCtx(document.querySelector('.page.active .sqmd-slot[data-id="' + id + '"]')) || _sqFirstCtx()) : _sqFirstCtx();
+  // The instruction goes to whichever team's board is showing this player, and
+  // to no one if that board's team cannot be resolved.
+  var slotI = (typeof document !== 'undefined') ? document.querySelector('.page.active .sqmd-slot[data-id="' + id + '"]') : null;
+  var C = slotI ? _sqBoardHostCtx(slotI) : _sqFirstCtx();
+  if (!C) return;
   if (C.type !== 'first' && typeof C.setInstr === 'function') { C.setInstr(id, key); return; }
   SQ_MENTALITY[id] = key; _sqRenderFormationBody();
 }
@@ -8131,8 +8139,12 @@ var _sqCmdMove = null;
 // writing into the other's state.
 function _sqBoardHostCtx(el) {
   if (!el || !el.closest) return null;
-  if (el.closest('.at-formation-cmd')) {
-    var id = (typeof AT !== 'undefined') ? AT.active : null;
+  var host = el.closest('.at-formation-cmd');
+  if (host) {
+    // The team comes off the board itself. Reading it from AT.active meant a
+    // click could resolve to no team at all and fall through to the First
+    // Team's globals, so an age group's board wrote into the First Team.
+    var id = host.getAttribute('data-team-ctx') || ((typeof AT !== 'undefined') ? AT.active : null);
     return (id && typeof _atFormationCtx === 'function') ? _atFormationCtx(id) : null;
   }
   if (el.closest('#sq-sub-formation')) return _sqFirstCtx();
@@ -45694,8 +45706,8 @@ function _atBoard(id) {
   return b;
 }
 // Selecting a player on an Academy board highlights it for that group only.
-function _atBoardSel(pid) {
-  var id = AT.active; if (!id) return;
+function _atBoardSel(pid, teamId) {
+  var id = teamId || AT.active; if (!id) return;
   var b = _atBoard(id);
   b.sel = (b.sel === pid) ? null : pid;
   _atSave(); renderAcademyTeamPage();
@@ -45703,7 +45715,7 @@ function _atBoardSel(pid) {
 function _atSecFormation(id) {
   // The same Formation board the First Team mounts, given this age group's
   // context. The host marks which workspace is showing it and nothing more.
-  return '<div class="at-formation-cmd">' + _sqFormationBody(_atFormationCtx(id)) + '</div>';
+  return '<div class="at-formation-cmd" data-team-ctx="' + id + '">' + _sqFormationBody(_atFormationCtx(id)) + '</div>';
 }
 function _atPitch(name, accent) {
   var rows = String(name).split('-').map(function (n) { return parseInt(n, 10) || 0; });
