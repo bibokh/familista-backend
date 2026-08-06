@@ -8384,7 +8384,10 @@ function _sqInitFormationDrag() {
           // so they are cleared — otherwise the old positions were re-applied
           // over the new shape and the pitch barely moved.
           var tm = _atTeam(aid), bd = _atBoard(aid);
-          tm.formation.name = s.value; bd.formation = s.value; bd.posMy = {}; bd.sel = null;
+          // A new shape means new slots: ownership is cleared and everyone is
+          // reassigned, so nothing carries over from the formation before it.
+          tm.formation.name = s.value; bd.formation = s.value;
+          bd.posMy = {}; bd.sel = null; bd.slotOwner = {}; bd.slotForm = null;
         }
         _atSave(); renderAcademyTeamPage();
       }
@@ -45789,6 +45792,64 @@ function _atProfileBody(id, p, tab, idx) {
    from this group's own store — roster, lineup, formation, tactics, format and
    permissions — and the board positions are derived from the real slot geometry
    of the saved formation, so a 5v5 side draws five players, never eleven. */
+/* ── Academy Formation Engine ───────────────────────────────────────────────
+   Three stages, in order, exactly as the First Team board works.
+
+   1 · Canonical slots. The formation generates a fixed list of slot roles —
+       3-3-2 is always GK, LCB, CB, RCB, LM, CM, RM, LS, RS — and those roles
+       are the slot identities. Nothing else names a position.
+   2 · Assignment. Slots pull players, never the other way round: every
+       (slot, player) pair is scored and the best pairs are taken first, so a
+       strong player cannot occupy a slot someone else fits better.
+   3 · Validation. Before anything renders, the map must hold exactly one
+       player per slot and exactly one slot per player. If it does not, the
+       stored map is discarded and the side is reassigned from scratch.
+
+   The map is persisted on the board, so a substitution can hand its slot to the
+   player coming on instead of re-running the match and scattering the side.   */
+function _atSlotId(slot, i) { return (slot && slot.r) ? slot.r : ('slot' + i); }
+
+// Stage 2 - slots pull players, best pairs first. Compatible players go first;
+// any slot still open then takes the best of whoever is left, so the shape is
+// always complete: one slot, one player.
+function _atAssignSlots(slots, pool, ctx) {
+  var owner = {}, used = {};
+  _sqAssignXI(slots, pool, ctx).forEach(function (a, i) {
+    if (!a.player) return;
+    var pid = a.player.__id || a.player.id;
+    owner[_atSlotId(a.slot, i)] = pid; used[pid] = 1;
+  });
+  var open = [], openIdx = [];
+  slots.forEach(function (sl, i) { if (!owner[_atSlotId(sl, i)]) { open.push(sl); openIdx.push(i); } });
+  if (open.length) {
+    var rest = pool.filter(function (q) { return !used[q.__id || q.id]; });
+    _sqAssignXI(open, rest).forEach(function (a2, k) {
+      if (!a2.player) return;
+      var pid2 = a2.player.__id || a2.player.id;
+      owner[_atSlotId(open[k], openIdx[k])] = pid2; used[pid2] = 1;
+    });
+  }
+  return owner;
+}
+
+// Stage 3 — one slot, one player; one player, one slot.
+function _atValidateSlots(owner, slots, byId, benchedSet) {
+  var ids = {}, n = 0;
+  for (var i = 0; i < slots.length; i++) {
+    var sid = _atSlotId(slots[i], i), pid = owner[sid];
+    if (!pid) return false;                       // an unresolved slot
+    if (!byId[pid]) return false;                 // a player who is no longer here
+    if (benchedSet && benchedSet[pid]) return false;   // the bench owns nothing
+    if (ids[pid]) return false;                   // one player holding two slots
+    ids[pid] = 1; n++;
+  }
+  for (var k in owner) if (owner.hasOwnProperty(k)) {
+    var found = false;
+    for (var j = 0; j < slots.length; j++) if (_atSlotId(slots[j], j) === k) { found = true; break; }
+    if (!found) return false;                     // a slot the shape no longer has
+  }
+  return n === slots.length;
+}
 function _atFormationCtx(id) {
   var t = _atTeam(id), lu = _atLineup(id), c = _atCtx(id);
   var roster = _atRoster(id);
@@ -45811,7 +45872,6 @@ function _atFormationCtx(id) {
   // the format gets a player and each one lands on the line they actually play.
   // Seating by saved order left later slots empty and put forwards in defensive
   // slots, which is what raised the out-of-position warnings.
-  var ordered = [], posMy = {}, slotMy = {};
   var namedGk = gkId ? [gkId] : [];
   var preferred = namedGk.concat(starters.filter(function (pid) { return pid !== gkId; }));
   var prefSet = {}; preferred.forEach(function (x) { prefSet[x] = 1; });
@@ -45820,26 +45880,26 @@ function _atFormationCtx(id) {
   // The coach's selection comes first: the named group is seated into the shape
   // on its own, so a swap sticks. Any slot still empty is then filled from the
   // rest of the age group, so the format is always fully fielded.
-  // One pass over the whole eligible squad. The engine seats every slot with the
-  // player who fits it best, so changing formation reorganises the side rather
-  // than shuffling whoever happened to be named. The coach's own picks carry a
-  // preference so they keep their place when the fit is comparable, and anyone
-  // benched stays benched.
+  // Stage 1 · canonical slots are already resolved above. Stage 2 · slots pull
+  // players. Stage 3 · the stored map is used only if it still validates.
   var benchedSet = {}; (lu.subs || []).forEach(function (x) { benchedSet[x] = 1; });
   var eligible = mapped.filter(function (pl) { return !benchedSet[pl.id]; });
-  var pref = eligible.map(function (pl) {
-    return prefSet[pl.id] ? { p: pl, boost: 1 } : { p: pl, boost: 0 };
-  });
-  // A named starter is worth a small edge, never enough to seat a keeper in attack.
-  var scored = pref.map(function (o) {
-    var q = {}; for (var k in o.p) q[k] = o.p[k];
-    q.qual = (o.p.qual || 0) + (o.boost ? 12 : 0);
-    q.__id = o.p.id;
+  // The coach's own picks carry a small edge, never enough to seat a keeper in attack.
+  var scored = eligible.map(function (pl) {
+    var q = {}; for (var k in pl) q[k] = pl[k];
+    q.qual = (pl.qual || 0) + (prefSet[pl.id] ? 12 : 0);
+    q.__id = pl.id;
     return q;
   });
-  _sqAssignXI(slots, scored).forEach(function (a2) {
-    if (!a2.player) return;
-    var sl = a2.slot, pid = a2.player.__id || a2.player.id;
+  var owner = (board.slotForm === t.formation.name) ? (board.slotOwner || {}) : null;
+  if (!owner || !_atValidateSlots(owner, slots, byId, benchedSet)) {
+    owner = _atAssignSlots(slots, scored, { type: 'academy' });
+    board.slotOwner = owner; board.slotForm = t.formation.name;
+  }
+  var ordered = [], posMy = {}, slotMy = {};
+  slots.forEach(function (sl, i) {
+    var pid = owner[_atSlotId(sl, i)];
+    if (!pid || !byId[pid]) return;
     ordered.push(pid); posMy[pid] = { x: sl.x, y: sl.y }; slotMy[pid] = sl;
   });
   // Anything the coach has dragged wins over the formation's default slot, so a
@@ -45920,7 +45980,14 @@ function _atFormationCtx(id) {
       // A substitution changes who is on the pitch, not where anyone stands.
       // The formation reseats the side; carrying the outgoing player's dragged
       // coordinate across pinned the substitute and distorted the shape.
+      // The player coming on takes the slot the player going off owned. No new
+      // slot is created and nobody else moves.
       var b = _atBoard(id);
+      if (b.slotForm === _atTeam(id).formation.name && b.slotOwner) {
+        for (var sk in b.slotOwner) {
+          if (b.slotOwner[sk] === outId) { b.slotOwner[sk] = inId; break; }
+        }
+      }
       delete b.posMy[outId]; delete b.posMy[inId];
       _atPlayerHistory(id, inId, 'selected', { formation: _atTeam(id).formation.name });
       _atPlayerHistory(id, outId, 'benched', { formation: _atTeam(id).formation.name });
@@ -45950,6 +46017,10 @@ function _atBoard(id) {
   if (!('sel' in b)) b.sel = null;
   if (!b.draw || typeof b.draw !== 'object') b.draw = { tool: 'select', shapes: [], undo: [], redo: [], cur: null };
   if (!b.instr || typeof b.instr !== 'object') b.instr = {};
+  // Slot ownership for the current shape: slot role -> player id. Only
+  // starters appear here; a bench player never owns a slot.
+  if (!b.slotOwner || typeof b.slotOwner !== 'object') b.slotOwner = {};
+  if (!('slotForm' in b)) b.slotForm = null;   // the shape the map belongs to
   return b;
 }
 // Selecting a player on an Academy board highlights it for that group only.
