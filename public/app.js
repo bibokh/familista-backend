@@ -8186,11 +8186,11 @@ function _sqInitFormationDrag() {
     var slot = e.target.closest && e.target.closest('.sqmd-slot[data-cmdmove], .sqmd-slot[data-cmdmove-opp]');
     var slotCtx = slot ? _sqBoardHostCtx(slot) : null;
     if (slot && slotCtx) {
-      if (slotCtx.permissions && slotCtx.permissions.canEdit === false) return;
+      var readOnly = !!(slotCtx.permissions && slotCtx.permissions.canEdit === false);
       var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp');
       var pp = isOpp ? _sqOppFind(sid) : _sqCtxP(sid, slotCtx); var hd = 0;
       if (isOpp && pp) { var asn = _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], SQ_OPP_DEF), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
-      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
+      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, readOnly: readOnly, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
       e.preventDefault(); return;
     }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
@@ -8205,6 +8205,7 @@ function _sqInitFormationDrag() {
     if (_sqSubDrag) { var sd = _sqSubDrag; if (!sd.moved) { if (Math.abs(e.clientX - sd.sx) + Math.abs(e.clientY - sd.sy) < 6) return; sd.moved = true; sd.ghost = _sqMakeGhost(sd.id); } if (sd.ghost) { sd.ghost.style.left = e.clientX + 'px'; sd.ghost.style.top = e.clientY + 'px'; } _sqSubHighlight(document.elementFromPoint(e.clientX, e.clientY)); return; }
     if (_sqCmdMove) {
       var cm = _sqCmdMove;
+      if (cm.readOnly) return;          // a click still selects; a drag does not move
       if (!cm.moved) { if (Math.abs(e.clientX - cm.sx) + Math.abs(e.clientY - cm.sy) < 6) return; cm.moved = true; cm.slot.classList.add('is-moving'); _sqCmdShowZones(cm.pitch, cm.id, cm.side, cm.ctx); }
       var rc = cm.pitch.getBoundingClientRect();
       var L = Math.max(4, Math.min(96, (e.clientX - rc.left) / rc.width * 100)), T = Math.max(6, Math.min(94, (e.clientY - rc.top) / rc.height * 100));
