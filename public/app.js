@@ -3250,30 +3250,58 @@ function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? 
 // claimed only once, so no two players ever share one.
 // Which player is selected, on whichever board is asking.
 function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null); }
+// The zone a role owns, by name. A right-back's zone is the right defensive
+// channel and a centre-back's is the middle — never the same box. A holding
+// midfielder sits in front of the defence, a central midfielder in the middle
+// and a number ten ahead of both. Picking the geometrically nearest zone used to
+// blur these: a CDM six units from DM but two from MC was filed as a CM.
+var SQ_ROLE_ZONE = {
+  GK: 'GK',
+  LB: 'DL', RB: 'DR', LWB: 'WBL', RWB: 'WBR',
+  LCB: 'DCL', RCB: 'DCR', CB: 'DC', SW: 'DC',
+  CDM: 'DM', DM: 'DM',
+  LCM: 'MCL', RCM: 'MCR', CM: 'MC', LM: 'ML', RM: 'MR', WM: 'MC',
+  CAM: 'AMC', AM: 'AMC', SS: 'AMC', LAM: 'AML', RAM: 'AMR',
+  LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'ST', FB: 'DR'
+};
+// When a shape fields two of the same role, the left one keeps the left-hand
+// zone. These chains say where the next one goes.
+var SQ_ZONE_ALT = {
+  DC: ['DCL', 'DCR', 'DC'], DCL: ['DC', 'DCR'], DCR: ['DC', 'DCL'],
+  MC: ['MCL', 'MCR', 'MC'], MCL: ['MC', 'MCR'], MCR: ['MC', 'MCL'],
+  ST: ['FL', 'FR', 'AMC'], AMC: ['MC', 'AML', 'AMR'], DM: ['MCL', 'MCR'],
+  DL: ['WBL', 'ML'], DR: ['WBR', 'MR'], ML: ['AML', 'WBL'], MR: ['AMR', 'WBR'],
+  FL: ['AML', 'ST'], FR: ['AMR', 'ST'], WBL: ['DL', 'ML'], WBR: ['DR', 'MR']
+};
+// The tactical zones a shape occupies. Each slot's zone comes from its ROLE, not
+// from whatever box happens to be nearby, and is anchored on the slot itself —
+// so the boundary a coach sees is the one that role really owns. A zone is
+// claimed once, so no two players ever share one.
 function _sqZoneMap(ctx) {
   var C = _sqCtx(ctx);
   if (C.type === 'first' || !C.formationSlots || !C.formationSlots.length) return SQ_ZONES;
   var m = {}, used = {};
-  C.formationSlots.forEach(function (s) {
-    var role = s.r || String(s.c).toUpperCase();
-    var want = SQ_ALLOWED[role] || _sqDefaultAllowed(s.c);
-    var pick = null, bd = 1e9, z, Z, d;
-    for (var i = 0; i < want.length; i++) {
-      z = want[i]; Z = SQ_ZONES[z];
-      if (used[z] || !Z) continue;
-      d = Math.abs(Z.x - s.x) + Math.abs(Z.y - s.y);
-      if (d < bd) { bd = d; pick = z; }
+  var order = C.formationSlots.map(function (s, i) { return { s: s, i: i }; })
+    .sort(function (a, b) { return (a.s.y - b.s.y) || (a.s.x - b.s.x); });
+  order.forEach(function (o) {
+    var s = o.s, role = s.r || String(s.c).toUpperCase();
+    var want = SQ_ROLE_ZONE[role] || SQ_ROLE_ZONE[role.replace(/^[LR](?=[A-Z]{2})/, '')] || null;
+    var pick = (want && !used[want]) ? want : null;
+    if (!pick && want) {
+      var alts = SQ_ZONE_ALT[want] || [];
+      for (var i = 0; i < alts.length && !pick; i++) if (!used[alts[i]]) pick = alts[i];
     }
-    if (!pick) {                       // every preferred zone already claimed
-      for (z in SQ_ZONES) {
+    if (!pick) {                       // last resort: the nearest zone still free
+      var bd = 1e9;
+      for (var z in SQ_ZONES) {
         if (used[z]) continue;
-        Z = SQ_ZONES[z]; d = Math.abs(Z.x - s.x) + Math.abs(Z.y - s.y);
+        var d = Math.abs(SQ_ZONES[z].x - s.x) + Math.abs(SQ_ZONES[z].y - s.y);
         if (d < bd) { bd = d; pick = z; }
       }
     }
     if (!pick) return;
     used[pick] = 1;
-    m[pick] = { x: s.x, y: s.y, label: SQ_ZONES[pick].label, c: s.c };
+    m[pick] = { x: s.x, y: s.y, label: role, c: s.c };
   });
   return m;
 }
@@ -8298,7 +8326,14 @@ function _sqInitFormationDrag() {
       var aid = (typeof AT !== 'undefined') ? AT.active : null;
       if (aid && typeof _acCanOpen === 'function' && _acCanOpen(aid)) {
         if (s.getAttribute('data-side') === 'opp') { var os = _atOppSetup(aid); os.formation = s.value; os.pos = {}; }
-        else { _atTeam(aid).formation.name = s.value; _atBoard(aid).formation = s.value; }
+        else {
+          // Changing formation rebuilds the side from the new definition. The
+          // coordinates a coach dragged belong to the shape they were made in,
+          // so they are cleared — otherwise the old positions were re-applied
+          // over the new shape and the pitch barely moved.
+          var tm = _atTeam(aid), bd = _atBoard(aid);
+          tm.formation.name = s.value; bd.formation = s.value; bd.posMy = {}; bd.sel = null;
+        }
         _atSave(); renderAcademyTeamPage();
       }
       return;
