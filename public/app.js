@@ -3249,6 +3249,14 @@ function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? 
 // takes the nearest of the zones its role is allowed to occupy, and a zone is
 // claimed only once, so no two players ever share one.
 // Which player is selected, on whichever board is asking.
+// The role a player is actually filling right now. On an age group's board the
+// slot decides; the First Team board keeps reading the player's own position.
+function _sqActiveRole(id, p, ctx) {
+  var C = _sqCtx(ctx);
+  if (C.type === 'first') return p.pos;
+  var sl = (C.slotMy || {})[id];
+  return (sl && sl.r) ? sl.r : p.pos;
+}
 function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null); }
 // The zone a role owns, by name. A right-back's zone is the right defensive
 // channel and a centre-back's is the middle — never the same box. A holding
@@ -3262,14 +3270,15 @@ var SQ_ROLE_ZONE = {
   CDM: 'DM', DM: 'DM', LDM: 'DML', RDM: 'DMR',
   LCM: 'MCL', RCM: 'MCR', CM: 'MC', LM: 'ML', RM: 'MR', WM: 'MC',
   CAM: 'AMC', AM: 'AMC', SS: 'SS', LAM: 'AML', RAM: 'AMR',
-  LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'CF', FB: 'DR'
+  LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'CF', FB: 'DR', LS: 'FSL', RS: 'FSR'
 };
 // Zones the eleven-a-side board does not name, added for the academy shapes
 // only — the First Team's own table is untouched. A left wing-back is wider and
 // higher than a left-back; a second striker sits behind the centre-forward.
 var SQ_ZONES_EXT = {
   DML: { x: 32, y: 63, label: 'DML' }, DMR: { x: 68, y: 63, label: 'DMR' },
-  SS:  { x: 50, y: 30, label: 'SS' },  CF:  { x: 50, y: 22, label: 'CF' }
+  SS:  { x: 50, y: 30, label: 'SS' },  CF:  { x: 50, y: 22, label: 'CF' },
+  FSL: { x: 36, y: 24, label: 'LS' }, FSR: { x: 64, y: 24, label: 'RS' }
 };
 function _sqZoneDef(z) { return SQ_ZONES[z] || SQ_ZONES_EXT[z] || null; }
 // When a shape fields two of the same role, the left one keeps the left-hand
@@ -3278,6 +3287,7 @@ var SQ_ZONE_ALT = {
   DC: ['DCL', 'DCR', 'DC'], DCL: ['DC', 'DCR'], DCR: ['DC', 'DCL'],
   MC: ['MCL', 'MCR', 'MC'], MCL: ['MC', 'MCR'], MCR: ['MC', 'MCL'],
   ST: ['CF', 'FL', 'FR', 'AMC'], CF: ['ST', 'SS', 'AMC'], SS: ['AMC', 'CF', 'ST'],
+  FSL: ['FL', 'ST', 'CF'], FSR: ['FR', 'ST', 'CF'],
   AMC: ['SS', 'MC', 'AML', 'AMR'], DM: ['DML', 'DMR', 'MCL', 'MCR'],
   DML: ['DM', 'MCL'], DMR: ['DM', 'MCR'],
   DL: ['WBL', 'ML'], DR: ['WBR', 'MR'], ML: ['AML', 'WBL'], MR: ['AMR', 'WBR'],
@@ -3378,10 +3388,17 @@ function _sqNameSlots(slots) {
     idx.sort(function (a, b) { return out[a].x - out[b].x; });
     var base = out[idx[0]].r;
     if (/^[LR]/.test(base) && base.length > 2) return;      // already sided
-    if (idx.length === 2) { out[idx[0]].r = 'L' + base; out[idx[1]].r = 'R' + base; return; }
+    if (idx.length === 2) {
+      var pre = (base === 'ST') ? ['LS', 'RS'] : ['L' + base, 'R' + base];
+      out[idx[0]].r = pre[0]; out[idx[1]].r = pre[1]; return;
+    }
     if (idx.length === 3) { out[idx[0]].r = 'L' + base; out[idx[2]].r = 'R' + base; return; }
+    // Four or more of a kind: the outer pair takes the flanks and the inner
+    // ones spread from left of centre to right of centre, so no name repeats.
     out[idx[0]].r = 'L' + base; out[idx[idx.length - 1]].r = 'R' + base;
-    for (var i = 1; i < idx.length - 1; i++) out[idx[i]].r = base;
+    var inner = idx.slice(1, idx.length - 1);
+    var tags = inner.length === 1 ? [''] : inner.length === 2 ? ['LC', 'RC'] : ['LC', '', 'RC'];
+    inner.forEach(function (ix, k) { out[ix].r = (tags[k] || '') + base; });
   });
   return out;
 }
@@ -5265,7 +5282,7 @@ function _sqMdPitch(side) {
       var L = Math.max(8, Math.min(92, 100 - pos.y)), T = Math.max(11, Math.min(89, pos.x));
       var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)), q = _sqEffQual(p, d), bad = d > 16; if (bad) oop = true;
       var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
-      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), _sqActiveRole(id, p, C), q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
     });
   } else {
     _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi()).forEach(function (a) {
@@ -5296,7 +5313,7 @@ function _sqMdPitchShared(ctx) {
     var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
-    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), p.pos, q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
+    cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), _sqActiveRole(id, p, C), q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
   });
   // Opponent — only when toggled on. SAME full pitch as a transparent overlay (defends right goal,
   // attacks toward left), so the coach can read how My Team reacts to opponent movement. One field only.
@@ -6149,6 +6166,9 @@ var SQ_FORMATIONS_SMALL = {
   '2-4-2':   _GK3.concat(_ln('df', 73, [28, 72], ['LB', 'RB']), _ln('mf', 51, [14, 38, 62, 86], ['LM', 'LCM', 'RCM', 'RM']).map(_innerDown), _ln('fw', 27, [36, 64], ['ST', 'ST'])),
   '4-3-1':   _GK3.concat(_ln('df', 72, [14, 38, 62, 86], ['LB', 'LCB', 'RCB', 'RB']).map(_innerDown), _ln('mf', 51, [28, 50, 72], ['LCM', 'CM', 'RCM']), _ln('fw', 27, [50], ['ST']))
 };
+// Every small-sided shape gets unique slot names too, so a pair of strikers is
+// a left and a right striker and no canonical role is ever listed twice.
+(function () { Object.keys(SQ_FORMATIONS_SMALL).forEach(function (k) { SQ_FORMATIONS_SMALL[k] = _sqNameSlots(SQ_FORMATIONS_SMALL[k]); }); })();
 // Resolve a formation name to real slots. Small-sided table first, then the
 // First Team table. Never silently substitutes another shape.
 function _sqSlotsFor(name) {
@@ -44748,7 +44768,7 @@ function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STA
 
 // ── durable roster (seeded once, deterministic) — the academy's own youth players ──
 // Bumped whenever the seeded squad sizes change.
-var AC_ROSTER_V = 6;
+var AC_ROSTER_V = 7;
 function _acLoad() {
   if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
   try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
@@ -45004,20 +45024,16 @@ function _atSquadRoles(id, size) {
 // change reseat a squad without inventing strikers out of full-backs.
 var AT_ALT_POS = {
   GK:  [],
-  CB:  ['LCB', 'RCB', 'CDM'],
-  LCB: ['CB', 'RCB', 'LB', 'CDM'],   RCB: ['CB', 'LCB', 'RB', 'CDM'],
-  LB:  ['LWB', 'LCB', 'LM'],         RB:  ['RWB', 'RCB', 'RM'],
-  LWB: ['LB', 'LM', 'LW'],           RWB: ['RB', 'RM', 'RW'],
-  CDM: ['LDM', 'RDM', 'CM', 'CB'],
-  LDM: ['CDM', 'LCM', 'CM'],         RDM: ['CDM', 'RCM', 'CM'],
-  CM:  ['LCM', 'RCM', 'CDM', 'CAM'],
-  LCM: ['CM', 'RCM', 'CDM', 'LM'],   RCM: ['CM', 'LCM', 'CDM', 'RM'],
-  LM:  ['LW', 'LWB', 'LCM'],         RM:  ['RW', 'RWB', 'RCM'],
-  CAM: ['LAM', 'RAM', 'CM', 'SS'],
-  LAM: ['CAM', 'LW', 'LM'],          RAM: ['CAM', 'RW', 'RM'],
-  LW:  ['LM', 'LWB', 'ST'],          RW:  ['RM', 'RWB', 'ST'],
-  SS:  ['CAM', 'ST', 'CF'],          CF: ['ST', 'SS', 'CAM'],
-  ST:  ['CF', 'SS', 'LW', 'RW']
+  CB:  ['LCB', 'RCB'],   LCB: ['CB', 'LB'],     RCB: ['CB', 'RB'],
+  LB:  ['LWB', 'LCB'],   RB:  ['RWB', 'RCB'],
+  LWB: ['LB', 'LM'],     RWB: ['RB', 'RM'],
+  CDM: ['CM', 'CB'],     LDM: ['CDM', 'LCM'],   RDM: ['CDM', 'RCM'],
+  CM:  ['CDM', 'CAM'],   LCM: ['CM', 'LM'],     RCM: ['CM', 'RM'],
+  LM:  ['LW', 'LCM'],    RM:  ['RW', 'RCM'],
+  CAM: ['CM', 'SS'],     LAM: ['CAM', 'LW'],    RAM: ['CAM', 'RW'],
+  LW:  ['LM', 'ST'],     RW:  ['RM', 'ST'],
+  SS:  ['CAM', 'ST'],    CF:  ['ST', 'SS'],
+  ST:  ['CF', 'SS'],     LS:  ['ST', 'LW'],     RS:  ['ST', 'RW']
 };
 function _atAltPos(pos) { return (AT_ALT_POS[pos] || []).slice(); }
 function _atEnrich(p, i, idx, id) {
