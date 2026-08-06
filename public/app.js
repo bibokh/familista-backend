@@ -44613,7 +44613,7 @@ if (typeof document !== 'undefined' && !window._famBackBound) {
 // duplicate player records, no fabricated results (shows "Insufficient Data").
 // ═══════════════════════════════════════════════════════════════════════════
 var AC_KEY = 'familista.academy.v1';
-var _AC = { tab: 'dashboard', stage: 'foundation' };
+var _AC = { tab: 'dashboard', stage: 'discovery' };
 var AC_DB = { players: [], seeded: false };
 var _AC_LOADED = false;
 
@@ -44625,23 +44625,6 @@ var AC_DIMS = [
 ];
 
 var AC_STAGES = [
-  { id: 'foundation', label: 'U5–U7', name: 'Foundation', accent: '#7dd3fc', coachN: 3,
-    summary: 'First contact with football. The goal is joy, movement and a love of the ball — never results.',
-    objectives: ['Fall in love with the game', 'Fundamental movement & coordination', 'Ball familiarity with both feet', 'Simple cooperation and sharing', 'Feeling safe, included and happy'],
-    curriculum: ['Movement & agility games', 'Dribbling in free space', 'Ball-mastery play', 'Small-sided fun games (2v2/3v3)', 'Coordination & balance circuits'],
-    methodology: 'Play-based, game-first. Short activities, maximum touches, lots of encouragement. No drills-in-lines, no elimination games.',
-    tech: ['Running with the ball', 'Both-foot touches', 'Stopping & starting'],
-    tac: ['Find space to receive', 'Simple idea of teammates', 'No positional complexity'],
-    phys: ['Agility, balance, coordination', 'Fundamental movement skills', 'Fun physical literacy'],
-    psych: ['Enjoyment above all', 'Confidence to try', 'Comfort in the group'],
-    social: ['Sharing & turn-taking', 'Listening & simple rules', 'Belonging & friendship'],
-    edu: ['Respect for coach & teammates', 'Kind behaviour', 'Basic responsibility for kit'],
-    philosophy: 'Everyone plays, everyone touches the ball. Result is irrelevant — smiles are the KPI.',
-    guidelines: ['Talk less, let them play', 'Praise effort not outcome', 'Equal playing time always', 'Age-appropriate ball & goal sizes'],
-    standards: ['Attends with enthusiasm', 'Attempts skills without fear', 'Cooperates in small groups'],
-    promotion: ['Comfortable & confident with the ball', 'Enjoys team play', 'Ready for more structured discovery'],
-    ai: ['Keep sessions short and playful', 'Protect enjoyment — avoid early specialisation', 'Celebrate effort publicly'] },
-
   { id: 'discovery', label: 'U8–U10', name: 'Discovery', accent: '#4ade80', coachN: 4,
     summary: 'Technical discovery. Players explore what they can do with the ball and grow in confidence.',
     objectives: ['Technical discovery & repetition', '1v1 dribbling confidence', 'Passing & receiving basics', 'Early spatial awareness', 'Growing self-belief'],
@@ -44733,13 +44716,18 @@ function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STA
 
 // ── durable roster (seeded once, deterministic) — the academy's own youth players ──
 // Bumped whenever the seeded squad sizes change.
-var AC_ROSTER_V = 4;
+var AC_ROSTER_V = 5;
 function _acLoad() {
   if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
   try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
   // Reseed when the squad shape changes, so an existing store gains the players
   // a newer format needs instead of staying short.
   if (!AC_DB.seeded || !AC_DB.players.length || AC_DB.rosterV !== AC_ROSTER_V) { _acSeed(); }
+  // A stored roster can still hold players from an age group that no longer
+  // exists. Drop them, so a removed group cannot come back on refresh.
+  var live = {}; AC_STAGES.forEach(function (x) { live[x.id] = 1; });
+  var kept = AC_DB.players.filter(function (pl) { return live[pl.stage]; });
+  if (kept.length !== AC_DB.players.length) { AC_DB.players = kept; _acSave(); }
   return AC_DB;
 }
 function _acSave() { try { window.localStorage.setItem(AC_KEY, JSON.stringify(AC_DB)); } catch (e) {} }
@@ -44783,7 +44771,7 @@ function _acCoaches() { return AC_STAGES.reduce(function (s, st) { return s + (s
 // Training/Medical/Reports/Video Intelligence). It is an entry point, not a
 // separate module. Aggregation-ready + scalable to unlimited clubs/age groups.
 function _viEscSafe(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-var AC_COACHES = { foundation: 'Miguel Santos', discovery: 'Sofia Almeida', development: 'Ahmed Hassan', performance: 'Lucas Meyer', elite: 'David Silva', propath: 'Marco Rossi', firstteam: 'Head Coach' };
+var AC_COACHES = { discovery: 'Sofia Almeida', development: 'Ahmed Hassan', performance: 'Lucas Meyer', elite: 'David Silva', propath: 'Marco Rossi', firstteam: 'Head Coach' };
 function _acStageAvg(id) { var pl = _acInStage(id); return pl.length ? Math.round(pl.reduce(function (a, p) { return a + p.overall; }, 0) / pl.length) : 0; }
 function _acResponsible(id) { return AC_COACHES[id] || '—'; }
 function _acRole() { try { return String((window.State && State.user && State.user.role) || '').toUpperCase(); } catch (e) { return ''; } }
@@ -44886,6 +44874,14 @@ function _atLoad() {
   if (_AT_DB) return _AT_DB;
   _AT_DB = { teams: {} };
   try { var raw = window.localStorage.getItem(AT_KEY); if (raw) { var o = JSON.parse(raw); if (o && o.teams) _AT_DB = o; } } catch (e) {}
+  // Teams belonging to a removed age group are dropped rather than left
+  // dormant in storage.
+  try {
+    var liveT = {}; AC_STAGES.forEach(function (x) { liveT[x.id] = 1; });
+    var dropped = false;
+    Object.keys(_AT_DB.teams || {}).forEach(function (k) { if (!liveT[k]) { delete _AT_DB.teams[k]; dropped = true; } });
+    if (dropped) window.localStorage.setItem(AT_KEY, JSON.stringify(_AT_DB));
+  } catch (e) {}
   return _AT_DB;
 }
 function _atSave() { try { window.localStorage.setItem(AT_KEY, JSON.stringify(_atLoad())); } catch (e) {} }
@@ -44916,19 +44912,17 @@ function _atTeam(id) {
 // onto young groups. Starters = sum(formation digits) + 1 (goalkeeper).
 function _atDefaultFormation(id) {
   var i = _acStageIdx(id);
-  if (i <= 0) return '2-2';              // U5–U7  → 5v5
-  if (i === 1) return '2-3-1';           // U8–U10 → 7v7
-  if (i === 2) return '3-2-3';           // U11–U13 → 9v9
-  if (i === 3) return '3-2-3';           // U14–U16 → 9v9 (also 11v11 available)
+  if (i <= 0) return '2-3-1';            // U8–U10 → 7v7
+  if (i === 1) return '3-2-3';           // U11–U13 → 9v9
+  if (i === 2) return '3-2-3';           // U14–U16 → 9v9 (also 11v11 available)
   return '4-3-3';                        // U17+ full 11v11
 }
 function _atFormationsFor(id) {
   var i = _acStageIdx(id);
   // The complete set for the format the group plays - and for an eleven-a-side
   // group, the same professional library the First Team picks from.
-  if (i <= 0) return ['2-2', '1-2-1', '2-1-1', '1-1-2', '3-1', '1-3'];               // 5v5
-  if (i === 1) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2', '2-1-3', '2-2-2', '3-3']; // 7v7
-  if (i === 2 || i === 3) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1', '3-1-3-1', '2-4-2', '4-3-1']; // 9v9
+  if (i <= 0) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2', '2-1-3', '2-2-2', '3-3']; // 7v7
+  if (i === 1 || i === 2) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1', '3-1-3-1', '2-4-2', '4-3-1']; // 9v9
   return (typeof SQ_FORM_NAMES !== 'undefined' && SQ_FORM_NAMES.length) ? SQ_FORM_NAMES.slice() : Object.keys(SQ_FORMATIONS);
 }
 // Number of on-pitch starters (incl. GK) implied by a formation string.
@@ -45111,12 +45105,12 @@ function _atDefaultTactics(id) {
   var i = _acStageIdx(id);
   // Younger = simpler defaults, less intensity; older = more structured.
   return {
-    mentality: i < 2 ? 'Encourage' : (i < 4 ? 'Balanced' : 'Positive'),
-    tempo: i < 2 ? 'Relaxed' : 'Medium',
+    mentality: i < 1 ? 'Encourage' : (i < 3 ? 'Balanced' : 'Positive'),
+    tempo: i < 1 ? 'Relaxed' : 'Medium',
     width: 'Balanced',
-    pressing: i < 2 ? 'Low' : (i < 4 ? 'Medium' : 'High'),
-    line: i < 2 ? 'Deep' : 'Medium',
-    build: i < 1 ? 'Direct fun' : 'Play out from the back'
+    pressing: i < 1 ? 'Low' : (i < 3 ? 'Medium' : 'High'),
+    line: i < 1 ? 'Deep' : 'Medium',
+    build: 'Play out from the back'
   };
 }
 function _atDefaultStaff(id) {
@@ -45135,8 +45129,8 @@ function _atCtx(id) {
   return { id: id, label: st.label, name: st.name, accent: st.accent, stage: st, idx: _acStageIdx(id) };
 }
 // KPIs shown adapt by stage: youngest groups don't show professional metrics.
-function _atShowProKpis(id) { return _acStageIdx(id) >= 3; }         // U14+ (Performance and up)
-function _atShowPromotion(id) { return _acStageIdx(id) >= 4; }       // U17+ (Elite / Pro-Path)
+function _atShowProKpis(id) { return _acStageIdx(id) >= 2; }         // U14+ (Performance and up)
+function _atShowPromotion(id) { return _acStageIdx(id) >= 3; }       // U17+ (Elite / Pro-Path)
 
 // The age-group workspace navigates like the First Team: a dashboard, the squad
 // (which opens the Lineup / Formation / Tactics module hub) and Training (which
@@ -45251,21 +45245,20 @@ function _atSecDashboard(id) {
 /* ── Age-adaptive player profile config ─────────────────────────────────── */
 var AT_TABS_MASTER = [
   ['overview', 'Overview', 0], ['development', 'Development', 0], ['skills', 'Skills', 0],
-  ['physical', 'Physical', 1], ['tactical', 'Tactical', 2], ['psychological', 'Psychological', 2],
-  ['social', 'Social', 0], ['medical', 'Medical', 3], ['attendance', 'Attendance', 0],
-  ['assessments', 'Assessments', 2], ['goals', 'Goals', 0], ['match', 'Match Stats', 3],
-  ['readiness', 'Readiness', 3], ['promotion', 'Promotion', 3], ['video', 'Video', 4],
-  ['contract', 'Contract', 4], ['reports', 'Reports', 2]
+  ['physical', 'Physical', 0], ['tactical', 'Tactical', 1], ['psychological', 'Psychological', 1],
+  ['social', 'Social', 0], ['medical', 'Medical', 2], ['attendance', 'Attendance', 0],
+  ['assessments', 'Assessments', 1], ['goals', 'Goals', 0], ['match', 'Match Stats', 2],
+  ['readiness', 'Readiness', 2], ['promotion', 'Promotion', 2], ['video', 'Video', 3],
+  ['contract', 'Contract', 3], ['reports', 'Reports', 1]
 ];
 function _atProfileTabs(idx) { return AT_TABS_MASTER.filter(function (m) { return idx >= m[2]; }); }
 function _atPosGroup(pos) { if (pos === 'GK') return 'GK'; if (/^(CB|RB|LB|RWB|LWB|SW)$/.test(pos)) return 'DEF'; if (/^(CDM|CM|CAM|RM|LM|DM|AM)$/.test(pos)) return 'MID'; return 'FWD'; }
 function _atAttr(p, key) { var base = (p.dims && p.dims[key] != null) ? p.dims[key] : p.overall; var r = _acRng(_atHash(p.id + key)); return Math.max(18, Math.min(99, Math.round(base + (r() - 0.5) * 10))); }
 // Skills shown per stage — youth-appropriate labels, mapped to a dimension.
 function _atSkillSet(idx) {
-  if (idx === 0) return [['Enjoyment', 'psychological'], ['Ball familiarity', 'technical'], ['Coordination', 'physical'], ['Balance', 'physical'], ['Running', 'physical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
-  if (idx === 1) return [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing', 'technical'], ['First touch', 'technical'], ['Coordination', 'physical'], ['Agility', 'physical'], ['Creativity', 'tactical'], ['Confidence', 'psychological'], ['Decision-making', 'decision']];
-  if (idx === 2) return [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Decision-making', 'decision'], ['Game intelligence', 'tactical'], ['Speed', 'physical'], ['Agility', 'physical'], ['Communication', 'social']];
-  if (idx === 3) return [['Technical quality', 'technical'], ['Tactical understanding', 'tactical'], ['Strength', 'physical'], ['Speed', 'physical'], ['Decision-making', 'decision'], ['Match performance', 'tactical'], ['Discipline', 'educational'], ['Psychological readiness', 'psychological']];
+  if (idx <= 0) return [['Ball control', 'technical'], ['Dribbling', 'technical'], ['Passing', 'technical'], ['First touch', 'technical'], ['Coordination', 'physical'], ['Agility', 'physical'], ['Creativity', 'tactical'], ['Confidence', 'psychological'], ['Decision-making', 'decision']];
+  if (idx === 1) return [['First touch', 'technical'], ['Passing', 'technical'], ['Dribbling', 'technical'], ['Shooting', 'technical'], ['Positioning', 'tactical'], ['Scanning', 'tactical'], ['Decision-making', 'decision'], ['Game intelligence', 'tactical'], ['Speed', 'physical'], ['Agility', 'physical'], ['Communication', 'social']];
+  if (idx === 2) return [['Technical quality', 'technical'], ['Tactical understanding', 'tactical'], ['Strength', 'physical'], ['Speed', 'physical'], ['Decision-making', 'decision'], ['Match performance', 'tactical'], ['Discipline', 'educational'], ['Psychological readiness', 'psychological']];
   return [['Technical performance', 'technical'], ['Tactical execution', 'tactical'], ['Physical readiness', 'physical'], ['Consistency', 'psychological'], ['Mentality', 'psychological'], ['Leadership', 'social'], ['First-team readiness', 'decision']];
 }
 function _atBars(p, pairs) {
@@ -45582,10 +45575,9 @@ function _atTabAttrs(tab, idx) {
   return T[tab] || [];
 }
 function _atDevDims(idx) {
-  if (idx <= 0) return [['Enjoyment', 'psychological'], ['Coordination', 'physical'], ['Ball skills', 'technical'], ['Listening', 'social'], ['Confidence', 'psychological'], ['Participation', 'social']];
-  if (idx === 1) return [['Technical', 'technical'], ['Coordination', 'physical'], ['Decision', 'decision'], ['Teamwork', 'social'], ['Confidence', 'psychological'], ['Creativity', 'tactical']];
-  if (idx === 2) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Mentality', 'psychological'], ['Social', 'social']];
-  if (idx === 3) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Discipline', 'educational'], ['Mentality', 'psychological']];
+  if (idx <= 0) return [['Technical', 'technical'], ['Coordination', 'physical'], ['Decision', 'decision'], ['Teamwork', 'social'], ['Confidence', 'psychological'], ['Creativity', 'tactical']];
+  if (idx === 1) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Mentality', 'psychological'], ['Social', 'social']];
+  if (idx === 2) return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Discipline', 'educational'], ['Mentality', 'psychological']];
   return [['Technical', 'technical'], ['Tactical', 'tactical'], ['Physical', 'physical'], ['Decision', 'decision'], ['Leadership', 'social'], ['Mentality', 'psychological']];
 }
 function _atRadar(items, accent) {
@@ -45921,7 +45913,7 @@ function _atTactics(id) {
     var o = t.tactics || {}, i = _acStageIdx(id);
     t.tactics2 = {
       mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
-      style: i < 2 ? 'Possession' : 'Balanced',
+      style: i < 1 ? 'Possession' : 'Balanced',
       width: o.width || 'Balanced',
       tempo: o.tempo === 'Relaxed' ? 'Slow' : (o.tempo === 'High' ? 'Fast' : 'Normal'),
       buildUp: o.build === 'Play out from the back' ? 'Short Passing' : (o.build === 'Direct fun' ? 'Direct' : 'Mixed'),
@@ -45946,8 +45938,7 @@ function _atTacticsRec(id) { return _atTeam(id).tactics2; }
 function _atTacSections(id) {
   var i = _acStageIdx(id);
   return _SQ_TAC_SECS.filter(function (s) {
-    if (i < 1 && (s.id === 'transitions' || s.id === 'players')) return false;
-    if (i < 2 && s.id === 'players') return false;
+    if (i < 1 && s.id === 'players') return false;
     return true;
   });
 }
@@ -46081,7 +46072,7 @@ function _atTactics(id) {
     var o = t.tactics || {}, i = _acStageIdx(id);
     t.tactics2 = {
       mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
-      style: i < 2 ? 'Possession' : 'Balanced',
+      style: i < 1 ? 'Possession' : 'Balanced',
       width: o.width || 'Balanced',
       tempo: o.tempo === 'Relaxed' ? 'Slow' : (o.tempo === 'High' ? 'Fast' : 'Normal'),
       buildUp: o.build === 'Play out from the back' ? 'Short Passing' : (o.build === 'Direct fun' ? 'Direct' : 'Mixed'),
@@ -46106,8 +46097,7 @@ function _atTacticsRec(id) { return _atTeam(id).tactics2; }
 function _atTacSections(id) {
   var i = _acStageIdx(id);
   return _SQ_TAC_SECS.filter(function (s) {
-    if (i < 1 && (s.id === 'transitions' || s.id === 'players')) return false;
-    if (i < 2 && s.id === 'players') return false;
+    if (i < 1 && s.id === 'players') return false;
     return true;
   });
 }

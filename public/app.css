@@ -8753,7 +8753,6 @@ body.club-theme .d-prose{ margin:0; font-size:13px; line-height:1.65; color:var(
 /* Each age group's accent. The engine applies whatever class the context asks
    for; the colours live here, so a group's identity is a stylesheet decision
    rather than markup. */
-body.club-theme .dash-v2--foundation { --dash-ac:#7dd3fc; }
 body.club-theme .dash-v2--discovery  { --dash-ac:#4ade80; }
 body.club-theme .dash-v2--development{ --dash-ac:#a78bfa; }
 body.club-theme .dash-v2--performance{ --dash-ac:#f59e0b; }
