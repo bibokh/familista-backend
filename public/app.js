@@ -5802,6 +5802,8 @@ function _sqOppFind(id) { var i; for (i = 0; i < SQ_OPP_DEF.length; i++) if (SQ_
 function _sqOppXiIds() { return (SQ_OPP_XI && SQ_OPP_XI.length) ? SQ_OPP_XI : SQ_OPP_DEF.map(function (o) { return o.id; }); }
 function _sqOppXi() { return _sqOppXiIds().map(_sqOppFind).filter(Boolean); }
 function _sqOppReserveIds() { var xi = _sqOppXiIds(); return SQ_OPP_RESERVE.map(function (r) { return r.id; }).filter(function (id) { return xi.indexOf(id) < 0 && SQ_OPP_BENCH_IDS.indexOf(id) < 0; }); }
+// The opponent's substitutes as players, for anything that needs to look one up.
+function _sqOppBenchList() { return ((SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds())).map(_sqOppFind).filter(Boolean); }
 function _sqOppBench() { var ids = (SQ_OPP_BENCH_IDS || []).concat(_sqOppReserveIds()), ps = ids.map(_sqOppFind).filter(Boolean), cats = {}; ps.forEach(function (p) { cats[p.cat] = 1; }); var bal = Math.max(50, Math.min(94, 60 + Object.keys(cats).length * 7 + Math.min(8, ps.length))); return { ovr: _sqMeanQ(ps), balance: bal, n: ps.length }; }
 function _sqOppSubstitute(inId, outId) {
   if (!inId || !outId || inId === outId) return;
@@ -5879,24 +5881,64 @@ function _sqReady(p, pos) {
   var success = Math.max(20, Math.min(99, Math.round(0.55 * p.qual + 0.2 * cond + 0.12 * mor + 0.13 * fit)));
   return { fit: fit, cond: cond, morale: p.morale || 'Content', eff: eff, success: success, qual: p.qual };
 }
+// Find a player on whichever side of the pitch they stand. Our own squad first,
+// then the opponent's shape — a marker is a player either way.
+function _sqCmpSide(id, ctx) {
+  var C = _sqCtx(ctx);
+  var mine = _sqCtxP(id, C);
+  if (mine) return { side: 'my', p: mine };
+  var oxi = _sqCtxOppXi(C), i;
+  for (i = 0; i < oxi.length; i++) if (oxi[i].id === id) return { side: 'opp', p: oxi[i] };
+  var ob = (C.type === 'first') ? (typeof _sqOppBenchList === 'function' ? _sqOppBenchList() : []) : (C.oppBench || []);
+  for (i = 0; i < ob.length; i++) if (ob[i].id === id) return { side: 'opp', p: ob[i] };
+  if (C.type === 'first' && typeof _sqOppFind === 'function') {
+    var f = _sqOppFind(id); if (f) return { side: 'opp', p: f };
+  }
+  return null;
+}
+// The comparison behind the panel. Both sides answer the same questions: how
+// ready is this player for the position they are standing in, who is the best
+// alternative in their own squad, and who do they face across the halfway line.
 function _sqCmpData(id, ctx) {
   var C = _sqCtx(ctx);
-  var p = _sqCtxP(id, C); if (!p) return null;
-  var pos = p.pos, me = _sqReady(p, pos);
-  // the alternatives a coach can compare against are that team's own squad
-  var pool = ((C.type === 'first') ? SQ_DEMO_PLAYERS.concat(SQ_RESERVE) : (C.roster || [])).filter(function (x) { return x.id !== id; });
-  var alts = pool.map(function (x) { return { p: x, r: _sqReady(x, pos) }; }).filter(function (o) { return o.r.fit >= 70; }).sort(function (a, b) { return b.r.success - a.r.success; });
+  var found = _sqCmpSide(id, C); if (!found) return null;
+  var p = found.p, side = found.side;
+  var pos = p.pos || String(p.cat || 'mf').toUpperCase();
+  var me = _sqReady(p, pos);
+  // Alternatives come from the player's OWN squad — ours for our players, the
+  // opponent's shape and bench for theirs.
+  var pool;
+  if (side === 'my') {
+    pool = ((C.type === 'first') ? SQ_DEMO_PLAYERS.concat(SQ_RESERVE) : (C.roster || []));
+  } else {
+    pool = _sqCtxOppXi(C).concat((C.type === 'first')
+      ? (typeof _sqOppBenchList === 'function' ? _sqOppBenchList() : [])
+      : (C.oppBench || []));
+  }
+  pool = pool.filter(function (x) { return x && x.id !== id; });
+  var alts = pool.map(function (x) { return { p: x, r: _sqReady(x, pos) }; })
+    .filter(function (o) { return o.r.fit >= 70; })
+    .sort(function (a, b) { return b.r.success - a.r.success; });
   var alt = alts[0] || null;
-  var oxi = _sqCtxOppXi(C); var opp = oxi.filter(function (o) { return o.pos === pos; })[0] || oxi.filter(function (o) { return o.cat === p.cat; }).sort(function (a, b) { return b.qual - a.qual; })[0] || null;
-  var diff = opp ? (me.eff - opp.qual) : 0, lab = opp ? _sqMatchLabel(diff) : null;
+  // And the player they are up against is whoever holds that position on the
+  // other side — which for an opponent player is one of ours.
+  var facing = (side === 'my') ? _sqCtxOppXi(C)
+    : (C.starterIds || []).map(function (x) { return _sqCtxP(x, C); }).filter(Boolean);
+  var opp = facing.filter(function (o) { return o.pos === pos; })[0]
+    || facing.filter(function (o) { return o.cat === p.cat; }).sort(function (a, b) { return (b.qual || 0) - (a.qual || 0); })[0] || null;
+  var oq = opp ? (opp.qual != null ? opp.qual : (_sqReady(opp, opp.pos || pos) || {}).eff) : null;
+  var diff = (opp && oq != null) ? (me.eff - oq) : 0;
+  var lab = (opp && oq != null) ? _sqMatchLabel(diff) : null;
   var betterSelf = alt ? (me.success >= alt.r.success) : true;
-  return { p: p, me: me, pos: pos, alt: alt, betterSelf: betterSelf, opp: opp, diff: diff, lab: lab };
+  return { p: p, side: side, me: me, pos: pos, alt: alt, betterSelf: betterSelf,
+    opp: opp, oppQual: oq, diff: diff, lab: lab };
 }
 function _sqCmpPopup(id, ctx) {
   var C = _sqCtx(ctx);
   var c = _sqCmpData(id, C); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
-  var posSel = (C.posMy || SQ_POS_MY)[id], oop = posSel ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C), C) > 16) : false;
+  var posSel = (c.side === 'opp') ? ((C.posOpp2 || C.posOpp || SQ_POS_OPP2 || {})[id]) : ((C.posMy || SQ_POS_MY)[id]);
+  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C), C) > 16) : false;
   var curKey = _sqInstrOf(id, C);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
@@ -5904,7 +5946,7 @@ function _sqCmpPopup(id, ctx) {
     + '<div class="sqcmp-sec">Instruction</div><div class="sqcmp-instr">' + SQ_COACH_INSTR.map(function (it) { var a = _sqInstrArrow((SQ_INSTR[it[1]] || {}).type); return '<button class="sqcmp-ib sqcmp-ib--' + a.c + (curKey === it[1] ? ' is-on' : '') + '" data-action="sqCmdInstr" data-id="' + id + '" data-key="' + it[1] + '" type="button"><i>' + a.g + '</i>' + it[0] + '</button>'; }).join('') + '</div>';
   if (c.alt) {
     var a = c.me, b = c.alt.r;
-    html += '<div class="sqcmp-sec">Best starter at ' + c.pos + ' (same team)</div>'
+    html += '<div class="sqcmp-sec">Best ' + (c.side === 'opp' ? 'opponent' : 'starter') + ' at ' + c.pos + ' (same team)</div>'
       + '<div class="sqcmp-names"><span class="' + (c.betterSelf ? 'sqcmp-win' : '') + '">' + _sqEsc(_sqLastName(c.p.name)) + '</span><span class="' + (!c.betterSelf ? 'sqcmp-win' : '') + '">' + _sqEsc(_sqLastName(c.alt.p.name)) + '</span></div>'
       + row('OVR', a.eff, b.eff, '', a.eff >= b.eff)
       + row('Condition', a.cond, b.cond, '%', a.cond >= b.cond)
@@ -5916,12 +5958,12 @@ function _sqCmpPopup(id, ctx) {
     // Every player opens the same panel. When nobody else in the squad plays
     // this position the section says so, rather than disappearing and leaving
     // a shorter panel for some players than for others.
-    html += '<div class="sqcmp-sec">Best starter at ' + c.pos + ' (same team)</div>'
+    html += '<div class="sqcmp-sec">Best ' + (c.side === 'opp' ? 'opponent' : 'starter') + ' at ' + c.pos + ' (same team)</div>'
       + '<div class="sqcmp-only">' + _sqEsc(_sqLastName(c.p.name)) + ' is the only ' + c.pos + ' in this squad.</div>';
   }
   if (c.opp) {
-    html += '<div class="sqcmp-sec">vs Opponent ' + c.opp.pos + ' #' + c.opp.n + '</div>'
-      + '<div class="sqcmp-vs"><b>' + c.me.eff + '</b><em>OVR</em><b>' + c.opp.qual + '</b></div>'
+    html += '<div class="sqcmp-sec">vs ' + (c.side === 'opp' ? _sqEsc(_sqCtxName(C)) : 'Opponent') + ' ' + (c.opp.pos || '') + (c.opp.n != null ? ' #' + c.opp.n : '') + '</div>'
+      + '<div class="sqcmp-vs"><b>' + c.me.eff + '</b><em>OVR</em><b>' + (c.oppQual != null ? c.oppQual : '\u2014') + '</b></div>'
       + '<div class="sqcmp-lab sqcmp-lab--' + c.lab[1] + '">' + c.lab[0] + '</div>';
   }
   return html + '</div>';
@@ -44589,10 +44631,14 @@ function _acStage(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STAGES
 function _acStageIdx(id) { for (var i = 0; i < AC_STAGES.length; i++) if (AC_STAGES[i].id === id) return i; return 0; }
 
 // ── durable roster (seeded once, deterministic) — the academy's own youth players ──
+// Bumped whenever the seeded squad sizes change.
+var AC_ROSTER_V = 2;
 function _acLoad() {
   if (_AC_LOADED) return AC_DB; _AC_LOADED = true;
   try { var raw = window.localStorage.getItem(AC_KEY); if (raw) { var o = JSON.parse(raw); if (o && Array.isArray(o.players)) AC_DB = o; } } catch (e) {}
-  if (!AC_DB.seeded || !AC_DB.players.length) { _acSeed(); }
+  // Reseed when the squad shape changes, so an existing store gains the players
+  // a newer format needs instead of staying short.
+  if (!AC_DB.seeded || !AC_DB.players.length || AC_DB.rosterV !== AC_ROSTER_V) { _acSeed(); }
   return AC_DB;
 }
 function _acSave() { try { window.localStorage.setItem(AC_KEY, JSON.stringify(AC_DB)); } catch (e) {} }
@@ -44602,7 +44648,9 @@ function _acSeed() {
   var LN = ['Diaz', 'Bakri', 'Nowak', 'Silva', 'Haddad', 'Meyer', 'Kone', 'Rossi', 'Petit', 'Ferreira', 'Ahmed', 'Novak', 'Traore', 'Weber', 'Costa', 'Sow', 'Berg', 'Reyes', 'Hassan', 'Lang'];
   var players = [], gid = 1;
   AC_STAGES.forEach(function (st, si) {
-    var n = 8 + (si % 3);                                  // 8–10 players per stage
+    // Enough players to field the format and still name five substitutes, so
+    // every group can demonstrate the full matchday workflow.
+    var n = _atStarterCount(_atDefaultFormation(st.id)) + 5;
     var rng = _acRng(1000 * (si + 7) + 13);
     for (var k = 0; k < n; k++) {
       var base = 46 + Math.round(rng() * 30) + si * 3;     // older stages skew higher
@@ -44618,7 +44666,7 @@ function _acSeed() {
         attention: (overall < 52 || attend < 82) });
     }
   });
-  AC_DB = { players: players, seeded: true }; _acSave();
+  AC_DB = { players: players, seeded: true, rosterV: AC_ROSTER_V }; _acSave();
 }
 function _acInStage(id) { _acLoad(); return AC_DB.players.filter(function (p) { return p.stage === id; }); }
 function _acAll() { _acLoad(); return AC_DB.players; }
