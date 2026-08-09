@@ -3267,9 +3267,9 @@ var SQ_ROLE_ZONE = {
   GK: 'GK',
   LB: 'DL', RB: 'DR', LWB: 'WBL', RWB: 'WBR',
   LCB: 'DCL', RCB: 'DCR', CB: 'DC', SW: 'DC',
-  CDM: 'DM', DM: 'DM', LDM: 'DML', RDM: 'DMR',
-  LCM: 'MCL', RCM: 'MCR', CM: 'MC', LM: 'ML', RM: 'MR', WM: 'MC',
-  CAM: 'AMC', AM: 'AMC', SS: 'SS', LAM: 'AML', RAM: 'AMR',
+  CDM: 'DM', DM: 'DM', LDM: 'DML', RDM: 'DMR', LCDM: 'DML', RCDM: 'DMR',
+  LCM: 'MCL', RCM: 'MCR', CM: 'MC', LM: 'ML', RM: 'MR', WM: 'MC', LCCM: 'MCCL', RCCM: 'MCCR',
+  CAM: 'AMC', AM: 'AMC', SS: 'SS', LAM: 'AML', RAM: 'AMR', LCAM: 'AMCL', RCAM: 'AMCR',
   LW: 'FL', RW: 'FR', WG: 'FR', ST: 'ST', CF: 'CF', FB: 'DR', LS: 'FSL', RS: 'FSR'
 };
 // Zones the eleven-a-side board does not name, added for the academy shapes
@@ -3278,7 +3278,11 @@ var SQ_ROLE_ZONE = {
 var SQ_ZONES_EXT = {
   DML: { x: 32, y: 63, label: 'DML' }, DMR: { x: 68, y: 63, label: 'DMR' },
   SS:  { x: 50, y: 30, label: 'SS' },  CF:  { x: 50, y: 22, label: 'CF' },
-  FSL: { x: 36, y: 24, label: 'LS' }, FSR: { x: 64, y: 24, label: 'RS' }
+  FSL: { x: 36, y: 24, label: 'LS' }, FSR: { x: 64, y: 24, label: 'RS' },
+  // The inside pair of a wide midfield, and the two halves of a double ten or
+  // a double pivot: each owns its side of centre rather than borrowing a zone.
+  MCCL: { x: 42, y: 52, label: 'LCCM' }, MCCR: { x: 58, y: 52, label: 'RCCM' },
+  AMCL: { x: 40, y: 38, label: 'LCAM' }, AMCR: { x: 60, y: 38, label: 'RCAM' }
 };
 function _sqZoneDef(z) { return SQ_ZONES[z] || SQ_ZONES_EXT[z] || null; }
 // When a shape fields two of the same role, the left one keeps the left-hand
@@ -3290,6 +3294,8 @@ var SQ_ZONE_ALT = {
   FSL: ['FL', 'ST', 'CF'], FSR: ['FR', 'ST', 'CF'],
   AMC: ['SS', 'MC', 'AML', 'AMR'], DM: ['DML', 'DMR', 'MCL', 'MCR'],
   DML: ['DM', 'MCL'], DMR: ['DM', 'MCR'],
+  MCCL: ['MCL', 'MC'], MCCR: ['MCR', 'MC'],
+  AMCL: ['AMC', 'AML'], AMCR: ['AMC', 'AMR'],
   DL: ['WBL', 'ML'], DR: ['WBR', 'MR'], ML: ['AML', 'WBL'], MR: ['AMR', 'WBR'],
   FL: ['AML', 'ST'], FR: ['AMR', 'ST'], WBL: ['DL', 'ML'], WBR: ['DR', 'MR']
 };
@@ -3328,9 +3334,27 @@ function _sqZoneMap(ctx) {
 // Where a player is allowed to stand. One rule for every squad: the zones their
 // position permits, narrowed to the ones this shape actually has on the pitch.
 // An eleven-a-side board has them all, so the rule reads unchanged there.
-function _sqAllowedZonesAny(p, ctx) {
-  var M = _sqZoneMap(ctx);
-  var want = (p.pos && SQ_ALLOWED[p.pos]) ? SQ_ALLOWED[p.pos] : _sqDefaultAllowed(p.cat);
+// Where a player may stand. This has to read the SAME role definition the
+// assignment engine reads, or the two disagree: a midfielder seated at CAM
+// because CAM is one of his positions was still measured against his primary
+// alone, so the board placed him correctly and then flagged him out of
+// position. Primary and every secondary position count, and the slot he is
+// actually filling is always among them.
+function _sqAllowedZonesAny(p, ctx, slot) {
+  var C = _sqCtx(ctx), M = _sqZoneMap(C);
+  var want = (p.pos && SQ_ALLOWED[p.pos]) ? SQ_ALLOWED[p.pos].slice() : _sqDefaultAllowed(p.cat).slice();
+  if (C.type !== 'first') {
+    // An age group records real secondary positions; fold their zones in too.
+    String(p.secondary || '').split(/[,\s/]+/).forEach(function (r) {
+      var extra = r && SQ_ALLOWED[r.toUpperCase()];
+      if (extra) extra.forEach(function (z) { if (want.indexOf(z) < 0) want.push(z); });
+    });
+    // The berth he is standing in is his by definition.
+    if (slot && slot.r) {
+      var own = SQ_ROLE_ZONE[slot.r] || SQ_ROLE_ZONE[slot.r.replace(/^[LR](?=[A-Z]{2})/, '')];
+      if (own && want.indexOf(own) < 0) want.push(own);
+    }
+  }
   var out = want.filter(function (z) { return M[z]; });
   if (out.length) return out;
   for (var k in M) if (M[k].c === p.cat) out.push(k);
@@ -3574,7 +3598,7 @@ function _sqMyStats(ctx) {
   var C = _sqCtx(ctx);
   var qs = 0, sc = 0, n = 0;
   var eff = 0;
-  (C.starterIds || []).forEach(function (id) { var p = _sqCtxP(id, C); var pos = (C.posMy || {})[id]; if (!p || !pos) return; n++; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
+  (C.starterIds || []).forEach(function (id) { var p = _sqCtxP(id, C); var pos = (C.posMy || {})[id]; if (!p || !pos) return; n++; var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C, (C.slotMy || {})[id]), C); sc += _sqPosScore(d); eff += _sqEffQual(p, d); });
   var posBal = n ? Math.round(sc / n) : 0, ovrRaw = n ? Math.round(eff / n) : 0, exec = _sqTeamExec(C);
   var bal = Math.max(0, Math.min(100, Math.round(posBal * 0.7 + exec * 0.3)));
   var ovr = Math.max(0, Math.min(99, ovrRaw + Math.round((bal - 80) / 10) + Math.round((exec - 75) / 14)));
@@ -5310,7 +5334,7 @@ function _sqMdPitchShared(ctx) {
     var p = _sqCtxP(id, C), pos = C.posMy[id]; if (!p || !pos) return;
     var L = Math.max(6, Math.min(94, 100 - pos.y));
     var T = Math.max(6, Math.min(94, pos.x));
-    var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C), q = _sqEffQual(p, d), bad = d > 16;
+    var d = _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C, (C.slotMy || {})[p.id || id]), C), q = _sqEffQual(p, d), bad = d > 16;
     if (bad) oop = true;
     var it = SQ_INSTR[_sqInstrOf(id, C)], itype = it ? it.type : 'neutral';
     cards += '<div class="sqmd-slot" data-cmdmove="1" data-id="' + id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('my', p.num, _sqLastName(p.name), _sqActiveRole(id, p, C), q, rm[id], bad, p.photo, id, itype, _sqSelIdOf(C) === id, p.cat, _sqPlayerAllPos(p).join(' / '), p.cond) + '</div>';
@@ -5465,7 +5489,7 @@ function _sqTeamFeel(ctx) {
   var C = _sqCtx(ctx);
   var ids = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean), att = 0, an = 0, def = 0, dn = 0, cond = 0, cn = 0, my = _sqMyStats(C);
   ids.forEach(function (p) {
-    var pos = (C.posMy || {})[p.id], d = pos ? _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C), C) : 0, q = _sqEffQual(p, d);
+    var pos = (C.posMy || {})[p.id], d = pos ? _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p, C, (C.slotMy || {})[p.id]), C) : 0, q = _sqEffQual(p, d);
     if (p.cat === 'fw' || (p.cat === 'mf' && /AM|LW|RW|AP|IW|IF/.test(p.pos + (p.roles || '')))) { att += q; an++; }
     if (p.cat === 'df' || p.cat === 'gk' || p.pos === 'DM') { def += q; dn++; }
     if (p.cond) { cond += p.cond; cn++; }
@@ -5991,7 +6015,7 @@ function _sqMdZonesShared(id, side, ctx) {
   var C = _sqCtx(ctx);
   var p = (side === 'opp') ? _sqOppFind(id) : _sqCtxP(id, C); if (!p) return '';
   var M = _sqZoneMap(C);
-  return (_sqAllowedZonesAny(p, C) || []).map(function (z) {
+  return (_sqAllowedZonesAny(p, C, (C.slotMy || {})[id]) || []).map(function (z) {
     var Z = M[z] || SQ_ZONES[z]; if (!Z) return '';
     return '<div class="sqmd-zone" style="' + _sqZoneRectShared(Z, side) + '"><span>' + Z.label + '</span></div>';
   }).join('');
@@ -6010,7 +6034,7 @@ function _sqCmdShowZones(pitch, id, side, ctx) {
   var ZM = _sqZoneMap(C);
   var isShared = pitch.classList && pitch.classList.contains('sqmd-pitch--shared');
   var wrap = document.createElement('div'); wrap.className = 'sqmd-zonelayer';
-  (_sqAllowedZonesAny(p, C) || []).forEach(function (z) { var Z = ZM[z] || SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.cssText = isShared ? _sqZoneRectShared(Z, side) : _sqZoneRect(Z, side); d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
+  (_sqAllowedZonesAny(p, C, (C.slotMy || {})[id]) || []).forEach(function (z) { var Z = ZM[z] || SQ_ZONES[z]; if (!Z) return; var d = document.createElement('div'); d.className = 'sqmd-zone'; d.style.cssText = isShared ? _sqZoneRectShared(Z, side) : _sqZoneRect(Z, side); d.innerHTML = '<span>' + Z.label + '</span>'; wrap.appendChild(d); });
   pitch.appendChild(wrap);
 }
 function _sqCmdHideZones(pitch) { if (!pitch) return; var w = pitch.querySelector('.sqmd-zonelayer'); if (w && w.parentNode) w.parentNode.removeChild(w); }
@@ -6081,7 +6105,7 @@ function _sqCmpPopup(id, ctx) {
   var c = _sqCmpData(id, C); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
   var posSel = (c.side === 'opp') ? ((C.posOpp2 || C.posOpp || SQ_POS_OPP2 || {})[id]) : ((C.posMy || SQ_POS_MY)[id]);
-  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C), C) > 16) : false;
+  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C, (C.slotMy || {})[id]), C) > 16) : false;
   var curKey = _sqInstrOf(id, C);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
@@ -8406,7 +8430,7 @@ function _sqInitFormationDrag() {
       var sp = slot.closest('.sqmd-pitch'); var sid = slot.getAttribute('data-id'); var isOpp = slot.hasAttribute('data-cmdmove-opp');
       var pp = isOpp ? _sqCtxOppFind(sid, slotCtx) : _sqCtxP(sid, slotCtx); var hd = 0;
       if (isOpp && pp) { var asn = _sqAssignXI(_sqSlotsFor(slotCtx.type === 'first' ? SQ_FORM.oppFormation : slotCtx.oppFormation) || [], _sqCtxOppXi(slotCtx), slotCtx), hs = null; asn.forEach(function (x) { if (x.player && x.player.id === sid) hs = x.slot; }); if (hs) hd = _sqNearestAllowedDist(hs.x, hs.y, _sqAllowedZonesAny(pp)); }
-      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, readOnly: readOnly, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
+      _sqCmdMove = { slot: slot, pitch: sp, id: sid, side: isOpp ? 'opp' : 'my', ctx: slotCtx, readOnly: readOnly, allowed: pp ? _sqAllowedZonesAny(pp, slotCtx, (slotCtx.slotMy || {})[sid]) : [], homeDist: hd, sx: e.clientX, sy: e.clientY, moved: false };
       e.preventDefault(); return;
     }
     var chip = e.target.closest && e.target.closest('.sqfp-chip[data-drag]');
