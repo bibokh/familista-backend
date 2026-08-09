@@ -8762,3 +8762,15 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 /* Player comparison — the section still appears when the squad has no second
    player in that position, so every player opens the same panel. */
 .sqcmp-only{ padding:7px 2px 2px; font-size:11.5px; line-height:1.5; color:#94a3b8; }
+
+/* The tactical read-out on a player card: where he is standing now, what he
+   actually plays, and how well the two agree. Separate lines on purpose —
+   moving a player is placement, never an edit to his record. */
+.sqcmp-slot{ display:grid; grid-template-columns:1fr 1fr; gap:5px 12px; margin:8px 0 2px;
+  padding:8px 10px; border-radius:9px; background:rgba(255,255,255,.05); }
+.sqcmp-slot span{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.sqcmp-slot i{ font-style:normal; font-size:9px; font-weight:700; letter-spacing:.09em;
+  text-transform:uppercase; color:#8b98b0; }
+.sqcmp-slot b{ font-size:12px; font-weight:700; color:#eef3fb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sqcmp-slot.is-bad{ background:rgba(248,113,113,.13); box-shadow:inset 0 0 0 1px rgba(248,113,113,.4); }
+.sqcmp-slot.is-bad b{ color:#fecaca; }

@@ -3251,10 +3251,25 @@ function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? 
 // Which player is selected, on whichever board is asking.
 // The role a player is actually filling right now. On an age group's board the
 // slot decides; the First Team board keeps reading the player's own position.
+// The berth a player is filling right now. Normally that is the slot he was
+// seated in, but a coach who drags him somewhere else has changed it: the live
+// role is whichever zone he is standing closest to. His own position record is
+// never touched - moving a player is tactical placement, not a squad edit.
+function _sqLiveSlot(id, ctx) {
+  var C = _sqCtx(ctx), seat = (C.slotMy || {})[id], at = (C.posMy || {})[id];
+  if (!at) return seat || null;
+  if (seat && Math.abs(seat.x - at.x) < 1.5 && Math.abs(seat.y - at.y) < 1.5) return seat;
+  var M = _sqZoneMap(C), best = seat || null, bd = 1e9;
+  for (var z in M) {
+    var d = Math.abs(M[z].x - at.x) + Math.abs(M[z].y - at.y);
+    if (d < bd) { bd = d; best = { r: M[z].label || z, x: M[z].x, y: M[z].y, c: M[z].c }; }
+  }
+  return best;
+}
 function _sqActiveRole(id, p, ctx) {
   var C = _sqCtx(ctx);
   if (C.type === 'first') return p.pos;
-  var sl = (C.slotMy || {})[id];
+  var sl = _sqLiveSlot(id, C);
   return (sl && sl.r) ? sl.r : p.pos;
 }
 function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null); }
@@ -3349,8 +3364,10 @@ function _sqAllowedZonesAny(p, ctx, slot) {
       var extra = r && SQ_ALLOWED[r.toUpperCase()];
       if (extra) extra.forEach(function (z) { if (want.indexOf(z) < 0) want.push(z); });
     });
-    // The berth he is standing in is his by definition.
-    if (slot && slot.r) {
+    // The berth counts as his only if he can actually play there. A midfielder
+    // seated at CAM because CAM is one of his positions belongs in that zone; a
+    // keeper the coach has dragged into attack does not, and stays flagged.
+    if (slot && slot.r && _sqSlotFit(p, slot, true) > 0) {
       var own = SQ_ROLE_ZONE[slot.r] || SQ_ROLE_ZONE[slot.r.replace(/^[LR](?=[A-Z]{2})/, '')];
       if (own && want.indexOf(own) < 0) want.push(own);
     }
@@ -6105,10 +6122,24 @@ function _sqCmpPopup(id, ctx) {
   var c = _sqCmpData(id, C); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
   var posSel = (c.side === 'opp') ? ((C.posOpp2 || C.posOpp || SQ_POS_OPP2 || {})[id]) : ((C.posMy || SQ_POS_MY)[id]);
-  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C, (C.slotMy || {})[id]), C) > 16) : false;
+  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C, _sqLiveSlot(id, C)), C) > 16) : false;
   var curKey = _sqInstrOf(id, C);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
+    + (function () {
+        // Where he is standing versus what he actually plays. Kept apart on
+        // purpose: dragging a player never rewrites his position record.
+        if (C.type === 'first' || c.side === 'opp') return '';
+        var live = _sqLiveSlot(id, C); if (!live) return '';
+        var nat = [c.p.pos].concat(String(c.p.secondary || '').split(/[,\s\/]+/)).filter(Boolean).join(', ');
+        var fit = (typeof _sqRoleFit === 'function') ? _sqRoleFit(c.p, String(live.r).replace(/^[LR](?=[A-Z]{2})/, '')) : 0;
+        return '<div class="sqcmp-slot' + (oop ? ' is-bad' : '') + '">'
+          + '<span><i>Current slot</i><b>' + _sqEsc(live.r) + '</b></span>'
+          + '<span><i>Natural</i><b>' + _sqEsc(nat) + '</b></span>'
+          + '<span><i>Role fit here</i><b>' + fit + '%</b></span>'
+          + '<span><i>Status</i><b>' + (oop ? 'Out of position' : 'In position') + '</b></span>'
+          + '</div>';
+      })()
     + (oop ? '<div class="sqcmp-oop">⚠ Out of position — reduced efficiency</div>' : '')
     + '<div class="sqcmp-sec">Instruction</div><div class="sqcmp-instr">' + SQ_COACH_INSTR.map(function (it) { var a = _sqInstrArrow((SQ_INSTR[it[1]] || {}).type); return '<button class="sqcmp-ib sqcmp-ib--' + a.c + (curKey === it[1] ? ' is-on' : '') + '" data-action="sqCmdInstr" data-id="' + id + '" data-key="' + it[1] + '" type="button"><i>' + a.g + '</i>' + it[0] + '</button>'; }).join('') + '</div>';
   if (c.alt) {
