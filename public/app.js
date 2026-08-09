@@ -3256,7 +3256,10 @@ function _sqDefaultAllowed(cat) { return cat === 'gk' ? ['GK'] : cat === 'df' ? 
 // role is whichever zone he is standing closest to. His own position record is
 // never touched - moving a player is tactical placement, not a squad edit.
 function _sqLiveSlot(id, ctx) {
-  var C = _sqCtx(ctx), seat = (C.slotMy || {})[id], at = (C.posMy || {})[id];
+  var C = _sqCtx(ctx);
+  var onOpp = !!((C.oppSlot || {})[id] || (C.posOpp2 || C.posOpp || {})[id]);
+  var seat = onOpp ? (C.oppSlot || {})[id] : (C.slotMy || {})[id];
+  var at = onOpp ? ((C.posOpp2 || C.posOpp || {})[id]) : ((C.posMy || {})[id]);
   if (!at) return seat || null;
   if (seat && Math.abs(seat.x - at.x) < 1.5 && Math.abs(seat.y - at.y) < 1.5) return seat;
   var M = _sqZoneMap(C), best = seat || null, bd = 1e9;
@@ -5179,10 +5182,8 @@ function _sqBenchMy(ctx) {
 function _sqTeamReport(side, ctx) {
   var C = _sqCtx(ctx);
   if (C.type !== 'first' && side === 'opp') {
-    // An age group configures an opponent shape rather than scouting a squad, so
-    // there are no ratings to report — but how well that shape is being held is
-    // measurable, and it is measured the same way ours is: how far each marker
-    // sits from the slot its role owns.
+    // The same six readings our own side reports, from the opponent's own
+    // scouted squad and how well it is holding the shape it lines up in.
     var oSlots = _sqSlotsFor(C.oppFormation) || [];
     var oXi = _sqCtxOppXi(C), oPos = C.posOpp2 || C.posOpp || {}, oSlot = C.oppSlot || {};
     var sc = 0, n = 0;
@@ -5192,12 +5193,17 @@ function _sqTeamReport(side, ctx) {
       n++; sc += _sqPosScore(_sqDist(at.x, at.y, home.x, home.y));
     });
     var oBal = n ? Math.round(sc / n) : 0;
-    var oBench = (C.oppBench || []).length;
+    var oBench = C.oppBench || [];
+    var mean = function (a) { return a.length ? Math.round(a.reduce(function (t, x) { return t + (x.qual || 0); }, 0) / a.length) : 0; };
+    var xiOvr = mean(oXi), benchOvr = mean(oBench);
+    var cats = {}; oBench.forEach(function (x) { cats[x.cat] = 1; });
+    var benchBal = oBench.length ? Math.max(50, Math.min(94, 60 + Object.keys(cats).length * 7 + Math.min(8, oBench.length))) : 0;
     var oCover = oSlots.length ? Math.round(Math.min(1, oXi.length / oSlots.length) * 100) : 0;
-    var oBenchBal = oBench ? Math.max(50, Math.min(94, 60 + Math.min(8, oBench) * 4)) : 0;
     return { name: 'Opponent', formation: C.oppFormation || '',
-      ovr: '—', balance: Math.round(oBal * 0.85 + oBenchBal * 0.15), xiOvr: '—', xiBalance: oBal,
-      benchOvr: '—', benchBalance: oBenchBal, compat: oCover, formEff: oCover, exec: oBal };
+      ovr: Math.round(xiOvr * 0.82 + benchOvr * 0.18),
+      balance: Math.round(oBal * 0.85 + benchBal * 0.15),
+      xiOvr: xiOvr, xiBalance: oBal, benchOvr: benchOvr, benchBalance: benchBal,
+      compat: oCover, formEff: oCover, exec: oBal };
   }
   if (side === 'my') {
     var my = _sqMyStats(C), formEff = _sqMetricsFor(C.formation, C.roster || [], C).efficiency, bench = _sqBenchMy(C);
@@ -6122,14 +6128,14 @@ function _sqCmpPopup(id, ctx) {
   var c = _sqCmpData(id, C); if (!c) return '';
   function row(label, a, b, suffix, awin) { return '<div class="sqcmp-r"><span class="sqcmp-l">' + label + '</span><b class="' + (awin ? 'sqcmp-win' : '') + '">' + a + (suffix || '') + '</b><b class="' + (!awin ? 'sqcmp-win' : '') + '">' + b + (suffix || '') + '</b></div>'; }
   var posSel = (c.side === 'opp') ? ((C.posOpp2 || C.posOpp || SQ_POS_OPP2 || {})[id]) : ((C.posMy || SQ_POS_MY)[id]);
-  var oop = (c.side === 'my' && posSel) ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C, _sqLiveSlot(id, C)), C) > 16) : false;
+  var oop = posSel ? (_sqNearestAllowedDist(posSel.x, posSel.y, _sqAllowedZonesAny(c.p, C, _sqLiveSlot(id, C)), C) > 16) : false;
   var curKey = _sqInstrOf(id, C);
   var html = '<div class="sqcmp"><div class="sqcmp-hd"><span>Player comparison</span><button class="sqcmp-x" data-action="sqCmdSelect" data-id="' + id + '" type="button" aria-label="Close">✕</button></div>'
     + '<div class="sqcmp-sub">' + _sqEsc(_sqLastName(c.p.name)) + ' · ' + c.pos + ' · OVR ' + c.me.eff + '</div>'
     + (function () {
         // Where he is standing versus what he actually plays. Kept apart on
         // purpose: dragging a player never rewrites his position record.
-        if (C.type === 'first' || c.side === 'opp') return '';
+        if (C.type === 'first') return '';
         var live = _sqLiveSlot(id, C); if (!live) return '';
         var nat = [c.p.pos].concat(String(c.p.secondary || '').split(/[,\s\/]+/)).filter(Boolean).join(', ');
         var fit = (typeof _sqRoleFit === 'function') ? _sqRoleFit(c.p, String(live.r).replace(/^[LR](?=[A-Z]{2})/, '')) : 0;
@@ -45091,9 +45097,23 @@ var AT_ALT_POS = {
   CAM: ['CM', 'SS'],     LAM: ['CAM', 'LW'],    RAM: ['CAM', 'RW'],
   LW:  ['LM', 'ST'],     RW:  ['RM', 'ST'],
   SS:  ['CAM', 'ST'],    CF:  ['ST', 'SS'],
-  ST:  ['CF', 'SS'],     LS:  ['ST', 'LW'],     RS:  ['ST', 'RW']
+  ST:  ['CF', 'SS'],     LS:  ['ST', 'LW'],     RS:  ['ST', 'RW'],
+  // The sided variants a shape can name. Each keeps its own side.
+  LWB: ['LB', 'LM'],     RWB: ['RB', 'RM'],
+  LAM: ['CAM', 'LW'],    RAM: ['CAM', 'RW'],    AM:  ['CAM', 'CM'],
+  LCDM:['CDM', 'LCM'],   RCDM:['CDM', 'RCM'],
+  LCCM:['LCM', 'CM'],    RCCM:['RCM', 'CM'],
+  WM:  ['CM', 'RM'],     WG:  ['RW', 'RM'],     FB:  ['RB', 'RWB'],   SW: ['CB', 'LCB']
 };
-function _atAltPos(pos) { return (AT_ALT_POS[pos] || []).slice(); }
+// The roles a player can also fill. The full role name is looked up first, so
+// a left wing-back keeps his own family rather than falling back to a generic
+// one; only if the shape names a role we do not list is the side stripped.
+function _atAltPos(pos) {
+  var k = String(pos || '').toUpperCase();
+  if (AT_ALT_POS[k]) return AT_ALT_POS[k].slice();
+  var base = k.replace(/^[LR](?=[A-Z]{2})/, '');
+  return (AT_ALT_POS[base] || []).slice();
+}
 function _atEnrich(p, i, idx, id) {
   var r = _acRng(_atHash(p.id) + 1);
   // Position comes from the shape this age group actually plays, so the squad
@@ -46349,12 +46369,21 @@ function _atOppSetup(id) {
 // The opponent's substitutes: the same placeholders as the markers on the pitch,
 // sized to the match format the age group plays, stored with that group's own
 // opponent setup. No squad, no ratings — a tactical bench, nothing more.
+// The opponent's substitutes: a keeper, then cover across the lines the shape
+// actually fields, each with real positions rather than a generic SUB label.
 function _atOppBench(id) {
   var o = _atOppSetup(id), slots = _sqSlotsFor(o.formation) || [];
   var n = Math.max(3, Math.min(7, Math.round(slots.length / 2)));
+  var lines = slots.filter(function (s2) { return s2.c !== 'gk'; }).map(function (s2) { return s2.r; });
   var out = [];
   for (var i = 0; i < n; i++) {
-    out.push({ id: 'atoppsub-' + id + '-' + i, n: slots.length + i + 1, pos: 'SUB', cat: i === 0 ? 'gk' : (i < 3 ? 'df' : 'mf') });
+    var pid = 'atoppsub-' + id + '-' + i;
+    var role = (i === 0) ? 'GK' : (lines[(i - 1) % (lines.length || 1)] || 'CM');
+    var sc = _atOppScout(id, pid, i);
+    out.push({ id: pid, n: slots.length + i + 1, pos: role,
+      cat: (i === 0) ? 'gk' : (_sqSlotsFor(o.formation) || []).filter(function (s3) { return s3.r === role; }).map(function (s3) { return s3.c; })[0] || 'mf',
+      name: 'Rival', secondary: _atAltPos(role).join(','),
+      qual: sc.qual, cond: sc.cond, morale: sc.morale, form: sc.form, scouted: true });
   }
   return out;
 }
@@ -46390,14 +46419,38 @@ function _atPlayerCareer(playerId) {
   var rec = _atHistLoad().players[playerId];
   return rec ? rec.entries.slice() : [];
 }
+// A scouting estimate for an opponent marker. Deterministic from the player's
+// own id and the age group's level, so the same opponent reads the same way on
+// every render — these are estimates for a coaching board, not invented records,
+// and they are labelled as scouted wherever they are shown.
+function _atOppScout(id, pid, i) {
+  var r = _acRng(_atHash(pid) + 17), idx = _acStageIdx(id);
+  var base = 48 + idx * 4 + Math.round(r() * 22);
+  return { qual: Math.max(30, Math.min(92, base)),
+           cond: 74 + Math.floor(r() * 26),
+           morale: ['Excellent', 'Good', 'Good', 'Okay'][Math.floor(r() * 4)],
+           form: 4 + Math.floor(r() * 7) };
+}
+// The opponent's eleven. Same shape resolver, same canonical slots, same slot
+// ownership as our own side — only the dataset differs.
 function _atOppShape(id) {
   var o = _atOppSetup(id), slots = _sqSlotsFor(o.formation) || [];
   var players = [], pos = {}, slotMap = {};
-  slots.forEach(function (s, i) {
-    var pid = 'atopp-' + id + '-' + i;
-    players.push({ id: pid, n: i + 1, pos: s.r || String(s.c).toUpperCase(), cat: s.c, name: 'Rival' });
-    pos[pid] = o.pos[pid] ? { x: o.pos[pid].x, y: o.pos[pid].y } : { x: s.x, y: s.y };
-    slotMap[pid] = s;
+  // Slot ownership for the opponent, rebuilt whenever their shape changes.
+  if (o.slotForm !== o.formation || !o.slotOwner || typeof o.slotOwner !== 'object') {
+    o.slotOwner = {}; o.slotForm = o.formation;
+    slots.forEach(function (sl, i) { o.slotOwner[_atSlotId(sl, i)] = 'atopp-' + id + '-' + i; });
+  }
+  slots.forEach(function (s2, i) {
+    var sid = _atSlotId(s2, i);
+    var pid = o.slotOwner[sid] || ('atopp-' + id + '-' + i);
+    var role = s2.r || String(s2.c).toUpperCase();
+    var sc = _atOppScout(id, pid, i);
+    players.push({ id: pid, n: i + 1, pos: role, cat: s2.c, name: 'Rival',
+      secondary: _atAltPos(role).join(','),
+      qual: sc.qual, cond: sc.cond, morale: sc.morale, form: sc.form, scouted: true });
+    pos[pid] = o.pos[pid] ? { x: o.pos[pid].x, y: o.pos[pid].y } : { x: s2.x, y: s2.y };
+    slotMap[pid] = s2;
   });
   return { players: players, pos: pos, slot: slotMap };
 }
