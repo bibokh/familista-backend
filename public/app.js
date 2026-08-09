@@ -45883,16 +45883,21 @@ function _atFormationCtx(id) {
   // Stage 1 · canonical slots are already resolved above. Stage 2 · slots pull
   // players. Stage 3 · the stored map is used only if it still validates.
   var benchedSet = {}; (lu.subs || []).forEach(function (x) { benchedSet[x] = 1; });
-  var eligible = mapped.filter(function (pl) { return !benchedSet[pl.id]; });
+  // Building a shape considers the WHOLE squad. The saved substitutes list was
+  // written for whatever formation was up at the time, so honouring it here left
+  // a specialist stranded on the bench while his own slot went to someone else —
+  // a natural left midfielder sat out while a winger held LM. A substitution the
+  // coach actually makes is recorded in the slot map, which is what survives; the
+  // bench is the result of the assignment, not an input to it.
   // The coach's own picks carry a small edge, never enough to seat a keeper in attack.
-  var scored = eligible.map(function (pl) {
+  var scored = mapped.map(function (pl) {
     var q = {}; for (var k in pl) q[k] = pl[k];
     q.qual = (pl.qual || 0) + (prefSet[pl.id] ? 12 : 0);
     q.__id = pl.id;
     return q;
   });
   var owner = (board.slotForm === t.formation.name) ? (board.slotOwner || {}) : null;
-  if (!owner || !_atValidateSlots(owner, slots, byId, benchedSet)) {
+  if (!owner || !_atValidateSlots(owner, slots, byId, null)) {
     owner = _atAssignSlots(slots, scored, { type: 'academy' });
     board.slotOwner = owner; board.slotForm = t.formation.name;
   }
