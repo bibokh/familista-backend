@@ -2354,8 +2354,8 @@ function _sqLineupStats(ctx) {
   var chem = Math.max(0, Math.min(100, Math.round(100 - Math.sqrt(varc) * 2.5)));  // same chemistry formula used elsewhere
   var balance = 0;
   try {
-    if (C.type === 'first') { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); balance = (typeof _sqMyStats === 'function') ? (_sqMyStats().balance || 0) : 0; }
-    else { balance = (typeof C.balance === 'number') ? C.balance : 0; }
+    if (C.ensureBoard) C.ensureBoard();
+    balance = (typeof C.balance === 'number') ? C.balance : 0;
   } catch (e) { balance = 0; }
   var inj = 0, susp = 0, avail = 0;
   ps.forEach(function (p) { var a = _sqLuAvailOf(p, C); if (a === 'injured') inj++; else if (a === 'suspended') susp++; else avail++; });
@@ -3275,7 +3275,7 @@ function _sqActiveRole(id, p, ctx) {
   var sl = _sqLiveSlot(id, C);
   return (sl && sl.r) ? sl.r : p.pos;
 }
-function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? SQ_FORM.cmdSel : (C.selected || null); }
+function _sqSelIdOf(ctx) { var C = _sqCtx(ctx); return C.selected || null; }
 // The zone a role owns, by name. A right-back's zone is the right defensive
 // channel and a centre-back's is the middle — never the same box. A holding
 // midfielder sits in front of the defence, a central midfielder in the middle
@@ -3640,23 +3640,18 @@ function _sqMeanQual(arr) { if (!arr.length) return 0; var s = 0; arr.forEach(fu
 // so the comparison reflects shape alone rather than an invented rating.
 function _sqMuShapes(ctx) {
   var C = _sqCtx(ctx);
-  if (C.type === 'first') return { mF: SQ_FORMATIONS[SQ_FORM.myFormation], oF: SQ_FORMATIONS[SQ_FORM.oppFormation] };
+  if (C.type === 'first') return { mF: _sqSlotsFor(C.formation), oF: _sqSlotsFor(C.oppFormation) };
   return { mF: C.formationSlots || [], oF: _sqSlotsFor(C.oppFormation) || C.formationSlots || [] };
 }
 function _sqMatchup(ctx) {
   var C = _sqCtx(ctx), SH = _sqMuShapes(C);
   var mF = SH.mF, oF = SH.oF;
   var ms = _sqShape(mF), os = _sqShape(oF);
-  var myPl = (C.type === 'first') ? (SQ_MY_IDS || []).map(_sqFind).filter(Boolean)
-    : (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
-  var myOvr, oppOvr;
-  if (C.type === 'first') {
-    myOvr = _sqMeanQual(myPl.length ? myPl : SQ_DEMO_PLAYERS);
-    oppOvr = _sqMeanQual((typeof _sqOppXi === 'function') ? _sqOppXi() : SQ_OPP_DEF);
-  } else {
-    myOvr = _sqMeanQual(myPl.length ? myPl : (C.roster || []));
-    oppOvr = myOvr;                                  // no opponent ratings recorded — shape decides
-  }
+  var myPl = _sqCtxStarters(C);
+  var myOvr = _sqMeanQual(myPl.length ? myPl : (C.roster || []));
+  // Only a team whose opponent carries real ratings compares against them; for
+  // the rest the shape decides, exactly as before.
+  var oppOvr = C.hasOppRatings ? _sqMeanQual(_sqCtxOppXi(C)) : myOvr;
   var midCtrl = _sqEdge(ms.mid * myOvr, os.mid * oppOvr);
   var defStab = _sqEdge((ms.def + 0.7) * myOvr, (os.fwd + 0.7) * oppOvr);
   var widthAdv = _sqEdge(_sqWide(mF) * myOvr, _sqWide(oF) * oppOvr);
@@ -3664,7 +3659,7 @@ function _sqMatchup(ctx) {
   var counter = _sqEdge(ms.fwd * myOvr, os.fwd * oppOvr);
   var tacAdv = Math.round((midCtrl + defStab + widthAdv + press + counter) / 5);
   var matchup = Math.max(5, Math.min(95, Math.round(50 + (tacAdv - 50) * 0.9 + (myOvr - oppOvr) * 1.4)));
-  var strength = _sqMetricsFor(SQ_FORM.myFormation, SQ_DEMO_PLAYERS).efficiency;
+  var strength = _sqMetricsFor(C.formation, (C.roster || [])).efficiency;
   var weakness = Math.max(0, 100 - Math.min(midCtrl, defStab, widthAdv, press, counter));
   return { midCtrl: midCtrl, defStab: defStab, widthAdv: widthAdv, press: press, counter: counter, tacAdv: tacAdv, matchup: matchup, strength: strength, weakness: weakness, myOvr: Math.round(myOvr), oppOvr: Math.round(oppOvr) };
 }
@@ -3767,7 +3762,7 @@ function _sqStatGrp(title, st, opp) {
 // its own, an age group passes its own. Nothing else builds a Formation board.
 function _sqFormationBody(ctx) {
   var C = _sqCtx(ctx);
-  if (C.type === 'first' && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
+  if (C.ensureBoard) C.ensureBoard();
   return '<div class="sqfp-board sqfp-board--cmd">' + _sqCmdPanelHtml(C) + '</div>';
 }
 
@@ -4369,7 +4364,7 @@ function _sqTacOppChip(o, pos) {
 }
 function _sqTacBoardHtml(ctx) {
   if (ctx) _sqTbUse(ctx);
-  if (_sqTbFirst() && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
+  var _tbC = _sqTbCtx(); if (_tbC.ensureBoard) _tbC.ensureBoard();
   _sqTacBind();
   var active = SQ_TAC_ACTIVE || 'my';
   var meta = _SQ_TAC_CATMETA[(active === 'opp' ? SQ_TAC_FOCUS_OPP : SQ_TAC_FOCUS).cat] || _SQ_TAC_CATMETA.identity;
@@ -5214,11 +5209,11 @@ function _sqTeamReport(side, ctx) {
     // numbers read as placeholders instead of being invented.
     return { name: 'Opponent', formation: C.oppFormation || '', ovr: '—', balance: '—', xiOvr: '—', xiBalance: '—', benchOvr: '—', benchBalance: '—', formEff: '—' };
   }
-  var op = _sqCmdOppStats(), formEffO = _sqMetricsFor(SQ_FORM.oppFormation, _sqOppXi()).efficiency;
+  var op = _sqCmdOppStats(), formEffO = _sqMetricsFor(C.oppFormation, _sqOppXi()).efficiency;
   var oBench = _sqOppBench(), benchOvrO = oBench.ovr, benchBalO = oBench.balance;
   var ovrScaled = Math.max(0, Math.min(100, Math.round((op.ovr - 60) / 40 * 100)));
   var execO = Math.max(35, Math.min(99, Math.round(0.5 * op.balance + 0.3 * op.compat + 0.2 * ovrScaled)));
-  return { name: 'Opponent', formation: SQ_FORM.oppFormation, ovr: Math.round(op.ovr * 0.82 + benchOvrO * 0.18), balance: Math.round(op.balance * 0.85 + benchBalO * 0.15), xiOvr: op.ovr, xiBalance: op.balance, benchOvr: benchOvrO, benchBalance: benchBalO, compat: op.compat, formEff: formEffO, exec: execO };
+  return { name: 'Opponent', formation: C.oppFormation, ovr: Math.round(op.ovr * 0.82 + benchOvrO * 0.18), balance: Math.round(op.balance * 0.85 + benchBalO * 0.15), xiOvr: op.ovr, xiBalance: op.balance, benchOvr: benchOvrO, benchBalance: benchBalO, compat: op.compat, formEff: formEffO, exec: execO };
 }
 // role badges derived from the real lineup (captain flag + role strings + quality)
 var SQ_ROLE_LABEL = { C: 'Captain', VC: 'Vice-captain', P: 'Penalty taker', FK: 'Free-kick taker', CK: 'Corner taker', PM: 'Playmaker', TM: 'Target man' };
@@ -5349,7 +5344,7 @@ function _sqMdFieldShared() { return _sqMdField(); }
 function _sqMdPitchShared(ctx) {
   var C = _sqCtx(ctx);
   var cards = '', oop = false, so = _sqShowOpp(C) && C.hasOpponent;
-  if (C.type === 'first' && (!SQ_MY_IDS || !SQ_MY_IDS.length)) _sqBuildBoard();
+  if (C.ensureBoard) C.ensureBoard();
   var rm = _sqRoleMap(C);
   // My team — depth (pos.y) → horizontal L, width (pos.x) → vertical T. Always the full pitch
   // (GK at left goal, attack toward right). The opponent overlays the same field when toggled on.
@@ -5368,25 +5363,27 @@ function _sqMdPitchShared(ctx) {
     // An age group has no scouted opponent squad, so its overlay is the shape it
     // configured: one marker per slot of the chosen opponent formation. Ratings
     // are shown as placeholders rather than made up.
-    var oppAssign = (C.type === 'first')
-      ? _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi())
+    // A scouted opponent squad is assigned to the opponent shape; a team that
+    // has none draws one marker per configured slot instead.
+    var oppAssign = C.hasOppRatings
+      ? _sqAssignXI(C.oppFormationSlots || _sqSlotsFor(C.oppFormation) || [], _sqCtxOppXi(C))
       : (C.oppActive || []).map(function (o) { return { player: o, slot: (C.oppSlot || {})[o.id] || { x: 50, y: 50 } }; });
     oppAssign.forEach(function (a) {
       if (!a.player) return; var p = a.player, s = a.slot;
-      var pos = (C.type === 'first' ? SQ_POS_OPP2[p.id] : (C.posOpp2 || {})[p.id]) || { x: s.x, y: s.y };
+      var pos = (C.posOpp || C.posOpp2 || {})[p.id] || { x: s.x, y: s.y };
       var L = Math.max(6, Math.min(94, pos.y));
       var T = Math.max(6, Math.min(94, pos.x));
       var d = _sqOppPenDist(p, s, pos);
-      var q = (C.type === 'first') ? _sqEffQual(p, d) : null, bad = d > 16;
+      var q = C.hasOppRatings ? _sqEffQual(p, d) : null, bad = d > 16;
       if (bad) oop = true;
       var oSel = _sqSelIdOf(C) === p.id;
-      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.type === 'first' ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
+      cards += '<div class="sqmd-slot" data-cmdmove-opp="1" data-id="' + p.id + '" style="left:' + L + '%;top:' + T + '%">' + _sqMdCard('opp', p.n, 'Rival', p.pos, q, null, bad, null, p.id, null, oSel, p.cat, (C.hasOppRatings ? _sqPlayerAllPos(p).join(' / ') : p.pos), null) + '</div>';
     });
   }
   var selId = _sqSelIdOf(C);
   var zones = '', popup = '';
   if (selId) {
-    var ss = (C.type === 'first') ? _sqSideOf(selId) : ((C.starterIds || []).indexOf(selId) >= 0 ? 'my' : 'opp');
+    var ss = C.sideOf ? C.sideOf(selId) : ((C.starterIds || []).indexOf(selId) >= 0 ? 'my' : 'opp');
     zones = '<div class="sqmd-zonelayer">' + _sqMdZonesShared(selId, ss, C) + '</div>';
     popup = _sqCmpPopup(selId, C);
   }
@@ -5454,7 +5451,12 @@ function _sqCtxOppFind(id, ctx) {
   for (i = 0; i < b.length; i++) if (b[i].id === id) return b[i];
   return (C.type === 'first' && typeof _sqOppFind === 'function') ? _sqOppFind(id) : null;
 }
-function _sqCtxOppXi(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? _sqOppXi() : (C.oppActive || []); }
+function _sqCtxOppXi(ctx) { var C = _sqCtx(ctx); return C.oppXi || C.oppActive || []; }
+function _sqCtxStarters(ctx) {
+  var C = _sqCtx(ctx);
+  if (C.starters) return C.starters;
+  return (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
+}
 function _sqCmdMatchups(ctx) {
   var C = _sqCtx(ctx);
   var myPs = (C.starterIds || []).map(function (id) { return _sqCtxP(id, C); }).filter(Boolean);
@@ -5524,7 +5526,7 @@ function _sqTcHead(side, rep, ctx) {
   var C = _sqCtx(ctx);
   var isAc = C.type !== 'first';
   var name = (side === 'opp') ? 'Opponent' : _sqCtxName(C);
-  var cur = isAc ? (side === 'opp' ? (C.oppFormation || '') : C.formation) : (side === 'my' ? SQ_FORM.myFormation : SQ_FORM.oppFormation);
+  var cur = (side === 'opp') ? (C.oppFormation || '') : (C.formation || '');   // one source, either side
   var ini = name.split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase() || 'FC';
   function chip(l, v, s) { return '<span class="sqtc-chip"><i>' + l + '</i><b>' + v + (s || '') + '</b></span>'; }
   // Academy: only the formats actually configured for this age group.
@@ -5545,7 +5547,7 @@ function _sqTcSummaryCards(ctx) {
   return '<div class="sqtc-summary">' + card('Tactical balance', f.tacticalBalance, '%') + card('Attacking strength', f.attacking, '') + card('Defensive strength', f.defensive, '') + card('Squad depth', f.depth, '%') + card('Team condition', f.condition, '%') + '</div>';
 }
 // Whether the opponent overlay is on, for whichever team's board this is.
-function _sqShowOpp(ctx) { var C = _sqCtx(ctx); return (C.type === 'first') ? !!SQ_FORM.showOpp : !!C.showOpp; }
+function _sqShowOpp(ctx) { return !!_sqCtx(ctx).showOpp; }
 function _sqTcOverview(my, op, ctx) {
   var C = _sqCtx(ctx);
   var so = _sqShowOpp(C) && C.hasOpponent;
@@ -5891,7 +5893,7 @@ function _sqCwZones(ctx) {
       var pm = C.posMy || {};
       ids.forEach(function (id) { var pos = pm[id]; if (!pos) return; c[pos.y < 42 ? 0 : pos.y < 67 ? 1 : 2]++; });
     } else if (C.type === 'first') {
-      _sqAssignXI(SQ_FORMATIONS[SQ_FORM.oppFormation] || [], _sqOppXi(), C).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
+      _sqAssignXI(_sqSlotsFor(C.oppFormation) || [], _sqOppXi(), C).forEach(function (a) { if (!a.player) return; var s = a.slot; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
     } else {
       // The same count, read off the shape this squad's opponent lines up in.
       (_sqCtxOppXi(C)).forEach(function (o) { var s = (C.oppSlot || {})[o.id] || (C.posOpp || {})[o.id]; if (!s) return; c[s.y < 42 ? 0 : s.y < 67 ? 1 : 2]++; });
@@ -6099,11 +6101,9 @@ function _sqCmpData(id, ctx) {
   // opponent's shape and bench for theirs.
   var pool;
   if (side === 'my') {
-    pool = ((C.type === 'first') ? SQ_DEMO_PLAYERS.concat(SQ_RESERVE) : (C.roster || []));
+    pool = C.comparePool || C.roster || [];
   } else {
-    pool = _sqCtxOppXi(C).concat((C.type === 'first')
-      ? (typeof _sqOppBenchList === 'function' ? _sqOppBenchList() : [])
-      : (C.oppBench || []));
+    pool = _sqCtxOppXi(C).concat(C.oppBench || []);
   }
   pool = pool.filter(function (x) { return x && x.id !== id; });
   var alts = pool.map(function (x) { return { p: x, r: _sqReady(x, pos) }; })
@@ -6247,10 +6247,39 @@ function _sqFirstCtx() {
     get starterIds() { return SQ_MY_IDS || []; },
     get benchIds() { return SQ_BENCH_IDS || []; },
     get posMy() { return SQ_POS_MY; },
+    get posOpp() { return SQ_POS_OPP2; },
     get slotMy() { return SQ_MY_SLOT; },
+    // Resolved squad views. Shared functions ask the context for these instead
+    // of reaching for a First Team global, so an age group answers the same
+    // questions from its own data.
+    get starters() { return (SQ_MY_IDS || []).map(_sqFind).filter(Boolean); },
+    get comparePool() { return SQ_DEMO_PLAYERS.concat(SQ_RESERVE); },
+    get oppXi() { return (typeof _sqOppXi === 'function') ? _sqOppXi() : SQ_OPP_DEF; },
+    get oppBench() { return (typeof _sqOppBenchList === 'function') ? _sqOppBenchList() : []; },
+    get balance() { return (typeof _sqMyStats === 'function') ? (_sqMyStats().balance || 0) : 0; },
+    hasOppRatings: true,
+    sideOf: function (id) { return _sqSideOf(id); },
+    ensureBoard: function () { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); },
+    movePlayer: function (side, id, x, y) {
+      if (side === 'opp') SQ_POS_OPP2[id] = { x: x, y: y }; else SQ_POS_MY[id] = { x: x, y: y };
+    },
     get formation() { return SQ_FORM.myFormation; },
+    set formation(v) { SQ_FORM.myFormation = v; },
     get formationSlots() { return _sqSlotsFor(SQ_FORM.myFormation); },
     get tactics() { return SQ_FORM; },
+    // Per-team state the shared engine reads. For the First Team these are a
+    // live view of SQ_FORM, so nothing about its behaviour changes; an age
+    // group supplies its own. No shared function names SQ_FORM directly.
+    get oppFormation() { return SQ_FORM.oppFormation; },
+    set oppFormation(v) { SQ_FORM.oppFormation = v; },
+    get oppFormationSlots() { return _sqSlotsFor(SQ_FORM.oppFormation); },
+    get selected() { return SQ_FORM.cmdSel; },
+    set selected(v) { SQ_FORM.cmdSel = v; },
+    get showOpp() { return !!SQ_FORM.showOpp; },
+    set showOpp(v) { SQ_FORM.showOpp = !!v; },
+    get mentality() { return SQ_FORM.mentality; },
+    get myMentality() { return SQ_FORM.myMentality; },
+    get oppMentality() { return SQ_FORM.oppMentality; },
     format: '11v11', hasOpponent: true,
     permissions: { canEdit: true },
     save: function () { /* First Team keeps its own existing save flow */ }
@@ -8420,7 +8449,6 @@ function _sqBoardHostCtx(el) {
 // Commit a moved player back to whichever team owns the board.
 function _sqBoardCommit(ctx, side, id, x, y) {
   var C = _sqCtx(ctx);
-  if (C.type === 'first') { if (side === 'opp') SQ_POS_OPP2[id] = { x: x, y: y }; else SQ_POS_MY[id] = { x: x, y: y }; return; }
   if (typeof C.movePlayer === 'function') C.movePlayer(side, id, x, y);
 }
 function _sqBoardRerender(ctx) {
@@ -44740,8 +44768,19 @@ var AC_DIMS = [
   ['nutrition', 'Nutrition'], ['decision', 'Decision Making']
 ];
 
+// The formation libraries an age group can be given. Named once so two groups
+// on the same match format share one list rather than repeating it.
+var AT_FORMATIONS_9V9 = ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1', '3-1-3-1', '2-4-2', '4-3-1'];
+var AT_FORMATIONS_11V11 = (typeof SQ_FORM_NAMES !== 'undefined' && SQ_FORM_NAMES.length) ? SQ_FORM_NAMES.slice() : [];
 var AC_STAGES = [
-  { id: 'discovery', label: 'U8–U10', name: 'Discovery', accent: '#4ade80', coachN: 4,
+  { id: 'discovery',
+    // How this age group plays. Read by the shared engine through config,
+    // never by the group's position in the list.
+    cfg: { formation: '2-3-1', formations: ['2-3-1', '3-2-1', '3-1-2', '1-3-2', '2-1-3', '2-2-2', '3-3'],
+      proKpis: false, promotion: false, tier: 0,
+      tactics: { mentality: 'Encourage', tempo: 'Relaxed', width: 'Balanced',
+        pressing: 'Low', line: 'Deep', build: 'Play out from the back' },
+      playerTactics: false }, label: 'U8–U10', name: 'Discovery', accent: '#4ade80', coachN: 4,
     summary: 'Technical discovery. Players explore what they can do with the ball and grow in confidence.',
     objectives: ['Technical discovery & repetition', '1v1 dribbling confidence', 'Passing & receiving basics', 'Early spatial awareness', 'Growing self-belief'],
     curriculum: ['Dribbling & feints', 'Passing pairs & triangles', 'Ball control under light pressure', '3v3 / 4v4 games', 'Finishing games'],
@@ -44758,7 +44797,14 @@ var AC_STAGES = [
     promotion: ['Solid individual technique', 'Beginning to read simple game situations', 'Ready for positional understanding'],
     ai: ['Maximise 1v1 opportunities', 'Delay position specialisation', 'Balance technique with game context'] },
 
-  { id: 'development', label: 'U11–U13', name: 'Development', accent: '#a78bfa', coachN: 4,
+  { id: 'development',
+    // How this age group plays. Read by the shared engine through config,
+    // never by the group's position in the list.
+    cfg: { formation: '3-2-3', formations: AT_FORMATIONS_9V9,
+      proKpis: false, promotion: false, tier: 1,
+      tactics: { mentality: 'Balanced', tempo: 'Medium', width: 'Balanced',
+        pressing: 'Medium', line: 'Medium', build: 'Play out from the back' },
+      playerTactics: true }, label: 'U11–U13', name: 'Development', accent: '#a78bfa', coachN: 4,
     summary: 'The golden age of learning. Positional understanding, decision making and tactical principles begin.',
     objectives: ['Positional understanding', 'Decision making under pressure', 'Core tactical principles', 'Monitor physical/biological maturation', 'Technical consolidation'],
     curriculum: ['Positional games (rondos)', 'Building up & switching play', 'Pressing & defending principles', '7v7 → 9v9 → 11v11 transition', 'Position-specific technique'],
@@ -44775,7 +44821,15 @@ var AC_STAGES = [
     promotion: ['Tactical maturity', 'Consistent technique under pressure', 'Physical & psychological readiness for performance stage'],
     ai: ['Bio-band where possible', 'Prioritise decision-making games', 'Watch training load during growth spurts'] },
 
-  { id: 'performance', label: 'U14–U16', name: 'Performance', accent: '#f59e0b', coachN: 3,
+  { id: 'performance',
+    // How this age group plays. Read by the shared engine through config,
+    // never by the group's position in the list.
+    cfg: { formation: '3-2-3', formations: AT_FORMATIONS_9V9,
+      proKpis: true, promotion: false, tier: 2,
+      tactics: { mentality: 'Balanced', tempo: 'Medium', width: 'Balanced',
+        pressing: 'Medium', line: 'Medium', build: 'Play out from the back' },
+      playerTactics: true },
+    label: 'U14–U16', name: 'Performance', accent: '#f59e0b', coachN: 3,
     summary: 'Performance habits form. Position-specific development, tactical intelligence and structured S&C.',
     objectives: ['Performance habits & professionalism', 'Position-specific mastery', 'Tactical intelligence', 'Strength & conditioning', 'Psychological resilience'],
     curriculum: ['Unit & team tactics', 'Position-specific sessions', 'Structured strength & conditioning', 'Game-model application', 'Individual development plans'],
@@ -44792,7 +44846,14 @@ var AC_STAGES = [
     promotion: ['Consistent match performance', 'Physical readiness', 'Professional standards & tactical maturity'],
     ai: ['Build IDPs from assessment gaps', 'Monitor S&C load carefully', 'Track education alongside performance'] },
 
-  { id: 'elite', label: 'U17–U19', name: 'Elite', accent: '#f472b6', coachN: 3,
+  { id: 'elite',
+    // How this age group plays. Read by the shared engine through config,
+    // never by the group's position in the list.
+    cfg: { formation: '4-3-3', formations: AT_FORMATIONS_11V11,
+      proKpis: true, promotion: true, tier: 3,
+      tactics: { mentality: 'Positive', tempo: 'Medium', width: 'Balanced',
+        pressing: 'High', line: 'Medium', build: 'Play out from the back' },
+      playerTactics: true }, label: 'U17–U19', name: 'Elite', accent: '#f472b6', coachN: 3,
     summary: 'Elite performance & preparation. Match preparation, individual plans and professional standards.',
     objectives: ['Elite performance level', 'Match preparation & analysis', 'Individual development plans', 'Professional standards', 'Transition readiness'],
     curriculum: ['Opposition analysis & prep', 'High-intensity tactical work', 'Advanced S&C & recovery', 'Individual video analysis', 'Career & lifestyle education'],
@@ -44809,7 +44870,14 @@ var AC_STAGES = [
     promotion: ['First-team training readiness', 'Physical & mental senior readiness', 'Consistency vs elite opposition'],
     ai: ['Individualise match preparation', 'Guard wellbeing & load', 'Prepare realistic career pathways'] },
 
-  { id: 'propath', label: 'U20–U23', name: 'Professional Path', accent: '#f87171', coachN: 3,
+  { id: 'propath',
+    // How this age group plays. Read by the shared engine through config,
+    // never by the group's position in the list.
+    cfg: { formation: '4-3-3', formations: AT_FORMATIONS_11V11,
+      proKpis: true, promotion: true, tier: 4,
+      tactics: { mentality: 'Positive', tempo: 'Medium', width: 'Balanced',
+        pressing: 'High', line: 'Medium', build: 'Play out from the back' },
+      playerTactics: true }, label: 'U20–U23', name: 'Professional Path', accent: '#f87171', coachN: 3,
     summary: 'First-team readiness & professional pathway. Career, contract and high-performance monitoring.',
     objectives: ['First-team readiness', 'Professional pathway & loans', 'Contract & career preparation', 'High-performance monitoring', 'Full senior standards'],
     curriculum: ['First-team integration & training', 'Loan management & review', 'Elite recovery & monitoring', 'Contract & career education', 'Leadership & professionalism'],
@@ -45026,21 +45094,19 @@ function _atTeam(id) {
 }
 // Match format & formation adapt to the stage — never force senior 11-a-side
 // onto young groups. Starters = sum(formation digits) + 1 (goalkeeper).
-function _atDefaultFormation(id) {
-  var i = _acStageIdx(id);
-  if (i <= 0) return '2-3-1';            // U8–U10 → 7v7
-  if (i === 1) return '3-2-3';           // U11–U13 → 9v9
-  if (i === 2) return '3-2-3';           // U14–U16 → 9v9 (also 11v11 available)
-  return '4-3-3';                        // U17+ full 11v11
+// One place resolves a stage's configuration, with the shape defaults a group
+// falls back to if a club has not configured it.
+var AT_CFG_DEFAULT = { formation: '4-3-3', formations: null, proKpis: true, promotion: true, tier: 4,
+  tactics: { mentality: 'Balanced', tempo: 'Medium', width: 'Balanced', pressing: 'Medium', line: 'Medium', build: 'Play out from the back' },
+  playerTactics: true };
+function _atStageCfg(id) {
+  var st = _acStage(id) || {}, c = st.cfg || {};
+  var out = {}; for (var k in AT_CFG_DEFAULT) out[k] = (k in c) ? c[k] : AT_CFG_DEFAULT[k];
+  if (!out.formations) out.formations = (typeof SQ_FORM_NAMES !== 'undefined' && SQ_FORM_NAMES.length) ? SQ_FORM_NAMES.slice() : Object.keys(SQ_FORMATIONS);
+  return out;
 }
-function _atFormationsFor(id) {
-  var i = _acStageIdx(id);
-  // The complete set for the format the group plays - and for an eleven-a-side
-  // group, the same professional library the First Team picks from.
-  if (i <= 0) return ['2-3-1', '3-2-1', '3-1-2', '1-3-2', '2-1-3', '2-2-2', '3-3']; // 7v7
-  if (i === 1 || i === 2) return ['3-3-2', '2-3-3', '3-2-3', '3-4-1', '2-3-2-1', '3-1-3-1', '2-4-2', '4-3-1']; // 9v9
-  return (typeof SQ_FORM_NAMES !== 'undefined' && SQ_FORM_NAMES.length) ? SQ_FORM_NAMES.slice() : Object.keys(SQ_FORMATIONS);
-}
+function _atDefaultFormation(id) { return _atStageCfg(id).formation; }
+function _atFormationsFor(id) { return _atStageCfg(id).formations.slice(); }
 // Number of on-pitch starters (incl. GK) implied by a formation string.
 function _atStarterCount(f) { return String(f).split('-').reduce(function (a, n) { return a + (parseInt(n, 10) || 0); }, 0) + 1; }
 function _atFormatLabel(id) {
@@ -45185,7 +45251,7 @@ function _atNewBase(pid, o, idx, id) {
 }
 // Enriched, isolated roster (base seeded players + coach-added, minus archived).
 function _atRoster(id) {
-  var idx = _acStageIdx(id), ov = _atOverlay(id);
+  var idx = _atStageCfg(id).tier, ov = _atOverlay(id);
   var list = _acInStage(id).map(function (p, i) { return _atApplyOverlay(_atEnrich(p, i, idx, id), ov[p.id]); });
   Object.keys(ov).forEach(function (pid) { if (ov[pid] && ov[pid].__new) list.push(_atNewBase(pid, ov[pid], idx, id)); });
   return list.filter(function (p) { return !p.archived; });
@@ -45254,16 +45320,11 @@ function _atLineup(id) {
   return lu;
 }
 function _atDefaultTactics(id) {
-  var i = _acStageIdx(id);
-  // Younger = simpler defaults, less intensity; older = more structured.
-  return {
-    mentality: i < 1 ? 'Encourage' : (i < 3 ? 'Balanced' : 'Positive'),
-    tempo: i < 1 ? 'Relaxed' : 'Medium',
-    width: 'Balanced',
-    pressing: i < 1 ? 'Low' : (i < 3 ? 'Medium' : 'High'),
-    line: i < 1 ? 'Deep' : 'Medium',
-    build: 'Play out from the back'
-  };
+  // The group's own configured starting tactics, copied so a caller editing the
+  // result cannot write back into the stage definition.
+  var t = _atStageCfg(id).tactics, out = {};
+  for (var k in t) out[k] = t[k];
+  return out;
 }
 function _atDefaultStaff(id) {
   var head = _acResponsible(id);
@@ -45271,18 +45332,18 @@ function _atDefaultStaff(id) {
   var roles = ['Head Coach', 'Assistant Coach', 'Goalkeeping Coach', 'Fitness Coach', 'Welfare Officer'];
   var pool = ['Miguel Santos', 'Sofia Almeida', 'Ahmed Hassan', 'Lucas Meyer', 'David Silva', 'Marco Rossi', 'Nadia Cheb', 'Paulo Reis', 'Karim B.', 'Ines Costa'];
   var staff = [{ name: head, role: 'Head Coach', responsible: true }];
-  for (var k = 1; k < n; k++) staff.push({ name: pool[(_acStageIdx(id) * 2 + k) % pool.length], role: roles[k % roles.length], responsible: false });
+  for (var k = 1; k < n; k++) staff.push({ name: pool[(_atStageCfg(id).tier * 2 + k) % pool.length], role: roles[k % roles.length], responsible: false });
   return staff;
 }
 
 // Age-group context object used everywhere in the workspace.
 function _atCtx(id) {
   var st = _acStage(id);
-  return { id: id, label: st.label, name: st.name, accent: st.accent, stage: st, idx: _acStageIdx(id) };
+  return { id: id, label: st.label, name: st.name, accent: st.accent, stage: st, idx: _atStageCfg(id).tier };
 }
 // KPIs shown adapt by stage: youngest groups don't show professional metrics.
-function _atShowProKpis(id) { return _acStageIdx(id) >= 2; }         // U14+ (Performance and up)
-function _atShowPromotion(id) { return _acStageIdx(id) >= 3; }       // U17+ (Elite / Pro-Path)
+function _atShowProKpis(id) { return !!_atStageCfg(id).proKpis; }
+function _atShowPromotion(id) { return !!_atStageCfg(id).promotion; }
 
 // The age-group workspace navigates like the First Team: a dashboard, the squad
 // (which opens the Lineup / Formation / Tactics module hub) and Training (which
@@ -46140,7 +46201,7 @@ function _atPitch(name, accent) {
 function _atTactics(id) {
   var t = _atTeam(id);
   if (!t.tactics2 || typeof t.tactics2 !== 'object') {
-    var o = t.tactics || {}, i = _acStageIdx(id);
+    var o = t.tactics || {}, i = _atStageCfg(id).tier;
     t.tactics2 = {
       mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
       style: i < 1 ? 'Possession' : 'Balanced',
@@ -46166,9 +46227,9 @@ function _atTacticsRec(id) { return _atTeam(id).tactics2; }
 // shown rather than shown empty. Player instructions arrive with the age at
 // which individual roles start being coached.
 function _atTacSections(id) {
-  var i = _acStageIdx(id);
+  var players = !!_atStageCfg(id).playerTactics;
   return _SQ_TAC_SECS.filter(function (s) {
-    if (i < 1 && s.id === 'players') return false;
+    if (!players && s.id === 'players') return false;
     return true;
   });
 }
@@ -46299,7 +46360,7 @@ function _atSecLineup(id) {
 function _atTactics(id) {
   var t = _atTeam(id);
   if (!t.tactics2 || typeof t.tactics2 !== 'object') {
-    var o = t.tactics || {}, i = _acStageIdx(id);
+    var o = t.tactics || {}, i = _atStageCfg(id).tier;
     t.tactics2 = {
       mentality: o.mentality === 'Encourage' ? 'Balanced' : (o.mentality === 'Cautious' ? 'Defensive' : (o.mentality || 'Balanced')),
       style: i < 1 ? 'Possession' : 'Balanced',
@@ -46325,9 +46386,9 @@ function _atTacticsRec(id) { return _atTeam(id).tactics2; }
 // shown rather than shown empty. Player instructions arrive with the age at
 // which individual roles start being coached.
 function _atTacSections(id) {
-  var i = _acStageIdx(id);
+  var players = !!_atStageCfg(id).playerTactics;
   return _SQ_TAC_SECS.filter(function (s) {
-    if (i < 1 && s.id === 'players') return false;
+    if (!players && s.id === 'players') return false;
     return true;
   });
 }
@@ -46424,7 +46485,7 @@ function _atPlayerCareer(playerId) {
 // every render — these are estimates for a coaching board, not invented records,
 // and they are labelled as scouted wherever they are shown.
 function _atOppScout(id, pid, i) {
-  var r = _acRng(_atHash(pid) + 17), idx = _acStageIdx(id);
+  var r = _acRng(_atHash(pid) + 17), idx = _atStageCfg(id).tier;
   var base = 48 + idx * 4 + Math.round(r() * 22);
   return { qual: Math.max(30, Math.min(92, base)),
            cond: 74 + Math.floor(r() * 26),
@@ -46520,7 +46581,7 @@ function _atTrainingImport(id) {
 }
 // Explicit team context handed to the shared Training system.
 function _atTrainingCtx(id) {
-  var fc = _atFormationCtx(id), st = _acStage(id), i = _acStageIdx(id);
+  var fc = _atFormationCtx(id), st = _acStage(id), i = _atStageCfg(id).tier;
   return {
     type: 'academy', teamId: id, ctxId: 'academy:' + id, label: fc.label,
     roster: fc.roster,
@@ -46745,7 +46806,7 @@ if (typeof document !== 'undefined' && !window._atBound) {
     if (t.closest && t.closest('[data-at-jump-notes]')) { e.preventDefault(); AT.profileTab = 'notes'; renderAcademyTeamPage(); return; }
     if (t.closest && t.closest('[data-at-add-assess]')) {
       e.preventDefault();
-      var pl = _atFindPlayer(id, AT.openPlayer); var dims = _atDevDims(_acStageIdx(id));
+      var pl = _atFindPlayer(id, AT.openPlayer); var dims = _atDevDims(_atStageCfg(id).tier);
       var vals = dims.map(function (d) { return _atAttr(pl, d[1]); }); var avg = Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length);
       var o3 = pov(AT.openPlayer); o3.assessments = o3.assessments || []; o3.assessments.push({ date: new Date().toISOString().slice(0, 10), avg: avg, note: 'Coach assessment' });
       _atSave(); AT.profileTab = 'history'; renderAcademyTeamPage();
