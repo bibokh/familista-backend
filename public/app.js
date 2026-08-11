@@ -931,6 +931,14 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   4,
   },
+  {
+    slug:    'transfers',
+    label:   'Transfers',
+    svgPath: 'M8 5a1 1 0 011 1v1h6.586l-1.293-1.293a1 1 0 111.414-1.414l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L15.586 9H9v1a1 1 0 01-2 0V6a1 1 0 011-1zm4 10a1 1 0 01-1-1v-1H4.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 1.414L4.414 11H11v-1a1 1 0 012 0v4a1 1 0 01-1 1z',
+    color:   '#4ade80',
+    enabled: true,
+    order:   5,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -1407,8 +1415,9 @@ function navTo(page, el, _opts) {
     'fos-core': 1, 'fos-observability': 1, 'fos-security-center': 1,
     'fos-automation-center': 1, 'fos-rbac': 1, 'fos-audit-governance': 1,
     'multi-club-network': 1, 'fos-admin-center': 1,
-    // CLUB WORKSPACE (10)
+    // CLUB WORKSPACE (11)
     'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
+    'transfers': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1436,7 +1445,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1476,6 +1485,9 @@ function navTo(page, el, _opts) {
     if (page === 'club-home'  && typeof renderClubHome === 'function')   renderClubHome();
     if (page === 'squad'      && typeof resetSquadView === 'function')   resetSquadView();
     if (page === 'academy-team' && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
+    // Transfers keeps a live market. Re-entering the page restarts its clock
+    // and repaints against whatever has moved on since the manager left.
+    if (page === 'transfers'  && typeof renderTransfersPage === 'function') renderTransfersPage();
   } catch (_) {}
   // Academy Team Workspace is a child of Academy — keep the Academy sidebar
   // item highlighted so the user stays visibly inside Academy, not First Team.
@@ -1669,6 +1681,7 @@ function _buildPageTemplateMap() {
     'academy':                     renderAcademyHTML,
     'academy-team':                renderAcademyTeamHTML,
     'video-intelligence':          renderVideoIntelligenceHTML,
+    'transfers':                   renderTransfersHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -6284,6 +6297,30 @@ function _sqFirstCtx() {
     secondaryPositions: false,     // this squad does not record secondary positions
     berthCountsAsOwnZone: false,   // a legal berth does not widen a player's zones
     youthBadgeAge: 21,             // a senior squad marks its youth players
+    // Recruitment, declared like every other rule. The ages this team may sign,
+    // and how a completed transfer reaches its roster. A team that declares
+    // neither simply cannot be a transfer destination.
+    signingAgeRange: [16, 40],
+    signPlayer: function (p) {
+      var used = {}; SQ_DEMO_PLAYERS.forEach(function (x) { used[x.num] = 1; });
+      var num = p.num || 2, guard = 0;
+      while (used[num] && guard++ < 99) num = (num % 99) + 1;
+      var np = {}; for (var k in p) np[k] = p[k];
+      np.num = num; np.captain = false;
+      SQ_DEMO_PLAYERS.push(np);
+      return np.id;
+    },
+    // Repaint this team's own squad views after its roster changes. Additive —
+    // nothing in the existing engine calls it, so no current behaviour moves.
+    refreshRoster: function () {
+      try {
+        var pg = document.getElementById('pg-squad'); if (!pg) return;
+        var tb = pg.querySelector('#sq-lineup-tbody');
+        if (tb) tb.innerHTML = _sqLineupRows(_sqFirstCtx());
+        var dash = pg.querySelector('#sq-lu-dash');
+        if (dash) dash.innerHTML = _sqLuDash(_sqFirstCtx());
+      } catch (e) {}
+    },
     reportName: 'My Team',
     benchLabel: 'My Team',
     formSelAttr: '',
@@ -46044,6 +46081,24 @@ function _atTeamCfg(id) {
     youthBadgeAge: 0,              // every player here is a youth player
     hasOppRatings: false,          // a configured opponent shape, not a scouted squad
     hasOppSquad: false,
+    // Recruitment, declared exactly as the First Team declares it. The ages are
+    // this stage's own range, and a signing is written into this age group's
+    // isolated player store — never into another group's, never into a global.
+    signingAgeRange: _atStageRange(id),
+    signPlayer: function (p) {
+      var pid = 'atp' + Date.now() + Math.floor(Math.random() * 1000);
+      _atOverlay(id)[pid] = { __new: true, info: {
+        name: p.name, pos: p.pos, secondary: p.secondary, foot: p.foot, age: p.age,
+        nationality: p.nationality || p.natName, number: p.num,
+        height: p.heightCm || undefined, weight: p.weight || undefined,
+        overall: p.qual, devScore: p.qual, form: p.form, morale: p.morale
+      } };
+      _atSave();
+      return pid;
+    },
+    refreshRoster: function () {
+      try { if (AT.active === id && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage(); } catch (e) {}
+    },
     showTeamChip: true,
     reportName: name, benchLabel: name, viewLabel: 'Age-group view',
     formSelAttr: ' data-at-formsel="1"',
@@ -46980,3 +47035,1636 @@ if (typeof document !== 'undefined' && !window._atBound) {
     }
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFERS — the club's recruitment workspace
+// ─────────────────────────────────────────────────────────────────────────────
+// Transfers is NOT a second football engine. It owns exactly one thing: the
+// transfer-specific record of a player who is not yet ours — what he is listed
+// for, who is bidding, when the listing closes, whether he has been scouted or
+// shortlisted, and why the assistant is recommending him.
+//
+// Everything else is borrowed from the shared engine:
+//   • the player shape is the shape the squad already stores, so a signed
+//     player needs no translation and no second representation;
+//   • attributes come from _sqSkillGroups / _sqSkillVal — the one attribute
+//     model in the app;
+//   • the destination squad, its shape, its configuration and its roster all
+//     come from a TeamContext, never from a First Team global.
+//
+// No function below asks WHICH team it is working with. It asks the context
+// what that team declares: `signingAgeRange` for who may be signed, `roster`
+// and `formationSlots` for what the squad needs, `signPlayer` for how a
+// signing reaches the roster. Adding another eligible team is a registry entry.
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _tfEsc(s) { return (typeof _esc === 'function') ? _esc(s) : String(s == null ? '' : s); }
+function _tfToast(m, k) { try { if (typeof showToast === 'function') showToast(m, k || 'info'); } catch (_) {} }
+
+// ── deterministic pseudo-randomness ──────────────────────────────────────────
+// A listing generated from the same seed is the same listing every render, so
+// the market does not reshuffle under the manager's cursor.
+function _tfHash(s) {
+  var h = 2166136261, i; s = String(s);
+  for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = (h * 16777619) >>> 0; }
+  return h >>> 0;
+}
+function _tfRnd(seed, key) { return (_tfHash(seed + '|' + key) % 100000) / 100000; }
+function _tfInt(seed, key, min, max) { return min + Math.floor(_tfRnd(seed, key) * (max - min + 1)); }
+function _tfPick(seed, key, arr) { return arr[Math.floor(_tfRnd(seed, key) * arr.length) % arr.length]; }
+
+function _tfMoney(v) {
+  if (v == null || isNaN(v)) return '—';
+  var a = Math.abs(v), s = v < 0 ? '-' : '';
+  if (a >= 1000000) return s + '€' + (a / 1000000).toFixed(a >= 10000000 ? 1 : 2).replace(/\.0+$/, '') + 'M';
+  if (a >= 1000) return s + '€' + Math.round(a / 1000) + 'k';
+  return s + '€' + Math.round(a);
+}
+function _tfClock(ms) {
+  if (ms == null) return '—';
+  var t = Math.max(0, Math.round(ms / 1000));
+  var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  var p2 = function (n) { return n < 10 ? '0' + n : String(n); };
+  return h > 0 ? h + ':' + p2(m) + ':' + p2(s) : p2(m) + ':' + p2(s);
+}
+
+// ── football vocabulary ──────────────────────────────────────────────────────
+// The canonical position set the pitch already speaks. Position badges and the
+// position filter are both built from this table — nothing is hard-coded to a
+// particular combination of positions.
+var TF_POSITIONS = [
+  { p: 'GK',  cat: 'gk', near: [] },
+  { p: 'RB',  cat: 'df', near: ['RWB', 'CB', 'RM'] },
+  { p: 'CB',  cat: 'df', near: ['LB', 'RB', 'DM'] },
+  { p: 'LB',  cat: 'df', near: ['LWB', 'CB', 'LM'] },
+  { p: 'RWB', cat: 'df', near: ['RB', 'RM', 'RW'] },
+  { p: 'LWB', cat: 'df', near: ['LB', 'LM', 'LW'] },
+  { p: 'DM',  cat: 'mf', near: ['CM', 'CB'] },
+  { p: 'CM',  cat: 'mf', near: ['DM', 'AM', 'RM', 'LM'] },
+  { p: 'AM',  cat: 'mf', near: ['CM', 'RW', 'LW', 'ST'] },
+  { p: 'RM',  cat: 'mf', near: ['RW', 'CM', 'RB'] },
+  { p: 'LM',  cat: 'mf', near: ['LW', 'CM', 'LB'] },
+  { p: 'RW',  cat: 'fw', near: ['RM', 'AM', 'ST'] },
+  { p: 'LW',  cat: 'fw', near: ['LM', 'AM', 'ST'] },
+  { p: 'ST',  cat: 'fw', near: ['AM', 'RW', 'LW'] }
+];
+function _tfPosDef(p) { for (var i = 0; i < TF_POSITIONS.length; i++) if (TF_POSITIONS[i].p === p) return TF_POSITIONS[i]; return null; }
+// Position → pitch category, tolerant of every spelling the app uses (CDM/CAM
+// from the Academy, DM/AM from the pitch, CF/SS from a listing).
+function _tfCat(pos) {
+  var d = _tfPosDef(pos); if (d) return d.cat;
+  pos = String(pos || '').toUpperCase();
+  if (pos === 'GK') return 'gk';
+  if (/^(CB|RB|LB|RWB|LWB|SW|LCB|RCB)$/.test(pos)) return 'df';
+  if (/^(CDM|CAM|CM|DM|AM|RM|LM|LCM|RCM)$/.test(pos)) return 'mf';
+  return 'fw';
+}
+var TF_PLAYSTYLES = {
+  gk: ['Sweeper Keeper', 'Shot Stopper', 'Ball-Playing Keeper'],
+  df: ['Ball-Playing Defender', 'No-Nonsense Defender', 'Overlapping Full-Back', 'Inverted Full-Back', 'Libero', 'Stopper'],
+  mf: ['Deep-Lying Playmaker', 'Box-to-Box', 'Anchor', 'Advanced Playmaker', 'Mezzala', 'Ball-Winner', 'Roaming Playmaker'],
+  fw: ['Inside Forward', 'Poacher', 'Target Man', 'Pressing Forward', 'False Nine', 'Inverted Winger', 'Complete Forward']
+};
+var TF_ABILITIES = {
+  gk: ['Reflex Save', 'Distribution Master', 'Penalty Stopper', 'Commanding Presence'],
+  df: ['Aerial Threat', 'Interceptor', 'Line-Breaking Pass', 'Last-Ditch Tackle', 'Wall'],
+  mf: ['Playmaking Vision', 'Engine', 'Long Shots', 'Set-Piece Specialist', 'Pressing Trigger', 'Two-Footed'],
+  fw: ['Clinical Finisher', 'Rapid', 'Dribble King', 'Aerial Threat', 'Free-Kick Master', 'Acrobatic']
+};
+var TF_NATIONS = [
+  ['Argentina', 'ARG', '🇦🇷'], ['Brazil', 'BRA', '🇧🇷'], ['France', 'FRA', '🇫🇷'], ['Spain', 'ESP', '🇪🇸'],
+  ['Portugal', 'POR', '🇵🇹'], ['Germany', 'GER', '🇩🇪'], ['Italy', 'ITA', '🇮🇹'], ['England', 'ENG', '🏴󠁧󠁢󠁥󠁮󠁧󠁿'],
+  ['Netherlands', 'NED', '🇳🇱'], ['Belgium', 'BEL', '🇧🇪'], ['Croatia', 'CRO', '🇭🇷'], ['Serbia', 'SRB', '🇷🇸'],
+  ['Denmark', 'DEN', '🇩🇰'], ['Sweden', 'SWE', '🇸🇪'], ['Norway', 'NOR', '🇳🇴'], ['Japan', 'JPN', '🇯🇵'],
+  ['Korea Republic', 'KOR', '🇰🇷'], ['Morocco', 'MAR', '🇲🇦'], ['Senegal', 'SEN', '🇸🇳'], ['Nigeria', 'NGA', '🇳🇬'],
+  ['Ghana', 'GHA', '🇬🇭'], ['Algeria', 'ALG', '🇩🇿'], ['Egypt', 'EGY', '🇪🇬'], ['Ivory Coast', 'CIV', '🇨🇮'],
+  ['Mexico', 'MEX', '🇲🇽'], ['Colombia', 'COL', '🇨🇴'], ['Uruguay', 'URU', '🇺🇾'], ['Chile', 'CHI', '🇨🇱'],
+  ['USA', 'USA', '🇺🇸'], ['Turkey', 'TUR', '🇹🇷'], ['Poland', 'POL', '🇵🇱'], ['Austria', 'AUT', '🇦🇹'],
+  ['Switzerland', 'SUI', '🇨🇭'], ['Ukraine', 'UKR', '🇺🇦'], ['Finland', 'FIN', '🇫🇮'], ['South Africa', 'RSA', '🇿🇦']
+];
+var TF_FIRST = ['Mateo', 'Luca', 'Noah', 'Elias', 'Ibrahim', 'Yusuf', 'Andrés', 'Diogo', 'Tomás', 'Rafael', 'Kai',
+  'Jonas', 'Emil', 'Nikola', 'Stefan', 'Adama', 'Ousmane', 'Cheikh', 'Hugo', 'Théo', 'Enzo', 'Marco', 'Davide',
+  'Leandro', 'Facundo', 'Bruno', 'Vitor', 'Kenji', 'Sota', 'Min-Jae', 'Ayrton', 'Milan', 'Viktor', 'Anton',
+  'Ruben', 'Sander', 'Finn', 'Oliver', 'Malik', 'Karim', 'Zaid', 'Amine', 'Samuel', 'Gabriel', 'Joaquín', 'Iker'];
+var TF_LAST = ['Moreno', 'Ferreira', 'Da Silva', 'Okafor', 'Diallo', 'Traoré', 'Benali', 'Haddad', 'Nakamura',
+  'Kovač', 'Petrović', 'Novak', 'Lindqvist', 'Bergström', 'Van Dijk', 'De Vries', 'Janssen', 'Lefevre', 'Marchand',
+  'Rossi', 'Colombo', 'Ricci', 'Oliveira', 'Carvalho', 'Nogueira', 'Ramírez', 'Cabrera', 'Villalba', 'Ortega',
+  'Schneider', 'Brenner', 'Wagner', 'Hoffmann', 'Kowalski', 'Nowak', 'Melnyk', 'Bondarenko', 'Yildiz', 'Demir',
+  'Mensah', 'Asante', 'Adeyemi', 'Bakayoko', 'Sarr', 'Ndiaye', 'Whitmore', 'Ashcroft', 'Calder', 'Ellison'];
+var TF_CLUBS = ['Northgate United', 'Real Verano', 'AC Meridiano', 'Sporting Aurora', 'FC Nordvik',
+  'Atlético Camino', 'Union Hafen', 'Olympique Vallée', 'Riverport FC', 'Dínamo Sul', 'Fortuna Kreis',
+  'Cascade Rovers', 'SK Vysoká', 'Deportivo Cielo', 'Panthera FC', 'Estrela Norte'];
+
+// ── the transfer record ──────────────────────────────────────────────────────
+// A listing carries a complete squad-shaped player (so it can be signed without
+// translation) plus the fields that only exist while he is on the market.
+function _tfMakePlayer(seed, opts) {
+  opts = opts || {};
+  var posDef = opts.posDef || _tfPick(seed, 'pos', TF_POSITIONS);
+  var pos = posDef.p, cat = posDef.cat;
+  // Secondary positions come from the position's own neighbours, so any
+  // combination the pitch allows can appear — none are written out by hand.
+  var nSec = _tfInt(seed, 'nsec', 0, Math.min(2, posDef.near.length));
+  var extra = [], pool = posDef.near.slice(), i;
+  for (i = 0; i < nSec && pool.length; i++) {
+    var k = Math.floor(_tfRnd(seed, 'sec' + i) * pool.length) % pool.length;
+    extra.push(pool[k]); pool.splice(k, 1);
+  }
+  var positions = [pos].concat(extra);
+  var nat = _tfPick(seed, 'nat', TF_NATIONS);
+  var age = opts.age != null ? opts.age : _tfInt(seed, 'age', 17, 33);
+  var qual = opts.qual != null ? opts.qual : _tfInt(seed, 'qual', 62, 90);
+  var heightCm = cat === 'gk' ? _tfInt(seed, 'h', 186, 199)
+    : cat === 'df' ? _tfInt(seed, 'h', 178, 195)
+      : cat === 'mf' ? _tfInt(seed, 'h', 170, 187) : _tfInt(seed, 'h', 172, 192);
+  // Market value follows quality steeply and age gently — the same shape the
+  // rest of the app prices a player with.
+  var base = Math.pow(Math.max(1, qual - 52) / 10, 3.05) * 640000;
+  var ageF = age <= 21 ? 1.32 : age <= 25 ? 1.15 : age <= 28 ? 1 : age <= 31 ? 0.66 : 0.4;
+  var mv = Math.max(180000, Math.round(base * ageF * (0.82 + _tfRnd(seed, 'mv') * 0.4) / 10000) * 10000);
+  return {
+    // ── squad-shaped: identical field names to the roster the club already has
+    id: opts.id || ('tf-' + _tfHash(seed).toString(36)),
+    name: _tfPick(seed, 'fn', TF_FIRST) + ' ' + _tfPick(seed, 'ln', TF_LAST),
+    pos: pos, cat: cat, num: _tfInt(seed, 'num', 2, 45),
+    roles: extra.length ? extra.join(' · ') : pos,
+    nat: nat[2], natCode: nat[1], natName: nat[0],
+    age: age, qual: qual, form: _tfInt(seed, 'form', 4, 9), cond: _tfInt(seed, 'cond', 78, 99),
+    morale: _tfPick(seed, 'mor', ['Excellent', 'Good', 'Good', 'Content']),
+    foot: _tfPick(seed, 'foot', ['Right', 'Right', 'Right', 'Left', 'Either']),
+    height: (heightCm / 100).toFixed(2) + 'm', heightCm: heightCm,
+    weight: Math.round(heightCm - 92 + _tfInt(seed, 'w', -4, 6)),
+    value: _tfMoney(mv),
+    // ── transfer-specific: exists only while he is not ours
+    positions: positions,
+    playstyle: _tfPick(seed, 'ps', TF_PLAYSTYLES[cat]),
+    special: _tfPick(seed, 'ab', TF_ABILITIES[cat]),
+    mv: mv,
+    wage: Math.max(24000, Math.round(mv * (qual >= 85 ? 0.16 : qual >= 76 ? 0.13 : 0.1) / 5000) * 5000),
+    contract: _tfPick(seed, 'ct', ['Contracted to 2028', 'Contracted to 2027', 'Free agent', 'Final year', 'Loan listed']),
+    club: _tfPick(seed, 'club', TF_CLUBS),
+    seed: seed
+  };
+}
+
+// ── module state ─────────────────────────────────────────────────────────────
+// Everything a single team owns is stored under that team's context id, so a
+// shortlist, a scouting pool, a budget or a signing made for one team can never
+// be read by another.
+var _TF = {
+  tab: 'auctions',
+  teamId: null,
+  market: null,                 // the live auction market (one market, many clubs)
+  scout: {},                    // ctxId → { players, expiresAt, runs }
+  short: {},                    // ctxId → { playerId: 1 }
+  ledger: {},                   // ctxId → { committed, spent, credits, signings: [] }
+  detail: null,                 // { id, mode }
+  detailTab: 'overview',
+  compare: null,                // { id, squadId }
+  confirm: null,                // { kind, ... }
+  filtersOpen: false,
+  f: { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', special: 'ALL', avail: 'ALL', shortOnly: false },
+  sort: { key: 'deadline', dir: 1 },
+  clock: null
+};
+
+var TF_AUCTION_SIZE = 16;
+var TF_SCOUT_SIZE = 12;
+var TF_SCOUT_WINDOW_MS = 12 * 60 * 1000;   // a scouting pool is fresh for twelve minutes
+var TF_SEARCH_COST = 2;                    // scouting credits per manual search
+var TF_START_CREDITS = 8;
+
+// ── eligible destination teams ───────────────────────────────────────────────
+// A registry, not a branch. Each entry hands back a TeamContext built by the
+// shared engine's own factory; Transfers never builds a squad itself and never
+// asks which team it is looking at.
+function _tfTeamRegistry() {
+  var out = [];
+  try {
+    var f = _sqFirstCtx();
+    out.push({ id: f.ctxId || f.teamId || 'first-team', label: f.label, make: function () { return _sqFirstCtx(); } });
+  } catch (_) {}
+  try {
+    if (typeof AC_STAGES !== 'undefined' && typeof _atFormationCtx === 'function') {
+      AC_STAGES.forEach(function (st) {
+        if (typeof _acCanOpen === 'function' && !_acCanOpen(st.id)) return;
+        out.push({
+          id: 'academy:' + st.id,
+          label: st.label + ' · ' + st.name,
+          make: (function (sid) { return function () { return _atFormationCtx(sid); }; })(st.id)
+        });
+      });
+    }
+  } catch (_) {}
+  return out;
+}
+function _tfTeamEntry() {
+  var reg = _tfTeamRegistry();
+  if (!reg.length) return null;
+  for (var i = 0; i < reg.length; i++) if (reg[i].id === _TF.teamId) return reg[i];
+  _TF.teamId = reg[0].id;
+  return reg[0];
+}
+// The destination TeamContext. Every football question Transfers asks — roster,
+// shape, configuration, how a signing reaches the squad — is answered here.
+// Held for as long as the selected team does not change, because building a
+// context is the shared engine's work and the live clock asks once a second.
+function _tfCtx() {
+  var e = _tfTeamEntry();
+  if (!e) return (typeof _sqFirstCtx === 'function') ? _sqFirstCtx() : {};
+  if (_TF._ctx && _TF._ctxKey === e.id) return _TF._ctx;
+  var c;
+  try { c = e.make(); } catch (_) { c = _sqFirstCtx(); }
+  _TF._ctx = c; _TF._ctxKey = e.id;
+  return c;
+}
+// Anything that changes a team's roster or which team we are looking at drops
+// the held context, so the next read rebuilds it from the shared engine.
+function _tfDropCtx() { _TF._ctx = null; _TF._ctxKey = null; }
+function _tfCtxId(C) { C = C || _tfCtx(); return C.ctxId || C.teamId || 'first-team'; }
+// The ages this team is configured to sign. Declared by the context; Transfers
+// does not know or care why one team's window is 16–40 and another's is 11–13.
+function _tfAgeRange(C) {
+  var r = (C || _tfCtx()).signingAgeRange;
+  return (r && r.length === 2) ? r : [15, 40];
+}
+
+// ── transfer economy ─────────────────────────────────────────────────────────
+// Reuses the club's existing derived finance model when it has one. The club
+// P&L in Finance derives a realistic transfer headroom from squad value, wage
+// bill and cash reserve; that number is this budget. When the club has no
+// finance data loaded there is no economy to read, and a clearly-labelled DEMO
+// budget stands in so the workspace still works. Nothing here writes finance.
+function _tfLedger(C) {
+  var k = _tfCtxId(C);
+  if (!_TF.ledger[k]) _TF.ledger[k] = { committed: 0, spent: 0, credits: TF_START_CREDITS, signings: [] };
+  return _TF.ledger[k];
+}
+var TF_DEMO_BUDGET = 48000000;
+function _tfEconomy(C) {
+  C = C || _tfCtx();
+  var total = null, source = 'demo';
+  try {
+    if (typeof _fiTransferSimulation === 'function') {
+      var sim = _fiTransferSimulation();
+      var cap = sim && sim.scenarios && sim.scenarios[1] ? sim.scenarios[1].cap : 0;
+      if (cap > 0) { total = cap; source = 'club'; }
+    }
+  } catch (_) {}
+  if (total == null) total = TF_DEMO_BUDGET;
+  var L = _tfLedger(C);
+  return {
+    source: source, total: total,
+    committed: L.committed, spent: L.spent,
+    available: Math.max(0, total - L.spent - L.committed),
+    credits: L.credits
+  };
+}
+
+// ── the market ───────────────────────────────────────────────────────────────
+// One live auction market for the club. Listings are generated once per session
+// and then only change through time and bidding.
+function _tfMarket() {
+  if (_TF.market) return _TF.market;
+  var now = Date.now(), list = [], i;
+  for (i = 0; i < TF_AUCTION_SIZE; i++) {
+    var seed = 'auction:' + i;
+    // Deadlines are staggered across the session so the table always has a
+    // listing about to close and a listing with time left.
+    var secs = [70, 150, 260, 400, 560, 760, 980, 1250, 1560, 1900, 2300, 2750, 3200, 3700, 4300, 5000][i % 16];
+    var p = _tfMakePlayer(seed, { age: _tfInt(seed, 'age', 15, 33) });
+    p.listing = 'auction';
+    p.ask = Math.max(120000, Math.round(p.mv * (0.55 + _tfRnd(seed, 'ask') * 0.3) / 10000) * 10000);
+    p.bid = p.ask;
+    p.endsAt = now + secs * 1000;
+    p.bidders = [];
+    var nRivals = _tfInt(seed, 'riv', 0, 3);
+    for (var r = 0; r < nRivals; r++) {
+      p.bid = _tfNextBid(p.bid);
+      p.bidders.unshift({ club: _tfPick(seed, 'rc' + r, TF_CLUBS), amount: p.bid, at: now - (nRivals - r) * 45000, me: false });
+    }
+    p.leader = p.bidders.length ? p.bidders[0].club : null;
+    list.push(p);
+  }
+  _TF.market = list;
+  list.forEach(function (p) { p.__st = _tfAucState(p); });
+  return list;
+}
+// The next legal offer. A step, not a free number — every bidder raises by the
+// same rule so "next offer" is unambiguous.
+function _tfNextBid(cur) {
+  var step = cur >= 20000000 ? 1000000 : cur >= 5000000 ? 250000 : cur >= 1000000 ? 100000 : 25000;
+  return Math.round((cur + step) / step) * step;
+}
+function _tfAucState(p) {
+  var left = p.endsAt - Date.now();
+  if (left <= 0) {
+    if (p.leader === '__me__') return 'WON';
+    return p.bidders.some(function (b) { return b.me; }) ? 'LOST' : 'ENDED';
+  }
+  if (left <= 60000) return 'ENDING SOON';
+  return p.bidders.length ? 'ACTIVE' : 'AVAILABLE';
+}
+function _tfMyLead(p) { return p.leader === '__me__'; }
+function _tfLeaderName(p, C) {
+  if (!p.leader) return null;
+  return p.leader === '__me__' ? ((C || _tfCtx()).label || 'Our club') : p.leader;
+}
+
+// ── scouting network ─────────────────────────────────────────────────────────
+// A pool of players the club's scouts have found for THIS team, inside the age
+// window that team declares. Its own pool, its own countdown, per context.
+function _tfScoutPool(C) {
+  C = C || _tfCtx();
+  var k = _tfCtxId(C);
+  if (!_TF.scout[k]) _tfScoutGenerate(C, 0);
+  return _TF.scout[k];
+}
+function _tfScoutGenerate(C, run) {
+  C = C || _tfCtx();
+  var k = _tfCtxId(C), rng = _tfAgeRange(C), players = [], i;
+  for (i = 0; i < TF_SCOUT_SIZE; i++) {
+    var seed = 'scout:' + k + ':' + run + ':' + i;
+    var age = _tfInt(seed, 'age', rng[0], rng[1]);
+    var p = _tfMakePlayer(seed, { age: age });
+    p.listing = 'scout';
+    // What the scouting network asks to bring him in: his value, discounted
+    // for the work the scouts have already done.
+    p.fee = Math.max(80000, Math.round(p.mv * (0.62 + _tfRnd(seed, 'fee') * 0.26) / 10000) * 10000);
+    p.avail = _tfPick(seed, 'av', ['Available now', 'Available now', 'Negotiating', 'Contract talks', 'Available now']);
+    p.scoutRating = _tfInt(seed, 'sr', 2, 5);
+    players.push(p);
+  }
+  _TF.scout[k] = { players: players, expiresAt: Date.now() + TF_SCOUT_WINDOW_MS, runs: run };
+  return _TF.scout[k];
+}
+function _tfScoutExpired(C) { var s = _tfScoutPool(C); return (s.expiresAt - Date.now()) <= 0; }
+// A refresh is free once the pool has expired; before that it costs the club
+// scouting resource.
+function _tfSearchCost(C) { return _tfScoutExpired(C) ? 0 : TF_SEARCH_COST; }
+
+// ── shortlist ────────────────────────────────────────────────────────────────
+function _tfShort(C) { var k = _tfCtxId(C); if (!_TF.short[k]) _TF.short[k] = {}; return _TF.short[k]; }
+function _tfIsShort(id, C) { return !!_tfShort(C)[id]; }
+function _tfToggleShort(id, C) {
+  var s = _tfShort(C);
+  if (s[id]) { delete s[id]; _tfToast('Removed from shortlist', 'info'); }
+  else { s[id] = 1; _tfToast('Added to shortlist', 'success'); }
+}
+
+// ── one place to find any listed player ──────────────────────────────────────
+function _tfFind(id, C) {
+  var m = _tfMarket(), i;
+  for (i = 0; i < m.length; i++) if (m[i].id === id) return m[i];
+  var s = _tfScoutPool(C).players;
+  for (i = 0; i < s.length; i++) if (s[i].id === id) return s[i];
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SQUAD ANALYSIS — read entirely from the destination TeamContext
+// ══════════════════════════════════════════════════════════════════════════════
+// What the squad is: how many natural players it has per position, how strong
+// they are, how old, and what shape the team is configured to field. Every
+// answer comes from the context handed in.
+function _tfSquadProfile(C) {
+  C = C || _tfCtx();
+  var roster = (C.comparePool && C.comparePool.length ? C.comparePool : (C.roster || [])) || [];
+  var byPos = {}, byCat = { gk: [], df: [], mf: [], fw: [] }, ages = [], quals = [];
+  roster.forEach(function (p) {
+    var pos = String(p.pos || '').toUpperCase();
+    (byPos[pos] = byPos[pos] || []).push(p);
+    var c = p.cat || _tfCat(pos);
+    if (byCat[c]) byCat[c].push(p);
+    if (p.age != null) ages.push(p.age);
+    if (p.qual != null) quals.push(p.qual);
+  });
+  // What the shape asks for. The context declares its formation slots; the
+  // roles in those slots are the positions this team actually needs filled.
+  var need = {};
+  try {
+    (C.formationSlots || []).forEach(function (sl) {
+      var r = String(sl.r || sl.role || '').toUpperCase().replace(/^[LR]C/, 'C');
+      var canon = r === 'CDM' ? 'DM' : r === 'CAM' ? 'AM' : r === 'CF' ? 'ST' : r.replace(/^[LR](CB|CM)$/, '$1');
+      if (canon) need[canon] = (need[canon] || 0) + 1;
+    });
+  } catch (_) {}
+  var avgAge = ages.length ? ages.reduce(function (a, b) { return a + b; }, 0) / ages.length : 0;
+  var avgQual = quals.length ? quals.reduce(function (a, b) { return a + b; }, 0) / quals.length : 0;
+  return { roster: roster, byPos: byPos, byCat: byCat, need: need, size: roster.length,
+    avgAge: Math.round(avgAge * 10) / 10, avgQual: Math.round(avgQual) };
+}
+// Natural cover for a position, counting a player's own position first and a
+// neighbouring position as partial cover.
+function _tfCover(prof, pos) {
+  var exact = (prof.byPos[pos] || []).length;
+  var d = _tfPosDef(pos), partial = 0;
+  if (d) d.near.forEach(function (n) { partial += (prof.byPos[n] || []).length * 0.5; });
+  return exact + partial;
+}
+function _tfBestAt(prof, pos) {
+  var list = prof.byPos[pos] || [], best = 0;
+  list.forEach(function (p) { if ((p.qual || 0) > best) best = p.qual || 0; });
+  return best;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ASSISTANT — why this player, for THIS squad
+// ══════════════════════════════════════════════════════════════════════════════
+// Every reason is a number derived from the destination context. Nothing here
+// is random: run it twice on the same squad and it recommends the same three.
+function _tfReasons(p, C, prof) {
+  C = C || _tfCtx(); prof = prof || _tfSquadProfile(C);
+  var out = [], pos = p.pos;
+  var needed = prof.need[pos] || 0;              // slots the current shape starts here
+  var exact = (prof.byPos[pos] || []).length;    // players whose own position this is
+  var cover = _tfCover(prof, pos);               // those, plus half-credit from neighbours
+  var r1 = function (n) { return Math.round(n * 10) / 10; };
+
+  // SQUAD NEED — the shape calls for this position and the squad is short of it.
+  // A position the current shape never starts is not a need, however thin the
+  // squad is there; that is what Squad Balance is for.
+  var needScore, needWhy;
+  if (!needed) {
+    needScore = 16;
+    needWhy = 'The current shape does not start a ' + pos + '.';
+  } else if (!exact) {
+    needScore = 96;
+    needWhy = 'The shape starts ' + needed + ' at ' + pos + ' and the squad has no natural one.';
+  } else {
+    needScore = Math.max(10, Math.min(94, Math.round(50 + ((needed + 0.75) - cover) / needed * 55)));
+    needWhy = 'The shape starts ' + needed + ' at ' + pos + '; cover stands at ' + r1(cover) + '.';
+  }
+  out.push({ k: 'Squad Need', v: needScore, why: needWhy });
+
+  // POSITION DEPTH — how thin the squad is behind the first choice, counting
+  // the players who can actually stand in as well as the natural ones.
+  out.push({ k: 'Position Depth', v: Math.max(8, Math.min(100, Math.round(100 - cover * 22))),
+    why: !exact
+      ? (cover ? 'No natural ' + pos + ' — ' + r1(cover) + ' of cover from neighbouring positions.' : 'Nobody in the squad plays there.')
+      : exact === 1 ? 'One natural ' + pos + ' — no cover for injury or suspension.'
+        : exact + ' natural ' + pos + ' already in the squad.' });
+
+  // UPGRADE POTENTIAL — is he better than what the squad already has there?
+  var best = _tfBestAt(prof, pos);
+  var gap = best ? p.qual - best : p.qual - prof.avgQual;
+  out.push({ k: 'Upgrade Potential', v: Math.max(5, Math.min(100, Math.round(52 + gap * 6))),
+    why: best ? (gap > 0 ? 'OVR ' + p.qual + ' against the squad\'s best ' + pos + ' on ' + best + '.'
+      : 'Behind the squad\'s best ' + pos + ' (' + best + ').')
+      : 'OVR ' + p.qual + ' against a squad average of ' + prof.avgQual + '.' });
+
+  // FORMATION FIT — does a slot in the shape this team plays match him?
+  var slotFit = needed > 0 ? 100 : 0;
+  if (!slotFit) {
+    p.positions.forEach(function (sp) { if (prof.need[sp]) slotFit = Math.max(slotFit, 72); });
+    if (!slotFit) slotFit = 34;
+  }
+  out.push({ k: 'Formation Fit', v: slotFit,
+    why: needed > 0 ? 'The current shape starts ' + needed + ' at ' + pos + '.'
+      : slotFit > 40 ? 'Covers a slot the shape starts through a second position.'
+        : 'The current shape does not start a ' + pos + '.' });
+
+  // AGE PROFILE — measured against what this team declares as youth, so an age
+  // group and a senior squad read the same rule and reach different answers.
+  var youth = C.youthBadgeAge != null ? C.youthBadgeAge : 21;
+  var rng = _tfAgeRange(C);
+  var mid = (rng[0] + rng[1]) / 2;
+  var ageScore = Math.max(6, Math.min(100, Math.round(100 - Math.abs(p.age - Math.min(mid, youth + 2)) * 9)));
+  out.push({ k: 'Age Profile', v: ageScore,
+    why: prof.avgAge ? p.age + ' against a squad average of ' + prof.avgAge + '.' : p.age + ' years old.' });
+
+  // ROLE FIT — his playstyle against the demands of the position.
+  var roleScore = Math.max(20, Math.min(100, Math.round(46 + (p.qual - 62) * 1.6 + (p.form - 5) * 4)));
+  out.push({ k: 'Role Fit', v: roleScore, why: p.playstyle + ' at ' + p.positions.join(' / ') + '.' });
+
+  // SQUAD BALANCE — is this line of the pitch the thinnest one?
+  var counts = ['gk', 'df', 'mf', 'fw'].map(function (c) { return prof.byCat[c].length; });
+  var thinnest = Math.min.apply(null, counts);
+  var mine = prof.byCat[p.cat].length;
+  out.push({ k: 'Squad Balance', v: Math.max(15, Math.min(100, Math.round(100 - (mine - thinnest) * 16))),
+    why: mine + ' players in this line of the pitch (thinnest line has ' + thinnest + ').' });
+
+  return out;
+}
+var TF_REASON_W = { 'Squad Need': 0.27, 'Position Depth': 0.14, 'Upgrade Potential': 0.19,
+  'Formation Fit': 0.15, 'Age Profile': 0.14, 'Role Fit': 0.06, 'Squad Balance': 0.05 };
+function _tfScore(p, C, prof) {
+  var rs = _tfReasons(p, C, prof), s = 0;
+  rs.forEach(function (r) { s += r.v * (TF_REASON_W[r.k] || 0); });
+  return { score: Math.round(s), reasons: rs };
+}
+// The assistant recommends three players, not a market. It looks at everything
+// the club can currently reach — the live auctions and its own scouting pool —
+// filtered to whom this team may sign and what it can afford.
+function _tfRecommendations(C) {
+  C = C || _tfCtx();
+  var prof = _tfSquadProfile(C), eco = _tfEconomy(C), rng = _tfAgeRange(C);
+  var pool = _tfMarket().filter(function (p) { return _tfAucState(p) !== 'ENDED' && _tfAucState(p) !== 'LOST'; })
+    .concat(_tfScoutPool(C).players);
+  var seen = {};
+  var scored = pool.filter(function (p) {
+    if (seen[p.id]) return false; seen[p.id] = 1;
+    if (p.age < rng[0] || p.age > rng[1]) return false;
+    return _tfCostOf(p) <= eco.available * 1.35;      // within reach, or just beyond it
+  }).map(function (p) {
+    var s = _tfScore(p, C, prof);
+    return { p: p, score: s.score, reasons: s.reasons };
+  }).sort(function (a, b) { return b.score - a.score; });
+  // One recommendation per position, so the assistant does not offer three of
+  // the same player.
+  var out = [], used = {};
+  scored.forEach(function (r) {
+    if (out.length >= 3 || used[r.p.pos]) return;
+    used[r.p.pos] = 1; out.push(r);
+  });
+  return { list: out, profile: prof };
+}
+// Two different questions about the same player. What it costs to get INTO the
+// deal (the next offer on an auction, the quoted fee on a scouted player), and
+// what the club actually PAYS when the deal completes (the price we lead with).
+function _tfCostOf(p) { return p.listing === 'auction' ? _tfNextBid(p.bid) : (p.fee || p.mv); }
+function _tfSettleCost(p) { return p.listing === 'auction' ? p.bid : (p.fee || p.mv); }
+function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FILTERING & SORTING
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfSpecials() {
+  var seen = {}, out = [];
+  Object.keys(TF_ABILITIES).forEach(function (c) { TF_ABILITIES[c].forEach(function (a) { if (!seen[a]) { seen[a] = 1; out.push(a); } }); });
+  return out.sort();
+}
+function _tfPassFilters(p, C) {
+  var f = _TF.f, rng = _tfAgeRange(C);
+  if (p.age < rng[0] || p.age > rng[1]) return false;
+  if (f.q) {
+    var q = f.q.toLowerCase();
+    if (p.name.toLowerCase().indexOf(q) < 0 && p.natName.toLowerCase().indexOf(q) < 0) return false;
+  }
+  if (f.pos !== 'ALL' && p.positions.indexOf(f.pos) < 0) return false;
+  if (f.ageMin !== '' && p.age < +f.ageMin) return false;
+  if (f.ageMax !== '' && p.age > +f.ageMax) return false;
+  if (f.ovrMin !== '' && p.qual < +f.ovrMin) return false;
+  if (f.valMax !== '' && p.mv > +f.valMax * 1000000) return false;
+  if (f.foot !== 'ALL' && p.foot !== f.foot) return false;
+  if (f.special !== 'ALL' && p.special !== f.special) return false;
+  if (f.shortOnly && !_tfIsShort(p.id, C)) return false;
+  if (f.avail !== 'ALL') {
+    var a = p.listing === 'auction' ? _tfAucState(p) : (p.avail || '');
+    if (a !== f.avail) return false;
+  }
+  return true;
+}
+function _tfSortList(list) {
+  var k = _TF.sort.key, d = _TF.sort.dir;
+  var val = function (p) {
+    switch (k) {
+      case 'name': return p.name.toLowerCase();
+      case 'nat': return p.natName.toLowerCase();
+      case 'playstyle': return p.playstyle.toLowerCase();
+      case 'pos': return p.pos;
+      case 'age': return p.age;
+      case 'special': return p.special.toLowerCase();
+      case 'qual': return p.qual;
+      case 'mv': return p.mv;
+      case 'price': return p.listing === 'auction' ? p.bid : (p.fee || p.mv);
+      case 'deadline': return p.endsAt || 0;
+      case 'fee': return p.fee || p.mv;
+      case 'avail': return p.avail || '';
+      default: return 0;
+    }
+  };
+  return list.slice().sort(function (a, b) {
+    var x = val(a), y = val(b);
+    if (x < y) return -1 * d; if (x > y) return 1 * d; return 0;
+  });
+}
+function _tfSetSort(key) {
+  if (_TF.sort.key === key) _TF.sort.dir *= -1; else { _TF.sort.key = key; _TF.sort.dir = 1; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHARED PRESENTATION PIECES
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfAvatar(p, size) {
+  var cls = 'tf-av tf-av--' + p.cat + (size ? ' tf-av--' + size : '');
+  var ini = (typeof _sqInitials === 'function') ? _sqInitials(p.name) : String(p.name).slice(0, 2).toUpperCase();
+  return '<span class="' + cls + '"><i>' + _tfEsc(ini) + '</i></span>';
+}
+function _tfPosBadges(p) {
+  return '<span class="tf-poss">' + p.positions.map(function (x, i) {
+    return '<span class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</span>';
+  }).join('<em>/</em>') + '</span>';
+}
+function _tfNat(p) {
+  return '<span class="tf-nat"><b>' + p.nat + '</b><span>' + _tfEsc(p.natCode) + '</span></span>';
+}
+function _tfQualTone(q) { return q >= 85 ? 'elite' : q >= 78 ? 'good' : q >= 71 ? 'ok' : 'avg'; }
+function _tfQuality(q) {
+  // Quality reads twice: the number, and five pips that make two players
+  // comparable at a glance without reading either number.
+  var pips = '', filled = Math.max(1, Math.min(5, Math.round((q - 55) / 8)));
+  for (var i = 0; i < 5; i++) pips += '<i' + (i < filled ? ' class="on"' : '') + '></i>';
+  return '<span class="tf-qual tf-qual--' + _tfQualTone(q) + '"><b>' + q + '</b><span class="tf-pips">' + pips + '</span></span>';
+}
+function _tfStateChip(s) {
+  var slug = String(s).toLowerCase().replace(/\s+/g, '-');
+  return '<span class="tf-state tf-state--' + slug + '">' + _tfEsc(s) + '</span>';
+}
+function _tfClockCell(p) {
+  var left = p.endsAt - Date.now();
+  var tone = left <= 0 ? 'off' : left <= 60000 ? 'hot' : left <= 300000 ? 'warm' : '';
+  return '<span class="tf-clock ' + (tone ? 'tf-clock--' + tone : '') + '" data-tf-clock="' + _tfEsc(p.id) + '">'
+    + (left <= 0 ? 'CLOSED' : _tfClock(left)) + '</span>';
+}
+function _tfStarBtn(p, C) {
+  var on = _tfIsShort(p.id, C);
+  return '<button type="button" class="tf-star' + (on ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '" '
+    + 'title="' + (on ? 'Remove from shortlist' : 'Add to shortlist') + '" aria-label="Shortlist">'
+    + (on ? '★' : '☆') + '</button>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PAGE SHELL
+// ══════════════════════════════════════════════════════════════════════════════
+function renderTransfersHTML() {
+  if (typeof document !== 'undefined') setTimeout(function () { try { renderTransfersPage(); } catch (e) {} }, 0);
+  return '<div class="page" id="pg-transfers"><div class="tf-root" id="tf-shell"></div>'
+    + '<div class="tf-overlay-host" id="tf-overlay"></div></div>';
+}
+
+var TF_TABS = [
+  ['auctions', 'Auctions', 'Live market'],
+  ['scouting', 'Scouting', 'Scout network'],
+  ['assistant', 'Assistant', 'Recommendations']
+];
+
+function renderTransfersPage() {
+  var host = document.getElementById('tf-shell'); if (!host) return;
+  var C = _tfCtx();
+  host.innerHTML = _tfHeaderHtml(C) + '<div class="tf-body" id="tf-body">' + _tfTabHtml(C) + '</div>';
+  _tfRenderOverlay();
+  _tfStartClock();
+}
+// Re-render the tab without stealing the cursor. The live clock repaints rows
+// once a listing changes state, and a manager mid-way through typing a filter
+// must not lose the field they are in.
+function _tfRenderBody() {
+  var el = document.getElementById('tf-body'); if (!el) { renderTransfersPage(); return; }
+  var a = document.activeElement, key = null, start = null, end = null;
+  if (a && el.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) {
+    key = a.getAttribute('data-tf-f') ? 'f:' + a.getAttribute('data-tf-f')
+      : a.hasAttribute('data-tf-q') ? 'q' : null;
+    try { start = a.selectionStart; end = a.selectionEnd; } catch (_) {}
+  }
+  el.innerHTML = _tfTabHtml(_tfCtx());
+  if (key) {
+    var sel = key === 'q' ? '[data-tf-q]' : '[data-tf-f="' + key.slice(2) + '"]';
+    var next = el.querySelector(sel);
+    if (next) { try { next.focus(); if (start != null) next.setSelectionRange(start, end); } catch (_) {} }
+  }
+}
+function _tfRowsHtml(C) { return _TF.tab === 'scouting' ? _tfScoutRowsHtml(C) : _tfAuctionRowsHtml(C); }
+function _tfRepaintRows() {
+  var b = document.getElementById('tf-rows');
+  if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
+}
+function _tfTabHtml(C) {
+  if (_TF.tab === 'scouting') return _tfScoutingHtml(C);
+  if (_TF.tab === 'assistant') return _tfAssistantHtml(C);
+  return _tfAuctionsHtml(C);
+}
+
+function _tfHeaderHtml(C) {
+  var eco = _tfEconomy(C), reg = _tfTeamRegistry(), me = _tfCtxId(C);
+  var live = _tfMarket().filter(function (p) { var s = _tfAucState(p); return s === 'ACTIVE' || s === 'AVAILABLE' || s === 'ENDING SOON'; }).length;
+  var shortN = Object.keys(_tfShort(C)).length;
+  var teamSel = '<label class="tf-teamsel">'
+    + '<span>Destination</span>'
+    + '<select data-tf-team>' + reg.map(function (t) {
+      return '<option value="' + _tfEsc(t.id) + '"' + (t.id === me ? ' selected' : '') + '>' + _tfEsc(t.label) + '</option>';
+    }).join('') + '</select></label>';
+  var tabs = TF_TABS.map(function (t) {
+    return '<button type="button" class="tf-tab' + (_TF.tab === t[0] ? ' is-on' : '') + '" data-tf-tab="' + t[0] + '">'
+      + '<b>' + t[1] + '</b><span>' + t[2] + '</span></button>';
+  }).join('');
+  return '<header class="tf-head">'
+    + '<div class="tf-head-top">'
+    +   '<div class="tf-title">'
+    +     '<div class="tf-title-mark"><svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M8 5a1 1 0 0 1 1 1v1h6.59l-1.3-1.3a1 1 0 1 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.42-1.4L15.6 9H9v1a1 1 0 0 1-2 0V6a1 1 0 0 1 1-1Zm4 10a1 1 0 0 1-1-1v-1H4.41l1.3 1.3a1 1 0 0 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 1 1 1.42 1.4L4.41 11H11v-1a1 1 0 0 1 2 0v4a1 1 0 0 1-1 1Z"/></svg></div>'
+    +     '<div><h1>Transfers</h1><p>Recruitment command centre · ' + _tfEsc(C.label || 'Team') + '</p></div>'
+    +   '</div>'
+    +   '<div class="tf-head-right">'
+    +     teamSel
+    +     '<div class="tf-money">'
+    +       '<div class="tf-money-cell"><i>Transfer budget</i><b>' + _tfMoney(eco.available) + '</b>'
+    +         '<em class="tf-src tf-src--' + eco.source + '">' + (eco.source === 'club' ? 'Club finance' : 'Demo budget') + '</em></div>'
+    +       '<div class="tf-money-cell"><i>Committed in bids</i><b>' + _tfMoney(eco.committed) + '</b></div>'
+    +       '<div class="tf-money-cell"><i>Scouting credits</i><b>' + eco.credits + '</b></div>'
+    +     '</div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="tf-head-bottom">'
+    +   '<nav class="tf-tabs">' + tabs + '</nav>'
+    +   '<div class="tf-head-stats">'
+    +     '<span class="tf-hs"><i class="tf-dot-live"></i>' + live + ' live listings</span>'
+    +     '<span class="tf-hs">' + shortN + ' shortlisted</span>'
+    +     '<span class="tf-hs">Squad ' + (_tfSquadProfile(C).size) + '</span>'
+    +   '</div>'
+    + '</div>'
+    + '</header>';
+}
+
+// ── filter surface (collapsible, shared by Auctions and Scouting) ────────────
+function _tfFiltersHtml(C) {
+  var f = _TF.f;
+  var posOpts = ['ALL'].concat(TF_POSITIONS.map(function (x) { return x.p; }));
+  var availOpts = _TF.tab === 'auctions'
+    ? ['ALL', 'AVAILABLE', 'ACTIVE', 'ENDING SOON', 'ENDED', 'WON', 'LOST']
+    : ['ALL', 'Available now', 'Negotiating', 'Contract talks'];
+  var sel = function (name, opts, cur, labels) {
+    return '<select data-tf-f="' + name + '">' + opts.map(function (o) {
+      return '<option value="' + _tfEsc(o) + '"' + (String(cur) === String(o) ? ' selected' : '') + '>'
+        + _tfEsc(labels && labels[o] ? labels[o] : o) + '</option>';
+    }).join('') + '</select>';
+  };
+  var n = 0;
+  ['pos', 'foot', 'special', 'avail'].forEach(function (k) { if (f[k] !== 'ALL') n++; });
+  ['ageMin', 'ageMax', 'ovrMin', 'valMax'].forEach(function (k) { if (f[k] !== '') n++; });
+  if (f.shortOnly) n++;
+  return '<div class="tf-filters' + (_TF.filtersOpen ? ' is-open' : '') + '">'
+    + '<div class="tf-filters-bar">'
+    +   '<div class="tf-search">'
+    +     '<svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.82l3.14 3.13a1 1 0 0 0 1.42-1.42l-3.14-3.13A5.5 5.5 0 0 0 9 3.5Zm-3.5 5.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Z" clip-rule="evenodd"/></svg>'
+    +     '<input type="text" placeholder="Search player or nationality" value="' + _tfEsc(f.q) + '" data-tf-q autocomplete="off" spellcheck="false">'
+    +   '</div>'
+    +   '<button type="button" class="tf-chip-btn' + (f.shortOnly ? ' is-on' : '') + '" data-tf-shortonly>★ Shortlisted</button>'
+    +   '<button type="button" class="tf-chip-btn' + (_TF.filtersOpen ? ' is-on' : '') + '" data-tf-filters>'
+    +     'Filters' + (n ? ' <em>' + n + '</em>' : '') + '</button>'
+    +   (n ? '<button type="button" class="tf-chip-btn tf-chip-btn--ghost" data-tf-clearf>Clear</button>' : '')
+    + '</div>'
+    + '<div class="tf-filters-grid">'
+    +   '<label><span>Position</span>' + sel('pos', posOpts, f.pos, { ALL: 'Any position' }) + '</label>'
+    +   '<label><span>Age from</span><input type="number" min="10" max="45" value="' + _tfEsc(f.ageMin) + '" data-tf-f="ageMin" placeholder="Any"></label>'
+    +   '<label><span>Age to</span><input type="number" min="10" max="45" value="' + _tfEsc(f.ageMax) + '" data-tf-f="ageMax" placeholder="Any"></label>'
+    +   '<label><span>Min OVR</span><input type="number" min="40" max="99" value="' + _tfEsc(f.ovrMin) + '" data-tf-f="ovrMin" placeholder="Any"></label>'
+    +   '<label><span>Max value (€M)</span><input type="number" min="0" step="0.5" value="' + _tfEsc(f.valMax) + '" data-tf-f="valMax" placeholder="Any"></label>'
+    +   '<label><span>Preferred foot</span>' + sel('foot', ['ALL', 'Right', 'Left', 'Either'], f.foot, { ALL: 'Any foot' }) + '</label>'
+    +   '<label><span>Special ability</span>' + sel('special', ['ALL'].concat(_tfSpecials()), f.special, { ALL: 'Any ability' }) + '</label>'
+    +   '<label><span>Availability</span>' + sel('avail', availOpts, f.avail, { ALL: 'Any state' }) + '</label>'
+    + '</div>'
+    + '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUCTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+var TF_AUC_COLS = [
+  ['name', 'Player', 'tf-c-player'],
+  ['nat', 'Nationality', 'tf-c-nat'],
+  ['playstyle', 'Playstyle', 'tf-c-style'],
+  ['pos', 'Positions', 'tf-c-pos'],
+  ['age', 'Age', 'tf-c-num'],
+  ['special', 'Special ability', 'tf-c-special'],
+  ['qual', 'Quality', 'tf-c-qual'],
+  ['mv', 'Market value', 'tf-c-money'],
+  ['price', 'Current price', 'tf-c-money'],
+  ['deadline', 'Deadline', 'tf-c-dl']
+];
+function _tfAuctionsHtml(C) {
+  return '<div class="tf-pane">'
+    + _tfFiltersHtml(C)
+    + '<div class="tf-tablewrap">'
+    +   '<table class="tf-table"><thead><tr>'
+    +     '<th class="tf-c-star"></th>'
+    +     TF_AUC_COLS.map(function (c) {
+      var on = _TF.sort.key === c[0];
+      return '<th class="' + c[2] + (on ? ' is-sorted' : '') + '"><button type="button" data-tf-sort="' + c[0] + '">'
+        + _tfEsc(c[1]) + '<i>' + (on ? (_TF.sort.dir > 0 ? '▲' : '▼') : '') + '</i></button></th>';
+    }).join('')
+    +     '<th class="tf-c-act"></th>'
+    +   '</tr></thead><tbody id="tf-rows">' + _tfAuctionRowsHtml(C) + '</tbody></table>'
+    + '</div></div>';
+}
+function _tfAuctionRowsHtml(C) {
+  var list = _tfSortList(_tfMarket().filter(function (p) { return _tfPassFilters(p, C); }));
+  if (!list.length) return '<tr class="tf-empty"><td colspan="12">No listing matches these filters.</td></tr>';
+  return list.map(function (p) {
+    var st = _tfAucState(p), mine = _tfMyLead(p);
+    return '<tr class="tf-row' + (mine ? ' is-mine' : '') + '" data-tf-open="' + _tfEsc(p.id) + '">'
+      + '<td class="tf-c-star">' + _tfStarBtn(p, C) + '</td>'
+      + '<td class="tf-c-player"><span class="tf-pl" title="' + _tfEsc(p.name) + '">' + _tfAvatar(p) + '<span class="tf-pl-t"><b>' + _tfEsc(p.name) + '</b>'
+      +   '<em>' + _tfEsc(p.club) + '</em></span></span></td>'
+      + '<td class="tf-c-nat">' + _tfNat(p) + '</td>'
+      + '<td class="tf-c-style"><span class="tf-style" title="' + _tfEsc(p.playstyle) + '">' + _tfEsc(p.playstyle) + '</span></td>'
+      + '<td class="tf-c-pos">' + _tfPosBadges(p) + '</td>'
+      + '<td class="tf-c-num">' + p.age + '</td>'
+      + '<td class="tf-c-special"><span class="tf-ability" title="' + _tfEsc(p.special) + '">' + _tfEsc(p.special) + '</span></td>'
+      + '<td class="tf-c-qual">' + _tfQuality(p.qual) + '</td>'
+      + '<td class="tf-c-money">' + _tfMoney(p.mv) + '</td>'
+      + '<td class="tf-c-money"><b class="tf-price">' + _tfMoney(p.bid) + '</b>'
+      +   '<em class="tf-price-sub">' + (p.bidders.length ? p.bidders.length + ' bidder' + (p.bidders.length > 1 ? 's' : '') : 'no bids') + '</em></td>'
+      + '<td class="tf-c-dl">' + _tfClockCell(p) + _tfStateChip(st) + '</td>'
+      + '<td class="tf-c-act"><span class="tf-go">›</span></td>'
+      + '</tr>';
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SCOUTING
+// ══════════════════════════════════════════════════════════════════════════════
+var TF_SCOUT_COLS = [
+  ['name', 'Player', 'tf-c-player'],
+  ['nat', 'Nationality', 'tf-c-nat'],
+  ['playstyle', 'Playstyle', 'tf-c-style'],
+  ['pos', 'Positions', 'tf-c-pos'],
+  ['age', 'Age', 'tf-c-num'],
+  ['special', 'Special ability', 'tf-c-special'],
+  ['qual', 'Quality', 'tf-c-qual'],
+  ['mv', 'Estimated value', 'tf-c-money'],
+  ['fee', 'Signing cost', 'tf-c-money'],
+  ['avail', 'Availability', 'tf-c-avail']
+];
+function _tfScoutRowsHtml(C) {
+  var list = _tfSortList(_tfScoutPool(C).players.filter(function (p) { return _tfPassFilters(p, C); }));
+  if (!list.length) return '<tr class="tf-empty"><td colspan="12">No scouted player matches these filters.</td></tr>';
+  return list.map(function (p) {
+    return '<tr class="tf-row" data-tf-open="' + _tfEsc(p.id) + '">'
+      + '<td class="tf-c-star">' + _tfStarBtn(p, C) + '</td>'
+      + '<td class="tf-c-player"><span class="tf-pl" title="' + _tfEsc(p.name) + '">' + _tfAvatar(p) + '<span class="tf-pl-t"><b>' + _tfEsc(p.name) + '</b>'
+      +   '<em>' + _tfEsc(p.contract) + '</em></span></span></td>'
+      + '<td class="tf-c-nat">' + _tfNat(p) + '</td>'
+      + '<td class="tf-c-style"><span class="tf-style" title="' + _tfEsc(p.playstyle) + '">' + _tfEsc(p.playstyle) + '</span></td>'
+      + '<td class="tf-c-pos">' + _tfPosBadges(p) + '</td>'
+      + '<td class="tf-c-num">' + p.age + '</td>'
+      + '<td class="tf-c-special"><span class="tf-ability" title="' + _tfEsc(p.special) + '">' + _tfEsc(p.special) + '</span></td>'
+      + '<td class="tf-c-qual">' + _tfQuality(p.qual) + '</td>'
+      + '<td class="tf-c-money">' + _tfMoney(p.mv) + '</td>'
+      + '<td class="tf-c-money"><b class="tf-price">' + _tfMoney(p.fee) + '</b></td>'
+      + '<td class="tf-c-avail"><span class="tf-avail tf-avail--' + String(p.avail).split(' ')[0].toLowerCase() + '">' + _tfEsc(p.avail) + '</span></td>'
+      + '<td class="tf-c-act"><span class="tf-go">›</span></td>'
+      + '</tr>';
+  }).join('');
+}
+function _tfScoutingHtml(C) {
+  var pool = _tfScoutPool(C), eco = _tfEconomy(C);
+  var left = pool.expiresAt - Date.now();
+  var expired = left <= 0;
+  var cost = _tfSearchCost(C);
+  var panel = '<aside class="tf-scoutpanel">'
+    + '<div class="tf-sp-head"><span class="tf-sp-badge">Scouting network</span>'
+    +   '<h3>' + _tfEsc(C.label || 'Team') + '</h3>'
+    +   '<p>Players your scouts have found for this squad. The pool refreshes on its own schedule — or on demand.</p></div>'
+    + '<div class="tf-sp-timer' + (expired ? ' is-expired' : '') + '">'
+    +   '<i>' + (expired ? 'Pool expired' : 'Pool refreshes in') + '</i>'
+    +   '<b data-tf-scoutclock>' + (expired ? 'READY' : _tfClock(left)) + '</b>'
+    +   '<span class="tf-sp-bar"><em style="width:' + (expired ? 100 : Math.round(100 - Math.max(0, left) / TF_SCOUT_WINDOW_MS * 100)) + '%"></em></span>'
+    + '</div>'
+    + '<div class="tf-sp-stats">'
+    +   '<div><i>In pool</i><b>' + pool.players.length + '</b></div>'
+    +   '<div><i>Searches run</i><b>' + pool.runs + '</b></div>'
+    +   '<div><i>Credits</i><b>' + eco.credits + '</b></div>'
+    + '</div>'
+    + '<button type="button" class="tf-btn tf-btn--primary tf-btn--block" data-tf-search>'
+    +   'SEARCH NOW' + (cost ? ' · ' + cost + ' credits' : ' · free') + '</button>'
+    + '<p class="tf-sp-note">' + (expired
+      ? 'The current pool has expired — a refresh costs nothing.'
+      : 'Refreshing early costs ' + TF_SEARCH_COST + ' scouting credits. Waiting for the countdown is free.') + '</p>'
+    + '</aside>';
+
+  return '<div class="tf-pane tf-pane--split">'
+    + '<div class="tf-pane-main">'
+    +   _tfFiltersHtml(C)
+    +   '<div class="tf-tablewrap">'
+    +     '<table class="tf-table tf-table--scout"><thead><tr><th class="tf-c-star"></th>'
+    +       TF_SCOUT_COLS.map(function (c) {
+      var on = _TF.sort.key === c[0];
+      return '<th class="' + c[2] + (on ? ' is-sorted' : '') + '"><button type="button" data-tf-sort="' + c[0] + '">'
+        + _tfEsc(c[1]) + '<i>' + (on ? (_TF.sort.dir > 0 ? '▲' : '▼') : '') + '</i></button></th>';
+    }).join('')
+    +     '<th class="tf-c-act"></th></tr></thead>'
+    +     '<tbody id="tf-rows">' + _tfScoutRowsHtml(C) + '</tbody></table>'
+    +   '</div>'
+    + '</div>'
+    + panel
+    + '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ASSISTANT
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfAssistantHtml(C) {
+  var rec = _tfRecommendations(C), prof = rec.profile, eco = _tfEconomy(C);
+  if (!rec.list.length) {
+    return '<div class="tf-pane"><div class="tf-assist-empty">No player currently on the market fits this squad\'s window and budget.</div></div>';
+  }
+  // What the assistant is reading — stated openly, so a recommendation can be
+  // checked against the squad it was derived from.
+  var gaps = Object.keys(prof.need).map(function (pos) {
+    return { pos: pos, need: prof.need[pos], cover: _tfCover(prof, pos) };
+  }).filter(function (g) { return g.cover < g.need; }).sort(function (a, b) { return (a.cover - a.need) - (b.cover - b.need); });
+  var brief = '<div class="tf-brief">'
+    + '<div class="tf-brief-t"><b>Squad read</b><span>' + _tfEsc(C.label || 'Team') + ' · ' + _tfEsc(C.formation || '') + ' · '
+    +   prof.size + ' players · avg OVR ' + prof.avgQual + ' · avg age ' + prof.avgAge + '</span></div>'
+    + '<div class="tf-brief-gaps">' + (gaps.length
+      ? gaps.slice(0, 6).map(function (g) {
+        return '<span class="tf-gap"><b>' + _tfEsc(g.pos) + '</b><i>' + (Math.round(g.cover * 10) / 10) + ' / ' + g.need + '</i></span>';
+      }).join('')
+      : '<span class="tf-gap is-ok">Every slot in the current shape has natural cover</span>') + '</div>'
+    + '</div>';
+
+  var cards = rec.list.map(function (r) {
+    var p = r.p, cost = _tfCostOf(p), afford = cost <= eco.available;
+    // The three reasons that carried the recommendation, and — always — the one
+    // that argues against it. A card that only showed its strongest numbers
+    // would be a sales pitch, not a squad read.
+    var ranked = r.reasons.slice().sort(function (a, b) { return b.v - a.v; });
+    var top = ranked.slice(0, 3);
+    var worst = ranked[ranked.length - 1];
+    if (worst && top.indexOf(worst) < 0) top = top.concat([{ k: worst.k, v: worst.v, why: worst.why, caution: true }]);
+    return '<article class="tf-rc" data-tf-open="' + _tfEsc(p.id) + '">'
+      + '<div class="tf-rc-top">'
+      +   '<div class="tf-rc-score"><b>' + r.score + '</b><i>fit</i></div>'
+      +   _tfAvatar(p, 'lg')
+      +   '<div class="tf-rc-id"><h3>' + _tfEsc(p.name) + '</h3>'
+      +     '<div class="tf-rc-meta">' + _tfNat(p) + '<span>' + p.age + ' yrs</span>' + _tfPosBadges(p) + '</div></div>'
+      + '</div>'
+      + '<div class="tf-rc-nums">'
+      +   '<div><i>OVR</i>' + _tfQuality(p.qual) + '</div>'
+      +   '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+      +   '<div><i>' + (p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
+      + '</div>'
+      + '<div class="tf-rc-tags"><span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
+      +   '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
+      +   '<span class="tf-src2">' + (p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
+      + '<div class="tf-rc-why"><h4>Why this player</h4>'
+      +   top.map(function (x) {
+        return '<div class="tf-why' + (x.caution ? ' is-caution' : '') + '"><span class="tf-why-k">'
+          + (x.caution ? '<em>against</em> ' : '') + _tfEsc(x.k) + '</span>'
+          + '<span class="tf-why-bar"><i style="width:' + x.v + '%" class="' + (x.v >= 75 ? 'is-hi' : x.v >= 45 ? 'is-mid' : 'is-lo') + '"></i></span>'
+          + '<span class="tf-why-v">' + x.v + '</span>'
+          + '<span class="tf-why-t">' + _tfEsc(x.why) + '</span></div>';
+      }).join('')
+      + '</div>'
+      + '<div class="tf-rc-act">'
+      +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-open="' + _tfEsc(p.id) + '">Open profile</button>'
+      +   '<button type="button" class="tf-btn" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
+      +   '<button type="button" class="tf-btn tf-btn--icon' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
+      +     (_tfIsShort(p.id, C) ? '★' : '☆') + '</button>'
+      + '</div>'
+      + '</article>';
+  }).join('');
+  return '<div class="tf-pane tf-pane--assist">' + brief + '<div class="tf-rc-grid">' + cards + '</div></div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLAYER DETAIL — one component, three modes
+// ══════════════════════════════════════════════════════════════════════════════
+// Auctions, Scouting and the Assistant all open this. What changes between them
+// is the action row, nothing else — there is one transfer-player detail model
+// in the app, not three.
+var TF_DETAIL_TABS = [['overview', 'Overview'], ['skills', 'Skills'], ['playstyle', 'Playstyle'], ['stats', 'Stats'], ['offers', 'Offers']];
+
+function _tfRenderOverlay() {
+  var host = document.getElementById('tf-overlay'); if (!host) return;
+  var html = '';
+  if (_TF.detail) html += _tfDetailHtml(_tfCtx());
+  if (_TF.compare) html += _tfCompareHtml(_tfCtx());
+  if (_TF.confirm) html += _tfConfirmHtml(_tfCtx());
+  host.innerHTML = html;
+  host.classList.toggle('is-on', !!html);
+}
+function _tfDetailHtml(C) {
+  var d = _TF.detail, p = _tfFind(d.id, C);
+  if (!p) return '';
+  var mode = _tfMode(p);
+  var body = _TF.detailTab === 'skills' ? _tfSkillsHtml(p)
+    : _TF.detailTab === 'playstyle' ? _tfPlaystyleHtml(p, C)
+      : _TF.detailTab === 'stats' ? _tfStatsHtml(p)
+        : _TF.detailTab === 'offers' ? _tfOffersHtml(p, C)
+          : _tfOverviewHtml(p, C);
+  var side = mode === 'auction' ? _tfBidPanelHtml(p, C) : _tfRecruitPanelHtml(p, C);
+  return '<div class="tf-modal" data-tf-modal="detail">'
+    + '<div class="tf-modal-bd" data-tf-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Transfer target">'
+    +   '<button type="button" class="tf-x" data-tf-close aria-label="Close">×</button>'
+    +   '<header class="tf-pd-head">'
+    +     _tfAvatar(p, 'xl')
+    +     '<div class="tf-pd-id">'
+    +       '<div class="tf-pd-name"><h2>' + _tfEsc(p.name) + '</h2>' + _tfNat(p) + '</div>'
+    +       '<div class="tf-pd-meta">' + _tfPosBadges(p)
+    +         '<span class="tf-pd-chip">' + p.age + ' yrs</span>'
+    +         '<span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
+    +         '<span class="tf-ability">' + _tfEsc(p.special) + '</span></div>'
+    +     '</div>'
+    +     '<div class="tf-pd-ovr">' + _tfQuality(p.qual) + '<i>Overall</i></div>'
+    +   '</header>'
+    +   '<div class="tf-pd-body">'
+    +     '<div class="tf-pd-main">'
+    +       '<nav class="tf-subtabs">' + TF_DETAIL_TABS.map(function (t) {
+      return '<button type="button" class="' + (_TF.detailTab === t[0] ? 'is-on' : '') + '" data-tf-dtab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</nav>'
+    +       '<div class="tf-pd-panel">' + body + '</div>'
+    +     '</div>'
+    +     side
+    +   '</div>'
+    + '</div></div>';
+}
+function _tfKv(rows) {
+  return '<div class="tf-kv">' + rows.map(function (r) {
+    return '<div><i>' + _tfEsc(r[0]) + '</i><b>' + _tfEsc(r[1]) + '</b></div>';
+  }).join('') + '</div>';
+}
+function _tfOverviewHtml(p, C) {
+  var rows = [
+    ['Age', p.age + ' yrs'], ['Height', p.height], ['Weight', p.weight + ' kg'],
+    ['Preferred foot', p.foot], ['Positions', p.positions.join(' / ')],
+    ['Market value', _tfMoney(p.mv)], ['Estimated wage', _tfMoney(p.wage) + ' / yr'],
+    ['Nationality', p.natName], ['Current club', p.club],
+    ['Contract', p.contract],
+    ['Transfer status', p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
+  ];
+  var meters = [
+    ['Form', p.form * 10, p.form + ' / 10'],
+    ['Condition', p.cond, p.cond + '%'],
+    ['Morale', (typeof _sqMoralePct === 'function' ? _sqMoralePct(p.morale) : 60), p.morale],
+    ['Quality', p.qual, String(p.qual)]
+  ];
+  // His strongest attributes, read from the app's one attribute model — the
+  // same numbers the Skills tab and the comparison bars show.
+  var groups = (typeof _sqSkillGroups === 'function') ? _sqSkillGroups(p) : [];
+  var picks = [];
+  groups.forEach(function (g) { g[1].forEach(function (n) { picks.push([n, _sqSkillVal(p, n)]); }); });
+  picks.sort(function (a, b) { return b[1] - a[1]; });
+  var top = picks.slice(0, 8).map(function (it) {
+    return '<div class="tf-attr"><span>' + _tfEsc(it[0]) + '</span>'
+      + '<span class="tf-meter-bar"><i class="' + (it[1] >= 82 ? 'is-hi' : it[1] >= 68 ? 'is-mid' : 'is-lo') + '" style="width:' + it[1] + '%"></i></span>'
+      + '<b>' + it[1] + '</b></div>';
+  }).join('');
+  return '<div class="tf-sec">Player overview</div>' + _tfKv(rows)
+    + '<div class="tf-sec">Current condition</div>'
+    + '<div class="tf-meters">' + meters.map(function (m) {
+      return '<div class="tf-meter"><div class="tf-meter-t"><span>' + m[0] + '</span><span>' + _tfEsc(m[2]) + '</span></div>'
+        + '<span class="tf-meter-bar"><i class="' + (m[1] >= 80 ? 'is-hi' : m[1] >= 55 ? 'is-mid' : 'is-lo') + '" style="width:' + Math.min(100, m[1]) + '%"></i></span></div>';
+    }).join('') + '</div>'
+    + (top ? '<div class="tf-sec">Strongest attributes</div><div class="tf-attrs">' + top + '</div>' : '');
+}
+// Attributes come from the app's ONE player-attribute model. Transfers does not
+// define a second set of stats.
+function _tfSkillsHtml(p) {
+  var groups = (typeof _sqSkillGroups === 'function') ? _sqSkillGroups(p) : [];
+  return groups.map(function (g) {
+    return '<div class="tf-sec">' + _tfEsc(g[0]) + '</div><div class="tf-attrs">'
+      + g[1].map(function (n) {
+        var v = _sqSkillVal(p, n);
+        return '<div class="tf-attr"><span>' + _tfEsc(n) + '</span>'
+          + '<span class="tf-meter-bar"><i class="' + (v >= 82 ? 'is-hi' : v >= 68 ? 'is-mid' : 'is-lo') + '" style="width:' + v + '%"></i></span>'
+          + '<b>' + v + '</b></div>';
+      }).join('') + '</div>';
+  }).join('');
+}
+function _tfPlaystyleHtml(p, C) {
+  var prof = _tfSquadProfile(C), s = _tfScore(p, C, prof);
+  return '<div class="tf-sec">' + _tfEsc(p.playstyle) + '</div>'
+    + '<p class="tf-para">Operates as a ' + _tfEsc(p.playstyle.toLowerCase()) + ' from ' + _tfEsc(p.positions.join(' / '))
+    + '. Special ability: <b>' + _tfEsc(p.special) + '</b>. Preferred foot ' + _tfEsc(p.foot.toLowerCase()) + '.</p>'
+    + '<div class="tf-sec">Fit against ' + _tfEsc(C.label || 'this squad') + '</div>'
+    + '<div class="tf-why-list">' + s.reasons.map(function (x) {
+      return '<div class="tf-why"><span class="tf-why-k">' + _tfEsc(x.k) + '</span>'
+        + '<span class="tf-why-bar"><i style="width:' + x.v + '%" class="' + (x.v >= 75 ? 'is-hi' : x.v >= 45 ? 'is-mid' : 'is-lo') + '"></i></span>'
+        + '<span class="tf-why-v">' + x.v + '</span>'
+        + '<span class="tf-why-t">' + _tfEsc(x.why) + '</span></div>';
+    }).join('') + '</div>';
+}
+function _tfStatsHtml(p) {
+  // Season figures a scout would file on a target. Demo data — the club has no
+  // match record for a player it does not own.
+  var s = p.seed;
+  var apps = _tfInt(s, 'apps', 12, 38), mins = apps * _tfInt(s, 'mpg', 48, 90);
+  var goals = p.cat === 'fw' ? _tfInt(s, 'g', 4, 24) : p.cat === 'mf' ? _tfInt(s, 'g', 1, 11) : _tfInt(s, 'g', 0, 4);
+  var asts = p.cat === 'gk' ? 0 : _tfInt(s, 'a', 0, 13);
+  var rows = [
+    ['Appearances', String(apps)], ['Minutes', mins.toLocaleString()],
+    ['Goals', String(goals)], ['Assists', String(asts)],
+    ['Average rating', (6.2 + _tfRnd(s, 'rat') * 1.6).toFixed(2)],
+    ['Yellow cards', String(_tfInt(s, 'yc', 0, 9))], ['Red cards', String(_tfInt(s, 'rc', 0, 1))],
+    ['Clean sheets', p.cat === 'gk' || p.cat === 'df' ? String(_tfInt(s, 'cs', 2, 16)) : '—'],
+    ['Duels won', _tfInt(s, 'du', 42, 74) + '%'],
+    ['Pass accuracy', _tfInt(s, 'pa', 68, 93) + '%']
+  ];
+  return '<div class="tf-sec">Last season · reported by scouting</div>' + _tfKv(rows)
+    + '<p class="tf-note">Reported figures. The club holds no internal match record for a player it does not own.</p>';
+}
+function _tfOffersHtml(p, C) {
+  if (p.listing !== 'auction') {
+    return '<div class="tf-sec">Interest</div>'
+      + '<p class="tf-para">No open auction. The scouting network reports the player as <b>' + _tfEsc(p.avail) + '</b>'
+      + ' and values the deal at <b>' + _tfMoney(p.fee) + '</b>.</p>';
+  }
+  if (!p.bidders.length) return '<div class="tf-sec">Offers</div><p class="tf-para">No offer has been made yet. The listing opens at ' + _tfMoney(p.ask) + '.</p>';
+  return '<div class="tf-sec">Offers · newest first</div>' + _tfBidderListHtml(p, C, true);
+}
+function _tfBidderListHtml(p, C, full) {
+  var now = Date.now();
+  return '<ol class="tf-bidders">' + p.bidders.map(function (b, i) {
+    var secs = Math.max(0, Math.round((now - b.at) / 1000));
+    var when = secs < 60 ? secs + 's ago' : Math.round(secs / 60) + 'm ago';
+    return '<li class="' + (b.me ? 'is-me' : '') + (i === 0 ? ' is-lead' : '') + '">'
+      + '<span class="tf-bd-rank">' + (i + 1) + '</span>'
+      + '<span class="tf-bd-club">' + _tfEsc(b.me ? (C.label || 'Our club') : b.club) + (i === 0 ? '<em>leading</em>' : '') + '</span>'
+      + '<span class="tf-bd-amt">' + _tfMoney(b.amount) + '</span>'
+      + (full ? '<span class="tf-bd-at">' + when + '</span>' : '')
+      + '</li>';
+  }).join('') + '</ol>';
+}
+// ── auction mode: the bidding panel ──────────────────────────────────────────
+function _tfBidPanelHtml(p, C) {
+  var st = _tfAucState(p), eco = _tfEconomy(C), next = _tfNextBid(p.bid);
+  var left = p.endsAt - Date.now();
+  var closed = left <= 0;
+  var lead = _tfLeaderName(p, C);
+  var canBid = !closed && next <= eco.available;
+  var action;
+  if (st === 'WON') {
+    action = '<button type="button" class="tf-btn tf-btn--primary tf-btn--block" data-tf-sign="' + _tfEsc(p.id) + '">COMPLETE SIGNING</button>';
+  } else if (closed) {
+    action = '<button type="button" class="tf-btn tf-btn--block" disabled>AUCTION CLOSED</button>';
+  } else {
+    action = '<button type="button" class="tf-btn tf-btn--primary tf-btn--block' + (canBid ? '' : ' is-disabled') + '"'
+      + (canBid ? ' data-tf-bid="' + _tfEsc(p.id) + '"' : ' disabled') + '>BID ' + _tfMoney(next) + '</button>'
+      + (canBid ? '' : '<p class="tf-warn">The next offer exceeds the available transfer budget.</p>');
+  }
+  return '<aside class="tf-side">'
+    + '<div class="tf-side-hd">' + _tfStateChip(st) + '<span class="tf-side-ttl">Live auction</span></div>'
+    + '<div class="tf-side-timer' + (left <= 60000 ? ' is-hot' : '') + (closed ? ' is-off' : '') + '">'
+    +   '<i>Time remaining</i><b data-tf-clock="' + _tfEsc(p.id) + '">' + (closed ? 'CLOSED' : _tfClock(left)) + '</b></div>'
+    + '<div class="tf-side-rows">'
+    +   '<div class="tf-side-row"><i>Current leading bid</i><b>' + _tfMoney(p.bid) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Leader</i><b class="' + (_tfMyLead(p) ? 'is-me' : '') + '">' + _tfEsc(lead || 'No bids yet') + '</b></div>'
+    +   '<div class="tf-side-row"><i>Next offer</i><b class="is-next">' + _tfMoney(next) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Bidders</i><b>' + p.bidders.length + '</b></div>'
+    +   '<div class="tf-side-row"><i>Available budget</i><b>' + _tfMoney(eco.available) + '</b></div>'
+    + '</div>'
+    + action
+    + '<div class="tf-side-sub">Competing bidders</div>'
+    + (p.bidders.length ? _tfBidderListHtml(p, C, false) : '<p class="tf-note">No club has bid yet.</p>')
+    + '<div class="tf-side-acts">'
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
+    +   '<button type="button" class="tf-btn tf-btn--sm' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
+    +     (_tfIsShort(p.id, C) ? '★ Shortlisted' : '☆ Add to shortlist') + '</button>'
+    + '</div>'
+    + '</aside>';
+}
+// ── scouting / assistant mode: the recruitment panel ─────────────────────────
+function _tfRecruitPanelHtml(p, C) {
+  var eco = _tfEconomy(C), cost = p.fee || p.mv;
+  var afford = cost <= eco.available;
+  return '<aside class="tf-side">'
+    + '<div class="tf-side-hd"><span class="tf-state tf-state--scouted">SCOUTED</span><span class="tf-side-ttl">Recruitment</span></div>'
+    + '<div class="tf-side-rows">'
+    +   '<div class="tf-side-row"><i>Signing cost</i><b class="is-next">' + _tfMoney(cost) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Estimated value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Estimated wage</i><b>' + _tfMoney(p.wage) + ' / yr</b></div>'
+    +   '<div class="tf-side-row"><i>Availability</i><b>' + _tfEsc(p.avail || p.contract) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Destination</i><b>' + _tfEsc(C.label || 'Team') + '</b></div>'
+    +   '<div class="tf-side-row"><i>Available budget</i><b>' + _tfMoney(eco.available) + '</b></div>'
+    + '</div>'
+    + '<button type="button" class="tf-btn tf-btn--primary tf-btn--block' + (afford ? '' : ' is-disabled') + '"'
+    +   (afford ? ' data-tf-sign="' + _tfEsc(p.id) + '"' : ' disabled') + '>RECRUIT PLAYER</button>'
+    + (afford ? '' : '<p class="tf-warn">The signing cost exceeds the available transfer budget.</p>')
+    + '<div class="tf-side-acts">'
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
+    +   '<button type="button" class="tf-btn tf-btn--sm' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
+    +     (_tfIsShort(p.id, C) ? '★ Shortlisted' : '☆ Add to shortlist') + '</button>'
+    + '</div>'
+    + '</aside>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COMPARISON — target against a player from the ACTIVE context's roster
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfComparePool(C) {
+  var pool = (C.comparePool && C.comparePool.length) ? C.comparePool : (C.roster || []);
+  return pool.slice().sort(function (a, b) { return (b.qual || 0) - (a.qual || 0); });
+}
+// Which squad player the comparison opens on. The manager wants to see the
+// target against the man he would replace, so the best player at the target's
+// own position leads, then one of his other positions, then the best in the
+// squad. Whoever it lands on, the dropdown can change it.
+function _tfDefaultRival(t, C) {
+  var pool = _tfComparePool(C);
+  if (!pool.length) return null;
+  for (var i = 0; i < t.positions.length; i++) {
+    var want = t.positions[i];
+    for (var j = 0; j < pool.length; j++) if (String(pool[j].pos).toUpperCase() === want) return pool[j];
+  }
+  var cat = t.cat;
+  for (var k = 0; k < pool.length; k++) if ((pool[k].cat || _tfCat(pool[k].pos)) === cat) return pool[k];
+  return pool[0];
+}
+function _tfCompareHtml(C) {
+  var t = _tfFind(_TF.compare.id, C);
+  if (!t) return '';
+  var pool = _tfComparePool(C);
+  if (!pool.length) {
+    return '<div class="tf-modal" data-tf-modal="compare"><div class="tf-modal-bd" data-tf-close-cmp></div>'
+      + '<div class="tf-modal-box" role="dialog" aria-modal="true"><button type="button" class="tf-x" data-tf-close-cmp>×</button>'
+      + '<div class="tf-cmp-empty">' + _tfEsc(C.label || 'This team') + ' has no players to compare against.</div></div></div>';
+  }
+  var sq = null, i;
+  for (i = 0; i < pool.length; i++) if (pool[i].id === _TF.compare.squadId) sq = pool[i];
+  if (!sq) { sq = _tfDefaultRival(t, C) || pool[0]; _TF.compare.squadId = sq.id; }
+
+  // Header facts — only fields both player models actually carry.
+  var facts = [
+    ['OVR', String(t.qual), String(sq.qual != null ? sq.qual : '—')],
+    ['Age', String(t.age), String(sq.age != null ? sq.age : '—')],
+    ['Positions', t.positions.join(' / '), String(sq.pos || '—') + (sq.roles ? ' · ' + sq.roles : '')],
+    ['Preferred foot', t.foot, String(sq.foot || '—')],
+    ['Height', t.height, String(sq.height != null ? (typeof sq.height === 'number' ? (sq.height / 100).toFixed(2) + 'm' : sq.height) : '—')],
+    ['Weight', t.weight + ' kg', String(sq.weight != null ? sq.weight + ' kg' : '—')],
+    ['Form', t.form + ' / 10', String(sq.form != null ? sq.form + ' / 10' : '—')],
+    ['Market value', _tfMoney(t.mv), String(sq.value || '—')],
+    ['Wage', _tfMoney(t.wage) + ' / yr', '—']
+  ];
+  // Only the rows where a bigger number is unambiguously the stronger player
+  // are marked. Height, weight, age, value and wage are facts, not verdicts.
+  var TF_CMP_LEAD = { OVR: 1, Form: 1 };
+  var factRows = facts.map(function (f) {
+    var a = parseFloat(f[1]), b = parseFloat(f[2]);
+    var lead = (TF_CMP_LEAD[f[0]] && !isNaN(a) && !isNaN(b)) ? (a > b ? 'l' : b > a ? 'r' : '') : '';
+    return '<div class="tf-cmp-fact"><span class="' + (lead === 'l' ? 'is-lead' : '') + '">' + _tfEsc(f[1]) + '</span>'
+      + '<i>' + _tfEsc(f[0]) + '</i>'
+      + '<span class="' + (lead === 'r' ? 'is-lead' : '') + '">' + _tfEsc(f[2]) + '</span></div>';
+  }).join('');
+
+  // Attribute categories come from the shared attribute model. Both players are
+  // read through the same function, so no second stat definition exists.
+  var groups = (typeof _sqSkillGroups === 'function') ? _sqSkillGroups(t) : [];
+  var sqGroups = (typeof _sqSkillGroups === 'function') ? _sqSkillGroups(sq) : [];
+  var sqNames = {}; sqGroups.forEach(function (g) { g[1].forEach(function (n) { sqNames[n] = 1; }); });
+  var attrs = groups.map(function (g) {
+    var rows = g[1].filter(function (n) { return sqNames[n]; }).map(function (n) {
+      var a = _sqSkillVal(t, n), b = _sqSkillVal(sq, n), max = Math.max(a, b, 1);
+      return '<div class="tf-cmp-attr">'
+        + '<span class="tf-cmp-l"><b class="' + (a > b ? 'is-lead' : '') + '">' + a + '</b>'
+        +   '<span class="tf-cmp-bar tf-cmp-bar--l"><i class="' + (a >= b ? 'is-win' : '') + '" style="width:' + Math.round(a / max * 100) + '%"></i></span></span>'
+        + '<i class="tf-cmp-n">' + _tfEsc(n) + '</i>'
+        + '<span class="tf-cmp-r"><span class="tf-cmp-bar"><i class="' + (b >= a ? 'is-win' : '') + '" style="width:' + Math.round(b / max * 100) + '%"></i></span>'
+        +   '<b class="' + (b > a ? 'is-lead' : '') + '">' + b + '</b></span>'
+        + '</div>';
+    }).join('');
+    if (!rows) return '';
+    return '<div class="tf-cmp-cat"><h4>' + _tfEsc(g[0].toUpperCase()) + '</h4>' + rows + '</div>';
+  }).join('');
+  var noShared = !attrs
+    ? '<p class="tf-note">These two players are measured on different attribute sets (a goalkeeper against an outfield player), so no attribute is directly comparable.</p>' : '';
+
+  var sel = '<select data-tf-cmpsel>' + pool.map(function (p) {
+    return '<option value="' + _tfEsc(p.id) + '"' + (p.id === sq.id ? ' selected' : '') + '>'
+      + _tfEsc(p.name) + ' · ' + _tfEsc(p.pos || '') + ' · ' + (p.qual != null ? p.qual : '—') + '</option>';
+  }).join('') + '</select>';
+
+  return '<div class="tf-modal" data-tf-modal="compare">'
+    + '<div class="tf-modal-bd" data-tf-close-cmp></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Player comparison">'
+    +   '<button type="button" class="tf-x" data-tf-close-cmp aria-label="Close">×</button>'
+    +   '<div class="tf-cmp-head">'
+    +     '<div class="tf-cmp-side">' + _tfAvatar(t, 'lg')
+    +       '<div><b>' + _tfEsc(t.name) + '</b><em>Transfer target · ' + _tfEsc(t.positions.join(' / ')) + '</em></div></div>'
+    +     '<div class="tf-cmp-vs">VS</div>'
+    +     '<div class="tf-cmp-side tf-cmp-side--r">'
+    +       '<div><b>' + _tfEsc(sq.name) + '</b><em>' + _tfEsc(C.label || 'Squad') + ' · ' + _tfEsc(sq.pos || '') + '</em></div>'
+    +       _tfAvatar({ name: sq.name, cat: sq.cat || _tfCat(sq.pos) }, 'lg') + '</div>'
+    +   '</div>'
+    +   '<div class="tf-cmp-pick"><span>Compare against</span>' + sel + '</div>'
+    +   '<div class="tf-cmp-body">'
+    +     '<div class="tf-cmp-facts">' + factRows + '</div>'
+    +     '<div class="tf-cmp-attrs">' + attrs + noShared + '</div>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CONFIRMATION — nothing permanent happens without it
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfConfirmHtml(C) {
+  var c = _TF.confirm, eco = _tfEconomy(C);
+  var title, lines, cta, tone = '';
+  if (c.kind === 'search') {
+    var cost = _tfSearchCost(C);
+    title = 'Run a new scouting search';
+    lines = [
+      ['Team', C.label || 'Team'],
+      ['Search cost', cost ? cost + ' scouting credits' : 'Free — the current pool has expired'],
+      ['Available credits', String(eco.credits)],
+      ['After this search', String(Math.max(0, eco.credits - cost)) + ' credits'],
+      ['Current pool', _tfScoutPool(C).players.length + ' players — replaced by this search']
+    ];
+    cta = 'CONFIRM SEARCH';
+  } else if (c.kind === 'bid') {
+    var bp = _tfFind(c.id, C); if (!bp) return '';
+    title = 'Place a bid';
+    lines = [
+      ['Player', bp.name + ' · ' + bp.positions.join(' / ') + ' · OVR ' + bp.qual],
+      ['Current leading bid', _tfMoney(bp.bid)],
+      ['Your offer', _tfMoney(c.amount)],
+      ['Committed if you lead', _tfMoney(c.amount)],
+      ['Budget after commitment', _tfMoney(Math.max(0, eco.available - c.amount + (_tfMyLead(bp) ? bp.bid : 0)))]
+    ];
+    cta = 'CONFIRM BID';
+  } else {
+    var sp = _tfFind(c.id, C); if (!sp) return '';
+    title = 'Confirm signing';
+    tone = 'is-sign';
+    lines = [
+      ['Player', sp.name + ' · ' + sp.positions.join(' / ') + ' · OVR ' + sp.qual + ' · ' + sp.age + ' yrs'],
+      ['Transfer fee', _tfMoney(c.fee)],
+      ['Estimated wage', _tfMoney(sp.wage) + ' / yr'],
+      ['Destination team', C.label || 'Team'],
+      ['Budget before', _tfMoney(eco.available + (c.releases || 0))],
+      ['Remaining budget', _tfMoney(Math.max(0, eco.available + (c.releases || 0) - c.fee))]
+    ];
+    cta = 'CONFIRM SIGNING';
+  }
+  return '<div class="tf-modal tf-modal--sm" data-tf-modal="confirm">'
+    + '<div class="tf-modal-bd" data-tf-close-cf></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm ' + tone + '" role="dialog" aria-modal="true" aria-label="' + _tfEsc(title) + '">'
+    +   '<h3 class="tf-cf-title">' + _tfEsc(title) + '</h3>'
+    +   '<div class="tf-cf-rows">' + lines.map(function (l) {
+      return '<div><i>' + _tfEsc(l[0]) + '</i><b>' + _tfEsc(l[1]) + '</b></div>';
+    }).join('') + '</div>'
+    +   '<div class="tf-cf-acts">'
+    +     '<button type="button" class="tf-btn" data-tf-close-cf>CANCEL</button>'
+    +     '<button type="button" class="tf-btn tf-btn--primary" data-tf-confirm>' + cta + '</button>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIONS
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfPlaceBid(id) {
+  var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
+  if (_tfAucState(p) === 'ENDED' || _tfAucState(p) === 'WON' || _tfAucState(p) === 'LOST') return;
+  var L = _tfLedger(C), amount = _TF.confirm && _TF.confirm.amount ? _TF.confirm.amount : _tfNextBid(p.bid);
+  // A bid we already lead with is replaced, not stacked — the club commits the
+  // one live offer, never two.
+  if (_tfMyLead(p)) L.committed = Math.max(0, L.committed - p.bid);
+  p.bid = amount;
+  p.leader = '__me__';
+  p.bidders.unshift({ club: '__me__', amount: amount, at: Date.now(), me: true });
+  L.committed += amount;
+  _tfToast('Bid of ' + _tfMoney(amount) + ' placed for ' + p.name, 'success');
+}
+function _tfDoSign(id) {
+  var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
+  var c = _TF.confirm || {}, fee = c.fee != null ? c.fee : _tfCostOf(p);
+  var L = _tfLedger(C);
+  // An auction win releases the bid commitment and pays it as the fee.
+  if (c.releases) L.committed = Math.max(0, L.committed - c.releases);
+  var eco = _tfEconomy(C);
+  if (fee > eco.available) { _tfToast('Not enough transfer budget', 'error'); return; }
+
+  // ── the one place a transfer becomes a squad player ──────────────────────
+  // The context owns its roster. Transfers hands over a squad-shaped player and
+  // the destination team decides how it is stored. No global is written here.
+  var signed = null;
+  if (typeof C.signPlayer === 'function') {
+    try { signed = C.signPlayer(_tfSquadShape(p)); } catch (e) { signed = null; }
+  }
+  if (!signed) { _tfToast('This team cannot register a signing', 'error'); return; }
+
+  L.spent += fee;
+  L.signings.push({ id: signed, name: p.name, fee: fee, at: Date.now() });
+  // The listing leaves the market — he is ours now.
+  if (p.listing === 'auction') {
+    _TF.market = _tfMarket().filter(function (x) { return x.id !== p.id; });
+  } else {
+    var pool = _tfScoutPool(C);
+    pool.players = pool.players.filter(function (x) { return x.id !== p.id; });
+  }
+  delete _tfShort(C)[p.id];
+  // The squad has changed; the next read rebuilds the context from the roster
+  // the destination team now holds, and that team repaints its own views.
+  _tfDropCtx();
+  if (typeof C.refreshRoster === 'function') C.refreshRoster();
+  _tfToast(p.name + ' signed for ' + _tfMoney(fee) + ' — added to ' + (C.label || 'the squad'), 'success');
+}
+// The squad-shaped record handed to the destination team. Only fields the
+// club's own player model already uses; the transfer-only fields stay behind.
+function _tfSquadShape(p) {
+  return {
+    id: 'sg-' + p.id, name: p.name, pos: p.pos, cat: p.cat, num: p.num,
+    roles: p.roles, secondary: p.positions.slice(1).join(' · ') || p.pos,
+    nat: p.nat, natName: p.natName, nationality: p.natName,
+    age: p.age, qual: p.qual, overall: p.qual, devScore: p.qual,
+    form: p.form, cond: p.cond, fitness: p.cond, morale: p.morale,
+    foot: p.foot, height: p.height, heightCm: p.heightCm, weight: p.weight,
+    value: _tfMoney(p.mv), availability: 'Available'
+  };
+}
+function _tfRunSearch() {
+  var C = _tfCtx(), L = _tfLedger(C), cost = _tfSearchCost(C);
+  if (cost > L.credits) { _tfToast('Not enough scouting credits', 'error'); return; }
+  L.credits -= cost;
+  var pool = _tfScoutPool(C);
+  _tfScoutGenerate(C, (pool.runs || 0) + 1);
+  _tfToast('Scouting network returned a new pool of ' + TF_SCOUT_SIZE + ' players', 'success');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LIVE CLOCK — the auctions and the scouting pool actually run down
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfStartClock() {
+  if (_TF.clock) return;
+  _TF.clock = setInterval(_tfTick, 1000);
+}
+function _tfStopClock() { if (_TF.clock) { clearInterval(_TF.clock); _TF.clock = null; } }
+function _tfTick() {
+  var pg = document.getElementById('pg-transfers');
+  if (!pg || !pg.classList.contains('active')) { _tfStopClock(); return; }
+  var C = _tfCtx(), now = Date.now(), structural = false;
+
+  _tfMarket().forEach(function (p) {
+    var st = _tfAucState(p);
+    if (p.__st !== st) {
+      // A closing auction settles: a bid we lead is spent as a fee we now owe,
+      // a bid we lost is released back to the budget.
+      if ((st === 'LOST') && p.__st !== 'LOST') {
+        var L = _tfLedger(C);
+        if (p.bidders.some(function (b) { return b.me; })) {
+          var mine = p.bidders.filter(function (b) { return b.me; })[0];
+          L.committed = Math.max(0, L.committed - (mine ? mine.amount : 0));
+        }
+      }
+      p.__st = st; structural = true;
+    }
+    if (st === 'ENDED' || st === 'WON' || st === 'LOST') return;
+    // Rival clubs keep bidding while a listing is open. Late in a listing they
+    // press harder, which is what makes the last minute worth watching.
+    var left = p.endsAt - now;
+    var pressure = left < 120000 ? 0.05 : left < 600000 ? 0.018 : 0.006;
+    if (Math.random() < pressure) {
+      var nb = _tfNextBid(p.bid);
+      if (_tfMyLead(p)) {
+        var Lg = _tfLedger(C);
+        Lg.committed = Math.max(0, Lg.committed - p.bid);
+      }
+      p.bid = nb;
+      p.leader = _tfPick(p.seed + now, 'rival', TF_CLUBS);
+      p.bidders.unshift({ club: p.leader, amount: nb, at: now, me: false });
+      structural = true;
+    }
+  });
+
+  var sp = _TF.scout[_tfCtxId(C)];
+  if (sp) {
+    var exp = (sp.expiresAt - now) <= 0;
+    if (sp.__exp !== exp) { sp.__exp = exp; structural = true; }
+  }
+
+  // Clocks tick in place — no re-render, so nothing on screen moves.
+  var els = document.querySelectorAll('[data-tf-clock]'), i;
+  for (i = 0; i < els.length; i++) {
+    var p2 = _tfFind(els[i].getAttribute('data-tf-clock'), C);
+    if (!p2) continue;
+    var l = p2.endsAt - now;
+    els[i].textContent = l <= 0 ? 'CLOSED' : _tfClock(l);
+    els[i].classList.toggle('tf-clock--hot', l > 0 && l <= 60000);
+    els[i].classList.toggle('tf-clock--warm', l > 60000 && l <= 300000);
+    els[i].classList.toggle('tf-clock--off', l <= 0);
+  }
+  var sc = document.querySelector('[data-tf-scoutclock]');
+  if (sc && sp) { var sl = sp.expiresAt - now; sc.textContent = sl <= 0 ? 'READY' : _tfClock(sl); }
+
+  if (structural) { _tfRenderBody(); _tfRenderOverlay(); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EVENTS
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfOpen(id) {
+  var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
+  _TF.detail = { id: id }; _TF.detailTab = 'overview';
+  _tfRenderOverlay();
+}
+function _tfCloseDetail() { _TF.detail = null; _tfRenderOverlay(); }
+
+(function _tfWire() {
+  if (typeof document === 'undefined' || window.__tfWired) return;
+  window.__tfWired = true;
+
+  document.addEventListener('click', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    if (!t.closest('#pg-transfers')) return;
+    var el, C = _tfCtx();
+
+    // shortlist (never opens the row)
+    if ((el = t.closest('[data-tf-short]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _tfToggleShort(el.getAttribute('data-tf-short'), C);
+      _tfRenderBody(); _tfRenderOverlay(); return;
+    }
+    if ((el = t.closest('[data-tf-tab]'))) {
+      e.preventDefault();
+      _TF.tab = el.getAttribute('data-tf-tab');
+      // Availability means different things on the two tables, so the filter
+      // that belongs to the table we are leaving does not follow us.
+      _TF.f.avail = 'ALL';
+      _TF.sort = { key: _TF.tab === 'scouting' ? 'qual' : 'deadline', dir: _TF.tab === 'scouting' ? -1 : 1 };
+      renderTransfersPage(); return;
+    }
+    if ((el = t.closest('[data-tf-sort]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _tfSetSort(el.getAttribute('data-tf-sort')); _tfRenderBody(); return;
+    }
+    if (t.closest('[data-tf-filters]')) { e.preventDefault(); _TF.filtersOpen = !_TF.filtersOpen; _tfRenderBody(); return; }
+    if (t.closest('[data-tf-shortonly]')) { e.preventDefault(); _TF.f.shortOnly = !_TF.f.shortOnly; _tfRenderBody(); return; }
+    if (t.closest('[data-tf-clearf]')) {
+      e.preventDefault();
+      _TF.f = { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', special: 'ALL', avail: 'ALL', shortOnly: false };
+      _tfRenderBody(); return;
+    }
+    // compare
+    if ((el = t.closest('[data-tf-compare]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var tgt = _tfFind(el.getAttribute('data-tf-compare'), C); if (!tgt) return;
+      var rival = _tfDefaultRival(tgt, C);
+      _TF.compare = { id: tgt.id, squadId: rival ? rival.id : null };
+      _tfRenderOverlay(); return;
+    }
+    if (t.closest('[data-tf-close-cmp]')) { e.preventDefault(); _TF.compare = null; _tfRenderOverlay(); return; }
+    // confirmations
+    if ((el = t.closest('[data-tf-bid]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var bp = _tfFind(el.getAttribute('data-tf-bid'), C); if (!bp) return;
+      _TF.confirm = { kind: 'bid', id: bp.id, amount: _tfNextBid(bp.bid) };
+      _tfRenderOverlay(); return;
+    }
+    if ((el = t.closest('[data-tf-sign]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var sp = _tfFind(el.getAttribute('data-tf-sign'), C); if (!sp) return;
+      var mineBid = (sp.bidders || []).filter(function (b) { return b.me; })[0];
+      _TF.confirm = { kind: 'sign', id: sp.id, fee: _tfSettleCost(sp), releases: (_tfMyLead(sp) && mineBid) ? mineBid.amount : 0 };
+      _tfRenderOverlay(); return;
+    }
+    if (t.closest('[data-tf-search]')) { e.preventDefault(); _TF.confirm = { kind: 'search' }; _tfRenderOverlay(); return; }
+    if (t.closest('[data-tf-close-cf]')) { e.preventDefault(); _TF.confirm = null; _tfRenderOverlay(); return; }
+    if (t.closest('[data-tf-confirm]')) {
+      e.preventDefault();
+      var c = _TF.confirm || {};
+      if (c.kind === 'search') { _tfRunSearch(); _TF.confirm = null; renderTransfersPage(); return; }
+      if (c.kind === 'bid') { _tfPlaceBid(c.id); _TF.confirm = null; renderTransfersPage(); return; }
+      if (c.kind === 'sign') {
+        var wasId = c.id; _tfDoSign(wasId);
+        _TF.confirm = null; _TF.detail = null; _TF.compare = null;
+        renderTransfersPage(); return;
+      }
+      return;
+    }
+    // detail
+    if ((el = t.closest('[data-tf-dtab]'))) { e.preventDefault(); _TF.detailTab = el.getAttribute('data-tf-dtab'); _tfRenderOverlay(); return; }
+    if (t.closest('[data-tf-close]')) { e.preventDefault(); _tfCloseDetail(); return; }
+    if ((el = t.closest('[data-tf-open]'))) { e.preventDefault(); _tfOpen(el.getAttribute('data-tf-open')); return; }
+  }, true);
+
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.closest || !t.closest('#pg-transfers')) return;
+    if (t.hasAttribute && t.hasAttribute('data-tf-team')) {
+      _TF.teamId = t.value; _tfDropCtx();
+      _TF.detail = null; _TF.compare = null; _TF.confirm = null;
+      renderTransfersPage(); return;
+    }
+    if (t.hasAttribute && t.hasAttribute('data-tf-cmpsel')) {
+      if (_TF.compare) { _TF.compare.squadId = t.value; _tfRenderOverlay(); }
+      return;
+    }
+    var f = t.getAttribute && t.getAttribute('data-tf-f');
+    if (f) { _TF.f[f] = t.value; _tfRenderBody(); return; }
+  });
+
+  document.addEventListener('input', function (e) {
+    var t = e.target; if (!t || !t.closest || !t.closest('#pg-transfers')) return;
+    if (t.hasAttribute && t.hasAttribute('data-tf-q')) {
+      // The rows re-render, the input does not — so the caret stays where the
+      // manager left it.
+      _TF.f.q = t.value || '';
+      _tfRepaintRows(); return;
+    }
+    var f = t.getAttribute && t.getAttribute('data-tf-f');
+    if (f && t.tagName === 'INPUT') { _TF.f[f] = t.value; _tfRepaintRows(); }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (_TF.confirm) { _TF.confirm = null; _tfRenderOverlay(); return; }
+    if (_TF.compare) { _TF.compare = null; _tfRenderOverlay(); return; }
+    if (_TF.detail) { _tfCloseDetail(); }
+  });
+})();
+
+// Transfers is a Club Workspace page like any other: one nav entry, one slug,
+// one template. Registered here rather than edited into the router by hand.
+window.renderTransfersHTML = renderTransfersHTML;
+window.renderTransfersPage = renderTransfersPage;
