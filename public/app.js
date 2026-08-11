@@ -47356,6 +47356,31 @@ function _tfNextBid(cur) {
   var step = cur >= 20000000 ? 1000000 : cur >= 5000000 ? 250000 : cur >= 1000000 ? 100000 : 25000;
   return Math.round((cur + step) / step) * step;
 }
+// ── what a lot has reserved from the budget ──────────────────────────────────
+// The club's committed figure used to be adjusted at each site that changed a
+// bid, which meant the same reservation could be released twice: once when a
+// rival outbid us, and again when that lot later settled as LOST. With one
+// scalar for the whole club, the second release ate a live reservation on a
+// DIFFERENT lot and over-reported the available budget.
+//
+// The lot now carries what it holds. Reserving replaces whatever that lot
+// already held; releasing clears it and is a no-op if it holds nothing. A lot
+// can therefore only ever put money in once and take it out once, whichever
+// way it ends — outbid, closed, won and completed, or simply abandoned.
+function _tfReserve(p, C, amount) {
+  var L = _tfLedger(C);
+  L.committed = Math.max(0, L.committed - (p.myCommit || 0));
+  p.myCommit = amount;
+  L.committed += amount;
+}
+function _tfRelease(p, C) {
+  var held = p.myCommit || 0;
+  if (!held) return 0;
+  var L = _tfLedger(C);
+  L.committed = Math.max(0, L.committed - held);
+  p.myCommit = 0;
+  return held;
+}
 function _tfAucState(p) {
   var left = p.endsAt - Date.now();
   if (left <= 0) {
@@ -48370,7 +48395,7 @@ function _tfConfirmHtml(C) {
       ['Current leading bid', _tfMoney(bp.bid)],
       ['Your offer', _tfMoney(c.amount)],
       ['Committed if you lead', _tfMoney(c.amount)],
-      ['Budget after commitment', _tfMoney(Math.max(0, eco.available - c.amount + (_tfMyLead(bp) ? bp.bid : 0)))]
+      ['Budget after commitment', _tfMoney(Math.max(0, eco.available - c.amount + (bp.myCommit || 0)))]
     ];
     cta = 'CONFIRM BID';
   } else {
@@ -48407,24 +48432,27 @@ function _tfConfirmHtml(C) {
 function _tfPlaceBid(id) {
   var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
   if (_tfAucState(p) === 'ENDED' || _tfAucState(p) === 'WON' || _tfAucState(p) === 'LOST') return;
-  var L = _tfLedger(C), amount = _TF.confirm && _TF.confirm.amount ? _TF.confirm.amount : _tfNextBid(p.bid);
-  // A bid we already lead with is replaced, not stacked — the club commits the
-  // one live offer, never two.
-  if (_tfMyLead(p)) L.committed = Math.max(0, L.committed - p.bid);
+  var amount = _TF.confirm && _TF.confirm.amount ? _TF.confirm.amount : _tfNextBid(p.bid);
   p.bid = amount;
   p.leader = '__me__';
   p.bidders.unshift({ club: '__me__', amount: amount, at: Date.now(), me: true });
-  L.committed += amount;
+  // A bid we already lead with is replaced, not stacked — the club commits the
+  // one live offer on this lot, never two.
+  _tfReserve(p, C, amount);
   _tfToast('Bid of ' + _tfMoney(amount) + ' placed for ' + p.name, 'success');
 }
 function _tfDoSign(id) {
   var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
   var c = _TF.confirm || {}, fee = c.fee != null ? c.fee : _tfCostOf(p);
+  // A won lot converts its reservation into the fee: released here, spent below,
+  // so the money is counted once and never twice.
+  var released = _tfRelease(p, C);
   var L = _tfLedger(C);
-  // An auction win releases the bid commitment and pays it as the fee.
-  if (c.releases) L.committed = Math.max(0, L.committed - c.releases);
   var eco = _tfEconomy(C);
-  if (fee > eco.available) { _tfToast('Not enough transfer budget', 'error'); return; }
+  if (fee > eco.available) {
+    _tfReserve(p, C, released);          // deal refused: put the reservation back
+    _tfToast('Not enough transfer budget', 'error'); return;
+  }
 
   // ── the one place a transfer becomes a squad player ──────────────────────
   // The context owns its roster. Transfers hands over a squad-shaped player and
@@ -48489,15 +48517,11 @@ function _tfTick() {
   _tfMarket().forEach(function (p) {
     var st = _tfAucState(p);
     if (p.__st !== st) {
-      // A closing auction settles: a bid we lead is spent as a fee we now owe,
-      // a bid we lost is released back to the budget.
-      if ((st === 'LOST') && p.__st !== 'LOST') {
-        var L = _tfLedger(C);
-        if (p.bidders.some(function (b) { return b.me; })) {
-          var mine = p.bidders.filter(function (b) { return b.me; })[0];
-          L.committed = Math.max(0, L.committed - (mine ? mine.amount : 0));
-        }
-      }
+      // A closing auction settles. A lot we won keeps its reservation until the
+      // signing converts it into a fee; a lot that closed any other way gives
+      // back whatever it still holds — which, if a rival already took the lead,
+      // is nothing, because that release happened the moment we were outbid.
+      if (st === 'LOST' || st === 'ENDED') _tfRelease(p, C);
       p.__st = st; structural = true;
     }
     if (st === 'ENDED' || st === 'WON' || st === 'LOST') return;
@@ -48507,10 +48531,8 @@ function _tfTick() {
     var pressure = left < 120000 ? 0.05 : left < 600000 ? 0.018 : 0.006;
     if (Math.random() < pressure) {
       var nb = _tfNextBid(p.bid);
-      if (_tfMyLead(p)) {
-        var Lg = _tfLedger(C);
-        Lg.committed = Math.max(0, Lg.committed - p.bid);
-      }
+      // Outbid: this lot no longer holds any of our budget.
+      if (_tfMyLead(p)) _tfRelease(p, C);
       p.bid = nb;
       p.leader = _tfPick(p.seed + now, 'rival', TF_CLUBS);
       p.bidders.unshift({ club: p.leader, amount: nb, at: now, me: false });
@@ -48605,8 +48627,7 @@ function _tfCloseDetail() { _TF.detail = null; _tfRenderOverlay(); }
     if ((el = t.closest('[data-tf-sign]'))) {
       e.preventDefault(); e.stopPropagation();
       var sp = _tfFind(el.getAttribute('data-tf-sign'), C); if (!sp) return;
-      var mineBid = (sp.bidders || []).filter(function (b) { return b.me; })[0];
-      _TF.confirm = { kind: 'sign', id: sp.id, fee: _tfSettleCost(sp), releases: (_tfMyLead(sp) && mineBid) ? mineBid.amount : 0 };
+      _TF.confirm = { kind: 'sign', id: sp.id, fee: _tfSettleCost(sp), releases: sp.myCommit || 0 };
       _tfRenderOverlay(); return;
     }
     if (t.closest('[data-tf-search]')) { e.preventDefault(); _TF.confirm = { kind: 'search' }; _tfRenderOverlay(); return; }
