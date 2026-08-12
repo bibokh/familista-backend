@@ -506,6 +506,14 @@ async function bootApp() {
       var _hs = await _thHydrate();
       if (_hs === 'ready') {
         if (typeof _sqLoad === 'function') _sqLoad();
+        // The eager pages were painted while the server was still answering, so
+        // the Squad on screen still names its players by the browser's old
+        // `sq-8` ids — click one and nothing opens, because that footballer no
+        // longer exists under that name. Paint them again now the roster is
+        // real, and stay on whatever page the manager is looking at.
+        var _showing = ((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
+        if (typeof renderAllPages === 'function') renderAllPages();
+        if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
         if (typeof _tfSyncAll === 'function') _tfSyncAll();
       } else {
         showToast('Squad is running locally — server roster unavailable', 'error');
