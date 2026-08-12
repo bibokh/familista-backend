@@ -12,7 +12,7 @@
     "build:client": "cd client && npm install && npm run build",
     "build:all": "npm run build && npm run build:client",
     "dev:client": "cd client && npm run dev",
-    "start": "node dist/server.js",
+    "start": "bash scripts/render-start.sh",
     "db:predeploy": "bash scripts/render-predeploy.sh",
     "db:migrate": "prisma migrate deploy --schema=prisma/schema.prisma",
     "db:migrate:dev": "prisma migrate dev --schema=prisma/schema.prisma",
@@ -26,7 +26,8 @@
     "db:resolve:all": "npm run db:resolve:baseline && prisma migrate resolve --applied 20250525000000_add_phase_q_and_password_reset --schema=prisma/schema.prisma",
     "preflight": "bash scripts/preflight-prod.sh",
     "lint": "eslint src --ext .ts",
-    "test": "jest"
+    "test": "jest",
+    "start:server": "node dist/server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",

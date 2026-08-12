@@ -12,8 +12,10 @@ services:
     branch: main
     autoDeploy: true
     buildCommand: npm install && npx prisma generate --schema=prisma/schema.prisma && npm run build
-    preDeployCommand: bash scripts/render-predeploy.sh
-    startCommand: node dist/server.js
+    # Pre-Deploy Command is a paid-instance feature. On the free plan the only
+    # hook before the server accepts traffic is the start command, so the
+    # migration gate runs there instead — same script, earlier in the sequence.
+    startCommand: bash scripts/render-start.sh
     healthCheckPath: /api/v1/health
     envVars:
       # ── Core ────────────────────────────────────────────────────────────
