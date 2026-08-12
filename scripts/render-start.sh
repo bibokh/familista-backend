@@ -122,48 +122,101 @@ NODE
 fi
 
 # ── 2 · schema gate ──────────────────────────────────────────────────────────
-# Migrations reporting success is not the same as the schema being right: a
-# database bootstrapped by `db push` can carry migrations marked resolved whose
-# SQL never ran. So check for the objects this build actually queries.
+# A migration recorded in the ledger is not proof that its schema exists. This
+# database has both of Phase 2's migrations marked applied while neither object
+# is present — the rows were reconciled as "already there" when in fact they were
+# not, and `migrate deploy` will now never revisit them because it sees nothing
+# pending. Recorded-but-absent is a repair, not a success.
+#
+# So the schema is inspected physically, and if either object is genuinely
+# missing it is created here from the exact SQL its own migration carries —
+# nothing more. Both statements are IF NOT EXISTS, so an object that does exist
+# is left exactly as it is; no table is dropped, no row is touched, no column is
+# rewritten. Then the schema is inspected again, and only a physical pass lets
+# the API start.
 echo ""
 echo "── verifying required schema ──"
 node <<'NODE'
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Resolved through the connection's own search_path rather than a hard-coded
+// "public", so the check looks where Prisma actually writes.
+const hasColumn = async () => {
+  const rows = await prisma.$queryRaw`
+    select 1 from information_schema.columns
+     where table_schema = current_schema()
+       and table_name = 'Player' and column_name = 'form'`;
+  return rows.length > 0;
+};
+const hasTable = async () => {
+  const rows = await prisma.$queryRaw`select to_regclass('"ClubTransferBalance"')::text as t`;
+  return !!rows[0]?.t;
+};
+
 (async () => {
-  const [col] = await prisma.$queryRaw`
-    select column_name from information_schema.columns
-     where table_schema = 'public' and table_name = 'Player' and column_name = 'form'`;
-  const [tbl] = await prisma.$queryRaw`
-    select tablename from pg_tables
-     where schemaname = 'public' and tablename = 'ClubTransferBalance'`;
+  let col = await hasColumn();
+  let tbl = await hasTable();
+  const line = (ok, label) => console.log(`   ${ok ? '✅' : '❌'} ${label}`);
+  line(col, 'Player.form column');
+  line(tbl, 'ClubTransferBalance table');
+
   const migs = await prisma.$queryRaw`
     select migration_name from _prisma_migrations
      where finished_at is not null
        and migration_name in ('20260812000000_add_club_transfer_balance',
                               '20260812010000_add_player_form')`;
   const recorded = new Set(migs.map((m) => m.migration_name));
-
-  const line = (ok, label) => console.log(`   ${ok ? '✅' : '❌'} ${label}`);
-  line(!!col, 'Player.form column');
-  line(!!tbl, 'ClubTransferBalance table');
-  // The ledger is bookkeeping, not schema. A database bootstrapped with
-  // `db push` legitimately has the objects without the rows, so a missing
-  // entry is worth saying out loud but is not a reason to refuse to start.
   for (const name of ['20260812000000_add_club_transfer_balance',
                       '20260812010000_add_player_form']) {
     console.log(`   ${recorded.has(name) ? '✅' : 'ℹ️ '} migration ${name}` +
-                (recorded.has(name) ? ' recorded' : ' not in ledger (schema check governs)'));
+                (recorded.has(name) ? ' recorded' : ' not in ledger'));
   }
 
-  // Only the structural facts gate the boot — they are what the running code
-  // dereferences on every roster read.
+  if (!col || !tbl) {
+    console.log('');
+    console.log('── repairing missing objects (recorded as applied, physically absent) ──');
+
+    if (!col) {
+      // verbatim from 20260812010000_add_player_form
+      console.log('   + Player.form');
+      await prisma.$executeRawUnsafe(
+        'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "form" INTEGER;');
+    }
+    if (!tbl) {
+      // verbatim from 20260812000000_add_club_transfer_balance
+      console.log('   + ClubTransferBalance (+ unique clubId, + clubId index)');
+      await prisma.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ClubTransferBalance" (
+            "id"        TEXT NOT NULL,
+            "clubId"    TEXT NOT NULL,
+            "budgetEur" BIGINT NOT NULL DEFAULT 50000000,
+            "earnedEur" BIGINT NOT NULL DEFAULT 0,
+            "spentEur"  BIGINT NOT NULL DEFAULT 0,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL,
+            CONSTRAINT "ClubTransferBalance_pkey" PRIMARY KEY ("id")
+        );`);
+      await prisma.$executeRawUnsafe(
+        'CREATE UNIQUE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_key" ON "ClubTransferBalance"("clubId");');
+      await prisma.$executeRawUnsafe(
+        'CREATE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_idx" ON "ClubTransferBalance"("clubId");');
+    }
+
+    // physical re-inspection — the repair proves itself or the boot stops
+    col = await hasColumn();
+    tbl = await hasTable();
+    console.log('');
+    console.log('── re-verifying ──');
+    line(col, 'Player.form column');
+    line(tbl, 'ClubTransferBalance table');
+  }
+
   if (!col || !tbl) {
     console.error('\n❌ schema gate FAILED — the API will not start against an ' +
                   'incompatible schema.');
-    console.error('   Missing: ' + [!col && 'Player.form', !tbl && 'ClubTransferBalance']
-      .filter(Boolean).join(', '));
+    console.error('   Still missing after repair: ' +
+      [!col && 'Player.form', !tbl && 'ClubTransferBalance'].filter(Boolean).join(', '));
     process.exit(1);
   }
   console.log('✅ schema: compatible');
