@@ -46290,6 +46290,10 @@ function _atFormationCtx(id) {
   return _atWithCfg(id, {
     type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
     roster: mapped, reserve: [],
+    // Transfers asks the context for a player by id — it is how the sell panel
+    // finds the footballer behind the button. Without it the age group rendered
+    // a List-for-transfer control that quietly did nothing.
+    findPlayer: function (pid) { return byId[pid] || null; },
     // The bench is every eligible player not in the starting group — named subs
     // first, then the rest of the age group — so squad depth reflects the real
     // roster rather than only those already promoted to the bench list.
