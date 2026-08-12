@@ -281,6 +281,7 @@ model Player {
   legacyId         String?  @unique
   roles            String?              // e.g. "BBM · CM" (preserved from the Squad UI)
   morale           String?              // "Excellent" | "Good" | "Content" | "Poor"
+  form             Int?                 // 1-10, the Squad UI's form figure
   isCaptain        Boolean  @default(false)
   isViceCaptain    Boolean  @default(false)
   trainedPositions String?              // comma-separated allowed positions (e.g. "CM,DM,AM")
@@ -8866,6 +8867,25 @@ model TransferTarget {
   @@index([clubId, stage])
   @@index([clubId, archivedAt])
   @@index([playerId])
+}
+
+/// ClubTransferBalance — the only money the transfer market needs: what a club
+/// may spend, what it has earned from sales, what it has already paid out. This
+/// is deliberately NOT a finance ledger. Wages, sponsorship, matchday income and
+/// anything season-shaped stay out of it; settlement needs a buyer to be able to
+/// pay and a seller to be paid, and nothing more.
+model ClubTransferBalance {
+  id        String @id @default(uuid())
+  clubId    String @unique
+
+  budgetEur BigInt @default(50000000)
+  earnedEur BigInt @default(0)
+  spentEur  BigInt @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
 }
 
 model PlayerMarketValue {

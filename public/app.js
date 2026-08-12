@@ -497,6 +497,30 @@ async function bootApp() {
   showToast('Loading your club data...', 'info');
   await loadAllData();
 
+  // ── the squad becomes real ────────────────────────────────────────────────
+  // Lift this club's roster into persistent Player rows once, then read the
+  // canonical roster back. From here the server owns who plays for whom, which
+  // is what lets a player actually change clubs.
+  try {
+    if (typeof _thHydrate === 'function') {
+      var _hs = await _thHydrate();
+      if (_hs === 'ready') {
+        if (typeof _sqLoad === 'function') _sqLoad();
+        // The eager pages were painted while the server was still answering, so
+        // the Squad on screen still names its players by the browser's old
+        // `sq-8` ids — click one and nothing opens, because that footballer no
+        // longer exists under that name. Paint them again now the roster is
+        // real, and stay on whatever page the manager is looking at.
+        var _showing = ((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
+        if (typeof renderAllPages === 'function') renderAllPages();
+        if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
+        if (typeof _tfSyncAll === 'function') _tfSyncAll();
+      } else {
+        showToast('Squad is running locally — server roster unavailable', 'error');
+      }
+    }
+  } catch (_) {}
+
   // GPS simulator removed — startLiveGPS / startLiveInterval decommissioned.
 
   showToast(`Welcome back, ${State.user?.firstName}! ✅`, 'success');
@@ -819,9 +843,19 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
       return w !== '7px';
     } catch (e) { return false; }
   }
+  // Writing through the CSSOM rewrites the very style attribute the observer
+  // below is watching, so every rescue schedules another one. That is harmless
+  // only while the rewrite is a fixed point — and it is not: a declaration the
+  // CSSOM re-serialises differently (a shorthand holding a var(), say) comes
+  // back changed, is rescued again, and the observer feeds itself in microtasks
+  // that never yield. Remembering what we last wrote breaks the cycle without
+  // weakening the rescue: an element is skipped only until something other than
+  // us changes its style.
+  var lastWritten = new WeakMap();
   function reapply(el) {
     var decl = el.getAttribute && el.getAttribute('style');
     if (!decl) return;
+    if (lastWritten.get(el) === decl) return;
     decl.split(';').forEach(function (d) {
       var i = d.indexOf(':');
       if (i < 0) return;
@@ -831,6 +865,7 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
       if (bang >= 0) el.style.setProperty(prop, val.slice(0, bang).trim(), 'important');
       else el.style.setProperty(prop, val);
     });
+    lastWritten.set(el, el.getAttribute('style'));
   }
   function sweep(node) {
     if (!node || node.nodeType !== 1) return;
@@ -1487,7 +1522,11 @@ function navTo(page, el, _opts) {
     if (page === 'academy-team' && typeof renderAcademyTeamPage === 'function') renderAcademyTeamPage();
     // Transfers keeps a live market. Re-entering the page restarts its clock
     // and repaints against whatever has moved on since the manager left.
-    if (page === 'transfers'  && typeof renderTransfersPage === 'function') renderTransfersPage();
+    if (page === 'transfers'  && typeof renderTransfersPage === 'function') {
+      renderTransfersPage();
+      // and pull the real market in behind it
+      if (typeof _tfSyncAll === 'function') _tfSyncAll();
+    }
   } catch (_) {}
   // Academy Team Workspace is a child of Academy — keep the Academy sidebar
   // item highlighted so the user stays visibly inside Academy, not First Team.
@@ -2836,6 +2875,10 @@ var _sqFormState = { mode: 'add', id: null };
 var _sqDeleteId = null;
 var SQ_LS_KEY = 'familista.squad.lineup.v1';
 function _sqSave() {
+  // After the server owns this club's roster, the browser copy is a cache and
+  // nothing more. Writing it back would let a sold player reappear on reload,
+  // so once hydrated we simply do not keep one.
+  if (typeof _thIsHydrated === 'function' && _thIsHydrated()) return;
   try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(SQ_LS_KEY, JSON.stringify(SQ_DEMO_PLAYERS)); } catch (e) {}
 }
 // ── Backend Squad adapter ──────────────────────────────────────────────────
@@ -2856,9 +2899,14 @@ function _sqAdaptBackendPlayer(bp) {
   return {
     id: bp.id, pos: pos, cat: SQ_CATOF[pos] || 'mf', num: bp.number || 0, name: name,
     roles: bp.roles || pos, nat: bp.flag || '🏳️', natName: bp.nationality || '—',
-    age: _sqAgeFromDob(bp.dateOfBirth), value: _sqFmtValue(bp.marketValue), form: 6,
+    age: _sqAgeFromDob(bp.dateOfBirth), value: _sqFmtValue(bp.marketValue),
+    form: (typeof bp.form === 'number') ? bp.form : 6,
     weight: (typeof bp.weight === 'number') ? bp.weight : undefined,
     cond: (typeof bp.condition === 'number') ? bp.condition : 85, morale: bp.morale || 'Good',
+    availability: bp.isInjured ? 'Injured' : 'Available',
+    secondary: bp.roles || null, trainedPositions: bp.trainedPositions || null,
+    // `sq-15` is a label now, never the footballer's identity
+    legacyId: bp.legacyId || null, teamId: bp.teamId || null,
     qual: bp.overallRating || 70, foot: bp.preferredFoot === 'LEFT' ? 'Left' : bp.preferredFoot === 'BOTH' ? 'Both' : 'Right',
     height: bp.height ? (Math.round(bp.height) / 100).toFixed(2) + 'm' : '1.80m',
     captain: !!bp.isCaptain, _backend: true
@@ -2866,6 +2914,12 @@ function _sqAdaptBackendPlayer(bp) {
 }
 function _sqBackendSquad() {
   try {
+    // Hydrated: the First Team is exactly the players the server files under
+    // that team, so an age group's players can never appear in it.
+    if (typeof _thRosterFor === 'function') {
+      var own = _thRosterFor('First Team');
+      if (own) return own;
+    }
     var ps = (typeof window !== 'undefined' && window.State && Array.isArray(window.State.players)) ? window.State.players : null;
     if (!ps || !ps.length) return null;
     var active = ps.filter(function (p) { return p && p.isActive !== false; });
@@ -45359,6 +45413,12 @@ function _atNewBase(pid, o, idx, id) {
 }
 // Enriched, isolated roster (base seeded players + coach-added, minus archived).
 function _atRoster(id) {
+  // Hydrated: this age group is the players the server files under this age
+  // group's team, and nobody else's. Isolation is the team row itself.
+  if (typeof _thRosterFor === 'function') {
+    var own = _thRosterFor(_acStage(id).label);
+    if (own) return own.map(function (p) { return _atFromServer(p, id); });
+  }
   var idx = _atStageCfg(id).tier, ov = _atOverlay(id);
   var list = _acInStage(id).map(function (p, i) { return _atApplyOverlay(_atEnrich(p, i, idx, id), ov[p.id]); });
   Object.keys(ov).forEach(function (pid) { if (ov[pid] && ov[pid].__new) list.push(_atNewBase(pid, ov[pid], idx, id)); });
@@ -46230,6 +46290,10 @@ function _atFormationCtx(id) {
   return _atWithCfg(id, {
     type: 'academy', teamId: id, ctxId: 'academy:' + id, label: c.label + ' · ' + c.name,
     roster: mapped, reserve: [],
+    // Transfers asks the context for a player by id — it is how the sell panel
+    // finds the footballer behind the button. Without it the age group rendered
+    // a List-for-transfer control that quietly did nothing.
+    findPlayer: function (pid) { return byId[pid] || null; },
     // The bench is every eligible player not in the starting group — named subs
     // first, then the rest of the age group — so squad depth reflects the real
     // roster rather than only those already promoted to the bench list.
@@ -47364,6 +47428,12 @@ function _tfEconomy(C) {
       if (cap > 0) { total = cap; source = 'club'; }
     }
   } catch (_) {}
+  if (typeof _TF_SERVER_BALANCE !== 'undefined' && _TF_SERVER_BALANCE) {
+    var SB = _TF_SERVER_BALANCE, LS = _tfLedger(C);
+    return { source: 'server', total: SB.budgetEur, committed: LS.committed, spent: SB.spentEur,
+             earned: SB.earnedEur, credits: LS.credits,
+             available: Math.max(0, SB.availableEur - LS.committed) };
+  }
   if (total == null) total = TF_DEMO_BUDGET;
   var L = _tfLedger(C);
   return {
@@ -47662,8 +47732,11 @@ function _tfRecommendations(C) {
 // Two different questions about the same player. What it costs to get INTO the
 // deal (the next offer on an auction, the quoted fee on a scouted player), and
 // what the club actually PAYS when the deal completes (the price we lead with).
-function _tfCostOf(p) { return p.listing === 'auction' ? _tfNextBid(p.bid) : (p.fee || p.mv); }
-function _tfSettleCost(p) { return p.listing === 'auction' ? p.bid : (p.fee || p.mv); }
+// A listing from another club is not an auction. The server sells it to the
+// first club that completes the signing, at the price the seller asked — there
+// is no bidding behind it to win. So its cost is the asking price, flat.
+function _tfCostOf(p) { return p.server ? p.ask : p.listing === 'auction' ? _tfNextBid(p.bid) : (p.fee || p.mv); }
+function _tfSettleCost(p) { return p.server ? p.ask : p.listing === 'auction' ? p.bid : (p.fee || p.mv); }
 function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -48072,11 +48145,11 @@ function _tfAssistantHtml(C) {
       + '<div class="tf-rc-nums">'
       +   '<div><i>OVR</i>' + _tfQuality(p.qual) + '</div>'
       +   '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
-      +   '<div><i>' + (p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
+      +   '<div><i>' + (p.server ? 'Asking price' : p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
       + '</div>'
       + '<div class="tf-rc-tags"><span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
       +   '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
-      +   '<span class="tf-src2">' + (p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
+      +   '<span class="tf-src2">' + (p.server ? 'Listed by ' + _tfEsc(p.club || 'another club') : p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
       + '<div class="tf-rc-why"><h4>Why this player</h4>'
       +   top.map(function (x) {
         return '<div class="tf-why' + (x.caution ? ' is-caution' : '') + '"><span class="tf-why-k">'
@@ -48162,7 +48235,8 @@ function _tfOverviewHtml(p, C) {
     ['Market value', _tfMoney(p.mv)], ['Estimated wage', _tfMoney(p.wage) + ' / yr'],
     ['Nationality', p.natName], ['Current club', p.club],
     ['Contract', p.contract],
-    ['Transfer status', p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
+    ['Transfer status', p.server ? ('Listed by ' + (p.club || 'another club') + ' · ' + _tfMoney(p.ask))
+      : p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
   ];
   var meters = [
     ['Form', p.form * 10, p.form + ' / 10'],
@@ -48265,6 +48339,35 @@ function _tfBidPanelHtml(p, C) {
   var lead = _tfLeaderName(p, C);
   var canBid = !closed && next <= eco.available;
   var action;
+  // A real listing is bought, not won. Its panel offers the asking price and
+  // the signing itself; the seller keeps him until somebody completes one.
+  if (p.server) {
+    var afford = p.ask <= eco.available;
+    return '<aside class="tf-side">'
+      + '<div class="tf-side-hd"><span class="tf-state tf-state--available">LISTED</span>'
+      +   '<span class="tf-side-ttl">' + _tfEsc(p.club || 'Selling club') + '</span></div>'
+      + '<div class="tf-side-timer' + (closed ? ' is-off' : '') + '">'
+      +   '<span class="tf-side-tl">Listing closes</span>'
+      +   '<span class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
+      +     (closed ? 'CLOSED' : _tfClock(left)) + '</span></div>'
+      + '<div class="tf-side-rows">'
+      +   '<div class="tf-side-row"><i>Asking price</i><b class="is-next">' + _tfMoney(p.ask) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Estimated value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Destination</i><b>' + _tfEsc(C.label || 'Team') + '</b></div>'
+      +   '<div class="tf-side-row"><i>Available budget</i><b>' + _tfMoney(eco.available) + '</b></div>'
+      + '</div>'
+      + '<button type="button" class="tf-btn tf-btn--primary tf-btn--block' + (afford && !closed ? '' : ' is-disabled') + '"'
+      +   (afford && !closed ? ' data-tf-sign="' + _tfEsc(p.id) + '"' : ' disabled') + '>'
+      +   (closed ? 'LISTING CLOSED' : 'COMPLETE SIGNING') + '</button>'
+      + (afford ? '' : '<p class="tf-warn">The asking price exceeds the available transfer budget.</p>')
+      + '<p class="tf-note">He is sold to the first club that completes the signing.</p>'
+      + '<div class="tf-side-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
+      +   '<button type="button" class="tf-btn tf-btn--sm' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
+      +     (_tfIsShort(p.id, C) ? '★ Shortlisted' : '☆ Add to shortlist') + '</button>'
+      + '</div>'
+      + '</aside>';
+  }
   if (st === 'WON') {
     action = '<button type="button" class="tf-btn tf-btn--primary tf-btn--block" data-tf-sign="' + _tfEsc(p.id) + '">COMPLETE SIGNING</button>';
   } else if (closed) {
@@ -48513,6 +48616,24 @@ function _tfDoSign(id) {
   // A real listing belongs to another club, so buying it is a settlement: the
   // seller loses him, we gain him, and the money moves both ways exactly once.
   // A generated listing has no owner, so there is only our side to record.
+  if (p.server) {
+    _tfRelease(p, C);
+    _tfServerPurchase(p.listingId).then(function () {
+      _tfToast(p.name + ' signed from ' + p.club + ' for ' + _tfMoney(fee), 'success');
+      return _thRefresh();                       // ownership is the server's answer
+    }).then(function () {
+      return Promise.all([_tfSyncServerMarket(), _tfSyncMyListings()]);
+    }).then(function () {
+      _tfDropCtx();
+      if (typeof C.refreshRoster === 'function') { try { C.refreshRoster(); } catch (_) {} }
+      renderTransfersPage();
+    }).catch(function (e) {
+      var m = (e && (e.userMessage || e.message)) || '';
+      _tfToast(/no longer available|409/i.test(m) ? 'Listing no longer available — already sold' : ('Transfer failed — ' + m), 'error');
+      renderTransfersPage();
+    });
+    return;
+  }
   if (p.real) {
     var res = _tfSettleListing(p, C, fee);
     if (!res.ok) {
@@ -48594,6 +48715,10 @@ function _tfTick() {
       p.__st = st; structural = true;
     }
     if (st === 'ENDED' || st === 'WON' || st === 'LOST') return;
+    // The rival clubs below are generated. They may compete for a generated
+    // lot; they must never bid on a real player another club has listed, or an
+    // invented club would take a footballer nobody can then sign.
+    if (p.server) return;
     // Rival clubs keep bidding while a listing is open. Late in a listing they
     // press harder, which is what makes the last minute worth watching.
     var left = p.endsAt - now;
@@ -48896,7 +49021,27 @@ function _tfListingById(id) {
   for (var i = 0; i < L.length; i++) if (L[i].id === id) return L[i];
   return null;
 }
-function _tfIsListed(playerId) { return !!_tfListingFor(playerId); }
+var _TF_MY_LISTINGS = [];
+function _tfIsListed(playerId) {
+  if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+    for (var i = 0; i < _TF_MY_LISTINGS.length; i++) {
+      if (_TF_MY_LISTINGS[i].player && _TF_MY_LISTINGS[i].player.id === playerId) return true;
+    }
+    return false;
+  }
+  return !!_tfListingFor(playerId);
+}
+function _tfMyListingFor(playerId) {
+  for (var i = 0; i < _TF_MY_LISTINGS.length; i++) {
+    if (_TF_MY_LISTINGS[i].player && _TF_MY_LISTINGS[i].player.id === playerId) return _TF_MY_LISTINGS[i];
+  }
+  return null;
+}
+async function _tfSyncMyListings() {
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return _TF_MY_LISTINGS;
+  try { _TF_MY_LISTINGS = await _tfServerMyListings(); } catch (_) {}
+  return _TF_MY_LISTINGS;
+}
 
 // Create the listing. The player does NOT leave the squad — he is for sale,
 // not sold.
@@ -49022,6 +49167,12 @@ function _tfLots(C) {
   C = C || _tfCtx();
   var mine = _tfClubOf(C);
   var out = _tfMarket().slice();
+  // One logical market: the generated lots, plus every real listing the server
+  // says this club may see. A server listing never duplicates a local one —
+  // when the session is hydrated the local store is not used for listings.
+  if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+    return out.concat(_TF_SERVER_LOTS);
+  }
   var L = _tfListings();
   for (var i = 0; i < L.length; i++) {
     var rec = L[i];
@@ -49122,8 +49273,13 @@ function _tfSellOpen(ctxId, playerId) {
   var C = _tfCtxById(ctxId); if (!C) return;
   var p = typeof C.findPlayer === 'function' ? C.findPlayer(playerId) : null;
   if (!p) return;
-  var existing = _tfListingFor(playerId);
-  if (existing) { _TF_SELL = { ctxId: ctxId, playerId: playerId, mode: 'delist', listingId: existing.id }; }
+  var srv = (typeof _thIsHydrated === 'function' && _thIsHydrated()) ? _tfMyListingFor(playerId) : null;
+  var existing = srv || _tfListingFor(playerId);
+  if (existing) {
+    _TF_SELL = { ctxId: ctxId, playerId: playerId, mode: 'delist',
+                 listingId: srv ? srv.listingId : existing.id,
+                 askingPrice: srv ? srv.askingPriceEur : (existing.payload && existing.payload.askingPrice) };
+  }
   else {
     var suggested = _tfSnapshotValue(_tfListingSnapshot(p));
     _TF_SELL = { ctxId: ctxId, playerId: playerId, mode: 'list', price: suggested };
@@ -49140,7 +49296,8 @@ function _tfSellRender() {
   host.classList.add('is-on');
 
   if (_TF_SELL.mode === 'delist') {
-    var rec = _tfListingById(_TF_SELL.listingId);
+    var rec = _tfListingById(_TF_SELL.listingId)
+           || { payload: { askingPrice: _TF_SELL.askingPrice || 0 } };
     host.innerHTML = '<div class="tf-modal tf-modal--sm" id="tf-sell-modal">'
       + '<div class="tf-modal-bd" data-tf-sell-close></div>'
       + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true" aria-label="Remove from transfer list">'
@@ -49201,6 +49358,15 @@ function _tfSellRender() {
       var p = C && _TF_SELL ? C.findPlayer(_TF_SELL.playerId) : null;
       if (!C || !p) { _tfSellClose(); return; }
       var price = Math.max(0, Math.round(_TF_SELL.price || 0));
+      if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+        _tfSellClose();
+        _tfServerList(p, price).then(function () {
+          _tfToast(p.name + ' listed for ' + _tfMoney(price), 'success');
+          return _tfSyncServerMarket();
+        }).then(function () { _tfSellRefreshOwner(C); })
+          .catch(function (e) { _tfToast('Listing failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
+        return;
+      }
       _tfCreateListing(C, p, price);
       _tfToast(p.name + ' listed for ' + _tfMoney(price), 'success');
       _tfSellClose();
@@ -49210,10 +49376,17 @@ function _tfSellRender() {
     if (t.closest('[data-tf-delist]')) {
       e.preventDefault();
       var C2 = _tfCtxById(_TF_SELL && _TF_SELL.ctxId);
-      if (_TF_SELL && _TF_SELL.listingId) {
-        _tfDelist(_TF_SELL.listingId);
-        _tfToast('Removed from the transfer list', 'info');
+      var lid = _TF_SELL && _TF_SELL.listingId;
+      if (lid && typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+        _tfSellClose();
+        _tfServerDelist(lid).then(function () {
+          _tfToast('Removed from the transfer list', 'info');
+          return _tfSyncServerMarket();
+        }).then(function () { _tfSellRefreshOwner(C2); })
+          .catch(function (e) { _tfToast('Delist failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
+        return;
       }
+      if (lid) { _tfDelist(lid); _tfToast('Removed from the transfer list', 'info'); }
       _tfSellClose();
       _tfSellRefreshOwner(C2);
       return;
@@ -49244,3 +49417,322 @@ function _tfSellButton(ctxId, player, cls) {
     + (listed ? '● Listed — remove' : '⇄ List for transfer') + '</button>';
 }
 window._tfSellButton = _tfSellButton;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TEAMCONTEXT SERVER HYDRATION
+// ─────────────────────────────────────────────────────────────────────────────
+// The squad used to be a browser array. A footballer's identity was `sq-15`,
+// which meant nothing outside this tab — so a player could never really change
+// hands, only be copied.
+//
+// The canonical player is now the server's Player row, and his identity is its
+// UUID. Nothing about the football engine changes: hydration produces the same
+// squad-shaped object the engine has always consumed, so Squad, Formation,
+// Tactics, Academy and Transfers keep reading exactly what they read before.
+// What changes is where that object comes from, and who is allowed to overwrite
+// it — after a successful hydration, the server owns the roster, and a stale
+// browser copy can never put a sold player back.
+//
+//     Player rows  →  _sqAdaptBackendPlayer  →  TeamContext  →  the engine
+//
+// `sq-15` survives only as `legacyId`, a label carried on the record so an old
+// saved lineup still resolves. It is never the player's identity again, and the
+// same footballer never exists as two objects.
+// ══════════════════════════════════════════════════════════════════════════════
+
+var _TH = {
+  state: 'idle',        // idle | seeding | ready | failed
+  error: null,
+  clubId: null,
+  teams: null,          // [{ id, name, kind }]
+  byTeam: {},           // teamId → adapted players
+  legacy: {}            // legacyId → real UUID
+};
+
+function _thApi(method, path, body) {
+  return FamilistaAPI.request(method, path, body === undefined ? {} : { body: body });
+}
+function _thUnwrap(r) { return (r && r.data !== undefined) ? r.data : r; }
+
+// Has the server become the source of truth for this session? Once true, no
+// local roster may be written back over it.
+// Callable from anywhere, including code that runs before this block is
+// evaluated — `var _TH` is hoisted but not yet assigned during initial load.
+function _thIsHydrated() { return !!(typeof _TH !== 'undefined' && _TH && _TH.state === 'ready'); }
+
+// ── the lift ─────────────────────────────────────────────────────────────────
+// A club with no persistent players gets the roster it already has, once. The
+// idempotency guard lives on the server (its own player count), so a refresh, a
+// second tab or a cleared browser cannot seed anybody twice.
+function _thBootstrapPayload() {
+  var teams = [];
+  try {
+    var first = { name: 'First Team', kind: 'SENIOR', players: [] };
+    (SQ_DEMO_PLAYERS || []).forEach(function (p) { first.players.push(_thPlayerPayload(p)); });
+    if (first.players.length) teams.push(first);
+  } catch (_) {}
+  try {
+    (AC_STAGES || []).forEach(function (st) {
+      var rng = _atStageRange(st.id);
+      var t = { name: st.label, kind: _thAcademyKind(rng[1]), ageMin: rng[0], ageMax: rng[1], players: [] };
+      (_atRoster(st.id) || []).forEach(function (p) { t.players.push(_thPlayerPayload(p)); });
+      if (t.players.length) teams.push(t);
+    });
+  } catch (_) {}
+  return teams;
+}
+function _thAcademyKind(ageMax) {
+  if (ageMax >= 23) return 'ACADEMY_U23';
+  if (ageMax >= 21) return 'ACADEMY_U21';
+  if (ageMax >= 19) return 'ACADEMY_U19';
+  if (ageMax >= 17) return 'ACADEMY_U17';
+  if (ageMax >= 15) return 'ACADEMY_U15';
+  return 'ACADEMY_U13';
+}
+// The squad shape as the backend stores it. Every field the UI reads has a home
+// — nothing is dropped because the two models spell it differently.
+function _thPlayerPayload(p) {
+  var name = String(p.name || 'Player').trim().split(/\s+/);
+  var first = name.shift() || 'Player';
+  var last = name.join(' ') || first;
+  var cm = (typeof p.height === 'number') ? p.height
+    : (typeof p.height === 'string' && /m$/.test(p.height)) ? Math.round(parseFloat(p.height) * 100) : 180;
+  var age = p.age != null ? p.age : 24;
+  return {
+    legacyId: String(p.id),
+    firstName: first, lastName: last,
+    number: p.num != null ? p.num : (p.number != null ? p.number : 0),
+    position: _thBackendPos(p.pos),
+    nationality: p.natName || p.nationality || '—',
+    flag: p.nat || '🏳️',
+    dateOfBirth: new Date(Date.UTC(new Date().getUTCFullYear() - age, 0, 15)).toISOString(),
+    height: cm, weight: p.weight != null ? p.weight : 75,
+    preferredFoot: p.foot === 'Left' ? 'LEFT' : p.foot === 'Both' || p.foot === 'Either' ? 'BOTH' : 'RIGHT',
+    overallRating: p.qual != null ? p.qual : (p.overall != null ? p.overall : 70),
+    condition: p.cond != null ? p.cond : (p.fitness != null ? p.fitness : 90),
+    marketValue: _thMoneyToNumber(p.value),
+    roles: p.roles || p.secondary || null,
+    morale: p.morale || null,
+    form: p.form != null ? p.form : null,
+    isCaptain: !!p.captain,
+    isInjured: p.availability === 'Injured'
+  };
+}
+function _thMoneyToNumber(v) {
+  if (typeof v === 'number') return v;
+  var s = String(v || '').replace(/[^0-9.MmKk]/g, '');
+  var n = parseFloat(s) || 0;
+  if (/[Mm]/.test(s)) return Math.round(n * 1000000);
+  if (/[Kk]/.test(s)) return Math.round(n * 1000);
+  return Math.round(n);
+}
+// The Squad vocabulary is not the database's; SQ_POSREV maps back on the way in.
+var _TH_POS_TO_BACKEND = { GK:'GK', CB:'DC', LB:'DL', RB:'DR', LWB:'DL', RWB:'DR',
+  DM:'DMC', CM:'MC', AM:'AMC', LM:'ML', RM:'MR', LW:'AML', RW:'AMR', ST:'ST', CF:'ST' };
+function _thBackendPos(pos) { return _TH_POS_TO_BACKEND[String(pos || '').toUpperCase()] || 'MC'; }
+
+// ── hydrate ──────────────────────────────────────────────────────────────────
+// Seed if the club is new, then read the canonical roster back and index it by
+// team. Everything downstream reads this index; nothing reads the browser.
+async function _thHydrate(opts) {
+  opts = opts || {};
+  if (_TH.state === 'seeding') return _TH.state;
+  _TH.state = 'seeding'; _TH.error = null;
+  try {
+    var boot = _thUnwrap(await _thApi('POST', '/transfer-market/bootstrap', { teams: _thBootstrapPayload() }));
+    _TH.seeded = !!(boot && boot.seeded);
+    await _thRefresh();
+    _TH.state = 'ready';
+  } catch (e) {
+    // A failure must never invent a second authoritative roster. If the server
+    // has already owned this session's squad, we say so and stop; only a
+    // session that never hydrated may keep using the local demo squad.
+    _TH.state = 'failed';
+    _TH.error = (e && (e.userMessage || e.message)) || 'hydration failed';
+    try { console.warn('[hydration]', _TH.error); } catch (_) {}
+  }
+  return _TH.state;
+}
+
+// A club is a First Team plus six age groups, so its roster does not fit in one
+// page — and the list endpoint caps a page at 200. Walk the pages until the
+// server stops handing back full ones, so a squad is never silently truncated.
+var _TH_PAGE = 200;
+async function _thAllPlayers() {
+  var all = [], page = 1;
+  for (;;) {
+    var res = await _thApi('GET', '/players?page=' + page + '&limit=' + _TH_PAGE);
+    var body = _thUnwrap(res);
+    var batch = Array.isArray(body) ? body : (body && body.items) || [];
+    all = all.concat(batch);
+    var meta = res && res.meta;
+    var more = meta ? !!meta.hasNext : batch.length === _TH_PAGE;
+    if (!more || !batch.length || page > 50) break;
+    page++;
+  }
+  return all;
+}
+
+// Re-read the canonical roster. Called after any ownership change — a listing
+// sold, a player bought — so the squad reflects the server, not a memory of it.
+async function _thRefresh() {
+  var teams = _thUnwrap(await _thApi('GET', '/teams'));
+  var list = await _thAllPlayers();
+  _TH.teams = Array.isArray(teams) ? teams : (teams && teams.items) || [];
+  _TH.clubId = (window.State && State.club && State.club.id) || null;
+  _TH.byTeam = {}; _TH.legacy = {};
+  list.filter(function (p) { return p && p.isActive !== false; }).forEach(function (bp) {
+    var adapted = _sqAdaptBackendPlayer(bp);
+    var key = bp.teamId || '__unassigned__';
+    (_TH.byTeam[key] = _TH.byTeam[key] || []).push(adapted);
+    // The server qualifies a legacy id by club to keep it unique table-wide;
+    // a saved lineup only ever names the bare `sq-8`, so index both.
+    if (bp.legacyId) {
+      _TH.legacy[bp.legacyId] = bp.id;
+      var bare = bp.legacyId.indexOf(':') >= 0 ? bp.legacyId.slice(bp.legacyId.indexOf(':') + 1) : null;
+      if (bare) _TH.legacy[bare] = bp.id;
+    }
+  });
+  // State.players stays the app's own record of the club's players, so the
+  // existing backend-squad path keeps working unchanged.
+  if (window.State) State.players = list;
+  return _TH.byTeam;
+}
+
+// Which server team backs a given TeamContext. First Team by name, an age group
+// by its label — the same names the bootstrap wrote.
+function _thTeamIdFor(label) {
+  var teams = _TH.teams || [];
+  for (var i = 0; i < teams.length; i++) if (teams[i].name === label) return teams[i].id;
+  return null;
+}
+// The canonical roster for a squad, or null when this session is not hydrated —
+// in which case the caller keeps its existing local behaviour untouched.
+function _thRosterFor(label) {
+  if (!_thIsHydrated() || !_TH.teams) return null;
+  var id = _thTeamIdFor(label);
+  if (!id) return null;
+  return _TH.byTeam[id] || [];
+}
+// An old saved lineup still names sq-15; this resolves it to the real player
+// once, so nothing has to be migrated by hand.
+function _thResolveLegacy(id) { return _TH.legacy[id] || id; }
+
+window._thHydrate = _thHydrate;
+window._thRefresh = _thRefresh;
+window._thIsHydrated = _thIsHydrated;
+window._thRosterFor = _thRosterFor;
+window._thResolveLegacy = _thResolveLegacy;
+
+// A server player, in the shape an age group's screens read. Same record, same
+// identity — only the field names an academy screen happens to use.
+function _atFromServer(p, stageId) {
+  var out = {};
+  for (var k in p) out[k] = p[k];
+  out.stage = stageId;
+  out.overall = p.qual;
+  out.devScore = p.qual;
+  out.fitness = p.cond;
+  out.nationality = p.natName;
+  out.number = p.num;
+  out.secondary = p.secondary || p.roles || p.pos;
+  out.availability = p.availability || 'Available';
+  out.injury = out.availability === 'Injured' ? 'Under review' : 'None';
+  out.dims = out.dims || {};
+  out.notes = out.notes || [];
+  out.assessments = out.assessments || [];
+  out.archived = false;
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFERS ON THE REAL MARKET
+// ─────────────────────────────────────────────────────────────────────────────
+// The selling UI is unchanged — List for Transfer, an asking price, confirm.
+// What changes is where the listing goes: to the server, against the player's
+// canonical UUID, where every other club can see it. There is no second listing
+// store; when the session is hydrated these calls ARE the market.
+// ══════════════════════════════════════════════════════════════════════════════
+async function _tfServerList(player, askingPriceEur) {
+  // The sell panel promises a listing window, so the listing has to carry one.
+  // Without it the server stores no deadline, and a lot whose auction never
+  // ends is a lot nobody can ever sign.
+  return _thUnwrap(await _thApi('POST', '/transfer-market/listings',
+    { playerId: player.id, askingPriceEur: Math.round(askingPriceEur),
+      validUntil: new Date(Date.now() + TF_LISTING_WINDOW_MS).toISOString() }));
+}
+async function _tfServerDelist(listingId) {
+  return _thUnwrap(await _thApi('DELETE', '/transfer-market/listings/' + listingId));
+}
+async function _tfServerMarket() {
+  var r = _thUnwrap(await _thApi('GET', '/transfer-market/market'));
+  return (r && r.items) || [];
+}
+async function _tfServerMyListings() {
+  var r = _thUnwrap(await _thApi('GET', '/transfer-market/my-listings'));
+  return (r && r.items) || [];
+}
+async function _tfServerPurchase(listingId) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/listings/' + listingId + '/purchase'));
+}
+async function _tfServerBalance() { return _thUnwrap(await _thApi('GET', '/transfer-market/balance')); }
+
+// A server listing, in the lot shape the auction table already draws.
+function _tfLotFromServer(rec) {
+  var bp = rec.player || {};
+  var p = _sqAdaptBackendPlayer(bp);
+  var seed = 'srv:' + bp.id;
+  var lot = {};
+  for (var k in p) lot[k] = p[k];
+  lot.id = 'srv-' + rec.listingId;
+  lot.real = true; lot.server = true;
+  lot.listingId = rec.listingId;
+  lot.sellerClubId = rec.sellerClubId;
+  lot.club = rec.sellerClubName;
+  lot.listing = 'auction';
+  lot.positions = [p.pos];
+  lot.natCode = (SQ_NAT && SQ_NAT[p.natName]) || String(p.natName || '').slice(0, 3).toUpperCase();
+  lot.mv = bp.marketValue || 0;
+  lot.wage = (bp.weeklyWage || 0) * 52;
+  lot.ask = rec.askingPriceEur; lot.bid = rec.askingPriceEur;
+  // The deadline must be a property of the listing, not of the moment we read
+  // it: the market is re-read every few seconds, and a clock recomputed from
+  // `now` on each pass never runs down. Older listings that predate the stored
+  // window fall back to their own creation time, which is equally fixed.
+  lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime()
+    : (rec.createdAt ? new Date(rec.createdAt).getTime() + TF_LISTING_WINDOW_MS
+                     : Date.now() + TF_LISTING_WINDOW_MS);
+  lot.bidders = []; lot.leader = null; lot.seed = seed;
+  lot.playstyle = _tfPick(seed, 'ps', TF_PLAYSTYLES[p.cat]);
+  lot.special = _tfPick(seed, 'ab', TF_ABILITIES[p.cat]);
+  lot.contract = 'Contracted';
+  lot.__st = _tfAucState(lot);
+  return lot;
+}
+
+// The market the club can actually see, refreshed from the server. Held so the
+// synchronous renderers keep working exactly as they do today.
+var _TF_SERVER_LOTS = [];
+async function _tfSyncServerMarket() {
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return _TF_SERVER_LOTS;
+  try {
+    var recs = await _tfServerMarket();
+    _TF_SERVER_LOTS = recs.map(_tfLotFromServer);
+  } catch (e) { try { console.warn('[transfers] market read failed', e && e.message); } catch (_) {} }
+  return _TF_SERVER_LOTS;
+}
+
+// The club's real transfer balance, held for the synchronous renderers.
+var _TF_SERVER_BALANCE = null;
+async function _tfSyncBalance() {
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) { _TF_SERVER_BALANCE = null; return null; }
+  try { _TF_SERVER_BALANCE = await _tfServerBalance(); } catch (_) {}
+  return _TF_SERVER_BALANCE;
+}
+// Everything the Transfers page needs from the server, in one place.
+async function _tfSyncAll() {
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance()]);
+  try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
+}
+window._tfSyncAll = _tfSyncAll;
