@@ -89,35 +89,44 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
           ageMin: t.ageMin ?? null, ageMax: t.ageMax ?? null,
         },
       });
-      for (const p of t.players) {
-        await tx.player.create({
-          data: {
-            clubId: actor.clubId, teamId: team.id,
-            firstName: p.firstName, lastName: p.lastName, number: p.number,
-            position: (p.position as never), nationality: p.nationality ?? '—', flag: p.flag ?? '🏳️',
-            dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('2000-01-01'),
-            height: p.height ?? 180, weight: p.weight ?? 75,
-            preferredFoot: (p.preferredFoot as never) ?? ('RIGHT' as never),
-            overallRating: p.overallRating ?? 70, potential: p.potential ?? 75,
-            condition: p.condition ?? 90, marketValue: p.marketValue ?? 1000000,
-            weeklyWage: p.weeklyWage ?? 10000,
-            // carried straight through: the player the manager already knows.
-            // `sq-8` names a slot in the browser's demo squad, so every club
-            // arrives with the same handful of them; Player.legacyId is unique
-            // across the whole table, so they are qualified by club here. The
-            // client strips its own prefix back off when it resolves a saved
-            // lineup, and reads the bare `sq-8` it wrote.
-            legacyId: p.legacyId ? `${actor.clubId}:${p.legacyId}` : null,
-            roles: p.roles ?? null,
-            morale: p.morale ?? null, form: p.form ?? null,
-            isCaptain: p.isCaptain ?? false,
-            trainedPositions: p.trainedPositions ?? null,
-            isInjured: p.isInjured ?? false,
-          },
-        });
-      }
+      // One insert per team rather than one per player. A club arrives with its
+      // First Team and six age groups — ninety-odd footballers — and writing
+      // them one at a time means ninety-odd round trips held open inside a
+      // single interactive transaction. Over a socket that is fast; with the
+      // database on another host it is not, and Prisma closes the transaction
+      // at five seconds (P2028) and rolls the whole thing back. The club is
+      // then still empty, so the next attempt takes the same path and fails the
+      // same way — a bootstrap that can never succeed. Same rows, same values;
+      // six statements instead of ninety-three.
+      await tx.player.createMany({
+        data: t.players.map((p) => ({
+          clubId: actor.clubId, teamId: team.id,
+          firstName: p.firstName, lastName: p.lastName, number: p.number,
+          position: (p.position as never), nationality: p.nationality ?? '—', flag: p.flag ?? '🏳️',
+          dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('2000-01-01'),
+          height: p.height ?? 180, weight: p.weight ?? 75,
+          preferredFoot: (p.preferredFoot as never) ?? ('RIGHT' as never),
+          overallRating: p.overallRating ?? 70, potential: p.potential ?? 75,
+          condition: p.condition ?? 90, marketValue: p.marketValue ?? 1000000,
+          weeklyWage: p.weeklyWage ?? 10000,
+          // carried straight through: the player the manager already knows.
+          // `sq-8` names a slot in the browser's demo squad, so every club
+          // arrives with the same handful of them; Player.legacyId is unique
+          // across the whole table, so they are qualified by club here. The
+          // client strips its own prefix back off when it resolves a saved
+          // lineup, and reads the bare `sq-8` it wrote.
+          legacyId: p.legacyId ? `${actor.clubId}:${p.legacyId}` : null,
+          roles: p.roles ?? null,
+          morale: p.morale ?? null, form: p.form ?? null,
+          isCaptain: p.isCaptain ?? false,
+          trainedPositions: p.trainedPositions ?? null,
+          isInjured: p.isInjured ?? false,
+        })),
+      });
     }
-  });
+    // And a ceiling the first lift of a large club cannot bump into on a slow
+    // link. It bounds the transaction; it does not hold it open.
+  }, { timeout: 30_000, maxWait: 10_000 });
 
   const players = await prisma.player.findMany({ where: { clubId: actor.clubId, isActive: true } });
   appendAuditEventAsync({
