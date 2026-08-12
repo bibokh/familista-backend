@@ -47728,8 +47728,11 @@ function _tfRecommendations(C) {
 // Two different questions about the same player. What it costs to get INTO the
 // deal (the next offer on an auction, the quoted fee on a scouted player), and
 // what the club actually PAYS when the deal completes (the price we lead with).
-function _tfCostOf(p) { return p.listing === 'auction' ? _tfNextBid(p.bid) : (p.fee || p.mv); }
-function _tfSettleCost(p) { return p.listing === 'auction' ? p.bid : (p.fee || p.mv); }
+// A listing from another club is not an auction. The server sells it to the
+// first club that completes the signing, at the price the seller asked — there
+// is no bidding behind it to win. So its cost is the asking price, flat.
+function _tfCostOf(p) { return p.server ? p.ask : p.listing === 'auction' ? _tfNextBid(p.bid) : (p.fee || p.mv); }
+function _tfSettleCost(p) { return p.server ? p.ask : p.listing === 'auction' ? p.bid : (p.fee || p.mv); }
 function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -48138,11 +48141,11 @@ function _tfAssistantHtml(C) {
       + '<div class="tf-rc-nums">'
       +   '<div><i>OVR</i>' + _tfQuality(p.qual) + '</div>'
       +   '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
-      +   '<div><i>' + (p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
+      +   '<div><i>' + (p.server ? 'Asking price' : p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
       + '</div>'
       + '<div class="tf-rc-tags"><span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
       +   '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
-      +   '<span class="tf-src2">' + (p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
+      +   '<span class="tf-src2">' + (p.server ? 'Listed by ' + _tfEsc(p.club || 'another club') : p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
       + '<div class="tf-rc-why"><h4>Why this player</h4>'
       +   top.map(function (x) {
         return '<div class="tf-why' + (x.caution ? ' is-caution' : '') + '"><span class="tf-why-k">'
@@ -48228,7 +48231,8 @@ function _tfOverviewHtml(p, C) {
     ['Market value', _tfMoney(p.mv)], ['Estimated wage', _tfMoney(p.wage) + ' / yr'],
     ['Nationality', p.natName], ['Current club', p.club],
     ['Contract', p.contract],
-    ['Transfer status', p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
+    ['Transfer status', p.server ? ('Listed by ' + (p.club || 'another club') + ' · ' + _tfMoney(p.ask))
+      : p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
   ];
   var meters = [
     ['Form', p.form * 10, p.form + ' / 10'],
@@ -48331,6 +48335,35 @@ function _tfBidPanelHtml(p, C) {
   var lead = _tfLeaderName(p, C);
   var canBid = !closed && next <= eco.available;
   var action;
+  // A real listing is bought, not won. Its panel offers the asking price and
+  // the signing itself; the seller keeps him until somebody completes one.
+  if (p.server) {
+    var afford = p.ask <= eco.available;
+    return '<aside class="tf-side">'
+      + '<div class="tf-side-hd"><span class="tf-state tf-state--available">LISTED</span>'
+      +   '<span class="tf-side-ttl">' + _tfEsc(p.club || 'Selling club') + '</span></div>'
+      + '<div class="tf-side-timer' + (closed ? ' is-off' : '') + '">'
+      +   '<span class="tf-side-tl">Listing closes</span>'
+      +   '<span class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
+      +     (closed ? 'CLOSED' : _tfClock(left)) + '</span></div>'
+      + '<div class="tf-side-rows">'
+      +   '<div class="tf-side-row"><i>Asking price</i><b class="is-next">' + _tfMoney(p.ask) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Estimated value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Destination</i><b>' + _tfEsc(C.label || 'Team') + '</b></div>'
+      +   '<div class="tf-side-row"><i>Available budget</i><b>' + _tfMoney(eco.available) + '</b></div>'
+      + '</div>'
+      + '<button type="button" class="tf-btn tf-btn--primary tf-btn--block' + (afford && !closed ? '' : ' is-disabled') + '"'
+      +   (afford && !closed ? ' data-tf-sign="' + _tfEsc(p.id) + '"' : ' disabled') + '>'
+      +   (closed ? 'LISTING CLOSED' : 'COMPLETE SIGNING') + '</button>'
+      + (afford ? '' : '<p class="tf-warn">The asking price exceeds the available transfer budget.</p>')
+      + '<p class="tf-note">He is sold to the first club that completes the signing.</p>'
+      + '<div class="tf-side-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
+      +   '<button type="button" class="tf-btn tf-btn--sm' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
+      +     (_tfIsShort(p.id, C) ? '★ Shortlisted' : '☆ Add to shortlist') + '</button>'
+      + '</div>'
+      + '</aside>';
+  }
   if (st === 'WON') {
     action = '<button type="button" class="tf-btn tf-btn--primary tf-btn--block" data-tf-sign="' + _tfEsc(p.id) + '">COMPLETE SIGNING</button>';
   } else if (closed) {
@@ -48678,6 +48711,10 @@ function _tfTick() {
       p.__st = st; structural = true;
     }
     if (st === 'ENDED' || st === 'WON' || st === 'LOST') return;
+    // The rival clubs below are generated. They may compete for a generated
+    // lot; they must never bid on a real player another club has listed, or an
+    // invented club would take a footballer nobody can then sign.
+    if (p.server) return;
     // Rival clubs keep bidding while a listing is open. Late in a listing they
     // press harder, which is what makes the last minute worth watching.
     var left = p.endsAt - now;
@@ -49613,8 +49650,12 @@ function _atFromServer(p, stageId) {
 // store; when the session is hydrated these calls ARE the market.
 // ══════════════════════════════════════════════════════════════════════════════
 async function _tfServerList(player, askingPriceEur) {
+  // The sell panel promises a listing window, so the listing has to carry one.
+  // Without it the server stores no deadline, and a lot whose auction never
+  // ends is a lot nobody can ever sign.
   return _thUnwrap(await _thApi('POST', '/transfer-market/listings',
-    { playerId: player.id, askingPriceEur: Math.round(askingPriceEur) }));
+    { playerId: player.id, askingPriceEur: Math.round(askingPriceEur),
+      validUntil: new Date(Date.now() + TF_LISTING_WINDOW_MS).toISOString() }));
 }
 async function _tfServerDelist(listingId) {
   return _thUnwrap(await _thApi('DELETE', '/transfer-market/listings/' + listingId));
@@ -49650,7 +49691,13 @@ function _tfLotFromServer(rec) {
   lot.mv = bp.marketValue || 0;
   lot.wage = (bp.weeklyWage || 0) * 52;
   lot.ask = rec.askingPriceEur; lot.bid = rec.askingPriceEur;
-  lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime() : (Date.now() + 3600000);
+  // The deadline must be a property of the listing, not of the moment we read
+  // it: the market is re-read every few seconds, and a clock recomputed from
+  // `now` on each pass never runs down. Older listings that predate the stored
+  // window fall back to their own creation time, which is equally fixed.
+  lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime()
+    : (rec.createdAt ? new Date(rec.createdAt).getTime() + TF_LISTING_WINDOW_MS
+                     : Date.now() + TF_LISTING_WINDOW_MS);
   lot.bidders = []; lot.leader = null; lot.seed = seed;
   lot.playstyle = _tfPick(seed, 'ps', TF_PLAYSTYLES[p.cat]);
   lot.special = _tfPick(seed, 'ab', TF_ABILITIES[p.cat]);
