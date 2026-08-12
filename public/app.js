@@ -516,7 +516,12 @@ async function bootApp() {
         if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
         if (typeof _tfSyncAll === 'function') _tfSyncAll();
       } else {
-        showToast('Squad is running locally — server roster unavailable', 'error');
+        // Same message, plus the one fact that identifies the cause, so a
+        // screenshot of the banner is enough to tell which call failed.
+        var _d = (typeof _TH !== 'undefined' && _TH && _TH.diag) || null;
+        showToast('Squad is running locally — server roster unavailable'
+          + (_d ? ' (' + _d.step + (_d.status != null ? ' → HTTP ' + _d.status : ' → ' + (_d.code || 'error')) + ')' : ''),
+          'error');
       }
     }
   } catch (_) {}
@@ -49537,19 +49542,48 @@ function _thBackendPos(pos) { return _TH_POS_TO_BACKEND[String(pos || '').toUppe
 async function _thHydrate(opts) {
   opts = opts || {};
   if (_TH.state === 'seeding') return _TH.state;
-  _TH.state = 'seeding'; _TH.error = null;
+  _TH.state = 'seeding'; _TH.error = null; _TH.diag = null;
+  _TH.step = 'bootstrap';
   try {
     var boot = _thUnwrap(await _thApi('POST', '/transfer-market/bootstrap', { teams: _thBootstrapPayload() }));
     _TH.seeded = !!(boot && boot.seeded);
+    _TH.step = 'refresh';
     await _thRefresh();
-    _TH.state = 'ready';
+    _TH.state = 'ready'; _TH.step = null;
   } catch (e) {
     // A failure must never invent a second authoritative roster. If the server
     // has already owned this session's squad, we say so and stop; only a
     // session that never hydrated may keep using the local demo squad.
     _TH.state = 'failed';
     _TH.error = (e && (e.userMessage || e.message)) || 'hydration failed';
-    try { console.warn('[hydration]', _TH.error); } catch (_) {}
+    // Which call, to which URL, answered what. "Server roster unavailable" on
+    // its own is a symptom that fits a dozen causes; this says which one, in a
+    // browser we cannot attach a debugger to.
+    _TH.diag = {
+      step:     _TH.step,
+      apiBase:  (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE) || null,
+      origin:   (typeof location !== 'undefined' && location.origin) || null,
+      url:      (e && e.url) || null,
+      status:   (e && e.status) != null ? e.status : null,
+      code:     (e && e.code) || null,
+      body:     (e && e.body) || null,
+      message:  (e && e.message) || null,
+      clubId:   (window.State && State.club && State.club.id) || (window.State && State.user && State.user.clubId) || null,
+      role:     (window.State && State.user && State.user.role) || null,
+      bearer:   !!(window.State && State.token),
+      cookies:  (typeof document !== 'undefined' && document.cookie ? document.cookie.split(';').length : 0)
+    };
+    try {
+      console.error('[hydration] FAILED at ' + _TH.step + ' — ' +
+        (_TH.diag.status != null ? 'HTTP ' + _TH.diag.status + ' ' : '') + (_TH.diag.url || '') +
+        '\n  apiBase: ' + _TH.diag.apiBase +
+        '\n  origin : ' + _TH.diag.origin +
+        '\n  clubId : ' + _TH.diag.clubId + '   role: ' + _TH.diag.role +
+        '\n  auth   : bearer=' + _TH.diag.bearer + ' cookies=' + _TH.diag.cookies +
+        '\n  error  : ' + _TH.diag.message +
+        '\n  body   : ' + (function () { try { return JSON.stringify(_TH.diag.body); } catch (_) { return '<unserialisable>'; } })() +
+        '\n  (full object: window._TH.diag)');
+    } catch (_) {}
   }
   return _TH.state;
 }
