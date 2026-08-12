@@ -101,8 +101,14 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
             overallRating: p.overallRating ?? 70, potential: p.potential ?? 75,
             condition: p.condition ?? 90, marketValue: p.marketValue ?? 1000000,
             weeklyWage: p.weeklyWage ?? 10000,
-            // carried straight through: the player the manager already knows
-            legacyId: p.legacyId ?? null, roles: p.roles ?? null,
+            // carried straight through: the player the manager already knows.
+            // `sq-8` names a slot in the browser's demo squad, so every club
+            // arrives with the same handful of them; Player.legacyId is unique
+            // across the whole table, so they are qualified by club here. The
+            // client strips its own prefix back off when it resolves a saved
+            // lineup, and reads the bare `sq-8` it wrote.
+            legacyId: p.legacyId ? `${actor.clubId}:${p.legacyId}` : null,
+            roles: p.roles ?? null,
             morale: p.morale ?? null, form: p.form ?? null,
             isCaptain: p.isCaptain ?? false,
             trainedPositions: p.trainedPositions ?? null,

@@ -835,9 +835,19 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
       return w !== '7px';
     } catch (e) { return false; }
   }
+  // Writing through the CSSOM rewrites the very style attribute the observer
+  // below is watching, so every rescue schedules another one. That is harmless
+  // only while the rewrite is a fixed point — and it is not: a declaration the
+  // CSSOM re-serialises differently (a shorthand holding a var(), say) comes
+  // back changed, is rescued again, and the observer feeds itself in microtasks
+  // that never yield. Remembering what we last wrote breaks the cycle without
+  // weakening the rescue: an element is skipped only until something other than
+  // us changes its style.
+  var lastWritten = new WeakMap();
   function reapply(el) {
     var decl = el.getAttribute && el.getAttribute('style');
     if (!decl) return;
+    if (lastWritten.get(el) === decl) return;
     decl.split(';').forEach(function (d) {
       var i = d.indexOf(':');
       if (i < 0) return;
@@ -847,6 +857,7 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
       if (bang >= 0) el.style.setProperty(prop, val.slice(0, bang).trim(), 'important');
       else el.style.setProperty(prop, val);
     });
+    lastWritten.set(el, el.getAttribute('style'));
   }
   function sweep(node) {
     if (!node || node.nodeType !== 1) return;
@@ -49494,12 +49505,30 @@ async function _thHydrate(opts) {
   return _TH.state;
 }
 
+// A club is a First Team plus six age groups, so its roster does not fit in one
+// page — and the list endpoint caps a page at 200. Walk the pages until the
+// server stops handing back full ones, so a squad is never silently truncated.
+var _TH_PAGE = 200;
+async function _thAllPlayers() {
+  var all = [], page = 1;
+  for (;;) {
+    var res = await _thApi('GET', '/players?page=' + page + '&limit=' + _TH_PAGE);
+    var body = _thUnwrap(res);
+    var batch = Array.isArray(body) ? body : (body && body.items) || [];
+    all = all.concat(batch);
+    var meta = res && res.meta;
+    var more = meta ? !!meta.hasNext : batch.length === _TH_PAGE;
+    if (!more || !batch.length || page > 50) break;
+    page++;
+  }
+  return all;
+}
+
 // Re-read the canonical roster. Called after any ownership change — a listing
 // sold, a player bought — so the squad reflects the server, not a memory of it.
 async function _thRefresh() {
   var teams = _thUnwrap(await _thApi('GET', '/teams'));
-  var players = _thUnwrap(await _thApi('GET', '/players?limit=500'));
-  var list = Array.isArray(players) ? players : (players && players.items) || [];
+  var list = await _thAllPlayers();
   _TH.teams = Array.isArray(teams) ? teams : (teams && teams.items) || [];
   _TH.clubId = (window.State && State.club && State.club.id) || null;
   _TH.byTeam = {}; _TH.legacy = {};
@@ -49507,7 +49536,13 @@ async function _thRefresh() {
     var adapted = _sqAdaptBackendPlayer(bp);
     var key = bp.teamId || '__unassigned__';
     (_TH.byTeam[key] = _TH.byTeam[key] || []).push(adapted);
-    if (bp.legacyId) _TH.legacy[bp.legacyId] = bp.id;
+    // The server qualifies a legacy id by club to keep it unique table-wide;
+    // a saved lineup only ever names the bare `sq-8`, so index both.
+    if (bp.legacyId) {
+      _TH.legacy[bp.legacyId] = bp.id;
+      var bare = bp.legacyId.indexOf(':') >= 0 ? bp.legacyId.slice(bp.legacyId.indexOf(':') + 1) : null;
+      if (bare) _TH.legacy[bare] = bp.id;
+    }
   });
   // State.players stays the app's own record of the club's players, so the
   // existing backend-squad path keeps working unchanged.
