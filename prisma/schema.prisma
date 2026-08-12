@@ -281,6 +281,7 @@ model Player {
   legacyId         String?  @unique
   roles            String?              // e.g. "BBM · CM" (preserved from the Squad UI)
   morale           String?              // "Excellent" | "Good" | "Content" | "Poor"
+  form             Int?                 // 1-10, the Squad UI's form figure
   isCaptain        Boolean  @default(false)
   isViceCaptain    Boolean  @default(false)
   trainedPositions String?              // comma-separated allowed positions (e.g. "CM,DM,AM")

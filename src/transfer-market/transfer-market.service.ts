@@ -62,6 +62,9 @@ export interface BootstrapTeamDto {
     nationality?: string; flag?: string; dateOfBirth?: string; height?: number;
     weight?: number; preferredFoot?: string; overallRating?: number;
     potential?: number; condition?: number; marketValue?: number; weeklyWage?: number;
+    // the Squad shape's own fields, so nothing is dropped by the lift
+    legacyId?: string; roles?: string; morale?: string; form?: number;
+    isCaptain?: boolean; trainedPositions?: string; isInjured?: boolean;
   }>;
 }
 
@@ -98,6 +101,12 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
             overallRating: p.overallRating ?? 70, potential: p.potential ?? 75,
             condition: p.condition ?? 90, marketValue: p.marketValue ?? 1000000,
             weeklyWage: p.weeklyWage ?? 10000,
+            // carried straight through: the player the manager already knows
+            legacyId: p.legacyId ?? null, roles: p.roles ?? null,
+            morale: p.morale ?? null, form: p.form ?? null,
+            isCaptain: p.isCaptain ?? false,
+            trainedPositions: p.trainedPositions ?? null,
+            isInjured: p.isInjured ?? false,
           },
         });
       }
