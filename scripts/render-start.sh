@@ -122,101 +122,114 @@ NODE
 fi
 
 # ── 2 · schema gate ──────────────────────────────────────────────────────────
-# A migration recorded in the ledger is not proof that its schema exists. This
-# database has both of Phase 2's migrations marked applied while neither object
-# is present — the rows were reconciled as "already there" when in fact they were
-# not, and `migrate deploy` will now never revisit them because it sees nothing
-# pending. Recorded-but-absent is a repair, not a success.
+# A migration recorded in the ledger is not proof that its schema exists, and the
+# reconciliation above is exactly how the two come apart: it marks a migration
+# applied the moment Postgres says one of its objects is already there. Most of
+# these migrations are a single statement, so that is sound. Some are not —
+# 20260712000000_squad_player_fields adds six columns to Player with plain
+# ADD COLUMN, and Postgres aborts the whole file on the first one that already
+# exists. Marking it applied then skips the other five for good, and every
+# `player.findMany()` afterwards fails with P2022 on a column the client selects
+# and the database does not have. That is a 500 on the first call hydration
+# makes, and no redeploy can clear it because deploy sees nothing pending.
 #
-# So the schema is inspected physically, and if either object is genuinely
-# missing it is created here from the exact SQL its own migration carries —
-# nothing more. Both statements are IF NOT EXISTS, so an object that does exist
-# is left exactly as it is; no table is dropped, no row is touched, no column is
-# rewritten. Then the schema is inspected again, and only a physical pass lets
-# the API start.
+# So the columns the running code actually reads are checked one by one, and any
+# that is genuinely absent is added here from the exact statement its own
+# migration carries — nothing more, every one nullable or defaulted, IF NOT
+# EXISTS so an existing column is left untouched. Nothing is dropped, no row is
+# written, no column is rewritten. Then the schema is inspected again, and only
+# a physical pass starts the API.
 echo ""
 echo "── verifying required schema ──"
 node <<'NODE'
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Every column added by a migration this reconciliation can mark applied without
+// running, with the statement that creates it. Verbatim from the migrations,
+// guarded so a column that exists is not touched.
+const REQUIRED_COLUMNS = [
+  // 20260712000000_squad_player_fields
+  ['Player', 'legacyId',         'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "legacyId" TEXT'],
+  ['Player', 'roles',            'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "roles" TEXT'],
+  ['Player', 'morale',           'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "morale" TEXT'],
+  ['Player', 'isCaptain',        'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "isCaptain" BOOLEAN NOT NULL DEFAULT false'],
+  ['Player', 'isViceCaptain',    'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "isViceCaptain" BOOLEAN NOT NULL DEFAULT false'],
+  ['Player', 'trainedPositions', 'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "trainedPositions" TEXT'],
+  // 20260812010000_add_player_form
+  ['Player', 'form',             'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "form" INTEGER'],
+];
+
+// 20260812000000_add_club_transfer_balance
+const CLUB_TRANSFER_BALANCE = [
+  `CREATE TABLE IF NOT EXISTS "ClubTransferBalance" (
+      "id"        TEXT NOT NULL,
+      "clubId"    TEXT NOT NULL,
+      "budgetEur" BIGINT NOT NULL DEFAULT 50000000,
+      "earnedEur" BIGINT NOT NULL DEFAULT 0,
+      "spentEur"  BIGINT NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL,
+      CONSTRAINT "ClubTransferBalance_pkey" PRIMARY KEY ("id")
+  )`,
+  'CREATE UNIQUE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_key" ON "ClubTransferBalance"("clubId")',
+  'CREATE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_idx" ON "ClubTransferBalance"("clubId")',
+];
+
 // Resolved through the connection's own search_path rather than a hard-coded
 // "public", so the check looks where Prisma actually writes.
-const hasColumn = async () => {
-  const rows = await prisma.$queryRaw`
-    select 1 from information_schema.columns
-     where table_schema = current_schema()
-       and table_name = 'Player' and column_name = 'form'`;
-  return rows.length > 0;
-};
+async function missingColumns() {
+  const out = [];
+  for (const [table, column, ddl] of REQUIRED_COLUMNS) {
+    const rows = await prisma.$queryRaw`
+      select 1 from information_schema.columns
+       where table_schema = current_schema()
+         and table_name = ${table} and column_name = ${column}`;
+    if (rows.length === 0) out.push({ table, column, ddl });
+  }
+  return out;
+}
 const hasTable = async () => {
   const rows = await prisma.$queryRaw`select to_regclass('"ClubTransferBalance"')::text as t`;
   return !!rows[0]?.t;
 };
 
 (async () => {
-  let col = await hasColumn();
+  let missing = await missingColumns();
   let tbl = await hasTable();
   const line = (ok, label) => console.log(`   ${ok ? '✅' : '❌'} ${label}`);
-  line(col, 'Player.form column');
+  for (const [table, column] of REQUIRED_COLUMNS) {
+    line(!missing.some((m) => m.table === table && m.column === column), `${table}.${column}`);
+  }
   line(tbl, 'ClubTransferBalance table');
 
-  const migs = await prisma.$queryRaw`
-    select migration_name from _prisma_migrations
-     where finished_at is not null
-       and migration_name in ('20260812000000_add_club_transfer_balance',
-                              '20260812010000_add_player_form')`;
-  const recorded = new Set(migs.map((m) => m.migration_name));
-  for (const name of ['20260812000000_add_club_transfer_balance',
-                      '20260812010000_add_player_form']) {
-    console.log(`   ${recorded.has(name) ? '✅' : 'ℹ️ '} migration ${name}` +
-                (recorded.has(name) ? ' recorded' : ' not in ledger'));
-  }
-
-  if (!col || !tbl) {
+  if (missing.length || !tbl) {
     console.log('');
-    console.log('── repairing missing objects (recorded as applied, physically absent) ──');
-
-    if (!col) {
-      // verbatim from 20260812010000_add_player_form
-      console.log('   + Player.form');
-      await prisma.$executeRawUnsafe(
-        'ALTER TABLE "Player" ADD COLUMN IF NOT EXISTS "form" INTEGER;');
+    console.log('── repairing (recorded as applied, physically absent) ──');
+    for (const m of missing) {
+      console.log(`   + ${m.table}.${m.column}`);
+      await prisma.$executeRawUnsafe(m.ddl);
     }
     if (!tbl) {
-      // verbatim from 20260812000000_add_club_transfer_balance
       console.log('   + ClubTransferBalance (+ unique clubId, + clubId index)');
-      await prisma.$executeRawUnsafe(`
-        CREATE TABLE IF NOT EXISTS "ClubTransferBalance" (
-            "id"        TEXT NOT NULL,
-            "clubId"    TEXT NOT NULL,
-            "budgetEur" BIGINT NOT NULL DEFAULT 50000000,
-            "earnedEur" BIGINT NOT NULL DEFAULT 0,
-            "spentEur"  BIGINT NOT NULL DEFAULT 0,
-            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            "updatedAt" TIMESTAMP(3) NOT NULL,
-            CONSTRAINT "ClubTransferBalance_pkey" PRIMARY KEY ("id")
-        );`);
-      await prisma.$executeRawUnsafe(
-        'CREATE UNIQUE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_key" ON "ClubTransferBalance"("clubId");');
-      await prisma.$executeRawUnsafe(
-        'CREATE INDEX IF NOT EXISTS "ClubTransferBalance_clubId_idx" ON "ClubTransferBalance"("clubId");');
+      for (const ddl of CLUB_TRANSFER_BALANCE) await prisma.$executeRawUnsafe(ddl);
     }
 
-    // physical re-inspection — the repair proves itself or the boot stops
-    col = await hasColumn();
+    missing = await missingColumns();
     tbl = await hasTable();
     console.log('');
     console.log('── re-verifying ──');
-    line(col, 'Player.form column');
+    for (const [table, column] of REQUIRED_COLUMNS) {
+      line(!missing.some((m) => m.table === table && m.column === column), `${table}.${column}`);
+    }
     line(tbl, 'ClubTransferBalance table');
   }
 
-  if (!col || !tbl) {
+  if (missing.length || !tbl) {
     console.error('\n❌ schema gate FAILED — the API will not start against an ' +
                   'incompatible schema.');
     console.error('   Still missing after repair: ' +
-      [!col && 'Player.form', !tbl && 'ClubTransferBalance'].filter(Boolean).join(', '));
+      missing.map((m) => `${m.table}.${m.column}`).concat(!tbl ? ['ClubTransferBalance'] : []).join(', '));
     process.exit(1);
   }
   console.log('✅ schema: compatible');
