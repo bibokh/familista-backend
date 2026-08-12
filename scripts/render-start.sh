@@ -21,6 +21,8 @@
 
 set -euo pipefail
 
+SCHEMA="--schema=prisma/schema.prisma"
+
 echo "════════════════════════════════════════════════════════════"
 echo "  Familista — startup migration gate"
 echo "════════════════════════════════════════════════════════════"
@@ -32,12 +34,91 @@ echo "════════════════════════�
 if bash scripts/render-predeploy.sh; then
   echo "✅ migrations: up to date"
 else
+  # ── reconciling a database that was bootstrapped by `db push` ──────────────
+  # This database's schema was created directly from the Prisma models, so it
+  # already contains objects that the migration history would otherwise create.
+  # Replaying those migrations fails on the first CREATE, and the ledger has no
+  # row saying they are done. The fix Prisma provides for exactly this is
+  # baselining: mark such a migration applied instead of running it.
+  #
+  # The script above does that for four migrations it names by hand, which is
+  # why it stops the moment a fifth one turns out to be already present. This
+  # loop does the same thing without the guesswork, and only ever on proof: it
+  # marks a migration applied when Postgres itself says the object already
+  # exists. Any other failure — a table that is missing rather than present, a
+  # constraint violation, anything ambiguous — stops the boot with the database
+  # untouched, because that is a schema that genuinely does not match and is not
+  # something a deploy script should paper over.
   echo ""
-  echo "❌ migrations FAILED — refusing to start the API."
-  echo "   The database schema does not match the code being deployed."
-  echo "   Nothing was reset, dropped or seeded; the previous instance keeps"
-  echo "   serving. Fix the migration and redeploy."
-  exit 1
+  echo "── migrate deploy stopped · reconciling an existing schema ──"
+
+  # Postgres codes that mean "this object is already here", and nothing else:
+  # duplicate object/type, column, table, schema, function.
+  ALREADY_PRESENT="42710 42701 42P07 42P06 42723"
+  reconciled=0
+  ok=0
+
+  for _attempt in $(seq 1 25); do
+    if out="$(npx prisma migrate deploy $SCHEMA 2>&1)"; then
+      ok=1
+      break
+    fi
+
+    # Whichever way the run reports the problem — P3018 for a migration that
+    # failed just now, P3009 for one a previous run left behind — Prisma records
+    # the same thing in the ledger: an unfinished row whose `logs` hold the
+    # Postgres error. Read the verdict from there rather than from the wording
+    # of this particular error message.
+    failures="$(node <<'NODE'
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+(async () => {
+  const rows = await prisma.$queryRaw`
+    select migration_name, coalesce(logs, '') as logs from _prisma_migrations
+     where finished_at is null and rolled_back_at is null
+     order by started_at`;
+  for (const r of rows) {
+    const code = (r.logs.match(/Database error code:\s*(\S+)/) || [])[1] || '';
+    const msg  = (r.logs.match(/^ERROR:\s*(.+)$/m) || [])[1] || '';
+    console.log([r.migration_name, code, msg].join('\t'));
+  }
+})().catch(() => process.exit(3)).finally(() => prisma.$disconnect());
+NODE
+)" || failures=""
+
+    if [ -z "$failures" ]; then
+      echo "❌ migration failed, and the ledger records no failed migration to"
+      echo "   reconcile — this is not the 'schema already exists' case:"
+      echo "$out" | tail -25
+      echo ""
+      echo "   Database untouched. Refusing to start."
+      exit 1
+    fi
+
+    while IFS=$'\t' read -r name code msg; do
+      [ -n "$name" ] || continue
+      if [ -z "$code" ] || [[ " $ALREADY_PRESENT " != *" $code "* ]]; then
+        echo "❌ $name failed with ${code:-an unrecorded error}: ${msg:-see the deploy log}"
+        echo "   That is not an 'already exists' error, so the schema genuinely"
+        echo "   does not match this migration. Nothing was resolved, nothing was"
+        echo "   changed. Refusing to start."
+        exit 1
+      fi
+      echo "   ↻ $name — $msg"
+      echo "     already present, marking applied (no SQL is run)"
+      if ! npx prisma migrate resolve --applied "$name" $SCHEMA >/dev/null 2>&1; then
+        echo "❌ could not mark $name applied. Refusing to start."
+        exit 1
+      fi
+      reconciled=$((reconciled + 1))
+    done <<<"$failures"
+  done
+
+  if [ "$ok" != "1" ]; then
+    echo "❌ migrations still not settled after 25 attempts. Refusing to start."
+    exit 1
+  fi
+  echo "✅ migrations: up to date (reconciled $reconciled pre-existing migration(s))"
 fi
 
 # ── 2 · schema gate ──────────────────────────────────────────────────────────
