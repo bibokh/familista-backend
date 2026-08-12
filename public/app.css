@@ -9510,3 +9510,50 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
   .tf-pd-body{ flex-direction:column; }
   .tf-side{ width:auto; border-left:0; border-top:1px solid var(--tf-line); }
 }
+
+/* ── Selling side ──────────────────────────────────────────────────────────
+   The list/delist dialog is raised from Squad and from an age group, so it
+   lives on its own host outside #pg-transfers and carries the same tokens the
+   Transfers surfaces use. Scoped to #tf-sell-host so no existing page can
+   inherit any of it. */
+#tf-sell-host{ display:none; }
+#tf-sell-host.is-on{ display:block; }
+#tf-sell-host{
+  --tf-line:  rgba(255,255,255,.07);
+  --tf-line2: rgba(255,255,255,.12);
+  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+  --tf-ink:   #f4f6fa;
+  --tf-ink2:  #9aa4b6;
+  --tf-ink3:  #6b7484;
+  --tf-acc:   #22c55e;
+  --tf-acc-d: #16a34a;
+  color:var(--tf-ink);
+}
+[data-theme="light"] #tf-sell-host{
+  --tf-line:rgba(0,0,0,.09); --tf-line2:rgba(0,0,0,.14);
+  --tf-glass:linear-gradient(180deg,rgba(0,0,0,.03),rgba(0,0,0,.008));
+  --tf-ink:#0f172a; --tf-ink2:#475569; --tf-ink3:#7b8494;
+}
+#tf-sell-host .tf-modal{ z-index:1200; }
+.tf-sell-price{ display:flex; flex-direction:column; gap:5px; }
+.tf-sell-price > span{
+  font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--tf-ink3);
+}
+.tf-sell-price input{
+  height:40px; padding:0 13px; border-radius:9px;
+  border:1px solid var(--tf-line2); background:var(--tf-glass);
+  color:var(--tf-ink); font:inherit; font-family:var(--mono,monospace);
+  font-size:16px; font-weight:800; letter-spacing:-.2px;
+}
+.tf-sell-price input:focus{ outline:none; border-color:var(--tf-acc); box-shadow:0 0 0 3px rgba(34,197,94,.16); }
+/* A player who is on the market says so wherever he is managed. */
+.sq-mbtn.is-listed,
+.at-act.is-listed{
+  color:#fcd34d; border-color:rgba(251,191,36,.42); background:rgba(251,191,36,.12);
+}
+/* A real club's listing is not a generated one — the table says whose he is. */
+.tf-seller{
+  display:inline-block; margin-top:2px; padding:1px 6px; border-radius:4px;
+  font-size:8.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+  background:rgba(167,139,250,.18); color:#c4b5fd;
+}
