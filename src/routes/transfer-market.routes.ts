@@ -11,7 +11,15 @@ import * as ctrl from '../controllers/transfer-market.controller';
 const router = Router();
 router.use(authenticate);
 
-const TRADE_ROLES = ['CLUB_ADMIN', 'HEAD_COACH'] as const;
+// Who may trade on a club's behalf. This is the club-operator tier the rest of
+// the codebase already uses for club administration — the owner included.
+// SUPER_ADMIN was missing here, so the account that owns the platform was the
+// one account that could not lift its own club's roster: bootstrap answered 403
+// and the squad fell back to the browser's copy. MANAGER runs a club's football
+// side in the same guards elsewhere and belongs with them.
+// Everyone else stays out: ANALYST, SCOUT, MEDICAL_STAFF, ASSISTANT_COACH,
+// COACH, PARENT and PLAYER cannot list, delist, bootstrap or buy.
+const TRADE_ROLES = ['SUPER_ADMIN', 'CLUB_ADMIN', 'MANAGER', 'HEAD_COACH'] as const;
 const tradeGuard = authorize(...TRADE_ROLES);
 
 // ── read: every authenticated club sees other clubs' active listings ─────────
