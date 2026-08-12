@@ -49602,8 +49602,16 @@ async function _thRefresh() {
 // Which server team backs a given TeamContext. First Team by name, an age group
 // by its label — the same names the bootstrap wrote.
 function _thTeamIdFor(label) {
-  var teams = _TH.teams || [];
-  for (var i = 0; i < teams.length; i++) if (teams[i].name === label) return teams[i].id;
+  var teams = _TH.teams || [], i;
+  for (i = 0; i < teams.length; i++) if (teams[i].name === label) return teams[i].id;
+  // A club that existed before the bootstrap already has a senior team, and it
+  // is not necessarily called "First Team" — the original seed names it
+  // "Senior". The First Team context means the club's senior squad, whatever
+  // that row is titled, so fall back to kind. Without this the roster comes
+  // back empty and the Squad quietly shows the browser's copy instead.
+  if (label === 'First Team') {
+    for (i = 0; i < teams.length; i++) if (teams[i].kind === 'SENIOR') return teams[i].id;
+  }
   return null;
 }
 // The canonical roster for a squad, or null when this session is not hydrated —
