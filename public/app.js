@@ -2784,7 +2784,15 @@ function _sqPanelContract(p) {
   var kvHtml = kv.map(function (i) {
     return '<div class="sq-kv"><span class="sq-kv-l">' + i[0] + '</span><span class="sq-kv-v">' + _sqEsc(i[1]) + '</span></div>';
   }).join('');
+  // Selling a player belongs where the player is — his own profile. The
+  // marketplace component is mounted here; the Transfers page only shortcuts
+  // to the same one.
+  var transfer = (typeof _tfContractMount === 'function')
+    ? '<div class="sq-sec-title">Contract / Transfer</div>'
+      + '<div class="tf-scope">' + _tfContractMount('first-team', p) + '</div>'
+    : '';
   return '<div class="sq-panel">'
+    + transfer
     + '<div class="sq-sec-title">Contract details</div>'
     + '<div class="sq-kv-grid">' + kvHtml + '</div>'
     + '<div class="sq-note">Read-only — contract management is not enabled in this view.</div>'
@@ -2839,7 +2847,10 @@ function _sqRenderPlayerModal() {
     avatarCls: 'sql-pos--' + p.cat,
     avatar: _sqAvatar(p),
     name: _sqEsc(p.name) + (p.captain ? '<span class="sql-capt">C</span>' : ''),
-    meta: ['<span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span>', '<span>#' + p.num + '</span>', '<span>' + p.nat + ' ' + p.natName + '</span>', '<span>' + p.age + ' yrs</span>'],
+    meta: ['<span class="sql-pos sql-pos--' + p.cat + '">' + p.pos + '</span>', '<span>#' + p.num + '</span>', '<span>' + p.nat + ' ' + p.natName + '</span>', '<span>' + p.age + ' yrs</span>']
+      // On the market? Say so on his own profile, and stop saying it the moment
+      // the listing is cancelled or runs out.
+      .concat((typeof _tfAucChip === 'function' && _tfAucChip(p.id, { small: true })) ? ['<span class="tf-scope">' + _tfAucChip(p.id, { small: true }) + '</span>'] : []),
     badge: { n: p.qual, l: 'Quality' },
     toolbar: '<button class="sq-mbtn" data-action="sqEditPlayer" data-player-id="' + p.id + '" type="button">' + ICON_EDIT + 'Edit player</button>'
       + ((typeof _tfSellButton === 'function') ? _tfSellButton('first-team', p, 'sq-mbtn') : '')
@@ -47809,11 +47820,9 @@ function _tfSetSort(key) {
 // ══════════════════════════════════════════════════════════════════════════════
 // SHARED PRESENTATION PIECES
 // ══════════════════════════════════════════════════════════════════════════════
-function _tfAvatar(p, size) {
-  var cls = 'tf-av tf-av--' + p.cat + (size ? ' tf-av--' + size : '');
-  var ini = (typeof _sqInitials === 'function') ? _sqInitials(p.name) : String(p.name).slice(0, 2).toUpperCase();
-  return '<span class="' + cls + '"><i>' + _tfEsc(ini) + '</i></span>';
-}
+// Kept as the single call site's name so nothing outside this module has to
+// change: it is the portrait, in every size this module asks for.
+function _tfAvatar(p, size) { return _tfPortrait(p, size); }
 function _tfPosBadges(p) {
   return '<span class="tf-poss">' + p.positions.map(function (x, i) {
     return '<span class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</span>';
@@ -47915,7 +47924,7 @@ function _tfHeaderHtml(C) {
     + '<div class="tf-head-top">'
     +   '<div class="tf-title">'
     +     '<div class="tf-title-mark"><svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M8 5a1 1 0 0 1 1 1v1h6.59l-1.3-1.3a1 1 0 1 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.42-1.4L15.6 9H9v1a1 1 0 0 1-2 0V6a1 1 0 0 1 1-1Zm4 10a1 1 0 0 1-1-1v-1H4.41l1.3 1.3a1 1 0 0 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 1 1 1.42 1.4L4.41 11H11v-1a1 1 0 0 1 2 0v4a1 1 0 0 1-1 1Z"/></svg></div>'
-    +     '<div><h1>Transfers</h1><p>Recruitment command centre · ' + _tfEsc(C.label || 'Team') + '</p></div>'
+    +     '<div><h1>Transfer Market</h1><p>Neutral marketplace · same prices, same rules, every club</p></div>'
     +   '</div>'
     +   '<div class="tf-head-right">'
     +     teamSel
@@ -47982,17 +47991,16 @@ function _tfFiltersHtml(C) {
 // ══════════════════════════════════════════════════════════════════════════════
 // AUCTIONS
 // ══════════════════════════════════════════════════════════════════════════════
+// What a club needs to decide, and nothing else. Everything the old table put
+// on this row — playstyle, special ability, contract, form, condition, morale,
+// full statistics, offers — is still in the system and still one click away in
+// his profile. It is not needed to choose which player to look at.
 var TF_AUC_COLS = [
   ['name', 'Player', 'tf-c-player'],
-  ['nat', 'Nationality', 'tf-c-nat'],
-  ['playstyle', 'Playstyle', 'tf-c-style'],
-  ['pos', 'Positions', 'tf-c-pos'],
-  ['age', 'Age', 'tf-c-num'],
-  ['special', 'Special ability', 'tf-c-special'],
-  ['qual', 'Quality', 'tf-c-qual'],
-  ['mv', 'Market value', 'tf-c-money'],
-  ['price', 'Current price', 'tf-c-money'],
-  ['deadline', 'Deadline', 'tf-c-dl']
+  ['qual', 'OVR', 'tf-c-qual'],
+  ['mv', 'Value', 'tf-c-money'],
+  ['price', 'Price', 'tf-c-money'],
+  ['deadline', 'Status', 'tf-c-dl']
 ];
 function _tfAuctionsHtml(C) {
   return '<div class="tf-pane">'
@@ -48009,25 +48017,34 @@ function _tfAuctionsHtml(C) {
     +   '</tr></thead><tbody id="tf-rows">' + _tfAuctionRowsHtml(C) + '</tbody></table>'
     + '</div></div>';
 }
+function _tfIdentityCell(p, sub) {
+  // Face first, then the three things that identify a footballer: what he
+  // plays, how old he is, where he is from.
+  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
+  return '<span class="tf-pl">' + _tfPortrait(p)
+    + '<span class="tf-pl-t">'
+    +   '<b>' + _tfEsc(p.name) + '</b>'
+    +   '<em>' + poss.slice(0, 3).map(function (x, i) {
+      return '<i class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</i>';
+    }).join('') + '<span class="tf-pl-d">' + p.age + '</span>'
+    + '<span class="tf-pl-n">' + p.nat + ' ' + _tfEsc(p.natCode) + '</span></em>'
+    + (sub ? '<span class="tf-pl-sub">' + _tfEsc(sub) + '</span>' : '')
+    + '</span></span>';
+}
 function _tfAuctionRowsHtml(C) {
   var list = _tfSortList(_tfLots(C).filter(function (p) { return _tfPassFilters(p, C); }));
-  if (!list.length) return '<tr class="tf-empty"><td colspan="12">No listing matches these filters.</td></tr>';
+  if (!list.length) return '<tr class="tf-empty"><td colspan="7">No listing matches these filters.</td></tr>';
   return list.map(function (p) {
     var st = _tfAucState(p), mine = _tfMyLead(p);
+    var bids = p.bidders.length;
     return '<tr class="tf-row' + (mine ? ' is-mine' : '') + '" data-tf-open="' + _tfEsc(p.id) + '">'
       + '<td class="tf-c-star">' + _tfStarBtn(p, C) + '</td>'
-      + '<td class="tf-c-player"><span class="tf-pl" title="' + _tfEsc(p.name) + '">' + _tfAvatar(p) + '<span class="tf-pl-t"><b>' + _tfEsc(p.name) + '</b>'
-      +   '<em>' + _tfEsc(p.club) + '</em></span></span></td>'
-      + '<td class="tf-c-nat">' + _tfNat(p) + '</td>'
-      + '<td class="tf-c-style"><span class="tf-style" title="' + _tfEsc(p.playstyle) + '">' + _tfEsc(p.playstyle) + '</span></td>'
-      + '<td class="tf-c-pos">' + _tfPosBadges(p) + '</td>'
-      + '<td class="tf-c-num">' + p.age + '</td>'
-      + '<td class="tf-c-special"><span class="tf-ability" title="' + _tfEsc(p.special) + '">' + _tfEsc(p.special) + '</span></td>'
+      + '<td class="tf-c-player">' + _tfIdentityCell(p, p.club) + '</td>'
       + '<td class="tf-c-qual">' + _tfQuality(p.qual) + '</td>'
-      + '<td class="tf-c-money">' + _tfMoney(p.mv) + '</td>'
+      + '<td class="tf-c-money"><span class="tf-mv">' + _tfMoney(p.mv) + '</span></td>'
       + '<td class="tf-c-money"><b class="tf-price">' + _tfMoney(p.bid) + '</b>'
-      +   '<em class="tf-price-sub">' + (p.bidders.length ? p.bidders.length + ' bidder' + (p.bidders.length > 1 ? 's' : '') : 'no bids') + '</em></td>'
-      + '<td class="tf-c-dl">' + _tfClockCell(p) + _tfStateChip(st) + '</td>'
+      +   (bids ? '<em class="tf-price-sub">' + bids + ' bid' + (bids > 1 ? 's' : '') + '</em>' : '<em class="tf-price-sub">asking</em>') + '</td>'
+      + '<td class="tf-c-dl">' + _tfStateChip(st) + _tfClockCell(p) + '</td>'
       + '<td class="tf-c-act"><span class="tf-go">›</span></td>'
       + '</tr>';
   }).join('');
@@ -48038,31 +48055,20 @@ function _tfAuctionRowsHtml(C) {
 // ══════════════════════════════════════════════════════════════════════════════
 var TF_SCOUT_COLS = [
   ['name', 'Player', 'tf-c-player'],
-  ['nat', 'Nationality', 'tf-c-nat'],
-  ['playstyle', 'Playstyle', 'tf-c-style'],
-  ['pos', 'Positions', 'tf-c-pos'],
-  ['age', 'Age', 'tf-c-num'],
-  ['special', 'Special ability', 'tf-c-special'],
-  ['qual', 'Quality', 'tf-c-qual'],
-  ['mv', 'Estimated value', 'tf-c-money'],
-  ['fee', 'Signing cost', 'tf-c-money'],
+  ['qual', 'OVR', 'tf-c-qual'],
+  ['mv', 'Value', 'tf-c-money'],
+  ['fee', 'Cost', 'tf-c-money'],
   ['avail', 'Availability', 'tf-c-avail']
 ];
 function _tfScoutRowsHtml(C) {
   var list = _tfSortList(_tfScoutPool(C).players.filter(function (p) { return _tfPassFilters(p, C); }));
-  if (!list.length) return '<tr class="tf-empty"><td colspan="12">No scouted player matches these filters.</td></tr>';
+  if (!list.length) return '<tr class="tf-empty"><td colspan="7">No scouted player matches these filters.</td></tr>';
   return list.map(function (p) {
     return '<tr class="tf-row" data-tf-open="' + _tfEsc(p.id) + '">'
       + '<td class="tf-c-star">' + _tfStarBtn(p, C) + '</td>'
-      + '<td class="tf-c-player"><span class="tf-pl" title="' + _tfEsc(p.name) + '">' + _tfAvatar(p) + '<span class="tf-pl-t"><b>' + _tfEsc(p.name) + '</b>'
-      +   '<em>' + _tfEsc(p.contract) + '</em></span></span></td>'
-      + '<td class="tf-c-nat">' + _tfNat(p) + '</td>'
-      + '<td class="tf-c-style"><span class="tf-style" title="' + _tfEsc(p.playstyle) + '">' + _tfEsc(p.playstyle) + '</span></td>'
-      + '<td class="tf-c-pos">' + _tfPosBadges(p) + '</td>'
-      + '<td class="tf-c-num">' + p.age + '</td>'
-      + '<td class="tf-c-special"><span class="tf-ability" title="' + _tfEsc(p.special) + '">' + _tfEsc(p.special) + '</span></td>'
+      + '<td class="tf-c-player">' + _tfIdentityCell(p, p.contract) + '</td>'
       + '<td class="tf-c-qual">' + _tfQuality(p.qual) + '</td>'
-      + '<td class="tf-c-money">' + _tfMoney(p.mv) + '</td>'
+      + '<td class="tf-c-money"><span class="tf-mv">' + _tfMoney(p.mv) + '</span></td>'
       + '<td class="tf-c-money"><b class="tf-price">' + _tfMoney(p.fee) + '</b></td>'
       + '<td class="tf-c-avail"><span class="tf-avail tf-avail--' + String(p.avail).split(' ')[0].toLowerCase() + '">' + _tfEsc(p.avail) + '</span></td>'
       + '<td class="tf-c-act"><span class="tf-go">›</span></td>'
@@ -48207,20 +48213,39 @@ function _tfDetailHtml(C) {
         : _TF.detailTab === 'offers' ? _tfOffersHtml(p, C)
           : _tfOverviewHtml(p, C);
   var side = mode === 'auction' ? _tfBidPanelHtml(p, C) : _tfRecruitPanelHtml(p, C);
+  var st = _tfStatusOf(p.id);
+  var price = p.server ? p.ask : (p.listing === 'auction' ? p.bid : (p.fee || p.mv));
+  var priceLabel = p.server ? 'Asking price' : p.listing === 'auction' ? 'Current bid' : 'Signing cost';
+  var left = p.listing === 'auction' ? Math.max(0, p.endsAt - Date.now()) : 0;
+  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
+  // The head is the whole decision: who, how good, what he costs, how long is
+  // left. It stays put while the tabs below it change.
   return '<div class="tf-modal" data-tf-modal="detail">'
     + '<div class="tf-modal-bd" data-tf-close></div>'
     + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Transfer target">'
     +   '<button type="button" class="tf-x" data-tf-close aria-label="Close">×</button>'
     +   '<header class="tf-pd-head">'
-    +     _tfAvatar(p, 'xl')
+    +     _tfPortrait(p, 'xl')
     +     '<div class="tf-pd-id">'
-    +       '<div class="tf-pd-name"><h2>' + _tfEsc(p.name) + '</h2>' + _tfNat(p) + '</div>'
-    +       '<div class="tf-pd-meta">' + _tfPosBadges(p)
-    +         '<span class="tf-pd-chip">' + p.age + ' yrs</span>'
-    +         '<span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
-    +         '<span class="tf-ability">' + _tfEsc(p.special) + '</span></div>'
+    +       '<div class="tf-pd-name"><h2>' + _tfEsc(p.name) + '</h2>'
+    +         '<span class="tf-pd-sub">' + p.age + ' • ' + p.nat + ' ' + _tfEsc(p.natName) + '</span></div>'
+    +       '<div class="tf-pd-meta">'
+    +         '<span class="tf-poss">' + poss.map(function (x, i) {
+      return '<span class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</span>';
+    }).join('') + '</span>'
+    +         '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
+    +       '</div>'
     +     '</div>'
     +     '<div class="tf-pd-ovr">' + _tfQuality(p.qual) + '<i>Overall</i></div>'
+    +     '<div class="tf-pd-nums">'
+    +       '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+    +       '<div><i>' + priceLabel + '</i><b class="tf-price">' + _tfMoney(price) + '</b></div>'
+    +       (p.listing === 'auction'
+        ? '<div><i>Auction</i><b class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
+          + (left <= 0 ? 'CLOSED' : _tfClock(left)) + '</b></div>'
+        : '<div><i>Availability</i><b>' + _tfEsc(p.avail || '—') + '</b></div>')
+    +     '</div>'
+    +     (st.listed ? '<div class="tf-pd-auc">' + _tfAucChip(p.id) + '</div>' : '')
     +   '</header>'
     +   '<div class="tf-pd-body">'
     +     '<div class="tf-pd-main">'
@@ -48239,39 +48264,27 @@ function _tfKv(rows) {
   }).join('') + '</div>';
 }
 function _tfOverviewHtml(p, C) {
+  // The head above already carries name, age, nationality, positions, overall,
+  // value and price. This is what it does not: the physical player, his
+  // contract, and where he stands right now.
   var rows = [
-    ['Age', p.age + ' yrs'], ['Height', p.height], ['Weight', p.weight + ' kg'],
-    ['Preferred foot', p.foot], ['Positions', p.positions.join(' / ')],
-    ['Market value', _tfMoney(p.mv)], ['Estimated wage', _tfMoney(p.wage) + ' / yr'],
-    ['Nationality', p.natName], ['Current club', p.club],
-    ['Contract', p.contract],
+    ['Height', p.height], ['Weight', p.weight + ' kg'],
+    ['Preferred foot', p.foot], ['Current club', p.club],
+    ['Contract', p.contract], ['Estimated wage', _tfMoney(p.wage) + ' / yr'],
     ['Transfer status', p.server ? ('Listed by ' + (p.club || 'another club') + ' · ' + _tfMoney(p.ask))
       : p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
   ];
   var meters = [
     ['Form', p.form * 10, p.form + ' / 10'],
     ['Condition', p.cond, p.cond + '%'],
-    ['Morale', (typeof _sqMoralePct === 'function' ? _sqMoralePct(p.morale) : 60), p.morale],
-    ['Quality', p.qual, String(p.qual)]
+    ['Morale', (typeof _sqMoralePct === 'function' ? _sqMoralePct(p.morale) : 60), p.morale]
   ];
-  // His strongest attributes, read from the app's one attribute model — the
-  // same numbers the Skills tab and the comparison bars show.
-  var groups = (typeof _sqSkillGroups === 'function') ? _sqSkillGroups(p) : [];
-  var picks = [];
-  groups.forEach(function (g) { g[1].forEach(function (n) { picks.push([n, _sqSkillVal(p, n)]); }); });
-  picks.sort(function (a, b) { return b[1] - a[1]; });
-  var top = picks.slice(0, 8).map(function (it) {
-    return '<div class="tf-attr"><span>' + _tfEsc(it[0]) + '</span>'
-      + '<span class="tf-meter-bar"><i class="' + (it[1] >= 82 ? 'is-hi' : it[1] >= 68 ? 'is-mid' : 'is-lo') + '" style="width:' + it[1] + '%"></i></span>'
-      + '<b>' + it[1] + '</b></div>';
-  }).join('');
-  return '<div class="tf-sec">Player overview</div>' + _tfKv(rows)
+  return _tfKv(rows)
     + '<div class="tf-sec">Current condition</div>'
     + '<div class="tf-meters">' + meters.map(function (m) {
       return '<div class="tf-meter"><div class="tf-meter-t"><span>' + m[0] + '</span><span>' + _tfEsc(m[2]) + '</span></div>'
         + '<span class="tf-meter-bar"><i class="' + (m[1] >= 80 ? 'is-hi' : m[1] >= 55 ? 'is-mid' : 'is-lo') + '" style="width:' + Math.min(100, m[1]) + '%"></i></span></div>';
-    }).join('') + '</div>'
-    + (top ? '<div class="tf-sec">Strongest attributes</div><div class="tf-attrs">' + top + '</div>' : '');
+    }).join('') + '</div>';
 }
 // Attributes come from the app's ONE player-attribute model. Transfers does not
 // define a second set of stats.
@@ -49055,8 +49068,8 @@ async function _tfSyncMyListings() {
 
 // Create the listing. The player does NOT leave the squad — he is for sale,
 // not sold.
-function _tfCreateListing(C, player, askingPrice) {
-  C = C || _tfCtx();
+function _tfCreateListing(C, player, askingPrice, opts) {
+  C = C || _tfCtx(); opts = opts || {};
   if (!player) return null;
   if (_tfListingFor(player.id)) return _tfListingFor(player.id);
   var now = Date.now();
@@ -49073,6 +49086,9 @@ function _tfCreateListing(C, player, askingPrice) {
       teamCtxId: _tfCtxId(C),                   // which of the club's squads holds him
       clubName: _tfClubNameOf(C),
       askingPrice: askingPrice,
+      // An instant sale is a fixed price with no bidding window: whoever takes
+      // him pays exactly this.
+      instant: !!opts.instant,
       // A snapshot so the market can render him without reaching into another
       // club's roster. The seller's record stays the single source of truth.
       snapshot: _tfListingSnapshot(player)
@@ -49274,79 +49290,320 @@ function _tfSettleListing(lot, buyerCtx, fee) {
 // ══════════════════════════════════════════════════════════════════════════════
 var _TF_SELL = null;   // { ctxId, playerId, price }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// THE MARKETPLACE'S SHARED PARTS
+// ─────────────────────────────────────────────────────────────────────────────
+// A portrait for every player, one reading of what a listing currently is, and
+// one selling workflow. Every surface that sells, lists or shows a player uses
+// these — there is no second implementation of any of it.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── the face ────────────────────────────────────────────────────────────────
+// A player is recognised by his face before his name, so every row, card and
+// profile in this module leads with one. Where a portrait has been uploaded it
+// is used; where none exists yet, one placeholder system stands in for all of
+// them — a footballer's silhouette on the shirt colour of his position group.
+// Not initials, not an empty box, and never a broken image.
+function _tfPortraitSrc(p) {
+  return (p && (p.avatar || p.photo || p.portrait || p.imageUrl || p.image)) || '';
+}
+var TF_SHIRT = { gk: ['#3f4a52', '#20262b'], df: ['#5b6572', '#2b3138'],
+                 mf: ['#6b5f4a', '#332d24'], fw: ['#7a5a3c', '#38291c'] };
+function _tfSilhouette(p) {
+  var cat = (p && p.cat) || 'mf', c = TF_SHIRT[cat] || TF_SHIRT.mf;
+  // One drawing, tinted by position group. Deterministic: the same player is
+  // always the same picture, so a face stays a landmark between visits.
+  return '<svg class="tf-po-ph" viewBox="0 0 64 64" aria-hidden="true" focusable="false">'
+    + '<defs><linearGradient id="tfg' + cat + '" x1="0" y1="0" x2="0" y2="1">'
+    +   '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>'
+    + '</linearGradient></defs>'
+    + '<rect width="64" height="64" fill="url(#tfg' + cat + ')"/>'
+    + '<circle cx="32" cy="24" r="11" fill="rgba(246,241,230,.82)"/>'
+    + '<path d="M10 64c0-13.2 9.8-21 22-21s22 7.8 22 21z" fill="rgba(246,241,230,.72)"/>'
+    + '<path d="M22 45.5 32 54l10-8.5" fill="none" stroke="rgba(23,23,26,.35)" stroke-width="2.2"/>'
+    + '</svg>';
+}
+function _tfPortrait(p, size) {
+  var src = _tfPortraitSrc(p);
+  var cls = 'tf-po tf-po--' + ((p && p.cat) || 'mf') + (size ? ' tf-po--' + size : '');
+  var inner = src
+    // If the upload ever 404s the silhouette takes its place in the same frame,
+    // so the row can never show a broken image.
+    ? '<img src="' + _tfEsc(src) + '" alt="" loading="lazy" decoding="async"'
+      + ' onerror="this.parentNode.innerHTML=_tfSilhouette({cat:\'' + ((p && p.cat) || 'mf') + '\'})">'
+    : _tfSilhouette(p);
+  return '<span class="' + cls + '" title="' + _tfEsc((p && p.name) || '') + '">' + inner + '</span>';
+}
+
+// ── what a listing currently is ─────────────────────────────────────────────
+// Server first, because the server owns the answer. One shape, whichever store
+// answered, so no caller has to know which one it was.
+function _tfStatusOf(playerId) {
+  var srv = (typeof _thIsHydrated === 'function' && _thIsHydrated()) ? _tfMyListingFor(playerId) : null;
+  if (srv) {
+    var lot = null;
+    try {
+      lot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.listingId === srv.listingId; })[0] || null;
+    } catch (_) {}
+    return {
+      listed: true, server: true, listingId: srv.listingId,
+      price: srv.askingPriceEur || 0,
+      bid: lot ? lot.bid : (srv.askingPriceEur || 0),
+      bids: lot && lot.bidders ? lot.bidders.length : 0,
+      endsAt: lot ? lot.endsAt : (srv.validUntil ? new Date(srv.validUntil).getTime() : 0),
+      instant: !srv.validUntil,
+    };
+  }
+  var loc = _tfListingFor(playerId);
+  if (!loc) return { listed: false };
+  var lot2 = null;
+  try { lot2 = _tfLotForListing(loc); } catch (_) {}
+  return {
+    listed: true, server: false, listingId: loc.id,
+    price: (loc.payload && loc.payload.askingPrice) || 0,
+    bid: lot2 ? lot2.bid : ((loc.payload && loc.payload.askingPrice) || 0),
+    bids: lot2 && lot2.bidders ? lot2.bidders.length : 0,
+    endsAt: lot2 ? lot2.endsAt : 0,
+    instant: !!(loc.payload && loc.payload.instant),
+  };
+}
+// The gavel a listed player carries wherever he is shown. It is rendered from
+// the live status, so a cancelled or expired listing simply stops producing
+// one — nothing has to be cleared by hand.
+function _tfAucChip(playerId, opts) {
+  opts = opts || {};
+  var s = _tfStatusOf(playerId);
+  if (!s.listed) return '';
+  var left = s.endsAt ? s.endsAt - Date.now() : 0;
+  if (s.endsAt && left <= 0 && !opts.keepClosed) return '';
+  var tone = s.instant ? ' is-instant' : (left > 0 && left <= 60000 ? ' is-hot' : '');
+  if (s.endsAt && !s.instant) _tfListingClockStart();
+  return '<span class="tf-auc' + tone + (opts.small ? ' tf-auc--sm' : '') + '">'
+    + '<i class="tf-gavel" aria-hidden="true">🔨</i>'
+    + '<b>' + (s.instant ? 'LISTED' : 'AUCTION ACTIVE') + '</b>'
+    + (s.endsAt && !s.instant
+      ? '<em data-tf-clock="listing:' + _tfEsc(playerId) + '">ENDS IN ' + _tfClock(Math.max(0, left)) + '</em>'
+      : '')
+    + '</span>';
+}
+window._tfAucChip = _tfAucChip;
+window._tfPortrait = _tfPortrait;
+
+// A listing's remaining time runs down wherever it is shown, including the
+// squad, which is outside the market's own clock. The moment a listing is
+// cancelled or runs out its surfaces are repainted — and since every indicator
+// is rendered from the live status, they simply stop existing. This ticker
+// stops itself as soon as no countdown is on screen.
+var _TF_LCLOCK = null;
+function _tfListingClockTick() {
+  var els = document.querySelectorAll('[data-tf-clock^="listing:"]');
+  if (!els.length) { clearInterval(_TF_LCLOCK); _TF_LCLOCK = null; return; }
+  var gone = false;
+  for (var i = 0; i < els.length; i++) {
+    var pid = String(els[i].getAttribute('data-tf-clock')).slice(8);
+    var s = _tfStatusOf(pid);
+    if (!s.listed) { gone = true; continue; }
+    var left = s.endsAt ? s.endsAt - Date.now() : 0;
+    if (s.endsAt && left <= 0) { gone = true; els[i].textContent = 'CLOSED'; continue; }
+    els[i].textContent = (els[i].tagName === 'EM' ? 'ENDS IN ' : '') + _tfClock(Math.max(0, left));
+  }
+  if (gone) { try { _tfSellRepaint(); _tfSellRefreshOwner(null); } catch (_) {} }
+}
+function _tfListingClockStart() {
+  if (typeof document === 'undefined') return;
+  if (!_TF_LCLOCK) _TF_LCLOCK = setInterval(_tfListingClockTick, 1000);
+}
+
 function _tfSellHost() {
   var h = document.getElementById('tf-sell-host');
   if (!h) { h = document.createElement('div'); h.id = 'tf-sell-host'; document.body.appendChild(h); }
   return h;
 }
+// ── the one selling workflow ────────────────────────────────────────────────
+// Selling a player happens in his own profile: what his contract says, what he
+// is worth, and the three decisions a club can take about him. Nothing is a
+// form until it is chosen — pick one and only that section opens.
+//
+// The Transfers page's List control is a shortcut into this same component; it
+// renders the identical markup in a small panel and shares every handler. There
+// is no second selling system to keep in step with this one.
+var TF_INSTANT_RATE = 0.85;                  // an instant sale trades price for certainty
+function _tfInstantQuote(p) { return Math.round((_tfMarketValueOf(p) * TF_INSTANT_RATE) / 100000) * 100000; }
+function _tfMarketValueOf(p) {
+  if (typeof p.mv === 'number' && p.mv > 0) return p.mv;
+  try { return _tfSnapshotValue(_tfListingSnapshot(p)) || 0; } catch (_) { return 0; }
+}
+function _tfPriceStep(mv) { return Math.max(100000, Math.round((mv * 0.05) / 100000) * 100000); }
+function _tfWageOf(p) {
+  if (typeof p.wage === 'number' && p.wage > 0) return Math.round(p.wage / 52);
+  return (typeof _sqStat === 'function' ? _sqStat(p, 'wage', Math.round(((p.qual || 70) - 58) * 3), 8, 8, 280) : 40) * 1000;
+}
+function _tfContractExpiry(p) {
+  var y = 2026 + ((typeof _sqSeed === 'function' ? _sqSeed(p.id + 'x') : 1) % 4);
+  return 'Jun 30, ' + y;
+}
+function _tfSquadStatus(p) {
+  var q = p.qual != null ? p.qual : (p.overall || 70);
+  return q >= 85 ? 'Key player' : q >= 80 ? 'First team' : q >= 76 ? 'Rotation' : 'Squad player';
+}
+
 function _tfSellOpen(ctxId, playerId) {
   var C = _tfCtxById(ctxId); if (!C) return;
   var p = typeof C.findPlayer === 'function' ? C.findPlayer(playerId) : null;
   if (!p) return;
-  var srv = (typeof _thIsHydrated === 'function' && _thIsHydrated()) ? _tfMyListingFor(playerId) : null;
-  var existing = srv || _tfListingFor(playerId);
-  if (existing) {
-    _TF_SELL = { ctxId: ctxId, playerId: playerId, mode: 'delist',
-                 listingId: srv ? srv.listingId : existing.id,
-                 askingPrice: srv ? srv.askingPriceEur : (existing.payload && existing.payload.askingPrice) };
-  }
-  else {
-    var suggested = _tfSnapshotValue(_tfListingSnapshot(p));
-    _TF_SELL = { ctxId: ctxId, playerId: playerId, mode: 'list', price: suggested };
-  }
+  _TF_SELL = { ctxId: ctxId, playerId: playerId, exp: null, price: _tfMarketValueOf(p), panel: true };
   _tfSellRender();
 }
 function _tfSellClose() { _TF_SELL = null; _tfSellRender(); }
+// Open or close one section of the component, wherever it is rendered.
+function _tfSellExpand(ctxId, playerId, which) {
+  if (!_TF_SELL || _TF_SELL.playerId !== playerId) {
+    var C0 = _tfCtxById(ctxId), p0 = C0 && C0.findPlayer ? C0.findPlayer(playerId) : null;
+    _TF_SELL = { ctxId: ctxId, playerId: playerId, exp: null, price: p0 ? _tfMarketValueOf(p0) : 0, panel: false };
+  }
+  _TF_SELL.exp = (_TF_SELL.exp === which) ? null : which;
+  _tfSellRepaint();
+}
+// Every surface this component is rendered on, repainted from the same state.
+function _tfSellRepaint() {
+  try {
+    var inline = document.querySelectorAll('[data-tf-contract-host]');
+    for (var i = 0; i < inline.length; i++) {
+      var host = inline[i];
+      var cid = host.getAttribute('data-tf-ctx'), pid = host.getAttribute('data-tf-contract-host');
+      var C = _tfCtxById(cid), pl = C && C.findPlayer ? C.findPlayer(pid) : null;
+      if (pl) host.innerHTML = _tfContractHtml(cid, pl);
+    }
+  } catch (_) {}
+  if (_TF_SELL && _TF_SELL.panel) _tfSellRender();
+}
+
+// The component. `ctxId` is the squad it is being managed from; `p` is his
+// squad record. Rendered inline in his profile and inside the shortcut panel.
+function _tfContractHtml(ctxId, p) {
+  var st = _tfStatusOf(p.id);
+  var mv = _tfMarketValueOf(p);
+  var sel = (_TF_SELL && _TF_SELL.playerId === p.id) ? _TF_SELL : null;
+  var exp = sel ? sel.exp : null;
+  var ovr = p.qual != null ? p.qual : (p.overall || 70);
+  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
+
+  var head = '<div class="tf-ct-head">'
+    + _tfPortrait(p, 'lg')
+    + '<div class="tf-ct-id">'
+    +   '<b>' + _tfEsc(p.name) + '</b>'
+    +   '<span class="tf-ct-poss">' + poss.map(function (x, i) {
+      return '<i class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</i>';
+    }).join('') + '</span>'
+    + '</div>'
+    + '<span class="tf-ct-ovr"><b>' + ovr + '</b><i>OVR</i></span>'
+    + '</div>';
+
+  var facts = '<div class="tf-ct-facts">'
+    + '<div><i>Contract status</i><b>' + _tfEsc(_tfSquadStatus(p)) + '</b></div>'
+    + '<div><i>Contract expiry</i><b>' + _tfEsc(_tfContractExpiry(p)) + '</b></div>'
+    + '<div><i>Market value</i><b>' + _tfMoney(mv) + '</b></div>'
+    + '<div><i>Wage</i><b>' + _tfMoney(_tfWageOf(p)) + ' / wk</b></div>'
+    + '</div>';
+
+  // On the market already: the state, not the form that got him there.
+  if (st.listed) {
+    var left = st.endsAt ? Math.max(0, st.endsAt - Date.now()) : 0;
+    if (st.endsAt && !st.instant) _tfListingClockStart();
+    return '<div class="tf-ct">' + head + facts
+      + '<div class="tf-ct-live">'
+      +   '<div class="tf-ct-live-t">' + _tfAucChip(p.id, { keepClosed: true }) + '</div>'
+      +   '<div class="tf-ct-live-g">'
+      +     (st.instant ? '' : '<div><i>Ends in</i><b data-tf-clock="listing:' + _tfEsc(p.id) + '">' + _tfClock(left) + '</b></div>')
+      +     '<div><i>' + (st.instant ? 'Instant price' : 'Current bid') + '</i><b>' + _tfMoney(st.bid || st.price) + '</b></div>'
+      +     '<div><i>Bids</i><b>' + (st.bids || 0) + '</b></div>'
+      +   '</div>'
+      +   '<button type="button" class="tf-btn tf-btn--danger tf-btn--block" data-tf-delist-now="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL LISTING</button>'
+      +   '<p class="tf-note">He stays in your squad and keeps playing until a transfer actually completes.</p>'
+      + '</div></div>';
+  }
+
+  var step = _tfPriceStep(mv);
+  var price = sel && sel.price != null ? sel.price : mv;
+  var instant = _tfInstantQuote(p);
+
+  var actions = '<div class="tf-ct-acts">'
+    + '<button type="button" class="tf-ct-act' + (exp === 'renew' ? ' is-on' : '') + '" data-tf-exp="renew" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">RENEW CONTRACT</button>'
+    + '<button type="button" class="tf-ct-act' + (exp === 'auction' ? ' is-on' : '') + '" data-tf-exp="auction" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">🔨 SELL AT AUCTION</button>'
+    + '<button type="button" class="tf-ct-act' + (exp === 'now' ? ' is-on' : '') + '" data-tf-exp="now" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">SELL NOW</button>'
+    + '</div>';
+
+  var open = '';
+  if (exp === 'auction') {
+    open = '<div class="tf-ct-open">'
+      + '<div class="tf-ct-open-t">Sell at auction</div>'
+      + '<div class="tf-ct-facts tf-ct-facts--2">'
+      +   '<div><i>Market value</i><b>' + _tfMoney(mv) + '</b></div>'
+      +   '<div><i>Listing duration</i><b>' + Math.round(TF_LISTING_WINDOW_MS / 60000) + ' minutes</b></div>'
+      + '</div>'
+      + '<div class="tf-step"><span>Starting price</span>'
+      +   '<div class="tf-step-c">'
+      +     '<button type="button" class="tf-step-b" data-tf-price-step="-1" aria-label="Lower starting price">−</button>'
+      +     '<input type="number" min="0" step="' + step + '" value="' + price + '" data-tf-sell-price aria-label="Starting price">'
+      +     '<button type="button" class="tf-step-b" data-tf-price-step="1" aria-label="Raise starting price">+</button>'
+      +   '</div>'
+      +   '<em>' + _tfMoney(price) + '</em>'
+      + '</div>'
+      + '<p class="tf-note">He stays in your squad and keeps playing. You can cancel the listing at any time before a transfer completes.</p>'
+      + '<div class="tf-ct-open-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
+      +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-list-confirm data-tf-mode="auction">CONFIRM LISTING</button>'
+      + '</div></div>';
+  } else if (exp === 'now') {
+    open = '<div class="tf-ct-open">'
+      + '<div class="tf-ct-open-t">Sell now</div>'
+      + '<div class="tf-ct-amount"><i>Your club receives</i><b>' + _tfMoney(instant) + '</b>'
+      +   '<em>' + Math.round(TF_INSTANT_RATE * 100) + '% of market value · ' + _tfMoney(mv) + '</em></div>'
+      + '<p class="tf-note">An instant sale, not an auction: he goes on the market at this exact price, with no'
+      +   ' bidding and no counter-offers, and the first club to take him pays it in full. Trading price for'
+      +   ' certainty is what the ' + Math.round((1 - TF_INSTANT_RATE) * 100) + '% pays for.</p>'
+      + '<div class="tf-ct-open-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
+      +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-list-confirm data-tf-mode="now">CONFIRM INSTANT SALE</button>'
+      + '</div></div>';
+  } else if (exp === 'renew') {
+    open = '<div class="tf-ct-open">'
+      + '<div class="tf-ct-open-t">Renew contract</div>'
+      + '<div class="tf-ct-facts tf-ct-facts--2">'
+      +   '<div><i>Current wage</i><b>' + _tfMoney(_tfWageOf(p)) + ' / wk</b></div>'
+      +   '<div><i>Expires</i><b>' + _tfEsc(_tfContractExpiry(p)) + '</b></div>'
+      + '</div>'
+      + '<p class="tf-note">Contract renewal is not enabled on the server yet, so these terms are read-only.'
+      +   ' Nothing here has been changed or agreed.</p>'
+      + '<div class="tf-ct-open-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CLOSE</button>'
+      +   '<button type="button" class="tf-btn" disabled>RENEW — NOT AVAILABLE</button>'
+      + '</div></div>';
+  }
+
+  return '<div class="tf-ct">' + head + facts + actions + open + '</div>';
+}
+// The inline mount used by his profile. The host carries the ids, so a repaint
+// needs nothing but the DOM.
+function _tfContractMount(ctxId, p) {
+  return '<div class="tf-ct-host" data-tf-contract-host="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">'
+    + _tfContractHtml(ctxId, p) + '</div>';
+}
+window._tfContractMount = _tfContractMount;
+
+// The shortcut: the same component, in a panel.
 function _tfSellRender() {
   var host = _tfSellHost();
-  if (!_TF_SELL) { host.innerHTML = ''; host.classList.remove('is-on'); return; }
+  if (!_TF_SELL || !_TF_SELL.panel) { host.innerHTML = ''; host.classList.remove('is-on'); return; }
   var C = _tfCtxById(_TF_SELL.ctxId);
   var p = C && typeof C.findPlayer === 'function' ? C.findPlayer(_TF_SELL.playerId) : null;
   if (!p) { host.innerHTML = ''; host.classList.remove('is-on'); return; }
   host.classList.add('is-on');
-
-  if (_TF_SELL.mode === 'delist') {
-    var rec = _tfListingById(_TF_SELL.listingId)
-           || { payload: { askingPrice: _TF_SELL.askingPrice || 0 } };
-    host.innerHTML = '<div class="tf-modal tf-modal--sm" id="tf-sell-modal">'
-      + '<div class="tf-modal-bd" data-tf-sell-close></div>'
-      + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true" aria-label="Remove from transfer list">'
-      +   '<h3 class="tf-cf-title">Remove from transfer list</h3>'
-      +   '<div class="tf-cf-rows">'
-      +     '<div><i>Player</i><b>' + _tfEsc(p.name) + ' · ' + _tfEsc(p.pos) + '</b></div>'
-      +     '<div><i>Listed for</i><b>' + _tfMoney(rec ? rec.payload.askingPrice : 0) + '</b></div>'
-      +     '<div><i>Squad</i><b>' + _tfEsc(C.label || '') + '</b></div>'
-      +     '<div><i>He stays in</i><b>' + _tfEsc(C.label || '') + '</b></div>'
-      +     '<div><i>Money moved</i><b>None</b></div>'
-      +   '</div>'
-      +   '<div class="tf-cf-acts">'
-      +     '<button type="button" class="tf-btn" data-tf-sell-close>CANCEL</button>'
-      +     '<button type="button" class="tf-btn tf-btn--primary" data-tf-delist>REMOVE FROM LIST</button>'
-      +   '</div>'
-      + '</div></div>';
-    return;
-  }
-
-  var eco = _tfEconomy(C);
   host.innerHTML = '<div class="tf-modal tf-modal--sm" id="tf-sell-modal">'
     + '<div class="tf-modal-bd" data-tf-sell-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true" aria-label="List for transfer">'
-    +   '<h3 class="tf-cf-title">List for transfer</h3>'
-    +   '<div class="tf-cf-rows">'
-    +     '<div><i>Player</i><b>' + _tfEsc(p.name) + ' · ' + _tfEsc(p.pos) + ' · OVR ' + (p.qual != null ? p.qual : p.overall) + '</b></div>'
-    +     '<div><i>Selling squad</i><b>' + _tfEsc(C.label || '') + '</b></div>'
-    +     '<div><i>Club</i><b>' + _tfEsc(_tfClubNameOf(C)) + '</b></div>'
-    +     '<div><i>Listing window</i><b>' + Math.round(TF_LISTING_WINDOW_MS / 60000) + ' minutes</b></div>'
-    +     '<div><i>Club earnings so far</i><b>' + _tfMoney(eco.earned) + '</b></div>'
-    +   '</div>'
-    +   '<label class="tf-sell-price"><span>Asking price</span>'
-    +     '<input type="number" min="0" step="100000" value="' + (_TF_SELL.price || 0) + '" data-tf-sell-price>'
-    +   '</label>'
-    +   '<p class="tf-note">He stays in your squad and keeps playing until somebody buys him. You can remove him from the list at any time before the sale completes.</p>'
-    +   '<div class="tf-cf-acts">'
-    +     '<button type="button" class="tf-btn" data-tf-sell-close>CANCEL</button>'
-    +     '<button type="button" class="tf-btn tf-btn--primary" data-tf-list-confirm>CONFIRM LISTING</button>'
-    +   '</div>'
+    + '<div class="tf-modal-box tf-modal-box--sm tf-modal-box--plain" role="dialog" aria-modal="true" aria-label="Contract and transfer">'
+    +   '<button type="button" class="tf-x" data-tf-sell-close aria-label="Close">×</button>'
+    +   _tfContractHtml(_TF_SELL.ctxId, p)
     + '</div></div>';
 }
 
@@ -49362,43 +49619,67 @@ function _tfSellRender() {
       return;
     }
     if (t.closest('[data-tf-sell-close]')) { e.preventDefault(); _tfSellClose(); return; }
-    if (t.closest('[data-tf-list-confirm]')) {
-      e.preventDefault();
+    // Open one section, or close the open one. Nothing else changes.
+    if ((el = t.closest('[data-tf-exp]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _tfSellExpand(el.getAttribute('data-tf-ctx'), el.getAttribute('data-tf-player'),
+        el.getAttribute('data-tf-exp') || null);
+      return;
+    }
+    if ((el = t.closest('[data-tf-price-step]'))) {
+      e.preventDefault(); e.stopPropagation();
+      if (!_TF_SELL) return;
+      var C3 = _tfCtxById(_TF_SELL.ctxId);
+      var p3 = C3 && C3.findPlayer ? C3.findPlayer(_TF_SELL.playerId) : null;
+      if (!p3) return;
+      var d = parseInt(el.getAttribute('data-tf-price-step'), 10) || 0;
+      var stp = _tfPriceStep(_tfMarketValueOf(p3));
+      _TF_SELL.price = Math.max(0, Math.round((_TF_SELL.price || 0) + d * stp));
+      _tfSellRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-tf-list-confirm]'))) {
+      e.preventDefault(); e.stopPropagation();
       var C = _tfCtxById(_TF_SELL && _TF_SELL.ctxId);
       var p = C && _TF_SELL ? C.findPlayer(_TF_SELL.playerId) : null;
       if (!C || !p) { _tfSellClose(); return; }
-      var price = Math.max(0, Math.round(_TF_SELL.price || 0));
+      var instantSale = el.getAttribute('data-tf-mode') === 'now';
+      var price = instantSale ? _tfInstantQuote(p) : Math.max(0, Math.round(_TF_SELL.price || 0));
+      if (!instantSale && price <= 0) { _tfToast('Set a starting price above zero', 'error'); return; }
+      var done = function () {
+        _tfToast(p.name + (instantSale ? ' is on the market at ' : ' listed for ') + _tfMoney(price), 'success');
+        if (_TF_SELL) _TF_SELL.exp = null;
+        _tfSellRepaint(); _tfSellRefreshOwner(C);
+      };
       if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
-        _tfSellClose();
-        _tfServerList(p, price).then(function () {
-          _tfToast(p.name + ' listed for ' + _tfMoney(price), 'success');
-          return _tfSyncServerMarket();
-        }).then(function () { _tfSellRefreshOwner(C); })
+        _tfServerList(p, price, { instant: instantSale })
+          .then(function () { return _tfSyncAll(); })
+          .then(done)
           .catch(function (e) { _tfToast('Listing failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
         return;
       }
-      _tfCreateListing(C, p, price);
-      _tfToast(p.name + ' listed for ' + _tfMoney(price), 'success');
-      _tfSellClose();
-      _tfSellRefreshOwner(C);
+      _tfCreateListing(C, p, price, { instant: instantSale });
+      done();
       return;
     }
-    if (t.closest('[data-tf-delist]')) {
-      e.preventDefault();
-      var C2 = _tfCtxById(_TF_SELL && _TF_SELL.ctxId);
-      var lid = _TF_SELL && _TF_SELL.listingId;
-      if (lid && typeof _thIsHydrated === 'function' && _thIsHydrated()) {
-        _tfSellClose();
-        _tfServerDelist(lid).then(function () {
-          _tfToast('Removed from the transfer list', 'info');
-          return _tfSyncServerMarket();
-        }).then(function () { _tfSellRefreshOwner(C2); })
-          .catch(function (e) { _tfToast('Delist failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
+    // Cancel a listing from wherever he is being managed.
+    if ((el = t.closest('[data-tf-delist-now]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var pid = el.getAttribute('data-tf-delist-now');
+      var C2 = _tfCtxById(el.getAttribute('data-tf-ctx'));
+      var st2 = _tfStatusOf(pid);
+      if (!st2.listed) { _tfSellRepaint(); return; }
+      if (st2.server) {
+        _tfServerDelist(st2.listingId).then(function () {
+          _tfToast('Listing cancelled', 'info');
+          return _tfSyncAll();
+        }).then(function () { _tfSellRepaint(); _tfSellRefreshOwner(C2); })
+          .catch(function (e) { _tfToast('Cancel failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
         return;
       }
-      if (lid) { _tfDelist(lid); _tfToast('Removed from the transfer list', 'info'); }
-      _tfSellClose();
-      _tfSellRefreshOwner(C2);
+      _tfDelist(st2.listingId);
+      _tfToast('Listing cancelled', 'info');
+      _tfSellRepaint(); _tfSellRefreshOwner(C2);
       return;
     }
   }, true);
@@ -49406,6 +49687,10 @@ function _tfSellRender() {
     var t = e.target;
     if (t && t.hasAttribute && t.hasAttribute('data-tf-sell-price') && _TF_SELL) {
       _TF_SELL.price = Math.max(0, parseInt(t.value, 10) || 0);
+      try {
+        var lab = t.closest('.tf-step') && t.closest('.tf-step').querySelector('em');
+        if (lab) lab.textContent = _tfMoney(_TF_SELL.price);
+      } catch (_) {}
     }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _TF_SELL) _tfSellClose(); });
@@ -49421,10 +49706,10 @@ function _tfSellRefreshOwner(C) {
 }
 // The button the owned-player surfaces render. One helper, both surfaces.
 function _tfSellButton(ctxId, player, cls) {
-  var listed = _tfIsListed(player.id);
+  var listed = _tfStatusOf(player.id).listed;
   return '<button class="' + (cls || 'sq-mbtn') + (listed ? ' is-listed' : '') + '" type="button"'
     + ' data-tf-sell-open="' + _tfEsc(player.id) + '" data-tf-sell-ctx="' + _tfEsc(ctxId) + '">'
-    + (listed ? '● Listed — remove' : '⇄ List for transfer') + '</button>';
+    + (listed ? '🔨 Listed — manage' : '⇄ Contract / Transfer') + '</button>';
 }
 window._tfSellButton = _tfSellButton;
 
@@ -49724,13 +50009,14 @@ function _atFromServer(p, stageId) {
 // canonical UUID, where every other club can see it. There is no second listing
 // store; when the session is hydrated these calls ARE the market.
 // ══════════════════════════════════════════════════════════════════════════════
-async function _tfServerList(player, askingPriceEur) {
-  // The sell panel promises a listing window, so the listing has to carry one.
-  // Without it the server stores no deadline, and a lot whose auction never
-  // ends is a lot nobody can ever sign.
-  return _thUnwrap(await _thApi('POST', '/transfer-market/listings',
-    { playerId: player.id, askingPriceEur: Math.round(askingPriceEur),
-      validUntil: new Date(Date.now() + TF_LISTING_WINDOW_MS).toISOString() }));
+async function _tfServerList(player, askingPriceEur, opts) {
+  opts = opts || {};
+  // An auction promises a window, so the listing has to carry one: without a
+  // deadline the lot never closes and nobody can ever sign him. An instant sale
+  // is the other shape — a fixed price, open until somebody takes it.
+  var body = { playerId: player.id, askingPriceEur: Math.round(askingPriceEur) };
+  if (!opts.instant) body.validUntil = new Date(Date.now() + TF_LISTING_WINDOW_MS).toISOString();
+  return _thUnwrap(await _thApi('POST', '/transfer-market/listings', body));
 }
 async function _tfServerDelist(listingId) {
   return _thUnwrap(await _thApi('DELETE', '/transfer-market/listings/' + listingId));
