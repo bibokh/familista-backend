@@ -70,31 +70,99 @@ export interface BootstrapTeamDto {
 
 // ── the roster arrives as JSON, and JSON has opinions ────────────────────────
 // A squad the manager has edited comes back from the browser with its numbers
-// as strings — an <input> hands back "84", not 84 — and Prisma rejects the whole
+// as strings — an <input> hands back "84", not 84 — and Prisma refuses the whole
 // insert before it reaches Postgres: "Argument `overallRating`: Invalid value
-// provided. Expected Int, provided String." One such field fails all
-// ninety-three players, so the club never gets a roster at all.
+// provided. Expected Int, provided String." createMany validates the batch, so
+// one such field costs the club every player in it.
 //
-// These read the number that was sent and keep it. They do not invent values:
-// only something genuinely absent or unreadable falls back to the same default
-// the column already had.
-const num = (v: unknown): number | null => {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  if (typeof v === 'string' && v.trim() !== '') {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
+// So the boundary reads what was sent and converts it to the type the column
+// declares. It knows nothing about any particular squad — no names, no ids, no
+// sizes, no rating scale — only the shape of the fields, which is why it will
+// go on working when these players are replaced by real ones.
+//
+// It converts; it does not invent. "84" is 84. A field left out keeps the
+// default the column already had. But a value that was sent and cannot be read
+// as a number — or a birthday that is not a date — is refused by name, with the
+// player it came from, instead of being quietly replaced by a plausible one.
+const ABSENT = Symbol('absent');
+
+// Absent means absent: undefined, null, or a field the manager cleared, which
+// arrives as an empty string. Everything else must parse.
+function readNumber(v: unknown, where: string): number | typeof ABSENT {
+  if (v === undefined || v === null) return ABSENT;
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v)) throw new BadRequestError(`${where} is not a finite number`);
+    return v;
   }
-  return null;
+  if (typeof v === 'string') {
+    if (v.trim() === '') return ABSENT;
+    const n = Number(v);
+    if (!Number.isFinite(n)) throw new BadRequestError(`${where} is not a number: ${JSON.stringify(v)}`);
+    return n;
+  }
+  throw new BadRequestError(`${where} is not a number`);
+}
+const requiredInt = (v: unknown, where: string) => {
+  const n = readNumber(v, where);
+  if (n === ABSENT) throw new BadRequestError(`${where} is required`);
+  return Math.round(n);
 };
-const int      = (v: unknown, fallback: number) => { const n = num(v); return n === null ? fallback : Math.round(n); };
-const float    = (v: unknown, fallback: number) => { const n = num(v); return n === null ? fallback : n; };
-const intOrNull = (v: unknown) => { const n = num(v); return n === null ? null : Math.round(n); };
-// An unparseable date is rejected by Prisma the same way; the column's own
-// default stands in rather than losing the entire squad over one bad birthday.
-const onlyValidDate = (v: unknown): Date => {
-  const d = v ? new Date(v as string) : null;
-  return d && !Number.isNaN(d.getTime()) ? d : new Date('2000-01-01');
+const optionalInt = (v: unknown, where: string, fallback: number) => {
+  const n = readNumber(v, where);
+  return n === ABSENT ? fallback : Math.round(n);
 };
+const optionalFloat = (v: unknown, where: string, fallback: number) => {
+  const n = readNumber(v, where);
+  return n === ABSENT ? fallback : n;
+};
+const optionalIntOrNull = (v: unknown, where: string) => {
+  const n = readNumber(v, where);
+  return n === ABSENT ? null : Math.round(n);
+};
+const optionalDate = (v: unknown, where: string, fallback: Date) => {
+  if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return fallback;
+  const d = new Date(v as string);
+  if (Number.isNaN(d.getTime())) throw new BadRequestError(`${where} is not a date: ${JSON.stringify(v)}`);
+  return d;
+};
+
+// One player, in the types Player declares. `where` names the position in the
+// request that was sent, so a refusal points at the row that caused it without
+// depending on anything about who that row happens to be.
+function toPlayerRow(
+  p: BootstrapTeamDto['players'][number],
+  where: string,
+  clubId: string,
+) {
+  return {
+    clubId,
+    firstName: p.firstName, lastName: p.lastName,
+    number: requiredInt(p.number, `${where}.number`),
+    position: (p.position as never), nationality: p.nationality ?? '—', flag: p.flag ?? '🏳️',
+    dateOfBirth: optionalDate(p.dateOfBirth, `${where}.dateOfBirth`, new Date('2000-01-01')),
+    height: optionalInt(p.height, `${where}.height`, 180),
+    weight: optionalInt(p.weight, `${where}.weight`, 75),
+    preferredFoot: (p.preferredFoot as never) ?? ('RIGHT' as never),
+    overallRating: optionalInt(p.overallRating, `${where}.overallRating`, 70),
+    potential: optionalInt(p.potential, `${where}.potential`, 75),
+    condition: optionalInt(p.condition, `${where}.condition`, 90),
+    marketValue: optionalFloat(p.marketValue, `${where}.marketValue`, 1000000),
+    weeklyWage: optionalInt(p.weeklyWage, `${where}.weeklyWage`, 10000),
+    // carried straight through: the player the manager already knows.
+    // `sq-8` names a slot in the browser's demo squad, so every club
+    // arrives with the same handful of them; Player.legacyId is unique
+    // across the whole table, so they are qualified by club here. The
+    // client strips its own prefix back off when it resolves a saved
+    // lineup, and reads the bare `sq-8` it wrote.
+    legacyId: p.legacyId ? `${clubId}:${p.legacyId}` : null,
+    roles: p.roles ?? null,
+    morale: p.morale ?? null,
+    form: optionalIntOrNull(p.form, `${where}.form`),
+    isCaptain: p.isCaptain ?? false,
+    trainedPositions: p.trainedPositions ?? null,
+    isInjured: p.isInjured ?? false,
+  };
+}
 
 export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDto[]) {
   if (!Array.isArray(teams) || !teams.length) throw new BadRequestError('teams[] required');
@@ -106,8 +174,17 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
     return { seeded: false, reason: 'club already has persistent players', players };
   }
 
+  // Read the whole request before writing any of it. A row that cannot be read
+  // refuses the request outright rather than leaving the club with the teams
+  // that happened to come before it.
+  const prepared = teams.map((t, ti) => ({
+    team: t,
+    rows: (t.players ?? []).map((p, pi) =>
+      toPlayerRow(p, `teams[${ti}].players[${pi}]`, actor.clubId)),
+  }));
+
   await prisma.$transaction(async (tx) => {
-    for (const t of teams) {
+    for (const { team: t, rows } of prepared) {
       const team = await tx.team.upsert({
         where:  { clubId_name: { clubId: actor.clubId, name: t.name } },
         update: {},
@@ -127,29 +204,7 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
       // same way — a bootstrap that can never succeed. Same rows, same values;
       // six statements instead of ninety-three.
       await tx.player.createMany({
-        data: t.players.map((p) => ({
-          clubId: actor.clubId, teamId: team.id,
-          firstName: p.firstName, lastName: p.lastName, number: int(p.number, 0),
-          position: (p.position as never), nationality: p.nationality ?? '—', flag: p.flag ?? '🏳️',
-          dateOfBirth: onlyValidDate(p.dateOfBirth),
-          height: int(p.height, 180), weight: int(p.weight, 75),
-          preferredFoot: (p.preferredFoot as never) ?? ('RIGHT' as never),
-          overallRating: int(p.overallRating, 70), potential: int(p.potential, 75),
-          condition: int(p.condition, 90), marketValue: float(p.marketValue, 1000000),
-          weeklyWage: int(p.weeklyWage, 10000),
-          // carried straight through: the player the manager already knows.
-          // `sq-8` names a slot in the browser's demo squad, so every club
-          // arrives with the same handful of them; Player.legacyId is unique
-          // across the whole table, so they are qualified by club here. The
-          // client strips its own prefix back off when it resolves a saved
-          // lineup, and reads the bare `sq-8` it wrote.
-          legacyId: p.legacyId ? `${actor.clubId}:${p.legacyId}` : null,
-          roles: p.roles ?? null,
-          morale: p.morale ?? null, form: intOrNull(p.form),
-          isCaptain: p.isCaptain ?? false,
-          trainedPositions: p.trainedPositions ?? null,
-          isInjured: p.isInjured ?? false,
-        })),
+        data: rows.map((r) => ({ ...r, teamId: team.id })),
       });
     }
     // And a ceiling the first lift of a large club cannot bump into on a slow
