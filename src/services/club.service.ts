@@ -141,11 +141,6 @@ export async function createClubWithOwnerMembership(
   });
   if (dup) throw new ConflictError('You already own a club with that name');
 
-  // TEMP DIAGNOSTIC — logs appear in Render service logs. Remove once the
-  // multi-club picker bug is closed out.
-  // eslint-disable-next-line no-console
-  console.log('[clubs.create] START', { ownerUserId, name, city });
-
   const { clubId, membershipId } = await prisma.$transaction(async (tx) => {
     const club = await tx.club.create({
       data: {
@@ -157,8 +152,6 @@ export async function createClubWithOwnerMembership(
       },
       select: { id: true },
     });
-    // eslint-disable-next-line no-console
-    console.log('[clubs.create] CLUB_INSERTED', { clubId: club.id, name });
 
     const membership = await tx.membership.create({
       data: {
@@ -170,19 +163,9 @@ export async function createClubWithOwnerMembership(
       },
       select: { id: true, userId: true, clubId: true, isActive: true },
     });
-    // eslint-disable-next-line no-console
-    console.log('[clubs.create] MEMBERSHIP_INSERTED', {
-      membershipId: membership.id,
-      userId:       membership.userId,
-      clubId:       membership.clubId,
-      isActive:     membership.isActive,
-    });
 
     return { clubId: club.id, membershipId: membership.id };
   });
-
-  // eslint-disable-next-line no-console
-  console.log('[clubs.create] COMMITTED', { clubId, membershipId, ownerUserId });
 
   return {
     clubId,
