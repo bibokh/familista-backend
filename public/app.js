@@ -538,7 +538,8 @@ async function bootApp() {
   }
 }
 
-async function loadAllData() {
+async function loadAllData(opts) {
+  opts = opts || {};
   try {
     const [analytics, players, matches, tourns, training] = await Promise.allSettled([
       api('/analytics/overview'),
@@ -612,15 +613,33 @@ async function loadAllData() {
       State.trainingForm = training.value.data;
     }
 
-    // Load analytics trend
-    const trend = await api('/analytics/performance-trend?weeks=8');
-    if (trend?.data) {
-      State.performanceTrend = trend.data;
+    // Load analytics trend. It is one panel among several, so its failure is
+    // reported with the others rather than standing in for all of them — which
+    // is what the single catch below used to do: five requests could fail in
+    // silence while this one spoke for them.
+    let trendOk = true;
+    try {
+      const trend = await api('/analytics/performance-trend?weeks=8');
+      if (trend?.data) State.performanceTrend = trend.data;
+    } catch (err) {
+      trendOk = false;
+      console.error('Data load error (performance trend):', err);
     }
+
+    const outcome = _famHydrationOutcome([analytics, players, matches, tourns, training], trendOk);
+    // A caller that is switching clubs decides what to say about this itself,
+    // so it does not get one message from here and a contradictory one there.
+    if (!opts.silent && outcome.failed.length) {
+      showToast(outcome.ok
+        ? 'Loaded, but ' + outcome.failed.join(', ') + ' could not be read'
+        : 'Could not load ' + outcome.failed.join(', '), 'error');
+    }
+    return outcome;
 
   } catch (err) {
     console.error('Data load error:', err);
-    showToast('Some data failed to load — showing cached data', 'error');
+    if (!opts.silent) showToast('Could not load this club\'s data', 'error');
+    return { ok: false, failed: ['club data'] };
   }
 }
 
@@ -31491,16 +31510,40 @@ const AppContext = (function () {
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
       };
+      // The server now answers as the club just picked. Everything still held
+      // from the club just left is that club's data, and none of it is stamped
+      // with whose it is — so it goes before anything is read or repainted. If
+      // the new club then fails to load, the screen is empty rather than
+      // showing a squad this manager is no longer managing.
+      if (typeof _famClearClubScopedState === 'function') _famClearClubScopedState();
+
       await loadTeams();
       renderSwitcher();
-      // The server now answers as the club just picked, so the roster has to be
-      // read again for it. Without this the squad on screen stays the club the
-      // session hydrated for, and listing one of those players is refused —
-      // correctly — as belonging to another club.
-      if (typeof _thHydrate === 'function') { try { await _thHydrate(); } catch (_) {} }
-      // Re-hydrate the squad page after tenant change
-      if (typeof loadAllData === 'function') await loadAllData();
-      showToast('Switched club', 'success');
+      // The roster has to be read again for the club now being acted for.
+      var hydrated = true;
+      if (typeof _thHydrate === 'function') {
+        try { hydrated = (await _thHydrate()) === 'ready'; } catch (_) { hydrated = false; }
+      }
+      // Silent: this function says one thing about the switch, below.
+      var loaded = { ok: true, failed: [] };
+      if (typeof loadAllData === 'function') {
+        loaded = (await loadAllData({ silent: true })) || loaded;
+      }
+
+      // The green toast means the workspace is usable, and "usable" means the
+      // roster arrived: _thHydrate reads this club's teams and players from the
+      // server, and that pair is what every squad surface is drawn from. It is
+      // no longer said merely because the context call returned 200.
+      //
+      // One message either way. A panel that failed is named; it does not
+      // invalidate the switch, and it does not get a toast of its own.
+      if (!hydrated) {
+        showToast('Switched club, but its squad could not be loaded — retry', 'error');
+      } else if (loaded.failed.length) {
+        showToast('Switched club — ' + loaded.failed.join(', ') + ' could not be loaded', 'error');
+      } else {
+        showToast('Switched club', 'success');
+      }
     } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
   }
   async function switchTeam(teamId) {
@@ -50263,6 +50306,56 @@ function _thCurrentClubId() {
 // refuse: the player really does belong to the other club. So until the roster
 // has been read again for the club now being acted for, this session has no
 // server roster to show.
+// ── a club switch invalidates the club it is switching away from ────────────
+// State and the roster index hold one club's data at a time, and neither is
+// stamped with whose it is. Until the new club has been read, anything left in
+// them belongs to the club just left — so a switch clears them before the new
+// club is loaded, and a hydration that then fails leaves the screen empty
+// rather than showing another club's squad.
+//
+// Only club-scoped fields. The session, the user, and the manager's own
+// preferences are not a club's data and are left exactly as they are.
+function _famClearClubScopedState() {
+  var S = (typeof window !== 'undefined' && window.State) || (typeof State !== 'undefined' ? State : null);
+  if (S) {
+    S.players = [];
+    S.matches = [];
+    S.training = [];
+    S.analytics = null;
+    S.trainingForm = null;
+    S.performanceTrend = null;
+  }
+  _thResetRoster();
+}
+
+// The roster index, emptied. `clubId` is set to null rather than to the club
+// being switched to: an index that names the new club while still holding the
+// old club's players is the one combination _thRosterIsCurrent() cannot catch.
+function _thResetRoster() {
+  if (typeof _TH === 'undefined' || !_TH) return;
+  _TH.teams = [];
+  _TH.byTeam = {};
+  _TH.legacy = {};
+  _TH.clubId = null;
+}
+
+// Which of a workspace load's parts are required for the club to be usable, and
+// which are decoration. The roster is the workspace; analytics, training and
+// the trend are panels that can be empty without the switch being a failure.
+// `settled` is the Promise.allSettled array from loadAllData, in its order.
+function _famHydrationOutcome(settled, trendOk) {
+  var NAMES = ['analytics', 'players', 'matches', 'training', 'training form'];
+  var REQUIRED = { players: true };
+  var failed = [], ok = true;
+  (settled || []).forEach(function (r, i) {
+    if (r && r.status === 'fulfilled') return;
+    failed.push(NAMES[i]);
+    if (REQUIRED[NAMES[i]]) ok = false;
+  });
+  if (!trendOk) failed.push('performance trend');
+  return { ok: ok, failed: failed };
+}
+
 function _thRosterIsCurrent() {
   if (typeof _TH === 'undefined' || !_TH) return false;
   var now = _thCurrentClubId();
@@ -50360,6 +50453,11 @@ async function _thHydrate(opts) {
     // session that never hydrated may keep using the local demo squad.
     _TH.state = 'failed';
     _TH.error = (e && (e.userMessage || e.message)) || 'hydration failed';
+    // Whatever is in the index now was read for a club this session may no
+    // longer be acting for, and a half-finished _thRefresh can leave the new
+    // club's id stamped on the old club's players — the one combination
+    // _thRosterIsCurrent() cannot detect. Empty it.
+    _thResetRoster();
     // Which call, to which URL, answered what. "Server roster unavailable" on
     // its own is a symptom that fits a dozen causes; this says which one, in a
     // browser we cannot attach a debugger to.
