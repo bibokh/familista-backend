@@ -42,8 +42,17 @@ function generateAccessToken(payload: JwtPayload): string {
   } as jwt.SignOptions);
 }
 
+// The refresh token is stored, and RefreshToken.token is unique. A JWT's `iat`
+// has one-second resolution, so signing this payload twice inside a second
+// produces the identical string and the second login dies on the constraint —
+// a double-clicked login, or a second tab, answering 409. `jti` is the claim
+// JWTs already define for exactly this: a unique identifier for the token,
+// making two tokens issued in the same second different tokens. Nothing else
+// about the token changes — same claims, same secret, same expiry — and the
+// access token, which is not stored and has no uniqueness requirement, is
+// deliberately left alone.
 function generateRefreshToken(payload: JwtPayload): string {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
+  return jwt.sign({ ...payload, jti: uuidv4() }, config.jwt.refreshSecret, {
     expiresIn: config.jwt.refreshExpiresIn,
   } as jwt.SignOptions);
 }
