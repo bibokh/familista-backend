@@ -238,7 +238,46 @@ const hasTable = async () => {
   .finally(() => prisma.$disconnect());
 NODE
 
-# ── 3 · the server ───────────────────────────────────────────────────────────
+# ── 3 · the generated client ─────────────────────────────────────────────────
+# The schema gate above proves the database has the columns. This proves the
+# Prisma Client the server will import was generated from the same schema file.
+#
+# They can disagree. This repository carries an older stand-alone schema.prisma
+# at its root, and any `prisma generate` that runs without --schema resolves to
+# that one, producing a client whose Player has no legacyId. The insert then
+# fails client-side — "Unknown argument `legacyId`" — before it ever reaches a
+# database whose column is right there. The column exists, the migration ran,
+# and bootstrap still answers 500.
+#
+# `prisma generate` copies the schema it used next to the client, so the client
+# says where it came from. Compare it with the schema this deploy is built on —
+# ignoring whitespace, because generate reformats — and regenerate if they are
+# not the same schema.
+echo ""
+echo "── prisma client ──"
+GENERATED="node_modules/.prisma/client/schema.prisma"
+norm() { tr -s '[:space:]' ' ' < "$1" | md5sum | cut -d' ' -f1; }
+
+if [ -f "$GENERATED" ] && [ "$(norm "$GENERATED")" = "$(norm prisma/schema.prisma)" ]; then
+  echo "✅ client: generated from prisma/schema.prisma"
+else
+  if [ -f "$GENERATED" ]; then
+    echo "⚠  client was generated from a different schema — regenerating"
+  else
+    echo "⚠  no generated client found — generating"
+  fi
+  npx prisma generate $SCHEMA
+  if [ -f "$GENERATED" ] && [ "$(norm "$GENERATED")" = "$(norm prisma/schema.prisma)" ]; then
+    echo "✅ client: regenerated from prisma/schema.prisma"
+  else
+    echo "❌ client gate FAILED — the generated client does not match" \
+         "prisma/schema.prisma. The API will not start against a client that" \
+         "disagrees with its own schema."
+    exit 1
+  fi
+fi
+
+# ── 4 · the server ───────────────────────────────────────────────────────────
 echo ""
 echo "── starting API ──"
 exec node dist/server.js

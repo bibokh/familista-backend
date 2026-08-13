@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "prisma generate --schema=prisma/schema.prisma && tsc",
