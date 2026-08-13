@@ -3,6 +3,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import * as svc from '../transfer-market/transfer-market.service';
+import * as neg from '../transfer-market/transfer-negotiation.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -59,5 +60,119 @@ export async function bootstrapRoster(req: Request, res: Response, next: NextFun
   try {
     const teams = (req.body?.teams ?? []) as svc.BootstrapTeamDto[];
     return sendSuccess(res, await svc.bootstrapRoster(actor(req), teams));
+  } catch (err) { return next(err); }
+}
+
+// ── club-to-club negotiation ─────────────────────────────────────────────────
+// Every handler passes the acting club from the session; none of them reads a
+// club id out of the request body.
+
+export async function registerInterest(req: Request, res: Response, next: NextFunction) {
+  try {
+    const playerId = requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await neg.registerInterest(actor(req), playerId, req.body?.message));
+  } catch (err) { return next(err); }
+}
+
+export async function respondToInterest(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.interestId, 'interestId');
+    return sendSuccess(res, await neg.respondToInterest(actor(req), id, req.body?.status));
+  } catch (err) { return next(err); }
+}
+
+export async function makeOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await neg.makeOffer(actor(req), req.body as neg.OfferDto));
+  } catch (err) { return next(err); }
+}
+
+export async function readOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendSuccess(res, await neg.readOffer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function acceptOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendSuccess(res, await neg.acceptOffer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function rejectOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendSuccess(res, await neg.rejectOffer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function withdrawOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendSuccess(res, await neg.withdrawOffer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function counterOffer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendCreated(res, await neg.counterOffer(actor(req), id, req.body?.feeEur, req.body?.message));
+  } catch (err) { return next(err); }
+}
+
+export async function readOffersForPlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await neg.readOffersForPlayer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function readActivity(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await neg.readActivity(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+// ── recruitment needs ────────────────────────────────────────────────────────
+export async function createNeed(req: Request, res: Response, next: NextFunction) {
+  try { return sendCreated(res, await neg.createNeed(actor(req), req.body as neg.NeedDto)); }
+  catch (err) { return next(err); }
+}
+export async function updateNeed(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.needId, 'needId');
+    return sendSuccess(res, await neg.updateNeed(actor(req), id, req.body as neg.NeedDto));
+  } catch (err) { return next(err); }
+}
+export async function deleteNeed(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.needId, 'needId');
+    return sendSuccess(res, await neg.deleteNeed(actor(req), id));
+  } catch (err) { return next(err); }
+}
+export async function readOwnNeeds(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await neg.readOwnNeeds(actor(req))); }
+  catch (err) { return next(err); }
+}
+export async function readMarketNeeds(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await neg.readMarketNeeds(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+// ── matching and targeted offering ───────────────────────────────────────────
+export async function matchesForPlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    const ask = req.query.askingPriceEur ? Number(req.query.askingPriceEur) : undefined;
+    return sendSuccess(res, await neg.matchesForPlayer(actor(req), id, ask));
+  } catch (err) { return next(err); }
+}
+
+export async function offerPlayerToClubs(req: Request, res: Response, next: NextFunction) {
+  try {
+    requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await neg.offerPlayerToClubs(actor(req), req.body));
   } catch (err) { return next(err); }
 }

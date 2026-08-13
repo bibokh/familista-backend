@@ -250,13 +250,16 @@ NODE
 # and bootstrap still answers 500.
 #
 # `prisma generate` copies the schema it used next to the client, so the client
-# says where it came from. Compare it with the schema this deploy is built on —
-# ignoring whitespace, because generate reformats — and regenerate if they are
-# not the same schema.
+# says where it came from. Compare the two — but compare what a client is
+# actually generated FROM: the declarations. Comments are dropped before
+# hashing, because generate reformats whitespace and, on a schema this size,
+# writes its copy in chunks that can mangle a multi-byte character inside a
+# comment divider. A corrupted box-drawing character in a comment is not a
+# different schema, and must not stop this API from starting.
 echo ""
 echo "── prisma client ──"
 GENERATED="node_modules/.prisma/client/schema.prisma"
-norm() { tr -s '[:space:]' ' ' < "$1" | md5sum | cut -d' ' -f1; }
+norm() { grep -v '^[[:space:]]*//' "$1" | tr -s '[:space:]' ' ' | md5sum | cut -d' ' -f1; }
 
 if [ -f "$GENERATED" ] && [ "$(norm "$GENERATED")" = "$(norm prisma/schema.prisma)" ]; then
   echo "✅ client: generated from prisma/schema.prisma"

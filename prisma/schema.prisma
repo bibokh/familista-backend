@@ -3345,6 +3345,34 @@ enum MarketplaceItemStatus {
   CLOSED
 }
 
+// ── club-to-club transfers ───────────────────────────────────────────────────
+// A public auction is one way a player changes clubs. These are the other two:
+// a club asking another club about a player, and the two of them agreeing a fee
+// in private. Both are records, not messages — a transfer that completes has to
+// be able to say which offer it came from.
+enum TransferOfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+  COUNTERED
+}
+
+enum TransferInterestStatus {
+  OPEN            // registered, the owner has not answered
+  INVITED         // the owner asked for a formal offer
+  DECLINED        // the owner is not interested in talking
+  NOT_FOR_SALE    // the owner says the player is not available at all
+  CLOSED          // superseded by an offer, or withdrawn
+}
+
+enum RecruitmentPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 enum KnowledgeNodeKind {
   TACTICAL
   MEDICAL
@@ -3750,6 +3778,107 @@ model CareerProjectionGraph {
 }
 
 // ── 7. Digital marketplace ──────────────────────────────────────────────
+
+// ── a formal offer from one club to another ─────────────────────────────────
+// The buyer names a fee; the seller answers. A counter is a new offer that
+// points back at the one it answers, so a negotiation is a chain that can be
+// read from either end. Nothing here moves a player: only an ACCEPTED offer,
+// settled in one transaction, does that.
+model TransferOffer {
+  id            String              @id @default(uuid())
+  playerId      String
+  sellerClubId  String
+  buyerClubId   String
+  feeEur        BigInt
+  status        TransferOfferStatus @default(PENDING)
+  message       String?             @db.Text
+  // The offer this one answers. A counter from the seller points at the buyer's
+  // offer, and the buyer's improved bid points at the counter.
+  parentOfferId String?
+  createdByClubId String
+  createdById   String?
+  respondedAt   DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([sellerClubId, status])
+  @@index([buyerClubId, status])
+  @@index([playerId, status])
+  @@index([parentOfferId])
+}
+
+// ── a club saying it is interested, before any money is named ───────────────
+model TransferInterest {
+  id               String                 @id @default(uuid())
+  playerId         String
+  ownerClubId      String
+  interestedClubId String
+  message          String?                @db.Text
+  status           TransferInterestStatus @default(OPEN)
+  respondedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([ownerClubId, status])
+  @@index([interestedClubId, status])
+  @@index([playerId])
+}
+
+// ── what a club is currently looking for ────────────────────────────────────
+// Deliberately loose: every criterion is optional, and a need with none of them
+// matches anyone. Adding a criterion later is a column, not a rewrite.
+model ClubRecruitmentNeed {
+  id                 String              @id @default(uuid())
+  clubId             String
+  // Comma-separated position codes, in the platform's own vocabulary. A need
+  // for more than one position is one need, not several.
+  positions          String
+  ageMin             Int?
+  ageMax             Int?
+  ratingMin          Int?
+  ratingMax          Int?
+  budgetMinEur       BigInt?
+  budgetMaxEur       BigInt?
+  nationality        String?
+  preferredFoot      String?
+  playstyle          String?
+  contractPreference String?
+  priority           RecruitmentPriority @default(MEDIUM)
+  note               String?             @db.Text
+  isActive           Boolean             @default(true)
+  expiresAt          DateTime?
+  createdById        String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([clubId, isActive])
+  @@index([isActive, expiresAt])
+}
+
+// ── a club offering its own player to another club ──────────────────────────
+// The mirror image of interest: the seller starts the conversation. It is an
+// availability notice against a recruitment need, not an auction and not a fee.
+model PlayerOfferToClub {
+  id             String                 @id @default(uuid())
+  playerId       String
+  fromClubId     String
+  toClubId       String
+  needId         String?
+  askingPriceEur BigInt?
+  matchPct       Int?
+  message        String?                @db.Text
+  status         TransferInterestStatus @default(OPEN)
+  respondedAt    DateTime?
+  createdById    String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([toClubId, status])
+  @@index([fromClubId, status])
+  @@index([playerId])
+}
 
 model MarketplaceItem {
   id          String                @id @default(uuid())
@@ -4774,6 +4903,20 @@ enum UserNotificationKind {
   INJURY_ALERT
   DEVICE_ALERT
   GDPR_UPDATE
+  // ── transfers ──────────────────────────────────────────────────────────
+  TRANSFER_INTEREST
+  TRANSFER_OFFER_RECEIVED
+  TRANSFER_OFFER_ACCEPTED
+  TRANSFER_OFFER_REJECTED
+  TRANSFER_COUNTER_OFFER
+  TRANSFER_OFFER_WITHDRAWN
+  PLAYER_OFFERED_TO_CLUB
+  AUCTION_STARTED
+  AUCTION_BID_RECEIVED
+  AUCTION_ENDING
+  AUCTION_WON
+  AUCTION_LOST
+  TRANSFER_COMPLETED
 }
 
 model Tournament {

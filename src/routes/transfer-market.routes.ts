@@ -37,4 +37,30 @@ router.post('/bootstrap', tradeGuard, ctrl.bootstrapRoster);
 // ── settlement: buyer-only, atomic, idempotent ───────────────────────────────
 router.post('/listings/:listingId/purchase', tradeGuard, ctrl.purchase);
 
+// ── club-to-club negotiation ────────────────────────────────────────────────
+// Reading is scoped inside the service to the club's own side of things, so a
+// club can only ever see negotiations it is part of. Writing is a trade action.
+router.post('/interest',                        tradeGuard, ctrl.registerInterest);
+router.patch('/interest/:interestId',           tradeGuard, ctrl.respondToInterest);
+
+router.post('/offers',                          tradeGuard, ctrl.makeOffer);
+router.get('/offers/activity',                              ctrl.readActivity);
+router.get('/offers/player/:playerId',                      ctrl.readOffersForPlayer);
+router.get('/offers/:offerId',                              ctrl.readOffer);
+router.post('/offers/:offerId/accept',          tradeGuard, ctrl.acceptOffer);
+router.post('/offers/:offerId/reject',          tradeGuard, ctrl.rejectOffer);
+router.post('/offers/:offerId/withdraw',        tradeGuard, ctrl.withdrawOffer);
+router.post('/offers/:offerId/counter',         tradeGuard, ctrl.counterOffer);
+
+// ── recruitment needs: a club publishes what it is looking for ──────────────
+router.get('/needs',                                        ctrl.readMarketNeeds);
+router.get('/needs/mine',                                   ctrl.readOwnNeeds);
+router.post('/needs',                           tradeGuard, ctrl.createNeed);
+router.patch('/needs/:needId',                  tradeGuard, ctrl.updateNeed);
+router.delete('/needs/:needId',                 tradeGuard, ctrl.deleteNeed);
+
+// ── matching, and the owner taking his player to a club that wants one ──────
+router.get('/matches/:playerId',                            ctrl.matchesForPlayer);
+router.post('/offer-to-clubs',                  tradeGuard, ctrl.offerPlayerToClubs);
+
 export default router;

@@ -47867,6 +47867,9 @@ function renderTransfersHTML() {
 
 var TF_TABS = [
   ['auctions', 'Auctions', 'Live market'],
+  ['offers', 'Direct offers', 'Club to club'],
+  ['needs', 'Club needs', 'Who wants what'],
+  ['activity', 'My activity', 'Everything of ours'],
   ['scouting', 'Scouting', 'Scout network'],
   ['assistant', 'Assistant', 'Recommendations']
 ];
@@ -47904,7 +47907,102 @@ function _tfRepaintRows() {
 function _tfTabHtml(C) {
   if (_TF.tab === 'scouting') return _tfScoutingHtml(C);
   if (_TF.tab === 'assistant') return _tfAssistantHtml(C);
+  if (_TF.tab === 'offers') return _tfDirectOffersHtml(C);
+  if (_TF.tab === 'needs') return _tfNeedsHtml(C);
+  if (_TF.tab === 'activity') return _tfActivityHtml(C);
   return _tfAuctionsHtml(C);
+}
+
+// ── DIRECT OFFERS · every negotiation this club is in, both directions ──────
+function _tfNegPlayerCell(row) {
+  var pl = row.player || {};
+  var shaped = { name: (pl.firstName || '') + ' ' + (pl.lastName || ''), cat: _tfCat(pl.position || 'MC'),
+                 avatar: pl.avatar || null };
+  return '<span class="tf-pl">' + _tfPortrait(shaped)
+    + '<span class="tf-pl-t"><b>' + _tfEsc(shaped.name.trim() || 'Player') + '</b>'
+    + '<em><i class="tf-pos tf-pos--' + shaped.cat + '">' + _tfEsc(pl.position || '—') + '</i>'
+    + (pl.overallRating != null ? '<span class="tf-pl-d">' + pl.overallRating + '</span>' : '') + '</em></span></span>';
+}
+function _tfDirectOffersHtml(C) {
+  var a = _TF_NEG.activity;
+  if (!a) { _tfNegLoadActivity().then(function () { _tfRenderBody(); }); return '<div class="tf-pane"><p class="tf-para">Reading your negotiations…</p></div>'; }
+  var sec = function (title, rows, empty) {
+    return '<div class="tf-sec">' + title + '</div>'
+      + (rows.length ? '<ol class="tf-offers tf-offers--grid">' + rows.map(function (o) {
+        var iAnswer = o.status === 'PENDING' && o.createdByClubId !== (_TH.clubId || '');
+        return '<li class="tf-offer" data-tf-open-player="' + _tfEsc(o.playerId) + '">'
+          + '<div class="tf-offer-h">' + _tfNegPlayerCell(o)
+          +   '<b class="tf-price">' + _tfMoney(o.feeEur) + '</b>'
+          +   '<span class="tf-state tf-state--' + String(o.status).toLowerCase() + '">' + _tfEsc(o.status) + '</span></div>'
+          + '<div class="tf-offer-dest"><i>From</i><b>' + _tfEsc(o.sellerClub.name) + '</b>'
+          +   '<i>To</i><b>' + _tfEsc(o.buyerClub.name) + '</b>'
+          +   '<i>Type</i><b>Direct transfer</b></div>'
+          + (iAnswer ? '<div class="tf-offer-acts">'
+            + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-reject="' + _tfEsc(o.id) + '">REJECT</button>'
+            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '">COUNTER</button>'
+            + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-offer-accept="' + _tfEsc(o.id) + '">ACCEPT</button>'
+            + '</div>' : '')
+          + '</li>';
+      }).join('') + '</ol>' : '<p class="tf-para">' + empty + '</p>');
+  };
+  return '<div class="tf-pane tf-pane--pad">'
+    + sec('Offers received', a.incomingOffers || [], 'No club has offered for one of your players.')
+    + sec('Offers made', a.outgoingOffers || [], 'You have not offered for anybody.')
+    + '</div>';
+}
+
+// ── CLUB NEEDS · the public board, and this club's own entries ──────────────
+function _tfNeedLine(n) {
+  var bits = [];
+  if (n.ageMin != null || n.ageMax != null) bits.push('Age ' + (n.ageMin != null ? n.ageMin : '—') + '–' + (n.ageMax != null ? n.ageMax : '—'));
+  if (n.ratingMin != null || n.ratingMax != null) bits.push('OVR ' + (n.ratingMin != null ? n.ratingMin : '—') + (n.ratingMax != null ? '–' + n.ratingMax : '+'));
+  if (n.budgetMinEur != null || n.budgetMaxEur != null) bits.push(_tfMoney(n.budgetMinEur || 0) + '–' + _tfMoney(n.budgetMaxEur || 0));
+  if (n.preferredFoot) bits.push(n.preferredFoot);
+  if (n.nationality) bits.push(n.nationality);
+  if (n.playstyle) bits.push(n.playstyle);
+  return bits.join(' · ');
+}
+function _tfNeedsHtml(C) {
+  var d = _TF_NEG.needs;
+  if (!d) { _tfNegLoadNeeds().then(function () { _tfRenderBody(); }); return '<div class="tf-pane"><p class="tf-para">Reading the board…</p></div>'; }
+  var rows = d.items || [];
+  return '<div class="tf-pane tf-pane--pad">'
+    + '<div class="tf-needs-top"><div class="tf-sec">What clubs are looking for</div>'
+    +   '<button type="button" class="tf-btn tf-btn--gold tf-btn--sm" data-tf-need-new>PUBLISH A NEED</button></div>'
+    + (rows.length ? '<ol class="tf-needs">' + rows.map(function (n) {
+      return '<li class="tf-need' + (n.isMine ? ' is-mine' : '') + '">'
+        + '<div class="tf-need-h"><b>' + _tfEsc(n.club.name) + (n.isMine ? ' <em>you</em>' : '') + '</b>'
+        +   '<span class="tf-need-prio tf-need-prio--' + String(n.priority).toLowerCase() + '">' + _tfEsc(n.priority) + '</span></div>'
+        + '<div class="tf-need-pos">' + n.positions.map(function (x) {
+          return '<i class="tf-pos tf-pos--' + _tfCat(x) + '">' + _tfEsc(x) + '</i>';
+        }).join('') + '</div>'
+        + '<div class="tf-need-l">' + _tfEsc(_tfNeedLine(n)) + '</div>'
+        + (n.isMine ? '<div class="tf-offer-acts"><button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-need-close="' + _tfEsc(n.id) + '">CLOSE</button></div>' : '')
+        + '</li>';
+    }).join('') + '</ol>' : '<p class="tf-para">No club has published a need yet.</p>')
+    + '</div>';
+}
+
+// ── MY ACTIVITY · everything of ours, in one place ──────────────────────────
+function _tfActivityHtml(C) {
+  var a = _TF_NEG.activity;
+  if (!a) { _tfNegLoadActivity().then(function () { _tfRenderBody(); }); return '<div class="tf-pane"><p class="tf-para">Reading your activity…</p></div>'; }
+  var list = function (title, rows, empty, clubLabel) {
+    return '<div class="tf-sec">' + title + '</div>'
+      + (rows.length ? '<ol class="tf-offers tf-offers--grid">' + rows.map(function (r) {
+        return '<li class="tf-offer" data-tf-open-player="' + _tfEsc(r.playerId) + '">'
+          + '<div class="tf-offer-h">' + _tfNegPlayerCell(r)
+          + '<span class="tf-state tf-state--' + String(r.status).toLowerCase() + '">' + _tfEsc(r.status) + '</span></div>'
+          + '<div class="tf-offer-dest"><i>' + clubLabel + '</i><b>' + _tfEsc(r.club.name) + '</b>'
+          + '<i>When</i><b>' + new Date(r.createdAt).toLocaleDateString() + '</b></div></li>';
+      }).join('') + '</ol>' : '<p class="tf-para">' + empty + '</p>');
+  };
+  return '<div class="tf-pane tf-pane--pad">'
+    + list('Interest in our players', a.interestReceived || [], 'Nobody has asked about our players.', 'Club')
+    + list('Our interest elsewhere', a.interestSent || [], 'We have not asked about anybody.', 'Club')
+    + list('Players offered to us', a.offeredToUs || [], 'No club has offered us a player.', 'From')
+    + list('Players we have offered', a.offeredByUs || [], 'We have not offered anybody.', 'To')
+    + '</div>';
 }
 
 function _tfHeaderHtml(C) {
@@ -48333,6 +48431,9 @@ function _tfStatsHtml(p) {
     + '<p class="tf-note">Reported figures. The club holds no internal match record for a player it does not own.</p>';
 }
 function _tfOffersHtml(p, C) {
+  // A real listing has two clubs behind it and a negotiation to show. A
+  // generated lot has neither, so it keeps the scouting reading it always had.
+  if (p.server && p.real) return _tfNegOffersHtml(p, C);
   if (p.listing !== 'auction') {
     return '<div class="tf-sec">Interest</div>'
       + '<p class="tf-para">No open auction. The scouting network reports the player as <b>' + _tfEsc(p.avail) + '</b>'
@@ -48356,6 +48457,11 @@ function _tfBidderListHtml(p, C, full) {
 }
 // ── auction mode: the bidding panel ──────────────────────────────────────────
 function _tfBidPanelHtml(p, C) {
+  // A real player belongs to a real club, so the buttons that talk to that club
+  // belong here too — beside what he costs, not in a different screen.
+  if (p.server && p.real && !_TF_NEG.offers[p.playerId]) {
+    _tfNegLoadOffers(p.playerId).then(function () { _tfRenderOverlay(); });
+  }
   var st = _tfAucState(p), eco = _tfEconomy(C), next = _tfNextBid(p.bid);
   var left = p.endsAt - Date.now();
   var closed = left <= 0;
@@ -48384,6 +48490,9 @@ function _tfBidPanelHtml(p, C) {
       +   (closed ? 'LISTING CLOSED' : 'COMPLETE SIGNING') + '</button>'
       + (afford ? '' : '<p class="tf-warn">The asking price exceeds the available transfer budget.</p>')
       + '<p class="tf-note">He is sold to the first club that completes the signing.</p>'
+      // Buying at the asking price is one way. Talking to the club that owns
+      // him is the other, and it belongs beside the price.
+      + _tfNegBuyerActionsHtml(p)
       + '<div class="tf-side-acts">'
       +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-compare="' + _tfEsc(p.id) + '">Compare</button>'
       +   '<button type="button" class="tf-btn tf-btn--sm' + (_tfIsShort(p.id, C) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
@@ -49414,6 +49523,17 @@ function _tfListingClockStart() {
   if (!_TF_LCLOCK) _TF_LCLOCK = setInterval(_tfListingClockTick, 1000);
 }
 
+function _tfNotifHost() {
+  var h = document.getElementById('tf-notif-host');
+  if (!h) { h = document.createElement('div'); h.id = 'tf-notif-host'; document.body.appendChild(h); }
+  return h;
+}
+function _tfNotifRender() {
+  var host = _tfNotifHost();
+  host.innerHTML = _TF_NEG.panel === 'notifs' ? _tfNotifPanelHtml() : '';
+  host.classList.toggle('is-on', _TF_NEG.panel === 'notifs');
+}
+
 function _tfSellHost() {
   var h = document.getElementById('tf-sell-host');
   if (!h) { h = document.createElement('div'); h.id = 'tf-sell-host'; document.body.appendChild(h); }
@@ -49527,9 +49647,13 @@ function _tfContractHtml(ctxId, p) {
   var price = sel && sel.price != null ? sel.price : mv;
   var instant = _tfInstantQuote(p);
 
-  var actions = '<div class="tf-ct-acts">'
+  // Three ways to sell him, and they are not the same thing: an auction anyone
+  // can take, a private approach to clubs who are looking for exactly him, or a
+  // fixed price on the open market. Renewing is the fourth answer — keep him.
+  var actions = '<div class="tf-ct-acts tf-ct-acts--4">'
     + '<button type="button" class="tf-ct-act' + (exp === 'renew' ? ' is-on' : '') + '" data-tf-exp="renew" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">RENEW CONTRACT</button>'
     + '<button type="button" class="tf-ct-act' + (exp === 'auction' ? ' is-on' : '') + '" data-tf-exp="auction" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">🔨 SELL AT AUCTION</button>'
+    + '<button type="button" class="tf-ct-act' + (exp === 'clubs' ? ' is-on' : '') + '" data-tf-exp="clubs" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">OFFER TO CLUBS</button>'
     + '<button type="button" class="tf-ct-act' + (exp === 'now' ? ' is-on' : '') + '" data-tf-exp="now" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">SELL NOW</button>'
     + '</div>';
 
@@ -49566,6 +49690,46 @@ function _tfContractHtml(ctxId, p) {
       +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
       +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-list-confirm data-tf-mode="now">CONFIRM INSTANT SALE</button>'
       + '</div></div>';
+  } else if (exp === 'clubs') {
+    var mm = _TF_NEG.matches[p.id];
+    if (!mm) {
+      _tfNegLoadMatches(p.id, price).then(function () { _tfSellRepaint(); });
+      open = '<div class="tf-ct-open"><div class="tf-ct-open-t">Offer to clubs</div>'
+           + '<p class="tf-para">Reading which clubs are looking for a player like him…</p></div>';
+    } else {
+      var rows = mm.items || [];
+      var picked = (_TF_SELL && _TF_SELL.picked) || {};
+      open = '<div class="tf-ct-open">'
+        + '<div class="tf-ct-open-t">Offer to clubs</div>'
+        + '<p class="tf-note">Clubs whose published need he fits. This is not an auction: each club is'
+        +   ' told he is available, and can then make you an offer. Nothing about their budget or'
+        +   ' scouting is shown here — only what they published.</p>'
+        + (rows.length
+          ? '<ol class="tf-mclubs">' + rows.map(function (r) {
+            var on = !!picked[r.club.id];
+            return '<li class="tf-mclub' + (on ? ' is-on' : '') + (r.alreadyOffered ? ' is-done' : '') + '"'
+              + (r.alreadyOffered ? '' : ' data-tf-pick-club="' + _tfEsc(r.club.id) + '"') + '>'
+              + '<span class="tf-mclub-tick">' + (r.alreadyOffered ? '✓' : on ? '☑' : '☐') + '</span>'
+              + '<span class="tf-mclub-id"><b>' + _tfEsc(r.club.name) + '</b>'
+              +   '<em>' + r.need.positions.map(function (x) {
+                return '<i class="tf-pos tf-pos--' + _tfCat(x) + '">' + _tfEsc(x) + '</i>';
+              }).join('') + '<span class="tf-need-prio tf-need-prio--' + String(r.need.priority).toLowerCase() + '">'
+              + _tfEsc(r.need.priority) + '</span></em>'
+              + '<span class="tf-mclub-why">' + _tfEsc(r.reasons.slice(0, 3).join(' · ') || 'no stated criteria') + '</span></span>'
+              + '<span class="tf-mclub-pct' + (r.matchPct >= 80 ? ' is-hi' : r.matchPct >= 55 ? ' is-mid' : '') + '">'
+              +   '<b>' + r.matchPct + '%</b><i>match</i></span>'
+              + '</li>';
+          }).join('') + '</ol>'
+          : '<p class="tf-para">No club is currently looking for a player like him.</p>')
+        + (rows.length
+          ? '<div class="tf-ct-open-acts">'
+            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-pick-all>SELECT ALL MATCHING</button>'
+            + '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
+            + '<button type="button" class="tf-btn tf-btn--primary" data-tf-offer-clubs="' + _tfEsc(p.id) + '">SEND AVAILABILITY</button>'
+            + '</div>'
+          : '')
+        + '</div>';
+    }
   } else if (exp === 'renew') {
     open = '<div class="tf-ct-open">'
       + '<div class="tf-ct-open-t">Renew contract</div>'
@@ -49590,6 +49754,181 @@ function _tfContractMount(ctxId, p) {
     + _tfContractHtml(ctxId, p) + '</div>';
 }
 window._tfContractMount = _tfContractMount;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLUB-TO-CLUB NEGOTIATION — the private half of the market
+// ─────────────────────────────────────────────────────────────────────────────
+// The auction is public and anonymous until somebody wins it. These are the two
+// conversations that are not: a club asking about a player, and two clubs
+// agreeing a fee. Every decision is the server's — this reads it and shows it.
+// ══════════════════════════════════════════════════════════════════════════════
+var _TF_NEG = { activity: null, needs: null, matches: {}, offers: {}, notifs: [], unread: 0, panel: null };
+
+function _tfNegApi(method, path, body) { return _thApi(method, '/transfer-market' + path, body); }
+
+async function _tfNegLoadActivity() {
+  try { _TF_NEG.activity = _thUnwrap(await _tfNegApi('GET', '/offers/activity')); } catch (_) {}
+  return _TF_NEG.activity;
+}
+async function _tfNegLoadNeeds() {
+  try { _TF_NEG.needs = _thUnwrap(await _tfNegApi('GET', '/needs')); } catch (_) {}
+  return _TF_NEG.needs;
+}
+async function _tfNegLoadOffers(playerId) {
+  try { _TF_NEG.offers[playerId] = _thUnwrap(await _tfNegApi('GET', '/offers/player/' + playerId)); } catch (_) {}
+  return _TF_NEG.offers[playerId];
+}
+async function _tfNegLoadMatches(playerId, ask) {
+  try {
+    _TF_NEG.matches[playerId] = _thUnwrap(await _tfNegApi('GET',
+      '/matches/' + playerId + (ask ? '?askingPriceEur=' + Math.round(ask) : '')));
+  } catch (e) { _TF_NEG.matches[playerId] = { items: [], error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_NEG.matches[playerId];
+}
+
+// ── the club's inbox, in the topbar bell that already exists ────────────────
+async function _tfNotifLoad() {
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  try {
+    var rows = _thUnwrap(await _thApi('GET', '/phase-p/notifications/inbox?limit=50'));
+    _TF_NEG.notifs = Array.isArray(rows) ? rows : (rows && rows.items) || [];
+    _TF_NEG.unread = _TF_NEG.notifs.filter(function (n) { return !n.readAt; }).length;
+    _tfNotifBadge();
+  } catch (_) {}
+}
+function _tfNotifBadge() {
+  var b = document.getElementById('hdr-notif-badge');
+  if (!b) return;
+  if (_TF_NEG.unread > 0) { b.textContent = _TF_NEG.unread > 9 ? '9+' : String(_TF_NEG.unread); b.hidden = false; }
+  else { b.hidden = true; }
+}
+var TF_NOTIF_ICON = {
+  TRANSFER_INTEREST: '👁', TRANSFER_OFFER_RECEIVED: '📩', TRANSFER_OFFER_ACCEPTED: '✅',
+  TRANSFER_OFFER_REJECTED: '✖', TRANSFER_COUNTER_OFFER: '↩', TRANSFER_OFFER_WITHDRAWN: '⤺',
+  PLAYER_OFFERED_TO_CLUB: '📤', AUCTION_STARTED: '🔨', AUCTION_BID_RECEIVED: '🔨',
+  AUCTION_ENDING: '⏳', AUCTION_WON: '🏆', AUCTION_LOST: '—', TRANSFER_COMPLETED: '🤝'
+};
+function _tfNotifPanelHtml() {
+  var rows = _TF_NEG.notifs;
+  return '<div class="tf-modal tf-modal--sm" data-tf-notif-modal>'
+    + '<div class="tf-modal-bd" data-tf-notif-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm tf-scope" role="dialog" aria-modal="true" aria-label="Notifications">'
+    +   '<button type="button" class="tf-x" data-tf-notif-close aria-label="Close">×</button>'
+    +   '<h3 class="tf-cf-title">Notifications</h3>'
+    +   (rows.length
+      ? '<ol class="tf-notes">' + rows.slice(0, 40).map(function (n) {
+        var pl = n.payload || {};
+        return '<li class="tf-note-row' + (n.readAt ? '' : ' is-unread') + '"'
+          + ' data-tf-notif-go="' + _tfEsc(n.id) + '"'
+          + ' data-tf-notif-player="' + _tfEsc(pl.playerId || '') + '"'
+          + ' data-tf-notif-offer="' + _tfEsc(pl.offerId || '') + '">'
+          + '<span class="tf-note-ic">' + (TF_NOTIF_ICON[n.kind] || '•') + '</span>'
+          + '<span class="tf-note-t"><b>' + _tfEsc(n.title) + '</b>'
+          + (n.body ? '<em>' + _tfEsc(n.body) + '</em>' : '')
+          + '<i>' + new Date(n.createdAt).toLocaleString() + '</i></span></li>';
+      }).join('') + '</ol>'
+      : '<p class="tf-para">Nothing yet.</p>')
+    + '</div></div>';
+}
+
+// ── what a club may do about a player it does not own ───────────────────────
+function _tfNegBuyerActionsHtml(p) {
+  if (!p || !p.server || !p.real) return '';         // generated lots have no club behind them
+  var mine = _TF_NEG.offers[p.playerId || p.id] || null;
+  var open = mine && (mine.outgoing || []).filter(function (o) { return o.status === 'PENDING'; })[0];
+  var interested = mine && (mine.interest || []).filter(function (i) { return i.status === 'OPEN' || i.status === 'INVITED'; })[0];
+  return '<div class="tf-neg-acts">'
+    + (open
+      ? '<div class="tf-neg-live"><i>Your offer</i><b>' + _tfMoney(open.feeEur) + '</b><em>' + _tfEsc(open.status) + '</em>'
+        + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-withdraw="' + _tfEsc(open.id) + '">WITHDRAW</button></div>'
+      : '<button type="button" class="tf-btn tf-btn--gold tf-btn--block" data-tf-offer-open="' + _tfEsc(p.playerId || '') + '">MAKE AN OFFER</button>')
+    + (interested
+      ? '<p class="tf-note">Interest registered — ' + _tfEsc(String(interested.status).toLowerCase()) + '.</p>'
+      : '<button type="button" class="tf-btn tf-btn--block" data-tf-interest="' + _tfEsc(p.playerId || '') + '">INTERESTED · CONTACT CLUB</button>')
+    + '</div>';
+}
+
+// The four readings of a player's transfer situation. What each club may see is
+// decided by the server; this only lays out what it sent back.
+function _tfNegOffersHtml(p, C) {
+  var pid = p.playerId || p.id;
+  var d = _TF_NEG.offers[pid];
+  if (!d) { _tfNegLoadOffers(pid).then(function () { _tfRenderOverlay(); }); return '<p class="tf-para">Reading offers…</p>'; }
+  var tabs = _TF.offersTab || 'incoming';
+  var body;
+  if (tabs === 'outgoing') body = _tfOfferListHtml(d.outgoing, d.isOwner, 'No offer sent.');
+  else if (tabs === 'interest') body = _tfInterestListHtml(d.interest, d.isOwner);
+  else if (tabs === 'history') body = _tfHistoryListHtml(d.history);
+  else body = _tfOfferListHtml(d.incoming, d.isOwner, d.isOwner ? 'No club has made an offer.' : 'Nothing received.');
+  return '<nav class="tf-subtabs tf-subtabs--sm">'
+    + [['incoming', 'Incoming'], ['outgoing', 'Outgoing'], ['interest', 'Interest'], ['history', 'History']].map(function (t) {
+      return '<button type="button" class="' + (tabs === t[0] ? 'is-on' : '') + '" data-tf-otab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</nav><div class="tf-neg-body">' + body + '</div>';
+}
+
+function _tfOfferListHtml(rows, isOwner, empty) {
+  rows = rows || [];
+  if (!rows.length) return '<p class="tf-para">' + _tfEsc(empty) + '</p>';
+  return '<ol class="tf-offers">' + rows.map(function (o) {
+    var theirs = o.createdByClubId !== o.buyerClubId ? o.sellerClub : o.buyerClub;
+    var pending = o.status === 'PENDING';
+    // Whoever did not write the offer is the one who answers it.
+    var iAnswer = pending && ((isOwner && o.createdByClubId === o.buyerClub.id) || (!isOwner && o.createdByClubId === o.sellerClub.id));
+    var iOwn = pending && !iAnswer;
+    return '<li class="tf-offer tf-offer--' + String(o.status).toLowerCase() + '">'
+      + '<div class="tf-offer-h">'
+      +   '<span class="tf-offer-club">' + _tfEsc(theirs.name) + '</span>'
+      +   '<b class="tf-price">' + _tfMoney(o.feeEur) + '</b>'
+      +   '<span class="tf-state tf-state--' + String(o.status).toLowerCase() + '">' + _tfEsc(o.status) + '</span>'
+      + '</div>'
+      + (o.message ? '<p class="tf-offer-msg">' + _tfEsc(o.message) + '</p>' : '')
+      + '<div class="tf-offer-dest"><i>From</i><b>' + _tfEsc(o.sellerClub.name) + '</b>'
+      +   '<i>To</i><b>' + _tfEsc(o.buyerClub.name) + '</b>'
+      +   '<i>Fee</i><b>' + _tfMoney(o.feeEur) + '</b>'
+      +   '<i>Type</i><b>Direct transfer</b></div>'
+      + (iAnswer
+        ? '<div class="tf-offer-acts">'
+          + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-reject="' + _tfEsc(o.id) + '">REJECT</button>'
+          + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '">COUNTER</button>'
+          + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-offer-accept="' + _tfEsc(o.id) + '">ACCEPT</button>'
+          + '</div>'
+        : iOwn
+          ? '<div class="tf-offer-acts"><button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-withdraw="' + _tfEsc(o.id) + '">WITHDRAW</button></div>'
+          : '')
+      + '</li>';
+  }).join('') + '</ol>';
+}
+
+function _tfInterestListHtml(rows, isOwner) {
+  rows = rows || [];
+  if (!rows.length) return '<p class="tf-para">No interest registered.</p>';
+  return '<ol class="tf-offers">' + rows.map(function (i) {
+    return '<li class="tf-offer">'
+      + '<div class="tf-offer-h"><span class="tf-offer-club">' + _tfEsc(i.club.name) + '</span>'
+      +   '<span class="tf-state tf-state--' + String(i.status).toLowerCase() + '">' + _tfEsc(i.status) + '</span></div>'
+      + (i.message ? '<p class="tf-offer-msg">' + _tfEsc(i.message) + '</p>' : '')
+      + (isOwner && (i.status === 'OPEN')
+        ? '<div class="tf-offer-acts">'
+          + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-interest-resp="' + _tfEsc(i.id) + '" data-tf-status="NOT_FOR_SALE">NOT FOR SALE</button>'
+          + '<button type="button" class="tf-btn tf-btn--sm" data-tf-interest-resp="' + _tfEsc(i.id) + '" data-tf-status="DECLINED">DECLINE</button>'
+          + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-interest-resp="' + _tfEsc(i.id) + '" data-tf-status="INVITED">INVITE OFFER</button>'
+          + '</div>'
+        : '')
+      + '</li>';
+  }).join('') + '</ol>';
+}
+
+function _tfHistoryListHtml(rows) {
+  rows = rows || [];
+  if (!rows.length) return '<p class="tf-para">He has not changed clubs on this platform.</p>';
+  return '<ol class="tf-offers">' + rows.map(function (h) {
+    return '<li class="tf-offer"><div class="tf-offer-dest">'
+      + '<i>From</i><b>' + _tfEsc(h.from.name) + '</b>'
+      + '<i>To</i><b>' + _tfEsc(h.to.name) + '</b>'
+      + '<i>Fee</i><b>' + _tfMoney(h.feeEur) + '</b>'
+      + '<i>Date</i><b>' + new Date(h.occurredAt).toLocaleDateString() + '</b></div></li>';
+  }).join('') + '</ol>';
+}
 
 // The shortcut: the same component, in a panel.
 function _tfSellRender() {
@@ -49660,6 +49999,161 @@ function _tfSellRender() {
       }
       _tfCreateListing(C, p, price, { instant: instantSale });
       done();
+      return;
+    }
+    // ── negotiation ─────────────────────────────────────────────────────
+    // Everything below asks the server and repaints what it answers. No screen
+    // decides who owns whom, what an offer is worth, or whether it may be made.
+    if ((el = t.closest('[data-tf-pick-club]'))) {
+      e.preventDefault(); e.stopPropagation();
+      if (!_TF_SELL) return;
+      _TF_SELL.picked = _TF_SELL.picked || {};
+      var cid = el.getAttribute('data-tf-pick-club');
+      if (_TF_SELL.picked[cid]) delete _TF_SELL.picked[cid]; else _TF_SELL.picked[cid] = true;
+      _tfSellRepaint();
+      return;
+    }
+    if (t.closest('[data-tf-pick-all]')) {
+      e.preventDefault(); e.stopPropagation();
+      if (!_TF_SELL) return;
+      var mm0 = _TF_NEG.matches[_TF_SELL.playerId] || { items: [] };
+      _TF_SELL.picked = {};
+      (mm0.items || []).forEach(function (r) { if (!r.alreadyOffered) _TF_SELL.picked[r.club.id] = true; });
+      _tfSellRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-tf-offer-clubs]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var pid0 = el.getAttribute('data-tf-offer-clubs');
+      var ids = Object.keys((_TF_SELL && _TF_SELL.picked) || {});
+      if (!ids.length) { _tfToast('Pick at least one club', 'error'); return; }
+      _tfNegApi('POST', '/offer-to-clubs', { playerId: pid0, clubIds: ids,
+        askingPriceEur: Math.round((_TF_SELL && _TF_SELL.price) || 0) || undefined })
+        .then(function () {
+          _tfToast('Offered to ' + ids.length + ' club' + (ids.length > 1 ? 's' : ''), 'success');
+          if (_TF_SELL) { _TF_SELL.picked = {}; _TF_SELL.exp = null; }
+          delete _TF_NEG.matches[pid0]; _TF_NEG.activity = null;
+          _tfSellRepaint();
+        })
+        .catch(function (err) { _tfToast('Could not offer — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-interest]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var ipid = el.getAttribute('data-tf-interest');
+      _tfNegApi('POST', '/interest', { playerId: ipid })
+        .then(function () { _tfToast('The club has been told you are interested', 'success'); return _tfNegLoadOffers(ipid); })
+        .then(function () { _TF_NEG.activity = null; _tfRenderOverlay(); })
+        .catch(function (err) { _tfToast('Could not register interest — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-interest-resp]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var iid = el.getAttribute('data-tf-interest-resp');
+      _tfNegApi('PATCH', '/interest/' + iid, { status: el.getAttribute('data-tf-status') })
+        .then(function () { _tfToast('Answered', 'success'); _TF_NEG.offers = {}; _TF_NEG.activity = null; _tfRenderOverlay(); _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Could not answer — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-offer-open]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var opid = el.getAttribute('data-tf-offer-open');
+      var lot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === opid; })[0];
+      var suggested = lot ? (lot.ask || lot.mv || 0) : 0;
+      var typed = window.prompt('Offer for this player, in euros:', String(suggested));
+      if (typed === null) return;
+      var fee = Math.round(Number(String(typed).replace(/[^0-9.]/g, '')));
+      if (!fee || fee <= 0) { _tfToast('Enter an amount above zero', 'error'); return; }
+      _tfNegApi('POST', '/offers', { playerId: opid, feeEur: fee })
+        .then(function () { _tfToast('Offer sent', 'success'); return _tfNegLoadOffers(opid); })
+        .then(function () { _TF_NEG.activity = null; _tfRenderOverlay(); })
+        .catch(function (err) { _tfToast('Offer refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-offer-accept],[data-tf-offer-reject],[data-tf-offer-withdraw],[data-tf-offer-counter]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var oid = el.getAttribute('data-tf-offer-accept') || el.getAttribute('data-tf-offer-reject')
+             || el.getAttribute('data-tf-offer-withdraw') || el.getAttribute('data-tf-offer-counter');
+      var verb = el.hasAttribute('data-tf-offer-accept') ? 'accept'
+               : el.hasAttribute('data-tf-offer-reject') ? 'reject'
+               : el.hasAttribute('data-tf-offer-withdraw') ? 'withdraw' : 'counter';
+      var payload;
+      if (verb === 'counter') {
+        var was = Number(el.getAttribute('data-tf-fee') || 0);
+        var ask = window.prompt('Counter at, in euros:', String(was));
+        if (ask === null) return;
+        var cfee = Math.round(Number(String(ask).replace(/[^0-9.]/g, '')));
+        if (!cfee || cfee <= 0) { _tfToast('Enter an amount above zero', 'error'); return; }
+        payload = { feeEur: cfee };
+      }
+      _tfNegApi('POST', '/offers/' + oid + '/' + verb, payload)
+        .then(function (r) {
+          var done = _thUnwrap(r) || {};
+          _tfToast(verb === 'accept'
+            ? 'Transfer completed' + (done.feeEur ? ' — ' + _tfMoney(done.feeEur) : '')
+            : verb === 'counter' ? 'Counter sent' : verb === 'reject' ? 'Offer rejected' : 'Offer withdrawn',
+            verb === 'reject' || verb === 'withdraw' ? 'info' : 'success');
+          _TF_NEG.offers = {}; _TF_NEG.activity = null;
+          return Promise.all([_tfNegLoadActivity(), _tfSyncAll(),
+            (verb === 'accept' && typeof _thRefresh === 'function') ? _thRefresh() : null]);
+        })
+        .then(function () { _tfNotifLoad(); _tfRenderOverlay(); _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-otab]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF.offersTab = el.getAttribute('data-tf-otab'); _tfRenderOverlay();
+      return;
+    }
+    if ((el = t.closest('[data-tf-open-player]'))) {
+      var opid2 = el.getAttribute('data-tf-open-player');
+      var lot2 = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === opid2; })[0];
+      if (lot2) { e.preventDefault(); _tfOpen(lot2.id); return; }
+    }
+    // ── recruitment needs ───────────────────────────────────────────────
+    if (t.closest('[data-tf-need-new]')) {
+      e.preventDefault(); e.stopPropagation();
+      var pos = window.prompt('Positions you are looking for (comma separated, e.g. ST,AMC):', '');
+      if (pos === null || !String(pos).trim()) return;
+      var rating = window.prompt('Minimum overall rating (blank for any):', '');
+      var budget = window.prompt('Maximum budget in euros (blank for any):', '');
+      _tfNegApi('POST', '/needs', {
+        positions: String(pos).split(','),
+        ratingMin: rating ? Number(String(rating).replace(/[^0-9]/g, '')) : undefined,
+        budgetMaxEur: budget ? Number(String(budget).replace(/[^0-9]/g, '')) : undefined,
+        priority: 'MEDIUM',
+      }).then(function () { _tfToast('Need published', 'success'); _TF_NEG.needs = null; _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Could not publish — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-need-close]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _tfNegApi('DELETE', '/needs/' + el.getAttribute('data-tf-need-close'))
+        .then(function () { _tfToast('Need closed', 'info'); _TF_NEG.needs = null; _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Could not close — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    // ── the club's inbox ────────────────────────────────────────────────
+    if (t.closest('[data-tf-notif-open]')) {
+      e.preventDefault();
+      _tfNotifLoad().then(function () { _TF_NEG.panel = 'notifs'; _tfNotifRender(); });
+      return;
+    }
+    if (t.closest('[data-tf-notif-close]')) { e.preventDefault(); _TF_NEG.panel = null; _tfNotifRender(); return; }
+    if ((el = t.closest('[data-tf-notif-go]'))) {
+      e.preventDefault();
+      var nid = el.getAttribute('data-tf-notif-go');
+      var npid = el.getAttribute('data-tf-notif-player');
+      _thApi('PATCH', '/phase-p/notifications/inbox/' + nid + '/read').catch(function () {});
+      _TF_NEG.panel = null; _tfNotifRender();
+      if (npid) {
+        var lot3 = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === npid; })[0];
+        if (typeof navTo === 'function') navTo('transfers');
+        if (lot3) { _TF.tab = 'auctions'; _tfOpen(lot3.id); }
+        else { _TF.tab = 'offers'; _TF_NEG.activity = null; _tfRenderBody(); }
+      }
+      _tfNotifLoad();
       return;
     }
     // Cancel a listing from wherever he is being managed.
@@ -50042,6 +50536,10 @@ function _tfLotFromServer(rec) {
   var lot = {};
   for (var k in p) lot[k] = p[k];
   lot.id = 'srv-' + rec.listingId;
+  // The lot's own id names the listing, so the footballer's own id has to be
+  // kept beside it: a club talking to another club is talking about the player,
+  // not about the advert.
+  lot.playerId = bp.id;
   lot.real = true; lot.server = true;
   lot.listingId = rec.listingId;
   lot.sellerClubId = rec.sellerClubId;
@@ -50089,7 +50587,7 @@ async function _tfSyncBalance() {
 // Everything the Transfers page needs from the server, in one place.
 async function _tfSyncAll() {
   if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
-  await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance()]);
+  await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad()]);
   try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
 }
 window._tfSyncAll = _tfSyncAll;
