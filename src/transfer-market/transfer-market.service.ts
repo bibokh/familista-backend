@@ -68,6 +68,34 @@ export interface BootstrapTeamDto {
   }>;
 }
 
+// ── the roster arrives as JSON, and JSON has opinions ────────────────────────
+// A squad the manager has edited comes back from the browser with its numbers
+// as strings — an <input> hands back "84", not 84 — and Prisma rejects the whole
+// insert before it reaches Postgres: "Argument `overallRating`: Invalid value
+// provided. Expected Int, provided String." One such field fails all
+// ninety-three players, so the club never gets a roster at all.
+//
+// These read the number that was sent and keep it. They do not invent values:
+// only something genuinely absent or unreadable falls back to the same default
+// the column already had.
+const num = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+const int      = (v: unknown, fallback: number) => { const n = num(v); return n === null ? fallback : Math.round(n); };
+const float    = (v: unknown, fallback: number) => { const n = num(v); return n === null ? fallback : n; };
+const intOrNull = (v: unknown) => { const n = num(v); return n === null ? null : Math.round(n); };
+// An unparseable date is rejected by Prisma the same way; the column's own
+// default stands in rather than losing the entire squad over one bad birthday.
+const onlyValidDate = (v: unknown): Date => {
+  const d = v ? new Date(v as string) : null;
+  return d && !Number.isNaN(d.getTime()) ? d : new Date('2000-01-01');
+};
+
 export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDto[]) {
   if (!Array.isArray(teams) || !teams.length) throw new BadRequestError('teams[] required');
 
@@ -101,14 +129,14 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
       await tx.player.createMany({
         data: t.players.map((p) => ({
           clubId: actor.clubId, teamId: team.id,
-          firstName: p.firstName, lastName: p.lastName, number: p.number,
+          firstName: p.firstName, lastName: p.lastName, number: int(p.number, 0),
           position: (p.position as never), nationality: p.nationality ?? '—', flag: p.flag ?? '🏳️',
-          dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('2000-01-01'),
-          height: p.height ?? 180, weight: p.weight ?? 75,
+          dateOfBirth: onlyValidDate(p.dateOfBirth),
+          height: int(p.height, 180), weight: int(p.weight, 75),
           preferredFoot: (p.preferredFoot as never) ?? ('RIGHT' as never),
-          overallRating: p.overallRating ?? 70, potential: p.potential ?? 75,
-          condition: p.condition ?? 90, marketValue: p.marketValue ?? 1000000,
-          weeklyWage: p.weeklyWage ?? 10000,
+          overallRating: int(p.overallRating, 70), potential: int(p.potential, 75),
+          condition: int(p.condition, 90), marketValue: float(p.marketValue, 1000000),
+          weeklyWage: int(p.weeklyWage, 10000),
           // carried straight through: the player the manager already knows.
           // `sq-8` names a slot in the browser's demo squad, so every club
           // arrives with the same handful of them; Player.legacyId is unique
@@ -117,7 +145,7 @@ export async function bootstrapRoster(actor: MarketActor, teams: BootstrapTeamDt
           // lineup, and reads the bare `sq-8` it wrote.
           legacyId: p.legacyId ? `${actor.clubId}:${p.legacyId}` : null,
           roles: p.roles ?? null,
-          morale: p.morale ?? null, form: p.form ?? null,
+          morale: p.morale ?? null, form: intOrNull(p.form),
           isCaptain: p.isCaptain ?? false,
           trainedPositions: p.trainedPositions ?? null,
           isInjured: p.isInjured ?? false,
