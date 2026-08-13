@@ -331,6 +331,14 @@ export async function purchase(actor: MarketActor, listingId: string) {
   if (!item || item.kind !== KIND)  throw new NotFoundError('Transfer listing');
   if (item.clubId === actor.clubId) throw new ForbiddenError('A club cannot buy its own player');
   if (item.status !== 'ACTIVE')     throw new ConflictError('Listing no longer available');
+  // A listing's window is part of the deal the seller agreed to. The market
+  // query hides an expired listing and the screen disables its button, but
+  // neither is a rule — a club that already holds the listingId could sign a
+  // player after the auction it was offered in had closed. The deadline is
+  // enforced here, where the transfer actually happens.
+  if (item.validUntil && item.validUntil.getTime() <= Date.now()) {
+    throw new ConflictError('That listing has expired');
+  }
 
   const payload = (item.payload ?? {}) as Record<string, unknown>;
   const playerId = typeof payload.playerId === 'string' ? payload.playerId : null;
@@ -342,8 +350,13 @@ export async function purchase(actor: MarketActor, listingId: string) {
 
   const result = await prisma.$transaction(async (tx) => {
     // ── the claim. Exactly one caller can take a listing out of ACTIVE. ──
+    // The deadline is part of the claim as well as the check above, so a
+    // listing that lapses between the two cannot still be taken.
     const claimed = await tx.marketplaceItem.updateMany({
-      where: { id: listingId, kind: KIND, status: 'ACTIVE' },
+      where: {
+        id: listingId, kind: KIND, status: 'ACTIVE',
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      },
       data:  { status: 'CLOSED' },
     });
     if (claimed.count === 0) throw new ConflictError('Listing no longer available');

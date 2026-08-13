@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -12,6 +12,30 @@ import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
 import routes from './routes';
+
+// ── credentials that travel in a query string ────────────────────────────────
+// Only these parameter names are replaced, and only their values: the path and
+// every other parameter stay exactly as they were, so a logged line is still
+// useful for debugging. Kept here beside the logging middleware that uses it.
+const SECRET_QUERY_PARAMS = new Set([
+  'token', 'access_token', 'refresh_token', 'id_token', 'code',
+  'secret', 'key', 'apikey', 'api_key', 'password',
+]);
+
+function redactUrl(originalUrl: string): string {
+  const q = originalUrl.indexOf('?');
+  if (q < 0) return originalUrl;
+  const path = originalUrl.slice(0, q);
+  const params = new URLSearchParams(originalUrl.slice(q + 1));
+  let touched = false;
+  for (const name of Array.from(params.keys())) {
+    if (!SECRET_QUERY_PARAMS.has(name.toLowerCase())) continue;
+    params.set(name, '[redacted]');
+    touched = true;
+  }
+  if (!touched) return originalUrl;
+  return path + '?' + params.toString();
+}
 
 export function createApp(): express.Application {
   const app = express();
@@ -88,6 +112,16 @@ export function createApp(): express.Application {
 
   // ── Request logging — morgan keeps the human-readable line, accessLog
   //     adds a structured JSON line with requestId + latency + actor.
+  //
+  // Some credentials travel in the query string because they have nowhere else
+  // to go: EventSource cannot set an Authorization header, so the live-match
+  // stream is opened as /matches/:id/live?token=<jwt>, and a password-reset
+  // link is /reset-password?token=<raw>. Morgan's `combined` format logs the
+  // full URL, which put a usable access token and a single-use reset token into
+  // the log stream. accessLog already drops the query string; this makes morgan
+  // do the same for the parameters that carry secrets, and leaves every other
+  // parameter — page, limit, filters — legible.
+  morgan.token('url', (req) => redactUrl((req as Request).originalUrl || req.url || ''));
   app.use(morgan(config.isDev ? 'dev' : 'combined', { stream: morganStream }));
   app.use(accessLog);
 
