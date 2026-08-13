@@ -31482,6 +31482,11 @@ const AppContext = (function () {
       };
       await loadTeams();
       renderSwitcher();
+      // The server now answers as the club just picked, so the roster has to be
+      // read again for it. Without this the squad on screen stays the club the
+      // session hydrated for, and listing one of those players is refused —
+      // correctly — as belonging to another club.
+      if (typeof _thHydrate === 'function') { try { await _thHydrate(); } catch (_) {} }
       // Re-hydrate the squad page after tenant change
       if (typeof loadAllData === 'function') await loadAllData();
       showToast('Switched club', 'success');
@@ -49465,6 +49470,26 @@ function _thUnwrap(r) { return (r && r.data !== undefined) ? r.data : r; }
 // evaluated — `var _TH` is hoisted but not yet assigned during initial load.
 function _thIsHydrated() { return !!(typeof _TH !== 'undefined' && _TH && _TH.state === 'ready'); }
 
+// Which club this session is acting for. The context switcher writes
+// State.context.clubId; a session that never switched has only State.club.
+// This is the same club the server resolves for every request it receives.
+function _thCurrentClubId() {
+  var S = (typeof window !== 'undefined' && window.State) || {};
+  return (S.context && S.context.clubId) || (S.club && S.club.id) || null;
+}
+// A roster belongs to the club it was read for. Work for two clubs, switch
+// between them, and the cached one is the other club's squad — which puts
+// players this manager does not own on his screen, and the first thing he does
+// with one, list him for transfer, is refused by the server. It is right to
+// refuse: the player really does belong to the other club. So until the roster
+// has been read again for the club now being acted for, this session has no
+// server roster to show.
+function _thRosterIsCurrent() {
+  if (typeof _TH === 'undefined' || !_TH) return false;
+  var now = _thCurrentClubId();
+  return !(now && _TH.clubId && now !== _TH.clubId);
+}
+
 // ── the lift ─────────────────────────────────────────────────────────────────
 // A club with no persistent players gets the roster it already has, once. The
 // idempotency guard lives on the server (its own player count), so a refresh, a
@@ -49613,7 +49638,11 @@ async function _thRefresh() {
   var teams = _thUnwrap(await _thApi('GET', '/teams'));
   var list = await _thAllPlayers();
   _TH.teams = Array.isArray(teams) ? teams : (teams && teams.items) || [];
-  _TH.clubId = (window.State && State.club && State.club.id) || null;
+  // Whose roster this is, according to the server that sent it rather than to
+  // whatever the browser currently believes it is looking at.
+  _TH.clubId = (_TH.teams[0] && _TH.teams[0].clubId)
+            || (list[0] && list[0].clubId)
+            || _thCurrentClubId();
   _TH.byTeam = {}; _TH.legacy = {};
   list.filter(function (p) { return p && p.isActive !== false; }).forEach(function (bp) {
     var adapted = _sqAdaptBackendPlayer(bp);
@@ -49651,14 +49680,14 @@ function _thTeamIdFor(label) {
 // The canonical roster for a squad, or null when this session is not hydrated —
 // in which case the caller keeps its existing local behaviour untouched.
 function _thRosterFor(label) {
-  if (!_thIsHydrated() || !_TH.teams) return null;
+  if (!_thIsHydrated() || !_TH.teams || !_thRosterIsCurrent()) return null;
   var id = _thTeamIdFor(label);
   if (!id) return null;
   return _TH.byTeam[id] || [];
 }
 // An old saved lineup still names sq-15; this resolves it to the real player
 // once, so nothing has to be migrated by hand.
-function _thResolveLegacy(id) { return _TH.legacy[id] || id; }
+function _thResolveLegacy(id) { return (_thRosterIsCurrent() && _TH.legacy[id]) || id; }
 
 window._thHydrate = _thHydrate;
 window._thRefresh = _thRefresh;
