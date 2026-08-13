@@ -28,7 +28,6 @@
     "db:resolve:baseline": "prisma migrate resolve --applied 00000000000000_baseline --schema=prisma/schema.prisma",
     "db:resolve:all": "npm run db:resolve:baseline && prisma migrate resolve --applied 20250525000000_add_phase_q_and_password_reset --schema=prisma/schema.prisma",
     "preflight": "bash scripts/preflight-prod.sh",
-    "lint": "eslint src --ext .ts",
     "test": "jest",
     "start:server": "node dist/server.js"
   },
