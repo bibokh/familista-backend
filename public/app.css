@@ -8805,70 +8805,103 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
   overflow:hidden;
 
   /* ── the market's own colours ──────────────────────────────────────────────
-     Mustard gold identifies the marketplace, light silver-grey carries the
+     Mustard gold identifies the marketplace, a layered silver-grey carries the
      content, near-black is where an action opens, and the two action colours
      are the only saturated things on the screen. Not one of them is read from
-     the club being viewed — every club walks into the same room. */
-  --tf-gold:      #cda633;   /* header / market identity                    */
-  --tf-gold-2:    #d1aa35;
-  --tf-gold-d:    #a8871f;   /* pressed / darker edge of the same mustard   */
-  --tf-paper:     #f0f2f2;   /* lightest surface — cards, panels            */
-  --tf-silver:    #e2e6e8;   /* the page itself                             */
-  --tf-silver-2:  #d2d7da;   /* rows, wells, secondary fills                */
+     the club being viewed — every club walks into the same room.
+
+     The greys are a stack, not a wash: the page is the darkest, the list panel
+     sits a step above it, the rows a step above that, and the column header a
+     step below the panel. That ladder is what makes the screen read as a game
+     interface rather than a document — white appears only in type, icons and a
+     one-pixel highlight along a top edge. */
+  --tf-gold:      #c9a32e;   /* header / market identity                    */
+  --tf-gold-2:    #d2ad37;
+  --tf-gold-hi:   #d5b03b;   /* top of the header gradient                  */
+  --tf-gold-lo:   #c69d27;   /* its darker lower edge                       */
+  --tf-gold-d:    #a8811c;   /* pressed / border of the same mustard        */
+
+  --tf-page:      #c5c9cb;   /* the transfer area itself — visibly silver   */
+  --tf-page-hi:   #cdd0d1;
+  --tf-page-lo:   #bfc3c5;
+  --tf-panel:     #d3d6d7;   /* the player-list container                   */
+  --tf-panel-2:   #d8dadb;
+  --tf-row:       #d9dcdd;   /* alternating rows                            */
+  --tf-row-alt:   #ced2d3;
+  --tf-sep:       #aeb3b5;   /* the thin darker separator between them      */
+  --tf-thead:     #b6bbbd;   /* column header, a stronger grey              */
+  --tf-side:      #c3c7c8;   /* outer of the right-hand panel               */
+  --tf-card:      #d5d8d9;   /* cards inside it                             */
+  --tf-info:      #bec3c5;   /* information wells                           */
+  --tf-count:     #aeb3b5;   /* the countdown area                          */
+
   --tf-black:     #111015;   /* an opened action panel                      */
-  --tf-black-2:   #18161d;
-  --tf-ink:       #303236;   /* type on light                               */
-  --tf-ink2:      #414449;
-  --tf-ink3:      #6d7379;   /* labels, captions                            */
-  --tf-on-dark:   #f2f3f4;   /* type on the black panels                    */
+  --tf-black-2:   #17151b;
+  --tf-black-3:   #211e24;
+  --tf-ink:       #26282b;   /* type on the greys                           */
+  --tf-ink2:      #3a3d41;
+  --tf-ink3:      #5c6165;   /* labels, captions                            */
+  --tf-on-dark:   #f4f5f6;   /* type on the black panels                    */
   --tf-on-dark-2: #a9adb3;
 
-  --tf-buy:   #50d33f;       /* confirm · sell · bid · accept               */
-  --tf-buy-2: #59d94a;
-  --tf-buy-d: #3fb831;
-  --tf-stop:  #df3340;       /* cancel · withdraw · reject                  */
-  --tf-stop-2:#e53b47;
+  --tf-buy:   #48c934;       /* confirm · sell · bid · accept               */
+  --tf-buy-2: #54d43f;
+  --tf-buy-d: #37a527;
+  --tf-stop:  #c92836;       /* cancel · withdraw · reject                  */
+  --tf-stop-2:#df3441;
 
-  /* subtle grey separators — never a neon outline */
-  --tf-line:  rgba(48,50,54,.12);
-  --tf-line2: rgba(48,50,54,.20);
-  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.55));
+  /* separators and the single-pixel highlight that gives a panel its edge */
+  --tf-line:  rgba(35,38,41,.20);
+  --tf-line2: rgba(35,38,41,.32);
+  --tf-edge:  rgba(255,255,255,.45);
+  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.30),rgba(255,255,255,.04));
 
   /* names the rest of this stylesheet already uses, pointed at the palette */
+  --tf-paper:     var(--tf-panel);
+  --tf-silver:    var(--tf-page);
+  --tf-silver-2:  var(--tf-info);
   --tf-champagne: var(--tf-gold);
   --tf-sand:      var(--tf-gold-d);
   --tf-ivory:     var(--tf-ink);
-  --tf-graphite:  var(--tf-silver);
-  --tf-charcoal:  var(--tf-paper);
+  --tf-graphite:  var(--tf-page);
+  --tf-charcoal:  var(--tf-panel);
   --tf-bronze:    var(--tf-gold-d);
   --tf-acc:       var(--tf-gold);
   --tf-acc-d:     var(--tf-gold-d);
-  --tf-acc-16:    rgba(205,166,51,.16);
-  --tf-acc-24:    rgba(205,166,51,.28);
-  --tf-acc-42:    rgba(205,166,51,.55);
+  --tf-acc-16:    rgba(201,163,46,.18);
+  --tf-acc-24:    rgba(201,163,46,.30);
+  --tf-acc-42:    rgba(201,163,46,.58);
   --tf-hot:       var(--tf-stop);
-  --tf-warm:      #e0a94f;
-  --tf-blue:      #6d7379;
+  --tf-warm:      #c98f2a;
+  --tf-blue:      #5c6165;
   --tf-violet:    var(--tf-gold-d);
 
   color:var(--tf-ink);
-  background:var(--tf-silver);
+  background:linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo)) fixed;
+  background-color:var(--tf-page);
 }
 /* The market reads the same in either app theme: it is the marketplace's own
    surface, not the workspace's. */
-[data-theme="light"] #pg-transfers{ color:var(--tf-ink); background:var(--tf-silver); }
+[data-theme="light"] #pg-transfers{
+  color:var(--tf-ink);
+  background:linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo)) fixed;
+  background-color:var(--tf-page);
+}
 .tf-root{
   display:flex; flex-direction:column;
   height:100%; min-height:0;
-  background:var(--tf-silver);
+  background:linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo));
   color:var(--tf-ink);
 }
 
 /* ── header ──────────────────────────────────────────────────────────────── */
+/* A game-UI band, not a website banner: gold falling to a darker gold, a hair
+   of light along the very top and a hard dark line under it. */
 .tf-head{
   flex:none; padding:16px 26px 0;
-  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
-  border-bottom:1px solid rgba(48,50,54,.18);
+  background:linear-gradient(180deg,var(--tf-gold-hi) 0%,var(--tf-gold-lo) 100%);
+  border-bottom:2px solid #8f6d13;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38), 0 3px 10px -4px rgba(17,16,21,.55);
   color:#241d05;
 }
 .tf-head .tf-title h1{ color:#1f1903; }
@@ -9908,8 +9941,10 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-head select,
 #pg-transfers .tf-head .tf-money-cell,
 #pg-transfers .tf-head .tf-hs{
-  background:rgba(255,255,255,.82);
-  border-color:rgba(48,50,54,.18);
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid #97722a;
+  border-radius:5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 1px 0 rgba(255,255,255,.22);
   color:var(--tf-ink);
 }
 #pg-transfers .tf-head .tf-money-cell i,
@@ -9918,39 +9953,68 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-teamsel > span{ color:rgba(31,25,3,.72); }
 #pg-transfers .tf-head select:hover{ border-color:rgba(48,50,54,.34); }
 #pg-transfers .tf-head select:focus{ outline:none; border-color:#1f1903; box-shadow:0 0 0 3px rgba(31,25,3,.14); }
-#pg-transfers option{ background:#fff; color:var(--tf-ink); }
+#pg-transfers option{ background:var(--tf-panel); color:var(--tf-ink); }
 
 /* tabs on the band: the active one is the page's paper, so it reads as the
    sheet the content is printed on */
 #pg-transfers .tf-tab{ color:rgba(31,25,3,.66); }
 #pg-transfers .tf-tab b{ color:rgba(31,25,3,.86); }
 #pg-transfers .tf-tab.is-on{
-  background:var(--tf-paper); border-color:transparent; color:var(--tf-ink);
-  border-radius:9px 9px 0 0;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
+  border:1px solid #97722a; border-bottom-color:transparent; color:var(--tf-ink);
+  border-radius:6px 6px 0 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
 }
 #pg-transfers .tf-tab.is-on b{ color:var(--tf-ink); }
 #pg-transfers .tf-tab.is-on::after{ background:transparent; }
 
-/* ── content: paper cards on a silver page ───────────────────────────────── */
-#pg-transfers .tf-body{ background:var(--tf-silver); }
+/* ── content: a stack of silver panels, never a white sheet ──────────────── */
+#pg-transfers .tf-body{ background:transparent; }
 #pg-transfers .tf-pane{ background:transparent; }
+
+/* the panels the content sits in — one step lighter than the page, with a
+   light top edge and a darker outline so each one has a physical edge */
 #pg-transfers .tf-tablewrap,
 #pg-transfers .tf-scoutbar,
 #pg-transfers .tf-filters{
-  background:var(--tf-paper);
-  border:1px solid var(--tf-line);
-  border-radius:12px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
+  border:1px solid var(--tf-line2);
+  border-radius:7px;
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.4);
 }
-#pg-transfers .tf-table{ background:var(--tf-paper); color:var(--tf-ink); }
+#pg-transfers .tf-table{ background:transparent; color:var(--tf-ink); }
+
+/* the column header: a stronger grey that separates the table from its rows */
 #pg-transfers .tf-table thead th{
-  background:var(--tf-silver-2); color:var(--tf-ink2);
-  border-bottom:1px solid var(--tf-line2);
+  background:linear-gradient(180deg,#c0c4c6,var(--tf-thead));
+  color:var(--tf-ink);
+  border-bottom:2px solid #989ea0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
 }
-#pg-transfers .tf-table thead th button{ color:var(--tf-ink2); }
-#pg-transfers .tf-row{ border-bottom:1px solid var(--tf-line); }
-#pg-transfers .tf-row:hover{ background:rgba(205,166,51,.10); }
-#pg-transfers .tf-row.is-mine{ background:rgba(80,211,63,.10); }
-#pg-transfers .tf-pl-t b{ color:var(--tf-ink); }
+#pg-transfers .tf-table thead th button{ color:var(--tf-ink); }
+#pg-transfers .tf-table thead th button:hover{ color:#000; }
+#pg-transfers .tf-table thead th.is-sorted button{ color:#6b5310; }
+
+/* rows alternate, so the eye tracks across a row the way it does on a game
+   interface — not the flat ruled lines of a spreadsheet */
+#pg-transfers .tf-table tbody tr{ background:var(--tf-row); }
+#pg-transfers .tf-table tbody tr:nth-child(even){ background:var(--tf-row-alt); }
+#pg-transfers .tf-table tbody td{
+  padding:11px 10px;
+  border-bottom:1px solid var(--tf-sep);
+}
+#pg-transfers .tf-row{ border-bottom:0; }
+#pg-transfers .tf-row:hover, #pg-transfers .tf-table tbody tr.tf-row:nth-child(even):hover{
+  background:linear-gradient(180deg,#e0d3a6,#d6c795);
+}
+#pg-transfers .tf-row.is-mine, #pg-transfers .tf-table tbody tr.tf-row.is-mine:nth-child(even){
+  background:linear-gradient(180deg,#cfe0c4,#c4d7b8);
+  box-shadow:inset 3px 0 0 var(--tf-buy-d);
+}
+/* the player's line, given room to be read */
+#pg-transfers .tf-pl{ gap:11px; }
+#pg-transfers .tf-pl-t b{ color:var(--tf-ink); font-size:13px; }
+#pg-transfers .tf-pl-t em{ font-size:10.5px; color:var(--tf-ink3); }
 #pg-transfers .tf-pl-n, #pg-transfers .tf-pl-sub, #pg-transfers .tf-mv{ color:var(--tf-ink3); }
 #pg-transfers .tf-pl-d{ color:var(--tf-ink2); }
 #pg-transfers .tf-price{ color:var(--tf-ink); }
@@ -9959,12 +10023,25 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-empty td{ color:var(--tf-ink3); }
 #pg-transfers .tf-sec{ color:var(--tf-ink2); }
 #pg-transfers .tf-para, #pg-transfers .tf-note{ color:var(--tf-ink3); }
-#pg-transfers .tf-search input, #pg-transfers .tf-filters input,
-#pg-transfers .tf-filters select{
-  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink);
+/* fields are sunk into the panel, controls are raised off it */
+#pg-transfers .tf-search, #pg-transfers .tf-search input,
+#pg-transfers .tf-filters input, #pg-transfers .tf-filters select,
+#pg-transfers .tf-filters-grid input{
+  background:var(--tf-info); border:1px solid #9aa0a2; border-radius:5px; color:var(--tf-ink);
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.18);
 }
-#pg-transfers .tf-chip-btn{ background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2); }
-#pg-transfers .tf-chip-btn:hover{ background:var(--tf-silver-2); color:var(--tf-ink); }
+#pg-transfers .tf-search input{ border:0; box-shadow:none; background:transparent; }
+#pg-transfers .tf-filters-grid{ background:var(--tf-info); border:1px solid var(--tf-line2); border-radius:6px; }
+#pg-transfers .tf-chip-btn{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
+  border:1px solid var(--tf-line2); border-radius:5px; color:var(--tf-ink2);
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+#pg-transfers .tf-chip-btn:hover{ background:linear-gradient(180deg,#dfe1e2,var(--tf-panel)); color:var(--tf-ink); }
+#pg-transfers .tf-chip-btn.is-on{
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-color:#8f6d13; color:#241d05;
+}
 #pg-transfers .tf-star{ color:var(--tf-ink3); }
 #pg-transfers .tf-star.is-on{ color:var(--tf-gold-d); }
 
@@ -9975,9 +10052,10 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-nat b{ color:var(--tf-ink); }
 #pg-transfers .tf-nat span{ color:var(--tf-ink3); }
 
-/* status chips, kept quiet on paper */
+/* status chips, kept quiet on the grey */
 #pg-transfers .tf-state{
-  background:var(--tf-silver-2); color:var(--tf-ink2); border:1px solid var(--tf-line);
+  background:var(--tf-info); color:var(--tf-ink2); border:1px solid var(--tf-line2);
+  border-radius:4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
 }
 #pg-transfers .tf-state--available, #pg-transfers .tf-state--active{
   background:rgba(80,211,63,.16); color:#1d6b16; border-color:rgba(80,211,63,.4);
@@ -9987,20 +10065,61 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 }
 #pg-transfers .tf-clock{ color:var(--tf-ink2); }
 
-/* ── cards, modals and side panels: paper ────────────────────────────────── */
-#pg-transfers .tf-modal-box, #pg-transfers .tf-side, #pg-transfers .tf-rc,
-#pg-transfers .tf-need, #pg-transfers .tf-offer, #pg-transfers .tf-card{
-  background:var(--tf-paper); border:1px solid var(--tf-line); color:var(--tf-ink);
-  box-shadow:0 18px 44px -28px rgba(17,16,21,.45);
+/* ── cards, modals and the right-hand panel: layered silver, never white ─── */
+/* Outer shell is the darkest of the three, the cards inside it a step lighter,
+   and the information wells a step darker again — the same ladder as the list,
+   so a panel never flattens into one sheet. */
+#pg-transfers .tf-modal-box, #pg-transfers .tf-side{
+  background:linear-gradient(180deg,#c9cdce,var(--tf-side));
+  border:1px solid #9aa0a2; border-radius:8px; color:var(--tf-ink);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 20px 46px -26px rgba(17,16,21,.75);
 }
-#pg-transfers .tf-modal-bd{ background:rgba(17,16,21,.5); }
+#pg-transfers .tf-rc, #pg-transfers .tf-need, #pg-transfers .tf-offer,
+#pg-transfers .tf-card, #pg-transfers .tf-brief{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); border-radius:7px; color:var(--tf-ink);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
+}
+/* cards sit a step ABOVE the panel they are on, wells a step below the card */
+#pg-transfers .tf-rc-nums > div, #pg-transfers .tf-kv > div, #pg-transfers .tf-attr{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line); border-radius:5px;
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+/* the right-hand panel: outer shell, cards, information rows, countdown */
+#pg-transfers .tf-side-rows, #pg-transfers .tf-side-acts > .tf-side-note{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); border-radius:6px;
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+#pg-transfers .tf-side-row{ border-bottom:1px solid rgba(35,38,41,.14); }
+#pg-transfers .tf-side-row i{ color:var(--tf-ink3); }
+#pg-transfers .tf-side-row b{ color:var(--tf-ink); }
+#pg-transfers .tf-side-row b.is-next{ color:#6b5310; }
+#pg-transfers .tf-side-timer{
+  background:linear-gradient(180deg,#b8bdbf,var(--tf-count));
+  border:1px solid #979d9f; border-radius:6px;
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.22);
+}
+#pg-transfers .tf-side-tl{ color:var(--tf-ink2); }
+#pg-transfers .tf-side-timer.is-hot{ background:linear-gradient(180deg,#d4a3a7,#c79197); border-color:#95121f; }
+#pg-transfers .tf-side-ttl{ color:var(--tf-ink); }
+#pg-transfers .tf-modal-bd{ background:rgba(17,16,21,.62); }
 #pg-transfers .tf-pd-head{
-  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
-  border-bottom:1px solid rgba(48,50,54,.18);
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-bottom:2px solid #8f6d13;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38);
   color:#1f1903;
 }
 #pg-transfers .tf-pd-head h2, #pg-transfers .tf-pd-sub{ color:#1f1903; }
-#pg-transfers .tf-pd-nums > div{ background:rgba(255,255,255,.86); }
+#pg-transfers .tf-pd-body{ background:linear-gradient(180deg,#c9cdce,var(--tf-side)); }
+#pg-transfers .tf-pd-nums{ background:#9aa0a2; border-radius:6px; }
+#pg-transfers .tf-pd-nums > div{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+#pg-transfers .tf-meter{ background:transparent; }
+#pg-transfers .tf-subtabs{ border-bottom:1px solid rgba(35,38,41,.22); }
 #pg-transfers .tf-pd-nums i{ color:var(--tf-ink3); }
 #pg-transfers .tf-pd-nums b{ color:var(--tf-ink); }
 #pg-transfers .tf-pd-ovr{ color:#1f1903; }
@@ -10012,90 +10131,114 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-meter-bar{ background:var(--tf-silver-2); }
 #pg-transfers .tf-x{ color:var(--tf-ink2); }
 
-/* ── buttons ─────────────────────────────────────────────────────────────── */
+/* ── buttons: game keys, not SaaS pills ──────────────────────────────────── */
+/* Squared off, a hard 1px darker border, a light top edge and a gradient down
+   the face — the shape of a control you press, at every size. */
 #pg-transfers .tf-btn, .tf-scope .tf-btn{
-  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2);
+  border-radius:4px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
+  border:1px solid #9aa0a2; color:var(--tf-ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(17,16,21,.25);
 }
 #pg-transfers .tf-btn:hover:not(:disabled), .tf-scope .tf-btn:hover:not(:disabled){
-  background:var(--tf-silver-2); color:var(--tf-ink);
+  background:linear-gradient(180deg,#e3e5e6,var(--tf-panel)); color:#000;
+}
+#pg-transfers .tf-btn:active:not(:disabled), .tf-scope .tf-btn:active:not(:disabled){
+  box-shadow:inset 0 2px 4px rgba(17,16,21,.35); transform:translateY(1px);
 }
 #pg-transfers .tf-btn--primary, .tf-scope .tf-btn--primary{
   background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy));
-  border-color:var(--tf-buy-d); color:#08320a;
-  box-shadow:0 8px 18px -10px rgba(80,211,63,.7);
+  border-color:#2f8f22; color:#06280a;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 2px 4px rgba(17,16,21,.35);
 }
 #pg-transfers .tf-btn--primary:hover:not(:disabled), .tf-scope .tf-btn--primary:hover:not(:disabled){
-  background:linear-gradient(180deg,#6ce05d,var(--tf-buy-2));
+  background:linear-gradient(180deg,#63de4f,var(--tf-buy-2));
 }
 #pg-transfers .tf-btn--danger, .tf-scope .tf-btn--danger{
   background:linear-gradient(180deg,var(--tf-stop-2),var(--tf-stop));
-  border-color:#b8232f; color:#fff;
+  border-color:#95121f; color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 2px 4px rgba(17,16,21,.35);
 }
 #pg-transfers .tf-btn--danger:hover:not(:disabled), .tf-scope .tf-btn--danger:hover:not(:disabled){
-  background:linear-gradient(180deg,#ea4b56,var(--tf-stop-2));
+  background:linear-gradient(180deg,#e84956,var(--tf-stop-2));
 }
 #pg-transfers .tf-btn--gold, .tf-scope .tf-btn--gold{
-  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
-  border-color:var(--tf-gold-d); color:#1f1903;
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-color:#8f6d13; color:#1f1903;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 2px 4px rgba(17,16,21,.3);
 }
 
 /* ── the contract / transfer component ───────────────────────────────────── */
 .tf-scope{
-  --tf-gold:#cda633; --tf-gold-2:#d1aa35; --tf-gold-d:#a8871f;
-  --tf-paper:#f0f2f2; --tf-silver:#e2e6e8; --tf-silver-2:#d2d7da;
-  --tf-black:#111015; --tf-black-2:#18161d;
-  --tf-ink:#303236; --tf-ink2:#414449; --tf-ink3:#6d7379;
-  --tf-on-dark:#f2f3f4; --tf-on-dark-2:#a9adb3;
-  --tf-buy:#50d33f; --tf-buy-2:#59d94a; --tf-buy-d:#3fb831;
-  --tf-stop:#df3340; --tf-stop-2:#e53b47;
-  --tf-line:rgba(48,50,54,.12); --tf-line2:rgba(48,50,54,.20);
-  --tf-champagne:var(--tf-gold); --tf-charcoal:var(--tf-paper); --tf-graphite:var(--tf-silver);
+  --tf-gold:#c9a32e; --tf-gold-2:#d2ad37; --tf-gold-hi:#d5b03b; --tf-gold-lo:#c69d27; --tf-gold-d:#a8811c;
+  --tf-page:#c5c9cb; --tf-page-hi:#cdd0d1; --tf-page-lo:#bfc3c5;
+  --tf-panel:#d3d6d7; --tf-panel-2:#d8dadb;
+  --tf-row:#d9dcdd; --tf-row-alt:#ced2d3; --tf-sep:#aeb3b5; --tf-thead:#b6bbbd;
+  --tf-side:#c3c7c8; --tf-card:#d5d8d9; --tf-info:#bec3c5; --tf-count:#aeb3b5;
+  --tf-paper:var(--tf-panel); --tf-silver:var(--tf-page); --tf-silver-2:var(--tf-info);
+  --tf-black:#111015; --tf-black-2:#17151b; --tf-black-3:#211e24;
+  --tf-ink:#26282b; --tf-ink2:#3a3d41; --tf-ink3:#5c6165;
+  --tf-on-dark:#f4f5f6; --tf-on-dark-2:#a9adb3;
+  --tf-buy:#48c934; --tf-buy-2:#54d43f; --tf-buy-d:#37a527;
+  --tf-stop:#c92836; --tf-stop-2:#df3441;
+  --tf-line:rgba(35,38,41,.20); --tf-line2:rgba(35,38,41,.32); --tf-edge:rgba(255,255,255,.45);
+  --tf-champagne:var(--tf-gold); --tf-charcoal:var(--tf-panel); --tf-graphite:var(--tf-page);
   --tf-acc:var(--tf-gold); --tf-acc-d:var(--tf-gold-d);
-  --tf-acc-16:rgba(205,166,51,.16); --tf-acc-24:rgba(205,166,51,.28); --tf-acc-42:rgba(205,166,51,.55);
-  --tf-warm:#e0a94f;
+  --tf-acc-16:rgba(201,163,46,.18); --tf-acc-24:rgba(201,163,46,.30); --tf-acc-42:rgba(201,163,46,.58);
+  --tf-warm:#c98f2a;
   display:block; color:var(--tf-ink);
 }
 [data-theme="light"] .tf-scope{ color:var(--tf-ink); }
 
 .tf-ct{
-  background:var(--tf-paper); border:1px solid var(--tf-line); color:var(--tf-ink);
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); border-radius:7px; color:var(--tf-ink);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
 }
 .tf-ct-head{ padding-bottom:2px; }
 .tf-ct-id > b{ color:var(--tf-ink); }
 .tf-ct-ovr{
-  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
-  border-color:var(--tf-gold-d);
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-color:#8f6d13; border-radius:5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
 }
 .tf-ct-ovr b{ color:#1f1903; }
 .tf-ct-ovr i{ color:rgba(31,25,3,.66); }
-.tf-ct-facts{ background:var(--tf-line); }
-.tf-ct-facts > div{ background:#fff; }
+.tf-ct-facts{ background:#a7acae; border-radius:6px; }
+.tf-ct-facts > div{ background:var(--tf-info); }
 .tf-ct-facts i{ color:var(--tf-ink3); }
 .tf-ct-facts b{ color:var(--tf-ink); }
 
-/* the three decisions, as light cards */
+/* the decisions, as pressable grey keys */
 .tf-ct-act{
-  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2);
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
+  border:1px solid #9aa0a2; border-radius:4px; color:var(--tf-ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(17,16,21,.25);
 }
-.tf-ct-act:hover{ border-color:var(--tf-gold); color:var(--tf-ink); background:rgba(205,166,51,.10); }
+.tf-ct-act:hover{ border-color:#8f6d13; color:#000; background:linear-gradient(180deg,#e0d3a6,#d6c795); }
 .tf-ct-act.is-on{
-  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
-  border-color:var(--tf-gold-d); color:#1f1903;
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-color:#8f6d13; color:#1f1903;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 1px 2px rgba(17,16,21,.3);
 }
 
 /* ── an opened action: the card turns near-black ─────────────────────────── */
+/* This is the contrast the screen is built around. Browsing happens on silver;
+   the moment a club commits money the surface drops to black, and the two
+   action colours are the only bright things on it. */
 .tf-ct-open, .tf-ct-live{
-  background:linear-gradient(180deg,var(--tf-black-2),var(--tf-black));
-  border:1px solid #000; color:var(--tf-on-dark);
-  border-radius:12px;
+  background:linear-gradient(180deg,var(--tf-black-3) 0%,var(--tf-black-2) 42%,var(--tf-black) 100%);
+  border:1px solid #000; color:#fff;
+  border-radius:7px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 10px 26px -14px rgba(0,0,0,.9);
 }
 .tf-ct-open-t{ color:var(--tf-gold-2); }
 .tf-ct-open .tf-note, .tf-ct-live .tf-note, .tf-ct-open .tf-para{ color:var(--tf-on-dark-2); }
 .tf-ct-open .tf-ct-facts, .tf-ct-live .tf-ct-live-g{ background:rgba(255,255,255,.10); }
-.tf-ct-open .tf-ct-facts > div, .tf-ct-live .tf-ct-live-g > div{ background:#0d0c11; }
+.tf-ct-open .tf-ct-facts > div, .tf-ct-live .tf-ct-live-g > div{ background:var(--tf-black); }
 .tf-ct-open .tf-ct-facts i, .tf-ct-live .tf-ct-live-g i{ color:var(--tf-on-dark-2); }
 .tf-ct-open .tf-ct-facts b, .tf-ct-live .tf-ct-live-g b{ color:var(--tf-on-dark); }
-.tf-ct-amount{ background:#0d0c11; border-color:rgba(255,255,255,.12); }
+.tf-ct-amount{ background:var(--tf-black); border-color:rgba(255,255,255,.12); border-radius:5px; }
 .tf-ct-amount i{ color:var(--tf-on-dark-2); }
 .tf-ct-amount b{ color:var(--tf-buy-2); }
 .tf-ct-amount em{ color:var(--tf-on-dark-2); }
@@ -10109,13 +10252,17 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 }
 /* the price stepper, on black */
 .tf-ct-open .tf-step > span{ color:var(--tf-on-dark-2); }
-.tf-ct-open .tf-step-b{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.20); color:var(--tf-on-dark); }
-.tf-ct-open .tf-step-b:hover{ background:rgba(205,166,51,.30); border-color:var(--tf-gold); color:#fff; }
-.tf-ct-open .tf-step input{ background:#0d0c11; border-color:rgba(255,255,255,.20); color:var(--tf-on-dark); }
-.tf-ct-open .tf-step input:focus{ border-color:var(--tf-gold); box-shadow:0 0 0 3px rgba(205,166,51,.25); }
+.tf-ct-open .tf-step-b{
+  background:linear-gradient(180deg,var(--tf-black-3),var(--tf-black-2));
+  border-color:rgba(255,255,255,.22); border-radius:4px; color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+}
+.tf-ct-open .tf-step-b:hover{ background:linear-gradient(180deg,#6b5518,#4d3d11); border-color:var(--tf-gold); color:#fff; }
+.tf-ct-open .tf-step input{ background:var(--tf-black); border-color:rgba(255,255,255,.20); border-radius:4px; color:#fff; }
+.tf-ct-open .tf-step input:focus{ border-color:var(--tf-gold); box-shadow:0 0 0 3px rgba(201,163,46,.28); }
 .tf-ct-open .tf-step em{ color:var(--tf-gold-2); }
 /* clubs a player can be offered to, on black */
-.tf-ct-open .tf-mclub{ background:#0d0c11; border-color:rgba(255,255,255,.14); }
+.tf-ct-open .tf-mclub{ background:var(--tf-black); border-color:rgba(255,255,255,.14); border-radius:5px; }
 .tf-ct-open .tf-mclub:hover{ border-color:var(--tf-gold); }
 .tf-ct-open .tf-mclub.is-on{ border-color:var(--tf-gold); background:rgba(205,166,51,.16); }
 .tf-ct-open .tf-mclub-id b{ color:var(--tf-on-dark); }
@@ -10155,22 +10302,64 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-offer-dest{ border-top-color:var(--tf-line); }
 #pg-transfers .tf-offer-dest i{ color:var(--tf-ink3); }
 #pg-transfers .tf-offer-dest b{ color:var(--tf-ink); }
-#pg-transfers .tf-need-prio{ background:#fff; border-color:var(--tf-line2); color:var(--tf-ink2); }
-#pg-transfers .tf-need-prio--high{ background:rgba(205,166,51,.18); border-color:var(--tf-gold); color:#6d5410; }
-#pg-transfers .tf-neg-live{ background:rgba(205,166,51,.10); border-color:var(--tf-acc-24); }
+#pg-transfers .tf-need-prio{ background:var(--tf-info); border-color:var(--tf-line2); color:var(--tf-ink2); border-radius:4px; }
+#pg-transfers .tf-need-prio--high{ background:rgba(201,163,46,.34); border-color:#8f6d13; color:#4a3a08; }
+#pg-transfers .tf-neg-live{ background:rgba(201,163,46,.20); border-color:#8f6d13; border-radius:5px; }
 #pg-transfers .tf-neg-live b{ color:var(--tf-ink); }
 #pg-transfers .tf-neg-live i, #pg-transfers .tf-neg-live em{ color:var(--tf-ink3); }
 
 /* the club inbox panel */
-.tf-note-row{ background:#fff; border-color:var(--tf-line); }
-.tf-note-row.is-unread{ background:rgba(205,166,51,.12); border-color:var(--tf-acc-24); }
+.tf-note-row{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); border-radius:5px;
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+.tf-note-row.is-unread{ background:linear-gradient(180deg,#e0d3a6,#d6c795); border-color:#8f6d13; }
 .tf-note-t b{ color:var(--tf-ink); }
 .tf-note-t em{ color:var(--tf-ink2); }
 .tf-note-t i{ color:var(--tf-ink3); }
 
-/* ── portraits keep a light frame on paper ───────────────────────────────── */
+/* ── portraits: framed, and the first thing on the row ───────────────────── */
+/* The portrait carries the market's identity, so it is given a real frame —
+   a dark outline, a light inner edge and its own small shadow — rather than
+   being left as an icon floating on the row. */
 #pg-transfers .tf-po, .tf-scope .tf-po{
-  background:var(--tf-silver-2);
-  box-shadow:inset 0 0 0 1px var(--tf-line2), 0 2px 6px -3px rgba(17,16,21,.35);
+  background:var(--tf-info); border-radius:6px;
+  box-shadow:0 0 0 1px #8d9294, inset 0 1px 0 rgba(255,255,255,.4), 0 2px 5px -2px rgba(17,16,21,.5);
 }
-.tf-ct-open .tf-po, .tf-ct-live .tf-po{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
+#pg-transfers .tf-po{ width:42px; height:42px; }
+#pg-transfers .tf-row:hover .tf-po{ box-shadow:0 0 0 1px #8f6d13, inset 0 1px 0 rgba(255,255,255,.4), 0 2px 6px -2px rgba(17,16,21,.55); }
+.tf-ct-open .tf-po, .tf-ct-live .tf-po{ box-shadow:0 0 0 1px rgba(255,255,255,.24), inset 0 1px 0 rgba(255,255,255,.12); }
+
+/* ── the countdown, on the grey side ─────────────────────────────────────── */
+/* On a black panel the clock is light on black; where it sits on the silver
+   side it gets its own darker well, so it never floats on the panel. */
+#pg-transfers .tf-clock, #pg-transfers .tf-c-avail .tf-clock{
+  background:var(--tf-count); border:1px solid #979d9f; border-radius:4px;
+  padding:2px 6px; color:#1c1e20; font-weight:800;
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.2);
+}
+#pg-transfers .tf-clock--hot{ background:rgba(201,40,54,.22); border-color:#95121f; color:#7d1420; }
+
+/* ── the last of the white ───────────────────────────────────────────────── */
+/* Anything still painting itself white or near-white inside the market is
+   pulled back onto the grey ladder — white is left to type, icons and the
+   one-pixel highlight along a top edge. */
+#pg-transfers .tf-style, #pg-transfers .tf-src2, #pg-transfers .tf-pos,
+#pg-transfers .tf-ability{
+  background:var(--tf-info); color:var(--tf-ink2);
+  box-shadow:inset 0 0 0 1px var(--tf-line2); border-radius:4px;
+}
+#pg-transfers .tf-ability{ background:rgba(201,163,46,.32); color:#4a3a08; box-shadow:inset 0 0 0 1px #a8811c; }
+#pg-transfers .tf-pips i{ background:#a3a9ab; }
+#pg-transfers .tf-meter-bar{ background:#a7acae; }
+#pg-transfers .tf-qual--elite b, #pg-transfers .tf-qual--good b{ color:#6b5310; }
+#pg-transfers .tf-qual--ok b, #pg-transfers .tf-qual--avg b{ color:var(--tf-ink2); }
+#pg-transfers .tf-qual--elite .tf-pips i.on, #pg-transfers .tf-qual--good .tf-pips i.on,
+#pg-transfers .tf-qual--ok .tf-pips i.on{ background:var(--tf-gold); }
+#pg-transfers .tf-qual--avg .tf-pips i.on{ background:var(--tf-ink3); }
+#pg-transfers .tf-price{ color:#1c1e20; }
+#pg-transfers .tf-tab:hover{ background:rgba(255,255,255,.14); }
+#pg-transfers .tf-filters-grid label > span,
+#pg-transfers .tf-teamsel > span{ color:var(--tf-ink3); }
+#pg-transfers .tf-dot-live{ background:var(--tf-buy); box-shadow:0 0 0 3px rgba(72,201,52,.24); }
