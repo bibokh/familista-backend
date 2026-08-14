@@ -8803,63 +8803,84 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
    back (Cancel, Withdraw, Reject). They are actions, never decoration. */
 #pg-transfers{
   overflow:hidden;
-  --tf-gold:      #d9b26a;   /* warm metallic gold — the market's accent   */
-  --tf-gold-d:    #b08d47;
-  --tf-champagne: #e7d5ae;   /* champagne / sand — raised surfaces         */
-  --tf-sand:      #c9b591;
-  --tf-ivory:     #f6f1e6;   /* soft ivory — primary type                  */
-  --tf-graphite:  #17171a;   /* dark graphite / charcoal — the ground      */
-  --tf-charcoal:  #232329;
-  --tf-bronze:    #a9743f;   /* subtle bronze accents                      */
 
-  --tf-line:  rgba(217,178,106,.16);
-  --tf-line2: rgba(217,178,106,.28);
-  --tf-glass: linear-gradient(180deg,rgba(231,213,174,.055),rgba(231,213,174,.014));
-  --tf-ink:   var(--tf-ivory);
-  --tf-ink2:  #b8ab92;
-  --tf-ink3:  #857c6c;
-  --tf-acc:   var(--tf-gold);
-  --tf-acc-d: var(--tf-gold-d);
-  --tf-acc-16:rgba(217,178,106,.16);
-  --tf-acc-24:rgba(217,178,106,.24);
-  --tf-acc-42:rgba(217,178,106,.42);
-  --tf-buy:   #34d399;       /* committing money — and nothing else        */
-  --tf-buy-d: #10b981;
-  --tf-stop:  #f26d6d;       /* taking it back — and nothing else          */
-  --tf-hot:   #f26d6d;
-  --tf-warm:  #e0a94f;
-  --tf-blue:  #9db4c0;
-  --tf-violet:#c2ab7e;
+  /* ── the market's own colours ──────────────────────────────────────────────
+     Mustard gold identifies the marketplace, light silver-grey carries the
+     content, near-black is where an action opens, and the two action colours
+     are the only saturated things on the screen. Not one of them is read from
+     the club being viewed — every club walks into the same room. */
+  --tf-gold:      #cda633;   /* header / market identity                    */
+  --tf-gold-2:    #d1aa35;
+  --tf-gold-d:    #a8871f;   /* pressed / darker edge of the same mustard   */
+  --tf-paper:     #f0f2f2;   /* lightest surface — cards, panels            */
+  --tf-silver:    #e2e6e8;   /* the page itself                             */
+  --tf-silver-2:  #d2d7da;   /* rows, wells, secondary fills                */
+  --tf-black:     #111015;   /* an opened action panel                      */
+  --tf-black-2:   #18161d;
+  --tf-ink:       #303236;   /* type on light                               */
+  --tf-ink2:      #414449;
+  --tf-ink3:      #6d7379;   /* labels, captions                            */
+  --tf-on-dark:   #f2f3f4;   /* type on the black panels                    */
+  --tf-on-dark-2: #a9adb3;
+
+  --tf-buy:   #50d33f;       /* confirm · sell · bid · accept               */
+  --tf-buy-2: #59d94a;
+  --tf-buy-d: #3fb831;
+  --tf-stop:  #df3340;       /* cancel · withdraw · reject                  */
+  --tf-stop-2:#e53b47;
+
+  /* subtle grey separators — never a neon outline */
+  --tf-line:  rgba(48,50,54,.12);
+  --tf-line2: rgba(48,50,54,.20);
+  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.55));
+
+  /* names the rest of this stylesheet already uses, pointed at the palette */
+  --tf-champagne: var(--tf-gold);
+  --tf-sand:      var(--tf-gold-d);
+  --tf-ivory:     var(--tf-ink);
+  --tf-graphite:  var(--tf-silver);
+  --tf-charcoal:  var(--tf-paper);
+  --tf-bronze:    var(--tf-gold-d);
+  --tf-acc:       var(--tf-gold);
+  --tf-acc-d:     var(--tf-gold-d);
+  --tf-acc-16:    rgba(205,166,51,.16);
+  --tf-acc-24:    rgba(205,166,51,.28);
+  --tf-acc-42:    rgba(205,166,51,.55);
+  --tf-hot:       var(--tf-stop);
+  --tf-warm:      #e0a94f;
+  --tf-blue:      #6d7379;
+  --tf-violet:    var(--tf-gold-d);
+
   color:var(--tf-ink);
-  background:var(--tf-graphite);
+  background:var(--tf-silver);
 }
-[data-theme="light"] #pg-transfers{
-  --tf-line:rgba(120,92,40,.16); --tf-line2:rgba(120,92,40,.26);
-  --tf-glass:linear-gradient(180deg,rgba(120,92,40,.05),rgba(120,92,40,.012));
-  --tf-ink:#241f16; --tf-ink2:#5c5344; --tf-ink3:#8a8171;
-  --tf-graphite:#f7f3ea; --tf-charcoal:#efe7d7;
-  --tf-gold:#96702c; --tf-gold-d:#7a5a20; --tf-ivory:#241f16;
-  --tf-acc-16:rgba(150,112,44,.14); --tf-acc-24:rgba(150,112,44,.22); --tf-acc-42:rgba(150,112,44,.4);
-  --tf-buy:#0f9b6c; --tf-stop:#c2453f;
-}
+/* The market reads the same in either app theme: it is the marketplace's own
+   surface, not the workspace's. */
+[data-theme="light"] #pg-transfers{ color:var(--tf-ink); background:var(--tf-silver); }
 .tf-root{
   display:flex; flex-direction:column;
   height:100%; min-height:0;
-  background:
-    radial-gradient(1100px 460px at 12% -12%, rgba(217,178,106,.09), transparent 62%),
-    radial-gradient(900px 420px at 92% -8%, rgba(201,181,145,.07), transparent 60%);
+  background:var(--tf-silver);
+  color:var(--tf-ink);
 }
 
 /* ── header ──────────────────────────────────────────────────────────────── */
-.tf-head{ flex:none; padding:18px 26px 0; border-bottom:1px solid var(--tf-line); }
+.tf-head{
+  flex:none; padding:16px 26px 0;
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  border-bottom:1px solid rgba(48,50,54,.18);
+  color:#241d05;
+}
+.tf-head .tf-title h1{ color:#1f1903; }
+.tf-head .tf-title p{ color:rgba(31,25,3,.72); }
 .tf-head-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:26px; flex-wrap:wrap; }
 .tf-title{ display:flex; align-items:center; gap:13px; min-width:0; }
 .tf-title-mark{
   width:38px; height:38px; flex:none; border-radius:11px;
   display:flex; align-items:center; justify-content:center;
-  background:linear-gradient(140deg,rgba(217,178,106,.24),rgba(217,178,106,.06));
-  box-shadow:inset 0 0 0 1px rgba(217,178,106,.32), 0 6px 18px -8px rgba(217,178,106,.5);
-  color:var(--tf-champagne);
+  background:rgba(31,25,3,.14);
+  box-shadow:inset 0 0 0 1px rgba(31,25,3,.22);
+  color:#1f1903;
 }
 .tf-title h1{ font-size:19px; font-weight:800; letter-spacing:-.4px; line-height:1.15; color:var(--tf-ink); }
 .tf-title p{ margin-top:2px; font-size:11.5px; color:var(--tf-ink3); letter-spacing:.01em; }
@@ -9873,3 +9894,283 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
   .tf-ct-acts--4{ grid-template-columns:repeat(2,minmax(0,1fr)); }
   .tf-offer-dest{ grid-template-columns:auto 1fr; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MARKET SURFACE — mustard header, silver content, black action panels
+   ────────────────────────────────────────────────────────────────────────────
+   The block above defines the palette; this puts it on the surfaces the older
+   rules in this file painted for a dark room. Layout, spacing and structure are
+   untouched — only colour. Nothing here reads a club token, so every club sees
+   the same market.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── header controls sit on the mustard band ─────────────────────────────── */
+#pg-transfers .tf-head select,
+#pg-transfers .tf-head .tf-money-cell,
+#pg-transfers .tf-head .tf-hs{
+  background:rgba(255,255,255,.82);
+  border-color:rgba(48,50,54,.18);
+  color:var(--tf-ink);
+}
+#pg-transfers .tf-head .tf-money-cell i,
+#pg-transfers .tf-head .tf-hs{ color:var(--tf-ink2); }
+#pg-transfers .tf-head .tf-money-cell b{ color:var(--tf-ink); }
+#pg-transfers .tf-teamsel > span{ color:rgba(31,25,3,.72); }
+#pg-transfers .tf-head select:hover{ border-color:rgba(48,50,54,.34); }
+#pg-transfers .tf-head select:focus{ outline:none; border-color:#1f1903; box-shadow:0 0 0 3px rgba(31,25,3,.14); }
+#pg-transfers option{ background:#fff; color:var(--tf-ink); }
+
+/* tabs on the band: the active one is the page's paper, so it reads as the
+   sheet the content is printed on */
+#pg-transfers .tf-tab{ color:rgba(31,25,3,.66); }
+#pg-transfers .tf-tab b{ color:rgba(31,25,3,.86); }
+#pg-transfers .tf-tab.is-on{
+  background:var(--tf-paper); border-color:transparent; color:var(--tf-ink);
+  border-radius:9px 9px 0 0;
+}
+#pg-transfers .tf-tab.is-on b{ color:var(--tf-ink); }
+#pg-transfers .tf-tab.is-on::after{ background:transparent; }
+
+/* ── content: paper cards on a silver page ───────────────────────────────── */
+#pg-transfers .tf-body{ background:var(--tf-silver); }
+#pg-transfers .tf-pane{ background:transparent; }
+#pg-transfers .tf-tablewrap,
+#pg-transfers .tf-scoutbar,
+#pg-transfers .tf-filters{
+  background:var(--tf-paper);
+  border:1px solid var(--tf-line);
+  border-radius:12px;
+}
+#pg-transfers .tf-table{ background:var(--tf-paper); color:var(--tf-ink); }
+#pg-transfers .tf-table thead th{
+  background:var(--tf-silver-2); color:var(--tf-ink2);
+  border-bottom:1px solid var(--tf-line2);
+}
+#pg-transfers .tf-table thead th button{ color:var(--tf-ink2); }
+#pg-transfers .tf-row{ border-bottom:1px solid var(--tf-line); }
+#pg-transfers .tf-row:hover{ background:rgba(205,166,51,.10); }
+#pg-transfers .tf-row.is-mine{ background:rgba(80,211,63,.10); }
+#pg-transfers .tf-pl-t b{ color:var(--tf-ink); }
+#pg-transfers .tf-pl-n, #pg-transfers .tf-pl-sub, #pg-transfers .tf-mv{ color:var(--tf-ink3); }
+#pg-transfers .tf-pl-d{ color:var(--tf-ink2); }
+#pg-transfers .tf-price{ color:var(--tf-ink); }
+#pg-transfers .tf-price-sub{ color:var(--tf-ink3); }
+#pg-transfers .tf-go{ color:var(--tf-ink3); }
+#pg-transfers .tf-empty td{ color:var(--tf-ink3); }
+#pg-transfers .tf-sec{ color:var(--tf-ink2); }
+#pg-transfers .tf-para, #pg-transfers .tf-note{ color:var(--tf-ink3); }
+#pg-transfers .tf-search input, #pg-transfers .tf-filters input,
+#pg-transfers .tf-filters select{
+  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink);
+}
+#pg-transfers .tf-chip-btn{ background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2); }
+#pg-transfers .tf-chip-btn:hover{ background:var(--tf-silver-2); color:var(--tf-ink); }
+#pg-transfers .tf-star{ color:var(--tf-ink3); }
+#pg-transfers .tf-star.is-on{ color:var(--tf-gold-d); }
+
+/* the numbers a decision is made on */
+#pg-transfers .tf-qual b{ color:var(--tf-ink); }
+#pg-transfers .tf-pips i{ background:var(--tf-line2); }
+#pg-transfers .tf-pips i.on{ background:var(--tf-gold); }
+#pg-transfers .tf-nat b{ color:var(--tf-ink); }
+#pg-transfers .tf-nat span{ color:var(--tf-ink3); }
+
+/* status chips, kept quiet on paper */
+#pg-transfers .tf-state{
+  background:var(--tf-silver-2); color:var(--tf-ink2); border:1px solid var(--tf-line);
+}
+#pg-transfers .tf-state--available, #pg-transfers .tf-state--active{
+  background:rgba(80,211,63,.16); color:#1d6b16; border-color:rgba(80,211,63,.4);
+}
+#pg-transfers .tf-state--ending-soon, #pg-transfers .tf-clock--hot{
+  background:rgba(223,51,64,.14); color:#a51f2a; border-color:rgba(223,51,64,.36);
+}
+#pg-transfers .tf-clock{ color:var(--tf-ink2); }
+
+/* ── cards, modals and side panels: paper ────────────────────────────────── */
+#pg-transfers .tf-modal-box, #pg-transfers .tf-side, #pg-transfers .tf-rc,
+#pg-transfers .tf-need, #pg-transfers .tf-offer, #pg-transfers .tf-card{
+  background:var(--tf-paper); border:1px solid var(--tf-line); color:var(--tf-ink);
+  box-shadow:0 18px 44px -28px rgba(17,16,21,.45);
+}
+#pg-transfers .tf-modal-bd{ background:rgba(17,16,21,.5); }
+#pg-transfers .tf-pd-head{
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  border-bottom:1px solid rgba(48,50,54,.18);
+  color:#1f1903;
+}
+#pg-transfers .tf-pd-head h2, #pg-transfers .tf-pd-sub{ color:#1f1903; }
+#pg-transfers .tf-pd-nums > div{ background:rgba(255,255,255,.86); }
+#pg-transfers .tf-pd-nums i{ color:var(--tf-ink3); }
+#pg-transfers .tf-pd-nums b{ color:var(--tf-ink); }
+#pg-transfers .tf-pd-ovr{ color:#1f1903; }
+#pg-transfers .tf-pd-ovr .tf-qual b{ color:#1f1903; }
+#pg-transfers .tf-subtabs button{ color:var(--tf-ink3); }
+#pg-transfers .tf-subtabs button.is-on{ color:var(--tf-ink); border-bottom-color:var(--tf-gold); }
+#pg-transfers .tf-kv > div, #pg-transfers .tf-meter, #pg-transfers .tf-attr{ color:var(--tf-ink2); }
+#pg-transfers .tf-kv b, #pg-transfers .tf-attr b{ color:var(--tf-ink); }
+#pg-transfers .tf-meter-bar{ background:var(--tf-silver-2); }
+#pg-transfers .tf-x{ color:var(--tf-ink2); }
+
+/* ── buttons ─────────────────────────────────────────────────────────────── */
+#pg-transfers .tf-btn, .tf-scope .tf-btn{
+  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+#pg-transfers .tf-btn:hover:not(:disabled), .tf-scope .tf-btn:hover:not(:disabled){
+  background:var(--tf-silver-2); color:var(--tf-ink);
+}
+#pg-transfers .tf-btn--primary, .tf-scope .tf-btn--primary{
+  background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy));
+  border-color:var(--tf-buy-d); color:#08320a;
+  box-shadow:0 8px 18px -10px rgba(80,211,63,.7);
+}
+#pg-transfers .tf-btn--primary:hover:not(:disabled), .tf-scope .tf-btn--primary:hover:not(:disabled){
+  background:linear-gradient(180deg,#6ce05d,var(--tf-buy-2));
+}
+#pg-transfers .tf-btn--danger, .tf-scope .tf-btn--danger{
+  background:linear-gradient(180deg,var(--tf-stop-2),var(--tf-stop));
+  border-color:#b8232f; color:#fff;
+}
+#pg-transfers .tf-btn--danger:hover:not(:disabled), .tf-scope .tf-btn--danger:hover:not(:disabled){
+  background:linear-gradient(180deg,#ea4b56,var(--tf-stop-2));
+}
+#pg-transfers .tf-btn--gold, .tf-scope .tf-btn--gold{
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  border-color:var(--tf-gold-d); color:#1f1903;
+}
+
+/* ── the contract / transfer component ───────────────────────────────────── */
+.tf-scope{
+  --tf-gold:#cda633; --tf-gold-2:#d1aa35; --tf-gold-d:#a8871f;
+  --tf-paper:#f0f2f2; --tf-silver:#e2e6e8; --tf-silver-2:#d2d7da;
+  --tf-black:#111015; --tf-black-2:#18161d;
+  --tf-ink:#303236; --tf-ink2:#414449; --tf-ink3:#6d7379;
+  --tf-on-dark:#f2f3f4; --tf-on-dark-2:#a9adb3;
+  --tf-buy:#50d33f; --tf-buy-2:#59d94a; --tf-buy-d:#3fb831;
+  --tf-stop:#df3340; --tf-stop-2:#e53b47;
+  --tf-line:rgba(48,50,54,.12); --tf-line2:rgba(48,50,54,.20);
+  --tf-champagne:var(--tf-gold); --tf-charcoal:var(--tf-paper); --tf-graphite:var(--tf-silver);
+  --tf-acc:var(--tf-gold); --tf-acc-d:var(--tf-gold-d);
+  --tf-acc-16:rgba(205,166,51,.16); --tf-acc-24:rgba(205,166,51,.28); --tf-acc-42:rgba(205,166,51,.55);
+  --tf-warm:#e0a94f;
+  display:block; color:var(--tf-ink);
+}
+[data-theme="light"] .tf-scope{ color:var(--tf-ink); }
+
+.tf-ct{
+  background:var(--tf-paper); border:1px solid var(--tf-line); color:var(--tf-ink);
+}
+.tf-ct-head{ padding-bottom:2px; }
+.tf-ct-id > b{ color:var(--tf-ink); }
+.tf-ct-ovr{
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  border-color:var(--tf-gold-d);
+}
+.tf-ct-ovr b{ color:#1f1903; }
+.tf-ct-ovr i{ color:rgba(31,25,3,.66); }
+.tf-ct-facts{ background:var(--tf-line); }
+.tf-ct-facts > div{ background:#fff; }
+.tf-ct-facts i{ color:var(--tf-ink3); }
+.tf-ct-facts b{ color:var(--tf-ink); }
+
+/* the three decisions, as light cards */
+.tf-ct-act{
+  background:#fff; border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+.tf-ct-act:hover{ border-color:var(--tf-gold); color:var(--tf-ink); background:rgba(205,166,51,.10); }
+.tf-ct-act.is-on{
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  border-color:var(--tf-gold-d); color:#1f1903;
+}
+
+/* ── an opened action: the card turns near-black ─────────────────────────── */
+.tf-ct-open, .tf-ct-live{
+  background:linear-gradient(180deg,var(--tf-black-2),var(--tf-black));
+  border:1px solid #000; color:var(--tf-on-dark);
+  border-radius:12px;
+}
+.tf-ct-open-t{ color:var(--tf-gold-2); }
+.tf-ct-open .tf-note, .tf-ct-live .tf-note, .tf-ct-open .tf-para{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-ct-facts, .tf-ct-live .tf-ct-live-g{ background:rgba(255,255,255,.10); }
+.tf-ct-open .tf-ct-facts > div, .tf-ct-live .tf-ct-live-g > div{ background:#0d0c11; }
+.tf-ct-open .tf-ct-facts i, .tf-ct-live .tf-ct-live-g i{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-ct-facts b, .tf-ct-live .tf-ct-live-g b{ color:var(--tf-on-dark); }
+.tf-ct-amount{ background:#0d0c11; border-color:rgba(255,255,255,.12); }
+.tf-ct-amount i{ color:var(--tf-on-dark-2); }
+.tf-ct-amount b{ color:var(--tf-buy-2); }
+.tf-ct-amount em{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-btn{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.20); color:var(--tf-on-dark); }
+.tf-ct-open .tf-btn:hover:not(:disabled){ background:rgba(255,255,255,.18); color:#fff; }
+.tf-ct-open .tf-btn--primary, .tf-ct-live .tf-btn--primary{
+  background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:var(--tf-buy-d); color:#08320a;
+}
+.tf-ct-open .tf-btn--danger, .tf-ct-live .tf-btn--danger{
+  background:linear-gradient(180deg,var(--tf-stop-2),var(--tf-stop)); border-color:#b8232f; color:#fff;
+}
+/* the price stepper, on black */
+.tf-ct-open .tf-step > span{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-step-b{ background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.20); color:var(--tf-on-dark); }
+.tf-ct-open .tf-step-b:hover{ background:rgba(205,166,51,.30); border-color:var(--tf-gold); color:#fff; }
+.tf-ct-open .tf-step input{ background:#0d0c11; border-color:rgba(255,255,255,.20); color:var(--tf-on-dark); }
+.tf-ct-open .tf-step input:focus{ border-color:var(--tf-gold); box-shadow:0 0 0 3px rgba(205,166,51,.25); }
+.tf-ct-open .tf-step em{ color:var(--tf-gold-2); }
+/* clubs a player can be offered to, on black */
+.tf-ct-open .tf-mclub{ background:#0d0c11; border-color:rgba(255,255,255,.14); }
+.tf-ct-open .tf-mclub:hover{ border-color:var(--tf-gold); }
+.tf-ct-open .tf-mclub.is-on{ border-color:var(--tf-gold); background:rgba(205,166,51,.16); }
+.tf-ct-open .tf-mclub-id b{ color:var(--tf-on-dark); }
+.tf-ct-open .tf-mclub-why{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-mclub-pct b{ color:var(--tf-on-dark); }
+.tf-ct-open .tf-mclub-pct.is-hi b{ color:var(--tf-gold-2); }
+.tf-ct-open .tf-mclub-pct i{ color:var(--tf-on-dark-2); }
+
+/* a live listing: the gavel chip reads on black */
+.tf-scope .tf-ct-live .tf-auc, .tf-ct-live .tf-auc{
+  background:rgba(205,166,51,.22); border-color:rgba(205,166,51,.6); color:#eccb62;
+}
+.tf-scope .tf-ct-live .tf-auc em, .tf-ct-live .tf-auc em{ color:#ffffff; }
+
+/* In the market the chip sits on light paper, so it is written dark. Inside a
+   player's own profile it sits on the workspace's dark modal, so it is written
+   light — the same chip, legible on either ground. */
+#pg-transfers .tf-auc{
+  background:rgba(205,166,51,.18); border-color:rgba(205,166,51,.55); color:#6d5410;
+}
+#pg-transfers .tf-auc em{ color:#4a3a08; }
+#pg-transfers .tf-auc.is-hot{
+  background:rgba(223,51,64,.14); border-color:rgba(223,51,64,.45); color:#a51f2a;
+}
+.tf-scope .tf-auc{
+  background:rgba(205,166,51,.22); border-color:rgba(205,166,51,.6); color:#eccb62;
+}
+.tf-scope .tf-auc em{ color:#ffffff; }
+.tf-scope .tf-auc.is-hot{
+  background:rgba(223,51,64,.20); border-color:rgba(223,51,64,.6); color:#ff9aa2;
+}
+.tf-scope .tf-auc.is-hot em{ color:#ffffff; }
+
+/* ── offers, needs, activity: paper cards ────────────────────────────────── */
+#pg-transfers .tf-offer-club, #pg-transfers .tf-need-h b{ color:var(--tf-ink); }
+#pg-transfers .tf-offer-msg, #pg-transfers .tf-need-l{ color:var(--tf-ink3); }
+#pg-transfers .tf-offer-dest{ border-top-color:var(--tf-line); }
+#pg-transfers .tf-offer-dest i{ color:var(--tf-ink3); }
+#pg-transfers .tf-offer-dest b{ color:var(--tf-ink); }
+#pg-transfers .tf-need-prio{ background:#fff; border-color:var(--tf-line2); color:var(--tf-ink2); }
+#pg-transfers .tf-need-prio--high{ background:rgba(205,166,51,.18); border-color:var(--tf-gold); color:#6d5410; }
+#pg-transfers .tf-neg-live{ background:rgba(205,166,51,.10); border-color:var(--tf-acc-24); }
+#pg-transfers .tf-neg-live b{ color:var(--tf-ink); }
+#pg-transfers .tf-neg-live i, #pg-transfers .tf-neg-live em{ color:var(--tf-ink3); }
+
+/* the club inbox panel */
+.tf-note-row{ background:#fff; border-color:var(--tf-line); }
+.tf-note-row.is-unread{ background:rgba(205,166,51,.12); border-color:var(--tf-acc-24); }
+.tf-note-t b{ color:var(--tf-ink); }
+.tf-note-t em{ color:var(--tf-ink2); }
+.tf-note-t i{ color:var(--tf-ink3); }
+
+/* ── portraits keep a light frame on paper ───────────────────────────────── */
+#pg-transfers .tf-po, .tf-scope .tf-po{
+  background:var(--tf-silver-2);
+  box-shadow:inset 0 0 0 1px var(--tf-line2), 0 2px 6px -3px rgba(17,16,21,.35);
+}
+.tf-ct-open .tf-po, .tf-ct-live .tf-po{ box-shadow:inset 0 0 0 1px rgba(255,255,255,.18); }
