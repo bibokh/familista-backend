@@ -10363,3 +10363,58 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 #pg-transfers .tf-filters-grid label > span,
 #pg-transfers .tf-teamsel > span{ color:var(--tf-ink3); }
 #pg-transfers .tf-dot-live{ background:var(--tf-buy); box-shadow:0 0 0 3px rgba(72,201,52,.24); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   LAYOUT STABILITY — the geometry stays put while the data changes
+   ────────────────────────────────────────────────────────────────────────────
+   Each rule here answers a movement that was measured in the running app, not
+   a movement that might exist in theory. Nothing is frozen and no height is
+   invented: the causes are a box sized by text that arrives late, a transition
+   list wide enough to animate the box itself, and a stack that reflowed when
+   one of its items left.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* 1 · The page title block sized itself to its text — 91px on "Squad", 160px
+   on "Video Intelligence" — and everything to its right slid with it: the
+   search box moved 69px between pages and 32px when the title arrived after
+   hydration. The block is given the width of the longest real title, so the
+   text can change without moving its neighbour, and anything longer ellipses
+   rather than pushing. */
+.topbar-titles{ flex:0 0 auto; width:170px; min-width:170px; }
+.topbar-titles .page-title,
+.topbar-titles .page-subtitle,
+body.club-theme .topbar-titles{ min-width:0; }
+.page-title, .page-subtitle{
+  display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (max-width:900px){
+  .topbar-titles{ flex:0 1 auto; width:auto; min-width:0; }
+}
+
+/* 2 · `transition: all` animates the box, not just the paint: any width the
+   layout hands these elements is glided into over 200ms, which is the sliding
+   the header showed. They keep exactly the transitions that change colour. */
+.header-search{
+  transition:border-color var(--trans), background-color var(--trans), box-shadow var(--trans);
+}
+.club-card{
+  transition:background-color var(--trans), border-color var(--trans);
+}
+
+/* 3 · The toast stack. Bottom-anchored and appended to, every arrival pushed
+   the toasts above it up the screen — three at once during hydration meant
+   three jumps. Reversed, the oldest keeps the bottom slot and a new one is
+   laid above it, so nothing that is already on screen moves. Right-aligned,
+   a longer message widens only itself instead of dragging its neighbours
+   sideways (measured: 3px per burst). */
+#toast-container{ flex-direction:column-reverse; align-items:flex-end; }
+#toast-container .toast{ flex:none; }
+#toast-container .toast[data-gone]{ pointer-events:none; }
+
+/* 4 · A number changing must not resize the column it sits in. Money, clocks
+   and counters are given tabular figures, so 11 and 88 are the same width and
+   a ticking value cannot widen its cell. */
+.tf-price, .tf-mv, .tf-clock, .tf-money-cell b, .tf-side-row b,
+.tf-ct-facts b, .tf-ct-amount b, .tf-hs, .tf-qual b{
+  font-variant-numeric:tabular-nums;
+}

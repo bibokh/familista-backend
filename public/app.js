@@ -1696,10 +1696,19 @@ function showToast(msg, type = 'info', duration = 3000) {
   container.appendChild(toast);
   setTimeout(() => {
     toast.style.animation = 'none';
+    // Fade and slide out — never `all`, which would animate the box itself.
+    toast.style.transition = 'opacity .3s ease, transform .3s ease';
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(20px)';
-    toast.style.transition = 'all .3s ease';
-    setTimeout(() => toast.remove(), 300);
+    toast.style.pointerEvents = 'none';
+    toast.setAttribute('data-gone', '');
+    setTimeout(() => {
+      // A toast that has gone keeps its slot until the whole stack has gone,
+      // and then the stack clears in one go. Removing it the moment it faded
+      // pulled every toast above it down the screen — three toasts arriving
+      // during hydration meant three jumps while the manager was reading them.
+      if (!container.querySelector('.toast:not([data-gone])')) container.replaceChildren();
+    }, 300);
   }, duration);
 }
 
@@ -32623,6 +32632,7 @@ let _matchModalWS     = null;     // active WebSocket
 let _matchModalWSPing = null;     // keepalive timer
 let _intelPollTimer        = null;  // Phase 15 — intelligence 30s live poll
 let _lastIntelUpdate       = 0;     // Phase 16 — epoch ms of last WS-delivered intel update
+let _intelSig              = null;  // the bundle the panel is already showing
 let _intelSpatialDebounce  = null;  // Phase 17 — debounce for spatial panel patches
 let _intelPredictDebounce  = null;  // Phase 18 — debounce for prediction panel patches
 
@@ -33206,6 +33216,7 @@ async function paintIntelligenceTab(c, m) {
   }
   if (!d) { c.innerHTML = '<div class="empty"><div class="empty-ico">🧠</div><div class="empty-ttl">No intelligence data</div></div>'; return; }
   _lastIntelUpdate = Date.now();
+  _intelSig = JSON.stringify(d);
   _renderIntelligenceBundle(c, d);
   // 30s poll fallback for live matches — skips if WS delivered an update recently
   const isLive = (d.status === 'LIVE' || d.status === 'HALFTIME');
@@ -33220,6 +33231,11 @@ async function paintIntelligenceTab(c, m) {
       FamilistaAPI.get('/matches/' + encodeURIComponent(m.id) + '/live-intelligence').then(res => {
         if (res && res.data && _matchModalTab === 'intelligence') {
           _lastIntelUpdate = Date.now();
+          // Only redraw when the poll actually brought something new — an
+          // unchanged bundle used to rebuild the whole panel every 30s.
+          const sig = JSON.stringify(res.data);
+          if (sig === _intelSig) return;
+          _intelSig = sig;
           _renderIntelligenceBundle(cont, res.data);
         }
       }).catch(() => {});
@@ -39330,6 +39346,7 @@ function renderDevicesHTML() {
 }
 
 let _devPollTimer = null;
+let _devFleetSig = null;   // what the grid is already showing
 
 async function loadDevicesData() {
   if (_devPollTimer) { clearInterval(_devPollTimer); _devPollTimer = null; }
@@ -39344,6 +39361,7 @@ async function loadDevicesData() {
     el.innerHTML = '<div style="padding:24px;color:var(--red);font-size:12px;">Failed to load GPS fleet status.</div>';
     return;
   }
+  _devFleetSig = fleet && fleet.devices ? JSON.stringify(fleet.devices) : null;
   _renderDeviceFleet(fleet, el, sub);
   _devPollTimer = setInterval(() => {
     if (document.visibilityState !== 'visible') return;
@@ -39351,7 +39369,14 @@ async function loadDevicesData() {
     const grid = document.getElementById('dev-grid');
     if (!grid) { clearInterval(_devPollTimer); _devPollTimer = null; return; }
     FamilistaAPI.get('/devices/gps-status').then(f => {
-      if (f && f.devices) _renderDeviceFleet(f, grid, document.getElementById('devices-sub'));
+      // A poll that returns what is already on screen must not redraw it: the
+      // grid was rebuilt every 30 seconds whether or not a device had changed,
+      // which reflowed the whole panel under the reader.
+      if (!f || !f.devices) return;
+      const sig = JSON.stringify(f.devices);
+      if (sig === _devFleetSig) return;
+      _devFleetSig = sig;
+      _renderDeviceFleet(f, grid, document.getElementById('devices-sub'));
     }).catch(() => {});
   }, 30_000);
 }
@@ -47943,6 +47968,26 @@ function _tfRenderBody() {
   }
 }
 function _tfRowsHtml(C) { return _TF.tab === 'scouting' ? _tfScoutRowsHtml(C) : _tfAuctionRowsHtml(C); }
+// A rival raising a bid changes two numbers in one row. Rebuilding the table
+// for that threw away every row on screen — the browser re-measured the column
+// widths, the list flickered, and anything the manager was hovering or had
+// scrolled to moved under the cursor. The numbers are written into the row that
+// is already there instead, the same way the clocks tick in place.
+//
+// The one case that still needs the table rebuilt is a sort the bid itself
+// decides: when the list is ordered by price, a new bid changes where the row
+// belongs, and leaving it in the old position would be a lie.
+function _tfSortFollowsBid() { return _TF.sort && (_TF.sort.key === 'price' || _TF.sort.key === 'fee'); }
+function _tfPatchRow(p) {
+  var row = document.querySelector('#tf-rows .tf-row[data-tf-open="' + (window.CSS && CSS.escape ? CSS.escape(p.id) : p.id) + '"]');
+  if (!row) return false;
+  var price = row.querySelector('.tf-price');
+  if (price) price.textContent = _tfMoney(p.bid);
+  var sub = row.querySelector('.tf-price-sub'), n = p.bidders.length;
+  if (sub) sub.textContent = n ? n + ' bid' + (n > 1 ? 's' : '') : 'asking';
+  row.classList.toggle('is-mine', _tfMyLead(p));
+  return true;
+}
 function _tfRepaintRows() {
   var b = document.getElementById('tf-rows');
   if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
@@ -48877,7 +48922,7 @@ function _tfStopClock() { if (_TF.clock) { clearInterval(_TF.clock); _TF.clock =
 function _tfTick() {
   var pg = document.getElementById('pg-transfers');
   if (!pg || !pg.classList.contains('active')) { _tfStopClock(); return; }
-  var C = _tfCtx(), now = Date.now(), structural = false;
+  var C = _tfCtx(), now = Date.now(), structural = false, overlay = false;
 
   _tfLots(C).forEach(function (p) {
     var st = _tfAucState(p);
@@ -48905,6 +48950,14 @@ function _tfTick() {
       p.bid = nb;
       p.leader = _tfPick(p.seed + now, 'rival', TF_CLUBS);
       p.bidders.unshift({ club: p.leader, amount: nb, at: now, me: false });
+      // Write the new figure into the row that is already on screen. Only if
+      // the row is not there, or the ordering depends on the bid, does the
+      // table need rebuilding.
+      // The open profile, if it is this player's, still has to show the new
+      // figure — that is a different panel, and it is only redrawn for the
+      // player being looked at.
+      if (_TF.detail && _TF.detail.id === p.id) overlay = true;
+      if (!_tfSortFollowsBid() && _tfPatchRow(p)) return;
       structural = true;
     }
   });
@@ -48930,6 +48983,7 @@ function _tfTick() {
   if (sc && sp) { var sl = sp.expiresAt - now; sc.textContent = sl <= 0 ? 'READY' : _tfClock(sl); }
 
   if (structural) { _tfRenderBody(); _tfRenderOverlay(); }
+  else if (overlay) { _tfRenderOverlay(); }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
