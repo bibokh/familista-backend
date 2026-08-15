@@ -47313,14 +47313,25 @@ var TF_POSITIONS = [
   { p: 'ST',  cat: 'fw', near: ['AM', 'RW', 'LW'] }
 ];
 function _tfPosDef(p) { for (var i = 0; i < TF_POSITIONS.length; i++) if (TF_POSITIONS[i].p === p) return TF_POSITIONS[i]; return null; }
+// The positions a Player row can actually hold — PlayerPosition, the platform's
+// own enum. The list above is the market's display vocabulary and does not
+// overlap with it beyond GK and ST, so anything that has to line up with a
+// stored player (a club's stated need, and the board's filter) uses this one.
+// A need published for a spelling no player can have would match nobody.
+var TF_NEED_POSITIONS = [
+  ['GK', 'GK · Goalkeeper'], ['DC', 'DC · Centre-back'], ['DL', 'DL · Left-back'], ['DR', 'DR · Right-back'],
+  ['DMC', 'DMC · Defensive midfield'], ['MC', 'MC · Centre midfield'], ['ML', 'ML · Left midfield'],
+  ['MR', 'MR · Right midfield'], ['AMC', 'AMC · Attacking midfield'], ['AML', 'AML · Left wing'],
+  ['AMR', 'AMR · Right wing'], ['ST', 'ST · Striker'],
+];
 // Position → pitch category, tolerant of every spelling the app uses (CDM/CAM
 // from the Academy, DM/AM from the pitch, CF/SS from a listing).
 function _tfCat(pos) {
   var d = _tfPosDef(pos); if (d) return d.cat;
   pos = String(pos || '').toUpperCase();
   if (pos === 'GK') return 'gk';
-  if (/^(CB|RB|LB|RWB|LWB|SW|LCB|RCB)$/.test(pos)) return 'df';
-  if (/^(CDM|CAM|CM|DM|AM|RM|LM|LCM|RCM)$/.test(pos)) return 'mf';
+  if (/^(CB|RB|LB|RWB|LWB|SW|LCB|RCB|DC|DL|DR)$/.test(pos)) return 'df';
+  if (/^(CDM|CAM|CM|DM|AM|RM|LM|LCM|RCM|DMC|MC|ML|MR|AMC)$/.test(pos)) return 'mf';
   return 'fw';
 }
 var TF_PLAYSTYLES = {
@@ -48027,7 +48038,9 @@ function _tfDirectOffersHtml(C) {
           +   '<i>Type</i><b>Direct transfer</b></div>'
           + (iAnswer ? '<div class="tf-offer-acts">'
             + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-reject="' + _tfEsc(o.id) + '">REJECT</button>'
-            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '">COUNTER</button>'
+            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '"'
+            + ' data-tf-player="' + _tfEsc(o.playerId) + '" data-tf-name="' + _tfEsc(o.player ? (o.player.firstName + ' ' + o.player.lastName) : '') + '"'
+            + ' data-tf-club="' + _tfEsc(o.buyerClub ? o.buyerClub.name : '') + '">COUNTER</button>'
             + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-offer-accept="' + _tfEsc(o.id) + '">ACCEPT</button>'
             + '</div>' : '')
           + '</li>';
@@ -48040,6 +48053,32 @@ function _tfDirectOffersHtml(C) {
 }
 
 // ── CLUB NEEDS · the public board, and this club's own entries ──────────────
+// Every club's published requirement, on one board, with the one thing the
+// reader actually wants to know written on the card: how many players in his
+// own squad fit it. The count comes back with the feed, so a board of twenty
+// needs is one request, not twenty-one.
+//
+// Nothing here decides who may see what. The server publishes a need to every
+// club, keeps the author's private note to the author, and scores matches
+// against the authenticated club's own squad — this only lays it out.
+// Two numbers for the header: how many requirements are open across the
+// market, and how many of this club's players fit one. Both come out of the
+// feed the board already holds.
+function _tfNeedCounts() {
+  var rows = (_TF_NEG.needs && _TF_NEG.needs.items) || [];
+  var matches = 0;
+  rows.forEach(function (n) { if (!n.isMine && n.myMatches) matches += n.myMatches; });
+  return { active: rows.length, matches: matches };
+}
+
+function _tfNeedSignalPatch() {
+  var c = _tfNeedCounts();
+  var a = document.querySelector('[data-tf-hs="needs"]');
+  var b = document.querySelector('[data-tf-hs="matches"]');
+  if (a) a.textContent = c.active + ' active needs';
+  if (b) b.textContent = c.matches + ' squad matches';
+}
+
 function _tfNeedLine(n) {
   var bits = [];
   if (n.ageMin != null || n.ageMax != null) bits.push('Age ' + (n.ageMin != null ? n.ageMin : '—') + '–' + (n.ageMax != null ? n.ageMax : '—'));
@@ -48050,24 +48089,244 @@ function _tfNeedLine(n) {
   if (n.playstyle) bits.push(n.playstyle);
   return bits.join(' · ');
 }
+
+// A need's remaining life. Null when it was published without a deadline.
+function _tfNeedLeft(n) { return n.expiresAt ? (new Date(n.expiresAt).getTime() - Date.now()) : null; }
+function _tfNeedExpired(n) { var l = _tfNeedLeft(n); return l !== null && l <= 0; }
+function _tfNeedSoon(n) { var l = _tfNeedLeft(n); return l !== null && l > 0 && l <= 6 * 3600000; }
+function _tfNeedClock(ms) {
+  if (ms === null) return 'No deadline';
+  if (ms <= 0) return 'EXPIRED';
+  var h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), s = Math.floor((ms % 60000) / 1000);
+  var p = function (x) { return x < 10 ? '0' + x : String(x); };
+  return h >= 24 ? Math.floor(h / 24) + 'd ' + p(h % 24) + 'h' : p(h) + ':' + p(m) + ':' + p(s);
+}
+
+// ── the cells of a need card ────────────────────────────────────────────────
+// Only what the club actually stated. An optional criterion it left blank is
+// not shown as an empty box.
+function _tfNeedFacts(n) {
+  var f = [];
+  if (n.ageMin != null || n.ageMax != null) {
+    f.push(['Age', (n.ageMin != null ? n.ageMin : '—') + '–' + (n.ageMax != null ? n.ageMax : '—')]);
+  }
+  if (n.ratingMin != null || n.ratingMax != null) {
+    f.push(['OVR', n.ratingMax != null ? n.ratingMin + '–' + n.ratingMax : n.ratingMin + '+']);
+  }
+  if (n.budgetMinEur != null || n.budgetMaxEur != null) {
+    f.push(['Budget', (n.budgetMinEur != null ? _tfMoney(n.budgetMinEur) : '—') + ' – ' + (n.budgetMaxEur != null ? _tfMoney(n.budgetMaxEur) : '—')]);
+  }
+  if (n.preferredFoot) f.push(['Foot', n.preferredFoot.charAt(0) + n.preferredFoot.slice(1).toLowerCase()]);
+  if (n.nationality) f.push(['Nationality', n.nationality]);
+  if (n.playstyle) f.push(['Playstyle', n.playstyle]);
+  if (n.contractPreference) f.push(['Contract', n.contractPreference.charAt(0) + n.contractPreference.slice(1).toLowerCase()]);
+  return f;
+}
+
+function _tfClubMark(club) {
+  var name = (club && club.name) || 'Club';
+  var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0); }).join('').toUpperCase();
+  if (club && club.logo) return '<span class="tf-nd-mark"><img src="' + _tfEsc(club.logo) + '" alt=""></span>';
+  return '<span class="tf-nd-mark"><i>' + _tfEsc(initials) + '</i></span>';
+}
+
+function _tfNeedCardHtml(n, opts) {
+  opts = opts || {};
+  var left = _tfNeedLeft(n), expired = _tfNeedExpired(n);
+  var matches = n.myMatches || 0;
+  var state = !n.isActive ? 'DEACTIVATED' : expired ? 'EXPIRED' : null;
+  return '<li class="tf-nd' + (n.isMine ? ' is-mine' : '') + (matches ? ' has-match' : '') + '" data-tf-need="' + _tfEsc(n.id) + '">'
+    + '<div class="tf-nd-top">'
+    +   _tfClubMark(n.club)
+    +   '<div class="tf-nd-id"><b>' + _tfEsc((n.club && n.club.name) || 'Club') + '</b>'
+    +     '<i>' + (n.isMine ? 'YOUR NEED' : 'LOOKING FOR') + '</i></div>'
+    +   '<span class="tf-nd-prio tf-nd-prio--' + String(n.priority).toLowerCase() + '">'
+    +     (n.priority === 'HIGH' ? 'URGENT' : n.priority === 'LOW' ? 'LOW' : 'NORMAL') + '</span>'
+    + '</div>'
+    + '<div class="tf-nd-pos">' + n.positions.map(function (x) {
+      return '<i class="tf-pos tf-pos--' + _tfCat(x) + '">' + _tfEsc(x) + '</i>';
+    }).join('') + '</div>'
+    + (function () {
+      var f = _tfNeedFacts(n);
+      return f.length ? '<div class="tf-nd-facts">' + f.map(function (r) {
+        return '<div><i>' + _tfEsc(r[0]) + '</i><b>' + _tfEsc(r[1]) + '</b></div>';
+      }).join('') + '</div>' : '';
+    })()
+    + (n.note && n.isMine ? '<p class="tf-nd-note">' + _tfEsc(n.note) + '</p>' : '')
+    + '<div class="tf-nd-foot">'
+    +   '<span class="tf-nd-when">' + (state
+      ? '<em class="tf-nd-state">' + state + '</em>'
+      : '<i>Expires</i><b data-tf-needclock="' + _tfEsc(n.id) + '">' + _tfNeedClock(left) + '</b>')
+    +   '</span>'
+    +   (matches && !n.isMine
+      ? '<span class="tf-nd-badge">' + matches + ' MATCHING PLAYER' + (matches > 1 ? 'S' : '') + '</span>' : '')
+    + '</div>'
+    + '<div class="tf-nd-acts">'
+    +   (n.isMine
+      ? '<button type="button" class="tf-btn tf-btn--sm" data-tf-need-edit="' + _tfEsc(n.id) + '">EDIT</button>'
+        + (n.isActive
+          ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-need-close="' + _tfEsc(n.id) + '">DEACTIVATE</button>'
+          : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-need-reopen="' + _tfEsc(n.id) + '">REACTIVATE</button>')
+      : '<button type="button" class="tf-btn tf-btn--sm" data-tf-need-club="' + _tfEsc(n.club ? n.club.id : '') + '" data-tf-need-clubname="' + _tfEsc(n.club ? n.club.name : '') + '">VIEW CLUB</button>'
+        + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-need-matches="' + _tfEsc(n.id) + '">'
+        + (_TF_NEG.needOpen === n.id ? 'HIDE MATCHES' : 'VIEW MATCHES') + '</button>')
+    + '</div>'
+    + (_TF_NEG.needOpen === n.id ? _tfNeedMatchesHtml(n) : '')
+    + '</li>';
+}
+
+// ── the matches panel, opened inside the card ───────────────────────────────
+// Dark, because it is the panel a decision is read on — and because it is the
+// only place on this board that shows this club's own players.
+function _tfNeedMatchesHtml(n) {
+  var d = _TF_NEG.needMatches[n.id];
+  if (!d) {
+    _tfNegLoadNeedMatches(n.id).then(function () { _tfNeedsRepaint(); });
+    return '<div class="tf-ct-open tf-nd-open"><p class="tf-note">Reading your squad…</p></div>';
+  }
+  if (d.error) return '<div class="tf-ct-open tf-nd-open"><p class="tf-note">' + _tfEsc(d.error) + '</p></div>';
+  var rows = d.items || [];
+  if (!rows.length) {
+    return '<div class="tf-ct-open tf-nd-open"><div class="tf-ct-open-t">YOUR SQUAD</div>'
+      + '<p class="tf-note">Nobody in your squad fits this requirement.</p></div>';
+  }
+  return '<div class="tf-ct-open tf-nd-open">'
+    + '<div class="tf-ct-open-t">FROM YOUR SQUAD · ' + rows.length + ' MATCH' + (rows.length > 1 ? 'ES' : '') + '</div>'
+    + '<ol class="tf-nd-matches">' + rows.map(function (r) {
+      var p = r.player;
+      var name = ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
+      return '<li class="tf-nd-match">'
+        + '<div class="tf-nd-match-h">'
+        +   _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm')
+        +   '<div class="tf-nd-match-id"><b>' + _tfEsc(name) + '</b>'
+        +     '<em>' + _tfEsc(p.position) + (p.age != null ? ' · ' + p.age + ' yrs' : '')
+        +       ' · OVR ' + p.overallRating + ' · ' + _tfMoney(p.marketValue) + '</em></div>'
+        +   '<span class="tf-nd-pct' + (r.matchPct >= 85 ? ' is-hi' : '') + '"><b>' + r.matchPct + '%</b><i>match</i></span>'
+        + '</div>'
+        + '<div class="tf-nd-why">' + (r.criteria || []).map(function (c) {
+          return '<span class="tf-nd-c' + (c.ok ? ' is-ok' : '') + '" title="' + _tfEsc(c.detail) + '">'
+            + '<i>' + (c.ok ? '✓' : '—') + '</i>' + _tfEsc(c.label) + '</span>';
+        }).join('') + '</div>'
+        + '<div class="tf-nd-match-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-need-player="' + _tfEsc(p.id) + '">VIEW PLAYER</button>'
+        + '</div>'
+        + '</li>';
+    }).join('') + '</ol></div>';
+}
+
+// ── narrowing the board ─────────────────────────────────────────────────────
+// Applied to the feed already in hand. No request, no page redraw: only the
+// list itself is replaced, so the filter bar the manager is using stays put.
+function _tfNeedPasses(n) {
+  var f = _TF_NEG.needFilters, v = _TF_NEG.needView;
+  if (v === 'mine' && !n.isMine) return false;
+  if (v !== 'mine' && n.isMine === false && false) return false;
+  if (v === 'urgent' && n.priority !== 'HIGH') return false;
+  if (v === 'matches' && !(n.myMatches > 0)) return false;
+  if (v === 'soon' && !_tfNeedSoon(n)) return false;
+  if (f.club && String((n.club && n.club.name) || '').toLowerCase().indexOf(f.club.toLowerCase()) < 0) return false;
+  if (f.pos && n.positions.indexOf(f.pos) < 0) return false;
+  if (f.ovr && !(n.ratingMin != null && n.ratingMin >= Number(f.ovr))) return false;
+  if (f.age && !(n.ageMax != null && n.ageMax <= Number(f.age))) return false;
+  if (f.budget && !(n.budgetMaxEur != null && n.budgetMaxEur <= Number(f.budget) * 1e6)) return false;
+  if (f.foot && String(n.preferredFoot || '') !== f.foot) return false;
+  if (f.nat && String(n.nationality || '') !== f.nat) return false;
+  if (f.style && String(n.playstyle || '') !== f.style) return false;
+  if (f.contract && String(n.contractPreference || '') !== f.contract) return false;
+  if (f.priority && String(n.priority) !== f.priority) return false;
+  return true;
+}
+
+var TF_NEED_VIEWS = [['all', 'ALL NEEDS'], ['urgent', 'URGENT'], ['matches', 'MATCHES FOR MY SQUAD'],
+                     ['mine', 'MY NEEDS'], ['soon', 'EXPIRING SOON']];
+
+function _tfNeedsFilterBar(rows) {
+  var f = _TF_NEG.needFilters;
+  var opt = function (list, cur) {
+    return list.map(function (o) {
+      var val = o[0] === undefined ? o : o[0], lab = o[1] === undefined ? o : o[1];
+      return '<option value="' + _tfEsc(val) + '"' + (String(cur) === String(val) ? ' selected' : '') + '>' + _tfEsc(lab) + '</option>';
+    }).join('');
+  };
+  var uniq = function (key) {
+    var seen = {};
+    rows.forEach(function (n) { if (n[key]) seen[n[key]] = 1; });
+    return Object.keys(seen).sort().map(function (x) { return [x, x]; });
+  };
+  return '<div class="tf-nd-bar">'
+    + '<div class="tf-nd-views">' + TF_NEED_VIEWS.map(function (v) {
+      return '<button type="button" class="tf-chip-btn' + (_TF_NEG.needView === v[0] ? ' is-on' : '') + '"'
+        + ' data-tf-needview="' + v[0] + '">' + v[1] + '</button>';
+    }).join('') + '</div>'
+    + '<div class="tf-nd-filters">'
+    +   '<label class="tf-search"><svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>'
+    +     '<input data-tf-needf="club" value="' + _tfEsc(f.club) + '" placeholder="Search club"></label>'
+    +   '<select data-tf-needf="pos">' + opt([['', 'Any position']].concat(TF_NEED_POSITIONS.map(function (d) { return [d[0], d[0]]; })), f.pos) + '</select>'
+    +   '<input class="tf-nd-num" type="number" data-tf-needf="ovr" value="' + _tfEsc(f.ovr) + '" placeholder="Min OVR">'
+    +   '<input class="tf-nd-num" type="number" data-tf-needf="age" value="' + _tfEsc(f.age) + '" placeholder="Max age">'
+    +   '<input class="tf-nd-num" type="number" data-tf-needf="budget" value="' + _tfEsc(f.budget) + '" placeholder="Budget ≤ €M">'
+    +   '<select data-tf-needf="foot">' + opt([['', 'Any foot'], ['RIGHT', 'Right'], ['LEFT', 'Left'], ['BOTH', 'Both']], f.foot) + '</select>'
+    +   '<select data-tf-needf="nat">' + opt([['', 'Any nationality']].concat(uniq('nationality')), f.nat) + '</select>'
+    +   '<select data-tf-needf="style">' + opt([['', 'Any playstyle']].concat(uniq('playstyle')), f.style) + '</select>'
+    +   '<select data-tf-needf="contract">' + opt([['', 'Any contract']].concat(uniq('contractPreference')), f.contract) + '</select>'
+    +   '<select data-tf-needf="priority">' + opt([['', 'Any priority'], ['HIGH', 'Urgent'], ['MEDIUM', 'Normal'], ['LOW', 'Low']], f.priority) + '</select>'
+    + '</div></div>';
+}
+
+// The board's rows for the current view: the public feed, or — under MY NEEDS
+// — this club's own entries including the ones that have finished.
+function _tfNeedRows() {
+  if (_TF_NEG.needView === 'mine') {
+    var mine = (_TF_NEG.myNeeds && _TF_NEG.myNeeds.items) || [];
+    var board = (_TF_NEG.needs && _TF_NEG.needs.items) || [];
+    var byId = {};
+    board.forEach(function (n) { byId[n.id] = n; });
+    return mine.map(function (n) {
+      // the club is not on /needs/mine — it is this club, and the board copy
+      // already carries it
+      var b = byId[n.id];
+      return Object.assign({}, n, { club: (b && b.club) || _tfMyClubShape(), isMine: true, myMatches: 0 });
+    });
+  }
+  return ((_TF_NEG.needs && _TF_NEG.needs.items) || []);
+}
+function _tfMyClubShape() {
+  try { return { id: State.club && State.club.id, name: (State.club && State.club.name) || 'Your club', logo: State.club && State.club.logo }; }
+  catch (_) { return { id: '', name: 'Your club' }; }
+}
+
+function _tfNeedsListHtml() {
+  var rows = _tfNeedRows().filter(_tfNeedPasses);
+  if (!rows.length) {
+    return '<p class="tf-para">' + (_TF_NEG.needView === 'mine'
+      ? 'Your club has not published a requirement yet.'
+      : 'No published requirement matches these filters.') + '</p>';
+  }
+  return '<ol class="tf-needs">' + rows.map(function (n) { return _tfNeedCardHtml(n); }).join('') + '</ol>';
+}
+// Only the list is replaced when a filter changes or a panel opens — the bar
+// above it, and the header above that, are left exactly where they are.
+function _tfNeedsRepaint() {
+  var el = document.getElementById('tf-needs-list');
+  if (el) el.innerHTML = _tfNeedsListHtml(); else _tfRenderBody();
+}
+
 function _tfNeedsHtml(C) {
   var d = _TF_NEG.needs;
-  if (!d) { _tfNegLoadNeeds().then(function () { _tfRenderBody(); }); return '<div class="tf-pane"><p class="tf-para">Reading the board…</p></div>'; }
-  var rows = d.items || [];
+  if (!d) {
+    _tfNegLoadNeeds().then(function () { _tfRenderBody(); _tfNeedSignalPatch(); });
+    return '<div class="tf-pane"><p class="tf-para">Reading the board…</p></div>';
+  }
+  _tfNeedSignalPatch();
+  if (_TF_NEG.needView === 'mine' && !_TF_NEG.myNeeds) {
+    _tfNegLoadMyNeeds().then(function () { _tfNeedsRepaint(); });
+  }
+  var rows = (d.items || []);
   return '<div class="tf-pane tf-pane--pad">'
     + '<div class="tf-needs-top"><div class="tf-sec">What clubs are looking for</div>'
     +   '<button type="button" class="tf-btn tf-btn--gold tf-btn--sm" data-tf-need-new>PUBLISH A NEED</button></div>'
-    + (rows.length ? '<ol class="tf-needs">' + rows.map(function (n) {
-      return '<li class="tf-need' + (n.isMine ? ' is-mine' : '') + '">'
-        + '<div class="tf-need-h"><b>' + _tfEsc(n.club.name) + (n.isMine ? ' <em>you</em>' : '') + '</b>'
-        +   '<span class="tf-need-prio tf-need-prio--' + String(n.priority).toLowerCase() + '">' + _tfEsc(n.priority) + '</span></div>'
-        + '<div class="tf-need-pos">' + n.positions.map(function (x) {
-          return '<i class="tf-pos tf-pos--' + _tfCat(x) + '">' + _tfEsc(x) + '</i>';
-        }).join('') + '</div>'
-        + '<div class="tf-need-l">' + _tfEsc(_tfNeedLine(n)) + '</div>'
-        + (n.isMine ? '<div class="tf-offer-acts"><button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-need-close="' + _tfEsc(n.id) + '">CLOSE</button></div>' : '')
-        + '</li>';
-    }).join('') + '</ol>' : '<p class="tf-para">No club has published a need yet.</p>')
+    + _tfNeedsFilterBar(rows)
+    + '<div id="tf-needs-list" class="tf-needs-list">' + _tfNeedsListHtml() + '</div>'
     + '</div>';
 }
 
@@ -48126,6 +48385,10 @@ function _tfHeaderHtml(C) {
     +   '<nav class="tf-tabs">' + tabs + '</nav>'
     +   '<div class="tf-head-stats">'
     +     '<span class="tf-hs"><i class="tf-dot-live"></i>' + live + ' live listings</span>'
+    // What the rest of the market wants, and how much of it this club owns —
+    // read from the feed already loaded, so the header costs no request.
+    +     '<span class="tf-hs" data-tf-hs="needs">' + _tfNeedCounts().active + ' active needs</span>'
+    +     '<span class="tf-hs tf-hs--match" data-tf-hs="matches">' + _tfNeedCounts().matches + ' squad matches</span>'
     +     '<span class="tf-hs">' + shortN + ' shortlisted</span>'
     +     '<span class="tf-hs">Squad ' + (_tfSquadProfile(C).size) + '</span>'
     +   '</div>'
@@ -48981,6 +49244,19 @@ function _tfTick() {
   }
   var sc = document.querySelector('[data-tf-scoutclock]');
   if (sc && sp) { var sl = sp.expiresAt - now; sc.textContent = sl <= 0 ? 'READY' : _tfClock(sl); }
+
+  // Club needs run down in place too. The board is not rebuilt for a ticking
+  // second — only the figure changes, so no card moves and nothing reshuffles.
+  var nds = document.querySelectorAll('[data-tf-needclock]'), j;
+  if (nds.length) {
+    var feed = ((_TF_NEG.needs && _TF_NEG.needs.items) || []).concat((_TF_NEG.myNeeds && _TF_NEG.myNeeds.items) || []);
+    for (j = 0; j < nds.length; j++) {
+      var nid = nds[j].getAttribute('data-tf-needclock');
+      var nrow = feed.filter(function (x) { return x.id === nid; })[0];
+      if (!nrow) continue;
+      nds[j].textContent = _tfNeedClock(_tfNeedLeft(nrow));
+    }
+  }
 
   if (structural) { _tfRenderBody(); _tfRenderOverlay(); }
   else if (overlay) { _tfRenderOverlay(); }
@@ -49859,7 +50135,16 @@ window._tfContractMount = _tfContractMount;
 // conversations that are not: a club asking about a player, and two clubs
 // agreeing a fee. Every decision is the server's — this reads it and shows it.
 // ══════════════════════════════════════════════════════════════════════════════
-var _TF_NEG = { activity: null, needs: null, matches: {}, offers: {}, notifs: [], unread: 0, panel: null };
+var _TF_NEG = { activity: null, needs: null, matches: {}, offers: {}, notifs: [], unread: 0, panel: null,
+  // ── the club needs board ──────────────────────────────────────────────────
+  // What the board is showing and what it has been asked to narrow to. The
+  // feed itself is fetched once; every filter is applied to that copy, so
+  // narrowing the board never costs a request and never redraws the page.
+  myNeeds: null,               // this club's own entries, active and finished
+  needView: 'all',             // all · urgent · matches · mine · soon
+  needFilters: { club: '', pos: '', ovr: '', budget: '', age: '', foot: '', nat: '', style: '', contract: '', priority: '' },
+  needOpen: null,              // the need whose matches are expanded
+  needMatches: {} };           // needId → this club's players that fit it
 
 function _tfNegApi(method, path, body) { return _thApi(method, '/transfer-market' + path, body); }
 
@@ -49874,6 +50159,17 @@ async function _tfNegLoadNeeds() {
 async function _tfNegLoadOffers(playerId) {
   try { _TF_NEG.offers[playerId] = _thUnwrap(await _tfNegApi('GET', '/offers/player/' + playerId)); } catch (_) {}
   return _TF_NEG.offers[playerId];
+}
+async function _tfNegLoadMyNeeds() {
+  try { _TF_NEG.myNeeds = _thUnwrap(await _tfNegApi('GET', '/needs/mine')); } catch (_) {}
+  return _TF_NEG.myNeeds;
+}
+// The players THIS club owns that fit another club's need. One request per
+// need opened, never one per player — the server scores the whole squad.
+async function _tfNegLoadNeedMatches(needId) {
+  try { _TF_NEG.needMatches[needId] = _thUnwrap(await _tfNegApi('GET', '/needs/' + needId + '/matches')); }
+  catch (e) { _TF_NEG.needMatches[needId] = { items: [], error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_NEG.needMatches[needId];
 }
 async function _tfNegLoadMatches(playerId, ask) {
   try {
@@ -49986,7 +50282,9 @@ function _tfOfferListHtml(rows, isOwner, empty) {
       + (iAnswer
         ? '<div class="tf-offer-acts">'
           + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-offer-reject="' + _tfEsc(o.id) + '">REJECT</button>'
-          + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '">COUNTER</button>'
+          + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '" data-tf-fee="' + o.feeEur + '"'
+          + ' data-tf-player="' + _tfEsc(o.playerId) + '" data-tf-name="' + _tfEsc(o.player ? (o.player.firstName + ' ' + o.player.lastName) : '') + '"'
+          + ' data-tf-club="' + _tfEsc(theirs ? theirs.name : '') + '">COUNTER</button>'
           + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-offer-accept="' + _tfEsc(o.id) + '">ACCEPT</button>'
           + '</div>'
         : iOwn
@@ -50042,6 +50340,332 @@ function _tfSellRender() {
     +   _tfContractHtml(_TF_SELL.ctxId, p)
     + '</div></div>';
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// THE FORMS — what the browser's prompt() used to do, done properly
+// ══════════════════════════════════════════════════════════════════════════════
+// Three things in this module used to be native dialogs: publishing a need,
+// naming an offer, and naming a counter. A prompt() cannot show a player, a
+// budget, a validation message or a second field, and it looks like nothing
+// else in the product — so each is now a panel in the market's own language.
+//
+// It has its own host, appended once and rendered only by _tfFormRender. The
+// market's clock repaints #tf-body and #tf-overlay every second; a form living
+// in either of those would have its half-typed values thrown away, and the box
+// would move as the table behind it changed. This host is touched by nothing
+// but the form itself.
+//
+// Nothing here is a new transfer system. Every button ends in the endpoints
+// that already exist: POST/PATCH /needs, POST /offers, POST /offers/:id/counter.
+var _TF_FORM = null;      // { kind, title, values, busy, error, … }
+
+var TF_FOOT_OPTIONS = [['', 'Any'], ['RIGHT', 'Right'], ['LEFT', 'Left'], ['BOTH', 'Both']];
+// A stated preference, not a settlement path. Loan is deliberately absent:
+// the platform settles permanent transfers only, and offering "Loan" here
+// would advertise a deal the market cannot actually complete.
+var TF_CONTRACT_OPTIONS = [['', 'Any'], ['PERMANENT', 'Permanent'], ['EITHER', 'Either']];
+var TF_EXPIRY_OPTIONS = [['24', '24 hours'], ['48', '48 hours'], ['168', '7 days'], ['', 'No expiry']];
+
+function _tfAllPlaystyles() {
+  var out = [];
+  ['gk', 'df', 'mf', 'fw'].forEach(function (c) {
+    (TF_PLAYSTYLES[c] || []).forEach(function (s) { if (out.indexOf(s) < 0) out.push(s); });
+  });
+  return out;
+}
+
+function _tfFormHost() {
+  var h = document.getElementById('tf-form-host');
+  if (!h) { h = document.createElement('div'); h.id = 'tf-form-host'; document.body.appendChild(h); }
+  return h;
+}
+function _tfFormRender() {
+  var host = _tfFormHost();
+  host.innerHTML = _TF_FORM ? _tfFormHtml() : '';
+  host.classList.toggle('is-on', !!_TF_FORM);
+  if (_TF_FORM) {
+    var first = host.querySelector('[data-tf-focus]');
+    if (first) { try { first.focus(); } catch (_) {} }
+  }
+}
+function _tfFormClose() { _TF_FORM = null; _tfFormRender(); }
+
+// ── opening ──────────────────────────────────────────────────────────────────
+function _tfFormOpenNeed(existing) {
+  var n = existing || null;
+  var pos = (n && n.positions && n.positions.length) ? n.positions.slice() : [];
+  _TF_FORM = {
+    kind: 'need',
+    needId: n ? n.id : null,
+    values: {
+      primary: pos[0] || 'ST',
+      extra: pos.slice(1),
+      ageMin: n && n.ageMin != null ? n.ageMin : '',
+      ageMax: n && n.ageMax != null ? n.ageMax : '',
+      ratingMin: n && n.ratingMin != null ? n.ratingMin : '',
+      ratingMax: n && n.ratingMax != null ? n.ratingMax : '',
+      budgetMin: n && n.budgetMinEur != null ? n.budgetMinEur / 1e6 : '',
+      budgetMax: n && n.budgetMaxEur != null ? n.budgetMaxEur / 1e6 : '',
+      preferredFoot: (n && n.preferredFoot) || '',
+      nationality: (n && n.nationality) || '',
+      playstyle: (n && n.playstyle) || '',
+      contractPreference: (n && n.contractPreference) || '',
+      priority: (n && n.priority) || 'MEDIUM',
+      expiry: '',
+      note: (n && n.note) || '',
+    },
+    busy: false, error: null,
+  };
+  _tfFormRender();
+}
+function _tfFormOpenOffer(playerId, kind, offerId, suggested, player) {
+  _TF_FORM = {
+    kind: kind === 'counter' ? 'counter' : 'offer',
+    playerId: playerId, offerId: offerId || null,
+    player: player || null,
+    values: { fee: Math.max(0, Math.round(suggested || 0)) },
+    busy: false, error: null,
+  };
+  _tfFormRender();
+}
+
+// ── reading what was typed ───────────────────────────────────────────────────
+// The DOM is the source of truth while the panel is open, so a repaint (an
+// error, a chip toggled) never loses a field the manager already filled in.
+function _tfFormSync() {
+  if (!_TF_FORM) return;
+  var host = _tfFormHost(), v = _TF_FORM.values;
+  host.querySelectorAll('[data-tf-fld]').forEach(function (el) {
+    v[el.getAttribute('data-tf-fld')] = el.value;
+  });
+}
+var _tfNum = function (x) {
+  if (x === '' || x === null || x === undefined) return undefined;
+  var n = Number(String(x).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n : undefined;
+};
+
+// ── the need panel ───────────────────────────────────────────────────────────
+function _tfFormNeedHtml() {
+  var v = _TF_FORM.values;
+  var editing = !!_TF_FORM.needId;
+  var seg = function (field, options, current) {
+    return '<div class="tf-fm-seg">' + options.map(function (o) {
+      return '<button type="button" class="tf-fm-segb' + (String(current) === String(o[0]) ? ' is-on' : '') + '"'
+        + ' data-tf-set="' + field + '" data-tf-val="' + _tfEsc(o[0]) + '">' + _tfEsc(o[1]) + '</button>';
+    }).join('') + '</div>';
+  };
+  var sel = function (field, options, current, focus) {
+    return '<select class="tf-fm-in" data-tf-fld="' + field + '"' + (focus ? ' data-tf-focus' : '') + '>'
+      + options.map(function (o) {
+        var val = o[0] === undefined ? o : o[0], label = o[1] === undefined ? o : o[1];
+        return '<option value="' + _tfEsc(val) + '"' + (String(current) === String(val) ? ' selected' : '') + '>'
+          + _tfEsc(label) + '</option>';
+      }).join('') + '</select>';
+  };
+  var pair = function (label, a, b, unit, ph) {
+    return '<label class="tf-fm-f"><span>' + _tfEsc(label) + '</span><div class="tf-fm-pair">'
+      + '<input class="tf-fm-in" type="number" inputmode="numeric" data-tf-fld="' + a[0] + '" value="' + _tfEsc(a[1]) + '" placeholder="' + (ph || 'Any') + '">'
+      + '<i>–</i>'
+      + '<input class="tf-fm-in" type="number" inputmode="numeric" data-tf-fld="' + b[0] + '" value="' + _tfEsc(b[1]) + '" placeholder="' + (ph || 'Any') + '">'
+      + (unit ? '<em>' + _tfEsc(unit) + '</em>' : '') + '</div></label>';
+  };
+  var extras = TF_NEED_POSITIONS.map(function (d) { return d[0]; }).filter(function (p) { return p !== v.primary; });
+
+  return '<div class="tf-fm-grid">'
+    + '<label class="tf-fm-f"><span>Position</span>'
+    +   sel('primary', TF_NEED_POSITIONS, v.primary, true) + '</label>'
+    + '<div class="tf-fm-f tf-fm-f--wide"><span>Additional positions</span>'
+    +   '<div class="tf-fm-chips">' + extras.map(function (p) {
+      var on = v.extra.indexOf(p) >= 0;
+      return '<button type="button" class="tf-fm-chip' + (on ? ' is-on' : '') + '" data-tf-xpos="' + p + '">' + p + '</button>';
+    }).join('') + '</div></div>'
+    + pair('Age', ['ageMin', v.ageMin], ['ageMax', v.ageMax], 'yrs')
+    + pair('Overall rating', ['ratingMin', v.ratingMin], ['ratingMax', v.ratingMax], 'OVR')
+    + pair('Budget', ['budgetMin', v.budgetMin], ['budgetMax', v.budgetMax], '€M')
+    + '<label class="tf-fm-f"><span>Preferred foot</span>' + sel('preferredFoot', TF_FOOT_OPTIONS, v.preferredFoot) + '</label>'
+    + '<label class="tf-fm-f"><span>Nationality</span>'
+    +   sel('nationality', [['', 'Any']].concat(TF_NATIONS.map(function (n) { return [n[0], n[2] + ' ' + n[0]]; })), v.nationality) + '</label>'
+    + '<label class="tf-fm-f"><span>Playstyle</span>'
+    +   sel('playstyle', [['', 'Any']].concat(_tfAllPlaystyles().map(function (s) { return [s, s]; })), v.playstyle) + '</label>'
+    + '<label class="tf-fm-f"><span>Contract preference</span>' + sel('contractPreference', TF_CONTRACT_OPTIONS, v.contractPreference) + '</label>'
+    + '<div class="tf-fm-f"><span>Priority</span>' + seg('priority', [['MEDIUM', 'Normal'], ['HIGH', 'Urgent']], v.priority) + '</div>'
+    + '<div class="tf-fm-f"><span>' + (editing ? 'Extend expiry' : 'Expires') + '</span>' + seg('expiry', TF_EXPIRY_OPTIONS, v.expiry) + '</div>'
+    + '<label class="tf-fm-f tf-fm-f--wide"><span>Notes <em>only your club sees this</em></span>'
+    +   '<textarea class="tf-fm-in tf-fm-ta" rows="2" maxlength="500" data-tf-fld="note" placeholder="Optional">' + _tfEsc(v.note) + '</textarea></label>'
+    + '</div>';
+}
+
+// ── the offer panel ──────────────────────────────────────────────────────────
+function _tfFormOfferHtml() {
+  var f = _TF_FORM, p = f.player || {};
+  var rows = [];
+  if (p.name) rows.push(['Player', p.name + (p.pos ? ' · ' + p.pos : '') + (p.qual ? ' · OVR ' + p.qual : '')]);
+  if (p.club) rows.push([f.kind === 'counter' ? 'Buying club' : 'Selling club', p.club]);
+  if (p.mv) rows.push(['Market value', _tfMoney(p.mv)]);
+  if (p.ask) rows.push(['Asking price', _tfMoney(p.ask)]);
+  if (f.kind === 'counter' && p.was) rows.push(['Their offer', _tfMoney(p.was)]);
+  return '<div class="tf-fm-offer">'
+    + (rows.length ? '<div class="tf-ct-facts">' + rows.map(function (r) {
+      return '<div><i>' + _tfEsc(r[0]) + '</i><b>' + _tfEsc(r[1]) + '</b></div>';
+    }).join('') + '</div>' : '')
+    + '<div class="tf-step">'
+    +   '<span>' + (f.kind === 'counter' ? 'Counter at' : 'Offer') + '</span>'
+    +   '<button type="button" class="tf-step-b" data-tf-fee-step="-1" aria-label="Lower">–</button>'
+    +   '<input class="tf-fm-in" type="number" inputmode="numeric" data-tf-fld="fee" value="' + _tfEsc(f.values.fee) + '" data-tf-focus>'
+    +   '<button type="button" class="tf-step-b" data-tf-fee-step="1" aria-label="Raise">+</button>'
+    +   '<em>' + _tfMoney(Number(f.values.fee) || 0) + '</em>'
+    + '</div>'
+    + '<p class="tf-note">' + (f.kind === 'counter'
+      ? 'The other club answers this figure. Nothing moves until they accept.'
+      : 'The owning club is told, and answers. Nothing moves until they accept.') + '</p>'
+    + '</div>';
+}
+
+function _tfFormHtml() {
+  var f = _TF_FORM;
+  var title = f.kind === 'need' ? (f.needId ? 'EDIT PLAYER NEED' : 'PUBLISH PLAYER NEED')
+    : f.kind === 'counter' ? 'COUNTER OFFER' : 'MAKE AN OFFER';
+  var cta = f.kind === 'need' ? (f.needId ? 'SAVE NEED' : 'PUBLISH NEED')
+    : f.kind === 'counter' ? 'SEND COUNTER' : 'SEND OFFER';
+  var body = f.kind === 'need' ? _tfFormNeedHtml() : _tfFormOfferHtml();
+  return '<div class="tf-modal tf-scope" data-tf-modal="form">'
+    + '<div class="tf-modal-bd" data-tf-form-close></div>'
+    + '<div class="tf-modal-box tf-fm" role="dialog" aria-modal="true" aria-label="' + _tfEsc(title) + '">'
+    +   '<header class="tf-fm-head"><h3>' + _tfEsc(title) + '</h3>'
+    +     '<button type="button" class="tf-x" data-tf-form-close aria-label="Close">×</button></header>'
+    +   '<div class="tf-fm-body">' + body
+    +     (f.error ? '<p class="tf-fm-err">' + _tfEsc(f.error) + '</p>' : '') + '</div>'
+    +   '<footer class="tf-fm-acts">'
+    +     '<button type="button" class="tf-btn tf-btn--danger" data-tf-form-close>CANCEL</button>'
+    +     '<button type="button" class="tf-btn tf-btn--primary" data-tf-form-submit' + (f.busy ? ' disabled' : '') + '>'
+    +       (f.busy ? 'WORKING…' : cta) + '</button>'
+    +   '</footer>'
+    + '</div></div>';
+}
+
+// ── sending ──────────────────────────────────────────────────────────────────
+function _tfFormFail(err) {
+  _TF_FORM.busy = false;
+  _TF_FORM.error = (err && (err.userMessage || err.message)) || 'The server refused that.';
+  _tfFormRender();
+}
+function _tfFormSubmit() {
+  if (!_TF_FORM || _TF_FORM.busy) return;
+  _tfFormSync();
+  var f = _TF_FORM, v = f.values;
+
+  if (f.kind === 'need') {
+    var positions = [v.primary].concat(v.extra).filter(Boolean);
+    if (!positions.length) { f.error = 'Choose at least one position.'; _tfFormRender(); return; }
+    var ageMin = _tfNum(v.ageMin), ageMax = _tfNum(v.ageMax);
+    if (ageMin !== undefined && ageMax !== undefined && ageMin > ageMax) {
+      f.error = 'The minimum age is above the maximum.'; _tfFormRender(); return;
+    }
+    var ratMin = _tfNum(v.ratingMin), ratMax = _tfNum(v.ratingMax);
+    if (ratMin !== undefined && ratMax !== undefined && ratMin > ratMax) {
+      f.error = 'The minimum rating is above the maximum.'; _tfFormRender(); return;
+    }
+    var budMin = _tfNum(v.budgetMin), budMax = _tfNum(v.budgetMax);
+    if (budMin !== undefined && budMax !== undefined && budMin > budMax) {
+      f.error = 'The minimum budget is above the maximum.'; _tfFormRender(); return;
+    }
+    var hours = _tfNum(v.expiry);
+    var dto = {
+      positions: positions,
+      ageMin: ageMin, ageMax: ageMax,
+      ratingMin: ratMin, ratingMax: ratMax,
+      budgetMinEur: budMin === undefined ? undefined : Math.round(budMin * 1e6),
+      budgetMaxEur: budMax === undefined ? undefined : Math.round(budMax * 1e6),
+      nationality: v.nationality || undefined,
+      preferredFoot: v.preferredFoot || undefined,
+      playstyle: v.playstyle || undefined,
+      contractPreference: v.contractPreference || undefined,
+      priority: v.priority || 'MEDIUM',
+      note: v.note || undefined,
+      expiresAt: hours ? new Date(Date.now() + hours * 3600000).toISOString() : undefined,
+    };
+    f.busy = true; f.error = null; _tfFormRender();
+    var call = f.needId ? _tfNegApi('PATCH', '/needs/' + f.needId, dto) : _tfNegApi('POST', '/needs', dto);
+    call.then(function () {
+      _tfToast(f.needId ? 'Need updated' : 'Need published', 'success');
+      _TF_NEG.needs = null; _tfFormClose(); _tfRenderBody();
+    }).catch(_tfFormFail);
+    return;
+  }
+
+  var fee = Math.round(Number(String(v.fee).replace(/[^0-9.]/g, '')) || 0);
+  if (!fee || fee <= 0) { f.error = 'Enter an amount above zero.'; _tfFormRender(); return; }
+  f.busy = true; f.error = null; _tfFormRender();
+  if (f.kind === 'counter') {
+    _tfNegApi('POST', '/offers/' + f.offerId + '/counter', { feeEur: fee })
+      .then(function () {
+        _tfToast('Counter sent', 'success');
+        _TF_NEG.offers = {}; _TF_NEG.activity = null; _tfFormClose();
+        return _tfNegLoadActivity();
+      })
+      .then(function () { _tfNotifLoad(); _tfRenderOverlay(); _tfRenderBody(); })
+      .catch(_tfFormFail);
+    return;
+  }
+  _tfNegApi('POST', '/offers', { playerId: f.playerId, feeEur: fee })
+    .then(function () {
+      _tfToast('Offer sent', 'success');
+      _TF_NEG.activity = null; _tfFormClose();
+      return _tfNegLoadOffers(f.playerId);
+    })
+    .then(function () { _tfRenderOverlay(); })
+    .catch(_tfFormFail);
+}
+
+(function _tfFormWire() {
+  if (typeof document === 'undefined' || window.__tfFormWired) return;
+  window.__tfFormWired = true;
+
+  document.addEventListener('click', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var el;
+    if (t.closest('[data-tf-form-close]')) { e.preventDefault(); _tfFormClose(); return; }
+    if (t.closest('[data-tf-form-submit]')) { e.preventDefault(); _tfFormSubmit(); return; }
+    if (!_TF_FORM) return;
+    // A position chip and a segmented choice repaint the panel, so what is
+    // already typed is read back out of the DOM first.
+    if ((el = t.closest('[data-tf-xpos]'))) {
+      e.preventDefault(); _tfFormSync();
+      var p = el.getAttribute('data-tf-xpos'), ex = _TF_FORM.values.extra, i = ex.indexOf(p);
+      if (i >= 0) ex.splice(i, 1); else ex.push(p);
+      _tfFormRender(); return;
+    }
+    if ((el = t.closest('[data-tf-set]'))) {
+      e.preventDefault(); _tfFormSync();
+      _TF_FORM.values[el.getAttribute('data-tf-set')] = el.getAttribute('data-tf-val');
+      _tfFormRender(); return;
+    }
+    if ((el = t.closest('[data-tf-fee-step]'))) {
+      e.preventDefault(); _tfFormSync();
+      var d = parseInt(el.getAttribute('data-tf-fee-step'), 10) || 0;
+      var base = Number(_TF_FORM.values.fee) || 0;
+      var step = _tfPriceStep(base || (_TF_FORM.player && _TF_FORM.player.mv) || 1e6);
+      _TF_FORM.values.fee = Math.max(0, Math.round(base + d * step));
+      _tfFormRender(); return;
+    }
+  });
+
+  // The amount reads back as it is typed, so the euro figure beside it is
+  // never stale, and Enter sends while Escape closes.
+  document.addEventListener('input', function (e) {
+    if (!_TF_FORM || !e.target || !e.target.getAttribute) return;
+    if (e.target.getAttribute('data-tf-fld') !== 'fee') return;
+    _TF_FORM.values.fee = e.target.value;
+    var em = _tfFormHost().querySelector('.tf-step em');
+    if (em) em.textContent = _tfMoney(Number(e.target.value) || 0);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!_TF_FORM) return;
+    if (e.key === 'Escape') { e.preventDefault(); _tfFormClose(); return; }
+    if (e.key === 'Enter' && e.target && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); _tfFormSubmit(); }
+  });
+})();
 
 (function _tfSellWire() {
   if (typeof document === 'undefined' || window.__tfSellWired) return;
@@ -50157,14 +50781,11 @@ function _tfSellRender() {
       var opid = el.getAttribute('data-tf-offer-open');
       var lot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === opid; })[0];
       var suggested = lot ? (lot.ask || lot.mv || 0) : 0;
-      var typed = window.prompt('Offer for this player, in euros:', String(suggested));
-      if (typed === null) return;
-      var fee = Math.round(Number(String(typed).replace(/[^0-9.]/g, '')));
-      if (!fee || fee <= 0) { _tfToast('Enter an amount above zero', 'error'); return; }
-      _tfNegApi('POST', '/offers', { playerId: opid, feeEur: fee })
-        .then(function () { _tfToast('Offer sent', 'success'); return _tfNegLoadOffers(opid); })
-        .then(function () { _TF_NEG.activity = null; _tfRenderOverlay(); })
-        .catch(function (err) { _tfToast('Offer refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      // The panel names the player, his club and what he is worth before it
+      // asks for a figure — and it sends through the same POST /offers.
+      _tfFormOpenOffer(opid, 'offer', null, suggested, lot ? {
+        name: lot.name, pos: lot.pos, qual: lot.qual, club: lot.club, mv: lot.mv, ask: lot.ask,
+      } : null);
       return;
     }
     if ((el = t.closest('[data-tf-offer-accept],[data-tf-offer-reject],[data-tf-offer-withdraw],[data-tf-offer-counter]'))) {
@@ -50174,16 +50795,16 @@ function _tfSellRender() {
       var verb = el.hasAttribute('data-tf-offer-accept') ? 'accept'
                : el.hasAttribute('data-tf-offer-reject') ? 'reject'
                : el.hasAttribute('data-tf-offer-withdraw') ? 'withdraw' : 'counter';
-      var payload;
       if (verb === 'counter') {
         var was = Number(el.getAttribute('data-tf-fee') || 0);
-        var ask = window.prompt('Counter at, in euros:', String(was));
-        if (ask === null) return;
-        var cfee = Math.round(Number(String(ask).replace(/[^0-9.]/g, '')));
-        if (!cfee || cfee <= 0) { _tfToast('Enter an amount above zero', 'error'); return; }
-        payload = { feeEur: cfee };
+        var clot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === el.getAttribute('data-tf-player'); })[0];
+        _tfFormOpenOffer(null, 'counter', oid, was, {
+          name: el.getAttribute('data-tf-name') || (clot && clot.name) || '', was: was,
+          club: el.getAttribute('data-tf-club') || '', mv: clot ? clot.mv : 0,
+        });
+        return;
       }
-      _tfNegApi('POST', '/offers/' + oid + '/' + verb, payload)
+      _tfNegApi('POST', '/offers/' + oid + '/' + verb, undefined)
         .then(function (r) {
           var done = _thUnwrap(r) || {};
           _tfToast(verb === 'accept'
@@ -50211,24 +50832,75 @@ function _tfSellRender() {
     // ── recruitment needs ───────────────────────────────────────────────
     if (t.closest('[data-tf-need-new]')) {
       e.preventDefault(); e.stopPropagation();
-      var pos = window.prompt('Positions you are looking for (comma separated, e.g. ST,AMC):', '');
-      if (pos === null || !String(pos).trim()) return;
-      var rating = window.prompt('Minimum overall rating (blank for any):', '');
-      var budget = window.prompt('Maximum budget in euros (blank for any):', '');
-      _tfNegApi('POST', '/needs', {
-        positions: String(pos).split(','),
-        ratingMin: rating ? Number(String(rating).replace(/[^0-9]/g, '')) : undefined,
-        budgetMaxEur: budget ? Number(String(budget).replace(/[^0-9]/g, '')) : undefined,
-        priority: 'MEDIUM',
-      }).then(function () { _tfToast('Need published', 'success'); _TF_NEG.needs = null; _tfRenderBody(); })
-        .catch(function (err) { _tfToast('Could not publish — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      _tfFormOpenNeed(null);
+      return;
+    }
+    if ((el = t.closest('[data-tf-need-edit]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var editId = el.getAttribute('data-tf-need-edit');
+      var mineRows = ((_TF_NEG.needs && _TF_NEG.needs.items) || []).filter(function (n) { return n.id === editId; });
+      if (mineRows.length) _tfFormOpenNeed(mineRows[0]);
       return;
     }
     if ((el = t.closest('[data-tf-need-close]'))) {
       e.preventDefault(); e.stopPropagation();
       _tfNegApi('DELETE', '/needs/' + el.getAttribute('data-tf-need-close'))
-        .then(function () { _tfToast('Need closed', 'info'); _TF_NEG.needs = null; _tfRenderBody(); })
-        .catch(function (err) { _tfToast('Could not close — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+        .then(function () {
+          _tfToast('Need deactivated', 'info');
+          _TF_NEG.needs = null; _TF_NEG.myNeeds = null;
+          return Promise.all([_tfNegLoadNeeds(), _TF_NEG.needView === 'mine' ? _tfNegLoadMyNeeds() : null]);
+        })
+        .then(function () { _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Could not deactivate — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    // Putting one back on the board is the same PATCH the panel uses.
+    if ((el = t.closest('[data-tf-need-reopen]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _tfNegApi('PATCH', '/needs/' + el.getAttribute('data-tf-need-reopen'), { isActive: true })
+        .then(function () {
+          _tfToast('Need is back on the board', 'success');
+          _TF_NEG.needs = null; _TF_NEG.myNeeds = null;
+          return Promise.all([_tfNegLoadNeeds(), _tfNegLoadMyNeeds()]);
+        })
+        .then(function () { _tfRenderBody(); })
+        .catch(function (err) { _tfToast('Could not reopen — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    // ── the board's own controls ────────────────────────────────────────
+    if ((el = t.closest('[data-tf-needview]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_NEG.needView = el.getAttribute('data-tf-needview');
+      _TF_NEG.needOpen = null;
+      if (_TF_NEG.needView === 'mine' && !_TF_NEG.myNeeds) {
+        _tfNegLoadMyNeeds().then(function () { _tfRenderBody(); });
+      }
+      _tfRenderBody();
+      return;
+    }
+    if ((el = t.closest('[data-tf-need-matches]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var nid = el.getAttribute('data-tf-need-matches');
+      _TF_NEG.needOpen = _TF_NEG.needOpen === nid ? null : nid;
+      _tfNeedsRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-tf-need-player]'))) {
+      e.preventDefault(); e.stopPropagation();
+      // the player is ours — his profile is the one the squad already opens
+      var mpid = el.getAttribute('data-tf-need-player');
+      if (typeof sqOpenPlayer === 'function') { try { sqOpenPlayer(mpid); return; } catch (_) {} }
+      var mlot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === mpid; })[0];
+      if (mlot) _tfOpen(mlot.id);
+      return;
+    }
+    if ((el = t.closest('[data-tf-need-club]'))) {
+      e.preventDefault(); e.stopPropagation();
+      // Narrow the board to that club — the market has no club page of its own,
+      // and inventing one is Group 3's business, not this group's.
+      _TF_NEG.needFilters.club = el.getAttribute('data-tf-need-clubname') || '';
+      _TF_NEG.needView = 'all';
+      _tfRenderBody();
       return;
     }
     // ── the club's inbox ────────────────────────────────────────────────
@@ -50285,6 +50957,25 @@ function _tfSellRender() {
     }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _TF_SELL) _tfSellClose(); });
+
+  // ── the needs board's filters ─────────────────────────────────────────────
+  // A filter narrows the copy of the feed already in hand and repaints the
+  // list alone. No request, no page redraw, and the control being typed into
+  // is never replaced under the cursor.
+  var needsRepaintFrom = function (t) {
+    var key = t.getAttribute('data-tf-needf');
+    _TF_NEG.needFilters[key] = t.value;
+    _TF_NEG.needOpen = null;
+    _tfNeedsRepaint();
+  };
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t && t.getAttribute && t.getAttribute('data-tf-needf')) needsRepaintFrom(t);
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.getAttribute && t.getAttribute('data-tf-needf')) needsRepaintFrom(t);
+  });
 })();
 
 // Repaint whichever squad surface the manager listed from.

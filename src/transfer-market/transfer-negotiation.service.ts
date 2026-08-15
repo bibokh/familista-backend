@@ -576,10 +576,17 @@ export async function readMarketNeeds(actor: MarketActor) {
     where: { isActive: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
     orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }], take: 200,
   });
+  // How many of this club's own players fit each need, so the board can show
+  // the opportunity without a request per card. One query for the squad, then
+  // arithmetic — the count is never a count of anybody else's players.
+  const squad = await prisma.player.findMany({
+    where: { clubId: actor.clubId, isActive: true }, select: squadSelect, take: 500,
+  });
   const items = await Promise.all(rows.map(async (n) => ({
     ...needShape(n, n.clubId === actor.clubId),
     club: await publicClub(n.clubId),
     isMine: n.clubId === actor.clubId,
+    myMatches: n.clubId === actor.clubId ? 0 : scoreSquadAgainstNeed(squad, n).filter((r) => r.eligible).length,
   })));
   return { items };
 }
@@ -693,6 +700,81 @@ export async function matchesForPlayer(actor: MarketActor, playerId: string, ask
     };
   }));
   return { items: rows.sort((a, b) => b.matchPct - a.matchPct) };
+}
+
+// ── the other direction: which of MY players fit THAT club's need ───────────
+// The market board asks two questions at once — "who is looking for a player"
+// and "do I own one" — and both have to be answered without a request per
+// player. One query reads the need, one reads this club's own squad, and the
+// scoring is the same pure function the rest of the module uses. Nothing is
+// read from the client: the squad is the authenticated club's, always, so a
+// club can only ever be told about players it already owns.
+//
+// "Matching" is deliberately strict about position and generous about the
+// rest: a need that names positions is not satisfied by a player who plays
+// none of them, whatever his age and price. Everything else is a share of the
+// criteria the need actually stated.
+const MATCH_FLOOR = 60;
+
+function scoreSquadAgainstNeed(
+  players: Array<{ position: string; trainedPositions: string | null; roles: string | null;
+                   dateOfBirth: Date | null; overallRating: number; marketValue: number;
+                   preferredFoot: string | null; nationality: string | null }>,
+  need: { positions: string; ageMin: number | null; ageMax: number | null;
+          ratingMin: number | null; ratingMax: number | null;
+          budgetMinEur: bigint | null; budgetMaxEur: bigint | null;
+          nationality: string | null; preferredFoot: string | null; playstyle: string | null },
+) {
+  const spec = {
+    positions: need.positions.split(',').filter(Boolean),
+    ageMin: need.ageMin, ageMax: need.ageMax, ratingMin: need.ratingMin, ratingMax: need.ratingMax,
+    budgetMinEur: need.budgetMinEur === null ? null : Number(need.budgetMinEur),
+    budgetMaxEur: need.budgetMaxEur === null ? null : Number(need.budgetMaxEur),
+    nationality: need.nationality, preferredFoot: need.preferredFoot, playstyle: need.playstyle,
+  };
+  return players.map((p) => {
+    const m = matchPlayerToNeed(p, spec);
+    const position = m.criteria.find((c) => c.key === 'position');
+    const eligible = (!position || position.ok) && m.pct >= MATCH_FLOOR;
+    return { m, eligible };
+  });
+}
+
+const squadSelect = {
+  id: true, firstName: true, lastName: true, position: true, trainedPositions: true, roles: true,
+  dateOfBirth: true, overallRating: true, marketValue: true, preferredFoot: true,
+  nationality: true, flag: true, avatar: true, number: true,
+} as const;
+
+export async function matchesForNeed(actor: MarketActor, needId: string) {
+  const need = await prisma.clubRecruitmentNeed.findUnique({ where: { id: needId } });
+  if (!need) throw new NotFoundError('Need');
+  // A need that has lapsed or been withdrawn is not something to match against.
+  if (!need.isActive || (need.expiresAt && need.expiresAt.getTime() <= Date.now())) {
+    throw new ConflictError('That need is no longer open');
+  }
+  const club = await publicClub(need.clubId);
+  const mine = need.clubId === actor.clubId;
+  // Only ever this club's own squad. A need belonging to another club never
+  // gives its author a window into anybody's roster.
+  const players = mine ? [] : await prisma.player.findMany({
+    where: { clubId: actor.clubId, isActive: true }, select: squadSelect, take: 500,
+  });
+  const scored = scoreSquadAgainstNeed(players, need);
+  const items = players.map((p, i) => ({
+    player: {
+      id: p.id, firstName: p.firstName, lastName: p.lastName, position: p.position,
+      trainedPositions: p.trainedPositions, overallRating: p.overallRating,
+      marketValue: p.marketValue, preferredFoot: p.preferredFoot,
+      nationality: p.nationality, flag: p.flag, avatar: p.avatar, number: p.number,
+      age: p.dateOfBirth ? Math.floor((Date.now() - p.dateOfBirth.getTime()) / (365.25 * 24 * 3600 * 1000)) : null,
+    },
+    matchPct: scored[i].m.pct,
+    eligible: scored[i].eligible,
+    criteria: scored[i].m.criteria,
+  })).filter((r) => r.eligible).sort((a, b) => b.matchPct - a.matchPct);
+
+  return { needId: need.id, club, need: needShape(need, mine), isMine: mine, items };
 }
 
 // ── the owner takes his player to those clubs ────────────────────────────────

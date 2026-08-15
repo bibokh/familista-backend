@@ -61,6 +61,9 @@ router.delete('/needs/:needId',                 tradeGuard, ctrl.deleteNeed);
 
 // ── matching, and the owner taking his player to a club that wants one ──────
 router.get('/matches/:playerId',                            ctrl.matchesForPlayer);
+// The mirror: the clubs' needs are public, so any club may ask which of ITS
+// OWN players fit one. The squad scored is always the caller's.
+router.get('/needs/:needId/matches',                        ctrl.matchesForNeed);
 router.post('/offer-to-clubs',                  tradeGuard, ctrl.offerPlayerToClubs);
 
 export default router;

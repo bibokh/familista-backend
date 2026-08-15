@@ -10418,3 +10418,212 @@ body.club-theme .topbar-titles{ min-width:0; }
 .tf-ct-facts b, .tf-ct-amount b, .tf-hs, .tf-qual b{
   font-variant-numeric:tabular-nums;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THE FORM PANELS — publishing a need, naming an offer, naming a counter
+   ────────────────────────────────────────────────────────────────────────────
+   These replaced three browser prompts. The panel carries the market's own
+   palette: a mustard band across the top, the silver ladder underneath, fields
+   sunk into their panel, green to send and red to cancel. It has its own host
+   so the market's clock cannot repaint it and lose what is being typed.
+   ════════════════════════════════════════════════════════════════════════════ */
+#tf-form-host{ display:none; }
+#tf-form-host.is-on{ display:block; }
+#tf-form-host .tf-modal{
+  position:fixed; inset:0; z-index:1300;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+#tf-form-host .tf-modal-bd{ position:absolute; inset:0; background:rgba(17,16,21,.62); }
+.tf-fm{
+  position:relative; width:min(680px,100%); max-height:min(86vh,900px);
+  display:flex; flex-direction:column; overflow:hidden;
+  background:linear-gradient(180deg,#c9cdce,var(--tf-side));
+  border:1px solid #9aa0a2; border-radius:8px;
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 24px 56px -26px rgba(17,16,21,.85);
+}
+.tf-fm-head{
+  flex:none; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:12px 16px;
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-bottom:2px solid #8f6d13;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38);
+}
+.tf-fm-head h3{ font-size:13px; font-weight:800; letter-spacing:.1em; color:#1f1903; }
+.tf-fm-head .tf-x{ color:#1f1903; }
+.tf-fm-body{ flex:1; min-height:0; overflow-y:auto; padding:16px; }
+.tf-fm-acts{
+  flex:none; display:flex; justify-content:flex-end; gap:10px;
+  padding:12px 16px; border-top:1px solid rgba(35,38,41,.22);
+  background:linear-gradient(180deg,var(--tf-side),#bcc0c2);
+}
+
+/* the grid of fields: two columns, and the wide ones take the row */
+.tf-fm-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 14px; }
+.tf-fm-f{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+.tf-fm-f--wide{ grid-column:1 / -1; }
+.tf-fm-f > span{
+  font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--tf-ink3);
+}
+.tf-fm-f > span em{ font-style:normal; letter-spacing:.04em; text-transform:none; opacity:.8; }
+.tf-fm-in{
+  height:34px; padding:0 10px; border-radius:5px; width:100%; min-width:0;
+  border:1px solid #9aa0a2; background:var(--tf-info); color:var(--tf-ink);
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.18);
+  font:inherit; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums;
+}
+.tf-fm-in:focus{ outline:none; border-color:#8f6d13; box-shadow:inset 0 1px 2px rgba(17,16,21,.18), 0 0 0 3px rgba(201,163,46,.28); }
+.tf-fm-ta{ height:auto; padding:8px 10px; resize:vertical; font-weight:600; line-height:1.4; }
+.tf-fm-pair{ display:flex; align-items:center; gap:7px; }
+.tf-fm-pair i{ font-style:normal; color:var(--tf-ink3); font-weight:800; }
+.tf-fm-pair em{ font-style:normal; font-size:10px; font-weight:800; color:var(--tf-ink3); flex:none; }
+
+/* position chips and segmented choices: pressable grey keys, gold when chosen */
+.tf-fm-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.tf-fm-chip, .tf-fm-segb{
+  padding:6px 11px; border-radius:4px; cursor:pointer;
+  border:1px solid #9aa0a2; background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
+  color:var(--tf-ink); font:inherit; font-size:11px; font-weight:800; letter-spacing:.04em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
+}
+.tf-fm-chip:hover, .tf-fm-segb:hover{ background:linear-gradient(180deg,#e0d3a6,#d6c795); }
+.tf-fm-chip.is-on, .tf-fm-segb.is-on{
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
+  border-color:#8f6d13; color:#1f1903;
+}
+.tf-fm-seg{ display:flex; gap:6px; flex-wrap:wrap; }
+
+/* naming an offer */
+.tf-fm-offer{ display:flex; flex-direction:column; gap:14px; }
+.tf-fm-offer .tf-step input{ background:var(--tf-info); border-color:#9aa0a2; color:var(--tf-ink); }
+.tf-fm-offer .tf-step-b{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
+  border-color:#9aa0a2; color:var(--tf-ink); border-radius:4px;
+}
+.tf-fm-offer .tf-step em{ color:#6b5310; }
+.tf-fm-err{
+  margin-top:12px; padding:9px 11px; border-radius:5px;
+  background:rgba(201,40,54,.16); border:1px solid #95121f; color:#7d1420;
+  font-size:11.5px; font-weight:700;
+}
+@media (max-width:640px){
+  .tf-fm-grid{ grid-template-columns:1fr; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CLUB NEEDS — the public board
+   ────────────────────────────────────────────────────────────────────────────
+   Cards at the density of the auction table: who wants a player, what kind,
+   how long is left, and — the reason a club reads this board at all — how many
+   of its own players fit. The matches open inside the card on the same
+   near-black panel every other decision uses.
+   ════════════════════════════════════════════════════════════════════════════ */
+#pg-transfers .tf-nd-bar{
+  display:flex; flex-direction:column; gap:9px; margin-bottom:12px;
+  padding:11px 12px; border-radius:7px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
+  border:1px solid var(--tf-line2);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.4);
+}
+#pg-transfers .tf-nd-views{ display:flex; gap:6px; flex-wrap:wrap; }
+#pg-transfers .tf-nd-filters{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+#pg-transfers .tf-nd-filters select,
+#pg-transfers .tf-nd-filters .tf-nd-num{
+  height:32px; padding:0 9px; border-radius:5px; min-width:0;
+  border:1px solid #9aa0a2; background:var(--tf-info); color:var(--tf-ink);
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.18);
+  font:inherit; font-size:11.5px; font-weight:700;
+}
+#pg-transfers .tf-nd-filters .tf-nd-num{ width:112px; font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-nd-filters .tf-search{ flex:0 1 210px; height:32px; }
+
+/* the board */
+#pg-transfers .tf-needs-list{ min-height:120px; }
+#pg-transfers .tf-needs{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; align-items:start;
+}
+#pg-transfers .tf-nd{
+  display:flex; flex-direction:column; gap:10px; padding:12px 13px; border-radius:7px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
+}
+#pg-transfers .tf-nd.is-mine{ border-color:#8f6d13; box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-gold); }
+#pg-transfers .tf-nd.has-match{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
+#pg-transfers .tf-nd-top{ display:flex; align-items:center; gap:10px; }
+#pg-transfers .tf-nd-mark{
+  width:34px; height:34px; flex:none; border-radius:6px; overflow:hidden;
+  display:inline-flex; align-items:center; justify-content:center;
+  background:linear-gradient(180deg,#c8b064,var(--tf-gold-lo)); color:#1f1903;
+  box-shadow:0 0 0 1px #8f6d13, inset 0 1px 0 rgba(255,255,255,.35);
+  font-size:12px; font-weight:900; letter-spacing:.02em;
+}
+#pg-transfers .tf-nd-mark img{ width:100%; height:100%; object-fit:cover; display:block; }
+#pg-transfers .tf-nd-mark i{ font-style:normal; }
+#pg-transfers .tf-nd-id{ min-width:0; display:flex; flex-direction:column; }
+#pg-transfers .tf-nd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tf-nd-id i{ font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.14em; color:var(--tf-ink3); }
+#pg-transfers .tf-nd-prio{
+  margin-left:auto; flex:none; padding:3px 8px; border-radius:4px;
+  font-size:9px; font-weight:900; letter-spacing:.08em;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+#pg-transfers .tf-nd-prio--high{ background:linear-gradient(180deg,#e05f6a,var(--tf-stop)); border-color:#95121f; color:#fff; }
+#pg-transfers .tf-nd-pos{ display:flex; gap:5px; flex-wrap:wrap; }
+#pg-transfers .tf-nd-facts{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:1px;
+  background:#a7acae; border-radius:6px; overflow:hidden;
+}
+#pg-transfers .tf-nd-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-info); }
+#pg-transfers .tf-nd-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tf-nd-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-nd-note{ font-size:11px; color:var(--tf-ink3); font-style:italic; }
+#pg-transfers .tf-nd-foot{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+#pg-transfers .tf-nd-when{ display:inline-flex; align-items:center; gap:6px; }
+#pg-transfers .tf-nd-when i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tf-nd-when b{
+  font-size:12px; font-weight:800; color:#1c1e20; font-variant-numeric:tabular-nums;
+  background:var(--tf-count); border:1px solid #979d9f; border-radius:4px; padding:2px 6px;
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.2);
+}
+#pg-transfers .tf-nd-state{
+  font-style:normal; font-size:9.5px; font-weight:900; letter-spacing:.1em;
+  padding:3px 8px; border-radius:4px; background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+/* the signal: this club owns players for this requirement */
+#pg-transfers .tf-nd-badge{
+  margin-left:auto; padding:4px 9px; border-radius:4px;
+  background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border:1px solid #2f8f22; color:#06280a;
+  font-size:9.5px; font-weight:900; letter-spacing:.06em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+}
+#pg-transfers .tf-hs--match{ color:#1d6b16; font-weight:800; }
+#pg-transfers .tf-nd-acts{ display:flex; gap:7px; justify-content:flex-end; flex-wrap:wrap; }
+
+/* the matches, opened inside the card */
+#pg-transfers .tf-nd-open{ margin-top:2px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+#pg-transfers .tf-nd-matches{ display:flex; flex-direction:column; gap:9px; }
+#pg-transfers .tf-nd-match{
+  display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:5px;
+  background:var(--tf-black); border:1px solid rgba(255,255,255,.12);
+}
+#pg-transfers .tf-nd-match-h{ display:flex; align-items:center; gap:9px; }
+#pg-transfers .tf-nd-match-id{ min-width:0; display:flex; flex-direction:column; }
+#pg-transfers .tf-nd-match-id b{ font-size:12.5px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tf-nd-match-id em{ font-style:normal; font-size:10.5px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-nd-pct{ margin-left:auto; flex:none; display:flex; flex-direction:column; align-items:center; }
+#pg-transfers .tf-nd-pct b{ font-size:15px; font-weight:900; color:var(--tf-on-dark); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-nd-pct i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-on-dark-2); }
+#pg-transfers .tf-nd-pct.is-hi b{ color:var(--tf-buy-2); }
+#pg-transfers .tf-nd-why{ display:flex; gap:5px; flex-wrap:wrap; }
+#pg-transfers .tf-nd-c{
+  display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:4px;
+  font-size:9.5px; font-weight:700; letter-spacing:.03em;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); color:var(--tf-on-dark-2);
+}
+#pg-transfers .tf-nd-c.is-ok{ background:rgba(72,201,52,.18); border-color:rgba(72,201,52,.45); color:#bff3b4; }
+#pg-transfers .tf-nd-c i{ font-style:normal; font-weight:900; }
+#pg-transfers .tf-nd-match-acts{ display:flex; justify-content:flex-end; gap:7px; }
+#pg-transfers .tf-nd-open .tf-btn{
+  background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.22); color:var(--tf-on-dark);
+}
+#pg-transfers .tf-nd-open .tf-btn:hover:not(:disabled){ background:rgba(255,255,255,.18); color:#fff; }

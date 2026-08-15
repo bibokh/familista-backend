@@ -170,6 +170,15 @@ export async function matchesForPlayer(req: Request, res: Response, next: NextFu
   } catch (err) { return next(err); }
 }
 
+// Which of the caller's own players fit another club's published need. The
+// club is the authenticated one, never a parameter — see matchesForNeed.
+export async function matchesForNeed(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.needId, 'needId');
+    return sendSuccess(res, await neg.matchesForNeed(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
 export async function offerPlayerToClubs(req: Request, res: Response, next: NextFunction) {
   try {
     requireUUID(req.body?.playerId, 'playerId');
