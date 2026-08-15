@@ -3342,7 +3342,13 @@ enum MarketplaceItemStatus {
   DRAFT
   ACTIVE
   PAUSED
+  // Kept: a fixed-price listing that has been bought or delisted still closes
+  // this way, and every row written before auctions existed carries it.
   CLOSED
+  // An auction says how it ended, because CLOSED could not.
+  SOLD
+  UNSOLD
+  CANCELLED
 }
 
 // ── club-to-club transfers ───────────────────────────────────────────────────
@@ -3894,8 +3900,48 @@ model MarketplaceItem {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
+  // ── how an auction ended ──────────────────────────────────────────────────
+  // CLOSED said only that a listing had stopped, which is true of a player who
+  // was sold, a player nobody wanted and a listing the seller pulled. The three
+  // are different facts about the market, so the status now says which, and the
+  // outcome of a sale is written down rather than recomputed: who won it, what
+  // it finally cost, and when it was settled. Null on every listing that has
+  // not been settled, which is every row that existed before this.
+  winnerClubId  String?
+  finalPriceEur BigInt?
+  settledAt     DateTime?
+
+  bids TransferBid[]
+
   @@index([clubId, kind, status])
   @@index([status, validFrom])
+  @@index([status, validUntil])
+}
+
+// ── one club's bid on one auction ───────────────────────────────────────────
+// A bid is an event, not a state: it happened, for an amount, at a time, and it
+// is never edited afterwards. The current highest bid is therefore never stored
+// anywhere — it is MAX(amountEur) over the rows below, which is why two clubs
+// bidding at the same instant cannot corrupt it. There is nothing to overwrite.
+//
+// The player and the selling club are deliberately absent: both are the
+// listing's, and a bid that carried its own copy could disagree with it.
+model TransferBid {
+  id           String          @id @default(uuid())
+  listingId    String
+  listing      MarketplaceItem @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  bidderClubId String
+  amountEur    BigInt
+  createdById  String?
+  createdAt    DateTime        @default(now())
+
+  // the same club cannot lodge the same amount twice on the same auction
+  @@unique([listingId, bidderClubId, amountEur])
+  // the highest bid, and the timeline, without a scan
+  @@index([listingId, amountEur])
+  @@index([listingId, createdAt])
+  // "my bids"
+  @@index([bidderClubId, createdAt])
 }
 
 // ── 9. Sports knowledge engine ──────────────────────────────────────────

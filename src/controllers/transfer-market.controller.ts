@@ -4,6 +4,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as svc from '../transfer-market/transfer-market.service';
 import * as neg from '../transfer-market/transfer-negotiation.service';
+import * as auc from '../transfer-market/transfer-auction.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -194,6 +195,43 @@ export async function readNegotiation(req: Request, res: Response, next: NextFun
   try {
     const id = requireUUID(req.params.offerId, 'offerId');
     return sendSuccess(res, await neg.readNegotiation(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+// ── auctions ────────────────────────────────────────────────────────────────
+// Every one of these resolves the acting club from the session; none of them
+// reads an owner, a bidder or a price ceiling from the request body.
+export async function listAuction(req: Request, res: Response, next: NextFunction) {
+  try {
+    requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await auc.listAuction(actor(req), req.body));
+  } catch (err) { return next(err); }
+}
+
+export async function readAuctions(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await auc.readAuctions(actor(req)));
+  } catch (err) { return next(err); }
+}
+
+export async function readAuction(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendSuccess(res, await auc.readAuction(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function placeBid(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendCreated(res, await auc.placeBid(actor(req), id, Number(req.body?.amountEur)));
+  } catch (err) { return next(err); }
+}
+
+export async function cancelAuction(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendSuccess(res, await auc.cancelAuction(actor(req), id));
   } catch (err) { return next(err); }
 }
 

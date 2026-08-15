@@ -9,6 +9,7 @@ import { mountMatchWebSocket }       from './realtime/match-ws';
 import { startIntelBroadcaster, stopIntelBroadcaster } from './live-intelligence/intel-broadcaster';
 import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
 import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
+import { startAuctionSettlementWorker, stopAuctionSettlementWorker } from './workers/auction-settlement.worker';
 import { startRetentionWorker, stopRetentionWorker } from './workers/retention.worker';
 import { startNotificationDispatchWorker, stopNotificationDispatchWorker } from './workers/notification-dispatch.worker';
 // Phase Q — stats aggregator (drains EventOutbox → rebuilds PlayerMatchStats + season rollup)
@@ -85,6 +86,7 @@ async function bootstrap() {
     safeStart('startIntelBroadcaster',      () => startIntelBroadcaster());
     safeStart('startAIAgentWorker',         () => startAIAgentWorker());
     safeStart('startAutomationScheduler',   () => startAutomationScheduler());
+    safeStart('startAuctionSettlement',     () => startAuctionSettlementWorker());
     safeStart('startStatsAggregatorWorker', () => startStatsAggregatorWorker());
     safeStart('startVideoTranscodeWorker',  () => startVideoTranscodeWorker());
 
@@ -114,6 +116,7 @@ async function bootstrap() {
     try {       stopIntelBroadcaster();      } catch (_) {}
     try { await stopAIAgentWorker();        } catch (_) {}
     try { await stopAutomationScheduler();  } catch (_) {}
+    try { await stopAuctionSettlementWorker(); } catch (_) {}
     try {       stopRetentionWorker();      } catch (_) {}
     try {       stopNotificationDispatchWorker(); } catch (_) {}
     try {       stopStatsAggregatorWorker();  } catch (_) {}

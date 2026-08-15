@@ -414,7 +414,7 @@ export async function purchase(actor: MarketActor, listingId: string) {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-async function findActiveListingForPlayer(playerId: string): Promise<MarketplaceItem | null> {
+export async function findActiveListingForPlayer(playerId: string): Promise<MarketplaceItem | null> {
   const rows = await prisma.marketplaceItem.findMany({ where: { kind: KIND, status: 'ACTIVE' }, take: 500 });
   return rows.find((r) => {
     const pl = (r.payload ?? {}) as Record<string, unknown>;
@@ -444,7 +444,7 @@ async function hydrateListing(item: MarketplaceItem) {
 
 // PlayerContractStatus is the platform's existing record of whether a player may
 // be transferred; keeping it truthful is part of listing, not a second store.
-async function setAvailability(
+export async function setAvailability(
   tx: Prisma.TransactionClient, player: Player, actor: MarketActor, on: boolean,
 ) {
   const existing = await tx.playerContractStatus.findUnique({ where: { playerId: player.id } });
@@ -466,7 +466,7 @@ async function setAvailability(
 
 // Where a bought player lands. The buying club's senior team unless it has none,
 // in which case he is club-owned but unassigned — never silently dropped.
-async function defaultTeamFor(tx: Prisma.TransactionClient, clubId: string, _position: string) {
+export async function defaultTeamFor(tx: Prisma.TransactionClient, clubId: string, _position: string) {
   return tx.team.findFirst({ where: { clubId, isActive: true, kind: 'SENIOR' }, orderBy: { createdAt: 'asc' } })
       ?? tx.team.findFirst({ where: { clubId, isActive: true }, orderBy: { createdAt: 'asc' } });
 }

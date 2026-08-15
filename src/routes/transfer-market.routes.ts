@@ -34,6 +34,16 @@ router.delete('/listings/:listingId', tradeGuard, ctrl.delistPlayer);
 // ── bootstrap: lift a club's current roster into real Player rows, once ──────
 router.post('/bootstrap', tradeGuard, ctrl.bootstrapRoster);
 
+// ── auctions: real bids, held by the server ─────────────────────────────────
+// Reading is open to every authenticated club — an auction is public. Listing,
+// bidding and cancelling are trade actions, and each one resolves the acting
+// club from the session rather than the request.
+router.get('/auctions',                                     ctrl.readAuctions);
+router.get('/auctions/:listingId',                          ctrl.readAuction);
+router.post('/auctions',                        tradeGuard, ctrl.listAuction);
+router.post('/auctions/:listingId/bids',        tradeGuard, ctrl.placeBid);
+router.post('/auctions/:listingId/cancel',      tradeGuard, ctrl.cancelAuction);
+
 // ── settlement: buyer-only, atomic, idempotent ───────────────────────────────
 router.post('/listings/:listingId/purchase', tradeGuard, ctrl.purchase);
 

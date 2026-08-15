@@ -27,6 +27,7 @@ import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { getBalance } from './transfer-market.service';
+import { settleDueAuctions } from './transfer-auction.service';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -37,7 +38,7 @@ const OFFER_TTL_MS = 3 * 24 * 60 * 60 * 1000;   // an unanswered offer lapses
 // receiving club gets the row, so whoever is logged in sees it. The payload
 // carries what the UI needs to open the right thing and nothing more — no
 // budgets, no scouting, no internal notes.
-async function notifyClub(
+export async function notifyClub(
   clubId: string,
   kind: UserNotificationKind,
   title: string,
@@ -80,7 +81,7 @@ async function playerOr404(playerId: string) {
 }
 
 const money = (v: bigint | number) => Number(v);
-const fmt = (eur: number) =>
+export const fmt = (eur: number) =>
   eur >= 1_000_000 ? '€' + (eur / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
     : eur >= 1_000 ? '€' + Math.round(eur / 1_000) + 'K' : '€' + eur;
 
@@ -285,15 +286,18 @@ export type FeedScope = 'PUBLIC' | 'CLUB';
 const FEED_TAKE = 30;
 
 export async function readMarketFeed(actor: MarketActor) {
+  // Anything whose deadline has passed is settled first, so the feed never
+  // reports a market one settlement behind.
+  await settleDueAuctions();
   const [needs, listings, history, offers, offered] = await Promise.all([
     // a club said what it is looking for
     prisma.clubRecruitmentNeed.findMany({
       where: { isActive: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
       orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
     }),
-    // a club put a player on the market
+    // a club put a player on the market, or an auction of one ended
     prisma.marketplaceItem.findMany({
-      where: { kind: 'TRANSFER_LISTING', status: 'ACTIVE' },
+      where: { kind: 'TRANSFER_LISTING', status: { in: ['ACTIVE', 'SOLD', 'UNSOLD', 'CANCELLED'] } },
       orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
     }),
     // a player changed clubs
@@ -350,12 +354,26 @@ export async function readMarketFeed(actor: MarketActor) {
   }
   for (const l of listings) {
     const pl = (l.payload ?? {}) as Record<string, unknown>;
+    const auction = pl.mode === 'AUCTION';
+    // An auction says how it ended because the listing now records it. A
+    // completed sale is already carried by the history event below, so what an
+    // auction adds here is the listing and the two endings that move nobody.
+    const kind = !auction ? 'PLAYER_LISTED'
+      : l.status === 'UNSOLD' ? 'AUCTION_UNSOLD'
+        : l.status === 'CANCELLED' ? 'AUCTION_CANCELLED'
+          : l.status === 'SOLD' ? 'AUCTION_SOLD' : 'AUCTION_LISTED';
+    if (!auction && l.status !== 'ACTIVE') continue;   // a bought listing is its transfer
     items.push({
-      id: 'listing:' + l.id, at: l.createdAt, kind: 'PLAYER_LISTED', scope: 'PUBLIC',
-      mine: l.clubId === actor.clubId, player: player(typeof pl.playerId === 'string' ? pl.playerId : null),
-      fromClub: club(l.clubId), toClub: null,
-      feeEur: typeof pl.askingPriceEur === 'number' ? pl.askingPriceEur : null,
-      status: 'ACTIVE', need: null,
+      id: 'listing:' + l.id,
+      at: l.status === 'ACTIVE' ? l.createdAt : (l.settledAt ?? l.updatedAt),
+      kind, scope: 'PUBLIC',
+      mine: l.clubId === actor.clubId || l.winnerClubId === actor.clubId,
+      player: player(typeof pl.playerId === 'string' ? pl.playerId : null),
+      fromClub: club(l.clubId), toClub: club(l.winnerClubId),
+      feeEur: l.finalPriceEur !== null ? Number(l.finalPriceEur)
+        : typeof pl.startingPriceEur === 'number' ? pl.startingPriceEur
+          : typeof pl.askingPriceEur === 'number' ? pl.askingPriceEur : null,
+      status: l.status, need: null,
     });
   }
   for (const h of history) {

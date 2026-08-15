@@ -196,7 +196,9 @@ describe('the feed is read, not written', () => {
   it('is bounded, and asks each source once', async () => {
     const feed = await readMarketFeed(actor(A));
     expect(needFindMany).toHaveBeenCalledTimes(1);
-    expect(itemFindMany).toHaveBeenCalledTimes(1);
+    // twice on this one: the feed settles auctions whose deadline has passed
+    // before it reads, so the market it reports is never one settlement behind
+    expect(itemFindMany).toHaveBeenCalledTimes(2);
     expect(historyFindMany).toHaveBeenCalledTimes(1);
     expect(offerFindMany).toHaveBeenCalledTimes(1);
     expect(p2cFindMany).toHaveBeenCalledTimes(1);

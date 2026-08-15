@@ -48069,6 +48069,8 @@ function _tfDirectOffersHtml(C) {
 var TF_FEED_VIEWS = [['global', 'GLOBAL MARKET'], ['mine', 'MY CLUB'], ['completed', 'COMPLETED TRANSFERS']];
 
 var TF_FEED_LABEL = {
+  AUCTION_LISTED: 'Auction started', AUCTION_SOLD: 'Auction sold',
+  AUCTION_UNSOLD: 'Auction ended unsold', AUCTION_CANCELLED: 'Auction cancelled',
   NEED_PUBLISHED: 'Published a need', PLAYER_LISTED: 'Listed a player',
   TRANSFER_COMPLETED: 'Transfer completed', PLAYER_OFFERED: 'Offered a player',
   PLAYER_OFFERED_TO_CLUB: 'Player offered', OFFER_MADE: 'Offer made',
@@ -48077,6 +48079,7 @@ var TF_FEED_LABEL = {
   OFFER_WITHDRAWN: 'Offer withdrawn',
 };
 var TF_FEED_TONE = {
+  AUCTION_LISTED: 'live', AUCTION_SOLD: 'done', AUCTION_UNSOLD: 'talk', AUCTION_CANCELLED: 'stop',
   TRANSFER_COMPLETED: 'done', OFFER_ACCEPTED: 'done',
   OFFER_REJECTED: 'stop', OFFER_WITHDRAWN: 'stop',
   NEED_PUBLISHED: 'need', PLAYER_LISTED: 'live',
@@ -48523,8 +48526,62 @@ function _tfNeedsHtml(C) {
 // are on and whether they are still live.
 var TF_ACT_SECTIONS = [
   ['live', 'ACTIVE NEGOTIATIONS'], ['sent', 'SENT OFFERS'], ['received', 'RECEIVED OFFERS'],
+  ['auctions', 'MY AUCTIONS'], ['bids', 'MY BIDS'],
   ['done', 'COMPLETED DEALS'], ['dead', 'REJECTED / WITHDRAWN'],
 ];
+
+// This club's side of the auction board: what it is selling, and what it has
+// bid on. Both come from the same real listing rows the board is drawn from —
+// won, lost, sold and unsold are the server's words, not a guess from a clock.
+function _tfAucMine() {
+  var rows = _TF_AUC.items || [];
+  return {
+    auctions: rows.filter(function (a) { return a.isMine; }),
+    bids: rows.filter(function (a) { return !a.isMine && a.myBidEur != null; }),
+  };
+}
+function _tfAucResultLabel(a, asBidder) {
+  if (a.status === 'CANCELLED') return 'CANCELLED';
+  if (a.status === 'UNSOLD') return 'UNSOLD';
+  if (a.status === 'SOLD') {
+    if (asBidder) return (a.winnerClub && a.winnerClub.id) === (_TH.clubId || '') ? 'WON' : 'LOST';
+    return 'SOLD';
+  }
+  return a.iLead ? 'LEADING' : (asBidder ? 'OUTBID' : 'OPEN');
+}
+function _tfAucActivityHtml(rows, asBidder, empty) {
+  if (!rows.length) return '<p class="tf-para">' + empty + '</p>';
+  return '<ol class="tf-aucs">' + rows.map(function (a) {
+    var p = a.player, name = _tfAucName(p);
+    var res = _tfAucResultLabel(a, asBidder);
+    var settled = a.status !== 'ACTIVE';
+    return '<li class="tf-auc-card" data-tf-auction="' + _tfEsc(a.listingId) + '">'
+      + '<div class="tf-auc-h">'
+      +   (p ? _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm') : '')
+      +   '<div class="tf-auc-id"><b>' + _tfEsc(name) + '</b><em>'
+      +     _tfEsc((p && p.position) || '') + ((p && p.overallRating) ? ' · OVR ' + p.overallRating : '') + '</em></div>'
+      +   '<span class="tf-auc-state tf-auc-state--' + res.toLowerCase() + '">' + res + '</span>'
+      + '</div>'
+      + (settled && a.status === 'SOLD'
+        ? '<div class="tf-deal-route">'
+          + '<span class="tf-deal-club"><i>From</i><b>' + _tfEsc((a.sellerClub && a.sellerClub.name) || '—') + '</b></span>'
+          + '<span class="tf-deal-arrow">→</span>'
+          + '<span class="tf-deal-club"><i>To</i><b>' + _tfEsc((a.winnerClub && a.winnerClub.name) || '—') + '</b></span>'
+          + '</div>'
+        : '<div class="tf-auc-club"><i>' + (asBidder ? 'Selling club' : 'Your auction') + '</i><b>'
+          + _tfEsc((a.sellerClub && a.sellerClub.name) || '—') + '</b></div>')
+      + '<div class="tf-auc-facts">'
+      +   '<div><i>' + (settled ? 'Final price' : 'Current bid') + '</i><b>'
+      +     (settled ? (a.finalPriceEur != null ? _tfMoney(a.finalPriceEur) : '—')
+        : (a.highestBidEur != null ? _tfMoney(a.highestBidEur) : 'No bids')) + '</b></div>'
+      +   '<div><i>Bids</i><b>' + a.bidCount + '</b></div>'
+      +   (a.myBidEur != null ? '<div><i>Your bid</i><b>' + _tfMoney(a.myBidEur) + '</b></div>' : '')
+      +   '<div><i>' + (settled ? 'Completed' : 'Ends in') + '</i><b>'
+      +     (settled ? (a.settledAt ? new Date(a.settledAt).toLocaleDateString() : '—')
+        : _tfAucClock(_tfAucLeft(a))) + '</b></div>'
+      + '</div></li>';
+  }).join('') + '</ol>';
+}
 
 function _tfActivityBuckets() {
   var a = _TF_NEG.activity || {};
@@ -48583,7 +48640,9 @@ function _tfActivityHtml(C) {
     _tfNegLoadDeals().then(function () { _tfActivityRepaint(); });
   }
   var b = _tfActivityBuckets();
+  var am = _tfAucMine();
   var counts = { live: b.live.length, sent: b.sent.length, received: b.received.length,
+                 auctions: am.auctions.length, bids: am.bids.length,
                  done: (_TF_NEG.deals && _TF_NEG.deals.items || []).length, dead: b.dead.length };
 
   var tabs = '<div class="tf-act-tabs">' + TF_ACT_SECTIONS.map(function (sct) {
@@ -48592,7 +48651,14 @@ function _tfActivityHtml(C) {
   }).join('') + '</div>';
 
   var body;
-  if (view === 'done') {
+  if (view === 'auctions' || view === 'bids') {
+    if (!_TF_AUC.items) _tfAucLoad().then(function () { _tfActivityRepaint(); });
+    var mineAuc = _tfAucMine();
+    body = !_TF_AUC.items ? '<p class="tf-para">Reading your auctions…</p>'
+      : view === 'auctions'
+        ? _tfAucActivityHtml(mineAuc.auctions, false, 'Your club is running no auction.')
+        : _tfAucActivityHtml(mineAuc.bids, true, 'You have not bid on anybody.');
+  } else if (view === 'done') {
     var deals = (_TF_NEG.deals && _TF_NEG.deals.items) || [];
     body = deals.length
       ? '<ol class="tf-deals">' + deals.map(_tfDealHtml).join('') + '</ol>'
@@ -48614,6 +48680,14 @@ function _tfActivityRepaint() {
   if (!el) { _tfRenderBody(); return; }
   var view = _TF.actView || 'live';
   var b = _tfActivityBuckets();
+  if (view === 'auctions' || view === 'bids') {
+    var m2 = _tfAucMine();
+    el.innerHTML = !_TF_AUC.items ? '<p class="tf-para">Reading your auctions…</p>'
+      : view === 'auctions'
+        ? _tfAucActivityHtml(m2.auctions, false, 'Your club is running no auction.')
+        : _tfAucActivityHtml(m2.bids, true, 'You have not bid on anybody.');
+    return;
+  }
   if (view === 'done') {
     var deals = (_TF_NEG.deals && _TF_NEG.deals.items) || [];
     el.innerHTML = deals.length ? '<ol class="tf-deals">' + deals.map(_tfDealHtml).join('') + '</ol>'
@@ -48784,7 +48858,184 @@ var TF_AUC_COLS = [
   ['price', 'Price', 'tf-c-money'],
   ['deadline', 'Status', 'tf-c-dl']
 ];
+// ── REAL AUCTIONS · held by the server, bid on by real clubs ────────────────
+// Everything on this board is a row in the database: the listing, the bids, the
+// winner and the price it finally went for. Nothing is generated, nobody
+// invented is bidding, and the clock is only a countdown to a deadline the
+// server holds — reaching zero does not decide anything. The result appears
+// because settlement wrote it down.
+var _TF_AUC = { items: null, detail: {}, open: null, busy: false, error: null };
+
+async function _tfAucLoad() {
+  try { _TF_AUC.items = (_thUnwrap(await _tfNegApi('GET', '/auctions')) || {}).items || []; }
+  catch (e) { _TF_AUC.items = []; _TF_AUC.error = (e && (e.userMessage || e.message)) || 'unavailable'; }
+  return _TF_AUC.items;
+}
+async function _tfAucLoadOne(listingId) {
+  try { _TF_AUC.detail[listingId] = _thUnwrap(await _tfNegApi('GET', '/auctions/' + listingId)); }
+  catch (e) { _TF_AUC.detail[listingId] = { error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_AUC.detail[listingId];
+}
+
+function _tfAucLeft(a) { return a.validUntil ? (new Date(a.validUntil).getTime() - Date.now()) : null; }
+function _tfAucClock(ms) {
+  if (ms === null) return '—';
+  if (ms <= 0) return 'CLOSED';
+  var m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
+  var h = Math.floor(m / 60);
+  var p = function (x) { return x < 10 ? '0' + x : String(x); };
+  return h > 0 ? h + ':' + p(m % 60) + ':' + p(s) : p(m) + ':' + p(s);
+}
+// The status is the server's word, not the clock's.
+function _tfAucStatusLabel(a) {
+  if (a.status === 'SOLD') return 'SOLD';
+  if (a.status === 'UNSOLD') return 'UNSOLD';
+  if (a.status === 'CANCELLED') return 'CANCELLED';
+  var left = _tfAucLeft(a);
+  if (left !== null && left <= 0) return 'ENDING';       // due, awaiting settlement
+  return a.bidCount ? 'OPEN · BIDDING' : 'OPEN';
+}
+
+function _tfAucName(p) { return p ? ((p.firstName || '') + ' ' + (p.lastName || '')).trim() : 'Player'; }
+function _tfAucAge(p) {
+  if (!p || !p.dateOfBirth) return null;
+  return Math.floor((Date.now() - new Date(p.dateOfBirth).getTime()) / (365.25 * 24 * 3600000));
+}
+
+function _tfAucRowHtml(a) {
+  var p = a.player, name = _tfAucName(p), age = _tfAucAge(p);
+  var settled = a.status !== 'ACTIVE';
+  var label = _tfAucStatusLabel(a);
+  return '<li class="tf-auc-card' + (a.isMine ? ' is-mine' : '') + (a.iLead ? ' is-leading' : '')
+    + '" data-tf-auction="' + _tfEsc(a.listingId) + '">'
+    + '<div class="tf-auc-h">'
+    +   (p ? _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm') : '')
+    +   '<div class="tf-auc-id"><b>' + _tfEsc(name) + '</b>'
+    +     '<em>' + _tfEsc((p && p.position) || '') + (age != null ? ' · ' + age + ' yrs' : '')
+    +       ((p && p.overallRating) ? ' · OVR ' + p.overallRating : '') + '</em></div>'
+    +   '<span class="tf-auc-state tf-auc-state--' + label.split(' ')[0].toLowerCase() + '">' + _tfEsc(label) + '</span>'
+    + '</div>'
+    + '<div class="tf-auc-club"><i>Selling club</i><b>' + _tfEsc((a.sellerClub && a.sellerClub.name) || 'Unknown / unavailable club')
+    +   (a.isMine ? ' <em>you</em>' : '') + '</b></div>'
+    + '<div class="tf-auc-facts">'
+    +   '<div><i>Starting</i><b>' + _tfMoney(a.startingPriceEur) + '</b></div>'
+    +   '<div><i>' + (settled ? 'Final price' : 'Current bid') + '</i>'
+    +     '<b data-tf-aucbid="' + _tfEsc(a.listingId) + '">'
+    +       (settled ? (a.finalPriceEur != null ? _tfMoney(a.finalPriceEur) : '—')
+        : (a.highestBidEur != null ? _tfMoney(a.highestBidEur) : 'No bids')) + '</b></div>'
+    +   '<div><i>Bids</i><b data-tf-aucn="' + _tfEsc(a.listingId) + '">' + a.bidCount + '</b></div>'
+    +   '<div><i>' + (settled ? 'Winner' : 'Highest bidder') + '</i><b>'
+    +     _tfEsc(settled
+      ? ((a.winnerClub && a.winnerClub.name) || (a.status === 'UNSOLD' ? 'Nobody bid' : '—'))
+      : ((a.highestBidderClub && a.highestBidderClub.name) || '—')) + '</b></div>'
+    + '</div>'
+    + '<div class="tf-auc-foot">'
+    +   (settled
+      ? '<span class="tf-auc-when">' + (a.settledAt ? new Date(a.settledAt).toLocaleString() : '') + '</span>'
+      : '<span class="tf-auc-clock"><i>Ends in</i><b data-tf-aucclock="' + _tfEsc(a.listingId) + '">'
+        + _tfEsc(_tfAucClock(_tfAucLeft(a))) + '</b></span>')
+    +   (a.myBidEur != null ? '<span class="tf-auc-my"><i>Your bid</i><b>' + _tfMoney(a.myBidEur) + '</b></span>' : '')
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-auction-open="' + _tfEsc(a.listingId) + '">'
+    +     (_TF_AUC.open === a.listingId ? 'HIDE' : 'VIEW') + '</button>'
+    +   (!settled && a.isMine
+      ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-auction-cancel="' + _tfEsc(a.listingId) + '">CANCEL</button>'
+      : '')
+    +   (!settled && !a.isMine
+      ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-auction-bid="' + _tfEsc(a.listingId) + '">'
+        + (a.iLead ? 'RAISE' : 'BID') + '</button>'
+      : '')
+    + '</div>'
+    + (_TF_AUC.open === a.listingId ? _tfAucDetailHtml(a.listingId) : '')
+    + '</li>';
+}
+
+// The detail: who is selling, what is on the table, and every bid in the order
+// it was made. A bid is a club and an amount — nothing else about either club
+// travels with it.
+function _tfAucDetailHtml(listingId) {
+  var d = _TF_AUC.detail[listingId];
+  if (!d) {
+    _tfAucLoadOne(listingId).then(function () { _tfAucRepaint(); });
+    return '<div class="tf-ct-open tf-auc-open"><p class="tf-note">Reading the auction…</p></div>';
+  }
+  if (d.error) return '<div class="tf-ct-open tf-auc-open"><p class="tf-note">' + _tfEsc(d.error) + '</p></div>';
+  var settled = d.status !== 'ACTIVE';
+  return '<div class="tf-ct-open tf-auc-open">'
+    + '<div class="tf-ct-open-t">' + (settled ? 'RESULT' : 'BIDDING') + '</div>'
+    + '<div class="tf-ct-facts">'
+    +   '<div><i>Selling club</i><b>' + _tfEsc((d.sellerClub && d.sellerClub.name) || '—') + '</b></div>'
+    +   '<div><i>Starting price</i><b>' + _tfMoney(d.startingPriceEur) + '</b></div>'
+    +   '<div><i>' + (settled ? 'Final price' : 'Current bid') + '</i><b>'
+    +     (settled ? (d.finalPriceEur != null ? _tfMoney(d.finalPriceEur) : '—')
+      : (d.highestBidEur != null ? _tfMoney(d.highestBidEur) : 'No bids')) + '</b></div>'
+    +   '<div><i>Bids</i><b>' + d.bidCount + '</b></div>'
+    +   '<div><i>' + (settled ? 'Winner' : 'Next bid at least') + '</i><b>'
+    +     (settled ? _tfEsc((d.winnerClub && d.winnerClub.name) || 'Nobody bid') : _tfMoney(d.requiredBidEur)) + '</b></div>'
+    +   '<div><i>Your bid</i><b>' + (d.myBidEur != null ? _tfMoney(d.myBidEur) : '—') + '</b></div>'
+    + '</div>'
+    + (d.timeline && d.timeline.length
+      ? '<ol class="tf-auc-tl">' + d.timeline.slice().reverse().map(function (b) {
+        return '<li class="tf-auc-tlrow' + (b.mine ? ' is-mine' : '') + '">'
+          + '<span class="tf-auc-tlclub">' + _tfEsc(b.club.name) + '</span>'
+          + '<span class="tf-auc-tlfee">' + _tfMoney(b.amountEur) + '</span>'
+          + '<span class="tf-auc-tlat">' + new Date(b.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</span>'
+          + '</li>';
+      }).join('') + '</ol>'
+      : '<p class="tf-note">No club has bid yet.</p>')
+    + (!settled && !d.isMine
+      ? '<div class="tf-auc-bidbar">'
+        + '<div class="tf-step">'
+        +   '<span>Your bid</span>'
+        +   '<button type="button" class="tf-step-b" data-tf-aucstep="-1">–</button>'
+        +   '<input class="tf-fm-in" type="number" data-tf-aucamount="' + _tfEsc(listingId) + '" value="' + d.requiredBidEur + '">'
+        +   '<button type="button" class="tf-step-b" data-tf-aucstep="1">+</button>'
+        + '</div>'
+        + '<button type="button" class="tf-btn tf-btn--primary" data-tf-auction-place="' + _tfEsc(listingId) + '">PLACE BID</button>'
+        + '</div>'
+      : '')
+    + (_TF_AUC.error ? '<p class="tf-fm-err">' + _tfEsc(_TF_AUC.error) + '</p>' : '')
+    + '</div>';
+}
+
+function _tfAucBoardHtml() {
+  var rows = _TF_AUC.items;
+  if (!rows) {
+    _tfAucLoad().then(function () { _tfRenderBody(); });
+    return '<p class="tf-para">Reading the auctions…</p>';
+  }
+  if (!rows.length) {
+    return '<p class="tf-para">No club is running an auction. When one lists a player, it appears here.</p>';
+  }
+  return '<ol class="tf-aucs">' + rows.map(_tfAucRowHtml).join('') + '</ol>';
+}
+function _tfAucRepaint() {
+  var el = document.getElementById('tf-auc-board');
+  if (el) el.innerHTML = _tfAucBoardHtml(); else _tfRenderBody();
+}
+
 function _tfAuctionsHtml(C) {
+  // The board sits above the table and takes the height it needs; the table
+  // keeps the rest and scrolls inside itself, exactly as it did before, so
+  // nothing below it moves or ends up behind anything.
+  return '<div class="tf-pane">'
+    + '<div class="tf-sec tf-sec--auc">Live auctions</div>'
+    + '<div id="tf-auc-board" class="tf-auc-board">' + _tfAucBoardHtml() + '</div>'
+    + '<div class="tf-sec tf-sec--auc">Listed at a fixed price</div>'
+    + _tfFiltersHtml(C)
+    + '<div class="tf-tablewrap">'
+    +   '<table class="tf-table"><thead><tr>'
+    +     '<th class="tf-c-star"></th>'
+    +     TF_AUC_COLS.map(function (c) {
+      var on = _TF.sort.key === c[0];
+      return '<th class="' + c[2] + (on ? ' is-sorted' : '') + '"><button type="button" data-tf-sort="' + c[0] + '">'
+        + _tfEsc(c[1]) + '<i>' + (on ? (_TF.sort.dir > 0 ? '▲' : '▼') : '') + '</i></button></th>';
+    }).join('')
+    +     '<th class="tf-c-act"></th>'
+    +   '</tr></thead><tbody id="tf-rows">' + _tfAuctionRowsHtml(C) + '</tbody></table>'
+    + '</div></div>';
+}
+
+function _tfAuctionsTableOnlyHtml(C) {
   return '<div class="tf-pane">'
     + _tfFiltersHtml(C)
     + '<div class="tf-tablewrap">'
@@ -49531,31 +49782,10 @@ function _tfTick() {
       p.__st = st; structural = true;
     }
     if (st === 'ENDED' || st === 'WON' || st === 'LOST') return;
-    // The rival clubs below are generated. They may compete for a generated
-    // lot; they must never bid on a real player another club has listed, or an
-    // invented club would take a footballer nobody can then sign.
-    if (p.server) return;
-    // Rival clubs keep bidding while a listing is open. Late in a listing they
-    // press harder, which is what makes the last minute worth watching.
-    var left = p.endsAt - now;
-    var pressure = left < 120000 ? 0.05 : left < 600000 ? 0.018 : 0.006;
-    if (Math.random() < pressure) {
-      var nb = _tfNextBid(p.bid);
-      // Outbid: this lot no longer holds any of our budget.
-      if (_tfMyLead(p)) _tfRelease(p, C);
-      p.bid = nb;
-      p.leader = _tfPick(p.seed + now, 'rival', TF_CLUBS);
-      p.bidders.unshift({ club: p.leader, amount: nb, at: now, me: false });
-      // Write the new figure into the row that is already on screen. Only if
-      // the row is not there, or the ordering depends on the bid, does the
-      // table need rebuilding.
-      // The open profile, if it is this player's, still has to show the new
-      // figure — that is a different panel, and it is only redrawn for the
-      // player being looked at.
-      if (_TF.detail && _TF.detail.id === p.id) overlay = true;
-      if (!_tfSortFollowsBid() && _tfPatchRow(p)) return;
-      structural = true;
-    }
+    // Nothing bids here any more. A bid is a row the server writes against a
+    // real auction by a real club — see the auctions board — and the generated
+    // rivals that used to raise these prices have been disconnected from the
+    // market entirely.
   });
 
   var sp = _TF.scout[_tfCtxId(C)];
@@ -49577,6 +49807,24 @@ function _tfTick() {
   }
   var sc = document.querySelector('[data-tf-scoutclock]');
   if (sc && sp) { var sl = sp.expiresAt - now; sc.textContent = sl <= 0 ? 'READY' : _tfClock(sl); }
+
+  // Auction countdowns tick in place. Reaching zero decides nothing — it only
+  // asks the server, once, what actually happened.
+  var acs = document.querySelectorAll('[data-tf-aucclock]'), k;
+  var dueSeen = false;
+  for (k = 0; k < acs.length; k++) {
+    var alid = acs[k].getAttribute('data-tf-aucclock');
+    var arow = (_TF_AUC.items || []).filter(function (x) { return x.listingId === alid; })[0];
+    if (!arow) continue;
+    var aleft = _tfAucLeft(arow);
+    acs[k].textContent = _tfAucClock(aleft);
+    if (aleft !== null && aleft <= 0) dueSeen = true;
+  }
+  if (dueSeen && !_TF_AUC.busy) {
+    _TF_AUC.busy = true;
+    _tfAucLoad().then(function () { _TF_AUC.busy = false; _TF_AUC.detail = {}; _tfAucRepaint(); })
+      .catch(function () { _TF_AUC.busy = false; });
+  }
 
   // Club needs run down in place too. The board is not rebuilt for a ticking
   // second — only the figure changes, so no card moves and nothing reshuffles.
@@ -50007,13 +50255,13 @@ function _tfSnapshotValue(s) {
 function _tfLots(C) {
   C = C || _tfCtx();
   var mine = _tfClubOf(C);
-  var out = _tfMarket().slice();
-  // One logical market: the generated lots, plus every real listing the server
-  // says this club may see. A server listing never duplicates a local one —
-  // when the session is hydrated the local store is not used for listings.
+  // The market is the server's. What a club sees on it are real listings by
+  // real clubs — nothing generated reaches a screen a manager can act on, and
+  // an empty market is the honest answer when no club has listed anybody.
   if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
-    return out.concat(_TF_SERVER_LOTS);
+    return _TF_SERVER_LOTS.slice();
   }
+  var out = [];
   var L = _tfListings();
   for (var i = 0; i < L.length; i++) {
     var rec = L[i];
@@ -51225,6 +51473,64 @@ function _tfFormSubmit() {
         .catch(function (err) { _tfToast('Refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
       return;
     }
+    // ── the auction board ───────────────────────────────────────────────
+    if ((el = t.closest('[data-tf-auction-open]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var aid = el.getAttribute('data-tf-auction-open');
+      _TF_AUC.open = _TF_AUC.open === aid ? null : aid;
+      _TF_AUC.error = null;
+      _tfAucRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-tf-auction-bid]'))) {
+      e.preventDefault(); e.stopPropagation();
+      // opening the panel is how a club bids: it shows what is on the table
+      _TF_AUC.open = el.getAttribute('data-tf-auction-bid'); _TF_AUC.error = null;
+      _tfAucRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-tf-aucstep]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var stepInput = document.querySelector('[data-tf-aucamount]');
+      if (!stepInput) return;
+      var d0 = parseInt(el.getAttribute('data-tf-aucstep'), 10) || 0;
+      var cur = Math.max(0, Math.round(Number(stepInput.value) || 0));
+      stepInput.value = Math.max(0, cur + d0 * _tfPriceStep(cur || 1000000));
+      return;
+    }
+    if ((el = t.closest('[data-tf-auction-place]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var placeId = el.getAttribute('data-tf-auction-place');
+      var amtEl = document.querySelector('[data-tf-aucamount="' + placeId + '"]');
+      var amt = Math.round(Number(amtEl && amtEl.value) || 0);
+      if (!amt) { _tfToast('Enter an amount', 'error'); return; }
+      el.setAttribute('disabled', 'disabled');
+      _tfNegApi('POST', '/auctions/' + placeId + '/bids', { amountEur: amt })
+        .then(function () {
+          _tfToast('Bid of ' + _tfMoney(amt) + ' placed', 'success');
+          _TF_AUC.error = null; _TF_AUC.detail = {}; _TF_NEG.feed = null;
+          return Promise.all([_tfAucLoad(), _tfAucLoadOne(placeId), _tfNotifLoad()]);
+        })
+        .then(function () { _tfAucRepaint(); })
+        .catch(function (err) {
+          _TF_AUC.error = (err && (err.userMessage || err.message)) || 'The server refused that bid.';
+          _tfAucRepaint();
+        });
+      return;
+    }
+    if ((el = t.closest('[data-tf-auction-cancel]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var cancelId = el.getAttribute('data-tf-auction-cancel');
+      _tfNegApi('POST', '/auctions/' + cancelId + '/cancel')
+        .then(function () {
+          _tfToast('Auction cancelled', 'info');
+          _TF_AUC.detail = {}; _TF_NEG.feed = null;
+          return _tfAucLoad();
+        })
+        .then(function () { _tfAucRepaint(); _tfSyncAll(); })
+        .catch(function (err) { _tfToast('Could not cancel — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
     if ((el = t.closest('[data-tf-feedview]'))) {
       e.preventDefault(); e.stopPropagation();
       _TF.feedView = el.getAttribute('data-tf-feedview');
@@ -51816,12 +52122,21 @@ function _atFromServer(p, stageId) {
 // ══════════════════════════════════════════════════════════════════════════════
 async function _tfServerList(player, askingPriceEur, opts) {
   opts = opts || {};
-  // An auction promises a window, so the listing has to carry one: without a
-  // deadline the lot never closes and nobody can ever sign him. An instant sale
-  // is the other shape — a fixed price, open until somebody takes it.
-  var body = { playerId: player.id, askingPriceEur: Math.round(askingPriceEur) };
-  if (!opts.instant) body.validUntil = new Date(Date.now() + TF_LISTING_WINDOW_MS).toISOString();
-  return _thUnwrap(await _thApi('POST', '/transfer-market/listings', body));
+  // Two different things, and they always were. An instant sale is a fixed
+  // price, open until a club takes it — POST /listings, which settles on
+  // purchase. An auction is a starting price and a deadline, and it is decided
+  // by bids the server holds — POST /auctions, which settles to the highest
+  // bidder when the deadline passes. Neither is decided in this browser.
+  if (opts.instant) {
+    return _thUnwrap(await _thApi('POST', '/transfer-market/listings', {
+      playerId: player.id, askingPriceEur: Math.round(askingPriceEur),
+    }));
+  }
+  return _thUnwrap(await _thApi('POST', '/transfer-market/auctions', {
+    playerId: player.id,
+    startingPriceEur: Math.round(askingPriceEur),
+    minutes: Math.round(TF_LISTING_WINDOW_MS / 60000),
+  }));
 }
 async function _tfServerDelist(listingId) {
   return _thUnwrap(await _thApi('DELETE', '/transfer-market/listings/' + listingId));
@@ -51898,7 +52213,8 @@ async function _tfSyncBalance() {
 // Everything the Transfers page needs from the server, in one place.
 async function _tfSyncAll() {
   if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
-  await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad()]);
+  await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
+    _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
   try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
 }
 window._tfSyncAll = _tfSyncAll;
