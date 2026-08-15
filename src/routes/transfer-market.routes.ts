@@ -58,6 +58,13 @@ router.get('/offers/:offerId/negotiation',                  ctrl.readNegotiation
 // Completed moves this club was part of, in or out.
 router.get('/completed',                                    ctrl.readCompletedDeals);
 
+// ── the market's activity ───────────────────────────────────────────────────
+// The feed mixes what the market publishes with what this club is negotiating,
+// and the service — not the caller — decides which events are which.
+router.get('/feed',                                         ctrl.readMarketFeed);
+// Where players actually went, market-wide.
+router.get('/completed/market',                             ctrl.readMarketCompleted);
+
 // ── recruitment needs: a club publishes what it is looking for ──────────────
 router.get('/needs',                                        ctrl.readMarketNeeds);
 router.get('/needs/mine',                                   ctrl.readOwnNeeds);

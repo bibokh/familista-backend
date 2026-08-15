@@ -197,6 +197,20 @@ export async function readNegotiation(req: Request, res: Response, next: NextFun
   } catch (err) { return next(err); }
 }
 
+// The market's activity. The service decides what is public and what belongs
+// to the caller's own club — the request cannot ask for another club's side.
+export async function readMarketFeed(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await neg.readMarketFeed(actor(req)));
+  } catch (err) { return next(err); }
+}
+
+export async function readMarketCompleted(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await neg.readMarketCompleted());
+  } catch (err) { return next(err); }
+}
+
 export async function readCompletedDeals(req: Request, res: Response, next: NextFunction) {
   try {
     return sendSuccess(res, await neg.readCompletedDeals(actor(req)));

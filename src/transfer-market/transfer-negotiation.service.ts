@@ -68,7 +68,9 @@ async function publicClub(clubId: string) {
   const c = await prisma.club.findUnique({
     where: { id: clubId }, select: { id: true, name: true, shortName: true, emblem: true },
   });
-  return c ?? { id: clubId, name: 'Unknown club', shortName: null, emblem: null };
+  // Every club shown anywhere in Transfers comes from this table. A reference
+  // that no longer resolves says so; it never gets an invented identity.
+  return c ?? { id: clubId, name: 'Unknown / unavailable club', shortName: null, emblem: null };
 }
 
 async function playerOr404(playerId: string) {
@@ -260,6 +262,169 @@ export async function offerPlayerToNeed(
     payload: { playerId: dto.playerId, needId: need.id, feeEur, to: need.clubId },
   });
   return hydrateOffer(row);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// THE MARKET'S ACTIVITY — what happened, and who is allowed to know
+// ══════════════════════════════════════════════════════════════════════════════
+// Two streams, decided here and not by the screen.
+//
+// PUBLIC is what a football market publishes about itself: a club has said it
+// is looking for a player, a club has put one up for sale, and a player has
+// moved from one club to another for a fee. All three are statements the clubs
+// involved made deliberately, or facts the whole market can see afterwards.
+//
+// CLUB is the negotiation itself — who offered what to whom, who countered,
+// who refused. That reaches the two clubs in it and nobody else, which is the
+// same line readOffer and readNegotiation already draw. A club's private note
+// on its own need never appears in either stream.
+//
+// Nothing is stored for this. Every event is read from the rows the platform
+// already writes, bounded, and merged newest first.
+export type FeedScope = 'PUBLIC' | 'CLUB';
+const FEED_TAKE = 30;
+
+export async function readMarketFeed(actor: MarketActor) {
+  const [needs, listings, history, offers, offered] = await Promise.all([
+    // a club said what it is looking for
+    prisma.clubRecruitmentNeed.findMany({
+      where: { isActive: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
+      orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
+    }),
+    // a club put a player on the market
+    prisma.marketplaceItem.findMany({
+      where: { kind: 'TRANSFER_LISTING', status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
+    }),
+    // a player changed clubs
+    prisma.athleteTransferHistory.findMany({ orderBy: { occurredAt: 'desc' }, take: FEED_TAKE }),
+    // and, for this club alone, the negotiations it is part of
+    prisma.transferOffer.findMany({
+      where: { OR: [{ sellerClubId: actor.clubId }, { buyerClubId: actor.clubId }] },
+      orderBy: { updatedAt: 'desc' }, take: FEED_TAKE,
+    }),
+    prisma.playerOfferToClub.findMany({
+      where: { OR: [{ fromClubId: actor.clubId }, { toClubId: actor.clubId }] },
+      orderBy: { createdAt: 'desc' }, take: FEED_TAKE,
+    }),
+  ]);
+
+  // one lookup per distinct club and player, not one per event
+  const clubIds = new Set<string>(), playerIds = new Set<string>();
+  needs.forEach((n) => clubIds.add(n.clubId));
+  listings.forEach((l) => { clubIds.add(l.clubId); const pl = (l.payload ?? {}) as Record<string, unknown>;
+    if (typeof pl.playerId === 'string') playerIds.add(pl.playerId); });
+  history.forEach((h) => { if (h.fromClubRef) clubIds.add(h.fromClubRef); if (h.toClubRef) clubIds.add(h.toClubRef); playerIds.add(h.athleteId); });
+  offers.forEach((o) => { clubIds.add(o.sellerClubId); clubIds.add(o.buyerClubId); playerIds.add(o.playerId); });
+  offered.forEach((o) => { clubIds.add(o.fromClubId); clubIds.add(o.toClubId); playerIds.add(o.playerId); });
+
+  const [clubRows, playerRows] = await Promise.all([
+    prisma.club.findMany({ where: { id: { in: [...clubIds] } }, select: { id: true, name: true, shortName: true, emblem: true } }),
+    prisma.player.findMany({
+      where: { id: { in: [...playerIds] } },
+      select: { id: true, firstName: true, lastName: true, position: true, overallRating: true, avatar: true },
+    }),
+  ]);
+  const club = (id: string | null) => {
+    if (!id) return null;
+    return clubRows.find((c) => c.id === id) ?? { id, name: 'Unknown / unavailable club', shortName: null, emblem: null };
+  };
+  const player = (id: string | null) => (id ? playerRows.find((p) => p.id === id) ?? null : null);
+
+  type Item = {
+    id: string; at: Date; kind: string; scope: FeedScope; mine: boolean;
+    player: unknown; fromClub: unknown; toClub: unknown;
+    feeEur: number | null; status: string | null; need: unknown;
+  };
+  const items: Item[] = [];
+
+  for (const n of needs) {
+    items.push({
+      id: 'need:' + n.id, at: n.createdAt, kind: 'NEED_PUBLISHED', scope: 'PUBLIC',
+      mine: n.clubId === actor.clubId, player: null,
+      fromClub: club(n.clubId), toClub: null, feeEur: null, status: n.priority,
+      // the criteria the club published — never its private note
+      need: { positions: n.positions.split(',').filter(Boolean), ageMin: n.ageMin, ageMax: n.ageMax,
+              ratingMin: n.ratingMin, budgetMaxEur: n.budgetMaxEur === null ? null : Number(n.budgetMaxEur) },
+    });
+  }
+  for (const l of listings) {
+    const pl = (l.payload ?? {}) as Record<string, unknown>;
+    items.push({
+      id: 'listing:' + l.id, at: l.createdAt, kind: 'PLAYER_LISTED', scope: 'PUBLIC',
+      mine: l.clubId === actor.clubId, player: player(typeof pl.playerId === 'string' ? pl.playerId : null),
+      fromClub: club(l.clubId), toClub: null,
+      feeEur: typeof pl.askingPriceEur === 'number' ? pl.askingPriceEur : null,
+      status: 'ACTIVE', need: null,
+    });
+  }
+  for (const h of history) {
+    const payload = (h.payload ?? {}) as Record<string, unknown>;
+    items.push({
+      id: 'transfer:' + h.id, at: h.occurredAt, kind: 'TRANSFER_COMPLETED', scope: 'PUBLIC',
+      mine: h.fromClubRef === actor.clubId || h.toClubRef === actor.clubId,
+      player: player(h.athleteId), fromClub: club(h.fromClubRef), toClub: club(h.toClubRef),
+      feeEur: Number(h.feeCents) / 100,
+      status: typeof payload.type === 'string' ? payload.type : payload.listingId ? 'LISTING' : 'TRANSFER',
+      need: null,
+    });
+  }
+  for (const o of offers) {
+    const kind = o.status === 'ACCEPTED' ? 'OFFER_ACCEPTED'
+      : o.status === 'REJECTED' ? 'OFFER_REJECTED'
+        : o.status === 'WITHDRAWN' ? 'OFFER_WITHDRAWN'
+          : o.status === 'COUNTERED' ? 'OFFER_COUNTERED'
+            : o.parentOfferId ? 'COUNTER_MADE'
+              : o.createdByClubId === o.sellerClubId ? 'PLAYER_OFFERED' : 'OFFER_MADE';
+    items.push({
+      id: 'offer:' + o.id, at: o.updatedAt ?? o.createdAt, kind, scope: 'CLUB', mine: true,
+      player: player(o.playerId), fromClub: club(o.sellerClubId), toClub: club(o.buyerClubId),
+      feeEur: money(o.feeEur), status: o.status, need: null,
+    });
+  }
+  for (const o of offered) {
+    items.push({
+      id: 'p2c:' + o.id, at: o.createdAt, kind: 'PLAYER_OFFERED_TO_CLUB', scope: 'CLUB', mine: true,
+      player: player(o.playerId), fromClub: club(o.fromClubId), toClub: club(o.toClubId),
+      feeEur: o.askingPriceEur === null ? null : Number(o.askingPriceEur), status: o.status, need: null,
+    });
+  }
+
+  items.sort((a, b) => b.at.getTime() - a.at.getTime());
+  return {
+    items: items.slice(0, 60),
+    counts: {
+      listings: listings.length,
+      needs: needs.length,
+      negotiations: offers.filter((o) => o.status === 'PENDING').length,
+      completed: history.filter((h) => h.fromClubRef === actor.clubId || h.toClubRef === actor.clubId).length,
+    },
+  };
+}
+
+// ── the market's completed moves, for everyone ──────────────────────────────
+// Where players actually went. A completed transfer is a public fact — both
+// clubs, the fee and the date — and it is read from the history settlement
+// writes, never from anything the screen believes.
+export async function readMarketCompleted() {
+  const rows = await prisma.athleteTransferHistory.findMany({ orderBy: { occurredAt: 'desc' }, take: 60 });
+  const items = await Promise.all(rows.map(async (h) => {
+    const payload = (h.payload ?? {}) as Record<string, unknown>;
+    const [from, to, player] = await Promise.all([
+      h.fromClubRef ? publicClub(h.fromClubRef) : null,
+      h.toClubRef ? publicClub(h.toClubRef) : null,
+      prisma.player.findUnique({
+        where: { id: h.athleteId },
+        select: { id: true, firstName: true, lastName: true, position: true, overallRating: true, avatar: true },
+      }),
+    ]);
+    return {
+      id: h.id, playerId: h.athleteId, player, from, to,
+      feeEur: Number(h.feeCents) / 100, occurredAt: h.occurredAt,
+      type: typeof payload.type === 'string' ? payload.type : payload.listingId ? 'LISTING' : 'TRANSFER',
+    };
+  }));
+  return { items };
 }
 
 // ── what a club has actually done: the completed moves ──────────────────────

@@ -10703,3 +10703,64 @@ body.club-theme .topbar-titles{ min-width:0; }
   align-self:flex-start;
   background:rgba(72,201,52,.20); border-color:#2f8f22; color:#1d6b16;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MARKET ACTIVITY — the feed, and the overview above it
+   ────────────────────────────────────────────────────────────────────────────
+   A transfer centre reads at a glance: what kind of event, who it involves,
+   which way the player moved and for how much. Public events sit on the silver
+   ladder; the club's own negotiations are marked, because they are the ones
+   nobody else can see.
+   ════════════════════════════════════════════════════════════════════════════ */
+#pg-transfers .tf-fd-over{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
+  background:#a7acae; border-radius:7px; overflow:hidden; margin-bottom:12px;
+}
+#pg-transfers .tf-fd-over > div{
+  display:flex; flex-direction:column; gap:3px; padding:10px 13px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+}
+#pg-transfers .tf-fd-over i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tf-fd-over b{ font-size:18px; font-weight:900; color:var(--tf-ink); font-variant-numeric:tabular-nums; letter-spacing:-.4px; }
+#pg-transfers .tf-fd-views{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+#pg-transfers .tf-feed-list{ min-height:120px; }
+#pg-transfers .tf-feed{ display:flex; flex-direction:column; gap:8px; }
+
+#pg-transfers .tf-fd{
+  display:grid; grid-template-columns:auto auto auto 1fr; grid-template-areas:
+    "type priv mine when" "body body body body" "route route route route";
+  gap:6px 8px; align-items:center; padding:10px 12px; border-radius:6px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); border-left:3px solid #9aa0a2;
+  box-shadow:inset 0 1px 0 var(--tf-edge);
+}
+#pg-transfers .tf-fd--done{ border-left-color:var(--tf-buy-d); }
+#pg-transfers .tf-fd--stop{ border-left-color:var(--tf-stop); }
+#pg-transfers .tf-fd--need{ border-left-color:var(--tf-gold); }
+#pg-transfers .tf-fd--live{ border-left-color:#3d7fb5; }
+#pg-transfers .tf-fd-t{
+  grid-area:type; font-size:9.5px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-ink2);
+}
+#pg-transfers .tf-fd-priv{
+  grid-area:priv; font-size:8.5px; font-weight:900; letter-spacing:.1em;
+  padding:2px 6px; border-radius:3px; background:rgba(61,127,181,.18); border:1px solid #3d7fb5; color:#1d4a6d;
+}
+#pg-transfers .tf-fd-mine{
+  grid-area:mine; font-size:8.5px; font-weight:900; letter-spacing:.1em;
+  padding:2px 6px; border-radius:3px;
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo)); border:1px solid #8f6d13; color:#1f1903;
+}
+#pg-transfers .tf-fd-when{ grid-area:when; justify-self:end; font-size:10px; color:var(--tf-ink3); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-fd-body{ grid-area:body; display:flex; align-items:center; gap:9px; min-width:0; }
+#pg-transfers .tf-fd-id{ min-width:0; display:flex; flex-direction:column; }
+#pg-transfers .tf-fd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tf-fd-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+#pg-transfers .tf-fd-fee{ margin-left:auto; font-size:13px; font-weight:900; color:#6b5310; font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-fd-route{
+  grid-area:route; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:6px 9px; border-radius:5px; background:var(--tf-info);
+  box-shadow:inset 0 1px 2px rgba(17,16,21,.14);
+}
+#pg-transfers .tf-fd-route b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
+#pg-transfers .tf-fd-route i{ font-style:normal; font-size:14px; font-weight:900; color:#6b5310; }
+#pg-transfers .tf-fd.is-mine{ border-color:#8f6d13; }

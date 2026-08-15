@@ -47439,6 +47439,7 @@ var _TF = {
   confirm: null,                // { kind, ... }
   filtersOpen: false,
   actView: 'live',              // which section of My Activity is on screen
+  feedView: 'global',           // global market · my club · completed transfers
   negOpen: null,                // the negotiation whose timeline is expanded
   f: { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', special: 'ALL', avail: 'ALL', shortOnly: false },
   sort: { key: 'deadline', dir: 1 },
@@ -47948,6 +47949,7 @@ function renderTransfersHTML() {
 
 var TF_TABS = [
   ['auctions', 'Auctions', 'Live market'],
+  ['feed', 'Market activity', 'What is happening'],
   ['offers', 'Direct offers', 'Club to club'],
   ['needs', 'Club needs', 'Who wants what'],
   ['activity', 'My activity', 'Everything of ours'],
@@ -48006,6 +48008,7 @@ function _tfRepaintRows() {
   if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
 }
 function _tfTabHtml(C) {
+  if (_TF.tab === 'feed') return _tfFeedHtml(C);
   if (_TF.tab === 'scouting') return _tfScoutingHtml(C);
   if (_TF.tab === 'assistant') return _tfAssistantHtml(C);
   if (_TF.tab === 'offers') return _tfDirectOffersHtml(C);
@@ -48051,6 +48054,167 @@ function _tfDirectOffersHtml(C) {
   return '<div class="tf-pane tf-pane--pad">'
     + sec('Offers received', a.incomingOffers || [], 'No club has offered for one of your players.')
     + sec('Offers made', a.outgoingOffers || [], 'You have not offered for anybody.')
+    + '</div>';
+}
+
+// ── THE MARKET'S ACTIVITY · what happened, and to whom ──────────────────────
+// Two streams the server keeps apart: what the market publishes about itself,
+// and what this club is negotiating. The screen never decides which is which —
+// every event arrives already marked, and the club stream only ever contains
+// events this club is a party to.
+//
+// Nothing polls. The feed is read when the tab is opened and again after this
+// club does something that changes it, which is the same moment the activity
+// and notifications are already refreshed.
+var TF_FEED_VIEWS = [['global', 'GLOBAL MARKET'], ['mine', 'MY CLUB'], ['completed', 'COMPLETED TRANSFERS']];
+
+var TF_FEED_LABEL = {
+  NEED_PUBLISHED: 'Published a need', PLAYER_LISTED: 'Listed a player',
+  TRANSFER_COMPLETED: 'Transfer completed', PLAYER_OFFERED: 'Offered a player',
+  PLAYER_OFFERED_TO_CLUB: 'Player offered', OFFER_MADE: 'Offer made',
+  COUNTER_MADE: 'Counter offer', OFFER_COUNTERED: 'Countered',
+  OFFER_ACCEPTED: 'Offer accepted', OFFER_REJECTED: 'Offer rejected',
+  OFFER_WITHDRAWN: 'Offer withdrawn',
+};
+var TF_FEED_TONE = {
+  TRANSFER_COMPLETED: 'done', OFFER_ACCEPTED: 'done',
+  OFFER_REJECTED: 'stop', OFFER_WITHDRAWN: 'stop',
+  NEED_PUBLISHED: 'need', PLAYER_LISTED: 'live',
+};
+
+async function _tfNegLoadFeed() {
+  try { _TF_NEG.feed = _thUnwrap(await _tfNegApi('GET', '/feed')); }
+  catch (e) { _TF_NEG.feed = { items: [], counts: {}, error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_NEG.feed;
+}
+async function _tfNegLoadMarketCompleted() {
+  try { _TF_NEG.marketDeals = _thUnwrap(await _tfNegApi('GET', '/completed/market')); }
+  catch (e) { _TF_NEG.marketDeals = { items: [], error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_NEG.marketDeals;
+}
+
+function _tfWhen(at) {
+  var ms = Date.now() - new Date(at).getTime();
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago';
+  if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago';
+  var d = new Date(at);
+  return d.toLocaleDateString() + ' · ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function _tfFeedPlayerName(p) {
+  if (!p) return '';
+  return ((p.firstName || '') + ' ' + (p.lastName || '')).trim();
+}
+
+function _tfFeedItemHtml(ev) {
+  var p = ev.player, name = _tfFeedPlayerName(p);
+  var tone = TF_FEED_TONE[ev.kind] || 'talk';
+  var from = ev.fromClub && ev.fromClub.name, to = ev.toClub && ev.toClub.name;
+  return '<li class="tf-fd tf-fd--' + tone + (ev.mine ? ' is-mine' : '') + '"'
+    + (p ? ' data-tf-open-player="' + _tfEsc(p.id) + '"' : '') + '>'
+    + '<span class="tf-fd-t">' + _tfEsc(TF_FEED_LABEL[ev.kind] || ev.kind) + '</span>'
+    + (ev.scope === 'CLUB' ? '<span class="tf-fd-priv">PRIVATE</span>' : '')
+    + (ev.mine ? '<span class="tf-fd-mine">YOUR CLUB</span>' : '')
+    + '<span class="tf-fd-when">' + _tfEsc(_tfWhen(ev.at)) + '</span>'
+    + '<div class="tf-fd-body">'
+    +   (p ? _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm') : '')
+    +   '<div class="tf-fd-id">'
+    +     (p ? '<b>' + _tfEsc(name) + '</b><em>' + _tfEsc(p.position || '')
+      + (p.overallRating ? ' · OVR ' + p.overallRating : '') + '</em>'
+      : '<b>' + _tfEsc(from || 'Club') + '</b>'
+        + (ev.need ? '<em>' + _tfEsc(ev.need.positions.join(' / '))
+          + (ev.need.ratingMin != null ? ' · OVR ' + ev.need.ratingMin + '+' : '')
+          + (ev.need.ageMin != null || ev.need.ageMax != null
+            ? ' · ' + (ev.need.ageMin != null ? ev.need.ageMin : '—') + '–' + (ev.need.ageMax != null ? ev.need.ageMax : '—') : '')
+          + (ev.need.budgetMaxEur != null ? ' · up to ' + _tfMoney(ev.need.budgetMaxEur) : '') + '</em>' : ''))
+    +   '</div>'
+    +   (ev.feeEur != null ? '<b class="tf-fd-fee">' + _tfMoney(ev.feeEur) + '</b>' : '')
+    + '</div>'
+    + (from && to
+      ? '<div class="tf-fd-route"><b>' + _tfEsc(from) + '</b><i>→</i><b>' + _tfEsc(to) + '</b></div>'
+      : from && p ? '<div class="tf-fd-route"><b>' + _tfEsc(from) + '</b></div>' : '')
+    + '</li>';
+}
+
+function _tfMarketDealHtml(d) {
+  var p = d.player || {}, name = _tfFeedPlayerName(p) || 'Player';
+  var when = new Date(d.occurredAt);
+  var type = d.type === 'DIRECT_TRANSFER' ? 'Direct transfer' : d.type === 'LISTING' ? 'Listing' : 'Transfer';
+  return '<li class="tf-deal" data-tf-open-player="' + _tfEsc(d.playerId) + '">'
+    + '<div class="tf-deal-h">'
+    +   _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm')
+    +   '<div class="tf-deal-id"><b>' + _tfEsc(name) + '</b>'
+    +     '<em>' + _tfEsc(p.position || '') + (p.overallRating ? ' · OVR ' + p.overallRating : '') + '</em></div>'
+    + '</div>'
+    + '<div class="tf-deal-route">'
+    +   '<span class="tf-deal-club"><i>From</i><b>' + _tfEsc((d.from && d.from.name) || 'Unknown / unavailable club') + '</b></span>'
+    +   '<span class="tf-deal-arrow">→</span>'
+    +   '<span class="tf-deal-club"><i>To</i><b>' + _tfEsc((d.to && d.to.name) || 'Unknown / unavailable club') + '</b></span>'
+    + '</div>'
+    + '<div class="tf-deal-facts">'
+    +   '<div><i>Fee</i><b>' + _tfMoney(d.feeEur) + '</b></div>'
+    +   '<div><i>Type</i><b>' + _tfEsc(type) + '</b></div>'
+    +   '<div><i>Completed</i><b>' + when.toLocaleDateString() + ' · ' + when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</b></div>'
+    + '</div>'
+    + '<span class="tf-state tf-state--completed">COMPLETED</span>'
+    + '</li>';
+}
+
+// The overview strip: what is happening, in numbers that come from the feed
+// the page has already read.
+function _tfFeedOverviewHtml() {
+  var c = (_TF_NEG.feed && _TF_NEG.feed.counts) || {};
+  var cells = [
+    ['Active listings', c.listings || 0],
+    ['Active club needs', c.needs || 0],
+    ['Open negotiations', c.negotiations || 0],
+    ['Your completed deals', c.completed || 0],
+  ];
+  return '<div class="tf-fd-over">' + cells.map(function (x) {
+    return '<div><i>' + _tfEsc(x[0]) + '</i><b data-tf-over="' + _tfEsc(x[0]) + '">' + x[1] + '</b></div>';
+  }).join('') + '</div>';
+}
+
+function _tfFeedListHtml() {
+  var view = _TF.feedView || 'global';
+  if (view === 'completed') {
+    var deals = (_TF_NEG.marketDeals && _TF_NEG.marketDeals.items) || [];
+    if (!_TF_NEG.marketDeals) return '<p class="tf-para">Reading completed transfers…</p>';
+    return deals.length ? '<ol class="tf-deals">' + deals.map(_tfMarketDealHtml).join('') + '</ol>'
+      : '<p class="tf-para">No transfer has completed on the platform yet.</p>';
+  }
+  var rows = ((_TF_NEG.feed && _TF_NEG.feed.items) || []).filter(function (ev) {
+    return view === 'mine' ? ev.mine : ev.scope === 'PUBLIC';
+  });
+  if (!rows.length) {
+    return '<p class="tf-para">' + (view === 'mine'
+      ? 'Your club has no market activity yet.'
+      : 'The market has been quiet.') + '</p>';
+  }
+  return '<ol class="tf-feed">' + rows.map(_tfFeedItemHtml).join('') + '</ol>';
+}
+function _tfFeedRepaint() {
+  var el = document.getElementById('tf-feed-list');
+  if (el) el.innerHTML = _tfFeedListHtml(); else _tfRenderBody();
+}
+
+function _tfFeedHtml(C) {
+  if (!_TF_NEG.feed) {
+    _tfNegLoadFeed().then(function () { _tfRenderBody(); });
+    return '<div class="tf-pane"><p class="tf-para">Reading the market…</p></div>';
+  }
+  if ((_TF.feedView || 'global') === 'completed' && !_TF_NEG.marketDeals) {
+    _tfNegLoadMarketCompleted().then(function () { _tfFeedRepaint(); });
+  }
+  var view = _TF.feedView || 'global';
+  return '<div class="tf-pane tf-pane--pad">'
+    + _tfFeedOverviewHtml()
+    + '<div class="tf-fd-views">' + TF_FEED_VIEWS.map(function (v) {
+      return '<button type="button" class="tf-chip-btn' + (view === v[0] ? ' is-on' : '') + '"'
+        + ' data-tf-feedview="' + v[0] + '">' + v[1] + '</button>';
+    }).join('')
+    + '<button type="button" class="tf-chip-btn tf-chip-btn--ghost" data-tf-feed-refresh>REFRESH</button></div>'
+    + '<div id="tf-feed-list" class="tf-feed-list">' + _tfFeedListHtml() + '</div>'
     + '</div>';
 }
 
@@ -50315,6 +50479,8 @@ var _TF_NEG = { activity: null, needs: null, matches: {}, offers: {}, notifs: []
   needOpen: null,              // the need whose matches are expanded
   needMatches: {},             // needId → this club's players that fit it
   deals: null,                 // completed moves, in and out
+  feed: null,                  // the market's activity, public and ours
+  marketDeals: null,           // where players went, market-wide
   negotiations: {} };          // offerId → the conversation it belongs to
 
 function _tfNegApi(method, path, body) { return _thApi(method, '/transfer-market' + path, body); }
@@ -50828,7 +50994,7 @@ function _tfFormSubmit() {
     })
       .then(function () {
         _tfToast('Offer sent', 'success');
-        _TF_NEG.activity = null; _TF_NEG.needMatches = {}; _tfFormClose();
+        _TF_NEG.activity = null; _TF_NEG.needMatches = {}; _TF_NEG.feed = null; _tfFormClose();
         return _tfNegLoadActivity();
       })
       .then(function () { _tfNeedsRepaint(); _tfActivityBadgePatch(); })
@@ -51050,11 +51216,35 @@ function _tfFormSubmit() {
             : verb === 'counter' ? 'Counter sent' : verb === 'reject' ? 'Offer rejected' : 'Offer withdrawn',
             verb === 'reject' || verb === 'withdraw' ? 'info' : 'success');
           _TF_NEG.offers = {}; _TF_NEG.activity = null;
+          // an accepted, rejected or countered offer changes the market too
+          _TF_NEG.feed = null; _TF_NEG.marketDeals = null; _TF_NEG.deals = null;
           return Promise.all([_tfNegLoadActivity(), _tfSyncAll(),
             (verb === 'accept' && typeof _thRefresh === 'function') ? _thRefresh() : null]);
         })
         .then(function () { _tfNotifLoad(); _tfRenderOverlay(); _tfRenderBody(); })
         .catch(function (err) { _tfToast('Refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-tf-feedview]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF.feedView = el.getAttribute('data-tf-feedview');
+      if (_TF.feedView === 'completed' && !_TF_NEG.marketDeals) {
+        _tfNegLoadMarketCompleted().then(function () { _tfFeedRepaint(); });
+      }
+      _tfFeedRepaint();
+      // the buttons repaint with the list, so the pressed one is redrawn too
+      var bar = document.querySelector('.tf-fd-views');
+      if (bar) {
+        bar.querySelectorAll('[data-tf-feedview]').forEach(function (b) {
+          b.classList.toggle('is-on', b.getAttribute('data-tf-feedview') === _TF.feedView);
+        });
+      }
+      return;
+    }
+    if (t.closest('[data-tf-feed-refresh]')) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_NEG.feed = null; _TF_NEG.marketDeals = null;
+      _tfNegLoadFeed().then(function () { _tfRenderBody(); });
       return;
     }
     if ((el = t.closest('[data-tf-actview]'))) {
