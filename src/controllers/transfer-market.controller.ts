@@ -179,6 +179,30 @@ export async function matchesForNeed(req: Request, res: Response, next: NextFunc
   } catch (err) { return next(err); }
 }
 
+// The seller answers another club's need with one of its own players. The
+// offer it creates is an ordinary TransferOffer, so it counters and settles
+// through the paths that already exist.
+export async function offerPlayerToNeed(req: Request, res: Response, next: NextFunction) {
+  try {
+    requireUUID(req.body?.playerId, 'playerId');
+    requireUUID(req.body?.needId, 'needId');
+    return sendCreated(res, await neg.offerPlayerToNeed(actor(req), req.body));
+  } catch (err) { return next(err); }
+}
+
+export async function readNegotiation(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.offerId, 'offerId');
+    return sendSuccess(res, await neg.readNegotiation(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function readCompletedDeals(req: Request, res: Response, next: NextFunction) {
+  try {
+    return sendSuccess(res, await neg.readCompletedDeals(actor(req)));
+  } catch (err) { return next(err); }
+}
+
 export async function offerPlayerToClubs(req: Request, res: Response, next: NextFunction) {
   try {
     requireUUID(req.body?.playerId, 'playerId');

@@ -181,6 +181,120 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
   return hydrateOffer(row);
 }
 
+// ── a club answers another club's need with one of its own players ──────────
+// The seller starts this conversation, which is the only thing that makes it
+// different from makeOffer: the same TransferOffer carries it, the same
+// counter engine answers it, and the same acceptOffer settles it. There is no
+// second negotiation model and no second settlement path.
+//
+// Two rows are written, both of which already exist. TransferOffer is the
+// negotiable instrument — it is what gets countered, accepted and settled.
+// PlayerOfferToClub is the platform's existing record of "offered against your
+// need", and it is the one that carries needId, so the need stays linked
+// without a column being added anywhere. They share (playerId, fromClub,
+// toClub), which is how the offer finds its need again when it is read.
+export async function offerPlayerToNeed(
+  actor: MarketActor,
+  dto: { playerId: string; needId: string; askingPriceEur: number; message?: string },
+) {
+  const feeEur = Math.round(Number(dto?.askingPriceEur));
+  if (!Number.isFinite(feeEur) || feeEur <= 0) throw new BadRequestError('askingPriceEur must be a positive number');
+
+  // Ownership is read from the player row, never from the request.
+  const player = await playerOr404(dto.playerId);
+  if (player.clubId !== actor.clubId) throw new ForbiddenError('That player belongs to another club');
+  if (player.isActive === false) throw new BadRequestError('That player is not active');
+
+  const need = await prisma.clubRecruitmentNeed.findUnique({ where: { id: dto.needId } });
+  if (!need) throw new NotFoundError('Need');
+  if (need.clubId === actor.clubId) throw new BadRequestError('That is your own club’s need');
+  if (!need.isActive || (need.expiresAt && need.expiresAt.getTime() <= Date.now())) {
+    throw new ConflictError('That need is no longer open');
+  }
+
+  // One live proposal per player per club. Offering him twice is the same
+  // conversation, not two.
+  const already = await prisma.transferOffer.findFirst({
+    where: { playerId: dto.playerId, sellerClubId: actor.clubId, buyerClubId: need.clubId, status: 'PENDING' },
+    select: { id: true },
+  });
+  if (already) throw new ConflictError('You already have an open offer for this player with that club');
+
+  const m = matchPlayerToNeed(player, {
+    positions: need.positions.split(',').filter(Boolean),
+    ageMin: need.ageMin, ageMax: need.ageMax, ratingMin: need.ratingMin, ratingMax: need.ratingMax,
+    budgetMinEur: need.budgetMinEur === null ? null : Number(need.budgetMinEur),
+    budgetMaxEur: need.budgetMaxEur === null ? null : Number(need.budgetMaxEur),
+    nationality: need.nationality, preferredFoot: need.preferredFoot, playstyle: need.playstyle,
+  }, feeEur);
+
+  const row = await prisma.$transaction(async (tx) => {
+    const offer = await tx.transferOffer.create({
+      data: {
+        playerId: dto.playerId, sellerClubId: actor.clubId, buyerClubId: need.clubId,
+        feeEur: BigInt(feeEur), message: dto.message?.slice(0, 500) ?? null,
+        createdByClubId: actor.clubId, createdById: actor.userId,
+        expiresAt: new Date(Date.now() + OFFER_TTL_MS),
+      },
+    });
+    await tx.playerOfferToClub.create({
+      data: {
+        playerId: dto.playerId, fromClubId: actor.clubId, toClubId: need.clubId,
+        needId: need.id, askingPriceEur: BigInt(feeEur), matchPct: m.pct,
+        message: dto.message?.slice(0, 500) ?? null, createdById: actor.userId,
+      },
+    });
+    return offer;
+  });
+
+  const from = await publicClub(actor.clubId);
+  await notifyClub(need.clubId, 'PLAYER_OFFERED_TO_CLUB',
+    `${from.name} offered you ${player.firstName} ${player.lastName} for ${fmt(feeEur)}.`,
+    dto.message?.slice(0, 500) ?? `${player.position} · OVR ${player.overallRating} · answers your ${need.positions} requirement.`,
+    { type: 'PLAYER_OFFERED_TO_CLUB', offerId: row.id, playerId: dto.playerId, needId: need.id,
+      clubId: from.id, feeEur, matchPct: m.pct });
+
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'PLAYER_OFFERED_TO_NEED', entityType: 'TransferOffer', entityId: row.id,
+    payload: { playerId: dto.playerId, needId: need.id, feeEur, to: need.clubId },
+  });
+  return hydrateOffer(row);
+}
+
+// ── what a club has actually done: the completed moves ──────────────────────
+// Read out of AthleteTransferHistory, which settlement already writes once per
+// transfer. Nothing is recorded here and nothing is recomputed: this is the
+// existing record, with the two clubs named so a manager can see where the
+// player he sold actually went.
+export async function readCompletedDeals(actor: MarketActor) {
+  const rows = await prisma.athleteTransferHistory.findMany({
+    where: { OR: [{ fromClubRef: actor.clubId }, { toClubRef: actor.clubId }] },
+    orderBy: { occurredAt: 'desc' }, take: 100,
+  });
+  const items = await Promise.all(rows.map(async (h) => {
+    const payload = (h.payload ?? {}) as Record<string, unknown>;
+    const [from, to, player] = await Promise.all([
+      h.fromClubRef ? publicClub(h.fromClubRef) : null,
+      h.toClubRef ? publicClub(h.toClubRef) : null,
+      prisma.player.findUnique({
+        where: { id: h.athleteId },
+        select: { id: true, firstName: true, lastName: true, position: true, overallRating: true, avatar: true },
+      }),
+    ]);
+    return {
+      id: h.id, playerId: h.athleteId, player,
+      from, to, feeEur: Number(h.feeCents) / 100, occurredAt: h.occurredAt,
+      // The origin as settlement recorded it: a direct transfer names itself,
+      // a listing carries its listingId. Nothing is guessed.
+      type: typeof payload.type === 'string' ? payload.type
+        : payload.listingId ? 'LISTING' : 'TRANSFER',
+      direction: h.toClubRef === actor.clubId ? 'IN' : 'OUT',
+    };
+  }));
+  return { items };
+}
+
 // Which side of an offer this club is on. Anyone else is not entitled to know
 // the offer exists at all.
 function sideOf(offer: TransferOffer, clubId: string): 'seller' | 'buyer' {
@@ -197,7 +311,7 @@ export async function readOffer(actor: MarketActor, offerId: string) {
 }
 
 async function hydrateOffer(o: TransferOffer) {
-  const [player, seller, buyer] = await Promise.all([
+  const [player, seller, buyer, linked] = await Promise.all([
     prisma.player.findUnique({
       where: { id: o.playerId },
       select: { id: true, firstName: true, lastName: true, position: true, overallRating: true,
@@ -205,14 +319,66 @@ async function hydrateOffer(o: TransferOffer) {
     }),
     publicClub(o.sellerClubId),
     publicClub(o.buyerClubId),
+    // The need this player was offered against, if he was. The link lives on
+    // PlayerOfferToClub, which the seller-initiated path writes alongside the
+    // offer and which already has a needId column.
+    prisma.playerOfferToClub.findFirst({
+      where: { playerId: o.playerId, fromClubId: o.sellerClubId, toClubId: o.buyerClubId, needId: { not: null } },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
+  const need = linked?.needId
+    ? await prisma.clubRecruitmentNeed.findUnique({ where: { id: linked.needId } })
+    : null;
   return {
     id: o.id, playerId: o.playerId, player,
     sellerClub: seller, buyerClub: buyer,
     feeEur: money(o.feeEur), status: o.status, message: o.message,
     parentOfferId: o.parentOfferId, createdByClubId: o.createdByClubId,
     createdAt: o.createdAt, expiresAt: o.expiresAt, respondedAt: o.respondedAt,
+    // "answers your ST requirement" — the criteria only, never the note.
+    need: need ? { ...needShape(need, false), club: await publicClub(need.clubId) } : null,
+    matchPct: linked?.matchPct ?? null,
   };
+}
+
+// ── the negotiation, in order ───────────────────────────────────────────────
+// Every offer in this conversation, oldest first, read back along the chain
+// TransferOffer already keeps in parentOfferId. Nothing is stored for this and
+// nothing is invented: each step is an offer that was really made.
+export async function readNegotiation(actor: MarketActor, offerId: string) {
+  const offer = await prisma.transferOffer.findUnique({ where: { id: offerId } });
+  if (!offer) throw new NotFoundError('Offer');
+  sideOf(offer, actor.clubId);                      // in this negotiation, or nothing
+
+  // Walk back to the first offer, then forward through its answers. The offer
+  // we started from is part of the conversation, not a boundary of it, so the
+  // cycle guard is the chain itself rather than a set seeded with that id.
+  const chain: TransferOffer[] = [offer];
+  let cur = offer;
+  while (cur.parentOfferId) {
+    const parent = await prisma.transferOffer.findUnique({ where: { id: cur.parentOfferId } });
+    if (!parent || chain.some((o) => o.id === parent.id)) break;
+    chain.unshift(parent);
+    cur = parent;
+  }
+  for (;;) {
+    const next = await prisma.transferOffer.findFirst({
+      where: { parentOfferId: chain[chain.length - 1].id }, orderBy: { createdAt: 'asc' },
+    });
+    if (!next || chain.some((o) => o.id === next.id)) break;
+    chain.push(next);
+  }
+  const steps = await Promise.all(chain.map(async (o, i) => ({
+    id: o.id,
+    club: await publicClub(o.createdByClubId),
+    feeEur: money(o.feeEur),
+    status: o.status,
+    at: o.createdAt,
+    kind: i === 0 ? (o.createdByClubId === o.sellerClubId ? 'OFFERED_PLAYER' : 'OFFERED') : 'COUNTERED',
+    message: o.message,
+  })));
+  return { offerId: offer.id, steps, current: await hydrateOffer(chain[chain.length - 1]) };
 }
 
 // The seller accepts: the player moves, the money moves, and everything else
@@ -438,7 +604,17 @@ export async function readOffersForPlayer(actor: MarketActor, playerId: string) 
 // Everything this club is currently negotiating, either way.
 export async function readActivity(actor: MarketActor) {
   const [incoming, outgoing, interestIn, interestOut, offeredIn, offeredOut] = await Promise.all([
-    prisma.transferOffer.findMany({ where: { sellerClubId: actor.clubId, createdByClubId: { not: actor.clubId } }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    // Everything waiting on an answer from this club — whichever side of the
+    // deal it is on. A buyer's bid for our player and a seller's offer of
+    // theirs are both offers we have to answer, and the club that wrote one is
+    // never the club that answers it.
+    prisma.transferOffer.findMany({
+      where: {
+        OR: [{ sellerClubId: actor.clubId }, { buyerClubId: actor.clubId }],
+        createdByClubId: { not: actor.clubId },
+      },
+      orderBy: { createdAt: 'desc' }, take: 50,
+    }),
     prisma.transferOffer.findMany({ where: { createdByClubId: actor.clubId }, orderBy: { createdAt: 'desc' }, take: 50 }),
     prisma.transferInterest.findMany({ where: { ownerClubId: actor.clubId }, orderBy: { createdAt: 'desc' }, take: 50 }),
     prisma.transferInterest.findMany({ where: { interestedClubId: actor.clubId }, orderBy: { createdAt: 'desc' }, take: 50 }),

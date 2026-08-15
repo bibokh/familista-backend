@@ -51,6 +51,12 @@ router.post('/offers/:offerId/accept',          tradeGuard, ctrl.acceptOffer);
 router.post('/offers/:offerId/reject',          tradeGuard, ctrl.rejectOffer);
 router.post('/offers/:offerId/withdraw',        tradeGuard, ctrl.withdrawOffer);
 router.post('/offers/:offerId/counter',         tradeGuard, ctrl.counterOffer);
+// The conversation itself, oldest offer first. Readable only by the two clubs
+// in it — the service checks that before it reads anything.
+router.get('/offers/:offerId/negotiation',                  ctrl.readNegotiation);
+
+// Completed moves this club was part of, in or out.
+router.get('/completed',                                    ctrl.readCompletedDeals);
 
 // ── recruitment needs: a club publishes what it is looking for ──────────────
 router.get('/needs',                                        ctrl.readMarketNeeds);
@@ -65,5 +71,7 @@ router.get('/matches/:playerId',                            ctrl.matchesForPlaye
 // OWN players fit one. The squad scored is always the caller's.
 router.get('/needs/:needId/matches',                        ctrl.matchesForNeed);
 router.post('/offer-to-clubs',                  tradeGuard, ctrl.offerPlayerToClubs);
+// Answering a published need with a player this club owns.
+router.post('/offer-to-need',                   tradeGuard, ctrl.offerPlayerToNeed);
 
 export default router;

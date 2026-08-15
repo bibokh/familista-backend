@@ -10627,3 +10627,79 @@ body.club-theme .topbar-titles{ min-width:0; }
   background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.22); color:var(--tf-on-dark);
 }
 #pg-transfers .tf-nd-open .tf-btn:hover:not(:disabled){ background:rgba(255,255,255,.18); color:#fff; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   NEGOTIATION & COMPLETED DEALS
+   ────────────────────────────────────────────────────────────────────────────
+   My Activity in five readings, the conversation on the near-black panel every
+   other decision uses, and a completed move written the way a manager asks
+   about it: who, from where, to where, for how much, when.
+   ════════════════════════════════════════════════════════════════════════════ */
+#pg-transfers .tf-act-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+#pg-transfers .tf-act-tabs .tf-chip-btn em{
+  font-style:normal; margin-left:6px; padding:0 5px; border-radius:8px;
+  background:rgba(35,38,41,.16); font-size:9.5px; font-weight:900;
+}
+#pg-transfers .tf-act-tabs .tf-chip-btn.is-on em{ background:rgba(31,25,3,.22); }
+#pg-transfers .tf-act-body{ min-height:120px; }
+
+/* the need an offer answers */
+#pg-transfers .tf-offer-need{
+  display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
+  padding:6px 9px; border-radius:5px;
+  background:rgba(201,163,46,.20); border:1px solid #8f6d13;
+}
+#pg-transfers .tf-offer-need i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#6b5310; }
+#pg-transfers .tf-offer-need b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
+#pg-transfers .tf-offer-need em{ font-style:normal; margin-left:auto; font-size:11px; font-weight:900; color:#6b5310; }
+
+/* the conversation */
+#pg-transfers .tf-neg-tl{ margin-top:2px; padding:12px; }
+#pg-transfers .tf-tl{ display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.10); border-radius:5px; overflow:hidden; }
+#pg-transfers .tf-tl-step{
+  display:grid; grid-template-columns:1fr auto auto auto; gap:10px; align-items:center;
+  padding:8px 10px; background:var(--tf-black);
+}
+#pg-transfers .tf-tl-club{ font-size:11.5px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .tf-tl-what{ font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-on-dark-2); }
+#pg-transfers .tf-tl-fee{ font-size:12.5px; font-weight:900; color:var(--tf-gold-2); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-tl-at{ font-size:10px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
+
+/* a completed move */
+#pg-transfers .tf-deals{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; align-items:start; }
+#pg-transfers .tf-deal{
+  position:relative; display:flex; flex-direction:column; gap:10px; padding:12px 13px; border-radius:7px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2); cursor:pointer;
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
+}
+#pg-transfers .tf-deal--in{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
+#pg-transfers .tf-deal--out{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 #8f6d13, 0 2px 6px -3px rgba(17,16,21,.42); }
+#pg-transfers .tf-deal-h{ display:flex; align-items:center; gap:9px; }
+#pg-transfers .tf-deal-id{ min-width:0; display:flex; flex-direction:column; }
+#pg-transfers .tf-deal-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tf-deal-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+#pg-transfers .tf-deal-dir{
+  margin-left:auto; padding:3px 8px; border-radius:4px;
+  font-size:9px; font-weight:900; letter-spacing:.08em;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+#pg-transfers .tf-deal--in .tf-deal-dir{ background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:#2f8f22; color:#06280a; }
+/* the route: the answer to "where did he go" */
+#pg-transfers .tf-deal-route{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 11px; border-radius:6px;
+  background:var(--tf-info); box-shadow:inset 0 1px 2px rgba(17,16,21,.16);
+}
+#pg-transfers .tf-deal-club{ display:flex; flex-direction:column; min-width:0; flex:1; }
+#pg-transfers .tf-deal-club i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tf-deal-club b{ font-size:12px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tf-deal-arrow{ flex:none; font-size:16px; font-weight:900; color:#6b5310; }
+#pg-transfers .tf-deal-facts{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:#a7acae; border-radius:6px; overflow:hidden; }
+#pg-transfers .tf-deal-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-panel-2); }
+#pg-transfers .tf-deal-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tf-deal-facts b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-state--completed{
+  align-self:flex-start;
+  background:rgba(72,201,52,.20); border-color:#2f8f22; color:#1d6b16;
+}
