@@ -5,6 +5,7 @@ import { Request, Response, NextFunction } from 'express';
 import * as svc from '../transfer-market/transfer-market.service';
 import * as neg from '../transfer-market/transfer-negotiation.service';
 import * as auc from '../transfer-market/transfer-auction.service';
+import * as dis from '../transfer-market/transfer-discovery.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -259,5 +260,66 @@ export async function offerPlayerToClubs(req: Request, res: Response, next: Next
   try {
     requireUUID(req.body?.playerId, 'playerId');
     return sendCreated(res, await neg.offerPlayerToClubs(actor(req), req.body));
+  } catch (err) { return next(err); }
+}
+
+// ── scouting: discovery, the public player, the shortlist ───────────────────
+// Every filter is parsed here and handed to the service as a typed value. The
+// acting club is never read from the query — a club can only ever search as
+// itself, and `includeOwnPlayers` is deliberately not accepted from the wire.
+const bool = (v: unknown) => String(v) === 'true' || v === true;
+const int  = (v: unknown) => (v === undefined || v === '' ? undefined : Number(v));
+const str  = (v: unknown) => {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return s === '' || s.toUpperCase() === 'ALL' ? undefined : s;
+};
+
+export async function discover(req: Request, res: Response, next: NextFunction) {
+  try {
+    const q = req.query;
+    return sendSuccess(res, await dis.discover(actor(req), {
+      search:            str(q.search),
+      clubId:            str(q.clubId),
+      nationality:       str(q.nationality),
+      position:          str(q.position),
+      secondaryPosition: str(q.secondaryPosition),
+      preferredFoot:     str(q.preferredFoot),
+      transferStatus:    str(q.transferStatus),
+      ageMin:            int(q.ageMin),   ageMax:   int(q.ageMax),
+      ovrMin:            int(q.ovrMin),   ovrMax:   int(q.ovrMax),
+      valueMin:          int(q.valueMin), valueMax: int(q.valueMax),
+      listedOnly:        bool(q.listedOnly),
+      auctionOnly:       bool(q.auctionOnly),
+      matchesMyNeeds:    bool(q.matchesMyNeeds),
+      shortlistedOnly:   bool(q.shortlistedOnly),
+      page:              int(q.page),
+      limit:             int(q.limit),
+    }));
+  } catch (err) { return next(err); }
+}
+
+export async function readPublicPlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await dis.readPublicPlayer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function readShortlist(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await dis.readShortlist(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+export async function addToShortlist(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await dis.addToShortlist(actor(req), id, req.body?.notes));
+  } catch (err) { return next(err); }
+}
+
+export async function removeFromShortlist(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await dis.removeFromShortlist(actor(req), id));
   } catch (err) { return next(err); }
 }

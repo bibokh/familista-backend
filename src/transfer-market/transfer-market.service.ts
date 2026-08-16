@@ -21,6 +21,7 @@ import { MarketplaceItem, Player, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -422,13 +423,18 @@ export async function findActiveListingForPlayer(playerId: string): Promise<Mark
   }) ?? null;
 }
 
+// A listing is read by every other club on the platform, so the footballer on it
+// goes through the one public projection. This used to hand back the whole
+// Player row — his email address, his guardian's name, email and phone number,
+// his medical and payment status and his coaches' notes — to anybody who opened
+// the market.
 async function hydrateListing(item: MarketplaceItem) {
   const pl = (item.payload ?? {}) as Record<string, unknown>;
   const playerId = typeof pl.playerId === 'string' ? pl.playerId : null;
   if (!playerId) return null;
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  const player = await prisma.player.findUnique({ where: { id: playerId }, select: publicPlayerSelect });
   if (!player) return null;
-  const club = await prisma.club.findUnique({ where: { id: item.clubId }, select: { id: true, name: true, shortName: true } });
+  const club = await prisma.club.findUnique({ where: { id: item.clubId }, select: publicClubSelect });
   return {
     listingId:      item.id,
     status:         item.status,
@@ -437,8 +443,9 @@ async function hydrateListing(item: MarketplaceItem) {
     createdAt:      item.createdAt,
     sellerClubId:   item.clubId,
     sellerClubName: club?.name ?? 'Unknown club',
+    sellerClub:     club ?? UNKNOWN_CLUB(item.clubId),
     sellerTeamId:   typeof pl.sellerTeamId === 'string' ? pl.sellerTeamId : null,
-    player,
+    player:         toPublicPlayer(player),
   };
 }
 

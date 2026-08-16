@@ -10,6 +10,7 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { getBalance, setAvailability, defaultTeamFor, findActiveListingForPlayer } from './transfer-market.service';
 import { notifyClub, fmt as fmtEur } from './transfer-negotiation.service';
+import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
 
 // the same actor shape the rest of the module uses
 export interface MarketActor { userId: string; clubId: string; role?: string }
@@ -349,23 +350,20 @@ export async function readAuctions(actor: MarketActor) {
     prisma.transferBid.findMany({ where: { listingId: { in: ids } }, orderBy: { amountEur: 'desc' } }),
     prisma.player.findMany({
       where: { id: { in: auctions.map((a) => auctionPayload(a).playerId).filter(Boolean) as string[] } },
-      select: { id: true, firstName: true, lastName: true, position: true, overallRating: true,
-                marketValue: true, avatar: true, nationality: true, flag: true, dateOfBirth: true },
+      select: publicPlayerSelect,
     }),
     prisma.club.findMany({
       where: { id: { in: [...new Set(auctions.map((a) => a.clubId)
         .concat(auctions.map((a) => a.winnerClubId).filter(Boolean) as string[])
         ) ] } },
-      select: { id: true, name: true, shortName: true, emblem: true },
+      select: publicClubSelect,
     }),
   ]);
   const bidderIds = [...new Set(bids.map((b) => b.bidderClubId))];
-  const extraClubs = await prisma.club.findMany({
-    where: { id: { in: bidderIds } }, select: { id: true, name: true, shortName: true, emblem: true },
-  });
+  const extraClubs = await prisma.club.findMany({ where: { id: { in: bidderIds } }, select: publicClubSelect });
   const allClubs = [...clubs, ...extraClubs.filter((e) => !clubs.some((c) => c.id === e.id))];
   const club = (id: string | null) => (id
-    ? allClubs.find((c) => c.id === id) ?? { id, name: 'Unknown / unavailable club', shortName: null, emblem: null }
+    ? allClubs.find((c) => c.id === id) ?? UNKNOWN_CLUB(id)
     : null);
 
   const items = auctions.map((a) => {
@@ -378,7 +376,7 @@ export async function readAuctions(actor: MarketActor) {
       listingId: a.id,
       status: a.status,
       sellerClub: club(a.clubId),
-      player: players.find((p) => p.id === playerId) ?? null,
+      player: (() => { const p = players.find((x) => x.id === playerId); return p ? toPublicPlayer(p) : null; })(),
       startingPriceEur,
       highestBidEur: highest,
       highestBidderClub: top ? club(top.bidderClubId) : null,
@@ -406,27 +404,20 @@ export async function readAuction(actor: MarketActor, listingId: string) {
 
   const [bids, player, seller] = await Promise.all([
     prisma.transferBid.findMany({ where: { listingId }, orderBy: { createdAt: 'asc' } }),
-    playerId ? prisma.player.findUnique({
-      where: { id: playerId },
-      select: { id: true, firstName: true, lastName: true, position: true, overallRating: true,
-                marketValue: true, avatar: true, nationality: true, flag: true, dateOfBirth: true },
-    }) : null,
-    prisma.club.findUnique({ where: { id: item.clubId }, select: { id: true, name: true, shortName: true, emblem: true } }),
+    playerId ? prisma.player.findUnique({ where: { id: playerId }, select: publicPlayerSelect }) : null,
+    prisma.club.findUnique({ where: { id: item.clubId }, select: publicClubSelect }),
   ]);
   const clubIds = [...new Set(bids.map((b) => b.bidderClubId).concat(item.winnerClubId ? [item.winnerClubId] : []))];
-  const clubs = await prisma.club.findMany({
-    where: { id: { in: clubIds } }, select: { id: true, name: true, shortName: true, emblem: true },
-  });
-  const club = (id: string) => clubs.find((c) => c.id === id)
-    ?? { id, name: 'Unknown / unavailable club', shortName: null, emblem: null };
+  const clubs = await prisma.club.findMany({ where: { id: { in: clubIds } }, select: publicClubSelect });
+  const club = (id: string) => clubs.find((c) => c.id === id) ?? UNKNOWN_CLUB(id);
 
   const highest = bids.length ? Math.max(...bids.map((b) => Number(b.amountEur))) : null;
   const myBids = bids.filter((b) => b.bidderClubId === actor.clubId);
   return {
     listingId: item.id,
     status: item.status,
-    sellerClub: seller ?? { id: item.clubId, name: 'Unknown / unavailable club', shortName: null, emblem: null },
-    player,
+    sellerClub: seller ?? UNKNOWN_CLUB(item.clubId),
+    player: player ? toPublicPlayer(player) : null,
     startingPriceEur,
     highestBidEur: highest,
     bidCount: bids.length,

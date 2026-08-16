@@ -10826,3 +10826,155 @@ body.club-theme .topbar-titles{ min-width:0; }
 #pg-transfers .tf-auc-bidbar .tf-step{ flex:1; min-width:220px; }
 #pg-transfers .tf-auc-open .tf-step input{ background:var(--tf-black); border-color:rgba(255,255,255,.22); color:#fff; }
 #pg-transfers .tf-auc-open .tf-step-b{ background:linear-gradient(180deg,var(--tf-black-3),var(--tf-black-2)); border-color:rgba(255,255,255,.22); color:#fff; border-radius:4px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCOUTING — discovery, the public profile, the shortlist
+   ══════════════════════════════════════════════════════════════════════════
+   Same ladder as the rest of Transfers: the page grey underneath, the panel
+   above it, rows above that, and the one gold accent kept for what a club has
+   actually published. Sizes are declared up front so a row that arrives from
+   the server cannot resize the column it lands in. */
+
+.tf-disc-head{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+  padding:14px 16px; margin-bottom:10px;
+  background:var(--tf-panel); border:1px solid var(--tf-line);
+  border-top:1px solid var(--tf-edge); border-radius:10px;
+}
+.tf-disc-lead{ margin:6px 0 0; max-width:62ch; font-size:12px; line-height:1.55; color:var(--tf-ink3); }
+.tf-disc-views{ display:flex; gap:6px; flex:none; }
+
+/* ── filters ─────────────────────────────────────────────────────────────── */
+.tf-disc-filters{
+  padding:12px 14px; margin-bottom:10px;
+  background:var(--tf-info); border:1px solid var(--tf-line);
+  border-top:1px solid var(--tf-edge); border-radius:10px;
+}
+.tf-disc-frow{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+.tf-disc-frow + .tf-disc-frow{ margin-top:10px; }
+.tf-disc-frow--chips{ align-items:center; gap:8px; }
+.tf-disc-filters .tf-fl{ display:flex; flex-direction:column; gap:4px; min-width:150px; }
+.tf-disc-filters .tf-fl--n{ min-width:84px; width:84px; }
+.tf-disc-filters .tf-fl i{
+  font-style:normal; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--tf-ink3);
+}
+.tf-disc-filters input,
+.tf-disc-filters select{
+  height:30px; padding:0 8px; font-size:12px; color:var(--tf-ink);
+  background:var(--tf-card); border:1px solid var(--tf-line2); border-radius:6px;
+}
+.tf-disc-filters input:focus,
+.tf-disc-filters select:focus{ outline:2px solid var(--tf-gold); outline-offset:-1px; }
+
+/* ── the results table ───────────────────────────────────────────────────── */
+.tf-table--disc{ table-layout:fixed; width:100%; }
+.tf-table--disc .tf-c-star{ width:34px; }
+.tf-table--disc .tf-c-player{ width:32%; }
+.tf-table--disc .tf-c-club{ width:24%; }
+.tf-table--disc .tf-c-qual{ width:86px; }
+.tf-table--disc .tf-c-money{ width:116px; }
+.tf-table--disc .tf-c-avail{ width:150px; }
+.tf-table--disc .tf-c-act{ width:22px; }
+.tf-table--disc thead th{
+  padding:9px 8px; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+  text-align:left; color:var(--tf-ink2); background:var(--tf-thead);
+  border-bottom:1px solid var(--tf-sep);
+}
+.tf-table--disc tbody td{ padding:8px; border-bottom:1px solid var(--tf-sep); vertical-align:middle; }
+.tf-star--none{ display:inline-block; width:18px; height:18px; }
+.tf-disc-club{ display:block; font-size:12px; font-weight:600; color:var(--tf-ink); }
+.tf-disc-need{
+  display:inline-block; margin-top:3px; padding:1px 6px; border-radius:999px;
+  font-size:9.5px; letter-spacing:.04em; font-weight:700;
+  color:#3a2e06; background:rgba(201,163,46,.30); border:1px solid rgba(168,129,28,.55);
+}
+
+/* ── the five transfer states, told apart at a glance ────────────────────── */
+.tf-tstate{
+  display:inline-block; padding:2px 8px; border-radius:999px;
+  font-size:9.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+  border:1px solid var(--tf-line2); color:var(--tf-ink2); background:var(--tf-count);
+  font-variant-numeric:tabular-nums;
+}
+.tf-tstate--auction{ color:#3a2e06; background:rgba(201,163,46,.36); border-color:rgba(168,129,28,.6); }
+.tf-tstate--listed{ color:#0f3b09; background:rgba(72,201,52,.26); border-color:rgba(55,165,39,.55); }
+.tf-tstate--available{ color:#0f3b09; background:rgba(72,201,52,.16); border-color:rgba(55,165,39,.4); }
+.tf-tstate--not-available{ color:var(--tf-ink3); background:var(--tf-count); }
+.tf-tstate--own{ color:var(--tf-on-dark); background:var(--tf-black-3); border-color:var(--tf-black); }
+
+/* ── pager ───────────────────────────────────────────────────────────────── */
+.tf-disc-pager{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 12px; margin-top:8px;
+  background:var(--tf-panel); border:1px solid var(--tf-line); border-radius:10px;
+}
+.tf-disc-pager span{ font-size:11px; color:var(--tf-ink3); font-variant-numeric:tabular-nums; }
+.tf-disc-pager .tf-btn[disabled]{ opacity:.4; pointer-events:none; }
+
+/* ── the public profile ──────────────────────────────────────────────────── */
+.tf-disc-prof{
+  position:relative; padding:16px; margin-bottom:10px;
+  background:var(--tf-card); border:1px solid var(--tf-line);
+  border-top:1px solid var(--tf-edge); border-radius:10px;
+}
+.tf-disc-prof-h{ display:flex; align-items:center; gap:14px; }
+.tf-disc-prof-h h3{ margin:0; font-size:17px; color:var(--tf-ink); }
+.tf-disc-prof-h p{ margin:2px 0 8px; font-size:12px; color:var(--tf-ink3); }
+.tf-disc-x{
+  position:absolute; top:10px; right:12px; width:26px; height:26px;
+  border:1px solid var(--tf-line2); border-radius:7px; cursor:pointer;
+  background:var(--tf-info); color:var(--tf-ink2); font-size:12px; line-height:1;
+}
+.tf-disc-prof-facts{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(128px,1fr)); gap:8px;
+  margin:12px 0;
+}
+.tf-disc-prof-facts > div{
+  padding:8px 10px; background:var(--tf-info); border:1px solid var(--tf-line); border-radius:8px;
+}
+.tf-disc-prof-facts i{
+  display:block; font-style:normal; font-size:9.5px; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--tf-ink3); margin-bottom:3px;
+}
+.tf-disc-prof-facts b{ font-size:14px; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+.tf-disc-prof-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+.tf-disc-noact{ font-size:11px; color:var(--tf-ink3); font-style:italic; }
+.tf-disc-sec{ margin-top:14px; }
+.tf-disc-sec h4{
+  margin:0 0 6px; font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--tf-ink3);
+}
+.tf-disc-needs, .tf-disc-hist{ list-style:none; margin:0; padding:0; }
+.tf-disc-needs li, .tf-disc-hist li{
+  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  padding:6px 10px; margin-bottom:4px; font-size:12px; color:var(--tf-ink);
+  background:var(--tf-info); border:1px solid var(--tf-line); border-radius:7px;
+}
+.tf-disc-needs em, .tf-disc-hist em{ font-style:normal; font-size:11px; color:var(--tf-ink3); }
+
+/* ── the shortlist ───────────────────────────────────────────────────────── */
+.tf-disc-short{ list-style:none; margin:0; padding:0; }
+.tf-disc-short li{
+  display:flex; align-items:center; gap:12px; cursor:pointer;
+  padding:10px 12px; margin-bottom:6px;
+  background:var(--tf-row); border:1px solid var(--tf-line);
+  border-top:1px solid var(--tf-edge); border-radius:9px;
+}
+.tf-disc-short li:hover{ background:var(--tf-panel-2); }
+.tf-disc-short li > div{ flex:1 1 auto; min-width:0; }
+.tf-disc-short b{ display:block; font-size:13px; color:var(--tf-ink); }
+.tf-disc-short em{ font-style:normal; font-size:11px; color:var(--tf-ink3); }
+.tf-disc-short-gone{ justify-content:space-between; opacity:.75; }
+
+@media (max-width:860px){
+  .tf-disc-head{ flex-direction:column; }
+  .tf-table--disc .tf-c-club, .tf-table--disc .tf-c-money{ display:none; }
+  .tf-table--disc .tf-c-player{ width:auto; }
+  .tf-table--disc .tf-c-avail{ width:120px; }
+}
+
+/* The shortlist button on a profile carries two labels of different lengths —
+   "☆ ADD TO SHORTLIST" and "★ ON SHORTLIST" — and the buttons beside it used to
+   slide when it changed. The box is sized for the longer of the two, so pressing
+   it changes the star and nothing else. */
+.tf-disc-star{ min-width:184px; justify-content:center; text-align:center; }

@@ -28,6 +28,9 @@ import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '.
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { getBalance } from './transfer-market.service';
 import { settleDueAuctions } from './transfer-auction.service';
+import {
+  PublicClub, publicClubSelect, publicPlayerSelect, scoringShape, toPublicPlayer, UNKNOWN_CLUB,
+} from './public-player';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -65,13 +68,11 @@ export async function notifyClub(
 
 // What a club may know about another club: its name and crest. Never its
 // budget, its needs' internal notes, or who else it is talking to.
-async function publicClub(clubId: string) {
-  const c = await prisma.club.findUnique({
-    where: { id: clubId }, select: { id: true, name: true, shortName: true, emblem: true },
-  });
+export async function publicClub(clubId: string): Promise<PublicClub> {
+  const c = await prisma.club.findUnique({ where: { id: clubId }, select: publicClubSelect });
   // Every club shown anywhere in Transfers comes from this table. A reference
   // that no longer resolves says so; it never gets an invented identity.
-  return c ?? { id: clubId, name: 'Unknown / unavailable club', shortName: null, emblem: null };
+  return c ?? UNKNOWN_CLUB(clubId);
 }
 
 async function playerOr404(playerId: string) {
@@ -495,11 +496,7 @@ export async function readOffer(actor: MarketActor, offerId: string) {
 
 async function hydrateOffer(o: TransferOffer) {
   const [player, seller, buyer, linked] = await Promise.all([
-    prisma.player.findUnique({
-      where: { id: o.playerId },
-      select: { id: true, firstName: true, lastName: true, position: true, overallRating: true,
-                marketValue: true, avatar: true, clubId: true, dateOfBirth: true, nationality: true, flag: true },
-    }),
+    prisma.player.findUnique({ where: { id: o.playerId }, select: publicPlayerSelect }),
     publicClub(o.sellerClubId),
     publicClub(o.buyerClubId),
     // The need this player was offered against, if he was. The link lives on
@@ -514,7 +511,7 @@ async function hydrateOffer(o: TransferOffer) {
     ? await prisma.clubRecruitmentNeed.findUnique({ where: { id: linked.needId } })
     : null;
   return {
-    id: o.id, playerId: o.playerId, player,
+    id: o.id, playerId: o.playerId, player: player ? toPublicPlayer(player) : null,
     sellerClub: seller, buyerClub: buyer,
     feeEur: money(o.feeEur), status: o.status, message: o.message,
     parentOfferId: o.parentOfferId, createdByClubId: o.createdByClubId,
@@ -938,9 +935,9 @@ export async function readMarketNeeds(actor: MarketActor) {
   // How many of this club's own players fit each need, so the board can show
   // the opportunity without a request per card. One query for the squad, then
   // arithmetic — the count is never a count of anybody else's players.
-  const squad = await prisma.player.findMany({
-    where: { clubId: actor.clubId, isActive: true }, select: squadSelect, take: 500,
-  });
+  const squad = (await prisma.player.findMany({
+    where: { clubId: actor.clubId, isActive: true }, select: publicPlayerSelect, take: 500,
+  })).map(scoringShape);
   const items = await Promise.all(rows.map(async (n) => ({
     ...needShape(n, n.clubId === actor.clubId),
     club: await publicClub(n.clubId),
@@ -1073,37 +1070,48 @@ export async function matchesForPlayer(actor: MarketActor, playerId: string, ask
 // rest: a need that names positions is not satisfied by a player who plays
 // none of them, whatever his age and price. Everything else is a share of the
 // criteria the need actually stated.
-const MATCH_FLOOR = 60;
+export const MATCH_FLOOR = 60;
 
-function scoreSquadAgainstNeed(
-  players: Array<{ position: string; trainedPositions: string | null; roles: string | null;
-                   dateOfBirth: Date | null; overallRating: number; marketValue: number;
-                   preferredFoot: string | null; nationality: string | null }>,
-  need: { positions: string; ageMin: number | null; ageMax: number | null;
-          ratingMin: number | null; ratingMax: number | null;
-          budgetMinEur: bigint | null; budgetMaxEur: bigint | null;
-          nationality: string | null; preferredFoot: string | null; playstyle: string | null },
-) {
-  const spec = {
+// The stored need, in the vocabulary matchPlayerToNeed reads. Exported because
+// discovery scores other clubs' players against THIS club's needs and must use
+// the same translation — a second copy of this is a second definition of what a
+// need means.
+export interface NeedRowShape {
+  positions: string; ageMin: number | null; ageMax: number | null;
+  ratingMin: number | null; ratingMax: number | null;
+  budgetMinEur: bigint | null; budgetMaxEur: bigint | null;
+  nationality: string | null; preferredFoot: string | null; playstyle: string | null;
+}
+export function needSpec(need: NeedRowShape) {
+  return {
     positions: need.positions.split(',').filter(Boolean),
     ageMin: need.ageMin, ageMax: need.ageMax, ratingMin: need.ratingMin, ratingMax: need.ratingMax,
     budgetMinEur: need.budgetMinEur === null ? null : Number(need.budgetMinEur),
     budgetMaxEur: need.budgetMaxEur === null ? null : Number(need.budgetMaxEur),
     nationality: need.nationality, preferredFoot: need.preferredFoot, playstyle: need.playstyle,
   };
-  return players.map((p) => {
-    const m = matchPlayerToNeed(p, spec);
-    const position = m.criteria.find((c) => c.key === 'position');
-    const eligible = (!position || position.ok) && m.pct >= MATCH_FLOOR;
-    return { m, eligible };
-  });
 }
 
-const squadSelect = {
-  id: true, firstName: true, lastName: true, position: true, trainedPositions: true, roles: true,
-  dateOfBirth: true, overallRating: true, marketValue: true, preferredFoot: true,
-  nationality: true, flag: true, avatar: true, number: true,
-} as const;
+// Whether a score counts as a match at all: the position must be one the need
+// actually asked for, and the weighted score must clear the floor. One rule,
+// used by the needs board and by discovery alike.
+export function matchIsEligible(m: { pct: number; criteria: MatchCriterion[] }): boolean {
+  const position = m.criteria.find((c) => c.key === 'position');
+  return (!position || position.ok) && m.pct >= MATCH_FLOOR;
+}
+
+function scoreSquadAgainstNeed(
+  players: Array<{ position: string; trainedPositions: string | null; roles: string | null;
+                   dateOfBirth: Date | null; overallRating: number; marketValue: number;
+                   preferredFoot: string | null; nationality: string | null }>,
+  need: NeedRowShape,
+) {
+  const spec = needSpec(need);
+  return players.map((p) => {
+    const m = matchPlayerToNeed(p, spec);
+    return { m, eligible: matchIsEligible(m) };
+  });
+}
 
 export async function matchesForNeed(actor: MarketActor, needId: string) {
   const need = await prisma.clubRecruitmentNeed.findUnique({ where: { id: needId } });
@@ -1117,17 +1125,14 @@ export async function matchesForNeed(actor: MarketActor, needId: string) {
   // Only ever this club's own squad. A need belonging to another club never
   // gives its author a window into anybody's roster.
   const players = mine ? [] : await prisma.player.findMany({
-    where: { clubId: actor.clubId, isActive: true }, select: squadSelect, take: 500,
+    where: { clubId: actor.clubId, isActive: true }, select: publicPlayerSelect, take: 500,
   });
-  const scored = scoreSquadAgainstNeed(players, need);
+  const scored = scoreSquadAgainstNeed(players.map(scoringShape), need);
   const items = players.map((p, i) => ({
-    player: {
-      id: p.id, firstName: p.firstName, lastName: p.lastName, position: p.position,
-      trainedPositions: p.trainedPositions, overallRating: p.overallRating,
-      marketValue: p.marketValue, preferredFoot: p.preferredFoot,
-      nationality: p.nationality, flag: p.flag, avatar: p.avatar, number: p.number,
-      age: p.dateOfBirth ? Math.floor((Date.now() - p.dateOfBirth.getTime()) / (365.25 * 24 * 3600 * 1000)) : null,
-    },
+    // The same projection every other club-facing surface uses. These are the
+    // caller's own players, but a need match is answered TO another club and
+    // the shape must not differ from the one that leaves the building.
+    player: toPublicPlayer(p),
     matchPct: scored[i].m.pct,
     eligible: scored[i].eligible,
     criteria: scored[i].m.criteria,

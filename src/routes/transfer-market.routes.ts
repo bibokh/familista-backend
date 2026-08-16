@@ -75,6 +75,22 @@ router.get('/feed',                                         ctrl.readMarketFeed)
 // Where players actually went, market-wide.
 router.get('/completed/market',                             ctrl.readMarketCompleted);
 
+// ── scouting: finding a real player at another real club ────────────────────
+// Discovery is a read, so every authenticated club may do it — the same tier
+// that may read the market. What a result lets you DO is decided per player by
+// the service, from what his own club actually did with him.
+router.get('/discover',                                     ctrl.discover);
+// The public view of one footballer. Deliberately NOT /players/:id, which stays
+// own-club-only: this is the other question, with its own narrow projection.
+router.get('/players/:playerId',                            ctrl.readPublicPlayer);
+
+// ── shortlist: the club's own TransferTarget pipeline ───────────────────────
+// Club-scoped inside the service on every call, so one club can neither read
+// nor change another's list.
+router.get('/shortlist',                                    ctrl.readShortlist);
+router.post('/shortlist',                       tradeGuard, ctrl.addToShortlist);
+router.delete('/shortlist/:playerId',           tradeGuard, ctrl.removeFromShortlist);
+
 // ── recruitment needs: a club publishes what it is looking for ──────────────
 router.get('/needs',                                        ctrl.readMarketNeeds);
 router.get('/needs/mine',                                   ctrl.readOwnNeeds);
