@@ -26,45 +26,24 @@ import { Prisma, TransferOffer, UserNotificationKind } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
-import { getBalance } from './transfer-market.service';
-import { settleDueAuctions } from './transfer-auction.service';
+import { getBalance, activeAuctionForPlayer, closeCompetingState, assertCanSpend,
+         archiveShortlistAfterTransfer } from './transfer-market.service';
+import { settleDueAuctions, leadingCommitmentFor, cancelAuctionForSettlement,
+         notifyCancelled } from './transfer-auction.service';
 import {
   PublicClub, publicClubSelect, publicPlayerSelect, scoringShape, toPublicPlayer, UNKNOWN_CLUB,
 } from './public-player';
+import { notifyClub, fmt } from './transfer-notify';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
 const OFFER_TTL_MS = 3 * 24 * 60 * 60 * 1000;   // an unanswered offer lapses
 
 // ── notifications ────────────────────────────────────────────────────────────
-// Transfers talk to a club, and a club is people: every active member of the
-// receiving club gets the row, so whoever is logged in sees it. The payload
-// carries what the UI needs to open the right thing and nothing more — no
-// budgets, no scouting, no internal notes.
-export async function notifyClub(
-  clubId: string,
-  kind: UserNotificationKind,
-  title: string,
-  body: string | null,
-  payload: Record<string, unknown>,
-) {
-  const members = await prisma.membership.findMany({
-    where: { clubId, isActive: true }, select: { userId: true }, take: 200,
-  });
-  const legacy = await prisma.user.findMany({
-    where: { OR: [{ clubId }, { currentClubId: clubId }], isActive: true },
-    select: { id: true }, take: 200,
-  });
-  const ids = Array.from(new Set(members.map((m) => m.userId).concat(legacy.map((u) => u.id))));
-  if (!ids.length) return 0;
-  await prisma.userNotification.createMany({
-    data: ids.map((userId) => ({
-      clubId, userId, kind, title, body,
-      payload: payload as Prisma.InputJsonValue,
-    })),
-  });
-  return ids.length;
-}
+// The implementation moved to transfer-notify so the purchase path can reach it
+// too; it is re-exported here because half the module already imports it from
+// this file, and there is still only one of it.
+export { notifyClub, fmt } from './transfer-notify';
 
 // What a club may know about another club: its name and crest. Never its
 // budget, its needs' internal notes, or who else it is talking to.
@@ -82,9 +61,6 @@ async function playerOr404(playerId: string) {
 }
 
 const money = (v: bigint | number) => Number(v);
-export const fmt = (eur: number) =>
-  eur >= 1_000_000 ? '€' + (eur / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M'
-    : eur >= 1_000 ? '€' + Math.round(eur / 1_000) + 'K' : '€' + eur;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // INTEREST — a club asks about a player it does not own
@@ -152,10 +128,17 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
   const player = await playerOr404(dto.playerId);
   if (player.clubId === actor.clubId) throw new BadRequestError('That player already belongs to your club');
   if (player.isActive === false) throw new BadRequestError('That player is not active');
+  // A player at auction is being sold by auction. Buying him around it would
+  // mean tearing down a live auction other clubs are bidding in — which is
+  // exactly what used to happen. Bid, or wait for it to end.
+  const auction = await activeAuctionForPlayer(dto.playerId);
+  if (auction) throw new ConflictError('That player is in an auction — place a bid instead');
 
-  // A club may not offer money it does not have.
+  // A club may not offer money it does not have. The auctions it is currently
+  // leading are money too: it cannot promise the same euro twice.
   const balance = await getBalance(actor.clubId);
-  if (balance.availableEur < feeEur) throw new BadRequestError('Insufficient transfer budget');
+  const committed = await leadingCommitmentFor(actor.clubId);
+  if (balance.availableEur - committed < feeEur) throw new BadRequestError('Insufficient transfer budget');
 
   const row = await prisma.transferOffer.create({
     data: {
@@ -208,6 +191,11 @@ export async function offerPlayerToNeed(
   const player = await playerOr404(dto.playerId);
   if (player.clubId !== actor.clubId) throw new ForbiddenError('That player belongs to another club');
   if (player.isActive === false) throw new BadRequestError('That player is not active');
+
+  // The seller-initiated path is still an offer, and an offer on a player who
+  // is at auction collides with it the same way.
+  const ownAuction = await activeAuctionForPlayer(dto.playerId);
+  if (ownAuction) throw new ConflictError('That player is in an auction — cancel it before offering him directly');
 
   const need = await prisma.clubRecruitmentNeed.findUnique({ where: { id: dto.needId } });
   if (!need) throw new NotFoundError('Need');
@@ -580,6 +568,7 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
   const buyerBalance = await getBalance(offer.buyerClubId);
   if (buyerBalance.availableEur < feeEur) throw new BadRequestError('The buying club can no longer cover that fee');
 
+  let cancelledAuction: { listingId: string; playerId: string | null; sellerClubId: string } | null = null;
   const result = await prisma.$transaction(async (tx) => {
     // The claim: exactly one caller takes this offer out of PENDING.
     const claimed = await tx.transferOffer.updateMany({
@@ -587,6 +576,11 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
       data: { status: 'ACCEPTED', respondedAt: new Date() },
     });
     if (claimed.count === 0) throw new ConflictError('That offer is no longer open');
+
+    // 0 · the money, re-checked here rather than before the transaction, and
+    // with the buyer's balance row locked for its duration. Two acceptances in
+    // the same instant now queue instead of both reading the same figure.
+    await assertCanSpend(tx, offer.buyerClubId, feeEur);
 
     const player = await tx.player.findUnique({ where: { id: offer.playerId } });
     if (!player) throw new NotFoundError('Player');
@@ -616,32 +610,12 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
       create: { clubId: offer.sellerClubId, earnedEur: BigInt(feeEur) },
     });
 
-    // 4 · everything else open on this player closes with it. A sold player is
-    // not still for sale, not still being negotiated, and not still on offer.
-    await tx.playerContractStatus.updateMany({
-      where: { playerId: offer.playerId }, data: { isAvailableForTransfer: false },
-    });
-    await tx.transferOffer.updateMany({
-      where: { playerId: offer.playerId, status: 'PENDING', id: { not: offerId } },
-      data: { status: 'REJECTED', respondedAt: new Date() },
-    });
-    await tx.transferInterest.updateMany({
-      where: { playerId: offer.playerId, status: { in: ['OPEN', 'INVITED'] } },
-      data: { status: 'CLOSED', respondedAt: new Date() },
-    });
-    await tx.playerOfferToClub.updateMany({
-      where: { playerId: offer.playerId, status: { in: ['OPEN', 'INVITED'] } },
-      data: { status: 'CLOSED', respondedAt: new Date() },
-    });
-    const listings = await tx.marketplaceItem.findMany({
-      where: { kind: 'TRANSFER_LISTING', clubId: offer.sellerClubId, status: 'ACTIVE' },
-      select: { id: true, payload: true },
-    });
-    for (const l of listings) {
-      const pl = (l.payload ?? {}) as Record<string, unknown>;
-      if (pl.playerId === offer.playerId) {
-        await tx.marketplaceItem.update({ where: { id: l.id }, data: { status: 'CLOSED' } });
-      }
+    // 4 · everything else open on this player closes with it — the same cleanup
+    // the other two settlements now run. An auction is handed back rather than
+    // closed here: it ends as CANCELLED, with the clubs that were bidding told.
+    const { auctionListingId } = await closeCompetingState(tx, offer.playerId, offer.sellerClubId, { exceptOfferId: offerId });
+    if (auctionListingId) {
+      cancelledAuction = await cancelAuctionForSettlement(tx, auctionListingId, offer.playerId, offer.sellerClubId);
     }
 
     const history = await tx.athleteTransferHistory.create({
@@ -654,6 +628,11 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
     });
     return { playerId: offer.playerId, feeEur, historyId: history.id, name: `${player.firstName} ${player.lastName}` };
   }, { timeout: 20_000, maxWait: 10_000 });
+
+  // Anybody who was bidding on an auction this deal had to cancel hears about
+  // it, once the transfer itself has actually committed.
+  await notifyCancelled(cancelledAuction);
+  await archiveShortlistAfterTransfer(offer.playerId, offer.buyerClubId);
 
   const [seller, buyer] = await Promise.all([publicClub(offer.sellerClubId), publicClub(offer.buyerClubId)]);
   const note = { type: 'TRANSFER_COMPLETED', offerId, playerId: offer.playerId, feeEur, from: seller.id, to: buyer.id };

@@ -10978,3 +10978,69 @@ body.club-theme .topbar-titles{ min-width:0; }
    slide when it changed. The box is sized for the longer of the two, so pressing
    it changes the star and nothing else. */
 .tf-disc-star{ min-width:184px; justify-content:center; text-align:center; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MY CLUB — the transfer desk
+   ══════════════════════════════════════════════════════════════════════════
+   One table for everything the club has going on. Columns are declared so a
+   row arriving from the server cannot resize the one it lands in. */
+
+.tf-desk-money{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px;
+  padding:12px; margin-bottom:10px;
+  background:var(--tf-info); border:1px solid var(--tf-line);
+  border-top:1px solid var(--tf-edge); border-radius:10px;
+}
+.tf-desk-money > div{
+  padding:8px 10px; background:var(--tf-card);
+  border:1px solid var(--tf-line); border-radius:8px;
+}
+.tf-desk-money i{
+  display:block; font-style:normal; font-size:9.5px; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--tf-ink3); margin-bottom:3px;
+}
+.tf-desk-money b{ font-size:15px; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+.tf-desk-money .is-avail{ background:rgba(72,201,52,.16); border-color:rgba(55,165,39,.45); }
+.tf-desk-money .is-avail b{ color:#0f3b09; }
+
+.tf-desk-filters{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+
+.tf-table--desk{ table-layout:fixed; width:100%; }
+.tf-table--desk .tf-c-player{ width:24%; }
+.tf-table--desk .tf-c-type{   width:132px; }
+.tf-table--desk .tf-c-status{ width:104px; }
+.tf-table--desk .tf-c-club{   width:16%; }
+.tf-table--desk .tf-c-money{  width:118px; }
+.tf-table--desk .tf-c-action{ width:22%; }
+.tf-table--desk .tf-c-result{ width:18%; }
+.tf-table--desk thead th{
+  padding:9px 8px; font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+  text-align:left; color:var(--tf-ink2); background:var(--tf-thead);
+  border-bottom:1px solid var(--tf-sep);
+}
+.tf-table--desk tbody td{
+  padding:8px; border-bottom:1px solid var(--tf-sep); vertical-align:middle;
+  font-size:12px; color:var(--tf-ink);
+}
+.tf-table--desk .tf-c-player{ display:table-cell; }
+.tf-table--desk .tf-c-action{ color:var(--tf-ink3); }
+.tf-table--desk .tf-c-money{ font-variant-numeric:tabular-nums; }
+.tf-desk-row.is-live{ background:var(--tf-row); }
+.tf-desk-row .tf-pl-t{ display:inline-block; vertical-align:middle; margin-left:8px; }
+.tf-desk-row .tf-pl-t b{ display:block; font-size:12.5px; }
+.tf-desk-row .tf-pl-t em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+
+.tf-desk-type{
+  display:inline-block; padding:2px 7px; border-radius:999px;
+  font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--tf-ink2); background:var(--tf-count); border:1px solid var(--tf-line2);
+}
+.tf-desk-type--auction{ color:#3a2e06; background:rgba(201,163,46,.34); border-color:rgba(168,129,28,.6); }
+.tf-desk-type--listing{ color:#0f3b09; background:rgba(72,201,52,.22); border-color:rgba(55,165,39,.5); }
+.tf-desk-type--completed{ color:var(--tf-on-dark); background:var(--tf-black-3); border-color:var(--tf-black); }
+.tf-desk-move b{ font-weight:700; }
+
+@media (max-width:900px){
+  .tf-table--desk .tf-c-club, .tf-table--desk .tf-c-action{ display:none; }
+  .tf-table--desk .tf-c-player{ width:auto; }
+}

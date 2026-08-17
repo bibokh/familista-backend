@@ -26,6 +26,7 @@ import {
 import {
   matchIsEligible, matchPlayerToNeed, MatchCriterion, needSpec,
 } from './transfer-negotiation.service';
+import { leadingCommitmentFor } from './transfer-auction.service';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -393,7 +394,7 @@ export async function readShortlist(actor: MarketActor) {
 
   const [players, market, availableRows, needs] = await Promise.all([
     prisma.player.findMany({
-      where: { id: { in: targets.map((t) => t.playerId) } }, select: publicPlayerSelect,
+      where: { id: { in: targets.map((t) => t.playerId) }, isActive: true }, select: publicPlayerSelect,
     }),
     activeListingsByPlayer(),
     prisma.playerContractStatus.findMany({
@@ -413,21 +414,35 @@ export async function readShortlist(actor: MarketActor) {
     actor, players, market, available, targets.map((t) => t.playerId), needs,
   );
 
-  // A shortlisted player whose row has gone — sold on, deactivated — is reported
-  // as gone rather than quietly dropped, because the club put him there.
+  // A shortlisted player whose row has gone — deactivated, deleted — is not a
+  // target any more. Leaving him as a permanent `player: null` row made the
+  // list accumulate entries nobody could act on or clear, so the read archives
+  // him instead, through the lifecycle TransferTarget already has, and reports
+  // what it archived rather than doing it silently.
+  const missing = targets.filter((t) => !players.some((p) => p.id === t.playerId));
+  if (missing.length) {
+    await prisma.transferTarget.updateMany({
+      where: { id: { in: missing.map((t) => t.id) }, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+  }
+
   return {
-    items: targets.map((t) => {
-      const row = rows.find((r) => r.player.id === t.playerId) ?? null;
-      return {
-        targetId: t.id,
-        playerId: t.playerId,
-        stage: t.stage,
-        priorityScore: t.priorityScore,
-        notes: t.notes,
-        addedAt: t.createdAt,
-        ...(row ?? { player: null, club: null, transferState: null, actions: [], unavailable: true }),
-      };
-    }),
+    items: targets
+      .filter((t) => players.some((p) => p.id === t.playerId))
+      .map((t) => {
+        const row = rows.find((r) => r.player.id === t.playerId)!;
+        return {
+          targetId: t.id,
+          playerId: t.playerId,
+          stage: t.stage,
+          priorityScore: t.priorityScore,
+          notes: t.notes,
+          addedAt: t.createdAt,
+          ...row,
+        };
+      }),
+    archived: missing.length,
   };
 }
 
@@ -464,4 +479,227 @@ export async function removeFromShortlist(actor: MarketActor, playerId: string) 
   });
   if (!done.count) throw new NotFoundError('Shortlist entry');
   return { removed: done.count, playerId };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MY CLUB — one read for everything this club has going on
+// ══════════════════════════════════════════════════════════════════════════════
+// The seller-side answer used to be spread over four calls: listings here,
+// auctions there, offers and interests in a third, completed moves in a fourth,
+// and no single place that said what the club had on the market and what was
+// happening to it. This composes them, once, from the same tables the rest of
+// the module writes. It stores nothing and computes no truth of its own — every
+// row is a projection of a record some settlement or negotiation already made.
+//
+// It is club-scoped at every query, so it can only ever describe the caller.
+
+export type MyClubType = 'LISTING' | 'AUCTION' | 'OFFER_IN' | 'OFFER_OUT'
+                       | 'INTEREST_IN' | 'INTEREST_OUT' | 'PROPOSAL_IN' | 'PROPOSAL_OUT' | 'COMPLETED';
+
+export interface MyClubRow {
+  id: string;
+  type: MyClubType;
+  playerId: string | null;
+  player: ReturnType<typeof toPublicPlayer> | null;
+  status: string;
+  otherClub: PublicClub | null;
+  amountEur: number | null;
+  action: string;                 // what this club can do about it, in words
+  result: string | null;          // where he went, once he has gone
+  from: PublicClub | null;
+  to: PublicClub | null;
+  at: Date;
+  listingId?: string | null;
+  offerId?: string | null;
+  bidCount?: number;
+  highestBidEur?: number | null;
+}
+
+export async function readMyClub(actor: MarketActor) {
+  const me = actor.clubId;
+
+  const [listings, offersIn, offersOut, interestsIn, interestsOut, proposalsIn, proposalsOut, history, balance] =
+    await Promise.all([
+      // everything this club currently has on the market, fixed price or auction
+      prisma.marketplaceItem.findMany({
+        where: { kind: KIND, clubId: me, status: { in: ['ACTIVE', 'SOLD', 'UNSOLD', 'CANCELLED'] } },
+        orderBy: { createdAt: 'desc' }, take: 100,
+      }),
+      prisma.transferOffer.findMany({
+        where: { OR: [{ sellerClubId: me }, { buyerClubId: me }], createdByClubId: { not: me } },
+        orderBy: { createdAt: 'desc' }, take: 60,
+      }),
+      prisma.transferOffer.findMany({
+        where: { createdByClubId: me }, orderBy: { createdAt: 'desc' }, take: 60,
+      }),
+      prisma.transferInterest.findMany({ where: { ownerClubId: me }, orderBy: { createdAt: 'desc' }, take: 60 }),
+      prisma.transferInterest.findMany({ where: { interestedClubId: me }, orderBy: { createdAt: 'desc' }, take: 60 }),
+      prisma.playerOfferToClub.findMany({ where: { toClubId: me }, orderBy: { createdAt: 'desc' }, take: 60 }),
+      prisma.playerOfferToClub.findMany({ where: { fromClubId: me }, orderBy: { createdAt: 'desc' }, take: 60 }),
+      prisma.athleteTransferHistory.findMany({
+        where: { OR: [{ fromClubRef: me }, { toClubRef: me }] },
+        orderBy: { occurredAt: 'desc' }, take: 60,
+      }),
+      prisma.clubTransferBalance.findUnique({ where: { clubId: me } }),
+    ]);
+
+  // Every player and club this read will name, in two queries rather than one
+  // per row — the fragmented version cost a request per line.
+  const playerIds = new Set<string>();
+  const clubIds = new Set<string>();
+  const addListingPlayer = (m: { payload: Prisma.JsonValue | null }) => {
+    const pl = (m.payload ?? {}) as Record<string, unknown>;
+    if (typeof pl.playerId === 'string') playerIds.add(pl.playerId);
+  };
+  listings.forEach(addListingPlayer);
+  [...offersIn, ...offersOut].forEach((o) => { playerIds.add(o.playerId); clubIds.add(o.sellerClubId); clubIds.add(o.buyerClubId); });
+  [...interestsIn, ...interestsOut].forEach((i) => { playerIds.add(i.playerId); clubIds.add(i.ownerClubId); clubIds.add(i.interestedClubId); });
+  [...proposalsIn, ...proposalsOut].forEach((p) => { playerIds.add(p.playerId); clubIds.add(p.fromClubId); clubIds.add(p.toClubId); });
+  history.forEach((h) => {
+    playerIds.add(h.athleteId);
+    if (h.fromClubRef) clubIds.add(h.fromClubRef);
+    if (h.toClubRef) clubIds.add(h.toClubRef);
+  });
+  listings.forEach((l) => { if (l.winnerClubId) clubIds.add(l.winnerClubId); });
+
+  const [players, clubs, bids] = await Promise.all([
+    prisma.player.findMany({ where: { id: { in: [...playerIds] } }, select: publicPlayerSelect }),
+    prisma.club.findMany({ where: { id: { in: [...clubIds] } }, select: publicClubSelect }),
+    prisma.transferBid.findMany({
+      where: { listingId: { in: listings.map((l) => l.id) } },
+      orderBy: { amountEur: 'desc' },
+    }),
+  ]);
+  const P = (id: string | null) => {
+    const row = id ? players.find((p) => p.id === id) : null;
+    return row ? toPublicPlayer(row) : null;
+  };
+  const C = (id: string | null) => (id ? clubs.find((c) => c.id === id) ?? UNKNOWN_CLUB(id) : null);
+
+  const rows: MyClubRow[] = [];
+
+  // ── what we have on the market ──────────────────────────────────────────
+  for (const l of listings) {
+    const pl = (l.payload ?? {}) as Record<string, unknown>;
+    const playerId = typeof pl.playerId === 'string' ? pl.playerId : null;
+    const isAuction = pl.mode === 'AUCTION';
+    const mine = bids.filter((b) => b.listingId === l.id);
+    const top = mine[0] ?? null;
+    const price = typeof pl.askingPriceEur === 'number' ? pl.askingPriceEur
+      : typeof pl.startingPriceEur === 'number' ? pl.startingPriceEur : null;
+    rows.push({
+      id: l.id, type: isAuction ? 'AUCTION' : 'LISTING',
+      playerId, player: P(playerId), status: l.status,
+      otherClub: l.winnerClubId ? C(l.winnerClubId) : null,
+      amountEur: l.finalPriceEur !== null ? Number(l.finalPriceEur) : (top ? Number(top.amountEur) : price),
+      action: l.status !== 'ACTIVE' ? '—'
+        : isAuction ? (mine.length ? 'Running · you may cancel' : 'Running · no bids yet')
+        : 'Listed · you may delist',
+      result: l.status === 'SOLD' && l.winnerClubId ? `Sold to ${C(l.winnerClubId)!.name}`
+        : l.status === 'UNSOLD' ? 'Ended with no bids'
+        : l.status === 'CANCELLED' ? 'Cancelled'
+        : l.status === 'CLOSED' ? 'Closed' : null,
+      from: l.status === 'SOLD' ? C(me) : null,
+      to: l.status === 'SOLD' && l.winnerClubId ? C(l.winnerClubId) : null,
+      at: l.createdAt,
+      listingId: l.id,
+      bidCount: mine.length,
+      highestBidEur: top ? Number(top.amountEur) : null,
+    });
+  }
+
+  // ── negotiations, both directions ───────────────────────────────────────
+  const offerRow = (o: typeof offersIn[number], incoming: boolean): MyClubRow => {
+    const sellingOurs = o.sellerClubId === me;
+    const other = sellingOurs ? o.buyerClubId : o.sellerClubId;
+    return {
+      id: o.id, type: incoming ? 'OFFER_IN' : 'OFFER_OUT',
+      playerId: o.playerId, player: P(o.playerId), status: o.status,
+      otherClub: C(other), amountEur: Number(o.feeEur),
+      action: o.status !== 'PENDING' ? '—'
+        : incoming ? 'Answer it · accept, counter or reject'
+        : 'Waiting on their answer · you may withdraw',
+      result: o.status === 'ACCEPTED' ? (sellingOurs ? `Sold to ${C(other)!.name}` : `Signed from ${C(other)!.name}`)
+        : o.status === 'REJECTED' ? 'Rejected'
+        : o.status === 'WITHDRAWN' ? 'Withdrawn'
+        : o.status === 'EXPIRED' ? 'Expired' : null,
+      from: C(o.sellerClubId), to: C(o.buyerClubId),
+      at: o.createdAt, offerId: o.id,
+    };
+  };
+  offersIn.forEach((o) => rows.push(offerRow(o, true)));
+  offersOut.forEach((o) => rows.push(offerRow(o, false)));
+
+  interestsIn.forEach((i) => rows.push({
+    id: i.id, type: 'INTEREST_IN', playerId: i.playerId, player: P(i.playerId), status: i.status,
+    otherClub: C(i.interestedClubId), amountEur: null,
+    action: i.status === 'OPEN' ? 'Answer it · invite an offer, decline, or say he is not for sale' : '—',
+    result: i.status === 'INVITED' ? 'You invited an offer'
+      : i.status === 'DECLINED' ? 'You declined'
+      : i.status === 'NOT_FOR_SALE' ? 'You said he is not for sale'
+      : i.status === 'CLOSED' ? 'Closed' : null,
+    from: null, to: null, at: i.createdAt,
+  }));
+  interestsOut.forEach((i) => rows.push({
+    id: i.id, type: 'INTEREST_OUT', playerId: i.playerId, player: P(i.playerId), status: i.status,
+    otherClub: C(i.ownerClubId), amountEur: null,
+    action: i.status === 'INVITED' ? 'They invited an offer · make one'
+      : i.status === 'OPEN' ? 'Waiting on their answer' : '—',
+    result: i.status === 'DECLINED' ? 'They declined'
+      : i.status === 'NOT_FOR_SALE' ? 'They said he is not for sale'
+      : i.status === 'CLOSED' ? 'Closed' : null,
+    from: null, to: null, at: i.createdAt,
+  }));
+  proposalsIn.forEach((p) => rows.push({
+    id: p.id, type: 'PROPOSAL_IN', playerId: p.playerId, player: P(p.playerId), status: p.status,
+    otherClub: C(p.fromClubId), amountEur: p.askingPriceEur === null ? null : Number(p.askingPriceEur),
+    action: p.status === 'OPEN' ? 'They offered him to you · answer it' : '—',
+    result: p.status === 'CLOSED' ? 'Closed' : null, from: null, to: null, at: p.createdAt,
+  }));
+  proposalsOut.forEach((p) => rows.push({
+    id: p.id, type: 'PROPOSAL_OUT', playerId: p.playerId, player: P(p.playerId), status: p.status,
+    otherClub: C(p.toClubId), amountEur: p.askingPriceEur === null ? null : Number(p.askingPriceEur),
+    action: p.status === 'OPEN' ? 'Waiting on their answer' : '—',
+    result: p.status === 'CLOSED' ? 'Closed' : null, from: null, to: null, at: p.createdAt,
+  }));
+
+  // ── and where players actually went ─────────────────────────────────────
+  for (const h of history) {
+    const out = h.fromClubRef === me;
+    const other = out ? h.toClubRef : h.fromClubRef;
+    rows.push({
+      id: h.id, type: 'COMPLETED', playerId: h.athleteId, player: P(h.athleteId), status: 'COMPLETED',
+      otherClub: C(other), amountEur: h.feeCents === null ? null : Number(h.feeCents) / 100,
+      action: '—',
+      result: out ? `Sold to ${C(h.toClubRef)?.name ?? '—'}` : `Signed from ${C(h.fromClubRef)?.name ?? '—'}`,
+      from: C(h.fromClubRef), to: C(h.toClubRef),
+      at: h.occurredAt,
+    });
+  }
+
+  rows.sort((a, b) => b.at.getTime() - a.at.getTime() || a.id.localeCompare(b.id));
+
+  const budgetEur = balance ? Number(balance.budgetEur) : 0;
+  const earnedEur = balance ? Number(balance.earnedEur) : 0;
+  const spentEur = balance ? Number(balance.spentEur) : 0;
+  // The one figure the browser used to keep for itself: what this club's live
+  // auction leads already promise. It belongs on the server with the rest.
+  const committedEur = await leadingCommitmentFor(me);
+
+  return {
+    club: C(me),
+    rows,
+    counts: {
+      listings: rows.filter((r) => r.type === 'LISTING' && r.status === 'ACTIVE').length,
+      auctions: rows.filter((r) => r.type === 'AUCTION' && r.status === 'ACTIVE').length,
+      offersIn: rows.filter((r) => r.type === 'OFFER_IN' && r.status === 'PENDING').length,
+      offersOut: rows.filter((r) => r.type === 'OFFER_OUT' && r.status === 'PENDING').length,
+      interests: rows.filter((r) => r.type === 'INTEREST_IN' && r.status === 'OPEN').length,
+      completed: rows.filter((r) => r.type === 'COMPLETED').length,
+    },
+    balance: {
+      budgetEur, earnedEur, spentEur, committedEur,
+      availableEur: Math.max(0, budgetEur + earnedEur - spentEur - committedEur),
+    },
+  };
 }

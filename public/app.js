@@ -47439,10 +47439,10 @@ var _TF = {
   compare: null,                // { id, squadId }
   confirm: null,                // { kind, ... }
   filtersOpen: false,
-  actView: 'live',              // which section of My Activity is on screen
+  actView: 'desk',              // which section of My Activity is on screen
   feedView: 'global',           // global market · my club · completed transfers
   negOpen: null,                // the negotiation whose timeline is expanded
-  f: { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', special: 'ALL', avail: 'ALL', shortOnly: false },
+  f: { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', avail: 'ALL', shortOnly: false },
   sort: { key: 'deadline', dir: 1 },
   clock: null
 };
@@ -47768,7 +47768,7 @@ function _tfReasons(p, C, prof) {
 
   // ROLE FIT — his playstyle against the demands of the position.
   var roleScore = Math.max(20, Math.min(100, Math.round(46 + (p.qual - 62) * 1.6 + (p.form - 5) * 4)));
-  out.push({ k: 'Role Fit', v: roleScore, why: p.playstyle + ' at ' + p.positions.join(' / ') + '.' });
+  out.push({ k: 'Role Fit', v: roleScore, why: (p.playstyle ? p.playstyle + ' at ' : 'Plays ') + p.positions.join(' / ') + '.' });
 
   // SQUAD BALANCE — is this line of the pitch the thinnest one?
   var counts = ['gk', 'df', 'mf', 'fw'].map(function (c) { return prof.byCat[c].length; });
@@ -47825,11 +47825,6 @@ function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
 // ══════════════════════════════════════════════════════════════════════════════
 // FILTERING & SORTING
 // ══════════════════════════════════════════════════════════════════════════════
-function _tfSpecials() {
-  var seen = {}, out = [];
-  Object.keys(TF_ABILITIES).forEach(function (c) { TF_ABILITIES[c].forEach(function (a) { if (!seen[a]) { seen[a] = 1; out.push(a); } }); });
-  return out.sort();
-}
 function _tfPassFilters(p, C) {
   var f = _TF.f, rng = _tfAgeRange(C);
   if (p.age < rng[0] || p.age > rng[1]) return false;
@@ -47843,7 +47838,6 @@ function _tfPassFilters(p, C) {
   if (f.ovrMin !== '' && p.qual < +f.ovrMin) return false;
   if (f.valMax !== '' && p.mv > +f.valMax * 1000000) return false;
   if (f.foot !== 'ALL' && p.foot !== f.foot) return false;
-  if (f.special !== 'ALL' && p.special !== f.special) return false;
   if (f.shortOnly && !_tfIsShort(p.id, C)) return false;
   if (f.avail !== 'ALL') {
     var a = p.listing === 'auction' ? _tfAucState(p) : (p.avail || '');
@@ -47857,10 +47851,10 @@ function _tfSortList(list) {
     switch (k) {
       case 'name': return p.name.toLowerCase();
       case 'nat': return p.natName.toLowerCase();
-      case 'playstyle': return p.playstyle.toLowerCase();
+      case 'playstyle': return String(p.playstyle || '').toLowerCase();
       case 'pos': return p.pos;
       case 'age': return p.age;
-      case 'special': return p.special.toLowerCase();
+      case 'special': return String(p.special || '').toLowerCase();
       case 'qual': return p.qual;
       case 'mv': return p.mv;
       case 'price': return p.listing === 'auction' ? p.bid : (p.fee || p.mv);
@@ -48513,10 +48507,95 @@ function _tfNeedsHtml(C) {
 // are the offers the server already returns, sorted by which side of them we
 // are on and whether they are still live.
 var TF_ACT_SECTIONS = [
+  ['desk', 'MY CLUB'],
   ['live', 'ACTIVE NEGOTIATIONS'], ['sent', 'SENT OFFERS'], ['received', 'RECEIVED OFFERS'],
   ['auctions', 'MY AUCTIONS'], ['bids', 'MY BIDS'],
   ['done', 'COMPLETED DEALS'], ['dead', 'REJECTED / WITHDRAWN'],
 ];
+
+// ── MY CLUB: the whole transfer desk in one table ───────────────────────────
+// Everything this club has on the market and everything being negotiated either
+// way, from GET /my-club — one read where the screen used to make four, and
+// where the answers used to have to be assembled here. Nothing is computed in
+// the browser: the status, the action and the result are the server's words.
+var _TF_DESK = { data: null, error: null, filter: 'ALL' };
+
+function _tfDeskLoad() {
+  return _tfNegApi('GET', '/my-club')
+    .then(function (r) { _TF_DESK.data = _thUnwrap(r); _TF_DESK.error = null; })
+    .catch(function (e) {
+      _TF_DESK.data = { rows: [], counts: {}, balance: null };
+      _TF_DESK.error = (e && (e.userMessage || e.message)) || 'unavailable';
+    })
+    .then(function () { return _TF_DESK.data; });
+}
+
+var TF_DESK_TYPE = {
+  LISTING: 'Listed', AUCTION: 'Auction', OFFER_IN: 'Offer received', OFFER_OUT: 'Offer sent',
+  INTEREST_IN: 'Interest received', INTEREST_OUT: 'Interest sent',
+  PROPOSAL_IN: 'Player offered to us', PROPOSAL_OUT: 'Player offered out', COMPLETED: 'Completed'
+};
+var TF_DESK_FILTERS = [
+  ['ALL', 'EVERYTHING'], ['MARKET', 'ON THE MARKET'], ['TALKS', 'IN TALKS'], ['COMPLETED', 'COMPLETED']
+];
+function _tfDeskPass(r) {
+  var f = _TF_DESK.filter;
+  if (f === 'ALL') return true;
+  if (f === 'MARKET') return r.type === 'LISTING' || r.type === 'AUCTION';
+  if (f === 'COMPLETED') return r.type === 'COMPLETED';
+  return r.type !== 'LISTING' && r.type !== 'AUCTION' && r.type !== 'COMPLETED';
+}
+
+function _tfDeskRowHtml(r) {
+  var p = r.player;
+  var name = p ? (p.name || ((p.firstName || '') + ' ' + (p.lastName || '')).trim()) : 'Player no longer available';
+  var live = r.status === 'ACTIVE' || r.status === 'PENDING' || r.status === 'OPEN' || r.status === 'INVITED';
+  return '<tr class="tf-row tf-desk-row' + (live ? ' is-live' : '') + '"'
+    + (r.playerId ? ' data-tf-open-player="' + _tfEsc(r.playerId) + '"' : '') + '>'
+    + '<td class="tf-c-player">'
+    +   (p ? _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm') : '')
+    +   '<span class="tf-pl-t"><b>' + _tfEsc(name) + '</b>'
+    +     '<em>' + _tfEsc(p ? (p.position || '') : '') + (p && p.overallRating ? ' · OVR ' + p.overallRating : '') + '</em></span></td>'
+    + '<td class="tf-c-type"><span class="tf-desk-type tf-desk-type--' + String(r.type).toLowerCase().replace(/_/g, '-') + '">'
+    +   _tfEsc(TF_DESK_TYPE[r.type] || r.type) + '</span></td>'
+    + '<td class="tf-c-status"><span class="tf-state tf-state--' + String(r.status).toLowerCase() + '">' + _tfEsc(r.status) + '</span></td>'
+    + '<td class="tf-c-club">' + _tfEsc(r.otherClub ? r.otherClub.name : '—') + '</td>'
+    + '<td class="tf-c-money">' + (r.amountEur != null ? _tfMoney(r.amountEur) : '—')
+    +   (r.bidCount ? '<em class="tf-price-sub">' + r.bidCount + ' bid' + (r.bidCount > 1 ? 's' : '') + '</em>' : '') + '</td>'
+    + '<td class="tf-c-action">' + _tfEsc(r.action || '—') + '</td>'
+    + '<td class="tf-c-result">'
+    +   (r.type === 'COMPLETED' && r.from && r.to
+      ? '<span class="tf-desk-move"><b>' + _tfEsc(r.from.name) + '</b> → <b>' + _tfEsc(r.to.name) + '</b></span>'
+      : _tfEsc(r.result || '—')) + '</td>'
+    + '</tr>';
+}
+
+function _tfDeskHtml() {
+  var d = _TF_DESK.data;
+  if (!d) { _tfDeskLoad().then(function () { _tfActivityRepaint(); }); return '<p class="tf-para">Reading your club\u2019s transfer desk…</p>'; }
+  if (_TF_DESK.error) return '<p class="tf-fm-err">Could not read your transfer desk — ' + _tfEsc(_TF_DESK.error) + '</p>';
+  var rows = (d.rows || []).filter(_tfDeskPass);
+  var b = d.balance || {};
+  var chips = TF_DESK_FILTERS.map(function (f) {
+    return '<button type="button" class="tf-chip-btn' + (_TF_DESK.filter === f[0] ? ' is-on' : '') + '"'
+      + ' data-tf-deskf="' + f[0] + '">' + f[1] + '</button>';
+  }).join('');
+  return '<div class="tf-desk-money">'
+    +   '<div><i>Budget</i><b>' + _tfMoney(b.budgetEur || 0) + '</b></div>'
+    +   '<div><i>Earned from sales</i><b>' + _tfMoney(b.earnedEur || 0) + '</b></div>'
+    +   '<div><i>Spent</i><b>' + _tfMoney(b.spentEur || 0) + '</b></div>'
+    +   '<div><i>Committed in live bids</i><b>' + _tfMoney(b.committedEur || 0) + '</b></div>'
+    +   '<div class="is-avail"><i>Available now</i><b>' + _tfMoney(b.availableEur || 0) + '</b></div>'
+    + '</div>'
+    + '<div class="tf-desk-filters">' + chips + '</div>'
+    + (rows.length
+      ? '<div class="tf-tablewrap"><table class="tf-table tf-table--desk"><thead><tr>'
+        + '<th class="tf-c-player">Player</th><th class="tf-c-type">Type</th><th class="tf-c-status">Status</th>'
+        + '<th class="tf-c-club">Other club</th><th class="tf-c-money">Amount</th>'
+        + '<th class="tf-c-action">Current action</th><th class="tf-c-result">Result / destination</th>'
+        + '</tr></thead><tbody id="tf-desk-rows">' + rows.map(_tfDeskRowHtml).join('') + '</tbody></table></div>'
+      : '<p class="tf-para">Nothing on the market and nothing being negotiated.</p>');
+}
 
 // This club's side of the auction board: what it is selling, and what it has
 // bid on. Both come from the same real listing rows the board is drawn from —
@@ -48629,8 +48708,10 @@ function _tfActivityHtml(C) {
   }
   var b = _tfActivityBuckets();
   var am = _tfAucMine();
+  var dk = (_TF_DESK.data && _TF_DESK.data.counts) || {};
   var counts = { live: b.live.length, sent: b.sent.length, received: b.received.length,
                  auctions: am.auctions.length, bids: am.bids.length,
+                 desk: (dk.listings || 0) + (dk.auctions || 0) + (dk.offersIn || 0) + (dk.offersOut || 0) + (dk.interests || 0),
                  done: (_TF_NEG.deals && _TF_NEG.deals.items || []).length, dead: b.dead.length };
 
   var tabs = '<div class="tf-act-tabs">' + TF_ACT_SECTIONS.map(function (sct) {
@@ -48639,7 +48720,9 @@ function _tfActivityHtml(C) {
   }).join('') + '</div>';
 
   var body;
-  if (view === 'auctions' || view === 'bids') {
+  if (view === 'desk') {
+    body = _tfDeskHtml();
+  } else if (view === 'auctions' || view === 'bids') {
     if (!_TF_AUC.items) _tfAucLoad().then(function () { _tfActivityRepaint(); });
     var mineAuc = _tfAucMine();
     body = !_TF_AUC.items ? '<p class="tf-para">Reading your auctions…</p>'
@@ -48668,6 +48751,7 @@ function _tfActivityRepaint() {
   if (!el) { _tfRenderBody(); return; }
   var view = _TF.actView || 'live';
   var b = _tfActivityBuckets();
+  if (view === 'desk') { el.innerHTML = _tfDeskHtml(); return; }
   if (view === 'auctions' || view === 'bids') {
     var m2 = _tfAucMine();
     el.innerHTML = !_TF_AUC.items ? '<p class="tf-para">Reading your auctions…</p>'
@@ -48828,7 +48912,6 @@ function _tfFiltersHtml(C) {
     +   '<label><span>Min OVR</span><input type="number" min="40" max="99" value="' + _tfEsc(f.ovrMin) + '" data-tf-f="ovrMin" placeholder="Any"></label>'
     +   '<label><span>Max value (€M)</span><input type="number" min="0" step="0.5" value="' + _tfEsc(f.valMax) + '" data-tf-f="valMax" placeholder="Any"></label>'
     +   '<label><span>Preferred foot</span>' + sel('foot', ['ALL', 'Right', 'Left', 'Either'], f.foot, { ALL: 'Any foot' }) + '</label>'
-    +   '<label><span>Special ability</span>' + sel('special', ['ALL'].concat(_tfSpecials()), f.special, { ALL: 'Any ability' }) + '</label>'
     +   '<label><span>Availability</span>' + sel('avail', availOpts, f.avail, { ALL: 'Any state' }) + '</label>'
     + '</div>'
     + '</div>';
@@ -49468,8 +49551,9 @@ function _tfAssistantHtml(C) {
       +   '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
       +   '<div><i>' + (p.server ? 'Asking price' : p.listing === 'auction' ? 'Next offer' : 'Signing cost') + '</i><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b></div>'
       + '</div>'
-      + '<div class="tf-rc-tags"><span class="tf-style">' + _tfEsc(p.playstyle) + '</span>'
-      +   '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
+      + '<div class="tf-rc-tags">'
+      +   (p.playstyle ? '<span class="tf-style">' + _tfEsc(p.playstyle) + '</span>' : '')
+      +   (p.special ? '<span class="tf-ability">' + _tfEsc(p.special) + '</span>' : '')
       +   '<span class="tf-src2">' + (p.server ? 'Listed by ' + _tfEsc(p.club || 'another club') : p.listing === 'auction' ? 'Auction' : 'Scouted') + '</span></div>'
       + '<div class="tf-rc-why"><h4>Why this player</h4>'
       +   top.map(function (x) {
@@ -49538,7 +49622,7 @@ function _tfDetailHtml(C) {
     +         '<span class="tf-poss">' + poss.map(function (x, i) {
       return '<span class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</span>';
     }).join('') + '</span>'
-    +         '<span class="tf-ability">' + _tfEsc(p.special) + '</span>'
+    +         (p.special ? '<span class="tf-ability">' + _tfEsc(p.special) + '</span>' : '')
     +       '</div>'
     +     '</div>'
     +     '<div class="tf-pd-ovr">' + _tfQuality(p.qual) + '<i>Overall</i></div>'
@@ -49575,7 +49659,7 @@ function _tfOverviewHtml(p, C) {
   var rows = [
     ['Height', p.height], ['Weight', p.weight + ' kg'],
     ['Preferred foot', p.foot], ['Current club', p.club],
-    ['Contract', p.contract], ['Estimated wage', _tfWage(p.wage)],
+    ['Contract', p.contract || 'Not disclosed'], ['Estimated wage', _tfWage(p.wage)],
     ['Transfer status', p.server ? ('Listed by ' + (p.club || 'another club') + ' · ' + _tfMoney(p.ask))
       : p.listing === 'auction' ? ('Auction · ' + _tfAucState(p)) : ('Scouted · ' + p.avail)]
   ];
@@ -49607,9 +49691,15 @@ function _tfSkillsHtml(p) {
 }
 function _tfPlaystyleHtml(p, C) {
   var prof = _tfSquadProfile(C), s = _tfScore(p, C, prof);
-  return '<div class="tf-sec">' + _tfEsc(p.playstyle) + '</div>'
-    + '<p class="tf-para">Operates as a ' + _tfEsc(p.playstyle.toLowerCase()) + ' from ' + _tfEsc(p.positions.join(' / '))
-    + '. Special ability: <b>' + _tfEsc(p.special) + '</b>. Preferred foot ' + _tfEsc(p.foot.toLowerCase()) + '.</p>'
+  // Only what the record holds. A real player has a position and a foot; the
+  // playstyle and the "special ability" were invented here, so where they are
+  // absent the sentence simply does not claim them.
+  return '<div class="tf-sec">' + _tfEsc(p.playstyle || p.positions.join(' / ')) + '</div>'
+    + '<p class="tf-para">'
+    + (p.playstyle ? 'Operates as a ' + _tfEsc(p.playstyle.toLowerCase()) + ' from ' : 'Plays ')
+    + _tfEsc(p.positions.join(' / '))
+    + (p.special ? '. Special ability: <b>' + _tfEsc(p.special) + '</b>' : '')
+    + '. Preferred foot ' + _tfEsc(String(p.foot || '').toLowerCase()) + '.</p>'
     + '<div class="tf-sec">Fit against ' + _tfEsc(C.label || 'this squad') + '</div>'
     + '<div class="tf-why-list">' + s.reasons.map(function (x) {
       return '<div class="tf-why"><span class="tf-why-k">' + _tfEsc(x.k) + '</span>'
@@ -49747,7 +49837,7 @@ function _tfRecruitPanelHtml(p, C) {
     +   '<div class="tf-side-row"><i>Signing cost</i><b class="is-next">' + _tfMoney(cost) + '</b></div>'
     +   '<div class="tf-side-row"><i>Estimated value</i><b>' + _tfMoney(p.mv) + '</b></div>'
     +   '<div class="tf-side-row"><i>Estimated wage</i><b>' + _tfWage(p.wage) + '</b></div>'
-    +   '<div class="tf-side-row"><i>Availability</i><b>' + _tfEsc(p.avail || p.contract) + '</b></div>'
+    +   '<div class="tf-side-row"><i>Availability</i><b>' + _tfEsc(p.avail || p.contract || 'Not disclosed') + '</b></div>'
     +   '<div class="tf-side-row"><i>Destination</i><b>' + _tfEsc(C.label || 'Team') + '</b></div>'
     +   '<div class="tf-side-row"><i>Available budget</i><b>' + _tfMoney(eco.available) + '</b></div>'
     + '</div>'
@@ -50221,7 +50311,7 @@ function _tfDiscAction(action, playerId, listingId) {
     if (t.closest('[data-tf-shortonly]')) { e.preventDefault(); _TF.f.shortOnly = !_TF.f.shortOnly; _tfRenderBody(); return; }
     if (t.closest('[data-tf-clearf]')) {
       e.preventDefault();
-      _TF.f = { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', special: 'ALL', avail: 'ALL', shortOnly: false };
+      _TF.f = { q: '', pos: 'ALL', ageMin: '', ageMax: '', ovrMin: '', valMax: '', foot: 'ALL', avail: 'ALL', shortOnly: false };
       _tfRenderBody(); return;
     }
     // compare
@@ -51911,12 +52001,23 @@ function _tfFormSubmit() {
       _tfNegLoadFeed().then(function () { _tfRenderBody(); });
       return;
     }
+    if ((el = t.closest('[data-tf-deskf]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_DESK.filter = el.getAttribute('data-tf-deskf');
+      _tfActivityRepaint();
+      return;
+    }
     if ((el = t.closest('[data-tf-actview]'))) {
       e.preventDefault(); e.stopPropagation();
       _TF.actView = el.getAttribute('data-tf-actview');
       _TF.negOpen = null;
       if (_TF.actView === 'done' && !_TF_NEG.deals) {
         _tfNegLoadDeals().then(function () { _tfRenderBody(); });
+      }
+      // The desk is re-read when it is opened, so it reflects what has happened
+      // since — the explicit refresh this module has always used, not a timer.
+      if (_TF.actView === 'desk') {
+        _tfDeskLoad().then(function () { _tfActivityRepaint(); });
       }
       _tfRenderBody();
       return;
@@ -52559,9 +52660,13 @@ function _tfLotFromServer(rec) {
     : (rec.createdAt ? new Date(rec.createdAt).getTime() + TF_LISTING_WINDOW_MS
                      : Date.now() + TF_LISTING_WINDOW_MS);
   lot.bidders = []; lot.leader = null; lot.seed = seed;
-  lot.playstyle = _tfPick(seed, 'ps', TF_PLAYSTYLES[p.cat]);
-  lot.special = _tfPick(seed, 'ab', TF_ABILITIES[p.cat]);
-  lot.contract = 'Contracted';
+  // A real footballer carries only what the server actually knows about him.
+  // These three used to be invented here and drawn as fact — a playstyle, a
+  // "special ability" and a contract state that no record anywhere held. The
+  // panels below show nothing where there is nothing.
+  lot.playstyle = null;
+  lot.special = null;
+  lot.contract = null;
   lot.__st = _tfAucState(lot);
   return lot;
 }
@@ -52589,7 +52694,7 @@ async function _tfSyncBalance() {
 async function _tfSyncAll() {
   if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
   await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
-    _tfScoutLoadShortlist(),
+    _tfScoutLoadShortlist(), _tfDeskLoad(),
     _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
   try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
 }

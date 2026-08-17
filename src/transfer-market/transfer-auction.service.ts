@@ -8,7 +8,8 @@ import { MarketplaceItem, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
-import { getBalance, setAvailability, defaultTeamFor, findActiveListingForPlayer } from './transfer-market.service';
+import { getBalance, setAvailability, defaultTeamFor, findActiveListingForPlayer,
+         pendingOfferForPlayer, closeCompetingState, archiveShortlistAfterTransfer } from './transfer-market.service';
 import { notifyClub, fmt as fmtEur } from './transfer-negotiation.service';
 import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
 
@@ -72,6 +73,11 @@ export async function listAuction(actor: MarketActor, dto: AuctionDto): Promise<
   if (player.isActive === false) throw new BadRequestError('That player is not active');
   const open = await findActiveListingForPlayer(dto.playerId);
   if (open) throw new ConflictError('That player is already on the market');
+  // And he cannot be auctioned while a direct negotiation is open on him. An
+  // auction that ends has to award the player; an offer that is accepted has to
+  // move him. Only one of the two can be true.
+  const pending = await pendingOfferForPlayer(dto.playerId);
+  if (pending) throw new ConflictError('That player has an open transfer offer — answer it before auctioning him');
 
   const minutes = Math.min(60 * 24 * 7, Math.max(1, Math.round(dto.minutes ?? 15)));
   const row = await prisma.$transaction(async (tx) => {
@@ -175,6 +181,18 @@ export async function placeBid(actor: MarketActor, listingId: string, amountEur:
 }
 
 // What a club has already committed by leading other live auctions.
+// What this club's live auction leads already promise. purchase() and
+// acceptOffer() need the same figure placeBid() has always used — a euro
+// promised to an auction it is winning is not a euro it can also spend on a
+// listing — so the transaction-scoped version is wrapped for callers that
+// have their own transaction, and for those that do not.
+export async function leadingCommitmentInTx(tx: Prisma.TransactionClient, clubId: string) {
+  return leadingCommitment(tx, clubId, '');
+}
+export async function leadingCommitmentFor(clubId: string) {
+  return leadingCommitment(prisma as unknown as Prisma.TransactionClient, clubId, '');
+}
+
 async function leadingCommitment(tx: Prisma.TransactionClient, clubId: string, exceptListingId: string) {
   const live = await tx.marketplaceItem.findMany({
     where: { kind: KIND, status: 'ACTIVE', id: { not: exceptListingId }, validUntil: { gt: new Date() } },
@@ -207,11 +225,70 @@ export async function cancelAuction(actor: MarketActor, listingId: string) {
     const player = await prisma.player.findUnique({ where: { id: playerId } });
     if (player) await prisma.$transaction((tx) => setAvailability(tx, player, actor, false));
   }
+  // Every club that had money on the table hears that it came off. Their bids
+  // stay on the record — a bid is an immutable event — but nothing of theirs is
+  // still committed to an auction that no longer exists, and none of them
+  // should have to discover that by looking. The kind is the one the enum
+  // already has; the message says which of the two things happened, because
+  // "cancelled by the seller" and "outbid" are not the same news.
+  await notifyBiddersOfCancellation(listingId, playerId, actor.clubId, 'the selling club withdrew it');
+
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'AUCTION_CANCELLED', entityType: 'MarketplaceItem', entityId: listingId, payload: { playerId },
   });
   return { listingId, status: 'CANCELLED' as const };
+}
+
+// One message per bidding club, never one per bid, and never to a club that was
+// not in the auction.
+async function notifyBiddersOfCancellation(
+  listingId: string, playerId: string | null, sellerClubId: string, because: string,
+) {
+  const bids = await prisma.transferBid.findMany({
+    where: { listingId }, select: { bidderClubId: true },
+  });
+  const clubs = [...new Set(bids.map((b) => b.bidderClubId))].filter((c) => c !== sellerClubId);
+  if (!clubs.length) return 0;
+  const [player, seller] = await Promise.all([
+    playerId ? prisma.player.findUnique({ where: { id: playerId }, select: { firstName: true, lastName: true } }) : null,
+    clubName(sellerClubId),
+  ]);
+  const name = player ? `${player.firstName} ${player.lastName}` : 'that player';
+  for (const c of clubs) {
+    await notifyClub(c, 'AUCTION_LOST',
+      `The auction for ${name} was cancelled — ${because}.`,
+      `${seller} ended the auction before it closed. Nobody won it, and your bid no longer stands.`,
+      { type: 'AUCTION_CANCELLED', listingId, playerId, clubId: sellerClubId, outcome: 'CANCELLED' });
+  }
+  return clubs.length;
+}
+
+// ── A2 · the defensive path ─────────────────────────────────────────────────
+// With a direct offer and an auction now mutually exclusive, accepting an offer
+// should never meet a live auction on the same player. If one is somehow there
+// anyway, it is CANCELLED — the status Group 5 introduced for exactly this
+// outcome — never CLOSED, and the clubs that were bidding are told. The player
+// does not vanish out of an auction in silence.
+export async function cancelAuctionForSettlement(
+  tx: Prisma.TransactionClient, listingId: string, playerId: string | null, sellerClubId: string,
+): Promise<{ listingId: string; playerId: string | null; sellerClubId: string } | null> {
+  const claimed = await tx.marketplaceItem.updateMany({
+    where: { id: listingId, status: 'ACTIVE' },
+    data: { status: 'CANCELLED', settledAt: new Date() },
+  });
+  if (claimed.count === 0) return null;
+  // The notification is sent after the transaction commits — see notifyCancelled
+  // below — because a message about a transfer that then rolled back is worse
+  // than a late one.
+  return { listingId, playerId, sellerClubId };
+}
+export async function notifyCancelled(
+  pending: { listingId: string; playerId: string | null; sellerClubId: string } | null,
+) {
+  if (!pending) return;
+  await notifyBiddersOfCancellation(pending.listingId, pending.playerId, pending.sellerClubId,
+    'the player was transferred in a direct deal');
 }
 
 // ── settlement ──────────────────────────────────────────────────────────────
@@ -293,7 +370,10 @@ export async function settleAuction(listingId: string): Promise<{ listingId: str
       update: { earnedEur: { increment: BigInt(feeEur) } },
       create: { clubId: item.clubId, earnedEur: BigInt(feeEur) },
     });
-    await tx.playerContractStatus.updateMany({ where: { playerId: player.id }, data: { isAvailableForTransfer: false } });
+    // everything else open on this player closes with the auction. There can be
+    // no second listing on him — one live advert per player — so this finds
+    // pending offers, interests and proposals, and nothing else.
+    await closeCompetingState(tx, player.id, item.clubId);
 
     // one completed transfer, in the shape the platform already records
     await tx.athleteTransferHistory.create({
@@ -330,6 +410,7 @@ export async function settleAuction(listingId: string): Promise<{ listingId: str
       await notifyClub(c, 'AUCTION_LOST',
         `${settled.name} went to ${winner} for ${fmtEur(settled.feeEur)}.`, null, note);
     }
+    await archiveShortlistAfterTransfer(settled.playerId ?? '', settled.winnerClubId);
   } else if (settled.status === 'UNSOLD') {
     await notifyClub(settled.sellerClubId, 'AUCTION_ENDING',
       'Your auction ended with no bids.', null, { type: 'AUCTION_UNSOLD', listingId, playerId: settled.playerId });

@@ -323,3 +323,11 @@ export async function removeFromShortlist(req: Request, res: Response, next: Nex
     return sendSuccess(res, await dis.removeFromShortlist(actor(req), id));
   } catch (err) { return next(err); }
 }
+
+// The club's own transfer desk: everything it has on the market, everything
+// being negotiated either way, and where its players actually went. One read,
+// club-scoped inside the service.
+export async function readMyClub(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await dis.readMyClub(actor(req))); }
+  catch (err) { return next(err); }
+}

@@ -70,6 +70,11 @@ jest.mock('../src/transfer-market/transfer-market.service', () => ({
   setAvailability: jest.fn(),
   defaultTeamFor: jest.fn().mockResolvedValue({ id: 'team-buyer' }),
   findActiveListingForPlayer: jest.fn().mockResolvedValue(null),
+  // Group 7: an auction refuses a player already being negotiated, and its
+  // settlement runs the same cleanup the other two settlements do.
+  pendingOfferForPlayer: jest.fn().mockResolvedValue(null),
+  closeCompetingState: jest.fn().mockResolvedValue({ auctionListingId: null }),
+  archiveShortlistAfterTransfer: jest.fn().mockResolvedValue(0),
 }));
 
 import { placeBid, settleAuction, requiredBid } from '../src/transfer-market/transfer-auction.service';

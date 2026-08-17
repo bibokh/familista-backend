@@ -61,6 +61,7 @@ jest.mock('../src/transfer-market/transfer-market.service', () => ({
 }));
 jest.mock('../src/transfer-market/transfer-auction.service', () => ({
   settleDueAuctions: jest.fn().mockResolvedValue([]),
+  leadingCommitmentFor: jest.fn().mockResolvedValue(0),
 }));
 
 import {
@@ -486,15 +487,20 @@ describe('the shortlist is TransferTarget, and it is the club\'s', () => {
     expect(json).not.toContain('kid@x.z');
   });
 
-  it('says so when a shortlisted player is gone rather than dropping him silently', async () => {
+  it('archives a shortlisted player who is gone rather than keeping a dead row', async () => {
+    // Group 7: a permanent `player: null` entry could neither be acted on nor
+    // cleared, so the read archives it through TransferTarget's own lifecycle.
     targetFindMany.mockResolvedValue([{
       id: 't1', playerId: 'p-gone', stage: 'SHORTLIST', priorityScore: 50,
       notes: null, createdAt: new Date(),
     }]);
     playerFindMany.mockResolvedValue([]);
     const r = await readShortlist(ME);
-    expect(r.items[0].player).toBeNull();
-    expect((r.items[0] as { unavailable?: boolean }).unavailable).toBe(true);
+    expect(r.items).toEqual([]);
+    expect(r.archived).toBe(1);
+    expect(targetUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ archivedAt: expect.any(Date) }),
+    }));
   });
 
   it('marks which search results are already on it', async () => {

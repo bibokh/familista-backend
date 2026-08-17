@@ -84,6 +84,11 @@ router.get('/discover',                                     ctrl.discover);
 // own-club-only: this is the other question, with its own narrow projection.
 router.get('/players/:playerId',                            ctrl.readPublicPlayer);
 
+// ── the club's own transfer desk ────────────────────────────────────────────
+// One read replacing four. Scoped to the caller inside the service, so it can
+// only ever describe the club whose session asked.
+router.get('/my-club',                                      ctrl.readMyClub);
+
 // ── shortlist: the club's own TransferTarget pipeline ───────────────────────
 // Club-scoped inside the service on every call, so one club can neither read
 // nor change another's list.

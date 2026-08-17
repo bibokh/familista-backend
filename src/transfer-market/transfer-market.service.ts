@@ -22,6 +22,8 @@ import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
+import { leadingCommitmentInTx, cancelAuctionForSettlement, notifyCancelled } from './transfer-auction.service';
+import { notifyClub, fmt } from './transfer-notify';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -45,6 +47,45 @@ export async function getBalance(clubId: string) {
     // what the club may actually commit to a deal right now
     availableEur: Number(b.budgetEur) + Number(b.earnedEur) - Number(b.spentEur),
   };
+}
+
+// ── can this club actually spend that? ───────────────────────────────────────
+// The check used to run before the transaction and to look only at the balance
+// row, which left two holes. Two purchases started in the same instant both
+// read the same figure and both passed; and a club leading a €10M auction could
+// still spend its whole budget on a listing, then lose the difference when the
+// auction settled.
+//
+// So it runs INSIDE the settlement transaction, and it starts by locking the
+// club's own balance row. A second transaction for the same club waits at that
+// lock, and by the time it reads, the first one's spend is committed. The auction
+// leads are subtracted from what is left — the same figure placeBid has always
+// enforced, so the two paths cannot disagree about what a club can afford.
+export async function assertCanSpend(
+  tx: Prisma.TransactionClient, clubId: string, feeEur: number,
+): Promise<void> {
+  // SELECT … FOR UPDATE. The row exists because ensureBalance runs first.
+  await tx.$queryRaw`SELECT id FROM "ClubTransferBalance" WHERE "clubId" = ${clubId} FOR UPDATE`;
+  const b = await tx.clubTransferBalance.findUnique({ where: { clubId } });
+  const available = b
+    ? Number(b.budgetEur) + Number(b.earnedEur) - Number(b.spentEur)
+    : 0;
+  const committed = await leadingCommitmentInTx(tx, clubId);
+  if (available - committed < feeEur) throw new BadRequestError('Insufficient transfer budget');
+}
+
+// ── the shortlist, after a player moves ──────────────────────────────────────
+// A club that has just signed a player does not still have him on its list of
+// targets, and leaving the row there would show a shortlisted player the club
+// already owns. Archived, not deleted — it is the lifecycle TransferTarget
+// already has, and the pipeline keeps its history. Other clubs' targets are
+// left alone: he is still a real player they can still want.
+export async function archiveShortlistAfterTransfer(playerId: string, newClubId: string): Promise<number> {
+  const done = await prisma.transferTarget.updateMany({
+    where: { playerId, clubId: newClubId, archivedAt: null },
+    data: { archivedAt: new Date() },
+  });
+  return done.count;
 }
 
 // ── bootstrap ────────────────────────────────────────────────────────────────
@@ -237,6 +278,10 @@ export async function listPlayer(actor: MarketActor, dto: ListDto): Promise<Mark
 
   const open = await findActiveListingForPlayer(dto.playerId);
   if (open) return open;                        // listing twice is the same listing
+  // A player already being negotiated is not a player to put on the market:
+  // whichever of the two completed would have to tear the other down.
+  const pending = await pendingOfferForPlayer(dto.playerId);
+  if (pending) throw new ConflictError('That player has an open transfer offer — answer it before listing him');
 
   const row = await prisma.$transaction(async (tx) => {
     const item = await tx.marketplaceItem.create({
@@ -346,10 +391,16 @@ export async function purchase(actor: MarketActor, listingId: string) {
   const feeEur   = typeof payload.askingPriceEur === 'number' ? Math.round(payload.askingPriceEur) : null;
   if (!playerId || feeEur === null) throw new BadRequestError('Listing is missing its player or price');
 
+  // A cheap early refusal so an obviously unaffordable click does not open a
+  // transaction. The check that actually decides runs inside it, with the row
+  // locked and the club's auction leads subtracted.
   const buyerBalance = await getBalance(actor.clubId);
   if (buyerBalance.availableEur < feeEur) throw new BadRequestError('Insufficient transfer budget');
+  await ensureBalance(item.clubId);
 
+  let cancelledAuction: { listingId: string; playerId: string | null; sellerClubId: string } | null = null;
   const result = await prisma.$transaction(async (tx) => {
+    await assertCanSpend(tx, actor.clubId, feeEur);
     // ── the claim. Exactly one caller can take a listing out of ACTIVE. ──
     // The deadline is part of the claim as well as the check above, so a
     // listing that lapses between the two cannot still be taken.
@@ -386,10 +437,13 @@ export async function purchase(actor: MarketActor, listingId: string) {
       create: { clubId: item.clubId, earnedEur: BigInt(feeEur) },
     });
 
-    // he is no longer for sale
-    await tx.playerContractStatus.updateMany({
-      where: { playerId }, data: { isAvailableForTransfer: false },
-    });
+    // everything else open on this player closes with the sale — the same
+    // cleanup acceptOffer runs, so a third club's pending offer cannot survive
+    // a purchase and sit there looking as though it could still complete.
+    const { auctionListingId } = await closeCompetingState(tx, playerId, item.clubId);
+    if (auctionListingId) {
+      cancelledAuction = await cancelAuctionForSettlement(tx, auctionListingId, playerId, item.clubId);
+    }
 
     // one completed transfer, in the shape the platform already records
     const history = await tx.athleteTransferHistory.create({
@@ -406,12 +460,114 @@ export async function purchase(actor: MarketActor, listingId: string) {
     return { playerId, feeEur, historyId: history.id, sellerClubId: item.clubId, buyerClubId: actor.clubId };
   });
 
+  // A completed transfer is news for both clubs, whichever route completed it.
+  // The fixed-price path used to move the player and tell nobody, so a seller
+  // learned he had sold somebody only by noticing the squad was smaller.
+  await notifyCancelled(cancelledAuction);
+  await archiveShortlistAfterTransfer(result.playerId, result.buyerClubId);
+  const [sellerName, buyerName, player] = await Promise.all([
+    clubNameOf(result.sellerClubId), clubNameOf(result.buyerClubId),
+    prisma.player.findUnique({ where: { id: result.playerId }, select: { firstName: true, lastName: true } }),
+  ]);
+  const who = player ? `${player.firstName} ${player.lastName}` : 'A player';
+  const note = {
+    type: 'TRANSFER_COMPLETED', listingId, playerId: result.playerId, feeEur: result.feeEur,
+    from: result.sellerClubId, to: result.buyerClubId, historyId: result.historyId, mode: 'FIXED_PRICE',
+  };
+  await notifyClub(result.sellerClubId, 'TRANSFER_COMPLETED',
+    `${who} has left for ${buyerName} for ${fmt(result.feeEur)}.`, null, note);
+  await notifyClub(result.buyerClubId, 'TRANSFER_COMPLETED',
+    `${who} has joined from ${sellerName} for ${fmt(result.feeEur)}.`, null, note);
+
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_SETTLED', entityType: 'MarketplaceItem', entityId: listingId,
     payload: { playerId: result.playerId, feeEur: result.feeEur, from: result.sellerClubId, to: result.buyerClubId },
   });
   return result;
+}
+
+async function clubNameOf(clubId: string) {
+  const c = await prisma.club.findUnique({ where: { id: clubId }, select: { name: true } });
+  return c?.name ?? 'Unknown / unavailable club';
+}
+
+// ── what a completed transfer leaves behind ──────────────────────────────────
+// A sold player is not still for sale, not still being negotiated, and not
+// still on offer to anybody. acceptOffer had always cleaned up after itself;
+// purchase and the auction did not, so a third club's pending offer survived a
+// sale — addressed to a club that no longer owned him, unable ever to complete,
+// and sitting in both clubs' activity looking live.
+//
+// One function now, called by all three settlements inside their own
+// transaction. It returns any live auction it found so the caller can cancel it
+// properly rather than silently closing it.
+export async function closeCompetingState(
+  tx: Prisma.TransactionClient,
+  playerId: string,
+  formerClubId: string,
+  opts: { exceptOfferId?: string } = {},
+): Promise<{ auctionListingId: string | null }> {
+  // he is not for sale any more
+  await tx.playerContractStatus.updateMany({
+    where: { playerId }, data: { isAvailableForTransfer: false },
+  });
+  // every other negotiation on him is over
+  await tx.transferOffer.updateMany({
+    where: {
+      playerId, status: 'PENDING',
+      ...(opts.exceptOfferId ? { id: { not: opts.exceptOfferId } } : {}),
+    },
+    data: { status: 'REJECTED', respondedAt: new Date() },
+  });
+  await tx.transferInterest.updateMany({
+    where: { playerId, status: { in: ['OPEN', 'INVITED'] } },
+    data: { status: 'CLOSED', respondedAt: new Date() },
+  });
+  await tx.playerOfferToClub.updateMany({
+    where: { playerId, status: { in: ['OPEN', 'INVITED'] } },
+    data: { status: 'CLOSED', respondedAt: new Date() },
+  });
+
+  // and any other advert the former owner still had out on him. A fixed-price
+  // listing is CLOSED; an auction is handed back to the caller, because an
+  // auction ends as CANCELLED with its bidders told, not as CLOSED in silence.
+  let auctionListingId: string | null = null;
+  const others = await tx.marketplaceItem.findMany({
+    where: { kind: KIND, clubId: formerClubId, status: 'ACTIVE' },
+    select: { id: true, payload: true },
+  });
+  for (const l of others) {
+    const pl = (l.payload ?? {}) as Record<string, unknown>;
+    if (pl.playerId !== playerId) continue;
+    if (pl.mode === 'AUCTION') { auctionListingId = l.id; continue; }
+    await tx.marketplaceItem.update({ where: { id: l.id }, data: { status: 'CLOSED' } });
+  }
+  return { auctionListingId };
+}
+
+// ── one live transaction per player ──────────────────────────────────────────
+// A footballer can be in one negotiation at a time. Two live routes to the same
+// player is not a richer market, it is a market that has to break one of them:
+// before this, a club could table a direct offer for a player already at
+// auction, and accepting it tore the auction down under the clubs that were
+// bidding on it. So the two are made mutually exclusive at the point each one
+// starts, on the server, from the database — never from what the screen showed.
+export async function activeAuctionForPlayer(playerId: string): Promise<MarketplaceItem | null> {
+  const open = await findActiveListingForPlayer(playerId);
+  if (!open) return null;
+  const pl = (open.payload ?? {}) as Record<string, unknown>;
+  return pl.mode === 'AUCTION' ? open : null;
+}
+
+// A pending offer is a live negotiation on this player. Putting him on the
+// market while one is open is the same collision seen from the other side.
+export async function pendingOfferForPlayer(playerId: string) {
+  return prisma.transferOffer.findFirst({
+    where: { playerId, status: 'PENDING' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, sellerClubId: true, buyerClubId: true, feeEur: true },
+  });
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

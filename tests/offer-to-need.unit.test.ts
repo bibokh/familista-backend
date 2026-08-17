@@ -45,6 +45,18 @@ jest.mock('../src/config/database', () => ({
 jest.mock('../src/security/audit-chain.service', () => ({ appendAuditEventAsync: jest.fn() }));
 jest.mock('./../src/transfer-market/transfer-market.service', () => ({
   getBalance: jest.fn().mockResolvedValue({ availableEur: 50_000_000 }),
+  // Group 7: the offer paths now refuse a player who is at auction, and clean
+  // up competing state when one completes.
+  activeAuctionForPlayer: jest.fn().mockResolvedValue(null),
+  closeCompetingState: jest.fn().mockResolvedValue({ auctionListingId: null }),
+  assertCanSpend: jest.fn().mockResolvedValue(undefined),
+  archiveShortlistAfterTransfer: jest.fn().mockResolvedValue(0),
+}));
+jest.mock('./../src/transfer-market/transfer-auction.service', () => ({
+  settleDueAuctions: jest.fn().mockResolvedValue([]),
+  leadingCommitmentFor: jest.fn().mockResolvedValue(0),
+  cancelAuctionForSettlement: jest.fn().mockResolvedValue(null),
+  notifyCancelled: jest.fn().mockResolvedValue(undefined),
 }));
 
 import { offerPlayerToNeed } from '../src/transfer-market/transfer-negotiation.service';

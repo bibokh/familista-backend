@@ -103,6 +103,30 @@ describe('a generated player cannot become a Player row', () => {
   });
 });
 
+describe('a real market player carries no invented attribute', () => {
+  const lot = bodyOf('_tfLotFromServer');
+
+  it('the lot built from a server listing invents no playstyle, ability or contract', () => {
+    expect(lot).toBeTruthy();
+    expect(lot).not.toContain('TF_PLAYSTYLES');
+    expect(lot).not.toContain('TF_ABILITIES');
+    expect(lot).toContain('lot.playstyle = null');
+    expect(lot).toContain('lot.special = null');
+    expect(lot).toContain('lot.contract = null');
+  });
+
+  it('and the market no longer offers a filter over an ability nobody has', () => {
+    expect(APP).not.toContain('_tfSpecials');
+    expect(APP).not.toContain("f.special !== 'ALL'");
+    expect(APP).not.toContain('Special ability</span>');
+  });
+
+  it('a wage another club never published reads as undisclosed, not as zero', () => {
+    expect(bodyOf('_tfWage')).toContain('Not disclosed');
+    expect(lot).toContain('lot.wage = 0');
+  });
+});
+
 describe('what remains of the generator is the logged-out demo, and only that', () => {
   it('its one caller is the fixture counterparty club', () => {
     const calls = APP.split('\n')
