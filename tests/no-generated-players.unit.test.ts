@@ -127,6 +127,55 @@ describe('a real market player carries no invented attribute', () => {
   });
 });
 
+describe('a listing the server never gave a deadline does not acquire one', () => {
+  const lot = bodyOf('_tfLotFromServer');
+
+  it('the lot takes the server\'s validUntil, or none at all', () => {
+    expect(lot).toContain('lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime() : null');
+    // the fifteen-minute window it used to invent
+    expect(lot).not.toContain('TF_LISTING_WINDOW_MS');
+  });
+
+  it('and a lot with no deadline reads as open rather than ended', () => {
+    const st = bodyOf('_tfAucState');
+    expect(st).toContain('p.endsAt == null');
+    expect(st).toMatch(/AVAILABLE/);
+  });
+
+  it('its clock says so instead of counting down from nothing', () => {
+    expect(bodyOf('_tfClockCell')).toContain('No deadline');
+  });
+
+  it('and the live tick skips it rather than marking it CLOSED', () => {
+    expect(APP).toContain('if (p2.endsAt == null) continue;');
+  });
+});
+
+describe('an empty market says which kind of empty it is', () => {
+  it('the destination\'s signing window no longer hides listings invisibly', () => {
+    const f = bodyOf('_tfPassFilters');
+    expect(f).toBeTruthy();
+    expect(f).not.toContain('_tfAgeRange');
+  });
+
+  it('and the empty message distinguishes "nothing listed" from "filtered out"', () => {
+    const msg = bodyOf('_tfEmptyMarketMsg');
+    expect(msg).toContain('No club has a player on the market');
+    expect(msg).toContain('signing window');
+    expect(msg).toContain('No listing matches these filters');
+  });
+});
+
+describe('the header counts what the server holds, from the moment it opens', () => {
+  it('needs and activity are read by the boot sync, not only by their own tabs', () => {
+    const at = APP.indexOf('async function _tfSyncAll(');
+    expect(at).toBeGreaterThan(-1);
+    const sync = APP.slice(at, APP.indexOf('window._tfSyncAll', at));
+    expect(sync).toContain('_tfNegLoadNeeds()');
+    expect(sync).toContain('_tfNegLoadActivity()');
+  });
+});
+
 describe('what remains of the generator is the logged-out demo, and only that', () => {
   it('its one caller is the fixture counterparty club', () => {
     const calls = APP.split('\n')

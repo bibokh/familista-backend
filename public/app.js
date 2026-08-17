@@ -47607,6 +47607,9 @@ function _tfRelease(p, C) {
   return held;
 }
 function _tfAucState(p) {
+  // No deadline means no deadline: an open-ended listing stays on the market
+  // until its club takes it off or somebody buys him.
+  if (p.endsAt == null) return p.bidders && p.bidders.length ? 'ACTIVE' : 'AVAILABLE';
   var left = p.endsAt - Date.now();
   if (left <= 0) {
     if (p.leader === '__me__') return 'WON';
@@ -47834,9 +47837,35 @@ function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
 // ══════════════════════════════════════════════════════════════════════════════
 // FILTERING & SORTING
 // ══════════════════════════════════════════════════════════════════════════════
+// An empty table has two quite different causes and used to give one answer.
+// Either no club has listed anybody — in which case there is nothing to filter
+// and saying "no listing matches these filters" sends a manager hunting for a
+// filter they never set — or the filters they did set removed everything.
+function _tfEmptyMarketMsg(all, C) {
+  if (!all.length) {
+    return (typeof _thIsHydrated === 'function' && _thIsHydrated())
+      ? 'No club has a player on the market right now.'
+      : 'The market is still loading…';
+  }
+  var rng = _tfAgeRange(C);
+  var outside = all.filter(function (p) { return p.age < rng[0] || p.age > rng[1]; }).length;
+  if (outside === all.length) {
+    return 'Every listed player is outside ' + _tfEsc(C.label || 'this team') + '\u2019s signing window of '
+      + rng[0] + '\u2013' + rng[1] + '. Choose another destination to sign one of them.';
+  }
+  return 'No listing matches these filters.';
+}
+
 function _tfPassFilters(p, C) {
-  var f = _TF.f, rng = _tfAgeRange(C);
-  if (p.age < rng[0] || p.age > rng[1]) return false;
+  var f = _TF.f;
+  // The destination team's signing window used to be applied here, silently,
+  // before any filter the manager had actually set. Selecting an age group as
+  // the destination therefore emptied the whole market and the table blamed
+  // "these filters" — filters that were not set. Whether a team may register a
+  // signing is a question for the signing, where it is already asked; it is not
+  // a reason to hide what the market is selling. The window is reported under
+  // the empty table instead of being enforced invisibly over it.
+
   if (f.q) {
     var q = f.q.toLowerCase();
     if (p.name.toLowerCase().indexOf(q) < 0 && p.natName.toLowerCase().indexOf(q) < 0) return false;
@@ -47912,6 +47941,7 @@ function _tfStateChip(s) {
 // is not on the public projection, so where there is no figure we say so.
 function _tfWage(w) { return (typeof w === 'number' && w > 0) ? (_tfMoney(w) + ' / yr') : 'Not disclosed'; }
 function _tfClockCell(p) {
+  if (p.endsAt == null) return '<span class="tf-clock tf-clock--open">No deadline</span>';
   var left = p.endsAt - Date.now();
   var tone = left <= 0 ? 'off' : left <= 60000 ? 'hot' : left <= 300000 ? 'warm' : '';
   return '<span class="tf-clock ' + (tone ? 'tf-clock--' + tone : '') + '" data-tf-clock="' + _tfEsc(p.id) + '">'
@@ -49152,8 +49182,9 @@ function _tfIdentityCell(p, sub) {
     + '</span></span>';
 }
 function _tfAuctionRowsHtml(C) {
-  var list = _tfSortList(_tfLots(C).filter(function (p) { return _tfPassFilters(p, C); }));
-  if (!list.length) return '<tr class="tf-empty"><td colspan="7">No listing matches these filters.</td></tr>';
+  var all = _tfLots(C);
+  var list = _tfSortList(all.filter(function (p) { return _tfPassFilters(p, C); }));
+  if (!list.length) return '<tr class="tf-empty"><td colspan="7">' + _tfEmptyMarketMsg(all, C) + '</td></tr>';
   return list.map(function (p) {
     var st = _tfAucState(p), mine = _tfMyLead(p);
     var bids = p.bidders.length;
@@ -49617,7 +49648,7 @@ function _tfDetailHtml(C) {
   var st = _tfStatusOf(p.id);
   var price = p.server ? p.ask : (p.listing === 'auction' ? p.bid : (p.fee || p.mv));
   var priceLabel = p.server ? 'Asking price' : p.listing === 'auction' ? 'Current bid' : 'Signing cost';
-  var left = p.listing === 'auction' ? Math.max(0, p.endsAt - Date.now()) : 0;
+  var left = (p.listing === 'auction' && p.endsAt != null) ? Math.max(0, p.endsAt - Date.now()) : 0;
   var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
   // The head is the whole decision: who, how good, what he costs, how long is
   // left. It stays put while the tabs below it change.
@@ -49772,8 +49803,10 @@ function _tfBidPanelHtml(p, C) {
     _tfNegLoadOffers(p.playerId).then(function () { _tfRenderOverlay(); });
   }
   var st = _tfAucState(p), eco = _tfEconomy(C), next = _tfNextBid(p.bid);
-  var left = p.endsAt - Date.now();
-  var closed = left <= 0;
+  // An open-ended listing has no time left because it has no deadline — which
+  // is the opposite of having run out of it.
+  var left = p.endsAt == null ? null : p.endsAt - Date.now();
+  var closed = left !== null && left <= 0;
   var lead = _tfLeaderName(p, C);
   var canBid = !closed && next <= eco.available;
   var action;
@@ -50119,6 +50152,7 @@ function _tfTick() {
   for (i = 0; i < els.length; i++) {
     var p2 = _tfFind(els[i].getAttribute('data-tf-clock'), C);
     if (!p2) continue;
+    if (p2.endsAt == null) continue;
     var l = p2.endsAt - now;
     els[i].textContent = l <= 0 ? 'CLOSED' : _tfClock(l);
     els[i].classList.toggle('tf-clock--hot', l > 0 && l <= 60000);
@@ -52858,9 +52892,15 @@ function _tfLotFromServer(rec) {
   // it: the market is re-read every few seconds, and a clock recomputed from
   // `now` on each pass never runs down. Older listings that predate the stored
   // window fall back to their own creation time, which is equally fixed.
-  lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime()
-    : (rec.createdAt ? new Date(rec.createdAt).getTime() + TF_LISTING_WINDOW_MS
-                     : Date.now() + TF_LISTING_WINDOW_MS);
+  // A listing's deadline is the server's, or there is none. This used to invent
+  // one — createdAt plus fifteen minutes — for any listing the seller published
+  // without an expiry, which the server treats as never expiring. Fifteen
+  // minutes after a club listed a player, every other club's screen showed him
+  // as CLOSED: he dropped out of "live listings", his countdown read expired and
+  // his buy action went, while the server still returned him as ACTIVE and would
+  // still have honoured the sale. On a market whose listings are older than that
+  // — which is every real market — the whole board read as ended.
+  lot.endsAt = rec.validUntil ? new Date(rec.validUntil).getTime() : null;
   lot.bidders = []; lot.leader = null; lot.seed = seed;
   // A real footballer carries only what the server actually knows about him.
   // These three used to be invented here and drawn as fact — a playstyle, a
@@ -52895,8 +52935,12 @@ async function _tfSyncBalance() {
 // Everything the Transfers page needs from the server, in one place.
 async function _tfSyncAll() {
   if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  // The header states how many needs are open and how many negotiations are
+  // live. Both were read only when their own tab was opened, so a manager
+  // landing on Auctions saw zero for them however much the server held.
   await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
     _tfScoutLoadShortlist(), _tfDeskLoad(),
+    _tfNegLoadNeeds(), _tfNegLoadActivity(),
     _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
   // One socket for the session, opened once the club is known. Reconnecting is
   // its own business; this only ever asks.
