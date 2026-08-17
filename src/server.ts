@@ -5,6 +5,7 @@ import { connectDatabase, disconnectDatabase } from './config/database';
 import { logger } from './utils/logger';
 // Phase C — realtime + workers
 import { mountMatchWebSocket }       from './realtime/match-ws';
+import { mountMarketWebSocket }      from './realtime/market-ws';
 // Phase 16 — real-time intelligence broadcaster
 import { startIntelBroadcaster, stopIntelBroadcaster } from './live-intelligence/intel-broadcaster';
 import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
@@ -35,6 +36,9 @@ async function bootstrap() {
   // Mount tenant-aware match WebSocket BEFORE listen so /ws/match/:id is
   // wired up to the same HTTP server the moment we start accepting.
   mountMatchWebSocket(server);
+  // And the transfer market's own stream, on the same server and the same
+  // upgrade pipeline. Each handler ignores the other's path.
+  mountMarketWebSocket(server);
 
   // ── Step 2: OPEN THE PORT FIRST. ───────────────────────────────────────
   // Bind to 0.0.0.0 explicitly so Render's port scanner can see it.

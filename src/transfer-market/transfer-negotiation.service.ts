@@ -34,6 +34,10 @@ import {
   PublicClub, publicClubSelect, publicPlayerSelect, scoringShape, toPublicPlayer, UNKNOWN_CLUB,
 } from './public-player';
 import { notifyClub, fmt } from './transfer-notify';
+import {
+  emitInterest, emitInterestAnswered, emitOffer, emitPlayerOffered,
+  emitTransferCompleted, emitNeedPublished, emitNeedUpdated, emitNeedClosed,
+} from './transfer-events';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -87,6 +91,7 @@ export async function registerInterest(actor: MarketActor, playerId: string, mes
     message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_INTEREST', interestId: row.id, playerId, clubId: buyer.id, hasFormalOffer: false });
 
+  emitInterest(player.clubId, actor.clubId, playerId);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_INTEREST_REGISTERED', entityType: 'TransferInterest', entityId: row.id,
@@ -112,6 +117,7 @@ export async function respondToInterest(actor: MarketActor, interestId: string, 
   await notifyClub(row.interestedClubId, 'TRANSFER_INTEREST',
     `${owner.name} ${said} ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_INTEREST', interestId: row.id, playerId: row.playerId, clubId: owner.id, hasFormalOffer: false });
+  emitInterestAnswered(actor.clubId, row.interestedClubId, row.playerId);
   return updated;
 }
 
@@ -160,6 +166,7 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
     dto.message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_OFFER_RECEIVED', offerId: row.id, playerId: dto.playerId, clubId: buyer.id, feeEur });
 
+  emitOffer('OFFER_CREATED', player.clubId, actor.clubId, dto.playerId, row.id);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_OFFER_MADE', entityType: 'TransferOffer', entityId: row.id,
@@ -251,6 +258,8 @@ export async function offerPlayerToNeed(
     action: 'PLAYER_OFFERED_TO_NEED', entityType: 'TransferOffer', entityId: row.id,
     payload: { playerId: dto.playerId, needId: need.id, feeEur, to: need.clubId },
   });
+  emitPlayerOffered(actor.clubId, need.clubId, dto.playerId, need.id);
+  emitOffer('OFFER_CREATED', actor.clubId, need.clubId, dto.playerId, row.id);
   return hydrateOffer(row);
 }
 
@@ -649,6 +658,8 @@ export async function acceptOffer(actor: MarketActor, offerId: string) {
     action: 'TRANSFER_SETTLED', entityType: 'TransferOffer', entityId: offerId,
     payload: { playerId: result.playerId, feeEur, from: offer.sellerClubId, to: offer.buyerClubId, type: 'DIRECT' },
   });
+  emitOffer('OFFER_ACCEPTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
+  emitTransferCompleted(offer.sellerClubId, offer.buyerClubId, offer.playerId, { offerId });
   return { ...result, sellerClubId: offer.sellerClubId, buyerClubId: offer.buyerClubId, type: 'DIRECT_TRANSFER' };
 }
 
@@ -667,6 +678,7 @@ export async function rejectOffer(actor: MarketActor, offerId: string) {
   await notifyClub(offer.createdByClubId, 'TRANSFER_OFFER_REJECTED',
     `${me.name} rejected your ${fmt(money(offer.feeEur))} offer for ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_OFFER_REJECTED', offerId, playerId: offer.playerId, clubId: me.id });
+  emitOffer('OFFER_REJECTED', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
   return hydrateOffer(rejected);
 }
 
@@ -686,6 +698,7 @@ export async function withdrawOffer(actor: MarketActor, offerId: string) {
   await notifyClub(other, 'TRANSFER_OFFER_WITHDRAWN',
     `${me.name} withdrew the ${fmt(money(offer.feeEur))} offer for ${player.firstName} ${player.lastName}.`, null,
     { type: 'TRANSFER_OFFER_WITHDRAWN', offerId, playerId: offer.playerId, clubId: me.id });
+  emitOffer('OFFER_WITHDRAWN', offer.sellerClubId, offer.buyerClubId, offer.playerId, offerId);
   return hydrateOffer(withdrawn);
 }
 
@@ -722,6 +735,7 @@ export async function counterOffer(actor: MarketActor, offerId: string, feeEur: 
     `${me.name} countered at ${fmt(fee)} for ${player.firstName} ${player.lastName}.`,
     message?.slice(0, 500) ?? null,
     { type: 'TRANSFER_COUNTER_OFFER', offerId: row.id, parentOfferId: parent.id, playerId: parent.playerId, clubId: me.id, feeEur: fee });
+  emitOffer('OFFER_COUNTERED', parent.sellerClubId, parent.buyerClubId, parent.playerId, row.id);
   return hydrateOffer(row);
 }
 
@@ -857,6 +871,7 @@ export async function createNeed(actor: MarketActor, dto: NeedDto) {
       createdById: actor.userId,
     },
   });
+  emitNeedPublished(actor.clubId, created.id);
   return needShape(created, true);
 }
 
@@ -886,6 +901,8 @@ export async function updateNeed(actor: MarketActor, needId: string, dto: NeedDt
       ...(dto.isActive !== undefined ? { isActive: !!dto.isActive } : {}),
     },
   });
+  if (updated.isActive) emitNeedUpdated(actor.clubId, needId);
+  else emitNeedClosed(actor.clubId, needId);
   return needShape(updated, true);
 }
 
@@ -894,6 +911,7 @@ export async function deleteNeed(actor: MarketActor, needId: string) {
   if (!row) throw new NotFoundError('Need');
   if (row.clubId !== actor.clubId) throw new ForbiddenError('That need belongs to another club');
   await prisma.clubRecruitmentNeed.update({ where: { id: needId }, data: { isActive: false } });
+  emitNeedClosed(actor.clubId, needId);
   return { id: needId, isActive: false };
 }
 
@@ -1165,6 +1183,7 @@ export async function offerPlayerToClubs(
       dto.message?.slice(0, 500) ?? null,
       { type: 'PLAYER_OFFERED_TO_CLUB', playerOfferId: row.id, playerId: dto.playerId, clubId: from.id,
         askingPriceEur: price, matchPct: m?.pct ?? null });
+    emitPlayerOffered(actor.clubId, toClubId, dto.playerId, null);
   }
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },

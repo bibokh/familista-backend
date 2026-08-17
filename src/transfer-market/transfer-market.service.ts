@@ -24,6 +24,7 @@ import { appendAuditEventAsync } from '../security/audit-chain.service';
 import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
 import { leadingCommitmentInTx, cancelAuctionForSettlement, notifyCancelled } from './transfer-auction.service';
 import { notifyClub, fmt } from './transfer-notify';
+import { emitListingCreated, emitListingWithdrawn, emitTransferCompleted } from './transfer-events';
 
 export interface MarketActor { userId: string; clubId: string; role?: string }
 
@@ -306,6 +307,7 @@ export async function listPlayer(actor: MarketActor, dto: ListDto): Promise<Mark
     return item;
   });
 
+  emitListingCreated(actor.clubId, player.id, row.id);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_LISTED', entityType: 'MarketplaceItem', entityId: row.id,
@@ -325,14 +327,16 @@ export async function delistPlayer(actor: MarketActor, listingId: string): Promi
   const payload = item.payload as Record<string, unknown> | null;
   const playerId = payload && typeof payload.playerId === 'string' ? payload.playerId : null;
 
-  return prisma.$transaction(async (tx) => {
-    const updated = await tx.marketplaceItem.update({ where: { id: listingId }, data: { status: 'CLOSED' } });
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.marketplaceItem.update({ where: { id: listingId }, data: { status: 'CLOSED' } });
     if (playerId) {
       const p = await tx.player.findUnique({ where: { id: playerId } });
       if (p) await setAvailability(tx, p, actor, false);
     }
-    return updated;
+    return row;
   });
+  emitListingWithdrawn(actor.clubId, playerId, listingId);
+  return updated;
 }
 
 // ── market visibility ────────────────────────────────────────────────────────
@@ -479,6 +483,7 @@ export async function purchase(actor: MarketActor, listingId: string) {
   await notifyClub(result.buyerClubId, 'TRANSFER_COMPLETED',
     `${who} has joined from ${sellerName} for ${fmt(result.feeEur)}.`, null, note);
 
+  emitTransferCompleted(result.sellerClubId, result.buyerClubId, result.playerId, { listingId });
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'TRANSFER_SETTLED', entityType: 'MarketplaceItem', entityId: listingId,

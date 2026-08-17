@@ -12,6 +12,8 @@ import { getBalance, setAvailability, defaultTeamFor, findActiveListingForPlayer
          pendingOfferForPlayer, closeCompetingState, archiveShortlistAfterTransfer } from './transfer-market.service';
 import { notifyClub, fmt as fmtEur } from './transfer-negotiation.service';
 import { publicClubSelect, publicPlayerSelect, toPublicPlayer, UNKNOWN_CLUB } from './public-player';
+import { emitAuctionCreated, emitAuctionBid, emitAuctionCancelled, emitAuctionSettled,
+         emitTransferCompleted } from './transfer-events';
 
 // the same actor shape the rest of the module uses
 export interface MarketActor { userId: string; clubId: string; role?: string }
@@ -102,6 +104,7 @@ export async function listAuction(actor: MarketActor, dto: AuctionDto): Promise<
     return item;
   });
 
+  emitAuctionCreated(actor.clubId, player.id, row.id);
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'AUCTION_LISTED', entityType: 'MarketplaceItem', entityId: row.id,
@@ -177,6 +180,7 @@ export async function placeBid(actor: MarketActor, listingId: string, amountEur:
     action: 'AUCTION_BID_PLACED', entityType: 'MarketplaceItem', entityId: listingId,
     payload: { bidId: result.bid.id, amountEur: amount, playerId: result.playerId },
   });
+  emitAuctionBid(listingId, result.playerId, result.item.clubId, actor.clubId, result.previousLeader);
   return { bidId: result.bid.id, listingId, amountEur: amount, playerId: result.playerId };
 }
 
@@ -231,7 +235,8 @@ export async function cancelAuction(actor: MarketActor, listingId: string) {
   // should have to discover that by looking. The kind is the one the enum
   // already has; the message says which of the two things happened, because
   // "cancelled by the seller" and "outbid" are not the same news.
-  await notifyBiddersOfCancellation(listingId, playerId, actor.clubId, 'the selling club withdrew it');
+  const cancelledBidders = await notifyBiddersOfCancellation(listingId, playerId, actor.clubId, 'the selling club withdrew it');
+  emitAuctionCancelled(listingId, playerId, actor.clubId, cancelledBidders);
 
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
@@ -249,7 +254,7 @@ async function notifyBiddersOfCancellation(
     where: { listingId }, select: { bidderClubId: true },
   });
   const clubs = [...new Set(bids.map((b) => b.bidderClubId))].filter((c) => c !== sellerClubId);
-  if (!clubs.length) return 0;
+  if (!clubs.length) return [] as string[];
   const [player, seller] = await Promise.all([
     playerId ? prisma.player.findUnique({ where: { id: playerId }, select: { firstName: true, lastName: true } }) : null,
     clubName(sellerClubId),
@@ -261,7 +266,7 @@ async function notifyBiddersOfCancellation(
       `${seller} ended the auction before it closed. Nobody won it, and your bid no longer stands.`,
       { type: 'AUCTION_CANCELLED', listingId, playerId, clubId: sellerClubId, outcome: 'CANCELLED' });
   }
-  return clubs.length;
+  return clubs;
 }
 
 // ── A2 · the defensive path ─────────────────────────────────────────────────
@@ -414,6 +419,19 @@ export async function settleAuction(listingId: string): Promise<{ listingId: str
   } else if (settled.status === 'UNSOLD') {
     await notifyClub(settled.sellerClubId, 'AUCTION_ENDING',
       'Your auction ended with no bids.', null, { type: 'AUCTION_UNSOLD', listingId, playerId: settled.playerId });
+  }
+
+  // The market hears that the auction is over; the clubs that were in it hear
+  // what it means for them. A sale is also a completed transfer, which is the
+  // public fact the feed and the history already carry.
+  const settledLosers = settled.status === 'SOLD'
+    ? [...new Set((await prisma.transferBid.findMany({
+        where: { listingId, bidderClubId: { not: settled.winnerClubId ?? '' } }, select: { bidderClubId: true },
+      })).map((b) => b.bidderClubId))]
+    : [];
+  emitAuctionSettled(listingId, settled.playerId, settled.sellerClubId, settled.winnerClubId, settledLosers);
+  if (settled.status === 'SOLD' && settled.winnerClubId && settled.playerId) {
+    emitTransferCompleted(settled.sellerClubId, settled.winnerClubId, settled.playerId, { listingId });
   }
   return { listingId: settled.listingId, status: settled.status };
 }

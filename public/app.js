@@ -651,6 +651,7 @@ function doLogout() {
     try { _matchModalWS.close(); } catch (_) {}
     _matchModalWS = null;
   }
+  if (typeof _tfRtReset === 'function') { try { _tfRtReset(); } catch (_) {} }
   State.token = null;
   State.user  = null;
 
@@ -31528,6 +31529,10 @@ const AppContext = (function () {
       // the new club then fails to load, the screen is empty rather than
       // showing a squad this manager is no longer managing.
       if (typeof _famClearClubScopedState === 'function') _famClearClubScopedState();
+      // The transfer stream belongs to the club just left. It is closed before
+      // anything is read for the new one, so a private event for the old club
+      // has nowhere to arrive.
+      if (typeof _tfRtReset === 'function') _tfRtReset();
 
       await loadTeams();
       renderSwitcher();
@@ -31536,6 +31541,10 @@ const AppContext = (function () {
       if (typeof _thHydrate === 'function') {
         try { hydrated = (await _thHydrate()) === 'ready'; } catch (_) { hydrated = false; }
       }
+      // The stream was closed with the club that was left; it is opened again
+      // for the one now being acted for, and only once its roster has arrived —
+      // so the club the socket binds to is the club the session is really in.
+      if (hydrated && typeof _tfRtConnect === 'function') { try { _tfRtConnect(); } catch (_) {} }
       // Silent: this function says one thing about the switch, below.
       var loaded = { ok: true, failed: [] };
       if (typeof loadAllData === 'function') {
@@ -47941,6 +47950,9 @@ var TF_TABS = [
 
 function renderTransfersPage() {
   var host = document.getElementById('tf-shell'); if (!host) return;
+  // Opening the page does not create a socket — _tfRtConnect returns at once if
+  // one is already live for this club.
+  try { _tfRtConnect(); } catch (_) {}
   var C = _tfCtx();
   host.innerHTML = _tfHeaderHtml(C) + '<div class="tf-body" id="tf-body">' + _tfTabHtml(C) + '</div>';
   _tfRenderOverlay();
@@ -50413,6 +50425,196 @@ function _tfDiscAction(action, playerId, listingId) {
   });
 })();
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFERS · REALTIME
+// ══════════════════════════════════════════════════════════════════════════════
+// One authenticated socket for the whole session, on the same wire the match
+// stream already uses. What arrives on it is never state — it is a list of
+// surfaces that have gone stale. The screen answers by re-reading the canonical
+// endpoint for those surfaces and repainting them in place, which is the same
+// path an explicit refresh has always taken.
+//
+// That choice is what makes the rest of this simple. Receiving an event twice
+// costs one coalesced read and changes nothing. An event that arrives after the
+// screen has already refreshed for its own reasons is harmless. A reconnect
+// needs no replay, because the next read is the truth whatever was missed. And
+// nothing here can leak: the socket carries no figures, and every endpoint it
+// causes to be read was already authorised.
+
+var _TF_RT = {
+  ws: null,
+  ping: null,
+  retry: null,
+  attempt: 0,
+  clubId: null,        // the club this socket was opened for
+  dirty: {},           // surface → 1, coalesced until the next flush
+  flushTimer: null,
+  connected: false,
+  seen: 0              // events received, for the tests and the console
+};
+
+// A single re-read per surface, however many events asked for it. Events tend
+// to arrive in bursts — a settlement publishes to the market, the feed and both
+// clubs at once — and one burst must not become six requests per screen.
+var TF_RT_FLUSH_MS = 250;
+
+function _tfRtUrl() {
+  var base = FAM_CONFIG.API_BASE
+    .replace(/^https/, 'wss')
+    .replace(/^http/, 'ws')
+    .replace(/\/api\/v\d+$/, '');
+  return base + '/ws/market?token=' + encodeURIComponent(State.token);
+}
+
+function _tfRtConnect() {
+  if (!State.token) return;
+  if (typeof _thIsHydrated === 'function' && !_thIsHydrated()) return;
+  var club = (typeof _TH !== 'undefined' && _TH && _TH.clubId) || null;
+  // Already connected for this club: one socket, not one per tab opening.
+  if (_TF_RT.ws && _TF_RT.clubId === club &&
+      (_TF_RT.ws.readyState === 0 || _TF_RT.ws.readyState === 1)) return;
+  _tfRtClose();
+  _TF_RT.clubId = club;
+
+  try { _TF_RT.ws = new WebSocket(_tfRtUrl()); }
+  catch (e) { _tfRtScheduleRetry(); return; }
+
+  _TF_RT.ws.onopen = function () {
+    _TF_RT.connected = true;
+    _TF_RT.attempt = 0;
+    _TF_RT.ping = setInterval(function () {
+      try { _TF_RT.ws.send(JSON.stringify({ type: 'ping' })); } catch (_) {}
+    }, 25000);
+    // Whatever happened while there was no socket is picked up by reading, not
+    // by replaying: the endpoints are the truth and they are read right now.
+    _tfRtMark(['market', 'auctions', 'offers', 'needs', 'activity', 'feed', 'shortlist', 'balance', 'notifications']);
+  };
+  _TF_RT.ws.onmessage = function (e) {
+    var m;
+    try { m = JSON.parse(e.data); } catch (_) { return; }
+    if (!m || m.type !== 'event' || !m.event) return;
+    _TF_RT.seen++;
+    _tfRtMark(m.event.surfaces || []);
+  };
+  _TF_RT.ws.onerror = function () { /* onclose follows */ };
+  _TF_RT.ws.onclose = function () {
+    _TF_RT.connected = false;
+    if (_TF_RT.ping) { clearInterval(_TF_RT.ping); _TF_RT.ping = null; }
+    _tfRtScheduleRetry();
+  };
+}
+
+// Backing off rather than hammering: a server that is down does not want a
+// connection every second, and there is nothing to lose by reading late.
+function _tfRtScheduleRetry() {
+  if (_TF_RT.retry) return;
+  if (!State.token) return;
+  var wait = Math.min(30000, 1000 * Math.pow(2, Math.min(5, _TF_RT.attempt++)));
+  _TF_RT.retry = setTimeout(function () {
+    _TF_RT.retry = null;
+    _tfRtConnect();
+  }, wait);
+}
+
+function _tfRtClose() {
+  if (_TF_RT.ping) { clearInterval(_TF_RT.ping); _TF_RT.ping = null; }
+  if (_TF_RT.retry) { clearTimeout(_TF_RT.retry); _TF_RT.retry = null; }
+  if (_TF_RT.ws) {
+    var w = _TF_RT.ws;
+    _TF_RT.ws = null;
+    // Detach first: a close we asked for must not schedule a reconnect.
+    try { w.onclose = null; w.onmessage = null; w.onerror = null; w.close(); } catch (_) {}
+  }
+  _TF_RT.connected = false;
+  _TF_RT.clubId = null;
+}
+// Leaving a club takes its private stream with it. The next connect is made for
+// whichever club the session is acting for then, and the server resolves that
+// from the user row rather than from anything sent here.
+function _tfRtReset() { _tfRtClose(); _TF_RT.dirty = {}; _TF_RT.attempt = 0; }
+
+function _tfRtMark(surfaces) {
+  if (!surfaces || !surfaces.length) return;
+  for (var i = 0; i < surfaces.length; i++) _TF_RT.dirty[surfaces[i]] = 1;
+  if (_TF_RT.flushTimer) return;
+  _TF_RT.flushTimer = setTimeout(function () {
+    _TF_RT.flushTimer = null;
+    _tfRtFlush();
+  }, TF_RT_FLUSH_MS);
+}
+
+// Re-read only what went stale, then repaint only what is on screen. Every one
+// of these calls is the same one the module already used; realtime adds no new
+// way to read and no new way to draw.
+function _tfRtFlush() {
+  var d = _TF_RT.dirty;
+  _TF_RT.dirty = {};
+  var jobs = [];
+  var open = typeof document !== 'undefined' && document.getElementById('pg-transfers');
+  var tab = _TF.tab;
+
+  if (d.market)   jobs.push(_tfSyncServerMarket().then(function () { return _tfSyncMyListings(); }));
+  if (d.auctions) jobs.push(_tfAucLoad().then(function () { _TF_AUC.detail = {}; }));
+  if (d.balance)  jobs.push(_tfSyncBalance());
+  if (d.notifications) jobs.push(_tfNotifLoad());
+  if (d.shortlist) jobs.push(_tfScoutLoadShortlist());
+  if (d.activity) { _TF_NEG.deals = null; jobs.push(_tfNegLoadActivity()); jobs.push(_tfDeskLoad()); }
+  if (d.offers)   { _TF_NEG.offers = {}; _TF_NEG.negotiations = {}; jobs.push(_tfNegLoadActivity()); }
+  if (d.needs)    { _TF_NEG.needMatches = {}; jobs.push(_tfNegLoadNeeds()); if (_TF_NEG.myNeeds) jobs.push(_tfNegLoadMyNeeds()); }
+  if (d.feed)     { _TF_NEG.marketDeals = null; jobs.push(_tfNegLoadFeed()); }
+  // Discovery is a search the manager composed. It is re-run only while it is
+  // the screen in front of them, because re-running it in the background would
+  // silently change a result set they are reading.
+  if (d.discover && tab === 'scouting' && open) jobs.push(_tfScoutLoad());
+
+  Promise.all(jobs.map(function (p) { return p && p.catch ? p.catch(function () {}) : p; }))
+    .then(function () {
+      if (!open || !document.getElementById('pg-transfers')) return;
+      _tfRtRepaint(d);
+    });
+}
+
+// Patch what is visible; leave the rest for when it is opened. Nothing here
+// rebuilds the page, and every path is one the module already had.
+function _tfRtRepaint(d) {
+  var tab = _TF.tab;
+  try { if (d.notifications) _tfNotifBadge(); } catch (_) {}
+  try { if (d.activity || d.offers) _tfActivityBadgePatch(); } catch (_) {}
+  try { if (d.needs) _tfNeedSignalPatch(); } catch (_) {}
+
+  if (tab === 'auctions' && (d.auctions || d.market)) { try { _tfAucRepaint(); } catch (_) {} }
+  if (tab === 'activity' && (d.activity || d.offers || d.balance || d.auctions)) {
+    try { _tfActivityRepaint(); } catch (_) {}
+  }
+  if (tab === 'scouting' && (d.discover || d.shortlist)) { try { _tfScoutRepaint(); } catch (_) {} }
+  if (tab === 'needs' && d.needs) { try { _tfRenderBody(); } catch (_) {} }
+  if (tab === 'feed' && d.feed) { try { _tfRenderBody(); } catch (_) {} }
+  if (tab === 'offers' && (d.offers || d.activity)) { try { _tfRenderBody(); } catch (_) {} }
+  // The header carries the budget and the counts, and it is on every tab.
+  if (d.balance || d.market || d.auctions) { try { _tfHeaderPatch(); } catch (_) {} }
+}
+
+// The header's figures, written into the elements already on screen. The whole
+// header is not rebuilt: it holds the team selector, and replacing it while a
+// manager is using it would close the dropdown under their hand.
+function _tfHeaderPatch() {
+  var host = document.getElementById('tf-shell');
+  if (!host) return;
+  var eco = _tfEconomy(_tfCtx());
+  var cells = host.querySelectorAll('.tf-money-cell b');
+  if (cells.length >= 3) {
+    if (cells[0].textContent !== _tfMoney(eco.available)) cells[0].textContent = _tfMoney(eco.available);
+    var committed = (_TF_DESK.data && _TF_DESK.data.balance && _TF_DESK.data.balance.committedEur) || eco.committed || 0;
+    if (cells[1].textContent !== _tfMoney(committed)) cells[1].textContent = _tfMoney(committed);
+    var shortN = Object.keys(_TF_SCOUT.shortIds || {}).filter(function (k) { return _TF_SCOUT.shortIds[k]; }).length;
+    if (cells[2].textContent !== String(shortN)) cells[2].textContent = String(shortN);
+  }
+}
+
+window._tfRtConnect = _tfRtConnect;
+window._tfRtReset = _tfRtReset;
+
 // Transfers is a Club Workspace page like any other: one nav entry, one slug,
 // one template. Registered here rather than edited into the router by hand.
 window.renderTransfersHTML = renderTransfersHTML;
@@ -52696,6 +52898,9 @@ async function _tfSyncAll() {
   await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
     _tfScoutLoadShortlist(), _tfDeskLoad(),
     _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
+  // One socket for the session, opened once the club is known. Reconnecting is
+  // its own business; this only ever asks.
+  try { _tfRtConnect(); } catch (_) {}
   try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
 }
 window._tfSyncAll = _tfSyncAll;

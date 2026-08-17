@@ -11044,3 +11044,18 @@ body.club-theme .topbar-titles{ min-width:0; }
   .tf-table--desk .tf-c-club, .tf-table--desk .tf-c-action{ display:none; }
   .tf-table--desk .tf-c-player{ width:auto; }
 }
+
+/* The tab's sub-label is written into by the activity badge — "Everything of
+   ours" becomes "1 waiting on you" the moment another club makes an offer. The
+   tab is a flex column sized by its widest child, so that rewrite used to widen
+   the tab and shove every tab to its right. It only ever showed up now that the
+   text can change without the manager having touched anything. The label is
+   given a floor wide enough for every sub-label this strip uses, so the words
+   can change and the strip cannot move. */
+.tf-tab span{ display:block; min-width:96px; }
+
+/* The same thing one row down. The header's stat chips are written into by the
+   same patches — "0 open negotiations" becomes "1 open negotiation" — and the
+   row is a flex line, so a word changing length used to slide every chip after
+   it. Each chip gets a floor wide enough for its longest wording. */
+.tf-hs{ min-width:104px; }
