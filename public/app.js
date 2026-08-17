@@ -514,7 +514,6 @@ async function bootApp() {
         var _showing = ((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
         if (typeof renderAllPages === 'function') renderAllPages();
         if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
-        if (typeof _tfSyncAll === 'function') _tfSyncAll();
       } else {
         // Same message, plus the one fact that identifies the cause, so a
         // screenshot of the banner is enough to tell which call failed.
@@ -523,6 +522,13 @@ async function bootApp() {
           + (_d ? ' (' + _d.step + (_d.status != null ? ' → HTTP ' + _d.status : ' → ' + (_d.code || 'error')) + ')' : ''),
           'error');
       }
+      // Either way. The transfer market belongs to the other clubs and is read
+      // from this session, not from this club's roster — it used to be read
+      // only on the ready branch, so a session that could not lift its own
+      // squad opened Transfers to zeros over a full market. Reading it here
+      // also means the page is drawn once, with its rows already in hand,
+      // rather than painted empty and filled in underneath the manager.
+      if (typeof _tfSyncAll === 'function') _tfSyncAll();
     }
   } catch (_) {}
 
@@ -47843,7 +47849,11 @@ function _tfMode(p) { return p.listing === 'auction' ? 'auction' : 'scouting'; }
 // filter they never set — or the filters they did set removed everything.
 function _tfEmptyMarketMsg(all, C) {
   if (!all.length) {
-    return (typeof _thIsHydrated === 'function' && _thIsHydrated())
+    // Signed in, the server has been asked and this is its answer. "Still
+    // loading" was shown whenever the roster had not hydrated, which turned a
+    // permanent failure into a message that promised the market was on its way
+    // and never was.
+    return _tfHasSession()
       ? 'No club has a player on the market right now.'
       : 'The market is still loading…';
   }
@@ -47984,9 +47994,63 @@ function renderTransfersPage() {
   // one is already live for this club.
   try { _tfRtConnect(); } catch (_) {}
   var C = _tfCtx();
-  host.innerHTML = _tfHeaderHtml(C) + '<div class="tf-body" id="tf-body">' + _tfTabHtml(C) + '</div>';
+  host.innerHTML = _tfHeaderHtml(C) + _tfRosterNoticeHtml()
+    + '<div class="tf-body" id="tf-body">' + _tfTabHtml(C) + '</div>';
   _tfRenderOverlay();
   _tfStartClock();
+  // The roster read is the one thing on this page that can fail without the
+  // market noticing, and on a Render instance that had spun down it fails for
+  // no reason but the first request's latency. Opening Transfers is a good
+  // moment to try it again — once, because the manager asked for this screen,
+  // not on a timer.
+  _tfRetryRosterOnce();
+}
+
+// ── when the club's own roster did not load ─────────────────────────────────
+// The market is other clubs' business and it is on screen either way. What this
+// session cannot do until its own roster is real is put one of ITS players up
+// for sale, because that needs the player's canonical id and the browser has
+// only its local squad. Say exactly that, say which call failed, and let it be
+// tried again — instead of drawing zeros everywhere and explaining nothing.
+// It stays on the page once it has appeared, saying instead that the roster
+// loaded. A banner that vanishes under the manager's eyes moves the whole
+// market up by its own height, and this module holds a cumulative layout shift
+// of zero; one element of one height, whichever thing it has to say.
+function _tfRosterNoticeHtml() {
+  if (typeof _TH === 'undefined' || !_TH || !_TH.everFailed) return '';
+  if (_TH.state === 'ready') {
+    return '<div class="tf-roster-notice tf-roster-notice--ok" role="status">'
+      + '<b>Your squad has loaded.</b> Listing your own players is available again.'
+      + '</div>';
+  }
+  var d = _TH.diag || {};
+  var why = d.step ? d.step + (d.status != null ? ' → HTTP ' + d.status : ' → ' + (d.code || 'error')) : 'unknown';
+  return '<div class="tf-roster-notice" role="status">'
+    + '<b>Your squad has not loaded from the server.</b> '
+    + 'The market below is live and you can bid, buy and negotiate. '
+    + 'Listing one of your own players stays unavailable until your roster loads.'
+    + ' <em>(' + _tfEsc(why) + ')</em>'
+    + '<button type="button" data-tf-roster-retry>Retry</button>'
+    + '</div>';
+}
+var _TF_ROSTER_RETRIED = false;
+function _tfRetryRosterOnce() {
+  if (_TF_ROSTER_RETRIED) return;
+  if (typeof _TH === 'undefined' || !_TH || _TH.state !== 'failed') return;
+  if (typeof _thHydrate !== 'function') return;
+  _TF_ROSTER_RETRIED = true;
+  _tfRetryRoster();
+}
+function _tfRetryRoster() {
+  return _thHydrate()
+    .then(function (st) {
+      if (st === 'ready') {
+        _tfDropCtx();
+        if (typeof _sqLoad === 'function') { try { _sqLoad(); } catch (_) {} }
+      }
+      return _tfSyncAll();
+    })
+    .catch(function () {});
 }
 // Re-render the tab without stealing the cursor. The live clock repaints rows
 // once a listing changes state, and a manager mid-way through typing a filter
@@ -48872,6 +48936,15 @@ function _tfNegotiationHtml(offerId) {
     }).join('') + '</ol></div>';
 }
 
+// Where the transfer budget on the header came from. 'server' is the club's
+// real ClubTransferBalance — the account the server actually spends from — and
+// it was labelled "Demo budget" beside it, which told a manager the one real
+// figure on the header was made up.
+function _tfBudgetSource(src) {
+  return src === 'server' ? 'Transfer account'
+       : src === 'club'   ? 'Club finance'
+       : 'Demo budget';
+}
 function _tfHeaderHtml(C) {
   var eco = _tfEconomy(C), reg = _tfTeamRegistry(), me = _tfCtxId(C);
   var live = _tfLots(C).filter(function (p) { var s = _tfAucState(p); return s === 'ACTIVE' || s === 'AVAILABLE' || s === 'ENDING SOON'; }).length;
@@ -48895,7 +48968,11 @@ function _tfHeaderHtml(C) {
     +     teamSel
     +     '<div class="tf-money">'
     +       '<div class="tf-money-cell"><i>Transfer budget</i><b>' + _tfMoney(eco.available) + '</b>'
-    +         '<em class="tf-src tf-src--' + eco.source + '">' + (eco.source === 'club' ? 'Club finance' : 'Demo budget') + '</em></div>'
+    // Where the figure above came from. 'server' is the club's real
+    // ClubTransferBalance — the one the server spends from — and it was being
+    // labelled "Demo budget" beside it, which told a manager the only real
+    // number on the header was made up.
+    +         '<em class="tf-src tf-src--' + eco.source + '">' + _tfBudgetSource(eco.source) + '</em></div>'
     +       '<div class="tf-money-cell"><i>Committed in bids</i><b>' + _tfMoney(eco.committed) + '</b></div>'
     // Scouting credits used to buy a refresh of a generated pool. There is no
     // pool and nothing to buy: searching the real Player table is just a search.
@@ -50340,6 +50417,22 @@ function _tfDiscAction(action, playerId, listingId) {
       _tfRenderBody(); return;
     }
 
+    // Try the roster read again, by hand. Whatever it does, the market on this
+    // page is unaffected — it was never waiting on it.
+    if ((el = t.closest('[data-tf-roster-retry]'))) {
+      e.preventDefault();
+      el.disabled = true; el.textContent = 'Retrying…';
+      _tfRetryRoster().then(function () {
+        if (typeof _TH !== 'undefined' && _TH && _TH.state === 'ready') {
+          _tfToast('Squad loaded from the server', 'success');
+        } else {
+          _tfToast('Squad still unavailable — the market is unaffected', 'error');
+        }
+        renderTransfersPage();
+      });
+      return;
+    }
+
     if ((el = t.closest('[data-tf-tab]'))) {
       e.preventDefault();
       _TF.tab = el.getAttribute('data-tf-tab');
@@ -50502,9 +50595,12 @@ function _tfRtUrl() {
 }
 
 function _tfRtConnect() {
+  // A bearer, because the socket is authenticated by ?token= and there is no
+  // cookie on the upgrade. The roster is not part of that: the server resolves
+  // the club from the user row on the token, so a session whose roster never
+  // hydrated still gets its own private stream and the public one.
   if (!State.token) return;
-  if (typeof _thIsHydrated === 'function' && !_thIsHydrated()) return;
-  var club = (typeof _TH !== 'undefined' && _TH && _TH.clubId) || null;
+  var club = (typeof _TH !== 'undefined' && _TH && _TH.clubId) || _thCurrentClubId();
   // Already connected for this club: one socket, not one per tab opening.
   if (_TF_RT.ws && _TF_RT.clubId === club &&
       (_TF_RT.ws.readyState === 0 || _TF_RT.ws.readyState === 1)) return;
@@ -50793,7 +50889,7 @@ function _tfListingById(id) {
 }
 var _TF_MY_LISTINGS = [];
 function _tfIsListed(playerId) {
-  if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+  if (_tfHasSession()) {
     for (var i = 0; i < _TF_MY_LISTINGS.length; i++) {
       if (_TF_MY_LISTINGS[i].player && _TF_MY_LISTINGS[i].player.id === playerId) return true;
     }
@@ -50807,8 +50903,33 @@ function _tfMyListingFor(playerId) {
   }
   return null;
 }
+// ── what the market actually needs ───────────────────────────────────────────
+// A signed-in session, and nothing else. Every transfer read is answered from
+// the session — the server resolves which club is asking and scopes the answer
+// to it — so none of them depends on this browser having lifted its own roster
+// into Player rows first.
+//
+// They all used to. Reading the market, the auctions, the balance, the needs,
+// the negotiations and the shortlist were each gated on _thIsHydrated(), and
+// _thHydrate() fails for reasons that have nothing to do with the market: a
+// session whose role may not POST /bootstrap, a cold instance that does not
+// answer the roster read inside the request timeout, a club whose player list
+// errors on one page. When it failed, every one of those reads returned early,
+// no request was sent at all, and the module drew zeros — 0 live listings, 0
+// active needs, 0 open negotiations, 0 shortlisted — over a server holding a
+// full market. Nothing on the screen said so, and no server-side fix could
+// reach it, because the browser never asked the question.
+//
+// A session that is restored from its cookie has a user and no in-memory
+// bearer, so the user is what is tested; the calls themselves send the cookie
+// and add the bearer when there is one.
+function _tfHasSession() {
+  var S = (typeof window !== 'undefined' && window.State) || null;
+  return !!(S && (S.user || S.token));
+}
+
 async function _tfSyncMyListings() {
-  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return _TF_MY_LISTINGS;
+  if (!_tfHasSession()) return _TF_MY_LISTINGS;
   try { _TF_MY_LISTINGS = await _tfServerMyListings(); } catch (_) {}
   return _TF_MY_LISTINGS;
 }
@@ -50942,9 +51063,13 @@ function _tfLots(C) {
   // The market is the server's. What a club sees on it are real listings by
   // real clubs — nothing generated reaches a screen a manager can act on, and
   // an empty market is the honest answer when no club has listed anybody.
-  if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
-    return _TF_SERVER_LOTS.slice();
-  }
+  //
+  // Signed in, this is the answer whatever else the session managed to do. It
+  // used to be conditional on the roster having hydrated, and a session that
+  // failed to hydrate fell through to the browser's own listing store below —
+  // which on any real browser is empty, and which is not the market in any
+  // case. The store below belongs to the logged-out demo, and stays there.
+  if (_tfHasSession()) return _TF_SERVER_LOTS.slice();
   var out = [];
   var L = _tfListings();
   for (var i = 0; i < L.length; i++) {
@@ -51086,7 +51211,7 @@ function _tfPortrait(p, size) {
 // Server first, because the server owns the answer. One shape, whichever store
 // answered, so no caller has to know which one it was.
 function _tfStatusOf(playerId) {
-  var srv = (typeof _thIsHydrated === 'function' && _thIsHydrated()) ? _tfMyListingFor(playerId) : null;
+  var srv = _tfHasSession() ? _tfMyListingFor(playerId) : null;
   if (srv) {
     var lot = null;
     try {
@@ -51462,7 +51587,7 @@ async function _tfNegLoadMatches(playerId, ask) {
 
 // ── the club's inbox, in the topbar bell that already exists ────────────────
 async function _tfNotifLoad() {
-  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  if (!_tfHasSession()) return;
   try {
     var rows = _thUnwrap(await _thApi('GET', '/phase-p/notifications/inbox?limit=50'));
     _TF_NEG.notifs = Array.isArray(rows) ? rows : (rows && rows.items) || [];
@@ -52681,6 +52806,10 @@ async function _thHydrate(opts) {
     // has already owned this session's squad, we say so and stop; only a
     // session that never hydrated may keep using the local demo squad.
     _TH.state = 'failed';
+    // Remembered for the rest of the session, so the Transfers page can say
+    // what happened — and later that it recovered — without the notice
+    // appearing and disappearing under whoever is reading the market.
+    _TH.everFailed = true;
     _TH.error = (e && (e.userMessage || e.message)) || 'hydration failed';
     // Whatever is in the index now was read for a club this session may no
     // longer be acting for, and a half-finished _thRefresh can leave the new
@@ -52917,7 +53046,7 @@ function _tfLotFromServer(rec) {
 // synchronous renderers keep working exactly as they do today.
 var _TF_SERVER_LOTS = [];
 async function _tfSyncServerMarket() {
-  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return _TF_SERVER_LOTS;
+  if (!_tfHasSession()) return _TF_SERVER_LOTS;
   try {
     var recs = await _tfServerMarket();
     _TF_SERVER_LOTS = recs.map(_tfLotFromServer);
@@ -52928,13 +53057,13 @@ async function _tfSyncServerMarket() {
 // The club's real transfer balance, held for the synchronous renderers.
 var _TF_SERVER_BALANCE = null;
 async function _tfSyncBalance() {
-  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) { _TF_SERVER_BALANCE = null; return null; }
+  if (!_tfHasSession()) { _TF_SERVER_BALANCE = null; return null; }
   try { _TF_SERVER_BALANCE = await _tfServerBalance(); } catch (_) {}
   return _TF_SERVER_BALANCE;
 }
 // Everything the Transfers page needs from the server, in one place.
 async function _tfSyncAll() {
-  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  if (!_tfHasSession()) return;
   // The header states how many needs are open and how many negotiations are
   // live. Both were read only when their own tab was opened, so a manager
   // landing on Auctions saw zero for them however much the server held.

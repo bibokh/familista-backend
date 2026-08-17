@@ -8945,6 +8945,7 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-money-cell b{ font-family:var(--mono,monospace); font-size:15px; font-weight:800; color:var(--tf-ink); letter-spacing:-.3px; }
 .tf-src{ font-style:normal; font-size:8.5px; font-weight:700; letter-spacing:.06em; }
 .tf-src--club{ color:var(--tf-champagne); }
+.tf-src--server{ color:var(--tf-champagne); }
 .tf-src--demo{ color:var(--tf-warm); }
 
 .tf-head-bottom{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-top:14px; }
@@ -8965,6 +8966,28 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-head-stats{ display:flex; gap:14px; padding-bottom:10px; }
 .tf-hs{ display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:600; color:var(--tf-ink3); }
 .tf-dot-live{ width:6px; height:6px; border-radius:50%; background:var(--tf-champagne); box-shadow:0 0 0 3px rgba(74,222,128,.16); }
+
+/* ── the club's own roster did not load ──────────────────────────────────── */
+/* One fixed height whichever of its two things it says, so recovering from the
+   failure does not move the market underneath the manager reading it. */
+.tf-roster-notice{
+  flex:0 0 auto; display:flex; align-items:center; gap:8px;
+  min-height:38px; box-sizing:border-box; padding:0 26px;
+  font-size:11.5px; color:var(--tf-ink2);
+  background:rgba(248,113,113,.09); border-bottom:1px solid rgba(248,113,113,.25);
+}
+.tf-roster-notice b{ color:var(--tf-ink1); font-weight:700; }
+.tf-roster-notice em{ font-style:normal; color:var(--tf-ink3); }
+.tf-roster-notice button{
+  margin-left:auto; flex:0 0 auto; min-width:78px; height:24px;
+  border:1px solid rgba(248,113,113,.4); border-radius:6px;
+  background:transparent; color:var(--tf-ink1);
+  font:inherit; font-weight:700; cursor:pointer;
+}
+.tf-roster-notice button:disabled{ opacity:.55; cursor:default; }
+.tf-roster-notice--ok{
+  background:rgba(74,222,128,.09); border-bottom-color:rgba(74,222,128,.25);
+}
 
 /* ── body / panes ────────────────────────────────────────────────────────── */
 .tf-body{ flex:1; min-height:0; display:flex; }
