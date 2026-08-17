@@ -340,22 +340,37 @@ export async function delistPlayer(actor: MarketActor, listingId: string): Promi
 }
 
 // ── market visibility ────────────────────────────────────────────────────────
-// Every authenticated club sees every OTHER club's active listings. Visibility
-// is not ownership: nothing here lets the reader change what it can see, and a
-// club is never shown its own player as something to buy.
+// The market is what the platform is currently selling. Every authenticated
+// club sees every active listing, its own included, and each one says whose it
+// is.
+//
+// This used to exclude the caller's own club in the query — `clubId: { not:
+// actor.clubId }` — which conflated two different questions. "What is on the
+// market" and "what may I buy" are not the same, and answering the first with
+// the second made the market disagree with itself for the club that had just
+// listed somebody: /feed and /my-listings both carry a club's own listing, and
+// /auctions has always returned every auction with an `isMine` flag, so a
+// seller with the only active listing on the platform saw it in Market
+// activity and in My activity while the global board said "No club has a
+// player on the market right now" and the live-listings counter read zero.
+// One listing, three surfaces, two answers.
+//
+// So the row is returned and marked, exactly as an auction already is. Not
+// being allowed to buy a player is a rule about an action, and it is enforced
+// where the action is: purchase() refuses a club its own player, and so does
+// every offer path. Hiding the row was never that rule — it only hid the fact.
 export async function readMarket(actor: MarketActor, opts: { page?: number; limit?: number } = {}) {
   const { page = 1, limit = 50 } = opts;
   const where: Prisma.MarketplaceItemWhereInput = {
     kind:   KIND,
     status: 'ACTIVE',
-    clubId: { not: actor.clubId },
     OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
   };
   const [items, total] = await Promise.all([
     prisma.marketplaceItem.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: Math.min(limit, 200) }),
     prisma.marketplaceItem.count({ where }),
   ]);
-  const listings = await Promise.all(items.map(hydrateListing));
+  const listings = await Promise.all(items.map((i) => hydrateListing(i, actor.clubId)));
   return { items: listings.filter(Boolean), total, page, limit };
 }
 
@@ -366,7 +381,7 @@ export async function readOwnListings(actor: MarketActor) {
     where: { kind: KIND, clubId: actor.clubId, status: 'ACTIVE' },
     orderBy: { createdAt: 'desc' }, take: 200,
   });
-  const listings = await Promise.all(items.map(hydrateListing));
+  const listings = await Promise.all(items.map((i) => hydrateListing(i, actor.clubId)));
   return { items: listings.filter(Boolean) };
 }
 
@@ -589,7 +604,7 @@ export async function findActiveListingForPlayer(playerId: string): Promise<Mark
 // Player row — his email address, his guardian's name, email and phone number,
 // his medical and payment status and his coaches' notes — to anybody who opened
 // the market.
-async function hydrateListing(item: MarketplaceItem) {
+async function hydrateListing(item: MarketplaceItem, viewerClubId?: string | null) {
   const pl = (item.payload ?? {}) as Record<string, unknown>;
   const playerId = typeof pl.playerId === 'string' ? pl.playerId : null;
   if (!playerId) return null;
@@ -599,6 +614,10 @@ async function hydrateListing(item: MarketplaceItem) {
   return {
     listingId:      item.id,
     status:         item.status,
+    // Whose listing this is, from the reader's point of view — the same flag
+    // /auctions has always carried. It decides what the screen offers, never
+    // whether the row exists.
+    isMine:         viewerClubId != null && item.clubId === viewerClubId,
     askingPriceEur: typeof pl.askingPriceEur === 'number' ? pl.askingPriceEur : 0,
     validUntil:     item.validUntil,
     createdAt:      item.createdAt,

@@ -47811,7 +47811,11 @@ function _tfScore(p, C, prof) {
 function _tfRecommendations(C) {
   C = C || _tfCtx();
   var prof = _tfSquadProfile(C), eco = _tfEconomy(C), rng = _tfAgeRange(C);
-  var pool = _tfLots(C).filter(function (p) { return _tfAucState(p) !== 'ENDED' && _tfAucState(p) !== 'LOST'; });
+  // Our own listing is on the market, so it is in the lots — but a
+  // recommendation is a player to sign, and we cannot sign one of our own.
+  var pool = _tfLots(C).filter(function (p) {
+    return !p.mine && _tfAucState(p) !== 'ENDED' && _tfAucState(p) !== 'LOST';
+  });
   var seen = {};
   var scored = pool.filter(function (p) {
     if (seen[p.id]) return false; seen[p.id] = 1;
@@ -48945,9 +48949,20 @@ function _tfBudgetSource(src) {
        : src === 'club'   ? 'Club finance'
        : 'Demo budget';
 }
+// How many listings the market is holding. The server counts them and says so;
+// the rows it sends back are one page of fifty, so counting those under-reports
+// any market bigger than a page. The server's figure is the market's figure,
+// and it is the same figure for every club — which is the point.
+function _tfLiveListingCount(C) {
+  if (_tfHasSession() && typeof _TF_SERVER_TOTAL === 'number') return _TF_SERVER_TOTAL;
+  return _tfLots(C).filter(function (p) {
+    var s = _tfAucState(p);
+    return s === 'ACTIVE' || s === 'AVAILABLE' || s === 'ENDING SOON';
+  }).length;
+}
 function _tfHeaderHtml(C) {
   var eco = _tfEconomy(C), reg = _tfTeamRegistry(), me = _tfCtxId(C);
-  var live = _tfLots(C).filter(function (p) { var s = _tfAucState(p); return s === 'ACTIVE' || s === 'AVAILABLE' || s === 'ENDING SOON'; }).length;
+  var live = _tfLiveListingCount(C);
   var shortN = Object.keys(_TF_SCOUT.shortIds || {}).filter(function (k) { return _TF_SCOUT.shortIds[k]; }).length;
   var teamSel = '<label class="tf-teamsel">'
     + '<span>Destination</span>'
@@ -48983,7 +48998,7 @@ function _tfHeaderHtml(C) {
     + '<div class="tf-head-bottom">'
     +   '<nav class="tf-tabs">' + tabs + '</nav>'
     +   '<div class="tf-head-stats">'
-    +     '<span class="tf-hs"><i class="tf-dot-live"></i>' + live + ' live listings</span>'
+    +     '<span class="tf-hs" data-tf-hs="live"><i class="tf-dot-live"></i>' + live + ' live listings</span>'
     // What the rest of the market wants, and how much of it this club owns —
     // read from the feed already loaded, so the header costs no request.
     +     '<span class="tf-hs" data-tf-hs="needs">' + _tfNeedCounts().active + ' active needs</span>'
@@ -49265,7 +49280,10 @@ function _tfAuctionRowsHtml(C) {
   return list.map(function (p) {
     var st = _tfAucState(p), mine = _tfMyLead(p);
     var bids = p.bidders.length;
-    return '<tr class="tf-row' + (mine ? ' is-mine' : '') + '" data-tf-open="' + _tfEsc(p.id) + '">'
+    // A tint on our own listing, and nothing else: the row keeps its exact
+    // geometry, so marking it moves no column.
+    return '<tr class="tf-row' + (mine ? ' is-mine' : '') + (p.mine ? ' is-own' : '')
+      + '" data-tf-open="' + _tfEsc(p.id) + '">'
       + '<td class="tf-c-star">' + _tfStarBtn(p, C) + '</td>'
       + '<td class="tf-c-player">' + _tfIdentityCell(p, p.club) + '</td>'
       + '<td class="tf-c-qual">' + _tfQuality(p.qual) + '</td>'
@@ -49749,9 +49767,15 @@ function _tfDetailHtml(C) {
     +     '<div class="tf-pd-nums">'
     +       '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
     +       '<div><i>' + priceLabel + '</i><b class="tf-price">' + _tfMoney(price) + '</b></div>'
-    +       (p.listing === 'auction'
-        ? '<div><i>Auction</i><b class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
-          + (left <= 0 ? 'CLOSED' : _tfClock(left)) + '</b></div>'
+    +       // A listing whose seller set no deadline does not run out, and its own
+      // profile said CLOSED — `null - Date.now()` is a large negative number,
+      // so the clock read as long expired on a listing the server would still
+      // have honoured. Same rule as the board: the deadline is the server's, or
+      // there is none.
+      (p.listing === 'auction'
+        ? '<div><i>' + (p.endsAt == null ? 'Listing' : 'Auction') + '</i>'
+          + '<b class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
+          + (p.endsAt == null ? 'No deadline' : left <= 0 ? 'CLOSED' : _tfClock(left)) + '</b></div>'
         : '<div><i>Availability</i><b>' + _tfEsc(p.avail || '—') + '</b></div>')
     +     '</div>'
     +     (st.listed ? '<div class="tf-pd-auc">' + _tfAucChip(p.id) + '</div>' : '')
@@ -49889,6 +49913,28 @@ function _tfBidPanelHtml(p, C) {
   var action;
   // A real listing is bought, not won. Its panel offers the asking price and
   // the signing itself; the seller keeps him until somebody completes one.
+  // Our own listing, seen on the market it is actually on. Nothing here is a
+  // buyer's action — a club cannot buy, bid for or make an offer on its own
+  // player, and the server refuses all three — so the panel is the seller's:
+  // what he is asking, and taking him off the market.
+  if (p.server && p.mine) {
+    return '<aside class="tf-side">'
+      + '<div class="tf-side-hd"><span class="tf-state tf-state--own">YOUR LISTING</span>'
+      +   '<span class="tf-side-ttl">' + _tfEsc(p.club || 'Our club') + '</span></div>'
+      + '<div class="tf-side-timer' + (closed ? ' is-off' : '') + '">'
+      +   '<span class="tf-side-tl">Listing closes</span>'
+      +   '<span class="tf-clock" data-tf-clock="' + _tfEsc(p.id) + '">'
+      +     (p.endsAt == null ? 'No deadline' : closed ? 'CLOSED' : _tfClock(left)) + '</span></div>'
+      + '<div class="tf-side-rows">'
+      +   '<div class="tf-side-row"><i>Asking price</i><b class="is-next">' + _tfMoney(p.ask) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Estimated value</i><b>' + _tfMoney(p.mv) + '</b></div>'
+      +   '<div class="tf-side-row"><i>Selling club</i><b>' + _tfEsc(p.club || 'Our club') + '</b></div>'
+      + '</div>'
+      + '<button type="button" class="tf-btn tf-btn--danger tf-btn--block" data-tf-delist="'
+      +   _tfEsc(p.listingId) + '">CANCEL LISTING</button>'
+      + '<p class="tf-note">Every other club can see him at this price. We cannot buy our own player.</p>'
+      + '</aside>';
+  }
   if (p.server) {
     var afford = p.ask <= eco.available;
     return '<aside class="tf-side">'
@@ -50141,6 +50187,10 @@ function _tfPlaceBid(id) {
 }
 function _tfDoSign(id) {
   var C = _tfCtx(), p = _tfFind(id, C); if (!p) return;
+  // Our own listing is on the board because it is on the market, not because
+  // it is ours to buy. The server refuses this outright; refusing it here as
+  // well means the money is never reserved for a transfer that cannot happen.
+  if (p.mine) { _tfToast('He is already our player — this is our own listing', 'error'); return; }
   var c = _TF.confirm || {}, fee = c.fee != null ? c.fee : _tfCostOf(p);
   // A won lot converts its reservation into the fee: released here, spent below,
   // so the money is counted once and never twice.
@@ -50415,6 +50465,23 @@ function _tfDiscAction(action, playerId, listingId) {
       delete _TF_SCOUT.detail[dpid];
       _TF_SCOUT.open = dpid;
       _tfRenderBody(); return;
+    }
+
+    // Taking our own player off the market, from the market itself. Same call
+    // the Squad's own panel makes; the board is simply the other place the
+    // listing is now visible from.
+    if ((el = t.closest('[data-tf-delist]'))) {
+      e.preventDefault();
+      var _lid = el.getAttribute('data-tf-delist');
+      el.disabled = true;
+      _tfServerDelist(_lid)
+        .then(function () { _tfToast('Listing cancelled', 'info'); return _tfSyncAll(); })
+        .then(function () { _tfCloseDetail(); _tfRenderBody(); })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Cancel failed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
     }
 
     // Try the roster read again, by hand. Whatever it does, the market on this
@@ -50739,6 +50806,19 @@ function _tfHeaderPatch() {
     if (cells[1].textContent !== _tfMoney(committed)) cells[1].textContent = _tfMoney(committed);
     var shortN = Object.keys(_TF_SCOUT.shortIds || {}).filter(function (k) { return _TF_SCOUT.shortIds[k]; }).length;
     if (cells[2].textContent !== String(shortN)) cells[2].textContent = String(shortN);
+  }
+  // How many listings the market holds is the one figure on this header that a
+  // club other than ours can change, and realtime is how we hear about it. It
+  // was left out of this patch, so a listing published while the page was open
+  // moved the board and not the count beside it — the same disagreement in
+  // miniature. The chip has a width floor, so rewriting it shifts nothing.
+  var liveEl = host.querySelector('[data-tf-hs="live"]');
+  if (liveEl) {
+    var n = _tfLiveListingCount(_tfCtx());
+    var txt = n + ' live listings';
+    if (liveEl.lastChild && liveEl.lastChild.nodeType === 3) {
+      if (liveEl.lastChild.nodeValue !== txt) liveEl.lastChild.nodeValue = txt;
+    }
   }
 }
 
@@ -52982,7 +53062,7 @@ async function _tfServerDelist(listingId) {
 }
 async function _tfServerMarket() {
   var r = _thUnwrap(await _thApi('GET', '/transfer-market/market'));
-  return (r && r.items) || [];
+  return r || { items: [], total: 0 };
 }
 async function _tfServerMyListings() {
   var r = _thUnwrap(await _thApi('GET', '/transfer-market/my-listings'));
@@ -53008,6 +53088,10 @@ function _tfLotFromServer(rec) {
   lot.real = true; lot.server = true;
   lot.listingId = rec.listingId;
   lot.sellerClubId = rec.sellerClubId;
+  // Ours or another club's, as the server sees it. The row is on the board
+  // either way — it is the market, and our own listing is part of what the
+  // market currently holds — but what the panel offers for it is not the same.
+  lot.mine = !!rec.isMine;
   lot.club = rec.sellerClubName;
   lot.listing = 'auction';
   lot.positions = [p.pos];
@@ -53045,11 +53129,18 @@ function _tfLotFromServer(rec) {
 // The market the club can actually see, refreshed from the server. Held so the
 // synchronous renderers keep working exactly as they do today.
 var _TF_SERVER_LOTS = [];
+// The server's own count of active listings, which the page it sends back is a
+// window onto.
+var _TF_SERVER_TOTAL = null;
 async function _tfSyncServerMarket() {
   if (!_tfHasSession()) return _TF_SERVER_LOTS;
   try {
-    var recs = await _tfServerMarket();
-    _TF_SERVER_LOTS = recs.map(_tfLotFromServer);
+    var page = await _tfServerMarket();
+    _TF_SERVER_LOTS = (page.items || []).map(_tfLotFromServer);
+    // How many active listings the market actually holds, which is not how many
+    // came back: the read is paged at fifty. The header counts the market, so
+    // it counts this.
+    _TF_SERVER_TOTAL = typeof page.total === 'number' ? page.total : _TF_SERVER_LOTS.length;
   } catch (e) { try { console.warn('[transfers] market read failed', e && e.message); } catch (_) {} }
   return _TF_SERVER_LOTS;
 }
