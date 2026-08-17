@@ -2963,6 +2963,11 @@ function _sqAdaptBackendPlayer(bp) {
     legacyId: bp.legacyId || null, teamId: bp.teamId || null,
     qual: bp.overallRating || 70, foot: bp.preferredFoot === 'LEFT' ? 'Left' : bp.preferredFoot === 'BOTH' ? 'Both' : 'Right',
     height: bp.height ? (Math.round(bp.height) / 100).toFixed(2) + 'm' : '1.80m',
+    // The footballer's photograph, which the server has always had a column
+    // for and every screen here reads as `photo`. This mapping was missing, so
+    // hydration handed back a player with no photo whatever was stored against
+    // him, and the picture disappeared on the next refresh.
+    photo: bp.avatar || undefined,
     captain: !!bp.isCaptain, _backend: true
   };
 }
@@ -3140,7 +3145,15 @@ function sqFormSave() {
   var photo = _sqFormPhoto; if (photo) data.photo = photo;
   if (_sqFormState.mode === 'edit') {
     var p = _sqFind(_sqFormState.id);
-    if (p) { for (var k in data) { p[k] = data[k]; } if (!photo) { delete p.photo; } }
+    if (p) {
+      // What the server is told, decided against the player as he was BEFORE
+      // this form was applied to him — so an edit sends the fields it actually
+      // changed and nothing else.
+      var patch = _sqServerPatch(p, data, photo);
+      for (var k in data) { p[k] = data[k]; }
+      if (!photo) { delete p.photo; }
+      _sqPersistPlayer(p, patch);
+    }
   } else {
     data.id = 'sq-new-' + Date.now();
     SQ_DEMO_PLAYERS.push(data);
@@ -3150,6 +3163,85 @@ function sqFormSave() {
   if (SQ_UI.playerId && _sqFormState.mode === 'edit' && SQ_UI.playerId === _sqFormState.id) { _sqRenderPlayerModal(); }
   sqFormCancel();
 }
+// ── an edit reaches the server ───────────────────────────────────────────────
+// _sqSave() writes the browser's copy of the squad, and once the roster is the
+// server's it deliberately writes nothing — a stale local copy must never put a
+// sold player back. That was the whole of the edit form's persistence, so after
+// hydration every edit, the player's photograph included, lived in one
+// JavaScript object until the next read replaced it. Upload a picture, refresh,
+// and it was gone: the server had never been told.
+//
+// It is told now, through the endpoint that has always accepted these fields.
+// Only what changed is sent, so saving a photograph cannot rewrite a name, a
+// number, a rating or anything else the form did not touch.
+var SQ_SERVER_FIELDS = [
+  // form field → the update endpoint's field, and how to read it
+  ['name',   null,            null],   // split into firstName/lastName below
+  ['num',    'number',        function (v) { return parseInt(v, 10) || 0; }],
+  ['pos',    'position',      function (v) { return _thBackendPos(v); }],
+  ['natName','nationality',   function (v) { return String(v || '—'); }],
+  ['nat',    'flag',          function (v) { return String(v || '🏳️'); }],
+  ['qual',   'overallRating', function (v) { return parseInt(v, 10) || 70; }],
+  ['cond',   'condition',     function (v) { return parseInt(v, 10) || 85; }],
+  ['foot',   'preferredFoot', function (v) { return v === 'Left' ? 'LEFT' : v === 'Both' ? 'BOTH' : 'RIGHT'; }],
+  ['photo',  'avatar',        function (v) { return v || ''; }]
+];
+
+function _sqServerPatch(before, data, photo) {
+  var patch = {}, i, f;
+  var next = {};
+  for (var k in data) next[k] = data[k];
+  next.photo = photo || '';
+  for (i = 0; i < SQ_SERVER_FIELDS.length; i++) {
+    f = SQ_SERVER_FIELDS[i];
+    if (!f[1]) continue;
+    var was = f[0] === 'photo' ? (before.photo || '') : before[f[0]];
+    var now = next[f[0]];
+    if (now === undefined) continue;
+    if (String(was == null ? '' : was) === String(now == null ? '' : now)) continue;
+    patch[f[1]] = f[2](now);
+  }
+  // A name is two columns, and it only travels if it actually changed.
+  if (next.name !== undefined && String(next.name) !== String(before.name || '')) {
+    var parts = String(next.name).trim().split(/\s+/);
+    patch.firstName = parts.shift() || 'Player';
+    patch.lastName  = parts.join(' ') || patch.firstName;
+  }
+  // Height is held as "1.82m" on the screen and as centimetres on the record.
+  if (next.height !== undefined && String(next.height) !== String(before.height || '')) {
+    var cm = /m$/.test(String(next.height)) ? Math.round(parseFloat(next.height) * 100) : parseInt(next.height, 10);
+    if (cm >= 120 && cm <= 220) patch.height = cm;
+  }
+  return patch;
+}
+
+// The age on the form is a whole number and the record holds a birth date, so
+// age is deliberately not sent: turning 24 back into a date would overwrite a
+// real birthday with an invented one every time anybody saved the form.
+function _sqPersistPlayer(p, patch) {
+  if (!patch || !Object.keys(patch).length) return;
+  if (!(typeof _thIsHydrated === 'function' && _thIsHydrated())) return;
+  // Only a real Player row has a server id to address.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(String(p.id || ''))) return;
+  _thApi('PATCH', '/players/' + encodeURIComponent(p.id), patch)
+    .then(function () {
+      // Read the roster back so every screen shows what the server now holds,
+      // rather than the one object this form happened to change.
+      return typeof _thRefresh === 'function' ? _thRefresh() : null;
+    })
+    .then(function () {
+      try { _sqLoad(); } catch (_) {}
+      try { _sqRerenderLineup(); } catch (_) {}
+      try { if (SQ_UI.playerId) _sqRenderPlayerModal(); } catch (_) {}
+    })
+    .catch(function (e) {
+      try {
+        showToast('Could not save to the server — ' +
+          ((e && (e.userMessage || e.message)) || 'the change is not stored'), 'error');
+      } catch (_) {}
+    });
+}
+
 function sqDeleteConfirm(id) {
   var p = _sqFind(id); if (!p) return;
   _sqDeleteId = id;
@@ -52850,6 +52942,9 @@ function _thPlayerPayload(p) {
     roles: p.roles || p.secondary || null,
     morale: p.morale || null,
     form: p.form != null ? p.form : null,
+    // A photo the browser already held goes up with him, so the one lift into
+    // real Player rows does not lose it.
+    avatar: p.photo || undefined,
     isCaptain: !!p.captain,
     isInjured: p.availability === 'Injured'
   };

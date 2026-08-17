@@ -108,6 +108,7 @@ export interface BootstrapTeamDto {
     // the Squad shape's own fields, so nothing is dropped by the lift
     legacyId?: string; roles?: string; morale?: string; form?: number;
     isCaptain?: boolean; trainedPositions?: string; isInjured?: boolean;
+    avatar?: string;
   }>;
 }
 
@@ -201,6 +202,10 @@ function toPlayerRow(
     roles: p.roles ?? null,
     morale: p.morale ?? null,
     form: optionalIntOrNull(p.form, `${where}.form`),
+    // A photograph the browser already had for him. Dropped here, so a club
+    // whose players had photos lost every one of them at the moment its roster
+    // became real.
+    avatar: p.avatar ?? null,
     isCaptain: p.isCaptain ?? false,
     trainedPositions: p.trainedPositions ?? null,
     isInjured: p.isInjured ?? false,
