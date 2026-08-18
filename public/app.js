@@ -2898,11 +2898,15 @@ function sqOpenPlayer(id) {
   SQ_UI.playerId = id; SQ_UI.tab = 'overview';
   _sqRenderPlayerModal();
   var m = document.getElementById('sq-pl-modal');
-  if (m) m.style.display = 'flex';
+  // This overlay stays in the document and is shown by display alone, so
+  // "open" is not something CSS can otherwise ask about. The stability layer
+  // needs to know, because what it switches off while a panel is open must
+  // come back the moment it closes.
+  if (m) { m.style.display = 'flex'; m.classList.add('is-open'); }
 }
 function sqClosePlayer() {
   var m = document.getElementById('sq-pl-modal');
-  if (m) m.style.display = 'none';
+  if (m) { m.style.display = 'none'; m.classList.remove('is-open'); }
   SQ_UI.playerId = null;
 }
 function sqPlayerTab(tab) { SQ_UI.tab = tab; _sqRenderPlayerModal(); }
@@ -3267,7 +3271,8 @@ function sqDeleteDo() {
   _sqSave();
   _sqRerenderLineup();
   sqDeleteCancel();
-  var pm = document.getElementById('sq-pl-modal'); if (pm) pm.style.display = 'none';
+  var pm = document.getElementById('sq-pl-modal');
+  if (pm) { pm.style.display = 'none'; pm.classList.remove('is-open'); }
   SQ_UI.playerId = null;
 }
 
@@ -46204,7 +46209,9 @@ function _atPlayerModal(id) {
   var tab = AT_ACAD_TABS.map(function (t) { return t[0]; }).indexOf(AT.profileTab) >= 0 ? AT.profileTab : 'overview';
   var av = p.photo ? '<span class="at-modal-av" style="background-image:url(' + p.photo + ')"></span>'
     : '<span class="at-modal-av" style="background:' + c.accent + '">' + _atInitials(p.name) + '</span>';
-  return '<div class="sq-plm at-plm" style="--acc:' + c.accent + '">'
+  // The academy panel only exists in the document while it is open, so it is
+  // born open — the same flag the First Team's overlay is given when shown.
+  return '<div class="sq-plm at-plm is-open" style="--acc:' + c.accent + '">'
     + '<div class="sq-plm-backdrop" data-at-close-player></div>'
     + '<div class="sq-plm-dialog" role="dialog">'
       + _sqProfileInner({

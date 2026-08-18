@@ -1668,6 +1668,39 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx);height:100vh;o
 .header         { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 .backend-banner { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
 
+/* The player panel's own backdrop, and the transfer panel's, were never in
+   this list — and they are the two a manager opens most.
+   `.sq-plm-backdrop` is `position:fixed; inset:0` with `backdrop-filter:
+   blur(3px)`, so while a player card is open the browser re-rasterises a blur
+   of the WHOLE viewport. Behind it, body::before and body::after are two
+   full-viewport particle layers running `fosNeuralDrift` and
+   `fosConnectionDrift` — infinite alternate animations of transform and
+   opacity. A blurred backdrop over a continuously animating background is
+   recomposited every single frame for as long as the panel stays open, and
+   that is what is seen as the panel shimmering and shaking.
+   It moves nothing. The geometry underneath is identical frame to frame, which
+   is why getBoundingClientRect, ResizeObserver and layout-shift all report the
+   panel perfectly still while the screen visibly vibrates.
+   Same trade this layer already made for .modal-bg: the dimming stays — the
+   backdrops keep their 72% dark fill — only the blur goes. */
+.sq-plm-backdrop { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.tf-modal-bd     { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.mobile-overlay  { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* And nothing animates behind an open panel. The two particle layers are the
+   only thing on the page that moves by itself; pausing them while a player or
+   transfer panel is open costs nothing — they are 85%-transparent dots behind a
+   72% black overlay at that moment — and it is the difference between a still
+   background and one that drifts under the panel being read. */
+body:has(.sq-plm.is-open)::before,
+body:has(.sq-plm.is-open)::after,
+body:has(.tf-modal)::before,
+body:has(.tf-modal)::after,
+body:has(.modal-bg.open)::before,
+body:has(.modal-bg.open)::after {
+  animation: none !important;
+}
+
 /* Part 2 — modal content: freeze all compositing while open */
 .modal-bg.open,
 .modal-bg.open .modal,
@@ -1698,6 +1731,35 @@ body:has(.modal-bg.open) .quantum-card {
 body:has(.modal-bg.open) .page,
 body:has(.modal-bg.open) #pages-container,
 body:has(.modal-bg.open) .content {
+  animation:   none !important;
+  transform:   none !important;
+  filter:      none !important;
+  will-change: auto !important;
+}
+
+/* The same two rules for the player panel and the transfer panel, which this
+   layer never covered. Everything still painted behind an open panel stops
+   compositing for as long as it is open, exactly as it does for .modal-bg. The
+   panel's own transitions are untouched — a tab still highlights under the
+   pointer; what stops is work on the things nobody is looking at. */
+body:has(.sq-plm.is-open) .card,
+body:has(.sq-plm.is-open) .pc,
+body:has(.sq-plm.is-open) .player-card,
+body:has(.tf-modal) .card,
+body:has(.tf-modal) .pc,
+body:has(.tf-modal) .player-card {
+  transition:  border-color .2s ease !important;
+  transform:   none !important;
+  filter:      none !important;
+  will-change: auto !important;
+  animation:   none !important;
+}
+body:has(.sq-plm.is-open) .page,
+body:has(.sq-plm.is-open) #pages-container,
+body:has(.sq-plm.is-open) .content,
+body:has(.tf-modal) .page,
+body:has(.tf-modal) #pages-container,
+body:has(.tf-modal) .content {
   animation:   none !important;
   transform:   none !important;
   filter:      none !important;
