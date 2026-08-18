@@ -1778,13 +1778,24 @@ body.fos-neural-theme::after{
   100% { transform: translateX(-2px) rotate(0.5deg);  opacity: .85; }
 }
 
-/* Sit content above the particle layers */
+/* Sit content above the particle layers.
+   These are laid out in normal flow, so they need a position for z-index to
+   apply to them at all.
+
+   .modal-bg is NOT in this list, and must not be. It is already
+   `position:fixed; inset:0` with `z-index:9000` — far above the particles, and
+   positioned already — so it needed nothing from here, and `position:relative`
+   took it OUT of fixed positioning and dropped it into normal flow at the end
+   of the document. The player modal then opened 820px down an 820px viewport:
+   the overlay stopped filling the screen, took its height from its contents
+   instead, and the panel appeared below the fold and settled into place as the
+   page absorbed it. That is the shake on opening a player card, and it is why
+   it happened wherever this theme is on — which is everywhere. */
 body.fos-neural-theme .sidebar,
 body.fos-neural-theme .content,
 body.fos-neural-theme .main-content,
 body.fos-neural-theme .topbar,
-body.fos-neural-theme .auth-overlay,
-body.fos-neural-theme .modal-bg{
+body.fos-neural-theme .auth-overlay{
   position: relative;
   z-index: 1;
 }
