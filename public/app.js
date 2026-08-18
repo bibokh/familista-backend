@@ -1269,30 +1269,61 @@ function submitOnboardClub() {
 }
 
 // Open a Club workspace from the Clubs picker.
-// 1. Calls POST /me/context with the picked clubId so server-side context
-//    matches what the user sees.
-// 2. Mirrors the change into the local State so renderers pick it up.
-// 3. Navigates to the Dashboard.
+//
+// Entering a club is a navigation. It was written as the last step of a data
+// load: switchClub() was started and the move to the workspace was hung off its
+// promise, so the Clubs page stayed on screen until POST /me/context, then
+// loadTeams(), then _thHydrate() — a roster bootstrap plus every page of
+// /players — and then loadAllData() had all finished. Measured on a healthy
+// local server that is a full second with the picker still showing; against an
+// instance that is waking, where a 502 or 503 sends those calls into the retry
+// ladder and its 1.5s and 3s sleeps, it was six to seven seconds, with the
+// "Backend waking up" banner appearing over a Clubs page the manager had
+// already left.
+//
+// None of that is needed to show the workspace. The club's identity is what the
+// shell, the sidebar and the topbar are drawn from, and that is known the
+// moment the card is clicked. So the navigation happens now, synchronously, and
+// the data follows.
+//
+// Which club the session is acting for is committed here rather than by the
+// server's answer — the same thing the server is being told, so the two agree —
+// and the club just left is cleared out first, so the workspace opens empty and
+// fills, never showing another club's squad for a moment.
+var _famClubEntry = 0;
 function openClub(clubId) {
   if (!clubId) {
     try { showToast('Missing club id', 'error'); } catch (_) {}
     return;
   }
-  var goToDashboard = function () {
-    try { window.State = window.State || {}; window.State.context = window.State.context || {}; window.State.context.clubId = clubId; window.State.context.teamId = null; } catch (_) {}
-    try { navTo('club-home', null); } catch (_) {}
-  };
-  // If AppContext is available, route through it so /me/context is updated
-  // server-side and AppContext._ctx stays consistent with the picker choice.
-  if (typeof AppContext !== 'undefined' && AppContext.switchClub) {
-    try {
-      var p = AppContext.switchClub(clubId);
-      if (p && typeof p.then === 'function') { p.then(goToDashboard).catch(goToDashboard); }
-      else { goToDashboard(); }
-    } catch (_) { goToDashboard(); }
-  } else {
-    goToDashboard();
-  }
+  // Each entry is numbered. Click one club, change your mind and click another,
+  // and the first switch may still be in the retry ladder; when it lands it
+  // must not write its club over the one now on screen.
+  var gen = ++_famClubEntry;
+
+  // ── immediately, with nothing awaited ──────────────────────────────────
+  try {
+    window.State = window.State || {};
+    window.State.context = window.State.context || {};
+    window.State.context.clubId = clubId;
+    window.State.context.teamId = null;
+  } catch (_) {}
+  // Everything held belongs to the club being left, and none of it is stamped
+  // with whose it is.
+  try { if (typeof _famClearClubScopedState === 'function') _famClearClubScopedState(); } catch (_) {}
+  // Its private transfer stream goes with it.
+  try { if (typeof _tfRtReset === 'function') _tfRtReset(); } catch (_) {}
+  try { navTo('club-home', null); } catch (_) {}
+
+  // ── and then, in the background ────────────────────────────────────────
+  if (typeof AppContext === 'undefined' || !AppContext.switchClub) return;
+  try {
+    var p = AppContext.switchClub(clubId, {
+      alreadyReset: true,
+      isCurrent: function () { return gen === _famClubEntry; },
+    });
+    if (p && typeof p.catch === 'function') p.catch(function () {});
+  } catch (_) {}
 }
 
 // ── Phase B.1 · Topbar brand hydration ────────────────────────────
@@ -31614,9 +31645,20 @@ const AppContext = (function () {
     wrap.style.display = (cs.options.length > 0) ? '' : 'none';
   }
 
-  async function switchClub(clubId) {
+  // `opts.isCurrent()` says whether this switch is still the one the session
+  // wants. Entering a club no longer waits for any of this, so a manager can
+  // pick another club while these calls are still in the retry ladder; when a
+  // superseded one lands it must write nothing — not the context, not the
+  // roster, not a toast about a club that is no longer open.
+  // `opts.alreadyReset` says the caller has already cleared the club being
+  // left, which it does before navigating so the workspace never paints
+  // another club's data.
+  async function switchClub(clubId, opts) {
+    opts = opts || {};
+    const live = typeof opts.isCurrent === 'function' ? opts.isCurrent : function () { return true; };
     try {
       const r = await FamilistaAPI.post('/me/context', { clubId, teamId: null });
+      if (!live()) return;
       _ctx = (r && r.data) || r || _ctx;
       // Preserve availableClubs across the switch (server returns full ctx).
       State.context = {
@@ -31631,19 +31673,21 @@ const AppContext = (function () {
       // with whose it is — so it goes before anything is read or repainted. If
       // the new club then fails to load, the screen is empty rather than
       // showing a squad this manager is no longer managing.
-      if (typeof _famClearClubScopedState === 'function') _famClearClubScopedState();
+      if (!opts.alreadyReset && typeof _famClearClubScopedState === 'function') _famClearClubScopedState();
       // The transfer stream belongs to the club just left. It is closed before
       // anything is read for the new one, so a private event for the old club
       // has nowhere to arrive.
-      if (typeof _tfRtReset === 'function') _tfRtReset();
+      if (!opts.alreadyReset && typeof _tfRtReset === 'function') _tfRtReset();
 
       await loadTeams();
+      if (!live()) return;
       renderSwitcher();
       // The roster has to be read again for the club now being acted for.
       var hydrated = true;
       if (typeof _thHydrate === 'function') {
         try { hydrated = (await _thHydrate()) === 'ready'; } catch (_) { hydrated = false; }
       }
+      if (!live()) return;
       // The stream was closed with the club that was left; it is opened again
       // for the one now being acted for, and only once its roster has arrived —
       // so the club the socket binds to is the club the session is really in.
@@ -31653,6 +31697,7 @@ const AppContext = (function () {
       if (typeof loadAllData === 'function') {
         loaded = (await loadAllData({ silent: true })) || loaded;
       }
+      if (!live()) return;
 
       // The green toast means the workspace is usable, and "usable" means the
       // roster arrived: _thHydrate reads this club's teams and players from the
@@ -31668,7 +31713,7 @@ const AppContext = (function () {
       } else {
         showToast('Switched club', 'success');
       }
-    } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
+    } catch (e) { if (live()) showToast(e?.userMessage || 'Switch failed', 'error'); }
   }
   async function switchTeam(teamId) {
     try {
