@@ -121,14 +121,14 @@ model Club {
   fanClub        String?
 
   // ── Club profile (Phase R — Club System). All nullable / additive. ──
-  description    String?   @db.Text
-  addressLine    String?
-  region         String?
-  postalCode     String?
-  contactEmail   String?
-  contactPhone   String?
-  websiteUrl     String?
-  socialLinks    Json?
+  description  String? @db.Text
+  addressLine  String?
+  region       String?
+  postalCode   String?
+  contactEmail String?
+  contactPhone String?
+  websiteUrl   String?
+  socialLinks  Json?
 
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
@@ -137,15 +137,20 @@ model Club {
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
 
-  users            User[]
-  players          Player[]
-  matches          Match[]
-  tournaments      Tournament[]
-  trainingSessions TrainingSession[]
-  financials       Financial[]
-  devices          GpsDevice[]
-  aiInsights       AiInsight[]
-  scoutReports     ScoutReport[]
+  users User[]
+
+  // ── Coaches & technical staff market ──
+  staffEngagements    StaffEngagement[]
+  staffNeeds          StaffNeed[]
+  staffApproachesMade StaffApproach[]   @relation("StaffApproachFrom")
+  players             Player[]
+  matches             Match[]
+  tournaments         Tournament[]
+  trainingSessions    TrainingSession[]
+  financials          Financial[]
+  devices             GpsDevice[]
+  aiInsights          AiInsight[]
+  scoutReports        ScoutReport[]
 
   // ── Cross-engine bridges (additive go-live merge) ──
   whiteLabel            WhiteLabelConfig?
@@ -165,10 +170,10 @@ model Club {
   currentUsers     User[]               @relation("UserCurrentClub")
 
   // ── Scouting & Recruitment Center ──
-  scoutProspects   ScoutProspect[]
+  scoutProspects ScoutProspect[]
 
   // ── Club Home Dashboard ──
-  announcements    Announcement[]
+  announcements Announcement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -190,9 +195,9 @@ model User {
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
-  refreshTokens   RefreshToken[]
-  passwordResets  PasswordResetToken[]
-  aiInsights      AiInsight[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordResetToken[]
+  aiInsights     AiInsight[]
 
   // ── Cross-engine bridges (additive go-live merge) ──
   platformAdmin   PlatformAdmin?
@@ -207,6 +212,11 @@ model User {
   currentTeamId    String?
   currentTeam      Team?                @relation("UserCurrentTeam", fields: [currentTeamId], references: [id], onDelete: SetNull)
   membershipAudits MembershipAuditLog[] @relation("MembershipAuditActor")
+
+  // ── Coaches & technical staff market ──
+  staffProfile     StaffProfile?
+  staffEngagements StaffEngagement[]
+  staffApproaches  StaffApproach[]   @relation("StaffApproachTarget")
 
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
@@ -235,7 +245,7 @@ model PasswordResetToken {
   id        String    @id @default(uuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String    @unique   // SHA-256(rawToken) — raw token never persisted
+  tokenHash String    @unique // SHA-256(rawToken) — raw token never persisted
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
@@ -279,13 +289,13 @@ model Player {
   // legacyId provides a stable, idempotent mapping from the old client-side Squad id (e.g. "sq-8")
   // to this backend Player UUID, so the import can run more than once without creating duplicates.
   legacyId         String?  @unique
-  roles            String?              // e.g. "BBM · CM" (preserved from the Squad UI)
-  morale           String?              // "Excellent" | "Good" | "Content" | "Poor"
-  form             Int?                 // 1-10, the Squad UI's form figure
+  roles            String? // e.g. "BBM · CM" (preserved from the Squad UI)
+  morale           String? // "Excellent" | "Good" | "Content" | "Poor"
+  form             Int? // 1-10, the Squad UI's form figure
   isCaptain        Boolean  @default(false)
   isViceCaptain    Boolean  @default(false)
-  trainedPositions String?              // comma-separated allowed positions (e.g. "CM,DM,AM")
-  joinedAt      DateTime      @default(now())
+  trainedPositions String? // comma-separated allowed positions (e.g. "CM,DM,AM")
+  joinedAt         DateTime @default(now())
 
   clubId String
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
@@ -303,13 +313,13 @@ model Player {
   auditLogs     PlayerAuditLog[]
 
   // ── Phase Q back-relations ──
-  gpsSessions      GPSTrackingSession[]
-  workloadRecords  WorkloadRecord[]
-  injuryRecords    InjuryRecord[]
-  playerMatchStats PlayerMatchStats[]
+  gpsSessions       GPSTrackingSession[]
+  workloadRecords   WorkloadRecord[]
+  injuryRecords     InjuryRecord[]
+  playerMatchStats  PlayerMatchStats[]
   playerSeasonStats PlayerSeasonStats[]
-  marketValues     PlayerMarketValue[]
-  contractStatus   PlayerContractStatus?
+  marketValues      PlayerMarketValue[]
+  contractStatus    PlayerContractStatus?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3366,11 +3376,11 @@ enum TransferOfferStatus {
 }
 
 enum TransferInterestStatus {
-  OPEN            // registered, the owner has not answered
-  INVITED         // the owner asked for a formal offer
-  DECLINED        // the owner is not interested in talking
-  NOT_FOR_SALE    // the owner says the player is not available at all
-  CLOSED          // superseded by an offer, or withdrawn
+  OPEN // registered, the owner has not answered
+  INVITED // the owner asked for a formal offer
+  DECLINED // the owner is not interested in talking
+  NOT_FOR_SALE // the owner says the player is not available at all
+  CLOSED // superseded by an offer, or withdrawn
 }
 
 enum RecruitmentPriority {
@@ -3791,22 +3801,22 @@ model CareerProjectionGraph {
 // read from either end. Nothing here moves a player: only an ACCEPTED offer,
 // settled in one transaction, does that.
 model TransferOffer {
-  id            String              @id @default(uuid())
-  playerId      String
-  sellerClubId  String
-  buyerClubId   String
-  feeEur        BigInt
-  status        TransferOfferStatus @default(PENDING)
-  message       String?             @db.Text
+  id              String              @id @default(uuid())
+  playerId        String
+  sellerClubId    String
+  buyerClubId     String
+  feeEur          BigInt
+  status          TransferOfferStatus @default(PENDING)
+  message         String?             @db.Text
   // The offer this one answers. A counter from the seller points at the buyer's
   // offer, and the buyer's improved bid points at the counter.
-  parentOfferId String?
+  parentOfferId   String?
   createdByClubId String
-  createdById   String?
-  respondedAt   DateTime?
-  expiresAt     DateTime?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  createdById     String?
+  respondedAt     DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([sellerClubId, status])
   @@index([buyerClubId, status])
@@ -5009,25 +5019,25 @@ model TrainingSession {
   // ── Training-persistence additions (all optional/defaulted so the migration is additive & safe) ──
   // These mirror the fields the Training workspace already tracks client-side, so a session can be
   // fully persisted in PostgreSQL (planning → completion) instead of localStorage.
-  startTime     String?              // "10:00"
-  sessionType   String?              // technical | tactical | physical | recovery | gym | mental | match
+  startTime     String? // "10:00"
+  sessionType   String? // technical | tactical | physical | recovery | gym | mental | match
   objective     String?
   tacticalFocus String?
   formation     String?
-  status        String   @default("planned")   // draft | planned | in_progress | completed | cancelled
+  status        String    @default("planned") // draft | planned | in_progress | completed | cancelled
   sessionRating Float?
-  bestPlayerId  String?              // Player.id of the session's best performer
-  coachNote     String?  @db.Text
+  bestPlayerId  String? // Player.id of the session's best performer
+  coachNote     String?   @db.Text
   completedAt   DateTime?
 
   // ── Session-analytics additions (all optional so the migration is additive & safe) ──
   // Real coach-entered session context — persisted so Session Analytics reads real data.
-  intensity     String?              // Low | Medium | High | Max
-  pitch         String?
-  weather       String?
-  temperature   String?
-  equipment     String?
-  coachName     String?
+  intensity   String? // Low | Medium | High | Max
+  pitch       String?
+  weather     String?
+  temperature String?
+  equipment   String?
+  coachName   String?
 
   playerStats PlayerTrainingStat[]
 
@@ -5049,7 +5059,7 @@ model PlayerTrainingStat {
   attended      Boolean @default(true)
   rating        Float?
   notes         String?
-  participation String?             // full | partial (persisted training participation, additive)
+  participation String? // full | partial (persisted training participation, additive)
 
   @@unique([sessionId, playerId])
   @@index([sessionId])
@@ -7791,11 +7801,11 @@ model VideoAsset {
   tags            String[]
   uploadedBy      String?
 
-  ingestJobs       VideoIngestJob[]
-  analyses         VisionAnalysisRun[]
-  clips            Clip[]
-  videoClips       VideoClip[]
-  transcodeJobs    VideoTranscodeJob[]
+  ingestJobs    VideoIngestJob[]
+  analyses      VisionAnalysisRun[]
+  clips         Clip[]
+  videoClips    VideoClip[]
+  transcodeJobs VideoTranscodeJob[]
 
   @@index([clubId])
   @@index([matchId])
@@ -7810,11 +7820,11 @@ model VideoTranscodeJob {
   asset   VideoAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   clubId  String
 
-  status     String    @default("QUEUED")
-  priority   Int       @default(5)
-  retryCount Int       @default(0)
+  status     String  @default("QUEUED")
+  priority   Int     @default(5)
+  retryCount Int     @default(0)
   workerRef  String?
-  errorMsg   String?   @db.Text
+  errorMsg   String? @db.Text
 
   queuedAt    DateTime  @default(now())
   startedAt   DateTime?
@@ -8177,9 +8187,9 @@ model ScoutingReport {
   targetPlayerId String?
   targetClubId   String?
 
-  title   String  @default("")
-  summary String  @default("") @db.Text
-  payload Json    @default("{}")
+  title   String @default("")
+  summary String @default("") @db.Text
+  payload Json   @default("{}")
 
   confidence Float @default(0.7)
 
@@ -8199,9 +8209,9 @@ model ScoutingReport {
   tactical        Float?
   potential       Float?
   compositeScore  Float?
-  strengthsNotes  String?  @db.Text
-  weaknessesNotes String?  @db.Text
-  summaryNotes    String?  @db.Text
+  strengthsNotes  String?   @db.Text
+  weaknessesNotes String?   @db.Text
+  summaryNotes    String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -8813,7 +8823,7 @@ enum DataProviderSource {
 }
 
 model DataProviderSession {
-  id      String @id @default(uuid())
+  id      String  @id @default(uuid())
   clubId  String
   matchId String?
 
@@ -8981,10 +8991,10 @@ model WorkloadRecord {
   chronicLoad           Float
   trainingStressBalance Float
   acwr                  Float
-  monotony              Float   @default(0)
-  strain                Float   @default(0)
-  isHighRisk            Boolean @default(false)
-  injuryRiskScore       Float   @default(0)
+  monotony              Float    @default(0)
+  strain                Float    @default(0)
+  isHighRisk            Boolean  @default(false)
+  injuryRiskScore       Float    @default(0)
   riskFlags             Json?
 
   computedAt DateTime @default(now())
@@ -9009,10 +9019,10 @@ model InjuryRecord {
   bodyLocation     String
   bodyLocationCode String?
   osicsCategory    String?
-  mechanism        String  @default("UNKNOWN")
+  mechanism        String   @default("UNKNOWN")
   severity         String?
-  isContactInjury  Boolean @default(false)
-  isRecurrence     Boolean @default(false)
+  isContactInjury  Boolean  @default(false)
+  isRecurrence     Boolean  @default(false)
 
   matchId    String?
   trainingId String?
@@ -9064,8 +9074,8 @@ model TransferTarget {
 /// anything season-shaped stay out of it; settlement needs a buyer to be able to
 /// pay and a seller to be paid, and nothing more.
 model ClubTransferBalance {
-  id        String @id @default(uuid())
-  clubId    String @unique
+  id     String @id @default(uuid())
+  clubId String @unique
 
   budgetEur BigInt @default(50000000)
   earnedEur BigInt @default(0)
@@ -9086,7 +9096,7 @@ model PlayerMarketValue {
   valuationDate DateTime
   valueMEur     Float
   source        String
-  notes         String? @db.Text
+  notes         String?  @db.Text
   recordedBy    String?
 
   createdAt DateTime @default(now())
@@ -9106,10 +9116,10 @@ model PlayerContractStatus {
   releaseClauseEur       Float?
   agentName              String?
   agentContact           String?
-  expiryAlertDays        Int     @default(180)
-  isExpiringSoon         Boolean @default(false)
-  isAvailableForTransfer Boolean @default(false)
-  notes                  String? @db.Text
+  expiryAlertDays        Int      @default(180)
+  isExpiringSoon         Boolean  @default(false)
+  isAvailableForTransfer Boolean  @default(false)
+  notes                  String?  @db.Text
   updatedBy              String?
 
   createdAt DateTime @default(now())
@@ -9123,53 +9133,53 @@ model PlayerContractStatus {
 // ── Player Statistics ─────────────────────────────────────────────────────────
 
 model PlayerMatchStats {
-  id       String @id @default(uuid())
+  id       String  @id @default(uuid())
   matchId  String
-  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
   playerId String
-  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player   Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
   clubId   String
   teamId   String?
 
-  minutesPlayed      Int     @default(0)
-  isStarting         Boolean @default(false)
-  goals              Int     @default(0)
-  assists            Int     @default(0)
-  shots              Int     @default(0)
-  shotsOnTarget      Int     @default(0)
-  shotsBlocked       Int     @default(0)
-  xg                 Float   @default(0)
-  xgot               Float   @default(0)
-  xa                 Float   @default(0)
-  keyPasses          Int     @default(0)
-  bigChancesCreated  Int     @default(0)
-  passes             Int     @default(0)
-  passesCompleted    Int     @default(0)
-  passAccuracy       Float   @default(0)
-  progressivePasses  Int     @default(0)
-  carries            Int     @default(0)
-  progressiveCarries Int     @default(0)
-  dribbles           Int     @default(0)
-  dribblesCompleted  Int     @default(0)
-  pressures          Int     @default(0)
-  pressuresSuccessful Int    @default(0)
-  tackles            Int     @default(0)
-  tacklesWon         Int     @default(0)
-  interceptions      Int     @default(0)
-  clearances         Int     @default(0)
-  blockedShots       Int     @default(0)
-  aerialDuels        Int     @default(0)
-  aerialDuelsWon     Int     @default(0)
-  groundDuels        Int     @default(0)
-  groundDuelsWon     Int     @default(0)
-  foulsCommitted     Int     @default(0)
-  foulsSuffered      Int     @default(0)
-  yellowCards        Int     @default(0)
-  redCards           Int     @default(0)
-  offsides           Int     @default(0)
-  heatmapGrid        Json?
-  ratingFamilista    Float?
-  computedAt         DateTime @default(now())
+  minutesPlayed       Int      @default(0)
+  isStarting          Boolean  @default(false)
+  goals               Int      @default(0)
+  assists             Int      @default(0)
+  shots               Int      @default(0)
+  shotsOnTarget       Int      @default(0)
+  shotsBlocked        Int      @default(0)
+  xg                  Float    @default(0)
+  xgot                Float    @default(0)
+  xa                  Float    @default(0)
+  keyPasses           Int      @default(0)
+  bigChancesCreated   Int      @default(0)
+  passes              Int      @default(0)
+  passesCompleted     Int      @default(0)
+  passAccuracy        Float    @default(0)
+  progressivePasses   Int      @default(0)
+  carries             Int      @default(0)
+  progressiveCarries  Int      @default(0)
+  dribbles            Int      @default(0)
+  dribblesCompleted   Int      @default(0)
+  pressures           Int      @default(0)
+  pressuresSuccessful Int      @default(0)
+  tackles             Int      @default(0)
+  tacklesWon          Int      @default(0)
+  interceptions       Int      @default(0)
+  clearances          Int      @default(0)
+  blockedShots        Int      @default(0)
+  aerialDuels         Int      @default(0)
+  aerialDuelsWon      Int      @default(0)
+  groundDuels         Int      @default(0)
+  groundDuelsWon      Int      @default(0)
+  foulsCommitted      Int      @default(0)
+  foulsSuffered       Int      @default(0)
+  yellowCards         Int      @default(0)
+  redCards            Int      @default(0)
+  offsides            Int      @default(0)
+  heatmapGrid         Json?
+  ratingFamilista     Float?
+  computedAt          DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -9181,9 +9191,9 @@ model PlayerMatchStats {
 }
 
 model PlayerSeasonStats {
-  id            String      @id @default(uuid())
+  id            String       @id @default(uuid())
   playerId      String
-  player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player        Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
   clubId        String
   season        String
   competitionId String?
@@ -9271,7 +9281,7 @@ model Fixture {
   venue       String?
   round       Int?
   leg         Int?
-  status      String  @default("SCHEDULED")
+  status      String   @default("SCHEDULED")
 
   homeScore     Int?
   awayScore     Int?
@@ -9340,100 +9350,100 @@ model ScoutProspect {
   league             String?
   position           String
   secondaryPositions String[]
-  preferredFoot      String?       // RIGHT | LEFT | BOTH
+  preferredFoot      String? // RIGHT | LEFT | BOTH
   heightCm           Int?
   weightKg           Int?
 
   // ── Market intelligence ────────────────────────────────────────────────────
-  marketValueEur     Float?
-  contractUntil      DateTime?
-  agentName          String?
+  marketValueEur Float?
+  contractUntil  DateTime?
+  agentName      String?
 
   // ── Scout metadata ─────────────────────────────────────────────────────────
-  scoutName          String?
-  reportDate         DateTime?
+  scoutName  String?
+  reportDate DateTime?
 
   // ── Recruitment pipeline status ────────────────────────────────────────────
   // IDENTIFIED | SCOUTED | REVIEWED | NEGOTIATION | TRIAL | APPROVED | SIGNED | REJECTED
-  status             String    @default("IDENTIFIED")
+  status String @default("IDENTIFIED")
 
   // ── Technical evaluation (1–100) ───────────────────────────────────────────
-  pace               Int?
-  acceleration       Int?
-  agility            Int?
-  dribbling          Int?
-  ballControl        Int?
-  passing            Int?
-  vision             Int?
-  crossing           Int?
-  finishing          Int?
-  shooting           Int?
-  heading            Int?
-  tackling           Int?
-  positioning        Int?
-  composure          Int?
-  decisionMaking     Int?
+  pace           Int?
+  acceleration   Int?
+  agility        Int?
+  dribbling      Int?
+  ballControl    Int?
+  passing        Int?
+  vision         Int?
+  crossing       Int?
+  finishing      Int?
+  shooting       Int?
+  heading        Int?
+  tackling       Int?
+  positioning    Int?
+  composure      Int?
+  decisionMaking Int?
 
   // ── Physical evaluation (1–100) ────────────────────────────────────────────
-  strength           Int?
-  stamina            Int?
-  endurance          Int?
-  balance            Int?
-  mobility           Int?
-  explosiveness      Int?
+  strength      Int?
+  stamina       Int?
+  endurance     Int?
+  balance       Int?
+  mobility      Int?
+  explosiveness Int?
 
   // ── Mental evaluation (1–100) ──────────────────────────────────────────────
-  leadership         Int?
-  discipline         Int?
-  concentration      Int?
-  workRate           Int?
-  determination      Int?
-  professionalism    Int?
-  coachability       Int?
+  leadership      Int?
+  discipline      Int?
+  concentration   Int?
+  workRate        Int?
+  determination   Int?
+  professionalism Int?
+  coachability    Int?
 
   // ── Calculated scores (auto-computed on save) ──────────────────────────────
-  currentRating      Float?
-  potentialRating    Float?
+  currentRating       Float?
+  potentialRating     Float?
   recommendationScore Float?
   // REJECT | MONITOR | INTERESTING | STRONG_TARGET | PRIORITY_TARGET
-  recommendation     String?
+  recommendation      String?
 
   // ── Position fit (0–100, computed) ─────────────────────────────────────────
-  fitGK              Int?
-  fitCB              Int?
-  fitFB              Int?
-  fitDM              Int?
-  fitCM              Int?
-  fitAM              Int?
-  fitWinger          Int?
-  fitStriker         Int?
+  fitGK      Int?
+  fitCB      Int?
+  fitFB      Int?
+  fitDM      Int?
+  fitCM      Int?
+  fitAM      Int?
+  fitWinger  Int?
+  fitStriker Int?
 
   // ── Risk assessment ────────────────────────────────────────────────────────
-  injuryRisk         String?   // LOW | MEDIUM | HIGH
-  adaptationRisk     String?
-  disciplineRisk     String?
-  financialRisk      String?
+  injuryRisk     String? // LOW | MEDIUM | HIGH
+  adaptationRisk String?
+  disciplineRisk String?
+  financialRisk  String?
 
   // ── Scout report text fields ───────────────────────────────────────────────
-  strengths          String?   @db.Text
-  weaknesses         String?   @db.Text
-  tacticalFit        String?   @db.Text
-  developmentAreas   String?   @db.Text
-  comments           String?   @db.Text
-  finalRecommendation String?  @db.Text
+  strengths           String? @db.Text
+  weaknesses          String? @db.Text
+  tacticalFit         String? @db.Text
+  developmentAreas    String? @db.Text
+  comments            String? @db.Text
+  finalRecommendation String? @db.Text
 
   // ── Watchlist ──────────────────────────────────────────────────────────────
-  isOnWatchlist      Boolean   @default(false)
+  isOnWatchlist     Boolean   @default(false)
   // TRANSFER_TARGET | FUTURE_PROSPECT | TRIAL_CANDIDATE | ACADEMY_PROSPECT
-  watchlistCategory  String?
-  watchlistPriority  Int       @default(50)
-  followUpDate       DateTime?
+  watchlistCategory String?
+  watchlistPriority Int       @default(50)
+  followUpDate      DateTime?
 
   // ── Audit ──────────────────────────────────────────────────────────────────
-  createdBy  String?
-  updatedBy  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([clubId, status])
   @@index([clubId, position])
@@ -9463,4 +9473,285 @@ model Announcement {
   club      Club                 @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   @@index([clubId, createdAt(sort: Desc)])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COACHES & TECHNICAL STAFF MARKET
+// ───────────────────────────────────────────────────────────────────────────
+// A staff member is a User. There is no second person record: the same row
+// that signs in is the one the market lists, the one a club employs and the
+// one a career history belongs to. Everything below hangs off that id.
+//
+// Which clubs take part is not configured anywhere — the market reads the Club
+// table, so a club created tomorrow is in it the moment it exists.
+//
+// Employment is Membership, which the platform already uses to decide who is
+// active staff at a club and already carries joinedAt/leftAt/isActive. This
+// adds the professional record around it: what a coach holds, what he has won,
+// how he plays, and what an engagement cost.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model StaffProfile {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Who he is, professionally. Nationality is his own; where he has worked is
+  // derived from his engagements and is not this field.
+  nationality       String?
+  secondNationality String?
+  dateOfBirth       DateTime?
+
+  // Where he sits in the market. Persisted, never recomputed on read.
+  level           Int               @default(60) // professional level, 1..99
+  yearsExperience Int               @default(0)
+  availability    StaffAvailability @default(EMPLOYED)
+  wageExpectation BigInt? // annual, in cents of the club's currency
+
+  // The staff evaluation. Deliberately not player attributes.
+  tacticalKnowledge Int @default(60)
+  trainingQuality   Int @default(60)
+  playerDevelopment Int @default(60)
+  manManagement     Int @default(60)
+  matchPreparation  Int @default(60)
+  analysis          Int @default(60)
+  leadership        Int @default(60)
+
+  // Structured tags, not prose. Notes are optional and short.
+  specialities        String[] @default([])
+  philosophy          String[] @default([])
+  dominantPhilosophy  String[] @default([])
+  trainingMethods     String[] @default([])
+  primaryFormation    String?
+  secondaryFormations String[] @default([])
+  notes               String?  @db.Text
+
+  // International experience, which is not the same as nationality.
+  nationalTeamExperience      Boolean @default(false)
+  youthNationalTeamExperience Boolean @default(false)
+
+  licences StaffLicence[]
+  trophies StaffTrophy[]
+  seasons  StaffSeason[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([availability])
+  @@index([level])
+}
+
+enum StaffAvailability {
+  FREE_AGENT
+  EMPLOYED
+  OPEN_TO_OFFERS
+  UNAVAILABLE
+}
+
+// A qualification, as issued. The issuer is stored so the model is not tied to
+// UEFA — a national or confederation licence is the same shape.
+model StaffLicence {
+  id        String       @id @default(uuid())
+  profileId String
+  profile   StaffProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  code       String // "UEFA_PRO", "UEFA_A", "DFB_ELITE_JUGEND", …
+  name       String
+  issuer     String // "UEFA", "DFB", "CONMEBOL", …
+  rank       Int       @default(0) // higher is higher; how "highest" is decided
+  obtainedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@index([code])
+  @@index([rank])
+}
+
+model StaffTrophy {
+  id        String       @id @default(uuid())
+  profileId String
+  profile   StaffProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  competition String
+  clubName    String
+  clubId      String?
+  season      String
+  kind        StaffTrophyKind
+  level       String? // "National", "Continental", "Regional", "Youth"
+  roleHeld    MembershipRole?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@index([kind])
+}
+
+enum StaffTrophyKind {
+  LEAGUE
+  CUP
+  CONTINENTAL
+  PROMOTION
+  YOUTH
+  OTHER
+}
+
+// One season of record. Best seasons are ranked from these, never invented.
+model StaffSeason {
+  id        String       @id @default(uuid())
+  profileId String
+  profile   StaffProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  clubName String
+  clubId   String?
+  season   String
+  league   String?
+  country  String?
+  role     MembershipRole?
+
+  finalPosition       Int?
+  played              Int?
+  won                 Int?
+  drawn               Int?
+  lost                Int?
+  goalsFor            Int?
+  goalsAgainst        Int?
+  promoted            Boolean @default(false)
+  relegated           Boolean @default(false)
+  competitionProgress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+  @@index([season])
+}
+
+// One period of employment, and the career history at the same time. A move
+// closes the open engagement and opens a new one; nothing is overwritten, so
+// the timeline grows by itself.
+model StaffEngagement {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  role      MembershipRole
+  teamLabel String? // "First Team", "U19", … when the job was age-group
+
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  isActive  Boolean   @default(true)
+
+  // What the engagement is worth. Salary is annual.
+  salary         BigInt?
+  contractEndsAt DateTime?
+
+  // Denormalised at the time of the engagement so history survives a club
+  // renaming or a league change.
+  clubName String?
+  country  String?
+  league   String?
+
+  // Record while there, where it is known.
+  matches      Int?
+  points       Int?
+  achievements String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([clubId])
+  @@index([isActive])
+  @@index([userId, isActive])
+}
+
+// A club says what it is looking for. Compact by design.
+model StaffNeed {
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  role       MembershipRole
+  priority   StaffNeedPriority @default(NORMAL)
+  minLicence String?
+  minLevel   Int?
+  salaryMin  BigInt?
+  salaryMax  BigInt?
+  note       String?
+  isActive   Boolean           @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clubId])
+  @@index([role])
+  @@index([isActive])
+}
+
+enum StaffNeedPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// One club approaching one staff member. The whole negotiation is this row
+// plus its messages.
+model StaffApproach {
+  id            String  @id @default(uuid())
+  staffUserId   String
+  staffUser     User    @relation("StaffApproachTarget", fields: [staffUserId], references: [id], onDelete: Cascade)
+  fromClubId    String
+  fromClub      Club    @relation("StaffApproachFrom", fields: [fromClubId], references: [id], onDelete: Cascade)
+  // The club he is at when the approach is made, if any. Kept so the record
+  // still reads correctly after he has moved on.
+  currentClubId String?
+
+  proposedRole   MembershipRole
+  salary         BigInt?
+  durationMonths Int?
+  compensation   BigInt? // to the current club, where one is due
+  message        String?        @db.Text
+
+  status      StaffApproachStatus @default(DRAFT)
+  decidedAt   DateTime?
+  completedAt DateTime?
+
+  messages StaffApproachMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([staffUserId])
+  @@index([fromClubId])
+  @@index([currentClubId])
+  @@index([status])
+}
+
+enum StaffApproachStatus {
+  DRAFT
+  SUBMITTED
+  NEGOTIATING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  COMPLETED
+}
+
+model StaffApproachMessage {
+  id         String        @id @default(uuid())
+  approachId String
+  approach   StaffApproach @relation(fields: [approachId], references: [id], onDelete: Cascade)
+
+  fromClubId     String?
+  body           String  @db.Text
+  salary         BigInt?
+  durationMonths Int?
+  compensation   BigInt?
+
+  createdAt DateTime @default(now())
+
+  @@index([approachId])
 }

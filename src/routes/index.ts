@@ -45,6 +45,7 @@ import phasePRoutes       from './phase-p.routes';
 // Phase Q — Football Intelligence Core (match events + xG + player stats + workload + video + transfer + competition)
 import phaseQRoutes       from './phase-q.routes';
 import transferMarketRoutes from './transfer-market.routes';
+import staffMarketRoutes from './staff-market.routes';
 // Phase S — Enterprise Football Intelligence Platform (Video + AI + Realtime + Sensors + Multi-Club + Big Data)
 import intelligenceRoutes from './intelligence.routes';
 // Phase 7 — Scouting & Recruitment Center
@@ -96,6 +97,9 @@ router.use('/phase-p',     phasePRoutes);
 router.use('/phase-q',     phaseQRoutes);
 // Club-to-club transfer market: cross-club listing visibility + atomic settlement
 router.use('/transfer-market', transferMarketRoutes);
+// The coaches & technical staff market — its own surface, sharing the Transfers
+// ecosystem but never mixing with the player market.
+router.use('/staff-market', staffMarketRoutes);
 router.use('/phase-s/intelligence', intelligenceRoutes);
 router.use('/scouting',            scoutingRoutes);
 router.use('/club-admin',          clubAdminRoutes);

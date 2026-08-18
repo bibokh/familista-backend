@@ -48145,6 +48145,9 @@ function renderTransfersHTML() {
 
 var TF_TABS = [
   ['auctions', 'Auctions', 'Live market'],
+  // The other market. It shares this page and nothing else — a coach is not a
+  // player, and the two boards never mix.
+  ['staff', 'Coaches & Staff', 'Technical recruitment'],
   ['feed', 'Market activity', 'What is happening'],
   ['offers', 'Direct offers', 'Club to club'],
   ['needs', 'Club needs', 'Who wants what'],
@@ -48261,6 +48264,7 @@ function _tfRepaintRows() {
   if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
 }
 function _tfTabHtml(C) {
+  if (_TF.tab === 'staff') return _stHtml();
   if (_TF.tab === 'feed') return _tfFeedHtml(C);
   if (_TF.tab === 'scouting') return _tfScoutingHtml(C);
   if (_TF.tab === 'assistant') return _tfAssistantHtml(C);
@@ -50628,6 +50632,118 @@ function _tfDiscAction(action, playerId, listingId) {
       _tfRenderBody(); return;
     }
 
+
+    // ── coaches & technical staff ───────────────────────────────────────
+    if ((el = t.closest('[data-st-view]'))) {
+      e.preventDefault();
+      _TF_ST.view = el.getAttribute('data-st-view');
+      if (_TF_ST.view === 'needs') _stLoadNeeds().then(_stRepaint);
+      else if (_TF_ST.view === 'activity') _stLoadActivity().then(_stRepaint);
+      _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-open]'))) {
+      e.preventDefault();
+      var _sid = el.getAttribute('data-st-open');
+      // A record is a view of a live employment state, so opening it reads
+      // rather than showing whatever was kept.
+      delete _TF_ST.detail[_sid];
+      _TF_ST.open = _sid; _TF_ST.tab = 'overview';
+      _stRepaint();
+      _stLoadOne(_sid).then(_stRepaint); return;
+    }
+    if ((el = t.closest('[data-st-close]'))) {
+      e.preventDefault(); _TF_ST.open = null;
+      var _ov = document.getElementById('tf-overlay');
+      if (_ov && !_TF_ST.approach) { _ov.innerHTML = ''; _ov.classList.remove('is-on'); }
+      else _stRepaint();
+      return;
+    }
+    if ((el = t.closest('[data-st-ptab]'))) {
+      e.preventDefault(); _TF_ST.tab = el.getAttribute('data-st-ptab'); _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-free]'))) {
+      e.preventDefault(); _TF_ST.f.freeAgentsOnly = !_TF_ST.f.freeAgentsOnly; _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint); return;
+    }
+    if ((el = t.closest('[data-st-clear]'))) {
+      e.preventDefault();
+      Object.keys(_TF_ST.f).forEach(function (k) { _TF_ST.f[k] = (k === 'freeAgentsOnly') ? false : ''; });
+      _TF_ST.page = 1; _stLoadMarket().then(_stRepaint); return;
+    }
+    if ((el = t.closest('[data-st-approach]'))) {
+      e.preventDefault();
+      var _aid = el.getAttribute('data-st-approach');
+      var _d = _TF_ST.detail[_aid] || {};
+      _TF_ST.approach = { staffUserId: _aid, role: _d.role || 'HEAD_COACH', salary: '', durationMonths: 24, compensation: '', message: '', error: null };
+      _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-appr-close]'))) {
+      e.preventDefault(); _TF_ST.approach = null; _stRepaint();
+      if (!_TF_ST.open) { var _o2 = document.getElementById('tf-overlay'); if (_o2) { _o2.innerHTML = ''; _o2.classList.remove('is-on'); } }
+      return;
+    }
+    if ((el = t.closest('[data-st-appr-send]'))) {
+      e.preventDefault();
+      var a = _TF_ST.approach; if (!a) return;
+      el.disabled = true;
+      var body = { staffUserId: a.staffUserId, proposedRole: a.role };
+      if (a.salary) body.salary = parseInt(a.salary, 10);
+      if (a.durationMonths) body.durationMonths = parseInt(a.durationMonths, 10);
+      if (a.compensation) body.compensation = parseInt(a.compensation, 10);
+      if (a.message) body.message = a.message;
+      _stApi('POST', '/approaches', body)
+        .then(function () {
+          _tfToast('Approach sent', 'success');
+          _TF_ST.approach = null; _TF_ST.open = null;
+          var _o3 = document.getElementById('tf-overlay'); if (_o3) { _o3.innerHTML = ''; _o3.classList.remove('is-on'); }
+          return _stSyncAll();
+        })
+        .then(_stRepaint)
+        .catch(function (err) {
+          el.disabled = false;
+          _TF_ST.approach.error = (err && (err.userMessage || err.message)) || 'The approach was refused';
+          _stRepaint();
+        });
+      return;
+    }
+    if ((el = t.closest('[data-st-accept],[data-st-reject],[data-st-withdraw]'))) {
+      e.preventDefault();
+      var _act = el.hasAttribute('data-st-accept') ? 'accept'
+               : el.hasAttribute('data-st-reject') ? 'reject' : 'withdraw';
+      var _apid = el.getAttribute('data-st-' + _act);
+      el.disabled = true;
+      _stApi('POST', '/approaches/' + _apid + '/' + _act)
+        .then(function () { _tfToast('Approach ' + _act + 'ed', 'success'); return _stSyncAll(); })
+        .then(_stRepaint)
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast((err && (err.userMessage || err.message)) || 'Refused', 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-st-need-add]'))) {
+      e.preventDefault();
+      var g = function (k) { var n = document.querySelector('[data-st-n="' + k + '"]'); return n ? n.value : ''; };
+      var nb = { role: g('role'), priority: g('priority') };
+      if (g('minLicence')) nb.minLicence = g('minLicence');
+      if (g('minLevel')) nb.minLevel = parseInt(g('minLevel'), 10);
+      if (g('salaryMax')) nb.salaryMax = parseInt(g('salaryMax'), 10);
+      el.disabled = true;
+      _stApi('POST', '/needs', nb)
+        .then(function () { _tfToast('Staff need published', 'success'); return _stLoadNeeds(); })
+        .then(function () { return _stLoadMarket(); })
+        .then(_stRepaint)
+        .catch(function (err) { el.disabled = false; _tfToast((err && (err.userMessage || err.message)) || 'Refused', 'error'); });
+      return;
+    }
+    if ((el = t.closest('[data-st-need-close]'))) {
+      e.preventDefault();
+      _stApi('DELETE', '/needs/' + el.getAttribute('data-st-need-close'))
+        .then(function () { return _stLoadNeeds(); }).then(_stRepaint)
+        .catch(function (err) { _tfToast((err && (err.userMessage || err.message)) || 'Refused', 'error'); });
+      return;
+    }
+
     // Taking our own player off the market, from the market itself. Same call
     // the Squad's own panel makes; the board is simply the other place the
     // listing is now visible from.
@@ -50722,7 +50838,24 @@ function _tfDiscAction(action, playerId, listingId) {
   }, true);
 
   document.addEventListener('change', function (e) {
-    var t = e.target; if (!t || !t.closest || !t.closest('#pg-transfers')) return;
+    var t = e.target;
+    if (t && t.hasAttribute && t.hasAttribute('data-st-f')) {
+      _TF_ST.f[t.getAttribute('data-st-f')] = t.value;
+      _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint);
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-q')) {
+      _TF_ST.f.search = t.value; _TF_ST.page = 1;
+      clearTimeout(window.__stQT);
+      window.__stQT = setTimeout(function () { _stLoadMarket().then(_stRepaint); }, 220);
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-a') && _TF_ST.approach) {
+      _TF_ST.approach[t.getAttribute('data-st-a')] = t.value;
+      return;
+    }
+ if (!t || !t.closest || !t.closest('#pg-transfers')) return;
     if (t.hasAttribute && t.hasAttribute('data-tf-team')) {
       _TF.teamId = t.value; _tfDropCtx();
       _TF.detail = null; _TF.compare = null; _TF.confirm = null;
@@ -50748,7 +50881,24 @@ function _tfDiscAction(action, playerId, listingId) {
   });
 
   document.addEventListener('input', function (e) {
-    var t = e.target; if (!t || !t.closest || !t.closest('#pg-transfers')) return;
+    var t = e.target;
+    if (t && t.hasAttribute && t.hasAttribute('data-st-f')) {
+      _TF_ST.f[t.getAttribute('data-st-f')] = t.value;
+      _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint);
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-q')) {
+      _TF_ST.f.search = t.value; _TF_ST.page = 1;
+      clearTimeout(window.__stQT);
+      window.__stQT = setTimeout(function () { _stLoadMarket().then(_stRepaint); }, 220);
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-a') && _TF_ST.approach) {
+      _TF_ST.approach[t.getAttribute('data-st-a')] = t.value;
+      return;
+    }
+ if (!t || !t.closest || !t.closest('#pg-transfers')) return;
     if (t.hasAttribute && t.hasAttribute('data-tf-q')) {
       // The rows re-render, the input does not — so the caret stays where the
       // manager left it.
@@ -50780,6 +50930,594 @@ function _tfDiscAction(action, playerId, listingId) {
   });
 })();
 
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSFERS · COACHES & TECHNICAL STAFF
+// ─────────────────────────────────────────────────────────────────────────────
+// The other market. It shares this page's ecosystem and nothing else: a coach
+// is not a player, so nothing here draws a player card, a position chip or a
+// pace rating. What a sporting director needs to answer is who is available,
+// in what role, how good, on what licence, where he has worked, what he has
+// won, what he plays, what he costs, and whether he can be approached — and
+// that is what the board and the profile carry.
+//
+// Every figure comes from the server. This module holds no list of clubs, no
+// list of coaches and no defaults standing in for a record nobody has filled
+// in: where the platform does not know something it says so, which is the
+// difference between an empty field and an invented one.
+
+var _TF_ST = {
+  loading: false, error: null,
+  summary: null, rows: [], total: 0, page: 1,
+  clubs: [], needs: null, activity: null, mine: null,
+  open: null, detail: {}, tab: 'overview',
+  approach: null,
+  f: { search: '', role: '', availability: '', clubId: '', licence: '', minLevel: '',
+       minExperience: '', speciality: '', philosophy: '', formation: '', country: '',
+       trophiesMin: '', freeAgentsOnly: false },
+  view: 'market'   // market | needs | activity
+};
+
+var ST_ROLES = [
+  ['HEAD_COACH', 'Head Coach / Manager'], ['ASSISTANT_COACH', 'Assistant Coach'],
+  ['ANALYST', 'Video / Match Analyst'], ['MEDICAL_STAFF', 'Medical Staff'],
+  ['PHYSIO', 'Physio'], ['SCOUT', 'Scout']
+];
+var ST_ROLE_LABEL = {};
+ST_ROLES.forEach(function (r) { ST_ROLE_LABEL[r[0]] = r[1]; });
+
+var ST_PROFILE_TABS = [
+  ['overview', 'Overview'], ['career', 'Career'], ['trophies', 'Trophies'],
+  ['tactics', 'Tactics'], ['training', 'Training'], ['licences', 'Licences'],
+  ['performance', 'Performance'], ['contract', 'Contract']
+];
+
+// The professional evaluation, and which of it matters most for a given role.
+// A goalkeeper coach is not judged as a head coach is; the emphasis moves, the
+// model does not change.
+var ST_EVAL = [
+  ['tacticalKnowledge', 'Tactical knowledge'], ['trainingQuality', 'Training quality'],
+  ['playerDevelopment', 'Player development'], ['manManagement', 'Man management'],
+  ['matchPreparation', 'Match preparation'], ['analysis', 'Analysis'],
+  ['leadership', 'Leadership']
+];
+var ST_EMPHASIS = {
+  HEAD_COACH:      ['tacticalKnowledge', 'manManagement', 'leadership'],
+  ASSISTANT_COACH: ['trainingQuality', 'manManagement'],
+  ANALYST:         ['analysis', 'matchPreparation'],
+  MEDICAL_STAFF:   ['playerDevelopment'],
+  PHYSIO:          ['playerDevelopment'],
+  SCOUT:           ['analysis']
+};
+
+function _stApi(method, path, body) {
+  return _thApi(method, '/staff-market' + path, body);
+}
+function _stEsc(s) { return _tfEsc(s); }
+function _stMoney(v) { return v == null ? '—' : _tfMoney(v); }
+function _stDate(d) { return d ? String(d).slice(0, 10) : '—'; }
+function _stYear(d) { return d ? String(d).slice(0, 4) : '—'; }
+// A value the platform does not have is said, not filled in.
+function _stVal(v, suffix) { return (v == null || v === '') ? '<i class="st-unknown">Not recorded</i>' : (_stEsc(String(v)) + (suffix || '')); }
+
+// ── loading ──────────────────────────────────────────────────────────────────
+function _stQuery() {
+  var f = _TF_ST.f, q = [];
+  ['search', 'role', 'availability', 'clubId', 'licence', 'minLevel', 'minExperience',
+   'speciality', 'philosophy', 'formation', 'country', 'trophiesMin'].forEach(function (k) {
+    if (f[k] !== '' && f[k] != null) q.push(k + '=' + encodeURIComponent(f[k]));
+  });
+  if (f.freeAgentsOnly) q.push('freeAgentsOnly=true');
+  q.push('page=' + (_TF_ST.page || 1));
+  q.push('limit=25');
+  return '?' + q.join('&');
+}
+
+function _stLoadMarket() {
+  _TF_ST.loading = true; _TF_ST.error = null;
+  return Promise.all([
+    _stApi('GET', '/discover' + _stQuery()).then(_thUnwrap),
+    _stApi('GET', '/summary').then(_thUnwrap)
+  ]).then(function (r) {
+    _TF_ST.rows = (r[0] && r[0].items) || [];
+    _TF_ST.total = (r[0] && r[0].total) || 0;
+    _TF_ST.summary = r[1] || null;
+  }).catch(function (e) {
+    _TF_ST.rows = []; _TF_ST.total = 0;
+    _TF_ST.error = (e && (e.userMessage || e.message)) || 'unavailable';
+  }).then(function () { _TF_ST.loading = false; });
+}
+function _stLoadClubs() {
+  if (_TF_ST.clubs.length) return Promise.resolve(_TF_ST.clubs);
+  return _stApi('GET', '/clubs').then(_thUnwrap).then(function (d) {
+    _TF_ST.clubs = (d && d.items) || []; return _TF_ST.clubs;
+  }).catch(function () { return []; });
+}
+function _stLoadNeeds() {
+  return _stApi('GET', '/needs').then(_thUnwrap)
+    .then(function (d) { _TF_ST.needs = d || { items: [] }; })
+    .catch(function () { _TF_ST.needs = { items: [] }; });
+}
+function _stLoadActivity() {
+  return Promise.all([
+    _stApi('GET', '/activity').then(_thUnwrap).catch(function () { return null; }),
+    _stApi('GET', '/my-staff').then(_thUnwrap).catch(function () { return null; })
+  ]).then(function (r) { _TF_ST.activity = r[0]; _TF_ST.mine = r[1]; });
+}
+function _stLoadOne(id) {
+  return _stApi('GET', '/staff/' + encodeURIComponent(id)).then(_thUnwrap)
+    .then(function (d) { _TF_ST.detail[id] = d; return d; })
+    .catch(function (e) { _TF_ST.detail[id] = { error: (e && (e.userMessage || e.message)) || 'unavailable' }; });
+}
+
+function _stSyncAll() {
+  return Promise.all([_stLoadMarket(), _stLoadClubs(), _stLoadNeeds(), _stLoadActivity()]);
+}
+
+// ── the market screen ────────────────────────────────────────────────────────
+function _stHtml() {
+  if (_TF_ST.view === 'needs') return _stShellHtml(_stNeedsHtml());
+  if (_TF_ST.view === 'activity') return _stShellHtml(_stActivityHtml());
+  return _stShellHtml(_stMarketHtml());
+}
+
+function _stShellHtml(body) {
+  var s = _TF_ST.summary || {};
+  var tile = function (n, l) {
+    return '<div class="st-tile"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></div>';
+  };
+  var vtab = function (k, label) {
+    return '<button type="button" class="st-vtab' + (_TF_ST.view === k ? ' is-on' : '') + '" data-st-view="' + k + '">' + label + '</button>';
+  };
+  return '<div class="tf-pane st-pane">'
+    + '<div class="st-top">'
+    +   '<div class="st-tiles">'
+    +     tile(s.availableStaff, 'Available staff')
+    +     tile(s.currentlyEmployed, 'Currently employed')
+    +     tile(s.freeAgents, 'Free agents')
+    +     tile(s.openNegotiations, 'Open negotiations')
+    +     tile(s.myStaffNeeds, 'My staff needs')
+    +   '</div>'
+    +   '<div class="st-vtabs">' + vtab('market', 'Market') + vtab('needs', 'Staff needs') + vtab('activity', 'My activity') + '</div>'
+    + '</div>'
+    + body
+    + '</div>';
+}
+
+function _stFiltersHtml() {
+  var f = _TF_ST.f;
+  var sel = function (name, opts, cur, ph) {
+    return '<select data-st-f="' + name + '"><option value="">' + ph + '</option>'
+      + opts.map(function (o) {
+        var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o;
+        return '<option value="' + _stEsc(v) + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + _stEsc(l) + '</option>';
+      }).join('') + '</select>';
+  };
+  var clubOpts = _TF_ST.clubs.map(function (c) { return [c.id, c.name]; });
+  var countries = [];
+  _TF_ST.clubs.forEach(function (c) { if (c.country && countries.indexOf(c.country) < 0) countries.push(c.country); });
+  return '<div class="st-filters">'
+    + '<input class="st-search" type="search" placeholder="Name, club or nationality" value="' + _stEsc(f.search) + '" data-st-q>'
+    + sel('role', ST_ROLES, f.role, 'Any role')
+    + sel('availability', [['FREE_AGENT', 'Free agent'], ['EMPLOYED', 'Employed'], ['OPEN_TO_OFFERS', 'Open to offers']], f.availability, 'Any availability')
+    + sel('clubId', clubOpts, f.clubId, 'Any club')
+    + sel('licence', [['UEFA_PRO', 'UEFA Pro'], ['UEFA_A', 'UEFA A'], ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']], f.licence, 'Any licence')
+    + sel('minLevel', [['80', '80+'], ['70', '70+'], ['60', '60+']], f.minLevel, 'Any level')
+    + sel('minExperience', [['15', '15+ yrs'], ['10', '10+ yrs'], ['5', '5+ yrs']], f.minExperience, 'Any experience')
+    + sel('philosophy', ['Possession', 'Positional Play', 'High Press', 'Counter Press', 'Direct Football',
+        'Counter Attack', 'Low Block', 'Mid Block', 'Build-up from the Back', 'Transition Football',
+        'Youth Development'], f.philosophy, 'Any philosophy')
+    + sel('formation', ['4-3-3', '4-2-3-1', '3-4-3', '3-5-2', '4-4-2', '4-1-4-1'], f.formation, 'Any formation')
+    + sel('country', countries, f.country, 'Any country')
+    + sel('trophiesMin', [['1', '1+ trophies'], ['3', '3+ trophies'], ['5', '5+ trophies']], f.trophiesMin, 'Any honours')
+    + '<button type="button" class="st-chip' + (f.freeAgentsOnly ? ' is-on' : '') + '" data-st-free>Free agents only</button>'
+    + '<button type="button" class="st-chip" data-st-clear>Clear</button>'
+    + '</div>';
+}
+
+function _stMarketHtml() {
+  var rows = _TF_ST.rows;
+  var body;
+  if (_TF_ST.loading && !rows.length) body = '<div class="st-empty">Reading the market…</div>';
+  else if (_TF_ST.error) body = '<div class="st-empty">The staff market could not be read — ' + _stEsc(_TF_ST.error) + '</div>';
+  else if (!rows.length) body = '<div class="st-empty">No staff match these filters.</div>';
+  else body = '<div class="st-grid">' + rows.map(_stCardHtml).join('') + '</div>';
+  return _stFiltersHtml()
+    + '<div class="st-count">' + _TF_ST.total + ' staff</div>'
+    + body;
+}
+
+// The market card. Only what decides whether to open him.
+function _stCardHtml(r) {
+  var where = r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent';
+  return '<button type="button" class="st-card' + (r.isMine ? ' is-mine' : '') + '" data-st-open="' + _stEsc(r.staffUserId) + '">'
+    + '<div class="st-card-hd">'
+    +   '<span class="st-av">' + (r.avatar ? '<img src="' + _stEsc(r.avatar) + '" alt="">' : _stEsc((r.name || '?').slice(0, 1))) + '</span>'
+    +   '<span class="st-id"><b>' + _stEsc(r.name) + '</b>'
+    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+    +   '<span class="st-lvl">' + (r.level == null ? '<i class="st-unknown">—</i>' : r.level) + '<i>Level</i></span>'
+    + '</div>'
+    + '<div class="st-card-rows">'
+    +   '<span class="st-kv"><i>Club</i><b>' + where + '</b></span>'
+    +   '<span class="st-kv"><i>Nationality</i><b>' + (r.nationality ? _stEsc(r.nationality) : '—') + '</b></span>'
+    +   '<span class="st-kv"><i>Licence</i><b>' + (r.highestLicence ? _stEsc(r.highestLicence.name) : '—') + '</b></span>'
+    +   '<span class="st-kv"><i>Trophies</i><b>' + r.trophies + '</b></span>'
+    +   '<span class="st-kv"><i>Philosophy</i><b>' + (r.primaryPhilosophy ? _stEsc(r.primaryPhilosophy) : '—') + '</b></span>'
+    +   '<span class="st-kv"><i>Formation</i><b>' + (r.primaryFormation ? _stEsc(r.primaryFormation) : '—') + '</b></span>'
+    +   '<span class="st-kv"><i>League</i><b>' + (r.mainLeague ? _stEsc(r.mainLeague) : '—') + '</b></span>'
+    +   '<span class="st-kv"><i>Wage</i><b>' + _stMoney(r.wageExpectation) + '</b></span>'
+    + '</div>'
+    + '<div class="st-card-ft">'
+    +   '<span class="st-avail st-avail--' + String(r.availability || '').toLowerCase() + '">'
+    +     (r.isFreeAgent ? 'Free agent' : (r.availability === 'OPEN_TO_OFFERS' ? 'Open to offers' : 'Under contract')) + '</span>'
+    +   (r.isMine ? '<span class="st-own">Our staff</span>' : '')
+    + '</div>'
+    + '</button>';
+}
+
+// ── the profile ──────────────────────────────────────────────────────────────
+function _stProfileHtml() {
+  var id = _TF_ST.open; if (!id) return '';
+  var d = _TF_ST.detail[id];
+  if (!d) return '<div class="tf-modal" data-st-modal><div class="tf-modal-bd" data-st-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide"><div class="st-empty">Reading the record…</div></div></div>';
+  if (d.error) return '<div class="tf-modal" data-st-modal><div class="tf-modal-bd" data-st-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm"><div class="st-empty">' + _stEsc(d.error) + '</div></div></div>';
+
+  var tabs = ST_PROFILE_TABS.map(function (t) {
+    return '<button type="button" class="st-ptab' + (_TF_ST.tab === t[0] ? ' is-on' : '') + '" data-st-ptab="' + t[0] + '">' + t[1] + '</button>';
+  }).join('');
+
+  return '<div class="tf-modal" data-st-modal>'
+    + '<div class="tf-modal-bd" data-st-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Staff profile">'
+    +   '<button type="button" class="tf-x" data-st-close>×</button>'
+    +   _stProfileHeadHtml(d)
+    +   '<div class="st-pd-body">'
+    +     '<nav class="st-ptabs">' + tabs + '</nav>'
+    +     '<div class="st-pd-panel">' + _stProfilePanel(d) + '</div>'
+    +   '</div>'
+    +   _stProfileActionsHtml(d)
+    + '</div></div>';
+}
+
+function _stProfileHeadHtml(d) {
+  return '<header class="st-pd-head">'
+    + '<span class="st-av st-av--lg">' + (d.avatar ? '<img src="' + _stEsc(d.avatar) + '" alt="">' : _stEsc((d.name || '?').slice(0, 1))) + '</span>'
+    + '<div class="st-pd-id">'
+    +   '<h2>' + _stEsc(d.name) + '</h2>'
+    +   '<div class="st-pd-meta">'
+    +     '<span>' + _stEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff') + '</span>'
+    +     '<span>' + (d.currentClub ? _stEsc(d.currentClub.name) : 'Free agent') + '</span>'
+    +     '<span>' + (d.age != null ? d.age + ' yrs' : 'Age not recorded') + '</span>'
+    +     '<span>' + (d.nationality ? _stEsc(d.nationality) : 'Nationality not recorded') + '</span>'
+    +     (d.highestLicence ? '<span class="st-lic">' + _stEsc(d.highestLicence.name) + '</span>' : '')
+    +   '</div>'
+    + '</div>'
+    + '<div class="st-pd-lvl">'
+    +   '<b>' + (d.level == null ? '—' : d.level) + '</b><i>Professional level</i>'
+    +   '<span class="st-avail st-avail--' + String(d.availability || '').toLowerCase() + '">'
+    +     (d.isFreeAgent ? 'Free agent' : (d.availability === 'OPEN_TO_OFFERS' ? 'Open to offers' : 'Under contract')) + '</span>'
+    + '</div>'
+    + '</header>';
+}
+
+function _stKv(rows) {
+  return '<div class="st-kvs">' + rows.map(function (r) {
+    return '<div><i>' + r[0] + '</i><b>' + r[1] + '</b></div>';
+  }).join('') + '</div>';
+}
+function _stTags(list, cls) {
+  if (!list || !list.length) return '<i class="st-unknown">Not recorded</i>';
+  return '<span class="st-tags">' + list.map(function (t) {
+    return '<span class="st-tag' + (cls ? ' ' + cls : '') + '">' + _stEsc(t) + '</span>';
+  }).join('') + '</span>';
+}
+
+function _stProfilePanel(d) {
+  var t = _TF_ST.tab;
+  if (t === 'career')      return _stCareerPanel(d);
+  if (t === 'trophies')    return _stTrophiesPanel(d);
+  if (t === 'tactics')     return _stTacticsPanel(d);
+  if (t === 'training')    return _stTrainingPanel(d);
+  if (t === 'licences')    return _stLicencesPanel(d);
+  if (t === 'performance') return _stPerformancePanel(d);
+  if (t === 'contract')    return _stContractPanel(d);
+  return _stOverviewPanel(d);
+}
+
+function _stOverviewPanel(d) {
+  var emph = ST_EMPHASIS[d.role] || [];
+  var evalRows = ST_EVAL.map(function (e) {
+    var v = d.evaluation[e[0]];
+    var on = emph.indexOf(e[0]) >= 0;
+    return '<div class="st-bar' + (on ? ' is-key' : '') + '"><i>' + e[1] + '</i>'
+      + '<span class="st-bar-t"><span style="width:' + (v == null ? 0 : Math.max(0, Math.min(100, v))) + '%"></span></span>'
+      + '<b>' + (v == null ? '—' : v) + '</b></div>';
+  }).join('');
+  var peak = d.careerPeak || {};
+  return '<section class="st-sec"><h4>Professional evaluation'
+    + (emph.length ? '<em>emphasis for ' + _stEsc(ST_ROLE_LABEL[d.role] || d.role) + '</em>' : '') + '</h4>'
+    + '<div class="st-bars">' + evalRows + '</div></section>'
+    + '<section class="st-sec"><h4>Career peak</h4>' + _stKv([
+        ['Highest licence', peak.highestLicence ? _stEsc(peak.highestLicence) : '<i class="st-unknown">Not recorded</i>'],
+        ['Best league finish', peak.bestLeagueFinish
+          ? (peak.bestLeagueFinish.position + '. — ' + _stEsc(peak.bestLeagueFinish.club) + ' ' + _stEsc(peak.bestLeagueFinish.season))
+          : '<i class="st-unknown">Not recorded</i>'],
+        ['Biggest trophy', peak.biggestTrophy
+          ? (_stEsc(peak.biggestTrophy.competition) + ' — ' + _stEsc(peak.biggestTrophy.season))
+          : '<i class="st-unknown">Not recorded</i>'],
+        ['Leagues coached', (peak.leaguesCoached && peak.leaguesCoached.length)
+          ? _stEsc(peak.leaguesCoached.join(', ')) : '<i class="st-unknown">Not recorded</i>']
+      ]) + '</section>'
+    + '<section class="st-sec"><h4>Specialities</h4>' + _stTags(d.specialities) + '</section>'
+    + '<section class="st-sec"><h4>Experience</h4>' + _stKv([
+        ['Years', _stVal(d.yearsExperience, ' yrs')],
+        ['Countries', (d.experience && d.experience.countries.length) ? _stEsc(d.experience.countries.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+        ['Youth / senior', (d.experience ? ((d.experience.youthExperience ? 'Youth' : '') + (d.experience.youthExperience && d.experience.seniorExperience ? ' · ' : '') + (d.experience.seniorExperience ? 'Senior' : '')) : '') || '<i class="st-unknown">Not recorded</i>'],
+        ['National team', d.international && d.international.nationalTeam ? 'Yes' : 'No']
+      ]) + '</section>';
+}
+
+function _stCareerPanel(d) {
+  if (!d.career || !d.career.length) return '<div class="st-empty">No career history recorded.</div>';
+  return '<section class="st-sec"><h4>Club history</h4><div class="st-timeline">'
+    + d.career.map(function (c) {
+      return '<div class="st-tl' + (c.isActive ? ' is-now' : '') + '">'
+        + '<span class="st-tl-when">' + _stYear(c.from) + '–' + (c.to ? _stYear(c.to) : 'Present') + '</span>'
+        + '<span class="st-tl-body">'
+        +   '<b>' + _stEsc(c.clubName || (c.club && c.club.name) || '—') + '</b>'
+        +   '<em>' + _stEsc(ST_ROLE_LABEL[c.role] || c.role) + (c.teamLabel ? ' · ' + _stEsc(c.teamLabel) : '') + '</em>'
+        +   '<span class="st-tl-meta">'
+        +     (c.country ? _stEsc(c.country) : '') + (c.league ? ' · ' + _stEsc(c.league) : '')
+        +     (c.matches != null ? ' · ' + c.matches + ' matches' : '')
+        +     (c.ppm != null ? ' · ' + c.ppm + ' ppm' : '')
+        +   '</span>'
+        +   (c.achievements && c.achievements.length ? _stTags(c.achievements, 'st-tag--won') : '')
+        + '</span></div>';
+    }).join('') + '</div></section>'
+    + '<section class="st-sec"><h4>Leagues &amp; countries</h4>'
+    + ((d.experience && d.experience.leaguesByCountry.length)
+        ? d.experience.leaguesByCountry.map(function (x) {
+            return '<div class="st-lg"><b>' + _stEsc(x.country) + '</b>'
+              + (x.leagues.length ? _stTags(x.leagues) : '<i class="st-unknown">League not recorded</i>') + '</div>';
+          }).join('')
+        : '<i class="st-unknown">Not recorded</i>')
+    + '</section>';
+}
+
+function _stTrophiesPanel(d) {
+  var s = (d.trophies && d.trophies.summary) || {};
+  var items = (d.trophies && d.trophies.items) || [];
+  var head = _stKv([
+    ['Total', s.total || 0], ['League', s.league || 0], ['Cup', s.cup || 0],
+    ['Continental', s.continental || 0], ['Promotions', s.promotion || 0], ['Youth', s.youth || 0]
+  ]);
+  var list = items.length
+    ? '<div class="st-trophies">' + items.map(function (t) {
+        return '<div class="st-trophy"><b>' + _stEsc(t.competition) + '</b>'
+          + '<em>' + _stEsc(t.club) + ' · ' + _stEsc(t.season) + '</em>'
+          + '<span class="st-tag st-tag--won">' + _stEsc(t.kind) + '</span>'
+          + (t.roleHeld ? '<span class="st-tl-meta">' + _stEsc(ST_ROLE_LABEL[t.roleHeld] || t.roleHeld) + '</span>' : '')
+          + '</div>';
+      }).join('') + '</div>'
+    : '<div class="st-empty">No trophies recorded.</div>';
+  var best = (d.bestSeasons || []).length
+    ? '<div class="st-seasons">' + d.bestSeasons.map(function (b) {
+        return '<div class="st-season"><b>' + _stEsc(b.season) + '</b>'
+          + '<em>' + _stEsc(b.clubName) + (b.league ? ' · ' + _stEsc(b.league) : '') + '</em>'
+          + '<span class="st-tl-meta">'
+          + (b.finalPosition != null ? b.finalPosition + '. place' : 'Position not recorded')
+          + (b.ppm != null ? ' · ' + b.ppm + ' ppm' : '')
+          + (b.promoted ? ' · promoted' : '') + '</span></div>';
+      }).join('') + '</div>'
+    : '<div class="st-empty">No seasons recorded.</div>';
+  return '<section class="st-sec"><h4>Honours</h4>' + head + list + '</section>'
+    + '<section class="st-sec"><h4>Best seasons</h4>' + best + '</section>';
+}
+
+function _stTacticsPanel(d) {
+  var t = d.tactics || {};
+  return '<section class="st-sec"><h4>Philosophy</h4>'
+    + (t.dominantPhilosophy && t.dominantPhilosophy.length
+        ? '<div class="st-lg"><b>Dominant</b>' + _stTags(t.dominantPhilosophy, 'st-tag--key') + '</div>' : '')
+    + _stTags(t.philosophy) + '</section>'
+    + '<section class="st-sec"><h4>Formations</h4>' + _stKv([
+        ['Primary', t.primaryFormation ? _stEsc(t.primaryFormation) : '<i class="st-unknown">Not recorded</i>'],
+        ['Secondary', (t.secondaryFormations && t.secondaryFormations.length) ? _stEsc(t.secondaryFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+        ['Historically used', (t.historicalFormations && t.historicalFormations.length) ? _stEsc(t.historicalFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>']
+      ]) + '</section>';
+}
+
+function _stTrainingPanel(d) {
+  return '<section class="st-sec"><h4>Training methodology</h4>'
+    + _stTags(d.training && d.training.methods) + '</section>'
+    + (d.notes ? '<section class="st-sec"><h4>Notes</h4><p class="st-note">' + _stEsc(d.notes) + '</p></section>' : '');
+}
+
+function _stLicencesPanel(d) {
+  if (!d.licences || !d.licences.length) {
+    return '<div class="st-empty">No coaching licences recorded for this staff member.</div>';
+  }
+  return '<section class="st-sec"><h4>Coaching licences</h4><div class="st-lics">'
+    + d.licences.map(function (l, i) {
+      return '<div class="st-liccard' + (i === 0 ? ' is-top' : '') + '">'
+        + '<b>' + _stEsc(l.name) + '</b>'
+        + '<em>' + _stEsc(l.issuer) + '</em>'
+        + '<span class="st-tl-meta">' + (l.obtainedAt ? 'Obtained ' + _stDate(l.obtainedAt) : 'Date not recorded') + '</span>'
+        + (i === 0 ? '<span class="st-tag st-tag--key">Highest</span>' : '')
+        + '</div>';
+    }).join('') + '</div></section>';
+}
+
+function _stPerformancePanel(d) {
+  if (!d.performance) return '<div class="st-empty">No recorded data.</div>';
+  var p = d.performance;
+  return '<section class="st-sec"><h4>Career record</h4>' + _stKv([
+      ['Matches', p.played], ['Wins', p.won], ['Draws', p.drawn], ['Losses', p.lost],
+      ['Win %', p.winPct == null ? '—' : p.winPct + '%'], ['Points per match', p.ppm == null ? '—' : p.ppm],
+      ['Goals for', p.goalsFor], ['Goals against', p.goalsAgainst]
+    ]) + '</section>'
+    + '<section class="st-sec"><h4>By season</h4><div class="st-seasons">'
+    + (d.seasons || []).map(function (s) {
+        return '<div class="st-season"><b>' + _stEsc(s.season) + '</b>'
+          + '<em>' + _stEsc(s.clubName) + '</em>'
+          + '<span class="st-tl-meta">'
+          + (s.played != null ? s.played + ' matches' : 'No recorded data')
+          + (s.ppm != null ? ' · ' + s.ppm + ' ppm' : '')
+          + (s.finalPosition != null ? ' · ' + s.finalPosition + '.' : '') + '</span></div>';
+      }).join('') + '</div></section>';
+}
+
+function _stContractPanel(d) {
+  var c = d.contract;
+  if (!c) return '<div class="st-empty">Free agent — no current contract.</div>';
+  return '<section class="st-sec"><h4>Current employment</h4>' + _stKv([
+      ['Club', _stEsc(c.club.name)],
+      ['Role', _stEsc(ST_ROLE_LABEL[c.role] || c.role)],
+      ['Since', _stDate(c.startedAt)],
+      ['Contract ends', c.endsAt ? _stDate(c.endsAt) : '<i class="st-unknown">Not recorded</i>'],
+      ['Salary', c.salary == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(c.salary)],
+      ['Wage expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)]
+    ]) + '</section>';
+}
+
+// What this club may do about him, which depends on whose he is.
+function _stProfileActionsHtml(d) {
+  if (d.isMine) {
+    return '<footer class="st-pd-acts"><p class="st-note">He is our staff — a club cannot recruit its own employee.</p></footer>';
+  }
+  var label = d.isFreeAgent ? 'Approach / Hire' : 'Approach club / Negotiate';
+  return '<footer class="st-pd-acts">'
+    + (d.isFreeAgent ? '' : '<span class="st-note">Under contract' + (d.contract && d.contract.endsAt ? ' until ' + _stDate(d.contract.endsAt) : '') + ' — his club must agree.</span>')
+    + '<button type="button" class="tf-btn tf-btn--primary" data-st-approach="' + _stEsc(d.staffUserId) + '">' + label + '</button>'
+    + '</footer>';
+}
+
+// ── the approach ─────────────────────────────────────────────────────────────
+function _stApproachHtml() {
+  var a = _TF_ST.approach; if (!a) return '';
+  var d = _TF_ST.detail[a.staffUserId] || {};
+  var roleOpts = ST_ROLES.map(function (r) {
+    return '<option value="' + r[0] + '"' + (a.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+  }).join('');
+  return '<div class="tf-modal" data-st-appr-modal>'
+    + '<div class="tf-modal-bd" data-st-appr-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true">'
+    +   '<button type="button" class="tf-x" data-st-appr-close>×</button>'
+    +   '<h3 class="st-appr-h">' + (d.isFreeAgent ? 'Approach ' : 'Approach the club for ') + _stEsc(d.name || 'staff') + '</h3>'
+    +   '<div class="st-appr-f">'
+    +     '<label>Proposed role<select data-st-a="role">' + roleOpts + '</select></label>'
+    +     '<label>Salary (annual)<input type="number" data-st-a="salary" value="' + (a.salary || '') + '" placeholder="0"></label>'
+    +     '<label>Contract length (months)<input type="number" data-st-a="durationMonths" value="' + (a.durationMonths || '') + '" placeholder="24"></label>'
+    +     (d.isFreeAgent ? '' : '<label>Compensation to his club<input type="number" data-st-a="compensation" value="' + (a.compensation || '') + '" placeholder="0"></label>')
+    +     '<label class="st-appr-msg">Message<textarea data-st-a="message" rows="3">' + _stEsc(a.message || '') + '</textarea></label>'
+    +   '</div>'
+    +   (a.error ? '<p class="st-appr-err">' + _stEsc(a.error) + '</p>' : '')
+    +   '<div class="st-appr-acts">'
+    +     '<button type="button" class="tf-btn tf-btn--sm" data-st-appr-close>Cancel</button>'
+    +     '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-appr-send>Send approach</button>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+// ── staff needs ──────────────────────────────────────────────────────────────
+function _stNeedsHtml() {
+  var n = (_TF_ST.needs && _TF_ST.needs.items) || [];
+  var mine = n.filter(function (x) { return x.isMine; });
+  var others = n.filter(function (x) { return !x.isMine; });
+  var card = function (x) {
+    return '<div class="st-need' + (x.isMine ? ' is-mine' : '') + '">'
+      + '<b>' + _stEsc(ST_ROLE_LABEL[x.role] || x.role) + '</b>'
+      + '<em>' + _stEsc(x.club.name) + '</em>'
+      + '<span class="st-tl-meta">'
+      + _stEsc(x.priority)
+      + (x.minLicence ? ' · min ' + _stEsc(x.minLicence) : '')
+      + (x.minLevel ? ' · level ' + x.minLevel + '+' : '')
+      + ((x.salaryMin || x.salaryMax) ? ' · ' + _stMoney(x.salaryMin) + '–' + _stMoney(x.salaryMax) : '')
+      + '</span>'
+      + (x.note ? '<p class="st-note">' + _stEsc(x.note) + '</p>' : '')
+      + (x.isMine ? '<button type="button" class="tf-btn tf-btn--sm" data-st-need-close="' + _stEsc(x.id) + '">Close</button>' : '')
+      + '</div>';
+  };
+  var roleOpts = ST_ROLES.map(function (r) { return '<option value="' + r[0] + '">' + r[1] + '</option>'; }).join('');
+  return '<section class="st-sec"><h4>Publish a staff need</h4>'
+    + '<div class="st-needform">'
+    +   '<select data-st-n="role">' + roleOpts + '</select>'
+    +   '<select data-st-n="priority"><option value="NORMAL">Normal</option><option value="HIGH">High</option>'
+    +     '<option value="URGENT">Urgent</option><option value="LOW">Low</option></select>'
+    +   '<input data-st-n="minLicence" placeholder="Min licence (e.g. UEFA_A)">'
+    +   '<input data-st-n="minLevel" type="number" placeholder="Min level">'
+    +   '<input data-st-n="salaryMax" type="number" placeholder="Salary up to">'
+    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-need-add>Publish</button>'
+    + '</div></section>'
+    + '<section class="st-sec"><h4>Our needs</h4>'
+    + (mine.length ? '<div class="st-needs">' + mine.map(card).join('') + '</div>' : '<div class="st-empty">We have published none.</div>') + '</section>'
+    + '<section class="st-sec"><h4>What other clubs are looking for</h4>'
+    + (others.length ? '<div class="st-needs">' + others.map(card).join('') + '</div>' : '<div class="st-empty">No other club has published a staff need.</div>') + '</section>';
+}
+
+// ── my activity ──────────────────────────────────────────────────────────────
+function _stActivityHtml() {
+  var a = _TF_ST.activity || {};
+  var mine = (_TF_ST.mine && _TF_ST.mine.items) || [];
+  var appr = function (x, dir) {
+    return '<div class="st-appr">'
+      + '<b>' + _stEsc(x.staffName) + '</b>'
+      + '<em>' + _stEsc(ST_ROLE_LABEL[x.proposedRole] || x.proposedRole) + ' · ' + _stEsc(x.status) + '</em>'
+      + '<span class="st-tl-meta">' + (dir === 'out' ? 'to ' : 'from ') + _stEsc(dir === 'out' ? (x.currentClub ? x.currentClub.name : 'free agent') : x.fromClub.name)
+      + ' · ' + _stMoney(x.salary) + (x.durationMonths ? ' · ' + x.durationMonths + ' mo' : '') + '</span>'
+      + '<span class="st-appr-btns">'
+      + (['SUBMITTED', 'NEGOTIATING'].indexOf(x.status) >= 0
+          ? (dir === 'in'
+              ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-accept="' + x.id + '">Accept</button>'
+                + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-st-reject="' + x.id + '">Reject</button>'
+              : '<button type="button" class="tf-btn tf-btn--sm" data-st-withdraw="' + x.id + '">Withdraw</button>'
+                + (x.currentClub ? '' : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-accept="' + x.id + '">Complete hire</button>'))
+          : '')
+      + '</span></div>';
+  };
+  var sec = function (title, list, dir) {
+    return '<section class="st-sec"><h4>' + title + '</h4>'
+      + (list && list.length ? '<div class="st-apprs">' + list.map(function (x) { return appr(x, dir); }).join('') + '</div>'
+                             : '<div class="st-empty">Nothing here.</div>') + '</section>';
+  };
+  return sec('Outgoing approaches', a.outgoing, 'out')
+    + sec('Incoming approaches', a.incoming, 'in')
+    + '<section class="st-sec"><h4>Our technical staff</h4>'
+    + (mine.length ? '<div class="st-needs">' + mine.map(function (m) {
+        return '<div class="st-need is-mine"><b>' + _stEsc(m.name) + '</b>'
+          + '<em>' + _stEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
+          + '<span class="st-tl-meta">since ' + _stDate(m.since)
+          + (m.contractEndsAt ? ' · until ' + _stDate(m.contractEndsAt) : '')
+          + (m.salary != null ? ' · ' + _stMoney(m.salary) : '') + '</span></div>';
+      }).join('') + '</div>' : '<div class="st-empty">No technical staff recorded for this club.</div>') + '</section>'
+    + '<section class="st-sec"><h4>Completed hires</h4>'
+    + ((a.completedHires && a.completedHires.length)
+        ? '<div class="st-needs">' + a.completedHires.map(function (h) {
+            return '<div class="st-need"><b>' + _stEsc(h.name) + '</b><em>' + _stEsc(ST_ROLE_LABEL[h.role] || h.role) + '</em>'
+              + '<span class="st-tl-meta">since ' + _stDate(h.since) + '</span></div>';
+          }).join('') + '</div>' : '<div class="st-empty">None yet.</div>') + '</section>'
+    + '<section class="st-sec"><h4>Departures</h4>'
+    + ((a.departures && a.departures.length)
+        ? '<div class="st-needs">' + a.departures.map(function (h) {
+            return '<div class="st-need"><b>' + _stEsc(h.name) + '</b><em>' + _stEsc(ST_ROLE_LABEL[h.role] || h.role) + '</em>'
+              + '<span class="st-tl-meta">' + _stDate(h.from) + ' → ' + _stDate(h.to) + '</span></div>';
+          }).join('') + '</div>' : '<div class="st-empty">None.</div>') + '</section>';
+}
+
+function _stRepaint() {
+  var el = document.getElementById('tf-body');
+  if (el && _TF.tab === 'staff') el.innerHTML = _stHtml();
+  var ov = document.getElementById('tf-overlay');
+  if (ov) {
+    var html = (_TF_ST.open ? _stProfileHtml() : '') + (_TF_ST.approach ? _stApproachHtml() : '');
+    if (_TF_ST.open || _TF_ST.approach) { ov.innerHTML = html; ov.classList.add('is-on'); }
+  }
+}
+window._stRepaint = _stRepaint;
+window._stSyncAll = _stSyncAll;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSFERS · REALTIME
@@ -53325,6 +54063,9 @@ async function _tfSyncAll() {
   await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
     _tfScoutLoadShortlist(), _tfDeskLoad(),
     _tfNegLoadNeeds(), _tfNegLoadActivity(),
+    // The staff market is its own board and reads its own endpoints; it loads
+    // beside the player market rather than after it.
+    (typeof _stSyncAll === 'function' ? _stSyncAll().catch(function () {}) : null),
     _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
   // One socket for the session, opened once the club is known. Reconnecting is
   // its own business; this only ever asks.
