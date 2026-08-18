@@ -45777,7 +45777,24 @@ function renderAcademyTeamPage() {
         }).join('') + '</nav>'
       + '<div class="at-content' + (AT.section === 'training' ? ' at-content--full' : '') + '" id="at-content">' + _atSection(id, AT.section) + '</div>'
     + '</div>'
-    + _atPlayerModal(id);
+    // The modal lives in its own host, written separately. It used to be
+    // concatenated into this string, which meant opening a player card,
+    // switching one of his profile tabs or closing him rebuilt the entire age
+    // group's page underneath the panel — header, nav and section content torn
+    // down and re-created, on every one of those interactions. The First Team
+    // never did that: it writes the dialog and leaves the page alone. Same
+    // lifecycle here now.
+    + '<div id="at-modal-host"></div>';
+  _atRenderPlayerModal();
+}
+
+// The panel, and only the panel. Every path that opens a player, moves between
+// his tabs or closes him comes through here, so the page behind it is never
+// touched by any of them.
+function _atRenderPlayerModal() {
+  var host = document.getElementById('at-modal-host');
+  if (!host) return;
+  host.innerHTML = _atPlayerModal(AT.active);
 }
 // Next scheduled session/match label for the header.
 function _atNextEvent(id) {
@@ -46117,8 +46134,8 @@ function _atLuBackBar(active) {
 }
 /* ── Age-appropriate player profile card (modal overlay) ─────────────────── */
 /* ── Academy player profile — premium modal, 12 tabs, editable & persisted ── */
-function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; AT.editing = false; renderAcademyTeamPage(); }
-function _atClosePlayer() { AT.openPlayer = null; AT.editing = false; renderAcademyTeamPage(); }
+function _atOpenPlayer(id, pid) { AT.openPlayer = pid; AT.profileTab = 'overview'; AT.editing = false; _atRenderPlayerModal(); }
+function _atClosePlayer() { AT.openPlayer = null; AT.editing = false; _atRenderPlayerModal(); }
 window._atOpenPlayer = _atOpenPlayer; window._atClosePlayer = _atClosePlayer;
 
 var AT_ACAD_TABS = [
@@ -46776,7 +46793,7 @@ function atLuOpenPlayer(pid) { if (AT.active && pid) _atOpenPlayer(AT.active, pi
 function atLuAct(pid, which) {
   if (!AT.active || !pid) return;
   var tab = { edit: 'overview', details: 'overview', medical: 'medical', training: 'attendance', role: 'development' }[which] || 'overview';
-  _atOpenPlayer(AT.active, pid); AT.profileTab = tab; AT.editing = (which === 'edit'); renderAcademyTeamPage();
+  _atOpenPlayer(AT.active, pid); AT.profileTab = tab; AT.editing = (which === 'edit'); _atRenderPlayerModal();
 }
 function atLuAddPlayer() { var b = document.querySelector('[data-at-add-player]'); if (b) b.click(); }
 window.atLuOpenPlayer = atLuOpenPlayer; window.atLuAct = atLuAct; window.atLuAddPlayer = atLuAddPlayer;
@@ -47106,13 +47123,13 @@ if (typeof document !== 'undefined' && !window._atBound) {
       var qpid = qa.getAttribute('data-at-quick-player'), qkind = qa.getAttribute('data-at-quick');
       _atOpenPlayer(id, qpid);
       var qtab = { view: 'overview', assess: 'overview', attendance: 'attendance', medical: 'medical', notes: 'notes', edit: 'overview' }[qkind] || 'overview';
-      AT.profileTab = qtab; AT.editing = (qkind === 'edit'); renderAcademyTeamPage();
+      AT.profileTab = qtab; AT.editing = (qkind === 'edit'); _atRenderPlayerModal();
       return;
     }
     var openP = t.closest && t.closest('[data-at-player]');
     if (openP) { e.preventDefault(); _atOpenPlayer(id, openP.getAttribute('data-at-player')); return; }
     var ptab = t.closest && t.closest('[data-at-ptab]');
-    if (ptab) { e.preventDefault(); AT.profileTab = ptab.getAttribute('data-at-ptab'); renderAcademyTeamPage(); return; }
+    if (ptab) { e.preventDefault(); AT.profileTab = ptab.getAttribute('data-at-ptab'); _atRenderPlayerModal(); return; }
     // ── Lineup management (all scoped to AT.active) ──
     var startB = t.closest && t.closest('[data-at-start]');
     if (startB) {
