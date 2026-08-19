@@ -246,3 +246,50 @@ describe('the sample fill covers every club it may see', () => {
     expect(f).toContain('isDemo: true');
   });
 });
+
+describe('the club card says which job is missing', () => {
+  it('coverage is counted per role, not as one percentage', () => {
+    const f = svcFn('coachesClubs');
+    expect(f).toContain('roleCoverage');
+    ['Head coaches', 'Assistants', 'GK coaches', 'Performance', 'Analysis', 'Medical']
+      .forEach((l) => expect(f).toContain(`'${l}'`));
+  });
+
+  it('and a team is only counted for a role its own structure runs', () => {
+    const f = svcFn('coachesClubs');
+    expect(f).toContain('const expected = clubTeams.filter((t) =>');
+    expect(f).toContain('demoRolesFor({ kind: t.kind, name: t.name, ageMax: t.ageMax }).some((r) => rs.includes(r))');
+    // a role no team runs is not shown as 0/0
+    expect(f).toContain('.filter((r) => r.of > 0)');
+  });
+
+  it('the card draws those rows and an explicit way in', () => {
+    const c = appFn('_coClubCardHtml', '_coClubViewHtml');
+    expect(c).toContain('c.roleCoverage');
+    expect(c).toContain('Open technical staff');
+    expect(CSS).toContain('.co-cc-role{');
+    expect(CSS).toContain('.co-cc-go{');
+  });
+
+  it('and the team card has its own way in', () => {
+    const c = appFn('_coTeamCardHtml', '_coTeamViewHtml');
+    expect(c).toContain('Open staff');
+    expect(CSS).toContain('.co-tc-go{');
+  });
+});
+
+describe('employment is not a market listing', () => {
+  it('"available" is a status test, never "has a club"', () => {
+    const d = svcFn('discover');
+    expect(d).toContain("out = out.filter((r) => isAvailable(r.employmentStatus as EmploymentStatus))");
+    // and EMPLOYED is not in that set
+    expect(SVC).toContain("const AVAILABLE_STATUSES: EmploymentStatus[] =\n  ['FREE_AGENT', 'ACTIVELY_LOOKING', 'OPEN_TO_OFFERS', 'CONTRACT_ENDING_SOON'];");
+  });
+
+  it('so the sample fill leaves most of its people off the market', () => {
+    const f = svcFn('seedDemoStaff');
+    // the default intent is not-looking; the other two are the exceptions
+    expect(f).toContain("const intent = activelyLooking ? 'ACTIVELY_LOOKING' : (openToOffers ? 'OPEN_TO_OFFERS' : 'NOT_LOOKING');");
+    expect(f).toContain("availability: 'EMPLOYED'");
+  });
+});

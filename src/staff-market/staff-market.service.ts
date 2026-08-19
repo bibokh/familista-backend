@@ -1613,6 +1613,26 @@ export async function coachesClubs(actor: StaffActor) {
       vacancies,
       teamsWithoutStaff: clubTeams.filter((t) => !mine.some((m) => m.teamId === t.id)).length,
       sampleStaff: people.filter((u) => byUser.get(u)?.isDemo).length,
+      // Coverage read the way a director asks it: of the teams this club runs,
+      // how many have a head coach, how many have an assistant, and so on. One
+      // percentage hides which job is missing; these rows say it.
+      roleCoverage: [
+        ['Head coaches', ['HEAD_COACH'] as MembershipRole[]],
+        ['Assistants', ['ASSISTANT_COACH'] as MembershipRole[]],
+        ['GK coaches', ['GOALKEEPING_COACH'] as MembershipRole[]],
+        ['Performance', ['FITNESS_COACH', 'PERFORMANCE_COACH'] as MembershipRole[]],
+        ['Analysis', ['ANALYST'] as MembershipRole[]],
+        ['Medical', ['MEDICAL_STAFF', 'PHYSIO'] as MembershipRole[]],
+      ].map(([label, roles]) => {
+        const rs = roles as MembershipRole[];
+        // Only teams whose own structure calls for the role are counted, so an
+        // under-11 side is not counted as missing an analyst it never runs.
+        const expected = clubTeams.filter((t) =>
+          demoRolesFor({ kind: t.kind, name: t.name, ageMax: t.ageMax }).some((r) => rs.includes(r)));
+        const have = expected.filter((t) => mine.some((m) => m.teamId === t.id && rs.includes(m.role)));
+        return { label: label as string, filled: have.length, of: expected.length };
+      }).filter((r) => r.of > 0),
+
       // Coverage across the whole club, for the bar on the card.
       coverage: (() => {
         const expected = clubTeams.reduce((n, t) =>

@@ -52828,9 +52828,16 @@ function _coClubCardHtml(c) {
     +   c.seniorTeams + ' senior · ' + c.academyTeams + ' academy'
     +   (c.clubWideStaff ? ' · ' + c.clubWideStaff + ' club-wide' : '')
     + '</div>'
-    + '<div class="co-cc-cov">'
-    +   '<span class="co-cc-cov-t"><span style="width:' + cov + '%"></span></span>'
-    +   '<i>' + cov + '% staffed</i>'
+    // Which job is missing, rather than one percentage that hides it.
+    + '<div class="co-cc-roles">'
+    +   (c.roleCoverage || []).map(function (r) {
+          var full = r.of > 0 && r.filled >= r.of;
+          var pct = r.of ? Math.round((r.filled / r.of) * 100) : 0;
+          return '<span class="co-cc-role' + (full ? ' is-full' : (r.filled ? '' : ' is-none')) + '">'
+            + '<i>' + _coEsc(r.label) + '</i>'
+            + '<span class="co-cc-role-t"><span style="width:' + pct + '%"></span></span>'
+            + '<b>' + r.filled + '/' + r.of + '</b></span>';
+        }).join('')
     + '</div>'
     + '<div class="co-cc-alerts">'
     +   alert(c.onTheMarket, 'on the market', 'info')
@@ -52838,6 +52845,8 @@ function _coClubCardHtml(c) {
     +   alert(c.vacancies, 'vacant role' + (c.vacancies === 1 ? '' : 's'), 'bad')
     +   (c.sampleStaff ? '<span class="co-cc-alert co-cc-alert--demo"><b>' + c.sampleStaff + '</b>sample</span>' : '')
     + '</div>'
+    + '<span class="co-cc-go">Open technical staff <b>→</b>'
+    +   '<em>' + cov + '% staffed</em></span>'
     + '</button>';
 }
 
@@ -52911,6 +52920,7 @@ function _coTeamCardHtml(g) {
     +   '<span class="co-cc-cov-t"><span style="width:' + (g.completeness || 0) + '%"></span></span>'
     +   '<i>' + (g.completeness || 0) + '% staffed</i>'
     + '</div>'
+    + (g.teamId ? '<span class="co-tc-go">Open staff <b>→</b></span>' : '')
     + '</button>';
 }
 
