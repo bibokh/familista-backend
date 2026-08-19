@@ -19,7 +19,7 @@
 // engagement and opens a new one; nothing is ever overwritten, so the timeline
 // grows by itself.
 
-import { Prisma, MembershipRole, StaffApproachStatus, StaffAvailability } from '@prisma/client';
+import { Prisma, MembershipRole, StaffApproachStatus, StaffAvailability, StaffCareerIntent } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
@@ -36,6 +36,49 @@ export const TECHNICAL_ROLES: MembershipRole[] = [
 ];
 
 const isTechnical = (r: MembershipRole) => TECHNICAL_ROLES.includes(r);
+
+// An approach that is still live. SUBMITTED is what SENT was called before the
+// offer states were named in full; both mean the same thing and rows written
+// under the old name are never rewritten, so both are read here.
+const OPEN_APPROACH: StaffApproachStatus[] = ['SUBMITTED', 'SENT', 'VIEWED', 'NEGOTIATING'];
+const isOpenApproach = (s: StaffApproachStatus) => OPEN_APPROACH.includes(s);
+
+// A contract inside this window is ending soon, which the market says out loud
+// because it is the single most useful thing about a coach somebody else holds.
+const ENDING_SOON_DAYS = 183;
+function endingSoon(contractEndsAt: Date | null | undefined) {
+  if (!contractEndsAt) return false;
+  const days = (contractEndsAt.getTime() - Date.now()) / 86400000;
+  return days > 0 && days <= ENDING_SOON_DAYS;
+}
+
+// ── the one employment status ────────────────────────────────────────────────
+// Derived in one place from the two things that decide it: whether a club holds
+// him, and what he has said he wants. Every surface — card, filter, tab, tile —
+// reads this function, so the board and the badge can never disagree.
+export type EmploymentStatus =
+  | 'FREE_AGENT' | 'UNAVAILABLE' | 'ACTIVELY_LOOKING'
+  | 'CONTRACT_ENDING_SOON' | 'OPEN_TO_OFFERS' | 'EMPLOYED';
+
+export function employmentStatus(args: {
+  hasClub: boolean;
+  availability?: StaffAvailability | null;
+  careerIntent?: StaffCareerIntent | null;
+  contractEndsAt?: Date | null;
+}): EmploymentStatus {
+  if (args.availability === 'UNAVAILABLE') return 'UNAVAILABLE';
+  if (!args.hasClub) return 'FREE_AGENT';
+  if (args.careerIntent === 'ACTIVELY_LOOKING') return 'ACTIVELY_LOOKING';
+  if (endingSoon(args.contractEndsAt)) return 'CONTRACT_ENDING_SOON';
+  if (args.careerIntent === 'OPEN_TO_OFFERS' || args.availability === 'OPEN_TO_OFFERS') return 'OPEN_TO_OFFERS';
+  return 'EMPLOYED';
+}
+
+// "Available" is a tab, not a status: it is everybody a club could realistically
+// move for. Somebody simply employed and not looking is not on it.
+const AVAILABLE_STATUSES: EmploymentStatus[] =
+  ['FREE_AGENT', 'ACTIVELY_LOOKING', 'OPEN_TO_OFFERS', 'CONTRACT_ENDING_SOON'];
+export const isAvailable = (s: EmploymentStatus) => AVAILABLE_STATUSES.includes(s);
 
 // The staff evaluation, in one place. The profile shows all of it; the market
 // card names the highest three.
@@ -197,6 +240,17 @@ export interface DiscoverQuery {
   speciality?: string; philosophy?: string; formation?: string; country?: string;
   league?: string; trophiesMin?: string; page?: string; limit?: string;
   shortlistedOnly?: string; sort?: string; order?: string;
+  // the staff database's own reading of the board
+  tab?: string;            // all | available | employed | free-agents | shortlisted
+  status?: string;         // one EmploymentStatus
+  nationality?: string;
+  language?: string;
+  ageMin?: string; ageMax?: string;
+  reputationMin?: string;
+  salaryMax?: string;
+  contractEndsBefore?: string;
+  availableNow?: string;
+  openToOffers?: string;
 }
 
 export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
@@ -277,6 +331,7 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
       mainLeague: current?.league ?? mine.find((e) => e.league)?.league ?? null,
       countries: exp.countries.length ? exp.countries : (club ? [club.country] : []),
       contractEndsAt: current?.contractEndsAt ?? null,
+      contractStartedAt: current?.startedAt ?? null,
       wageExpectation: money(p?.wageExpectation),
       // What the card shows besides the job. Age is derived from the date of
       // birth the record holds; a record without one has no age rather than a
@@ -297,6 +352,15 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
         .slice(0, 3) : [],
       contractStatus: !club ? 'FREE_AGENT'
         : (current?.contractEndsAt ? 'UNDER_CONTRACT' : 'CONTRACT_NOT_RECORDED'),
+      // The one status every surface reads. Derived, never stored.
+      employmentStatus: employmentStatus({
+        hasClub: !!club,
+        availability: p?.availability ?? null,
+        careerIntent: p?.careerIntent ?? null,
+        contractEndsAt: current?.contractEndsAt ?? null,
+      }),
+      careerIntent: p?.careerIntent ?? null,
+      availableFrom: p?.availableFrom ?? null,
       isShortlisted: shortlisted.has(userId),
       hasProfile: !!p,
       // A club may not recruit somebody it already employs. The row says so
@@ -332,6 +396,43 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   }
 
   if (q.shortlistedOnly === 'true') out = out.filter((r) => r.isShortlisted);
+  if (has(q.status)) out = out.filter((r) => r.employmentStatus === q.status);
+  if (has(q.nationality)) {
+    const n = q.nationality!.toLowerCase();
+    out = out.filter((r) => String(r.nationality ?? '').toLowerCase() === n);
+  }
+  if (has(q.language)) {
+    const l = q.language!.toLowerCase();
+    out = out.filter((r) => (r.languages as string[]).some((x) => x.toLowerCase() === l));
+  }
+  if (has(q.ageMin)) out = out.filter((r) => r.age != null && (r.age as number) >= (parseInt(q.ageMin!, 10) || 0));
+  if (has(q.ageMax)) out = out.filter((r) => r.age != null && (r.age as number) <= (parseInt(q.ageMax!, 10) || 999));
+  if (has(q.reputationMin)) out = out.filter((r) => (r.reputation as number ?? 0) >= (parseInt(q.reputationMin!, 10) || 0));
+  if (has(q.salaryMax)) {
+    const cap = Number(q.salaryMax);
+    // A coach who has not said what he wants is not excluded by a ceiling he
+    // has not been measured against.
+    out = out.filter((r) => r.wageExpectation == null || Number(r.wageExpectation) <= cap);
+  }
+  if (has(q.contractEndsBefore)) {
+    const before = new Date(q.contractEndsBefore!).getTime();
+    out = out.filter((r) => r.contractEndsAt != null && new Date(r.contractEndsAt as Date).getTime() <= before);
+  }
+  if (q.openToOffers === 'true') {
+    out = out.filter((r) => ['OPEN_TO_OFFERS', 'ACTIVELY_LOOKING'].includes(r.employmentStatus as string));
+  }
+  if (q.availableNow === 'true') {
+    out = out.filter((r) => r.employmentStatus === 'FREE_AGENT'
+      || (r.availableFrom != null && new Date(r.availableFrom as Date).getTime() <= Date.now()));
+  }
+
+  // ── the tabs ──
+  // Each one is a reading of the same board, not a different list.
+  const tab = String(q.tab ?? 'all');
+  if (tab === 'available')   out = out.filter((r) => isAvailable(r.employmentStatus as EmploymentStatus));
+  else if (tab === 'employed')     out = out.filter((r) => !!r.currentClub);
+  else if (tab === 'free-agents')  out = out.filter((r) => r.isFreeAgent);
+  else if (tab === 'shortlisted')  out = out.filter((r) => r.isShortlisted);
 
   // ── sort ──
   // Best first by default, but somebody with no record yet is not pushed to the
@@ -339,8 +440,23 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   // does not have sorts after the ones it does, rather than counting as zero.
   const NUMERIC: Record<string, string> = {
     level: 'level', reputation: 'reputation', experience: 'yearsExperience',
-    trophies: 'trophies', age: 'age', wage: 'wageExpectation',
+    trophies: 'trophies', age: 'age', wage: 'wageExpectation', salary: 'wageExpectation',
   };
+  // Two orderings are over dates rather than figures, and both put "no date"
+  // last in either direction rather than treating it as the year zero.
+  if (q.sort === 'contract' || q.sort === 'available') {
+    const field = q.sort === 'contract' ? 'contractEndsAt' : 'availableFrom';
+    const dirD = q.order === 'desc' ? -1 : 1;
+    out.sort((a, b) => {
+      const av = a[field] as Date | null, bv = b[field] as Date | null;
+      if (!av && !bv) return String(a.name).localeCompare(String(b.name));
+      if (!av) return 1;
+      if (!bv) return -1;
+      return (new Date(av).getTime() - new Date(bv).getTime()) * dirD;
+    });
+    const totalD = out.length;
+    return { items: out.slice((page - 1) * limit, page * limit), total: totalD, page, limit, tab };
+  }
   const key = String(q.sort ?? 'level');
   const dir = q.order === 'asc' ? 1 : -1;
   const byName = (a: Record<string, unknown>, b: Record<string, unknown>) =>
@@ -361,37 +477,49 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   }
 
   const total = out.length;
-  return { items: out.slice((page - 1) * limit, page * limit), total, page, limit };
+  return { items: out.slice((page - 1) * limit, page * limit), total, page, limit, tab };
 }
 
 // The summary above the market. Counted across the whole platform, not a list.
 export async function marketSummary(actor: StaffActor) {
-  // Counted over the same population the market lists, so the figures above the
-  // board and the board itself can never disagree.
-  const [memberships, profiles, openApproaches, needs] = await Promise.all([
-    prisma.membership.findMany({
-      where: { isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true } },
-      select: { userId: true },
-      take: 5000,
-    }),
-    prisma.staffProfile.findMany({ where: { user: { isActive: true } }, select: { userId: true } }),
+  // Counted from the same rows the board lists, through the same status
+  // function — so a tile and the tab it names can never disagree.
+  const all = await discover(actor, { limit: '1', page: '1' });
+  const everyone = (await discoverAllRows(actor));
+  const by = (f: (r: Record<string, unknown>) => boolean) => everyone.filter(f).length;
+  const [openApproaches, needs] = await Promise.all([
     prisma.staffApproach.count({
       where: {
-        status: { in: ['SUBMITTED', 'NEGOTIATING'] },
+        status: { in: OPEN_APPROACH },
         OR: [{ fromClubId: actor.clubId }, { currentClubId: actor.clubId }],
       },
     }),
     prisma.staffNeed.count({ where: { clubId: actor.clubId, isActive: true } }),
   ]);
-  const employed = new Set(memberships.map((m) => m.userId));
-  const everyone = new Set([...employed, ...profiles.map((p) => p.userId)]);
   return {
-    availableStaff: everyone.size,
-    currentlyEmployed: employed.size,
-    freeAgents: [...everyone].filter((u) => !employed.has(u)).length,
+    allStaff: all.total,
+    availableStaff: by((r) => isAvailable(r.employmentStatus as EmploymentStatus)),
+    currentlyEmployed: by((r) => !!r.currentClub),
+    freeAgents: by((r) => !!r.isFreeAgent),
+    activelyLooking: by((r) => r.employmentStatus === 'ACTIVELY_LOOKING'),
+    contractEndingSoon: by((r) => r.employmentStatus === 'CONTRACT_ENDING_SOON'),
+    shortlisted: by((r) => !!r.isShortlisted),
     openNegotiations: openApproaches,
     myStaffNeeds: needs,
+    myStaff: by((r) => !!r.isMine),
   };
+}
+
+// Every row the board would show, unpaged. Used by the tiles so their figures
+// are the board's own and not a second count of a different population.
+async function discoverAllRows(actor: StaffActor) {
+  const r = await discover(actor, { limit: '50', page: '1' });
+  if (r.total <= r.items.length) return r.items;
+  const pages = Math.ceil(r.total / 50);
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, i) => discover(actor, { limit: '50', page: String(i + 2) })),
+  );
+  return [r.items, ...rest.map((x) => x.items)].flat();
 }
 
 // ── one staff member, in full ────────────────────────────────────────────────
@@ -418,6 +546,12 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     trainingMethods: [] as string[], primaryFormation: null, secondaryFormations: [] as string[],
     notes: null, nationalTeamExperience: false, youthNationalTeamExperience: false,
     languages: [] as string[], reputation: null as unknown as number, coachingStyle: null,
+    attackingApproach: null, defensiveApproach: null, transitionApproach: null,
+    developmentStyle: null, certifications: [] as string[], education: [] as string[],
+    seniorYears: null, academyYears: null, youthAgeGroups: [] as string[],
+    careerIntent: null as unknown as StaffCareerIntent, availableFrom: null,
+    preferredRoles: [] as MembershipRole[], preferredCountries: [] as string[],
+    preferredLeagues: [] as string[], preferredClubLevel: null,
     licences: [] as never[], trophies: [] as never[], seasons: [] as never[],
   } as unknown as NonNullable<typeof existing>;
   const hasProfile = !!existing;
@@ -464,6 +598,30 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     reputation: p.reputation ?? null,
     coachingStyle: p.coachingStyle ?? null,
     isShortlisted: await isShortlisted(actor.clubId, staffUserId),
+    // The one status, from the one function.
+    employmentStatus: employmentStatus({
+      hasClub: !!jobClub,
+      availability: p.availability ?? null,
+      careerIntent: p.careerIntent ?? null,
+      contractEndsAt: current?.contractEndsAt ?? null,
+    }),
+
+    // ── qualifications ──
+    certifications: p.certifications ?? [],
+    education: p.education ?? [],
+
+    // ── what he wants next ──
+    careerIntent: p.careerIntent ?? null,
+    availableFrom: p.availableFrom ?? null,
+    preferences: {
+      roles: p.preferredRoles ?? [],
+      countries: p.preferredCountries ?? [],
+      leagues: p.preferredLeagues ?? [],
+      clubLevel: p.preferredClubLevel ?? null,
+    },
+
+    // What this club — and only this club — has written about him.
+    clubNote: await readNoteBody(actor.clubId, staffUserId),
 
     evaluation: {
       tacticalKnowledge: p.tacticalKnowledge, trainingQuality: p.trainingQuality,
@@ -484,6 +642,13 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
       historicalFormations: [...new Set([p.primaryFormation, ...p.secondaryFormations].filter(Boolean))],
     },
     training: { methods: p.trainingMethods },
+    approach: {
+      attacking:   p.attackingApproach ?? null,
+      defensive:   p.defensiveApproach ?? null,
+      transition:  p.transitionApproach ?? null,
+      development: p.developmentStyle ?? null,
+      coachingStyle: p.coachingStyle ?? null,
+    },
     specialities: p.specialities,
     notes: p.notes,
 
@@ -498,7 +663,15 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     seasons: seasons.map((s) => ({ ...s, ppm: ppm(s) })),
     performance: performanceRecord(seasons),
 
-    experience: experienceFromEngagements(engagements),
+    experience: {
+      ...experienceFromEngagements(engagements),
+      // Senior and academy are two careers. A club recruiting for its academy
+      // is not helped by one combined total, so both are kept apart.
+      totalYears:   p.yearsExperience ?? null,
+      seniorYears:  p.seniorYears ?? null,
+      academyYears: p.academyYears ?? null,
+      youthAgeGroups: p.youthAgeGroups ?? [],
+    },
     international: {
       nationalTeam: p.nationalTeamExperience,
       youthNationalTeam: p.youthNationalTeamExperience,
@@ -521,11 +694,18 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
       club: current.club, role: current.role,
       startedAt: current.startedAt, endsAt: current.contractEndsAt,
       salary: money(current.salary),
+      releaseClause: money(current.releaseClause),
+      renewalStatus: current.renewalStatus ?? null,
+      // Counted from the two dates rather than stored, so it cannot drift.
+      durationMonths: current.contractEndsAt
+        ? Math.max(0, Math.round((current.contractEndsAt.getTime() - current.startedAt.getTime()) / (30.44 * 86400000)))
+        : null,
     } : (membership ? {
       // Employed, with the terms not recorded yet. Saying so is the truthful
       // answer; inventing a salary would not be.
       club: membership.club, role: membership.role,
       startedAt: membership.joinedAt, endsAt: null, salary: null,
+      releaseClause: null, renewalStatus: null, durationMonths: null,
     } : null),
   };
 }
@@ -535,6 +715,7 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
 export interface ApproachDto {
   staffUserId: string; proposedRole: MembershipRole;
   salary?: number; durationMonths?: number; compensation?: number; message?: string;
+  startDate?: string; bonuses?: string; releaseClause?: number;
   submit?: boolean;
 }
 
@@ -566,7 +747,7 @@ export async function approach(actor: StaffActor, dto: ApproachDto) {
   const existing = await prisma.staffApproach.findFirst({
     where: {
       staffUserId: dto.staffUserId, fromClubId: actor.clubId,
-      status: { in: ['DRAFT', 'SUBMITTED', 'NEGOTIATING'] },
+      status: { in: ['DRAFT', ...OPEN_APPROACH] },
     },
   });
   if (existing) throw new ConflictError('An approach for this staff member is already open');
@@ -582,7 +763,10 @@ export async function approach(actor: StaffActor, dto: ApproachDto) {
       // Compensation is owed only when somebody is under contract elsewhere.
       compensation: current && dto.compensation != null ? BigInt(Math.round(dto.compensation)) : null,
       message: dto.message ?? null,
-      status: dto.submit === false ? 'DRAFT' : 'SUBMITTED',
+      startDate: dto.startDate ? new Date(dto.startDate) : null,
+      bonuses: dto.bonuses ?? null,
+      releaseClause: dto.releaseClause != null ? BigInt(Math.round(dto.releaseClause)) : null,
+      status: dto.submit === false ? 'DRAFT' : 'SENT',
     },
   });
   appendAuditEventAsync({
@@ -649,7 +833,7 @@ export async function counterApproach(
   dto: { body?: string; salary?: number; durationMonths?: number; compensation?: number },
 ) {
   const { a } = await loadForParty(actor, approachId);
-  if (!['SUBMITTED', 'NEGOTIATING'].includes(a.status)) {
+  if (!isOpenApproach(a.status)) {
     throw new ConflictError('That approach is not open');
   }
   await prisma.$transaction([
@@ -692,7 +876,7 @@ export async function withdrawApproach(actor: StaffActor, approachId: string) {
 export async function rejectApproach(actor: StaffActor, approachId: string) {
   const { a, isFrom } = await loadForParty(actor, approachId);
   if (isFrom) throw new ForbiddenError('The approaching club cannot reject its own approach');
-  if (!['SUBMITTED', 'NEGOTIATING'].includes(a.status)) throw new ConflictError('That approach is not open');
+  if (!isOpenApproach(a.status)) throw new ConflictError('That approach is not open');
   await prisma.staffApproach.update({
     where: { id: approachId },
     data: { status: 'REJECTED', decidedAt: new Date() },
@@ -705,7 +889,7 @@ export async function rejectApproach(actor: StaffActor, approachId: string) {
 // agent's approach is completed by the club that made it.
 export async function acceptApproach(actor: StaffActor, approachId: string) {
   const { a, isFrom, isHolder } = await loadForParty(actor, approachId);
-  if (!['SUBMITTED', 'NEGOTIATING'].includes(a.status)) throw new ConflictError('That approach is not open');
+  if (!isOpenApproach(a.status)) throw new ConflictError('That approach is not open');
   if (a.currentClubId && !isHolder) throw new ForbiddenError('Only the employing club may accept');
   if (!a.currentClubId && !isFrom) throw new ForbiddenError('Only the approaching club may complete a free-agent hire');
 
@@ -721,7 +905,7 @@ export async function completeMove(actor: StaffActor, approachId: string) {
   const result = await prisma.$transaction(async (tx) => {
     // Claim it: only an open approach can be completed, and only once.
     const claimed = await tx.staffApproach.updateMany({
-      where: { id: approachId, status: { in: ['SUBMITTED', 'NEGOTIATING'] } },
+      where: { id: approachId, status: { in: OPEN_APPROACH } },
       data: { status: 'ACCEPTED', decidedAt: new Date() },
     });
     if (claimed.count === 0) throw new ConflictError('That approach is no longer open');
@@ -968,6 +1152,19 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
     notes: str('notes'),
     nationalTeamExperience: typeof dto.nationalTeamExperience === 'boolean' ? dto.nationalTeamExperience : undefined,
     youthNationalTeamExperience: typeof dto.youthNationalTeamExperience === 'boolean' ? dto.youthNationalTeamExperience : undefined,
+    // the rest of the record the staff database keeps
+    languages: arr('languages'), reputation: num('reputation'), coachingStyle: str('coachingStyle'),
+    attackingApproach: str('attackingApproach'), defensiveApproach: str('defensiveApproach'),
+    transitionApproach: str('transitionApproach'), developmentStyle: str('developmentStyle'),
+    certifications: arr('certifications'), education: arr('education'),
+    seniorYears: num('seniorYears'), academyYears: num('academyYears'),
+    youthAgeGroups: arr('youthAgeGroups'),
+    careerIntent: str('careerIntent') as StaffCareerIntent | undefined,
+    availableFrom: dto.availableFrom ? new Date(String(dto.availableFrom)) : undefined,
+    preferredRoles: Array.isArray(dto.preferredRoles)
+      ? (dto.preferredRoles as MembershipRole[]).filter(isTechnical) : undefined,
+    preferredCountries: arr('preferredCountries'), preferredLeagues: arr('preferredLeagues'),
+    preferredClubLevel: str('preferredClubLevel'),
   };
   const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
 
@@ -1078,4 +1275,120 @@ export async function compareStaff(actor: StaffActor, ids: string[]) {
   if (unique.length < 2) throw new BadRequestError('Comparing needs at least two staff members');
   const items = await Promise.all(unique.map((id) => readStaff(actor, id)));
   return { items, total: items.length };
+}
+
+
+// ── the club's own notes ─────────────────────────────────────────────────────
+// Private to the club that wrote them. The staff member never sees them and
+// neither does any other club — the clubId is the session's own.
+
+async function readNoteBody(clubId: string, staffUserId: string) {
+  const row = await prisma.staffClubNote.findUnique({
+    where: { clubId_staffUserId: { clubId, staffUserId } },
+    select: { body: true, updatedAt: true },
+  });
+  return row ? { body: row.body, updatedAt: row.updatedAt } : null;
+}
+
+export async function saveClubNote(actor: StaffActor, staffUserId: string, body: string) {
+  const text = String(body ?? '').trim();
+  const user = await prisma.user.findUnique({ where: { id: staffUserId }, select: { id: true } });
+  if (!user) throw new NotFoundError('Staff member');
+  if (!text) {
+    await prisma.staffClubNote.deleteMany({ where: { clubId: actor.clubId, staffUserId } });
+    return { staffUserId, note: null };
+  }
+  if (text.length > 4000) throw new BadRequestError('A note is at most 4000 characters');
+  const saved = await prisma.staffClubNote.upsert({
+    where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
+    update: { body: text, updatedById: actor.userId },
+    create: { clubId: actor.clubId, staffUserId, body: text, updatedById: actor.userId },
+  });
+  return { staffUserId, note: { body: saved.body, updatedAt: saved.updatedAt } };
+}
+
+// ── an approach the recipient has seen ───────────────────────────────────────
+// Only the club being approached can move it to VIEWED, and only from a state
+// that has actually been sent. It never moves backwards.
+export async function markApproachViewed(actor: StaffActor, approachId: string) {
+  const a = await prisma.staffApproach.findUnique({ where: { id: approachId } });
+  if (!a) throw new NotFoundError('Approach');
+  const mine = a.currentClubId === actor.clubId || (!a.currentClubId && a.staffUserId === actor.userId);
+  if (!mine) throw new ForbiddenError('That approach is not yours');
+  if (!['SUBMITTED', 'SENT'].includes(a.status)) return { id: a.id, status: a.status };
+  const updated = await prisma.staffApproach.update({
+    where: { id: approachId },
+    data: { status: 'VIEWED', viewedAt: new Date() },
+  });
+  return { id: updated.id, status: updated.status, viewedAt: updated.viewedAt };
+}
+
+// ── an invitation to talk ────────────────────────────────────────────────────
+// An interview is a message on the approach, not a second kind of record: the
+// negotiation already is the conversation, and this puts the invitation in it
+// where both clubs can see it.
+export async function inviteToInterview(actor: StaffActor, approachId: string, when?: string, note?: string) {
+  const a = await prisma.staffApproach.findUnique({ where: { id: approachId } });
+  if (!a) throw new NotFoundError('Approach');
+  if (a.fromClubId !== actor.clubId && a.currentClubId !== actor.clubId) {
+    throw new ForbiddenError('That approach is not yours');
+  }
+  if (!isOpenApproach(a.status)) throw new ConflictError('That approach is not open');
+  const body = ['Interview invitation', when ? `Proposed: ${new Date(when).toISOString().slice(0, 16).replace('T', ' ')}` : null, note || null]
+    .filter(Boolean).join(' — ');
+  const msg = await prisma.staffApproachMessage.create({
+    data: { approachId, fromClubId: actor.clubId, body },
+  });
+  return { id: msg.id, approachId, body };
+}
+
+// ── external candidates ──────────────────────────────────────────────────────
+// A free agent nobody employs still has one canonical identity: a User row and
+// a StaffProfile hanging off it, exactly as an employed coach does. This adds
+// that person once and refuses to add him twice, so the database never grows a
+// second record for the same human being.
+export async function addExternalStaff(actor: StaffActor, dto: {
+  firstName: string; lastName: string; email?: string; nationality?: string;
+  role?: MembershipRole; dateOfBirth?: string; level?: number;
+}) {
+  const first = String(dto?.firstName ?? '').trim();
+  const last = String(dto?.lastName ?? '').trim();
+  if (!first || !last) throw new BadRequestError('A first and last name are required');
+  const email = String(dto.email ?? '').trim().toLowerCase()
+    || `${first}.${last}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + `.${Date.now()}@external.familista`;
+
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (existing) throw new ConflictError('Somebody with that email is already on the platform');
+
+  const created = await prisma.user.create({
+    data: {
+      email,
+      passwordHash: '!external',   // cannot sign in; this is a record, not an account
+      firstName: first, lastName: last,
+      role: 'HEAD_COACH',
+      isActive: true,
+      // User.clubId is the platform's tenancy column and is required. It says
+      // which club's books the record was created under — it is NOT employment.
+      // Employment is a Membership, and this person is given none, which is
+      // exactly what makes him a free agent everywhere the market looks.
+      club: { connect: { id: actor.clubId } },
+      staffProfile: {
+        create: {
+          nationality: dto.nationality ?? null,
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+          level: dto.level ?? 60,
+          availability: 'FREE_AGENT',
+          careerIntent: 'ACTIVELY_LOOKING',
+          preferredRoles: dto.role ? [dto.role] : [],
+        },
+      },
+    },
+    select: { id: true },
+  });
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_EXTERNAL_ADDED', entityType: 'User', entityId: created.id,
+    payload: { name: `${first} ${last}` },
+  });
+  return { staffUserId: created.id };
 }

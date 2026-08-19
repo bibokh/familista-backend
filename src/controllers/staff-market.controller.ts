@@ -58,6 +58,33 @@ export async function removeFromShortlist(req: Request, res: Response, next: Nex
   catch (err) { return next(err); }
 }
 
+// ── club notes ──────────────────────────────────────────────────────────────
+export async function saveClubNote(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = (req.body as { body?: string } | undefined)?.body ?? '';
+    return sendSuccess(res, await svc.saveClubNote(actor(req), String(req.params.staffUserId), body));
+  } catch (err) { return next(err); }
+}
+
+// ── negotiation ─────────────────────────────────────────────────────────────
+export async function markViewed(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.markApproachViewed(actor(req), String(req.params.approachId))); }
+  catch (err) { return next(err); }
+}
+
+export async function invite(req: Request, res: Response, next: NextFunction) {
+  try {
+    const b = (req.body ?? {}) as { when?: string; note?: string };
+    return sendSuccess(res, await svc.inviteToInterview(actor(req), String(req.params.approachId), b.when, b.note));
+  } catch (err) { return next(err); }
+}
+
+// ── external candidates ─────────────────────────────────────────────────────
+export async function addExternal(req: Request, res: Response, next: NextFunction) {
+  try { return sendCreated(res, await svc.addExternalStaff(actor(req), req.body as never)); }
+  catch (err) { return next(err); }
+}
+
 // ── recruitment ─────────────────────────────────────────────────────────────
 export async function approach(req: Request, res: Response, next: NextFunction) {
   try { return sendCreated(res, await svc.approach(actor(req), req.body as svc.ApproachDto)); }

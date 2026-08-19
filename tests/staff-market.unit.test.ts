@@ -158,8 +158,9 @@ describe('the client is a second market, not the player one renamed', () => {
     [/\bpace\b/i, /\bshooting\b/i, /\bdribbling\b/i, /marketValue/].forEach((re) => expect(mod).not.toMatch(re));
   });
 
-  it('the profile has the eight sections the record needs', () => {
-    ['overview', 'career', 'trophies', 'tactics', 'training', 'licences', 'performance', 'contract']
+  it('the profile has every section the record needs', () => {
+    ['overview', 'career', 'qualifications', 'tactics', 'experience',
+     'trophies', 'performance', 'contract', 'intent', 'notes']
       .forEach((t) => expect(APP).toContain(`['${t}', '`));
   });
 

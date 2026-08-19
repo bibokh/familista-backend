@@ -144,6 +144,7 @@ model Club {
   staffNeeds          StaffNeed[]
   staffApproachesMade StaffApproach[]   @relation("StaffApproachFrom")
   staffShortlist      StaffShortlist[]
+  staffNotes          StaffClubNote[]
   players             Player[]
   matches             Match[]
   tournaments         Tournament[]
@@ -215,11 +216,13 @@ model User {
   membershipAudits MembershipAuditLog[] @relation("MembershipAuditActor")
 
   // ── Coaches & technical staff market ──
-  staffProfile     StaffProfile?
-  staffEngagements StaffEngagement[]
-  staffApproaches  StaffApproach[]   @relation("StaffApproachTarget")
-  staffShortlisted StaffShortlist[]  @relation("StaffShortlisted")
-  staffShortlisting StaffShortlist[] @relation("StaffShortlistAuthor")
+  staffProfile      StaffProfile?
+  staffEngagements  StaffEngagement[]
+  staffApproaches   StaffApproach[]   @relation("StaffApproachTarget")
+  staffShortlisted  StaffShortlist[]  @relation("StaffShortlisted")
+  staffShortlisting StaffShortlist[]  @relation("StaffShortlistAuthor")
+  staffNotedIn      StaffClubNote[]   @relation("StaffNoted")
+  staffNotesWritten StaffClubNote[]   @relation("StaffNoteAuthor")
 
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
@@ -9544,6 +9547,33 @@ model StaffProfile {
   reputation    Int      @default(50) // 1..99
   coachingStyle String?
 
+  // ── how he plays ──
+  // The tactical profile in its own right, not four words inside a note.
+  attackingApproach  String?
+  defensiveApproach  String?
+  transitionApproach String?
+  developmentStyle   String?
+
+  // ── what he holds besides a licence ──
+  certifications String[] @default([])
+  education      String[] @default([])
+
+  // ── where the experience actually is ──
+  // Senior and academy are separate careers, and a club recruiting for its
+  // academy is not helped by one total.
+  seniorYears    Int?
+  academyYears   Int?
+  youthAgeGroups String[] @default([])
+
+  // ── what he wants next ──
+  // His own intent, which is not the same as whether a club will let him go.
+  careerIntent       StaffCareerIntent @default(NOT_LOOKING)
+  availableFrom      DateTime?
+  preferredRoles     MembershipRole[]  @default([])
+  preferredCountries String[]          @default([])
+  preferredLeagues   String[]          @default([])
+  preferredClubLevel String?
+
   // International experience, which is not the same as nationality.
   nationalTeamExperience      Boolean @default(false)
   youthNationalTeamExperience Boolean @default(false)
@@ -9564,6 +9594,15 @@ enum StaffAvailability {
   EMPLOYED
   OPEN_TO_OFFERS
   UNAVAILABLE
+}
+
+// What he is looking for, said by him. The market's employment status is
+// derived from this together with his contract — the two are not the same
+// thing, and a coach whose club will not sell him can still be looking.
+enum StaffCareerIntent {
+  ACTIVELY_LOOKING
+  OPEN_TO_OFFERS
+  NOT_LOOKING
 }
 
 // A qualification, as issued. The issuer is stored so the model is not tied to
@@ -9664,6 +9703,8 @@ model StaffEngagement {
   // What the engagement is worth. Salary is annual.
   salary         BigInt?
   contractEndsAt DateTime?
+  releaseClause  BigInt?
+  renewalStatus  String? // "In talks", "Option year", "Not renewing", …
 
   // Denormalised at the time of the engagement so history survives a club
   // renaming or a league change.
@@ -9719,6 +9760,27 @@ enum StaffNeedPriority {
 // not to the browser: the manager who marked a coach and the colleague who
 // opens the market tomorrow see the same list, and clearing a cookie does not
 // lose it. Nothing here is visible to the staff member or to any other club.
+// What a club has written down about a staff member. Private to the club that
+// wrote it — never shown to the staff member and never to another club.
+model StaffClubNote {
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  staffUserId String
+  staffUser   User   @relation("StaffNoted", fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  body        String  @db.Text
+  updatedById String?
+  updatedBy   User?   @relation("StaffNoteAuthor", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clubId, staffUserId])
+  @@index([clubId])
+}
+
 model StaffShortlist {
   id     String @id @default(uuid())
   clubId String
@@ -9757,7 +9819,13 @@ model StaffApproach {
   compensation   BigInt? // to the current club, where one is due
   message        String?        @db.Text
 
+  // The rest of what an offer says.
+  startDate     DateTime?
+  bonuses       String?   @db.Text
+  releaseClause BigInt?
+
   status      StaffApproachStatus @default(DRAFT)
+  viewedAt    DateTime?
   decidedAt   DateTime?
   completedAt DateTime?
 
@@ -9774,7 +9842,12 @@ model StaffApproach {
 
 enum StaffApproachStatus {
   DRAFT
+  // SENT is what SUBMITTED always meant. Both are read as "sent" wherever an
+  // approach is judged open, because rows written before this exist and are
+  // not rewritten.
   SUBMITTED
+  SENT
+  VIEWED
   NEGOTIATING
   ACCEPTED
   REJECTED

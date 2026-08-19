@@ -35,6 +35,8 @@ router.get('/activity',                ctrl.activity);
 // The club's own watchlist. Reading it is reading this club's desk; changing it
 // is a recruitment action.
 router.get('/shortlist',                      ctrl.readShortlist);
+// What this club has written about somebody. Private to it.
+router.put('/notes/:staffUserId',             recruitGuard, ctrl.saveClubNote);
 router.put('/shortlist/:staffUserId',         recruitGuard, ctrl.addToShortlist);
 router.delete('/shortlist/:staffUserId',      recruitGuard, ctrl.removeFromShortlist);
 
@@ -50,6 +52,8 @@ router.post('/approaches/:approachId/counter',   recruitGuard, ctrl.counter);
 router.post('/approaches/:approachId/accept',    recruitGuard, ctrl.accept);
 router.post('/approaches/:approachId/reject',    recruitGuard, ctrl.reject);
 router.post('/approaches/:approachId/withdraw',  recruitGuard, ctrl.withdraw);
+router.post('/approaches/:approachId/viewed',    ctrl.markViewed);
+router.post('/approaches/:approachId/interview', recruitGuard, ctrl.invite);
 
 // ── keeping the record ──────────────────────────────────────────────────────
 // A club completes what it knows about its own staff. Nothing here invents a
@@ -58,5 +62,8 @@ router.patch('/staff/:staffUserId',    recruitGuard, ctrl.upsertProfile);
 // Gives a club's existing technical staff their professional record, from the
 // memberships the platform already holds. Idempotent.
 router.post('/bootstrap',              recruitGuard, ctrl.bootstrapStaff);
+// A candidate the platform does not employ anywhere. One User, one profile, no
+// membership — which is what a free agent is here.
+router.post('/external',               recruitGuard, ctrl.addExternal);
 
 export default router;

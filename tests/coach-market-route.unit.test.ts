@@ -138,18 +138,20 @@ describe('search, filters, sort, shortlist and comparison', () => {
 
 describe('the card says what the record holds', () => {
   it('carries every field the market decides on', () => {
-    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stShortlistHtml()'));
-    ['Club', 'Role', 'Licence', 'Experience', 'Reputation', 'Trophies', 'Philosophy',
-     'Formation', 'Style', 'Languages', 'Salary expectation'].forEach((l) => expect(card).toContain(`'${l}'`));
+    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stExternalHtml()'));
+    ['Licence', 'Level', 'Experience', 'Formation', 'Speciality', 'Salary', 'Contract', 'Languages']
+      .forEach((l) => expect(card).toContain(`'${l}'`));
     expect(card).toContain('r.age');
     expect(card).toContain('r.nationality');
     expect(card).toContain('r.avatar');
+    expect(card).toContain('r.reputation');
+    expect(card).toContain('r.currentClub');
     expect(card).toContain('keyAttributes');
-    expect(card).toContain('ST_CONTRACT_LABEL');
+    expect(card).toContain('ST_STATUS_LABEL');
   });
 
   it('and says so when the platform does not hold one', () => {
-    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stShortlistHtml()'));
+    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stExternalHtml()'));
     expect(card).toContain("var dash = '<i class=\"st-unknown\">—</i>'");
     expect(card).toContain('No coaching attributes recorded');
   });

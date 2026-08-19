@@ -50659,9 +50659,15 @@ function _tfDiscAction(action, playerId, listingId) {
     if ((el = t.closest('[data-st-view]'))) {
       e.preventDefault();
       _TF_ST.view = el.getAttribute('data-st-view');
+      _TF_ST.page = 1;
       if (_TF_ST.view === 'needs') _stLoadNeeds().then(_stRepaint);
       else if (_TF_ST.view === 'activity') _stLoadActivity().then(_stRepaint);
-      else if (_TF_ST.view === 'shortlist') _stLoadShortlist().then(_stRepaint);
+      else {
+        // Every board tab is the same read with a different tab= — one request,
+        // and the count under the toolbar is the count of what the tab holds.
+        _stLoadMarket().then(_stRepaint);
+        if (_TF_ST.view === 'shortlisted') _stLoadShortlist().then(_stRepaint);
+      }
       _stRepaint(); return;
     }
     if ((el = t.closest('[data-st-open]'))) {
@@ -50706,11 +50712,6 @@ function _tfDiscAction(action, playerId, listingId) {
         });
       return;
     }
-    if ((el = t.closest('[data-st-shortonly]'))) {
-      e.preventDefault();
-      _TF_ST.f.shortlistedOnly = !_TF_ST.f.shortlistedOnly; _TF_ST.page = 1;
-      _stLoadMarket().then(_stRepaint); _stRepaint(); return;
-    }
     if ((el = t.closest('[data-st-order]'))) {
       e.preventDefault();
       _TF_ST.order = _TF_ST.order === 'asc' ? 'desc' : 'asc'; _TF_ST.page = 1;
@@ -50745,14 +50746,95 @@ function _tfDiscAction(action, playerId, listingId) {
     if ((el = t.closest('[data-st-ptab]'))) {
       e.preventDefault(); _TF_ST.tab = el.getAttribute('data-st-ptab'); _stRepaint(); return;
     }
-    if ((el = t.closest('[data-st-free]'))) {
-      e.preventDefault(); _TF_ST.f.freeAgentsOnly = !_TF_ST.f.freeAgentsOnly; _TF_ST.page = 1;
-      _stLoadMarket().then(_stRepaint); return;
+    if ((el = t.closest('[data-st-toggle]'))) {
+      e.preventDefault();
+      var _tk = el.getAttribute('data-st-toggle');
+      _TF_ST.f[_tk] = !_TF_ST.f[_tk]; _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint); _stRepaint(); return;
+    }
+    if (t.closest('[data-st-filters]')) {
+      e.preventDefault(); _TF_ST.filtersOpen = !_TF_ST.filtersOpen; _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-page]'))) {
+      e.preventDefault();
+      var _np = parseInt(el.getAttribute('data-st-page'), 10);
+      if (!(_np >= 1) || _np === _TF_ST.page) return;
+      _TF_ST.page = _np; _stLoadMarket().then(_stRepaint); return;
+    }
+    // Leaving the market for the club being looked at. It is the platform's own
+    // club page — this module does not draw a second one.
+    if ((el = t.closest('[data-st-club]'))) {
+      e.preventDefault();
+      var _cbid = el.getAttribute('data-st-club');
+      _TF_ST.open = null; _TF_ST.approach = null; _stRepaint();
+      if (typeof openClub === 'function') openClub(_cbid);
+      return;
+    }
+    if ((el = t.closest('[data-st-note-save]'))) {
+      e.preventDefault();
+      var _nid = el.getAttribute('data-st-note-save');
+      var _box = document.querySelector('[data-st-note]');
+      var _body = _box ? _box.value : '';
+      el.disabled = true;
+      _stApi('PUT', '/notes/' + encodeURIComponent(_nid), { body: _body })
+        .then(_thUnwrap)
+        .then(function (r) {
+          if (_TF_ST.detail[_nid]) _TF_ST.detail[_nid].clubNote = r && r.note;
+          _TF_ST.noteDraft = null;
+          _tfToast('Note saved', 'success');
+          _stRepaint();
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Note not saved — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-st-interview]'))) {
+      e.preventDefault();
+      var _iid = el.getAttribute('data-st-interview');
+      el.disabled = true;
+      _stApi('POST', '/approaches/' + encodeURIComponent(_iid) + '/interview', { note: 'Invitation sent from the staff market' })
+        .then(function () { _tfToast('Interview invitation sent', 'success'); return _stLoadActivity(); })
+        .then(_stRepaint)
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Invitation failed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    // ── an external candidate ──
+    if (t.closest('[data-st-ext-open]')) {
+      e.preventDefault();
+      _TF_ST.ext = { firstName: '', lastName: '', nationality: '', dateOfBirth: '', role: ST_ROLES[0][0], error: null };
+      _stRepaint(); return;
+    }
+    if (t.closest('[data-st-ext-close]')) {
+      e.preventDefault(); _TF_ST.ext = null; _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-ext-save]'))) {
+      e.preventDefault();
+      var _x = _TF_ST.ext || {};
+      if (!_x.firstName || !_x.lastName) { _TF_ST.ext.error = 'A first and last name are required'; _stRepaint(); return; }
+      el.disabled = true;
+      _stApi('POST', '/external', _x).then(_thUnwrap)
+        .then(function () {
+          _TF_ST.ext = null;
+          _tfToast('Candidate added as a free agent', 'success');
+          return _stSyncAll();
+        })
+        .then(_stRepaint)
+        .catch(function (err) {
+          el.disabled = false;
+          if (_TF_ST.ext) _TF_ST.ext.error = (err && (err.userMessage || err.message)) || 'The candidate was not added';
+          _stRepaint();
+        });
+      return;
     }
     if ((el = t.closest('[data-st-clear]'))) {
       e.preventDefault();
       Object.keys(_TF_ST.f).forEach(function (k) {
-        _TF_ST.f[k] = (k === 'freeAgentsOnly' || k === 'shortlistedOnly') ? false : '';
+        _TF_ST.f[k] = (typeof _TF_ST.f[k] === 'boolean') ? false : '';
       });
       _TF_ST.page = 1; _stLoadMarket().then(_stRepaint); return;
     }
@@ -50760,8 +50842,23 @@ function _tfDiscAction(action, playerId, listingId) {
       e.preventDefault();
       var _aid = el.getAttribute('data-st-approach');
       var _d = _TF_ST.detail[_aid] || {};
-      _TF_ST.approach = { staffUserId: _aid, role: _d.role || 'HEAD_COACH', salary: '', durationMonths: 24, compensation: '', message: '', error: null };
-      _stRepaint(); return;
+      _TF_ST.approach = {
+        staffUserId: _aid, role: _d.role || 'HEAD_COACH',
+        salary: '', durationMonths: 24, compensation: '', message: '',
+        startDate: '', bonuses: '', releaseClause: '',
+        mode: el.getAttribute('data-st-mode') || 'offer', error: null
+      };
+      _stRepaint();
+      // Opened from the board, where the record has not been read yet: the form
+      // needs his role and whether anybody holds him.
+      if (!_TF_ST.detail[_aid]) {
+        _stLoadOne(_aid).then(function () {
+          var dd = _TF_ST.detail[_aid];
+          if (_TF_ST.approach && _TF_ST.approach.staffUserId === _aid && dd && dd.role) _TF_ST.approach.role = dd.role;
+          _stRepaint();
+        });
+      }
+      return;
     }
     if ((el = t.closest('[data-st-appr-close]'))) {
       e.preventDefault(); _TF_ST.approach = null; _stRepaint(); return;
@@ -50775,11 +50872,15 @@ function _tfDiscAction(action, playerId, listingId) {
       if (a.durationMonths) body.durationMonths = parseInt(a.durationMonths, 10);
       if (a.compensation) body.compensation = parseInt(a.compensation, 10);
       if (a.message) body.message = a.message;
+      if (a.startDate) body.startDate = a.startDate;
+      if (a.bonuses) body.bonuses = a.bonuses;
+      if (a.releaseClause) body.releaseClause = parseInt(a.releaseClause, 10);
+      var _draft = el.hasAttribute('data-st-draft');
+      if (_draft) body.submit = false;
       _stApi('POST', '/approaches', body)
         .then(function () {
-          _tfToast('Approach sent', 'success');
+          _tfToast(_draft ? 'Draft saved' : 'Offer sent', 'success');
           _TF_ST.approach = null; _TF_ST.open = null;
-          var _o3 = document.getElementById('tf-overlay'); if (_o3) { _o3.innerHTML = ''; _o3.classList.remove('is-on'); }
           return _stSyncAll();
         })
         .then(_stRepaint)
@@ -50944,6 +51045,15 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.approach[t.getAttribute('data-st-a')] = t.value;
       return;
     }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-e') && _TF_ST.ext) {
+      _TF_ST.ext[t.getAttribute('data-st-e')] = t.value;
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-note')) {
+      // Held while it is typed so a repaint does not lose it; saved on Save.
+      _TF_ST.noteDraft = t.value;
+      return;
+    }
  if (!t || !t.closest || !t.closest('#pg-transfers')) return;
     if (t.hasAttribute && t.hasAttribute('data-tf-team')) {
       _TF.teamId = t.value; _tfDropCtx();
@@ -50990,6 +51100,15 @@ function _tfDiscAction(action, playerId, listingId) {
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-a') && _TF_ST.approach) {
       _TF_ST.approach[t.getAttribute('data-st-a')] = t.value;
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-e') && _TF_ST.ext) {
+      _TF_ST.ext[t.getAttribute('data-st-e')] = t.value;
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-note')) {
+      // Held while it is typed so a repaint does not lose it; saved on Save.
+      _TF_ST.noteDraft = t.value;
       return;
     }
  if (!t || !t.closest || !t.closest('#pg-transfers')) return;
@@ -51047,14 +51166,51 @@ var _TF_ST = {
   clubs: [], needs: null, activity: null, mine: null,
   open: null, detail: {}, tab: 'overview',
   approach: null,
-  f: { search: '', role: '', availability: '', clubId: '', licence: '', minLevel: '',
+  f: { search: '', role: '', status: '', clubId: '', licence: '', minLevel: '',
        minExperience: '', speciality: '', philosophy: '', formation: '', country: '',
-       trophiesMin: '', freeAgentsOnly: false, shortlistedOnly: false },
-  sort: 'level', order: 'desc',
+       nationality: '', language: '', ageMin: '', ageMax: '', reputationMin: '',
+       salaryMax: '', contractEndsBefore: '', trophiesMin: '',
+       availableNow: false, openToOffers: false },
+  sort: 'reputation', order: 'desc',
   shortlist: null,          // the club's own, read from the server
   cmp: [],                  // staff picked for comparison, by id
   cmpOpen: false,
-  view: 'market'   // market | needs | activity | shortlist
+  filtersOpen: false,
+  noteDraft: null,
+  view: 'all'   // all | available | employed | free-agents | shortlisted | needs | activity
+};
+
+// The board's tabs. Each is a reading of one database, not a separate list —
+// the server filters the same rows and returns the same shape for every one.
+var ST_TABS = [
+  ['all',         'All Staff',       'allStaff'],
+  ['available',   'Available',       'availableStaff'],
+  ['employed',    'Employed',        'currentlyEmployed'],
+  ['free-agents', 'Free Agents',     'freeAgents'],
+  ['shortlisted', 'Shortlisted',     'shortlisted'],
+  ['needs',       'My Staff Needs',  'myStaffNeeds'],
+  ['activity',    'My Activity',     'openNegotiations']
+];
+var ST_BOARD_TABS = ['all', 'available', 'employed', 'free-agents', 'shortlisted'];
+
+// One employment status, said the same way everywhere it appears.
+var ST_STATUS = [
+  ['EMPLOYED',             'Employed'],
+  ['OPEN_TO_OFFERS',       'Open to offers'],
+  ['ACTIVELY_LOOKING',     'Actively looking'],
+  ['FREE_AGENT',           'Free agent'],
+  ['CONTRACT_ENDING_SOON', 'Contract ending soon'],
+  ['UNAVAILABLE',          'Unavailable']
+];
+var ST_STATUS_LABEL = {};
+ST_STATUS.forEach(function (x) { ST_STATUS_LABEL[x[0]] = x[1]; });
+
+// Where an offer has got to. SUBMITTED is what SENT was called before these
+// were named in full, so it reads as Sent rather than as an unknown state.
+var ST_OFFER_LABEL = {
+  DRAFT: 'Draft', SUBMITTED: 'Sent', SENT: 'Sent', VIEWED: 'Viewed',
+  NEGOTIATING: 'Negotiating', ACCEPTED: 'Accepted', REJECTED: 'Rejected',
+  WITHDRAWN: 'Withdrawn', COMPLETED: 'Completed'
 };
 
 var ST_ROLES = [
@@ -51069,9 +51225,10 @@ var ST_ROLE_LABEL = {};
 ST_ROLES.forEach(function (r) { ST_ROLE_LABEL[r[0]] = r[1]; });
 
 var ST_PROFILE_TABS = [
-  ['overview', 'Overview'], ['career', 'Career'], ['trophies', 'Trophies'],
-  ['tactics', 'Tactics'], ['training', 'Training'], ['licences', 'Licences'],
-  ['performance', 'Performance'], ['contract', 'Contract']
+  ['overview', 'Overview'], ['career', 'Career'], ['qualifications', 'Qualifications'],
+  ['tactics', 'Tactical profile'], ['experience', 'Experience'],
+  ['trophies', 'Trophies'], ['performance', 'Performance'],
+  ['contract', 'Contract'], ['intent', 'Career intent'], ['notes', 'Club notes']
 ];
 
 // The professional evaluation, and which of it matters most for a given role.
@@ -51101,9 +51258,10 @@ var ST_EMPHASIS = {
 // How the board may be ordered. Every one of these is a figure the record
 // actually holds — there is no composite score invented to rank people by.
 var ST_SORTS = [
-  ['level', 'Professional level'], ['reputation', 'Reputation'],
-  ['experience', 'Experience'], ['trophies', 'Trophies'],
-  ['age', 'Age'], ['wage', 'Salary expectation'], ['name', 'Name']
+  ['reputation', 'Reputation'], ['level', 'Professional level'],
+  ['experience', 'Experience'], ['salary', 'Salary'],
+  ['contract', 'Contract expiry'], ['age', 'Age'],
+  ['available', 'Recently available'], ['trophies', 'Trophies'], ['name', 'Name']
 ];
 
 function _stApi(method, path, body) {
@@ -51119,16 +51277,21 @@ function _stVal(v, suffix) { return (v == null || v === '') ? '<i class="st-unkn
 // ── loading ──────────────────────────────────────────────────────────────────
 function _stQuery() {
   var f = _TF_ST.f, q = [];
-  ['search', 'role', 'availability', 'clubId', 'licence', 'minLevel', 'minExperience',
-   'speciality', 'philosophy', 'formation', 'country', 'trophiesMin'].forEach(function (k) {
+  ['search', 'role', 'status', 'clubId', 'licence', 'minLevel', 'minExperience',
+   'speciality', 'philosophy', 'formation', 'country', 'nationality', 'language',
+   'ageMin', 'ageMax', 'reputationMin', 'salaryMax', 'contractEndsBefore',
+   'trophiesMin'].forEach(function (k) {
     if (f[k] !== '' && f[k] != null) q.push(k + '=' + encodeURIComponent(f[k]));
   });
-  if (f.freeAgentsOnly) q.push('freeAgentsOnly=true');
-  if (f.shortlistedOnly) q.push('shortlistedOnly=true');
-  q.push('sort=' + encodeURIComponent(_TF_ST.sort || 'level'));
+  if (f.availableNow) q.push('availableNow=true');
+  if (f.openToOffers) q.push('openToOffers=true');
+  // Which tab is open is a filter the server applies, so the count under the
+  // toolbar is the count of what the tab actually holds.
+  q.push('tab=' + encodeURIComponent(ST_BOARD_TABS.indexOf(_TF_ST.view) >= 0 ? _TF_ST.view : 'all'));
+  q.push('sort=' + encodeURIComponent(_TF_ST.sort || 'reputation'));
   q.push('order=' + encodeURIComponent(_TF_ST.order || 'desc'));
   q.push('page=' + (_TF_ST.page || 1));
-  q.push('limit=25');
+  q.push('limit=24');
   return '?' + q.join('&');
 }
 
@@ -51161,7 +51324,23 @@ function _stLoadActivity() {
   return Promise.all([
     _stApi('GET', '/activity').then(_thUnwrap).catch(function () { return null; }),
     _stApi('GET', '/my-staff').then(_thUnwrap).catch(function () { return null; })
-  ]).then(function (r) { _TF_ST.activity = r[0]; _TF_ST.mine = r[1]; });
+  ]).then(function (r) {
+    _TF_ST.activity = r[0]; _TF_ST.mine = r[1];
+    // Reading this screen is the club seeing what was sent to it, so the offers
+    // on it stop saying "Sent" and start saying "Viewed" — which is what the
+    // club that sent them needs to know. Only the ones not yet seen are told.
+    var unseen = ((r[0] && r[0].incoming) || []).filter(function (x) {
+      return x.status === 'SENT' || x.status === 'SUBMITTED';
+    });
+    if (!unseen.length) return;
+    return Promise.all(unseen.map(function (x) {
+      return _stApi('POST', '/approaches/' + encodeURIComponent(x.id) + '/viewed').catch(function () {});
+    })).then(function () {
+      return _stApi('GET', '/activity').then(_thUnwrap)
+        .then(function (a) { _TF_ST.activity = a; })
+        .catch(function () {});
+    });
+  });
 }
 function _stLoadOne(id) {
   return _stApi('GET', '/staff/' + encodeURIComponent(id)).then(_thUnwrap)
@@ -51183,104 +51362,161 @@ function _stSyncAll() {
 function _stHtml() {
   if (_TF_ST.view === 'needs') return _stShellHtml(_stNeedsHtml());
   if (_TF_ST.view === 'activity') return _stShellHtml(_stActivityHtml());
-  if (_TF_ST.view === 'shortlist') return _stShellHtml(_stShortlistHtml());
   return _stShellHtml(_stMarketHtml());
 }
 
+// ── the shell ────────────────────────────────────────────────────────────────
+// A recruitment market reads top to bottom: what the database holds, which
+// reading of it is open, what narrows it, then the board itself. The tray only
+// exists while something is picked.
 function _stShellHtml(body) {
   var s = _TF_ST.summary || {};
-  var tile = function (n, l) {
-    return '<div class="st-tile"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></div>';
+  var kpi = function (n, l, cls) {
+    return '<div class="st-tile' + (cls ? ' ' + cls : '') + '"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></div>';
   };
-  var vtab = function (k, label) {
-    return '<button type="button" class="st-vtab' + (_TF_ST.view === k ? ' is-on' : '') + '" data-st-view="' + k + '">' + label + '</button>';
+  var tab = function (k, label, key) {
+    var n = s[key];
+    return '<button type="button" class="st-vtab' + (_TF_ST.view === k ? ' is-on' : '') + '" data-st-view="' + k + '">'
+      + label + (n == null ? '' : '<span class="st-vtab-n">' + n + '</span>') + '</button>';
   };
-  var short = (_TF_ST.shortlist && _TF_ST.shortlist.items) ? _TF_ST.shortlist.items.length : null;
   return '<div class="tf-pane st-pane">'
-    + '<div class="st-top">'
-    +   '<div class="st-tiles">'
-    +     tile(s.availableStaff, 'Available staff')
-    +     tile(s.currentlyEmployed, 'Currently employed')
-    +     tile(s.freeAgents, 'Free agents')
-    +     tile(s.openNegotiations, 'Open negotiations')
-    +     tile(short, 'Shortlisted')
-    +     tile(s.myStaffNeeds, 'My staff needs')
-    +   '</div>'
-    +   '<div class="st-vtabs">' + vtab('market', 'Market') + vtab('shortlist', 'Shortlist')
-    +     vtab('needs', 'Staff needs') + vtab('activity', 'My activity') + '</div>'
+    + '<div class="st-kpis">'
+    +   kpi(s.allStaff, 'All staff')
+    +   kpi(s.availableStaff, 'Available', 'st-tile--go')
+    +   kpi(s.currentlyEmployed, 'Employed')
+    +   kpi(s.freeAgents, 'Free agents')
+    +   kpi(s.contractEndingSoon, 'Contract ending', 'st-tile--warn')
+    +   kpi(s.shortlisted, 'Shortlisted')
+    +   kpi(s.openNegotiations, 'Negotiations')
+    +   kpi(s.myStaff, 'Our staff')
     + '</div>'
+    + '<nav class="st-vtabs">' + ST_TABS.map(function (t) { return tab(t[0], t[1], t[2]); }).join('') + '</nav>'
     + body
     + _stCompareTrayHtml()
     + '</div>';
 }
 
+// ── the toolbar ──────────────────────────────────────────────────────────────
+// Search, the two switches a recruiter reaches for most, and the sort — always
+// on one line. Everything else is behind "Filters" so the board is the page.
 function _stFiltersHtml() {
   var f = _TF_ST.f;
   var sel = function (name, opts, cur, ph) {
-    return '<select data-st-f="' + name + '"><option value="">' + ph + '</option>'
+    return '<select data-st-f="' + name + '" aria-label="' + ph + '"><option value="">' + ph + '</option>'
       + opts.map(function (o) {
         var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o;
         return '<option value="' + _stEsc(v) + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + _stEsc(l) + '</option>';
       }).join('') + '</select>';
   };
+  var num = function (name, ph) {
+    return '<input type="number" data-st-f="' + name + '" placeholder="' + ph + '" value="' + _stEsc(f[name]) + '">';
+  };
   var clubOpts = _TF_ST.clubs.map(function (c) { return [c.id, c.name]; });
   var countries = [];
   _TF_ST.clubs.forEach(function (c) { if (c.country && countries.indexOf(c.country) < 0) countries.push(c.country); });
-  return '<div class="st-filters">'
-    + '<input class="st-search" type="search" placeholder="Name, club or nationality" value="' + _stEsc(f.search) + '" data-st-q>'
-    + sel('role', ST_ROLES, f.role, 'Any role')
-    + sel('availability', [['FREE_AGENT', 'Free agent'], ['EMPLOYED', 'Employed'], ['OPEN_TO_OFFERS', 'Open to offers']], f.availability, 'Any availability')
-    + sel('clubId', clubOpts, f.clubId, 'Any club')
-    + sel('licence', [['UEFA_PRO', 'UEFA Pro'], ['UEFA_A', 'UEFA A'], ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']], f.licence, 'Any licence')
-    + sel('minLevel', [['80', '80+'], ['70', '70+'], ['60', '60+']], f.minLevel, 'Any level')
-    + sel('minExperience', [['15', '15+ yrs'], ['10', '10+ yrs'], ['5', '5+ yrs']], f.minExperience, 'Any experience')
-    + sel('philosophy', ['Possession', 'Positional Play', 'High Press', 'Counter Press', 'Direct Football',
-        'Counter Attack', 'Low Block', 'Mid Block', 'Build-up from the Back', 'Transition Football',
-        'Youth Development'], f.philosophy, 'Any philosophy')
-    + sel('formation', ['4-3-3', '4-2-3-1', '3-4-3', '3-5-2', '4-4-2', '4-1-4-1'], f.formation, 'Any formation')
-    + sel('country', countries, f.country, 'Any country')
-    + sel('trophiesMin', [['1', '1+ trophies'], ['3', '3+ trophies'], ['5', '5+ trophies']], f.trophiesMin, 'Any honours')
-    + '<button type="button" class="st-chip' + (f.freeAgentsOnly ? ' is-on' : '') + '" data-st-free>Free agents only</button>'
-    + '<button type="button" class="st-chip' + (f.shortlistedOnly ? ' is-on' : '') + '" data-st-shortonly>Shortlisted only</button>'
-    + '<span class="st-sortwrap">'
-    +   '<select data-st-sort aria-label="Sort by">'
-    +     ST_SORTS.map(function (o) {
-            return '<option value="' + o[0] + '"' + (_TF_ST.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
-          }).join('')
-    +   '</select>'
-    +   '<button type="button" class="st-chip st-ord" data-st-order title="Reverse the order">'
-    +     (_TF_ST.order === 'asc' ? '↑ Ascending' : '↓ Descending') + '</button>'
-    + '</span>'
-    + '<button type="button" class="st-chip" data-st-clear>Clear</button>'
+  // Nationalities and languages are whatever the rows on the board actually
+  // hold — no list of peoples is written down anywhere in this file.
+  var nats = [], langs = [];
+  _TF_ST.rows.forEach(function (r) {
+    if (r.nationality && nats.indexOf(r.nationality) < 0) nats.push(r.nationality);
+    (r.languages || []).forEach(function (l) { if (langs.indexOf(l) < 0) langs.push(l); });
+  });
+  nats.sort(); langs.sort();
+
+  var active = 0;
+  Object.keys(f).forEach(function (k) { if (f[k] !== '' && f[k] !== false && f[k] != null) active++; });
+
+  return '<div class="st-toolbar">'
+    + '<div class="st-toolbar-main">'
+    +   '<span class="st-searchwrap">'
+    +     '<input class="st-search" type="search" placeholder="Search staff by name, club or nationality" value="' + _stEsc(f.search) + '" data-st-q>'
+    +   '</span>'
+    +   sel('role', ST_ROLES, f.role, 'Any role')
+    +   sel('status', ST_STATUS, f.status, 'Any status')
+    +   '<span class="st-sortwrap">'
+    +     '<select data-st-sort aria-label="Sort by">'
+    +       ST_SORTS.map(function (o) {
+              return '<option value="' + o[0] + '"' + (_TF_ST.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+            }).join('')
+    +     '</select>'
+    +     '<button type="button" class="st-chip st-ord" data-st-order title="Reverse the order">'
+    +       (_TF_ST.order === 'asc' ? '↑' : '↓') + '</button>'
+    +   '</span>'
+    +   '<button type="button" class="st-chip' + (_TF_ST.filtersOpen ? ' is-on' : '') + '" data-st-filters>'
+    +     'Filters' + (active ? ' · ' + active : '') + '</button>'
+    +   '<button type="button" class="st-chip" data-st-clear>Clear</button>'
+    + '</div>'
+    + (_TF_ST.filtersOpen
+        ? '<div class="st-filters">'
+          + sel('clubId', clubOpts, f.clubId, 'Any club')
+          + sel('nationality', nats, f.nationality, 'Any nationality')
+          + sel('language', langs, f.language, 'Any language')
+          + sel('licence', [['UEFA_PRO', 'UEFA Pro'], ['UEFA_A', 'UEFA A'], ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']], f.licence, 'Any licence')
+          + sel('formation', ['4-3-3', '4-2-3-1', '3-4-3', '3-5-2', '4-4-2', '4-1-4-1'], f.formation, 'Any formation')
+          + sel('philosophy', ['Possession', 'Positional Play', 'High Press', 'Counter Press', 'Direct Football',
+              'Counter Attack', 'Low Block', 'Mid Block', 'Build-up from the Back', 'Transition Football',
+              'Youth Development'], f.philosophy, 'Any philosophy')
+          + sel('country', countries, f.country, 'Any country worked in')
+          + num('ageMin', 'Age from') + num('ageMax', 'Age to')
+          + num('minExperience', 'Experience from (yrs)')
+          + num('reputationMin', 'Reputation from')
+          + num('minLevel', 'Level from')
+          + num('salaryMax', 'Salary up to')
+          + num('trophiesMin', 'Trophies from')
+          + '<label class="st-datef">Contract ends before'
+          +   '<input type="date" data-st-f="contractEndsBefore" value="' + _stEsc(f.contractEndsBefore) + '">'
+          + '</label>'
+          + '<button type="button" class="st-chip' + (f.availableNow ? ' is-on' : '') + '" data-st-toggle="availableNow">Available now</button>'
+          + '<button type="button" class="st-chip' + (f.openToOffers ? ' is-on' : '') + '" data-st-toggle="openToOffers">Open to offers</button>'
+          + '</div>'
+        : '')
     + '</div>';
 }
 
 function _stMarketHtml() {
   var rows = _TF_ST.rows;
   var body;
-  if (_TF_ST.loading && !rows.length) body = '<div class="st-empty">Reading the market…</div>';
-  else if (_TF_ST.error) body = '<div class="st-empty">The staff market could not be read — ' + _stEsc(_TF_ST.error) + '</div>';
-  else if (!rows.length) body = '<div class="st-empty">No staff match these filters.</div>';
+  if (_TF_ST.loading && !rows.length) body = '<div class="st-empty">Reading the staff database…</div>';
+  else if (_TF_ST.error) body = '<div class="st-empty">The staff database could not be read — ' + _stEsc(_TF_ST.error) + '</div>';
+  else if (!rows.length) body = _stEmptyHtml();
   else body = '<div class="st-grid">' + rows.map(_stCardHtml).join('') + '</div>';
+  var pages = Math.max(1, Math.ceil((_TF_ST.total || 0) / 24));
   return _stFiltersHtml()
-    + '<div class="st-count">' + _TF_ST.total + ' staff</div>'
+    + '<div class="st-boardbar">'
+    +   '<span class="st-count">' + (_TF_ST.total || 0) + ' staff</span>'
+    +   (pages > 1
+        ? '<span class="st-pager">'
+          + '<button type="button" class="st-chip" data-st-page="' + Math.max(1, _TF_ST.page - 1) + '"' + (_TF_ST.page <= 1 ? ' disabled' : '') + '>Previous</button>'
+          + '<i>' + _TF_ST.page + ' of ' + pages + '</i>'
+          + '<button type="button" class="st-chip" data-st-page="' + Math.min(pages, _TF_ST.page + 1) + '"' + (_TF_ST.page >= pages ? ' disabled' : '') + '>Next</button>'
+          + '</span>' : '')
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-st-ext-open>Add external candidate</button>'
+    + '</div>'
     + body;
 }
 
-// What a contract says on the card, in the market's own words.
-var ST_CONTRACT_LABEL = {
-  FREE_AGENT: 'Free agent',
-  UNDER_CONTRACT: 'Under contract',
-  CONTRACT_NOT_RECORDED: 'Employed · end not recorded'
-};
+// What an empty board says depends on why it is empty, because "nobody matches"
+// and "this club has no staff on the platform yet" are different problems.
+function _stEmptyHtml() {
+  if (_TF_ST.view === 'shortlisted') {
+    return '<div class="st-empty">Nothing is shortlisted. Mark somebody with ★ on the board and he stays here — it is the club\'s list, not this browser\'s.</div>';
+  }
+  if (_TF_ST.view === 'free-agents') {
+    return '<div class="st-empty">No free agents. Somebody the platform does not employ anywhere can be added with <b>Add external candidate</b>.</div>';
+  }
+  return '<div class="st-empty">No staff match these filters.</div>';
+}
 
-// The market card. Everything that decides whether to open him — and nothing
-// that is not on his record: a field the platform does not hold says so.
+// ── the staff card ───────────────────────────────────────────────────────────
+// Built like the squad's player card: portrait, identity, the one headline
+// figure, then the facts that decide whether to open him. Every card on the
+// board is the same height whatever its record holds, so a row with a licence
+// and one without do not shift the grid between them.
 function _stCardHtml(r) {
-  var where = r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent';
   var dash = '<i class="st-unknown">—</i>';
-  var kv = function (l, v) { return '<span class="st-kv"><i>' + l + '</i><b>' + v + '</b></span>'; };
   var picked = _TF_ST.cmp.indexOf(r.staffUserId) >= 0;
+  var st = r.employmentStatus || (r.isFreeAgent ? 'FREE_AGENT' : 'EMPLOYED');
+  var kv = function (l, v) { return '<span class="st-kv"><i>' + l + '</i><b>' + v + '</b></span>'; };
   return '<div class="st-card' + (r.isMine ? ' is-mine' : '') + (picked ? ' is-cmp' : '') + '">'
     + '<div class="st-card-tools">'
     +   '<button type="button" class="st-star' + (r.isShortlisted ? ' is-on' : '') + '"'
@@ -51291,62 +51527,75 @@ function _stCardHtml(r) {
     +     ' data-st-cmp="' + _stEsc(r.staffUserId) + '" title="Compare">⇄</button>'
     + '</div>'
     + '<button type="button" class="st-card-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
-    + '<div class="st-card-hd">'
-    +   '<span class="st-av">' + (r.avatar ? '<img src="' + _stEsc(r.avatar) + '" alt="">' : _stEsc((r.name || '?').slice(0, 1))) + '</span>'
-    +   '<span class="st-id"><b>' + _stEsc(r.name) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
-    +     '<span class="st-id-sub">' + (r.age != null ? r.age + ' yrs' : 'Age not recorded')
-    +       ' · ' + (r.nationality ? _stEsc(r.nationality) : 'Nationality not recorded') + '</span></span>'
-    +   '<span class="st-lvl">' + (r.level == null ? dash : r.level) + '<i>Level</i></span>'
-    + '</div>'
-    + '<div class="st-card-rows">'
-    +   kv('Club', where)
-    +   kv('Role', _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff'))
-    +   kv('Licence', r.highestLicence ? _stEsc(r.highestLicence.name) : dash)
-    +   kv('Experience', r.yearsExperience != null ? r.yearsExperience + ' yrs' : dash)
-    +   kv('Reputation', r.reputation != null ? r.reputation : dash)
-    +   kv('Trophies', r.trophies)
-    +   kv('Philosophy', r.primaryPhilosophy ? _stEsc(r.primaryPhilosophy) : dash)
-    +   kv('Formation', r.primaryFormation ? _stEsc(r.primaryFormation) : dash)
-    +   kv('Style', r.coachingStyle ? _stEsc(r.coachingStyle) : dash)
-    +   kv('Languages', (r.languages && r.languages.length) ? _stEsc(r.languages.join(', ')) : dash)
-    +   kv('League', r.mainLeague ? _stEsc(r.mainLeague) : dash)
-    +   kv('Salary expectation', _stMoney(r.wageExpectation))
-    + '</div>'
-    + ((r.keyAttributes && r.keyAttributes.length)
+    +   '<div class="st-card-hd">'
+    +     '<span class="st-av">' + (r.avatar ? '<img src="' + _stEsc(r.avatar) + '" alt="">' : _stEsc((r.name || '?').slice(0, 1))) + '</span>'
+    +     '<span class="st-id">'
+    +       '<b>' + _stEsc(r.name) + '</b>'
+    +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
+    +       '<span class="st-id-sub">'
+    +         (r.age != null ? r.age + ' yrs' : 'Age not recorded') + ' · '
+    +         (r.nationality ? _stEsc(r.nationality) : 'Nationality not recorded') + '</span>'
+    +     '</span>'
+    +     '<span class="st-lvl">' + (r.reputation == null ? dash : r.reputation) + '<i>Reputation</i></span>'
+    +   '</div>'
+    +   '<div class="st-card-club">'
+    +     (r.currentClub
+        ? '<span class="st-clubmark">' + (r.currentClub.emblem
+            ? '<img src="' + _stEsc(r.currentClub.emblem) + '" alt="">'
+            : _stEsc((r.currentClub.name || '?').slice(0, 1))) + '</span>'
+          + '<b>' + _stEsc(r.currentClub.name) + '</b>'
+        : '<span class="st-clubmark st-clubmark--none">—</span><b>No club</b>')
+    +     '<span class="st-status st-status--' + String(st).toLowerCase() + '">' + _stEsc(ST_STATUS_LABEL[st] || st) + '</span>'
+    +   '</div>'
+    +   '<div class="st-card-rows">'
+    +     kv('Licence', r.highestLicence ? _stEsc(r.highestLicence.name) : dash)
+    +     kv('Level', r.level == null ? dash : r.level)
+    +     kv('Experience', r.yearsExperience != null ? r.yearsExperience + ' yrs' : dash)
+    +     kv('Formation', r.primaryFormation ? _stEsc(r.primaryFormation) : dash)
+    +     kv('Speciality', r.mainSpeciality ? _stEsc(r.mainSpeciality) : (r.primaryPhilosophy ? _stEsc(r.primaryPhilosophy) : dash))
+    +     kv('Salary', _stMoney(r.wageExpectation))
+    +     kv('Contract', r.contractEndsAt ? _stDate(r.contractEndsAt) : (r.isFreeAgent ? 'None' : dash))
+    +     kv('Languages', (r.languages && r.languages.length) ? _stEsc(r.languages.join(', ')) : dash)
+    +   '</div>'
+    +   ((r.keyAttributes && r.keyAttributes.length)
         ? '<div class="st-card-attrs">' + r.keyAttributes.map(function (a) {
             return '<span class="st-attr"><i>' + _stEsc(a.label) + '</i><b>' + a.value + '</b></span>';
           }).join('') + '</div>'
         : '<div class="st-card-attrs"><i class="st-unknown">No coaching attributes recorded</i></div>')
+    + '</button>'
     + '<div class="st-card-ft">'
-    +   '<span class="st-avail st-avail--' + String(r.availability || '').toLowerCase() + '">'
-    +     (r.isFreeAgent ? 'Free agent' : (r.availability === 'OPEN_TO_OFFERS' ? 'Open to offers' : 'Under contract')) + '</span>'
-    +   '<span class="st-contract">' + _stEsc(ST_CONTRACT_LABEL[r.contractStatus] || 'Contract not recorded')
-    +     (r.contractEndsAt ? ' · until ' + _stDate(r.contractEndsAt) : '') + '</span>'
     +   (r.isShortlisted ? '<span class="st-shorted">Shortlisted</span>' : '')
     +   (r.isMine ? '<span class="st-own">Our staff</span>' : '')
+    +   (r.isMine ? '' : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm st-cardgo" data-st-approach="' + _stEsc(r.staffUserId) + '">Start negotiation</button>')
     + '</div>'
-    + '</button>'
     + '</div>';
 }
 
-// ── the shortlist ────────────────────────────────────────────────────────────
-function _stShortlistHtml() {
-  var items = (_TF_ST.shortlist && _TF_ST.shortlist.items) || [];
-  if (!items.length) {
-    return '<div class="st-empty">Our shortlist is empty. Mark a coach with ★ on the market and he stays here — it is the club\'s list, not this browser\'s.</div>';
-  }
-  return '<section class="st-sec"><h4>Our shortlist</h4><div class="st-needs">'
-    + items.map(function (x) {
-        return '<div class="st-need is-mine">'
-          + '<b>' + _stEsc(x.name) + '</b>'
-          + '<em>' + (x.addedBy ? 'added by ' + _stEsc(x.addedBy) : 'added') + ' · ' + _stDate(x.addedAt) + '</em>'
-          + (x.note ? '<p class="st-note">' + _stEsc(x.note) + '</p>' : '')
-          + '<span class="st-appr-btns">'
-          +   '<button type="button" class="tf-btn tf-btn--sm" data-st-open="' + _stEsc(x.staffUserId) + '">Open profile</button>'
-          +   '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-st-short="' + _stEsc(x.staffUserId) + '" data-st-on="1">Remove</button>'
-          + '</span></div>';
-      }).join('') + '</div></section>';
+// ── adding somebody the platform does not employ ─────────────────────────────
+function _stExternalHtml() {
+  var e = _TF_ST.ext; if (!e) return '';
+  var roleOpts = ST_ROLES.map(function (r) {
+    return '<option value="' + r[0] + '"' + (e.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+  }).join('');
+  return '<div class="tf-modal" data-st-ext-modal>'
+    + '<div class="tf-modal-bd" data-st-ext-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true" aria-label="Add external candidate">'
+    +   '<button type="button" class="tf-x" data-st-ext-close>×</button>'
+    +   '<h3 class="st-appr-h">Add an external candidate</h3>'
+    +   '<p class="st-note">Somebody no club on the platform employs. He is created once, as one person with one record, and appears as a free agent.</p>'
+    +   '<div class="st-appr-f">'
+    +     '<label>First name<input data-st-e="firstName" value="' + _stEsc(e.firstName || '') + '"></label>'
+    +     '<label>Last name<input data-st-e="lastName" value="' + _stEsc(e.lastName || '') + '"></label>'
+    +     '<label>Nationality<input data-st-e="nationality" value="' + _stEsc(e.nationality || '') + '"></label>'
+    +     '<label>Date of birth<input type="date" data-st-e="dateOfBirth" value="' + _stEsc(e.dateOfBirth || '') + '"></label>'
+    +     '<label>Role sought<select data-st-e="role">' + roleOpts + '</select></label>'
+    +   '</div>'
+    +   (e.error ? '<p class="st-appr-err">' + _stEsc(e.error) + '</p>' : '')
+    +   '<div class="st-appr-acts">'
+    +     '<button type="button" class="tf-btn tf-btn--sm" data-st-ext-close>Cancel</button>'
+    +     '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-ext-save>Add candidate</button>'
+    +   '</div>'
+    + '</div></div>';
 }
 
 // ── comparison ───────────────────────────────────────────────────────────────
@@ -51456,22 +51705,24 @@ function _stProfileHtml() {
 }
 
 function _stProfileHeadHtml(d) {
+  var st = d.employmentStatus || (d.isFreeAgent ? 'FREE_AGENT' : 'EMPLOYED');
   return '<header class="st-pd-head">'
     + '<span class="st-av st-av--lg">' + (d.avatar ? '<img src="' + _stEsc(d.avatar) + '" alt="">' : _stEsc((d.name || '?').slice(0, 1))) + '</span>'
     + '<div class="st-pd-id">'
     +   '<h2>' + _stEsc(d.name) + '</h2>'
     +   '<div class="st-pd-meta">'
     +     '<span>' + _stEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff') + '</span>'
-    +     '<span>' + (d.currentClub ? _stEsc(d.currentClub.name) : 'Free agent') + '</span>'
+    +     '<span>' + (d.currentClub ? _stEsc(d.currentClub.name) : 'No club') + '</span>'
     +     '<span>' + (d.age != null ? d.age + ' yrs' : 'Age not recorded') + '</span>'
     +     '<span>' + (d.nationality ? _stEsc(d.nationality) : 'Nationality not recorded') + '</span>'
+    +     ((d.languages && d.languages.length) ? '<span>' + _stEsc(d.languages.join(', ')) + '</span>' : '')
     +     (d.highestLicence ? '<span class="st-lic">' + _stEsc(d.highestLicence.name) + '</span>' : '')
     +   '</div>'
     + '</div>'
     + '<div class="st-pd-lvl">'
-    +   '<b>' + (d.level == null ? '—' : d.level) + '</b><i>Professional level</i>'
-    +   '<span class="st-avail st-avail--' + String(d.availability || '').toLowerCase() + '">'
-    +     (d.isFreeAgent ? 'Free agent' : (d.availability === 'OPEN_TO_OFFERS' ? 'Open to offers' : 'Under contract')) + '</span>'
+    +   '<b>' + (d.reputation == null ? '—' : d.reputation) + '</b><i>Reputation</i>'
+    +   '<span class="st-pd-lvl2">Level ' + (d.level == null ? '—' : d.level) + '</span>'
+    +   '<span class="st-status st-status--' + String(st).toLowerCase() + '">' + _stEsc(ST_STATUS_LABEL[st] || st) + '</span>'
     + '</div>'
     + '</header>';
 }
@@ -51490,13 +51741,15 @@ function _stTags(list, cls) {
 
 function _stProfilePanel(d) {
   var t = _TF_ST.tab;
-  if (t === 'career')      return _stCareerPanel(d);
-  if (t === 'trophies')    return _stTrophiesPanel(d);
-  if (t === 'tactics')     return _stTacticsPanel(d);
-  if (t === 'training')    return _stTrainingPanel(d);
-  if (t === 'licences')    return _stLicencesPanel(d);
-  if (t === 'performance') return _stPerformancePanel(d);
-  if (t === 'contract')    return _stContractPanel(d);
+  if (t === 'career')         return _stCareerPanel(d);
+  if (t === 'qualifications') return _stQualificationsPanel(d);
+  if (t === 'tactics')        return _stTacticsPanel(d);
+  if (t === 'experience')     return _stExperiencePanel(d);
+  if (t === 'trophies')       return _stTrophiesPanel(d);
+  if (t === 'performance')    return _stPerformancePanel(d);
+  if (t === 'contract')       return _stContractPanel(d);
+  if (t === 'intent')         return _stIntentPanel(d);
+  if (t === 'notes')          return _stNotesPanel(d);
   return _stOverviewPanel(d);
 }
 
@@ -51510,7 +51763,17 @@ function _stOverviewPanel(d) {
       + '<b>' + (v == null ? '—' : v) + '</b></div>';
   }).join('');
   var peak = d.careerPeak || {};
-  return '<section class="st-sec"><h4>Professional evaluation'
+  return '<section class="st-sec"><h4>Who he is</h4>' + _stKv([
+      ['Current club', d.currentClub ? _stEsc(d.currentClub.name) : '<i class="st-unknown">No club</i>'],
+      ['Current role', _stEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff')],
+      ['Age', d.age != null ? d.age + ' yrs' : '<i class="st-unknown">Not recorded</i>'],
+      ['Nationality', _stVal(d.nationality)],
+      ['Languages', (d.languages && d.languages.length) ? _stEsc(d.languages.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+      ['Reputation', _stVal(d.reputation)],
+      ['Staff level', _stVal(d.level)],
+      ['Coaching style', _stVal(d.coachingStyle)]
+    ]) + '</section>'
+    + '<section class="st-sec"><h4>Professional evaluation'
     + (emph.length ? '<em>emphasis for ' + _stEsc(ST_ROLE_LABEL[d.role] || d.role) + '</em>' : '') + '</h4>'
     + '<div class="st-bars">' + evalRows + '</div></section>'
     + '<section class="st-sec"><h4>Career peak</h4>' + _stKv([
@@ -51524,19 +51787,7 @@ function _stOverviewPanel(d) {
         ['Leagues coached', (peak.leaguesCoached && peak.leaguesCoached.length)
           ? _stEsc(peak.leaguesCoached.join(', ')) : '<i class="st-unknown">Not recorded</i>']
       ]) + '</section>'
-    + '<section class="st-sec"><h4>Standing &amp; profile</h4>' + _stKv([
-        ['Reputation', _stVal(d.reputation)],
-        ['Coaching style', _stVal(d.coachingStyle)],
-        ['Languages', (d.languages && d.languages.length) ? _stEsc(d.languages.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
-        ['Salary expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)]
-      ]) + '</section>'
-    + '<section class="st-sec"><h4>Specialities</h4>' + _stTags(d.specialities) + '</section>'
-    + '<section class="st-sec"><h4>Experience</h4>' + _stKv([
-        ['Years', _stVal(d.yearsExperience, ' yrs')],
-        ['Countries', (d.experience && d.experience.countries.length) ? _stEsc(d.experience.countries.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
-        ['Youth / senior', (d.experience ? ((d.experience.youthExperience ? 'Youth' : '') + (d.experience.youthExperience && d.experience.seniorExperience ? ' · ' : '') + (d.experience.seniorExperience ? 'Senior' : '')) : '') || '<i class="st-unknown">Not recorded</i>'],
-        ['National team', d.international && d.international.nationalTeam ? 'Yes' : 'No']
-      ]) + '</section>';
+    + '<section class="st-sec"><h4>Specialities</h4>' + _stTags(d.specialities) + '</section>';
 }
 
 function _stCareerPanel(d) {
@@ -51597,37 +51848,107 @@ function _stTrophiesPanel(d) {
 }
 
 function _stTacticsPanel(d) {
-  var t = d.tactics || {};
-  return '<section class="st-sec"><h4>Philosophy</h4>'
-    + (t.dominantPhilosophy && t.dominantPhilosophy.length
+  var t = d.tactics || {}, a = d.approach || {};
+  return '<section class="st-sec"><h4>Formations</h4>' + _stKv([
+      ['Preferred', t.primaryFormation ? _stEsc(t.primaryFormation) : '<i class="st-unknown">Not recorded</i>'],
+      ['Secondary', (t.secondaryFormations && t.secondaryFormations.length) ? _stEsc(t.secondaryFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+      ['Historically used', (t.historicalFormations && t.historicalFormations.length) ? _stEsc(t.historicalFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>']
+    ]) + '</section>'
+    + '<section class="st-sec"><h4>Philosophy</h4>'
+    + ((t.dominantPhilosophy && t.dominantPhilosophy.length)
         ? '<div class="st-lg"><b>Dominant</b>' + _stTags(t.dominantPhilosophy, 'st-tag--key') + '</div>' : '')
     + _stTags(t.philosophy) + '</section>'
-    + '<section class="st-sec"><h4>Formations</h4>' + _stKv([
-        ['Primary', t.primaryFormation ? _stEsc(t.primaryFormation) : '<i class="st-unknown">Not recorded</i>'],
-        ['Secondary', (t.secondaryFormations && t.secondaryFormations.length) ? _stEsc(t.secondaryFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
-        ['Historically used', (t.historicalFormations && t.historicalFormations.length) ? _stEsc(t.historicalFormations.join(', ')) : '<i class="st-unknown">Not recorded</i>']
+    + '<section class="st-sec"><h4>How he plays</h4>' + _stKv([
+        ['Coaching style', _stVal(a.coachingStyle)],
+        ['Attacking approach', _stVal(a.attacking)],
+        ['Defensive approach', _stVal(a.defensive)],
+        ['Transition philosophy', _stVal(a.transition)],
+        ['Player development style', _stVal(a.development)]
+      ]) + '</section>'
+    + '<section class="st-sec"><h4>Training methodology</h4>'
+    + _stTags(d.training && d.training.methods) + '</section>'
+    + (d.notes ? '<section class="st-sec"><h4>Notes on his work</h4><p class="st-note">' + _stEsc(d.notes) + '</p></section>' : '');
+}
+
+// ── qualifications ───────────────────────────────────────────────────────────
+function _stQualificationsPanel(d) {
+  var lics = (d.licences && d.licences.length)
+    ? '<div class="st-lics">' + d.licences.map(function (l, i) {
+        return '<div class="st-liccard' + (i === 0 ? ' is-top' : '') + '">'
+          + '<b>' + _stEsc(l.name) + '</b>'
+          + '<em>' + _stEsc(l.issuer) + '</em>'
+          + '<span class="st-tl-meta">' + (l.obtainedAt ? 'Obtained ' + _stDate(l.obtainedAt) : 'Date not recorded') + '</span>'
+          + (i === 0 ? '<span class="st-tag st-tag--key">Highest</span>' : '')
+          + '</div>';
+      }).join('') + '</div>'
+    : '<div class="st-empty">No coaching licences recorded for this staff member.</div>';
+  return '<section class="st-sec"><h4>Coaching licences</h4>' + lics + '</section>'
+    + '<section class="st-sec"><h4>Certifications</h4>' + _stTags(d.certifications) + '</section>'
+    + '<section class="st-sec"><h4>Education</h4>' + _stTags(d.education) + '</section>'
+    + '<section class="st-sec"><h4>Specialist qualifications</h4>' + _stTags(d.specialities) + '</section>';
+}
+
+// ── experience ───────────────────────────────────────────────────────────────
+// Senior and academy are two careers. A club recruiting for its academy is not
+// helped by one combined total, so they are shown apart and neither is inferred
+// from the other.
+function _stExperiencePanel(d) {
+  var e = d.experience || {};
+  var intl = d.international || {};
+  return '<section class="st-sec"><h4>Years</h4>' + _stKv([
+      ['Total', e.totalYears != null ? e.totalYears + ' yrs' : '<i class="st-unknown">Not recorded</i>'],
+      ['Senior football', e.seniorYears != null ? e.seniorYears + ' yrs' : '<i class="st-unknown">Not recorded</i>'],
+      ['Academy football', e.academyYears != null ? e.academyYears + ' yrs' : '<i class="st-unknown">Not recorded</i>']
+    ]) + '</section>'
+    + '<section class="st-sec"><h4>Where he has worked</h4>' + _stKv([
+        ['Countries', (e.countries && e.countries.length) ? _stEsc(e.countries.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+        ['Senior', e.seniorExperience ? 'Yes' : 'No'],
+        ['Youth', e.youthExperience ? 'Yes' : 'No']
+      ]) + '</section>'
+    + '<section class="st-sec"><h4>Youth age groups</h4>' + _stTags(e.youthAgeGroups) + '</section>'
+    + '<section class="st-sec"><h4>Leagues &amp; countries</h4>'
+    + ((e.leaguesByCountry && e.leaguesByCountry.length)
+        ? e.leaguesByCountry.map(function (x) {
+            return '<div class="st-lg"><b>' + _stEsc(x.country) + '</b>'
+              + (x.leagues.length ? _stTags(x.leagues) : '<i class="st-unknown">League not recorded</i>') + '</div>';
+          }).join('')
+        : '<i class="st-unknown">Not recorded</i>')
+    + '</section>'
+    + '<section class="st-sec"><h4>International</h4>' + _stKv([
+        ['National team', intl.nationalTeam ? 'Yes' : 'No'],
+        ['Youth national team', intl.youthNationalTeam ? 'Yes' : 'No']
       ]) + '</section>';
 }
 
-function _stTrainingPanel(d) {
-  return '<section class="st-sec"><h4>Training methodology</h4>'
-    + _stTags(d.training && d.training.methods) + '</section>'
-    + (d.notes ? '<section class="st-sec"><h4>Notes</h4><p class="st-note">' + _stEsc(d.notes) + '</p></section>' : '');
+// ── career intent ────────────────────────────────────────────────────────────
+// What he wants, which is not the same as whether his club would let him go.
+function _stIntentPanel(d) {
+  var INTENT = { ACTIVELY_LOOKING: 'Actively looking for work', OPEN_TO_OFFERS: 'Open to offers', NOT_LOOKING: 'Not looking' };
+  var pr = d.preferences || {};
+  var st = d.employmentStatus || (d.isFreeAgent ? 'FREE_AGENT' : 'EMPLOYED');
+  return '<section class="st-sec"><h4>Intent</h4>' + _stKv([
+      ['Stated intent', d.careerIntent ? _stEsc(INTENT[d.careerIntent] || d.careerIntent) : '<i class="st-unknown">Not recorded</i>'],
+      ['Market status', _stEsc(ST_STATUS_LABEL[st] || st)],
+      ['Available from', d.availableFrom ? _stDate(d.availableFrom) : (d.isFreeAgent ? 'Now' : '<i class="st-unknown">Not recorded</i>')]
+    ]) + '</section>'
+    + '<section class="st-sec"><h4>Preferred roles</h4>'
+    + _stTags((pr.roles || []).map(function (r) { return ST_ROLE_LABEL[r] || r; })) + '</section>'
+    + '<section class="st-sec"><h4>Preferred countries</h4>' + _stTags(pr.countries) + '</section>'
+    + '<section class="st-sec"><h4>Preferred leagues</h4>' + _stTags(pr.leagues) + '</section>'
+    + '<section class="st-sec"><h4>Preferred club level</h4>' + _stVal(pr.clubLevel) + '</section>';
 }
 
-function _stLicencesPanel(d) {
-  if (!d.licences || !d.licences.length) {
-    return '<div class="st-empty">No coaching licences recorded for this staff member.</div>';
-  }
-  return '<section class="st-sec"><h4>Coaching licences</h4><div class="st-lics">'
-    + d.licences.map(function (l, i) {
-      return '<div class="st-liccard' + (i === 0 ? ' is-top' : '') + '">'
-        + '<b>' + _stEsc(l.name) + '</b>'
-        + '<em>' + _stEsc(l.issuer) + '</em>'
-        + '<span class="st-tl-meta">' + (l.obtainedAt ? 'Obtained ' + _stDate(l.obtainedAt) : 'Date not recorded') + '</span>'
-        + (i === 0 ? '<span class="st-tag st-tag--key">Highest</span>' : '')
-        + '</div>';
-    }).join('') + '</div></section>';
+// ── the club's own notes ─────────────────────────────────────────────────────
+function _stNotesPanel(d) {
+  var n = d.clubNote;
+  var draft = _TF_ST.noteDraft != null ? _TF_ST.noteDraft : (n ? n.body : '');
+  return '<section class="st-sec"><h4>Our notes on him</h4>'
+    + '<p class="st-note">Private to this club. He never sees it and neither does any other club.</p>'
+    + '<textarea class="st-notebox" data-st-note rows="8" placeholder="What we think of him, who watched him, what was said…">' + _stEsc(draft) + '</textarea>'
+    + '<div class="st-appr-acts">'
+    +   (n ? '<span class="st-tl-meta">Last saved ' + _stDate(n.updatedAt) + '</span>' : '')
+    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-note-save="' + _stEsc(d.staffUserId) + '">Save note</button>'
+    + '</div></section>';
 }
 
 function _stPerformancePanel(d) {
@@ -51651,30 +51972,56 @@ function _stPerformancePanel(d) {
 
 function _stContractPanel(d) {
   var c = d.contract;
-  if (!c) return '<div class="st-empty">Free agent — no current contract.</div>';
+  if (!c) {
+    return '<section class="st-sec"><h4>Employment</h4>' + _stKv([
+        ['Status', 'Free agent'],
+        ['Available from', d.availableFrom ? _stDate(d.availableFrom) : 'Now'],
+        ['Salary expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)]
+      ]) + '</section>';
+  }
+  var st = d.employmentStatus || 'EMPLOYED';
   return '<section class="st-sec"><h4>Current employment</h4>' + _stKv([
+      ['Employment status', _stEsc(ST_STATUS_LABEL[st] || st)],
       ['Club', _stEsc(c.club.name)],
       ['Role', _stEsc(ST_ROLE_LABEL[c.role] || c.role)],
-      ['Since', _stDate(c.startedAt)],
-      ['Contract ends', c.endsAt ? _stDate(c.endsAt) : '<i class="st-unknown">Not recorded</i>'],
+      ['Contract start', _stDate(c.startedAt)],
+      ['Contract end', c.endsAt ? _stDate(c.endsAt) : '<i class="st-unknown">Not recorded</i>'],
+      ['Duration', c.durationMonths != null ? c.durationMonths + ' months' : '<i class="st-unknown">Not recorded</i>'],
       ['Salary', c.salary == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(c.salary)],
-      ['Wage expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)]
+      ['Salary expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)],
+      ['Release clause', c.releaseClause == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(c.releaseClause)],
+      ['Renewal status', _stVal(c.renewalStatus)],
+      ['Availability date', d.availableFrom ? _stDate(d.availableFrom) : (c.endsAt ? 'From ' + _stDate(c.endsAt) : '<i class="st-unknown">Not recorded</i>')]
     ]) + '</section>';
 }
 
-// What this club may do about him, which depends on whose he is.
+// ── what this club may do about him ──────────────────────────────────────────
+// Which of these appear depends on whose he is; none of them is drawn where it
+// would not work.
 function _stProfileActionsHtml(d) {
   var star = '<button type="button" class="tf-btn tf-btn--sm st-starbtn' + (d.isShortlisted ? ' is-on' : '') + '"'
     + ' data-st-short="' + _stEsc(d.staffUserId) + '" data-st-on="' + (d.isShortlisted ? '1' : '0') + '">'
-    + (d.isShortlisted ? '★ On our shortlist' : '☆ Add to shortlist') + '</button>';
+    + (d.isShortlisted ? '★ Shortlisted' : '☆ Shortlist') + '</button>';
+  var compare = '<button type="button" class="tf-btn tf-btn--sm" data-st-cmp="' + _stEsc(d.staffUserId) + '">⇄ Compare</button>';
+  var history = '<button type="button" class="tf-btn tf-btn--sm" data-st-ptab="career">Career history</button>';
+  var notes = '<button type="button" class="tf-btn tf-btn--sm" data-st-ptab="notes">Club notes</button>';
+  var club = d.currentClub
+    ? '<button type="button" class="tf-btn tf-btn--sm" data-st-club="' + _stEsc(d.currentClub.id) + '">View current club</button>'
+    : '';
+
   if (d.isMine) {
-    return '<footer class="st-pd-acts"><p class="st-note">He is our staff — a club cannot recruit its own employee.</p></footer>';
+    return '<footer class="st-pd-acts">'
+      + '<span class="st-note">He is our staff — a club cannot recruit its own employee.</span>'
+      + history + notes + '</footer>';
   }
-  var label = d.isFreeAgent ? 'Approach / Hire' : 'Approach club / Negotiate';
   return '<footer class="st-pd-acts">'
-    + (d.isFreeAgent ? '' : '<span class="st-note">Under contract' + (d.contract && d.contract.endsAt ? ' until ' + _stDate(d.contract.endsAt) : '') + ' — his club must agree.</span>')
-    + star
-    + '<button type="button" class="tf-btn tf-btn--primary" data-st-approach="' + _stEsc(d.staffUserId) + '">' + label + '</button>'
+    + (d.isFreeAgent
+        ? '<span class="st-note">Free agent — no club has to agree.</span>'
+        : '<span class="st-note">Under contract' + (d.contract && d.contract.endsAt ? ' until ' + _stDate(d.contract.endsAt) : '') + ' — his club must agree.</span>')
+    + star + compare + club + history + notes
+    + '<button type="button" class="tf-btn tf-btn--sm" data-st-approach="' + _stEsc(d.staffUserId) + '" data-st-mode="contact">Contact</button>'
+    + '<button type="button" class="tf-btn tf-btn--primary" data-st-approach="' + _stEsc(d.staffUserId) + '">'
+    + (d.isFreeAgent ? 'Start negotiation' : 'Start negotiation') + '</button>'
     + '</footer>';
 }
 
@@ -51685,22 +52032,34 @@ function _stApproachHtml() {
   var roleOpts = ST_ROLES.map(function (r) {
     return '<option value="' + r[0] + '"' + (a.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
   }).join('');
+  var contactOnly = a.mode === 'contact';
   return '<div class="tf-modal" data-st-appr-modal>'
     + '<div class="tf-modal-bd" data-st-appr-close></div>'
     + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true">'
     +   '<button type="button" class="tf-x" data-st-appr-close>×</button>'
-    +   '<h3 class="st-appr-h">' + (d.isFreeAgent ? 'Approach ' : 'Approach the club for ') + _stEsc(d.name || 'staff') + '</h3>'
+    +   '<h3 class="st-appr-h">'
+    +     (contactOnly ? 'Contact about ' : (d.isFreeAgent ? 'Offer to ' : 'Approach the club for '))
+    +     _stEsc(d.name || 'staff') + '</h3>'
+    +   '<p class="st-note">' + (contactOnly
+          ? 'An opening message. Terms can follow in the negotiation.'
+          : 'An offer, sent as one record. Its state moves Draft → Sent → Viewed → Negotiating as it is answered.') + '</p>'
     +   '<div class="st-appr-f">'
     +     '<label>Proposed role<select data-st-a="role">' + roleOpts + '</select></label>'
-    +     '<label>Salary (annual)<input type="number" data-st-a="salary" value="' + (a.salary || '') + '" placeholder="0"></label>'
-    +     '<label>Contract length (months)<input type="number" data-st-a="durationMonths" value="' + (a.durationMonths || '') + '" placeholder="24"></label>'
-    +     (d.isFreeAgent ? '' : '<label>Compensation to his club<input type="number" data-st-a="compensation" value="' + (a.compensation || '') + '" placeholder="0"></label>')
-    +     '<label class="st-appr-msg">Message<textarea data-st-a="message" rows="3">' + _stEsc(a.message || '') + '</textarea></label>'
+    +     (contactOnly ? '' :
+          '<label>Salary (annual)<input type="number" data-st-a="salary" value="' + (a.salary || '') + '" placeholder="0"></label>'
+        + '<label>Contract length (months)<input type="number" data-st-a="durationMonths" value="' + (a.durationMonths || '') + '" placeholder="24"></label>'
+        + '<label>Start date<input type="date" data-st-a="startDate" value="' + _stEsc(a.startDate || '') + '"></label>'
+        + '<label>Release clause<input type="number" data-st-a="releaseClause" value="' + (a.releaseClause || '') + '" placeholder="none"></label>'
+        + (d.isFreeAgent ? '' : '<label>Compensation to his club<input type="number" data-st-a="compensation" value="' + (a.compensation || '') + '" placeholder="0"></label>')
+        + '<label class="st-appr-msg">Bonuses<textarea data-st-a="bonuses" rows="2" placeholder="Promotion, cup run, points per match…">' + _stEsc(a.bonuses || '') + '</textarea></label>')
+    +     '<label class="st-appr-msg">' + (contactOnly ? 'Message' : 'Notes') + '<textarea data-st-a="message" rows="3">' + _stEsc(a.message || '') + '</textarea></label>'
     +   '</div>'
     +   (a.error ? '<p class="st-appr-err">' + _stEsc(a.error) + '</p>' : '')
     +   '<div class="st-appr-acts">'
     +     '<button type="button" class="tf-btn tf-btn--sm" data-st-appr-close>Cancel</button>'
-    +     '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-appr-send>Send approach</button>'
+    +     (contactOnly ? '' : '<button type="button" class="tf-btn tf-btn--sm" data-st-appr-send data-st-draft="1">Save draft</button>')
+    +     '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-appr-send>'
+    +       (contactOnly ? 'Send message' : 'Send offer') + '</button>'
     +   '</div>'
     + '</div></div>';
 }
@@ -51748,11 +52107,15 @@ function _stActivityHtml() {
   var appr = function (x, dir) {
     return '<div class="st-appr">'
       + '<b>' + _stEsc(x.staffName) + '</b>'
-      + '<em>' + _stEsc(ST_ROLE_LABEL[x.proposedRole] || x.proposedRole) + ' · ' + _stEsc(x.status) + '</em>'
+      + '<em>' + _stEsc(ST_ROLE_LABEL[x.proposedRole] || x.proposedRole)
+      + ' · <span class="st-offer st-offer--' + String(x.status).toLowerCase() + '">'
+      + _stEsc(ST_OFFER_LABEL[x.status] || x.status) + '</span></em>'
       + '<span class="st-tl-meta">' + (dir === 'out' ? 'to ' : 'from ') + _stEsc(dir === 'out' ? (x.currentClub ? x.currentClub.name : 'free agent') : x.fromClub.name)
       + ' · ' + _stMoney(x.salary) + (x.durationMonths ? ' · ' + x.durationMonths + ' mo' : '') + '</span>'
       + '<span class="st-appr-btns">'
-      + (['SUBMITTED', 'NEGOTIATING'].indexOf(x.status) >= 0
+      + (['SUBMITTED', 'SENT', 'VIEWED', 'NEGOTIATING'].indexOf(x.status) >= 0
+          ? '<button type="button" class="tf-btn tf-btn--sm" data-st-interview="' + x.id + '">Invite to interview</button>' : '')
+      + (['SUBMITTED', 'SENT', 'VIEWED', 'NEGOTIATING'].indexOf(x.status) >= 0
           ? (dir === 'in'
               ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-accept="' + x.id + '">Accept</button>'
                 + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-st-reject="' + x.id + '">Reject</button>'
@@ -51809,8 +52172,9 @@ function _stRepaint() {
   if (h.overlay) {
     var html = (_TF_ST.open ? _stProfileHtml() : '')
       + (_TF_ST.approach ? _stApproachHtml() : '')
-      + (_TF_ST.cmpOpen ? _stCompareHtml() : '');
-    if (_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen) {
+      + (_TF_ST.cmpOpen ? _stCompareHtml() : '')
+      + (_TF_ST.ext ? _stExternalHtml() : '');
+    if (_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen || _TF_ST.ext) {
       h.overlay.innerHTML = html; h.overlay.classList.add('is-on');
     } else {
       h.overlay.innerHTML = ''; h.overlay.classList.remove('is-on');
@@ -54013,9 +54377,9 @@ function _stResetClubScoped() {
   _TF_ST.summary = null; _TF_ST.needs = null; _TF_ST.activity = null; _TF_ST.mine = null;
   _TF_ST.shortlist = null; _TF_ST.detail = {};
   _TF_ST.open = null; _TF_ST.approach = null;
-  _TF_ST.cmp = []; _TF_ST.cmpOpen = false;
-  _TF_ST.view = 'market';
-  _TF_ST.f.shortlistedOnly = false;
+  _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _TF_ST.ext = null; _TF_ST.noteDraft = null;
+  _TF_ST.view = 'all';
+  _TF_ST.f.status = ''; _TF_ST.f.availableNow = false; _TF_ST.f.openToOffers = false;
 }
 
 // The roster index, emptied. `clubId` is set to null rather than to the club
