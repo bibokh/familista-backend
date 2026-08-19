@@ -32,6 +32,32 @@ export async function clubs(_req: Request, res: Response, next: NextFunction) {
   catch (err) { return next(err); }
 }
 
+export async function compare(req: Request, res: Response, next: NextFunction) {
+  try {
+    const raw = req.query.ids;
+    const ids = Array.isArray(raw) ? raw.map(String) : String(raw ?? '').split(',');
+    return sendSuccess(res, await svc.compareStaff(actor(req), ids.map((s) => s.trim())));
+  } catch (err) { return next(err); }
+}
+
+// ── the shortlist ───────────────────────────────────────────────────────────
+export async function readShortlist(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.readShortlist(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+export async function addToShortlist(req: Request, res: Response, next: NextFunction) {
+  try {
+    const note = (req.body as { note?: string } | undefined)?.note;
+    return sendSuccess(res, await svc.addToShortlist(actor(req), String(req.params.staffUserId), note));
+  } catch (err) { return next(err); }
+}
+
+export async function removeFromShortlist(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.removeFromShortlist(actor(req), String(req.params.staffUserId))); }
+  catch (err) { return next(err); }
+}
+
 // ── recruitment ─────────────────────────────────────────────────────────────
 export async function approach(req: Request, res: Response, next: NextFunction) {
   try { return sendCreated(res, await svc.approach(actor(req), req.body as svc.ApproachDto)); }

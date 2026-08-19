@@ -34,6 +34,14 @@ const ROLE_RANK: Record<MembershipRole, number> = {
   PARENT:           20,
   PLAYER:           20,
   DEVICE:           10,
+  // The rest of a technical staff. They rank with the assistant tier they work
+  // alongside — none of them is a deputy for the head coach's authority.
+  GOALKEEPING_COACH: 55,
+  FITNESS_COACH:     55,
+  TECHNICAL_COACH:   55,
+  TACTICAL_COACH:    55,
+  YOUTH_COACH:       55,
+  PERFORMANCE_COACH: 55,
 };
 
 export function requireMembership(minRole?: MembershipRole) {

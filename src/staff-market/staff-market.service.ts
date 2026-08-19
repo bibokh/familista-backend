@@ -31,9 +31,19 @@ export interface StaffActor { userId: string; clubId: string; role?: string }
 // to this list, not rebuilding anything.
 export const TECHNICAL_ROLES: MembershipRole[] = [
   'HEAD_COACH', 'ASSISTANT_COACH', 'ANALYST', 'MEDICAL_STAFF', 'PHYSIO', 'SCOUT',
+  'GOALKEEPING_COACH', 'FITNESS_COACH', 'TECHNICAL_COACH', 'TACTICAL_COACH',
+  'YOUTH_COACH', 'PERFORMANCE_COACH',
 ];
 
 const isTechnical = (r: MembershipRole) => TECHNICAL_ROLES.includes(r);
+
+// The staff evaluation, in one place. The profile shows all of it; the market
+// card names the highest three.
+const EVAL_KEYS: Array<[string, string]> = [
+  ['tacticalKnowledge', 'Tactical knowledge'], ['trainingQuality', 'Training quality'],
+  ['playerDevelopment', 'Player development'], ['manManagement', 'Man management'],
+  ['matchPreparation', 'Match preparation'], ['analysis', 'Analysis'], ['leadership', 'Leadership'],
+];
 
 // ── what leaves the server ───────────────────────────────────────────────────
 // One projection. A staff member is a colleague at another club, not a public
@@ -186,6 +196,7 @@ export interface DiscoverQuery {
   freeAgentsOnly?: string; licence?: string; minLevel?: string; minExperience?: string;
   speciality?: string; philosophy?: string; formation?: string; country?: string;
   league?: string; trophiesMin?: string; page?: string; limit?: string;
+  shortlistedOnly?: string; sort?: string; order?: string;
 }
 
 export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
@@ -214,6 +225,11 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   ]);
 
   const profileByUser = new Map(orphanProfiles.map((p) => [p.userId, p]));
+  // The club's own shortlist, read once for the whole board rather than per row.
+  const shortlisted = new Set(
+    (await prisma.staffShortlist.findMany({ where: { clubId: actor.clubId }, select: { staffUserId: true } }))
+      .map((s) => s.staffUserId),
+  );
   const engagements = await prisma.staffEngagement.findMany({
     where: { userId: { in: [...new Set([...memberships.map((m) => m.userId), ...orphanProfiles.map((p) => p.userId)])] } },
     include: { club: { select: publicClubSelect } },
@@ -262,6 +278,26 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
       countries: exp.countries.length ? exp.countries : (club ? [club.country] : []),
       contractEndsAt: current?.contractEndsAt ?? null,
       wageExpectation: money(p?.wageExpectation),
+      // What the card shows besides the job. Age is derived from the date of
+      // birth the record holds; a record without one has no age rather than a
+      // guessed one.
+      age: p?.dateOfBirth
+        ? Math.floor((Date.now() - p.dateOfBirth.getTime()) / (365.25 * 24 * 3600 * 1000))
+        : null,
+      languages: p?.languages ?? [],
+      reputation: p?.reputation ?? null,
+      coachingStyle: p?.coachingStyle ?? null,
+      // The three the record scores him highest on, named on the card so the
+      // board says what he is good at without opening him. Derived from the
+      // same evaluation the profile shows; a record without one has none.
+      keyAttributes: p ? EVAL_KEYS
+        .map(([k, label]) => ({ key: k, label, value: (p as Record<string, unknown>)[k] as number }))
+        .filter((x) => typeof x.value === 'number')
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 3) : [],
+      contractStatus: !club ? 'FREE_AGENT'
+        : (current?.contractEndsAt ? 'UNDER_CONTRACT' : 'CONTRACT_NOT_RECORDED'),
+      isShortlisted: shortlisted.has(userId),
       hasProfile: !!p,
       // A club may not recruit somebody it already employs. The row says so
       // rather than disappearing — hiding it would hide the fact.
@@ -295,15 +331,34 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
       || String(r.nationality ?? '').toLowerCase().includes(s2));
   }
 
-  // Best first, but somebody with no record yet is not pushed to the bottom as
-  // though he were poor — he sorts after those who have one.
-  out.sort((a, b) => {
-    const al = (a.level as number | null), bl = (b.level as number | null);
-    if (al == null && bl == null) return String(a.name).localeCompare(String(b.name));
-    if (al == null) return 1;
-    if (bl == null) return -1;
-    return bl - al;
-  });
+  if (q.shortlistedOnly === 'true') out = out.filter((r) => r.isShortlisted);
+
+  // ── sort ──
+  // Best first by default, but somebody with no record yet is not pushed to the
+  // bottom as though he were poor — on every numeric key, a value the platform
+  // does not have sorts after the ones it does, rather than counting as zero.
+  const NUMERIC: Record<string, string> = {
+    level: 'level', reputation: 'reputation', experience: 'yearsExperience',
+    trophies: 'trophies', age: 'age', wage: 'wageExpectation',
+  };
+  const key = String(q.sort ?? 'level');
+  const dir = q.order === 'asc' ? 1 : -1;
+  const byName = (a: Record<string, unknown>, b: Record<string, unknown>) =>
+    String(a.name).localeCompare(String(b.name));
+
+  if (key === 'name') {
+    out.sort((a, b) => (q.order === 'desc' ? -byName(a, b) : byName(a, b)));
+  } else {
+    const f = NUMERIC[key] ?? 'level';
+    out.sort((a, b) => {
+      const av = a[f] as number | null, bv = b[f] as number | null;
+      if (av == null && bv == null) return byName(a, b);
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av === bv) return byName(a, b);
+      return dir === 1 ? av - bv : bv - av;
+    });
+  }
 
   const total = out.length;
   return { items: out.slice((page - 1) * limit, page * limit), total, page, limit };
@@ -362,6 +417,7 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     specialities: [] as string[], philosophy: [] as string[], dominantPhilosophy: [] as string[],
     trainingMethods: [] as string[], primaryFormation: null, secondaryFormations: [] as string[],
     notes: null, nationalTeamExperience: false, youthNationalTeamExperience: false,
+    languages: [] as string[], reputation: null as unknown as number, coachingStyle: null,
     licences: [] as never[], trophies: [] as never[], seasons: [] as never[],
   } as unknown as NonNullable<typeof existing>;
   const hasProfile = !!existing;
@@ -404,6 +460,10 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     yearsExperience: p.yearsExperience,
     availability: p.availability,
     wageExpectation: money(p.wageExpectation),
+    languages: p.languages ?? [],
+    reputation: p.reputation ?? null,
+    coachingStyle: p.coachingStyle ?? null,
+    isShortlisted: await isShortlisted(actor.clubId, staffUserId),
 
     evaluation: {
       tacticalKnowledge: p.tacticalKnowledge, trainingQuality: p.trainingQuality,
@@ -953,4 +1013,69 @@ export async function clubsOnTheMarket() {
     select: publicClubSelect, orderBy: { name: 'asc' }, take: 500,
   });
   return { items: clubs, total: clubs.length };
+}
+
+// ── the shortlist ────────────────────────────────────────────────────────────
+// A club watching somebody. It is the club's, not the browser's: the clubId is
+// the session's own, never a value the client sent, so one club cannot read or
+// write another's list. Nothing about it reaches the staff member.
+
+async function isShortlisted(clubId: string, staffUserId: string) {
+  const row = await prisma.staffShortlist.findUnique({
+    where: { clubId_staffUserId: { clubId, staffUserId } },
+    select: { id: true },
+  });
+  return !!row;
+}
+
+export async function readShortlist(actor: StaffActor) {
+  const rows = await prisma.staffShortlist.findMany({
+    where: { clubId: actor.clubId },
+    include: {
+      staffUser: { select: publicUserSelect },
+      addedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+  });
+  return {
+    items: rows.map((r) => ({
+      staffUserId: r.staffUserId,
+      name: `${r.staffUser.firstName} ${r.staffUser.lastName}`.trim(),
+      avatar: r.staffUser.avatar,
+      note: r.note,
+      addedBy: r.addedBy ? `${r.addedBy.firstName} ${r.addedBy.lastName}`.trim() : null,
+      addedAt: r.createdAt,
+    })),
+    total: rows.length,
+  };
+}
+
+// Idempotent both ways — marking a coach twice is marking him once, and the
+// same button unmarks him.
+export async function addToShortlist(actor: StaffActor, staffUserId: string, note?: string) {
+  const user = await prisma.user.findUnique({ where: { id: staffUserId }, select: { id: true } });
+  if (!user) throw new NotFoundError('Staff member');
+  await prisma.staffShortlist.upsert({
+    where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
+    update: { note: note ?? undefined },
+    create: { clubId: actor.clubId, staffUserId, addedById: actor.userId, note: note ?? null },
+  });
+  return { staffUserId, isShortlisted: true };
+}
+
+export async function removeFromShortlist(actor: StaffActor, staffUserId: string) {
+  await prisma.staffShortlist.deleteMany({ where: { clubId: actor.clubId, staffUserId } });
+  return { staffUserId, isShortlisted: false };
+}
+
+// ── comparison ───────────────────────────────────────────────────────────────
+// Two or three records side by side. It reads the same projection a profile
+// does, so a figure in the comparison and the same figure in the profile cannot
+// disagree — there is no second derivation of anything here.
+export async function compareStaff(actor: StaffActor, ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))].slice(0, 4);
+  if (unique.length < 2) throw new BadRequestError('Comparing needs at least two staff members');
+  const items = await Promise.all(unique.map((id) => readStaff(actor, id)));
+  return { items, total: items.length };
 }

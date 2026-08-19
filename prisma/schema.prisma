@@ -143,6 +143,7 @@ model Club {
   staffEngagements    StaffEngagement[]
   staffNeeds          StaffNeed[]
   staffApproachesMade StaffApproach[]   @relation("StaffApproachFrom")
+  staffShortlist      StaffShortlist[]
   players             Player[]
   matches             Match[]
   tournaments         Tournament[]
@@ -217,6 +218,8 @@ model User {
   staffProfile     StaffProfile?
   staffEngagements StaffEngagement[]
   staffApproaches  StaffApproach[]   @relation("StaffApproachTarget")
+  staffShortlisted StaffShortlist[]  @relation("StaffShortlisted")
+  staffShortlisting StaffShortlist[] @relation("StaffShortlistAuthor")
 
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
@@ -506,6 +509,14 @@ enum MembershipRole {
   PARENT
   PLAYER
   DEVICE
+  // The rest of a technical staff. Added, never substituted: an existing
+  // membership keeps the role it was granted.
+  GOALKEEPING_COACH
+  FITNESS_COACH
+  TECHNICAL_COACH
+  TACTICAL_COACH
+  YOUTH_COACH
+  PERFORMANCE_COACH
 }
 
 enum MembershipAuditAction {
@@ -9526,6 +9537,13 @@ model StaffProfile {
   secondaryFormations String[] @default([])
   notes               String?  @db.Text
 
+  // What he speaks and how he is regarded. Reputation is the market's standing,
+  // which is not his professional level: a good coach nobody has heard of has a
+  // high level and a low reputation, and a club recruits on both.
+  languages     String[] @default([])
+  reputation    Int      @default(50) // 1..99
+  coachingStyle String?
+
   // International experience, which is not the same as nationality.
   nationalTeamExperience      Boolean @default(false)
   youthNationalTeamExperience Boolean @default(false)
@@ -9695,6 +9713,30 @@ enum StaffNeedPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+// A club's private shortlist of staff it is watching. It belongs to the club,
+// not to the browser: the manager who marked a coach and the colleague who
+// opens the market tomorrow see the same list, and clearing a cookie does not
+// lose it. Nothing here is visible to the staff member or to any other club.
+model StaffShortlist {
+  id     String @id @default(uuid())
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  staffUserId String
+  staffUser   User   @relation("StaffShortlisted", fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  // Who put him on it, kept so the list can say whose judgement it was.
+  addedById String?
+  addedBy   User?   @relation("StaffShortlistAuthor", fields: [addedById], references: [id], onDelete: SetNull)
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([clubId, staffUserId])
+  @@index([clubId])
+  @@index([staffUserId])
 }
 
 // One club approaching one staff member. The whole negotiation is this row

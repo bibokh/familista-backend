@@ -1005,6 +1005,17 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   5,
   },
+  {
+    // The other recruitment market. It sits directly below Transfers because
+    // that is the work it belongs to, and it is its own page because a coach is
+    // not a player: nothing on it is a squad, a fee or a listing.
+    slug:    'coach-market',
+    label:   'Coach Market',
+    svgPath: 'M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z',
+    color:   '#f472b6',
+    enabled: true,
+    order:   5.5,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -1514,7 +1525,7 @@ function navTo(page, el, _opts) {
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (11)
     'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
-    'transfers': 1,
+    'transfers': 1, 'coach-market': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -1542,7 +1553,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -1588,6 +1599,12 @@ function navTo(page, el, _opts) {
       renderTransfersPage();
       // and pull the real market in behind it
       if (typeof _tfSyncAll === 'function') _tfSyncAll();
+    }
+    // The Coach Market is a live board too. Painting it is synchronous — the
+    // page is on screen before anything is read — and the records arrive behind
+    // it, which is what keeps entering it a navigation rather than a data load.
+    if (page === 'coach-market' && typeof renderCoachMarketPage === 'function') {
+      renderCoachMarketPage();
     }
   } catch (_) {}
   // Academy Team Workspace is a child of Academy — keep the Academy sidebar
@@ -1792,6 +1809,7 @@ function _buildPageTemplateMap() {
     'academy-team':                renderAcademyTeamHTML,
     'video-intelligence':          renderVideoIntelligenceHTML,
     'transfers':                   renderTransfersHTML,
+    'coach-market':                renderCoachMarketHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -50554,7 +50572,11 @@ function _tfDiscAction(action, playerId, listingId) {
 
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.closest) return;
-    if (!t.closest('#pg-transfers')) return;
+    // The staff market has two homes and this dispatcher serves both. Without
+    // the second page in this gate, the Coach Market's own page would draw and
+    // then answer nothing — which is a dead menu item wearing a live one's
+    // clothes.
+    if (!t.closest('#pg-transfers') && !t.closest('#pg-coach-market')) return;
     var el, C = _tfCtx();
 
     // shortlist (never opens the row). The server owns the list; the star is
@@ -50639,6 +50661,7 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.view = el.getAttribute('data-st-view');
       if (_TF_ST.view === 'needs') _stLoadNeeds().then(_stRepaint);
       else if (_TF_ST.view === 'activity') _stLoadActivity().then(_stRepaint);
+      else if (_TF_ST.view === 'shortlist') _stLoadShortlist().then(_stRepaint);
       _stRepaint(); return;
     }
     if ((el = t.closest('[data-st-open]'))) {
@@ -50652,10 +50675,71 @@ function _tfDiscAction(action, playerId, listingId) {
       _stLoadOne(_sid).then(_stRepaint); return;
     }
     if ((el = t.closest('[data-st-close]'))) {
-      e.preventDefault(); _TF_ST.open = null;
-      var _ov = document.getElementById('tf-overlay');
-      if (_ov && !_TF_ST.approach) { _ov.innerHTML = ''; _ov.classList.remove('is-on'); }
-      else _stRepaint();
+      e.preventDefault(); _TF_ST.open = null; _stRepaint(); return;
+    }
+
+    // ── shortlist, sort and comparison ──────────────────────────────────
+    // The shortlist is the club's, held by the server. The star is switched
+    // where it stands and the call follows; if the call fails it is switched
+    // back, because a star that lies about what the club holds is worse than
+    // one that flickers.
+    if ((el = t.closest('[data-st-short]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var _shid = el.getAttribute('data-st-short');
+      var _was = el.getAttribute('data-st-on') === '1';
+      el.disabled = true;
+      var _call = _was ? _stApi('DELETE', '/shortlist/' + encodeURIComponent(_shid))
+                       : _stApi('PUT', '/shortlist/' + encodeURIComponent(_shid), {});
+      _call.then(function () {
+        // The row and any open record carry the same flag, so both are told.
+        for (var i = 0; i < _TF_ST.rows.length; i++) {
+          if (_TF_ST.rows[i].staffUserId === _shid) _TF_ST.rows[i].isShortlisted = !_was;
+        }
+        if (_TF_ST.detail[_shid]) _TF_ST.detail[_shid].isShortlisted = !_was;
+        return _stLoadShortlist();
+      }).then(function () {
+        if (_TF_ST.f.shortlistedOnly) return _stLoadMarket();
+      }).then(function () { _stRepaint(); })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Shortlist not changed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-st-shortonly]'))) {
+      e.preventDefault();
+      _TF_ST.f.shortlistedOnly = !_TF_ST.f.shortlistedOnly; _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint); _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-order]'))) {
+      e.preventDefault();
+      _TF_ST.order = _TF_ST.order === 'asc' ? 'desc' : 'asc'; _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint); return;
+    }
+    if ((el = t.closest('[data-st-cmp]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var _cid = el.getAttribute('data-st-cmp');
+      var _at = _TF_ST.cmp.indexOf(_cid);
+      if (_at >= 0) _TF_ST.cmp.splice(_at, 1);
+      else if (_TF_ST.cmp.length >= 4) _tfToast('Four is as many as can be compared at once', 'info');
+      else _TF_ST.cmp.push(_cid);
+      _stRepaint(); return;
+    }
+    if (t.closest('[data-st-cmp-clear]')) {
+      e.preventDefault(); _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _stRepaint(); return;
+    }
+    if (t.closest('[data-st-cmp-close]')) {
+      e.preventDefault(); _TF_ST.cmpOpen = false; _stRepaint(); return;
+    }
+    if (t.closest('[data-st-cmp-open]')) {
+      e.preventDefault();
+      if (_TF_ST.cmp.length < 2) return;
+      _TF_ST.cmpOpen = true; _stRepaint();
+      // The comparison reads the same records a profile does, so whatever is
+      // missing is fetched and the table fills in where it stands.
+      Promise.all(_TF_ST.cmp.map(function (id) {
+        return _TF_ST.detail[id] ? Promise.resolve() : _stLoadOne(id);
+      })).then(_stRepaint);
       return;
     }
     if ((el = t.closest('[data-st-ptab]'))) {
@@ -50667,7 +50751,9 @@ function _tfDiscAction(action, playerId, listingId) {
     }
     if ((el = t.closest('[data-st-clear]'))) {
       e.preventDefault();
-      Object.keys(_TF_ST.f).forEach(function (k) { _TF_ST.f[k] = (k === 'freeAgentsOnly') ? false : ''; });
+      Object.keys(_TF_ST.f).forEach(function (k) {
+        _TF_ST.f[k] = (k === 'freeAgentsOnly' || k === 'shortlistedOnly') ? false : '';
+      });
       _TF_ST.page = 1; _stLoadMarket().then(_stRepaint); return;
     }
     if ((el = t.closest('[data-st-approach]'))) {
@@ -50678,9 +50764,7 @@ function _tfDiscAction(action, playerId, listingId) {
       _stRepaint(); return;
     }
     if ((el = t.closest('[data-st-appr-close]'))) {
-      e.preventDefault(); _TF_ST.approach = null; _stRepaint();
-      if (!_TF_ST.open) { var _o2 = document.getElementById('tf-overlay'); if (_o2) { _o2.innerHTML = ''; _o2.classList.remove('is-on'); } }
-      return;
+      e.preventDefault(); _TF_ST.approach = null; _stRepaint(); return;
     }
     if ((el = t.closest('[data-st-appr-send]'))) {
       e.preventDefault();
@@ -50845,6 +50929,11 @@ function _tfDiscAction(action, playerId, listingId) {
       _stLoadMarket().then(_stRepaint);
       return;
     }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-sort')) {
+      _TF_ST.sort = t.value; _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint);
+      return;
+    }
     if (t && t.hasAttribute && t.hasAttribute('data-st-q')) {
       _TF_ST.f.search = t.value; _TF_ST.page = 1;
       clearTimeout(window.__stQT);
@@ -50885,6 +50974,11 @@ function _tfDiscAction(action, playerId, listingId) {
     if (t && t.hasAttribute && t.hasAttribute('data-st-f')) {
       _TF_ST.f[t.getAttribute('data-st-f')] = t.value;
       _TF_ST.page = 1;
+      _stLoadMarket().then(_stRepaint);
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-sort')) {
+      _TF_ST.sort = t.value; _TF_ST.page = 1;
       _stLoadMarket().then(_stRepaint);
       return;
     }
@@ -50955,12 +51049,19 @@ var _TF_ST = {
   approach: null,
   f: { search: '', role: '', availability: '', clubId: '', licence: '', minLevel: '',
        minExperience: '', speciality: '', philosophy: '', formation: '', country: '',
-       trophiesMin: '', freeAgentsOnly: false },
-  view: 'market'   // market | needs | activity
+       trophiesMin: '', freeAgentsOnly: false, shortlistedOnly: false },
+  sort: 'level', order: 'desc',
+  shortlist: null,          // the club's own, read from the server
+  cmp: [],                  // staff picked for comparison, by id
+  cmpOpen: false,
+  view: 'market'   // market | needs | activity | shortlist
 };
 
 var ST_ROLES = [
   ['HEAD_COACH', 'Head Coach / Manager'], ['ASSISTANT_COACH', 'Assistant Coach'],
+  ['GOALKEEPING_COACH', 'Goalkeeper Coach'], ['FITNESS_COACH', 'Fitness Coach'],
+  ['TECHNICAL_COACH', 'Technical Coach'], ['TACTICAL_COACH', 'Tactical Coach'],
+  ['YOUTH_COACH', 'Youth Coach'], ['PERFORMANCE_COACH', 'Performance Coach'],
   ['ANALYST', 'Video / Match Analyst'], ['MEDICAL_STAFF', 'Medical Staff'],
   ['PHYSIO', 'Physio'], ['SCOUT', 'Scout']
 ];
@@ -50983,13 +51084,27 @@ var ST_EVAL = [
   ['leadership', 'Leadership']
 ];
 var ST_EMPHASIS = {
-  HEAD_COACH:      ['tacticalKnowledge', 'manManagement', 'leadership'],
-  ASSISTANT_COACH: ['trainingQuality', 'manManagement'],
-  ANALYST:         ['analysis', 'matchPreparation'],
-  MEDICAL_STAFF:   ['playerDevelopment'],
-  PHYSIO:          ['playerDevelopment'],
-  SCOUT:           ['analysis']
+  HEAD_COACH:        ['tacticalKnowledge', 'manManagement', 'leadership'],
+  ASSISTANT_COACH:   ['trainingQuality', 'manManagement'],
+  GOALKEEPING_COACH: ['trainingQuality', 'playerDevelopment'],
+  FITNESS_COACH:     ['trainingQuality'],
+  TECHNICAL_COACH:   ['playerDevelopment', 'trainingQuality'],
+  TACTICAL_COACH:    ['tacticalKnowledge', 'matchPreparation'],
+  YOUTH_COACH:       ['playerDevelopment', 'trainingQuality'],
+  PERFORMANCE_COACH: ['trainingQuality', 'analysis'],
+  ANALYST:           ['analysis', 'matchPreparation'],
+  MEDICAL_STAFF:     ['playerDevelopment'],
+  PHYSIO:            ['playerDevelopment'],
+  SCOUT:             ['analysis']
 };
+
+// How the board may be ordered. Every one of these is a figure the record
+// actually holds — there is no composite score invented to rank people by.
+var ST_SORTS = [
+  ['level', 'Professional level'], ['reputation', 'Reputation'],
+  ['experience', 'Experience'], ['trophies', 'Trophies'],
+  ['age', 'Age'], ['wage', 'Salary expectation'], ['name', 'Name']
+];
 
 function _stApi(method, path, body) {
   return _thApi(method, '/staff-market' + path, body);
@@ -51009,6 +51124,9 @@ function _stQuery() {
     if (f[k] !== '' && f[k] != null) q.push(k + '=' + encodeURIComponent(f[k]));
   });
   if (f.freeAgentsOnly) q.push('freeAgentsOnly=true');
+  if (f.shortlistedOnly) q.push('shortlistedOnly=true');
+  q.push('sort=' + encodeURIComponent(_TF_ST.sort || 'level'));
+  q.push('order=' + encodeURIComponent(_TF_ST.order || 'desc'));
   q.push('page=' + (_TF_ST.page || 1));
   q.push('limit=25');
   return '?' + q.join('&');
@@ -51051,14 +51169,21 @@ function _stLoadOne(id) {
     .catch(function (e) { _TF_ST.detail[id] = { error: (e && (e.userMessage || e.message)) || 'unavailable' }; });
 }
 
+function _stLoadShortlist() {
+  return _stApi('GET', '/shortlist').then(_thUnwrap)
+    .then(function (d) { _TF_ST.shortlist = d || { items: [] }; })
+    .catch(function () { _TF_ST.shortlist = { items: [] }; });
+}
+
 function _stSyncAll() {
-  return Promise.all([_stLoadMarket(), _stLoadClubs(), _stLoadNeeds(), _stLoadActivity()]);
+  return Promise.all([_stLoadMarket(), _stLoadClubs(), _stLoadNeeds(), _stLoadActivity(), _stLoadShortlist()]);
 }
 
 // ── the market screen ────────────────────────────────────────────────────────
 function _stHtml() {
   if (_TF_ST.view === 'needs') return _stShellHtml(_stNeedsHtml());
   if (_TF_ST.view === 'activity') return _stShellHtml(_stActivityHtml());
+  if (_TF_ST.view === 'shortlist') return _stShellHtml(_stShortlistHtml());
   return _stShellHtml(_stMarketHtml());
 }
 
@@ -51070,6 +51195,7 @@ function _stShellHtml(body) {
   var vtab = function (k, label) {
     return '<button type="button" class="st-vtab' + (_TF_ST.view === k ? ' is-on' : '') + '" data-st-view="' + k + '">' + label + '</button>';
   };
+  var short = (_TF_ST.shortlist && _TF_ST.shortlist.items) ? _TF_ST.shortlist.items.length : null;
   return '<div class="tf-pane st-pane">'
     + '<div class="st-top">'
     +   '<div class="st-tiles">'
@@ -51077,11 +51203,14 @@ function _stShellHtml(body) {
     +     tile(s.currentlyEmployed, 'Currently employed')
     +     tile(s.freeAgents, 'Free agents')
     +     tile(s.openNegotiations, 'Open negotiations')
+    +     tile(short, 'Shortlisted')
     +     tile(s.myStaffNeeds, 'My staff needs')
     +   '</div>'
-    +   '<div class="st-vtabs">' + vtab('market', 'Market') + vtab('needs', 'Staff needs') + vtab('activity', 'My activity') + '</div>'
+    +   '<div class="st-vtabs">' + vtab('market', 'Market') + vtab('shortlist', 'Shortlist')
+    +     vtab('needs', 'Staff needs') + vtab('activity', 'My activity') + '</div>'
     + '</div>'
     + body
+    + _stCompareTrayHtml()
     + '</div>';
 }
 
@@ -51112,6 +51241,16 @@ function _stFiltersHtml() {
     + sel('country', countries, f.country, 'Any country')
     + sel('trophiesMin', [['1', '1+ trophies'], ['3', '3+ trophies'], ['5', '5+ trophies']], f.trophiesMin, 'Any honours')
     + '<button type="button" class="st-chip' + (f.freeAgentsOnly ? ' is-on' : '') + '" data-st-free>Free agents only</button>'
+    + '<button type="button" class="st-chip' + (f.shortlistedOnly ? ' is-on' : '') + '" data-st-shortonly>Shortlisted only</button>'
+    + '<span class="st-sortwrap">'
+    +   '<select data-st-sort aria-label="Sort by">'
+    +     ST_SORTS.map(function (o) {
+            return '<option value="' + o[0] + '"' + (_TF_ST.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('')
+    +   '</select>'
+    +   '<button type="button" class="st-chip st-ord" data-st-order title="Reverse the order">'
+    +     (_TF_ST.order === 'asc' ? '↑ Ascending' : '↓ Descending') + '</button>'
+    + '</span>'
     + '<button type="button" class="st-chip" data-st-clear>Clear</button>'
     + '</div>';
 }
@@ -51128,32 +51267,166 @@ function _stMarketHtml() {
     + body;
 }
 
-// The market card. Only what decides whether to open him.
+// What a contract says on the card, in the market's own words.
+var ST_CONTRACT_LABEL = {
+  FREE_AGENT: 'Free agent',
+  UNDER_CONTRACT: 'Under contract',
+  CONTRACT_NOT_RECORDED: 'Employed · end not recorded'
+};
+
+// The market card. Everything that decides whether to open him — and nothing
+// that is not on his record: a field the platform does not hold says so.
 function _stCardHtml(r) {
   var where = r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent';
-  return '<button type="button" class="st-card' + (r.isMine ? ' is-mine' : '') + '" data-st-open="' + _stEsc(r.staffUserId) + '">'
+  var dash = '<i class="st-unknown">—</i>';
+  var kv = function (l, v) { return '<span class="st-kv"><i>' + l + '</i><b>' + v + '</b></span>'; };
+  var picked = _TF_ST.cmp.indexOf(r.staffUserId) >= 0;
+  return '<div class="st-card' + (r.isMine ? ' is-mine' : '') + (picked ? ' is-cmp' : '') + '">'
+    + '<div class="st-card-tools">'
+    +   '<button type="button" class="st-star' + (r.isShortlisted ? ' is-on' : '') + '"'
+    +     ' data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '"'
+    +     ' title="' + (r.isShortlisted ? 'On our shortlist' : 'Add to our shortlist') + '"'
+    +     ' aria-pressed="' + (r.isShortlisted ? 'true' : 'false') + '">★</button>'
+    +   '<button type="button" class="st-cmpbtn' + (picked ? ' is-on' : '') + '"'
+    +     ' data-st-cmp="' + _stEsc(r.staffUserId) + '" title="Compare">⇄</button>'
+    + '</div>'
+    + '<button type="button" class="st-card-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
     + '<div class="st-card-hd">'
     +   '<span class="st-av">' + (r.avatar ? '<img src="' + _stEsc(r.avatar) + '" alt="">' : _stEsc((r.name || '?').slice(0, 1))) + '</span>'
     +   '<span class="st-id"><b>' + _stEsc(r.name) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-    +   '<span class="st-lvl">' + (r.level == null ? '<i class="st-unknown">—</i>' : r.level) + '<i>Level</i></span>'
+    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
+    +     '<span class="st-id-sub">' + (r.age != null ? r.age + ' yrs' : 'Age not recorded')
+    +       ' · ' + (r.nationality ? _stEsc(r.nationality) : 'Nationality not recorded') + '</span></span>'
+    +   '<span class="st-lvl">' + (r.level == null ? dash : r.level) + '<i>Level</i></span>'
     + '</div>'
     + '<div class="st-card-rows">'
-    +   '<span class="st-kv"><i>Club</i><b>' + where + '</b></span>'
-    +   '<span class="st-kv"><i>Nationality</i><b>' + (r.nationality ? _stEsc(r.nationality) : '—') + '</b></span>'
-    +   '<span class="st-kv"><i>Licence</i><b>' + (r.highestLicence ? _stEsc(r.highestLicence.name) : '—') + '</b></span>'
-    +   '<span class="st-kv"><i>Trophies</i><b>' + r.trophies + '</b></span>'
-    +   '<span class="st-kv"><i>Philosophy</i><b>' + (r.primaryPhilosophy ? _stEsc(r.primaryPhilosophy) : '—') + '</b></span>'
-    +   '<span class="st-kv"><i>Formation</i><b>' + (r.primaryFormation ? _stEsc(r.primaryFormation) : '—') + '</b></span>'
-    +   '<span class="st-kv"><i>League</i><b>' + (r.mainLeague ? _stEsc(r.mainLeague) : '—') + '</b></span>'
-    +   '<span class="st-kv"><i>Wage</i><b>' + _stMoney(r.wageExpectation) + '</b></span>'
+    +   kv('Club', where)
+    +   kv('Role', _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff'))
+    +   kv('Licence', r.highestLicence ? _stEsc(r.highestLicence.name) : dash)
+    +   kv('Experience', r.yearsExperience != null ? r.yearsExperience + ' yrs' : dash)
+    +   kv('Reputation', r.reputation != null ? r.reputation : dash)
+    +   kv('Trophies', r.trophies)
+    +   kv('Philosophy', r.primaryPhilosophy ? _stEsc(r.primaryPhilosophy) : dash)
+    +   kv('Formation', r.primaryFormation ? _stEsc(r.primaryFormation) : dash)
+    +   kv('Style', r.coachingStyle ? _stEsc(r.coachingStyle) : dash)
+    +   kv('Languages', (r.languages && r.languages.length) ? _stEsc(r.languages.join(', ')) : dash)
+    +   kv('League', r.mainLeague ? _stEsc(r.mainLeague) : dash)
+    +   kv('Salary expectation', _stMoney(r.wageExpectation))
     + '</div>'
+    + ((r.keyAttributes && r.keyAttributes.length)
+        ? '<div class="st-card-attrs">' + r.keyAttributes.map(function (a) {
+            return '<span class="st-attr"><i>' + _stEsc(a.label) + '</i><b>' + a.value + '</b></span>';
+          }).join('') + '</div>'
+        : '<div class="st-card-attrs"><i class="st-unknown">No coaching attributes recorded</i></div>')
     + '<div class="st-card-ft">'
     +   '<span class="st-avail st-avail--' + String(r.availability || '').toLowerCase() + '">'
     +     (r.isFreeAgent ? 'Free agent' : (r.availability === 'OPEN_TO_OFFERS' ? 'Open to offers' : 'Under contract')) + '</span>'
+    +   '<span class="st-contract">' + _stEsc(ST_CONTRACT_LABEL[r.contractStatus] || 'Contract not recorded')
+    +     (r.contractEndsAt ? ' · until ' + _stDate(r.contractEndsAt) : '') + '</span>'
+    +   (r.isShortlisted ? '<span class="st-shorted">Shortlisted</span>' : '')
     +   (r.isMine ? '<span class="st-own">Our staff</span>' : '')
     + '</div>'
-    + '</button>';
+    + '</button>'
+    + '</div>';
+}
+
+// ── the shortlist ────────────────────────────────────────────────────────────
+function _stShortlistHtml() {
+  var items = (_TF_ST.shortlist && _TF_ST.shortlist.items) || [];
+  if (!items.length) {
+    return '<div class="st-empty">Our shortlist is empty. Mark a coach with ★ on the market and he stays here — it is the club\'s list, not this browser\'s.</div>';
+  }
+  return '<section class="st-sec"><h4>Our shortlist</h4><div class="st-needs">'
+    + items.map(function (x) {
+        return '<div class="st-need is-mine">'
+          + '<b>' + _stEsc(x.name) + '</b>'
+          + '<em>' + (x.addedBy ? 'added by ' + _stEsc(x.addedBy) : 'added') + ' · ' + _stDate(x.addedAt) + '</em>'
+          + (x.note ? '<p class="st-note">' + _stEsc(x.note) + '</p>' : '')
+          + '<span class="st-appr-btns">'
+          +   '<button type="button" class="tf-btn tf-btn--sm" data-st-open="' + _stEsc(x.staffUserId) + '">Open profile</button>'
+          +   '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-st-short="' + _stEsc(x.staffUserId) + '" data-st-on="1">Remove</button>'
+          + '</span></div>';
+      }).join('') + '</div></section>';
+}
+
+// ── comparison ───────────────────────────────────────────────────────────────
+// The tray is what has been picked; the modal is the comparison itself. Both
+// read records already loaded — comparing invents nothing and asks nothing new
+// of the server beyond the profiles it already serves.
+function _stCompareTrayHtml() {
+  var n = _TF_ST.cmp.length;
+  if (!n) return '';
+  var names = _TF_ST.cmp.map(function (id) {
+    var row = null;
+    for (var i = 0; i < _TF_ST.rows.length; i++) if (_TF_ST.rows[i].staffUserId === id) row = _TF_ST.rows[i];
+    var d = _TF_ST.detail[id];
+    return _stEsc((row && row.name) || (d && d.name) || 'Staff');
+  });
+  return '<div class="st-cmptray" role="status">'
+    + '<span class="st-cmptray-n">' + n + ' selected</span>'
+    + '<span class="st-cmptray-names">' + names.join(' · ') + '</span>'
+    + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-cmp-open' + (n < 2 ? ' disabled' : '') + '>Compare</button>'
+    + '<button type="button" class="tf-btn tf-btn--sm" data-st-cmp-clear>Clear</button>'
+    + '</div>';
+}
+
+function _stCompareHtml() {
+  if (!_TF_ST.cmpOpen) return '';
+  var ids = _TF_ST.cmp.slice(0, 4);
+  var docs = ids.map(function (id) { return _TF_ST.detail[id]; });
+  if (docs.some(function (d) { return !d; })) {
+    return '<div class="tf-modal" data-st-cmp-modal><div class="tf-modal-bd" data-st-cmp-close></div>'
+      + '<div class="tf-modal-box tf-modal-box--wide"><div class="st-empty">Reading the records…</div></div></div>';
+  }
+  var dash = '<i class="st-unknown">Not recorded</i>';
+  var row = function (label, pick) {
+    return '<tr><th scope="row">' + label + '</th>'
+      + docs.map(function (d) { return '<td>' + pick(d) + '</td>'; }).join('') + '</tr>';
+  };
+  var evalRows = ST_EVAL.map(function (e) {
+    return row(e[1], function (d) {
+      var v = d.evaluation ? d.evaluation[e[0]] : null;
+      return v == null ? dash : String(v);
+    });
+  }).join('');
+  return '<div class="tf-modal" data-st-cmp-modal>'
+    + '<div class="tf-modal-bd" data-st-cmp-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Coach comparison">'
+    +   '<button type="button" class="tf-x" data-st-cmp-close>×</button>'
+    +   '<h3 class="st-appr-h">Comparison</h3>'
+    +   '<div class="st-cmp-scroll"><table class="st-cmp">'
+    +     '<thead><tr><th scope="col">Field</th>'
+    +       docs.map(function (d) {
+              return '<th scope="col"><span class="st-av">'
+                + (d.avatar ? '<img src="' + _stEsc(d.avatar) + '" alt="">' : _stEsc((d.name || '?').slice(0, 1)))
+                + '</span><b>' + _stEsc(d.name) + '</b></th>';
+            }).join('')
+    +     '</tr></thead><tbody>'
+    +     row('Role', function (d) { return _stEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff'); })
+    +     row('Club', function (d) { return d.currentClub ? _stEsc(d.currentClub.name) : 'Free agent'; })
+    +     row('Age', function (d) { return d.age != null ? d.age + ' yrs' : dash; })
+    +     row('Nationality', function (d) { return d.nationality ? _stEsc(d.nationality) : dash; })
+    +     row('Professional level', function (d) { return d.level == null ? dash : String(d.level); })
+    +     row('Reputation', function (d) { return d.reputation == null ? dash : String(d.reputation); })
+    +     row('Experience', function (d) { return d.yearsExperience == null ? dash : d.yearsExperience + ' yrs'; })
+    +     row('Highest licence', function (d) { return d.highestLicence ? _stEsc(d.highestLicence.name) : dash; })
+    +     row('Trophies', function (d) { return String((d.trophies && d.trophies.summary && d.trophies.summary.total) || 0); })
+    +     row('Philosophy', function (d) {
+            var p = d.tactics && (d.tactics.dominantPhilosophy || []).concat(d.tactics.philosophy || []);
+            return (p && p.length) ? _stEsc(p.slice(0, 3).join(', ')) : dash;
+          })
+    +     row('Preferred formation', function (d) { return (d.tactics && d.tactics.primaryFormation) ? _stEsc(d.tactics.primaryFormation) : dash; })
+    +     row('Coaching style', function (d) { return d.coachingStyle ? _stEsc(d.coachingStyle) : dash; })
+    +     row('Languages', function (d) { return (d.languages && d.languages.length) ? _stEsc(d.languages.join(', ')) : dash; })
+    +     row('Salary expectation', function (d) { return d.wageExpectation == null ? dash : _stMoney(d.wageExpectation); })
+    +     row('Contract', function (d) {
+            if (d.isFreeAgent) return 'Free agent';
+            return d.contract && d.contract.endsAt ? 'Until ' + _stDate(d.contract.endsAt) : 'Employed · end not recorded';
+          })
+    +     row('Points per match', function (d) { return (d.performance && d.performance.ppm != null) ? String(d.performance.ppm) : dash; })
+    +     evalRows
+    +   '</tbody></table></div>'
+    + '</div></div>';
 }
 
 // ── the profile ──────────────────────────────────────────────────────────────
@@ -51250,6 +51523,12 @@ function _stOverviewPanel(d) {
           : '<i class="st-unknown">Not recorded</i>'],
         ['Leagues coached', (peak.leaguesCoached && peak.leaguesCoached.length)
           ? _stEsc(peak.leaguesCoached.join(', ')) : '<i class="st-unknown">Not recorded</i>']
+      ]) + '</section>'
+    + '<section class="st-sec"><h4>Standing &amp; profile</h4>' + _stKv([
+        ['Reputation', _stVal(d.reputation)],
+        ['Coaching style', _stVal(d.coachingStyle)],
+        ['Languages', (d.languages && d.languages.length) ? _stEsc(d.languages.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
+        ['Salary expectation', d.wageExpectation == null ? '<i class="st-unknown">Not recorded</i>' : _stMoney(d.wageExpectation)]
       ]) + '</section>'
     + '<section class="st-sec"><h4>Specialities</h4>' + _stTags(d.specialities) + '</section>'
     + '<section class="st-sec"><h4>Experience</h4>' + _stKv([
@@ -51385,12 +51664,16 @@ function _stContractPanel(d) {
 
 // What this club may do about him, which depends on whose he is.
 function _stProfileActionsHtml(d) {
+  var star = '<button type="button" class="tf-btn tf-btn--sm st-starbtn' + (d.isShortlisted ? ' is-on' : '') + '"'
+    + ' data-st-short="' + _stEsc(d.staffUserId) + '" data-st-on="' + (d.isShortlisted ? '1' : '0') + '">'
+    + (d.isShortlisted ? '★ On our shortlist' : '☆ Add to shortlist') + '</button>';
   if (d.isMine) {
     return '<footer class="st-pd-acts"><p class="st-note">He is our staff — a club cannot recruit its own employee.</p></footer>';
   }
   var label = d.isFreeAgent ? 'Approach / Hire' : 'Approach club / Negotiate';
   return '<footer class="st-pd-acts">'
     + (d.isFreeAgent ? '' : '<span class="st-note">Under contract' + (d.contract && d.contract.endsAt ? ' until ' + _stDate(d.contract.endsAt) : '') + ' — his club must agree.</span>')
+    + star
     + '<button type="button" class="tf-btn tf-btn--primary" data-st-approach="' + _stEsc(d.staffUserId) + '">' + label + '</button>'
     + '</footer>';
 }
@@ -51507,17 +51790,88 @@ function _stActivityHtml() {
           }).join('') + '</div>' : '<div class="st-empty">None.</div>') + '</section>';
 }
 
+// The module now has two homes: its own Coach Market page, and the Transfers
+// tab it was born on. Whichever is mounted is the one repainted — the state is
+// the same object, so leaving one and opening the other shows the same board.
+function _stHost() {
+  var cm = document.getElementById('cm-body');
+  if (cm) return { body: cm, overlay: document.getElementById('cm-overlay') };
+  var tf = document.getElementById('tf-body');
+  if (tf && typeof _TF !== 'undefined' && _TF.tab === 'staff') {
+    return { body: tf, overlay: document.getElementById('tf-overlay') };
+  }
+  return { body: null, overlay: null };
+}
+
 function _stRepaint() {
-  var el = document.getElementById('tf-body');
-  if (el && _TF.tab === 'staff') el.innerHTML = _stHtml();
-  var ov = document.getElementById('tf-overlay');
-  if (ov) {
-    var html = (_TF_ST.open ? _stProfileHtml() : '') + (_TF_ST.approach ? _stApproachHtml() : '');
-    if (_TF_ST.open || _TF_ST.approach) { ov.innerHTML = html; ov.classList.add('is-on'); }
+  var h = _stHost();
+  if (h.body) h.body.innerHTML = _stHtml();
+  if (h.overlay) {
+    var html = (_TF_ST.open ? _stProfileHtml() : '')
+      + (_TF_ST.approach ? _stApproachHtml() : '')
+      + (_TF_ST.cmpOpen ? _stCompareHtml() : '');
+    if (_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen) {
+      h.overlay.innerHTML = html; h.overlay.classList.add('is-on');
+    } else {
+      h.overlay.innerHTML = ''; h.overlay.classList.remove('is-on');
+    }
   }
 }
 window._stRepaint = _stRepaint;
 window._stSyncAll = _stSyncAll;
+
+// ══════════════════════════════════════════════════════════════════════════════
+// COACH MARKET — the Club Workspace page
+// ══════════════════════════════════════════════════════════════════════════════
+// Its own sidebar item and its own route, directly below Transfers. It is the
+// staff market's page: the same module, the same state and the same endpoints
+// the Transfers tab uses, mounted where the manager was looking for it.
+//
+// The market belongs to the club the session is acting for. That club is never
+// sent from here — every endpoint resolves it from the session on the server —
+// so the page shows this club's shortlist, this club's needs and this club's
+// negotiations, and switching club changes all of them without this file
+// knowing a club id.
+
+function renderCoachMarketHTML() {
+  if (typeof document !== 'undefined') setTimeout(function () { try { renderCoachMarketPage(); } catch (e) {} }, 0);
+  return '<div class="page" id="pg-coach-market"><div class="tf-root cm-root" id="cm-shell"></div>'
+    + '<div class="tf-overlay-host" id="cm-overlay"></div></div>';
+}
+
+function _cmHeaderHtml() {
+  var club = '';
+  try {
+    var c = State && State.context;
+    var list = (c && c.availableClubs) || [];
+    for (var i = 0; i < list.length; i++) if (list[i].id === c.clubId) club = list[i].name;
+    if (!club && c && c.clubName) club = c.clubName;
+  } catch (_) {}
+  // The platform's own header band — the same markup Transfers uses, so this
+  // page is visually one of the workspace's rather than a second design.
+  return '<header class="tf-head cm-head">'
+    + '<div class="tf-head-top">'
+    +   '<div class="tf-title">'
+    +     '<span class="tf-title-mark">'
+    +       '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">'
+    +       '<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>'
+    +       '</svg>'
+    +     '</span>'
+    +     '<div><h1>Coach Market</h1>'
+    +     '<p>Technical staff recruitment' + (club ? ' · ' + _stEsc(club) : '') + '</p></div>'
+    +   '</div>'
+    + '</div>'
+    + '</header>';
+}
+
+// Painting is synchronous and the reads come after it, so opening the page is a
+// navigation and not a data load — the board is on screen at once and fills in.
+function renderCoachMarketPage() {
+  var host = document.getElementById('cm-shell'); if (!host) return;
+  host.innerHTML = _cmHeaderHtml() + '<div class="tf-body" id="cm-body">' + _stHtml() + '</div>';
+  _stRepaint();
+  _stSyncAll().then(_stRepaint);
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSFERS · REALTIME
@@ -53644,6 +53998,24 @@ function _famClearClubScopedState() {
     S.performanceTrend = null;
   }
   _thResetRoster();
+  // Defined with the Coach Market, far below this. Guarded so clearing club
+  // state never depends on the order the file happens to be evaluated in.
+  if (typeof _stResetClubScoped === 'function') _stResetClubScoped();
+}
+
+// The Coach Market is a club's desk as much as a market: the shortlist, the
+// needs, the negotiations and which rows are "ours" all belong to the club
+// being acted for. Leaving that club takes them with it, so the next one does
+// not open on the last one's list.
+function _stResetClubScoped() {
+  if (typeof _TF_ST === 'undefined' || !_TF_ST) return;
+  _TF_ST.rows = []; _TF_ST.total = 0; _TF_ST.page = 1;
+  _TF_ST.summary = null; _TF_ST.needs = null; _TF_ST.activity = null; _TF_ST.mine = null;
+  _TF_ST.shortlist = null; _TF_ST.detail = {};
+  _TF_ST.open = null; _TF_ST.approach = null;
+  _TF_ST.cmp = []; _TF_ST.cmpOpen = false;
+  _TF_ST.view = 'market';
+  _TF_ST.f.shortlistedOnly = false;
 }
 
 // The roster index, emptied. `clubId` is set to null rather than to the club

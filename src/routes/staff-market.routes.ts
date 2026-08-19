@@ -24,9 +24,19 @@ router.get('/discover',                ctrl.discover);
 router.get('/clubs',                   ctrl.clubs);
 router.get('/staff/:staffUserId',      ctrl.readStaff);
 
+// Side by side, from the same projection a profile is read with.
+router.get('/compare',                 ctrl.compare);
+
 // ── this club's desk ────────────────────────────────────────────────────────
 router.get('/my-staff',                ctrl.myStaff);
 router.get('/activity',                ctrl.activity);
+
+// ── the shortlist ───────────────────────────────────────────────────────────
+// The club's own watchlist. Reading it is reading this club's desk; changing it
+// is a recruitment action.
+router.get('/shortlist',                      ctrl.readShortlist);
+router.put('/shortlist/:staffUserId',         recruitGuard, ctrl.addToShortlist);
+router.delete('/shortlist/:staffUserId',      recruitGuard, ctrl.removeFromShortlist);
 
 // ── needs ───────────────────────────────────────────────────────────────────
 router.get('/needs',                   ctrl.readNeeds);
