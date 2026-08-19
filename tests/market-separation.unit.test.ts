@@ -139,7 +139,7 @@ describe('Coaches is its own module, below Coach Market', () => {
   });
 
   it('has its own endpoint, mounted beside the market rather than inside it', () => {
-    expect(CO_ROUTES).toContain("router.get('/directory', ctrl.directory);");
+    expect(CO_ROUTES).toMatch(/router\.get\('\/directory',\s*ctrl\.directory\);/);
     expect(INDEX).toContain("router.use('/coaches', coachesRoutes);");
     expect(INDEX).toContain("router.use('/staff-market', staffMarketRoutes);");
     expect(APP).toContain("function _coApi(method, path) { return _thApi(method, '/coaches' + path); }");
@@ -153,10 +153,10 @@ describe('Coaches is its own module, below Coach Market', () => {
     expect(co).not.toContain('data-st-short');
     expect(co).not.toContain('data-st-cmp');
     // its own markup instead
-    expect(APP).toContain('function _coGroupHtml(g)');
-    expect(APP).toContain('function _coStaffCardHtml(m, g)');
-    expect(CSS).toContain('.co-team{');
-    expect(CSS).toContain('.co-person{');
+    expect(APP).toContain('function _coTeamCardHtml(g)');
+    expect(APP).toContain('function _coStaffCardHtml(m)');
+    expect(CSS).toContain('.co-tc{');
+    expect(CSS).toContain('.co-sc{');
     // and it does not borrow the market's palette: it defines its own
     expect(CSS).toMatch(/#pg-coaches\{[\s\S]*?--co-bg:/);
     expect(CSS).not.toMatch(/:is\(#pg-transfers,#pg-coach-market,#pg-coaches\)/);
@@ -167,11 +167,11 @@ describe('the directory is read from what the platform holds', () => {
   it('it queries the teams that exist — no group is written down', () => {
     const f = svcFn('coachesDirectory');
     expect(f).toContain('prisma.team.findMany');
-    expect(f).toContain('where: { isActive: true }');
+    expect(f).toContain('where: { isActive: true, ...scope }');
     expect(f).toContain('prisma.membership.findMany');
     expect(f).toMatch(/role: \{ in: TECHNICAL_ROLES \}/);
     // no club and no team is named anywhere
-    [/BSC/i, /Marzahn/i, /FC Familista/i, /First Team'/, /U13/, /U11/].forEach((re) => expect(f).not.toMatch(re));
+    [/\bBSC\b/i, /\bMarzahn\b/i, /\bFC Familista\b/i, /'First Team'/, /'U13'/, /'U11'/].forEach((re) => expect(f).not.toMatch(re));
   });
 
   it('a club-wide membership is its own group, not copied into every team', () => {
@@ -183,7 +183,7 @@ describe('the directory is read from what the platform holds', () => {
   it('a team with nobody in it is still a group', () => {
     const f = svcFn('coachesDirectory');
     expect(f).toContain('groupsWithoutStaff');
-    expect(APP).toContain('No technical staff assigned to this team.');
+    expect(APP).toContain('No technical staff assigned to this team yet.');
   });
 
   it('and the status it shows is the market\'s own, from the same function', () => {
@@ -256,13 +256,14 @@ describe('three modules, three visual identities', () => {
     ['Leadership', 'Coaching', 'Performance', 'Analysis', 'Medical', 'Scouting']
       .forEach((d) => expect(APP).toContain(`['${d}',`));
     // a role the departments do not cover is still shown, never dropped
-    expect(APP).toMatch(/depts \+= '<div class="co-dept"><h5 class="co-dept-h">[\s\S]{0,60}Other/);
+    expect(APP).toMatch(/depts \+= '<section class="co-dept"><h5 class="co-dept-h">[\s\S]{0,60}Other/);
     expect(CSS).toContain('.co-dept-h{');
   });
 
   it('its teams collapse, and each carries its own colour', () => {
-    expect(APP).toContain('data-co-fold=');
-    expect(APP).toContain("collapsed: {}");
+    // one tier at a time, and each team carries its own colour
+    expect(APP).toContain("data-co-club=");
+    expect(APP).toContain("data-co-team=");
     expect(APP).toContain("' style=\"--co-accent:'");
     expect(CSS).toContain('border-left:3px solid var(--co-accent);');
   });

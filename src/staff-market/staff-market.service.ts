@@ -1514,10 +1514,153 @@ export async function addExternalStaff(actor: StaffActor, dto: {
 // A membership with no teamId is club-wide and covers every team, so it is its
 // own group rather than being copied into each one.
 
-export async function coachesDirectory(_actor: StaffActor) {
+// Which clubs this session may look into. A directory is not a market: the
+// market publishes who is available across the platform, this says who works
+// where inside clubs the person is actually part of. SUPER_ADMIN aside, that is
+// the clubs he holds a membership in — no club he is not part of is named,
+// counted, or reachable by sending its id.
+export async function authorisedClubIds(actor: StaffActor): Promise<string[] | null> {
+  if (actor.role === 'SUPER_ADMIN') return null;   // null = every club
+  const rows = await prisma.membership.findMany({
+    where: { userId: actor.userId, isActive: true },
+    select: { clubId: true },
+  });
+  const ids = [...new Set(rows.map((r) => r.clubId))];
+  // The club being acted for is always among them — it is the session's own.
+  if (actor.clubId && !ids.includes(actor.clubId)) ids.push(actor.clubId);
+  return ids;
+}
+
+async function assertClubVisible(actor: StaffActor, clubId: string) {
+  const allowed = await authorisedClubIds(actor);
+  if (allowed && !allowed.includes(clubId)) throw new ForbiddenError('That club is not yours to see');
+}
+
+// ── level 1 · the clubs ──────────────────────────────────────────────────────
+// One card per club, and nothing below it. What a director needs to choose a
+// club: how big its technical staff is, how it splits between the first team
+// and the academy, and what needs attention.
+export async function coachesClubs(actor: StaffActor) {
+  const allowed = await authorisedClubIds(actor);
+  const clubs = await prisma.club.findMany({
+    where: allowed ? { id: { in: allowed } } : {},
+    select: { id: true, name: true, shortName: true, emblem: true, country: true, city: true },
+    orderBy: { name: 'asc' },
+    take: 200,
+  });
+  if (!clubs.length) return { items: [], total: 0 };
+  const clubIds = clubs.map((c) => c.id);
+
   const [teams, memberships] = await Promise.all([
     prisma.team.findMany({
-      where: { isActive: true },
+      where: { isActive: true, clubId: { in: clubIds } },
+      select: { id: true, clubId: true, kind: true, name: true, ageMax: true },
+      take: 2000,
+    }),
+    prisma.membership.findMany({
+      where: { isActive: true, clubId: { in: clubIds }, role: { in: TECHNICAL_ROLES }, user: { isActive: true } },
+      select: { userId: true, clubId: true, teamId: true, role: true },
+      take: 5000,
+    }),
+  ]);
+  const profiles = await prisma.staffProfile.findMany({
+    where: { userId: { in: [...new Set(memberships.map((m) => m.userId))] } },
+    select: { userId: true, availability: true, careerIntent: true, isDemo: true },
+  });
+  const byUser = new Map(profiles.map((p) => [p.userId, p]));
+  const engagements = await prisma.staffEngagement.findMany({
+    where: { userId: { in: [...new Set(memberships.map((m) => m.userId))] }, isActive: true },
+    select: { userId: true, contractEndsAt: true },
+  });
+  const engByUser = new Map(engagements.map((e) => [e.userId, e]));
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+
+  const items = clubs.map((club) => {
+    const clubTeams = teams.filter((t) => t.clubId === club.id);
+    const mine = memberships.filter((m) => m.clubId === club.id);
+    const statusOf = (userId: string) => {
+      const p = byUser.get(userId) ?? null;
+      return employmentStatus({
+        hasClub: true,
+        availability: p?.availability ?? null,
+        careerIntent: p?.careerIntent ?? null,
+        contractEndsAt: engByUser.get(userId)?.contractEndsAt ?? null,
+      });
+    };
+    const isSenior = (teamId: string | null) =>
+      teamId != null && String(teamById.get(teamId)?.kind ?? '').toUpperCase() === 'SENIOR';
+
+    const people = [...new Set(mine.map((m) => m.userId))];
+    // Every team's expected structure, so "vacant" is measured against what a
+    // team of that kind actually runs rather than against one number.
+    const vacancies = clubTeams.reduce((n, t) => {
+      const have = new Set(mine.filter((m) => m.teamId === t.id).map((m) => m.role)).size;
+      return n + Math.max(0, demoRolesFor({ kind: t.kind, name: t.name, ageMax: t.ageMax }).length - have);
+    }, 0);
+
+    return {
+      id: club.id, name: club.name, shortName: club.shortName,
+      emblem: club.emblem, country: club.country, city: club.city,
+      teams: clubTeams.length,
+      seniorTeams: clubTeams.filter((t) => String(t.kind).toUpperCase() === 'SENIOR').length,
+      academyTeams: clubTeams.filter((t) => String(t.kind).toUpperCase() !== 'SENIOR').length,
+      staff: people.length,
+      firstTeamStaff: new Set(mine.filter((m) => isSenior(m.teamId)).map((m) => m.userId)).size,
+      academyStaff: new Set(mine.filter((m) => m.teamId != null && !isSenior(m.teamId)).map((m) => m.userId)).size,
+      clubWideStaff: new Set(mine.filter((m) => m.teamId == null).map((m) => m.userId)).size,
+      onTheMarket: people.filter((u) => ['OPEN_TO_OFFERS', 'ACTIVELY_LOOKING'].includes(statusOf(u))).length,
+      contractsEndingSoon: people.filter((u) => statusOf(u) === 'CONTRACT_ENDING_SOON').length,
+      vacancies,
+      teamsWithoutStaff: clubTeams.filter((t) => !mine.some((m) => m.teamId === t.id)).length,
+      sampleStaff: people.filter((u) => byUser.get(u)?.isDemo).length,
+      // Coverage across the whole club, for the bar on the card.
+      coverage: (() => {
+        const expected = clubTeams.reduce((n, t) =>
+          n + demoRolesFor({ kind: t.kind, name: t.name, ageMax: t.ageMax }).length, 0);
+        const filled = clubTeams.reduce((n, t) =>
+          n + new Set(mine.filter((m) => m.teamId === t.id).map((m) => m.role)).size, 0);
+        return expected ? Math.min(100, Math.round((filled / expected) * 100)) : 0;
+      })(),
+    };
+  });
+  return { items, total: items.length };
+}
+
+// ── level 2 · one club's teams ───────────────────────────────────────────────
+export async function coachesClubTeams(actor: StaffActor, clubId: string) {
+  await assertClubVisible(actor, clubId);
+  const full = await coachesDirectory(actor, { clubId });
+  const club = full.groups.length ? full.groups[0].club : null;
+  return {
+    club,
+    // The staff themselves are not sent here — a team card is a summary, and
+    // the people arrive when a team is opened.
+    groups: full.groups.map((g) => {
+      const { staff, ...rest } = g as Record<string, unknown> & { staff: unknown[] };
+      return rest;
+    }),
+    totals: full.totals,
+  };
+}
+
+// ── level 3 · one team's staff ───────────────────────────────────────────────
+export async function coachesTeamStaff(actor: StaffActor, teamId: string) {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { clubId: true } });
+  if (!team) throw new NotFoundError('Team');
+  await assertClubVisible(actor, team.clubId);
+  const full = await coachesDirectory(actor, { clubId: team.clubId });
+  const group = full.groups.find((g) => g.teamId === teamId);
+  if (!group) throw new NotFoundError('Team');
+  return { group };
+}
+
+export async function coachesDirectory(_actor: StaffActor, opts: { clubId?: string } = {}) {
+  // One club at a time when a club is asked for — the directory is read by
+  // drilling in, so nothing loads the whole platform to show one team.
+  const scope = opts.clubId ? { clubId: opts.clubId } : {};
+  const [teams, memberships] = await Promise.all([
+    prisma.team.findMany({
+      where: { isActive: true, ...scope },
       select: {
         id: true, name: true, shortName: true, kind: true, ageMin: true, ageMax: true,
         emblem: true, color: true,
@@ -1527,7 +1670,7 @@ export async function coachesDirectory(_actor: StaffActor) {
       take: 2000,
     }),
     prisma.membership.findMany({
-      where: { isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true } },
+      where: { isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true }, ...scope },
       include: { user: { select: publicUserSelect }, club: { select: publicClubSelect } },
       take: 5000,
     }),
@@ -1753,6 +1896,15 @@ const DEMO_LAST = ['Aguirre', 'Lindholm', 'Wójcik', 'Marques', 'Halvorsen', 'Be
   'Benali', 'Kärk', 'Ivanov', 'Herrera', 'Okafor', 'Moreau', 'Novak', 'Sørensen', 'Costa'];
 const DEMO_NATIONS = ['Spain', 'Sweden', 'Poland', 'Portugal', 'Norway', 'Italy', 'Ghana', 'Germany',
   'Serbia', 'France', 'Netherlands', 'Brazil', 'Belgium', 'Austria', 'Croatia', 'Morocco'];
+const DEMO_LANGS = ['Spanish', 'Swedish', 'Polish', 'Portuguese', 'German', 'Italian', 'French',
+  'Dutch', 'Serbian', 'Arabic', 'Norwegian', 'Croatian'];
+const DEMO_FORMATIONS = ['4-3-3', '4-2-3-1', '3-4-3', '3-5-2', '4-4-2', '4-1-4-1'];
+const DEMO_PHILOSOPHY = ['Possession', 'Positional Play', 'High Press', 'Counter Press',
+  'Direct Football', 'Counter Attack', 'Low Block', 'Build-up from the Back', 'Youth Development'];
+const DEMO_STYLES = ['Demanding', 'Player-led', 'Detail-driven', 'Calm under pressure',
+  'Front-foot', 'Developmental'];
+const DEMO_SPECIALITIES = ['Set pieces', 'Pressing triggers', 'Youth integration', 'Transition play',
+  'Goalkeeper distribution', 'Recovery planning', 'Opposition analysis'];
 const DEMO_LICENCES: Array<[string, string, number]> = [
   ['UEFA_PRO', 'UEFA Pro', 4], ['UEFA_A', 'UEFA A', 3], ['UEFA_B', 'UEFA B', 2], ['UEFA_C', 'UEFA C', 1],
 ];
@@ -1765,9 +1917,19 @@ function pick<T>(list: T[], seed: string, salt: number): T {
   return list[h % list.length];
 }
 
-export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string } = {}) {
+export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string; allClubs?: boolean } = {}) {
+  // Across every club this session may see, or one of them. Never a club it
+  // may not — the scope is the same authorisation the directory reads with.
+  const allowed = await authorisedClubIds(actor);
+  let where: Prisma.TeamWhereInput = { isActive: true };
+  if (opts.clubId) {
+    await assertClubVisible(actor, opts.clubId);
+    where = { ...where, clubId: opts.clubId };
+  } else if (allowed) {
+    where = { ...where, clubId: { in: allowed } };
+  }
   const teams = await prisma.team.findMany({
-    where: { isActive: true, ...(opts.clubId ? { clubId: opts.clubId } : {}) },
+    where,
     select: { id: true, clubId: true, name: true, kind: true, ageMax: true },
     take: 500,
   });
@@ -1798,7 +1960,20 @@ export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string }
       const lic = pick(DEMO_LICENCES, seed, 3);
       const years = 3 + (seed.charCodeAt(2) % 22);
       const born = new Date(Date.UTC(1968 + (seed.charCodeAt(4) % 30), seed.charCodeAt(5) % 12, 1 + (seed.charCodeAt(6) % 27)));
-      const ends = new Date(Date.now() + (180 + (seed.charCodeAt(7) % 900)) * 86400000);
+
+      // The market scenarios this sample is for. Spread deterministically off
+      // the seed so every club gets a mix rather than one club getting all the
+      // people who are looking: roughly one in six is open to offers, one in
+      // nine is actively looking, and one in eight has a contract inside the
+      // window that makes it ending-soon. The rest are simply working.
+      const roll = (seed.charCodeAt(1) + seed.charCodeAt(7) + i) % 24;
+      const endingSoon = roll % 8 === 3;
+      const openToOffers = roll % 6 === 1;
+      const activelyLooking = roll % 9 === 4;
+      const ends = endingSoon
+        ? new Date(Date.now() + (30 + (seed.charCodeAt(7) % 120)) * 86400000)
+        : new Date(Date.now() + (400 + (seed.charCodeAt(7) % 900)) * 86400000);
+      const intent = activelyLooking ? 'ACTIVELY_LOOKING' : (openToOffers ? 'OPEN_TO_OFFERS' : 'NOT_LOOKING');
 
       const user = await prisma.user.create({
         data: {
@@ -1816,9 +1991,23 @@ export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string }
               seniorYears: String(team.kind).toUpperCase() === 'SENIOR' ? years : Math.max(0, years - 4),
               academyYears: String(team.kind).toUpperCase() === 'SENIOR' ? Math.max(0, years - 6) : years,
               availability: 'EMPLOYED',
-              careerIntent: i % 7 === 0 ? 'OPEN_TO_OFFERS' : (i % 11 === 0 ? 'ACTIVELY_LOOKING' : 'NOT_LOOKING'),
+              careerIntent: intent,
               wageExpectation: BigInt((40 + (seed.charCodeAt(9) % 160)) * 1000),
-              languages: ['English'],
+              releaseClause: roll % 5 === 2 ? BigInt((80 + (seed.charCodeAt(8) % 220)) * 1000) : null,
+              availableFrom: activelyLooking ? new Date(Date.now() + 30 * 86400000) : null,
+              languages: [...new Set(['English', pick(DEMO_LANGS, seed, 17)])],
+              primaryFormation: pick(DEMO_FORMATIONS, seed, 19),
+              philosophy: [pick(DEMO_PHILOSOPHY, seed, 23)],
+              dominantPhilosophy: [pick(DEMO_PHILOSOPHY, seed, 23)],
+              coachingStyle: pick(DEMO_STYLES, seed, 29),
+              specialities: [pick(DEMO_SPECIALITIES, seed, 31)],
+              tacticalKnowledge: 48 + (seed.charCodeAt(2) % 45),
+              trainingQuality: 48 + (seed.charCodeAt(3) % 45),
+              playerDevelopment: 48 + (seed.charCodeAt(4) % 45),
+              manManagement: 48 + (seed.charCodeAt(5) % 45),
+              matchPreparation: 48 + (seed.charCodeAt(6) % 45),
+              analysis: 48 + (seed.charCodeAt(7) % 45),
+              leadership: 48 + (seed.charCodeAt(8) % 45),
               licences: { create: { code: lic[0], name: lic[1], issuer: 'UEFA', rank: lic[2] } },
             },
           },
@@ -1841,12 +2030,56 @@ export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string }
     if (madeHere) teamsFilled++;
   }
 
+  // A market needs people with no club as well as people with one. A few are
+  // made per run, once — they hold a profile and no membership, which is the
+  // only thing that makes somebody a free agent here.
+  let freeAgents = 0;
+  const anchorClub = opts.clubId ?? teams[0].clubId;
+  for (let i = 0; i < 4; i++) {
+    const seed = 'fa:' + anchorClub + ':' + i;
+    const email = `demo.fa.${anchorClub.slice(0, 8)}.${i}@demo.familista`;
+    if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) continue;
+    const lic = pick(DEMO_LICENCES, seed, 3);
+    await prisma.user.create({
+      data: {
+        email, passwordHash: '!demo',
+        firstName: pick(DEMO_FIRST, seed, 7), lastName: pick(DEMO_LAST, seed, 13),
+        role: 'HEAD_COACH', isActive: true,
+        club: { connect: { id: anchorClub } },   // tenancy only — no membership
+        staffProfile: {
+          create: {
+            isDemo: true,
+            nationality: pick(DEMO_NATIONS, seed, 11),
+            dateOfBirth: new Date(Date.UTC(1970 + (seed.charCodeAt(5) % 28), seed.charCodeAt(6) % 12, 12)),
+            level: 55 + (seed.charCodeAt(3) % 35),
+            reputation: 45 + (seed.charCodeAt(8) % 45),
+            yearsExperience: 5 + (seed.charCodeAt(2) % 20),
+            availability: 'FREE_AGENT',
+            careerIntent: 'ACTIVELY_LOOKING',
+            availableFrom: new Date(),
+            wageExpectation: BigInt((45 + (seed.charCodeAt(9) % 120)) * 1000),
+            languages: ['English', pick(DEMO_LANGS, seed, 17)],
+            primaryFormation: pick(DEMO_FORMATIONS, seed, 19),
+            philosophy: [pick(DEMO_PHILOSOPHY, seed, 23)],
+            coachingStyle: pick(DEMO_STYLES, seed, 29),
+            licences: { create: { code: lic[0], name: lic[1], issuer: 'UEFA', rank: lic[2] } },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    freeAgents++;
+  }
+
   appendAuditEventAsync({
     actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
     action: 'STAFF_DEMO_SEEDED', entityType: 'Team', entityId: opts.clubId ?? 'platform',
-    payload: { teamsFilled, staffCreated },
+    payload: { teamsFilled, staffCreated, freeAgents },
   });
-  return { teamsConsidered: teams.length, teamsFilled, staffCreated, skipped: taken.size };
+  return {
+    clubsConsidered: new Set(teams.map((t) => t.clubId)).size,
+    teamsConsidered: teams.length, teamsFilled, staffCreated, freeAgents, skipped: taken.size,
+  };
 }
 
 // Everything the fill created, removed by the one flag that marks it. A real

@@ -52653,15 +52653,16 @@ var CO_HEALTH = {
 };
 
 var _CO = {
+  // Where in the hierarchy the page is: clubs → teams → staff → profile.
+  // Only the level being looked at is ever loaded, which is what keeps the
+  // page short whatever the platform holds.
+  level: 'clubs',            // clubs | teams | staff
+  clubs: [], clubRow: null,  // level 1
+  clubId: null, clubName: null,
+  teamId: null, teamGroup: null,
   loading: false, error: null, groups: [], totals: null,
   q: '', club: '', kind: '',
-  // A team with no technical staff is still a team, and the count of them is on
-  // the strip either way. It is off by default because a directory is read to
-  // find people, and showing every empty group first buries the ones that have
-  // somebody in them.
-  showEmpty: false,
   role: '',
-  collapsed: {},  // teamId → true; a directory this size is read team by team
   // the profile the directory opens, and the edit over it
   open: null, tab: 'overview', editing: false, draft: null, err: null,
   noteDraft: null, careerDraft: null, trophyDraft: null,
@@ -52671,15 +52672,52 @@ var _CO = {
 function _coApi(method, path) { return _thApi(method, '/coaches' + path); }
 function _coEsc(x) { return _tfEsc(x); }
 
-function _coLoad() {
+// One read per level. Opening the page reads the clubs and nothing else;
+// choosing a club reads its teams and nothing else; opening a team reads its
+// staff. The whole organisation is never in memory at once.
+function _coLoadClubs() {
   _CO.loading = true; _CO.error = null;
-  return _coApi('GET', '/directory').then(_thUnwrap)
-    .then(function (d) { _CO.groups = (d && d.groups) || []; _CO.totals = (d && d.totals) || null; })
+  return _coApi('GET', '/clubs').then(_thUnwrap)
+    .then(function (d) { _CO.clubs = (d && d.items) || []; })
     .catch(function (e) {
-      _CO.groups = []; _CO.totals = null;
+      _CO.clubs = [];
       _CO.error = (e && (e.userMessage || e.message)) || 'unavailable';
     })
     .then(function () { _CO.loading = false; });
+}
+
+function _coLoadTeams(clubId) {
+  _CO.loading = true; _CO.error = null;
+  return _coApi('GET', '/clubs/' + encodeURIComponent(clubId) + '/teams').then(_thUnwrap)
+    .then(function (d) {
+      _CO.groups = (d && d.groups) || [];
+      _CO.totals = (d && d.totals) || null;
+      _CO.clubName = (d && d.club && d.club.name) || _CO.clubName;
+    })
+    .catch(function (e) {
+      _CO.groups = [];
+      _CO.error = (e && (e.userMessage || e.message)) || 'unavailable';
+    })
+    .then(function () { _CO.loading = false; });
+}
+
+function _coLoadTeam(teamId) {
+  _CO.loading = true; _CO.error = null;
+  return _coApi('GET', '/teams/' + encodeURIComponent(teamId) + '/staff').then(_thUnwrap)
+    .then(function (d) { _CO.teamGroup = (d && d.group) || null; })
+    .catch(function (e) {
+      _CO.teamGroup = null;
+      _CO.error = (e && (e.userMessage || e.message)) || 'unavailable';
+    })
+    .then(function () { _CO.loading = false; });
+}
+
+// Whichever level is open, read again. Used after anything that changes the
+// records underneath it.
+function _coLoad() {
+  if (_CO.level === 'staff' && _CO.teamId) return _coLoadTeam(_CO.teamId);
+  if (_CO.level === 'teams' && _CO.clubId) return _coLoadTeams(_CO.clubId);
+  return _coLoadClubs();
 }
 
 function renderCoachesHTML() {
@@ -52692,7 +52730,10 @@ function renderCoachesHTML() {
 function renderCoachesPage() {
   var host = document.getElementById('co-shell'); if (!host) return;
   host.innerHTML = _coHeaderHtml() + '<div class="tf-body" id="co-body">' + _coHtml() + '</div>';
-  _coLoad().then(_coRepaint);
+  // Entering always lands on the clubs. A directory opens at the top of its
+  // own hierarchy, not wherever it happened to be left.
+  _CO.level = 'clubs'; _CO.clubId = null; _CO.teamId = null; _CO.teamGroup = null;
+  _coLoadClubs().then(_coRepaint);
 }
 
 function _coRepaint() {
@@ -52724,82 +52765,215 @@ function _coHeaderHtml() {
 }
 
 function _coHtml() {
-  if (_CO.loading && !_CO.groups.length) return '<div class="co-pane"><div class="co-empty">Reading the directory…</div></div>';
   if (_CO.error) return '<div class="co-pane"><div class="co-empty">The directory could not be read — ' + _coEsc(_CO.error) + '</div></div>';
+  if (_CO.level === 'staff') return _coTeamViewHtml();
+  if (_CO.level === 'teams') return _coClubViewHtml();
+  return _coClubsViewHtml();
+}
 
-  var t = _CO.totals || {};
-  var groups = _coFiltered();
-  var clubs = [];
-  _CO.groups.forEach(function (g) { if (clubs.indexOf(g.club.name) < 0) clubs.push(g.club.name); });
-  clubs.sort();
+// ── level 1 · the clubs ──────────────────────────────────────────────────────
+// The page opens here and shows nothing else. One card per club a person is
+// part of, sized to be chosen from — not a page to read down.
+function _coClubsViewHtml() {
+  if (_CO.loading && !_CO.clubs.length) return '<div class="co-pane"><div class="co-empty">Reading the clubs…</div></div>';
+  var cs = _CO.clubs;
+  var q = String(_CO.q || '').trim().toLowerCase();
+  var shown = q ? cs.filter(function (c) { return String(c.name).toLowerCase().indexOf(q) >= 0; }) : cs;
 
-  // The command line: what the platform holds, and what needs attention.
-  var fig = function (n, l, cls) {
-    return '<div class="co-hq-fig' + (cls ? ' ' + cls : '') + '"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></div>';
-  };
-  var head = '<div class="co-hq">'
-    + fig(t.staff, 'Technical staff')
-    + fig(t.teams, 'Teams')
-    + fig(t.clubs, 'Clubs')
-    + '<div class="co-hq-sep"></div>'
-    + fig(t.contractsEndingSoon, 'Contracts ending', 'is-warn')
-    + fig(t.onTheMarket, 'On the market', 'is-info')
-    + fig(t.teamsWithoutHeadCoach, 'No head coach', 'is-bad')
-    + '<div class="co-hq-acts">'
-    +   (t.demoStaff ? '<span class="co-demoflag">' + t.demoStaff + ' sample</span>' : '')
-    +   '<button type="button" class="co-btn" data-co-seed>Fill empty teams</button>'
-    +   (t.demoStaff ? '<button type="button" class="co-btn co-btn--quiet" data-co-unseed>Remove samples</button>' : '')
+  var totals = cs.reduce(function (a, c) {
+    a.teams += c.teams; a.staff += c.staff; a.market += c.onTheMarket;
+    a.ending += c.contractsEndingSoon; a.samples += c.sampleStaff; return a;
+  }, { teams: 0, staff: 0, market: 0, ending: 0, samples: 0 });
+
+  return '<div class="co-pane">'
+    + '<div class="co-crumbs"><b>All clubs</b><span>' + cs.length + ' club' + (cs.length === 1 ? '' : 's')
+    +   ' · ' + totals.teams + ' teams · ' + totals.staff + ' technical staff</span>'
+    +   '<span class="co-crumb-acts">'
+    +     (totals.samples ? '<span class="co-demoflag">' + totals.samples + ' sample</span>' : '')
+    +     '<button type="button" class="co-btn" data-co-seed-all>Fill sample staff · all clubs</button>'
+    +     (totals.samples ? '<button type="button" class="co-btn co-btn--quiet" data-co-unseed>Remove samples</button>' : '')
+    +   '</span>'
     + '</div>'
+    + (cs.length > 6 ? '<div class="co-bar"><input class="co-q" type="search" placeholder="Find a club" value="' + _coEsc(_CO.q) + '" data-co-q></div>' : '')
+    + (shown.length
+        ? '<div class="co-clubs">' + shown.map(_coClubCardHtml).join('') + '</div>'
+        : '<div class="co-empty">No club matches.</div>')
     + '</div>';
+}
 
-  var bar = '<div class="co-bar">'
-    + '<input class="co-q" type="search" placeholder="Find a coach, a team or a club" value="' + _coEsc(_CO.q) + '" data-co-q>'
-    + '<select data-co-f="club"><option value="">Every club</option>'
-    +   clubs.map(function (c) { return '<option value="' + _coEsc(c) + '"' + (_CO.club === c ? ' selected' : '') + '>' + _coEsc(c) + '</option>'; }).join('')
-    + '</select>'
-    + '<select data-co-f="kind"><option value="">Every team</option>'
-    +   ['SENIOR', 'ACADEMY', 'YOUTH', 'CLUB'].map(function (k) {
-          return '<option value="' + k + '"' + (_CO.kind === k ? ' selected' : '') + '>' + _coKind(k) + '</option>';
-        }).join('')
-    + '</select>'
-    + '<select data-co-f="role"><option value="">Every role</option>'
-    +   ST_ROLES.map(function (r) {
-          return '<option value="' + r[0] + '"' + (_CO.role === r[0] ? ' selected' : '') + '>' + _coEsc(r[1]) + '</option>';
-        }).join('')
-    + '</select>'
-    + '<button type="button" class="co-toggle' + (_CO.showEmpty ? ' is-on' : '') + '" data-co-empty>'
-    +   'Teams without staff <b>' + (t.groupsWithoutStaff == null ? '—' : t.groupsWithoutStaff) + '</b></button>'
+// The club card. Executive, organisational, and deliberately unlike anything on
+// Academy, Transfers or the Coach Market: a crest, a name, and the four figures
+// a director chooses a club on.
+function _coClubCardHtml(c) {
+  var cov = c.coverage || 0;
+  var alert = function (n, l, cls) {
+    if (!n) return '';
+    return '<span class="co-cc-alert co-cc-alert--' + cls + '"><b>' + n + '</b>' + l + '</span>';
+  };
+  return '<button type="button" class="co-cc" data-co-club="' + _coEsc(c.id) + '" data-co-clubname="' + _coEsc(c.name) + '">'
+    + '<div class="co-cc-top">'
+    +   '<span class="co-cc-crest">' + (c.emblem ? '<img src="' + _coEsc(c.emblem) + '" alt="">' : _coEsc((c.name || '?').slice(0, 2).toUpperCase())) + '</span>'
+    +   '<span class="co-cc-id">'
+    +     '<b>' + _coEsc(c.name) + '</b>'
+    +     '<em>' + [c.city, c.country].filter(Boolean).map(_coEsc).join(' · ') + '</em>'
+    +   '</span>'
+    + '</div>'
+    + '<div class="co-cc-figs">'
+    +   '<span class="co-cc-fig"><b>' + c.teams + '</b><i>Teams</i></span>'
+    +   '<span class="co-cc-fig"><b>' + c.staff + '</b><i>Technical staff</i></span>'
+    +   '<span class="co-cc-fig"><b>' + c.firstTeamStaff + '</b><i>First team</i></span>'
+    +   '<span class="co-cc-fig"><b>' + c.academyStaff + '</b><i>Academy</i></span>'
+    + '</div>'
+    + '<div class="co-cc-split">'
+    +   c.seniorTeams + ' senior · ' + c.academyTeams + ' academy'
+    +   (c.clubWideStaff ? ' · ' + c.clubWideStaff + ' club-wide' : '')
+    + '</div>'
+    + '<div class="co-cc-cov">'
+    +   '<span class="co-cc-cov-t"><span style="width:' + cov + '%"></span></span>'
+    +   '<i>' + cov + '% staffed</i>'
+    + '</div>'
+    + '<div class="co-cc-alerts">'
+    +   alert(c.onTheMarket, 'on the market', 'info')
+    +   alert(c.contractsEndingSoon, 'contract ending', 'warn')
+    +   alert(c.vacancies, 'vacant role' + (c.vacancies === 1 ? '' : 's'), 'bad')
+    +   (c.sampleStaff ? '<span class="co-cc-alert co-cc-alert--demo"><b>' + c.sampleStaff + '</b>sample</span>' : '')
+    + '</div>'
+    + '</button>';
+}
+
+// ── level 2 · one club's teams ───────────────────────────────────────────────
+function _coClubViewHtml() {
+  if (_CO.loading && !_CO.groups.length) return '<div class="co-pane">' + _coBackHtml('All clubs', 'clubs') + '<div class="co-empty">Reading the teams…</div></div>';
+  var gs = _CO.groups.slice();
+  if (_CO.kind) gs = gs.filter(function (g) { return String(g.teamKind).indexOf(_CO.kind) === 0; });
+  var q = String(_CO.q || '').trim().toLowerCase();
+  if (q) gs = gs.filter(function (g) { return String(g.teamName).toLowerCase().indexOf(q) >= 0; });
+  var staff = gs.reduce(function (n, g) { return n + g.staffCount; }, 0);
+
+  return '<div class="co-pane">'
+    + _coBackHtml('All clubs', 'clubs')
+    + '<div class="co-crumbs co-crumbs--club">'
+    +   '<span class="co-cc-crest co-cc-crest--sm">' + _coEsc((_CO.clubName || '?').slice(0, 2).toUpperCase()) + '</span>'
+    +   '<b>' + _coEsc(_CO.clubName || 'Club') + '</b>'
+    +   '<span>' + gs.length + ' team' + (gs.length === 1 ? '' : 's') + ' · ' + staff + ' technical staff</span>'
+    +   '<span class="co-crumb-acts">'
+    +     '<button type="button" class="co-btn co-btn--quiet" data-co-seed>Fill this club</button>'
+    +   '</span>'
+    + '</div>'
+    + '<div class="co-bar">'
+    +   '<input class="co-q" type="search" placeholder="Find a team" value="' + _coEsc(_CO.q) + '" data-co-q>'
+    +   '<select data-co-f="kind"><option value="">Every team</option>'
+    +     ['SENIOR', 'ACADEMY', 'YOUTH'].map(function (k) {
+            return '<option value="' + k + '"' + (_CO.kind === k ? ' selected' : '') + '>' + _coKind(k) + '</option>';
+          }).join('')
+    +   '</select>'
+    + '</div>'
+    + (gs.length
+        ? '<div class="co-teamcards">' + gs.map(_coTeamCardHtml).join('') + '</div>'
+        : '<div class="co-empty">No team matches. A team appears here the moment it is created.</div>')
     + '</div>';
+}
 
-  if (!groups.length) {
-    return '<div class="co-pane">' + head + bar
-      + '<div class="co-empty">' + (_CO.showEmpty
-          ? 'No team matches. The directory reads the teams the platform holds — a team appears here the moment it is created.'
-          : 'No team here has technical staff yet. The teams exist — switch on <b>Teams without staff</b>, or fill them with sample staff while the platform is being built.')
-      + '</div></div>';
+// The team card. Related to the club card but its own thing: a strip of the
+// team's colour, the head coach, and the four figures that decide whether it
+// needs attention. No staff on it — they arrive when it is opened.
+function _coTeamCardHtml(g) {
+  var hp = CO_HEALTH[g.health] || ['—', 'ok'];
+  var label = g.kind === 'CLUB' ? 'Club-wide' : _coKind(g.teamKind || 'TEAM');
+  var kindCls = g.kind === 'CLUB' ? 'club' : String(g.teamKind || '').toLowerCase().split('_')[0];
+  var vacant = Math.max(0, (g.expectedRoles || 0) - (g.rolesFilled || 0));
+  return '<button type="button" class="co-tc co-tc--' + hp[1] + '"'
+    + (g.teamId ? ' data-co-team="' + _coEsc(g.teamId) + '"' : ' disabled')
+    + (g.color ? ' style="--co-accent:' + _coEsc(g.color) + '"' : '') + '>'
+    + '<div class="co-tc-hd">'
+    +   '<span class="co-tc-id"><b>' + _coEsc(g.teamName) + '</b>'
+    +     '<span class="co-team-tags">'
+    +       '<span class="co-tag co-tag--' + kindCls + '">' + _coEsc(label) + '</span>'
+    +       (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
+    +     '</span></span>'
+    +   '<span class="co-tag co-tag--' + hp[1] + '">' + _coEsc(hp[0]) + '</span>'
+    + '</div>'
+    + '<div class="co-tc-lead">'
+    +   (g.headCoach
+        ? '<span class="co-lead-av">' + (g.headCoach.avatar
+            ? '<img src="' + _coEsc(g.headCoach.avatar) + '" alt="">'
+            : _coEsc((g.headCoach.name || '?').slice(0, 1))) + '</span>'
+          + '<span class="co-lead-id"><i>Head coach</i><b>' + _coEsc(g.headCoach.name) + '</b></span>'
+        : '<span class="co-lead-id"><i>Head coach</i><b class="co-unknown">Vacant</b></span>')
+    + '</div>'
+    + '<div class="co-tc-figs">'
+    +   '<span><b>' + g.staffCount + '</b><i>Staff</i></span>'
+    +   '<span' + (g.contractsEndingSoon ? ' class="is-warn"' : '') + '><b>' + g.contractsEndingSoon + '</b><i>Ending</i></span>'
+    +   '<span' + (g.onTheMarket ? ' class="is-info"' : '') + '><b>' + g.onTheMarket + '</b><i>On market</i></span>'
+    +   '<span' + (vacant ? ' class="is-bad"' : '') + '><b>' + vacant + '</b><i>Vacant</i></span>'
+    + '</div>'
+    + '<div class="co-cc-cov">'
+    +   '<span class="co-cc-cov-t"><span style="width:' + (g.completeness || 0) + '%"></span></span>'
+    +   '<i>' + (g.completeness || 0) + '% staffed</i>'
+    + '</div>'
+    + '</button>';
+}
+
+// ── level 3 · one team's staff ───────────────────────────────────────────────
+function _coTeamViewHtml() {
+  var g = _CO.teamGroup;
+  if (_CO.loading && !g) return '<div class="co-pane">' + _coBackHtml(_CO.clubName || 'Teams', 'teams') + '<div class="co-empty">Reading the staff…</div></div>';
+  if (!g) return '<div class="co-pane">' + _coBackHtml(_CO.clubName || 'Teams', 'teams') + '<div class="co-empty">That team could not be read.</div></div>';
+
+  var hp = CO_HEALTH[g.health] || ['—', 'ok'];
+  var label = g.kind === 'CLUB' ? 'Club-wide' : _coKind(g.teamKind || 'TEAM');
+  var staff = _CO.role ? g.staff.filter(function (m) { return m.role === _CO.role; }) : g.staff;
+  var q = String(_CO.q || '').trim().toLowerCase();
+  if (q) staff = staff.filter(function (m) { return String(m.name).toLowerCase().indexOf(q) >= 0; });
+
+  // Only the departments that have somebody in them.
+  var placed = {};
+  var depts = CO_DEPTS.map(function (d) {
+    var inDept = staff.filter(function (m) { return d[2].indexOf(m.role) >= 0; });
+    inDept.forEach(function (m) { placed[m.staffUserId] = 1; });
+    if (!inDept.length) return '';
+    return '<section class="co-dept">'
+      + '<h5 class="co-dept-h co-dept-h--' + d[0].toLowerCase() + '">'
+      +   '<span class="co-dept-i">' + d[1] + '</span>' + d[0] + '<span class="co-dept-n">' + inDept.length + '</span></h5>'
+      + '<div class="co-people">' + inDept.map(_coStaffCardHtml).join('') + '</div>'
+      + '</section>';
+  }).join('');
+  var rest = staff.filter(function (m) { return !placed[m.staffUserId]; });
+  if (rest.length) {
+    depts += '<section class="co-dept"><h5 class="co-dept-h"><span class="co-dept-i">·</span>Other<span class="co-dept-n">' + rest.length + '</span></h5>'
+      + '<div class="co-people">' + rest.map(_coStaffCardHtml).join('') + '</div></section>';
   }
 
-  var byClub = [];
-  groups.forEach(function (g) {
-    var row = null;
-    for (var i = 0; i < byClub.length; i++) if (byClub[i].club.id === g.club.id) row = byClub[i];
-    if (!row) { row = { club: g.club, groups: [] }; byClub.push(row); }
-    row.groups.push(g);
-  });
-
-  return '<div class="co-pane">' + head + bar
-    + byClub.map(function (c) {
-        var staff = c.groups.reduce(function (n, g) { return n + g.staffCount; }, 0);
-        return '<section class="co-club">'
-          + '<header class="co-club-hd">'
-          +   '<span class="co-crest">' + (c.club.emblem ? '<img src="' + _coEsc(c.club.emblem) + '" alt="">' : _coEsc((c.club.name || '?').slice(0, 2))) + '</span>'
-          +   '<div class="co-club-id"><h3>' + _coEsc(c.club.name) + '</h3>'
-          +     '<span>' + c.groups.length + ' team' + (c.groups.length === 1 ? '' : 's') + ' · ' + staff + ' technical staff'
-          +       (c.club.country ? ' · ' + _coEsc(c.club.country) : '') + '</span></div>'
-          + '</header>'
-          + '<div class="co-teams">' + c.groups.map(_coGroupHtml).join('') + '</div>'
-          + '</section>';
-      }).join('')
+  return '<div class="co-pane">'
+    + _coBackHtml(_CO.clubName || 'Teams', 'teams')
+    + '<header class="co-th">'
+    +   '<div class="co-th-id">'
+    +     '<span class="co-th-club">' + _coEsc(g.club.name) + '</span>'
+    +     '<h2>' + _coEsc(g.teamName) + '</h2>'
+    +     '<span class="co-team-tags">'
+    +       '<span class="co-tag co-tag--' + (g.kind === 'CLUB' ? 'club' : String(g.teamKind || '').toLowerCase().split('_')[0]) + '">' + _coEsc(label) + '</span>'
+    +       (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
+    +       '<span class="co-tag co-tag--' + hp[1] + '">' + _coEsc(hp[0]) + '</span>'
+    +     '</span>'
+    +   '</div>'
+    +   '<div class="co-th-figs">'
+    +     '<span><b>' + (g.headCoach ? _coEsc(g.headCoach.name) : '<i class="co-unknown">Vacant</i>') + '</b><i>Head coach</i></span>'
+    +     '<span><b>' + g.staffCount + '</b><i>Staff</i></span>'
+    +     '<span><b>' + g.activeContracts + '</b><i>Contracts</i></span>'
+    +     '<span' + (g.contractsEndingSoon ? ' class="is-warn"' : '') + '><b>' + g.contractsEndingSoon + '</b><i>Ending soon</i></span>'
+    +     '<span' + (g.onTheMarket ? ' class="is-info"' : '') + '><b>' + g.onTheMarket + '</b><i>On market</i></span>'
+    +   '</div>'
+    +   '<button type="button" class="co-btn co-btn--go" data-co-add="' + _coEsc(g.teamId || '') + '">+ Add staff member</button>'
+    + '</header>'
+    + '<div class="co-bar">'
+    +   '<input class="co-q" type="search" placeholder="Find a staff member" value="' + _coEsc(_CO.q) + '" data-co-q>'
+    +   '<select data-co-f="role"><option value="">Every role</option>'
+    +     ST_ROLES.map(function (r) {
+            return '<option value="' + r[0] + '"' + (_CO.role === r[0] ? ' selected' : '') + '>' + _coEsc(r[1]) + '</option>';
+          }).join('')
+    +   '</select>'
+    + '</div>'
+    + (depts || '<div class="co-empty">No technical staff assigned to this team yet.</div>')
     + '</div>';
 }
 
@@ -52810,138 +52984,35 @@ function _coKind(k) {
   }).join(' ');
 }
 
-function _coFiltered() {
-  var q = String(_CO.q || '').trim().toLowerCase();
-  return _CO.groups.filter(function (g) {
-    if (!_CO.showEmpty && !g.staffCount) return false;
-    if (_CO.club && g.club.name !== _CO.club) return false;
-    if (_CO.kind && String(g.teamKind).indexOf(_CO.kind) !== 0) return false;
-    if (_CO.role && !g.staff.some(function (m) { return m.role === _CO.role; })) return false;
-    if (!q) return true;
-    if (String(g.teamName).toLowerCase().indexOf(q) >= 0) return true;
-    if (String(g.club.name).toLowerCase().indexOf(q) >= 0) return true;
-    return g.staff.some(function (m) { return String(m.name).toLowerCase().indexOf(q) >= 0; });
-  });
+function _coBackHtml(label, to) {
+  return '<button type="button" class="co-back" data-co-back="' + to + '">← ' + _coEsc(label) + '</button>';
 }
 
-// ── the team command card ────────────────────────────────────────────────────
-// A team is read before it is opened: who leads it, how many people it has, how
-// many contracts are running out, and whether it is short. The staff underneath
-// only appear when it is expanded, so a platform with two thousand teams is a
-// page a director can actually use.
-function _coGroupHtml(g) {
-  var key = g.teamId || ('club:' + g.club.id);
-  var open = !_CO.collapsed[key];
-  var label = g.kind === 'CLUB' ? 'Club-wide' : _coKind(g.teamKind || 'TEAM');
-  var kindCls = g.kind === 'CLUB' ? 'club' : String(g.teamKind || '').toLowerCase().split('_')[0];
-  var hp = CO_HEALTH[g.health] || ['—', 'ok'];
-  var staff = _CO.role ? g.staff.filter(function (m) { return m.role === _CO.role; }) : g.staff;
-
-  var metric = function (n, l, cls) {
-    return '<span class="co-metric' + (cls ? ' ' + cls : '') + '"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></span>';
-  };
-
-  var body = '';
-  if (open) {
-    if (!g.staffCount) {
-      body = '<div class="co-none">No technical staff assigned to this team.'
-        + '<button type="button" class="co-btn" data-co-add="' + _coEsc(g.teamId || '') + '">+ Add staff member</button></div>';
-    } else {
-      var placed = {};
-      var depts = CO_DEPTS.map(function (d) {
-        var inDept = staff.filter(function (m) { return d[2].indexOf(m.role) >= 0; });
-        inDept.forEach(function (m) { placed[m.staffUserId] = 1; });
-        if (!inDept.length) return '';
-        return '<div class="co-dept">'
-          + '<h5 class="co-dept-h co-dept-h--' + d[0].toLowerCase() + '">'
-          +   '<span class="co-dept-i">' + d[1] + '</span>' + d[0] + '<span class="co-dept-n">' + inDept.length + '</span></h5>'
-          + '<div class="co-people">' + inDept.map(function (m) { return _coStaffCardHtml(m, g); }).join('') + '</div>'
-          + '</div>';
-      }).join('');
-      // A role the departments do not cover is still shown — a role added to
-      // the platform later must never fall off this page silently.
-      var rest = staff.filter(function (m) { return !placed[m.staffUserId]; });
-      if (rest.length) {
-        depts += '<div class="co-dept"><h5 class="co-dept-h"><span class="co-dept-i">·</span>Other<span class="co-dept-n">' + rest.length + '</span></h5>'
-          + '<div class="co-people">' + rest.map(function (m) { return _coStaffCardHtml(m, g); }).join('') + '</div></div>';
-      }
-      body = (depts || '<div class="co-none">No staff matches this role in this team.</div>')
-        + '<div class="co-team-foot"><button type="button" class="co-btn" data-co-add="' + _coEsc(g.teamId || '') + '">+ Add staff member</button></div>';
-    }
-  }
-
-  return '<article class="co-team' + (open ? '' : ' is-shut') + ' co-team--' + hp[1] + '"'
-    + (g.color ? ' style="--co-accent:' + _coEsc(g.color) + '"' : '') + '>'
-    + '<div class="co-team-hd">'
-    +   '<button type="button" class="co-team-open" data-co-fold="' + _coEsc(key) + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
-    +     '<span class="co-fold">' + (open ? '▾' : '▸') + '</span>'
-    +     '<span class="co-team-id">'
-    +       '<b>' + _coEsc(g.teamName) + '</b>'
-    +       '<span class="co-team-tags">'
-    +         '<span class="co-tag co-tag--' + kindCls + '">' + _coEsc(label) + '</span>'
-    +         (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
-    +         '<span class="co-tag co-tag--' + hp[1] + '">' + _coEsc(hp[0]) + '</span>'
-    +       '</span>'
-    +     '</span>'
-    +     '<span class="co-lead">'
-    +       (g.headCoach
-          ? '<span class="co-lead-av">' + (g.headCoach.avatar
-              ? '<img src="' + _coEsc(g.headCoach.avatar) + '" alt="">'
-              : _coEsc((g.headCoach.name || '?').slice(0, 1))) + '</span>'
-            + '<span class="co-lead-id"><i>Head coach</i><b>' + _coEsc(g.headCoach.name) + '</b></span>'
-          : '<span class="co-lead-id"><i>Head coach</i><b class="co-unknown">Vacant</b></span>')
-    +     '</span>'
-    +     '<span class="co-metrics">'
-    +       metric(g.staffCount, 'Staff')
-    +       metric(g.activeContracts, 'Contracts')
-    +       metric(g.contractsEndingSoon, 'Ending', g.contractsEndingSoon ? 'is-warn' : '')
-    +       metric(g.onTheMarket, 'On market', g.onTheMarket ? 'is-info' : '')
-    +     '</span>'
-    +     '<span class="co-complete" title="' + g.rolesFilled + ' of ' + g.expectedRoles + ' roles filled">'
-    +       '<span class="co-complete-t"><span style="width:' + (g.completeness || 0) + '%"></span></span>'
-    +       '<i>' + (g.completeness || 0) + '%</i></span>'
-    +   '</button>'
-    +   '<span class="co-team-acts">'
-    +     '<button type="button" class="co-btn co-btn--quiet" data-co-add="' + _coEsc(g.teamId || '') + '">+ Staff</button>'
-    +   '</span>'
-    + '</div>'
-    + (open ? '<div class="co-team-body">' + body + '</div>' : '')
-    + '</article>';
-}
-
-// ── the staff card ───────────────────────────────────────────────────────────
-// A professional identity card carrying one line of market truth: where he
-// stands, when his contract ends, and what a move would take. Nothing more —
-// the rest is one click away.
-function _coStaffCardHtml(m, g) {
-  var dash = '<i class="co-unknown">—</i>';
+// ── the staff identity card ──────────────────────────────────────────────────
+// Compact and its own thing: neither a player card nor a market card. Portrait,
+// who he is, and the two indicators a directory needs — his licence and where
+// he stands. Salary and contract detail stay off the front; they are one click
+// away in the record.
+function _coStaffCardHtml(m) {
   var st = m.employmentStatus || 'EMPLOYED';
-  var cost = m.releaseClause != null ? ['Release', _stMoney(m.releaseClause)]
-    : (m.compensationFee != null ? ['Compensation', _stMoney(m.compensationFee)]
-      : ['Asking', m.expectedSalary != null ? _stMoney(m.expectedSalary) : dash]);
-  return '<div class="co-person-wrap">'
-    + '<button type="button" class="co-person" data-st-open="' + _coEsc(m.staffUserId) + '"'
-    +   ' data-co-team="' + _coEsc((g && g.teamId) || '') + '">'
-    +   '<span class="co-portrait">'
-    +     (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : '<span>' + _coEsc((m.name || '?').slice(0, 1)) + '</span>')
-    +     '<span class="co-dot co-dot--' + String(st).toLowerCase() + '" title="' + _coEsc(CO_STATUS[st] || st) + '"></span>'
-    +   '</span>'
-    +   '<span class="co-person-id">'
-    +     '<b>' + _coEsc(m.name) + (m.isDemo ? '<em class="co-demo">Sample</em>' : '') + '</b>'
-    +     '<em>' + _coEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
-    +     '<span class="co-person-sub">' + (m.age != null ? m.age + ' yrs' : 'Age not recorded') + ' · '
-    +       (m.nationality ? _coEsc(m.nationality) : 'Nationality not recorded')
-    +       + (m.highestLicence ? ' · ' + _coEsc(m.highestLicence.name) : '')
-    +       + (m.yearsExperience != null ? ' · ' + m.yearsExperience + ' yrs exp' : '') + '</span>'
-    +   '</span>'
-    +   '<span class="co-market">'
-    +     '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
-    +     '<span class="co-market-kv"><i>Contract</i><b>' + (m.contractEndsAt ? _stDate(m.contractEndsAt) : dash) + '</b></span>'
-    +     '<span class="co-market-kv"><i>' + cost[0] + '</i><b>' + cost[1] + '</b></span>'
-    +     (m.availabilityDate ? '<span class="co-market-kv"><i>Available</i><b>' + _stDate(m.availabilityDate) + '</b></span>' : '')
-    +   '</span>'
-    + '</button>'
-    + '</div>';
+  return '<button type="button" class="co-sc co-sc--' + String(st).toLowerCase() + '" data-st-open="' + _coEsc(m.staffUserId) + '">'
+    + '<span class="co-sc-por">'
+    +   (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : '<span>' + _coEsc((m.name || '?').slice(0, 1)) + '</span>')
+    +   (m.highestLicence ? '<span class="co-sc-lic" title="' + _coEsc(m.highestLicence.name) + '">'
+        + _coEsc(String(m.highestLicence.name).replace(/^UEFA\s*/i, '') || '·') + '</span>' : '')
+    + '</span>'
+    + '<span class="co-sc-id">'
+    +   '<b>' + _coEsc(m.name) + (m.isDemo ? '<em class="co-demo">Sample</em>' : '') + '</b>'
+    +   '<em>' + _coEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
+    +   '<span class="co-sc-sub">'
+    +     (m.nationality ? _coEsc(m.nationality) : 'Nationality —')
+    +     + (m.age != null ? ' · ' + m.age : '') + '</span>'
+    + '</span>'
+    + '<span class="co-sc-tail">'
+    +   '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
+    +   (m.contractEndsAt ? '<span class="co-sc-c">to ' + _stDate(m.contractEndsAt).slice(0, 7) + '</span>' : '')
+    + '</span>'
+    + '</button>';
 }
 
 // ── the editable staff profile ───────────────────────────────────────────────
@@ -53136,8 +53207,8 @@ function _coPanel(d) {
 // Which of this club's teams he is in — read from the directory already loaded,
 // so the profile and the page behind it always agree.
 function _coTeamOf(staffUserId) {
-  for (var i = 0; i < _CO.groups.length; i++) {
-    var g = _CO.groups[i];
+  var g = _CO.teamGroup;
+  if (g && g.staff) {
     for (var j = 0; j < g.staff.length; j++) {
       if (g.staff[j].staffUserId === staffUserId) return g.teamName;
     }
@@ -53223,8 +53294,7 @@ function _coAchievementsPanel(d) {
 // ── adding somebody to a team ────────────────────────────────────────────────
 function _coAddHtml() {
   var a = _CO.add; if (!a) return '';
-  var teams = [];
-  _CO.groups.forEach(function (g) { if (g.teamId && g.club.id === _coMyClubId()) teams.push([g.teamId, g.teamName]); });
+  var teams = _coMyTeams();
   return '<div class="tf-modal" data-co-addmodal>'
     + '<div class="tf-modal-bd" data-co-addclose></div>'
     + '<div class="tf-modal-box tf-modal-box--sm co-profile" role="dialog" aria-modal="true">'
@@ -53263,8 +53333,7 @@ function _coAddHtml() {
 
 function _coMoveHtml() {
   var m = _CO.move; if (!m) return '';
-  var teams = [];
-  _CO.groups.forEach(function (g) { if (g.teamId && g.club.id === _coMyClubId()) teams.push([g.teamId, g.teamName]); });
+  var teams = _coMyTeams();
   return '<div class="tf-modal" data-co-movemodal>'
     + '<div class="tf-modal-bd" data-co-moveclose></div>'
     + '<div class="tf-modal-box tf-modal-box--sm co-profile" role="dialog" aria-modal="true">'
@@ -53291,6 +53360,18 @@ function _coMyClubId() {
   try { var c = State && State.context; return (c && c.clubId) || null; } catch (_) { return null; }
 }
 
+// The teams a person can be put into: the ones of the club being looked at,
+// which is the club whose teams are loaded. A club a session may not see never
+// appears here, and its ids are refused by the server regardless.
+function _coMyTeams() {
+  var out = [];
+  (_CO.groups || []).forEach(function (g) { if (g.teamId) out.push([g.teamId, g.teamName]); });
+  if (!out.length && _CO.teamGroup && _CO.teamGroup.teamId) {
+    out.push([_CO.teamGroup.teamId, _CO.teamGroup.teamName]);
+  }
+  return out;
+}
+
 // The directory's own listeners. It answers only inside its own page, and the
 // only thing it shares with the market is the record it reads.
 (function _coWire() {
@@ -53305,6 +53386,14 @@ function _coMyClubId() {
   var reload = function () {
     return _coLoad().then(function () { _CO.busy = false; _CO.err = null; _coRepaint(); });
   };
+  // Moving a level puts the reader at the top of the new one. The page itself
+  // scrolls — there is no scroller inside a scroller to get stuck in.
+  var _coScrollTop = function () {
+    try {
+      var b = document.getElementById('co-body');
+      if (b) b.scrollTop = 0;
+    } catch (_) {}
+  };
   var reopen = function (id) {
     delete _TF_ST.detail[id];
     return _stLoadOne(id).then(function () { return _coLoad(); }).then(function () {
@@ -53317,15 +53406,57 @@ function _coMyClubId() {
     if (!t.closest('#pg-coaches')) return;
     var el;
 
-    // ── the board ──
-    if ((el = t.closest('[data-co-fold]'))) {
+    // ── moving through the hierarchy ──
+    // Each step loads its own level and nothing below it, and each filter is
+    // dropped on the way so a search for a team does not silently hide staff.
+    if ((el = t.closest('[data-co-club]'))) {
       e.preventDefault();
-      var k = el.getAttribute('data-co-fold');
-      if (_CO.collapsed[k]) delete _CO.collapsed[k]; else _CO.collapsed[k] = 1;
-      _coRepaint(); return;
+      _CO.clubId = el.getAttribute('data-co-club');
+      _CO.clubName = el.getAttribute('data-co-clubname');
+      _CO.level = 'teams'; _CO.q = ''; _CO.kind = ''; _CO.role = '';
+      _CO.groups = []; _CO.teamId = null; _CO.teamGroup = null;
+      _coRepaint();
+      _coLoadTeams(_CO.clubId).then(_coRepaint);
+      _coScrollTop(); return;
     }
-    if (t.closest('[data-co-empty]')) {
-      e.preventDefault(); _CO.showEmpty = !_CO.showEmpty; _coRepaint(); return;
+    if ((el = t.closest('[data-co-team]'))) {
+      e.preventDefault();
+      _CO.teamId = el.getAttribute('data-co-team');
+      _CO.level = 'staff'; _CO.q = ''; _CO.role = '';
+      _CO.teamGroup = null;
+      _coRepaint();
+      _coLoadTeam(_CO.teamId).then(_coRepaint);
+      _coScrollTop(); return;
+    }
+    if ((el = t.closest('[data-co-back]'))) {
+      e.preventDefault();
+      var to = el.getAttribute('data-co-back');
+      _CO.q = ''; _CO.kind = ''; _CO.role = '';
+      if (to === 'clubs') {
+        _CO.level = 'clubs'; _CO.clubId = null; _CO.clubName = null;
+        _CO.teamId = null; _CO.teamGroup = null; _CO.groups = [];
+        _coRepaint();
+        _coLoadClubs().then(_coRepaint);
+      } else {
+        _CO.level = 'teams'; _CO.teamId = null; _CO.teamGroup = null;
+        _coRepaint();
+        if (_CO.clubId) _coLoadTeams(_CO.clubId).then(_coRepaint);
+      }
+      _coScrollTop(); return;
+    }
+
+    if (t.closest('[data-co-seed-all]')) {
+      e.preventDefault();
+      if (_CO.busy) return;
+      _CO.busy = true; _coRepaint();
+      _coApi('POST', '/demo-staff?scope=all').then(_thUnwrap)
+        .then(function (r) {
+          _tfToast('Filled ' + r.teamsFilled + ' team(s) across ' + r.clubsConsidered
+            + ' club(s) — ' + r.staffCreated + ' staff and ' + r.freeAgents + ' free agents', 'success');
+          return reload();
+        })
+        .catch(function (err) { fail(err); });
+      return;
     }
     if (t.closest('[data-co-seed]')) {
       e.preventDefault();

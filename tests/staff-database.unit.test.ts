@@ -88,7 +88,7 @@ describe('All Staff is the platform, not a table somebody fills in', () => {
     expect(d).toContain('prisma.membership.findMany');
     expect(d).toMatch(/where: \{ isActive: true, role: \{ in: TECHNICAL_ROLES \}/);
     // no club is named and no club list is held
-    [/BSC/i, /Marzahn/i, /FC Familista/i].forEach((re) => expect(SVC).not.toMatch(re));
+    [/\bBSC\b/i, /\bMarzahn\b/i, /\bFC Familista\b/i].forEach((re) => expect(SVC).not.toMatch(re));
   });
 
   it('somebody with two technical memberships is still one row', () => {

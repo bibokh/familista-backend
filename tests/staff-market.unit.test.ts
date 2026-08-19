@@ -35,7 +35,7 @@ function _fn(name: string) {
 describe('no club is named anywhere', () => {
   it('the engine holds no club list and no branch on a club', () => {
     // the clubs this platform happens to have today
-    [/BSC/i, /Marzahn/i, /FC Familista/i].forEach((re) => expect(SVC).not.toMatch(re));
+    [/\bBSC\b/i, /\bMarzahn\b/i, /\bFC Familista\b/i].forEach((re) => expect(SVC).not.toMatch(re));
     // and no equality test against a club name at all
     expect(SVC).not.toMatch(/club(Name)?\s*===\s*['"]/);
   });

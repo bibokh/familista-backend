@@ -96,7 +96,7 @@ describe('the fill never touches a real record', () => {
   it('it reads the teams that exist rather than a number of them', () => {
     const f = svcFn('seedDemoStaff');
     expect(f).toContain('prisma.team.findMany');
-    expect(f).toContain('where: { isActive: true');
+    expect(f).toMatch(/let where: Prisma\.TeamWhereInput = \{ isActive: true \}/);
     expect(f).not.toMatch(/Math\.random/);
   });
 
@@ -165,13 +165,14 @@ describe('one market status, shared with the market', () => {
   });
 
   it('the card carries it, with what a move would take', () => {
-    const card = APP.slice(APP.indexOf('function _coStaffCardHtml(m, g)'), APP.indexOf('function _coProfileHtml()'));
+    const card = APP.slice(APP.indexOf('function _coStaffCardHtml(m)'), APP.indexOf('function _coProfileHtml()'));
     expect(card).toContain('CO_STATUS[st]');
     expect(card).toContain('m.contractEndsAt');
-    expect(card).toContain('m.releaseClause');
-    expect(card).toContain('m.compensationFee');
-    expect(card).toContain('m.expectedSalary');
-    expect(card).toContain('m.availabilityDate');
+    expect(card).toContain('m.highestLicence');
+    // the detail stays off the front of the card, in the record behind it
+    const svc = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    ['releaseClause', 'compensationFee', 'expectedSalary', 'availabilityDate']
+      .forEach((k) => expect(svc).toContain(k));
   });
 
   it('and says it in the words a club uses about its own staff', () => {
@@ -207,17 +208,22 @@ describe('the command centre reads before it opens', () => {
 
   it('the page draws that, not a wall of cards', () => {
     expect(APP).toContain('var CO_HEALTH');
-    expect(APP).toContain('function _coGroupHtml(g)');
-    expect(CSS).toContain('.co-metric{');
-    expect(CSS).toContain('.co-complete{');
-    expect(CSS).toContain('.co-lead{');
+    expect(APP).toContain('function _coTeamCardHtml(g)');
+    expect(CSS).toContain('.co-tc-figs{');
+    expect(CSS).toContain('.co-cc-cov{');
+    expect(CSS).toContain('.co-tc-lead{');
   });
 
-  it('and staff appear only once a team is expanded', () => {
-    const g = APP.slice(APP.indexOf('function _coGroupHtml(g)'), APP.indexOf('function _coStaffCardHtml(m, g)'));
-    expect(g).toContain('var open = !_CO.collapsed[key];');
-    expect(g).toContain("if (open) {");
-    expect(g).toContain("(open ? '<div class=\"co-team-body\">' + body + '</div>' : '')");
+  it('and staff appear only once a team is opened — never before', () => {
+    // the team card carries no staff at all; the people are a separate read
+    const card = APP.slice(APP.indexOf('function _coTeamCardHtml(g)'), APP.indexOf('function _coTeamViewHtml()'));
+    expect(card).not.toContain('_coStaffCardHtml');
+    // it reads the count, never the people (g.staffCount is not g.staff)
+    expect(card).not.toMatch(/g\.staff[.[]/);
+    expect(card).toContain('g.staffCount');
+    expect(SVC).toContain('export async function coachesTeamStaff');
+    // and the level-2 read strips them off the server side too
+    expect(SVC).toContain('const { staff, ...rest } = g as');
   });
 });
 

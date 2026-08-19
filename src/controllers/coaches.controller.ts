@@ -11,9 +11,29 @@ const actor = (req: Request): svc.StaffActor => ({
   role: req.user!.role,
 });
 
-export async function directory(req: Request, res: Response, next: NextFunction) {
-  try { return sendSuccess(res, await svc.coachesDirectory(actor(req))); }
+// ── the three levels ────────────────────────────────────────────────────────
+// Each one answers for its own level and nothing below it, so opening the page
+// never loads the whole organisation.
+export async function clubs(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.coachesClubs(actor(req))); }
   catch (err) { return next(err); }
+}
+
+export async function clubTeams(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.coachesClubTeams(actor(req), String(req.params.clubId))); }
+  catch (err) { return next(err); }
+}
+
+export async function teamStaff(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.coachesTeamStaff(actor(req), String(req.params.teamId))); }
+  catch (err) { return next(err); }
+}
+
+export async function directory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const clubId = req.query.clubId ? String(req.query.clubId) : undefined;
+    return sendSuccess(res, await svc.coachesDirectory(actor(req), clubId ? { clubId } : {}));
+  } catch (err) { return next(err); }
 }
 
 // ── the club's own staff ────────────────────────────────────────────────────
@@ -56,9 +76,11 @@ export async function removeTrophy(req: Request, res: Response, next: NextFuncti
 // ── sample staff, for a platform still being built ──────────────────────────
 export async function seedDemo(req: Request, res: Response, next: NextFunction) {
   try {
-    const scope = String((req.query.scope ?? 'club'));
+    // "all" fills every club this session may see; otherwise just the one it
+    // is acting for. Neither can reach a club it is not authorised for.
+    const scope = String(req.query.scope ?? 'club');
     return sendSuccess(res, await svc.seedDemoStaff(actor(req),
-      scope === 'platform' ? {} : { clubId: actor(req).clubId }));
+      (scope === 'all' || scope === 'platform') ? { allClubs: true } : { clubId: actor(req).clubId }));
   } catch (err) { return next(err); }
 }
 

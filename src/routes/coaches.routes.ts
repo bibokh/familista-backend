@@ -23,7 +23,12 @@ const staffGuard = authorize(...STAFF_ROLES);
 
 // Every current team and its technical staff. Reading, so any authenticated
 // club may do it — the same tier that may read the market.
-router.get('/directory', ctrl.directory);
+// Read by drilling in: the clubs, then one club's teams, then one team's
+// staff. Nothing loads the level below the one being looked at.
+router.get('/clubs',                    ctrl.clubs);
+router.get('/clubs/:clubId/teams',      ctrl.clubTeams);
+router.get('/teams/:teamId/staff',      ctrl.teamStaff);
+router.get('/directory',                ctrl.directory);
 
 // ── running the club's own staff ────────────────────────────────────────────
 router.post('/staff',                          staffGuard, ctrl.addStaff);
