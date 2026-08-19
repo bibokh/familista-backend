@@ -23,6 +23,13 @@ const SVC = readFileSync(join(__dirname, '..', 'src', 'staff-market', 'staff-mar
 const CO_ROUTES = readFileSync(join(__dirname, '..', 'src', 'routes', 'coaches.routes.ts'), 'utf8');
 const INDEX = readFileSync(join(__dirname, '..', 'src', 'routes', 'index.ts'), 'utf8');
 
+// A service function's own body, bounded by the next export.
+function svcFn(name: string) {
+  const from = SVC.indexOf(`export async function ${name}`);
+  const next = SVC.indexOf('export async function', from + 10);
+  return SVC.slice(from, next < 0 ? undefined : next);
+}
+
 // the slice of app.js that is the player market's own module
 const TF = APP.slice(APP.indexOf('function renderTransfersHTML()'), APP.indexOf('var _TF_ST = {'));
 
@@ -139,7 +146,7 @@ describe('Coaches is its own module, below Coach Market', () => {
   });
 
   it('and is not the market\'s screen: no board, no negotiating, no shortlist on it', () => {
-    const co = APP.slice(APP.indexOf('function _coHtml() {'), APP.indexOf('// The directory\'s own listeners'));
+    const co = APP.slice(APP.indexOf('function _coHtml() {'), APP.indexOf('function _coProfileHtml()'));
     expect(co.length).toBeGreaterThan(500);
     expect(co).not.toContain('_stCardHtml');
     expect(co).not.toContain('data-st-approach');
@@ -147,7 +154,7 @@ describe('Coaches is its own module, below Coach Market', () => {
     expect(co).not.toContain('data-st-cmp');
     // its own markup instead
     expect(APP).toContain('function _coGroupHtml(g)');
-    expect(APP).toContain('function _coStaffCardHtml(m)');
+    expect(APP).toContain('function _coStaffCardHtml(m, g)');
     expect(CSS).toContain('.co-team{');
     expect(CSS).toContain('.co-person{');
     // and it does not borrow the market's palette: it defines its own
@@ -158,7 +165,7 @@ describe('Coaches is its own module, below Coach Market', () => {
 
 describe('the directory is read from what the platform holds', () => {
   it('it queries the teams that exist — no group is written down', () => {
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).toContain('prisma.team.findMany');
     expect(f).toContain('where: { isActive: true }');
     expect(f).toContain('prisma.membership.findMany');
@@ -168,33 +175,35 @@ describe('the directory is read from what the platform holds', () => {
   });
 
   it('a club-wide membership is its own group, not copied into every team', () => {
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).toContain('const clubWide = new Map');
     expect(f).toContain("kind: 'CLUB' as never");
   });
 
   it('a team with nobody in it is still a group', () => {
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).toContain('groupsWithoutStaff');
     expect(APP).toContain('No technical staff assigned to this team.');
   });
 
   it('and the status it shows is the market\'s own, from the same function', () => {
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).toContain('employmentStatus: employmentStatus({');
   });
 });
 
 describe('one person, two perspectives', () => {
   it('the directory opens the market\'s canonical profile, not a second one', () => {
-    const wire = APP.slice(APP.indexOf('function _coRepaint()'));
-    expect(wire).toContain('_stProfileHtml()');
+    // the panel is the directory's, the record inside it is the market's own
+    expect(APP).toContain('function _coProfileHtml()');
+    const wire = APP.slice(APP.indexOf('(function _coWire() {'));
     expect(wire).toContain('_stLoadOne(id)');
-    expect(APP).not.toMatch(/function _coProfileHtml/);
+    expect(wire).toMatch(/_stApi\('PATCH', '\/staff\//);   // edits the canonical record
+    expect(APP).not.toMatch(/_coApi2\('POST', '\/profiles/); // and never a second one
   });
 
   it('and the directory never creates a person', () => {
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).not.toContain('prisma.user.create');
     expect(f).not.toContain('membership.create');
     expect(f).not.toContain('staffProfile.create');
@@ -244,10 +253,10 @@ describe('three modules, three visual identities', () => {
 
   it('the directory groups staff into departments rather than one flat grid', () => {
     expect(APP).toContain('var CO_DEPTS');
-    ['Leadership', 'Goalkeeping', 'Performance', 'Technical', 'Medical', 'Scouting']
+    ['Leadership', 'Coaching', 'Performance', 'Analysis', 'Medical', 'Scouting']
       .forEach((d) => expect(APP).toContain(`['${d}',`));
     // a role the departments do not cover is still shown, never dropped
-    expect(APP).toContain("depts += '<div class=\"co-dept\"><h5 class=\"co-dept-h\">Other<span>'");
+    expect(APP).toMatch(/depts \+= '<div class="co-dept"><h5 class="co-dept-h">[\s\S]{0,60}Other/);
     expect(CSS).toContain('.co-dept-h{');
   });
 
@@ -260,7 +269,7 @@ describe('three modules, three visual identities', () => {
 
   it('and a free agent can never appear in it', () => {
     // the directory is built from memberships; a free agent has none
-    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    const f = svcFn('coachesDirectory');
     expect(f).not.toContain('staffProfile.findMany({ where: { user');
     expect(f).toMatch(/memberships\.forEach/);
     expect(f).not.toContain('orphanProfiles');

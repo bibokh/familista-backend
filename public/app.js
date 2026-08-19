@@ -52626,20 +52626,30 @@ function renderCoachMarketPage() {
 // list. These are the platform's own roles, sorted into the groups a club
 // actually runs — nothing here invents a role or renames one.
 var CO_DEPTS = [
-  ['Leadership',  ['HEAD_COACH', 'ASSISTANT_COACH']],
-  ['Goalkeeping', ['GOALKEEPING_COACH']],
-  ['Performance', ['FITNESS_COACH', 'PERFORMANCE_COACH']],
-  ['Technical',   ['TACTICAL_COACH', 'TECHNICAL_COACH', 'YOUTH_COACH', 'ANALYST']],
-  ['Medical',     ['MEDICAL_STAFF', 'PHYSIO']],
-  ['Scouting',    ['SCOUT']]
+  ['Leadership',  '★', ['HEAD_COACH', 'ASSISTANT_COACH']],
+  ['Coaching',    '⚽', ['GOALKEEPING_COACH', 'TECHNICAL_COACH', 'TACTICAL_COACH', 'YOUTH_COACH']],
+  ['Performance', '⚡', ['FITNESS_COACH', 'PERFORMANCE_COACH']],
+  ['Analysis',    '▤', ['ANALYST']],
+  ['Medical',     '✚', ['MEDICAL_STAFF', 'PHYSIO']],
+  ['Scouting',    '◎', ['SCOUT']]
 ];
 
 // What the directory says about somebody's standing. It is the market's own
 // status, said in the words a club uses about its own staff.
+// The market status a staff card carries. It is the same canonical status the
+// Coach Market reads — one field, said in the words a club uses about somebody
+// it employs.
 var CO_STATUS = {
-  EMPLOYED: 'Active', CONTRACT_ENDING_SOON: 'Contract ending',
+  EMPLOYED: 'Not looking', CONTRACT_ENDING_SOON: 'Contract ending soon',
   OPEN_TO_OFFERS: 'Open to offers', ACTIVELY_LOOKING: 'Actively looking',
   UNAVAILABLE: 'Unavailable', FREE_AGENT: 'Free agent'
+};
+
+// How a team is doing, in one word, from the figures the server counted.
+var CO_HEALTH = {
+  SETTLED: ['Settled', 'ok'], CONTRACTS_ENDING: ['Contracts ending', 'warn'],
+  UNDERSTAFFED: ['Understaffed', 'warn'], NO_HEAD_COACH: ['No head coach', 'bad'],
+  EMPTY: ['No staff', 'bad']
 };
 
 var _CO = {
@@ -52651,7 +52661,11 @@ var _CO = {
   // somebody in them.
   showEmpty: false,
   role: '',
-  collapsed: {}   // teamId → true; a directory this size is read team by team
+  collapsed: {},  // teamId → true; a directory this size is read team by team
+  // the profile the directory opens, and the edit over it
+  open: null, tab: 'overview', editing: false, draft: null, err: null,
+  noteDraft: null, careerDraft: null, trophyDraft: null,
+  add: null, move: null, busy: false
 };
 
 function _coApi(method, path) { return _thApi(method, '/coaches' + path); }
@@ -52686,9 +52700,10 @@ function _coRepaint() {
   if (b) b.innerHTML = _coHtml();
   var ov = document.getElementById('co-overlay');
   if (ov) {
-    // The profile opened from here is the market's own, unchanged.
-    var html = (_TF_ST.open ? _stProfileHtml() : '') + (_TF_ST.approach ? _stApproachHtml() : '');
-    if (_TF_ST.open || _TF_ST.approach) { ov.innerHTML = html; ov.classList.add('is-on'); }
+    // The record it opens is the canonical one — the same _TF_ST.detail the
+    // market reads. Only the panel around it belongs to this module.
+    var html = (_CO.open ? _coProfileHtml() : '') + (_CO.add ? _coAddHtml() : '') + (_CO.move ? _coMoveHtml() : '');
+    if (_CO.open || _CO.add || _CO.move) { ov.innerHTML = html; ov.classList.add('is-on'); }
     else { ov.innerHTML = ''; ov.classList.remove('is-on'); }
   }
 }
@@ -52718,7 +52733,25 @@ function _coHtml() {
   _CO.groups.forEach(function (g) { if (clubs.indexOf(g.club.name) < 0) clubs.push(g.club.name); });
   clubs.sort();
 
-  // One compact bar. A directory is read to find a person, not to build a query.
+  // The command line: what the platform holds, and what needs attention.
+  var fig = function (n, l, cls) {
+    return '<div class="co-hq-fig' + (cls ? ' ' + cls : '') + '"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></div>';
+  };
+  var head = '<div class="co-hq">'
+    + fig(t.staff, 'Technical staff')
+    + fig(t.teams, 'Teams')
+    + fig(t.clubs, 'Clubs')
+    + '<div class="co-hq-sep"></div>'
+    + fig(t.contractsEndingSoon, 'Contracts ending', 'is-warn')
+    + fig(t.onTheMarket, 'On the market', 'is-info')
+    + fig(t.teamsWithoutHeadCoach, 'No head coach', 'is-bad')
+    + '<div class="co-hq-acts">'
+    +   (t.demoStaff ? '<span class="co-demoflag">' + t.demoStaff + ' sample</span>' : '')
+    +   '<button type="button" class="co-btn" data-co-seed>Fill empty teams</button>'
+    +   (t.demoStaff ? '<button type="button" class="co-btn co-btn--quiet" data-co-unseed>Remove samples</button>' : '')
+    + '</div>'
+    + '</div>';
+
   var bar = '<div class="co-bar">'
     + '<input class="co-q" type="search" placeholder="Find a coach, a team or a club" value="' + _coEsc(_CO.q) + '" data-co-q>'
     + '<select data-co-f="club"><option value="">Every club</option>'
@@ -52738,21 +52771,11 @@ function _coHtml() {
     +   'Teams without staff <b>' + (t.groupsWithoutStaff == null ? '—' : t.groupsWithoutStaff) + '</b></button>'
     + '</div>';
 
-  // The headquarters line: what the platform holds, said once and quietly.
-  var head = '<div class="co-hq">'
-    + '<div class="co-hq-fig"><b>' + (t.staff == null ? '—' : t.staff) + '</b><i>Technical staff</i></div>'
-    + '<div class="co-hq-fig"><b>' + (t.teams == null ? '—' : t.teams) + '</b><i>Teams</i></div>'
-    + '<div class="co-hq-fig"><b>' + (t.clubs == null ? '—' : t.clubs) + '</b><i>Clubs</i></div>'
-    + '<div class="co-hq-sep"></div>'
-    + '<div class="co-hq-note">' + groups.length + ' team' + (groups.length === 1 ? '' : 's') + ' shown'
-    +   (_CO.showEmpty ? ' · including those with nobody assigned' : '') + '</div>'
-    + '</div>';
-
   if (!groups.length) {
     return '<div class="co-pane">' + head + bar
       + '<div class="co-empty">' + (_CO.showEmpty
           ? 'No team matches. The directory reads the teams the platform holds — a team appears here the moment it is created.'
-          : 'No team here has technical staff yet. The teams exist — switch on <b>Teams without staff</b> to see them.')
+          : 'No team here has technical staff yet. The teams exist — switch on <b>Teams without staff</b>, or fill them with sample staff while the platform is being built.')
       + '</div></div>';
   }
 
@@ -52801,127 +52824,708 @@ function _coFiltered() {
   });
 }
 
-// A team, with its staff sorted into the departments a club actually runs.
-// Collapsible, because a platform with two thousand teams is read one at a time.
+// ── the team command card ────────────────────────────────────────────────────
+// A team is read before it is opened: who leads it, how many people it has, how
+// many contracts are running out, and whether it is short. The staff underneath
+// only appear when it is expanded, so a platform with two thousand teams is a
+// page a director can actually use.
 function _coGroupHtml(g) {
   var key = g.teamId || ('club:' + g.club.id);
   var open = !_CO.collapsed[key];
   var label = g.kind === 'CLUB' ? 'Club-wide' : _coKind(g.teamKind || 'TEAM');
   var kindCls = g.kind === 'CLUB' ? 'club' : String(g.teamKind || '').toLowerCase().split('_')[0];
+  var hp = CO_HEALTH[g.health] || ['—', 'ok'];
   var staff = _CO.role ? g.staff.filter(function (m) { return m.role === _CO.role; }) : g.staff;
 
+  var metric = function (n, l, cls) {
+    return '<span class="co-metric' + (cls ? ' ' + cls : '') + '"><b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></span>';
+  };
+
   var body = '';
-  if (!g.staffCount) {
-    body = '<div class="co-none">No technical staff assigned to this team.</div>';
-  } else {
-    var placed = {};
-    var depts = CO_DEPTS.map(function (d) {
-      var inDept = staff.filter(function (m) { return d[1].indexOf(m.role) >= 0; });
-      inDept.forEach(function (m) { placed[m.staffUserId] = 1; });
-      if (!inDept.length) return '';
-      return '<div class="co-dept">'
-        + '<h5 class="co-dept-h co-dept-h--' + d[0].toLowerCase() + '">' + d[0] + '<span>' + inDept.length + '</span></h5>'
-        + '<div class="co-people">' + inDept.map(_coStaffCardHtml).join('') + '</div>'
-        + '</div>';
-    }).join('');
-    // Anything the departments do not cover is still shown — a role added to
-    // the platform later must never fall off this page silently.
-    var rest = staff.filter(function (m) { return !placed[m.staffUserId]; });
-    if (rest.length) {
-      depts += '<div class="co-dept"><h5 class="co-dept-h">Other<span>' + rest.length + '</span></h5>'
-        + '<div class="co-people">' + rest.map(_coStaffCardHtml).join('') + '</div></div>';
+  if (open) {
+    if (!g.staffCount) {
+      body = '<div class="co-none">No technical staff assigned to this team.'
+        + '<button type="button" class="co-btn" data-co-add="' + _coEsc(g.teamId || '') + '">+ Add staff member</button></div>';
+    } else {
+      var placed = {};
+      var depts = CO_DEPTS.map(function (d) {
+        var inDept = staff.filter(function (m) { return d[2].indexOf(m.role) >= 0; });
+        inDept.forEach(function (m) { placed[m.staffUserId] = 1; });
+        if (!inDept.length) return '';
+        return '<div class="co-dept">'
+          + '<h5 class="co-dept-h co-dept-h--' + d[0].toLowerCase() + '">'
+          +   '<span class="co-dept-i">' + d[1] + '</span>' + d[0] + '<span class="co-dept-n">' + inDept.length + '</span></h5>'
+          + '<div class="co-people">' + inDept.map(function (m) { return _coStaffCardHtml(m, g); }).join('') + '</div>'
+          + '</div>';
+      }).join('');
+      // A role the departments do not cover is still shown — a role added to
+      // the platform later must never fall off this page silently.
+      var rest = staff.filter(function (m) { return !placed[m.staffUserId]; });
+      if (rest.length) {
+        depts += '<div class="co-dept"><h5 class="co-dept-h"><span class="co-dept-i">·</span>Other<span class="co-dept-n">' + rest.length + '</span></h5>'
+          + '<div class="co-people">' + rest.map(function (m) { return _coStaffCardHtml(m, g); }).join('') + '</div></div>';
+      }
+      body = (depts || '<div class="co-none">No staff matches this role in this team.</div>')
+        + '<div class="co-team-foot"><button type="button" class="co-btn" data-co-add="' + _coEsc(g.teamId || '') + '">+ Add staff member</button></div>';
     }
-    body = depts || '<div class="co-none">No staff matches this role in this team.</div>';
   }
 
-  return '<article class="co-team' + (open ? '' : ' is-shut') + '"'
+  return '<article class="co-team' + (open ? '' : ' is-shut') + ' co-team--' + hp[1] + '"'
     + (g.color ? ' style="--co-accent:' + _coEsc(g.color) + '"' : '') + '>'
-    + '<button type="button" class="co-team-hd" data-co-fold="' + _coEsc(key) + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
-    +   '<span class="co-fold">' + (open ? '▾' : '▸') + '</span>'
-    +   '<span class="co-team-id">'
-    +     '<b>' + _coEsc(g.teamName) + '</b>'
-    +     '<span class="co-team-tags">'
-    +       '<span class="co-tag co-tag--' + kindCls + '">' + _coEsc(label) + '</span>'
-    +       (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
+    + '<div class="co-team-hd">'
+    +   '<button type="button" class="co-team-open" data-co-fold="' + _coEsc(key) + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
+    +     '<span class="co-fold">' + (open ? '▾' : '▸') + '</span>'
+    +     '<span class="co-team-id">'
+    +       '<b>' + _coEsc(g.teamName) + '</b>'
+    +       '<span class="co-team-tags">'
+    +         '<span class="co-tag co-tag--' + kindCls + '">' + _coEsc(label) + '</span>'
+    +         (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
+    +         '<span class="co-tag co-tag--' + hp[1] + '">' + _coEsc(hp[0]) + '</span>'
+    +       '</span>'
     +     '</span>'
+    +     '<span class="co-lead">'
+    +       (g.headCoach
+          ? '<span class="co-lead-av">' + (g.headCoach.avatar
+              ? '<img src="' + _coEsc(g.headCoach.avatar) + '" alt="">'
+              : _coEsc((g.headCoach.name || '?').slice(0, 1))) + '</span>'
+            + '<span class="co-lead-id"><i>Head coach</i><b>' + _coEsc(g.headCoach.name) + '</b></span>'
+          : '<span class="co-lead-id"><i>Head coach</i><b class="co-unknown">Vacant</b></span>')
+    +     '</span>'
+    +     '<span class="co-metrics">'
+    +       metric(g.staffCount, 'Staff')
+    +       metric(g.activeContracts, 'Contracts')
+    +       metric(g.contractsEndingSoon, 'Ending', g.contractsEndingSoon ? 'is-warn' : '')
+    +       metric(g.onTheMarket, 'On market', g.onTheMarket ? 'is-info' : '')
+    +     '</span>'
+    +     '<span class="co-complete" title="' + g.rolesFilled + ' of ' + g.expectedRoles + ' roles filled">'
+    +       '<span class="co-complete-t"><span style="width:' + (g.completeness || 0) + '%"></span></span>'
+    +       '<i>' + (g.completeness || 0) + '%</i></span>'
+    +   '</button>'
+    +   '<span class="co-team-acts">'
+    +     '<button type="button" class="co-btn co-btn--quiet" data-co-add="' + _coEsc(g.teamId || '') + '">+ Staff</button>'
     +   '</span>'
-    +   '<span class="co-team-n' + (g.staffCount ? '' : ' is-none') + '">' + g.staffCount
-    +     '<i>technical staff</i></span>'
-    + '</button>'
+    + '</div>'
     + (open ? '<div class="co-team-body">' + body + '</div>' : '')
     + '</article>';
 }
 
-// A professional identity card. Portrait first, then who he is and what his
-// employment says — nothing on it is about recruiting him.
-function _coStaffCardHtml(m) {
+// ── the staff card ───────────────────────────────────────────────────────────
+// A professional identity card carrying one line of market truth: where he
+// stands, when his contract ends, and what a move would take. Nothing more —
+// the rest is one click away.
+function _coStaffCardHtml(m, g) {
   var dash = '<i class="co-unknown">—</i>';
   var st = m.employmentStatus || 'EMPLOYED';
-  return '<button type="button" class="co-person" data-st-open="' + _coEsc(m.staffUserId) + '">'
-    + '<span class="co-portrait">'
-    +   (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : '<span>' + _coEsc((m.name || '?').slice(0, 1)) + '</span>')
-    +   '<span class="co-dot co-dot--' + String(st).toLowerCase() + '" title="' + _coEsc(CO_STATUS[st] || st) + '"></span>'
-    + '</span>'
-    + '<span class="co-person-id">'
-    +   '<b>' + _coEsc(m.name) + '</b>'
-    +   '<em>' + _coEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
-    + '</span>'
-    + '<span class="co-person-facts">'
-    +   '<span><i>Licence</i><b>' + (m.highestLicence ? _coEsc(m.highestLicence.name) : dash) + '</b></span>'
-    +   '<span><i>Nationality</i><b>' + (m.nationality ? _coEsc(m.nationality) : dash) + '</b></span>'
-    +   '<span><i>Experience</i><b>' + (m.yearsExperience != null ? m.yearsExperience + ' yrs' : dash) + '</b></span>'
-    +   '<span><i>Contract</i><b>' + (m.contractEndsAt ? _stDate(m.contractEndsAt) : dash) + '</b></span>'
-    + '</span>'
-    + '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
-    + '</button>';
+  var cost = m.releaseClause != null ? ['Release', _stMoney(m.releaseClause)]
+    : (m.compensationFee != null ? ['Compensation', _stMoney(m.compensationFee)]
+      : ['Asking', m.expectedSalary != null ? _stMoney(m.expectedSalary) : dash]);
+  return '<div class="co-person-wrap">'
+    + '<button type="button" class="co-person" data-st-open="' + _coEsc(m.staffUserId) + '"'
+    +   ' data-co-team="' + _coEsc((g && g.teamId) || '') + '">'
+    +   '<span class="co-portrait">'
+    +     (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : '<span>' + _coEsc((m.name || '?').slice(0, 1)) + '</span>')
+    +     '<span class="co-dot co-dot--' + String(st).toLowerCase() + '" title="' + _coEsc(CO_STATUS[st] || st) + '"></span>'
+    +   '</span>'
+    +   '<span class="co-person-id">'
+    +     '<b>' + _coEsc(m.name) + (m.isDemo ? '<em class="co-demo">Sample</em>' : '') + '</b>'
+    +     '<em>' + _coEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
+    +     '<span class="co-person-sub">' + (m.age != null ? m.age + ' yrs' : 'Age not recorded') + ' · '
+    +       (m.nationality ? _coEsc(m.nationality) : 'Nationality not recorded')
+    +       + (m.highestLicence ? ' · ' + _coEsc(m.highestLicence.name) : '')
+    +       + (m.yearsExperience != null ? ' · ' + m.yearsExperience + ' yrs exp' : '') + '</span>'
+    +   '</span>'
+    +   '<span class="co-market">'
+    +     '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
+    +     '<span class="co-market-kv"><i>Contract</i><b>' + (m.contractEndsAt ? _stDate(m.contractEndsAt) : dash) + '</b></span>'
+    +     '<span class="co-market-kv"><i>' + cost[0] + '</i><b>' + cost[1] + '</b></span>'
+    +     (m.availabilityDate ? '<span class="co-market-kv"><i>Available</i><b>' + _stDate(m.availabilityDate) + '</b></span>' : '')
+    +   '</span>'
+    + '</button>'
+    + '</div>';
+}
+
+// ── the editable staff profile ───────────────────────────────────────────────
+// The same canonical record the market opens, with an edit mode over it. Every
+// field writes back to the one profile — nothing here creates a second person,
+// and a field the platform does not hold stays empty rather than being filled.
+
+var CO_PTABS = [
+  ['overview', 'Overview'], ['personal', 'Personal'], ['career', 'Career'],
+  ['qualifications', 'Qualifications'], ['tactics', 'Tactical'], ['experience', 'Experience'],
+  ['achievements', 'Achievements'], ['contract', 'Contract'], ['market', 'Market status'],
+  ['intent', 'Career intent'], ['notes', 'Notes']
+];
+
+function _coProfileHtml() {
+  var id = _CO.open; if (!id) return '';
+  var d = _TF_ST.detail[id];
+  if (!d) return '<div class="tf-modal" data-co-modal><div class="tf-modal-bd" data-co-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide"><div class="co-empty">Reading the record…</div></div></div>';
+  if (d.error) return '<div class="tf-modal" data-co-modal><div class="tf-modal-bd" data-co-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm"><div class="co-empty">' + _coEsc(d.error) + '</div></div></div>';
+
+  var st = d.employmentStatus || (d.isFreeAgent ? 'FREE_AGENT' : 'EMPLOYED');
+  var tabs = CO_PTABS.map(function (t) {
+    return '<button type="button" class="co-ptab' + (_CO.tab === t[0] ? ' is-on' : '') + '" data-co-ptab="' + t[0] + '">' + t[1] + '</button>';
+  }).join('');
+
+  return '<div class="tf-modal" data-co-modal>'
+    + '<div class="tf-modal-bd" data-co-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--wide co-profile" role="dialog" aria-modal="true" aria-label="Staff profile">'
+    +   '<button type="button" class="tf-x" data-co-close>×</button>'
+    +   '<header class="co-pd-head">'
+    +     '<span class="co-portrait co-portrait--lg">'
+    +       (d.avatar ? '<img src="' + _coEsc(d.avatar) + '" alt="">' : '<span>' + _coEsc((d.name || '?').slice(0, 1)) + '</span>')
+    +     '</span>'
+    +     '<div class="co-pd-id"><h2>' + _coEsc(d.name) + (d.isDemo ? '<em class="co-demo">Sample</em>' : '') + '</h2>'
+    +       '<div class="co-pd-meta">'
+    +         '<span>' + _coEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff') + '</span>'
+    +         '<span>' + (d.currentClub ? _coEsc(d.currentClub.name) : 'No club') + '</span>'
+    +         '<span>' + (d.age != null ? d.age + ' yrs' : 'Age not recorded') + '</span>'
+    +         '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
+    +       '</div></div>'
+    +     '<div class="co-pd-acts">'
+    +       (_CO.editing
+          ? '<button type="button" class="co-btn co-btn--quiet" data-co-cancel>Cancel</button>'
+            + '<button type="button" class="co-btn co-btn--go" data-co-save="' + _coEsc(d.staffUserId) + '">Save changes</button>'
+          : '<button type="button" class="co-btn" data-co-edit>Edit profile</button>'
+            + (d.isMine ? '<button type="button" class="co-btn co-btn--quiet" data-co-moveopen="' + _coEsc(d.staffUserId) + '">Move team</button>'
+                        + '<button type="button" class="co-btn co-btn--bad" data-co-release="' + _coEsc(d.staffUserId) + '">Release</button>' : ''))
+    +     '</div>'
+    +   '</header>'
+    +   (_CO.err ? '<p class="co-err">' + _coEsc(_CO.err) + '</p>' : '')
+    +   '<div class="co-pd-body">'
+    +     '<nav class="co-ptabs">' + tabs + '</nav>'
+    +     '<div class="co-pd-panel">' + _coPanel(d) + '</div>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+// One field, drawn as text or as an input depending on the mode. The edit form
+// is the same layout as the view, so nothing moves when the mode changes.
+function _coF(label, key, value, opts) {
+  opts = opts || {};
+  var shown = (value == null || value === '') ? '<i class="co-unknown">Not recorded</i>' : _coEsc(String(value));
+  if (!_CO.editing || !key) return '<div class="co-fld"><i>' + label + '</i><b>' + shown + '</b></div>';
+  var v = (_CO.draft && _CO.draft[key] !== undefined) ? _CO.draft[key] : (value == null ? '' : value);
+  if (opts.options) {
+    return '<label class="co-fld"><i>' + label + '</i><select data-co-e="' + key + '">'
+      + (opts.blank ? '<option value=""></option>' : '')
+      + opts.options.map(function (o) {
+          var ov = Array.isArray(o) ? o[0] : o, ol = Array.isArray(o) ? o[1] : o;
+          return '<option value="' + _coEsc(ov) + '"' + (String(v) === String(ov) ? ' selected' : '') + '>' + _coEsc(ol) + '</option>';
+        }).join('') + '</select></label>';
+  }
+  if (opts.textarea) {
+    return '<label class="co-fld co-fld--wide"><i>' + label + '</i>'
+      + '<textarea data-co-e="' + key + '" rows="3">' + _coEsc(v) + '</textarea></label>';
+  }
+  return '<label class="co-fld"><i>' + label + '</i>'
+    + '<input data-co-e="' + key + '" type="' + (opts.type || 'text') + '" value="' + _coEsc(v) + '"'
+    + (opts.ph ? ' placeholder="' + opts.ph + '"' : '') + '></label>';
+}
+function _coList(label, key, arr) {
+  var v = (arr || []).join(', ');
+  if (!_CO.editing) return '<div class="co-fld co-fld--wide"><i>' + label + '</i><b>'
+    + (v ? _coEsc(v) : '<i class="co-unknown">Not recorded</i>') + '</b></div>';
+  var d = (_CO.draft && _CO.draft[key] !== undefined) ? _CO.draft[key] : v;
+  return '<label class="co-fld co-fld--wide"><i>' + label + '</i>'
+    + '<input data-co-e="' + key + '" data-co-arr="1" value="' + _coEsc(d) + '" placeholder="comma separated"></label>';
+}
+function _coSec(title, inner) { return '<section class="co-sec"><h4>' + title + '</h4><div class="co-flds">' + inner + '</div></section>'; }
+
+function _coPanel(d) {
+  var t = _CO.tab;
+  var iso = function (x) { return x ? String(x).slice(0, 10) : ''; };
+  if (t === 'personal') {
+    return _coSec('Who he is',
+        _coF('First name', 'firstName', d.firstName)
+      + _coF('Last name', 'lastName', d.lastName)
+      + _coF('Date of birth', 'dateOfBirth', iso(d.dateOfBirth), { type: 'date' })
+      + _coF('Age', null, d.age != null ? d.age + ' yrs' : null)
+      + _coF('Nationality', 'nationality', d.nationality)
+      + _coF('Second nationality', 'secondNationality', d.secondNationality)
+      + _coList('Languages', 'languages', d.languages)
+      + _coF('Photo URL', 'avatar', d.avatar));
+  }
+  if (t === 'career') return _coCareerPanel(d);
+  if (t === 'qualifications') {
+    return _coSec('Licences', ((d.licences || []).length
+        ? d.licences.map(function (l) {
+            return '<div class="co-fld"><i>' + _coEsc(l.name) + '</i><b>' + _coEsc(l.issuer)
+              + (l.obtainedAt ? ' · ' + _stDate(l.obtainedAt) : '') + '</b></div>';
+          }).join('')
+        : '<div class="co-fld co-fld--wide"><i>Coaching licence</i><b class="co-unknown">None recorded</b></div>'))
+      + _coSec('Certifications &amp; education',
+          _coList('Certifications', 'certifications', d.certifications)
+        + _coList('Education', 'education', d.education)
+        + _coList('Specialist qualifications', 'specialities', d.specialities));
+  }
+  if (t === 'tactics') {
+    var tc = d.tactics || {}, ap = d.approach || {};
+    return _coSec('How he plays',
+        _coF('Preferred formation', 'primaryFormation', tc.primaryFormation)
+      + _coList('Tactical philosophy', 'philosophy', tc.philosophy)
+      + _coF('Coaching style', 'coachingStyle', ap.coachingStyle)
+      + _coF('Attacking approach', 'attackingApproach', ap.attacking)
+      + _coF('Defensive approach', 'defensiveApproach', ap.defensive)
+      + _coF('Transition philosophy', 'transitionApproach', ap.transition)
+      + _coF('Player development style', 'developmentStyle', ap.development)
+      + _coList('Training methods', 'trainingMethods', d.training && d.training.methods));
+  }
+  if (t === 'experience') {
+    var e = d.experience || {};
+    return _coSec('Years',
+        _coF('Total years', 'yearsExperience', e.totalYears, { type: 'number' })
+      + _coF('Senior football', 'seniorYears', e.seniorYears, { type: 'number' })
+      + _coF('Academy football', 'academyYears', e.academyYears, { type: 'number' })
+      + _coF('Professional level', 'level', d.level, { type: 'number' }))
+      + _coSec('Where',
+          _coList('Youth age groups', 'youthAgeGroups', e.youthAgeGroups)
+        + _coF('Countries worked in', null, (e.countries || []).join(', '))
+        + _coF('National team', 'nationalTeamExperience', (d.international && d.international.nationalTeam) ? 'Yes' : 'No',
+            { options: [['true', 'Yes'], ['false', 'No']] }));
+  }
+  if (t === 'achievements') return _coAchievementsPanel(d);
+  if (t === 'contract') {
+    var c = d.contract;
+    return _coSec('Current contract',
+        _coF('Club', null, c ? c.club.name : 'Free agent')
+      + _coF('Role', null, c ? (ST_ROLE_LABEL[c.role] || c.role) : null)
+      + _coF('Contract start', 'contractStart', iso(c && c.startedAt), { type: 'date' })
+      + _coF('Contract end', 'contractEnd', iso(c && c.endsAt), { type: 'date' })
+      + _coF('Duration', null, c && c.durationMonths != null ? c.durationMonths + ' months' : null)
+      + _coF('Salary', 'salary', c && c.salary != null ? c.salary : '', { type: 'number' })
+      + _coF('Release clause (contract)', 'contractReleaseClause', c && c.releaseClause != null ? c.releaseClause : '', { type: 'number' })
+      + _coF('Renewal status', 'renewalStatus', c && c.renewalStatus));
+  }
+  if (t === 'market') return _coMarketPanel(d);
+  if (t === 'intent') {
+    var pr = d.preferences || {};
+    return _coSec('What he wants next',
+        _coF('Stated intent', 'careerIntent', d.careerIntent,
+          { options: [['ACTIVELY_LOOKING', 'Actively looking'], ['OPEN_TO_OFFERS', 'Open to offers'], ['NOT_LOOKING', 'Not looking']], blank: true })
+      + _coF('Available from', 'availableFrom', iso(d.availableFrom), { type: 'date' })
+      + _coF('Preferred club level', 'preferredClubLevel', pr.clubLevel)
+      + _coList('Preferred countries', 'preferredCountries', pr.countries)
+      + _coList('Preferred leagues', 'preferredLeagues', pr.leagues));
+  }
+  if (t === 'notes') {
+    var n = d.clubNote;
+    var draft = _CO.noteDraft != null ? _CO.noteDraft : (n ? n.body : '');
+    return '<section class="co-sec"><h4>Our notes on him</h4>'
+      + '<p class="co-note">Private to this club. He never sees it and neither does any other club.</p>'
+      + '<textarea class="co-notebox" data-co-note rows="7">' + _coEsc(draft) + '</textarea>'
+      + '<div class="co-rowacts">'
+      +   (n ? '<span class="co-meta">Last saved ' + _stDate(n.updatedAt) + '</span>' : '')
+      +   '<button type="button" class="co-btn co-btn--go" data-co-notesave="' + _coEsc(d.staffUserId) + '">Save note</button>'
+      + '</div></section>';
+  }
+  // overview
+  return _coSec('Position',
+      _coF('Current club', null, d.currentClub ? d.currentClub.name : 'No club')
+    + _coF('Current team', null, _coTeamOf(d.staffUserId))
+    + _coF('Current role', null, ST_ROLE_LABEL[d.role] || d.role)
+    + _coF('Employment status', null, CO_STATUS[d.employmentStatus] || d.employmentStatus)
+    + _coF('Staff level', 'level', d.level, { type: 'number' })
+    + _coF('Reputation', 'reputation', d.reputation, { type: 'number' })
+    + _coF('Nationality', 'nationality', d.nationality)
+    + _coF('Photo URL', 'avatar', d.avatar));
+}
+
+// Which of this club's teams he is in — read from the directory already loaded,
+// so the profile and the page behind it always agree.
+function _coTeamOf(staffUserId) {
+  for (var i = 0; i < _CO.groups.length; i++) {
+    var g = _CO.groups[i];
+    for (var j = 0; j < g.staff.length; j++) {
+      if (g.staff[j].staffUserId === staffUserId) return g.teamName;
+    }
+  }
+  return null;
+}
+
+function _coMarketPanel(d) {
+  var st = d.employmentStatus || 'EMPLOYED';
+  return '<section class="co-sec"><h4>Market status</h4>'
+    + '<p class="co-note">This is the one status the Coach Market reads. Changing it here changes where he appears there — Available, Free Agents and everything that follows.</p>'
+    + '<div class="co-flds">'
+    + _coF('Current status', null, CO_STATUS[st] || st)
+    + _coF('Availability', 'availability', d.availability,
+        { options: [['EMPLOYED', 'Employed'], ['OPEN_TO_OFFERS', 'Open to offers'], ['FREE_AGENT', 'Free agent'], ['UNAVAILABLE', 'Unavailable']], blank: true })
+    + _coF('Career intent', 'careerIntent', d.careerIntent,
+        { options: [['ACTIVELY_LOOKING', 'Actively looking'], ['OPEN_TO_OFFERS', 'Open to offers'], ['NOT_LOOKING', 'Not looking']], blank: true })
+    + _coF('Expected salary', 'wageExpectation', d.wageExpectation, { type: 'number' })
+    + _coF('Release clause', 'releaseClause', d.releaseClause, { type: 'number' })
+    + _coF('Compensation required', 'compensationFee', d.compensationFee, { type: 'number' })
+    + _coF('Availability date', 'availableFrom', d.availableFrom ? String(d.availableFrom).slice(0, 10) : '', { type: 'date' })
+    + _coF('Preferred role', 'preferredRole', (d.preferences && d.preferences.roles && d.preferences.roles[0]) || '',
+        { options: ST_ROLES, blank: true })
+    + '</div></section>';
+}
+
+function _coCareerPanel(d) {
+  var rows = (d.career || []).map(function (c) {
+    return '<div class="co-hist' + (c.isActive ? ' is-now' : '') + '">'
+      + '<span class="co-hist-when">' + (c.from ? String(c.from).slice(0, 4) : '—') + '–'
+      +   (c.to ? String(c.to).slice(0, 4) : 'Present') + '</span>'
+      + '<span class="co-hist-b">'
+      +   '<b>' + _coEsc(c.clubName || (c.club && c.club.name) || '—') + '</b>'
+      +   '<em>' + _coEsc(ST_ROLE_LABEL[c.role] || c.role) + (c.teamLabel ? ' · ' + _coEsc(c.teamLabel) : '') + '</em>'
+      +   ((c.achievements && c.achievements.length) ? '<span class="co-meta">' + _coEsc(c.achievements.join(' · ')) + '</span>' : '')
+      + '</span>'
+      + (c.isActive ? '<span class="co-tag co-tag--ok">Current</span>'
+                    : '<button type="button" class="co-btn co-btn--bad co-btn--sm" data-co-cardel="' + _coEsc(c.id || '') + '">Delete</button>')
+      + '</div>';
+  }).join('');
+  var f = _CO.careerDraft || {};
+  return '<section class="co-sec"><h4>Career history</h4>'
+    + (rows ? '<div class="co-hists">' + rows + '</div>' : '<div class="co-none">No career history recorded.</div>')
+    + '</section>'
+    + '<section class="co-sec"><h4>Add a period</h4><div class="co-flds">'
+    +   '<label class="co-fld"><i>Club</i><input data-co-c="clubName" value="' + _coEsc(f.clubName || '') + '"></label>'
+    +   '<label class="co-fld"><i>Team</i><input data-co-c="teamLabel" value="' + _coEsc(f.teamLabel || '') + '"></label>'
+    +   '<label class="co-fld"><i>Role</i><select data-co-c="role">'
+    +     ST_ROLES.map(function (r) { return '<option value="' + r[0] + '"' + (f.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
+    +   '</select></label>'
+    +   '<label class="co-fld"><i>From</i><input type="date" data-co-c="startedAt" value="' + _coEsc(f.startedAt || '') + '"></label>'
+    +   '<label class="co-fld"><i>To</i><input type="date" data-co-c="endedAt" value="' + _coEsc(f.endedAt || '') + '"></label>'
+    +   '<label class="co-fld"><i>Country</i><input data-co-c="country" value="' + _coEsc(f.country || '') + '"></label>'
+    +   '<label class="co-fld co-fld--wide"><i>Achievements</i><input data-co-c="achievements" value="' + _coEsc(f.achievements || '') + '" placeholder="comma separated"></label>'
+    +   '<label class="co-fld co-fld--wide"><i>Reason for leaving</i><input data-co-c="reasonForLeaving" value="' + _coEsc(f.reasonForLeaving || '') + '"></label>'
+    + '</div><div class="co-rowacts"><button type="button" class="co-btn co-btn--go" data-co-carsave="' + _coEsc(d.staffUserId) + '">Add period</button></div></section>';
+}
+
+function _coAchievementsPanel(d) {
+  var items = (d.trophies && d.trophies.items) || [];
+  var f = _CO.trophyDraft || {};
+  return '<section class="co-sec"><h4>Honours</h4>'
+    + (items.length
+      ? '<div class="co-hists">' + items.map(function (x, i) {
+          return '<div class="co-hist"><span class="co-hist-when">' + _coEsc(x.season) + '</span>'
+            + '<span class="co-hist-b"><b>' + _coEsc(x.competition) + '</b><em>' + _coEsc(x.club || '') + '</em></span>'
+            + '<span class="co-tag">' + _coEsc(x.kind) + '</span></div>';
+        }).join('') + '</div>'
+      : '<div class="co-none">No honours recorded.</div>')
+    + '</section>'
+    + '<section class="co-sec"><h4>Add an honour</h4><div class="co-flds">'
+    +   '<label class="co-fld"><i>Competition</i><input data-co-t="competition" value="' + _coEsc(f.competition || '') + '"></label>'
+    +   '<label class="co-fld"><i>Club</i><input data-co-t="clubName" value="' + _coEsc(f.clubName || '') + '"></label>'
+    +   '<label class="co-fld"><i>Season</i><input data-co-t="season" value="' + _coEsc(f.season || '') + '" placeholder="2025/26"></label>'
+    +   '<label class="co-fld"><i>Kind</i><select data-co-t="kind">'
+    +     ['LEAGUE', 'CUP', 'CONTINENTAL', 'PROMOTION', 'YOUTH', 'OTHER'].map(function (k) {
+            return '<option value="' + k + '"' + (f.kind === k ? ' selected' : '') + '>' + k.charAt(0) + k.slice(1).toLowerCase() + '</option>';
+          }).join('')
+    +   '</select></label>'
+    + '</div><div class="co-rowacts"><button type="button" class="co-btn co-btn--go" data-co-trsave="' + _coEsc(d.staffUserId) + '">Add honour</button></div></section>';
+}
+
+// ── adding somebody to a team ────────────────────────────────────────────────
+function _coAddHtml() {
+  var a = _CO.add; if (!a) return '';
+  var teams = [];
+  _CO.groups.forEach(function (g) { if (g.teamId && g.club.id === _coMyClubId()) teams.push([g.teamId, g.teamName]); });
+  return '<div class="tf-modal" data-co-addmodal>'
+    + '<div class="tf-modal-bd" data-co-addclose></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm co-profile" role="dialog" aria-modal="true">'
+    +   '<button type="button" class="tf-x" data-co-addclose>×</button>'
+    +   '<h3 class="co-h3">Add a staff member</h3>'
+    +   '<p class="co-note">One person, one record. He joins this club\'s staff and appears under the team you choose.</p>'
+    +   '<div class="co-flds">'
+    +     '<label class="co-fld"><i>First name</i><input data-co-a="firstName" value="' + _coEsc(a.firstName || '') + '"></label>'
+    +     '<label class="co-fld"><i>Last name</i><input data-co-a="lastName" value="' + _coEsc(a.lastName || '') + '"></label>'
+    +     '<label class="co-fld"><i>Role</i><select data-co-a="role">'
+    +       ST_ROLES.map(function (r) { return '<option value="' + r[0] + '"' + (a.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
+    +     '</select></label>'
+    +     '<label class="co-fld"><i>Team</i><select data-co-a="teamId"><option value="">Club-wide</option>'
+    +       teams.map(function (t) { return '<option value="' + _coEsc(t[0]) + '"' + (a.teamId === t[0] ? ' selected' : '') + '>' + _coEsc(t[1]) + '</option>'; }).join('')
+    +     '</select></label>'
+    +     '<label class="co-fld"><i>Date of birth</i><input type="date" data-co-a="dateOfBirth" value="' + _coEsc(a.dateOfBirth || '') + '"></label>'
+    +     '<label class="co-fld"><i>Nationality</i><input data-co-a="nationality" value="' + _coEsc(a.nationality || '') + '"></label>'
+    +     '<label class="co-fld"><i>Licence</i><select data-co-a="licence"><option value="">None</option>'
+    +       ['UEFA_PRO', 'UEFA_A', 'UEFA_B', 'UEFA_C'].map(function (l) {
+              return '<option value="' + l + '"' + (a.licence === l ? ' selected' : '') + '>' + l.replace('_', ' ') + '</option>';
+            }).join('')
+    +     '</select></label>'
+    +     '<label class="co-fld"><i>Experience (yrs)</i><input type="number" data-co-a="yearsExperience" value="' + _coEsc(a.yearsExperience || '') + '"></label>'
+    +     '<label class="co-fld"><i>Contract start</i><input type="date" data-co-a="contractStart" value="' + _coEsc(a.contractStart || '') + '"></label>'
+    +     '<label class="co-fld"><i>Contract end</i><input type="date" data-co-a="contractEnd" value="' + _coEsc(a.contractEnd || '') + '"></label>'
+    +     '<label class="co-fld"><i>Salary</i><input type="number" data-co-a="salary" value="' + _coEsc(a.salary || '') + '"></label>'
+    +     '<label class="co-fld"><i>Photo URL</i><input data-co-a="avatar" value="' + _coEsc(a.avatar || '') + '"></label>'
+    +   '</div>'
+    +   (a.error ? '<p class="co-err">' + _coEsc(a.error) + '</p>' : '')
+    +   '<div class="co-rowacts">'
+    +     '<button type="button" class="co-btn co-btn--quiet" data-co-addclose>Cancel</button>'
+    +     '<button type="button" class="co-btn co-btn--go" data-co-addsave>Add staff member</button>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+function _coMoveHtml() {
+  var m = _CO.move; if (!m) return '';
+  var teams = [];
+  _CO.groups.forEach(function (g) { if (g.teamId && g.club.id === _coMyClubId()) teams.push([g.teamId, g.teamName]); });
+  return '<div class="tf-modal" data-co-movemodal>'
+    + '<div class="tf-modal-bd" data-co-moveclose></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm co-profile" role="dialog" aria-modal="true">'
+    +   '<button type="button" class="tf-x" data-co-moveclose>×</button>'
+    +   '<h3 class="co-h3">Move ' + _coEsc(m.name || 'staff member') + '</h3>'
+    +   '<p class="co-note">The same person moves. His history keeps the job he is leaving, and nothing about him is duplicated.</p>'
+    +   '<div class="co-flds">'
+    +     '<label class="co-fld"><i>To team</i><select data-co-m="teamId"><option value="">Club-wide</option>'
+    +       teams.map(function (t) { return '<option value="' + _coEsc(t[0]) + '"' + (m.teamId === t[0] ? ' selected' : '') + '>' + _coEsc(t[1]) + '</option>'; }).join('')
+    +     '</select></label>'
+    +     '<label class="co-fld"><i>Role there</i><select data-co-m="role">'
+    +       ST_ROLES.map(function (r) { return '<option value="' + r[0] + '"' + (m.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>'; }).join('')
+    +     '</select></label>'
+    +   '</div>'
+    +   (m.error ? '<p class="co-err">' + _coEsc(m.error) + '</p>' : '')
+    +   '<div class="co-rowacts">'
+    +     '<button type="button" class="co-btn co-btn--quiet" data-co-moveclose>Cancel</button>'
+    +     '<button type="button" class="co-btn co-btn--go" data-co-movesave="' + _coEsc(m.staffUserId) + '">Move</button>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+function _coMyClubId() {
+  try { var c = State && State.context; return (c && c.clubId) || null; } catch (_) { return null; }
 }
 
 // The directory's own listeners. It answers only inside its own page, and the
-// only thing it shares with the market is the profile it opens.
+// only thing it shares with the market is the record it reads.
 (function _coWire() {
   if (typeof document === 'undefined' || window.__coWired) return;
   window.__coWired = true;
+
+  var fail = function (err, where) {
+    var msg = (err && (err.userMessage || err.message)) || 'the server refused';
+    if (where) { _CO[where] = _CO[where] || {}; _CO[where].error = msg; } else { _CO.err = msg; }
+    _CO.busy = false; _coRepaint();
+  };
+  var reload = function () {
+    return _coLoad().then(function () { _CO.busy = false; _CO.err = null; _coRepaint(); });
+  };
+  var reopen = function (id) {
+    delete _TF_ST.detail[id];
+    return _stLoadOne(id).then(function () { return _coLoad(); }).then(function () {
+      _CO.busy = false; _CO.editing = false; _CO.draft = null; _CO.err = null; _coRepaint();
+    });
+  };
 
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.closest) return;
     if (!t.closest('#pg-coaches')) return;
     var el;
-    if ((el = t.closest('[data-st-open]'))) {
-      e.preventDefault();
-      var id = el.getAttribute('data-st-open');
-      delete _TF_ST.detail[id];
-      _TF_ST.open = id; _TF_ST.tab = 'overview'; _TF_ST.noteDraft = null;
-      _coRepaint();
-      _stLoadOne(id).then(_coRepaint);
-      return;
-    }
-    if (t.closest('[data-st-close]')) {
-      e.preventDefault(); _TF_ST.open = null; _TF_ST.approach = null; _coRepaint(); return;
-    }
-    if ((el = t.closest('[data-st-ptab]'))) {
-      e.preventDefault(); _TF_ST.tab = el.getAttribute('data-st-ptab'); _coRepaint(); return;
-    }
-    if (t.closest('[data-co-empty]')) {
-      e.preventDefault(); _CO.showEmpty = !_CO.showEmpty; _coRepaint(); return;
-    }
+
+    // ── the board ──
     if ((el = t.closest('[data-co-fold]'))) {
       e.preventDefault();
       var k = el.getAttribute('data-co-fold');
       if (_CO.collapsed[k]) delete _CO.collapsed[k]; else _CO.collapsed[k] = 1;
       _coRepaint(); return;
     }
+    if (t.closest('[data-co-empty]')) {
+      e.preventDefault(); _CO.showEmpty = !_CO.showEmpty; _coRepaint(); return;
+    }
+    if (t.closest('[data-co-seed]')) {
+      e.preventDefault();
+      if (_CO.busy) return;
+      _CO.busy = true; _coRepaint();
+      _coApi('POST', '/demo-staff?scope=club').then(_thUnwrap)
+        .then(function (r) { _tfToast('Filled ' + r.teamsFilled + ' team(s) with ' + r.staffCreated + ' sample staff', 'success'); return reload(); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+    if (t.closest('[data-co-unseed]')) {
+      e.preventDefault();
+      if (_CO.busy) return;
+      _CO.busy = true; _coRepaint();
+      _coApi('DELETE', '/demo-staff').then(_thUnwrap)
+        .then(function (r) { _tfToast('Removed ' + r.removed + ' sample record(s)', 'info'); return reload(); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+
+    // ── the profile ──
+    if ((el = t.closest('[data-st-open]'))) {
+      e.preventDefault();
+      var id = el.getAttribute('data-st-open');
+      delete _TF_ST.detail[id];
+      _CO.open = id; _CO.tab = 'overview'; _CO.editing = false;
+      _CO.draft = null; _CO.err = null; _CO.noteDraft = null;
+      _coRepaint();
+      _stLoadOne(id).then(_coRepaint);
+      return;
+    }
+    if (t.closest('[data-co-close]')) {
+      e.preventDefault();
+      _CO.open = null; _CO.editing = false; _CO.draft = null; _CO.err = null; _CO.noteDraft = null;
+      _coRepaint(); return;
+    }
+    if ((el = t.closest('[data-co-ptab]'))) {
+      e.preventDefault(); _CO.tab = el.getAttribute('data-co-ptab'); _coRepaint(); return;
+    }
+    if (t.closest('[data-co-edit]')) {
+      e.preventDefault(); _CO.editing = true; _CO.draft = {}; _CO.err = null; _coRepaint(); return;
+    }
+    if (t.closest('[data-co-cancel]')) {
+      e.preventDefault(); _CO.editing = false; _CO.draft = null; _CO.err = null; _coRepaint(); return;
+    }
+    if ((el = t.closest('[data-co-save]'))) {
+      e.preventDefault();
+      if (_CO.busy) return;
+      var sid = el.getAttribute('data-co-save');
+      var body = {};
+      Object.keys(_CO.draft || {}).forEach(function (k) {
+        var v = _CO.draft[k];
+        if (v === '') return;
+        if (['level', 'reputation', 'yearsExperience', 'seniorYears', 'academyYears',
+             'wageExpectation', 'releaseClause', 'compensationFee', 'salary',
+             'contractReleaseClause'].indexOf(k) >= 0) { body[k] = parseInt(v, 10); return; }
+        if (k === 'nationalTeamExperience') { body[k] = (v === 'true'); return; }
+        if (_CO.arrKeys && _CO.arrKeys[k]) {
+          body[k] = String(v).split(',').map(function (x) { return x.trim(); }).filter(Boolean); return;
+        }
+        if (k === 'preferredRole') { body.preferredRoles = [v]; return; }
+        body[k] = v;
+      });
+      _CO.busy = true; _coRepaint();
+      _stApi('PATCH', '/staff/' + encodeURIComponent(sid), body)
+        .then(function () { _tfToast('Profile saved', 'success'); return reopen(sid); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+    if ((el = t.closest('[data-co-notesave]'))) {
+      e.preventDefault();
+      var nid = el.getAttribute('data-co-notesave');
+      var box = document.querySelector('[data-co-note]');
+      _stApi('PUT', '/notes/' + encodeURIComponent(nid), { body: box ? box.value : '' })
+        .then(function () { _tfToast('Note saved', 'success'); _CO.noteDraft = null; return reopen(nid); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+
+    // ── career and honours ──
+    if ((el = t.closest('[data-co-carsave]'))) {
+      e.preventDefault();
+      var cid = el.getAttribute('data-co-carsave');
+      var f = _CO.careerDraft || {};
+      var payload = Object.assign({}, f);
+      if (payload.achievements) payload.achievements = String(payload.achievements).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+      _coApi2('PUT', '/staff/' + encodeURIComponent(cid) + '/career', payload)
+        .then(function () { _tfToast('Career period added', 'success'); _CO.careerDraft = null; return reopen(cid); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+    if ((el = t.closest('[data-co-cardel]'))) {
+      e.preventDefault();
+      var eid = el.getAttribute('data-co-cardel');
+      var who = _CO.open;
+      _coApi2('DELETE', '/staff/' + encodeURIComponent(who) + '/career/' + encodeURIComponent(eid))
+        .then(function () { _tfToast('Career period removed', 'info'); return reopen(who); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+    if ((el = t.closest('[data-co-trsave]'))) {
+      e.preventDefault();
+      var tid = el.getAttribute('data-co-trsave');
+      _coApi2('PUT', '/staff/' + encodeURIComponent(tid) + '/achievements', _CO.trophyDraft || {})
+        .then(function () { _tfToast('Honour added', 'success'); _CO.trophyDraft = null; return reopen(tid); })
+        .catch(function (err) { fail(err); });
+      return;
+    }
+
+    // ── adding somebody ──
+    if ((el = t.closest('[data-co-add]'))) {
+      e.preventDefault();
+      _CO.add = { teamId: el.getAttribute('data-co-add') || '', role: ST_ROLES[0][0], error: null };
+      _coRepaint(); return;
+    }
+    if (t.closest('[data-co-addclose]')) {
+      e.preventDefault(); _CO.add = null; _coRepaint(); return;
+    }
+    if (t.closest('[data-co-addsave]')) {
+      e.preventDefault();
+      var a = _CO.add || {};
+      if (!a.firstName || !a.lastName) { _CO.add.error = 'A first and last name are required'; _coRepaint(); return; }
+      var ab = { firstName: a.firstName, lastName: a.lastName, role: a.role, teamId: a.teamId || null };
+      ['nationality', 'dateOfBirth', 'licence', 'contractStart', 'contractEnd', 'avatar'].forEach(function (k) {
+        if (a[k]) ab[k] = a[k];
+      });
+      if (a.yearsExperience) ab.yearsExperience = parseInt(a.yearsExperience, 10);
+      if (a.salary) ab.salary = parseInt(a.salary, 10);
+      _coApi2('POST', '/staff', ab)
+        .then(function () { _tfToast('Staff member added', 'success'); _CO.add = null; return reload(); })
+        .catch(function (err) { fail(err, 'add'); });
+      return;
+    }
+
+    // ── moving and releasing ──
+    if ((el = t.closest('[data-co-moveopen]'))) {
+      e.preventDefault();
+      var mid = el.getAttribute('data-co-moveopen');
+      var dd = _TF_ST.detail[mid] || {};
+      _CO.move = { staffUserId: mid, name: dd.name, role: dd.role || ST_ROLES[0][0], teamId: '', error: null };
+      _coRepaint(); return;
+    }
+    if (t.closest('[data-co-moveclose]')) {
+      e.preventDefault(); _CO.move = null; _coRepaint(); return;
+    }
+    if ((el = t.closest('[data-co-movesave]'))) {
+      e.preventDefault();
+      var mv = _CO.move || {};
+      _coApi2('POST', '/staff/' + encodeURIComponent(el.getAttribute('data-co-movesave')) + '/move',
+        { teamId: mv.teamId || null, role: mv.role })
+        .then(function () {
+          _tfToast('Staff member moved', 'success');
+          var who = mv.staffUserId; _CO.move = null; _CO.open = null;
+          return reopen(who).then(function () { _CO.open = null; _coRepaint(); });
+        })
+        .catch(function (err) { fail(err, 'move'); });
+      return;
+    }
+    if ((el = t.closest('[data-co-release]'))) {
+      e.preventDefault();
+      var rid = el.getAttribute('data-co-release');
+      el.disabled = true;
+      _coApi2('POST', '/staff/' + encodeURIComponent(rid) + '/release')
+        .then(function () {
+          _tfToast('Released — he is a free agent on the Coach Market now', 'info');
+          _CO.open = null;
+          return reload();
+        })
+        .catch(function (err) { el.disabled = false; fail(err); });
+      return;
+    }
   }, true);
 
-  var onFilter = function (e) {
+  // The edit fields, the forms and the filters. Held in state while typed so a
+  // repaint never loses what is half written.
+  var onField = function (e) {
     var t = e.target;
     if (!t || !t.closest || !t.closest('#pg-coaches')) return;
+    var k;
     if (t.hasAttribute && t.hasAttribute('data-co-q')) { _CO.q = t.value; _coRepaint(); return; }
-    var f = t.getAttribute && t.getAttribute('data-co-f');
-    if (f) { _CO[f] = t.value; _coRepaint(); }
+    if ((k = t.getAttribute && t.getAttribute('data-co-f'))) { _CO[k] = t.value; _coRepaint(); return; }
+    if ((k = t.getAttribute && t.getAttribute('data-co-e'))) {
+      _CO.draft = _CO.draft || {};
+      _CO.draft[k] = t.value;
+      if (t.hasAttribute('data-co-arr')) { _CO.arrKeys = _CO.arrKeys || {}; _CO.arrKeys[k] = 1; }
+      return;
+    }
+    if ((k = t.getAttribute && t.getAttribute('data-co-a'))) { _CO.add = _CO.add || {}; _CO.add[k] = t.value; return; }
+    if ((k = t.getAttribute && t.getAttribute('data-co-m'))) { _CO.move = _CO.move || {}; _CO.move[k] = t.value; return; }
+    if ((k = t.getAttribute && t.getAttribute('data-co-c'))) { _CO.careerDraft = _CO.careerDraft || {}; _CO.careerDraft[k] = t.value; return; }
+    if ((k = t.getAttribute && t.getAttribute('data-co-t'))) { _CO.trophyDraft = _CO.trophyDraft || {}; _CO.trophyDraft[k] = t.value; return; }
+    if (t.hasAttribute && t.hasAttribute('data-co-note')) { _CO.noteDraft = t.value; return; }
   };
-  document.addEventListener('input', onFilter);
-  document.addEventListener('change', onFilter);
+  document.addEventListener('input', onField);
+  document.addEventListener('change', onField);
 })();
+
+// The directory's own writes. Reading uses _coApi; this is the same base with a
+// body, kept separate so the read path stays a one-liner.
+function _coApi2(method, path, body) { return _thApi(method, '/coaches' + path, body === undefined ? {} : body); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TRANSFERS · REALTIME

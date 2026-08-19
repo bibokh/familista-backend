@@ -9565,6 +9565,17 @@ model StaffProfile {
   academyYears   Int?
   youthAgeGroups String[] @default([])
 
+  // ── what a move would cost ──
+  // His own expectations, which are not his current club's contract: the club
+  // holds the release clause on the engagement, he holds what he is asking.
+  releaseClause   BigInt?
+  compensationFee BigInt?
+
+  // Sample data, created to fill an empty team while the platform is being
+  // built. It is never written over a real record and can be removed by this
+  // flag alone.
+  isDemo Boolean @default(false)
+
   // ── what he wants next ──
   // His own intent, which is not the same as whether a club will let him go.
   careerIntent       StaffCareerIntent @default(NOT_LOOKING)

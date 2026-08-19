@@ -620,6 +620,9 @@ export async function readStaff(actor: StaffActor, staffUserId: string) {
     // ── qualifications ──
     certifications: p.certifications ?? [],
     education: p.education ?? [],
+    releaseClause: money(p.releaseClause),
+    compensationFee: money(p.compensationFee),
+    isDemo: !!p.isDemo,
 
     // ── what he wants next ──
     careerIntent: p.careerIntent ?? null,
@@ -1194,6 +1197,9 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
       ? (dto.preferredRoles as MembershipRole[]).filter(isTechnical) : undefined,
     preferredCountries: arr('preferredCountries'), preferredLeagues: arr('preferredLeagues'),
     preferredClubLevel: str('preferredClubLevel'),
+    // what a move would cost — his own asking figures, kept beside his record
+    releaseClause: num('releaseClause') != null ? BigInt(Math.round(num('releaseClause')!)) : undefined,
+    compensationFee: num('compensationFee') != null ? BigInt(Math.round(num('compensationFee')!)) : undefined,
   };
   const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
 
@@ -1202,6 +1208,53 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
     update: clean,
     create: { userId: staffUserId, ...clean } as never,
   });
+
+  // The name and the portrait belong to the person, not to the professional
+  // record, so they are written where they live. Nothing else about the User is
+  // touched from here.
+  const person = {
+    firstName: str('firstName'), lastName: str('lastName'), avatar: str('avatar'),
+  };
+  const personClean = Object.fromEntries(Object.entries(person).filter(([, v]) => v !== undefined));
+  if (Object.keys(personClean).length) {
+    await prisma.user.update({ where: { id: staffUserId }, data: personClean });
+  }
+
+  // The contract is the engagement's, not the profile's — a club editing its
+  // own staff's terms is editing the period he is serving.
+  //
+  // A membership can exist without one: the platform has always known who works
+  // where, and the engagement is what this module added to say on what terms. So
+  // the first time a club records terms for somebody it already employs, the
+  // period is opened from the membership rather than the edit being dropped.
+  let eng = await prisma.staffEngagement.findFirst({
+    where: { userId: staffUserId, clubId: actor.clubId, isActive: true },
+    select: { id: true },
+  });
+  const touchesContract = ['contractStart', 'contractEnd', 'salary', 'contractReleaseClause', 'renewalStatus']
+    .some((k) => dto[k] !== undefined && dto[k] !== '');
+  if (!eng && touchesContract) {
+    eng = await prisma.staffEngagement.create({
+      data: {
+        userId: staffUserId, clubId: actor.clubId, role: employed.role,
+        startedAt: employed.joinedAt, isActive: true,
+      },
+      select: { id: true },
+    });
+  }
+  if (eng) {
+    const contract = {
+      startedAt: dto.contractStart ? new Date(String(dto.contractStart)) : undefined,
+      contractEndsAt: dto.contractEnd ? new Date(String(dto.contractEnd)) : undefined,
+      salary: num('salary') != null ? BigInt(Math.round(num('salary')!)) : undefined,
+      releaseClause: num('contractReleaseClause') != null ? BigInt(Math.round(num('contractReleaseClause')!)) : undefined,
+      renewalStatus: str('renewalStatus'),
+    };
+    const contractClean = Object.fromEntries(Object.entries(contract).filter(([, v]) => v !== undefined));
+    if (Object.keys(contractClean).length) {
+      await prisma.staffEngagement.update({ where: { id: eng.id }, data: contractClean });
+    }
+  }
   return readStaff(actor, staffUserId);
 }
 
@@ -1488,7 +1541,8 @@ export async function coachesDirectory(_actor: StaffActor) {
 
   const engagements = await prisma.staffEngagement.findMany({
     where: { userId: { in: [...new Set(memberships.map((m) => m.userId))] }, isActive: true },
-    select: { userId: true, contractEndsAt: true, salary: true, startedAt: true, clubId: true },
+    select: { userId: true, contractEndsAt: true, salary: true, startedAt: true, clubId: true,
+              releaseClause: true, renewalStatus: true },
   });
   const engByUser = new Map(engagements.map((e) => [e.userId, e]));
 
@@ -1512,18 +1566,62 @@ export async function coachesDirectory(_actor: StaffActor) {
       yearsExperience: p?.yearsExperience ?? null,
       reputation: p?.reputation ?? null,
       contractEndsAt,
+      contractStartedAt: eng?.startedAt ?? null,
       salary: money(eng?.salary),
       // The same status the market shows, from the same function — a coach does
-      // not have one standing here and another one there.
+      // not have one standing here and another one there. Changing it in the
+      // directory is changing it on the market, because it is one field.
       employmentStatus: employmentStatus({
         hasClub: true,
         availability: p?.availability ?? null,
         careerIntent: p?.careerIntent ?? null,
         contractEndsAt,
       }),
+      // What a move would take. The club's clause is on the engagement; what he
+      // is asking is on his own record.
+      careerIntent: p?.careerIntent ?? null,
+      expectedSalary: money(p?.wageExpectation),
+      releaseClause: money(eng?.releaseClause ?? p?.releaseClause),
+      compensationFee: money(p?.compensationFee),
+      availabilityDate: p?.availableFrom ?? null,
+      renewalStatus: eng?.renewalStatus ?? null,
+      level: p?.level ?? null,
+      isDemo: !!p?.isDemo,
       hasProfile: !!p,
     };
   };
+
+  // What a director reads before opening a team: is it staffed, is anybody's
+  // contract running out, and is anybody looking elsewhere. All three are
+  // counted from the same staff rows the team shows, so the summary and the
+  // department below it can never disagree.
+  function teamHealth(staff: Array<Record<string, unknown>>, kind: string, ageMax: number | null) {
+    const head = staff.find((s) => s.role === 'HEAD_COACH') ?? null;
+    const endingSoonCount = staff.filter((s) => s.employmentStatus === 'CONTRACT_ENDING_SOON').length;
+    const lookingCount = staff.filter((s) =>
+      s.employmentStatus === 'OPEN_TO_OFFERS' || s.employmentStatus === 'ACTIVELY_LOOKING').length;
+    const activeContracts = staff.filter((s) => s.contractEndsAt != null).length;
+    // Completeness is measured against the structure this kind of team runs —
+    // an under-11 side is not short-staffed for having no analyst.
+    const expected = demoRolesFor({ kind, name: '', ageMax }).length;
+    const filled = new Set(staff.map((s) => s.role)).size;
+    return {
+      headCoach: head
+        ? { staffUserId: head.staffUserId, name: head.name, avatar: head.avatar,
+            employmentStatus: head.employmentStatus }
+        : null,
+      activeContracts,
+      contractsEndingSoon: endingSoonCount,
+      onTheMarket: lookingCount,
+      expectedRoles: expected,
+      rolesFilled: filled,
+      completeness: expected ? Math.min(100, Math.round((filled / expected) * 100)) : 0,
+      health: !staff.length ? 'EMPTY'
+        : (!head ? 'NO_HEAD_COACH'
+        : (endingSoonCount ? 'CONTRACTS_ENDING'
+        : (filled < Math.ceil(expected * 0.6) ? 'UNDERSTAFFED' : 'SETTLED'))),
+    };
+  }
 
   const byTeam = new Map<string, typeof memberships>();
   const clubWide = new Map<string, typeof memberships>();
@@ -1549,6 +1647,7 @@ export async function coachesDirectory(_actor: StaffActor) {
       emblem: t.emblem, color: t.color,
       club: t.club,
       staffCount: staff.length,
+      ...teamHealth(staff, t.kind, t.ageMax),
       staff,
     };
   });
@@ -1575,8 +1674,9 @@ export async function coachesDirectory(_actor: StaffActor) {
       emblem: club.emblem, color: null,
       club,
       staffCount: staff.length,
+      ...teamHealth(staff, 'CLUB', null),
       staff,
-    });
+    } as never);
   });
 
   const totalStaff = new Set(memberships.map((m) => m.userId)).size;
@@ -1590,6 +1690,471 @@ export async function coachesDirectory(_actor: StaffActor) {
       // Groups with nobody in them are still groups: a team with no coach is
       // the thing a director most needs to see.
       groupsWithoutStaff: groups.filter((g) => g.staffCount === 0).length,
+      contractsEndingSoon: groups.reduce((n, g) => n + ((g as { contractsEndingSoon?: number }).contractsEndingSoon ?? 0), 0),
+      onTheMarket: groups.reduce((n, g) => n + ((g as { onTheMarket?: number }).onTheMarket ?? 0), 0),
+      teamsWithoutHeadCoach: groups.filter((g) => g.staffCount > 0 && !(g as { headCoach?: unknown }).headCoach).length,
+      demoStaff: [...new Set(memberships.map((m) => m.userId))]
+        .filter((id) => byUser.get(id)?.isDemo).length,
     },
   };
+}
+
+// ── the demo fill ────────────────────────────────────────────────────────────
+// A platform being built has teams with nobody in them, and a directory of
+// empty teams shows nothing about the design. This fills only teams that have
+// no technical staff at all, marks everything it creates isDemo, and never
+// touches a team that already has somebody real in it.
+//
+// The staff a team gets depends on what the team is: a first team runs a full
+// technical department, an older academy side a smaller one, and the youngest
+// age groups two or three people. Nothing here is a fixed number of clubs or
+// teams — it reads what exists.
+
+const DEMO_FIRST_TEAM: MembershipRole[] = [
+  'HEAD_COACH', 'ASSISTANT_COACH', 'GOALKEEPING_COACH', 'FITNESS_COACH',
+  'PERFORMANCE_COACH', 'TACTICAL_COACH', 'TECHNICAL_COACH', 'ANALYST',
+  'MEDICAL_STAFF', 'PHYSIO', 'SCOUT',
+];
+const DEMO_SENIOR_OTHER: MembershipRole[] = [
+  'HEAD_COACH', 'ASSISTANT_COACH', 'GOALKEEPING_COACH', 'FITNESS_COACH', 'ANALYST',
+];
+const DEMO_ACADEMY_OLDER: MembershipRole[] = [
+  'HEAD_COACH', 'ASSISTANT_COACH', 'GOALKEEPING_COACH', 'PERFORMANCE_COACH', 'ANALYST',
+];
+const DEMO_ACADEMY_MID: MembershipRole[] = [
+  'HEAD_COACH', 'ASSISTANT_COACH', 'GOALKEEPING_COACH', 'FITNESS_COACH',
+];
+const DEMO_ACADEMY_YOUNG: MembershipRole[] = [
+  'HEAD_COACH', 'ASSISTANT_COACH', 'YOUTH_COACH',
+];
+
+// Which structure a team runs, decided from what the team is rather than from
+// its position in a list.
+export function demoRolesFor(team: { kind: string; name: string; ageMax: number | null }): MembershipRole[] {
+  const kind = String(team.kind || '').toUpperCase();
+  const age = team.ageMax ?? null;
+  if (kind === 'SENIOR') {
+    // The senior side a club leads with runs the full department; a reserve or
+    // second senior side runs a smaller one.
+    return /first|1st|senior a|a-team/i.test(team.name) || age == null
+      ? DEMO_FIRST_TEAM : DEMO_SENIOR_OTHER;
+  }
+  if (age == null) return DEMO_ACADEMY_MID;
+  if (age >= 17) return DEMO_ACADEMY_OLDER;
+  if (age >= 13) return DEMO_ACADEMY_MID;
+  return DEMO_ACADEMY_YOUNG;
+}
+
+const DEMO_FIRST = ['Andrés', 'Mikael', 'Tomasz', 'Rafael', 'Jonas', 'Cesare', 'Kwabena', 'Ingmar',
+  'Nikola', 'Étienne', 'Bram', 'Hugo', 'Aurélien', 'Matthias', 'Dario', 'Karim', 'Sten', 'Vasil',
+  'Joaquín', 'Emeka', 'Lucas', 'Petar', 'Anton', 'Ruben'];
+const DEMO_LAST = ['Aguirre', 'Lindholm', 'Wójcik', 'Marques', 'Halvorsen', 'Belotti', 'Owusu',
+  'Bergmann', 'Petrović', 'Rousseau', 'de Vries', 'Almeida', 'Fontaine', 'Neumann', 'Vukić',
+  'Benali', 'Kärk', 'Ivanov', 'Herrera', 'Okafor', 'Moreau', 'Novak', 'Sørensen', 'Costa'];
+const DEMO_NATIONS = ['Spain', 'Sweden', 'Poland', 'Portugal', 'Norway', 'Italy', 'Ghana', 'Germany',
+  'Serbia', 'France', 'Netherlands', 'Brazil', 'Belgium', 'Austria', 'Croatia', 'Morocco'];
+const DEMO_LICENCES: Array<[string, string, number]> = [
+  ['UEFA_PRO', 'UEFA Pro', 4], ['UEFA_A', 'UEFA A', 3], ['UEFA_B', 'UEFA B', 2], ['UEFA_C', 'UEFA C', 1],
+];
+
+// Spread deterministically off the ids, so the same team fills the same way
+// twice and a re-run changes nothing. No randomness anywhere in this module.
+function pick<T>(list: T[], seed: string, salt: number): T {
+  let h = salt;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return list[h % list.length];
+}
+
+export async function seedDemoStaff(actor: StaffActor, opts: { clubId?: string } = {}) {
+  const teams = await prisma.team.findMany({
+    where: { isActive: true, ...(opts.clubId ? { clubId: opts.clubId } : {}) },
+    select: { id: true, clubId: true, name: true, kind: true, ageMax: true },
+    take: 500,
+  });
+  if (!teams.length) return { teamsConsidered: 0, teamsFilled: 0, staffCreated: 0, skipped: 0 };
+
+  // Which of them already have somebody. A team with one real coach is left
+  // exactly as it is — the fill is for empty teams, not for topping teams up.
+  const taken = new Set(
+    (await prisma.membership.findMany({
+      where: { teamId: { in: teams.map((t) => t.id) }, isActive: true, role: { in: TECHNICAL_ROLES } },
+      select: { teamId: true },
+    })).map((m) => m.teamId!),
+  );
+
+  let staffCreated = 0, teamsFilled = 0;
+  for (const team of teams) {
+    if (taken.has(team.id)) continue;
+    const roles = demoRolesFor(team);
+    let madeHere = 0;
+    for (let i = 0; i < roles.length; i++) {
+      const seed = team.id + ':' + i;
+      const first = pick(DEMO_FIRST, seed, 7);
+      const last = pick(DEMO_LAST, seed, 13);
+      const email = `demo.${team.id.slice(0, 8)}.${i}@demo.familista`;
+      const exists = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (exists) continue;
+
+      const lic = pick(DEMO_LICENCES, seed, 3);
+      const years = 3 + (seed.charCodeAt(2) % 22);
+      const born = new Date(Date.UTC(1968 + (seed.charCodeAt(4) % 30), seed.charCodeAt(5) % 12, 1 + (seed.charCodeAt(6) % 27)));
+      const ends = new Date(Date.now() + (180 + (seed.charCodeAt(7) % 900)) * 86400000);
+
+      const user = await prisma.user.create({
+        data: {
+          email, passwordHash: '!demo', firstName: first, lastName: last,
+          role: 'HEAD_COACH', isActive: true,
+          club: { connect: { id: team.clubId } },
+          staffProfile: {
+            create: {
+              isDemo: true,
+              nationality: pick(DEMO_NATIONS, seed, 11),
+              dateOfBirth: born,
+              level: 52 + (seed.charCodeAt(3) % 40),
+              reputation: 40 + (seed.charCodeAt(8) % 50),
+              yearsExperience: years,
+              seniorYears: String(team.kind).toUpperCase() === 'SENIOR' ? years : Math.max(0, years - 4),
+              academyYears: String(team.kind).toUpperCase() === 'SENIOR' ? Math.max(0, years - 6) : years,
+              availability: 'EMPLOYED',
+              careerIntent: i % 7 === 0 ? 'OPEN_TO_OFFERS' : (i % 11 === 0 ? 'ACTIVELY_LOOKING' : 'NOT_LOOKING'),
+              wageExpectation: BigInt((40 + (seed.charCodeAt(9) % 160)) * 1000),
+              languages: ['English'],
+              licences: { create: { code: lic[0], name: lic[1], issuer: 'UEFA', rank: lic[2] } },
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      await prisma.membership.create({
+        data: { userId: user.id, clubId: team.clubId, teamId: team.id, role: roles[i], isActive: true },
+      });
+      await prisma.staffEngagement.create({
+        data: {
+          userId: user.id, clubId: team.clubId, role: roles[i], teamLabel: team.name,
+          isActive: true, contractEndsAt: ends,
+          salary: BigInt((36 + (seed.charCodeAt(10) % 140)) * 1000),
+        },
+      });
+      staffCreated++; madeHere++;
+    }
+    if (madeHere) teamsFilled++;
+  }
+
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_DEMO_SEEDED', entityType: 'Team', entityId: opts.clubId ?? 'platform',
+    payload: { teamsFilled, staffCreated },
+  });
+  return { teamsConsidered: teams.length, teamsFilled, staffCreated, skipped: taken.size };
+}
+
+// Everything the fill created, removed by the one flag that marks it. A real
+// record has isDemo false and is never in this set.
+export async function removeDemoStaff(actor: StaffActor) {
+  const demo = await prisma.staffProfile.findMany({ where: { isDemo: true }, select: { userId: true } });
+  const ids = demo.map((d) => d.userId);
+  if (!ids.length) return { removed: 0 };
+  await prisma.$transaction([
+    prisma.membership.deleteMany({ where: { userId: { in: ids } } }),
+    prisma.staffEngagement.deleteMany({ where: { userId: { in: ids } } }),
+    prisma.user.deleteMany({ where: { id: { in: ids } } }),
+  ]);
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_DEMO_REMOVED', entityType: 'User', entityId: 'demo', payload: { removed: ids.length },
+  });
+  return { removed: ids.length };
+}
+
+// ── the staff lifecycle, from the directory ──────────────────────────────────
+// A club runs its own technical staff: it hires, it moves people between its
+// teams, and it releases them. Every one of these keeps the same canonical
+// person — a User, a StaffProfile, and a Membership that says where he is —
+// and none of them ever creates a second record for somebody who already
+// exists.
+
+function assertMyStaff(m: { clubId: string } | null, actorClubId: string) {
+  if (!m) throw new NotFoundError('That staff member is not on this club’s staff');
+  if (m.clubId !== actorClubId) throw new ForbiddenError('Only the employing club may change this');
+}
+
+export async function addStaffMember(actor: StaffActor, dto: {
+  firstName: string; lastName: string; role: MembershipRole; teamId?: string | null;
+  email?: string; nationality?: string; dateOfBirth?: string; licence?: string;
+  yearsExperience?: number; contractStart?: string; contractEnd?: string;
+  salary?: number; availability?: string; avatar?: string;
+}) {
+  const first = String(dto?.firstName ?? '').trim();
+  const last = String(dto?.lastName ?? '').trim();
+  if (!first || !last) throw new BadRequestError('A first and last name are required');
+  if (!dto.role || !isTechnical(dto.role)) throw new BadRequestError('role must be a technical staff role');
+
+  // The team must be one of this club's own. A club cannot put somebody into
+  // another club's team by sending its id.
+  if (dto.teamId) {
+    const team = await prisma.team.findUnique({ where: { id: dto.teamId }, select: { clubId: true } });
+    if (!team || team.clubId !== actor.clubId) throw new ForbiddenError('That team is not ours');
+  }
+
+  const email = String(dto.email ?? '').trim().toLowerCase()
+    || `${first}.${last}`.toLowerCase().replace(/[^a-z0-9.]/g, '') + `.${Date.now()}@staff.familista`;
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (existing) throw new ConflictError('Somebody with that email is already on the platform');
+
+  const created = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        email, passwordHash: '!staff', firstName: first, lastName: last,
+        role: 'HEAD_COACH', isActive: true, avatar: dto.avatar ?? null,
+        club: { connect: { id: actor.clubId } },
+        staffProfile: {
+          create: {
+            nationality: dto.nationality ?? null,
+            dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+            yearsExperience: dto.yearsExperience ?? 0,
+            availability: (dto.availability as StaffAvailability | undefined) ?? 'EMPLOYED',
+            ...(dto.licence
+              ? { licences: { create: { code: dto.licence, name: String(dto.licence).replace(/_/g, ' '), issuer: 'UEFA', rank: 1 } } }
+              : {}),
+          },
+        },
+      },
+      select: { id: true },
+    });
+    await tx.membership.create({
+      data: { userId: user.id, clubId: actor.clubId, teamId: dto.teamId ?? null, role: dto.role, isActive: true },
+    });
+    await tx.staffEngagement.create({
+      data: {
+        userId: user.id, clubId: actor.clubId, role: dto.role,
+        startedAt: dto.contractStart ? new Date(dto.contractStart) : new Date(),
+        contractEndsAt: dto.contractEnd ? new Date(dto.contractEnd) : null,
+        salary: dto.salary != null ? BigInt(Math.round(dto.salary)) : null,
+        isActive: true,
+      },
+    });
+    return user;
+  });
+
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_ADDED', entityType: 'User', entityId: created.id,
+    payload: { name: `${first} ${last}`, role: dto.role, teamId: dto.teamId ?? null },
+  });
+  return { staffUserId: created.id };
+}
+
+// A move inside the club. The membership is updated rather than replaced, so
+// the person does not change and nothing about him is duplicated; where the
+// role changes, the engagement is closed and a new one opened, which is what
+// puts the previous job into his career history.
+export async function moveStaffMember(actor: StaffActor, staffUserId: string, dto: {
+  teamId?: string | null; role?: MembershipRole;
+}) {
+  const m = await prisma.membership.findFirst({
+    where: { userId: staffUserId, clubId: actor.clubId, isActive: true, role: { in: TECHNICAL_ROLES } },
+  });
+  assertMyStaff(m, actor.clubId);
+
+  let teamLabel: string | null = null;
+  if (dto.teamId) {
+    const team = await prisma.team.findUnique({ where: { id: dto.teamId }, select: { clubId: true, name: true } });
+    if (!team || team.clubId !== actor.clubId) throw new ForbiddenError('That team is not ours');
+    teamLabel = team.name;
+  }
+  const newRole = dto.role && isTechnical(dto.role) ? dto.role : m!.role;
+  const roleChanged = newRole !== m!.role;
+  const teamChanged = (dto.teamId ?? null) !== (m!.teamId ?? null);
+  if (!roleChanged && !teamChanged) return { staffUserId, moved: false };
+
+  await prisma.$transaction(async (tx) => {
+    // The compound unique is (userId, clubId, teamId, role); a move can collide
+    // with a period he already holds, so the existing row is reused if so.
+    const clash = await tx.membership.findFirst({
+      where: { userId: staffUserId, clubId: actor.clubId, teamId: dto.teamId ?? null, role: newRole, NOT: { id: m!.id } },
+    });
+    if (clash) {
+      await tx.membership.update({ where: { id: clash.id }, data: { isActive: true, leftAt: null } });
+      await tx.membership.update({ where: { id: m!.id }, data: { isActive: false, leftAt: new Date() } });
+    } else {
+      await tx.membership.update({
+        where: { id: m!.id },
+        data: { teamId: dto.teamId ?? null, role: newRole },
+      });
+    }
+    // A new job is a new period. The old one is closed, never rewritten, so the
+    // timeline gains the move instead of losing what came before it. Where no
+    // period was ever opened — a membership the platform granted before this
+    // module existed — the one he is leaving is written closed, so the move is
+    // still recorded rather than silently losing the job he held.
+    const open = await tx.staffEngagement.findFirst({ where: { userId: staffUserId, clubId: actor.clubId, isActive: true } });
+    if (open) {
+      await tx.staffEngagement.update({
+        where: { id: open.id },
+        data: { isActive: false, endedAt: new Date() },
+      });
+    } else {
+      await tx.staffEngagement.create({
+        data: {
+          userId: staffUserId, clubId: actor.clubId, role: m!.role,
+          startedAt: m!.joinedAt, endedAt: new Date(), isActive: false,
+        },
+      });
+    }
+    await tx.staffEngagement.create({
+      data: {
+        userId: staffUserId, clubId: actor.clubId, role: newRole, teamLabel,
+        startedAt: new Date(), isActive: true,
+        salary: open?.salary ?? null, contractEndsAt: open?.contractEndsAt ?? null,
+        clubName: open?.clubName ?? null, country: open?.country ?? null, league: open?.league ?? null,
+      },
+    });
+  });
+
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_MOVED', entityType: 'User', entityId: staffUserId,
+    payload: { toTeam: dto.teamId ?? null, role: newRole },
+  });
+  return { staffUserId, moved: true };
+}
+
+// Released. The membership and the engagement close; the person and everything
+// he has done stay exactly where they are, which is what makes him a free agent
+// on the market rather than somebody who was deleted.
+export async function releaseStaffMember(actor: StaffActor, staffUserId: string) {
+  const m = await prisma.membership.findFirst({
+    where: { userId: staffUserId, clubId: actor.clubId, isActive: true, role: { in: TECHNICAL_ROLES } },
+  });
+  assertMyStaff(m, actor.clubId);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.membership.updateMany({
+      where: { userId: staffUserId, clubId: actor.clubId, isActive: true, role: { in: TECHNICAL_ROLES } },
+      data: { isActive: false, leftAt: new Date() },
+    });
+    await tx.staffEngagement.updateMany({
+      where: { userId: staffUserId, clubId: actor.clubId, isActive: true },
+      data: { isActive: false, endedAt: new Date() },
+    });
+    await tx.staffProfile.updateMany({
+      where: { userId: staffUserId },
+      data: { availability: 'FREE_AGENT' },
+    });
+  });
+
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'STAFF_RELEASED', entityType: 'User', entityId: staffUserId, payload: {},
+  });
+  return { staffUserId, released: true };
+}
+
+// ── the record a club keeps about its own staff ──────────────────────────────
+// Career periods and honours are rows, so they are added, edited and removed as
+// rows. Only the employing club may touch them, and none of it ever creates a
+// second person.
+
+async function assertEmploys(actor: StaffActor, staffUserId: string) {
+  const m = await prisma.membership.findFirst({
+    where: { userId: staffUserId, clubId: actor.clubId, isActive: true },
+    select: { clubId: true },
+  });
+  assertMyStaff(m, actor.clubId);
+}
+
+export async function upsertCareerEntry(actor: StaffActor, staffUserId: string, dto: {
+  id?: string; clubName?: string; teamLabel?: string; role?: MembershipRole;
+  startedAt?: string; endedAt?: string; country?: string; league?: string;
+  achievements?: string[]; reasonForLeaving?: string; salary?: number;
+}) {
+  await assertEmploys(actor, staffUserId);
+  const data = {
+    role: dto.role && isTechnical(dto.role) ? dto.role : undefined,
+    clubName: dto.clubName ?? undefined,
+    teamLabel: dto.teamLabel ?? undefined,
+    startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
+    endedAt: dto.endedAt ? new Date(dto.endedAt) : undefined,
+    country: dto.country ?? undefined,
+    league: dto.league ?? undefined,
+    achievements: Array.isArray(dto.achievements) ? dto.achievements : undefined,
+    salary: dto.salary != null ? BigInt(Math.round(dto.salary)) : undefined,
+  };
+  if (dto.id) {
+    const row = await prisma.staffEngagement.findUnique({ where: { id: dto.id } });
+    if (!row || row.userId !== staffUserId) throw new NotFoundError('Career entry');
+    const updated = await prisma.staffEngagement.update({ where: { id: dto.id }, data });
+    return { id: updated.id };
+  }
+  // A past period, so it is closed by definition unless a date says otherwise.
+  const created = await prisma.staffEngagement.create({
+    data: {
+      userId: staffUserId,
+      clubId: actor.clubId,
+      role: (dto.role && isTechnical(dto.role) ? dto.role : 'HEAD_COACH') as MembershipRole,
+      clubName: dto.clubName ?? null,
+      teamLabel: dto.teamLabel ?? null,
+      startedAt: dto.startedAt ? new Date(dto.startedAt) : new Date(),
+      endedAt: dto.endedAt ? new Date(dto.endedAt) : new Date(),
+      isActive: false,
+      country: dto.country ?? null,
+      league: dto.league ?? null,
+      achievements: Array.isArray(dto.achievements) ? dto.achievements : [],
+      salary: dto.salary != null ? BigInt(Math.round(dto.salary)) : null,
+    },
+  });
+  return { id: created.id };
+}
+
+export async function deleteCareerEntry(actor: StaffActor, staffUserId: string, entryId: string) {
+  await assertEmploys(actor, staffUserId);
+  const row = await prisma.staffEngagement.findUnique({ where: { id: entryId } });
+  if (!row || row.userId !== staffUserId) throw new NotFoundError('Career entry');
+  if (row.isActive) throw new ConflictError('The current period cannot be deleted — release him instead');
+  await prisma.staffEngagement.delete({ where: { id: entryId } });
+  return { id: entryId, deleted: true };
+}
+
+export async function upsertTrophy(actor: StaffActor, staffUserId: string, dto: {
+  id?: string; competition?: string; clubName?: string; season?: string;
+  kind?: string; level?: string; roleHeld?: MembershipRole;
+}) {
+  await assertEmploys(actor, staffUserId);
+  const profile = await prisma.staffProfile.upsert({
+    where: { userId: staffUserId }, update: {}, create: { userId: staffUserId },
+    select: { id: true },
+  });
+  if (dto.id) {
+    const row = await prisma.staffTrophy.findUnique({ where: { id: dto.id } });
+    if (!row || row.profileId !== profile.id) throw new NotFoundError('Achievement');
+    const up = await prisma.staffTrophy.update({
+      where: { id: dto.id },
+      data: {
+        competition: dto.competition ?? undefined, clubName: dto.clubName ?? undefined,
+        season: dto.season ?? undefined, kind: (dto.kind as never) ?? undefined,
+        level: dto.level ?? undefined, roleHeld: dto.roleHeld ?? undefined,
+      },
+    });
+    return { id: up.id };
+  }
+  if (!dto.competition || !dto.season) throw new BadRequestError('A competition and a season are required');
+  const created = await prisma.staffTrophy.create({
+    data: {
+      profileId: profile.id,
+      competition: dto.competition, clubName: dto.clubName ?? '',
+      season: dto.season, kind: (dto.kind as never) ?? 'OTHER',
+      level: dto.level ?? null, roleHeld: dto.roleHeld ?? null,
+    },
+  });
+  return { id: created.id };
+}
+
+export async function deleteTrophy(actor: StaffActor, staffUserId: string, trophyId: string) {
+  await assertEmploys(actor, staffUserId);
+  const profile = await prisma.staffProfile.findUnique({ where: { userId: staffUserId }, select: { id: true } });
+  const row = await prisma.staffTrophy.findUnique({ where: { id: trophyId } });
+  if (!profile || !row || row.profileId !== profile.id) throw new NotFoundError('Achievement');
+  await prisma.staffTrophy.delete({ where: { id: trophyId } });
+  return { id: trophyId, deleted: true };
 }

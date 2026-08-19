@@ -24,6 +24,14 @@ const SCHEMA = readFileSync(join(__dirname, '..', 'prisma', 'schema.prisma'), 'u
 const APP = readFileSync(join(__dirname, '..', 'public', 'app.js'), 'utf8');
 const INDEX = readFileSync(join(__dirname, '..', 'src', 'routes', 'index.ts'), 'utf8');
 
+// A function's own body, bounded by the next export — so a later function can
+// never be read as part of an earlier one.
+function _fn(name: string) {
+  const from = SVC.indexOf(`export async function ${name}`);
+  const next = SVC.indexOf('export async function', from + 10);
+  return SVC.slice(from, next < 0 ? undefined : next);
+}
+
 describe('no club is named anywhere', () => {
   it('the engine holds no club list and no branch on a club', () => {
     // the clubs this platform happens to have today
@@ -65,25 +73,25 @@ describe('one staff identity', () => {
 
 describe('a move preserves the past', () => {
   it('the previous period is closed, never deleted', () => {
-    const move = SVC.slice(SVC.indexOf('export async function completeMove'));
+    const move = _fn('completeMove');
     expect(move).toContain('isActive: false, endedAt: new Date()');
     expect(move).not.toMatch(/staffEngagement\.delete/);
     expect(move).not.toMatch(/membership\.delete/);
   });
 
   it('the old club loses him as active staff and the new club gains him', () => {
-    const move = SVC.slice(SVC.indexOf('export async function completeMove'));
+    const move = _fn('completeMove');
     expect(move).toContain('data: { isActive: false, leftAt: new Date() }');
     expect(move).toMatch(/tx\.staffEngagement\.create/);
   });
 
   it('and where no engagement existed, one is written closed so the club survives', () => {
-    const move = SVC.slice(SVC.indexOf('export async function completeMove'));
+    const move = _fn('completeMove');
     expect(move).toContain('endedAt: new Date(), isActive: false');
   });
 
   it('all of it in one transaction, claimed so it cannot run twice', () => {
-    const move = SVC.slice(SVC.indexOf('export async function completeMove'));
+    const move = _fn('completeMove');
     expect(move).toContain('prisma.$transaction');
     expect(move).toContain('tx.staffApproach.updateMany');
     expect(move).toContain("throw new ConflictError('That approach is no longer open')");

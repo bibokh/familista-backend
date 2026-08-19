@@ -118,7 +118,8 @@ describe('All Staff is the platform, not a table somebody fills in', () => {
 
 describe('one canonical profile per person', () => {
   it('an external candidate is a User with a profile, and no membership', () => {
-    const f = SVC.slice(SVC.indexOf('export async function addExternalStaff'));
+    const from = SVC.indexOf('export async function addExternalStaff');
+    const f = SVC.slice(from, SVC.indexOf('export async function', from + 10));
     expect(f).toContain('prisma.user.create');
     expect(f).toContain('staffProfile: {');
     expect(f).not.toContain('membership.create');
@@ -128,7 +129,8 @@ describe('one canonical profile per person', () => {
   });
 
   it('and the same person is never added twice', () => {
-    const f = SVC.slice(SVC.indexOf('export async function addExternalStaff'));
+    const from = SVC.indexOf('export async function addExternalStaff');
+    const f = SVC.slice(from, SVC.indexOf('export async function', from + 10));
     expect(f).toContain("throw new ConflictError('Somebody with that email is already on the platform')");
   });
 
