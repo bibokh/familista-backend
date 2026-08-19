@@ -140,6 +140,7 @@ describe('Coaches is its own module, below Coach Market', () => {
 
   it('and is not the market\'s screen: no board, no negotiating, no shortlist on it', () => {
     const co = APP.slice(APP.indexOf('function _coHtml() {'), APP.indexOf('// The directory\'s own listeners'));
+    expect(co.length).toBeGreaterThan(500);
     expect(co).not.toContain('_stCardHtml');
     expect(co).not.toContain('data-st-approach');
     expect(co).not.toContain('data-st-short');
@@ -148,7 +149,10 @@ describe('Coaches is its own module, below Coach Market', () => {
     expect(APP).toContain('function _coGroupHtml(g)');
     expect(APP).toContain('function _coStaffCardHtml(m)');
     expect(CSS).toContain('.co-team{');
-    expect(CSS).toContain('.co-card{');
+    expect(CSS).toContain('.co-person{');
+    // and it does not borrow the market's palette: it defines its own
+    expect(CSS).toMatch(/#pg-coaches\{[\s\S]*?--co-bg:/);
+    expect(CSS).not.toMatch(/:is\(#pg-transfers,#pg-coach-market,#pg-coaches\)/);
   });
 });
 
@@ -172,7 +176,7 @@ describe('the directory is read from what the platform holds', () => {
   it('a team with nobody in it is still a group', () => {
     const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
     expect(f).toContain('groupsWithoutStaff');
-    expect(APP).toContain('No technical staff recorded for this team.');
+    expect(APP).toContain('No technical staff assigned to this team.');
   });
 
   it('and the status it shows is the market\'s own, from the same function', () => {
@@ -201,5 +205,65 @@ describe('one person, two perspectives', () => {
     expect(APP).toContain('var _TF_ST = {');
     // and a club switch clears the staff market's desk
     expect(APP).toContain('function _stResetClubScoped()');
+  });
+});
+
+describe('three modules, three visual identities', () => {
+  it('the player market keeps its own palette, untouched', () => {
+    // mustard band, silver board — the tokens it always had
+    expect(CSS).toMatch(/:is\(#pg-transfers,#pg-coach-market\)\{[\s\S]*?--tf-gold:\s*#c9a32e/);
+    expect(CSS).toMatch(/--tf-page:\s*#c5c9cb/);
+    expect(CSS).toMatch(/\.tf-head\{[\s\S]*?var\(--tf-gold-hi\)/);
+  });
+
+  it('the recruitment desk re-points those tokens rather than duplicating rules', () => {
+    const cm = CSS.slice(CSS.indexOf('#pg-coach-market{'), CSS.indexOf('[data-theme="light"] #pg-coach-market'));
+    expect(cm).toMatch(/--tf-gold:\s*#10b981/);   // emerald, not mustard
+    expect(cm).toMatch(/--tf-page:\s*#0b1220/);   // deep navy, not silver
+    expect(cm).toMatch(/--tf-acc:\s*#2dd4bf/);    // teal
+    expect(cm).toMatch(/--tf-champagne:\s*#5eead4/); // cyan
+    // and it does not wear the player market's band
+    expect(CSS).toContain('.cm-head{');
+    expect(CSS).not.toMatch(/\.cm-head[\s\S]{0,200}--tf-gold-hi/);
+  });
+
+  it('the directory is on its own ground, borrowing no market token at all', () => {
+    const co = CSS.slice(CSS.indexOf('#pg-coaches{'), CSS.indexOf('[data-theme="light"] #pg-coaches'));
+    expect(co).toMatch(/--co-bg:\s*#070d18/);
+    expect(co).not.toContain('--tf-gold');
+    expect(co).not.toContain('--tf-page');
+    expect(CSS).toContain('.co-head{');
+  });
+
+  it('and the three grounds are three different colours', () => {
+    const tf = /:is\(#pg-transfers,#pg-coach-market\)\{[\s\S]*?--tf-page:\s*(#[0-9a-f]{6})/i.exec(CSS)![1];
+    const cm = /#pg-coach-market\{[\s\S]*?--tf-page:\s*(#[0-9a-f]{6})/i.exec(CSS)![1];
+    const co = /#pg-coaches\{[\s\S]*?--co-bg:\s*(#[0-9a-f]{6})/i.exec(CSS)![1];
+    expect(new Set([tf.toLowerCase(), cm.toLowerCase(), co.toLowerCase()]).size).toBe(3);
+  });
+
+  it('the directory groups staff into departments rather than one flat grid', () => {
+    expect(APP).toContain('var CO_DEPTS');
+    ['Leadership', 'Goalkeeping', 'Performance', 'Technical', 'Medical', 'Scouting']
+      .forEach((d) => expect(APP).toContain(`['${d}',`));
+    // a role the departments do not cover is still shown, never dropped
+    expect(APP).toContain("depts += '<div class=\"co-dept\"><h5 class=\"co-dept-h\">Other<span>'");
+    expect(CSS).toContain('.co-dept-h{');
+  });
+
+  it('its teams collapse, and each carries its own colour', () => {
+    expect(APP).toContain('data-co-fold=');
+    expect(APP).toContain("collapsed: {}");
+    expect(APP).toContain("' style=\"--co-accent:'");
+    expect(CSS).toContain('border-left:3px solid var(--co-accent);');
+  });
+
+  it('and a free agent can never appear in it', () => {
+    // the directory is built from memberships; a free agent has none
+    const f = SVC.slice(SVC.indexOf('export async function coachesDirectory'));
+    expect(f).not.toContain('staffProfile.findMany({ where: { user');
+    expect(f).toMatch(/memberships\.forEach/);
+    expect(f).not.toContain('orphanProfiles');
+    expect(f).toContain('hasClub: true');
   });
 });

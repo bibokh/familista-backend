@@ -8883,7 +8883,7 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
    Two colours are reserved and used for nothing else: green means a club is
    committing money (Buy, Bid, Confirm), red means a club is taking something
    back (Cancel, Withdraw, Reject). They are actions, never decoration. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches){
+:is(#pg-transfers,#pg-coach-market){
   overflow:hidden;
 
   /* ── the market's own colours ──────────────────────────────────────────────
@@ -8964,7 +8964,7 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 }
 /* The market reads the same in either app theme: it is the marketplace's own
    surface, not the workspace's. */
-[data-theme="light"] :is(#pg-transfers,#pg-coach-market,#pg-coaches){
+[data-theme="light"] :is(#pg-transfers,#pg-coach-market){
   color:var(--tf-ink);
   background:linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo)) fixed;
   background-color:var(--tf-page);
@@ -10053,231 +10053,231 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* ── header controls sit on the mustard band ─────────────────────────────── */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head select,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head .tf-money-cell,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head .tf-hs{
+:is(#pg-transfers,#pg-coach-market) .tf-head select,
+:is(#pg-transfers,#pg-coach-market) .tf-head .tf-money-cell,
+:is(#pg-transfers,#pg-coach-market) .tf-head .tf-hs{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid #97722a;
   border-radius:5px;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 1px 0 rgba(255,255,255,.22);
   color:var(--tf-ink);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head .tf-money-cell i,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head .tf-hs{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head .tf-money-cell b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-teamsel > span{ color:rgba(31,25,3,.72); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head select:hover{ border-color:rgba(48,50,54,.34); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-head select:focus{ outline:none; border-color:#1f1903; box-shadow:0 0 0 3px rgba(31,25,3,.14); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) option{ background:var(--tf-panel); color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-head .tf-money-cell i,
+:is(#pg-transfers,#pg-coach-market) .tf-head .tf-hs{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-head .tf-money-cell b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-teamsel > span{ color:rgba(31,25,3,.72); }
+:is(#pg-transfers,#pg-coach-market) .tf-head select:hover{ border-color:rgba(48,50,54,.34); }
+:is(#pg-transfers,#pg-coach-market) .tf-head select:focus{ outline:none; border-color:#1f1903; box-shadow:0 0 0 3px rgba(31,25,3,.14); }
+:is(#pg-transfers,#pg-coach-market) option{ background:var(--tf-panel); color:var(--tf-ink); }
 
 /* tabs on the band: the active one is the page's paper, so it reads as the
    sheet the content is printed on */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab{ color:rgba(31,25,3,.66); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab b{ color:rgba(31,25,3,.86); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab.is-on{
+:is(#pg-transfers,#pg-coach-market) .tf-tab{ color:rgba(31,25,3,.66); }
+:is(#pg-transfers,#pg-coach-market) .tf-tab b{ color:rgba(31,25,3,.86); }
+:is(#pg-transfers,#pg-coach-market) .tf-tab.is-on{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
   border:1px solid #97722a; border-bottom-color:transparent; color:var(--tf-ink);
   border-radius:6px 6px 0 0;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab.is-on b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab.is-on::after{ background:transparent; }
+:is(#pg-transfers,#pg-coach-market) .tf-tab.is-on b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-tab.is-on::after{ background:transparent; }
 
 /* ── content: a stack of silver panels, never a white sheet ──────────────── */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-body{ background:transparent; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pane{ background:transparent; }
+:is(#pg-transfers,#pg-coach-market) .tf-body{ background:transparent; }
+:is(#pg-transfers,#pg-coach-market) .tf-pane{ background:transparent; }
 
 /* the panels the content sits in — one step lighter than the page, with a
    light top edge and a darker outline so each one has a physical edge */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tablewrap,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-scoutbar,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters{
+:is(#pg-transfers,#pg-coach-market) .tf-tablewrap,
+:is(#pg-transfers,#pg-coach-market) .tf-scoutbar,
+:is(#pg-transfers,#pg-coach-market) .tf-filters{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
   border:1px solid var(--tf-line2);
   border-radius:7px;
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.4);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table{ background:transparent; color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-table{ background:transparent; color:var(--tf-ink); }
 
 /* the column header: a stronger grey that separates the table from its rows */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table thead th{
+:is(#pg-transfers,#pg-coach-market) .tf-table thead th{
   background:linear-gradient(180deg,#c0c4c6,var(--tf-thead));
   color:var(--tf-ink);
   border-bottom:2px solid #989ea0;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table thead th button{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table thead th button:hover{ color:#000; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table thead th.is-sorted button{ color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-table thead th button{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-table thead th button:hover{ color:#000; }
+:is(#pg-transfers,#pg-coach-market) .tf-table thead th.is-sorted button{ color:#6b5310; }
 
 /* rows alternate, so the eye tracks across a row the way it does on a game
    interface — not the flat ruled lines of a spreadsheet */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table tbody tr{ background:var(--tf-row); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table tbody tr:nth-child(even){ background:var(--tf-row-alt); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table tbody td{
+:is(#pg-transfers,#pg-coach-market) .tf-table tbody tr{ background:var(--tf-row); }
+:is(#pg-transfers,#pg-coach-market) .tf-table tbody tr:nth-child(even){ background:var(--tf-row-alt); }
+:is(#pg-transfers,#pg-coach-market) .tf-table tbody td{
   padding:11px 10px;
   border-bottom:1px solid var(--tf-sep);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-row{ border-bottom:0; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-row:hover, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table tbody tr.tf-row:nth-child(even):hover{
+:is(#pg-transfers,#pg-coach-market) .tf-row{ border-bottom:0; }
+:is(#pg-transfers,#pg-coach-market) .tf-row:hover, :is(#pg-transfers,#pg-coach-market) .tf-table tbody tr.tf-row:nth-child(even):hover{
   background:linear-gradient(180deg,#e0d3a6,#d6c795);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-row.is-mine, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-table tbody tr.tf-row.is-mine:nth-child(even){
+:is(#pg-transfers,#pg-coach-market) .tf-row.is-mine, :is(#pg-transfers,#pg-coach-market) .tf-table tbody tr.tf-row.is-mine:nth-child(even){
   background:linear-gradient(180deg,#cfe0c4,#c4d7b8);
   box-shadow:inset 3px 0 0 var(--tf-buy-d);
 }
 /* the player's line, given room to be read */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl{ gap:11px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl-t b{ color:var(--tf-ink); font-size:13px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl-t em{ font-size:10.5px; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl-n, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl-sub, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-mv{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pl-d{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-price{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-price-sub{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-go{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-empty td{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-sec{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-para, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-note{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-pl{ gap:11px; }
+:is(#pg-transfers,#pg-coach-market) .tf-pl-t b{ color:var(--tf-ink); font-size:13px; }
+:is(#pg-transfers,#pg-coach-market) .tf-pl-t em{ font-size:10.5px; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-pl-n, :is(#pg-transfers,#pg-coach-market) .tf-pl-sub, :is(#pg-transfers,#pg-coach-market) .tf-mv{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-pl-d{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-price{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-price-sub{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-go{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-empty td{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-sec{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-para, :is(#pg-transfers,#pg-coach-market) .tf-note{ color:var(--tf-ink3); }
 /* fields are sunk into the panel, controls are raised off it */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-search, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-search input,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters input, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters select,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters-grid input{
+:is(#pg-transfers,#pg-coach-market) .tf-search, :is(#pg-transfers,#pg-coach-market) .tf-search input,
+:is(#pg-transfers,#pg-coach-market) .tf-filters input, :is(#pg-transfers,#pg-coach-market) .tf-filters select,
+:is(#pg-transfers,#pg-coach-market) .tf-filters-grid input{
   background:var(--tf-info); border:1px solid #9aa0a2; border-radius:5px; color:var(--tf-ink);
   box-shadow:inset 0 1px 2px rgba(17,16,21,.18);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-search input{ border:0; box-shadow:none; background:transparent; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters-grid{ background:var(--tf-info); border:1px solid var(--tf-line2); border-radius:6px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-chip-btn{
+:is(#pg-transfers,#pg-coach-market) .tf-search input{ border:0; box-shadow:none; background:transparent; }
+:is(#pg-transfers,#pg-coach-market) .tf-filters-grid{ background:var(--tf-info); border:1px solid var(--tf-line2); border-radius:6px; }
+:is(#pg-transfers,#pg-coach-market) .tf-chip-btn{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
   border:1px solid var(--tf-line2); border-radius:5px; color:var(--tf-ink2);
   box-shadow:inset 0 1px 0 var(--tf-edge);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-chip-btn:hover{ background:linear-gradient(180deg,#dfe1e2,var(--tf-panel)); color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-chip-btn.is-on{
+:is(#pg-transfers,#pg-coach-market) .tf-chip-btn:hover{ background:linear-gradient(180deg,#dfe1e2,var(--tf-panel)); color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-chip-btn.is-on{
   background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
   border-color:#8f6d13; color:#241d05;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-star{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-star.is-on{ color:var(--tf-gold-d); }
+:is(#pg-transfers,#pg-coach-market) .tf-star{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-star.is-on{ color:var(--tf-gold-d); }
 
 /* the numbers a decision is made on */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pips i{ background:var(--tf-line2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pips i.on{ background:var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nat b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nat span{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-qual b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-pips i{ background:var(--tf-line2); }
+:is(#pg-transfers,#pg-coach-market) .tf-pips i.on{ background:var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-nat b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-nat span{ color:var(--tf-ink3); }
 
 /* status chips, kept quiet on the grey */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-state{
+:is(#pg-transfers,#pg-coach-market) .tf-state{
   background:var(--tf-info); color:var(--tf-ink2); border:1px solid var(--tf-line2);
   border-radius:4px; box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-state--available, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-state--active{
+:is(#pg-transfers,#pg-coach-market) .tf-state--available, :is(#pg-transfers,#pg-coach-market) .tf-state--active{
   background:rgba(80,211,63,.16); color:#1d6b16; border-color:rgba(80,211,63,.4);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-state--ending-soon, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-clock--hot{
+:is(#pg-transfers,#pg-coach-market) .tf-state--ending-soon, :is(#pg-transfers,#pg-coach-market) .tf-clock--hot{
   background:rgba(223,51,64,.14); color:#a51f2a; border-color:rgba(223,51,64,.36);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-clock{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-clock{ color:var(--tf-ink2); }
 
 /* ── cards, modals and the right-hand panel: layered silver, never white ─── */
 /* Outer shell is the darkest of the three, the cards inside it a step lighter,
    and the information wells a step darker again — the same ladder as the list,
    so a panel never flattens into one sheet. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-modal-box, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side{
+:is(#pg-transfers,#pg-coach-market) .tf-modal-box, :is(#pg-transfers,#pg-coach-market) .tf-side{
   background:linear-gradient(180deg,#c9cdce,var(--tf-side));
   border:1px solid #9aa0a2; border-radius:8px; color:var(--tf-ink);
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 20px 46px -26px rgba(17,16,21,.75);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-rc, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-need, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-card, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-brief{
+:is(#pg-transfers,#pg-coach-market) .tf-rc, :is(#pg-transfers,#pg-coach-market) .tf-need, :is(#pg-transfers,#pg-coach-market) .tf-offer,
+:is(#pg-transfers,#pg-coach-market) .tf-card, :is(#pg-transfers,#pg-coach-market) .tf-brief{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line2); border-radius:7px; color:var(--tf-ink);
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
 }
 /* cards sit a step ABOVE the panel they are on, wells a step below the card */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-rc-nums > div, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-kv > div, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-attr{
+:is(#pg-transfers,#pg-coach-market) .tf-rc-nums > div, :is(#pg-transfers,#pg-coach-market) .tf-kv > div, :is(#pg-transfers,#pg-coach-market) .tf-attr{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line); border-radius:5px;
   box-shadow:inset 0 1px 0 var(--tf-edge);
 }
 /* the right-hand panel: outer shell, cards, information rows, countdown */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-rows, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-acts > .tf-side-note{
+:is(#pg-transfers,#pg-coach-market) .tf-side-rows, :is(#pg-transfers,#pg-coach-market) .tf-side-acts > .tf-side-note{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line2); border-radius:6px;
   box-shadow:inset 0 1px 0 var(--tf-edge);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-row{ border-bottom:1px solid rgba(35,38,41,.14); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-row i{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-row b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-row b.is-next{ color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-timer{
+:is(#pg-transfers,#pg-coach-market) .tf-side-row{ border-bottom:1px solid rgba(35,38,41,.14); }
+:is(#pg-transfers,#pg-coach-market) .tf-side-row i{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-side-row b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-side-row b.is-next{ color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-side-timer{
   background:linear-gradient(180deg,#b8bdbf,var(--tf-count));
   border:1px solid #979d9f; border-radius:6px;
   box-shadow:inset 0 1px 2px rgba(17,16,21,.22);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-tl{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-timer.is-hot{ background:linear-gradient(180deg,#d4a3a7,#c79197); border-color:#95121f; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-side-ttl{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-modal-bd{ background:rgba(17,16,21,.62); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-head{
+:is(#pg-transfers,#pg-coach-market) .tf-side-tl{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-side-timer.is-hot{ background:linear-gradient(180deg,#d4a3a7,#c79197); border-color:#95121f; }
+:is(#pg-transfers,#pg-coach-market) .tf-side-ttl{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-modal-bd{ background:rgba(17,16,21,.62); }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-head{
   background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
   border-bottom:2px solid #8f6d13;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.38);
   color:#1f1903;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-head h2, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-sub{ color:#1f1903; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-body{ background:linear-gradient(180deg,#c9cdce,var(--tf-side)); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-nums{ background:#9aa0a2; border-radius:6px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-nums > div{
+:is(#pg-transfers,#pg-coach-market) .tf-pd-head h2, :is(#pg-transfers,#pg-coach-market) .tf-pd-sub{ color:#1f1903; }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-body{ background:linear-gradient(180deg,#c9cdce,var(--tf-side)); }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-nums{ background:#9aa0a2; border-radius:6px; }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-nums > div{
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   box-shadow:inset 0 1px 0 var(--tf-edge);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-meter{ background:transparent; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-subtabs{ border-bottom:1px solid rgba(35,38,41,.22); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-nums i{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-nums b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-ovr{ color:#1f1903; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pd-ovr .tf-qual b{ color:#1f1903; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-subtabs button{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-subtabs button.is-on{ color:var(--tf-ink); border-bottom-color:var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-kv > div, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-meter, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-attr{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-kv b, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-attr b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-meter-bar{ background:var(--tf-silver-2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-x{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-meter{ background:transparent; }
+:is(#pg-transfers,#pg-coach-market) .tf-subtabs{ border-bottom:1px solid rgba(35,38,41,.22); }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-nums i{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-nums b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-ovr{ color:#1f1903; }
+:is(#pg-transfers,#pg-coach-market) .tf-pd-ovr .tf-qual b{ color:#1f1903; }
+:is(#pg-transfers,#pg-coach-market) .tf-subtabs button{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-subtabs button.is-on{ color:var(--tf-ink); border-bottom-color:var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-kv > div, :is(#pg-transfers,#pg-coach-market) .tf-meter, :is(#pg-transfers,#pg-coach-market) .tf-attr{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-kv b, :is(#pg-transfers,#pg-coach-market) .tf-attr b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-meter-bar{ background:var(--tf-silver-2); }
+:is(#pg-transfers,#pg-coach-market) .tf-x{ color:var(--tf-ink2); }
 
 /* ── buttons: game keys, not SaaS pills ──────────────────────────────────── */
 /* Squared off, a hard 1px darker border, a light top edge and a gradient down
    the face — the shape of a control you press, at every size. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn, .tf-scope .tf-btn{
+:is(#pg-transfers,#pg-coach-market) .tf-btn, .tf-scope .tf-btn{
   border-radius:4px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-row-alt));
   border:1px solid #9aa0a2; color:var(--tf-ink);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(17,16,21,.25);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn:hover:not(:disabled), .tf-scope .tf-btn:hover:not(:disabled){
+:is(#pg-transfers,#pg-coach-market) .tf-btn:hover:not(:disabled), .tf-scope .tf-btn:hover:not(:disabled){
   background:linear-gradient(180deg,#e3e5e6,var(--tf-panel)); color:#000;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn:active:not(:disabled), .tf-scope .tf-btn:active:not(:disabled){
+:is(#pg-transfers,#pg-coach-market) .tf-btn:active:not(:disabled), .tf-scope .tf-btn:active:not(:disabled){
   box-shadow:inset 0 2px 4px rgba(17,16,21,.35); transform:translateY(1px);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn--primary, .tf-scope .tf-btn--primary{
+:is(#pg-transfers,#pg-coach-market) .tf-btn--primary, .tf-scope .tf-btn--primary{
   background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy));
   border-color:#2f8f22; color:#06280a;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 2px 4px rgba(17,16,21,.35);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn--primary:hover:not(:disabled), .tf-scope .tf-btn--primary:hover:not(:disabled){
+:is(#pg-transfers,#pg-coach-market) .tf-btn--primary:hover:not(:disabled), .tf-scope .tf-btn--primary:hover:not(:disabled){
   background:linear-gradient(180deg,#63de4f,var(--tf-buy-2));
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn--danger, .tf-scope .tf-btn--danger{
+:is(#pg-transfers,#pg-coach-market) .tf-btn--danger, .tf-scope .tf-btn--danger{
   background:linear-gradient(180deg,var(--tf-stop-2),var(--tf-stop));
   border-color:#95121f; color:#fff;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 2px 4px rgba(17,16,21,.35);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn--danger:hover:not(:disabled), .tf-scope .tf-btn--danger:hover:not(:disabled){
+:is(#pg-transfers,#pg-coach-market) .tf-btn--danger:hover:not(:disabled), .tf-scope .tf-btn--danger:hover:not(:disabled){
   background:linear-gradient(180deg,#e84956,var(--tf-stop-2));
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-btn--gold, .tf-scope .tf-btn--gold{
+:is(#pg-transfers,#pg-coach-market) .tf-btn--gold, .tf-scope .tf-btn--gold{
   background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo));
   border-color:#8f6d13; color:#1f1903;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 2px 4px rgba(17,16,21,.3);
@@ -10395,11 +10395,11 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 /* In the market the chip sits on light paper, so it is written dark. Inside a
    player's own profile it sits on the workspace's dark modal, so it is written
    light — the same chip, legible on either ground. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc{
+:is(#pg-transfers,#pg-coach-market) .tf-auc{
   background:rgba(205,166,51,.18); border-color:rgba(205,166,51,.55); color:#6d5410;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc em{ color:#4a3a08; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc.is-hot{
+:is(#pg-transfers,#pg-coach-market) .tf-auc em{ color:#4a3a08; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc.is-hot{
   background:rgba(223,51,64,.14); border-color:rgba(223,51,64,.45); color:#a51f2a;
 }
 .tf-scope .tf-auc{
@@ -10412,16 +10412,16 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-scope .tf-auc.is-hot em{ color:#ffffff; }
 
 /* ── offers, needs, activity: paper cards ────────────────────────────────── */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-club, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-need-h b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-msg, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-need-l{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-dest{ border-top-color:var(--tf-line); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-dest i{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-dest b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-need-prio{ background:var(--tf-info); border-color:var(--tf-line2); color:var(--tf-ink2); border-radius:4px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-need-prio--high{ background:rgba(201,163,46,.34); border-color:#8f6d13; color:#4a3a08; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-neg-live{ background:rgba(201,163,46,.20); border-color:#8f6d13; border-radius:5px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-neg-live b{ color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-neg-live i, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-neg-live em{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-club, :is(#pg-transfers,#pg-coach-market) .tf-need-h b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-msg, :is(#pg-transfers,#pg-coach-market) .tf-need-l{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-dest{ border-top-color:var(--tf-line); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-dest i{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-dest b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-need-prio{ background:var(--tf-info); border-color:var(--tf-line2); color:var(--tf-ink2); border-radius:4px; }
+:is(#pg-transfers,#pg-coach-market) .tf-need-prio--high{ background:rgba(201,163,46,.34); border-color:#8f6d13; color:#4a3a08; }
+:is(#pg-transfers,#pg-coach-market) .tf-neg-live{ background:rgba(201,163,46,.20); border-color:#8f6d13; border-radius:5px; }
+:is(#pg-transfers,#pg-coach-market) .tf-neg-live b{ color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-neg-live i, :is(#pg-transfers,#pg-coach-market) .tf-neg-live em{ color:var(--tf-ink3); }
 
 /* the club inbox panel */
 .tf-note-row{
@@ -10438,46 +10438,46 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 /* The portrait carries the market's identity, so it is given a real frame —
    a dark outline, a light inner edge and its own small shadow — rather than
    being left as an icon floating on the row. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-po, .tf-scope .tf-po{
+:is(#pg-transfers,#pg-coach-market) .tf-po, .tf-scope .tf-po{
   background:var(--tf-info); border-radius:6px;
   box-shadow:0 0 0 1px #8d9294, inset 0 1px 0 rgba(255,255,255,.4), 0 2px 5px -2px rgba(17,16,21,.5);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-po{ width:42px; height:42px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-row:hover .tf-po{ box-shadow:0 0 0 1px #8f6d13, inset 0 1px 0 rgba(255,255,255,.4), 0 2px 6px -2px rgba(17,16,21,.55); }
+:is(#pg-transfers,#pg-coach-market) .tf-po{ width:42px; height:42px; }
+:is(#pg-transfers,#pg-coach-market) .tf-row:hover .tf-po{ box-shadow:0 0 0 1px #8f6d13, inset 0 1px 0 rgba(255,255,255,.4), 0 2px 6px -2px rgba(17,16,21,.55); }
 .tf-ct-open .tf-po, .tf-ct-live .tf-po{ box-shadow:0 0 0 1px rgba(255,255,255,.24), inset 0 1px 0 rgba(255,255,255,.12); }
 
 /* ── the countdown, on the grey side ─────────────────────────────────────── */
 /* On a black panel the clock is light on black; where it sits on the silver
    side it gets its own darker well, so it never floats on the panel. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-clock, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-c-avail .tf-clock{
+:is(#pg-transfers,#pg-coach-market) .tf-clock, :is(#pg-transfers,#pg-coach-market) .tf-c-avail .tf-clock{
   background:var(--tf-count); border:1px solid #979d9f; border-radius:4px;
   padding:2px 6px; color:#1c1e20; font-weight:800;
   box-shadow:inset 0 1px 2px rgba(17,16,21,.2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-clock--hot{ background:rgba(201,40,54,.22); border-color:#95121f; color:#7d1420; }
+:is(#pg-transfers,#pg-coach-market) .tf-clock--hot{ background:rgba(201,40,54,.22); border-color:#95121f; color:#7d1420; }
 
 /* ── the last of the white ───────────────────────────────────────────────── */
 /* Anything still painting itself white or near-white inside the market is
    pulled back onto the grey ladder — white is left to type, icons and the
    one-pixel highlight along a top edge. */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-style, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-src2, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pos,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-ability{
+:is(#pg-transfers,#pg-coach-market) .tf-style, :is(#pg-transfers,#pg-coach-market) .tf-src2, :is(#pg-transfers,#pg-coach-market) .tf-pos,
+:is(#pg-transfers,#pg-coach-market) .tf-ability{
   background:var(--tf-info); color:var(--tf-ink2);
   box-shadow:inset 0 0 0 1px var(--tf-line2); border-radius:4px;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-ability{ background:rgba(201,163,46,.32); color:#4a3a08; box-shadow:inset 0 0 0 1px #a8811c; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-pips i{ background:#a3a9ab; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-meter-bar{ background:#a7acae; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--elite b, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--good b{ color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--ok b, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--avg b{ color:var(--tf-ink2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--elite .tf-pips i.on, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--good .tf-pips i.on,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--ok .tf-pips i.on{ background:var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-qual--avg .tf-pips i.on{ background:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-price{ color:#1c1e20; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tab:hover{ background:rgba(255,255,255,.14); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-filters-grid label > span,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-teamsel > span{ color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-dot-live{ background:var(--tf-buy); box-shadow:0 0 0 3px rgba(72,201,52,.24); }
+:is(#pg-transfers,#pg-coach-market) .tf-ability{ background:rgba(201,163,46,.32); color:#4a3a08; box-shadow:inset 0 0 0 1px #a8811c; }
+:is(#pg-transfers,#pg-coach-market) .tf-pips i{ background:#a3a9ab; }
+:is(#pg-transfers,#pg-coach-market) .tf-meter-bar{ background:#a7acae; }
+:is(#pg-transfers,#pg-coach-market) .tf-qual--elite b, :is(#pg-transfers,#pg-coach-market) .tf-qual--good b{ color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-qual--ok b, :is(#pg-transfers,#pg-coach-market) .tf-qual--avg b{ color:var(--tf-ink2); }
+:is(#pg-transfers,#pg-coach-market) .tf-qual--elite .tf-pips i.on, :is(#pg-transfers,#pg-coach-market) .tf-qual--good .tf-pips i.on,
+:is(#pg-transfers,#pg-coach-market) .tf-qual--ok .tf-pips i.on{ background:var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-qual--avg .tf-pips i.on{ background:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-price{ color:#1c1e20; }
+:is(#pg-transfers,#pg-coach-market) .tf-tab:hover{ background:rgba(255,255,255,.14); }
+:is(#pg-transfers,#pg-coach-market) .tf-filters-grid label > span,
+:is(#pg-transfers,#pg-coach-market) .tf-teamsel > span{ color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-dot-live{ background:var(--tf-buy); box-shadow:0 0 0 3px rgba(72,201,52,.24); }
 
 /* ════════════════════════════════════════════════════════════════════════════
    LAYOUT STABILITY — the geometry stays put while the data changes
@@ -10632,116 +10632,116 @@ body.club-theme .topbar-titles{ min-width:0; }
    of its own players fit. The matches open inside the card on the same
    near-black panel every other decision uses.
    ════════════════════════════════════════════════════════════════════════════ */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-bar{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-bar{
   display:flex; flex-direction:column; gap:9px; margin-bottom:12px;
   padding:11px 12px; border-radius:7px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
   border:1px solid var(--tf-line2);
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.4);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-views{ display:flex; gap:6px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-filters{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-filters select,
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-filters .tf-nd-num{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-views{ display:flex; gap:6px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-filters{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-filters select,
+:is(#pg-transfers,#pg-coach-market) .tf-nd-filters .tf-nd-num{
   height:32px; padding:0 9px; border-radius:5px; min-width:0;
   border:1px solid #9aa0a2; background:var(--tf-info); color:var(--tf-ink);
   box-shadow:inset 0 1px 2px rgba(17,16,21,.18);
   font:inherit; font-size:11.5px; font-weight:700;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-filters .tf-nd-num{ width:112px; font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-filters .tf-search{ flex:0 1 210px; height:32px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-filters .tf-nd-num{ width:112px; font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-filters .tf-search{ flex:0 1 210px; height:32px; }
 
 /* the board */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-needs-list{ min-height:120px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-needs{
+:is(#pg-transfers,#pg-coach-market) .tf-needs-list{ min-height:120px; }
+:is(#pg-transfers,#pg-coach-market) .tf-needs{
   display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; align-items:start;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd{
+:is(#pg-transfers,#pg-coach-market) .tf-nd{
   display:flex; flex-direction:column; gap:10px; padding:12px 13px; border-radius:7px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line2);
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd.is-mine{ border-color:#8f6d13; box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd.has-match{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-top{ display:flex; align-items:center; gap:10px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-mark{
+:is(#pg-transfers,#pg-coach-market) .tf-nd.is-mine{ border-color:#8f6d13; box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd.has-match{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-top{ display:flex; align-items:center; gap:10px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-mark{
   width:34px; height:34px; flex:none; border-radius:6px; overflow:hidden;
   display:inline-flex; align-items:center; justify-content:center;
   background:linear-gradient(180deg,#c8b064,var(--tf-gold-lo)); color:#1f1903;
   box-shadow:0 0 0 1px #8f6d13, inset 0 1px 0 rgba(255,255,255,.35);
   font-size:12px; font-weight:900; letter-spacing:.02em;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-mark img{ width:100%; height:100%; object-fit:cover; display:block; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-mark i{ font-style:normal; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-id{ min-width:0; display:flex; flex-direction:column; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-id i{ font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.14em; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-prio{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-mark img{ width:100%; height:100%; object-fit:cover; display:block; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-mark i{ font-style:normal; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-id{ min-width:0; display:flex; flex-direction:column; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-id i{ font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.14em; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-prio{
   margin-left:auto; flex:none; padding:3px 8px; border-radius:4px;
   font-size:9px; font-weight:900; letter-spacing:.08em;
   background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-prio--high{ background:linear-gradient(180deg,#e05f6a,var(--tf-stop)); border-color:#95121f; color:#fff; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-pos{ display:flex; gap:5px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-facts{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-prio--high{ background:linear-gradient(180deg,#e05f6a,var(--tf-stop)); border-color:#95121f; color:#fff; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-pos{ display:flex; gap:5px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-facts{
   display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:1px;
   background:#a7acae; border-radius:6px; overflow:hidden;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-info); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-note{ font-size:11px; color:var(--tf-ink3); font-style:italic; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-foot{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-when{ display:inline-flex; align-items:center; gap:6px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-when i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-when b{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-info); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-note{ font-size:11px; color:var(--tf-ink3); font-style:italic; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-foot{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-when{ display:inline-flex; align-items:center; gap:6px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-when i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-when b{
   font-size:12px; font-weight:800; color:#1c1e20; font-variant-numeric:tabular-nums;
   background:var(--tf-count); border:1px solid #979d9f; border-radius:4px; padding:2px 6px;
   box-shadow:inset 0 1px 2px rgba(17,16,21,.2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-state{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-state{
   font-style:normal; font-size:9.5px; font-weight:900; letter-spacing:.1em;
   padding:3px 8px; border-radius:4px; background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
 }
 /* the signal: this club owns players for this requirement */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-badge{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-badge{
   margin-left:auto; padding:4px 9px; border-radius:4px;
   background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border:1px solid #2f8f22; color:#06280a;
   font-size:9.5px; font-weight:900; letter-spacing:.06em;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-hs--match{ color:#1d6b16; font-weight:800; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-acts{ display:flex; gap:7px; justify-content:flex-end; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-hs--match{ color:#1d6b16; font-weight:800; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-acts{ display:flex; gap:7px; justify-content:flex-end; flex-wrap:wrap; }
 
 /* the matches, opened inside the card */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-open{ margin-top:2px; padding:12px; display:flex; flex-direction:column; gap:10px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-matches{ display:flex; flex-direction:column; gap:9px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-open{ margin-top:2px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-matches{ display:flex; flex-direction:column; gap:9px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match{
   display:flex; flex-direction:column; gap:8px; padding:10px; border-radius:5px;
   background:var(--tf-black); border:1px solid rgba(255,255,255,.12);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match-h{ display:flex; align-items:center; gap:9px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match-id{ min-width:0; display:flex; flex-direction:column; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match-id b{ font-size:12.5px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match-id em{ font-style:normal; font-size:10.5px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-pct{ margin-left:auto; flex:none; display:flex; flex-direction:column; align-items:center; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-pct b{ font-size:15px; font-weight:900; color:var(--tf-on-dark); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-pct i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-on-dark-2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-pct.is-hi b{ color:var(--tf-buy-2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-why{ display:flex; gap:5px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-c{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match-h{ display:flex; align-items:center; gap:9px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match-id{ min-width:0; display:flex; flex-direction:column; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match-id b{ font-size:12.5px; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match-id em{ font-style:normal; font-size:10.5px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-pct{ margin-left:auto; flex:none; display:flex; flex-direction:column; align-items:center; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-pct b{ font-size:15px; font-weight:900; color:var(--tf-on-dark); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-pct i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-on-dark-2); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-pct.is-hi b{ color:var(--tf-buy-2); }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-why{ display:flex; gap:5px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-c{
   display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:4px;
   font-size:9.5px; font-weight:700; letter-spacing:.03em;
   background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); color:var(--tf-on-dark-2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-c.is-ok{ background:rgba(72,201,52,.18); border-color:rgba(72,201,52,.45); color:#bff3b4; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-c i{ font-style:normal; font-weight:900; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-match-acts{ display:flex; justify-content:flex-end; gap:7px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-open .tf-btn{
+:is(#pg-transfers,#pg-coach-market) .tf-nd-c.is-ok{ background:rgba(72,201,52,.18); border-color:rgba(72,201,52,.45); color:#bff3b4; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-c i{ font-style:normal; font-weight:900; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-match-acts{ display:flex; justify-content:flex-end; gap:7px; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-open .tf-btn{
   background:rgba(255,255,255,.10); border-color:rgba(255,255,255,.22); color:var(--tf-on-dark);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-nd-open .tf-btn:hover:not(:disabled){ background:rgba(255,255,255,.18); color:#fff; }
+:is(#pg-transfers,#pg-coach-market) .tf-nd-open .tf-btn:hover:not(:disabled){ background:rgba(255,255,255,.18); color:#fff; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    NEGOTIATION & COMPLETED DEALS
@@ -10750,71 +10750,71 @@ body.club-theme .topbar-titles{ min-width:0; }
    other decision uses, and a completed move written the way a manager asks
    about it: who, from where, to where, for how much, when.
    ════════════════════════════════════════════════════════════════════════════ */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-act-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-act-tabs .tf-chip-btn em{
+:is(#pg-transfers,#pg-coach-market) .tf-act-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+:is(#pg-transfers,#pg-coach-market) .tf-act-tabs .tf-chip-btn em{
   font-style:normal; margin-left:6px; padding:0 5px; border-radius:8px;
   background:rgba(35,38,41,.16); font-size:9.5px; font-weight:900;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-act-tabs .tf-chip-btn.is-on em{ background:rgba(31,25,3,.22); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-act-body{ min-height:120px; }
+:is(#pg-transfers,#pg-coach-market) .tf-act-tabs .tf-chip-btn.is-on em{ background:rgba(31,25,3,.22); }
+:is(#pg-transfers,#pg-coach-market) .tf-act-body{ min-height:120px; }
 
 /* the need an offer answers */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-need{
+:is(#pg-transfers,#pg-coach-market) .tf-offer-need{
   display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
   padding:6px 9px; border-radius:5px;
   background:rgba(201,163,46,.20); border:1px solid #8f6d13;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-need i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-need b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-offer-need em{ font-style:normal; margin-left:auto; font-size:11px; font-weight:900; color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-need i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-need b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-offer-need em{ font-style:normal; margin-left:auto; font-size:11px; font-weight:900; color:#6b5310; }
 
 /* the conversation */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-neg-tl{ margin-top:2px; padding:12px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl{ display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.10); border-radius:5px; overflow:hidden; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl-step{
+:is(#pg-transfers,#pg-coach-market) .tf-neg-tl{ margin-top:2px; padding:12px; }
+:is(#pg-transfers,#pg-coach-market) .tf-tl{ display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.10); border-radius:5px; overflow:hidden; }
+:is(#pg-transfers,#pg-coach-market) .tf-tl-step{
   display:grid; grid-template-columns:1fr auto auto auto; gap:10px; align-items:center;
   padding:8px 10px; background:var(--tf-black);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl-club{ font-size:11.5px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl-what{ font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-on-dark-2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl-fee{ font-size:12.5px; font-weight:900; color:var(--tf-gold-2); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-tl-at{ font-size:10px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-tl-club{ font-size:11.5px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-tl-what{ font-size:9.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-on-dark-2); }
+:is(#pg-transfers,#pg-coach-market) .tf-tl-fee{ font-size:12.5px; font-weight:900; color:var(--tf-gold-2); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-tl-at{ font-size:10px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
 
 /* a completed move */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deals{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; align-items:start; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal{
+:is(#pg-transfers,#pg-coach-market) .tf-deals{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; align-items:start; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal{
   position:relative; display:flex; flex-direction:column; gap:10px; padding:12px 13px; border-radius:7px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line2); cursor:pointer;
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal--in{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal--out{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 #8f6d13, 0 2px 6px -3px rgba(17,16,21,.42); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-h{ display:flex; align-items:center; gap:9px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-id{ min-width:0; display:flex; flex-direction:column; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-dir{
+:is(#pg-transfers,#pg-coach-market) .tf-deal--in{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d), 0 2px 6px -3px rgba(17,16,21,.42); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal--out{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 #8f6d13, 0 2px 6px -3px rgba(17,16,21,.42); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-h{ display:flex; align-items:center; gap:9px; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-id{ min-width:0; display:flex; flex-direction:column; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-dir{
   margin-left:auto; padding:3px 8px; border-radius:4px;
   font-size:9px; font-weight:900; letter-spacing:.08em;
   background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal--in .tf-deal-dir{ background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:#2f8f22; color:#06280a; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal--in .tf-deal-dir{ background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:#2f8f22; color:#06280a; }
 /* the route: the answer to "where did he go" */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-route{
+:is(#pg-transfers,#pg-coach-market) .tf-deal-route{
   display:flex; align-items:center; gap:10px;
   padding:9px 11px; border-radius:6px;
   background:var(--tf-info); box-shadow:inset 0 1px 2px rgba(17,16,21,.16);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-club{ display:flex; flex-direction:column; min-width:0; flex:1; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-club i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-club b{ font-size:12px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-arrow{ flex:none; font-size:16px; font-weight:900; color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-facts{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:#a7acae; border-radius:6px; overflow:hidden; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-panel-2); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-deal-facts b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-state--completed{
+:is(#pg-transfers,#pg-coach-market) .tf-deal-club{ display:flex; flex-direction:column; min-width:0; flex:1; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-club i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-club b{ font-size:12px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-arrow{ flex:none; font-size:16px; font-weight:900; color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-facts{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:#a7acae; border-radius:6px; overflow:hidden; }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-panel-2); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-deal-facts b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-state--completed{
   align-self:flex-start;
   background:rgba(72,201,52,.20); border-color:#2f8f22; color:#1d6b16;
 }
@@ -10827,21 +10827,21 @@ body.club-theme .topbar-titles{ min-width:0; }
    ladder; the club's own negotiations are marked, because they are the ones
    nobody else can see.
    ════════════════════════════════════════════════════════════════════════════ */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-over{
+:is(#pg-transfers,#pg-coach-market) .tf-fd-over{
   display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px;
   background:#a7acae; border-radius:7px; overflow:hidden; margin-bottom:12px;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-over > div{
+:is(#pg-transfers,#pg-coach-market) .tf-fd-over > div{
   display:flex; flex-direction:column; gap:3px; padding:10px 13px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-over i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-over b{ font-size:18px; font-weight:900; color:var(--tf-ink); font-variant-numeric:tabular-nums; letter-spacing:-.4px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-views{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-feed-list{ min-height:120px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-feed{ display:flex; flex-direction:column; gap:8px; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-over i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-over b{ font-size:18px; font-weight:900; color:var(--tf-ink); font-variant-numeric:tabular-nums; letter-spacing:-.4px; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-views{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+:is(#pg-transfers,#pg-coach-market) .tf-feed-list{ min-height:120px; }
+:is(#pg-transfers,#pg-coach-market) .tf-feed{ display:flex; flex-direction:column; gap:8px; }
 
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd{
+:is(#pg-transfers,#pg-coach-market) .tf-fd{
   display:grid; grid-template-columns:auto auto auto 1fr; grid-template-areas:
     "type priv mine when" "body body body body" "route route route route";
   gap:6px 8px; align-items:center; padding:10px 12px; border-radius:6px;
@@ -10849,98 +10849,98 @@ body.club-theme .topbar-titles{ min-width:0; }
   border:1px solid var(--tf-line2); border-left:3px solid #9aa0a2;
   box-shadow:inset 0 1px 0 var(--tf-edge);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd--done{ border-left-color:var(--tf-buy-d); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd--stop{ border-left-color:var(--tf-stop); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd--need{ border-left-color:var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd--live{ border-left-color:#3d7fb5; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-t{
+:is(#pg-transfers,#pg-coach-market) .tf-fd--done{ border-left-color:var(--tf-buy-d); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd--stop{ border-left-color:var(--tf-stop); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd--need{ border-left-color:var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd--live{ border-left-color:#3d7fb5; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-t{
   grid-area:type; font-size:9.5px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-ink2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-priv{
+:is(#pg-transfers,#pg-coach-market) .tf-fd-priv{
   grid-area:priv; font-size:8.5px; font-weight:900; letter-spacing:.1em;
   padding:2px 6px; border-radius:3px; background:rgba(61,127,181,.18); border:1px solid #3d7fb5; color:#1d4a6d;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-mine{
+:is(#pg-transfers,#pg-coach-market) .tf-fd-mine{
   grid-area:mine; font-size:8.5px; font-weight:900; letter-spacing:.1em;
   padding:2px 6px; border-radius:3px;
   background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo)); border:1px solid #8f6d13; color:#1f1903;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-when{ grid-area:when; justify-self:end; font-size:10px; color:var(--tf-ink3); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-body{ grid-area:body; display:flex; align-items:center; gap:9px; min-width:0; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-id{ min-width:0; display:flex; flex-direction:column; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-fee{ margin-left:auto; font-size:13px; font-weight:900; color:#6b5310; font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-route{
+:is(#pg-transfers,#pg-coach-market) .tf-fd-when{ grid-area:when; justify-self:end; font-size:10px; color:var(--tf-ink3); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-body{ grid-area:body; display:flex; align-items:center; gap:9px; min-width:0; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-id{ min-width:0; display:flex; flex-direction:column; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-fee{ margin-left:auto; font-size:13px; font-weight:900; color:#6b5310; font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-route{
   grid-area:route; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
   padding:6px 9px; border-radius:5px; background:var(--tf-info);
   box-shadow:inset 0 1px 2px rgba(17,16,21,.14);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-route b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd-route i{ font-style:normal; font-size:14px; font-weight:900; color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-fd.is-mine{ border-color:#8f6d13; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-route b{ font-size:11.5px; font-weight:800; color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-fd-route i{ font-style:normal; font-size:14px; font-weight:900; color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-fd.is-mine{ border-color:#8f6d13; }
 
 /* ════════════════════════════════════════════════════════════════════════════
    AUCTIONS — the real board
    ════════════════════════════════════════════════════════════════════════════ */
 /* the board takes what it needs; the table below keeps the rest and scrolls
    inside itself, which is what it always did */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-sec--auc{ flex:none; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-board{ flex:none; max-height:44vh; overflow-y:auto; margin-bottom:6px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-aucs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; align-items:start; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-card{
+:is(#pg-transfers,#pg-coach-market) .tf-sec--auc{ flex:none; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-board{ flex:none; max-height:44vh; overflow-y:auto; margin-bottom:6px; }
+:is(#pg-transfers,#pg-coach-market) .tf-aucs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px; align-items:start; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-card{
   display:flex; flex-direction:column; gap:9px; padding:12px 13px; border-radius:7px;
   background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
   border:1px solid var(--tf-line2);
   box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -3px rgba(17,16,21,.42);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-card.is-mine{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-gold); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-card.is-leading{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-h{ display:flex; align-items:center; gap:9px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-id{ min-width:0; display:flex; flex-direction:column; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-state{
+:is(#pg-transfers,#pg-coach-market) .tf-auc-card.is-mine{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-gold); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-card.is-leading{ box-shadow:inset 0 1px 0 var(--tf-edge), inset 3px 0 0 var(--tf-buy-d); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-h{ display:flex; align-items:center; gap:9px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-id{ min-width:0; display:flex; flex-direction:column; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-id b{ font-size:12.5px; font-weight:800; color:var(--tf-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-id em{ font-style:normal; font-size:10.5px; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-state{
   margin-left:auto; flex:none; padding:3px 8px; border-radius:4px;
   font-size:9px; font-weight:900; letter-spacing:.07em;
   background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-state--sold{ background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:#2f8f22; color:#06280a; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-state--cancelled{ background:rgba(201,40,54,.18); border-color:#95121f; color:#7d1420; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-state--open{ background:rgba(61,127,181,.18); border-color:#3d7fb5; color:#1d4a6d; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-club{ display:flex; align-items:baseline; gap:7px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-club i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-club b{ font-size:12px; font-weight:800; color:var(--tf-ink); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-club b em{ font-style:normal; font-size:9px; color:#6b5310; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-facts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:#a7acae; border-radius:6px; overflow:hidden; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-info); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-foot{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-clock, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-my{ display:inline-flex; align-items:center; gap:6px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-clock i, :is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-my i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-clock b{
+:is(#pg-transfers,#pg-coach-market) .tf-auc-state--sold{ background:linear-gradient(180deg,var(--tf-buy-2),var(--tf-buy)); border-color:#2f8f22; color:#06280a; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-state--cancelled{ background:rgba(201,40,54,.18); border-color:#95121f; color:#7d1420; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-state--open{ background:rgba(61,127,181,.18); border-color:#3d7fb5; color:#1d4a6d; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-club{ display:flex; align-items:baseline; gap:7px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-club i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-club b{ font-size:12px; font-weight:800; color:var(--tf-ink); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-club b em{ font-style:normal; font-size:9px; color:#6b5310; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-facts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:#a7acae; border-radius:6px; overflow:hidden; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-facts > div{ display:flex; flex-direction:column; gap:2px; padding:7px 9px; background:var(--tf-info); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-facts i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-foot{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-clock, :is(#pg-transfers,#pg-coach-market) .tf-auc-my{ display:inline-flex; align-items:center; gap:6px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-clock i, :is(#pg-transfers,#pg-coach-market) .tf-auc-my i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-clock b{
   font-size:12.5px; font-weight:900; color:#1c1e20; font-variant-numeric:tabular-nums;
   background:var(--tf-count); border:1px solid #979d9f; border-radius:4px; padding:2px 7px;
   box-shadow:inset 0 1px 2px rgba(17,16,21,.2); min-width:62px; text-align:center;
 }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-my b{ font-size:12px; font-weight:800; color:#6b5310; font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-when{ font-size:10.5px; color:var(--tf-ink3); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-foot .tf-btn{ margin-left:auto; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-foot .tf-btn ~ .tf-btn{ margin-left:0; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-my b{ font-size:12px; font-weight:800; color:#6b5310; font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-when{ font-size:10.5px; color:var(--tf-ink3); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-foot .tf-btn{ margin-left:auto; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-foot .tf-btn ~ .tf-btn{ margin-left:0; }
 
 /* the detail, on the near-black panel every decision uses */
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-open{ margin-top:2px; padding:12px; display:flex; flex-direction:column; gap:10px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tl{ display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.10); border-radius:5px; overflow:hidden; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tlrow{ display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; padding:7px 10px; background:var(--tf-black); }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tlrow.is-mine{ background:#16210f; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tlclub{ font-size:11.5px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tlfee{ font-size:12.5px; font-weight:900; color:var(--tf-gold-2); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-tlat{ font-size:10px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-bidbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-bidbar .tf-step{ flex:1; min-width:220px; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-open .tf-step input{ background:var(--tf-black); border-color:rgba(255,255,255,.22); color:#fff; }
-:is(#pg-transfers,#pg-coach-market,#pg-coaches) .tf-auc-open .tf-step-b{ background:linear-gradient(180deg,var(--tf-black-3),var(--tf-black-2)); border-color:rgba(255,255,255,.22); color:#fff; border-radius:4px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-open{ margin-top:2px; padding:12px; display:flex; flex-direction:column; gap:10px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tl{ display:flex; flex-direction:column; gap:1px; background:rgba(255,255,255,.10); border-radius:5px; overflow:hidden; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tlrow{ display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; padding:7px 10px; background:var(--tf-black); }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tlrow.is-mine{ background:#16210f; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tlclub{ font-size:11.5px; font-weight:800; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tlfee{ font-size:12.5px; font-weight:900; color:var(--tf-gold-2); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-tlat{ font-size:10px; color:var(--tf-on-dark-2); font-variant-numeric:tabular-nums; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-bidbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-bidbar .tf-step{ flex:1; min-width:220px; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-open .tf-step input{ background:var(--tf-black); border-color:rgba(255,255,255,.22); color:#fff; }
+:is(#pg-transfers,#pg-coach-market) .tf-auc-open .tf-step-b{ background:linear-gradient(180deg,var(--tf-black-3),var(--tf-black-2)); border-color:rgba(255,255,255,.22); color:#fff; border-radius:4px; }
 
 /* ══════════════════════════════════════════════════════════════════════════
    SCOUTING — discovery, the public profile, the shortlist
@@ -11332,14 +11332,7 @@ body.club-theme .topbar-titles{ min-width:0; }
 .st-cmp tbody td{ color:var(--tf-ink2,#c3ccda); font-variant-numeric:tabular-nums; }
 
 /* the Coach Market's own page */
-.cm-root{ display:flex; flex-direction:column; height:100%; min-height:0; }
-/* Transfers' band carries a tab strip under it, so its own rule leaves the
-   bottom open. This page has none, so it closes it here rather than changing
-   the shared header for both. */
-.cm-head{ padding-bottom:14px; }
-.cm-head .tf-title h1, .cm-head .tf-title p{ color:#1f1903; }
-.cm-head .tf-title p{ color:rgba(31,25,3,.72); }
-#pg-coach-market .st-pane{ padding:16px 26px 22px; }
+
 .st-card-hd{ display:flex; align-items:center; gap:11px; }
 .st-av{ width:40px; height:40px; flex:none; border-radius:11px; display:flex; align-items:center; justify-content:center;
   background:rgba(255,255,255,.07); color:var(--tf-ink,#e9eef7); font-weight:800; font-size:15px; overflow:hidden; }
@@ -11609,75 +11602,330 @@ body.club-theme .topbar-titles{ min-width:0; }
 .st-fe--hire .st-fe-i, .st-fe--short .st-fe-i{ background:var(--tf-acc-24,rgba(201,163,46,.3)); color:#92400e; }
 .st-fe--viewed .st-fe-i{ background:rgba(124,58,237,.18); color:#6d28d9; }
 
+@media (max-width:1100px){
+  .st-vaclayout{ grid-template-columns:1fr; }
+  .st-stages{ grid-template-columns:repeat(2,minmax(200px,1fr)); }
+}
+
+
 /* ══════════════════════════════════════════════════════════════════════════════
-   COACHES · the current technical staff directory
+   COACH MARKET · an executive recruitment desk
    ────────────────────────────────────────────────────────────────────────────
-   Its own module and deliberately not the market's look: no KPI strip of market
-   figures, no cards laid out for comparison, no negotiation anywhere on it. A
-   directory is read down, by club and by team.
+   Its own identity, and deliberately not the player market's. That screen is a
+   trading floor: mustard band, silver board, prices. This one is a recruitment
+   desk — deep navy glass, emerald and cyan, and a person at the centre of every
+   panel rather than a price.
+
+   It reuses the .st-* structure by re-pointing the same tokens, so one palette
+   lives in one place and no rule is duplicated to change a colour.
    ══════════════════════════════════════════════════════════════════════════ */
-#pg-coaches{ overflow:hidden; }
+#pg-coach-market{
+  --tf-gold:      #10b981;   /* the desk's accent — emerald, not mustard      */
+  --tf-gold-2:    #34d399;
+  --tf-gold-hi:   #34d399;
+  --tf-gold-lo:   #0ea472;
+  --tf-gold-d:    #047857;
+
+  --tf-page:      #0b1220;   /* deep navy, the room itself                    */
+  --tf-page-hi:   #0d1526;
+  --tf-page-lo:   #080e1a;
+  --tf-panel:     rgba(255,255,255,.045);
+  --tf-panel-2:   rgba(255,255,255,.06);
+  --tf-row:       rgba(255,255,255,.04);
+  --tf-row-alt:   rgba(255,255,255,.055);
+  --tf-sep:       rgba(255,255,255,.09);
+  --tf-thead:     rgba(255,255,255,.05);
+  --tf-side:      rgba(255,255,255,.035);
+  --tf-card:      rgba(255,255,255,.055);
+  --tf-info:      rgba(255,255,255,.03);
+  --tf-count:     rgba(255,255,255,.05);
+
+  --tf-black:     #060b14;
+  --tf-black-2:   #0a1120;
+  --tf-black-3:   #0f1728;
+  --tf-ink:       #e8eef7;
+  --tf-ink2:      #a9b6c9;
+  --tf-ink3:      #6f7f95;
+  --tf-on-dark:   #e8eef7;
+  --tf-on-dark-2: #a9b6c9;
+
+  --tf-buy:   #10b981;
+  --tf-buy-2: #34d399;
+  --tf-buy-d: #059669;
+  --tf-stop:  #f0616d;
+  --tf-stop-2:#f87171;
+
+  --tf-line:  rgba(255,255,255,.07);
+  --tf-line2: rgba(255,255,255,.12);
+  --tf-edge:  rgba(255,255,255,.10);
+  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+
+  --tf-paper:     var(--tf-panel);
+  --tf-silver:    var(--tf-page);
+  --tf-silver-2:  var(--tf-info);
+  --tf-champagne: #5eead4;   /* cyan, for a figure that matters             */
+  --tf-sand:      var(--tf-gold-d);
+  --tf-ivory:     var(--tf-ink);
+  --tf-graphite:  var(--tf-page);
+  --tf-charcoal:  var(--tf-panel);
+  --tf-bronze:    var(--tf-gold-d);
+  --tf-acc:       #2dd4bf;   /* teal                                        */
+  --tf-acc-d:     #0d9488;
+  --tf-acc-16:    rgba(45,212,191,.16);
+  --tf-acc-24:    rgba(45,212,191,.24);
+  --tf-acc-42:    rgba(45,212,191,.45);
+  --tf-hot:       var(--tf-stop);
+  --tf-warm:      #fbbf24;
+  --tf-blue:      #38bdf8;
+  --tf-violet:    #a78bfa;
+
+  color:var(--tf-ink);
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(16,185,129,.10), transparent 62%),
+    radial-gradient(900px 460px at 92% 0%, rgba(56,189,248,.09), transparent 60%),
+    linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo));
+  background-color:var(--tf-page);
+}
+[data-theme="light"] #pg-coach-market{ color:var(--tf-ink); background-color:var(--tf-page); }
+
+/* the desk's own band — a rule, not a slab of gold */
+.cm-head{
+  flex:none; display:flex; align-items:center; gap:13px; padding:17px 26px 15px;
+  background:linear-gradient(180deg,rgba(16,185,129,.10),rgba(16,185,129,0));
+  border-bottom:1px solid rgba(45,212,191,.26);
+}
+.cm-head-mark{
+  width:40px; height:40px; flex:none; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(160deg,rgba(45,212,191,.22),rgba(16,185,129,.10));
+  border:1px solid rgba(45,212,191,.34); color:#5eead4;
+}
+.cm-head-id h1{ font-size:19px; font-weight:800; letter-spacing:-.3px; color:#eaf5f1; line-height:1.15; }
+.cm-head-id p{ margin-top:2px; font-size:11.5px; color:#7f96a8; }
+.cm-root{ display:flex; flex-direction:column; height:100%; min-height:0; }
+#pg-coach-market .st-pane{ padding:16px 26px 24px; }
+
+/* glass on the panels the desk is made of */
+#pg-coach-market .st-tile,
+#pg-coach-market .st-availtile,
+#pg-coach-market .st-card,
+#pg-coach-market .st-dossier,
+#pg-coach-market .st-desk,
+#pg-coach-market .st-deal,
+#pg-coach-market .st-vac,
+#pg-coach-market .st-vacform{
+  backdrop-filter:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.022));
+  border-color:rgba(255,255,255,.10);
+}
+#pg-coach-market .st-vtabs{ background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.09); }
+#pg-coach-market .st-vtab.is-on{
+  background:linear-gradient(180deg,#2dd4bf,#0e9f8c); color:#03211c; box-shadow:0 2px 10px -4px rgba(45,212,191,.7);
+}
+#pg-coach-market .st-chip.is-on{ background:#2dd4bf; color:#03211c; }
+#pg-coach-market .st-star.is-on{ background:#2dd4bf; color:#03211c; }
+#pg-coach-market .st-lvl b{ color:#5eead4; }
+#pg-coach-market .st-tile--go b{ color:#34d399; }
+#pg-coach-market .st-attr b{ color:#5eead4; }
+#pg-coach-market .st-bar-t span{ background:linear-gradient(90deg,#0e9f8c,#5eead4); }
+
+/* the status colours read on a dark ground */
+#pg-coach-market .st-status{ background:rgba(255,255,255,.08); color:#a9b6c9; }
+#pg-coach-market .st-status--free_agent{ background:rgba(52,211,153,.18); color:#6ee7b7; }
+#pg-coach-market .st-status--actively_looking{ background:rgba(56,189,248,.18); color:#7dd3fc; }
+#pg-coach-market .st-status--open_to_offers{ background:rgba(251,191,36,.18); color:#fcd34d; }
+#pg-coach-market .st-status--contract_ending_soon{ background:rgba(249,115,22,.18); color:#fdba74; }
+#pg-coach-market .st-status--unavailable{ background:rgba(240,97,109,.18); color:#fca5a5; }
+#pg-coach-market .st-status--employed{ background:rgba(255,255,255,.07); color:#a9b6c9; }
+#pg-coach-market .st-pri--high{ background:rgba(240,97,109,.2); color:#fca5a5; }
+#pg-coach-market .st-pri--medium, #pg-coach-market .st-pri--normal{ background:rgba(251,191,36,.2); color:#fcd34d; }
+#pg-coach-market .st-pri--low{ background:rgba(255,255,255,.08); color:#8fa0b5; }
+#pg-coach-market .st-pri--urgent{ background:rgba(240,97,109,.3); color:#fecaca; }
+#pg-coach-market .st-offer--sent, #pg-coach-market .st-offer--submitted{ color:#7dd3fc; }
+#pg-coach-market .st-offer--viewed{ color:#c4b5fd; }
+#pg-coach-market .st-offer--negotiating{ color:#fcd34d; }
+#pg-coach-market .st-offer--accepted, #pg-coach-market .st-offer--completed{ color:#6ee7b7; }
+#pg-coach-market .st-offer--rejected, #pg-coach-market .st-offer--withdrawn{ color:#fca5a5; }
+#pg-coach-market .st-alert{ background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.34); color:#fdba74; }
+#pg-coach-market .st-cmp thead th{ background:#0a1120; color:#e8eef7; }
+#pg-coach-market .st-fe--ok .st-fe-i{ background:rgba(52,211,153,.2); color:#6ee7b7; }
+#pg-coach-market .st-fe--no .st-fe-i{ background:rgba(240,97,109,.18); color:#fca5a5; }
+#pg-coach-market .st-fe--hire .st-fe-i, #pg-coach-market .st-fe--short .st-fe-i{ background:rgba(45,212,191,.2); color:#5eead4; }
+#pg-coach-market .st-fe--viewed .st-fe-i{ background:rgba(167,139,250,.18); color:#c4b5fd; }
+#pg-coach-market .st-availtile--free_agent b{ color:#6ee7b7; }
+#pg-coach-market .st-availtile--actively_looking b{ color:#7dd3fc; }
+#pg-coach-market .st-availtile--open_to_offers b{ color:#fcd34d; }
+#pg-coach-market .st-availtile--contract_ending_soon b{ color:#fdba74; }
+#pg-coach-market .st-scoutnote{ border-color:rgba(45,212,191,.3); }
+#pg-coach-market .st-cmptray{ background:rgba(8,14,26,.94); border-color:rgba(45,212,191,.4); }
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   COACHES · the technical staff headquarters
+   ────────────────────────────────────────────────────────────────────────────
+   Not a market and not built like one: no board, no KPI strip of market
+   figures, no cards laid out for comparison. A club's technical staff, by team
+   and by department, on a deep navy ground with each team carrying its own
+   colour down its edge.
+   ══════════════════════════════════════════════════════════════════════════ */
+#pg-coaches{
+  --co-bg:      #070d18;
+  --co-bg-2:    #0a1120;
+  --co-panel:   rgba(255,255,255,.042);
+  --co-panel-2: rgba(255,255,255,.06);
+  --co-line:    rgba(255,255,255,.075);
+  --co-line-2:  rgba(255,255,255,.13);
+  --co-ink:     #e9eff8;
+  --co-ink-2:   #a7b5c8;
+  --co-ink-3:   #6b7c93;
+  --co-accent:  #38bdf8;      /* overridden per team by its own colour */
+  --co-green:   #4ade80;
+  --co-amber:   #fbbf24;
+  --co-rose:    #fb7185;
+
+  overflow:hidden;
+  color:var(--co-ink);
+  background:
+    radial-gradient(1000px 500px at 8% -10%, rgba(56,189,248,.10), transparent 60%),
+    radial-gradient(880px 420px at 95% 4%, rgba(74,222,128,.07), transparent 58%),
+    linear-gradient(180deg,var(--co-bg-2),var(--co-bg));
+  background-color:var(--co-bg);
+}
+[data-theme="light"] #pg-coaches{ color:var(--co-ink); background-color:var(--co-bg); }
 .co-root{ display:flex; flex-direction:column; height:100%; min-height:0; }
-.co-head{ padding-bottom:14px; }
-.co-head .tf-title h1{ color:#1f1903; }
-.co-head .tf-title p{ color:rgba(31,25,3,.72); }
 #pg-coaches .tf-body{ overflow:auto; }
-.co-pane{ display:flex; flex-direction:column; gap:16px; padding:16px 26px 26px; width:100%; }
 
-.co-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:9px; }
-.co-stat{ padding:11px 14px; border-radius:11px; background:var(--tf-panel,rgba(255,255,255,.04));
-  border:1px solid var(--tf-line2,rgba(255,255,255,.09)); }
-.co-stat b{ display:block; font-size:21px; font-weight:800; color:var(--tf-ink,#e9eef7);
+.co-head{
+  flex:none; display:flex; align-items:center; gap:13px; padding:17px 26px 15px;
+  background:linear-gradient(180deg,rgba(56,189,248,.09),rgba(56,189,248,0));
+  border-bottom:1px solid rgba(56,189,248,.22);
+}
+.co-head-mark{
+  width:40px; height:40px; flex:none; border-radius:12px; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(160deg,rgba(56,189,248,.22),rgba(74,222,128,.10));
+  border:1px solid rgba(56,189,248,.3); color:#7dd3fc;
+}
+.co-head-id h1{ font-size:19px; font-weight:800; letter-spacing:-.3px; color:var(--co-ink); line-height:1.15; }
+.co-head-id p{ margin-top:2px; font-size:11.5px; color:var(--co-ink-3); }
+
+.co-pane{ display:flex; flex-direction:column; gap:16px; padding:18px 26px 30px; }
+
+/* the headquarters line — three figures, said once */
+.co-hq{ display:flex; align-items:center; gap:22px; flex-wrap:wrap; padding:13px 18px; border-radius:14px;
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.018));
+  border:1px solid var(--co-line); }
+.co-hq-fig b{ display:block; font-size:23px; font-weight:800; line-height:1; color:var(--co-ink);
   font-variant-numeric:tabular-nums; }
-.co-stat i{ font-style:normal; font-size:10.5px; font-weight:700; letter-spacing:.05em;
-  text-transform:uppercase; color:var(--tf-ink3,#8b96a8); }
-.co-stat--warn b{ color:var(--tf-warm,#c98f2a); }
-button.co-stat{ appearance:none; cursor:pointer; text-align:left; font:inherit; }
-button.co-stat.is-on{ border-color:var(--tf-acc,#c9a227); box-shadow:inset 0 0 0 1px var(--tf-acc,#c9a227); }
+.co-hq-fig i{ font-style:normal; font-size:10px; font-weight:700; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--co-ink-3); }
+.co-hq-sep{ width:1px; align-self:stretch; background:var(--co-line-2); }
+.co-hq-note{ font-size:11.5px; color:var(--co-ink-3); }
 
+/* one compact bar, not a market filter rig */
 .co-bar{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-.co-bar select{ background:rgba(255,255,255,.05); border:1px solid var(--tf-line2,rgba(255,255,255,.11));
-  color:var(--tf-ink,#e9eef7); border-radius:8px; padding:6px 10px; font:inherit; font-size:12px; }
-.co-bar .st-count{ margin-left:auto; }
+.co-q, .co-bar select{
+  background:rgba(255,255,255,.05); border:1px solid var(--co-line-2); color:var(--co-ink);
+  border-radius:9px; padding:7px 11px; font:inherit; font-size:12px; }
+.co-q{ flex:1 1 240px; min-width:190px; }
+.co-bar select:hover, .co-q:hover{ border-color:rgba(56,189,248,.4); }
+.co-toggle{ appearance:none; cursor:pointer; display:inline-flex; align-items:center; gap:7px;
+  border:1px solid var(--co-line-2); background:transparent; color:var(--co-ink-2);
+  border-radius:999px; padding:7px 13px; font:inherit; font-size:11.5px; font-weight:700; }
+.co-toggle b{ font-variant-numeric:tabular-nums; padding:0 6px; border-radius:999px;
+  background:rgba(255,255,255,.09); }
+.co-toggle.is-on{ background:rgba(56,189,248,.16); border-color:rgba(56,189,248,.5); color:#7dd3fc; }
 
-.co-club{ display:flex; flex-direction:column; gap:10px; }
-.co-club-hd{ display:flex; align-items:center; gap:11px; padding-bottom:9px;
-  border-bottom:2px solid var(--tf-line2,rgba(255,255,255,.12)); }
-.co-club-hd h3{ font-size:16px; font-weight:800; color:var(--tf-ink,#e9eef7); letter-spacing:-.2px; }
-.co-club-meta{ margin-left:auto; font-size:11px; font-weight:700; color:var(--tf-ink3,#8b96a8); }
+/* a club, and its teams */
+.co-club{ display:flex; flex-direction:column; gap:11px; }
+.co-club-hd{ display:flex; align-items:center; gap:13px; padding-bottom:10px;
+  border-bottom:1px solid var(--co-line-2); }
+.co-crest{ width:38px; height:38px; flex:none; border-radius:11px; overflow:hidden;
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800;
+  background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));
+  border:1px solid var(--co-line-2); color:var(--co-ink); }
+.co-crest img{ width:100%; height:100%; object-fit:cover; display:block; }
+.co-club-id h3{ font-size:16px; font-weight:800; letter-spacing:-.2px; color:var(--co-ink); }
+.co-club-id span{ font-size:11px; color:var(--co-ink-3); }
+.co-teams{ display:flex; flex-direction:column; gap:10px; }
 
-.co-team{ display:flex; flex-direction:column; gap:9px; padding:13px 15px; border-radius:12px;
-  background:var(--tf-info,rgba(255,255,255,.03)); border:1px solid var(--tf-line,rgba(255,255,255,.07)); }
-.co-team-hd{ display:flex; align-items:center; gap:11px; flex-wrap:wrap; }
-.co-team-id{ display:flex; align-items:center; gap:9px; min-width:0; }
-.co-team-id b{ font-size:14px; font-weight:800; color:var(--tf-ink,#e9eef7); }
+/* a team — its own panel, with its colour down the edge */
+.co-team{ border-radius:14px; overflow:hidden; border:1px solid var(--co-line);
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
+  border-left:3px solid var(--co-accent); }
+.co-team-hd{ appearance:none; width:100%; display:flex; align-items:center; gap:12px; cursor:pointer;
+  padding:13px 16px; background:transparent; border:0; font:inherit; color:inherit; text-align:left; }
+.co-team-hd:hover{ background:rgba(255,255,255,.03); }
+.co-fold{ flex:none; width:18px; color:var(--co-ink-3); font-size:11px; }
+.co-team-id{ flex:1; min-width:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.co-team-id b{ font-size:14.5px; font-weight:800; color:var(--co-ink); }
 .co-team-tags{ display:inline-flex; gap:5px; }
 .co-tag{ font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-  padding:2px 8px; border-radius:999px; background:var(--tf-line2,rgba(255,255,255,.11));
-  color:var(--tf-ink3,#8b96a8); }
-.co-tag--senior{ background:rgba(56,189,248,.2); color:#0369a1; }
-.co-tag--academy, .co-tag--youth{ background:rgba(167,139,250,.22); color:#6d28d9; }
-.co-tag--club{ background:var(--tf-acc-24,rgba(201,163,46,.3)); color:#92400e; }
-.co-team-n{ margin-left:auto; font-size:11px; font-weight:800; color:var(--tf-ink2,#c3ccda);
-  font-variant-numeric:tabular-nums; }
-.co-team-n.is-none{ color:var(--tf-warm,#c98f2a); }
-.co-none{ font-size:12px; color:var(--tf-ink3,#8b96a8); padding:6px 0; }
+  padding:2px 8px; border-radius:999px; background:rgba(255,255,255,.08); color:var(--co-ink-3); }
+.co-tag--senior{ background:rgba(56,189,248,.18); color:#7dd3fc; }
+.co-tag--academy, .co-tag--youth{ background:rgba(167,139,250,.18); color:#c4b5fd; }
+.co-tag--club{ background:rgba(74,222,128,.16); color:#86efac; }
+.co-team-n{ flex:none; text-align:right; font-size:17px; font-weight:800; color:var(--co-ink);
+  font-variant-numeric:tabular-nums; line-height:1.05; }
+.co-team-n i{ display:block; font-style:normal; font-size:9px; font-weight:700; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--co-ink-3); }
+.co-team-n.is-none{ color:var(--co-amber); }
+.co-team-body{ padding:0 16px 15px; display:flex; flex-direction:column; gap:13px; }
+.co-none{ font-size:12px; color:var(--co-ink-3); padding:2px 0 8px; }
 
-.co-staff{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:9px; }
-.co-card{ appearance:none; text-align:left; cursor:pointer; display:flex; align-items:center; gap:11px;
-  padding:11px 13px; border-radius:11px; background:var(--tf-card,rgba(255,255,255,.05));
-  border:1px solid var(--tf-line2,rgba(255,255,255,.09)); font:inherit; color:inherit;
-  transition:border-color .15s ease; }
-.co-card:hover{ border-color:var(--tf-acc-42,rgba(201,163,46,.5)); }
-.co-card-id{ flex:1; min-width:0; display:flex; flex-direction:column; }
-.co-card-id b{ font-size:13.5px; font-weight:800; color:var(--tf-ink,#e9eef7); }
-.co-card-id em{ font-style:normal; font-size:11.5px; color:var(--tf-ink3,#8b96a8); }
-.co-card-facts{ flex:none; display:flex; flex-direction:column; gap:2px; min-width:96px; }
-.co-card-facts span{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; font-size:10.5px; }
-.co-card-facts i{ font-style:normal; color:var(--tf-ink3,#8b96a8); }
-.co-card-facts b{ font-weight:700; color:var(--tf-ink2,#c3ccda); }
+/* departments */
+.co-dept{ display:flex; flex-direction:column; gap:8px; }
+.co-dept-h{ display:flex; align-items:center; gap:8px; font-size:10px; font-weight:800;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--co-ink-3); }
+.co-dept-h::after{ content:''; flex:1; height:1px; background:var(--co-line); }
+.co-dept-h span{ order:3; font-variant-numeric:tabular-nums; padding:1px 7px; border-radius:999px;
+  background:rgba(255,255,255,.07); color:var(--co-ink-2); }
+.co-dept-h--leadership{ color:#7dd3fc; }
+.co-dept-h--goalkeeping{ color:#fcd34d; }
+.co-dept-h--performance{ color:#86efac; }
+.co-dept-h--technical{ color:#c4b5fd; }
+.co-dept-h--medical{ color:#fda4af; }
+.co-dept-h--scouting{ color:#a8b8cc; }
+.co-people{ display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:8px; }
+
+/* a professional identity card */
+.co-person{ appearance:none; cursor:pointer; text-align:left; display:flex; align-items:center; gap:12px;
+  padding:11px 13px; border-radius:12px; font:inherit; color:inherit;
+  background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.022));
+  border:1px solid var(--co-line); transition:border-color .15s ease, transform .15s ease; }
+.co-person:hover{ border-color:rgba(56,189,248,.45); transform:translateY(-1px); }
+.co-portrait{ position:relative; flex:none; width:46px; height:46px; border-radius:13px; overflow:hidden;
+  display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800;
+  background:linear-gradient(160deg,rgba(56,189,248,.2),rgba(255,255,255,.05));
+  border:1px solid var(--co-line-2); color:var(--co-ink); }
+.co-portrait img{ width:100%; height:100%; object-fit:cover; display:block; }
+.co-dot{ position:absolute; right:2px; bottom:2px; width:9px; height:9px; border-radius:50%;
+  border:2px solid #0a1120; background:var(--co-green); }
+.co-dot--contract_ending_soon{ background:var(--co-amber); }
+.co-dot--open_to_offers, .co-dot--actively_looking{ background:#7dd3fc; }
+.co-dot--unavailable{ background:var(--co-rose); }
+.co-person-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.co-person-id b{ font-size:13.5px; font-weight:800; color:var(--co-ink); }
+.co-person-id em{ font-style:normal; font-size:11.5px; color:var(--co-ink-3); }
+.co-person-facts{ flex:none; display:grid; grid-template-columns:1fr 1fr; gap:1px 12px; min-width:150px; }
+.co-person-facts span{ display:flex; flex-direction:column; }
+.co-person-facts i{ font-style:normal; font-size:8.5px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--co-ink-3); }
+.co-person-facts b{ font-size:11px; font-weight:700; color:var(--co-ink-2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.co-unknown{ font-style:normal; color:var(--co-ink-3); opacity:.7; }
+.co-flag{ flex:none; font-size:9px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  padding:3px 8px; border-radius:999px; background:rgba(74,222,128,.14); color:#86efac; white-space:nowrap; }
+.co-flag--contract_ending_soon{ background:rgba(251,191,36,.16); color:#fcd34d; }
+.co-flag--open_to_offers, .co-flag--actively_looking{ background:rgba(56,189,248,.16); color:#7dd3fc; }
+.co-flag--unavailable{ background:rgba(251,113,133,.16); color:#fda4af; }
+.co-empty{ padding:34px; text-align:center; font-size:12.5px; color:var(--co-ink-3); }
+
+/* the canonical profile, opened from the directory, on the directory's ground */
+#pg-coaches .tf-modal-box{ background:linear-gradient(168deg,#101b2e 0%,#0a1120 62%,#070d18 100%);
+  border:1px solid rgba(255,255,255,.12); color:var(--co-ink); }
+#pg-coaches .tf-modal-bd{ background:rgba(3,7,15,.72); }
 
 @media (max-width:1100px){
   .st-vaclayout{ grid-template-columns:1fr; }
   .st-stages{ grid-template-columns:repeat(2,minmax(200px,1fr)); }
+  .co-people{ grid-template-columns:1fr; }
 }

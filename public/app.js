@@ -52587,20 +52587,16 @@ function _cmHeaderHtml() {
     for (var i = 0; i < list.length; i++) if (list[i].id === c.clubId) club = list[i].name;
     if (!club && c && c.clubName) club = c.clubName;
   } catch (_) {}
-  // The platform's own header band — the same markup Transfers uses, so this
-  // page is visually one of the workspace's rather than a second design.
-  return '<header class="tf-head cm-head">'
-    + '<div class="tf-head-top">'
-    +   '<div class="tf-title">'
-    +     '<span class="tf-title-mark">'
-    +       '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">'
-    +       '<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>'
-    +       '</svg>'
-    +     '</span>'
-    +     '<div><h1>Coach Market</h1>'
-    +     '<p>Technical staff recruitment' + (club ? ' · ' + _stEsc(club) : '') + '</p></div>'
-    +   '</div>'
-    + '</div>'
+  // The recruitment desk's own band. Deliberately not the player market's gold:
+  // this is executive recruitment, and it is a different business.
+  return '<header class="cm-head">'
+    + '<span class="cm-head-mark">'
+    +   '<svg width="22" height="22" fill="currentColor" viewBox="0 0 20 20">'
+    +   '<path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>'
+    +   '</svg>'
+    + '</span>'
+    + '<div class="cm-head-id"><h1>Coach Market</h1>'
+    +   '<p>Technical staff recruitment' + (club ? ' · ' + _stEsc(club) : '') + '</p></div>'
     + '</header>';
 }
 
@@ -52626,6 +52622,26 @@ function renderCoachMarketPage() {
 // thing that says where he is. And clicking anybody opens the same canonical
 // staff profile the market opens: one person, one record, two perspectives.
 
+// A technical staff is organised into departments, not into one alphabetical
+// list. These are the platform's own roles, sorted into the groups a club
+// actually runs — nothing here invents a role or renames one.
+var CO_DEPTS = [
+  ['Leadership',  ['HEAD_COACH', 'ASSISTANT_COACH']],
+  ['Goalkeeping', ['GOALKEEPING_COACH']],
+  ['Performance', ['FITNESS_COACH', 'PERFORMANCE_COACH']],
+  ['Technical',   ['TACTICAL_COACH', 'TECHNICAL_COACH', 'YOUTH_COACH', 'ANALYST']],
+  ['Medical',     ['MEDICAL_STAFF', 'PHYSIO']],
+  ['Scouting',    ['SCOUT']]
+];
+
+// What the directory says about somebody's standing. It is the market's own
+// status, said in the words a club uses about its own staff.
+var CO_STATUS = {
+  EMPLOYED: 'Active', CONTRACT_ENDING_SOON: 'Contract ending',
+  OPEN_TO_OFFERS: 'Open to offers', ACTIVELY_LOOKING: 'Actively looking',
+  UNAVAILABLE: 'Unavailable', FREE_AGENT: 'Free agent'
+};
+
 var _CO = {
   loading: false, error: null, groups: [], totals: null,
   q: '', club: '', kind: '',
@@ -52633,7 +52649,9 @@ var _CO = {
   // the strip either way. It is off by default because a directory is read to
   // find people, and showing every empty group first buries the ones that have
   // somebody in them.
-  showEmpty: false
+  showEmpty: false,
+  role: '',
+  collapsed: {}   // teamId → true; a directory this size is read team by team
 };
 
 function _coApi(method, path) { return _thApi(method, '/coaches' + path); }
@@ -52677,24 +52695,22 @@ function _coRepaint() {
 window._coRepaint = _coRepaint;
 
 function _coHeaderHtml() {
-  return '<header class="tf-head co-head">'
-    + '<div class="tf-head-top">'
-    +   '<div class="tf-title">'
-    +     '<span class="tf-title-mark">'
-    +       '<svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">'
-    +       '<path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z"/>'
-    +       '</svg>'
-    +     '</span>'
-    +     '<div><h1>Coaches</h1>'
-    +     '<p>Current technical staff, by team</p></div>'
-    +   '</div>'
-    + '</div>'
+  // The directory's own band. Not the market's gold header — this is a club's
+  // technical headquarters, and it does not advertise anything.
+  return '<header class="co-head">'
+    + '<span class="co-head-mark">'
+    +   '<svg width="22" height="22" fill="currentColor" viewBox="0 0 20 20">'
+    +   '<path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z"/>'
+    +   '</svg>'
+    + '</span>'
+    + '<div class="co-head-id"><h1>Technical Staff</h1>'
+    +   '<p>Every team on the platform and the staff working in it</p></div>'
     + '</header>';
 }
 
 function _coHtml() {
-  if (_CO.loading && !_CO.groups.length) return '<div class="co-pane"><div class="st-empty">Reading the directory…</div></div>';
-  if (_CO.error) return '<div class="co-pane"><div class="st-empty">The directory could not be read — ' + _coEsc(_CO.error) + '</div></div>';
+  if (_CO.loading && !_CO.groups.length) return '<div class="co-pane"><div class="co-empty">Reading the directory…</div></div>';
+  if (_CO.error) return '<div class="co-pane"><div class="co-empty">The directory could not be read — ' + _coEsc(_CO.error) + '</div></div>';
 
   var t = _CO.totals || {};
   var groups = _coFiltered();
@@ -52702,38 +52718,44 @@ function _coHtml() {
   _CO.groups.forEach(function (g) { if (clubs.indexOf(g.club.name) < 0) clubs.push(g.club.name); });
   clubs.sort();
 
-  var head = '<div class="co-stats">'
-    + '<div class="co-stat"><b>' + (t.clubs == null ? '—' : t.clubs) + '</b><i>Clubs</i></div>'
-    + '<div class="co-stat"><b>' + (t.teams == null ? '—' : t.teams) + '</b><i>Teams</i></div>'
-    + '<div class="co-stat"><b>' + (t.groups == null ? '—' : t.groups) + '</b><i>Staff groups</i></div>'
-    + '<div class="co-stat"><b>' + (t.staff == null ? '—' : t.staff) + '</b><i>Technical staff</i></div>'
-    + '<button type="button" class="co-stat co-stat--warn' + (_CO.showEmpty ? ' is-on' : '') + '" data-co-empty>'
-    +   '<b>' + (t.groupsWithoutStaff == null ? '—' : t.groupsWithoutStaff) + '</b>'
-    +   '<i>Without staff · ' + (_CO.showEmpty ? 'shown' : 'hidden') + '</i></button>'
-    + '</div>';
-
+  // One compact bar. A directory is read to find a person, not to build a query.
   var bar = '<div class="co-bar">'
-    + '<input class="st-search" type="search" placeholder="Search a coach, a team or a club" value="' + _coEsc(_CO.q) + '" data-co-q>'
+    + '<input class="co-q" type="search" placeholder="Find a coach, a team or a club" value="' + _coEsc(_CO.q) + '" data-co-q>'
     + '<select data-co-f="club"><option value="">Every club</option>'
     +   clubs.map(function (c) { return '<option value="' + _coEsc(c) + '"' + (_CO.club === c ? ' selected' : '') + '>' + _coEsc(c) + '</option>'; }).join('')
     + '</select>'
-    + '<select data-co-f="kind"><option value="">Every team type</option>'
+    + '<select data-co-f="kind"><option value="">Every team</option>'
     +   ['SENIOR', 'ACADEMY', 'YOUTH', 'CLUB'].map(function (k) {
           return '<option value="' + k + '"' + (_CO.kind === k ? ' selected' : '') + '>' + _coKind(k) + '</option>';
         }).join('')
     + '</select>'
-    + '<span class="st-count">' + groups.length + ' group' + (groups.length === 1 ? '' : 's') + '</span>'
+    + '<select data-co-f="role"><option value="">Every role</option>'
+    +   ST_ROLES.map(function (r) {
+          return '<option value="' + r[0] + '"' + (_CO.role === r[0] ? ' selected' : '') + '>' + _coEsc(r[1]) + '</option>';
+        }).join('')
+    + '</select>'
+    + '<button type="button" class="co-toggle' + (_CO.showEmpty ? ' is-on' : '') + '" data-co-empty>'
+    +   'Teams without staff <b>' + (t.groupsWithoutStaff == null ? '—' : t.groupsWithoutStaff) + '</b></button>'
+    + '</div>';
+
+  // The headquarters line: what the platform holds, said once and quietly.
+  var head = '<div class="co-hq">'
+    + '<div class="co-hq-fig"><b>' + (t.staff == null ? '—' : t.staff) + '</b><i>Technical staff</i></div>'
+    + '<div class="co-hq-fig"><b>' + (t.teams == null ? '—' : t.teams) + '</b><i>Teams</i></div>'
+    + '<div class="co-hq-fig"><b>' + (t.clubs == null ? '—' : t.clubs) + '</b><i>Clubs</i></div>'
+    + '<div class="co-hq-sep"></div>'
+    + '<div class="co-hq-note">' + groups.length + ' team' + (groups.length === 1 ? '' : 's') + ' shown'
+    +   (_CO.showEmpty ? ' · including those with nobody assigned' : '') + '</div>'
     + '</div>';
 
   if (!groups.length) {
     return '<div class="co-pane">' + head + bar
-      + '<div class="st-empty">' + (_CO.showEmpty
-          ? 'No team matches these filters. The directory reads the teams the platform holds — a team appears here the moment it is created.'
-          : 'No team here has technical staff yet. The teams themselves exist — open <b>Without staff</b> above to see them.')
+      + '<div class="co-empty">' + (_CO.showEmpty
+          ? 'No team matches. The directory reads the teams the platform holds — a team appears here the moment it is created.'
+          : 'No team here has technical staff yet. The teams exist — switch on <b>Teams without staff</b> to see them.')
       + '</div></div>';
   }
-  // Grouped by club, then by team, because that is how a technical staff is
-  // actually organised.
+
   var byClub = [];
   groups.forEach(function (g) {
     var row = null;
@@ -52741,17 +52763,18 @@ function _coHtml() {
     if (!row) { row = { club: g.club, groups: [] }; byClub.push(row); }
     row.groups.push(g);
   });
+
   return '<div class="co-pane">' + head + bar
     + byClub.map(function (c) {
         var staff = c.groups.reduce(function (n, g) { return n + g.staffCount; }, 0);
         return '<section class="co-club">'
           + '<header class="co-club-hd">'
-          +   '<span class="st-clubmark">' + (c.club.emblem ? '<img src="' + _coEsc(c.club.emblem) + '" alt="">' : _coEsc((c.club.name || '?').slice(0, 1))) + '</span>'
-          +   '<h3>' + _coEsc(c.club.name) + '</h3>'
-          +   '<span class="co-club-meta">' + c.groups.length + ' team' + (c.groups.length === 1 ? '' : 's')
-          +     ' · ' + staff + ' technical staff' + (c.club.country ? ' · ' + _coEsc(c.club.country) : '') + '</span>'
+          +   '<span class="co-crest">' + (c.club.emblem ? '<img src="' + _coEsc(c.club.emblem) + '" alt="">' : _coEsc((c.club.name || '?').slice(0, 2))) + '</span>'
+          +   '<div class="co-club-id"><h3>' + _coEsc(c.club.name) + '</h3>'
+          +     '<span>' + c.groups.length + ' team' + (c.groups.length === 1 ? '' : 's') + ' · ' + staff + ' technical staff'
+          +       (c.club.country ? ' · ' + _coEsc(c.club.country) : '') + '</span></div>'
           + '</header>'
-          + c.groups.map(_coGroupHtml).join('')
+          + '<div class="co-teams">' + c.groups.map(_coGroupHtml).join('') + '</div>'
           + '</section>';
       }).join('')
     + '</div>';
@@ -52770,6 +52793,7 @@ function _coFiltered() {
     if (!_CO.showEmpty && !g.staffCount) return false;
     if (_CO.club && g.club.name !== _CO.club) return false;
     if (_CO.kind && String(g.teamKind).indexOf(_CO.kind) !== 0) return false;
+    if (_CO.role && !g.staff.some(function (m) { return m.role === _CO.role; })) return false;
     if (!q) return true;
     if (String(g.teamName).toLowerCase().indexOf(q) >= 0) return true;
     if (String(g.club.name).toLowerCase().indexOf(q) >= 0) return true;
@@ -52777,45 +52801,78 @@ function _coFiltered() {
   });
 }
 
+// A team, with its staff sorted into the departments a club actually runs.
+// Collapsible, because a platform with two thousand teams is read one at a time.
 function _coGroupHtml(g) {
+  var key = g.teamId || ('club:' + g.club.id);
+  var open = !_CO.collapsed[key];
   var label = g.kind === 'CLUB' ? 'Club-wide' : _coKind(g.teamKind || 'TEAM');
-  return '<div class="co-team">'
-    + '<header class="co-team-hd">'
-    +   '<div class="co-team-id">'
+  var kindCls = g.kind === 'CLUB' ? 'club' : String(g.teamKind || '').toLowerCase().split('_')[0];
+  var staff = _CO.role ? g.staff.filter(function (m) { return m.role === _CO.role; }) : g.staff;
+
+  var body = '';
+  if (!g.staffCount) {
+    body = '<div class="co-none">No technical staff assigned to this team.</div>';
+  } else {
+    var placed = {};
+    var depts = CO_DEPTS.map(function (d) {
+      var inDept = staff.filter(function (m) { return d[1].indexOf(m.role) >= 0; });
+      inDept.forEach(function (m) { placed[m.staffUserId] = 1; });
+      if (!inDept.length) return '';
+      return '<div class="co-dept">'
+        + '<h5 class="co-dept-h co-dept-h--' + d[0].toLowerCase() + '">' + d[0] + '<span>' + inDept.length + '</span></h5>'
+        + '<div class="co-people">' + inDept.map(_coStaffCardHtml).join('') + '</div>'
+        + '</div>';
+    }).join('');
+    // Anything the departments do not cover is still shown — a role added to
+    // the platform later must never fall off this page silently.
+    var rest = staff.filter(function (m) { return !placed[m.staffUserId]; });
+    if (rest.length) {
+      depts += '<div class="co-dept"><h5 class="co-dept-h">Other<span>' + rest.length + '</span></h5>'
+        + '<div class="co-people">' + rest.map(_coStaffCardHtml).join('') + '</div></div>';
+    }
+    body = depts || '<div class="co-none">No staff matches this role in this team.</div>';
+  }
+
+  return '<article class="co-team' + (open ? '' : ' is-shut') + '"'
+    + (g.color ? ' style="--co-accent:' + _coEsc(g.color) + '"' : '') + '>'
+    + '<button type="button" class="co-team-hd" data-co-fold="' + _coEsc(key) + '" aria-expanded="' + (open ? 'true' : 'false') + '">'
+    +   '<span class="co-fold">' + (open ? '▾' : '▸') + '</span>'
+    +   '<span class="co-team-id">'
     +     '<b>' + _coEsc(g.teamName) + '</b>'
     +     '<span class="co-team-tags">'
-    +       '<span class="co-tag co-tag--' + String(g.teamKind || '').toLowerCase().split('_')[0] + '">' + _coEsc(label) + '</span>'
+    +       '<span class="co-tag co-tag--' + kindCls + '">' + _coEsc(label) + '</span>'
     +       (g.ageGroup ? '<span class="co-tag">' + _coEsc(g.ageGroup) + '</span>' : '')
     +     '</span>'
-    +   '</div>'
-    +   '<span class="co-team-n' + (g.staffCount ? '' : ' is-none') + '">'
-    +     g.staffCount + ' technical staff</span>'
-    + '</header>'
-    + (g.staffCount
-        ? '<div class="co-staff">' + g.staff.map(_coStaffCardHtml).join('') + '</div>'
-        : '<div class="co-none">No technical staff recorded for this team.</div>')
-    + '</div>';
+    +   '</span>'
+    +   '<span class="co-team-n' + (g.staffCount ? '' : ' is-none') + '">' + g.staffCount
+    +     '<i>technical staff</i></span>'
+    + '</button>'
+    + (open ? '<div class="co-team-body">' + body + '</div>' : '')
+    + '</article>';
 }
 
-// The directory's own card — who he is and what his employment says. Not the
-// market card: nothing here is about recruiting him.
+// A professional identity card. Portrait first, then who he is and what his
+// employment says — nothing on it is about recruiting him.
 function _coStaffCardHtml(m) {
-  var dash = '<i class="st-unknown">—</i>';
+  var dash = '<i class="co-unknown">—</i>';
   var st = m.employmentStatus || 'EMPLOYED';
-  return '<button type="button" class="co-card" data-st-open="' + _coEsc(m.staffUserId) + '">'
-    + '<span class="st-av">' + (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : _coEsc((m.name || '?').slice(0, 1))) + '</span>'
-    + '<span class="co-card-id">'
+  return '<button type="button" class="co-person" data-st-open="' + _coEsc(m.staffUserId) + '">'
+    + '<span class="co-portrait">'
+    +   (m.avatar ? '<img src="' + _coEsc(m.avatar) + '" alt="">' : '<span>' + _coEsc((m.name || '?').slice(0, 1)) + '</span>')
+    +   '<span class="co-dot co-dot--' + String(st).toLowerCase() + '" title="' + _coEsc(CO_STATUS[st] || st) + '"></span>'
+    + '</span>'
+    + '<span class="co-person-id">'
     +   '<b>' + _coEsc(m.name) + '</b>'
     +   '<em>' + _coEsc(ST_ROLE_LABEL[m.role] || m.role) + '</em>'
-    +   '<span class="st-id-sub">' + (m.age != null ? m.age + ' yrs' : 'Age not recorded') + ' · '
-    +     (m.nationality ? _coEsc(m.nationality) : 'Nationality not recorded') + '</span>'
     + '</span>'
-    + '<span class="co-card-facts">'
+    + '<span class="co-person-facts">'
     +   '<span><i>Licence</i><b>' + (m.highestLicence ? _coEsc(m.highestLicence.name) : dash) + '</b></span>'
+    +   '<span><i>Nationality</i><b>' + (m.nationality ? _coEsc(m.nationality) : dash) + '</b></span>'
     +   '<span><i>Experience</i><b>' + (m.yearsExperience != null ? m.yearsExperience + ' yrs' : dash) + '</b></span>'
-    +   '<span><i>Contract ends</i><b>' + (m.contractEndsAt ? _stDate(m.contractEndsAt) : dash) + '</b></span>'
+    +   '<span><i>Contract</i><b>' + (m.contractEndsAt ? _stDate(m.contractEndsAt) : dash) + '</b></span>'
     + '</span>'
-    + '<span class="st-status st-status--' + String(st).toLowerCase() + '">' + _coEsc(ST_STATUS_LABEL[st] || st) + '</span>'
+    + '<span class="co-flag co-flag--' + String(st).toLowerCase() + '">' + _coEsc(CO_STATUS[st] || st) + '</span>'
     + '</button>';
 }
 
@@ -52846,6 +52903,12 @@ function _coStaffCardHtml(m) {
     }
     if (t.closest('[data-co-empty]')) {
       e.preventDefault(); _CO.showEmpty = !_CO.showEmpty; _coRepaint(); return;
+    }
+    if ((el = t.closest('[data-co-fold]'))) {
+      e.preventDefault();
+      var k = el.getAttribute('data-co-fold');
+      if (_CO.collapsed[k]) delete _CO.collapsed[k]; else _CO.collapsed[k] = 1;
+      _coRepaint(); return;
     }
   }, true);
 
