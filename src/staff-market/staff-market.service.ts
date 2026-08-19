@@ -280,10 +280,12 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
 
   const profileByUser = new Map(orphanProfiles.map((p) => [p.userId, p]));
   // The club's own shortlist, read once for the whole board rather than per row.
-  const shortlisted = new Set(
-    (await prisma.staffShortlist.findMany({ where: { clubId: actor.clubId }, select: { staffUserId: true } }))
-      .map((s) => s.staffUserId),
-  );
+  const shortRows = await prisma.staffShortlist.findMany({
+    where: { clubId: actor.clubId },
+    select: { staffUserId: true, priority: true, stage: true },
+  });
+  const shortlisted = new Set(shortRows.map((s) => s.staffUserId));
+  const shortlistMeta = new Map(shortRows.map((s) => [s.staffUserId, s]));
   const engagements = await prisma.staffEngagement.findMany({
     where: { userId: { in: [...new Set([...memberships.map((m) => m.userId), ...orphanProfiles.map((p) => p.userId)])] } },
     include: { club: { select: publicClubSelect } },
@@ -361,7 +363,16 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
       }),
       careerIntent: p?.careerIntent ?? null,
       availableFrom: p?.availableFrom ?? null,
+      preferredRoles: p?.preferredRoles ?? [],
+      // Where he was last and when he left it. Read off the engagements, so a
+      // free agent's history is the same history his profile shows.
+      lastClub: club ? null : (mine.find((e) => !e.isActive)?.clubName
+        ?? mine.find((e) => !e.isActive)?.club?.name ?? null),
+      lastRole: club ? null : (mine.find((e) => !e.isActive)?.role ?? null),
+      lastLeftAt: club ? null : (mine.find((e) => !e.isActive)?.endedAt ?? null),
       isShortlisted: shortlisted.has(userId),
+      shortlistPriority: shortlistMeta.get(userId)?.priority ?? null,
+      shortlistStage: shortlistMeta.get(userId)?.stage ?? null,
       hasProfile: !!p,
       // A club may not recruit somebody it already employs. The row says so
       // rather than disappearing — hiding it would hide the fact.
@@ -801,7 +812,13 @@ async function hydrateApproach(id: string) {
     durationMonths: a.durationMonths,
     compensation: money(a.compensation),
     message: a.message,
+    startDate: a.startDate,
+    bonuses: a.bonuses,
+    releaseClause: money(a.releaseClause),
     status: a.status,
+    viewedAt: a.viewedAt,
+    createdAt: a.createdAt,
+    updatedAt: a.updatedAt,
     decidedAt: a.decidedAt,
     completedAt: a.completedAt,
     messages: a.messages.map((m) => ({
@@ -1088,6 +1105,10 @@ export async function readNeeds(actor: StaffActor, opts: { mine?: boolean } = {}
       id: n.id, club: n.club, role: n.role, priority: n.priority,
       minLicence: n.minLicence, minLevel: n.minLevel,
       salaryMin: money(n.salaryMin), salaryMax: money(n.salaryMax),
+      minExperience: n.minExperience, contractType: n.contractType,
+      startDate: n.startDate, languages: n.languages,
+      youthRequired: n.youthRequired, seniorRequired: n.seniorRequired,
+      createdAt: n.createdAt,
       note: n.note, isMine: n.clubId === actor.clubId,
     })),
   };
@@ -1096,6 +1117,8 @@ export async function readNeeds(actor: StaffActor, opts: { mine?: boolean } = {}
 export async function createNeed(actor: StaffActor, dto: {
   role: MembershipRole; priority?: string; minLicence?: string; minLevel?: number;
   salaryMin?: number; salaryMax?: number; note?: string;
+  minExperience?: number; contractType?: string; startDate?: string;
+  languages?: string[]; youthRequired?: boolean; seniorRequired?: boolean;
 }) {
   if (!dto?.role || !isTechnical(dto.role)) throw new BadRequestError('role must be a technical staff role');
   const n = await prisma.staffNeed.create({
@@ -1108,6 +1131,12 @@ export async function createNeed(actor: StaffActor, dto: {
       salaryMin: dto.salaryMin != null ? BigInt(Math.round(dto.salaryMin)) : null,
       salaryMax: dto.salaryMax != null ? BigInt(Math.round(dto.salaryMax)) : null,
       note: dto.note ?? null,
+      minExperience: dto.minExperience ?? null,
+      contractType: dto.contractType ?? null,
+      startDate: dto.startDate ? new Date(dto.startDate) : null,
+      languages: Array.isArray(dto.languages) ? dto.languages : [],
+      youthRequired: dto.youthRequired === true,
+      seniorRequired: dto.seniorRequired === true,
     },
   });
   return { id: n.id };
@@ -1241,6 +1270,8 @@ export async function readShortlist(actor: StaffActor) {
       name: `${r.staffUser.firstName} ${r.staffUser.lastName}`.trim(),
       avatar: r.staffUser.avatar,
       note: r.note,
+      priority: r.priority,
+      stage: r.stage,
       addedBy: r.addedBy ? `${r.addedBy.firstName} ${r.addedBy.lastName}`.trim() : null,
       addedAt: r.createdAt,
     })),
@@ -1259,6 +1290,32 @@ export async function addToShortlist(actor: StaffActor, staffUserId: string, not
     create: { clubId: actor.clubId, staffUserId, addedById: actor.userId, note: note ?? null },
   });
   return { staffUserId, isShortlisted: true };
+}
+
+// The club's own judgement on somebody it is watching. Idempotent, and it
+// never touches anything the staff member or his club can see.
+export async function setShortlistMeta(actor: StaffActor, staffUserId: string, dto: {
+  priority?: string; stage?: string; note?: string;
+}) {
+  const row = await prisma.staffShortlist.findUnique({
+    where: { clubId_staffUserId: { clubId: actor.clubId, staffUserId } },
+    select: { id: true },
+  });
+  if (!row) throw new NotFoundError('That staff member is not on our shortlist');
+  const PRI = ['HIGH', 'MEDIUM', 'LOW'];
+  const STG = ['WATCHING', 'CONTACTED', 'INTERVIEW', 'NEGOTIATION', 'OFFER_SENT'];
+  if (dto.priority && !PRI.includes(dto.priority)) throw new BadRequestError('Unknown priority');
+  if (dto.stage && !STG.includes(dto.stage)) throw new BadRequestError('Unknown recruitment stage');
+  const updated = await prisma.staffShortlist.update({
+    where: { id: row.id },
+    data: {
+      priority: (dto.priority as never) ?? undefined,
+      stage: (dto.stage as never) ?? undefined,
+      note: dto.note !== undefined ? (String(dto.note).trim() || null) : undefined,
+    },
+    select: { staffUserId: true, priority: true, stage: true, note: true },
+  });
+  return updated;
 }
 
 export async function removeFromShortlist(actor: StaffActor, staffUserId: string) {
@@ -1391,4 +1448,148 @@ export async function addExternalStaff(actor: StaffActor, dto: {
     payload: { name: `${first} ${last}` },
   });
   return { staffUserId: created.id };
+}
+
+// ── the current technical staff directory ────────────────────────────────────
+// The Coaches module. Not a market: this is who is working where, right now,
+// read from the teams that exist and the memberships that exist. No group is
+// written down anywhere — a team created after this was written appears the
+// moment it exists, with whoever is in it, and a staff member who moves changes
+// group by himself because the membership is the only thing that says where he
+// is.
+//
+// A membership with no teamId is club-wide and covers every team, so it is its
+// own group rather than being copied into each one.
+
+export async function coachesDirectory(_actor: StaffActor) {
+  const [teams, memberships] = await Promise.all([
+    prisma.team.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, name: true, shortName: true, kind: true, ageMin: true, ageMax: true,
+        emblem: true, color: true,
+        club: { select: publicClubSelect },
+      },
+      orderBy: [{ clubId: 'asc' }, { kind: 'asc' }, { name: 'asc' }],
+      take: 2000,
+    }),
+    prisma.membership.findMany({
+      where: { isActive: true, role: { in: TECHNICAL_ROLES }, user: { isActive: true } },
+      include: { user: { select: publicUserSelect }, club: { select: publicClubSelect } },
+      take: 5000,
+    }),
+  ]);
+
+  const profiles = await prisma.staffProfile.findMany({
+    where: { userId: { in: [...new Set(memberships.map((m) => m.userId))] } },
+    include: profileInclude,
+  });
+  const byUser = new Map(profiles.map((p) => [p.userId, p]));
+
+  const engagements = await prisma.staffEngagement.findMany({
+    where: { userId: { in: [...new Set(memberships.map((m) => m.userId))] }, isActive: true },
+    select: { userId: true, contractEndsAt: true, salary: true, startedAt: true, clubId: true },
+  });
+  const engByUser = new Map(engagements.map((e) => [e.userId, e]));
+
+  const card = (m: (typeof memberships)[number]) => {
+    const p = byUser.get(m.userId) ?? null;
+    const eng = engByUser.get(m.userId) ?? null;
+    const contractEndsAt = eng?.contractEndsAt ?? null;
+    return {
+      staffUserId: m.userId,
+      name: `${m.user.firstName} ${m.user.lastName}`.trim(),
+      avatar: m.user.avatar,
+      role: m.role,
+      since: m.joinedAt,
+      nationality: p?.nationality ?? null,
+      age: p?.dateOfBirth
+        ? Math.floor((Date.now() - p.dateOfBirth.getTime()) / (365.25 * 24 * 3600 * 1000))
+        : null,
+      highestLicence: p?.licences?.[0]
+        ? { code: p.licences[0].code, name: p.licences[0].name }
+        : null,
+      yearsExperience: p?.yearsExperience ?? null,
+      reputation: p?.reputation ?? null,
+      contractEndsAt,
+      salary: money(eng?.salary),
+      // The same status the market shows, from the same function — a coach does
+      // not have one standing here and another one there.
+      employmentStatus: employmentStatus({
+        hasClub: true,
+        availability: p?.availability ?? null,
+        careerIntent: p?.careerIntent ?? null,
+        contractEndsAt,
+      }),
+      hasProfile: !!p,
+    };
+  };
+
+  const byTeam = new Map<string, typeof memberships>();
+  const clubWide = new Map<string, typeof memberships>();
+  memberships.forEach((m) => {
+    const key = m.teamId ?? null;
+    const bucket = key ? byTeam : clubWide;
+    const id = key ?? m.clubId;
+    if (!bucket.has(id)) bucket.set(id, [] as never);
+    bucket.get(id)!.push(m);
+  });
+
+  const groups = teams.map((t) => {
+    const staff = (byTeam.get(t.id) ?? []).map(card)
+      .sort((a, b) => TECHNICAL_ROLES.indexOf(a.role) - TECHNICAL_ROLES.indexOf(b.role));
+    return {
+      kind: 'TEAM' as const,
+      teamId: t.id,
+      teamName: t.name,
+      shortName: t.shortName,
+      teamKind: t.kind,
+      ageGroup: t.ageMin != null || t.ageMax != null
+        ? `U${t.ageMax ?? t.ageMin}` : null,
+      emblem: t.emblem, color: t.color,
+      club: t.club,
+      staffCount: staff.length,
+      staff,
+    };
+  });
+
+  // A club-wide technical membership belongs to the club, not to one of its
+  // teams. It is said once, under the club, rather than repeated under each.
+  const clubIds = [...clubWide.keys()];
+  const clubs = clubIds.length
+    ? await prisma.club.findMany({ where: { id: { in: clubIds } }, select: publicClubSelect })
+    : [];
+  const clubById = new Map(clubs.map((c) => [c.id, c]));
+  clubIds.forEach((cid) => {
+    const club = clubById.get(cid);
+    if (!club) return;
+    const staff = (clubWide.get(cid) ?? []).map(card)
+      .sort((a, b) => TECHNICAL_ROLES.indexOf(a.role) - TECHNICAL_ROLES.indexOf(b.role));
+    groups.push({
+      kind: 'CLUB' as never,
+      teamId: null as never,
+      teamName: 'Club-wide',
+      shortName: null,
+      teamKind: 'CLUB' as never,
+      ageGroup: null,
+      emblem: club.emblem, color: null,
+      club,
+      staffCount: staff.length,
+      staff,
+    });
+  });
+
+  const totalStaff = new Set(memberships.map((m) => m.userId)).size;
+  return {
+    groups,
+    totals: {
+      clubs: new Set(groups.map((g) => g.club.id)).size,
+      teams: teams.length,
+      groups: groups.length,
+      staff: totalStaff,
+      // Groups with nobody in them are still groups: a team with no coach is
+      // the thing a director most needs to see.
+      groupsWithoutStaff: groups.filter((g) => g.staffCount === 0).length,
+    },
+  };
 }

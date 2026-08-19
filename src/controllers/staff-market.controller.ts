@@ -53,6 +53,11 @@ export async function addToShortlist(req: Request, res: Response, next: NextFunc
   } catch (err) { return next(err); }
 }
 
+export async function setShortlistMeta(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await svc.setShortlistMeta(actor(req), String(req.params.staffUserId), req.body ?? {})); }
+  catch (err) { return next(err); }
+}
+
 export async function removeFromShortlist(req: Request, res: Response, next: NextFunction) {
   try { return sendSuccess(res, await svc.removeFromShortlist(actor(req), String(req.params.staffUserId))); }
   catch (err) { return next(err); }

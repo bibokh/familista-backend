@@ -38,6 +38,7 @@ router.get('/shortlist',                      ctrl.readShortlist);
 // What this club has written about somebody. Private to it.
 router.put('/notes/:staffUserId',             recruitGuard, ctrl.saveClubNote);
 router.put('/shortlist/:staffUserId',         recruitGuard, ctrl.addToShortlist);
+router.patch('/shortlist/:staffUserId',       recruitGuard, ctrl.setShortlistMeta);
 router.delete('/shortlist/:staffUserId',      recruitGuard, ctrl.removeFromShortlist);
 
 // ── needs ───────────────────────────────────────────────────────────────────

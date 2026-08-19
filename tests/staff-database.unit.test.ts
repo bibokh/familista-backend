@@ -102,7 +102,7 @@ describe('All Staff is the platform, not a table somebody fills in', () => {
     expect(d).toContain('orphanProfiles.forEach((p) => build(p.userId, p.user, null, null));');
   });
 
-  it('every tab is one read of that same board', () => {
+  it('every board tab is one read of that same board', () => {
     const d = SVC.slice(SVC.indexOf('export async function discover'));
     ['available', 'employed', 'free-agents', 'shortlisted'].forEach((t) => expect(d).toContain(`'${t}'`));
     expect(APP).toContain('var ST_BOARD_TABS');
@@ -234,21 +234,21 @@ describe('what a club can do about somebody', () => {
 });
 
 describe('nothing that was there is taken away', () => {
-  it('the route, the page and the Transfers tab all still exist', () => {
+  it('the route and the page still exist, and the market is its own module', () => {
     expect(APP).toContain("slug:    'coach-market'");
     expect(APP).toContain('function renderCoachMarketPage()');
-    expect(APP).toContain("if (_TF.tab === 'staff') return _stHtml();");
+    expect(APP).not.toContain("if (_TF.tab === 'staff') return _stHtml();");
     expect(APP).toContain("if (!t.closest('#pg-transfers') && !t.closest('#pg-coach-market')) return;");
   });
 
   it('needs, activity, compare and the shortlist survive the redesign', () => {
-    ['function _stNeedsHtml()', 'function _stActivityHtml()', 'function _stCompareHtml()',
-     'function _stLoadShortlist()'].forEach((f) => expect(APP).toContain(f));
+    ['function _stNeedsHtml()', 'function _stPipelineHtml()', 'function _stTimelineHtml()',
+     'function _stCompareHtml()', 'function _stLoadShortlist()'].forEach((f) => expect(APP).toContain(f));
     ['/needs', '/activity', '/compare', '/shortlist'].forEach((r) => expect(ROUTES).toContain(r));
   });
 
   it('and every other workspace page is still registered', () => {
-    ['squad', 'training', 'academy', 'video-intelligence', 'transfers', 'coach-market']
+    ['squad', 'training', 'academy', 'video-intelligence', 'transfers', 'coach-market', 'coaches']
       .forEach((p) => expect(APP).toContain(`'${p}': 1`));
   });
 });

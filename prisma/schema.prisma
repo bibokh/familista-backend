@@ -9741,6 +9741,15 @@ model StaffNeed {
   note       String?
   isActive   Boolean           @default(true)
 
+  // The rest of what a vacancy says. A club advertising for an academy job and
+  // one advertising for the first team are not looking for the same person.
+  minExperience  Int?
+  contractType   String?
+  startDate      DateTime?
+  languages      String[]  @default([])
+  youthRequired  Boolean   @default(false)
+  seniorRequired Boolean   @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -9781,6 +9790,20 @@ model StaffClubNote {
   @@index([clubId])
 }
 
+enum StaffShortlistPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum StaffShortlistStage {
+  WATCHING
+  CONTACTED
+  INTERVIEW
+  NEGOTIATION
+  OFFER_SENT
+}
+
 model StaffShortlist {
   id     String @id @default(uuid())
   clubId String
@@ -9788,6 +9811,12 @@ model StaffShortlist {
 
   staffUserId String
   staffUser   User   @relation("StaffShortlisted", fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  // How badly this club wants him and where the conversation has got to. Both
+  // are the club's own judgement — never the staff member's, never another
+  // club's, and never shown to either.
+  priority StaffShortlistPriority @default(MEDIUM)
+  stage    StaffShortlistStage    @default(WATCHING)
 
   // Who put him on it, kept so the list can say whose judgement it was.
   addedById String?

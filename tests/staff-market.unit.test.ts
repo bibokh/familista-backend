@@ -147,9 +147,12 @@ describe('what the market publishes', () => {
 });
 
 describe('the client is a second market, not the player one renamed', () => {
-  it('the Transfers page carries its own tab', () => {
-    expect(APP).toContain("['staff', 'Coaches & Staff', 'Technical recruitment']");
-    expect(APP).toContain("if (_TF.tab === 'staff') return _stHtml();");
+  it('it has its own page — and is no longer a tab inside the player market', () => {
+    // it was born as a tab there; it is a module now, and the player market is
+    // players only
+    expect(APP).not.toContain("['staff', 'Coaches & Staff', 'Technical recruitment']");
+    expect(APP).not.toContain("if (_TF.tab === 'staff') return _stHtml();");
+    expect(APP).toContain('function renderCoachMarketPage()');
   });
 
   it('and draws no player attribute anywhere in it', () => {
@@ -160,7 +163,7 @@ describe('the client is a second market, not the player one renamed', () => {
 
   it('the profile has every section the record needs', () => {
     ['overview', 'career', 'qualifications', 'tactics', 'experience',
-     'trophies', 'performance', 'contract', 'intent', 'notes']
+     'achievements', 'contract', 'intent', 'notes', 'market']
       .forEach((t) => expect(APP).toContain(`['${t}', '`));
   });
 

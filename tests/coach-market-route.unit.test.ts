@@ -163,14 +163,16 @@ describe('the card says what the record holds', () => {
 });
 
 describe('nothing existing is disturbed', () => {
-  it('the player market keeps its page, its tab strip and its staff tab', () => {
+  it('the player market keeps its page and its tab strip, and carries no staff', () => {
     expect(APP).toContain('function renderTransfersHTML()');
-    expect(APP).toContain("['staff', 'Coaches & Staff', 'Technical recruitment']");
-    expect(APP).toContain("if (_TF.tab === 'staff') return _stHtml();");
+    ['auctions', 'feed', 'offers', 'needs', 'activity', 'scouting', 'assistant']
+      .forEach((t) => expect(APP).toContain(`['${t}', '`));
+    expect(APP).not.toContain("['staff', 'Coaches & Staff', 'Technical recruitment']");
+    expect(APP).not.toContain("if (_TF.tab === 'staff') return _stHtml();");
   });
 
   it('every other workspace page is still registered', () => {
-    ['squad', 'training', 'academy', 'academy-team', 'video-intelligence', 'transfers']
+    ['squad', 'training', 'academy', 'academy-team', 'video-intelligence', 'transfers', 'coaches']
       .forEach((p) => expect(APP).toContain(`'${p}': 1`));
   });
 
