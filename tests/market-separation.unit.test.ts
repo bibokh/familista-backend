@@ -228,7 +228,7 @@ describe('three modules, three visual identities', () => {
   it('the recruitment desk re-points those tokens rather than duplicating rules', () => {
     const cm = CSS.slice(CSS.indexOf('#pg-coach-market{'), CSS.indexOf('[data-theme="light"] #pg-coach-market'));
     expect(cm).toMatch(/--tf-gold:\s*#10b981/);   // emerald, not mustard
-    expect(cm).toMatch(/--tf-page:\s*#0b1220/);   // deep navy, not silver
+    expect(cm).toMatch(/--tf-page:\s*#0b0f16/);   // deep navy, not silver
     expect(cm).toMatch(/--tf-acc:\s*#2dd4bf/);    // teal
     expect(cm).toMatch(/--tf-champagne:\s*#5eead4/); // cyan
     // and it does not wear the player market's band

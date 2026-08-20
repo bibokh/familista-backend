@@ -232,7 +232,8 @@ describe('the notes screen is a record, not one textarea', () => {
 describe('and none of it reaches the other two modules', () => {
   it('no Coach Market function and no Transfers rule was touched', () => {
     // the redesigned Coaches block owns only .co-* selectors
-    const block = CSS.slice(CSS.indexOf('COACHES · club → team → person → profile'));
+    const block = CSS.slice(CSS.indexOf('COACHES · club → team → person → profile'),
+      CSS.indexOf('FAMILISTA COACH EXCHANGE'));
     const selectors = [...block.matchAll(/^\.([a-z-]+)/gm)].map((m) => m[1]);
     expect(selectors.length).toBeGreaterThan(40);
     selectors.forEach((s) => expect(s.startsWith('co-')).toBe(true));

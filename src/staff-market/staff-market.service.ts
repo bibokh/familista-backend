@@ -23,6 +23,10 @@ import { Prisma, MembershipRole, StaffApproachStatus, StaffAvailability, StaffCa
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import {
+  fciOf, opportunityOf, momentumOf, momentumBand, isHiddenGem,
+  type EmploymentStatusName,
+} from './market-index';
 
 export interface StaffActor { userId: string; clubId: string; role?: string }
 
@@ -310,6 +314,36 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
     engByUser.get(e.userId)!.push(e);
   });
 
+  // ── demand ──
+  // How many clubs are on him and how many have approached him. These are
+  // counts of records that exist, across every club — the exchange's demand
+  // side. No club's own list is identifiable from them; the figure is how many,
+  // never which, so nothing here leaks one club's recruitment to another.
+  const [watchRows, approachRows] = await Promise.all([
+    prisma.staffShortlist.groupBy({
+      by: ['staffUserId'],
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+    prisma.staffApproach.groupBy({
+      by: ['staffUserId'],
+      _count: { _all: true },
+      _max: { createdAt: true },
+    }),
+  ]);
+  const RECENT_MS = 30 * 24 * 3600 * 1000;
+  const watchByUser = new Map(watchRows.map((w) => [w.staffUserId, w]));
+  const approachByUser = new Map(approachRows.map((a) => [a.staffUserId, a]));
+  const recentlyWatched = new Map(watchRows.map((w) => [w.staffUserId,
+    w._max.createdAt && Date.now() - w._max.createdAt.getTime() <= RECENT_MS ? w._count._all : 0]));
+  const recentlyApproached = new Map(approachRows.map((a) => [a.staffUserId,
+    a._max.createdAt && Date.now() - a._max.createdAt.getTime() <= RECENT_MS ? a._count._all : 0]));
+
+  const daysSince = (d: Date | null | undefined) =>
+    d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : null;
+  const monthsUntil = (d: Date | null | undefined) =>
+    d ? Math.round((new Date(d).getTime() - Date.now()) / (30.44 * 86400000)) : null;
+
   // One row per person. Somebody holding two technical memberships is still
   // one staff member; the current engagement decides which job is shown.
   const seen = new Set<string>();
@@ -396,6 +430,63 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   memberships.forEach((m) => build(m.userId, m.user, m.role, m.club));
   orphanProfiles.forEach((p) => build(p.userId, p.user, null, null));
 
+  // ── the exchange's three readings ──
+  // Computed after the rows are built, from the row and from the demand counts
+  // — pure functions of stored data, so the same database always produces the
+  // same figures. Nothing here is seeded by a clock tick or a random draw.
+  rows.forEach((r) => {
+    const p = profileByUser.get(r.staffUserId as string) ?? null;
+    const uid = r.staffUserId as string;
+    const status = r.employmentStatus as EmploymentStatusName;
+    const demand = watchByUser.get(uid)?._count._all ?? 0;
+    const approaches = approachByUser.get(uid)?._count._all ?? 0;
+    const monthsLeft = monthsUntil(r.contractEndsAt as Date | null);
+
+    const fci = fciOf({
+      reputation: r.reputation as number | null,
+      level: r.level as number | null,
+      yearsExperience: r.yearsExperience as number | null,
+      licenceCode: (r.highestLicence as { code?: string } | null)?.code ?? null,
+      trophies: r.trophies as number | null,
+      evaluation: p ? EVAL_KEYS.map(([k]) => (p as Record<string, unknown>)[k] as number) : [],
+      careerEntries: (engByUser.get(uid) ?? []).length,
+    });
+    const opportunity = opportunityOf({
+      fci,
+      employmentStatus: status,
+      careerIntent: r.careerIntent as string | null,
+      contractMonthsLeft: monthsLeft,
+      wageExpectation: r.wageExpectation == null ? null : Number(r.wageExpectation),
+      compensation: p?.compensationFee == null ? null : Number(p.compensationFee),
+      demand,
+    });
+    const momentum = momentumOf({
+      recentApproaches: recentlyApproached.get(uid) ?? 0,
+      recentShortlists: recentlyWatched.get(uid) ?? 0,
+      daysSinceStatusChange: daysSince(p?.updatedAt ?? null),
+      daysSinceLeftClub: daysSince(r.lastLeftAt as Date | null),
+      contractMonthsLeft: monthsLeft,
+      employmentStatus: status,
+      demand,
+    });
+
+    r.fci = fci;
+    r.opportunity = opportunity;
+    r.momentum = momentum;
+    r.momentumBand = momentumBand(momentum);
+    r.clubsWatching = demand;
+    r.approachCount = approaches;
+    r.contractMonthsLeft = monthsLeft;
+    r.compensationFee = p?.compensationFee == null ? null : Number(p.compensationFee);
+    r.releaseClause = p?.releaseClause == null ? null : Number(p.releaseClause);
+    r.isHiddenGem = isHiddenGem(fci, opportunity, demand);
+    // When he came onto the market at all — his own last change of standing.
+    r.enteredMarketAt = ['OPEN_TO_OFFERS', 'ACTIVELY_LOOKING', 'FREE_AGENT'].includes(status)
+      ? (p?.updatedAt ?? null) : null;
+    r.isNewToMarket = r.enteredMarketAt != null
+      && Date.now() - new Date(r.enteredMarketAt as Date).getTime() <= RECENT_MS;
+  });
+
   // ── filters ──
   let out = rows;
   const has = (v?: string) => v != null && v !== '';
@@ -465,6 +556,9 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   const NUMERIC: Record<string, string> = {
     level: 'level', reputation: 'reputation', experience: 'yearsExperience',
     trophies: 'trophies', age: 'age', wage: 'wageExpectation', salary: 'wageExpectation',
+    // the exchange's own orderings, over the figures it derives
+    fci: 'fci', opportunity: 'opportunity', momentum: 'momentum',
+    demand: 'clubsWatching', compensation: 'compensationFee',
   };
   // Two orderings are over dates rather than figures, and both put "no date"
   // last in either direction rather than treating it as the year zero.
@@ -520,6 +614,14 @@ export async function marketSummary(actor: StaffActor) {
     }),
     prisma.staffNeed.count({ where: { clubId: actor.clubId, isActive: true } }),
   ]);
+  // The exchange's own indicators, counted from the same rows. The index is the
+  // mean FCI of the people actually on the market — not of everybody on the
+  // platform — so it moves when the market's quality moves and not when a club
+  // hires a youth coach who was never listed.
+  const listed = everyone.filter((r) => isAvailable(r.employmentStatus as EmploymentStatus));
+  const meanFci = listed.length
+    ? Math.round(listed.reduce((n, r) => n + Number(r.fci ?? 0), 0) / listed.length)
+    : 0;
   return {
     allStaff: all.total,
     availableStaff: by((r) => isAvailable(r.employmentStatus as EmploymentStatus)),
@@ -531,6 +633,13 @@ export async function marketSummary(actor: StaffActor) {
     openNegotiations: openApproaches,
     myStaffNeeds: needs,
     myStaff: by((r) => !!r.isMine),
+    // ── the exchange ──
+    fciIndex: meanFci,
+    onTheMarket: listed.length,
+    trending: by((r) => r.momentumBand === 'RISING'),
+    newToMarket: by((r) => !!r.isNewToMarket),
+    contractWatch: by((r) => r.employmentStatus === 'CONTRACT_ENDING_SOON'),
+    hiddenGems: by((r) => !!r.isHiddenGem),
   };
 }
 

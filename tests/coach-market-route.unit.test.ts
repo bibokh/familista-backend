@@ -136,24 +136,32 @@ describe('search, filters, sort, shortlist and comparison', () => {
   });
 });
 
-describe('the card says what the record holds', () => {
+// The board's card is gone: the exchange opens a person under the Market Lens
+// rather than laying him out as one of a grid of cards. Every field the card
+// carried is still read — on the lens, which is the surface that now decides.
+describe('the lens says what the record holds', () => {
   it('carries every field the market decides on', () => {
-    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stExternalHtml()'));
-    ['Licence', 'Level', 'Experience', 'Formation', 'Speciality', 'Salary', 'Contract', 'Languages']
-      .forEach((l) => expect(card).toContain(`'${l}'`));
-    expect(card).toContain('r.age');
-    expect(card).toContain('r.nationality');
-    expect(card).toContain('r.avatar');
-    expect(card).toContain('r.reputation');
-    expect(card).toContain('r.currentClub');
-    expect(card).toContain('keyAttributes');
-    expect(card).toContain('ST_STATUS_LABEL');
+    const lens = APP.slice(APP.indexOf('function _stLensHtml()'), APP.indexOf('function _stAvailableHtml()'));
+    ['Licence', 'Level', 'Experience', 'Formation', 'Speciality', 'Expected salary', 'Contract remaining', 'Languages']
+      .forEach((l) => expect(lens).toContain(`'${l}'`));
+    expect(lens).toContain('r.age');
+    expect(lens).toContain('r.nationality');
+    // the portrait comes through the one avatar helper, which reads the field
+    expect(lens).toContain('_stAvatar(r');
+    expect(APP.slice(APP.indexOf('function _stAvatar('), APP.indexOf('function _stJitter('))).toContain('r.avatar');
+    expect(lens).toContain('r.reputation');
+    expect(lens).toContain('r.currentClub');
+    expect(lens).toContain('keyAttributes');
+    expect(lens).toContain('ST_STATUS_LABEL');
+    // and the exchange's own two figures, which the card never had
+    expect(lens).toContain('r.fci');
+    expect(lens).toContain('r.opportunity');
   });
 
   it('and says so when the platform does not hold one', () => {
-    const card = APP.slice(APP.indexOf('function _stCardHtml(r)'), APP.indexOf('function _stExternalHtml()'));
-    expect(card).toContain("var dash = '<i class=\"st-unknown\">—</i>'");
-    expect(card).toContain('No coaching attributes recorded');
+    const lens = APP.slice(APP.indexOf('function _stLensHtml()'), APP.indexOf('function _stAvailableHtml()'));
+    expect(lens).toContain("var dash = '<i class=\"st-unknown\">—</i>'");
+    expect(lens).toContain('No coaching attributes recorded');
   });
 
   it('an age is derived from a date of birth, never invented', () => {
