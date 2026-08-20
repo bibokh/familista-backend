@@ -209,9 +209,23 @@ describe('the command centre reads before it opens', () => {
   it('the page draws that, not a wall of cards', () => {
     expect(APP).toContain('var CO_HEALTH');
     expect(APP).toContain('function _coTeamCardHtml(g)');
-    expect(CSS).toContain('.co-tc-figs{');
-    expect(CSS).toContain('.co-cc-cov{');
+    expect(CSS).toContain('.co-tc-mini{');
+    expect(CSS).toContain('.co-tc-cov{');
     expect(CSS).toContain('.co-tc-lead{');
+  });
+
+  // A team card says which seat on the bench is taken, post by post, from
+  // counts the server derived — it still carries nobody's name.
+  it('the team card carries the unit line-up, post by post', () => {
+    const f = svcFn('coachesDirectory');
+    expect(f).toContain('const roleStrip = STAFF_POSTS');
+    expect(f).toContain('.filter(([, , roles]) => roles.some((r) => runs.includes(r)))');
+    const card = APP.slice(APP.indexOf('function _coTeamCardHtml('), APP.indexOf('function _coTeamViewHtml('));
+    expect(card).toContain('g.roleStrip');
+    expect(CSS).toContain('.co-unit{');
+    expect(CSS).toContain('.co-post{');
+    // and the posts are counts, never people
+    expect(f).not.toContain('roleStrip: staff');
   });
 
   it('and staff appear only once a team is opened — never before', () => {

@@ -256,7 +256,7 @@ describe('three modules, three visual identities', () => {
     ['Leadership', 'Coaching', 'Performance', 'Analysis', 'Medical', 'Scouting']
       .forEach((d) => expect(APP).toContain(`['${d}',`));
     // a role the departments do not cover is still shown, never dropped
-    expect(APP).toMatch(/depts \+= '<section class="co-dept"><h5 class="co-dept-h">[\s\S]{0,60}Other/);
+    expect(APP).toMatch(/if \(rest\.length\) groups\.push\(\{ name: 'Other'/);
     expect(CSS).toContain('.co-dept-h{');
   });
 

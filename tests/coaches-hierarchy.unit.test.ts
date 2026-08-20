@@ -125,9 +125,9 @@ describe('the page opens on the clubs and nothing else', () => {
   it('and only the team view draws people', () => {
     const v = appFn('_coTeamViewHtml', '_coBackHtml');
     expect(v).toContain('_coStaffCardHtml');
-    expect(v).toContain('CO_DEPTS.map');
+    expect(v).toContain('CO_DEPTS.forEach');
     // departments with nobody in them are not drawn at all
-    expect(v).toContain("if (!inDept.length) return '';");
+    expect(v).toContain('if (inDept.length) groups.push(');
   });
 });
 
@@ -175,9 +175,20 @@ describe('three tiers, three shapes', () => {
       .forEach((f) => expect(APP).toContain(`function ${f}(`));
     ['.co-cc{', '.co-tc{', '.co-sc{'].forEach((c) => expect(CSS).toContain(c));
     // and they are not the same size
-    expect(CSS).toContain('.co-clubs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr))');
-    expect(CSS).toContain('.co-teamcards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr))');
-    expect(CSS).toContain('.co-people{ display:grid; grid-template-columns:repeat(auto-fill,minmax(310px,1fr))');
+    expect(CSS).toContain('.co-clubs{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,268px),1fr))');
+    expect(CSS).toContain('.co-teamcards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))');
+    expect(CSS).toContain('.co-people{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,262px),1fr))');
+  });
+
+  // The desk is the width of the desk. auto-fill leaves empty tracks standing
+  // when there are fewer clubs than the grid could hold, which is what put four
+  // clubs in four narrow columns with half the screen unused beside them.
+  it('the grids fill the workspace rather than leaving tracks standing', () => {
+    expect(CSS).toContain('.co-pane{ width:100%; max-width:none; }');
+    ['.co-clubs{', '.co-teamcards{', '.co-people{'].forEach((sel) => {
+      const rule = CSS.slice(CSS.indexOf(sel));
+      expect(rule.slice(0, rule.indexOf('}'))).toContain('auto-fit');
+    });
   });
 
   it('the club card says what a club is chosen on', () => {

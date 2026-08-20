@@ -37,6 +37,19 @@ export const TECHNICAL_ROLES: MembershipRole[] = [
 
 const isTechnical = (r: MembershipRole) => TECHNICAL_ROLES.includes(r);
 
+// The posts a technical unit is read by, in the order a bench is listed. Used
+// to say which post a team has filled and which is unmanned, in counts only.
+export const STAFF_POSTS: Array<[string, string, MembershipRole[]]> = [
+  ['HC', 'Head coach', ['HEAD_COACH']],
+  ['AC', 'Assistant', ['ASSISTANT_COACH']],
+  ['GK', 'Goalkeeping', ['GOALKEEPING_COACH']],
+  ['PERF', 'Performance', ['FITNESS_COACH', 'PERFORMANCE_COACH']],
+  ['COACH', 'Coaching', ['TECHNICAL_COACH', 'TACTICAL_COACH', 'YOUTH_COACH']],
+  ['ANALYST', 'Analysis', ['ANALYST']],
+  ['MEDICAL', 'Medical', ['MEDICAL_STAFF', 'PHYSIO']],
+  ['SCOUT', 'Scouting', ['SCOUT']],
+];
+
 // An approach that is still live. SUBMITTED is what SENT was called before the
 // offer states were named in full; both mean the same thing and rows written
 // under the old name are never rewritten, so both are read here.
@@ -1766,9 +1779,21 @@ export async function coachesDirectory(_actor: StaffActor, opts: { clubId?: stri
     const activeContracts = staff.filter((s) => s.contractEndsAt != null).length;
     // Completeness is measured against the structure this kind of team runs —
     // an under-11 side is not short-staffed for having no analyst.
-    const expected = demoRolesFor({ kind, name: '', ageMax }).length;
+    const runs = demoRolesFor({ kind, name: '', ageMax });
+    const expected = runs.length;
     const filled = new Set(staff.map((s) => s.role)).size;
+    // The unit's own line-up, post by post. A team card has to say which post
+    // is unmanned without sending anybody's name — these are counts, and the
+    // people themselves still only arrive when the team is opened.
+    const roleStrip = STAFF_POSTS
+      .filter(([, , roles]) => roles.some((r) => runs.includes(r)))
+      .map(([key, label, roles]) => ({
+        key, label,
+        expected: roles.filter((r) => runs.includes(r)).length,
+        filled: new Set(staff.filter((s) => roles.includes(s.role as MembershipRole)).map((s) => s.role)).size,
+      }));
     return {
+      roleStrip,
       headCoach: head
         ? { staffUserId: head.staffUserId, name: head.name, avatar: head.avatar,
             employmentStatus: head.employmentStatus }
