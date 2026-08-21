@@ -50691,6 +50691,32 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.radar = el.getAttribute('data-st-radar') || 'opportunity';
       _stRepaint(); return;
     }
+    // An open post on the demand map asks the exchange who could fill it.
+    // the pulse: which movements are shown, and which one is open
+    if ((el = t.closest('[data-st-lane]'))) {
+      e.preventDefault();
+      _TF_ST.pulseLane = el.getAttribute('data-st-lane') || 'all';
+      _TF_ST.event = null; _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-ev]'))) {
+      e.preventDefault();
+      var _ei = parseInt(el.getAttribute('data-st-ev'), 10);
+      _TF_ST.event = (_TF_ST.event === _ei) ? null : _ei;
+      _stRepaint(); return;
+    }
+    if (t.closest('[data-st-ev-close]')) {
+      e.preventDefault(); _TF_ST.event = null; _stRepaint(); return;
+    }
+    if ((el = t.closest('[data-st-slot]'))) {
+      e.preventDefault();
+      var _sk = el.getAttribute('data-st-slot');
+      if (_TF_ST.slot === _sk) { _TF_ST.slot = null; _TF_ST.slotTeam = null; }
+      else { _TF_ST.slot = _sk; _TF_ST.slotTeam = el.getAttribute('data-st-slotteam'); }
+      _stRepaint(); return;
+    }
+    if (t.closest('[data-st-slot-close]')) {
+      e.preventDefault(); _TF_ST.slot = null; _TF_ST.slotTeam = null; _stRepaint(); return;
+    }
     if ((el = t.closest('[data-st-deal]'))) {
       e.preventDefault();
       var _did = el.getAttribute('data-st-deal');
@@ -50708,8 +50734,9 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.page = 1;
       // Each tab is its own screen, so what was open on the last one closes.
       _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = '';
-      if (_TF_ST.view === 'needs') Promise.all([_stLoadNeeds(), _stLoadGap()]).then(_stRepaint);
-      else if (_TF_ST.view === 'activity') _stLoadActivity().then(_stRepaint);
+      _TF_ST.slot = null; _TF_ST.slotTeam = null; _TF_ST.event = null; _TF_ST.pulseLane = 'all';
+      if (_TF_ST.view === 'needs') Promise.all([_stLoadNeeds(), _stLoadGap(), _stLoadMarket()]).then(_stRepaint);
+      else if (_TF_ST.view === 'activity') Promise.all([_stLoadActivity(), _stLoadMarket()]).then(_stRepaint);
       else {
         // Every board tab is the same read with a different tab= — one request,
         // and the count under the toolbar is the count of what the tab holds.
@@ -51282,10 +51309,13 @@ var _TF_ST = {
   noteDraft: null,
   view: 'market',  // market | available | free-agents | shortlisted | needs | negotiations | activity
   // ── the exchange ──
+  rowsFor: null,   // which tab the rows in hand belong to
   lens: null,      // the staff member the Market Lens is open on
   area: '',        // which professional area of the universe is isolated
   radar: 'opportunity',   // how the Opportunity Radar is ranked
-  gap: null,       // the club's own team structure, for the Staff Gap Map
+  gap: null,       // the club's own team structure, for the demand map
+  slot: null, slotTeam: null,   // the open post the demand map is matching
+  pulseLane: 'all', event: null, // the pulse's filter and the movement it has open
   deal: null       // the deal the Deal Room has open
 };
 
@@ -51477,7 +51507,11 @@ function _stQuery() {
   // The exchange floor and the radar read the same eligible population — the
   // people the canonical status actually lists. Somebody employed and not
   // looking is in Coaches and on no exchange surface at all.
-  var TAB_Q = { market: 'available', available: 'available', 'free-agents': 'free-agents', shortlisted: 'shortlisted' };
+  // Needs and Activity are not boards, but both read the market: the demand map
+  // matches open posts against it and the pulse reads who came onto it. Both
+  // therefore ask for the same eligible population the floor shows.
+  var TAB_Q = { market: 'available', available: 'available', 'free-agents': 'free-agents',
+                shortlisted: 'shortlisted', needs: 'available', activity: 'available' };
   q.push('tab=' + encodeURIComponent(TAB_Q[_TF_ST.view] || 'all'));
   q.push('sort=' + encodeURIComponent(_TF_ST.sort || 'reputation'));
   q.push('order=' + encodeURIComponent(_TF_ST.order || 'desc'));
@@ -51487,19 +51521,50 @@ function _stQuery() {
   return '?' + q.join('&');
 }
 
+// Every board tab reads the same rows array with a different tab= on the query,
+// which means two things have to be true and neither used to be:
+//
+//   · a screen must never draw rows that belong to a different tab. Repainting
+//     is synchronous and the read is not, so switching to Shortlisted used to
+//     paint the forty-five rows the Market floor had left behind, and then
+//     replace them a moment later with the two that are actually shortlisted.
+//     That is the "cards appear and then disappear" — nothing was lost, the
+//     wrong thing was drawn first.
+//
+//   · a read that lands after the reader has moved on must not be written at
+//     all. Clicking through three tabs quickly used to leave whichever request
+//     happened to finish last in charge of the screen.
+//
+// One generation counter answers both: the rows carry the tab that produced
+// them, and a stale response is dropped rather than stored.
+var _stGen = 0;
 function _stLoadMarket() {
+  var gen = ++_stGen;
+  var forView = _TF_ST.view;
   _TF_ST.loading = true; _TF_ST.error = null;
   return Promise.all([
     _stApi('GET', '/discover' + _stQuery()).then(_thUnwrap),
     _stApi('GET', '/summary').then(_thUnwrap)
   ]).then(function (r) {
+    if (gen !== _stGen) return;             // the reader has moved on
     _TF_ST.rows = (r[0] && r[0].items) || [];
     _TF_ST.total = (r[0] && r[0].total) || 0;
+    _TF_ST.rowsFor = forView;
     _TF_ST.summary = r[1] || null;
   }).catch(function (e) {
-    _TF_ST.rows = []; _TF_ST.total = 0;
+    if (gen !== _stGen) return;
+    _TF_ST.rows = []; _TF_ST.total = 0; _TF_ST.rowsFor = forView;
     _TF_ST.error = (e && (e.userMessage || e.message)) || 'unavailable';
-  }).then(function () { _TF_ST.loading = false; });
+  }).then(function () { if (gen === _stGen) _TF_ST.loading = false; });
+}
+
+// Whether the rows in hand belong to the screen being drawn. A board tab that
+// answers no draws its own reading state instead of somebody else's data.
+function _stRowsReady() {
+  return _TF_ST.rowsFor === _TF_ST.view;
+}
+function _stReadingHtml(what) {
+  return '<div class="st-empty cx-reading">Reading ' + (what || 'the exchange') + '…</div>';
 }
 function _stLoadClubs() {
   if (_TF_ST.clubs.length) return Promise.resolve(_TF_ST.clubs);
@@ -51699,8 +51764,8 @@ function _stFiltersHtml() {
 // down the right. Nobody is a card in a grid here — the grid is what the other
 // six tabs are for, each drawn as the thing it is.
 function _stMarketHtml() {
-  if (_TF_ST.loading && !_TF_ST.rows.length) return '<div class="st-empty">Opening the exchange…</div>';
   if (_TF_ST.error) return '<div class="st-empty">The exchange could not be read — ' + _stEsc(_TF_ST.error) + '</div>';
+  if (!_stRowsReady()) return _stFiltersHtml() + _stReadingHtml('the exchange floor');
   var listed = _stListed();
   return _stFiltersHtml()
     + _stPulseHtml(listed)
@@ -51829,17 +51894,58 @@ function _stNodeHtml(r, range) {
     + '<span class="cx-node-f">' + (r.avatar ? '<img src="' + _stEsc(r.avatar) + '" alt="">'
         : _stEsc((r.name || '?').slice(0, 1))) + '</span>'
     + '<span class="cx-node-n">' + _stEsc(String(r.name || '').trim().split(/\s+/).pop()) + '</span>'
-    // The compact read a node carries on hover — the same figures the lens opens with.
-    + '<span class="cx-tip">'
-    +   '<b>' + _stEsc(r.name) + '</b>'
-    +   '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
-    +   '<span class="cx-tip-s">FCI <b>' + (r.fci == null ? '—' : r.fci) + '</b>' + _stMom(r.momentum) + '</span>'
-    +   '<span class="cx-tip-r">' + (r.clubsWatching || 0) + ' club' + ((r.clubsWatching || 0) === 1 ? '' : 's') + ' watching</span>'
-    +   '<span class="cx-tip-r cx-tip-r--st">' + _stEsc(ST_STATUS_LABEL[r.employmentStatus] || r.employmentStatus) + '</span>'
-    +   '<span class="cx-tip-r">' + _stMoney(r.wageExpectation) + ' expected</span>'
-    +   '<span class="cx-tip-r">' + (r.contractEndsAt ? 'Contract to ' + _stDate(r.contractEndsAt) : 'No contract') + '</span>'
-    + '</span>'
     + '</button>';
+}
+
+// ── the floating market intelligence tooltip ─────────────────────────────────
+// The read a node gives on hover used to be a child of the node, which put it
+// inside every scroller and stacking context between the node and the page —
+// so it was clipped by the band it sat in and drawn under the tab strip. It is
+// now one element at the end of <body>, positioned fixed, owned by nobody: it
+// cannot be clipped by an ancestor because it no longer has one, and it flips
+// above or below and left or right to stay inside the viewport.
+function _stTipEl() {
+  var el = document.getElementById('cx-tip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cx-tip';
+    el.className = 'cx-tip';
+    el.setAttribute('role', 'tooltip');
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function _stTipHide() {
+  var el = document.getElementById('cx-tip');
+  if (el) { el.classList.remove('is-on'); el.setAttribute('aria-hidden', 'true'); }
+}
+function _stTipShow(node, r) {
+  var el = _stTipEl();
+  el.innerHTML = '<b>' + _stEsc(r.name) + '</b>'
+    + '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
+    + '<span class="cx-tip-s">FCI <b>' + (r.fci == null ? '—' : r.fci) + '</b>' + _stMom(r.momentum) + '</span>'
+    + '<span class="cx-tip-r">' + (r.clubsWatching || 0) + ' club' + ((r.clubsWatching || 0) === 1 ? '' : 's') + ' watching</span>'
+    + '<span class="cx-tip-r cx-tip-r--st">' + _stEsc(ST_STATUS_LABEL[r.employmentStatus] || r.employmentStatus) + '</span>'
+    + '<span class="cx-tip-r">' + _stMoney(r.wageExpectation) + ' expected</span>'
+    + '<span class="cx-tip-r">'
+    +   (r.contractEndsAt ? 'Contract to ' + _stDate(r.contractEndsAt)
+        : (r.isFreeAgent ? 'Available now' : 'No contract recorded')) + '</span>';
+  el.classList.add('is-on');
+  el.setAttribute('aria-hidden', 'false');
+
+  // Measured after it is on, then placed: above the node by default, below it
+  // when there is no room above, and pulled back inside either edge.
+  var n = node.getBoundingClientRect();
+  var t = el.getBoundingClientRect();
+  var pad = 8;
+  var top = n.top - t.height - 10;
+  if (top < pad) top = n.bottom + 10;
+  if (top + t.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - t.height - pad);
+  var left = n.left + n.width / 2 - t.width / 2;
+  left = Math.max(pad, Math.min(left, window.innerWidth - t.width - pad));
+  el.style.top = Math.round(top) + 'px';
+  el.style.left = Math.round(left) + 'px';
 }
 
 // ── MARKET INTELLIGENCE ──────────────────────────────────────────────────────
@@ -52024,7 +52130,7 @@ function _stAvailableHtml() {
         }).join('')
     + '</div></div>';
 
-  if (_TF_ST.loading && !rows.length) return head + '<div class="st-empty">Reading the market…</div>';
+  if (!_stRowsReady()) return head + _stReadingHtml('the market');
   if (!rows.length) return head + '<div class="st-empty">Nobody is available under these filters. Everybody on the platform is under contract and not looking.</div>';
 
   var rank = _TF_ST.radar;
@@ -52087,62 +52193,90 @@ function _stAvailRowHtml(r) {
     + '</div>';
 }
 
-// ── FREE AGENTS · the talent landscape ───────────────────────────────────────
-// Everybody here has no club and no team, so compensation never enters it. Laid
-// out by professional area rather than as a wall, because the question on this
-// screen is "who is out there for this part of the department".
+// ── FREE AGENTS · the deal floor ─────────────────────────────────────────────
+// Everybody here has no club and no team, so nothing is owed for any of them
+// and every one can be approached today. Drawn as deal tickets across the floor
+// rather than as a long database list: the question on this screen is which of
+// them to move on, not how many there are.
 function _stFreeAgentsHtml() {
+  if (!_stRowsReady()) return _stReadingHtml('the deal floor');
   var rows = (_TF_ST.rows || []).filter(function (r) { return r.isFreeAgent && !r.currentClub; });
-  if (_TF_ST.loading && !rows.length) return '<div class="st-empty">Reading the landscape…</div>';
   if (!rows.length) {
     return '<div class="st-scoutnote">Nobody on the platform is without a club. Somebody the platform does not employ can be added as a candidate.'
       + '<button type="button" class="tf-btn tf-btn--sm" data-st-ext-open>Add external candidate</button></div>';
   }
-  var cols = ST_AREAS.map(function (a) {
-    var inArea = rows.filter(function (r) { return _stAreaOf(r.role) === a[0]; })
-      .sort(function (x, y) { return (y.fci || 0) - (x.fci || 0); });
-    if (!inArea.length) return '';
-    return '<section class="cx-fa-col"><h5>' + a[1] + '<span>' + inArea.length + '</span></h5>'
-      + inArea.map(_stDossierHtml).join('') + '</section>';
-  }).join('');
-  return '<div class="st-scoutnote">' + rows.length + ' without a club, across '
-    + ST_AREAS.filter(function (a) { return rows.some(function (r) { return _stAreaOf(r.role) === a[0]; }); }).length
-    + ' areas. No compensation is owed for any of them.'
-    + '<button type="button" class="tf-btn tf-btn--sm" data-st-ext-open>Add external candidate</button></div>'
-    + '<div class="cx-landscape">' + cols + '</div>';
+  rows = rows.slice().sort(function (a, b) { return (b.opportunity || 0) - (a.opportunity || 0); });
+  var areas = ST_AREAS.filter(function (a) {
+    return rows.some(function (r) { return _stAreaOf(r.role) === a[0]; });
+  });
+  var hot = rows.filter(function (r) { return (r.clubsWatching || 0) > 0; }).length;
+
+  return '<div class="cx-df-bar">'
+    + '<b>Free agent deal floor</b>'
+    + '<span>' + rows.length + ' can be approached today across ' + areas.length
+    +   ' area' + (areas.length === 1 ? '' : 's') + ' · no compensation is owed for any of them'
+    +   (hot ? ' · ' + hot + ' already being watched' : '') + '</span>'
+    + '<button type="button" class="tf-btn tf-btn--sm" data-st-ext-open>Add external candidate</button>'
+    + '</div>'
+    + '<div class="cx-df">' + rows.map(_stDossierHtml).join('') + '</div>';
 }
 
-// One entry in the landscape. Compact by design — this is a column of eight,
-// not a card wall of eight.
+// One deal ticket. Compact, three across the floor, and it says the eight
+// things that decide whether to pick up the phone.
 function _stDossierHtml(r) {
   var dash = '<i class="st-unknown">—</i>';
   // How long he has been out is the last thing he did, not a stored figure.
   var out = r.lastLeftAt ? _stMonthsSince(r.lastLeftAt) : null;
-  return '<div class="cx-fa' + (_TF_ST.cmp.indexOf(r.staffUserId) >= 0 ? ' is-cmp' : '') + '">'
-    + '<button type="button" class="cx-fa-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
-    +   '<span class="cx-fa-hd">'
-    +     _stAvatar(r)
-    +     '<span class="cx-fa-id"><b>' + _stEsc(r.name) + '</b>'
-    +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+  // How warm he is: clubs already watching, plus anybody who has approached.
+  var heat = Math.min(4, (r.clubsWatching || 0) + (r.approachCount || 0));
+  var heatWord = heat >= 3 ? 'Contested' : (heat === 2 ? 'Warm' : (heat === 1 ? 'Noticed' : 'Untouched'));
+  return '<article class="cx-dt' + (_TF_ST.cmp.indexOf(r.staffUserId) >= 0 ? ' is-cmp' : '')
+    + (r.isHiddenGem ? ' is-gem' : '') + '">'
+    + '<button type="button" class="cx-dt-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
+    +   '<span class="cx-dt-hd">'
+    +     _stAvatar(r, 'st-av--lg')
+    +     '<span class="cx-dt-id"><b>' + _stEsc(r.name) + '</b>'
+    +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
+    +       '<span class="st-id-sub">'
+    +         (r.nationality ? _stEsc(r.nationality) : 'Nationality —')
+    +         (r.age != null ? ' · ' + r.age : '')
+    +         (r.highestLicence ? ' · ' + _stEsc(String(r.highestLicence.name).replace(/^UEFA\s*/i, 'UEFA ')) : '')
+    +       '</span></span>'
     +     _stScores(r)
     +   '</span>'
-    +   '<span class="cx-fa-body">'
-    +     '<span><i>Last club</i><b>' + (r.lastClub ? _stEsc(r.lastClub) : dash) + '</b></span>'
-    +     '<span><i>Last role</i><b>' + (r.lastRole ? _stEsc(ST_ROLE_LABEL[r.lastRole] || r.lastRole) : dash) + '</b></span>'
-    +     '<span><i>Without a club</i><b>' + (out != null ? out : dash) + '</b></span>'
-    +     '<span><i>Experience</i><b>' + (r.yearsExperience != null ? r.yearsExperience + ' yrs' : dash) + '</b></span>'
-    +     '<span><i>Asking</i><b>' + _stMoney(r.wageExpectation) + '</b></span>'
-    +     '<span><i>Seeking</i><b>' + ((r.preferredRoles && r.preferredRoles.length)
-            ? _stEsc(r.preferredRoles.map(function (x) { return ST_ROLE_LABEL[x] || x; }).join(', '))
-            : _stEsc(ST_ROLE_LABEL[r.role] || r.role || '—')) + '</b></span>'
+    +   '<span class="cx-dt-heat cx-dt-heat--' + heat + '">'
+    +     '<i></i><i></i><i></i><i></i>'
+    +     '<b>' + heatWord + '</b>'
+    +   '</span>'
+    // Only what the record holds. A ticket of dashes is a bigger card saying
+    // less, so a field the platform does not have is left off rather than
+    // printed empty — and the ticket shrinks to what it can actually say.
+    +   '<span class="cx-dt-body">'
+    +     [['Last club', r.lastClub ? _stEsc(r.lastClub) : null],
+           ['Last role', r.lastRole ? _stEsc(ST_ROLE_LABEL[r.lastRole] || r.lastRole) : null],
+           ['Out of work', out],
+           ['Experience', r.yearsExperience != null ? r.yearsExperience + ' yrs' : null],
+           ['Asking', r.wageExpectation != null ? _stMoney(r.wageExpectation) : null],
+           ['Available', r.availableFrom ? _stDate(r.availableFrom) : 'Now'],
+           ['Licence', r.highestLicence ? _stEsc(r.highestLicence.name) : null],
+           ['Wants', (r.preferredRoles && r.preferredRoles.length)
+             ? _stEsc(r.preferredRoles.map(function (x) { return ST_ROLE_LABEL[x] || x; }).join(', '))
+             : (r.role ? _stEsc(ST_ROLE_LABEL[r.role] || r.role) : null)]]
+          .filter(function (f) { return f[1] != null && f[1] !== ''; })
+          .map(function (f, i, all) {
+            return '<span' + (f[0] === 'Wants' && all.length % 2 ? ' class="cx-dt-wide"' : '') + '>'
+              + '<i>' + f[0] + '</i><b>' + f[1] + '</b></span>';
+          }).join('')
     +   '</span>'
     + '</button>'
-    + '<div class="cx-fa-ft">'
-    +   '<button type="button" class="st-star' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '">★</button>'
-    +   '<button type="button" class="st-cmpbtn' + (_TF_ST.cmp.indexOf(r.staffUserId) >= 0 ? ' is-on' : '') + '" data-st-cmp="' + _stEsc(r.staffUserId) + '">⇄</button>'
-    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-approach="' + _stEsc(r.staffUserId) + '">Offer terms</button>'
+    + '<div class="cx-dt-ft">'
+    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '">Profile</button>'
+    +   '<button type="button" class="cx-act' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '">'
+    +     (r.isShortlisted ? '★ Listed' : '★ Shortlist') + '</button>'
+    +   '<button type="button" class="cx-act' + (_TF_ST.cmp.indexOf(r.staffUserId) >= 0 ? ' is-on' : '') + '" data-st-cmp="' + _stEsc(r.staffUserId) + '">Compare</button>'
+    +   '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(r.staffUserId) + '">Approach</button>'
     + '</div>'
-    + '</div>';
+    + '</article>';
 }
 
 function _stMonthsSince(d) {
@@ -52152,11 +52286,22 @@ function _stMonthsSince(d) {
   return Math.floor(m / 12) + ' years';
 }
 
-// ── SHORTLISTED · the recruitment war room ───────────────────────────────────
-// The club's own operation, drawn as the five stages a recruitment actually
-// passes through. Everything on this screen is this club's judgement: the
-// priority, the stage, the note and the next action are ours alone.
+// ── SHORTLISTED · the recruitment war room ─────────────────────────────────
+// The club's own decision workspace, drawn as the four moves a recruitment
+// actually makes. The stored stages are the five the platform already holds;
+// the last two are one decision on this screen, because negotiating and having
+// sent the offer are the same question — do we take him. Nothing is renamed in
+// the database to make this screen read well.
+var ST_WR = [
+  ['WATCHING',  'Watching',       ['WATCHING']],
+  ['CONTACTED', 'Contacted',      ['CONTACTED']],
+  ['INTERVIEW', 'Interview',      ['INTERVIEW']],
+  ['DECISION',  'Final decision', ['NEGOTIATION', 'OFFER_SENT']]
+];
 function _stShortlistDeskHtml() {
+  // Never anybody else's rows. Until the shortlisted read has landed, this
+  // screen says it is reading rather than drawing the last tab's people.
+  if (!_stRowsReady()) return _stReadingHtml('the war room');
   var rows = _TF_ST.rows;
   var meta = {};
   ((_TF_ST.shortlist && _TF_ST.shortlist.items) || []).forEach(function (x) { meta[x.staffUserId] = x; });
@@ -52170,26 +52315,44 @@ function _stShortlistDeskHtml() {
     return pa - pb || (b.opportunity || 0) - (a.opportunity || 0);
   };
   var high = rows.filter(function (r) { return (meta[r.staffUserId] || {}).priority === 'HIGH'; }).length;
-  var stages = ST_STAGE.map(function (sg) {
-    var inStage = rows.filter(function (r) {
-      return ((meta[r.staffUserId] || {}).stage || 'WATCHING') === sg[0];
-    }).sort(byPri);
-    return '<div class="cx-wr-col cx-wr-col--' + sg[0].toLowerCase() + '">'
-      + '<h5>' + sg[1] + '<span>' + inStage.length + '</span></h5>'
-      + (inStage.length ? inStage.map(function (r) { return _stDeskCardHtml(r, meta[r.staffUserId] || {}); }).join('')
-                        : '<div class="cx-dnone">—</div>')
-      + '</div>';
+
+  var lanes = ST_WR.map(function (L) {
+    return { key: L[0], label: L[1],
+      people: rows.filter(function (r) {
+        return L[2].indexOf((meta[r.staffUserId] || {}).stage || 'WATCHING') >= 0;
+      }).sort(byPri) };
+  });
+  // An empty stage is a column of nothing, so it is given the least room and the
+  // occupied ones share what is left. The board rebalances instead of leaving
+  // four equal columns three of which are blank.
+  var busy = lanes.filter(function (l) { return l.people.length; }).length || 1;
+  var span = function (l) {
+    if (!l.people.length) return 2;
+    return Math.max(3, Math.round((12 - (4 - busy) * 2) / busy));
+  };
+
+  var board = lanes.map(function (l) {
+    return '<section class="cx-wr-col cx-wr-col--' + l.key.toLowerCase()
+      + (l.people.length ? '' : ' is-quiet') + '" style="--span:' + span(l) + '">'
+      + '<h5>' + l.label + '<span>' + l.people.length + '</span></h5>'
+      + (l.people.length
+          ? '<div class="cx-wr-stack">'
+            + l.people.map(function (r) { return _stDeskCardHtml(r, meta[r.staffUserId] || {}); }).join('')
+            + '</div>'
+          : '<p class="cx-dnone">Nobody here</p>')
+      + '</section>';
   }).join('');
+
   return '<div class="cx-wr-bar">'
     + '<b>Recruitment war room</b>'
     + '<span>' + rows.length + ' under consideration · ' + high + ' at high priority · '
     +   'priority, stage and notes are ours alone, and are seen by nobody else.</span>'
     + '</div>'
-    + '<div class="cx-wr">' + stages + '</div>';
+    + '<div class="cx-wr">' + board + '</div>';
 }
 
-// One candidate at his stage: what we think of him, what the exchange thinks,
-// what was last said, and the one thing to do next.
+// One candidate ticket: who he is, what the exchange says, what we think, when
+// we last spoke and the one move that comes next.
 function _stDeskCardHtml(r, m) {
   var pri = m.priority || 'MEDIUM';
   var stage = m.stage || 'WATCHING';
@@ -52199,20 +52362,23 @@ function _stDeskCardHtml(r, m) {
     WATCHING: 'Make contact', CONTACTED: 'Arrange an interview',
     INTERVIEW: 'Agree terms', NEGOTIATION: 'Send the offer', OFFER_SENT: 'Await his answer'
   };
-  return '<div class="cx-wr-card cx-wr-card--' + pri.toLowerCase() + '">'
+  var when = m.updatedAt || m.addedAt || null;
+  return '<article class="cx-wr-card cx-wr-card--' + pri.toLowerCase() + '">'
     + '<button type="button" class="cx-wr-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
     +   _stAvatar(r)
     +   '<span class="cx-wr-id"><b>' + _stEsc(r.name) + '</b>'
     +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
-    +     '<span class="st-id-sub">' + (r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent') + '</span></span>'
+    +     '<span class="st-id-sub">' + (r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent')
+    +       ' · ' + _stEsc(ST_STATUS_LABEL[r.employmentStatus] || r.employmentStatus) + '</span></span>'
     +   _stScores(r)
     + '</button>'
     + '<div class="cx-wr-meta">'
     +   '<span class="st-pri st-pri--' + pri.toLowerCase() + '">' + _stEsc(ST_PRIORITY_LABEL[pri]) + '</span>'
-    +   '<span class="cx-wr-when">Last contact ' + (m.updatedAt ? _stDate(m.updatedAt) : (m.addedAt ? _stDate(m.addedAt) : '—')) + '</span>'
+    +   _stMom(r.momentum)
+    +   '<span class="cx-wr-when">' + (when ? 'Last contact ' + _stDate(when) : 'No contact yet') + '</span>'
     + '</div>'
     + '<p class="cx-wr-next"><i>Next</i>' + _stEsc(NEXT[stage] || 'Decide') + '</p>'
-    + (m.note ? '<p class="cx-wr-note">' + _stEsc(m.note) + '</p>'
+    + (m.note ? '<p class="cx-wr-note">' + _stEsc(String(m.note).slice(0, 160)) + '</p>'
               : '<p class="cx-wr-note cx-wr-note--none">No club note yet.</p>')
     + '<div class="cx-wr-set">'
     +   '<select data-st-pri="' + _stEsc(r.staffUserId) + '" aria-label="Priority">'
@@ -52227,12 +52393,13 @@ function _stDeskCardHtml(r, m) {
     +   '</select>'
     + '</div>'
     + '<div class="cx-wr-acts">'
-    +   '<button type="button" class="tf-btn tf-btn--sm" data-st-open="' + _stEsc(r.staffUserId) + '" data-st-tab="notes">Note</button>'
-    +   '<button type="button" class="tf-btn tf-btn--sm" data-st-cmp="' + _stEsc(r.staffUserId) + '">⇄</button>'
-    +   (r.isMine ? '' : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-approach="' + _stEsc(r.staffUserId) + '">Negotiate</button>')
-    +   '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="1">Remove</button>'
+    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '" title="Open profile">Profile</button>'
+    +   '<button type="button" class="cx-act" data-st-cmp="' + _stEsc(r.staffUserId) + '" title="Compare">Compare</button>'
+    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '" data-st-tab="notes" title="Contact and notes">Contact</button>'
+    +   (r.isMine ? '' : '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(r.staffUserId) + '">Negotiate</button>')
+    +   '<button type="button" class="cx-act cx-act--bad" data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="1" title="Remove from the shortlist">Remove</button>'
     + '</div>'
-    + '</div>';
+    + '</article>';
 }
 
 // ── NEGOTIATIONS · the deal room ─────────────────────────────────────────────
@@ -52338,87 +52505,176 @@ function _stDealPanelHtml(d) {
     + '</div>';
 }
 
-// ── ACTIVITY · the live market feed ──────────────────────────────────────────
-// What has happened, newest first, from the records that happened. Nothing here
-// is stored as an event: each line is read off the row it describes, so the
-// feed cannot drift from what the platform actually holds.
+// ── ACTIVITY · the live market pulse ─────────────────────────────────────────
+// Not a notification history. The market's movement drawn as a pulse running
+// across the workspace: one node per thing that happened, placed in time, with
+// the important ones carrying more weight. Every node is read off the record it
+// describes — nothing here is stored as an event, so the pulse cannot drift
+// from what the platform actually holds.
+var ST_EV = {
+  shortlist:  ['Shortlisted',      '★', 'club',   2],
+  contact:    ['Contact made',     '✆', 'club',   2],
+  interview:  ['Interview',        '◎', 'nego',   3],
+  offer:      ['Offer sent',       '↗', 'nego',   4],
+  incoming:   ['Approach in',      '↙', 'nego',   4],
+  nego:       ['Negotiation',      '⇄', 'nego',   3],
+  viewed:     ['Offer viewed',     '◉', 'nego',   2],
+  accepted:   ['Accepted',         '✓', 'good',   5],
+  rejected:   ['Rejected',         '✕', 'bad',    3],
+  freeagent:  ['Became free',      '◆', 'market', 4],
+  open:       ['Open to offers',   '◇', 'market', 3],
+  contract:   ['Contract watch',   '◷', 'watch',  3],
+  hired:      ['Hired',            '⬤', 'good',   5],
+  moved:      ['Moved club',       '→', 'market', 4],
+  vacancy:    ['Vacancy opened',   '＋', 'watch',  3],
+  vacclosed:  ['Vacancy closed',   '－', 'club',   2]
+};
+var ST_EV_FILTERS = [
+  ['all', 'All'], ['club', 'My club'], ['market', 'Market'],
+  ['watch', 'Contracts'], ['nego', 'Negotiations']
+];
+
 function _stTimelineHtml() {
   var a = _TF_ST.activity || {};
   var items = [];
-  var push = function (at, kind, icon, text, who) {
+  var push = function (at, kind, text, who, id) {
     if (!at) return;
-    items.push({ at: new Date(at).getTime(), kind: kind, icon: icon, text: text, who: who });
+    var def = ST_EV[kind]; if (!def) return;
+    items.push({ at: new Date(at).getTime(), kind: kind, label: def[0], icon: def[1],
+                 lane: def[2], weight: def[3], text: text, who: who, id: id || null });
   };
+
   (a.outgoing || []).forEach(function (x) {
-    push(x.createdAt, 'offer', '↗', 'Offer sent to ' + (x.currentClub ? x.currentClub.name : 'a free agent') + ' for <b>' + _stEsc(x.staffName) + '</b>', x.staffName);
-    if (x.viewedAt) push(x.viewedAt, 'viewed', '◉', 'Our offer for <b>' + _stEsc(x.staffName) + '</b> was viewed', x.staffName);
-    if (x.status === 'NEGOTIATING') push(x.updatedAt, 'nego', '⇄', 'Negotiation updated for <b>' + _stEsc(x.staffName) + '</b>', x.staffName);
-    if (x.decidedAt) push(x.decidedAt, x.status === 'ACCEPTED' ? 'ok' : 'no',
-      x.status === 'ACCEPTED' ? '✓' : '✕',
-      'Our offer for <b>' + _stEsc(x.staffName) + '</b> was ' + String(ST_OFFER_LABEL[x.status] || x.status).toLowerCase(), x.staffName);
+    push(x.createdAt, 'offer', 'to ' + (x.currentClub ? _stEsc(x.currentClub.name) : 'a free agent'), x.staffName, x.staffUserId);
+    if (x.viewedAt) push(x.viewedAt, 'viewed', 'our offer was opened', x.staffName, x.staffUserId);
+    if (x.status === 'NEGOTIATING') push(x.updatedAt, 'nego', 'terms are being discussed', x.staffName, x.staffUserId);
+    if (x.decidedAt) push(x.decidedAt, x.status === 'ACCEPTED' ? 'accepted' : 'rejected',
+      'our offer was ' + String(ST_OFFER_LABEL[x.status] || x.status).toLowerCase(), x.staffName, x.staffUserId);
   });
   (a.incoming || []).forEach(function (x) {
-    push(x.createdAt, 'in', '↙', _stEsc(x.fromClub.name) + ' approached us for <b>' + _stEsc(x.staffName) + '</b>', x.staffName);
-    if (x.decidedAt) push(x.decidedAt, x.status === 'ACCEPTED' ? 'ok' : 'no',
-      x.status === 'ACCEPTED' ? '✓' : '✕',
-      'We ' + String(ST_OFFER_LABEL[x.status] || x.status).toLowerCase() + ' the approach for <b>' + _stEsc(x.staffName) + '</b>', x.staffName);
+    push(x.createdAt, 'incoming', _stEsc(x.fromClub.name) + ' approached us', x.staffName, x.staffUserId);
+    if (x.decidedAt) push(x.decidedAt, x.status === 'ACCEPTED' ? 'accepted' : 'rejected',
+      'we ' + String(ST_OFFER_LABEL[x.status] || x.status).toLowerCase() + ' it', x.staffName, x.staffUserId);
   });
   (a.completedHires || []).forEach(function (h) {
-    push(h.since, 'hire', '★', '<b>' + _stEsc(h.name) + '</b> joined us as ' + _stEsc(ST_ROLE_LABEL[h.role] || h.role), h.name);
+    push(h.since, 'hired', 'joined us as ' + _stEsc(ST_ROLE_LABEL[h.role] || h.role), h.name, h.staffUserId);
   });
   (a.departures || []).forEach(function (h) {
-    push(h.to, 'left', '→', '<b>' + _stEsc(h.name) + '</b> left us — became a free agent', h.name);
+    push(h.to, 'moved', 'left us', h.name, h.staffUserId);
   });
   ((_TF_ST.shortlist && _TF_ST.shortlist.items) || []).forEach(function (x) {
-    push(x.addedAt, 'short', '★', '<b>' + _stEsc(x.name) + '</b> was shortlisted' + (x.addedBy ? ' by ' + _stEsc(x.addedBy) : ''), x.name);
+    push(x.addedAt, 'shortlist', 'added to our shortlist'
+      + (x.addedBy ? ' by ' + _stEsc(x.addedBy) : ''), x.name, x.staffUserId);
+    if (x.updatedAt && x.updatedAt !== x.addedAt) {
+      var st = String(x.stage || 'WATCHING');
+      push(x.updatedAt, st === 'INTERVIEW' ? 'interview' : 'contact',
+        'moved to ' + String(ST_STAGE_LABEL[st] || st).toLowerCase(), x.name, x.staffUserId);
+    }
   });
   ((_TF_ST.needs && _TF_ST.needs.items) || []).filter(function (n) { return n.isMine; }).forEach(function (n) {
-    push(n.createdAt, 'need', '＋', 'Vacancy published — ' + _stEsc(ST_ROLE_LABEL[n.role] || n.role), null);
+    push(n.createdAt, n.isActive === false ? 'vacclosed' : 'vacancy',
+      _stEsc(ST_ROLE_LABEL[n.role] || n.role), null, null);
   });
-  // Coming onto the market is an event too, and it is the one a live feed most
-  // needs — read off the same status the exchange lists him by.
+  // Coming onto the market, and running out of contract, are movements too.
   _stListed().forEach(function (r) {
-    if (!r.enteredMarketAt) return;
-    push(r.enteredMarketAt, 'enter', '◆',
-      '<b>' + _stEsc(r.name) + '</b> entered the market — '
-      + _stEsc(String(ST_STATUS_LABEL[r.employmentStatus] || r.employmentStatus).toLowerCase()), r.name);
+    if (r.enteredMarketAt) {
+      push(r.enteredMarketAt, r.employmentStatus === 'FREE_AGENT' ? 'freeagent' : 'open',
+        _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
+        + (r.currentClub ? ' · ' + _stEsc(r.currentClub.name) : ''), r.name, r.staffUserId);
+    }
+    if (r.employmentStatus === 'CONTRACT_ENDING_SOON' && r.contractEndsAt) {
+      push(r.contractEndsAt, 'contract',
+        'contract runs out' + (r.contractMonthsLeft != null ? ' in ' + r.contractMonthsLeft + ' months' : ''),
+        r.name, r.staffUserId);
+    }
   });
-  // Contracts running out are not something that happened on a date; they are
-  // said here as the standing fact they are, at the top.
-  var ending = _TF_ST.rows.filter(function (r) { return r.isMine && r.employmentStatus === 'CONTRACT_ENDING_SOON'; });
 
-  if (!items.length && !ending.length) {
-    return '<div class="st-empty">Nothing has happened yet. Shortlisting somebody, publishing a vacancy or sending an offer all appear here.</div>';
+  if (!items.length) {
+    return '<div class="st-empty">The market has not moved yet. Shortlisting somebody, publishing a vacancy or sending an offer all appear on the pulse.</div>';
   }
   items.sort(function (x, y) { return y.at - x.at; });
+  var lane = _TF_ST.pulseLane || 'all';
+  var shown = lane === 'all' ? items : items.filter(function (i) { return i.lane === lane; });
 
-  // Grouped the way a feed is read: today, yesterday, this week, then the rest.
+  // Time context, said once per stretch rather than as a heading over a list.
   var d0 = new Date(); d0.setHours(0, 0, 0, 0);
   var today = d0.getTime(), yesterday = today - 86400000, week = today - 6 * 86400000;
-  var GROUPS = [['Today', today], ['Yesterday', yesterday], ['This week', week], ['Older', -Infinity]];
-  var feed = GROUPS.map(function (g, gi) {
-    var lo = g[1], hi = gi === 0 ? Infinity : GROUPS[gi - 1][1];
-    var inG = items.filter(function (i) { return i.at >= lo && i.at < hi; });
-    if (!inG.length) return '';
-    return '<section class="cx-feed-g"><h5>' + g[0] + '<span>' + inG.length + '</span></h5>'
-      + inG.map(function (i) {
-          return '<div class="cx-fe cx-fe--' + i.kind + '">'
-            + '<span class="cx-fe-i">' + i.icon + '</span>'
-            + '<span class="cx-fe-b">' + i.text + '</span>'
-            + '<time class="cx-fe-t">' + _stDate(new Date(i.at).toISOString()) + '</time>'
-            + '</div>';
-        }).join('')
-      + '</section>';
+  var bandOf = function (t) {
+    return t >= today ? 'Today' : (t >= yesterday ? 'Yesterday' : (t >= week ? 'This week' : 'Older'));
+  };
+
+  var last = null;
+  var track = shown.map(function (i, idx) {
+    var band = bandOf(i.at);
+    var mark = band !== last ? '<span class="cx-pl-band">' + band + '</span>' : '';
+    last = band;
+    var d = new Date(i.at);
+    var hhmm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    return mark
+      + '<button type="button" class="cx-pl-ev cx-pl-ev--' + i.lane + ' w' + i.weight
+      + (_TF_ST.event === idx ? ' is-on' : '') + '" data-st-ev="' + idx + '"'
+      + ' title="' + _stEsc(i.label + (i.who ? ' — ' + i.who : '')) + '">'
+      + '<span class="cx-pl-i">' + i.icon + '</span>'
+      + '<span class="cx-pl-w">' + _stEsc(i.who || i.label) + '</span>'
+      + '<time>' + hhmm + '</time>'
+      + '</button>';
   }).join('');
 
-  return '<div class="cx-feed-bar"><b>Live market feed</b>'
-    + '<span>' + items.length + ' event' + (items.length === 1 ? '' : 's') + ' · newest first</span></div>'
-    + (ending.length
-      ? '<div class="st-alerts">' + ending.map(function (r) {
-          return '<div class="st-alert"><b>' + _stEsc(r.name) + '</b> — our contract ends ' + _stDate(r.contractEndsAt) + '</div>';
-        }).join('') + '</div>'
-      : '')
-    + '<div class="cx-feed">' + feed + '</div>';
+  var sel = _TF_ST.event != null ? shown[_TF_ST.event] : null;
+  var counts = {};
+  items.forEach(function (i) { counts[i.lane] = (counts[i.lane] || 0) + 1; });
+
+  return '<div class="cx-pl-bar">'
+    + '<b>Live market pulse</b>'
+    + '<span>' + items.length + ' movement' + (items.length === 1 ? '' : 's') + ' · newest first</span>'
+    + '<span class="cx-pl-filters">'
+    +   ST_EV_FILTERS.map(function (f) {
+          var n = f[0] === 'all' ? items.length : (counts[f[0]] || 0);
+          return '<button type="button" class="st-chip' + (lane === f[0] ? ' is-on' : '') + '"'
+            + ' data-st-lane="' + f[0] + '">' + f[1] + '<i>' + n + '</i></button>';
+        }).join('')
+    + '</span>'
+    + '</div>'
+    + (shown.length
+      ? '<div class="cx-pulse-track"><div class="cx-pl-rail"></div>' + track + '</div>'
+      : '<div class="st-empty">Nothing on the pulse under that filter.</div>')
+    + (sel
+        ? _stEventCardHtml(sel)
+        // Nothing picked yet, so the pulse says what mattered most on it rather
+        // than leaving the screen empty under the track.
+        : (function () {
+            var top = shown.slice().sort(function (x, y) {
+              return y.weight - x.weight || y.at - x.at;
+            }).slice(0, 3);
+            if (!top.length) return '';
+            return '<div class="cx-pl-top">'
+              + '<h5>What has moved most</h5>'
+              + top.map(_stEventCardHtml).join('')
+              + '<p class="cx-pl-hint">Press any movement on the pulse to open it.</p>'
+              + '</div>';
+          })());
+}
+
+// One movement, opened. Compact by design — it says what happened, to whom, and
+// offers the two places it leads.
+function _stEventCardHtml(i) {
+  var d = new Date(i.at);
+  var when = _stDate(d.toISOString()) + ' · '
+    + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+  return '<div class="cx-ec cx-ec--' + i.lane + '">'
+    + '<span class="cx-ec-i">' + i.icon + '</span>'
+    + '<div class="cx-ec-b">'
+    +   '<b>' + _stEsc(i.who || i.label) + '</b>'
+    +   '<em>' + i.label + '</em>'
+    +   '<span>' + i.text + '</span>'
+    + '</div>'
+    + '<time class="cx-ec-t">' + when + '</time>'
+    + '<div class="cx-ec-acts">'
+    +   (i.id ? '<button type="button" class="cx-act" data-st-open="' + _stEsc(i.id) + '">View coach</button>' : '')
+    +   (i.lane === 'nego' ? '<button type="button" class="cx-act" data-st-view="negotiations">View negotiation</button>' : '')
+    +   (_TF_ST.event != null ? '<button type="button" class="cx-act cx-act--bad" data-st-ev-close>Close</button>' : '')
+    + '</div>'
+    + '</div>';
 }
 
 // ── adding somebody the platform does not employ ─────────────────────────────
@@ -52543,7 +52799,7 @@ function _stProfileHtml() {
 
   return '<div class="tf-modal" data-st-modal>'
     + '<div class="tf-modal-bd" data-st-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Staff profile">'
+    + '<div class="tf-modal-box tf-modal-box--wide cx-profile" role="dialog" aria-modal="true" aria-label="Coach intelligence profile">'
     +   '<button type="button" class="tf-x" data-st-close>×</button>'
     +   _stProfileHeadHtml(d)
     +   '<div class="st-pd-body">'
@@ -52603,41 +52859,103 @@ function _stProfilePanel(d) {
   return _stOverviewPanel(d);
 }
 
+// The Overview is the intelligence dashboard: eight compact modules, each a
+// reading of one part of the record, so the first screen of a coach answers
+// what he is rather than presenting a form to scroll.
 function _stOverviewPanel(d) {
+  var dash = '<i class="st-unknown">Not recorded</i>';
+  var st = d.employmentStatus || (d.isFreeAgent ? 'FREE_AGENT' : 'EMPLOYED');
   var emph = ST_EMPHASIS[d.role] || [];
+  var mod = function (title, body, cls) {
+    return '<article class="cx-pm' + (cls ? ' cx-pm--' + cls : '') + '">'
+      + '<h5>' + title + '</h5><div class="cx-pm-b">' + body + '</div></article>';
+  };
+  var kv = function (rows) {
+    return '<div class="cx-kvs">' + rows.map(function (r) {
+      return '<div class="cx-kv"><i>' + r[0] + '</i><b>' + r[1] + '</b></div>';
+    }).join('') + '</div>';
+  };
+
+  // professional evaluation — the seven marks, with this role's emphasis lit
   var evalRows = ST_EVAL.map(function (e) {
-    var v = d.evaluation[e[0]];
+    var v = d.evaluation ? d.evaluation[e[0]] : null;
     var on = emph.indexOf(e[0]) >= 0;
     return '<div class="st-bar' + (on ? ' is-key' : '') + '"><i>' + e[1] + '</i>'
       + '<span class="st-bar-t"><span style="width:' + (v == null ? 0 : Math.max(0, Math.min(100, v))) + '%"></span></span>'
       + '<b>' + (v == null ? '—' : v) + '</b></div>';
   }).join('');
+
   var peak = d.careerPeak || {};
-  return '<section class="st-sec"><h4>Who he is</h4>' + _stKv([
-      ['Current club', d.currentClub ? _stEsc(d.currentClub.name) : '<i class="st-unknown">No club</i>'],
-      ['Current role', _stEsc(ST_ROLE_LABEL[d.role] || d.role || 'Staff')],
-      ['Age', d.age != null ? d.age + ' yrs' : '<i class="st-unknown">Not recorded</i>'],
-      ['Nationality', _stVal(d.nationality)],
-      ['Languages', (d.languages && d.languages.length) ? _stEsc(d.languages.join(', ')) : '<i class="st-unknown">Not recorded</i>'],
-      ['Reputation', _stVal(d.reputation)],
-      ['Staff level', _stVal(d.level)],
-      ['Coaching style', _stVal(d.coachingStyle)]
-    ]) + '</section>'
-    + '<section class="st-sec"><h4>Professional evaluation'
-    + (emph.length ? '<em>emphasis for ' + _stEsc(ST_ROLE_LABEL[d.role] || d.role) + '</em>' : '') + '</h4>'
-    + '<div class="st-bars">' + evalRows + '</div></section>'
-    + '<section class="st-sec"><h4>Career peak</h4>' + _stKv([
-        ['Highest licence', peak.highestLicence ? _stEsc(peak.highestLicence) : '<i class="st-unknown">Not recorded</i>'],
-        ['Best league finish', peak.bestLeagueFinish
-          ? (peak.bestLeagueFinish.position + '. — ' + _stEsc(peak.bestLeagueFinish.club) + ' ' + _stEsc(peak.bestLeagueFinish.season))
-          : '<i class="st-unknown">Not recorded</i>'],
-        ['Biggest trophy', peak.biggestTrophy
-          ? (_stEsc(peak.biggestTrophy.competition) + ' — ' + _stEsc(peak.biggestTrophy.season))
-          : '<i class="st-unknown">Not recorded</i>'],
-        ['Leagues coached', (peak.leaguesCoached && peak.leaguesCoached.length)
-          ? _stEsc(peak.leaguesCoached.join(', ')) : '<i class="st-unknown">Not recorded</i>']
-      ]) + '</section>'
-    + '<section class="st-sec"><h4>Specialities</h4>' + _stTags(d.specialities) + '</section>';
+  var ex = d.experience || {};
+  var tc = d.tactics || {}, ap = d.approach || {};
+  var c = d.contract;
+  // Demand is a market figure, and the market row is where it lives — the
+  // profile does not hold a second copy of it. When the person is not on the
+  // board in hand the card says so rather than showing a zero.
+  var row = null;
+  (_TF_ST.rows || []).forEach(function (x) { if (x.staffUserId === d.staffUserId) row = x; });
+  var months = (c && c.endsAt)
+    ? Math.round((new Date(c.endsAt).getTime() - Date.now()) / (30.44 * 86400000)) : null;
+
+  return '<div class="cx-pmods">'
+    + mod('Professional evaluation'
+        + (emph.length ? '<em>emphasis for ' + _stEsc(ST_ROLE_LABEL[d.role] || d.role) + '</em>' : ''),
+        '<div class="st-bars">' + evalRows + '</div>', 'wide')
+    + mod('Market position',
+        '<div class="cx-pm-flag"><span class="st-status st-status--' + String(st).toLowerCase() + '">'
+        + _stEsc(ST_STATUS_LABEL[st] || st) + '</span></div>'
+        + kv([
+          ['Career intent', d.careerIntent ? _stEsc(String(d.careerIntent).replace(/_/g, ' ').toLowerCase()) : dash],
+          ['Expected salary', d.wageExpectation == null ? dash : _stMoney(d.wageExpectation)],
+          ['Clubs watching', row && row.clubsWatching != null ? row.clubsWatching : dash],
+          ['Opportunity', row && row.opportunity != null ? row.opportunity : dash],
+          ['Available from', d.availableFrom ? _stDate(d.availableFrom) : (d.isFreeAgent ? 'Now' : dash)]
+        ]))
+    + mod('Contract &amp; availability', (c
+        ? '<div class="cx-pm-big' + (months != null && months <= 6 ? ' is-warn' : '') + '">'
+          + '<b>' + (months == null ? '—' : months) + '</b><i>months remaining</i></div>'
+          + kv([
+            ['Club', _stEsc(c.club.name)],
+            ['Until', c.endsAt ? _stDate(c.endsAt) : dash],
+            ['Salary', c.salary == null ? dash : _stMoney(c.salary)],
+            ['Release clause', c.releaseClause == null ? dash : _stMoney(c.releaseClause)]
+          ])
+        : '<p class="cx-inote">No contract recorded — he is held as a free agent, and no club has to agree.</p>'))
+    + mod('Qualifications', ((d.licences && d.licences.length)
+        ? '<div class="cx-quals">' + d.licences.slice(0, 3).map(function (l) {
+            return '<span class="cx-qual"><b>' + _stEsc(String(l.name).replace(/^UEFA\s*/i, '')) + '</b>'
+              + '<i>' + _stEsc(l.issuer || 'UEFA') + '</i></span>';
+          }).join('') + '</div>'
+        : '<p class="cx-inote">No coaching licence recorded.</p>')
+        + kv([
+          ['Certifications', (d.certifications || []).length || dash],
+          ['Education', (d.education || []).length || dash]
+        ]))
+    + mod('Tactical identity', kv([
+        ['Formation', tc.primaryFormation ? _stEsc(tc.primaryFormation) : dash],
+        ['Coaching style', ap.coachingStyle ? _stEsc(ap.coachingStyle) : dash],
+        ['Attacking', ap.attacking ? _stEsc(ap.attacking) : dash],
+        ['Defensive', ap.defensive ? _stEsc(ap.defensive) : dash]
+      ]) + _stTags((tc.philosophy || []).slice(0, 4)))
+    + mod('Experience', (ex.totalYears
+        ? '<div class="cx-pm-big"><b>' + ex.totalYears + '</b><i>years in the game</i></div>'
+        : '') + kv([
+        ['Senior', ex.seniorYears != null ? ex.seniorYears + ' yrs' : dash],
+        ['Academy', ex.academyYears != null ? ex.academyYears + ' yrs' : dash],
+        ['Countries', (ex.countries || []).length || dash],
+        ['Reputation', d.reputation == null ? dash : d.reputation]
+      ]))
+    + mod('Career peak', kv([
+        ['Highest licence', peak.highestLicence ? _stEsc(peak.highestLicence) : dash],
+        ['Best finish', peak.bestLeagueFinish
+          ? (peak.bestLeagueFinish.position + '. ' + _stEsc(peak.bestLeagueFinish.club))
+          : dash],
+        ['Biggest trophy', peak.biggestTrophy ? _stEsc(peak.biggestTrophy.competition) : dash],
+        ['Leagues', (peak.leaguesCoached && peak.leaguesCoached.length)
+          ? _stEsc(peak.leaguesCoached.join(', ')) : dash]
+      ]))
+    + mod('Specialities', _stTags(d.specialities))
+    + '</div>';
 }
 
 function _stCareerPanel(d) {
@@ -52993,48 +53311,93 @@ function _stNeedsHtml() {
   return '<div class="st-vaclayout">' + form + board + '</div>';
 }
 
-// ── the staff gap map ────────────────────────────────────────────────────────
-// The club's own structure, team by team, post by post — read from the same
-// teams and memberships Coaches reads, so the map and the directory can never
-// disagree about who is in post. A post is FILLED when somebody holds it,
-// NEEDED when a vacancy has been published for it, and VACANT otherwise.
+// ── the staff demand exchange ────────────────────────────────────────────────
+// Our own structure as a demand map: one lane per team, one slot per post the
+// team's structure actually runs, read from the same teams and memberships
+// Coaches reads. A filled slot is quiet; an open one is the thing this screen
+// exists to show, and pressing it asks the exchange who could fill it.
 function _stGapMapHtml(vacancies) {
   var g = _TF_ST.gap;
-  if (g === null) return '<section class="st-sec"><h4>Staff gap map</h4>'
-    + '<div class="st-empty">Reading our structure…</div></section>';
-  if (!g || !g.length) return '<section class="st-sec"><h4>Staff gap map</h4>'
+  if (g === null) return '<section class="st-sec"><h4>Demand map</h4>'
+    + _stReadingHtml('our structure') + '</section>';
+  if (!g || !g.length) return '<section class="st-sec"><h4>Demand map</h4>'
     + '<div class="st-empty">This club has no teams yet, so there is no structure to map.</div></section>';
 
   var wanted = {};
-  (vacancies || []).forEach(function (v) { wanted[v.role] = 1; });
-  var filledPosts = 0, vacantPosts = 0;
+  (vacancies || []).forEach(function (v) { wanted[v.role] = v; });
+  var filledPosts = 0, openPosts = 0;
 
   var teams = g.map(function (t) {
-    var posts = (t.roleStrip || []).map(function (p) {
+    var slots = (t.roleStrip || []).map(function (p) {
       var on = p.expected > 0 && p.filled >= p.expected;
-      // A vacancy published for one of the roles this post covers turns it from
-      // an empty seat into an open search.
-      var asked = !on && Object.keys(wanted).some(function (role) {
-        return _stPostCovers(p.key, role);
+      // A vacancy published for one of the roles this post covers turns an
+      // empty seat into an open search the market can already see.
+      var askedFor = null;
+      Object.keys(wanted).forEach(function (role) {
+        if (!on && _stPostCovers(p.key, role)) askedFor = wanted[role];
       });
-      if (on) filledPosts++; else vacantPosts++;
-      var state = on ? 'FILLED' : (asked ? 'NEEDED' : 'VACANT');
-      return '<div class="cx-gap-post cx-gap-post--' + state.toLowerCase() + '">'
-        + '<i>' + _stEsc(p.label) + '</i><b>' + state + '</b></div>';
+      if (on) filledPosts++; else openPosts++;
+      var state = on ? 'FILLED' : (askedFor ? 'PUBLISHED' : 'OPEN');
+      var key = (t.teamId || 'club') + ':' + p.key;
+      return '<button type="button" class="cx-slot cx-slot--' + state.toLowerCase()
+        + (_TF_ST.slot === key ? ' is-on' : '') + '"'
+        + (on ? ' disabled' : ' data-st-slot="' + _stEsc(key) + '" data-st-slotrole="' + _stEsc(p.key) + '"'
+                + ' data-st-slotteam="' + _stEsc(t.teamName) + '"')
+        + '>'
+        + '<i>' + _stEsc(p.label) + '</i>'
+        + '<b>' + (on ? 'Filled' : (askedFor ? 'Published' : 'Open')) + '</b>'
+        + '</button>';
     }).join('');
-    return '<section class="cx-gap-team">'
-      + '<h5>' + _stEsc(t.teamName) + '<span>' + t.staffCount + ' in post</span></h5>'
-      + '<div class="cx-gap-posts">' + (posts || '<p class="cx-dnone">No structure recorded.</p>') + '</div>'
+    var open = (t.roleStrip || []).filter(function (p) { return !(p.expected > 0 && p.filled >= p.expected); }).length;
+    return '<section class="cx-lane-team' + (open ? ' has-open' : '') + '">'
+      + '<h5>' + _stEsc(t.teamName)
+      +   '<span>' + t.staffCount + ' in post</span>'
+      +   (open ? '<em>' + open + ' open</em>' : '')
+      + '</h5>'
+      + '<div class="cx-slots">' + (slots || '<p class="cx-dnone">No structure recorded.</p>') + '</div>'
       + '</section>';
   }).join('');
 
-  return '<section class="st-sec">'
-    + '<h4>Staff gap map<span class="st-secn">' + vacantPosts + ' open</span></h4>'
+  return '<section class="st-sec cx-demand-sec">'
+    + '<h4>Demand map<span class="st-secn">' + openPosts + ' open</span></h4>'
     + '<p class="st-note">Our own structure, from the teams and memberships the platform holds. '
     +   filledPosts + ' post' + (filledPosts === 1 ? '' : 's') + ' filled, '
-    +   vacantPosts + ' to fill.</p>'
-    + '<div class="cx-gap">' + teams + '</div>'
+    +   openPosts + ' to fill. Press an open slot to see who could take it.</p>'
+    + '<div class="cx-demand">' + teams + '</div>'
+    + _stSlotMatchHtml()
     + '</section>';
+}
+
+// Who could fill the open slot that was pressed. Read off the rows already on
+// the board — the same canonical people, filtered to the roles the post covers
+// and to the standings that mean somebody can actually be moved.
+function _stSlotMatchHtml() {
+  var key = _TF_ST.slot;
+  if (!key) return '';
+  var roleKey = String(key).split(':')[1];
+  var roles = ST_POST_ROLES[roleKey] || [];
+  var team = _TF_ST.slotTeam || 'this team';
+  var pool = (_TF_ST.rows || []).filter(function (r) {
+    return roles.indexOf(r.role) >= 0 && _stOnMarket(r) && !r.isMine;
+  }).sort(function (a, b) { return (b.opportunity || 0) - (a.opportunity || 0); }).slice(0, 6);
+
+  return '<div class="cx-match">'
+    + '<header><b>' + _stEsc(team) + ' · ' + _stEsc(roleKey) + '</b>'
+    +   '<span>' + pool.length + ' on the market could take it</span>'
+    +   '<button type="button" class="cx-lens-x" data-st-slot-close aria-label="Close">×</button>'
+    + '</header>'
+    + (pool.length
+      ? '<div class="cx-match-list">' + pool.map(function (r) {
+          return '<button type="button" class="cx-match-row" data-st-open="' + _stEsc(r.staffUserId) + '">'
+            + _stAvatar(r)
+            + '<span class="cx-match-id"><b>' + _stEsc(r.name) + '</b>'
+            +   '<em>' + (r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent') + ' · '
+            +     _stEsc(ST_STATUS_LABEL[r.employmentStatus] || r.employmentStatus) + '</em></span>'
+            + _stScores(r)
+            + '</button>';
+        }).join('') + '</div>'
+      : '<p class="cx-dnone">Nobody on the market holds that post right now. Publishing a vacancy puts the requirement in front of every club.</p>')
+    + '</div>';
 }
 
 // Which membership roles a post on the map stands for. The same grouping the
@@ -53091,6 +53454,9 @@ function _stHost() {
 
 function _stRepaint() {
   var h = _stHost();
+  // The floating tooltip belongs to a node that is about to be replaced, so it
+  // goes with it — nothing may be left pointing at an element that is gone.
+  _stTipHide();
   if (h.body) h.body.innerHTML = _stHtml();
   if (h.overlay) {
     var html = (_TF_ST.open ? _stProfileHtml() : '')
@@ -53106,6 +53472,47 @@ function _stRepaint() {
 }
 window._stRepaint = _stRepaint;
 window._stSyncAll = _stSyncAll;
+
+// The tooltip's own wiring. Delegated, so it survives every repaint, and it
+// answers only inside the exchange. Scrolling or leaving the node dismisses it,
+// because a tooltip pinned to a viewport position is wrong the moment the thing
+// it describes has moved.
+(function _stTipWire() {
+  if (typeof document === 'undefined' || window.__stTipWired) return;
+  window.__stTipWired = true;
+  var find = function (id) {
+    var out = null;
+    (_TF_ST.rows || []).forEach(function (r) { if (r.staffUserId === id) out = r; });
+    return out;
+  };
+  document.addEventListener('mouseover', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var node = t.closest('.cx-node');
+    if (!node) return;
+    var r = find(node.getAttribute('data-st-lens'));
+    if (r) _stTipShow(node, r);
+  });
+  document.addEventListener('mouseout', function (e) {
+    var t = e.target;
+    if (t && t.closest && t.closest('.cx-node')) {
+      var to = e.relatedTarget;
+      if (to && to.closest && to.closest('.cx-node') === t.closest('.cx-node')) return;
+      _stTipHide();
+    }
+  });
+  document.addEventListener('focusin', function (e) {
+    var node = e.target && e.target.closest && e.target.closest('.cx-node');
+    if (!node) { _stTipHide(); return; }
+    var r = find(node.getAttribute('data-st-lens'));
+    if (r) _stTipShow(node, r);
+  });
+  document.addEventListener('scroll', _stTipHide, true);
+  window.addEventListener('resize', _stTipHide);
+  document.addEventListener('click', function (e) {
+    if (e.target && e.target.closest && e.target.closest('.cx-node')) _stTipHide();
+  }, true);
+})();
 
 // ══════════════════════════════════════════════════════════════════════════════
 // COACH MARKET — the Club Workspace page
@@ -56854,10 +57261,14 @@ function _famClearClubScopedState() {
 function _stResetClubScoped() {
   if (typeof _TF_ST === 'undefined' || !_TF_ST) return;
   _TF_ST.rows = []; _TF_ST.total = 0; _TF_ST.page = 1;
+  // The rows no longer belong to any tab, and anything still in flight for the
+  // club being left is stale the moment the club changes.
+  _TF_ST.rowsFor = null; _stGen++;
   _TF_ST.summary = null; _TF_ST.needs = null; _TF_ST.activity = null; _TF_ST.mine = null;
-  _TF_ST.shortlist = null; _TF_ST.detail = {};
+  _TF_ST.shortlist = null; _TF_ST.detail = {}; _TF_ST.gap = null;
   _TF_ST.open = null; _TF_ST.approach = null;
   _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _TF_ST.ext = null; _TF_ST.noteDraft = null;
+  _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = ''; _TF_ST.slot = null;
   _TF_ST.view = 'market';
   _TF_ST.f.status = ''; _TF_ST.f.availableNow = false; _TF_ST.f.openToOffers = false;
 }
