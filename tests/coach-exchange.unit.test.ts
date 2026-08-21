@@ -182,33 +182,48 @@ describe('eligibility is the canonical status and nothing else', () => {
   });
 
   it('and free agents on the exchange have no club and no team', () => {
+    // the boards are subsets of one population, so the rule lives in the
+    // derivation the desk reads rather than in the desk itself
+    const der = APP.slice(APP.indexOf('function _stDerived()'), APP.indexOf('function _stLoadClubs('));
+    expect(der).toContain('freeAgents: rows.filter(function (r) { return r.isFreeAgent && !r.currentClub; })');
     const fa = APP.slice(APP.indexOf('function _stFreeAgentsHtml()'), APP.indexOf('function _stDossierHtml('));
-    expect(fa).toContain('r.isFreeAgent && !r.currentClub');
+    expect(fa).toContain('_stDerived().freeAgents');
   });
 });
 
 describe('seven tabs, seven presentations', () => {
   it('each surface is its own thing, and none of them is a card grid', () => {
-    ['_stUniverseHtml', '_stPulseHtml', '_stIntelHtml', '_stDockHtml', '_stLensHtml',
+    ['_stUniverseHtml', '_stPulseHtml', '_stIntelHtml', '_stLensHtml',
      '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
-     '_stGapMapHtml', '_stPipelineHtml', '_stDealPanelHtml', '_stTimelineHtml']
+     '_stNeedsHtml', '_stPipelineHtml', '_stDealPanelHtml', '_stTimelineHtml']
       .forEach((f) => expect(APP).toContain(`function ${f}(`));
     // and the board's old card grid is gone entirely
     expect(APP).not.toContain('function _stCardHtml(');
     expect(APP).not.toContain("'<div class=\"st-grid\">'");
   });
 
-  it('the universe is nodes in professional areas, sized by FCI', () => {
-    const u = APP.slice(APP.indexOf('function _stNodeHtml('), APP.indexOf('function _stIntelHtml('));
-    expect(u).toContain('var size = Math.round(28 + (((r.fci == null ? 40 : r.fci) - lo) / span) * 36);');
+  it('the universe is nodes in professional areas, sized by market interest', () => {
+    const u = APP.slice(APP.indexOf('function _stNodeHtml('), APP.indexOf('function _stTipEl('));
+    // interest first, strength as the tie-break — a circle says who is moving
+    expect(u).toContain("var pull = Math.min(1, ((r.clubsWatching || 0) * 0.22)");
+    expect(u).toContain('var z = Math.max(1, Math.min(6, 1 + Math.round(pull * 5)));');
+    // as a class, not a style attribute — style-src carries no 'unsafe-inline',
+    // so a diameter written inline would silently never apply
+    expect(u).not.toContain('style="');
+    expect(u).toContain("' cx-node--z' + z + ' cx-node--d' + demand");
+    expect(CSS).toContain('.cx-node--z6{ --s:60px; }');
     // the scale is the market's own range, so nodes are actually distinguishable
     const un = APP.slice(APP.indexOf('function _stUniverseHtml('), APP.indexOf('function _stNodeHtml('));
     expect(un).toContain('var range = { lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) };');
-    expect(u).toContain('--d:');            // the demand ring
+    expect(u).toContain('cx-node--d');      // the demand ring
     expect(u).toContain('is-rising');       // momentum, and the only animation
-    expect(APP).toContain('var ST_AREAS = [');
-    ['Head Coaches', 'Coaching', 'Performance', 'Analysis', 'Medical', 'Scouting', 'Youth Development']
+    // four areas, not seven, and never more than a row of eight in each
+    expect(APP).toContain('var ST_MAP_AREAS = [');
+    expect(APP).toContain('var ST_MAP_ROW = 8;');
+    ['Head coaches', 'Coaching', 'Performance', 'Analysis']
       .forEach((a) => expect(APP).toContain(`'${a}'`));
+    expect(un).toContain("var shown = open ? inArea : inArea.slice(0, ST_MAP_ROW);");
+    expect(un).toContain("data-st-mapmore=");
   });
 
   it('and a node sits in the same place on every render', () => {

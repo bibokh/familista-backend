@@ -109,8 +109,12 @@ describe('Coach Market recruits, and has no directory in it', () => {
   it('and a vacancy says what the job actually is', () => {
     ['minExperience', 'contractType', 'startDate', 'languages', 'youthRequired', 'seniorRequired']
       .forEach((f) => expect(SVC).toContain(f));
-    expect(APP).toContain('data-st-n="contractType"');
-    expect(APP).toContain('data-st-nflag="youthRequired"');
+    const form = APP.slice(APP.indexOf('function _stNeedFormHtml()'), APP.indexOf('function _stVacancyHtml('));
+    ['role', 'priority', 'minLicence', 'minExperience', 'salaryMax', 'contractType',
+     'startDate', 'languages', 'note']
+      .forEach((k) => expect(form).toMatch(new RegExp(`(sel|inp)\\('${k}'|data-st-n="${k}"`)));
+    expect(form).toContain('data-st-nflag="youthRequired"');
+    expect(form).toContain('data-st-nflag="seniorRequired"');
   });
 });
 

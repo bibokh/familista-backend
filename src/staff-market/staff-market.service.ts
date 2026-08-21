@@ -272,7 +272,9 @@ export interface DiscoverQuery {
 
 export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   const page = Math.max(1, parseInt(String(q.page ?? '1'), 10) || 1);
-  const limit = Math.min(50, Math.max(1, parseInt(String(q.limit ?? '25'), 10) || 25));
+  // The Coach Market reads its population once and derives every board from it
+  // in the browser, so the cap is the size of a market rather than a page.
+  const limit = Math.min(200, Math.max(1, parseInt(String(q.limit ?? '25'), 10) || 25));
 
   // Who is on this market is decided by employment, not by whether somebody
   // has filled in a profile. A staff member is here because he holds a
