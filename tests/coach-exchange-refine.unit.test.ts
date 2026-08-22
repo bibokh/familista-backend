@@ -110,7 +110,8 @@ describe('a cached tab switch costs nothing', () => {
     // and that write is one innerHTML on the board, not the page
     const rb = appFn('_stRepaintBoard', '_stSyncNav');
     expect(rb).toContain("var board = document.getElementById('cm-board');");
-    expect(rb).toContain('board.innerHTML = _stHtml();');
+    expect(rb).toContain('var html = _stHtml();');
+    expect(rb).toContain('_stWrite(board, html)');
     expect(rb).toContain('_stSyncNav();');
   });
 
@@ -146,6 +147,28 @@ describe('a cached tab switch costs nothing', () => {
     expect(block).toContain("el.setAttribute('data-st-on', _was ? '0' : '1');");
     expect(block).toContain("el.classList.toggle('is-on', !_was);");
     expect(block).toContain("if (_TF_ST.view === 'shortlisted') _stRepaintBoard();");
+  });
+
+  it('a background refresh does not rebuild what the reader has open', () => {
+    // The comparison is against the string last written, not against innerHTML:
+    // reading innerHTML back gives the browser's serialisation, so a valueless
+    // data-st-modal comes back as data-st-modal="" and nothing ever matches.
+    const w = appFn('_stWrite', '_stRepaintBoard');
+    expect(w).toContain("if (el.__stHtml === html && el.innerHTML !== '') return false;");
+    expect(w).toContain('el.__stHtml = html;');
+    // every one of the three writers goes through it
+    expect(appFn('_stRepaintBoard', '_stSyncNav')).toContain('_stWrite(board, html)');
+    expect(appFn('_stRepaintOverlay', '_stRepaintChrome')).toContain('_stWrite(ov, html)');
+    // sliced by hand: 'function _stRepaint' also matches _stRepaintBoard, which
+    // sits earlier in the file and would give an empty slice
+    const ch = APP.slice(APP.indexOf('function _stRepaintChrome()'));
+    expect(ch.slice(0, 600)).toContain('_stWrite(document.getElementById(id), html)');
+  });
+
+  it('and it never takes the caret out of a form somebody is typing into', () => {
+    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
+    expect(ov).toContain('var a = document.activeElement;');
+    expect(ov).toContain("if (a && ov.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;");
   });
 
   it('the groups the boards draw are prepared when the data lands, not on a click', () => {
@@ -335,6 +358,8 @@ describe('free agents is a two-column desk', () => {
     expect(f).toContain("_stEmpty('\\u25c6', 'No free agents',");
     // six at a time, then more on request — never dozens at once
     expect(APP).toContain('var ST_FA_PAGE = 6;');
+    // and Available shows eight, which is a screenful of 76px rows
+    expect(APP).toContain('var ST_PAGE = 8;');
     expect(f).toContain('data-st-fapage=');
   });
 
@@ -370,7 +395,7 @@ describe('staff needs is a staff planner', () => {
   it('each post reads as filled, at risk, or open', () => {
     const f = appFn('_stNeedsHtml', '_stSlotMatchHtml');
     expect(f).toContain("var state = on ? (risk ? 'risk' : 'filled') : (published ? 'published' : 'open');");
-    expect(f).toContain("var mark = state === 'filled' ? '✓' : (state === 'risk' ? '!' : '+');");
+    expect(f).toContain("var mark = state === 'filled' ? '\\u2713' : (state === 'risk' ? '\\u26a0' : '+');");
     expect(f).toContain('_stPostCovers(p.key, role)');
   });
 

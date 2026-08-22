@@ -52331,7 +52331,7 @@ var ST_AVAIL_CHIPS = [
   ['FREE_AGENT', 'Available now'], ['OPEN_TO_OFFERS', 'Open to offers'],
   ['ACTIVELY_LOOKING', 'Actively looking'], ['CONTRACT_ENDING_SOON', 'Contract ending']
 ];
-var ST_PAGE = 10;
+var ST_PAGE = 8;
 
 // AVAILABLE — one question: who can I realistically hire. One ranked list, one
 // row per coach, everything a recruiter compares on that row. Not three
@@ -53647,14 +53647,14 @@ function _stNeedsHtml() {
     // a filled post whose holder is running out of contract is a risk, not a tick
     var risk = on && (team.contractsEndingSoon || 0) > 0 && p.key === 'HC';
     var state = on ? (risk ? 'risk' : 'filled') : (published ? 'published' : 'open');
-    var mark = state === 'filled' ? '✓' : (state === 'risk' ? '!' : '+');
+    var mark = state === 'filled' ? '\u2713' : (state === 'risk' ? '\u26a0' : '+');
     var key = (team.teamId || 'club') + ':' + p.key;
     return '<button type="button" class="cx-post cx-post--' + state
       + (_TF_ST.slot === key ? ' is-on' : '') + '"'
       + (on ? ' disabled' : ' data-st-slot="' + _stEsc(key) + '" data-st-slotteam="' + _stEsc(team.teamName) + '"')
       + '><span class="cx-post-m">' + mark + '</span>'
       + '<i>' + _stEsc(p.label) + '</i>'
-      + '<b>' + (state === 'filled' ? 'Filled' : (state === 'risk' ? 'Contract risk'
+      + '<b>' + (state === 'filled' ? 'Filled' : (state === 'risk' ? 'Contract ending'
           : (state === 'published' ? 'Published' : 'Vacancy'))) + '</b></button>';
   }).join('');
 
@@ -53854,11 +53854,23 @@ function _stHost() {
 // because the record's read landed and did it again. That was the shaking.
 
 // The board only. One innerHTML write on one element.
+// Writing an element only when what it should say has changed. The comparison
+// is against the string last written, not against innerHTML — reading innerHTML
+// back gives the browser's own serialisation (a valueless data-st-modal comes
+// back as data-st-modal=""), so that comparison could never match.
+function _stWrite(el, html) {
+  if (!el) return false;
+  if (el.__stHtml === html && el.innerHTML !== '') return false;
+  el.__stHtml = html;
+  el.innerHTML = html;
+  return true;
+}
+
 function _stRepaintBoard() {
   var board = document.getElementById('cm-board');
   if (!board) { _stRepaint(); return; }
-  _stTipHide();
-  board.innerHTML = _stHtml();
+  var html = _stHtml();
+  if (_stWrite(board, html)) _stTipHide();
   _stSyncNav();
 }
 
@@ -53880,26 +53892,34 @@ function _stRepaintOverlay() {
   if (!ov) return;
   var wants = !!(_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen || _TF_ST.ext);
   if (!wants) {
-    if (ov.innerHTML) { ov.innerHTML = ''; ov.classList.remove('is-on'); }
+    if (ov.innerHTML) { ov.__stHtml = ''; ov.innerHTML = ''; ov.classList.remove('is-on'); }
     return;
   }
-  _stTipHide();
-  ov.innerHTML = (_TF_ST.open ? _stProfileHtml() : '')
+  // Somebody typing into the offer form or the external candidate form is not
+  // interrupted. A refresh that landed behind an open form must not take the
+  // caret out of it, so the write is deferred until the form is left.
+  var a = document.activeElement;
+  if (a && ov.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+
+  var html = (_TF_ST.open ? _stProfileHtml() : '')
     + (_TF_ST.approach ? _stApproachHtml() : '')
     + (_TF_ST.cmpOpen ? _stCompareHtml() : '')
     + (_TF_ST.ext ? _stExternalHtml() : '');
+  // An identical modal is left standing. A sixty-second background refresh used
+  // to rebuild whatever was open on top of it, losing the reader's place in it.
+  if (_stWrite(ov, html)) _stTipHide();
   ov.classList.add('is-on');
 }
 
 // The header figures and the compare tray, which follow the summary rather than
 // the view. Written in place so the header node itself survives.
 function _stRepaintChrome() {
-  var hd = document.getElementById('cm-hd');
-  if (hd) hd.innerHTML = _stHeadHtml();
-  var nav = document.getElementById('cm-nav');
-  if (nav) nav.innerHTML = _stNavHtml();
-  var tray = document.getElementById('cm-tray');
-  if (tray) tray.innerHTML = _stCompareTrayHtml();
+  // Each part is written only if it actually says something different, so a
+  // refresh that changed nothing leaves the header and the tab bar untouched.
+  var set = function (id, html) { _stWrite(document.getElementById(id), html); };
+  set('cm-hd', _stHeadHtml());
+  set('cm-nav', _stNavHtml());
+  set('cm-tray', _stCompareTrayHtml());
 }
 
 // Everything. Used on entering the module and after a write that can change any
