@@ -50,8 +50,8 @@ describe('a tab never draws another tab\'s rows', () => {
     expect(f).toContain('var gen = ++_stGen;');
     expect(f).toContain("'?tab=all&sort='");     // the whole market, not one tab of it
     // and every board is a filter over that one array
-    const der = appFn('_stDerived', '_stLoadClubs');
-    ['all: rows,', 'listed: rows.filter(_stOnMarket)', 'freeAgents: rows.filter', 'shortlisted: rows.filter']
+    const der = appFn('_stDerived', '_stPrepare');
+    ['all: rows,', 'listed: listed,', 'freeAgents: rows.filter', 'shortlisted: rows.filter']
       .forEach((k) => expect(der).toContain(k));
   });
 
@@ -101,12 +101,63 @@ describe('a cached tab switch costs nothing', () => {
     expect(s).toContain('if (!force && _stCacheFresh()) return Promise.resolve();');
   });
 
-  it('switching a tab repaints and reads nothing', () => {
+  it('switching a tab writes one element and reads nothing', () => {
     const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-view]')))"));
-    const block = wire.slice(0, 900);
-    expect(block).toContain('_stRepaint();');
+    const block = wire.slice(0, 1000);
+    expect(block).toContain('_stRepaintBoard();');
     expect(block).toContain('_stRevalidate();');
     expect(block).not.toContain('_stLoadMarket()');
+    // and that write is one innerHTML on the board, not the page
+    const rb = appFn('_stRepaintBoard', '_stSyncNav');
+    expect(rb).toContain("var board = document.getElementById('cm-board');");
+    expect(rb).toContain('board.innerHTML = _stHtml();');
+    expect(rb).toContain('_stSyncNav();');
+  });
+
+  it('the shell is a permanent frame, not a string rebuilt on every click', () => {
+    const sh = appFn('_stShellHtml', '_stHeadHtml');
+    ["id=\"cm-hd\"", "id=\"cm-nav\"", "id=\"cm-board\"", "id=\"cm-tray\""]
+      .forEach((id) => expect(sh).toContain(id));
+    // the board html no longer carries the shell around with it
+    const h = appFn('_stHtml', '_stShellHtml');
+    expect(h).not.toContain('_stShellHtml(');
+    // and the navigation's selected state is a class flip, not a rebuild
+    const nav = appFn('_stSyncNav', '_stRepaintOverlay');
+    expect(nav).toContain("btns[i].classList.toggle('is-on', on);");
+    expect(nav).not.toContain('innerHTML');
+  });
+
+  it('opening a record writes only the overlay, so the board cannot move', () => {
+    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
+    expect(ov).toContain("var ov = document.getElementById('cm-overlay');");
+    expect(ov).not.toContain('cm-board');
+    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-open]')))"));
+    const block = wire.slice(0, 800);
+    expect(block).toContain('_stRepaintOverlay();');
+    expect(block).toContain('_stLoadOne(_sid).then(_stRepaintOverlay);');
+    expect(block).not.toContain('_stRepaint();');
+    // and closing it likewise
+    expect(APP).toContain("_TF_ST.open = null; _stRepaintOverlay(); return;");
+  });
+
+  it('and the star is switched where it stands rather than by rebuilding a list', () => {
+    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-short]')))"));
+    const block = wire.slice(0, 2200);
+    expect(block).toContain("el.setAttribute('data-st-on', _was ? '0' : '1');");
+    expect(block).toContain("el.classList.toggle('is-on', !_was);");
+    expect(block).toContain("if (_TF_ST.view === 'shortlisted') _stRepaintBoard();");
+  });
+
+  it('the groups the boards draw are prepared when the data lands, not on a click', () => {
+    const der = appFn('_stDerived', '_stPrepare');
+    ['bands: bands,', 'range: range,', 'signals: signals,', 'watch: watch,']
+      .forEach((k) => expect(der).toContain(k));
+    expect(APP).toContain('function _stPrepare()');
+    expect(appFn('_stLoadPopulation', '_stLoadMarket')).toContain('_stPrepare();');
+    // so the map reads a prepared list rather than grouping and sorting one
+    const uni = appFn('_stUniverseHtml', '_stNodeHtml');
+    expect(uni).toContain('d.bands.map(');
+    expect(uni).not.toContain('.sort(');
   });
 
   it('a stale board refreshes behind what is shown, never in front of it', () => {
@@ -227,29 +278,34 @@ describe('the war room is four lanes that rebalance', () => {
     expect(APP).toContain("['OFFER_SENT', 'Offer Sent']");
   });
 
-  it('an empty lane is given less room than a busy one', () => {
+  it('four stages as chips over one list, not four Kanban columns', () => {
     const f = appFn('_stShortlistDeskHtml', '_stDeskCardHtml');
-    expect(f).toContain('return l.people.length ? Math.max(3, Math.round((12 - (4 - busy) * 2) / busy)) : 2;');
-    expect(rule('.cx-wr{')).toContain('repeat(12,1fr)');
-    expect(rule('.cx-wr-col{')).toContain('span var(--span');
+    expect(f).toContain('data-st-wrlane=');
+    expect(f).toContain("class=\"cx-list\"");
+    expect(f).not.toContain('cx-wr-col');
+    expect(CSS).not.toContain('.cx-wr{');
   });
 
   it('an empty shortlist says what to do about it rather than nothing', () => {
     const f = appFn('_stShortlistDeskHtml', '_stDeskCardHtml');
-    expect(f).toContain("_stEmpty('★', 'No coaches shortlisted',");
+    expect(f).toContain("_stEmpty('\\u2606', 'Your shortlist is empty',");
     expect(f).toContain('data-st-view="market">Browse market');
     // and the empty state is one shape used by every board
     const e = appFn('_stEmpty', '_stFreeAgentsHtml');
     ['cx-none-i', '<b>', 'action'].forEach((x) => expect(e).toContain(x));
   });
 
-  it('and a card carries what a decision needs, in about 130px', () => {
-    const c = appFn('_stDeskCardHtml', '_stDealStage');
-    expect(c).toContain('_stScores(r)');            // FCI and opportunity
-    expect(c).toContain('data-st-stage=');          // move him along the pipeline
-    expect(c).toContain('cx-wr-when');              // when we last spoke
-    ['Profile', 'Negotiate', 'Remove'].forEach((a) => expect(c).toContain('>' + a + '<'));
-    expect(lastRule('.cx-wr-card{')).toMatch(/max-height:1[0-3][0-9]px/);
+  it('and a candidate is one row, with the decision itself in a drawer', () => {
+    const c = appFn('_stDeskCardHtml', '_stDecisionHtml');
+    expect(c).toContain("class=\"cx-rw");
+    expect(c).toContain('data-st-wropen=');
+    ['FCI', 'OPP', 'Last contact'].forEach((k) => expect(c).toContain("fact('" + k + "'"));
+    const d = appFn('_stDecisionHtml', '_stPipelineHtml');
+    expect(d).toContain('data-st-pri=');
+    expect(d).toContain('data-st-stage=');
+    ['Profile', 'Compare', 'Negotiate', 'Remove'].forEach((a) => expect(d).toContain('>' + a + '<'));
+    // every list row is one height, so a list never reflows around its content
+    expect(lastRule('.cx-rw{')).toContain('min-height:76px');
   });
 });
 
@@ -258,8 +314,10 @@ describe('free agents is a two-column desk', () => {
     expect(lastRule('.cx-df{')).toContain('repeat(2,minmax(0,1fr))');
     const f = appFn('_stDossierHtml', '_stMonthsSince');
     expect(f).toContain('cx-dt-body');
-    ['Last club', 'Experience', 'Licence', 'Expects', 'Free since', 'Wants']
+    ['FCI', 'Opportunity', 'Experience', 'Licence', 'Expects', 'Free since']
       .forEach((l) => expect(f).toContain(`['${l}',`));
+    // and it says the one fact that puts him on this board and not the other
+    expect(f).toContain('cx-dt-free">FREE<');
   });
 
   it('and a field the record does not hold is left off, not printed as a dash', () => {
@@ -274,7 +332,10 @@ describe('free agents is a two-column desk', () => {
       .forEach((s) => expect(APP).toContain(s));
     const f = appFn('_stFreeAgentsHtml', '_stDossierHtml');
     expect(f).toContain('data-st-fasort=');
-    expect(f).toContain("_stEmpty('◆', 'No free agents',");
+    expect(f).toContain("_stEmpty('\\u25c6', 'No free agents',");
+    // six at a time, then more on request — never dozens at once
+    expect(APP).toContain('var ST_FA_PAGE = 6;');
+    expect(f).toContain('data-st-fapage=');
   });
 
   it('and only people with no club and no team are on it', () => {
@@ -336,19 +397,19 @@ describe('staff needs is a staff planner', () => {
 });
 
 describe('activity is one ribbon and what changed under it', () => {
-  it('a single horizontal time ribbon with weighted marks', () => {
+  it('one representation, not two — a timeline and who moved most beside it', () => {
     const f = appFn('_stTimelineHtml', '_stEventCardHtml');
-    expect(f).toContain('class="cx-ribbon"');
-    expect(f).toContain('class="cx-rb-rail"');
-    expect(f).toContain("' w' + i.weight");
-    // only what is worth a mark goes on it, capped
-    expect(f).toContain('var marks = shown.filter(function (i) { return i.weight >= 3; }).slice(0, 24);');
-    expect(lastRule('.cx-ribbon{')).toContain('display:flex');
-    expect(lastRule('.cx-ribbon{')).toContain('overflow-x:auto');
-    // and the old vertical feed is gone
+    expect(f).toContain('class="cx-actfloor"');
+    expect(f).toContain('class="cx-changed"');
+    expect(f).toContain('class="cx-movers"');
+    // movement is read off the stored figure, not invented by this screen
+    expect(f).toContain("return (r.momentum || 0) !== 0;");
+    expect(f).toContain('_stMom(r.momentum)');
+    // and the competing dot ribbon is gone
     expect(APP).not.toContain('cx-feed-g');
-    expect(CSS).not.toContain('.cx-feed-g{');
     expect(APP).not.toContain('cx-pulse-track');
+    expect(APP).not.toContain('cx-rb-rail');
+    expect(CSS).not.toContain('.cx-ribbon{');
   });
 
   it('every event type the market can produce has a marker', () => {
@@ -380,9 +441,16 @@ describe('activity is one ribbon and what changed under it', () => {
 
 describe('and the seven tabs are still seven different jobs', () => {
   it('no two of them are the same layout', () => {
-    const shapes = ['.cx-universe{', '.cx-tbl{', '.cx-df{', '.cx-wr{', '.cx-plan{', '.cx-deals{', '.cx-ribbon{'];
-    shapes.forEach((s) => expect(CSS).toContain(s));
-    expect(new Set(shapes).size).toBe(7);
+    // three shapes, deliberately: a map, a list and a two-column board — and
+    // the four boards that list things share one row so the page keeps its
+    // geometry between tabs. What differs is the header, the chips and the
+    // drawer each of them opens.
+    ['.cx-universe{', '.cx-list{', '.cx-df{', '.cx-plan{', '.cx-actfloor{', '.cx-teams{']
+      .forEach((x) => expect(CSS).toContain(x));
+    // and each board is still its own function with its own question
+    ['_stMarketHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
+     '_stNeedsHtml', '_stPipelineHtml', '_stTimelineHtml']
+      .forEach((fn) => expect(APP).toContain('function ' + fn + '('));
   });
 
   it('and each of the seven says what to do when it is empty', () => {

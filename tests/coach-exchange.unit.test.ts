@@ -212,9 +212,12 @@ describe('seven tabs, seven presentations', () => {
     expect(u).not.toContain('style="');
     expect(u).toContain("' cx-node--z' + z + ' cx-node--d' + demand");
     expect(CSS).toContain('.cx-node--z6{ --s:60px; }');
-    // the scale is the market's own range, so nodes are actually distinguishable
+    // the scale is the market's own range, so nodes are actually distinguishable —
+    // computed with the bands when the data lands, not on the click that draws them
+    const der = APP.slice(APP.indexOf('function _stDerived()'), APP.indexOf('function _stPrepare()'));
+    expect(der).toContain('{ lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) }');
     const un = APP.slice(APP.indexOf('function _stUniverseHtml('), APP.indexOf('function _stNodeHtml('));
-    expect(un).toContain('var range = { lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) };');
+    expect(un).toContain('_stNodeHtml(r, d.range)');
     expect(u).toContain('cx-node--d');      // the demand ring
     expect(u).toContain('is-rising');       // momentum, and the only animation
     // four areas, not seven, and never more than a row of eight in each
@@ -222,7 +225,7 @@ describe('seven tabs, seven presentations', () => {
     expect(APP).toContain('var ST_MAP_ROW = 8;');
     ['Head coaches', 'Coaching', 'Performance', 'Analysis']
       .forEach((a) => expect(APP).toContain(`'${a}'`));
-    expect(un).toContain("var shown = open ? inArea : inArea.slice(0, ST_MAP_ROW);");
+    expect(un).toContain("var shown = open ? a.people : a.people.slice(0, ST_MAP_ROW);");
     expect(un).toContain("data-st-mapmore=");
   });
 

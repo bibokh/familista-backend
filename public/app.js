@@ -50674,62 +50674,86 @@ function _tfDiscAction(action, playerId, listingId) {
       e.preventDefault();
       var _lid = el.getAttribute('data-st-lens');
       _TF_ST.lens = (_TF_ST.lens === _lid) ? null : _lid;
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-lens-close]')) {
-      e.preventDefault(); _TF_ST.lens = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.lens = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-area]'))) {
       e.preventDefault();
       _TF_ST.area = el.getAttribute('data-st-area') || '';
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     // The radar's ranking is a reading of rows already loaded — it re-orders,
     // it does not re-query.
     if ((el = t.closest('[data-st-radar]'))) {
       e.preventDefault();
       _TF_ST.radar = el.getAttribute('data-st-radar') || 'opportunity';
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     // An open post on the demand map asks the exchange who could fill it.
     // the pulse: which movements are shown, and which one is open
     if ((el = t.closest('[data-st-lane]'))) {
       e.preventDefault();
       _TF_ST.pulseLane = el.getAttribute('data-st-lane') || 'all';
-      _TF_ST.event = null; _stRepaint(); return;
+      _TF_ST.event = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-ev]'))) {
       e.preventDefault();
       var _ei = parseInt(el.getAttribute('data-st-ev'), 10);
       _TF_ST.event = (_TF_ST.event === _ei) ? null : _ei;
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-ev-close]')) {
-      e.preventDefault(); _TF_ST.event = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.event = null; _stRepaintBoard(); return;
     }
     // the market's five signals, and the map's per-area reveal
     if ((el = t.closest('[data-st-signal]'))) {
       e.preventDefault();
       var _sg = el.getAttribute('data-st-signal') || '';
       _TF_ST.signal = (_TF_ST.signal === _sg) ? '' : _sg;
-      _TF_ST.mapOpen = ''; _stRepaint(); return;
+      _TF_ST.mapOpen = ''; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-mapmore]'))) {
       e.preventDefault();
       _TF_ST.mapOpen = el.getAttribute('data-st-mapmore') || '';
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     // the free agent desk's ordering
+    if ((el = t.closest('[data-st-deallane]'))) {
+      e.preventDefault();
+      _TF_ST.dealLane = el.getAttribute('data-st-deallane') || 'all';
+      _TF_ST.deal = null; _stRepaintBoard(); return;
+    }
+    if ((el = t.closest('[data-st-wrlane]'))) {
+      e.preventDefault();
+      _TF_ST.wrLane = el.getAttribute('data-st-wrlane') || 'all';
+      _TF_ST.wrOpen = null; _stRepaintBoard(); return;
+    }
+    if ((el = t.closest('[data-st-wropen]'))) {
+      e.preventDefault();
+      var _wid = el.getAttribute('data-st-wropen');
+      _TF_ST.wrOpen = (_TF_ST.wrOpen === _wid) ? null : _wid;
+      _stRepaintBoard(); return;
+    }
+    if (t.closest('[data-st-wrclose]')) {
+      e.preventDefault(); _TF_ST.wrOpen = null; _stRepaintBoard(); return;
+    }
     if ((el = t.closest('[data-st-fasort]'))) {
       e.preventDefault();
       _TF_ST.faSort = el.getAttribute('data-st-fasort') || 'opportunity';
-      _stRepaint(); return;
+      _TF_ST.faPage = 1; _TF_ST.wrLane = 'all'; _TF_ST.wrOpen = null; _TF_ST.dealLane = 'all'; _stRepaintBoard(); return;
+    }
+    if ((el = t.closest('[data-st-fapage]'))) {
+      e.preventDefault();
+      _TF_ST.faPage = parseInt(el.getAttribute('data-st-fapage'), 10) || 1;
+      _stRepaintBoard(); return;
     }
     // the staff plan: which team, and the need form
     if ((el = t.closest('[data-st-planteam]'))) {
       e.preventDefault();
       _TF_ST.planTeam = el.getAttribute('data-st-planteam');
-      _TF_ST.slot = null; _TF_ST.slotTeam = null; _stRepaint(); return;
+      _TF_ST.slot = null; _TF_ST.slotTeam = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-needopen]'))) {
       e.preventDefault();
@@ -50737,33 +50761,33 @@ function _tfDiscAction(action, playerId, listingId) {
       var _nr = el.getAttribute('data-st-needrole');
       if (_nr) _TF_ST.needDraft.role = _nr;
       if (!_TF_ST.needDraft.role) _TF_ST.needDraft.role = ST_ROLES[0][0];
-      _TF_ST.needOpen = true; _stRepaint(); return;
+      _TF_ST.needOpen = true; _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-needclose]')) {
-      e.preventDefault(); _TF_ST.needOpen = false; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.needOpen = false; _stRepaintBoard(); return;
     }
     // the pulse's "view all"
     if (t.closest('[data-st-evall]')) {
-      e.preventDefault(); _TF_ST.evAll = true; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.evAll = true; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-slot]'))) {
       e.preventDefault();
       var _sk = el.getAttribute('data-st-slot');
       if (_TF_ST.slot === _sk) { _TF_ST.slot = null; _TF_ST.slotTeam = null; }
       else { _TF_ST.slot = _sk; _TF_ST.slotTeam = el.getAttribute('data-st-slotteam'); }
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-slot-close]')) {
-      e.preventDefault(); _TF_ST.slot = null; _TF_ST.slotTeam = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.slot = null; _TF_ST.slotTeam = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-deal]'))) {
       e.preventDefault();
       var _did = el.getAttribute('data-st-deal');
       _TF_ST.deal = (_TF_ST.deal === _did) ? null : _did;
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-deal-close]')) {
-      e.preventDefault(); _TF_ST.deal = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.deal = null; _stRepaintBoard(); return;
     }
 
     // ── coaches & technical staff ───────────────────────────────────────
@@ -50774,11 +50798,12 @@ function _tfDiscAction(action, playerId, listingId) {
       // Each tab is its own screen, so what was open on the last one closes.
       _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = '';
       _TF_ST.slot = null; _TF_ST.slotTeam = null; _TF_ST.event = null; _TF_ST.pulseLane = 'all';
+      _TF_ST.faPage = 1;
       // Switching tabs reads nothing. Every board is a view of one population
       // that is already in hand, so this is a repaint — and a repaint of data
       // the reader can already see is instant. If the cache has gone stale the
       // refresh happens behind the screen, never in front of it.
-      _stRepaint();
+      _stRepaintBoard();
       _stRevalidate();
       return;
     }
@@ -50791,11 +50816,13 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.open = _sid;
       _TF_ST.tab = el.getAttribute('data-st-tab') || 'overview';
       _TF_ST.noteDraft = null;
-      _stRepaint();
-      _stLoadOne(_sid).then(_stRepaint); return;
+      // Only the overlay is written. The board behind it is not touched, so
+      // nothing under the modal is destroyed, reflowed or re-laid-out.
+      _stRepaintOverlay();
+      _stLoadOne(_sid).then(_stRepaintOverlay); return;
     }
     if ((el = t.closest('[data-st-close]'))) {
-      e.preventDefault(); _TF_ST.open = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.open = null; _stRepaintOverlay(); return;
     }
 
     // ── shortlist, sort and comparison ──────────────────────────────────
@@ -50822,10 +50849,23 @@ function _tfDiscAction(action, playerId, listingId) {
           _TF_ST.summary.shortlisted = Math.max(0, (_TF_ST.summary.shortlisted || 0) + (_was ? -1 : 1));
         }
         _TF_ST.derived = null;
-        _stRepaint();
+        // The star is switched in place. Rebuilding the board to change one
+        // button is what made the list jump under the reader's cursor.
+        el.disabled = false;
+        el.setAttribute('data-st-on', _was ? '0' : '1');
+        el.classList.toggle('is-on', !_was);
+        if (el.textContent.indexOf('Shortlist') >= 0 || el.textContent.indexOf('Listed') >= 0) {
+          el.textContent = _was ? '\u2606 Shortlist' : '\u2605 Listed';
+        }
+        _stRepaintChrome();
+        if (_TF_ST.view === 'shortlisted') _stRepaintBoard();
+        if (_TF_ST.open === _shid) _stRepaintOverlay();
         // and the server's own list, which is what the war room reads
         return _stLoadShortlist();
-      }).then(function () { _TF_ST.derived = null; _stRepaint(); })
+      }).then(function () {
+        _TF_ST.derived = null;
+        if (_TF_ST.view === 'shortlisted') _stRepaintBoard();
+      })
         .catch(function (err) {
           el.disabled = false;
           _tfToast('Shortlist not changed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
@@ -50835,7 +50875,7 @@ function _tfDiscAction(action, playerId, listingId) {
     if ((el = t.closest('[data-st-order]'))) {
       e.preventDefault();
       _TF_ST.order = _TF_ST.order === 'asc' ? 'desc' : 'asc'; _TF_ST.page = 1;
-      _stRepaint(); return;
+      _TF_ST.derived = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-cmp]'))) {
       e.preventDefault(); e.stopPropagation();
@@ -50844,34 +50884,35 @@ function _tfDiscAction(action, playerId, listingId) {
       if (_at >= 0) _TF_ST.cmp.splice(_at, 1);
       else if (_TF_ST.cmp.length >= 4) _tfToast('Four is as many as can be compared at once', 'info');
       else _TF_ST.cmp.push(_cid);
-      _stRepaint(); return;
+      _stRepaintBoard(); _stRepaintChrome(); return;
     }
     if (t.closest('[data-st-cmp-clear]')) {
-      e.preventDefault(); _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.cmp = []; _TF_ST.cmpOpen = false;
+      _stRepaintBoard(); _stRepaintChrome(); _stRepaintOverlay(); return;
     }
     if (t.closest('[data-st-cmp-close]')) {
-      e.preventDefault(); _TF_ST.cmpOpen = false; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.cmpOpen = false; _stRepaintOverlay(); return;
     }
     if (t.closest('[data-st-cmp-open]')) {
       e.preventDefault();
       if (_TF_ST.cmp.length < 2) return;
-      _TF_ST.cmpOpen = true; _stRepaint();
+      _TF_ST.cmpOpen = true; _stRepaintOverlay();
       // The comparison reads the same records a profile does, so whatever is
       // missing is fetched and the table fills in where it stands.
       Promise.all(_TF_ST.cmp.map(function (id) {
         return _TF_ST.detail[id] ? Promise.resolve() : _stLoadOne(id);
-      })).then(_stRepaint);
+      })).then(_stRepaintOverlay);
       return;
     }
     if ((el = t.closest('[data-st-ptab]'))) {
-      e.preventDefault(); _TF_ST.tab = el.getAttribute('data-st-ptab'); _stRepaint(); return;
+      e.preventDefault(); _TF_ST.tab = el.getAttribute('data-st-ptab'); _stRepaintOverlay(); return;
     }
     // The availability board's tiles are a status filter, not a legend.
     if ((el = t.closest('[data-st-status]'))) {
       e.preventDefault();
       var _sv = el.getAttribute('data-st-status');
       _TF_ST.f.status = (_TF_ST.f.status === _sv) ? '' : _sv;
-      _TF_ST.page = 1; _stRepaint(); return;
+      _TF_ST.page = 1; _stRepaintBoard(); return;
     }
     // The recruitment desk's own judgement. It is the club's and is saved as
     // soon as it is set — there is nothing to submit.
@@ -50881,28 +50922,28 @@ function _tfDiscAction(action, playerId, listingId) {
       if (!_TF_ST.needDraft) _TF_ST.needDraft = {};
       var _nf = el.getAttribute('data-st-nflag');
       _TF_ST.needDraft[_nf] = !_TF_ST.needDraft[_nf];
-      _stRepaint(); return;
+      _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-toggle]'))) {
       e.preventDefault();
       var _tk = el.getAttribute('data-st-toggle');
-      _TF_ST.f[_tk] = !_TF_ST.f[_tk]; _TF_ST.page = 1; _stRepaint(); return;
+      _TF_ST.f[_tk] = !_TF_ST.f[_tk]; _TF_ST.page = 1; _stRepaintBoard(); return;
     }
     if (t.closest('[data-st-filters]')) {
-      e.preventDefault(); _TF_ST.filtersOpen = !_TF_ST.filtersOpen; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.filtersOpen = !_TF_ST.filtersOpen; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-page]'))) {
       e.preventDefault();
       var _np = parseInt(el.getAttribute('data-st-page'), 10);
       if (!(_np >= 1) || _np === _TF_ST.page) return;
-      _TF_ST.page = _np; _stRepaint(); return;
+      _TF_ST.page = _np; _stRepaintBoard(); return;
     }
     // Leaving the market for the club being looked at. It is the platform's own
     // club page — this module does not draw a second one.
     if ((el = t.closest('[data-st-club]'))) {
       e.preventDefault();
       var _cbid = el.getAttribute('data-st-club');
-      _TF_ST.open = null; _TF_ST.approach = null; _stRepaint();
+      _TF_ST.open = null; _TF_ST.approach = null; _stRepaintOverlay();
       if (typeof openClub === 'function') openClub(_cbid);
       return;
     }
@@ -50918,7 +50959,7 @@ function _tfDiscAction(action, playerId, listingId) {
           if (_TF_ST.detail[_nid]) _TF_ST.detail[_nid].clubNote = r && r.note;
           _TF_ST.noteDraft = null;
           _tfToast('Note saved', 'success');
-          _stRepaint();
+          _stRepaintOverlay();
         })
         .catch(function (err) {
           el.disabled = false;
@@ -50945,15 +50986,15 @@ function _tfDiscAction(action, playerId, listingId) {
       _TF_ST.ext = { firstName: '', lastName: '', nationality: '', dateOfBirth: '',
                      role: ST_ROLES[0][0], lastClub: '', licence: '', yearsExperience: '',
                      wageExpectation: '', error: null };
-      _stRepaint(); return;
+      _stRepaintOverlay(); return;
     }
     if (t.closest('[data-st-ext-close]')) {
-      e.preventDefault(); _TF_ST.ext = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.ext = null; _stRepaintOverlay(); return;
     }
     if ((el = t.closest('[data-st-ext-save]'))) {
       e.preventDefault();
       var _x = _TF_ST.ext || {};
-      if (!_x.firstName || !_x.lastName) { _TF_ST.ext.error = 'A first and last name are required'; _stRepaint(); return; }
+      if (!_x.firstName || !_x.lastName) { _TF_ST.ext.error = 'A first and last name are required'; _stRepaintOverlay(); return; }
       el.disabled = true;
       _stApi('POST', '/external', _x).then(_thUnwrap)
         .then(function () {
@@ -50965,7 +51006,7 @@ function _tfDiscAction(action, playerId, listingId) {
         .catch(function (err) {
           el.disabled = false;
           if (_TF_ST.ext) _TF_ST.ext.error = (err && (err.userMessage || err.message)) || 'The candidate was not added';
-          _stRepaint();
+          _stRepaintOverlay();
         });
       return;
     }
@@ -50974,7 +51015,7 @@ function _tfDiscAction(action, playerId, listingId) {
       Object.keys(_TF_ST.f).forEach(function (k) {
         _TF_ST.f[k] = (typeof _TF_ST.f[k] === 'boolean') ? false : '';
       });
-      _TF_ST.page = 1; _stRepaint(); return;
+      _TF_ST.page = 1; _TF_ST.derived = null; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-approach]'))) {
       e.preventDefault();
@@ -50986,20 +51027,20 @@ function _tfDiscAction(action, playerId, listingId) {
         startDate: '', bonuses: '', releaseClause: '',
         mode: el.getAttribute('data-st-mode') || 'offer', error: null
       };
-      _stRepaint();
+      _stRepaintOverlay();
       // Opened from the board, where the record has not been read yet: the form
       // needs his role and whether anybody holds him.
       if (!_TF_ST.detail[_aid]) {
         _stLoadOne(_aid).then(function () {
           var dd = _TF_ST.detail[_aid];
           if (_TF_ST.approach && _TF_ST.approach.staffUserId === _aid && dd && dd.role) _TF_ST.approach.role = dd.role;
-          _stRepaint();
+          _stRepaintOverlay();
         });
       }
       return;
     }
     if ((el = t.closest('[data-st-appr-close]'))) {
-      e.preventDefault(); _TF_ST.approach = null; _stRepaint(); return;
+      e.preventDefault(); _TF_ST.approach = null; _stRepaintOverlay(); return;
     }
     if ((el = t.closest('[data-st-appr-send]'))) {
       e.preventDefault();
@@ -51025,7 +51066,7 @@ function _tfDiscAction(action, playerId, listingId) {
         .catch(function (err) {
           el.disabled = false;
           _TF_ST.approach.error = (err && (err.userMessage || err.message)) || 'The approach was refused';
-          _stRepaint();
+          _stRepaintOverlay();
         });
       return;
     }
@@ -51175,11 +51216,19 @@ function _tfDiscAction(action, playerId, listingId) {
     var t = e.target;
     if (t && t.hasAttribute && t.hasAttribute('data-st-f')) {
       _TF_ST.f[t.getAttribute('data-st-f')] = t.value;
-      _TF_ST.page = 1; _stRepaint();
+      _TF_ST.page = 1; _stRepaintBoard();
       return;
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-sort')) {
-      _TF_ST.sort = t.value; _TF_ST.page = 1; _stRepaint();
+      _TF_ST.sort = t.value; _TF_ST.page = 1; _TF_ST.derived = null; _stRepaintBoard();
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-radar-sel')) {
+      _TF_ST.radar = t.value || 'opportunity'; _TF_ST.page = 1; _stRepaintBoard();
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-fasort-sel')) {
+      _TF_ST.faSort = t.value || 'opportunity'; _stRepaintBoard();
       return;
     }
     if (t && t.hasAttribute && (t.hasAttribute('data-st-pri') || t.hasAttribute('data-st-stage'))) {
@@ -51188,7 +51237,7 @@ function _tfDiscAction(action, playerId, listingId) {
       var _body = {}; _body[_pk] = t.value;
       _stApi('PATCH', '/shortlist/' + encodeURIComponent(_pid), _body)
         .then(function () { return _stLoadShortlist(); })
-        .then(function () { _TF_ST.derived = null; _stRepaint(); })
+        .then(function () { _TF_ST.derived = null; _stRepaintBoard(); })
         .catch(function (err) {
           _tfToast('Not saved — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
         });
@@ -51204,7 +51253,7 @@ function _tfDiscAction(action, playerId, listingId) {
       // is a keystroke coalescer, not a request debounce — nothing is fetched.
       _TF_ST.f.search = t.value; _TF_ST.page = 1;
       clearTimeout(window.__stQT);
-      window.__stQT = setTimeout(_stRepaint, 90);
+      window.__stQT = setTimeout(_stRepaintBoard, 90);
       return;
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-a') && _TF_ST.approach) {
@@ -51249,11 +51298,19 @@ function _tfDiscAction(action, playerId, listingId) {
     var t = e.target;
     if (t && t.hasAttribute && t.hasAttribute('data-st-f')) {
       _TF_ST.f[t.getAttribute('data-st-f')] = t.value;
-      _TF_ST.page = 1; _stRepaint();
+      _TF_ST.page = 1; _stRepaintBoard();
       return;
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-sort')) {
-      _TF_ST.sort = t.value; _TF_ST.page = 1; _stRepaint();
+      _TF_ST.sort = t.value; _TF_ST.page = 1; _TF_ST.derived = null; _stRepaintBoard();
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-radar-sel')) {
+      _TF_ST.radar = t.value || 'opportunity'; _TF_ST.page = 1; _stRepaintBoard();
+      return;
+    }
+    if (t && t.hasAttribute && t.hasAttribute('data-st-fasort-sel')) {
+      _TF_ST.faSort = t.value || 'opportunity'; _stRepaintBoard();
       return;
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-q')) {
@@ -51261,7 +51318,7 @@ function _tfDiscAction(action, playerId, listingId) {
       // is a keystroke coalescer, not a request debounce — nothing is fetched.
       _TF_ST.f.search = t.value; _TF_ST.page = 1;
       clearTimeout(window.__stQT);
-      window.__stQT = setTimeout(_stRepaint, 90);
+      window.__stQT = setTimeout(_stRepaintBoard, 90);
       return;
     }
     if (t && t.hasAttribute && t.hasAttribute('data-st-a') && _TF_ST.approach) {
@@ -51354,6 +51411,10 @@ var _TF_ST = {
   pulseLane: 'all', event: null, evAll: false,   // the pulse's filter, open movement and cap
   signal: '', mapOpen: '',       // the market's active signal and revealed area
   faSort: 'opportunity',         // the free agent desk's ordering
+  faPage: 1,                     // and how much of it has been asked for
+  wrLane: 'all',                 // the shortlist's stage filter
+  wrOpen: null,                  // and whose decision drawer is open
+  dealLane: 'all',               // the deal room's stage filter
   planTeam: null, needOpen: false, // the staff plan's team and its publish drawer
   deal: null       // the deal the Deal Room has open
 };
@@ -51604,6 +51665,7 @@ function _stLoadPopulation() {
     _TF_ST.total = (r[0] && r[0].total) || 0;
     _TF_ST.summary = r[1] || null;
     _TF_ST.derived = null;              // the memo is keyed to the rows it came from
+    _stPrepare();                       // and rebuilt now, not on the next click
   }).catch(function (e) {
     if (gen !== _stGen) return;
     // A failed refresh does not empty a board that is already showing people.
@@ -51681,15 +51743,48 @@ function _stDerived() {
       || (r.availableFrom && new Date(r.availableFrom).getTime() <= Date.now());
   });
 
+  var listed = rows.filter(_stOnMarket);
+
+  // The groups the boards draw are computed here, once, when the data or the
+  // filters change — never during a tab click. Clicking a tab is then a write
+  // of prepared HTML, not fetch → normalise → filter → group → calculate.
+  var bands = ST_MAP_AREAS.map(function (a) {
+    return { key: a[0], label: a[1],
+      people: listed.filter(function (r) { return _stMapArea(r.role) === a[0]; })
+        .sort(function (x, y) { return _stMapRank(y) - _stMapRank(x); }) };
+  });
+  var fcis = listed.map(function (r) { return r.fci == null ? 40 : r.fci; });
+  var range = fcis.length
+    ? { lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) }
+    : { lo: 0, hi: 100 };
+  var signals = {};
+  ST_SIGNALS.forEach(function (sg) { signals[sg[0]] = listed.filter(sg[3]); });
+  var watch = {
+    hot:    _stTop(listed, 'clubsWatching', 3),
+    rising: listed.filter(function (r) { return r.momentumBand === 'RISING'; })
+              .sort(function (a, b) { return (b.momentum || 0) - (a.momentum || 0); }).slice(0, 3),
+    opps:   _stTop(listed, 'opportunity', 3)
+  };
+
   var out = {
     key: key,
     all: rows,
-    listed: rows.filter(_stOnMarket),
+    listed: listed,
+    bands: bands,
+    range: range,
+    signals: signals,
+    watch: watch,
     freeAgents: rows.filter(function (r) { return r.isFreeAgent && !r.currentClub; }),
     shortlisted: rows.filter(function (r) { return r.isShortlisted; })
   };
   _TF_ST.derived = out;
   return out;
+}
+
+// Prepared the moment the data lands, so the first tab click after a read has
+// nothing left to compute.
+function _stPrepare() {
+  try { _stDerived(); } catch (e) { /* a board that cannot derive still draws */ }
 }
 
 function _stLoadClubs() {
@@ -51777,53 +51872,64 @@ function _stRevalidate() {
 }
 
 // ── the market screen ────────────────────────────────────────────────────────
+// The board for the open view, and nothing around it — the shell that holds it
+// is a permanent frame written once.
 function _stHtml() {
   var v = _TF_ST.view;
-  if (v === 'available')    return _stShellHtml(_stAvailableHtml());
-  if (v === 'free-agents')  return _stShellHtml(_stFreeAgentsHtml());
-  if (v === 'shortlisted')  return _stShellHtml(_stShortlistDeskHtml());
-  if (v === 'needs')        return _stShellHtml(_stNeedsHtml());
-  if (v === 'negotiations') return _stShellHtml(_stPipelineHtml());
-  if (v === 'activity')     return _stShellHtml(_stTimelineHtml());
-  return _stShellHtml(_stMarketHtml());
+  if (v === 'available')    return _stAvailableHtml();
+  if (v === 'free-agents')  return _stFreeAgentsHtml();
+  if (v === 'shortlisted')  return _stShortlistDeskHtml();
+  if (v === 'needs')        return _stNeedsHtml();
+  if (v === 'negotiations') return _stPipelineHtml();
+  if (v === 'activity')     return _stTimelineHtml();
+  return _stMarketHtml();
 }
 
 // ── the shell ────────────────────────────────────────────────────────────────
-// A recruitment market reads top to bottom: what the database holds, which
-// reading of it is open, what narrows it, then the board itself. The tray only
-// exists while something is picked.
+// The shell is built once and then left alone. Its header, its navigation and
+// its tray are real nodes with ids, not strings rebuilt on every click — so a
+// tab change writes one element's innerHTML and flips one class, and opening a
+// record writes only the overlay. Before this, every click tore down the whole
+// page: the header, the tab bar and every row on the board were destroyed and
+// recreated, twice per profile open, which is what the shaking was.
 function _stShellHtml(body) {
+  return '<div class="tf-pane st-pane cx-pane">'
+    + '<header class="cx-head" id="cm-hd">' + _stHeadHtml() + '</header>'
+    + '<nav class="st-vtabs" id="cm-nav">' + _stNavHtml() + '</nav>'
+    + '<div id="cm-board">' + body + '</div>'
+    + '<div id="cm-tray">' + _stCompareTrayHtml() + '</div>'
+    + '</div>';
+}
+
+// Six readings, on one line, in the order a director asks them.
+function _stHeadHtml() {
   var s = _TF_ST.summary || {};
-  // Six readings, on one line, in the order a director asks them. Not a wall of
-  // tiles: the index first, because it is the market, then what is in it.
   var ind = function (n, l, cls) {
     return '<span class="cx-ind' + (cls ? ' cx-ind--' + cls : '') + '">'
       + '<b>' + (n == null ? '—' : n) + '</b><i>' + l + '</i></span>';
   };
-  var tab = function (k, label, key) {
-    var n = key ? s[key] : null;
-    return '<button type="button" class="st-vtab' + (_TF_ST.view === k ? ' is-on' : '') + '" data-st-view="' + k + '">'
-      + label + (n == null ? '' : '<span class="st-vtab-n">' + n + '</span>') + '</button>';
-  };
-  return '<div class="tf-pane st-pane cx-pane">'
-    + '<header class="cx-head">'
-    +   '<div class="cx-head-id">'
-    +     '<span class="cx-live"><i></i>LIVE</span>'
-    +     '<h1>Familista <b>Coach Exchange</b></h1>'
-    +   '</div>'
-    +   '<div class="cx-inds">'
-    +     ind(s.fciIndex, 'FCI market index', 'idx')
-    +     ind(s.onTheMarket, 'Staff on market')
-    +     ind(s.availableStaff, 'Available', 'go')
-    +     ind(s.trending, 'Trending', 'up')
-    +     ind(s.newToMarket, 'New to market', 'new')
-    +     ind(s.contractWatch, 'Contract watch', 'warn')
-    +   '</div>'
-    + '</header>'
-    + '<nav class="st-vtabs">' + ST_TABS.map(function (t) { return tab(t[0], t[1], t[2]); }).join('') + '</nav>'
-    + body
-    + _stCompareTrayHtml()
+  return '<div class="cx-head-id">'
+    +   '<span class="cx-live"><i></i>LIVE</span>'
+    +   '<h1>Familista <b>Coach Exchange</b></h1>'
+    + '</div>'
+    + '<div class="cx-inds">'
+    +   ind(s.fciIndex, 'FCI market index', 'idx')
+    +   ind(s.onTheMarket, 'Staff on market')
+    +   ind(s.availableStaff, 'Available', 'go')
+    +   ind(s.trending, 'Trending', 'up')
+    +   ind(s.newToMarket, 'New to market', 'new')
+    +   ind(s.contractWatch, 'Contract watch', 'warn')
     + '</div>';
+}
+
+function _stNavHtml() {
+  var s = _TF_ST.summary || {};
+  return ST_TABS.map(function (t) {
+    var n = t[2] ? s[t[2]] : null;
+    return '<button type="button" class="st-vtab' + (_TF_ST.view === t[0] ? ' is-on' : '')
+      + '" data-st-view="' + t[0] + '">'
+      + t[1] + (n == null ? '' : '<span class="st-vtab-n">' + n + '</span>') + '</button>';
+  }).join('');
 }
 
 // ── the toolbar ──────────────────────────────────────────────────────────────
@@ -51916,12 +52022,11 @@ function _stMarketHtml() {
     return '<div class="st-empty">The exchange could not be read — ' + _stEsc(_TF_ST.error) + '</div>';
   }
   if (!_stRowsReady()) return _stFiltersHtml() + _stReadingHtml('the exchange floor');
-  var listed = _stDerived().listed;
   return _stFiltersHtml()
-    + _stPulseHtml(listed)
+    + _stPulseHtml()
     + '<div class="cx-floor' + (_TF_ST.lens ? ' is-lens' : '') + '">'
-    +   '<div class="cx-universe-wrap">' + _stUniverseHtml(listed) + '</div>'
-    +   '<aside class="cx-intel">' + _stIntelHtml(listed) + '</aside>'
+    +   '<div class="cx-universe-wrap">' + _stUniverseHtml() + '</div>'
+    +   '<aside class="cx-intel">' + _stIntelHtml() + '</aside>'
     +   (_TF_ST.lens ? '<aside class="cx-lens">' + _stLensHtml() + '</aside>' : '')
     + '</div>';
 }
@@ -51931,22 +52036,25 @@ function _stMarketHtml() {
 // hand, and pressing one narrows the map to it — the strip is a control, not a
 // decoration.
 var ST_SIGNALS = [
-  ['trending', 'Trending',       'up',   function (r) { return r.momentumBand === 'RISING'; }],
-  ['new',      'New',            'new',  function (r) { return !!r.isNewToMarket; }],
-  ['demand',   'In demand',      'hot',  function (r) { return (r.clubsWatching || 0) >= 2; }],
-  ['free',     'Available now',  'go',   function (r) { return r.employmentStatus === 'FREE_AGENT'; }],
-  ['watch',    'Contract watch', 'warn', function (r) { return r.employmentStatus === 'CONTRACT_ENDING_SOON'; }]
+  ['trending', 'Trending',       'up',   function (r) { return r.momentumBand === 'RISING'; },        '\u2191'],
+  ['new',      'New',            'new',  function (r) { return !!r.isNewToMarket; },                  '\u25cf'],
+  ['demand',   'High demand',    'hot',  function (r) { return (r.clubsWatching || 0) >= 2; },        '\u26a1'],
+  ['free',     'Available now',  'go',   function (r) { return r.employmentStatus === 'FREE_AGENT'; },'\u25c9'],
+  ['watch',    'Contract watch', 'warn', function (r) { return r.employmentStatus === 'CONTRACT_ENDING_SOON'; }, '\u25f7']
 ];
-function _stPulseHtml(listed) {
+// One line. Five counts with a mark in front of each, and pressing one narrows
+// the map to it. Not five KPI cards with a 40px number on top.
+function _stPulseHtml() {
+  var d = _stDerived();
   var on = _TF_ST.signal || '';
-  return '<div class="cx-signals">'
+  return '<div class="cx-ribbon-pulse">'
     + ST_SIGNALS.map(function (sg) {
-        var n = listed.filter(sg[3]).length;
-        return '<button type="button" class="cx-sig cx-sig--' + sg[2] + (on === sg[0] ? ' is-on' : '')
+        var n = (d.signals[sg[0]] || []).length;
+        return '<button type="button" class="cx-ps cx-ps--' + sg[2] + (on === sg[0] ? ' is-on' : '')
           + '" data-st-signal="' + sg[0] + '"' + (n ? '' : ' disabled') + '>'
-          + '<b>' + n + '</b><i>' + sg[1] + '</i></button>';
+          + '<i>' + sg[4] + '</i><b>' + n + '</b><span>' + sg[1] + '</span></button>';
       }).join('')
-    + (on ? '<button type="button" class="cx-sig-clear" data-st-signal="">Show all</button>' : '')
+    + (on ? '<button type="button" class="cx-ps-clear" data-st-signal="">Clear</button>' : '')
     + '</div>';
 }
 
@@ -51975,46 +52083,48 @@ function _stMapRank(r) {
     + (r.opportunity || 0) * 0.4 + (r.fci || 0) * 0.3;
 }
 
-function _stUniverseHtml(listed) {
-  var sig = null;
-  ST_SIGNALS.forEach(function (x) { if (x[0] === _TF_ST.signal) sig = x; });
-  var rows = sig ? listed.filter(sig[3]) : listed;
-  if (!rows.length) {
+function _stUniverseHtml() {
+  var d = _stDerived();
+  var sig = _TF_ST.signal || '';
+  // The bands were grouped and ranked when the data landed. Narrowing by a
+  // signal is a filter over people already in order — no re-sorting on a click.
+  var bands = d.bands.map(function (b) {
+    return sig ? { key: b.key, label: b.label,
+                   people: b.people.filter(function (r) { return (d.signals[sig] || []).indexOf(r) >= 0; }) }
+               : b;
+  }).filter(function (b) { return b.people.length; });
+
+  if (!bands.length) {
     return '<div class="cx-universe"><div class="cx-none">'
-      + '<span class="cx-none-i">◎</span>'
-      + '<b>' + (listed.length ? 'Nothing under that signal' : 'Nobody is on the market') + '</b>'
-      + '<span>' + (listed.length
+      + '<span class="cx-none-i">\u25ce</span>'
+      + '<b>' + (d.listed.length ? 'Nothing under that signal' : 'Nobody is on the market') + '</b>'
+      + '<span>' + (d.listed.length
           ? 'Clear the signal to see the whole market.'
           : 'A coach appears here when his status in Coaches becomes open to offers, actively looking or free agent.') + '</span>'
-      + (listed.length ? '<button type="button" class="cx-act cx-act--go" data-st-signal="">Show all</button>' : '')
+      + (d.listed.length ? '<button type="button" class="cx-act cx-act--go" data-st-signal="">Show all</button>' : '')
       + '</div></div>';
   }
-  var fcis = rows.map(function (r) { return r.fci == null ? 40 : r.fci; });
-  var range = { lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) };
-
-  var bands = ST_MAP_AREAS.map(function (a) {
-    var inArea = rows.filter(function (r) { return _stMapArea(r.role) === a[0]; })
-      .sort(function (x, y) { return _stMapRank(y) - _stMapRank(x); });
-    if (!inArea.length) return '';
-    var open = _TF_ST.mapOpen === a[0];
-    var shown = open ? inArea : inArea.slice(0, ST_MAP_ROW);
-    var more = inArea.length - shown.length;
-    return '<section class="cx-band">'
-      + '<h5 class="cx-band-h">' + a[1] + '<span>' + inArea.length + '</span></h5>'
-      + '<div class="cx-nodes">'
-      +   shown.map(function (r) { return _stNodeHtml(r, range); }).join('')
-      +   (more > 0
-            ? '<button type="button" class="cx-more" data-st-mapmore="' + a[0] + '">+' + more + '<i>more</i></button>'
-            : (open && inArea.length > ST_MAP_ROW
-              ? '<button type="button" class="cx-more cx-more--less" data-st-mapmore="">Show less</button>' : ''))
-      + '</div>'
-      + '</section>';
-  }).join('');
 
   return '<div class="cx-universe">'
-    + '<div class="cx-bands">' + bands + '</div>'
+    + '<div class="cx-bands">'
+    + bands.map(function (a) {
+        var open = _TF_ST.mapOpen === a.key;
+        var shown = open ? a.people : a.people.slice(0, ST_MAP_ROW);
+        var more = a.people.length - shown.length;
+        return '<section class="cx-band">'
+          + '<h5 class="cx-band-h">' + a.label + '<span>' + a.people.length + '</span></h5>'
+          + '<div class="cx-nodes">'
+          +   shown.map(function (r) { return _stNodeHtml(r, d.range); }).join('')
+          +   (more > 0
+                ? '<button type="button" class="cx-more" data-st-mapmore="' + a.key + '">+' + more + '<i>more</i></button>'
+                : (open && a.people.length > ST_MAP_ROW
+                  ? '<button type="button" class="cx-more cx-more--less" data-st-mapmore="">Show less</button>' : ''))
+          + '</div>'
+          + '</section>';
+      }).join('')
+    + '</div>'
     + '<footer class="cx-legend">'
-    +   '<span><i class="cx-key cx-key--size"></i>Size · market interest</span>'
+    +   '<span><i class="cx-key cx-key--size"></i>Size \u00b7 market interest</span>'
     +   '<span><i class="cx-key cx-key--free"></i>Free agent</span>'
     +   '<span><i class="cx-key cx-key--look"></i>Actively looking</span>'
     +   '<span><i class="cx-key cx-key--open"></i>Open to offers</span>'
@@ -52103,8 +52213,11 @@ function _stTipShow(node, r) {
 // ── 3 · market intelligence ──────────────────────────────────────────────────
 // One panel, three sections, three names each. Anything longer is a directory,
 // and the directory is a different module.
-function _stIntelHtml(listed) {
-  if (!listed.length) return '';
+// MARKET WATCH — three sections, three names each, all three ranked when the
+// data landed. Clicking a name opens him.
+function _stIntelHtml() {
+  var d = _stDerived();
+  if (!d.listed.length) return '';
   var line = function (r, right) {
     return '<button type="button" class="cx-il' + (_TF_ST.lens === r.staffUserId ? ' is-on' : '')
       + '" data-st-lens="' + _stEsc(r.staffUserId) + '">'
@@ -52116,18 +52229,13 @@ function _stIntelHtml(listed) {
   var sec = function (title, rows, right) {
     if (!rows.length) return '';
     return '<section class="cx-isec"><h5>' + title + '</h5>'
-      + rows.slice(0, 3).map(function (r) { return line(r, right(r)); }).join('') + '</section>';
+      + rows.map(function (r) { return line(r, right(r)); }).join('') + '</section>';
   };
-  var hot = listed.filter(function (r) { return (r.clubsWatching || 0) > 0; })
-    .sort(function (a, b) { return (b.clubsWatching || 0) - (a.clubsWatching || 0); });
-  var rising = listed.filter(function (r) { return r.momentumBand === 'RISING'; })
-    .sort(function (a, b) { return (b.momentum || 0) - (a.momentum || 0); });
-  var opps = listed.slice().sort(function (a, b) { return (b.opportunity || 0) - (a.opportunity || 0); });
-
-  return '<h4 class="cx-ih">Intelligence</h4>'
-    + sec('Hot now', hot, function (r) { return '<b>' + r.clubsWatching + '</b><i>watching</i>'; })
-    + sec('Rising', rising, function (r) { return _stMom(r.momentum); })
-    + sec('Opportunities', opps, function (r) { return '<b>' + r.opportunity + '</b><i>opp</i>'; });
+  return '<h4 class="cx-ih">Market watch</h4>'
+    + sec('Trending', d.watch.hot.filter(function (r) { return (r.clubsWatching || 0) > 0; }),
+        function (r) { return '<b>' + r.clubsWatching + '</b><i>watching</i>'; })
+    + sec('Rising', d.watch.rising, function (r) { return _stMom(r.momentum); })
+    + sec('Opportunities', d.watch.opps, function (r) { return '<b>' + r.opportunity + '</b><i>opp</i>'; });
 }
 
 // ── THE MARKET LENS ──────────────────────────────────────────────────────────
@@ -52225,9 +52333,13 @@ var ST_AVAIL_CHIPS = [
 ];
 var ST_PAGE = 10;
 
+// AVAILABLE — one question: who can I realistically hire. One ranked list, one
+// row per coach, everything a recruiter compares on that row. Not three
+// columns, not a wall of cards, and nothing that has to be scrolled past.
 function _stAvailableHtml() {
   if (!_stRowsReady()) return _stReadingHtml('the market');
-  var all = _stDerived().listed;
+  var d = _stDerived();
+  var all = d.listed;
   var chip = _TF_ST.f.status || '';
   var rows = chip ? all.filter(function (r) { return r.employmentStatus === chip; }) : all;
 
@@ -52247,72 +52359,79 @@ function _stAvailableHtml() {
   });
 
   var shown = Math.min(rows.length, (_TF_ST.page || 1) * ST_PAGE);
-  var head = '<div class="cx-bar">'
-    + '<b>Available coaches</b>'
-    + '<span class="cx-chips">'
-    +   ST_AVAIL_CHIPS.map(function (c) {
-          var n = all.filter(function (r) { return r.employmentStatus === c[0]; }).length;
-          return '<button type="button" class="cx-chip' + (chip === c[0] ? ' is-on' : '')
-            + '" data-st-status="' + c[0] + '"' + (n ? '' : ' disabled') + '>'
-            + c[1] + '<i>' + n + '</i></button>';
-        }).join('')
-    + '</span>'
-    + '<span class="cx-rank">'
-    +   ST_RADAR.map(function (o) {
-          return '<button type="button" class="cx-act' + (rank === o[0] ? ' is-on' : '')
-            + '" data-st-radar="' + o[0] + '">' + o[1] + '</button>';
-        }).join('')
-    + '</span>'
+  var head = '<div class="cx-top">'
+    + '<div class="cx-top-t"><h3>Available</h3>'
+    +   '<p>' + all.length + ' coach' + (all.length === 1 ? '' : 'es') + ' currently reachable</p></div>'
+    + '<div class="cx-top-r">'
+    +   '<span class="cx-chips">'
+    +     '<button type="button" class="cx-chip' + (chip ? '' : ' is-on') + '" data-st-status="">All<i>'
+    +       all.length + '</i></button>'
+    +     ST_AVAIL_CHIPS.map(function (c) {
+            var n = all.filter(function (r) { return r.employmentStatus === c[0]; }).length;
+            return '<button type="button" class="cx-chip' + (chip === c[0] ? ' is-on' : '')
+              + '" data-st-status="' + c[0] + '"' + (n ? '' : ' disabled') + '>'
+              + c[1] + '<i>' + n + '</i></button>';
+          }).join('')
+    +   '</span>'
+    +   '<select data-st-radar-sel aria-label="Order">'
+    +     ST_RADAR.map(function (o) {
+            return '<option value="' + o[0] + '"' + (rank === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('')
+    +   '</select>'
+    + '</div>'
     + '</div>';
 
   if (!rows.length) {
-    return head + _stEmpty('◎', 'Nobody available under these filters',
+    return head + _stEmpty('\u25ce', 'Nobody available under that filter',
       'Every coach on the platform is under contract and not looking.',
-      chip ? '<button type="button" class="cx-act cx-act--go" data-st-status="' + chip + '">Clear filter</button>' : '');
+      chip ? '<button type="button" class="cx-act cx-act--go" data-st-status="' + chip + '">Show all</button>' : '');
   }
 
   return head
-    + '<div class="cx-tbl" role="table">'
-    +   '<div class="cx-tr cx-tr--h" role="row">'
-    +     '<span>Coach</span><span>Club</span><span>FCI</span><span>Opp</span>'
-    +     '<span>Available</span><span>Salary</span><span>Status</span><span></span>'
-    +   '</div>'
-    +   rows.slice(0, shown).map(_stAvailRowHtml).join('')
-    + '</div>'
+    + '<div class="cx-list">' + rows.slice(0, shown).map(_stAvailRowHtml).join('') + '</div>'
     + (shown < rows.length
         ? '<div class="cx-more-row"><button type="button" class="cx-act" data-st-page="'
           + ((_TF_ST.page || 1) + 1) + '">Show ' + Math.min(ST_PAGE, rows.length - shown)
-          + ' more · ' + (rows.length - shown) + ' remaining</button></div>'
+          + ' more \u00b7 ' + (rows.length - shown) + ' remaining</button></div>'
         : '');
 }
 
-// One row, one coach, one height. Everything on it is a stored figure.
+// One coach, one row, two lines: who he is on the first, what he costs and when
+// he is free on the second. Fixed height, so a list of ten never reflows.
 function _stAvailRowHtml(r) {
-  var dash = '<i class="st-unknown">—</i>';
   var st = r.employmentStatus || 'EMPLOYED';
   var when = r.isFreeAgent ? 'Now'
     : (r.availableFrom ? _stDate(r.availableFrom).slice(0, 7)
-      : (r.contractEndsAt ? _stDate(r.contractEndsAt).slice(0, 7) : '—'));
-  return '<div class="cx-tr" role="row">'
-    + '<button type="button" class="cx-tr-who" data-st-open="' + _stEsc(r.staffUserId) + '">'
+      : (r.contractEndsAt ? _stDate(r.contractEndsAt).slice(0, 7) : null));
+  var fact = function (i, b) { return '<span class="cx-rw-f"><i>' + i + '</i><b>' + b + '</b></span>'; };
+  return '<article class="cx-rw">'
+    + '<button type="button" class="cx-rw-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
     +   _stAvatar(r)
-    +   '<span class="cx-tr-id"><b>' + _stEsc(r.name) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+    +   '<span class="cx-rw-id">'
+    +     '<b>' + _stEsc(r.name) + '</b>'
+    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em>'
+    +   '</span>'
+    +   '<span class="cx-rw-club">'
+    +     '<b>' + (r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent') + '</b>'
+    +     '<span class="st-status st-status--' + String(st).toLowerCase() + '">'
+    +       _stEsc(ST_STATUS_LABEL[st] || st) + '</span>'
+    +   '</span>'
+    +   '<span class="cx-rw-facts">'
+    +     fact('FCI', r.fci == null ? '\u2014' : r.fci)
+    +     fact('OPP', r.opportunity == null ? '\u2014' : r.opportunity)
+    +     (r.wageExpectation == null ? '' : fact('Salary', _stMoney(r.wageExpectation)))
+    +     (r.highestLicence ? fact('Licence', _stEsc(String(r.highestLicence.name).replace(/^UEFA\s*/i, 'UEFA '))) : '')
+    +     (when ? fact('Available', _stEsc(when)) : '')
+    +   '</span>'
     + '</button>'
-    + '<span class="cx-tr-c">' + (r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent') + '</span>'
-    + '<span class="cx-tr-n cx-tr-n--fci">' + (r.fci == null ? dash : r.fci) + '</span>'
-    + '<span class="cx-tr-n cx-tr-n--opp">' + (r.opportunity == null ? dash : r.opportunity) + '</span>'
-    + '<span class="cx-tr-c">' + _stEsc(when) + '</span>'
-    + '<span class="cx-tr-c">' + (r.wageExpectation == null ? dash : _stMoney(r.wageExpectation)) + '</span>'
-    + '<span class="st-status st-status--' + String(st).toLowerCase() + '">'
-    +   _stEsc(ST_STATUS_LABEL[st] || st) + '</span>'
-    + '<span class="cx-tr-a">'
+    + '<span class="cx-rw-acts">'
     +   '<button type="button" class="st-star' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="'
-    +     _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '" title="Shortlist">★</button>'
+    +     _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '" title="Shortlist">\u2605</button>'
+    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '">View</button>'
     +   (r.isMine ? '' : '<button type="button" class="cx-act cx-act--go" data-st-approach="'
         + _stEsc(r.staffUserId) + '">Negotiate</button>')
     + '</span>'
-    + '</div>';
+    + '</article>';
 }
 
 // Every empty screen in the module: a mark, a title, a sentence and one thing
@@ -52334,11 +52453,15 @@ var ST_FA_SORTS = [
   ['opportunity', 'Best fit'], ['yearsExperience', 'Most experienced'],
   ['reputation', 'Highest reputation'], ['recent', 'Recently available']
 ];
+// FREE AGENTS — one question: who can I hire immediately, without another club
+// having to agree to anything. Deliberately not Available with different rows:
+// a board of hire tickets, two across, six at a time.
+var ST_FA_PAGE = 6;
 function _stFreeAgentsHtml() {
   if (!_stRowsReady()) return _stReadingHtml('the desk');
   var rows = _stDerived().freeAgents;
   if (!rows.length) {
-    return _stEmpty('◆', 'No free agents',
+    return _stEmpty('\u25c6', 'No free agents',
       'Nobody on the platform is without a club. Somebody the platform does not employ can be added as a candidate.',
       '<button type="button" class="cx-act cx-act--go" data-st-ext-open>Add external candidate</button>');
   }
@@ -52351,33 +52474,38 @@ function _stFreeAgentsHtml() {
     }
     return (b[sort] || 0) - (a[sort] || 0);
   });
-  return '<div class="cx-bar">'
-    + '<b>Free agent desk</b>'
-    + '<span class="cx-bar-note">' + rows.length + ' can be approached today · no compensation is owed</span>'
-    + '<span class="cx-rank">'
-    +   ST_FA_SORTS.map(function (o) {
-          return '<button type="button" class="cx-act' + (sort === o[0] ? ' is-on' : '')
-            + '" data-st-fasort="' + o[0] + '">' + o[1] + '</button>';
-        }).join('')
-    + '</span>'
-    + '<button type="button" class="cx-act" data-st-ext-open>+ External</button>'
+  var shown = Math.min(rows.length, (_TF_ST.faPage || 1) * ST_FA_PAGE);
+
+  return '<div class="cx-top cx-top--fa">'
+    + '<div class="cx-top-t"><h3>Free agents</h3><p>Hire without club compensation</p></div>'
+    + '<div class="cx-top-r">'
+    +   '<span class="cx-rank">'
+    +     ST_FA_SORTS.map(function (o) {
+            return '<button type="button" class="cx-act' + (sort === o[0] ? ' is-on' : '')
+              + '" data-st-fasort="' + o[0] + '">' + o[1] + '</button>';
+          }).join('')
+    +   '</span>'
+    +   '<button type="button" class="cx-act" data-st-ext-open>+ External</button>'
     + '</div>'
-    + '<div class="cx-df">' + rows.map(_stDossierHtml).join('') + '</div>';
+    + '</div>'
+    + '<div class="cx-df">' + rows.slice(0, shown).map(_stDossierHtml).join('') + '</div>'
+    + (shown < rows.length
+        ? '<div class="cx-more-row"><button type="button" class="cx-act" data-st-fapage="'
+          + ((_TF_ST.faPage || 1) + 1) + '">Show more \u00b7 ' + (rows.length - shown) + ' remaining</button></div>'
+        : '');
 }
 
-// One free agent, compactly. Only what the record holds — a field it does not
-// have is left off rather than printed as a dash.
+// One hire ticket. Compact, and it says FREE across the top because that is the
+// single fact that puts him on this board rather than the other one.
 function _stDossierHtml(r) {
   var out = r.lastLeftAt ? _stMonthsSince(r.lastLeftAt) : null;
   var facts = [
-    ['Last club', r.lastClub ? _stEsc(r.lastClub) : null],
-    ['Experience', r.yearsExperience != null ? r.yearsExperience + ' yrs' : null],
+    ['FCI', r.fci == null ? null : r.fci],
+    ['Opportunity', r.opportunity == null ? null : r.opportunity],
+    ['Experience', r.yearsExperience != null ? r.yearsExperience + 'y' : null],
     ['Licence', r.highestLicence ? _stEsc(String(r.highestLicence.name).replace(/^UEFA\s*/i, 'UEFA ')) : null],
     ['Expects', r.wageExpectation != null ? _stMoney(r.wageExpectation) : null],
-    ['Free since', out],
-    ['Wants', (r.preferredRoles && r.preferredRoles.length)
-      ? _stEsc(r.preferredRoles.map(function (x) { return ST_ROLE_LABEL[x] || x; })[0])
-      : (r.role ? _stEsc(ST_ROLE_LABEL[r.role] || r.role) : null)]
+    ['Free since', out]
   ].filter(function (f) { return f[1] != null && f[1] !== ''; });
 
   return '<article class="cx-dt' + (_TF_ST.cmp.indexOf(r.staffUserId) >= 0 ? ' is-cmp' : '') + '">'
@@ -52386,9 +52514,11 @@ function _stDossierHtml(r) {
     +     _stAvatar(r)
     +     '<span class="cx-dt-id"><b>' + _stEsc(r.name) + '</b>'
     +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
-    +         (r.nationality ? ' · ' + _stEsc(r.nationality) : '') + '</em></span>'
-    +     _stScores(r)
+    +         (r.nationality ? ' \u00b7 ' + _stEsc(r.nationality) : '') + '</em></span>'
+    +     '<span class="cx-dt-free">FREE</span>'
     +   '</span>'
+    +   '<span class="cx-dt-last">Last club \u00b7 <b>'
+    +     (r.lastClub ? _stEsc(r.lastClub) : 'Not recorded') + '</b></span>'
     +   '<span class="cx-dt-body">'
     +     facts.map(function (f) { return '<span><i>' + f[0] + '</i><b>' + f[1] + '</b></span>'; }).join('')
     +   '</span>'
@@ -52397,7 +52527,7 @@ function _stDossierHtml(r) {
     +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '">Profile</button>'
     +   '<button type="button" class="cx-act' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="'
     +     _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '">'
-    +     (r.isShortlisted ? '★ Listed' : '★ Shortlist') + '</button>'
+    +     (r.isShortlisted ? '\u2605 Listed' : '\u2606 Shortlist') + '</button>'
     +   '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(r.staffUserId) + '">Approach</button>'
     + '</div>'
     + '</article>';
@@ -52427,81 +52557,124 @@ function _stShortlistDeskHtml() {
   ((_TF_ST.shortlist && _TF_ST.shortlist.items) || []).forEach(function (x) { meta[x.staffUserId] = x; });
 
   if (!rows.length) {
-    return _stEmpty('★', 'No coaches shortlisted',
-      'Build your recruitment board by starring coaches from Market, Available or Free Agents.',
+    return _stEmpty('\u2606', 'Your shortlist is empty',
+      'Save coaches from Market, Available or Free Agents to compare them here.',
       '<button type="button" class="cx-act cx-act--go" data-st-view="market">Browse market</button>');
   }
 
-  var byPri = function (a, b) {
-    var w = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-    return (w[(meta[a.staffUserId] || {}).priority || 'MEDIUM'])
-         - (w[(meta[b.staffUserId] || {}).priority || 'MEDIUM'])
-      || (b.opportunity || 0) - (a.opportunity || 0);
-  };
   var stageOf = function (r) { return (meta[r.staffUserId] || {}).stage || 'WATCHING'; };
-  var lanes = ST_WR.map(function (L) {
-    return { key: L[0], label: L[1],
-      people: rows.filter(function (r) { return L[2].indexOf(stageOf(r)) >= 0; }).sort(byPri) };
+  var priOf   = function (r) { return (meta[r.staffUserId] || {}).priority || 'MEDIUM'; };
+  var counts = {};
+  ST_WR.forEach(function (L) {
+    counts[L[0]] = rows.filter(function (r) { return L[2].indexOf(stageOf(r)) >= 0; }).length;
   });
-  var high = rows.filter(function (r) { return (meta[r.staffUserId] || {}).priority === 'HIGH'; }).length;
+  var high = rows.filter(function (r) { return priOf(r) === 'HIGH'; }).length;
 
-  var busy = lanes.filter(function (l) { return l.people.length; }).length || 1;
-  var span = function (l) { return l.people.length ? Math.max(3, Math.round((12 - (4 - busy) * 2) / busy)) : 2; };
+  var lane = _TF_ST.wrLane || 'all';
+  var keep = null;
+  ST_WR.forEach(function (L) { if (L[0] === lane) keep = L[2]; });
+  var shown = keep ? rows.filter(function (r) { return keep.indexOf(stageOf(r)) >= 0; }) : rows;
+  shown = shown.slice().sort(function (a, b) {
+    var w = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    return (w[priOf(a)] - w[priOf(b)]) || ((b.opportunity || 0) - (a.opportunity || 0));
+  });
 
-  return '<div class="cx-bar">'
-    + '<b>Shortlist</b>'
-    + '<span class="cx-sum">'
-    +   '<span><b>' + rows.length + '</b> candidate' + (rows.length === 1 ? '' : 's') + '</span>'
-    +   (high ? '<span class="is-hi"><b>' + high + '</b> high priority</span>' : '')
-    +   lanes.filter(function (l) { return l.people.length && l.key !== 'WATCHING'; })
-        .map(function (l) { return '<span><b>' + l.people.length + '</b> ' + l.label.toLowerCase() + '</span>'; }).join('')
-    + '</span>'
-    + '</div>'
-    + '<div class="cx-wr">'
-    +   lanes.map(function (l) {
-          return '<section class="cx-wr-col cx-wr-col--' + l.key.toLowerCase()
-            + (l.people.length ? '' : ' is-quiet')
-            + ' cx-wr-col--sp' + span(l) + '">'
-            + '<h5>' + l.label + '<span>' + l.people.length + '</span></h5>'
-            + (l.people.length
-                ? '<div class="cx-wr-stack">'
-                  + l.people.map(function (r) { return _stDeskCardHtml(r, meta[r.staffUserId] || {}); }).join('')
-                  + '</div>'
-                : '<p class="cx-dnone">—</p>')
-            + '</section>';
+  var summary = [rows.length + ' candidate' + (rows.length === 1 ? '' : 's')]
+    .concat(high ? [high + ' high priority'] : [])
+    .concat(ST_WR.filter(function (L) { return L[0] !== 'WATCHING' && counts[L[0]]; })
+      .map(function (L) { return counts[L[0]] + ' ' + L[1].toLowerCase(); }))
+    .join(' \u00b7 ');
+
+  return '<div class="cx-top">'
+    + '<div class="cx-top-t"><h3>Shortlist</h3><p>' + summary + '</p></div>'
+    + '<div class="cx-top-r"><span class="cx-chips">'
+    +   '<button type="button" class="cx-chip' + (lane === 'all' ? ' is-on' : '') + '" data-st-wrlane="all">'
+    +     'All<i>' + rows.length + '</i></button>'
+    +   ST_WR.map(function (L) {
+          return '<button type="button" class="cx-chip' + (lane === L[0] ? ' is-on' : '')
+            + '" data-st-wrlane="' + L[0] + '"' + (counts[L[0]] ? '' : ' disabled') + '>'
+            + L[1] + '<i>' + counts[L[0]] + '</i></button>';
         }).join('')
+    + '</span></div>'
+    + '</div>'
+    + '<div class="cx-plan' + (_TF_ST.wrOpen ? ' is-open' : '') + '">'
+    +   '<div class="cx-list">'
+    +     (shown.length
+        ? shown.map(function (r) { return _stDeskCardHtml(r, meta[r.staffUserId] || {}); }).join('')
+        : '<p class="cx-dnone">Nobody at that stage yet.</p>')
+    +   '</div>'
+    +   (_TF_ST.wrOpen ? '<aside class="cx-vacancy">' + _stDecisionHtml(meta) + '</aside>' : '')
     + '</div>';
 }
 
-// One decision card, about 130px tall: who, what the exchange says, what we
-// think, when we last spoke, and the moves available.
+// One candidate, one row. Every figure a decision needs, and nothing twice.
 function _stDeskCardHtml(r, m) {
   var pri = m.priority || 'MEDIUM';
   var stage = m.stage || 'WATCHING';
   var when = m.updatedAt || m.addedAt || null;
-  return '<article class="cx-wr-card cx-wr-card--' + pri.toLowerCase() + '">'
-    + '<button type="button" class="cx-wr-open" data-st-open="' + _stEsc(r.staffUserId) + '">'
+  var fact = function (i, b) { return '<span class="cx-rw-f"><i>' + i + '</i><b>' + b + '</b></span>'; };
+  return '<article class="cx-rw cx-rw--pri-' + pri.toLowerCase()
+    + (_TF_ST.wrOpen === r.staffUserId ? ' is-on' : '') + '">'
+    + '<button type="button" class="cx-rw-open" data-st-wropen="' + _stEsc(r.staffUserId) + '">'
     +   _stAvatar(r)
-    +   '<span class="cx-wr-id"><b>' + _stEsc(r.name) + '</b>'
+    +   '<span class="cx-rw-id"><b>' + _stEsc(r.name) + '</b>'
     +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-    +   _stScores(r)
+    +   '<span class="cx-rw-club">'
+    +     '<b>' + _stEsc(ST_STAGE_LABEL[stage] || stage) + '</b>'
+    +     '<span class="st-pri st-pri--' + pri.toLowerCase() + '">' + _stEsc(ST_PRIORITY_LABEL[pri]) + '</span>'
+    +   '</span>'
+    +   '<span class="cx-rw-facts">'
+    +     fact('FCI', r.fci == null ? '\u2014' : r.fci)
+    +     fact('OPP', r.opportunity == null ? '\u2014' : r.opportunity)
+    +     fact('Last contact', when ? _stDate(when).slice(5) : 'none')
+    +   '</span>'
     + '</button>'
-    + '<div class="cx-wr-meta">'
-    +   '<span class="st-pri st-pri--' + pri.toLowerCase() + '">' + _stEsc(ST_PRIORITY_LABEL[pri]) + '</span>'
-    +   '<select data-st-stage="' + _stEsc(r.staffUserId) + '" aria-label="Stage">'
+    + '<span class="cx-rw-acts">'
+    +   '<button type="button" class="cx-act" data-st-wropen="' + _stEsc(r.staffUserId) + '">Decide</button>'
+    + '</span>'
+    + '</article>';
+}
+
+// The decision drawer: the summary, the club's own judgement, and the moves.
+function _stDecisionHtml(meta) {
+  var id = _TF_ST.wrOpen;
+  var r = null;
+  (_TF_ST.rows || []).forEach(function (x) { if (x.staffUserId === id) r = x; });
+  if (!r) return '';
+  var m = meta[id] || {};
+  var stage = m.stage || 'WATCHING';
+  var pri = m.priority || 'MEDIUM';
+  return '<div class="cx-vac-in">'
+    + '<button type="button" class="cx-lens-x" data-st-wrclose aria-label="Close">\u00d7</button>'
+    + '<h5>Considering</h5>'
+    + '<h4>' + _stEsc(r.name) + '</h4>'
+    + '<p class="cx-dr-sub">' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
+    +   (r.currentClub ? ' \u00b7 ' + _stEsc(r.currentClub.name) : ' \u00b7 Free agent') + '</p>'
+    + '<div class="cx-kvs">'
+    +   '<div class="cx-kv"><i>FCI</i><b>' + (r.fci == null ? '\u2014' : r.fci) + '</b></div>'
+    +   '<div class="cx-kv"><i>Opportunity</i><b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b></div>'
+    +   '<div class="cx-kv"><i>Watching</i><b>' + (r.clubsWatching == null ? '\u2014' : r.clubsWatching) + '</b></div>'
+    +   '<div class="cx-kv"><i>Expects</i><b>' + (r.wageExpectation == null ? '\u2014' : _stMoney(r.wageExpectation)) + '</b></div>'
+    + '</div>'
+    + '<h5>Our judgement</h5>'
+    + '<div class="cx-form cx-form--drawer">'
+    +   '<label><i>Priority</i><select data-st-pri="' + _stEsc(id) + '">'
+    +     ST_PRIORITY.map(function (o) {
+            return '<option value="' + o[0] + '"' + (pri === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('') + '</select></label>'
+    +   '<label><i>Stage</i><select data-st-stage="' + _stEsc(id) + '">'
     +     ST_STAGE.map(function (o) {
             return '<option value="' + o[0] + '"' + (stage === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
-          }).join('')
-    +   '</select>'
-    +   '<span class="cx-wr-when">' + (when ? _stDate(when).slice(5) : 'no contact') + '</span>'
+          }).join('') + '</select></label>'
     + '</div>'
-    + (m.note ? '<p class="cx-wr-note">' + _stEsc(String(m.note).slice(0, 96)) + '</p>' : '')
-    + '<div class="cx-wr-acts">'
-    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(r.staffUserId) + '">Profile</button>'
-    +   (r.isMine ? '' : '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(r.staffUserId) + '">Negotiate</button>')
-    +   '<button type="button" class="cx-act cx-act--bad" data-st-short="' + _stEsc(r.staffUserId) + '" data-st-on="1">Remove</button>'
+    + (m.note ? '<p class="cx-inote">' + _stEsc(m.note) + '</p>' : '')
+    + '<div class="cx-dr-acts">'
+    +   '<button type="button" class="cx-act" data-st-open="' + _stEsc(id) + '">Profile</button>'
+    +   '<button type="button" class="cx-act" data-st-cmp="' + _stEsc(id) + '">Compare</button>'
+    +   (r.isMine ? '' : '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(id) + '">Negotiate</button>')
+    +   '<button type="button" class="cx-act cx-act--bad" data-st-short="' + _stEsc(id) + '" data-st-on="1">Remove</button>'
     + '</div>'
-    + '</article>';
+    + '</div>';
 }
 
 // ── NEGOTIATIONS · the deal room ─────────────────────────────────────────────
@@ -52533,12 +52706,14 @@ function _stDealNext(d) {
   return 'Await reply';
 }
 
+// NEGOTIATIONS — one question: which deals are happening. Stage chips, one row
+// per deal, and the one being discussed opened in a drawer beside them.
 function _stPipelineHtml() {
   var a = _TF_ST.activity || {};
   var deals = ((a.outgoing || []).map(function (x) { return Object.assign({ dir: 'out' }, x); }))
     .concat((a.incoming || []).map(function (x) { return Object.assign({ dir: 'in' }, x); }));
   if (!deals.length) {
-    return _stEmpty('⇄', 'No active deals',
+    return _stEmpty('\u21c4', 'No active deals',
       'Start a negotiation from Market, Available, Free Agents or Shortlisted.',
       '<button type="button" class="cx-act cx-act--go" data-st-view="available">Find a coach</button>');
   }
@@ -52549,47 +52724,60 @@ function _stPipelineHtml() {
   var live = deals.filter(function (d) {
     return ['SUBMITTED', 'SENT', 'VIEWED', 'NEGOTIATING', 'DRAFT'].indexOf(d.status) >= 0;
   }).length;
+
+  var lane = _TF_ST.dealLane || 'all';
+  var shown = lane === 'all' ? deals
+    : deals.filter(function (d) { return _stDealStage(d.status)[0] === lane; });
   var sel = null;
   deals.forEach(function (d) { if (d.id === _TF_ST.deal) sel = d; });
 
-  return '<div class="cx-bar">'
-    + '<b>Deal room</b>'
-    + '<span class="cx-sum"><span><b>' + deals.length + '</b> on the table</span>'
-    +   '<span><b>' + live + '</b> live</span>'
-    +   '<span><b>' + (a.outgoing || []).length + '</b> ours</span>'
-    +   '<span><b>' + (a.incoming || []).length + '</b> for our staff</span></span>'
-    + '</div>'
-    // the pipeline, as a line the deals sit on
-    + '<div class="cx-pipe">'
-    +   ST_DEAL_STAGES.map(function (st, i) {
+  return '<div class="cx-top">'
+    + '<div class="cx-top-t"><h3>Negotiations</h3><p>' + deals.length + ' on the table \u00b7 '
+    +   live + ' live \u00b7 ' + (a.incoming || []).length + ' for our staff</p></div>'
+    + '<div class="cx-top-r"><span class="cx-chips">'
+    +   '<button type="button" class="cx-chip' + (lane === 'all' ? ' is-on' : '') + '" data-st-deallane="all">'
+    +     'All<i>' + deals.length + '</i></button>'
+    +   ST_DEAL_STAGES.map(function (st) {
           var n = deals.filter(function (d) { return _stDealStage(d.status)[0] === st[0]; }).length;
-          return '<span class="cx-pipe-st' + (n ? ' has' : '') + '">'
-            + '<i>' + st[1] + '</i><b>' + n + '</b></span>'
-            + (i < ST_DEAL_STAGES.length - 1 ? '<span class="cx-pipe-arw">›</span>' : '');
+          return '<button type="button" class="cx-chip' + (lane === st[0] ? ' is-on' : '')
+            + '" data-st-deallane="' + st[0] + '"' + (n ? '' : ' disabled') + '>'
+            + st[1] + '<i>' + n + '</i></button>';
         }).join('')
+    + '</span></div>'
     + '</div>'
-    + '<div class="cx-dr-floor' + (sel ? ' is-open' : '') + '">'
-    +   '<div class="cx-deals">' + deals.map(_stDealHtml).join('') + '</div>'
-    +   (sel ? '<aside class="cx-dr-panel">' + _stDealPanelHtml(sel) + '</aside>' : '')
+    + '<div class="cx-plan' + (sel ? ' is-open' : '') + '">'
+    +   '<div class="cx-list">'
+    +     (shown.length ? shown.map(_stDealHtml).join('')
+        : '<p class="cx-dnone">No deal at that stage.</p>')
+    +   '</div>'
+    +   (sel ? '<aside class="cx-vacancy">' + _stDealPanelHtml(sel) + '</aside>' : '')
     + '</div>';
 }
 
-// One deal, one row: who, where it is, the terms that matter and what to do.
+// One deal, one row, on the same shape every board uses.
 function _stDealHtml(d) {
-  var dash = '<i class="st-unknown">—</i>';
   var stage = _stDealStage(d.status);
-  return '<button type="button" class="cx-deal cx-deal--' + d.dir
-    + (_TF_ST.deal === d.id ? ' is-on' : '') + '" data-st-deal="' + _stEsc(d.id) + '">'
-    + '<span class="cx-deal-who"><b>' + _stEsc(d.staffName) + '</b>'
-    +   '<em>' + _stEsc(ST_ROLE_LABEL[d.proposedRole] || d.proposedRole) + '</em></span>'
-    + '<span class="cx-deal-stage cx-deal-stage--' + stage[0].toLowerCase() + '">' + stage[1] + '</span>'
-    + '<span class="cx-deal-c">' + (d.salary == null ? dash : _stMoney(d.salary)) + '</span>'
-    + '<span class="cx-deal-c">' + (d.durationMonths ? d.durationMonths + ' mo' : dash) + '</span>'
-    + '<span class="cx-deal-c">' + (d.updatedAt ? _stDate(d.updatedAt).slice(5) : dash) + '</span>'
-    + '<span class="cx-deal-next">' + _stDealNext(d) + '</span>'
-    + '<span class="st-offer--' + String(d.status).toLowerCase() + ' cx-deal-st">'
-    +   _stEsc(ST_OFFER_LABEL[d.status] || d.status) + '</span>'
-    + '</button>';
+  var fact = function (i, b) { return '<span class="cx-rw-f"><i>' + i + '</i><b>' + b + '</b></span>'; };
+  return '<article class="cx-rw cx-rw--' + d.dir + (_TF_ST.deal === d.id ? ' is-on' : '') + '">'
+    + '<button type="button" class="cx-rw-open" data-st-deal="' + _stEsc(d.id) + '">'
+    +   '<span class="cx-rw-id"><b>' + _stEsc(d.staffName) + '</b>'
+    +     '<em>' + _stEsc(ST_ROLE_LABEL[d.proposedRole] || d.proposedRole) + '</em></span>'
+    +   '<span class="cx-rw-club">'
+    +     '<b>' + stage[1] + '</b>'
+    +     '<span class="st-offer--' + String(d.status).toLowerCase() + '">'
+    +       _stEsc(ST_OFFER_LABEL[d.status] || d.status) + '</span>'
+    +   '</span>'
+    +   '<span class="cx-rw-facts">'
+    +     (d.salary == null ? '' : fact('Salary', _stMoney(d.salary)))
+    +     (d.durationMonths ? fact('Length', d.durationMonths + ' mo') : '')
+    +     (d.updatedAt ? fact('Updated', _stDate(d.updatedAt).slice(5)) : '')
+    +     fact('Next', _stDealNext(d))
+    +   '</span>'
+    + '</button>'
+    + '<span class="cx-rw-acts">'
+    +   '<button type="button" class="cx-act" data-st-deal="' + _stEsc(d.id) + '">Open deal</button>'
+    + '</span>'
+    + '</article>';
 }
 
 // The deal drawer: the terms, how it got here, and the one move that is
@@ -52738,22 +52926,7 @@ function _stTimelineHtml() {
   var counts = {};
   items.forEach(function (i) { counts[i.lane] = (counts[i.lane] || 0) + 1; });
 
-  // The ribbon carries only what is worth a mark — the important half, capped —
-  // so it reads as a market moving rather than as every row in a table.
-  var marks = shown.filter(function (i) { return i.weight >= 3; }).slice(0, 24);
-  if (!marks.length) marks = shown.slice(0, 12);
-  var lastBand = null;
-  var ribbon = marks.map(function (i) {
-    var band = bandOf(i.at);
-    var head = band !== lastBand ? '<span class="cx-rb-band">' + band + '</span>' : '';
-    lastBand = band;
-    var at = shown.indexOf(i);
-    return head + '<button type="button" class="cx-rb-ev cx-rb-ev--' + i.lane + ' w' + i.weight
-      + (_TF_ST.event === at ? ' is-on' : '') + '" data-st-ev="' + at + '"'
-      + ' title="' + _stEsc(i.label + ' — ' + (i.who || '')) + '"><i>' + i.icon + '</i></button>';
-  }).join('');
-
-  // and under it, what actually changed, grouped and short
+  // One representation, not two: the movements as a timeline, grouped by day.
   var cap = _TF_ST.evAll ? shown.length : ST_EV_SHOWN;
   var groups = ['Today', 'Yesterday', 'This week', 'Older'].map(function (g) {
     var inG = shown.slice(0, cap).filter(function (i) { return bandOf(i.at) === g; });
@@ -52761,42 +52934,57 @@ function _stTimelineHtml() {
     return '<section class="cx-ch-g"><h5>' + g + '</h5>'
       + inG.map(function (i) {
           var at = shown.indexOf(i);
-          var d = new Date(i.at);
+          var dt = new Date(i.at);
           return '<button type="button" class="cx-ch cx-ch--' + i.lane + '" data-st-ev="' + at + '">'
+            + '<time>' + ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) + '</time>'
             + '<span class="cx-ch-i">' + i.icon + '</span>'
             + '<span class="cx-ch-b"><b>' + _stEsc(i.who || i.label) + '</b>'
-            +   '<em>' + i.label + '</em><span>' + i.text + '</span></span>'
-            + '<time>' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + '</time>'
+            +   '<span>' + i.label + ' \u00b7 ' + i.text + '</span></span>'
             + '</button>';
         }).join('')
       + '</section>';
   }).join('');
 
+  // and beside it, who the market actually moved on — read off momentum, which
+  // is a stored figure, not something this screen invents.
+  var movers = _stDerived().listed.slice()
+    .filter(function (r) { return (r.momentum || 0) !== 0; })
+    .sort(function (x, y) { return Math.abs(y.momentum || 0) - Math.abs(x.momentum || 0); })
+    .slice(0, 5);
+
   var sel = _TF_ST.event != null ? shown[_TF_ST.event] : null;
-  return '<div class="cx-bar">'
-    + '<b>Market pulse</b>'
-    + '<span class="cx-rank">'
+  return '<div class="cx-top">'
+    + '<div class="cx-top-t"><h3>Activity</h3><p>What changed recently</p></div>'
+    + '<div class="cx-top-r"><span class="cx-chips">'
     +   ST_EV_FILTERS.map(function (f) {
           var n = f[0] === 'all' ? items.length : (counts[f[0]] || 0);
-          return '<button type="button" class="cx-act' + (lane === f[0] ? ' is-on' : '') + '"'
+          return '<button type="button" class="cx-chip' + (lane === f[0] ? ' is-on' : '') + '"'
             + ' data-st-lane="' + f[0] + '"' + (n ? '' : ' disabled') + '>' + f[1] + '<i>' + n + '</i></button>';
         }).join('')
-    + '</span>'
+    + '</span></div>'
     + '</div>'
-    + (shown.length
-      ? '<div class="cx-ribbon"><span class="cx-rb-now">Now</span>'
-        + '<div class="cx-rb-rail"></div>' + ribbon + '</div>'
-      : '')
     + (sel ? _stEventCardHtml(sel) : '')
-    + (shown.length
-      ? '<div class="cx-changed"><h4>What changed</h4>' + groups
-        + (shown.length > cap
-            ? '<button type="button" class="cx-act cx-more-row" data-st-evall>View all '
-              + shown.length + ' movements</button>'
-            : '')
-        + '</div>'
-      : _stEmpty('◷', 'Nothing under that filter', 'Clear the filter to see the whole pulse.',
-          '<button type="button" class="cx-act cx-act--go" data-st-lane="all">Show all</button>'));
+    + '<div class="cx-actfloor">'
+    +   '<div class="cx-changed">'
+    +     (shown.length ? groups
+        : _stEmpty('\u25f7', 'Nothing under that filter', 'Clear the filter to see everything that moved.',
+            '<button type="button" class="cx-act cx-act--go" data-st-lane="all">Show all</button>'))
+    +     (shown.length > cap
+          ? '<button type="button" class="cx-act cx-more-row" data-st-evall>View all '
+            + shown.length + ' movements</button>' : '')
+    +   '</div>'
+    +   (movers.length
+        ? '<aside class="cx-movers"><h4>Market moved most</h4>'
+          + movers.map(function (r, i) {
+              return '<button type="button" class="cx-mv" data-st-open="' + _stEsc(r.staffUserId) + '">'
+                + '<span class="cx-mv-n">' + (i + 1) + '</span>'
+                + '<span class="cx-mv-id"><b>' + _stEsc(r.name) + '</b>'
+                +   '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+                + _stMom(r.momentum) + '</button>';
+            }).join('')
+          + '</aside>'
+        : '')
+    + '</div>';
 }
 
 // One movement, opened. Compact: what happened, to whom, and where it leads.
@@ -53470,12 +53658,12 @@ function _stNeedsHtml() {
           : (state === 'published' ? 'Published' : 'Vacancy'))) + '</b></button>';
   }).join('');
 
-  return '<div class="cx-bar">'
-    + '<b>Staff plan</b>'
-    + '<span class="cx-sum"><span><b>' + openAll + '</b> position'
-    +   (openAll === 1 ? '' : 's') + ' to fill</span>'
-    +   '<span><b>' + mine.length + '</b> published</span></span>'
-    + '<button type="button" class="cx-act cx-act--go" data-st-needopen>+ Create staff need</button>'
+  return '<div class="cx-top">'
+    + '<div class="cx-top-t"><h3>Staff needs</h3><p>' + openAll + ' position'
+    +   (openAll === 1 ? '' : 's') + ' to fill \u00b7 ' + mine.length + ' published</p></div>'
+    + '<div class="cx-top-r">'
+    +   '<button type="button" class="cx-act cx-act--go" data-st-needopen>+ Create staff need</button>'
+    + '</div>'
     + '</div>'
     + '<div class="cx-teams">'
     +   g.map(function (t) {
@@ -53653,25 +53841,86 @@ function _stHost() {
   return { body: null, overlay: null };
 }
 
-function _stRepaint() {
-  var h = _stHost();
-  // The floating tooltip belongs to a node that is about to be replaced, so it
-  // goes with it — nothing may be left pointing at an element that is gone.
+// ── repainting, in three independent pieces ─────────────────────────────────
+// A screen has three parts that change for different reasons, and they are
+// written separately so that changing one never disturbs the others:
+//
+//   the board    changes when the view or the data changes
+//   the overlay  changes when a record is opened or closed
+//   the shell    changes only when the summary numbers move
+//
+// Opening a coach used to go through one repaint that rewrote all three, so
+// every row on the board was destroyed and rebuilt underneath the modal — twice,
+// because the record's read landed and did it again. That was the shaking.
+
+// The board only. One innerHTML write on one element.
+function _stRepaintBoard() {
+  var board = document.getElementById('cm-board');
+  if (!board) { _stRepaint(); return; }
   _stTipHide();
-  if (h.body) h.body.innerHTML = _stHtml();
-  if (h.overlay) {
-    var html = (_TF_ST.open ? _stProfileHtml() : '')
-      + (_TF_ST.approach ? _stApproachHtml() : '')
-      + (_TF_ST.cmpOpen ? _stCompareHtml() : '')
-      + (_TF_ST.ext ? _stExternalHtml() : '');
-    if (_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen || _TF_ST.ext) {
-      h.overlay.innerHTML = html; h.overlay.classList.add('is-on');
-    } else {
-      h.overlay.innerHTML = ''; h.overlay.classList.remove('is-on');
-    }
+  board.innerHTML = _stHtml();
+  _stSyncNav();
+}
+
+// The navigation's selected state, without rebuilding the navigation.
+function _stSyncNav() {
+  var nav = document.getElementById('cm-nav');
+  if (!nav) return;
+  var btns = nav.querySelectorAll('[data-st-view]');
+  for (var i = 0; i < btns.length; i++) {
+    var on = btns[i].getAttribute('data-st-view') === _TF_ST.view;
+    btns[i].classList.toggle('is-on', on);
   }
 }
+
+// The overlay only. Nothing on the page behind it is touched, so the background
+// cannot move, reflow or reload while a modal opens.
+function _stRepaintOverlay() {
+  var ov = document.getElementById('cm-overlay');
+  if (!ov) return;
+  var wants = !!(_TF_ST.open || _TF_ST.approach || _TF_ST.cmpOpen || _TF_ST.ext);
+  if (!wants) {
+    if (ov.innerHTML) { ov.innerHTML = ''; ov.classList.remove('is-on'); }
+    return;
+  }
+  _stTipHide();
+  ov.innerHTML = (_TF_ST.open ? _stProfileHtml() : '')
+    + (_TF_ST.approach ? _stApproachHtml() : '')
+    + (_TF_ST.cmpOpen ? _stCompareHtml() : '')
+    + (_TF_ST.ext ? _stExternalHtml() : '');
+  ov.classList.add('is-on');
+}
+
+// The header figures and the compare tray, which follow the summary rather than
+// the view. Written in place so the header node itself survives.
+function _stRepaintChrome() {
+  var hd = document.getElementById('cm-hd');
+  if (hd) hd.innerHTML = _stHeadHtml();
+  var nav = document.getElementById('cm-nav');
+  if (nav) nav.innerHTML = _stNavHtml();
+  var tray = document.getElementById('cm-tray');
+  if (tray) tray.innerHTML = _stCompareTrayHtml();
+}
+
+// Everything. Used on entering the module and after a write that can change any
+// part of it — not on a tab click, and not on opening a record.
+function _stRepaint() {
+  var h = _stHost();
+  _stTipHide();
+  var board = document.getElementById('cm-board');
+  if (h.body && !board) {
+    // first paint: the shell does not exist yet
+    h.body.innerHTML = _stShellHtml(_stHtml());
+  } else if (board) {
+    board.innerHTML = _stHtml();
+    _stRepaintChrome();
+  }
+  _stRepaintOverlay();
+}
 window._stRepaint = _stRepaint;
+window._stRepaintBoard = _stRepaintBoard;
+window._stRepaintOverlay = _stRepaintOverlay;
+window._stRepaintChrome = _stRepaintChrome;
 window._stSyncAll = _stSyncAll;
 
 // The tooltip's own wiring. Delegated, so it survives every repaint, and it
@@ -53760,12 +54009,17 @@ function _cmHeaderHtml() {
 function renderCoachMarketPage() {
   var host = document.getElementById('cm-shell'); if (!host) return;
   // The exchange's own header IS the page header — the module used to carry a
-  // second band above it saying the same thing twice.
-  host.innerHTML = '<div class="tf-body" id="cm-body">' + _stHtml() + '</div>';
-  _stRepaint();
+  // second band above it saying the same thing twice. The shell is written once
+  // here and then survives every click; from now on only the board inside it,
+  // the overlay above it, or the header's figures are ever rewritten.
+  if (!document.getElementById('cm-board')) {
+    host.innerHTML = '<div class="tf-body" id="cm-body">' + _stShellHtml(_stHtml()) + '</div>';
+  } else {
+    _stRepaintBoard(); _stRepaintChrome();
+  }
   // Both the page template and the router call this on entry. The cache makes
   // the second call join the first rather than repeat it.
-  _stSyncAll().then(_stRepaint);
+  _stSyncAll().then(function () { _stRepaintBoard(); _stRepaintChrome(); });
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -57473,6 +57727,7 @@ function _stResetClubScoped() {
   _TF_ST.open = null; _TF_ST.approach = null;
   _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _TF_ST.ext = null; _TF_ST.noteDraft = null;
   _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = ''; _TF_ST.slot = null;
+  _TF_ST.faPage = 1; _TF_ST.wrLane = 'all'; _TF_ST.wrOpen = null; _TF_ST.dealLane = 'all';
   _TF_ST.view = 'market';
   _TF_ST.f.status = ''; _TF_ST.f.availableNow = false; _TF_ST.f.openToOffers = false;
 }
