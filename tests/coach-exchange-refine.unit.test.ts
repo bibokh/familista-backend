@@ -1,25 +1,26 @@
 /**
  * tests/coach-exchange-refine.unit.test.ts
  *
- * The refinement and simplification passes over the Coach Exchange.
+ * The Familista Recruitment Command Center.
  *
- * The bug this file exists for was real and is the first thing asserted. Every
- * board tab used to read its own rows array with a different tab= on the query,
- * repainting is synchronous and the read is not — so opening Shortlisted painted
- * the forty-five rows the Market floor had left behind and then replaced them
- * with the two that are actually shortlisted. Nothing was ever lost; the wrong
- * thing was drawn first.
+ * Three things are asserted here, in the order they were fixed.
  *
- * The structural answer is the one asserted here: there is no per-tab read at
- * all. The module reads the population once, keeps it, and every board is a
- * memoised filter over that one array — so a tab switch is a repaint of data
- * already on the machine, a stale cache refreshes behind whatever is on screen,
- * and no board can be holding another board's rows because there is only one.
+ * First, the bug: every board used to read its own rows with a different tab=
+ * on the query, and repainting is synchronous where the read is not — so
+ * opening Shortlist painted the rows the Market floor had left behind and then
+ * replaced them. The structural answer is that there is no per-board read at
+ * all. The module reads the population once and every board is a memoised
+ * filter over that one array.
  *
- * The rest is shape: the tooltip lives at the end of <body> so no ancestor can
- * clip it, the profile and every modal are opaque and on the module's own dark
- * surface, each of the seven tabs is a different layout, and each of them says
- * what to do when it has nothing to show.
+ * Second, the shaking: a click used to rewrite the whole page — header, tabs
+ * and every row — twice per profile open. The shell is now a permanent frame of
+ * four addressed elements, and each of them is written only by the thing that
+ * owns it. A mode change writes the stage; picking somebody writes the dock;
+ * neither writes the other, and nothing writes the shell.
+ *
+ * Third, the shape: a pulse strip instead of KPI tiles, workspace modes instead
+ * of tabs, five intelligence lanes instead of a card wall, and a decision dock
+ * that a first click lands in — so inspecting somebody costs no modal at all.
  */
 
 import { readFileSync } from 'fs';
@@ -31,25 +32,27 @@ const CSS = readFileSync(join(__dirname, '..', 'public', 'app.css'), 'utf8');
 function appFn(name: string, until: string) {
   return APP.slice(APP.indexOf(`function ${name}`), APP.indexOf(`function ${until}`));
 }
+function fnBody(name: string) {
+  const at = APP.indexOf(`function ${name}(`);
+  if (at < 0) return '';
+  let i = APP.indexOf('{', at), depth = 0;
+  for (; i < APP.length; i++) {
+    if (APP[i] === '{') depth++;
+    else if (APP[i] === '}') { depth--; if (!depth) break; }
+  }
+  return APP.slice(at, i + 1);
+}
 function rule(sel: string) {
   const at = CSS.indexOf(sel);
   if (at < 0) return '';
   return CSS.slice(at, CSS.indexOf('}', at));
 }
-// the last pass wins, so a rule the simplification restated is read from there
-const SIMP = CSS.slice(CSS.indexOf('COACH EXCHANGE · the simplification pass'));
-function lastRule(sel: string) {
-  const at = SIMP.indexOf(sel);
-  if (at < 0) return '';
-  return SIMP.slice(at, SIMP.indexOf('}', at));
-}
 
-describe('a tab never draws another tab\'s rows', () => {
-  it('one population serves every board, so no board can hold another\'s rows', () => {
+describe('one population serves every board', () => {
+  it('the module reads it once, and no board can hold another board\'s rows', () => {
     const f = appFn('_stLoadPopulation', '_stLoadMarket');
     expect(f).toContain('var gen = ++_stGen;');
-    expect(f).toContain("'?tab=all&sort='");     // the whole market, not one tab of it
-    // and every board is a filter over that one array
+    expect(f).toContain("'?tab=all&sort='");     // the whole market, not one board of it
     const der = appFn('_stDerived', '_stPrepare');
     ['all: rows,', 'listed: listed,', 'freeAgents: rows.filter', 'shortlisted: rows.filter']
       .forEach((k) => expect(der).toContain(k));
@@ -57,23 +60,13 @@ describe('a tab never draws another tab\'s rows', () => {
 
   it('and a read that lands after the reader has moved on is dropped', () => {
     const f = appFn('_stLoadPopulation', '_stLoadMarket');
-    // both the success path and the failure path
     expect(f.match(/if \(gen !== _stGen\) return;/g)).toHaveLength(2);
   });
 
-  it('every board tab checks before it draws', () => {
-    expect(APP).toContain('function _stRowsReady()');
+  it('every board checks before it draws', () => {
     expect(APP).toContain('function _stCacheWarm()  { return _ST_CACHE.at > 0; }');
     ['_stMarketHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml']
-      .forEach((fn) => {
-        const body = APP.slice(APP.indexOf(`function ${fn}(`), APP.indexOf(`function ${fn}(`) + 900);
-        expect(body).toContain('_stRowsReady()');
-      });
-  });
-
-  it('the war room in particular, because that is where it showed', () => {
-    const f = APP.slice(APP.indexOf('function _stShortlistDeskHtml()'));
-    expect(f.slice(0, 500)).toContain("if (!_stRowsReady()) return _stReadingHtml('the shortlist');");
+      .forEach((fn) => expect(fnBody(fn).slice(0, 400)).toContain('_stRowsReady()'));
   });
 
   it('and switching club invalidates everything in flight', () => {
@@ -81,114 +74,34 @@ describe('a tab never draws another tab\'s rows', () => {
     expect(f).toContain('_stGen++;');
     expect(f).toContain('_ST_CACHE.at = 0;');
   });
-
-  it('the fix is state, not a delay or a suppressed refetch', () => {
-    const f = appFn('_stLoadPopulation', '_stLoadMarket');
-    expect(f).not.toMatch(/setTimeout/);
-    // a write still reloads the market for real
-    expect(appFn('_stLoadMarket', '_stRowsReady')).toContain('return _stSyncAll(true);');
-  });
 });
 
-describe('a cached tab switch costs nothing', () => {
+describe('a mode change costs nothing', () => {
   it('the module reads once and keeps it', () => {
     expect(APP).toContain('var _ST_CACHE = { at: 0, inflight: null };');
     expect(APP).toContain('var ST_FRESH_MS = 20000;');
     expect(APP).toContain('var ST_STALE_MS = 60000;');
     const s = appFn('_stSyncAll', '_stRevalidate');
-    // a second caller inside the same flight joins it rather than issuing its own
     expect(s).toContain('if (_ST_CACHE.inflight && !force) return _ST_CACHE.inflight;');
     expect(s).toContain('if (!force && _stCacheFresh()) return Promise.resolve();');
   });
 
-  it('switching a tab writes one element and reads nothing', () => {
-    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-view]')))"));
-    const block = wire.slice(0, 1000);
-    expect(block).toContain('_stRepaintBoard();');
-    expect(block).toContain('_stRevalidate();');
-    expect(block).not.toContain('_stLoadMarket()');
-    // and that write is one innerHTML on the board, not the page
-    const rb = appFn('_stRepaintBoard', '_stSyncNav');
+  it('changing mode writes one element and reads nothing', () => {
+    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-view]')))"),
+      APP.indexOf("if ((el = t.closest('[data-st-view]')))") + 1100);
+    expect(wire).toContain('_stRepaintBoard();');
+    expect(wire).toContain('_stRevalidate();');
+    expect(wire).not.toContain('_stLoadMarket()');
+    const rb = fnBody('_stRepaintBoard');
     expect(rb).toContain("var board = document.getElementById('cm-board');");
-    expect(rb).toContain('var html = _stHtml();');
     expect(rb).toContain('_stWrite(board, html)');
     expect(rb).toContain('_stSyncNav();');
-  });
-
-  it('the shell is a permanent frame, not a string rebuilt on every click', () => {
-    const sh = appFn('_stShellHtml', '_stHeadHtml');
-    ["id=\"cm-hd\"", "id=\"cm-nav\"", "id=\"cm-board\"", "id=\"cm-tray\""]
-      .forEach((id) => expect(sh).toContain(id));
-    // the board html no longer carries the shell around with it
-    const h = appFn('_stHtml', '_stShellHtml');
-    expect(h).not.toContain('_stShellHtml(');
-    // and the navigation's selected state is a class flip, not a rebuild
-    const nav = appFn('_stSyncNav', '_stRepaintOverlay');
-    expect(nav).toContain("btns[i].classList.toggle('is-on', on);");
-    expect(nav).not.toContain('innerHTML');
-  });
-
-  it('opening a record writes only the overlay, so the board cannot move', () => {
-    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
-    expect(ov).toContain("var ov = document.getElementById('cm-overlay');");
-    expect(ov).not.toContain('cm-board');
-    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-open]')))"));
-    const block = wire.slice(0, 800);
-    expect(block).toContain('_stRepaintOverlay();');
-    expect(block).toContain('_stLoadOne(_sid).then(_stRepaintOverlay);');
-    expect(block).not.toContain('_stRepaint();');
-    // and closing it likewise
-    expect(APP).toContain("_TF_ST.open = null; _stRepaintOverlay(); return;");
-  });
-
-  it('and the star is switched where it stands rather than by rebuilding a list', () => {
-    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-short]')))"));
-    const block = wire.slice(0, 2200);
-    expect(block).toContain("el.setAttribute('data-st-on', _was ? '0' : '1');");
-    expect(block).toContain("el.classList.toggle('is-on', !_was);");
-    expect(block).toContain("if (_TF_ST.view === 'shortlisted') _stRepaintBoard();");
-  });
-
-  it('a background refresh does not rebuild what the reader has open', () => {
-    // The comparison is against the string last written, not against innerHTML:
-    // reading innerHTML back gives the browser's serialisation, so a valueless
-    // data-st-modal comes back as data-st-modal="" and nothing ever matches.
-    const w = appFn('_stWrite', '_stRepaintBoard');
-    expect(w).toContain("if (el.__stHtml === html && el.innerHTML !== '') return false;");
-    expect(w).toContain('el.__stHtml = html;');
-    // every one of the three writers goes through it
-    expect(appFn('_stRepaintBoard', '_stSyncNav')).toContain('_stWrite(board, html)');
-    expect(appFn('_stRepaintOverlay', '_stRepaintChrome')).toContain('_stWrite(ov, html)');
-    // sliced by hand: 'function _stRepaint' also matches _stRepaintBoard, which
-    // sits earlier in the file and would give an empty slice
-    const ch = APP.slice(APP.indexOf('function _stRepaintChrome()'));
-    expect(ch.slice(0, 600)).toContain('_stWrite(document.getElementById(id), html)');
-  });
-
-  it('and it never takes the caret out of a form somebody is typing into', () => {
-    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
-    expect(ov).toContain('var a = document.activeElement;');
-    expect(ov).toContain("if (a && ov.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;");
-  });
-
-  it('the groups the boards draw are prepared when the data lands, not on a click', () => {
-    const der = appFn('_stDerived', '_stPrepare');
-    ['bands: bands,', 'range: range,', 'signals: signals,', 'watch: watch,']
-      .forEach((k) => expect(der).toContain(k));
-    expect(APP).toContain('function _stPrepare()');
-    expect(appFn('_stLoadPopulation', '_stLoadMarket')).toContain('_stPrepare();');
-    // so the map reads a prepared list rather than grouping and sorting one
-    const uni = appFn('_stUniverseHtml', '_stNodeHtml');
-    expect(uni).toContain('d.bands.map(');
-    expect(uni).not.toContain('.sort(');
   });
 
   it('a stale board refreshes behind what is shown, never in front of it', () => {
     const r = appFn('_stRevalidate', '_stHtml');
     expect(r).toContain('if (_ST_CACHE.inflight) return;');
     expect(r).toContain('if (Date.now() - _ST_CACHE.at < ST_STALE_MS) return;');
-    expect(r).toContain('_stSyncAll(true).then(function () { _stRepaint(); });');
-    // and a failed refresh does not empty a board that is already showing people
     expect(appFn('_stLoadPopulation', '_stLoadMarket'))
       .toContain('if (!_TF_ST.rows.length) { _TF_ST.rows = []; _TF_ST.total = 0; }');
   });
@@ -197,302 +110,292 @@ describe('a cached tab switch costs nothing', () => {
     const k = appFn('_stDeriveKey', '_stDerived');
     ['f.search', 'f.role', 'f.status', 'f.clubId', 'f.licence'].forEach((x) => expect(k).toContain(x));
     expect(k).toContain('_TF_ST.rows.length');
-    expect(appFn('_stDerived', '_stLoadClubs'))
-      .toContain("if (_TF_ST.derived && _TF_ST.derived.key === key) return _TF_ST.derived;");
-    // a new population invalidates it
+    expect(appFn('_stDerived', '_stPrepare'))
+      .toContain('if (_TF_ST.derived && _TF_ST.derived.key === key) return _TF_ST.derived;');
     expect(appFn('_stLoadPopulation', '_stLoadMarket')).toContain('_TF_ST.derived = null;');
   });
 
   it('and searching or filtering is not a network trip', () => {
-    const der = appFn('_stDerived', '_stLoadClubs');
+    const der = appFn('_stDerived', '_stPrepare');
     expect(der).toContain('rows = rows.filter(function (r) { return r.role === f.role; });');
     expect(der).not.toContain('_stApi(');
   });
-});
 
-describe('the market intelligence tooltip floats above everything', () => {
-  it('it is one element at the end of the document, not a child of a node', () => {
-    expect(APP).toContain("el.id = 'cx-tip';");
-    expect(APP).toContain('document.body.appendChild(el);');
-    // and the node no longer carries one
-    const node = appFn('_stNodeHtml', '_stTipEl');
-    expect(node).not.toContain('cx-tip');
-  });
-
-  it('fixed, and above every stacking context the page can make', () => {
-    const r = rule('#cx-tip.cx-tip{');
-    expect(r).toContain('position:fixed');
-    expect(r).toMatch(/z-index:2147483000/);
-  });
-
-  it('it is placed inside the viewport, flipping when there is no room', () => {
-    const f = appFn('_stTipShow', '_stCompareTrayHtml');
-    expect(f).toContain('if (top < pad) top = n.bottom + 10;');
-    expect(f).toContain('left = Math.max(pad, Math.min(left, window.innerWidth - t.width - pad));');
-  });
-
-  it('and it is dismissed by anything that moves what it points at', () => {
-    const wire = APP.slice(APP.indexOf('(function _stTipWire() {'));
-    expect(wire).toContain("document.addEventListener('scroll', _stTipHide, true);");
-    expect(wire).toContain("window.addEventListener('resize', _stTipHide);");
-    expect(appFn('_stRepaint', '_stTipWire')).toContain('_stTipHide();');
-  });
-
-  it('it stays information only — the click still opens the record', () => {
-    expect(rule('#cx-tip.cx-tip{')).toContain('pointer-events:none');
-    expect(appFn('_stNodeHtml', '_stTipEl')).toContain('data-st-lens=');
+  it('the lanes are grouped and ranked when the data lands, not on a click', () => {
+    const der = appFn('_stDerived', '_stPrepare');
+    expect(der).toContain('lanes[L[0]] = listed.filter(L[3]).sort(');
+    expect(der).toContain('ladder = listed.slice().sort(');
+    expect(APP).toContain('function _stPrepare()');
+    expect(appFn('_stLoadPopulation', '_stLoadMarket')).toContain('_stPrepare();');
+    // so the board reads a prepared list rather than grouping one
+    expect(fnBody('_stMarketHtml')).toContain('d.lanes[L[0]] || []');
+    expect(fnBody('_stAvailableHtml')).toContain('d.ladder');
   });
 });
 
-describe('the coach intelligence profile is opaque and dashboard-first', () => {
-  it('the surface is near-solid, and the scrim behind it is heavy', () => {
-    const r = rule('#pg-coach-market .cx-profile{');
-    expect(r).toContain('#111823');           // an opaque ground, not a wash
-    expect(r).toContain('backdrop-filter:blur(6px)');
-    expect(r).not.toMatch(/rgba\(255,255,255,\.0[0-9]\)\s*;?\s*$/);
+describe('the shell is a permanent frame', () => {
+  it('four addressed elements, written once', () => {
+    const sh = appFn('_stShellHtml', '_stPulseBarHtml');
+    ['id="cm-pulse"', 'id="cm-nav"', 'id="cm-board"', 'id="cm-dock"', 'id="cm-tray"']
+      .forEach((id) => expect(sh).toContain(id));
+    // the board html no longer carries the shell around with it
+    expect(fnBody('_stHtml')).not.toContain('_stShellHtml(');
+    // and the mode's selected state is a class flip, not a rebuild
+    const nav = fnBody('_stSyncNav');
+    expect(nav).toContain("btns[i].classList.toggle('is-on', on);");
+    expect(nav).not.toContain('innerHTML');
+  });
+
+  it('each part is written only by the thing that owns it', () => {
+    expect(fnBody('_stRepaintDock'))
+      .toContain("_stWrite(document.getElementById('cm-dock'), _stDockHtml());");
+    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
+    expect(ov).toContain("var ov = document.getElementById('cm-overlay');");
+    expect(ov).not.toContain('cm-board');
+    expect(fnBody('_stRepaintBoard')).not.toContain("getElementById('cm-dock')");
+  });
+
+  it('a write that would say the same thing is not made at all', () => {
+    const w = appFn('_stWrite', '_stRepaintBoard');
+    // the comparison is against the string last written, not innerHTML: reading
+    // innerHTML back gives the browser's serialisation, so a valueless
+    // data-st-modal comes back as data-st-modal="" and nothing ever matches
+    expect(w).toContain("if (el.__stHtml === html && el.innerHTML !== '') return false;");
+    expect(w).toContain('el.__stHtml = html;');
+  });
+
+  it('and a refresh never takes the caret out of a form somebody is typing into', () => {
+    const ov = appFn('_stRepaintOverlay', '_stRepaintChrome');
+    expect(ov).toContain('var a = document.activeElement;');
+    expect(ov).toContain("if (a && ov.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;");
+  });
+});
+
+describe('the pulse is a line, and the modes are not tabs', () => {
+  it('five readings on one strip, no tiles and no giant numbers', () => {
+    const f = fnBody('_stPulseBarHtml');
+    ['available', 'open to offers', 'high demand', 'contract watch', 'new this week']
+      .forEach((l) => expect(f).toContain("'" + l + "'"));
+    // the two the server does not keep are counted off the population in hand
+    expect(f).toContain("r.employmentStatus === 'OPEN_TO_OFFERS'");
+    expect(f).toContain('(r.clubsWatching || 0) >= 2');
+    // and the strip is one line
+    expect(rule('.cx-pulsebar{')).toContain('display:flex');
+    // the tiles it replaced are gone
+    expect(APP).not.toContain('cx-ind--idx');
+    expect(CSS).not.toContain('.cx-ind{');
+  });
+
+  it('seven workspace modes, drawn as switches rather than as browser tabs', () => {
+    expect(APP).toContain('var ST_MODES = [');
+    ["'market', 'Market'", "'available', 'Available'", "'free-agents', 'Free agents'",
+     "'shortlisted', 'Shortlist'", "'needs', 'Needs'", "'negotiations', 'Deals'",
+     "'activity', 'Activity'"].forEach((m) => expect(APP).toContain(m));
+    expect(fnBody('_stNavHtml')).toContain('class="cx-mode');
+    // no tab strip, no folder shape, no underline
+    expect(APP).not.toContain('st-vtab');
+    const r = rule('.cx-mode{');
+    expect(r).toContain('border-radius:9px');
+    expect(r).toContain('border:0');
+  });
+});
+
+describe('MARKET is a recruitment flow board', () => {
+  it('five intelligence lanes, in the order a recruiter asks', () => {
+    expect(APP).toContain('var ST_LANES = [');
+    ["'hot',   'Hot'", "'open',  'Open to offers'", "'free',  'Available'",
+     "'watch', 'Contract watch'", "'new',   'New to market'"]
+      .forEach((l) => expect(APP).toContain(l));
+    expect(rule('.cx-flow{')).toContain('repeat(5,minmax(0,1fr))');
+  });
+
+  it('about five entries a lane, and the rest behind one control', () => {
+    expect(APP).toContain('var ST_LANE_ROW = 5;');
+    const f = fnBody('_stMarketHtml');
+    expect(f).toContain('people.slice(0, ST_LANE_ROW)');
+    expect(f).toContain('data-st-laneopen=');
+    expect(f).toContain("'+' + more + ' more</button>'");
+  });
+
+  it('the unit is a staff strip, not a card', () => {
+    const f = fnBody('_stStripHtml');
+    expect(f).toContain('class="cx-strip');
+    // who he is, the two figures, where he stands, and his movement
+    expect(f).toContain('cx-strip-1');
+    expect(f).toContain('cx-strip-2');
+    expect(f).toContain('cx-strip-3');
+    expect(f).toContain('_stMom(r.momentum)');
+    expect(rule('.cx-strip{')).toContain('display:flex');
+    // and the exchange map it replaced is gone with its tooltip
+    expect(APP).not.toContain('function _stNodeHtml');
+    expect(APP).not.toContain('function _stUniverseHtml');
+    expect(APP).not.toContain('function _stTipShow');
+    expect(CSS).not.toContain('.cx-node{');
+  });
+});
+
+describe('the decision dock is where a first click lands', () => {
+  it('it is a permanent column, not a drawer that appears', () => {
+    expect(appFn('_stShellHtml', '_stPulseBarHtml')).toContain('class="cx-dock');
+    expect(rule('.cx-stage{')).toContain('grid-template-columns:minmax(0,1fr) 336px');
+  });
+
+  it('with nobody picked it is market intelligence, four readings deep', () => {
+    const f = fnBody('_stDockIntelHtml');
+    ['Most wanted', 'Fastest rising', 'Best value', 'Contract risks']
+      .forEach((t) => expect(f).toContain("sec('" + t + "'"));
+    expect(f).toContain('.slice(0, 3)');
+  });
+
+  it('with somebody picked it is him, and the five things a club can do', () => {
+    const f = fnBody('_stDockCoachHtml');
+    ['FCI', 'Opportunity', 'Reputation'].forEach((k) => expect(f).toContain("fig('" + k + "'"));
+    ['Availability', 'Expected', 'Contract', 'Fit'].forEach((k) => expect(f).toContain("kv('" + k + "'"));
+    ['Profile', 'Compare', 'Contact', 'Negotiate'].forEach((a) => expect(f).toContain('>' + a + '<'));
+    expect(f).toContain('data-st-short=');
+  });
+
+  it('a first click selects into the dock and does not open a record', () => {
+    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-lens]')))"),
+      APP.indexOf("if ((el = t.closest('[data-st-lens]')))") + 800);
+    expect(wire).toContain('_TF_ST.lens = (_TF_ST.lens === _lid) ? null : _lid;');
+    expect(wire).toContain('_stRepaintDock(); _stSyncSel(); return;');
+    expect(wire).not.toContain('_TF_ST.open');
+    // every board's own unit selects rather than opens
+    ['_stStripHtml', '_stRungHtml', '_stDeskCardHtml'].forEach((fn) => {
+      expect(fnBody(fn)).toContain('data-st-lens=');
+      expect(fnBody(fn)).not.toContain('data-st-open=');
+    });
+    // and marking the selection does not redraw the lane it sits in
+    const sel = fnBody('_stSyncSel');
+    expect(sel).toContain("classList.toggle('is-on'");
+    expect(sel).not.toContain('innerHTML');
+  });
+
+  it('and the record is one further, deliberate step', () => {
+    expect(fnBody('_stDockCoachHtml')).toContain('data-st-open="');
+    const open = APP.slice(APP.indexOf("if ((el = t.closest('[data-st-open]')))"),
+      APP.indexOf("if ((el = t.closest('[data-st-open]')))") + 800);
+    expect(open).toContain('_stRepaintOverlay();');
+    expect(open).not.toContain('_stRepaint();');
+    // the record itself is still the dark one it was
+    // the last rule for it wins, and that is the geometry the brief asks for
+    const geo = CSS.slice(CSS.lastIndexOf('#pg-coach-market .cx-profile{'));
+    expect(geo.slice(0, geo.indexOf('}'))).toContain('width:min(1080px, calc(100vw - 48px))');
+    expect(geo.slice(0, geo.indexOf('}'))).toContain('height:min(780px, calc(100vh - 48px))');
     expect(rule('#pg-coach-market .tf-modal-bd{')).toContain('rgba(4,7,12,.82)');
   });
 
-  it('the overview leads with six readings, not a form', () => {
-    const f = appFn('_stOverviewPanel', '_stCareerPanel');
-    ['Professional evaluation', 'Market situation', 'Contract &amp; availability', 'Qualifications',
-     'Tactical identity', 'Experience']
-      .forEach((m) => expect(f).toContain(`mod('${m}`));
-    expect(CSS).toContain('.cx-pmods{');
-    expect(CSS).toContain('.cx-pm{');
+  it('it also carries the vacancy, the deal and the movers', () => {
+    const d = fnBody('_stDockHtml') + fnBody('_stDockInnerHtml');
+    expect(d).toContain('_stDockVacancyHtml()');
+    expect(d).toContain('_stDockDealHtml()');
+    expect(d).toContain('_stDockMoversHtml()');
+    expect(fnBody('_stDockVacancyHtml')).toContain("'<section class=\"cx-dk-sec\"><h5>Best matches</h5>'");
+    expect(fnBody('_stDockMoversHtml')).toContain('What moved most');
   });
 
-  it('and a figure the record does not hold is left out, not printed as an empty box', () => {
-    const f = appFn('_stOverviewPanel', '_stCareerPanel');
-    // a null row is dropped and its name remembered
-    expect(f).toContain("if (r[1] == null || r[1] === '') { missing.push(r[0]); return false; }");
-    // a module with nothing in it is not drawn at all
-    expect(f).toContain("if (!body) return '';");
-    // and what is missing is named once, behind a disclosure
-    expect(f).toContain("'<details class=\"cx-more-info\"><summary>Additional information</summary>'");
-    expect(f).toContain("'<p class=\"cx-inote\">Not recorded: '");
-    expect(f).not.toContain("var dash = '<i class=\"st-unknown\">Not recorded</i>';");
-    expect(CSS).toContain('.cx-more-info{');
-  });
-
-  it('and demand is read from the market row, never invented on the profile', () => {
-    const f = appFn('_stOverviewPanel', '_stCareerPanel');
-    expect(f).toContain("(_TF_ST.rows || []).forEach(function (x) { if (x.staffUserId === d.staffUserId) row = x; });");
-    expect(f).toContain("['Clubs watching', row && row.clubsWatching != null ? row.clubsWatching : null]");
-  });
-
-  it('the canonical tabs and the action dock are untouched', () => {
-    expect(APP).toContain('var ST_PROFILE_TABS = [');
-    ['overview', 'personal', 'career', 'qualifications', 'tactics', 'experience',
-     'achievements', 'contract', 'intent', 'notes', 'market']
-      .forEach((t) => expect(APP).toContain(`['${t}',`));
-    const dock = appFn('_stProfileActionsHtml', '_stApproachHtml');
-    ['Shortlist', 'Compare', 'Career history', 'Club notes', 'Contact', 'Start negotiation']
-      .forEach((a) => expect(dock).toContain(a));
+  it('and it folds away where it has to stack', () => {
+    expect(fnBody('_stDockToggleHtml')).toContain('data-st-dock');
+    expect(APP).toContain('_TF_ST.dockMin = !_TF_ST.dockMin;');
+    expect(CSS).toContain('.cx-dock.is-min .cx-dk-body,');
+    expect(CSS).toContain('.cx-dk-toggle{ display:flex; }');
   });
 });
 
-describe('the war room is four lanes that rebalance', () => {
-  it('four stages, mapped onto the five the platform stores', () => {
-    expect(APP).toContain("var ST_WR = [");
-    expect(APP).toContain("['DECISION',  'Final review',  ['NEGOTIATION', 'OFFER_SENT']]");
-    // nothing was renamed in the database to make the screen read well
-    expect(APP).toContain("var ST_STAGE = [");
-    expect(APP).toContain("['OFFER_SENT', 'Offer Sent']");
+describe('every other mode is its own answer', () => {
+  it('AVAILABLE is a priority ladder, numbered and capped', () => {
+    const f = fnBody('_stAvailableHtml');
+    expect(f).toContain('class="cx-ladder"');
+    expect(f).toContain('_stRungHtml(r, i + 1)');
+    expect(APP).toContain('var ST_PAGE = 8;');
+    expect(fnBody('_stRungHtml')).toContain('class="cx-rung-n"');
+    expect(rule('.cx-ladder{')).toContain('flex-direction:column');
   });
 
-  it('four stages as chips over one list, not four Kanban columns', () => {
-    const f = appFn('_stShortlistDeskHtml', '_stDeskCardHtml');
-    expect(f).toContain('data-st-wrlane=');
-    expect(f).toContain("class=\"cx-list\"");
-    expect(f).not.toContain('cx-wr-col');
+  it('FREE AGENTS is an immediate hire board, and looks nothing like the ladder', () => {
+    const f = fnBody('_stFreeAgentsHtml');
+    expect(f).toContain('class="cx-hire"');
+    expect(APP).toContain('var ST_FA_PAGE = 6;');
+    expect(rule('.cx-hire{')).toContain('repeat(2,minmax(0,1fr))');
+    const b = fnBody('_stDossierHtml');
+    expect(b).toContain('cx-hb-free">FREE AGENT<');
+    ['Last club', 'Experience', 'Licence', 'Expected', 'Opportunity', 'Free since']
+      .forEach((l) => expect(b).toContain(`['${l}',`));
+    expect(b).toContain('>Inspect<');
+    expect(b).toContain('>Approach<');
+  });
+
+  it('SHORTLIST is a recruitment room of three sections', () => {
+    expect(APP).toContain('var ST_ROOMS = [');
+    ["'WATCHING',  'Watching'", "'CONTACTED', 'Contacted'", "'FINAL',     'Final'"]
+      .forEach((r) => expect(APP).toContain(r));
+    expect(fnBody('_stShortlistDeskHtml')).toContain('class="cx-room"');
+    expect(rule('.cx-room{')).toContain('repeat(3,minmax(0,1fr))');
+    // and the Kanban board it replaced is gone
     expect(CSS).not.toContain('.cx-wr{');
+    expect(APP).not.toContain('cx-wr-col');
   });
 
-  it('an empty shortlist says what to do about it rather than nothing', () => {
-    const f = appFn('_stShortlistDeskHtml', '_stDeskCardHtml');
-    expect(f).toContain("_stEmpty('\\u2606', 'Your shortlist is empty',");
-    expect(f).toContain('data-st-view="market">Browse market');
-    // and the empty state is one shape used by every board
+  it('NEEDS is a vacancy matrix: teams beside a role grid', () => {
+    const f = fnBody('_stNeedsHtml');
+    expect(f).toContain('class="cx-matrix"');
+    expect(f).toContain('class="cx-mx-teams"');
+    expect(f).toContain('class="cx-mx-grid"');
+    expect(f).toContain("'FILLED'");
+    expect(f).toContain("'CONTRACT ENDING'");
+    expect(f).toContain("'VACANT'");
+    expect(f).toContain('data-st-slot=');
+    expect(rule('.cx-matrix{')).toContain('184px minmax(0,1fr)');
+    // and the create form is asked for, not permanently on screen
+    expect(f).toContain('data-st-needopen');
+    expect(f).toContain("(_TF_ST.needOpen ? _stNeedFormHtml() : '')");
+  });
+
+  it('DEALS is a room of tickets, not another Kanban', () => {
+    const f = fnBody('_stPipelineHtml');
+    expect(f).toContain('class="cx-tickets"');
+    expect(f).toContain('_stDealHtml');
+    const t = fnBody('_stDealHtml');
+    ['Offer', 'Length', 'Bonus', 'Last update', 'Next action']
+      .forEach((k) => expect(t).toContain("kv('" + k + "'"));
+    expect(t).toContain('>Open deal<');
+    expect(CSS).not.toContain('.cx-dr{');
+    expect(CSS).not.toContain('.cx-pipe{');
+  });
+
+  it('ACTIVITY is a market radar, and only one representation of it', () => {
+    const f = fnBody('_stTimelineHtml');
+    expect(f).toContain('class="cx-radar"');
+    expect(f).toContain('Market radar');
+    expect(f).toContain('var strong = shown.filter(function (i) { return i.weight >= 3; });');
+    expect(APP).toContain('var ST_EV_SHOWN = 6;');
+    expect(f).toContain('data-st-evall');
+    // the competing ribbon, feed and pulse track are all gone
+    ['cx-ribbon', 'cx-rb-rail', 'cx-pulse-track', 'cx-feed-g'].forEach((c) => expect(APP).not.toContain(c));
+  });
+
+  it('and every one of the seven says what to do when it is empty', () => {
+    ['_stMarketHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
+     '_stNeedsHtml', '_stPipelineHtml', '_stTimelineHtml']
+      .forEach((fn) => expect(fnBody(fn)).toMatch(/_stEmpty\(/));
     const e = appFn('_stEmpty', '_stFreeAgentsHtml');
     ['cx-none-i', '<b>', 'action'].forEach((x) => expect(e).toContain(x));
   });
-
-  it('and a candidate is one row, with the decision itself in a drawer', () => {
-    const c = appFn('_stDeskCardHtml', '_stDecisionHtml');
-    expect(c).toContain("class=\"cx-rw");
-    expect(c).toContain('data-st-wropen=');
-    ['FCI', 'OPP', 'Last contact'].forEach((k) => expect(c).toContain("fact('" + k + "'"));
-    const d = appFn('_stDecisionHtml', '_stPipelineHtml');
-    expect(d).toContain('data-st-pri=');
-    expect(d).toContain('data-st-stage=');
-    ['Profile', 'Compare', 'Negotiate', 'Remove'].forEach((a) => expect(d).toContain('>' + a + '<'));
-    // every list row is one height, so a list never reflows around its content
-    expect(lastRule('.cx-rw{')).toContain('min-height:76px');
-  });
 });
 
-describe('free agents is a two-column desk', () => {
-  it('two columns of compact cards, not one row each', () => {
-    expect(lastRule('.cx-df{')).toContain('repeat(2,minmax(0,1fr))');
-    const f = appFn('_stDossierHtml', '_stMonthsSince');
-    expect(f).toContain('cx-dt-body');
-    ['FCI', 'Opportunity', 'Experience', 'Licence', 'Expects', 'Free since']
-      .forEach((l) => expect(f).toContain(`['${l}',`));
-    // and it says the one fact that puts him on this board and not the other
-    expect(f).toContain('cx-dt-free">FREE<');
-  });
-
-  it('and a field the record does not hold is left off, not printed as a dash', () => {
-    const f = appFn('_stDossierHtml', '_stMonthsSince');
-    expect(f).toContain(".filter(function (f) { return f[1] != null && f[1] !== ''; })");
-  });
-
-  it('four ways of ordering it, and nothing else to decide', () => {
-    expect(APP).toContain('var ST_FA_SORTS = [');
-    ["'opportunity', 'Best fit'", "'yearsExperience', 'Most experienced'",
-     "'reputation', 'Highest reputation'", "'recent', 'Recently available'"]
-      .forEach((s) => expect(APP).toContain(s));
-    const f = appFn('_stFreeAgentsHtml', '_stDossierHtml');
-    expect(f).toContain('data-st-fasort=');
-    expect(f).toContain("_stEmpty('\\u25c6', 'No free agents',");
-    // six at a time, then more on request — never dozens at once
-    expect(APP).toContain('var ST_FA_PAGE = 6;');
-    // and Available shows eight, which is a screenful of 76px rows
-    expect(APP).toContain('var ST_PAGE = 8;');
-    expect(f).toContain('data-st-fapage=');
-  });
-
-  it('and only people with no club and no team are on it', () => {
-    const f = APP.slice(APP.indexOf('function _stFreeAgentsHtml()'), APP.indexOf('function _stDossierHtml('));
-    expect(f).toContain('_stDerived().freeAgents');
-    expect(appFn('_stDerived', '_stLoadClubs')).toContain('r.isFreeAgent && !r.currentClub');
-  });
-
-  it('and adding somebody external uses the module\'s own dark modal, not a white sheet', () => {
-    const x = appFn('_stExternalHtml', '_stCompareTrayHtml');
-    expect(x).toContain('class="cx-modal"');
-    expect(x).toContain('class="cx-modal-box');
-    expect(x).not.toContain('tf-modal');
-    const box = lastRule('.cx-modal-box{');
-    expect(box).toMatch(/background:linear-gradient\(180deg,#1[0-9a-f]{5}/);
-    expect(lastRule('.cx-modal{')).toContain('position:fixed');
-    // and the need form is on the same system
-    expect(appFn('_stNeedFormHtml', '_stVacancyHtml')).toContain('class="cx-modal"');
-  });
-});
-
-describe('staff needs is a staff planner', () => {
-  it('one team at a time, as a line-up of posts rather than a table', () => {
-    const f = appFn('_stNeedsHtml', '_stSlotMatchHtml');
-    expect(f).toContain('class="cx-teams"');        // the team tabs
-    expect(f).toContain('data-st-planteam=');
-    expect(f).toContain("'<button type=\"button\" class=\"cx-post cx-post--' + state");
-    expect(f).toContain('data-st-slot=');
-    expect(CSS).toContain('.cx-post--open, .cx-post--published{');
-  });
-
-  it('each post reads as filled, at risk, or open', () => {
-    const f = appFn('_stNeedsHtml', '_stSlotMatchHtml');
-    expect(f).toContain("var state = on ? (risk ? 'risk' : 'filled') : (published ? 'published' : 'open');");
-    expect(f).toContain("var mark = state === 'filled' ? '\\u2713' : (state === 'risk' ? '\\u26a0' : '+');");
-    expect(f).toContain('_stPostCovers(p.key, role)');
-  });
-
-  it('and pressing an open post opens a drawer of who could take it', () => {
-    const f = appFn('_stSlotMatchHtml', 'ST_POST_ROLES');
-    expect(f).toContain('roles.indexOf(r.role) >= 0 && !r.isMine');
-    expect(f).toContain('_stDerived().listed');
-    expect(f).toContain("'<span class=\"cx-match-fit\">' + x.fit + '%<i>match</i></span>'");
-    expect(f).toContain('data-st-open=');
-    expect(CSS).toContain('.cx-match-row{');
-  });
-
-  it('the create-a-need form is asked for, not permanently on screen', () => {
-    const n = appFn('_stNeedsHtml', '_stSlotMatchHtml');
-    expect(n).toContain('data-st-needopen');
-    expect(n).toContain('(_TF_ST.needOpen ? _stNeedFormHtml() : \'\')');
-    const f = appFn('_stNeedFormHtml', '_stVacancyHtml');
-    ['role', 'priority', 'minLicence', 'minExperience', 'salaryMax',
-     'contractType', 'startDate', 'languages']
-      .forEach((k) => expect(f).toMatch(new RegExp(`(sel|inp)\\('${k}'`)));
-    expect(f).toContain('data-st-n="note"');
-    expect(n).toContain('What other clubs are looking for');
-  });
-});
-
-describe('activity is one ribbon and what changed under it', () => {
-  it('one representation, not two — a timeline and who moved most beside it', () => {
-    const f = appFn('_stTimelineHtml', '_stEventCardHtml');
-    expect(f).toContain('class="cx-actfloor"');
-    expect(f).toContain('class="cx-changed"');
-    expect(f).toContain('class="cx-movers"');
-    // movement is read off the stored figure, not invented by this screen
-    expect(f).toContain("return (r.momentum || 0) !== 0;");
-    expect(f).toContain('_stMom(r.momentum)');
-    // and the competing dot ribbon is gone
-    expect(APP).not.toContain('cx-feed-g');
-    expect(APP).not.toContain('cx-pulse-track');
-    expect(APP).not.toContain('cx-rb-rail');
-    expect(CSS).not.toContain('.cx-ribbon{');
-  });
-
-  it('every event type the market can produce has a marker', () => {
-    expect(APP).toContain('var ST_EV = {');
-    ['shortlist', 'contact', 'interview', 'offer', 'nego', 'freeagent', 'open',
-     'contract', 'hired', 'moved', 'vacancy', 'vacclosed']
-      .forEach((k) => expect(APP).toMatch(new RegExp('\\b' + k + ':\\s*\\[')));
-  });
-
-  it('what changed is grouped and short, with the rest behind one button', () => {
-    const f = appFn('_stTimelineHtml', '_stEventCardHtml');
-    expect(APP).toContain('var ST_EV_SHOWN = 6;');
-    expect(f).toContain('var cap = _TF_ST.evAll ? shown.length : ST_EV_SHOWN;');
-    expect(f).toContain("t >= today ? 'Today'");
-    expect(f).toContain('class="cx-changed"');
-    expect(f).toContain('data-st-evall>View all ');
-  });
-
-  it('it filters, and one movement opens as a card', () => {
-    expect(APP).toContain('var ST_EV_FILTERS = [');
-    ["'all', 'All'", "'club', 'My club'", "'market', 'Market'", "'watch', 'Contracts'", "'nego', 'Negotiations'"]
-      .forEach((f) => expect(APP).toContain(f));
-    const c = appFn('_stEventCardHtml', '_stExternalHtml');
-    expect(c).toContain('View coach');
-    expect(c).toContain('View deal');
-    expect(CSS).toContain('.cx-ec{');
-  });
-});
-
-describe('and the seven tabs are still seven different jobs', () => {
-  it('no two of them are the same layout', () => {
-    // three shapes, deliberately: a map, a list and a two-column board — and
-    // the four boards that list things share one row so the page keeps its
-    // geometry between tabs. What differs is the header, the chips and the
-    // drawer each of them opens.
-    ['.cx-universe{', '.cx-list{', '.cx-df{', '.cx-plan{', '.cx-actfloor{', '.cx-teams{']
-      .forEach((x) => expect(CSS).toContain(x));
-    // and each board is still its own function with its own question
-    ['_stMarketHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
-     '_stNeedsHtml', '_stPipelineHtml', '_stTimelineHtml']
-      .forEach((fn) => expect(APP).toContain('function ' + fn + '('));
-  });
-
-  it('and each of the seven says what to do when it is empty', () => {
-    ['_stUniverseHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
-     '_stNeedsHtml', '_stPipelineHtml', '_stTimelineHtml']
-      .forEach((fn) => {
-        const at = APP.indexOf(`function ${fn}(`);
-        const body = APP.slice(at, at + 5200);
-        expect(body).toMatch(/_stEmpty\(|cx-none/);
-      });
-  });
-
-  it('and the refinement reached into neither neighbour', () => {
-    const block = CSS.slice(CSS.indexOf('COACH EXCHANGE · the refinement pass'));
+describe('and the rebuild reached into neither neighbour', () => {
+  it('the command centre block names no other module', () => {
+    const block = CSS.slice(CSS.indexOf('FAMILISTA RECRUITMENT COMMAND CENTER'));
     expect(block).not.toContain('#pg-transfers');
     expect(block).not.toContain('#pg-coaches');
     expect(block).not.toMatch(/^\.co-/m);
     expect(block).not.toMatch(/^\.tf-/m);
+  });
+
+  it('and the module is still the only thing that writes its own state', () => {
+    expect(APP).toContain('function _stResetClubScoped()');
+    const f = appFn('_stResetClubScoped', '_thResetRoster');
+    ['_TF_ST.laneOpen', '_TF_ST.dealLane', '_TF_ST.faPage'].forEach((k) => expect(f).toContain(k));
   });
 });

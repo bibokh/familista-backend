@@ -105,9 +105,10 @@ describe('what the market recruits for', () => {
 });
 
 describe('search, filters, sort, shortlist and comparison', () => {
-  it('sorting is on figures the record holds, and asks the server for the order', () => {
+  it('sorting is on figures the record holds, and the server orders the read', () => {
     expect(APP).toContain('var ST_SORTS');
-    expect(APP).toMatch(/q\.push\('sort='/);
+    // one read of the whole population, ordered by the server
+    expect(APP).toMatch(/'\?tab=all&sort=' \+ encodeURIComponent\(_TF_ST\.sort/);
     expect(SVC).toContain('const NUMERIC: Record<string, string>');
     // an unknown value never counts as zero
     expect(SVC).toContain('if (av == null) return 1;');
@@ -139,29 +140,29 @@ describe('search, filters, sort, shortlist and comparison', () => {
 // The board's card is gone: the exchange opens a person under the Market Lens
 // rather than laying him out as one of a grid of cards. Every field the card
 // carried is still read — on the lens, which is the surface that now decides.
-describe('the lens says what the record holds', () => {
-  it('carries every field the market decides on', () => {
-    const lens = APP.slice(APP.indexOf('function _stLensHtml()'), APP.indexOf('function _stAvailableHtml()'));
-    ['Licence', 'Level', 'Experience', 'Formation', 'Speciality', 'Expected salary', 'Contract remaining', 'Languages']
-      .forEach((l) => expect(lens).toContain(`'${l}'`));
-    expect(lens).toContain('r.age');
-    expect(lens).toContain('r.nationality');
+describe('the decision dock says what the record holds', () => {
+  it('carries every reading the market decides on', () => {
+    const dock = APP.slice(APP.indexOf('function _stDockCoachHtml('),
+      APP.indexOf('function _stDockVacancyHtml('));
+    ['Availability', 'Expected', 'Contract', 'Licence', 'Experience', 'Fit', 'Watching', 'Movement']
+      .forEach((l) => expect(dock).toContain(`kv('${l}'`));
     // the portrait comes through the one avatar helper, which reads the field
-    expect(lens).toContain('_stAvatar(r');
-    expect(APP.slice(APP.indexOf('function _stAvatar('), APP.indexOf('function _stJitter('))).toContain('r.avatar');
-    expect(lens).toContain('r.reputation');
-    expect(lens).toContain('r.currentClub');
-    expect(lens).toContain('keyAttributes');
-    expect(lens).toContain('ST_STATUS_LABEL');
-    // and the exchange's own two figures, which the card never had
-    expect(lens).toContain('r.fci');
-    expect(lens).toContain('r.opportunity');
+    expect(dock).toContain('_stAvatar(r');
+    expect(APP.slice(APP.indexOf('function _stAvatar('), APP.indexOf('function _stListed('))).toContain('r.avatar');
+    expect(dock).toContain('r.reputation');
+    expect(dock).toContain('r.currentClub');
+    expect(dock).toContain('ST_STATUS_LABEL');
+    // and the exchange's own two figures
+    expect(dock).toContain('r.fci');
+    expect(dock).toContain('r.opportunity');
   });
 
-  it('and says so when the platform does not hold one', () => {
-    const lens = APP.slice(APP.indexOf('function _stLensHtml()'), APP.indexOf('function _stAvailableHtml()'));
-    expect(lens).toContain("var dash = '<i class=\"st-unknown\">—</i>'");
-    expect(lens).toContain('No coaching attributes recorded');
+  it('and leaves out what the platform does not hold', () => {
+    const dock = APP.slice(APP.indexOf('function _stDockCoachHtml('),
+      APP.indexOf('function _stDockVacancyHtml('));
+    expect(dock).toContain("if (v == null || v === '') return '';");
+    // the full record is still one step further, and it is the canonical one
+    expect(dock).toContain('data-st-open="');
   });
 
   it('an age is derived from a date of birth, never invented', () => {

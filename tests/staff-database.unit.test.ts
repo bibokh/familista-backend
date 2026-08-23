@@ -105,8 +105,9 @@ describe('All Staff is the platform, not a table somebody fills in', () => {
   it('every board tab is one read of that same board', () => {
     const d = SVC.slice(SVC.indexOf('export async function discover'));
     ['available', 'employed', 'free-agents', 'shortlisted'].forEach((t) => expect(d).toContain(`'${t}'`));
-    expect(APP).toContain('var ST_BOARD_TABS');
-    expect(APP).toMatch(/q\.push\('tab='/);
+    // the browser reads that board once, whole, and every mode is a filter on it
+    expect(APP).toMatch(/'\?tab=all&sort='/);
+    expect(APP).toContain('function _stDerived()');
   });
 
   it('and the tiles count the board itself rather than a second population', () => {

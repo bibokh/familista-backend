@@ -165,8 +165,10 @@ describe('eligibility is the canonical status and nothing else', () => {
   it('the exchange lists only the four standings that mean "on the market"', () => {
     expect(APP).toContain("var ST_LISTED = ['OPEN_TO_OFFERS', 'ACTIVELY_LOOKING', 'FREE_AGENT', 'CONTRACT_ENDING_SOON'];");
     expect(APP).toContain('function _stOnMarket(r) { return ST_LISTED.indexOf(r.employmentStatus) >= 0; }');
-    // and the floor reads the same server-side filter
-    expect(APP).toContain("var TAB_Q = { market: 'available', available: 'available'");
+    // and every board on the stage is a filter over the same one array
+    const der = APP.slice(APP.indexOf('function _stDerived()'), APP.indexOf('function _stPrepare()'));
+    expect(der).toContain('var listed = rows.filter(_stOnMarket);');
+    expect(der).toContain('listed: listed,');
   });
 
   it('being open to offers never makes somebody a free agent', () => {
@@ -191,9 +193,9 @@ describe('eligibility is the canonical status and nothing else', () => {
   });
 });
 
-describe('seven tabs, seven presentations', () => {
+describe('seven modes, seven presentations', () => {
   it('each surface is its own thing, and none of them is a card grid', () => {
-    ['_stUniverseHtml', '_stPulseHtml', '_stIntelHtml', '_stLensHtml',
+    ['_stMarketHtml', '_stStripHtml', '_stDockHtml', '_stDockCoachHtml',
      '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
      '_stNeedsHtml', '_stPipelineHtml', '_stDealPanelHtml', '_stTimelineHtml']
       .forEach((f) => expect(APP).toContain(`function ${f}(`));
@@ -202,62 +204,59 @@ describe('seven tabs, seven presentations', () => {
     expect(APP).not.toContain("'<div class=\"st-grid\">'");
   });
 
-  it('the universe is nodes in professional areas, sized by market interest', () => {
-    const u = APP.slice(APP.indexOf('function _stNodeHtml('), APP.indexOf('function _stTipEl('));
-    // interest first, strength as the tie-break — a circle says who is moving
-    expect(u).toContain("var pull = Math.min(1, ((r.clubsWatching || 0) * 0.22)");
-    expect(u).toContain('var z = Math.max(1, Math.min(6, 1 + Math.round(pull * 5)));');
-    // as a class, not a style attribute — style-src carries no 'unsafe-inline',
-    // so a diameter written inline would silently never apply
-    expect(u).not.toContain('style="');
-    expect(u).toContain("' cx-node--z' + z + ' cx-node--d' + demand");
-    expect(CSS).toContain('.cx-node--z6{ --s:60px; }');
-    // the scale is the market's own range, so nodes are actually distinguishable —
-    // computed with the bands when the data lands, not on the click that draws them
+  it('the market is intelligence lanes of staff strips, ranked by real interest', () => {
+    expect(APP).toContain('var ST_LANES = [');
+    expect(APP).toContain('var ST_LANE_ROW = 5;');
+    const rank = APP.slice(APP.indexOf('function _stMapRank('), APP.indexOf('function _stTipHide('));
+    // interest the market has actually shown first, strength as the tie-break
+    expect(rank).toContain('(r.clubsWatching || 0) * 12');
+    expect(rank).toContain("Math.max(0, r.momentum || 0) * 6");
+    expect(rank).not.toContain('Math.random');
+    // the lanes are grouped and ordered when the data lands
     const der = APP.slice(APP.indexOf('function _stDerived()'), APP.indexOf('function _stPrepare()'));
-    expect(der).toContain('{ lo: Math.min.apply(null, fcis), hi: Math.max.apply(null, fcis) }');
-    const un = APP.slice(APP.indexOf('function _stUniverseHtml('), APP.indexOf('function _stNodeHtml('));
-    expect(un).toContain('_stNodeHtml(r, d.range)');
-    expect(u).toContain('cx-node--d');      // the demand ring
-    expect(u).toContain('is-rising');       // momentum, and the only animation
-    // four areas, not seven, and never more than a row of eight in each
-    expect(APP).toContain('var ST_MAP_AREAS = [');
-    expect(APP).toContain('var ST_MAP_ROW = 8;');
-    ['Head coaches', 'Coaching', 'Performance', 'Analysis']
-      .forEach((a) => expect(APP).toContain(`'${a}'`));
-    expect(un).toContain("var shown = open ? a.people : a.people.slice(0, ST_MAP_ROW);");
-    expect(un).toContain("data-st-mapmore=");
+    expect(der).toContain('lanes[L[0]] = listed.filter(L[3]).sort(');
+    // and the map of circles it replaced is gone
+    expect(APP).not.toContain('function _stNodeHtml(');
+    expect(APP).not.toContain('function _stUniverseHtml(');
+    expect(CSS).not.toContain('.cx-node{');
   });
 
-  it('and a node sits in the same place on every render', () => {
-    const j = APP.slice(APP.indexOf('function _stJitter('), APP.indexOf('function _stListed('));
-    expect(j).toContain('charCodeAt');      // hashed from the id
-    expect(j).not.toContain('Math.random');
+  it('a strip carries the same readings on every board that draws one', () => {
+    const strip = APP.slice(APP.indexOf('function _stStripHtml('), APP.indexOf('function _stTipHide('));
+    // as classes, never a style attribute — style-src carries no 'unsafe-inline'
+    expect(strip).not.toContain('style="');
+    expect(strip).toContain('r.fci');
+    expect(strip).toContain('r.opportunity');
+    expect(strip).toContain('ST_STATUS_LABEL');
+    expect(strip).toContain('_stMom(r.momentum)');
+    expect(CSS).toContain('.cx-sf{');
   });
 
-  it('the lens opens beside the floor, not over it, and leads to the one profile', () => {
-    const l = APP.slice(APP.indexOf('function _stLensHtml()'), APP.indexOf('function _stAvailableHtml()'));
-    expect(l).toContain('View full profile');
+  it('the dock opens beside the stage, not over it, and leads to the one profile', () => {
+    const l = APP.slice(APP.indexOf('function _stDockCoachHtml('),
+      APP.indexOf('function _stDockVacancyHtml('));
+    expect(l).toContain('>Profile<');
     expect(l).toContain('data-st-open="');   // the canonical staff profile
     expect(l).toContain('data-st-short=');
     expect(l).toContain('data-st-cmp=');
     expect(l).toContain('data-st-approach=');
-    expect(CSS).toContain('.cx-lens-in{');
+    expect(CSS).toContain('.cx-dock{');
+    // beside, not over: it is a column of the stage grid
+    expect(CSS).toContain('.cx-stage{');
   });
 
-  it('only rising nodes animate, and reduced motion turns even that off', () => {
-    expect(CSS).toContain('.cx-node.is-rising .cx-node-o{');
+  it('nothing on a strip animates its own geometry', () => {
     expect(CSS).toContain('@media (prefers-reduced-motion:reduce){');
-    // no animation on the plain node
-    const node = CSS.slice(CSS.indexOf('.cx-node-f{'), CSS.indexOf('.cx-node-o{'));
-    expect(node).not.toContain('animation:');
+    const strip = CSS.slice(CSS.indexOf('.cx-strip{'), CSS.indexOf('.cx-strip-b{'));
+    expect(strip).not.toContain('animation:');
+    expect(strip).toContain('transition:background');
   });
 
   it('and the exchange has its own ground, borrowed from neither neighbour', () => {
-    const cx = CSS.slice(CSS.indexOf('FAMILISTA COACH EXCHANGE'));
-    expect(cx).toContain('--cx-cyan:');
-    expect(cx).toContain('--cx-blue:');
-    expect(cx).toContain('--cx-amber:');
+    const cx = CSS.slice(CSS.indexOf('FAMILISTA RECRUITMENT COMMAND CENTER'));
+    expect(cx).toContain('var(--cx-cyan)');
+    expect(cx).toContain('var(--cx-amber)');
+    expect(cx).toContain('var(--cx-green)');
     // it styles nothing outside its own module
     expect(cx).not.toContain('#pg-transfers');
     expect(cx).not.toContain('#pg-coaches');

@@ -65,19 +65,19 @@ describe('Transfers is the player market and nothing else', () => {
 });
 
 describe('Coach Market recruits, and has no directory in it', () => {
-  it('carries the seven recruitment tabs', () => {
-    const tabs = APP.slice(APP.indexOf('var ST_TABS = ['), APP.indexOf('var ST_BOARD_TABS'));
-    [['market', 'Market'], ['available', 'Available'], ['free-agents', 'Free Agents'],
-     ['shortlisted', 'Shortlisted'], ['needs', 'Staff Needs'],
-     ['negotiations', 'Negotiations'], ['activity', 'Activity']]
+  it('carries the seven recruitment modes', () => {
+    const modes = APP.slice(APP.indexOf('var ST_MODES = ['), APP.indexOf('function _stNavHtml'));
+    [['market', 'Market'], ['available', 'Available'], ['free-agents', 'Free agents'],
+     ['shortlisted', 'Shortlist'], ['needs', 'Needs'],
+     ['negotiations', 'Deals'], ['activity', 'Activity']]
       .forEach(([slug, label]) => {
-        expect(tabs).toContain(`'${slug}'`);
-        expect(tabs).toContain(`'${label}'`);
+        expect(modes).toContain(`'${slug}'`);
+        expect(modes).toContain(`'${label}'`);
       });
   });
 
   it('and no Coaches tab among them', () => {
-    const tabs = APP.slice(APP.indexOf('var ST_TABS = ['), APP.indexOf('var ST_BOARD_TABS'));
+    const tabs = APP.slice(APP.indexOf('var ST_MODES = ['), APP.indexOf('function _stNavHtml'));
     expect(tabs).not.toMatch(/'Coaches'/);
     expect(tabs).not.toContain("'coaches'");
   });
@@ -86,12 +86,12 @@ describe('Coach Market recruits, and has no directory in it', () => {
     ['_stMarketHtml', '_stAvailableHtml', '_stFreeAgentsHtml', '_stShortlistDeskHtml',
      '_stNeedsHtml', '_stPipelineHtml', '_stTimelineHtml']
       .forEach((f) => expect(APP).toContain(`function ${f}(`));
-    // and each has its own markup, not the market card
-    expect(APP).toContain('function _stAvailRowHtml(r)');   // ranked list
-    expect(APP).toContain('function _stDossierHtml(r)');    // scouting board
-    expect(APP).toContain('function _stDeskCardHtml(r, m)'); // recruitment desk
-    expect(APP).toContain('function _stVacancyHtml(x)');    // job board
-    expect(APP).toContain('function _stDealHtml(d)');       // pipeline
+    // and each has its own markup, built from one shared unit
+    expect(APP).toContain('function _stStripHtml(r)');       // the intelligence lane
+    expect(APP).toContain('function _stRungHtml(r, n)');     // the priority ladder
+    expect(APP).toContain('function _stDossierHtml(r)');     // the immediate hire board
+    expect(APP).toContain('function _stDeskCardHtml(r, m)'); // the recruitment room
+    expect(APP).toContain('function _stDealHtml(d)');        // the deal room
   });
 
   it('the desk keeps the club\'s own judgement, on the server', () => {
@@ -102,14 +102,17 @@ describe('Coach Market recruits, and has no directory in it', () => {
     expect(APP).toMatch(/_stApi\('PATCH', '\/shortlist\//);
   });
 
-  it('the pipeline has a column per offer state', () => {
-    expect(APP).toContain("var ST_PIPE = ['DRAFT', 'SENT', 'VIEWED', 'NEGOTIATING', 'ACCEPTED', 'REJECTED', 'WITHDRAWN']");
+  it('the deal room reads every offer state the platform stores', () => {
+    expect(APP).toContain("var ST_DEAL_STAGES = [");
+    ['DRAFT', 'SENT', 'SUBMITTED', 'VIEWED', 'NEGOTIATING', 'ACCEPTED', 'REJECTED', 'WITHDRAWN', 'COMPLETED']
+      .forEach((k) => expect(APP.slice(APP.indexOf('var ST_DEAL_STAGES = ['),
+        APP.indexOf('function _stDealStage('))).toContain(`'${k}'`));
   });
 
   it('and a vacancy says what the job actually is', () => {
     ['minExperience', 'contractType', 'startDate', 'languages', 'youthRequired', 'seniorRequired']
       .forEach((f) => expect(SVC).toContain(f));
-    const form = APP.slice(APP.indexOf('function _stNeedFormHtml()'), APP.indexOf('function _stVacancyHtml('));
+    const form = APP.slice(APP.indexOf('function _stNeedFormHtml()'), APP.indexOf('function _stHost('));
     ['role', 'priority', 'minLicence', 'minExperience', 'salaryMax', 'contractType',
      'startDate', 'languages', 'note']
       .forEach((k) => expect(form).toMatch(new RegExp(`(sel|inp)\\('${k}'|data-st-n="${k}"`)));
