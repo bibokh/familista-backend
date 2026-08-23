@@ -144,7 +144,8 @@ describe('the decision dock says what the record holds', () => {
   it('carries every reading the market decides on', () => {
     const dock = APP.slice(APP.indexOf('function _stDockCoachHtml('),
       APP.indexOf('function _stDockVacancyHtml('));
-    ['Availability', 'Expected', 'Contract', 'Licence', 'Experience', 'Fit', 'Watching', 'Movement']
+    ['Availability', 'Expected', 'Contract', 'Licence', 'Nationality', 'Age', 'Speciality',
+     'Watching', 'Movement']
       .forEach((l) => expect(dock).toContain(`kv('${l}'`));
     // the portrait comes through the one avatar helper, which reads the field
     expect(dock).toContain('_stAvatar(r');

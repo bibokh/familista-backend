@@ -204,17 +204,17 @@ describe('seven modes, seven presentations', () => {
     expect(APP).not.toContain("'<div class=\"st-grid\">'");
   });
 
-  it('the market is intelligence lanes of staff strips, ranked by real interest', () => {
-    expect(APP).toContain('var ST_LANES = [');
-    expect(APP).toContain('var ST_LANE_ROW = 5;');
+  it('the market is discovery sections of candidates, ranked by real interest', () => {
+    expect(APP).toContain('var ST_OPPS = [');
+    expect(APP).toContain('var ST_EXPLORE = 6;');
     const rank = APP.slice(APP.indexOf('function _stMapRank('), APP.indexOf('function _stTipHide('));
     // interest the market has actually shown first, strength as the tie-break
     expect(rank).toContain('(r.clubsWatching || 0) * 12');
     expect(rank).toContain("Math.max(0, r.momentum || 0) * 6");
     expect(rank).not.toContain('Math.random');
-    // the lanes are grouped and ordered when the data lands
+    // the groups are built and ordered when the data lands
     const der = APP.slice(APP.indexOf('function _stDerived()'), APP.indexOf('function _stPrepare()'));
-    expect(der).toContain('lanes[L[0]] = listed.filter(L[3]).sort(');
+    expect(der).toContain('lanes[L[0]] = listed.filter(L[2]).sort(');
     // and the map of circles it replaced is gone
     expect(APP).not.toContain('function _stNodeHtml(');
     expect(APP).not.toContain('function _stUniverseHtml(');
@@ -235,7 +235,7 @@ describe('seven modes, seven presentations', () => {
   it('the dock opens beside the stage, not over it, and leads to the one profile', () => {
     const l = APP.slice(APP.indexOf('function _stDockCoachHtml('),
       APP.indexOf('function _stDockVacancyHtml('));
-    expect(l).toContain('>Profile<');
+    expect(l).toContain('Full profile');
     expect(l).toContain('data-st-open="');   // the canonical staff profile
     expect(l).toContain('data-st-short=');
     expect(l).toContain('data-st-cmp=');

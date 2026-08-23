@@ -50737,15 +50737,27 @@ function _tfDiscAction(action, playerId, listingId) {
       if (_dk) _dk.classList.toggle('is-min', !!_TF_ST.dockMin);
       _stRepaintDock(); return;
     }
-    if ((el = t.closest('[data-st-laneopen]'))) {
-      e.preventDefault();
-      _TF_ST.laneOpen = el.getAttribute('data-st-laneopen') || '';
+    // the ••• menu on a candidate, and the market's opportunity segments
+    if ((el = t.closest('[data-st-more]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var _mid = el.getAttribute('data-st-more');
+      _TF_ST.moreFor = (_TF_ST.moreFor === _mid) ? null : _mid;
       _stRepaintBoard(); return;
+    }
+    if ((el = t.closest('[data-st-opp]'))) {
+      e.preventDefault();
+      _TF_ST.opp = el.getAttribute('data-st-opp') || '';
+      _stRepaintBoard(); return;
+    }
+    if ((el = t.closest('[data-st-evspan]'))) {
+      e.preventDefault();
+      _TF_ST.evSpan = el.getAttribute('data-st-evspan') || 'week';
+      _TF_ST.evAll = false; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-fasort]'))) {
       e.preventDefault();
       _TF_ST.faSort = el.getAttribute('data-st-fasort') || 'opportunity';
-      _TF_ST.faPage = 1; _TF_ST.laneOpen = ''; _TF_ST.dealLane = 'all'; _stRepaintBoard(); return;
+      _TF_ST.faPage = 1; _TF_ST.moreFor = null; _TF_ST.dealLane = 'all'; _stRepaintBoard(); return;
     }
     if ((el = t.closest('[data-st-fapage]'))) {
       e.preventDefault();
@@ -50794,6 +50806,12 @@ function _tfDiscAction(action, playerId, listingId) {
     }
 
     // ── coaches & technical staff ───────────────────────────────────────
+    if (_TF_ST.moreFor && !t.closest('.cx-more-wrap')) {
+      _TF_ST.moreFor = null;
+      // it closes on the way past; whatever was clicked still runs below
+      var _mw = document.querySelector('#cm-board .cx-menu');
+      if (_mw) _mw.parentNode.removeChild(_mw);
+    }
     if ((el = t.closest('[data-st-view]'))) {
       e.preventDefault();
       _TF_ST.view = el.getAttribute('data-st-view');
@@ -50801,7 +50819,7 @@ function _tfDiscAction(action, playerId, listingId) {
       // Each tab is its own screen, so what was open on the last one closes.
       _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = '';
       _TF_ST.slot = null; _TF_ST.slotTeam = null; _TF_ST.event = null; _TF_ST.pulseLane = 'all';
-      _TF_ST.faPage = 1;
+      _TF_ST.faPage = 1; _TF_ST.moreFor = null;
       // Switching tabs reads nothing. Every board is a view of one population
       // that is already in hand, so this is a repaint — and a repaint of data
       // the reader can already see is instant. If the cache has gone stale the
@@ -51055,7 +51073,13 @@ function _tfDiscAction(action, playerId, listingId) {
       if (a.compensation) body.compensation = parseInt(a.compensation, 10);
       if (a.message) body.message = a.message;
       if (a.startDate) body.startDate = a.startDate;
-      if (a.bonuses) body.bonuses = a.bonuses;
+      // The signing bonus is a term of the same agreement, and the record keeps
+      // its terms as one text — so it is written into it rather than needing a
+      // column of its own on the server.
+      var _bon = [];
+      if (a.signingBonus) _bon.push('Signing bonus: ' + a.signingBonus);
+      if (a.bonuses) _bon.push(a.bonuses);
+      if (_bon.length) body.bonuses = _bon.join('\n');
       if (a.releaseClause) body.releaseClause = parseInt(a.releaseClause, 10);
       var _draft = el.hasAttribute('data-st-draft');
       if (_draft) body.submit = false;
@@ -51415,7 +51439,9 @@ var _TF_ST = {
   signal: '', mapOpen: '',       // the market's active signal and revealed area
   faSort: 'opportunity',         // the free agent desk's ordering
   faPage: 1,                     // and how much of it has been asked for
-  laneOpen: '',                  // which market lane has been expanded
+  opp: 'free',                   // which market opportunity segment is open
+  moreFor: null,                 // whose ••• menu is open
+  evSpan: 'week',                // the activity period
   dockMin: false,                // the dock, folded away where it has to stack
   dealLane: 'all',               // the deal room's stage filter
   planTeam: null, needOpen: false, // the staff plan's team and its publish drawer
@@ -51676,8 +51702,8 @@ function _stDerived() {
   // filters change — never during a mode change. Changing mode is then a write
   // of prepared HTML, not fetch → normalise → filter → group → calculate.
   var lanes = {};
-  ST_LANES.forEach(function (L) {
-    lanes[L[0]] = listed.filter(L[3]).sort(function (x, y) { return _stMapRank(y) - _stMapRank(x); });
+  ST_OPPS.forEach(function (L) {
+    lanes[L[0]] = listed.filter(L[2]).sort(function (x, y) { return _stMapRank(y) - _stMapRank(x); });
   });
   var ladder = listed.slice().sort(function (a, b) {
     return ((b.opportunity || 0) * 0.6 + (b.fci || 0) * 0.4)
@@ -51905,27 +51931,52 @@ function _stDockInnerHtml() {
 // the dock in Activity: who the market actually moved on, read off the stored
 // momentum figure rather than counted from the entries on screen
 function _stDockMoversHtml() {
-  if (!_stRowsReady()) return '<div class="cx-dk-empty"><span>Reading the market…</span></div>';
-  var movers = _stDerived().listed.slice()
-    .filter(function (r) { return (r.momentum || 0) !== 0; })
-    .sort(function (x, y) { return Math.abs(y.momentum || 0) - Math.abs(x.momentum || 0); })
-    .slice(0, 6);
-  if (!movers.length) {
-    return '<header class="cx-dk-hd"><h3>What moved most</h3></header>'
-      + '<div class="cx-dk-empty"><span class="cx-dk-ei">\u25f7</span>'
-      + '<b>The market has been still</b>'
-      + '<span>Movement appears when clubs approach, shortlist, or a status changes.</span></div>';
+  if (!_stRowsReady()) return '<div class="cx-dk-empty"><span>Reading the market\u2026</span></div>';
+  var d = _stDerived();
+  var a = _TF_ST.activity || {};
+  var meta = {};
+  ((_TF_ST.shortlist && _TF_ST.shortlist.items) || []).forEach(function (x) { meta[x.staffUserId] = x; });
+
+  // Four readings a director has to act on, each counted from records the
+  // platform holds and each leading somewhere.
+  var awaiting = (a.outgoing || []).filter(function (x) {
+    return ['SENT', 'SUBMITTED', 'VIEWED', 'NEGOTIATING'].indexOf(x.status) >= 0; }).length;
+  var incoming = (a.incoming || []).filter(function (x) {
+    return ['SENT', 'SUBMITTED', 'VIEWED', 'NEGOTIATING'].indexOf(x.status) >= 0; }).length;
+  var freshShort = d.shortlisted.filter(function (r) { return _stOnMarket(r) && r.isNewToMarket; }).length;
+  var ownRisk = ((_TF_ST.mine && _TF_ST.mine.items) || []).filter(function (m) {
+    if (!m.contractEndsAt) return false;
+    var mo = (new Date(m.contractEndsAt).getTime() - Date.now()) / (30.44 * 86400000);
+    return mo <= 6;
+  }).length;
+  var wantedRoles = [];
+  (_TF_ST.needs && _TF_ST.needs.items || []).forEach(function (v) {
+    if (v.isMine && wantedRoles.indexOf(v.role) < 0) wantedRoles.push(v.role);
+  });
+  var matches = wantedRoles.length
+    ? d.listed.filter(function (r) { return wantedRoles.indexOf(r.role) >= 0 && !r.isMine; }).length : 0;
+
+  var items = [
+    [awaiting, 'offer' + (awaiting === 1 ? '' : 's') + ' awaiting a response', 'negotiations', 'warn'],
+    [incoming, 'approach' + (incoming === 1 ? '' : 'es') + ' for our staff to answer', 'negotiations', 'blue'],
+    [freshShort, 'shortlisted coach' + (freshShort === 1 ? '' : 'es') + ' newly on the market', 'shortlisted', 'go'],
+    [ownRisk, 'of our own contracts end within six months', 'needs', 'warn'],
+    [matches, 'candidate' + (matches === 1 ? '' : 's') + ' match a published need', 'needs', 'go']
+  ].filter(function (x) { return x[0] > 0; });
+
+  if (!items.length) {
+    return '<header class="cx-dk-hd"><h3>What needs attention</h3></header>'
+      + '<div class="cx-dk-empty"><span class="cx-dk-ei">\u2713</span>'
+      + '<b>Nothing is waiting on you</b>'
+      + '<span>No offer is outstanding, no contract is close, and every published need is quiet.</span></div>';
   }
-  return '<header class="cx-dk-hd"><h3>What moved most</h3></header>'
-    + '<div class="cx-dk-body"><section class="cx-dk-sec">'
-    + movers.map(function (r, i) {
-        return '<button type="button" class="cx-dk-l" data-st-lens="' + _stEsc(r.staffUserId) + '">'
-          + '<span class="cx-dk-l-n">' + (i + 1) + '</span>'
-          + '<span class="cx-dk-l-id"><b>' + _stEsc(r.name) + '</b>'
-          +   '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-          + '<span class="cx-dk-l-r">' + _stMom(r.momentum) + '</span></button>';
+  return '<header class="cx-dk-hd"><h3>What needs attention</h3></header>'
+    + '<div class="cx-dk-body"><div class="cx-att">'
+    + items.map(function (x) {
+        return '<button type="button" class="cx-att-i cx-att-i--' + x[3] + '" data-st-view="' + x[2] + '">'
+          + '<b>' + x[0] + '</b><span>' + x[1] + '</span></button>';
       }).join('')
-    + '</section></div>';
+    + '</div></div>';
 }
 
 // nobody picked: what the market itself is doing
@@ -51968,12 +52019,30 @@ function _stDockIntelHtml() {
     + '</div>';
 }
 
-// somebody picked: him, and what can be done about him
+// somebody picked: the candidate intelligence drawer. Six readings of how he
+// fits, then the facts, then the five things a club can do about him — the full
+// record is the primary action rather than something a click falls into.
+var ST_ASSESS = [
+  ['Tactical fit',  function (r) { return r.opportunity; }],
+  ['Experience',    function (r) { return r.yearsExperience == null ? null
+                        : Math.min(100, Math.round((r.yearsExperience / 25) * 100)); }],
+  ['Development',   function (r) { return r.evaluation && r.evaluation.development != null
+                        ? r.evaluation.development : (r.level == null ? null : r.level); }],
+  ['Leadership',    function (r) { return r.evaluation && r.evaluation.leadership != null
+                        ? r.evaluation.leadership : (r.reputation == null ? null : r.reputation); }],
+  ['Salary',        function (r) { return r.wageExpectation == null ? null
+                        : Math.max(0, 100 - Math.min(100, Math.round(Number(r.wageExpectation) / 4000))); }],
+  ['Availability',  function (r) { return r.isFreeAgent ? 100
+                        : (r.contractMonthsLeft == null ? null
+                          : Math.max(0, 100 - Math.min(100, r.contractMonthsLeft * 3))); }]
+];
+
 function _stDockCoachHtml(r) {
   var st = r.employmentStatus || 'EMPLOYED';
-  var months = r.contractEndsAt
-    ? Math.max(0, Math.round((new Date(r.contractEndsAt).getTime() - Date.now()) / (30.44 * 86400000)))
-    : null;
+  var months = r.contractMonthsLeft != null ? r.contractMonthsLeft
+    : (r.contractEndsAt
+      ? Math.max(0, Math.round((new Date(r.contractEndsAt).getTime() - Date.now()) / (30.44 * 86400000)))
+      : null);
   var fig = function (l, v, cls) {
     return '<span class="cx-dk-fig' + (cls ? ' cx-dk-fig--' + cls : '') + '">'
       + '<b>' + (v == null ? '\u2014' : v) + '</b><i>' + l + '</i></span>';
@@ -51982,14 +52051,22 @@ function _stDockCoachHtml(r) {
     if (v == null || v === '') return '';
     return '<div class="cx-dk-kv"><i>' + l + '</i><b>' + v + '</b></div>';
   };
-  var fit = [r.primaryFormation, r.primaryPhilosophy].filter(Boolean)
-    .map(function (x) { return _stEsc(String(x)); }).join(' \u00b7 ');
+  var bars = ST_ASSESS.map(function (A) {
+    var v = A[1](r);
+    if (v == null) return '';
+    v = Math.max(0, Math.min(100, Math.round(v)));
+    return '<div class="cx-as"><i>' + A[0] + '</i>'
+      + '<span class="cx-as-t"><span class="cx-fill ' + _stFill(v) + '"></span></span>'
+      + '<b>' + v + '</b></div>';
+  }).join('');
+
   return '<header class="cx-dk-hd cx-dk-hd--coach">'
     +   '<button type="button" class="cx-dk-x" data-st-lens-close aria-label="Clear selection">\u00d7</button>'
     +   _stAvatar(r, 'st-av--lg')
     +   '<div class="cx-dk-who"><h3>' + _stEsc(r.name) + '</h3>'
     +     '<p>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
-    +       (r.currentClub ? ' \u00b7 ' + _stEsc(r.currentClub.name) : '') + '</p>'
+    +       (r.currentClub ? ' \u00b7 ' + _stEsc(r.currentClub.name)
+          : (r.lastClub ? ' \u00b7 was ' + _stEsc(r.lastClub) : '')) + '</p>'
     +     '<span class="st-status st-status--' + String(st).toLowerCase() + '">'
     +       _stEsc(ST_STATUS_LABEL[st] || st) + '</span></div>'
     + '</header>'
@@ -51997,29 +52074,32 @@ function _stDockCoachHtml(r) {
     +   '<div class="cx-dk-figs">'
     +     fig('FCI', r.fci) + fig('Opportunity', r.opportunity, 'opp') + fig('Reputation', r.reputation)
     +   '</div>'
+    +   (bars ? '<section class="cx-dk-sec"><h5>Quick assessment</h5>' + bars + '</section>' : '')
     +   '<div class="cx-dk-kvs">'
     +     kv('Availability', r.isFreeAgent ? 'Immediately'
           : (r.availableFrom ? _stDate(r.availableFrom) : _stEsc(ST_STATUS_LABEL[st] || st)))
     +     kv('Expected', r.wageExpectation == null ? null : _stMoney(r.wageExpectation))
     +     kv('Contract', months == null ? null : months + ' month' + (months === 1 ? '' : 's'))
     +     kv('Licence', r.highestLicence ? _stEsc(String(r.highestLicence.name)) : null)
-    +     kv('Experience', r.yearsExperience == null ? null : r.yearsExperience + ' years')
-    +     kv('Fit', fit || null)
+    +     kv('Nationality', r.nationality ? _stEsc(r.nationality) : null)
+    +     kv('Age', r.age == null ? null : r.age)
+    +     kv('Speciality', r.mainSpeciality ? _stEsc(String(r.mainSpeciality)) : null)
     +     kv('Watching', r.clubsWatching == null ? null : r.clubsWatching + ' club'
           + (r.clubsWatching === 1 ? '' : 's'))
     +     kv('Movement', r.momentumBand ? _stMom(r.momentum) : null)
     +   '</div>'
     + '</div>'
     + '<footer class="cx-dk-acts">'
-    +   '<button type="button" class="cx-act cx-act--go" data-st-open="' + _stEsc(r.staffUserId) + '">Profile</button>'
-    +   '<button type="button" class="cx-act' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="'
+    +   '<button type="button" class="cx-btn cx-btn--primary" data-st-open="' + _stEsc(r.staffUserId) + '">'
+    +     'Full profile</button>'
+    +   '<button type="button" class="cx-btn' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="'
     +     _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '">'
-    +     (r.isShortlisted ? '\u2605 Listed' : '\u2606 Shortlist') + '</button>'
-    +   '<button type="button" class="cx-act" data-st-cmp="' + _stEsc(r.staffUserId) + '">Compare</button>'
-    +   (r.isMine ? '' : '<button type="button" class="cx-act" data-st-approach="' + _stEsc(r.staffUserId)
+    +     (r.isShortlisted ? '\u2605 Shortlisted' : '\u2606 Shortlist') + '</button>'
+    +   '<button type="button" class="cx-btn" data-st-cmp="' + _stEsc(r.staffUserId) + '">Compare</button>'
+    +   (r.isMine ? '' : '<button type="button" class="cx-btn" data-st-approach="' + _stEsc(r.staffUserId)
         + '" data-st-mode="contact">Contact</button>')
-    +   (r.isMine ? '' : '<button type="button" class="cx-act cx-act--go" data-st-approach="'
-        + _stEsc(r.staffUserId) + '">Negotiate</button>')
+    +   (r.isMine ? '' : '<button type="button" class="cx-btn" data-st-approach="'
+        + _stEsc(r.staffUserId) + '">Start negotiation</button>')
     + '</footer>';
 }
 
@@ -52176,61 +52256,169 @@ function _stFiltersHtml() {
 // The four-column opportunity dock that used to sit under it is gone — its
 // groups are the five signals in the strip, where pressing one narrows the map
 // instead of listing four more names.
-// ── MARKET · the recruitment flow board ─────────────────────────────────────
-// Five intelligence lanes, read left to right the way a recruiter asks: who is
-// hot, who is open, who is free, whose contract is running down, who is new.
-// Each lane holds compact staff strips — market entries, not cards — five at a
-// time with the rest behind one control, so no lane ever becomes a scroll.
-var ST_LANES = [
-  ['hot',   'Hot',             'hot',  function (r) { return (r.clubsWatching || 0) >= 2 || r.momentumBand === 'RISING'; }],
-  ['open',  'Open to offers',  'open', function (r) { return r.employmentStatus === 'OPEN_TO_OFFERS'
-                                          || r.employmentStatus === 'ACTIVELY_LOOKING'; }],
-  ['free',  'Available',       'go',   function (r) { return r.employmentStatus === 'FREE_AGENT'; }],
-  ['watch', 'Contract watch',  'warn', function (r) { return r.employmentStatus === 'CONTRACT_ENDING_SOON'; }],
-  ['new',   'New to market',   'new',  function (r) { return !!r.isNewToMarket; }]
+// ── the candidate, drawn once ───────────────────────────────────────────────
+// One preview element, used by every discovery surface, so a coach reads the
+// same way wherever he is found. What it shows is what a director decides on:
+// who he is, where he is, what he holds, when he can move and what he expects.
+//
+// The actions are ranked rather than lined up: View profile is the primary,
+// Shortlist the secondary, and everything else lives behind the ••• so five
+// buttons never compete for the same attention.
+function _stActionsHtml(r, primaryLabel) {
+  return '<span class="cx-acts">'
+    + '<button type="button" class="cx-btn cx-btn--primary" data-st-open="' + _stEsc(r.staffUserId) + '">'
+    +   (primaryLabel || 'View profile') + '</button>'
+    + '<button type="button" class="cx-btn' + (r.isShortlisted ? ' is-on' : '') + '" data-st-short="'
+    +   _stEsc(r.staffUserId) + '" data-st-on="' + (r.isShortlisted ? '1' : '0') + '">'
+    +   (r.isShortlisted ? '\u2605 Shortlisted' : '\u2606 Shortlist') + '</button>'
+    + '<span class="cx-more-wrap">'
+    +   '<button type="button" class="cx-btn cx-btn--more" data-st-more="' + _stEsc(r.staffUserId)
+    +     '" aria-label="More actions">\u2022\u2022\u2022</button>'
+    +   (_TF_ST.moreFor === r.staffUserId
+      ? '<span class="cx-menu">'
+        + '<button type="button" data-st-cmp="' + _stEsc(r.staffUserId) + '">Compare</button>'
+        + (r.isMine ? '' : '<button type="button" data-st-approach="' + _stEsc(r.staffUserId)
+            + '" data-st-mode="contact">Contact</button>')
+        + (r.isMine ? '' : '<button type="button" data-st-approach="' + _stEsc(r.staffUserId)
+            + '">Start negotiation</button>')
+        + '</span>' : '')
+    + '</span>'
+    + '</span>';
+}
+
+// The facts a candidate is judged on, in one order, everywhere.
+function _stFactsHtml(r) {
+  var f = [];
+  var add = function (i, b) { if (b != null && b !== '') f.push('<span><i>' + i + '</i><b>' + b + '</b></span>'); };
+  add('Club', r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent');
+  add('Nationality', r.nationality ? _stEsc(r.nationality) : null);
+  add('Age', r.age == null ? null : r.age);
+  add('Licence', r.highestLicence ? _stEsc(String(r.highestLicence.name)) : null);
+  add('Experience', r.yearsExperience == null ? null : r.yearsExperience + ' yrs');
+  add('Reputation', r.reputation == null ? null : r.reputation);
+  add('Expects', r.wageExpectation == null ? null : _stMoney(r.wageExpectation));
+  add('Speciality', r.mainSpeciality ? _stEsc(String(r.mainSpeciality)) : null);
+  return '<span class="cx-facts">' + f.join('') + '</span>';
+}
+
+// When he can actually be had, said as a phrase rather than a status code.
+function _stWhenHtml(r) {
+  var st = r.employmentStatus || 'EMPLOYED';
+  var when = r.isFreeAgent ? 'Available now'
+    : (r.availableFrom ? 'From ' + _stDate(r.availableFrom)
+      : (r.contractMonthsLeft != null ? r.contractMonthsLeft + ' months left' : null));
+  return '<span class="cx-when">'
+    + '<span class="st-status st-status--' + String(st).toLowerCase() + '">'
+    +   _stEsc(ST_STATUS_LABEL[st] || st) + '</span>'
+    + (when ? '<i>' + when + '</i>' : '') + '</span>';
+}
+
+// A premium candidate card — used by the two discovery rails on Market.
+function _stCandHtml(r, why) {
+  return '<article class="cx-cand' + (_TF_ST.lens === r.staffUserId ? ' is-on' : '') + '">'
+    + '<button type="button" class="cx-cand-b" data-st-lens="' + _stEsc(r.staffUserId) + '">'
+    +   '<span class="cx-cand-hd">'
+    +     _stAvatar(r, 'st-av--lg')
+    +     '<span class="cx-cand-id"><b>' + _stEsc(r.name) + '</b>'
+    +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+    +     '<span class="cx-cand-fci"><b>' + (r.fci == null ? '\u2014' : r.fci) + '</b><i>FCI</i></span>'
+    +   '</span>'
+    +   (why ? '<span class="cx-why">' + why + '</span>' : '')
+    +   _stFactsHtml(r)
+    +   _stWhenHtml(r)
+    + '</button>'
+    + '<footer class="cx-cand-ft">' + _stActionsHtml(r) + '</footer>'
+    + '</article>';
+}
+
+// ── MARKET · discovery ──────────────────────────────────────────────────────
+// Three questions, in the order a sporting director asks them: who should I
+// look at, who is worth investigating right now, and what else is out there.
+var ST_OPPS = [
+  ['free',  'Free agent',        function (r) { return r.employmentStatus === 'FREE_AGENT'; }],
+  ['watch', 'Contract ending',   function (r) { return r.employmentStatus === 'CONTRACT_ENDING_SOON'; }],
+  ['open',  'Open to offers',    function (r) { return r.employmentStatus === 'OPEN_TO_OFFERS'
+                                      || r.employmentStatus === 'ACTIVELY_LOOKING'; }],
+  ['new',   'Recently available', function (r) { return !!r.isNewToMarket; }]
 ];
-var ST_LANE_ROW = 5;
+var ST_EXPLORE = 6;
 
 function _stMarketHtml() {
   if (_TF_ST.error && !_TF_ST.rows.length) {
-    return '<div class="st-empty">The exchange could not be read \u2014 ' + _stEsc(_TF_ST.error) + '</div>';
+    return '<div class="st-empty">The market could not be read \u2014 ' + _stEsc(_TF_ST.error) + '</div>';
   }
   if (!_stRowsReady()) return _stFiltersHtml() + _stReadingHtml('the market');
   var d = _stDerived();
   if (!d.listed.length) {
     return _stFiltersHtml() + _stEmpty('\u25ce', 'Nobody is on the market',
       'A coach appears here when his status in Coaches becomes open to offers, actively looking or free agent.',
-      '<button type="button" class="cx-act cx-act--go" data-st-view="needs">Plan our staff</button>');
+      '<button type="button" class="cx-btn cx-btn--primary" data-st-view="needs">Plan our staff</button>');
   }
+
+  // A · recommended: the club's own open posts decide who is worth showing.
+  var wanted = {};
+  (_TF_ST.gap || []).forEach(function (t) {
+    (t.roleStrip || []).forEach(function (p) {
+      if (!(p.expected > 0 && p.filled >= p.expected)) {
+        (ST_POST_ROLES[p.key] || []).forEach(function (role) { wanted[role] = p.label; });
+      }
+    });
+  });
+  var wantedRoles = Object.keys(wanted);
+  var rec = d.listed.filter(function (r) { return wantedRoles.indexOf(r.role) >= 0 && !r.isMine; });
+  var recWhy = function (r) { return 'Fits your open ' + _stEsc(wanted[r.role]) + ' post'; };
+  if (!rec.length) {
+    rec = d.listed.filter(function (r) { return !r.isMine && (r.fci || 0) >= 60; });
+    recWhy = function (r) { return 'Among the strongest available'; };
+  }
+  rec = rec.slice().sort(function (x, y) { return _stMapRank(y) - _stMapRank(x); }).slice(0, 3);
+
+  // B · opportunities: four reasons to move on somebody now.
+  var oppKey = _TF_ST.opp || ST_OPPS[0][0];
+  var oppDef = ST_OPPS[0];
+  ST_OPPS.forEach(function (o) { if (o[0] === oppKey) oppDef = o; });
+  var opps = (d.lanes[oppKey] || []).slice(0, 3);
+
+  // C · the rest of the market
+  var seen = {};
+  rec.concat(opps).forEach(function (r) { seen[r.staffUserId] = 1; });
+  var rest = d.listed.filter(function (r) { return !seen[r.staffUserId]; });
+  var shown = Math.min(rest.length, (_TF_ST.page || 1) * ST_EXPLORE);
+
   return _stFiltersHtml()
-    + '<div class="cx-flow">'
-    + ST_LANES.map(function (L) {
-        var people = d.lanes[L[0]] || [];
-        var open = _TF_ST.laneOpen === L[0];
-        var shown = open ? people.slice(0, ST_LANE_ROW * 3) : people.slice(0, ST_LANE_ROW);
-        var more = people.length - shown.length;
-        return '<section class="cx-lane cx-lane--' + L[2] + (people.length ? '' : ' is-quiet') + '">'
-          + '<h5 class="cx-lane-h">' + L[1] + '<span>' + people.length + '</span></h5>'
-          + (people.length
-            ? '<div class="cx-lane-b">' + shown.map(_stStripHtml).join('')
-              + (more > 0
-                ? '<button type="button" class="cx-lane-more" data-st-laneopen="' + L[0] + '">'
-                  + '+' + more + ' more</button>'
-                : (open && people.length > ST_LANE_ROW
-                  ? '<button type="button" class="cx-lane-more" data-st-laneopen="">Show less</button>' : ''))
-              + '</div>'
-            : '<p class="cx-lane-none">\u2014</p>')
-          + '</section>';
-      }).join('')
-    + '</div>';
+    + '<section class="cx-sec">'
+    +   '<header class="cx-sec-h"><h4>Recommended for your club</h4>'
+    +     '<p>' + (wantedRoles.length ? 'Matched against the posts you have open'
+          : 'The strongest coaches the market currently holds') + '</p></header>'
+    +   '<div class="cx-rail">' + rec.map(function (r) { return _stCandHtml(r, recWhy(r)); }).join('') + '</div>'
+    + '</section>'
+    + '<section class="cx-sec">'
+    +   '<header class="cx-sec-h"><h4>Market opportunities</h4>'
+    +     '<span class="cx-segs">'
+    +       ST_OPPS.map(function (o) {
+              var n = (d.lanes[o[0]] || []).length;
+              return '<button type="button" class="cx-seg' + (o[0] === oppKey ? ' is-on' : '')
+                + '" data-st-opp="' + o[0] + '"' + (n ? '' : ' disabled') + '>'
+                + o[1] + '<i>' + n + '</i></button>';
+            }).join('')
+    +     '</span></header>'
+    +   (opps.length
+      ? '<div class="cx-rail">' + opps.map(function (r) { return _stCandHtml(r, oppDef[1]); }).join('') + '</div>'
+      : '<p class="cx-lane-none">Nobody under that heading right now.</p>')
+    + '</section>'
+    + '<section class="cx-sec">'
+    +   '<header class="cx-sec-h"><h4>Explore the market</h4>'
+    +     '<p>' + rest.length + ' more ' + (rest.length === 1 ? 'coach' : 'coaches') + ' on the market</p></header>'
+    +   '<div class="cx-grid">' + rest.slice(0, shown).map(_stStripHtml).join('') + '</div>'
+    +   (shown < rest.length
+      ? '<button type="button" class="cx-btn cx-more-row" data-st-page="' + ((_TF_ST.page || 1) + 1)
+        + '">Show ' + Math.min(ST_EXPLORE, rest.length - shown) + ' more</button>' : '')
+    + '</section>';
 }
 
 // ── the staff strip ─────────────────────────────────────────────────────────
-// The unit the whole command centre is built from. A horizontal market entry:
-// who he is on the first line, the two figures and where he stands on the
-// second, and his movement at the edge. Never more than two secondary lines,
-// and never a card. Clicking it selects him into the dock — it does not open a
-// modal, which is the whole point of the dock existing.
+// The compact form of the same candidate, for the explore grid and anywhere a
+// list has to stay dense. Selecting it puts him in the dock.
 function _stStripHtml(r) {
   var st = r.employmentStatus || 'EMPLOYED';
   return '<button type="button" class="cx-strip cx-strip--' + String(st).toLowerCase()
@@ -52282,27 +52470,26 @@ var ST_PAGE = 8;
 // AVAILABLE — one question: who can I realistically hire. One ranked list, one
 // row per coach, everything a recruiter compares on that row. Not three
 // columns, not a wall of cards, and nothing that has to be scrolled past.
-// ── AVAILABLE · the priority ladder ─────────────────────────────────────────
+// ── AVAILABLE · the ranking workspace ───────────────────────────────────────
 // One question: who can I realistically hire. Ranked best first and numbered,
-// because a ladder says what a list does not — that position one is the answer
-// and position eight is the last one worth reading. Eight rungs, then more on
-// request. No cards, no columns, no wall.
+// with everything a director compares on the row itself — so eight candidates
+// can be scanned without scrolling and without opening anything.
 function _stAvailableHtml() {
-  if (!_stRowsReady()) return _stReadingHtml('the ladder');
+  if (!_stRowsReady()) return _stReadingHtml('the ranking');
   var d = _stDerived();
   var all = d.listed;
   var chip = _TF_ST.f.status || '';
   var rows = chip ? d.ladder.filter(function (r) { return r.employmentStatus === chip; }) : d.ladder;
 
   var head = '<div class="cx-mh">'
-    + '<div class="cx-mh-t"><h3>Available now</h3>'
-    +   '<p>' + all.length + ' reachable \u00b7 best fit first</p></div>'
-    + '<div class="cx-mh-r"><span class="cx-chips">'
-    +   '<button type="button" class="cx-chip' + (chip ? '' : ' is-on') + '" data-st-status="">All<i>'
+    + '<div class="cx-mh-t"><h3>Available coaches</h3>'
+    +   '<p>Ready or approaching availability</p></div>'
+    + '<div class="cx-mh-r"><span class="cx-segs">'
+    +   '<button type="button" class="cx-seg' + (chip ? '' : ' is-on') + '" data-st-status="">All<i>'
     +     all.length + '</i></button>'
     +   ST_AVAIL_CHIPS.map(function (c) {
           var n = all.filter(function (r) { return r.employmentStatus === c[0]; }).length;
-          return '<button type="button" class="cx-chip' + (chip === c[0] ? ' is-on' : '')
+          return '<button type="button" class="cx-seg' + (chip === c[0] ? ' is-on' : '')
             + '" data-st-status="' + c[0] + '"' + (n ? '' : ' disabled') + '>'
             + c[1] + '<i>' + n + '</i></button>';
         }).join('')
@@ -52312,7 +52499,7 @@ function _stAvailableHtml() {
   if (!rows.length) {
     return head + _stEmpty('\u25ce', 'Nobody available under that filter',
       'Every coach on the platform is under contract and not looking.',
-      chip ? '<button type="button" class="cx-act cx-act--go" data-st-status="">Show all</button>' : '');
+      chip ? '<button type="button" class="cx-btn cx-btn--primary" data-st-status="">Show all</button>' : '');
   }
   var shown = Math.min(rows.length, (_TF_ST.page || 1) * ST_PAGE);
   return head
@@ -52320,32 +52507,26 @@ function _stAvailableHtml() {
     +   rows.slice(0, shown).map(function (r, i) { return _stRungHtml(r, i + 1); }).join('')
     + '</ol>'
     + (shown < rows.length
-      ? '<button type="button" class="cx-more-row cx-act" data-st-page="'
+      ? '<button type="button" class="cx-btn cx-more-row" data-st-page="'
         + ((_TF_ST.page || 1) + 1) + '">Show ' + Math.min(ST_PAGE, rows.length - shown) + ' more</button>'
       : '');
 }
 
-// One rung. The rank is the point, so it leads.
+// One rung: the rank leads, then who he is, then what he holds, then when he
+// can move and what he expects, then the opportunity reading, then the actions.
 function _stRungHtml(r, n) {
-  var st = r.employmentStatus || 'EMPLOYED';
-  var when = r.isFreeAgent ? 'Available immediately'
-    : (r.availableFrom ? 'Available ' + _stDate(r.availableFrom)
-      : _stEsc(ST_STATUS_LABEL[st] || st));
   return '<li class="cx-rung' + (_TF_ST.lens === r.staffUserId ? ' is-on' : '') + '">'
     + '<button type="button" class="cx-rung-b" data-st-lens="' + _stEsc(r.staffUserId) + '">'
     +   '<span class="cx-rung-n">' + n + '</span>'
     +   _stAvatar(r)
     +   '<span class="cx-rung-id"><b>' + _stEsc(r.name) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
-    +       (r.currentClub ? ' \u00b7 ' + _stEsc(r.currentClub.name) : '') + '</em></span>'
-    +   '<span class="cx-rung-f">'
-    +     '<i class="cx-sf">FCI <b>' + (r.fci == null ? '\u2014' : r.fci) + '</b></i>'
-    +     '<i class="cx-sf cx-sf--opp">OPP <b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b></i>'
-    +     (r.wageExpectation == null ? '' : '<i class="cx-sf">' + _stMoney(r.wageExpectation) + '</i>')
-    +     (r.highestLicence ? '<i class="cx-sf">' + _stEsc(String(r.highestLicence.name)) + '</i>' : '')
-    +   '</span>'
-    +   '<span class="cx-rung-w">' + when + '</span>'
+    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
+    +   _stFactsHtml(r)
+    +   _stWhenHtml(r)
+    +   '<span class="cx-rung-opp"><b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b>'
+    +     '<i>opportunity</i></span>'
     + '</button>'
+    + _stActionsHtml(r)
     + '</li>';
 }
 
@@ -52360,30 +52541,23 @@ function _stEmpty(icon, title, line, action) {
     + '</div>';
 }
 
-// ── FREE AGENTS · the desk ───────────────────────────────────────────────────
-// One question: who can be hired today without another club agreeing to
-// anything. Two columns of compact cards, ordered by whichever of four
-// questions the reader is asking.
+// ── FREE AGENTS · the scouting board ────────────────────────────────────────
+// One question: who can I hire today, without another club having to agree to
+// anything. Deliberately unlike the ranking — a scouting board of two premium
+// dossiers across, with an intelligence strip that reorders it by the question
+// being asked.
 var ST_FA_SORTS = [
-  ['opportunity', 'Best fit'], ['yearsExperience', 'Most experienced'],
+  ['opportunity', 'Best available'], ['yearsExperience', 'Most experienced'],
   ['reputation', 'Highest reputation'], ['recent', 'Recently available']
 ];
-// FREE AGENTS — one question: who can I hire immediately, without another club
-// having to agree to anything. Deliberately not Available with different rows:
-// a board of hire tickets, two across, six at a time.
-var ST_FA_PAGE = 6;
-// ── FREE AGENTS · the immediate hire board ──────────────────────────────────
-// One question: who can I hire today without another club having to agree to
-// anything. Deliberately unlike the ladder — blocks, not rungs, two across, six
-// at a time — because these are not ranked against each other, they are simply
-// available, and the decision is which one to approach.
+var ST_FA_PAGE = 4;
 function _stFreeAgentsHtml() {
-  if (!_stRowsReady()) return _stReadingHtml('the board');
+  if (!_stRowsReady()) return _stReadingHtml('the pool');
   var rows = _stDerived().freeAgents;
   if (!rows.length) {
-    return _stEmpty('\u25c6', 'No free agents',
+    return _stEmpty('\u25c6', 'The free agent pool is empty',
       'Nobody on the platform is without a club. Somebody the platform does not employ can be added as a candidate.',
-      '<button type="button" class="cx-act cx-act--go" data-st-ext-open>Add external candidate</button>');
+      '<button type="button" class="cx-btn cx-btn--primary" data-st-ext-open>Add external candidate</button>');
   }
   var sort = _TF_ST.faSort || 'opportunity';
   rows = rows.slice().sort(function (a, b) {
@@ -52397,49 +52571,54 @@ function _stFreeAgentsHtml() {
   var shown = Math.min(rows.length, (_TF_ST.faPage || 1) * ST_FA_PAGE);
 
   return '<div class="cx-mh">'
-    + '<div class="cx-mh-t"><h3>Immediate hire</h3><p>No compensation owed to anybody</p></div>'
-    + '<div class="cx-mh-r"><span class="cx-rank">'
+    + '<div class="cx-mh-t"><h3>Free agent pool</h3>'
+    +   '<p>Immediate hires \u2014 no club compensation</p></div>'
+    + '<div class="cx-mh-r">'
+    +   '<button type="button" class="cx-btn" data-st-ext-open>+ Add candidate</button></div>'
+    + '</div>'
+    + '<div class="cx-segs cx-segs--wide">'
     +   ST_FA_SORTS.map(function (o) {
-          return '<button type="button" class="cx-act' + (sort === o[0] ? ' is-on' : '')
+          return '<button type="button" class="cx-seg' + (sort === o[0] ? ' is-on' : '')
             + '" data-st-fasort="' + o[0] + '">' + o[1] + '</button>';
         }).join('')
-    + '</span>'
-    + '<button type="button" class="cx-act" data-st-ext-open>+ External</button></div>'
     + '</div>'
     + '<div class="cx-hire">' + rows.slice(0, shown).map(_stDossierHtml).join('') + '</div>'
     + (shown < rows.length
-      ? '<button type="button" class="cx-more-row cx-act" data-st-fapage="'
+      ? '<button type="button" class="cx-btn cx-more-row" data-st-fapage="'
         + ((_TF_ST.faPage || 1) + 1) + '">Show more \u00b7 ' + (rows.length - shown) + ' remaining</button>'
       : '');
 }
 
-// One hire block. Labelled facts down the block, because on this board the
-// facts are the comparison — there is no ranking to lean on.
+// One scouting dossier.
 function _stDossierHtml(r) {
   var out = r.lastLeftAt ? _stMonthsSince(r.lastLeftAt) : null;
   var facts = [
-    ['Last club', r.lastClub ? _stEsc(r.lastClub) : null],
+    ['Previous club', r.lastClub ? _stEsc(r.lastClub) : null],
+    ['Last role', r.lastRole ? _stEsc(ST_ROLE_LABEL[r.lastRole] || r.lastRole)
+      : (r.role ? _stEsc(ST_ROLE_LABEL[r.role] || r.role) : null)],
     ['Experience', r.yearsExperience != null ? r.yearsExperience + ' years' : null],
     ['Licence', r.highestLicence ? _stEsc(String(r.highestLicence.name)) : null],
-    ['Expected', r.wageExpectation != null ? _stMoney(r.wageExpectation) : null],
-    ['Opportunity', r.opportunity == null ? null : r.opportunity],
-    ['Free since', out]
+    ['Reputation', r.reputation == null ? null : r.reputation],
+    ['Expected salary', r.wageExpectation != null ? _stMoney(r.wageExpectation) : null],
+    ['Free since', out],
+    ['Speciality', r.mainSpeciality ? _stEsc(String(r.mainSpeciality)) : null]
   ].filter(function (f) { return f[1] != null && f[1] !== ''; });
 
   return '<article class="cx-hb' + (_TF_ST.lens === r.staffUserId ? ' is-on' : '') + '">'
-    + '<header class="cx-hb-h">'
-    +   _stAvatar(r)
-    +   '<span class="cx-hb-id"><b>' + _stEsc(r.name) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-    +   '<span class="cx-hb-free">FREE AGENT</span>'
-    + '</header>'
-    + '<div class="cx-hb-f">'
-    +   facts.map(function (f) { return '<div><i>' + f[0] + '</i><b>' + f[1] + '</b></div>'; }).join('')
-    + '</div>'
-    + '<footer class="cx-hb-a">'
-    +   '<button type="button" class="cx-act" data-st-lens="' + _stEsc(r.staffUserId) + '">Inspect</button>'
-    +   '<button type="button" class="cx-act cx-act--go" data-st-approach="' + _stEsc(r.staffUserId) + '">Approach</button>'
-    + '</footer>'
+    + '<button type="button" class="cx-hb-b" data-st-lens="' + _stEsc(r.staffUserId) + '">'
+    +   '<span class="cx-hb-h">'
+    +     _stAvatar(r, 'st-av--lg')
+    +     '<span class="cx-hb-id"><b>' + _stEsc(r.name) + '</b>'
+    +       '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff')
+    +         (r.nationality ? ' \u00b7 ' + _stEsc(r.nationality) : '') + '</em></span>'
+    +     '<span class="cx-hb-free">FREE AGENT</span>'
+    +   '</span>'
+    +   '<span class="cx-hb-f">'
+    +     facts.map(function (f) { return '<span><i>' + f[0] + '</i><b>' + f[1] + '</b></span>'; }).join('')
+    +   '</span>'
+    +   '<span class="cx-hb-now">Available immediately</span>'
+    + '</button>'
+    + '<footer class="cx-hb-a">' + _stActionsHtml(r) + '</footer>'
     + '</article>';
 }
 
@@ -52450,14 +52629,16 @@ function _stMonthsSince(d) {
   return Math.floor(m / 12) + ' years';
 }
 
-// ── SHORTLIST · the recruitment room ────────────────────────────────────────
-// Three sections, not four Kanban columns: who we are watching, who we have
-// spoken to, and who is in front of us. Each person is a dossier strip; picking
-// one puts him in the dock, where the priority and the stage are set.
+// ── SHORTLIST · the recruitment workspace ───────────────────────────────────
+// One question: which coaches are we seriously considering, and where is each
+// of them in the process. Five stages — the same five the platform stores — as
+// a pipeline of compact dossier rows that can be moved along it.
 var ST_ROOMS = [
-  ['WATCHING',  'Watching',  ['WATCHING']],
-  ['CONTACTED', 'Contacted', ['CONTACTED', 'INTERVIEW']],
-  ['FINAL',     'Final',     ['NEGOTIATION', 'OFFER_SENT']]
+  ['WATCHING',    'Watching'],
+  ['CONTACTED',   'Contacted'],
+  ['INTERVIEW',   'Interview'],
+  ['NEGOTIATION', 'Negotiation'],
+  ['OFFER_SENT',  'Offer sent']
 ];
 function _stShortlistDeskHtml() {
   if (!_stRowsReady()) return _stReadingHtml('the shortlist');
@@ -52468,7 +52649,7 @@ function _stShortlistDeskHtml() {
   if (!rows.length) {
     return _stEmpty('\u2606', 'No shortlisted staff yet',
       'Save coaches from Market, Available or Free Agents to compare them here.',
-      '<button type="button" class="cx-act cx-act--go" data-st-view="market">Browse market</button>');
+      '<button type="button" class="cx-btn cx-btn--primary" data-st-view="market">Browse market</button>');
   }
   var stageOf = function (r) { return (meta[r.staffUserId] || {}).stage || 'WATCHING'; };
   var priOf   = function (r) { return (meta[r.staffUserId] || {}).priority || 'MEDIUM'; };
@@ -52479,14 +52660,15 @@ function _stShortlistDeskHtml() {
   var high = rows.filter(function (r) { return priOf(r) === 'HIGH'; }).length;
 
   return '<div class="cx-mh">'
-    + '<div class="cx-mh-t"><h3>Recruitment room</h3>'
-    +   '<p>' + rows.length + ' candidate' + (rows.length === 1 ? '' : 's')
+    + '<div class="cx-mh-t"><h3>Shortlist</h3>'
+    +   '<p>' + rows.length + ' under consideration'
     +   (high ? ' \u00b7 ' + high + ' high priority' : '') + '</p></div>'
     + '</div>'
     + '<div class="cx-room">'
     + ST_ROOMS.map(function (R) {
-        var people = rows.filter(function (r) { return R[2].indexOf(stageOf(r)) >= 0; }).sort(byPri);
-        return '<section class="cx-room-c cx-room-c--' + R[0].toLowerCase() + '">'
+        var people = rows.filter(function (r) { return stageOf(r) === R[0]; }).sort(byPri);
+        return '<section class="cx-room-c cx-room-c--' + R[0].toLowerCase()
+          + (people.length ? '' : ' is-quiet') + '">'
           + '<h5>' + R[1] + '<span>' + people.length + '</span></h5>'
           + (people.length
             ? people.map(function (r) { return _stDeskCardHtml(r, meta[r.staffUserId] || {}); }).join('')
@@ -52496,46 +52678,64 @@ function _stShortlistDeskHtml() {
     + '</div>';
 }
 
-// One dossier strip.
+// One dossier row: who, what we think of him, where he is, when we last moved
+// on him — and the stage select that moves him along.
 function _stDeskCardHtml(r, m) {
   var pri = m.priority || 'MEDIUM';
   var stage = m.stage || 'WATCHING';
   var when = m.updatedAt || m.addedAt || null;
-  return '<button type="button" class="cx-dos cx-dos--' + pri.toLowerCase()
-    + (_TF_ST.lens === r.staffUserId ? ' is-on' : '') + '"'
-    + ' data-st-lens="' + _stEsc(r.staffUserId) + '">'
-    + _stAvatar(r, 'st-av--sm')
-    + '<span class="cx-dos-b">'
-    +   '<span class="cx-dos-1"><b>' + _stEsc(r.name) + '</b>'
+  return '<article class="cx-dos cx-dos--' + pri.toLowerCase()
+    + (_TF_ST.lens === r.staffUserId ? ' is-on' : '') + '">'
+    + '<button type="button" class="cx-dos-b" data-st-lens="' + _stEsc(r.staffUserId) + '">'
+    +   _stAvatar(r, 'st-av--sm')
+    +   '<span class="cx-dos-id"><b>' + _stEsc(r.name) + '</b>'
     +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-    +   '<span class="cx-dos-2">'
-    +     '<i class="cx-sf">FCI <b>' + (r.fci == null ? '\u2014' : r.fci) + '</b></i>'
-    +     '<i class="cx-sf cx-sf--opp">OPP <b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b></i>'
-    +     '<i class="cx-sf">' + (when ? _stDate(when).slice(5) : 'no contact') + '</i>'
-    +   '</span>'
-    + '</span>'
-    + '<span class="st-pri st-pri--' + pri.toLowerCase() + '">' + _stEsc(ST_PRIORITY_LABEL[pri]) + '</span>'
-    + '<span class="cx-dos-st">' + _stEsc(ST_STAGE_LABEL[stage] || stage) + '</span>'
-    + '</button>';
+    +   '<span class="st-pri st-pri--' + pri.toLowerCase() + '">' + _stEsc(ST_PRIORITY_LABEL[pri]) + '</span>'
+    + '</button>'
+    + '<div class="cx-dos-f">'
+    +   '<span><i>Fit</i><b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b></span>'
+    +   (r.wageExpectation == null ? '' : '<span><i>Expects</i><b>' + _stMoney(r.wageExpectation) + '</b></span>')
+    +   '<span><i>Available</i><b>' + (r.isFreeAgent ? 'Now'
+        : (r.contractMonthsLeft != null ? r.contractMonthsLeft + ' mo' : '\u2014')) + '</b></span>'
+    +   '<span><i>Last activity</i><b>' + (when ? _stDate(when).slice(5) : 'none') + '</b></span>'
+    +   (m.note ? '<span class="cx-dos-note" title="' + _stEsc(m.note) + '">\u270e note</span>' : '')
+    + '</div>'
+    + '<footer class="cx-dos-a">'
+    +   '<button type="button" class="cx-btn cx-btn--primary" data-st-open="' + _stEsc(r.staffUserId) + '">Open</button>'
+    +   '<select class="cx-btn cx-btn--sel" data-st-stage="' + _stEsc(r.staffUserId) + '" aria-label="Move stage">'
+    +     ST_STAGE.map(function (o) {
+            return '<option value="' + o[0] + '"' + (stage === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+          }).join('') + '</select>'
+    +   '<button type="button" class="cx-btn" data-st-cmp="' + _stEsc(r.staffUserId) + '">Compare</button>'
+    +   '<button type="button" class="cx-btn cx-btn--danger" data-st-short="' + _stEsc(r.staffUserId)
+    +     '" data-st-on="1">Remove</button>'
+    + '</footer>'
+    + '</article>';
 }
 
+// ── DEALS · the negotiation desk ────────────────────────────────────────────
+// One question: which deals are happening, and what is the next move on each.
+// The five live stages are named as the platform names the offer states behind
+// them. Rejected and withdrawn are history rather than a stage, and are reached
+// by asking for them.
 var ST_DEAL_STAGES = [
-  ['CONTACT',  'Contact',  ['DRAFT']],
-  ['INTEREST', 'Interest', ['SENT', 'SUBMITTED']],
-  ['TERMS',    'Terms',    ['VIEWED']],
-  ['OFFER',    'Offer',    ['NEGOTIATING']],
-  ['DECISION', 'Decision', ['ACCEPTED', 'REJECTED', 'WITHDRAWN', 'COMPLETED']]
+  ['DRAFT',       'Draft',       ['DRAFT']],
+  ['SENT',        'Sent',        ['SENT', 'SUBMITTED']],
+  ['VIEWED',      'Viewed',      ['VIEWED']],
+  ['NEGOTIATING', 'Negotiating', ['NEGOTIATING']],
+  ['ACCEPTED',    'Accepted',    ['ACCEPTED', 'COMPLETED']]
 ];
+var ST_DEAL_CLOSED = ['REJECTED', 'WITHDRAWN'];
 function _stDealStage(status) {
   for (var i = 0; i < ST_DEAL_STAGES.length; i++) {
     if (ST_DEAL_STAGES[i][2].indexOf(status) >= 0) return ST_DEAL_STAGES[i];
   }
-  return ST_DEAL_STAGES[0];
+  return ['CLOSED', ST_OFFER_LABEL[status] || 'Closed', []];
 }
 // What to do next follows from where the deal is, and from which side we are on.
 function _stDealNext(d) {
   if (['ACCEPTED', 'COMPLETED'].indexOf(d.status) >= 0) return d.currentClub ? 'Done' : 'Complete hire';
-  if (['REJECTED', 'WITHDRAWN'].indexOf(d.status) >= 0) return 'Closed';
+  if (ST_DEAL_CLOSED.indexOf(d.status) >= 0) return 'Closed';
   if (d.dir === 'in') return 'Answer them';
   if (d.status === 'DRAFT') return 'Send terms';
   if (d.status === 'NEGOTIATING') return 'Revise offer';
@@ -52543,12 +52743,6 @@ function _stDealNext(d) {
   return 'Await reply';
 }
 
-// NEGOTIATIONS — one question: which deals are happening. Stage chips, one row
-// per deal, and the one being discussed opened in a drawer beside them.
-// ── DEALS · the deal room ───────────────────────────────────────────────────
-// One question: which deals are happening. Active tickets, each carrying the
-// terms and the one thing to do next. The dock becomes the negotiation panel
-// when a ticket is opened — no columns, no board, no second copy of the coach.
 function _stPipelineHtml() {
   var a = _TF_ST.activity || {};
   var deals = ((a.outgoing || []).map(function (x) { return Object.assign({ dir: 'out' }, x); }))
@@ -52556,60 +52750,68 @@ function _stPipelineHtml() {
   if (!deals.length) {
     return _stEmpty('\u21c4', 'No active deals',
       'Start a negotiation from Market, Available, Free Agents or Shortlist.',
-      '<button type="button" class="cx-act cx-act--go" data-st-view="available">Find a coach</button>');
+      '<button type="button" class="cx-btn cx-btn--primary" data-st-view="available">Find a coach</button>');
   }
   deals.sort(function (x, y) {
     return new Date(y.updatedAt || y.createdAt || 0).getTime()
          - new Date(x.updatedAt || x.createdAt || 0).getTime();
   });
-  var live = deals.filter(function (d) {
-    return ['SUBMITTED', 'SENT', 'VIEWED', 'NEGOTIATING', 'DRAFT'].indexOf(d.status) >= 0;
-  }).length;
+  var live = deals.filter(function (d) { return ST_DEAL_CLOSED.indexOf(d.status) < 0; });
+  var closed = deals.filter(function (d) { return ST_DEAL_CLOSED.indexOf(d.status) >= 0; });
+
   var lane = _TF_ST.dealLane || 'all';
-  var shown = lane === 'all' ? deals
-    : deals.filter(function (d) { return _stDealStage(d.status)[0] === lane; });
+  var pool = lane === 'history' ? closed : live;
+  var shown = (lane === 'all' || lane === 'history') ? pool
+    : pool.filter(function (d) { return _stDealStage(d.status)[0] === lane; });
 
   return '<div class="cx-mh">'
-    + '<div class="cx-mh-t"><h3>Deal room</h3><p>' + live + ' live \u00b7 '
+    + '<div class="cx-mh-t"><h3>Deals</h3><p>' + live.length + ' live \u00b7 '
     +   (a.incoming || []).length + ' for our staff</p></div>'
-    + '<div class="cx-mh-r"><span class="cx-chips">'
-    +   '<button type="button" class="cx-chip' + (lane === 'all' ? ' is-on' : '') + '" data-st-deallane="all">'
-    +     'All<i>' + deals.length + '</i></button>'
-    +   ST_DEAL_STAGES.map(function (st) {
-          var n = deals.filter(function (d) { return _stDealStage(d.status)[0] === st[0]; }).length;
-          return '<button type="button" class="cx-chip' + (lane === st[0] ? ' is-on' : '')
-            + '" data-st-deallane="' + st[0] + '"' + (n ? '' : ' disabled') + '>'
-            + st[1] + '<i>' + n + '</i></button>';
+    + '</div>'
+    + '<div class="cx-pipe">'
+    +   ST_DEAL_STAGES.map(function (st, i) {
+          var n = live.filter(function (d) { return _stDealStage(d.status)[0] === st[0]; }).length;
+          return '<button type="button" class="cx-pipe-s' + (lane === st[0] ? ' is-on' : '')
+            + (n ? '' : ' is-quiet') + '" data-st-deallane="' + st[0] + '">'
+            + '<b>' + n + '</b><i>' + st[1] + '</i></button>'
+            + (i < ST_DEAL_STAGES.length - 1 ? '<span class="cx-pipe-a">\u203a</span>' : '');
         }).join('')
-    + '</span></div>'
+    +   '<span class="cx-pipe-r">'
+    +     '<button type="button" class="cx-btn' + (lane === 'all' ? ' is-on' : '') + '" data-st-deallane="all">'
+    +       'All live</button>'
+    +     (closed.length ? '<button type="button" class="cx-btn' + (lane === 'history' ? ' is-on' : '')
+        + '" data-st-deallane="history">History<i>' + closed.length + '</i></button>' : '')
+    +   '</span>'
     + '</div>'
     + (shown.length
       ? '<div class="cx-tickets">' + shown.map(_stDealHtml).join('') + '</div>'
       : '<p class="cx-lane-none">No deal at that stage.</p>');
 }
 
-// One ticket.
+// One deal ticket. What was proposed, where it stands, and what to do next.
 function _stDealHtml(d) {
   var stage = _stDealStage(d.status);
   var kv = function (l, v) {
     if (v == null || v === '') return '';
-    return '<div><i>' + l + '</i><b>' + v + '</b></div>';
+    return '<span><i>' + l + '</i><b>' + v + '</b></span>';
   };
   return '<article class="cx-tk cx-tk--' + d.dir + (_TF_ST.deal === d.id ? ' is-on' : '') + '">'
-    + '<header class="cx-tk-h">'
-    +   '<span class="cx-tk-id"><b>' + _stEsc(d.staffName) + '</b>'
-    +     '<em>' + _stEsc(ST_ROLE_LABEL[d.proposedRole] || d.proposedRole) + '</em></span>'
-    +   '<span class="cx-tk-st cx-tk-st--' + stage[0].toLowerCase() + '">' + stage[1] + '</span>'
-    + '</header>'
-    + '<div class="cx-tk-f">'
-    +   kv('Offer', d.salary == null ? null : _stMoney(d.salary) + ' / year')
-    +   kv('Length', d.durationMonths ? d.durationMonths + ' months' : null)
-    +   kv('Bonus', d.bonuses ? _stEsc(String(d.bonuses)) : null)
-    +   kv('Last update', d.updatedAt ? _stDate(d.updatedAt) : null)
-    +   kv('Next action', _stDealNext(d))
-    + '</div>'
+    + '<button type="button" class="cx-tk-b" data-st-deal="' + _stEsc(d.id) + '">'
+    +   '<span class="cx-tk-h">'
+    +     '<span class="cx-tk-id"><b>' + _stEsc(d.staffName) + '</b>'
+    +       '<em>' + _stEsc(ST_ROLE_LABEL[d.proposedRole] || d.proposedRole) + '</em></span>'
+    +     '<span class="cx-tk-st cx-tk-st--' + stage[0].toLowerCase() + '">' + stage[1] + '</span>'
+    +   '</span>'
+    +   '<span class="cx-tk-f">'
+    +     kv('Salary', d.salary == null ? null : _stMoney(d.salary) + ' / yr')
+    +     kv('Length', d.durationMonths ? d.durationMonths + ' months' : null)
+    +     kv('Start', d.startDate ? _stDate(d.startDate) : null)
+    +     kv('Last update', d.updatedAt ? _stDate(d.updatedAt) : null)
+    +   '</span>'
+    +   '<span class="cx-tk-next"><i>Next</i><b>' + _stDealNext(d) + '</b></span>'
+    + '</button>'
     + '<footer class="cx-tk-a">'
-    +   '<button type="button" class="cx-act cx-act--go" data-st-deal="' + _stEsc(d.id) + '">Open deal</button>'
+    +   '<button type="button" class="cx-btn cx-btn--primary" data-st-deal="' + _stEsc(d.id) + '">Open deal</button>'
     + '</footer>'
     + '</article>';
 }
@@ -52750,24 +52952,24 @@ function _stTimelineHtml() {
   }
   items.sort(function (x, y) { return y.at - x.at; });
   var lane = _TF_ST.pulseLane || 'all';
-  var shown = lane === 'all' ? items : items.filter(function (i) { return i.lane === lane; });
-
+  var span = _TF_ST.evSpan || 'week';
   var d0 = new Date(); d0.setHours(0, 0, 0, 0);
   var today = d0.getTime(), yest = today - 86400000, week = today - 6 * 86400000;
+  var floor = span === 'today' ? today : (span === 'week' ? week : 0);
+
+  var shown = items.filter(function (i) {
+    return i.at >= floor && (lane === 'all' || i.lane === lane);
+  });
   var bandOf = function (t) {
-    return t >= today ? 'Today' : (t >= yest ? 'Yesterday' : (t >= week ? 'This week' : 'Older'));
+    return t >= today ? 'Today' : (t >= yest ? 'Yesterday' : (t >= week ? 'This week' : 'Earlier'));
   };
   var counts = {};
-  items.forEach(function (i) { counts[i.lane] = (counts[i.lane] || 0) + 1; });
+  items.filter(function (i) { return i.at >= floor; })
+    .forEach(function (i) { counts[i.lane] = (counts[i.lane] || 0) + 1; });
 
-  // Only what is worth a recruiter's attention: the important half first, and
-  // never the whole log. No timeline graphic, no feed wall, no decoration.
-  var cap = _TF_ST.evAll ? shown.length : ST_EV_SHOWN;
-  var strong = shown.filter(function (i) { return i.weight >= 3; });
-  var pick = (strong.length >= cap ? strong : shown).slice(0, cap);
-
-  var groups = ['Today', 'Yesterday', 'This week', 'Older'].map(function (g) {
-    var inG = pick.filter(function (i) { return bandOf(i.at) === g; });
+  var cap = _TF_ST.evAll ? shown.length : 14;
+  var groups = ['Today', 'Yesterday', 'This week', 'Earlier'].map(function (g) {
+    var inG = shown.slice(0, cap).filter(function (i) { return bandOf(i.at) === g; });
     if (!inG.length) return '';
     return '<section class="cx-rd-g"><h5>' + g + '</h5>'
       + inG.map(function (i) {
@@ -52777,68 +52979,75 @@ function _stTimelineHtml() {
             + (i.id ? ' data-st-lens="' + _stEsc(i.id) + '"' : ' data-st-ev="' + at + '"') + '>'
             + '<time>' + ('0' + dt.getHours()).slice(-2) + ':' + ('0' + dt.getMinutes()).slice(-2) + '</time>'
             + '<span class="cx-rd-b"><b>' + _stEsc(i.who || i.label) + '</b>'
-            +   '<em>' + i.label + '</em><span>' + i.text + '</span></span>'
+            +   '<span>' + i.text + '</span></span>'
+            + '<span class="cx-rd-k">' + i.label + '</span>'
             + '</button>';
         }).join('')
       + '</section>';
   }).join('');
 
   return '<div class="cx-mh">'
-    + '<div class="cx-mh-t"><h3>Market radar</h3><p>High-value movement only</p></div>'
-    + '<div class="cx-mh-r"><span class="cx-chips">'
-    +   ST_EV_FILTERS.map(function (f) {
-          var n = f[0] === 'all' ? items.length : (counts[f[0]] || 0);
-          return '<button type="button" class="cx-chip' + (lane === f[0] ? ' is-on' : '') + '"'
-            + ' data-st-lane="' + f[0] + '"' + (n ? '' : ' disabled') + '>' + f[1] + '<i>' + n + '</i></button>';
+    + '<div class="cx-mh-t"><h3>Recruitment activity</h3><p>Everything that moved, newest first</p></div>'
+    + '<div class="cx-mh-r"><span class="cx-segs">'
+    +   [['today', 'Today'], ['week', 'This week'], ['all', 'All']].map(function (o) {
+          return '<button type="button" class="cx-seg' + (span === o[0] ? ' is-on' : '')
+            + '" data-st-evspan="' + o[0] + '">' + o[1] + '</button>';
         }).join('')
     + '</span></div>'
+    + '</div>'
+    + '<div class="cx-segs cx-segs--wide">'
+    +   ST_EV_FILTERS.map(function (f) {
+          var n = f[0] === 'all' ? items.filter(function (i) { return i.at >= floor; }).length
+            : (counts[f[0]] || 0);
+          return '<button type="button" class="cx-seg' + (lane === f[0] ? ' is-on' : '') + '"'
+            + ' data-st-lane="' + f[0] + '"' + (n ? '' : ' disabled') + '>' + f[1] + '<i>' + n + '</i></button>';
+        }).join('')
     + '</div>'
     + (shown.length
       ? '<div class="cx-radar">' + groups
         + (shown.length > cap
-          ? '<button type="button" class="cx-more-row cx-act" data-st-evall>View all '
+          ? '<button type="button" class="cx-btn cx-more-row" data-st-evall>View all '
             + shown.length + ' movements</button>' : '')
         + '</div>'
-      : _stEmpty('\u25f7', 'Nothing under that filter', 'Clear the filter to see everything that moved.',
-          '<button type="button" class="cx-act cx-act--go" data-st-lane="all">Show all</button>'));
+      : _stEmpty('\u25f7', 'Nothing in that period', 'Widen the period or clear the filter.',
+          '<button type="button" class="cx-btn cx-btn--primary" data-st-evspan="all">Show all</button>'));
 }
 
 // ── adding somebody the platform does not employ ─────────────────────────────
 function _stExternalHtml() {
   var e = _TF_ST.ext; if (!e) return '';
   var inp = function (k, ph, type) {
-    return '<label><i>' + ph + '</i><input' + (type ? ' type="' + type + '"' : '')
-      + ' data-st-x="' + k + '" value="' + _stEsc(e[k] || '') + '"></label>';
+    return '<input' + (type ? ' type="' + type + '"' : '') + ' data-st-x="' + k + '"'
+      + ' value="' + _stEsc(e[k] || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
   };
-  return '<div class="cx-modal" data-st-ext-modal>'
-    + '<div class="cx-modal-bd" data-st-ext-close></div>'
-    + '<div class="cx-modal-box cx-modal-box--sm" role="dialog" aria-modal="true" aria-label="Add external candidate">'
-    +   '<header><h3>Add external candidate</h3>'
-    +     '<button type="button" class="cx-lens-x" data-st-ext-close aria-label="Close">×</button></header>'
-    +   '<p class="cx-modal-note">Somebody the platform does not employ anywhere. He becomes a free agent on this market — one person, one record.</p>'
-    +   '<div class="cx-form">'
-    +     inp('firstName', 'First name')
-    +     inp('lastName', 'Last name')
-    +     inp('nationality', 'Nationality')
-    +     inp('dateOfBirth', 'Date of birth', 'date')
-    +     '<label><i>Role sought</i><select data-st-x="role">'
-    +       ST_ROLES.map(function (r) {
-              return '<option value="' + r[0] + '"' + (e.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
-            }).join('') + '</select></label>'
-    +     inp('lastClub', 'Last club')
-    +     '<label><i>Licence</i><select data-st-x="licence"><option value="">None</option>'
-    +       ['UEFA_PRO', 'UEFA_A', 'UEFA_B', 'UEFA_C'].map(function (l) {
-              return '<option value="' + l + '"' + (e.licence === l ? ' selected' : '') + '>' + l.replace('_', ' ') + '</option>';
-            }).join('') + '</select></label>'
-    +     inp('yearsExperience', 'Experience (yrs)', 'number')
-    +     inp('wageExpectation', 'Expected salary', 'number')
-    +   '</div>'
-    +   (e.error ? '<p class="cx-modal-err">' + _stEsc(e.error) + '</p>' : '')
-    +   '<footer>'
-    +     '<button type="button" class="cx-act" data-st-ext-close>Cancel</button>'
-    +     '<button type="button" class="cx-act cx-act--go" data-st-ext-save>Add candidate</button>'
-    +   '</footer>'
-    + '</div></div>';
+  var body = _stDlgSec('Identity',
+      _stField('First name', inp('firstName'))
+      + _stField('Last name', inp('lastName'))
+      + _stField('Nationality', inp('nationality'))
+      + _stField('Date of birth', inp('dateOfBirth', '', 'date')))
+    + _stDlgSec('Professional',
+        _stField('Role sought', '<select data-st-x="role">' + ST_ROLES.map(function (r) {
+            return '<option value="' + r[0] + '"' + (e.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+          }).join('') + '</select>')
+        + _stField('Last club', inp('lastClub'))
+        + _stField('Licence', '<select data-st-x="licence">'
+            + [['', 'Not recorded'], ['UEFA_PRO', 'UEFA Pro'], ['UEFA_A', 'UEFA A'],
+               ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']].map(function (o) {
+                return '<option value="' + o[0] + '"' + (e.licence === o[0] ? ' selected' : '') + '>'
+                  + o[1] + '</option>';
+              }).join('') + '</select>')
+        + _stField('Experience (years)', inp('yearsExperience', '0', 'number')))
+    + _stDlgSec('Terms', _stField('Expected salary', inp('wageExpectation', '0', 'number')));
+
+  return _stDlg({
+    id: 'data-st-ext-modal', close: 'data-st-ext-close',
+    title: 'Add external candidate',
+    sub: 'Somebody the platform does not employ. He is held as a free agent, '
+       + 'visible to this club only until he joins one.',
+    body: body, err: e.error,
+    foot: '<button type="button" class="cx-btn" data-st-ext-close>Cancel</button>'
+        + '<button type="button" class="cx-btn cx-btn--primary" data-st-ext-save>Add candidate</button>'
+  });
 }
 
 function _stCompareTrayHtml() {
@@ -52863,8 +53072,8 @@ function _stCompareHtml() {
   var ids = _TF_ST.cmp.slice(0, 4);
   var docs = ids.map(function (id) { return _TF_ST.detail[id]; });
   if (docs.some(function (d) { return !d; })) {
-    return '<div class="tf-modal" data-st-cmp-modal><div class="tf-modal-bd" data-st-cmp-close></div>'
-      + '<div class="tf-modal-box tf-modal-box--wide"><div class="st-empty">Reading the records…</div></div></div>';
+    return _stDlg({ id: 'data-st-cmp-modal', close: 'data-st-cmp-close', wide: true,
+      title: 'Comparison', body: '<div class="st-empty">Reading the records\u2026</div>' });
   }
   var dash = '<i class="st-unknown">Not recorded</i>';
   var row = function (label, pick) {
@@ -52877,9 +53086,9 @@ function _stCompareHtml() {
       return v == null ? dash : String(v);
     });
   }).join('');
-  return '<div class="tf-modal" data-st-cmp-modal>'
-    + '<div class="tf-modal-bd" data-st-cmp-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--wide" role="dialog" aria-modal="true" aria-label="Coach comparison">'
+  return '<div class="cx-dlg" data-st-cmp-modal>'
+    + '<div class="cx-dlg-bd" data-st-cmp-close></div>'
+    + '<div class="cx-dlg-box cx-dlg-box--wide" role="dialog" aria-modal="true" aria-label="Coach comparison">'
     +   '<button type="button" class="tf-x" data-st-cmp-close>×</button>'
     +   '<h3 class="st-appr-h">Comparison</h3>'
     +   '<div class="st-cmp-scroll"><table class="st-cmp">'
@@ -52921,18 +53130,18 @@ function _stCompareHtml() {
 function _stProfileHtml() {
   var id = _TF_ST.open; if (!id) return '';
   var d = _TF_ST.detail[id];
-  if (!d) return '<div class="tf-modal" data-st-modal><div class="tf-modal-bd" data-st-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--wide"><div class="st-empty">Reading the record…</div></div></div>';
-  if (d.error) return '<div class="tf-modal" data-st-modal><div class="tf-modal-bd" data-st-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--sm"><div class="st-empty">' + _stEsc(d.error) + '</div></div></div>';
+  if (!d) return '<div class="cx-dlg" data-st-modal><div class="cx-dlg-bd" data-st-close></div>'
+    + '<div class="cx-dlg-box cx-dlg-box--wide"><div class="st-empty">Reading the record\u2026</div></div></div>';
+  if (d.error) return '<div class="cx-dlg" data-st-modal><div class="cx-dlg-bd" data-st-close></div>'
+    + '<div class="cx-dlg-box cx-dlg-box--sm"><div class="st-empty">' + _stEsc(d.error) + '</div></div></div>';
 
   var tabs = ST_PROFILE_TABS.map(function (t) {
     return '<button type="button" class="st-ptab' + (_TF_ST.tab === t[0] ? ' is-on' : '') + '" data-st-ptab="' + t[0] + '">' + t[1] + '</button>';
   }).join('');
 
-  return '<div class="tf-modal" data-st-modal>'
-    + '<div class="tf-modal-bd" data-st-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--wide cx-profile" role="dialog" aria-modal="true" aria-label="Coach intelligence profile">'
+  return '<div class="cx-dlg" data-st-modal>'
+    + '<div class="cx-dlg-bd" data-st-close></div>'
+    + '<div class="cx-dlg-box cx-dlg-box--wide cx-profile" role="dialog" aria-modal="true" aria-label="Coach intelligence profile">'
     +   '<button type="button" class="tf-x" data-st-close>×</button>'
     +   _stProfileHeadHtml(d)
     +   '<div class="st-pd-body">'
@@ -53372,42 +53581,87 @@ function _stProfileActionsHtml(d) {
 }
 
 // ── the approach ─────────────────────────────────────────────────────────────
+// ── the dialog system ───────────────────────────────────────────────────────
+// Every action dialog in this module is built here, so there is exactly one of
+// them. It is a solid surface — the offer form used to borrow the player
+// market's glass box and you could read the board through the fields.
+//
+//   _stDlg({ id, title, sub, wide, body, foot, err })
+//
+// The form inside is a two-column grid; a field says `wide: true` to take the
+// row, and a section is a heading with its own fields under it.
+function _stDlg(o) {
+  return '<div class="cx-dlg"' + (o.id ? ' ' + o.id : '') + '>'
+    + '<div class="cx-dlg-bd"' + (o.close ? ' ' + o.close : '') + '></div>'
+    + '<div class="cx-dlg-box' + (o.wide ? ' cx-dlg-box--wide' : '')
+    +   (o.narrow ? ' cx-dlg-box--sm' : '') + '" role="dialog" aria-modal="true"'
+    +   ' aria-label="' + _stEsc(o.title || 'Dialog') + '">'
+    +   '<header class="cx-dlg-hd">'
+    +     '<div><h3>' + o.title + '</h3>'
+    +       (o.sub ? '<p>' + o.sub + '</p>' : '') + '</div>'
+    +     '<button type="button" class="cx-dlg-x"' + (o.close || '') + ' aria-label="Close">\u00d7</button>'
+    +   '</header>'
+    +   '<div class="cx-dlg-body">' + o.body + '</div>'
+    +   (o.err ? '<p class="cx-dlg-err">' + _stEsc(o.err) + '</p>' : '')
+    +   (o.foot ? '<footer class="cx-dlg-ft">' + o.foot + '</footer>' : '')
+    + '</div></div>';
+}
+// a titled group of fields
+function _stDlgSec(title, fields) {
+  return '<section class="cx-fs"><h5>' + title + '</h5><div class="cx-fg">' + fields + '</div></section>';
+}
+// one field: a label above its control, half a row unless it asks for the row
+function _stField(label, control, wide) {
+  return '<label class="cx-fd' + (wide ? ' cx-fd--wide' : '') + '">'
+    + '<i>' + label + '</i>' + control + '</label>';
+}
+
 function _stApproachHtml() {
   var a = _TF_ST.approach; if (!a) return '';
   var d = _TF_ST.detail[a.staffUserId] || {};
-  var roleOpts = ST_ROLES.map(function (r) {
-    return '<option value="' + r[0] + '"' + (a.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
-  }).join('');
   var contactOnly = a.mode === 'contact';
-  return '<div class="tf-modal" data-st-appr-modal>'
-    + '<div class="tf-modal-bd" data-st-appr-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--sm" role="dialog" aria-modal="true">'
-    +   '<button type="button" class="tf-x" data-st-appr-close>×</button>'
-    +   '<h3 class="st-appr-h">'
-    +     (contactOnly ? 'Contact about ' : (d.isFreeAgent ? 'Offer to ' : 'Approach the club for '))
-    +     _stEsc(d.name || 'staff') + '</h3>'
-    +   '<p class="st-note">' + (contactOnly
-          ? 'An opening message. Terms can follow in the negotiation.'
-          : 'An offer, sent as one record. Its state moves Draft → Sent → Viewed → Negotiating as it is answered.') + '</p>'
-    +   '<div class="st-appr-f">'
-    +     '<label>Proposed role<select data-st-a="role">' + roleOpts + '</select></label>'
-    +     (contactOnly ? '' :
-          '<label>Salary (annual)<input type="number" data-st-a="salary" value="' + (a.salary || '') + '" placeholder="0"></label>'
-        + '<label>Contract length (months)<input type="number" data-st-a="durationMonths" value="' + (a.durationMonths || '') + '" placeholder="24"></label>'
-        + '<label>Start date<input type="date" data-st-a="startDate" value="' + _stEsc(a.startDate || '') + '"></label>'
-        + '<label>Release clause<input type="number" data-st-a="releaseClause" value="' + (a.releaseClause || '') + '" placeholder="none"></label>'
-        + (d.isFreeAgent ? '' : '<label>Compensation to his club<input type="number" data-st-a="compensation" value="' + (a.compensation || '') + '" placeholder="0"></label>')
-        + '<label class="st-appr-msg">Bonuses<textarea data-st-a="bonuses" rows="2" placeholder="Promotion, cup run, points per match…">' + _stEsc(a.bonuses || '') + '</textarea></label>')
-    +     '<label class="st-appr-msg">' + (contactOnly ? 'Message' : 'Notes') + '<textarea data-st-a="message" rows="3">' + _stEsc(a.message || '') + '</textarea></label>'
-    +   '</div>'
-    +   (a.error ? '<p class="st-appr-err">' + _stEsc(a.error) + '</p>' : '')
-    +   '<div class="st-appr-acts">'
-    +     '<button type="button" class="tf-btn tf-btn--sm" data-st-appr-close>Cancel</button>'
-    +     (contactOnly ? '' : '<button type="button" class="tf-btn tf-btn--sm" data-st-appr-send data-st-draft="1">Save draft</button>')
-    +     '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-st-appr-send>'
-    +       (contactOnly ? 'Send message' : 'Send offer') + '</button>'
-    +   '</div>'
-    + '</div></div>';
+  var num = function (k, ph) {
+    return '<input type="number" data-st-a="' + k + '" value="' + (a[k] || '')
+      + '" placeholder="' + ph + '" inputmode="numeric">';
+  };
+  var sub = [ST_ROLE_LABEL[d.role] || d.role,
+    d.isFreeAgent ? 'Free agent' : (d.contract && d.contract.club ? _stEsc(d.contract.club.name) : null),
+    d.licences && d.licences.length ? _stEsc(String(d.licences[0].name)) : null]
+    .filter(Boolean).join(' \u00b7 ');
+
+  var body = _stDlgSec('Role',
+      _stField('Proposed role',
+        '<select data-st-a="role">' + ST_ROLES.map(function (r) {
+          return '<option value="' + r[0] + '"' + (a.role === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+        }).join('') + '</select>', true))
+    + (contactOnly ? '' :
+        _stDlgSec('Financial',
+          _stField('Annual salary', num('salary', '0'))
+          + _stField('Signing bonus', num('signingBonus', 'none')))
+      + _stDlgSec('Contract',
+          _stField('Length (months)', num('durationMonths', '24'))
+          + _stField('Start date', '<input type="date" data-st-a="startDate" value="'
+              + _stEsc(a.startDate || '') + '">')
+          + _stField('Release clause', num('releaseClause', 'none'))
+          + (d.isFreeAgent ? '' : _stField('Compensation to his club', num('compensation', '0'))))
+      + _stDlgSec('Performance bonuses',
+          _stField('Terms', '<textarea data-st-a="bonuses" rows="2" placeholder="Promotion, cup run, points per match\u2026">'
+            + _stEsc(a.bonuses || '') + '</textarea>', true)))
+    + _stDlgSec(contactOnly ? 'Message' : 'Notes',
+        _stField(contactOnly ? 'What to say' : 'Internal notes',
+          '<textarea data-st-a="message" rows="3">' + _stEsc(a.message || '') + '</textarea>', true));
+
+  var foot = '<button type="button" class="cx-btn" data-st-appr-close>Cancel</button>'
+    + (contactOnly ? '' : '<button type="button" class="cx-btn" data-st-appr-send data-st-draft="1">Save draft</button>')
+    + '<button type="button" class="cx-btn cx-btn--primary" data-st-appr-send>'
+    +   (contactOnly ? 'Send message' : 'Send offer') + '</button>';
+
+  return _stDlg({
+    id: 'data-st-appr-modal', close: 'data-st-appr-close',
+    title: contactOnly ? 'Contact' : 'New offer',
+    sub: _stEsc(d.name || 'Staff') + (sub ? '<span>' + sub + '</span>' : ''),
+    body: body, foot: foot, err: a.error
+  });
 }
 
 // ── staff needs ──────────────────────────────────────────────────────────────
@@ -53415,17 +53669,17 @@ function _stApproachHtml() {
 // One question: which coaching positions this club needs. A team picker, that
 // team's staff line-up post by post, and a drawer when a vacancy is pressed.
 // The publish form no longer occupies a permanent column — it opens on demand.
-// ── NEEDS · the vacancy matrix ──────────────────────────────────────────────
-// One question: which coaching positions does this club need. Teams down the
-// left, the club's own role structure in the middle, each post reading FILLED,
-// CONTRACT ENDING or VACANT. Selecting a vacancy puts it in the dock, with the
-// requirement and the three best matches on the market.
+// ── NEEDS · the staff structure ─────────────────────────────────────────────
+// Two questions at once: who currently occupies each post, and what this club
+// needs to recruit. The holder's name comes from the club's own staff list —
+// the team summary deliberately sends counts rather than people, so the name is
+// matched here against the post's roles rather than asked for again.
 function _stNeedsHtml() {
   var n = (_TF_ST.needs && _TF_ST.needs.items) || [];
   var mine = n.filter(function (x) { return x.isMine; });
   var g = _TF_ST.gap;
 
-  if (g === null) return _stReadingHtml('our staff plan');
+  if (g === null) return _stReadingHtml('our staff structure');
   if (!g || !g.length) {
     return _stEmpty('\u25a6', 'No teams yet',
       'This club has no teams, so there is no staff structure to plan.', '');
@@ -53433,47 +53687,77 @@ function _stNeedsHtml() {
   var team = null;
   g.forEach(function (t) { if ((t.teamId || 'club') === _TF_ST.planTeam) team = t; });
   if (!team) team = g[0];
+
   var wanted = {};
   mine.forEach(function (v) { wanted[v.role] = v; });
-
+  var staff = (_TF_ST.mine && _TF_ST.mine.items) || [];
   var openAll = g.reduce(function (acc, t) {
     return acc + (t.roleStrip || []).filter(function (p) { return !(p.expected > 0 && p.filled >= p.expected); }).length;
   }, 0);
 
   var posts = (team.roleStrip || []).map(function (p) {
+    var roles = ST_POST_ROLES[p.key] || [];
+    var holder = null;
+    staff.forEach(function (m) { if (!holder && roles.indexOf(m.role) >= 0) holder = m; });
     var on = p.expected > 0 && p.filled >= p.expected;
-    var published = null;
-    Object.keys(wanted).forEach(function (role) { if (!on && _stPostCovers(p.key, role)) published = wanted[role]; });
-    var risk = on && (team.contractsEndingSoon || 0) > 0 && p.key === 'HC';
-    var state = on ? (risk ? 'risk' : 'filled') : (published ? 'published' : 'open');
-    var label = state === 'filled' ? 'FILLED'
-      : (state === 'risk' ? 'CONTRACT ENDING' : (state === 'published' ? 'PUBLISHED' : 'VACANT'));
+    var need = null;
+    roles.forEach(function (role) { if (wanted[role]) need = wanted[role]; });
+    var months = (holder && holder.contractEndsAt)
+      ? Math.round((new Date(holder.contractEndsAt).getTime() - Date.now()) / (30.44 * 86400000)) : null;
+    var risk = on && months != null && months <= 6;
+    var state = on ? (risk ? 'risk' : 'filled') : (need ? 'published' : 'open');
     var key = (team.teamId || 'club') + ':' + p.key;
-    return '<button type="button" class="cx-vx cx-vx--' + state
-      + (_TF_ST.slot === key ? ' is-on' : '') + '"'
-      + (on ? ' disabled' : ' data-st-slot="' + _stEsc(key) + '" data-st-slotteam="' + _stEsc(team.teamName) + '"')
-      + '><span class="cx-vx-r">' + _stEsc(p.label) + '</span>'
-      + '<span class="cx-vx-s">' + label + '</span></button>';
+
+    var detail;
+    if (on) {
+      detail = '<span class="cx-po-who">'
+        + (holder ? _stAvatar(holder, 'st-av--sm') : '')
+        + '<span><b>' + (holder ? _stEsc(holder.name) : 'Filled') + '</b>'
+        + (months != null ? '<i>' + (months <= 0 ? 'contract expired'
+            : 'contract ends in ' + months + ' month' + (months === 1 ? '' : 's')) + '</i>' : '')
+        + '</span></span>';
+    } else {
+      detail = '<span class="cx-po-need">'
+        + '<span><i>Priority</i><b>' + (need ? _stEsc(need.priority) : 'Not set') + '</b></span>'
+        + '<span><i>Licence</i><b>' + ((need && need.minLicence)
+            ? _stEsc(String(need.minLicence).replace('_', ' ')) : 'Any') + '</b></span>'
+        + '<span><i>Target start</i><b>' + ((need && need.startDate)
+            ? _stDate(need.startDate) : 'Immediately') + '</b></span>'
+        + '</span>';
+    }
+
+    return '<article class="cx-po cx-po--' + state + (_TF_ST.slot === key ? ' is-on' : '') + '">'
+      + '<header class="cx-po-h">'
+      +   '<span class="cx-po-r">' + _stEsc(p.label) + '</span>'
+      +   '<span class="cx-po-s">' + (on ? (risk ? 'CONTRACT ENDING' : 'FILLED')
+            : (need ? 'PUBLISHED' : 'VACANT')) + '</span>'
+      + '</header>'
+      + detail
+      + (on ? '' : '<footer class="cx-po-a">'
+          + '<button type="button" class="cx-btn cx-btn--primary" data-st-slot="' + _stEsc(key)
+          +   '" data-st-slotteam="' + _stEsc(team.teamName) + '">Find candidates</button>'
+          + (need ? '' : '<button type="button" class="cx-btn" data-st-needopen'
+              + ' data-st-needrole="' + _stEsc(roles[0] || '') + '">Create requirement</button>')
+          + '</footer>')
+      + '</article>';
   }).join('');
 
   return '<div class="cx-mh">'
     + '<div class="cx-mh-t"><h3>Staff needs</h3><p>' + openAll + ' position'
     +   (openAll === 1 ? '' : 's') + ' to fill \u00b7 ' + mine.length + ' published</p></div>'
     + '<div class="cx-mh-r">'
-    +   '<button type="button" class="cx-act cx-act--go" data-st-needopen>+ Create staff need</button></div>'
+    +   '<button type="button" class="cx-btn cx-btn--primary" data-st-needopen>+ Create staff need</button></div>'
     + '</div>'
-    + '<div class="cx-matrix">'
-    +   '<nav class="cx-mx-teams">'
-    +     g.map(function (t) {
-            var open = (t.roleStrip || []).filter(function (p) { return !(p.expected > 0 && p.filled >= p.expected); }).length;
-            return '<button type="button" class="cx-mx-t' + ((t.teamId || 'club') === (team.teamId || 'club') ? ' is-on' : '')
-              + '" data-st-planteam="' + _stEsc(t.teamId || 'club') + '">'
-              + _stEsc(t.teamName) + (open ? '<i>' + open + '</i>' : '') + '</button>';
-          }).join('')
-    +   '</nav>'
-    +   '<div class="cx-mx-grid">'
-    +     (posts || '<p class="cx-lane-none">No structure recorded for this team.</p>')
-    +   '</div>'
+    + '<div class="cx-segs cx-segs--wide">'
+    +   g.map(function (t) {
+          var open = (t.roleStrip || []).filter(function (p) { return !(p.expected > 0 && p.filled >= p.expected); }).length;
+          return '<button type="button" class="cx-seg' + ((t.teamId || 'club') === (team.teamId || 'club') ? ' is-on' : '')
+            + '" data-st-planteam="' + _stEsc(t.teamId || 'club') + '">'
+            + _stEsc(t.teamName) + (open ? '<i>' + open + '</i>' : '') + '</button>';
+        }).join('')
+    + '</div>'
+    + '<div class="cx-posts">'
+    +   (posts || '<p class="cx-lane-none">No structure recorded for this team.</p>')
     + '</div>'
     + (_TF_ST.needOpen ? _stNeedFormHtml() : '');
 }
@@ -53486,59 +53770,55 @@ var ST_POST_ROLES = {
   COACH: ['TECHNICAL_COACH', 'TACTICAL_COACH', 'YOUTH_COACH'],
   ANALYST: ['ANALYST'], MEDICAL: ['MEDICAL_STAFF', 'PHYSIO'], SCOUT: ['SCOUT']
 };
-function _stPostCovers(key, role) {
-  return (ST_POST_ROLES[key] || []).indexOf(role) >= 0;
-}
-
 // Publishing a need. A drawer opened on demand, on the module's own dark
 // surface — it used to be a permanent column half the screen wide.
 function _stNeedFormHtml() {
   var d = _TF_ST.needDraft || {};
-  var sel = function (k, opts, ph) {
-    return '<label><i>' + ph + '</i><select data-st-n="' + k + '">'
-      + opts.map(function (o) {
-          var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o;
-          return '<option value="' + _stEsc(v) + '"' + (String(d[k] || '') === String(v) ? ' selected' : '') + '>'
-            + _stEsc(l) + '</option>';
-        }).join('') + '</select></label>';
+  var sel = function (k, opts) {
+    return '<select data-st-n="' + k + '">' + opts.map(function (o) {
+      var v = Array.isArray(o) ? o[0] : o, l = Array.isArray(o) ? o[1] : o;
+      return '<option value="' + _stEsc(v) + '"' + (String(d[k] || '') === String(v) ? ' selected' : '') + '>'
+        + _stEsc(l) + '</option>';
+    }).join('') + '</select>';
   };
   var inp = function (k, ph, type) {
-    return '<label><i>' + ph + '</i><input' + (type ? ' type="' + type + '"' : '')
-      + ' data-st-n="' + k + '" value="' + _stEsc(d[k] || '') + '"></label>';
+    return '<input' + (type ? ' type="' + type + '"' : '') + ' data-st-n="' + k + '"'
+      + ' value="' + _stEsc(d[k] || '') + '"' + (ph ? ' placeholder="' + ph + '"' : '') + '>';
   };
-  return '<div class="cx-modal" data-st-needmodal>'
-    + '<div class="cx-modal-bd" data-st-needclose></div>'
-    + '<div class="cx-modal-box cx-modal-box--sm" role="dialog" aria-modal="true" aria-label="Create staff need">'
-    +   '<header><h3>Create staff need</h3>'
-    +     '<button type="button" class="cx-lens-x" data-st-needclose aria-label="Close">×</button></header>'
-    +   '<p class="cx-modal-note">Every club on the platform sees it. Nothing about your squad or your budget is published with it.</p>'
-    +   '<div class="cx-form">'
-    +     sel('role', ST_ROLES, 'Role')
-    +     sel('priority', [['LOW', 'Low'], ['NORMAL', 'Normal'], ['HIGH', 'High'], ['URGENT', 'Urgent']], 'Priority')
-    +     sel('minLicence', [['', 'Any'], ['UEFA_PRO', 'UEFA Pro'], ['UEFA_A', 'UEFA A'], ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']], 'Minimum licence')
-    +     inp('minExperience', 'Experience (yrs)', 'number')
-    +     inp('salaryMax', 'Salary ceiling', 'number')
-    +     sel('contractType', ['', 'Permanent', 'Fixed term', 'Season', 'Interim', 'Part time'], 'Contract type')
-    +     inp('startDate', 'Start date', 'date')
-    +     inp('languages', 'Languages')
-    +     '<div class="cx-form-flags">'
-    +       '<button type="button" class="cx-act' + (d.youthRequired ? ' is-on' : '') + '" data-st-nflag="youthRequired">Youth experience</button>'
-    +       '<button type="button" class="cx-act' + (d.seniorRequired ? ' is-on' : '') + '" data-st-nflag="seniorRequired">Senior experience</button>'
-    +     '</div>'
-    +     '<label class="cx-form-wide"><i>Notes</i><textarea data-st-n="note" rows="2" placeholder="What the job actually is">' + _stEsc(d.note || '') + '</textarea></label>'
-    +   '</div>'
-    +   (d.error ? '<p class="cx-modal-err">' + _stEsc(d.error) + '</p>' : '')
-    +   '<footer>'
-    +     '<button type="button" class="cx-act" data-st-needclose>Cancel</button>'
-    +     '<button type="button" class="cx-act cx-act--go" data-st-need-add>Publish need</button>'
-    +   '</footer>'
-    + '</div></div>';
+  var body = _stDlgSec('The position',
+      _stField('Role', sel('role', ST_ROLES))
+      + _stField('Priority', sel('priority', [['LOW', 'Low'], ['NORMAL', 'Normal'],
+          ['HIGH', 'High'], ['URGENT', 'Urgent']]))
+      + _stField('Start date', inp('startDate', '', 'date'))
+      + _stField('Contract type', sel('contractType',
+          ['', 'Permanent', 'Fixed term', 'Season', 'Interim', 'Part time'])))
+    + _stDlgSec('Requirements',
+        _stField('Minimum licence', sel('minLicence', [['', 'Any'], ['UEFA_PRO', 'UEFA Pro'],
+            ['UEFA_A', 'UEFA A'], ['UEFA_B', 'UEFA B'], ['UEFA_C', 'UEFA C']]))
+        + _stField('Experience (years)', inp('minExperience', 'any', 'number'))
+        + _stField('Languages', inp('languages', 'any'))
+        + _stField('Salary ceiling', inp('salaryMax', 'not set', 'number'))
+        + _stField('Background',
+            '<span class="cx-flags">'
+            + '<button type="button" class="cx-btn cx-btn--chip' + (d.youthRequired ? ' is-on' : '')
+            +   '" data-st-nflag="youthRequired">Youth experience</button>'
+            + '<button type="button" class="cx-btn cx-btn--chip' + (d.seniorRequired ? ' is-on' : '')
+            +   '" data-st-nflag="seniorRequired">Senior experience</button>'
+            + '</span>', true))
+    + _stDlgSec('Notes',
+        _stField('What the job actually is',
+          '<textarea data-st-n="note" rows="3">' + _stEsc(d.note || '') + '</textarea>', true));
+
+  return _stDlg({
+    id: 'data-st-needmodal', close: 'data-st-needclose',
+    title: 'Create staff need',
+    sub: 'Every club on the platform sees it. Nothing about your squad or your budget is published with it.',
+    body: body, err: d.error,
+    foot: '<button type="button" class="cx-btn" data-st-needclose>Cancel</button>'
+        + '<button type="button" class="cx-btn cx-btn--primary" data-st-need-add>Publish need</button>'
+  });
 }
 
-// ── my activity ──────────────────────────────────────────────────────────────
-// The staff market has one home: its own page. It was born as a tab inside the
-// player market and no longer lives there — a coach is not a player and the two
-// modules share no screen, no state and no tab strip.
 function _stHost() {
   var cm = document.getElementById('cm-body');
   if (cm) return { body: cm, overlay: document.getElementById('cm-overlay') };
@@ -57428,7 +57708,7 @@ function _stResetClubScoped() {
   _TF_ST.open = null; _TF_ST.approach = null;
   _TF_ST.cmp = []; _TF_ST.cmpOpen = false; _TF_ST.ext = null; _TF_ST.noteDraft = null;
   _TF_ST.lens = null; _TF_ST.deal = null; _TF_ST.area = ''; _TF_ST.slot = null;
-  _TF_ST.faPage = 1; _TF_ST.laneOpen = ''; _TF_ST.dealLane = 'all';
+  _TF_ST.faPage = 1; _TF_ST.moreFor = null; _TF_ST.dealLane = 'all'; _TF_ST.opp = 'free';
   _TF_ST.view = 'market';
   _TF_ST.f.status = ''; _TF_ST.f.availableNow = false; _TF_ST.f.openToOffers = false;
 }
