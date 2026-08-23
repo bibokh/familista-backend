@@ -13103,7 +13103,8 @@ body.club-theme .topbar-titles{ min-width:0; }
   background:rgba(255,255,255,.03); border:1px solid var(--cx-line);
   border-top:2px solid rgba(52,211,153,.55); overflow:hidden; }
 .cx-hb.is-on{ border-color:rgba(45,212,191,.4); background:rgba(45,212,191,.07); }
-.cx-hb-h{ display:flex; align-items:center; gap:10px; padding:11px 12px 9px; }
+.cx-hb-h{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center; gap:10px; padding:11px 12px 9px; }
 .cx-hb-h .st-av{ flex:0 0 auto; width:34px; height:34px; }
 .cx-hb-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
 .cx-hb-id b{ font-size:13px; font-weight:800; color:var(--cx-ink);
@@ -13281,8 +13282,8 @@ body.club-theme .topbar-titles{ min-width:0; }
 .cx-btn--sel:focus{ outline:none; border-color:rgba(45,212,191,.55); }
 
 /* the actions of a candidate, ranked rather than lined up */
-.cx-acts{ display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
-.cx-more-wrap{ position:relative; }
+.cx-acts{ display:flex; align-items:center; gap:6px; flex-wrap:nowrap; flex:0 0 auto; }
+.cx-more-wrap{ position:relative; flex:0 0 auto; }
 .cx-menu{ position:absolute; right:0; top:calc(100% + 5px); z-index:40; min-width:172px;
   display:flex; flex-direction:column; padding:5px; border-radius:11px;
   background:var(--cx-card-2); border:1px solid var(--cx-edge-2);
@@ -13344,7 +13345,9 @@ body.club-theme .topbar-titles{ min-width:0; }
   padding-bottom:10px; margin-bottom:12px; border-bottom:1px solid var(--cx-line); }
 .cx-sec-h h4{ font-size:13px; font-weight:800; letter-spacing:.02em; color:var(--cx-ink); }
 .cx-sec-h p{ flex:1; font-size:11px; color:var(--cx-ink-3); }
-.cx-rail{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.cx-rail{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px;
+  align-items:stretch; }
+.cx-rail > .cx-cand{ height:100%; }
 .cx-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
 
 /* segmented controls, used wherever a board narrows itself */
@@ -13367,8 +13370,16 @@ body.club-theme .topbar-titles{ min-width:0; }
 .cx-cand.is-on{ border-color:rgba(45,212,191,.45); }
 .cx-cand-b{ appearance:none; cursor:pointer; font:inherit; text-align:left; border:0;
   background:transparent; color:inherit; padding:14px 14px 12px;
-  display:flex; flex-direction:column; gap:11px; flex:1; }
-.cx-cand-hd{ display:flex; align-items:center; gap:11px; }
+  display:grid; grid-template-rows:auto auto 1fr auto; gap:11px; flex:1; align-content:start; }
+/* the facts are a fixed grid rather than a wrap, so two cards side by side have
+   the same number of rows and their footers line up */
+.cx-cand-b .cx-facts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px 14px; align-content:start; }
+.cx-cand-b .cx-facts > span:nth-child(n+9){ display:none; }
+/* three declared tracks, so a long name can never push the figure off the
+   card — it ellipsises inside its own middle track instead */
+.cx-cand-hd{ display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center; gap:11px; }
 .cx-cand-hd .st-av{ flex:0 0 auto; width:44px; height:44px; }
 .cx-cand-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 .cx-cand-id b{ font-size:14px; font-weight:800; color:var(--cx-ink);
@@ -13383,10 +13394,10 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--cx-ink-3); }
 .cx-why{ font-size:10.5px; font-weight:700; color:var(--cx-green); padding:5px 9px;
   border-radius:7px; background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.24); }
-.cx-cand-ft{ display:flex; padding:10px 12px; gap:6px;
+.cx-cand-ft{ display:flex; padding:10px 12px; gap:6px; margin-top:auto;
   border-top:1px solid var(--cx-edge); background:rgba(0,0,0,.2); }
-.cx-cand-ft .cx-acts{ flex:1; }
-.cx-cand-ft .cx-btn--primary, .cx-cand-ft .cx-btn:not(.cx-btn--more){ flex:1; }
+.cx-cand-ft .cx-acts{ flex:1; min-width:0; }
+.cx-cand-ft .cx-btn:not(.cx-btn--more){ flex:1; min-width:0; padding-left:9px; padding-right:9px; }
 
 /* the facts, wherever a candidate is drawn */
 .cx-facts{ display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; min-width:0; }
@@ -13399,16 +13410,39 @@ body.club-theme .topbar-titles{ min-width:0; }
 .cx-when i{ font-style:normal; font-size:10.5px; color:var(--cx-ink-3); }
 
 /* ── AVAILABLE · the ranking workspace ───────────────────────────────────── */
-.cx-rung{ display:flex; align-items:center; gap:10px; padding:0 12px 0 0;
+/* The row is a grid, not a flex line: every column has a declared width, so a
+   long club name cannot push the figures under the buttons — which is exactly
+   what it did when this was flex with overflow:hidden. No subgrid: the button
+   carries the readable tracks itself, and the actions sit beside it. */
+.cx-rung{ display:grid; align-items:center; gap:0 12px; padding:0 14px 0 0;
+  grid-template-columns:minmax(0,1fr) max-content;
+  --rung-pad:11px;
   border-radius:12px; background:var(--cx-card); border:1px solid var(--cx-edge);
   margin-bottom:7px; transition:border-color .13s ease, background .13s ease; }
 .cx-rung:hover{ border-color:var(--cx-edge-2); }
 .cx-rung.is-on{ border-color:rgba(45,212,191,.45); background:#16212a; }
-.cx-rung-b{ flex:1; min-width:0; display:flex; align-items:center; gap:13px;
-  padding:12px 0 12px 12px; }
-.cx-rung-b .cx-facts{ flex:1; gap:16px; flex-wrap:nowrap; overflow:hidden; }
-.cx-rung-opp{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:1px;
-  padding:5px 11px; border-radius:9px; background:rgba(45,212,191,.1);
+/* Two lines, not one. Eight facts and an identity cannot share a single line
+   with the availability and the score — squeezed onto one, the facts collapsed
+   to thirty-one pixels and printed on top of each other. So: who he is on the
+   first line with the two readings that decide, and what he holds on the
+   second, spanning the width the identity leaves. */
+.cx-rung-b{ display:grid; align-items:center; gap:8px 14px; min-width:0;
+  grid-template-columns:30px 38px minmax(0,1fr) 132px 62px;
+  grid-template-areas:'n a id when opp'
+                      '. . facts facts facts';
+  padding:11px 0 11px 14px; }
+.cx-rung-n{ grid-area:n; }
+.cx-rung-b > .st-av{ grid-area:a; }
+.cx-rung-id{ grid-area:id; width:auto !important; }
+.cx-rung-b .cx-when{ grid-area:when; display:flex; flex-direction:column;
+  align-items:flex-start; gap:4px; }
+.cx-rung-opp{ grid-area:opp; }
+/* one line of facts, not two — the row stays scannable eight at a time */
+.cx-rung-b .cx-facts{ grid-area:facts; display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr)); gap:0 14px; min-width:0; }
+.cx-rung-b .cx-facts > span:nth-child(n+6){ display:none; }
+.cx-rung-opp{ display:flex; flex-direction:column; align-items:center; gap:1px;
+  padding:5px 8px; border-radius:9px; background:rgba(45,212,191,.1);
   border:1px solid rgba(45,212,191,.2); }
 .cx-rung-opp b{ font-size:15px; font-weight:800; color:var(--cx-cyan);
   font-variant-numeric:tabular-nums; }
@@ -13419,14 +13453,17 @@ body.club-theme .topbar-titles{ min-width:0; }
 .cx-hb{ background:var(--cx-card); border:1px solid var(--cx-edge); box-shadow:var(--cx-lift);
   border-top:2px solid rgba(52,211,153,.6); }
 .cx-hb-b{ appearance:none; cursor:pointer; font:inherit; text-align:left; border:0;
-  background:transparent; color:inherit; display:flex; flex-direction:column; gap:11px;
-  padding:14px 14px 12px; flex:1; }
+  background:transparent; color:inherit; display:grid; grid-template-rows:auto 1fr auto; gap:11px;
+  padding:14px 14px 12px; flex:1; align-content:start; }
 .cx-hb-f{ display:grid; grid-template-columns:1fr 1fr; gap:9px 14px; }
 .cx-hb-f > span{ display:flex; flex-direction:column; gap:1px; min-width:0; }
 .cx-hb-now{ font-size:10.5px; font-weight:700; color:var(--cx-green); }
 .cx-hb-a{ background:rgba(0,0,0,.2); border-top:1px solid var(--cx-edge); }
-.cx-hb-a .cx-acts{ flex:1; }
-.cx-hb-a .cx-btn--primary, .cx-hb-a .cx-btn:not(.cx-btn--more){ flex:1; }
+.cx-hb-a .cx-acts{ flex:1; min-width:0; }
+.cx-hb-a .cx-btn:not(.cx-btn--more){ flex:1; min-width:0; padding-left:9px; padding-right:9px; }
+.cx-hire{ align-items:stretch; }
+.cx-hire > .cx-hb{ height:100%; }
+.cx-hb-b{ display:grid; grid-template-rows:auto 1fr auto; }
 
 /* ── SHORTLIST · the recruitment workspace ───────────────────────────────── */
 .cx-room{ grid-template-columns:repeat(5,minmax(0,1fr)); }

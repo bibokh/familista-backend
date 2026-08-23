@@ -367,7 +367,8 @@ describe('every other mode is its own answer', () => {
     expect(APP).toContain('var ST_PAGE = 8;');
     const r = fnBody('_stRungHtml');
     expect(r).toContain('class="cx-rung-n"');
-    expect(r).toContain('_stFactsHtml(r)');
+    // five facts on a rung, in one line, chosen rather than everything
+    expect(r).toContain("_stFactsHtml(r, ['Club', 'Licence', 'Experience', 'Reputation', 'Expects'])");
     expect(r).toContain('_stWhenHtml(r)');
     expect(r).toContain('cx-rung-opp');       // the opportunity reading
     expect(r).toContain('_stActionsHtml(r)');

@@ -52287,9 +52287,12 @@ function _stActionsHtml(r, primaryLabel) {
 }
 
 // The facts a candidate is judged on, in one order, everywhere.
-function _stFactsHtml(r) {
+function _stFactsHtml(r, only) {
   var f = [];
-  var add = function (i, b) { if (b != null && b !== '') f.push('<span><i>' + i + '</i><b>' + b + '</b></span>'); };
+  var add = function (i, b) {
+    if (only && only.indexOf(i) < 0) return;
+    if (b != null && b !== '') f.push('<span><i>' + i + '</i><b>' + b + '</b></span>');
+  };
   add('Club', r.currentClub ? _stEsc(r.currentClub.name) : 'Free agent');
   add('Nationality', r.nationality ? _stEsc(r.nationality) : null);
   add('Age', r.age == null ? null : r.age);
@@ -52521,7 +52524,7 @@ function _stRungHtml(r, n) {
     +   _stAvatar(r)
     +   '<span class="cx-rung-id"><b>' + _stEsc(r.name) + '</b>'
     +     '<em>' + _stEsc(ST_ROLE_LABEL[r.role] || r.role || 'Staff') + '</em></span>'
-    +   _stFactsHtml(r)
+    +   _stFactsHtml(r, ['Club', 'Licence', 'Experience', 'Reputation', 'Expects'])
     +   _stWhenHtml(r)
     +   '<span class="cx-rung-opp"><b>' + (r.opportunity == null ? '\u2014' : r.opportunity) + '</b>'
     +     '<i>opportunity</i></span>'
