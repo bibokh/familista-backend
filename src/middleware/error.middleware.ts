@@ -41,6 +41,51 @@ export function errorHandler(
     return;
   }
 
+  // ── the database is not reachable yet, or not reachable any more ────────
+  // The HTTP server starts listening before connectDatabase() resolves, so that
+  // Render's port scan passes without waiting on the database. On a cold
+  // instance that gap is real: Prisma lazy-connects, and a request landing
+  // inside it throws an initialization or pool error. Falling through to the
+  // catch-all made that an HTTP 500 on the login screen — which says the server
+  // is broken, when what is true is that it is not ready yet.
+  //
+  // 503 with Retry-After is what that condition is. It is not a retry bolted on
+  // to hide a fault: it is the status the fault actually has, and it lets a
+  // client and a load balancer behave correctly instead of treating a cold
+  // start as a crash.
+  const NOT_READY = new Set([
+    'P1000', // authentication failed against the database
+    'P1001', // can't reach database server
+    'P1002', // database server reached but timed out
+    'P1008', // operation timed out
+    'P1017', // server has closed the connection
+    'P2024', // timed out fetching a connection from the pool
+  ]);
+  const prismaCode = (err as unknown as { code?: string }).code;
+  const notReady =
+    err instanceof Prisma.PrismaClientInitializationError ||
+    (err instanceof Prisma.PrismaClientKnownRequestError && NOT_READY.has(err.code)) ||
+    (typeof prismaCode === 'string' && NOT_READY.has(prismaCode));
+
+  if (notReady) {
+    logger.warn('Database not reachable — answering 503', {
+      code: prismaCode,
+      name: err.constructor.name,
+      path: req.path,
+      method: req.method,
+    });
+    res
+      .status(503)
+      .header('Retry-After', '2')
+      .header('X-Error-Type', err.constructor.name)
+      .header('X-Error-Code', prismaCode ?? '')
+      .json({
+        success: false,
+        message: 'The service is starting up — please try again in a moment',
+      });
+    return;
+  }
+
   // Prisma errors
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
@@ -62,7 +107,7 @@ export function errorHandler(
   // Unknown / programming errors
   // NOTE: req.body is intentionally omitted — it can contain plaintext passwords
   // (e.g. a failed login when the DB is down) and must never reach the log sink.
-  const errCode = (err as unknown as { code?: string }).code;
+  const errCode = prismaCode;
   logger.error('Unexpected error', {
     message: err.message,
     code:    errCode,

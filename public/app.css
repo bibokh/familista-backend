@@ -7176,6 +7176,11 @@ body.club-theme .cp-sub{ font-size: 14px; color: var(--t-secondary); margin-top:
 body.club-theme .cp-grid{
   display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-4);
 }
+/* Shown only while the club list is genuinely still being read, and replaced by
+   the real cards the moment it answers. It is a sentence, not a spinner. */
+body.club-theme .cp-pending{
+  font-size: 13px; color: var(--t-secondary); margin: 0 0 var(--sp-4);
+}
 body.club-theme .cp-card{
   display: grid; grid-template-columns: 64px 1fr auto; align-items: center;
   gap: var(--sp-4); padding: var(--sp-4);

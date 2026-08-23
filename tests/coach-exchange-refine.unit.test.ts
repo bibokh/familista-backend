@@ -78,7 +78,7 @@ describe('one population serves every board', () => {
 
 describe('a mode change costs nothing', () => {
   it('the module reads once and keeps it', () => {
-    expect(APP).toContain('var _ST_CACHE = { at: 0, inflight: null };');
+    expect(APP).toContain('var _ST_CACHE = { at: 0, inflight: null, pre: null };');
     expect(APP).toContain('var ST_FRESH_MS = 20000;');
     expect(APP).toContain('var ST_STALE_MS = 60000;');
     const s = appFn('_stSyncAll', '_stRevalidate');

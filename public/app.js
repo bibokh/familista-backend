@@ -1317,6 +1317,17 @@ function openClub(clubId) {
     try { showToast('Missing club id', 'error'); } catch (_) {}
     return;
   }
+  // Entering a club rewrites the whole session's scope before anything is
+  // awaited, so an id that belongs to no club leaves the workspace pointing at
+  // one — the switch fails, and every club-scoped read after it asks for a club
+  // the server cannot resolve. The ids the server issues are UUIDs; anything
+  // else never came from the server, and is refused here rather than a few
+  // layers down where the failure reads as a broken workspace.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(clubId))) {
+    try { console.warn('[club] refusing to enter a club that has no server id:', clubId); } catch (_) {}
+    try { showToast('That club is still loading — one moment', 'error'); } catch (_) {}
+    return;
+  }
   // Each entry is numbered. Click one club, change your mind and click another,
   // and the first switch may still be in the retry ladder; when it lands it
   // must not write its club over the one now on screen.
@@ -2081,19 +2092,31 @@ function renderClubs() {
   const el = document.getElementById('clubs-picker-content');
   if (!el) return;
   const club = (window.State && State.club) || {};
-  const available = (window.State && State.context && Array.isArray(State.context.availableClubs))
-    ? State.context.availableClubs : [];
-  // Build the list — real data only. Fall back to the active club if
-  // availableClubs hasn't been hydrated yet.
-  const clubs = available.length ? available : [{
-    id: (club.id || 'fc-familista'),
-    name: club.name || 'FC Familista',
-    city: club.city || '',
-    country: club.country || '',
-    level: club.level,
-    emblem: club.emblem || '',
-    isActive: true,
-  }];
+  const hydrated = !!(window.State && State.context && Array.isArray(State.context.availableClubs));
+  const available = hydrated ? State.context.availableClubs : [];
+  // Real clubs only, and only once the server has named them.
+  //
+  // This used to fall back to a card carrying the literal id 'fc-familista'
+  // whenever the context had not hydrated yet. On a fresh session that card is
+  // what a reader sees first — the context lands a few hundred milliseconds
+  // later — and entering it posts an id that belongs to no club: /me/context
+  // answers 400, the switch throws, the club context is never set, and every
+  // club-scoped read that follows runs against a club that does not exist. That
+  // is the whole fresh-session fault: the same clicks work on a second visit
+  // only because the context is already there by then.
+  //
+  // A club is drawn when it is known. Until then the grid holds what is true —
+  // nothing yet — and repaints itself when the context arrives.
+  const clubs = available.length
+    ? available
+    : (club && club.id
+        ? [{ id: club.id, name: club.name, city: club.city, country: club.country,
+             level: club.level, emblem: club.emblem, isActive: true }]
+        : []);
+  // Said plainly, not spun: this is a read that has not answered yet, and the
+  // difference between that and having no clubs matters to whoever is reading.
+  const pending = (!clubs.length && !hydrated)
+    ? '<div class="cp-pending">Reading your clubs…</div>' : '';
   el.innerHTML = `
     <div class="cp-wrap">
       <div class="cp-hero">
@@ -2101,6 +2124,7 @@ function renderClubs() {
         <h1 class="cp-title">Clubs</h1>
         <div class="cp-sub">Pick a club workspace to enter</div>
       </div>
+      ${pending}
       <div class="cp-grid">
         ${clubs.map(c => `
           <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="openClub" data-club-id="${_esc(c.id || '')}" type="button">
@@ -31622,7 +31646,13 @@ function renderGIS(key) {
 //   canManagePlayers(opts)     — role gate
 // ════════════════════════════════════════════════════════════════════════
 
-const SQUAD_API_BASE = 'https://familista-backend.onrender.com/api/v1/players';
+// The app's own backend, resolved the way every other call resolves it. This
+// was a hardcoded production host, so a club entry made a cross-origin request
+// to a fixed deployment whatever host the app was actually served from — a
+// second TLS handshake on the cold path at best, and a failed read anywhere
+// that host is not the one serving the page.
+const SQUAD_API_BASE = (typeof FAM_CONFIG !== 'undefined' && FAM_CONFIG.API_BASE
+  ? FAM_CONFIG.API_BASE : '/api/v1') + '/players';
 
 // ════════════════════════════════════════════════════════════════════════
 // Phase A · Tenant context (Club + Team) — uses FamilistaAPI under the hood
@@ -31644,6 +31674,12 @@ const AppContext = (function () {
           teamId: _ctx.currentTeamId || null,
           availableClubs: Array.isArray(_ctx.availableClubs) ? _ctx.availableClubs : [],
         };
+        // The picker may already be on screen with nothing in it — this is the
+        // answer it was waiting for, so it draws now rather than on the next
+        // navigation.
+        try {
+          if (typeof renderClubs === 'function' && document.getElementById('clubs-picker-content')) renderClubs();
+        } catch (_) {}
       }
       await loadTeams();
       renderSwitcher();
@@ -31689,6 +31725,12 @@ const AppContext = (function () {
   async function switchClub(clubId, opts) {
     opts = opts || {};
     const live = typeof opts.isCurrent === 'function' ? opts.isCurrent : function () { return true; };
+    // A module opened during the switch must not read as the club being left.
+    // This is settled the moment the server is answering as the new one, and
+    // anything club-scoped can await it instead of racing it.
+    let _ctxDone;
+    window.__famClubReady = new Promise((res) => { _ctxDone = res; });
+    window.__famClubReadyFor = clubId;
     try {
       const r = await FamilistaAPI.post('/me/context', { clubId, teamId: null });
       if (!live()) return;
@@ -31711,6 +31753,15 @@ const AppContext = (function () {
       // anything is read for the new one, so a private event for the old club
       // has nowhere to arrive.
       if (!opts.alreadyReset && typeof _tfRtReset === 'function') _tfRtReset();
+
+      // The server is now answering as this club. Anything that was waiting for
+      // that may go, and Coach Market's population read is started here —
+      // before the roster and before the workspace's own hydration — so a
+      // reader who goes straight to the module finds it already in flight
+      // rather than joining the back of a queue of forty. One request, not
+      // awaited, and skipped if the module already holds this club's rows.
+      try { _ctxDone(true); } catch (_) {}
+      if (typeof _stPrefetch === 'function') { try { _stPrefetch(); } catch (_) {} }
 
       await loadTeams();
       if (!live()) return;
@@ -31746,7 +31797,10 @@ const AppContext = (function () {
       } else {
         showToast('Switched club', 'success');
       }
-    } catch (e) { if (live()) showToast(e?.userMessage || 'Switch failed', 'error'); }
+    } catch (e) {
+      try { _ctxDone(false); } catch (_) {}
+      if (live()) showToast(e?.userMessage || 'Switch failed', 'error');
+    }
   }
   async function switchTeam(teamId) {
     try {
@@ -51594,7 +51648,7 @@ function _stVal(v, suffix) { return (v == null || v === '') ? '<i class="st-unkn
 // replacing it with a loading state. Nothing is faked and nothing is
 // suppressed: a write still reloads, and a board older than the freshness
 // window still revalidates — just not in front of the reader.
-var _ST_CACHE = { at: 0, inflight: null };
+var _ST_CACHE = { at: 0, inflight: null, pre: null };
 var ST_FRESH_MS = 20000;    // inside this, a switch reads nothing at all
 var ST_STALE_MS = 60000;    // beyond this, refresh behind what is shown
 
@@ -51796,13 +51850,61 @@ function _stLoadShortlist() {
 // One read for the whole module, deduped. A second caller inside the same
 // flight joins it rather than issuing its own — which is what made entering the
 // page cost fourteen requests instead of seven.
+// The module's reads are in two tiers, and the board is not held behind the
+// second one.
+//
+//   A · the population — the only thing a board cannot be drawn without
+//   B · the intelligence — this club's shortlist, needs, structure, activity
+//
+// They used to be one Promise.all, so the board waited for the slowest of six.
+// That is invisible on a warm page and very visible on a cold one: entering a
+// club fires the whole workspace's hydration, and six reads queued behind forty
+// take as long as the forty do. A lands, the board paints; each of B repaints
+// what it belongs to when it arrives, and never rebuilds what is already drawn.
+// Whatever the workspace is still settling, resolved. A module opened during a
+// club switch waits for the context rather than reading against the club being
+// left and having to throw the answer away — which is what made a first click
+// straight after entering a club cost two round trips instead of one.
+function _stClubReady() {
+  var w = (typeof window !== 'undefined') ? window : {};
+  var want = (State && State.context && State.context.clubId) || null;
+  if (w.__famClubReady && w.__famClubReadyFor === want) return w.__famClubReady;
+  return Promise.resolve(true);
+}
+
 function _stSyncAll(force) {
   if (_ST_CACHE.inflight && !force) return _ST_CACHE.inflight;
   if (!force && _stCacheFresh()) return Promise.resolve();
-  var run = Promise.all([
-    _stLoadPopulation(), _stLoadClubs(), _stLoadNeeds(), _stLoadActivity(),
-    _stLoadShortlist(), _stLoadGap()
-  ]).then(function () {
+
+  var paint = function () {
+    // only from inside the module, and only what changed
+    if (!document.getElementById('cm-board')) return;
+    _stRepaintBoard(); _stRepaintChrome();
+  };
+
+  // A — the board's own data. The cache is warm the moment this lands, so
+  // _stRowsReady() is true and the first board draws. If the workspace already
+  // started it, that read is joined rather than repeated.
+  var a = (_ST_CACHE.pre && !force)
+    ? _ST_CACHE.pre.then(paint)
+    : (_stCacheWarm() && !force)
+      ? Promise.resolve().then(paint)
+      : _stClubReady().then(function () {
+          // the switch may have started the read while we were waiting
+          if (_ST_CACHE.pre) return _ST_CACHE.pre.then(paint);
+          if (_stCacheWarm()) { paint(); return; }
+          return _stLoadPopulation().then(function () { _ST_CACHE.at = Date.now(); paint(); });
+        });
+
+  // B — everything else, each repainting on arrival rather than as a set.
+  var b = _stClubReady().then(function () {
+    return Promise.all(
+      [_stLoadClubs(), _stLoadNeeds(), _stLoadActivity(), _stLoadShortlist(), _stLoadGap()]
+        .map(function (q) { return q.then(paint, function () {}); })
+    );
+  });
+
+  var run = Promise.all([a, b]).then(function () {
     _ST_CACHE.at = Date.now();
     _ST_CACHE.inflight = null;
   }).catch(function () {
@@ -51811,6 +51913,41 @@ function _stSyncAll(force) {
   _ST_CACHE.inflight = run;
   return run;
 }
+
+// The module's own bootstrap, called once the workspace has a club context.
+//
+// Entering a club fires the whole workspace's hydration — about forty requests
+// across Squad, Transfers, Training and analytics. Coach Market's population
+// read used to start only when somebody clicked the module, so it entered that
+// queue last and the first board waited for it. Started here it is in flight
+// alongside the rest, and by the time the module is opened it has usually
+// landed: the click is then a repaint of data already held.
+//
+// One request, not six. The intelligence tier still loads when the module is
+// actually opened, and nothing is fetched twice — the cache dedupes it.
+function _stPrefetch() {
+  try {
+    if (_stCacheWarm() || _ST_CACHE.inflight || _ST_CACHE.pre) return;
+    var gen = ++_stGen;
+    _ST_CACHE.pre = _stApi('GET', '/discover?tab=all&sort='
+        + encodeURIComponent(_TF_ST.sort || 'reputation')
+        + '&order=' + encodeURIComponent(_TF_ST.order || 'desc') + '&page=1&limit=200')
+      .then(_thUnwrap)
+      .then(function (d) {
+        if (gen !== _stGen) return;
+        _TF_ST.rows = (d && d.items) || [];
+        _TF_ST.total = (d && d.total) || 0;
+        _TF_ST.derived = null;
+        _stPrepare();
+        _ST_CACHE.at = Date.now();
+        _ST_CACHE.pre = null;
+        // If the reader is already looking at the module, show it.
+        if (document.getElementById('cm-board')) { _stRepaintBoard(); _stRepaintChrome(); }
+      })
+      .catch(function () { _ST_CACHE.pre = null; });
+  } catch (e) { _ST_CACHE.pre = null; }
+}
+window._stPrefetch = _stPrefetch;
 
 // Stale-while-revalidate. Whatever is on screen stays on screen; the refresh
 // happens behind it and repaints only when it has actually landed.
@@ -54002,8 +54139,9 @@ function renderCoachMarketPage() {
     _stRepaintBoard(); _stRepaintChrome();
   }
   // Both the page template and the router call this on entry. The cache makes
-  // the second call join the first rather than repeat it.
-  _stSyncAll().then(function () { _stRepaintBoard(); _stRepaintChrome(); });
+  // the second call join the first rather than repeat it, and the board is
+  // painted by the population's own arrival rather than by the whole set's.
+  _stSyncAll();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -57705,7 +57843,7 @@ function _stResetClubScoped() {
   // Anything still in flight for the club being left is stale the moment the
   // club changes, and nothing it read may survive into the club being entered.
   _stGen++; _TF_ST.derived = null;
-  if (typeof _ST_CACHE !== 'undefined') { _ST_CACHE.at = 0; _ST_CACHE.inflight = null; }
+  if (typeof _ST_CACHE !== 'undefined') { _ST_CACHE.at = 0; _ST_CACHE.inflight = null; _ST_CACHE.pre = null; }
   _TF_ST.summary = null; _TF_ST.needs = null; _TF_ST.activity = null; _TF_ST.mine = null;
   _TF_ST.shortlist = null; _TF_ST.detail = {}; _TF_ST.gap = null;
   _TF_ST.open = null; _TF_ST.approach = null;
@@ -58133,9 +58271,13 @@ async function _tfSyncAll() {
   await Promise.all([_tfSyncServerMarket(), _tfSyncMyListings(), _tfSyncBalance(), _tfNotifLoad(),
     _tfScoutLoadShortlist(), _tfDeskLoad(),
     _tfNegLoadNeeds(), _tfNegLoadActivity(),
-    // The staff market is its own board and reads its own endpoints; it loads
-    // beside the player market rather than after it.
-    (typeof _stSyncAll === 'function' ? _stSyncAll().catch(function () {}) : null),
+    // The staff market used to be read here too — six more requests, fired by
+    // the player market's hydration, for a board nobody had asked for. Nothing
+    // the Transfers page draws comes from them, so this was Coach Market being
+    // loaded by another module: its data arrived on somebody else's schedule
+    // and its first paint waited on somebody else's queue. Its population is
+    // started when the club context lands (_stPrefetch) and the rest when the
+    // module is opened, so it now owns both.
     _tfAucLoad().then(function () { _TF_AUC.detail = {}; })]);
   // One socket for the session, opened once the club is known. Reconnecting is
   // its own business; this only ever asks.
