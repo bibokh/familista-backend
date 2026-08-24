@@ -13132,69 +13132,82 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 #pg-transfers .tfx-grid--need{ grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); }
 
-/* ── the player card ──────────────────────────────────────────────────────── */
+/* ── the player card ──────────────────────────────────────────────────────
+   A recruitment card, not a record. The portrait is the largest thing on it,
+   the name reads as a heading, the rating sits beside the name at the weight it
+   deserves, and the money is type on a baseline rather than a pair of grey
+   wells. Hierarchy here comes from size, weight and space — the only border on
+   the card is its own outline. */
 #pg-transfers .tfx-c{
-  display:flex; flex-direction:column; gap:10px;
-  padding:13px 13px 11px; border-radius:13px; cursor:pointer;
-  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
+  display:flex; flex-direction:column; gap:12px;
+  padding:15px 15px 13px; border-radius:14px; cursor:pointer;
+  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.028));
   border:1px solid var(--tf-line);
   transition:border-color .15s ease, transform .12s ease, box-shadow .15s ease;
 }
 #pg-transfers .tfx-c:hover{
   border-color:rgba(34,197,94,.34);
-  box-shadow:0 10px 26px -18px rgba(0,0,0,.9);
+  box-shadow:0 12px 30px -20px rgba(0,0,0,.95);
   transform:translateY(-1px);
 }
 #pg-transfers .tfx-c:focus-visible{ outline:2px solid var(--tf-acc); outline-offset:2px; }
 #pg-transfers .tfx-c.is-own{ border-color:rgba(34,197,94,.3); }
 #pg-transfers .tfx-c.is-mine{ box-shadow:inset 3px 0 0 rgba(34,197,94,.55); }
-/* The OVR block used to sit in the same row as the name and squeezed it to
-   half a card, so most names ended in an ellipsis. It sits under the portrait
-   instead: the name gets the whole width, which is what a recruiter reads
-   first. */
-#pg-transfers .tfx-c-top{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:11px; align-items:start; }
-#pg-transfers .tfx-c-por{ display:flex; flex-direction:column; align-items:center; gap:6px; }
-#pg-transfers .tfx-c-por .tf-po{ width:54px; height:54px; border-radius:11px; }
-#pg-transfers .tfx-c-id{ min-width:0; display:flex; flex-direction:column; gap:4px; }
-#pg-transfers .tfx-c-name{
-  font-size:13.5px; font-weight:750; color:var(--tf-ink); line-height:1.2;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-#pg-transfers .tfx-c-meta{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
-#pg-transfers .tfx-c-dot{ font-size:10.5px; font-weight:600; color:var(--tf-ink3); }
-#pg-transfers .tfx-c-club{
-  font-size:10.5px; font-weight:600; color:var(--tf-ink2);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-#pg-transfers .tfx-c-ovr{ flex:none; }
-#pg-transfers .tfx-c-name{ white-space:normal; overflow-wrap:anywhere; }
 
-#pg-transfers .tfx-c-money{
-  display:grid; grid-template-columns:1fr 1fr; gap:1px;
-  background:var(--tf-line); border-radius:8px; overflow:hidden;
+#pg-transfers .tfx-c-hd{ display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:13px; align-items:start; }
+#pg-transfers .tfx-c-por .tf-po{
+  width:66px; height:66px; border-radius:14px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.10), 0 6px 18px -10px rgba(0,0,0,.85);
 }
-#pg-transfers .tfx-c-money > div{
-  display:flex; flex-direction:column; gap:2px; padding:7px 9px;
-  background:rgba(255,255,255,.028);
+#pg-transfers .tfx-c-id{ min-width:0; display:flex; flex-direction:column; gap:5px; padding-top:2px; }
+#pg-transfers .tfx-c-name{
+  font-size:15.5px; font-weight:750; color:var(--tf-ink); line-height:1.22;
+  letter-spacing:-.2px; overflow-wrap:anywhere;
 }
-#pg-transfers .tfx-c-money i{
-  font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em;
+#pg-transfers .tfx-c-meta{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+#pg-transfers .tfx-c-dot{ font-size:11px; font-weight:600; color:var(--tf-ink2); }
+#pg-transfers .tfx-c-club{
+  font-size:11px; font-weight:600; color:var(--tf-ink3); letter-spacing:.02em;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#pg-transfers .tfx-c-rt{ flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+
+/* the rating, read at a glance */
+#pg-transfers .tfx-ovr{ display:flex; flex-direction:column; align-items:center; line-height:1; }
+#pg-transfers .tfx-ovr b{ font-size:23px; font-weight:800; letter-spacing:-1px; color:var(--tf-ink); }
+#pg-transfers .tfx-ovr i{
+  font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--tf-ink3); margin-top:3px;
+}
+#pg-transfers .tfx-ovr--elite b{ color:#7ee2a8; }
+#pg-transfers .tfx-ovr--good b{ color:#a7f3c4; }
+#pg-transfers .tfx-ovr--ok b{ color:var(--tf-ink); }
+#pg-transfers .tfx-ovr--avg b{ color:var(--tf-ink2); }
+
+/* money on a baseline: the deciding figure largest, the value quieter */
+#pg-transfers .tfx-c-line{
+  display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  padding-top:11px; border-top:1px solid var(--tf-line);
+}
+#pg-transfers .tfx-c-ask,
+#pg-transfers .tfx-c-val{ display:flex; flex-direction:column; gap:2px; }
+#pg-transfers .tfx-c-ask b{ font-size:19px; font-weight:750; letter-spacing:-.5px; color:var(--tf-champagne); line-height:1; }
+#pg-transfers .tfx-c-ask b.is-over{ color:#fca5a5; }
+#pg-transfers .tfx-c-val b{ font-size:13px; font-weight:650; color:var(--tf-ink2); line-height:1; }
+#pg-transfers .tfx-c-ask i,
+#pg-transfers .tfx-c-val i{
+  font-style:normal; font-size:8px; font-weight:800; letter-spacing:.14em;
   text-transform:uppercase; color:var(--tf-ink3);
 }
-#pg-transfers .tfx-c-money b{ font-size:13px; font-weight:750; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
-#pg-transfers .tfx-c-money b.is-ok{ color:var(--tf-champagne); }
-#pg-transfers .tfx-c-money b.is-over{ color:#fca5a5; }
-#pg-transfers .tfx-c-st{ font-size:11px !important; font-weight:650 !important; }
-#pg-transfers .tfx-c-money.is-one{ grid-template-columns:1fr; }
-#pg-transfers .tfx-c-delta{ font-style:normal; font-size:9px; font-weight:700; letter-spacing:.02em; }
+#pg-transfers .tfx-c-delta{ margin-left:auto; font-size:10.5px; font-weight:750; letter-spacing:.02em; }
 #pg-transfers .tfx-c-delta.is-up{ color:#fca5a5; }
 #pg-transfers .tfx-c-delta.is-dn{ color:#7ee2a8; }
 
-#pg-transfers .tfx-c-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:20px; }
+#pg-transfers .tfx-c-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 #pg-transfers .tfx-c-tags{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
 #pg-transfers .tfx-tag{
   font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-  padding:3px 7px; border-radius:5px; background:rgba(255,255,255,.06); color:var(--tf-ink2);
+  padding:3px 8px; border-radius:20px; background:rgba(255,255,255,.06); color:var(--tf-ink2);
 }
 #pg-transfers .tfx-tag--fit{ background:rgba(34,197,94,.16); color:#7ee2a8; }
 #pg-transfers .tfx-tag--auc{ background:rgba(56,189,248,.14); color:#7dd3fc; }
@@ -13205,22 +13218,21 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 #pg-transfers .tfx-c-clock.is-warm{ color:var(--tf-warm); }
 #pg-transfers .tfx-c-clock.is-hot{ color:#fca5a5; }
-#pg-transfers .tfx-c-clock.is-off{ color:var(--tf-ink3); font-weight:600; }
 
-#pg-transfers .tfx-c-acts{ display:flex; align-items:center; gap:8px; }
+/* actions sit on a hairline, not in a box of their own */
+#pg-transfers .tfx-c-acts{
+  display:flex; align-items:center; gap:9px; margin-top:auto;
+  padding-top:11px; border-top:1px solid var(--tf-line);
+}
 #pg-transfers .tfx-c-acts .tf-star{ flex:none; }
 #pg-transfers .tfx-c-go{ margin-left:auto; }
-
-/* the market before it has answered: the shape the cards will take, at rest.
-   Not a spinner and not a claim — the board's own geometry, held still, so
-   nothing moves when the real cards replace it. */
-#pg-transfers .tfx-c--skel{
-  min-height:172px; cursor:default; background:rgba(255,255,255,.028);
-  border-color:var(--tf-line); pointer-events:none;
-}
-#pg-transfers .tfx-c--skel:hover{ transform:none; box-shadow:none; border-color:var(--tf-line); }
-#pg-transfers .tfx-lens.is-wait{ cursor:default; }
-#pg-transfers .tfx-lens.is-wait b{ color:var(--tf-ink3); }
+/* the state chip belongs to the identity, so it is quiet there */
+#pg-transfers .tfx-c-state{ margin-top:-4px; }
+#pg-transfers .tfx-c-state .tf-state{ margin-top:0; }
+/* the club's name gets the width the status chip used to take */
+#pg-transfers .tfx-c-meta{ flex-wrap:nowrap; overflow:hidden; }
+#pg-transfers .tfx-c-meta .tfx-c-dot{ white-space:nowrap; }
+#pg-transfers .tfx-c-club{ white-space:nowrap; }
 
 /* ── lanes: the pipeline and the recruitment board ───────────────────────── */
 #pg-transfers .tfx-pipe,
@@ -13310,6 +13322,100 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tf-ink); border-radius:8px; width:28px; height:28px;
 }
 #pg-transfers .tfx-dr-box .tf-x:hover{ background:rgba(255,255,255,.13); }
+
+/* ── an empty lane is a line ───────────────────────────────────────────────
+   Lanes size themselves to what they hold: one with nothing in it collapses to
+   its header, one with several rows takes two columns' worth. Four equal cards
+   each carrying a single sentence is what made these boards read as abandoned. */
+#pg-transfers .tfx-pipe,
+#pg-transfers .tfx-board{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:12px; align-items:start; grid-auto-flow:dense;
+}
+#pg-transfers .tfx-lane.is-empty{
+  background:transparent; border-style:dashed; border-color:var(--tf-line);
+}
+#pg-transfers .tfx-lane.is-empty .tfx-lane-h{
+  background:transparent; border-bottom:0; padding:10px 14px;
+  grid-template-columns:1fr auto; align-items:center;
+}
+#pg-transfers .tfx-lane.is-empty .tfx-lane-h h3{ color:var(--tf-ink3); }
+#pg-transfers .tfx-lane.is-empty .tfx-lane-h span{ background:transparent; color:var(--tf-ink3); padding:0; }
+#pg-transfers .tfx-lane.is-empty .tfx-lane-h p{
+  grid-column:1/-1; font-size:10px; color:var(--tf-ink3); opacity:.7; margin-top:1px;
+}
+/* a lane that is actually carrying deals earns the room */
+#pg-transfers .tfx-lane.is-full{ grid-column:span 2; }
+@media (max-width:1180px){ #pg-transfers .tfx-lane.is-full{ grid-column:auto; } }
+
+/* the market with nothing listed: one line, then the club's real business */
+#pg-transfers .tfx-quiet{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap; flex:none;
+  padding:12px 16px; border-radius:12px;
+  background:rgba(255,255,255,.035); border:1px solid var(--tf-line);
+}
+#pg-transfers .tfx-quiet-i{
+  width:26px; height:26px; flex:none; display:flex; align-items:center; justify-content:center;
+  border-radius:8px; font-size:13px; color:var(--tf-gold-2);
+  background:rgba(34,197,94,.10); box-shadow:inset 0 0 0 1px rgba(34,197,94,.22);
+}
+#pg-transfers .tfx-quiet b{ font-size:13px; font-weight:700; color:var(--tf-ink); }
+#pg-transfers .tfx-quiet > span:not(.tfx-quiet-i){ font-size:11.5px; color:var(--tf-ink3); }
+#pg-transfers .tfx-quiet .tf-btn{ margin-left:auto; }
+
+/* the scouting head, as a line */
+#pg-transfers .tf-disc-head--tight{ align-items:center; padding:12px 16px; }
+#pg-transfers .tfx-lead{ display:flex; align-items:center; gap:11px; min-width:0; flex-wrap:wrap; }
+#pg-transfers .tfx-lead p{ font-size:11.5px; color:var(--tf-ink3); margin:0; }
+
+/* the advanced filters are folded away until asked for */
+#pg-transfers .tf-disc-adv{ display:none; }
+#pg-transfers .tf-disc-filters.is-open .tf-disc-adv{ display:block; margin-top:10px; padding-top:11px; border-top:1px solid var(--tf-line); }
+#pg-transfers .tf-disc-frow--lead{ display:flex; align-items:flex-end; gap:9px; flex-wrap:wrap; }
+#pg-transfers .tf-disc-frow--lead .tf-fl{ min-width:0; }
+#pg-transfers .tf-disc-frow--lead .tf-fl:first-child{ flex:1 1 260px; }
+#pg-transfers .tf-disc-go{ margin-left:auto; }
+#pg-transfers .tf-disc-clear{ align-self:flex-end; }
+
+/* the need card, without the grey wells inside it ─────────────────────────
+   Age, rating and budget were three sunken boxes in a bordered card in a lane
+   in a board. They are a line of type now: the same three facts, read left to
+   right, with nothing drawn around them. */
+#pg-transfers .tf-nd-facts{
+  display:flex !important; gap:20px; flex-wrap:wrap; background:transparent !important;
+  border-radius:0; padding:9px 0 0; border-top:1px solid var(--tf-line);
+}
+#pg-transfers .tf-nd-facts > div{
+  display:flex !important; flex-direction:column; gap:2px; padding:0 !important; background:transparent !important;
+}
+#pg-transfers .tf-nd-facts i{ order:2; font-size:8px; letter-spacing:.13em; color:var(--tf-ink3); }
+#pg-transfers .tf-nd-facts b{ order:1; font-size:14px; font-weight:750; color:var(--tf-ink); letter-spacing:-.2px; }
+#pg-transfers .tf-nd{ border-radius:13px; }
+#pg-transfers .tf-nd-when b{ background:transparent; border:0; box-shadow:none; padding:0; color:var(--tf-ink2); }
+
+/* a lane wide enough for two lays its cards out in two */
+#pg-transfers .tfx-lane--wide .tfx-lane-b > .tf-needs,
+#pg-transfers .tfx-lane.is-full .tfx-lane-b > .tf-needs{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:10px;
+}
+
+/* an auction is a player with money on him, drawn like every other card */
+#pg-transfers .tfx-c--auc{ list-style:none; }
+#pg-transfers .tfx-c--auc .tf-auc-state{
+  font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  padding:3px 8px; border-radius:20px;
+}
+#pg-transfers .tfx-c--auc .tfx-c-clock.is-off{
+  font-weight:600; color:var(--tf-ink3); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; max-width:16ch;
+}
+#pg-transfers .tfx-c--auc .tfx-tag--auc b{ font-weight:800; }
+/* the expanded auction detail sits inside the card, not as another card */
+#pg-transfers .tfx-c--auc .tf-auc-detail{
+  margin-top:11px; padding-top:11px; border-top:1px solid var(--tf-line);
+}
+
+#pg-transfers .tfx-more{ align-self:center; margin-top:4px; }
 
 /* ── the drawer ───────────────────────────────────────────────────────────── */
 /* Fixed to the viewport's right edge, so opening it displaces nothing. The

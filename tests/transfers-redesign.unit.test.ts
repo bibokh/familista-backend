@@ -91,18 +91,92 @@ describe('nothing underneath was rewritten', () => {
   });
 
   it('and the presentation is cards and lanes, not a table', () => {
-    // the market's own table is gone; the board is a grid of player cards
-    expect(fnBody('_tfxMarketHtml')).toContain('_tfxCardHtml(p, C)');
+    // the market's own table is gone; the board is a grid of player cards,
+    // drawn a page at a time through one builder the repaint shares
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfxGridHtml(pool, C)');
+    expect(fnBody('_tfxGridHtml')).toContain('_tfxCardHtml(p, C)');
+    expect(fnBody('_tfxGridHtml')).toContain('_TFX.all');
+    expect(fnBody('_tfxRailHtml')).toContain('_tfxCardHtml(p, C)');
+    expect(fnBody('_tfRepaintRows')).toContain('_tfxGridHtml(pool, C)');
     expect(fnBody('_tfxMarketHtml')).not.toContain('<table');
     expect(fnBody('_tfxDiscCardsHtml')).toContain('_tfxDiscCardHtml');
-    // a card carries what a recruiter decides on
+    // a card carries what a recruiter decides on — identity and money come
+    // from the two shared blocks, so every card carries the same set
     const c = fnBody('_tfxCardHtml');
-    ['_tfPortrait(p', '_tfQuality(p.qual)', 'Market value', '_tfCostOf(p)',
-     '_tfStateChip(st)', '_tfStarBtn(p, C)'].forEach((x) => expect(c).toContain(x));
+    ['_tfxIdentityHtml(p, p.club, p.qual, st)', '_tfxPriceHtml(p.mv, cost',
+     '_tfCostOf(p)', '_tfStarBtn(p, C)'].forEach((x) => expect(c).toContain(x));
+    expect(fnBody('_tfxPriceHtml')).toContain('<i>value</i>');
     // seven stages, and the desk among them
     const st = APP.match(/var TFX_STAGES = \[[\s\S]*?\];/)![0];
     ['received', 'desk', 'live', 'sent', 'bids', 'done', 'dead']
       .forEach((k) => expect(st).toContain(`'${k}'`));
+  });
+
+  it('the player is the visual focus of every card', () => {
+    // one identity block, shared by the market, the auctions and scouting, so
+    // a footballer is drawn the same way wherever he appears
+    const id = fnBody('_tfxIdentityHtml');
+    expect(id).toContain("_tfPortrait(p, 'xl')");
+    expect(id).toContain('tfx-c-name');
+    expect(id).toContain('tfx-ovr');
+    ['_tfxCardHtml', '_tfxDiscCardHtml', '_tfAucRowHtml', '_tfxShortCardHtml']
+      .forEach((f) => expect(fnBody(f)).toContain('_tfxIdentityHtml('));
+    // the portrait is the largest thing on the card and the name reads as one
+    expect(CSS).toMatch(/#pg-transfers \.tfx-c-por \.tf-po\{[^}]*width:66px/);
+    expect(CSS).toMatch(/#pg-transfers \.tfx-c-name\{[^}]*font-size:15\.5px/);
+    expect(CSS).toMatch(/#pg-transfers \.tfx-ovr b\{[^}]*font-size:23px/);
+  });
+
+  it('money is type on a baseline, not a pair of grey wells', () => {
+    const f = fnBody('_tfxPriceHtml');
+    expect(f).toContain('tfx-c-ask');
+    expect(f).toContain('tfx-c-val');
+    // the sunken two-cell grid the cards used to carry is gone
+    expect(APP).not.toContain('tfx-c-money');
+    // and the need card's three wells are type now too
+    expect(CSS).toMatch(/#pg-transfers \.tf-nd-facts\{[^}]*background:transparent/);
+  });
+
+  it('an empty lane is a line, and a busy one gets the room', () => {
+    const pipe = fnBody('_tfxPipelineHtml');
+    expect(pipe).toContain("(empty ? ' is-empty' : '')");
+    expect(pipe).toContain("(rows.length > 3 ? ' is-full' : '')");
+    // the board uses the same rule through one lane builder
+    expect(fnBody('_tfxBoardHtml')).toContain("(empty ? ' is-empty' : '')");
+    expect(CSS).toContain('#pg-transfers .tfx-lane.is-full{ grid-column:span 2; }');
+    expect(CSS).toMatch(/#pg-transfers \.tfx-lane\.is-empty \.tfx-lane-h\{/);
+  });
+
+  it('a quiet market fills itself from reads it already made', () => {
+    const f = fnBody('_tfxQuietMarketHtml');
+    // needs, the assistant, the shortlist and the market feed — all existing
+    ['_TF_NEG.needs', '_tfRecommendations(C)', '_TF_SCOUT.shortlist', '_TF_NEG.feed']
+      .forEach((x) => expect(f).toContain(x));
+    // and it still says plainly that nothing is listed
+    expect(f).toContain('_tfEmptyMarketMsg([], C)');
+    // a section with nothing in it is not drawn at all
+    expect(f).toContain('if (!n) return');
+  });
+
+  it('advanced scouting filters are disclosed, not removed', () => {
+    const f = fnBody('_tfDiscFiltersHtml');
+    expect(f).toContain('data-tf-dadv');
+    expect(f).toContain('_TF_SCOUT.advOpen || advN > 0');   // a set filter cannot hide
+    // every field the panel ever had is still bound to its own key
+    ['search', 'position', 'secondaryPosition', 'preferredFoot', 'ageMin', 'ageMax',
+     'ovrMin', 'ovrMax', 'valueMin', 'valueMax', 'transferStatus']
+      .forEach((k) => expect(f).toContain(`'${k}'`));
+    expect(CSS).toContain('#pg-transfers .tf-disc-adv{ display:none; }');
+  });
+
+  it('and a live bid still patches the card rather than rebuilding the board', () => {
+    const f = fnBody('_tfPatchRow');
+    expect(f).toContain(".tfx-c[data-tf-open=");
+    expect(f).toContain('.tfx-c-ask b');
+    // one place decides live from settled, so a repaint rebuilds what is shown
+    const b = fnBody('_tfAucBoardHtml');
+    expect(b).toContain("a.status === 'ACTIVE'");
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfAucBoardHtml()');
   });
 
   it('inspecting a player is a docked drawer, not a modal over the board', () => {

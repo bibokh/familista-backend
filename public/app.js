@@ -1,3 +1,4 @@
+
 /* ============================================================
    FAMILISTA v5 — COMPLETE PRODUCTION APPLICATION
    Full Backend Integration — Live API Data
@@ -47925,6 +47926,7 @@ var _TF_SCOUT = {
   detail: {},          // playerId → the public profile
   open: null,          // the profile on screen
   view: 'search',      // search · shortlist
+  advOpen: false,      // the advanced filters, which start folded away
   p: 1,
   f: {
     search: '', clubId: '', nationality: '', position: '', secondaryPosition: '',
@@ -47979,7 +47981,10 @@ function _tfCtx() {
 }
 // Anything that changes a team's roster or which team we are looking at drops
 // the held context, so the next read rebuilds it from the shared engine.
-function _tfDropCtx() { _TF._ctx = null; _TF._ctxKey = null; }
+function _tfDropCtx() { _TF._ctx = null; _TF._ctxKey = null;
+  // the squad read behind 'fits a need' belongs to that context too
+  try { _TFX_SHORT.key = null; _TFX_SHORT.set = null; } catch (_) {}
+}
 function _tfCtxId(C) { C = C || _tfCtx(); return C.ctxId || C.teamId || 'first-team'; }
 // The ages this team is configured to sign. Declared by the context; Transfers
 // does not know or care why one team's window is 16–40 and another's is 11–13.
@@ -48621,18 +48626,30 @@ function _tfRowsHtml(C) { return _tfAuctionRowsHtml(C); }
 // belongs, and leaving it in the old position would be a lie.
 function _tfSortFollowsBid() { return _TF.sort && (_TF.sort.key === 'price' || _TF.sort.key === 'fee'); }
 function _tfPatchRow(p) {
-  var row = document.querySelector('#tf-rows .tf-row[data-tf-open="' + (window.CSS && CSS.escape ? CSS.escape(p.id) : p.id) + '"]');
+  var id = (window.CSS && CSS.escape) ? CSS.escape(p.id) : p.id;
+  // The board draws cards now. A rival raising a bid still changes two things
+  // in one card, and they are written into the card that is already there —
+  // rebuilding the grid for a number would throw away everything on screen.
+  var row = document.querySelector('#tf-rows .tfx-c[data-tf-open="' + id + '"]')
+    || document.querySelector('#tf-rows .tf-row[data-tf-open="' + id + '"]');
   if (!row) return false;
-  var price = row.querySelector('.tf-price');
+  var price = row.querySelector('.tfx-c-ask b') || row.querySelector('.tf-price');
   if (price) price.textContent = _tfMoney(p.bid);
-  var sub = row.querySelector('.tf-price-sub'), n = p.bidders.length;
+  var n = p.bidders.length;
+  var lab = row.querySelector('.tfx-c-ask i');
+  if (lab) lab.textContent = n ? 'Current bid' : 'Asking price';
+  var sub = row.querySelector('.tf-price-sub');
   if (sub) sub.textContent = n ? n + ' bid' + (n > 1 ? 's' : '') : 'asking';
   row.classList.toggle('is-mine', _tfMyLead(p));
   return true;
 }
 function _tfRepaintRows() {
   var b = document.getElementById('tf-rows');
-  if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
+  if (!b) { _tfRenderBody(); return; }
+  // #tf-rows is the market's card grid; the table body it used to be is gone.
+  var C = _tfCtx();
+  var pool = _tfLots(C).filter(function (p) { return _tfxLensPass(p, _TFX.lens || 'all', C) && _tfPassFilters(p, C); });
+  b.innerHTML = _tfxGridHtml(pool, C);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -48650,7 +48667,8 @@ function _tfRepaintRows() {
 // closing soon, matching our needs, newly listed — and keeps the full board
 // underneath for the first.
 
-var _TFX = { lens: 'all', rail: {} };
+var _TFX = { lens: 'all', rail: {}, all: false };
+var TFX_PAGE = 24;   // cards drawn before 'show all' is asked for
 
 // The lenses: a real count each, derived from the lots already in hand.
 function _tfxLenses(all, C) {
@@ -48668,15 +48686,29 @@ function _tfxLenses(all, C) {
 }
 // A lot fits a need when the squad read this module already keeps says the
 // position is short. The read is _tfSquadProfile and _tfCover, unchanged.
-function _tfxFitsNeed(p, C) {
+// The squad read and the cover for each position are the same for every card on
+// the screen, so they are worked out once and kept against the context they were
+// read for. Asking per card meant _tfSquadProfile ran a few hundred times to
+// paint one board.
+var _TFX_SHORT = { key: null, set: null };
+function _tfxShortPositions(C) {
+  C = C || _tfCtx();
+  var key = _tfCtxId(C) + ':' + ((C && C.formation) || '');
+  if (_TFX_SHORT.key === key && _TFX_SHORT.set) return _TFX_SHORT.set;
+  var out = {};
   try {
-    var prof = _tfSquadProfile(C || _tfCtx());
-    var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
-    for (var i = 0; i < poss.length; i++) {
-      var need = prof.need[poss[i]];
-      if (need && _tfCover(prof, poss[i]) < need) return true;
-    }
+    var prof = _tfSquadProfile(C);
+    Object.keys(prof.need || {}).forEach(function (pos) {
+      if (prof.need[pos] && _tfCover(prof, pos) < prof.need[pos]) out[pos] = 1;
+    });
   } catch (_) {}
+  _TFX_SHORT.key = key; _TFX_SHORT.set = out;
+  return out;
+}
+function _tfxFitsNeed(p, C) {
+  var short = _tfxShortPositions(C);
+  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
+  for (var i = 0; i < poss.length; i++) if (short[poss[i]]) return true;
   return false;
 }
 function _tfxLensPass(p, lens, C) {
@@ -48699,7 +48731,6 @@ function _tfxCardHtml(p, C, opts) {
   var cost = _tfCostOf(p);
   var bids = (p.bidders && p.bidders.length) || 0;
   var isAuction = bids > 0;
-  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
   var left = (p.endsAt != null) ? (p.endsAt - Date.now()) : null;
   var eco = _tfEconomy(C);
   var afford = cost <= eco.available;
@@ -48708,32 +48739,10 @@ function _tfxCardHtml(p, C, opts) {
 
   return '<article class="tfx-c' + (p.mine ? ' is-own' : '') + (_tfMyLead(p) ? ' is-mine' : '') + '"'
     + ' data-tf-open="' + _tfEsc(p.id) + '" tabindex="0" role="button" aria-label="' + _tfEsc(p.name) + '">'
-    + '<div class="tfx-c-top">'
-    +   '<div class="tfx-c-por">' + _tfPortrait(p, 'lg')
-    +     '<div class="tfx-c-ovr">' + _tfQuality(p.qual) + '</div></div>'
-    +   '<div class="tfx-c-id">'
-    +     '<b class="tfx-c-name">' + _tfEsc(p.name) + '</b>'
-    +     '<div class="tfx-c-meta">'
-    +       poss.slice(0, 3).map(function (x, i) {
-          return '<i class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</i>';
-        }).join('')
-    +       '<span class="tfx-c-dot">' + p.age + '</span>'
-    +       '<span class="tfx-c-dot">' + p.nat + ' ' + _tfEsc(p.natCode) + '</span>'
-    +     '</div>'
-    +     '<div class="tfx-c-club">' + _tfEsc(p.club || '—') + '</div>'
-    +   '</div>'
-    + '</div>'
-    + '<div class="tfx-c-money">'
-    +   '<div><i>Market value</i><b>' + _tfMoney(p.mv) + '</b></div>'
-    +   '<div><i>' + (isAuction ? 'Current bid' : 'Asking price') + '</i>'
-    +     '<b class="' + (afford ? 'is-ok' : 'is-over') + '">' + _tfMoney(cost) + '</b>'
-    +     (over != null && over !== 0
-        ? '<em class="tfx-c-delta ' + (over > 0 ? 'is-up' : 'is-dn') + '">'
-          + (over > 0 ? '+' : '') + over + '% vs value</em>' : '') + '</div>'
-    + '</div>'
+    + _tfxIdentityHtml(p, p.club, p.qual, st)
+    + _tfxPriceHtml(p.mv, cost, isAuction ? 'Current bid' : 'Asking price', afford, over)
     + '<div class="tfx-c-foot">'
     +   '<span class="tfx-c-tags">'
-    +     _tfStateChip(st)
     +     (isAuction ? '<span class="tfx-tag tfx-tag--auc">' + bids + ' bid' + (bids > 1 ? 's' : '') + '</span>' : '')
     +     (fits ? '<span class="tfx-tag tfx-tag--fit">Fits a need</span>' : '')
     +     (p.mine ? '<span class="tfx-tag tfx-tag--own">Our listing</span>' : '')
@@ -48741,7 +48750,7 @@ function _tfxCardHtml(p, C, opts) {
     +   (left != null
       ? '<span class="tfx-c-clock' + (left < 3600000 ? ' is-hot' : left < 86400000 ? ' is-warm' : '') + '"'
         + ' data-tf-clock="' + _tfEsc(p.id) + '">' + _tfClock(left) + '</span>'
-      : '<span class="tfx-c-clock is-off">No deadline</span>')
+      : '')
     + '</div>'
     + '<div class="tfx-c-acts">'
     +   _tfStarBtn(p, C)
@@ -48751,7 +48760,62 @@ function _tfxCardHtml(p, C, opts) {
     + '</article>';
 }
 
+// ── the identity block, shared by every card on the floor ──────────────────
+// The player is the subject of this screen, so he is drawn like one: a large
+// portrait, his name at the size of a heading, then the four things that
+// identify a footballer, then whose he is. The rating sits beside the name at
+// the weight it deserves rather than as five pips under the picture.
+function _tfxIdentityHtml(p, club, ovr, state) {
+  var poss = (p.positions && p.positions.length ? p.positions : [p.pos]).filter(Boolean);
+  return '<div class="tfx-c-hd">'
+    + '<div class="tfx-c-por">' + _tfPortrait(p, 'xl') + '</div>'
+    + '<div class="tfx-c-id">'
+    +   '<b class="tfx-c-name">' + _tfEsc(p.name) + '</b>'
+    +   '<div class="tfx-c-meta">'
+    +     poss.slice(0, 3).map(function (x, i) {
+        return '<i class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</i>';
+      }).join('')
+    +     (p.age != null ? '<span class="tfx-c-dot">' + p.age + '</span>' : '')
+    +     '<span class="tfx-c-dot">' + (p.nat || '') + ' ' + _tfEsc(p.natCode || '') + '</span>'
+    +   '</div>'
+    +   '<div class="tfx-c-club">' + _tfEsc(club || '—') + '</div>'
+    + '</div>'
+    + '<div class="tfx-c-rt">'
+    +   '<span class="tfx-ovr tfx-ovr--' + _tfQualTone(ovr) + '"><b>' + (ovr != null ? ovr : '—') + '</b><i>OVR</i></span>'
+    + '</div>'
+    + '</div>'
+    // The status belongs under the identity, on its own line, where it does not
+    // squeeze the club's name into an ellipsis.
+    + (state ? '<div class="tfx-c-state">' + _tfStateChip(state) + '</div>' : '');
+}
+
+// Money as type, not as a pair of grey wells. The figure that decides the deal
+// is the largest thing on the line; what he is worth sits beside it, quieter.
+function _tfxPriceHtml(mv, cost, label, afford, over) {
+  // Nothing to say about money is not a reason to draw an empty rule.
+  if (cost == null && !mv) return '';
+  return '<div class="tfx-c-line">'
+    + (cost != null
+      ? '<span class="tfx-c-ask"><b class="' + (afford ? '' : 'is-over') + '">' + _tfMoney(cost) + '</b>'
+        + '<i>' + _tfEsc(label) + '</i></span>' : '')
+    + (mv ? '<span class="tfx-c-val"><b>' + _tfMoney(mv) + '</b><i>value</i></span>' : '')
+    + (over != null && over !== 0
+      ? '<span class="tfx-c-delta ' + (over > 0 ? 'is-up' : 'is-dn') + '">'
+        + (over > 0 ? '+' : '') + over + '%</span>' : '')
+    + '</div>';
+}
+
 // ── a rail: a named group of cards, only drawn when it holds something ──────
+// The board draws a page of cards and offers the rest, rather than eighty
+// portraits nobody has scrolled to. Every listing is still reachable, and the
+// filters above still run over the whole pool — this is only how many are
+// painted at once.
+function _tfxGridHtml(pool, C) {
+  var list = _tfSortList(pool);
+  if (!_TFX.all) list = list.slice(0, TFX_PAGE);
+  return list.map(function (p) { return _tfxCardHtml(p, C); }).join('');
+}
+
 function _tfxRailHtml(key, title, note, rows, C) {
   if (!rows.length) return '';
   return '<section class="tfx-rail" data-tfx-rail="' + key + '">'
@@ -48775,16 +48839,11 @@ function _tfxMarketHtml(C) {
       + new Array(8).join('<div class="tfx-c tfx-c--skel" aria-hidden="true"></div>')
       + '</div></div>';
   }
-  if (!all.length) {
-    return '<div class="tf-pane"><div class="tf-empty">'
-      + '<div class="tf-empty-i">◎</div>'
-      + '<b>' + _tfEmptyMarketMsg(all, C) + '</b>'
-      + '<p>When any club lists a player, they appear here — with what they are asking and how long is left.</p>'
-      + '<div class="tf-empty-acts">'
-      +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-ws="scouting">Explore scouting</button>'
-      +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-ws="business">View club needs</button>'
-      + '</div></div></div>';
-  }
+  // Nothing listed is not nothing to do. The screen keeps saying so — in one
+  // line, not a page — and fills the rest with what this club can actually act
+  // on, all of it already read: who wants our players, what the assistant has
+  // found, what is on our watch list, and what the market has just done.
+  if (!all.length) return _tfxQuietMarketHtml(C);
   var now = Date.now();
   var lens = _TFX.lens || 'all';
   var lenses = _tfxLenses(all, C);
@@ -48802,18 +48861,11 @@ function _tfxMarketHtml(C) {
     + _tfxRailHtml('fits', 'Fits our squad', 'Positions this team is short of', fits, C)
     + _tfxRailHtml('fresh', 'Recently listed', 'Newest on the market', fresh, C);
 
-  // The live auctions are their own read and their own board — the same one
-  // this module already drew, kept whole. Money is moving on these, so they
-  // sit above everything else on the floor.
-  var aucN = (_TF_AUC.items || []).length;
-  var auctions = (_TF_AUC.items === null || aucN)
-    ? '<section class="tfx-all" id="tf-auc-board-wrap">'
-      + '<header class="tfx-rail-h"><h3>Live auctions</h3>'
-      +   '<p>Bidding open — highest bid at the deadline wins</p>'
-      +   (aucN ? '<span class="tfx-rail-n">' + aucN + '</span>' : '') + '</header>'
-      + '<div id="tf-auc-board" class="tf-auc-board">' + _tfAucBoardHtml() + '</div>'
-      + '</section>'
-    : '';
+  // The auctions are their own read and their own board, kept whole. Money is
+  // moving on the live ones, so they sit above everything else on the floor —
+  // and _tfAucBoardHtml is the one place that decides live from settled, so a
+  // realtime repaint after a bid rebuilds exactly what is on screen.
+  var auctions = '<div id="tf-auc-board">' + _tfAucBoardHtml() + '</div>';
 
   return '<div class="tf-pane tfx-pane">'
     + '<div class="tfx-lenses">' + lenses.map(function (l) {
@@ -48827,12 +48879,70 @@ function _tfxMarketHtml(C) {
     +     '<p>' + pool.length + ' of ' + all.length + ' on the market</p></header>'
     +   _tfFiltersHtml(C)
     +   '<div class="tfx-grid" id="tf-rows">'
-    +     (pool.length ? _tfSortList(pool).map(function (p) { return _tfxCardHtml(p, C); }).join('')
+    +     (pool.length ? _tfxGridHtml(pool, C)
         : '<div class="tf-empty"><div class="tf-empty-i">◎</div><b>Nothing matches these filters.</b>'
           + '<div class="tf-empty-acts"><button type="button" class="tf-btn tf-btn--sm" data-tf-clearf>Clear filters</button></div></div>')
     +   '</div>'
+    +   (pool.length > TFX_PAGE && !_TFX.all
+      ? '<button type="button" class="tf-btn tf-btn--sm tfx-more" data-tfx-all>Show all '
+        + pool.length + ' listings</button>' : '')
     + '</section>'
     + '</div>';
+}
+
+// ── MARKET, with nothing listed ────────────────────────────────────────────
+// Every section here is a read the module already made. Nothing is invented:
+// the needs are _TF_NEG.needs, the recommendations are _tfRecommendations, the
+// watch list is the server's shortlist, and the activity is the market feed.
+function _tfxQuietMarketHtml(C) {
+  var needs = ((_TF_NEG.needs && _TF_NEG.needs.items) || []);
+  if (!_TF_NEG.needs) _tfNegLoadNeeds().then(function () { _tfRenderBody(); });
+  var wanted = needs.filter(function (n) { return !n.isMine && n.myMatches; });
+  var short = ((_TF_SCOUT.shortlist && _TF_SCOUT.shortlist.items) || []);
+  if (!_TF_SCOUT.shortlist) _tfScoutLoadShortlist().then(function () { _tfRenderBody(); });
+  var rec = [];
+  try { rec = _tfRecommendations(C).list || []; } catch (_) {}
+  var feed = ((_TF_NEG.feed && _TF_NEG.feed.items) || []);
+  if (!_TF_NEG.feed) _tfNegLoadFeed().then(function () { _tfRenderBody(); });
+
+  var sec = function (title, note, n, body) {
+    if (!n) return '';
+    return '<section class="tfx-rail"><header class="tfx-rail-h"><h3>' + _tfEsc(title) + '</h3>'
+      + '<p>' + _tfEsc(note) + '</p><span class="tfx-rail-n">' + n + '</span></header>' + body + '</section>';
+  };
+
+  return '<div class="tf-pane tfx-pane">'
+    + '<div class="tfx-quiet">'
+    +   '<span class="tfx-quiet-i">◎</span>'
+    +   '<b>' + _tfEmptyMarketMsg([], C) + '</b>'
+    +   '<span>The rest of this club\'s business is below.</span>'
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-ws="scouting">Search all players</button>'
+    + '</div>'
+    + sec('They want our players', 'Clubs whose published need our squad answers', wanted.length,
+      '<ol class="tfx-grid tfx-grid--need tf-needs">' + wanted.slice(0, 6).map(_tfNeedCardHtml).join('') + '</ol>')
+    + sec('The assistant\'s picks', 'Read against this squad\'s shape and budget', rec.length,
+      '<div class="tfx-rail-s">' + rec.slice(0, 6).map(function (r) {
+        return _tfxCardHtml(r.p, C);
+      }).join('') + '</div>')
+    + sec('On our watch list', 'Shortlisted players, wherever they are', short.length,
+      '<div class="tfx-grid tfx-grid--scout">' + short.slice(0, 8).map(_tfxShortCardHtml).join('') + '</div>')
+    + sec('What the market has been doing', 'The platform\'s own transfer activity', feed.length,
+      '<ol class="tf-feed">' + feed.slice(0, 8).map(_tfFeedItemHtml).join('') + '</ol>')
+    + '</div>';
+}
+// A shortlisted player, in the same card as everywhere else.
+function _tfxShortCardHtml(it) {
+  var p = it.player || it;
+  var shaped = { id: p.id, name: _tfDiscName ? _tfDiscName(p) : (p.firstName + ' ' + p.lastName),
+                 avatar: p.avatar, pos: p.position, cat: _tfCat(p.position), age: p.age,
+                 nat: p.flag || '', natCode: p.nationality || '', positions: [p.position] };
+  return '<article class="tfx-c tfx-c--scout" data-tf-disc-open="' + _tfEsc(p.id) + '" tabindex="0" role="button">'
+    + _tfxIdentityHtml(shaped, (it.club && it.club.name) || (p.clubName || '—'),
+        p.overallRating, TF_STATE_LABEL[it.transferState] || null)
+    + _tfxPriceHtml(p.marketValue, null, '', true, null)
+    + '<div class="tfx-c-acts">' + _tfStarBtn({ playerId: p.id })
+    +   '<button type="button" class="tf-btn tf-btn--sm tfx-c-go" data-tf-disc-open="' + _tfEsc(p.id) + '">View profile</button>'
+    + '</div></article>';
 }
 
 // ── SCOUTING · discovery cards, not a spreadsheet ──────────────────────────
@@ -48858,47 +48968,26 @@ function _tfxDiscCardsHtml() {
 // the server's row, and the actions are the ones the server said exist.
 function _tfxDiscCardHtml(r) {
   var p = r.player;
-  var poss = [p.position].concat((p.trainedPositions || []).filter(function (x) { return x !== p.position; }));
   var acts = r.actions || [];
   var best = (r.needMatches || [])[0];
+  var shaped = { id: p.id, name: _tfDiscName(p), avatar: p.avatar, pos: p.position,
+                 cat: _tfCat(p.position), age: p.age,
+                 nat: p.flag || '', natCode: p.nationality || '',
+                 positions: [p.position].concat((p.trainedPositions || []).filter(function (x) { return x !== p.position; })) };
   return '<article class="tfx-c tfx-c--scout" data-tf-disc-open="' + _tfEsc(p.id) + '" tabindex="0" role="button">'
-    + '<div class="tfx-c-top">'
-    +   '<div class="tfx-c-por">'
-    +     _tfPortrait({ id: p.id, name: _tfDiscName(p), avatar: p.avatar, pos: p.position }, 'lg')
-    +     '<div class="tfx-c-ovr">' + _tfQuality(p.overallRating) + '</div></div>'
-    +   '<div class="tfx-c-id">'
-    +     '<b class="tfx-c-name">' + _tfEsc(_tfDiscName(p)) + '</b>'
-    +     '<div class="tfx-c-meta">'
-    +       poss.slice(0, 3).map(function (x, i) {
-          return '<i class="tf-pos tf-pos--' + _tfCat(x) + (i ? ' is-alt' : '') + '">' + _tfEsc(x) + '</i>';
-        }).join('')
-    +       (p.age != null ? '<span class="tfx-c-dot">' + p.age + '</span>' : '')
-    +       '<span class="tfx-c-dot">' + _tfEsc(p.flag || '') + ' ' + _tfEsc(p.nationality || '') + '</span>'
-    +     '</div>'
-    +     '<div class="tfx-c-club">' + _tfEsc((r.club && r.club.name) || 'Unknown / unavailable club') + '</div>'
-    +   '</div>'
-    + '</div>'
-    // The status is the chip below; repeating it here as a figure said the same
-    // thing twice on every card. Where there is an asking price it goes here,
-    // and where there is not the row is a single cell.
-    + '<div class="tfx-c-money' + (r.askingPriceEur == null ? ' is-one' : '') + '">'
-    +   '<div><i>Market value</i><b>' + _tfMoney(p.marketValue) + '</b></div>'
-    +   (r.askingPriceEur != null
-      ? '<div><i>Asking price</i><b class="is-ok">' + _tfMoney(r.askingPriceEur) + '</b></div>' : '')
-    + '</div>'
-    + '<div class="tfx-c-foot">'
-    +   '<span class="tfx-c-tags">' + _tfDiscStateChip(r.transferState)
-    +     (best ? '<span class="tfx-tag tfx-tag--fit">Answers our need · ' + best.matchPct + '%</span>' : '')
-    +   '</span>'
-    + '</div>'
+    + _tfxIdentityHtml(shaped, (r.club && r.club.name) || 'Unknown / unavailable club',
+        p.overallRating, TF_STATE_LABEL[r.transferState] || r.transferState)
+    + _tfxPriceHtml(p.marketValue, r.askingPriceEur != null ? r.askingPriceEur : null, 'Asking price', true, null)
+    + (best ? '<div class="tfx-c-foot"><span class="tfx-c-tags">'
+        + '<span class="tfx-tag tfx-tag--fit">Answers our need · ' + best.matchPct + '%</span></span></div>' : '')
     + '<div class="tfx-c-acts">'
     +   _tfStarBtn({ playerId: p.id })
     +   (acts.length
-      ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-disc-act="' + _tfEsc(acts[0]) + '"'
+      ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm tfx-c-go" data-tf-disc-act="' + _tfEsc(acts[0]) + '"'
         + ' data-tf-player="' + _tfEsc(p.id) + '"'
         + ' data-tf-listing="' + _tfEsc(r.listingId || '') + '">'
         + _tfEsc(TF_ACTION_LABEL[acts[0]] || acts[0]) + '</button>'
-      : '<button type="button" class="tf-btn tf-btn--sm" data-tf-disc-open="' + _tfEsc(p.id) + '">View profile</button>')
+      : '<button type="button" class="tf-btn tf-btn--sm tfx-c-go" data-tf-disc-open="' + _tfEsc(p.id) + '">View profile</button>')
     + '</div>'
     + '</article>';
 }
@@ -48953,11 +49042,17 @@ function _tfxPipelineHtml(C) {
     } else {
       body = '<ol class="tf-offers">' + rows.map(function (o) { return _tfActivityOfferHtml(o, b.mine); }).join('') + '</ol>';
     }
+    // A lane with nothing in it states that in one line and takes one line's
+    // room. It used to be a full-height card carrying a single sentence, and
+    // four of those side by side is what made the board look abandoned.
+    var empty = !rows.length;
     return '<section class="tfx-lane' + (s[0] === 'received' && attention ? ' is-hot' : '')
-      + (s[0] === 'desk' ? ' tfx-lane--wide' : '') + '">'
+      + (empty ? ' is-empty' : '')
+      + (rows.length > 3 ? ' is-full' : '')
+      + (s[0] === 'desk' && !empty ? ' tfx-lane--wide' : '') + '">'
       + '<header class="tfx-lane-h"><h3>' + _tfEsc(s[1]) + '</h3><span>' + rows.length + '</span>'
-      +   '<p>' + _tfEsc(s[2]) + '</p></header>'
-      + '<div class="tfx-lane-b">' + body + '</div>'
+      +   '<p>' + _tfEsc(empty ? 'Nothing here yet' : s[2]) + '</p></header>'
+      + (empty ? '' : '<div class="tfx-lane-b">' + body + '</div>')
       + '</section>';
   }).join('');
 
@@ -48973,6 +49068,15 @@ function _tfxPipelineHtml(C) {
       ? '<div class="tfx-alert"><b>' + attention + ' offer' + (attention > 1 ? 's' : '') + ' waiting on you.</b>'
         + '<span>They sit at the top of the pipeline below.</span></div>' : '')
     + '<div class="tfx-pipe">' + lanes + '</div>'
+    // Every lane empty is a real state and it says so once, with the two moves
+    // that start a deal — rather than seven collapsed headers over a blank page.
+    + (TFX_STAGES.every(function (st) { return !pick(st[0]).length; })
+      ? '<div class="tfx-quiet">'
+        + '<span class="tfx-quiet-i">◎</span>'
+        + '<b>This club has no transfer business open.</b>'
+        + '<span>Anything listed, bid on, offered for or offered to this club appears above.</span>'
+        + '<button type="button" class="tf-btn tf-btn--sm" data-tf-ws="market">Browse the market</button>'
+        + '</div>' : '')
     + '</div>';
 }
 
@@ -49022,6 +49126,18 @@ function _tfxBoardHtml(C) {
     }).join('') + '</ol>';
   };
 
+  // One lane builder, so an empty lane on this board collapses exactly as it
+  // does in the pipeline instead of holding a quarter of the width for a
+  // sentence.
+  var lane = function (title, note, n, body, hot) {
+    var empty = !n;
+    return '<section class="tfx-lane' + (hot && n ? ' is-hot' : '') + (empty ? ' is-empty' : '')
+      + (n > 3 ? ' is-full' : '') + '">'
+      + '<header class="tfx-lane-h"><h3>' + _tfEsc(title) + '</h3><span>' + n + '</span>'
+      +   '<p>' + _tfEsc(empty ? 'Nothing here yet' : note) + '</p></header>'
+      + (empty ? '' : '<div class="tfx-lane-b">' + body + '</div>')
+      + '</section>';
+  };
   return '<div class="tf-pane tfx-pane">'
     + '<div class="tfx-bd-top">'
     +   '<div class="tfx-stat"><i>Our open needs</i><b>' + mine.length + '</b></div>'
@@ -49033,22 +49149,14 @@ function _tfxBoardHtml(C) {
     +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm tfx-bd-new" data-tf-need-new>Publish a need</button>'
     + '</div>'
     + '<div class="tfx-board">'
-    +   '<section class="tfx-lane is-hot"><header class="tfx-lane-h"><h3>They want our players</h3>'
-    +     '<span>' + withMatches.length + '</span><p>Needs our squad can answer</p></header>'
-    +     '<div class="tfx-lane-b">' + (withMatches.length
-        ? '<ol class="tf-needs">' + withMatches.map(_tfNeedCardHtml).join('') + '</ol>'
-        : '<p class="tfx-lane-none">No club is looking for a player we have.</p>') + '</div></section>'
-    +   '<section class="tfx-lane"><header class="tfx-lane-h"><h3>Offers received</h3>'
-    +     '<span>' + inOff.length + '</span><p>Answer, counter or reject</p></header>'
-    +     '<div class="tfx-lane-b">' + offerList(inOff, 'No club has offered for one of your players.', true) + '</div></section>'
-    +   '<section class="tfx-lane"><header class="tfx-lane-h"><h3>Offers sent</h3>'
-    +     '<span>' + outOff.length + '</span><p>Waiting on the other club</p></header>'
-    +     '<div class="tfx-lane-b">' + offerList(outOff, 'You have not offered for anybody.', false) + '</div></section>'
-    +   '<section class="tfx-lane"><header class="tfx-lane-h"><h3>Our published needs</h3>'
-    +     '<span>' + mine.length + '</span><p>What this club is asking for</p></header>'
-    +     '<div class="tfx-lane-b">' + (mine.length
-        ? '<ol class="tf-needs">' + mine.map(_tfNeedCardHtml).join('') + '</ol>'
-        : '<p class="tfx-lane-none">This club has published no need yet.</p>') + '</div></section>'
+    +   lane('They want our players', 'Needs our squad can answer', withMatches.length,
+        '<ol class="tf-needs">' + withMatches.map(_tfNeedCardHtml).join('') + '</ol>', true)
+    +   lane('Offers received', 'Answer, counter or reject', inOff.length,
+        offerList(inOff, '', true), true)
+    +   lane('Offers sent', 'Waiting on the other club', outOff.length,
+        offerList(outOff, '', false))
+    +   lane('Our published needs', 'What this club is asking for', mine.length,
+        '<ol class="tf-needs">' + mine.map(_tfNeedCardHtml).join('') + '</ol>')
     + '</div>'
     + '<section class="tfx-all"><header class="tfx-rail-h"><h3>Every club need</h3>'
     +   '<p>' + theirs.length + ' published across the platform</p></header>'
@@ -50099,43 +50207,50 @@ function _tfAucRowHtml(a) {
   var p = a.player, name = _tfAucName(p), age = _tfAucAge(p);
   var settled = a.status !== 'ACTIVE';
   var label = _tfAucStatusLabel(a);
-  return '<li class="tf-auc-card' + (a.isMine ? ' is-mine' : '') + (a.iLead ? ' is-leading' : '')
+  // The same identity block every other card on the floor uses, so an auction
+  // reads as a footballer with money on him rather than as a record with four
+  // fields. Every figure, every action and every live-patch hook below is the
+  // one this card already carried.
+  var shaped = p ? { id: p.id, name: name, avatar: p.avatar, pos: p.position,
+                     cat: _tfCat(p.position), age: age,
+                     nat: '', natCode: p.nationality || '', positions: [p.position] }
+                 : { id: '', name: name, pos: '', cat: 'mf', positions: [] };
+  var price = settled ? (a.finalPriceEur != null ? _tfMoney(a.finalPriceEur) : '—')
+                      : (a.highestBidEur != null ? _tfMoney(a.highestBidEur) : 'No bids');
+  var other = settled
+    ? ((a.winnerClub && a.winnerClub.name) || (a.status === 'UNSOLD' ? 'Nobody bid' : '—'))
+    : ((a.highestBidderClub && a.highestBidderClub.name) || '—');
+  return '<li class="tfx-c tfx-c--auc' + (a.isMine ? ' is-own' : '') + (a.iLead ? ' is-mine' : '')
     + '" data-tf-auction="' + _tfEsc(a.listingId) + '">'
-    + '<div class="tf-auc-h">'
-    +   (p ? _tfPortrait({ id: p.id, name: name, avatar: p.avatar, pos: p.position }, 'sm') : '')
-    +   '<div class="tf-auc-id"><b>' + _tfEsc(name) + '</b>'
-    +     '<em>' + _tfEsc((p && p.position) || '') + (age != null ? ' · ' + age + ' yrs' : '')
-    +       ((p && p.overallRating) ? ' · OVR ' + p.overallRating : '') + '</em></div>'
-    +   '<span class="tf-auc-state tf-auc-state--' + label.split(' ')[0].toLowerCase() + '">' + _tfEsc(label) + '</span>'
+    + _tfxIdentityHtml(shaped, (a.sellerClub && a.sellerClub.name) || 'Unknown / unavailable club',
+        (p && p.overallRating) != null ? p.overallRating : null, null)
+    + '<div class="tfx-c-line">'
+    +   '<span class="tfx-c-ask"><b data-tf-aucbid="' + _tfEsc(a.listingId) + '">' + price + '</b>'
+    +     '<i>' + (settled ? 'Final price' : 'Current bid') + '</i></span>'
+    +   '<span class="tfx-c-val"><b>' + _tfMoney(a.startingPriceEur) + '</b><i>starting</i></span>'
+    +   (a.myBidEur != null
+      ? '<span class="tfx-c-val"><b>' + _tfMoney(a.myBidEur) + '</b><i>your bid</i></span>' : '')
     + '</div>'
-    + '<div class="tf-auc-club"><i>Selling club</i><b>' + _tfEsc((a.sellerClub && a.sellerClub.name) || 'Unknown / unavailable club')
-    +   (a.isMine ? ' <em>you</em>' : '') + '</b></div>'
-    + '<div class="tf-auc-facts">'
-    +   '<div><i>Starting</i><b>' + _tfMoney(a.startingPriceEur) + '</b></div>'
-    +   '<div><i>' + (settled ? 'Final price' : 'Current bid') + '</i>'
-    +     '<b data-tf-aucbid="' + _tfEsc(a.listingId) + '">'
-    +       (settled ? (a.finalPriceEur != null ? _tfMoney(a.finalPriceEur) : '—')
-        : (a.highestBidEur != null ? _tfMoney(a.highestBidEur) : 'No bids')) + '</b></div>'
-    +   '<div><i>Bids</i><b data-tf-aucn="' + _tfEsc(a.listingId) + '">' + a.bidCount + '</b></div>'
-    +   '<div><i>' + (settled ? 'Winner' : 'Highest bidder') + '</i><b>'
-    +     _tfEsc(settled
-      ? ((a.winnerClub && a.winnerClub.name) || (a.status === 'UNSOLD' ? 'Nobody bid' : '—'))
-      : ((a.highestBidderClub && a.highestBidderClub.name) || '—')) + '</b></div>'
-    + '</div>'
-    + '<div class="tf-auc-foot">'
+    + '<div class="tfx-c-foot">'
+    +   '<span class="tfx-c-tags">'
+    +     '<span class="tf-auc-state tf-auc-state--' + label.split(' ')[0].toLowerCase() + '">' + _tfEsc(label) + '</span>'
+    +     '<span class="tfx-tag tfx-tag--auc"><b data-tf-aucn="' + _tfEsc(a.listingId) + '">' + a.bidCount + '</b> bids</span>'
+    +     (a.isMine ? '<span class="tfx-tag tfx-tag--own">Our auction</span>' : '')
+    +   '</span>'
     +   (settled
-      ? '<span class="tf-auc-when">' + (a.settledAt ? new Date(a.settledAt).toLocaleString() : '') + '</span>'
-      : '<span class="tf-auc-clock"><i>Ends in</i><b data-tf-aucclock="' + _tfEsc(a.listingId) + '">'
-        + _tfEsc(_tfAucClock(_tfAucLeft(a))) + '</b></span>')
-    +   (a.myBidEur != null ? '<span class="tf-auc-my"><i>Your bid</i><b>' + _tfMoney(a.myBidEur) + '</b></span>' : '')
+      ? '<span class="tfx-c-clock is-off">' + _tfEsc(other) + '</span>'
+      : '<span class="tfx-c-clock" data-tf-aucclock="' + _tfEsc(a.listingId) + '">'
+        + _tfEsc(_tfAucClock(_tfAucLeft(a))) + '</span>')
+    + '</div>'
+    + '<div class="tfx-c-acts">'
     +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-auction-open="' + _tfEsc(a.listingId) + '">'
-    +     (_TF_AUC.open === a.listingId ? 'HIDE' : 'VIEW') + '</button>'
+    +     (_TF_AUC.open === a.listingId ? 'Hide' : 'View') + '</button>'
     +   (!settled && a.isMine
-      ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-auction-cancel="' + _tfEsc(a.listingId) + '">CANCEL</button>'
+      ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm tfx-c-go" data-tf-auction-cancel="' + _tfEsc(a.listingId) + '">Cancel</button>'
       : '')
     +   (!settled && !a.isMine
-      ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-auction-bid="' + _tfEsc(a.listingId) + '">'
-        + (a.iLead ? 'RAISE' : 'BID') + '</button>'
+      ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm tfx-c-go" data-tf-auction-bid="' + _tfEsc(a.listingId) + '">'
+        + (a.iLead ? 'Raise' : 'Bid') + '</button>'
       : '')
     + '</div>'
     + (_TF_AUC.open === a.listingId ? _tfAucDetailHtml(a.listingId) : '')
@@ -50199,7 +50314,22 @@ function _tfAucBoardHtml() {
   if (!rows.length) {
     return '<p class="tf-para">No club is running an auction. When one lists a player, it appears here.</p>';
   }
-  return '<ol class="tf-aucs">' + rows.map(_tfAucRowHtml).join('') + '</ol>';
+  // Open bidding is an opportunity; a settled auction is history. They are
+  // drawn apart, and this is the one place that decides it — so a realtime
+  // repaint after a bid rebuilds the same two sections rather than collapsing
+  // them back into one undivided list.
+  var live = rows.filter(function (a) { return a.status === 'ACTIVE'; });
+  var done = rows.filter(function (a) { return a.status !== 'ACTIVE'; });
+  var sec = function (title, note, list) {
+    if (!list.length) return '';
+    return '<section class="tfx-all">'
+      + '<header class="tfx-rail-h"><h3>' + _tfEsc(title) + '</h3><p>' + _tfEsc(note) + '</p>'
+      +   '<span class="tfx-rail-n">' + list.length + '</span></header>'
+      + '<ol class="tfx-grid">' + list.map(_tfAucRowHtml).join('') + '</ol>'
+      + '</section>';
+  };
+  return sec('Live auctions', 'Bidding open — highest bid at the deadline wins', live)
+    + sec('Settled auctions', 'Sold and unsold, with what they went for', done.slice(0, 6));
 }
 function _tfAucRepaint() {
   var el = document.getElementById('tf-auc-board');
@@ -50526,26 +50656,36 @@ function _tfDiscFiltersHtml() {
   };
   var posOpts = [['', 'Any position']].concat(TF_NEED_POSITIONS.map(function (p) { return [p[0], p[0] + ' · ' + p[1]]; }));
 
-  return '<div class="tf-disc-filters">'
-    + '<div class="tf-disc-frow">'
+  // Progressive disclosure. Twelve fields were on screen permanently; the four
+  // that start a search are, and the rest open when they are asked for. Every
+  // field is the same field, bound to the same key — nothing was removed, and a
+  // filter already set keeps the panel open so it can never be set invisibly.
+  var advKeys = ['secondaryPosition', 'preferredFoot', 'ageMin', 'ageMax', 'ovrMin', 'ovrMax',
+                 'valueMin', 'valueMax', 'transferStatus'];
+  var advN = advKeys.filter(function (k) { return f[k] !== '' && f[k] != null; }).length;
+  var open = _TF_SCOUT.advOpen || advN > 0;
+  return '<div class="tf-disc-filters' + (open ? ' is-open' : '') + '">'
+    + '<div class="tf-disc-frow tf-disc-frow--lead">'
     +   txt('search', 'Name or nationality', 'search the platform')
     +   sel('position', 'Position', posOpts)
-    +   sel('secondaryPosition', 'Also plays', posOpts)
-    +   sel('preferredFoot', 'Foot', [['', 'Any'], ['LEFT', 'Left'], ['RIGHT', 'Right'], ['BOTH', 'Both']])
+    +   '<button type="button" class="tf-chip-btn' + (open ? ' is-on' : '') + '" data-tf-dadv>'
+    +     'More filters' + (advN ? ' <em>' + advN + '</em>' : '') + '</button>'
+    +   '<button type="button" class="tf-chip-btn' + (f.matchesMyNeeds ? ' is-on' : '') + '" data-tf-dtoggle="matchesMyNeeds">Matches our needs</button>'
+    +   '<button type="button" class="tf-chip-btn' + (f.shortlistedOnly ? ' is-on' : '') + '" data-tf-dtoggle="shortlistedOnly">Shortlisted</button>'
+    +   '<button type="button" class="tf-btn tf-btn--sm tf-btn--primary tf-disc-go" data-tf-dsearch>Search</button>'
     + '</div>'
-    + '<div class="tf-disc-frow">'
-    +   numf('ageMin', 'Age from') + numf('ageMax', 'Age to')
-    +   numf('ovrMin', 'OVR from') + numf('ovrMax', 'OVR to')
-    +   numf('valueMin', 'Value from') + numf('valueMax', 'Value to')
-    +   sel('transferStatus', 'Transfer status', [
+    + '<div class="tf-disc-adv">'
+    +   '<div class="tf-disc-frow">'
+    +     sel('secondaryPosition', 'Also plays', posOpts)
+    +     sel('preferredFoot', 'Foot', [['', 'Any'], ['LEFT', 'Left'], ['RIGHT', 'Right'], ['BOTH', 'Both']])
+    +     numf('ageMin', 'Age from') + numf('ageMax', 'Age to')
+    +     numf('ovrMin', 'OVR from') + numf('ovrMax', 'OVR to')
+    +     numf('valueMin', 'Value from') + numf('valueMax', 'Value to')
+    +     sel('transferStatus', 'Transfer status', [
       ['', 'Any status'], ['AUCTION', 'At auction'], ['LISTED', 'Listed for transfer'],
       ['AVAILABLE', 'Available for transfer'], ['NOT_AVAILABLE', 'Not available']])
-    + '</div>'
-    + '<div class="tf-disc-frow tf-disc-frow--chips">'
-    +   '<button type="button" class="tf-chip-btn' + (f.matchesMyNeeds ? ' is-on' : '') + '" data-tf-dtoggle="matchesMyNeeds">MATCHES OUR NEEDS</button>'
-    +   '<button type="button" class="tf-chip-btn' + (f.shortlistedOnly ? ' is-on' : '') + '" data-tf-dtoggle="shortlistedOnly">SHORTLISTED ONLY</button>'
-    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-dclear>CLEAR</button>'
-    +   '<button type="button" class="tf-btn tf-btn--sm tf-btn--primary" data-tf-dsearch>SEARCH</button>'
+    +     '<button type="button" class="tf-btn tf-btn--sm tf-disc-clear" data-tf-dclear>Clear</button>'
+    +   '</div>'
     + '</div>'
     + '</div>';
 }
@@ -50630,10 +50770,11 @@ function _tfScoutingHtml(C) {
   }
 
   return '<div class="tf-pane">'
-    + '<div class="tf-disc-head">'
-    +   '<div><span class="tf-sp-badge">Scouting</span>'
-    +     '<p class="tf-disc-lead">Every active player at every other club on Familista. '
-    +       'Being found here is not the same as being for sale — each player carries the status his own club gave him.</p></div>'
+    // One line, not a paragraph in a panel of its own. What the search covers
+    // is worth saying once; it does not need a hundred and thirty pixels.
+    + '<div class="tf-disc-head tf-disc-head--tight">'
+    +   '<div class="tfx-lead"><span class="tf-sp-badge">Scouting</span>'
+    +     '<p>Every active player at every other club — each carries the status his own club gave him.</p></div>'
     +   '<div class="tf-disc-views">' + views + '</div>'
     + '</div>'
     + (_TF_SCOUT.view === 'search' ? _tfDiscFiltersHtml() : '')
@@ -51418,6 +51559,11 @@ function _tfDiscAction(action, playerId, listingId) {
     }
 
     // ── scouting ──────────────────────────────────────────────────────────
+    if (t.closest('[data-tf-dadv]')) {
+      e.preventDefault();
+      _TF_SCOUT.advOpen = !_TF_SCOUT.advOpen;
+      _tfRenderBody(); return;
+    }
     if ((el = t.closest('[data-tf-dview]'))) {
       e.preventDefault();
       _TF_SCOUT.view = el.getAttribute('data-tf-dview');
@@ -51998,9 +52144,13 @@ function _tfDiscAction(action, playerId, listingId) {
     }
 
     // A market lens: the same lots, a different question asked of them.
+    if (t.closest('[data-tfx-all]')) {
+      e.preventDefault(); _TFX.all = true; _tfRenderBody(); return;
+    }
     if ((el = t.closest('[data-tfx-lens]'))) {
       e.preventDefault();
       _TFX.lens = el.getAttribute('data-tfx-lens') || 'all';
+      _TFX.all = false;
       _tfRenderBody(); return;
     }
     // A workspace is chosen; the view it opens on is its first.
