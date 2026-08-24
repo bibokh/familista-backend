@@ -3273,11 +3273,34 @@ function _sqBackendSquad() {
     return active.map(_sqAdaptBackendPlayer);
   } catch (e) { return null; }
 }
+// Replacing the squad store leaves any Squad markup already on the page drawn
+// from the roster that was there before it. That markup carries each player's
+// id, so a stale row asks for a footballer the store no longer has: sqOpenPlayer
+// looks him up, does not find him, and returns — the row is clicked and nothing
+// opens. It is the same list renderer an age group uses, and an age group never
+// showed it because its page is built when the group is opened, which is after
+// hydration; the First Team's is built at boot, before it.
+//
+// So the store and the surface are kept in step here, where the store changes,
+// rather than at each of the callers. The repaint is the context's own
+// refreshRoster — the one every team declares and transfers already calls — so
+// there is no First Team-only path, and it is a no-op before the page exists.
+function _sqSurfaceFollowStore() {
+  try {
+    if (typeof document === 'undefined' || !document.getElementById('pg-squad')) return;
+    var C = (typeof _sqFirstCtx === 'function') ? _sqFirstCtx() : null;
+    if (C && typeof C.refreshRoster === 'function') C.refreshRoster();
+  } catch (e) {}
+}
 function _sqLoad() {
   try {
     // 1) Real backend Squad (authoritative, real Player UUIDs) — the whole workspace follows it.
     var backend = _sqBackendSquad();
-    if (backend && backend.length) { SQ_DEMO_PLAYERS.length = 0; for (var b = 0; b < backend.length; b++) SQ_DEMO_PLAYERS.push(backend[b]); return; }
+    if (backend && backend.length) {
+      SQ_DEMO_PLAYERS.length = 0; for (var b = 0; b < backend.length; b++) SQ_DEMO_PLAYERS.push(backend[b]);
+      _sqSurfaceFollowStore();
+      return;
+    }
     if (typeof window === 'undefined' || !window.localStorage) return;
     // 2) Last-saved squad, then 3) the built-in demo (fallback until the backend Squad exists).
     var raw = window.localStorage.getItem(SQ_LS_KEY);
@@ -3286,6 +3309,7 @@ function _sqLoad() {
       if (Array.isArray(arr) && arr.length) {
         SQ_DEMO_PLAYERS.length = 0;
         for (var i = 0; i < arr.length; i++) SQ_DEMO_PLAYERS.push(arr[i]);
+        _sqSurfaceFollowStore();
         return;
       }
     }
