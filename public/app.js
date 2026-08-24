@@ -48432,6 +48432,22 @@ function renderTransfersHTML() {
 
 // The player market's own tabs. Staff are not here and never were part of the
 // same trade: they have their own module, Coach Market, and their own page.
+// ── FOUR WORKSPACES OVER SEVEN VIEWS ────────────────────────────────────────
+//
+// The module used to present seven page-like tabs. It now presents four
+// workspaces, and each of them switches its content in place.
+//
+// Nothing underneath moved. _TF.tab is still the view key it always was, and
+// every view still renders through the builder it always rendered through — so
+// the cross-links that set it from elsewhere in the module (a discovery result
+// opening an auction, a club page opening the needs board, a notification
+// opening an offer) keep working without knowing workspaces exist. Which
+// workspace is on screen is derived from the view, never stored: two places
+// holding that answer is how they come to disagree.
+//
+// Assistant is the one view with no tab of its own. Its recommendations are
+// read by the same code as before and drawn inside Scouting, where somebody
+// looking for a player is already standing.
 var TF_TABS = [
   ['auctions', 'Auctions', 'Live market'],
   ['feed', 'Market activity', 'What is happening'],
@@ -48441,6 +48457,75 @@ var TF_TABS = [
   ['scouting', 'Scouting', 'Scout network'],
   ['assistant', 'Assistant', 'Recommendations']
 ];
+
+var TF_WORKSPACES = [
+  ['market',   'Market',        'Auctions and listings',   ['auctions', 'feed']],
+  ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
+  ['business', 'Club business', 'Needs and direct offers', ['needs', 'offers']],
+  ['mine',     'My transfers',  'Everything of ours',      ['activity']],
+];
+// view → the workspace it belongs to. Assistant belongs to Scouting.
+var TF_VIEW_WS = {
+  auctions: 'market', feed: 'market',
+  scouting: 'scouting', assistant: 'scouting',
+  needs: 'business', offers: 'business',
+  activity: 'mine',
+};
+// The label each view carries in its workspace's secondary switch.
+var TF_VIEW_LABEL = {
+  auctions: 'Live market', feed: 'Market activity',
+  needs: 'Needs', offers: 'Offers',
+};
+function _tfWs() { return TF_VIEW_WS[_TF.tab] || 'market'; }
+
+// Changing what is on screen writes the body and the two switches above it, and
+// nothing else. It used to call renderTransfersPage(), which rebuilds the whole
+// shell — header, strip, tabs and body — for a change of tab: every element the
+// reader was looking at was thrown away and replaced by an identical one, which
+// is a remount, a re-measure and a scroll reset for no gain. The header's
+// figures do not change when a tab does, so they are left exactly where they
+// are and only the selected states are toggled.
+function _tfGoView(view) {
+  if (!view || view === _TF.tab) return;
+  _TF.tab = view;
+  // Availability means different things on the two tables, so the filter that
+  // belongs to the table we are leaving does not follow us.
+  _TF.f.avail = 'ALL';
+  _TF.sort = { key: 'deadline', dir: 1 };
+  _tfRenderBody();
+  _tfSyncSwitches();
+}
+
+// Selected states, as class toggles. No element is replaced, so nothing moves.
+function _tfSyncSwitches() {
+  if (typeof document === 'undefined') return;
+  var ws = _tfWs();
+  var nav = document.querySelectorAll('#tf-shell [data-tf-ws]');
+  for (var i = 0; i < nav.length; i++) {
+    nav[i].classList.toggle('is-on', nav[i].getAttribute('data-tf-ws') === ws);
+  }
+  var subs = document.querySelectorAll('#tf-shell [data-tf-tab]');
+  for (var j = 0; j < subs.length; j++) {
+    var on = subs[j].getAttribute('data-tf-tab') === _TF.tab;
+    subs[j].classList.toggle('is-on', on);
+    subs[j].setAttribute('aria-selected', on ? 'true' : 'false');
+  }
+}
+function _tfWsViews(ws) {
+  for (var i = 0; i < TF_WORKSPACES.length; i++) if (TF_WORKSPACES[i][0] === ws) return TF_WORKSPACES[i][3];
+  return [];
+}
+// The secondary switch inside a workspace. A workspace with one view shows
+// none — a switch between one thing is furniture, not navigation.
+function _tfSubSwitchHtml() {
+  var views = _tfWsViews(_tfWs());
+  if (views.length < 2) return '';
+  return '<div class="tf-sub" role="tablist">' + views.map(function (v) {
+    return '<button type="button" role="tab" class="tf-sub-b' + (_TF.tab === v ? ' is-on' : '') + '"'
+      + ' aria-selected="' + (_TF.tab === v ? 'true' : 'false') + '" data-tf-tab="' + v + '">'
+      + _tfEsc(TF_VIEW_LABEL[v] || v) + '</button>';
+  }).join('') + '</div>';
+}
 
 function renderTransfersPage() {
   var host = document.getElementById('tf-shell'); if (!host) return;
@@ -48550,9 +48635,13 @@ function _tfRepaintRows() {
   if (b) b.innerHTML = _tfRowsHtml(_tfCtx()); else _tfRenderBody();
 }
 function _tfTabHtml(C) {
+  return _tfSubSwitchHtml() + _tfViewHtml(C);
+}
+function _tfViewHtml(C) {
   if (_TF.tab === 'feed') return _tfFeedHtml(C);
-  if (_TF.tab === 'scouting') return _tfScoutingHtml(C);
-  if (_TF.tab === 'assistant') return _tfAssistantHtml(C);
+  // Scouting carries the Assistant's recommendations, drawn by the Assistant's
+  // own builder from the Assistant's own data. Nothing is recomputed here.
+  if (_TF.tab === 'scouting' || _TF.tab === 'assistant') return _tfScoutingHtml(C);
   if (_TF.tab === 'offers') return _tfDirectOffersHtml(C);
   if (_TF.tab === 'needs') return _tfNeedsHtml(C);
   if (_TF.tab === 'activity') return _tfActivityHtml(C);
@@ -49154,7 +49243,16 @@ function _tfDeskHtml() {
         + '<th class="tf-c-club">Other club</th><th class="tf-c-money">Amount</th>'
         + '<th class="tf-c-action">Current action</th><th class="tf-c-result">Result / destination</th>'
         + '</tr></thead><tbody id="tf-desk-rows">' + rows.map(_tfDeskRowHtml).join('') + '</tbody></table></div>'
-      : '<p class="tf-para">Nothing on the market and nothing being negotiated.</p>');
+      // A controlled panel that says what is true and offers the two moves that
+      // exist from here — both of them workspaces this module already has.
+      : '<div class="tf-empty">'
+        + '<div class="tf-empty-i">◎</div>'
+        + '<b>Nothing on the market and nothing being negotiated.</b>'
+        + '<p>Anything this club lists, bids on, offers for or is offered will appear here.</p>'
+        + '<div class="tf-empty-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-ws="scouting">Explore scouting</button>'
+        +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-ws="business">View club needs</button>'
+        + '</div></div>');
 }
 
 // This club's side of the auction board: what it is selling, and what it has
@@ -49419,42 +49517,46 @@ function _tfHeaderHtml(C) {
     + '<select data-tf-team>' + reg.map(function (t) {
       return '<option value="' + _tfEsc(t.id) + '"' + (t.id === me ? ' selected' : '') + '>' + _tfEsc(t.label) + '</option>';
     }).join('') + '</select></label>';
-  var tabs = TF_TABS.map(function (t) {
-    return '<button type="button" class="tf-tab' + (_TF.tab === t[0] ? ' is-on' : '') + '" data-tf-tab="' + t[0] + '">'
-      + '<b>' + t[1] + '</b><span>' + t[2] + '</span></button>';
+  var ws = _tfWs();
+  var tabs = TF_WORKSPACES.map(function (t) {
+    return '<button type="button" class="tf-ws' + (ws === t[0] ? ' is-on' : '') + '"'
+      + ' data-tf-ws="' + t[0] + '" title="' + _tfEsc(t[2]) + '">'
+      + '<b>' + _tfEsc(t[1]) + '</b></button>';
   }).join('');
+  // The club being acted for, named by the same context every other figure on
+  // this strip is read from.
+  var clubName = (window.State && State.club && State.club.name)
+    || (C && C.clubName) || '';
+  // One cell per figure, and every figure is one the module already held.
+  var cell = function (label, value, extra, cls) {
+    return '<div class="tf-fig' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>'
+      + '<b>' + value + '</b>' + (extra || '') + '</div>';
+  };
   return '<header class="tf-head">'
     + '<div class="tf-head-top">'
     +   '<div class="tf-title">'
-    +     '<div class="tf-title-mark"><svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M8 5a1 1 0 0 1 1 1v1h6.59l-1.3-1.3a1 1 0 1 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.42-1.4L15.6 9H9v1a1 1 0 0 1-2 0V6a1 1 0 0 1 1-1Zm4 10a1 1 0 0 1-1-1v-1H4.41l1.3 1.3a1 1 0 0 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 1 1 1.42 1.4L4.41 11H11v-1a1 1 0 0 1 2 0v4a1 1 0 0 1-1 1Z"/></svg></div>'
-    +     '<div><h1>Transfer Market</h1><p>Neutral marketplace · same prices, same rules, every club</p></div>'
+    +     '<div class="tf-title-mark"><svg viewBox="0 0 20 20" fill="currentColor" width="17" height="17"><path d="M8 5a1 1 0 0 1 1 1v1h6.59l-1.3-1.3a1 1 0 1 1 1.42-1.4l3 3a1 1 0 0 1 0 1.4l-3 3a1 1 0 0 1-1.42-1.4L15.6 9H9v1a1 1 0 0 1-2 0V6a1 1 0 0 1 1-1Zm4 10a1 1 0 0 1-1-1v-1H4.41l1.3 1.3a1 1 0 0 1-1.42 1.4l-3-3a1 1 0 0 1 0-1.4l3-3a1 1 0 1 1 1.42 1.4L4.41 11H11v-1a1 1 0 0 1 2 0v4a1 1 0 0 1-1 1Z"/></svg></div>'
+    +     '<div class="tf-title-txt"><h1>Transfers</h1>'
+    +       (clubName ? '<p>' + _tfEsc(clubName) + '</p>' : '') + '</div>'
     +   '</div>'
-    +   '<div class="tf-head-right">'
-    +     teamSel
-    +     '<div class="tf-money">'
-    +       '<div class="tf-money-cell"><i>Transfer budget</i><b>' + _tfMoney(eco.available) + '</b>'
-    // Where the figure above came from. 'server' is the club's real
-    // ClubTransferBalance — the one the server spends from — and it was being
-    // labelled "Demo budget" beside it, which told a manager the only real
-    // number on the header was made up.
-    +         '<em class="tf-src tf-src--' + eco.source + '">' + _tfBudgetSource(eco.source) + '</em></div>'
-    +       '<div class="tf-money-cell"><i>Committed in bids</i><b>' + _tfMoney(eco.committed) + '</b></div>'
-    // Scouting credits used to buy a refresh of a generated pool. There is no
-    // pool and nothing to buy: searching the real Player table is just a search.
-    +       '<div class="tf-money-cell"><i>Shortlisted</i><b>' + shortN + '</b></div>'
-    +     '</div>'
-    +   '</div>'
+    +   '<nav class="tf-wsnav" role="tablist">' + tabs + '</nav>'
+    +   '<div class="tf-head-right">' + teamSel + '</div>'
     + '</div>'
-    + '<div class="tf-head-bottom">'
-    +   '<nav class="tf-tabs">' + tabs + '</nav>'
-    +   '<div class="tf-head-stats">'
-    +     '<span class="tf-hs" data-tf-hs="live"><i class="tf-dot-live"></i>' + live + ' live listings</span>'
+    + '<div class="tf-strip">'
+    +   cell('Transfer budget', _tfMoney(eco.total != null ? eco.total : eco.available),
+    // Where the figure came from. 'server' is the club's real
+    // ClubTransferBalance — the one the server spends from.
+          '<em class="tf-src tf-src--' + eco.source + '">' + _tfBudgetSource(eco.source) + '</em>')
+    +   cell('Committed', _tfMoney(eco.committed))
+    +   cell('Available', _tfMoney(eco.available), '', 'tf-fig--ok')
+    +   cell('Active negotiations', _tfActivitySignals().live)
+    +   cell('Shortlisted', shortN)
+    +   '<div class="tf-strip-end">'
+    +     '<span class="tf-hs" data-tf-hs="live"><i class="tf-dot-live"></i>' + live + ' live</span>'
     // What the rest of the market wants, and how much of it this club owns —
     // read from the feed already loaded, so the header costs no request.
-    +     '<span class="tf-hs" data-tf-hs="needs">' + _tfNeedCounts().active + ' active needs</span>'
-    +     '<span class="tf-hs tf-hs--match" data-tf-hs="matches">' + _tfNeedCounts().matches + ' squad matches</span>'
-    +     '<span class="tf-hs" data-tf-hs="deals">' + _tfActivitySignals().live + ' open negotiations</span>'
-    +     '<span class="tf-hs">' + shortN + ' shortlisted</span>'
+    +     '<span class="tf-hs" data-tf-hs="needs">' + _tfNeedCounts().active + ' needs</span>'
+    +     '<span class="tf-hs tf-hs--match" data-tf-hs="matches">' + _tfNeedCounts().matches + ' matches</span>'
     +     '<span class="tf-hs">Squad ' + (_tfSquadProfile(C).size) + '</span>'
     +   '</div>'
     + '</div>'
@@ -50076,11 +50178,26 @@ function _tfScoutingHtml(C) {
   // table are drawn from it.
   if (!_TF_SCOUT.shortlist) _tfScoutLoadShortlist().then(function () { _tfScoutRepaint(); });
 
-  var views = [['search', 'SEARCH'], ['shortlist', 'SHORTLIST']].map(function (v) {
+  // Assistant sits beside Search and Shortlist rather than on a page of its
+  // own. Its recommendations are the same ones _tfRecommendations already
+  // produced; this only decides where they are read.
+  var views = [['search', 'SEARCH'], ['shortlist', 'SHORTLIST'], ['assistant', 'TRANSFER ASSISTANT']].map(function (v) {
     return '<button type="button" class="tf-chip-btn' + (_TF_SCOUT.view === v[0] ? ' is-on' : '') + '"'
       + ' data-tf-dview="' + v[0] + '">' + v[1]
       + (v[0] === 'shortlist' && _TF_SCOUT.shortlist ? ' · ' + ((_TF_SCOUT.shortlist.items || []).length) : '') + '</button>';
   }).join('');
+
+  if (_TF_SCOUT.view === 'assistant') {
+    return '<div class="tf-pane">'
+      + '<div class="tf-disc-head">'
+      +   '<div><span class="tf-sp-badge">Transfer assistant</span>'
+      +     '<p class="tf-disc-lead">Players on the market read against this squad\'s shape, window and budget. '
+      +       'Every card says what carried it and what argues against it.</p></div>'
+      +   '<div class="tf-disc-views">' + views + '</div>'
+      + '</div>'
+      + _tfAssistantHtml(C)
+      + '</div>';
+  }
 
   return '<div class="tf-pane">'
     + '<div class="tf-disc-head">'
@@ -50101,7 +50218,16 @@ function _tfScoutingHtml(C) {
 function _tfAssistantHtml(C) {
   var rec = _tfRecommendations(C), prof = rec.profile, eco = _tfEconomy(C);
   if (!rec.list.length) {
-    return '<div class="tf-pane"><div class="tf-assist-empty">No player currently on the market fits this squad\'s window and budget.</div></div>';
+    // A controlled panel that says what is true and offers the two moves that
+    // exist from here, both of them already in this module.
+    return '<div class="tf-empty">'
+      + '<div class="tf-empty-i">◎</div>'
+      + '<b>No player on the market fits this squad\'s window and budget.</b>'
+      + '<p>The assistant reads live listings against the shape, age window and available budget of the team selected above.</p>'
+      + '<div class="tf-empty-acts">'
+      +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-tf-dview="search">Search all players</button>'
+      +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-ws="business">View club needs</button>'
+      + '</div></div>';
   }
   // What the assistant is reading — stated openly, so a recommendation can be
   // checked against the squad it was derived from.
@@ -50160,7 +50286,8 @@ function _tfAssistantHtml(C) {
       + '</div>'
       + '</article>';
   }).join('');
-  return '<div class="tf-pane tf-pane--assist">' + brief + '<div class="tf-rc-grid">' + cards + '</div></div>';
+  // Drawn inside Scouting's pane, so it does not open a pane of its own.
+  return '<div class="tf-assist">' + brief + '<div class="tf-rc-grid">' + cards + '</div></div>';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -51433,14 +51560,17 @@ function _tfDiscAction(action, playerId, listingId) {
       return;
     }
 
+    // A workspace is chosen; the view it opens on is its first.
+    if ((el = t.closest('[data-tf-ws]'))) {
+      e.preventDefault();
+      var _wsv = _tfWsViews(el.getAttribute('data-tf-ws'));
+      if (_wsv.length) _tfGoView(_wsv[0]);
+      return;
+    }
     if ((el = t.closest('[data-tf-tab]'))) {
       e.preventDefault();
-      _TF.tab = el.getAttribute('data-tf-tab');
-      // Availability means different things on the two tables, so the filter
-      // that belongs to the table we are leaving does not follow us.
-      _TF.f.avail = 'ALL';
-      _TF.sort = { key: 'deadline', dir: 1 };
-      renderTransfersPage(); return;
+      _tfGoView(el.getAttribute('data-tf-tab'));
+      return;
     }
     if ((el = t.closest('[data-tf-sort]'))) {
       e.preventDefault(); e.stopPropagation();

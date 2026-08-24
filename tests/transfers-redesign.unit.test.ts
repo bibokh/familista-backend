@@ -1,0 +1,199 @@
+/**
+ * tests/transfers-redesign.unit.test.ts
+ *
+ * Transfers, presented as four workspaces instead of seven page-like tabs.
+ *
+ * This was an information-architecture and presentation change, and the thing
+ * most worth guarding is that it was ONLY that. Every view still renders
+ * through the builder it always rendered through; _TF.tab is still the view key
+ * it always was, so the cross-links that set it from elsewhere in the module
+ * keep working; and which workspace is on screen is derived from the view
+ * rather than stored beside it, because two places holding that answer is how
+ * they come to disagree.
+ *
+ * What is asserted here:
+ *   · the four workspaces exist and every one of the seven old views is
+ *     reachable through exactly one of them — nothing orphaned;
+ *   · the builders, the API calls and the delegated actions are untouched;
+ *   · a workspace change writes the body and the switches, not the shell;
+ *   · the palette is dark and scoped, so Coach Market cannot be dragged into it.
+ */
+
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+const APP = readFileSync(join(__dirname, '..', 'public', 'app.js'), 'utf8');
+const CSS = readFileSync(join(__dirname, '..', 'public', 'app.css'), 'utf8');
+
+function fnBody(name: string) {
+  const at = APP.search(new RegExp(`(async )?function ${name}\\s*\\(`));
+  if (at < 0) return '';
+  let i = APP.indexOf('{', at), depth = 0, j = i;
+  for (; j < APP.length; j++) {
+    if (APP[j] === '{') depth++;
+    else if (APP[j] === '}' && --depth === 0) break;
+  }
+  return APP.slice(i, j);
+}
+
+const OLD_VIEWS = ['auctions', 'feed', 'offers', 'needs', 'activity', 'scouting', 'assistant'];
+
+describe('four workspaces over the seven views', () => {
+  it('the four are named, in order', () => {
+    const m = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/);
+    expect(m).toBeTruthy();
+    ['market', 'scouting', 'business', 'mine'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
+    ['Market', 'Scouting', 'Club business', 'My transfers'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
+  });
+
+  it('and every old view lands in exactly one of them — nothing orphaned', () => {
+    const map = APP.match(/var TF_VIEW_WS = \{[\s\S]*?\};/)![0];
+    OLD_VIEWS.forEach((v) => expect(map).toMatch(new RegExp(`\\b${v}:\\s*'(market|scouting|business|mine)'`)));
+    // the workspaces' own view lists cover the six that have a switch entry,
+    // and assistant is folded into scouting rather than dropped
+    const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
+    ['auctions', 'feed', 'scouting', 'needs', 'offers', 'activity']
+      .forEach((v) => expect(ws).toContain(`'${v}'`));
+    expect(map).toContain("assistant: 'scouting'");
+  });
+
+  it('which workspace is on screen is derived, never stored', () => {
+    expect(fnBody('_tfWs')).toContain('TF_VIEW_WS[_TF.tab]');
+    // no second field holding the same answer
+    expect(APP).not.toMatch(/_TF\.ws\s*=/);
+    expect(APP).not.toMatch(/ws:\s*'market'/);
+  });
+
+  it('a workspace with one view shows no switch between one thing', () => {
+    const f = fnBody('_tfSubSwitchHtml');
+    expect(f).toContain('if (views.length < 2) return');
+  });
+});
+
+describe('nothing underneath was rewritten', () => {
+  it('every view still renders through its own builder', () => {
+    const f = fnBody('_tfViewHtml');
+    ['_tfFeedHtml', '_tfScoutingHtml', '_tfDirectOffersHtml', '_tfNeedsHtml',
+     '_tfActivityHtml', '_tfAuctionsHtml'].forEach((b) => expect(f).toContain(b));
+    // and the assistant's builder is still called, from inside scouting
+    expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
+  });
+
+  it('the view key is the one the rest of the module already sets', () => {
+    // the cross-links that jump into a view from elsewhere still say _TF.tab
+    ["_TF.tab = 'auctions'", "_TF.tab = 'needs'", "_TF.tab = 'activity'"]
+      .forEach((x) => expect(APP).toContain(x));
+  });
+
+  it('the market reads exactly the endpoints it read before', () => {
+    const f = fnBody('_tfSyncAll');
+    ['_tfSyncServerMarket()', '_tfSyncMyListings()', '_tfSyncBalance()', '_tfNotifLoad()',
+     '_tfScoutLoadShortlist()', '_tfDeskLoad()', '_tfNegLoadNeeds()', '_tfNegLoadActivity()',
+     '_tfAucLoad()'].forEach((q) => expect(f).toContain(q));
+  });
+
+  it('and every action the board offers is still wired', () => {
+    ['data-tf-auction-bid', 'data-tf-auction-place', 'data-tf-auction-cancel',
+     'data-tf-offer-accept', 'data-tf-offer-reject', 'data-tf-offer-counter', 'data-tf-offer-withdraw',
+     'data-tf-need-new', 'data-tf-need-matches', 'data-tf-need-offer', 'data-tf-need-edit',
+     'data-tf-short', 'data-tf-sell-open', 'data-tf-delist', 'data-tf-bid',
+     'data-tf-open-player', 'data-tf-compare', 'data-tf-sign']
+      .forEach((a) => expect(APP).toContain(a));
+  });
+
+  it('the eight activity sections and five need views are all still there', () => {
+    const acts = APP.match(/var TF_ACT_SECTIONS = \[[\s\S]*?\];/)![0];
+    ['desk', 'live', 'sent', 'received', 'auctions', 'bids', 'done', 'dead']
+      .forEach((k) => expect(acts).toContain(`'${k}'`));
+    const nds = APP.match(/var TF_NEED_VIEWS = \[[\s\S]*?\];/)![0];
+    ['all', 'urgent', 'matches', 'mine'].forEach((k) => expect(nds).toContain(`'${k}'`));
+  });
+});
+
+describe('changing what is on screen does not rebuild the screen', () => {
+  it('a view change writes the body and the switches, and nothing else', () => {
+    const f = fnBody('_tfGoView');
+    expect(f).toContain('_tfRenderBody();');
+    expect(f).toContain('_tfSyncSwitches();');
+    // the old behaviour: the whole shell, header included, for a change of tab
+    expect(f).not.toContain('renderTransfersPage()');
+  });
+
+  it('the switches are class toggles, so no element is replaced', () => {
+    const f = fnBody('_tfSyncSwitches');
+    expect(f).toContain("classList.toggle('is-on'");
+    expect(f).not.toContain('innerHTML');
+  });
+
+  it('and a workspace click opens that workspace\'s first view', () => {
+    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-tf-ws]')))"),
+                           APP.indexOf("if ((el = t.closest('[data-tf-ws]')))") + 400);
+    expect(wire).toContain('_tfWsViews(');
+    expect(wire).toContain('_tfGoView(_wsv[0])');
+  });
+});
+
+describe('the header is compact and premium, and the yellow is gone', () => {
+  it('it names the module and the club, and states the five figures', () => {
+    const f = fnBody('_tfHeaderHtml');
+    expect(f).toContain('<h1>Transfers</h1>');
+    expect(f).toContain('State.club && State.club.name');
+    ["cell('Transfer budget'", "cell('Committed'", "cell('Available'",
+     "cell('Active negotiations'", "cell('Shortlisted'"].forEach((c) => expect(f).toContain(c));
+    // the destination selector is kept, compactly
+    expect(f).toContain('teamSel');
+  });
+
+  it('the header band is no longer a slab of gold', () => {
+    const head = CSS.slice(CSS.indexOf('.tf-head{'), CSS.indexOf('.tf-head{') + 320);
+    expect(head).not.toContain('var(--tf-gold-hi)');
+    expect(head).not.toContain('#8f6d13');
+    expect(head).toContain('rgba(22,163,74');
+  });
+
+  it('and Transfers now carries a dark palette of its own', () => {
+    const block = CSS.slice(CSS.indexOf('#pg-transfers{'), CSS.indexOf('#pg-transfers{') + 2600);
+    expect(block).toContain('--tf-page:      #0a0e15');
+    expect(block).toContain('--tf-gold:      #16a34a');   // Familista green as the accent
+    expect(block).toContain('--tf-ink:       #e9eef6');
+  });
+});
+
+describe('and the redesign could not reach Coach Market', () => {
+  it('every override added for the dark skin names #pg-transfers', () => {
+    // bounded to the block itself — everything after it belongs to another
+    // module, and slicing to end-of-file would test that module instead
+    const from = CSS.indexOf('/* ── Transfers is dark now:');
+    const to = CSS.indexOf('/*', CSS.indexOf('#pg-transfers .tf-nd-when b:empty'));
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    const tail = CSS.slice(from, to);
+    const sels = (tail.match(/([^{}]+)\{/g) || [])
+      .map((s) => s.replace(/\{$/, '').trim())
+      .filter((s) => s && !s.startsWith('/*'));
+    expect(sels.length).toBeGreaterThan(20);
+    sels.forEach((s) => expect(s).toContain('#pg-transfers'));
+  });
+
+  it('and Coach Market keeps its own palette block untouched', () => {
+    const cm = CSS.slice(CSS.indexOf('#pg-coach-market{'), CSS.indexOf('#pg-coach-market{') + 900);
+    expect(cm).toContain('--tf-gold:      #10b981');
+    expect(cm).toContain('--tf-page:      #0b0f16');
+  });
+});
+
+describe('empty states are panels, not blank canvases', () => {
+  it('the desk offers the two moves that exist from there', () => {
+    const f = fnBody('_tfDeskHtml');
+    expect(f).toContain('tf-empty');
+    expect(f).toContain('data-tf-ws="scouting"');
+    expect(f).toContain('data-tf-ws="business"');
+  });
+
+  it('and so does the assistant when it has nothing to recommend', () => {
+    const f = fnBody('_tfAssistantHtml');
+    expect(f).toContain('tf-empty');
+    expect(f).toContain('data-tf-dview="search"');
+    expect(CSS).toContain('.tf-empty{');
+  });
+});

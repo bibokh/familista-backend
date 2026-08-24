@@ -8981,30 +8981,201 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
   color:var(--tf-ink);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   TRANSFERS · PREMIUM DARK
+   ══════════════════════════════════════════════════════════════════════════
+   The module was a silver-grey document under a slab of mustard gold. It is
+   now the same room the Coach Market is in — deep charcoal-navy, layered
+   surfaces, restrained borders — carrying its own identity: Familista green is
+   the action colour, and the accent that marks a figure worth reading is a
+   cooler green rather than the desk's teal.
+
+   This is a palette override and nothing else. Every .tf-* rule below already
+   draws from these tokens, which is why the whole module changes character
+   without a single component being rewritten — and why Coach Market, which
+   overrides the same tokens for itself further down, is untouched. */
+#pg-transfers{
+  --tf-gold:      #16a34a;   /* Familista green — the module's identity      */
+  --tf-gold-2:    #22c55e;
+  --tf-gold-hi:   #22c55e;
+  --tf-gold-lo:   #15803d;
+  --tf-gold-d:    #14532d;
+
+  --tf-page:      #0a0e15;   /* deep charcoal-navy — the transfer floor      */
+  --tf-page-hi:   #0d121b;
+  --tf-page-lo:   #06090f;
+  --tf-panel:     rgba(255,255,255,.045);
+  --tf-panel-2:   rgba(255,255,255,.062);
+  --tf-row:       rgba(255,255,255,.038);
+  --tf-row-alt:   rgba(255,255,255,.055);
+  --tf-sep:       rgba(255,255,255,.085);
+  --tf-thead:     rgba(255,255,255,.05);
+  --tf-side:      rgba(255,255,255,.032);
+  --tf-card:      rgba(255,255,255,.055);
+  --tf-info:      rgba(255,255,255,.028);
+  --tf-count:     rgba(255,255,255,.05);
+
+  --tf-black:     #05090f;
+  --tf-black-2:   #09101b;
+  --tf-black-3:   #0e1622;
+  --tf-ink:       #e9eef6;
+  --tf-ink2:      #a8b5c6;
+  --tf-ink3:      #6e7d92;
+  --tf-on-dark:   #e9eef6;
+  --tf-on-dark-2: #a8b5c6;
+
+  --tf-buy:   #16a34a;
+  --tf-buy-2: #22c55e;
+  --tf-buy-d: #15803d;
+  --tf-stop:  #f0616d;
+  --tf-stop-2:#f87171;
+
+  --tf-line:  rgba(255,255,255,.07);
+  --tf-line2: rgba(255,255,255,.12);
+  --tf-edge:  rgba(255,255,255,.10);
+  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.012));
+
+  --tf-paper:     var(--tf-panel);
+  --tf-silver:    var(--tf-page);
+  --tf-silver-2:  var(--tf-info);
+  --tf-champagne: #4ade80;   /* a figure that matters                        */
+  --tf-sand:      var(--tf-gold-d);
+  --tf-ivory:     var(--tf-ink);
+  --tf-graphite:  var(--tf-page);
+  --tf-charcoal:  var(--tf-panel);
+  --tf-bronze:    var(--tf-gold-d);
+  --tf-acc:       #22c55e;
+  --tf-acc-d:     #15803d;
+  --tf-acc-16:    rgba(34,197,94,.16);
+  --tf-acc-24:    rgba(34,197,94,.24);
+  --tf-acc-42:    rgba(34,197,94,.45);
+  --tf-hot:       var(--tf-stop);
+  --tf-warm:      #fbbf24;
+  --tf-blue:      #38bdf8;
+  --tf-violet:    #a78bfa;
+
+  color:var(--tf-ink);
+  background:
+    radial-gradient(1100px 520px at 10% -8%, rgba(22,163,74,.10), transparent 62%),
+    radial-gradient(900px 460px at 94% 0%, rgba(56,189,248,.07), transparent 60%),
+    linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo));
+  background-color:var(--tf-page);
+}
+[data-theme="light"] #pg-transfers{ color:var(--tf-ink); background-color:var(--tf-page); }
+#pg-transfers .tf-root{
+  background:
+    radial-gradient(1100px 520px at 10% -8%, rgba(22,163,74,.10), transparent 62%),
+    linear-gradient(180deg,var(--tf-page-hi),var(--tf-page-lo));
+}
+
 /* ── header ──────────────────────────────────────────────────────────────── */
-/* A game-UI band, not a website banner: gold falling to a darker gold, a hair
-   of light along the very top and a hard dark line under it. */
+/* A rule with a breath of green behind it, not a slab of gold. The band used
+   to be a full-width mustard gradient two hundred pixels deep; it is now a
+   compact strip that names the module and the club, carries the four
+   workspaces, and states the five figures a sporting director works from. */
 .tf-head{
-  flex:none; padding:16px 26px 0;
-  background:linear-gradient(180deg,var(--tf-gold-hi) 0%,var(--tf-gold-lo) 100%);
-  border-bottom:2px solid #8f6d13;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.38), 0 3px 10px -4px rgba(17,16,21,.55);
-  color:#241d05;
+  flex:none; padding:14px 26px 0;
+  background:linear-gradient(180deg,rgba(22,163,74,.10),rgba(22,163,74,0));
+  border-bottom:1px solid var(--tf-line);
+  color:var(--tf-ink);
 }
-.tf-head .tf-title h1{ color:#1f1903; }
-.tf-head .tf-title p{ color:rgba(31,25,3,.72); }
-.tf-head-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:26px; flex-wrap:wrap; }
-.tf-title{ display:flex; align-items:center; gap:13px; min-width:0; }
+.tf-head-top{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.tf-title{ display:flex; align-items:center; gap:11px; min-width:0; }
 .tf-title-mark{
-  width:38px; height:38px; flex:none; border-radius:11px;
+  width:34px; height:34px; flex:none; border-radius:10px;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(31,25,3,.14);
-  box-shadow:inset 0 0 0 1px rgba(31,25,3,.22);
-  color:#1f1903;
+  background:linear-gradient(180deg,rgba(34,197,94,.20),rgba(34,197,94,.07));
+  box-shadow:inset 0 0 0 1px rgba(34,197,94,.30);
+  color:var(--tf-gold-2);
 }
-.tf-title h1{ font-size:19px; font-weight:800; letter-spacing:-.4px; line-height:1.15; color:var(--tf-ink); }
-.tf-title p{ margin-top:2px; font-size:11.5px; color:var(--tf-ink3); letter-spacing:.01em; }
-.tf-head-right{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.tf-title-txt{ min-width:0; }
+.tf-title h1{ font-size:17px; font-weight:800; letter-spacing:-.35px; line-height:1.15; color:var(--tf-ink); }
+.tf-title p{
+  margin-top:1px; font-size:11px; font-weight:600; color:var(--tf-ink3);
+  letter-spacing:.04em; text-transform:uppercase;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:34ch;
+}
+.tf-head-right{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
+/* the four workspaces */
+.tf-wsnav{
+  display:flex; gap:3px; padding:3px; border-radius:11px;
+  background:rgba(255,255,255,.035);
+  box-shadow:inset 0 0 0 1px var(--tf-line);
+}
+.tf-ws{
+  appearance:none; border:0; cursor:pointer;
+  padding:7px 15px; border-radius:8px; background:transparent;
+  font:inherit; font-size:12.5px; font-weight:650; letter-spacing:.01em;
+  color:var(--tf-ink3);
+  transition:color .14s ease, background-color .14s ease, box-shadow .14s ease;
+}
+.tf-ws b{ font-weight:inherit; }
+.tf-ws:hover{ color:var(--tf-ink2); background:rgba(255,255,255,.04); }
+.tf-ws.is-on{
+  color:#04140b;
+  background:linear-gradient(180deg,var(--tf-gold-2),var(--tf-gold));
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset, 0 4px 12px -6px rgba(22,163,74,.75);
+}
+.tf-ws.is-on:hover{ color:#04140b; }
+
+/* the financial / market strip */
+.tf-strip{
+  display:flex; align-items:stretch; gap:0; flex-wrap:wrap;
+  margin-top:12px; padding:0;
+}
+.tf-fig{
+  display:flex; flex-direction:column; gap:2px; justify-content:center;
+  padding:9px 20px 11px; min-width:0;
+  border-right:1px solid var(--tf-line);
+}
+.tf-fig:first-child{ padding-left:0; }
+.tf-fig i{
+  font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+.tf-fig b{ font-size:15px; font-weight:750; color:var(--tf-ink); letter-spacing:-.2px; line-height:1.2; }
+.tf-fig--ok b{ color:var(--tf-champagne); }
+.tf-fig .tf-src{ font-style:normal; font-size:8.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--tf-ink3); }
+.tf-strip-end{
+  display:flex; align-items:center; gap:13px; flex-wrap:wrap;
+  margin-left:auto; padding:9px 0 11px 20px;
+}
+
+/* the secondary switch inside a workspace */
+.tf-sub{
+  display:flex; gap:2px; padding:3px; margin:14px 26px 12px;
+  border-radius:9px; width:max-content; max-width:100%; flex-wrap:wrap;
+  background:rgba(255,255,255,.032);
+  box-shadow:inset 0 0 0 1px var(--tf-line);
+}
+.tf-sub-b{
+  appearance:none; border:0; cursor:pointer;
+  padding:6px 13px; border-radius:7px; background:transparent;
+  font:inherit; font-size:11.5px; font-weight:650; letter-spacing:.02em;
+  color:var(--tf-ink3);
+  transition:color .14s ease, background-color .14s ease;
+}
+.tf-sub-b:hover{ color:var(--tf-ink2); background:rgba(255,255,255,.045); }
+.tf-sub-b.is-on{ color:var(--tf-ink); background:rgba(255,255,255,.085); box-shadow:inset 0 0 0 1px var(--tf-line2); }
+
+/* a controlled empty state, never a blank canvas */
+.tf-empty{
+  display:flex; flex-direction:column; align-items:center; text-align:center;
+  gap:9px; margin:8px auto; padding:34px 30px; max-width:520px;
+  border-radius:14px;
+  background:var(--tf-panel);
+  box-shadow:inset 0 0 0 1px var(--tf-line);
+}
+.tf-empty-i{
+  width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-size:17px; color:var(--tf-gold-2);
+  background:rgba(34,197,94,.10); box-shadow:inset 0 0 0 1px rgba(34,197,94,.22);
+}
+.tf-empty b{ font-size:14px; font-weight:700; color:var(--tf-ink); }
+.tf-empty p{ font-size:12px; line-height:1.55; color:var(--tf-ink3); max-width:44ch; }
+.tf-empty-acts{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:4px; }
+.tf-assist{ display:block; }
 
 .tf-teamsel{ display:flex; flex-direction:column; gap:4px; }
 .tf-teamsel > span{ font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--tf-ink3); }
@@ -9077,7 +9248,12 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 }
 
 /* ── body / panes ────────────────────────────────────────────────────────── */
-.tf-body{ flex:1; min-height:0; display:flex; }
+/* A column: the workspace's secondary switch sits above its content. It was a
+   row, which made the switch a full-height band down the left edge and squeezed
+   the content into whatever was left. */
+.tf-body{ flex:1; min-height:0; display:flex; flex-direction:column; }
+.tf-body > .tf-sub{ flex:none; }
+.tf-body > .tf-sub + .tf-pane{ padding-top:0; }
 .tf-pane{ flex:1; min-width:0; display:flex; flex-direction:column; padding:14px 26px 18px; gap:12px; }
 .tf-pane--split{ flex-direction:row; gap:18px; }
 .tf-pane--split .tf-pane-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:12px; }
@@ -12905,6 +13081,151 @@ body.club-theme .topbar-titles{ min-width:0; }
   max-width:none; max-height:none; }
 
 /* ── responsive ─────────────────────────────────────────────────────────── */
+
+/* ── Transfers is dark now: the light pieces of the market skin, restated ──
+   The skin block above was written for a silver-grey Transfers and a
+   mustard band, and a handful of its rules carry literal light greys and
+   golds rather than tokens. Those are the only pieces that do not follow the
+   palette, so they are restated here for #pg-transfers alone. Coach Market
+   keeps the block exactly as it was. */
+#pg-transfers .tf-head select,
+#pg-transfers .tf-head .tf-money-cell,
+#pg-transfers .tf-head .tf-hs{
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--tf-line);
+  border-radius:7px;
+  box-shadow:none;
+  color:var(--tf-ink2);
+}
+#pg-transfers .tf-strip .tf-hs{ padding:5px 10px; }
+#pg-transfers .tf-head .tf-money-cell i,
+#pg-transfers .tf-head .tf-hs{ color:var(--tf-ink3); }
+#pg-transfers .tf-head .tf-money-cell b{ color:var(--tf-ink); }
+#pg-transfers .tf-teamsel > span{ color:var(--tf-ink3); }
+#pg-transfers .tf-head select:hover{ border-color:var(--tf-line2); }
+#pg-transfers .tf-head select:focus{ outline:none; border-color:var(--tf-acc); box-shadow:0 0 0 3px var(--tf-acc-16); }
+/* the column header: a step above the rows, not a silver bar across them */
+#pg-transfers .tf-table thead th{
+  background:rgba(255,255,255,.05);
+  color:var(--tf-ink2);
+  border-bottom:1px solid var(--tf-line2);
+  box-shadow:none;
+}
+#pg-transfers .tf-table thead th button{ color:var(--tf-ink2); }
+#pg-transfers .tf-table thead th button:hover{ color:var(--tf-ink); }
+#pg-transfers .tf-table thead th.is-sorted button{ color:var(--tf-champagne); }
+
+/* Every remaining literal light grey and mustard in the market skin, restated
+   for the dark palette. Selector-for-selector with the block below, so the two
+   can be read side by side; Coach Market keeps the originals. */
+#pg-transfers .tf-row:hover,
+#pg-transfers .tf-table tbody tr.tf-row:nth-child(2n):hover{
+  background:rgba(34,197,94,.10);
+}
+#pg-transfers .tf-row.is-mine,
+#pg-transfers .tf-table tbody tr.tf-row.is-mine{
+  background:rgba(34,197,94,.13);
+}
+#pg-transfers .tf-search,
+#pg-transfers .tf-btn,
+#pg-transfers .tf-chip-btn,
+#pg-transfers .tf-ct-act,
+#pg-transfers .tf-side,
+#pg-transfers .tf-side-timer,
+#pg-transfers .tf-clockbox{
+  border-color:var(--tf-line2);
+}
+#pg-transfers .tf-chip-btn:hover,
+#pg-transfers .tf-btn:hover:not(:disabled),
+#pg-transfers .tf-ct-act:hover{
+  background:rgba(255,255,255,.09);
+  color:var(--tf-ink);
+}
+#pg-transfers .tf-side,
+#pg-transfers .tf-pd-body{
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-side));
+}
+#pg-transfers .tf-side-timer{
+  background:rgba(255,255,255,.05);
+}
+#pg-transfers .tf-side-timer.is-hot{
+  background:rgba(240,97,109,.16);
+}
+#pg-transfers .tf-pd-nums,
+#pg-transfers .tf-ct-facts,
+#pg-transfers .tf-nd-facts,
+#pg-transfers .tf-auc-facts,
+#pg-transfers .tf-meter-bar{
+  background:rgba(255,255,255,.06);
+}
+#pg-transfers .tf-pips i{ background:rgba(255,255,255,.16); }
+#pg-transfers .tf-scope{ --tf-sep:var(--tf-line2); --tf-count:rgba(255,255,255,.05); }
+#pg-transfers .tf-note-row.is-unread{ background:rgba(34,197,94,.12); }
+#pg-transfers .tf-avatar,
+#pg-transfers .tf-portrait{
+  box-shadow:0 0 0 1px var(--tf-line2), inset 0 1px 0 rgba(255,255,255,.06), 0 2px 5px -2px rgba(0,0,0,.5);
+}
+#pg-transfers .tf-scope .tf-auc,
+#pg-transfers .tf-ct-live .tf-auc{ color:var(--tf-champagne); }
+#pg-transfers .tf-scope .tf-auc em,
+#pg-transfers .tf-ct-live .tf-auc em,
+#pg-transfers .tf-scope .tf-auc.is-hot em{ color:var(--tf-ink); }
+/* The available-now figure was dark green on a green card — unreadable on the
+   dark palette it now sits on. */
+#pg-transfers .tf-desk-money .is-avail{ background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.32); }
+#pg-transfers .tf-desk-money .is-avail b{ color:var(--tf-champagne); }
+
+/* ── the last of the light ink ───────────────────────────────────────────── */
+/* Colours the market skin set for dark type on a silver sheet. On the dark
+   palette they are near-black on near-black, so they are restated as light ink
+   in the same places. Measured: every one of these was under 3:1 before. */
+#pg-transfers .tf-state{
+  background:rgba(255,255,255,.06); color:var(--tf-ink2);
+  border:1px solid var(--tf-line2); box-shadow:none;
+}
+#pg-transfers .tf-state--available,
+#pg-transfers .tf-state--active{
+  background:rgba(34,197,94,.16); color:#7ee2a8; border-color:rgba(34,197,94,.38);
+}
+#pg-transfers .tf-state--ending-soon{
+  background:rgba(240,97,109,.16); color:#fca5a5; border-color:rgba(240,97,109,.36);
+}
+#pg-transfers .tf-clock,
+#pg-transfers .tf-c-avail .tf-clock{
+  background:rgba(255,255,255,.05); border:1px solid var(--tf-line2);
+  color:var(--tf-ink); box-shadow:none;
+}
+#pg-transfers .tf-clock--hot{ background:rgba(240,97,109,.16); border-color:rgba(240,97,109,.40); color:#fca5a5; }
+#pg-transfers .tf-clock--warm{ color:var(--tf-warm); }
+#pg-transfers .tf-clock--off{ color:var(--tf-ink3); }
+#pg-transfers .tf-price{ color:var(--tf-ink); }
+#pg-transfers .tf-auc-state--cancelled{ background:rgba(240,97,109,.16); color:#fca5a5; border-color:rgba(240,97,109,.36); }
+#pg-transfers .tf-ability{ background:rgba(34,197,94,.20); color:#a7f3c4; box-shadow:inset 0 0 0 1px rgba(34,197,94,.34); }
+#pg-transfers .tf-qual--elite b,
+#pg-transfers .tf-qual--good b{ color:var(--tf-champagne); }
+/* the mustard tints the filter chips and position badges still carried */
+#pg-transfers .tf-chip-btn.is-on{ color:var(--tf-champagne); border-color:rgba(34,197,94,.42); background:rgba(34,197,94,.12); }
+#pg-transfers .tf-chip-btn em{ background:rgba(34,197,94,.22); color:var(--tf-champagne); }
+#pg-transfers .tf-pos--fw{ background:rgba(34,197,94,.16); color:var(--tf-champagne); box-shadow:inset 0 0 0 1px rgba(34,197,94,.28); }
+#pg-transfers .tf-state--own{ background:rgba(34,197,94,.18); color:var(--tf-champagne); }
+#pg-transfers .tf-row.is-own{ box-shadow:inset 3px 0 0 rgba(34,197,94,.55); }
+#pg-transfers .tf-state--won,
+#pg-transfers .tf-state--scouted{ background:rgba(34,197,94,.18); color:var(--tf-champagne); }
+#pg-transfers .tf-search:focus-within,
+#pg-transfers .tf-filters-grid input:focus,
+#pg-transfers .tf-root select:focus{ border-color:var(--tf-acc); box-shadow:0 0 0 3px var(--tf-acc-16); }
+/* "No deadline" is the absence of a countdown, not a countdown. It kept the
+   clock's well and box, which made a two-line grey slab out of two words. */
+#pg-transfers .tf-clock--off{
+  background:transparent; border:0; box-shadow:none; padding:2px 0;
+  color:var(--tf-ink3); font-weight:600; letter-spacing:.06em; white-space:nowrap;
+}
+#pg-transfers .tf-nd-when b{
+  color:var(--tf-ink); background:rgba(255,255,255,.05);
+  border:1px solid var(--tf-line2); box-shadow:none;
+}
+/* a need with no deadline says so plainly, rather than showing an empty well */
+#pg-transfers .tf-nd-when b:empty{ display:none; }
 
 /* ══════════════════════════════════════════════════════════════════════════════
    FAMILISTA RECRUITMENT COMMAND CENTER
