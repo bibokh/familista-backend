@@ -9913,23 +9913,21 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
    inherit any of it. */
 #tf-sell-host{ display:none; }
 #tf-sell-host.is-on{ display:block; }
-#tf-sell-host{
-  --tf-line:  rgba(255,255,255,.07);
-  --tf-line2: rgba(255,255,255,.12);
-  --tf-glass: linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
-  --tf-ink:   #f4f6fa;
-  --tf-ink2:  #9aa4b6;
-  --tf-ink3:  #6b7484;
-  --tf-acc:   var(--tf-gold);
-  --tf-acc-d: var(--tf-gold-d);
-  color:var(--tf-ink);
-}
-[data-theme="light"] #tf-sell-host{
-  --tf-line:rgba(0,0,0,.09); --tf-line2:rgba(0,0,0,.14);
-  --tf-glass:linear-gradient(180deg,rgba(0,0,0,.03),rgba(0,0,0,.008));
-  --tf-ink:#0f172a; --tf-ink2:#475569; --tf-ink3:#7b8494;
-}
+/* The host declared eight tokens of its own and then referenced `--tf-gold`,
+   which it never defined. Twenty-six of the thirty-three tokens the panel's
+   rules read were unset here, so every `background:linear-gradient(var(--a),
+   var(--b))` collapsed to `none` while the foreground colour written for that
+   fill stayed: SAVE RENEWAL kept #08320a on nothing, CANCEL LISTING kept white
+   on nothing, and the paper card lost its surface. The button face is not even
+   declared outside a scope — `.tf-scope .tf-btn` is one of the two selectors
+   that carry it. So the fix is not a second palette here; it is the same scope
+   the inline mount uses, which the dialog now carries. Nothing is declared at
+   this level any more, and nothing can drift out of step with it again. */
 #tf-sell-host .tf-modal{ z-index:1200; }
+/* The dialog chrome behind the paper card stays dark, so its close control is
+   read against that and not against the card. */
+#tf-sell-host .tf-modal-box > .tf-x{ color:#9aa4b6; border-color:rgba(255,255,255,.14); }
+#tf-sell-host .tf-modal-box > .tf-x:hover{ color:#f4f6fa; background:rgba(255,255,255,.12); }
 .tf-sell-price{ display:flex; flex-direction:column; gap:5px; }
 .tf-sell-price > span{
   font-size:8.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--tf-ink3);

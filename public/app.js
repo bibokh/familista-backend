@@ -57922,7 +57922,13 @@ function _tfSellRender() {
   host.classList.add('is-on');
   host.innerHTML = '<div class="tf-modal tf-modal--sm" id="tf-sell-modal">'
     + '<div class="tf-modal-bd" data-tf-sell-close></div>'
-    + '<div class="tf-modal-box tf-modal-box--sm tf-modal-box--plain" role="dialog" aria-modal="true" aria-label="Contract and transfer">'
+    // Same component, same palette. The panel's own rules — the card surface,
+    // and every button face — are written for `.tf-scope`, which is the class
+    // his profile wraps this component in. Raised onto its own host it was not
+    // in that scope, so twenty-six tokens resolved to nothing: each button kept
+    // its dark-on-gold foreground and lost the gold, and the paper card lost
+    // its fill. Wrapping it here is what the inline mount already does.
+    + '<div class="tf-modal-box tf-modal-box--sm tf-modal-box--plain tf-scope" role="dialog" aria-modal="true" aria-label="Contract and transfer">'
     +   '<button type="button" class="tf-x" data-tf-sell-close aria-label="Close">×</button>'
     +   _tfContractHtml(_TF_SELL.ctxId, p)
     + '</div></div>';

@@ -202,6 +202,54 @@ describe('an academy player reaches the market like anybody else', () => {
   });
 });
 
+// ══ 3. THE RAISED PANEL IS IN THE SAME PALETTE AS THE INLINE ONE ═══════════
+// Raised from an age group, the panel is not inside his profile — it is a
+// dialog on its own body-level host. That host declared eight tokens of its
+// own and then referenced `--tf-gold`, which it never defined: twenty-six of
+// the thirty-three tokens the panel's rules read were unset, so every
+// `background:linear-gradient(var(--a),var(--b))` collapsed to `none` while the
+// foreground colour written for that fill stayed. SAVE RENEWAL kept #08320a on
+// nothing; CANCEL LISTING kept white on nothing. Nothing was ever stacked over
+// the panel and every control was always clickable — they simply had no fill.
+//
+// The button face is not declared outside a scope at all: `.tf-scope .tf-btn`
+// is one of the two selectors that carry it. So the panel must be in that
+// scope wherever it is mounted, and nothing may declare a partial copy again.
+describe('the Contract / Transfer panel carries one palette in both mounts', () => {
+  const CSS = readFileSync(join(__dirname, '..', 'public', 'app.css'), 'utf8');
+
+  it('the raised dialog is wrapped in the same scope his profile wraps it in', () => {
+    const body = fnBody('_tfSellRender');
+    expect(body).toMatch(/class="tf-modal-box[^"]*\btf-scope\b/);
+    // which is exactly what the inline mount does
+    expect(APP).toMatch(/<div class="tf-scope">'\s*\+\s*_tfContractMount/);
+  });
+
+  it('the raised host declares no palette of its own to drift out of step', () => {
+    const at = CSS.indexOf('#tf-sell-host{ display:none; }');
+    expect(at).toBeGreaterThan(-1);
+    const block = CSS.slice(at, CSS.indexOf('.tf-sell-price{', at));
+    expect(block).not.toMatch(/^\s*--tf-[a-z0-9-]+\s*:/m);
+  });
+
+  it('the button face is only ever declared inside a scope, so being outside one has no face', () => {
+    expect(CSS).toMatch(/\.tf-scope \.tf-btn\s*\{/);
+    expect(CSS).toMatch(/\.tf-ct-act\s*\{/);
+  });
+
+  it('the close control is read against the dark chrome it sits on, not the card', () => {
+    expect(CSS).toMatch(/#tf-sell-host \.tf-modal-box > \.tf-x\s*\{[^}]*color:/);
+  });
+
+  it('the raised dialog still sits above the workspace it was raised from', () => {
+    // #tf-sell-host is a child of <body>; the profile modal is inside
+    // #pages-container, whose own z-index confines it. Nothing here changed,
+    // and this holds the host at the body level where that is true.
+    expect(CSS).toMatch(/#tf-sell-host \.tf-modal\{\s*z-index:1200;\s*\}/);
+    expect(fnBody('_tfSellHost')).toContain('document.body.appendChild');
+  });
+});
+
 describe('the browser offers the academy surface the same actions', () => {
   it('an age group profile renders the Contract / Transfer button with its own context', () => {
     expect(APP).toMatch(/_tfSellButton\('academy:'\s*\+\s*AT\.active/);
