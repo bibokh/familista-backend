@@ -49,12 +49,14 @@ describe('four workspaces over the seven views', () => {
   it('and every old view lands in exactly one of them — nothing orphaned', () => {
     const map = APP.match(/var TF_VIEW_WS = \{[\s\S]*?\};/)![0];
     OLD_VIEWS.forEach((v) => expect(map).toMatch(new RegExp(`\\b${v}:\\s*'(market|scouting|business|mine)'`)));
-    // the workspaces' own view lists cover the six that have a switch entry,
-    // and assistant is folded into scouting rather than dropped
+    // assistant is folded into scouting, and offers into the club-business
+    // board — neither is dropped, and both keys still resolve
     const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
-    ['auctions', 'feed', 'scouting', 'needs', 'offers', 'activity']
+    ['auctions', 'feed', 'scouting', 'needs', 'activity']
       .forEach((v) => expect(ws).toContain(`'${v}'`));
     expect(map).toContain("assistant: 'scouting'");
+    expect(map).toContain("offers: 'business'");
+    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'offers' || _TF.tab === 'needs'");
   });
 
   it('which workspace is on screen is derived, never stored', () => {
@@ -71,12 +73,45 @@ describe('four workspaces over the seven views', () => {
 });
 
 describe('nothing underneath was rewritten', () => {
-  it('every view still renders through its own builder', () => {
+  it('every view still renders, through a builder that reads the same data', () => {
     const f = fnBody('_tfViewHtml');
-    ['_tfFeedHtml', '_tfScoutingHtml', '_tfDirectOffersHtml', '_tfNeedsHtml',
-     '_tfActivityHtml', '_tfAuctionsHtml'].forEach((b) => expect(f).toContain(b));
-    // and the assistant's builder is still called, from inside scouting
+    ['_tfFeedHtml', '_tfScoutingHtml', '_tfxBoardHtml', '_tfxPipelineHtml', '_tfxMarketHtml']
+      .forEach((b) => expect(f).toContain(b));
+    // the assistant's builder is still called, from inside scouting
     expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
+    // the new builders draw from the module's own reads, computing nothing new
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfLots(C)');
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfPassFilters(p, C)');
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfAucBoardHtml()');
+    expect(fnBody('_tfxPipelineHtml')).toContain('_tfActivityBuckets()');
+    expect(fnBody('_tfxPipelineHtml')).toContain('_tfAucMine()');
+    expect(fnBody('_tfxPipelineHtml')).toContain('_TF_DESK.data');
+    expect(fnBody('_tfxBoardHtml')).toContain('_tfNeedsFilterBar(needs)');
+    expect(fnBody('_tfxNeedListHtml')).toContain('_tfNeedRows().filter(_tfNeedPasses)');
+  });
+
+  it('and the presentation is cards and lanes, not a table', () => {
+    // the market's own table is gone; the board is a grid of player cards
+    expect(fnBody('_tfxMarketHtml')).toContain('_tfxCardHtml(p, C)');
+    expect(fnBody('_tfxMarketHtml')).not.toContain('<table');
+    expect(fnBody('_tfxDiscCardsHtml')).toContain('_tfxDiscCardHtml');
+    // a card carries what a recruiter decides on
+    const c = fnBody('_tfxCardHtml');
+    ['_tfPortrait(p', '_tfQuality(p.qual)', 'Market value', '_tfCostOf(p)',
+     '_tfStateChip(st)', '_tfStarBtn(p, C)'].forEach((x) => expect(c).toContain(x));
+    // seven stages, and the desk among them
+    const st = APP.match(/var TFX_STAGES = \[[\s\S]*?\];/)![0];
+    ['received', 'desk', 'live', 'sent', 'bids', 'done', 'dead']
+      .forEach((k) => expect(st).toContain(`'${k}'`));
+  });
+
+  it('inspecting a player is a docked drawer, not a modal over the board', () => {
+    const f = fnBody('_tfDetailHtml');
+    expect(f).toContain('tfx-dr-box');
+    expect(f).not.toContain("'<div class=\"tf-modal\" data-tf-modal=\"detail\">'");
+    // anchored to the page, so it cannot displace the board or hide under the topbar
+    expect(CSS).toContain('#pg-transfers .tfx-dr{ position:absolute; inset:0;');
+    expect(CSS).toContain('#pg-transfers{ position:relative; }');
   });
 
   it('the view key is the one the rest of the module already sets', () => {

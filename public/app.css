@@ -13082,6 +13082,274 @@ body.club-theme .topbar-titles{ min-width:0; }
 
 /* ── responsive ─────────────────────────────────────────────────────────── */
 
+/* ══════════════════════════════════════════════════════════════════════════
+   THE RECRUITMENT FLOOR
+   ══════════════════════════════════════════════════════════════════════════
+   Cards, rails, lanes and a docked drawer. The module's other components are
+   untouched; these are new surfaces the new presentation is built from, and
+   every one of them is scoped to #pg-transfers. */
+
+#pg-transfers .tfx-pane{ overflow-y:auto; gap:22px; }
+
+/* ── the lenses: a count, and the question it answers ─────────────────────── */
+#pg-transfers .tfx-lenses{ display:flex; gap:8px; flex-wrap:wrap; flex:none; }
+#pg-transfers .tfx-lens{
+  appearance:none; cursor:pointer; text-align:left;
+  display:flex; flex-direction:column; gap:1px; min-width:104px;
+  padding:9px 14px 10px; border-radius:11px;
+  background:var(--tf-panel); border:1px solid var(--tf-line);
+  transition:border-color .15s ease, background-color .15s ease, transform .12s ease;
+}
+#pg-transfers .tfx-lens b{ font-size:19px; font-weight:750; color:var(--tf-ink); letter-spacing:-.4px; line-height:1.05; }
+#pg-transfers .tfx-lens span{ font-size:10px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tfx-lens:hover{ background:var(--tf-panel-2); border-color:var(--tf-line2); }
+#pg-transfers .tfx-lens.is-on{
+  background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.42);
+}
+#pg-transfers .tfx-lens.is-on b{ color:var(--tf-champagne); }
+#pg-transfers .tfx-lens.is-on span{ color:#8fe0ab; }
+
+/* ── a rail, and the grid under it ────────────────────────────────────────── */
+#pg-transfers .tfx-rail,
+#pg-transfers .tfx-all{ flex:none; display:flex; flex-direction:column; gap:11px; }
+#pg-transfers .tfx-rail-h{ display:flex; align-items:baseline; gap:10px; }
+#pg-transfers .tfx-rail-h h3{
+  font-size:12.5px; font-weight:750; letter-spacing:.09em; text-transform:uppercase; color:var(--tf-ink);
+}
+#pg-transfers .tfx-rail-h p{ font-size:11.5px; color:var(--tf-ink3); }
+#pg-transfers .tfx-rail-n{
+  margin-left:auto; font-size:10.5px; font-weight:750; color:var(--tf-ink3);
+  padding:2px 8px; border-radius:20px; background:rgba(255,255,255,.05);
+}
+/* a rail scrolls sideways; the page never does */
+#pg-transfers .tfx-rail-s{
+  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(272px,1fr);
+  gap:12px; overflow-x:auto; overflow-y:hidden; padding-bottom:4px;
+  scrollbar-width:thin;
+}
+#pg-transfers .tfx-grid{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:12px;
+}
+#pg-transfers .tfx-grid--need{ grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); }
+
+/* ── the player card ──────────────────────────────────────────────────────── */
+#pg-transfers .tfx-c{
+  display:flex; flex-direction:column; gap:10px;
+  padding:13px 13px 11px; border-radius:13px; cursor:pointer;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-panel));
+  border:1px solid var(--tf-line);
+  transition:border-color .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+#pg-transfers .tfx-c:hover{
+  border-color:rgba(34,197,94,.34);
+  box-shadow:0 10px 26px -18px rgba(0,0,0,.9);
+  transform:translateY(-1px);
+}
+#pg-transfers .tfx-c:focus-visible{ outline:2px solid var(--tf-acc); outline-offset:2px; }
+#pg-transfers .tfx-c.is-own{ border-color:rgba(34,197,94,.3); }
+#pg-transfers .tfx-c.is-mine{ box-shadow:inset 3px 0 0 rgba(34,197,94,.55); }
+/* The OVR block used to sit in the same row as the name and squeezed it to
+   half a card, so most names ended in an ellipsis. It sits under the portrait
+   instead: the name gets the whole width, which is what a recruiter reads
+   first. */
+#pg-transfers .tfx-c-top{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:11px; align-items:start; }
+#pg-transfers .tfx-c-por{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+#pg-transfers .tfx-c-por .tf-po{ width:54px; height:54px; border-radius:11px; }
+#pg-transfers .tfx-c-id{ min-width:0; display:flex; flex-direction:column; gap:4px; }
+#pg-transfers .tfx-c-name{
+  font-size:13.5px; font-weight:750; color:var(--tf-ink); line-height:1.2;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#pg-transfers .tfx-c-meta{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+#pg-transfers .tfx-c-dot{ font-size:10.5px; font-weight:600; color:var(--tf-ink3); }
+#pg-transfers .tfx-c-club{
+  font-size:10.5px; font-weight:600; color:var(--tf-ink2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#pg-transfers .tfx-c-ovr{ flex:none; }
+#pg-transfers .tfx-c-name{ white-space:normal; overflow-wrap:anywhere; }
+
+#pg-transfers .tfx-c-money{
+  display:grid; grid-template-columns:1fr 1fr; gap:1px;
+  background:var(--tf-line); border-radius:8px; overflow:hidden;
+}
+#pg-transfers .tfx-c-money > div{
+  display:flex; flex-direction:column; gap:2px; padding:7px 9px;
+  background:rgba(255,255,255,.028);
+}
+#pg-transfers .tfx-c-money i{
+  font-style:normal; font-size:8px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .tfx-c-money b{ font-size:13px; font-weight:750; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+#pg-transfers .tfx-c-money b.is-ok{ color:var(--tf-champagne); }
+#pg-transfers .tfx-c-money b.is-over{ color:#fca5a5; }
+#pg-transfers .tfx-c-st{ font-size:11px !important; font-weight:650 !important; }
+#pg-transfers .tfx-c-money.is-one{ grid-template-columns:1fr; }
+#pg-transfers .tfx-c-delta{ font-style:normal; font-size:9px; font-weight:700; letter-spacing:.02em; }
+#pg-transfers .tfx-c-delta.is-up{ color:#fca5a5; }
+#pg-transfers .tfx-c-delta.is-dn{ color:#7ee2a8; }
+
+#pg-transfers .tfx-c-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:20px; }
+#pg-transfers .tfx-c-tags{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+#pg-transfers .tfx-tag{
+  font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  padding:3px 7px; border-radius:5px; background:rgba(255,255,255,.06); color:var(--tf-ink2);
+}
+#pg-transfers .tfx-tag--fit{ background:rgba(34,197,94,.16); color:#7ee2a8; }
+#pg-transfers .tfx-tag--auc{ background:rgba(56,189,248,.14); color:#7dd3fc; }
+#pg-transfers .tfx-tag--own{ background:rgba(167,139,250,.16); color:#c4b5fd; }
+#pg-transfers .tfx-c-clock{
+  margin-left:auto; font-size:11px; font-weight:750; color:var(--tf-ink2);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+#pg-transfers .tfx-c-clock.is-warm{ color:var(--tf-warm); }
+#pg-transfers .tfx-c-clock.is-hot{ color:#fca5a5; }
+#pg-transfers .tfx-c-clock.is-off{ color:var(--tf-ink3); font-weight:600; }
+
+#pg-transfers .tfx-c-acts{ display:flex; align-items:center; gap:8px; }
+#pg-transfers .tfx-c-acts .tf-star{ flex:none; }
+#pg-transfers .tfx-c-go{ margin-left:auto; }
+
+/* the market before it has answered: the shape the cards will take, at rest.
+   Not a spinner and not a claim — the board's own geometry, held still, so
+   nothing moves when the real cards replace it. */
+#pg-transfers .tfx-c--skel{
+  min-height:172px; cursor:default; background:rgba(255,255,255,.028);
+  border-color:var(--tf-line); pointer-events:none;
+}
+#pg-transfers .tfx-c--skel:hover{ transform:none; box-shadow:none; border-color:var(--tf-line); }
+#pg-transfers .tfx-lens.is-wait{ cursor:default; }
+#pg-transfers .tfx-lens.is-wait b{ color:var(--tf-ink3); }
+
+/* ── lanes: the pipeline and the recruitment board ───────────────────────── */
+#pg-transfers .tfx-pipe,
+#pg-transfers .tfx-board{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:12px; align-items:start; flex:none;
+}
+#pg-transfers .tfx-lane{
+  display:flex; flex-direction:column; min-width:0;
+  border-radius:13px; background:var(--tf-panel); border:1px solid var(--tf-line);
+  overflow:hidden;
+}
+#pg-transfers .tfx-lane.is-hot{ border-color:rgba(34,197,94,.36); }
+#pg-transfers .tfx-lane-h{
+  display:grid; grid-template-columns:1fr auto; gap:2px 10px; align-items:baseline;
+  padding:11px 13px 10px; border-bottom:1px solid var(--tf-line);
+  background:rgba(255,255,255,.022);
+}
+#pg-transfers .tfx-lane-h h3{ font-size:11.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--tf-ink); }
+#pg-transfers .tfx-lane-h span{
+  font-size:11px; font-weight:800; color:var(--tf-ink2);
+  padding:1px 8px; border-radius:20px; background:rgba(255,255,255,.06);
+}
+#pg-transfers .tfx-lane.is-hot .tfx-lane-h span{ background:rgba(34,197,94,.2); color:var(--tf-champagne); }
+#pg-transfers .tfx-lane-h p{ grid-column:1/-1; font-size:10.5px; color:var(--tf-ink3); }
+#pg-transfers .tfx-lane-b{ padding:11px 12px 12px; display:flex; flex-direction:column; gap:9px; max-height:460px; overflow-y:auto; }
+#pg-transfers .tfx-lane-b > ol{ display:flex; flex-direction:column; gap:9px; }
+#pg-transfers .tfx-lane-none{ font-size:11.5px; color:var(--tf-ink3); padding:6px 2px 8px; }
+
+/* what is waiting on this club, said once, above the pipeline */
+#pg-transfers .tfx-alert{
+  display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; flex:none;
+  padding:11px 15px; border-radius:11px;
+  background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.3);
+}
+#pg-transfers .tfx-alert b{ font-size:13px; font-weight:750; color:var(--tf-champagne); }
+#pg-transfers .tfx-alert span{ font-size:11.5px; color:var(--tf-ink2); }
+
+/* the money strip above the pipeline */
+#pg-transfers .tfx-money{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:9px; flex:none;
+}
+#pg-transfers .tfx-money > div{
+  display:flex; flex-direction:column; gap:2px; padding:10px 13px;
+  border-radius:11px; background:var(--tf-panel); border:1px solid var(--tf-line);
+}
+#pg-transfers .tfx-money i{ font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tfx-money b{ font-size:16px; font-weight:750; color:var(--tf-ink); letter-spacing:-.3px; }
+#pg-transfers .tfx-money .is-avail{ background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.3); }
+#pg-transfers .tfx-money .is-avail b{ color:var(--tf-champagne); }
+
+/* the board's top line */
+#pg-transfers .tfx-bd-top{ display:flex; align-items:stretch; gap:9px; flex-wrap:wrap; flex:none; }
+#pg-transfers .tfx-stat{
+  display:flex; flex-direction:column; gap:2px; justify-content:center;
+  padding:9px 15px; border-radius:11px; min-width:118px;
+  background:var(--tf-panel); border:1px solid var(--tf-line);
+}
+#pg-transfers .tfx-stat i{ font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .tfx-stat b{ font-size:17px; font-weight:750; color:var(--tf-ink); letter-spacing:-.3px; }
+#pg-transfers .tfx-stat--hi{ background:rgba(34,197,94,.10); border-color:rgba(34,197,94,.3); }
+#pg-transfers .tfx-stat--hi b{ color:var(--tf-champagne); }
+#pg-transfers .tfx-bd-new{ margin-left:auto; align-self:center; }
+#pg-transfers .tfx-lane-b .tf-nd{ margin:0; }
+#pg-transfers .tfx-lane-b .tf-needs{ display:flex; flex-direction:column; gap:9px; }
+#pg-transfers .tfx-grid--need .tf-empty{ grid-column:1/-1; }
+/* the desk is a table and wants the width of the board */
+#pg-transfers .tfx-lane--wide{ grid-column:1/-1; }
+#pg-transfers .tfx-lane--wide .tfx-lane-b{ max-height:none; }
+
+/* the drawer's head: the gold band the modal wore is a full-width slab in a
+   560px column, and it was pushing the name off the top edge. A rule with a
+   breath of green, sitting at the top of the column where it belongs. */
+#pg-transfers .tfx-dr-box .tf-pd-head{
+  flex:none; align-items:flex-start; padding:18px 52px 16px 20px;
+  background:linear-gradient(180deg,rgba(34,197,94,.12),rgba(34,197,94,0));
+  border-bottom:1px solid var(--tf-line);
+  box-shadow:none; color:var(--tf-ink);
+}
+#pg-transfers .tfx-dr-box .tf-pd-head h2,
+#pg-transfers .tfx-dr-box .tf-pd-sub{ color:var(--tf-ink); }
+#pg-transfers .tfx-dr-box .tf-pd-head h2{ font-size:17px; line-height:1.2; }
+#pg-transfers .tfx-dr-box .tf-pd-body{ background:transparent; }
+#pg-transfers .tfx-dr-box .tf-pd-ovr .tf-qual b{ font-size:20px; }
+#pg-transfers .tfx-dr-box .tf-x{
+  background:rgba(255,255,255,.07); border:1px solid var(--tf-line2);
+  color:var(--tf-ink); border-radius:8px; width:28px; height:28px;
+}
+#pg-transfers .tfx-dr-box .tf-x:hover{ background:rgba(255,255,255,.13); }
+
+/* ── the drawer ───────────────────────────────────────────────────────────── */
+/* Fixed to the viewport's right edge, so opening it displaces nothing. The
+   board behind stays lit and usable: this is inspection, not a detour. */
+/* Anchored to the page, not the viewport. Fixed to the viewport put its top
+   64 pixels behind the application's own topbar, which cut the player's name
+   and rating off the head. The page is the room this drawer belongs to. */
+#pg-transfers{ position:relative; }
+#pg-transfers .tfx-dr{ position:absolute; inset:0; z-index:60; pointer-events:none; }
+#pg-transfers .tfx-dr-scrim{
+  position:absolute; inset:0; pointer-events:auto;
+  background:linear-gradient(90deg,rgba(3,6,11,.30),rgba(3,6,11,.62));
+}
+#pg-transfers .tfx-dr-box{
+  position:absolute; top:0; right:0; bottom:0; pointer-events:auto;
+  width:min(560px, calc(100vw - 56px));
+  display:flex; flex-direction:column; min-height:0;
+  background:linear-gradient(180deg,#111a26,#0b1119);
+  border-left:1px solid var(--tf-line2);
+  box-shadow:-26px 0 60px -30px rgba(0,0,0,.95);
+  animation:tfxDr .18s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes tfxDr{ from{ transform:translateX(14px); opacity:.6; } to{ transform:none; opacity:1; } }
+@media (prefers-reduced-motion:reduce){ #pg-transfers .tfx-dr-box{ animation:none; } }
+#pg-transfers .tfx-dr-box > .tf-x{
+  position:absolute; top:11px; right:12px; z-index:2;
+}
+#pg-transfers .tfx-dr-box .tf-pd-head{ flex:none; }
+#pg-transfers .tfx-dr-box .tf-pd-body{
+  flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;
+  background:transparent;
+}
+#pg-transfers .tfx-dr-box .tf-pd-panel{ min-height:0; }
+
+@media (max-width:1180px){
+  #pg-transfers .tfx-dr-box{ width:min(480px, calc(100vw - 32px)); }
+  #pg-transfers .tfx-rail-s{ grid-auto-columns:minmax(252px,1fr); }
+  #pg-transfers .tfx-grid{ grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); }
+}
+
 /* ── Transfers is dark now: the light pieces of the market skin, restated ──
    The skin block above was written for a silver-grey Transfers and a
    mustard band, and a handful of its rules carry literal light greys and
