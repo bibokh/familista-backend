@@ -139,21 +139,30 @@ describe('the Clubs picker offers only clubs that exist', () => {
 });
 
 describe('the club a module reads against is the club that was picked', () => {
-  it('the switch publishes a readiness promise before it asks the server', () => {
-    const s = APP.slice(APP.indexOf('async function switchClub('), APP.indexOf('async function switchClub(') + 8000);
-    expect(s).toContain('window.__famClubReady = new Promise(');
-    expect(s).toContain('window.__famClubReadyFor = clubId;');
-    // resolved once the server is answering as the new club, and on failure too,
+  it('the readiness promise is published before the server is asked', () => {
+    // The gate moved out of switchClub and into the shared club shell, where it
+    // is opened as the club is picked — earlier than this, and shared with the
+    // rest of the workspace. See tests/workspace-hydration.unit.test.ts.
+    const s = APP.slice(APP.indexOf('async function switchClub('), APP.indexOf('async function switchTeam('));
+    expect(s).toContain('_famClubSwitchBegin(clubId);');
+    expect(s.indexOf('_famClubSwitchBegin')).toBeLessThan(s.indexOf("post('/me/context'"));
+    // closed once the server is answering as the new club, and on failure too,
     // so nothing waiting on it can hang
-    expect(s.indexOf('_ctxDone(true)')).toBeGreaterThan(s.indexOf("post('/me/context'"));
-    expect(s).toContain('_ctxDone(false)');
+    expect(s.indexOf('_famClubSwitchEnd(true)')).toBeGreaterThan(s.indexOf("post('/me/context'"));
+    expect(s).toContain('_famClubSwitchEnd(false)');
+    const b = APP.slice(APP.indexOf('function _famClubSwitchBegin('), APP.indexOf('function _famClubSwitchEnd('));
+    expect(b).toContain('window.__famClubReady = new Promise(');
+    expect(b).toContain('window.__famClubReadyFor = clubId;');
   });
 
   it('and Coach Market awaits it instead of racing it', () => {
-    const f = appFn('_stClubReady', '_stSyncAll');
+    const f = appFn('_famClubReady', '_famClubSwitchBegin');
     expect(f).toContain('w.__famClubReadyFor === want');
     // no club switch in flight is not a reason to wait
     expect(f).toContain('return Promise.resolve(true);');
+    // and the module reads that one gate rather than keeping its own copy
+    expect(APP.slice(APP.indexOf('function _stClubReady()'),
+                     APP.indexOf('function _stClubReady()') + 120)).toContain('_famClubReady()');
   });
 });
 

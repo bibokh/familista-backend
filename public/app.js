@@ -474,6 +474,14 @@ async function bootApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
 
+  // Boot has awaits in it, and a reader does not wait for them: by the time it
+  // reaches Layer B they may already have picked a club, which starts a hydration
+  // of its own. Two hydrations for the same club is the duplicate bootstrap —
+  // twelve heavy requests where six are needed, competing for one connection
+  // pool. Club entry is the authoritative owner of club-scoped hydration, so
+  // boot notes the entry count now and stands down below if it has moved.
+  var _bootEntry = (typeof _famClubEntry === 'number') ? _famClubEntry : 0;
+
   // Update user info in sidebar
   if (State.user) {
     // /auth/me may return a user without firstName/lastName — fall back safely
@@ -493,44 +501,54 @@ async function bootApp() {
   // so SquadAPI can be scoped by the active team.
   try { await AppContext.load(); } catch (_) {}
 
-  // Load data in parallel
-  showToast('Loading your club data...', 'info');
-  await loadAllData();
+  // ── Layer B at boot, only if the landing page is one that draws from it ────
+  // Signing in lands on Owner Home or the Clubs picker, and neither reads a
+  // club's squad, matches, analytics or market. Reading them here anyway meant
+  // the whole of Layer B ran twice on the ordinary path — once now and once the
+  // moment a club was actually entered — so twelve of the heaviest requests in
+  // the application went out where six were needed, all of them competing for
+  // the same connection pool. A landing page that does need club data (a
+  // restored deep link into the workspace) still gets it here.
+  var _entryTookOver = (typeof _famClubEntry === 'number') && _famClubEntry !== _bootEntry;
+  if (!_entryTookOver && _famNeedsClubData(_famActivePage())) {
+    showToast('Loading your club data...', 'info');
+    await _famEnsureClubData();
 
-  // ── the squad becomes real ────────────────────────────────────────────────
-  // Lift this club's roster into persistent Player rows once, then read the
-  // canonical roster back. From here the server owns who plays for whom, which
-  // is what lets a player actually change clubs.
-  try {
-    if (typeof _thHydrate === 'function') {
-      var _hs = await _thHydrate();
-      if (_hs === 'ready') {
-        if (typeof _sqLoad === 'function') _sqLoad();
-        // The eager pages were painted while the server was still answering, so
-        // the Squad on screen still names its players by the browser's old
-        // `sq-8` ids — click one and nothing opens, because that footballer no
-        // longer exists under that name. Paint them again now the roster is
-        // real, and stay on whatever page the manager is looking at.
-        var _showing = ((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
-        if (typeof renderAllPages === 'function') renderAllPages();
-        if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
-      } else {
-        // Same message, plus the one fact that identifies the cause, so a
-        // screenshot of the banner is enough to tell which call failed.
-        var _d = (typeof _TH !== 'undefined' && _TH && _TH.diag) || null;
-        showToast('Squad is running locally — server roster unavailable'
-          + (_d ? ' (' + _d.step + (_d.status != null ? ' → HTTP ' + _d.status : ' → ' + (_d.code || 'error')) + ')' : ''),
-          'error');
+    // ── the squad becomes real ────────────────────────────────────────────────
+    // Lift this club's roster into persistent Player rows once, then read the
+    // canonical roster back. From here the server owns who plays for whom, which
+    // is what lets a player actually change clubs.
+    try {
+      if (typeof _thHydrate === 'function') {
+        var _hs = await _thHydrate();
+        if (_hs === 'ready') {
+          if (typeof _sqLoad === 'function') _sqLoad();
+          // The eager pages were painted while the server was still answering, so
+          // the Squad on screen still names its players by the browser's old
+          // `sq-8` ids — click one and nothing opens, because that footballer no
+          // longer exists under that name. Paint them again now the roster is
+          // real, and stay on whatever page the manager is looking at.
+          var _showing = ((document.querySelector('.page.active') || {}).id || '').replace(/^pg-/, '');
+          if (typeof renderAllPages === 'function') renderAllPages();
+          if (_showing && typeof navTo === 'function') navTo(_showing, null, { fromPopState: true });
+        } else {
+          // Same message, plus the one fact that identifies the cause, so a
+          // screenshot of the banner is enough to tell which call failed.
+          var _d = (typeof _TH !== 'undefined' && _TH && _TH.diag) || null;
+          showToast('Squad is running locally — server roster unavailable'
+            + (_d ? ' (' + _d.step + (_d.status != null ? ' → HTTP ' + _d.status : ' → ' + (_d.code || 'error')) + ')' : ''),
+            'error');
+        }
+        // Either way. The transfer market belongs to the other clubs and is read
+        // from this session, not from this club's roster — it used to be read
+        // only on the ready branch, so a session that could not lift its own
+        // squad opened Transfers to zeros over a full market. Reading it here
+        // also means the page is drawn once, with its rows already in hand,
+        // rather than painted empty and filled in underneath the manager.
+        if (typeof _tfSyncAll === 'function') _tfSyncAll();
       }
-      // Either way. The transfer market belongs to the other clubs and is read
-      // from this session, not from this club's roster — it used to be read
-      // only on the ready branch, so a session that could not lift its own
-      // squad opened Transfers to zeros over a full market. Reading it here
-      // also means the page is drawn once, with its rows already in hand,
-      // rather than painted empty and filled in underneath the manager.
-      if (typeof _tfSyncAll === 'function') _tfSyncAll();
-    }
-  } catch (_) {}
+    } catch (_) {}
+  }
 
   // GPS simulator removed — startLiveGPS / startLiveInterval decommissioned.
 
@@ -544,6 +562,206 @@ async function bootApp() {
   }
 }
 
+// ── CLUB WORKSPACE HYDRATION — two layers ──────────────────────────────────
+//
+// LAYER A, the critical club shell: who the user is, which club is active, the
+// membership and permissions behind it, the club's identity, the team context,
+// and the routing context. Everything a module must know before it may read
+// anything. AppContext.switchClub establishes it, and it is the only thing a
+// destination module waits for.
+//
+// LAYER B, module data: the boards themselves. Each page below draws from State
+// that loadAllData fills — and every one of them used to be drawn the instant
+// that State arrived, all forty-odd, on every club entry, whichever page the
+// reader had actually asked for. Eight are platform pages mounted eagerly at
+// boot, so their renderers did full work into containers nobody was looking at:
+// 1.2 seconds of main thread, twice over, standing between the club being
+// picked and the requested module being allowed to start.
+//
+// A page is drawn when it is on screen. _FAM_DATA_VERSION counts how many times
+// club data has landed; a page whose last draw is behind that count is redrawn
+// when it is activated, and the page already active is redrawn immediately.
+// Nothing is dropped and nothing anybody can see is deferred — whatever is in
+// front of the reader is always current, and the rest costs nothing until it is
+// asked for.
+//
+// The map is derived from the renderers themselves: each writes into
+// '<page>-content' inside 'pg-<page>', which is what pairs the two here.
+var _FAM_PAGE_RENDER = {
+  'dashboard':                   ['renderDashboard'],
+  'squad':                       ['renderSquad'],
+  'matches':                     ['renderMatches'],
+  'match-center':                ['renderMatchCenter'],
+  'ai-scouting':                 ['renderAIScoutingCenter'],
+  'ai-coach':                    ['renderAICoachCenter'],
+  'medical-center':              ['renderMedicalCenter'],
+  'performance-center':          ['renderPerformanceCenter'],
+  'scouting-center':             ['renderScoutingCenter'],
+  'transfer-center':             ['renderTransferCenter'],
+  'finance-center':              ['renderFinanceCenter'],
+  'management-center':           ['renderManagementCenter'],
+  'academy-center':              ['renderAcademyCenter'],
+  'sporting-director-center':    ['renderSportingDirectorCenter'],
+  'director-of-football-center': ['renderDirectorOfFootballCenter'],
+  'board-of-directors-center':   ['renderBoardOfDirectorsCenter'],
+  'ownership-center':            ['renderOwnershipCenter'],
+  'ai-executive-center':         ['renderAIExecutiveCenter'],
+  'ai-president-center':         ['renderAIPresidentCenter'],
+  'ai-chairman-center':          ['renderAIChairmanCenter'],
+  'ai-war-room':                 ['renderAIWarRoom'],
+  'fos-core':                    ['renderFOSCore'],
+  'fos-ai-orchestrator':         ['renderFOSAIOrchestrator'],
+  'multi-club-network':          ['renderMultiClubNetwork'],
+  'fos-knowledge-graph':         ['renderFOSKnowledgeGraph'],
+  'fos-neural-intelligence':     ['renderFOSNeuralIntelligence'],
+  'fos-command-center':          ['renderFOSCommandCenter'],
+  'fos-admin-center':            ['renderFOSAdminCenter'],
+  'fos-security-center':         ['renderFOSSecurityCenter'],
+  'fos-data-center':             ['renderFOSDataCenter'],
+  'fos-automation-center':       ['renderFOSAutomationCenter'],
+  'fos-intelligence-pipeline':   ['renderFOSIntelligencePipeline'],
+  'fos-decision-engine':         ['renderFOSDecisionEngine'],
+  'fos-event-bus':               ['renderFOSEventBus'],
+  'fos-audit-governance':        ['renderFOSAuditGovernance'],
+  'fos-rbac':                    ['renderFOSRBAC'],
+  'fos-workflow-execution':      ['renderFOSWorkflowExecution'],
+  'fos-digital-twin':            ['renderFOSDigitalTwin'],
+  'fos-predictive-intelligence': ['renderFOSPredictiveIntelligence'],
+  'fos-simulation-center':       ['renderFOSSimulationCenter'],
+  'fos-executive-bridge':        ['renderFOSExecutiveBridge'],
+  'fos-ai-agent-framework':      ['renderFOSAIAgentFramework'],
+  'fos-observability':           ['renderFOSObservability'],
+};
+// The six GIS boards share one renderer, keyed by their own page name.
+var _FAM_GIS_PAGES = ['gis-data-lake', 'gis-analytics', 'gis-scouting',
+                      'gis-medical', 'gis-financial', 'gis-performance'];
+
+// The club-workspace pages that draw from Layer B but render through their own
+// entry points rather than the table above — they are listed here so the
+// route-aware bootstrap knows they need club data.
+var _FAM_CLUB_DATA_PAGES = ['club-home', 'transfers', 'coach-market', 'coaches',
+                            'training', 'academy', 'academy-team', 'video-intelligence'];
+
+// Does this page read a club's squad, matches, analytics or market? Owner Home
+// and the Clubs picker do not, which is what makes skipping Layer B for them
+// safe rather than merely faster.
+function _famNeedsClubData(page) {
+  if (!page) return false;
+  return !!_FAM_PAGE_RENDER[page]
+    || _FAM_GIS_PAGES.indexOf(page) >= 0
+    || _FAM_CLUB_DATA_PAGES.indexOf(page) >= 0;
+}
+
+var _FAM_DATA_VERSION = 0;
+var _FAM_PAGE_VERSION = {};
+
+// Layer B for the club now active, read once and shared. A page that draws from
+// it asks for it; a page that does not never pays for it, and two pages opened
+// in quick succession join one read rather than starting two. This is the only
+// place Layer B is read from after a club is entered, which is what makes "no
+// duplicate requests" a property of the code rather than of the timing.
+var _FAM_CLUB_DATA = { for: null, p: null };
+
+// LAYER A's completion, as one authoritative gate.
+//
+// Entering a club sets State.context.clubId synchronously so the workspace can
+// paint, but the server is not answering as that club until /me/context has
+// come back. Anything club-scoped read in between is read against the club
+// being left. switchClub publishes a promise for exactly that moment, tagged
+// with the club it belongs to; this is how everything else waits for it, and
+// waiting is a no-op when no switch is in flight.
+function _famClubReady() {
+  var w = (typeof window !== 'undefined') ? window : {};
+  var want = (typeof State !== 'undefined' && State.context && State.context.clubId) || null;
+  if (w.__famClubReady && w.__famClubReadyFor === want) return w.__famClubReady;
+  return Promise.resolve(true);
+}
+
+// The gate is opened the moment a club is picked — before the workspace paints
+// and before any module is routed to — because everything club-scoped that runs
+// in between would otherwise read against the club being left. It is closed
+// when the server is answering as the new club, or when the switch fails.
+var _FAM_CTX_DONE = null;
+function _famClubSwitchBegin(clubId) {
+  if (typeof window === 'undefined') return;
+  if (window.__famClubReadyFor === clubId && _FAM_CTX_DONE) return; // already open for this club
+  var done;
+  window.__famClubReady = new Promise(function (res) { done = res; });
+  window.__famClubReadyFor = clubId;
+  _FAM_CTX_DONE = done;
+}
+function _famClubSwitchEnd(ok) {
+  var d = _FAM_CTX_DONE;
+  _FAM_CTX_DONE = null;
+  if (d) { try { d(!!ok); } catch (_) {} }
+}
+
+function _famEnsureClubData(opts) {
+  var club = (typeof State !== 'undefined' && State.context && State.context.clubId) || null;
+  if (_FAM_CLUB_DATA.for === club && _FAM_CLUB_DATA.p) return _FAM_CLUB_DATA.p;
+  if (typeof loadAllData !== 'function') return Promise.resolve({ ok: true, failed: [] });
+  _FAM_CLUB_DATA.for = club;
+  _FAM_CLUB_DATA.p = _famClubReady()
+    .then(function () {
+      // The switch may have been abandoned, or a different club picked, while
+      // this was waiting. Whatever is authoritative now owns the read.
+      if (((State.context && State.context.clubId) || null) !== club) {
+        return { ok: true, failed: [] };
+      }
+      return loadAllData(opts || {});
+    })
+    .catch(function () { return { ok: false, failed: ['club data'] }; });
+  return _FAM_CLUB_DATA.p;
+}
+
+function _famActivePage() {
+  if (typeof document === 'undefined') return '';
+  var el = document.querySelector('.page.active');
+  return el ? String(el.id || '').replace(/^pg-/, '') : '';
+}
+
+// Draw `page` if the data behind it has moved since it was last drawn. Cheap
+// and idempotent: a page already current for this data version does nothing,
+// which is what keeps repeated navigation between two modules free.
+function _famRenderPage(page) {
+  if (!page || typeof document === 'undefined') return;
+  if (_FAM_PAGE_VERSION[page] === _FAM_DATA_VERSION) return;
+  var fns = _FAM_PAGE_RENDER[page];
+  var isGis = _FAM_GIS_PAGES.indexOf(page) >= 0;
+  if (!fns && !isGis) return;
+  // Nothing to draw into yet — leave the version alone so it is drawn when the
+  // page is actually mounted.
+  if (!document.getElementById('pg-' + page)) return;
+  _FAM_PAGE_VERSION[page] = _FAM_DATA_VERSION;
+  if (isGis) {
+    try { if (typeof renderGIS === 'function') renderGIS(page); } catch (_) {}
+    return;
+  }
+  for (var i = 0; i < fns.length; i++) {
+    var fn = (typeof window !== 'undefined') ? window[fns[i]] : null;
+    if (typeof fn === 'function') { try { fn(); } catch (_) {} }
+  }
+}
+
+// New club data has landed. Everything drawn from it is now a version behind,
+// and the one page a reader can see catches up immediately.
+function _famDataChanged() {
+  _FAM_DATA_VERSION++;
+  _FAM_PAGE_VERSION = {};
+  try { _famRenderPage(_famActivePage()); } catch (_) {}
+}
+
+// Leaving a club invalidates every page drawn from that club's data, so none of
+// it can survive into the next one by looking current.
+function _famResetPageVersions() {
+  _FAM_DATA_VERSION++;
+  _FAM_PAGE_VERSION = {};
+  // The held Layer B read belongs to the club being left. Dropping it is what
+  // stops the next club joining the previous club's request and painting its
+  // squad — the shared promise must never outlive the club it was read for.
+  _FAM_CLUB_DATA = { for: null, p: null };
+}
+
 async function loadAllData(opts) {
   opts = opts || {};
   try {
@@ -555,61 +773,13 @@ async function loadAllData(opts) {
       api('/training/form'),
     ]);
 
-    if (analytics.status === 'fulfilled' && analytics.value?.data) {
-      State.analytics = analytics.value.data;
-      renderDashboard();
-    }
+    if (analytics.status === 'fulfilled' && analytics.value?.data) State.analytics = analytics.value.data;
+    if (players.status   === 'fulfilled' && players.value?.data)   State.players   = players.value.data;
+    if (matches.status   === 'fulfilled' && matches.value?.data)   State.matches   = matches.value.data;
 
-    if (players.status === 'fulfilled' && players.value?.data) {
-      State.players = players.value.data;
-      renderSquad();
-      try { if (typeof renderAIScoutingCenter === 'function') renderAIScoutingCenter(); } catch (_) {}
-      try { if (typeof renderAICoachCenter    === 'function') renderAICoachCenter();    } catch (_) {}
-      try { if (typeof renderMedicalCenter    === 'function') renderMedicalCenter();    } catch (_) {}
-      try { if (typeof renderPerformanceCenter === 'function') renderPerformanceCenter(); } catch (_) {}
-      try { if (typeof renderScoutingCenter    === 'function') renderScoutingCenter();    } catch (_) {}
-      try { if (typeof renderTransferCenter    === 'function') renderTransferCenter();    } catch (_) {}
-      try { if (typeof renderFinanceCenter     === 'function') renderFinanceCenter();     } catch (_) {}
-      try { if (typeof renderManagementCenter  === 'function') renderManagementCenter();  } catch (_) {}
-      try { if (typeof renderAcademyCenter     === 'function') renderAcademyCenter();     } catch (_) {}
-      try { if (typeof renderSportingDirectorCenter === 'function') renderSportingDirectorCenter(); } catch (_) {}
-      try { if (typeof renderDirectorOfFootballCenter === 'function') renderDirectorOfFootballCenter(); } catch (_) {}
-      try { if (typeof renderBoardOfDirectorsCenter   === 'function') renderBoardOfDirectorsCenter();   } catch (_) {}
-      try { if (typeof renderOwnershipCenter          === 'function') renderOwnershipCenter();          } catch (_) {}
-      try { if (typeof renderAIExecutiveCenter        === 'function') renderAIExecutiveCenter();        } catch (_) {}
-      try { if (typeof renderAIPresidentCenter        === 'function') renderAIPresidentCenter();        } catch (_) {}
-      try { if (typeof renderAIChairmanCenter         === 'function') renderAIChairmanCenter();         } catch (_) {}
-      try { if (typeof renderAIWarRoom                === 'function') renderAIWarRoom();                } catch (_) {}
-      try { if (typeof renderFOSCore                  === 'function') renderFOSCore();                  } catch (_) {}
-      try { if (typeof renderFOSAIOrchestrator        === 'function') renderFOSAIOrchestrator();        } catch (_) {}
-      try { if (typeof renderMultiClubNetwork         === 'function') renderMultiClubNetwork();         } catch (_) {}
-      try { if (typeof renderFOSKnowledgeGraph        === 'function') renderFOSKnowledgeGraph();        } catch (_) {}
-      try { if (typeof renderFOSNeuralIntelligence    === 'function') renderFOSNeuralIntelligence();    } catch (_) {}
-      try { if (typeof renderFOSCommandCenter         === 'function') renderFOSCommandCenter();         } catch (_) {}
-      try { if (typeof renderFOSAdminCenter           === 'function') renderFOSAdminCenter();           } catch (_) {}
-      try { if (typeof renderFOSSecurityCenter        === 'function') renderFOSSecurityCenter();        } catch (_) {}
-      try { if (typeof renderFOSDataCenter            === 'function') renderFOSDataCenter();            } catch (_) {}
-      try { if (typeof renderFOSAutomationCenter      === 'function') renderFOSAutomationCenter();      } catch (_) {}
-      try { if (typeof renderFOSIntelligencePipeline  === 'function') renderFOSIntelligencePipeline();  } catch (_) {}
-      try { if (typeof renderFOSDecisionEngine        === 'function') renderFOSDecisionEngine();        } catch (_) {}
-      try { if (typeof renderFOSEventBus              === 'function') renderFOSEventBus();              } catch (_) {}
-      try { if (typeof renderFOSAuditGovernance       === 'function') renderFOSAuditGovernance();       } catch (_) {}
-      try { if (typeof renderFOSRBAC                  === 'function') renderFOSRBAC();                  } catch (_) {}
-      try { if (typeof renderFOSWorkflowExecution     === 'function') renderFOSWorkflowExecution();     } catch (_) {}
-      try { if (typeof renderFOSDigitalTwin           === 'function') renderFOSDigitalTwin();           } catch (_) {}
-      try { if (typeof renderFOSPredictiveIntelligence === 'function') renderFOSPredictiveIntelligence(); } catch (_) {}
-      try { if (typeof renderFOSSimulationCenter      === 'function') renderFOSSimulationCenter();      } catch (_) {}
-      try { if (typeof renderFOSExecutiveBridge       === 'function') renderFOSExecutiveBridge();       } catch (_) {}
-      try { if (typeof renderFOSAIAgentFramework      === 'function') renderFOSAIAgentFramework();      } catch (_) {}
-      try { if (typeof renderFOSObservability         === 'function') renderFOSObservability();         } catch (_) {}
-      try { if (typeof renderGIS === 'function') { ['gis-data-lake','gis-analytics','gis-scouting','gis-medical','gis-financial','gis-performance'].forEach(function (k) { try { renderGIS(k); } catch (_) {} }); } } catch (_) {}
-    }
-
-    if (matches.status === 'fulfilled' && matches.value?.data) {
-      State.matches = matches.value.data;
-      renderMatches();
-      try { if (typeof renderMatchCenter === 'function') renderMatchCenter(); } catch (_) {}
-    }
+    // Layer B has landed. The page the reader is looking at is redrawn now;
+    // every other page is redrawn when it is opened. See _famDataChanged.
+    _famDataChanged();
 
     if (tourns.status === 'fulfilled' && tourns.value?.data) {
       State.training = tourns.value.data;
@@ -1333,6 +1503,12 @@ function openClub(clubId) {
   // must not write its club over the one now on screen.
   var gen = ++_famClubEntry;
 
+  // Layer A opens here, before the workspace paints and before any module is
+  // routed to. Everything club-scoped that runs in between — Layer B, the
+  // Coach Market prefetch, a module opened straight from the nav — waits on
+  // this rather than reading against the club being left.
+  try { _famClubSwitchBegin(clubId); } catch (_) {}
+
   // ── immediately, with nothing awaited ──────────────────────────────────
   try {
     window.State = window.State || {};
@@ -1562,6 +1738,19 @@ function navTo(page, el, _opts) {
 
   const pg = document.getElementById('pg-' + page);
   if (pg) { pg.classList.add('active'); _pageActivate('pg-' + page); }
+
+  // The page is on screen, so it is drawn from whatever club data is currently
+  // held — once per version of that data, however often it is navigated to.
+  // This is the other half of the two-layer hydration described above
+  // loadAllData: Layer B work happens here, for one page, instead of for all of
+  // them while the reader is still waiting for the module they asked for. And if
+  // this page needs club data nobody has read yet, that read starts now and
+  // repaints when it lands, rather than every club entry paying for it.
+  try { if (typeof _famRenderPage === 'function') _famRenderPage(page); } catch (_) {}
+  try {
+    if (typeof _famNeedsClubData === 'function' && _famNeedsClubData(page)
+        && State.context && State.context.clubId) _famEnsureClubData();
+  } catch (_) {}
 
   if (el) {
     el.classList.add('active');
@@ -31727,10 +31916,11 @@ const AppContext = (function () {
     const live = typeof opts.isCurrent === 'function' ? opts.isCurrent : function () { return true; };
     // A module opened during the switch must not read as the club being left.
     // This is settled the moment the server is answering as the new one, and
-    // anything club-scoped can await it instead of racing it.
-    let _ctxDone;
-    window.__famClubReady = new Promise((res) => { _ctxDone = res; });
-    window.__famClubReadyFor = clubId;
+    // anything club-scoped awaits it instead of racing it. openClub opens the
+    // gate as the club is picked; this is a no-op when it is already open for
+    // this club, and opens it for the callers that do not go through openClub —
+    // the club <select> in the topbar.
+    _famClubSwitchBegin(clubId);
     try {
       const r = await FamilistaAPI.post('/me/context', { clubId, teamId: null });
       if (!live()) return;
@@ -31760,7 +31950,7 @@ const AppContext = (function () {
       // reader who goes straight to the module finds it already in flight
       // rather than joining the back of a queue of forty. One request, not
       // awaited, and skipped if the module already holds this club's rows.
-      try { _ctxDone(true); } catch (_) {}
+      _famClubSwitchEnd(true);
       if (typeof _stPrefetch === 'function') { try { _stPrefetch(); } catch (_) {} }
 
       await loadTeams();
@@ -31777,9 +31967,15 @@ const AppContext = (function () {
       // so the club the socket binds to is the club the session is really in.
       if (hydrated && typeof _tfRtConnect === 'function') { try { _tfRtConnect(); } catch (_) {} }
       // Silent: this function says one thing about the switch, below.
+      //
+      // Layer B is read here only when the page the reader is actually on draws
+      // from it — entering a club lands on Club Home, which does. A reader who
+      // went straight to a module that does not use it does not pay for it on
+      // the way in; navTo asks for it when something needs it, and reports its
+      // own failure then.
       var loaded = { ok: true, failed: [] };
-      if (typeof loadAllData === 'function') {
-        loaded = (await loadAllData({ silent: true })) || loaded;
+      if (_famNeedsClubData(_famActivePage())) {
+        loaded = (await _famEnsureClubData({ silent: true })) || loaded;
       }
       if (!live()) return;
 
@@ -31798,7 +31994,7 @@ const AppContext = (function () {
         showToast('Switched club', 'success');
       }
     } catch (e) {
-      try { _ctxDone(false); } catch (_) {}
+      _famClubSwitchEnd(false);
       if (live()) showToast(e?.userMessage || 'Switch failed', 'error');
     }
   }
@@ -31814,7 +32010,11 @@ const AppContext = (function () {
           : ((State.context && State.context.availableClubs) || []),
       };
       renderSwitcher();
-      if (typeof loadAllData === 'function') await loadAllData();
+      // Same club, different team: Layer B is scoped by team, so what is held is
+      // the previous team's and the held read is dropped before the new one — a
+      // page opened after this must not join the answer for the team just left.
+      _FAM_CLUB_DATA = { for: null, p: null };
+      if (typeof loadAllData === 'function') await _famEnsureClubData();
     } catch (e) { showToast(e?.userMessage || 'Switch failed', 'error'); }
   }
 
@@ -51865,11 +52065,11 @@ function _stLoadShortlist() {
 // club switch waits for the context rather than reading against the club being
 // left and having to throw the answer away — which is what made a first click
 // straight after entering a club cost two round trips instead of one.
+// One gate, shared with the rest of the workspace — see _famClubReady, which is
+// where Layer A's completion is defined. This module had its own copy of that
+// rule; two copies of "which club is authoritative" is how they drift apart.
 function _stClubReady() {
-  var w = (typeof window !== 'undefined') ? window : {};
-  var want = (State && State.context && State.context.clubId) || null;
-  if (w.__famClubReady && w.__famClubReadyFor === want) return w.__famClubReady;
-  return Promise.resolve(true);
+  return _famClubReady();
 }
 
 function _stSyncAll(force) {
@@ -57828,6 +58028,11 @@ function _famClearClubScopedState() {
     S.performanceTrend = null;
   }
   _thResetRoster();
+  // Every page drawn from the club being left is that club's, and a page marked
+  // current for this data version would otherwise be left standing rather than
+  // redrawn when it is next opened. Invalidating the versions is what stops one
+  // club's board showing inside another.
+  if (typeof _famResetPageVersions === 'function') _famResetPageVersions();
   // Defined with the Coach Market, far below this. Guarded so clearing club
   // state never depends on the order the file happens to be evaluated in.
   if (typeof _stResetClubScoped === 'function') _stResetClubScoped();

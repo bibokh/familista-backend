@@ -16,9 +16,12 @@ export const prisma: PrismaClient =
     ],
   });
 
-if (process.env.NODE_ENV !== 'production') {
-  global.__prisma = prisma;
-}
+// Held in every environment, not only outside production. The guard used to be
+// skipped in production, so anything that caused this module to be evaluated
+// twice — two copies in the dependency graph, a CJS and an ESM build of the
+// same file — silently produced a second client with a second connection pool.
+// A pool limit only means something if there is one pool.
+global.__prisma = prisma;
 
 prisma.$on('error' as never, (e: unknown) => {
   logger.error('Prisma error', { error: e });
