@@ -6,6 +6,7 @@ import * as svc from '../transfer-market/transfer-market.service';
 import * as neg from '../transfer-market/transfer-negotiation.service';
 import * as auc from '../transfer-market/transfer-auction.service';
 import * as dis from '../transfer-market/transfer-discovery.service';
+import * as con from '../transfer-market/transfer-contract.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -302,6 +303,26 @@ export async function readPublicPlayer(req: Request, res: Response, next: NextFu
   try {
     const id = requireUUID(req.params.playerId, 'playerId');
     return sendSuccess(res, await dis.readPublicPlayer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+// ── contract renewal ─────────────────────────────────────────────────────────
+// The one action in the Contract / Transfer panel that keeps the player. Same
+// UUID contract as the three that sell him, and the same owner-club check
+// inside the service — the acting club comes from the session, never the body.
+
+export async function readPlayerContract(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await con.readContract(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function renewPlayerContract(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await con.renewContract(actor(req), id, req.body as con.RenewDto),
+      'Contract renewed');
   } catch (err) { return next(err); }
 }
 

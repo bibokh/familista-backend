@@ -10090,6 +10090,20 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-step input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
 .tf-step em{ font-style:normal; margin-left:auto; font-size:13px; font-weight:800; color:var(--tf-champagne); font-variant-numeric:tabular-nums; }
 
+/* renewal terms — the same field furniture as the price stepper, in a row */
+.tf-ct-terms{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+.tf-fld{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+.tf-fld > span{ font-size:9px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
+.tf-fld > span em{ font-style:normal; letter-spacing:.06em; text-transform:none; color:var(--tf-ink3); opacity:.75; }
+.tf-fld input{
+  width:100%; height:34px; padding:0 10px; border-radius:9px;
+  border:1px solid var(--tf-line2); background:var(--tf-graphite);
+  color:var(--tf-ink); font:inherit; font-size:12.5px; font-weight:750;
+  font-variant-numeric:tabular-nums;
+}
+.tf-fld input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
+.tf-fld input::-webkit-calendar-picker-indicator{ filter:invert(.75); cursor:pointer; }
+
 /* listed: the state, not the form */
 .tf-ct-live{ display:flex; flex-direction:column; gap:10px; padding:13px; border-radius:12px; border:1px solid var(--tf-acc-24); background:rgba(217,178,106,.05); }
 .tf-ct-live-g{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; background:var(--tf-line); border-radius:10px; overflow:hidden; }

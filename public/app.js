@@ -3243,6 +3243,11 @@ function _sqAdaptBackendPlayer(bp) {
     secondary: bp.roles || null, trainedPositions: bp.trainedPositions || null,
     // `sq-15` is a label now, never the footballer's identity
     legacyId: bp.legacyId || null, teamId: bp.teamId || null,
+    // His contract as the server actually holds it. Absent until somebody sets
+    // it, and the panels fall back to what they derived before — so nothing
+    // that was already on screen changes until a renewal is really saved.
+    wageWeekly: (typeof bp.weeklyWage === 'number') ? bp.weeklyWage : null,
+    contractUntil: bp.contractUntil || null,
     qual: bp.overallRating || 70, foot: bp.preferredFoot === 'LEFT' ? 'Left' : bp.preferredFoot === 'BOTH' ? 'Both' : 'Right',
     height: bp.height ? (Math.round(bp.height) / 100).toFixed(2) + 'm' : '1.80m',
     // The footballer's photograph, which the server has always had a column
@@ -57423,13 +57428,51 @@ function _tfMarketValueOf(p) {
   try { return _tfSnapshotValue(_tfListingSnapshot(p)) || 0; } catch (_) { return 0; }
 }
 function _tfPriceStep(mv) { return Math.max(100000, Math.round((mv * 0.05) / 100000) * 100000); }
+// His terms, from the record if there is one. A club that has renewed him has a
+// weekly wage and an end date stored against him, and this reads them; a club
+// that has not sees exactly the derived figures it saw before.
 function _tfWageOf(p) {
+  if (typeof p.wageWeekly === 'number' && p.wageWeekly > 0) return p.wageWeekly;
   if (typeof p.wage === 'number' && p.wage > 0) return Math.round(p.wage / 52);
   return (typeof _sqStat === 'function' ? _sqStat(p, 'wage', Math.round(((p.qual || 70) - 58) * 3), 8, 8, 280) : 40) * 1000;
 }
+var TF_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function _tfContractExpiry(p) {
+  var d = _tfContractUntilDate(p);
+  if (d) return TF_MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
   var y = 2026 + ((typeof _sqSeed === 'function' ? _sqSeed(p.id + 'x') : 1) % 4);
   return 'Jun 30, ' + y;
+}
+// The stored end date as a Date, or null when nothing is stored. The renewal
+// form needs it in yyyy-mm-dd, the facts row needs it in words; both read this.
+function _tfContractUntilDate(p) {
+  if (!p || !p.contractUntil) return null;
+  var d = new Date(p.contractUntil);
+  return isNaN(d.getTime()) ? null : d;
+}
+function _tfDateInputValue(d) {
+  if (!d) return '';
+  var m = String(d.getUTCMonth() + 1), day = String(d.getUTCDate());
+  return d.getUTCFullYear() + '-' + (m.length < 2 ? '0' + m : m) + '-' + (day.length < 2 ? '0' + day : day);
+}
+
+// ── the contract the club actually holds ────────────────────────────────────
+// Read once per player, when the manager opens the renewal section, and kept
+// only for as long as this club context lasts. `undefined` means not asked yet,
+// `null` means asked and unavailable — the panel says which.
+var _TF_CONTRACT = {};
+function _tfContractRecord(playerId) { return _TF_CONTRACT[playerId]; }
+function _tfContractForget(playerId) {
+  if (playerId) delete _TF_CONTRACT[playerId]; else _TF_CONTRACT = {};
+}
+async function _tfLoadContract(playerId) {
+  if (!_tfIsCanonicalId(playerId)) { _TF_CONTRACT[playerId] = null; return null; }
+  try { _TF_CONTRACT[playerId] = _thUnwrap(await _thApi('GET', '/transfer-market/players/' + playerId + '/contract')); }
+  catch (_) { _TF_CONTRACT[playerId] = null; }
+  return _TF_CONTRACT[playerId];
+}
+async function _tfServerRenew(playerId, terms) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/players/' + playerId + '/contract/renew', terms));
 }
 function _tfSquadStatus(p) {
   var q = p.qual != null ? p.qual : (p.overall || 70);
@@ -57600,18 +57643,50 @@ function _tfContractHtml(ctxId, p) {
         + '</div>';
     }
   } else if (exp === 'renew') {
+    // Keeping him. The terms are his own record — the wage and the end date the
+    // server holds — and saving rewrites that one record. There is no second
+    // contract store, and a signed-out tab cannot agree terms with anybody, so
+    // it is told that rather than being allowed to edit a figure nobody keeps.
+    var canRenew = _tfHasSession();
+    var rec = canRenew ? _tfContractRecord(p.id) : null;
+    if (canRenew && rec === undefined) {
+      _tfLoadContract(p.id).then(function () { _tfSellRepaint(); });
+    }
+    var untilD = (rec && rec.contractUntil) ? _tfContractUntilDate(rec) : _tfContractUntilDate(p);
+    var wageNow = (rec && typeof rec.weeklyWageEur === 'number' && rec.weeklyWageEur > 0)
+      ? rec.weeklyWageEur : _tfWageOf(p);
     open = '<div class="tf-ct-open">'
       + '<div class="tf-ct-open-t">Renew contract</div>'
       + '<div class="tf-ct-facts tf-ct-facts--2">'
-      +   '<div><i>Current wage</i><b>' + _tfMoney(_tfWageOf(p)) + ' / wk</b></div>'
-      +   '<div><i>Expires</i><b>' + _tfEsc(_tfContractExpiry(p)) + '</b></div>'
+      +   '<div><i>Current wage</i><b>' + _tfMoney(wageNow) + ' / wk</b></div>'
+      +   '<div><i>Expires</i><b>' + _tfEsc(rec && rec.contractUntil ? _tfContractExpiry(rec) : _tfContractExpiry(p)) + '</b></div>'
       + '</div>'
-      + '<p class="tf-note">Contract renewal is not enabled on the server yet, so these terms are read-only.'
-      +   ' Nothing here has been changed or agreed.</p>'
-      + '<div class="tf-ct-open-acts">'
-      +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CLOSE</button>'
-      +   '<button type="button" class="tf-btn" disabled>RENEW — NOT AVAILABLE</button>'
-      + '</div></div>';
+      + (canRenew && rec === undefined
+        ? '<p class="tf-para">Reading his current terms…</p>'
+      : canRenew
+        ? '<div class="tf-ct-terms">'
+          + '<label class="tf-fld"><span>New weekly wage</span>'
+          +   '<input type="number" min="0" step="500" value="' + wageNow + '" data-tf-renew-wage aria-label="New weekly wage in euros">'
+          + '</label>'
+          + '<label class="tf-fld"><span>Contract until</span>'
+          +   '<input type="date" value="' + _tfEsc(_tfDateInputValue(untilD)) + '" data-tf-renew-until aria-label="Contract end date">'
+          + '</label>'
+          + '<label class="tf-fld"><span>Release clause <em>(optional)</em></span>'
+          +   '<input type="number" min="0" step="100000" value="' + ((rec && rec.releaseClauseEur != null) ? rec.releaseClauseEur : '') + '" data-tf-renew-clause aria-label="Release clause in euros">'
+          + '</label>'
+          + '</div>'
+          + '<p class="tf-note">These are his terms, not an offer: saving rewrites the contract his club holds'
+          +   ' for him. He stays in the same squad and keeps the same shirt.</p>'
+          + '<div class="tf-ct-open-acts">'
+          +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
+          +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-renew-save="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">SAVE RENEWAL</button>'
+          + '</div>'
+        : '<p class="tf-note">Sign in as this club to agree terms — a contract is a record his club keeps,'
+          + ' and this tab is not signed in to one.</p>'
+          + '<div class="tf-ct-open-acts">'
+          +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CLOSE</button>'
+          + '</div>')
+      + '</div>';
   }
 
   return '<div class="tf-ct">' + head + facts + actions + open + '</div>';
@@ -58301,6 +58376,51 @@ function _tfFormSubmit() {
       done();
       return;
     }
+    // ── keeping him ─────────────────────────────────────────────────────
+    // The fourth answer. Same identity contract as the three that sell him:
+    // the server owns the record, this reads the form and sends it, and a
+    // player whose id is still a label is refused rather than guessed at.
+    if ((el = t.closest('[data-tf-renew-save]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var rid = el.getAttribute('data-tf-renew-save');
+      var rctx = el.getAttribute('data-tf-ctx');
+      var RC = _tfCtxById(rctx);
+      var rp = RC && RC.findPlayer ? RC.findPlayer(rid) : null;
+      if (!rp) return;
+      if (!_tfHasSession()) { _tfToast('Sign in as this club to agree terms', 'error'); return; }
+      if (!_tfIsCanonicalId(rp.id)) {
+        _tfToast('This player has not loaded from the server yet — his contract cannot be changed until he has', 'error');
+        return;
+      }
+      var scope = el.closest('.tf-ct-open') || document;
+      var wIn = scope.querySelector('[data-tf-renew-wage]');
+      var uIn = scope.querySelector('[data-tf-renew-until]');
+      var cIn = scope.querySelector('[data-tf-renew-clause]');
+      var wageV = wIn ? Number(wIn.value) : NaN;
+      var untilV = uIn ? String(uIn.value || '').trim() : '';
+      if (!isFinite(wageV) || wageV < 0) { _tfToast('Set a weekly wage of zero or more', 'error'); return; }
+      if (!untilV) { _tfToast('Choose the date his contract runs to', 'error'); return; }
+      var terms = { weeklyWageEur: Math.round(wageV), contractUntil: untilV };
+      if (cIn && String(cIn.value || '').trim() !== '') terms.releaseClauseEur = Math.round(Number(cIn.value));
+      el.disabled = true;
+      _tfServerRenew(rp.id, terms)
+        .then(function () { _tfContractForget(rp.id); return _tfLoadContract(rp.id); })
+        // The squad is re-read rather than patched, so the wage and the end date
+        // on every surface come back from the row that was just written.
+        .then(function () { return (typeof _thRefresh === 'function') ? _thRefresh() : null; })
+        .then(function () {
+          try { if (typeof _sqLoad === 'function') _sqLoad(); } catch (_) {}
+          _tfDropCtx();
+          if (_TF_SELL) _TF_SELL.exp = null;
+          _tfToast(rp.name + ' has signed to ' + _tfEsc(_tfContractExpiry({ contractUntil: untilV })), 'success');
+          _tfSellRepaint(); _tfSellRefreshOwner(_tfCtxById(rctx));
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Renewal failed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
     // ── negotiation ─────────────────────────────────────────────────────
     // Everything below asks the server and repaints what it answers. No screen
     // decides who owns whom, what an offer is worth, or whether it may be made.
@@ -58829,6 +58949,10 @@ function _thResetRoster() {
   _TH.byTeam = {};
   _TH.legacy = {};
   _TH.clubId = null;
+  // Contracts are read per player and belong to the club that was being acted
+  // for. Carrying them across a switch would show one club's terms on another
+  // club's player.
+  try { _tfContractForget(); } catch (_) {}
 }
 
 // Which of a workspace load's parts are required for the club to be usable, and

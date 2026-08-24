@@ -84,6 +84,14 @@ router.get('/discover',                                     ctrl.discover);
 // own-club-only: this is the other question, with its own narrow projection.
 router.get('/players/:playerId',                            ctrl.readPublicPlayer);
 
+// ── contract renewal: keeping him, which is the fourth answer to selling ─────
+// Reading his terms and rewriting them are both own-club actions, so both sit
+// behind the same trade tier as listing him. The service resolves the acting
+// club from the session and refuses a player another club owns. It asks nothing
+// about which team he is in: the First Team and every age group renew here.
+router.get('/players/:playerId/contract',        tradeGuard, ctrl.readPlayerContract);
+router.post('/players/:playerId/contract/renew', tradeGuard, ctrl.renewPlayerContract);
+
 // ── the club's own transfer desk ────────────────────────────────────────────
 // One read replacing four. Scoped to the caller inside the service, so it can
 // only ever describe the club whose session asked.
