@@ -97,8 +97,14 @@ describe('what still genuinely needs the roster', () => {
   it('listing one of our own players, because that needs his canonical id', () => {
     const at = APP.indexOf('var instantSale = ');
     expect(at).toBeGreaterThan(-1);
-    const sell = APP.slice(at, at + 1400);
-    expect(sell).toContain('_thIsHydrated()');
+    const sell = APP.slice(at, at + 2600);
+    // The gate used to be "has the roster hydrated" — which let a signed-in
+    // club whose roster had not hydrated fall through to a listing held only in
+    // its own tab. The rule is stricter now and says what it actually needs:
+    // signed in, the listing is the server's, and only a canonical player id
+    // may be sent. See tests/listed-player-one-record.
+    expect(sell).toContain('if (_tfHasSession()) {');
+    expect(sell).toContain('if (!_tfIsCanonicalId(p.id))');
     expect(sell).toContain('_tfServerList(');
   });
 });

@@ -31963,6 +31963,15 @@ const AppContext = (function () {
         try { hydrated = (await _thHydrate()) === 'ready'; } catch (_) { hydrated = false; }
       }
       if (!live()) return;
+      // Hydrating reads the club's Player rows; _sqLoad is what lifts them into
+      // the squad store every surface resolves a player through. Without it the
+      // store keeps the browser's demo squad, whose ids are `sq-15` — so the
+      // Squad page renders the real footballers while the team context resolves
+      // the demo ones, and a transfer action on a real player either finds
+      // nobody or sends `sq-15` to a server that correctly refuses it as not a
+      // UUID. Boot used to make this call; a club entry has to make it too,
+      // because a club entry is when the roster changes.
+      if (hydrated && typeof _sqLoad === 'function') { try { _sqLoad(); } catch (_) {} }
       // The stream was closed with the club that was left; it is opened again
       // for the one now being acted for, and only once its roster has arrived —
       // so the club the socket binds to is the club the session is really in.
@@ -57296,6 +57305,12 @@ function _tfPortrait(p, size) {
 // ── what a listing currently is ─────────────────────────────────────────────
 // Server first, because the server owns the answer. One shape, whichever store
 // answered, so no caller has to know which one it was.
+// A canonical Player row's identity is the server's UUID. Anything else — a
+// legacy `sq-15`, an academy id generated in this browser, a squad number — is
+// a label, and a transfer action cannot be built on one.
+var TF_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function _tfIsCanonicalId(id) { return TF_UUID_RE.test(String(id || '')); }
+
 function _tfStatusOf(playerId) {
   var srv = _tfHasSession() ? _tfMyListingFor(playerId) : null;
   if (srv) {
@@ -57312,6 +57327,11 @@ function _tfStatusOf(playerId) {
       instant: !srv.validUntil,
     };
   }
+  // Signed in, the server's listings are the only listings. The browser store
+  // below belongs to the logged-out demo, and consulting it here is what let
+  // Squad show LISTED from a local record while the market — which reads the
+  // server — correctly showed nothing. One record drives both, or they drift.
+  if (_tfHasSession()) return { listed: false };
   var loc = _tfListingFor(playerId);
   if (!loc) return { listed: false };
   var lot2 = null;
@@ -58258,7 +58278,19 @@ function _tfFormSubmit() {
         if (_TF_SELL) _TF_SELL.exp = null;
         _tfSellRepaint(); _tfSellRefreshOwner(C);
       };
-      if (typeof _thIsHydrated === 'function' && _thIsHydrated()) {
+      // Signed in, this listing is the server's or it does not exist. It used to
+      // fall through to the browser store whenever the roster had not hydrated,
+      // which produced a listing only this tab could see: Squad read it and
+      // showed LISTED, the market read the server and showed nothing, and the
+      // two never reconciled because they were never the same record.
+      if (_tfHasSession()) {
+        if (!_tfIsCanonicalId(p.id)) {
+          // The id this surface holds is a label, not the player's identity.
+          // Sending it would be refused by the server as it should be, and
+          // inventing one would list somebody else.
+          _tfToast('This player has not loaded from the server yet — his listing cannot be created until he has', 'error');
+          return;
+        }
         _tfServerList(p, price, { instant: instantSale })
           .then(function () { return _tfSyncAll(); })
           .then(done)
@@ -58295,6 +58327,12 @@ function _tfFormSubmit() {
       var pid0 = el.getAttribute('data-tf-offer-clubs');
       var ids = Object.keys((_TF_SELL && _TF_SELL.picked) || {});
       if (!ids.length) { _tfToast('Pick at least one club', 'error'); return; }
+      // The same contract every transfer action is held to: the player's
+      // identity is the server's, or there is nothing to offer.
+      if (!_tfIsCanonicalId(pid0)) {
+        _tfToast('This player has not loaded from the server yet — he cannot be offered until he has', 'error');
+        return;
+      }
       _tfNegApi('POST', '/offer-to-clubs', { playerId: pid0, clubIds: ids,
         askingPriceEur: Math.round((_TF_SELL && _TF_SELL.price) || 0) || undefined })
         .then(function () {
