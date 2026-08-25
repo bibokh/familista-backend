@@ -47,23 +47,25 @@ function fnBody(name: string) {
   return APP.slice(i, j);
 }
 
-describe('the Market is one screen', () => {
-  it('the workspace presents a single view', () => {
-    const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
-    expect(ws).toMatch(/\['market',\s+'Market',[^\]]*\['open'\]\]/);
-  });
-
-  it('and a workspace of one view draws no sub-tabs', () => {
-    expect(fnBody('_tfSubSwitchHtml')).toContain('if (views.length < 2) return');
-  });
-
-  it('the three keys it used to switch between still land on it', () => {
+describe('the Market is one lane of one screen', () => {
+  it('the market lanes are drawn by one builder, told which lane to draw', () => {
     const f = fnBody('_tfViewHtml');
-    ['open', 'auctions', 'offered', 'feed'].forEach((v) => expect(f).toContain(`_TF.tab === '${v}'`));
-    expect(f).toContain('_tfMarketOneHtml(C)');
-    // and they are still views, so a cross-link that sets one is not orphaned
-    const map = APP.match(/var TF_VIEW_WS = \{[\s\S]*?\};/)![0];
-    ['auctions', 'offered', 'feed'].forEach((v) => expect(map).toMatch(new RegExp(`\\b${v}: 'market'`)));
+    expect(f).toContain('_tfMarketOneHtml(C, lane)');
+    expect(APP).toContain('function _tfMarketOneHtml(C, lane) {');
+  });
+
+  it('the filter bar is the only switch there is', () => {
+    const f = fnBody('_tfSubSwitchHtml');
+    expect(f).toContain('TF_LANES.map');
+    expect(fnBody('_tfHeaderHtml')).not.toContain('tf-wsnav');
+  });
+
+  it('the keys it used to switch between still land on it', () => {
+    const lanes = APP.match(/var TF_VIEW_LANE = \{[\s\S]*?\};/)![0];
+    expect(lanes).toMatch(/open: 'market'/);
+    expect(lanes).toMatch(/auctions: 'auctions'/);
+    expect(lanes).toMatch(/offered: 'offered'/);
+    expect(lanes).toMatch(/feed: 'all'/);
   });
 });
 
@@ -118,8 +120,8 @@ describe('the sections', () => {
     expect(m).toContain("_tfMkSecHtml('auctions', 'Live auctions'");
     expect(m).toContain("_tfMkSecHtml('offered', 'Offered to your club'");
     expect(m).toContain("_tfMkSecHtml('open', 'Open market'");
-    expect(m).toContain('_tfMkActivityHtml()');
-    expect(m).toContain('_tfMkCompletedHtml()');
+    // activity and completed belong to the overview, not to a named lane
+    expect(m).toContain("lane === 'all' ? _tfMkActivityHtml() + _tfMkCompletedHtml() : ''");
   });
 
   it('each is fed by the read it always was', () => {
@@ -132,15 +134,17 @@ describe('the sections', () => {
   });
 
   it('live auctions is drawn only when there are live auctions', () => {
-    expect(m).toMatch(/quick === 'AUCTION'\) && fAuc\.length\s*\n?\s*\?/);
+    expect(m).toContain('fAuc.length');
+    expect(m).toContain("want('auctions')");
   });
 
   it('a section with nothing in it is one compact row, never a panel', () => {
     expect(fnBody('_tfMkNoneHtml')).toContain('mk-none');
     expect(CSS).toMatch(/\.mk-none\{[^}]*padding:9px 12px/);
-    // and the empty state is only ever offered for the open market, which is
-    // the subject of the page; the other sections simply are not drawn
-    expect(m).toContain("secB = fO2C.length");
+    // a section with nothing in it is not drawn at all unless it is the lane
+    // that was asked for, and then it is one line
+    expect(m).toContain("lane === 'offered'");
+    expect(m).toContain("lane === 'auctions'");
     expect(m).toContain(": ''");
   });
 
@@ -346,6 +350,8 @@ describe('bidding from the market', () => {
 describe('the screen scrolls once', () => {
   it('the market pane is the scrolling region the module already declares', () => {
     expect(fnBody('_tfMarketOneHtml')).toContain("'<div class=\"tf-pane mk-pane\">'");
+    // and it no longer draws a header of its own — the screen has one
+    expect(fnBody('_tfMarketOneHtml')).not.toContain('mk-head');
     expect(CSS).toMatch(/#pg-transfers \.tf-pane\{ overflow-y:auto/);
     expect(CSS).toMatch(/#pg-transfers \.mk-pane\{[^}]*min-height:0/);
   });

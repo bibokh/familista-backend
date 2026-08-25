@@ -47933,7 +47933,9 @@ function _tfMakePlayer(seed, opts) {
 // shortlist, a scouting pool, a budget or a signing made for one team can never
 // be read by another.
 var _TF = {
-  tab: 'auctions',
+  // The screen opens on the overview, which is what a manager wants to see
+  // before they know what they are looking for.
+  tab: 'all',
   teamId: null,
   ledger: {},                   // ctxId → { committed, spent, earned, signings: [], sales: [] }
   detail: null,                 // { id, mode }
@@ -48512,28 +48514,51 @@ var TF_TABS = [
   ['assistant', 'Assistant', 'Recommendations']
 ];
 
+// Transfers is ONE screen. It used to be four workspaces over fourteen views,
+// which meant navigating to answer a question; it is now a single pane under a
+// filter bar that works exactly the way the Squad's ALL | GK | DEF | MID | FWD
+// works — the chips switch what the pane holds, they do not go anywhere.
+//
+// Nothing underneath moved. Every lane below is drawn by the builder that drew
+// it before, from the read that fed it before.
+var TF_LANES = [
+  ['all',      'All',              'Everything worth looking at'],
+  ['market',   'Market',           'Publicly available players'],
+  ['auctions', 'Auctions',         'Live bidding'],
+  ['offered',  'Offered to clubs', 'Brought to this club'],
+  ['scouting', 'Scouting',         'Search the platform'],
+  ['business', 'Club business',    'Club-to-club'],
+  ['mine',     'My transfers',     'Ours, in and out'],
+];
+// Kept so the registry-shaped reads elsewhere in the module keep resolving.
 var TF_WORKSPACES = [
-  // Market is one screen. It used to be four — Open market, Auctions, Offered to
-  // clubs, Market activity — which meant four navigations to answer one
-  // question, and a manager could not see the whole market at once. The four
-  // reads are unchanged and all four are still on screen; what went is the
-  // navigation between them.
-  ['market',   'Market',        'The public marketplace',  ['open']],
-  ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
-  ['business', 'Club business', 'Club-to-club opportunities',
-    ['biz-in', 'biz-out', 'biz-needs', 'biz-interest']],
-  ['mine',     'My transfers',  'Our transactions and history',
-    ['mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done']],
+  ['market',   'Market',        'The public marketplace',  ['all']],
 ];
 // view → the workspace it belongs to. Assistant belongs to Scouting.
+// Every view key the module has ever set lands on the one screen, in the lane
+// that answers it. Nothing is orphaned and no cross-link had to be rewritten.
 var TF_VIEW_WS = {
-  open: 'market', auctions: 'market', offered: 'market', feed: 'market',
-  scouting: 'scouting', assistant: 'scouting',
-  needs: 'business', offers: 'business',
-  'biz-in': 'business', 'biz-out': 'business', 'biz-needs': 'business', 'biz-interest': 'business',
-  activity: 'mine',
-  'mt-action': 'mine', 'mt-neg': 'mine', 'mt-sent': 'mine', 'mt-auc': 'mine', 'mt-done': 'mine',
+  all: 'market', open: 'market', market: 'market', auctions: 'market',
+  offered: 'market', feed: 'market',
+  scouting: 'market', assistant: 'market',
+  needs: 'market', offers: 'market', business: 'market',
+  'biz-in': 'market', 'biz-out': 'market', 'biz-needs': 'market', 'biz-interest': 'market',
+  activity: 'market', mine: 'market',
+  'mt-action': 'market', 'mt-neg': 'market', 'mt-sent': 'market', 'mt-auc': 'market', 'mt-done': 'market',
 };
+// Which lane a view key belongs to. The keys on the left are what the rest of
+// the module sets; the lane on the right is the chip that lights up.
+var TF_VIEW_LANE = {
+  all: 'all', feed: 'all', activity: 'all',
+  open: 'market', market: 'market',
+  auctions: 'auctions', 'mt-auc': 'auctions',
+  offered: 'offered',
+  scouting: 'scouting', assistant: 'scouting',
+  business: 'business', needs: 'business', offers: 'business',
+  'biz-in': 'business', 'biz-out': 'business', 'biz-needs': 'business', 'biz-interest': 'business',
+  mine: 'mine', 'mt-action': 'mine', 'mt-neg': 'mine', 'mt-sent': 'mine', 'mt-done': 'mine',
+};
+function _tfLane() { return TF_VIEW_LANE[_TF.tab] || 'all'; }
 // The label each view carries in its workspace's secondary switch.
 var TF_VIEW_LABEL = {
   open: 'Open market', auctions: 'Auctions', offered: 'Offered to clubs', feed: 'Market activity',
@@ -48570,9 +48595,10 @@ function _tfSyncSwitches() {
   for (var i = 0; i < nav.length; i++) {
     nav[i].classList.toggle('is-on', nav[i].getAttribute('data-tf-ws') === ws);
   }
+  var lane = _tfLane();
   var subs = document.querySelectorAll('#tf-shell [data-tf-tab]');
   for (var j = 0; j < subs.length; j++) {
-    var on = subs[j].getAttribute('data-tf-tab') === _TF.tab;
+    var on = subs[j].getAttribute('data-tf-tab') === lane;
     subs[j].classList.toggle('is-on', on);
     subs[j].setAttribute('aria-selected', on ? 'true' : 'false');
   }
@@ -48583,14 +48609,39 @@ function _tfWsViews(ws) {
 }
 // The secondary switch inside a workspace. A workspace with one view shows
 // none — a switch between one thing is furniture, not navigation.
+// The one filter bar. Seven chips, a live count on each, and clicking one
+// switches what the pane below holds — the same thing ALL | GK | DEF | MID | FWD
+// does on the Squad. There is no second switch anywhere in the module.
 function _tfSubSwitchHtml() {
-  var views = _tfWsViews(_tfWs());
-  if (views.length < 2) return '';
-  return '<div class="tf-sub" role="tablist">' + views.map(function (v) {
-    return '<button type="button" role="tab" class="tf-sub-b' + (_TF.tab === v ? ' is-on' : '') + '"'
-      + ' aria-selected="' + (_TF.tab === v ? 'true' : 'false') + '" data-tf-tab="' + v + '">'
-      + _tfEsc(TF_VIEW_LABEL[v] || v) + '</button>';
+  var lane = _tfLane();
+  return '<div class="tf-lanes" role="tablist">' + TF_LANES.map(function (l) {
+    var n = _tfLaneCount(l[0]);
+    return '<button type="button" role="tab" class="tf-lane' + (lane === l[0] ? ' is-on' : '') + '"'
+      + ' aria-selected="' + (lane === l[0] ? 'true' : 'false') + '" data-tf-tab="' + l[0] + '"'
+      + ' title="' + _tfEsc(l[2]) + '">' + _tfEsc(l[1])
+      + (n != null ? '<em>' + n + '</em>' : '') + '</button>';
   }).join('') + '</div>';
+}
+// What each chip counts. Every figure is one the module already holds — no read
+// is made to draw this bar.
+function _tfLaneCount(lane) {
+  try {
+    if (lane === 'market')   return _tfMkPool().filter(function (r) { return r.src !== 'auction'; }).length;
+    if (lane === 'auctions') return _tfMkPool().filter(function (r) { return r.src === 'auction'; }).length;
+    if (lane === 'offered')  return _tfMkOffered().length;
+    if (lane === 'business') {
+      var a = _TF_NEG.activity || {};
+      return ((a.incomingOffers || []).length + (a.outgoingOffers || []).length
+        + (((_TF_NEG.needs && _TF_NEG.needs.items) || []).length));
+    }
+    if (lane === 'mine') {
+      var b = _TF_NEG.activity || {};
+      return ((b.incomingOffers || []).length + (b.outgoingOffers || []).length
+        + ((_TF_NEG.deals && _TF_NEG.deals.items) || []).length);
+    }
+    if (lane === 'all') return _tfMkPool().length + _tfMkOffered().length;
+  } catch (_) {}
+  return null;
 }
 
 function renderTransfersPage() {
@@ -49204,6 +49255,15 @@ function _tfOfferName(row) {
 }
 
 function _tfBizHtml(C, section) {
+  return '<div class="tf-pane tfb-pane">' + _tfBizBody(C, section) + '</div>';
+}
+// Club business, all of it, stacked as compact sections in the one pane.
+function _tfBizAllHtml(C) {
+  return '<div class="tf-pane tfb-pane">'
+    + ['in', 'out', 'needs', 'interest'].map(function (k) { return _tfBizBody(C, k); }).join('')
+    + '</div>';
+}
+function _tfBizBody(C, section) {
   var a = _TF_NEG.activity;
   if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
   if (_TF_O2C.board === null && !_TF_O2C.loading) {
@@ -49221,7 +49281,7 @@ function _tfBizHtml(C, section) {
     body = _tfRowsShell('Offers received', inOff.length + ' offer' + (inOff.length === 1 ? '' : 's') + ' from other clubs',
       inOff.map(function (o) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
           portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
           sub: o.buyerClub ? o.buyerClub.name : '', type: 'Offer',
           club: o.buyerClub ? o.buyerClub.name : '', amount: o.feeEur,
@@ -49256,7 +49316,7 @@ function _tfBizHtml(C, section) {
     body = _tfRowsShell('Offers we have made', outOff.length + ' waiting on the other club',
       outOff.map(function (o) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
           portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
           sub: o.sellerClub ? o.sellerClub.name : '', type: 'Our offer',
           club: o.sellerClub ? o.sellerClub.name : '', amount: o.feeEur,
@@ -49306,16 +49366,16 @@ function _tfBizHtml(C, section) {
     body = _tfRowsShell('Interest in our players', interest.length + ' club' + (interest.length === 1 ? '' : 's') + ' have asked about ours',
       interest.map(function (r) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(r.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(r.playerId) + '"',
           portrait: _tfOfferRowPortrait(r), name: _tfOfferName(r), sub: '',
           type: 'Interest', club: r.club ? r.club.name : '', amount: null,
           status: r.status, tone: String(r.status).toLowerCase(), when: _tfWhen(r.createdAt),
-          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-open-player="' + _tfEsc(r.playerId) + '">View player</button>',
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-pp="' + _tfEsc(r.playerId) + '">View profile</button>',
         });
       }).join(''), 'No club has registered interest in our players.',
       'When one asks about a footballer of ours, the approach is recorded here.');
   }
-  return '<div class="tf-pane tfb-pane">' + body + '</div>';
+  return body;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -49325,6 +49385,16 @@ function _tfBizHtml(C, section) {
 // the detail behind the row rather than spread across the page.
 // ══════════════════════════════════════════════════════════════════════════════
 function _tfMineHtml(C, stage) {
+  return '<div class="tf-pane tfb-pane">' + _tfMineBody(C, stage) + '</div>';
+}
+// My transfers, all of it, stacked as compact sections in the one pane — in the
+// order a deal actually travels.
+function _tfMineAllHtml(C) {
+  return '<div class="tf-pane tfb-pane">'
+    + ['action', 'neg', 'sent', 'auc', 'done', 'gone'].map(function (k) { return _tfMineBody(C, k); }).join('')
+    + '</div>';
+}
+function _tfMineBody(C, stage) {
   var a = _TF_NEG.activity;
   if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
   if (!_TF_NEG.deals) _tfNegLoadDeals().then(function () { _tfRenderBody(); });
@@ -49340,7 +49410,7 @@ function _tfMineHtml(C, stage) {
     body = _tfRowsShell('Needs action', todo.length + ' waiting on us',
       todo.map(function (o) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
           portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
           sub: 'Answer required', type: 'Offer in',
           club: o.buyerClub ? o.buyerClub.name : '', amount: o.feeEur,
@@ -49358,11 +49428,11 @@ function _tfMineHtml(C, stage) {
     body = _tfRowsShell('Negotiating', neg.length + ' under discussion',
       neg.map(function (o) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
           portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o), sub: 'Countered',
           type: 'Negotiation', club: (o.buyerClub && o.buyerClub.name) || (o.sellerClub && o.sellerClub.name) || '',
           amount: o.feeEur, status: 'Countered', tone: 'neg', when: _tfWhen(o.createdAt),
-          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-open-player="' + _tfEsc(o.playerId) + '">Open</button>',
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-pp="' + _tfEsc(o.playerId) + '">View profile</button>',
         });
       }).join(''), 'Nothing is under negotiation.', '');
   } else if (stage === 'sent') {
@@ -49370,7 +49440,7 @@ function _tfMineHtml(C, stage) {
     body = _tfRowsShell('Offers sent', sent.length + ' waiting on the other club',
       sent.map(function (o) {
         return _tfRow({
-          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
           portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o), sub: 'Awaiting their answer',
           type: 'Offer out', club: o.sellerClub ? o.sellerClub.name : '', amount: o.feeEur,
           status: 'Sent', tone: 'norm', when: _tfWhen(o.createdAt),
@@ -49396,6 +49466,26 @@ function _tfMineHtml(C, stage) {
           acts: '<button type="button" class="tf-btn tf-btn--sm" data-om-open="' + _tfEsc(it.listingId) + '">Open</button>',
         });
       }).join(''), 'We have nothing on the market and no live bid.', '');
+  } else if (stage === 'gone') {
+    // What came to nothing, from the same offer chain the rest of this reads.
+    // Rejected and withdrawn are the two ways an offer ends without a move, and
+    // neither is a second record — it is the offer's own status.
+    var dead = inOff.concat(outOff).filter(function (o) {
+      return o.status === 'REJECTED' || o.status === 'WITHDRAWN' || o.status === 'EXPIRED';
+    });
+    body = _tfRowsShell('Rejected and withdrawn', dead.length + ' that came to nothing',
+      dead.map(function (o) {
+        var mineOut = outOff.indexOf(o) >= 0;
+        return _tfRow({
+          attr: ' data-tf-pp="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
+          sub: mineOut ? 'Our offer' : 'Their offer', type: mineOut ? 'Offer out' : 'Offer in',
+          club: (mineOut ? (o.sellerClub && o.sellerClub.name) : (o.buyerClub && o.buyerClub.name)) || '',
+          amount: o.feeEur,
+          status: String(o.status).charAt(0) + String(o.status).slice(1).toLowerCase(),
+          tone: 'gone', when: _tfWhen(o.updatedAt || o.createdAt),
+        });
+      }).join(''), 'Nothing has been rejected or withdrawn.', '');
   } else {
     var deals = (_TF_NEG.deals && _TF_NEG.deals.items) || [];
     body = _tfRowsShell('Completed', deals.length + ' finished transfer' + (deals.length === 1 ? '' : 's'),
@@ -49408,7 +49498,7 @@ function _tfMineHtml(C, stage) {
         });
       }).join(''), 'No transfer has completed yet.', '');
   }
-  return '<div class="tf-pane tfb-pane">' + body + '</div>';
+  return body;
 }
 
 function _tfxBoardHtml(C) {
@@ -49489,26 +49579,14 @@ function _tfxBoardHtml(C) {
 function _tfTabHtml(C) {
   return _tfSubSwitchHtml() + _tfViewHtml(C);
 }
+// One pane. Which lane the filter bar has selected decides what is in it, and
+// every lane is drawn by the builder that always drew it.
 function _tfViewHtml(C) {
-  // The whole market, on one screen. The three keys beside 'open' are the tabs
-  // this workspace used to have: every cross-link in the module that sets one of
-  // them — a discovery result opening an auction, a notification opening the
-  // feed — still lands on the market, which now holds all of it.
-  if (_TF.tab === 'open' || _TF.tab === 'auctions' || _TF.tab === 'offered' || _TF.tab === 'feed') {
-    return _tfMarketOneHtml(C);
-  }
-  if (String(_TF.tab).indexOf('biz-') === 0) return _tfBizHtml(C, _TF.tab.slice(4));
-  if (String(_TF.tab).indexOf('mt-') === 0) return _tfMineHtml(C, _TF.tab.slice(3));
-  // Scouting carries the Assistant's recommendations, drawn by the Assistant's
-  // own builder from the Assistant's own data. Nothing is recomputed here.
-  if (_TF.tab === 'scouting' || _TF.tab === 'assistant') return _tfScoutingHtml(C);
-  // Needs and offers are one board now, so 'offers' lands on the same place
-  // 'needs' does — the lane it wants is on screen already, and the old key
-  // still resolves for the cross-links that set it.
-  if (_TF.tab === 'offers') return _tfBizHtml(C, 'in');
-  if (_TF.tab === 'needs') return _tfBizHtml(C, 'needs');
-  if (_TF.tab === 'activity') return _tfMineHtml(C, 'action');
-  return _tfMarketOneHtml(C);
+  var lane = _tfLane();
+  if (lane === 'scouting') return _tfScoutingHtml(C);
+  if (lane === 'business') return _tfBizAllHtml(C);
+  if (lane === 'mine')     return _tfMineAllHtml(C);
+  return _tfMarketOneHtml(C, lane);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -49853,7 +49931,8 @@ function _tfMkSecHtml(id, title, note, n, body, more) {
 }
 function _tfMkNoneHtml(text) { return '<p class="mk-none">' + _tfEsc(text) + '</p>'; }
 
-function _tfMarketOneHtml(C) {
+function _tfMarketOneHtml(C, lane) {
+  lane = lane || 'all';
   // Each board is its own read and each is asked for once. Until a read has
   // answered, its section says so rather than claiming the market is empty.
   if (_TF_OM.board === null && !_TF_OM.loading) {
@@ -49878,66 +49957,78 @@ function _tfMarketOneHtml(C) {
   var fAuc = pool.filter(function (r) { return r.src === 'auction' && _tfMkPasses(r); });
   var fO2C = offered.filter(_tfMkPasses);
   var fOpen = pool.filter(function (r) { return r.src !== 'auction' && _tfMkPasses(r); });
-  // Auctions are the market too: when the reader has asked for one of the other
-  // quick filters, the auctions still belong in the main board rather than
-  // vanishing between two sections.
-  if (_TF_MK.quick !== 'ALL' && _TF_MK.quick !== 'AUCTION') fOpen = fOpen.concat(fAuc);
+  // On ALL the auctions have their own section, so the main board leaves them
+  // to it; asked for the market on its own, everything publicly available
+  // belongs in it.
+  if (lane === 'market' || (_TF_MK.quick !== 'ALL' && _TF_MK.quick !== 'AUCTION')) {
+    fOpen = fOpen.concat(fAuc);
+  }
   // One order for the board, and it is the deadline: what runs out first is
   // what a recruiter has least time to decide about. A listing with no deadline
   // does not run out, so it sits after the ones that do. Nothing about which
   // club owns a row enters into it.
-  fOpen = fOpen.slice().sort(function (a, b) {
+  var byDeadline = function (a, b) {
     var x = a.endsAt == null ? Infinity : a.endsAt, y = b.endsAt == null ? Infinity : b.endsAt;
     return x - y || String(a.name).localeCompare(String(b.name));
-  });
-  fAuc = fAuc.slice().sort(function (a, b) {
-    return (a.endsAt == null ? Infinity : a.endsAt) - (b.endsAt == null ? Infinity : b.endsAt);
-  });
+  };
+  fOpen = fOpen.slice().sort(byDeadline);
+  fAuc = fAuc.slice().sort(byDeadline);
 
-  var aucShown = _TF_MK.aucAll ? fAuc : fAuc.slice(0, 4);
-  var o2cShown = _TF_MK.o2cAll ? fO2C : fO2C.slice(0, 4);
-  var omShown = _TF_MK.omAll ? fOpen : fOpen.slice(0, MK_PAGE);
+  // ALL is an overview, so each section shows a page and offers the rest. A
+  // lane asked for by name is that lane, whole.
+  var solo = lane !== 'all';
+  var aucShown = (solo || _TF_MK.aucAll) ? fAuc : fAuc.slice(0, 4);
+  var o2cShown = (solo || _TF_MK.o2cAll) ? fO2C : fO2C.slice(0, 4);
+  var omShown  = (solo || _TF_MK.omAll)  ? fOpen : fOpen.slice(0, MK_PAGE);
 
   var moreBtn = function (key, shown, total) {
     if (total <= shown) return '';
     return '<button type="button" class="mk-more" data-tf-mall="' + key + '">View all ' + total + '</button>';
   };
+  var grid = function (rows, wide) {
+    return '<div class="mk-grid' + (wide ? ' mk-grid--wide' : '') + '">'
+      + rows.map(_tfMkCardHtml).join('') + '</div>';
+  };
 
-  var secA = (_TF_MK.quick === 'ALL' || _TF_MK.quick === 'AUCTION') && fAuc.length
-    ? _tfMkSecHtml('auctions', 'Live auctions', 'Money is moving on these', fAuc.length,
-      '<div class="mk-grid mk-grid--wide">' + aucShown.map(_tfMkCardHtml).join('') + '</div>',
-      moreBtn('auc', aucShown.length, fAuc.length))
+  var want = function (k) { return lane === 'all' || lane === k; };
+
+  var secA = want('auctions') && (lane !== 'all' || _TF_MK.quick === 'ALL' || _TF_MK.quick === 'AUCTION')
+    ? (fAuc.length
+      ? _tfMkSecHtml('auctions', 'Live auctions', 'Current bid, bids and time left', fAuc.length,
+        grid(aucShown), moreBtn('auc', aucShown.length, fAuc.length))
+      : (lane === 'auctions'
+        ? _tfMkSecHtml('auctions', 'Live auctions', '', 0, _tfMkNoneHtml('No auction is running right now.'))
+        : ''))
     : '';
 
-  var secB = fO2C.length
-    ? _tfMkSecHtml('offered', 'Offered to your club', 'Players brought to ' + ((C && _tfClubNameOf(null)) || 'this club'),
-      fO2C.length,
-      '<div class="mk-grid mk-grid--wide">' + o2cShown.map(_tfMkCardHtml).join('') + '</div>',
-      moreBtn('o2c', o2cShown.length, fO2C.length))
+  var secB = want('offered')
+    ? (fO2C.length
+      ? _tfMkSecHtml('offered', 'Offered to your club',
+        'Players brought to ' + ((C && _tfClubNameOf(null)) || 'this club'), fO2C.length,
+        grid(o2cShown), moreBtn('o2c', o2cShown.length, fO2C.length))
+      : (lane === 'offered'
+        ? _tfMkSecHtml('offered', 'Offered to your club', '', 0,
+          _tfMkNoneHtml('No club has offered you a player right now.'))
+        : ''))
     : '';
 
-  var secC = _tfMkSecHtml('open', 'Open market',
-    'Every player clubs across Familista have made available', fOpen.length,
-    (fOpen.length
-      ? '<div class="mk-grid" id="mk-rows">' + omShown.map(_tfMkCardHtml).join('') + '</div>'
-      : loading
-        ? '<div class="mk-grid">' + new Array(9).join('<div class="mkc mkc--skel" aria-hidden="true"></div>') + '</div>'
-        : _tfMkNoneHtml(_TF_MK.q || _TF_MK.quick !== 'ALL'
-          ? 'No player on the market matches this search.'
-          : 'No club has made a player available yet.')),
-    moreBtn('om', omShown.length, fOpen.length));
+  var secC = want('market')
+    ? _tfMkSecHtml('open', 'Open market',
+      'Every player clubs across Familista have made available', fOpen.length,
+      (fOpen.length
+        ? '<div class="mk-grid" id="mk-rows">' + omShown.map(_tfMkCardHtml).join('') + '</div>'
+        : loading
+          ? '<div class="mk-grid">' + new Array(9).join('<div class="mkc mkc--skel" aria-hidden="true"></div>') + '</div>'
+          : _tfMkNoneHtml(_TF_MK.q || _TF_MK.quick !== 'ALL'
+            ? 'No player on the market matches this search.'
+            : 'No club has made a player available yet.')),
+      moreBtn('om', omShown.length, fOpen.length))
+    : '';
 
   return '<div class="tf-pane mk-pane">'
-    + '<header class="mk-head"><h2>Market</h2>'
-    +   '<p>' + (loading ? 'Reading the market…'
-      : (pool.length + offered.length) + ' player'
-        + ((pool.length + offered.length) === 1 ? '' : 's') + ' available across Familista') + '</p>'
-    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-publish>Publish a player</button>'
-    + '</header>'
     + _tfMkControlsHtml(pool, offered)
     + secA + secB + secC
-    + _tfMkActivityHtml()
-    + _tfMkCompletedHtml()
+    + (lane === 'all' ? _tfMkActivityHtml() + _tfMkCompletedHtml() : '')
     + '</div>';
 }
 
@@ -51179,12 +51270,7 @@ function _tfHeaderHtml(C) {
     + '<select data-tf-team>' + reg.map(function (t) {
       return '<option value="' + _tfEsc(t.id) + '"' + (t.id === me ? ' selected' : '') + '>' + _tfEsc(t.label) + '</option>';
     }).join('') + '</select></label>';
-  var ws = _tfWs();
-  var tabs = TF_WORKSPACES.map(function (t) {
-    return '<button type="button" class="tf-ws' + (ws === t[0] ? ' is-on' : '') + '"'
-      + ' data-tf-ws="' + t[0] + '" title="' + _tfEsc(t[2]) + '">'
-      + '<b>' + _tfEsc(t[1]) + '</b></button>';
-  }).join('');
+  var tabs = '';
   // The club being acted for, named by the same context every other figure on
   // this strip is read from.
   var clubName = (window.State && State.club && State.club.name)
@@ -51201,7 +51287,6 @@ function _tfHeaderHtml(C) {
     +     '<div class="tf-title-txt"><h1>Transfers</h1>'
     +       (clubName ? '<p>' + _tfEsc(clubName) + '</p>' : '') + '</div>'
     +   '</div>'
-    +   '<nav class="tf-wsnav" role="tablist">' + tabs + '</nav>'
     +   '<div class="tf-head-right">' + teamSel + '</div>'
     + '</div>'
     + '<div class="tf-strip">'
@@ -60483,6 +60568,10 @@ function _tfFormSubmit() {
       var opid2 = el.getAttribute('data-tf-open-player');
       var lot2 = (_TF_SERVER_LOTS || []).filter(function (l) { return l.playerId === opid2; })[0];
       if (lot2) { e.preventDefault(); _tfOpen(lot2.id); return; }
+      // He is not one of the current listings — which is every auction player,
+      // every offered player and everyone in a completed transfer. This used to
+      // fall through here and do nothing at all; it opens the one profile.
+      e.preventDefault(); _tfPPOpen(opid2); return;
     }
     // ── recruitment needs ───────────────────────────────────────────────
     if (t.closest('[data-tf-need-new]')) {

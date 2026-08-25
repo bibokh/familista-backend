@@ -38,53 +38,43 @@ function fnBody(name: string) {
 
 const OLD_VIEWS = ['auctions', 'feed', 'offers', 'needs', 'activity', 'scouting', 'assistant'];
 
-describe('four workspaces over the seven views', () => {
-  it('the four are named, in order', () => {
-    const m = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/);
+describe('Transfers is one screen', () => {
+  it('the filter bar names its seven lanes, in order', () => {
+    const m = APP.match(/var TF_LANES = \[[\s\S]*?\];/);
     expect(m).toBeTruthy();
-    ['market', 'scouting', 'business', 'mine'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
-    ['Market', 'Scouting', 'Club business', 'My transfers'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
+    ['all', 'market', 'auctions', 'offered', 'scouting', 'business', 'mine']
+      .forEach((k) => expect(m![0]).toContain(`'${k}'`));
+    ['All', 'Market', 'Auctions', 'Offered to clubs', 'Scouting', 'Club business', 'My transfers']
+      .forEach((k) => expect(m![0]).toContain(`'${k}'`));
   });
 
-  it('and every old view lands in exactly one of them — nothing orphaned', () => {
-    const map = APP.match(/var TF_VIEW_WS = \{[\s\S]*?\};/)![0];
-    OLD_VIEWS.forEach((v) => expect(map).toMatch(new RegExp(`\\b${v}:\\s*'(market|scouting|business|mine)'`)));
-    // assistant is folded into scouting, and offers into the club-business
-    // board — neither is dropped, and both keys still resolve
-    // Each workspace lists the sections it presents. Club business and My
-    // transfers present theirs one at a time now, so the list names those
-    // sections rather than the single page each used to be — while the old
-    // keys stay resolvable through the map above.
-    const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
-    // Market presents one screen now, so the four keys it used to switch
-    // between are no longer sections of it — they are still views in the map
-    // above, and _tfViewHtml resolves every one of them onto that screen.
-    ['open', 'scouting'].forEach((v) => expect(ws).toContain(`'${v}'`));
-    ['auctions', 'offered', 'feed'].forEach((v) =>
-      expect(fnBody('_tfViewHtml')).toContain(`_TF.tab === '${v}'`));
-    ['biz-in', 'biz-out', 'biz-needs', 'biz-interest'].forEach((v) => expect(ws).toContain(`'${v}'`));
-    ['mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done'].forEach((v) => expect(ws).toContain(`'${v}'`));
-    expect(map).toContain("assistant: 'scouting'");
-    expect(map).toContain("offers: 'business'");
-    // Club business and My transfers were later split into the sections a
-    // reader actually asks for one at a time. The two original keys are kept
-    // and still resolve to a section, so every cross-link that sets them from
-    // elsewhere in the module keeps landing somewhere real.
-    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'offers'");
-    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'needs'");
-    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'activity'");
+  it('and every view key the module has ever set lands in one of them', () => {
+    const lanes = APP.match(/var TF_VIEW_LANE = \{[\s\S]*?\};/)![0];
+    OLD_VIEWS.concat(['open', 'biz-in', 'biz-out', 'biz-needs', 'biz-interest',
+      'mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done'])
+      .forEach((v) => expect(lanes).toMatch(
+        new RegExp(`'?${v}'?:\\s*'(all|market|auctions|offered|scouting|business|mine)'`)));
   });
 
-  it('which workspace is on screen is derived, never stored', () => {
-    expect(fnBody('_tfWs')).toContain('TF_VIEW_WS[_TF.tab]');
-    // no second field holding the same answer
-    expect(APP).not.toMatch(/_TF\.ws\s*=/);
-    expect(APP).not.toMatch(/ws:\s*'market'/);
+  it('which lane is on screen is derived from the view, never stored beside it', () => {
+    expect(fnBody('_tfLane')).toContain('TF_VIEW_LANE[_TF.tab]');
+    expect(APP).not.toMatch(/_TF\.lane\s*=/);
   });
 
-  it('a workspace with one view shows no switch between one thing', () => {
+  it('there is no second switch anywhere — the bar IS the navigation', () => {
     const f = fnBody('_tfSubSwitchHtml');
-    expect(f).toContain('if (views.length < 2) return');
+    expect(f).toContain('TF_LANES.map');
+    expect(f).toContain('data-tf-tab="');
+    // the workspace nav the header used to draw is gone
+    expect(fnBody('_tfHeaderHtml')).not.toContain('tf-wsnav');
+    expect(fnBody('_tfHeaderHtml')).not.toContain('data-tf-ws=');
+  });
+
+  it('a lane switch writes the body and the bar, never the shell', () => {
+    const g = fnBody('_tfGoView');
+    expect(g).toContain('_tfRenderBody()');
+    expect(g).toContain('_tfSyncSwitches()');
+    expect(g).not.toContain('renderTransfersPage()');
   });
 });
 
@@ -94,7 +84,7 @@ describe('nothing underneath was rewritten', () => {
     // Club business and My transfers are now sectioned, so the two boards they
     // used to be single pages of are drawn by their own builders; every other
     // view still renders through exactly the builder it always did.
-    ['_tfScoutingHtml', '_tfMarketOneHtml', '_tfBizHtml', '_tfMineHtml']
+    ['_tfScoutingHtml', '_tfMarketOneHtml', '_tfBizAllHtml', '_tfMineAllHtml']
       .forEach((b) => expect(f).toContain(b));
     // the assistant's builder is still called, from inside scouting
     expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
@@ -109,12 +99,12 @@ describe('nothing underneath was rewritten', () => {
     expect(fnBody('_tfMkOffered')).toContain('_TF_O2C.board');
     // the sectioned surfaces read the module's existing loads, computing
     // nothing of their own
-    expect(fnBody('_tfBizHtml')).toContain('_tfNegLoadActivity()');
-    expect(fnBody('_tfBizHtml')).toContain('_tfO2CLoadBoard()');
-    expect(fnBody('_tfBizHtml')).toContain('_tfNegLoadNeeds()');
-    expect(fnBody('_tfMineHtml')).toContain('_tfNegLoadActivity()');
-    expect(fnBody('_tfMineHtml')).toContain('_tfNegLoadDeals()');
-    expect(fnBody('_tfMineHtml')).toContain('_tfOMLoad()');
+    expect(fnBody('_tfBizBody')).toContain('_tfNegLoadActivity()');
+    expect(fnBody('_tfBizBody')).toContain('_tfO2CLoadBoard()');
+    expect(fnBody('_tfBizBody')).toContain('_tfNegLoadNeeds()');
+    expect(fnBody('_tfMineBody')).toContain('_tfNegLoadActivity()');
+    expect(fnBody('_tfMineBody')).toContain('_tfNegLoadDeals()');
+    expect(fnBody('_tfMineBody')).toContain('_tfOMLoad()');
     expect(fnBody('_tfxNeedListHtml')).toContain('_tfNeedRows().filter(_tfNeedPasses)');
   });
 

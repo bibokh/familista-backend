@@ -13854,6 +13854,65 @@ body.club-theme .topbar-titles{ min-width:0; }
 #pg-transfers .tf-nd-when b:empty{ display:none; }
 
 
+/* ── stacked sections: an empty one is a line, not a slab ────────────────────
+   Six stages of My Transfers on one screen means six of these when a club has
+   done nothing yet. Full-width dashed boxes stacked six deep read as empty
+   space; a single quiet line reads as "nothing here", which is what it is. */
+#pg-transfers .tfb-pane > .tfb{ gap:6px; }
+#pg-transfers .tfb-pane .tfb-h{ padding-bottom:2px; }
+#pg-transfers .tfb-pane .tfb-none{
+  display:inline-flex; flex-direction:row; align-items:baseline; gap:8px;
+  align-self:flex-start; max-width:100%;
+  padding:5px 11px; border-radius:7px;
+  border:1px dashed var(--tf-line); background:none;
+}
+#pg-transfers .tfb-pane .tfb-none b{ font-size:11px; font-weight:700; color:var(--tf-ink3); }
+#pg-transfers .tfb-pane .tfb-none span{ font-size:10.5px; }
+
+/* The row's own columns must never push its action off the edge: the elastic
+   columns give way, the action does not. */
+#pg-transfers .tfr{
+  grid-template-columns:minmax(120px,1.5fr) minmax(0,84px) minmax(0,1fr)
+                        minmax(0,86px) minmax(0,112px) minmax(0,86px) max-content;
+}
+#pg-transfers .tfr > span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tfr-a{ overflow:visible; flex:none; }
+
+/* ══ TRANSFERS · ONE SCREEN ═══════════════════════════════════════════════
+   The module used to be four workspaces over fourteen views. It is one pane
+   under one filter bar, and the bar works the way the Squad's ALL | GK | DEF |
+   MID | FWD works: the chips switch what the pane holds, they do not navigate.
+
+   Everything below is presentation, in the module's own tokens. */
+#pg-transfers .tf-lanes{
+  flex:none; display:flex; flex-wrap:wrap; gap:6px;
+  padding:0 0 10px; margin-bottom:2px; border-bottom:1px solid var(--tf-line);
+}
+#pg-transfers .tf-lane{
+  display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 13px;
+  border-radius:999px; cursor:pointer; font:inherit;
+  font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+  transition:background .13s ease, border-color .13s ease, color .13s ease;
+}
+#pg-transfers .tf-lane:hover{ color:var(--tf-ink); border-color:var(--tf-line2); }
+#pg-transfers .tf-lane em{
+  font-style:normal; font-size:9.5px; font-weight:750; letter-spacing:0; opacity:.6;
+}
+#pg-transfers .tf-lane.is-on{
+  background:var(--tf-acc-16); border-color:var(--tf-acc-42); color:var(--tf-ink);
+}
+#pg-transfers .tf-lane.is-on em{ opacity:.9; }
+#pg-transfers .tf-lane:focus-visible{ outline:2px solid var(--tf-acc); outline-offset:2px; }
+@media (max-width:1100px){
+  #pg-transfers .tf-lane{ height:27px; padding:0 10px; font-size:9.5px; }
+}
+
+/* The lanes that stack several sections read as one list, not as a column of
+   separate panels — a section is a heading and its rows, with air between. */
+#pg-transfers .tfb-pane{ display:flex; flex-direction:column; gap:14px; min-height:0; }
+#pg-transfers .tfb-pane > .tfb:first-child{ margin-top:0; }
+
 /* ══ THE MARKET · one screen ══════════════════════════════════════════════
    Four boards on one page. The screen is a column of named sections inside
    the module's single scrolling region, so the last completed transfer is

@@ -170,9 +170,8 @@ describe('the browser surface', () => {
   it('Market carries Offered to Clubs as a section of its one screen', () => {
     // The four boards became one screen, so this is a section of the market
     // rather than a page beside it — and the 'offered' key still resolves.
-    expect(APP).toMatch(/\['market',\s+'Market',[^\]]*\['open'\]\]/);
-    expect(APP).toMatch(/offered: 'Offered to clubs'/);
-    expect(fnBody(APP, '_tfViewHtml')).toContain("_TF.tab === 'offered'");
+    expect(APP).toMatch(/\['offered',\s+'Offered to clubs'/);
+    expect(APP).toMatch(/offered: 'offered'/);
     const m = fnBody(APP, '_tfMarketOneHtml');
     expect(m).toContain('_tfMkOffered()');
     expect(m).toContain("'Offered to your club'");
