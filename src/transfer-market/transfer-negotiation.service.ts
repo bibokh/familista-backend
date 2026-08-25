@@ -124,7 +124,31 @@ export async function respondToInterest(actor: MarketActor, interestId: string, 
 // ══════════════════════════════════════════════════════════════════════════════
 // OFFERS — a fee, named by one club and answered by the other
 // ══════════════════════════════════════════════════════════════════════════════
-export interface OfferDto { playerId: string; feeEur: number; message?: string; parentOfferId?: string }
+// The fee is the number the lifecycle turns on. The three below ride with it:
+// they are what the two clubs are agreeing besides the fee, and they are
+// carried through a counter so neither side loses what the other proposed.
+export interface OfferDto {
+  playerId: string; feeEur: number; message?: string; parentOfferId?: string;
+  addOnsEur?: number | null; sellOnPct?: number | null; preferredDate?: string | null;
+}
+
+// Read the extras off a bid. Absent stays absent — an offer made without them
+// is stored exactly as it was before they existed.
+function offerExtras(dto: { addOnsEur?: number | null; sellOnPct?: number | null; preferredDate?: string | null }) {
+  const addOns = readMoneyOrNull(dto.addOnsEur, 'addOnsEur');
+  let sellOn: number | null = null;
+  if (dto.sellOnPct !== undefined && dto.sellOnPct !== null && String(dto.sellOnPct).trim() !== '') {
+    const n = Number(dto.sellOnPct);
+    if (!Number.isFinite(n)) throw new BadRequestError('sellOnPct is not a number');
+    if (n < 0 || n > 100) throw new BadRequestError('sellOnPct must be between 0 and 100');
+    sellOn = Math.round(n);
+  }
+  return {
+    addOnsEur: addOns === null ? null : BigInt(addOns),
+    sellOnPct: sellOn,
+    preferredDate: readDate(dto.preferredDate, 'preferredDate'),
+  };
+}
 
 export async function makeOffer(actor: MarketActor, dto: OfferDto) {
   if (!dto?.playerId) throw new BadRequestError('playerId required');
@@ -152,6 +176,7 @@ export async function makeOffer(actor: MarketActor, dto: OfferDto) {
       feeEur: BigInt(feeEur), message: dto.message?.slice(0, 500) ?? null,
       createdByClubId: actor.clubId, createdById: actor.userId,
       expiresAt: new Date(Date.now() + OFFER_TTL_MS),
+      ...offerExtras(dto),
     },
   });
   // Interest, once it has a price on it, has been answered.
@@ -704,7 +729,10 @@ export async function withdrawOffer(actor: MarketActor, offerId: string) {
 
 // A counter is a new offer at a different fee, pointing back at the one it
 // answers. The club that receives a counter is the one that made the original.
-export async function counterOffer(actor: MarketActor, offerId: string, feeEur: number, message?: string) {
+export async function counterOffer(
+  actor: MarketActor, offerId: string, feeEur: number, message?: string,
+  extras?: { addOnsEur?: number | null; sellOnPct?: number | null; preferredDate?: string | null },
+) {
   const parent = await prisma.transferOffer.findUnique({ where: { id: offerId } });
   if (!parent) throw new NotFoundError('Offer');
   const answering = parent.createdByClubId === parent.buyerClubId ? parent.sellerClubId : parent.buyerClubId;
@@ -725,6 +753,11 @@ export async function counterOffer(actor: MarketActor, offerId: string, feeEur: 
         feeEur: BigInt(fee), message: message?.slice(0, 500) ?? null,
         parentOfferId: parent.id, createdByClubId: actor.clubId, createdById: actor.userId,
         expiresAt: new Date(Date.now() + OFFER_TTL_MS),
+        // The counter answers the offer in front of it, so what it does not
+        // restate it carries forward rather than silently dropping.
+        ...(extras ? offerExtras(extras) : {
+          addOnsEur: parent.addOnsEur, sellOnPct: parent.sellOnPct, preferredDate: parent.preferredDate,
+        }),
       },
     });
   });
@@ -1139,14 +1172,64 @@ export async function matchesForNeed(actor: MarketActor, needId: string) {
 }
 
 // ── the owner takes his player to those clubs ────────────────────────────────
+export interface OfferToClubsDto {
+  playerId: string;
+  clubIds?: string[];
+  // "every eligible club" instead of a named list. The set is resolved here
+  // from the clubs that exist, never from a list the browser sends.
+  targetAll?: boolean;
+  askingPriceEur?: number;
+  minAcceptableEur?: number | null;
+  allowNegotiation?: boolean;
+  preferredDate?: string | null;
+  expiresAt?: string | null;
+  message?: string;
+}
+
+// Which clubs may be approached about a player: every active club that is not
+// the one that owns him. Declared once so the board, the publish and the
+// "already offered" check all mean the same thing by "eligible".
+async function eligibleTargetClubs(ownerClubId: string): Promise<string[]> {
+  const rows = await prisma.club.findMany({
+    where: { id: { not: ownerClubId } }, select: { id: true }, take: 500,
+  });
+  return rows.map((r) => r.id);
+}
+
+function readDate(v: unknown, where: string): Date | null {
+  if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')) return null;
+  const d = new Date(v as string);
+  if (Number.isNaN(d.getTime())) throw new BadRequestError(`${where} is not a date: ${JSON.stringify(v)}`);
+  return d;
+}
+function readMoneyOrNull(v: unknown, where: string): number | null {
+  if (v === undefined || v === null || (typeof v === 'string' && String(v).trim() === '')) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new BadRequestError(`${where} is not a number`);
+  if (n < 0) throw new BadRequestError(`${where} cannot be negative`);
+  return Math.round(n);
+}
+
 export async function offerPlayerToClubs(
   actor: MarketActor,
-  dto: { playerId: string; clubIds: string[]; askingPriceEur?: number; message?: string },
+  dto: OfferToClubsDto,
 ) {
   const player = await playerOr404(dto.playerId);
   if (player.clubId !== actor.clubId) throw new ForbiddenError('That player belongs to another club');
-  const targets = Array.from(new Set((dto.clubIds || []).filter((c) => c && c !== actor.clubId)));
+  const targets = dto.targetAll
+    ? await eligibleTargetClubs(actor.clubId)
+    : Array.from(new Set((dto.clubIds || []).filter((c) => c && c !== actor.clubId)));
   if (!targets.length) throw new BadRequestError('clubIds required');
+
+  // The terms he is published with. Read before anything is written, so a bad
+  // date refuses the publish rather than leaving half the clubs approached.
+  const minAcceptable = readMoneyOrNull(dto.minAcceptableEur, 'minAcceptableEur');
+  const preferredDate = readDate(dto.preferredDate, 'preferredDate');
+  const expiresAt = readDate(dto.expiresAt, 'expiresAt');
+  if (expiresAt && expiresAt.getTime() <= Date.now()) {
+    throw new BadRequestError('expiresAt must be in the future');
+  }
+  const allowNegotiation = dto.allowNegotiation === undefined ? null : !!dto.allowNegotiation;
 
   const from = await publicClub(actor.clubId);
   const price = dto.askingPriceEur === undefined ? null : Math.round(Number(dto.askingPriceEur));
@@ -1175,6 +1258,8 @@ export async function offerPlayerToClubs(
         matchPct: m?.pct ?? null,
         message: dto.message?.slice(0, 500) ?? null,
         createdById: actor.userId,
+        minAcceptableEur: minAcceptable === null ? null : BigInt(minAcceptable),
+        allowNegotiation, preferredDate, expiresAt,
       },
     });
     made.push(row.id);
@@ -1191,4 +1276,189 @@ export async function offerPlayerToClubs(
     payload: { clubs: targets.length },
   });
   return { offered: made.length, ids: made };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// OFFERED TO CLUBS — the board, and the seller's own desk for it
+// ─────────────────────────────────────────────────────────────────────────────
+// A player offered to clubs is not on the market: he has no listing, no auction
+// and no price anybody can simply take. He is an approach his club has made,
+// and this is the surface the clubs approached read it on.
+//
+// Two questions, deliberately answered by two different reads, because they are
+// asked by different clubs about different rows:
+//   • what has been offered TO me      — the board a buyer browses
+//   • what I have offered to others    — the desk a seller manages
+// Neither can ever answer the other: a club's own player is never a buying
+// opportunity, and the board is scoped to toClubId inside the service.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const LIVE_APPROACH = ['OPEN', 'INVITED'] as const;
+
+// Not expired, according to the clock rather than to a status somebody has to
+// remember to write. A row with no expiry never expires.
+function notExpired() {
+  return { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] };
+}
+
+// One published approach, in the shape both surfaces read.
+async function hydrateApproach(r: {
+  id: string; playerId: string; fromClubId: string; toClubId: string; status: string;
+  askingPriceEur: bigint | null; minAcceptableEur: bigint | null; allowNegotiation: boolean | null;
+  preferredDate: Date | null; expiresAt: Date | null; message: string | null;
+  matchPct: number | null; createdAt: Date;
+}) {
+  const [player, from, to] = await Promise.all([
+    prisma.player.findUnique({ where: { id: r.playerId }, select: publicPlayerSelect }),
+    publicClub(r.fromClubId),
+    publicClub(r.toClubId),
+  ]);
+  // What the two clubs are already saying to each other about him. The board
+  // must show NEGOTIATING rather than a stale "offered", and the record it
+  // reads is the negotiation itself — never a second copy of its state.
+  const chain = await prisma.transferOffer.findMany({
+    where: { playerId: r.playerId, sellerClubId: r.fromClubId, buyerClubId: r.toClubId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true, feeEur: true, createdByClubId: true, parentOfferId: true },
+  });
+  const agreed = chain.find((o) => o.status === 'ACCEPTED');
+  const live = chain.find((o) => o.status === 'PENDING' || o.status === 'COUNTERED');
+  // Once one offer has answered another, the two clubs are negotiating —
+  // whatever the newest step's own status happens to be. A counter is itself a
+  // PENDING offer, so reading only that status called an active negotiation an
+  // untouched approach.
+  const exchanged = chain.some((o) => !!o.parentOfferId || o.status === 'COUNTERED');
+  const state = agreed ? 'AGREEMENT_REACHED'
+    : live ? (exchanged ? 'NEGOTIATING' : 'OFFER_RECEIVED')
+    : 'OFFERED_TO_CLUBS';
+  return {
+    id: r.id,
+    playerId: r.playerId,
+    player: player ? toPublicPlayer(player) : null,
+    fromClub: from, toClub: to,
+    status: r.status,
+    state,
+    negotiationId: live?.id ?? agreed?.id ?? null,
+    askingPriceEur: r.askingPriceEur === null ? null : Number(r.askingPriceEur),
+    minAcceptableEur: r.minAcceptableEur === null ? null : Number(r.minAcceptableEur),
+    allowNegotiation: r.allowNegotiation,
+    preferredDate: r.preferredDate,
+    expiresAt: r.expiresAt,
+    message: r.message,
+    matchPct: r.matchPct,
+    createdAt: r.createdAt,
+  };
+}
+
+// The board: players other clubs have offered to this one. Scoped to toClubId,
+// so a club can never be shown its own player here.
+export async function readOfferedToClubs(actor: MarketActor) {
+  const rows = await prisma.playerOfferToClub.findMany({
+    where: {
+      toClubId: actor.clubId,
+      fromClubId: { not: actor.clubId },
+      status: { in: [...LIVE_APPROACH] },
+      ...notExpired(),
+    },
+    orderBy: { createdAt: 'desc' }, take: 120,
+  });
+  const items = await Promise.all(rows.map(hydrateApproach));
+  // A player whose transfer has completed is no longer an opportunity. His
+  // approach is closed by settlement; this also drops anything settlement has
+  // not reached yet, by asking who owns him now rather than who offered him.
+  const owners = await prisma.player.findMany({
+    where: { id: { in: items.map((i) => i.playerId) } }, select: { id: true, clubId: true, isActive: true },
+  });
+  const ownerOf = new Map(owners.map((o) => [o.id, o]));
+  const live = items.filter((i) => {
+    const o = ownerOf.get(i.playerId);
+    return !!o && o.isActive !== false && o.clubId === i.fromClub.id;
+  });
+  return { items: live, total: live.length };
+}
+
+// The seller's own desk: what this club has published, and to how many clubs.
+// Grouped by player, because one publish is one decision about one footballer
+// however many clubs it was sent to.
+export async function readMyOffersToClubs(actor: MarketActor) {
+  const rows = await prisma.playerOfferToClub.findMany({
+    where: { fromClubId: actor.clubId, status: { in: [...LIVE_APPROACH] }, ...notExpired() },
+    orderBy: { createdAt: 'desc' }, take: 200,
+  });
+  const byPlayer = new Map<string, typeof rows>();
+  rows.forEach((r) => {
+    const list = byPlayer.get(r.playerId) || [];
+    list.push(r); byPlayer.set(r.playerId, list);
+  });
+  const items = await Promise.all(Array.from(byPlayer.values()).map(async (list) => {
+    const head = await hydrateApproach(list[0]);
+    return { ...head, clubCount: list.length, clubIds: list.map((r) => r.toClubId) };
+  }));
+  return { items, total: items.length };
+}
+
+// Is he already published? One active approach per player per club is the rule
+// the publish already enforces; this is the same question asked about the
+// player as a whole, which is what the profile button needs.
+export async function readMyOfferForPlayer(actor: MarketActor, playerId: string) {
+  const rows = await prisma.playerOfferToClub.findMany({
+    where: { fromClubId: actor.clubId, playerId, status: { in: [...LIVE_APPROACH] }, ...notExpired() },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!rows.length) return { published: false };
+  const head = await hydrateApproach(rows[0]);
+  return { published: true, ...head, clubCount: rows.length, clubIds: rows.map((r) => r.toClubId) };
+}
+
+// Editing the published terms. It rewrites the approaches this club already
+// made about this player — it never creates a second set, and it cannot reach
+// another club's rows.
+export async function updateOfferToClubs(
+  actor: MarketActor, playerId: string,
+  dto: Omit<OfferToClubsDto, 'playerId' | 'clubIds' | 'targetAll'>,
+) {
+  const player = await playerOr404(playerId);
+  if (player.clubId !== actor.clubId) throw new ForbiddenError('That player belongs to another club');
+  const price = dto.askingPriceEur === undefined ? undefined : readMoneyOrNull(dto.askingPriceEur, 'askingPriceEur');
+  const minAcceptable = dto.minAcceptableEur === undefined ? undefined : readMoneyOrNull(dto.minAcceptableEur, 'minAcceptableEur');
+  const preferredDate = dto.preferredDate === undefined ? undefined : readDate(dto.preferredDate, 'preferredDate');
+  const expiresAt = dto.expiresAt === undefined ? undefined : readDate(dto.expiresAt, 'expiresAt');
+  if (expiresAt && expiresAt.getTime() <= Date.now()) throw new BadRequestError('expiresAt must be in the future');
+
+  const res = await prisma.playerOfferToClub.updateMany({
+    where: { fromClubId: actor.clubId, playerId, status: { in: [...LIVE_APPROACH] } },
+    data: {
+      ...(price === undefined ? {} : { askingPriceEur: price === null ? null : BigInt(price) }),
+      ...(minAcceptable === undefined ? {} : { minAcceptableEur: minAcceptable === null ? null : BigInt(minAcceptable) }),
+      ...(dto.allowNegotiation === undefined ? {} : { allowNegotiation: !!dto.allowNegotiation }),
+      ...(preferredDate === undefined ? {} : { preferredDate }),
+      ...(expiresAt === undefined ? {} : { expiresAt }),
+      ...(dto.message === undefined ? {} : { message: dto.message ? dto.message.slice(0, 500) : null }),
+    },
+  });
+  if (!res.count) throw new NotFoundError('Published offer');
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'PLAYER_OFFER_TO_CLUBS_UPDATED', entityType: 'Player', entityId: playerId,
+    payload: { rows: res.count },
+  });
+  return readMyOfferForPlayer(actor, playerId);
+}
+
+// Withdrawing him. The approaches close; nothing about the player moves, and a
+// negotiation already under way is left alone — withdrawing an approach is not
+// the same act as refusing an offer, and the offer has its own answer.
+export async function withdrawOfferToClubs(actor: MarketActor, playerId: string) {
+  const player = await playerOr404(playerId);
+  if (player.clubId !== actor.clubId) throw new ForbiddenError('That player belongs to another club');
+  const res = await prisma.playerOfferToClub.updateMany({
+    where: { fromClubId: actor.clubId, playerId, status: { in: [...LIVE_APPROACH] } },
+    data: { status: 'CLOSED', respondedAt: new Date() },
+  });
+  appendAuditEventAsync({
+    actor: { userId: actor.userId, clubId: actor.clubId, ipAddress: null, userAgent: null },
+    action: 'PLAYER_OFFER_TO_CLUBS_WITHDRAWN', entityType: 'Player', entityId: playerId,
+    payload: { rows: res.count },
+  });
+  return { withdrawn: res.count };
 }

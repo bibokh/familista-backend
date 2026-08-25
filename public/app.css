@@ -10088,6 +10088,12 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-step input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
 .tf-step em{ font-style:normal; margin-left:auto; font-size:13px; font-weight:800; color:var(--tf-champagne); font-variant-numeric:tabular-nums; }
 
+/* the Offered to Clubs card. It IS the board's card — only the tag it carries
+   and the acts along its foot differ, so nothing here restates its layout. */
+#pg-transfers .tfx-tag--o2c{ background:var(--tf-acc-24); border-color:var(--tf-acc-42); color:var(--tf-ink); }
+#pg-transfers .tfx-c--o2c.is-own{ border-color:var(--tf-acc-42); }
+.sq-mbtn.is-offered, .at-act.is-offered{ border-color:#8f6d13; }
+
 /* renewal terms — the same field furniture as the price stepper, in a row */
 .tf-ct-terms{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
 .tf-fld{ display:flex; flex-direction:column; gap:5px; min-width:0; }
@@ -10101,6 +10107,38 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 }
 .tf-fld input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
 .tf-fld input::-webkit-calendar-picker-indicator{ filter:invert(.75); cursor:pointer; }
+
+/* offered to clubs — the publish panel and the board's cards */
+.tf-o2c-who{ display:flex; align-items:center; gap:11px; }
+.tf-o2c-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.tf-o2c-id > b{ font-size:15px; font-weight:800; letter-spacing:-.01em; color:var(--tf-ink); }
+.tf-o2c-id span{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.tf-o2c-id em{ font-style:normal; font-size:11px; color:var(--tf-ink3); }
+.tf-o2c-ovr{ display:flex; flex-direction:column; align-items:center; line-height:1;
+  font-size:21px; font-weight:850; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+.tf-o2c-ovr i{ font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.14em; color:var(--tf-ink3); margin-top:3px; }
+.tf-o2c-opts{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+.tf-o2c-opts select{
+  width:100%; height:34px; padding:0 9px; border-radius:9px;
+  border:1px solid var(--tf-line2); background:var(--tf-graphite);
+  color:var(--tf-ink); font:inherit; font-size:12.5px; font-weight:700;
+}
+.tf-o2c-opts select:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
+.tf-fld--wide{ grid-column:1/-1; }
+.tf-o2c-state{ display:flex; align-items:center; gap:9px; }
+.tf-o2c-state em{ font-style:normal; font-size:11px; color:var(--tf-ink3); }
+.tf-o2c-badge{
+  font-size:9px; font-weight:850; letter-spacing:.12em; text-transform:uppercase;
+  padding:4px 9px; border-radius:5px; color:var(--tf-graphite);
+  background:linear-gradient(180deg,var(--tf-gold-hi),var(--tf-gold-lo)); border:1px solid #8f6d13;
+}
+/* the offer panel's financial summary */
+.tf-o2c-sum{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px;
+  background:var(--tf-line); border-radius:10px; overflow:hidden; }
+.tf-o2c-sum > div{ display:flex; flex-direction:column; gap:3px; padding:9px 11px; background:var(--tf-charcoal); }
+.tf-o2c-sum i{ font-style:normal; font-size:8px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; color:var(--tf-ink3); }
+.tf-o2c-sum b{ font-size:14px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+.tf-o2c-sum.is-over > div:last-child b{ color:var(--tf-stop); }
 
 /* listed: the state, not the form */
 .tf-ct-live{ display:flex; flex-direction:column; gap:10px; padding:13px; border-radius:12px; border:1px solid var(--tf-acc-24); background:rgba(217,178,106,.05); }
@@ -10578,6 +10616,28 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-ct-open .tf-mclub-pct b{ color:var(--tf-on-dark); }
 .tf-ct-open .tf-mclub-pct.is-hi b{ color:var(--tf-gold-2); }
 .tf-ct-open .tf-mclub-pct i{ color:var(--tf-on-dark-2); }
+
+/* the offer-to-clubs panel, on the same black the other opened sections use.
+   Everything inside an opened section is read against black, so the identity
+   block, its fields and its selects take the on-dark ink rather than the card's. */
+.tf-ct-open .tf-o2c-id > b{ color:var(--tf-on-dark); }
+.tf-ct-open .tf-o2c-id em{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-o2c-ovr{ color:var(--tf-on-dark); }
+.tf-ct-open .tf-o2c-ovr i{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-fld > span{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-fld > span em{ color:var(--tf-on-dark-2); opacity:.75; }
+.tf-ct-open .tf-fld input,
+.tf-ct-open .tf-o2c-opts select{
+  background:var(--tf-black); border-color:rgba(255,255,255,.20); border-radius:4px; color:#fff;
+}
+.tf-ct-open .tf-fld input:focus,
+.tf-ct-open .tf-o2c-opts select:focus{ border-color:var(--tf-gold); box-shadow:0 0 0 3px rgba(201,163,46,.28); }
+.tf-ct-open .tf-fld input::-webkit-calendar-picker-indicator{ filter:invert(.85); }
+.tf-ct-open .tf-o2c-state em{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-o2c-sum{ background:rgba(255,255,255,.10); }
+.tf-ct-open .tf-o2c-sum > div{ background:var(--tf-black); }
+.tf-ct-open .tf-o2c-sum i{ color:var(--tf-on-dark-2); }
+.tf-ct-open .tf-o2c-sum b{ color:var(--tf-on-dark); }
 
 /* a live listing: the gavel chip reads on black */
 .tf-scope .tf-ct-live .tf-auc, .tf-ct-live .tf-auc{

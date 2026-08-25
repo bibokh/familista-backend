@@ -117,6 +117,15 @@ router.get('/matches/:playerId',                            ctrl.matchesForPlaye
 // OWN players fit one. The squad scored is always the caller's.
 router.get('/needs/:needId/matches',                        ctrl.matchesForNeed);
 router.post('/offer-to-clubs',                  tradeGuard, ctrl.offerPlayerToClubs);
+// ── offered to clubs: the board, the desk, and managing a publication ────────
+// Reading the board is open to the same tier that may read the market — it is
+// how a club learns a player has been offered to it. Changing a publication is
+// a trade action, and the service refuses a player this club does not own.
+router.get('/offered-to-clubs',                             ctrl.readOfferedToClubs);
+router.get('/offered-to-clubs/mine',                        ctrl.readMyOffersToClubs);
+router.get('/offered-to-clubs/player/:playerId',            ctrl.readMyOfferForPlayer);
+router.patch('/offer-to-clubs/:playerId',       tradeGuard, ctrl.updateOfferToClubs);
+router.delete('/offer-to-clubs/:playerId',      tradeGuard, ctrl.withdrawOfferToClubs);
 // Answering a published need with a player this club owns.
 router.post('/offer-to-need',                   tradeGuard, ctrl.offerPlayerToNeed);
 

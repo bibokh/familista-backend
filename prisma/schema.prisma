@@ -3829,6 +3829,12 @@ model TransferOffer {
   createdById     String?
   respondedAt     DateTime?
   expiresAt       DateTime?
+  // What the bid carries besides the fee. Optional, null on every offer that
+  // existed before, and read only for display and for the counter that answers
+  // it — the fee is still the number the lifecycle is decided on.
+  addOnsEur       BigInt?
+  sellOnPct       Int?
+  preferredDate   DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
@@ -3904,6 +3910,16 @@ model PlayerOfferToClub {
   createdById    String?
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
+
+  // ── the terms the selling club published with him ─────────────────────────
+  // All optional, and every one of them null on the rows that existed before:
+  // an offer published without terms behaves exactly as it did. The lifecycle
+  // is unchanged — status still says where the approach stands, and an expiry
+  // is read at query time rather than being a sixth status nobody writes.
+  minAcceptableEur BigInt?
+  allowNegotiation Boolean?
+  preferredDate    DateTime?
+  expiresAt        DateTime?
 
   @@index([toClubId, status])
   @@index([fromClubId, status])

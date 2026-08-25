@@ -122,7 +122,9 @@ export async function withdrawOffer(req: Request, res: Response, next: NextFunct
 export async function counterOffer(req: Request, res: Response, next: NextFunction) {
   try {
     const id = requireUUID(req.params.offerId, 'offerId');
-    return sendCreated(res, await neg.counterOffer(actor(req), id, req.body?.feeEur, req.body?.message));
+    return sendCreated(res, await neg.counterOffer(actor(req), id, req.body?.feeEur, req.body?.message, {
+      addOnsEur: req.body?.addOnsEur, sellOnPct: req.body?.sellOnPct, preferredDate: req.body?.preferredDate,
+    }));
   } catch (err) { return next(err); }
 }
 
@@ -323,6 +325,43 @@ export async function renewPlayerContract(req: Request, res: Response, next: Nex
     const id = requireUUID(req.params.playerId, 'playerId');
     return sendSuccess(res, await con.renewContract(actor(req), id, req.body as con.RenewDto),
       'Contract renewed');
+  } catch (err) { return next(err); }
+}
+
+// ── offered to clubs ─────────────────────────────────────────────────────────
+// The board a buying club browses, the desk the selling club manages, and the
+// two writes that change a publication. Every one of them resolves the acting
+// club from the session inside the service, so the board can only ever be this
+// club's, and a player another club owns is refused.
+
+export async function readOfferedToClubs(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await neg.readOfferedToClubs(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+export async function readMyOffersToClubs(req: Request, res: Response, next: NextFunction) {
+  try { return sendSuccess(res, await neg.readMyOffersToClubs(actor(req))); }
+  catch (err) { return next(err); }
+}
+
+export async function readMyOfferForPlayer(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await neg.readMyOfferForPlayer(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function updateOfferToClubs(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await neg.updateOfferToClubs(actor(req), id, req.body), 'Offer updated');
+  } catch (err) { return next(err); }
+}
+
+export async function withdrawOfferToClubs(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.playerId, 'playerId');
+    return sendSuccess(res, await neg.withdrawOfferToClubs(actor(req), id), 'Offer withdrawn');
   } catch (err) { return next(err); }
 }
 

@@ -48493,6 +48493,7 @@ function renderTransfersHTML() {
 // looking for a player is already standing.
 var TF_TABS = [
   ['auctions', 'Auctions', 'Live market'],
+  ['offered', 'Offered to clubs', 'Players other clubs have offered us'],
   ['feed', 'Market activity', 'What is happening'],
   ['offers', 'Direct offers', 'Club to club'],
   ['needs', 'Club needs', 'Who wants what'],
@@ -48502,21 +48503,21 @@ var TF_TABS = [
 ];
 
 var TF_WORKSPACES = [
-  ['market',   'Market',        'Auctions and listings',   ['auctions', 'feed']],
+  ['market',   'Market',        'Auctions and listings',   ['auctions', 'offered', 'feed']],
   ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
   ['business', 'Club business', 'Needs and direct offers', ['needs']],
   ['mine',     'My transfers',  'Everything of ours',      ['activity']],
 ];
 // view → the workspace it belongs to. Assistant belongs to Scouting.
 var TF_VIEW_WS = {
-  auctions: 'market', feed: 'market',
+  auctions: 'market', offered: 'market', feed: 'market',
   scouting: 'scouting', assistant: 'scouting',
   needs: 'business', offers: 'business',
   activity: 'mine',
 };
 // The label each view carries in its workspace's secondary switch.
 var TF_VIEW_LABEL = {
-  auctions: 'Live market', feed: 'Market activity',
+  auctions: 'Live market', offered: 'Offered to clubs', feed: 'Market activity',
   needs: 'Needs', offers: 'Offers',
 };
 function _tfWs() { return TF_VIEW_WS[_TF.tab] || 'market'; }
@@ -49212,6 +49213,7 @@ function _tfTabHtml(C) {
   return _tfSubSwitchHtml() + _tfViewHtml(C);
 }
 function _tfViewHtml(C) {
+  if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);
   if (_TF.tab === 'feed') return _tfFeedHtml(C);
   // Scouting carries the Assistant's recommendations, drawn by the Assistant's
   // own builder from the Assistant's own data. Nothing is recomputed here.
@@ -49222,6 +49224,94 @@ function _tfViewHtml(C) {
   if (_TF.tab === 'offers' || _TF.tab === 'needs') return _tfxBoardHtml(C);
   if (_TF.tab === 'activity') return _tfxPipelineHtml(C);
   return _tfxMarketHtml(C);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// OFFERED TO CLUBS — players other clubs have brought to this one
+// ─────────────────────────────────────────────────────────────────────────────
+// Not the market: nothing here can simply be bought. Each card is a club having
+// approached us about a footballer, and the only thing it offers is the chance
+// to answer. The board is scoped to this club inside the service, so a club's
+// own player can never appear on it.
+// ══════════════════════════════════════════════════════════════════════════════
+// One approach, drawn by the board's own card builders — the same identity
+// block and the same price line every other card on the floor uses, so this is
+// the market's card with a different act on it, not a second card design.
+function _tfO2CShape(it) {
+  var pl = it.player || {};
+  var pos = SQ_POSREV[pl.position] || pl.position || 'CM';
+  return {
+    id: pl.id, playerId: pl.id,
+    name: ((pl.firstName || '') + ' ' + (pl.lastName || '')).trim() || 'Player',
+    pos: pos, cat: _tfCat(pos), positions: [pos],
+    age: pl.age != null ? pl.age : null,
+    nat: pl.flag || '', natCode: pl.nationality || '', natName: pl.nationality || '',
+    avatar: pl.avatar || null, photo: pl.avatar || null,
+    qual: pl.overallRating != null ? pl.overallRating : null,
+    mv: pl.marketValue != null ? Number(pl.marketValue) : 0,
+  };
+}
+function _tfO2CCardHtml(it, C, own) {
+  var p = _tfO2CShape(it);
+  var ask = it.askingPriceEur;
+  var cost = ask == null ? null : ask;
+  var eco = null; try { eco = _tfEconomy(C); } catch (_) {}
+  var afford = !eco || cost == null || cost <= eco.available;
+  var over = (p.mv > 0 && cost != null) ? Math.round(((cost - p.mv) / p.mv) * 100) : null;
+  var club = own ? ((it.clubCount || 0) + ' club' + ((it.clubCount || 0) === 1 ? '' : 's') + ' approached')
+                 : (it.fromClub ? it.fromClub.name : '—');
+  return '<article class="tfx-c tfx-c--o2c' + (own ? ' is-own' : '') + '"'
+    + (own ? '' : ' data-tf-disc-open="' + _tfEsc(p.id) + '" tabindex="0" role="button"')
+    + ' aria-label="' + _tfEsc(p.name) + '">'
+    + _tfxIdentityHtml(p, club, p.qual, null)
+    + _tfxPriceHtml(p.mv, cost, 'Asking price', afford, over)
+    + '<div class="tfx-c-foot"><span class="tfx-c-tags">'
+    +   '<span class="tfx-tag tfx-tag--o2c">' + _tfEsc(_tfO2CStateLabel(it.state)) + '</span>'
+    +   (it.allowNegotiation === false ? '<span class="tfx-tag">Fixed price</span>' : '')
+    +   (it.expiresAt ? '<span class="tfx-tag">Until ' + _tfEsc(_tfContractExpiry({ contractUntil: it.expiresAt })) + '</span>' : '')
+    + '</span></div>'
+    + '<div class="tfx-c-acts">'
+    + (own
+      ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-tf-o2c-withdraw="' + _tfEsc(p.id) + '" data-tf-ctx="first-team">WITHDRAW</button>'
+      : '<button type="button" class="tf-star' + (_tfIsShort(p.id) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '" aria-label="Shortlist ' + _tfEsc(p.name) + '">☆</button>'
+        + '<button type="button" class="tf-btn tf-btn--sm" data-tf-disc-open="' + _tfEsc(p.id) + '">VIEW PROFILE</button>'
+        + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm tfx-c-go" data-tf-o2c-offer="' + _tfEsc(p.id) + '"'
+        + ' data-tf-o2c-ask="' + _tfEsc(String(ask == null ? p.mv : ask)) + '">MAKE OFFER</button>')
+    + '</div>'
+    + '</article>';
+}
+
+function _tfOfferedBoardHtml(C) {
+  var b = _TF_O2C.board;
+  if (b === null) {
+    // Never claim an empty board before the read has answered.
+    if (!_TF_O2C.loading) {
+      _TF_O2C.loading = true;
+      _tfO2CLoadBoard().then(function () { _TF_O2C.loading = false; if (_TF.tab === 'offered') _tfRenderBody(); });
+    }
+    return '<div class="tf-pane tfx-pane"><div class="tfx-grid">'
+      + new Array(7).join('<div class="tfx-c tfx-c--skel" aria-hidden="true"></div>')
+      + '</div></div>';
+  }
+  var items = (b && b.items) || [];
+  var mine = (_TF_O2C.mine && _TF_O2C.mine.items) || [];
+  var head = '<section class="tfx-all"><header class="tfx-rail-h"><h3>Offered to us</h3>'
+    + '<p>' + items.length + ' player' + (items.length === 1 ? '' : 's') + ' other clubs have offered this club</p></header>';
+  var body = items.length
+    ? '<div class="tfx-grid" id="tf-o2c-rows">' + items.map(function (it) { return _tfO2CCardHtml(it, C, false); }).join('') + '</div>'
+    : '<div class="tf-empty"><div class="tf-empty-i">📤</div><b>No club has offered you a player right now.</b>'
+      + '<p class="tf-para">When a club approaches you about one of its footballers, he appears here with'
+      + ' their asking price, and you can answer with an offer.</p></div>';
+  // What this club has published, so the seller can see and manage its own side
+  // without leaving the board. Read separately; never mixed into the cards above.
+  var ours = mine.length
+    ? '<section class="tfx-all"><header class="tfx-rail-h"><h3>We have offered</h3>'
+      + '<p>' + mine.length + ' of our players, offered to other clubs</p></header>'
+      + '<div class="tfx-grid" id="tf-o2c-ours">'
+      + mine.map(function (it) { return _tfO2CCardHtml(it, C, true); }).join('')
+      + '</div></section>'
+    : '';
+  return '<div class="tf-pane tfx-pane">' + head + body + '</section>' + ours + '</div>';
 }
 
 // ── DIRECT OFFERS · every negotiation this club is in, both directions ──────
@@ -57012,6 +57102,46 @@ function _tfListingById(id) {
   return null;
 }
 var _TF_MY_LISTINGS = [];
+// ── offered to clubs ────────────────────────────────────────────────────────
+// Three separate reads because they are three different questions: the board a
+// buyer browses, this club's own publications, and whether one player is
+// published. None of them is derived from another, and none is cached across a
+// club switch — _tfO2CForget is called where the roster is dropped.
+var _TF_O2C = { board: null, mine: null, byPlayer: {}, loading: false };
+function _tfO2CForget() { _TF_O2C = { board: null, mine: null, byPlayer: {}, loading: false }; }
+async function _tfO2CLoadBoard() {
+  try { _TF_O2C.board = _thUnwrap(await _thApi('GET', '/transfer-market/offered-to-clubs')); }
+  catch (e) { _TF_O2C.board = { items: [], total: 0, error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_O2C.board;
+}
+async function _tfO2CLoadMine() {
+  try { _TF_O2C.mine = _thUnwrap(await _thApi('GET', '/transfer-market/offered-to-clubs/mine')); }
+  catch (_) { _TF_O2C.mine = { items: [], total: 0 }; }
+  return _TF_O2C.mine;
+}
+async function _tfO2CLoadPlayer(playerId) {
+  if (!_tfIsCanonicalId(playerId)) { _TF_O2C.byPlayer[playerId] = { published: false }; return _TF_O2C.byPlayer[playerId]; }
+  try { _TF_O2C.byPlayer[playerId] = _thUnwrap(await _thApi('GET', '/transfer-market/offered-to-clubs/player/' + playerId)); }
+  catch (_) { _TF_O2C.byPlayer[playerId] = { published: false }; }
+  return _TF_O2C.byPlayer[playerId];
+}
+function _tfO2CFor(playerId) { return _TF_O2C.byPlayer[playerId]; }
+// Is he published? Read from the record the server holds, never from a second
+// copy — the same rule the listing state follows.
+function _tfO2CPublished(playerId) {
+  var r = _TF_O2C.byPlayer[playerId];
+  return !!(r && r.published);
+}
+async function _tfO2CPublish(playerId, terms) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/offer-to-clubs',
+    Object.assign({ playerId: playerId }, terms)));
+}
+async function _tfO2CUpdate(playerId, terms) {
+  return _thUnwrap(await _thApi('PATCH', '/transfer-market/offer-to-clubs/' + playerId, terms));
+}
+async function _tfO2CWithdraw(playerId) {
+  return _thUnwrap(await _thApi('DELETE', '/transfer-market/offer-to-clubs/' + playerId));
+}
 function _tfIsListed(playerId) {
   if (_tfHasSession()) {
     for (var i = 0; i < _TF_MY_LISTINGS.length; i++) {
@@ -57627,44 +57757,43 @@ function _tfContractHtml(ctxId, p) {
       +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-list-confirm data-tf-mode="now">CONFIRM INSTANT SALE</button>'
       + '</div></div>';
   } else if (exp === 'clubs') {
-    var mm = _TF_NEG.matches[p.id];
-    if (!mm) {
-      _tfNegLoadMatches(p.id, price).then(function () { _tfSellRepaint(); });
+    // Offering him to clubs is neither a listing nor an auction: it is an
+    // approach his club makes, with terms, to clubs that may then come back
+    // with an offer. He stays registered here throughout.
+    var o2c = _tfHasSession() ? _tfO2CFor(p.id) : null;
+    if (_tfHasSession() && o2c === undefined) {
+      _tfO2CLoadPlayer(p.id).then(function () { _tfSellRepaint(); });
+    }
+    if (!_tfHasSession()) {
       open = '<div class="tf-ct-open"><div class="tf-ct-open-t">Offer to clubs</div>'
-           + '<p class="tf-para">Reading which clubs are looking for a player like him…</p></div>';
-    } else {
-      var rows = mm.items || [];
-      var picked = (_TF_SELL && _TF_SELL.picked) || {};
+        + '<p class="tf-note">Sign in as this club to approach other clubs about him.</p>'
+        + '<div class="tf-ct-open-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CLOSE</button>'
+        + '</div></div>';
+    } else if (o2c === undefined) {
+      open = '<div class="tf-ct-open"><div class="tf-ct-open-t">Offer to clubs</div>'
+        + '<p class="tf-para">Reading where he already stands…</p></div>';
+    } else if (o2c.published) {
+      // Published. This is the manage face: what was agreed, who it went to,
+      // and the two things the seller may still do about it.
       open = '<div class="tf-ct-open">'
-        + '<div class="tf-ct-open-t">Offer to clubs</div>'
-        + '<p class="tf-note">Clubs whose published need he fits. This is not an auction: each club is'
-        +   ' told he is available, and can then make you an offer. Nothing about their budget or'
-        +   ' scouting is shown here — only what they published.</p>'
-        + (rows.length
-          ? '<ol class="tf-mclubs">' + rows.map(function (r) {
-            var on = !!picked[r.club.id];
-            return '<li class="tf-mclub' + (on ? ' is-on' : '') + (r.alreadyOffered ? ' is-done' : '') + '"'
-              + (r.alreadyOffered ? '' : ' data-tf-pick-club="' + _tfEsc(r.club.id) + '"') + '>'
-              + '<span class="tf-mclub-tick">' + (r.alreadyOffered ? '✓' : on ? '☑' : '☐') + '</span>'
-              + '<span class="tf-mclub-id"><b>' + _tfEsc(r.club.name) + '</b>'
-              +   '<em>' + r.need.positions.map(function (x) {
-                return '<i class="tf-pos tf-pos--' + _tfCat(x) + '">' + _tfEsc(x) + '</i>';
-              }).join('') + '<span class="tf-need-prio tf-need-prio--' + String(r.need.priority).toLowerCase() + '">'
-              + _tfEsc(r.need.priority) + '</span></em>'
-              + '<span class="tf-mclub-why">' + _tfEsc(r.reasons.slice(0, 3).join(' · ') || 'no stated criteria') + '</span></span>'
-              + '<span class="tf-mclub-pct' + (r.matchPct >= 80 ? ' is-hi' : r.matchPct >= 55 ? ' is-mid' : '') + '">'
-              +   '<b>' + r.matchPct + '%</b><i>match</i></span>'
-              + '</li>';
-          }).join('') + '</ol>'
-          : '<p class="tf-para">No club is currently looking for a player like him.</p>')
-        + (rows.length
-          ? '<div class="tf-ct-open-acts">'
-            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-pick-all>SELECT ALL MATCHING</button>'
-            + '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
-            + '<button type="button" class="tf-btn tf-btn--primary" data-tf-offer-clubs="' + _tfEsc(p.id) + '">SEND AVAILABILITY</button>'
-            + '</div>'
-          : '')
-        + '</div>';
+        + '<div class="tf-ct-open-t">Offered to clubs</div>'
+        + '<div class="tf-o2c-state"><span class="tf-o2c-badge">' + _tfEsc(_tfO2CStateLabel(o2c.state)) + '</span>'
+        +   '<em>' + (o2c.clubCount || 0) + ' club' + ((o2c.clubCount || 0) === 1 ? '' : 's') + ' approached</em></div>'
+        + '<div class="tf-ct-facts tf-ct-facts--2">'
+        +   '<div><i>Asking price</i><b>' + (o2c.askingPriceEur != null ? _tfMoney(o2c.askingPriceEur) : '—') + '</b></div>'
+        +   '<div><i>Minimum accepted</i><b>' + (o2c.minAcceptableEur != null ? _tfMoney(o2c.minAcceptableEur) : '—') + '</b></div>'
+        +   '<div><i>Negotiation</i><b>' + (o2c.allowNegotiation === false ? 'Fixed price' : 'Open') + '</b></div>'
+        +   '<div><i>Offer expires</i><b>' + _tfEsc(o2c.expiresAt ? _tfContractExpiry({ contractUntil: o2c.expiresAt }) : 'No expiry') + '</b></div>'
+        + '</div>'
+        + '<p class="tf-note">He is not on the market and not at auction — he stays in your squad while'
+        +   ' the clubs you approached decide whether to make an offer.</p>'
+        + '<div class="tf-ct-open-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-o2c-withdraw="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">WITHDRAW</button>'
+        +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-o2c-edit="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">EDIT TERMS</button>'
+        + '</div></div>';
+    } else {
+      open = _tfO2CFormHtml(ctxId, p, null);
     }
   } else if (exp === 'renew') {
     // Keeping him. The terms are his own record — the wage and the end date the
@@ -57715,6 +57844,92 @@ function _tfContractHtml(ctxId, p) {
 
   return '<div class="tf-ct">' + head + facts + actions + open + '</div>';
 }
+// ── the publish form ────────────────────────────────────────────────────────
+// The terms a club publishes him with. Everything except the asking price is
+// optional, and an offer published without them behaves as it always did.
+var TF_O2C_STATE = {
+  OFFERED_TO_CLUBS: 'Offered to clubs', OFFER_RECEIVED: 'Offer received',
+  NEGOTIATING: 'Negotiating', AGREEMENT_REACHED: 'Agreement reached',
+};
+function _tfO2CStateLabel(k) { return TF_O2C_STATE[k] || 'Offered to clubs'; }
+
+function _tfO2CFormHtml(ctxId, p, existing) {
+  var mv = _tfMarketValueOf(p);
+  var ask = existing && existing.askingPriceEur != null ? existing.askingPriceEur : mv;
+  var min = existing && existing.minAcceptableEur != null ? existing.minAcceptableEur : Math.round(mv * 0.8);
+  var neg = existing ? existing.allowNegotiation !== false : true;
+  var pd = existing && existing.preferredDate ? _tfDateInputValue(new Date(existing.preferredDate)) : '';
+  var ex = existing && existing.expiresAt ? _tfDateInputValue(new Date(existing.expiresAt))
+    : _tfDateInputValue(new Date(Date.now() + 14 * 864e5));
+  var note = (existing && existing.message) || '';
+  var editing = !!existing;
+  return '<div class="tf-ct-open">'
+    + '<div class="tf-ct-open-t">' + (editing ? 'Edit published terms' : 'Offer to clubs') + '</div>'
+    // who he is — the panel states the footballer before it asks for a price
+    + '<div class="tf-o2c-who">'
+    +   _tfPortrait(p, 'md')
+    +   '<div class="tf-o2c-id"><b>' + _tfEsc(p.name) + '</b>'
+    +     '<span><i class="tf-pos tf-pos--' + _tfCat(p.pos) + '">' + _tfEsc(p.pos) + '</i>'
+    +       '<em>' + _tfEsc(String(p.age)) + ' yrs</em><em>' + _tfEsc(p.nat || '') + ' ' + _tfEsc(p.natName || '') + '</em></span>'
+    +   '</div>'
+    +   '<span class="tf-o2c-ovr">' + _tfEsc(String(p.qual != null ? p.qual : (p.overall || 70))) + '<i>OVR</i></span>'
+    + '</div>'
+    + '<div class="tf-ct-facts tf-ct-facts--2">'
+    +   '<div><i>Market value</i><b>' + _tfMoney(mv) + '</b></div>'
+    +   '<div><i>Current wage</i><b>' + _tfMoney(_tfWageOf(p)) + ' / wk</b></div>'
+    +   '<div><i>Contract expiry</i><b>' + _tfEsc(_tfContractExpiry(p)) + '</b></div>'
+    +   '<div><i>Current club</i><b>' + _tfEsc(_tfClubNameOf(null)) + '</b></div>'
+    + '</div>'
+    + '<div class="tf-ct-terms">'
+    +   '<label class="tf-fld"><span>Asking price</span>'
+    +     '<input type="number" min="0" step="100000" value="' + ask + '" data-tf-o2c-ask></label>'
+    +   '<label class="tf-fld"><span>Minimum acceptable</span>'
+    +     '<input type="number" min="0" step="100000" value="' + min + '" data-tf-o2c-min></label>'
+    +   '<label class="tf-fld"><span>Preferred transfer date</span>'
+    +     '<input type="date" value="' + _tfEsc(pd) + '" data-tf-o2c-date></label>'
+    +   '<label class="tf-fld"><span>Offer expires</span>'
+    +     '<input type="date" value="' + _tfEsc(ex) + '" data-tf-o2c-expiry></label>'
+    + '</div>'
+    + '<div class="tf-o2c-opts">'
+    +   '<label class="tf-fld"><span>Allow negotiation</span>'
+    +     '<select data-tf-o2c-neg>'
+    +       '<option value="yes"' + (neg ? ' selected' : '') + '>Yes — clubs may negotiate</option>'
+    +       '<option value="no"' + (neg ? '' : ' selected') + '>No — asking price only</option>'
+    +     '</select></label>'
+    + (editing ? '' :
+      '<label class="tf-fld"><span>Who sees him</span>'
+      + '<select data-tf-o2c-target>'
+      +   '<option value="all" selected>All eligible clubs</option>'
+      +   '<option value="matching">Clubs whose published need he fits</option>'
+      + '</select></label>')
+    + '</div>'
+    + '<label class="tf-fld tf-fld--wide"><span>Note <em>(optional)</em></span>'
+    +   '<input type="text" maxlength="200" value="' + _tfEsc(note) + '" placeholder="Anything the buying club should know" data-tf-o2c-note></label>'
+    + '<p class="tf-note">He stays registered to this club and keeps playing. This is not a listing and'
+    +   ' not an auction: the clubs you approach can only come back to you with an offer.</p>'
+    + '<div class="tf-ct-open-acts">'
+    +   '<button type="button" class="tf-btn tf-btn--danger" data-tf-exp="" data-tf-player="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '">CANCEL</button>'
+    +   '<button type="button" class="tf-btn tf-btn--primary" data-tf-o2c-publish="' + _tfEsc(p.id) + '" data-tf-ctx="' + _tfEsc(ctxId) + '"'
+    +     (editing ? ' data-tf-o2c-mode="edit"' : '') + '>' + (editing ? 'SAVE TERMS' : 'PUBLISH TO CLUBS') + '</button>'
+    + '</div></div>';
+}
+
+// Read the form. The DOM is the truth while it is open, so a repaint never
+// loses a field that was already filled in.
+function _tfO2CReadForm(scope) {
+  var g = function (sel) { var n = scope.querySelector(sel); return n ? n.value : ''; };
+  var num = function (v) { var n = Number(v); return (v === '' || !isFinite(n)) ? null : Math.round(n); };
+  return {
+    askingPriceEur: num(g('[data-tf-o2c-ask]')),
+    minAcceptableEur: num(g('[data-tf-o2c-min]')),
+    preferredDate: g('[data-tf-o2c-date]') || null,
+    expiresAt: g('[data-tf-o2c-expiry]') || null,
+    allowNegotiation: g('[data-tf-o2c-neg]') !== 'no',
+    message: g('[data-tf-o2c-note]') || undefined,
+    target: g('[data-tf-o2c-target]') || 'all',
+  };
+}
+
 // The inline mount used by his profile. The host carries the ids, so a repaint
 // needs nothing but the DOM.
 function _tfContractMount(ctxId, p) {
@@ -58145,10 +58360,50 @@ function _tfFormOfferHtml() {
     +   '<button type="button" class="tf-step-b" data-tf-fee-step="1" aria-label="Raise">+</button>'
     +   '<em>' + _tfMoney(Number(f.values.fee) || 0) + '</em>'
     + '</div>'
+    // What the bid carries besides the fee. Optional — an offer sent without
+    // them is exactly the offer this panel always sent.
+    + '<div class="tf-ct-terms">'
+    +   '<label class="tf-fld"><span>Add-ons <em>(optional)</em></span>'
+    +     '<input type="number" min="0" step="100000" data-tf-fld="addOns" value="' + _tfEsc(f.values.addOns == null ? '' : f.values.addOns) + '"></label>'
+    +   '<label class="tf-fld"><span>Sell-on % <em>(optional)</em></span>'
+    +     '<input type="number" min="0" max="100" step="1" data-tf-fld="sellOn" value="' + _tfEsc(f.values.sellOn == null ? '' : f.values.sellOn) + '"></label>'
+    +   '<label class="tf-fld"><span>Preferred transfer date</span>'
+    +     '<input type="date" data-tf-fld="tdate" value="' + _tfEsc(f.values.tdate || '') + '"></label>'
+    + '</div>'
+    + '<label class="tf-fld tf-fld--wide"><span>Message <em>(optional)</em></span>'
+    +   '<input type="text" maxlength="200" data-tf-fld="note" value="' + _tfEsc(f.values.note || '') + '" placeholder="Anything the selling club should know"></label>'
+    // What it costs this club, against what it has. Read from the balance the
+    // market already holds — this panel computes nothing about money it cannot
+    // see.
+    + (function () {
+      var bud = null;
+      try { bud = _tfBudgetAvailable(); } catch (_) {}
+      if (bud == null) return '';
+      var fee = Number(f.values.fee) || 0;
+      var addOns = Number(f.values.addOns) || 0;
+      var total = fee + addOns;
+      var left = bud - total;
+      return '<div class="tf-o2c-sum' + (left < 0 ? ' is-over' : '') + '">'
+        + '<div><i>Available budget</i><b>' + _tfMoney(bud) + '</b></div>'
+        + '<div><i>This offer</i><b>' + _tfMoney(total) + '</b></div>'
+        + '<div><i>Remaining after</i><b>' + _tfMoney(left) + '</b></div>'
+        + '</div>'
+        + (left < 0 ? '<p class="tf-fm-err">This is more than the club has available.</p>' : '');
+    })()
     + '<p class="tf-note">' + (f.kind === 'counter'
       ? 'The other club answers this figure. Nothing moves until they accept.'
       : 'The owning club is told, and answers. Nothing moves until they accept.') + '</p>'
     + '</div>';
+}
+
+// The club's own transfer headroom. The market already derives this — the
+// server balance when there is one, the club's finance model otherwise — and
+// this panel reads that answer rather than computing a second one.
+function _tfBudgetAvailable() {
+  try {
+    var b = _tfEconomy(_tfCtx());
+    return (b && typeof b.available === 'number') ? b.available : null;
+  } catch (_) { return null; }
 }
 
 function _tfFormNeedOfferHtml() {
@@ -58269,8 +58524,15 @@ function _tfFormSubmit() {
       .catch(_tfFormFail);
     return;
   }
+  // What rides with the fee. Absent stays absent: an offer sent with none of
+  // them is the request this panel has always sent.
+  var xtra = {};
+  if (f.values.addOns !== undefined && String(f.values.addOns).trim() !== '') xtra.addOnsEur = Number(f.values.addOns);
+  if (f.values.sellOn !== undefined && String(f.values.sellOn).trim() !== '') xtra.sellOnPct = Number(f.values.sellOn);
+  if (f.values.tdate) xtra.preferredDate = f.values.tdate;
+  if (f.values.note) xtra.message = String(f.values.note).slice(0, 200);
   if (f.kind === 'counter') {
-    _tfNegApi('POST', '/offers/' + f.offerId + '/counter', { feeEur: fee })
+    _tfNegApi('POST', '/offers/' + f.offerId + '/counter', Object.assign({ feeEur: fee }, xtra))
       .then(function () {
         _tfToast('Counter sent', 'success');
         _TF_NEG.offers = {}; _TF_NEG.activity = null; _tfFormClose();
@@ -58280,7 +58542,7 @@ function _tfFormSubmit() {
       .catch(_tfFormFail);
     return;
   }
-  _tfNegApi('POST', '/offers', { playerId: f.playerId, feeEur: fee })
+  _tfNegApi('POST', '/offers', Object.assign({ playerId: f.playerId, feeEur: fee }, xtra))
     .then(function () {
       _tfToast('Offer sent', 'success');
       _TF_NEG.activity = null; _tfFormClose();
@@ -58448,6 +58710,103 @@ function _tfFormSubmit() {
         .catch(function (err) {
           el.disabled = false;
           _tfToast('Renewal failed — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    // MAKE OFFER, from a card on the Offered to Clubs board. The same offer
+    // panel every other approach uses — there is no second offer form.
+    if ((el = t.closest('[data-tf-o2c-offer]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var mpid2 = el.getAttribute('data-tf-o2c-offer');
+      var mask = Number(el.getAttribute('data-tf-o2c-ask')) || 0;
+      var row = ((_TF_O2C.board && _TF_O2C.board.items) || []).filter(function (i) { return i.playerId === mpid2; })[0];
+      var mp = row && row.player ? row.player : null;
+      _tfFormOpenOffer(mpid2, 'offer', null, mask, mp ? {
+        name: ((mp.firstName || '') + ' ' + (mp.lastName || '')).trim(),
+        pos: (SQ_POSREV[mp.position] || mp.position || 'CM'),
+        qual: mp.overallRating,
+        club: row.fromClub ? row.fromClub.name : null,
+        mv: mp.marketValue != null ? Number(mp.marketValue) : 0,
+        ask: row.askingPriceEur,
+      } : null);
+      return;
+    }
+    // ── offering him to clubs ───────────────────────────────────────────
+    // Publish, edit and withdraw. Each one asks the server and then repaints
+    // only what changed: the panel, the profile button, and the board if it is
+    // on screen. Nothing rebuilds the workspace.
+    if ((el = t.closest('[data-tf-o2c-publish]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var opid = el.getAttribute('data-tf-o2c-publish');
+      var octx = el.getAttribute('data-tf-ctx');
+      var OC = _tfCtxById(octx), op = OC && OC.findPlayer ? OC.findPlayer(opid) : null;
+      if (!op) return;
+      if (!_tfHasSession()) { _tfToast('Sign in as this club to offer him', 'error'); return; }
+      if (!_tfIsCanonicalId(op.id)) {
+        _tfToast('This player has not loaded from the server yet — he cannot be offered until he has', 'error');
+        return;
+      }
+      var oscope = el.closest('.tf-ct-open') || document;
+      var terms = _tfO2CReadForm(oscope);
+      if (terms.askingPriceEur == null || terms.askingPriceEur < 0) { _tfToast('Set an asking price', 'error'); return; }
+      var editing = el.getAttribute('data-tf-o2c-mode') === 'edit';
+      el.disabled = true;
+      var body = {
+        askingPriceEur: terms.askingPriceEur, minAcceptableEur: terms.minAcceptableEur,
+        allowNegotiation: terms.allowNegotiation, preferredDate: terms.preferredDate,
+        expiresAt: terms.expiresAt, message: terms.message,
+      };
+      var run;
+      if (editing) { run = _tfO2CUpdate(op.id, body); }
+      else if (terms.target === 'matching') {
+        // The clubs whose published need he fits, resolved by the server that
+        // scores needs — this browser never decides who is eligible.
+        run = _tfNegLoadMatches(op.id, terms.askingPriceEur).then(function (m) {
+          var ids = ((m && m.items) || []).map(function (r) { return r.club.id; });
+          if (!ids.length) throw new Error('no club has published a need he fits');
+          return _tfO2CPublish(op.id, Object.assign({ clubIds: ids }, body));
+        });
+      } else {
+        run = _tfO2CPublish(op.id, Object.assign({ targetAll: true }, body));
+      }
+      run.then(function () { return _tfO2CLoadPlayer(op.id); })
+        .then(function () {
+          if (_TF_SELL) _TF_SELL.exp = 'clubs';
+          _tfToast(op.name + (editing ? ' — terms updated' : ' is now offered to clubs'), 'success');
+          _tfSellRepaint(); _tfSellRefreshOwner(OC);
+          if (_TF.tab === 'offered' || _TF.tab === 'activity') { _tfO2CLoadMine().then(function () { _tfRenderBody(); }); }
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Could not offer him — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-tf-o2c-edit]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var epid = el.getAttribute('data-tf-o2c-edit'), ectx = el.getAttribute('data-tf-ctx');
+      var EC = _tfCtxById(ectx), ep = EC && EC.findPlayer ? EC.findPlayer(epid) : null;
+      if (!ep) return;
+      var host = el.closest('.tf-ct-open');
+      if (host) host.outerHTML = _tfO2CFormHtml(ectx, ep, _tfO2CFor(epid));
+      return;
+    }
+    if ((el = t.closest('[data-tf-o2c-withdraw]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var wpid = el.getAttribute('data-tf-o2c-withdraw'), wctx = el.getAttribute('data-tf-ctx');
+      var WC = _tfCtxById(wctx), wp = WC && WC.findPlayer ? WC.findPlayer(wpid) : null;
+      el.disabled = true;
+      _tfO2CWithdraw(wpid)
+        .then(function () { return _tfO2CLoadPlayer(wpid); })
+        .then(function () {
+          if (_TF_SELL) _TF_SELL.exp = null;
+          _tfToast((wp ? wp.name : 'He') + ' is no longer offered to clubs', 'info');
+          _tfSellRepaint(); _tfSellRefreshOwner(WC);
+          if (_TF.tab === 'offered' || _TF.tab === 'activity') { _tfO2CLoadMine().then(function () { _tfRenderBody(); }); }
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Could not withdraw — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
         });
       return;
     }
@@ -58857,9 +59216,14 @@ function _tfSellRefreshOwner(C) {
 // The button the owned-player surfaces render. One helper, both surfaces.
 function _tfSellButton(ctxId, player, cls) {
   var listed = _tfStatusOf(player.id).listed;
-  return '<button class="' + (cls || 'sq-mbtn') + (listed ? ' is-listed' : '') + '" type="button"'
+  // Offered to clubs is a third state, and it is neither "on the market" nor
+  // "nothing happening" — the button has to say so, or the manager has no way
+  // of telling from his profile that an approach is already out.
+  var offered = !listed && _tfO2CPublished(player.id);
+  var label = listed ? '🔨 Listed — manage' : offered ? '📤 Manage club offer' : '⇄ Contract / Transfer';
+  return '<button class="' + (cls || 'sq-mbtn') + (listed ? ' is-listed' : '') + (offered ? ' is-offered' : '') + '" type="button"'
     + ' data-tf-sell-open="' + _tfEsc(player.id) + '" data-tf-sell-ctx="' + _tfEsc(ctxId) + '">'
-    + (listed ? '🔨 Listed — manage' : '⇄ Contract / Transfer') + '</button>';
+    + label + '</button>';
 }
 window._tfSellButton = _tfSellButton;
 
@@ -58983,6 +59347,7 @@ function _thResetRoster() {
   // for. Carrying them across a switch would show one club's terms on another
   // club's player.
   try { _tfContractForget(); } catch (_) {}
+  try { _tfO2CForget(); } catch (_) {}
 }
 
 // Which of a workspace load's parts are required for the club to be usable, and
