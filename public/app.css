@@ -10088,6 +10088,65 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-step input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
 .tf-step em{ font-style:normal; margin-left:auto; font-size:13px; font-weight:800; color:var(--tf-champagne); font-variant-numeric:tabular-nums; }
 
+/* ══ CLUB BUSINESS · MY TRANSFERS ═════════════════════════════════════════
+   One compact row, learned once and used everywhere in both. A row is a line
+   of facts and the acts that belong to it — not a card, not a box, and never a
+   grid of empty boxes across a page. A section with nothing in it says so in
+   one line rather than reserving a panel for the absence. */
+#pg-transfers .tfb-pane{ gap:16px; }
+#pg-transfers .tfb{ display:flex; flex-direction:column; gap:8px; flex:none; }
+#pg-transfers .tfb-h{ display:flex; align-items:baseline; gap:10px; }
+#pg-transfers .tfb-h h3{ margin:0; font-size:12.5px; font-weight:850; letter-spacing:.02em; color:var(--tf-ink); }
+#pg-transfers .tfb-h p{ margin:0; font-size:11px; color:var(--tf-ink3); }
+#pg-transfers .tfb-rows{
+  display:flex; flex-direction:column; gap:1px;
+  background:var(--tf-line); border-radius:9px; overflow:hidden;
+  border:1px solid var(--tf-line2);
+}
+#pg-transfers .tfb-none{
+  display:flex; flex-direction:column; gap:2px; padding:12px 14px;
+  border-radius:9px; border:1px dashed var(--tf-line2); background:var(--tf-info);
+}
+#pg-transfers .tfb-none b{ font-size:12px; font-weight:800; color:var(--tf-ink2); }
+#pg-transfers .tfb-none span{ font-size:11px; color:var(--tf-ink3); }
+
+#pg-transfers .tfr{
+  display:grid; align-items:center; gap:10px; padding:7px 12px; cursor:pointer;
+  grid-template-columns:minmax(150px,1.6fr) 96px minmax(90px,1fr) 92px 118px 92px auto;
+  background:var(--tf-card); transition:background-color .12s ease;
+}
+#pg-transfers .tfr:hover{ background:var(--tf-panel-2); }
+#pg-transfers .tfr:focus-visible{ outline:2px solid var(--tf-gold); outline-offset:-2px; }
+#pg-transfers .tfr-p{ display:flex; align-items:center; gap:8px; min-width:0; }
+#pg-transfers .tfr-p > b{
+  font-size:12px; font-weight:800; color:var(--tf-ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#pg-transfers .tfr-p > em{
+  font-style:normal; font-size:10.5px; color:var(--tf-ink3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#pg-transfers .tfr-t{ font-size:10px; font-weight:750; color:var(--tf-ink3); text-transform:uppercase; letter-spacing:.06em; }
+#pg-transfers .tfr-c{ font-size:11px; color:var(--tf-ink2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .tfr-m{ font-size:12.5px; font-weight:800; color:var(--tf-ink); font-variant-numeric:tabular-nums; text-align:right; }
+#pg-transfers .tfr-s{
+  font-size:8px; font-weight:850; letter-spacing:.09em; text-transform:uppercase;
+  padding:3px 6px; border-radius:4px; background:var(--tf-info); color:var(--tf-ink2);
+  text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#pg-transfers .tfr-s--act, #pg-transfers .tfr-s--pending{ background:var(--tf-acc-24); color:var(--tf-ink); }
+#pg-transfers .tfr-s--neg, #pg-transfers .tfr-s--countered{ background:rgba(201,140,46,.22); color:var(--tf-ink); }
+#pg-transfers .tfr-s--fit, #pg-transfers .tfr-s--done, #pg-transfers .tfr-s--accepted{ background:rgba(72,201,52,.20); color:var(--tf-ink); }
+#pg-transfers .tfr-s--rejected, #pg-transfers .tfr-s--withdrawn{ background:rgba(201,40,54,.18); color:var(--tf-ink); }
+#pg-transfers .tfr-u{ font-size:10.5px; color:var(--tf-ink3); white-space:nowrap; }
+#pg-transfers .tfr-a{ display:flex; gap:5px; justify-content:flex-end; }
+#pg-transfers .tfr-a .tf-btn{ height:24px; padding:0 8px; font-size:9px; }
+/* narrow: the columns that are context rather than decision give way first */
+@media (max-width:1380px){
+  #pg-transfers .tfr{ grid-template-columns:minmax(140px,1.6fr) minmax(80px,1fr) 88px 110px auto; }
+  #pg-transfers .tfr-t, #pg-transfers .tfr-u{ display:none; }
+}
+
 /* ══ ONE SCROLLING REGION ═════════════════════════════════════════════════
    The header and the two switches above the content are fixed furniture; the
    content below them is the only thing that scrolls. Panes that did not say so

@@ -167,8 +167,8 @@ describe('the routes are guarded like the actions beside them', () => {
 });
 
 describe('the browser surface', () => {
-  it('Market carries the third view, beside Live market and Market activity', () => {
-    expect(APP).toMatch(/\['market',\s+'Market',[^\]]*\['auctions', 'offered', 'feed'\]\]/);
+  it('Market carries the Offered to Clubs view among its four', () => {
+    expect(APP).toMatch(/\['market',\s+'Market',[^\]]*\['open', 'auctions', 'offered', 'feed'\]\]/);
     expect(APP).toMatch(/offered: 'Offered to clubs'/);
     expect(APP).toContain("if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);");
   });

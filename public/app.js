@@ -48493,6 +48493,15 @@ function renderTransfersHTML() {
 // looking for a player is already standing.
 var TF_TABS = [
   ['open', 'Open market', 'Public to every club'],
+  ['biz-in', 'Incoming', 'Offers and players sent to us'],
+  ['biz-out', 'Outgoing', 'What we have sent out'],
+  ['biz-needs', 'Club needs', 'What clubs are looking for'],
+  ['biz-interest', 'Interest in our players', 'Who has asked about ours'],
+  ['mt-action', 'Needs action', 'Waiting on us'],
+  ['mt-neg', 'Negotiating', 'Under discussion'],
+  ['mt-sent', 'Offers sent', 'Waiting on them'],
+  ['mt-auc', 'Auctions', 'Ours and the ones we are in'],
+  ['mt-done', 'Completed', 'Finished business'],
   ['auctions', 'Auctions', 'Live market'],
   ['offered', 'Offered to clubs', 'Players other clubs have offered us'],
   ['feed', 'Market activity', 'What is happening'],
@@ -48506,20 +48515,27 @@ var TF_TABS = [
 var TF_WORKSPACES = [
   ['market',   'Market',        'The public marketplace',  ['open', 'auctions', 'offered', 'feed']],
   ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
-  ['business', 'Club business', 'Needs and direct offers', ['needs']],
-  ['mine',     'My transfers',  'Everything of ours',      ['activity']],
+  ['business', 'Club business', 'Club-to-club opportunities',
+    ['biz-in', 'biz-out', 'biz-needs', 'biz-interest']],
+  ['mine',     'My transfers',  'Our transactions and history',
+    ['mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done']],
 ];
 // view → the workspace it belongs to. Assistant belongs to Scouting.
 var TF_VIEW_WS = {
   open: 'market', auctions: 'market', offered: 'market', feed: 'market',
   scouting: 'scouting', assistant: 'scouting',
   needs: 'business', offers: 'business',
+  'biz-in': 'business', 'biz-out': 'business', 'biz-needs': 'business', 'biz-interest': 'business',
   activity: 'mine',
+  'mt-action': 'mine', 'mt-neg': 'mine', 'mt-sent': 'mine', 'mt-auc': 'mine', 'mt-done': 'mine',
 };
 // The label each view carries in its workspace's secondary switch.
 var TF_VIEW_LABEL = {
   open: 'Open market', auctions: 'Auctions', offered: 'Offered to clubs', feed: 'Market activity',
   needs: 'Needs', offers: 'Offers',
+  'biz-in': 'Incoming', 'biz-out': 'Outgoing', 'biz-needs': 'Club needs', 'biz-interest': 'Interest in our players',
+  'mt-action': 'Needs action', 'mt-neg': 'Negotiating', 'mt-sent': 'Offers sent',
+  'mt-auc': 'Auctions', 'mt-done': 'Completed',
 };
 function _tfWs() { return TF_VIEW_WS[_TF.tab] || 'market'; }
 
@@ -49135,6 +49151,256 @@ function _tfxNeedListHtml() {
 }
 
 // ── CLUB BUSINESS · one board, needs and offers together ───────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// CLUB BUSINESS — four questions, one at a time
+// ─────────────────────────────────────────────────────────────────────────────
+// It used to be every one of them on a single page, in boxes, most of them
+// empty. They are four different questions asked by four different people at
+// four different moments, so each gets the page while it is being asked and one
+// small empty state when there is nothing in it.
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfRowsShell(title, sub, rows, empty, emptyLine) {
+  return '<section class="tfb">'
+    + '<header class="tfb-h"><h3>' + _tfEsc(title) + '</h3><p>' + _tfEsc(sub) + '</p></header>'
+    + (rows
+      ? '<div class="tfb-rows">' + rows + '</div>'
+      : '<div class="tfb-none"><b>' + _tfEsc(empty) + '</b>'
+        + (emptyLine ? '<span>' + _tfEsc(emptyLine) + '</span>' : '') + '</div>')
+    + '</section>';
+}
+// One compact row. The same shape everywhere in Club Business and My Transfers,
+// so a reader learns it once.
+function _tfRow(o) {
+  return '<div class="tfr' + (o.cls ? ' ' + o.cls : '') + '"' + (o.attr || '') + ' role="button" tabindex="0">'
+    + '<span class="tfr-p">' + (o.portrait || '') + '<b>' + _tfEsc(o.name || '—') + '</b>'
+    +   (o.sub ? '<em>' + _tfEsc(o.sub) + '</em>' : '') + '</span>'
+    + '<span class="tfr-t">' + _tfEsc(o.type || '') + '</span>'
+    + '<span class="tfr-c">' + _tfEsc(o.club || '') + '</span>'
+    + '<span class="tfr-m">' + (o.amount != null ? _tfMoney(o.amount) : '—') + '</span>'
+    + '<span class="tfr-s tfr-s--' + _tfEsc(String(o.tone || 'norm')) + '">' + _tfEsc(o.status || '') + '</span>'
+    + '<span class="tfr-u">' + _tfEsc(o.when || '') + '</span>'
+    + '<span class="tfr-a">' + (o.acts || '') + '</span>'
+    + '</div>';
+}
+function _tfOfferRowPortrait(row) {
+  var pl = row.player || {};
+  var pos = SQ_POSREV[pl.position] || pl.position || 'CM';
+  return _tfPortrait({ name: ((pl.firstName || '') + ' ' + (pl.lastName || '')).trim(),
+    pos: pos, cat: _tfCat(pos), avatar: pl.avatar || null, photo: pl.avatar || null }, 'sm');
+}
+function _tfOfferName(row) {
+  var pl = row.player || {};
+  return ((pl.firstName || '') + ' ' + (pl.lastName || '')).trim() || 'Player';
+}
+
+function _tfBizHtml(C, section) {
+  var a = _TF_NEG.activity;
+  if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
+  if (_TF_O2C.board === null && !_TF_O2C.loading) {
+    _TF_O2C.loading = true;
+    _tfO2CLoadBoard().then(function () { _TF_O2C.loading = false; _tfRenderBody(); });
+  }
+  if (!_TF_O2C.mine) _tfO2CLoadMine().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.needs) _tfNegLoadNeeds().then(function () { _tfRenderBody(); });
+
+  var body = '';
+  if (section === 'in') {
+    // Offers other clubs have put to us, and players they have offered us.
+    var inOff = (a && a.incomingOffers) || [];
+    var offered = (_TF_O2C.board && _TF_O2C.board.items) || [];
+    body = _tfRowsShell('Offers received', inOff.length + ' offer' + (inOff.length === 1 ? '' : 's') + ' from other clubs',
+      inOff.map(function (o) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
+          sub: o.buyerClub ? o.buyerClub.name : '', type: 'Offer',
+          club: o.buyerClub ? o.buyerClub.name : '', amount: o.feeEur,
+          status: o.status, tone: String(o.status).toLowerCase(), when: _tfWhen(o.createdAt),
+          acts: o.status === 'PENDING'
+            ? '<button type="button" class="tf-btn tf-btn--sm tf-btn--primary" data-tf-offer-accept="' + _tfEsc(o.id) + '">Accept</button>'
+              + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '"'
+              + ' data-tf-fee="' + _tfEsc(String(o.feeEur || 0)) + '" data-tf-player="' + _tfEsc(o.playerId) + '"'
+              + ' data-tf-name="' + _tfEsc(_tfOfferName(o)) + '"'
+              + ' data-tf-club="' + _tfEsc((o.buyerClub && o.buyerClub.name) || '') + '">Negotiate</button>'
+              + '<button type="button" class="tf-btn tf-btn--sm tf-btn--danger" data-tf-offer-reject="' + _tfEsc(o.id) + '">Reject</button>'
+            : '',
+        });
+      }).join(''), 'No club has made us an offer.', 'When one does, it appears here with what they are offering.')
+      + _tfRowsShell('Players offered to us', offered.length + ' player' + (offered.length === 1 ? '' : 's') + ' other clubs have offered this club',
+        offered.map(function (it) {
+          var p = _tfO2CShape(it);
+          return _tfRow({
+            attr: ' data-tf-disc-open="' + _tfEsc(p.id) + '"',
+            portrait: _tfPortrait(p, 'sm'), name: p.name, sub: p.pos + (p.age != null ? ' · ' + p.age : ''),
+            type: 'Offered to us', club: it.fromClub ? it.fromClub.name : '',
+            amount: it.askingPriceEur, status: _tfO2CStateLabel(it.state), tone: 'norm',
+            when: _tfWhen(it.createdAt),
+            acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-disc-open="' + _tfEsc(p.id) + '">View player</button>'
+              + '<button type="button" class="tf-btn tf-btn--sm tf-btn--primary" data-tf-o2c-offer="' + _tfEsc(p.id) + '"'
+              + ' data-tf-o2c-ask="' + _tfEsc(String(it.askingPriceEur == null ? p.mv : it.askingPriceEur)) + '">Make offer</button>',
+          });
+        }).join(''), 'No club has offered us a player.', 'A club that approaches us about one of its footballers appears here.');
+  } else if (section === 'out') {
+    var outOff = (a && a.outgoingOffers) || [];
+    var ours = (_TF_O2C.mine && _TF_O2C.mine.items) || [];
+    body = _tfRowsShell('Offers we have made', outOff.length + ' waiting on the other club',
+      outOff.map(function (o) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
+          sub: o.sellerClub ? o.sellerClub.name : '', type: 'Our offer',
+          club: o.sellerClub ? o.sellerClub.name : '', amount: o.feeEur,
+          status: o.status, tone: String(o.status).toLowerCase(), when: _tfWhen(o.createdAt),
+          acts: o.status === 'PENDING'
+            ? '<button type="button" class="tf-btn tf-btn--sm tf-btn--danger" data-tf-offer-withdraw="' + _tfEsc(o.id) + '">Withdraw</button>' : '',
+        });
+      }).join(''), 'We have not made an offer.', 'Offers we send to other clubs are tracked here until they answer.')
+      + _tfRowsShell('Players we have offered', ours.length + ' of ours, offered to other clubs',
+        ours.map(function (it) {
+          var p = _tfO2CShape(it);
+          return _tfRow({
+            portrait: _tfPortrait(p, 'sm'), name: p.name, sub: p.pos,
+            type: 'Offered out', club: (it.clubCount || 0) + ' club' + ((it.clubCount || 0) === 1 ? '' : 's'),
+            amount: it.askingPriceEur, status: _tfO2CStateLabel(it.state), tone: 'norm',
+            when: _tfWhen(it.createdAt),
+            acts: '<button type="button" class="tf-btn tf-btn--sm tf-btn--danger" data-tf-o2c-withdraw="' + _tfEsc(p.id) + '" data-tf-ctx="first-team">Withdraw</button>',
+          });
+        }).join(''), 'We have not offered anybody out.', 'Use Offer to Clubs on a player\'s profile to approach clubs directly.');
+  } else if (section === 'needs') {
+    var needs = (_TF_NEG.needs && _TF_NEG.needs.items) || [];
+    var mineN = needs.filter(function (n) { return n.isMine; });
+    var theirs = needs.filter(function (n) { return !n.isMine; });
+    body = _tfRowsShell('Our published needs', mineN.length + ' requirement' + (mineN.length === 1 ? '' : 's') + ' we have published',
+      mineN.map(function (n) {
+        return _tfRow({
+          name: n.positions.join(' / '), sub: _tfNeedLine(n), type: 'Our need',
+          club: 'Published', amount: n.budgetMaxEur, status: n.priority, tone: String(n.priority).toLowerCase(),
+          when: _tfWhen(n.createdAt),
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-need-edit="' + _tfEsc(n.id) + '">Edit</button>',
+        });
+      }).join(''), 'We have not published a requirement.',
+      'Publishing one tells every club what this squad is short of.')
+      + _tfRowsShell('What other clubs are looking for', theirs.length + ' published requirement' + (theirs.length === 1 ? '' : 's'),
+        theirs.map(function (n) {
+          return _tfRow({
+            attr: ' data-tf-need-matches="' + _tfEsc(n.id) + '"',
+            name: n.positions.join(' / '), sub: _tfNeedLine(n), type: 'Their need',
+            club: n.club ? n.club.name : '', amount: n.budgetMaxEur,
+            status: n.myMatches ? n.myMatches + ' of ours fit' : 'No match', tone: n.myMatches ? 'fit' : 'norm',
+            when: _tfWhen(n.createdAt),
+            acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-need-matches="' + _tfEsc(n.id) + '">Who fits</button>',
+          });
+        }).join(''), 'No club has published a requirement.', '');
+  } else {
+    var interest = (a && a.interestReceived) || [];
+    body = _tfRowsShell('Interest in our players', interest.length + ' club' + (interest.length === 1 ? '' : 's') + ' have asked about ours',
+      interest.map(function (r) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(r.playerId) + '"',
+          portrait: _tfOfferRowPortrait(r), name: _tfOfferName(r), sub: '',
+          type: 'Interest', club: r.club ? r.club.name : '', amount: null,
+          status: r.status, tone: String(r.status).toLowerCase(), when: _tfWhen(r.createdAt),
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-open-player="' + _tfEsc(r.playerId) + '">View player</button>',
+        });
+      }).join(''), 'No club has registered interest in our players.',
+      'When one asks about a footballer of ours, the approach is recorded here.');
+  }
+  return '<div class="tf-pane tfb-pane">' + body + '</div>';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MY TRANSFERS — the club's own transactions, by what they are waiting on
+// ─────────────────────────────────────────────────────────────────────────────
+// A workflow, not a discovery surface. Five stages, one compact row each, and
+// the detail behind the row rather than spread across the page.
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfMineHtml(C, stage) {
+  var a = _TF_NEG.activity;
+  if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.deals) _tfNegLoadDeals().then(function () { _tfRenderBody(); });
+  if (_TF_OM.board === null && !_TF_OM.loading) {
+    _TF_OM.loading = true;
+    _tfOMLoad().then(function () { _TF_OM.loading = false; _tfRenderBody(); });
+  }
+  var inOff = (a && a.incomingOffers) || [], outOff = (a && a.outgoingOffers) || [];
+  var body = '';
+  if (stage === 'action') {
+    // Everything the other club has put to us and is waiting on an answer for.
+    var todo = inOff.filter(function (o) { return o.status === 'PENDING'; });
+    body = _tfRowsShell('Needs action', todo.length + ' waiting on us',
+      todo.map(function (o) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o),
+          sub: 'Answer required', type: 'Offer in',
+          club: o.buyerClub ? o.buyerClub.name : '', amount: o.feeEur,
+          status: 'Awaiting our answer', tone: 'act', when: _tfWhen(o.createdAt),
+          acts: '<button type="button" class="tf-btn tf-btn--sm tf-btn--primary" data-tf-offer-accept="' + _tfEsc(o.id) + '">Accept</button>'
+            + '<button type="button" class="tf-btn tf-btn--sm" data-tf-offer-counter="' + _tfEsc(o.id) + '"'
+            + ' data-tf-fee="' + _tfEsc(String(o.feeEur || 0)) + '" data-tf-player="' + _tfEsc(o.playerId) + '"'
+            + ' data-tf-name="' + _tfEsc(_tfOfferName(o)) + '"'
+            + ' data-tf-club="' + _tfEsc((o.buyerClub && o.buyerClub.name) || '') + '">Counter</button>'
+            + '<button type="button" class="tf-btn tf-btn--sm tf-btn--danger" data-tf-offer-reject="' + _tfEsc(o.id) + '">Reject</button>',
+        });
+      }).join(''), 'Nothing is waiting on us.', 'Offers that need an answer appear here first.');
+  } else if (stage === 'neg') {
+    var neg = inOff.concat(outOff).filter(function (o) { return o.status === 'COUNTERED'; });
+    body = _tfRowsShell('Negotiating', neg.length + ' under discussion',
+      neg.map(function (o) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o), sub: 'Countered',
+          type: 'Negotiation', club: (o.buyerClub && o.buyerClub.name) || (o.sellerClub && o.sellerClub.name) || '',
+          amount: o.feeEur, status: 'Countered', tone: 'neg', when: _tfWhen(o.createdAt),
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-tf-open-player="' + _tfEsc(o.playerId) + '">Open</button>',
+        });
+      }).join(''), 'Nothing is under negotiation.', '');
+  } else if (stage === 'sent') {
+    var sent = outOff.filter(function (o) { return o.status === 'PENDING'; });
+    body = _tfRowsShell('Offers sent', sent.length + ' waiting on the other club',
+      sent.map(function (o) {
+        return _tfRow({
+          attr: ' data-tf-open-player="' + _tfEsc(o.playerId) + '"',
+          portrait: _tfOfferRowPortrait(o), name: _tfOfferName(o), sub: 'Awaiting their answer',
+          type: 'Offer out', club: o.sellerClub ? o.sellerClub.name : '', amount: o.feeEur,
+          status: 'Sent', tone: 'norm', when: _tfWhen(o.createdAt),
+          acts: '<button type="button" class="tf-btn tf-btn--sm tf-btn--danger" data-tf-offer-withdraw="' + _tfEsc(o.id) + '">Withdraw</button>',
+        });
+      }).join(''), 'We have no offer outstanding.', '');
+  } else if (stage === 'auc') {
+    var lots = ((_TF_OM.board && _TF_OM.board.items) || []).filter(function (i) {
+      return i.isMine || i.myBidEur != null;
+    });
+    body = _tfRowsShell('Auctions and listings', lots.length + ' of ours, and the ones we are bidding in',
+      lots.map(function (it) {
+        var p = _tfOMShape(it);
+        var left = it.validUntil ? (new Date(it.validUntil).getTime() - Date.now()) : null;
+        return _tfRow({
+          attr: ' data-om-open="' + _tfEsc(it.listingId) + '"',
+          portrait: _tfPortrait(p, 'sm'), name: p.name, sub: it.isMine ? 'Our listing' : 'We have bid',
+          type: it.biddingEnabled ? 'Open market' : 'Fixed price',
+          club: it.sellerClub ? it.sellerClub.name : '',
+          amount: it.highestBidEur != null ? it.highestBidEur : it.askingPriceEur,
+          status: _tfOMStatus(it), tone: it.iLead ? 'fit' : 'norm',
+          when: left != null ? (left > 0 ? _tfClock(left) + ' left' : 'ended') : '',
+          acts: '<button type="button" class="tf-btn tf-btn--sm" data-om-open="' + _tfEsc(it.listingId) + '">Open</button>',
+        });
+      }).join(''), 'We have nothing on the market and no live bid.', '');
+  } else {
+    var deals = (_TF_NEG.deals && _TF_NEG.deals.items) || [];
+    body = _tfRowsShell('Completed', deals.length + ' finished transfer' + (deals.length === 1 ? '' : 's'),
+      deals.map(function (d) {
+        return _tfRow({
+          portrait: _tfOfferRowPortrait(d), name: _tfOfferName(d), sub: d.direction === 'IN' ? 'Signed' : 'Sold',
+          type: d.direction === 'IN' ? 'In' : 'Out',
+          club: (d.otherClub && d.otherClub.name) || '', amount: d.feeEur,
+          status: 'Completed', tone: 'done', when: _tfWhen(d.completedAt || d.createdAt),
+        });
+      }).join(''), 'No transfer has completed yet.', '');
+  }
+  return '<div class="tf-pane tfb-pane">' + body + '</div>';
+}
+
 function _tfxBoardHtml(C) {
   var a = _TF_NEG.activity;
   if (!a) { _tfNegLoadActivity().then(function () { _tfRenderBody(); }); }
@@ -49215,6 +49481,8 @@ function _tfTabHtml(C) {
 }
 function _tfViewHtml(C) {
   if (_TF.tab === 'open') return _tfOMBoardHtml(C);
+  if (String(_TF.tab).indexOf('biz-') === 0) return _tfBizHtml(C, _TF.tab.slice(4));
+  if (String(_TF.tab).indexOf('mt-') === 0) return _tfMineHtml(C, _TF.tab.slice(3));
   if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);
   if (_TF.tab === 'feed') return _tfFeedHtml(C);
   // Scouting carries the Assistant's recommendations, drawn by the Assistant's
@@ -49223,8 +49491,9 @@ function _tfViewHtml(C) {
   // Needs and offers are one board now, so 'offers' lands on the same place
   // 'needs' does — the lane it wants is on screen already, and the old key
   // still resolves for the cross-links that set it.
-  if (_TF.tab === 'offers' || _TF.tab === 'needs') return _tfxBoardHtml(C);
-  if (_TF.tab === 'activity') return _tfxPipelineHtml(C);
+  if (_TF.tab === 'offers') return _tfBizHtml(C, 'in');
+  if (_TF.tab === 'needs') return _tfBizHtml(C, 'needs');
+  if (_TF.tab === 'activity') return _tfMineHtml(C, 'action');
   return _tfxMarketHtml(C);
 }
 

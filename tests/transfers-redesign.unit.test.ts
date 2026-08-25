@@ -51,12 +51,23 @@ describe('four workspaces over the seven views', () => {
     OLD_VIEWS.forEach((v) => expect(map).toMatch(new RegExp(`\\b${v}:\\s*'(market|scouting|business|mine)'`)));
     // assistant is folded into scouting, and offers into the club-business
     // board — neither is dropped, and both keys still resolve
+    // Each workspace lists the sections it presents. Club business and My
+    // transfers present theirs one at a time now, so the list names those
+    // sections rather than the single page each used to be — while the old
+    // keys stay resolvable through the map above.
     const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
-    ['auctions', 'feed', 'scouting', 'needs', 'activity']
-      .forEach((v) => expect(ws).toContain(`'${v}'`));
+    ['auctions', 'feed', 'scouting'].forEach((v) => expect(ws).toContain(`'${v}'`));
+    ['biz-in', 'biz-out', 'biz-needs', 'biz-interest'].forEach((v) => expect(ws).toContain(`'${v}'`));
+    ['mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done'].forEach((v) => expect(ws).toContain(`'${v}'`));
     expect(map).toContain("assistant: 'scouting'");
     expect(map).toContain("offers: 'business'");
-    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'offers' || _TF.tab === 'needs'");
+    // Club business and My transfers were later split into the sections a
+    // reader actually asks for one at a time. The two original keys are kept
+    // and still resolve to a section, so every cross-link that sets them from
+    // elsewhere in the module keeps landing somewhere real.
+    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'offers'");
+    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'needs'");
+    expect(fnBody('_tfViewHtml')).toContain("_TF.tab === 'activity'");
   });
 
   it('which workspace is on screen is derived, never stored', () => {
@@ -75,7 +86,10 @@ describe('four workspaces over the seven views', () => {
 describe('nothing underneath was rewritten', () => {
   it('every view still renders, through a builder that reads the same data', () => {
     const f = fnBody('_tfViewHtml');
-    ['_tfFeedHtml', '_tfScoutingHtml', '_tfxBoardHtml', '_tfxPipelineHtml', '_tfxMarketHtml']
+    // Club business and My transfers are now sectioned, so the two boards they
+    // used to be single pages of are drawn by their own builders; every other
+    // view still renders through exactly the builder it always did.
+    ['_tfFeedHtml', '_tfScoutingHtml', '_tfxMarketHtml', '_tfBizHtml', '_tfMineHtml', '_tfOMBoardHtml']
       .forEach((b) => expect(f).toContain(b));
     // the assistant's builder is still called, from inside scouting
     expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
@@ -83,10 +97,14 @@ describe('nothing underneath was rewritten', () => {
     expect(fnBody('_tfxMarketHtml')).toContain('_tfLots(C)');
     expect(fnBody('_tfxMarketHtml')).toContain('_tfPassFilters(p, C)');
     expect(fnBody('_tfxMarketHtml')).toContain('_tfAucBoardHtml()');
-    expect(fnBody('_tfxPipelineHtml')).toContain('_tfActivityBuckets()');
-    expect(fnBody('_tfxPipelineHtml')).toContain('_tfAucMine()');
-    expect(fnBody('_tfxPipelineHtml')).toContain('_TF_DESK.data');
-    expect(fnBody('_tfxBoardHtml')).toContain('_tfNeedsFilterBar(needs)');
+    // the sectioned surfaces read the module's existing loads, computing
+    // nothing of their own
+    expect(fnBody('_tfBizHtml')).toContain('_tfNegLoadActivity()');
+    expect(fnBody('_tfBizHtml')).toContain('_tfO2CLoadBoard()');
+    expect(fnBody('_tfBizHtml')).toContain('_tfNegLoadNeeds()');
+    expect(fnBody('_tfMineHtml')).toContain('_tfNegLoadActivity()');
+    expect(fnBody('_tfMineHtml')).toContain('_tfNegLoadDeals()');
+    expect(fnBody('_tfMineHtml')).toContain('_tfOMLoad()');
     expect(fnBody('_tfxNeedListHtml')).toContain('_tfNeedRows().filter(_tfNeedPasses)');
   });
 
