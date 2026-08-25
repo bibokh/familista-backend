@@ -56,7 +56,12 @@ describe('four workspaces over the seven views', () => {
     // sections rather than the single page each used to be — while the old
     // keys stay resolvable through the map above.
     const ws = APP.match(/var TF_WORKSPACES = \[[\s\S]*?\];/)![0];
-    ['auctions', 'feed', 'scouting'].forEach((v) => expect(ws).toContain(`'${v}'`));
+    // Market presents one screen now, so the four keys it used to switch
+    // between are no longer sections of it — they are still views in the map
+    // above, and _tfViewHtml resolves every one of them onto that screen.
+    ['open', 'scouting'].forEach((v) => expect(ws).toContain(`'${v}'`));
+    ['auctions', 'offered', 'feed'].forEach((v) =>
+      expect(fnBody('_tfViewHtml')).toContain(`_TF.tab === '${v}'`));
     ['biz-in', 'biz-out', 'biz-needs', 'biz-interest'].forEach((v) => expect(ws).toContain(`'${v}'`));
     ['mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done'].forEach((v) => expect(ws).toContain(`'${v}'`));
     expect(map).toContain("assistant: 'scouting'");
@@ -89,14 +94,19 @@ describe('nothing underneath was rewritten', () => {
     // Club business and My transfers are now sectioned, so the two boards they
     // used to be single pages of are drawn by their own builders; every other
     // view still renders through exactly the builder it always did.
-    ['_tfFeedHtml', '_tfScoutingHtml', '_tfxMarketHtml', '_tfBizHtml', '_tfMineHtml', '_tfOMBoardHtml']
+    ['_tfScoutingHtml', '_tfMarketOneHtml', '_tfBizHtml', '_tfMineHtml']
       .forEach((b) => expect(f).toContain(b));
     // the assistant's builder is still called, from inside scouting
     expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
     // the new builders draw from the module's own reads, computing nothing new
-    expect(fnBody('_tfxMarketHtml')).toContain('_tfLots(C)');
-    expect(fnBody('_tfxMarketHtml')).toContain('_tfPassFilters(p, C)');
-    expect(fnBody('_tfxMarketHtml')).toContain('_tfAucBoardHtml()');
+    // The market draws from the four reads the module already makes, and
+    // computes nothing of its own beyond the shape they share.
+    ['_tfOMLoad()', '_tfO2CLoadBoard()', '_tfAucLoad()', '_tfNegLoadFeed()',
+     '_tfNegLoadMarketCompleted()'].forEach((r) => expect(fnBody('_tfMarketOneHtml')).toContain(r));
+    expect(fnBody('_tfMkAuctions')).toContain('_TF_AUC.items');
+    expect(fnBody('_tfMkOpen')).toContain('_TF_OM.board');
+    expect(fnBody('_tfMkLots')).toContain('_TF_SERVER_LOTS');
+    expect(fnBody('_tfMkOffered')).toContain('_TF_O2C.board');
     // the sectioned surfaces read the module's existing loads, computing
     // nothing of their own
     expect(fnBody('_tfBizHtml')).toContain('_tfNegLoadActivity()');

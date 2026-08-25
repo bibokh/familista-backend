@@ -48513,7 +48513,12 @@ var TF_TABS = [
 ];
 
 var TF_WORKSPACES = [
-  ['market',   'Market',        'The public marketplace',  ['open', 'auctions', 'offered', 'feed']],
+  // Market is one screen. It used to be four — Open market, Auctions, Offered to
+  // clubs, Market activity — which meant four navigations to answer one
+  // question, and a manager could not see the whole market at once. The four
+  // reads are unchanged and all four are still on screen; what went is the
+  // navigation between them.
+  ['market',   'Market',        'The public marketplace',  ['open']],
   ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
   ['business', 'Club business', 'Club-to-club opportunities',
     ['biz-in', 'biz-out', 'biz-needs', 'biz-interest']],
@@ -48660,12 +48665,17 @@ function _tfRenderBody() {
   var a = document.activeElement, key = null, start = null, end = null;
   if (a && el.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) {
     key = a.getAttribute('data-tf-f') ? 'f:' + a.getAttribute('data-tf-f')
+      : a.getAttribute('data-tf-mf') ? 'm:' + a.getAttribute('data-tf-mf')
+      : a.hasAttribute('data-tf-mq') ? 'mq'
       : a.hasAttribute('data-tf-q') ? 'q' : null;
     try { start = a.selectionStart; end = a.selectionEnd; } catch (_) {}
   }
   el.innerHTML = _tfTabHtml(_tfCtx());
   if (key) {
-    var sel = key === 'q' ? '[data-tf-q]' : '[data-tf-f="' + key.slice(2) + '"]';
+    var sel = key === 'q' ? '[data-tf-q]'
+      : key === 'mq' ? '[data-tf-mq]'
+        : key.charAt(0) === 'm' ? '[data-tf-mf="' + key.slice(2) + '"]'
+          : '[data-tf-f="' + key.slice(2) + '"]';
     var next = el.querySelector(sel);
     if (next) { try { next.focus(); if (start != null) next.setSelectionRange(start, end); } catch (_) {} }
   }
@@ -49480,11 +49490,15 @@ function _tfTabHtml(C) {
   return _tfSubSwitchHtml() + _tfViewHtml(C);
 }
 function _tfViewHtml(C) {
-  if (_TF.tab === 'open') return _tfOMBoardHtml(C);
+  // The whole market, on one screen. The three keys beside 'open' are the tabs
+  // this workspace used to have: every cross-link in the module that sets one of
+  // them — a discovery result opening an auction, a notification opening the
+  // feed — still lands on the market, which now holds all of it.
+  if (_TF.tab === 'open' || _TF.tab === 'auctions' || _TF.tab === 'offered' || _TF.tab === 'feed') {
+    return _tfMarketOneHtml(C);
+  }
   if (String(_TF.tab).indexOf('biz-') === 0) return _tfBizHtml(C, _TF.tab.slice(4));
   if (String(_TF.tab).indexOf('mt-') === 0) return _tfMineHtml(C, _TF.tab.slice(3));
-  if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);
-  if (_TF.tab === 'feed') return _tfFeedHtml(C);
   // Scouting carries the Assistant's recommendations, drawn by the Assistant's
   // own builder from the Assistant's own data. Nothing is recomputed here.
   if (_TF.tab === 'scouting' || _TF.tab === 'assistant') return _tfScoutingHtml(C);
@@ -49494,7 +49508,491 @@ function _tfViewHtml(C) {
   if (_TF.tab === 'offers') return _tfBizHtml(C, 'in');
   if (_TF.tab === 'needs') return _tfBizHtml(C, 'needs');
   if (_TF.tab === 'activity') return _tfMineHtml(C, 'action');
-  return _tfxMarketHtml(C);
+  return _tfMarketOneHtml(C);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// THE MARKET — one screen
+// ─────────────────────────────────────────────────────────────────────────────
+// Four boards became one. Not by merging their data — each is still its own
+// read, hydrated by its own service, and no figure below is computed here that
+// the server did not send — but by putting them on one page, under one search
+// and one set of filters, in the order a recruiter actually asks:
+//
+//   what is closing        → live auctions
+//   what was brought to us → offered to your club
+//   what is available      → the open market, which is the bulk of it
+//   what just happened     → activity, collapsed
+//   where players went     → completed transfers, five rows
+//
+// A section that holds nothing is not drawn at all, so the screen is never a
+// grid of empty panels; the one exception is the open market, which is the
+// subject of the page and says so in a single line when it is empty.
+// ══════════════════════════════════════════════════════════════════════════════
+var _TF_MK = {
+  q: '',
+  f: { pos: '', age: '', ovr: '', nat: '', club: '', price: '', avail: '' },
+  quick: 'ALL',
+  aucAll: false, o2cAll: false, omAll: false,
+  actOpen: false, actAll: false, doneAll: false,
+  sig: null,
+};
+var MK_PAGE = 20;            // open-market cards drawn before 'show all'
+
+// ── one row shape, whatever board it came from ──────────────────────────────
+// Every card on this screen is built from this and nothing else, so the four
+// sources cannot drift into four different cards. `src` says which read it came
+// from, and that is the only thing that decides which action it offers — never
+// the club's name, never its id.
+function _tfMkRow(src, raw) {
+  return {
+    src: src,                                  // 'auction' | 'om' | 'lot' | 'o2c'
+    playerId: raw.playerId, listingId: raw.listingId || null,
+    name: raw.name, pos: raw.pos, positions: raw.positions || [raw.pos],
+    age: raw.age, nat: raw.nat || '', natCode: raw.natCode || '',
+    avatar: raw.avatar || null, ovr: raw.ovr, mv: raw.mv || 0,
+    clubId: raw.clubId || null, clubName: raw.clubName || '—',
+    ask: raw.ask == null ? null : raw.ask,
+    bid: raw.bid == null ? null : raw.bid,
+    bidCount: raw.bidCount || 0,
+    endsAt: raw.endsAt == null ? null : raw.endsAt,
+    status: raw.status,                        // FOR SALE | OPEN TO OFFERS | AUCTION | OFFERED
+    isMine: !!raw.isMine, iLead: !!raw.iLead,
+    lotId: raw.lotId || null,                  // the local lot, where one exists
+    biddingEnabled: !!raw.biddingEnabled,
+  };
+}
+// The public projection every board sends, shaped once.
+function _tfMkPlayer(pl) {
+  pl = pl || {};
+  var pos = SQ_POSREV[pl.position] || pl.position || 'CM';
+  return {
+    playerId: pl.id, name: ((pl.firstName || '') + ' ' + (pl.lastName || '')).trim() || 'Player',
+    pos: pos, positions: (pl.trainedPositions && pl.trainedPositions.length ? pl.trainedPositions : [pos]),
+    age: pl.age != null ? pl.age : null,
+    nat: pl.flag || '', natCode: pl.nationality || '',
+    avatar: pl.avatar || null,
+    ovr: pl.overallRating != null ? pl.overallRating : null,
+    mv: pl.marketValue != null ? Number(pl.marketValue) : 0,
+  };
+}
+function _tfMkMerge(base, extra) {
+  var out = {}; var k;
+  for (k in base) out[k] = base[k];
+  for (k in extra) out[k] = extra[k];
+  return out;
+}
+
+// Live auctions, from the auctions read. Settled lots are the completed
+// section's business, not this one's.
+function _tfMkAuctions() {
+  return ((_TF_AUC.items || []) || []).filter(function (a) { return a.status === 'ACTIVE'; })
+    .map(function (a) {
+      return _tfMkRow('auction', _tfMkMerge(_tfMkPlayer(a.player), {
+        listingId: a.listingId,
+        clubId: a.sellerClub && a.sellerClub.id, clubName: (a.sellerClub && a.sellerClub.name) || '—',
+        ask: a.startingPriceEur, bid: a.highestBidEur, bidCount: a.bidCount || 0,
+        endsAt: a.validUntil ? new Date(a.validUntil).getTime() : null,
+        status: 'AUCTION', isMine: !!a.isMine, iLead: !!a.iLead, biddingEnabled: true,
+      }));
+    });
+}
+// The open market: what clubs published to the public board.
+function _tfMkOpen() {
+  return (((_TF_OM.board && _TF_OM.board.items) || [])).filter(function (i) { return i.status === 'ACTIVE'; })
+    .map(function (i) {
+      return _tfMkRow('om', _tfMkMerge(_tfMkPlayer(i.player), {
+        playerId: i.playerId || (i.player && i.player.id),
+        listingId: i.listingId,
+        clubId: i.sellerClub && i.sellerClub.id, clubName: (i.sellerClub && i.sellerClub.name) || '—',
+        ask: i.askingPriceEur, bid: i.highestBidEur, bidCount: i.bidCount || 0,
+        endsAt: i.validUntil ? new Date(i.validUntil).getTime() : null,
+        status: i.biddingEnabled ? 'AUCTION' : (i.negotiationAllowed === false ? 'FOR SALE' : 'OPEN TO OFFERS'),
+        isMine: !!i.isMine, iLead: !!i.iLead, biddingEnabled: !!i.biddingEnabled,
+      }));
+    });
+}
+// Direct listings — the Live Market as it always was.
+function _tfMkLots() {
+  return (_TF_SERVER_LOTS || []).map(function (l) {
+    return _tfMkRow('lot', {
+      playerId: l.playerId, listingId: l.listingId, lotId: l.id,
+      name: l.name, pos: l.pos, positions: l.positions,
+      age: l.age, nat: l.nat, natCode: l.natCode, avatar: l.avatar,
+      ovr: l.qual, mv: l.mv,
+      clubId: l.sellerClubId, clubName: l.club,
+      ask: l.ask, bid: null, bidCount: 0, endsAt: l.endsAt,
+      status: 'FOR SALE', isMine: !!l.mine,
+    });
+  });
+}
+// Players other clubs have brought to this one.
+function _tfMkOffered() {
+  return (((_TF_O2C.board && _TF_O2C.board.items) || [])).map(function (i) {
+    return _tfMkRow('o2c', _tfMkMerge(_tfMkPlayer(i.player), {
+      playerId: i.playerId || (i.player && i.player.id),
+      clubId: i.fromClub && i.fromClub.id, clubName: (i.fromClub && i.fromClub.name) || '—',
+      ask: i.askingPriceEur, endsAt: i.expiresAt ? new Date(i.expiresAt).getTime() : null,
+      status: 'OFFERED', isMine: false,
+    }));
+  });
+}
+
+// The open-market pool: everything publicly available, from all three public
+// reads, deduplicated.
+//
+// Two players are the same player when their canonical UUIDs are equal — never
+// when their names are. Two clubs may each field a "J. Martins" and they are two
+// footballers with two ids at two clubs, so the key is the id and the row keeps
+// the club it came from. Where the same listing reaches us twice — an auction is
+// a MarketplaceItem, so it comes back on the market read as well as the auctions
+// read — the richer source wins, and it is the one that knows the bids.
+var MK_RANK = { auction: 3, om: 2, lot: 1, o2c: 0 };
+function _tfMkPool() {
+  var rows = _tfMkAuctions().concat(_tfMkOpen()).concat(_tfMkLots());
+  var by = {}, order = [];
+  rows.forEach(function (r) {
+    if (!r.playerId) return;
+    var key = r.playerId + '@' + (r.clubId || '');
+    if (!by[key]) { by[key] = r; order.push(key); return; }
+    if (MK_RANK[r.src] > MK_RANK[by[key].src]) by[key] = r;
+  });
+  return order.map(function (k) { return by[k]; });
+}
+
+// ── the control row ─────────────────────────────────────────────────────────
+function _tfMkPasses(r) {
+  var f = _TF_MK.f;
+  var q = String(_TF_MK.q || '').trim().toLowerCase();
+  if (q) {
+    var hay = (r.name + ' ' + r.natCode + ' ' + r.clubName + ' ' + r.pos).toLowerCase();
+    if (hay.indexOf(q) < 0) return false;
+  }
+  if (f.pos && (r.positions || []).indexOf(f.pos) < 0 && r.pos !== f.pos) return false;
+  if (f.age && r.age != null && r.age > Number(f.age)) return false;
+  if (f.ovr && (r.ovr == null || r.ovr < Number(f.ovr))) return false;
+  if (f.nat && String(r.natCode || '').toUpperCase() !== String(f.nat).toUpperCase()) return false;
+  if (f.club && String(r.clubId || '') !== String(f.club)) return false;
+  if (f.price) {
+    var cost = r.bid != null ? r.bid : r.ask;
+    if (cost != null && cost > Number(f.price) * 1000000) return false;
+  }
+  if (f.avail && r.status !== f.avail) return false;
+  return _tfMkQuickPasses(r);
+}
+// The quick filter takes the key explicitly, because the counts on the chips
+// are the same predicate asked about a key that is NOT the one currently on.
+function _tfMkQuickPasses(r, key) {
+  var qk = key || _TF_MK.quick || 'ALL';
+  if (qk === 'ALL') return true;
+  if (qk === 'SALE') return r.status === 'FOR SALE';
+  if (qk === 'OFFERS') return r.status === 'OPEN TO OFFERS';
+  if (qk === 'AUCTION') return r.status === 'AUCTION';
+  if (qk === 'OFFERED') return r.status === 'OFFERED';
+  if (qk === 'SOON') return r.endsAt != null && r.endsAt > Date.now() && r.endsAt - Date.now() < 86400000;
+  return true;
+}
+var MK_QUICK = [
+  ['ALL', 'All'], ['SALE', 'For sale'], ['OFFERS', 'Open to offers'],
+  ['AUCTION', 'Auctions'], ['OFFERED', 'Offered to us'], ['SOON', 'Expiring soon'],
+];
+function _tfMkControlsHtml(pool, offered) {
+  var f = _TF_MK.f;
+  var all = pool.concat(offered);
+  // Every option below is drawn from the rows actually on the market. No club
+  // and no nationality is named here that the market did not send.
+  var clubs = [], seen = {};
+  all.forEach(function (r) {
+    if (!r.clubId || seen[r.clubId]) return;
+    seen[r.clubId] = 1; clubs.push([r.clubId, r.clubName]);
+  });
+  clubs.sort(function (a, b) { return String(a[1]).localeCompare(String(b[1])); });
+  var nats = [], nseen = {};
+  all.forEach(function (r) {
+    var n = String(r.natCode || '').toUpperCase();
+    if (!n || nseen[n]) return; nseen[n] = 1; nats.push(n);
+  });
+  nats.sort();
+  var posOpts = [];
+  all.forEach(function (r) {
+    (r.positions || []).concat([r.pos]).forEach(function (p) {
+      if (p && posOpts.indexOf(p) < 0) posOpts.push(p);
+    });
+  });
+  posOpts.sort();
+
+  var sel = function (key, label, opts, anyLabel) {
+    return '<label class="mk-fl"><span>' + _tfEsc(label) + '</span>'
+      + '<select data-tf-mf="' + key + '">'
+      + '<option value="">' + _tfEsc(anyLabel) + '</option>'
+      + opts.map(function (o) {
+        var v = o instanceof Array ? o[0] : o, t = o instanceof Array ? o[1] : o;
+        return '<option value="' + _tfEsc(v) + '"' + (String(f[key]) === String(v) ? ' selected' : '') + '>'
+          + _tfEsc(t) + '</option>';
+      }).join('') + '</select></label>';
+  };
+  var num = function (key, label, ph) {
+    return '<label class="mk-fl mk-fl--n"><span>' + _tfEsc(label) + '</span>'
+      + '<input type="number" data-tf-mf="' + key + '" value="' + _tfEsc(f[key]) + '"'
+      + ' placeholder="' + _tfEsc(ph) + '"></label>';
+  };
+  var set = Object.keys(f).filter(function (k) { return f[k] !== '' && f[k] != null; }).length;
+
+  return '<div class="mk-ctl">'
+    + '<div class="mk-ctl-r">'
+    +   '<div class="mk-search">'
+    +     '<svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.82l3.14 3.13a1 1 0 0 0 1.42-1.42l-3.14-3.13A5.5 5.5 0 0 0 9 3.5Zm-3.5 5.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0Z" clip-rule="evenodd"/></svg>'
+    +     '<input type="text" data-tf-mq placeholder="Search players…" autocomplete="off" spellcheck="false"'
+    +       ' value="' + _tfEsc(_TF_MK.q) + '" aria-label="Search players">'
+    +   '</div>'
+    +   sel('pos', 'Position', posOpts, 'Any')
+    +   num('age', 'Age to', 'Any')
+    +   num('ovr', 'OVR from', 'Any')
+    +   sel('nat', 'Nationality', nats, 'Any')
+    +   sel('club', 'Club', clubs, 'Any')
+    +   num('price', 'Price to (€M)', 'Any')
+    +   sel('avail', 'Availability', ['FOR SALE', 'OPEN TO OFFERS', 'AUCTION', 'OFFERED'], 'Any')
+    +   (set || _TF_MK.q
+      ? '<button type="button" class="tf-chip-btn tf-chip-btn--ghost mk-clear" data-tf-mclear>Clear</button>' : '')
+    + '</div>'
+    + '<div class="mk-quick" role="tablist">' + MK_QUICK.map(function (q) {
+      var n = all.filter(function (r) { return _tfMkQuickPasses(r, q[0]); }).length;
+      return '<button type="button" role="tab" class="mk-q' + (_TF_MK.quick === q[0] ? ' is-on' : '') + '"'
+        + ' aria-selected="' + (_TF_MK.quick === q[0] ? 'true' : 'false') + '" data-tf-mquick="' + q[0] + '">'
+        + _tfEsc(q[1]) + '<em>' + n + '</em></button>';
+    }).join('') + '</div>'
+    + '</div>';
+}
+
+// ── the card ────────────────────────────────────────────────────────────────
+// One shape for every section. The whole card opens the profile; the star and
+// the trade action stop the click, because they are not "look at him".
+function _tfMkStatusTone(s) {
+  return s === 'AUCTION' ? 'auc' : s === 'OFFERED' ? 'o2c' : s === 'FOR SALE' ? 'sale' : 'open';
+}
+function _tfMkAct(r) {
+  // What this row lets a club do comes from which read it came from and whether
+  // the club owns it — the same rule each board applied on its own page. Every
+  // one of these hands off to the flow that already exists.
+  if (r.isMine) {
+    if (r.src === 'auction') return '<button type="button" class="tf-btn tf-btn--sm mk-c-go" data-tf-auction-open="' + _tfEsc(r.listingId) + '">Manage</button>';
+    if (r.src === 'om') return '<button type="button" class="tf-btn tf-btn--sm mk-c-go" data-om-open="' + _tfEsc(r.listingId) + '">Manage</button>';
+    if (r.src === 'lot') return '<button type="button" class="tf-btn tf-btn--sm mk-c-go" data-tf-open="' + _tfEsc(r.lotId) + '">Manage</button>';
+    return '';
+  }
+  if (r.src === 'auction') {
+    return '<button type="button" class="tf-btn tf-btn--auc tf-btn--sm mk-c-go" data-tf-auction-bid="' + _tfEsc(r.listingId) + '">'
+      + (r.iLead ? 'Raise' : 'Bid') + '</button>';
+  }
+  if (r.src === 'om') {
+    return '<button type="button" class="tf-btn ' + (r.biddingEnabled ? 'tf-btn--auc' : 'tf-btn--primary')
+      + ' tf-btn--sm mk-c-go" data-om-open="' + _tfEsc(r.listingId) + '">'
+      + (r.biddingEnabled ? 'Bid' : 'Make offer') + '</button>';
+  }
+  if (r.src === 'o2c') {
+    return '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm mk-c-go" data-tf-o2c-offer="' + _tfEsc(r.playerId) + '"'
+      + ' data-tf-o2c-ask="' + _tfEsc(String(r.ask == null ? r.mv : r.ask)) + '">Make offer</button>';
+  }
+  return '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm mk-c-go" data-tf-open="' + _tfEsc(r.lotId) + '">Make offer</button>';
+}
+function _tfMkCardHtml(r) {
+  var left = r.endsAt != null ? r.endsAt - Date.now() : null;
+  var cost = r.bid != null ? r.bid : r.ask;
+  var costLabel = r.bid != null ? 'Current bid' : 'Asking price';
+  var over = (r.mv > 0 && cost != null) ? Math.round(((cost - r.mv) / r.mv) * 100) : null;
+  var shaped = { id: r.playerId, name: r.name, avatar: r.avatar, pos: r.pos, cat: _tfCat(r.pos) };
+  return '<article class="mkc' + (r.isMine ? ' is-own' : '') + (r.iLead ? ' is-lead' : '')
+    + '" data-tf-pp="' + _tfEsc(r.playerId) + '" tabindex="0" role="button"'
+    + ' aria-label="' + _tfEsc(r.name) + ' — open profile">'
+    + '<div class="mkc-hd">'
+    +   '<span class="mkc-por" data-tf-pp="' + _tfEsc(r.playerId) + '">' + _tfPortrait(shaped, 'sm') + '</span>'
+    +   '<div class="mkc-id">'
+    +     '<b class="mkc-name" data-tf-pp="' + _tfEsc(r.playerId) + '">' + _tfEsc(r.name) + '</b>'
+    +     '<span class="mkc-meta">'
+    +       '<i class="tf-pos tf-pos--' + _tfCat(r.pos) + '">' + _tfEsc(r.pos) + '</i>'
+    +       (r.age != null ? '<span>' + r.age + '</span>' : '')
+    +       '<span>' + (r.nat || '') + ' ' + _tfEsc(r.natCode || '') + '</span>'
+    +     '</span>'
+    +     '<span class="mkc-club">' + _tfEsc(r.clubName) + '</span>'
+    +   '</div>'
+    +   '<span class="tfx-ovr tfx-ovr--' + _tfQualTone(r.ovr) + '"><b>' + (r.ovr != null ? r.ovr : '—') + '</b><i>OVR</i></span>'
+    + '</div>'
+    + '<div class="mkc-money">'
+    +   '<span><i>Value</i><b>' + (r.mv ? _tfMoney(r.mv) : '—') + '</b></span>'
+    +   '<span><i data-mk-lab="' + _tfEsc(r.listingId || '') + '">' + _tfEsc(costLabel) + '</i>'
+    +     '<b class="mkc-ask" data-mk-bid="' + _tfEsc(r.listingId || '') + '">'
+    +     (cost != null ? _tfMoney(cost) : '—') + '</b></span>'
+    +   (over != null && over !== 0
+      ? '<span class="mkc-delta ' + (over > 0 ? 'is-up' : 'is-dn') + '">' + (over > 0 ? '+' : '') + over + '%</span>' : '')
+    + '</div>'
+    + '<div class="mkc-ft">'
+    +   '<span class="mk-badge mk-badge--' + _tfMkStatusTone(r.status) + '">' + _tfEsc(r.status) + '</span>'
+    +   '<span class="mk-badge mk-badge--n' + (r.bidCount ? '' : ' is-off') + '"'
+    +     ' data-mk-n="' + _tfEsc(r.listingId || '') + '">' + r.bidCount + ' bid' + (r.bidCount === 1 ? '' : 's') + '</span>'
+    +   (r.isMine ? '<span class="mk-badge mk-badge--own">Ours</span>' : '')
+    +   (left != null
+      ? '<span class="mkc-clock' + (left > 0 && left < 3600000 ? ' is-hot' : '') + '"'
+        + ' data-tf-mkclock="' + r.endsAt + '">' + (left > 0 ? _tfClock(left) : 'Ended') + '</span>' : '')
+    + '</div>'
+    + '<div class="mkc-acts">'
+    +   _tfStarBtn({ playerId: r.playerId })
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-tf-pp="' + _tfEsc(r.playerId) + '">View profile</button>'
+    +   _tfMkAct(r)
+    + '</div>'
+    + '</article>';
+}
+
+// ── the sections ────────────────────────────────────────────────────────────
+function _tfMkSecHtml(id, title, note, n, body, more) {
+  return '<section class="mk-sec" data-mk-sec="' + id + '">'
+    + '<header class="mk-sec-h"><h3>' + _tfEsc(title) + '</h3>'
+    +   (note ? '<p>' + _tfEsc(note) + '</p>' : '')
+    +   '<span class="mk-sec-n">' + n + '</span>'
+    +   (more || '')
+    + '</header>' + body + '</section>';
+}
+function _tfMkNoneHtml(text) { return '<p class="mk-none">' + _tfEsc(text) + '</p>'; }
+
+function _tfMarketOneHtml(C) {
+  // Each board is its own read and each is asked for once. Until a read has
+  // answered, its section says so rather than claiming the market is empty.
+  if (_TF_OM.board === null && !_TF_OM.loading) {
+    _TF_OM.loading = true;
+    _tfOMLoad().then(function () { _TF_OM.loading = false; _tfRenderBody(); });
+  }
+  if (_TF_O2C.board === null && !_TF_O2C.loading) {
+    _TF_O2C.loading = true;
+    _tfO2CLoadBoard().then(function () { _TF_O2C.loading = false; _tfRenderBody(); });
+  }
+  if (_TF_AUC.items === null) _tfAucLoad().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.feed) _tfNegLoadFeed().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.marketDeals) _tfNegLoadMarketCompleted().then(function () { _tfRenderBody(); });
+
+  var loading = _TF_OM.board === null && _TF_AUC.items === null;
+  var pool = _tfMkPool();
+  var offered = _tfMkOffered();
+  _TF_MK.sig = _tfMkSig();
+
+  // The filters run over one market, so a row is filtered the same way whichever
+  // section it is drawn in.
+  var fAuc = pool.filter(function (r) { return r.src === 'auction' && _tfMkPasses(r); });
+  var fO2C = offered.filter(_tfMkPasses);
+  var fOpen = pool.filter(function (r) { return r.src !== 'auction' && _tfMkPasses(r); });
+  // Auctions are the market too: when the reader has asked for one of the other
+  // quick filters, the auctions still belong in the main board rather than
+  // vanishing between two sections.
+  if (_TF_MK.quick !== 'ALL' && _TF_MK.quick !== 'AUCTION') fOpen = fOpen.concat(fAuc);
+  // One order for the board, and it is the deadline: what runs out first is
+  // what a recruiter has least time to decide about. A listing with no deadline
+  // does not run out, so it sits after the ones that do. Nothing about which
+  // club owns a row enters into it.
+  fOpen = fOpen.slice().sort(function (a, b) {
+    var x = a.endsAt == null ? Infinity : a.endsAt, y = b.endsAt == null ? Infinity : b.endsAt;
+    return x - y || String(a.name).localeCompare(String(b.name));
+  });
+  fAuc = fAuc.slice().sort(function (a, b) {
+    return (a.endsAt == null ? Infinity : a.endsAt) - (b.endsAt == null ? Infinity : b.endsAt);
+  });
+
+  var aucShown = _TF_MK.aucAll ? fAuc : fAuc.slice(0, 4);
+  var o2cShown = _TF_MK.o2cAll ? fO2C : fO2C.slice(0, 4);
+  var omShown = _TF_MK.omAll ? fOpen : fOpen.slice(0, MK_PAGE);
+
+  var moreBtn = function (key, shown, total) {
+    if (total <= shown) return '';
+    return '<button type="button" class="mk-more" data-tf-mall="' + key + '">View all ' + total + '</button>';
+  };
+
+  var secA = (_TF_MK.quick === 'ALL' || _TF_MK.quick === 'AUCTION') && fAuc.length
+    ? _tfMkSecHtml('auctions', 'Live auctions', 'Money is moving on these', fAuc.length,
+      '<div class="mk-grid mk-grid--wide">' + aucShown.map(_tfMkCardHtml).join('') + '</div>',
+      moreBtn('auc', aucShown.length, fAuc.length))
+    : '';
+
+  var secB = fO2C.length
+    ? _tfMkSecHtml('offered', 'Offered to your club', 'Players brought to ' + ((C && _tfClubNameOf(null)) || 'this club'),
+      fO2C.length,
+      '<div class="mk-grid mk-grid--wide">' + o2cShown.map(_tfMkCardHtml).join('') + '</div>',
+      moreBtn('o2c', o2cShown.length, fO2C.length))
+    : '';
+
+  var secC = _tfMkSecHtml('open', 'Open market',
+    'Every player clubs across Familista have made available', fOpen.length,
+    (fOpen.length
+      ? '<div class="mk-grid" id="mk-rows">' + omShown.map(_tfMkCardHtml).join('') + '</div>'
+      : loading
+        ? '<div class="mk-grid">' + new Array(9).join('<div class="mkc mkc--skel" aria-hidden="true"></div>') + '</div>'
+        : _tfMkNoneHtml(_TF_MK.q || _TF_MK.quick !== 'ALL'
+          ? 'No player on the market matches this search.'
+          : 'No club has made a player available yet.')),
+    moreBtn('om', omShown.length, fOpen.length));
+
+  return '<div class="tf-pane mk-pane">'
+    + '<header class="mk-head"><h2>Market</h2>'
+    +   '<p>' + (loading ? 'Reading the market…'
+      : (pool.length + offered.length) + ' player'
+        + ((pool.length + offered.length) === 1 ? '' : 's') + ' available across Familista') + '</p>'
+    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-publish>Publish a player</button>'
+    + '</header>'
+    + _tfMkControlsHtml(pool, offered)
+    + secA + secB + secC
+    + _tfMkActivityHtml()
+    + _tfMkCompletedHtml()
+    + '</div>';
+}
+
+// ── recent market activity: a panel, not a page ─────────────────────────────
+function _tfMkActivityHtml() {
+  var rows = ((_TF_NEG.feed && _TF_NEG.feed.items) || []).filter(function (ev) { return ev.scope === 'PUBLIC'; });
+  var shown = _TF_MK.actAll ? rows.slice(0, 40) : rows.slice(0, 5);
+  return '<section class="mk-sec mk-act' + (_TF_MK.actOpen ? ' is-open' : '') + '">'
+    + '<header class="mk-sec-h mk-act-h" data-tf-mact role="button" tabindex="0"'
+    +   ' aria-expanded="' + (_TF_MK.actOpen ? 'true' : 'false') + '">'
+    +   '<h3>Recent market activity</h3><span class="mk-sec-n">' + rows.length + '</span>'
+    +   '<span class="mk-act-x">' + (_TF_MK.actOpen ? '▾' : '▸') + '</span>'
+    + '</header>'
+    + (_TF_MK.actOpen
+      ? (rows.length
+        ? '<ol class="mk-feed">' + shown.map(_tfMkFeedRowHtml).join('') + '</ol>'
+          + (rows.length > shown.length
+            ? '<button type="button" class="mk-more mk-more--b" data-tf-mall="act">Show more</button>' : '')
+        : _tfMkNoneHtml('The market has been quiet.'))
+      : '')
+    + '</section>';
+}
+function _tfMkFeedRowHtml(ev) {
+  var p = ev.player, name = _tfFeedPlayerName(p);
+  var from = ev.fromClub && ev.fromClub.name, to = ev.toClub && ev.toClub.name;
+  return '<li class="mk-fd"' + (p ? ' data-tf-pp="' + _tfEsc(p.id) + '"' : '') + '>'
+    + '<span class="mk-fd-k">' + _tfEsc(TF_FEED_LABEL[ev.kind] || ev.kind) + '</span>'
+    + '<span class="mk-fd-n">' + _tfEsc(name || from || 'A club') + '</span>'
+    + '<span class="mk-fd-c">' + _tfEsc(from ? (to ? from + ' → ' + to : from) : '') + '</span>'
+    + (ev.feeEur != null ? '<b class="mk-fd-f">' + _tfMoney(ev.feeEur) + '</b>' : '<b class="mk-fd-f"></b>')
+    + '<em class="mk-fd-w">' + _tfEsc(_tfWhen(ev.at)) + '</em>'
+    + '</li>';
+}
+
+// ── where players actually went ─────────────────────────────────────────────
+function _tfMkCompletedHtml() {
+  var deals = ((_TF_NEG.marketDeals && _TF_NEG.marketDeals.items) || []);
+  if (!_TF_NEG.marketDeals) return '';
+  if (!deals.length) return '';
+  var shown = _TF_MK.doneAll ? deals.slice(0, 40) : deals.slice(0, 5);
+  return _tfMkSecHtml('done', 'Recent completed transfers', '', deals.length,
+    '<ol class="mk-deals">'
+    + '<li class="mk-deal mk-deal--h"><span>Player</span><span>From</span><span>To</span><b>Fee</b><em>Date</em></li>'
+    + shown.map(function (d) {
+      var p = d.player || {};
+      return '<li class="mk-deal" data-tf-pp="' + _tfEsc(d.playerId) + '">'
+        + '<span class="mk-deal-p">' + _tfEsc(_tfFeedPlayerName(p) || 'Player') + '</span>'
+        + '<span>' + _tfEsc((d.from && d.from.name) || '—') + '</span>'
+        + '<span>' + _tfEsc((d.to && d.to.name) || '—') + '</span>'
+        + '<b>' + _tfMoney(d.feeEur) + '</b>'
+        + '<em>' + _tfEsc(new Date(d.occurredAt).toLocaleDateString()) + '</em>'
+        + '</li>';
+    }).join('') + '</ol>',
+    deals.length > shown.length
+      ? '<button type="button" class="mk-more" data-tf-mall="done">View more</button>' : '');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -50955,9 +51453,83 @@ function _tfAucBoardHtml() {
   return sec('Live auctions', 'Bidding open — highest bid at the deadline wins', live)
     + sec('Settled auctions', 'Sold and unsold, with what they went for', done.slice(0, 6));
 }
+// Whether the one-screen market is what is on the page.
+function _tfMkIsOn() {
+  return _TF.tab === 'open' || _TF.tab === 'auctions' || _TF.tab === 'offered' || _TF.tab === 'feed';
+}
+// The auction, opened over the market. Every figure and every button in it is
+// _tfAucDetailHtml's — the panel the board expanded inline — so bidding,
+// cancelling and the timeline are the same code they always were.
+function _tfAucDrawerHtml() {
+  var id = _TF_AUC.open;
+  var a = ((_TF_AUC.items || []).filter(function (x) { return x.listingId === id; })[0]) || null;
+  var p = a && a.player;
+  var shaped = p
+    ? { id: p.id, name: _tfAucName(p), avatar: p.avatar, pos: SQ_POSREV[p.position] || p.position,
+        cat: _tfCat(SQ_POSREV[p.position] || p.position), qual: p.overallRating }
+    : { id: '', name: 'Auction', pos: '', cat: 'mf' };
+  return '<div class="tfx-dr" data-tf-modal="auction">'
+    + '<div class="tfx-dr-scrim" data-tf-auction-close></div>'
+    + '<aside class="tfx-dr-box" role="dialog" aria-modal="true" aria-label="Auction">'
+    +   '<button type="button" class="tf-x" data-tf-auction-close aria-label="Close">×</button>'
+    +   '<header class="tf-pd-head">' + _tfPortrait(shaped, 'xl')
+    +     '<div class="tf-pd-id"><div class="tf-pd-name"><h2>' + _tfEsc(shaped.name) + '</h2>'
+    +       '<span class="tf-pd-sub">' + _tfEsc((a && a.sellerClub && a.sellerClub.name) || '') + '</span></div></div>'
+    +     (p ? '<span class="tfx-ovr"><b>' + (p.overallRating != null ? p.overallRating : '—') + '</b><i>OVR</i></span>' : '')
+    +   '</header>'
+    +   '<div class="tf-pp-body">' + _tfAucDetailHtml(id) + '</div>'
+    +   (p ? '<div class="tf-pp-acts">'
+      + '<button type="button" class="tf-btn tf-btn--sm" data-tf-pp="' + _tfEsc(p.id) + '">View profile</button>'
+      + '</div>' : '')
+    + '</aside></div>';
+}
+
 function _tfAucRepaint() {
   var el = document.getElementById('tf-auc-board');
-  if (el) el.innerHTML = _tfAucBoardHtml(); else _tfRenderBody();
+  if (el) { el.innerHTML = _tfAucBoardHtml(); return; }
+  // On the market screen a rival raising a bid changes two figures in one card.
+  // Writing them into the card that is already there keeps the board still —
+  // rebuilding it would throw away the scroll position mid-scan. The drawer
+  // over it, when one is open, is redrawn from the same read.
+  if (document.querySelector('.mk-pane')) {
+    var patched = _tfMkPatchBids();
+    if (_TF_AUC.open && _tfMkIsOn()) _tfRenderOverlay();
+    if (patched || _TF_AUC.open) return;
+  }
+  _tfRenderBody();
+}
+// Which rows the market holds and what state each is in. A bid changes figures
+// and nothing else, so the signature is unchanged and the cards can be written
+// into; a listing appearing, selling or being withdrawn changes it, and then the
+// sections have to be rebuilt because which section a row belongs to has moved.
+function _tfMkSig() {
+  return _tfMkPool().concat(_tfMkOffered()).map(function (r) {
+    return (r.listingId || r.playerId) + ':' + r.src + ':' + r.status;
+  }).sort().join('|');
+}
+// Returns false when the board's shape has changed, so the caller falls back to
+// a redraw rather than leaving a stale card on screen.
+function _tfMkPatchBids() {
+  var host = document.querySelector('.mk-pane'); if (!host) return false;
+  if (_tfMkSig() !== _TF_MK.sig) return false;
+  _tfMkPool().concat(_tfMkOffered()).forEach(function (r) {
+    if (!r.listingId) return;
+    var esc = (window.CSS && CSS.escape) ? CSS.escape(r.listingId) : r.listingId;
+    var b = host.querySelector('[data-mk-bid="' + esc + '"]');
+    if (!b) return;                          // capped out of its section, not stale
+    var cost = r.bid != null ? r.bid : r.ask;
+    b.textContent = cost != null ? _tfMoney(cost) : '—';
+    var lab = host.querySelector('[data-mk-lab="' + esc + '"]');
+    if (lab) lab.textContent = r.bid != null ? 'Current bid' : 'Asking price';
+    var n = host.querySelector('[data-mk-n="' + esc + '"]');
+    if (n) {
+      n.textContent = r.bidCount + ' bid' + (r.bidCount === 1 ? '' : 's');
+      n.classList.toggle('is-off', !r.bidCount);
+    }
+    var card = b.closest('.mkc');
+    if (card) card.classList.toggle('is-lead', !!r.iLead);
+  });
+  return true;
 }
 
 function _tfAuctionsHtml(C) {
@@ -51180,7 +51752,161 @@ function _tfDiscRowsHtml() {
   return d.items.map(_tfDiscRowHtml).join('');
 }
 
-// ── the public profile ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// THE PLAYER PROFILE — one component, one opener
+// ─────────────────────────────────────────────────────────────────────────────
+// There used to be four ways to open a footballer inside Transfers, and two of
+// them silently did nothing:
+//
+//   data-tf-open        → _tfOpen(lotId), keyed by LISTING, over the local lots
+//   data-om-open        → the open-market listing drawer, keyed by LISTING
+//   data-tf-disc-open   → set _TF_SCOUT.open and re-render — but the panel it
+//                         renders into, #tf-disc-prof-host, exists only inside
+//                         Scouting's own markup, so on any other view the click
+//                         set a flag nobody read and nothing opened
+//   data-tf-open-player → looked the player up among the CURRENT listings and
+//                         returned quietly when he was not one of them, which is
+//                         every auction player, every offered player and every
+//                         player in a completed transfer
+//
+// So "View profile" worked or did not depending on which board had drawn the
+// card. There is now one: data-tf-pp, carrying the canonical player UUID, read
+// through the public projection the platform already has, drawn by the builder
+// below, and rendered into the module's overlay — which is on every view,
+// because it is a sibling of the body rather than a part of it.
+// ══════════════════════════════════════════════════════════════════════════════
+var _TF_PP = { id: null, tab: 'overview' };
+
+function _tfPPOpen(playerId) {
+  if (!playerId || !_tfIsCanonicalId(playerId)) return;
+  // A profile is a view of a live transfer state, not a record: his club may
+  // have listed him, auctioned him or withdrawn him since it was last read, so
+  // opening it re-reads rather than showing what we happened to keep.
+  delete _TF_SCOUT.detail[playerId];
+  _TF_PP.id = playerId; _TF_PP.tab = 'overview';
+  _tfRenderOverlay();
+}
+function _tfPPClose() { _TF_PP.id = null; _tfRenderOverlay(); }
+
+// What this club pays a footballer is that club's business, and it is not on the
+// public projection. Our own players are a different question — their wage is
+// ours, and the roster this module already holds knows it.
+function _tfPPOwnPlayer(playerId) {
+  var found = null;
+  try {
+    _tfTeamRegistry().forEach(function (e) {
+      if (found) return;
+      var Cx = null; try { Cx = e.make(); } catch (_) { return; }
+      var hit = ((Cx && Cx.roster) || []).filter(function (pl) { return pl.id === playerId; })[0];
+      if (hit) found = { p: hit, team: e.label };
+    });
+  } catch (_) {}
+  return found;
+}
+
+// The shared body. Scouting draws it inside its own panel and the Market draws
+// it inside the overlay drawer; both call this, so there is one profile.
+function _tfPPBodyHtml(d) {
+  var p = d.player;
+  var own = _tfPPOwnPlayer(p.id);
+  var poss = (p.trainedPositions && p.trainedPositions.length ? p.trainedPositions : [p.position]);
+  // The attribute bars are the platform's own — the same groups and the same
+  // renderer the Squad and the transfer drawer have always drawn.
+  var shaped = {
+    id: p.id, name: p.name || _tfDiscName(p), avatar: p.avatar,
+    pos: SQ_POSREV[p.position] || p.position, cat: _tfCat(SQ_POSREV[p.position] || p.position),
+    qual: p.overallRating, positions: poss,
+  };
+  var hist = (d.history || []).map(function (h) {
+    return '<li><b>' + _tfEsc((h.from && h.from.name) || '—') + '</b> → <b>' + _tfEsc((h.to && h.to.name) || '—') + '</b>'
+      + '<em>' + (h.feeEur != null ? _tfMoney(h.feeEur) : 'undisclosed') + ' · '
+      + _tfEsc(new Date(h.occurredAt).toLocaleDateString()) + '</em></li>';
+  }).join('');
+  var needs = (d.needMatches || []).map(function (m) {
+    return '<li><b>' + m.matchPct + '%</b> <em>' + _tfEsc((m.reasons || []).join(' · ') || 'meets the stated criteria') + '</em></li>';
+  }).join('');
+
+  return '<div class="tf-pp">'
+    + '<div class="tf-pp-hd">'
+    +   _tfPortrait(shaped, 'xl')
+    +   '<div class="tf-pp-id">'
+    +     '<h3>' + _tfEsc(p.name || _tfDiscName(p)) + '</h3>'
+    +     '<p>' + (p.age != null ? p.age + ' yrs · ' : '') + _tfEsc(p.flag || '') + ' ' + _tfEsc(p.nationality || '') + '</p>'
+    +     '<span class="tf-poss">' + poss.map(function (x, i) {
+      var v = SQ_POSREV[x] || x;
+      return '<span class="tf-pos tf-pos--' + _tfCat(v) + (i ? ' is-alt' : '') + '">' + _tfEsc(v) + '</span>';
+    }).join('') + '</span>'
+    +     '<button type="button" class="tf-btn tf-btn--sm tf-pp-club" data-tf-disc-club="' + _tfEsc(d.club.id) + '">'
+    +       _tfEsc(d.club.name) + '</button>'
+    +   '</div>'
+    +   '<span class="tfx-ovr tfx-ovr--' + _tfQualTone(p.overallRating) + '"><b>' + p.overallRating + '</b><i>OVR</i></span>'
+    + '</div>'
+    // who he is, and where he stands
+    + '<div class="tf-pp-facts">'
+    +   '<div><i>Potential</i><b>' + p.potential + '</b></div>'
+    +   '<div><i>Preferred foot</i><b>' + _tfEsc(String(p.preferredFoot || '—').toLowerCase()) + '</b></div>'
+    +   '<div><i>Squad status</i><b>' + (own ? _tfEsc(own.team) : (p.number ? 'No. ' + p.number : '—')) + '</b></div>'
+    +   '<div><i>Availability</i><b>' + _tfDiscStateChip(d.transferState) + '</b></div>'
+    + '</div>'
+    // the money and the contract
+    + '<div class="tf-pp-facts">'
+    +   '<div><i>Market value</i><b>' + _tfMoney(p.marketValue) + '</b></div>'
+    +   '<div><i>Asking price</i><b>' + (d.askingPriceEur != null ? _tfMoney(d.askingPriceEur) : 'Not listed') + '</b></div>'
+    +   '<div><i>Contract expiry</i><b>'
+    +     (d.contractUntil ? _tfEsc(new Date(d.contractUntil).toLocaleDateString()) : 'Not disclosed') + '</b></div>'
+    // A rival club's wage bill is private, so it is not shown as a number this
+    // club does not have. Our own is ours, and the roster knows it.
+    +   '<div><i>Wage</i><b>'
+    +     (own && own.p.wage ? _tfMoney(own.p.wage) + ' p/w' : 'Not disclosed') + '</b></div>'
+    + '</div>'
+    // what he can do
+    + '<div class="tf-pp-attrs">' + _tfSkillsHtml(shaped) + '</div>'
+    + (needs
+      ? '<div class="tf-disc-sec"><h4>Answers our recruitment needs</h4><ul class="tf-disc-needs">' + needs + '</ul></div>'
+      : '')
+    + '<div class="tf-disc-sec"><h4>Transfer history</h4>'
+    +   (hist ? '<ul class="tf-disc-hist">' + hist + '</ul>'
+            : '<p class="tf-para">No completed transfer on record.</p>') + '</div>'
+    + '</div>';
+}
+
+// The actions a profile offers. They are the server's — actionsFor(state) — so
+// what a club may do about a footballer is decided where the state is, and each
+// one hands off to the flow that already exists.
+function _tfPPActsHtml(d) {
+  var p = d.player;
+  return '<div class="tf-pp-acts">'
+    + '<button type="button" class="tf-btn tf-btn--sm tf-disc-star' + (_tfIsShort(p.id) ? ' is-on' : '') + '"'
+    +   ' data-tf-short="' + _tfEsc(p.id) + '">'
+    +   (_tfIsShort(p.id) ? '★ ON SHORTLIST' : '☆ SHORTLIST') + '</button>'
+    + _tfDiscActionsHtml({ player: p, actions: d.actions, listingId: d.listingId })
+    + '</div>';
+}
+
+// The overlay drawer. A drawer, not a modal: the market stays lit behind it and
+// the next player is one click away.
+function _tfPPHtml() {
+  var id = _TF_PP.id;
+  if (!id) return '';
+  var d = _TF_SCOUT.detail[id];
+  if (!d) {
+    _tfScoutLoadOne(id).then(function () { _tfRenderOverlay(); });
+  }
+  var body = !d ? '<p class="tf-para">Reading the player…</p>'
+    : d.error ? '<p class="tf-fm-err">' + _tfEsc(d.error) + '</p>'
+      : _tfPPBodyHtml(d) ;
+  return '<div class="tfx-dr" data-tf-modal="pp">'
+    + '<div class="tfx-dr-scrim" data-tf-pp-close></div>'
+    + '<aside class="tfx-dr-box" role="dialog" aria-modal="true" aria-label="Player profile">'
+    +   '<button type="button" class="tf-x" data-tf-pp-close aria-label="Close">×</button>'
+    +   '<div class="tf-pp-body">' + body + '</div>'
+    +   (d && !d.error ? _tfPPActsHtml(d) : '')
+    + '</aside></div>';
+}
+
+// ── the public profile, as Scouting draws it ─────────────────────────────────
+// Same component, different host. Scouting keeps its inline panel; the profile
+// inside it is the one above, so the two can never drift apart.
 function _tfDiscProfileHtml() {
   var id = _TF_SCOUT.open;
   if (!id) return '';
@@ -51193,45 +51919,10 @@ function _tfDiscProfileHtml() {
     return '<div class="tf-disc-prof"><p class="tf-fm-err">' + _tfEsc(d.error) + '</p>'
       + '<button type="button" class="tf-btn tf-btn--sm" data-tf-disc-close>CLOSE</button></div>';
   }
-  var p = d.player;
-  var hist = (d.history || []).map(function (h) {
-    return '<li><b>' + _tfEsc((h.from && h.from.name) || '—') + '</b> → <b>' + _tfEsc((h.to && h.to.name) || '—') + '</b>'
-      + '<em>' + (h.feeEur != null ? _tfMoney(h.feeEur) : 'undisclosed') + ' · '
-      + _tfEsc(new Date(h.occurredAt).toLocaleDateString()) + '</em></li>';
-  }).join('');
-  var needs = (d.needMatches || []).map(function (m) {
-    return '<li><b>' + m.matchPct + '%</b> <em>' + _tfEsc((m.reasons || []).join(' · ') || 'meets the stated criteria') + '</em></li>';
-  }).join('');
-
   return '<div class="tf-disc-prof">'
-    + '<div class="tf-disc-prof-h">'
-    +   _tfPortrait({ id: p.id, name: _tfDiscName(p), avatar: p.avatar, pos: p.position }, 'lg')
-    +   '<div><h3>' + _tfEsc(_tfDiscName(p)) + '</h3>'
-    +     '<p>' + _tfEsc(p.position) + (p.age != null ? ' · ' + p.age + ' yrs' : '')
-    +       ' · ' + _tfEsc(p.flag || '') + ' ' + _tfEsc(p.nationality || '') + '</p>'
-    +     '<button type="button" class="tf-btn tf-btn--sm" data-tf-disc-club="' + _tfEsc(d.club.id) + '">'
-    +       'VIEW CLUB · ' + _tfEsc(d.club.name) + '</button></div>'
-    +   '<button type="button" class="tf-disc-x" data-tf-disc-close aria-label="Close">✕</button>'
-    + '</div>'
-    + '<div class="tf-disc-prof-facts">'
-    +   '<div><i>OVR</i><b>' + p.overallRating + '</b></div>'
-    +   '<div><i>Potential</i><b>' + p.potential + '</b></div>'
-    +   '<div><i>Foot</i><b>' + _tfEsc(p.preferredFoot || '—') + '</b></div>'
-    +   '<div><i>Market value</i><b>' + _tfMoney(p.marketValue) + '</b></div>'
-    +   '<div><i>Contract until</i><b>' + (d.contractUntil ? _tfEsc(new Date(d.contractUntil).toLocaleDateString()) : 'Not disclosed') + '</b></div>'
-    +   '<div><i>Status</i><b>' + _tfDiscStateChip(d.transferState) + '</b></div>'
-    + '</div>'
-    + '<div class="tf-disc-prof-acts">'
-    +   '<button type="button" class="tf-btn tf-btn--sm tf-disc-star' + (_tfIsShort(p.id) ? ' is-on' : '') + '" data-tf-short="' + _tfEsc(p.id) + '">'
-    +     (_tfIsShort(p.id) ? '★ ON SHORTLIST' : '☆ ADD TO SHORTLIST') + '</button>'
-    +   _tfDiscActionsHtml({ player: p, actions: d.actions, listingId: d.listingId })
-    + '</div>'
-    + (needs
-      ? '<div class="tf-disc-sec"><h4>Answers our recruitment needs</h4><ul class="tf-disc-needs">' + needs + '</ul></div>'
-      : '')
-    + '<div class="tf-disc-sec"><h4>Transfer history</h4>'
-    +   (hist ? '<ul class="tf-disc-hist">' + hist + '</ul>'
-            : '<p class="tf-para">No completed transfer on record.</p>') + '</div>'
+    + '<button type="button" class="tf-disc-x" data-tf-disc-close aria-label="Close">✕</button>'
+    + _tfPPBodyHtml(d)
+    + _tfPPActsHtml(d)
     + '</div>';
 }
 
@@ -51329,9 +52020,13 @@ function _tfDiscPagerHtml() {
 // separately: the list is one request and the profile is another, and the one
 // that lands second must not blank the one that landed first.
 function _tfScoutRepaint() {
+  // The same public read backs the shared profile, so when it is the surface on
+  // screen it is the surface that has to be refreshed — registering interest or
+  // starring a player from the Market changes what it says.
+  if (_TF_PP.id) { _tfRenderOverlay(); }
   var prof = document.getElementById('tf-disc-prof-host');
   var el = document.getElementById('tf-disc-host');
-  if (!el && !prof) { _tfRenderBody(); return; }
+  if (!el && !prof) { if (!_TF_PP.id) _tfRenderBody(); return; }
   if (prof) prof.innerHTML = _TF_SCOUT.open ? _tfDiscProfileHtml() : '';
   if (el) el.innerHTML = _tfScoutInnerHtml();
 }
@@ -51496,6 +52191,16 @@ var TF_DETAIL_TABS = [['overview', 'Overview'], ['skills', 'Skills'], ['playstyl
 function _tfRenderOverlay() {
   var host = document.getElementById('tf-overlay'); if (!host) return;
   var html = '';
+  // The shared player profile. It lives here rather than inside a view's markup
+  // because it is opened from every view, and a panel that only exists on one
+  // screen is a click that does nothing on the others.
+  if (_TF_PP.id) html += _tfPPHtml();
+  // An auction opened from the market. The board used to expand it inside the
+  // row it was drawn in; the market's cards are compact and have no room for a
+  // bid form, so it opens here instead — as the same _tfAucDetailHtml the board
+  // expanded, which is where the amount field and the POST have always lived.
+  // There is one bidding surface, not a second one.
+  if (_TF_AUC.open && _tfMkIsOn()) html += _tfAucDrawerHtml();
   if (_TF_OM.drawer) html += _tfOMDrawerHtml();
   if (_TF_OM.publish) html += _tfOMPublishHtml();
   if (_TF.detail) html += _tfDetailHtml(_tfCtx());
@@ -52085,6 +52790,18 @@ function _tfTick() {
       .catch(function () { _TF_AUC.busy = false; });
   }
 
+  // The market's cards carry their own deadline, so their countdowns run down
+  // from the attribute rather than from a lookup — one board, four sources, and
+  // no card needs to know which read it came from to tick.
+  var mks = document.querySelectorAll('[data-tf-mkclock]'), m;
+  for (m = 0; m < mks.length; m++) {
+    var mend = Number(mks[m].getAttribute('data-tf-mkclock'));
+    if (!isFinite(mend)) continue;
+    var mleft = mend - now;
+    mks[m].textContent = mleft > 0 ? _tfClock(mleft) : 'Ended';
+    mks[m].classList.toggle('is-hot', mleft > 0 && mleft < 3600000);
+  }
+
   // Club needs run down in place too. The board is not rebuilt for a ticking
   // second — only the figure changes, so no card moves and nothing reshuffles.
   var nds = document.querySelectorAll('[data-tf-needclock]'), j;
@@ -52121,7 +52838,7 @@ function _tfDiscAction(action, playerId, listingId) {
   if (action === 'VIEW_AUCTION') {
     if (!listingId) { _tfToast('That auction has already ended', 'info'); return; }
     _TF.tab = 'auctions';
-    _TF_SCOUT.open = null;
+    _TF_SCOUT.open = null; _TF_PP.id = null;
     _TF_AUC.open = listingId; _TF_AUC.error = null;
     renderTransfersPage();
     return;
@@ -52129,7 +52846,7 @@ function _tfDiscAction(action, playerId, listingId) {
   if (action === 'VIEW_LISTING' || action === 'PURCHASE') {
     if (!listingId) { _tfToast('That listing is no longer on the market', 'info'); return; }
     _TF.tab = 'auctions';
-    _TF_SCOUT.open = null;
+    _TF_SCOUT.open = null; _TF_PP.id = null;
     renderTransfersPage();
     // The lot is keyed by its listing, and the market read is what knows it.
     var lot = (_TF_SERVER_LOTS || []).filter(function (l) { return l.listingId === listingId; })[0];
@@ -52920,6 +53637,13 @@ function _tfDiscAction(action, playerId, listingId) {
       }
       return;
     }
+    // The market's own filters. Changing one narrows the whole screen, so every
+    // section below is redrawn from the same pool against the same predicate.
+    var mf = t.getAttribute && t.getAttribute('data-tf-mf');
+    if (mf) {
+      _TF_MK.f[mf] = t.value;
+      _tfRenderBody(); return;
+    }
     var f = t.getAttribute && t.getAttribute('data-tf-f');
     if (f) { _TF.f[f] = t.value; _tfRenderBody(); return; }
   });
@@ -52965,6 +53689,17 @@ function _tfDiscAction(action, playerId, listingId) {
       return;
     }
  if (!t || !t.closest || !t.closest('#pg-transfers')) return;
+    if (t.hasAttribute && t.hasAttribute('data-tf-mq')) {
+      // _tfRenderBody restores the caret into [data-tf-mq] after the redraw, so
+      // the market narrows as it is typed without the field losing focus.
+      _TF_MK.q = t.value || '';
+      _tfRenderBody(); return;
+    }
+    var mfi = t.getAttribute && t.getAttribute('data-tf-mf');
+    if (mfi && t.tagName === 'INPUT') {
+      _TF_MK.f[mfi] = t.value;
+      _tfRenderBody(); return;
+    }
     if (t.hasAttribute && t.hasAttribute('data-tf-q')) {
       // The rows re-render, the input does not — so the caret stays where the
       // manager left it.
@@ -52988,7 +53723,14 @@ function _tfDiscAction(action, playerId, listingId) {
       _tfScoutLoad().then(function () { _tfScoutRepaint(); });
       return;
     }
+    // A card is a button, so it answers the keyboard like one.
+    if ((e.key === 'Enter' || e.key === ' ') && t && t.getAttribute
+        && t.getAttribute('data-tf-pp') && t.getAttribute('role') === 'button') {
+      e.preventDefault(); _tfPPOpen(t.getAttribute('data-tf-pp')); return;
+    }
     if (e.key !== 'Escape') return;
+    if (_TF_PP.id) { _tfPPClose(); return; }
+    if (_TF_AUC.open && _tfMkIsOn()) { _TF_AUC.open = null; _tfRenderOverlay(); return; }
     if (_TF_SCOUT.open) { _TF_SCOUT.open = null; _tfRenderBody(); return; }
     if (_TF.confirm) { _TF.confirm = null; _tfRenderOverlay(); return; }
     if (_TF.compare) { _TF.compare = null; _tfRenderOverlay(); return; }
@@ -59247,6 +59989,52 @@ function _tfFormSubmit() {
         });
       return;
     }
+    // ── the market, on one screen ───────────────────────────────────────
+    if (t.closest('[data-tf-pp-close]')) { e.preventDefault(); _tfPPClose(); return; }
+    if ((el = t.closest('[data-tf-mquick]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_MK.quick = el.getAttribute('data-tf-mquick');
+      _tfRenderBody(); return;
+    }
+    if ((el = t.closest('[data-tf-mall]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var mk = el.getAttribute('data-tf-mall');
+      if (mk === 'auc') _TF_MK.aucAll = true;
+      else if (mk === 'o2c') _TF_MK.o2cAll = true;
+      else if (mk === 'om') _TF_MK.omAll = true;
+      else if (mk === 'act') _TF_MK.actAll = true;
+      else if (mk === 'done') _TF_MK.doneAll = true;
+      _tfRenderBody(); return;
+    }
+    if (t.closest('[data-tf-mact]')) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_MK.actOpen = !_TF_MK.actOpen; _tfRenderBody(); return;
+    }
+    if (t.closest('[data-tf-mclear]')) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_MK.q = '';
+      Object.keys(_TF_MK.f).forEach(function (k) { _TF_MK.f[k] = ''; });
+      _TF_MK.quick = 'ALL'; _tfRenderBody(); return;
+    }
+    // The one player opener. Every card, photo, name and View profile button in
+    // the market carries this, and it carries the canonical player UUID.
+    //
+    // The whole card opens him, so a click on a control INSIDE the card would
+    // otherwise open the profile as well as doing its own job — the two
+    // delegated listeners are both on document, where stopPropagation does not
+    // reach across. So the rule is stated once, here: a click that landed on a
+    // control which does something else is that control's, not the card's.
+    if ((el = t.closest('[data-tf-pp]'))) {
+      var ctl = t.closest('button, a, input, select, label, [data-tf-short],'
+        + ' [data-tf-open], [data-om-open], [data-tf-auction-bid], [data-tf-auction-open],'
+        + ' [data-tf-o2c-offer], [data-tf-disc-act], [data-tf-disc-club]');
+      if (!(ctl && ctl !== el && !ctl.hasAttribute('data-tf-pp') && el.contains(ctl))) {
+        e.preventDefault(); e.stopPropagation();
+        _tfPPOpen(el.getAttribute('data-tf-pp'));
+        return;
+      }
+    }
+
     // ── the open market ─────────────────────────────────────────────────
     // Every one of these asks the server and then re-reads the board, so what
     // is on screen after a bid is what every other club is reading too. None
@@ -59575,6 +60363,10 @@ function _tfFormSubmit() {
       return;
     }
     // ── the auction board ───────────────────────────────────────────────
+    if (t.closest('[data-tf-auction-close]')) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_AUC.open = null; _tfRenderOverlay(); return;
+    }
     if ((el = t.closest('[data-tf-auction-open]'))) {
       e.preventDefault(); e.stopPropagation();
       var aid = el.getAttribute('data-tf-auction-open');

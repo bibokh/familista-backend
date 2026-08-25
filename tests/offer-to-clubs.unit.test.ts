@@ -167,10 +167,16 @@ describe('the routes are guarded like the actions beside them', () => {
 });
 
 describe('the browser surface', () => {
-  it('Market carries the Offered to Clubs view among its four', () => {
-    expect(APP).toMatch(/\['market',\s+'Market',[^\]]*\['open', 'auctions', 'offered', 'feed'\]\]/);
+  it('Market carries Offered to Clubs as a section of its one screen', () => {
+    // The four boards became one screen, so this is a section of the market
+    // rather than a page beside it — and the 'offered' key still resolves.
+    expect(APP).toMatch(/\['market',\s+'Market',[^\]]*\['open'\]\]/);
     expect(APP).toMatch(/offered: 'Offered to clubs'/);
-    expect(APP).toContain("if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);");
+    expect(fnBody(APP, '_tfViewHtml')).toContain("_TF.tab === 'offered'");
+    const m = fnBody(APP, '_tfMarketOneHtml');
+    expect(m).toContain('_tfMkOffered()');
+    expect(m).toContain("'Offered to your club'");
+    expect(fnBody(APP, '_tfMkOffered')).toContain('_TF_O2C.board');
   });
 
   it('the board is drawn by the same card builders every other board card uses', () => {

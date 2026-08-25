@@ -13853,6 +13853,309 @@ body.club-theme .topbar-titles{ min-width:0; }
 /* a need with no deadline says so plainly, rather than showing an empty well */
 #pg-transfers .tf-nd-when b:empty{ display:none; }
 
+
+/* ══ THE MARKET · one screen ══════════════════════════════════════════════
+   Four boards on one page. The screen is a column of named sections inside
+   the module's single scrolling region, so the last completed transfer is
+   reachable by scrolling the pane the same way the first auction is — there
+   is no second scrollbar anywhere in here.
+
+   Everything below is presentation. Not one figure is computed in CSS, and
+   every colour comes from the module's own tokens: green is what a club can
+   act on, amber is money moving in public, and everything else is neutral so
+   that those two mean something. */
+#pg-transfers .mk-pane{ display:flex; flex-direction:column; gap:14px; min-height:0; }
+
+#pg-transfers .mk-head{
+  flex:none; display:flex; align-items:flex-end; gap:14px;
+  padding-bottom:10px; border-bottom:1px solid var(--tf-line);
+}
+#pg-transfers .mk-head h2{
+  margin:0; font-size:15px; font-weight:900; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--tf-ink);
+}
+#pg-transfers .mk-head p{ margin:0 auto 1px 0; font-size:11.5px; color:var(--tf-ink3); }
+
+/* ── the control row ──────────────────────────────────────────────────── */
+#pg-transfers .mk-ctl{ flex:none; display:flex; flex-direction:column; gap:8px; }
+#pg-transfers .mk-ctl-r{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; }
+#pg-transfers .mk-search{
+  position:relative; display:flex; align-items:center; gap:7px; flex:1 1 220px; min-width:180px;
+  height:32px; padding:0 10px; border-radius:8px;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink3);
+}
+#pg-transfers .mk-search input{
+  flex:1; min-width:0; height:100%; border:0; background:none; outline:none;
+  color:var(--tf-ink); font:inherit; font-size:12px;
+}
+#pg-transfers .mk-search input::placeholder{ color:var(--tf-ink3); }
+/* The controls share the row: what fits, fits, and whatever wraps fills the
+   width it wrapped onto rather than leaving a screen's worth of gap beside it. */
+#pg-transfers .mk-fl{ flex:1 1 108px; display:flex; flex-direction:column; gap:3px; min-width:0; }
+#pg-transfers .mk-fl > span{
+  font-size:8.5px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .mk-fl select,
+#pg-transfers .mk-fl input{
+  width:100%; min-width:0; height:32px; padding:0 8px; border-radius:8px;
+  font:inherit; font-size:11.5px;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink);
+  outline:none; max-width:170px;
+}
+#pg-transfers .mk-fl--n{ flex:0 1 84px; }
+#pg-transfers .mk-fl select:focus,
+#pg-transfers .mk-fl input:focus,
+#pg-transfers .mk-search:focus-within{ border-color:var(--tf-acc-42); }
+#pg-transfers .mk-clear{ align-self:flex-end; height:32px; }
+
+/* At 1366 and 1280 the eight controls have to share about a thousand pixels,
+   so they give up width rather than dropping one of themselves onto a line of
+   its own with a screen's worth of empty space beside it. */
+@media (max-width:1460px){
+  #pg-transfers .mk-search{ flex:2 1 150px; min-width:132px; }
+  #pg-transfers .mk-fl{ flex:1 1 96px; }
+  #pg-transfers .mk-fl--n{ flex:0 1 74px; }
+}
+@media (max-width:1320px){
+  #pg-transfers .mk-search{ flex:2 1 130px; min-width:118px; }
+  #pg-transfers .mk-fl{ flex:1 1 88px; }
+  #pg-transfers .mk-fl select,
+  #pg-transfers .mk-fl input{ font-size:11px; padding:0 6px; }
+}
+
+#pg-transfers .mk-quick{ display:flex; flex-wrap:wrap; gap:6px; }
+#pg-transfers .mk-q{
+  display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 10px;
+  border-radius:999px; cursor:pointer; font:inherit; font-size:10.5px; font-weight:750;
+  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+  transition:background .13s ease, border-color .13s ease, color .13s ease;
+}
+#pg-transfers .mk-q:hover{ border-color:var(--tf-line2); color:var(--tf-ink); }
+#pg-transfers .mk-q em{ font-style:normal; font-size:9.5px; opacity:.62; }
+#pg-transfers .mk-q.is-on{
+  background:var(--tf-acc-16); border-color:var(--tf-acc-42); color:var(--tf-ink);
+}
+#pg-transfers .mk-q.is-on em{ opacity:.85; }
+
+/* ── a section ────────────────────────────────────────────────────────── */
+#pg-transfers .mk-sec{ flex:none; display:flex; flex-direction:column; gap:9px; }
+#pg-transfers .mk-sec-h{ display:flex; align-items:baseline; gap:9px; }
+#pg-transfers .mk-sec-h h3{
+  margin:0; font-size:11px; font-weight:850; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--tf-ink);
+}
+#pg-transfers .mk-sec-h p{ margin:0 auto 0 0; font-size:11px; color:var(--tf-ink3); }
+#pg-transfers .mk-sec-n{
+  min-width:20px; padding:1px 6px; border-radius:999px; text-align:center;
+  font-size:9.5px; font-weight:800; color:var(--tf-ink2);
+  background:var(--tf-count); border:1px solid var(--tf-line);
+}
+#pg-transfers .mk-more{
+  height:24px; padding:0 10px; border-radius:999px; cursor:pointer;
+  font:inherit; font-size:10px; font-weight:750; letter-spacing:.03em;
+  background:none; border:1px solid var(--tf-line2); color:var(--tf-ink2);
+}
+#pg-transfers .mk-more:hover{ color:var(--tf-ink); border-color:var(--tf-acc-42); }
+#pg-transfers .mk-more--b{ align-self:flex-start; }
+/* A section with nothing in it is one line, never a panel the height of the
+   screen. */
+#pg-transfers .mk-none{
+  margin:0; padding:9px 12px; border-radius:8px; font-size:11.5px; color:var(--tf-ink3);
+  background:var(--tf-info); border:1px dashed var(--tf-line2);
+}
+
+/* ── the grid ─────────────────────────────────────────────────────────── */
+#pg-transfers .mk-grid{
+  display:grid; gap:10px;
+  grid-template-columns:repeat(auto-fill,minmax(232px,1fr));
+}
+#pg-transfers .mk-grid--wide{ grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); }
+@media (min-width:1560px){
+  #pg-transfers .mk-grid{ grid-template-columns:repeat(auto-fill,minmax(216px,1fr)); }
+  #pg-transfers .mk-grid--wide{ grid-template-columns:repeat(auto-fill,minmax(252px,1fr)); }
+}
+@media (max-width:1200px){
+  #pg-transfers .mk-grid,
+  #pg-transfers .mk-grid--wide{ grid-template-columns:repeat(auto-fill,minmax(224px,1fr)); }
+}
+@media (max-width:820px){
+  #pg-transfers .mk-grid,
+  #pg-transfers .mk-grid--wide{ grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); }
+}
+@media (max-width:520px){
+  #pg-transfers .mk-grid,
+  #pg-transfers .mk-grid--wide{ grid-template-columns:minmax(0,1fr); }
+}
+
+/* ── the card ─────────────────────────────────────────────────────────── */
+#pg-transfers .mkc{
+  display:flex; flex-direction:column; gap:7px; cursor:pointer;
+  padding:10px 11px 9px; border-radius:9px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -4px rgba(5,9,15,.5);
+  transition:border-color .14s ease, transform .14s ease;
+}
+#pg-transfers .mkc:hover{ border-color:var(--tf-acc-42); transform:translateY(-1px); }
+#pg-transfers .mkc:focus-visible{ outline:2px solid var(--tf-acc); outline-offset:2px; }
+#pg-transfers .mkc.is-own{ border-color:var(--tf-line2); background:var(--tf-info); }
+#pg-transfers .mkc.is-lead{ border-color:var(--tf-acc-42); }
+#pg-transfers .mkc--skel{
+  min-height:150px; cursor:default; border-style:dashed; opacity:.4;
+  animation:mkSkel 1.4s ease-in-out infinite;
+}
+@keyframes mkSkel{ 0%,100%{ opacity:.28; } 50%{ opacity:.5; } }
+
+#pg-transfers .mkc-hd{ display:flex; align-items:flex-start; gap:9px; }
+#pg-transfers .mkc-por{ flex:none; display:block; }
+#pg-transfers .mkc-por .tf-por--sm,
+#pg-transfers .mkc-por img,
+#pg-transfers .mkc-por > span{ width:40px; height:40px; font-size:13px; }
+#pg-transfers .mkc-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+#pg-transfers .mkc-name{
+  font-size:12.5px; font-weight:800; color:var(--tf-ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#pg-transfers .mkc-meta{
+  display:flex; align-items:center; gap:5px; font-size:10px; color:var(--tf-ink3);
+}
+#pg-transfers .mkc-meta .tf-pos{ font-size:8.5px; }
+#pg-transfers .mkc-club{
+  font-size:10.5px; color:var(--tf-ink2);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+#pg-transfers .mkc .tfx-ovr{ flex:none; font-size:16px; }
+
+#pg-transfers .mkc-money{
+  display:flex; align-items:flex-end; gap:10px;
+  padding-top:7px; border-top:1px solid var(--tf-line);
+}
+#pg-transfers .mkc-money > span{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+#pg-transfers .mkc-money i{
+  font-style:normal; font-size:8.5px; font-weight:750; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .mkc-money b{ font-size:11.5px; font-weight:800; color:var(--tf-ink2); }
+#pg-transfers .mkc-ask{ font-size:14px !important; color:var(--tf-champagne) !important; }
+#pg-transfers .mkc-delta{ margin-left:auto; font-size:10px; font-weight:800; }
+#pg-transfers .mkc-delta.is-up{ color:var(--tf-hot); }
+#pg-transfers .mkc-delta.is-dn{ color:var(--tf-acc); }
+
+#pg-transfers .mkc-ft{ display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+#pg-transfers .mk-badge{
+  padding:1px 6px; border-radius:4px; font-size:8.5px; font-weight:800;
+  letter-spacing:.06em; text-transform:uppercase;
+  background:var(--tf-count); border:1px solid var(--tf-line); color:var(--tf-ink2);
+}
+/* green is a club can buy him; amber is money moving in public */
+#pg-transfers .mk-badge--sale{ background:var(--tf-acc-16); border-color:var(--tf-acc-42); color:#7ee2a4; }
+#pg-transfers .mk-badge--open{ background:var(--tf-acc-16); border-color:var(--tf-acc-42); color:#7ee2a4; }
+#pg-transfers .mk-badge--auc{ background:rgba(251,191,36,.16); border-color:rgba(251,191,36,.42); color:#fbbf24; }
+#pg-transfers .mk-badge--o2c{ background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.4); color:#7dd3fc; }
+#pg-transfers .mk-badge--n.is-off{ display:none; }
+#pg-transfers .mkc-clock{
+  margin-left:auto; font-size:10px; font-weight:800;
+  font-variant-numeric:tabular-nums; color:var(--tf-ink3);
+}
+#pg-transfers .mkc-clock.is-hot{ color:var(--tf-warm); }
+
+#pg-transfers .mkc-acts{ display:flex; align-items:center; gap:6px; margin-top:1px; }
+#pg-transfers .mkc-acts .tf-btn{ height:26px; font-size:9.5px; padding:0 9px; }
+#pg-transfers .mkc-acts .mk-c-go{ margin-left:auto; }
+#pg-transfers .mkc-acts .tf-star{ flex:none; }
+/* amber, because bidding in public is not the same act as agreeing a fee */
+:is(#pg-transfers,#pg-coach-market) .tf-btn--auc, .tf-scope .tf-btn--auc{
+  background:linear-gradient(180deg,#fbbf24,#d99b09);
+  border-color:#a8780b; color:#26200a;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 2px 4px rgba(5,9,15,.35);
+}
+:is(#pg-transfers,#pg-coach-market) .tf-btn--auc:hover:not(:disabled), .tf-scope .tf-btn--auc:hover:not(:disabled){
+  background:linear-gradient(180deg,#fcd34d,#eaa910);
+}
+
+/* ── activity, collapsed ──────────────────────────────────────────────── */
+#pg-transfers .mk-act-h{ cursor:pointer; user-select:none; }
+#pg-transfers .mk-act-h .mk-act-x{ margin-left:auto; font-size:10px; color:var(--tf-ink3); }
+#pg-transfers .mk-act-h:hover h3{ color:var(--tf-acc); }
+#pg-transfers .mk-feed{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+#pg-transfers .mk-fd{
+  display:grid; align-items:center; gap:10px;
+  grid-template-columns:132px minmax(0,1.1fr) minmax(0,1.3fr) 78px 82px;
+  padding:6px 10px; border-radius:7px; font-size:11px; color:var(--tf-ink2);
+}
+#pg-transfers .mk-fd:nth-child(odd){ background:var(--tf-row); }
+#pg-transfers .mk-fd[data-tf-pp]{ cursor:pointer; }
+#pg-transfers .mk-fd[data-tf-pp]:hover{ background:var(--tf-row-alt); }
+#pg-transfers .mk-fd-k{
+  font-size:8.5px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .mk-fd-n{ font-weight:750; color:var(--tf-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .mk-fd-c{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .mk-fd-f{ text-align:right; font-variant-numeric:tabular-nums; color:var(--tf-champagne); }
+#pg-transfers .mk-fd-w{ font-style:normal; text-align:right; font-size:10px; color:var(--tf-ink3); }
+
+/* ── completed transfers ──────────────────────────────────────────────── */
+#pg-transfers .mk-deals{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; }
+#pg-transfers .mk-deal{
+  display:grid; align-items:center; gap:10px;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 86px 88px;
+  padding:6px 10px; border-radius:7px; font-size:11px; color:var(--tf-ink2);
+  cursor:pointer;
+}
+#pg-transfers .mk-deal:nth-child(even){ background:var(--tf-row); }
+#pg-transfers .mk-deal:hover{ background:var(--tf-row-alt); }
+#pg-transfers .mk-deal > span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .mk-deal-p{ font-weight:750; color:var(--tf-ink); }
+#pg-transfers .mk-deal b{ text-align:right; font-variant-numeric:tabular-nums; color:var(--tf-champagne); }
+#pg-transfers .mk-deal em{ font-style:normal; text-align:right; font-size:10px; color:var(--tf-ink3); }
+#pg-transfers .mk-deal--h{
+  cursor:default; background:none !important;
+  font-size:8.5px; font-weight:800; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .mk-deal--h b, #pg-transfers .mk-deal--h em{ color:var(--tf-ink3); font-size:8.5px; font-weight:800; }
+@media (max-width:1100px){
+  #pg-transfers .mk-fd{ grid-template-columns:108px minmax(0,1fr) 72px 76px; }
+  #pg-transfers .mk-fd-c{ display:none; }
+  #pg-transfers .mk-deal{ grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) 80px 80px; }
+  #pg-transfers .mk-deal > span:nth-child(3){ display:none; }
+  #pg-transfers .mk-deal--h > span:nth-child(3){ display:none; }
+}
+
+/* ══ THE PLAYER PROFILE · one component, one drawer ═══════════════════════
+   Docked to the right over whichever board opened it. The market stays lit
+   and scrollable beside it, so the next player is one click away. */
+#pg-transfers .tf-pp-body{ display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+#pg-transfers .tf-pp{ display:flex; flex-direction:column; gap:12px; }
+#pg-transfers .tf-pp-hd{ display:flex; align-items:flex-start; gap:12px; }
+#pg-transfers .tf-pp-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+#pg-transfers .tf-pp-id h3{ margin:0; font-size:17px; font-weight:900; color:var(--tf-ink); }
+#pg-transfers .tf-pp-id p{ margin:0; font-size:11.5px; color:var(--tf-ink3); }
+#pg-transfers .tf-pp-club{ align-self:flex-start; height:24px; font-size:9.5px; }
+#pg-transfers .tf-pp-hd .tfx-ovr{ flex:none; font-size:24px; }
+#pg-transfers .tf-pp-facts{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:1px;
+  background:var(--tf-line); border:1px solid var(--tf-line); border-radius:9px; overflow:hidden;
+}
+#pg-transfers .tf-pp-facts > div{
+  display:flex; flex-direction:column; gap:2px; padding:8px 10px; background:var(--tf-info);
+}
+#pg-transfers .tf-pp-facts i{
+  font-style:normal; font-size:8.5px; font-weight:750; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .tf-pp-facts b{ font-size:12px; font-weight:800; color:var(--tf-ink); }
+#pg-transfers .tf-pp-attrs{ display:flex; flex-direction:column; gap:6px; }
+#pg-transfers .tf-pp-acts{
+  flex:none; display:flex; flex-wrap:wrap; gap:7px;
+  padding-top:11px; margin-top:2px; border-top:1px solid var(--tf-line);
+}
+#pg-transfers .tfx-dr-box .tf-pp-body{ flex:1; min-height:0; overflow-y:auto; padding:18px 18px 4px; }
+#pg-transfers .tfx-dr-box .tf-pp-acts{ padding:12px 18px 16px; margin-top:0; }
+
+
 /* ══════════════════════════════════════════════════════════════════════════════
    FAMILISTA RECRUITMENT COMMAND CENTER
    ────────────────────────────────────────────────────────────────────────────
