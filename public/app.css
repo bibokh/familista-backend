@@ -10088,6 +10088,127 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
 .tf-step input:focus{ outline:none; border-color:var(--tf-gold); box-shadow:0 0 0 3px var(--tf-acc-16); }
 .tf-step em{ font-style:normal; margin-left:auto; font-size:13px; font-weight:800; color:var(--tf-champagne); font-variant-numeric:tabular-nums; }
 
+/* ══ ONE SCROLLING REGION ═════════════════════════════════════════════════
+   The header and the two switches above the content are fixed furniture; the
+   content below them is the only thing that scrolls. Panes that did not say so
+   simply grew past the bottom of the window with no scrollbar of their own and
+   nothing above them able to scroll either — which is how a board's last row
+   became unreachable. Declared once, for every pane in the module, so a tab
+   added later cannot reintroduce it. */
+#pg-transfers .tf-pane{ overflow-y:auto; overflow-x:hidden; min-height:0; }
+#pg-transfers .tf-pane--split{ overflow:hidden; }
+#pg-transfers .tf-pane--split > *{ min-height:0; }
+#pg-transfers .tf-pane--split .tf-pane-main{ overflow-y:auto; min-height:0; }
+/* and the last row is clear of the bottom edge rather than flush against it */
+#pg-transfers .tf-pane > :last-child{ scroll-margin-bottom:18px; }
+
+/* ── SCOUTING · density ───────────────────────────────────────────────────
+   The concept is unchanged; the card is smaller so more of the squad is on
+   screen at once. Roughly a quarter off the portrait, the padding and the
+   gaps — the same information, less room. */
+#pg-transfers .tfx-c--scout{ padding:11px 11px 10px; gap:9px; border-radius:11px; }
+#pg-transfers .tfx-c--scout .tfx-c-hd{ gap:9px; }
+#pg-transfers .tfx-c--scout .tfx-c-por .tf-por--xl,
+#pg-transfers .tfx-c--scout .tfx-c-por img,
+#pg-transfers .tfx-c--scout .tfx-c-por > span{ width:48px; height:48px; font-size:15px; }
+#pg-transfers .tfx-c--scout .tfx-c-name{ font-size:13px; }
+#pg-transfers .tfx-c--scout .tfx-c-meta{ gap:5px; font-size:10px; }
+#pg-transfers .tfx-c--scout .tfx-c-club{ font-size:10.5px; }
+#pg-transfers .tfx-c--scout .tfx-ovr{ font-size:17px; }
+#pg-transfers .tfx-c--scout .tfx-c-line{ gap:10px; }
+#pg-transfers .tfx-c--scout .tfx-c-ask b{ font-size:14px; }
+#pg-transfers .tfx-c--scout .tfx-c-val b{ font-size:11.5px; }
+#pg-transfers .tfx-c--scout .tfx-c-foot{ gap:6px; }
+#pg-transfers .tfx-c--scout .tfx-c-acts{ gap:6px; }
+#pg-transfers .tfx-c--scout .tfx-c-acts .tf-btn{ height:26px; font-size:9.5px; }
+/* and more of them to a row, at the same reading size */
+#pg-transfers .tf-disc-grid,
+#pg-transfers .tfx-grid:has(.tfx-c--scout){ grid-template-columns:repeat(auto-fill,minmax(226px,1fr)); gap:10px; }
+
+/* ══ THE OPEN MARKET ══════════════════════════════════════════════════════
+   A dense board. The card is a scan-line, not a dossier: twelve facts, three
+   acts, and everything deeper behind View. Four to five to a row at desktop
+   widths, which is what makes forty listings a board rather than a scroll. */
+#pg-transfers .omp{ display:flex; flex-direction:column; gap:12px; min-height:0; }
+#pg-transfers .om-head{ flex:none; display:flex; align-items:flex-end; justify-content:space-between; gap:16px; }
+#pg-transfers .om-head-t h3{ margin:0; font-size:13px; font-weight:850; letter-spacing:.02em; color:var(--tf-ink); }
+#pg-transfers .om-head-t p{ margin:2px 0 0; font-size:11.5px; color:var(--tf-ink3); }
+#pg-transfers .om-grid{
+  display:grid; gap:10px;
+  grid-template-columns:repeat(auto-fill,minmax(228px,1fr));
+}
+@media (min-width:1500px){ #pg-transfers .om-grid{ grid-template-columns:repeat(auto-fill,minmax(214px,1fr)); } }
+@media (max-width:1100px){ #pg-transfers .om-grid{ grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); } }
+
+#pg-transfers .omc{
+  display:flex; flex-direction:column; gap:7px; cursor:pointer;
+  padding:10px 11px 9px; border-radius:9px;
+  background:linear-gradient(180deg,var(--tf-panel-2),var(--tf-card));
+  border:1px solid var(--tf-line2);
+  box-shadow:inset 0 1px 0 var(--tf-edge), 0 2px 6px -4px rgba(17,16,21,.4);
+  transition:border-color .14s ease, transform .14s ease;
+}
+#pg-transfers .omc:hover{ border-color:var(--tf-gold); transform:translateY(-1px); }
+#pg-transfers .omc:focus-visible{ outline:2px solid var(--tf-gold); outline-offset:2px; }
+#pg-transfers .omc.is-own{ border-color:var(--tf-acc-42); }
+#pg-transfers .omc.is-lead{ box-shadow:inset 0 0 0 1px var(--tf-buy), 0 2px 6px -4px rgba(17,16,21,.4); }
+#pg-transfers .omc--skel{ height:186px; background:var(--tf-info); opacity:.45; border-style:dashed; }
+
+#pg-transfers .omc-hd{ display:flex; align-items:center; gap:8px; }
+#pg-transfers .omc-id{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+#pg-transfers .omc-id > b{
+  font-size:12.5px; font-weight:800; letter-spacing:-.01em; color:var(--tf-ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#pg-transfers .omc-id span{ display:flex; align-items:center; gap:5px; }
+#pg-transfers .omc-id em{ font-style:normal; font-size:10px; color:var(--tf-ink3); }
+#pg-transfers .omc-ovr{
+  flex:none; font-size:17px; font-weight:850; color:var(--tf-ink);
+  font-variant-numeric:tabular-nums; line-height:1;
+}
+#pg-transfers .omc-club{
+  font-size:10.5px; font-weight:700; color:var(--tf-ink2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#pg-transfers .omc-money, #pg-transfers .omc-bid{ display:flex; align-items:baseline; gap:10px; }
+#pg-transfers .omc-money span, #pg-transfers .omc-bid span{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+#pg-transfers .omc-money i, #pg-transfers .omc-bid i{
+  font-style:normal; font-size:7.5px; font-weight:800; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--tf-ink3);
+}
+#pg-transfers .omc-money b{ font-size:13px; font-weight:850; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+#pg-transfers .omc-money span:last-child b{ font-size:11.5px; font-weight:750; color:var(--tf-ink2); }
+#pg-transfers .omc-bid b{ font-size:13px; font-weight:850; color:var(--tf-buy-d); font-variant-numeric:tabular-nums; }
+#pg-transfers .omc-bids{ margin-left:auto; font-size:10px; font-weight:750; color:var(--tf-ink3); align-self:center; }
+#pg-transfers .omc-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#pg-transfers .omc-st{
+  font-size:8px; font-weight:850; letter-spacing:.1em; text-transform:uppercase;
+  padding:3px 6px; border-radius:4px; background:var(--tf-info); color:var(--tf-ink2);
+}
+#pg-transfers .omc-st--own{ background:var(--tf-acc-24); color:var(--tf-ink); }
+#pg-transfers .omc-st--lead{ background:rgba(72,201,52,.22); color:var(--tf-ink); }
+#pg-transfers .omc-clock{ font-size:10.5px; font-weight:800; color:var(--tf-ink2); font-variant-numeric:tabular-nums; }
+#pg-transfers .omc-clock.is-hot{ color:var(--tf-stop); }
+#pg-transfers .omc-acts{ display:flex; align-items:center; gap:6px; margin-top:1px; }
+#pg-transfers .omc-acts .tf-btn{ flex:1; padding:0 8px; height:26px; font-size:9.5px; }
+#pg-transfers .omc-watch{ flex:none; width:26px; height:26px; }
+
+/* the drawer's own furniture */
+#pg-transfers .om-dr-body{ display:flex; flex-direction:column; gap:12px; padding:14px 16px 18px; overflow-y:auto; min-height:0; }
+#pg-transfers .om-dr-h{ font-size:9px; font-weight:850; letter-spacing:.14em; text-transform:uppercase; color:var(--tf-ink3); }
+#pg-transfers .om-dr-club{ font-size:11.5px; font-weight:750; color:var(--tf-ink2); }
+#pg-transfers .om-hist{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px;
+  background:var(--tf-line); border-radius:8px; overflow:hidden; }
+#pg-transfers .om-hist li{ display:flex; align-items:baseline; gap:10px; padding:7px 10px; background:var(--tf-card); }
+#pg-transfers .om-hist li.is-mine{ background:var(--tf-acc-16); }
+#pg-transfers .om-hist b{ font-size:12.5px; font-weight:850; color:var(--tf-ink); font-variant-numeric:tabular-nums; }
+#pg-transfers .om-hist span{ flex:1; min-width:0; font-size:11px; color:var(--tf-ink2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#pg-transfers .om-hist em{ font-style:normal; font-size:10px; color:var(--tf-ink3); }
+#pg-transfers .om-dr-acts{ display:flex; flex-direction:column; gap:8px; margin-top:2px; }
+#pg-transfers .om-dr-acts .tf-step{ gap:8px; }
+#pg-transfers .om-dr-acts .tf-step input{ flex:1; min-width:0; }
+
 /* the Offered to Clubs card. It IS the board's card — only the tag it carries
    and the acts along its foot differ, so nothing here restates its layout. */
 #pg-transfers .tfx-tag--o2c{ background:var(--tf-acc-24); border-color:var(--tf-acc-42); color:var(--tf-ink); }

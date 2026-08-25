@@ -30,6 +30,14 @@ export interface MarketActor { userId: string; clubId: string; role?: string }
 
 const KIND = 'TRANSFER_LISTING' as const;
 
+// Which board a listing belongs to. Declared here because this is the module
+// every listing reader already imports, and because the Open Market service
+// imports from this one — putting it there would be a cycle.
+export function isOpenMarket(item: { payload: Prisma.JsonValue }): boolean {
+  const pl = (item.payload ?? {}) as Record<string, unknown>;
+  return pl.channel === 'OPEN_MARKET';
+}
+
 // ── money ────────────────────────────────────────────────────────────────────
 export async function ensureBalance(clubId: string) {
   return prisma.clubTransferBalance.upsert({
@@ -375,8 +383,14 @@ export async function readMarket(actor: MarketActor, opts: { page?: number; limi
     prisma.marketplaceItem.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: Math.min(limit, 200) }),
     prisma.marketplaceItem.count({ where }),
   ]);
-  const listings = await Promise.all(items.map((i) => hydrateListing(i, actor.clubId)));
-  return { items: listings.filter(Boolean), total, page, limit };
+  // The Open Market is its own board. A listing published there is public in a
+  // different place, and showing it here as well would put one player on two
+  // boards at once. Nothing written before channels existed has one, so every
+  // existing listing stays exactly where it was.
+  const direct = items.filter((i) => !isOpenMarket(i));
+  const listings = await Promise.all(direct.map((i) => hydrateListing(i, actor.clubId)));
+  const shown = listings.filter(Boolean);
+  return { items: shown, total: total - (items.length - direct.length), page, limit };
 }
 
 // A club's own listings, for its own management surface — clearly the other

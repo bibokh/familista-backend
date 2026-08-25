@@ -8,6 +8,7 @@ import { MarketplaceItem, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { isOpenMarket } from './transfer-market.service';
 import { getBalance, setAvailability, defaultTeamFor, findActiveListingForPlayer,
          pendingOfferForPlayer, closeCompetingState, archiveShortlistAfterTransfer } from './transfer-market.service';
 import { notifyClub, fmt as fmtEur } from './transfer-negotiation.service';
@@ -443,7 +444,10 @@ export async function readAuctions(actor: MarketActor) {
     where: { kind: KIND, status: { in: ['ACTIVE', 'SOLD', 'UNSOLD', 'CANCELLED'] } },
     orderBy: [{ status: 'asc' }, { validUntil: 'asc' }], take: 120,
   });
-  const auctions = rows.filter((r) => auctionPayload(r).isAuction);
+  // An Open Market listing with bidding on is an auction in every mechanical
+  // sense — same bids, same settlement — but it is published to its own board,
+  // and a player must not appear on two boards at once.
+  const auctions = rows.filter((r) => auctionPayload(r).isAuction && !isOpenMarket(r));
   const ids = auctions.map((a) => a.id);
   const [bids, players, clubs] = await Promise.all([
     prisma.transferBid.findMany({ where: { listingId: { in: ids } }, orderBy: { amountEur: 'desc' } }),

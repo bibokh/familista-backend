@@ -7,6 +7,7 @@ import * as neg from '../transfer-market/transfer-negotiation.service';
 import * as auc from '../transfer-market/transfer-auction.service';
 import * as dis from '../transfer-market/transfer-discovery.service';
 import * as con from '../transfer-market/transfer-contract.service';
+import * as opm from '../transfer-market/transfer-open-market.service';
 import { sendSuccess, sendCreated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 
@@ -325,6 +326,46 @@ export async function renewPlayerContract(req: Request, res: Response, next: Nex
     const id = requireUUID(req.params.playerId, 'playerId');
     return sendSuccess(res, await con.renewContract(actor(req), id, req.body as con.RenewDto),
       'Contract renewed');
+  } catch (err) { return next(err); }
+}
+
+// ── the open market ──────────────────────────────────────────────────────────
+// A public board every eligible club reads. Publishing, extending and closing
+// are the seller's, and the service refuses a player this club does not own;
+// bidding is the auction engine's existing route, unchanged.
+
+export async function readOpenMarket(req: Request, res: Response, next: NextFunction) {
+  try {
+    const includeClosed = String(req.query.includeClosed || '') === 'true';
+    return sendSuccess(res, await opm.readOpenMarket(actor(req), { includeClosed }));
+  } catch (err) { return next(err); }
+}
+
+export async function readOpenListing(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendSuccess(res, await opm.readOpenListing(actor(req), id));
+  } catch (err) { return next(err); }
+}
+
+export async function publishToOpenMarket(req: Request, res: Response, next: NextFunction) {
+  try {
+    requireUUID(req.body?.playerId, 'playerId');
+    return sendCreated(res, await opm.publish(actor(req), req.body as opm.OpenMarketDto), 'Published');
+  } catch (err) { return next(err); }
+}
+
+export async function extendOpenListing(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendSuccess(res, await opm.extendListing(actor(req), id, req.body?.minutes), 'Listing extended');
+  } catch (err) { return next(err); }
+}
+
+export async function closeOpenListing(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = requireUUID(req.params.listingId, 'listingId');
+    return sendSuccess(res, await opm.closeListing(actor(req), id), 'Listing closed');
   } catch (err) { return next(err); }
 }
 

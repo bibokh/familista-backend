@@ -48492,6 +48492,7 @@ function renderTransfersHTML() {
 // read by the same code as before and drawn inside Scouting, where somebody
 // looking for a player is already standing.
 var TF_TABS = [
+  ['open', 'Open market', 'Public to every club'],
   ['auctions', 'Auctions', 'Live market'],
   ['offered', 'Offered to clubs', 'Players other clubs have offered us'],
   ['feed', 'Market activity', 'What is happening'],
@@ -48503,21 +48504,21 @@ var TF_TABS = [
 ];
 
 var TF_WORKSPACES = [
-  ['market',   'Market',        'Auctions and listings',   ['auctions', 'offered', 'feed']],
+  ['market',   'Market',        'The public marketplace',  ['open', 'auctions', 'offered', 'feed']],
   ['scouting', 'Scouting',      'Find and shortlist',      ['scouting']],
   ['business', 'Club business', 'Needs and direct offers', ['needs']],
   ['mine',     'My transfers',  'Everything of ours',      ['activity']],
 ];
 // view → the workspace it belongs to. Assistant belongs to Scouting.
 var TF_VIEW_WS = {
-  auctions: 'market', offered: 'market', feed: 'market',
+  open: 'market', auctions: 'market', offered: 'market', feed: 'market',
   scouting: 'scouting', assistant: 'scouting',
   needs: 'business', offers: 'business',
   activity: 'mine',
 };
 // The label each view carries in its workspace's secondary switch.
 var TF_VIEW_LABEL = {
-  auctions: 'Live market', offered: 'Offered to clubs', feed: 'Market activity',
+  open: 'Open market', auctions: 'Auctions', offered: 'Offered to clubs', feed: 'Market activity',
   needs: 'Needs', offers: 'Offers',
 };
 function _tfWs() { return TF_VIEW_WS[_TF.tab] || 'market'; }
@@ -49213,6 +49214,7 @@ function _tfTabHtml(C) {
   return _tfSubSwitchHtml() + _tfViewHtml(C);
 }
 function _tfViewHtml(C) {
+  if (_TF.tab === 'open') return _tfOMBoardHtml(C);
   if (_TF.tab === 'offered') return _tfOfferedBoardHtml(C);
   if (_TF.tab === 'feed') return _tfFeedHtml(C);
   // Scouting carries the Assistant's recommendations, drawn by the Assistant's
@@ -49224,6 +49226,231 @@ function _tfViewHtml(C) {
   if (_TF.tab === 'offers' || _TF.tab === 'needs') return _tfxBoardHtml(C);
   if (_TF.tab === 'activity') return _tfxPipelineHtml(C);
   return _tfxMarketHtml(C);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// THE OPEN MARKET — one public board, compact cards, details on click
+// ─────────────────────────────────────────────────────────────────────────────
+// Summary on the page, details in the drawer. The card carries the twelve facts
+// a recruiter scans a board with and nothing else; everything deeper — the bid
+// history, the seller's terms, the full profile — is one click away and does
+// not cost the other forty cards any room.
+// ══════════════════════════════════════════════════════════════════════════════
+function _tfOMShape(it) {
+  var pl = it.player || {};
+  var pos = SQ_POSREV[pl.position] || pl.position || 'CM';
+  return {
+    id: pl.id, name: ((pl.firstName || '') + ' ' + (pl.lastName || '')).trim() || 'Player',
+    pos: pos, cat: _tfCat(pos), age: pl.age != null ? pl.age : null,
+    nat: pl.flag || '', natCode: pl.nationality || '', natName: pl.nationality || '',
+    avatar: pl.avatar || null, photo: pl.avatar || null,
+    qual: pl.overallRating != null ? pl.overallRating : null,
+    mv: pl.marketValue != null ? Number(pl.marketValue) : 0,
+  };
+}
+function _tfOMStatus(it) {
+  if (it.status === 'SOLD') return 'Sold';
+  if (it.status === 'CANCELLED') return 'Withdrawn';
+  if (it.status === 'UNSOLD') return 'Unsold';
+  if (it.expired) return 'Awaiting the seller';
+  if (it.iLead) return 'We lead';
+  if (it.myBidEur != null) return 'Outbid';
+  if (it.bidCount) return 'Bidding';
+  return it.biddingEnabled ? 'Open' : 'Fixed price';
+}
+// The compact card. Twelve facts, three acts, no profile inside it.
+function _tfOMCardHtml(it) {
+  var p = _tfOMShape(it);
+  var left = it.validUntil ? (new Date(it.validUntil).getTime() - Date.now()) : null;
+  var st = _tfOMStatus(it);
+  var hot = left != null && left > 0 && left < 3600000;
+  return '<article class="omc' + (it.isMine ? ' is-own' : '') + (it.iLead ? ' is-lead' : '') + '"'
+    + ' data-om-open="' + _tfEsc(it.listingId) + '" tabindex="0" role="button" aria-label="' + _tfEsc(p.name) + '">'
+    + '<div class="omc-hd">'
+    +   _tfPortrait(p, 'sm')
+    +   '<div class="omc-id"><b>' + _tfEsc(p.name) + '</b>'
+    +     '<span><i class="tf-pos tf-pos--' + _tfCat(p.pos) + '">' + _tfEsc(p.pos) + '</i>'
+    +       (p.age != null ? '<em>' + p.age + '</em>' : '') + '</span></div>'
+    +   '<span class="omc-ovr">' + (p.qual != null ? p.qual : '—') + '</span>'
+    + '</div>'
+    + '<div class="omc-club">' + _tfEsc(it.sellerClub ? it.sellerClub.name : '—') + '</div>'
+    + '<div class="omc-money">'
+    +   '<span><i>Ask</i><b>' + _tfMoney(it.askingPriceEur) + '</b></span>'
+    +   '<span><i>Value</i><b>' + (p.mv ? _tfMoney(p.mv) : '—') + '</b></span>'
+    + '</div>'
+    + (it.biddingEnabled
+      ? '<div class="omc-bid"><span><i>Top bid</i><b>'
+        + (it.highestBidEur != null ? _tfMoney(it.highestBidEur) : '—') + '</b></span>'
+        + '<span class="omc-bids">' + (it.bidCount || 0) + ' bid' + ((it.bidCount || 0) === 1 ? '' : 's') + '</span></div>'
+      : '<div class="omc-bid"><span><i>Bidding</i><b>Off</b></span></div>')
+    + '<div class="omc-foot">'
+    +   '<span class="omc-st omc-st--' + (it.isMine ? 'own' : it.iLead ? 'lead' : 'norm') + '">' + _tfEsc(st) + '</span>'
+    +   (left != null
+      ? '<span class="omc-clock' + (hot ? ' is-hot' : '') + '" data-tf-clock="om:' + _tfEsc(it.listingId) + '">'
+        + (left > 0 ? _tfClock(left) : 'ended') + '</span>' : '')
+    + '</div>'
+    + '<div class="omc-acts">'
+    +   '<button type="button" class="tf-btn tf-btn--sm" data-om-open="' + _tfEsc(it.listingId) + '">View</button>'
+    + (it.isMine
+      ? '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-om-close="' + _tfEsc(it.listingId) + '">Close</button>'
+      : (it.biddingEnabled && !it.expired
+        ? '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-bid="' + _tfEsc(it.listingId) + '">Place bid</button>'
+        : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-offer="' + _tfEsc(it.listingId) + '">Make offer</button>'))
+    +   '<button type="button" class="tf-star omc-watch' + (_tfOMWatching(p.id) ? ' is-on' : '')
+    +     '" data-tf-short="' + _tfEsc(p.id) + '" aria-label="Watch ' + _tfEsc(p.name) + '">☆</button>'
+    + '</div>'
+    + '</article>';
+}
+
+function _tfOMBoardHtml(C) {
+  var b = _TF_OM.board;
+  if (b === null) {
+    if (!_TF_OM.loading) {
+      _TF_OM.loading = true;
+      _tfOMLoad().then(function () { _TF_OM.loading = false; if (_TF.tab === 'open') _tfRenderBody(); });
+    }
+    return '<div class="tf-pane omp"><div class="om-grid">'
+      + new Array(11).join('<div class="omc omc--skel" aria-hidden="true"></div>') + '</div></div>';
+  }
+  var items = (b && b.items) || [];
+  var mine = items.filter(function (i) { return i.isMine; }).length;
+  return '<div class="tf-pane omp">'
+    + '<header class="om-head">'
+    +   '<div class="om-head-t"><h3>Open market</h3>'
+    +     '<p>' + items.length + ' player' + (items.length === 1 ? '' : 's') + ' published by clubs across Familista'
+    +     (mine ? ' · ' + mine + ' of ours' : '') + '</p></div>'
+    +   '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-publish>Publish a player</button>'
+    + '</header>'
+    + (items.length
+      ? '<div class="om-grid" id="om-rows">' + items.map(_tfOMCardHtml).join('') + '</div>'
+      : '<div class="tf-empty"><div class="tf-empty-i">🌐</div><b>Nothing is on the open market right now.</b>'
+        + '<p class="tf-para">Publish one of your own players and every club on Familista sees him.</p></div>')
+    + '</div>';
+}
+
+// ── the drawer: everything the card deliberately left out ───────────────────
+function _tfOMDrawerHtml() {
+  var id = _TF_OM.drawer;
+  if (!id) return '';
+  var d = _TF_OM.byId[id];
+  if (d === undefined) { _tfOMLoadOne(id).then(function () { _tfRenderOverlay(); }); }
+  var it = _tfOMItem(id) || {};
+  var p = _tfOMShape(d || it);
+  var left = (d && d.validUntil) ? (new Date(d.validUntil).getTime() - Date.now()) : null;
+  var body;
+  if (d === undefined) body = '<p class="tf-para">Reading the listing…</p>';
+  else if (d === null) body = '<p class="tf-fm-err">That listing could not be read.</p>';
+  else {
+    body = '<div class="tf-ct-facts tf-ct-facts--2">'
+      + '<div><i>Asking price</i><b>' + _tfMoney(d.askingPriceEur) + '</b></div>'
+      + '<div><i>Market value</i><b>' + (p.mv ? _tfMoney(p.mv) : '—') + '</b></div>'
+      + '<div><i>Top bid</i><b>' + (d.highestBidEur != null ? _tfMoney(d.highestBidEur) : 'None yet') + '</b></div>'
+      + '<div><i>Bids</i><b>' + (d.bids ? d.bids.length : 0) + '</b></div>'
+      + '<div><i>Time remaining</i><b>' + (left != null ? (left > 0 ? _tfClock(left) : 'Ended') : '—') + '</b></div>'
+      + '<div><i>Negotiation</i><b>' + (d.negotiationAllowed === false ? 'Not invited' : 'Open') + '</b></div>'
+      + (d.minAcceptableEur != null ? '<div><i>Your floor</i><b>' + _tfMoney(d.minAcceptableEur) + '</b></div>' : '')
+      + '</div>'
+      + (d.note ? '<p class="tf-note">“' + _tfEsc(d.note) + '”</p>' : '')
+      // the history, as it happened
+      + '<div class="om-dr-h">Bid history</div>'
+      + ((d.bids && d.bids.length)
+        ? '<ol class="om-hist">' + d.bids.slice().reverse().map(function (bd) {
+          return '<li' + (bd.isMine ? ' class="is-mine"' : '') + '>'
+            + '<b>' + _tfMoney(bd.amountEur) + '</b>'
+            + '<span>' + _tfEsc(bd.club ? bd.club.name : 'A club') + '</span>'
+            + '<em>' + _tfEsc(_tfWhen(bd.createdAt)) + '</em></li>';
+        }).join('') + '</ol>'
+        : '<p class="tf-para">No bids yet.</p>')
+      // and what this club may do about it
+      + '<div class="om-dr-acts">' + (d.isMine
+        ? '<button type="button" class="tf-btn tf-btn--sm" data-om-extend="' + _tfEsc(id) + '">Extend 24h</button>'
+          + '<button type="button" class="tf-btn tf-btn--danger tf-btn--sm" data-om-close="' + _tfEsc(id) + '">Close listing</button>'
+        : (d.biddingEnabled && !d.expired
+          ? '<div class="tf-step"><span>Bid</span>'
+            + '<input class="tf-fm-in" type="number" data-om-amount value="' + (d.requiredBidEur || d.askingPriceEur) + '">'
+            + '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-bid-confirm="' + _tfEsc(id) + '">Place bid</button></div>'
+            + '<p class="tf-note">The next bid must be at least ' + _tfMoney(d.requiredBidEur || d.askingPriceEur) + '.</p>'
+          : '<button type="button" class="tf-btn tf-btn--primary tf-btn--sm" data-om-offer="' + _tfEsc(id) + '">Make an offer</button>'))
+      + '</div>';
+  }
+  return '<div class="tfx-dr" data-tf-modal="om">'
+    + '<div class="tfx-dr-scrim" data-om-drawer-close></div>'
+    + '<aside class="tfx-dr-box tf-scope" role="dialog" aria-label="Open market listing">'
+    +   '<button type="button" class="tf-x" data-om-drawer-close aria-label="Close">×</button>'
+    +   '<header class="tf-pd-head">' + _tfPortrait(p, 'xl')
+    +     '<div class="tf-pd-id"><div class="tf-pd-name"><h2>' + _tfEsc(p.name) + '</h2>'
+    +       '<span class="tf-pd-sub">' + (p.age != null ? p.age + ' • ' : '') + _tfEsc(p.natCode || '') + '</span></div>'
+    +       '<div class="tf-pd-meta"><span class="tf-poss">'
+    +         '<span class="tf-pos tf-pos--' + _tfCat(p.pos) + '">' + _tfEsc(p.pos) + '</span></span>'
+    +         '<span class="om-dr-club">' + _tfEsc((d && d.sellerClub && d.sellerClub.name) || (it.sellerClub && it.sellerClub.name) || '') + '</span>'
+    +       '</div></div>'
+    +     '<span class="tfx-ovr"><b>' + (p.qual != null ? p.qual : '—') + '</b><i>OVR</i></span>'
+    +   '</header>'
+    +   '<div class="om-dr-body">' + body + '</div>'
+    + '</aside></div>';
+}
+
+// ── publishing one of ours to the open market ───────────────────────────────
+function _tfOMPublishHtml() {
+  var pick = _TF_OM.publish;
+  if (!pick) return '';
+  var roster = [];
+  try {
+    _tfTeamRegistry().forEach(function (e) {
+      var C = null; try { C = e.make(); } catch (_) {}
+      var r = (C && C.roster) || [];
+      r.forEach(function (pl) {
+        if (!_tfIsCanonicalId(pl.id)) return;
+        if (_tfStatusOf(pl.id).listed) return;             // already on the market
+        roster.push({ id: pl.id, name: pl.name, team: e.label, mv: _tfMarketValueOf(pl) });
+      });
+    });
+  } catch (_) {}
+  var sel = pick.playerId || (roster[0] && roster[0].id) || '';
+  var chosen = roster.filter(function (r) { return r.id === sel; })[0] || roster[0] || null;
+  var ask = pick.ask != null ? pick.ask : (chosen ? chosen.mv : 0);
+  return '<div class="tf-modal tf-modal--sm" id="om-publish">'
+    + '<div class="tf-modal-bd" data-om-publish-close></div>'
+    + '<div class="tf-modal-box tf-modal-box--sm tf-modal-box--plain tf-scope" role="dialog" aria-modal="true"'
+    +   ' aria-label="Publish to the open market">'
+    +   '<button type="button" class="tf-x" data-om-publish-close aria-label="Close">×</button>'
+    +   '<div class="tf-ct-open">'
+    +     '<div class="tf-ct-open-t">Publish to the open market</div>'
+    + (roster.length
+      ? '<div class="tf-ct-terms">'
+        + '<label class="tf-fld tf-fld--wide"><span>Player</span><select data-om-p>'
+        +   roster.map(function (r) {
+          return '<option value="' + _tfEsc(r.id) + '"' + (r.id === sel ? ' selected' : '') + '>'
+            + _tfEsc(r.name) + ' — ' + _tfEsc(r.team) + '</option>';
+        }).join('') + '</select></label>'
+        + '<label class="tf-fld"><span>Asking price</span>'
+        +   '<input type="number" min="0" step="100000" value="' + ask + '" data-om-ask></label>'
+        + '<label class="tf-fld"><span>Minimum acceptable</span>'
+        +   '<input type="number" min="0" step="100000" value="' + Math.round(ask * 0.8) + '" data-om-min></label>'
+        + '<label class="tf-fld"><span>Bidding</span><select data-om-bidding>'
+        +   '<option value="yes" selected>Enabled — clubs may bid</option>'
+        +   '<option value="no">Off — asking price only</option></select></label>'
+        + '<label class="tf-fld"><span>Listing duration</span><select data-om-days>'
+        +   '<option value="1">24 hours</option><option value="3">3 days</option>'
+        +   '<option value="7" selected>7 days</option><option value="14">14 days</option>'
+        +   '<option value="30">30 days</option></select></label>'
+        + '<label class="tf-fld"><span>Or an exact expiry</span>'
+        +   '<input type="date" data-om-expiry></label>'
+        + '<label class="tf-fld"><span>Negotiation</span><select data-om-neg>'
+        +   '<option value="yes" selected>Allowed</option><option value="no">Not invited</option></select></label>'
+        + '</div>'
+        + '<label class="tf-fld tf-fld--wide"><span>Seller note <em>(optional)</em></span>'
+        +   '<input type="text" maxlength="200" data-om-note placeholder="Anything a buying club should know"></label>'
+        + '<p class="tf-note">Every club on Familista sees this listing. He stays in your squad until a'
+        +   ' transfer actually completes.</p>'
+        + '<div class="tf-ct-open-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--danger" data-om-publish-close>CANCEL</button>'
+        +   '<button type="button" class="tf-btn tf-btn--primary" data-om-publish-go>PUBLISH</button>'
+        + '</div>'
+      : '<p class="tf-para">Every one of your players is already on the market, or none has loaded yet.</p>'
+        + '<div class="tf-ct-open-acts">'
+        +   '<button type="button" class="tf-btn tf-btn--danger" data-om-publish-close>CLOSE</button></div>')
+    +   '</div></div></div>';
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -51000,6 +51227,8 @@ var TF_DETAIL_TABS = [['overview', 'Overview'], ['skills', 'Skills'], ['playstyl
 function _tfRenderOverlay() {
   var host = document.getElementById('tf-overlay'); if (!host) return;
   var html = '';
+  if (_TF_OM.drawer) html += _tfOMDrawerHtml();
+  if (_TF_OM.publish) html += _tfOMPublishHtml();
   if (_TF.detail) html += _tfDetailHtml(_tfCtx());
   if (_TF.compare) html += _tfCompareHtml(_tfCtx());
   if (_TF.confirm) html += _tfConfirmHtml(_tfCtx());
@@ -57102,6 +57331,42 @@ function _tfListingById(id) {
   return null;
 }
 var _TF_MY_LISTINGS = [];
+// ── the open market ─────────────────────────────────────────────────────────
+// One public board every eligible club reads. The state is the server's answer
+// and nothing else: no local copy of a bid, no derived "highest" this browser
+// keeps — a bid is placed, the board is re-read, and every club sees the same
+// numbers because they are all reading the same rows.
+var _TF_OM = { board: null, byId: {}, loading: false, drawer: null, publish: null, busy: false };
+function _tfOMForget() { _TF_OM = { board: null, byId: {}, loading: false, drawer: null, publish: null, busy: false }; }
+async function _tfOMLoad() {
+  try { _TF_OM.board = _thUnwrap(await _thApi('GET', '/transfer-market/open-market')); }
+  catch (e) { _TF_OM.board = { items: [], total: 0, error: (e && (e.userMessage || e.message)) || 'unavailable' }; }
+  return _TF_OM.board;
+}
+async function _tfOMLoadOne(listingId) {
+  try { _TF_OM.byId[listingId] = _thUnwrap(await _thApi('GET', '/transfer-market/open-market/' + listingId)); }
+  catch (_) { _TF_OM.byId[listingId] = null; }
+  return _TF_OM.byId[listingId];
+}
+async function _tfOMPublish(terms) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/open-market', terms));
+}
+async function _tfOMBid(listingId, amountEur) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/auctions/' + listingId + '/bids', { amountEur: amountEur }));
+}
+async function _tfOMExtend(listingId, minutes) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/open-market/' + listingId + '/extend', { minutes: minutes }));
+}
+async function _tfOMClose(listingId) {
+  return _thUnwrap(await _thApi('POST', '/transfer-market/open-market/' + listingId + '/close'));
+}
+function _tfOMItem(listingId) {
+  return (((_TF_OM.board && _TF_OM.board.items) || []).filter(function (i) { return i.listingId === listingId; })[0]) || null;
+}
+// Watching a player is the shortlist this club already keeps — there is no
+// second list of players somebody is interested in.
+function _tfOMWatching(playerId) { try { return _tfIsShort(playerId); } catch (_) { return false; } }
+
 // ── offered to clubs ────────────────────────────────────────────────────────
 // Three separate reads because they are three different questions: the board a
 // buyer browses, this club's own publications, and whether one player is
@@ -58713,6 +58978,131 @@ function _tfFormSubmit() {
         });
       return;
     }
+    // ── the open market ─────────────────────────────────────────────────
+    // Every one of these asks the server and then re-reads the board, so what
+    // is on screen after a bid is what every other club is reading too. None
+    // of them rebuilds the workspace.
+    if ((el = t.closest('[data-om-open]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_OM.drawer = el.getAttribute('data-om-open');
+      _tfRenderOverlay();
+      return;
+    }
+    if (t.closest('[data-om-drawer-close]')) {
+      e.preventDefault(); _TF_OM.drawer = null; _tfRenderOverlay(); return;
+    }
+    if ((el = t.closest('[data-om-publish]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_OM.publish = { playerId: null, ask: null }; _tfRenderOverlay();
+      return;
+    }
+    if (t.closest('[data-om-publish-close]')) {
+      e.preventDefault(); _TF_OM.publish = null; _tfRenderOverlay(); return;
+    }
+    if ((el = t.closest('[data-om-publish-go]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var box = el.closest('.tf-ct-open') || document;
+      var g = function (sel) { var n = box.querySelector(sel); return n ? n.value : ''; };
+      var pid = g('[data-om-p]');
+      if (!_tfIsCanonicalId(pid)) { _tfToast('Choose a player who has loaded from the server', 'error'); return; }
+      var askV = Number(g('[data-om-ask]'));
+      if (!isFinite(askV) || askV <= 0) { _tfToast('Set an asking price', 'error'); return; }
+      var minV = g('[data-om-min]');
+      var body = {
+        playerId: pid, askingPriceEur: Math.round(askV),
+        minAcceptableEur: minV === '' ? null : Math.round(Number(minV)),
+        biddingEnabled: g('[data-om-bidding]') !== 'no',
+        negotiationAllowed: g('[data-om-neg]') !== 'no',
+        note: g('[data-om-note]') || null,
+      };
+      var exp = g('[data-om-expiry]');
+      if (exp) body.expiresAt = exp; else body.durationMinutes = Number(g('[data-om-days]') || 7) * 24 * 60;
+      el.disabled = true;
+      _tfOMPublish(body)
+        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll()]); })
+        .then(function () {
+          _TF_OM.publish = null; _tfToast('Published to the open market', 'success');
+          _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Could not publish — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    // A bid from a card opens the drawer, because a bid is a decision and the
+    // history is what it should be taken against.
+    if ((el = t.closest('[data-om-bid]'))) {
+      e.preventDefault(); e.stopPropagation();
+      _TF_OM.drawer = el.getAttribute('data-om-bid'); _tfRenderOverlay();
+      return;
+    }
+    if ((el = t.closest('[data-om-bid-confirm]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var lid = el.getAttribute('data-om-bid-confirm');
+      var amtEl = (el.closest('.om-dr-acts') || document).querySelector('[data-om-amount]');
+      var amt = amtEl ? Math.round(Number(amtEl.value)) : NaN;
+      if (!isFinite(amt) || amt <= 0) { _tfToast('Enter what you are bidding', 'error'); return; }
+      el.disabled = true;
+      _tfOMBid(lid, amt)
+        .then(function () { return Promise.all([_tfOMLoadOne(lid), _tfOMLoad()]); })
+        .then(function () {
+          _tfToast('Bid placed at ' + _tfMoney(amt), 'success');
+          _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Bid refused — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-om-extend]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var xid = el.getAttribute('data-om-extend');
+      el.disabled = true;
+      _tfOMExtend(xid, 24 * 60)
+        .then(function () { return Promise.all([_tfOMLoadOne(xid), _tfOMLoad()]); })
+        .then(function () {
+          _tfToast('Listing extended by 24 hours', 'success');
+          _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Could not extend — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    if ((el = t.closest('[data-om-close]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var cid2 = el.getAttribute('data-om-close');
+      el.disabled = true;
+      _tfOMClose(cid2)
+        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll()]); })
+        .then(function () {
+          _TF_OM.drawer = null; _tfToast('Listing closed', 'info');
+          _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
+        })
+        .catch(function (err) {
+          el.disabled = false;
+          _tfToast('Could not close — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error');
+        });
+      return;
+    }
+    // An open-market listing with bidding off is answered with an offer, which
+    // is the offer panel every other approach already uses.
+    if ((el = t.closest('[data-om-offer]'))) {
+      e.preventDefault(); e.stopPropagation();
+      var oid = el.getAttribute('data-om-offer');
+      var row = _tfOMItem(oid);
+      if (!row || !row.player) return;
+      var sp = _tfOMShape(row);
+      _TF_OM.drawer = null; _tfRenderOverlay();
+      _tfFormOpenOffer(row.player.id, 'offer', null, row.askingPriceEur, {
+        name: sp.name, pos: sp.pos, qual: sp.qual,
+        club: row.sellerClub ? row.sellerClub.name : null, mv: sp.mv, ask: row.askingPriceEur,
+      });
+      return;
+    }
     // MAKE OFFER, from a card on the Offered to Clubs board. The same offer
     // panel every other approach uses — there is no second offer form.
     if ((el = t.closest('[data-tf-o2c-offer]'))) {
@@ -59348,6 +59738,7 @@ function _thResetRoster() {
   // club's player.
   try { _tfContractForget(); } catch (_) {}
   try { _tfO2CForget(); } catch (_) {}
+  try { _tfOMForget(); } catch (_) {}
 }
 
 // Which of a workspace load's parts are required for the club to be usable, and

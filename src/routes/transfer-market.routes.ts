@@ -44,6 +44,16 @@ router.post('/auctions',                        tradeGuard, ctrl.listAuction);
 router.post('/auctions/:listingId/bids',        tradeGuard, ctrl.placeBid);
 router.post('/auctions/:listingId/cancel',      tradeGuard, ctrl.cancelAuction);
 
+// ── the open market: public to every eligible club ──────────────────────────
+// Reading is open to the tier that may read the market — the board is public by
+// definition. Publishing, extending and closing are the selling club's, and
+// bidding goes through the auction engine's own route, unchanged.
+router.get('/open-market',                                  ctrl.readOpenMarket);
+router.get('/open-market/:listingId',                       ctrl.readOpenListing);
+router.post('/open-market',                     tradeGuard, ctrl.publishToOpenMarket);
+router.post('/open-market/:listingId/extend',   tradeGuard, ctrl.extendOpenListing);
+router.post('/open-market/:listingId/close',    tradeGuard, ctrl.closeOpenListing);
+
 // ── settlement: buyer-only, atomic, idempotent ───────────────────────────────
 router.post('/listings/:listingId/purchase', tradeGuard, ctrl.purchase);
 
