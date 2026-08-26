@@ -6,9 +6,35 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
+/**
+ * The connection pool.
+ *
+ * Prisma's default is `cores * 2 + 1` — nine connections on a four-core
+ * instance. Postgres here permits a hundred, so under concurrent load the
+ * application was queueing behind nine connections while ninety sat idle: every
+ * endpoint measured the same p50 because they were all waiting for the same
+ * thing rather than doing different amounts of work.
+ *
+ * The pool is sized from the environment so an operator can match it to the
+ * database's own `max_connections` and to the number of instances sharing it —
+ * `connection_limit × instances` must stay under it. The default is a
+ * conservative twenty-five, which one instance can use and four instances can
+ * share against a hundred-connection database.
+ */
+function datasourceUrl(): string | undefined {
+  const raw = process.env.DATABASE_URL;
+  if (!raw) return undefined;
+  if (/[?&]connection_limit=/.test(raw)) return raw;      // an operator set it explicitly
+  const limit = process.env.DB_CONNECTION_LIMIT ?? '25';
+  const timeout = process.env.DB_POOL_TIMEOUT ?? '20';
+  return raw + (raw.includes('?') ? '&' : '?')
+    + `connection_limit=${encodeURIComponent(limit)}&pool_timeout=${encodeURIComponent(timeout)}`;
+}
+
 export const prisma: PrismaClient =
   global.__prisma ??
   new PrismaClient({
+    datasourceUrl: datasourceUrl(),
     log: [
       { level: 'query',  emit: 'event' },
       { level: 'error',  emit: 'event' },

@@ -198,18 +198,44 @@ export async function leadingCommitmentFor(clubId: string) {
   return leadingCommitment(prisma as unknown as Prisma.TransactionClient, clubId, '');
 }
 
+/**
+ * What this club has committed by leading auctions it has not yet won.
+ *
+ * This used to read the live listings and then ask, once per listing, who was
+ * leading it — up to two hundred round trips for one answer, scaling with the
+ * size of the whole platform's market rather than with the club. It was the
+ * single most expensive read in the module (107 queries for a 0.4 kB response
+ * on /my-club) and it also ran inside the settlement transaction, holding that
+ * transaction open across every one of those trips.
+ *
+ * It is now two queries whatever the market's size. The tie-break is unchanged
+ * and stated explicitly: the highest amount wins, and where two bids match the
+ * earliest one does — which is what `orderBy amountEur desc, createdAt asc`
+ * meant per listing.
+ */
 async function leadingCommitment(tx: Prisma.TransactionClient, clubId: string, exceptListingId: string) {
   const live = await tx.marketplaceItem.findMany({
     where: { kind: KIND, status: 'ACTIVE', id: { not: exceptListingId }, validUntil: { gt: new Date() } },
     select: { id: true }, take: 200,
   });
   if (!live.length) return 0;
+  const ids = live.map((l) => l.id);
+
+  // Every bid on those listings, highest first and earliest first within a tie.
+  // The first row seen for a listing is therefore its leader — the same row the
+  // per-listing findFirst returned.
+  const bids = await tx.transferBid.findMany({
+    where: { listingId: { in: ids } },
+    orderBy: [{ amountEur: 'desc' }, { createdAt: 'asc' }],
+    select: { listingId: true, bidderClubId: true, amountEur: true },
+  });
+
+  const leaderSeen = new Set<string>();
   let total = 0;
-  for (const l of live) {
-    const top = await tx.transferBid.findFirst({
-      where: { listingId: l.id }, orderBy: [{ amountEur: 'desc' }, { createdAt: 'asc' }],
-    });
-    if (top && top.bidderClubId === clubId) total += Number(top.amountEur);
+  for (const b of bids) {
+    if (leaderSeen.has(b.listingId)) continue;
+    leaderSeen.add(b.listingId);
+    if (b.bidderClubId === clubId) total += Number(b.amountEur);
   }
   return total;
 }

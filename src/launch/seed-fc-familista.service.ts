@@ -26,6 +26,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../config/database';
 import { appendAuditEventAsync } from '../security/audit-chain.service';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 export interface SeedReport {
   ok:           boolean;
@@ -137,8 +138,8 @@ export async function seedFcFamilista(opts: { adminEmail?: string } = {}): Promi
   const { adminPw, defaultPw } = assertEnvGuards();
   const adminEmail = (opts.adminEmail ?? process.env.FC_FAMILISTA_ADMIN_EMAIL ?? 'admin@fcfamilista.local').trim().toLowerCase();
   const warnings: string[] = [];
-  const adminHash   = await bcrypt.hash(adminPw,   12);
-  const defaultHash = await bcrypt.hash(defaultPw, 12);
+  const adminHash   = await hashPassword(adminPw);
+  const defaultHash = await hashPassword(defaultPw);
 
   // ── 1. Club ────────────────────────────────────────────────────────────
   const existingClub = await prisma.club.findFirst({ where: { name: CLUB_NAME }, select: { id: true } });

@@ -293,7 +293,10 @@ describe('affordability', () => {
       if (args?.where?.status === 'ACTIVE') return Promise.resolve([auctionItem({ id: 'other', clubId: 'club-z' })]);
       return Promise.resolve([]);
     });
-    bidFindFirst.mockResolvedValue({ id: 'b1', bidderClubId: 'club-a', amountEur: BigInt(48_000_000) });
+    // the leader of the one live listing, as the single ordered read returns it
+    bidFindMany.mockResolvedValue([
+      { listingId: 'other', bidderClubId: 'club-a', amountEur: BigInt(48_000_000) },
+    ]);
     await expect(purchase(A, 'lst-1')).rejects.toThrow(/Insufficient transfer budget/i);
   });
 
@@ -302,7 +305,10 @@ describe('affordability', () => {
       if (args?.where?.status === 'ACTIVE') return Promise.resolve([auctionItem({ id: 'other', clubId: 'club-z' })]);
       return Promise.resolve([]);
     });
-    bidFindFirst.mockResolvedValue({ id: 'b1', bidderClubId: 'club-a', amountEur: BigInt(46_000_000) });
+    // the leader of the one live listing, as the single ordered read returns it
+    bidFindMany.mockResolvedValue([
+      { listingId: 'other', bidderClubId: 'club-a', amountEur: BigInt(46_000_000) },
+    ]);
     await expect(purchase(A, 'lst-1')).resolves.toBeDefined();   // 50 − 46 = 4, exactly the fee
   });
 

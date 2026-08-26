@@ -12,6 +12,7 @@ import {
 } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { forgetIdentity } from '../middleware/auth.middleware';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 export interface TokenPair {
   accessToken: string;
@@ -83,7 +84,7 @@ export async function registerUser(data: {
   if (!club) throw new NotFoundError('Club');
 
   // Hash password
-  const passwordHash = await bcrypt.hash(data.password, 12);
+  const passwordHash = await hashPassword(data.password);
 
   const user = await prisma.user.create({
     data: {
@@ -121,7 +122,7 @@ export async function loginUser(
     throw new UnauthorizedError('Invalid email or password');
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) throw new UnauthorizedError('Invalid email or password');
 
   // Update last login
@@ -178,10 +179,10 @@ export async function changePassword(
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError('User');
 
-  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  const valid = await verifyPassword(currentPassword, user.passwordHash);
   if (!valid) throw new BadRequestError('Current password is incorrect');
 
-  const hash = await bcrypt.hash(newPassword, 12);
+  const hash = await hashPassword(newPassword);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
   forgetIdentity(userId);
 

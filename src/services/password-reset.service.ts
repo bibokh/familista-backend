@@ -5,6 +5,7 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { sendPasswordResetEmail } from '../lib/email.adapter';
 import { BadRequestError } from '../utils/errors';
+import { hashPassword, verifyPassword } from '../utils/password';
 
 const TOKEN_TTL_MS  = 60 * 60 * 1000; // 1 hour
 const BCRYPT_ROUNDS = 12;
@@ -121,7 +122,7 @@ export async function resetPassword(rawToken: string, newPassword: string): Prom
     throw new BadRequestError('Reset token has expired');
   }
 
-  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(newPassword, BCRYPT_ROUNDS);
   const now = new Date();
 
   await prisma.$transaction([

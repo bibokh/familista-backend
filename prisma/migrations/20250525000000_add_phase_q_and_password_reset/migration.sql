@@ -30,7 +30,11 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- CreateEnum
 -- ─────────────────────────────────────────────────────────────────────────────
-CREATE TYPE "DataProviderSource" AS ENUM ('MANUAL', 'STATSBOMB', 'OPTA', 'WYSCOUT', 'INSTAT', 'TRACAB', 'SECONDSPECTRUM', 'HUDL', 'INTERNAL');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DataProviderSource') THEN
+    CREATE TYPE "DataProviderSource" AS ENUM ('MANUAL', 'STATSBOMB', 'OPTA', 'WYSCOUT', 'INSTAT', 'TRACAB', 'SECONDSPECTRUM', 'HUDL', 'INTERNAL');
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DropIndex (guarded — index only exists when bootstrapped from prisma/schema.prisma)
@@ -77,7 +81,29 @@ ALTER TABLE "VideoAsset" ADD COLUMN IF NOT EXISTS "sourceKind" TEXT;
 ALTER TABLE "VideoAsset" DROP COLUMN IF EXISTS "status";
 ALTER TABLE "VideoAsset" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'UPLOADED';
 
-ALTER TABLE "VideoAsset" ALTER COLUMN "durationSec" SET DATA TYPE DOUBLE PRECISION;
+-- Widen VideoAsset.durationSec, IF it is there.
+--
+-- This statement was unconditional, and VideoAsset.durationSec is not created
+-- by this migration or by any migration before it — so on a database that did
+-- not already carry the column it raised 42703 (undefined column), failed the
+-- whole file, and left an unfinished row in _prisma_migrations. Prisma refuses
+-- to apply anything after a failed migration, so this one line blocked every
+-- later migration, including the four that create StaffProfile — which is why
+-- /staff-market/discover answered 500 on a database that had never got past it.
+--
+-- Every other statement in this file is already guarded; this one was missed.
+-- Guarding it changes nothing on a database where it succeeded.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'VideoAsset'
+       AND column_name  = 'durationSec'
+  ) THEN
+    ALTER TABLE "VideoAsset" ALTER COLUMN "durationSec" SET DATA TYPE DOUBLE PRECISION;
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- AlterTable: MatchEvent — Phase Q xG / spatial / data-provider fields
@@ -147,10 +173,30 @@ ALTER TABLE "ScoutingReport" ALTER COLUMN "payload" SET DEFAULT '{}';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- AlterTable: VideoTranscodeJob — normalise status to TEXT
+--
+-- Guarded on the table existing. This migration was written against a database
+-- created by `db push`, so it alters tables the migration baseline never
+-- creates. On any database built from the migration history those ALTERs raise
+-- 42P01 and fail the whole file, which left an unfinished row in
+-- _prisma_migrations and blocked every later migration — including the four
+-- that create StaffProfile. Guarding them makes the statement a no-op where the
+-- table was never there and unchanged where it was.
 -- ─────────────────────────────────────────────────────────────────────────────
-ALTER TABLE "VideoTranscodeJob" DROP COLUMN IF EXISTS "profile";
-ALTER TABLE "VideoTranscodeJob" DROP COLUMN IF EXISTS "status";
-ALTER TABLE "VideoTranscodeJob" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'QUEUED';
+DO $$ BEGIN
+  IF to_regclass('public."VideoTranscodeJob"') IS NOT NULL THEN
+    ALTER TABLE "VideoTranscodeJob" DROP COLUMN IF EXISTS "profile";
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF to_regclass('public."VideoTranscodeJob"') IS NOT NULL THEN
+    ALTER TABLE "VideoTranscodeJob" DROP COLUMN IF EXISTS "status";
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF to_regclass('public."VideoTranscodeJob"') IS NOT NULL THEN
+    ALTER TABLE "VideoTranscodeJob" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'QUEUED';
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- DropEnum (guarded — only exist when bootstrapped from prisma/schema.prisma)
@@ -492,7 +538,11 @@ CREATE INDEX        IF NOT EXISTS "MatchEvent_clubId_idx"                       
 CREATE INDEX IF NOT EXISTS "ScoutingReport_clubId_playerId_idx"              ON "ScoutingReport"("clubId", "playerId");
 CREATE INDEX IF NOT EXISTS "ScoutingReport_clubId_scoutId_idx"               ON "ScoutingReport"("clubId", "scoutId");
 
-CREATE INDEX IF NOT EXISTS "VideoTranscodeJob_status_priority_queuedAt_idx"  ON "VideoTranscodeJob"("status", "priority", "queuedAt");
+DO $$ BEGIN
+  IF to_regclass('public."VideoTranscodeJob"') IS NOT NULL THEN
+    CREATE INDEX IF NOT EXISTS "VideoTranscodeJob_status_priority_queuedAt_idx"  ON "VideoTranscodeJob"("status", "priority", "queuedAt");
+  END IF;
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- AddForeignKey
