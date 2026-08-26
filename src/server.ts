@@ -1,3 +1,17 @@
+// libuv's thread pool, sized before anything touches it.
+//
+// Native bcrypt does its work there rather than on the event loop, and the pool
+// defaults to four threads shared with file and DNS work. Sign-ins are the only
+// genuinely CPU-bound thing this service does, and a burst of them is what
+// produced the tail latency the load tests measured — so the pool is sized to
+// the machine rather than left at the default. It must be set before the first
+// libuv call, which is why it is the first statement in the process.
+if (!process.env.UV_THREADPOOL_SIZE) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const cores = require('os').cpus().length as number;
+  process.env.UV_THREADPOOL_SIZE = String(Math.max(4, Math.min(cores * 2, 16)));
+}
+
 import http from 'http';
 import { createApp } from './app';
 import { config } from './config';

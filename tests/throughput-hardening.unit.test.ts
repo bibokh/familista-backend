@@ -103,10 +103,40 @@ describe('bcrypt is off the request thread, at the same cost', () => {
     expect(PW).toContain("process.env.BCRYPT_ROUNDS ?? '12'");
   });
 
-  it('and it runs in a worker, with an inline fallback that is never wrong', () => {
+  it('prefers the native binding, whose async form releases the event loop', () => {
+    expect(PW).toContain("require('bcrypt')");
+    expect(PW).toContain('await native.compare(password, h)');
+    expect(PW).toContain('await native.hash(password, rounds)');
+    expect(JSON.parse(read('package.json')).dependencies.bcrypt).toBeTruthy();
+  });
+
+  it('and says so loudly if the binding did not build, rather than silently blocking', () => {
+    expect(PW).toContain('native bcrypt unavailable');
+  });
+
+  it('falls back to a worker, then inline — never onto the request thread by surprise', () => {
     expect(PW).toContain("import { Worker } from 'worker_threads'");
-    expect(PW).toContain('return bcrypt.hash(password, rounds);');
-    expect(PW).toContain('return bcrypt.compare(password, hash);');
+    expect(PW).toContain('return bcryptjs.hash(password, rounds);');
+    expect(PW).toContain('return bcryptjs.compare(password, h);');
+    // bcryptjs stays a dependency precisely so the fallback exists
+    expect(JSON.parse(read('package.json')).dependencies.bcryptjs).toBeTruthy();
+  });
+
+  it('normalises $2y$, which the native binding refuses outright', () => {
+    // $2y$ is algorithmically identical to $2a$. Refusing it would be a lockout
+    // for anyone whose hash came from a PHP-origin system.
+    expect(PW).toContain("hash.startsWith('$2y$')");
+    expect(PW).toContain("'$2a$' + hash.slice(4)");
+    expect(fnBody(PW, 'verifyPassword')).toContain('normalise(hash)');
+  });
+
+  it('and libuv\'s pool is sized before anything can touch it', () => {
+    const SRV = read('src/server.ts');
+    const at = SRV.indexOf('UV_THREADPOOL_SIZE');
+    const firstImport = SRV.indexOf("import http from 'http'");
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(firstImport);
+    expect(read('render.yaml')).toContain('UV_THREADPOOL_SIZE');
   });
 
   it('the worker exists and is shipped into dist by the build', () => {
@@ -124,6 +154,15 @@ describe('bcrypt is off the request thread, at the same cost', () => {
       expect(s).toContain("from '../utils/password'");
       expect(s).not.toMatch(/await bcrypt\.(hash|compare)\(/);
     }
+  });
+
+  it('the readiness of multi-process scaling is written down, not assumed', () => {
+    const doc = read('docs/multi-process-readiness.md');
+    expect(doc).toContain('clustering is NOT safe yet');
+    // the three that are correctness or security problems
+    expect(doc).toContain('rate-limit.middleware.ts');
+    expect(doc).toContain('device-nonce.service.ts');
+    expect(doc).toContain('startAuctionSettlementWorker');
   });
 
   it('the pool never holds the process open and stays out of the test runner', () => {
