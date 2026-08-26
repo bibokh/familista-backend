@@ -47933,9 +47933,9 @@ function _tfMakePlayer(seed, opts) {
 // shortlist, a scouting pool, a budget or a signing made for one team can never
 // be read by another.
 var _TF = {
-  // The screen opens on the overview, which is what a manager wants to see
-  // before they know what they are looking for.
-  tab: 'all',
+  // The screen opens on the Market, the mode a manager lands in.
+  tab: 'market',
+  chip: 'all',
   teamId: null,
   ledger: {},                   // ctxId → { committed, spent, earned, signings: [], sales: [] }
   detail: null,                 // { id, mode }
@@ -48521,44 +48521,57 @@ var TF_TABS = [
 //
 // Nothing underneath moved. Every lane below is drawn by the builder that drew
 // it before, from the read that fed it before.
-var TF_LANES = [
-  ['all',      'All',              'Everything worth looking at'],
-  ['market',   'Market',           'Publicly available players'],
-  ['auctions', 'Auctions',         'Live bidding'],
-  ['offered',  'Offered to clubs', 'Brought to this club'],
-  ['scouting', 'Scouting',         'Search the platform'],
-  ['business', 'Club business',    'Club-to-club'],
-  ['mine',     'My transfers',     'Ours, in and out'],
+// Transfers is built on the Squad → Lineup shell, and reuses it rather than
+// resembling it: the same .sq-sub-header / .sql-tabs for the four modes, the
+// same .sqlu-dash metric cards, the same .sqlu-meta + .sqlu-filters toolbar
+// with .sqlu-seg segmented chips, and the same .sqlu-tablewrap / .sqlu-table
+// with .sqlu-row rows, .sqlu-pos / .sqlu-qual badges and .sqlu-acts actions.
+// Lineup itself is untouched — it is read-only reference.
+var TF_MODES = [
+  ['market',   'Market'],
+  ['scouting', 'Scouting'],
+  ['business', 'Club Business'],
+  ['mine',     'My Transfers'],
 ];
-// Kept so the registry-shaped reads elsewhere in the module keep resolving.
-var TF_WORKSPACES = [
-  ['market',   'Market',        'The public marketplace',  ['all']],
-];
-// view → the workspace it belongs to. Assistant belongs to Scouting.
-// Every view key the module has ever set lands on the one screen, in the lane
-// that answers it. Nothing is orphaned and no cross-link had to be rewritten.
-var TF_VIEW_WS = {
-  all: 'market', open: 'market', market: 'market', auctions: 'market',
-  offered: 'market', feed: 'market',
-  scouting: 'market', assistant: 'market',
-  needs: 'market', offers: 'market', business: 'market',
-  'biz-in': 'market', 'biz-out': 'market', 'biz-needs': 'market', 'biz-interest': 'market',
-  activity: 'market', mine: 'market',
-  'mt-action': 'market', 'mt-neg': 'market', 'mt-sent': 'market', 'mt-auc': 'market', 'mt-done': 'market',
+// One row of segmented chips per mode. They filter the one table below; they
+// are not sub-pages, and only one dataset is ever on screen.
+var TF_CHIPS = {
+  market: [
+    ['all', 'All'], ['open', 'Open Market'], ['auction', 'Auctions'],
+    ['offered', 'Offered to Clubs'], ['short', 'Shortlisted'],
+  ],
+  scouting: [['all', 'All results'], ['needs', 'Matches our needs'], ['short', 'Shortlisted']],
+  business: [
+    ['all', 'All'], ['ours', 'Our Needs'], ['looking', 'Clubs Looking'],
+    ['want', 'They Want Our Players'], ['in', 'Offers In'], ['out', 'Offers Out'],
+  ],
+  mine: [
+    ['all', 'All'], ['answer', 'Needs My Answer'], ['neg', 'Negotiations'],
+    ['out', 'Offers Out'], ['listings', 'My Listings'],
+    ['done', 'Completed'], ['gone', 'Rejected / Withdrawn'],
+  ],
 };
-// Which lane a view key belongs to. The keys on the left are what the rest of
-// the module sets; the lane on the right is the chip that lights up.
-var TF_VIEW_LANE = {
-  all: 'all', feed: 'all', activity: 'all',
-  open: 'market', market: 'market',
-  auctions: 'auctions', 'mt-auc': 'auctions',
-  offered: 'offered',
-  scouting: 'scouting', assistant: 'scouting',
-  business: 'business', needs: 'business', offers: 'business',
-  'biz-in': 'business', 'biz-out': 'business', 'biz-needs': 'business', 'biz-interest': 'business',
-  mine: 'mine', 'mt-action': 'mine', 'mt-neg': 'mine', 'mt-sent': 'mine', 'mt-done': 'mine',
+// Every view key the module has ever set resolves to a mode, so no cross-link
+// had to be rewritten, and the chip it implies is selected with it.
+var TF_VIEW_MODE = {
+  all: ['market', 'all'], open: ['market', 'open'], market: ['market', 'all'],
+  auctions: ['market', 'auction'], 'mt-auc': ['mine', 'listings'],
+  offered: ['market', 'offered'], feed: ['market', 'all'],
+  scouting: ['scouting', 'all'], assistant: ['scouting', 'all'],
+  business: ['business', 'all'], needs: ['business', 'ours'], offers: ['business', 'in'],
+  'biz-in': ['business', 'in'], 'biz-out': ['business', 'out'],
+  'biz-needs': ['business', 'ours'], 'biz-interest': ['business', 'want'],
+  mine: ['mine', 'all'], activity: ['mine', 'all'],
+  'mt-action': ['mine', 'answer'], 'mt-neg': ['mine', 'neg'],
+  'mt-sent': ['mine', 'out'], 'mt-done': ['mine', 'done'],
 };
-function _tfLane() { return TF_VIEW_LANE[_TF.tab] || 'all'; }
+// Named _tfWsMode, not _tfMode: _tfMode(p) already exists and answers a
+// different question — which panel a lot's detail drawer shows.
+function _tfWsMode() { return (TF_VIEW_MODE[_TF.tab] || ['market', 'all'])[0]; }
+function _tfChip() {
+  if (_TF.chip) return _TF.chip;
+  return (TF_VIEW_MODE[_TF.tab] || ['market', 'all'])[1];
+}
 // The label each view carries in its workspace's secondary switch.
 var TF_VIEW_LABEL = {
   open: 'Open market', auctions: 'Auctions', offered: 'Offered to clubs', feed: 'Market activity',
@@ -48579,6 +48592,8 @@ function _tfWs() { return TF_VIEW_WS[_TF.tab] || 'market'; }
 function _tfGoView(view) {
   if (!view || view === _TF.tab) return;
   _TF.tab = view;
+  // A chip belongs to the mode it was chosen in, so it does not follow us.
+  _TF.chip = (TF_VIEW_MODE[view] || [null, 'all'])[1];
   // Availability means different things on the two tables, so the filter that
   // belongs to the table we are leaving does not follow us.
   _TF.f.avail = 'ALL';
@@ -48587,61 +48602,28 @@ function _tfGoView(view) {
   _tfSyncSwitches();
 }
 
-// Selected states, as class toggles. No element is replaced, so nothing moves.
+// The four modes, in Lineup's own sub-header. Same .sq-sub-header wrapper,
+// same .sql-tabs / .sql-tab / .is-active classes, so size, spacing, active
+// state and hierarchy come from the Squad's CSS rather than from a second
+// implementation of it.
+function _tfSubSwitchHtml() {
+  var mode = _tfWsMode();
+  return '<div class="sq-sub-header tf-sub-header">'
+    + '<div class="sql-tabs">' + TF_MODES.map(function (m) {
+      return m[0] === mode
+        ? '<button class="sql-tab is-active" type="button" data-tf-tab="' + m[0] + '">' + m[1] + '</button>'
+        : '<button class="sql-tab" type="button" data-tf-tab="' + m[0] + '">' + m[1] + '</button>';
+    }).join('') + '</div>'
+    + '</div>';
+}
+// Selected states, as class toggles, so switching a mode moves nothing.
 function _tfSyncSwitches() {
   if (typeof document === 'undefined') return;
-  var ws = _tfWs();
-  var nav = document.querySelectorAll('#tf-shell [data-tf-ws]');
-  for (var i = 0; i < nav.length; i++) {
-    nav[i].classList.toggle('is-on', nav[i].getAttribute('data-tf-ws') === ws);
-  }
-  var lane = _tfLane();
-  var subs = document.querySelectorAll('#tf-shell [data-tf-tab]');
+  var mode = _tfWsMode();
+  var subs = document.querySelectorAll('#tf-shell .sql-tab[data-tf-tab]');
   for (var j = 0; j < subs.length; j++) {
-    var on = subs[j].getAttribute('data-tf-tab') === lane;
-    subs[j].classList.toggle('is-on', on);
-    subs[j].setAttribute('aria-selected', on ? 'true' : 'false');
+    subs[j].classList.toggle('is-active', subs[j].getAttribute('data-tf-tab') === mode);
   }
-}
-function _tfWsViews(ws) {
-  for (var i = 0; i < TF_WORKSPACES.length; i++) if (TF_WORKSPACES[i][0] === ws) return TF_WORKSPACES[i][3];
-  return [];
-}
-// The secondary switch inside a workspace. A workspace with one view shows
-// none — a switch between one thing is furniture, not navigation.
-// The one filter bar. Seven chips, a live count on each, and clicking one
-// switches what the pane below holds — the same thing ALL | GK | DEF | MID | FWD
-// does on the Squad. There is no second switch anywhere in the module.
-function _tfSubSwitchHtml() {
-  var lane = _tfLane();
-  return '<div class="tf-lanes" role="tablist">' + TF_LANES.map(function (l) {
-    var n = _tfLaneCount(l[0]);
-    return '<button type="button" role="tab" class="tf-lane' + (lane === l[0] ? ' is-on' : '') + '"'
-      + ' aria-selected="' + (lane === l[0] ? 'true' : 'false') + '" data-tf-tab="' + l[0] + '"'
-      + ' title="' + _tfEsc(l[2]) + '">' + _tfEsc(l[1])
-      + (n != null ? '<em>' + n + '</em>' : '') + '</button>';
-  }).join('') + '</div>';
-}
-// What each chip counts. Every figure is one the module already holds — no read
-// is made to draw this bar.
-function _tfLaneCount(lane) {
-  try {
-    if (lane === 'market')   return _tfMkPool().filter(function (r) { return r.src !== 'auction'; }).length;
-    if (lane === 'auctions') return _tfMkPool().filter(function (r) { return r.src === 'auction'; }).length;
-    if (lane === 'offered')  return _tfMkOffered().length;
-    if (lane === 'business') {
-      var a = _TF_NEG.activity || {};
-      return ((a.incomingOffers || []).length + (a.outgoingOffers || []).length
-        + (((_TF_NEG.needs && _TF_NEG.needs.items) || []).length));
-    }
-    if (lane === 'mine') {
-      var b = _TF_NEG.activity || {};
-      return ((b.incomingOffers || []).length + (b.outgoingOffers || []).length
-        + ((_TF_NEG.deals && _TF_NEG.deals.items) || []).length);
-    }
-    if (lane === 'all') return _tfMkPool().length + _tfMkOffered().length;
-  } catch (_) {}
-  return null;
 }
 
 function renderTransfersPage() {
@@ -48716,7 +48698,6 @@ function _tfRenderBody() {
   var a = document.activeElement, key = null, start = null, end = null;
   if (a && el.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'SELECT')) {
     key = a.getAttribute('data-tf-f') ? 'f:' + a.getAttribute('data-tf-f')
-      : a.getAttribute('data-tf-mf') ? 'm:' + a.getAttribute('data-tf-mf')
       : a.hasAttribute('data-tf-mq') ? 'mq'
       : a.hasAttribute('data-tf-q') ? 'q' : null;
     try { start = a.selectionStart; end = a.selectionEnd; } catch (_) {}
@@ -48725,8 +48706,7 @@ function _tfRenderBody() {
   if (key) {
     var sel = key === 'q' ? '[data-tf-q]'
       : key === 'mq' ? '[data-tf-mq]'
-        : key.charAt(0) === 'm' ? '[data-tf-mf="' + key.slice(2) + '"]'
-          : '[data-tf-f="' + key.slice(2) + '"]';
+        : '[data-tf-f="' + key.slice(2) + '"]';
     var next = el.querySelector(sel);
     if (next) { try { next.focus(); if (start != null) next.setSelectionRange(start, end); } catch (_) {} }
   }
@@ -49579,14 +49559,542 @@ function _tfxBoardHtml(C) {
 function _tfTabHtml(C) {
   return _tfSubSwitchHtml() + _tfViewHtml(C);
 }
-// One pane. Which lane the filter bar has selected decides what is in it, and
-// every lane is drawn by the builder that always drew it.
+// ══════════════════════════════════════════════════════════════════════════════
+// THE TRANSFERS TABLE — Lineup's shell, Transfers' data
+// ─────────────────────────────────────────────────────────────────────────────
+// summary → search + segmented chips → one full-width compact table. The chips
+// filter the table below them; they never replace the screen. Only one dataset
+// is on screen at a time.
+//
+// Every class here is Lineup's: .sqlu-wrap, .sqlu-meta, .sqlu-filters,
+// .sqlu-search, .sqlu-seg-group / .sqlu-seg, .sqlu-tablewrap, .sqlu-table,
+// .sqlu-row, .sqlu-c-*, .sqlu-pos, .sqlu-qual, .sqlu-id, .sqlu-av, .sqlu-nat,
+// .sqlu-acts / .sqlu-act, .sqlu-empty. Lineup itself is not touched.
+// ══════════════════════════════════════════════════════════════════════════════
 function _tfViewHtml(C) {
-  var lane = _tfLane();
-  if (lane === 'scouting') return _tfScoutingHtml(C);
-  if (lane === 'business') return _tfBizAllHtml(C);
-  if (lane === 'mine')     return _tfMineAllHtml(C);
-  return _tfMarketOneHtml(C, lane);
+  var mode = _tfWsMode(), chip = _tfChip();
+  var d = _tfTableData(C, mode, chip);
+  return '<div class="sqlu-wrap tf-lu">'
+    + _tfToolbarHtml(mode, chip, d)
+    + '<div class="sqlu-tablewrap tf-lu-tablewrap">'
+    +   '<table class="sqlu-table">'
+    +     '<thead><tr>' + d.cols.map(function (c) {
+      return '<th class="' + (c[1] || '') + '">' + _tfEsc(c[0]) + '</th>';
+    }).join('') + '</tr></thead>'
+    +     '<tbody id="tf-lu-tbody">'
+    +       (d.rows.length ? d.rows.join('')
+        : '<tr class="sqlu-empty-row"><td colspan="' + d.cols.length + '">'
+          + '<div class="sqlu-empty">' + _tfEsc(d.empty) + '</div></td></tr>')
+    +     '</tbody>'
+    +   '</table>'
+    + '</div>'
+    + '</div>';
+}
+
+// ── the toolbar: Lineup's own meta line, search and segmented chips ─────────
+function _tfToolbarHtml(mode, chip, d) {
+  var chips = (TF_CHIPS[mode] || []).map(function (c) {
+    var n = d.counts && d.counts[c[0]];
+    return '<button class="sqlu-seg' + (chip === c[0] ? ' is-active' : '') + '"'
+      + ' type="button" data-tf-chip="' + c[0] + '">' + _tfEsc(c[1])
+      + (n != null ? ' <i class="tf-lu-n">' + n + '</i>' : '') + '</button>';
+  }).join('');
+  var acts = mode === 'market'
+    ? '<button class="sq-mbtn sq-mbtn--add" data-om-publish type="button">'
+      + '<svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Publish a player</button>'
+    : mode === 'business'
+      ? '<button class="sq-mbtn sq-mbtn--add" data-tf-need-new type="button">'
+        + '<svg fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Publish a need</button>'
+      : '';
+  return '<div class="sqlu-meta">'
+    + '<div class="sqlu-meta-l"><span class="sqlu-meta-title">' + _tfEsc(d.title) + '</span>'
+    +   '<span class="sqlu-meta-count">' + _tfEsc(d.count) + '</span></div>'
+    + acts
+    + '</div>'
+    + '<div class="sqlu-filters">'
+    +   '<div class="sqlu-search">' + _SQLU_ICON_SEARCH
+    +     '<input class="sqlu-search-input tf-lu-q" type="text" data-tf-mq'
+    +     ' placeholder="' + _tfEsc(d.hint || 'Search player, club or nationality…') + '"'
+    +     ' value="' + _tfEsc(_TF_MK.q) + '" aria-label="Search transfers"></div>'
+    +   '<div class="sqlu-seg-group">' + chips + '</div>'
+    + '</div>';
+}
+
+// ── the cells, in Lineup's badges ──────────────────────────────────────────
+function _tfLuPos(pos) {
+  var cat = _tfCat(pos);
+  return '<span class="sqlu-pos sqlu-pos--cat-' + cat + '">' + _tfEsc(pos || '—') + '</span>';
+}
+function _tfLuQual(q) {
+  if (q == null) return '<span class="sqlu-qual sqlu-qual--avg"><b>—</b></span>';
+  var t = q >= 87 ? ['elite', 'Elite'] : q >= 82 ? ['excellent', 'Excellent']
+    : q >= 78 ? ['good', 'Good'] : ['avg', 'Average'];
+  return '<span class="sqlu-qual sqlu-qual--' + t[0] + '"><b>' + q + '</b><i>' + t[1] + '</i></span>';
+}
+function _tfLuId(r) {
+  var av = r.avatar
+    ? '<span class="sqlu-av"><img src="' + _tfEsc(r.avatar) + '" alt=""></span>'
+    : '<span class="sqlu-av sqlu-av--' + _tfCat(r.pos) + '">' + _tfEsc(_tfInitials(r.name)) + '</span>';
+  return '<div class="sqlu-id" data-tf-pp="' + _tfEsc(r.playerId || '') + '">' + av
+    + '<span class="sqlu-id-nm">' + _tfEsc(r.name) + '</span></div>';
+}
+function _tfInitials(n) {
+  return String(n || '').trim().split(/\s+/).slice(0, 2)
+    .map(function (x) { return x.charAt(0).toUpperCase(); }).join('') || '?';
+}
+function _tfLuNat(r) {
+  return '<span class="sqlu-nat"><span class="sqlu-flag">' + (r.nat || '🏳️') + '</span>'
+    + '<span class="sqlu-natc">' + _tfEsc(String(r.natCode || '').slice(0, 3).toUpperCase()) + '</span></span>';
+}
+function _tfLuClock(endsAt) {
+  if (endsAt == null) return '<span class="tf-lu-clock">—</span>';
+  var left = endsAt - Date.now();
+  return '<span class="tf-lu-clock' + (left > 0 && left < 3600000 ? ' is-hot' : '') + '"'
+    + ' data-tf-mkclock="' + endsAt + '">' + (left > 0 ? _tfClock(left) : 'Ended') + '</span>';
+}
+function _tfLuState(label, tone) {
+  return '<span class="tf-lu-st tf-lu-st--' + (tone || 'norm') + '">' + _tfEsc(label) + '</span>';
+}
+// Compact contextual actions, in Lineup's own .sqlu-acts rail. Only what the
+// player's real state allows — never every action at once.
+function _tfLuActs(list) {
+  return '<div class="sqlu-acts">' + list.filter(Boolean).join('') + '</div>';
+}
+function _tfLuAct(attrs, label, cls) {
+  return '<button type="button" class="tf-lu-b' + (cls ? ' ' + cls : '') + '" ' + attrs
+    + ' title="' + _tfEsc(label) + '">' + _tfEsc(label) + '</button>';
+}
+function _tfLuProfileAct(playerId) {
+  return playerId ? _tfLuAct('data-tf-pp="' + _tfEsc(playerId) + '"', 'View Profile') : '';
+}
+function _tfLuStarAct(playerId) {
+  if (!playerId) return '';
+  return '<button type="button" class="tf-lu-b tf-lu-b--star' + (_tfIsShort(playerId) ? ' is-on' : '') + '"'
+    + ' data-tf-short="' + _tfEsc(playerId) + '" title="Shortlist">'
+    + (_tfIsShort(playerId) ? '★' : '☆') + '</button>';
+}
+
+// ══ the datasets ═══════════════════════════════════════════════════════════
+// One per mode, each filtered by its chip and by the search box. Every figure
+// comes from a read the module already makes; nothing is computed here that a
+// service did not send.
+function _tfTableData(C, mode, chip) {
+  if (mode === 'scouting') return _tfLuScouting(C, chip);
+  if (mode === 'business') return _tfLuBusiness(C, chip);
+  if (mode === 'mine')     return _tfLuMine(C, chip);
+  return _tfLuMarket(C, chip);
+}
+function _tfLuQ() { return String(_TF_MK.q || '').trim().toLowerCase(); }
+function _tfLuMatch(hay) {
+  var q = _tfLuQ();
+  return !q || String(hay).toLowerCase().indexOf(q) >= 0;
+}
+
+// ── MARKET ─────────────────────────────────────────────────────────────────
+function _tfLuMarket(C, chip) {
+  if (_TF_OM.board === null && !_TF_OM.loading) {
+    _TF_OM.loading = true;
+    _tfOMLoad().then(function () { _TF_OM.loading = false; _tfRenderBody(); });
+  }
+  if (_TF_O2C.board === null && !_TF_O2C.loading) {
+    _TF_O2C.loading = true;
+    _tfO2CLoadBoard().then(function () { _TF_O2C.loading = false; _tfRenderBody(); });
+  }
+  if (_TF_AUC.items === null) _tfAucLoad().then(function () { _tfRenderBody(); });
+
+  var pool = _tfMkPool(), offered = _tfMkOffered();
+  var all = pool.concat(offered);
+  var counts = {
+    all: all.length,
+    open: pool.filter(function (r) { return r.src !== 'auction'; }).length,
+    auction: pool.filter(function (r) { return r.src === 'auction'; }).length,
+    offered: offered.length,
+    short: all.filter(function (r) { return _tfIsShort(r.playerId); }).length,
+  };
+  var rows = chip === 'open' ? pool.filter(function (r) { return r.src !== 'auction'; })
+    : chip === 'auction' ? pool.filter(function (r) { return r.src === 'auction'; })
+      : chip === 'offered' ? offered
+        : chip === 'short' ? all.filter(function (r) { return _tfIsShort(r.playerId); })
+          : all;
+  rows = rows.filter(function (r) { return _tfLuMatch(r.name + ' ' + r.clubName + ' ' + r.natCode + ' ' + r.pos); });
+  rows = rows.slice().sort(function (a, b) {
+    var x = a.endsAt == null ? Infinity : a.endsAt, y = b.endsAt == null ? Infinity : b.endsAt;
+    return x - y || String(a.name).localeCompare(String(b.name));
+  });
+
+  // AUCTIONS and OFFERED TO CLUBS are the same table shell with the columns
+  // that answer them.
+  if (chip === 'auction') {
+    return {
+      title: 'Auctions', count: rows.length + (rows.length === 1 ? ' auction' : ' auctions'),
+      counts: counts, cols: [
+        ['Player', 'sqlu-th-name'], ['Pos', 'sqlu-th-pos'], ['Club', ''], ['OVR', ''],
+        ['Value', ''], ['Starting', ''], ['Current bid', ''], ['Bids', ''],
+        ['Time left', ''], ['Status', ''], ['Action', 'tf-lu-th-act'],
+      ],
+      empty: 'No auction is running that matches this search.',
+      rows: rows.map(function (r) {
+        return '<tr class="sqlu-row sqlu-row--' + _tfCat(r.pos) + '" data-tf-pp="' + _tfEsc(r.playerId) + '">'
+          + '<td class="sqlu-c-name">' + _tfLuId(r) + '</td>'
+          + '<td class="sqlu-c-pos">' + _tfLuPos(r.pos) + '</td>'
+          + '<td class="tf-lu-c-club">' + _tfEsc(r.clubName) + '</td>'
+          + '<td class="sqlu-c-qual">' + _tfLuQual(r.ovr) + '</td>'
+          + '<td class="tf-lu-c-m">' + (r.mv ? _tfMoney(r.mv) : '—') + '</td>'
+          + '<td class="tf-lu-c-m">' + (r.ask != null ? _tfMoney(r.ask) : '—') + '</td>'
+          + '<td class="tf-lu-c-m tf-lu-c-bid" data-mk-bid="' + _tfEsc(r.listingId || '') + '">'
+          +   (r.bid != null ? _tfMoney(r.bid) : 'No bids') + '</td>'
+          + '<td class="tf-lu-c-n" data-mk-n="' + _tfEsc(r.listingId || '') + '">' + r.bidCount + '</td>'
+          + '<td class="tf-lu-c-t">' + _tfLuClock(r.endsAt) + '</td>'
+          + '<td>' + _tfLuState(r.isMine ? 'Our auction' : r.iLead ? 'We lead' : r.bidCount ? 'Bidding' : 'Open',
+            r.isMine ? 'own' : r.iLead ? 'lead' : 'auc') + '</td>'
+          + '<td class="tf-lu-c-act">' + _tfLuActs([
+            _tfLuStarAct(r.playerId), _tfLuProfileAct(r.playerId),
+            r.isMine
+              ? _tfLuAct('data-tf-auction-open="' + _tfEsc(r.listingId) + '"', 'Manage Listing')
+              : _tfLuAct('data-tf-auction-bid="' + _tfEsc(r.listingId) + '"', r.iLead ? 'Raise' : 'Bid', 'tf-lu-b--auc'),
+          ]) + '</td>'
+          + '</tr>';
+      }),
+    };
+  }
+  if (chip === 'offered') {
+    return {
+      title: 'Offered to clubs', count: rows.length + (rows.length === 1 ? ' player' : ' players'),
+      counts: counts, cols: [
+        ['Player', 'sqlu-th-name'], ['Pos', 'sqlu-th-pos'], ['Club', ''], ['OVR', ''],
+        ['Value', ''], ['Asking price', ''], ['Minimum', ''], ['Expires', ''],
+        ['Status', ''], ['Action', 'tf-lu-th-act'],
+      ],
+      empty: 'No club has offered you a player that matches this search.',
+      rows: rows.map(function (r) {
+        var it = _tfO2CItem(r.playerId);
+        return '<tr class="sqlu-row sqlu-row--' + _tfCat(r.pos) + '" data-tf-pp="' + _tfEsc(r.playerId) + '">'
+          + '<td class="sqlu-c-name">' + _tfLuId(r) + '</td>'
+          + '<td class="sqlu-c-pos">' + _tfLuPos(r.pos) + '</td>'
+          + '<td class="tf-lu-c-club">' + _tfEsc(r.clubName) + '</td>'
+          + '<td class="sqlu-c-qual">' + _tfLuQual(r.ovr) + '</td>'
+          + '<td class="tf-lu-c-m">' + (r.mv ? _tfMoney(r.mv) : '—') + '</td>'
+          + '<td class="tf-lu-c-m">' + (r.ask != null ? _tfMoney(r.ask) : '—') + '</td>'
+          // The seller's floor is the seller's business; the board only ever
+          // returns it to the club that set it.
+          + '<td class="tf-lu-c-m">' + (it && it.minAcceptableEur != null ? _tfMoney(it.minAcceptableEur) : 'Not disclosed') + '</td>'
+          + '<td class="tf-lu-c-t">' + _tfLuClock(r.endsAt) + '</td>'
+          + '<td>' + _tfLuState(it ? _tfO2CStateLabel(it.state) : 'Offered', 'o2c') + '</td>'
+          + '<td class="tf-lu-c-act">' + _tfLuActs([
+            _tfLuStarAct(r.playerId), _tfLuProfileAct(r.playerId),
+            _tfLuAct('data-tf-o2c-offer="' + _tfEsc(r.playerId) + '"'
+              + ' data-tf-o2c-ask="' + _tfEsc(String(r.ask == null ? r.mv : r.ask)) + '"',
+              (it && /NEGOTIAT|OFFER_RECEIVED/.test(String(it.state))) ? 'Negotiate' : 'Make Offer', 'tf-lu-b--go'),
+          ]) + '</td>'
+          + '</tr>';
+      }),
+    };
+  }
+  // ALL, OPEN MARKET and SHORTLISTED share the market columns.
+  return {
+    title: chip === 'short' ? 'Shortlisted' : chip === 'open' ? 'Open market' : 'Market',
+    count: rows.length + (rows.length === 1 ? ' player' : ' players'),
+    counts: counts, cols: [
+      ['Pos', 'sqlu-th-pos'], ['Player', 'sqlu-th-name'], ['Club', ''], ['Nat', ''],
+      ['Age', ''], ['OVR', ''], ['Value', ''], ['Asking / bid', ''],
+      ['Contract', ''], ['Status', ''], ['Time left', ''], ['Actions', 'tf-lu-th-act'],
+    ],
+    empty: _tfLuQ() ? 'No player on the market matches this search.'
+      : 'No club has made a player available yet.',
+    rows: rows.map(function (r) {
+      var cost = r.bid != null ? r.bid : r.ask;
+      return '<tr class="sqlu-row sqlu-row--' + _tfCat(r.pos) + '" data-tf-pp="' + _tfEsc(r.playerId) + '">'
+        + '<td class="sqlu-c-pos">' + _tfLuPos(r.pos) + '</td>'
+        + '<td class="sqlu-c-name">' + _tfLuId(r) + '</td>'
+        + '<td class="tf-lu-c-club">' + _tfEsc(r.clubName) + '</td>'
+        + '<td class="sqlu-c-nat">' + _tfLuNat(r) + '</td>'
+        + '<td class="sqlu-c-age">' + (r.age != null ? r.age : '—') + '</td>'
+        + '<td class="sqlu-c-qual">' + _tfLuQual(r.ovr) + '</td>'
+        + '<td class="tf-lu-c-m">' + (r.mv ? _tfMoney(r.mv) : '—') + '</td>'
+        + '<td class="tf-lu-c-m tf-lu-c-bid" data-mk-bid="' + _tfEsc(r.listingId || '') + '">'
+        +   (cost != null ? _tfMoney(cost) : '—') + '</td>'
+        + '<td class="tf-lu-c-t">' + _tfEsc(_tfLuContract(r.playerId)) + '</td>'
+        + '<td>' + _tfLuState(r.status, _tfMkStatusTone(r.status)) + '</td>'
+        + '<td class="tf-lu-c-t">' + _tfLuClock(r.endsAt) + '</td>'
+        + '<td class="tf-lu-c-act">' + _tfLuActs([
+          _tfLuStarAct(r.playerId), _tfLuProfileAct(r.playerId), _tfMkAct(r),
+        ]) + '</td>'
+        + '</tr>';
+    }),
+  };
+}
+// His contract, where a read this module already made happens to hold it.
+function _tfLuContract(playerId) {
+  var d = _TF_SCOUT.detail[playerId];
+  if (d && d.contractUntil) return new Date(d.contractUntil).toLocaleDateString();
+  return 'Not disclosed';
+}
+function _tfO2CItem(playerId) {
+  return (((_TF_O2C.board && _TF_O2C.board.items) || [])
+    .filter(function (i) { return (i.playerId || (i.player && i.player.id)) === playerId; })[0]) || null;
+}
+
+// ── SCOUTING ───────────────────────────────────────────────────────────────
+// The existing search, its existing filters and its existing results, in the
+// table shell. Every row is _TF_SCOUT.page's own, and every action is the one
+// the server said applies.
+function _tfLuScouting(C, chip) {
+  var page = _TF_SCOUT.page;
+  if (!page && !_TF_SCOUT.busy) _tfScoutLoad().then(function () { _tfRenderBody(); });
+  var items = (page && page.items) || [];
+  var counts = {
+    all: items.length,
+    needs: items.filter(function (r) { return (r.needMatches || []).length; }).length,
+    short: items.filter(function (r) { return r.shortlisted || _tfIsShort(r.player.id); }).length,
+  };
+  var rows = chip === 'needs' ? items.filter(function (r) { return (r.needMatches || []).length; })
+    : chip === 'short' ? items.filter(function (r) { return r.shortlisted || _tfIsShort(r.player.id); })
+      : items;
+  rows = rows.filter(function (r) {
+    return _tfLuMatch(_tfDiscName(r.player) + ' ' + ((r.club && r.club.name) || '') + ' '
+      + (r.player.nationality || '') + ' ' + r.player.position);
+  });
+  return {
+    title: 'Scouting', hint: 'Search every club on Familista…',
+    count: page ? (rows.length + ' of ' + (page.total || items.length)) : 'Searching…',
+    counts: counts, cols: [
+      ['Pos', 'sqlu-th-pos'], ['Player', 'sqlu-th-name'], ['Club', ''], ['Nat', ''],
+      ['Age', ''], ['OVR', ''], ['Value', ''], ['Asking', ''], ['Status', ''],
+      ['Fit', ''], ['Actions', 'tf-lu-th-act'],
+    ],
+    empty: _TF_SCOUT.error ? ('Search unavailable — ' + _TF_SCOUT.error)
+      : page ? 'No player at another club matches this search.' : 'Searching…',
+    rows: rows.map(function (r) {
+      var p = r.player, best = (r.needMatches || [])[0];
+      var pos = SQ_POSREV[p.position] || p.position;
+      var shaped = { playerId: p.id, name: _tfDiscName(p), avatar: p.avatar, pos: pos,
+                     nat: p.flag, natCode: p.nationality };
+      return '<tr class="sqlu-row sqlu-row--' + _tfCat(pos) + '" data-tf-pp="' + _tfEsc(p.id) + '">'
+        + '<td class="sqlu-c-pos">' + _tfLuPos(pos) + '</td>'
+        + '<td class="sqlu-c-name">' + _tfLuId(shaped) + '</td>'
+        + '<td class="tf-lu-c-club">' + _tfEsc((r.club && r.club.name) || '—') + '</td>'
+        + '<td class="sqlu-c-nat">' + _tfLuNat(shaped) + '</td>'
+        + '<td class="sqlu-c-age">' + (p.age != null ? p.age : '—') + '</td>'
+        + '<td class="sqlu-c-qual">' + _tfLuQual(p.overallRating) + '</td>'
+        + '<td class="tf-lu-c-m">' + _tfMoney(p.marketValue) + '</td>'
+        + '<td class="tf-lu-c-m">' + (r.askingPriceEur != null ? _tfMoney(r.askingPriceEur) : '—') + '</td>'
+        + '<td>' + _tfDiscStateChip(r.transferState) + '</td>'
+        + '<td class="tf-lu-c-n">' + (best ? best.matchPct + '%' : '—') + '</td>'
+        + '<td class="tf-lu-c-act">' + _tfLuActs([
+          _tfLuStarAct(p.id), _tfLuProfileAct(p.id),
+          (r.actions || []).slice(0, 1).map(function (a) {
+            return _tfLuAct('data-tf-disc-act="' + _tfEsc(a) + '" data-tf-player="' + _tfEsc(p.id) + '"'
+              + ' data-tf-listing="' + _tfEsc(r.listingId || '') + '"',
+              TF_ACTION_LABEL[a] || a, 'tf-lu-b--go');
+          }).join(''),
+        ]) + '</td>'
+        + '</tr>';
+    }),
+  };
+}
+
+// ── CLUB BUSINESS ──────────────────────────────────────────────────────────
+function _tfLuBusiness(C, chip) {
+  var a = _TF_NEG.activity;
+  if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.needs) _tfNegLoadNeeds().then(function () { _tfRenderBody(); });
+  if (_TF_O2C.board === null && !_TF_O2C.loading) {
+    _TF_O2C.loading = true;
+    _tfO2CLoadBoard().then(function () { _TF_O2C.loading = false; _tfRenderBody(); });
+  }
+  var needs = (_TF_NEG.needs && _TF_NEG.needs.items) || [];
+  var ours = needs.filter(function (n) { return n.isMine; });
+  var looking = needs.filter(function (n) { return !n.isMine; });
+  var want = looking.filter(function (n) { return n.myMatches; });
+  var offIn = (a && a.incomingOffers) || [], offOut = (a && a.outgoingOffers) || [];
+  var counts = { all: ours.length + looking.length + offIn.length + offOut.length,
+                 ours: ours.length, looking: looking.length, want: want.length,
+                 in: offIn.length, out: offOut.length };
+
+  var needRow = function (n, mine) {
+    var pos = (n.positions || []).join(' / ');
+    return '<tr class="sqlu-row sqlu-row--' + _tfCat((n.positions || [])[0] || 'CM') + '"'
+      + ' data-tf-need-matches="' + _tfEsc(n.id) + '">'
+      + '<td class="sqlu-c-pos">' + _tfLuPos(pos) + '</td>'
+      + '<td class="sqlu-c-name"><div class="sqlu-id"><span class="sqlu-id-nm">'
+      +   _tfEsc(mine ? 'Our need' : ((n.club && n.club.name) || 'A club')) + '</span></div></td>'
+      + '<td class="tf-lu-c-club">' + _tfEsc(mine ? 'Published by us' : ((n.club && n.club.name) || '—')) + '</td>'
+      + '<td class="tf-lu-c-t">' + _tfEsc(_tfNeedLine(n) || '—') + '</td>'
+      + '<td class="tf-lu-c-m">' + (n.budgetMaxEur != null ? _tfMoney(n.budgetMaxEur) : '—') + '</td>'
+      + '<td class="tf-lu-c-n">' + (n.myMatches != null ? n.myMatches : '—') + '</td>'
+      + '<td>' + _tfLuState(mine ? 'Ours' : 'Open', mine ? 'own' : 'norm') + '</td>'
+      + '<td class="tf-lu-c-act">' + _tfLuActs([
+        _tfLuAct('data-tf-need-matches="' + _tfEsc(n.id) + '"', 'Who fits'),
+        mine ? _tfLuAct('data-tf-need-edit="' + _tfEsc(n.id) + '"', 'Edit') : '',
+      ]) + '</td>'
+      + '</tr>';
+  };
+  var offerRow = function (o, dir) {
+    var other = dir === 'in' ? (o.buyerClub && o.buyerClub.name) : (o.sellerClub && o.sellerClub.name);
+    var pending = o.status === 'PENDING', countered = o.status === 'COUNTERED';
+    return '<tr class="sqlu-row" data-tf-pp="' + _tfEsc(o.playerId) + '">'
+      + '<td class="sqlu-c-pos">' + _tfLuPos(dir === 'in' ? 'IN' : 'OUT') + '</td>'
+      + '<td class="sqlu-c-name">' + _tfLuId({ playerId: o.playerId, name: _tfOfferName(o),
+          avatar: (o.player && o.player.avatar), pos: (o.player && o.player.position) }) + '</td>'
+      + '<td class="tf-lu-c-club">' + _tfEsc(other || '—') + '</td>'
+      + '<td class="tf-lu-c-t">' + _tfEsc(dir === 'in' ? 'Offer received' : 'Offer sent') + '</td>'
+      + '<td class="tf-lu-c-m">' + (o.feeEur != null ? _tfMoney(o.feeEur) : '—') + '</td>'
+      + '<td class="tf-lu-c-n">—</td>'
+      + '<td>' + _tfLuState(String(o.status).charAt(0) + String(o.status).slice(1).toLowerCase(),
+        pending ? 'act' : countered ? 'neg' : 'norm') + '</td>'
+      + '<td class="tf-lu-c-act">' + _tfLuActs([
+        _tfLuProfileAct(o.playerId),
+        (dir === 'in' && pending)
+          ? _tfLuAct('data-tf-offer-accept="' + _tfEsc(o.id) + '"', 'Respond', 'tf-lu-b--go') : '',
+        (pending || countered)
+          ? _tfLuAct('data-tf-offer-counter="' + _tfEsc(o.id) + '"'
+            + ' data-tf-fee="' + _tfEsc(String(o.feeEur || 0)) + '"'
+            + ' data-tf-player="' + _tfEsc(o.playerId) + '"'
+            + ' data-tf-name="' + _tfEsc(_tfOfferName(o)) + '"'
+            + ' data-tf-club="' + _tfEsc(other || '') + '"', 'Negotiate') : '',
+      ]) + '</td>'
+      + '</tr>';
+  };
+
+  var rows;
+  if (chip === 'ours') rows = ours.map(function (n) { return needRow(n, true); });
+  else if (chip === 'looking') rows = looking.map(function (n) { return needRow(n, false); });
+  else if (chip === 'want') rows = want.map(function (n) { return needRow(n, false); });
+  else if (chip === 'in') rows = offIn.map(function (o) { return offerRow(o, 'in'); });
+  else if (chip === 'out') rows = offOut.map(function (o) { return offerRow(o, 'out'); });
+  else {
+    rows = ours.map(function (n) { return needRow(n, true); })
+      .concat(looking.map(function (n) { return needRow(n, false); }))
+      .concat(offIn.map(function (o) { return offerRow(o, 'in'); }))
+      .concat(offOut.map(function (o) { return offerRow(o, 'out'); }));
+  }
+  rows = _tfLuQ() ? rows.filter(function (h) { return _tfLuMatch(String(h).replace(/<[^>]+>/g, ' ')); }) : rows;
+  return {
+    title: 'Club business', hint: 'Search club, player or position…',
+    count: rows.length + (rows.length === 1 ? ' record' : ' records'),
+    counts: counts, cols: [
+      ['Type', 'sqlu-th-pos'], ['Subject', 'sqlu-th-name'], ['Club', ''], ['Detail', ''],
+      ['Amount', ''], ['Fit', ''], ['Status', ''], ['Actions', 'tf-lu-th-act'],
+    ],
+    empty: 'No club business matches this filter.',
+    rows: rows,
+  };
+}
+
+// ── MY TRANSFERS ───────────────────────────────────────────────────────────
+function _tfLuMine(C, chip) {
+  var a = _TF_NEG.activity;
+  if (!a) _tfNegLoadActivity().then(function () { _tfRenderBody(); });
+  if (!_TF_NEG.deals) _tfNegLoadDeals().then(function () { _tfRenderBody(); });
+  if (_TF_OM.board === null && !_TF_OM.loading) {
+    _TF_OM.loading = true;
+    _tfOMLoad().then(function () { _TF_OM.loading = false; _tfRenderBody(); });
+  }
+  var inOff = (a && a.incomingOffers) || [], outOff = (a && a.outgoingOffers) || [];
+  var answer = inOff.filter(function (o) { return o.status === 'PENDING'; });
+  var neg = inOff.concat(outOff).filter(function (o) { return o.status === 'COUNTERED'; });
+  var out = outOff.filter(function (o) { return o.status === 'PENDING'; });
+  var lots = ((_TF_OM.board && _TF_OM.board.items) || []).filter(function (i) {
+    return i.isMine || i.myBidEur != null;
+  });
+  var deals = (_TF_NEG.deals && _TF_NEG.deals.items) || [];
+  var gone = inOff.concat(outOff).filter(function (o) {
+    return o.status === 'REJECTED' || o.status === 'WITHDRAWN' || o.status === 'EXPIRED';
+  });
+  var counts = { all: answer.length + neg.length + out.length + lots.length + deals.length + gone.length,
+                 answer: answer.length, neg: neg.length, out: out.length,
+                 listings: lots.length, done: deals.length, gone: gone.length };
+
+  var offRow = function (o, kind, tone, acts) {
+    var other = (o.buyerClub && o.buyerClub.name) || (o.sellerClub && o.sellerClub.name) || '—';
+    return '<tr class="sqlu-row" data-tf-pp="' + _tfEsc(o.playerId) + '">'
+      + '<td class="sqlu-c-name">' + _tfLuId({ playerId: o.playerId, name: _tfOfferName(o),
+          avatar: (o.player && o.player.avatar), pos: (o.player && o.player.position) }) + '</td>'
+      + '<td class="tf-lu-c-club">' + _tfEsc(other) + '</td>'
+      + '<td class="tf-lu-c-t">' + _tfEsc(kind) + '</td>'
+      + '<td class="tf-lu-c-m">' + (o.feeEur != null ? _tfMoney(o.feeEur) : '—') + '</td>'
+      + '<td>' + _tfLuState(String(o.status).charAt(0) + String(o.status).slice(1).toLowerCase(), tone) + '</td>'
+      + '<td class="tf-lu-c-t">' + _tfEsc(_tfWhen(o.updatedAt || o.createdAt)) + '</td>'
+      + '<td class="tf-lu-c-act">' + _tfLuActs([_tfLuProfileAct(o.playerId)].concat(acts || [])) + '</td>'
+      + '</tr>';
+  };
+  var mk = {
+    answer: function () {
+      return answer.map(function (o) {
+        return offRow(o, 'Offer received', 'act', [
+          _tfLuAct('data-tf-offer-accept="' + _tfEsc(o.id) + '"', 'Respond', 'tf-lu-b--go'),
+          _tfLuAct('data-tf-offer-counter="' + _tfEsc(o.id) + '"'
+            + ' data-tf-fee="' + _tfEsc(String(o.feeEur || 0)) + '"'
+            + ' data-tf-player="' + _tfEsc(o.playerId) + '"'
+            + ' data-tf-name="' + _tfEsc(_tfOfferName(o)) + '"'
+            + ' data-tf-club="' + _tfEsc((o.buyerClub && o.buyerClub.name) || '') + '"', 'Negotiate'),
+        ]);
+      });
+    },
+    neg: function () {
+      return neg.map(function (o) {
+        return offRow(o, 'Under discussion', 'neg', [
+          _tfLuAct('data-tf-negotiation="' + _tfEsc(o.id) + '"', 'Negotiate', 'tf-lu-b--go'),
+        ]);
+      });
+    },
+    out: function () {
+      return out.map(function (o) {
+        return offRow(o, 'Offer sent', 'norm', [
+          _tfLuAct('data-tf-offer-withdraw="' + _tfEsc(o.id) + '"', 'Withdraw'),
+        ]);
+      });
+    },
+    listings: function () {
+      return lots.map(function (it) {
+        var p = _tfOMShape(it);
+        var left = it.validUntil ? (new Date(it.validUntil).getTime() - Date.now()) : null;
+        return '<tr class="sqlu-row sqlu-row--' + _tfCat(p.pos) + '" data-tf-pp="' + _tfEsc(p.id) + '">'
+          + '<td class="sqlu-c-name">' + _tfLuId({ playerId: p.id, name: p.name, avatar: p.avatar, pos: p.pos }) + '</td>'
+          + '<td class="tf-lu-c-club">' + _tfEsc((it.sellerClub && it.sellerClub.name) || '—') + '</td>'
+          + '<td class="tf-lu-c-t">' + (it.isMine ? 'Our listing' : 'We have bid') + '</td>'
+          + '<td class="tf-lu-c-m">' + _tfMoney(it.highestBidEur != null ? it.highestBidEur : it.askingPriceEur) + '</td>'
+          + '<td>' + _tfLuState(_tfOMStatus(it), it.isMine ? 'own' : it.iLead ? 'lead' : 'auc') + '</td>'
+          + '<td class="tf-lu-c-t">' + (left != null ? (left > 0 ? _tfClock(left) + ' left' : 'ended') : '—') + '</td>'
+          + '<td class="tf-lu-c-act">' + _tfLuActs([
+            _tfLuProfileAct(p.id),
+            _tfLuAct('data-om-open="' + _tfEsc(it.listingId) + '"',
+              it.isMine ? 'Manage Listing' : 'Bid', it.isMine ? '' : 'tf-lu-b--auc'),
+          ]) + '</td>'
+          + '</tr>';
+      });
+    },
+    done: function () {
+      return deals.map(function (d) {
+        return '<tr class="sqlu-row" data-tf-pp="' + _tfEsc(d.playerId) + '">'
+          + '<td class="sqlu-c-name">' + _tfLuId({ playerId: d.playerId, name: _tfOfferName(d),
+              avatar: (d.player && d.player.avatar), pos: (d.player && d.player.position) }) + '</td>'
+          + '<td class="tf-lu-c-club">' + _tfEsc((d.otherClub && d.otherClub.name) || '—') + '</td>'
+          + '<td class="tf-lu-c-t">' + (d.direction === 'IN' ? 'Signed' : 'Sold') + '</td>'
+          + '<td class="tf-lu-c-m">' + (d.feeEur != null ? _tfMoney(d.feeEur) : '—') + '</td>'
+          + '<td>' + _tfLuState('Completed', 'done') + '</td>'
+          + '<td class="tf-lu-c-t">' + _tfEsc(_tfWhen(d.completedAt || d.createdAt)) + '</td>'
+          + '<td class="tf-lu-c-act">' + _tfLuActs([_tfLuProfileAct(d.playerId)]) + '</td>'
+          + '</tr>';
+      });
+    },
+    gone: function () {
+      return gone.map(function (o) { return offRow(o, 'Came to nothing', 'gone', []); });
+    },
+  };
+  var rows = mk[chip] ? mk[chip]()
+    : mk.answer().concat(mk.neg(), mk.out(), mk.listings(), mk.done(), mk.gone());
+  rows = _tfLuQ() ? rows.filter(function (h) { return _tfLuMatch(String(h).replace(/<[^>]+>/g, ' ')); }) : rows;
+  return {
+    title: 'My transfers', hint: 'Search player or club…',
+    count: rows.length + (rows.length === 1 ? ' record' : ' records'),
+    counts: counts, cols: [
+      ['Player', 'sqlu-th-name'], ['Club', ''], ['Type', ''], ['Amount', ''],
+      ['Status', ''], ['When', ''], ['Actions', 'tf-lu-th-act'],
+    ],
+    empty: 'Nothing here yet.',
+    rows: rows,
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -51280,6 +51788,14 @@ function _tfHeaderHtml(C) {
     return '<div class="tf-fig' + (cls ? ' ' + cls : '') + '"><i>' + label + '</i>'
       + '<b>' + value + '</b>' + (extra || '') + '</div>';
   };
+  // Lineup's own metric row: the same .sqlu-dash grid and the same
+  // .sqlu-stat / .sqlu-stat-l / .sqlu-stat-v cards, so height, spacing,
+  // alignment, density and border treatment come from the Squad's CSS.
+  var stat = function (label, val, sub, tone) {
+    return '<div class="sqlu-stat sqlu-stat--' + (tone || 'n') + '">'
+      + '<span class="sqlu-stat-l">' + _tfEsc(label) + '</span>'
+      + '<span class="sqlu-stat-v">' + val + (sub ? '<i>' + sub + '</i>' : '') + '</span></div>';
+  };
   return '<header class="tf-head">'
     + '<div class="tf-head-top">'
     +   '<div class="tf-title">'
@@ -51289,23 +51805,14 @@ function _tfHeaderHtml(C) {
     +   '</div>'
     +   '<div class="tf-head-right">' + teamSel + '</div>'
     + '</div>'
-    + '<div class="tf-strip">'
-    +   cell('Transfer budget', _tfMoney(eco.total != null ? eco.total : eco.available),
-    // Where the figure came from. 'server' is the club's real
-    // ClubTransferBalance — the one the server spends from.
-          '<em class="tf-src tf-src--' + eco.source + '">' + _tfBudgetSource(eco.source) + '</em>')
-    +   cell('Committed', _tfMoney(eco.committed))
-    +   cell('Available', _tfMoney(eco.available), '', 'tf-fig--ok')
-    +   cell('Active negotiations', _tfActivitySignals().live)
-    +   cell('Shortlisted', shortN)
-    +   '<div class="tf-strip-end">'
-    +     '<span class="tf-hs" data-tf-hs="live"><i class="tf-dot-live"></i>' + live + ' live</span>'
-    // What the rest of the market wants, and how much of it this club owns —
-    // read from the feed already loaded, so the header costs no request.
-    +     '<span class="tf-hs" data-tf-hs="needs">' + _tfNeedCounts().active + ' needs</span>'
-    +     '<span class="tf-hs tf-hs--match" data-tf-hs="matches">' + _tfNeedCounts().matches + ' matches</span>'
-    +     '<span class="tf-hs">Squad ' + (_tfSquadProfile(C).size) + '</span>'
-    +   '</div>'
+    + '<div class="sqlu-dash">'
+    +   stat('Transfer budget', _tfMoney(eco.total != null ? eco.total : eco.available), '', 'blue')
+    +   stat('Committed', _tfMoney(eco.committed), '', 'amber')
+    +   stat('Available', _tfMoney(eco.available), '', 'green')
+    +   stat('Active negotiations', _tfActivitySignals().live, '', 'violet')
+    +   stat('Shortlisted', shortN, '', 'teal')
+    +   stat('Live listings', live, '', live ? 'green' : 'muted')
+    +   stat('Active needs', _tfNeedCounts().active, '', 'blue')
     + '</div>'
     + '</header>';
 }
@@ -51538,9 +52045,11 @@ function _tfAucBoardHtml() {
   return sec('Live auctions', 'Bidding open — highest bid at the deadline wins', live)
     + sec('Settled auctions', 'Sold and unsold, with what they went for', done.slice(0, 6));
 }
-// Whether the one-screen market is what is on the page.
+// Whether the Transfers table is what is on the page. An auction opened from a
+// row has no room to expand inside it, so it opens in the overlay — and that is
+// true in every mode, because a row in My Transfers opens the same panel.
 function _tfMkIsOn() {
-  return _TF.tab === 'open' || _TF.tab === 'auctions' || _TF.tab === 'offered' || _TF.tab === 'feed';
+  return typeof document !== 'undefined' && !!document.querySelector('#pg-transfers .sqlu-table');
 }
 // The auction, opened over the market. Every figure and every button in it is
 // _tfAucDetailHtml's — the panel the board expanded inline — so bidding,
@@ -51572,14 +52081,14 @@ function _tfAucDrawerHtml() {
 function _tfAucRepaint() {
   var el = document.getElementById('tf-auc-board');
   if (el) { el.innerHTML = _tfAucBoardHtml(); return; }
-  // On the market screen a rival raising a bid changes two figures in one card.
-  // Writing them into the card that is already there keeps the board still —
-  // rebuilding it would throw away the scroll position mid-scan. The drawer
+  // On the Transfers table a rival raising a bid changes two figures in one
+  // row. Writing them into the row that is already there keeps the table still
+  // — rebuilding it would throw away the scroll position mid-scan. The drawer
   // over it, when one is open, is redrawn from the same read.
-  if (document.querySelector('.mk-pane')) {
+  if (_tfMkIsOn()) {
     var patched = _tfMkPatchBids();
-    if (_TF_AUC.open && _tfMkIsOn()) _tfRenderOverlay();
-    if (patched || _TF_AUC.open) return;
+    if (_TF_AUC.open) { _tfRenderOverlay(); return; }
+    if (patched) return;
   }
   _tfRenderBody();
 }
@@ -51595,7 +52104,7 @@ function _tfMkSig() {
 // Returns false when the board's shape has changed, so the caller falls back to
 // a redraw rather than leaving a stale card on screen.
 function _tfMkPatchBids() {
-  var host = document.querySelector('.mk-pane'); if (!host) return false;
+  var host = document.querySelector('#pg-transfers .sqlu-table'); if (!host) return false;
   if (_tfMkSig() !== _TF_MK.sig) return false;
   _tfMkPool().concat(_tfMkOffered()).forEach(function (r) {
     if (!r.listingId) return;
@@ -51611,8 +52120,8 @@ function _tfMkPatchBids() {
       n.textContent = r.bidCount + ' bid' + (r.bidCount === 1 ? '' : 's');
       n.classList.toggle('is-off', !r.bidCount);
     }
-    var card = b.closest('.mkc');
-    if (card) card.classList.toggle('is-lead', !!r.iLead);
+    var row = b.closest('tr.sqlu-row');
+    if (row) row.classList.toggle('is-lead', !!r.iLead);
   });
   return true;
 }
@@ -53775,14 +54284,9 @@ function _tfDiscAction(action, playerId, listingId) {
     }
  if (!t || !t.closest || !t.closest('#pg-transfers')) return;
     if (t.hasAttribute && t.hasAttribute('data-tf-mq')) {
-      // _tfRenderBody restores the caret into [data-tf-mq] after the redraw, so
-      // the market narrows as it is typed without the field losing focus.
+      // The rows re-render; the input does not, so the caret stays where the
+      // manager left it.
       _TF_MK.q = t.value || '';
-      _tfRenderBody(); return;
-    }
-    var mfi = t.getAttribute && t.getAttribute('data-tf-mf');
-    if (mfi && t.tagName === 'INPUT') {
-      _TF_MK.f[mfi] = t.value;
       _tfRenderBody(); return;
     }
     if (t.hasAttribute && t.hasAttribute('data-tf-q')) {
@@ -60074,32 +60578,25 @@ function _tfFormSubmit() {
         });
       return;
     }
-    // ── the market, on one screen ───────────────────────────────────────
+    // ── the Transfers table ─────────────────────────────────────────────
     if (t.closest('[data-tf-pp-close]')) { e.preventDefault(); _tfPPClose(); return; }
-    if ((el = t.closest('[data-tf-mquick]'))) {
+    // A chip filters the table below it. It is not a page, so nothing but the
+    // rows is rebuilt.
+    if ((el = t.closest('[data-tf-chip]'))) {
       e.preventDefault(); e.stopPropagation();
-      _TF_MK.quick = el.getAttribute('data-tf-mquick');
+      _TF.chip = el.getAttribute('data-tf-chip');
       _tfRenderBody(); return;
     }
-    if ((el = t.closest('[data-tf-mall]'))) {
+    // A mode is the same switch the Squad's Lineup / Formation / Tactics tabs
+    // are: it changes what is in the workspace, it does not navigate.
+    if ((el = t.closest('.sql-tab[data-tf-tab]'))) {
       e.preventDefault(); e.stopPropagation();
-      var mk = el.getAttribute('data-tf-mall');
-      if (mk === 'auc') _TF_MK.aucAll = true;
-      else if (mk === 'o2c') _TF_MK.o2cAll = true;
-      else if (mk === 'om') _TF_MK.omAll = true;
-      else if (mk === 'act') _TF_MK.actAll = true;
-      else if (mk === 'done') _TF_MK.doneAll = true;
-      _tfRenderBody(); return;
-    }
-    if (t.closest('[data-tf-mact]')) {
-      e.preventDefault(); e.stopPropagation();
-      _TF_MK.actOpen = !_TF_MK.actOpen; _tfRenderBody(); return;
-    }
-    if (t.closest('[data-tf-mclear]')) {
-      e.preventDefault(); e.stopPropagation();
-      _TF_MK.q = '';
-      Object.keys(_TF_MK.f).forEach(function (k) { _TF_MK.f[k] = ''; });
-      _TF_MK.quick = 'ALL'; _tfRenderBody(); return;
+      var mo = el.getAttribute('data-tf-tab');
+      if (mo !== _tfWsMode()) {
+        _TF.tab = mo; _TF.chip = 'all'; _TF_MK.q = '';
+        _tfRenderBody(); _tfSyncSwitches();
+      }
+      return;
     }
     // The one player opener. Every card, photo, name and View profile button in
     // the market carries this, and it carries the canonical player UUID.

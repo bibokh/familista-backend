@@ -47,126 +47,105 @@ function fnBody(name: string) {
   return APP.slice(i, j);
 }
 
-describe('the Market is one lane of one screen', () => {
-  it('the market lanes are drawn by one builder, told which lane to draw', () => {
+describe('Market is one mode of the Lineup shell', () => {
+  it('its table is built by the dataset the mode and chip select', () => {
     const f = fnBody('_tfViewHtml');
-    expect(f).toContain('_tfMarketOneHtml(C, lane)');
-    expect(APP).toContain('function _tfMarketOneHtml(C, lane) {');
+    expect(f).toContain('_tfTableData(C, mode, chip)');
+    expect(fnBody('_tfTableData')).toContain('_tfLuMarket(C, chip)');
+    expect(APP).toContain('function _tfLuMarket(C, chip) {');
   });
 
-  it('the filter bar is the only switch there is', () => {
+  it('the four modes are the only switch there is', () => {
     const f = fnBody('_tfSubSwitchHtml');
-    expect(f).toContain('TF_LANES.map');
+    expect(f).toContain('TF_MODES.map');
+    expect(f).toContain('class="sql-tabs"');
     expect(fnBody('_tfHeaderHtml')).not.toContain('tf-wsnav');
   });
 
   it('the keys it used to switch between still land on it', () => {
-    const lanes = APP.match(/var TF_VIEW_LANE = \{[\s\S]*?\};/)![0];
-    expect(lanes).toMatch(/open: 'market'/);
-    expect(lanes).toMatch(/auctions: 'auctions'/);
-    expect(lanes).toMatch(/offered: 'offered'/);
-    expect(lanes).toMatch(/feed: 'all'/);
+    const map = APP.match(/var TF_VIEW_MODE = \{[\s\S]*?\};/)![0];
+    expect(map).toMatch(/open: \['market', 'open'\]/);
+    expect(map).toMatch(/auctions: \['market', 'auction'\]/);
+    expect(map).toMatch(/offered: \['market', 'offered'\]/);
+  });
+
+  it('and Open Market, Auctions and Offered to Clubs are chips, not pages', () => {
+    const c = APP.match(/var TF_CHIPS = \{[\s\S]*?\n\};/)![0];
+    ['Open Market', 'Auctions', 'Offered to Clubs', 'Shortlisted'].forEach((x) => expect(c).toContain(x));
+    // one table, and the chip decides which columns and rows it holds
+    const m = fnBody('_tfLuMarket');
+    expect(m).toContain("chip === 'auction'");
+    expect(m).toContain("chip === 'offered'");
+    expect(m).toContain("chip === 'short'");
   });
 });
 
-describe('the control row', () => {
-  const ctl = fnBody('_tfMkControlsHtml');
+describe('the toolbar is Lineup\'s', () => {
+  const t = fnBody('_tfToolbarHtml');
 
-  it('carries a search field and the seven filters', () => {
-    expect(ctl).toContain('data-tf-mq');
-    ['pos', 'age', 'ovr', 'nat', 'club', 'price', 'avail']
-      .forEach((k) => expect(ctl).toMatch(new RegExp(`\\('${k}',`)));
-    ['Position', 'Age to', 'OVR from', 'Nationality', 'Club', 'Price to (€M)', 'Availability']
-      .forEach((l) => expect(ctl).toContain(l));
+  it('a meta line, a search field and a segmented chip group', () => {
+    expect(t).toContain('class="sqlu-meta"');
+    expect(t).toContain('sqlu-meta-title');
+    expect(t).toContain('sqlu-meta-count');
+    expect(t).toContain('class="sqlu-filters"');
+    expect(t).toContain('class="sqlu-search"');
+    expect(t).toContain('_SQLU_ICON_SEARCH');
+    expect(t).toContain('sqlu-search-input');
+    expect(t).toContain('class="sqlu-seg-group"');
+    expect(t).toContain('class="sqlu-seg');
   });
 
-  it('and the six quick filters', () => {
-    const q = APP.match(/var MK_QUICK = \[[\s\S]*?\];/)![0];
-    [['ALL', 'All'], ['SALE', 'For sale'], ['OFFERS', 'Open to offers'],
-     ['AUCTION', 'Auctions'], ['OFFERED', 'Offered to us'], ['SOON', 'Expiring soon']]
-      .forEach(([k, l]) => { expect(q).toContain(`'${k}'`); expect(q).toContain(`'${l}'`); });
+  it('and it keeps the module\'s own publish actions', () => {
+    expect(t).toContain('data-om-publish');
+    expect(t).toContain('data-tf-need-new');
+    expect(t).toContain('sq-mbtn sq-mbtn--add');
   });
 
-  it('every club and nationality it offers comes from rows the market sent', () => {
-    // no hard-coded club list anywhere near the filters
-    expect(ctl).toContain('all.forEach');
-    expect(ctl).toContain('r.clubId');
-    expect(ctl).not.toMatch(/club\s*===\s*'/);
-    expect(ctl).not.toMatch(/\bBSC\b|FC Familista/);
-  });
-
-  it('they filter one pool, not four boards', () => {
-    const m = fnBody('_tfMarketOneHtml');
-    expect(m).toContain('pool.filter');
-    expect(m).toContain('offered.filter(_tfMkPasses)');
-    expect(m).toContain("r.src === 'auction' && _tfMkPasses(r)");
-    expect(m).toContain("r.src !== 'auction' && _tfMkPasses(r)");
-  });
-
-  it('and a filter never survives as a second copy of the same answer', () => {
-    // one store, read by one predicate
-    expect(APP).toContain('var _TF_MK = {');
-    const p = fnBody('_tfMkPasses');
-    expect(p).toContain('_TF_MK.f');
-    expect(p).toContain('_TF_MK.q');
-    expect(p).toContain('_tfMkQuickPasses(r)');
+  it('the search narrows the one table, from one store', () => {
+    expect(fnBody('_tfLuQ')).toContain('_TF_MK.q');
+    expect(fnBody('_tfLuMatch')).toContain('_tfLuQ()');
+    ['_tfLuMarket', '_tfLuScouting', '_tfLuBusiness', '_tfLuMine']
+      .forEach((f) => expect(fnBody(f)).toContain('_tfLuMatch'));
   });
 });
 
-describe('the sections', () => {
-  const m = fnBody('_tfMarketOneHtml');
-
-  it('are auctions, offered to your club, the open market, activity and completed', () => {
-    expect(m).toContain("_tfMkSecHtml('auctions', 'Live auctions'");
-    expect(m).toContain("_tfMkSecHtml('offered', 'Offered to your club'");
-    expect(m).toContain("_tfMkSecHtml('open', 'Open market'");
-    // activity and completed belong to the overview, not to a named lane
-    expect(m).toContain("lane === 'all' ? _tfMkActivityHtml() + _tfMkCompletedHtml() : ''");
+describe('the table', () => {
+  it('is one full-width .sqlu-tablewrap, never several', () => {
+    const v = fnBody('_tfViewHtml');
+    expect((v.match(/sqlu-tablewrap/g) || []).length).toBe(1);
+    expect(v).toContain('class="sqlu-table"');
+    expect(v).toContain('id="tf-lu-tbody"');
   });
 
-  it('each is fed by the read it always was', () => {
-    ['_tfOMLoad()', '_tfO2CLoadBoard()', '_tfAucLoad()', '_tfNegLoadFeed()', '_tfNegLoadMarketCompleted()']
-      .forEach((r) => expect(m).toContain(r));
+  it('each mode is fed by the read it always was', () => {
+    ['_tfOMLoad()', '_tfO2CLoadBoard()', '_tfAucLoad()'].forEach((r) => expect(fnBody('_tfLuMarket')).toContain(r));
     expect(fnBody('_tfMkAuctions')).toContain('_TF_AUC.items');
     expect(fnBody('_tfMkOpen')).toContain('_TF_OM.board');
     expect(fnBody('_tfMkLots')).toContain('_TF_SERVER_LOTS');
     expect(fnBody('_tfMkOffered')).toContain('_TF_O2C.board');
+    expect(fnBody('_tfLuScouting')).toContain('_TF_SCOUT.page');
+    expect(fnBody('_tfLuBusiness')).toContain('_TF_NEG.needs');
+    expect(fnBody('_tfLuMine')).toContain('_TF_NEG.deals');
   });
 
-  it('live auctions is drawn only when there are live auctions', () => {
-    expect(m).toContain('fAuc.length');
-    expect(m).toContain("want('auctions')");
+  it('an empty table is Lineup\'s own single empty line', () => {
+    const v = fnBody('_tfViewHtml');
+    expect(v).toContain('sqlu-empty-row');
+    expect(v).toContain('class="sqlu-empty"');
   });
 
-  it('a section with nothing in it is one compact row, never a panel', () => {
-    expect(fnBody('_tfMkNoneHtml')).toContain('mk-none');
-    expect(CSS).toMatch(/\.mk-none\{[^}]*padding:9px 12px/);
-    // a section with nothing in it is not drawn at all unless it is the lane
-    // that was asked for, and then it is one line
-    expect(m).toContain("lane === 'offered'");
-    expect(m).toContain("lane === 'auctions'");
-    expect(m).toContain(": ''");
-  });
-
-  it('more than fits is expanded inline, never on another page', () => {
-    expect(fnBody('_tfMarketOneHtml')).toContain('data-tf-mall');
-    expect(APP).toContain("data-tf-mall]'))");
-    ['auc', 'o2c', 'om', 'act', 'done'].forEach((k) => expect(APP).toContain(`mk === '${k}'`));
-  });
-
-  it('activity is a collapsible panel showing five, not a page', () => {
-    const a = fnBody('_tfMkActivityHtml');
-    expect(a).toContain('_TF_MK.actOpen');
-    expect(a).toContain('rows.slice(0, 5)');
-    expect(a).toContain('data-tf-mact');
-  });
-
-  it('completed transfers are Player | From | To | Fee | Date, five to begin with', () => {
-    const c = fnBody('_tfMkCompletedHtml');
-    ['<span>Player</span>', '<span>From</span>', '<span>To</span>', '<b>Fee</b>', '<em>Date</em>']
-      .forEach((x) => expect(c).toContain(x));
-    expect(c).toContain('deals.slice(0, 5)');
-    expect(c).toContain("data-tf-mall=\"done\"");
+  it('and every row is a .sqlu-row with Lineup\'s badges', () => {
+    const m = fnBody('_tfLuMarket');
+    expect(m).toContain('class="sqlu-row sqlu-row--');
+    expect(m).toContain('_tfLuPos(');
+    expect(m).toContain('_tfLuQual(');
+    expect(m).toContain('_tfLuId(');
+    expect(m).toContain('_tfLuNat(');
+    expect(fnBody('_tfLuPos')).toContain('sqlu-pos sqlu-pos--cat-');
+    expect(fnBody('_tfLuQual')).toContain('sqlu-qual sqlu-qual--');
+    expect(fnBody('_tfLuId')).toContain('sqlu-av');
+    expect(fnBody('_tfLuNat')).toContain('sqlu-nat');
+    expect(fnBody('_tfLuActs')).toContain('sqlu-acts');
   });
 });
 

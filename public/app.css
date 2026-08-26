@@ -10155,6 +10155,12 @@ body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
    became unreachable. Declared once, for every pane in the module, so a tab
    added later cannot reintroduce it. */
 #pg-transfers .tf-pane{ overflow-y:auto; overflow-x:hidden; min-height:0; }
+/* The one scrolling region. The header, the mode tabs, the summary cards and
+   the filters are fixed furniture; the body below them scrolls, and it is the
+   only thing that does — so the last row of the table is always reachable and
+   nothing sits behind the task bar. */
+#pg-transfers .tf-body{ overflow-y:auto; overflow-x:hidden; min-height:0; padding:0 20px 28px; }
+#pg-transfers .tf-body > :last-child{ scroll-margin-bottom:20px; }
 #pg-transfers .tf-pane--split{ overflow:hidden; }
 #pg-transfers .tf-pane--split > *{ min-height:0; }
 #pg-transfers .tf-pane--split .tf-pane-main{ overflow-y:auto; min-height:0; }
@@ -13878,40 +13884,121 @@ body.club-theme .topbar-titles{ min-width:0; }
 #pg-transfers .tfr > span{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
 #pg-transfers .tfr-a{ overflow:visible; flex:none; }
 
-/* ══ TRANSFERS · ONE SCREEN ═══════════════════════════════════════════════
-   The module used to be four workspaces over fourteen views. It is one pane
-   under one filter bar, and the bar works the way the Squad's ALL | GK | DEF |
-   MID | FWD works: the chips switch what the pane holds, they do not navigate.
+/* ══ TRANSFERS · THE LINEUP SHELL ════════════════════════════════════════
+   Transfers is built on Squad → Lineup and reuses its classes rather than
+   resembling them: .sq-sub-header / .sql-tabs for the four modes, .sqlu-dash
+   for the metric row, .sqlu-meta + .sqlu-filters + .sqlu-seg for the toolbar,
+   and .sqlu-tablewrap / .sqlu-table / .sqlu-row for the table.
 
-   Everything below is presentation, in the module's own tokens. */
-#pg-transfers .tf-lanes{
-  flex:none; display:flex; flex-wrap:wrap; gap:6px;
-  padding:0 0 10px; margin-bottom:2px; border-bottom:1px solid var(--tf-line);
+   Lineup itself is untouched. Everything here is scoped under #pg-transfers,
+   so it can only ever adjust those classes inside this module: the seven
+   metric cards instead of nine, and the columns this table has that the
+   Squad's does not. */
+#pg-transfers .tf-sub-header{ flex:none; padding:10px 20px 0; }
+#pg-transfers .tf-sub-header .sql-tabs{ margin-top:0; }
+
+/* seven cards, not nine */
+#pg-transfers .sqlu-dash{ grid-template-columns:repeat(7,minmax(0,1fr)); margin-bottom:0; }
+@media (max-width:1200px){ #pg-transfers .sqlu-dash{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media (max-width:760px){ #pg-transfers .sqlu-dash{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+/* The wrap is the one scrolling region: the header, the tabs, the summary and
+   the filters stay put, and the table takes the rest. */
+#pg-transfers .tf-lu{ padding:0; display:flex; flex-direction:column; min-height:0; }
+#pg-transfers .tf-lu .sqlu-meta{ flex:none; margin-bottom:9px; }
+#pg-transfers .tf-lu .sqlu-filters{ flex:none; margin-bottom:10px; }
+#pg-transfers .tf-lu-tablewrap{ flex:1 1 auto; min-height:0; overflow:visible; }
+#pg-transfers .tf-lu .sqlu-seg{ display:inline-flex; align-items:center; gap:6px; }
+#pg-transfers .tf-lu-n{ font-style:normal; font-size:10px; font-weight:700; opacity:.62; }
+#pg-transfers .sqlu-seg.is-active .tf-lu-n{ opacity:.8; }
+
+/* the columns this table has that the Squad's does not */
+/* A fixed layout so twelve columns share the width predictably rather than
+   the browser giving one of them everything. Each is wide enough for its own
+   header, and only the two elastic ones give way. */
+#pg-transfers .sqlu-table{ table-layout:fixed; }
+#pg-transfers .sqlu-table thead th,
+#pg-transfers .sqlu-table tbody td{ overflow:hidden; text-overflow:ellipsis; }
+/* the action column must not clip its own buttons */
+#pg-transfers .sqlu-table tbody td.tf-lu-c-act{ overflow:visible; }
+/* The position badge is 34px wide with its own padding, and the cell adds
+   24px more; anything narrower clips it into an ellipsis. */
+#pg-transfers .sqlu-th-pos, #pg-transfers .sqlu-c-pos{ width:78px; }
+#pg-transfers .sqlu-c-pos{ overflow:visible; }
+#pg-transfers .sqlu-th-name, #pg-transfers .sqlu-c-name{ width:16%; min-width:158px; }
+#pg-transfers .tf-lu-c-club{ width:13%; }
+#pg-transfers .sqlu-id-nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .sqlu-c-nat{ width:74px; }
+#pg-transfers .sqlu-c-age{ width:50px; }
+#pg-transfers .sqlu-c-qual{ width:104px; }
+#pg-transfers .tf-lu-c-m{ width:92px; }
+#pg-transfers .tf-lu-c-n{ width:58px; }
+#pg-transfers .tf-lu-c-club{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#pg-transfers .tf-lu-c-m{ font-variant-numeric:tabular-nums; white-space:nowrap; }
+#pg-transfers .tf-lu-c-bid{ color:var(--tf-champagne,#4ade80); font-weight:700; }
+#pg-transfers .tf-lu-c-n{ font-variant-numeric:tabular-nums; }
+#pg-transfers .tf-lu-c-t{
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-size:12px; color:#8a94a6;
 }
-#pg-transfers .tf-lane{
-  display:inline-flex; align-items:center; gap:7px; height:30px; padding:0 13px;
-  border-radius:999px; cursor:pointer; font:inherit;
-  font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-  background:var(--tf-info); border:1px solid var(--tf-line2); color:var(--tf-ink2);
+#pg-transfers .tf-lu-th-act, #pg-transfers .tf-lu-c-act{ width:206px; text-align:right; }
+/* Contract and Time left carry short strings; they do not need the width the
+   money columns do. */
+#pg-transfers .tf-lu-c-t{ width:100px; }
+#pg-transfers .tf-lu-clock{ font-variant-numeric:tabular-nums; font-weight:700; color:#8a94a6; }
+#pg-transfers .tf-lu-clock.is-hot{ color:#fbbf24; }
+#pg-transfers .sqlu-id{ cursor:pointer; }
+
+/* the state badge, in the Squad's own badge language */
+#pg-transfers .tf-lu-st{
+  display:inline-flex; align-items:center; height:22px; padding:0 7px; border-radius:6px;
+  font-size:9.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:#9aa6ba;
+  white-space:nowrap;
+}
+#pg-transfers .tf-lu-st--auc{ background:rgba(251,191,36,.15); border-color:rgba(251,191,36,.4); color:#fbbf24; }
+#pg-transfers .tf-lu-st--lead,
+#pg-transfers .tf-lu-st--sale,
+#pg-transfers .tf-lu-st--open{ background:rgba(52,211,153,.14); border-color:rgba(52,211,153,.36); color:#6ee7b7; }
+#pg-transfers .tf-lu-st--o2c{ background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.34); color:#7dd3fc; }
+#pg-transfers .tf-lu-st--act{ background:rgba(244,183,64,.16); border-color:rgba(244,183,64,.45); color:#f4b740; }
+#pg-transfers .tf-lu-st--neg{ background:rgba(167,139,250,.14); border-color:rgba(167,139,250,.36); color:#c4b5fd; }
+#pg-transfers .tf-lu-st--own{ background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.16); color:#cbd5e1; }
+#pg-transfers .tf-lu-st--done{ background:rgba(52,211,153,.1); border-color:rgba(52,211,153,.26); color:#6ee7b7; }
+#pg-transfers .tf-lu-st--gone{ background:rgba(244,63,94,.12); border-color:rgba(244,63,94,.3); color:#fb7185; }
+
+/* The row's actions, in the Squad's own .sqlu-acts rail — but always on.
+   In Lineup the rail is a hover affordance over the last cell; here the
+   actions ARE the row's purpose (Bid, Make Offer, Respond), so they occupy
+   their own column and are readable without hovering. */
+#pg-transfers .sqlu-acts,
+#pg-transfers .sqlu-row:hover .sqlu-acts{
+  position:static; right:auto; top:auto; transform:none;
+  display:flex; gap:5px; justify-content:flex-end; align-items:center;
+  opacity:1; visibility:visible; pointer-events:auto;
+  background:none; border:none; box-shadow:none; padding:0; border-radius:0;
+}
+#pg-transfers .tf-lu-b{
+  appearance:none; height:24px; padding:0 9px; border-radius:7px; cursor:pointer;
+  font:inherit; font-size:10px; font-weight:750; white-space:nowrap;
+  border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:#cbd5e1;
   transition:background .13s ease, border-color .13s ease, color .13s ease;
 }
-#pg-transfers .tf-lane:hover{ color:var(--tf-ink); border-color:var(--tf-line2); }
-#pg-transfers .tf-lane em{
-  font-style:normal; font-size:9.5px; font-weight:750; letter-spacing:0; opacity:.6;
-}
-#pg-transfers .tf-lane.is-on{
-  background:var(--tf-acc-16); border-color:var(--tf-acc-42); color:var(--tf-ink);
-}
-#pg-transfers .tf-lane.is-on em{ opacity:.9; }
-#pg-transfers .tf-lane:focus-visible{ outline:2px solid var(--tf-acc); outline-offset:2px; }
-@media (max-width:1100px){
-  #pg-transfers .tf-lane{ height:27px; padding:0 10px; font-size:9.5px; }
-}
+#pg-transfers .tf-lu-b:hover{ background:rgba(255,255,255,.09); border-color:rgba(255,255,255,.22); color:#f1f5f9; }
+#pg-transfers .tf-lu-b--go{ background:rgba(52,211,153,.16); border-color:rgba(52,211,153,.45); color:#6ee7b7; }
+#pg-transfers .tf-lu-b--go:hover{ background:rgba(52,211,153,.26); color:#a7f3d0; }
+#pg-transfers .tf-lu-b--auc{ background:rgba(251,191,36,.16); border-color:rgba(251,191,36,.45); color:#fbbf24; }
+#pg-transfers .tf-lu-b--auc:hover{ background:rgba(251,191,36,.26); color:#fcd34d; }
+#pg-transfers .tf-lu-b--star{ width:26px; padding:0; font-size:12px; }
+#pg-transfers .tf-lu-b--star.is-on{ color:#f4b740; border-color:rgba(244,183,64,.5); background:rgba(244,183,64,.14); }
 
-/* The lanes that stack several sections read as one list, not as a column of
-   separate panels — a section is a heading and its rows, with air between. */
-#pg-transfers .tfb-pane{ display:flex; flex-direction:column; gap:14px; min-height:0; }
-#pg-transfers .tfb-pane > .tfb:first-child{ margin-top:0; }
+@media (max-width:1400px){
+  #pg-transfers .tf-lu-th-act, #pg-transfers .tf-lu-c-act{ width:180px; }
+  #pg-transfers .tf-lu-b{ padding:0 7px; font-size:9.5px; }
+}
+@media (max-width:1300px){
+  #pg-transfers .sqlu-table tbody td, #pg-transfers .sqlu-table thead th{ padding-left:8px; padding-right:8px; }
+}
 
 /* ══ THE MARKET · one screen ══════════════════════════════════════════════
    Four boards on one page. The screen is a column of named sections inside

@@ -38,43 +38,77 @@ function fnBody(name: string) {
 
 const OLD_VIEWS = ['auctions', 'feed', 'offers', 'needs', 'activity', 'scouting', 'assistant'];
 
-describe('Transfers is one screen', () => {
-  it('the filter bar names its seven lanes, in order', () => {
-    const m = APP.match(/var TF_LANES = \[[\s\S]*?\];/);
+describe('Transfers is built on the Squad → Lineup shell', () => {
+  it('the four modes are named, in order', () => {
+    const m = APP.match(/var TF_MODES = \[[\s\S]*?\];/);
     expect(m).toBeTruthy();
-    ['all', 'market', 'auctions', 'offered', 'scouting', 'business', 'mine']
-      .forEach((k) => expect(m![0]).toContain(`'${k}'`));
-    ['All', 'Market', 'Auctions', 'Offered to clubs', 'Scouting', 'Club business', 'My transfers']
-      .forEach((k) => expect(m![0]).toContain(`'${k}'`));
+    ['market', 'scouting', 'business', 'mine'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
+    ['Market', 'Scouting', 'Club Business', 'My Transfers'].forEach((k) => expect(m![0]).toContain(`'${k}'`));
   });
 
-  it('and every view key the module has ever set lands in one of them', () => {
-    const lanes = APP.match(/var TF_VIEW_LANE = \{[\s\S]*?\};/)![0];
+  it('and they are drawn in Lineup\'s own sub-header, with Lineup\'s own tabs', () => {
+    const f = fnBody('_tfSubSwitchHtml');
+    expect(f).toContain('sq-sub-header');
+    expect(f).toContain('class="sql-tabs"');
+    expect(f).toContain('class="sql-tab is-active"');
+    expect(f).toContain('TF_MODES.map');
+  });
+
+  it('every view key the module has ever set lands in one of the four', () => {
+    const map = APP.match(/var TF_VIEW_MODE = \{[\s\S]*?\};/)![0];
     OLD_VIEWS.concat(['open', 'biz-in', 'biz-out', 'biz-needs', 'biz-interest',
       'mt-action', 'mt-neg', 'mt-sent', 'mt-auc', 'mt-done'])
-      .forEach((v) => expect(lanes).toMatch(
-        new RegExp(`'?${v}'?:\\s*'(all|market|auctions|offered|scouting|business|mine)'`)));
+      .forEach((v) => expect(map).toMatch(
+        new RegExp(`'?${v}'?:\\s*\\['(market|scouting|business|mine)'`)));
   });
 
-  it('which lane is on screen is derived from the view, never stored beside it', () => {
-    expect(fnBody('_tfLane')).toContain('TF_VIEW_LANE[_TF.tab]');
-    expect(APP).not.toMatch(/_TF\.lane\s*=/);
+  it('which mode is on screen is derived from the view, never stored beside it', () => {
+    // Named _tfWsMode because _tfMode(p) already exists and answers a
+    // different question — the two must not collide.
+    expect(fnBody('_tfWsMode')).toContain('TF_VIEW_MODE[_TF.tab]');
+    expect(APP).toContain("function _tfMode(p) { return p.listing === 'auction'");
+    expect(APP).not.toMatch(/_TF\.mode\s*=/);
   });
 
-  it('there is no second switch anywhere — the bar IS the navigation', () => {
-    const f = fnBody('_tfSubSwitchHtml');
-    expect(f).toContain('TF_LANES.map');
-    expect(f).toContain('data-tf-tab="');
-    // the workspace nav the header used to draw is gone
-    expect(fnBody('_tfHeaderHtml')).not.toContain('tf-wsnav');
-    expect(fnBody('_tfHeaderHtml')).not.toContain('data-tf-ws=');
+  it('each mode carries its own chips, and they filter one table', () => {
+    const c = APP.match(/var TF_CHIPS = \{[\s\S]*?\n\};/)![0];
+    ['Open Market', 'Auctions', 'Offered to Clubs', 'Shortlisted'].forEach((x) => expect(c).toContain(x));
+    ['Our Needs', 'Clubs Looking', 'They Want Our Players', 'Offers In', 'Offers Out']
+      .forEach((x) => expect(c).toContain(x));
+    ['Needs My Answer', 'Negotiations', 'My Listings', 'Completed', 'Rejected / Withdrawn']
+      .forEach((x) => expect(c).toContain(x));
+    // one table, whichever chip is on
+    const v = fnBody('_tfViewHtml');
+    expect((v.match(/sqlu-tablewrap/g) || []).length).toBe(1);
+    expect(v).toContain('_tfTableData(C, mode, chip)');
   });
 
-  it('a lane switch writes the body and the bar, never the shell', () => {
+  it('the metric row is Lineup\'s .sqlu-dash, and carries the seven figures', () => {
+    const h = fnBody('_tfHeaderHtml');
+    expect(h).toContain('class="sqlu-dash"');
+    expect(h).toContain('sqlu-stat sqlu-stat--');
+    expect(h).toContain('sqlu-stat-l');
+    expect(h).toContain('sqlu-stat-v');
+    ['Transfer budget', 'Committed', 'Available', 'Active negotiations',
+     'Shortlisted', 'Live listings', 'Active needs'].forEach((k) => expect(h).toContain(`'${k}'`));
+  });
+
+  it('and Lineup itself is not touched — only its classes are scoped in', () => {
+    // every adjustment lives under #pg-transfers
+    const block = CSS.slice(CSS.indexOf('TRANSFERS · THE LINEUP SHELL'));
+    const end = block.indexOf('THE MARKET · one screen');
+    const b = end > 0 ? block.slice(0, end) : block;
+    b.split('\n').filter((l) => /^\s*\.sq/.test(l))
+      .forEach((l) => { throw new Error('unscoped Squad selector: ' + l); });
+    expect(b).toContain('#pg-transfers .sqlu-dash');
+  });
+
+  it('a mode switch writes the body and the tabs, never the shell', () => {
     const g = fnBody('_tfGoView');
     expect(g).toContain('_tfRenderBody()');
     expect(g).toContain('_tfSyncSwitches()');
     expect(g).not.toContain('renderTransfersPage()');
+    expect(fnBody('_tfSyncSwitches')).toContain("classList.toggle('is-active'");
   });
 });
 
@@ -84,15 +118,17 @@ describe('nothing underneath was rewritten', () => {
     // Club business and My transfers are now sectioned, so the two boards they
     // used to be single pages of are drawn by their own builders; every other
     // view still renders through exactly the builder it always did.
-    ['_tfScoutingHtml', '_tfMarketOneHtml', '_tfBizAllHtml', '_tfMineAllHtml']
-      .forEach((b) => expect(f).toContain(b));
+    ['_tfLuScouting', '_tfLuBusiness', '_tfLuMine', '_tfLuMarket']
+      .forEach((b) => expect(fnBody('_tfTableData')).toContain(b));
     // the assistant's builder is still called, from inside scouting
     expect(fnBody('_tfScoutingHtml')).toContain('_tfAssistantHtml(C)');
     // the new builders draw from the module's own reads, computing nothing new
-    // The market draws from the four reads the module already makes, and
-    // computes nothing of its own beyond the shape they share.
-    ['_tfOMLoad()', '_tfO2CLoadBoard()', '_tfAucLoad()', '_tfNegLoadFeed()',
-     '_tfNegLoadMarketCompleted()'].forEach((r) => expect(fnBody('_tfMarketOneHtml')).toContain(r));
+    // The table draws from the reads the module already makes, and computes
+    // nothing of its own beyond the shape they share.
+    ['_tfOMLoad()', '_tfO2CLoadBoard()', '_tfAucLoad()']
+      .forEach((r) => expect(fnBody('_tfLuMarket')).toContain(r));
+    ['_tfNegLoadActivity()', '_tfNegLoadNeeds()'].forEach((r) => expect(fnBody('_tfLuBusiness')).toContain(r));
+    ['_tfNegLoadActivity()', '_tfNegLoadDeals()'].forEach((r) => expect(fnBody('_tfLuMine')).toContain(r));
     expect(fnBody('_tfMkAuctions')).toContain('_TF_AUC.items');
     expect(fnBody('_tfMkOpen')).toContain('_TF_OM.board');
     expect(fnBody('_tfMkLots')).toContain('_TF_SERVER_LOTS');
@@ -248,15 +284,17 @@ describe('changing what is on screen does not rebuild the screen', () => {
 
   it('the switches are class toggles, so no element is replaced', () => {
     const f = fnBody('_tfSyncSwitches');
-    expect(f).toContain("classList.toggle('is-on'");
+    expect(f).toContain("classList.toggle('is-active'");
     expect(f).not.toContain('innerHTML');
   });
 
-  it('and a workspace click opens that workspace\'s first view', () => {
-    const wire = APP.slice(APP.indexOf("if ((el = t.closest('[data-tf-ws]')))"),
-                           APP.indexOf("if ((el = t.closest('[data-tf-ws]')))") + 400);
-    expect(wire).toContain('_tfWsViews(');
-    expect(wire).toContain('_tfGoView(_wsv[0])');
+  it('and a mode click switches the mode without leaving the workspace', () => {
+    const at = APP.indexOf("if ((el = t.closest('.sql-tab[data-tf-tab]')))");
+    expect(at).toBeGreaterThan(0);
+    const wire = APP.slice(at, at + 460);
+    expect(wire).toContain('_tfRenderBody()');
+    expect(wire).toContain('_tfSyncSwitches()');
+    expect(wire).not.toContain('renderTransfersPage()');
   });
 });
 
@@ -265,8 +303,10 @@ describe('the header is compact and premium, and the yellow is gone', () => {
     const f = fnBody('_tfHeaderHtml');
     expect(f).toContain('<h1>Transfers</h1>');
     expect(f).toContain('State.club && State.club.name');
-    ["cell('Transfer budget'", "cell('Committed'", "cell('Available'",
-     "cell('Active negotiations'", "cell('Shortlisted'"].forEach((c) => expect(f).toContain(c));
+    // the figures are now stated in Lineup's own metric cards
+    ["stat('Transfer budget'", "stat('Committed'", "stat('Available'",
+     "stat('Active negotiations'", "stat('Shortlisted'", "stat('Live listings'",
+     "stat('Active needs'"].forEach((c) => expect(f).toContain(c));
     // the destination selector is kept, compactly
     expect(f).toContain('teamSel');
   });

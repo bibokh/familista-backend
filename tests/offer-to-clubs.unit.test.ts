@@ -167,14 +167,14 @@ describe('the routes are guarded like the actions beside them', () => {
 });
 
 describe('the browser surface', () => {
-  it('Market carries Offered to Clubs as a section of its one screen', () => {
-    // The four boards became one screen, so this is a section of the market
-    // rather than a page beside it — and the 'offered' key still resolves.
-    expect(APP).toMatch(/\['offered',\s+'Offered to clubs'/);
-    expect(APP).toMatch(/offered: 'offered'/);
-    const m = fnBody(APP, '_tfMarketOneHtml');
+  it('Offered to Clubs is a chip of the Market table', () => {
+    const c = APP.match(/var TF_CHIPS = \{[\s\S]*?\n\};/)![0];
+    expect(c).toContain("'Offered to Clubs'");
+    expect(APP).toMatch(/offered: \['market', 'offered'\]/);
+    const m = fnBody(APP, '_tfLuMarket');
+    expect(m).toContain("chip === 'offered'");
     expect(m).toContain('_tfMkOffered()');
-    expect(m).toContain("'Offered to your club'");
+    expect(m).toContain("'Minimum'");
     expect(fnBody(APP, '_tfMkOffered')).toContain('_TF_O2C.board');
   });
 
