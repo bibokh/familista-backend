@@ -10,6 +10,7 @@ import { BadRequestError } from '../utils/errors';
 import { rateLimitStats } from '../middleware/rate-limit.middleware';
 import { nonceCacheStats } from '../security/device-nonce.service';
 import type { AIApprovalStatus, SecurityEventKind, SecuritySeverity } from '@prisma/client';
+import { queryCounter } from '../config/database';
 
 const KINDS: SecurityEventKind[] = ['LOGIN_SUCCESS','LOGIN_FAILED','LOGIN_LOCKED','TENANT_MISMATCH','RATE_LIMITED','SUSPICIOUS_PAYLOAD','DEVICE_REJECTED','DEVICE_REPLAY','DEVICE_TS_SKEW','PROMPT_INJECTION_SUSPECT','UNAUTHORIZED_AI_ATTEMPT','AUDIT_CHAIN_VERIFIED','AUDIT_CHAIN_BROKEN','APPROVAL_REQUESTED','APPROVAL_GRANTED','APPROVAL_REJECTED','APPROVAL_EXPIRED','CUSTOM'];
 const SEV:   SecuritySeverity[]  = ['INFO','WARN','CRITICAL'];
@@ -198,6 +199,9 @@ export async function securityHealth(_req: Request, res: Response, next: NextFun
     return sendSuccess(res, {
       rate:  rateLimitStats(),
       nonce: nonceCacheStats(),
+      // Only meaningful when PRISMA_QUERY_COUNT=1; otherwise it stays at zero
+      // and costs nothing.
+      dbQueries: queryCounter.n,
       ts:    Date.now(),
     });
   } catch (err) { return next(err); }

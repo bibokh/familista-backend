@@ -8,6 +8,7 @@ import { Prisma, MembershipAuditAction } from '@prisma/client';
 import { prisma } from '../config/database';
 import { ForbiddenError, BadRequestError } from '../utils/errors';
 import { getActiveMembershipsForUser, hasActiveMembership } from './membership.service';
+import { forgetIdentity } from '../middleware/auth.middleware';
 
 export async function getContext(userId: string) {
   const [user, memberships] = await Promise.all([
@@ -131,6 +132,11 @@ export async function switchContext(
       },
     });
   });
+
+  // The club a user is acting for is part of their identity, and the very next
+  // request will be scoped by it. It must not be answered from the club they
+  // just switched away from.
+  forgetIdentity(actor.userId);
 
   return getContext(actor.userId);
 }

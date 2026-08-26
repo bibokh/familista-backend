@@ -58,6 +58,17 @@ export class MemoryRateLimitStore implements RateLimitStore {
     return true;
   }
 
+  /** Is there a token left, without spending one? See RateLimitStore.peek. */
+  peek(key: string, capacity: number, refillMs: number): boolean {
+    const b = this.buckets.get(key);
+    if (!b) return true;                       // an untouched bucket is full
+    const elapsed = Date.now() - b.lastRefillMs;
+    const tokens = elapsed > 0
+      ? Math.min(capacity, b.tokens + (elapsed / refillMs) * capacity)
+      : b.tokens;
+    return tokens >= 1;
+  }
+
   /** Diagnostic helper for ops endpoints. */
   get size(): number {
     return this.buckets.size;

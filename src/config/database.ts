@@ -23,6 +23,14 @@ export const prisma: PrismaClient =
 // A pool limit only means something if there is one pool.
 global.__prisma = prisma;
 
+// A counter, so the cost of a request cycle can be measured rather than
+// guessed. Off unless PRISMA_QUERY_COUNT is set, because counting every query
+// in production is itself a cost.
+export const queryCounter = { n: 0 };
+if (process.env.PRISMA_QUERY_COUNT === '1') {
+  prisma.$on('query' as never, () => { queryCounter.n++; });
+}
+
 prisma.$on('error' as never, (e: unknown) => {
   logger.error('Prisma error', { error: e });
 });

@@ -213,7 +213,7 @@ describe('the cold board paints from what is already in flight', () => {
 
 describe('no module loads another module\'s data', () => {
   it('the player market no longer reads the staff market on the way past', () => {
-    const f = APP.slice(APP.indexOf('async function _tfSyncAll()'), APP.indexOf('window._tfSyncAll'));
+    const f = APP.slice(APP.indexOf('async function _tfSyncAllNow()'), APP.indexOf('window._tfSyncAll'));
     expect(f).not.toContain('_stSyncAll()');
     // and the player market's own reads are untouched
     ['_tfSyncServerMarket()', '_tfSyncMyListings()', '_tfSyncBalance()', '_tfNotifLoad()',

@@ -249,10 +249,24 @@ describe('nothing underneath was rewritten', () => {
   });
 
   it('the market reads exactly the endpoints it read before', () => {
-    const f = fnBody('_tfSyncAll');
+    // The reads live in _tfSyncAllNow; _tfSyncAll is the coalescing wrapper in
+    // front of it, so the same nine reads happen once rather than once per
+    // entry into the module.
+    const f = fnBody('_tfSyncAllNow');
     ['_tfSyncServerMarket()', '_tfSyncMyListings()', '_tfSyncBalance()', '_tfNotifLoad()',
      '_tfScoutLoadShortlist()', '_tfDeskLoad()', '_tfNegLoadNeeds()', '_tfNegLoadActivity()',
      '_tfAucLoad()'].forEach((q) => expect(f).toContain(q));
+  });
+
+  it('and that hydration is coalesced, so re-entering does not re-fire it', () => {
+    const w = fnBody('_tfSyncAll');
+    expect(w).toContain('_TF_SYNC.run');
+    expect(w).toContain('TF_SYNC_FRESH_MS');
+    expect(w).toContain('_tfSyncAllNow()');
+    // a write still forces a real re-read — that is the case where the held
+    // answer is exactly the wrong one
+    expect(w).toContain('opts.force');
+    expect(APP).toContain('_tfSyncAll({ force: true })');
   });
 
   it('and every action the board offers is still wired', () => {

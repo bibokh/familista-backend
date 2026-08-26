@@ -11,6 +11,7 @@ import { config } from './config';
 import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
+import { edgeIdentity } from './middleware/rate-limit.middleware';
 import routes from './routes';
 
 // ── credentials that travel in a query string ────────────────────────────────
@@ -129,19 +130,52 @@ export function createApp(): express.Application {
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 
-  // ── Global rate limiter
+  // ── Trust proxy (for Railway / Render / Vercel)
+  // Set BEFORE any limiter, so req.ip is the client rather than the proxy.
+  app.set('trust proxy', 1);
+
+  // ── Edge abuse guard
+  //
+  // This used to be a blanket 100-requests-per-15-minutes-per-IP limiter across
+  // every route, static asset and health probe. One developer's normal session —
+  // login, Clubs, open a club, walk the modules — is about sixty API calls, so
+  // two laps exhausted a fifteen-minute budget and normal navigation answered
+  // 429. It also counted every user behind one office NAT against one bucket.
+  //
+  // The real limiting is the three-tier IP/user/tenant bucket in
+  // rate-limit.middleware, which knows who is asking. What stays here is only
+  // the thing that layer cannot do: stop a flood before it reaches the router,
+  // at a volume no human interface produces. It skips health probes and
+  // anything that is not an API call, because a page load is not abuse.
+  const EDGE_WINDOW_MS = parseInt(process.env.RATE_EDGE_WINDOW_MS ?? '60000', 10);
+  const EDGE_MAX       = parseInt(process.env.RATE_EDGE_MAX       ?? '1200',  10);
   app.use(
     rateLimit({
-      windowMs: config.rateLimit.windowMs,
-      max: config.rateLimit.max,
+      windowMs: EDGE_WINDOW_MS,
+      max: EDGE_MAX,
       standardHeaders: true,
       legacyHeaders: false,
-      message: { success: false, message: 'Too many requests, please try again later' },
+      // Keyed by who is asking, not by where they are asking from. An address
+      // is the only identity anonymous traffic has, but once a request carries
+      // a session the address is a poor key: fifty colleagues in one building
+      // share one public IP, and keying on it makes the size of an office a
+      // scaling limit. `edgeIdentity` returns the token's subject when there
+      // is a valid one and the address otherwise.
+      keyGenerator: edgeIdentity,
+      skip: (req) => !req.path.startsWith('/api/')
+        || req.path === '/api/health'
+        || req.path === '/api/v1/health',
+      handler: (req, res) => {
+        const retryAfterSec = Math.ceil(EDGE_WINDOW_MS / 1000);
+        res.setHeader('Retry-After', String(retryAfterSec));
+        res.status(429).json({
+          success: false,
+          message: 'Too many requests, please try again later',
+          retryAfterSec,
+        });
+      },
     })
   );
-
-  // ── Trust proxy (for Railway / Render / Vercel)
-  app.set('trust proxy', 1);
 
   // ── Cold-start / liveness probes (no auth, no body)
   // Two paths for resilience: /api/health (frontend ping) + /healthz (Render).

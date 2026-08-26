@@ -187,9 +187,27 @@ const FamilistaAPI = (function () {
     });
   }
 
+  // Requests belong to the screen that asked for them. Leaving a module while
+  // its hydration is still in flight used to leave those requests running: the
+  // server finished work nobody would read, and a manager clicking through four
+  // modules had four modules' worth of reads racing each other. Navigation
+  // bumps the generation and aborts what the previous screen was waiting on.
+  // Only cancellable reads are enrolled — a write is never abandoned midway.
+  let _gen = 0;
+  const _live = new Set();
+  function newGeneration() {
+    _gen++;
+    const doomed = Array.from(_live);
+    _live.clear();
+    doomed.forEach(function (c) { try { c.abort(); } catch (_) {} });
+    return _gen;
+  }
+
   async function rawFetch(method, url, opts) {
     opts = opts || {};
     const controller = new AbortController();
+    const cancellable = method === 'GET' && opts.cancelOnNav !== false && opts.auth !== false;
+    if (cancellable) _live.add(controller);
     const headers = Object.assign(
       { 'Accept': 'application/json' },
       opts.body !== undefined && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {},
@@ -218,6 +236,8 @@ const FamilistaAPI = (function () {
       const apiErr = mapApiError(err, { url });
       netLog('err', { code: apiErr.code, method, url, message: apiErr.message });
       throw apiErr;
+    } finally {
+      if (cancellable) _live.delete(controller);
     }
 
     const dt = Date.now() - started;
@@ -259,11 +279,51 @@ const FamilistaAPI = (function () {
     return _refreshing;
   }
 
-  async function request(method, urlOrPath, opts) {
-    opts = opts || {};
-    const url = /^https?:/.test(urlOrPath) ? urlOrPath : (FAM_CONFIG.API_BASE + (urlOrPath.startsWith('/') ? '' : '/') + urlOrPath);
+  // ── in-flight deduplication and a short read cache ──────────────────────
+  //
+  // Several modules legitimately want the same read at the same moment — the
+  // header wants the balance, so does the market; two panels both want the
+  // club's teams. Each was its own request, so the server answered the same
+  // question two or three times inside a second and the browser paid for it
+  // twice. A GET that is already in flight is now joined rather than repeated,
+  // and its answer is held for a beat afterwards so a second module opening
+  // immediately behind the first reads what the first already fetched.
+  //
+  // Only GETs, and only reads: a mutation is never shared or replayed, and the
+  // cache is dropped whole on any write and on logout, so nothing can serve a
+  // figure the user has just changed.
+  const _inflight = new Map();     // key → Promise
+  const _cache = new Map();        // key → { at, body }
+  const READ_TTL_MS = 4000;
+
+  function _cacheKey(method, url, opts) {
+    return method + ' ' + url + (opts && opts.auth === false ? ' |anon' : '');
+  }
+  function invalidateReadCache() { _cache.clear(); }
+  function _sweep(now) {
+    if (_cache.size < 64) return;
+    _cache.forEach((v, k) => { if (now - v.at > READ_TTL_MS) _cache.delete(k); });
+  }
+
+  // A 429 is the server saying "not now", not "try harder". Retrying it three
+  // times inside five seconds — which is what a flat backoff over a retryable
+  // 429 did — turns one refused request into three and makes the breach worse.
+  // The wait is the server's own Retry-After when it sent one, and exponential
+  // otherwise, and a request is only ever retried once for a 429.
+  function _waitFor(err, attempt) {
+    if (err.status === 429) {
+      const b = err.body || {};
+      const hinted = Number(b.retryAfterSec) * 1000 || Number(b.retryAfterMs) || 0;
+      // Cap the honoured wait: a minute-long bucket should not freeze the UI.
+      return Math.min(hinted || FAM_CONFIG.RETRY_BACKOFF_MS * Math.pow(2, attempt - 1), 8000);
+    }
+    return FAM_CONFIG.RETRY_BACKOFF_MS * Math.pow(2, attempt - 1);
+  }
+
+  async function attemptRequest(method, url, opts) {
     const retryable = FAM_CONFIG.RETRYABLE_STATUSES;
     const maxAttempts = (opts.noRetry ? 0 : FAM_CONFIG.RETRY_COUNT) + 1;
+    let sawRateLimit = false;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -272,10 +332,15 @@ const FamilistaAPI = (function () {
         // 401 → one transparent refresh attempt
         if (err.status === 401 && !opts._refreshed && opts.auth !== false) {
           const ok = await refreshTokens();
-          if (ok) return request(method, url, Object.assign({}, opts, { _refreshed: true }));
+          if (ok) return attemptRequest(method, url, Object.assign({}, opts, { _refreshed: true }));
         }
 
         const isRetryable = retryable.indexOf(err.status) !== -1 || err.code === 'NETWORK' || err.code === 'TIMEOUT';
+        // One retry for a 429, never more: the second refusal is an answer.
+        if (err.status === 429) {
+          if (sawRateLimit) throw err;
+          sawRateLimit = true;
+        }
         if (!isRetryable || attempt >= maxAttempts) throw err;
 
         // Cold-start banner on first failure
@@ -284,8 +349,8 @@ const FamilistaAPI = (function () {
           BackendHealth.notifyOffline(err);
         }
 
-        const delay = FAM_CONFIG.RETRY_BACKOFF_MS * attempt;
-        netLog('retry', { attempt, total: maxAttempts, delay, method, url });
+        const delay = _waitFor(err, attempt);
+        netLog('retry', { attempt, total: maxAttempts, delay, method, url, status: err.status });
         await sleep(delay);
       }
     }
@@ -293,8 +358,41 @@ const FamilistaAPI = (function () {
     throw new ApiError({ code: 'UNKNOWN', message: 'unreachable' });
   }
 
+  async function request(method, urlOrPath, opts) {
+    opts = opts || {};
+    const url = /^https?:/.test(urlOrPath) ? urlOrPath : (FAM_CONFIG.API_BASE + (urlOrPath.startsWith('/') ? '' : '/') + urlOrPath);
+
+    // A write changes what every read would answer, so the held reads go.
+    if (method !== 'GET') {
+      const out = attemptRequest(method, url, opts);
+      out.then(function () { invalidateReadCache(); }, function () {});
+      return out;
+    }
+    if (opts.fresh) return attemptRequest(method, url, opts);
+
+    const key = _cacheKey(method, url, opts);
+    const now = Date.now();
+    const hit = _cache.get(key);
+    if (hit && now - hit.at < READ_TTL_MS) { netLog('cache', { method, url }); return hit.body; }
+
+    const live = _inflight.get(key);
+    if (live) { netLog('join', { method, url }); return live; }
+
+    const run = attemptRequest(method, url, opts).then(function (body) {
+      _sweep(Date.now());
+      _cache.set(key, { at: Date.now(), body: body });
+      return body;
+    }).finally(function () { _inflight.delete(key); });
+    _inflight.set(key, run);
+    return run;
+  }
+
   return {
     request,
+    invalidateReadCache,
+    newGeneration,
+    inflightCount: () => _inflight.size,
+    liveCount: () => _live.size,
     get:    (path, opts) => request('GET',    path, opts),
     post:   (path, body, opts) => request('POST',   path, Object.assign({ body }, opts || {})),
     put:    (path, body, opts) => request('PUT',    path, Object.assign({ body }, opts || {})),
@@ -540,13 +638,12 @@ async function bootApp() {
             + (_d ? ' (' + _d.step + (_d.status != null ? ' → HTTP ' + _d.status : ' → ' + (_d.code || 'error')) + ')' : ''),
             'error');
         }
-        // Either way. The transfer market belongs to the other clubs and is read
-        // from this session, not from this club's roster — it used to be read
-        // only on the ready branch, so a session that could not lift its own
-        // squad opened Transfers to zeros over a full market. Reading it here
-        // also means the page is drawn once, with its rows already in hand,
-        // rather than painted empty and filled in underneath the manager.
-        if (typeof _tfSyncAll === 'function') _tfSyncAll();
+        // The transfer market is NOT read here any more. Opening a club used
+        // to fire the Transfers module's nine-request hydration whether or not
+        // the manager ever went there — one module loading another's data, and
+        // nine of the requests in a cold entry's burst. Transfers hydrates when
+        // Transfers is opened, and because that hydration is coalesced and
+        // dated, arriving there costs one burst rather than one per entry.
       }
     } catch (_) {}
   }
@@ -821,6 +918,9 @@ async function loadAllData(opts) {
 }
 
 function doLogout() {
+  // Nothing this session read may survive it — the next person to sign in on
+  // this browser must not be answered from the last one's cache.
+  try { FamilistaAPI.invalidateReadCache(); } catch (_) {}
   // POST to /auth/logout: server clears both HttpOnly cookies.
   api('/auth/logout', { method: 'POST' }).catch(() => {});
   // Close any open match WebSocket on logout.
@@ -1703,7 +1803,12 @@ function navTo(page, el, _opts) {
   if (isNavBlocked()) return;
   _navReleaseFocus();
   const _leaving = (document.querySelector('.page.active') || {}).id || '';
-  if (_leaving && _leaving !== 'pg-' + page) _pageDeactivate(_leaving);
+  if (_leaving && _leaving !== 'pg-' + page) {
+    _pageDeactivate(_leaving);
+    // Whatever the screen we are leaving was still waiting on, nobody will
+    // read. Abandoning it frees the connection and the server's work.
+    try { FamilistaAPI.newGeneration(); } catch (_) {}
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
@@ -32089,6 +32194,20 @@ const SquadAPI = {
     return SquadAPI._fetch('DELETE', url);
   },
   async _fetch(method, url, body, _retried) {
+    // Reads go through the shared client, which joins a GET already in flight
+    // and holds its answer for a moment — the Squad and the Lineup ask for the
+    // same roster at the same instant on a cold entry, and that was two
+    // requests for one answer. Writes and the error shape stay exactly as they
+    // were; only the transport for reads is shared.
+    if (method === 'GET' && typeof FamilistaAPI !== 'undefined' && FamilistaAPI.request) {
+      try {
+        return await FamilistaAPI.request('GET', url, {});
+      } catch (e) {
+        const err = new Error((e && (e.userMessage || e.message)) || ('HTTP ' + (e && e.status)));
+        err.status = e && e.status;
+        throw err;
+      }
+    }
     const headers = { 'Accept': 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (State.token) headers['Authorization'] = 'Bearer ' + State.token;
@@ -48686,7 +48805,7 @@ function _tfRetryRoster() {
         _tfDropCtx();
         if (typeof _sqLoad === 'function') { try { _sqLoad(); } catch (_) {} }
       }
-      return _tfSyncAll();
+      return _tfSyncAll({ force: true });
     })
     .catch(function () {});
 }
@@ -54055,7 +54174,7 @@ function _tfDiscAction(action, playerId, listingId) {
       var _lid = el.getAttribute('data-tf-delist');
       el.disabled = true;
       _tfServerDelist(_lid)
-        .then(function () { _tfToast('Listing cancelled', 'info'); return _tfSyncAll(); })
+        .then(function () { _tfToast('Listing cancelled', 'info'); return _tfSyncAll({ force: true }); })
         .then(function () { _tfCloseDetail(); _tfRenderBody(); })
         .catch(function (err) {
           el.disabled = false;
@@ -60524,7 +60643,7 @@ function _tfFormSubmit() {
           return;
         }
         _tfServerList(p, price, { instant: instantSale })
-          .then(function () { return _tfSyncAll(); })
+          .then(function () { return _tfSyncAll({ force: true }); })
           .then(done)
           .catch(function (e) { _tfToast('Listing failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
         return;
@@ -60658,7 +60777,7 @@ function _tfFormSubmit() {
       if (exp) body.expiresAt = exp; else body.durationMinutes = Number(g('[data-om-days]') || 7) * 24 * 60;
       el.disabled = true;
       _tfOMPublish(body)
-        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll()]); })
+        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll({ force: true })]); })
         .then(function () {
           _TF_OM.publish = null; _tfToast('Published to the open market', 'success');
           _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
@@ -60716,7 +60835,7 @@ function _tfFormSubmit() {
       var cid2 = el.getAttribute('data-om-close');
       el.disabled = true;
       _tfOMClose(cid2)
-        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll()]); })
+        .then(function () { return Promise.all([_tfOMLoad(), _tfSyncAll({ force: true })]); })
         .then(function () {
           _TF_OM.drawer = null; _tfToast('Listing closed', 'info');
           _tfRenderOverlay(); if (_TF.tab === 'open') _tfRenderBody();
@@ -60937,7 +61056,7 @@ function _tfFormSubmit() {
           _TF_NEG.offers = {}; _TF_NEG.activity = null;
           // an accepted, rejected or countered offer changes the market too
           _TF_NEG.feed = null; _TF_NEG.marketDeals = null; _TF_NEG.deals = null;
-          return Promise.all([_tfNegLoadActivity(), _tfSyncAll(),
+          return Promise.all([_tfNegLoadActivity(), _tfSyncAll({ force: true }),
             (verb === 'accept' && typeof _thRefresh === 'function') ? _thRefresh() : null]);
         })
         .then(function () { _tfNotifLoad(); _tfRenderOverlay(); _tfRenderBody(); })
@@ -61002,7 +61121,7 @@ function _tfFormSubmit() {
           _TF_AUC.detail = {}; _TF_NEG.feed = null;
           return _tfAucLoad();
         })
-        .then(function () { _tfAucRepaint(); _tfSyncAll(); })
+        .then(function () { _tfAucRepaint(); _tfSyncAll({ force: true }); })
         .catch(function (err) { _tfToast('Could not cancel — ' + ((err && (err.userMessage || err.message)) || 'server refused'), 'error'); });
       return;
     }
@@ -61199,7 +61318,7 @@ function _tfFormSubmit() {
       if (st2.server) {
         _tfServerDelist(st2.listingId).then(function () {
           _tfToast('Listing cancelled', 'info');
-          return _tfSyncAll();
+          return _tfSyncAll({ force: true });
         }).then(function () { _tfSellRepaint(); _tfSellRefreshOwner(C2); })
           .catch(function (e) { _tfToast('Cancel failed — ' + ((e && (e.userMessage || e.message)) || 'server refused'), 'error'); });
         return;
@@ -61786,7 +61905,32 @@ async function _tfSyncBalance() {
   return _TF_SERVER_BALANCE;
 }
 // Everything the Transfers page needs from the server, in one place.
-async function _tfSyncAll() {
+// The market's full hydration is nine parallel reads. It used to run on every
+// entry into Transfers and again from the club bootstrap, so walking into the
+// module twice cost eighteen requests for a market that had not moved, and a
+// manager who never opened Transfers paid for it anyway during cold entry.
+//
+// It is now coalesced and dated: concurrent callers join the run already going,
+// and a caller arriving inside the freshness window is answered by the read
+// that just finished. Every caller's meaning is unchanged — each of them wants
+// "the market is current", and it is. A write still forces a real re-read,
+// because a write is exactly the case where it is not current.
+var _TF_SYNC = { at: 0, run: null };
+var TF_SYNC_FRESH_MS = 15000;
+async function _tfSyncAll(opts) {
+  if (!_tfHasSession()) return;
+  var force = !!(opts && opts.force);
+  if (_TF_SYNC.run) return _TF_SYNC.run;
+  if (!force && Date.now() - _TF_SYNC.at < TF_SYNC_FRESH_MS) {
+    try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
+    return;
+  }
+  _TF_SYNC.run = _tfSyncAllNow().then(function (v) {
+    _TF_SYNC.at = Date.now(); return v;
+  }).finally(function () { _TF_SYNC.run = null; });
+  return _TF_SYNC.run;
+}
+async function _tfSyncAllNow() {
   if (!_tfHasSession()) return;
   // The header states how many needs are open and how many negotiations are
   // live. Both were read only when their own tab was opened, so a manager

@@ -21,6 +21,7 @@ import type { Prisma, UserRole, FranchiseStatus, SubscriptionPlan, SubscriptionS
 import { writePlatformAudit } from '../middleware/admin-rbac.middleware';
 import type { PlatformActor } from '../types/admin.types';
 import { NotFoundError, BadRequestError } from '../utils/errors';
+import { forgetIdentity } from '../middleware/auth.middleware';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared types
@@ -230,6 +231,8 @@ export async function setUserActive(
   if (!before) throw new NotFoundError('User not found');
   if (before.isActive === isActive) return;
   await prisma.user.update({ where: { id: userId }, data: { isActive } });
+  // Deactivation must bite now, not when the identity cache next expires.
+  forgetIdentity(userId);
   await writePlatformAudit({
     adminId: actor.adminId,
     userId: actor.userId,

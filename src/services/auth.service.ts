@@ -11,6 +11,7 @@ import {
   BadRequestError,
 } from '../utils/errors';
 import { logger } from '../utils/logger';
+import { forgetIdentity } from '../middleware/auth.middleware';
 
 export interface TokenPair {
   accessToken: string;
@@ -182,6 +183,7 @@ export async function changePassword(
 
   const hash = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({ where: { id: userId }, data: { passwordHash: hash } });
+  forgetIdentity(userId);
 
   // Revoke all refresh tokens
   await prisma.refreshToken.deleteMany({ where: { userId } });

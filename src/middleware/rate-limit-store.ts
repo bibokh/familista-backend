@@ -54,4 +54,15 @@ export interface RateLimitStore {
    *                  May return a Promise — middleware awaits if needed.
    */
   take(key: string, capacity: number, refillMs: number): boolean | Promise<boolean>;
+
+  /**
+   * Is there a token left, without spending one?
+   *
+   * The credential bucket charges failed sign-ins only, so it has to answer
+   * "is this address still allowed to try" before the attempt is made and
+   * charge afterwards, once the outcome is known. Optional: a store that does
+   * not implement it is treated as always having room, and `take` still
+   * enforces the ceiling.
+   */
+  peek?(key: string, capacity: number, refillMs: number): boolean | Promise<boolean>;
 }

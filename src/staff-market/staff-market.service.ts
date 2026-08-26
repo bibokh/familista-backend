@@ -27,6 +27,7 @@ import {
   fciOf, opportunityOf, momentumOf, momentumBand, isHiddenGem,
   type EmploymentStatusName,
 } from './market-index';
+import { forgetIdentity } from '../middleware/auth.middleware';
 
 export interface StaffActor { userId: string; clubId: string; role?: string }
 
@@ -1342,6 +1343,7 @@ export async function upsertProfile(actor: StaffActor, staffUserId: string, dto:
   const personClean = Object.fromEntries(Object.entries(person).filter(([, v]) => v !== undefined));
   if (Object.keys(personClean).length) {
     await prisma.user.update({ where: { id: staffUserId }, data: personClean });
+    forgetIdentity(staffUserId);
   }
 
   // The contract is the engagement's, not the profile's — a club editing its
