@@ -4243,6 +4243,31 @@ function _sqBuildOpp() {
   oAssign.forEach(function (a) { if (!a.player) return; SQ_OPP_ACTIVE.push(a.player); var pos = { x: a.slot.x, y: Math.max(6, Math.min(72, 98 - a.slot.y)) }; SQ_POS_OPP[a.player.id] = pos; SQ_OPP_ANCHOR[a.player.id] = { x: pos.x, y: pos.y }; SQ_OPP_SLOT[a.player.id] = a.slot; });
 }
 function _sqBuildBoard() { _sqBuildMy(); _sqBuildOpp(); _sqTacBoardRefresh(); } // keeps the Tactical Board in sync whenever the formation/XI changes
+// Is the board unusable — either never built, or built against a roster that
+// has since been replaced?
+//
+// SQ_MY_IDS and SQ_POS_MY are seeded from SQ_DEMO_PLAYERS. When the real squad
+// arrives from the API it REPLACES that array, and the new players carry
+// database UUIDs while the board still holds the seed ids. Nothing rebuilt the
+// board, so every renderer that resolves a starter through _sqP() found
+// nothing and drew a pitch with no players on it.
+//
+// It looked like a drag bug because the cards already on screen were painted
+// before the roster arrived and simply stayed there: the board was already
+// broken, and the drop was just the first thing that asked for a repaint. The
+// Academy is immune because an age group's roster and its starter ids come out
+// of the same store and cannot drift apart.
+//
+// "No starter resolves" is deliberately the whole-board test rather than "any
+// starter fails". A single unresolvable id is a different situation — a player
+// leaving is already handled where he leaves — and rebuilding on it would
+// throw away ten good positions to fix one.
+function _sqBoardStale() {
+  var ids = SQ_MY_IDS || [];
+  if (!ids.length) return true;
+  for (var i = 0; i < ids.length; i++) if (_sqP(ids[i])) return false;
+  return true;
+}
 function _sqMyValid(id) { var p = _sqP(id); var pos = SQ_POS_MY[id]; if (!p || !pos) return true; return _sqNearestAllowedDist(pos.x, pos.y, _sqAllowedZonesAny(p)) <= 13; }
 function _sqOppValid(o) { var pos = SQ_POS_OPP[o.id], an = SQ_OPP_ANCHOR[o.id]; if (!pos || !an) return true; return _sqDist(pos.x, pos.y, an.x, an.y) <= 16; }
 function _sqMyStats(ctx) {
@@ -4367,7 +4392,7 @@ function _sqArrowsLayer() {
     + '</defs>' + paths + '</svg>';
 }
 function _sqPitchHtml() {
-  if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard();
+  if (_sqBoardStale()) _sqBuildBoard();
   var pitch = '<svg class="sqfp-markings" viewBox="0 0 100 150" preserveAspectRatio="none">'
     + '<rect x="2" y="2" width="96" height="146" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="0.5"/>'
     + '<line x1="2" y1="75" x2="98" y2="75" stroke="rgba(255,255,255,.18)" stroke-width="0.5"/>'
@@ -4640,7 +4665,7 @@ function _sqTbCtx() {
 }
 function _sqTbId() { var c = _sqTbCtx(); return c.ctxId || c.teamId || 'first-team'; }
 function _sqTbFirst() { return !_sqTbCtx().ownTacticsStore; }
-function _sqTbIds() { if (_sqTbFirst()) { if (!SQ_MY_IDS || !SQ_MY_IDS.length) _sqBuildBoard(); return SQ_MY_IDS || []; } return _sqTbCtx().starterIds || []; }
+function _sqTbIds() { if (_sqTbFirst()) { if (_sqBoardStale()) _sqBuildBoard(); return SQ_MY_IDS || []; } return _sqTbCtx().starterIds || []; }
 function _sqTbPos() { return _sqTbFirst() ? SQ_POS_MY : (_sqTbCtx().posMy || {}); }
 function _sqTbSlot() { return _sqTbFirst() ? SQ_MY_SLOT : (_sqTbCtx().slotMy || {}); }
 function _sqTbP(id) { return _sqTbFirst() ? _sqP(id) : _sqCtxP(id, _sqTbCtx()); }
@@ -6957,10 +6982,23 @@ function _sqFirstCtx() {
     refreshRoster: function () {
       try {
         var pg = document.getElementById('pg-squad'); if (!pg) return;
+        // The store this board was seated from has just been replaced, so the
+        // board still names players who no longer exist. Reseat it BEFORE
+        // anything repaints from it: every formation surface resolves its
+        // starters through the roster, and against a replaced one they all
+        // resolve to nothing and draw an empty pitch.
+        if (_sqBoardStale() && typeof _sqBuildBoard === 'function') _sqBuildBoard();
         var tb = pg.querySelector('#sq-lineup-tbody');
         if (tb) tb.innerHTML = _sqLineupRows(_sqFirstCtx());
         var dash = pg.querySelector('#sq-lu-dash');
         if (dash) dash.innerHTML = _sqLuDash(_sqFirstCtx());
+        // The formation board shows the same eleven players and was left
+        // holding the pre-hydration ones — repaint it too, through the renderer
+        // that already owns it. Only while Squad is the page being looked at,
+        // so a First Team roster change can never repaint the Academy.
+        var act = document.querySelector('.page.active');
+        if (act && act.id === 'pg-squad' && pg.querySelector('#sqfp-body')
+            && typeof _sqRenderFormationBody === 'function') _sqRenderFormationBody();
       } catch (e) {}
     },
     reportName: 'My Team',
@@ -6991,7 +7029,7 @@ function _sqFirstCtx() {
     },
     benchPlayer: function (id) { _sqMoveToBench(id); },
     viewLabel: 'My Team view',
-    ensureBoard: function () { if ((!SQ_MY_IDS || !SQ_MY_IDS.length) && typeof _sqBuildBoard === 'function') _sqBuildBoard(); },
+    ensureBoard: function () { if (_sqBoardStale() && typeof _sqBuildBoard === 'function') _sqBuildBoard(); },
     movePlayer: function (side, id, x, y) {
       if (side === 'opp') SQ_POS_OPP2[id] = { x: x, y: y }; else SQ_POS_MY[id] = { x: x, y: y };
     },
