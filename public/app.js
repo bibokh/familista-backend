@@ -13546,25 +13546,40 @@ function _dashAcademyCtx(id) {
     cls: 'dash-v2--academy dash-v2--' + id,
     accent: c.accent,
     widgets: [
-      { id: 'ad-hero', region: 'hero', tag: 'section', cls: 'hero-club', body: function () {
-          return '<div class="hero-club-id">'
-            + '<div class="hero-emblem"><span class="hero-emblem-glyph">' + _viEscSafe(c.label) + '</span></div>'
-            + '<div>'
-            + '<h1 class="hero-club-name">' + _viEscSafe(c.name) + ' Stage</h1>'
-            + '<div class="hero-meta">' + _viEscSafe(st.summary) + '</div>'
+      // A compact stage header rather than a hero band. It carries exactly what
+      // the band carried — age group, stage name, stage summary — in one row,
+      // so the reading order is Age Group → Development Stage → summary and the
+      // metrics start near the top of the screen instead of below a tall block.
+      { id: 'ad-hero', region: 'hero', tag: 'section', cls: 'acd-stage', body: function () {
+          return '<div class="acd-stage-id">'
+            + '<span class="acd-stage-crest">' + _viEscSafe(c.label) + '</span>'
+            + '<span class="acd-stage-txt">'
+              + '<span class="acd-stage-kicker">ACADEMY AGE GROUP</span>'
+              + '<b class="acd-stage-name">' + _viEscSafe(c.name) + ' Stage</b>'
+            + '</span>'
             + '</div>'
-            + '</div>';
+            + '<p class="acd-stage-sum">' + _viEscSafe(st.summary) + '</p>';
         } },
-      { id: 'ad-kpi', region: 'kpi', tag: 'section', cls: 'kpi-row-v2', body: function () {
-          return tiles.map(function (k) { return _dashKpiTile(k[0], k[1], k[2], k[3], k[4]); }).join('');
+      // The same five metrics, as small premium cards on one rail.
+      { id: 'ad-kpi', region: 'kpi', tag: 'section', cls: 'acd-kpis', body: function () {
+          return tiles.map(function (k) {
+            return '<div class="acd-kpi' + (k[4] ? ' acd-kpi--' + k[4] : '') + '">'
+              + '<span class="acd-kpi-ic">' + k[0] + '</span>'
+              + '<span class="acd-kpi-v">' + _viEscSafe(String(k[1])) + '</span>'
+              + '<span class="acd-kpi-l">' + _viEscSafe(k[2]) + '</span>'
+              + '<span class="acd-kpi-s">' + _viEscSafe(k[3]) + '</span>'
+              + '</div>';
+          }).join('');
         } },
-      { id: 'ad-objectives', region: 'main', cls: 'd-card', head: 'STAGE OBJECTIVES',
+      // Four panels, each given its own modifier so the stylesheet can tell
+      // them apart. Same headings, same bodies, same values.
+      { id: 'ad-objectives', region: 'main', cls: 'd-card acd-panel acd-panel--obj', head: 'STAGE OBJECTIVES',
         body: function () { return _dashNotes((st.objectives || []).map(_viEscSafe)); } },
-      { id: 'ad-methodology', region: 'main', cls: 'd-card', head: 'METHODOLOGY',
+      { id: 'ad-methodology', region: 'main', cls: 'd-card acd-panel acd-panel--method', head: 'METHODOLOGY',
         body: function () { return _dashProse(_viEscSafe(st.methodology)); } },
-      { id: 'ad-focus', region: 'side', cls: 'd-card', head: 'COACHING FOCUS',
+      { id: 'ad-focus', region: 'side', cls: 'd-card acd-panel acd-panel--focus', head: 'COACHING FOCUS',
         body: function () { return _dashNotes((st.ai || []).map(_viEscSafe)); } },
-      { id: 'ad-philosophy', region: 'side', cls: 'd-card', head: 'PHILOSOPHY',
+      { id: 'ad-philosophy', region: 'side', cls: 'd-card acd-panel acd-panel--phil', head: 'PHILOSOPHY',
         body: function () { return _dashProse(_viEscSafe(st.philosophy)); } },
     ],
   };

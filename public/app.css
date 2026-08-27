@@ -8837,14 +8837,137 @@ body.club-theme .d-notes li{ font-size:13px; line-height:1.55; color:var(--tx-2,
 body.club-theme .d-notes li::marker{ color:var(--dash-ac,#f4b740); }
 body.club-theme .d-prose{ margin:0; font-size:13px; line-height:1.65; color:var(--tx-2,#cbd5e1); }
 
+/* ── Academy dashboard · premium presentation ──────────────────────────────
+   Presentation only, and scoped to .dash-v2--academy throughout so the First
+   Team dashboard — which shares every one of these components — is untouched.
+   Every value on screen is the one the context already supplied.
+
+   The shape: a compact stage header, a five-up metric rail, then a balanced
+   two-column panel grid. The old hero band was tall and mostly empty, which
+   pushed the metrics and the objectives below the fold; this puts the whole
+   dashboard in one screen at 1024 and up. */
+
+/* Stage header — one row: crest, age group, stage name, summary. */
+body.club-theme .dash-v2--academy .acd-stage{
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+  padding:14px 18px; border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  border-left:3px solid var(--dash-ac,#a78bfa);
+  background:
+    linear-gradient(90deg, rgb(var(--dash-ac-rgb,167 139 250) / .10), rgba(255,255,255,.02) 46%),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+}
+body.club-theme .dash-v2--academy .acd-stage-id{ display:flex; align-items:center; gap:13px; min-width:0; }
+body.club-theme .dash-v2--academy .acd-stage-crest{
+  flex:0 0 auto; display:grid; place-items:center;
+  min-width:56px; height:38px; padding:0 11px; border-radius:10px;
+  font:800 14px/1 Inter,system-ui,Arial; letter-spacing:-.01em;
+  color:var(--dash-ac,#a78bfa);
+  background:rgb(var(--dash-ac-rgb,167 139 250) / .12);
+  border:1px solid rgb(var(--dash-ac-rgb,167 139 250) / .30);
+}
+body.club-theme .dash-v2--academy .acd-stage-txt{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+body.club-theme .dash-v2--academy .acd-stage-kicker{
+  font:800 9px/1 Inter,system-ui,Arial; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--tx-3,#94a3b8);
+}
+body.club-theme .dash-v2--academy .acd-stage-name{
+  font:800 19px/1.15 Inter,system-ui,Arial; letter-spacing:-.015em; color:var(--tx-1,#f1f5f9);
+}
+body.club-theme .dash-v2--academy .acd-stage-sum{
+  flex:1 1 320px; min-width:0; margin:0;
+  font-size:12.5px; line-height:1.55; color:var(--tx-2,#cbd5e1);
+  padding-left:18px; border-left:1px solid rgba(255,255,255,.07);
+}
+
+/* Metric rail — five compact cards, even at every supported width. */
+body.club-theme .dash-v2--academy .acd-kpis{
+  display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-top:12px;
+}
+body.club-theme .dash-v2--academy .acd-kpi{
+  display:flex; flex-direction:column; gap:2px;
+  padding:11px 13px; border-radius:12px; min-width:0;
+  border:1px solid rgba(255,255,255,.075);
+  border-top:2px solid var(--dash-ac,#a78bfa);
+  background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.014));
+}
+body.club-theme .dash-v2--academy .acd-kpi-ic{ font-size:14px; line-height:1; opacity:.85; }
+body.club-theme .dash-v2--academy .acd-kpi-v{
+  font:800 22px/1.1 Inter,system-ui,Arial; letter-spacing:-.02em; color:var(--tx-1,#f1f5f9);
+  margin-top:4px;
+  /* Values differ in length per age group (a number, a percentage, "Fun &
+     skills"). Wrapping is allowed but the card never widens the rail. */
+  overflow-wrap:anywhere;
+}
+body.club-theme .dash-v2--academy .acd-kpi--gold .acd-kpi-v{ color:#f4b740; }
+body.club-theme .dash-v2--academy .acd-kpi-l{
+  font:800 9px/1 Inter,system-ui,Arial; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--dash-ac,#a78bfa); margin-top:3px;
+}
+body.club-theme .dash-v2--academy .acd-kpi-s{ font-size:11px; line-height:1.4; color:var(--tx-3,#94a3b8); }
+
+/* Panel grid — two equal columns rather than wide/narrow, so the four panels
+   sit as a balanced 2×2 with no column running long. */
+body.club-theme .dash-v2--academy .dash-grid-v2{
+  grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:12px; align-items:start;
+}
+body.club-theme .dash-v2--academy .dash-col-main,
+body.club-theme .dash-v2--academy .dash-col-side{ display:flex; flex-direction:column; gap:12px; min-width:0; }
+
+body.club-theme .dash-v2--academy .acd-panel{
+  border-radius:14px; padding:14px 16px;
+  border:1px solid rgba(255,255,255,.075);
+  background:
+    linear-gradient(180deg, rgb(var(--panel-rgb,167 139 250) / .055), rgba(255,255,255,0) 74px),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+}
+/* Each panel reads as its own thing — a tinted head rule and marker — while
+   staying inside the group's accent family. */
+body.club-theme .dash-v2--academy .acd-panel--obj   { --panel-rgb:52 211 153; }
+body.club-theme .dash-v2--academy .acd-panel--method{ --panel-rgb:96 165 250; }
+body.club-theme .dash-v2--academy .acd-panel--focus { --panel-rgb:244 183 64; }
+body.club-theme .dash-v2--academy .acd-panel--phil  { --panel-rgb:167 139 250; }
+
+body.club-theme .dash-v2--academy .acd-panel .d-card-hdr{
+  margin:0 0 10px; padding:0 0 9px; border-bottom:1px solid rgba(255,255,255,.06);
+}
+body.club-theme .dash-v2--academy .acd-panel .d-card-title{
+  font:800 10px/1 Inter,system-ui,Arial; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--tx-2,#cbd5e1);
+}
+body.club-theme .dash-v2--academy .acd-panel .d-card-title::before{
+  background:rgb(var(--panel-rgb,167 139 250)); height:11px;
+}
+body.club-theme .dash-v2--academy .acd-panel .d-card-body{ padding:0; }
+body.club-theme .dash-v2--academy .acd-panel .d-notes{ gap:7px; padding-left:15px; }
+body.club-theme .dash-v2--academy .acd-panel .d-notes li{ font-size:12.5px; line-height:1.5; }
+body.club-theme .dash-v2--academy .acd-panel .d-notes li::marker{ color:rgb(var(--panel-rgb,167 139 250)); }
+body.club-theme .dash-v2--academy .acd-panel .d-prose{ font-size:12.5px; line-height:1.6; }
+
+/* Responsive: 1280 keeps the five-up rail, 1024 folds it to three then two.
+   The grid never exceeds its container, so the page never scrolls sideways. */
+@media (max-width:1280px){
+  body.club-theme .dash-v2--academy .acd-kpi-v{ font-size:20px; }
+}
+@media (max-width:1120px){
+  body.club-theme .dash-v2--academy .acd-kpis{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (max-width:860px){
+  body.club-theme .dash-v2--academy .acd-kpis{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  body.club-theme .dash-v2--academy .dash-grid-v2{ grid-template-columns:minmax(0,1fr); }
+  body.club-theme .dash-v2--academy .acd-stage-sum{ padding-left:0; border-left:0; }
+}
+
 /* Each age group's accent. The engine applies whatever class the context asks
    for; the colours live here, so a group's identity is a stylesheet decision
    rather than markup. */
-body.club-theme .dash-v2--discovery  { --dash-ac:#4ade80; }
-body.club-theme .dash-v2--development{ --dash-ac:#a78bfa; }
-body.club-theme .dash-v2--performance{ --dash-ac:#f59e0b; }
-body.club-theme .dash-v2--elite      { --dash-ac:#f472b6; }
-body.club-theme .dash-v2--propath    { --dash-ac:#f87171; }
+/* --dash-ac-rgb is the same colour as a bare triple, so the premium surfaces
+   above can tint with rgb(... / alpha) without a second hex per group. */
+body.club-theme .dash-v2--discovery  { --dash-ac:#4ade80; --dash-ac-rgb: 74 222 128; }
+body.club-theme .dash-v2--development{ --dash-ac:#a78bfa; --dash-ac-rgb:167 139 250; }
+body.club-theme .dash-v2--performance{ --dash-ac:#f59e0b; --dash-ac-rgb:245 158  11; }
+body.club-theme .dash-v2--elite      { --dash-ac:#f472b6; --dash-ac-rgb:244 114 182; }
+body.club-theme .dash-v2--propath    { --dash-ac:#f87171; --dash-ac-rgb:248 113 113; }
 
 /* Player comparison — the section still appears when the squad has no second
    player in that position, so every player opens the same panel. */
