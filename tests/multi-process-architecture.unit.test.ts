@@ -248,8 +248,23 @@ describe('clustering refuses to start unless Redis actually answered', () => {
     expect(C).toContain('UV_THREADPOOL_SIZE: String(share(uvTotal, workers, 2))');
   });
 
-  it('never asks for more processes than there are cores', () => {
-    expect(C).toContain('Math.min(n, Math.max(1, os.cpus().length))');
+  it('never asks for more processes than there are usable CPUs', () => {
+    expect(C).toContain('Math.min(n, Math.max(1, cpus))');
+  });
+
+  it('sizes workers from the CONTAINER quota, not the host core count', () => {
+    // os.cpus().length reports the host. A 1-CPU instance scheduled onto a
+    // 16-core machine reports 16, and forking 16 workers onto 1 CPU is far
+    // worse than not clustering — silently, because every number looks
+    // plausible.
+    expect(C).toContain('/sys/fs/cgroup/cpu.max');
+    expect(C).toContain('cpu.cfs_quota_us');
+    expect(C).toContain('export function effectiveCpus()');
+    // and a fractional allowance floors to one rather than falling through to
+    // the host count, which is the half-CPU instance case
+    const f = fnBody(C, 'effectiveCpus');
+    expect(f).toContain('Math.max(1, Math.min(Math.floor(quota / period), host))');
+    expect(f).not.toMatch(/cpus >= 1\) return/);
   });
 });
 

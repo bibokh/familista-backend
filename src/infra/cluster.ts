@@ -32,18 +32,65 @@
 
 import cluster from 'cluster';
 import os from 'os';
+import fs from 'fs';
 import { verifyRedis, redisConfigured } from './redis';
 import { logger } from '../utils/logger';
+
+/**
+ * How many CPUs this process may actually use.
+ *
+ * `os.cpus().length` reports the cores of the HOST, not the share this
+ * container is allowed. On a managed platform those are wildly different
+ * numbers: a one-CPU instance scheduled onto a sixteen-core machine reports
+ * sixteen. Forking sixteen workers onto one CPU is far worse than not
+ * clustering at all — sixteen event loops timeslicing one core, sixteen Prisma
+ * pools, sixteen sets of GC threads — and it would happen silently, because
+ * every number involved looks plausible.
+ *
+ * The container's real allowance is its cgroup CPU quota, so read that first
+ * and fall back to the host count only when there is no quota (an unrestricted
+ * machine, where the two agree anyway).
+ */
+export function effectiveCpus(): number {
+  const host = Math.max(1, os.cpus().length);
+  try {
+    // cgroup v2: "<quota> <period>", or "max <period>" when unrestricted.
+    const v2 = fs.readFileSync('/sys/fs/cgroup/cpu.max', 'utf8').trim().split(/\s+/);
+    if (v2.length === 2 && v2[0] !== 'max') {
+      const quota = Number(v2[0]), period = Number(v2[1]);
+      if (Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
+        // A fractional allowance (Render's 0.5-CPU Starter) floors to ONE, and
+        // must not fall through to the host count — falling through is how a
+        // half-CPU instance would end up forking a worker per host core.
+        return Math.max(1, Math.min(Math.floor(quota / period), host));
+      }
+    } else if (v2[0] === 'max') {
+      return host;
+    }
+  } catch { /* not cgroup v2 */ }
+  try {
+    // cgroup v1: quota of -1 means unrestricted.
+    const quota  = parseInt(fs.readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_quota_us', 'utf8').trim(), 10);
+    const period = parseInt(fs.readFileSync('/sys/fs/cgroup/cpu/cpu.cfs_period_us', 'utf8').trim(), 10);
+    if (quota > 0 && period > 0) {
+      // Same flooring rule as v2: a positive quota always yields at least one.
+      return Math.max(1, Math.min(Math.floor(quota / period), host));
+    }
+  } catch { /* not cgroup v1 */ }
+  return host;
+}
 
 /** How many processes the operator asked for. 1 (or unset) means don't cluster. */
 export function desiredWorkers(): number {
   const raw = process.env.WEB_CONCURRENCY ?? process.env.CLUSTER_WORKERS ?? '1';
-  if (raw.trim().toLowerCase() === 'auto') return Math.max(1, os.cpus().length);
+  const cpus = effectiveCpus();
+  if (raw.trim().toLowerCase() === 'auto') return Math.max(1, cpus);
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n <= 1) return 1;
-  // More processes than cores buys nothing for CPU-bound work and costs memory
-  // and database connections.
-  return Math.min(n, Math.max(1, os.cpus().length));
+  // More processes than usable CPUs buys nothing for CPU-bound work and costs
+  // memory and database connections — so an explicit number is capped too, not
+  // just `auto`.
+  return Math.min(n, Math.max(1, cpus));
 }
 
 /** Split a fixed budget across the workers, never below a usable floor. */
@@ -53,7 +100,7 @@ function share(total: number, workers: number, floor: number): number {
 
 function childEnv(workers: number): NodeJS.ProcessEnv {
   const dbTotal = parseInt(process.env.DB_CONNECTION_LIMIT ?? '25', 10);
-  const cores = os.cpus().length;
+  const cores = effectiveCpus();
   const uvTotal = parseInt(process.env.UV_THREADPOOL_SIZE ?? String(Math.max(4, Math.min(cores * 2, 16))), 10);
   return {
     ...process.env,
@@ -105,7 +152,8 @@ export async function startClusterPrimary(): Promise<boolean> {
   const env = childEnv(workers);
   logger.info('[cluster] Redis verified — forking workers', {
     workers,
-    cores: os.cpus().length,
+    cores: effectiveCpus(),
+    hostCores: os.cpus().length,
     dbConnectionsPerWorker: env.DB_CONNECTION_LIMIT,
     uvThreadsPerWorker: env.UV_THREADPOOL_SIZE,
   });
@@ -145,6 +193,10 @@ export function clusterStatus() {
   return {
     enabled: !!process.env.FAMILISTA_CLUSTER_WORKER,
     requested: desiredWorkers(),
+    // Both, because a gap between them is the thing that silently breaks
+    // worker sizing on a container.
+    usableCpus: effectiveCpus(),
+    hostCpus: os.cpus().length,
     workerId: workerIndex(),
     pid: process.pid,
   };

@@ -152,6 +152,33 @@ its life, and lost the first realtime event.
 
 ---
 
+## 3b · Sizing workers on a container
+
+`WEB_CONCURRENCY=auto` means "one worker per CPU", and the obvious way to count
+CPUs — `os.cpus().length` — is wrong on every managed platform. It reports the
+cores of the HOST, not the share the container may use. A one-CPU instance
+scheduled onto a sixteen-core machine reports sixteen, so `auto` would fork
+sixteen workers onto one CPU: sixteen event loops timeslicing one core, sixteen
+Prisma pools, sixteen sets of GC threads. That is considerably worse than not
+clustering, and nothing in the logs would look wrong.
+
+`effectiveCpus()` reads the cgroup quota first (v2 `cpu.max`, then v1
+`cpu.cfs_quota_us`/`cpu.cfs_period_us`) and falls back to the host count only
+when there is genuinely no quota. A fractional allowance — Render's 0.5-CPU
+Starter — floors to one rather than falling through, which was a real bug caught
+by the table test: `Math.floor(0.5)` is 0, the "is it at least 1" guard rejected
+it, and it fell through to the host count. Exactly the instance size where
+over-forking hurts most.
+
+The cap applies to an explicit `WEB_CONCURRENCY=8` as well, not just `auto`.
+
+**Consequence for this deployment:** `render.yaml` currently declares
+`plan: standard`. If that plan is one CPU, `auto` correctly resolves to one
+worker and the service runs single-process — safe, but none of the multi-core
+gain below is realised. Multi-worker requires an instance type with 2+ CPUs.
+
+---
+
 ## 4 · Budgets are divided, not multiplied
 
 Each worker builds its own Prisma pool and its own libuv thread pool. Left
@@ -177,3 +204,103 @@ default LRU policy would silently discard rate-limit buckets, device nonces and
 the worker lease — turning a memory limit into a replay window and a
 double-settlement race, with nothing in any log. Refusing writes is loud, and
 the code treats a refusal as an outage and applies the fail-safe policy above.
+
+---
+
+## 6 · Measured capacity of one 4-core instance
+
+All figures from this machine: 4 cores, 15 GB, 4 workers, Redis, load client on
+the same box (it used 34–39% of one core — measured, not assumed, so it is not
+the constraint).
+
+### The ceiling is CPU, and it is now genuinely parallel
+
+| | one process | four workers |
+|---|---|---|
+| peak server CPU (400% = all cores) | **398%** | **389%** |
+| minimum system idle | 0% | 1% |
+
+Both saturate the box at 250 users. The difference is what happens next: one
+process starts refusing connections, four degrade into latency. With one event
+loop, nothing accepts while it is busy; with four, one of them can.
+
+### Steady-state navigation (sign-in excluded)
+
+| concurrent | req/s | p50 | p95 | p99 |
+|---|---|---|---|---|
+| 25 | 408 | 79 ms | 453 ms | 631 ms |
+| 50 | **453** | 172 ms | 784 ms | 1286 ms |
+| 100 | 452 | 334 ms | 1894 ms | 5176 ms |
+
+Throughput is flat from 50 users on: **~450 req/s is the ceiling of 4 cores**
+(~112 req/s per core). Past that, more users buy only queueing.
+
+### Sign-in is a separate, harder ceiling
+
+~14 logins/s, and it does not improve with more processes because bcrypt at
+cost 12 already uses every core through libuv. ~3.5 logins/s per core. The work
+factor is not reduced to move this number.
+
+### What broke at 250 users on one process
+
+Not a resource limit — every candidate was measured and none was near its
+ceiling:
+
+| | peak | limit |
+|---|---|---|
+| accept queue depth | **0** | 511 |
+| DB connections | 26 | 100 |
+| TIME-WAIT sockets | 1175 | 28231 |
+| open descriptors | 1193 | 20000 |
+
+The failures were `UND_ERR_CONNECT_TIMEOUT` dying at **10214/10253 ms** — the
+client's 10-second *connect* timeout — plus `ECONNRESET`, all of them on the
+Transfers module, which the client fires as **9 parallel requests at once**.
+With the CPU at 0% idle the single event loop could not accept that burst
+within 10 s. It is CPU exhaustion surfacing as connection failures, and four
+workers removed it (0 errors across every 250-user run).
+
+### Safe supported concurrency
+
+The honest unit is requests per second, because "concurrent users" depends
+entirely on how fast each user clicks. The load client's user is deliberately
+brutal: **~9 req/s each**, a request every 110 ms with no reading time. A real
+person browsing is 0.2–1 req/s.
+
+At 70% of the 450 req/s ceiling — 315 req/s sustained, leaving headroom for
+sign-in bursts and the background timers:
+
+| user model | req/s each | supported concurrent |
+|---|---|---|
+| load-test user (worst case) | 9.0 | **~35** |
+| heavy real user | 1.0 | ~315 |
+| normal active user | 0.5 | ~630 |
+| reading/idle user | 0.2 | ~1575 |
+
+Measured against the load client's own model, **100 of its users is the last
+comfortable rung** (p95 474 ms, 0 errors); 150 and 250 complete without errors
+but with multi-second p95.
+
+### Scaling to 250 / 500 / 1000 load-test-grade users
+
+CPU-bound and now parallel, so it scales close to linearly in cores. Using the
+measured 450 req/s per 4 cores and the brutal 9 req/s user:
+
+| target | req/s needed | cores | shape |
+|---|---|---|---|
+| 250 | ~2250 | ~20 | 5 × 4-core instances |
+| 500 | ~4500 | ~40 | 10 × 4-core instances |
+| 1000 | ~9000 | ~80 | 20 × 4-core instances |
+
+Against a normal 0.5 req/s user those same targets need ~2, ~3 and ~5 cores
+respectively — i.e. a single larger instance. The gap between those two columns
+is why the user model has to be stated with any capacity number.
+
+Two things scale with instance count and must move with it:
+
+- **Database connections.** 25 per instance. Twenty instances is 500, far past
+  a default `max_connections` of 100. Beyond ~4 instances this needs either a
+  larger Postgres plan or a pooler (PgBouncer in transaction mode).
+- **Redis.** One shared instance serves all of them; it is doing small atomic
+  operations and is nowhere near a bottleneck at these rates, but it becomes a
+  single point of failure for the whole fleet, so it wants its own HA plan.
