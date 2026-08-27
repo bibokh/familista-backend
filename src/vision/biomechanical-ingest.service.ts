@@ -36,7 +36,7 @@ export async function ingestBiomechPacket(actor: BiomechActor, deviceId: string,
       logDeviceSecurityEvent({ kind: 'DEVICE_REJECTED', severity: 'CRITICAL', clubId: dev.clubId, deviceSessionId: null, payload: { reason: 'hmac_mismatch', deviceId } });
       throw new ForbiddenError('Invalid device signature');
     }
-    if (!assertFreshAndRemember(`biomech:${dev.id}`, env.nonce)) {
+    if (!await assertFreshAndRemember(`biomech:${dev.id}`, env.nonce)) {
       logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: dev.clubId, payload: { reason: 'nonce_reused', deviceId } });
       throw new UnauthorizedError('Nonce already used');
     }

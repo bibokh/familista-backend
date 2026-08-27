@@ -181,7 +181,7 @@ export async function submitGradient(actor: FedActor, jobId: string, dto: Submit
     throw new BadRequestError(`normValue exceeds clippingNormMax ${job.clippingNormMax}`);
   }
   // Anti-replay.
-  if (!assertFreshAndRemember(`fed-grad:${jobId}:${actor.clubId}`, dto.nonce)) {
+  if (!await assertFreshAndRemember(`fed-grad:${jobId}:${actor.clubId}`, dto.nonce)) {
     throw new BadRequestError('Nonce already used for this (job, club)');
   }
 

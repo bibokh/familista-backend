@@ -29,14 +29,36 @@ services:
       # as in server.ts so it does not depend on module-evaluation order.
       - key: UV_THREADPOOL_SIZE
         value: 8
-      # Prisma's pool. Must stay under the database's max_connections when
-      # multiplied by the number of instances.
+      # Prisma's pool. This is the budget for the WHOLE instance: when
+      # WEB_CONCURRENCY > 1 the primary divides it between the workers rather
+      # than giving each of them this many. Must still stay under the
+      # database's max_connections when multiplied by the number of instances.
       - key: DB_CONNECTION_LIMIT
         value: 25
       - key: DATABASE_URL
         fromDatabase:
           name: familista-postgres
           property: connectionString
+
+      # ── Shared state (required before more than one process) ────────────
+      # Every process-local thing that would be WRONG rather than merely slower
+      # when fanned out lives here: both rate limiters, device replay
+      # protection, background-worker ownership, and websocket fan-out.
+      #
+      # This is not optional infrastructure for a multi-process deployment. If
+      # Redis does not answer, the service starts as a SINGLE process and says
+      # why — it never runs several processes that believe they share state and
+      # do not. See docs/multi-process-readiness.md.
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: familista-redis
+          property: connectionString
+
+      # Node processes per instance. `auto` = one per core. Ignored — with a
+      # loud log line — unless Redis has been verified at boot.
+      - key: WEB_CONCURRENCY
+        value: auto
 
       # ── Auth / JWT ──────────────────────────────────────────────────────
       - key: JWT_ACCESS_SECRET
@@ -155,6 +177,20 @@ services:
       name: familista-uploads
       mountPath: /var/data
       sizeGB: 10
+
+  # ── Shared state for every process of every instance ──────────────────────
+  # `noeviction` is deliberate and load-bearing. Under memory pressure a
+  # default LRU policy would silently discard rate-limit buckets, device
+  # nonces and the worker-ownership lease — turning a memory limit into a
+  # replay window and a double-settlement race, with nothing in any log to say
+  # it happened. Refusing writes is loud; the code treats a refusal as an
+  # outage and applies its fail-safe policy.
+  - type: redis
+    name: familista-redis
+    region: frankfurt
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []          # private network only
 
 databases:
   - name: familista-postgres

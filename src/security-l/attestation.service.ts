@@ -35,7 +35,7 @@ export async function recordAttestation(_actor: AttestationActor, dto: RecordAtt
   if (dev.status === 'REVOKED' || dev.status === 'RETIRED') throw new ForbiddenError('Device retired/revoked');
 
   // Anti-replay.
-  if (!assertFreshAndRemember(`attest:${dev.id}`, dto.nonce)) {
+  if (!await assertFreshAndRemember(`attest:${dev.id}`, dto.nonce)) {
     logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: dev.clubId, payload: { deviceId: dev.id, reason: 'nonce_reused' } });
     throw new UnauthorizedError('Nonce already used');
   }

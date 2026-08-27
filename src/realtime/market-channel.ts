@@ -84,25 +84,69 @@ export function subscribePublic(fn: Subscriber): () => void {
   return () => publicSubscribers.delete(fn);
 }
 
-/** Publish to the whole market. Only for facts the market may see. */
-export function publishPublic(event: Omit<MarketEvent, 'scope' | 'at'>): void {
-  const full: MarketEvent = { ...event, scope: 'PUBLIC', at: new Date().toISOString() };
+// ── Crossing the process boundary ───────────────────────────────────────────
+// A socket lives on exactly one process. With more than one process, an event
+// raised where a bid was placed reaches only the clubs whose sockets happen to
+// be on that same process — the others keep showing the old price until
+// something else makes them re-read.
+//
+// So a publish does two things: it delivers to the sockets held HERE, and it
+// hands the event to a bridge (`infra/channel-bridge.ts`) which repeats it on
+// the other processes. The bridge injects itself through `setRemotePublisher`
+// rather than being imported, because it imports this module and a cycle here
+// would be resolved at load time in whichever order Node happened to pick.
+//
+// Delivering an event twice is already harmless: an invalidation says a surface
+// went stale, and a surface cannot be more stale for being told twice. That
+// property is what makes the bridge safe to add rather than something that
+// needed the event model to change.
+type RemotePublisher = (payload: { kind: 'public' | 'clubs'; clubIds?: string[]; event: MarketEvent }) => void;
+let remotePublish: RemotePublisher | null = null;
+export function setRemotePublisher(fn: RemotePublisher | null): void { remotePublish = fn; }
+
+function deliverPublic(full: MarketEvent): void {
   for (const fn of publicSubscribers) {
     try { fn(full); } catch (_err) { /* one bad socket never stops the rest */ }
   }
 }
 
-/** Publish to named clubs only. Duplicates in `clubIds` are collapsed, and a
- *  club is never sent the same event twice for being named twice. */
-export function publishToClubs(clubIds: Array<string | null | undefined>, event: Omit<MarketEvent, 'scope' | 'at'>): void {
-  const full: MarketEvent = { ...event, scope: 'CLUB', at: new Date().toISOString() };
-  for (const clubId of new Set(clubIds.filter(Boolean) as string[])) {
+function deliverToClubs(clubIds: string[], full: MarketEvent): void {
+  for (const clubId of new Set(clubIds)) {
     const set = clubSubscribers.get(clubId);
     if (!set) continue;
     for (const fn of set) {
       try { fn(full); } catch (_err) { /* swallow */ }
     }
   }
+}
+
+/** Publish to the whole market. Only for facts the market may see. */
+export function publishPublic(event: Omit<MarketEvent, 'scope' | 'at'>): void {
+  const full: MarketEvent = { ...event, scope: 'PUBLIC', at: new Date().toISOString() };
+  deliverPublic(full);
+  remotePublish?.({ kind: 'public', event: full });
+}
+
+/** Publish to named clubs only. Duplicates in `clubIds` are collapsed, and a
+ *  club is never sent the same event twice for being named twice. */
+export function publishToClubs(clubIds: Array<string | null | undefined>, event: Omit<MarketEvent, 'scope' | 'at'>): void {
+  const full: MarketEvent = { ...event, scope: 'CLUB', at: new Date().toISOString() };
+  const ids = [...new Set(clubIds.filter(Boolean) as string[])];
+  deliverToClubs(ids, full);
+  remotePublish?.({ kind: 'clubs', clubIds: ids, event: full });
+}
+
+/**
+ * Deliver an event that was raised on ANOTHER process. Local sockets only —
+ * it is never re-published, or two processes would bounce it forever.
+ *
+ * The scope is preserved exactly as the originating process set it: a CLUB
+ * event still reaches only the clubs named on it. Crossing a process boundary
+ * does not widen who may see something.
+ */
+export function deliverRemote(payload: { kind: 'public' | 'clubs'; clubIds?: string[]; event: MarketEvent }): void {
+  if (payload.kind === 'public') deliverPublic(payload.event);
+  else deliverToClubs(payload.clubIds ?? [], payload.event);
 }
 
 export function marketSubscriberCount(clubId?: string): number {

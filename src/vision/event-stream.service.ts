@@ -150,7 +150,7 @@ export async function ingestEventBatch(streamId: string, env: IngestEventBatchEn
     throw new ForbiddenError('Invalid camera signature');
   }
   // Nonce replay protection.
-  if (!assertFreshAndRemember(`cam-event:${cam.id}`, env.nonce)) {
+  if (!await assertFreshAndRemember(`cam-event:${cam.id}`, env.nonce)) {
     logDeviceSecurityEvent({ kind: 'DEVICE_REPLAY', severity: 'CRITICAL', clubId: cam.clubId, cameraId: cam.id, payload: { reason: 'nonce_reused' } });
     throw new UnauthorizedError('Nonce already used');
   }

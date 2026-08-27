@@ -9,6 +9,10 @@ import { sendSuccess, sendCreated, sendPaginated } from '../utils/response';
 import { BadRequestError } from '../utils/errors';
 import { rateLimitStats } from '../middleware/rate-limit.middleware';
 import { nonceCacheStats } from '../security/device-nonce.service';
+import { redisStatus } from '../infra/redis';
+import { clusterStatus } from '../infra/cluster';
+import { workerOwnershipStatus } from '../infra/background-workers';
+import { channelBridgeStatus } from '../infra/channel-bridge';
 import type { AIApprovalStatus, SecurityEventKind, SecuritySeverity } from '@prisma/client';
 import { queryCounter } from '../config/database';
 
@@ -199,6 +203,14 @@ export async function securityHealth(_req: Request, res: Response, next: NextFun
     return sendSuccess(res, {
       rate:  rateLimitStats(),
       nonce: nonceCacheStats(),
+      // Multi-process shape. `redis.healthy` false while `redis.configured` is
+      // true is the state an operator has to be able to see without reading
+      // logs: limits have fallen back to per-process, and signed device
+      // requests are being refused.
+      redis:   redisStatus(),
+      cluster: clusterStatus(),
+      workers: workerOwnershipStatus(),
+      realtime: channelBridgeStatus(),
       // Only meaningful when PRISMA_QUERY_COUNT=1; otherwise it stays at zero
       // and costs nothing.
       dbQueries: queryCounter.n,

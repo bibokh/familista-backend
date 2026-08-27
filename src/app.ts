@@ -12,6 +12,8 @@ import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { requestId, accessLog, errorReporter } from './middleware/request-id.middleware';
 import { edgeIdentity } from './middleware/rate-limit.middleware';
+import { RedisEdgeStore } from './middleware/edge-rate-limit.store';
+import { redisConfigured } from './infra/redis';
 import routes from './routes';
 
 // ── credentials that travel in a query string ────────────────────────────────
@@ -147,6 +149,11 @@ export function createApp(): express.Application {
   // the thing that layer cannot do: stop a flood before it reaches the router,
   // at a volume no human interface produces. It skips health probes and
   // anything that is not an API call, because a page load is not abuse.
+  //
+  // Its counter lives in Redis when Redis is configured. Left in the library's
+  // default `MemoryStore` it would be a counter per process, so four processes
+  // would pass four times EDGE_MAX while the configuration still said 1200 —
+  // the guard would look enabled and be four times weaker than it reads.
   const EDGE_WINDOW_MS = parseInt(process.env.RATE_EDGE_WINDOW_MS ?? '60000', 10);
   const EDGE_MAX       = parseInt(process.env.RATE_EDGE_MAX       ?? '1200',  10);
   app.use(
@@ -155,6 +162,7 @@ export function createApp(): express.Application {
       max: EDGE_MAX,
       standardHeaders: true,
       legacyHeaders: false,
+      store: redisConfigured() ? new RedisEdgeStore() : undefined,
       // Keyed by who is asking, not by where they are asking from. An address
       // is the only identity anonymous traffic has, but once a request carries
       // a session the address is a poor key: fifty colleagues in one building

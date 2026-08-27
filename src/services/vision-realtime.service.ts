@@ -43,7 +43,20 @@ function ensureHeartbeat(): void {
   }, HEARTBEAT_MS).unref?.() ?? setInterval(() => undefined, HEARTBEAT_MS);
 }
 
-function broadcast(matchId: string, event: string, payload: unknown): void {
+// An SSE connection lives on exactly one process, so this registry only ever
+// knows the sideline dashboards attached HERE. With more than one process, an
+// event published where the detection landed reaches only that fraction of the
+// dashboards watching the match; the rest sit silent through the incident.
+//
+// Same shape of fix as the market and match channels: deliver locally, then
+// hand the event to the bridge, which repeats it on the other processes. The
+// bridge injects itself rather than being imported, so this service keeps no
+// dependency on the transport.
+type RemotePublisher = (payload: { matchId: string; event: string; data: unknown }) => void;
+let remotePublish: RemotePublisher | null = null;
+export function setRemotePublisher(fn: RemotePublisher | null): void { remotePublish = fn; }
+
+function deliverLocally(matchId: string, event: string, payload: unknown): void {
   const set = subscribers.get(matchId);
   if (!set || set.size === 0) return;
   const line = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
@@ -56,6 +69,19 @@ function broadcast(matchId: string, event: string, payload: unknown): void {
     }
   }
   for (const d of dead) set.delete(d);
+}
+
+function broadcast(matchId: string, event: string, payload: unknown): void {
+  deliverLocally(matchId, event, payload);
+  remotePublish?.({ matchId, event, data: payload });
+}
+
+/**
+ * Deliver an event raised on another process. Local subscribers only — never
+ * re-published, or two processes would bounce it between them forever.
+ */
+export function deliverRemote(payload: { matchId: string; event: string; data: unknown }): void {
+  deliverLocally(payload.matchId, payload.event, payload.data);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

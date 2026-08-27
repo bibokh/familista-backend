@@ -1,97 +1,179 @@
 # Multi-process readiness
 
-**Status: clustering is NOT safe yet. Redis is required first, plus one worker
-change.** This file records exactly what is process-local today and what each
-piece would do wrong if a second process existed.
+**Status: DONE. Clustering is safe when Redis is configured and answering, and
+refuses to start when it is not.**
 
-Measured on a 4-core instance: one Node process now saturates the machine on
+This file records what was process-local, what each piece would have done wrong
+with a second process, where that state lives now, and what happens when the
+shared store fails.
+
+Measured on a 4-core instance: one Node process saturates the machine on
 sign-ins (bcrypt is CPU-bound across all four cores via libuv). Ordinary reads
-are not CPU-bound and would benefit from more processes — but only after the
-state below is shared.
+are not CPU-bound and were leaving three cores idle — that is what more
+processes buy, and only once the state below is shared.
 
 ---
 
-## 1 · Must move to Redis before clustering — correctness
+## The gate
 
-### The three-tier rate limiter — `src/middleware/rate-limit.middleware.ts`
-Already supports Redis: set `REDIS_URL` and it uses `RedisRateLimitStore`
-instead of `memoryStore`. **No code change needed, only the variable.**
+`src/infra/cluster.ts` forks one worker per core when `WEB_CONCURRENCY > 1`, and
+only after `verifyRedis()` — a PING that came back, not merely a `REDIS_URL`
+that is set. There are three outcomes and the service serves traffic in all
+three:
 
-Without it, each process keeps its own buckets. With N processes the effective
-limit becomes N × the configured capacity, because a client's requests are
-spread across processes by the load balancer. That does not break users — it
-silently weakens the abuse control, which is worse than breaking loudly.
+| Condition | Result |
+|---|---|
+| Redis verified | forks N workers |
+| `REDIS_URL` unset | **refuses**, serves as one process, logs why |
+| `REDIS_URL` set, Redis silent | **refuses**, serves as one process, logs why |
 
-### The edge guard — `src/app.ts`
-`express-rate-limit` with no `store:` configured, so it uses its own in-process
-`MemoryStore`. Same fragmentation as above. Needs `rate-limit-redis` wired in,
-or the guard reduced to a per-process share of the intended ceiling.
-
-### The device nonce cache — `src/security/device-nonce.service.ts`
-`const cache: Map<string, Entry>`. This is **replay protection**: a nonce is
-accepted once. Across processes a replayed request that lands on a different
-process would be accepted a second time. This is the one item on the list where
-fragmentation is a security hole rather than a degradation, and it must be
-shared before a second process exists.
+A misconfigured URL or a Redis still booting must never produce four processes
+that believe they are sharing state. Refusing costs throughput; not refusing
+costs the correctness of every item below.
 
 ---
 
-## 2 · Safe to fragment — but understand what it costs
+## 1 · Was process-local, now shared
+
+### Both rate limiters
+`src/middleware/rate-limit-redis.store.ts` — the three-tier IP/user/tenant
+bucket, a token bucket in a Lua script so refill-and-decrement is atomic.
+`src/middleware/edge-rate-limit.store.ts` — the `express-rate-limit` edge guard,
+which had no `store:` at all and so used the library's in-process `MemoryStore`.
+
+Per-process buckets mean N × the configured ceiling with nothing anywhere
+saying so: the config still reads 300 while 1200 get through. **Measured:** four
+workers, anonymous flood — 302 allowed then 429, against ~1200 unshared.
+
+The Redis store also gained `peek()`. Without it the credential bucket was
+silently unenforced, because `rateLimitAuth` treats a store with no `peek` as
+"always has room".
+
+### Device replay protection
+`src/security/device-nonce.service.ts` — `SET key NX PX`, which *is* the check:
+either this request created the key or the nonce has been seen. No read-then-write
+window.
+
+This was the one item that was a security hole rather than a degradation. A
+nonce remembered in process A's `Map` is not a replay when the load balancer
+sends the retry to process B, so with four workers a captured signed request
+replays successfully three times in four. **Measured:** a nonce accepted in one
+process is rejected in another; scope still separates devices.
+
+### Background worker ownership
+`src/infra/leader.ts` + `src/infra/background-workers.ts`. A Redis lease with a
+30 s TTL, renewed every 10 s, renewal being a compare-and-extend in Lua so a
+process paused past its expiry cannot steal back a lease someone else now holds.
+
+Six timers each written assuming they are alone: two settlement sweeps racing
+one due auction, two dispatchers sending one notification, two transcoders
+claiming one job. **Measured:** four workers, exactly one runs the timers; kill
+the holder and one successor takes over within the TTL, never two at once.
+
+### Realtime fan-out
+`src/infra/channel-bridge.ts` bridges all three realtime channels over Redis
+pub/sub: `market-channel`, `match-channel`, and the vision live feed in
+`vision-realtime.service` — that last one is SSE rather than a websocket, but an
+SSE connection is pinned to one process in exactly the same way, so a sideline
+dashboard would otherwise miss an incident detected on another worker. A received event is delivered locally only — never re-published,
+or two processes bounce it forever — and a process drops its own echo by
+`origin`. Club scope is preserved exactly: a CLUB event still reaches only the
+clubs named on it. **Measured:** 8 sockets across 4 workers, one real action on
+one worker, 8/8 received; unbridged reached 2/8.
+
+---
+
+## 2 · Left process-local, deliberately
 
 ### The identity cache — `src/middleware/auth.middleware.ts`
-Per-process, 5-second TTL. Fragmenting it means N cold caches instead of one,
-so the first request per user per process does a database read. Correctness is
-unaffected: `forgetIdentity` still runs in the process that made the change, and
-the other processes' copies expire within 5 seconds — the same bound the design
-already accepts. **No change required.**
+5-second TTL. Fragmenting it means N cold caches instead of one, so the first
+request per user per process does a database read. Correctness is unaffected:
+`forgetIdentity` runs in the process that made the change and the other copies
+expire within 5 seconds — the same bound the design already accepts.
 
-### The websocket subscriber maps — `src/realtime/market-channel.ts`,
-`src/realtime/match-channel.ts`
-`Map<string, Set<Subscriber>>` of who is listening. A socket lives on exactly
-one process, so delivery to *that* socket is correct. What breaks is a broadcast
-raised on process A reaching a subscriber connected to process B — the client
-simply does not receive that update until it re-reads. Live auction prices would
-go stale for some clients.
+### The authorisation scope caches — 30-second TTL each
+`tenant-guard`, `ai-access`, `franchise-access`, `investor-access`,
+`executive-access`, `vision-access`, plus the branding/theme caches.
 
-**Requires** a Redis pub/sub fan-out between processes, or sticky sessions plus
-accepting that a broadcast only reaches one process's clients. Not a correctness
-hole in stored data, but it is a visible product regression on the live market.
+Worth stating explicitly because these cache *permissions*, which sounds like it
+should be on the shared list. It is not, and the reason is that fragmenting does
+not lengthen the staleness window — it only multiplies the number of copies, each
+independently bounded by the same 30 seconds. A revoked permission is honoured
+late by at most the TTL whether there is one copy or four. That exposure is a
+property of caching permissions at all, which the single-process design already
+accepted; clustering does not widen it.
 
----
+### The sensor-fusion clocks — `src/fusion/timestamp.ts`
+A per-device-session EMA of clock offset and drift. Fragmenting gives N
+independent estimates instead of one, each computed from real packets but from
+fewer of them, so the drift correction is noisier. It never produces wrong data
+and it is self-healing: `updateClock` bootstraps an unknown session, and
+`toGlobalMs` already falls back to `Date.now()` for a session it has not seen —
+the same fallback every session's first packet takes.
 
-## 3 · Must NOT run in every process — duplicated work
+Deliberately **not** moved: this sits on the high-frequency sensor ingest path,
+so sharing it would add a Redis read-modify-write per packet. That is a real
+throughput cost on the hottest write path in the system, paid for an accuracy
+improvement in a correction that is already clamped to ±200 ppm.
 
-`src/server.ts` starts six background workers on timers:
-
-- `startAIAgentWorker`
-- `startAuctionSettlementWorker` ← **the dangerous one**
-- `startRetentionWorker`
-- `startNotificationDispatchWorker`
-- `startStatsAggregatorWorker`
-- `startVideoTranscodeWorker`
-
-With N processes each of these runs N times. Auction settlement is the one that
-matters: N processes racing to settle the same due auction. The settlement
-itself is guarded by a conditional `updateMany` inside a transaction, so it
-should not double-settle — but relying on that under a race nobody designed for
-is not a plan, and the other five would duplicate notifications, aggregation and
-transcode jobs outright.
-
-**Requires** either a leader election (only one process runs workers) or a
-`WORKERS_ENABLED` flag set on exactly one instance.
+### `startRetentionWorker` / `startNotificationDispatchWorker`
+Imported and stopped by `server.ts`, never started by it. That predates this
+work. Starting them would be a behaviour change smuggled in under an
+infrastructure task, so they stay off; their `stop` is wired for the day they
+are turned on, and they are already in the leased set's shutdown path.
 
 ---
 
-## The order of work
+## 3 · What happens when Redis fails
 
-1. Provision Redis; set `REDIS_URL`. The three-tier limiter starts sharing
-   immediately with no code change.
-2. Wire the edge guard's store to Redis.
-3. Move the device nonce cache to Redis. **Security-blocking.**
-4. Gate the six background workers to a single process.
-5. Fan out websocket broadcasts over Redis pub/sub, or accept stale live prices
-   and use sticky sessions.
-6. Only then enable clustering / `numInstances > 1`.
+The rule, stated once: **a Redis outage may cost availability or freshness. It
+may never quietly cost a security property.**
 
-And when instances multiply, keep `DB_CONNECTION_LIMIT × instances` under the
-database's `max_connections` (currently 25 × N against 100).
+| State | Behaviour |
+|---|---|
+| Replay protection | **fails CLOSED** — the request is refused. An unanswerable replay check is a failed one. |
+| Worker ownership | **fails CLOSED** — the holder stands down rather than assume it still owns the lease. |
+| Rate limits | fall back to the **local store** and log at error level. Still enforced, just per-process — a bounded degradation, never "off". |
+| Websocket fan-out | degrades to local delivery. Clients elsewhere see stale prices until they re-read. Nothing stored is wrong. |
+
+**Measured:** with Redis down, 520 requests still produced 99 × 429 — the old
+code failed open and would have produced 0. Both limiters logged the
+degradation. `GET /security/health` reports `redis.configured` and
+`redis.healthy` separately, because "not configured" (a supported single-process
+deployment) and "configured and down" (a deployment that believes it shares
+state) mean opposite things.
+
+One subtlety that cost a real bug: `enableOfflineQueue: false` makes a command
+fail immediately when the socket is not writable — which is every command during
+the first connect and every reconnect. A still-opening socket is not an outage,
+so `whenReady()` gates the boot-time paths. Without it the service announced a
+false outage on every start, refused device requests for the first seconds of
+its life, and lost the first realtime event.
+
+---
+
+## 4 · Budgets are divided, not multiplied
+
+Each worker builds its own Prisma pool and its own libuv thread pool. Left
+alone, four workers would open 4 × 25 = 100 connections against a server
+permitting 100. The primary divides both and passes each worker its share, so
+the instance's totals are unchanged and only the number of processes splitting
+them went up.
+
+| Budget | Total | 4 workers |
+|---|---|---|
+| `DB_CONNECTION_LIMIT` | 25 | 6 each (24) |
+| `UV_THREADPOOL_SIZE` | 8 | 2 each (8) |
+
+Across instances the rule is unchanged: keep `DB_CONNECTION_LIMIT × instances`
+under the database's `max_connections`.
+
+---
+
+## 5 · Redis configuration that matters
+
+`maxmemoryPolicy: noeviction`, set in `render.yaml`. Under memory pressure a
+default LRU policy would silently discard rate-limit buckets, device nonces and
+the worker lease — turning a memory limit into a replay window and a
+double-settlement race, with nothing in any log. Refusing writes is loud, and
+the code treats a refusal as an outage and applies the fail-safe policy above.

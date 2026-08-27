@@ -158,11 +158,19 @@ describe('bcrypt is off the request thread, at the same cost', () => {
 
   it('the readiness of multi-process scaling is written down, not assumed', () => {
     const doc = read('docs/multi-process-readiness.md');
-    expect(doc).toContain('clustering is NOT safe yet');
-    // the three that are correctness or security problems
-    expect(doc).toContain('rate-limit.middleware.ts');
+    // This used to assert "clustering is NOT safe yet", which was the honest
+    // status when the prerequisites were only catalogued. They have since been
+    // built, so the assertion now checks the thing that keeps the claim true:
+    // clustering is gated on Redis actually answering, not merely configured.
+    expect(doc).toContain('Clustering is safe when Redis is configured and answering');
+    expect(doc).toContain('refuses to start when it is not');
+    // and the three that were correctness or security problems are still named,
+    // with where their state lives now
+    expect(doc).toContain('rate-limit-redis.store.ts');
     expect(doc).toContain('device-nonce.service.ts');
-    expect(doc).toContain('startAuctionSettlementWorker');
+    expect(doc).toContain('two settlement sweeps racing');
+    // the rule that decides every failure path
+    expect(doc).toContain('may never quietly cost a security property');
   });
 
   it('the pool never holds the process open and stays out of the test runner', () => {

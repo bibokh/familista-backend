@@ -58,7 +58,14 @@ export function subscribeAll(fn: Subscriber): () => void {
   return () => globalSubscribers.delete(fn);
 }
 
-export function publish(event: MatchChannelEvent): void {
+// Phase D, arriving: the facade below is unchanged, and the Redis adapter this
+// header promised is `infra/channel-bridge.ts`. It injects itself here rather
+// than being imported, so this module keeps no dependency on the transport.
+type RemotePublisher = (event: MatchChannelEvent) => void;
+let remotePublish: RemotePublisher | null = null;
+export function setRemotePublisher(fn: RemotePublisher | null): void { remotePublish = fn; }
+
+function deliver(event: MatchChannelEvent): void {
   const set = subscribers.get(event.matchId);
   // Fan out to match-scoped subscribers — never let one exception poison the rest.
   if (set && set.size > 0) {
@@ -70,6 +77,26 @@ export function publish(event: MatchChannelEvent): void {
   for (const fn of globalSubscribers) {
     try { fn(event); } catch (_err) { /* swallow */ }
   }
+}
+
+export function publish(event: MatchChannelEvent): void {
+  deliver(event);
+  // And to the sockets held by the other processes, which subscribe to the same
+  // match but are not reachable from this one's `subscribers` map.
+  remotePublish?.(event);
+}
+
+/**
+ * Deliver an event raised on another process. Local subscribers only — never
+ * re-published, or the processes would bounce it between them.
+ *
+ * Note what this does NOT do: it does not reach `globalSubscribers` differently
+ * from a local publish. The intel broadcaster is a global subscriber and it runs
+ * in exactly one process (it holds the worker lease), so it sees each event once
+ * — here if it is the leader, nowhere if it is not.
+ */
+export function deliverRemote(event: MatchChannelEvent): void {
+  deliver(event);
 }
 
 export function subscriberCount(matchId?: string): number {

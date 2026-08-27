@@ -20,17 +20,14 @@ import { logger } from './utils/logger';
 // Phase C — realtime + workers
 import { mountMatchWebSocket }       from './realtime/match-ws';
 import { mountMarketWebSocket }      from './realtime/market-ws';
-// Phase 16 — real-time intelligence broadcaster
-import { startIntelBroadcaster, stopIntelBroadcaster } from './live-intelligence/intel-broadcaster';
-import { startAIAgentWorker, stopAIAgentWorker }       from './workers/ai-agent.worker';
-import { startAutomationScheduler, stopAutomationScheduler } from './workers/automation.worker';
-import { startAuctionSettlementWorker, stopAuctionSettlementWorker } from './workers/auction-settlement.worker';
-import { startRetentionWorker, stopRetentionWorker } from './workers/retention.worker';
-import { startNotificationDispatchWorker, stopNotificationDispatchWorker } from './workers/notification-dispatch.worker';
-// Phase Q — stats aggregator (drains EventOutbox → rebuilds PlayerMatchStats + season rollup)
-import { startStatsAggregatorWorker, stopStatsAggregatorWorker } from './workers/stats-aggregator.worker';
-// Phase S.1 — video transcode (polls VideoTranscodeJob QUEUED → FFmpeg HLS → S3)
-import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from './workers/video-transcode.worker';
+// Multi-process: shared state, single-owner timers, cross-process fan-out.
+// The six background timers no longer start here — `startOwnedWorkers` starts
+// them in whichever process holds the lease, which is this one when there is
+// only one. See src/infra/background-workers.ts.
+import { startOwnedWorkers, stopOwnedWorkers } from './infra/background-workers';
+import { startChannelBridge, stopChannelBridge } from './infra/channel-bridge';
+import { startClusterPrimary, workerIndex } from './infra/cluster';
+import { verifyRedis, redisConfigured, closeRedis } from './infra/redis';
 
 // ── Boot ──────────────────────────────────────────────────
 // NOTE: The legacy GPS demo WebSocket (/ws/live) and its associated
@@ -41,6 +38,12 @@ import { startVideoTranscodeWorker, stopVideoTranscodeWorker } from './workers/v
 // Clients subscribe to live match state via /ws/match/:id (Phase C).
 
 async function bootstrap() {
+  // ── Step 0: fork, if asked and if it is safe to. ───────────────────────
+  // Returns true only in a primary that has forked workers — that process
+  // supervises and never serves. Everything below runs in each worker, and in
+  // the single process when clustering is off or was refused.
+  if (await startClusterPrimary()) return;
+
   // ── Step 1: build the Express app + HTTP server (sync, cheap). ─────────
   // Everything below this point that's heavy/slow runs AFTER listen() so
   // Render's port-scanner (≈90 s timeout) sees an open socket immediately.
@@ -94,27 +97,46 @@ async function bootstrap() {
       });
     }
 
-    // Each worker start runs in its own try/catch so a single failure
-    // can't prevent the others from coming up.
-    const safeStart = (label: string, fn: () => void) => {
-      try { fn(); } catch (err) {
-        logger.error(`[boot] ${label} failed (swallowed)`, { err: (err as Error).message });
+    // Shared infrastructure, before anything that depends on it. `verifyRedis`
+    // is a PING, so the log line below distinguishes "configured" from
+    // "actually answering" — the difference that decides whether the limiter is
+    // global, whether replay protection is enforced, and whether a broadcast
+    // reaches the other processes.
+    if (redisConfigured()) {
+      const ok = await verifyRedis();
+      if (ok) {
+        logger.info('[boot] Redis verified — rate limits, replay protection and realtime fan-out are shared', {
+          worker: workerIndex(), pid: process.pid,
+        });
+      } else {
+        logger.error('[boot] REDIS_URL is set but Redis did not answer. Rate limiting falls back to ' +
+          'per-process enforcement, and signed device requests are REFUSED until it recovers.', {
+          worker: workerIndex(), pid: process.pid,
+        });
       }
-    };
-    safeStart('startIntelBroadcaster',      () => startIntelBroadcaster());
-    safeStart('startAIAgentWorker',         () => startAIAgentWorker());
-    safeStart('startAutomationScheduler',   () => startAutomationScheduler());
-    safeStart('startAuctionSettlement',     () => startAuctionSettlementWorker());
-    safeStart('startStatsAggregatorWorker', () => startStatsAggregatorWorker());
-    safeStart('startVideoTranscodeWorker',  () => startVideoTranscodeWorker());
+    }
+
+    // Cross-process websocket fan-out. A no-op without Redis, where in-process
+    // delivery already reaches every socket.
+    try { startChannelBridge(); } catch (err) {
+      logger.error('[boot] startChannelBridge failed (swallowed)', { err: (err as Error).message });
+    }
+
+    // The six background timers, in ONE process. With Redis that is whichever
+    // process wins the lease; without it, this one, because there is no other.
+    try { startOwnedWorkers(); } catch (err) {
+      logger.error('[boot] startOwnedWorkers failed (swallowed)', { err: (err as Error).message });
+    }
 
     // Phase J: region presence + billing tier seed (idempotent, best-effort)
     try {
-      const { ensureRegions, registerThisNode, startHeartbeat } = await import('./distributed/region.service');
+      const { ensureRegions, registerThisNode } = await import('./distributed/region.service');
       const { ensureDefaultTiers } = await import('./billing/plans.service');
       await ensureRegions();
+      // Registering is an idempotent upsert of this node's own row, so every
+      // worker may do it. The recurring HEARTBEAT is a timer and belongs to the
+      // lease holder — it is in the owned set with the other five.
       await registerThisNode();
-      startHeartbeat();
       await ensureDefaultTiers();
     } catch (err) {
       logger.warn('[phase-j] region/billing bootstrap failed (swallowed)', { err: (err as Error).message });
@@ -131,16 +153,14 @@ async function bootstrap() {
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received — shutting down gracefully`);
     // Stop workers BEFORE the HTTP server so in-flight loops finish cleanly.
-    try {       stopIntelBroadcaster();      } catch (_) {}
-    try { await stopAIAgentWorker();        } catch (_) {}
-    try { await stopAutomationScheduler();  } catch (_) {}
-    try { await stopAuctionSettlementWorker(); } catch (_) {}
-    try {       stopRetentionWorker();      } catch (_) {}
-    try {       stopNotificationDispatchWorker(); } catch (_) {}
-    try {       stopStatsAggregatorWorker();  } catch (_) {}
-    try {       stopVideoTranscodeWorker();   } catch (_) {}
+    // `stopOwnedWorkers` also hands the lease back, so the next process to boot
+    // picks the timers up immediately instead of waiting out its TTL — a deploy
+    // should not cost thirty seconds of nobody settling auctions.
+    try { await stopOwnedWorkers();  } catch (_) {}
+    try { await stopChannelBridge(); } catch (_) {}
     server.close(async () => {
       await disconnectDatabase();
+      try { await closeRedis(); } catch (_) {}
       process.exit(0);
     });
     setTimeout(() => process.exit(1), 25_000);
