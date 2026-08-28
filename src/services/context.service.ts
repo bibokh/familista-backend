@@ -19,7 +19,7 @@ export async function getContext(userId: string) {
         clubId: true,
         currentClubId: true,
         currentTeamId: true,
-        currentClub:   { select: { id: true, name: true, shortName: true, emblem: true, plan: true } },
+        currentClub:   { select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true } },
         currentTeam:   { select: { id: true, name: true, kind: true } },
       },
     }),
@@ -28,7 +28,7 @@ export async function getContext(userId: string) {
   if (!user) throw new ForbiddenError();
 
   // De-duplicate clubs from memberships, then group teams per club.
-  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }> }>();
+  const clubMap = new Map<string, { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; plan: string; teams: Array<{ id: string; name: string; kind: string }> }>();
   for (const m of memberships) {
     const c = m.club;
     if (!clubMap.has(c.id)) {
@@ -44,7 +44,7 @@ export async function getContext(userId: string) {
   if (clubMap.size === 0 && user.clubId) {
     const club = await prisma.club.findUnique({
       where: { id: user.clubId },
-      select: { id: true, name: true, shortName: true, emblem: true, plan: true },
+      select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true },
     });
     if (club) clubMap.set(club.id, { ...club, teams: [] });
   }

@@ -118,8 +118,12 @@ describe('age', () => {
 });
 
 describe('a club is a name and a crest, and nothing else', () => {
-  it('reads four columns', () => {
-    expect(Object.keys(publicClubSelect).sort()).toEqual(['emblem', 'id', 'name', 'shortName']);
+  it('reads five columns', () => {
+    // `crestUrl` joined `emblem` when the crest became the club's own: a market
+    // row that names a club without carrying its crest leaves the client able to
+    // draw only its own, which is how a selling club ends up wearing the
+    // reader's badge.
+    expect(Object.keys(publicClubSelect).sort()).toEqual(['crestUrl', 'emblem', 'id', 'name', 'shortName']);
   });
   it('a reference that does not resolve says so rather than inventing a club', () => {
     expect(UNKNOWN_CLUB('gone').name).toBe('Unknown / unavailable club');

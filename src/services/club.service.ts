@@ -21,6 +21,8 @@ export interface ClubProfile {
   name: string;
   shortName: string | null;
   emblem: string | null;
+  // The club crest. One image, held on the club, inherited by every team.
+  crestUrl: string | null;
   description: string | null;
   founded: Date | null;
   stadium: string | null;
@@ -45,6 +47,10 @@ export interface ClubProfile {
 // `name` — advanced profile fields are removed from the writable payload.
 export interface ClubCorePatch {
   name?: string;
+  // The crest is club data, not brand chrome: it identifies the football club
+  // on every screen, where WhiteLabelConfig.logoUrl brands the product for a
+  // white-label deployment. They are deliberately separate columns.
+  crestUrl?: string | null;
 }
 
 // Fields the PATCH endpoint may write onto WhiteLabelConfig (brand). TEMP
@@ -67,6 +73,7 @@ function toProfile(club: ClubWithBrand): ClubProfile {
     name: club.name,
     shortName: club.shortName,
     emblem: club.emblem,
+    crestUrl: club.crestUrl,
     description: club.description,
     founded: club.founded,
     stadium: club.stadium,

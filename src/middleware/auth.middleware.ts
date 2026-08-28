@@ -24,10 +24,33 @@ const IDENTITY_MAX = 20000;
 const identityCache = new Map<string, { at: number; row: Identity | null }>();
 const identityInflight = new Map<string, Promise<Identity | null>>();
 
-/** Drop a cached identity — call after anything that changes who a user is. */
-export function forgetIdentity(userId?: string | null): void {
+// The identity cache is per-process, and so was its invalidation. With more
+// than one worker that is a tenant-isolation hole, not merely a stale read: a
+// user switches from club A to club B, the POST is handled by worker 1, worker
+// 1 forgets — and worker 2 keeps answering as club A for the rest of the TTL.
+// Every request that lands there is scoped, authorised and written against the
+// club the user just left.
+//
+// So a forget is announced to every process. The publisher is injected by the
+// channel bridge rather than imported here, which keeps this middleware free of
+// any dependency on Redis and leaves the local behaviour identical when there
+// is one process and no bridge.
+type RemoteForget = (userId: string | null) => void;
+let remoteForget: RemoteForget | null = null;
+export function setRemoteIdentityPublisher(fn: RemoteForget | null): void { remoteForget = fn; }
+
+/** Drop a cached identity in THIS process only. The bridge's receiving end. */
+export function forgetIdentityLocal(userId?: string | null): void {
   if (userId) identityCache.delete(userId);
   else identityCache.clear();
+}
+
+/** Drop a cached identity — call after anything that changes who a user is. */
+export function forgetIdentity(userId?: string | null): void {
+  forgetIdentityLocal(userId);
+  if (remoteForget) {
+    try { remoteForget(userId ?? null); } catch { /* freshness only; never fail the request */ }
+  }
 }
 
 async function loadIdentity(userId: string): Promise<Identity | null> {

@@ -14425,6 +14425,104 @@ body.club-theme .topbar-titles{ min-width:0; }
 #pg-transfers .tfx-dr-box .tf-pp-acts{ padding:12px 18px 16px; margin-top:0; }
 
 
+/* ═══════════ CLUB LOGO / CLUB IDENTITY ═══════════
+   The design-system primitive every crest on the platform is drawn with.
+   One square box, one size variable, and the placeholder permanently behind
+   the image: the box is its final size before the crest loads, so nothing on
+   the row moves when it arrives, and a crest that fails to load reveals the
+   placeholder rather than a broken-image glyph or a collapsed gap.
+
+   `contain` is not optional here. A crest is a club's mark and stretching it
+   is the one thing that is never acceptable, so a tall or wide crest is
+   letterboxed inside the square instead. */
+.club-logo{
+  --club-logo-size:34px;
+  position:relative; display:inline-flex; flex:0 0 auto;
+  width:var(--club-logo-size); height:var(--club-logo-size);
+  align-items:center; justify-content:center;
+  border-radius:calc(var(--club-logo-size) * .24);
+  overflow:hidden; vertical-align:middle;
+  background:var(--bg-2,rgba(255,255,255,.04));
+  color:var(--tx-3,#8b93a7);
+}
+.club-logo-ph{
+  position:absolute; inset:14%;
+  width:72%; height:72%; display:block; pointer-events:none;
+}
+.club-logo-img{
+  position:relative; z-index:1;
+  width:100%; height:100%;
+  object-fit:contain;            /* never stretch a crest */
+  display:block; background:transparent;
+}
+/* A crest with transparency sits on the box; one without fills it. Either way
+   the corners follow the box so no crest ever squares off a rounded row. */
+/* The size scale. Classes, not inline styles: style-src has no
+   'unsafe-inline', so a style attribute would be refused outright. */
+.club-logo--s16{ --club-logo-size:16px; }
+.club-logo--s20{ --club-logo-size:20px; }
+.club-logo--s24{ --club-logo-size:24px; }
+.club-logo--s26{ --club-logo-size:26px; }
+.club-logo--s30{ --club-logo-size:30px; }
+.club-logo--s34{ --club-logo-size:34px; }
+.club-logo--s40{ --club-logo-size:40px; }
+.club-logo--s44{ --club-logo-size:44px; }
+.club-logo--s56{ --club-logo-size:56px; }
+.club-logo--s64{ --club-logo-size:64px; }
+.club-logo--s74{ --club-logo-size:74px; }
+.club-logo--s88{ --club-logo-size:88px; }
+.club-logo--s120{ --club-logo-size:120px; }
+.club-logo--s160{ --club-logo-size:160px; }
+
+.club-logo--plain{ background:transparent; border-radius:0; }
+.club-logo--round{ border-radius:50%; }
+.club-logo--ring{ box-shadow:inset 0 0 0 1px var(--bd,rgba(255,255,255,.09)); }
+
+/* Hosts that used to hold a bare <img> now hold the primitive. They keep their
+   own frame — a ring, a tile, a round plate — and centre the crest inside it,
+   so migrating a surface changed what resolves the crest and not how the
+   surface looks. */
+.chd-hero-crest, .cp-card-crest, .mc2-ss-crest, .hero-emblem,
+.co-cc-crest, .club-emblem-lg, .hf-crest, .hero-watermark, .at-club-crest{
+  display:inline-flex; align-items:center; justify-content:center;
+}
+
+.club-ident{ display:inline-flex; align-items:center; gap:10px; min-width:0; }
+.club-ident-txt{ display:flex; flex-direction:column; min-width:0; line-height:1.25; }
+.club-ident-name{
+  font-weight:700; font-size:13px; color:var(--tx,#e8ecf5);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.club-ident-sub{
+  font-style:normal; font-size:10.5px; color:var(--tx-3,#8b93a7);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* The parent club, said once on a team surface: the first team and every
+   academy age group inherit the club's crest rather than owning one. */
+.team-club-badge{
+  display:inline-flex; align-items:center; gap:5px;
+  vertical-align:middle; margin-right:8px;
+  font-style:normal; font-weight:700; letter-spacing:.2px;
+  color:var(--tx-3,#8b93a7);
+}
+.ac-tcard-id .team-club-badge{ margin:3px 0 0; font-size:10.5px; }
+.sq-hub-club{ margin-top:12px; font-size:11.5px; }
+.sq-hub-club:empty{ display:none; }
+
+/* ── Settings · club crest uploader ── */
+.set-crest-row{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.set-crest-prev{
+  width:96px; height:96px; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--bd,rgba(255,255,255,.09)); border-radius:16px;
+  background:var(--bg-2,rgba(255,255,255,.03)); overflow:hidden;
+}
+.set-crest-prev .club-logo{ background:transparent; }
+.set-crest-actions{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+.set-crest-btns{ display:flex; gap:8px; flex-wrap:wrap; }
+.set-crest-hint{ font-size:11px; color:var(--tx-3,#8b93a7); }
+
 /* ══════════════════════════════════════════════════════════════════════════════
    FAMILISTA RECRUITMENT COMMAND CENTER
    ────────────────────────────────────────────────────────────────────────────

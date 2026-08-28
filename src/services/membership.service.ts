@@ -234,7 +234,7 @@ export async function getActiveMembershipsForUser(userId: string) {
   return prisma.membership.findMany({
     where:  { userId, isActive: true },
     include: {
-      club: { select: { id: true, name: true, shortName: true, emblem: true, plan: true } },
+      club: { select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, plan: true } },
       team: { select: { id: true, name: true, kind: true } },
     },
     orderBy: [{ joinedAt: 'desc' }],

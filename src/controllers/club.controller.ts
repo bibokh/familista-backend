@@ -25,6 +25,30 @@ const hexColor = z
 
 const text = (max: number) => z.string().trim().max(max);
 
+// ── The club crest ────────────────────────────────────────────────────────
+// Accepted in the two forms a crest actually arrives in: an https:// URL for a
+// club that hosts its own, and an inline image for one uploaded through the
+// crest picker — the same shape the player-photo upload has always sent, so
+// there is one upload mechanism in the product rather than two.
+//
+// The cap is on the encoded string because that is what the request carries.
+// 400 000 characters is roughly 300 KB of image, far more than the 256 px
+// square the uploader produces and far less than the 2 MB body limit, so a
+// pasted original is refused with a message rather than by a 413.
+const MAX_CREST_CHARS = 400_000;
+const CREST_DATA_URL = /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+const crestImage = z
+  .string()
+  .trim()
+  .max(MAX_CREST_CHARS, 'image is too large — upload a smaller crest')
+  .refine((u) => u === '' || /^https:\/\//i.test(u) || CREST_DATA_URL.test(u), {
+    message: 'must be an https:// URL or an uploaded PNG, JPEG or WebP image',
+  })
+  // An empty string is how the UI says "remove the crest"; it is stored as null
+  // so "no crest" is one value and not two.
+  .transform((u) => (u === '' ? null : u));
+
 // TEMP emergency scope — Club Settings reduced to essentials only. The advanced
 // club-profile fields (description / address / region / postalCode / contact* /
 // websiteUrl / socialLinks / faviconUrl / logoDark / and the legacy core fields)
@@ -33,6 +57,8 @@ const text = (max: number) => z.string().trim().max(max);
 const patchSchema = z.object({
   body: z.object({
     name:           text(120).min(1).optional(),
+    // Club crest (Club.crestUrl) — club identity, not product branding.
+    crestUrl:       crestImage.nullable().optional(),
     // Brand (WhiteLabelConfig)
     logoUrl:        httpsUrl.nullable().optional(),
     primaryColor:   hexColor.optional(),

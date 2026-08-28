@@ -110,6 +110,12 @@ model Club {
   name           String
   shortName      String?
   emblem         String?
+  /// The club's crest, and the only authoritative one. `emblem` is the older
+  /// https-only field kept for the clubs that already carry one; `crestUrl` is
+  /// what the crest uploader writes and what every crest on every screen
+  /// resolves to first. It belongs to the Club, so a team — First Team or any
+  /// academy age group — inherits it rather than holding a copy.
+  crestUrl       String?
   city           String
   country        String    @default("Germany")
   founded        DateTime?

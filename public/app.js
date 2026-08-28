@@ -99,6 +99,200 @@ const State = {
 // even when availableClubs was correctly populated by AppContext.load().
 try { if (typeof window !== 'undefined') window.State = State; } catch (_) {}
 
+// ══════════════════════════════════════════════════════════════════════════
+// CLUB IDENTITY — one crest per club, resolved by club id
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Before this, a crest was drawn wherever somebody happened to have a club
+// object to hand: `club.emblem` read off State.club here, off a market row
+// there, off the context somewhere else. Three consequences, all of them
+// visible:
+//
+//   State.club is never actually assigned, so every screen reading it drew the
+//   generic ⚽ even for a club that had a crest.
+//
+//   A screen holding one club object and naming another — an opponent, a
+//   selling club, a club in a table — drew the reader's own crest next to
+//   somebody else's name.
+//
+//   Nothing could be given a crest without first being given a club object,
+//   so most surfaces simply had none.
+//
+// This is the single answer to "what does club X look like": a registry keyed
+// by club id, written from each club's own record, read by id. A caller needs
+// nothing but the id, so it cannot supply the wrong club's image, and no
+// resolution is a request — the registry is filled from the payloads the app
+// already reads (the context, the club profile, market rows), so drawing a
+// crest never costs a round trip.
+//
+// A team has no crest of its own. The first team and every academy age group
+// ask for their parent club's id and get the club's crest, which is what makes
+// one upload cover all of them.
+var CLUB_IDENT = Object.create(null);   // clubId → { name, short, crest }
+
+// Any club-shaped object at all: the context's availableClubs, a club profile,
+// a market row's `club`, an opponent. Only the fields that identify a club are
+// kept, and only when they are actually present — a payload that carries a
+// name but no crest must not erase a crest read from a richer one.
+function _clubIdentPut(c) {
+  if (!c || !c.id) return null;
+  var id = String(c.id);
+  var e = CLUB_IDENT[id] || (CLUB_IDENT[id] = { name: '', short: '', crest: '' });
+  if (c.name) e.name = String(c.name);
+  if (c.shortName) e.short = String(c.shortName);
+  // crestUrl is the uploaded crest and wins; emblem is the older https-only
+  // field, kept so a club that already had one keeps showing it.
+  var crest = (c.crestUrl != null ? c.crestUrl : (c.crest != null ? c.crest : c.emblem));
+  if (crest !== undefined) {
+    // An explicit null or '' is a removal and must clear the cached image;
+    // `undefined` means this payload simply did not carry one.
+    e.crest = crest ? String(crest) : '';
+  }
+  return e;
+}
+function _clubIdentPutAll(list) {
+  if (!Array.isArray(list)) return;
+  for (var i = 0; i < list.length; i++) _clubIdentPut(list[i]);
+}
+// Signing out ends the session's right to know any of this. The next person at
+// this browser fills the registry from their own context.
+function _clubIdentReset() { CLUB_IDENT = Object.create(null); }
+
+function _clubIdentOf(clubId) {
+  if (!clubId) return null;
+  return CLUB_IDENT[String(clubId)] || null;
+}
+// The crest for a club, or '' when it has none. Never another club's.
+function _clubCrestUrl(clubId) {
+  var e = _clubIdentOf(clubId);
+  return (e && e.crest) || '';
+}
+function _clubNameOf(clubId, fallback) {
+  var e = _clubIdentOf(clubId);
+  return (e && e.name) || fallback || '';
+}
+// The club being acted for. State.context.clubId is the authoritative one;
+// State.club is the legacy holder some older screens still read.
+function _famActiveClubId() {
+  try {
+    return (window.State && State.context && State.context.clubId)
+      || (window.State && State.club && State.club.id)
+      || null;
+  } catch (_) { return null; }
+}
+
+// The neutral placeholder — a plain crest silhouette, shown for a club that
+// has not uploaded one and for an image that fails to load. It is deliberately
+// not a club's initials: initials read as identity, and a club without a crest
+// has none to show.
+function _clubShieldSvg() {
+  return '<svg class="club-logo-ph" viewBox="0 0 24 26" aria-hidden="true" focusable="false">'
+    + '<path d="M12 1.6 22 5v8.2c0 5.6-4 9.4-10 11.2C6 22.6 2 18.8 2 13.2V5z"'
+    + ' fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-opacity=".55"'
+    + ' stroke-width="1.4" stroke-linejoin="round"/>'
+    + '<path d="M12 7.4v10M7.2 10.2h9.6" stroke="currentColor" stroke-opacity=".4"'
+    + ' stroke-width="1.3" stroke-linecap="round"/>'
+    + '</svg>';
+}
+
+// A crest whose URL is dead must look like a club without one, never like a
+// broken page. The image removes itself and the placeholder underneath it is
+// what remains, so no browser ever draws its broken-image glyph here.
+function _clubLogoFallback(img) {
+  try {
+    var host = img && img.parentNode;
+    img.remove();
+    if (host && host.classList) host.classList.add('is-empty');
+  } catch (_) {}
+}
+// Bound once, on the document, rather than written as an onerror attribute on
+// each image. Familista's Content-Security-Policy has no 'unsafe-inline' in
+// script-src, so an inline handler is refused by the browser and never runs —
+// which is exactly how a dead crest URL ends up showing the broken-image glyph
+// despite having a fallback written for it. `error` does not bubble, so this
+// listens in the capture phase, where it does reach.
+try {
+  if (typeof document !== 'undefined') {
+    document.addEventListener('error', function (e) {
+      var t = e && e.target;
+      if (t && t.classList && t.classList.contains('club-logo-img')) _clubLogoFallback(t);
+    }, true);
+  }
+} catch (_) {}
+try { if (typeof window !== 'undefined') window._clubLogoFallback = _clubLogoFallback; } catch (_) {}
+
+// ── <ClubLogo clubId /> ───────────────────────────────────────────────────
+// The crest alone. `size` is a CSS length or one of the named steps; the box
+// is square and the image is contained inside it, so a wide or tall crest is
+// letterboxed rather than stretched.
+//
+// The placeholder is always in the DOM, behind the image. That is what keeps
+// the box the same size before, during and after loading — there is no
+// reserved-then-filled reflow, and a failed load reveals the placeholder
+// instead of collapsing the row.
+//
+// The size is a class, never an inline style. Familista serves a strict
+// Content-Security-Policy whose style-src has no 'unsafe-inline', so a
+// `style="--club-logo-size:44px"` attribute is refused by the browser and the
+// crest would quietly render at the default size everywhere. A fixed scale in
+// the stylesheet is both CSP-safe and the reason every crest on the platform
+// lands on one of a dozen sizes rather than a hundred.
+var _CLUB_LOGO_STEPS = [16, 20, 24, 26, 30, 34, 40, 44, 56, 64, 74, 88, 120, 160];
+var _CLUB_LOGO_NAMES = { xs: 18, sm: 24, md: 34, lg: 44, xl: 74 };
+function _clubLogoStep(size) {
+  var want = _CLUB_LOGO_NAMES[size] || parseInt(size, 10) || _CLUB_LOGO_NAMES.md;
+  var best = _CLUB_LOGO_STEPS[0];
+  for (var i = 0; i < _CLUB_LOGO_STEPS.length; i++) {
+    if (Math.abs(_CLUB_LOGO_STEPS[i] - want) < Math.abs(best - want)) best = _CLUB_LOGO_STEPS[i];
+  }
+  return best;
+}
+function clubLogoHtml(clubId, opts) {
+  opts = opts || {};
+  var px = _clubLogoStep(opts.size || 'md');
+  var crest = _clubCrestUrl(clubId);
+  var name = _clubNameOf(clubId, opts.name || '');
+  var cls = 'club-logo club-logo--s' + px + (crest ? '' : ' is-empty') + (opts.cls ? ' ' + opts.cls : '');
+  var title = (opts.title !== false && name) ? ' title="' + _esc(name) + '"' : '';
+  return '<span class="' + cls + '"' + title + ' data-club-logo="' + _esc(String(clubId || '')) + '">'
+    + _clubShieldSvg()
+    + (crest
+        ? '<img class="club-logo-img" src="' + _esc(crest) + '" alt="'
+          + (name ? _esc(name) + ' crest' : '') + '" loading="lazy" decoding="async">'
+        : '')
+    + '</span>';
+}
+
+// ── <ClubIdentity clubId showLogo showName /> ─────────────────────────────
+// Crest and name as one thing, for the places that present a club rather than
+// merely mention one. `sub` is an optional second line (a role, a location, a
+// status) supplied by the caller — this component never invents one.
+function clubIdentityHtml(clubId, opts) {
+  opts = opts || {};
+  var showLogo = opts.showLogo !== false;
+  var showName = opts.showName !== false;
+  var name = _clubNameOf(clubId, opts.name || '');
+  var parts = '';
+  if (showLogo) parts += clubLogoHtml(clubId, { size: opts.size || 'md', name: name, title: false });
+  if (showName) {
+    parts += '<span class="club-ident-txt"><b class="club-ident-name">' + _esc(name || 'Club') + '</b>'
+      + (opts.sub ? '<i class="club-ident-sub">' + _esc(String(opts.sub)) + '</i>' : '')
+      + '</span>';
+  }
+  return '<span class="club-ident' + (opts.cls ? ' ' + opts.cls : '') + '">' + parts + '</span>';
+}
+
+try {
+  if (typeof window !== 'undefined') {
+    window.clubLogoHtml = clubLogoHtml;
+    window.clubIdentityHtml = clubIdentityHtml;
+    window._clubIdentPut = _clubIdentPut;
+    window._clubIdentPutAll = _clubIdentPutAll;
+    window._clubCrestUrl = _clubCrestUrl;
+    window._famActiveClubId = _famActiveClubId;
+  }
+} catch (_) {}
+
 // ── Structured network error ─────────────────────────────────────────────
 class ApiError extends Error {
   constructor(opts) {
@@ -734,6 +928,11 @@ var _FAM_PAGE_RENDER = {
   'fos-executive-bridge':        ['renderFOSExecutiveBridge'],
   'fos-ai-agent-framework':      ['renderFOSAIAgentFramework'],
   'fos-observability':           ['renderFOSObservability'],
+  // The Settings page is mostly static markup, but the crest card is drawn from
+  // the club registry, which fills after the page template is built. Listing it
+  // here is what makes the card show the club's real crest on arrival rather
+  // than the placeholder it was built with.
+  'settings':                    ['renderSettingsPage'],
 };
 // The six GIS boards share one renderer, keyed by their own page name.
 var _FAM_GIS_PAGES = ['gis-data-lake', 'gis-analytics', 'gis-scouting',
@@ -940,6 +1139,10 @@ function doLogout() {
   if (typeof _tfRtReset === 'function') { try { _tfRtReset(); } catch (_) {} }
   State.token = null;
   State.user  = null;
+  // Which clubs exist, and what they look like, was this user's to know. The
+  // next sign-in fills the registry from that user's own context, so nobody
+  // inherits a crest for a club they have no membership in.
+  try { _clubIdentReset(); } catch (_) {}
 
   document.getElementById('main-app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -1394,10 +1597,11 @@ function renderWidget_clubHeader(ctx) {
   var short  = (d && d.shortName) || club.shortName  || '';
   var owner  = (d && d.ownerName) || [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email || 'Owner';
   var season = (info && info.season) || '';
-  var emb    = (d && d.emblem)    || club.emblem || '';
-  var crest  = emb
-    ? '<img src="' + _esc(emb) + '" class="chd-hero-crest" onerror="this.style.display=\'none\'">'
-    : '<div class="chd-hero-crest chd-hero-crest--text">⚽</div>';
+  // The club's own crest, by id, through the shared primitive — so this hero
+  // and the topbar above it can never disagree about what the club looks like.
+  var crest  = '<span class="chd-hero-crest">'
+    + clubLogoHtml(club.id, { size: 84, cls: 'club-logo--plain club-logo--round', name: name, title: false })
+    + '</span>';
   return '<div class="chd-hero-inner">'
     + crest
     + '<div class="chd-hero-text">'
@@ -1678,35 +1882,25 @@ function hydrateTopbarBrand(page) {
   try {
     var emblemEl   = document.getElementById('topbar-club-emblem');
     var subtitleEl = document.getElementById('page-subtitle');
-    var clubName = (window.State && State.club && State.club.name) || 'FC Familista';
-    var emblemUrl = (window.State && State.club && State.club.emblem) || '';
+    // The club being acted for, by id, resolved through the one registry. This
+    // read used to be State.club — which nothing ever assigns — so the topbar
+    // showed the ⚽ glyph even for a club that had a crest.
+    var clubId   = _famActiveClubId();
+    var clubName = _clubNameOf(clubId, 'FC Familista');
+    var crestUrl = _clubCrestUrl(clubId);
     if (subtitleEl) {
       subtitleEl.textContent = _b1IsPlatformPage(page) ? 'PLATFORM' : clubName;
     }
     if (emblemEl) {
-      // If a real emblem URL is loaded, render the image. Otherwise leave
-      // the fallback glyph in place — no fabricated club identity.
-      if (emblemUrl) {
-        if (emblemEl.tagName !== 'IMG') {
-          var img = document.createElement('img');
-          img.id = 'topbar-club-emblem';
-          img.className = 'topbar-emblem';
-          img.alt = clubName;
-          img.src = emblemUrl;
-          img.onerror = function () {
-            // Restore glyph fallback on broken image
-            var span = document.createElement('span');
-            span.id = 'topbar-club-emblem';
-            span.className = 'topbar-emblem';
-            span.setAttribute('aria-hidden', 'true');
-            span.textContent = '⚽';
-            img.replaceWith(span);
-          };
-          emblemEl.replaceWith(img);
-        } else if (emblemEl.getAttribute('src') !== emblemUrl) {
-          emblemEl.setAttribute('src', emblemUrl);
-          emblemEl.setAttribute('alt', clubName);
-        }
+      // Drawn from the primitive so the topbar crest behaves exactly like every
+      // other one: square, contained, placeholder behind it. Rewritten only
+      // when the club or its crest actually changed, so a repaint on every
+      // navigation costs nothing and never restarts the image load.
+      var stamp = String(clubId || '') + '|' + crestUrl;
+      if (emblemEl.getAttribute('data-club-stamp') !== stamp) {
+        emblemEl.setAttribute('data-club-stamp', stamp);
+        emblemEl.setAttribute('aria-hidden', 'true');
+        emblemEl.innerHTML = clubLogoHtml(clubId, { size: 26, cls: 'club-logo--plain', title: false });
       }
     }
     // Document title — reflects active page + tenant.
@@ -2437,8 +2631,12 @@ function renderClubs() {
     ? available
     : (club && club.id
         ? [{ id: club.id, name: club.name, city: club.city, country: club.country,
-             level: club.level, emblem: club.emblem, isActive: true }]
+             level: club.level, emblem: club.emblem, crestUrl: club.crestUrl, isActive: true }]
         : []);
+  // Each card resolves its own club's crest from its own record. Feeding the
+  // registry here — rather than reading `c.emblem` inline as the card used to —
+  // is what stops one club's crest appearing under another club's name.
+  try { _clubIdentPutAll(clubs); } catch (_) {}
   // Said plainly, not spun: this is a read that has not answered yet, and the
   // difference between that and having no clubs matters to whoever is reading.
   const pending = (!clubs.length && !hydrated)
@@ -2454,7 +2652,7 @@ function renderClubs() {
       <div class="cp-grid">
         ${clubs.map(c => `
           <button class="cp-card${c.isActive !== false ? ' cp-card--active' : ''}" data-action="openClub" data-club-id="${_esc(c.id || '')}" type="button">
-            <div class="cp-card-crest">${c.emblem ? `<img src="${_esc(c.emblem)}" alt="" onerror="this.replaceWith(document.createTextNode('⚽'))">` : '⚽'}</div>
+            <div class="cp-card-crest">${clubLogoHtml(c.id, { size: 44, cls: 'club-logo--plain', title: false })}</div>
             <div class="cp-card-body">
               <div class="cp-card-name">${_esc(c.name || 'Club')}</div>
               <div class="cp-card-meta">${_esc([c.city, c.country, c.level ? 'Level ' + c.level : ''].filter(Boolean).join(' · ') || 'Football Club')}</div>
@@ -2703,7 +2901,8 @@ function renderSquadHTML() {
 
   return '<div class="page" id="pg-squad">'
     + '<div id="sq-home">'
-    +   '<div style="padding:32px 32px 26px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Squad</h1><p style="margin:6px 0 0;font-size:13.5px;color:var(--tx-3,#64748b)">Select a module to manage your team</p></div>'
+    +   '<div style="padding:32px 32px 26px"><h1 style="margin:0;font-size:24px;font-weight:800;color:var(--tx-1,#f1f5f9);letter-spacing:-.5px">Squad</h1><p style="margin:6px 0 0;font-size:13.5px;color:var(--tx-3,#64748b)">Select a module to manage your team</p>'
+    +     '<div class="sq-hub-club" id="sq-hub-club"></div></div>'
     +   '<div class="sqf-cards">' + cardHtml + '</div>'
     + '</div>'
     + subHtml
@@ -13424,6 +13623,7 @@ function renderClubHome() {
       id:        State.club.id,
       name:      State.club.name,
       emblem:    State.club.emblem,
+      crestUrl:  State.club.crestUrl,
       shortName: State.club.shortName,
     };
   }
@@ -13432,6 +13632,7 @@ function renderClubHome() {
       id:        (active && active.id)        || '',
       name:      (active && active.name)      || 'Club',
       emblem:    (active && active.emblem)    || '',
+      crestUrl:  (active && active.crestUrl)  || '',
       shortName: (active && active.shortName) || '',
     },
     user: (window.State && State.user) || {},
@@ -13650,8 +13851,13 @@ function _dashStartCountdown(targetMs) {
 // Helpers — real data from State, no fabrication.
 function _dashClubIdent() {
   var c = (window.State && State.club) || {};
+  // The club id is what the crest resolves from, and the name falls back to the
+  // registry rather than to a literal — this is the club being acted for, and
+  // its name is known from /me/context even when State.club is not populated.
+  var id = _famActiveClubId();
   return {
-    name:    c.name      || 'FC Familista',
+    id:      id || c.id || '',
+    name:    c.name || _clubNameOf(id, '') || 'FC Familista',
     city:    c.city      || '',
     country: c.country   || '',
     level:   c.level,
@@ -13754,9 +13960,7 @@ function renderDashboard() {
     var _M = {};
     _M['dash-hero'] = function () {
       var _H = '';
-        var emblemHtml = club.emblem
-          ? '<img class="hero-emblem-img" src="' + _esc(club.emblem) + '" alt="' + _esc(club.name) + '" onerror="this.style.display=\'none\'">'
-          : '<span class="hero-emblem-glyph">⚽</span>';
+        var emblemHtml = clubLogoHtml(club.id, { size: 56, cls: 'club-logo--plain club-logo--round', name: club.name, title: false });
         var meta = [club.city, club.country, club.level ? 'Level ' + club.level : '', club.rating ? '⭐ ' + Number(club.rating).toFixed(1) : '']
           .filter(Boolean).join(' · ');
   
@@ -13773,7 +13977,7 @@ function renderDashboard() {
             '<div class="hero-fixture">'
             + '<div class="hf-label">NEXT FIXTURE' + (competition ? ' · ' + _esc(competition) : '') + '</div>'
             + '<div class="hf-teams">'
-            + '  <div class="hf-team home"><div class="hf-crest">' + (isHome && club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">' : '🏠') + '</div><div class="hf-name">' + _esc(homeName) + '</div><div class="hf-side">Home</div></div>'
+            + '  <div class="hf-team home"><div class="hf-crest">' + (isHome && _clubCrestUrl(club.id) ? clubLogoHtml(club.id, { size: 26, cls: 'club-logo--plain', title: false }) : '🏠') + '</div><div class="hf-name">' + _esc(homeName) + '</div><div class="hf-side">Home</div></div>'
             + '  <div class="hf-vs">vs</div>'
             + '  <div class="hf-team away"><div class="hf-crest">⚔️</div><div class="hf-name">' + _esc(awayName) + '</div><div class="hf-side">Away</div></div>'
             + '</div>'
@@ -13799,7 +14003,7 @@ function renderDashboard() {
         }
   
         _H =
-          '<div class="hero-watermark">' + (club.emblem ? '<img src="' + _esc(club.emblem) + '" alt="" onerror="this.remove()">' : '⚽') + '</div>'
+          '<div class="hero-watermark">' + (_clubCrestUrl(club.id) ? clubLogoHtml(club.id, { size: 160, cls: 'club-logo--plain', title: false }) : '⚽') + '</div>'
           + '<div class="hero-content">'
           + '<div class="hero-identity">'
           + '<div class="hero-emblem">' + emblemHtml + '</div>'
@@ -14658,6 +14862,11 @@ function renderMatchCenter() {
     var club       = (window.State && State.club) || {};
     var clubName   = club.name || 'FC Familista';
     var clubEmblem = club.emblem || '';
+    // Identity by id: ours from the active context, the opponent's from the
+    // fixture when it records which club it represents.
+    var clubId     = _famActiveClubId();
+    var oppClubId  = (next && (next.opponentClubId || next.awayClubId || next.homeClubId)) || null;
+    if (oppClubId === clubId) oppClubId = null;
     var xi         = _mcPickStartingXI();
     var formation  = _mcFormation(xi);
     var bench      = _mcBenchRec();
@@ -14677,12 +14886,13 @@ function renderMatchCenter() {
     var shotsOnT   = next && typeof next.shotsOnTarget === 'number' ? next.shotsOnTarget : null;
     var played     = next && (next.result || (next.homeScore != null && next.awayScore != null));
 
-    var homeEmblemHTML = clubEmblem && isHome
-      ? '<img src="' + _esc(clubEmblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'🏠\'))">'
-      : '🏠';
-    var awayEmblemHTML = clubEmblem && !isHome
-      ? '<img src="' + _esc(clubEmblem) + '" alt="" onerror="this.replaceWith(document.createTextNode(\'⚔️\'))">'
-      : '⚔️';
+    // Our crest sits on our own side of the fixture and nowhere else. The
+    // opposing side is a different club: it draws its own crest when the
+    // fixture names one, and its glyph otherwise — never ours.
+    var ourCrest   = _clubCrestUrl(clubId) ? clubLogoHtml(clubId, { size: 40, cls: 'club-logo--plain', title: false }) : '';
+    var oppCrest   = _clubCrestUrl(oppClubId) ? clubLogoHtml(oppClubId, { size: 40, cls: 'club-logo--plain', title: false }) : '';
+    var homeEmblemHTML = (isHome ? ourCrest : oppCrest) || '🏠';
+    var awayEmblemHTML = (isHome ? oppCrest : ourCrest) || '⚔️';
 
     // SCORE STRIP — pre-match / live / post
     var scoreLeft = next && played ? next.homeScore : (next ? (isHome ? clubName.split(' ').map(function (w) { return w[0]; }).join('').slice(0, 3).toUpperCase() : (next.homeTeam || '')) : '—');
@@ -32082,6 +32292,16 @@ const AppContext = (function () {
           teamId: _ctx.currentTeamId || null,
           availableClubs: Array.isArray(_ctx.availableClubs) ? _ctx.availableClubs : [],
         };
+        // Every club this user may act for, and what each one looks like. This
+        // is where the crest registry is filled for the session, which is why
+        // no <ClubLogo> anywhere afterwards has to ask the server anything.
+        try {
+          _clubIdentPutAll(_ctx.availableClubs);
+          _clubIdentPut(_ctx.currentClub);
+          // The chrome was drawn before this answered. It knows the club now.
+          if (typeof hydrateTopbarBrand === 'function') hydrateTopbarBrand(_famActivePage());
+          if (typeof _famDataChanged === 'function') _famDataChanged();
+        } catch (_) {}
         // The picker may already be on screen with nothing in it — this is the
         // answer it was waiting for, so it draws now rather than on the next
         // navigation.
@@ -32152,6 +32372,14 @@ const AppContext = (function () {
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
       };
+      // The club being entered names itself. Crests are held per club id, so
+      // this adds the new club rather than replacing the old one's image — the
+      // club just left keeps its own crest for the tables that still name it.
+      try {
+        _clubIdentPutAll(State.context.availableClubs);
+        _clubIdentPut(_ctx && _ctx.currentClub);
+        if (typeof hydrateTopbarBrand === 'function') hydrateTopbarBrand(_famActivePage());
+      } catch (_) {}
       // The server now answers as the club just picked. Everything still held
       // from the club just left is that club's data, and none of it is stamped
       // with whose it is — so it goes before anything is read or repainted. If
@@ -32237,6 +32465,7 @@ const AppContext = (function () {
           ? _ctx.availableClubs
           : ((State.context && State.context.availableClubs) || []),
       };
+      try { _clubIdentPutAll(State.context.availableClubs); } catch (_) {}
       renderSwitcher();
       // Same club, different team: Layer B is scoped by team, so what is held is
       // the previous team's and the held read is dropped before the new one — a
@@ -32371,6 +32600,22 @@ function renderSquad(filterPos) {
   const pos = State.squadFilter || 'ALL';
   const grid = document.getElementById('player-grid');
   const sub  = document.getElementById('squad-sub');
+
+  // The first team belongs to a club and shows that club's crest. It has none
+  // of its own — one crest is uploaded against the Club and every team under it,
+  // this one and each academy age group, resolves the same image. Filled here
+  // because the hub's shell is built at mount, before the club is known.
+  try {
+    const hubClub = document.getElementById('sq-hub-club');
+    if (hubClub) {
+      const badge = _teamClubBadgeHtml();
+      if (hubClub.getAttribute('data-club-stamp') !== badge) {
+        hubClub.setAttribute('data-club-stamp', badge);
+        hubClub.innerHTML = badge;
+      }
+    }
+  } catch (_) {}
+
   if (!grid) return;
 
   const addBtn = document.getElementById('squad-add-btn');
@@ -40168,6 +40413,10 @@ async function loadClubData() {
   }
   if (!club) return;
   State.activeClub = club;
+  // The authoritative record for this club, crest included. Registering it here
+  // is what makes an uploaded crest appear everywhere at once rather than only
+  // on the page that read it.
+  try { _clubIdentPut(club); } catch (_) {}
 
   const b   = club.branding || {};
   const cell = (v) => (v == null || v === '') ? _NOTSET : _esc(String(v));
@@ -40176,10 +40425,10 @@ async function loadClubData() {
   const loc = [club.city, club.country].filter(Boolean).join(', ');
 
   if (heroEl) {
-    const logoHttps = _safeHttps(b.logoUrl);
-    const logo = logoHttps
-      ? `<img src="${_esc(logoHttps)}" alt="club crest" style="width:74px;height:74px;object-fit:contain;border-radius:14px;background:var(--bg-2);" />`
-      : `<div class="club-emblem-lg">${_esc(club.emblem || '🛡️')}</div>`;
+    // The club's crest, through the primitive. The white-label logoUrl is
+    // product branding for a white-label deployment and is deliberately not
+    // what identifies the football club here.
+    const logo = `<div class="club-emblem-lg">${clubLogoHtml(club.id, { size: 74, cls: 'club-logo--plain', title: false })}</div>`;
     heroEl.innerHTML =
       logo +
       `<div class="club-title">${_esc(club.name || 'Unnamed Club')}</div>` +
@@ -40385,6 +40634,153 @@ async function onLocaleChange(el) {
 }
 window.onLocaleChange = onLocaleChange;
 
+// ── Settings · club crest ────────────────────────────────────────────────────
+// The uploader, built on exactly the mechanism the player photo has always
+// used: read the file in the browser, draw it down to a sensible size on a
+// canvas, and send the result to the endpoint that owns the record. One upload
+// mechanism in the product rather than two.
+//
+// The differences from a player photo are the ones a crest actually needs. It
+// is squared rather than cropped — a crest is a mark and losing its edges is
+// worse than letterboxing it — and it is written as PNG so transparency
+// survives, which is the whole point of a crest sitting on a dark surface.
+var CREST_MAX_PX = 256;
+var CREST_TYPES = 'image/png,image/jpeg,image/webp';
+
+function _crestPreviewHtml(clubId, pending) {
+  var url = (pending != null) ? pending : _clubCrestUrl(clubId);
+  return url
+    ? '<span class="club-logo club-logo--s88 club-logo--plain">'
+      + _clubShieldSvg()
+      + '<img class="club-logo-img" src="' + _esc(url) + '" alt=""></span>'
+    : clubLogoHtml(null, { size: 88, cls: 'club-logo--plain', title: false });
+}
+
+// null = nothing staged; a string = a new crest chosen; '' = remove.
+var _CREST_PENDING = null;
+
+function _settingsCrestHtml() {
+  var id = _famActiveClubId();
+  var has = (_CREST_PENDING != null) ? !!_CREST_PENDING : !!_clubCrestUrl(id);
+  return '<div class="set-field">'
+    + '<label class="set-field-l">Club crest</label>'
+    + '<div class="set-crest-row">'
+    +   '<div class="set-crest-prev" id="set-crest-prev">' + _crestPreviewHtml(id, _CREST_PENDING) + '</div>'
+    +   '<div class="set-crest-actions">'
+    +     '<div class="set-crest-btns">'
+    +       '<button class="btn btn-primary btn-sm" type="button" data-action="clubCrestPick">'
+    +         (has ? 'Replace crest' : 'Upload crest') + '</button>'
+    +       (has ? '<button class="btn btn-sm" type="button" data-action="clubCrestRemove">Remove</button>' : '')
+    +       '<button class="btn btn-sm" type="button" data-action="clubCrestSave"'
+    +         (_CREST_PENDING == null ? ' disabled' : '') + '>Save crest</button>'
+    +     '</div>'
+    +     '<span class="set-crest-hint">'
+    +       'PNG, JPG or WebP. Shown wherever this club appears — including its first team and every academy age group.</span>'
+    +     '<p class="set-field-note" id="set-crest-note" role="status" aria-live="polite"></p>'
+    +   '</div>'
+    + '</div></div>';
+}
+
+function _crestRepaint() {
+  var host = document.querySelector('[data-set-panel="general"] .set-crest-card');
+  if (host) host.innerHTML = '<div class="set-card-hd">Club identity</div>' + _settingsCrestHtml();
+}
+function _crestNote(msg, cls) {
+  var n = document.getElementById('set-crest-note');
+  if (n) { n.textContent = msg || ''; n.className = 'set-field-note' + (cls ? ' ' + cls : ''); }
+}
+
+function clubCrestPick() {
+  var inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = CREST_TYPES;
+  inp.style.display = 'none';
+  inp.onchange = function () { var f = inp.files && inp.files[0]; if (f) _crestRead(f); };
+  document.body.appendChild(inp);
+  inp.click();
+  setTimeout(function () { if (inp.parentNode) inp.parentNode.removeChild(inp); }, 60000);
+}
+
+// Square the crest without cropping it: the image is drawn centred inside a
+// transparent square at its own aspect ratio. A wide crest keeps its width, a
+// tall one keeps its height, and neither is stretched.
+function _crestRead(file) {
+  if (!/^image\/(png|jpeg|webp)$/.test(String(file.type || ''))) {
+    _crestNote('That file is not a PNG, JPG or WebP image.', 'is-warn');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var img = new Image();
+    img.onload = function () {
+      var side = Math.min(CREST_MAX_PX, Math.max(img.width, img.height)) || CREST_MAX_PX;
+      var scale = Math.min(side / img.width, side / img.height);
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var data;
+      try {
+        var c = document.createElement('canvas');
+        c.width = side; c.height = side;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h);
+        data = c.toDataURL('image/png');   // PNG so transparency survives
+      } catch (e) { data = reader.result; }
+      _CREST_PENDING = data;
+      _crestRepaint();
+      _crestNote('Ready to save.', '');
+    };
+    img.onerror = function () { _crestNote('That image could not be read.', 'is-warn'); };
+    img.src = reader.result;
+  };
+  reader.onerror = function () { _crestNote('That file could not be read.', 'is-warn'); };
+  reader.readAsDataURL(file);
+}
+
+function clubCrestRemove() {
+  _CREST_PENDING = '';
+  _crestRepaint();
+  _crestNote('Crest will be removed when you save.', '');
+}
+
+// The crest belongs to the club, so it is saved to the club's record. Nothing
+// is written to the browser: a refresh, a different device and a different
+// member of staff all read the same crest back from the same row.
+async function clubCrestSave() {
+  var id = _famActiveClubId();
+  if (!id) { _crestNote('No club is open.', 'is-warn'); return; }
+  if (_CREST_PENDING == null) return;
+  var next = _CREST_PENDING;
+  _crestNote('Saving…', '');
+  try {
+    await ClubAPI.update(id, { crestUrl: next });
+    // The registry is the single source every crest on every screen reads, so
+    // updating it here is what makes the new crest appear in the topbar, the
+    // Clubs page, the academy headers and everywhere else without a reload.
+    _clubIdentPut({ id: id, crestUrl: next });
+    _CREST_PENDING = null;
+    try { if (typeof hydrateTopbarBrand === 'function') hydrateTopbarBrand(_famActivePage()); } catch (_) {}
+    // Every page drawn from club data is now a version behind — this repaints
+    // the one on screen, and rebuilds this card with it, so the note is written
+    // afterwards or it would be wiped by its own repaint.
+    try { if (typeof _famDataChanged === 'function') _famDataChanged(); } catch (_) {}
+    _crestRepaint();
+    _crestNote(next ? 'Crest saved.' : 'Crest removed.', 'is-ok');
+  } catch (e) {
+    _crestNote('Could not save — ' + ((e && (e.userMessage || e.message)) || 'the crest is unchanged'), 'is-warn');
+  }
+}
+window.clubCrestPick = clubCrestPick;
+window.clubCrestRemove = clubCrestRemove;
+window.clubCrestSave = clubCrestSave;
+
+// Redraws the parts of Settings that depend on club data. The language card is
+// static markup kept current by the i18n apply pass, so only the crest is
+// repainted here.
+function renderSettingsPage() {
+  try { _crestRepaint(); } catch (_) {}
+}
+window.renderSettingsPage = renderSettingsPage;
+
 function renderSettingsHTML() {
   return `<div class="page" id="pg-settings">
   <div style="overflow-y:auto;height:100%;">
@@ -40402,6 +40798,10 @@ function renderSettingsHTML() {
         </div>
 
         <section class="set-panel" data-set-panel="general">
+          <div class="set-card set-crest-card">
+            <div class="set-card-hd">Club identity</div>
+            ${_settingsCrestHtml()}
+          </div>
           <div class="set-card">
             <div class="set-card-hd" data-i18n="settings.language">Language</div>
             ${_settingsLangHtml()}
@@ -45679,6 +46079,9 @@ async function tosBoardSnapshot() {
         case 'create-training': try { openNewSessionModal();    } catch(_){} break;
         case 'club-settings':   try { navTo('settings', null);  } catch(_){} break;
         case '_setCat':         try { _setCat(el.dataset.id); } catch(_){} break;
+        case 'clubCrestPick':   try { clubCrestPick(); }   catch(_){} break;
+        case 'clubCrestRemove': try { clubCrestRemove(); } catch(_){} break;
+        case 'clubCrestSave':   try { clubCrestSave(); }   catch(_){} break;
         // ── Onboard New Club modal
         case 'openOnboardClubModal':  openOnboardClubModal();  break;
         case 'closeOnboardClubModal': closeOnboardClubModal(); break;
@@ -46022,6 +46425,17 @@ function _acCardStatus(id) {
   var t = _atTeam(id), today = ''; try { today = new Date().toISOString().slice(0, 10); } catch (e) {}
   if (t.training && t.training.sessions.some(function (s) { return s.date === today; })) return { label: 'Training Today', tone: 'accent', icon: '●' };
   return { label: 'Healthy', tone: 'ok', icon: '✓' };
+}
+// A team has no crest of its own. The first team and every academy age group
+// belong to one club and show that club's crest — which is the whole point of
+// holding it on the Club: one upload, and every team under it is identified.
+function _teamClubBadgeHtml() {
+  var id = _famActiveClubId();
+  var name = _clubNameOf(id, '');
+  if (!id || !name) return '';
+  return '<span class="team-club-badge">'
+    + clubLogoHtml(id, { size: 16, cls: 'club-logo--plain', title: false })
+    + '<span>' + _viEscSafe(name) + '</span></span>';
 }
 function _acTeamCard(s) {
   var pl = _acInStage(s.id).length, can = _acCanOpen(s.id), resp = _acResponsible(s.id), avg = _acStageAvg(s.id);
@@ -46431,7 +46845,7 @@ function renderAcademyTeamPage() {
       + '<button class="at-back" type="button" data-at-back>← ' + t('academy.backToAcademy') + '</button>'
       + '<div class="at-head-id">'
         + '<span class="at-head-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
-        + '<div class="at-head-txt"><span class="at-head-kicker">ACADEMY</span>'
+        + '<div class="at-head-txt"><span class="at-head-kicker">' + _teamClubBadgeHtml() + 'ACADEMY</span>'
         + '<b>' + _viEscSafe(c.label) + '</b>'
         + '<i>' + _viEscSafe(c.name) + ' Stage · Responsible Coach: ' + _viEscSafe(_acResponsible(id)) + '</i></div>'
       + '</div>'
@@ -46568,7 +46982,7 @@ function _atIdentityStrip(id) {
   ];
   return '<div class="at-ident" style="--acc:' + c.accent + '">'
     + '<div class="at-ident-top"><span class="at-ident-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
-      + '<div class="at-ident-h"><span class="at-ident-kicker">ACADEMY AGE GROUP</span><b>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(st.name) + '</b></div></div>'
+      + '<div class="at-ident-h"><span class="at-ident-kicker">' + _teamClubBadgeHtml() + 'ACADEMY AGE GROUP</span><b>' + _viEscSafe(c.label) + ' · ' + _viEscSafe(st.name) + '</b></div></div>'
     + '<div class="at-ident-chips">' + chips.map(function (k) { return '<div class="at-ident-chip"><span>' + _viEscSafe(k[0]) + '</span><b>' + _viEscSafe(String(k[1])) + '</b></div>'; }).join('') + '</div>'
   + '</div>';
 }
@@ -57399,7 +57813,13 @@ function _coEsc(x) { return _tfEsc(x); }
 function _coLoadClubs() {
   _CO.loading = true; _CO.error = null;
   return _coApi('GET', '/clubs').then(_thUnwrap)
-    .then(function (d) { _CO.clubs = (d && d.items) || []; })
+    .then(function (d) {
+      _CO.clubs = (d && d.items) || [];
+      // Each row names its own club and carries its own crest. Registered by id,
+      // so a card draws the crest of the club it names — never the crest of the
+      // club whose workspace the reader happens to be in.
+      try { _clubIdentPutAll(_CO.clubs); } catch (_) {}
+    })
     .catch(function (e) {
       _CO.clubs = [];
       _CO.error = (e && (e.userMessage || e.message)) || 'unavailable';
@@ -57560,7 +57980,9 @@ function _coClubCardHtml(c) {
   return '<button type="button" class="co-cc" data-co-club="' + _coEsc(c.id) + '" data-co-clubname="' + _coEsc(c.name) + '">'
     // zone 1 · identity, with the one figure the whole card resolves to
     + '<div class="co-cc-top">'
-    +   '<span class="co-cc-crest">' + (c.emblem ? '<img src="' + _coEsc(c.emblem) + '" alt="">' : _coEsc((c.name || '?').slice(0, 2).toUpperCase())) + '</span>'
+    +   '<span class="co-cc-crest">' + (_clubCrestUrl(c.id)
+          ? clubLogoHtml(c.id, { size: 34, cls: 'club-logo--plain', title: false })
+          : _coEsc((c.name || '?').slice(0, 2).toUpperCase())) + '</span>'
     +   '<span class="co-cc-id">'
     +     '<b>' + _coEsc(c.name) + '</b>'
     +     '<em>' + (place || 'Location not recorded') + '</em>'

@@ -70,6 +70,32 @@ one due auction, two dispatchers sending one notification, two transcoders
 claiming one job. **Measured:** four workers, exactly one runs the timers; kill
 the holder and one successor takes over within the TTL, never two at once.
 
+### Identity invalidation — `src/middleware/auth.middleware.ts` + `channel-bridge.ts`
+This was on the "left process-local, deliberately" list, with the reasoning that
+the 5-second TTL bounds the staleness and correctness is therefore unaffected.
+**That reasoning was wrong, and the entry has moved here.**
+
+The cached identity carries `currentClubId`, and `req.user.clubId` — the tenant
+every scoped read and every scoped write is resolved against — is derived from
+it. So a stale identity is not a slow read. It is the request being scoped,
+authorised and *written* against the club the user has just left.
+
+Measured on this container with four workers: warm every worker's cache as club
+A, switch to club B, then fire 24 writes. **19 of 24 were answered as club A** —
+they wrote to the club the user had left, and were refused for the club the user
+had switched to. Both directions of the same fault.
+
+The cache stays per-process; the *invalidation* is now shared. `forgetIdentity`
+drops the local copy and publishes the user id on a Redis channel;
+`forgetIdentityLocal` is the receiving end and does not re-publish, so a forget
+cannot loop. The publisher is injected by the bridge rather than imported, so
+the middleware has no dependency on Redis and a single process behaves exactly
+as it did before. After the fix the same test is 0 of 24 in both directions.
+
+If Redis is down the publish fails, is logged, and the exposure falls back to
+the 5-second TTL — the bound the old text incorrectly claimed was the whole
+story.
+
 ### Realtime fan-out
 `src/infra/channel-bridge.ts` bridges all three realtime channels over Redis
 pub/sub: `market-channel`, `match-channel`, and the vision live feed in
@@ -84,12 +110,6 @@ one worker, 8/8 received; unbridged reached 2/8.
 ---
 
 ## 2 · Left process-local, deliberately
-
-### The identity cache — `src/middleware/auth.middleware.ts`
-5-second TTL. Fragmenting it means N cold caches instead of one, so the first
-request per user per process does a database read. Correctness is unaffected:
-`forgetIdentity` runs in the process that made the change and the other copies
-expire within 5 seconds — the same bound the design already accepts.
 
 ### The authorisation scope caches — 30-second TTL each
 `tenant-guard`, `ai-access`, `franchise-access`, `investor-access`,

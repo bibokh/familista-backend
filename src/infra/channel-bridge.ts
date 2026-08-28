@@ -52,6 +52,7 @@ import { logger } from '../utils/logger';
 import * as market from '../realtime/market-channel';
 import * as match from '../realtime/match-channel';
 import * as vision from '../services/vision-realtime.service';
+import * as identity from '../middleware/auth.middleware';
 
 const MARKET_CHANNEL = rkey('ch', 'market');
 const MATCH_CHANNEL  = rkey('ch', 'match');
@@ -60,6 +61,12 @@ const MATCH_CHANNEL  = rkey('ch', 'match');
 // same bridge. A sideline dashboard must not miss an incident because the
 // detection was published on a different worker.
 const VISION_CHANNEL = rkey('ch', 'vision');
+// Who a user currently is — which club they act for above all — is cached for a
+// few seconds in each process. A switch invalidates it, and that invalidation
+// has to reach every process or the others keep answering as the club the user
+// just left. This is the one channel here that carries a security property
+// rather than freshness.
+const IDENTITY_CHANNEL = rkey('ch', 'identity');
 
 interface Envelope<T> { origin: string; body: T }
 
@@ -120,6 +127,7 @@ export function startChannelBridge(): void {
   market.setRemotePublisher((payload) => send(MARKET_CHANNEL, payload));
   match.setRemotePublisher((event) => send(MATCH_CHANNEL, event));
   vision.setRemotePublisher((payload) => send(VISION_CHANNEL, payload));
+  identity.setRemoteIdentityPublisher((userId) => send(IDENTITY_CHANNEL, { userId }));
 
   sub.on('message', (channel: string, raw: string) => {
     let envelope: Envelope<unknown>;
@@ -135,6 +143,10 @@ export function startChannelBridge(): void {
         match.deliverRemote(envelope.body as Parameters<typeof match.deliverRemote>[0]);
       } else if (channel === VISION_CHANNEL) {
         vision.deliverRemote(envelope.body as Parameters<typeof vision.deliverRemote>[0]);
+      } else if (channel === IDENTITY_CHANNEL) {
+        // Local only — forgetIdentityLocal does not re-publish, so a forget
+        // cannot bounce between processes.
+        identity.forgetIdentityLocal((envelope.body as { userId: string | null }).userId);
       }
     } catch (err) {
       // One malformed message must never take the subscriber down; the socket
@@ -151,9 +163,9 @@ export function startChannelBridge(): void {
   // Binding to the event rather than awaiting it once also re-subscribes after
   // a reconnect, so a Redis restart does not permanently unhook the process.
   const doSubscribe = () => {
-    sub.subscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL).then(
+    sub.subscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL, IDENTITY_CHANNEL).then(
       () => logger.info('[channel-bridge] subscribed', {
-        channels: [MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL], instance: INSTANCE_ID,
+        channels: [MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL, IDENTITY_CHANNEL], instance: INSTANCE_ID,
       }),
       (err: Error) => noteFailure('subscribe', err),
     );
@@ -168,8 +180,9 @@ export async function stopChannelBridge(): Promise<void> {
   market.setRemotePublisher(null);
   match.setRemotePublisher(null);
   vision.setRemotePublisher(null);
+  identity.setRemoteIdentityPublisher(null);
   const sub = getRedis('sub');
-  if (sub) { try { await sub.unsubscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL); } catch { /* closing anyway */ } }
+  if (sub) { try { await sub.unsubscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL, IDENTITY_CHANNEL); } catch { /* closing anyway */ } }
 }
 
 /** For the ops endpoint. */

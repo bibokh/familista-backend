@@ -175,13 +175,13 @@ describe('realtime events cross the process boundary', () => {
   const MT = read('src/realtime/match-channel.ts');
   const VS = read('src/services/vision-realtime.service.ts');
 
-  it('all three channels are bridged, SSE included', () => {
+  it('all three realtime channels are bridged, SSE included', () => {
     // The vision live feed is Server-Sent Events, not a websocket — but an SSE
     // connection is pinned to one process the same way, so a sideline dashboard
     // would miss an incident detected on another worker.
     expect(B).toContain('VISION_CHANNEL');
     expect(B).toContain('vision.setRemotePublisher(');
-    expect(B).toContain('sub.subscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL)');
+    expect(B).toContain('sub.subscribe(MARKET_CHANNEL, MATCH_CHANNEL, VISION_CHANNEL, IDENTITY_CHANNEL)');
     expect(VS).toContain('export function deliverRemote(');
     expect(fnBody(VS, 'deliverRemote')).not.toContain('remotePublish');
   });

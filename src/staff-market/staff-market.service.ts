@@ -115,7 +115,7 @@ const publicUserSelect = {
   id: true, firstName: true, lastName: true, avatar: true, isActive: true,
 } as const;
 
-const publicClubSelect = { id: true, name: true, shortName: true, emblem: true, country: true } as const;
+const publicClubSelect = { id: true, name: true, shortName: true, emblem: true, crestUrl: true, country: true } as const;
 
 const profileInclude = {
   licences: { orderBy: { rank: 'desc' } },
@@ -353,7 +353,7 @@ export async function discover(actor: StaffActor, q: DiscoverQuery = {}) {
   const rows: Array<Record<string, unknown>> = [];
 
   const build = (userId: string, user: { firstName: string; lastName: string; avatar: string | null },
-                 fallbackRole: MembershipRole | null, fallbackClub: { id: string; name: string; shortName: string | null; emblem: string | null; country: string } | null) => {
+                 fallbackRole: MembershipRole | null, fallbackClub: { id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null; country: string } | null) => {
     if (seen.has(userId)) return;
     seen.add(userId);
     const p = profileByUser.get(userId) ?? null;
@@ -1670,7 +1670,7 @@ export async function coachesClubs(actor: StaffActor) {
   const allowed = await authorisedClubIds(actor);
   const clubs = await prisma.club.findMany({
     where: allowed ? { id: { in: allowed } } : {},
-    select: { id: true, name: true, shortName: true, emblem: true, country: true, city: true },
+    select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true, country: true, city: true },
     orderBy: { name: 'asc' },
     take: 200,
   });
@@ -1726,7 +1726,7 @@ export async function coachesClubs(actor: StaffActor) {
 
     return {
       id: club.id, name: club.name, shortName: club.shortName,
-      emblem: club.emblem, country: club.country, city: club.city,
+      emblem: club.emblem, crestUrl: club.crestUrl, country: club.country, city: club.city,
       teams: clubTeams.length,
       seniorTeams: clubTeams.filter((t) => String(t.kind).toUpperCase() === 'SENIOR').length,
       academyTeams: clubTeams.filter((t) => String(t.kind).toUpperCase() !== 'SENIOR').length,
@@ -1972,7 +1972,7 @@ export async function coachesDirectory(_actor: StaffActor, opts: { clubId?: stri
       shortName: null,
       teamKind: 'CLUB' as never,
       ageGroup: null,
-      emblem: club.emblem, color: null,
+      emblem: club.emblem, crestUrl: club.crestUrl, color: null,
       club,
       staffCount: staff.length,
       ...teamHealth(staff, 'CLUB', null),

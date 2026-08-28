@@ -137,16 +137,19 @@ export function scoringShape(p: PublicPlayerRow) {
 }
 
 // ── the public club ──────────────────────────────────────────────────────────
+// A club named on the market carries its own crest. Without it the only crest
+// the client holds is the reader's own, and an opponent or a selling club would
+// borrow it — which is the one thing a crest must never do.
 export const publicClubSelect = {
-  id: true, name: true, shortName: true, emblem: true,
+  id: true, name: true, shortName: true, emblem: true, crestUrl: true,
 } as const;
 
 export interface PublicClub {
-  id: string; name: string; shortName: string | null; emblem: string | null;
+  id: string; name: string; shortName: string | null; emblem: string | null; crestUrl: string | null;
 }
 
 export const UNKNOWN_CLUB = (id: string): PublicClub =>
-  ({ id, name: 'Unknown / unavailable club', shortName: null, emblem: null });
+  ({ id, name: 'Unknown / unavailable club', shortName: null, emblem: null, crestUrl: null });
 
 // ── transfer state ───────────────────────────────────────────────────────────
 // Being visible in a search is not the same as being for sale, and the two were

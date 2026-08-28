@@ -346,7 +346,7 @@ export async function readMarketFeed(actor: MarketActor) {
   offered.forEach((o) => { clubIds.add(o.fromClubId); clubIds.add(o.toClubId); playerIds.add(o.playerId); });
 
   const [clubRows, playerRows] = await Promise.all([
-    prisma.club.findMany({ where: { id: { in: [...clubIds] } }, select: { id: true, name: true, shortName: true, emblem: true } }),
+    prisma.club.findMany({ where: { id: { in: [...clubIds] } }, select: { id: true, name: true, shortName: true, emblem: true, crestUrl: true } }),
     prisma.player.findMany({
       where: { id: { in: [...playerIds] } },
       select: { id: true, firstName: true, lastName: true, position: true, overallRating: true, avatar: true },
@@ -354,7 +354,7 @@ export async function readMarketFeed(actor: MarketActor) {
   ]);
   const club = (id: string | null) => {
     if (!id) return null;
-    return clubRows.find((c) => c.id === id) ?? { id, name: 'Unknown / unavailable club', shortName: null, emblem: null };
+    return clubRows.find((c) => c.id === id) ?? { id, name: 'Unknown / unavailable club', shortName: null, emblem: null, crestUrl: null };
   };
   const player = (id: string | null) => (id ? playerRows.find((p) => p.id === id) ?? null : null);
 
