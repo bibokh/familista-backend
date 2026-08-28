@@ -15233,3 +15233,17 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
    physical so they follow. */
 [dir="rtl"] .sidebar{ direction:rtl; }
 [dir="rtl"] .set-rail-b{ text-align:right; }
+
+/* ═══════════ SIDEBAR · Settings, anchored above the account block ═══════════
+   Settings is a sibling of the nav rather than an entry in it. `.sidebar-nav`
+   carries flex:1 and takes the slack, so this row is pushed hard against the
+   footer at every viewport height — and, being outside the scrolling list, it
+   stays put when the Club Workspace items overflow on a short window. */
+.sidebar-settings{
+  flex-shrink:0;
+  padding:6px;
+  border-top:1px solid var(--bd);
+}
+/* The collapsed rail hides labels and centres icons for nav items; this row is
+   a nav item too, so it follows the same rule rather than inventing its own. */
+.sidebar.collapsed .sidebar-settings{ padding:6px 0; }

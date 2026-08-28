@@ -200,13 +200,25 @@ describe('RTL flips the interface and not the football', () => {
 describe('Settings is reachable and sits where it was asked to', () => {
   const HTML = read('public/index.html');
 
-  it('is the last nav item, so it renders above the account block', () => {
+  it('sits outside the nav, anchored between it and the account block', () => {
+    // Being the LAST item in the nav is not the same as being anchored: on a
+    // tall window it would trail Coaches with the empty space below it, and on
+    // a short one it would scroll away with the rest of the list. It is a
+    // sibling of the nav instead, and `.sidebar-nav{flex:1}` takes the slack.
     const nav = HTML.slice(HTML.indexOf('CLUB WORKSPACE'), HTML.indexOf('</nav>'));
-    expect(nav).toContain('id="nav-settings"');
-    expect(nav).toContain('data-page="settings"');
-    // nothing between it and the end of the nav
-    expect(nav.slice(nav.indexOf('id="nav-settings"'))).not.toContain('nav-item--workspace');
+    expect(nav).not.toContain('id="nav-settings"');
+    expect(HTML).toContain('class="sidebar-settings"');
+    expect(HTML.indexOf('</nav>')).toBeLessThan(HTML.indexOf('id="nav-settings"'));
     expect(HTML.indexOf('id="nav-settings"')).toBeLessThan(HTML.indexOf('sidebar-footer'));
+    // and exactly one of them
+    expect(HTML.match(/id="nav-settings"/g)).toHaveLength(1);
+  });
+
+  it('and the nav keeps the slack so it stays anchored at any height', () => {
+    const CSS = read('public/app.css');
+    expect(CSS).toContain('.sidebar-nav{flex:1;');
+    expect(CSS).toContain('.sidebar-settings{');
+    expect(CSS).toMatch(/\.sidebar-settings\{[^}]*flex-shrink:0/);
   });
 
   it('and the i18n runtime loads before the app that uses it', () => {
