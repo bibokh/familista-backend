@@ -556,6 +556,11 @@ async function doLogin() {
     State.user  = user;
 
     console.log('[Login] Success →', user && user.email);
+    // Now that there IS a signed-in user, ask the server for THEIR language.
+    // Boot ran before sign-in, when the only clues were the cache and the
+    // browser — which is how a second user on the same machine would otherwise
+    // inherit the first user's language.
+    try { if (window.I18N_APPLY) await I18N_APPLY.boot(); } catch (_) {}
     await bootApp();
   } catch (e) {
     // ApiError has .code + .userMessage; fall back to generic
@@ -918,6 +923,10 @@ async function loadAllData(opts) {
 }
 
 function doLogout() {
+  // The cached language belongs to the person who just left. Dropping it means
+  // the next sign-in resolves from that user's own saved preference rather than
+  // inheriting this one's.
+  try { localStorage.removeItem('familista.locale'); } catch (_) {}
   // Nothing this session read may survive it — the next person to sign in on
   // this browser must not be answered from the last one's cache.
   try { FamilistaAPI.invalidateReadCache(); } catch (_) {}
@@ -1230,6 +1239,7 @@ function _isAnyFormEditing() { return isEditingUIActive(); }
 var CLUB_NAV_ITEMS = [
   {
     slug:    'club-home',
+    i18nKey: 'navigation.home',
     label:   'Home',
     svgPath: 'M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944z',
     color:   'var(--pitch-400,#4ade80)',
@@ -1238,6 +1248,7 @@ var CLUB_NAV_ITEMS = [
   },
   {
     slug:    'squad',
+    i18nKey: 'navigation.squad',
     label:   'Squad',
     svgPath: 'M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z',
     color:   '#38bdf8',
@@ -1246,6 +1257,7 @@ var CLUB_NAV_ITEMS = [
   },
   {
     slug:    'training',
+    i18nKey: 'navigation.training',
     label:   'Training',
     svgPath: 'M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z',
     color:   '#f59e0b',
@@ -1254,6 +1266,7 @@ var CLUB_NAV_ITEMS = [
   },
   {
     slug:    'academy',
+    i18nKey: 'navigation.academy',
     label:   'Academy',
     svgPath: 'M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z',
     color:   '#a78bfa',
@@ -1262,6 +1275,7 @@ var CLUB_NAV_ITEMS = [
   },
   {
     slug:    'video-intelligence',
+    i18nKey: 'navigation.videoIntelligence',
     label:   'Video Intelligence',
     svgPath: 'M2 5.5A2.5 2.5 0 014.5 3h7A2.5 2.5 0 0114 5.5v2.086l3.243-1.802A1 1 0 0118.5 6.66v6.68a1 1 0 01-1.257.876L14 12.414V14.5A2.5 2.5 0 0111.5 17h-7A2.5 2.5 0 012 14.5v-9zM6 8.25a.75.75 0 011.166-.624l2.5 1.75a.75.75 0 010 1.248l-2.5 1.75A.75.75 0 016 11.75v-3.5z',
     color:   '#2dd4bf',
@@ -1270,6 +1284,7 @@ var CLUB_NAV_ITEMS = [
   },
   {
     slug:    'transfers',
+    i18nKey: 'navigation.transfers',
     label:   'Transfers',
     svgPath: 'M8 5a1 1 0 011 1v1h6.586l-1.293-1.293a1 1 0 111.414-1.414l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L15.586 9H9v1a1 1 0 01-2 0V6a1 1 0 011-1zm4 10a1 1 0 01-1-1v-1H4.414l1.293 1.293a1 1 0 01-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 1.414L4.414 11H11v-1a1 1 0 012 0v4a1 1 0 01-1 1z',
     color:   '#4ade80',
@@ -1281,6 +1296,7 @@ var CLUB_NAV_ITEMS = [
     // that is the work it belongs to, and it is its own page because a coach is
     // not a player: nothing on it is a squad, a fee or a listing.
     slug:    'coach-market',
+    i18nKey: 'navigation.coachMarket',
     label:   'Coach Market',
     svgPath: 'M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z',
     color:   '#f472b6',
@@ -1291,6 +1307,7 @@ var CLUB_NAV_ITEMS = [
     // Who is working where, right now. Not the market and not a view of it —
     // its own module, directly below the market it is not part of.
     slug:    'coaches',
+    i18nKey: 'navigation.coaches',
     label:   'Coaches',
     svgPath: 'M10 9a3 3 0 100-6 3 3 0 000 6zM6 8a2 2 0 11-4 0 2 2 0 014 0zM1.49 15.326a.78.78 0 01-.358-.442 3 3 0 014.308-3.516 6.484 6.484 0 00-1.905 3.959c-.023.222-.014.442.025.654a4.97 4.97 0 01-2.07-.655zM16.44 15.98a4.97 4.97 0 002.07-.654.78.78 0 00.357-.442 3 3 0 00-4.308-3.517 6.484 6.484 0 011.907 3.96 2.32 2.32 0 01-.026.654zM18 8a2 2 0 11-4 0 2 2 0 014 0zM5.304 16.19a.844.844 0 01-.277-.71 5 5 0 019.947 0 .843.843 0 01-.277.71A6.975 6.975 0 0110 18a6.974 6.974 0 01-4.696-1.81z',
     color:   '#38bdf8',
@@ -1309,16 +1326,30 @@ function buildWorkspaceSidebar() {
     .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
   slot.innerHTML = items.map(function (n) {
     var iconStyle = n.color ? ' style="color:' + n.color + '"' : '';
+    // `i18nKey` is the label; `label` stays as the English fallback for a key
+    // that has not been added yet, so a nav item is never blank.
+    var key = n.i18nKey || '';
+    var text = key ? t(key) : n.label;
     return '<div class="nav-item nav-item--workspace" data-nav="' + n.slug
       + '" data-page="' + n.slug + '">'
       + '<svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20"' + iconStyle + '>'
       + '<path d="' + n.svgPath + '"/></svg>'
-      + '<span class="nav-label">' + n.label + '</span>'
+      + '<span class="nav-label"' + (key ? ' data-i18n="' + key + '"' : '') + '>' + text + '</span>'
       + '</div>';
   }).join('');
 }
 (function () {
-  function _boot() { try { buildWorkspaceSidebar(); } catch (_) {} }
+  function _boot() {
+    try { buildWorkspaceSidebar(); } catch (_) {}
+    // The sidebar is rebuilt on a language change like any other renderer, and
+    // the declarative pass picks up everything carrying data-i18n.
+    try {
+      if (window.I18N_APPLY) {
+        I18N_APPLY.registerRepaint(function () { try { buildWorkspaceSidebar(); } catch (_) {} });
+        I18N_APPLY.boot();
+      }
+    } catch (_) {}
+  }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _boot);
   } else { _boot(); }
@@ -2974,9 +3005,9 @@ function _sqLineupHtml(ctx) {
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
     +   '<div class="sql-tabs">'
-    +     '<button class="sql-tab is-active" type="button">Lineup</button>'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button">Formation</button>'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
+    +     '<button class="sql-tab is-active" type="button" data-i18n="squad.lineup">' + t('squad.lineup') + '</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button" data-i18n="squad.formation">' + t('squad.formation') + '</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button" data-i18n="squad.tactics">' + t('squad.tactics') + '</button>'
     +   '</div>'
     + '</div>'
     + '<div class="sqlu-wrap">'
@@ -4624,9 +4655,9 @@ function _sqTacticsHtml() {
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
     +   '<div class="sql-tabs">'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button">Lineup</button>'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button">Formation</button>'
-    +     '<button class="sql-tab is-active" type="button">Tactics</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button" data-i18n="squad.lineup">' + t('squad.lineup') + '</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="formation" type="button" data-i18n="squad.formation">' + t('squad.formation') + '</button>'
+    +     '<button class="sql-tab is-active" type="button" data-i18n="squad.tactics">' + t('squad.tactics') + '</button>'
     +   '</div>'
     +   '<div class="sq-sub-title-row" style="margin-top:16px">'
     +     '<svg style="width:26px;height:26px;flex-shrink:0;color:#fb923c" fill="currentColor" viewBox="0 0 20 20"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/></svg>'
@@ -5476,9 +5507,9 @@ function _sqFormationHtml() {
     + '<div class="sq-sub-header">'
     +   '<button class="sq-back-btn" data-action="squadNavHome" type="button">' + backSvg + 'Squad</button>'
     +   '<div class="sql-tabs">'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button">Lineup</button>'
-    +     '<button class="sql-tab is-active" type="button">Formation</button>'
-    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button">Tactics</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="lineup" type="button" data-i18n="squad.lineup">' + t('squad.lineup') + '</button>'
+    +     '<button class="sql-tab is-active" type="button" data-i18n="squad.formation">' + t('squad.formation') + '</button>'
+    +     '<button class="sql-tab" data-action="squadNav" data-squad-page="tactics" type="button" data-i18n="squad.tactics">' + t('squad.tactics') + '</button>'
     +   '</div>'
     + '</div>'
     + '<div id="sqfp-body">' + _sqFormationBody(null) + '</div>'
@@ -13530,16 +13561,16 @@ function _dashAcademyCtx(id) {
   var pro = _atShowProKpis(id);
   var avgAtt = pl.length ? Math.round(pl.reduce(function (a, p) { return a + (p.attendance || 0); }, 0) / pl.length) : 0;
   var tiles = pro
-    ? [['👥', pl.length, 'PLAYERS', 'in this age group', ''],
-       ['⭐', _acStageAvg(id) || '—', 'AVG OVERALL', 'stage average', 'gold'],
-       ['📋', avgAtt + '%', 'ATTENDANCE', 'sessions attended', ''],
-       ['⚡', team.training.sessions.length, 'SESSIONS', 'on the plan', ''],
-       ['🎓', st.coachN, 'COACHES', 'assigned to the group', '']]
-    : [['👥', pl.length, 'PLAYERS', 'in this age group', ''],
-       ['🎓', st.coachN, 'COACHES', 'assigned to the group', ''],
-       ['⚡', team.training.sessions.length, 'SESSIONS', 'on the plan', ''],
-       ['🙂', 'High', 'ENJOYMENT', 'how the group is doing', ''],
-       ['🎯', 'Fun & skills', 'FOCUS', 'what this stage works on', '']];
+    ? [['👥', pl.length, t('academy.players').toUpperCase(), 'in this age group', ''],
+       ['⭐', _acStageAvg(id) || '—', t('academy.avgOverall').toUpperCase(), 'stage average', 'gold'],
+       ['📋', avgAtt + '%', t('academy.attendance').toUpperCase(), 'sessions attended', ''],
+       ['⚡', team.training.sessions.length, t('academy.sessions').toUpperCase(), 'on the plan', ''],
+       ['🎓', st.coachN, t('academy.coaches').toUpperCase(), 'assigned to the group', '']]
+    : [['👥', pl.length, t('academy.players').toUpperCase(), 'in this age group', ''],
+       ['🎓', st.coachN, t('academy.coaches').toUpperCase(), 'assigned to the group', ''],
+       ['⚡', team.training.sessions.length, t('academy.sessions').toUpperCase(), 'on the plan', ''],
+       ['🙂', 'High', t('academy.enjoyment').toUpperCase(), 'how the group is doing', ''],
+       ['🎯', 'Fun & skills', t('academy.focus').toUpperCase(), 'what this stage works on', '']];
   return {
     type: 'academy',
     id: id,
@@ -13554,7 +13585,7 @@ function _dashAcademyCtx(id) {
           return '<div class="acd-stage-id">'
             + '<span class="acd-stage-crest">' + _viEscSafe(c.label) + '</span>'
             + '<span class="acd-stage-txt">'
-              + '<span class="acd-stage-kicker">ACADEMY AGE GROUP</span>'
+              + '<span class="acd-stage-kicker">' + t('academy.ageGroup').toUpperCase() + '</span>'
               + '<b class="acd-stage-name">' + _viEscSafe(c.name) + ' Stage</b>'
             + '</span>'
             + '</div>'
@@ -13573,13 +13604,13 @@ function _dashAcademyCtx(id) {
         } },
       // Four panels, each given its own modifier so the stylesheet can tell
       // them apart. Same headings, same bodies, same values.
-      { id: 'ad-objectives', region: 'main', cls: 'd-card acd-panel acd-panel--obj', head: 'STAGE OBJECTIVES',
+      { id: 'ad-objectives', region: 'main', cls: 'd-card acd-panel acd-panel--obj', head: t('academy.stageObjectives').toUpperCase(),
         body: function () { return _dashNotes((st.objectives || []).map(_viEscSafe)); } },
-      { id: 'ad-methodology', region: 'main', cls: 'd-card acd-panel acd-panel--method', head: 'METHODOLOGY',
+      { id: 'ad-methodology', region: 'main', cls: 'd-card acd-panel acd-panel--method', head: t('academy.methodology').toUpperCase(),
         body: function () { return _dashProse(_viEscSafe(st.methodology)); } },
-      { id: 'ad-focus', region: 'side', cls: 'd-card acd-panel acd-panel--focus', head: 'COACHING FOCUS',
+      { id: 'ad-focus', region: 'side', cls: 'd-card acd-panel acd-panel--focus', head: t('academy.coachingFocus').toUpperCase(),
         body: function () { return _dashNotes((st.ai || []).map(_viEscSafe)); } },
-      { id: 'ad-philosophy', region: 'side', cls: 'd-card acd-panel acd-panel--phil', head: 'PHILOSOPHY',
+      { id: 'ad-philosophy', region: 'side', cls: 'd-card acd-panel acd-panel--phil', head: t('academy.philosophy').toUpperCase(),
         body: function () { return _dashProse(_viEscSafe(st.philosophy)); } },
     ],
   };
@@ -40297,12 +40328,90 @@ function clubEditSave()  { ClubEditModal.save(); }
 function clubEditCancel(){ ClubEditModal.cancel(); }
 
 // ── SETTINGS ──
+// ── Settings · categories ────────────────────────────────────────────────────
+// The rail is data, so a future category is one entry rather than another
+// branch. `general` is the language home; the other three hold exactly the rows
+// the page had before, unchanged.
+var SETTINGS_CATS = [
+  ['general', 'settings.general'],
+  ['account', 'settings.catAccount'],
+  ['platform', 'settings.catPlatform'],
+  ['about', 'settings.catAbout'],
+];
+var SETTINGS_CAT = 'general';
+
+function _setCat(id) {
+  SETTINGS_CAT = id;
+  var host = document.getElementById('pg-settings');
+  if (!host) return;
+  host.querySelectorAll('[data-set-cat]').forEach(function (b) {
+    b.classList.toggle('is-on', b.getAttribute('data-set-cat') === id);
+  });
+  host.querySelectorAll('[data-set-panel]').forEach(function (p) {
+    p.style.display = (p.getAttribute('data-set-panel') === id) ? '' : 'none';
+  });
+}
+window._setCat = _setCat;
+
+// The language selector. Options are the locale registry, each shown in its own
+// language — a list of endonyms is how a person finds their language without
+// already reading the current one.
+function _settingsLangHtml() {
+  var cur = (window.I18N && I18N.locale()) || 'en-GB';
+  var opts = ((window.I18N && I18N.locales()) || []).map(function (l) {
+    return '<option value="' + l.tag + '"' + (l.tag === cur ? ' selected' : '') + '>'
+      + l.label + '</option>';
+  }).join('');
+  return '<div class="set-field">'
+    + '<label class="set-field-l" for="set-lang" data-i18n="settings.interfaceLanguage">Interface Language</label>'
+    + '<div class="set-field-c"><select class="set-select" id="set-lang" data-change="onLocaleChange">' + opts + '</select></div>'
+    + '<p class="set-field-help" data-i18n="settings.languageHelp">Choose the language used throughout Familista.</p>'
+    + '<p class="set-field-note" id="set-lang-note" role="status" aria-live="polite"></p>'
+    + '</div>';
+}
+
+// Applying the language re-runs the renderers rather than reloading, so the
+// active club, team, page and open panels are all still there afterwards.
+async function onLocaleChange(el) {
+  var note = document.getElementById('set-lang-note');
+  var tag = el && el.value;
+  if (!tag || !window.I18N_APPLY) return;
+  var res = await I18N_APPLY.change(tag);
+  if (!res) return;
+  if (note) {
+    note.textContent = res.saved ? t('settings.languageSaved') : t('settings.languageSaveFailed');
+    note.className = 'set-field-note' + (res.saved ? ' is-ok' : ' is-warn');
+  }
+}
+window.onLocaleChange = onLocaleChange;
+
 function renderSettingsHTML() {
   return `<div class="page" id="pg-settings">
   <div style="overflow-y:auto;height:100%;">
+    <div class="set-shell">
+      <aside class="set-rail">
+        <div class="set-rail-hd" data-i18n="settings.title">Settings</div>
+        ${SETTINGS_CATS.map(function (c) {
+          return '<button class="set-rail-b' + (c[0] === 'general' ? ' is-on' : '') + '" type="button" data-set-cat="' + c[0] + '" data-action="_setCat" data-id="' + c[0] + '" data-i18n="' + c[1] + '">' + c[0] + '</button>';
+        }).join('')}
+      </aside>
+      <div class="set-body">
+        <div class="set-head">
+          <h1 class="set-title" data-i18n="settings.title">Settings</h1>
+          <p class="set-sub" data-i18n="settings.subtitle">Manage how Familista looks and behaves for you.</p>
+        </div>
+
+        <section class="set-panel" data-set-panel="general">
+          <div class="set-card">
+            <div class="set-card-hd" data-i18n="settings.language">Language</div>
+            ${_settingsLangHtml()}
+          </div>
+        </section>
+
+        <section class="set-panel" data-set-panel="account" style="display:none">
     <div class="settings-wrap">
       <div class="settings-section">
-        <div class="settings-sec-title">Account</div>
+        <div class="settings-sec-title" data-i18n="settings.catAccount">Account</div>
         <div class="setting-row">
           <div><div class="setting-lbl">👤 Profile</div><div class="setting-sub" id="settings-profile">Loading...</div></div>
           <span class="badge badge-blue" id="settings-role">Manager</span>
@@ -40312,8 +40421,13 @@ function renderSettingsHTML() {
           <span style="font-size:12px;color:var(--red);">→</span>
         </div>
       </div>
+    </div>
+        </section>
+
+        <section class="set-panel" data-set-panel="platform" style="display:none">
+    <div class="settings-wrap">
       <div class="settings-section">
-        <div class="settings-sec-title">Platform</div>
+        <div class="settings-sec-title" data-i18n="settings.catPlatform">Platform</div>
         <div class="setting-row" onclick="toggleTheme()">
           <div><div class="setting-lbl">🌓 Theme</div><div class="setting-sub">Toggle dark / light mode</div></div>
           <button class="btn btn-outline btn-sm">Switch</button>
@@ -40346,8 +40460,13 @@ function renderSettingsHTML() {
           <span class="badge" id="ws-status-badge">Checking...</span>
         </div>
       </div>
+    </div>
+        </section>
+
+        <section class="set-panel" data-set-panel="about" style="display:none">
+    <div class="settings-wrap">
       <div class="settings-section">
-        <div class="settings-sec-title">About</div>
+        <div class="settings-sec-title" data-i18n="settings.catAbout">About</div>
         <div class="setting-row">
           <div><div class="setting-lbl">Familista v5.0</div><div class="setting-sub">Football Intelligence Platform · Berlin 🇩🇪 · Production</div></div>
           <span class="badge badge-green">v5.0</span>
@@ -40356,6 +40475,9 @@ function renderSettingsHTML() {
           <div><div class="setting-lbl">💳 Subscription</div><div class="setting-sub">Elite Plan · Active</div></div>
           <span class="badge badge-green">ELITE</span>
         </div>
+      </div>
+    </div>
+        </section>
       </div>
     </div>
   </div>
@@ -45556,6 +45678,7 @@ async function tosBoardSnapshot() {
         case 'create-match':    try { openScheduleMatchModal(); } catch(_){} break;
         case 'create-training': try { openNewSessionModal();    } catch(_){} break;
         case 'club-settings':   try { navTo('settings', null);  } catch(_){} break;
+        case '_setCat':         try { _setCat(el.dataset.id); } catch(_){} break;
         // ── Onboard New Club modal
         case 'openOnboardClubModal':  openOnboardClubModal();  break;
         case 'closeOnboardClubModal': closeOnboardClubModal(); break;
@@ -45589,6 +45712,7 @@ async function tosBoardSnapshot() {
       case 'onContextClubChange':   onContextClubChange();   break;
       case 'onContextTeamChange':   onContextTeamChange();   break;
       case 'onScoutCompareChange':  onScoutCompareChange();  break;
+      case 'onLocaleChange':        onLocaleChange(el);       break;
       // ── Video match selectors ──────────────────────────────────────────────
       case 'vidLoadTimeline':       vidLoadTimeline();       break;
       case 'vidLoadClips':          vidLoadClips();          break;
@@ -46304,7 +46428,7 @@ function renderAcademyTeamPage() {
   var c = _atCtx(id);
   el.innerHTML =
     '<div class="at-head" style="--acc:' + c.accent + '">'
-      + '<button class="at-back" type="button" data-at-back>← Back to Academy</button>'
+      + '<button class="at-back" type="button" data-at-back>← ' + t('academy.backToAcademy') + '</button>'
       + '<div class="at-head-id">'
         + '<span class="at-head-crest">' + _viEscSafe(c.label.replace(/U/g, '').split('–')[0]) + '</span>'
         + '<div class="at-head-txt"><span class="at-head-kicker">ACADEMY</span>'
@@ -48700,10 +48824,10 @@ var TF_TABS = [
 // with .sqlu-row rows, .sqlu-pos / .sqlu-qual badges and .sqlu-acts actions.
 // Lineup itself is untouched — it is read-only reference.
 var TF_MODES = [
-  ['market',   'Market'],
-  ['scouting', 'Scouting'],
-  ['business', 'Club Business'],
-  ['mine',     'My Transfers'],
+  ['market',   'Market',        'transfer.market'],
+  ['scouting', 'Scouting',      'transfer.scouting'],
+  ['business', 'Club Business', 'transfer.clubBusiness'],
+  ['mine',     'My Transfers',  'transfer.myTransfers'],
 ];
 // One row of segmented chips per mode. They filter the one table below; they
 // are not sub-pages, and only one dataset is ever on screen.
@@ -48782,9 +48906,11 @@ function _tfSubSwitchHtml() {
   var mode = _tfWsMode();
   return '<div class="sq-sub-header tf-sub-header">'
     + '<div class="sql-tabs">' + TF_MODES.map(function (m) {
+      // m[2] is the translation key; m[1] remains the English fallback.
+      var lbl = m[2] ? t(m[2]) : m[1];
       return m[0] === mode
-        ? '<button class="sql-tab is-active" type="button" data-tf-tab="' + m[0] + '">' + m[1] + '</button>'
-        : '<button class="sql-tab" type="button" data-tf-tab="' + m[0] + '">' + m[1] + '</button>';
+        ? '<button class="sql-tab is-active" type="button" data-tf-tab="' + m[0] + '">' + lbl + '</button>'
+        : '<button class="sql-tab" type="button" data-tf-tab="' + m[0] + '">' + lbl + '</button>';
     }).join('') + '</div>'
     + '</div>';
 }

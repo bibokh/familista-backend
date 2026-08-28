@@ -124,7 +124,9 @@ describe('Coach Market recruits, and has no directory in it', () => {
 describe('Coaches is its own module, below Coach Market', () => {
   it('is a sidebar entry of its own', () => {
     expect(APP).toMatch(/slug:\s*'coaches',[\s\S]{0,1400}?enabled:\s*true/);
-    expect(APP).toMatch(/slug:\s*'coaches',\s*\n\s*label:\s*'Coaches',/);
+    // `i18nKey` now sits between slug and label — the entry still declares both,
+    // which is what this asserts.
+    expect(APP).toMatch(/slug:\s*'coaches',\s*\n(\s*i18nKey:\s*'[^']+',\s*\n)?\s*label:\s*'Coaches',/);
   });
 
   it('and sits directly below Coach Market, with nothing between', () => {

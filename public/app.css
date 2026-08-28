@@ -15145,3 +15145,91 @@ body.club-theme .topbar-titles{ min-width:0; }
   .cx-rung-b .cx-facts{ display:none; }
   .cx-acts .cx-btn:not(.cx-btn--primary):not(.cx-btn--more){ display:none; }
 }
+/* ═══════════ SETTINGS · workspace + language ═══════════
+   A category rail and a content column, inside the existing shell. The rail is
+   the only new navigation concept; everything under it is the same card
+   vocabulary the rest of Familista uses. */
+body.club-theme .set-shell{
+  display:grid; grid-template-columns:212px minmax(0,1fr); gap:20px;
+  max-width:1180px; margin:0 auto; padding:22px 24px 40px; align-items:start;
+}
+body.club-theme .set-rail{
+  position:sticky; top:18px; display:flex; flex-direction:column; gap:3px;
+  padding:12px; border-radius:14px;
+  border:1px solid rgba(255,255,255,.075);
+  background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.012));
+}
+body.club-theme .set-rail-hd{
+  font:800 9px/1 Inter,system-ui,Arial; letter-spacing:.15em; text-transform:uppercase;
+  color:var(--tx-3,#94a3b8); padding:4px 8px 9px;
+}
+body.club-theme .set-rail-b{
+  text-align:start; padding:8px 11px; border-radius:9px; border:1px solid transparent;
+  background:transparent; color:var(--tx-2,#cbd5e1); cursor:pointer;
+  font:700 12.5px/1.2 Inter,system-ui,Arial;
+}
+body.club-theme .set-rail-b:hover{ background:rgba(255,255,255,.05); color:var(--tx-1,#f1f5f9); }
+body.club-theme .set-rail-b.is-on{
+  background:rgba(74,222,128,.10); border-color:rgba(74,222,128,.30); color:var(--green-l,#4ade80);
+}
+body.club-theme .set-head{ margin:2px 0 16px; }
+body.club-theme .set-title{ margin:0; font:800 21px/1.2 Inter,system-ui,Arial; letter-spacing:-.02em; color:var(--tx-1,#f1f5f9); }
+body.club-theme .set-sub{ margin:5px 0 0; font-size:12.5px; line-height:1.5; color:var(--tx-3,#94a3b8); }
+body.club-theme .set-card{
+  border-radius:14px; padding:16px 18px;
+  border:1px solid rgba(255,255,255,.075);
+  background:
+    linear-gradient(180deg, rgba(74,222,128,.05), rgba(255,255,255,0) 70px),
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+}
+body.club-theme .set-card-hd{
+  font:800 10px/1 Inter,system-ui,Arial; letter-spacing:.13em; text-transform:uppercase;
+  color:var(--tx-2,#cbd5e1); padding-bottom:11px; margin-bottom:14px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+body.club-theme .set-field{ display:flex; flex-direction:column; gap:7px; max-width:420px; }
+body.club-theme .set-field-l{ font:700 12px/1 Inter,system-ui,Arial; color:var(--tx-1,#f1f5f9); }
+body.club-theme .set-select{
+  width:100%; padding:9px 11px; border-radius:9px;
+  border:1px solid rgba(255,255,255,.12); background:rgba(10,16,26,.72);
+  color:var(--tx-1,#f1f5f9); font:600 13px Inter,system-ui,Arial; cursor:pointer;
+}
+body.club-theme .set-select:focus{ outline:none; border-color:rgba(74,222,128,.55); }
+body.club-theme .set-field-help{ margin:0; font-size:11.5px; line-height:1.5; color:var(--tx-3,#94a3b8); }
+body.club-theme .set-field-note{ margin:0; min-height:15px; font-size:11.5px; line-height:1.35; }
+body.club-theme .set-field-note.is-ok{ color:var(--green-l,#4ade80); }
+body.club-theme .set-field-note.is-warn{ color:#f4b740; }
+body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
+
+@media (max-width:1024px){
+  body.club-theme .set-shell{ grid-template-columns:minmax(0,1fr); gap:14px; padding:16px 16px 32px; }
+  body.club-theme .set-rail{ position:static; flex-direction:row; flex-wrap:wrap; }
+  body.club-theme .set-rail-hd{ width:100%; padding-bottom:4px; }
+}
+
+/* ═══════════ RIGHT-TO-LEFT ═══════════
+   Arabic and Hebrew flip the document, which is a TEXT and LAYOUT concern only.
+   Football data is not prose and must not be mirrored: a left-back is on the
+   left of the pitch in every language, tactical coordinates are measurements,
+   and the drag arithmetic reads geometry straight off getBoundingClientRect.
+   Mirroring any of those would silently corrupt football meaning, so every
+   surface that draws a pitch, a coordinate or a chart is pinned back to LTR.
+   The `direction` reset is what matters — it is what percentage-positioned
+   children and rect maths resolve against. */
+[dir="rtl"] .sqfp-pitch,
+[dir="rtl"] .sqmd-pitch,
+[dir="rtl"] .sqmd-pitch--shared,
+[dir="rtl"] .sqsim-stage,
+[dir="rtl"] .at-formation-cmd,
+[dir="rtl"] .sqtac-board,
+[dir="rtl"] .sqtac-board-wrap,
+[dir="rtl"] .vi-heatmap,
+[dir="rtl"] .hm-wrap,
+[dir="rtl"] canvas,
+[dir="rtl"] svg{
+  direction:ltr;
+}
+/* Ordinary chrome does flip, and a few paddings are logical rather than
+   physical so they follow. */
+[dir="rtl"] .sidebar{ direction:rtl; }
+[dir="rtl"] .set-rail-b{ text-align:right; }

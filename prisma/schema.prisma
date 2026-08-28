@@ -224,6 +224,13 @@ model User {
   staffNotedIn      StaffClubNote[]   @relation("StaffNoted")
   staffNotesWritten StaffClubNote[]   @relation("StaffNoteAuthor")
 
+  // Interface language, as an IETF tag (en-GB, de-DE, ar, ...). A USER
+  // preference, deliberately not a club one: the same person switching clubs
+  // keeps their language. Null means "never chosen" — the client then falls
+  // back to the browser locale and finally en-GB, and a null is never written
+  // over an existing choice.
+  locale String?
+
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
