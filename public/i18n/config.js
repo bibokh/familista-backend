@@ -47,6 +47,10 @@
     DEFAULT_LOCALE: 'en-GB',
     // Where the bundles live. One file per locale, fetched on demand.
     BUNDLE_PATH: '/i18n/locales/',
+    // And where the catalogues live — the English-keyed translation of the
+    // whole interface, which is what makes a screen nobody migrated translate.
+    // Also fetched on demand, and never for English.
+    CATALOGUE_PATH: '/i18n/catalogue/',
     // The browser cache of the user's choice. A cache, not the truth: the
     // server row wins whenever it can be read.
     STORAGE_KEY: 'familista.locale',

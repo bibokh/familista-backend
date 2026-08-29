@@ -54,6 +54,23 @@
     for (var i = 0; i < repainters.length; i++) {
       try { repainters[i](); } catch (_) { /* one screen failing never blocks the rest */ }
     }
+    // …and then the third mechanism, which is the one that reaches the other
+    // sixty-two thousand lines. The two above only translate what somebody
+    // remembered to mark; this one translates the document.
+    try { if (root.I18N_DOM) root.I18N_DOM.translateTree(document.body); } catch (_) {}
+  }
+
+  /**
+   * Put a locale in force everywhere: keys, then the document itself.
+   *
+   * The order matters. The declarative pass rewrites marked elements from their
+   * keys, and the document pass then translates whatever is left — so a screen
+   * that was migrated keeps its curated wording and a screen that was not still
+   * ends up in the reader's language.
+   */
+  function applyEverywhere(tag) {
+    var p = (root.I18N_DOM ? root.I18N_DOM.setLocale(tag) : Promise.resolve(tag));
+    return p.then(function () { repaintAll(); return tag; });
   }
 
   // ── Persistence ────────────────────────────────────────────────────────────
@@ -97,15 +114,19 @@
     // Paint immediately from the cache so there is no English flash, then
     // reconcile with the server.
     var first = I.cached() || I.fromBrowser() || I.canonical('en-GB');
+    // The observer has to be watching before the first render, or everything
+    // painted between boot and the first language change is missed.
+    try { if (root.I18N_DOM) root.I18N_DOM.start(); } catch (_) {}
     return I.setLocale(first, { force: true }).then(function () {
-      repaintAll();
+      return applyEverywhere(first);
+    }).then(function () {
       return apiGet();
     }).then(function (data) {
       if (!data) return I.locale();
       if (data.locale && I.canonical(data.locale) && data.locale !== I.locale()) {
         // The server knows better than the browser guess.
         return I.setLocale(data.locale).then(function (tag) {
-          I.cache(tag); repaintAll(); return tag;
+          I.cache(tag); return applyEverywhere(tag);
         });
       }
       if (data.locale) I.cache(data.locale);
@@ -124,7 +145,8 @@
     if (!t2) return Promise.resolve(null);
     return I.setLocale(t2).then(function () {
       I.cache(t2);
-      repaintAll();
+      return applyEverywhere(t2);
+    }).then(function () {
       return apiSave(t2).then(
         function () { return { locale: t2, saved: true }; },
         function () { return { locale: t2, saved: false }; }
@@ -136,6 +158,7 @@
     translateDOM: translateDOM,
     registerRepaint: registerRepaint,
     repaintAll: repaintAll,
+    applyEverywhere: applyEverywhere,
     boot: boot,
     change: change,
   };

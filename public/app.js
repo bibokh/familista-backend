@@ -5271,7 +5271,10 @@ function _sqTacBoardHtml(ctx) {
   var ball = '<div class="sqtac-ball" style="left:' + (100 - bp.y) + '%;top:' + bp.x + '%"></div>';
   var pitch = '<div class="sqtac-board sqtac-anim" id="sqtac-board" data-tool="' + SQ_TAC_DRAW.tool + '"><div class="sqfp-pitch has-opp">' + markings + overlay + drawsvg + ball + opp + my + '</div></div>';
   var forms = '<div class="sqtac-forms">'
-    + '<label class="sqtac-forms-l"><span>' + _sqTacEsc(_sqTbLabel()) + ' Formation</span>' + _sqTacFormSelect('my') + '</label>'
+    // The club's name and the word are separate nodes: a name is data and is
+    // never translated, and "Formation" is interface text that always is.
+    // Written as one string they were neither.
+    + '<label class="sqtac-forms-l"><span><span data-no-i18n>' + _sqTacEsc(_sqTbLabel()) + '</span> <span>Formation</span></span>' + _sqTacFormSelect('my') + '</label>'
     + '<span class="sqtac-forms-vs">vs</span>'
     + '<label class="sqtac-forms-l sqtac-forms-l--opp"><span>Opponent Formation</span>' + _sqTacFormSelect('opp') + '</label></div>';
   var center = '<div class="sqtac-center">'
@@ -6725,7 +6728,19 @@ function _sqCwMatchup(my, op, ctx) {
   var weak = mus.filter(function (m) { return m.tone === 'risk' || m.tone === 'dis'; }).map(function (m) { return m.myName; });
   var order = [['attack', cl((mu.widthAdv + mu.counter) / 2)], ['midfield control', mu.midCtrl], ['the high press', mu.press], ['the wings', mu.widthAdv], ['transitions', cl((mu.counter + mu.defStab) / 2)]];
   order.sort(function (a, b) { return b[1] - a[1]; });
-  var rec = 'Impose the game through ' + order[0][0] + ' (' + order[0][1] + '%)' + (weak.length ? '; protect ' + _sqEsc(weak[0]) + ' against the ' + (mu.defStab < 50 ? 'break' : 'counter') + '.' : '.');
+  // Built as marked-up fragments rather than one sentence: the phrases are
+  // interface text and translate, the player's name is data and does not. As a
+  // single string it contained a name, so it could never be in a catalogue and
+  // the whole recommendation stayed English in every language.
+  var recPhrase = { 'attack': 'the attack', 'midfield control': 'midfield control',
+                    'the high press': 'the high press', 'the wings': 'the wings',
+                    'transitions': 'transitions' }[order[0][0]] || order[0][0];
+  var rec = '<span>Impose the game through</span> <span>' + recPhrase + '</span>'
+    + ' (' + order[0][1] + '%)'
+    + (weak.length
+        ? '<span>; protect</span> <span data-no-i18n>' + _sqEsc(weak[0]) + '</span> '
+          + '<span>' + (mu.defStab < 50 ? 'against the break.' : 'against the counter.') + '</span>'
+        : '.');
   return '<div class="sqcw-mx">'
     + '<div class="sqcw-mx-a">'
     +   '<div class="sqcw-mx-eff">' + _sqmxRing(fm.eff) + '<span class="sqcw-mx-vs">' + my.formation + ' <i>vs</i> ' + op.formation + '</span></div>'
@@ -40613,7 +40628,10 @@ function _settingsLangHtml() {
   }).join('');
   return '<div class="set-field">'
     + '<label class="set-field-l" for="set-lang" data-i18n="settings.interfaceLanguage">Interface Language</label>'
-    + '<div class="set-field-c"><select class="set-select" id="set-lang" data-change="onLocaleChange">' + opts + '</select></div>'
+    // Every language is listed in its own language, which is how a person finds
+    // theirs without already reading the current one — so this list is the one
+    // place in the interface that must never be translated.
+    + '<div class="set-field-c"><select class="set-select" id="set-lang" data-no-i18n data-change="onLocaleChange">' + opts + '</select></div>'
     + '<p class="set-field-help" data-i18n="settings.languageHelp">Choose the language used throughout Familista.</p>'
     + '<p class="set-field-note" id="set-lang-note" role="status" aria-live="polite"></p>'
     + '</div>';

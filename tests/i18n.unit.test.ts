@@ -246,7 +246,17 @@ describe('the audit exists so migration is a number, not an impression', () => {
     expect(existsSync(root('scripts/i18n-audit.js'))).toBe(true);
     const S = read('scripts/i18n-audit.js');
     expect(S).toContain('--max=');
-    // Position codes are conventional worldwide and deliberately not counted.
-    expect(S).toContain('POSITIONS');
+    // It now measures catalogue completeness rather than counting hard-coded
+    // strings, because the interface is translated by catalogue against the
+    // English it already says. A partial catalogue is the real defect.
+    expect(S).toContain('are not complete against en-GB');
+  });
+
+  it('and position codes are still exempt, one level down', () => {
+    // They used to be excluded by the audit; they are excluded by the extractor
+    // that builds the inventory and by the runtime that reads the document, so
+    // GK and CB are never offered for translation and never rewritten.
+    expect(read('scripts/i18n-extract.js')).toContain('POSITIONS');
+    expect(read('public/i18n/dom.js')).toContain('var POSITIONS =');
   });
 });
