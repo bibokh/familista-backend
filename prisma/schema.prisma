@@ -9274,8 +9274,25 @@ model PlayerSeasonStats {
 // ── Competition Engine ────────────────────────────────────────────────────────
 
 model Competition {
-  id     String @id @default(uuid())
-  clubId String
+  id String @id @default(uuid())
+
+  /// The club that owns this competition, and null when nobody does.
+  ///
+  /// A club's own competitions — the league it records its season in — are
+  /// owned by that club and only it may edit them. The Familista League is not
+  /// one club's: it is the platform's, played between clubs, and no single club
+  /// may edit it. That is what null means here, and it is what
+  /// `_assertCompOwner` already enforces — a null owner matches no actor's
+  /// clubId, so only SUPER_ADMIN gets through. Reading is separate and open to
+  /// every participant; see familista-league.service.ts.
+  clubId String?
+
+  /// League configuration, as data rather than as branching in the frontend:
+  /// qualification and relegation zones, the points system, the season window
+  /// and the prize table. A Json document rather than its own table because it
+  /// is read once with the competition and never queried across rows — see
+  /// LEAGUE_RULES_SHAPE in familista-league.service.ts for the shape.
+  rules Json?
 
   name        String
   code        String
@@ -9316,9 +9333,14 @@ model Fixture {
   id            String      @id @default(uuid())
   competitionId String
   competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
-  clubId        String
-  homeTeamId    String
-  awayTeamId    String
+
+  /// Null for a platform fixture, for the same reason Competition.clubId is:
+  /// a Familista League match belongs to the league, not to either club in it.
+  /// `_assertFixtureOwner` reads this, so a null owner means no club may edit
+  /// the fixture — which is the intended rule for a league nobody owns.
+  clubId     String?
+  homeTeamId String
+  awayTeamId String
 
   scheduledAt DateTime
   venue       String?

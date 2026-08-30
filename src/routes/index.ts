@@ -59,6 +59,8 @@ import tacticalAIRoutes from './tactical-ai.routes';
 import clubRoutes from './club.routes';
 // Club Home Dashboard
 import homeRoutes from './home.routes';
+// Familista League — the competition between clubs on the platform (read-only).
+import familistaLeagueRoutes from './familista-league.routes';
 
 const router = Router();
 
@@ -109,6 +111,7 @@ router.use('/club-admin',          clubAdminRoutes);
 router.use('/tactical-ai',         tacticalAIRoutes);
 router.use('/clubs',               clubRoutes);
 router.use('/home',                homeRoutes);
+router.use('/familista-league',    familistaLeagueRoutes);
 
 // Health check
 router.get('/health', (_req, res) => {

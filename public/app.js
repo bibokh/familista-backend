@@ -1517,6 +1517,17 @@ var CLUB_NAV_ITEMS = [
     enabled: true,
     order:   5.6,
   },
+  {
+    // The competition between clubs on the platform. Directly below Coaches,
+    // and nothing above it moves: the order values either side are untouched.
+    slug:    'familista-league',
+    i18nKey: 'navigation.familistaLeague',
+    label:   'Familista League',
+    svgPath: 'M10 2a.75.75 0 01.75.75v.5h3.5a.75.75 0 01.75.75v1.25a3.75 3.75 0 01-3.13 3.7 3.5 3.5 0 01-1.87 1.48v1.82h1.5a.75.75 0 010 1.5h-1.5v1.5h2.75a.75.75 0 010 1.5h-7a.75.75 0 010-1.5H9v-1.5H7.5a.75.75 0 010-1.5H9v-1.82a3.5 3.5 0 01-1.87-1.48A3.75 3.75 0 014 5.25V4a.75.75 0 01.75-.75h3.5v-.5A.75.75 0 019 2h1zM5.5 4.75v.5c0 1.02.61 1.9 1.5 2.29V4.75h-1.5zm7.5 0h-1.5v2.79c.89-.39 1.5-1.27 1.5-2.29v-.5z',
+    color:   '#fbbf24',
+    enabled: true,
+    order:   5.7,
+  },
 ];
 
 // Render CLUB_NAV_ITEMS into #workspace-nav-items in the sidebar.
@@ -2053,7 +2064,7 @@ function navTo(page, el, _opts) {
     'multi-club-network': 1, 'fos-admin-center': 1,
     // CLUB WORKSPACE (11)
     'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
-    'transfers': 1, 'coach-market': 1, 'coaches': 1,
+    'transfers': 1, 'coach-market': 1, 'coaches': 1, 'familista-league': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -2094,7 +2105,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -2150,6 +2161,11 @@ function navTo(page, el, _opts) {
     // The directory paints before it reads, like every other workspace page.
     if (page === 'coaches' && typeof renderCoachesPage === 'function') {
       renderCoachesPage();
+    }
+    // The league paints its shell before it reads, like every other workspace
+    // page, so entering it is a navigation rather than a wait.
+    if (page === 'familista-league' && typeof renderFamilistaLeaguePage === 'function') {
+      renderFamilistaLeaguePage();
     }
   } catch (_) {}
   // Academy Team Workspace is a child of Academy — keep the Academy sidebar
@@ -2356,6 +2372,7 @@ function _buildPageTemplateMap() {
     'transfers':                   renderTransfersHTML,
     'coach-market':                renderCoachMarketHTML,
     'coaches':                     renderCoachesHTML,
+    'familista-league':            renderFamilistaLeagueHTML,
     'match-center':                renderMatchCenterHTML,
     'ai-scouting':                 renderAIScoutingHTML,
     'ai-coach':                    renderAICoachHTML,
@@ -62578,3 +62595,573 @@ async function _tfSyncAllNow() {
   try { if (document.getElementById('pg-transfers')) renderTransfersPage(); } catch (_) {}
 }
 window._tfSyncAll = _tfSyncAll;
+
+// ════════════════════════════════════════════════════════════════════
+//  FAMILISTA LEAGUE
+//  The competition between the clubs on the platform.
+//
+//  It owns no data of its own. The table, the fixtures and the players it
+//  shows are the platform's existing Competition / Fixture / StandingsEntry /
+//  PlayerMatchStats records, read through /familista-league. Clicking a player
+//  opens the same player profile the Squad opens; clicking a match hands over
+//  to the Match Centre that already exists. Nothing here is a second copy of
+//  anything.
+// ════════════════════════════════════════════════════════════════════
+
+var _FL = {
+  tab: 'standings',        // standings | matches | players
+  league: null,
+  myTeamIds: [],
+  standings: null,
+  zones: [],
+  matches: null,
+  boards: null,
+  team: null,              // open club row detail
+  rules: false,            // rules modal
+  loading: {},
+  error: {},
+  round: null,
+};
+
+function _flMine(teamId) {
+  return !!teamId && _FL.myTeamIds.indexOf(teamId) >= 0;
+}
+
+// A crest by club id, using the one primitive the whole platform draws crests
+// with. Falls back to the neutral shield when a club has none.
+function _flCrest(clubId, size) {
+  try { return clubLogoHtml(clubId, { size: size || 'xs' }); } catch (_) { return ''; }
+}
+
+// ── shell ───────────────────────────────────────────────────────────────────
+
+function renderFamilistaLeagueHTML() {
+  if (typeof document !== 'undefined') setTimeout(function () { try { renderFamilistaLeaguePage(); } catch (e) {} }, 0);
+  return '<div class="page" id="pg-familista-league">'
+    + '<div class="fl-root" id="fl-shell"></div>'
+    + '<div class="fl-overlay-host" id="fl-overlay"></div>'
+    + '</div>';
+}
+
+function renderFamilistaLeaguePage() {
+  var host = document.getElementById('fl-shell'); if (!host) return;
+  _FL.tab = 'standings'; _FL.team = null; _FL.rules = false; _FL.round = null;
+  host.innerHTML = _flHeaderHtml() + '<div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
+  _flLoadOverview();
+}
+
+// Colours that come from configuration cannot be written as style attributes —
+// the platform's CSP has no 'unsafe-inline' for styles and drops them without
+// erroring. Setting them through the CSSOM is not inline style and is allowed.
+function _flPaintZones(root) {
+  var scope = root || document;
+  try {
+    scope.querySelectorAll('[data-fl-zone]').forEach(function (el) {
+      el.style.setProperty('--fl-zone', el.getAttribute('data-fl-zone'));
+    });
+    scope.querySelectorAll('[data-fl-swatch]').forEach(function (el) {
+      el.style.setProperty('background', el.getAttribute('data-fl-swatch'));
+    });
+  } catch (_) { /* colour is decoration; never let it break the screen */ }
+}
+
+function _flRepaint() {
+  var head = document.getElementById('fl-head');
+  if (head) head.outerHTML = _flHeaderHtml();
+  var b = document.getElementById('fl-body');
+  if (b) b.innerHTML = _flBodyHtml();
+  var ov = document.getElementById('fl-overlay');
+  if (ov) {
+    var html = (_FL.rules ? _flRulesHtml() : '') + (_FL.team ? _flTeamHtml() : '');
+    if (_FL.rules || _FL.team) { ov.innerHTML = html; ov.classList.add('is-on'); }
+    else { ov.innerHTML = ''; ov.classList.remove('is-on'); }
+  }
+  _flPaintZones(document.getElementById('pg-familista-league'));
+}
+
+function _flHeaderHtml() {
+  var lg = _FL.league;
+  var seasonLine = lg
+    ? _esc(lg.name) + ' · Season ' + _esc(lg.season)
+    : 'Season not started';
+  var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats']];
+  return '<header class="fl-head" id="fl-head">'
+    + '<div class="fl-head-top">'
+    + '  <div class="fl-title-wrap">'
+    + '    <div class="fl-eyebrow">FAMILISTA LEAGUE</div>'
+    + '    <h1 class="fl-title" data-user-content>' + seasonLine + '</h1>'
+    + '  </div>'
+    + '  <button class="fl-rules-btn" data-action="flRules" type="button" title="League rules">'
+    + '    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
+    + '    <span>Rules</span>'
+    + '  </button>'
+    + '</div>'
+    + '<nav class="fl-tabs" role="tablist">'
+    + tabs.map(function (t) {
+        return '<button class="fl-tab' + (_FL.tab === t[0] ? ' is-on' : '') + '" role="tab"'
+          + ' aria-selected="' + (_FL.tab === t[0] ? 'true' : 'false') + '"'
+          + ' data-action="flTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
+      }).join('')
+    + '</nav>'
+    + '</header>';
+}
+
+// ── loading, empty and error states ─────────────────────────────────────────
+
+function _flSkeleton(kind) {
+  var n = kind === 'cards' ? 3 : 10;
+  var row = kind === 'cards'
+    ? '<div class="fl-sk-card"></div>'
+    : '<div class="fl-sk-row"></div>';
+  var out = '';
+  for (var i = 0; i < n; i++) out += row;
+  return '<div class="fl-sk' + (kind === 'cards' ? ' fl-sk--cards' : '') + '">' + out + '</div>';
+}
+
+function _flEmpty(title, sub) {
+  return '<div class="fl-empty">'
+    + '<div class="fl-empty-icon">🏆</div>'
+    + '<div class="fl-empty-title">' + _esc(title) + '</div>'
+    + (sub ? '<div class="fl-empty-sub">' + _esc(sub) + '</div>' : '')
+    + '</div>';
+}
+
+function _flError(what) {
+  return '<div class="fl-empty fl-empty--error">'
+    + '<div class="fl-empty-icon">⚠️</div>'
+    + '<div class="fl-empty-title">Could not load ' + _esc(what) + '</div>'
+    + '<div class="fl-empty-sub">The request did not complete.</div>'
+    + '<button class="fl-retry" data-action="flRetry" type="button">Try again</button>'
+    + '</div>';
+}
+
+// ── data ────────────────────────────────────────────────────────────────────
+
+function _flSeasonQ(extra) {
+  var q = [];
+  if (_FL.league && _FL.league.season) q.push('season=' + encodeURIComponent(_FL.league.season));
+  if (extra) q.push(extra);
+  return q.length ? '?' + q.join('&') : '';
+}
+
+async function _flLoadOverview() {
+  _FL.loading.overview = true; _FL.error.overview = false;
+  try {
+    var r = await api('/familista-league/overview');
+    var d = (r && r.data) || {};
+    _FL.league = d.league || null;
+    _FL.myTeamIds = Array.isArray(d.myTeamIds) ? d.myTeamIds : [];
+  } catch (e) {
+    _FL.error.overview = true;
+  }
+  _FL.loading.overview = false;
+  _flRepaint();
+  if (_FL.league) _flLoadTab();
+}
+
+async function _flLoadTab() {
+  if (!_FL.league) return;
+  if (_FL.tab === 'standings') return _flLoadStandings();
+  if (_FL.tab === 'matches')   return _flLoadMatches(_FL.round);
+  if (_FL.tab === 'players')   return _flLoadBoards();
+}
+
+async function _flLoadStandings() {
+  if (_FL.standings) { _flRepaint(); return; }
+  _FL.loading.standings = true; _FL.error.standings = false; _flRepaint();
+  try {
+    var r = await api('/familista-league/standings' + _flSeasonQ());
+    var d = (r && r.data) || {};
+    _FL.standings = Array.isArray(d.rows) ? d.rows : [];
+    _FL.zones = Array.isArray(d.zones) ? d.zones : [];
+    if (Array.isArray(d.myTeamIds)) _FL.myTeamIds = d.myTeamIds;
+  } catch (e) { _FL.error.standings = true; }
+  _FL.loading.standings = false; _flRepaint();
+}
+
+async function _flLoadMatches(round) {
+  _FL.loading.matches = true; _FL.error.matches = false; _flRepaint();
+  try {
+    var r = await api('/familista-league/matches' + _flSeasonQ(round != null ? 'round=' + round : ''));
+    _FL.matches = (r && r.data) || null;
+    if (_FL.matches) _FL.round = _FL.matches.round;
+  } catch (e) { _FL.error.matches = true; }
+  _FL.loading.matches = false; _flRepaint();
+}
+
+async function _flLoadBoards() {
+  if (_FL.boards) { _flRepaint(); return; }
+  _FL.loading.boards = true; _FL.error.boards = false; _flRepaint();
+  try {
+    var r = await api('/familista-league/leaderboards' + _flSeasonQ());
+    _FL.boards = (r && r.data) || null;
+  } catch (e) { _FL.error.boards = true; }
+  _FL.loading.boards = false; _flRepaint();
+}
+
+// ── body ────────────────────────────────────────────────────────────────────
+
+function _flBodyHtml() {
+  if (_FL.loading.overview) return _flSkeleton('table');
+  if (_FL.error.overview)   return _flError('the league');
+  if (!_FL.league) {
+    return _flEmpty('No active Familista League season',
+      'When a league season is created for the platform, its table, fixtures and player rankings appear here.');
+  }
+  if (_FL.tab === 'standings') return _flStandingsHtml();
+  if (_FL.tab === 'matches')   return _flMatchesHtml();
+  return _flPlayersHtml();
+}
+
+// ── tab 1 · standings ───────────────────────────────────────────────────────
+
+function _flFormHtml(form) {
+  if (!form || !form.length) return '<span class="fl-form-none">—</span>';
+  // Newest last, as the engine records it.
+  return '<span class="fl-form">' + form.map(function (f) {
+    return '<i class="fl-f fl-f--' + f.toLowerCase() + '" title="' + (f === 'W' ? 'Win' : f === 'D' ? 'Draw' : 'Loss') + '">' + f + '</i>';
+  }).join('') + '</span>';
+}
+
+function _flZoneLegendHtml() {
+  if (!_FL.zones.length) return '';
+  return '<div class="fl-legend">' + _FL.zones.map(function (z) {
+    return '<span class="fl-legend-item"><i data-fl-swatch="' + _esc(z.color || '#64748b') + '"></i>'
+      + '<span data-user-content>' + _esc(z.label || '') + '</span></span>';
+  }).join('') + '</div>';
+}
+
+function _flStandingsHtml() {
+  if (_FL.loading.standings) return _flSkeleton('table');
+  if (_FL.error.standings)   return _flError('the standings');
+  var rows = _FL.standings || [];
+  if (!rows.length) {
+    return _flEmpty('The league has not started',
+      'The table fills in as league matches are played.');
+  }
+  var head = ['POS', 'TEAM', 'MP', 'W', 'D', 'L', 'GF', 'GA', 'DIF', 'PTS', 'FORM'];
+  return '<div class="fl-card">'
+    + _flZoneLegendHtml()
+    + '<div class="fl-table-wrap">'
+    + '<table class="fl-table"><thead><tr>'
+    + head.map(function (h, i) {
+        return '<th class="' + (i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'))) + '">' + h + '</th>';
+      }).join('')
+    + '</tr></thead><tbody>'
+    + rows.map(function (r) {
+        var mine = _flMine(r.teamId);
+        // The colour arrives as a data attribute and is applied afterwards
+        // through the CSSOM. A style="" attribute would be silently refused:
+        // the Content-Security-Policy here has no 'unsafe-inline' for styles.
+        var zoneAttr = r.zone ? ' data-fl-zone="' + _esc(r.zone.color || '#64748b') + '"' : '';
+        return '<tr class="fl-row' + (mine ? ' is-mine' : '') + (r.zone ? ' has-zone' : '') + '"'
+          + zoneAttr
+          + ' data-action="flTeam" data-team-id="' + _esc(r.teamId) + '" tabindex="0"'
+          + (r.zone ? ' title="' + _esc(r.zone.label || '') + '"' : '') + '>'
+          + '<td class="fl-td-pos">' + r.position + '</td>'
+          + '<td class="fl-td-team"><span class="fl-team">'
+          +   _flCrest(r.clubId, 'sm')
+          +   '<span class="fl-team-txt"><b data-user-content>' + _esc(r.clubName) + '</b>'
+          +   (r.teamName && r.teamName !== r.clubName ? '<i data-user-content>' + _esc(r.teamName) + '</i>' : '')
+          +   '</span></span></td>'
+          + '<td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.drawn + '</td><td>' + r.lost + '</td>'
+          + '<td>' + r.goalsFor + '</td><td>' + r.goalsAgainst + '</td>'
+          + '<td class="fl-td-gd">' + (r.goalDiff > 0 ? '+' : '') + r.goalDiff + '</td>'
+          + '<td class="fl-td-pts">' + r.points + '</td>'
+          + '<td class="fl-td-form">' + _flFormHtml(r.form) + '</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table></div></div>';
+}
+
+// ── tab 2 · matches ─────────────────────────────────────────────────────────
+
+var _FL_STATUS = {
+  SCHEDULED: ['UPCOMING', 'fl-s-up'],
+  LIVE:      ['LIVE',      'fl-s-live'],
+  HALFTIME:  ['LIVE',      'fl-s-live'],
+  PLAYED:    ['FINISHED',  'fl-s-done'],
+  FT:        ['FINISHED',  'fl-s-done'],
+  POSTPONED: ['POSTPONED', 'fl-s-post'],
+  CANCELLED: ['CANCELLED', 'fl-s-cancel'],
+  ABANDONED: ['CANCELLED', 'fl-s-cancel'],
+};
+
+function _flKickoff(iso) {
+  try {
+    var d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return ''; }
+}
+
+function _flMatchesHtml() {
+  if (_FL.loading.matches) return _flSkeleton('table');
+  if (_FL.error.matches)   return _flError('the fixtures');
+  var m = _FL.matches;
+  if (!m || !m.rounds || !m.rounds.length) {
+    return _flEmpty('No fixtures available', 'League fixtures appear here once the season calendar is published.');
+  }
+  var idx = m.rounds.indexOf(m.round);
+  var prev = idx > 0 ? m.rounds[idx - 1] : null;
+  var next = idx >= 0 && idx < m.rounds.length - 1 ? m.rounds[idx + 1] : null;
+
+  var nav = '<div class="fl-rnav">'
+    + '<button class="fl-rnav-btn" type="button"' + (prev == null ? ' disabled' : ' data-action="flRound" data-round="' + prev + '"') + '>'
+    +   '<span aria-hidden="true">←</span> ' + (prev == null ? 'Round' : 'Round ' + prev)
+    + '</button>'
+    + '<div class="fl-rnav-now">ROUND ' + (m.round == null ? '—' : m.round) + '</div>'
+    + '<button class="fl-rnav-btn" type="button"' + (next == null ? ' disabled' : ' data-action="flRound" data-round="' + next + '"') + '>'
+    +   (next == null ? 'Round' : 'Round ' + next) + ' <span aria-hidden="true">→</span>'
+    + '</button>'
+    + '</div>';
+
+  if (!m.matches.length) {
+    return '<div class="fl-card">' + nav + _flEmpty('No matches in this round', '') + '</div>';
+  }
+
+  var list = m.matches.map(function (x) {
+    var st = _FL_STATUS[x.status] || ['UPCOMING', 'fl-s-up'];
+    var done = x.homeScore != null && x.awayScore != null;
+    var mine = _flMine(x.home && x.home.teamId) || _flMine(x.away && x.away.teamId);
+    var mid = done
+      ? '<span class="fl-score">' + x.homeScore + '<i>-</i>' + x.awayScore + '</span>'
+      : '<span class="fl-kick">' + _esc(_flKickoff(x.scheduledAt)) + '</span>';
+    var side = function (t, align) {
+      if (!t) return '<span class="fl-side fl-side--' + align + '"><span class="fl-side-txt" data-user-content>Unknown</span></span>';
+      return '<span class="fl-side fl-side--' + align + '">'
+        + (align === 'home' ? '' : '<span class="fl-side-txt" data-user-content>' + _esc(t.clubName) + '</span>')
+        + _flCrest(t.clubId, 'sm')
+        + (align === 'home' ? '<span class="fl-side-txt" data-user-content>' + _esc(t.clubName) + '</span>' : '')
+        + '</span>';
+    };
+    return '<div class="fl-match' + (mine ? ' is-mine' : '') + '"'
+      + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
+      + '<span class="fl-status ' + st[1] + '">' + st[0] + '</span>'
+      + side(x.home, 'home') + mid + side(x.away, 'away')
+      + '</div>';
+  }).join('');
+
+  return '<div class="fl-card">' + nav + '<div class="fl-matches">' + list + '</div></div>';
+}
+
+// ── tab 3 · player stats ────────────────────────────────────────────────────
+
+function _flBoardHtml(title, list, fmt) {
+  if (!list || !list.length) {
+    return '<section class="fl-board"><h3 class="fl-board-h">' + _esc(title) + '</h3>'
+      + _flEmpty('Player statistics not available yet', '') + '</section>';
+  }
+  var myClub = _famActiveClubId();
+  return '<section class="fl-board"><h3 class="fl-board-h">' + _esc(title) + '</h3><ol class="fl-board-list">'
+    + list.map(function (e, i) {
+        var mine = myClub && e.clubId === myClub;
+        return '<li class="fl-board-row' + (mine ? ' is-mine' : '') + '"'
+          + ' data-action="flPlayer" data-player-id="' + _esc(e.playerId) + '" tabindex="0">'
+          + '<span class="fl-rank">' + (i + 1) + '</span>'
+          + _flCrest(e.clubId, 'xs')
+          + '<span class="fl-board-txt">'
+          +   '<b data-user-content>' + _esc(e.playerName) + '</b>'
+          +   '<i data-user-content>' + _esc(e.clubName) + '</i>'
+          + '</span>'
+          + '<span class="fl-board-val">' + _esc(fmt(e.value)) + '</span>'
+          + '</li>';
+      }).join('')
+    + '</ol></section>';
+}
+
+function _flPlayersHtml() {
+  if (_FL.loading.boards) return _flSkeleton('cards');
+  if (_FL.error.boards)   return _flError('the player rankings');
+  // The three panels are the screen, so they are always the screen. A league
+  // with no player records yet shows three empty panels and says why, rather
+  // than collapsing to one message that hides what the tab is for.
+  var b = _FL.boards || { goals: [], rating: [], assists: [] };
+  return '<div class="fl-boards">'
+    + _flBoardHtml('Goals',   b.goals,   function (v) { return String(v); })
+    + _flBoardHtml('Rating',  b.rating,  function (v) { return Number(v).toFixed(2); })
+    + _flBoardHtml('Assists', b.assists, function (v) { return String(v); })
+    + '</div>';
+}
+
+// ── rules modal ─────────────────────────────────────────────────────────────
+
+function _flRuleSection(title, body) {
+  if (!body) return '';
+  return '<section class="fl-rule-sec"><h4>' + _esc(title) + '</h4>' + body + '</section>';
+}
+
+function _flRulesHtml() {
+  var lg = _FL.league || {};
+  var r = lg.rules || {};
+  var fmt = r.format || {};
+  var pts = r.points || { win: 3, draw: 1, loss: 0 };
+
+  var formatBody = '<ul class="fl-rule-list">'
+    + (fmt.teams ? '<li><span>Teams</span><b>' + fmt.teams + '</b></li>' : '')
+    + (typeof fmt.doubleRound === 'boolean' ? '<li><span>Format</span><b>' + (fmt.doubleRound ? 'Home and away' : 'Single round') + '</b></li>' : '')
+    + (fmt.rounds ? '<li><span>Rounds</span><b>' + fmt.rounds + '</b></li>' : '')
+    + (lg.ageGroup ? '<li><span>Age group</span><b data-user-content>' + _esc(lg.ageGroup) + '</b></li>' : '')
+    + '</ul>';
+  var hasFormat = fmt.teams || fmt.rounds || typeof fmt.doubleRound === 'boolean' || lg.ageGroup;
+
+  var pointsBody = '<ul class="fl-rule-list">'
+    + '<li><span>Win</span><b>' + pts.win + '</b></li>'
+    + '<li><span>Draw</span><b>' + pts.draw + '</b></li>'
+    + '<li><span>Loss</span><b>' + pts.loss + '</b></li>'
+    + '</ul>';
+
+  var tb = Array.isArray(r.tiebreakers) && r.tiebreakers.length ? r.tiebreakers : ['Points', 'Goal difference', 'Goals scored'];
+  var rankBody = '<ol class="fl-rule-ol">' + tb.map(function (t) { return '<li data-user-content>' + _esc(t) + '</li>'; }).join('') + '</ol>';
+
+  var zones = Array.isArray(r.zones) ? r.zones : [];
+  var zoneBody = zones.length
+    ? '<ul class="fl-rule-list">' + zones.map(function (z) {
+        return '<li><span><i class="fl-zdot" data-fl-swatch="' + _esc(z.color || '#64748b') + '"></i>'
+          + '<span data-user-content>' + _esc(z.label || '') + '</span></span>'
+          + '<b>' + z.from + (z.to > z.from ? '–' + z.to : '') + '</b></li>';
+      }).join('') + '</ul>'
+    : '';
+
+  var seasonBody = '<ul class="fl-rule-list">'
+    + '<li><span>Season</span><b data-user-content>' + _esc(lg.season || '') + '</b></li>'
+    + (fmt.startsOn ? '<li><span>Starts</span><b data-user-content>' + _esc(fmt.startsOn) + '</b></li>' : '')
+    + (fmt.endsOn ? '<li><span>Ends</span><b data-user-content>' + _esc(fmt.endsOn) + '</b></li>' : '')
+    + '</ul>';
+
+  // Prizes are shown only when the league says it pays them. No configuration
+  // means no section — never an invented one.
+  var prizes = r.prizes && r.prizes.enabled && Array.isArray(r.prizes.table) ? r.prizes.table : [];
+  var prizeBody = prizes.length
+    ? '<ul class="fl-rule-list">' + prizes.map(function (p) {
+        var amount = '';
+        try {
+          amount = new Intl.NumberFormat(undefined, { style: 'currency', currency: p.currency || r.prizes.currency || 'EUR', maximumFractionDigits: 0 }).format(p.amount);
+        } catch (_) { amount = String(p.amount); }
+        return '<li><span>Position ' + p.position + '</span><b data-user-content>' + _esc(amount) + '</b></li>';
+      }).join('') + '</ul>'
+    : '';
+
+  return '<div class="fl-modal-bg" data-action="flCloseRules">'
+    + '<div class="fl-modal" role="dialog" aria-modal="true" aria-label="Familista League rules">'
+    + '<header class="fl-modal-h">'
+    +   '<div><div class="fl-eyebrow">FAMILISTA LEAGUE</div><h2>Rules</h2></div>'
+    +   '<button class="fl-modal-x" data-action="flCloseRules" type="button" aria-label="Close">✕</button>'
+    + '</header>'
+    + '<div class="fl-modal-b">'
+    +   (hasFormat ? _flRuleSection('League format', formatBody) : '')
+    +   _flRuleSection('Points system', pointsBody)
+    +   _flRuleSection('Ranking rules', rankBody)
+    +   (zoneBody ? _flRuleSection('Qualification, promotion and relegation', zoneBody) : '')
+    +   _flRuleSection('Season information', seasonBody)
+    +   (prizeBody ? _flRuleSection('Awards', prizeBody) : '')
+    + '</div></div></div>';
+}
+
+// ── club row detail ─────────────────────────────────────────────────────────
+
+function _flTeamHtml() {
+  var t = _FL.team;
+  if (t === 'loading') {
+    return '<div class="fl-modal-bg" data-action="flCloseTeam"><div class="fl-modal fl-modal--sm">'
+      + '<div class="fl-modal-b">' + _flSkeleton('cards') + '</div></div></div>';
+  }
+  var id = t.identity || {};
+  var s = t.standing;
+  var line = function (label, val) { return '<li><span>' + _esc(label) + '</span><b>' + val + '</b></li>'; };
+  var recent = (t.recent || []).concat(t.upcoming || []);
+  return '<div class="fl-modal-bg" data-action="flCloseTeam">'
+    + '<div class="fl-modal fl-modal--sm" role="dialog" aria-modal="true">'
+    + '<header class="fl-modal-h">'
+    +   '<div class="fl-team">' + _flCrest(id.clubId, 'md')
+    +   '<span class="fl-team-txt"><b data-user-content>' + _esc(id.clubName || '') + '</b>'
+    +   (id.teamName && id.teamName !== id.clubName ? '<i data-user-content>' + _esc(id.teamName) + '</i>' : '') + '</span></div>'
+    +   '<button class="fl-modal-x" data-action="flCloseTeam" type="button" aria-label="Close">✕</button>'
+    + '</header>'
+    + '<div class="fl-modal-b">'
+    + (s
+        ? '<ul class="fl-rule-list">'
+          + line('Position', s.position)
+          + line('Played', s.played)
+          + line('Record', s.won + 'W · ' + s.drawn + 'D · ' + s.lost + 'L')
+          + line('Goals', s.goalsFor + ' / ' + s.goalsAgainst)
+          + line('Goal difference', (s.goalDiff > 0 ? '+' : '') + s.goalDiff)
+          + line('Points', s.points)
+          + '</ul>'
+          + '<div class="fl-team-form">' + _flFormHtml(s.form) + '</div>'
+        : _flEmpty('No league record yet', ''))
+    + (recent.length
+        ? '<h4 class="fl-sub-h">Fixtures</h4><div class="fl-matches fl-matches--sm">'
+          + recent.map(function (x) {
+              var done = x.homeScore != null && x.awayScore != null;
+              return '<div class="fl-match" data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
+                + '<span class="fl-side fl-side--home">' + _flCrest(x.home && x.home.clubId, 'xs')
+                + '<span class="fl-side-txt" data-user-content>' + _esc((x.home && x.home.clubName) || '') + '</span></span>'
+                + (done ? '<span class="fl-score">' + x.homeScore + '<i>-</i>' + x.awayScore + '</span>'
+                        : '<span class="fl-kick">' + _esc(_flKickoff(x.scheduledAt)) + '</span>')
+                + '<span class="fl-side fl-side--away"><span class="fl-side-txt" data-user-content>' + _esc((x.away && x.away.clubName) || '') + '</span>'
+                + _flCrest(x.away && x.away.clubId, 'xs') + '</span>'
+                + '</div>';
+            }).join('')
+          + '</div>'
+        : '')
+    + '</div></div></div>';
+}
+
+async function _flOpenTeam(teamId) {
+  _FL.team = 'loading'; _flRepaint();
+  try {
+    var r = await api('/familista-league/teams/' + encodeURIComponent(teamId) + _flSeasonQ());
+    _FL.team = (r && r.data) || null;
+  } catch (e) {
+    _FL.team = null;
+    try { showToast('Could not load that club record', 'error'); } catch (_) {}
+  }
+  _flRepaint();
+}
+
+// ── actions ─────────────────────────────────────────────────────────────────
+
+document.addEventListener('click', function (ev) {
+  var el = ev.target && ev.target.closest ? ev.target.closest('[data-action]') : null;
+  if (!el) return;
+  var act = el.getAttribute('data-action');
+  if (act === 'flTab') {
+    var tab = el.getAttribute('data-tab');
+    if (tab && tab !== _FL.tab) { _FL.tab = tab; _flRepaint(); _flLoadTab(); }
+  } else if (act === 'flRules') {
+    _FL.rules = true; _flRepaint();
+  } else if (act === 'flCloseRules') {
+    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.rules = false; _flRepaint(); }
+  } else if (act === 'flCloseTeam') {
+    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.team = null; _flRepaint(); }
+  } else if (act === 'flRound') {
+    var rn = parseInt(el.getAttribute('data-round'), 10);
+    if (!isNaN(rn)) _flLoadMatches(rn);
+  } else if (act === 'flTeam') {
+    var tid = el.getAttribute('data-team-id');
+    if (tid) _flOpenTeam(tid);
+  } else if (act === 'flPlayer') {
+    // The canonical player record — the same one Squad, Academy, the Match
+    // Centre and Transfers open. This module has no profile of its own.
+    var pid = el.getAttribute('data-player-id');
+    if (pid && typeof openPlayerModal === 'function') openPlayerModal(pid);
+  } else if (act === 'flMatch') {
+    // Hand over to the Match Centre that already exists rather than build a
+    // second one. A fixture with no Match behind it has nothing to open yet.
+    var mid = el.getAttribute('data-match-id');
+    if (mid) { try { navTo('match-center'); } catch (_) {} }
+    else { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} }
+  } else if (act === 'flRetry') {
+    if (!_FL.league) _flLoadOverview();
+    else { _FL.standings = null; _FL.boards = null; _flLoadTab(); }
+  }
+});
+
+// Enter/Space on the rows that behave as buttons.
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  var el = ev.target && ev.target.closest ? ev.target.closest('.fl-row,.fl-match,.fl-board-row') : null;
+  if (!el) return;
+  ev.preventDefault();
+  el.click();
+});
