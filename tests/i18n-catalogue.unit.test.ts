@@ -56,7 +56,15 @@ describe('every offered language has a complete catalogue', () => {
     // so en-US carries only the handful of words where usage differs.
     for (const tag of tags.filter((t) => !/^en(-|$)/.test(t))) {
       const c = cat(tag);
-      const missing = keys.filter((k) => c[k] == null && c[`${k}|plural`] == null);
+      // A `…|plural` entry holds one form per CLDR category the language uses.
+      // Chinese, Japanese, Korean, Thai, Vietnamese, Indonesian and Malay have
+      // a single category, so the plain shape entry already answers every count
+      // and a plural entry would only repeat it. Ask those for the shape.
+      const oneForm = new Intl.PluralRules(tag).resolvedOptions().pluralCategories.length === 1;
+      const missing = keys.filter((k) => {
+        if (oneForm && k.endsWith('|plural')) return c[k.slice(0, -'|plural'.length)] == null;
+        return c[k] == null && c[`${k}|plural`] == null;
+      });
       expect({ tag, missing: missing.slice(0, 8), count: missing.length })
         .toEqual({ tag, missing: [], count: 0 });
     }

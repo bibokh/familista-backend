@@ -2573,7 +2573,7 @@ function renderOwnerHome() {
     <div class="oh-wrap">
       <div class="oh-hero">
         <div class="oh-eyebrow">FAMILISTA · OWNER CONTROL</div>
-        <h1 class="oh-title">${_esc(greet)}${user.firstName ? ', ' + _esc(user.firstName) : ''}</h1>
+        <h1 class="oh-title"><span>${_esc(greet)}</span>${user.firstName ? ', <span data-user-content>' + _esc(user.firstName) + '</span>' : ''}</h1>
         <div class="oh-sub">Where do you want to go today?</div>
       </div>
       <div class="oh-cards">
@@ -2588,7 +2588,7 @@ function renderOwnerHome() {
           <div class="oh-card-icon">🏟️</div>
           <div class="oh-card-title">CLUBS</div>
           <div class="oh-card-sub">${clubCount} club${clubCount === 1 ? '' : 's'} in your network</div>
-          <div class="oh-card-list">Pick a club workspace to enter — currently ${_esc(club.name || 'FC Familista')}</div>
+          <div class="oh-card-list"><span>Pick a club workspace to enter — currently</span> <span data-user-content>${_esc(club.name || 'FC Familista')}</span></div>
           <div class="oh-card-cta">Select a club <span>→</span></div>
         </button>
       </div>
@@ -28023,9 +28023,16 @@ function _socSummary() {
   var recs = _socRecommendations();
   var vul = _socVulnerabilityMonitoring();
   var missing = vul.filter(function (v) { return v.status === 'MISSING'; }).length;
-  return 'FOS Security Operations Center · score ' + sec.score + '/100 (' + sec.status + ') · threat level ' + threat.level + ' · ' +
-         (queue.counts.OPEN + queue.counts.INVESTIGATING) + ' open / investigating incident(s) (real captured) · ' +
-         missing + ' missing control(s) · ' + recs.length + ' recommendation(s) ranked by risk + impact + urgency. All counters sourced from FOSTelemetry.';
+  // Returns markup, not text: the score band and the threat level are enum
+  // values, and a sentence with them baked in would need one catalogue entry
+  // per combination. Given their own nodes they translate through the entries
+  // the rest of the app already uses, and the prose becomes a single entry.
+  return '<span>FOS Security Operations Center · score ' + sec.score + '/100 (</span>'
+       + '<span>' + _esc(sec.status) + '</span>'
+       + '<span>) · threat level </span>'
+       + '<span>' + _esc(threat.level) + '</span>'
+       + '<span> · ' + (queue.counts.OPEN + queue.counts.INVESTIGATING) + ' open / investigating incident(s) (real captured) · '
+       + missing + ' missing control(s) · ' + recs.length + ' recommendation(s) ranked by risk + impact + urgency. All counters sourced from FOSTelemetry.</span>';
 }
 function _ensureSOCStyles() {
   if (document.getElementById('soc-styles')) return;
@@ -28334,7 +28341,7 @@ function renderFOSSecurityCenter() {
       + '    <span style="font-size:24px;">🛡️</span>'
       + '    <div style="font-size:14px;font-weight:900;color:#FCA5A5;letter-spacing:2.4px;text-transform:uppercase;text-shadow:0 0 14px rgba(252,165,165,0.65);">Security Summary</div>'
       + '  </div>'
-      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + _esc(summary) + '</div>'
+      + '  <div style="font-size:14px;color:var(--tx);line-height:1.85;">' + summary + '</div>'
       + '</div>'
 
       + '</div>';

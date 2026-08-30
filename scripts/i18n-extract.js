@@ -68,6 +68,30 @@ function isNoise(v) {
   if (/^(rgba?|hsla?|var|calc|url|linear-gradient|radial-gradient)\s*\(/.test(s)) return true;
   if (/^&[a-z]+;$/.test(s)) return true;                // a bare entity
   if (/^\d+(\.\d+)?(px|rem|em|%|s|ms|vh|vw|fr|deg)$/.test(s)) return true;
+  if (isCode(s)) return true;
+  // The same technical exclusions the runtime applies, so the inventory and the
+  // interface agree on what is prose. A route, a slug, an enum constant and a
+  // written-out rule are all things a person may see and none of them is text
+  // anybody should translate.
+  if (/^\/[a-z0-9]/i.test(s)) return true;
+  if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(s)) return true;
+  if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(s)) return true;
+  if (/[<>]=?\s*\d|\d\s*[<>]=?/.test(s)) return true;
+  if (/^\w+\.\w+$/.test(s)) return true;
+  return false;
+}
+
+// The between-tags pattern cannot tell a tag from a comparison: `a > 0 ? b : c`
+// followed anywhere by a `<` looks exactly like `>text<`. That put hundreds of
+// JavaScript fragments into the inventory — "%d ? a.control * %d : %d) + (a.counter"
+// — which are not strings anybody reads and were never translation gaps. They
+// are rejected here so the backlog figure means what it says.
+function isCode(s) {
+  if (/[?;{}]|=>|\|\||&&|\+\+|!==|===|\+=|\bvar |\blet |\bconst |\breturn\b|\bfunction\b|\btypeof\b/.test(s)) return true;
+  if (/\w\.\w+/.test(s) && !/\.\s/.test(s)) return true;   // property access, not a sentence
+  if (/\w\(|\)\s*[.[]/.test(s)) return true;               // a call
+  if (/\[\d+\]|\[['"]/.test(s)) return true;               // an index
+  if (/^[^A-Za-z]*[)\]]/.test(s)) return true;              // starts inside an expression
   return false;
 }
 
@@ -139,12 +163,15 @@ for (const f of SOURCES) {
 
 const keys = [...all.keys()].sort((a, b) => a.localeCompare(b));
 
-if (process.argv.includes('--count')) { console.log(keys.length); process.exit(0); }
-
-if (process.argv.includes('--list')) {
-  for (const k of keys) console.log(k.replace(/\u0000/g, '%d'));
-  process.exit(0);
-}
+// Print and stop, but never process.exit(): on a pipe stdout is written
+// asynchronously and exiting drops whatever has not flushed yet, so --list
+// silently lost a third of the inventory and every count taken from it read low.
+const listing = process.argv.includes('--count') ? String(keys.length)
+  : process.argv.includes('--list') ? keys.map((k) => k.replace(/\u0000/g, '%d')).join('\n')
+  : null;
+if (listing !== null) {
+  console.log(listing);
+} else {
 
 // The inventory is every English string the SOURCE contains. It is wider than
 // the catalogue on purpose — it includes screens no route reaches and code
@@ -159,3 +186,4 @@ console.log('Familista i18n — English catalogue extracted\n');
 for (const [f, n] of perFile) console.log(`  ${f.padEnd(22)} ${String(n).padStart(5)}`);
 console.log(`  ${'DISTINCT'.padEnd(22)} ${String(keys.length).padStart(5)}`);
 console.log(`\n  → ${path.relative(ROOT, OUT)}`);
+}

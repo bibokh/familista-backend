@@ -54,7 +54,16 @@ for (const tag of tags) {
   // English variants are translated by not being translated: the markup is
   // already English, so only the handful of usage differences need entries.
   if (/^en(-|$)/.test(tag)) { rows.push([tag, 'english', Object.keys(cat).length]); continue; }
-  const missing = keys.filter((k) => cat[k] == null && cat[k + '|plural'] == null);
+  // A `…|plural` key holds one form per CLDR category the language uses. A
+  // language with a single category — Chinese, Japanese, Korean, Thai,
+  // Vietnamese, Indonesian, Malay — says the same thing for every count, so
+  // the plain shape entry already answers it and a second entry would only
+  // repeat itself. Ask those locales for the shape, not for the plural.
+  const oneForm = new Intl.PluralRules(tag).resolvedOptions().pluralCategories.length === 1;
+  const missing = keys.filter((k) => {
+    if (oneForm && k.endsWith('|plural')) return cat[k.slice(0, -'|plural'.length)] == null;
+    return cat[k] == null && cat[k + '|plural'] == null;
+  });
   if (missing.length) incomplete++;
   rows.push([tag, missing.length ? missing.length + ' missing' : 'complete', Object.keys(cat).length]);
 }

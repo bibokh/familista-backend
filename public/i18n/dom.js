@@ -117,7 +117,11 @@
 
   // Names that are the same in every language: the product, its assistant, and
   // the football bodies whose acronyms are not translated.
-  var BRAND = /^(Familista|ARIA|FIFA|UEFA|VAR|GPS|xG|xA|OVR|API)$/;
+  // "FOS Core" and the rest of the FOS module names are product names, and a
+  // club's name is the club's, not ours — the brief is explicit that club
+  // names are never translated, whether they arrive from the database or are
+  // written into the markup as the reference tenant.
+  var BRAND = /^(Familista|ARIA|FIFA|UEFA|VAR|GPS|xG|xA|OVR|API|FOS|FOS Core|FC Familista)$/i;
   // Short capitals are initials on an avatar or a shirt — except the handful
   // that are genuine interface words and do differ by language (AI is KI in
   // German, IA in French and Spanish).
@@ -146,6 +150,15 @@
     if (/^[A-Z]{2,3}$/.test(s) && !SHORT_WORDS.test(s)) return false;
     if (/^v\d/.test(s)) return false;                  // a version string
     if (/^[\w.+-]+@[\w.-]+$/.test(s)) return false;   // an email address
+    // Technical strings a person may see on an admin screen but which are not
+    // prose and must never be translated: an API route, a page slug or other
+    // code identifier, a backend enum constant, and anything carrying a
+    // comparison operator (an internal rule written out, not a sentence).
+    if (/^\/[a-z0-9]/i.test(s)) return false;                    // /api/v1/…
+    if (/^[a-z0-9]+(-[a-z0-9]+)+$/.test(s)) return false;       // fos-core, coach-market
+    if (/^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$/.test(s)) return false;  // HEAD_COACH, READY_NOW
+    if (/[<>]=?\s*\d|\d\s*[<>]=?/.test(s)) return false;      // fatigue >= 80
+    if (/^\w+\.\w+$/.test(s)) return false;                    // window.error
     if (/^(https?:|\/\/|data:|blob:)/.test(s)) return false;
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s)) return false;  // a uuid
     return true;

@@ -60,17 +60,41 @@ if (!EMAIL || !PASSWORD) {
 let KEYS = {};
 try { KEYS = require(path.join(__dirname, '..', 'public/i18n/catalogue/en-GB.json')); } catch (_) { KEYS = {}; }
 
+// "Not in the catalogue" was doing two jobs at once and hiding one of them: a
+// person's name is not in the catalogue and never should be, but "Sign In" not
+// being in the catalogue is an English button in a translated interface. The
+// source inventory tells them apart — a string the SOURCE contains is English
+// the product wrote, so it is a gap; a string the source never wrote arrived
+// from the database or from a translation and is data.
+let SOURCE = {};
+try { SOURCE = require(path.join(__dirname, '..', 'public/i18n/catalogue/_source-inventory.json')); } catch (_) { SOURCE = {}; }
+
 const MODULES = [
+  { page: 'owner-home', name: 'Owner Home', area: 'platform' },
   { page: 'club-home', name: 'Home' },
   { page: 'squad', name: 'Squad', tabs: ['lineup', 'formation', 'tactics'] },
   { page: 'training', name: 'Training Centre' },
   { page: 'academy', name: 'Academy' },
+  // An age group is its own workspace, not a view of the Academy page, so its
+  // text is only reachable by activating the page itself.
+  { page: 'academy-team', name: 'Academy Age Group' },
   { page: 'video-intelligence', name: 'Video Intelligence' },
   { page: 'transfers', name: 'Transfers' },
   { page: 'coach-market', name: 'Coach Market' },
   { page: 'coaches', name: 'Coaches' },
   { page: 'settings', name: 'Settings' },
   { page: 'clubs', name: 'Clubs' },
+  // The Platform area. These eight are in navTo's allow-list, which means a
+  // person can reach them, which means their text is user-visible text — the
+  // first pass covered only the Club Workspace and missed them entirely.
+  { page: 'fos-core', name: 'FOS Core', area: 'platform' },
+  { page: 'fos-observability', name: 'Observability', area: 'platform' },
+  { page: 'fos-security-center', name: 'Security Centre', area: 'platform' },
+  { page: 'fos-automation-center', name: 'Automation Centre', area: 'platform' },
+  { page: 'fos-rbac', name: 'RBAC', area: 'platform' },
+  { page: 'fos-audit-governance', name: 'Audit & Governance', area: 'platform' },
+  { page: 'multi-club-network', name: 'Multi-Club Network', area: 'platform' },
+  { page: 'fos-admin-center', name: 'Admin Centre', area: 'platform' },
 ];
 
 // Controls that are safe to open in order to see what is behind them. A tab, a
@@ -100,6 +124,51 @@ const until = async (p, f, ms = 30000) => {
 
   await p.goto(ORIGIN + '/index.html', { waitUntil: 'domcontentloaded' });
   await until(p, () => { const e = document.getElementById('login-email'); return !!(e && e.offsetParent !== null); });
+
+  // The screens before sign-in are interface too — sign in, register, forgotten
+  // password. A person meets them first and, if they are not translated, meets
+  // them in English however the rest of the app behaves.
+  const authStrings = [];
+  {
+    if (LOCALE !== 'en-GB') {
+      await p.evaluate(async (tag) => { await window.I18N_APPLY.change(tag); }, LOCALE);
+      await p.waitForTimeout(1200);
+    }
+    const views = ['[data-auth="register"]', '[data-auth="forgot"]', '[data-auth="login"]',
+                   '#show-register', '#show-forgot', '#show-login',
+                   '[data-action="showRegister"]', '[data-action="showForgot"]'];
+    const take = async () => {
+      const got = await p.evaluate(() => (window.I18N_DOM ? window.I18N_DOM.scan() : []));
+      for (const g of got) authStrings.push(g);
+    };
+    await take();
+    for (const sel of views) {
+      const hit = await p.evaluate((s) => {
+        const el = document.querySelector(s);
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) return false;
+        el.click();
+        return true;
+      }, sel).catch(() => false);
+      if (hit) { await p.waitForTimeout(500); await take(); }
+    }
+    // Submitting an empty form is how the validation messages get on screen.
+    await p.evaluate(() => {
+      const el = document.querySelector('[data-auth="login"], #show-login, #login-btn');
+      if (el) el.click();
+    }).catch(() => {});
+    await p.waitForTimeout(400);
+    await p.evaluate(() => { const b = document.getElementById('login-btn'); if (b) b.click(); }).catch(() => {});
+    await p.waitForTimeout(900);
+    await take();
+    if (LOCALE !== 'en-GB') {
+      await p.evaluate(async () => { await window.I18N_APPLY.change('en-GB'); }).catch(() => {});
+      await p.waitForTimeout(600);
+    }
+  }
+
+  await until(p, () => { const e = document.getElementById('login-email'); return !!(e && e.offsetParent !== null); });
   await p.fill('#login-email', EMAIL);
   await p.fill('#login-password', PASSWORD);
   await p.click('#login-btn');
@@ -125,11 +194,13 @@ const until = async (p, f, ms = 30000) => {
   const englishAnywhere = new Set();
   const unknownAnywhere = new Set();
 
-  for (const m of MODULES) {
-    await p.evaluate((pg) => { try { navTo(pg); } catch (_) {} }, m.page);
-    await p.waitForTimeout(1800);
-    const views = [null, ...(m.tabs || [])];
-    const strings = [];
+  for (const m of [{ page: null, name: 'Sign-in' }, ...MODULES]) {
+    if (m.page) {
+      await p.evaluate((pg) => { try { navTo(pg); } catch (_) {} }, m.page);
+      await p.waitForTimeout(1800);
+    }
+    const views = m.page ? [null, ...(m.tabs || [])] : [];
+    const strings = m.page ? [] : authStrings;
     const collect = async () => {
       const got = await p.evaluate(() => (window.I18N_DOM ? window.I18N_DOM.scan() : []));
       for (const g of got) strings.push(g);
@@ -153,9 +224,20 @@ const until = async (p, f, ms = 30000) => {
           '[data-squad-page]', '[data-ac-open]', '[data-tf-tab]', '[data-st-view]',
           '[data-co-view]', '[data-set-cat]', '[data-vi-tab]', '[data-trn-open]',
           '.sqf-card', '.co-cc', '.ac-tcard', '.set-rail-b', '.tf-tabs button',
+          // …and the surfaces the brief names one by one: the windows inside the
+          // Training Centre, the tactical panels, the age-group workspaces, the
+          // drawers and the rows that open a modal.
+          '[data-trn-win]', '[data-trn-tab]', '[data-trn-nav]', '[data-trn-panel]',
+          '[data-sq-cmd]', '[data-sqtac-sec]', '[data-sq-tool]', '[data-cmd]',
+          '[data-at-nav]', '[data-at-sec]', '[data-at-tab]',
+          '[data-action="openPlayerModal"]', '[data-player-id]',
+          '[data-st-open]', '[data-tf-open]', '[data-tf-player]', '[data-co-team]',
+          '[data-drawer]', '[data-panel]', '[data-open]', 'summary',
+          '.trn-tab', '.trn-win-head', '.sqtac-sec-h', '.vi-tab', '.tf-seg',
+          '.co-seg', '.st-seg', '.mc2-tab', '.chd-widget-header',
         ].join(',');
         document.querySelectorAll('.page.active ' + sel.split(',').join(', .page.active ')).forEach((el) => {
-          if (out.length >= 30) return;
+          if (out.length >= 45) return;
           const r = el.getBoundingClientRect();
           if (!r.width || !r.height) return;
           const label = (el.textContent || '').trim().slice(0, 60);
@@ -178,6 +260,29 @@ const until = async (p, f, ms = 30000) => {
         }, c.idx).catch(() => {});
         await p.waitForTimeout(650);
         await collect();
+        // A modal or drawer that opened is scanned where it is, then closed —
+        // its text is user-visible text and is exactly what the first pass,
+        // which only ever looked at the page behind it, could not see.
+        const overlay = await p.evaluate(() => {
+          const sels = ['.sq-plm', '.trn-modal', '.modal.open', '.modal[style*="flex"]',
+                        '[role="dialog"]', '.tf-drawer', '.st-drawer', '.co-drawer',
+                        '.sq-fm', '.sq-cf', '.drawer.open', '.sheet.open'];
+          return sels.some((s) => [...document.querySelectorAll(s)].some((e) => {
+            const r = e.getBoundingClientRect();
+            return r.width > 40 && r.height > 40 && getComputedStyle(e).display !== 'none';
+          }));
+        });
+        if (overlay) {
+          await p.waitForTimeout(500);
+          await collect();
+          await p.keyboard.press('Escape').catch(() => {});
+          await p.waitForTimeout(350);
+          await p.evaluate(() => {
+            try { if (typeof _sqHideModals === 'function') _sqHideModals(); } catch (_) {}
+            document.querySelectorAll('.trn-modal').forEach((m) => { m.hidden = true; });
+          });
+          await p.waitForTimeout(250);
+        }
         const after = await p.evaluate(() => { const a = document.querySelector('.page.active'); return a ? a.id : ''; });
         if (after !== before) {
           // A control that navigated elsewhere; come back and carry on here.
@@ -203,7 +308,7 @@ const until = async (p, f, ms = 30000) => {
     for (const [text, done] of local) {
       if (done) continue;
       if (IS_ENGLISH) continue;
-      if (KEYS[text] != null) stillEnglish.push(text); else uncatalogued.push(text);
+      if (KEYS[text] != null || SOURCE[text] != null) stillEnglish.push(text); else uncatalogued.push(text);
     }
     report.modules[m.name] = { seen: uniq.length, english: stillEnglish, uncatalogued: uncatalogued };
     for (const e of stillEnglish) englishAnywhere.add(e);
@@ -212,7 +317,7 @@ const until = async (p, f, ms = 30000) => {
     console.log(`  ${m.name.padEnd(20)} ${String(uniq.length).padStart(5)} seen` +
       (IS_ENGLISH ? '' : `  ${String(stillEnglish.length).padStart(4)} untranslated` +
         `  ${String(uncatalogued.length).padStart(4)} uncatalogued${mark}`));
-    if (SHOTS) {
+    if (SHOTS && m.page) {
       fs.mkdirSync(SHOTS, { recursive: true });
       await p.screenshot({ path: path.join(SHOTS, `${LOCALE}-${m.page}.png`) });
     }
@@ -229,8 +334,8 @@ const until = async (p, f, ms = 30000) => {
 
   console.log(`  ${'DISTINCT'.padEnd(20)} ${String(report.all.length).padStart(5)} seen`);
   if (report.english) {
-    console.log(`  ${'STILL ENGLISH'.padEnd(20)} ${String(report.english.length).padStart(5)}  (catalogued but untranslated)`);
-    console.log(`  ${'UNCATALOGUED'.padEnd(20)} ${String(report.uncatalogued.length).padStart(5)}  (names, data, and strings not yet added)`);
+    console.log(`  ${'STILL ENGLISH'.padEnd(20)} ${String(report.english.length).padStart(5)}  (English the source wrote — a real gap)`);
+    console.log(`  ${'DATA'.padEnd(20)} ${String(report.uncatalogued.length).padStart(5)}  (names, numbers, ids — never translated)`);
     console.log(`  ${'DIRECTION'.padEnd(20)} ${String(report.dir).padStart(5)}`);
   }
   if (errs.length) console.log('\n  page errors:', JSON.stringify(errs.slice(0, 3)));
