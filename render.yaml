@@ -16,7 +16,13 @@ services:
     # hook before the server accepts traffic is the start command, so the
     # migration gate runs there instead — same script, earlier in the sequence.
     startCommand: bash scripts/render-start.sh
-    healthCheckPath: /api/v1/health
+    # /healthz, not /api/v1/health. Both answer, but /api/v1/health is mounted
+    # inside the versioned API router and so sits behind its global rate limiter
+    # — a prober that never stops knocking is exactly the traffic that limiter
+    # exists to cut off, and a 429 reads to Render as an unhealthy service.
+    # /healthz is declared in app.ts ahead of the router for this purpose: no
+    # auth, no database, no rate limit.
+    healthCheckPath: /healthz
     envVars:
       # ── Core ────────────────────────────────────────────────────────────
       - key: NODE_ENV

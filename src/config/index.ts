@@ -11,9 +11,19 @@ function optional(key: string, fallback: string): string {
   return process.env[key] ?? fallback;
 }
 
+// Render probes the port it assigned, not whichever port the process happens to
+// open. If PORT is missing there — a service whose environment was never filled
+// in from render.yaml, say — falling back to the local default binds 4000, the
+// probe keeps knocking on 10000, and the deploy fails as "Timed Out" with a log
+// that says the server started perfectly. Render marks its own environment with
+// RENDER=true, so fall back to Render's default port when we are on Render and
+// to the local one everywhere else.
+const ON_RENDER = process.env.RENDER === 'true' || !!process.env.RENDER_SERVICE_ID;
+const DEFAULT_PORT = ON_RENDER ? '10000' : '4000';
+
 export const config = {
   env: optional('NODE_ENV', 'development'),
-  port: parseInt(optional('PORT', '4000')),
+  port: parseInt(optional('PORT', DEFAULT_PORT)),
   apiVersion: optional('API_VERSION', 'v1'),
 
   db: {
