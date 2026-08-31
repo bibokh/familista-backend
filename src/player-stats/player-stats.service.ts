@@ -18,51 +18,112 @@ export interface StatsActor {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Running one aggregation at a time, per thing being aggregated
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Two callers can aggregate the same match at the same moment: the worker
+// draining the outbox that event ingest fills, and somebody asking for a rebuild
+// through the API. They both upsert on (matchId, playerId), and a Prisma upsert
+// whose `create` contains a nested `connect` cannot compile to
+// INSERT … ON CONFLICT — it is a SELECT then an INSERT. So both read "no row",
+// both insert, and one of them loses to the unique index with P2002.
+//
+// The fix is the one this repository already uses for concurrent writers: take a
+// lock inside a transaction and let the second caller wait for the first (see
+// `assertCanSpend` in transfer-market.service.ts, which locks the balance row
+// with SELECT … FOR UPDATE). There is no row to lock here — the rows are the
+// thing being created — so it locks the *subject* instead, with a Postgres
+// advisory lock keyed on the match.
+//
+// `pg_advisory_xact_lock` is held for the transaction and released by the commit
+// or the rollback, so a crashed aggregation cannot leave the match locked.
+// `hashtextextended` turns the key into the bigint the lock function wants;
+// different matches hash differently and do not contend with each other.
+//
+// The result is not merely that nothing throws: the second aggregation runs
+// after the first has committed, sees its rows, and takes the UPDATE branch.
+// Both compute from the same immutable events, so they agree — which is what
+// makes it safe for the loser to simply write the same values again.
+
+/** Serialise work on one subject. The key is namespaced so two subsystems
+ *  locking the same id cannot collide. */
+async function withStatsLock<T>(key: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      // $executeRaw, not $queryRaw: the lock function returns void, which has no
+      // Prisma type to deserialise into. Nothing here wants a result — the call
+      // returning is the whole point, because that is when the lock is held.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+      return fn(tx);
+    },
+    {
+      // A caller that has to queue behind others is waiting on the lock, which
+      // is time spent inside the transaction — so the interactive timeout has to
+      // cover the queue, not just one aggregation (~50ms for a 2 000-event
+      // match). maxWait is the wait for a pool connection and stays modest.
+      maxWait: 10_000,
+      timeout: 60_000,
+    },
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Per-match stats computation
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * Rebuild PlayerMatchStats for every player who touched the ball in this match.
- * Idempotent — upserts on (matchId, playerId). Safe to call repeatedly.
+ *
+ * Idempotent and safe to call concurrently: the whole rebuild runs under one
+ * per-match lock, so overlapping calls queue rather than collide, and each one
+ * leaves the same rows because it reads the same events.
  */
 export async function computeMatchStats(matchId: string): Promise<{ rebuilt: number }> {
-  // Collect all distinct player IDs from events in this match.
-  const playerIds = await prisma.matchEvent.findMany({
-    where:   { matchId, playerId: { not: null } },
-    select:  { playerId: true, clubId: true, teamId: true },
-    distinct: ['playerId'],
+  return withStatsLock(`stats:match:${matchId}`, async (tx) => {
+    // Collect all distinct player IDs from events in this match.
+    const playerIds = await tx.matchEvent.findMany({
+      where:   { matchId, playerId: { not: null } },
+      select:  { playerId: true, clubId: true, teamId: true },
+      distinct: ['playerId'],
+    });
+
+    // Players in the starting XI may have no events of their own (injured off at
+    // 0), and a player can appear in both lists. Merged first so that each
+    // player is written exactly once per rebuild, and `rebuilt` counts players
+    // rather than counting the ones in the XI twice.
+    const startingXI = await tx.matchEvent.findMany({
+      where:  { matchId, type: 'STARTING_XI', playerId: { not: null } },
+      select: { playerId: true, clubId: true, teamId: true },
+    });
+    const starters = new Set(startingXI.map((e) => e.playerId).filter(Boolean) as string[]);
+
+    const byPlayer = new Map<string, { playerId: string; clubId: string; teamId?: string }>();
+    for (const row of [...playerIds, ...startingXI]) {
+      if (!row.playerId || !row.clubId) continue;
+      if (!byPlayer.has(row.playerId)) {
+        byPlayer.set(row.playerId, { playerId: row.playerId, clubId: row.clubId, teamId: row.teamId ?? undefined });
+      }
+    }
+
+    let rebuilt = 0;
+    for (const { playerId, clubId, teamId } of byPlayer.values()) {
+      await buildPlayerMatchStats(tx, matchId, playerId, clubId, teamId, starters.has(playerId));
+      rebuilt++;
+    }
+
+    return { rebuilt };
   });
-
-  let rebuilt = 0;
-  for (const { playerId, clubId, teamId } of playerIds) {
-    if (!playerId || !clubId) continue;
-    await buildPlayerMatchStats(matchId, playerId, clubId, teamId ?? undefined);
-    rebuilt++;
-  }
-
-  // Also include players in the starting XI who may have 0 events (injured off at 0).
-  const startingXI = await prisma.matchEvent.findMany({
-    where:  { matchId, type: 'STARTING_XI', playerId: { not: null } },
-    select: { playerId: true, clubId: true, teamId: true },
-  });
-  for (const { playerId, clubId, teamId } of startingXI) {
-    if (!playerId || !clubId) continue;
-    // upsert — may already exist from the player-events loop
-    await buildPlayerMatchStats(matchId, playerId, clubId, teamId ?? undefined, true);
-    rebuilt++;
-  }
-
-  return { rebuilt };
 }
 
 async function buildPlayerMatchStats(
+  tx: Prisma.TransactionClient,
   matchId: string,
   playerId: string,
   clubId: string,
   teamId?: string,
   isStarting = false,
 ): Promise<PlayerMatchStats> {
-  const events = await prisma.matchEvent.findMany({
+  const events = await tx.matchEvent.findMany({
     where: { matchId, OR: [{ playerId }, { relatedPlayerId: playerId }] },
     orderBy: [{ periodIndex: 'asc' }, { minuteMs: 'asc' }],
   });
@@ -152,7 +213,12 @@ async function buildPlayerMatchStats(
     computedAt:          new Date(),
   };
 
-  return prisma.playerMatchStats.upsert({
+  // The upsert stays, and the lock above is what makes it safe. Catching P2002
+  // here instead would not work: in Postgres a failed statement aborts the whole
+  // transaction, so there would be nothing left to recover into. Preventing the
+  // collision is the only fix available inside a transaction, which is why the
+  // lock is the mechanism rather than a retry.
+  return tx.playerMatchStats.upsert({
     where:  { matchId_playerId: { matchId, playerId } },
     create: data as Prisma.PlayerMatchStatsCreateInput,
     update: data as Prisma.PlayerMatchStatsUpdateInput,
@@ -175,7 +241,54 @@ function computeRating(f: { goals: number; assists: number; xg: number; xa: numb
 // Season rollup
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Roll one player's season up from their match rows.
+ *
+ * Locked for the same reason `computeMatchStats` is, and against the same
+ * caller: the worker rolls up every player in a match with `Promise.allSettled`,
+ * so two overlapping aggregations of one match call this for the same
+ * (player, club, season, competition) at once — and this upsert has the same
+ * nested `connect` in its `create`, so it is a SELECT then an INSERT too.
+ */
+/**
+ * Find this player's season row, or make it.
+ *
+ * Not an upsert, and it cannot be one. The unique key includes `competitionId`,
+ * which is NULL for a rollup that is not competition-scoped — and in Postgres
+ * NULL is not equal to NULL, so that index does not stop a second such row from
+ * being inserted. The upsert that used to be here looked the row up by
+ * `competitionId: ''`, which matches nothing when the stored value is NULL, so
+ * every call missed and inserted again: six rollups of one player produced six
+ * rows. Neither the constraint nor the upsert could catch it.
+ *
+ * A read followed by a write is correct here precisely because the caller holds
+ * the per-subject lock — which is the other half of the same fix.
+ */
+async function upsertSeasonRow(
+  tx: Prisma.TransactionClient,
+  key: { playerId: string; clubId: string; season: string; competitionId: string | null },
+  create: Prisma.PlayerSeasonStatsCreateInput,
+  update: Prisma.PlayerSeasonStatsUpdateInput,
+): Promise<PlayerSeasonStats> {
+  const existing = await tx.playerSeasonStats.findFirst({ where: key, select: { id: true } });
+  if (existing) return tx.playerSeasonStats.update({ where: { id: existing.id }, data: update });
+  return tx.playerSeasonStats.create({ data: create });
+}
+
 export async function rollupSeasonStats(
+  playerId: string,
+  clubId: string,
+  season: string,
+  competitionId?: string,
+): Promise<PlayerSeasonStats> {
+  return withStatsLock(
+    `stats:season:${playerId}:${clubId}:${season}:${competitionId ?? ''}`,
+    (tx) => _rollupSeasonStats(tx, playerId, clubId, season, competitionId),
+  );
+}
+
+async function _rollupSeasonStats(
+  tx: Prisma.TransactionClient,
   playerId: string,
   clubId: string,
   season: string,
@@ -189,13 +302,14 @@ export async function rollupSeasonStats(
       : undefined,
   };
 
-  const rows = await prisma.playerMatchStats.findMany({ where });
+  const rows = await tx.playerMatchStats.findMany({ where });
   if (rows.length === 0) {
-    return prisma.playerSeasonStats.upsert({
-      where:  { playerId_clubId_season_competitionId: { playerId, clubId, season, competitionId: competitionId ?? '' } } as any,
-      create: { playerId, clubId, season, competitionId: competitionId ?? null, computedAt: new Date(), updatedAt: new Date() },
-      update: { computedAt: new Date(), updatedAt: new Date() },
-    });
+    return upsertSeasonRow(
+      tx,
+      { playerId, clubId, season, competitionId: competitionId ?? null },
+      { playerId, clubId, season, competitionId: competitionId ?? null, computedAt: new Date(), updatedAt: new Date() } as any,
+      { computedAt: new Date(), updatedAt: new Date() },
+    );
   }
 
   const sum = <K extends keyof (typeof rows[0])>(key: K) =>
@@ -250,11 +364,12 @@ export async function rollupSeasonStats(
     updatedAt:           new Date(),
   };
 
-  return prisma.playerSeasonStats.upsert({
-    where:  { playerId_clubId_season_competitionId: { playerId, clubId, season, competitionId: competitionId ?? '' } } as any,
-    create: data as any,
-    update: data as any,
-  });
+  return upsertSeasonRow(
+    tx,
+    { playerId, clubId, season, competitionId: competitionId ?? null },
+    data as any,
+    data as any,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

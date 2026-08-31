@@ -64,9 +64,25 @@ async function _tick(): Promise<void> {
     });
 
     if (rows.length === 0) return;
-    _log(`processing ${rows.length} outbox events`);
 
-    await Promise.allSettled(rows.map((row) => _processRow(row)));
+    // A batch routinely holds several messages for one match: event ingest
+    // enqueues one per event, and a match with five events produces five
+    // identical instructions. Aggregating a match once and marking all of its
+    // messages processed is the same work and the same result — and it stops the
+    // batch from opening twenty transactions that all queue on the same
+    // per-match lock, each holding a pool connection while it waits.
+    const byMatch = new Map<string, typeof rows>();
+    const malformed: typeof rows = [];
+    for (const row of rows) {
+      const matchId: string | undefined = (row.payload as { matchId?: string } | null)?.matchId;
+      if (!matchId) { malformed.push(row); continue; }
+      const group = byMatch.get(matchId);
+      if (group) group.push(row); else byMatch.set(matchId, [row]);
+    }
+    _log(`processing ${rows.length} outbox events across ${byMatch.size} match(es)`);
+
+    for (const row of malformed) await _markFailed(row.id, 'missing matchId in payload');
+    await Promise.allSettled([...byMatch].map(([matchId, group]) => _processMatch(matchId, group)));
   } catch (err) {
     _log(`tick error: ${(err as Error).message}`);
   } finally {
@@ -74,37 +90,40 @@ async function _tick(): Promise<void> {
   }
 }
 
-async function _processRow(row: { id: string; payload: unknown; retryCount: number }): Promise<void> {
-  const matchId: string | undefined = (row.payload as any)?.matchId;
-  if (!matchId) {
-    await _markFailed(row.id, 'missing matchId in payload');
-    return;
-  }
+type OutboxRow = { id: string; payload: unknown; retryCount: number };
 
+async function _processMatch(matchId: string, group: OutboxRow[]): Promise<void> {
   try {
-    // Step 1: rebuild per-match stats.
+    // Step 1: rebuild per-match stats. Safe to run while another aggregation of
+    // the same match is in flight — computeMatchStats takes a per-match lock and
+    // this call waits for its turn.
     const { rebuilt } = await computeMatchStats(matchId);
-    _log(`match ${matchId}: rebuilt ${rebuilt} player-match-stats`);
+    _log(`match ${matchId}: rebuilt ${rebuilt} player-match-stats for ${group.length} message(s)`);
 
     // Step 2: season rollup for every affected player.
     await _triggerSeasonRollups(matchId);
 
-    // Step 3: mark processed.
-    await prisma.eventOutbox.update({
-      where: { id: row.id },
+    // Step 3: mark every message that asked for this match processed. They asked
+    // for the same thing and it has been done once.
+    await prisma.eventOutbox.updateMany({
+      where: { id: { in: group.map((r) => r.id) } },
       data:  { processedAt: new Date() },
     });
   } catch (err) {
-    const nextRetry = row.retryCount + 1;
-    _log(`match ${matchId} failed (attempt ${nextRetry}): ${(err as Error).message}`);
+    _log(`match ${matchId} failed: ${(err as Error).message}`);
 
-    if (nextRetry >= MAX_RETRIES) {
-      await _markFailed(row.id, (err as Error).message);
-    } else {
-      await prisma.eventOutbox.update({
-        where: { id: row.id },
-        data:  { retryCount: nextRetry },
-      });
+    // Retries stay per message, so a message that has already been tried twice
+    // is not given a fresh budget by being grouped with a newer one.
+    for (const row of group) {
+      const nextRetry = row.retryCount + 1;
+      if (nextRetry >= MAX_RETRIES) {
+        await _markFailed(row.id, (err as Error).message);
+      } else {
+        await prisma.eventOutbox.update({
+          where: { id: row.id },
+          data:  { retryCount: nextRetry },
+        }).catch(() => {});
+      }
     }
   }
 }
