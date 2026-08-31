@@ -154,6 +154,9 @@
       "form": "חמשת המשחקים האחרונים"
     },
     "rulesTooltip": "חוקי הליגה",
-    "rulesDialog": "חוקי Familista League"
+    "rulesDialog": "חוקי Familista League",
+    "manage": {
+      "tooltip": "ניהול משתתפות הליגה"
+    }
   }
 }

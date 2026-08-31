@@ -104,9 +104,16 @@ export async function addTeamToCompetition(
 ): Promise<CompetitionTeam> {
   await _assertCompOwner(actor, competitionId);
 
+  // The club recorded against a participant is the club that owns the team, not
+  // the club of whoever entered it. They are the same for a club's own
+  // competition, and different for a competition played between clubs — where
+  // recording the administrator's club would misattribute every team in it.
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { clubId: true } });
+  if (!team) throw new NotFoundError('Team');
+
   return prisma.competitionTeam.upsert({
     where:  { competitionId_teamId: { competitionId, teamId } },
-    create: { competitionId, teamId, clubId: actor.clubId },
+    create: { competitionId, teamId, clubId: team.clubId },
     update: {},
   });
 }
@@ -160,7 +167,7 @@ export interface RecordResultDto {
 }
 
 export async function createFixture(actor: CompActor, dto: CreateFixtureDto): Promise<Fixture> {
-  await _assertCompOwner(actor, dto.competitionId);
+  const comp = await _assertCompOwner(actor, dto.competitionId);
   if (dto.homeTeamId === dto.awayTeamId) {
     throw new BadRequestError('Home and away team cannot be the same');
   }
@@ -168,7 +175,12 @@ export async function createFixture(actor: CompActor, dto: CreateFixtureDto): Pr
   return prisma.fixture.create({
     data: {
       competitionId: dto.competitionId,
-      clubId:        actor.clubId,
+      // A fixture belongs to whoever owns the competition, not to whoever
+      // happened to create it. For a club's own competition those are the same
+      // club; for a platform competition the owner is nobody, and the fixture
+      // has to inherit that or it would become editable by the administrator's
+      // own club through `_assertFixtureOwner`.
+      clubId:        comp.clubId,
       homeTeamId:    dto.homeTeamId,
       awayTeamId:    dto.awayTeamId,
       scheduledAt:   new Date(dto.scheduledAt),
@@ -286,7 +298,7 @@ export async function generateRoundRobinFixtures(
   matchdayIntervalDays = 7,
   homeLegOnly = false,
 ): Promise<{ created: number }> {
-  await _assertCompOwner(actor, competitionId);
+  const comp = await _assertCompOwner(actor, competitionId);
 
   const teams = await prisma.competitionTeam.findMany({ where: { competitionId } });
   if (teams.length < 2) throw new BadRequestError('Need at least 2 teams to generate fixtures');
@@ -313,7 +325,7 @@ export async function generateRoundRobinFixtures(
 
       fixtures.push({
         competitionId,
-        clubId:      actor.clubId,
+        clubId:      comp.clubId,   // the competition's owner — see createFixture
         homeTeamId:  home,
         awayTeamId:  away,
         scheduledAt: new Date(matchdayDate),
@@ -329,7 +341,7 @@ export async function generateRoundRobinFixtures(
         );
         fixtures.push({
           competitionId,
-          clubId:      actor.clubId,
+          clubId:      comp.clubId,
           homeTeamId:  away,
           awayTeamId:  home,
           scheduledAt: awayLegDate,
@@ -376,6 +388,22 @@ export async function rebuildStandings(
   return { rebuilt };
 }
 
+/**
+ * Rebuild a competition's table with no actor and no ownership check.
+ *
+ * This exists for the one caller that has no actor to check: a Familista League
+ * match reaching full time in the Match Centre, where the club finalising its
+ * own match is not — and must not become — an owner of the league. The check
+ * that matters there has already happened, on the match. Everything a person
+ * initiates still goes through `rebuildStandings` above, which does check.
+ *
+ * It computes nothing of its own; it is the same algorithm, called from
+ * elsewhere, which is the point.
+ */
+export async function rebuildStandingsUnchecked(competitionId: string): Promise<number> {
+  return _rebuildStandings(competitionId);
+}
+
 // ─── Private: standings algorithm ────────────────────────────────────────────
 
 interface StandingRow {
@@ -405,6 +433,16 @@ async function _rebuildStandings(competitionId: string): Promise<number> {
     }
     return rows.get(teamId)!;
   };
+
+  // Every entered team starts in the table on nothing. Building the table only
+  // out of the fixtures that have been played would mean a season with no
+  // results has no table at all, and a team that has not played yet would be
+  // missing from one that does — which reads as an error rather than as a zero.
+  const entered = await prisma.competitionTeam.findMany({
+    where: { competitionId },
+    select: { teamId: true },
+  });
+  for (const t of entered) row(t.teamId);
 
   for (const f of fixtures) {
     const h = row(f.homeTeamId);

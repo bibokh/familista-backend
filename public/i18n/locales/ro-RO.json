@@ -154,6 +154,9 @@
       "form": "Ultimele cinci meciuri"
     },
     "rulesTooltip": "Regulamentul ligii",
-    "rulesDialog": "Regulamentul Familista League"
+    "rulesDialog": "Regulamentul Familista League",
+    "manage": {
+      "tooltip": "Gestionează participanții ligii"
+    }
   }
 }

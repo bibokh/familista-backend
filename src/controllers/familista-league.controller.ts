@@ -9,6 +9,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import * as league from '../competition/familista-league.service';
+import * as admin from '../competition/familista-league.admin.service';
 import { NotFoundError } from '../utils/errors';
 
 const querySchema = z.object({
@@ -92,5 +93,120 @@ export async function getTeamRecord(req: Request, res: Response, next: NextFunct
     const { teamId } = teamSchema.parse(req.params);
     const record = await league.getTeamRecord(found.id, teamId);
     res.json({ success: true, data: record });
+  } catch (err) { next(err); }
+}
+
+export async function getTeamStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    const rows = await league.getTeamStats(found.id);
+    res.json({ success: true, data: { rows, season: found.season } });
+  } catch (err) { next(err); }
+}
+
+const fixtureSchema = z.object({ fixtureId: z.string().uuid() });
+
+/**
+ * One league match in full — the payload the Match Centre opens with. Readable
+ * by any signed-in club because a league match belongs to the competition both
+ * of them play in, not to either one of them.
+ */
+export async function getMatchDetail(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    const { fixtureId } = fixtureSchema.parse(req.params);
+    const detail = await league.getMatchDetail(found.id, fixtureId);
+    res.json({ success: true, data: detail });
+  } catch (err) { next(err); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Administration — participants and the calendar
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Every handler below goes through `assertLeagueAdmin` inside the service, so
+// the rule holds even if a route is ever mounted without its middleware. The
+// actor's club is read from the session, never from the request body.
+
+function actorOf(req: Request): admin.LeagueActor {
+  const u = (req as Request & { user?: { id?: string; userId?: string; role?: string; currentClubId?: string; clubId?: string } }).user;
+  return {
+    userId: u?.id ?? u?.userId ?? '',
+    clubId: u?.currentClubId ?? u?.clubId ?? '',
+    role: u?.role,
+  };
+}
+
+/** Whether this caller may manage the league — the screen asks before drawing. */
+export async function getManageContext(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    let canManage = true;
+    try { admin.assertLeagueAdmin(actorOf(req)); } catch (_) { canManage = false; }
+    const participants = canManage ? await admin.listParticipants(found.id) : [];
+    res.json({ success: true, data: { canManage, participants, season: found.season, competitionId: found.id } });
+  } catch (err) { next(err); }
+}
+
+const searchSchema = z.object({
+  search: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+export async function getEligibleTeams(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    admin.assertLeagueAdmin(actorOf(req));
+    const q = searchSchema.parse(req.query);
+    const teams = await admin.listEligibleTeams(found.id, q);
+    res.json({ success: true, data: { teams } });
+  } catch (err) { next(err); }
+}
+
+const addSchema = z.object({ teamId: z.string().uuid() });
+
+export async function addParticipant(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    const { teamId } = addSchema.parse(req.body ?? {});
+    const participants = await admin.addParticipant(actorOf(req), found.id, teamId);
+    res.json({ success: true, data: { participants } });
+  } catch (err) { next(err); }
+}
+
+export async function removeParticipant(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    const { teamId } = teamSchema.parse(req.params);
+    const outcome = await admin.removeParticipant(actorOf(req), found.id, teamId);
+    res.json({ success: true, data: outcome });
+  } catch (err) { next(err); }
+}
+
+const scheduleSchema = z.object({
+  startDate: z.string().trim().min(8).max(32).optional(),
+  intervalDays: z.coerce.number().int().min(1).max(60).optional(),
+});
+
+export async function rebuildSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const found = await resolveLeague(req);
+    const opts = scheduleSchema.parse(req.body ?? {});
+    const outcome = await admin.rebuildSchedule(actorOf(req), found.id, opts);
+    res.json({ success: true, data: outcome });
+  } catch (err) { next(err); }
+}
+
+const rescheduleSchema = z.object({
+  scheduledAt: z.string().trim().min(8),
+  venue: z.string().trim().max(120).nullable().optional(),
+});
+
+export async function rescheduleFixture(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { fixtureId } = fixtureSchema.parse(req.params);
+    const body = rescheduleSchema.parse(req.body ?? {});
+    const out = await admin.rescheduleFixture(actorOf(req), fixtureId, body.scheduledAt, body.venue);
+    res.json({ success: true, data: out });
   } catch (err) { next(err); }
 }

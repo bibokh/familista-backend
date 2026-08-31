@@ -10,6 +10,7 @@ import {
 import { prisma } from '../config/database';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../utils/errors';
 import { publish } from '../realtime/match-channel';
+import { syncMatchToLeague } from '../competition/familista-league.admin.service';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Types
@@ -334,6 +335,22 @@ export async function updateMatch(actor: MatchActor, id: string, dto: UpdateMatc
         (dto.awayScore !== undefined && dto.awayScore !== existing.awayScore)) {
       publish({ kind: 'SCORE_CHANGED', matchId: id, clubId: actor.clubId,
         payload: { homeScore: updated.homeScore, awayScore: updated.awayScore } });
+    }
+    return updated;
+  }).then(async (updated) => {
+    // A Familista League match reaching full time updates the league table, and
+    // does it here because this is the one funnel every score and status change
+    // goes through — finalize, the live transitions and a plain edit all end up
+    // in this function. The league is asked once and answers "not mine" for
+    // every match that is not one of its fixtures.
+    //
+    // A failure here must not fail the match update: the match is the record of
+    // what happened, the table is derived from it, and a derived view that is
+    // briefly stale is a far smaller fault than a result that would not save.
+    // Any competition can be rebuilt from its fixtures at any time.
+    if (dto.status !== undefined || dto.homeScore !== undefined || dto.awayScore !== undefined
+        || dto.scheduledAt !== undefined) {
+      try { await syncMatchToLeague(id); } catch (_) { /* derived, and rebuildable */ }
     }
     return updated;
   });

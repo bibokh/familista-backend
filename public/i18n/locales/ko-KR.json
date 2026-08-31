@@ -154,6 +154,9 @@
       "form": "최근 5경기"
     },
     "rulesTooltip": "리그 규정",
-    "rulesDialog": "Familista 리그 규정"
+    "rulesDialog": "Familista 리그 규정",
+    "manage": {
+      "tooltip": "리그 참가 팀 관리"
+    }
   }
 }

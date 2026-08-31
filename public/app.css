@@ -14565,6 +14565,17 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 .fl-rules-btn:hover{ border-color:rgba(251,191,36,.45); color:#fbbf24; }
 
+/* Manage Teams sits beside Rules and is drawn only for a reader the server says
+   may use it, so it is a quiet control rather than a prominent one. */
+.fl-manage-btn{
+  display:inline-flex; align-items:center; gap:7px; height:36px; padding:0 14px;
+  border-radius:10px; border:1px solid var(--bd-2,rgba(255,255,255,.10));
+  background:var(--card,#111115); color:var(--tx-2,#b9c0cf);
+  font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;
+  transition:border-color .15s, color .15s;
+}
+.fl-manage-btn:hover{ border-color:rgba(56,189,248,.45); color:#38bdf8; }
+
 /* ── tabs ── */
 .fl-tabs{
   display:flex; gap:4px; margin-top:18px; padding:4px;
@@ -14819,6 +14830,75 @@ body.club-theme .topbar-titles{ min-width:0; }
   .fl-modal-bg{ padding:0; align-items:flex-end; }
   .fl-modal{ width:100%; max-height:92vh; border-radius:18px 18px 0 0; }
 }
+
+/* ── Manage Teams ──
+   Two lists in one panel: who is in the season, and which first teams could be.
+   Deliberately plain — this is an administrative panel, not a second League. */
+.fl-modal--manage{ max-width:620px; }
+.fl-mg-sec{ margin-bottom:22px; }
+.fl-mg-sec:last-child{ margin-bottom:0; }
+.fl-mg-h{
+  margin:0 0 4px; font-size:11px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--tx-3,#8b93a7);
+}
+.fl-mg-note{ margin:0 0 10px; font-size:11.5px; color:var(--tx-3,#8b93a7); line-height:1.5; }
+.fl-mg-row{
+  display:flex; align-items:center; gap:12px; padding:10px 12px;
+  border:1px solid var(--bd,rgba(255,255,255,.06)); border-radius:10px;
+  background:var(--card,#111115); margin-bottom:8px;
+}
+.fl-mg-crest{ flex:0 0 auto; display:flex; }
+.fl-mg-body{ flex:1 1 auto; min-width:0; }
+.fl-mg-name{
+  font-size:13px; font-weight:700; color:var(--tx,#e8eaf0);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.fl-mg-meta{ font-size:11px; color:var(--tx-3,#8b93a7); margin-top:2px; }
+.fl-mg-btn{
+  flex:0 0 auto; appearance:none; cursor:pointer; height:30px; padding:0 12px;
+  border-radius:8px; border:1px solid rgba(34,197,94,.35);
+  background:rgba(34,197,94,.10); color:#22c55e; font-size:11.5px; font-weight:700;
+}
+.fl-mg-btn:hover{ background:rgba(34,197,94,.18); }
+.fl-mg-btn[disabled]{ opacity:.5; cursor:default; }
+.fl-mg-btn--rm{ border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.10); color:#ef4444; }
+.fl-mg-btn--rm:hover{ background:rgba(239,68,68,.18); }
+.fl-mg-locked{ flex:0 0 auto; font-size:11px; font-weight:700; color:var(--tx-3,#8b93a7); }
+.fl-mg-none{
+  padding:14px; border-radius:10px; border:1px dashed var(--bd-2,rgba(255,255,255,.10));
+  font-size:12px; color:var(--tx-3,#8b93a7); text-align:center;
+}
+
+/* ── a competition match opened in the Match Centre ──
+   One line above the score strip saying which competition this match belongs to
+   and offering the way back. The Match Centre below it is unchanged. */
+.mc2-context{
+  display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+  padding:10px 14px; margin-bottom:12px; border-radius:12px;
+  background:var(--bg-3,#141418); border:1px solid var(--bd,rgba(255,255,255,.06));
+  font-size:12px; color:var(--tx-2,#b9c0cf);
+}
+.mc2-context-back{
+  appearance:none; cursor:pointer; height:28px; padding:0 12px; border-radius:8px;
+  border:1px solid var(--bd-2,rgba(255,255,255,.10)); background:var(--card,#111115);
+  color:var(--tx-2,#b9c0cf); font-size:11.5px; font-weight:700;
+}
+.mc2-context-back:hover{ border-color:rgba(251,191,36,.45); color:#fbbf24; }
+.mc2-context-label{ font-weight:800; color:var(--tx,#e8eaf0); }
+.mc2-context-sep{ color:var(--tx-3,#8b93a7); }
+.mc2-context-meta{ color:var(--tx-3,#8b93a7); }
+.mc2-roster-side{
+  margin:10px 0 6px; font-size:10.5px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--tx-3,#8b93a7);
+}
+.mc2-roster-side:first-child{ margin-top:0; }
+
+/* Static presentation the pitch used to carry as style attributes. The CSP
+   drops those, so the tokens lost their pointer and the board its sizing —
+   the rule belongs in the stylesheet, which is where it now is. */
+.mc2-pitch-svg{ width:100%; height:auto; display:block; max-height:760px; }
+.mc2-token{ cursor:pointer; }
+.mc2-boot{ text-align:center; padding:60px; color:var(--tx-3,#8b93a7); }
 
 /* ══════════════════════════════════════════════════════════════════════════════
    FAMILISTA RECRUITMENT COMMAND CENTER

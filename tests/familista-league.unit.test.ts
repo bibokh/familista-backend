@@ -11,10 +11,21 @@ import path from 'path';
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
+// Several assertions below are about what the CODE does, and would otherwise be
+// answered by a comment that says the same thing in words. This strips comments
+// so "does not mention saves" means the code, not the paragraph explaining why
+// there are none.
+const codeOnly = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+
 const APP = read('public/app.js');
 const SERVICE = read('src/competition/familista-league.service.ts');
 const CONTROLLER = read('src/controllers/familista-league.controller.ts');
 const ROUTES = read('src/routes/familista-league.routes.ts');
+const ADMIN = read('src/competition/familista-league.admin.service.ts');
+const ELIGIBILITY = read('src/competition/league-eligibility.ts');
+const ENGINE = read('src/competition/competition.service.ts');
+const MATCH_SERVICE = read('src/services/match.service.ts');
 const INDEX = read('src/routes/index.ts');
 const SCHEMA = read('prisma/schema.prisma');
 
@@ -58,8 +69,9 @@ describe('Familista League — navigation', () => {
   it('opens the profiles that already exist instead of building its own', () => {
     // A player opens the canonical player record…
     expect(APP).toMatch(/act === 'flPlayer'[\s\S]{0,400}openPlayerModal\(pid\)/);
-    // …and a match hands over to the Match Centre.
-    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,500}navTo\('match-center'\)/);
+    // …and a match hands over to the Match Centre, focused on that fixture.
+    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,400}_flOpenMatch\(fid\)/);
+    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,900}navTo\('match-center'\)/);
     // No second player profile or match centre is defined by this module.
     expect(APP).not.toContain('function _flPlayerProfile');
     expect(APP).not.toContain('function _flMatchCenter');
@@ -82,17 +94,35 @@ describe('Familista League — the read model', () => {
     // may read StandingsEntry; it may not recompute points or positions.
     expect(SERVICE).toContain('prisma.standingsEntry.findMany');
     expect(SERVICE).not.toMatch(/points\s*\+=/);
-    expect(SERVICE).not.toMatch(/\bwon\+\+|\bdrawn\+\+|\blost\+\+/);
+    // Every column of the table itself is copied from the row the engine wrote,
+    // never derived here. (The home/away split alongside it is a different
+    // statistic, counted from the fixtures — it is not the table.)
+    for (const field of ['played: e.played', 'won: e.won', 'drawn: e.drawn', 'lost: e.lost', 'points: e.points']) {
+      expect(SERVICE).toContain(field);
+    }
   });
 
-  it('is read-only — no write reaches the database through it', () => {
+  it('keeps every write out of the read service and behind an administrator', () => {
+    // The read side stays read-only: this is what makes it safe to show the
+    // league to every club.
     for (const verb of ['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany', '$executeRaw']) {
       expect(SERVICE).not.toContain(`.${verb}(`);
-      expect(CONTROLLER).not.toContain(`.${verb}(`);
     }
-    // …and the routes expose nothing but GET.
-    expect(ROUTES).not.toMatch(/router\.(post|put|patch|delete)\(/);
-    expect((ROUTES.match(/router\.get\(/g) || []).length).toBeGreaterThanOrEqual(5);
+    // Writing lives in its own service, and every entry point asserts the role.
+    const writes = ['addParticipant', 'removeParticipant', 'rebuildSchedule', 'rescheduleFixture'];
+    for (const fn of writes) {
+      const at = ADMIN.indexOf(`export async function ${fn}`);
+      expect(`${fn}@${at > -1}`).toBe(`${fn}@true`);
+      expect(ADMIN.slice(at, at + 400)).toContain('assertLeagueAdmin(actor)');
+    }
+    // …and every write route is role-gated in the router as well, so a service
+    // called from somewhere new cannot be reached without the check either.
+    const writeRoutes = ROUTES.match(/router\.(post|put|patch|delete)\([^\n]*/g) || [];
+    expect(writeRoutes.length).toBeGreaterThanOrEqual(4);
+    for (const line of writeRoutes) expect(line).toContain('authorize(UserRole.SUPER_ADMIN)');
+    // No route records a league result: a result comes from the match.
+    const routeLines = (codeOnly(ROUTES).match(/router\.[a-z]+\([^\n]*/g) || []).join('\n');
+    expect(routeLines).not.toMatch(/result|score/i);
   });
 
   it('scopes player statistics to this competition structurally', () => {
@@ -119,6 +149,217 @@ describe('Familista League — the read model', () => {
     // Prizes appear only when the league says they are enabled.
     expect(SERVICE).toMatch(/prizes.*enabled.*\?.*r\.prizes.*:.*\{ enabled: false \}/s);
     expect(APP).toContain('r.prizes && r.prizes.enabled');
+  });
+});
+
+describe('Familista League — one rule for who may play', () => {
+  it('states eligibility once, and nowhere else', () => {
+    expect(ELIGIBILITY).toContain('export function isEligibleForFamilistaLeague');
+    expect(ELIGIBILITY).toContain('export function eligibleTeamWhere');
+    // Everything that needs the rule imports it. No file decides for itself.
+    expect(ADMIN).toContain("from './league-eligibility'");
+    // The academy kinds are never named by the League — exclusion is by not
+    // being a first team, so a new academy age group needs no code change here.
+    // (The Academy module elsewhere in app.js names its own age groups, which is
+    // its business; this is scoped to the League.)
+    const leagueBlock = APP.slice(APP.indexOf('//  FAMILISTA LEAGUE'));
+    for (const file of [ADMIN, SERVICE, CONTROLLER, leagueBlock]) {
+      expect(file).not.toMatch(/ACADEMY_U\d+/);
+    }
+  });
+
+  it('expresses the same rule in memory and in the query', () => {
+    // Both halves must consult FIRST_TEAM_KINDS; a `where` that hard-coded
+    // SENIOR would silently drift the day the rule changes.
+    const inMemory = ELIGIBILITY.slice(ELIGIBILITY.indexOf('export function eligibilityOf'));
+    const asQuery = ELIGIBILITY.slice(ELIGIBILITY.indexOf('export function eligibleTeamWhere'));
+    expect(inMemory).toContain('FIRST_TEAM_KINDS.includes');
+    expect(asQuery).toContain('FIRST_TEAM_KINDS');
+    expect(inMemory).toContain('isActive === false');
+    expect(asQuery).toContain('isActive: true');
+  });
+
+  it('is built to widen later without the League being rewritten', () => {
+    // The rule returns a reason, not a bare boolean, so a new condition is one
+    // token here rather than a new check at every call site.
+    expect(ELIGIBILITY).toContain('EligibilityVerdict');
+    expect(ELIGIBILITY).toMatch(/reason: 'OK' \| 'NOT_FIRST_TEAM' \| 'INACTIVE'/);
+  });
+});
+
+describe('Familista League — participation references, never copies', () => {
+  it('stores a team id and reads identity from the club', () => {
+    const add = ADMIN.slice(ADMIN.indexOf('export async function addParticipant'));
+    const body = add.slice(0, add.indexOf('\n}'));
+    expect(body).toContain('prisma.competitionTeam.create');
+    // The only columns written are the reference and the owning club.
+    expect(body).toMatch(/data: \{ competitionId, teamId, clubId: team\.clubId \}/);
+    // Nothing about the team's identity is duplicated into that row.
+    const code = codeOnly(body);
+    for (const copied of ['crestUrl:', 'teamName:', 'name:', 'squadSize', 'players:']) {
+      expect(`${copied}${code.includes(copied)}`).toBe(`${copied}false`);
+    }
+  });
+
+  it('resolves crest and name from the club on every read', () => {
+    // teamIdentities is the single place identity comes from, and it reads the
+    // live rows — so a rename or a new crest shows up without a migration.
+    expect(SERVICE).toMatch(/prisma\.club\.findMany[\s\S]{0,200}crestUrl: true/);
+    expect(SERVICE).toContain('crestUrl: club?.crestUrl ?? club?.emblem ?? null');
+  });
+
+  it('cannot enter the same team twice, or an ineligible one', () => {
+    const add = ADMIN.slice(ADMIN.indexOf('export async function addParticipant'));
+    expect(add).toContain('already plays in this season');
+    expect(add).toContain('Only a club first team can play in the Familista League');
+    // The database agrees: participation is unique per competition and team.
+    expect(SCHEMA).toMatch(/model CompetitionTeam \{[\s\S]*?@@unique\(\[competitionId, teamId\]\)/);
+  });
+
+  it('refuses to drop a team that has already played', () => {
+    const rm = ADMIN.slice(ADMIN.indexOf('export async function removeParticipant'));
+    expect(rm).toMatch(/status: 'PLAYED'[\s\S]{0,400}playedCount > 0/);
+    expect(rm).toContain('scheduling decision rather than a deletion');
+  });
+
+  it('never deletes a match that carries anybody’s work', () => {
+    const del = ADMIN.slice(ADMIN.indexOf('async function _deleteFixtureAndItsMatch'));
+    for (const guard of ['lineups === 0', 'timeline === 0', 'events === 0', 'playerStats === 0', 'playerMatchStats === 0', 'tacticalSnapshots === 0']) {
+      expect(del).toContain(guard);
+    }
+    expect(del).toContain('if (untouched) await prisma.match.delete');
+  });
+});
+
+describe('Familista League — fixtures are matches', () => {
+  it('reuses the engine’s round-robin rather than writing another', () => {
+    expect(ADMIN).toContain("from './competition.service'");
+    expect(ADMIN).toContain('generateRoundRobinFixtures(compActor');
+    // No pairing arithmetic of its own, and no team count written down: the
+    // shape of the season follows from however many teams are entered.
+    const code = codeOnly(ADMIN);
+    expect(code).not.toMatch(/circle method|rotate|ring\[/);
+    expect(code).not.toMatch(/rounds\s*=\s*6|matches\s*=\s*12|length === 4/);
+  });
+
+  it('gives every fixture a real Match, with the competition on it', () => {
+    const ensure = ADMIN.slice(ADMIN.indexOf('export async function ensureFixtureMatches'));
+    expect(ensure).toContain('prisma.match.create');
+    expect(ensure).toContain('competition: CompetitionType.LEAGUE');
+    expect(ensure).toContain('competitionName: comp.name');
+    expect(ensure).toContain('season: comp.season');
+    expect(ensure).toContain('data: { matchId: match.id }');
+  });
+
+  it('moves the fixture and its match to the same date', () => {
+    const re = ADMIN.slice(ADMIN.indexOf('export async function rescheduleFixture'));
+    expect(re).toContain('prisma.fixture.update');
+    expect(re).toContain('prisma.match.update');
+    expect(re).toMatch(/scheduledAt: when[\s\S]{0,300}scheduledAt: when/);
+  });
+
+  it('will not regenerate a calendar that has results in it', () => {
+    const rb = ADMIN.slice(ADMIN.indexOf('export async function rebuildSchedule'));
+    expect(rb).toContain('Schedule adjustment required');
+    expect(rb).toMatch(/status: 'PLAYED'[\s\S]{0,300}playedCount > 0/);
+  });
+
+  it('gives a platform fixture no owning club, so no club can edit it', () => {
+    // The engine writes the competition's owner onto the fixture, which is null
+    // for the league — and `_assertFixtureOwner` then matches nobody.
+    expect(ENGINE).toContain('clubId:        comp.clubId');
+    expect(ENGINE).toMatch(/clubId:      comp\.clubId/);
+    expect(ENGINE).not.toMatch(/clubId:\s+actor\.clubId,\s*\n\s*homeTeamId/);
+  });
+});
+
+describe('Familista League — a result arrives from the Match Centre', () => {
+  it('hangs off the one funnel every match change goes through', () => {
+    expect(MATCH_SERVICE).toContain("import { syncMatchToLeague } from '../competition/familista-league.admin.service'");
+    const upd = MATCH_SERVICE.slice(MATCH_SERVICE.indexOf('export async function updateMatch'));
+    expect(upd).toContain('await syncMatchToLeague(id)');
+    // A league failure must never fail the match: the match is the record.
+    expect(upd).toMatch(/try \{ await syncMatchToLeague\(id\); \} catch/);
+  });
+
+  it('copies the score across and lets the engine rebuild the table', () => {
+    const sync = ADMIN.slice(ADMIN.indexOf('export async function syncMatchToLeague'));
+    expect(sync).toContain('MatchStatus.FT');
+    expect(sync).toContain('homeScore: settled ? match.homeScore ?? 0 : null');
+    expect(sync).toContain('rebuildStandingsUnchecked(fixture.competitionId)');
+    // It computes no points, no positions and no form of its own.
+    expect(sync).not.toMatch(/points|position|form/i);
+  });
+
+  it('answers "not mine" for a match that is not a league fixture', () => {
+    const sync = ADMIN.slice(ADMIN.indexOf('export async function syncMatchToLeague'));
+    expect(sync).toMatch(/prisma\.fixture\.findFirst\(\{\s*\n?\s*where: \{ matchId \}/);
+    expect(sync).toContain('if (!fixture) return { competitionId: null }');
+    // …and a fixture belonging to a club's own competition is not one either.
+    expect(sync).toMatch(/clubId: null[\s\S]{0,200}if \(!comp\) return \{ competitionId: null \}/);
+  });
+
+  it('leaves a team with no results in the table on zero', () => {
+    // Otherwise a season that has not started has no table at all, and a team
+    // that has not played is missing from one that does.
+    expect(ENGINE).toContain('const entered = await prisma.competitionTeam.findMany');
+    expect(ENGINE).toMatch(/for \(const t of entered\) row\(t\.teamId\)/);
+  });
+});
+
+describe('Familista League — the Match Centre it opens', () => {
+  it('is the existing one, focused on a match', () => {
+    // No second render function; the same one draws a different match.
+    expect(APP).not.toContain('function renderLeagueMatchCenter');
+    expect(APP).toMatch(/function _mcNextMatch\(\)[\s\S]{0,400}if \(f && f\.next\) return f\.next/);
+    expect(APP).toContain('window._MC_FOCUS = _mcFocusFromLeague(d)');
+  });
+
+  it('knows which competition the match belongs to', () => {
+    expect(APP).toMatch(/context: d\.context \|\| null/);
+    expect(SERVICE).toContain('export interface LeagueMatchContext');
+    for (const field of ['competitionId', 'code', 'name', 'season', 'round', 'fixtureId', 'matchId']) {
+      expect(SERVICE).toMatch(new RegExp(`${field}:`));
+    }
+  });
+
+  it('lets go of the focus when the Match Centre is opened any other way', () => {
+    expect(APP).toMatch(/data-page="match-center"[\s\S]{0,400}window\._MC_FOCUS = null/);
+  });
+
+  it('shows what was recorded, and an honest nothing when there is none', () => {
+    expect(APP).toContain('No lineup has been recorded for this match yet.');
+    expect(APP).toContain('No player statistics have been recorded for this match yet.');
+    // Nothing is invented to fill the panels.
+    expect(APP).not.toMatch(/Math\.random\(\)[\s\S]{0,120}focus/);
+  });
+});
+
+describe('Familista League — statistics that are real or absent', () => {
+  it('offers only what the Match Centre records', () => {
+    expect(SERVICE).toContain('export interface LeaguePlayerRecord');
+    for (const has of ['appearances', 'starts', 'minutes', 'goals', 'assists', 'averageRating',
+      'yellowCards', 'redCards', 'shots', 'shotsOnTarget', 'passes', 'passAccuracy',
+      'tackles', 'interceptions', 'xg', 'xa']) {
+      expect(SERVICE).toMatch(new RegExp(`\\b${has}:`));
+    }
+    // Nothing in the platform captures these, so the league does not pretend to
+    // have them — no field, no column, no zero standing in for a measurement.
+    const code = codeOnly(SERVICE);
+    for (const absent of ['saves', 'motm', 'manOfTheMatch', 'cleanSheet:']) {
+      expect(`${absent}:${new RegExp(`\\b${absent}`, 'i').test(code)}`).toBe(`${absent}:false`);
+    }
+  });
+
+  it('counts this league’s matches and no others', () => {
+    expect(SERVICE).toMatch(/fixture\.findMany[\s\S]{0,200}competitionId/);
+    expect(SERVICE).toMatch(/playerMatchStats\.findMany[\s\S]{0,200}matchId: \{ in: matchIds \}/);
+  });
+
+  it('leaves an unrecorded team statistic null rather than zero', () => {
+    const ts = SERVICE.slice(SERVICE.indexOf('export async function getTeamStats'));
+    expect(ts).toContain('possessionAvg: a.possession.length ?');
+    expect(ts).toContain('shots: a.recorded ? a.shots : null');
   });
 });
 

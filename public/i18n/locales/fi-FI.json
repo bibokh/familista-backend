@@ -154,6 +154,9 @@
       "form": "Viisi viimeisintä ottelua"
     },
     "rulesTooltip": "Sarjan säännöt",
-    "rulesDialog": "Familista League -säännöt"
+    "rulesDialog": "Familista League -säännöt",
+    "manage": {
+      "tooltip": "Hallinnoi sarjan osallistujia"
+    }
   }
 }

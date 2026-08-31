@@ -154,6 +154,9 @@
       "form": "Lima perlawanan terakhir"
     },
     "rulesTooltip": "Peraturan liga",
-    "rulesDialog": "Peraturan Liga Familista"
+    "rulesDialog": "Peraturan Liga Familista",
+    "manage": {
+      "tooltip": "Urus peserta liga"
+    }
   }
 }

@@ -154,6 +154,9 @@
       "form": "Laatste vijf wedstrijden"
     },
     "rulesTooltip": "Competitieregels",
-    "rulesDialog": "Regels van de Familista League"
+    "rulesDialog": "Regels van de Familista League",
+    "manage": {
+      "tooltip": "Competitiedeelnemers beheren"
+    }
   }
 }

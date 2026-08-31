@@ -154,6 +154,9 @@
       "form": "Cinq derniers matchs"
     },
     "rulesTooltip": "Règlement",
-    "rulesDialog": "Règlement de la Familista League"
+    "rulesDialog": "Règlement de la Familista League",
+    "manage": {
+      "tooltip": "Gérer les participants du championnat"
+    }
   }
 }

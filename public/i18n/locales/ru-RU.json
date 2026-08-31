@@ -154,6 +154,9 @@
       "form": "Последние пять матчей"
     },
     "rulesTooltip": "Правила лиги",
-    "rulesDialog": "Правила Familista League"
+    "rulesDialog": "Правила Familista League",
+    "manage": {
+      "tooltip": "Управление участниками лиги"
+    }
   }
 }

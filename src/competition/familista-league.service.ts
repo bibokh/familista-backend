@@ -358,6 +358,316 @@ export async function getRound(competitionId: string, round?: number): Promise<L
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// One league match, as the Match Centre needs it
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LeagueMatchContext {
+  competitionId: string;
+  code: string;
+  name: string;
+  season: string;
+  round: number | null;
+  fixtureId: string;
+  matchId: string | null;
+}
+
+export interface LeagueMatchDetail {
+  /** What tells the Match Centre this is a league match and which one. */
+  context: LeagueMatchContext;
+  home: LeagueTeamIdentity | null;
+  away: LeagueTeamIdentity | null;
+  fixture: LeagueMatchRow;
+  /** The Match row itself, or null while the fixture has not been staged yet. */
+  match: {
+    id: string;
+    status: string;
+    scheduledAt: string;
+    playedAt: string | null;
+    venue: string | null;
+    homeScore: number | null;
+    awayScore: number | null;
+    formationHome: string | null;
+    formationAway: string | null;
+    possession: number | null;
+    shots: number | null;
+    shotsOnTarget: number | null;
+    corners: number | null;
+    fouls: number | null;
+    yellowCards: number | null;
+    redCards: number | null;
+  } | null;
+  lineups: Array<{ side: string; formation: string | null; positions: unknown }>;
+  timeline: Array<{
+    minute: number; period: number; kind: string; side: string;
+    playerId: string | null; playerName: string | null;
+    secondaryPlayerId: string | null; secondaryPlayerName: string | null;
+    opponentName: string | null; notes: string | null;
+  }>;
+  players: Array<{
+    playerId: string; playerName: string; clubId: string; teamId: string | null;
+    minutesPlayed: number; isStarting: boolean; goals: number; assists: number;
+    shots: number; shotsOnTarget: number; passes: number; passAccuracy: number;
+    tackles: number; interceptions: number; yellowCards: number; redCards: number;
+    rating: number | null;
+  }>;
+  /** What analysis exists for this match — never invented, only reported. */
+  analysis: { tacticalSnapshots: number; visionEvents: number; hasInsights: boolean };
+}
+
+/**
+ * Everything the Match Centre needs to open a league fixture, for either club.
+ *
+ * A league match is not one club's private record: both clubs played it, and the
+ * table everybody reads is derived from it. So this reads across the tenant
+ * boundary deliberately and narrowly — the competition record of one fixture,
+ * and nothing else. It is read-only, it is reachable only through a fixture that
+ * belongs to a platform competition, and it exposes no club's other matches,
+ * squad, finances or plans.
+ */
+export async function getMatchDetail(competitionId: string, fixtureId: string): Promise<LeagueMatchDetail> {
+  const comp = await requireLeague(competitionId);
+
+  const fixture = await prisma.fixture.findFirst({ where: { id: fixtureId, competitionId } });
+  if (!fixture) throw new NotFoundError('Fixture');
+
+  const identities = await teamIdentities(competitionId);
+  const row: LeagueMatchRow = {
+    fixtureId: fixture.id,
+    matchId: fixture.matchId ?? null,
+    round: fixture.round ?? null,
+    scheduledAt: fixture.scheduledAt.toISOString(),
+    playedAt: fixture.playedAt ? fixture.playedAt.toISOString() : null,
+    venue: fixture.venue ?? null,
+    status: fixture.status,
+    homeScore: fixture.homeScore,
+    awayScore: fixture.awayScore,
+    home: identities.get(fixture.homeTeamId) ?? null,
+    away: identities.get(fixture.awayTeamId) ?? null,
+  };
+
+  const context: LeagueMatchContext = {
+    competitionId: comp.id,
+    code: comp.code,
+    name: comp.name,
+    season: comp.season,
+    round: fixture.round ?? null,
+    fixtureId: fixture.id,
+    matchId: fixture.matchId ?? null,
+  };
+
+  const empty: LeagueMatchDetail = {
+    context, home: row.home, away: row.away, fixture: row, match: null,
+    lineups: [], timeline: [], players: [],
+    analysis: { tacticalSnapshots: 0, visionEvents: 0, hasInsights: false },
+  };
+  if (!fixture.matchId) return empty;
+
+  const match = await prisma.match.findUnique({ where: { id: fixture.matchId } });
+  if (!match) return empty;
+
+  const [lineups, timeline, stats, snapshots, visionEvents] = await Promise.all([
+    prisma.matchLineup.findMany({ where: { matchId: match.id }, select: { side: true, formation: true, positions: true } }),
+    prisma.matchTimeline.findMany({
+      where: { matchId: match.id, isDeleted: false },
+      orderBy: [{ occurredAtMin: 'asc' }],
+    }),
+    prisma.playerMatchStats.findMany({ where: { matchId: match.id } }),
+    prisma.matchTacticalSnapshot.count({ where: { matchId: match.id } }),
+    prisma.matchEvent.count({ where: { matchId: match.id } }),
+  ]);
+
+  // Every player named anywhere in this match, resolved once. The league never
+  // stores a player's name — it holds ids and reads the player record.
+  const playerIds = [
+    ...new Set([
+      ...stats.map((s) => s.playerId),
+      ...timeline.flatMap((t) => [t.primaryPlayerId, t.secondaryPlayerId]),
+    ].filter((id): id is string => !!id)),
+  ];
+  const players = playerIds.length
+    ? await prisma.player.findMany({ where: { id: { in: playerIds } }, select: { id: true, firstName: true, lastName: true } })
+    : [];
+  const nameOf = (id: string | null): string | null => {
+    if (!id) return null;
+    const p = players.find((x) => x.id === id);
+    return p ? `${p.firstName} ${p.lastName}`.trim() : null;
+  };
+
+  return {
+    context,
+    home: row.home,
+    away: row.away,
+    fixture: row,
+    match: {
+      id: match.id,
+      status: match.status,
+      scheduledAt: match.scheduledAt.toISOString(),
+      playedAt: match.playedAt ? match.playedAt.toISOString() : null,
+      venue: match.venue ?? null,
+      homeScore: match.homeScore,
+      awayScore: match.awayScore,
+      formationHome: match.formationHome ?? null,
+      formationAway: match.formationAway ?? null,
+      possession: match.possession ?? null,
+      shots: match.shots ?? null,
+      shotsOnTarget: match.shotsOnTarget ?? null,
+      corners: match.corners ?? null,
+      fouls: match.fouls ?? null,
+      yellowCards: match.yellowCards ?? null,
+      redCards: match.redCards ?? null,
+    },
+    lineups: lineups.map((l) => ({ side: l.side, formation: l.formation ?? null, positions: l.positions })),
+    timeline: timeline.map((t) => ({
+      minute: t.occurredAtMin,
+      period: t.period,
+      kind: t.kind,
+      side: t.side,
+      playerId: t.primaryPlayerId ?? null,
+      playerName: nameOf(t.primaryPlayerId ?? null),
+      secondaryPlayerId: t.secondaryPlayerId ?? null,
+      secondaryPlayerName: nameOf(t.secondaryPlayerId ?? null),
+      opponentName: t.opponentName ?? null,
+      notes: t.notes ?? null,
+    })),
+    players: stats.map((s) => ({
+      playerId: s.playerId,
+      playerName: nameOf(s.playerId) ?? '',
+      clubId: s.clubId,
+      teamId: s.teamId ?? null,
+      minutesPlayed: s.minutesPlayed,
+      isStarting: s.isStarting,
+      goals: s.goals,
+      assists: s.assists,
+      shots: s.shots,
+      shotsOnTarget: s.shotsOnTarget,
+      passes: s.passes,
+      passAccuracy: s.passAccuracy,
+      tackles: s.tackles,
+      interceptions: s.interceptions,
+      yellowCards: s.yellowCards,
+      redCards: s.redCards,
+      rating: s.ratingFamilista ?? null,
+    })),
+    analysis: {
+      tacticalSnapshots: snapshots,
+      visionEvents,
+      hasInsights: !!match.aiInsights,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Team statistics, across this league's completed matches only
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LeagueTeamStats extends LeagueTeamIdentity {
+  /** From the table the engine computed. */
+  played: number; won: number; drawn: number; lost: number;
+  goalsFor: number; goalsAgainst: number; goalDiff: number; points: number;
+  home: { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number };
+  away: { played: number; won: number; drawn: number; lost: number; goalsFor: number; goalsAgainst: number };
+  cleanSheets: number;
+  /** Present only where the Match Centre actually recorded them. */
+  possessionAvg: number | null;
+  shots: number | null;
+  shotsOnTarget: number | null;
+  yellowCards: number | null;
+  redCards: number | null;
+}
+
+/**
+ * Per-team totals over this league's completed matches.
+ *
+ * The record half comes from StandingsEntry, so it cannot disagree with the
+ * table. The home/away split and the clean sheets are counted from the fixtures
+ * themselves. Everything after that is read from the Match rows and left null
+ * when the Match Centre holds no value — a statistic nobody recorded is absent,
+ * not zero, and never estimated.
+ */
+export async function getTeamStats(competitionId: string): Promise<LeagueTeamStats[]> {
+  await requireLeague(competitionId);
+
+  const [entries, identities, fixtures] = await Promise.all([
+    prisma.standingsEntry.findMany({ where: { competitionId }, orderBy: { position: 'asc' } }),
+    teamIdentities(competitionId),
+    prisma.fixture.findMany({
+      where: { competitionId, status: 'PLAYED' },
+      select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, matchId: true },
+    }),
+  ]);
+
+  const matchIds = fixtures.map((f) => f.matchId).filter((id): id is string => !!id);
+  const matches = matchIds.length
+    ? await prisma.match.findMany({
+        where: { id: { in: matchIds } },
+        select: { id: true, teamId: true, possession: true, shots: true, shotsOnTarget: true, yellowCards: true, redCards: true },
+      })
+    : [];
+  const matchById = new Map(matches.map((m) => [m.id, m]));
+
+  const side = () => ({ played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0 });
+  const acc = new Map<string, {
+    home: ReturnType<typeof side>; away: ReturnType<typeof side>; cleanSheets: number;
+    possession: number[]; shots: number; shotsOnTarget: number; yellow: number; red: number; recorded: number;
+  }>();
+  const at = (teamId: string) => {
+    if (!acc.has(teamId)) {
+      acc.set(teamId, { home: side(), away: side(), cleanSheets: 0, possession: [], shots: 0, shotsOnTarget: 0, yellow: 0, red: 0, recorded: 0 });
+    }
+    return acc.get(teamId)!;
+  };
+
+  for (const f of fixtures) {
+    const hs = f.homeScore ?? 0;
+    const as_ = f.awayScore ?? 0;
+    const h = at(f.homeTeamId);
+    const a = at(f.awayTeamId);
+
+    h.home.played++; h.home.goalsFor += hs; h.home.goalsAgainst += as_;
+    a.away.played++; a.away.goalsFor += as_; a.away.goalsAgainst += hs;
+    if (hs > as_) { h.home.won++; a.away.lost++; }
+    else if (hs < as_) { a.away.won++; h.home.lost++; }
+    else { h.home.drawn++; a.away.drawn++; }
+    if (as_ === 0) h.cleanSheets++;
+    if (hs === 0) a.cleanSheets++;
+
+    // A Match row records one club's numbers — the club that owns it, which is
+    // the home side. So these are attributed to the home team only, rather than
+    // being split between two teams that never agreed on them.
+    const m = f.matchId ? matchById.get(f.matchId) : null;
+    if (m) {
+      if (m.possession != null) h.possession.push(m.possession);
+      if (m.shots != null) { h.shots += m.shots; h.recorded++; }
+      if (m.shotsOnTarget != null) h.shotsOnTarget += m.shotsOnTarget;
+      if (m.yellowCards != null) h.yellow += m.yellowCards;
+      if (m.redCards != null) h.red += m.redCards;
+    }
+  }
+
+  return entries.map((e) => {
+    const id = identities.get(e.teamId);
+    const a = at(e.teamId);
+    return {
+      teamId: e.teamId,
+      teamName: id?.teamName ?? '',
+      clubId: id?.clubId ?? '',
+      clubName: id?.clubName ?? '',
+      crestUrl: id?.crestUrl ?? null,
+      shortName: id?.shortName ?? null,
+      played: e.played, won: e.won, drawn: e.drawn, lost: e.lost,
+      goalsFor: e.goalsFor, goalsAgainst: e.goalsAgainst, goalDiff: e.goalDiff, points: e.points,
+      home: a.home, away: a.away,
+      cleanSheets: a.cleanSheets,
+      possessionAvg: a.possession.length ? +(a.possession.reduce((s, v) => s + v, 0) / a.possession.length).toFixed(1) : null,
+      shots: a.recorded ? a.shots : null,
+      shotsOnTarget: a.recorded ? a.shotsOnTarget : null,
+      yellowCards: a.recorded ? a.yellow : null,
+      redCards: a.recorded ? a.red : null,
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Player leaderboards
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -372,10 +682,47 @@ export interface LeaderboardEntry {
   appearances: number;
 }
 
+/**
+ * One player's full league record, over this league's matches only.
+ *
+ * Every field here is one the Match Centre actually records — see
+ * `PlayerMatchStats` in the schema. Saves, man-of-the-match and per-player clean
+ * sheets are deliberately absent: nothing in the platform captures them, and a
+ * column filled with a plausible number would be worse than no column.
+ */
+export interface LeaguePlayerRecord {
+  playerId: string;
+  playerName: string;
+  clubId: string;
+  clubName: string;
+  crestUrl: string | null;
+  teamId: string | null;
+  appearances: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  averageRating: number | null;
+  ratedMatches: number;
+  yellowCards: number;
+  redCards: number;
+  shots: number;
+  shotsOnTarget: number;
+  passes: number;
+  passAccuracy: number | null;
+  tackles: number;
+  interceptions: number;
+  xg: number;
+  xa: number;
+}
+
 export interface LeagueLeaderboards {
   goals: LeaderboardEntry[];
   rating: LeaderboardEntry[];
   assists: LeaderboardEntry[];
+  /** The same aggregation, whole. The screen shows three boards; this is what
+   *  every other board would be built from, without a second pass over the data. */
+  players: LeaguePlayerRecord[];
 }
 
 /**
@@ -398,19 +745,20 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
     select: { matchId: true },
   });
   const matchIds = fixtures.map((f) => f.matchId).filter((id): id is string => !!id);
-  const empty: LeagueLeaderboards = { goals: [], rating: [], assists: [] };
+  const empty: LeagueLeaderboards = { goals: [], rating: [], assists: [], players: [] };
   if (matchIds.length === 0) return empty;
 
   const stats = await prisma.playerMatchStats.findMany({
     where: { matchId: { in: matchIds } },
     select: {
-      playerId: true,
-      clubId: true,
-      teamId: true,
-      goals: true,
-      assists: true,
-      ratingFamilista: true,
-      minutesPlayed: true,
+      playerId: true, clubId: true, teamId: true,
+      goals: true, assists: true, ratingFamilista: true,
+      minutesPlayed: true, isStarting: true,
+      yellowCards: true, redCards: true,
+      shots: true, shotsOnTarget: true,
+      passes: true, passesCompleted: true,
+      tackles: true, interceptions: true,
+      xg: true, xa: true,
     },
   });
   if (stats.length === 0) return empty;
@@ -424,17 +772,46 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
     ratingSum: number;
     ratingCount: number;
     appearances: number;
+    starts: number;
+    minutes: number;
+    yellowCards: number;
+    redCards: number;
+    shots: number;
+    shotsOnTarget: number;
+    passes: number;
+    passesCompleted: number;
+    tackles: number;
+    interceptions: number;
+    xg: number;
+    xa: number;
   };
   const agg = new Map<string, Agg>();
   for (const s of stats) {
     let a = agg.get(s.playerId);
     if (!a) {
-      a = { playerId: s.playerId, clubId: s.clubId, teamId: s.teamId ?? null, goals: 0, assists: 0, ratingSum: 0, ratingCount: 0, appearances: 0 };
+      a = {
+        playerId: s.playerId, clubId: s.clubId, teamId: s.teamId ?? null,
+        goals: 0, assists: 0, ratingSum: 0, ratingCount: 0, appearances: 0, starts: 0, minutes: 0,
+        yellowCards: 0, redCards: 0, shots: 0, shotsOnTarget: 0, passes: 0, passesCompleted: 0,
+        tackles: 0, interceptions: 0, xg: 0, xa: 0,
+      };
       agg.set(s.playerId, a);
     }
     a.goals += s.goals;
     a.assists += s.assists;
     if (s.minutesPlayed > 0) a.appearances += 1;
+    if (s.isStarting) a.starts += 1;
+    a.minutes += s.minutesPlayed;
+    a.yellowCards += s.yellowCards;
+    a.redCards += s.redCards;
+    a.shots += s.shots;
+    a.shotsOnTarget += s.shotsOnTarget;
+    a.passes += s.passes;
+    a.passesCompleted += s.passesCompleted;
+    a.tackles += s.tackles;
+    a.interceptions += s.interceptions;
+    a.xg += s.xg;
+    a.xa += s.xa;
     if (s.ratingFamilista != null) { a.ratingSum += s.ratingFamilista; a.ratingCount += 1; }
   }
 
@@ -470,6 +847,35 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
   const top = (list: LeaderboardEntry[]) =>
     list.filter((e) => e.value > 0).sort((a, b) => b.value - a.value || b.appearances - a.appearances).slice(0, limit);
 
+  const record = (r: Agg): LeaguePlayerRecord => {
+    const base = entry(r, 0);
+    return {
+      playerId: r.playerId,
+      playerName: base.playerName,
+      clubId: r.clubId,
+      clubName: base.clubName,
+      crestUrl: base.crestUrl,
+      teamId: r.teamId,
+      appearances: r.appearances,
+      starts: r.starts,
+      minutes: r.minutes,
+      goals: r.goals,
+      assists: r.assists,
+      averageRating: r.ratingCount ? +(r.ratingSum / r.ratingCount).toFixed(2) : null,
+      ratedMatches: r.ratingCount,
+      yellowCards: r.yellowCards,
+      redCards: r.redCards,
+      shots: r.shots,
+      shotsOnTarget: r.shotsOnTarget,
+      passes: r.passes,
+      passAccuracy: r.passes ? +((r.passesCompleted / r.passes) * 100).toFixed(1) : null,
+      tackles: r.tackles,
+      interceptions: r.interceptions,
+      xg: +r.xg.toFixed(2),
+      xa: +r.xa.toFixed(2),
+    };
+  };
+
   return {
     goals: top(rows.map((r) => entry(r, r.goals))),
     assists: top(rows.map((r) => entry(r, r.assists))),
@@ -480,6 +886,9 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
         .filter((r) => r.ratingCount >= 3)
         .map((r) => entry(r, +(r.ratingSum / r.ratingCount).toFixed(2))),
     ),
+    players: rows
+      .map(record)
+      .sort((a, b) => b.goals - a.goals || b.assists - a.assists || b.minutes - a.minutes),
   };
 }
 

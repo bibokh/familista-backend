@@ -154,6 +154,9 @@
       "form": "Năm trận gần nhất"
     },
     "rulesTooltip": "Luật giải đấu",
-    "rulesDialog": "Luật Giải Familista"
+    "rulesDialog": "Luật Giải Familista",
+    "manage": {
+      "tooltip": "Quản lý các đội tham dự"
+    }
   }
 }

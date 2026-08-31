@@ -154,6 +154,9 @@
       "form": "Siste fem kamper"
     },
     "rulesTooltip": "Ligaregler",
-    "rulesDialog": "Regler for Familista League"
+    "rulesDialog": "Regler for Familista League",
+    "manage": {
+      "tooltip": "Administrer ligadeltakere"
+    }
   }
 }

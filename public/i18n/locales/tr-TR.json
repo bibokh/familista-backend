@@ -154,6 +154,9 @@
       "form": "Son beş maç"
     },
     "rulesTooltip": "Lig kuralları",
-    "rulesDialog": "Familista Ligi kuralları"
+    "rulesDialog": "Familista Ligi kuralları",
+    "manage": {
+      "tooltip": "Lig katılımcılarını yönet"
+    }
   }
 }

@@ -154,6 +154,9 @@
       "form": "最近五场"
     },
     "rulesTooltip": "联赛规则",
-    "rulesDialog": "Familista 联赛规则"
+    "rulesDialog": "Familista 联赛规则",
+    "manage": {
+      "tooltip": "管理联赛参赛球队"
+    }
   }
 }

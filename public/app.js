@@ -2065,6 +2065,11 @@ function navTo(page, el, _opts) {
     // CLUB WORKSPACE (11)
     'club-home': 1, 'squad': 1, 'training': 1, 'academy': 1, 'academy-team': 1, 'video-intelligence': 1,
     'transfers': 1, 'coach-market': 1, 'coaches': 1, 'familista-league': 1,
+    // The Match Centre. It has no navigation item of its own — it is reached by
+    // opening a match, from the League's fixtures or from the fixture card on
+    // Home — but it must be allowed to become the active page, or opening a
+    // match silently lands on Owner Control instead.
+    'match-center': 1,
     // Club Settings (reachable via Quick Actions on Home)
     'settings': 1,
   };
@@ -2073,6 +2078,12 @@ function navTo(page, el, _opts) {
     page = 'owner-home';
     el = null;
   }
+
+  // A match focused from a competition belongs to that visit to the Match
+  // Centre and to no other. Leaving for any other page releases it, so arriving
+  // at the Match Centre by any route except opening a match — which sets the
+  // focus immediately before navigating — shows the club's own next match.
+  if (page !== 'match-center') { try { window._MC_FOCUS = null; } catch (_) {} }
 
   // Step 1 lazy-mount — ensure the target page's template is in the DOM
   // before we try to activate it. Idempotent for already-mounted pages.
@@ -2105,7 +2116,7 @@ function navTo(page, el, _opts) {
     // ── Owner Control ──
     'owner-home':'Owner Control', clubs:'Clubs',
     // ── Club Workspace ──
-    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League',
+    'club-home':'Club', 'squad':'Squad', 'training':'Training', 'academy':'Academy', 'academy-team':'Academy', 'video-intelligence':'Video Intelligence', 'transfers':'Transfers', 'coach-market':'Coach Market', 'coaches':'Coaches', 'familista-league':'Familista League', 'match-center':'Match Center',
     // ── Platform (Phase B labels) ──
     'fos-core':'FOS Core', 'fos-observability':'Observability',
     'fos-security-center':'Security', 'fos-automation-center':'Automation',
@@ -14470,12 +14481,24 @@ function _fcCommandCenterHTML() {
 // Frontend-only. All derived from State already loaded by loadAllData
 // (State.matches, State.players, State.trainingForm). No fetches, no backend.
 function _mcNextMatch() {
+  // A match the reader asked for wins over the club's next one. That is what
+  // "open this fixture" means, and it is the only thing focus changes: the
+  // screen below is the same Match Centre drawing a different match.
+  var f = window._MC_FOCUS;
+  if (f && f.next) return f.next;
   const now = Date.now();
   const list = (State.matches || []).filter(m => m && m.scheduledAt && new Date(m.scheduledAt).getTime() > now);
   list.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
   return list[0] || null;
 }
-function _mcIsHome(m) { return !!(m && m.homeTeam && /familista/i.test(m.homeTeam)); }
+function _mcIsHome(m) {
+  // With a focused match the sides are known by club id, which is the truth. The
+  // name test below is the older heuristic and is kept for the club's own
+  // matches, where the opponent is free text and there is nothing better.
+  var f = window._MC_FOCUS;
+  if (f && f.next && m === f.next) return !!f.isHome;
+  return !!(m && m.homeTeam && /familista/i.test(m.homeTeam));
+}
 function _mcOpponent(m) {
   if (!m) return 'TBD';
   return _mcIsHome(m) ? (m.awayTeam || 'Opponent') : (m.homeTeam || 'Opponent');
@@ -14672,80 +14695,16 @@ function _mcGaugeSVG(probs) {
     <text x="${cx}" y="${cy + 14}" text-anchor="middle" style="font-size:9px;font-weight:700;fill:var(--tx-3);letter-spacing:1.4px;">WIN PROBABILITY</text>
   </svg>`;
 }
-function _ensureMCStyles() {
-  if (document.getElementById('mc-styles')) return;
-  const s = document.createElement('style');
-  s.id = 'mc-styles';
-  s.textContent = `
-    .mc-page{padding:16px 18px;}
-    .mc-card{position:relative;border-radius:16px;overflow:hidden;margin-bottom:14px;
-      background:linear-gradient(135deg,#0a1426 0%,#0d1f3a 50%,#061018 100%);
-      border:1px solid rgba(74,222,128,0.28);
-      box-shadow:0 24px 60px -20px rgba(0,0,0,0.6),0 0 50px -16px rgba(74,222,128,0.22),inset 0 1px 0 rgba(255,255,255,0.05);
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
-    .mc-card::after{content:'';position:absolute;inset:0;pointer-events:none;
-      background:radial-gradient(at top right,rgba(74,222,128,0.07),transparent 55%),radial-gradient(at bottom left,rgba(37,99,235,0.05),transparent 55%);}
-    .mc-brand{position:relative;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-      background:linear-gradient(90deg,rgba(74,222,128,0.18),rgba(34,197,94,0.06) 30%,rgba(37,99,235,0.06) 70%,rgba(74,222,128,0.18));
-      border-bottom:1px solid rgba(74,222,128,0.24);}
-    .mc-brand-logo{font-size:12px;font-weight:900;color:var(--green-l);letter-spacing:2px;text-shadow:0 0 8px rgba(74,222,128,0.45);}
-    .mc-grid-2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:14px;}
-    .mc-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px;}
-    .mc-tile{position:relative;padding:16px;border-radius:14px;
-      background:linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));
-      border:1px solid rgba(74,222,128,0.18);
-      box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),0 16px 40px -16px rgba(0,0,0,0.5);
-      transition:border-color .15s ease,box-shadow .15s ease;}
-    .mc-tile:hover{border-color:rgba(74,222,128,0.32);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),0 20px 50px -18px rgba(0,0,0,0.55),0 0 24px -8px rgba(74,222,128,0.25);}
-    .mc-tile-lbl{font-size:9.5px;font-weight:900;color:var(--green-l);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:10px;}
-    .mc-next-body{position:relative;padding:18px;display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;}
-    .mc-next-opp{font-size:22px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
-    .mc-next-meta{font-size:11px;color:var(--tx-3);letter-spacing:.2px;line-height:1.6;}
-    .mc-countdown{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;
-      background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.32);
-      font-size:11px;font-weight:800;color:var(--green-l);letter-spacing:.6px;font-family:var(--mono);}
-    .mc-form-dot{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:900;color:#fff;}
-    .mc-form-W{background:var(--green-l);}
-    .mc-form-D{background:var(--amber);}
-    .mc-form-L{background:var(--red);}
-    .mc-form-{background:rgba(255,255,255,0.1);color:var(--tx-3);}
-    .mc-risk-row{display:grid;grid-template-columns:90px 1fr 38px;gap:8px;align-items:center;padding:5px 0;}
-    .mc-risk-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.05);overflow:hidden;}
-    .mc-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
-    .mc-row:last-child{border-bottom:none;}
-    .mc-rank{font-size:11px;font-weight:900;color:var(--green-l);font-family:var(--mono);width:16px;flex-shrink:0;text-align:right;}
-    .mc-mini-avatar{position:relative;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-size:10px;font-weight:800;color:#fff;letter-spacing:.3px;overflow:hidden;flex-shrink:0;
-      box-shadow:inset 0 0 8px rgba(255,255,255,0.18),0 0 0 1.5px rgba(74,222,128,0.35);}
-    .mc-tact{padding:9px 11px;border-radius:9px;background:rgba(255,255,255,0.025);border-left:2.5px solid var(--green-l);margin-bottom:7px;}
-    .mc-tact:last-child{margin-bottom:0;}
-    .mc-tact-lbl{font-size:8.5px;font-weight:900;color:var(--green-l);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
-    .mc-tact-val{font-size:11.5px;color:var(--tx);line-height:1.45;}
-    .mc-prob-leg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px;}
-    .mc-prob-cell{padding:8px 6px;border-radius:8px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);}
-    .mc-prob-cell-lbl{font-size:8.5px;font-weight:800;color:var(--tx-3);letter-spacing:.9px;text-transform:uppercase;margin-bottom:3px;}
-    .mc-prob-cell-val{font-size:15px;font-weight:900;font-family:var(--mono);}
-    .mc-key-card{position:relative;padding:14px;border-radius:12px;
-      background:linear-gradient(135deg,rgba(74,222,128,0.10),rgba(255,255,255,0.02));
-      border:1px solid rgba(74,222,128,0.25);overflow:hidden;}
-    .mc-key-avatar{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-      font-size:14px;font-weight:800;color:#fff;letter-spacing:.4px;overflow:hidden;flex-shrink:0;position:relative;
-      box-shadow:inset 0 0 10px rgba(255,255,255,0.2),0 0 0 2px rgba(74,222,128,0.4),0 0 14px -3px rgba(74,222,128,0.4);}
-    .mc-key-star{position:absolute;top:8px;right:10px;font-size:14px;filter:drop-shadow(0 0 6px rgba(255,215,0,0.6));}
-    @media (max-width:1024px){
-      .mc-grid-2{grid-template-columns:1fr;}
-      .mc-grid-3{grid-template-columns:repeat(2,1fr);}
-    }
-    @media (max-width:600px){
-      .mc-grid-3{grid-template-columns:1fr;}
-      .mc-next-body{grid-template-columns:1fr;}
-    }`;
-  document.head.appendChild(s);
-}
+// _ensureMCStyles() used to live here. It injected a <style> element at runtime
+// for a set of `mc-` classes, and both halves of that had stopped working: the
+// platform's CSP has no 'unsafe-inline' for styles, so the element was refused
+// on every render, and nothing in the current Match Centre markup used those
+// classes anyway — it is written in `mc2-` classes, which live in app.css where
+// styles belong. Removed rather than repaired: there was nothing to repair.
 function renderMatchCenterHTML() {
   return `<div class="page" id="pg-match-center">
     <div id="match-center-content">
-      <div style="text-align:center;padding:60px;color:var(--tx-3);">Loading Match Center…</div>
+      <div class="mc2-boot">Loading Match Center…</div>
     </div>
   </div>`;
 }
@@ -14844,7 +14803,7 @@ function _mcPitchPremiumSVG(xi) {
     var ring = _mcRingColor(t.e.role);
     var clipId = 'mcp-clip-' + idx;
     return ''
-      + '<g transform="translate(' + t.x.toFixed(1) + ',' + t.y.toFixed(1) + ')" data-player-id="' + _esc((p && p.id) || '') + '" style="cursor:pointer;" class="mc2-token">'
+      + '<g transform="translate(' + t.x.toFixed(1) + ',' + t.y.toFixed(1) + ')" data-player-id="' + _esc((p && p.id) || '') + '" class="mc2-token">'
       + '  <defs><clipPath id="' + clipId + '"><circle r="22"/></clipPath></defs>'
       + '  <circle r="26" fill="rgba(0,0,0,0.45)"/>'
       + (photo
@@ -14857,7 +14816,7 @@ function _mcPitchPremiumSVG(xi) {
       + '</g>';
   }).join('');
   return ''
-    + '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;display:block;max-height:760px;" class="mc2-pitch-svg">'
+    + '<svg viewBox="0 0 ' + w + ' ' + h + '" class="mc2-pitch-svg">'
     + '<rect x="0" y="0" width="' + w + '" height="' + h + '" rx="16" fill="#093E1F"/>'
     + stripes
     // perimeter
@@ -14881,10 +14840,34 @@ function _mcPitchPremiumSVG(xi) {
     + '</svg>';
 }
 
+// Positions and colours the Match Centre computes at render time.
+//
+// They cannot be written as style attributes: the platform's CSP has no
+// 'unsafe-inline' for styles, so an inline style is dropped silently — a
+// possession bar with no width and a timeline with every event at zero. Setting
+// the same properties through the CSSOM is not an inline style and is allowed.
+// Same treatment the League's zone colours already get.
+function _mcPaintComputed(root) {
+  var scope = root || document;
+  try {
+    scope.querySelectorAll('[data-mc-width]').forEach(function (el) {
+      el.style.setProperty('width', el.getAttribute('data-mc-width'));
+    });
+    scope.querySelectorAll('[data-mc-left]').forEach(function (el) {
+      el.style.setProperty('left', el.getAttribute('data-mc-left'));
+    });
+    scope.querySelectorAll('[data-mc-color]').forEach(function (el) {
+      el.style.setProperty('color', el.getAttribute('data-mc-color'));
+    });
+    scope.querySelectorAll('[data-mc-ring]').forEach(function (el) {
+      el.style.setProperty('box-shadow', '0 0 0 2px ' + el.getAttribute('data-mc-ring') + ' inset');
+    });
+  } catch (_) { /* position is presentation; never let it break the screen */ }
+}
+
 function renderMatchCenter() {
   const el = document.getElementById('match-center-content');
   if (!el) return;
-  try { _ensureMCStyles(); } catch (_) {}
   if (!Array.isArray(State.players) && !Array.isArray(State.matches)) {
     el.innerHTML = '<div class="mc2-empty"><div class="mc2-empty-icon">⚽</div><div class="mc2-empty-title">Loading Match Center…</div><div class="mc2-empty-sub">Squad and fixtures load on sign-in.</div></div>';
     return;
@@ -14904,7 +14887,10 @@ function renderMatchCenter() {
     var bench      = _mcBenchRec();
     var keyPlayers = _mcKeyPlayers();
     var form       = _mcRecentForm();
-    var events     = _mcEvents(next);
+    var focus      = window._MC_FOCUS && window._MC_FOCUS.next === next ? window._MC_FOCUS : null;
+    // A focused competition match shows the events that were recorded for it,
+    // not the ones derived from the club's own fixture list.
+    var events     = focus ? focus.events : _mcEvents(next);
 
     var isHome     = next ? _mcIsHome(next) : true;
     var homeName   = next ? (next.homeTeam || clubName) : clubName;
@@ -14925,6 +14911,13 @@ function renderMatchCenter() {
     var oppCrest   = _clubCrestUrl(oppClubId) ? clubLogoHtml(oppClubId, { size: 40, cls: 'club-logo--plain', title: false }) : '';
     var homeEmblemHTML = (isHome ? ourCrest : oppCrest) || '🏠';
     var awayEmblemHTML = (isHome ? oppCrest : ourCrest) || '⚔️';
+    // A focused competition match names both clubs by id, so each side draws its
+    // own crest whether or not the reader belongs to either of them.
+    if (focus) {
+      var hId = focus.next.homeClubId, aId = focus.next.awayClubId;
+      homeEmblemHTML = (_clubCrestUrl(hId) ? clubLogoHtml(hId, { size: 40, cls: 'club-logo--plain', title: false }) : '') || '🏠';
+      awayEmblemHTML = (_clubCrestUrl(aId) ? clubLogoHtml(aId, { size: 40, cls: 'club-logo--plain', title: false }) : '') || '⚔️';
+    }
 
     // SCORE STRIP — pre-match / live / post
     var scoreLeft = next && played ? next.homeScore : (next ? (isHome ? clubName.split(' ').map(function (w) { return w[0]; }).join('').slice(0, 3).toUpperCase() : (next.homeTeam || '')) : '—');
@@ -14941,8 +14934,8 @@ function renderMatchCenter() {
       var hm = possession, aw = 100 - possession;
       possessionHTML = ''
         + '<div class="mc2-poss-bar">'
-        + '  <div class="mc2-poss-home" style="width:' + hm + '%;"><span>' + hm + '%</span></div>'
-        + '  <div class="mc2-poss-away" style="width:' + aw + '%;"><span>' + aw + '%</span></div>'
+        + '  <div class="mc2-poss-home" data-mc-width="' + hm + '%"><span>' + hm + '%</span></div>'
+        + '  <div class="mc2-poss-away" data-mc-width="' + aw + '%"><span>' + aw + '%</span></div>'
         + '</div>'
         + '<div class="mc2-poss-legend"><span><i class="mc2-dot home"></i> ' + _esc(homeName) + '</span><span><i class="mc2-dot away"></i> ' + _esc(awayName) + '</span></div>';
     } else {
@@ -14956,12 +14949,12 @@ function renderMatchCenter() {
       timelineHTML = '<div class="mc2-tl">'
         + '<div class="mc2-tl-axis">'
         +   '<div class="mc2-tl-track"></div>'
-        +   '<div class="mc2-tl-tick" style="left:0%;">0\'</div>'
-        +   '<div class="mc2-tl-tick" style="left:50%;">HT</div>'
-        +   '<div class="mc2-tl-tick" style="left:100%;">90\'</div>'
+        +   '<div class="mc2-tl-tick" data-mc-left="0%">0\'</div>'
+        +   '<div class="mc2-tl-tick" data-mc-left="50%">HT</div>'
+        +   '<div class="mc2-tl-tick" data-mc-left="100%">90\'</div>'
         +   events.map(function (e) {
               var pct = Math.max(0, Math.min(100, ((e.minute || 0) / maxMin) * 100));
-              return '<div class="mc2-tl-event" style="left:' + pct + '%;color:' + _mcEventColor(e.kind) + ';" title="' + _esc((e.minute || 0) + '\' · ' + (e.kind || '') + (e.player ? ' · ' + e.player : '')) + '">' + _mcEventIcon(e.kind) + '<span class="mc2-tl-min">' + (e.minute || 0) + '\'</span></div>';
+              return '<div class="mc2-tl-event" data-mc-left="' + pct + '%" data-mc-color="' + _mcEventColor(e.kind) + '" title="' + _esc((e.minute || 0) + '\' · ' + (e.kind || '') + (e.player ? ' · ' + e.player : '')) + '">' + _mcEventIcon(e.kind) + '<span class="mc2-tl-min">' + (e.minute || 0) + '\'</span></div>';
             }).join('')
         + '</div></div>';
     } else {
@@ -14976,7 +14969,7 @@ function renderMatchCenter() {
           var initials = _mcInitials(p);
           var ring = _mcRingColor(e.role);
           return '<div class="mc2-roster-row" data-action="openPlayerModal" data-player-id="' + _esc(p.id || '') + '">'
-               + '<div class="mc2-roster-avatar" style="box-shadow:0 0 0 2px ' + ring + ' inset;">'
+               + '<div class="mc2-roster-avatar" data-mc-ring="' + ring + '">'
                + (photo ? '<img src="' + _esc(photo) + '" alt="" loading="lazy" onerror="this.replaceWith(document.createTextNode(\'' + _esc(initials) + '\'))">' : _esc(initials))
                + '</div>'
                + '<div class="mc2-roster-body"><div class="mc2-roster-name">' + _esc((p.firstName || '') + ' ' + (p.lastName || '')) + '</div><div class="mc2-roster-meta">#' + (p.number != null ? p.number : '?') + ' · ' + _esc(p.position || e.role) + '</div></div>'
@@ -14999,8 +14992,72 @@ function renderMatchCenter() {
         }).join('')
       : '<div class="mc2-empty-inline">No bench candidates available.</div>';
 
+    // A focused competition match shows who actually played it, on both sides,
+    // from the record — not the club's own projected eleven. When nothing was
+    // recorded it says so rather than filling the panel with a guess.
+    var focusTitleXI = 'STARTING XI';
+    var focusTitleBench = 'BENCH · IMPACT-RANKED';
+    if (focus) {
+      focusTitleXI = 'LINEUPS';
+      focusTitleBench = 'PLAYER STATISTICS';
+      var fp = focus.players || [];
+      var side = function (clubId) {
+        return fp.filter(function (p) { return p.clubId === clubId; })
+          .sort(function (a, b) { return (b.isStarting ? 1 : 0) - (a.isStarting ? 1 : 0) || b.minutesPlayed - a.minutesPlayed; });
+      };
+      var line = function (p) {
+        return '<div class="mc2-roster-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+          + '<div class="mc2-roster-body"><div class="mc2-roster-name" data-user-content>' + _esc(p.playerName) + '</div>'
+          + '<div class="mc2-roster-meta">' + p.minutesPlayed + '\' · '
+          + (p.goals ? p.goals + ' <span>goals</span> · ' : '')
+          + (p.assists ? p.assists + ' <span>assists</span> · ' : '')
+          + (p.isStarting ? '<span>Started</span>' : '<span>Substitute</span>') + '</div></div>'
+          + '<div class="mc2-roster-rating">' + (p.rating != null ? p.rating.toFixed(1) : '—') + '</div>'
+          + '</div>';
+      };
+      var hSide = side(focus.next.homeClubId);
+      var aSide = side(focus.next.awayClubId);
+      rosterHTML = (hSide.length || aSide.length)
+        ? '<div class="mc2-roster">'
+          + '<div class="mc2-roster-side" data-user-content>' + _esc(focus.next.homeTeam) + '</div>'
+          + (hSide.length ? hSide.map(line).join('') : '<div class="mc2-empty-inline">No player record for this side.</div>')
+          + '<div class="mc2-roster-side" data-user-content>' + _esc(focus.next.awayTeam) + '</div>'
+          + (aSide.length ? aSide.map(line).join('') : '<div class="mc2-empty-inline">No player record for this side.</div>')
+          + '</div>'
+        : '<div class="mc2-empty-inline">No lineup has been recorded for this match yet.</div>';
+      benchHTML = fp.length
+        ? fp.slice(0, 12).map(function (p) {
+            return '<div class="mc2-bench-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+              + '<div class="mc2-bench-body"><div class="mc2-bench-name" data-user-content>' + _esc(p.playerName) + '</div>'
+              + '<div class="mc2-bench-meta">' + p.shots + ' <span>shots</span> · ' + p.passes + ' <span>passes</span> · '
+              + p.tackles + ' <span>tackles</span></div></div>'
+              + '<div class="mc2-bench-impact">' + (p.rating != null ? p.rating.toFixed(1) : '—') + '</div>'
+              + '</div>';
+          }).join('')
+        : '<div class="mc2-empty-inline">No player statistics have been recorded for this match yet.</div>';
+    }
+
+    // The competition this match belongs to, and the way back to it. Shown only
+    // for a match opened from a competition; the club's own next match has no
+    // competition context to state.
+    var contextHTML = focus && focus.context
+      ? '<div class="mc2-context">'
+        + '<button class="mc2-context-back" type="button" data-action="navTo" data-page="familista-league">← <span>Back to league</span></button>'
+        + '<span class="mc2-context-label" data-user-content>' + _esc(focus.context.name) + '</span>'
+        + '<span class="mc2-context-sep">·</span>'
+        + '<span class="mc2-context-meta"><span>Season</span> <span data-user-content>' + _esc(focus.context.season) + '</span></span>'
+        + (focus.context.round != null
+            // Plain English with the number in it, exactly like the League's own
+            // round navigation: the catalogue answers "Round %d" once for every
+            // count, so this needs no key of its own.
+            ? '<span class="mc2-context-sep">·</span><span class="mc2-context-meta">Round ' + focus.context.round + '</span>'
+            : '')
+        + '</div>'
+      : '';
+
     el.innerHTML = ''
       + '<div class="mc2-page">'
+      + contextHTML
       // SCORE STRIP
       + '<section class="mc2-score-strip">'
       + '  <div class="mc2-ss-team home">'
@@ -15046,15 +15103,16 @@ function renderMatchCenter() {
       // STARTING XI + BENCH
       + '<section class="mc2-grid-2">'
       + '  <div class="mc2-tile">'
-      + '    <h3 class="mc2-section-title">STARTING XI</h3>'
+      + '    <h3 class="mc2-section-title">' + focusTitleXI + '</h3>'
       +      rosterHTML
       + '  </div>'
       + '  <div class="mc2-tile">'
-      + '    <h3 class="mc2-section-title">BENCH · IMPACT-RANKED</h3>'
+      + '    <h3 class="mc2-section-title">' + focusTitleBench + '</h3>'
       + '    <div class="mc2-bench">' + benchHTML + '</div>'
       + '  </div>'
       + '</section>'
       + '</div>';
+    _mcPaintComputed(el);
     if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(el); } catch (_) {} }
     return;
   } catch (err) {
@@ -42204,6 +42262,10 @@ document.addEventListener('click', (e) => {
   // Defensive: ensure renderMatchCenter runs even if navTo's branch is
   // bypassed for any reason. Same pattern as the Training entry above.
   if (e.target.closest('[data-page="match-center"]')) {
+    // Reaching the Match Centre through the navigation means "my next match",
+    // so a match focused earlier from a competition is released here. Opening a
+    // fixture sets it again, and does not come through this path.
+    try { window._MC_FOCUS = null; } catch (_) {}
     setTimeout(function () { try { renderMatchCenter(); } catch (err) { try { console.error('[match-center] click hook failed:', err); } catch (_) {} } }, 100);
   }
   if (e.target.closest('[data-page="ai-scouting"]')) {
@@ -62636,6 +62698,8 @@ var _FL = {
   boards: null,
   team: null,              // open club row detail
   rules: false,            // rules modal
+  manage: null,            // Manage Teams panel, for an administrator only
+  canManage: false,        // answered by the server, never assumed here
   loading: {},
   error: {},
   round: null,
@@ -62690,8 +62754,9 @@ function _flRepaint() {
   if (b) b.innerHTML = _flBodyHtml();
   var ov = document.getElementById('fl-overlay');
   if (ov) {
-    var html = (_FL.rules ? _flRulesHtml() : '') + (_FL.team ? _flTeamHtml() : '');
-    if (_FL.rules || _FL.team) { ov.innerHTML = html; ov.classList.add('is-on'); }
+    var html = (_FL.rules ? _flRulesHtml() : '') + (_FL.team ? _flTeamHtml() : '')
+      + (_FL.manage ? _flManageHtml() : '');
+    if (_FL.rules || _FL.team || _FL.manage) { ov.innerHTML = html; ov.classList.add('is-on'); }
     else { ov.innerHTML = ''; ov.classList.remove('is-on'); }
   }
   var page = document.getElementById('pg-familista-league');
@@ -62717,6 +62782,14 @@ function _flHeaderHtml() {
     + '    <div class="fl-eyebrow">Familista League</div>'
     + '    <h1 class="fl-title">' + titleHtml + '</h1>'
     + '  </div>'
+    + (_FL.canManage
+      // Shown only to somebody the server says may use it. A control that is
+      // there and then refuses is worse than one that was never offered.
+      ? '  <button class="fl-manage-btn" data-action="flManage" type="button"'
+        + '          title="Manage league participants" data-i18n-title="league.manage.tooltip">'
+        + '    <span>Manage Teams</span>'
+        + '  </button>'
+      : '')
     + '  <button class="fl-rules-btn" data-action="flRules" type="button"'
     + '          title="League rules" data-i18n-title="league.rulesTooltip">'
     + '    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
@@ -62778,6 +62851,14 @@ async function _flLoadOverview() {
     var d = (r && r.data) || {};
     _FL.league = d.league || null;
     _FL.myTeamIds = Array.isArray(d.myTeamIds) ? d.myTeamIds : [];
+    // Whether this reader may manage the league is the server's answer, asked
+    // once. A club user gets false and never sees the control.
+    if (_FL.league) {
+      try {
+        var mg = await api('/familista-league/manage' + _flSeasonQ());
+        _FL.canManage = !!(mg && mg.data && mg.data.canManage);
+      } catch (_) { _FL.canManage = false; }
+    }
   } catch (e) {
     _FL.error.overview = true;
   }
@@ -63153,6 +63234,191 @@ async function _flOpenTeam(teamId) {
   _flRepaint();
 }
 
+// ── opening a league match in the Match Centre ──────────────────────────────
+
+// A league match is one Match, and the Match Centre is the only place it is
+// played. Clicking a fixture loads that match's record — both sides, the
+// lineups, the timeline, the player statistics — and hands it to the Match
+// Centre with the competition context attached, so it draws the match somebody
+// clicked rather than the club's own next one.
+//
+// The record has to come from the league endpoint rather than from the club's
+// own match list, because only one of the two clubs owns the Match row and the
+// other would otherwise find nothing to open.
+async function _flOpenMatch(fixtureId) {
+  try { showToast('Opening Match Centre…', 'info'); } catch (_) {}
+  try {
+    var r = await api('/familista-league/fixtures/' + encodeURIComponent(fixtureId) + '/match' + _flSeasonQ());
+    var d = (r && r.data) || null;
+    if (!d || !d.match) {
+      try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {}
+      return;
+    }
+    window._MC_FOCUS = _mcFocusFromLeague(d);
+    try { navTo('match-center'); } catch (_) {}
+    try { renderMatchCenter(); } catch (_) {}
+  } catch (e) {
+    try { showToast('Could not open that match', 'error'); } catch (_) {}
+  }
+}
+
+// Translate the league's match record into the shape the Match Centre already
+// reads, so nothing in that screen has to learn about competitions.
+function _mcFocusFromLeague(d) {
+  var m = d.match || {};
+  var home = d.home || {};
+  var away = d.away || {};
+  var mine = _famActiveClubId();
+  var isHome = !!(mine && home.clubId === mine);
+  return {
+    source: 'familista-league',
+    context: d.context || null,
+    isHome: isHome,
+    home: home,
+    away: away,
+    players: Array.isArray(d.players) ? d.players : [],
+    analysis: d.analysis || null,
+    events: (Array.isArray(d.timeline) ? d.timeline : []).map(function (t) {
+      return { minute: t.minute, kind: t.kind, player: t.playerName || t.opponentName || '' };
+    }),
+    next: {
+      id: m.id,
+      homeTeam: home.clubName || home.teamName || '',
+      awayTeam: away.clubName || away.teamName || '',
+      homeClubId: home.clubId || null,
+      awayClubId: away.clubId || null,
+      opponentClubId: isHome ? (away.clubId || null) : (home.clubId || null),
+      scheduledAt: m.scheduledAt,
+      venue: m.venue,
+      status: m.status,
+      homeScore: m.homeScore,
+      awayScore: m.awayScore,
+      competitionName: (d.context && d.context.name) || null,
+      possession: m.possession,
+      shots: m.shots,
+      shotsOnTarget: m.shotsOnTarget,
+    },
+  };
+}
+
+// ── managing participants ───────────────────────────────────────────────────
+
+async function _flOpenManage() {
+  _FL.manage = { loading: true, participants: [], eligible: [], busy: '' };
+  _flRepaint();
+  try {
+    var r = await api('/familista-league/manage' + _flSeasonQ());
+    var d = (r && r.data) || {};
+    if (!d.canManage) {
+      _FL.manage = null; _flRepaint();
+      try { showToast('Managing league participants requires a platform administrator', 'error'); } catch (_) {}
+      return;
+    }
+    var e = await api('/familista-league/manage/eligible-teams' + _flSeasonQ());
+    _FL.manage = {
+      loading: false,
+      participants: d.participants || [],
+      eligible: ((e && e.data) || {}).teams || [],
+      busy: '',
+    };
+  } catch (err) {
+    _FL.manage = { loading: false, participants: [], eligible: [], error: true, busy: '' };
+  }
+  _flRepaint();
+}
+
+async function _flAddTeam(teamId) {
+  if (!_FL.manage) return;
+  _FL.manage.busy = teamId; _flRepaint();
+  try {
+    await api('/familista-league/manage/participants' + _flSeasonQ(), {
+      method: 'POST', body: JSON.stringify({ teamId: teamId }),
+    });
+    _FL.standings = null; _FL.matches = null; _FL.boards = null;
+    await _flOpenManage();
+    _flLoadTab();
+  } catch (e) {
+    _FL.manage.busy = ''; _flRepaint();
+    try { showToast((e && e.message) || 'Could not add that team', 'error'); } catch (_) {}
+  }
+}
+
+async function _flRemoveTeam(teamId) {
+  if (!_FL.manage) return;
+  _FL.manage.busy = teamId; _flRepaint();
+  try {
+    await api('/familista-league/manage/participants/' + encodeURIComponent(teamId) + _flSeasonQ(), { method: 'DELETE' });
+    _FL.standings = null; _FL.matches = null; _FL.boards = null;
+    await _flOpenManage();
+    _flLoadTab();
+  } catch (e) {
+    _FL.manage.busy = ''; _flRepaint();
+    try { showToast((e && e.message) || 'Could not remove that team', 'error'); } catch (_) {}
+  }
+}
+
+function _flManageHtml() {
+  var m = _FL.manage;
+  if (!m) return '';
+  var body;
+  if (m.loading) {
+    body = _flSkeleton('cards');
+  } else if (m.error) {
+    body = _flError('Could not load league participants');
+  } else {
+    var current = m.participants.length
+      ? m.participants.map(function (p) {
+          return '<div class="fl-mg-row">'
+            + '<div class="fl-mg-crest">' + _flCrest(p.clubId, 'xs') + '</div>'
+            + '<div class="fl-mg-body">'
+            + '  <div class="fl-mg-name" data-user-content>' + _esc(p.clubName) + '</div>'
+            + '  <div class="fl-mg-meta"><span data-user-content>' + _esc(p.teamName) + '</span> · '
+            + (p.playedMatches
+                ? '<span>' + p.playedMatches + ' matches played</span>'
+                : '<span>No matches played</span>')
+            + '</div>'
+            + '</div>'
+            + (p.playedMatches
+                ? '<span class="fl-mg-locked">Cannot be removed</span>'
+                : '<button class="fl-mg-btn fl-mg-btn--rm" type="button" data-action="flRemoveTeam" data-team-id="' + _esc(p.teamId) + '"'
+                  + (m.busy === p.teamId ? ' disabled' : '') + '>Remove</button>')
+            + '</div>';
+        }).join('')
+      : '<div class="fl-mg-none">No teams have joined this season yet</div>';
+
+    var available = m.eligible.filter(function (x) { return !x.participating; });
+    var pool = available.length
+      ? available.map(function (x) {
+          return '<div class="fl-mg-row">'
+            + '<div class="fl-mg-crest">' + _flCrest(x.clubId, 'xs') + '</div>'
+            + '<div class="fl-mg-body">'
+            + '  <div class="fl-mg-name" data-user-content>' + _esc(x.clubName) + '</div>'
+            + '  <div class="fl-mg-meta"><span data-user-content>' + _esc(x.teamName) + '</span> · '
+            + '<span>' + x.squadSize + ' players</span></div>'
+            + '</div>'
+            + '<button class="fl-mg-btn" type="button" data-action="flAddTeam" data-team-id="' + _esc(x.teamId) + '"'
+            + (m.busy === x.teamId ? ' disabled' : '') + '>+ Add Team</button>'
+            + '</div>';
+        }).join('')
+      : '<div class="fl-mg-none">Every eligible first team is already in this season</div>';
+
+    body = '<div class="fl-mg-sec"><h3 class="fl-mg-h">Current participants</h3>' + current + '</div>'
+      + '<div class="fl-mg-sec"><h3 class="fl-mg-h">Available first teams</h3>'
+      + '<p class="fl-mg-note">Only club first teams can join. Academy teams are not eligible.</p>'
+      + pool + '</div>';
+  }
+
+  return '<div class="fl-modal-bg" data-action="flCloseManage">'
+    + '<div class="fl-modal fl-modal--manage" role="dialog" aria-modal="true">'
+    + '<div class="fl-modal-hd">'
+    + '  <h2 class="fl-modal-title">Manage Teams</h2>'
+    + '  <button class="fl-modal-x" type="button" data-action="flCloseManage" aria-label="Close"'
+    + '          data-i18n-aria="common.close">✕</button>'
+    + '</div>'
+    + '<div class="fl-modal-bd">' + body + '</div>'
+    + '</div></div>';
+}
+
 // ── actions ─────────────────────────────────────────────────────────────────
 
 document.addEventListener('click', function (ev) {
@@ -63182,9 +63448,20 @@ document.addEventListener('click', function (ev) {
   } else if (act === 'flMatch') {
     // Hand over to the Match Centre that already exists rather than build a
     // second one. A fixture with no Match behind it has nothing to open yet.
+    var fid = el.getAttribute('data-fixture-id');
     var mid = el.getAttribute('data-match-id');
-    if (mid) { try { navTo('match-center'); } catch (_) {} }
+    if (fid && mid) _flOpenMatch(fid);
     else { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} }
+  } else if (act === 'flManage') {
+    _flOpenManage();
+  } else if (act === 'flCloseManage') {
+    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.manage = null; _flRepaint(); }
+  } else if (act === 'flAddTeam') {
+    var addId = el.getAttribute('data-team-id');
+    if (addId) _flAddTeam(addId);
+  } else if (act === 'flRemoveTeam') {
+    var remId = el.getAttribute('data-team-id');
+    if (remId) _flRemoveTeam(remId);
   } else if (act === 'flRetry') {
     if (!_FL.league) _flLoadOverview();
     else { _FL.standings = null; _FL.boards = null; _flLoadTab(); }

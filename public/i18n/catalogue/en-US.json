@@ -1,1 +1,8 @@
-{"Defence":"Defense","Individualise match preparation":"Individualize match preparation","Search market — name, role, licence, nationality, availability, experience, club or team":"Search market — name, role, license, nationality, availability, experience, club or team","Training Centre":"Training Center","FOS Automation Center · \u0000 active automation(s), \u0000 scheduled job(s), success rate \u0000%, queue size \u0000. \u0000 process(es) running · \u0000 waiting · \u0000 failed · \u0000 completed cycles in window. \u0000 optimisation(s) ready for executive review.":"FOS Automation Center · \u0000 active automation(s), \u0000 scheduled job(s), success rate \u0000%, queue size \u0000. \u0000 process(es) running · \u0000 waiting · \u0000 failed · \u0000 completed cycles in window. \u0000 optimization(s) ready for executive review.","Operating system subsystems initialised.":"Operating system subsystems initialized."}
+{
+  "Defence": "Defense",
+  "Individualise match preparation": "Individualize match preparation",
+  "Search market — name, role, licence, nationality, availability, experience, club or team": "Search market — name, role, license, nationality, availability, experience, club or team",
+  "Training Centre": "Training Center",
+  "FOS Automation Center · \u0000 active automation(s), \u0000 scheduled job(s), success rate \u0000%, queue size \u0000. \u0000 process(es) running · \u0000 waiting · \u0000 failed · \u0000 completed cycles in window. \u0000 optimisation(s) ready for executive review.": "FOS Automation Center · \u0000 active automation(s), \u0000 scheduled job(s), success rate \u0000%, queue size \u0000. \u0000 process(es) running · \u0000 waiting · \u0000 failed · \u0000 completed cycles in window. \u0000 optimization(s) ready for executive review.",
+  "Operating system subsystems initialised.": "Operating system subsystems initialized."
+}

@@ -154,6 +154,9 @@
       "form": "直近5試合"
     },
     "rulesTooltip": "リーグ規定",
-    "rulesDialog": "Familista リーグ規定"
+    "rulesDialog": "Familista リーグ規定",
+    "manage": {
+      "tooltip": "リーグ参加チームの管理"
+    }
   }
 }

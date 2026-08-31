@@ -154,6 +154,9 @@
       "form": "Τελευταίοι πέντε αγώνες"
     },
     "rulesTooltip": "Κανονισμός",
-    "rulesDialog": "Κανονισμός Familista League"
+    "rulesDialog": "Κανονισμός Familista League",
+    "manage": {
+      "tooltip": "Διαχείριση συμμετεχόντων πρωταθλήματος"
+    }
   }
 }
