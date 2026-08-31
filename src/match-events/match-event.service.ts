@@ -24,6 +24,37 @@ export interface EventActor {
   role?:  string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Handing an event to a client
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A MatchEvent row as JSON.
+ *
+ * `minuteMs` is the only BigInt on this table, and `JSON.stringify` throws on a
+ * BigInt rather than skipping it — so any response carrying a raw row was a 500,
+ * not a row with a field missing. That is what recording an event and listing a
+ * match's events both were, for every match that had any.
+ *
+ * It is converted to `number`, which is how this repository already hands a
+ * BigInt to a client where the value fits a double — see `money()` in
+ * staff-market.service.ts. It fits here by a wide margin: minuteMs counts
+ * milliseconds from the start of a period, so even a long match with extra time
+ * is under 10^7, against Number.MAX_SAFE_INTEGER's 9×10^15. A number is also
+ * what the client needs, because it sorts and positions a timeline with it. The
+ * other convention in the repository — `chainPosition.toString()` in
+ * security.controller.ts — is for a monotonic ledger position, where the value
+ * must survive exactly and nobody does arithmetic on it.
+ *
+ * This is a read-time projection. The stored column stays BigInt, and
+ * `buildEventData` still writes one.
+ */
+export type MatchEventJson = Omit<MatchEvent, 'minuteMs'> & { minuteMs: number | null };
+
+export function toJsonSafeEvent(row: MatchEvent): MatchEventJson {
+  return { ...row, minuteMs: row.minuteMs == null ? null : Number(row.minuteMs) };
+}
+
 export interface CreateEventDto {
   matchId:           string;
   periodIndex:       number;           // 1–5
@@ -62,7 +93,7 @@ export interface CreateEventDto {
 // Single event record
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function recordEvent(actor: EventActor, dto: CreateEventDto): Promise<MatchEvent> {
+export async function recordEvent(actor: EventActor, dto: CreateEventDto): Promise<MatchEventJson> {
   if (!dto.matchId || !dto.type) throw new BadRequestError('matchId + type required');
   if (!Number.isInteger(dto.periodIndex) || dto.periodIndex < 1 || dto.periodIndex > 5)
     throw new BadRequestError('periodIndex must be 1–5');
@@ -81,12 +112,12 @@ export async function recordEvent(actor: EventActor, dto: CreateEventDto): Promi
       update: data as Prisma.MatchEventUpdateInput,
     });
     enqueueAggregation(dto.matchId);
-    return row;
+    return toJsonSafeEvent(row);
   }
 
   const row = await prisma.matchEvent.create({ data: data as Prisma.MatchEventCreateInput });
   enqueueAggregation(dto.matchId);
-  return row;
+  return toJsonSafeEvent(row);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,7 +224,7 @@ export async function listEvents(
   actor: EventActor,
   matchId: string,
   opts: ListEventsOpts = {},
-): Promise<{ items: MatchEvent[]; total: number }> {
+): Promise<{ items: MatchEventJson[]; total: number }> {
   const match = await prisma.match.findUnique({ where: { id: matchId }, select: { clubId: true } });
   if (!match) throw new NotFoundError('Match');
   if (match.clubId !== actor.clubId && actor.role !== 'SUPER_ADMIN') throw new ForbiddenError();
@@ -220,7 +251,7 @@ export async function listEvents(
     }),
     prisma.matchEvent.count({ where }),
   ]);
-  return { items, total };
+  return { items: items.map(toJsonSafeEvent), total };
 }
 
 export async function getEventSummary(actor: EventActor, matchId: string): Promise<Record<string, number>> {
