@@ -83,6 +83,10 @@ soft "fanOutPaymentToEngines referenced in src/"                   "grep -r --in
 soft "shouldRespectStripeForClub referenced in src/"               "grep -r --include='*.ts' -l 'shouldRespectStripeForClub' src/ >/dev/null"
 
 echo ""
+echo "── Localization ──"
+step "i18n check (every locale synchronized)"                      "node scripts/i18n-check.js --quiet"
+
+echo ""
 echo "── Frontend integration ──"
 step "public/familista-api-client.js present"                      "test -f public/familista-api-client.js"
 step "public/whitelabel-bootstrap.client.js present"               "test -f public/whitelabel-bootstrap.client.js"

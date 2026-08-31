@@ -120,9 +120,12 @@ describe('the runtime never returns nothing', () => {
     expect(RT).toContain('return humanise(key);');
   });
 
-  it('and logs a miss in development only', () => {
+  it('and logs a miss in development only, once a bundle exists to miss it from', () => {
     expect(RT).toContain("console.warn('[i18n] missing key:'");
-    expect(RT).toContain('if (isDev && !missing[key])');
+    // `b && f` is the guard: the interface calls t() while drawing its first
+    // frame, before the fetch lands, and without this every key it touches was
+    // reported as missing and stayed on the list for the rest of the session.
+    expect(RT).toContain('if (isDev && b && f && !missing[key])');
   });
 
   it('resolves saved preference → browser → en-GB', () => {

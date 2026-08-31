@@ -68,5 +68,12 @@ jobs:
       - name: Boot probe (verify route registration)
         run: node scripts/boot-probe.js
 
+      # A feature with user-facing text is not finished until every locale is
+      # synchronized — see CLAUDE.md. Gated here, on the pull request, and
+      # deliberately NOT in the Render build: a missing translation must stop a
+      # change from merging, not stop production from starting.
+      - name: i18n check (locales synchronized)
+        run: npm run i18n:check
+
       - name: Audit (informational)
         run: npm audit --audit-level=high || true

@@ -88,6 +88,10 @@
       .then(function (j) {
         bundles[t] = j ? flatten(j) : {};
         delete inflight[t];
+        // A key recorded as missing that this bundle answers was never missing:
+        // switching language can bring in a bundle that has it. Clearing it here
+        // keeps missingKeys() a list of real gaps rather than a history.
+        for (var k in bundles[t]) { if (missing[k]) delete missing[k]; }
         return bundles[t];
       })
       .catch(function () {
@@ -115,7 +119,14 @@
     if (b && b[key] != null) return b[key];
     var f = bundles[FALLBACK];
     if (f && f[key] != null) return f[key];
-    if (isDev && !missing[key]) {
+    // A key only counts as missing once there is a bundle to miss it from.
+    // Before the fetch lands every key looks absent, and the interface calls t()
+    // while drawing its first frame, so recording those would fill the signal
+    // with dozens of keys that are perfectly present a moment later — and a
+    // warning list that is always wrong is a warning list nobody reads. The
+    // fallback still returns a sensible label either way; this governs only
+    // whether the miss is reported.
+    if (isDev && b && f && !missing[key]) {
       missing[key] = 1;
       try { console.warn('[i18n] missing key:', key, '(locale ' + current + ')'); } catch (_) {}
     }
