@@ -12,7 +12,8 @@
     "clubWorkspace": "Area club",
     "clubs": "Club",
     "dashboard": "Cruscotto",
-    "back": "Indietro"
+    "back": "Indietro",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Cerca",
@@ -124,5 +125,35 @@
     "password": "Password",
     "invalidCredentials": "E-mail o password non corretti",
     "welcomeBack": "Bentornato"
+  },
+  "league": {
+    "col": {
+      "pos": "POS",
+      "team": "SQUADRA",
+      "mp": "PG",
+      "w": "V",
+      "d": "N",
+      "l": "P",
+      "gf": "GF",
+      "ga": "GS",
+      "dif": "DR",
+      "pts": "PTI",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Posizione",
+      "team": "Squadra",
+      "mp": "Partite giocate",
+      "w": "Vittorie",
+      "d": "Pareggi",
+      "l": "Sconfitte",
+      "gf": "Gol fatti",
+      "ga": "Gol subiti",
+      "dif": "Differenza reti",
+      "pts": "Punti",
+      "form": "Ultime cinque partite"
+    },
+    "rulesTooltip": "Regolamento",
+    "rulesDialog": "Regolamento della Familista League"
   }
 }

@@ -12,7 +12,8 @@
     "clubWorkspace": "Seuratyötila",
     "clubs": "Seurat",
     "dashboard": "Kojelauta",
-    "back": "Takaisin"
+    "back": "Takaisin",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Hae",
@@ -124,5 +125,35 @@
     "password": "Salasana",
     "invalidCredentials": "Virheellinen sähköposti tai salasana",
     "welcomeBack": "Tervetuloa takaisin"
+  },
+  "league": {
+    "col": {
+      "pos": "SIJ",
+      "team": "JOUKKUE",
+      "mp": "O",
+      "w": "V",
+      "d": "T",
+      "l": "H",
+      "gf": "TM",
+      "ga": "PM",
+      "dif": "MAALIERO",
+      "pts": "P",
+      "form": "VIRE"
+    },
+    "colFull": {
+      "pos": "Sijoitus",
+      "team": "Joukkue",
+      "mp": "Ottelut",
+      "w": "Voitot",
+      "d": "Tasapelit",
+      "l": "Häviöt",
+      "gf": "Tehdyt maalit",
+      "ga": "Päästetyt maalit",
+      "dif": "Maaliero",
+      "pts": "Pisteet",
+      "form": "Viisi viimeisintä ottelua"
+    },
+    "rulesTooltip": "Sarjan säännöt",
+    "rulesDialog": "Familista League -säännöt"
   }
 }

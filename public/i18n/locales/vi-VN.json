@@ -12,7 +12,8 @@
     "clubWorkspace": "Không gian câu lạc bộ",
     "clubs": "Câu lạc bộ",
     "dashboard": "Bảng điều khiển",
-    "back": "Quay lại"
+    "back": "Quay lại",
+    "familistaLeague": "Giải Familista"
   },
   "common": {
     "search": "Tìm kiếm",
@@ -124,5 +125,35 @@
     "password": "Mật khẩu",
     "invalidCredentials": "Email hoặc mật khẩu không đúng",
     "welcomeBack": "Chào mừng trở lại"
+  },
+  "league": {
+    "col": {
+      "pos": "HẠNG",
+      "team": "ĐỘI",
+      "mp": "TR",
+      "w": "T",
+      "d": "H",
+      "l": "B",
+      "gf": "BT",
+      "ga": "BB",
+      "dif": "HS",
+      "pts": "ĐIỂM",
+      "form": "PHONG ĐỘ"
+    },
+    "colFull": {
+      "pos": "Thứ hạng",
+      "team": "Đội",
+      "mp": "Trận đã đấu",
+      "w": "Thắng",
+      "d": "Hòa",
+      "l": "Thua",
+      "gf": "Bàn thắng",
+      "ga": "Bàn thua",
+      "dif": "Hiệu số",
+      "pts": "Điểm",
+      "form": "Năm trận gần nhất"
+    },
+    "rulesTooltip": "Luật giải đấu",
+    "rulesDialog": "Luật Giải Familista"
   }
 }

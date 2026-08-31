@@ -12,7 +12,8 @@
     "clubWorkspace": "Vereinsbereich",
     "clubs": "Vereine",
     "dashboard": "Übersicht",
-    "back": "Zurück"
+    "back": "Zurück",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Suchen",
@@ -124,5 +125,35 @@
     "password": "Passwort",
     "invalidCredentials": "E-Mail oder Passwort ist falsch",
     "welcomeBack": "Willkommen zurück"
+  },
+  "league": {
+    "col": {
+      "pos": "PL",
+      "team": "TEAM",
+      "mp": "SP",
+      "w": "S",
+      "d": "U",
+      "l": "N",
+      "gf": "T",
+      "ga": "GT",
+      "dif": "TD",
+      "pts": "PKT",
+      "form": "FORM"
+    },
+    "colFull": {
+      "pos": "Platz",
+      "team": "Mannschaft",
+      "mp": "Spiele",
+      "w": "Siege",
+      "d": "Unentschieden",
+      "l": "Niederlagen",
+      "gf": "Tore",
+      "ga": "Gegentore",
+      "dif": "Tordifferenz",
+      "pts": "Punkte",
+      "form": "Letzte fünf Spiele"
+    },
+    "rulesTooltip": "Ligaregeln",
+    "rulesDialog": "Regeln der Familista League"
   }
 }

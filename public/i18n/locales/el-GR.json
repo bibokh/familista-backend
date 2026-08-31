@@ -12,7 +12,8 @@
     "clubWorkspace": "Χώρος συλλόγου",
     "clubs": "Σύλλογοι",
     "dashboard": "Πίνακας",
-    "back": "Πίσω"
+    "back": "Πίσω",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Αναζήτηση",
@@ -124,5 +125,35 @@
     "password": "Κωδικός",
     "invalidCredentials": "Λανθασμένο email ή κωδικός",
     "welcomeBack": "Καλώς επέστρεψες"
+  },
+  "league": {
+    "col": {
+      "pos": "ΘΕΣ",
+      "team": "ΟΜΑΔΑ",
+      "mp": "Α",
+      "w": "Ν",
+      "d": "Ι",
+      "l": "Η",
+      "gf": "ΓΥ",
+      "ga": "ΓΚ",
+      "dif": "ΔΤ",
+      "pts": "ΒΑΘ",
+      "form": "ΦΟΡΜΑ"
+    },
+    "colFull": {
+      "pos": "Θέση",
+      "team": "Ομάδα",
+      "mp": "Αγώνες",
+      "w": "Νίκες",
+      "d": "Ισοπαλίες",
+      "l": "Ήττες",
+      "gf": "Γκολ υπέρ",
+      "ga": "Γκολ κατά",
+      "dif": "Διαφορά τερμάτων",
+      "pts": "Βαθμοί",
+      "form": "Τελευταίοι πέντε αγώνες"
+    },
+    "rulesTooltip": "Κανονισμός",
+    "rulesDialog": "Κανονισμός Familista League"
   }
 }

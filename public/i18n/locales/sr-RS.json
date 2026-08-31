@@ -12,7 +12,8 @@
     "clubWorkspace": "Prostor kluba",
     "clubs": "Klubovi",
     "dashboard": "Kontrolna tabla",
-    "back": "Nazad"
+    "back": "Nazad",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Pretraga",
@@ -124,5 +125,35 @@
     "password": "Lozinka",
     "invalidCredentials": "Neispravna e-pošta ili lozinka",
     "welcomeBack": "Dobrodošao nazad"
+  },
+  "league": {
+    "col": {
+      "pos": "ПОЗ",
+      "team": "ТИМ",
+      "mp": "ОУ",
+      "w": "П",
+      "d": "Н",
+      "l": "И",
+      "gf": "ДГ",
+      "ga": "ПГ",
+      "dif": "ГР",
+      "pts": "БОД",
+      "form": "ФОРМА"
+    },
+    "colFull": {
+      "pos": "Позиција",
+      "team": "Тим",
+      "mp": "Одиграни мечеви",
+      "w": "Победе",
+      "d": "Нерешено",
+      "l": "Порази",
+      "gf": "Дати голови",
+      "ga": "Примљени голови",
+      "dif": "Гол-разлика",
+      "pts": "Бодови",
+      "form": "Последњих пет мечева"
+    },
+    "rulesTooltip": "Правила лиге",
+    "rulesDialog": "Правила Familista League"
   }
 }

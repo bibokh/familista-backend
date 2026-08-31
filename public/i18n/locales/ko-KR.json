@@ -12,7 +12,8 @@
     "clubWorkspace": "클럽 작업공간",
     "clubs": "클럽",
     "dashboard": "대시보드",
-    "back": "뒤로"
+    "back": "뒤로",
+    "familistaLeague": "Familista 리그"
   },
   "common": {
     "search": "검색",
@@ -124,5 +125,35 @@
     "password": "비밀번호",
     "invalidCredentials": "이메일 또는 비밀번호가 올바르지 않습니다",
     "welcomeBack": "다시 오신 것을 환영합니다"
+  },
+  "league": {
+    "col": {
+      "pos": "순위",
+      "team": "팀",
+      "mp": "경기",
+      "w": "승",
+      "d": "무",
+      "l": "패",
+      "gf": "득점",
+      "ga": "실점",
+      "dif": "득실",
+      "pts": "승점",
+      "form": "최근"
+    },
+    "colFull": {
+      "pos": "순위",
+      "team": "팀",
+      "mp": "경기 수",
+      "w": "승리",
+      "d": "무승부",
+      "l": "패배",
+      "gf": "득점",
+      "ga": "실점",
+      "dif": "골 득실차",
+      "pts": "승점",
+      "form": "최근 5경기"
+    },
+    "rulesTooltip": "리그 규정",
+    "rulesDialog": "Familista 리그 규정"
   }
 }

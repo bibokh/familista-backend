@@ -122,6 +122,68 @@ describe('Familista League — the read model', () => {
   });
 });
 
+describe('Familista League — localization', () => {
+  const CFG = read('public/i18n/config.js');
+  const TAGS = [...CFG.matchAll(/tag: '([^']+)'/g)].map((m) => m[1]);
+  const bundle = (t: string) => JSON.parse(read(`public/i18n/locales/${t}.json`));
+  const cat = (t: string) => JSON.parse(read(`public/i18n/catalogue/${t}.json`));
+
+  it('covers every locale the platform declares — read, not assumed', () => {
+    expect(TAGS.length).toBeGreaterThan(0);
+    for (const t of TAGS) {
+      const b = bundle(t);
+      expect(typeof b.navigation.familistaLeague).toBe('string');
+      expect(b.navigation.familistaLeague.length).toBeGreaterThan(0);
+      for (const c of ['pos', 'team', 'mp', 'w', 'd', 'l', 'gf', 'ga', 'dif', 'pts', 'form']) {
+        expect(`${t}:col.${c}=${typeof b.league.col[c]}`).toBe(`${t}:col.${c}=string`);
+        expect(`${t}:full.${c}=${typeof b.league.colFull[c]}`).toBe(`${t}:full.${c}=string`);
+      }
+      expect(typeof b.league.rulesTooltip).toBe('string');
+      expect(typeof b.league.rulesDialog).toBe('string');
+    }
+  });
+
+  it('answers every League prose string in every non-English locale', () => {
+    const SLOT = String.fromCharCode(0);
+    const PROSE = ['Standings', 'Matches', 'Player Stats', 'Rules', 'Season',
+      'UPCOMING', 'LIVE', 'FINISHED', 'POSTPONED', 'CANCELLED',
+      'Goals', 'Rating', 'Assists', 'League format', 'Points system', 'Ranking rules',
+      'Qualification, promotion and relegation', 'Season information', 'Awards',
+      'No fixtures available', 'The league has not started',
+      'Player statistics not available yet', 'No active Familista League season',
+      'Try again', 'Win', 'Draw', 'Loss', 'Round',
+      'ROUND %d', 'Position %d', '%dW · %dD · %dL'];
+    for (const t of TAGS.filter((x) => !/^en(-|$)/.test(x))) {
+      const c = cat(t);
+      const missing = PROSE.filter((s) => c[s.split('%d').join(SLOT)] == null);
+      expect({ locale: t, missing }).toEqual({ locale: t, missing: [] });
+    }
+  });
+
+  it('keeps the two passes off each other — a key-owned cell opts out', () => {
+    // Portuguese renders TEAM as "TIME"; without the opt-out the automatic pass
+    // reads that as the English word and turns it into "HORA".
+    expect(APP).toMatch(/data-i18n="' \+ h\.key \+ '"[\s\S]{0,200}data-no-i18n/);
+    expect(bundle('pt-BR').league.col.team).toBe('TIME');
+  });
+
+  it('leaves the league name and its season to the record', () => {
+    // The name and the season value are data; only the word between them is ours.
+    expect(APP).toMatch(/<span data-user-content>' \+ _esc\(lg\.name\)/);
+    expect(APP).toContain("<span>Season</span>");
+    expect(APP).toMatch(/<span data-user-content>' \+ _esc\(lg\.season\)/);
+  });
+
+  it('does not shout the league name in the markup', () => {
+    // .fl-eyebrow uppercases in CSS. Shouting it in the markup too gave the
+    // catalogue a second entry for one name, and the loose lookup then answered
+    // the sidebar with the shouted form.
+    const block = APP.slice(APP.indexOf('//  FAMILISTA LEAGUE'));
+    expect(block).not.toContain('>FAMILISTA LEAGUE<');
+    expect(read('public/app.css')).toMatch(/\.fl-eyebrow\{[^}]*text-transform:uppercase/);
+  });
+});
+
 describe('Familista League — the schema it reuses', () => {
   it('adds no duplicate competition concepts', () => {
     for (const dup of ['model League ', 'model LeagueMatch ', 'model LeagueTeam ', 'model LeagueStanding ', 'model CompetitionSeason ']) {

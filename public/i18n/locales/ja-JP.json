@@ -12,7 +12,8 @@
     "clubWorkspace": "クラブワークスペース",
     "clubs": "クラブ",
     "dashboard": "ダッシュボード",
-    "back": "戻る"
+    "back": "戻る",
+    "familistaLeague": "Familista リーグ"
   },
   "common": {
     "search": "検索",
@@ -124,5 +125,35 @@
     "password": "パスワード",
     "invalidCredentials": "メールアドレスまたはパスワードが正しくありません",
     "welcomeBack": "おかえりなさい"
+  },
+  "league": {
+    "col": {
+      "pos": "順位",
+      "team": "チーム",
+      "mp": "試合",
+      "w": "勝",
+      "d": "分",
+      "l": "敗",
+      "gf": "得点",
+      "ga": "失点",
+      "dif": "得失",
+      "pts": "勝点",
+      "form": "直近"
+    },
+    "colFull": {
+      "pos": "順位",
+      "team": "チーム",
+      "mp": "試合数",
+      "w": "勝利",
+      "d": "引き分け",
+      "l": "敗戦",
+      "gf": "得点",
+      "ga": "失点",
+      "dif": "得失点差",
+      "pts": "勝ち点",
+      "form": "直近5試合"
+    },
+    "rulesTooltip": "リーグ規定",
+    "rulesDialog": "Familista リーグ規定"
   }
 }

@@ -12,7 +12,8 @@
     "clubWorkspace": "Spațiul clubului",
     "clubs": "Cluburi",
     "dashboard": "Panou",
-    "back": "Înapoi"
+    "back": "Înapoi",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Caută",
@@ -124,5 +125,35 @@
     "password": "Parolă",
     "invalidCredentials": "E-mail sau parolă incorecte",
     "welcomeBack": "Bine ai revenit"
+  },
+  "league": {
+    "col": {
+      "pos": "POZ",
+      "team": "ECHIPĂ",
+      "mp": "MJ",
+      "w": "V",
+      "d": "E",
+      "l": "Î",
+      "gf": "GM",
+      "ga": "GP",
+      "dif": "DIF",
+      "pts": "PCT",
+      "form": "FORMĂ"
+    },
+    "colFull": {
+      "pos": "Poziție",
+      "team": "Echipă",
+      "mp": "Meciuri jucate",
+      "w": "Victorii",
+      "d": "Egaluri",
+      "l": "Înfrângeri",
+      "gf": "Goluri marcate",
+      "ga": "Goluri primite",
+      "dif": "Golaveraj",
+      "pts": "Puncte",
+      "form": "Ultimele cinci meciuri"
+    },
+    "rulesTooltip": "Regulamentul ligii",
+    "rulesDialog": "Regulamentul Familista League"
   }
 }

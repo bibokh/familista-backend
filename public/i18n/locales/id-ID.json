@@ -12,7 +12,8 @@
     "clubWorkspace": "Ruang klub",
     "clubs": "Klub",
     "dashboard": "Dasbor",
-    "back": "Kembali"
+    "back": "Kembali",
+    "familistaLeague": "Liga Familista"
   },
   "common": {
     "search": "Cari",
@@ -124,5 +125,35 @@
     "password": "Kata sandi",
     "invalidCredentials": "Email atau kata sandi salah",
     "welcomeBack": "Selamat datang kembali"
+  },
+  "league": {
+    "col": {
+      "pos": "POS",
+      "team": "TIM",
+      "mp": "M",
+      "w": "M",
+      "d": "S",
+      "l": "K",
+      "gf": "GM",
+      "ga": "GK",
+      "dif": "SG",
+      "pts": "POIN",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Posisi",
+      "team": "Tim",
+      "mp": "Pertandingan dimainkan",
+      "w": "Menang",
+      "d": "Seri",
+      "l": "Kalah",
+      "gf": "Gol memasukkan",
+      "ga": "Gol kemasukan",
+      "dif": "Selisih gol",
+      "pts": "Poin",
+      "form": "Lima pertandingan terakhir"
+    },
+    "rulesTooltip": "Peraturan liga",
+    "rulesDialog": "Peraturan Liga Familista"
   }
 }

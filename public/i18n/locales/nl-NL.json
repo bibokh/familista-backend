@@ -12,7 +12,8 @@
     "clubWorkspace": "Clubomgeving",
     "clubs": "Clubs",
     "dashboard": "Dashboard",
-    "back": "Terug"
+    "back": "Terug",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Zoeken",
@@ -124,5 +125,35 @@
     "password": "Wachtwoord",
     "invalidCredentials": "Onjuist e-mailadres of wachtwoord",
     "welcomeBack": "Welkom terug"
+  },
+  "league": {
+    "col": {
+      "pos": "POS",
+      "team": "TEAM",
+      "mp": "GS",
+      "w": "W",
+      "d": "G",
+      "l": "V",
+      "gf": "DV",
+      "ga": "DT",
+      "dif": "DS",
+      "pts": "PTN",
+      "form": "VORM"
+    },
+    "colFull": {
+      "pos": "Positie",
+      "team": "Team",
+      "mp": "Gespeelde wedstrijden",
+      "w": "Overwinningen",
+      "d": "Gelijkspelen",
+      "l": "Nederlagen",
+      "gf": "Doelpunten voor",
+      "ga": "Doelpunten tegen",
+      "dif": "Doelsaldo",
+      "pts": "Punten",
+      "form": "Laatste vijf wedstrijden"
+    },
+    "rulesTooltip": "Competitieregels",
+    "rulesDialog": "Regels van de Familista League"
   }
 }

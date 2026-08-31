@@ -12,7 +12,8 @@
     "clubWorkspace": "Kulüp alanı",
     "clubs": "Kulüpler",
     "dashboard": "Panel",
-    "back": "Geri"
+    "back": "Geri",
+    "familistaLeague": "Familista Ligi"
   },
   "common": {
     "search": "Ara",
@@ -124,5 +125,35 @@
     "password": "Şifre",
     "invalidCredentials": "E-posta veya şifre hatalı",
     "welcomeBack": "Tekrar hoş geldin"
+  },
+  "league": {
+    "col": {
+      "pos": "SIRA",
+      "team": "TAKIM",
+      "mp": "O",
+      "w": "G",
+      "d": "B",
+      "l": "M",
+      "gf": "AG",
+      "ga": "YG",
+      "dif": "AV",
+      "pts": "P",
+      "form": "FORM"
+    },
+    "colFull": {
+      "pos": "Sıra",
+      "team": "Takım",
+      "mp": "Oynanan maçlar",
+      "w": "Galibiyetler",
+      "d": "Beraberlikler",
+      "l": "Mağlubiyetler",
+      "gf": "Attığı goller",
+      "ga": "Yediği goller",
+      "dif": "Averaj",
+      "pts": "Puan",
+      "form": "Son beş maç"
+    },
+    "rulesTooltip": "Lig kuralları",
+    "rulesDialog": "Familista Ligi kuralları"
   }
 }

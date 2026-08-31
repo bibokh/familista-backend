@@ -12,7 +12,8 @@
     "clubWorkspace": "Przestrzeń klubu",
     "clubs": "Kluby",
     "dashboard": "Pulpit",
-    "back": "Wstecz"
+    "back": "Wstecz",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Szukaj",
@@ -124,5 +125,35 @@
     "password": "Hasło",
     "invalidCredentials": "Nieprawidłowy e-mail lub hasło",
     "welcomeBack": "Witaj ponownie"
+  },
+  "league": {
+    "col": {
+      "pos": "M",
+      "team": "DRUŻYNA",
+      "mp": "M",
+      "w": "Z",
+      "d": "R",
+      "l": "P",
+      "gf": "BZ",
+      "ga": "BS",
+      "dif": "RB",
+      "pts": "PKT",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Pozycja",
+      "team": "Drużyna",
+      "mp": "Rozegrane mecze",
+      "w": "Zwycięstwa",
+      "d": "Remisy",
+      "l": "Porażki",
+      "gf": "Bramki zdobyte",
+      "ga": "Bramki stracone",
+      "dif": "Różnica bramek",
+      "pts": "Punkty",
+      "form": "Ostatnie pięć meczów"
+    },
+    "rulesTooltip": "Zasady ligi",
+    "rulesDialog": "Zasady Familista League"
   }
 }

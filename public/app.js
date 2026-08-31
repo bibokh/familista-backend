@@ -62608,6 +62608,24 @@ window._tfSyncAll = _tfSyncAll;
 //  anything.
 // ════════════════════════════════════════════════════════════════════
 
+// The standings columns. Each is an abbreviation the automatic pass cannot
+// translate — two and three capitals read as initials to it — so each carries
+// its own key, and its tooltip carries the full column name so the abbreviation
+// is never the only thing a reader has to go on.
+var _FL_COLS = [
+  { abbr: 'POS',  key: 'league.col.pos',  fullKey: 'league.colFull.pos',  full: 'Position' },
+  { abbr: 'TEAM', key: 'league.col.team', fullKey: 'league.colFull.team', full: 'Team' },
+  { abbr: 'MP',   key: 'league.col.mp',   fullKey: 'league.colFull.mp',   full: 'Matches played' },
+  { abbr: 'W',    key: 'league.col.w',    fullKey: 'league.colFull.w',    full: 'Wins' },
+  { abbr: 'D',    key: 'league.col.d',    fullKey: 'league.colFull.d',    full: 'Draws' },
+  { abbr: 'L',    key: 'league.col.l',    fullKey: 'league.colFull.l',    full: 'Losses' },
+  { abbr: 'GF',   key: 'league.col.gf',   fullKey: 'league.colFull.gf',   full: 'Goals for' },
+  { abbr: 'GA',   key: 'league.col.ga',   fullKey: 'league.colFull.ga',   full: 'Goals against' },
+  { abbr: 'DIF',  key: 'league.col.dif',  fullKey: 'league.colFull.dif',  full: 'Goal difference' },
+  { abbr: 'PTS',  key: 'league.col.pts',  fullKey: 'league.colFull.pts',  full: 'Points' },
+  { abbr: 'FORM', key: 'league.col.form', fullKey: 'league.colFull.form', full: 'Last five matches' },
+];
+
 var _FL = {
   tab: 'standings',        // standings | matches | players
   league: null,
@@ -62676,22 +62694,31 @@ function _flRepaint() {
     if (_FL.rules || _FL.team) { ov.innerHTML = html; ov.classList.add('is-on'); }
     else { ov.innerHTML = ''; ov.classList.remove('is-on'); }
   }
-  _flPaintZones(document.getElementById('pg-familista-league'));
+  var page = document.getElementById('pg-familista-league');
+  _flPaintZones(page);
+  // Everything carrying data-i18n is filled in by the same declarative pass the
+  // sidebar uses. The prose around it is handled by the automatic pass, which
+  // is watching the document already.
+  try { if (window.I18N_APPLY && page) I18N_APPLY.translateDOM(page); } catch (_) {}
 }
 
 function _flHeaderHtml() {
   var lg = _FL.league;
-  var seasonLine = lg
-    ? _esc(lg.name) + ' · Season ' + _esc(lg.season)
-    : 'Season not started';
+  // The name and the season value come from the record and are left alone; the
+  // word between them is ours and is translated like any other label.
+  var titleHtml = lg
+    ? '<span data-user-content>' + _esc(lg.name) + '</span> · <span>Season</span> '
+      + '<span data-user-content>' + _esc(lg.season) + '</span>'
+    : '<span>Season not started</span>';
   var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats']];
   return '<header class="fl-head" id="fl-head">'
     + '<div class="fl-head-top">'
     + '  <div class="fl-title-wrap">'
-    + '    <div class="fl-eyebrow">FAMILISTA LEAGUE</div>'
-    + '    <h1 class="fl-title" data-user-content>' + seasonLine + '</h1>'
+    + '    <div class="fl-eyebrow">Familista League</div>'
+    + '    <h1 class="fl-title">' + titleHtml + '</h1>'
     + '  </div>'
-    + '  <button class="fl-rules-btn" data-action="flRules" type="button" title="League rules">'
+    + '  <button class="fl-rules-btn" data-action="flRules" type="button"'
+    + '          title="League rules" data-i18n-title="league.rulesTooltip">'
     + '    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
     + '    <span>Rules</span>'
     + '  </button>'
@@ -62726,10 +62753,10 @@ function _flEmpty(title, sub) {
     + '</div>';
 }
 
-function _flError(what) {
+function _flError(sentence) {
   return '<div class="fl-empty fl-empty--error">'
     + '<div class="fl-empty-icon">⚠️</div>'
-    + '<div class="fl-empty-title">Could not load ' + _esc(what) + '</div>'
+    + '<div class="fl-empty-title">' + _esc(sentence) + '</div>'
     + '<div class="fl-empty-sub">The request did not complete.</div>'
     + '<button class="fl-retry" data-action="flRetry" type="button">Try again</button>'
     + '</div>';
@@ -62803,7 +62830,7 @@ async function _flLoadBoards() {
 
 function _flBodyHtml() {
   if (_FL.loading.overview) return _flSkeleton('table');
-  if (_FL.error.overview)   return _flError('the league');
+  if (_FL.error.overview)   return _flError('Could not load the league');
   if (!_FL.league) {
     return _flEmpty('No active Familista League season',
       'When a league season is created for the platform, its table, fixtures and player rankings appear here.');
@@ -62833,19 +62860,25 @@ function _flZoneLegendHtml() {
 
 function _flStandingsHtml() {
   if (_FL.loading.standings) return _flSkeleton('table');
-  if (_FL.error.standings)   return _flError('the standings');
+  if (_FL.error.standings)   return _flError('Could not load the standings');
   var rows = _FL.standings || [];
   if (!rows.length) {
     return _flEmpty('The league has not started',
       'The table fills in as league matches are played.');
   }
-  var head = ['POS', 'TEAM', 'MP', 'W', 'D', 'L', 'GF', 'GA', 'DIF', 'PTS', 'FORM'];
+  var head = _FL_COLS;
   return '<div class="fl-card">'
     + _flZoneLegendHtml()
     + '<div class="fl-table-wrap">'
     + '<table class="fl-table"><thead><tr>'
     + head.map(function (h, i) {
-        return '<th class="' + (i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'))) + '">' + h + '</th>';
+        return '<th class="' + (i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'))) + '"'
+          // data-no-i18n keeps the automatic pass off a cell the key-based
+          // pass owns. Without it the two collide: Portuguese renders TEAM as
+          // "TIME", which the automatic pass then reads as the English word
+          // and turns into "HORA".
+          + ' data-i18n="' + h.key + '" data-i18n-title="' + h.fullKey + '" data-no-i18n'
+          + ' title="' + _esc(h.full) + '">' + h.abbr + '</th>';
       }).join('')
     + '</tr></thead><tbody>'
     + rows.map(function (r) {
@@ -62896,7 +62929,7 @@ function _flKickoff(iso) {
 
 function _flMatchesHtml() {
   if (_FL.loading.matches) return _flSkeleton('table');
-  if (_FL.error.matches)   return _flError('the fixtures');
+  if (_FL.error.matches)   return _flError('Could not load the fixtures');
   var m = _FL.matches;
   if (!m || !m.rounds || !m.rounds.length) {
     return _flEmpty('No fixtures available', 'League fixtures appear here once the season calendar is published.');
@@ -62971,7 +63004,7 @@ function _flBoardHtml(title, list, fmt) {
 
 function _flPlayersHtml() {
   if (_FL.loading.boards) return _flSkeleton('cards');
-  if (_FL.error.boards)   return _flError('the player rankings');
+  if (_FL.error.boards)   return _flError('Could not load the player rankings');
   // The three panels are the screen, so they are always the screen. A league
   // with no player records yet shows three empty panels and says why, rather
   // than collapsing to one message that hides what the tab is for.
@@ -63042,10 +63075,11 @@ function _flRulesHtml() {
     : '';
 
   return '<div class="fl-modal-bg" data-action="flCloseRules">'
-    + '<div class="fl-modal" role="dialog" aria-modal="true" aria-label="Familista League rules">'
+    + '<div class="fl-modal" role="dialog" aria-modal="true" aria-label="Familista League rules"'
+    + ' data-i18n-aria="league.rulesDialog">'
     + '<header class="fl-modal-h">'
-    +   '<div><div class="fl-eyebrow">FAMILISTA LEAGUE</div><h2>Rules</h2></div>'
-    +   '<button class="fl-modal-x" data-action="flCloseRules" type="button" aria-label="Close">✕</button>'
+    +   '<div><div class="fl-eyebrow">Familista League</div><h2>Rules</h2></div>'
+    +   '<button class="fl-modal-x" data-action="flCloseRules" type="button" aria-label="Close" data-i18n-aria="common.close">✕</button>'
     + '</header>'
     + '<div class="fl-modal-b">'
     +   (hasFormat ? _flRuleSection('League format', formatBody) : '')
@@ -63075,7 +63109,7 @@ function _flTeamHtml() {
     +   '<div class="fl-team">' + _flCrest(id.clubId, 'md')
     +   '<span class="fl-team-txt"><b data-user-content>' + _esc(id.clubName || '') + '</b>'
     +   (id.teamName && id.teamName !== id.clubName ? '<i data-user-content>' + _esc(id.teamName) + '</i>' : '') + '</span></div>'
-    +   '<button class="fl-modal-x" data-action="flCloseTeam" type="button" aria-label="Close">✕</button>'
+    +   '<button class="fl-modal-x" data-action="flCloseTeam" type="button" aria-label="Close" data-i18n-aria="common.close">✕</button>'
     + '</header>'
     + '<div class="fl-modal-b">'
     + (s
@@ -63156,6 +63190,26 @@ document.addEventListener('click', function (ev) {
     else { _FL.standings = null; _FL.boards = null; _flLoadTab(); }
   }
 });
+
+// A language change repaints the League the same way it repaints the sidebar,
+// so the abbreviations and tooltips that go through the key-based pass follow
+// the new language without the reader having to leave the page and come back.
+(function () {
+  function _reg() {
+    try {
+      if (!window.I18N_APPLY) return false;
+      I18N_APPLY.registerRepaint(function () {
+        if (document.getElementById('fl-shell')) { try { _flRepaint(); } catch (_) {} }
+      });
+      return true;
+    } catch (_) { return false; }
+  }
+  if (!_reg()) {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('DOMContentLoaded', function () { _reg(); });
+    }
+  }
+})();
 
 // Enter/Space on the rows that behave as buttons.
 document.addEventListener('keydown', function (ev) {

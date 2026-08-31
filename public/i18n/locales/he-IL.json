@@ -12,7 +12,8 @@
     "clubWorkspace": "אזור המועדון",
     "clubs": "מועדונים",
     "dashboard": "לוח בקרה",
-    "back": "חזרה"
+    "back": "חזרה",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "חיפוש",
@@ -124,5 +125,35 @@
     "password": "סיסמה",
     "invalidCredentials": "דוא\"ל או סיסמה שגויים",
     "welcomeBack": "ברוך שובך"
+  },
+  "league": {
+    "col": {
+      "pos": "דירוג",
+      "team": "קבוצה",
+      "mp": "מש",
+      "w": "נצ",
+      "d": "תק",
+      "l": "הפ",
+      "gf": "שער",
+      "ga": "ספג",
+      "dif": "הפרש",
+      "pts": "נק",
+      "form": "כושר"
+    },
+    "colFull": {
+      "pos": "דירוג",
+      "team": "קבוצה",
+      "mp": "משחקים",
+      "w": "ניצחונות",
+      "d": "תיקו",
+      "l": "הפסדים",
+      "gf": "שערי זכות",
+      "ga": "שערי חובה",
+      "dif": "הפרש שערים",
+      "pts": "נקודות",
+      "form": "חמשת המשחקים האחרונים"
+    },
+    "rulesTooltip": "חוקי הליגה",
+    "rulesDialog": "חוקי Familista League"
   }
 }

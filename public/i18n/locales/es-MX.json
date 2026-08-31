@@ -12,7 +12,8 @@
     "clubWorkspace": "Espacio del club",
     "clubs": "Clubes",
     "dashboard": "Panel",
-    "back": "Atrás"
+    "back": "Atrás",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Buscar",
@@ -124,5 +125,35 @@
     "password": "Contraseña",
     "invalidCredentials": "Correo o contraseña incorrectos",
     "welcomeBack": "Bienvenido de nuevo"
+  },
+  "league": {
+    "col": {
+      "pos": "POS",
+      "team": "EQUIPO",
+      "mp": "JJ",
+      "w": "G",
+      "d": "E",
+      "l": "P",
+      "gf": "GF",
+      "ga": "GC",
+      "dif": "DIF",
+      "pts": "PTS",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Posición",
+      "team": "Equipo",
+      "mp": "Partidos jugados",
+      "w": "Victorias",
+      "d": "Empates",
+      "l": "Derrotas",
+      "gf": "Goles a favor",
+      "ga": "Goles en contra",
+      "dif": "Diferencia de goles",
+      "pts": "Puntos",
+      "form": "Últimos cinco partidos"
+    },
+    "rulesTooltip": "Reglamento",
+    "rulesDialog": "Reglamento de la Familista League"
   }
 }

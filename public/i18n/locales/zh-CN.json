@@ -12,7 +12,8 @@
     "clubWorkspace": "俱乐部工作区",
     "clubs": "俱乐部",
     "dashboard": "仪表盘",
-    "back": "返回"
+    "back": "返回",
+    "familistaLeague": "Familista 联赛"
   },
   "common": {
     "search": "搜索",
@@ -124,5 +125,35 @@
     "password": "密码",
     "invalidCredentials": "邮箱或密码不正确",
     "welcomeBack": "欢迎回来"
+  },
+  "league": {
+    "col": {
+      "pos": "排名",
+      "team": "球队",
+      "mp": "场",
+      "w": "胜",
+      "d": "平",
+      "l": "负",
+      "gf": "进球",
+      "ga": "失球",
+      "dif": "净胜",
+      "pts": "积分",
+      "form": "近况"
+    },
+    "colFull": {
+      "pos": "排名",
+      "team": "球队",
+      "mp": "已赛场次",
+      "w": "胜场",
+      "d": "平局",
+      "l": "负场",
+      "gf": "进球数",
+      "ga": "失球数",
+      "dif": "净胜球",
+      "pts": "积分",
+      "form": "最近五场"
+    },
+    "rulesTooltip": "联赛规则",
+    "rulesDialog": "Familista 联赛规则"
   }
 }

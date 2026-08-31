@@ -12,7 +12,8 @@
     "clubWorkspace": "俱樂部工作區",
     "clubs": "俱樂部",
     "dashboard": "儀表板",
-    "back": "返回"
+    "back": "返回",
+    "familistaLeague": "Familista 聯賽"
   },
   "common": {
     "search": "搜尋",
@@ -124,5 +125,35 @@
     "password": "密碼",
     "invalidCredentials": "電子郵件或密碼不正確",
     "welcomeBack": "歡迎回來"
+  },
+  "league": {
+    "col": {
+      "pos": "排名",
+      "team": "球隊",
+      "mp": "場",
+      "w": "勝",
+      "d": "和",
+      "l": "負",
+      "gf": "進球",
+      "ga": "失球",
+      "dif": "淨勝",
+      "pts": "積分",
+      "form": "近況"
+    },
+    "colFull": {
+      "pos": "排名",
+      "team": "球隊",
+      "mp": "已賽場次",
+      "w": "勝場",
+      "d": "和局",
+      "l": "負場",
+      "gf": "進球數",
+      "ga": "失球數",
+      "dif": "淨勝球",
+      "pts": "積分",
+      "form": "最近五場"
+    },
+    "rulesTooltip": "聯賽規則",
+    "rulesDialog": "Familista 聯賽規則"
   }
 }

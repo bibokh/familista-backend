@@ -12,7 +12,8 @@
     "clubWorkspace": "Prostor klubu",
     "clubs": "Kluby",
     "dashboard": "Přehled",
-    "back": "Zpět"
+    "back": "Zpět",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Hledat",
@@ -124,5 +125,35 @@
     "password": "Heslo",
     "invalidCredentials": "Nesprávný e-mail nebo heslo",
     "welcomeBack": "Vítej zpět"
+  },
+  "league": {
+    "col": {
+      "pos": "POŘ",
+      "team": "TÝM",
+      "mp": "Z",
+      "w": "V",
+      "d": "R",
+      "l": "P",
+      "gf": "VG",
+      "ga": "OG",
+      "dif": "RS",
+      "pts": "B",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Pořadí",
+      "team": "Tým",
+      "mp": "Odehrané zápasy",
+      "w": "Výhry",
+      "d": "Remízy",
+      "l": "Prohry",
+      "gf": "Vstřelené góly",
+      "ga": "Obdržené góly",
+      "dif": "Rozdíl skóre",
+      "pts": "Body",
+      "form": "Posledních pět zápasů"
+    },
+    "rulesTooltip": "Pravidla ligy",
+    "rulesDialog": "Pravidla Familista League"
   }
 }

@@ -12,7 +12,8 @@
     "clubWorkspace": "Ruang kelab",
     "clubs": "Kelab",
     "dashboard": "Papan pemuka",
-    "back": "Kembali"
+    "back": "Kembali",
+    "familistaLeague": "Liga Familista"
   },
   "common": {
     "search": "Cari",
@@ -124,5 +125,35 @@
     "password": "Kata laluan",
     "invalidCredentials": "E-mel atau kata laluan salah",
     "welcomeBack": "Selamat kembali"
+  },
+  "league": {
+    "col": {
+      "pos": "KDK",
+      "team": "PASUKAN",
+      "mp": "M",
+      "w": "M",
+      "d": "S",
+      "l": "K",
+      "gf": "GM",
+      "ga": "GK",
+      "dif": "BG",
+      "pts": "MATA",
+      "form": "FORMA"
+    },
+    "colFull": {
+      "pos": "Kedudukan",
+      "team": "Pasukan",
+      "mp": "Perlawanan dimainkan",
+      "w": "Menang",
+      "d": "Seri",
+      "l": "Kalah",
+      "gf": "Gol jaringan",
+      "ga": "Gol kemasukan",
+      "dif": "Beza gol",
+      "pts": "Mata",
+      "form": "Lima perlawanan terakhir"
+    },
+    "rulesTooltip": "Peraturan liga",
+    "rulesDialog": "Peraturan Liga Familista"
   }
 }

@@ -12,7 +12,8 @@
     "clubWorkspace": "Klubbyta",
     "clubs": "Klubbar",
     "dashboard": "Översikt",
-    "back": "Tillbaka"
+    "back": "Tillbaka",
+    "familistaLeague": "Familista League"
   },
   "common": {
     "search": "Sök",
@@ -124,5 +125,35 @@
     "password": "Lösenord",
     "invalidCredentials": "Fel e-post eller lösenord",
     "welcomeBack": "Välkommen tillbaka"
+  },
+  "league": {
+    "col": {
+      "pos": "PL",
+      "team": "LAG",
+      "mp": "M",
+      "w": "V",
+      "d": "O",
+      "l": "F",
+      "gf": "GM",
+      "ga": "IM",
+      "dif": "MÅLSK",
+      "pts": "P",
+      "form": "FORM"
+    },
+    "colFull": {
+      "pos": "Placering",
+      "team": "Lag",
+      "mp": "Spelade matcher",
+      "w": "Vinster",
+      "d": "Oavgjorda",
+      "l": "Förluster",
+      "gf": "Gjorda mål",
+      "ga": "Insläppta mål",
+      "dif": "Målskillnad",
+      "pts": "Poäng",
+      "form": "Senaste fem matcherna"
+    },
+    "rulesTooltip": "Ligaregler",
+    "rulesDialog": "Regler för Familista League"
   }
 }
