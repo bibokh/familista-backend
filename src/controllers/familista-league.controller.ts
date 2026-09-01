@@ -137,14 +137,33 @@ function actorOf(req: Request): admin.LeagueActor {
   };
 }
 
-/** Whether this caller may manage the league — the screen asks before drawing. */
+/**
+ * Whether this caller may manage the league — the screen asks before drawing.
+ *
+ * Deliberately answers even when no season exists. That is the state a fresh
+ * platform is in, and it is exactly when an administrator needs to see the
+ * control: refusing here would hide League management behind the very thing it
+ * is meant to set up.
+ */
 export async function getManageContext(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const found = await resolveLeague(req);
+    const q = querySchema.parse(req.query);
+    const found = await league.getLeague({ season: q.season, code: q.code });
     let canManage = true;
     try { admin.assertLeagueAdmin(actorOf(req)); } catch (_) { canManage = false; }
-    const participants = canManage ? await admin.listParticipants(found.id) : [];
-    res.json({ success: true, data: { canManage, participants, season: found.season, competitionId: found.id } });
+    const participants = canManage && found ? await admin.listParticipants(found.id) : [];
+    res.json({
+      success: true,
+      data: {
+        canManage,
+        participants,
+        season: found?.season ?? null,
+        competitionId: found?.id ?? null,
+        // No competition means no season has been created yet. The panel says
+        // so rather than showing an empty list that looks like a lost one.
+        hasSeason: !!found,
+      },
+    });
   } catch (err) { next(err); }
 }
 

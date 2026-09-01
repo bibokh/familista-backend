@@ -62700,6 +62700,7 @@ var _FL = {
   rules: false,            // rules modal
   manage: null,            // Manage Teams panel, for an administrator only
   canManage: false,        // answered by the server, never assumed here
+  hasSeason: false,        // whether a season exists at all, from the same answer
   loading: {},
   error: {},
   round: null,
@@ -62853,12 +62854,16 @@ async function _flLoadOverview() {
     _FL.myTeamIds = Array.isArray(d.myTeamIds) ? d.myTeamIds : [];
     // Whether this reader may manage the league is the server's answer, asked
     // once. A club user gets false and never sees the control.
-    if (_FL.league) {
-      try {
-        var mg = await api('/familista-league/manage' + _flSeasonQ());
-        _FL.canManage = !!(mg && mg.data && mg.data.canManage);
-      } catch (_) { _FL.canManage = false; }
-    }
+    //
+    // Asked even when there is no season: that is the state a platform is in
+    // before the first one is created, and it is exactly when an administrator
+    // needs the control — hiding it then would put League setup behind the thing
+    // it exists to set up.
+    try {
+      var mg = await api('/familista-league/manage' + _flSeasonQ());
+      _FL.canManage = !!(mg && mg.data && mg.data.canManage);
+      _FL.hasSeason = !!(mg && mg.data && mg.data.hasSeason);
+    } catch (_) { _FL.canManage = false; _FL.hasSeason = !!_FL.league; }
   } catch (e) {
     _FL.error.overview = true;
   }
@@ -63314,11 +63319,19 @@ async function _flOpenManage() {
       try { showToast('Managing league participants requires a platform administrator', 'error'); } catch (_) {}
       return;
     }
-    var e = await api('/familista-league/manage/eligible-teams' + _flSeasonQ());
+    // With no season there is no competition to enter a team into, so the
+    // selector is not asked for — the panel says what is missing instead of
+    // showing an empty list that reads like a lost one.
+    var eligible = [];
+    if (d.hasSeason) {
+      var e = await api('/familista-league/manage/eligible-teams' + _flSeasonQ());
+      eligible = ((e && e.data) || {}).teams || [];
+    }
     _FL.manage = {
       loading: false,
+      hasSeason: !!d.hasSeason,
       participants: d.participants || [],
-      eligible: ((e && e.data) || {}).teams || [],
+      eligible: eligible,
       busy: '',
     };
   } catch (err) {
@@ -63365,6 +63378,8 @@ function _flManageHtml() {
     body = _flSkeleton('cards');
   } else if (m.error) {
     body = _flError('Could not load league participants');
+  } else if (!m.hasSeason) {
+    body = _flEmpty('No active Familista League season');
   } else {
     var current = m.participants.length
       ? m.participants.map(function (p) {
