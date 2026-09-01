@@ -105,6 +105,38 @@ export async function computeMatchStats(matchId: string): Promise<{ rebuilt: num
       }
     }
 
+    // The other end of an event. `relatedPlayerId` is who assisted the goal and
+    // who the substitution swapped with, and `buildPlayerMatchStats` already
+    // reads it — `recv('GOAL')` is exactly the assist count. But such a player
+    // was never collected here, so a substitute who came on and set up a goal,
+    // with no event of their own and no place in the starting XI, got no row at
+    // all and their assist disappeared before the League ever saw it.
+    //
+    // Their club and team come from their own record rather than from the event.
+    // The event's clubId is the side that recorded it, which is the right answer
+    // for the player who acted and the wrong one for anybody on the other side —
+    // and a statistic filed under the wrong club is worse than a missing one.
+    const relatedIds = (await tx.matchEvent.findMany({
+      where:   { matchId, relatedPlayerId: { not: null } },
+      select:  { relatedPlayerId: true },
+      distinct: ['relatedPlayerId'],
+    }))
+      .map((e) => e.relatedPlayerId)
+      .filter((id): id is string => !!id && !byPlayer.has(id));
+
+    if (relatedIds.length) {
+      // Only players the platform actually has. A related id that resolves to
+      // nobody is a dangling reference, not a player to invent a row for.
+      const related = await tx.player.findMany({
+        where:  { id: { in: relatedIds } },
+        select: { id: true, clubId: true, teamId: true },
+      });
+      for (const p of related) {
+        if (!p.clubId) continue;
+        byPlayer.set(p.id, { playerId: p.id, clubId: p.clubId, teamId: p.teamId ?? undefined });
+      }
+    }
+
     let rebuilt = 0;
     for (const { playerId, clubId, teamId } of byPlayer.values()) {
       await buildPlayerMatchStats(tx, matchId, playerId, clubId, teamId, starters.has(playerId));
