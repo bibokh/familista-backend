@@ -1172,5 +1172,13 @@
   "No player statistics yet": "אין עדיין סטטיסטיקת שחקנים",
   "These are computed from the events recorded for this match.": "היא מחושבת מהאירועים שנרשמו למשחק הזה.",
   "Set pieces open in Squad": "כדורים נייחים נפתחים במסך הסגל",
-  "Tactics open in Squad": "הטקטיקה נפתחת במסך הסגל"
+  "Tactics open in Squad": "הטקטיקה נפתחת במסך הסגל",
+  "Form and shape": "כושר ומערך",
+  "What each side brings": "מה כל קבוצה מביאה",
+  "Likely formation": "מערך משוער",
+  "Recorded formation": "מערך שנרשם",
+  "Tactical readiness": "מוכנות טקטית",
+  "Not recorded": "לא נרשם",
+  "\u0000 per match": "\u0000 למשחק",
+  "Best scorer": "הכובש המוביל"
 }

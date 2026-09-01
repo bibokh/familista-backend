@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Ingen spelarstatistik ännu",
   "These are computed from the events recorded for this match.": "De beräknas utifrån de händelser som registrerats för den här matchen.",
   "Set pieces open in Squad": "Fasta situationer öppnas i Truppen",
-  "Tactics open in Squad": "Taktiken öppnas i Truppen"
+  "Tactics open in Squad": "Taktiken öppnas i Truppen",
+  "Form and shape": "Form och formation",
+  "What each side brings": "Vad varje lag har med sig",
+  "Likely formation": "Trolig formation",
+  "Recorded formation": "Registrerad formation",
+  "Tactical readiness": "Taktisk beredskap",
+  "Not recorded": "Inte registrerad",
+  "\u0000 per match": "\u0000 per match",
+  "Best scorer": "Bäste målskytt"
 }

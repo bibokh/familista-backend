@@ -434,6 +434,13 @@ export interface LeagueSquadPlayer {
   isInjured: boolean;
   /** HEALTHY | INJURED | RECOVERING | SUSPENDED | UNAVAILABLE. */
   medicalStatus: string;
+  /**
+   * What this player has done in THIS competition, summed from the same
+   * PlayerMatchStats rows the leaderboards read. Zero means the aggregation
+   * has nothing for them, which is the truth for a season not yet played.
+   */
+  goals: number;
+  assists: number;
 }
 
 /**
@@ -464,7 +471,15 @@ async function matchSides(
   const zoneFor = (position: number): LeagueZone | null =>
     (rules.zones ?? []).find((z) => position >= z.from && position <= z.to) ?? null;
 
-  const [entries, players, coaches] = await Promise.all([
+  // What each player has done in this competition so far, from the rows the
+  // aggregation already wrote for its own fixtures. Read, never recomputed.
+  const compFixtures = await prisma.fixture.findMany({
+    where: { competitionId, matchId: { not: null } },
+    select: { matchId: true },
+  });
+  const compMatchIds = compFixtures.map((f) => f.matchId).filter((id): id is string => !!id);
+
+  const [entries, players, coaches, contributions] = await Promise.all([
     prisma.standingsEntry.findMany({ where: { competitionId, teamId: { in: [homeTeamId, awayTeamId] } } }),
     prisma.player.findMany({
       where: { teamId: { in: [homeTeamId, awayTeamId] } },
@@ -483,7 +498,21 @@ async function matchSides(
       },
       select: { clubId: true, user: { select: { firstName: true, lastName: true } } },
     }),
+    compMatchIds.length
+      ? prisma.playerMatchStats.findMany({
+          where: { matchId: { in: compMatchIds } },
+          select: { playerId: true, goals: true, assists: true },
+        })
+      : Promise.resolve([] as { playerId: string; goals: number; assists: number }[]),
   ]);
+
+  const scored = new Map<string, { goals: number; assists: number }>();
+  for (const row of contributions) {
+    const at = scored.get(row.playerId) ?? { goals: 0, assists: 0 };
+    at.goals += row.goals;
+    at.assists += row.assists;
+    scored.set(row.playerId, at);
+  }
 
   const standingRow = (teamId: string): LeagueStandingRow | null => {
     const e = entries.find((x) => x.teamId === teamId);
@@ -515,6 +544,8 @@ async function matchSides(
       morale: p.morale ?? null,
       isInjured: p.isInjured,
       medicalStatus: p.medicalStatus,
+      goals: scored.get(p.id)?.goals ?? 0,
+      assists: scored.get(p.id)?.assists ?? 0,
     }));
 
   const coachOf = (teamId: string): string | null => {

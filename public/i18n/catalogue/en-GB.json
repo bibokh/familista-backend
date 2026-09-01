@@ -1172,5 +1172,13 @@
   "No player statistics yet": "No player statistics yet",
   "These are computed from the events recorded for this match.": "These are computed from the events recorded for this match.",
   "Set pieces open in Squad": "Set pieces open in Squad",
-  "Tactics open in Squad": "Tactics open in Squad"
+  "Tactics open in Squad": "Tactics open in Squad",
+  "Form and shape": "Form and shape",
+  "What each side brings": "What each side brings",
+  "Likely formation": "Likely formation",
+  "Recorded formation": "Recorded formation",
+  "Tactical readiness": "Tactical readiness",
+  "Not recorded": "Not recorded",
+  "\u0000 per match": "\u0000 per match",
+  "Best scorer": "Best scorer"
 }

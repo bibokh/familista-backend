@@ -90,11 +90,21 @@ describe('four tabs, and each one is drawn', () => {
     expect(table).not.toMatch(/\[\s*'overview'\s*,/);
   });
 
-  it('each tab has a body function and switching one redraws the page', () => {
+  it('each section has a body function, and switching one redraws only the desk', () => {
     for (const fn of ['_mcOverviewHtml', '_mcPreparationHtml', '_mcOpponentHtml', '_mcFeedHtml']) {
       expect(APP).toContain('function ' + fn + '(');
     }
-    expect(codeOnly(MC)).toMatch(/act === 'mcTab'[\s\S]{0,200}renderMatchCenter\(\)/);
+    // Training-style: the header, the fixture band and the rail stay where they
+    // are and only the desk's contents are replaced.
+    const handler = codeOnly(MC).slice(codeOnly(MC).indexOf("act === 'mcTab'"));
+    expect(handler).toContain("document.getElementById('mcx-desk')");
+    expect(handler).toContain('desk.innerHTML =');
+    expect(handler).toContain('_mcPaintComputed(desk)');
+    // A full re-render is the fallback, not the path: every mention of it in
+    // the handler is guarded by a missing desk or reached from the catch.
+    const before = handler.slice(0, handler.indexOf('desk.innerHTML'));
+    expect(before).toMatch(/if \(!desk\)[^\n]*renderMatchCenter\(\)/);
+    expect((before.match(/renderMatchCenter\(\)/g) || []).length).toBe(1);
   });
 
   it('and opening a fixture starts on the overview again', () => {
@@ -246,13 +256,13 @@ describe('the preparation tab opens the modules that already own the work', () =
 
 describe('nothing user-facing is left in English only', () => {
   it('names and data are marked as data, so no catalogue can translate them', () => {
-    for (const cls of ['mcx-hero-name', 'mcx-opp-name', 'mcx-key-name', 'mcx-danger-n', 'mcx-pt-n', 'mcx-tl-p']) {
+    for (const cls of ['mcx-side-name', 'mcx-opp-name', 'mcx-key-name', 'mcx-danger-n', 'mcx-pt-n', 'mcx-tl-p']) {
       const at = MC.indexOf('class="' + cls + '"');
       expect(at).toBeGreaterThan(-1);
       expect(MC.slice(at, at + 90)).toContain('data-user-content');
     }
     // And the two the runtime finds by selector are the ones that exist.
-    expect(DOM).toContain('.mcx-hero-name');
+    expect(DOM).toContain('.mcx-side-name');
     expect(DOM).toContain('.mcx-opp-name');
     expect(DOM).not.toContain('.mc2-ss-name');
   });
@@ -275,5 +285,72 @@ describe('nothing user-facing is left in English only', () => {
     ]) {
       expect(cat[s]).toBeDefined();
     }
+  });
+});
+
+describe('one workspace, not a document', () => {
+  it('the page is a fixed-height flex column while it is the active page', () => {
+    // Written against the id so it beats .page{display:none} only when active —
+    // the mistake Training already made once, and the reason it is written this
+    // way rather than as a bare class.
+    expect(CSS).toMatch(/#pg-match-center\.active\{[^}]*height:calc\(100vh[^}]*overflow:hidden[^}]*display:flex/);
+    expect(CSS).toMatch(/#pg-match-center\.active > #match-center-content\{[^}]*flex:1 1 auto[^}]*min-height:0/);
+    expect(CSS).toMatch(/\.mcx\{[^}]*display:flex[^}]*flex-direction:column[^}]*flex:1 1 auto[^}]*min-height:0/);
+  });
+
+  it('the header, the rail and the desk are the three bands of it', () => {
+    expect(MC).toContain('<header class="mcx-head">');
+    expect(MC).toContain('<nav class="mcx-rail"');
+    expect(MC).toContain('<div class="mcx-desk" id="mcx-desk">');
+    // The desk takes what is left; the other two do not grow.
+    expect(CSS).toMatch(/\.mcx-desk\{[^}]*flex:1 1 auto[^}]*min-height:0/);
+    expect(CSS).toMatch(/\.mcx-head\{[^}]*flex:0 0 auto/);
+    expect(CSS).toMatch(/\.mcx-rail\{[^}]*flex:0 0 auto/);
+  });
+
+  it('what scrolls is a column inside the desk, never the page', () => {
+    expect(CSS).toMatch(/\.mcx-col\{[^}]*min-height:0[^}]*overflow-y:auto/);
+    // And a short column reaches the bottom rather than ending above a void.
+    expect(CSS).toContain('.mcx-col > .mcx-panel:last-child{ flex:1 1 auto; }');
+  });
+
+  it('a short or narrow viewport gets its height back rather than squeezing', () => {
+    const esc = CSS.slice(CSS.indexOf('@media (max-width:980px), (max-height:620px)'));
+    expect(esc.slice(0, 600)).toMatch(/#pg-match-center\.active\{[^}]*height:auto[^}]*overflow:visible/);
+  });
+
+  it('every section lays its panels out in columns rather than stacking them', () => {
+    for (const fn of ['_mcOverviewHtml', '_mcPreparationHtml', '_mcOpponentHtml', '_mcFeedHtml']) {
+      const body = APP.slice(APP.indexOf('function ' + fn + '('));
+      const upto = body.slice(0, body.indexOf('\nfunction '));
+      expect(upto).toContain('mcx-cols');
+      expect(upto).toContain('class="mcx-col"');
+    }
+    expect(CSS).toMatch(/\.mcx-cols--3\{[^}]*grid-template-columns:minmax/);
+    expect(CSS).toMatch(/\.mcx-cols--split\{[^}]*grid-template-columns:minmax/);
+  });
+
+  it('the pitch is one panel inside the workspace, sized to it', () => {
+    expect(CSS).toMatch(/\.mcp-wrap\{[^}]*flex:1 1 auto[^}]*min-height:0/);
+    expect(CSS).toMatch(/\.mcp-svg\{[^}]*flex:1 1 auto[^}]*height:100%/);
+    // It letterboxes rather than cropping: eleven real players stay on it.
+    expect(APP).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(MC).toContain('mcx-panel--pitch');
+  });
+
+  it('the match header carries the fixture on one band', () => {
+    const head = MC.slice(MC.indexOf("var head = '<header"), MC.indexOf("var head = '<header") + 1600);
+    expect(head).toContain('mcx-h1');
+    expect(head).toContain('mcx-fixture');
+    expect(head).toContain('mcx-vs-score');
+    expect(head).toContain('mcx-chip--');
+    // Both sides, each drawn by the same block from its own data.
+    expect(head).toContain("sideBlock(homeName, homeCrest, 'home', home)");
+    expect(head).toContain("sideBlock(awayName, awayCrest, 'away', away)");
+  });
+
+  it('and the preparation dock opens the modules rather than restating them', () => {
+    expect(MC).toContain('class="mcx-dock"');
+    expect(CSS).toMatch(/\.mcx-dock\{[^}]*flex:0 0 auto/);
   });
 });

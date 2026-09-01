@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Još nema statistike igrača",
   "These are computed from the events recorded for this match.": "Računa se iz događaja zabeleženih za ovu utakmicu.",
   "Set pieces open in Squad": "Prekidi se otvaraju u odeljku Tim",
-  "Tactics open in Squad": "Taktika se otvara u odeljku Tim"
+  "Tactics open in Squad": "Taktika se otvara u odeljku Tim",
+  "Form and shape": "Forma i postava",
+  "What each side brings": "Šta svaka strana donosi",
+  "Likely formation": "Verovatna formacija",
+  "Recorded formation": "Zabeležena formacija",
+  "Tactical readiness": "Taktička spremnost",
+  "Not recorded": "Nije zabeleženo",
+  "\u0000 per match": "\u0000 po utakmici",
+  "Best scorer": "Najbolji strelac"
 }

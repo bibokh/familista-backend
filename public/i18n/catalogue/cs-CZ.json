@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Zatím žádné statistiky hráčů",
   "These are computed from the events recorded for this match.": "Počítají se z událostí zaznamenaných pro tento zápas.",
   "Set pieces open in Squad": "Standardní situace se otevřou v Kádru",
-  "Tactics open in Squad": "Taktika se otevře v Kádru"
+  "Tactics open in Squad": "Taktika se otevře v Kádru",
+  "Form and shape": "Forma a rozestavení",
+  "What each side brings": "Co každý tým přináší",
+  "Likely formation": "Pravděpodobné rozestavení",
+  "Recorded formation": "Zaznamenané rozestavení",
+  "Tactical readiness": "Taktická připravenost",
+  "Not recorded": "Nezaznamenáno",
+  "\u0000 per match": "\u0000 na zápas",
+  "Best scorer": "Nejlepší střelec"
 }

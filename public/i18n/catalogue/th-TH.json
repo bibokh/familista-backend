@@ -1169,5 +1169,13 @@
   "No player statistics yet": "ยังไม่มีสถิติผู้เล่น",
   "These are computed from the events recorded for this match.": "คำนวณจากเหตุการณ์ที่บันทึกไว้สำหรับการแข่งขันนี้",
   "Set pieces open in Squad": "ลูกตั้งเตะจะเปิดในหน้าทีม",
-  "Tactics open in Squad": "แทคติกจะเปิดในหน้าทีม"
+  "Tactics open in Squad": "แทคติกจะเปิดในหน้าทีม",
+  "Form and shape": "ฟอร์มและแผนการเล่น",
+  "What each side brings": "สิ่งที่แต่ละทีมมี",
+  "Likely formation": "แผนการเล่นที่เป็นไปได้",
+  "Recorded formation": "แผนการเล่นที่บันทึกไว้",
+  "Tactical readiness": "ความพร้อมด้านแทคติก",
+  "Not recorded": "ไม่ได้บันทึก",
+  "\u0000 per match": "\u0000 ต่อเกม",
+  "Best scorer": "ดาวซัลโว"
 }

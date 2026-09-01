@@ -1169,5 +1169,13 @@
   "No player statistics yet": "暂无球员数据",
   "These are computed from the events recorded for this match.": "根据本场比赛记录的事件计算得出。",
   "Set pieces open in Squad": "定位球在“阵容”中打开",
-  "Tactics open in Squad": "战术在“阵容”中打开"
+  "Tactics open in Squad": "战术在“阵容”中打开",
+  "Form and shape": "状态与阵型",
+  "What each side brings": "两队各自的底子",
+  "Likely formation": "可能阵型",
+  "Recorded formation": "已记录阵型",
+  "Tactical readiness": "战术准备",
+  "Not recorded": "未记录",
+  "\u0000 per match": "场均 \u0000",
+  "Best scorer": "最佳射手"
 }

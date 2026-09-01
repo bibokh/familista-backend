@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Nessuna statistica dei giocatori",
   "These are computed from the events recorded for this match.": "Sono calcolate dagli eventi registrati per questa partita.",
   "Set pieces open in Squad": "I calci piazzati si aprono nella Rosa",
-  "Tactics open in Squad": "La tattica si apre nella Rosa"
+  "Tactics open in Squad": "La tattica si apre nella Rosa",
+  "Form and shape": "Forma e modulo",
+  "What each side brings": "Cosa porta ciascuna squadra",
+  "Likely formation": "Modulo probabile",
+  "Recorded formation": "Modulo registrato",
+  "Tactical readiness": "Preparazione tattica",
+  "Not recorded": "Non registrato",
+  "\u0000 per match": "\u0000 a partita",
+  "Best scorer": "Miglior marcatore"
 }

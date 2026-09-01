@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Încă nu există statistici ale jucătorilor",
   "These are computed from the events recorded for this match.": "Sunt calculate din evenimentele înregistrate pentru acest meci.",
   "Set pieces open in Squad": "Fazele fixe se deschid în Lot",
-  "Tactics open in Squad": "Tactica se deschide în Lot"
+  "Tactics open in Squad": "Tactica se deschide în Lot",
+  "Form and shape": "Formă și sistem",
+  "What each side brings": "Ce aduce fiecare echipă",
+  "Likely formation": "Sistem probabil",
+  "Recorded formation": "Sistem înregistrat",
+  "Tactical readiness": "Pregătire tactică",
+  "Not recorded": "Neînregistrat",
+  "\u0000 per match": "\u0000 pe meci",
+  "Best scorer": "Cel mai bun marcator"
 }

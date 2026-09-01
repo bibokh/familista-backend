@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Nog geen spelersstatistieken",
   "These are computed from the events recorded for this match.": "Deze worden berekend uit de gebeurtenissen die voor deze wedstrijd zijn vastgelegd.",
   "Set pieces open in Squad": "Standaardsituaties openen in Selectie",
-  "Tactics open in Squad": "Tactiek opent in Selectie"
+  "Tactics open in Squad": "Tactiek opent in Selectie",
+  "Form and shape": "Vorm en opstelling",
+  "What each side brings": "Wat elke ploeg meebrengt",
+  "Likely formation": "Vermoedelijke formatie",
+  "Recorded formation": "Vastgelegde formatie",
+  "Tactical readiness": "Tactische gereedheid",
+  "Not recorded": "Niet vastgelegd",
+  "\u0000 per match": "\u0000 per wedstrijd",
+  "Best scorer": "Topscorer"
 }

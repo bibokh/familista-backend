@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Статистики игроков пока нет",
   "These are computed from the events recorded for this match.": "Она вычисляется из событий, записанных для этого матча.",
   "Set pieces open in Squad": "Стандартные положения открываются в разделе «Состав»",
-  "Tactics open in Squad": "Тактика открывается в разделе «Состав»"
+  "Tactics open in Squad": "Тактика открывается в разделе «Состав»",
+  "Form and shape": "Форма и схема",
+  "What each side brings": "Что приносит каждая команда",
+  "Likely formation": "Вероятная схема",
+  "Recorded formation": "Записанная схема",
+  "Tactical readiness": "Тактическая готовность",
+  "Not recorded": "Не записано",
+  "\u0000 per match": "\u0000 за матч",
+  "Best scorer": "Лучший бомбардир"
 }

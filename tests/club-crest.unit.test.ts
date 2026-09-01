@@ -212,8 +212,8 @@ describe('an opponent never wears the reader\'s crest', () => {
     expect(mc).toContain('crest(focus.next.awayClubId');
     // A club's own fixture knows only one club — ours — and it is drawn on the
     // side we are actually on. The other side gets nothing rather than ours.
-    expect(mc).toMatch(/homeCrest[\s\S]{0,120}isHome \? crest\(_famActiveClubId\(\), 56\) : ''/);
-    expect(mc).toMatch(/awayCrest[\s\S]{0,120}!isHome \? crest\(_famActiveClubId\(\), 56\) : ''/);
+    expect(mc).toMatch(/homeCrest[\s\S]{0,120}isHome \? crest\(_famActiveClubId\(\), 40\) : ''/);
+    expect(mc).toMatch(/awayCrest[\s\S]{0,120}!isHome \? crest\(_famActiveClubId\(\), 40\) : ''/);
     // The old forms — our crest chosen by which side we are on, and an
     // opponent id that could still be ours — are gone.
     expect(APP).not.toContain('var awayEmblemHTML = clubEmblem && !isHome');

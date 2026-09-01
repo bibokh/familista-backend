@@ -1169,5 +1169,13 @@
   "No player statistics yet": "選手スタッツはまだありません",
   "These are computed from the events recorded for this match.": "この試合で記録されたイベントから算出されます。",
   "Set pieces open in Squad": "セットプレーはスカッドで開きます",
-  "Tactics open in Squad": "戦術はスカッドで開きます"
+  "Tactics open in Squad": "戦術はスカッドで開きます",
+  "Form and shape": "調子とフォーメーション",
+  "What each side brings": "両チームが持ち込むもの",
+  "Likely formation": "予想フォーメーション",
+  "Recorded formation": "記録されたフォーメーション",
+  "Tactical readiness": "戦術的準備",
+  "Not recorded": "記録なし",
+  "\u0000 per match": "1試合あたり\u0000",
+  "Best scorer": "得点王"
 }

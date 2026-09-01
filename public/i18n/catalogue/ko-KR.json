@@ -1169,5 +1169,13 @@
   "No player statistics yet": "아직 선수 통계가 없습니다",
   "These are computed from the events recorded for this match.": "이 경기에 기록된 이벤트로 계산됩니다.",
   "Set pieces open in Squad": "세트피스는 스쿼드에서 열립니다",
-  "Tactics open in Squad": "전술은 스쿼드에서 열립니다"
+  "Tactics open in Squad": "전술은 스쿼드에서 열립니다",
+  "Form and shape": "폼과 포메이션",
+  "What each side brings": "각 팀이 갖춘 것",
+  "Likely formation": "예상 포메이션",
+  "Recorded formation": "기록된 포메이션",
+  "Tactical readiness": "전술 준비도",
+  "Not recorded": "기록 없음",
+  "\u0000 per match": "경기당 \u0000",
+  "Best scorer": "최다 득점자"
 }

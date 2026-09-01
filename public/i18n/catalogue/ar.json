@@ -1172,5 +1172,13 @@
   "No player statistics yet": "لا توجد إحصاءات للاعبين بعد",
   "These are computed from the events recorded for this match.": "تُحتسب من الأحداث المسجَّلة لهذه المباراة.",
   "Set pieces open in Squad": "تُفتح الكرات الثابتة في قسم التشكيلة",
-  "Tactics open in Squad": "تُفتح الخطط التكتيكية في قسم التشكيلة"
+  "Tactics open in Squad": "تُفتح الخطط التكتيكية في قسم التشكيلة",
+  "Form and shape": "الحالة الفنية والتشكيل",
+  "What each side brings": "ما يقدمه كل فريق",
+  "Likely formation": "التشكيل المرجّح",
+  "Recorded formation": "التشكيل المسجَّل",
+  "Tactical readiness": "الجاهزية التكتيكية",
+  "Not recorded": "غير مسجَّل",
+  "\u0000 per match": "\u0000 لكل مباراة",
+  "Best scorer": "أفضل هدّاف"
 }

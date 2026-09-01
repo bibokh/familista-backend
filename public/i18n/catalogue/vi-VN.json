@@ -1169,5 +1169,13 @@
   "No player statistics yet": "Chưa có thống kê cầu thủ",
   "These are computed from the events recorded for this match.": "Được tính từ các sự kiện ghi nhận cho trận đấu này.",
   "Set pieces open in Squad": "Tình huống cố định mở trong mục Đội hình",
-  "Tactics open in Squad": "Chiến thuật mở trong mục Đội hình"
+  "Tactics open in Squad": "Chiến thuật mở trong mục Đội hình",
+  "Form and shape": "Phong độ và sơ đồ",
+  "What each side brings": "Điều mỗi đội mang đến",
+  "Likely formation": "Sơ đồ dự kiến",
+  "Recorded formation": "Sơ đồ đã ghi nhận",
+  "Tactical readiness": "Mức sẵn sàng chiến thuật",
+  "Not recorded": "Chưa ghi nhận",
+  "\u0000 per match": "\u0000 mỗi trận",
+  "Best scorer": "Vua phá lưới"
 }

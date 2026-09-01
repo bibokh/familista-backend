@@ -14704,7 +14704,7 @@ function _mcGaugeSVG(probs) {
 function renderMatchCenterHTML() {
   return `<div class="page" id="pg-match-center">
     <div id="match-center-content">
-      <div class="mc2-boot">Loading Match Center…</div>
+      <div class="mcx-boot">Loading Match Center…</div>
     </div>
   </div>`;
 }
@@ -14947,6 +14947,11 @@ function _mcPlayerFromState(p) {
     morale: p.morale || null,
     isInjured: !!p.isInjured,
     medicalStatus: p.medicalStatus || (p.isInjured ? 'INJURED' : 'HEALTHY'),
+    // A club's own fixture is not a competition, so there is no competition
+    // total to read. Left null rather than shown as a zero somebody could
+    // mistake for a record.
+    goals: null,
+    assists: null,
   };
 }
 
@@ -15133,8 +15138,13 @@ function _mcPitchPro(xi, opts) {
     + '</div>';
 }
 
-// ── the page ────────────────────────────────────────────────────────────────
+// ── the workspace ───────────────────────────────────────────────────────────
 
+// One control room, not a document. The page is a fixed-height flex column —
+// a thin context bar, a compact match header, the section rail, and a desk that
+// takes whatever height is left. Only the selected section is drawn, and what
+// scrolls is a panel inside the desk rather than the page itself, which is the
+// same shape the Training Centre uses.
 function renderMatchCenter() {
   const el = document.getElementById('match-center-content');
   if (!el) return;
@@ -15167,78 +15177,77 @@ function renderMatchCenter() {
       : '';
 
     var crest = function (id, size) {
-      try { return _clubCrestUrl(id) ? clubLogoHtml(id, { size: size || 56, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; }
+      try { return _clubCrestUrl(id) ? clubLogoHtml(id, { size: size || 40, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; }
     };
-    var homeCrest = focus ? crest(focus.next.homeClubId, 56) : (isHome ? crest(_famActiveClubId(), 56) : '');
-    var awayCrest = focus ? crest(focus.next.awayClubId, 56) : (!isHome ? crest(_famActiveClubId(), 56) : '');
+    var homeCrest = focus ? crest(focus.next.homeClubId, 40) : (isHome ? crest(_famActiveClubId(), 40) : '');
+    var awayCrest = focus ? crest(focus.next.awayClubId, 40) : (!isHome ? crest(_famActiveClubId(), 40) : '');
 
-    // ── breadcrumb, for a match opened from the competition ──────────────────
+    // ── context bar: one thin row, back on the left and the table on the right
     var crumb = ctx
-      ? '<nav class="mcx-crumb">'
+      ? '<nav class="mcx-topbar">'
         + '<button class="mcx-back" type="button" data-action="navTo" data-page="familista-league">← <span>Back to League</span></button>'
-        + '<span class="mcx-crumb-sep">·</span>'
+        + '<span class="mcx-crumb">'
         + '<span class="mcx-crumb-i" data-user-content>' + _esc(ctx.name) + '</span>'
         + '<span class="mcx-crumb-arrow">›</span>'
         + '<span class="mcx-crumb-i"><span>Season</span> <span data-user-content>' + _esc(ctx.season) + '</span></span>'
         + (ctx.round != null ? '<span class="mcx-crumb-arrow">›</span><span class="mcx-crumb-i">Round ' + ctx.round + '</span>' : '')
         + '<span class="mcx-crumb-arrow">›</span>'
         + '<span class="mcx-crumb-i is-now">Match Center</span>'
+        + '</span>'
         + '<button class="mcx-crumb-btn" type="button" data-action="mcStandings">Standings</button>'
         + '</nav>'
       : '';
 
-    // ── title ────────────────────────────────────────────────────────────────
-    var title = '<header class="mcx-title">'
-      + '<div>'
-      + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
-      + '  <h1 class="mcx-h1">Match Center</h1>'
-      + '</div>'
-      + '<div class="mcx-title-meta">'
-      + (ctx ? '<span class="mcx-chip"><span>Season</span> <b data-user-content>' + _esc(ctx.season) + '</b></span>' : '')
-      + (ctx && ctx.round != null ? '<span class="mcx-chip">Round <b>' + ctx.round + '</b></span>' : '')
-      + '<span class="mcx-chip mcx-chip--' + status.toLowerCase().replace(/\s+/g, '') + '">' + status + '</span>'
-      + '</div>'
-      + '</header>';
-
-    // ── hero ─────────────────────────────────────────────────────────────────
+    // ── header: title and fixture on one band ────────────────────────────────
     // A club with no crest gets its own initials rather than a symbol that means
-    // nothing — the placeholder still identifies the club it stands for.
+    // nothing — the mark still identifies the club it stands for.
     var initials = function (n) {
       return String(n || '').split(/\s+/).filter(Boolean).slice(0, 2)
         .map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '—';
     };
     var sideBlock = function (name, crestHtml, side, data) {
       var av = _mcAvailability(data.squad);
-      return '<div class="mcx-hero-side ' + side + '">'
-        + '<div class="mcx-hero-crest">'
-        + (crestHtml || '<span class="mcx-hero-noc" data-user-content>' + _esc(initials(name)) + '</span>')
+      return '<div class="mcx-side ' + side + '">'
+        + '<div class="mcx-side-crest">'
+        + (crestHtml || '<span class="mcx-side-noc" data-user-content>' + _esc(initials(name)) + '</span>')
         + '</div>'
-        + '<div class="mcx-hero-name" data-user-content>' + _esc(name || '') + '</div>'
-        + '<div class="mcx-hero-side-lbl">' + (side === 'home' ? 'Home' : 'Away') + '</div>'
-        + (data.standing
-            ? '<div class="mcx-hero-pos">' + _esc(String(data.standing.position)) + '<span>in the table</span></div>'
-              + '<div class="mcx-hero-form"><span class="mcx-hero-form-l">Form</span>' + _mcFormPills(data.standing.form) + '</div>'
-            : '')
-        + (av.total
-            ? '<div class="mcx-hero-av">' + av.available + ' <span>of</span> ' + av.total + ' <span>available</span></div>'
-            : '')
+        + '<div class="mcx-side-txt">'
+        + '  <div class="mcx-side-name" data-user-content>' + _esc(name || '') + '</div>'
+        + '  <div class="mcx-side-meta">'
+        + '    <span class="mcx-side-lbl">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
+        + (data.standing ? '<span class="mcx-side-pos">' + _esc(String(data.standing.position)) + '<i>in the table</i></span>' : '')
+        + (data.standing ? _mcFormPills(data.standing.form) : '')
+        + (av.total ? '<span class="mcx-side-av">' + av.available + ' <i>of</i> ' + av.total + ' <i>available</i></span>' : '')
+        + '  </div>'
+        + '</div>'
         + '</div>';
     };
 
-    var hero = '<section class="mcx-hero">'
+    var head = '<header class="mcx-head">'
+      + '<div class="mcx-head-id">'
+      + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
+      + '  <h1 class="mcx-h1">Match Center</h1>'
+      + '  <div class="mcx-head-chips">'
+      + (ctx ? '<span class="mcx-chip"><span>Season</span> <b data-user-content>' + _esc(ctx.season) + '</b></span>' : '')
+      + (ctx && ctx.round != null ? '<span class="mcx-chip">Round <b>' + ctx.round + '</b></span>' : '')
+      + '<span class="mcx-chip mcx-chip--' + status.toLowerCase().replace(/\s+/g, '') + '">' + status + '</span>'
+      + (when ? '<span class="mcx-chip mcx-chip--when">' + _esc(when) + '</span>' : '')
+      + '  </div>'
+      + '</div>'
+      + '<div class="mcx-fixture">'
       + sideBlock(homeName, homeCrest, 'home', home)
-      + '<div class="mcx-hero-mid">'
-      + '  <div class="mcx-hero-score">' + (played ? (next.homeScore + ' – ' + next.awayScore) : 'VS') + '</div>'
-      + (when ? '<div class="mcx-hero-when">' + _esc(when) + '</div>' : '')
-      + (next && next.venue ? '<div class="mcx-hero-venue" data-user-content>' + _esc(next.venue) + '</div>' : '')
+      + '<div class="mcx-vs">'
+      + '  <div class="mcx-vs-score">' + (played ? (next.homeScore + ' – ' + next.awayScore) : 'VS') + '</div>'
+      + (next && next.venue ? '<div class="mcx-vs-sub" data-user-content>' + _esc(next.venue) + '</div>' : '')
       + (next && (next.formationHome || next.formationAway)
-          ? '<div class="mcx-hero-form2">' + _esc(next.formationHome || '—') + ' <span>v</span> ' + _esc(next.formationAway || '—') + '</div>' : '')
+          ? '<div class="mcx-vs-sub">' + _esc(next.formationHome || '—') + ' <span>v</span> ' + _esc(next.formationAway || '—') + '</div>' : '')
       + '</div>'
       + sideBlock(awayName, awayCrest, 'away', away)
-      + '</section>';
+      + '</div>'
+      + '</header>';
 
-    // ── tabs ─────────────────────────────────────────────────────────────────
-    var tabs = '<nav class="mcx-tabs" role="tablist">'
+    // ── the rail, and the one section it selects ─────────────────────────────
+    var rail = '<nav class="mcx-rail" role="tablist">'
       + _MC_TABS.map(function (t) {
           return '<button class="mcx-tab' + (_MC.tab === t.id ? ' is-on' : '') + '" role="tab"'
             + ' aria-selected="' + (_MC.tab === t.id ? 'true' : 'false') + '"'
@@ -15246,13 +15255,13 @@ function renderMatchCenter() {
         }).join('')
       + '</nav>';
 
-    var body = _MC.tab === 'preparation' ? _mcPreparationHtml(focus, home, away)
+    var body = _MC.tab === 'preparation' ? _mcPreparationHtml(focus, home, away, next)
       : _MC.tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
       : _MC.tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
-      : _mcOverviewHtml(focus, home, away, homeName, awayName);
+      : _mcOverviewHtml(focus, home, away, homeName, awayName, next);
 
-    el.innerHTML = '<div class="mcx">' + crumb + title + hero + tabs
-      + '<div class="mcx-body">' + body + '</div></div>';
+    el.innerHTML = '<div class="mcx">' + crumb + head + rail
+      + '<div class="mcx-desk" id="mcx-desk">' + body + '</div></div>';
 
     _mcPaintComputed(el);
     if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(el); } catch (_) {} }
@@ -15267,16 +15276,28 @@ function renderMatchCenter() {
   }
 }
 
+// A panel inside the desk: its own header, its own scrollbar. Nothing in the
+// workspace grows the page — a panel that runs out of room scrolls itself.
+function _mcPanel(title, sub, inner, cls) {
+  return '<section class="mcx-panel' + (cls ? ' ' + cls : '') + '">'
+    + '<div class="mcx-panel-h"><h2>' + title + '</h2>' + (sub ? '<span class="mcx-panel-s">' + sub + '</span>' : '') + '</div>'
+    + '<div class="mcx-panel-b">' + inner + '</div>'
+    + '</section>';
+}
+
 // ── OVERVIEW ────────────────────────────────────────────────────────────────
 
-function _mcOverviewHtml(focus, home, away, homeName, awayName) {
+function _mcOverviewHtml(focus, home, away, homeName, awayName, next) {
   var hs = home.standing, as = away.standing;
-  var out = '';
+  var per = function (v, p) { return p ? Math.round((v / p) * 100) / 100 : 0; };
 
   // Team against team, from the table the engine wrote.
-  if (hs && as) {
-    var per = function (v, p) { return p ? Math.round((v / p) * 100) / 100 : 0; };
-    var rows = ''
+  var cmp = (hs && as)
+    ? '<div class="mcx-cmp-head">'
+      + '  <span data-user-content>' + _esc(homeName) + '</span>'
+      + '  <span class="mcx-cmp-vs">v</span>'
+      + '  <span data-user-content>' + _esc(awayName) + '</span>'
+      + '</div>'
       + _mcCompare('Points', hs.points, as.points)
       + _mcCompare('League position', hs.position, as.position)
       + _mcCompare('Matches played', hs.played, as.played)
@@ -15286,23 +15307,9 @@ function _mcOverviewHtml(focus, home, away, homeName, awayName) {
       + _mcCompare('Goals scored', hs.goalsFor, as.goalsFor)
       + _mcCompare('Goals conceded', hs.goalsAgainst, as.goalsAgainst)
       + _mcCompare('Goals per match', per(hs.goalsFor, hs.played), per(as.goalsFor, as.played))
-      + _mcCompare('Conceded per match', per(hs.goalsAgainst, hs.played), per(as.goalsAgainst, as.played));
-    out += '<section class="mcx-card mcx-card--cmp">'
-      + '<div class="mcx-card-h"><h2>Team comparison</h2><span class="mcx-card-s">This season in the league</span></div>'
-      + '<div class="mcx-cmp-head">'
-      + '  <span data-user-content>' + _esc(homeName) + '</span>'
-      + '  <span class="mcx-cmp-vs">v</span>'
-      + '  <span data-user-content>' + _esc(awayName) + '</span>'
-      + '</div>'
-      + rows
-      + '</section>';
-  } else {
-    out += '<section class="mcx-card">'
-      + '<div class="mcx-card-h"><h2>Team comparison</h2></div>'
-      + _mcEmptyPanel('No league record for these teams yet',
-          'The comparison fills in once both sides have a place in the table.')
-      + '</section>';
-  }
+      + _mcCompare('Conceded per match', per(hs.goalsAgainst, hs.played), per(as.goalsAgainst, as.played))
+    : _mcEmptyPanel('No league record for these teams yet',
+        'The comparison fills in once both sides have a place in the table.');
 
   // Squad strength by line — the ratings the clubs record, averaged.
   var lineAvg = function (squad, line) {
@@ -15315,12 +15322,26 @@ function _mcOverviewHtml(focus, home, away, homeName, awayName) {
   var mid = _mcCompare('Midfield', lineAvg(home.squad, 'MID'), lineAvg(away.squad, 'MID'));
   var def = _mcCompare('Defence', lineAvg(home.squad, 'DEF'), lineAvg(away.squad, 'DEF'));
   var gk = _mcCompare('Goalkeeping', lineAvg(home.squad, 'GK'), lineAvg(away.squad, 'GK'));
-  out += '<section class="mcx-card mcx-card--cmp">'
-    + '<div class="mcx-card-h"><h2>Squad strength</h2><span class="mcx-card-s">Average rating by line</span></div>'
-    + (attack || mid || def || gk
-        ? attack + mid + def + gk
-        : _mcEmptyPanel('No squad ratings recorded', 'The clubs have not rated these players.'))
-    + '</section>';
+  var strength = (attack || mid || def || gk)
+    ? attack + mid + def + gk
+    : _mcEmptyPanel('No squad ratings recorded', 'The clubs have not rated these players.');
+
+  // Form, availability and the shape each side is likely to take.
+  var stateRow = function (side, name, data) {
+    var av = _mcAvailability(data.squad);
+    var likely = _mcLikelyXI(data.squad);
+    var recorded = next && (side === 'home' ? next.formationHome : next.formationAway);
+    return '<div class="mcx-state">'
+      + '<div class="mcx-state-team"><span class="mcx-state-side">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
+      + '<b data-user-content>' + _esc(name) + '</b></div>'
+      + '<div class="mcx-state-grid">'
+      + _mcStat('Recent form', data.standing ? _mcFormPills(data.standing.form) : null)
+      + _mcStat('Squad available', av.total ? av.available : null, av.total ? 'of ' + av.total : '')
+      + _mcStat('Likely formation', likely.xi.length ? likely.shape : null)
+      + (recorded ? _mcStat('Recorded formation', _esc(String(recorded))) : '')
+      + '</div>'
+      + '</div>';
+  };
 
   // Key players, by the figures the clubs keep.
   var keyCard = function (side, name) {
@@ -15340,35 +15361,44 @@ function _mcOverviewHtml(focus, home, away, homeName, awayName) {
       + '</div>';
   };
   var keys = keyCard(home, homeName) + keyCard(away, awayName);
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Key players</h2><span class="mcx-card-s">From each club\'s own record</span></div>'
-    + (keys ? '<div class="mcx-key-grid">' + keys + '</div>'
-            : _mcEmptyPanel('No player ratings recorded', 'Key players appear once the clubs rate their squads.'))
-    + '</section>';
 
-  return out;
+  return '<div class="mcx-cols mcx-cols--3">'
+    + '<div class="mcx-col">'
+    + _mcPanel('Team comparison', 'This season in the league', cmp)
+    + '</div>'
+    + '<div class="mcx-col">'
+    + _mcPanel('Squad strength', 'Average rating by line', strength)
+    + _mcPanel('Form and shape', 'What each side brings', stateRow('home', homeName, home) + stateRow('away', awayName, away))
+    + '</div>'
+    + '<div class="mcx-col">'
+    + _mcPanel('Key players', 'From each club\'s own record',
+        keys ? '<div class="mcx-key-grid">' + keys + '</div>'
+             : _mcEmptyPanel('No player ratings recorded', 'Key players appear once the clubs rate their squads.'))
+    + '</div>'
+    + '</div>';
 }
 
 // ── PREPARATION ─────────────────────────────────────────────────────────────
 
-function _mcPreparationHtml(focus, home, away) {
+function _mcPreparationHtml(focus, home, away, next) {
   // Our own side. In a league match that is whichever team belongs to the club
   // the reader is in; otherwise it is the club's own squad.
   var ours = home.isOurs ? home : away.isOurs ? away : (focus ? home : (home.squad.length ? home : away));
-  var squad = ours.squad;
-  if (!squad.length) {
-    return '<section class="mcx-card">'
-      + '<div class="mcx-card-h"><h2>Preparation</h2></div>'
-      + _mcEmptyPanel('No squad recorded for this team', 'Preparation reads the club\'s own player records.')
-      + '</section>';
+  var side = ours === away ? 'away' : 'home';
+  if (!ours.squad.length) {
+    return '<div class="mcx-cols mcx-cols--1"><div class="mcx-col">'
+      + _mcPanel('Preparation', '',
+          _mcEmptyPanel('No squad recorded for this team', 'Preparation reads the club\'s own player records.'))
+      + '</div></div>';
   }
 
-  var av = _mcAvailability(squad);
-  var likely = _mcLikelyXI(squad);
-  var fitness = _mcAverage(squad, 'form');
-  var rating = _mcAverage(squad, 'overallRating');
-  var morale = _mcMorale(squad);
+  var av = _mcAvailability(ours.squad);
+  var likely = _mcLikelyXI(ours.squad);
+  var fitness = _mcAverage(ours.squad, 'form');
+  var rating = _mcAverage(ours.squad, 'overallRating');
+  var morale = _mcMorale(ours.squad);
   var xiReady = likely.xi.length >= 11;
+  var recorded = next && (side === 'home' ? next.formationHome : next.formationAway);
 
   var readyRow = function (label, ok, detail) {
     return '<div class="mcx-ready ' + (ok === null ? 'is-none' : ok ? 'is-ok' : 'is-no') + '">'
@@ -15378,10 +15408,7 @@ function _mcPreparationHtml(focus, home, away) {
       + '</div>';
   };
 
-  return ''
-    + '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Readiness</h2><span class="mcx-card-s">From the club\'s own squad record</span></div>'
-    + '<div class="mcx-ready-grid">'
+  var readiness = '<div class="mcx-ready-grid">'
     + readyRow('Starting XI complete', xiReady, likely.xi.length + ' of 11 available')
     + readyRow('Formation', likely.xi.length ? true : null, likely.shape)
     + readyRow('Injuries', av.injured === 0, av.injured + ' injured')
@@ -15390,35 +15417,37 @@ function _mcPreparationHtml(focus, home, away) {
     + readyRow('Squad available', av.available >= 11, av.available + ' of ' + av.total)
     + readyRow('Match sharpness', fitness == null ? null : fitness >= 6, fitness == null ? 'Not recorded' : fitness + ' average form')
     + readyRow('Morale', morale == null ? null : morale !== 'Poor', morale || 'Not recorded')
-    + '</div>'
-    + '</section>'
+    + readyRow('Tactical readiness', recorded ? true : null, recorded ? String(recorded) : 'Not recorded')
+    + '</div>';
 
-    + '<section class="mcx-card mcx-card--tall">'
-    + '<div class="mcx-card-h"><h2>Expected lineup</h2><span class="mcx-card-s">Strongest available by rating</span></div>'
-    + _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) })
-    + '</section>'
-
-    + '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Squad numbers</h2></div>'
-    + '<div class="mcx-stats">'
+  var numbers = '<div class="mcx-stats">'
     + _mcStat('Available', av.available, 'of ' + av.total)
     + _mcStat('Injured', av.injured)
     + _mcStat('Suspended', av.suspended)
     + _mcStat('Recovering', av.recovering)
     + _mcStat('Average rating', rating)
     + _mcStat('Average form', fitness)
-    + '</div>'
-    + '</section>'
+    + '</div>';
 
-    + '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Prepare</h2><span class="mcx-card-s">Opens the module that owns it</span></div>'
-    + '<div class="mcx-actions">'
+  return '<div class="mcx-cols mcx-cols--split">'
+    + '<div class="mcx-col">'
+    + _mcPanel('Readiness', 'From the club\'s own squad record', readiness)
+    + _mcPanel('Squad numbers', '', numbers)
+    + '</div>'
+    + '<div class="mcx-col mcx-col--pitch">'
+    + _mcPanel('Expected lineup', 'Strongest available by rating',
+        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) }),
+        'mcx-panel--pitch')
+    + '</div>'
+    + '<div class="mcx-dock">'
+    + '<span class="mcx-dock-l">Prepare</span>'
     + '<button class="mcx-act" type="button" data-action="navTo" data-page="squad">Open Squad</button>'
     + '<button class="mcx-act" type="button" data-action="navTo" data-page="training">Open Training</button>'
     + '<button class="mcx-act" type="button" data-action="mcTactics">Open Tactics</button>'
     + '<button class="mcx-act" type="button" data-action="mcSetPieces">Open Set Pieces</button>'
+    + '<span class="mcx-dock-s">Opens the module that owns it</span>'
     + '</div>'
-    + '</section>';
+    + '</div>';
 }
 
 // ── OPPONENT ────────────────────────────────────────────────────────────────
@@ -15426,11 +15455,11 @@ function _mcPreparationHtml(focus, home, away) {
 function _mcOpponentHtml(focus, home, away) {
   var opp = home.isOurs ? away : away.isOurs ? home : (focus ? away : null);
   if (!opp || (!opp.identity && !opp.squad.length)) {
-    return '<section class="mcx-card">'
-      + '<div class="mcx-card-h"><h2>Opponent</h2></div>'
-      + _mcEmptyPanel('No opponent record',
-          'This fixture names its opponent as text. A league opponent is a club the platform knows, and its record appears here.')
-      + '</section>';
+    return '<div class="mcx-cols mcx-cols--1"><div class="mcx-col">'
+      + _mcPanel('Opponent', '',
+          _mcEmptyPanel('No opponent record',
+            'This fixture names its opponent as text. A league opponent is a club the platform knows, and its record appears here.'))
+      + '</div></div>';
   }
 
   var st = opp.standing;
@@ -15438,13 +15467,27 @@ function _mcOpponentHtml(focus, home, away) {
   var likely = _mcLikelyXI(opp.squad);
   var best = _mcTopBy(opp.squad, 'overallRating');
   var form = _mcTopBy(opp.squad, 'form');
+  // A top scorer with no goals is not a top scorer — the row stays off
+  // rather than naming somebody for a zero.
+  var scorer = _mcTopBy(opp.squad, 'goals');
+  if (scorer && !(scorer.goals > 0)) scorer = null;
   var per = function (v, p) { return p ? Math.round((v / p) * 100) / 100 : null; };
+  var oppName = (opp.identity && (opp.identity.clubName || opp.identity.teamName)) || '';
 
-  var out = '<section class="mcx-card mcx-card--opp">'
-    + '<div class="mcx-opp-head">'
-    + '  <div class="mcx-opp-crest">' + (opp.identity ? (function () { try { return _clubCrestUrl(opp.identity.clubId) ? clubLogoHtml(opp.identity.clubId, { size: 52, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; } })() : '') + '</div>'
-    + '  <div>'
-    + '    <div class="mcx-opp-name" data-user-content>' + _esc((opp.identity && (opp.identity.clubName || opp.identity.teamName)) || '') + '</div>'
+  var crestHtml = opp.identity
+    ? (function () { try { return _clubCrestUrl(opp.identity.clubId) ? clubLogoHtml(opp.identity.clubId, { size: 44, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; } })()
+    : '';
+  if (!crestHtml) {
+    // No crest on file: the club's initials, the same mark the header uses.
+    var oi = String(oppName).split(/\s+/).filter(Boolean).slice(0, 2)
+      .map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '—';
+    crestHtml = '<span class="mcx-side-noc" data-user-content>' + _esc(oi) + '</span>';
+  }
+
+  var identity = '<div class="mcx-opp-head">'
+    + '  <div class="mcx-opp-crest">' + crestHtml + '</div>'
+    + '  <div class="mcx-opp-id">'
+    + '    <div class="mcx-opp-name" data-user-content>' + _esc(oppName) + '</div>'
     + '    <div class="mcx-opp-sub">'
     + (opp.identity && opp.identity.teamName ? '<span data-user-content>' + _esc(opp.identity.teamName) + '</span>' : '')
     + (opp.coach ? ' · <span>Head coach</span> <span data-user-content>' + _esc(opp.coach) + '</span>' : '')
@@ -15452,49 +15495,53 @@ function _mcOpponentHtml(focus, home, away) {
     + '  </div>'
     + (st ? '<div class="mcx-opp-pos">' + st.position + '<span>in the table</span></div>' : '')
     + '</div>'
-    + '</section>';
+    + '<div class="mcx-stats">'
+    + _mcStat('Squad available', av.total ? av.available : null, av.total ? 'of ' + av.total : '')
+    + _mcStat('Likely formation', likely.xi.length ? likely.shape : null)
+    + _mcStat('Average rating', _mcAverage(opp.squad, 'overallRating'))
+    + '</div>';
 
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>League record</h2></div>'
-    + (st
-      ? '<div class="mcx-stats">'
-        + _mcStat('Played', st.played)
-        + _mcStat('Won', st.won)
-        + _mcStat('Drawn', st.drawn)
-        + _mcStat('Lost', st.lost)
-        + _mcStat('Goals scored', st.goalsFor, per(st.goalsFor, st.played) == null ? '' : per(st.goalsFor, st.played) + ' per match')
-        + _mcStat('Goals conceded', st.goalsAgainst, per(st.goalsAgainst, st.played) == null ? '' : per(st.goalsAgainst, st.played) + ' per match')
-        + _mcStat('Points', st.points)
-        + _mcStat('Recent form', _mcFormPills(st.form))
-        + '</div>'
-      : _mcEmptyPanel('No league record yet', 'This team has not played a league match this season.'))
-    + '</section>';
+  var record = st
+    ? '<div class="mcx-stats">'
+      + _mcStat('Played', st.played)
+      + _mcStat('Won', st.won)
+      + _mcStat('Drawn', st.drawn)
+      + _mcStat('Lost', st.lost)
+      + _mcStat('Goals scored', st.goalsFor, per(st.goalsFor, st.played) == null ? '' : per(st.goalsFor, st.played) + ' per match')
+      + _mcStat('Goals conceded', st.goalsAgainst, per(st.goalsAgainst, st.played) == null ? '' : per(st.goalsAgainst, st.played) + ' per match')
+      + _mcStat('Points', st.points)
+      + _mcStat('Recent form', _mcFormPills(st.form))
+      + '</div>'
+    : _mcEmptyPanel('No league record yet', 'This team has not played a league match this season.');
 
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Dangerous players</h2><span class="mcx-card-s">From the club\'s own record</span></div>'
-    + ((best || form)
-      ? '<div class="mcx-danger">'
-        + (best ? '<div class="mcx-danger-row" data-action="openPlayerModal" data-player-id="' + _esc(best.playerId) + '">'
-            + '<span class="mcx-danger-l">Highest rated</span>'
-            + '<span class="mcx-danger-n" data-user-content>' + _esc(best.name) + '</span>'
-            + '<span class="mcx-danger-m">' + _esc(best.position || '') + '</span>'
-            + '<span class="mcx-danger-v">' + best.overallRating + '</span></div>' : '')
-        + (form ? '<div class="mcx-danger-row" data-action="openPlayerModal" data-player-id="' + _esc(form.playerId) + '">'
-            + '<span class="mcx-danger-l">Best form</span>'
-            + '<span class="mcx-danger-n" data-user-content>' + _esc(form.name) + '</span>'
-            + '<span class="mcx-danger-m">' + _esc(form.position || '') + '</span>'
-            + '<span class="mcx-danger-v">' + form.form + '</span></div>' : '')
-        + '</div>'
-      : _mcEmptyPanel('No player ratings recorded', 'This club has not rated its squad.'))
-    + '</section>';
+  var dangerRow = function (label, p, key, suffix) {
+    if (!p) return '';
+    return '<div class="mcx-danger-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+      + '<span class="mcx-danger-l">' + label + '</span>'
+      + '<span class="mcx-danger-n" data-user-content>' + _esc(p.name) + '</span>'
+      + '<span class="mcx-danger-m">' + _esc(p.position || '') + '</span>'
+      + '<span class="mcx-danger-v">' + p[key] + (suffix || '') + '</span></div>';
+  };
+  var danger = (best || form || scorer)
+    ? '<div class="mcx-danger">'
+      + dangerRow('Highest rated', best, 'overallRating')
+      + dangerRow('Best form', form, 'form')
+      + dangerRow('Best scorer', scorer, 'goals')
+      + '</div>'
+    : _mcEmptyPanel('No player ratings recorded', 'This club has not rated its squad.');
 
-    out += '<section class="mcx-card mcx-card--wide">'
-    + '<div class="mcx-card-h"><h2>Likely XI</h2><span class="mcx-card-s">'
-    + av.available + ' available of ' + av.total + '</span></div>'
-    + _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) })
-    + '</section>';
-
-  return out;
+  return '<div class="mcx-cols mcx-cols--split">'
+    + '<div class="mcx-col">'
+    + _mcPanel('Opponent', 'From the club\'s own record', identity)
+    + _mcPanel('League record', '', record)
+    + _mcPanel('Dangerous players', 'From the club\'s own record', danger)
+    + '</div>'
+    + '<div class="mcx-col mcx-col--pitch">'
+    + _mcPanel('Likely XI', av.available + ' available of ' + av.total,
+        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) }),
+        'mcx-panel--pitch')
+    + '</div>'
+    + '</div>';
 }
 
 // ── MATCH FEED ──────────────────────────────────────────────────────────────
@@ -15511,31 +15558,31 @@ function _mcFeedHtml(focus, next, played, home, away) {
   var live = next && (next.status === 'LIVE' || next.status === 'HALFTIME');
 
   if (!played && !live && !events.length) {
-    // Nothing has happened yet, so the feed says so — and fills the space with
-    // the one thing that is known about a match not yet played: when and where.
+    // Nothing has happened yet. One clean state, and beside it the only thing
+    // that is known about a match not yet played: when and where.
     var ctx = focus && focus.context ? focus.context : null;
     var kick = next && next.scheduledAt
       ? new Date(next.scheduledAt).toLocaleString(_mcLocale(),
           { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : null;
-    var card = ''
+    var fixture = '<div class="mcx-stats mcx-stats--wide">'
       + (ctx ? _mcStat('Competition', '<span data-user-content>' + _esc(ctx.name) + '</span>') : '')
       + (ctx ? _mcStat('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
       + (ctx && ctx.round != null ? _mcStat('Round', ctx.round) : '')
       + _mcStat('Kick-off', kick ? _esc(kick) : null)
       + (next && next.venue ? _mcStat('Venue', '<span data-user-content>' + _esc(next.venue) + '</span>') : '')
-      + _mcStat('Status', 'Not played');
-    return '<section class="mcx-card mcx-card--wide">'
-      + '<div class="mcx-card-h"><h2>Match feed</h2><span class="mcx-card-s">Goals, cards and substitutions, as they are recorded</span></div>'
-      + _mcEmptyPanel('No match events yet', 'The feed fills in as the match is played.')
-      + '</section>'
-      + '<section class="mcx-card mcx-card--wide">'
-      + '<div class="mcx-card-h"><h2>Fixture</h2><span class="mcx-card-s">From the league schedule</span></div>'
-      + '<div class="mcx-stats">' + card + '</div>'
-      + '</section>';
+      + _mcStat('Status', 'Not played')
+      + '</div>';
+    return '<div class="mcx-cols mcx-cols--split">'
+      + '<div class="mcx-col mcx-col--centre">'
+      + _mcPanel('Match feed', 'Goals, cards and substitutions, as they are recorded',
+          _mcEmptyPanel('No match events yet', 'The feed fills in as the match is played.'), 'mcx-panel--fill')
+      + '</div>'
+      + '<div class="mcx-col">'
+      + _mcPanel('Fixture', 'From the league schedule', fixture)
+      + '</div>'
+      + '</div>';
   }
-
-  var out = '';
 
   // Statistics the Match Centre recorded for the match itself.
   var stats = '';
@@ -15549,47 +15596,44 @@ function _mcFeedHtml(focus, next, played, home, away) {
       + (next.yellowCards != null ? _mcStat('Yellow cards', next.yellowCards) : '')
       + (next.redCards != null ? _mcStat('Red cards', next.redCards) : '');
   }
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Match statistics</h2></div>'
-    + (stats ? '<div class="mcx-stats">' + stats + '</div>'
-             : _mcEmptyPanel('No match statistics recorded', 'These appear when the match is recorded in the Match Center.'))
-    + '</section>';
 
-  // The timeline, from the events that were recorded.
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Timeline</h2><span class="mcx-card-s">' + events.length + ' <span>events</span></span></div>'
-    + (events.length
-      ? '<ol class="mcx-tl">' + events.slice().sort(function (a, b) { return (a.minute || 0) - (b.minute || 0); }).map(function (e) {
-          var kind = String(e.kind || '').toUpperCase();
-          return '<li class="mcx-tl-i mcx-tl-i--' + kind.toLowerCase() + '">'
-            + '<span class="mcx-tl-min">' + (e.minute || 0) + '\'</span>'
-            + '<span class="mcx-tl-ic">' + _mcEventIcon(kind) + '</span>'
-            + '<span class="mcx-tl-k">' + (_MC_EVENT_LABEL[kind] || _esc(kind.replace(/_/g, ' '))) + '</span>'
-            + (e.player ? '<span class="mcx-tl-p" data-user-content>' + _esc(e.player) + '</span>' : '')
-            + '</li>';
-        }).join('') + '</ol>'
-      : _mcEmptyPanel('No events recorded', 'Goals, cards and substitutions appear here as they are entered.'))
-    + '</section>';
+  var timeline = events.length
+    ? '<ol class="mcx-tl">' + events.slice().sort(function (a, b) { return (a.minute || 0) - (b.minute || 0); }).map(function (e) {
+        var kind = String(e.kind || '').toUpperCase();
+        return '<li class="mcx-tl-i mcx-tl-i--' + kind.toLowerCase() + '">'
+          + '<span class="mcx-tl-min">' + (e.minute || 0) + '\'</span>'
+          + '<span class="mcx-tl-ic">' + _mcEventIcon(kind) + '</span>'
+          + '<span class="mcx-tl-k">' + (_MC_EVENT_LABEL[kind] || _esc(kind.replace(/_/g, ' '))) + '</span>'
+          + (e.player ? '<span class="mcx-tl-p" data-user-content>' + _esc(e.player) + '</span>' : '')
+          + '</li>';
+      }).join('') + '</ol>'
+    : _mcEmptyPanel('No events recorded', 'Goals, cards and substitutions appear here as they are entered.');
 
-  // Player statistics, as the aggregation computed them.
-  out += '<section class="mcx-card">'
-    + '<div class="mcx-card-h"><h2>Player statistics</h2><span class="mcx-card-s">Goals, assists and ratings</span></div>'
-    + (players.length
-      ? '<div class="mcx-ptable"><div class="mcx-pt-head"><span>Player</span><span>Min</span><span>G</span><span>A</span><span>Shots</span><span>Rating</span></div>'
-        + players.slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); }).map(function (p) {
-            return '<div class="mcx-pt-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
-              + '<span class="mcx-pt-n" data-user-content>' + _esc(p.playerName) + '</span>'
-              + '<span>' + p.minutesPlayed + '</span>'
-              + '<span>' + p.goals + '</span>'
-              + '<span>' + p.assists + '</span>'
-              + '<span>' + p.shots + '</span>'
-              + '<span class="mcx-pt-r">' + (p.rating == null ? '—' : p.rating.toFixed(1)) + '</span>'
-              + '</div>';
-          }).join('') + '</div>'
-      : _mcEmptyPanel('No player statistics yet', 'These are computed from the events recorded for this match.'))
-    + '</section>';
+  var table = players.length
+    ? '<div class="mcx-ptable"><div class="mcx-pt-head"><span>Player</span><span>Min</span><span>G</span><span>A</span><span>Shots</span><span>Rating</span></div>'
+      + players.slice().sort(function (a, b) { return (b.rating || 0) - (a.rating || 0); }).map(function (p) {
+          return '<div class="mcx-pt-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+            + '<span class="mcx-pt-n" data-user-content>' + _esc(p.playerName) + '</span>'
+            + '<span>' + p.minutesPlayed + '</span>'
+            + '<span>' + p.goals + '</span>'
+            + '<span>' + p.assists + '</span>'
+            + '<span>' + p.shots + '</span>'
+            + '<span class="mcx-pt-r">' + (p.rating == null ? '—' : p.rating.toFixed(1)) + '</span>'
+            + '</div>';
+        }).join('') + '</div>'
+    : _mcEmptyPanel('No player statistics yet', 'These are computed from the events recorded for this match.');
 
-  return out;
+  return '<div class="mcx-cols mcx-cols--split">'
+    + '<div class="mcx-col">'
+    + _mcPanel('Timeline', events.length + ' <span>events</span>', timeline, 'mcx-panel--fill')
+    + '</div>'
+    + '<div class="mcx-col">'
+    + _mcPanel('Match statistics', '',
+        stats ? '<div class="mcx-stats">' + stats + '</div>'
+              : _mcEmptyPanel('No match statistics recorded', 'These appear when the match is recorded in the Match Center.'))
+    + _mcPanel('Player statistics', 'Goals, assists and ratings', table)
+    + '</div>'
+    + '</div>';
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
@@ -15599,8 +15643,40 @@ document.addEventListener('click', function (ev) {
   if (!el) return;
   var act = el.getAttribute('data-action');
   if (act === 'mcTab') {
+    // The section switches inside the workspace: only the desk is redrawn, so
+    // the header, the rail and the reader's place on the page all stay put.
     var tab = el.getAttribute('data-tab');
-    if (tab && tab !== _MC.tab) { _MC.tab = tab; try { renderMatchCenter(); } catch (_) {} }
+    if (!tab || tab === _MC.tab) return;
+    _MC.tab = tab;
+    var rail = el.parentNode;
+    if (rail) {
+      var bs = rail.querySelectorAll('.mcx-tab');
+      for (var i = 0; i < bs.length; i++) {
+        var on = bs[i].getAttribute('data-tab') === tab;
+        bs[i].classList.toggle('is-on', on);
+        bs[i].setAttribute('aria-selected', on ? 'true' : 'false');
+      }
+    }
+    var desk = document.getElementById('mcx-desk');
+    if (!desk) { try { renderMatchCenter(); } catch (_) {} return; }
+    try {
+      var focus = window._MC_FOCUS || null;
+      var next = _mcNextMatch();
+      var home = _mcSideData(focus, 'home');
+      var away = _mcSideData(focus, 'away');
+      var played = !!(next && next.homeScore != null && next.awayScore != null);
+      var hn = focus ? (home.identity && (home.identity.clubName || home.identity.teamName)) || ''
+        : (next && next.homeTeam) || ((State.club && State.club.name) || '');
+      var an = focus ? (away.identity && (away.identity.clubName || away.identity.teamName)) || ''
+        : (next && next.awayTeam) || '';
+      desk.innerHTML = tab === 'preparation' ? _mcPreparationHtml(focus, home, away, next)
+        : tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
+        : tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
+        : _mcOverviewHtml(focus, home, away, hn, an, next);
+      _mcPaintComputed(desk);
+      if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(desk); } catch (_) {} }
+      try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(desk); } catch (_) {}
+    } catch (_) { try { renderMatchCenter(); } catch (__) {} }
   } else if (act === 'mcStandings') {
     try { navTo('familista-league'); } catch (_) {}
   } else if (act === 'mcTactics') {

@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Ainda não há estatísticas dos jogadores",
   "These are computed from the events recorded for this match.": "Elas são calculadas a partir dos lances registrados para esta partida.",
   "Set pieces open in Squad": "As bolas paradas abrem no Elenco",
-  "Tactics open in Squad": "A tática abre no Elenco"
+  "Tactics open in Squad": "A tática abre no Elenco",
+  "Form and shape": "Forma e esquema",
+  "What each side brings": "O que cada equipe traz",
+  "Likely formation": "Escalação provável",
+  "Recorded formation": "Esquema registrado",
+  "Tactical readiness": "Preparação tática",
+  "Not recorded": "Não registrado",
+  "\u0000 per match": "\u0000 por partida",
+  "Best scorer": "Artilheiro"
 }

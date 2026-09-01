@@ -1172,5 +1172,13 @@
   "No player statistics yet": "Henüz oyuncu istatistiği yok",
   "These are computed from the events recorded for this match.": "Bu maç için kaydedilen olaylardan hesaplanır.",
   "Set pieces open in Squad": "Duran toplar Kadro bölümünde açılır",
-  "Tactics open in Squad": "Taktik Kadro bölümünde açılır"
+  "Tactics open in Squad": "Taktik Kadro bölümünde açılır",
+  "Form and shape": "Form ve dizilis",
+  "What each side brings": "Her takımın getirdiği",
+  "Likely formation": "Muhtemel diziliş",
+  "Recorded formation": "Kayıtlı diziliş",
+  "Tactical readiness": "Taktiksel hazırlık",
+  "Not recorded": "Kayıtlı değil",
+  "\u0000 per match": "Maç başına \u0000",
+  "Best scorer": "En golcü oyuncu"
 }
