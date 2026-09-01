@@ -328,8 +328,13 @@ describe('Familista League — the Match Centre it opens', () => {
   });
 
   it('shows what was recorded, and an honest nothing when there is none', () => {
-    expect(APP).toContain('No lineup has been recorded for this match yet.');
-    expect(APP).toContain('No player statistics have been recorded for this match yet.');
+    // Every panel of the redesigned Match Center has an empty state of its own,
+    // so a match with nothing recorded says so rather than showing a zero.
+    expect(APP).toContain('No lineup available');
+    expect(APP).toContain('No player statistics yet');
+    expect(APP).toContain('No match events yet');
+    expect(APP).toContain('No match statistics recorded');
+    expect(APP).toContain('No league record for these teams yet');
     // Nothing is invented to fill the panels.
     expect(APP).not.toMatch(/Math\.random\(\)[\s\S]{0,120}focus/);
   });

@@ -104,9 +104,9 @@
     '.sqlu-id-nm', '.sqmd-card-nm', '.sqfp-name', '.sqtc-spc-nm', '.sqcw-sp-meta b',
     '.at-ident-chip b', '.ac-tcard-coach-txt b', '.at-head-txt i',
     '.cx-strip-name', '.st-card-name', '.co-staff-name', '.trn-av',
-    '.st-name', '.tf-pp-name', '.mc2-roster-name', '.mc2-bench-name',
+    '.st-name', '.tf-pp-name', '.mcx-key-name', '.mcx-danger-n', '.mcx-pt-n',
     '.at-ident-crest', '.ac-tcard-badge', '.at-head-crest', '.ac-tcard-crest',
-    '.team-club-badge', '.hf-name', '.mc2-ss-name', '.sqcc-tm-id b',
+    '.team-club-badge', '.hf-name', '.mcx-hero-name', '.mcx-opp-name', '.sqcc-tm-id b',
     // The signed-in person, and the product's own name and version.
     '.user-name', '.user-email', '#user-name', '#user-email', '.user-av',
     '.brand-name', '.brand-version', '.logo-text',

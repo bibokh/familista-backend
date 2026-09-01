@@ -412,6 +412,28 @@ export interface LeagueMatchDetail {
   }>;
   /** What analysis exists for this match — never invented, only reported. */
   analysis: { tacticalSnapshots: number; visionEvents: number; hasInsights: boolean };
+  /** Each side's league record, so the Match Centre can compare the two teams
+   *  without asking for the whole table. Null for a team with no row yet. */
+  standings: { home: LeagueStandingRow | null; away: LeagueStandingRow | null };
+  /** Each side's first-team squad, as the club records it. Availability comes
+   *  from the player's own medical status — nothing is estimated. */
+  squads: { home: LeagueSquadPlayer[]; away: LeagueSquadPlayer[] };
+  /** Whoever the club has as head coach, from membership. Null when nobody. */
+  staff: { home: string | null; away: string | null };
+}
+
+export interface LeagueSquadPlayer {
+  playerId: string;
+  name: string;
+  number: number | null;
+  position: string | null;
+  overallRating: number | null;
+  /** The Squad screen's 1–10 figure, when the club keeps one. */
+  form: number | null;
+  morale: string | null;
+  isInjured: boolean;
+  /** HEALTHY | INJURED | RECOVERING | SUSPENDED | UNAVAILABLE. */
+  medicalStatus: string;
 }
 
 /**
@@ -424,6 +446,92 @@ export interface LeagueMatchDetail {
  * belongs to a platform competition, and it exposes no club's other matches,
  * squad, finances or plans.
  */
+/**
+ * Each side's squad, league record and head coach.
+ *
+ * Read from the rows the club already keeps: the players on the team, their own
+ * medical status for availability, the standings row the engine wrote, and
+ * whoever holds the head-coach membership. Nothing here is estimated, and a club
+ * that records none of it comes back empty rather than filled in.
+ */
+async function matchSides(
+  competitionId: string,
+  homeTeamId: string,
+  awayTeamId: string,
+  identities: Map<string, LeagueTeamIdentity>,
+): Promise<Pick<LeagueMatchDetail, 'standings' | 'squads' | 'staff'>> {
+  const rules = readRules((await requireLeague(competitionId)).rules);
+  const zoneFor = (position: number): LeagueZone | null =>
+    (rules.zones ?? []).find((z) => position >= z.from && position <= z.to) ?? null;
+
+  const [entries, players, coaches] = await Promise.all([
+    prisma.standingsEntry.findMany({ where: { competitionId, teamId: { in: [homeTeamId, awayTeamId] } } }),
+    prisma.player.findMany({
+      where: { teamId: { in: [homeTeamId, awayTeamId] } },
+      select: {
+        id: true, firstName: true, lastName: true, number: true, position: true,
+        overallRating: true, form: true, morale: true, isInjured: true,
+        medicalStatus: true, teamId: true,
+      },
+      orderBy: [{ number: 'asc' }],
+    }),
+    prisma.membership.findMany({
+      where: {
+        role: 'HEAD_COACH',
+        isActive: true,
+        clubId: { in: [identities.get(homeTeamId)?.clubId, identities.get(awayTeamId)?.clubId].filter((c): c is string => !!c) },
+      },
+      select: { clubId: true, user: { select: { firstName: true, lastName: true } } },
+    }),
+  ]);
+
+  const standingRow = (teamId: string): LeagueStandingRow | null => {
+    const e = entries.find((x) => x.teamId === teamId);
+    if (!e) return null;
+    const id = identities.get(teamId);
+    return {
+      teamId: e.teamId,
+      teamName: id?.teamName ?? '',
+      clubId: id?.clubId ?? '',
+      clubName: id?.clubName ?? '',
+      crestUrl: id?.crestUrl ?? null,
+      shortName: id?.shortName ?? null,
+      position: e.position,
+      played: e.played, won: e.won, drawn: e.drawn, lost: e.lost,
+      goalsFor: e.goalsFor, goalsAgainst: e.goalsAgainst, goalDiff: e.goalDiff, points: e.points,
+      form: (e.form || '').split('').filter((c) => c === 'W' || c === 'D' || c === 'L'),
+      zone: zoneFor(e.position),
+    };
+  };
+
+  const squadOf = (teamId: string): LeagueSquadPlayer[] =>
+    players.filter((p) => p.teamId === teamId).map((p) => ({
+      playerId: p.id,
+      name: `${p.firstName} ${p.lastName}`.trim(),
+      number: p.number ?? null,
+      position: p.position ?? null,
+      overallRating: p.overallRating ?? null,
+      form: p.form ?? null,
+      morale: p.morale ?? null,
+      isInjured: p.isInjured,
+      medicalStatus: p.medicalStatus,
+    }));
+
+  const coachOf = (teamId: string): string | null => {
+    const clubId = identities.get(teamId)?.clubId;
+    const m = clubId ? coaches.find((c) => c.clubId === clubId) : undefined;
+    if (!m?.user) return null;
+    const name = `${m.user.firstName ?? ''} ${m.user.lastName ?? ''}`.trim();
+    return name || null;
+  };
+
+  return {
+    standings: { home: standingRow(homeTeamId), away: standingRow(awayTeamId) },
+    squads: { home: squadOf(homeTeamId), away: squadOf(awayTeamId) },
+    staff: { home: coachOf(homeTeamId), away: coachOf(awayTeamId) },
+  };
+}
+
 export async function getMatchDetail(competitionId: string, fixtureId: string): Promise<LeagueMatchDetail> {
   const comp = await requireLeague(competitionId);
 
@@ -455,10 +563,13 @@ export async function getMatchDetail(competitionId: string, fixtureId: string): 
     matchId: fixture.matchId ?? null,
   };
 
+  const sides = await matchSides(competitionId, fixture.homeTeamId, fixture.awayTeamId, identities);
+
   const empty: LeagueMatchDetail = {
     context, home: row.home, away: row.away, fixture: row, match: null,
     lineups: [], timeline: [], players: [],
     analysis: { tacticalSnapshots: 0, visionEvents: 0, hasInsights: false },
+    ...sides,
   };
   if (!fixture.matchId) return empty;
 
@@ -553,6 +664,7 @@ export async function getMatchDetail(competitionId: string, fixtureId: string): 
       visionEvents,
       hasInsights: !!match.aiInsights,
     },
+    ...sides,
   };
 }
 

@@ -206,15 +206,18 @@ describe('teams inherit the club crest; they do not own one', () => {
 
 describe('an opponent never wears the reader\'s crest', () => {
   it('the fixture draws each side from its own club id', () => {
-    const mc = APP.slice(APP.indexOf('var ourCrest'), APP.indexOf('var ourCrest') + 700);
-    expect(mc).toContain('_clubCrestUrl(clubId)');
-    expect(mc).toContain('_clubCrestUrl(oppClubId)');
-    // The opponent id is settled where it is read, above this block: a fixture
-    // that records our own club on both sides yields no opponent crest rather
-    // than ours twice.
-    expect(APP).toContain('if (oppClubId === clubId) oppClubId = null;');
-    // The old form — our crest chosen by which side we are on — is gone.
+    // A league match knows both clubs, so each side is drawn from its own id.
+    const mc = APP.slice(APP.indexOf('var homeCrest = focus'), APP.indexOf('var homeCrest = focus') + 400);
+    expect(mc).toContain('crest(focus.next.homeClubId');
+    expect(mc).toContain('crest(focus.next.awayClubId');
+    // A club's own fixture knows only one club — ours — and it is drawn on the
+    // side we are actually on. The other side gets nothing rather than ours.
+    expect(mc).toMatch(/homeCrest[\s\S]{0,120}isHome \? crest\(_famActiveClubId\(\), 56\) : ''/);
+    expect(mc).toMatch(/awayCrest[\s\S]{0,120}!isHome \? crest\(_famActiveClubId\(\), 56\) : ''/);
+    // The old forms — our crest chosen by which side we are on, and an
+    // opponent id that could still be ours — are gone.
     expect(APP).not.toContain('var awayEmblemHTML = clubEmblem && !isHome');
+    expect(APP).not.toContain('var ourCrest');
   });
 });
 
