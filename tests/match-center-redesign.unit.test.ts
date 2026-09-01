@@ -125,10 +125,15 @@ describe('every figure comes from a record, or the panel says there is none', ()
   });
 
   it('a comparison row with one side missing is not drawn at all', () => {
-    const fn = APP.slice(APP.indexOf('function _mcCompare'), APP.indexOf('var _MC_POS_LINE'));
-    expect(codeOnly(fn)).toContain("if (a == null || b == null) return '';");
+    // The rule lives once, in the primitive the League and the Match Center
+    // both draw comparisons with.
+    const fn = APP.slice(APP.indexOf('function _lgVersus'), APP.indexOf('function _lgVersus') + 1600);
+    expect(codeOnly(fn)).toContain("if (a == null && b == null && !o.showUnavailable) return '';");
+    expect(codeOnly(fn)).toContain('var known = a != null && b != null;');
     // And two nothings do not make a lead.
-    expect(codeOnly(fn)).toContain('var flat = (a === 0 && b === 0);');
+    expect(codeOnly(fn)).toContain('var flat = known && a === 0 && b === 0;');
+    // The Match Center's own helper is that primitive, not a second copy.
+    expect(APP).toContain('function _mcCompare(label, a, b, fmt) {\n  return _lgVersus(label, a, b, { fmt: fmt });');
   });
 
   it('every panel has an empty state of its own', () => {
@@ -175,7 +180,9 @@ describe('the pitch draws real players', () => {
     expect(PITCH).toContain('class="mcp-name"');
     expect(PITCH).toContain('class="mcp-pos"');
     expect(PITCH).toContain('class="mcp-badge"');
-    expect(PITCH).toContain('data-action="openPlayerModal"');
+    // A token opens the comparison when there is an opponent to compare with,
+    // and the canonical player record when there is not.
+    expect(PITCH).toContain("o.compare ? 'mcCompare' : 'openPlayerModal'");
     expect(PITCH).toContain('p.playerId');
   });
 
@@ -315,8 +322,15 @@ describe('one workspace, not a document', () => {
   });
 
   it('a short or narrow viewport gets its height back rather than squeezing', () => {
-    const esc = CSS.slice(CSS.indexOf('@media (max-width:980px), (max-height:620px)'));
-    expect(esc.slice(0, 600)).toMatch(/#pg-match-center\.active\{[^}]*height:auto[^}]*overflow:visible/);
+    // Both competition workspaces carry the same escape hatch.
+    for (const id of ['#pg-match-center', '#pg-familista-league']) {
+      const at = CSS.indexOf(id + '.active{ height:auto');
+      expect(at).toBeGreaterThan(-1);
+      expect(CSS.slice(at, at + 120)).toMatch(/height:auto[^}]*overflow:visible/);
+      // …and it is inside a media query, not the base rule.
+      const q = CSS.lastIndexOf('@media', at);
+      expect(CSS.slice(q, q + 60)).toMatch(/max-width:980px|max-height:620px/);
+    }
   });
 
   it('every section lays its panels out in columns rather than stacking them', () => {
@@ -332,10 +346,11 @@ describe('one workspace, not a document', () => {
 
   it('the pitch is one panel inside the workspace, sized to it', () => {
     expect(CSS).toMatch(/\.mcp-wrap\{[^}]*flex:1 1 auto[^}]*min-height:0/);
+    expect(CSS).toMatch(/\.lg-panel--fill, \.lg-panel--pitch\{[^}]*flex:1 1 auto/);
     expect(CSS).toMatch(/\.mcp-svg\{[^}]*flex:1 1 auto[^}]*height:100%/);
     // It letterboxes rather than cropping: eleven real players stay on it.
     expect(APP).toContain('preserveAspectRatio="xMidYMid meet"');
-    expect(MC).toContain('mcx-panel--pitch');
+    expect(MC).toContain('lg-panel--pitch');
   });
 
   it('the match header carries the fixture on one band', () => {
@@ -343,7 +358,7 @@ describe('one workspace, not a document', () => {
     expect(head).toContain('mcx-h1');
     expect(head).toContain('mcx-fixture');
     expect(head).toContain('mcx-vs-score');
-    expect(head).toContain('mcx-chip--');
+    expect(head).toContain('lg-chip lg-chip--');
     // Both sides, each drawn by the same block from its own data.
     expect(head).toContain("sideBlock(homeName, homeCrest, 'home', home)");
     expect(head).toContain("sideBlock(awayName, awayCrest, 'away', away)");

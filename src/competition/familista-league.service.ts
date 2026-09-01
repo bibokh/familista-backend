@@ -434,6 +434,9 @@ export interface LeagueSquadPlayer {
   isInjured: boolean;
   /** HEALTHY | INJURED | RECOVERING | SUSPENDED | UNAVAILABLE. */
   medicalStatus: string;
+  /** Date of birth, so a reader can be shown an age rather than a guess. */
+  dateOfBirth: string | null;
+  avatar: string | null;
   /**
    * What this player has done in THIS competition, summed from the same
    * PlayerMatchStats rows the leaderboards read. Zero means the aggregation
@@ -441,6 +444,44 @@ export interface LeagueSquadPlayer {
    */
   goals: number;
   assists: number;
+  /**
+   * The rest of that same sum, for the player-against-player comparison. Null
+   * where the player has no PlayerMatchStats row in this competition at all:
+   * a coach must be able to tell "measured nought" from "nothing recorded",
+   * and a zero in every field would say the first when the truth is the second.
+   */
+  record: LeaguePlayerRecordLine | null;
+}
+
+/**
+ * One player's competition totals, as the aggregation wrote them. Every field
+ * is a sum or an average of PlayerMatchStats rows for this competition's own
+ * fixtures — nothing here is derived, estimated or defaulted.
+ */
+export interface LeaguePlayerRecordLine {
+  appearances: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  shotsOnTarget: number;
+  keyPasses: number;
+  passes: number;
+  passesCompleted: number;
+  /** Percentage, computed from the two counts above; null with no passes. */
+  passAccuracy: number | null;
+  tackles: number;
+  interceptions: number;
+  clearances: number;
+  aerialDuels: number;
+  aerialDuelsWon: number;
+  yellowCards: number;
+  redCards: number;
+  xg: number;
+  xa: number;
+  /** Mean of the ratings that were recorded; null when none were. */
+  averageRating: number | null;
 }
 
 /**
@@ -486,7 +527,7 @@ async function matchSides(
       select: {
         id: true, firstName: true, lastName: true, number: true, position: true,
         overallRating: true, form: true, morale: true, isInjured: true,
-        medicalStatus: true, teamId: true,
+        medicalStatus: true, teamId: true, dateOfBirth: true, avatar: true,
       },
       orderBy: [{ number: 'asc' }],
     }),
@@ -498,21 +539,69 @@ async function matchSides(
       },
       select: { clubId: true, user: { select: { firstName: true, lastName: true } } },
     }),
+    // One read for both squads' whole competition, not one per player: the
+    // comparison panel is answered from what this call already carries.
     compMatchIds.length
       ? prisma.playerMatchStats.findMany({
           where: { matchId: { in: compMatchIds } },
-          select: { playerId: true, goals: true, assists: true },
+          select: {
+            playerId: true, minutesPlayed: true, isStarting: true,
+            goals: true, assists: true, shots: true, shotsOnTarget: true,
+            keyPasses: true, passes: true, passesCompleted: true,
+            tackles: true, interceptions: true, clearances: true,
+            aerialDuels: true, aerialDuelsWon: true,
+            yellowCards: true, redCards: true, xg: true, xa: true,
+            ratingFamilista: true,
+          },
         })
-      : Promise.resolve([] as { playerId: string; goals: number; assists: number }[]),
+      : Promise.resolve([]),
   ]);
 
-  const scored = new Map<string, { goals: number; assists: number }>();
+  type Tally = LeaguePlayerRecordLine & { ratingSum: number; ratingCount: number };
+  const blank = (): Tally => ({
+    appearances: 0, starts: 0, minutes: 0, goals: 0, assists: 0,
+    shots: 0, shotsOnTarget: 0, keyPasses: 0, passes: 0, passesCompleted: 0,
+    passAccuracy: null, tackles: 0, interceptions: 0, clearances: 0,
+    aerialDuels: 0, aerialDuelsWon: 0, yellowCards: 0, redCards: 0,
+    xg: 0, xa: 0, averageRating: null, ratingSum: 0, ratingCount: 0,
+  });
+  const scored = new Map<string, Tally>();
   for (const row of contributions) {
-    const at = scored.get(row.playerId) ?? { goals: 0, assists: 0 };
+    const at = scored.get(row.playerId) ?? blank();
+    at.appearances += 1;
+    if (row.isStarting) at.starts += 1;
+    at.minutes += row.minutesPlayed;
     at.goals += row.goals;
     at.assists += row.assists;
+    at.shots += row.shots;
+    at.shotsOnTarget += row.shotsOnTarget;
+    at.keyPasses += row.keyPasses;
+    at.passes += row.passes;
+    at.passesCompleted += row.passesCompleted;
+    at.tackles += row.tackles;
+    at.interceptions += row.interceptions;
+    at.clearances += row.clearances;
+    at.aerialDuels += row.aerialDuels;
+    at.aerialDuelsWon += row.aerialDuelsWon;
+    at.yellowCards += row.yellowCards;
+    at.redCards += row.redCards;
+    at.xg += row.xg;
+    at.xa += row.xa;
+    if (row.ratingFamilista != null) { at.ratingSum += row.ratingFamilista; at.ratingCount += 1; }
     scored.set(row.playerId, at);
   }
+  const recordOf = (playerId: string): LeaguePlayerRecordLine | null => {
+    const t = scored.get(playerId);
+    if (!t) return null;
+    const { ratingSum, ratingCount, ...line } = t;
+    return {
+      ...line,
+      passAccuracy: t.passes > 0 ? Math.round((t.passesCompleted / t.passes) * 1000) / 10 : null,
+      averageRating: ratingCount > 0 ? Math.round((ratingSum / ratingCount) * 100) / 100 : null,
+      xg: Math.round(t.xg * 100) / 100,
+      xa: Math.round(t.xa * 100) / 100,
+    };
+  };
 
   const standingRow = (teamId: string): LeagueStandingRow | null => {
     const e = entries.find((x) => x.teamId === teamId);
@@ -544,8 +633,11 @@ async function matchSides(
       morale: p.morale ?? null,
       isInjured: p.isInjured,
       medicalStatus: p.medicalStatus,
+      dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString() : null,
+      avatar: p.avatar ?? null,
       goals: scored.get(p.id)?.goals ?? 0,
       assists: scored.get(p.id)?.assists ?? 0,
+      record: recordOf(p.id),
     }));
 
   const coachOf = (teamId: string): string | null => {
@@ -817,6 +909,8 @@ export async function getTeamStats(competitionId: string): Promise<LeagueTeamSta
 export interface LeaderboardEntry {
   playerId: string;
   playerName: string;
+  /** The player's own position code, so a ranking reads as football. */
+  position: string | null;
   clubId: string;
   clubName: string;
   crestUrl: string | null;
@@ -836,6 +930,7 @@ export interface LeaderboardEntry {
 export interface LeaguePlayerRecord {
   playerId: string;
   playerName: string;
+  position: string | null;
   clubId: string;
   clubName: string;
   crestUrl: string | null;
@@ -962,7 +1057,7 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
   const [players, clubs] = await Promise.all([
     prisma.player.findMany({
       where: { id: { in: rows.map((r) => r.playerId) } },
-      select: { id: true, firstName: true, lastName: true },
+      select: { id: true, firstName: true, lastName: true, position: true },
     }),
     prisma.club.findMany({
       where: { id: { in: [...new Set(rows.map((r) => r.clubId))] } },
@@ -978,6 +1073,7 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
     return {
       playerId: r.playerId,
       playerName: p ? `${p.firstName} ${p.lastName}`.trim() : 'Unknown player',
+      position: p?.position ?? null,
       clubId: r.clubId,
       clubName: c?.name ?? '',
       crestUrl: c?.crestUrl ?? c?.emblem ?? null,
@@ -995,6 +1091,7 @@ export async function getLeaderboards(competitionId: string, limit = 10): Promis
     return {
       playerId: r.playerId,
       playerName: base.playerName,
+      position: base.position,
       clubId: r.clubId,
       clubName: base.clubName,
       crestUrl: base.crestUrl,

@@ -70,8 +70,12 @@ describe('Familista League — navigation', () => {
     // A player opens the canonical player record…
     expect(APP).toMatch(/act === 'flPlayer'[\s\S]{0,400}openPlayerModal\(pid\)/);
     // …and a match hands over to the Match Centre, focused on that fixture.
-    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,400}_flOpenMatch\(fid\)/);
-    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,900}navTo\('match-center'\)/);
+    expect(APP).toMatch(/act === 'flMatch'[\s\S]{0,600}_flOpenPreview\(fid\)/);
+    // The hand-over reuses the payload the preview already loaded rather than
+    // asking for it a second time, and lands on the Match Centre that exists.
+    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,900}_flHandOver\(/);
+    expect(APP).toMatch(/function _flHandOver[\s\S]{0,400}navTo\('match-center'\)/);
+    expect(APP).toMatch(/async function _flOpenMatch[\s\S]{0,400}_FL\.preview\.fixtureId === fixtureId/);
     // No second player profile or match centre is defined by this module.
     expect(APP).not.toContain('function _flPlayerProfile');
     expect(APP).not.toContain('function _flMatchCenter');

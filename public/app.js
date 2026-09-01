@@ -14859,6 +14859,10 @@ function _mcPaintComputed(root) {
     scope.querySelectorAll('[data-mc-color]').forEach(function (el) {
       el.style.setProperty('color', el.getAttribute('data-mc-color'));
     });
+    scope.querySelectorAll('[data-lg-size]').forEach(function (el) {
+      var px = el.getAttribute('data-lg-size') + 'px';
+      el.style.setProperty('width', px); el.style.setProperty('height', px);
+    });
     scope.querySelectorAll('[data-mc-stroke]').forEach(function (el) {
       el.style.setProperty('stroke', el.getAttribute('data-mc-stroke'));
     });
@@ -14887,7 +14891,9 @@ function _mcPaintComputed(root) {
 // opponent's record say they have none — a friendly's opponent is free text,
 // not a team the platform knows.
 
-var _MC = { tab: 'overview' };
+// `cmp` is the open player comparison: whose token was clicked, and which
+// opponent it is being read against when the coach has chosen one himself.
+var _MC = { tab: 'overview', cmp: null };
 
 // The tab's `id` is a code identifier and the `label` is what a reader sees, so
 // they are named apart: the extractor catalogues the label and leaves the id
@@ -14989,52 +14995,20 @@ function _mcMorale(squad) {
 
 // ── small pieces ────────────────────────────────────────────────────────────
 
-function _mcFormPills(form) {
-  if (!form || !form.length) return '<span class="mcx-none">—</span>';
-  return '<span class="mcx-form">' + form.map(function (r) {
-    var cls = r === 'W' ? 'w' : r === 'L' ? 'l' : 'd';
-    return '<i class="mcx-form-pill ' + cls + '">' + r + '</i>';
-  }).join('') + '</span>';
-}
+// The competition's form strip, the panel, the tile, the empty state and the
+// comparison bar are all shared with the League — one definition, four screens.
+// These stay as names because the Match Centre calls them from a hundred places;
+// what they draw is the shared piece.
+function _mcFormPills(form) { return _lgForm(form); }
 
-function _mcStat(label, value, sub) {
-  return '<div class="mcx-stat">'
-    + '<div class="mcx-stat-lbl">' + label + '</div>'
-    + '<div class="mcx-stat-val">' + (value == null || value === '' ? '<span class="mcx-none">—</span>' : value) + '</div>'
-    + (sub ? '<div class="mcx-stat-sub">' + sub + '</div>' : '')
-    + '</div>';
-}
+function _mcStat(label, value, sub) { return _lgMetric(label, value, sub); }
 
-function _mcEmptyPanel(title, sub) {
-  return '<div class="mcx-empty">'
-    + '<div class="mcx-empty-ic">◎</div>'
-    + '<div class="mcx-empty-t">' + title + '</div>'
-    + (sub ? '<div class="mcx-empty-s">' + sub + '</div>' : '')
-    + '</div>';
-}
+function _mcEmptyPanel(title, sub) { return _lgEmpty(title, sub); }
 
 // A two-sided bar. Both numbers are real or the row is not drawn at all — a
 // comparison with one side missing compares nothing.
 function _mcCompare(label, a, b, fmt) {
-  if (a == null || b == null) return '';
-  var f = fmt || function (v) { return v; };
-  // Two nothings do not make a comparison. A row where neither side has anything
-  // to show keeps its empty track rather than filling it with a colour that
-  // would read as a lead.
-  var flat = (a === 0 && b === 0);
-  var total = (a + b) || 1;
-  var ap = flat ? 0 : Math.round((a / total) * 100);
-  var lead = flat ? '' : a > b ? 'a' : b > a ? 'b' : '';
-  return '<div class="mcx-cmp-row">'
-    + '<div class="mcx-cmp-v' + (lead === 'a' ? ' is-lead' : '') + '">' + f(a) + '</div>'
-    + '<div class="mcx-cmp-mid">'
-    + '  <div class="mcx-cmp-lbl">' + label + '</div>'
-    + '  <div class="mcx-cmp-bar' + (flat ? ' is-flat' : '') + '">'
-    + '<i class="mcx-cmp-a" data-mc-width="' + ap + '%"></i>'
-    + '<i class="mcx-cmp-b" data-mc-width="' + (flat ? 0 : 100 - ap) + '%"></i></div>'
-    + '</div>'
-    + '<div class="mcx-cmp-v' + (lead === 'b' ? ' is-lead' : '') + '">' + f(b) + '</div>'
-    + '</div>';
+  return _lgVersus(label, a, b, { fmt: fmt });
 }
 
 var _MC_POS_LINE = {
@@ -15065,6 +15039,13 @@ function _mcTopBy(squad, key) {
   var ranked = squad.filter(function (p) { return typeof p[key] === 'number'; })
     .sort(function (a, b) { return b[key] - a[key]; });
   return ranked[0] || null;
+}
+
+// A comparison needs two squads. A league match carries both; a club's own
+// fixture carries only ours, so there its tokens still open the player's record.
+function _mcCanCompare() {
+  var f = window._MC_FOCUS;
+  return !!(f && f.squads && (f.squads.home || []).length && (f.squads.away || []).length);
 }
 
 // ── the pitch ───────────────────────────────────────────────────────────────
@@ -15098,7 +15079,8 @@ function _mcPitchPro(xi, opts) {
       var hurt = p.isInjured || String(p.medicalStatus || '').toUpperCase() !== 'HEALTHY';
       return ''
         + '<g class="mcp-token" transform="translate(' + x.toFixed(1) + ',' + y.toFixed(1) + ')"'
-        + '   data-action="openPlayerModal" data-player-id="' + _esc(p.playerId || '') + '">'
+        + '   data-action="' + (o.compare ? 'mcCompare' : 'openPlayerModal') + '"'
+        + '   data-player-id="' + _esc(p.playerId || '') + '">'
         + '  <circle class="mcp-shadow" r="30"/>'
         + '  <circle class="mcp-disc" r="26"/>'
         + '  <circle class="mcp-ring" r="26" data-mc-stroke="' + _mcPosColor(p.position) + '"/>'
@@ -15228,10 +15210,10 @@ function renderMatchCenter() {
       + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
       + '  <h1 class="mcx-h1">Match Center</h1>'
       + '  <div class="mcx-head-chips">'
-      + (ctx ? '<span class="mcx-chip"><span>Season</span> <b data-user-content>' + _esc(ctx.season) + '</b></span>' : '')
-      + (ctx && ctx.round != null ? '<span class="mcx-chip">Round <b>' + ctx.round + '</b></span>' : '')
-      + '<span class="mcx-chip mcx-chip--' + status.toLowerCase().replace(/\s+/g, '') + '">' + status + '</span>'
-      + (when ? '<span class="mcx-chip mcx-chip--when">' + _esc(when) + '</span>' : '')
+      + (ctx ? _lgChip('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
+      + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
+      + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
+      + (when ? _lgChip('', _esc(when), 'when') : '')
       + '  </div>'
       + '</div>'
       + '<div class="mcx-fixture">'
@@ -15261,7 +15243,11 @@ function renderMatchCenter() {
       : _mcOverviewHtml(focus, home, away, homeName, awayName, next);
 
     el.innerHTML = '<div class="mcx">' + crumb + head + rail
-      + '<div class="mcx-desk" id="mcx-desk">' + body + '</div></div>';
+      + '<div class="mcx-desk" id="mcx-desk">' + body + '</div></div>'
+      // Floating panels live outside the workspace's flow, so opening one
+      // cannot move, resize or reflow the board underneath it.
+      + '<div class="mcx-overlay" id="mcx-overlay"></div>';
+    if (_MC.cmp) setTimeout(function () { try { _mcPaintCmp(); } catch (_) {} }, 0);
 
     _mcPaintComputed(el);
     if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(el); } catch (_) {} }
@@ -15278,12 +15264,7 @@ function renderMatchCenter() {
 
 // A panel inside the desk: its own header, its own scrollbar. Nothing in the
 // workspace grows the page — a panel that runs out of room scrolls itself.
-function _mcPanel(title, sub, inner, cls) {
-  return '<section class="mcx-panel' + (cls ? ' ' + cls : '') + '">'
-    + '<div class="mcx-panel-h"><h2>' + title + '</h2>' + (sub ? '<span class="mcx-panel-s">' + sub + '</span>' : '') + '</div>'
-    + '<div class="mcx-panel-b">' + inner + '</div>'
-    + '</section>';
-}
+function _mcPanel(title, sub, inner, cls) { return _lgPanel(title, sub, inner, cls); }
 
 // ── OVERVIEW ────────────────────────────────────────────────────────────────
 
@@ -15293,9 +15274,9 @@ function _mcOverviewHtml(focus, home, away, homeName, awayName, next) {
 
   // Team against team, from the table the engine wrote.
   var cmp = (hs && as)
-    ? '<div class="mcx-cmp-head">'
+    ? '<div class="lg-vs-head">'
       + '  <span data-user-content>' + _esc(homeName) + '</span>'
-      + '  <span class="mcx-cmp-vs">v</span>'
+      + '  <span class="lg-vs-vs">v</span>'
       + '  <span data-user-content>' + _esc(awayName) + '</span>'
       + '</div>'
       + _mcCompare('Points', hs.points, as.points)
@@ -15420,7 +15401,7 @@ function _mcPreparationHtml(focus, home, away, next) {
     + readyRow('Tactical readiness', recorded ? true : null, recorded ? String(recorded) : 'Not recorded')
     + '</div>';
 
-  var numbers = '<div class="mcx-stats">'
+  var numbers = '<div class="lg-metrics">'
     + _mcStat('Available', av.available, 'of ' + av.total)
     + _mcStat('Injured', av.injured)
     + _mcStat('Suspended', av.suspended)
@@ -15436,8 +15417,8 @@ function _mcPreparationHtml(focus, home, away, next) {
     + '</div>'
     + '<div class="mcx-col mcx-col--pitch">'
     + _mcPanel('Expected lineup', 'Strongest available by rating',
-        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) }),
-        'mcx-panel--pitch')
+        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, compare: _mcCanCompare(), benchCount: Math.max(av.available - likely.xi.length, 0) }),
+        'lg-panel--pitch')
     + '</div>'
     + '<div class="mcx-dock">'
     + '<span class="mcx-dock-l">Prepare</span>'
@@ -15495,14 +15476,14 @@ function _mcOpponentHtml(focus, home, away) {
     + '  </div>'
     + (st ? '<div class="mcx-opp-pos">' + st.position + '<span>in the table</span></div>' : '')
     + '</div>'
-    + '<div class="mcx-stats">'
+    + '<div class="lg-metrics">'
     + _mcStat('Squad available', av.total ? av.available : null, av.total ? 'of ' + av.total : '')
     + _mcStat('Likely formation', likely.xi.length ? likely.shape : null)
     + _mcStat('Average rating', _mcAverage(opp.squad, 'overallRating'))
     + '</div>';
 
   var record = st
-    ? '<div class="mcx-stats">'
+    ? '<div class="lg-metrics">'
       + _mcStat('Played', st.played)
       + _mcStat('Won', st.won)
       + _mcStat('Drawn', st.drawn)
@@ -15538,8 +15519,8 @@ function _mcOpponentHtml(focus, home, away) {
     + '</div>'
     + '<div class="mcx-col mcx-col--pitch">'
     + _mcPanel('Likely XI', av.available + ' available of ' + av.total,
-        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, benchCount: Math.max(av.available - likely.xi.length, 0) }),
-        'mcx-panel--pitch')
+        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, compare: _mcCanCompare(), benchCount: Math.max(av.available - likely.xi.length, 0) }),
+        'lg-panel--pitch')
     + '</div>'
     + '</div>';
 }
@@ -15565,7 +15546,7 @@ function _mcFeedHtml(focus, next, played, home, away) {
       ? new Date(next.scheduledAt).toLocaleString(_mcLocale(),
           { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : null;
-    var fixture = '<div class="mcx-stats mcx-stats--wide">'
+    var fixture = '<div class="lg-metrics lg-metrics--wide">'
       + (ctx ? _mcStat('Competition', '<span data-user-content>' + _esc(ctx.name) + '</span>') : '')
       + (ctx ? _mcStat('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
       + (ctx && ctx.round != null ? _mcStat('Round', ctx.round) : '')
@@ -15576,7 +15557,7 @@ function _mcFeedHtml(focus, next, played, home, away) {
     return '<div class="mcx-cols mcx-cols--split">'
       + '<div class="mcx-col mcx-col--centre">'
       + _mcPanel('Match feed', 'Goals, cards and substitutions, as they are recorded',
-          _mcEmptyPanel('No match events yet', 'The feed fills in as the match is played.'), 'mcx-panel--fill')
+          _mcEmptyPanel('No match events yet', 'The feed fills in as the match is played.'), 'lg-panel--fill')
       + '</div>'
       + '<div class="mcx-col">'
       + _mcPanel('Fixture', 'From the league schedule', fixture)
@@ -15625,15 +15606,309 @@ function _mcFeedHtml(focus, next, played, home, away) {
 
   return '<div class="mcx-cols mcx-cols--split">'
     + '<div class="mcx-col">'
-    + _mcPanel('Timeline', events.length + ' <span>events</span>', timeline, 'mcx-panel--fill')
+    + _mcPanel('Timeline', events.length + ' <span>events</span>', timeline, 'lg-panel--fill')
     + '</div>'
     + '<div class="mcx-col">'
     + _mcPanel('Match statistics', '',
-        stats ? '<div class="mcx-stats">' + stats + '</div>'
+        stats ? '<div class="lg-metrics">' + stats + '</div>'
               : _mcEmptyPanel('No match statistics recorded', 'These appear when the match is recorded in the Match Center.'))
     + _mcPanel('Player statistics', 'Goals, assists and ratings', table)
     + '</div>'
     + '</div>';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PLAYER AGAINST PLAYER
+// ─────────────────────────────────────────────────────────────────────────────
+// A coach reading a lineup is asking one question about every player on it: who
+// is he up against. So clicking a player on either pitch answers it — the
+// opponent who plays the same position, compared on the figures both clubs
+// actually record.
+//
+// Two rules make this trustworthy rather than decorative:
+//
+//   The position taxonomy is the repository's own. GK, DC, DL, DR, DMC, ML, MR,
+//   MC, AMC, AML, AMR, ST — the PlayerPosition enum, not a second vocabulary
+//   invented here. An exact match is always preferred; when the opponent has
+//   nobody in that position the closest tactical equivalent is used AND the
+//   panel says so, because a comparison that quietly changed the question is
+//   worse than no comparison.
+//
+//   Nothing is filled in. A figure the platform records as zero shows as zero;
+//   a figure it does not record at all shows as a dash. The two are different
+//   answers and a coach has to be able to tell them apart.
+
+// The order to look in when the exact position is not on the other side. Each
+// list is that position first, then the roles a coach would actually accept as
+// the same duel: the mirror flank, then the neighbouring line.
+var _MC_POS_NEAR = {
+  GK:  ['GK'],
+  DC:  ['DC', 'DMC', 'DL', 'DR'],
+  DL:  ['DL', 'DR', 'ML', 'DC'],
+  DR:  ['DR', 'DL', 'MR', 'DC'],
+  DMC: ['DMC', 'MC', 'DC'],
+  MC:  ['MC', 'DMC', 'AMC'],
+  ML:  ['ML', 'MR', 'AML', 'DL'],
+  MR:  ['MR', 'ML', 'AMR', 'DR'],
+  AMC: ['AMC', 'MC', 'ST'],
+  AML: ['AML', 'AMR', 'ML', 'ST'],
+  AMR: ['AMR', 'AML', 'MR', 'ST'],
+  ST:  ['ST', 'AMC', 'AML', 'AMR'],
+};
+
+function _mcPosKey(p) { return String((p && p.position) || '').toUpperCase(); }
+
+// The opponent this player is up against, and whether the position matched
+// exactly. Highest rated first inside a position, because that is the one who
+// will be on the pitch.
+function _mcOpposite(player, oppSquad) {
+  var want = _mcPosKey(player);
+  var order = _MC_POS_NEAR[want] || [want];
+  var pool = (oppSquad || []).filter(function (p) {
+    var s = String(p.medicalStatus || 'HEALTHY').toUpperCase();
+    return !p.isInjured && s !== 'INJURED' && s !== 'SUSPENDED' && s !== 'UNAVAILABLE';
+  });
+  if (!pool.length) pool = oppSquad || [];
+  for (var i = 0; i < order.length; i++) {
+    var here = pool.filter(function (p) { return _mcPosKey(p) === order[i]; })
+      .sort(function (a, b) { return (b.overallRating || 0) - (a.overallRating || 0); });
+    if (here.length) return { player: here[0], exact: i === 0 };
+  }
+  return null;
+}
+
+function _mcAge(iso) {
+  if (!iso) return null;
+  try {
+    var d = new Date(iso), now = new Date();
+    var a = now.getUTCFullYear() - d.getUTCFullYear();
+    var m = now.getUTCMonth() - d.getUTCMonth();
+    if (m < 0 || (m === 0 && now.getUTCDate() < d.getUTCDate())) a--;
+    return a >= 0 && a < 120 ? a : null;
+  } catch (_) { return null; }
+}
+
+function _mcFindPlayer(id) {
+  var f = window._MC_FOCUS;
+  if (!f || !id) return null;
+  var sq = f.squads || {};
+  var all = (sq.home || []).concat(sq.away || []);
+  for (var i = 0; i < all.length; i++) if (all[i].playerId === id) {
+    return { player: all[i], side: (sq.home || []).indexOf(all[i]) >= 0 ? 'home' : 'away' };
+  }
+  return null;
+}
+
+// One row of the comparison. `pick` reads the figure off a player's record and
+// returns null when the platform has nothing — never a substituted zero.
+function _mcCmpRow(label, a, b, pick, opts) {
+  var va = a ? pick(a) : null;
+  var vb = b ? pick(b) : null;
+  if (va == null && vb == null) return { html: '', lead: 0 };
+  var o = opts || {};
+  var lead = 0;
+  if (typeof va === 'number' && typeof vb === 'number' && va !== vb) {
+    lead = (o.lowerIsBetter ? va < vb : va > vb) ? 1 : -1;
+  }
+  return { html: _lgVersus(label, va, vb, o), lead: lead };
+}
+
+function _mcCmpGroup(title, rows) {
+  var body = rows.map(function (r) { return r.html; }).join('');
+  if (!body) return { html: '', lead: 0 };
+  var lead = rows.reduce(function (n, r) { return n + r.lead; }, 0);
+  var tag = lead > 0 ? '<span class="mcc-win mcc-win--a">Home</span>'
+    : lead < 0 ? '<span class="mcc-win mcc-win--b">Away</span>'
+    : '<span class="mcc-win">Level</span>';
+  return {
+    html: '<section class="mcc-group"><div class="mcc-group-h"><h3>' + title + '</h3>' + tag + '</div>' + body + '</section>',
+    lead: lead,
+  };
+}
+
+// Who this player can be compared against instead. Same-position first, then
+// the near roles, then the rest — so the list a coach opens is already ordered
+// by how much the swap makes sense.
+function _mcCmpChoices(player, oppSquad) {
+  var order = _MC_POS_NEAR[_mcPosKey(player)] || [];
+  var rank = function (p) {
+    var i = order.indexOf(_mcPosKey(p));
+    return i < 0 ? 99 : i;
+  };
+  return (oppSquad || []).slice().sort(function (a, b) {
+    var d = rank(a) - rank(b);
+    return d !== 0 ? d : (b.overallRating || 0) - (a.overallRating || 0);
+  });
+}
+
+function _mcCmpHead(p, side, exactLabel) {
+  var age = _mcAge(p.dateOfBirth);
+  return '<div class="mcc-side ' + side + '">'
+    + '<div class="mcc-av" data-user-content>' + _esc(_lgInitials(p.name)) + '</div>'
+    + '<div class="mcc-id">'
+    + '  <div class="mcc-name" data-user-content>' + _esc(p.name) + '</div>'
+    + '  <div class="mcc-meta">'
+    + (p.position ? '<span class="mcc-pos" data-no-i18n>' + _esc(p.position) + '</span>' : '')
+    + (p.number != null ? '<span class="mcc-num">#' + p.number + '</span>' : '')
+    + (age != null ? '<span>' + age + ' <i>years</i></span>' : '')
+    + '  </div>'
+    + (exactLabel ? '<div class="mcc-approx">' + exactLabel + '</div>' : '')
+    + '</div>'
+    + '<div class="mcc-ovr">' + (p.overallRating == null ? '<span class="lg-na">—</span>' : p.overallRating) + '</div>'
+    + '</div>';
+}
+
+function _mcComparisonHtml() {
+  var c = _MC.cmp;
+  if (!c) return '';
+  var f = window._MC_FOCUS || {};
+  var sq = f.squads || {};
+  var mine = _mcFindPlayer(c.playerId);
+  if (!mine) return '';
+  var a = mine.player;
+  var oppSide = mine.side === 'home' ? 'away' : 'home';
+  var oppSquad = sq[oppSide] || [];
+
+  var chosen = null, exact = true;
+  if (c.againstId) {
+    var found = (oppSquad || []).filter(function (p) { return p.playerId === c.againstId; })[0];
+    if (found) { chosen = found; exact = _mcPosKey(found) === _mcPosKey(a); }
+  }
+  if (!chosen) {
+    var auto = _mcOpposite(a, oppSquad);
+    if (auto) { chosen = auto.player; exact = auto.exact; }
+  }
+
+  var head = _mcCmpHead(a, mine.side, '')
+    + '<div class="mcc-vs">VS</div>'
+    + (chosen
+        ? _mcCmpHead(chosen, oppSide, exact ? '' : 'Closest positional match')
+        : '<div class="mcc-side ' + oppSide + ' is-none">'
+          + _lgEmpty('No opponent in this position',
+              'The other club has nobody recorded who plays here, and nothing close enough to stand in.')
+          + '</div>');
+
+  var body = '';
+  if (chosen) {
+    var rec = function (p) { return p.record || null; };
+    var groups = [];
+    // Neither has a PlayerMatchStats row in this competition. Every figure
+    // below would be a dash, and a wall of dashes reads as a broken panel
+    // rather than as an answer — so the panel says the answer once instead.
+    var played = !!(rec(a) || rec(chosen));
+
+    groups.push(_mcCmpGroup('General', [
+      _mcCmpRow('Overall rating', a, chosen, function (p) { return p.overallRating; }),
+      _mcCmpRow('Form', a, chosen, function (p) { return p.form; }),
+      _mcCmpRow('Available', a, chosen, function (p) {
+        var s = String(p.medicalStatus || 'HEALTHY').toUpperCase();
+        return (!p.isInjured && s === 'HEALTHY') ? 1 : 0;
+      }, { fmt: function (v) { return v ? 'Yes' : 'No'; } }),
+    ]));
+
+    if (!played) {
+      groups.push({
+        html: '<section class="mcc-group"><div class="mcc-group-h"><h3>This competition</h3></div>'
+          + _lgEmpty('Neither has played in this competition yet',
+              'Appearances, goals, passing and defending are summed from the matches this competition has recorded.')
+          + '</section>',
+        lead: 0,
+      });
+    }
+
+    if (played) groups.push(_mcCmpGroup('This competition', [
+      _mcCmpRow('Appearances', a, chosen, function (p) { return rec(p) && rec(p).appearances; }),
+      _mcCmpRow('Starts', a, chosen, function (p) { return rec(p) && rec(p).starts; }),
+      _mcCmpRow('Minutes', a, chosen, function (p) { return rec(p) && rec(p).minutes; }),
+      _mcCmpRow('Average rating', a, chosen, function (p) { return rec(p) && rec(p).averageRating; },
+        { fmt: function (v) { return Number(v).toFixed(2); } }),
+      _mcCmpRow('Yellow cards', a, chosen, function (p) { return rec(p) && rec(p).yellowCards; }, { lowerIsBetter: true }),
+      _mcCmpRow('Red cards', a, chosen, function (p) { return rec(p) && rec(p).redCards; }, { lowerIsBetter: true }),
+    ]));
+
+    if (played) groups.push(_mcCmpGroup('Attack', [
+      _mcCmpRow('Goals', a, chosen, function (p) { return rec(p) && rec(p).goals; }),
+      _mcCmpRow('Assists', a, chosen, function (p) { return rec(p) && rec(p).assists; }),
+      _mcCmpRow('Shots', a, chosen, function (p) { return rec(p) && rec(p).shots; }),
+      _mcCmpRow('Shots on target', a, chosen, function (p) { return rec(p) && rec(p).shotsOnTarget; }),
+      _mcCmpRow('xG', a, chosen, function (p) { return rec(p) && rec(p).xg; }, { fmt: function (v) { return Number(v).toFixed(2); } }),
+      _mcCmpRow('xA', a, chosen, function (p) { return rec(p) && rec(p).xa; }, { fmt: function (v) { return Number(v).toFixed(2); } }),
+    ]));
+
+    if (played) groups.push(_mcCmpGroup('Passing', [
+      _mcCmpRow('Passes', a, chosen, function (p) { return rec(p) && rec(p).passes; }),
+      _mcCmpRow('Pass accuracy', a, chosen, function (p) { return rec(p) && rec(p).passAccuracy; },
+        { fmt: function (v) { return v + '%'; } }),
+      _mcCmpRow('Key passes', a, chosen, function (p) { return rec(p) && rec(p).keyPasses; }),
+    ]));
+
+    if (played) groups.push(_mcCmpGroup('Defending', [
+      _mcCmpRow('Tackles', a, chosen, function (p) { return rec(p) && rec(p).tackles; }),
+      _mcCmpRow('Interceptions', a, chosen, function (p) { return rec(p) && rec(p).interceptions; }),
+      _mcCmpRow('Clearances', a, chosen, function (p) { return rec(p) && rec(p).clearances; }),
+      _mcCmpRow('Aerial duels won', a, chosen, function (p) { return rec(p) && rec(p).aerialDuelsWon; }),
+    ]));
+
+    // A goalkeeper duel asks for figures this platform does not keep. Saying so
+    // is the honest answer; showing zeroes would not be.
+    if (_mcPosKey(a) === 'GK' && _mcPosKey(chosen) === 'GK') {
+      groups.push({
+        html: '<section class="mcc-group"><div class="mcc-group-h"><h3>Goalkeeping</h3></div>'
+          + _lgVersus('Saves', null, null, { showUnavailable: true })
+          + _lgVersus('Clean sheets', null, null, { showUnavailable: true })
+          + _lgVersus('Goals conceded', null, null, { showUnavailable: true })
+          + '<p class="mcc-note">Saves, clean sheets and goals conceded are not among the figures'
+          + ' this platform records for a match, so there is nothing to compare.</p>'
+          + '</section>',
+        lead: 0,
+      });
+    }
+
+    var drawn = groups.filter(function (g) { return g.html; });
+    var total = drawn.reduce(function (n, g) { return n + (g.lead > 0 ? 1 : g.lead < 0 ? -1 : 0); }, 0);
+    var verdict = total > 0 ? 'Advantage: <b data-user-content>' + _esc(a.name) + '</b>'
+      : total < 0 ? 'Advantage: <b data-user-content>' + _esc(chosen.name) + '</b>'
+      : 'Balanced';
+
+    var choices = _mcCmpChoices(a, oppSquad);
+    var picker = '<label class="mcc-pick"><span>Compare with</span>'
+      + '<select class="mcc-select" data-action="mcCmpPick">'
+      + choices.map(function (p) {
+          // A player's name and his position code are data. Marked as such so
+          // no catalogue can reach into the list and translate a squad.
+          return '<option data-user-content value="' + _esc(p.playerId) + '"'
+            + (p.playerId === chosen.playerId ? ' selected' : '') + '>'
+            + _esc((p.position || '') + ' · ' + p.name) + '</option>';
+        }).join('')
+      + '</select></label>';
+
+    body = '<div class="mcc-verdict' + (total > 0 ? ' is-a' : total < 0 ? ' is-b' : '') + '">' + verdict + '</div>'
+      + picker
+      + (drawn.length ? drawn.map(function (g) { return g.html; }).join('')
+                      : _lgEmpty('Nothing comparable recorded yet',
+                          'Both clubs keep player records; this competition has not produced figures for these two.'));
+  }
+
+  return _lgFloat({
+    close: 'mcCmpClose',
+    cls: 'lg-float--lg mcc-float',
+    head: '<span class="lg-float-t">Player comparison</span>'
+      + (chosen && !exact ? '<span class="lg-chip lg-chip--warn">Closest positional match</span>' : ''),
+    body: '<div class="mcc-head">' + head + '</div>' + body,
+    foot: '<button class="lg-act lg-act--ghost" type="button" data-action="mcCmpClose">Close</button>',
+  });
+}
+
+function _mcPaintCmp() {
+  var host = document.getElementById('mcx-overlay');
+  if (!host) return;
+  var on = !!_MC.cmp;
+  host.innerHTML = on ? _mcComparisonHtml() : '';
+  host.classList.toggle('is-on', on);
+  if (on) {
+    _mcPaintComputed(host);
+    try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(host); } catch (_) {}
+  }
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
@@ -15686,7 +15961,28 @@ document.addEventListener('click', function (ev) {
   } else if (act === 'mcSetPieces') {
     try { navTo('squad'); } catch (_) {}
     try { showToast('Set pieces open in Squad', 'info'); } catch (_) {}
+  } else if (act === 'mcCompare') {
+    // Only the overlay is painted: the board the coach clicked stays exactly
+    // where it was, which is what lets him click through a lineup one player
+    // at a time without the pitch moving under the pointer.
+    var cid = el.getAttribute('data-player-id');
+    if (cid) { _MC.cmp = { playerId: cid, againstId: null }; _mcPaintCmp(); }
+  } else if (act === 'mcCmpClose') {
+    if (ev.target === el || el.tagName === 'BUTTON') { _MC.cmp = null; _mcPaintCmp(); }
   }
+});
+
+// Choosing a different opponent to read against: the same panel, redrawn.
+document.addEventListener('change', function (ev) {
+  var el = ev.target;
+  if (!el || !el.matches || !el.matches('[data-action="mcCmpPick"]')) return;
+  if (!_MC.cmp) return;
+  _MC.cmp = { playerId: _MC.cmp.playerId, againstId: el.value || null };
+  _mcPaintCmp();
+});
+
+document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Escape' && _MC.cmp) { _MC.cmp = null; _mcPaintCmp(); }
 });
 
 
@@ -63253,6 +63549,162 @@ var _FL_COLS = [
   { abbr: 'FORM', key: 'league.col.form', fullKey: 'league.colFull.form', full: 'Last five matches' },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  FAMILISTA COMPETITION UI — the primitives the League and the Match Center
+//  are both built from
+// ─────────────────────────────────────────────────────────────────────────────
+// Standings, Matches, Player Stats and the Match Center are four screens of one
+// product, and they used to look like four products. The reason was that each
+// one drew its own panel, its own chip, its own form strip and its own crest
+// block, so keeping them consistent meant remembering to. These are the shared
+// pieces, so consistency is structural: change the panel here and every screen
+// changes with it.
+//
+// Everything below returns a string. There is no state, no fetching and no DOM
+// access, which is what lets both modules use them from inside their own render
+// paths without ordering constraints.
+
+// A crest by club id, through the one primitive the whole platform draws crests
+// with. A club with none gets its own initials rather than a symbol that means
+// nothing — the mark still identifies the club it stands for.
+function _lgInitials(name) {
+  return String(name || '').split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '—';
+}
+
+function _lgCrest(clubId, name, size) {
+  var px = size || 30;
+  try {
+    if (clubId && _clubCrestUrl(clubId)) {
+      return '<span class="lg-crest" data-lg-size="' + px + '">'
+        + clubLogoHtml(clubId, { size: px, cls: 'club-logo--plain', title: false }) + '</span>';
+    }
+  } catch (_) { /* fall through to the lettered mark */ }
+  return '<span class="lg-crest lg-crest--mark" data-lg-size="' + px + '" data-user-content>'
+    + _esc(_lgInitials(name)) + '</span>';
+}
+
+// Crest, club name and the line under it. One block, so a team reads the same
+// in the table, in a fixture row, in a panel header and on a match hero.
+function _lgIdent(opts) {
+  var o = opts || {};
+  return '<span class="lg-ident' + (o.cls ? ' ' + o.cls : '') + '">'
+    + _lgCrest(o.clubId, o.name, o.size || 30)
+    + '<span class="lg-ident-txt">'
+    + '<b class="lg-ident-name" data-user-content>' + _esc(o.name || '') + '</b>'
+    + (o.sub ? '<i class="lg-ident-sub" data-user-content>' + _esc(o.sub) + '</i>' : '')
+    + '</span></span>';
+}
+
+// A status word, in the one shape every screen shows a status in.
+var _LG_STATUS = {
+  SCHEDULED: ['UPCOMING',  'up'],
+  LIVE:      ['LIVE',      'live'],
+  HALFTIME:  ['LIVE',      'live'],
+  PLAYED:    ['FINISHED',  'done'],
+  FT:        ['FINISHED',  'done'],
+  POSTPONED: ['POSTPONED', 'post'],
+  CANCELLED: ['CANCELLED', 'cancel'],
+  ABANDONED: ['CANCELLED', 'cancel'],
+};
+function _lgStatus(raw) { return _LG_STATUS[String(raw || '').toUpperCase()] || ['UPCOMING', 'up']; }
+function _lgStatusChip(raw) {
+  var s = _lgStatus(raw);
+  return '<span class="lg-chip lg-chip--' + s[1] + '">' + s[0] + '</span>';
+}
+function _lgChip(label, value, cls) {
+  return '<span class="lg-chip' + (cls ? ' lg-chip--' + cls : '') + '">'
+    + (label ? '<span>' + label + '</span> ' : '')
+    + (value == null ? '' : '<b>' + value + '</b>')
+    + '</span>';
+}
+
+// The last five results, newest last, as the engine records them.
+function _lgForm(form) {
+  if (!form || !form.length) return '<span class="lg-form-none">—</span>';
+  return '<span class="lg-form">' + form.map(function (f) {
+    var k = String(f).toUpperCase();
+    return '<i class="lg-f lg-f--' + k.toLowerCase() + '">' + k + '</i>';
+  }).join('') + '</span>';
+}
+
+// A labelled figure. `value` of null renders as a dash, never as a zero: the
+// difference between "none" and "not recorded" is the whole point of showing
+// numbers to a coach at all.
+function _lgMetric(label, value, sub, cls) {
+  return '<div class="lg-metric' + (cls ? ' ' + cls : '') + '">'
+    + '<div class="lg-metric-l">' + label + '</div>'
+    + '<div class="lg-metric-v">' + (value == null || value === '' ? '<span class="lg-na">—</span>' : value) + '</div>'
+    + (sub ? '<div class="lg-metric-s">' + sub + '</div>' : '')
+    + '</div>';
+}
+
+// A panel: header, optional note, body. The one surface all four screens use.
+function _lgPanel(title, sub, inner, cls) {
+  return '<section class="lg-panel' + (cls ? ' ' + cls : '') + '">'
+    + '<div class="lg-panel-h"><h2>' + title + '</h2>'
+    + (sub ? '<span class="lg-panel-s">' + sub + '</span>' : '') + '</div>'
+    + '<div class="lg-panel-b">' + inner + '</div>'
+    + '</section>';
+}
+
+function _lgEmpty(title, sub, icon) {
+  return '<div class="lg-empty">'
+    + '<div class="lg-empty-ic">' + (icon || '◎') + '</div>'
+    + '<div class="lg-empty-t">' + title + '</div>'
+    + (sub ? '<div class="lg-empty-s">' + sub + '</div>' : '')
+    + '</div>';
+}
+
+// A floating panel, Training-style: a fixed backdrop and a card that animates
+// in on transform and opacity ONLY. Nothing here is in the page's flow, so
+// opening one cannot move, resize or reflow what is underneath it — which is
+// the whole reason these exist rather than a block appended to the body.
+function _lgFloat(opts) {
+  var o = opts || {};
+  return '<div class="lg-float-bg" data-action="' + o.close + '">'
+    + '<div class="lg-float' + (o.cls ? ' ' + o.cls : '') + '" role="dialog" aria-modal="true">'
+    + '<header class="lg-float-h">'
+    + '<div class="lg-float-id">' + (o.head || '') + '</div>'
+    + '<button class="lg-float-x" type="button" data-action="' + o.close + '" aria-label="Close"'
+    + ' data-i18n-aria="common.close">✕</button>'
+    + '</header>'
+    + '<div class="lg-float-b">' + (o.body || '') + '</div>'
+    + (o.foot ? '<footer class="lg-float-f">' + o.foot + '</footer>' : '')
+    + '</div></div>';
+}
+
+// A two-sided comparison bar. Both figures are real or the row is not drawn:
+// a comparison with one side missing compares nothing. Two zeroes leave the
+// track empty rather than filling it with a colour that would read as a lead.
+function _lgVersus(label, a, b, opts) {
+  var o = opts || {};
+  // Both sides unknown: normally not a row at all. `showUnavailable` draws it
+  // anyway, for the handful of metrics a coach expects to see listed so that
+  // the panel can say the platform does not record them.
+  if (a == null && b == null && !o.showUnavailable) return '';
+  var fmt = o.fmt || function (v) { return v; };
+  var lower = !!o.lowerIsBetter;
+  var known = a != null && b != null;
+  var flat = known && a === 0 && b === 0;
+  var total = known ? ((Math.abs(a) + Math.abs(b)) || 1) : 1;
+  var ap = !known || flat ? 0 : Math.round((Math.abs(a) / total) * 100);
+  var lead = !known || flat || a === b ? '' : (lower ? (a < b ? 'a' : 'b') : (a > b ? 'a' : 'b'));
+  return '<div class="lg-vs-row">'
+    + '<div class="lg-vs-v' + (lead === 'a' ? ' is-lead' : '') + '">'
+    + (a == null ? '<span class="lg-na">—</span>' : fmt(a)) + '</div>'
+    + '<div class="lg-vs-mid">'
+    + '<div class="lg-vs-l">' + label + '</div>'
+    + '<div class="lg-vs-bar' + (flat || !known ? ' is-flat' : '') + '">'
+    + '<i class="lg-vs-a" data-mc-width="' + ap + '%"></i>'
+    + '<i class="lg-vs-b" data-mc-width="' + (!known || flat ? 0 : 100 - ap) + '%"></i>'
+    + '</div></div>'
+    + '<div class="lg-vs-v' + (lead === 'b' ? ' is-lead' : '') + '">'
+    + (b == null ? '<span class="lg-na">—</span>' : fmt(b)) + '</div>'
+    + '</div>';
+}
+
+
 var _FL = {
   tab: 'standings',        // standings | matches | players
   league: null,
@@ -63262,10 +63714,12 @@ var _FL = {
   matches: null,
   boards: null,
   team: null,              // open club row detail
+  preview: null,           // fixture quick-preview panel
   rules: false,            // rules modal
   manage: null,            // Manage Teams panel, for an administrator only
   canManage: false,        // answered by the server, never assumed here
   hasSeason: false,        // whether a season exists at all, from the same answer
+  more: false,             // Player Stats: the extra real categories
   loading: {},
   error: {},
   round: null,
@@ -63293,8 +63747,9 @@ function renderFamilistaLeagueHTML() {
 
 function renderFamilistaLeaguePage() {
   var host = document.getElementById('fl-shell'); if (!host) return;
-  _FL.tab = 'standings'; _FL.team = null; _FL.rules = false; _FL.round = null;
-  host.innerHTML = _flHeaderHtml() + '<div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
+  _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
+  host.innerHTML = '<div id="fl-head"></div><div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
+  _flPaintHead();
   _flLoadOverview();
 }
 
@@ -63310,27 +63765,70 @@ function _flPaintZones(root) {
     scope.querySelectorAll('[data-fl-swatch]').forEach(function (el) {
       el.style.setProperty('background', el.getAttribute('data-fl-swatch'));
     });
+    scope.querySelectorAll('[data-lg-size]').forEach(function (el) {
+      var px = el.getAttribute('data-lg-size') + 'px';
+      el.style.setProperty('width', px); el.style.setProperty('height', px);
+    });
+    scope.querySelectorAll('[data-mc-width]').forEach(function (el) {
+      el.style.setProperty('width', el.getAttribute('data-mc-width'));
+    });
   } catch (_) { /* colour is decoration; never let it break the screen */ }
 }
 
-function _flRepaint() {
+// ── painting, in three independent pieces ───────────────────────────────────
+//
+// These used to be one function that rebuilt the header, the body and the
+// overlay together on every interaction. That is what made the page shake:
+// opening a panel replaced the header node and re-rendered the table under it,
+// and swapping the table for a skeleton of a different height took the page's
+// scrollbar away and put it back, moving everything sideways.
+//
+// Now each region is painted on its own, and a caller repaints only what it
+// actually changed. Opening or closing a floating panel touches the overlay and
+// nothing else, so the page underneath does not move at all.
+
+function _flPaintI18n(el) {
+  try { if (window.I18N_APPLY && el) I18N_APPLY.translateDOM(el); } catch (_) {}
+}
+
+function _flPaintHead() {
   var head = document.getElementById('fl-head');
-  if (head) head.outerHTML = _flHeaderHtml();
+  if (!head) return;
+  // innerHTML, not outerHTML: replacing the node itself destroys and rebuilds
+  // the tab strip on every paint, which is a layout pass nobody asked for.
+  head.innerHTML = _flHeaderHtml();
+  _flPaintZones(head);
+  _flPaintI18n(head);
+}
+
+function _flPaintBody() {
   var b = document.getElementById('fl-body');
-  if (b) b.innerHTML = _flBodyHtml();
+  if (!b) return;
+  b.innerHTML = _flBodyHtml();
+  _flPaintZones(b);
+  _flPaintI18n(b);
+}
+
+function _flPaintOverlay() {
   var ov = document.getElementById('fl-overlay');
-  if (ov) {
-    var html = (_FL.rules ? _flRulesHtml() : '') + (_FL.team ? _flTeamHtml() : '')
-      + (_FL.manage ? _flManageHtml() : '');
-    if (_FL.rules || _FL.team || _FL.manage) { ov.innerHTML = html; ov.classList.add('is-on'); }
-    else { ov.innerHTML = ''; ov.classList.remove('is-on'); }
-  }
-  var page = document.getElementById('pg-familista-league');
-  _flPaintZones(page);
-  // Everything carrying data-i18n is filled in by the same declarative pass the
-  // sidebar uses. The prose around it is handled by the automatic pass, which
-  // is watching the document already.
-  try { if (window.I18N_APPLY && page) I18N_APPLY.translateDOM(page); } catch (_) {}
+  if (!ov) return;
+  var html = (_FL.rules ? _flRulesHtml() : '')
+    + (_FL.team ? _flTeamHtml() : '')
+    + (_FL.preview ? _flPreviewHtml() : '')
+    + (_FL.manage ? _flManageHtml() : '');
+  var on = !!(_FL.rules || _FL.team || _FL.preview || _FL.manage);
+  ov.innerHTML = on ? html : '';
+  ov.classList.toggle('is-on', on);
+  _flPaintZones(ov);
+  _flPaintI18n(ov);
+}
+
+// The whole screen, for the few callers that really did change all of it: the
+// first load, a language change, a retry.
+function _flRepaint() {
+  _flPaintHead();
+  _flPaintBody();
+  _flPaintOverlay();
 }
 
 function _flHeaderHtml() {
@@ -63338,16 +63836,20 @@ function _flHeaderHtml() {
   // The name and the season value come from the record and are left alone; the
   // word between them is ours and is translated like any other label.
   var titleHtml = lg
-    ? '<span data-user-content>' + _esc(lg.name) + '</span> · <span>Season</span> '
-      + '<span data-user-content>' + _esc(lg.season) + '</span>'
+    ? '<span data-user-content>' + _esc(lg.name) + '</span>'
     : '<span>Season not started</span>';
   var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats']];
-  return '<header class="fl-head" id="fl-head">'
+  return '<header class="fl-head">'
     + '<div class="fl-head-top">'
     + '  <div class="fl-title-wrap">'
     + '    <div class="fl-eyebrow">Familista League</div>'
     + '    <h1 class="fl-title">' + titleHtml + '</h1>'
     + '  </div>'
+    + '  <div class="fl-head-chips">'
+    + (lg ? _lgChip('Season', '<span data-user-content>' + _esc(lg.season) + '</span>') : '')
+    + (lg && lg.teamCount ? _lgChip('Teams', lg.teamCount) : '')
+    + '  </div>'
+    + '  <div class="fl-head-actions">'
     + (_FL.canManage
       // Shown only to somebody the server says may use it. A control that is
       // there and then refuses is worse than one that was never offered.
@@ -63358,9 +63860,10 @@ function _flHeaderHtml() {
       : '')
     + '  <button class="fl-rules-btn" data-action="flRules" type="button"'
     + '          title="League rules" data-i18n-title="league.rulesTooltip">'
-    + '    <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
+    + '    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
     + '    <span>Rules</span>'
     + '  </button>'
+    + '  </div>'
     + '</div>'
     + '<nav class="fl-tabs" role="tablist">'
     + tabs.map(function (t) {
@@ -63385,18 +63888,14 @@ function _flSkeleton(kind) {
 }
 
 function _flEmpty(title, sub) {
-  return '<div class="fl-empty">'
-    + '<div class="fl-empty-icon">🏆</div>'
-    + '<div class="fl-empty-title">' + _esc(title) + '</div>'
-    + (sub ? '<div class="fl-empty-sub">' + _esc(sub) + '</div>' : '')
-    + '</div>';
+  return _lgEmpty(_esc(title), sub ? _esc(sub) : '', '🏆');
 }
 
 function _flError(sentence) {
-  return '<div class="fl-empty fl-empty--error">'
-    + '<div class="fl-empty-icon">⚠️</div>'
-    + '<div class="fl-empty-title">' + _esc(sentence) + '</div>'
-    + '<div class="fl-empty-sub">The request did not complete.</div>'
+  return '<div class="lg-empty lg-empty--error">'
+    + '<div class="lg-empty-ic">⚠️</div>'
+    + '<div class="lg-empty-t">' + _esc(sentence) + '</div>'
+    + '<div class="lg-empty-s">The request did not complete.</div>'
     + '<button class="fl-retry" data-action="flRetry" type="button">Try again</button>'
     + '</div>';
 }
@@ -63433,7 +63932,7 @@ async function _flLoadOverview() {
     _FL.error.overview = true;
   }
   _FL.loading.overview = false;
-  _flRepaint();
+  _flPaintHead(); _flPaintBody();
   if (_FL.league) _flLoadTab();
 }
 
@@ -63445,8 +63944,8 @@ async function _flLoadTab() {
 }
 
 async function _flLoadStandings() {
-  if (_FL.standings) { _flRepaint(); return; }
-  _FL.loading.standings = true; _FL.error.standings = false; _flRepaint();
+  if (_FL.standings) { _flPaintBody(); return; }
+  _FL.loading.standings = true; _FL.error.standings = false; _flPaintBody();
   try {
     var r = await api('/familista-league/standings' + _flSeasonQ());
     var d = (r && r.data) || {};
@@ -63454,27 +63953,27 @@ async function _flLoadStandings() {
     _FL.zones = Array.isArray(d.zones) ? d.zones : [];
     if (Array.isArray(d.myTeamIds)) _FL.myTeamIds = d.myTeamIds;
   } catch (e) { _FL.error.standings = true; }
-  _FL.loading.standings = false; _flRepaint();
+  _FL.loading.standings = false; _flPaintBody();
 }
 
 async function _flLoadMatches(round) {
-  _FL.loading.matches = true; _FL.error.matches = false; _flRepaint();
+  _FL.loading.matches = true; _FL.error.matches = false; _flPaintBody();
   try {
     var r = await api('/familista-league/matches' + _flSeasonQ(round != null ? 'round=' + round : ''));
     _FL.matches = (r && r.data) || null;
     if (_FL.matches) _FL.round = _FL.matches.round;
   } catch (e) { _FL.error.matches = true; }
-  _FL.loading.matches = false; _flRepaint();
+  _FL.loading.matches = false; _flPaintBody();
 }
 
 async function _flLoadBoards() {
-  if (_FL.boards) { _flRepaint(); return; }
-  _FL.loading.boards = true; _FL.error.boards = false; _flRepaint();
+  if (_FL.boards) { _flPaintBody(); return; }
+  _FL.loading.boards = true; _FL.error.boards = false; _flPaintBody();
   try {
     var r = await api('/familista-league/leaderboards' + _flSeasonQ());
     _FL.boards = (r && r.data) || null;
   } catch (e) { _FL.error.boards = true; }
-  _FL.loading.boards = false; _flRepaint();
+  _FL.loading.boards = false; _flPaintBody();
 }
 
 // ── body ────────────────────────────────────────────────────────────────────
@@ -63493,13 +63992,7 @@ function _flBodyHtml() {
 
 // ── tab 1 · standings ───────────────────────────────────────────────────────
 
-function _flFormHtml(form) {
-  if (!form || !form.length) return '<span class="fl-form-none">—</span>';
-  // Newest last, as the engine records it.
-  return '<span class="fl-form">' + form.map(function (f) {
-    return '<i class="fl-f fl-f--' + f.toLowerCase() + '" title="' + (f === 'W' ? 'Win' : f === 'D' ? 'Draw' : 'Loss') + '">' + f + '</i>';
-  }).join('') + '</span>';
-}
+function _flFormHtml(form) { return _lgForm(form); }
 
 function _flZoneLegendHtml() {
   if (!_FL.zones.length) return '';
@@ -63514,14 +64007,12 @@ function _flStandingsHtml() {
   if (_FL.error.standings)   return _flError('Could not load the standings');
   var rows = _FL.standings || [];
   if (!rows.length) {
-    return _flEmpty('The league has not started',
-      'The table fills in as league matches are played.');
+    return _lgPanel('Standings', '',
+      _flEmpty('The league has not started', 'The table fills in as league matches are played.'));
   }
   var head = _FL_COLS;
-  return '<div class="fl-card">'
-    + _flZoneLegendHtml()
-    + '<div class="fl-table-wrap">'
-    + '<table class="fl-table"><thead><tr>'
+  var table = '<div class="lg-table-wrap">'
+    + '<table class="lg-table fl-table"><thead><tr>'
     + head.map(function (h, i) {
         return '<th class="' + (i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'))) + '"'
           // data-no-i18n keeps the automatic pass off a cell the key-based
@@ -63538,43 +64029,38 @@ function _flStandingsHtml() {
         // through the CSSOM. A style="" attribute would be silently refused:
         // the Content-Security-Policy here has no 'unsafe-inline' for styles.
         var zoneAttr = r.zone ? ' data-fl-zone="' + _esc(r.zone.color || '#64748b') + '"' : '';
-        return '<tr class="fl-row' + (mine ? ' is-mine' : '') + (r.zone ? ' has-zone' : '') + '"'
+        return '<tr class="lg-row fl-row' + (mine ? ' is-mine' : '') + (r.zone ? ' has-zone' : '') + '"'
           + zoneAttr
           + ' data-action="flTeam" data-team-id="' + _esc(r.teamId) + '" tabindex="0"'
           + (r.zone ? ' title="' + _esc(r.zone.label || '') + '"' : '') + '>'
-          + '<td class="fl-td-pos">' + r.position + '</td>'
-          + '<td class="fl-td-team"><span class="fl-team">'
-          +   _flCrest(r.clubId, 'sm')
-          +   '<span class="fl-team-txt"><b data-user-content>' + _esc(r.clubName) + '</b>'
-          +   (r.teamName && r.teamName !== r.clubName ? '<i data-user-content>' + _esc(r.teamName) + '</i>' : '')
-          +   '</span></span></td>'
+          + '<td class="fl-td-pos"><span class="fl-pos">' + r.position + '</span></td>'
+          + '<td class="fl-td-team">'
+          + _lgIdent({ clubId: r.clubId, name: r.clubName,
+                       sub: (r.teamName && r.teamName !== r.clubName) ? r.teamName : '', size: 28 })
+          + '</td>'
           + '<td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.drawn + '</td><td>' + r.lost + '</td>'
           + '<td>' + r.goalsFor + '</td><td>' + r.goalsAgainst + '</td>'
           + '<td class="fl-td-gd">' + (r.goalDiff > 0 ? '+' : '') + r.goalDiff + '</td>'
-          + '<td class="fl-td-pts">' + r.points + '</td>'
-          + '<td class="fl-td-form">' + _flFormHtml(r.form) + '</td>'
+          + '<td class="fl-td-pts"><span class="fl-pts">' + r.points + '</span></td>'
+          + '<td class="fl-td-form">' + _lgForm(r.form) + '</td>'
           + '</tr>';
       }).join('')
-    + '</tbody></table></div></div>';
+    + '</tbody></table></div>';
+  return _lgPanel('Standings', 'Updated as league matches finish', table + _flZoneLegendHtml(), 'lg-panel--table');
 }
 
 // ── tab 2 · matches ─────────────────────────────────────────────────────────
 
-var _FL_STATUS = {
-  SCHEDULED: ['UPCOMING', 'fl-s-up'],
-  LIVE:      ['LIVE',      'fl-s-live'],
-  HALFTIME:  ['LIVE',      'fl-s-live'],
-  PLAYED:    ['FINISHED',  'fl-s-done'],
-  FT:        ['FINISHED',  'fl-s-done'],
-  POSTPONED: ['POSTPONED', 'fl-s-post'],
-  CANCELLED: ['CANCELLED', 'fl-s-cancel'],
-  ABANDONED: ['CANCELLED', 'fl-s-cancel'],
-};
-
 function _flKickoff(iso) {
   try {
     var d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString(_mcLocale(), { hour: '2-digit', minute: '2-digit' });
+  } catch (_) { return ''; }
+}
+
+function _flMatchDay(iso) {
+  try {
+    return new Date(iso).toLocaleDateString(_mcLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
   } catch (_) { return ''; }
 }
 
@@ -63583,7 +64069,8 @@ function _flMatchesHtml() {
   if (_FL.error.matches)   return _flError('Could not load the fixtures');
   var m = _FL.matches;
   if (!m || !m.rounds || !m.rounds.length) {
-    return _flEmpty('No fixtures available', 'League fixtures appear here once the season calendar is published.');
+    return _lgPanel('Matches', '',
+      _flEmpty('No fixtures available', 'League fixtures appear here once the season calendar is published.'));
   }
   var idx = m.rounds.indexOf(m.round);
   var prev = idx > 0 ? m.rounds[idx - 1] : null;
@@ -63600,60 +64087,104 @@ function _flMatchesHtml() {
     + '</div>';
 
   if (!m.matches.length) {
-    return '<div class="fl-card">' + nav + _flEmpty('No matches in this round', '') + '</div>';
+    return _lgPanel('Matches', '', nav + _flEmpty('No matches in this round', ''), 'lg-panel--table');
   }
 
-  var list = m.matches.map(function (x) {
-    var st = _FL_STATUS[x.status] || ['UPCOMING', 'fl-s-up'];
-    var done = x.homeScore != null && x.awayScore != null;
-    var mine = _flMine(x.home && x.home.teamId) || _flMine(x.away && x.away.teamId);
-    var mid = done
-      ? '<span class="fl-score">' + x.homeScore + '<i>-</i>' + x.awayScore + '</span>'
-      : '<span class="fl-kick">' + _esc(_flKickoff(x.scheduledAt)) + '</span>';
-    var side = function (t, align) {
-      if (!t) return '<span class="fl-side fl-side--' + align + '"><span class="fl-side-txt" data-user-content>Unknown</span></span>';
-      return '<span class="fl-side fl-side--' + align + '">'
-        + (align === 'home' ? '' : '<span class="fl-side-txt" data-user-content>' + _esc(t.clubName) + '</span>')
-        + _flCrest(t.clubId, 'sm')
-        + (align === 'home' ? '<span class="fl-side-txt" data-user-content>' + _esc(t.clubName) + '</span>' : '')
-        + '</span>';
-    };
-    return '<div class="fl-match' + (mine ? ' is-mine' : '') + '"'
-      + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
-      + '<span class="fl-status ' + st[1] + '">' + st[0] + '</span>'
-      + side(x.home, 'home') + mid + side(x.away, 'away')
-      // The whole row still opens the match; this says so out loud, because a
-      // row that is silently clickable is a row most people never click.
-      + (x.matchId ? '<span class="fl-open">Open Match Center</span>' : '')
-      + '</div>';
-  }).join('');
+  var list = m.matches.map(function (x) { return _flMatchRow(x, false); }).join('');
+  return _lgPanel('Matches', 'Round ' + (m.round == null ? '—' : m.round) + ' of ' + m.rounds.length,
+    nav + '<div class="fl-matches">' + list + '</div>', 'lg-panel--table');
+}
 
-  return '<div class="fl-card">' + nav + '<div class="fl-matches">' + list + '</div></div>';
+// One fixture, in the row shape the whole competition uses. Same height
+// philosophy, typography and hover as a standings row, because they are two
+// views of the same season.
+function _flMatchRow(x, compact) {
+  var done = x.homeScore != null && x.awayScore != null;
+  var mine = _flMine(x.home && x.home.teamId) || _flMine(x.away && x.away.teamId);
+  var mid = done
+    ? '<span class="fl-score">' + x.homeScore + '<i>–</i>' + x.awayScore + '</span>'
+    : '<span class="fl-kick">' + _esc(_flKickoff(x.scheduledAt)) + '</span>';
+  var side = function (t, align) {
+    var name = (t && t.clubName) || '';
+    return '<span class="fl-side fl-side--' + align + '">'
+      + (align === 'away' ? '<span class="fl-side-txt" data-user-content>' + _esc(name) + '</span>' : '')
+      + _lgCrest(t && t.clubId, name, compact ? 22 : 26)
+      + (align === 'home' ? '<span class="fl-side-txt" data-user-content>' + _esc(name) + '</span>' : '')
+      + '</span>';
+  };
+  return '<div class="lg-row fl-match' + (mine ? ' is-mine' : '') + (compact ? ' fl-match--sm' : '') + '"'
+    + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
+    + _lgStatusChip(x.status)
+    + side(x.home, 'home') + mid + side(x.away, 'away')
+    + (compact ? '' : '<span class="fl-when">'
+        + (x.round != null ? '<b>Round ' + x.round + '</b>' : '')
+        + '<i>' + _esc(_flMatchDay(x.scheduledAt)) + '</i></span>')
+    // The whole row still opens the match; this says so out loud, because a
+    // row that is silently clickable is a row most people never click.
+    + (x.matchId ? '<span class="fl-open">Open Match Center</span>' : '')
+    + '</div>';
 }
 
 // ── tab 3 · player stats ────────────────────────────────────────────────────
 
+var _FL_BOARDS = [
+  { id: 'goals',   label: 'Goals',   fmt: function (v) { return String(v); } },
+  { id: 'rating',  label: 'Rating',  fmt: function (v) { return Number(v).toFixed(2); } },
+  { id: 'assists', label: 'Assists', fmt: function (v) { return String(v); } },
+];
+
+// The categories behind "More stats". Each is drawn only when the league
+// actually has a figure for somebody — a board of zeroes is not a ranking.
+var _FL_MORE = [
+  { id: 'appearances', label: 'Appearances', fmt: function (v) { return String(v); } },
+  { id: 'minutes',     label: 'Minutes',     fmt: function (v) { return String(v); } },
+  { id: 'shots',       label: 'Shots',       fmt: function (v) { return String(v); } },
+  { id: 'passes',      label: 'Passes',      fmt: function (v) { return String(v); } },
+  { id: 'tackles',     label: 'Tackles',     fmt: function (v) { return String(v); } },
+  { id: 'cards',       label: 'Cards',       fmt: function (v) { return String(v); } },
+];
+
+// Rank a category out of the per-player records the leaderboard call already
+// returned. No second request, and nothing invented: a category with no
+// non-zero figure anywhere is not drawn at all.
+function _flRank(key) {
+  var players = (_FL.boards && _FL.boards.players) || [];
+  var val = function (p) {
+    if (key === 'cards') return (p.yellowCards || 0) + (p.redCards || 0);
+    return p[key];
+  };
+  var out = players.filter(function (p) { return typeof val(p) === 'number' && val(p) > 0; })
+    .sort(function (a, b) { return val(b) - val(a); })
+    .slice(0, 10)
+    .map(function (p) {
+      return { playerId: p.playerId, playerName: p.playerName, clubId: p.clubId,
+               clubName: p.clubName, position: p.position, value: val(p) };
+    });
+  return out;
+}
+
 function _flBoardHtml(title, list, fmt) {
   if (!list || !list.length) {
-    return '<section class="fl-board"><h3 class="fl-board-h">' + _esc(title) + '</h3>'
-      + _flEmpty('Player statistics not available yet', '') + '</section>';
+    return _lgPanel(_esc(title), '', _flEmpty('Player statistics not available yet', ''), 'lg-panel--board');
   }
   var myClub = _famActiveClubId();
-  return '<section class="fl-board"><h3 class="fl-board-h">' + _esc(title) + '</h3><ol class="fl-board-list">'
-    + list.map(function (e, i) {
-        var mine = myClub && e.clubId === myClub;
-        return '<li class="fl-board-row' + (mine ? ' is-mine' : '') + '"'
-          + ' data-action="flPlayer" data-player-id="' + _esc(e.playerId) + '" tabindex="0">'
-          + '<span class="fl-rank">' + (i + 1) + '</span>'
-          + _flCrest(e.clubId, 'xs')
-          + '<span class="fl-board-txt">'
-          +   '<b data-user-content>' + _esc(e.playerName) + '</b>'
-          +   '<i data-user-content>' + _esc(e.clubName) + '</i>'
-          + '</span>'
-          + '<span class="fl-board-val">' + _esc(fmt(e.value)) + '</span>'
-          + '</li>';
-      }).join('')
-    + '</ol></section>';
+  var rows = list.map(function (e, i) {
+    var mine = myClub && e.clubId === myClub;
+    return '<li class="lg-row fl-board-row' + (mine ? ' is-mine' : '') + (i < 3 ? ' is-top is-top' + (i + 1) : '') + '"'
+      + ' data-action="flPlayer" data-player-id="' + _esc(e.playerId) + '" tabindex="0">'
+      + '<span class="fl-rank">' + (i + 1) + '</span>'
+      + '<span class="fl-board-av" data-user-content>' + _esc(_lgInitials(e.playerName)) + '</span>'
+      + '<span class="fl-board-txt">'
+      +   '<b data-user-content>' + _esc(e.playerName) + '</b>'
+      +   '<i>' + _lgCrest(e.clubId, e.clubName, 15)
+      +   '<span data-user-content>' + _esc(e.clubName) + '</span>'
+      +   (e.position ? '<em data-no-i18n>' + _esc(e.position) + '</em>' : '') + '</i>'
+      + '</span>'
+      + '<span class="fl-board-val">' + _esc(fmt(e.value)) + '</span>'
+      + '</li>';
+  }).join('');
+  return _lgPanel(_esc(title), list.length + ' <span>ranked</span>',
+    '<ol class="fl-board-list">' + rows + '</ol>', 'lg-panel--board');
 }
 
 function _flPlayersHtml() {
@@ -63663,10 +64194,28 @@ function _flPlayersHtml() {
   // with no player records yet shows three empty panels and says why, rather
   // than collapsing to one message that hides what the tab is for.
   var b = _FL.boards || { goals: [], rating: [], assists: [] };
-  return '<div class="fl-boards">'
-    + _flBoardHtml('Goals',   b.goals,   function (v) { return String(v); })
-    + _flBoardHtml('Rating',  b.rating,  function (v) { return Number(v).toFixed(2); })
-    + _flBoardHtml('Assists', b.assists, function (v) { return String(v); })
+  var main = _FL_BOARDS.map(function (d) {
+    return _flBoardHtml(d.label, b[d.id], d.fmt);
+  }).join('');
+
+  var extra = '';
+  if (_FL.more) {
+    extra = _FL_MORE.map(function (d) {
+      var list = _flRank(d.id);
+      return list.length ? _flBoardHtml(d.label, list, d.fmt) : '';
+    }).join('');
+    if (!extra) {
+      extra = _lgPanel('More stats', '',
+        _flEmpty('Nothing else has been recorded yet',
+          'Appearances, minutes, shots, passes, tackles and cards appear here as league matches are played.'),
+        'lg-panel--board');
+    }
+  }
+
+  return '<div class="fl-boards">' + main + extra + '</div>'
+    + '<div class="fl-more-bar">'
+    + '<button class="fl-more" type="button" data-action="flMore">'
+    + (_FL.more ? 'Fewer stats' : 'More stats') + '</button>'
     + '</div>';
 }
 
@@ -63728,75 +64277,77 @@ function _flRulesHtml() {
       }).join('') + '</ul>'
     : '';
 
-  return '<div class="fl-modal-bg" data-action="flCloseRules">'
-    + '<div class="fl-modal" role="dialog" aria-modal="true" aria-label="Familista League rules"'
-    + ' data-i18n-aria="league.rulesDialog">'
-    + '<header class="fl-modal-h">'
-    +   '<div><div class="fl-eyebrow">Familista League</div><h2>Rules</h2></div>'
-    +   '<button class="fl-modal-x" data-action="flCloseRules" type="button" aria-label="Close" data-i18n-aria="common.close">✕</button>'
-    + '</header>'
-    + '<div class="fl-modal-b">'
-    +   (hasFormat ? _flRuleSection('League format', formatBody) : '')
-    +   _flRuleSection('Points system', pointsBody)
-    +   _flRuleSection('Ranking rules', rankBody)
-    +   (zoneBody ? _flRuleSection('Qualification, promotion and relegation', zoneBody) : '')
-    +   _flRuleSection('Season information', seasonBody)
-    +   (prizeBody ? _flRuleSection('Awards', prizeBody) : '')
-    + '</div></div></div>';
+  return _lgFloat({
+    close: 'flCloseRules',
+    cls: 'lg-float--md',
+    head: '<div><div class="fl-eyebrow">Familista League</div><span class="lg-float-t">Rules</span></div>',
+    body: (hasFormat ? _flRuleSection('League format', formatBody) : '')
+      + _flRuleSection('Points system', pointsBody)
+      + _flRuleSection('Ranking rules', rankBody)
+      + (zoneBody ? _flRuleSection('Qualification, promotion and relegation', zoneBody) : '')
+      + _flRuleSection('Season information', seasonBody)
+      + (prizeBody ? _flRuleSection('Awards', prizeBody) : ''),
+  });
 }
 
-// ── club row detail ─────────────────────────────────────────────────────────
+// ── the club's competition profile ──────────────────────────────────────────
+//
+// A floating panel, not a page: it opens over the table, animates on transform
+// and opacity alone, and touches nothing in the flow underneath. Everything on
+// it is the club's own league record — nothing is fetched twice and nothing is
+// invented for a club that has not played yet.
 
 function _flTeamHtml() {
   var t = _FL.team;
   if (t === 'loading') {
-    return '<div class="fl-modal-bg" data-action="flCloseTeam"><div class="fl-modal fl-modal--sm">'
-      + '<div class="fl-modal-b">' + _flSkeleton('cards') + '</div></div></div>';
+    return _lgFloat({ close: 'flCloseTeam', cls: 'lg-float--md',
+      head: '<span class="lg-float-t">Club record</span>',
+      body: _flSkeleton('cards') });
   }
   var id = t.identity || {};
   var s = t.standing;
-  var line = function (label, val) { return '<li><span>' + _esc(label) + '</span><b>' + val + '</b></li>'; };
-  var recent = (t.recent || []).concat(t.upcoming || []);
-  return '<div class="fl-modal-bg" data-action="flCloseTeam">'
-    + '<div class="fl-modal fl-modal--sm" role="dialog" aria-modal="true">'
-    + '<header class="fl-modal-h">'
-    +   '<div class="fl-team">' + _flCrest(id.clubId, 'md')
-    +   '<span class="fl-team-txt"><b data-user-content>' + _esc(id.clubName || '') + '</b>'
-    +   (id.teamName && id.teamName !== id.clubName ? '<i data-user-content>' + _esc(id.teamName) + '</i>' : '') + '</span></div>'
-    +   '<button class="fl-modal-x" data-action="flCloseTeam" type="button" aria-label="Close" data-i18n-aria="common.close">✕</button>'
-    + '</header>'
-    + '<div class="fl-modal-b">'
-    + (s
-        ? '<ul class="fl-rule-list">'
-          + line('Position', s.position)
-          + line('Played', s.played)
-          + line('Record', s.won + 'W · ' + s.drawn + 'D · ' + s.lost + 'L')
-          + line('Goals', s.goalsFor + ' / ' + s.goalsAgainst)
-          + line('Goal difference', (s.goalDiff > 0 ? '+' : '') + s.goalDiff)
-          + line('Points', s.points)
-          + '</ul>'
-          + '<div class="fl-team-form">' + _flFormHtml(s.form) + '</div>'
-        : _flEmpty('No league record yet', ''))
-    + (recent.length
-        ? '<h4 class="fl-sub-h">Fixtures</h4><div class="fl-matches fl-matches--sm">'
-          + recent.map(function (x) {
-              var done = x.homeScore != null && x.awayScore != null;
-              return '<div class="fl-match" data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
-                + '<span class="fl-side fl-side--home">' + _flCrest(x.home && x.home.clubId, 'xs')
-                + '<span class="fl-side-txt" data-user-content>' + _esc((x.home && x.home.clubName) || '') + '</span></span>'
-                + (done ? '<span class="fl-score">' + x.homeScore + '<i>-</i>' + x.awayScore + '</span>'
-                        : '<span class="fl-kick">' + _esc(_flKickoff(x.scheduledAt)) + '</span>')
-                + '<span class="fl-side fl-side--away"><span class="fl-side-txt" data-user-content>' + _esc((x.away && x.away.clubName) || '') + '</span>'
-                + _flCrest(x.away && x.away.clubId, 'xs') + '</span>'
-                + '</div>';
-            }).join('')
-          + '</div>'
-        : '')
-    + '</div></div></div>';
+  var mine = _flMine(id.teamId);
+
+  var record = s
+    ? '<div class="lg-metrics">'
+      + _lgMetric('Position', s.position)
+      + _lgMetric('Played', s.played)
+      + _lgMetric('Won', s.won)
+      + _lgMetric('Drawn', s.drawn)
+      + _lgMetric('Lost', s.lost)
+      + _lgMetric('Goals scored', s.goalsFor)
+      + _lgMetric('Goals conceded', s.goalsAgainst)
+      + _lgMetric('Goal difference', (s.goalDiff > 0 ? '+' : '') + s.goalDiff)
+      + _lgMetric('Points', s.points, '', 'lg-metric--hero')
+      + _lgMetric('Recent form', _lgForm(s.form))
+      + '</div>'
+    : _flEmpty('No league record yet', 'This club has not played a league match this season.');
+
+  var fixtures = function (list, title) {
+    if (!list || !list.length) return '';
+    return '<h4 class="lg-sub-h">' + title + '</h4>'
+      + '<div class="fl-matches fl-matches--sm">'
+      + list.map(function (x) { return _flMatchRow(x, true); }).join('')
+      + '</div>';
+  };
+
+  return _lgFloat({
+    close: 'flCloseTeam',
+    cls: 'lg-float--md',
+    head: _lgIdent({ clubId: id.clubId, name: id.clubName || '',
+                     sub: (id.teamName && id.teamName !== id.clubName) ? id.teamName : 'First Team', size: 40 })
+          + (s ? '<span class="fl-panel-pos">' + s.position + '<i>in the table</i></span>' : ''),
+    body: record + fixtures(t.upcoming, 'Next fixtures') + fixtures(t.recent, 'Recent results'),
+    // Only routes that already exist. A club that is not ours has no squad we
+    // are allowed to open, so the control is not offered.
+    foot: '<button class="lg-act" type="button" data-action="flTeamFixtures">View Fixtures</button>'
+      + (mine ? '<button class="lg-act" type="button" data-action="navTo" data-page="squad">View Squad</button>' : '')
+      + '<button class="lg-act lg-act--ghost" type="button" data-action="flCloseTeam">Close</button>',
+  });
 }
 
 async function _flOpenTeam(teamId) {
-  _FL.team = 'loading'; _flRepaint();
+  _FL.team = 'loading'; _flPaintOverlay();
   try {
     var r = await api('/familista-league/teams/' + encodeURIComponent(teamId) + _flSeasonQ());
     _FL.team = (r && r.data) || null;
@@ -63804,7 +64355,91 @@ async function _flOpenTeam(teamId) {
     _FL.team = null;
     try { showToast('Could not load that club record', 'error'); } catch (_) {}
   }
-  _flRepaint();
+  _flPaintOverlay();
+}
+
+// ── the fixture's quick preview ─────────────────────────────────────────────
+//
+// Clicking a fixture used to go straight to the Match Centre. It still can —
+// the button is right there — but a coach scanning a round usually wants to
+// know who is playing, where each side sits and who is available before
+// committing to the whole screen. So the row opens this first.
+//
+// The payload it reads is exactly the payload the Match Centre needs, so
+// opening the Match Centre from here costs no second request: the preview keeps
+// what it loaded and hands it over.
+
+function _flPreviewHtml() {
+  var p = _FL.preview;
+  if (!p || p.loading) {
+    return _lgFloat({ close: 'flClosePreview', cls: 'lg-float--md',
+      head: '<span class="lg-float-t">Match</span>', body: _flSkeleton('cards') });
+  }
+  var d = p.data || {};
+  var m = d.match || {};
+  var home = d.home || {}, away = d.away || {};
+  var st = d.standings || {}, sq = d.squads || {};
+  var ctx = d.context || null;
+  var done = m.homeScore != null && m.awayScore != null;
+
+  var side = function (idt, key, align) {
+    var stand = st[key] || null;
+    var squad = sq[key] || [];   // already the shape the Match Centre reads
+    var av = _mcAvailability(squad);
+    var likely = _mcLikelyXI(squad);
+    return '<div class="fl-pv-side ' + align + '">'
+      + _lgCrest(idt.clubId, idt.clubName || idt.teamName || '', 52)
+      + '<div class="fl-pv-name" data-user-content>' + _esc(idt.clubName || idt.teamName || '') + '</div>'
+      + '<div class="fl-pv-lbl">' + (align === 'home' ? 'Home' : 'Away') + '</div>'
+      + (stand ? '<div class="fl-pv-pos">' + stand.position + '<i>in the table</i></div>' : '')
+      + (stand ? _lgForm(stand.form) : '')
+      + (av.total ? '<div class="fl-pv-av">' + av.available + ' <i>of</i> ' + av.total + ' <i>available</i></div>' : '')
+      + (likely.xi.length ? '<div class="fl-pv-form2">' + likely.shape + '</div>' : '')
+      + '</div>';
+  };
+
+  var meta = '<div class="lg-metrics lg-metrics--wide">'
+    + (ctx ? _lgMetric('Competition', '<span data-user-content>' + _esc(ctx.name) + '</span>') : '')
+    + (ctx ? _lgMetric('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
+    + (ctx && ctx.round != null ? _lgMetric('Round', ctx.round) : '')
+    + _lgMetric('Kick-off', m.scheduledAt ? _esc(_flMatchDay(m.scheduledAt) + ' · ' + _flKickoff(m.scheduledAt)) : null)
+    + (m.venue ? _lgMetric('Venue', '<span data-user-content>' + _esc(m.venue) + '</span>') : '')
+    + '</div>';
+
+  return _lgFloat({
+    close: 'flClosePreview',
+    cls: 'lg-float--md',
+    head: '<span class="lg-float-t">Match</span>' + _lgStatusChip(m.status),
+    body: '<div class="fl-pv">'
+      + side(home, 'home', 'home')
+      + '<div class="fl-pv-vs">'
+      + '<div class="fl-pv-score">' + (done ? (m.homeScore + ' – ' + m.awayScore) : 'VS') + '</div>'
+      + '</div>'
+      + side(away, 'away', 'away')
+      + '</div>' + meta,
+    foot: '<button class="lg-act lg-act--primary" type="button" data-action="flPreviewOpen">Open Match Center</button>'
+      + '<button class="lg-act" type="button" data-action="flPreviewStandings">View Standings</button>'
+      + '<button class="lg-act lg-act--ghost" type="button" data-action="flClosePreview">Close</button>',
+  });
+}
+
+async function _flOpenPreview(fixtureId) {
+  _FL.preview = { loading: true, fixtureId: fixtureId, data: null };
+  _flPaintOverlay();
+  try {
+    var r = await api('/familista-league/fixtures/' + encodeURIComponent(fixtureId) + '/match' + _flSeasonQ());
+    var d = (r && r.data) || null;
+    if (!d || !d.match) {
+      _FL.preview = null; _flPaintOverlay();
+      try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {}
+      return;
+    }
+    _FL.preview = { loading: false, fixtureId: fixtureId, data: d };
+  } catch (e) {
+    _FL.preview = null;
+    try { showToast('Could not open that match', 'error'); } catch (_) {}
+  }
+  _flPaintOverlay();
 }
 
 // ── opening a league match in the Match Centre ──────────────────────────────
@@ -63818,7 +64453,22 @@ async function _flOpenTeam(teamId) {
 // The record has to come from the league endpoint rather than from the club's
 // own match list, because only one of the two clubs owns the Match row and the
 // other would otherwise find nothing to open.
+function _flHandOver(d) {
+  window._MC_FOCUS = _mcFocusFromLeague(d);
+  _MC.tab = 'overview';
+  _MC.cmp = null;
+  try { navTo('match-center'); } catch (_) {}
+  try { renderMatchCenter(); } catch (_) {}
+}
+
 async function _flOpenMatch(fixtureId) {
+  // Already loaded by the preview: hand that over rather than asking again.
+  if (_FL.preview && !_FL.preview.loading && _FL.preview.fixtureId === fixtureId && _FL.preview.data) {
+    var kept = _FL.preview.data;
+    _FL.preview = null; _flPaintOverlay();
+    _flHandOver(kept);
+    return;
+  }
   try { showToast('Opening Match Centre…', 'info'); } catch (_) {}
   try {
     var r = await api('/familista-league/fixtures/' + encodeURIComponent(fixtureId) + '/match' + _flSeasonQ());
@@ -63827,10 +64477,8 @@ async function _flOpenMatch(fixtureId) {
       try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {}
       return;
     }
-    window._MC_FOCUS = _mcFocusFromLeague(d);
-    _MC.tab = 'overview';
-    try { navTo('match-center'); } catch (_) {}
-    try { renderMatchCenter(); } catch (_) {}
+    _FL.preview = null; _flPaintOverlay();
+    _flHandOver(d);
   } catch (e) {
     try { showToast('Could not open that match', 'error'); } catch (_) {}
   }
@@ -63886,12 +64534,12 @@ function _mcFocusFromLeague(d) {
 
 async function _flOpenManage() {
   _FL.manage = { loading: true, participants: [], eligible: [], busy: '' };
-  _flRepaint();
+  _flPaintOverlay();
   try {
     var r = await api('/familista-league/manage' + _flSeasonQ());
     var d = (r && r.data) || {};
     if (!d.canManage) {
-      _FL.manage = null; _flRepaint();
+      _FL.manage = null; _flPaintOverlay();
       try { showToast('Managing league participants requires a platform administrator', 'error'); } catch (_) {}
       return;
     }
@@ -63913,12 +64561,12 @@ async function _flOpenManage() {
   } catch (err) {
     _FL.manage = { loading: false, participants: [], eligible: [], error: true, busy: '' };
   }
-  _flRepaint();
+  _flPaintOverlay();
 }
 
 async function _flAddTeam(teamId) {
   if (!_FL.manage) return;
-  _FL.manage.busy = teamId; _flRepaint();
+  _FL.manage.busy = teamId; _flPaintOverlay();
   try {
     await api('/familista-league/manage/participants' + _flSeasonQ(), {
       method: 'POST', body: JSON.stringify({ teamId: teamId }),
@@ -63927,21 +64575,21 @@ async function _flAddTeam(teamId) {
     await _flOpenManage();
     _flLoadTab();
   } catch (e) {
-    _FL.manage.busy = ''; _flRepaint();
+    _FL.manage.busy = ''; _flPaintOverlay();
     try { showToast((e && e.message) || 'Could not add that team', 'error'); } catch (_) {}
   }
 }
 
 async function _flRemoveTeam(teamId) {
   if (!_FL.manage) return;
-  _FL.manage.busy = teamId; _flRepaint();
+  _FL.manage.busy = teamId; _flPaintOverlay();
   try {
     await api('/familista-league/manage/participants/' + encodeURIComponent(teamId) + _flSeasonQ(), { method: 'DELETE' });
     _FL.standings = null; _FL.matches = null; _FL.boards = null;
     await _flOpenManage();
     _flLoadTab();
   } catch (e) {
-    _FL.manage.busy = ''; _flRepaint();
+    _FL.manage.busy = ''; _flPaintOverlay();
     try { showToast((e && e.message) || 'Could not remove that team', 'error'); } catch (_) {}
   }
 }
@@ -63999,18 +64647,19 @@ function _flManageHtml() {
       + pool + '</div>';
   }
 
-  return '<div class="fl-modal-bg" data-action="flCloseManage">'
-    + '<div class="fl-modal fl-modal--manage" role="dialog" aria-modal="true">'
-    + '<div class="fl-modal-hd">'
-    + '  <h2 class="fl-modal-title">Manage Teams</h2>'
-    + '  <button class="fl-modal-x" type="button" data-action="flCloseManage" aria-label="Close"'
-    + '          data-i18n-aria="common.close">✕</button>'
-    + '</div>'
-    + '<div class="fl-modal-bd">' + body + '</div>'
-    + '</div></div>';
+  return _lgFloat({
+    close: 'flCloseManage',
+    cls: 'lg-float--lg fl-modal--manage',
+    head: '<span class="lg-float-t">Manage Teams</span>',
+    body: body,
+  });
 }
 
 // ── actions ─────────────────────────────────────────────────────────────────
+//
+// Each branch repaints only the region it changed. Opening or closing a panel
+// touches the overlay alone, so the table underneath does not move, reflow or
+// lose its scroll position — which is what the shaking was.
 
 document.addEventListener('click', function (ev) {
   var el = ev.target && ev.target.closest ? ev.target.closest('[data-action]') : null;
@@ -64018,16 +64667,28 @@ document.addEventListener('click', function (ev) {
   var act = el.getAttribute('data-action');
   if (act === 'flTab') {
     var tab = el.getAttribute('data-tab');
-    if (tab && tab !== _FL.tab) { _FL.tab = tab; _flRepaint(); _flLoadTab(); }
+    if (tab && tab !== _FL.tab) { _FL.tab = tab; _flPaintHead(); _flPaintBody(); _flLoadTab(); }
   } else if (act === 'flRules') {
-    _FL.rules = true; _flRepaint();
+    _FL.rules = true; _flPaintOverlay();
   } else if (act === 'flCloseRules') {
-    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.rules = false; _flRepaint(); }
+    if (ev.target === el || el.tagName === 'BUTTON') { _FL.rules = false; _flPaintOverlay(); }
   } else if (act === 'flCloseTeam') {
-    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.team = null; _flRepaint(); }
+    if (ev.target === el || el.tagName === 'BUTTON') { _FL.team = null; _flPaintOverlay(); }
+  } else if (act === 'flClosePreview') {
+    if (ev.target === el || el.tagName === 'BUTTON') { _FL.preview = null; _flPaintOverlay(); }
+  } else if (act === 'flTeamFixtures') {
+    _FL.team = null; _FL.tab = 'matches';
+    _flPaintOverlay(); _flPaintHead(); _flPaintBody(); _flLoadTab();
+  } else if (act === 'flPreviewStandings') {
+    _FL.preview = null; _FL.tab = 'standings';
+    _flPaintOverlay(); _flPaintHead(); _flPaintBody(); _flLoadTab();
+  } else if (act === 'flPreviewOpen') {
+    if (_FL.preview && _FL.preview.fixtureId) _flOpenMatch(_FL.preview.fixtureId);
   } else if (act === 'flRound') {
     var rn = parseInt(el.getAttribute('data-round'), 10);
     if (!isNaN(rn)) _flLoadMatches(rn);
+  } else if (act === 'flMore') {
+    _FL.more = !_FL.more; _flPaintBody();
   } else if (act === 'flTeam') {
     var tid = el.getAttribute('data-team-id');
     if (tid) _flOpenTeam(tid);
@@ -64037,16 +64698,17 @@ document.addEventListener('click', function (ev) {
     var pid = el.getAttribute('data-player-id');
     if (pid && typeof openPlayerModal === 'function') openPlayerModal(pid);
   } else if (act === 'flMatch') {
-    // Hand over to the Match Centre that already exists rather than build a
-    // second one. A fixture with no Match behind it has nothing to open yet.
+    // The row opens the preview; the preview's own button opens the Match
+    // Centre with what it already loaded. A fixture with no Match behind it
+    // has nothing to open yet.
     var fid = el.getAttribute('data-fixture-id');
     var mid = el.getAttribute('data-match-id');
-    if (fid && mid) _flOpenMatch(fid);
+    if (fid && mid) _flOpenPreview(fid);
     else { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} }
   } else if (act === 'flManage') {
     _flOpenManage();
   } else if (act === 'flCloseManage') {
-    if (ev.target === el || el.classList.contains('fl-modal-x')) { _FL.manage = null; _flRepaint(); }
+    if (ev.target === el || el.tagName === 'BUTTON') { _FL.manage = null; _flPaintOverlay(); }
   } else if (act === 'flAddTeam') {
     var addId = el.getAttribute('data-team-id');
     if (addId) _flAddTeam(addId);
@@ -64057,6 +64719,16 @@ document.addEventListener('click', function (ev) {
     if (!_FL.league) _flLoadOverview();
     else { _FL.standings = null; _FL.boards = null; _flLoadTab(); }
   }
+});
+
+// Escape closes whichever panel is open, innermost first.
+document.addEventListener('keydown', function (ev) {
+  if (ev.key !== 'Escape') return;
+  if (!document.getElementById('fl-shell')) return;
+  if (_FL.preview) { _FL.preview = null; _flPaintOverlay(); }
+  else if (_FL.team) { _FL.team = null; _flPaintOverlay(); }
+  else if (_FL.rules) { _FL.rules = false; _flPaintOverlay(); }
+  else if (_FL.manage) { _FL.manage = null; _flPaintOverlay(); }
 });
 
 // A language change repaints the League the same way it repaints the sidebar,
