@@ -1249,5 +1249,14 @@
   "Our team": "Náš tým",
   "Venue": "Místo",
   "No opponent squad recorded": "Kádr soupeře není zaznamenán",
-  "A league opponent is a club the platform knows; its shape appears here.": "Ligový soupeř je klub, který platforma zná; jeho rozestavení se objeví zde."
+  "A league opponent is a club the platform knows; its shape appears here.": "Ligový soupeř je klub, který platforma zná; jeho rozestavení se objeví zde.",
+  "Change match": "Změnit zápas",
+  "Choose a match": "Vyberte zápas",
+  "Pick the fixture the workspace should be about.": "Vyberte zápas, kterého se má tento pracovní prostor týkat.",
+  "See the fixtures": "Zobrazit rozpis",
+  "No match chosen yet": "Zatím nebyl vybrán žádný zápas",
+  "Choose a fixture and it opens here, inside the league workspace.": "Vyberte zápas a otevře se zde, v prostoru ligy.",
+  "No match in this round is set up yet": "Žádný zápas tohoto kola zatím není připraven",
+  "A fixture opens in the Match Center once the match behind it exists.": "Zápas se otevře v Match Center, jakmile bude existovat utkání, které za ním stojí.",
+  "Round \u0000": "Kolo \u0000"
 }

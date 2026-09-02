@@ -14618,12 +14618,20 @@ body.club-theme .topbar-titles{ min-width:0; }
 .lg-form-none, .lg-na{ color:var(--tx-3,#8b93a7); }
 
 /* ── metric tile ── */
-.lg-metrics{ display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:7px; }
+.lg-metrics{ display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:7px; grid-auto-rows:1fr; }
 .lg-metrics--wide{ grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
-.lg-metric{ padding:9px 11px; border-radius:11px; background:var(--lg-tile); border:1px solid var(--lg-bd-soft); }
+/* Every tile is the same height whether its label wraps or not, and the value
+   sits on one line at the bottom of all of them. A grid of tiles with ragged
+   tops is the difference between a panel that reads as designed and one that
+   reads as assembled. */
+.lg-metric{
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:9px 11px; border-radius:11px;
+  background:var(--lg-tile); border:1px solid var(--lg-bd-soft);
+}
 .lg-metric-l{
   font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
-  color:var(--tx-3,#8b93a7);
+  color:var(--tx-3,#8b93a7); line-height:1.25;
 }
 .lg-metric-v{
   margin-top:3px; font-size:16px; font-weight:900; color:var(--tx-1,#f1f5f9);
@@ -14720,7 +14728,7 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tx-2,#b9c0cf); background:rgba(255,255,255,.04);
   border:1px solid rgba(255,255,255,.09);
 }
-.lg-act:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.1); transform:translateY(-1px); }
+.lg-act:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.2); }
 .lg-act--primary{
   color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b); border-color:transparent;
   box-shadow:0 6px 18px rgba(251,191,36,.26);
@@ -14800,7 +14808,11 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tx-1,#f1f5f9);
 }
 .fl-head-chips{ display:flex; gap:6px; flex-wrap:wrap; }
-.fl-head-actions{ margin-left:auto; display:flex; gap:7px; flex-wrap:wrap; }
+.fl-head-actions{ margin-left:auto; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+/* The control bar: sections on the left, actions on the right, one row. */
+.fl-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.fl-bar > .fl-tabs{ flex:0 1 auto; }
+.fl-bar > .fl-head-actions{ flex:0 0 auto; }
 .fl-manage-btn, .fl-rules-btn{
   appearance:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
   font-size:11px; font-weight:800; padding:7px 13px; border-radius:9px;
@@ -14809,7 +14821,6 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 .fl-manage-btn:hover, .fl-rules-btn:hover{
   color:var(--lg-accent); border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.08);
-  transform:translateY(-1px);
 }
 .fl-tabs{
   display:flex; gap:6px; flex-wrap:wrap; padding:6px; border-radius:12px;
@@ -14823,7 +14834,7 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tx-3,#8b93a7); background:rgba(255,255,255,.03);
   border:1px solid rgba(255,255,255,.07);
 }
-.fl-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); transform:translateY(-1px); }
+.fl-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
 .fl-tab.is-on{
   color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b);
   border-color:transparent; box-shadow:0 5px 16px rgba(251,191,36,.26);
@@ -14882,14 +14893,25 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 
 /* ── fixtures ── */
-.fl-matches{ display:flex; flex-direction:column; gap:6px; }
-.fl-matches--sm{ gap:4px; }
+/* A round is a handful of fixtures, so the list keeps a readable measure and
+   sits under the round nav rather than running the full width of a 1600px
+   workspace. */
+.fl-matches{ display:flex; flex-direction:column; gap:6px; max-width:1180px; margin:0 auto; width:100%; }
+.fl-matches--sm{ gap:4px; max-width:none; }
 .fl-match{
-  display:grid; grid-template-columns:88px 1fr 78px 1fr auto auto; align-items:center; gap:12px;
+  display:grid; grid-template-columns:88px minmax(0,1fr) 92px 22px; align-items:center; gap:12px;
   padding:11px 13px; border-radius:12px; cursor:pointer;
   background:var(--lg-tile); border:1px solid var(--lg-bd-soft);
 }
-.fl-match--sm{ grid-template-columns:78px 1fr 62px 1fr; padding:8px 10px; gap:9px; }
+/* The club-against-club band, centred and capped. Left to a pair of 1fr
+   columns it spread across the whole workspace and the two clubs ended up at
+   opposite edges of the screen, which reads as a spreadsheet, not a fixture. */
+.fl-fx{
+  display:grid; grid-template-columns:minmax(0,1fr) 86px minmax(0,1fr);
+  align-items:center; gap:14px; width:100%; max-width:760px; margin:0 auto;
+}
+.fl-match--sm{ grid-template-columns:78px minmax(0,1fr) 62px 20px; padding:8px 10px; gap:9px; }
+.fl-match--sm .fl-fx{ grid-template-columns:minmax(0,1fr) 66px minmax(0,1fr); gap:10px; max-width:520px; }
 .fl-match.is-mine{ border-color:rgba(251,191,36,.3); background:rgba(251,191,36,.055); }
 .fl-match.is-mine:hover{ background:rgba(251,191,36,.1); }
 .fl-side{ display:inline-flex; align-items:center; gap:9px; min-width:0; }
@@ -14912,7 +14934,16 @@ body.club-theme .topbar-titles{ min-width:0; }
 .fl-when i{ font-style:normal; font-size:10px; color:var(--tx-3,#8b93a7); }
 
 /* ── player stats ── */
-.fl-boards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:var(--lg-gap); align-items:start; }
+/* The boards are one row of equal panels, not three columns of different
+   heights: a leaderboard with six names and one with ten are the same object,
+   and a ragged bottom edge is what made this tab read as unfinished. Each
+   board scrolls inside itself when its list is longer than the row. */
+.fl-boards{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:var(--lg-gap); align-items:stretch; align-content:start;
+}
+.fl-boards > .lg-panel{ display:flex; flex-direction:column; min-height:0; }
+.fl-boards > .lg-panel > .lg-panel-b{ flex:1 1 auto; min-height:0; overflow-y:auto; }
 .fl-board-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
 .fl-board-row{
   display:grid; grid-template-columns:26px 30px 1fr auto; align-items:center; gap:10px;
@@ -14954,7 +14985,9 @@ body.club-theme .topbar-titles{ min-width:0; }
 .fl-board-row.is-top2{ background:rgba(255,255,255,.055); border-color:rgba(255,255,255,.12); }
 .fl-board-row.is-top3{ background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }
 .fl-board-row.is-mine{ box-shadow:inset 3px 0 0 var(--lg-accent); }
-.fl-more-bar{ display:flex; justify-content:center; padding:12px 0 4px; }
+.fl-players{ display:flex; flex-direction:column; min-height:100%; gap:0; }
+.fl-players > .fl-boards{ flex:1 1 auto; min-height:0; }
+.fl-more-bar{ flex:0 0 auto; display:flex; justify-content:center; padding:12px 0 4px; }
 .fl-more{
   appearance:none; cursor:pointer; transition:all .15s;
   font-size:11px; font-weight:800; padding:8px 18px; border-radius:9px;
@@ -15046,7 +15079,8 @@ body.club-theme .topbar-titles{ min-width:0; }
 }
 @media (max-width:760px){
   .fl-title{ font-size:18px; }
-  .fl-match{ grid-template-columns:70px 1fr 62px 1fr; gap:8px; }
+  .fl-match{ grid-template-columns:70px minmax(0,1fr) 20px; gap:8px; }
+  .fl-fx{ grid-template-columns:minmax(0,1fr) 62px minmax(0,1fr); gap:9px; }
   .fl-when{ display:none; }
   .fl-pv{ grid-template-columns:1fr; }
 }
@@ -15348,7 +15382,7 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tx-3,#8b93a7); background:rgba(255,255,255,.03);
   border:1px solid rgba(255,255,255,.07);
 }
-.mcx-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); transform:translateY(-1px); }
+.mcx-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
 .mcx-tab.is-on{
   color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b);
   border-color:transparent; box-shadow:0 5px 16px rgba(251,191,36,.26);
@@ -15456,7 +15490,7 @@ body.club-theme .topbar-titles{ min-width:0; }
   color:var(--tx-2,#b9c0cf); background:rgba(255,255,255,.035);
   border:1px solid rgba(255,255,255,.08);
 }
-.mcx-act:hover{ color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b); border-color:transparent; transform:translateY(-1px); }
+.mcx-act:hover{ color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b); border-color:transparent; }
 
 /* ── opponent ── */
 .mcx-opp-head{ display:flex; align-items:center; gap:11px; margin-bottom:10px; min-width:0; }
@@ -15628,8 +15662,7 @@ body.club-theme .topbar-titles{ min-width:0; }
 /* A button repeated in every row reads as something inserted into the design.
    The chevron is quiet until the pointer is on the row, and then it is the
    only thing that moves. */
-.fl-match{ grid-template-columns:88px 1fr 78px 1fr 92px 22px; }
-.fl-match--sm{ grid-template-columns:78px 1fr 62px 1fr 62px 20px; padding:9px 11px; gap:9px; }
+.fl-match--sm{ padding:9px 11px; }
 .fl-go{
   justify-self:end; font-size:17px; line-height:1; color:var(--tx-3,#8b93a7); opacity:.35;
   transition:opacity .15s, transform .15s, color .15s;
@@ -15875,7 +15908,7 @@ body.club-theme .topbar-titles{ min-width:0; }
   .mcx-col--mu{ grid-column:auto; overflow:visible; }
 }
 @media (max-width:760px){
-  .fl-match{ grid-template-columns:70px 1fr 60px 1fr 20px; }
+  .fl-match{ grid-template-columns:70px minmax(0,1fr) 20px; }
   .fl-when{ display:none; }
   .fl-go{ display:block; }
   .mcx-pre{ grid-template-columns:1fr; }
@@ -16704,3 +16737,99 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 /* The collapsed rail hides labels and centres icons for nav items; this row is
    a nav item too, so it follows the same rule rather than inventing its own. */
 .sidebar.collapsed .sidebar-settings{ padding:6px 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE MATCH CENTER, INSIDE THE LEAGUE WORKSPACE
+   ═══════════════════════════════════════════════════════════════════════════
+   The League is one workspace with four sections, and the fourth is the match
+   itself. Embedded, the Match Center keeps everything that is about the match
+   — the hero, the section rail, the desk — and drops what the League shell has
+   already said: the back link, the breadcrumb and the page title.
+
+   The host fills the League body and takes its own height, so the body does
+   not scroll behind it. Everything that has to give way gives way inside a
+   panel, exactly as it does on the standalone page. */
+
+.fl-body.is-mc{ overflow:hidden; }
+.fl-mc{ display:flex; flex-direction:column; flex:1 1 auto; min-height:0; min-width:0; }
+.fl-mc > .mcx--embed{ padding:0; gap:0; }
+
+/* ── one card, not three bands ──
+   Standalone the Match Center is a page and can spend a band on its title, a
+   band on the fixture and a band on the section rail. Inside the League it is
+   a section of somebody else's page and has one card's worth of room: a thin
+   meta line, the fixture across the full width, and the sections along the
+   bottom edge of the same card. */
+.mcx--embed .mcx-head{
+  display:block; padding:0; border-radius:16px 16px 0 0; border-bottom:0;
+  box-shadow:0 12px 34px rgba(0,0,0,.26);
+}
+.mcx--embed .mcx-fixture{ padding:14px 20px 16px; }
+
+/* The meta line: what the match is, and the one control the reader wants once
+   they are looking at it. */
+.mcx-head-id--embed{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:9px 14px 9px 20px;
+  border-bottom:1px solid rgba(255,255,255,.055);
+  background:rgba(255,255,255,.018);
+  border-radius:16px 16px 0 0;
+}
+.mcx-head-id--embed .mcx-eyebrow{ margin:0; letter-spacing:.18em; }
+.mcx-head-id--embed .mcx-head-chips{ margin:0; gap:6px; }
+.mcx-head-id--embed .mcx-eyebrow::after{
+  content:''; display:inline-block; vertical-align:middle;
+  width:1px; height:11px; margin:0 2px 0 12px;
+  background:rgba(255,255,255,.13);
+}
+.mcx-swap{
+  appearance:none; cursor:pointer; margin-left:auto; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10.5px; font-weight:800; letter-spacing:.04em;
+  padding:5px 11px; border-radius:8px;
+  color:var(--tx-2,#b9c0cf); background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  transition:color .15s, background .15s, border-color .15s;
+}
+.mcx-swap:hover{ color:var(--lg-accent); border-color:rgba(251,191,36,.4); background:rgba(251,191,36,.08); }
+
+/* The rail is the card's own footer: it belongs to the match above it, so it
+   shares its border rather than floating below on a second surface. */
+.mcx--embed .mcx-rail{
+  border-radius:0 0 16px 16px; border-top:1px solid rgba(255,255,255,.06);
+  padding:8px 14px; margin-bottom:10px;
+  box-shadow:0 12px 34px rgba(0,0,0,.26);
+}
+
+/* ── the top-level way in ── */
+/* The workspace's primary action, in the header where the league's own
+   controls are, so nobody has to go into a list to find it. */
+.fl-mc-btn{
+  appearance:none; cursor:pointer; white-space:nowrap;
+  display:inline-flex; align-items:center; gap:7px;
+  font-size:11px; font-weight:800; letter-spacing:.03em;
+  padding:7px 14px; border-radius:9px;
+  color:#0b1020; background:linear-gradient(135deg,#fbbf24,#f59e0b);
+  border:1px solid rgba(251,191,36,.5);
+  box-shadow:0 2px 10px rgba(251,191,36,.16);
+  /* Brightness and shadow only. A control that lifts on hover moves again the
+     moment the header repaints under a stationary pointer, which is the shake
+     this workspace exists without. */
+  transition:filter .15s, box-shadow .15s;
+}
+.fl-mc-btn:hover{ filter:brightness(1.07); box-shadow:0 4px 16px rgba(251,191,36,.26); }
+.fl-mc-btn:active{ filter:brightness(.97); }
+.fl-mc-btn svg{ opacity:.85; }
+
+/* ── choosing a match ── */
+.fl-pick-s{ font-size:11px; color:var(--tx-3,#8b93a7); margin-bottom:10px; }
+.fl-rnav--sm{ margin-bottom:8px; }
+.lg-act-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; padding:0 14px 14px; }
+
+/* The escape hatch, as everywhere else: below this the page returns to normal
+   scrolling rather than crushing the workspace into itself. */
+@media (max-width:980px), (max-height:620px){
+  .fl-body.is-mc{ overflow-y:auto; }
+  .fl-mc{ display:block; }
+  .fl-mc > .mcx--embed{ display:block; }
+}

@@ -14893,7 +14893,16 @@ function _mcPaintComputed(root) {
 
 // `cmp` is the open player comparison: whose token was clicked, and which
 // opponent it is being read against when the coach has chosen one himself.
-var _MC = { tab: 'overview', cmp: null };
+// `host` and `embed` remember where the workspace was last drawn, so a section
+// switch or a comparison redraws the board the reader is actually looking at
+// rather than hunting for the standalone page's node.
+var _MC = { tab: 'overview', cmp: null, host: null, embed: false };
+
+// Redraw the workspace where it stands.
+function _mcRedraw() {
+  var el = (_MC.host && _MC.host.isConnected) ? _MC.host : null;
+  try { renderMatchCenter(el, { embedded: el ? _MC.embed : false }); } catch (_) {}
+}
 
 // The tab's `id` is a code identifier and the `label` is what a reader sees, so
 // they are named apart: the extractor catalogues the label and leaves the id
@@ -15127,9 +15136,17 @@ function _mcPitchPro(xi, opts) {
 // takes whatever height is left. Only the selected section is drawn, and what
 // scrolls is a panel inside the desk rather than the page itself, which is the
 // same shape the Training Centre uses.
-function renderMatchCenter() {
-  const el = document.getElementById('match-center-content');
+// The Match Center draws into whichever host it is given. On its own page that
+// is #match-center-content; inside the Familista League workspace it is the
+// League's own body, so a coach reading the table and a coach reading the match
+// are in one place rather than two. `embedded` drops the parts the League shell
+// already provides — the back link, the breadcrumb and the page title — and
+// keeps everything that is about the match itself.
+function renderMatchCenter(host, opts) {
+  const el = host || document.getElementById('match-center-content');
   if (!el) return;
+  var embedded = !!(opts && opts.embedded);
+  _MC.host = el; _MC.embed = embedded;
   if (!Array.isArray(State.players) && !Array.isArray(State.matches) && !window._MC_FOCUS) {
     el.innerHTML = '<div class="mcx-boot">Loading Match Center…</div>';
     return;
@@ -15165,7 +15182,10 @@ function renderMatchCenter() {
     var awayCrest = focus ? crest(focus.next.awayClubId, 40) : (!isHome ? crest(_famActiveClubId(), 40) : '');
 
     // ── context bar: one thin row, back on the left and the table on the right
-    var crumb = ctx
+    // Embedded, none of it is needed: the League header is directly above, its
+    // tab strip already says where the reader is, and there is nowhere to go
+    // back to because nothing was left.
+    var crumb = (ctx && !embedded)
       ? '<nav class="mcx-topbar">'
         + '<button class="mcx-back" type="button" data-action="navTo" data-page="familista-league">← <span>Back to League</span></button>'
         + '<span class="mcx-crumb">'
@@ -15205,17 +15225,33 @@ function renderMatchCenter() {
         + '</div>';
     };
 
-    var head = '<header class="mcx-head">'
-      + '<div class="mcx-head-id">'
-      + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
-      + '  <h1 class="mcx-h1">Match Center</h1>'
-      + '  <div class="mcx-head-chips">'
-      + (ctx ? _lgChip('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
-      + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
-      + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
-      + (when ? _lgChip('', _esc(when), 'when') : '')
-      + '  </div>'
-      + '</div>'
+    // Standalone the page names itself; embedded the League header has already
+    // done that, so the identity block names the MATCH instead and offers the
+    // one control the reader now wants — a different match.
+    var ident = embedded
+      ? '<div class="mcx-head-id mcx-head-id--embed">'
+        + '  <div class="mcx-eyebrow">Match Center</div>'
+        + '  <div class="mcx-head-chips">'
+        + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
+        + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
+        + (when ? _lgChip('', _esc(when), 'when') : '')
+        + '  </div>'
+        + '  <button class="mcx-swap" type="button" data-action="flPick">'
+        + '<span aria-hidden="true">⇄</span> <span>Change match</span></button>'
+        + '</div>'
+      : '<div class="mcx-head-id">'
+        + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
+        + '  <h1 class="mcx-h1">Match Center</h1>'
+        + '  <div class="mcx-head-chips">'
+        + (ctx ? _lgChip('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
+        + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
+        + '<span class="lg-chip lg-chip--' + (next ? _lgStatus(next.status)[1] : 'up') + '">' + status + '</span>'
+        + (when ? _lgChip('', _esc(when), 'when') : '')
+        + '  </div>'
+        + '</div>';
+
+    var head = '<header class="mcx-head' + (embedded ? ' mcx-head--embed' : '') + '">'
+      + ident
       + '<div class="mcx-fixture">'
       + sideBlock(homeName, homeCrest, 'home', home)
       + '<div class="mcx-vs">'
@@ -15242,11 +15278,16 @@ function renderMatchCenter() {
       : _MC.tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
       : _mcOverviewHtml(focus, home, away, homeName, awayName, next);
 
-    el.innerHTML = '<div class="mcx">' + crumb + head + rail
-      + '<div class="mcx-desk" id="mcx-desk">' + body + '</div></div>'
+    // Only the standalone page carries the ids: embedded, the workspace is
+    // addressed through the host it was drawn into, and two nodes sharing an
+    // id in one document is a defect whoever looks them up.
+    var deskId = embedded ? '' : ' id="mcx-desk"';
+    var ovId = embedded ? '' : ' id="mcx-overlay"';
+    el.innerHTML = '<div class="mcx' + (embedded ? ' mcx--embed' : '') + '">' + crumb + head + rail
+      + '<div class="mcx-desk"' + deskId + '>' + body + '</div></div>'
       // Floating panels live outside the workspace's flow, so opening one
       // cannot move, resize or reflow the board underneath it.
-      + '<div class="mcx-overlay" id="mcx-overlay"></div>';
+      + '<div class="mcx-overlay"' + ovId + '></div>';
     if (_MC.cmp) setTimeout(function () { try { _mcPaintCmp(); } catch (_) {} }, 0);
 
     _mcPaintComputed(el);
@@ -16098,7 +16139,10 @@ function _mcComparisonHtml() {
 }
 
 function _mcPaintCmp() {
-  var host = document.getElementById('mcx-overlay');
+  // Scoped to where the workspace was drawn: the standalone page's overlay may
+  // still be in the document when the League is the one on screen.
+  var root = (_MC.host && _MC.host.isConnected) ? _MC.host : document;
+  var host = root.querySelector ? root.querySelector('.mcx-overlay') : null;
   if (!host) return;
   var on = !!_MC.cmp;
   host.innerHTML = on ? _mcComparisonHtml() : '';
@@ -16130,8 +16174,9 @@ document.addEventListener('click', function (ev) {
         bs[i].setAttribute('aria-selected', on ? 'true' : 'false');
       }
     }
-    var desk = document.getElementById('mcx-desk');
-    if (!desk) { try { renderMatchCenter(); } catch (_) {} return; }
+    var deskRoot = (_MC.host && _MC.host.isConnected) ? _MC.host : document;
+    var desk = deskRoot.querySelector ? deskRoot.querySelector('.mcx-desk') : null;
+    if (!desk) { _mcRedraw(); return; }
     try {
       var focus = window._MC_FOCUS || null;
       var next = _mcNextMatch();
@@ -16149,9 +16194,12 @@ document.addEventListener('click', function (ev) {
       _mcPaintComputed(desk);
       if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(desk); } catch (_) {} }
       try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(desk); } catch (_) {}
-    } catch (_) { try { renderMatchCenter(); } catch (__) {} }
+    } catch (_) { _mcRedraw(); }
   } else if (act === 'mcStandings') {
-    try { navTo('familista-league'); } catch (_) {}
+    // Embedded, the table is one tab away in the same shell; there is no page
+    // to navigate to and nothing to leave.
+    if (_MC.embed) { try { _flTabTo('standings'); } catch (_) {} }
+    else { try { navTo('familista-league'); } catch (_) {} }
   } else if (act === 'mcTactics') {
     // The tactical board lives in Squad, which is where it has always lived.
     try { navTo('squad'); } catch (_) {}
@@ -63904,8 +63952,14 @@ function _lgVersus(label, a, b, opts) {
 
 
 var _FL = {
-  tab: 'standings',        // standings | matches | players
+  tab: 'standings',        // standings | matches | players | match
   league: null,
+  // The match the workspace is focused on. Set by opening a fixture, and kept
+  // for the rest of the visit, so the Match Center tab always has something to
+  // draw and the reader never has to find the fixture again.
+  match: null,             // { fixtureId, data }
+  pick: null,              // the lightweight match selector, when one is needed
+  opening: false,          // a match is being loaded into the workspace
   myTeamIds: [],
   standings: null,
   zones: [],
@@ -63946,6 +64000,7 @@ function renderFamilistaLeagueHTML() {
 function renderFamilistaLeaguePage() {
   var host = document.getElementById('fl-shell'); if (!host) return;
   _FL.tab = 'standings'; _FL.team = null; _FL.preview = null; _FL.rules = false; _FL.round = null;
+  _FL.match = null; _FL.pick = null; _FL.opening = false;
   host.innerHTML = '<div id="fl-head"></div><div class="fl-body" id="fl-body">' + _flSkeleton('table') + '</div>';
   _flPaintHead();
   _flLoadOverview();
@@ -64005,6 +64060,15 @@ function _flPaintBody() {
   b.innerHTML = _flBodyHtml();
   _flPaintZones(b);
   _flPaintI18n(b);
+  // The Match Center section is drawn by the Match Center, into the host the
+  // body just made for it. It paints and translates itself.
+  var mc = b.querySelector('#fl-mc');
+  // The body stops scrolling while the workspace is in it: the Match Center is
+  // a fixed-height frame of its own and everything inside it that has to give
+  // way gives way in a panel.
+  b.classList.toggle('is-mc', !!mc);
+  if (mc) { try { renderMatchCenter(mc, { embedded: true }); } catch (_) {} }
+  else if (_MC.embed) { _MC.host = null; _MC.embed = false; }
 }
 
 function _flPaintOverlay() {
@@ -64013,8 +64077,9 @@ function _flPaintOverlay() {
   var html = (_FL.rules ? _flRulesHtml() : '')
     + (_FL.team ? _flTeamHtml() : '')
     + (_FL.preview ? _flPreviewHtml() : '')
+    + (_FL.pick ? _flPickHtml() : '')
     + (_FL.manage ? _flManageHtml() : '');
-  var on = !!(_FL.rules || _FL.team || _FL.preview || _FL.manage);
+  var on = !!(_FL.rules || _FL.team || _FL.preview || _FL.pick || _FL.manage);
   ov.innerHTML = on ? html : '';
   ov.classList.toggle('is-on', on);
   _flPaintZones(ov);
@@ -64036,7 +64101,11 @@ function _flHeaderHtml() {
   var titleHtml = lg
     ? '<span data-user-content>' + _esc(lg.name) + '</span>'
     : '<span>Season not started</span>';
-  var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats']];
+  // The Match Center is one of the workspace's own sections, beside the table
+  // and the fixtures, rather than a page reached by going into a list and
+  // clicking again from inside it.
+  var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats'],
+              ['match', 'Match Center']];
   return '<header class="fl-head">'
     + '<div class="fl-head-top">'
     + '  <div class="fl-title-wrap">'
@@ -64047,7 +64116,27 @@ function _flHeaderHtml() {
     + (lg ? _lgChip('Season', '<span data-user-content>' + _esc(lg.season) + '</span>') : '')
     + (lg && lg.teamCount ? _lgChip('Teams', lg.teamCount) : '')
     + '  </div>'
+    + '</div>'
+    // One control bar: what the workspace is showing on the left, what it can
+    // do on the right. The tab strip used to run out into empty space while
+    // the actions sat up beside the title, which read as two half-rows.
+    + '<div class="fl-bar">'
+    + '<nav class="fl-tabs" role="tablist">'
+    + tabs.map(function (t) {
+        return '<button class="fl-tab' + (_FL.tab === t[0] ? ' is-on' : '') + '" role="tab"'
+          + ' aria-selected="' + (_FL.tab === t[0] ? 'true' : 'false') + '"'
+          + ' data-action="flTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
+      }).join('')
+    + '</nav>'
     + '  <div class="fl-head-actions">'
+    // The primary action of the whole workspace, at the top level where it can
+    // be found, not buried inside the fixtures list.
+    + (lg
+      ? '  <button class="fl-mc-btn" data-action="flOpenMC" type="button">'
+        + '    <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2.2 2.1 1.5-.8 2.5H8.7l-.8-2.5L10 4.2zM4.9 7.6l2 .7.8 2.5-2.1 1.6-1.7-1.3a6 6 0 011-3.5zm10.2 0a6 6 0 011 3.5l-1.7 1.3-2.1-1.6.8-2.5 2-.7zM7.6 15.4l-.7-2.1 2.1-1.6 2.1 1.6-.7 2.1a6 6 0 01-2.8 0z"/></svg>'
+        + '    <span>Open Match Center</span>'
+        + '  </button>'
+      : '')
     + (_FL.canManage
       // Shown only to somebody the server says may use it. A control that is
       // there and then refuses is worse than one that was never offered.
@@ -64063,13 +64152,6 @@ function _flHeaderHtml() {
     + '  </button>'
     + '  </div>'
     + '</div>'
-    + '<nav class="fl-tabs" role="tablist">'
-    + tabs.map(function (t) {
-        return '<button class="fl-tab' + (_FL.tab === t[0] ? ' is-on' : '') + '" role="tab"'
-          + ' aria-selected="' + (_FL.tab === t[0] ? 'true' : 'false') + '"'
-          + ' data-action="flTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
-      }).join('')
-    + '</nav>'
     + '</header>';
 }
 
@@ -64139,6 +64221,8 @@ async function _flLoadTab() {
   if (_FL.tab === 'standings') return _flLoadStandings();
   if (_FL.tab === 'matches')   return _flLoadMatches(_FL.round);
   if (_FL.tab === 'players')   return _flLoadBoards();
+  // The Match Center section draws from the match already in hand; there is
+  // nothing further to fetch when it is opened.
 }
 
 async function _flLoadStandings() {
@@ -64155,13 +64239,16 @@ async function _flLoadStandings() {
 }
 
 async function _flLoadMatches(round) {
-  _FL.loading.matches = true; _FL.error.matches = false; _flPaintBody();
+  // The fixtures are drawn in the Matches tab and, when one is being chosen,
+  // in the selector panel. Repaint whichever is showing them and nothing else.
+  var paint = function () { if (_FL.pick) _flPaintOverlay(); else _flPaintBody(); };
+  _FL.loading.matches = true; _FL.error.matches = false; paint();
   try {
     var r = await api('/familista-league/matches' + _flSeasonQ(round != null ? 'round=' + round : ''));
     _FL.matches = (r && r.data) || null;
     if (_FL.matches) _FL.round = _FL.matches.round;
   } catch (e) { _FL.error.matches = true; }
-  _FL.loading.matches = false; _flPaintBody();
+  _FL.loading.matches = false; paint();
 }
 
 async function _flLoadBoards() {
@@ -64185,7 +64272,25 @@ function _flBodyHtml() {
   }
   if (_FL.tab === 'standings') return _flStandingsHtml();
   if (_FL.tab === 'matches')   return _flMatchesHtml();
+  if (_FL.tab === 'match')     return _flMatchHostHtml();
   return _flPlayersHtml();
+}
+
+// The Match Center's own host, inside the League body. It is drawn empty and
+// then filled by the Match Center renderer, so the two modules stay separate
+// pieces of code sharing one screen.
+function _flMatchHostHtml() {
+  if (_FL.opening) return _flSkeleton('cards');
+  if (!_FL.match || !_FL.match.data) {
+    return _lgPanel('Match Center', '',
+      _lgEmpty('No match chosen yet',
+        'Choose a fixture and it opens here, inside the league workspace.', '⚽')
+      + '<div class="lg-act-row">'
+      + '<button class="lg-act lg-act--primary" type="button" data-action="flPick">Choose a match</button>'
+      + '<button class="lg-act" type="button" data-action="flTab" data-tab="matches">See the fixtures</button>'
+      + '</div>', 'lg-panel--fill');
+  }
+  return '<div class="fl-mc" id="fl-mc"></div>';
 }
 
 // ── tab 1 · standings ───────────────────────────────────────────────────────
@@ -64313,7 +64418,10 @@ function _flMatchRow(x, compact) {
   return '<div class="lg-row fl-match' + (mine ? ' is-mine' : '') + (compact ? ' fl-match--sm' : '') + '"'
     + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
     + _lgStatusChip(x.status)
-    + side(x.home, 'home') + mid + side(x.away, 'away')
+    // The fixture is a fixture, not a table row stretched to the width of the
+    // workspace: the two clubs and the score between them keep a readable band
+    // in the middle, with the status on one edge and the date on the other.
+    + '<div class="fl-fx">' + side(x.home, 'home') + mid + side(x.away, 'away') + '</div>'
     + '<span class="fl-when">'
     + (x.round != null && !compact ? '<b>Round ' + x.round + '</b>' : '')
     + '<i>' + _esc(_flMatchDay(x.scheduledAt)) + '</i></span>'
@@ -64411,10 +64519,15 @@ function _flPlayersHtml() {
     }
   }
 
-  return '<div class="fl-boards">' + main + extra + '</div>'
+  // The tab is a column: the boards take the room that is there and the one
+  // control sits on its own line at the bottom, rather than floating in
+  // whatever space the longest list happened to leave.
+  return '<div class="fl-players">'
+    + '<div class="fl-boards">' + main + extra + '</div>'
     + '<div class="fl-more-bar">'
     + '<button class="fl-more" type="button" data-action="flMore">'
     + (_FL.more ? 'Fewer stats' : 'More stats') + '</button>'
+    + '</div>'
     + '</div>';
 }
 
@@ -64663,35 +64776,141 @@ async function _flOpenPreview(fixtureId) {
 // The record has to come from the league endpoint rather than from the club's
 // own match list, because only one of the two clubs owns the Match row and the
 // other would otherwise find nothing to open.
-function _flHandOver(d) {
+// The match becomes the workspace's context and the Match Center section is
+// drawn in place. Nothing navigates: the reader stays in the league shell,
+// which is the whole point of having one.
+function _flHandOver(d, fixtureId) {
   window._MC_FOCUS = _mcFocusFromLeague(d);
   _MC.tab = 'overview';
   _MC.cmp = null;
-  try { navTo('match-center'); } catch (_) {}
-  try { renderMatchCenter(); } catch (_) {}
+  _FL.match = { fixtureId: fixtureId || (d.fixture && d.fixture.id) || null, data: d };
+  _FL.pick = null;
+  _FL.preview = null;
+  _flTabTo('match');
+}
+
+// Switching section inside the League: the header's tab strip is repainted and
+// the body swapped, and nothing else on the page moves.
+function _flTabTo(tab) {
+  if (!tab) return;
+  _FL.tab = tab;
+  _flPaintHead();
+  _flPaintBody();
+  _flPaintOverlay();
+  if (tab === 'matches' && !_FL.matches && !_FL.loading.matches) _flLoadMatches();
+  if (tab === 'players' && !_FL.boards && !_FL.loading.boards) _flLoadBoards();
 }
 
 async function _flOpenMatch(fixtureId) {
-  // Already loaded by the preview: hand that over rather than asking again.
+  // Already loaded by the preview, or already the workspace's match: use what
+  // is in hand rather than asking the server for it a second time.
   if (_FL.preview && !_FL.preview.loading && _FL.preview.fixtureId === fixtureId && _FL.preview.data) {
-    var kept = _FL.preview.data;
-    _FL.preview = null; _flPaintOverlay();
-    _flHandOver(kept);
+    _flHandOver(_FL.preview.data, fixtureId);
     return;
   }
-  try { showToast('Opening Match Centre…', 'info'); } catch (_) {}
+  if (_FL.match && _FL.match.fixtureId === fixtureId && _FL.match.data) {
+    _flHandOver(_FL.match.data, fixtureId);
+    return;
+  }
+  _FL.opening = true; _FL.pick = null; _FL.preview = null;
+  _flTabTo('match');
   try {
     var r = await api('/familista-league/fixtures/' + encodeURIComponent(fixtureId) + '/match' + _flSeasonQ());
     var d = (r && r.data) || null;
+    _FL.opening = false;
     if (!d || !d.match) {
+      _flPaintBody();
       try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {}
       return;
     }
-    _FL.preview = null; _flPaintOverlay();
-    _flHandOver(d);
+    _flHandOver(d, fixtureId);
   } catch (e) {
+    _FL.opening = false;
+    _flPaintBody();
     try { showToast('Could not open that match', 'error'); } catch (_) {}
   }
+}
+
+// ── choosing which match the workspace is about ─────────────────────────────
+
+// The one a coach means by "the match": his own club's fixture in the round the
+// season is currently on. Only ever a fixture that exists in the record — when
+// there is no obvious answer this returns null and the reader is asked rather
+// than given a match somebody guessed at.
+function _flPrimaryFixture() {
+  var m = _FL.matches;
+  if (!m || !Array.isArray(m.matches) || !m.matches.length) return null;
+  var playable = m.matches.filter(function (x) { return !!x.matchId; });
+  if (!playable.length) return null;
+  var mine = playable.filter(function (x) {
+    return _flMine(x.home && x.home.teamId) || _flMine(x.away && x.away.teamId);
+  });
+  if (mine.length === 1) return mine[0];
+  if (mine.length > 1) return null;              // more than one of ours: ask
+  return playable.length === 1 ? playable[0] : null;
+}
+
+// The top-level action. It opens the match the workspace is already about, or
+// the current round's own fixture, and asks only when neither is obvious.
+async function _flEnterMatchCenter() {
+  if (_FL.match && _FL.match.data) { _flTabTo('match'); return; }
+  if (!_FL.matches && !_FL.loading.matches) {
+    _FL.opening = true;
+    _flTabTo('match');
+    await _flLoadMatches();
+    _FL.opening = false;
+  }
+  var pick = _flPrimaryFixture();
+  if (pick) { _flOpenMatch(pick.fixtureId); return; }
+  _FL.opening = false;
+  _flTabTo('match');
+  _flOpenPick();
+}
+
+// The lightweight selector: the round's fixtures, in the same row the Matches
+// tab draws, so choosing one is the same gesture as reading one.
+function _flOpenPick() {
+  _FL.pick = true;
+  _flPaintOverlay();
+  if (!_FL.matches && !_FL.loading.matches) _flLoadMatches();
+}
+
+function _flPickHtml() {
+  var m = _FL.matches;
+  var body;
+  if (_FL.loading.matches || !m) body = _flSkeleton('cards');
+  else {
+    var playable = (m.matches || []).filter(function (x) { return !!x.matchId; });
+    body = playable.length
+      ? '<div class="fl-matches fl-matches--sm">'
+        + playable.map(function (x) { return _flMatchRow(x, true); }).join('')
+        + '</div>'
+      : _lgEmpty('No match in this round is set up yet',
+          'A fixture opens in the Match Center once the match behind it exists.', '⚽');
+  }
+  var idx = m && m.rounds ? m.rounds.indexOf(m.round) : -1;
+  var prev = idx > 0 ? m.rounds[idx - 1] : null;
+  var nxt = m && m.rounds && idx >= 0 && idx < m.rounds.length - 1 ? m.rounds[idx + 1] : null;
+  var nav = m && m.rounds && m.rounds.length > 1
+    ? '<div class="fl-rnav fl-rnav--sm">'
+      + '<button class="fl-rnav-btn" type="button"' + (prev == null ? ' disabled' : ' data-action="flRound" data-round="' + prev + '"') + '>'
+      + '<span aria-hidden="true">←</span> ' + (prev == null ? 'Round' : 'Round ' + prev) + '</button>'
+      + '<div class="fl-rnav-now">ROUND ' + (m.round == null ? '—' : m.round) + '</div>'
+      + '<button class="fl-rnav-btn" type="button"' + (nxt == null ? ' disabled' : ' data-action="flRound" data-round="' + nxt + '"') + '>'
+      + (nxt == null ? 'Round' : 'Round ' + nxt) + ' <span aria-hidden="true">→</span></button>'
+      + '</div>'
+    : '';
+  // Built above rather than written into the `head:` property: the string
+  // extractor reads that property as a label and would catalogue the markup
+  // around the phrase instead of the phrase.
+  var pickHead = '<span class="lg-float-t">Choose a match</span>';
+  return _lgFloat({
+    close: 'flClosePick',
+    cls: 'lg-float--md',
+    head: pickHead,
+    body: '<div class="fl-pick-s">Pick the fixture the workspace should be about.</div>' + nav + body,
+    foot: '<button class="lg-act lg-act--ghost" type="button" data-action="flClosePick">Close</button>',
+  });
 }
 
 // Translate the league's match record into the shape the Match Centre already
@@ -64877,7 +65096,18 @@ document.addEventListener('click', function (ev) {
   var act = el.getAttribute('data-action');
   if (act === 'flTab') {
     var tab = el.getAttribute('data-tab');
-    if (tab && tab !== _FL.tab) { _FL.tab = tab; _flPaintHead(); _flPaintBody(); _flLoadTab(); }
+    if (!tab || tab === _FL.tab) return;
+    // The Match Center section needs a match to be about. Asking for it is the
+    // same act as opening it, so the tab does the choosing rather than showing
+    // an empty screen and leaving the reader to work it out.
+    if (tab === 'match' && !(_FL.match && _FL.match.data)) { _flEnterMatchCenter(); return; }
+    _FL.tab = tab; _flPaintHead(); _flPaintBody(); _flLoadTab();
+  } else if (act === 'flOpenMC') {
+    _flEnterMatchCenter();
+  } else if (act === 'flPick') {
+    _flOpenPick();
+  } else if (act === 'flClosePick') {
+    if (ev.target === el || el.tagName === 'BUTTON') { _FL.pick = null; _flPaintOverlay(); }
   } else if (act === 'flRules') {
     _FL.rules = true; _flPaintOverlay();
   } else if (act === 'flCloseRules') {
@@ -64913,8 +65143,12 @@ document.addEventListener('click', function (ev) {
     // has nothing to open yet.
     var fid = el.getAttribute('data-fixture-id');
     var mid = el.getAttribute('data-match-id');
-    if (fid && mid) _flOpenPreview(fid);
-    else { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} }
+    if (!fid || !mid) { try { showToast('This fixture has not been set up in the Match Centre yet', 'info'); } catch (_) {} return; }
+    // Clicked inside a panel that is already open — the selector, or a club's
+    // fixtures — the row IS the answer. Stacking a preview on top of it would
+    // be a second click for nothing.
+    if (el.closest && el.closest('.lg-float')) _flOpenMatch(fid);
+    else _flOpenPreview(fid);
   } else if (act === 'flManage') {
     _flOpenManage();
   } else if (act === 'flCloseManage') {
@@ -64936,6 +65170,7 @@ document.addEventListener('keydown', function (ev) {
   if (ev.key !== 'Escape') return;
   if (!document.getElementById('fl-shell')) return;
   if (_FL.preview) { _FL.preview = null; _flPaintOverlay(); }
+  else if (_FL.pick) { _FL.pick = null; _flPaintOverlay(); }
   else if (_FL.team) { _FL.team = null; _flPaintOverlay(); }
   else if (_FL.rules) { _FL.rules = false; _flPaintOverlay(); }
   else if (_FL.manage) { _FL.manage = null; _flPaintOverlay(); }

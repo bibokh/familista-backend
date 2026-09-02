@@ -1249,5 +1249,14 @@
   "Our team": "Η ομάδα μας",
   "Venue": "Γήπεδο",
   "No opponent squad recorded": "Δεν έχει καταγραφεί ρόστερ αντιπάλου",
-  "A league opponent is a club the platform knows; its shape appears here.": "Ένας αντίπαλος πρωταθλήματος είναι σύλλογος που γνωρίζει η πλατφόρμα· ο σχηματισμός του εμφανίζεται εδώ."
+  "A league opponent is a club the platform knows; its shape appears here.": "Ένας αντίπαλος πρωταθλήματος είναι σύλλογος που γνωρίζει η πλατφόρμα· ο σχηματισμός του εμφανίζεται εδώ.",
+  "Change match": "Αλλαγή αγώνα",
+  "Choose a match": "Επιλέξτε αγώνα",
+  "Pick the fixture the workspace should be about.": "Επιλέξτε τον αγώνα με τον οποίο θα ασχοληθεί αυτός ο χώρος εργασίας.",
+  "See the fixtures": "Δείτε το πρόγραμμα",
+  "No match chosen yet": "Δεν έχει επιλεγεί ακόμη αγώνας",
+  "Choose a fixture and it opens here, inside the league workspace.": "Επιλέξτε έναν αγώνα και θα ανοίξει εδώ, μέσα στον χώρο του πρωταθλήματος.",
+  "No match in this round is set up yet": "Κανένας αγώνας αυτής της αγωνιστικής δεν έχει ετοιμαστεί ακόμη",
+  "A fixture opens in the Match Center once the match behind it exists.": "Ένας αγώνας ανοίγει στο Match Center μόλις υπάρξει το παιχνίδι πίσω του.",
+  "Round \u0000": "Αγωνιστική \u0000"
 }

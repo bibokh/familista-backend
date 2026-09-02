@@ -1246,5 +1246,14 @@
   "Our team": "Tim kita",
   "Venue": "Tempat",
   "No opponent squad recorded": "Skuad lawan belum dicatat",
-  "A league opponent is a club the platform knows; its shape appears here.": "Lawan liga adalah klub yang dikenal platform; formasinya muncul di sini."
+  "A league opponent is a club the platform knows; its shape appears here.": "Lawan liga adalah klub yang dikenal platform; formasinya muncul di sini.",
+  "Change match": "Ganti pertandingan",
+  "Choose a match": "Pilih pertandingan",
+  "Pick the fixture the workspace should be about.": "Pilih pertandingan yang menjadi fokus ruang kerja ini.",
+  "See the fixtures": "Lihat jadwal",
+  "No match chosen yet": "Belum ada pertandingan yang dipilih",
+  "Choose a fixture and it opens here, inside the league workspace.": "Pilih satu pertandingan dan pertandingan itu terbuka di sini, di dalam ruang kerja liga.",
+  "No match in this round is set up yet": "Belum ada pertandingan di pekan ini yang disiapkan",
+  "A fixture opens in the Match Center once the match behind it exists.": "Sebuah pertandingan terbuka di Match Center begitu laga di baliknya ada.",
+  "Round \u0000": "Pekan \u0000"
 }

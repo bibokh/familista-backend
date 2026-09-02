@@ -1249,5 +1249,14 @@
   "Our team": "Наша команда",
   "Venue": "Место проведения",
   "No opponent squad recorded": "Состав соперника не зафиксирован",
-  "A league opponent is a club the platform knows; its shape appears here.": "Соперник по лиге — это клуб, который платформа знает; его схема отображается здесь."
+  "A league opponent is a club the platform knows; its shape appears here.": "Соперник по лиге — это клуб, который платформа знает; его схема отображается здесь.",
+  "Change match": "Сменить матч",
+  "Choose a match": "Выберите матч",
+  "Pick the fixture the workspace should be about.": "Выберите матч, которому посвящено это рабочее пространство.",
+  "See the fixtures": "Посмотреть календарь",
+  "No match chosen yet": "Матч ещё не выбран",
+  "Choose a fixture and it opens here, inside the league workspace.": "Выберите матч — он откроется здесь, в рабочем пространстве лиги.",
+  "No match in this round is set up yet": "Ни один матч этого тура пока не подготовлен",
+  "A fixture opens in the Match Center once the match behind it exists.": "Матч открывается в Match Center, как только появляется стоящая за ним игра.",
+  "Round \u0000": "Тур \u0000"
 }

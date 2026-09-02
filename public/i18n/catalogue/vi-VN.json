@@ -1246,5 +1246,14 @@
   "Our team": "Đội của chúng ta",
   "Venue": "Sân đấu",
   "No opponent squad recorded": "Chưa ghi nhận đội hình đối thủ",
-  "A league opponent is a club the platform knows; its shape appears here.": "Đối thủ trong giải là câu lạc bộ mà nền tảng đã biết; sơ đồ của họ sẽ hiện ở đây."
+  "A league opponent is a club the platform knows; its shape appears here.": "Đối thủ trong giải là câu lạc bộ mà nền tảng đã biết; sơ đồ của họ sẽ hiện ở đây.",
+  "Change match": "Đổi trận",
+  "Choose a match": "Chọn một trận",
+  "Pick the fixture the workspace should be about.": "Chọn trận đấu mà không gian làm việc này nói về.",
+  "See the fixtures": "Xem lịch thi đấu",
+  "No match chosen yet": "Chưa chọn trận nào",
+  "Choose a fixture and it opens here, inside the league workspace.": "Chọn một trận và nó sẽ mở ngay tại đây, trong không gian của giải.",
+  "No match in this round is set up yet": "Chưa có trận nào ở vòng này được thiết lập",
+  "A fixture opens in the Match Center once the match behind it exists.": "Một trận sẽ mở trong Match Center ngay khi trận đấu phía sau nó tồn tại.",
+  "Round \u0000": "Vòng \u0000"
 }

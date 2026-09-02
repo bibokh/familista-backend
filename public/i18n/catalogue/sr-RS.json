@@ -1249,5 +1249,14 @@
   "Our team": "Naš tim",
   "Venue": "Mesto",
   "No opponent squad recorded": "Sastav protivnika nije zabeležen",
-  "A league opponent is a club the platform knows; its shape appears here.": "Ligaški protivnik je klub koji platforma poznaje; njegova formacija se pojavljuje ovde."
+  "A league opponent is a club the platform knows; its shape appears here.": "Ligaški protivnik je klub koji platforma poznaje; njegova formacija se pojavljuje ovde.",
+  "Change match": "Promeni meč",
+  "Choose a match": "Izaberite meč",
+  "Pick the fixture the workspace should be about.": "Izaberite meč o kome ovaj radni prostor treba da bude.",
+  "See the fixtures": "Pogledaj raspored",
+  "No match chosen yet": "Meč još nije izabran",
+  "Choose a fixture and it opens here, inside the league workspace.": "Izaberite meč i otvoriće se ovde, u radnom prostoru lige.",
+  "No match in this round is set up yet": "Nijedan meč ovog kola još nije pripremljen",
+  "A fixture opens in the Match Center once the match behind it exists.": "Meč se otvara u Match Centru čim postoji utakmica iza njega.",
+  "Round \u0000": "Kolo \u0000"
 }

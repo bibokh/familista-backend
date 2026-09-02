@@ -113,9 +113,14 @@ describe('the fixture preview costs one request, not two', () => {
     const open = codeOnly(APP.slice(APP.indexOf('async function _flOpenMatch('),
                                     APP.indexOf('async function _flOpenMatch(') + 1400));
     expect(open).toContain('_FL.preview.fixtureId === fixtureId');
-    expect(open).toContain('_flHandOver(kept)');
+    expect(open).toContain('_flHandOver(_FL.preview.data, fixtureId)');
+    // And the workspace's own match is reused too, so returning to the section
+    // costs nothing at all.
+    expect(open).toContain('_FL.match.fixtureId === fixtureId');
+    expect(open).toContain('_flHandOver(_FL.match.data, fixtureId)');
     // The refetch is the fallback for a row opened without a preview.
-    expect(open.indexOf('_flHandOver(kept)')).toBeLessThan(open.indexOf("api('/familista-league/fixtures/"));
+    expect(open.indexOf('_flHandOver(_FL.preview.data, fixtureId)'))
+      .toBeLessThan(open.indexOf("api('/familista-league/fixtures/"));
   });
 });
 
@@ -182,8 +187,11 @@ describe('player against player', () => {
   });
 
   it('opens over the board without touching it', () => {
-    expect(APP).toContain("var host = document.getElementById('mcx-overlay');");
-    const paint = APP.slice(APP.indexOf('function _mcPaintCmp('), APP.indexOf('function _mcPaintCmp(') + 500);
+    // Scoped to the host the workspace was drawn into, so the League's embedded
+    // overlay and the standalone page's cannot be confused for one another.
+    const paint = APP.slice(APP.indexOf('function _mcPaintCmp('), APP.indexOf('function _mcPaintCmp(') + 700);
+    expect(paint).toContain("root.querySelector('.mcx-overlay')");
+    expect(paint).toContain('(_MC.host && _MC.host.isConnected)');
     expect(paint).toContain('host.innerHTML =');
     expect(paint).not.toContain('renderMatchCenter');
     expect(CSS).toContain('.mcx-overlay{ display:none; }');
@@ -315,5 +323,147 @@ describe('the phrases the catalogue is keyed by are phrases', () => {
     for (const sel of ['.lg-crest', '.mcx-side-crest', '.mcx-opp-crest', '.fl-mg-crest']) {
       expect(DOMJS).toContain("'" + sel + "'");
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// One workspace. The Match Center is a section of the Familista League, opened
+// from the top level, kept as the workspace's own context, and drawn in place —
+// not a page the reader is sent to and has to come back from.
+
+describe('the Match Center is a section, not a destination', () => {
+  it('the League header names it beside the other three', () => {
+    const head = APP.slice(APP.indexOf('function _flHeaderHtml('), APP.indexOf('function _flSkeleton('));
+    expect(head).toContain("['match', 'Match Center']");
+    for (const t of ["['standings', 'Standings']", "['matches', 'Matches']", "['players', 'Player Stats']"]) {
+      expect(head).toContain(t);
+    }
+    // And the way in is a control in the header, not something to be found
+    // inside the fixtures list.
+    expect(head).toContain('class="fl-mc-btn" data-action="flOpenMC"');
+    expect(head).toContain('<span>Open Match Center</span>');
+    // Sections on the left of the control bar, actions on the right, one row.
+    expect(head).toContain('<div class="fl-bar">');
+    expect(CSS).toContain('.fl-bar{ display:flex;');
+  });
+
+  it('and it draws into the League body rather than another page', () => {
+    expect(APP).toContain('function renderMatchCenter(host, opts)');
+    expect(APP).toContain('const el = host || document.getElementById(\'match-center-content\');');
+    const paint = APP.slice(APP.indexOf('function _flPaintBody('), APP.indexOf('function _flPaintOverlay('));
+    expect(paint).toContain("b.querySelector('#fl-mc')");
+    expect(paint).toContain('renderMatchCenter(mc, { embedded: true })');
+    // Nothing navigates on the way in.
+    const hand = APP.slice(APP.indexOf('function _flHandOver('), APP.indexOf('function _flTabTo('));
+    expect(codeOnly(hand)).not.toContain("navTo('match-center')");
+    expect(hand).toContain("_flTabTo('match')");
+  });
+
+  it('the workspace keeps the match it was given', () => {
+    expect(APP).toMatch(/var _FL = \{[\s\S]{0,900}match: null,/);
+    const hand = APP.slice(APP.indexOf('function _flHandOver('), APP.indexOf('function _flTabTo('));
+    expect(hand).toContain('_FL.match = {');
+    // Coming back to the section redraws from what is held, with no request.
+    const host = APP.slice(APP.indexOf('function _flMatchHostHtml('), APP.indexOf('// ── tab 1 · standings'));
+    expect(host).toContain('!_FL.match || !_FL.match.data');
+    expect(codeOnly(host)).not.toContain('api(');
+  });
+});
+
+describe('choosing the match is one step, and only asked when it has to be', () => {
+  it('the obvious fixture is opened without asking', () => {
+    const fn = codeOnly(APP.slice(APP.indexOf('function _flPrimaryFixture('),
+                                  APP.indexOf('async function _flEnterMatchCenter(')));
+    // Only a fixture with a match behind it can be opened at all.
+    expect(fn).toContain('x.matchId');
+    // Our own club's fixture in the round the season is on.
+    expect(fn).toContain('_flMine(x.home && x.home.teamId)');
+    // And when it is not obvious it returns null rather than guessing one.
+    expect(fn).toContain('if (mine.length > 1) return null;');
+    expect(fn).toContain('return playable.length === 1 ? playable[0] : null;');
+    expect(fn).not.toMatch(/Math\.random|\[0\]\s*;?\s*\/\/ *just/);
+  });
+
+  it('and otherwise a lightweight selector asks, in the same shell', () => {
+    const enter = codeOnly(APP.slice(APP.indexOf('async function _flEnterMatchCenter('),
+                                     APP.indexOf('function _flOpenPick(')));
+    expect(enter).toContain('var pick = _flPrimaryFixture();');
+    expect(enter).toContain('_flOpenMatch(pick.fixtureId)');
+    expect(enter).toContain('_flOpenPick()');
+    // The selector is a floating panel on the shared shell, not a page.
+    const pick = APP.slice(APP.indexOf('function _flPickHtml('), APP.indexOf('function _flPickHtml(') + 2200);
+    expect(pick).toContain('_lgFloat({');
+    expect(pick).toContain('Choose a match');
+    expect(pick).toContain('_flMatchRow(x, true)');
+    // It is painted into the overlay, so the workspace beneath does not move.
+    expect(APP).toContain("(_FL.pick ? _flPickHtml() : '')");
+    expect(APP).toMatch(/act === 'flPick'[\s\S]{0,80}_flOpenPick\(\)/);
+  });
+
+  it('and a fixture clicked inside a panel opens the match rather than a second panel', () => {
+    const branch = codeOnly(FL_ACTIONS).slice(codeOnly(FL_ACTIONS).indexOf("act === 'flMatch'"));
+    expect(branch).toContain("el.closest('.lg-float')");
+    expect(branch).toContain('_flOpenMatch(fid)');
+    expect(branch).toContain('_flOpenPreview(fid)');
+  });
+});
+
+describe('embedded, the workspace does not repeat what the shell already says', () => {
+  it('no second breadcrumb, no second page title, and no duplicated id', () => {
+    const MCX = APP.slice(APP.indexOf('function renderMatchCenter(host, opts)'),
+                          APP.indexOf('function _mcPanel('));
+    expect(MCX).toContain('var crumb = (ctx && !embedded)');
+    expect(MCX).toContain('var ident = embedded');
+    expect(MCX).toContain("var deskId = embedded ? '' : ' id=\"mcx-desk\"';");
+    expect(MCX).toContain("var ovId = embedded ? '' : ' id=\"mcx-overlay\"';");
+    // Standalone it still names itself in full.
+    expect(MCX).toContain('<h1 class="mcx-h1">Match Center</h1>');
+  });
+
+  it('and the Standings shortcut stays in the shell when there is one', () => {
+    const handler = codeOnly(APP).slice(codeOnly(APP).indexOf("act === 'mcStandings'"));
+    expect(handler.slice(0, 260)).toContain("_flTabTo('standings')");
+    expect(handler.slice(0, 260)).toContain("navTo('familista-league')");
+  });
+
+  it('the host takes its own height so the body behind it does not scroll', () => {
+    expect(CSS).toContain('.fl-body.is-mc{ overflow:hidden; }');
+    expect(CSS).toMatch(/\.fl-mc\{[^}]*display:flex[^}]*flex:1 1 auto[^}]*min-height:0/);
+    expect(APP).toContain("b.classList.toggle('is-mc', !!mc);");
+    // And the escape hatch is the same one every workspace carries.
+    expect(CSS).toMatch(/@media \(max-width:980px\), \(max-height:620px\)\{[\s\S]{0,400}\.fl-mc\{ display:block; \}/);
+  });
+});
+
+describe('nothing in the competition moves under a stationary pointer', () => {
+  it('no control in either module lifts on hover', () => {
+    // A control that moves on hover moves again the moment its region is
+    // repainted with the pointer standing still, which reads as a shake.
+    for (const rule of ['.fl-tab:hover', '.fl-mc-btn:hover', '.mcx-tab:hover', '.mcx-act:hover',
+                        '.lg-act:hover', '.fl-manage-btn:hover, .fl-rules-btn:hover']) {
+      const at = CSS.indexOf(rule);
+      expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
+      expect(CSS.slice(at, CSS.indexOf('}', at))).not.toContain('translateY');
+    }
+    // And the transitions those controls declare cannot animate geometry.
+    const btn = CSS.slice(CSS.indexOf('.fl-mc-btn{'), CSS.indexOf('.fl-mc-btn:hover'));
+    expect(btn).toContain('transition:filter .15s, box-shadow .15s;');
+  });
+});
+
+describe('the fixture reads as a fixture and the boards as one row', () => {
+  it('club against club keeps a measure instead of spanning the workspace', () => {
+    expect(APP).toContain("'<div class=\"fl-fx\">' + side(x.home, 'home') + mid + side(x.away, 'away') + '</div>'");
+    expect(CSS).toMatch(/\.fl-fx\{[\s\S]{0,200}max-width:760px/);
+    expect(CSS).toMatch(/\.fl-matches\{[^}]*max-width:1180px/);
+  });
+
+  it('and the leaderboards are equal panels, with the one control on its own line', () => {
+    expect(CSS).toMatch(/\.fl-boards\{[\s\S]{0,200}align-items:stretch/);
+    expect(CSS).toContain('.fl-boards > .lg-panel > .lg-panel-b{ flex:1 1 auto; min-height:0; overflow-y:auto; }');
+    expect(APP).toContain('<div class="fl-players">');
+    expect(CSS).toContain('.fl-players > .fl-boards{ flex:1 1 auto; min-height:0; }');
+    // Metric tiles are the same height whether their label wraps or not.
+    expect(CSS).toMatch(/\.lg-metrics\{[^}]*grid-auto-rows:1fr/);
   });
 });

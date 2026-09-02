@@ -1246,5 +1246,14 @@
   "Our team": "ทีมของเรา",
   "Venue": "สนาม",
   "No opponent squad recorded": "ยังไม่มีบันทึกรายชื่อผู้เล่นของคู่แข่ง",
-  "A league opponent is a club the platform knows; its shape appears here.": "คู่แข่งในลีกคือสโมสรที่แพลตฟอร์มรู้จัก แผนการเล่นของทีมนั้นจะแสดงที่นี่"
+  "A league opponent is a club the platform knows; its shape appears here.": "คู่แข่งในลีกคือสโมสรที่แพลตฟอร์มรู้จัก แผนการเล่นของทีมนั้นจะแสดงที่นี่",
+  "Change match": "เปลี่ยนนัด",
+  "Choose a match": "เลือกนัดการแข่งขัน",
+  "Pick the fixture the workspace should be about.": "เลือกนัดที่พื้นที่ทำงานนี้จะพูดถึง",
+  "See the fixtures": "ดูโปรแกรมการแข่งขัน",
+  "No match chosen yet": "ยังไม่ได้เลือกนัดการแข่งขัน",
+  "Choose a fixture and it opens here, inside the league workspace.": "เลือกนัดหนึ่ง แล้วนัดนั้นจะเปิดขึ้นตรงนี้ ภายในพื้นที่ทำงานของลีก",
+  "No match in this round is set up yet": "ยังไม่มีนัดใดในรอบนี้ที่ถูกตั้งค่าไว้",
+  "A fixture opens in the Match Center once the match behind it exists.": "นัดหนึ่งจะเปิดใน Match Center ทันทีที่การแข่งขันเบื้องหลังมีอยู่",
+  "Round \u0000": "รอบที่ \u0000"
 }

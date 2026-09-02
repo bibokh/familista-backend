@@ -1249,5 +1249,14 @@
   "Our team": "Bizim takımımız",
   "Venue": "Saha",
   "No opponent squad recorded": "Rakibin kadrosu kayıtlı değil",
-  "A league opponent is a club the platform knows; its shape appears here.": "Lig rakibi, platformun tanıdığı bir kulüptür; dizilişi burada görünür."
+  "A league opponent is a club the platform knows; its shape appears here.": "Lig rakibi, platformun tanıdığı bir kulüptür; dizilişi burada görünür.",
+  "Change match": "Maçı değiştir",
+  "Choose a match": "Bir maç seçin",
+  "Pick the fixture the workspace should be about.": "Bu çalışma alanının konusu olacak maçı seçin.",
+  "See the fixtures": "Fikstürü gör",
+  "No match chosen yet": "Henüz bir maç seçilmedi",
+  "Choose a fixture and it opens here, inside the league workspace.": "Bir maç seçin, bu alanda, ligin içinde açılsın.",
+  "No match in this round is set up yet": "Bu haftanın hiçbir maçı henüz hazırlanmadı",
+  "A fixture opens in the Match Center once the match behind it exists.": "Arkasındaki karşılaşma var olduğu anda maç Match Center'da açılır.",
+  "Round \u0000": "\u0000. hafta"
 }

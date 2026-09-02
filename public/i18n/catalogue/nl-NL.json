@@ -1249,5 +1249,14 @@
   "Our team": "Ons team",
   "Venue": "Locatie",
   "No opponent squad recorded": "Geen selectie van de tegenstander vastgelegd",
-  "A league opponent is a club the platform knows; its shape appears here.": "Een competitietegenstander is een club die het platform kent; zijn opstelling verschijnt hier."
+  "A league opponent is a club the platform knows; its shape appears here.": "Een competitietegenstander is een club die het platform kent; zijn opstelling verschijnt hier.",
+  "Change match": "Andere wedstrijd",
+  "Choose a match": "Kies een wedstrijd",
+  "Pick the fixture the workspace should be about.": "Kies de wedstrijd waar deze werkruimte over gaat.",
+  "See the fixtures": "Bekijk het programma",
+  "No match chosen yet": "Nog geen wedstrijd gekozen",
+  "Choose a fixture and it opens here, inside the league workspace.": "Kies een wedstrijd en die opent hier, binnen de competitiewerkruimte.",
+  "No match in this round is set up yet": "Nog geen wedstrijd in deze speelronde is klaargezet",
+  "A fixture opens in the Match Center once the match behind it exists.": "Een wedstrijd opent in het Match Center zodra de wedstrijd erachter bestaat.",
+  "Round \u0000": "Speelronde \u0000"
 }

@@ -1246,5 +1246,14 @@
   "Our team": "我们的球队",
   "Venue": "球场",
   "No opponent squad recorded": "未记录对手阵容",
-  "A league opponent is a club the platform knows; its shape appears here.": "联赛对手是本平台已知的俱乐部；其阵型会显示在这里。"
+  "A league opponent is a club the platform knows; its shape appears here.": "联赛对手是本平台已知的俱乐部；其阵型会显示在这里。",
+  "Change match": "更换比赛",
+  "Choose a match": "选择一场比赛",
+  "Pick the fixture the workspace should be about.": "选择该工作区要处理的比赛。",
+  "See the fixtures": "查看赛程",
+  "No match chosen yet": "尚未选择比赛",
+  "Choose a fixture and it opens here, inside the league workspace.": "选择一场比赛，它就会在联赛工作区内的这里打开。",
+  "No match in this round is set up yet": "本轮尚无已就绪的比赛",
+  "A fixture opens in the Match Center once the match behind it exists.": "只要背后的比赛存在，就可以在 Match Center 中打开。",
+  "Round \u0000": "第\u0000轮"
 }

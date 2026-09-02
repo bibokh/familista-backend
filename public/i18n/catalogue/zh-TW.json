@@ -1246,5 +1246,14 @@
   "Our team": "我們的球隊",
   "Venue": "球場",
   "No opponent squad recorded": "未記錄對手陣容",
-  "A league opponent is a club the platform knows; its shape appears here.": "聯賽對手是本平台已知的俱樂部；其陣型會顯示在這裡。"
+  "A league opponent is a club the platform knows; its shape appears here.": "聯賽對手是本平台已知的俱樂部；其陣型會顯示在這裡。",
+  "Change match": "更換比賽",
+  "Choose a match": "選擇一場比賽",
+  "Pick the fixture the workspace should be about.": "選擇這個工作區要處理的比賽。",
+  "See the fixtures": "查看賽程",
+  "No match chosen yet": "尚未選擇比賽",
+  "Choose a fixture and it opens here, inside the league workspace.": "選擇一場比賽，它就會在聯賽工作區內的這裡開啟。",
+  "No match in this round is set up yet": "本輪尚無已就緒的比賽",
+  "A fixture opens in the Match Center once the match behind it exists.": "只要背後的比賽存在，就可以在 Match Center 中開啟。",
+  "Round \u0000": "第\u0000輪"
 }

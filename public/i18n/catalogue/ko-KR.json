@@ -1246,5 +1246,14 @@
   "Our team": "우리 팀",
   "Venue": "경기장",
   "No opponent squad recorded": "상대 스쿼드가 기록되지 않았습니다",
-  "A league opponent is a club the platform knows; its shape appears here.": "리그 상대는 플랫폼이 알고 있는 클럽입니다. 해당 클럽의 포메이션이 여기에 표시됩니다."
+  "A league opponent is a club the platform knows; its shape appears here.": "리그 상대는 플랫폼이 알고 있는 클럽입니다. 해당 클럽의 포메이션이 여기에 표시됩니다.",
+  "Change match": "경기 변경",
+  "Choose a match": "경기 선택",
+  "Pick the fixture the workspace should be about.": "이 작업 공간에서 다룰 경기를 선택하세요.",
+  "See the fixtures": "일정 보기",
+  "No match chosen yet": "아직 선택된 경기가 없습니다",
+  "Choose a fixture and it opens here, inside the league workspace.": "경기를 선택하면 리그 작업 공간 안의 이곳에서 열립니다.",
+  "No match in this round is set up yet": "이번 라운드에는 아직 준비된 경기가 없습니다",
+  "A fixture opens in the Match Center once the match behind it exists.": "뒤에 있는 경기가 만들어지면 Match Center에서 열립니다.",
+  "Round \u0000": "\u0000라운드"
 }

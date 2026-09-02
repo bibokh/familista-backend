@@ -1249,5 +1249,14 @@
   "Our team": "فريقنا",
   "Venue": "الملعب",
   "No opponent squad recorded": "لم تُسجَّل تشكيلة المنافس",
-  "A league opponent is a club the platform knows; its shape appears here.": "منافس الدوري هو نادٍ تعرفه المنصة؛ ويظهر تشكيله هنا."
+  "A league opponent is a club the platform knows; its shape appears here.": "منافس الدوري هو نادٍ تعرفه المنصة؛ ويظهر تشكيله هنا.",
+  "Change match": "تغيير المباراة",
+  "Choose a match": "اختر مباراة",
+  "Pick the fixture the workspace should be about.": "اختر المباراة التي ستدور حولها مساحة العمل.",
+  "See the fixtures": "عرض جدول المباريات",
+  "No match chosen yet": "لم يتم اختيار مباراة بعد",
+  "Choose a fixture and it opens here, inside the league workspace.": "اختر مباراة وستُفتح هنا، داخل مساحة الدوري.",
+  "No match in this round is set up yet": "لا توجد مباراة جاهزة بعد في هذه الجولة",
+  "A fixture opens in the Match Center once the match behind it exists.": "تُفتح المباراة في Match Center بمجرد وجود اللقاء الذي يقف خلفها.",
+  "Round \u0000": "الجولة \u0000"
 }

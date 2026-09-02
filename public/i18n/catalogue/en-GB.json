@@ -1249,5 +1249,14 @@
   "Our team": "Our team",
   "Venue": "Venue",
   "No opponent squad recorded": "No opponent squad recorded",
-  "A league opponent is a club the platform knows; its shape appears here.": "A league opponent is a club the platform knows; its shape appears here."
+  "A league opponent is a club the platform knows; its shape appears here.": "A league opponent is a club the platform knows; its shape appears here.",
+  "Change match": "Change match",
+  "Choose a match": "Choose a match",
+  "Pick the fixture the workspace should be about.": "Pick the fixture the workspace should be about.",
+  "See the fixtures": "See the fixtures",
+  "No match chosen yet": "No match chosen yet",
+  "Choose a fixture and it opens here, inside the league workspace.": "Choose a fixture and it opens here, inside the league workspace.",
+  "No match in this round is set up yet": "No match in this round is set up yet",
+  "A fixture opens in the Match Center once the match behind it exists.": "A fixture opens in the Match Center once the match behind it exists.",
+  "Round \u0000": "Round \u0000"
 }

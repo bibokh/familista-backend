@@ -1249,5 +1249,14 @@
   "Our team": "הקבוצה שלנו",
   "Venue": "אצטדיון",
   "No opponent squad recorded": "לא נרשם סגל של היריבה",
-  "A league opponent is a club the platform knows; its shape appears here.": "יריבה בליגה היא מועדון שהפלטפורמה מכירה; המערך שלה מופיע כאן."
+  "A league opponent is a club the platform knows; its shape appears here.": "יריבה בליגה היא מועדון שהפלטפורמה מכירה; המערך שלה מופיע כאן.",
+  "Change match": "החלפת משחק",
+  "Choose a match": "בחרו משחק",
+  "Pick the fixture the workspace should be about.": "בחרו את המשחק שסביבו יעסוק מרחב העבודה.",
+  "See the fixtures": "הצגת לוח המשחקים",
+  "No match chosen yet": "עדיין לא נבחר משחק",
+  "Choose a fixture and it opens here, inside the league workspace.": "בחרו משחק והוא ייפתח כאן, בתוך מרחב הליגה.",
+  "No match in this round is set up yet": "אף משחק במחזור הזה לא הוכן עדיין",
+  "A fixture opens in the Match Center once the match behind it exists.": "משחק נפתח ב-Match Center ברגע שהמפגש שמאחוריו קיים.",
+  "Round \u0000": "מחזור \u0000"
 }

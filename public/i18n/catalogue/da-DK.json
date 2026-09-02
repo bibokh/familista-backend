@@ -1249,5 +1249,14 @@
   "Our team": "Vores hold",
   "Venue": "Spillested",
   "No opponent squad recorded": "Ingen modstandertrup registreret",
-  "A league opponent is a club the platform knows; its shape appears here.": "En ligamodstander er en klub, platformen kender; dens opstilling vises her."
+  "A league opponent is a club the platform knows; its shape appears here.": "En ligamodstander er en klub, platformen kender; dens opstilling vises her.",
+  "Change match": "Skift kamp",
+  "Choose a match": "Vælg en kamp",
+  "Pick the fixture the workspace should be about.": "Vælg den kamp, arbejdsrummet skal handle om.",
+  "See the fixtures": "Se kampprogrammet",
+  "No match chosen yet": "Der er ikke valgt en kamp endnu",
+  "Choose a fixture and it opens here, inside the league workspace.": "Vælg en kamp, så åbner den her i ligaens arbejdsrum.",
+  "No match in this round is set up yet": "Ingen kamp i denne runde er sat op endnu",
+  "A fixture opens in the Match Center once the match behind it exists.": "En kamp åbner i Match Center, så snart kampen bag den findes.",
+  "Round \u0000": "Runde \u0000"
 }

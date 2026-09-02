@@ -1249,5 +1249,14 @@
   "Our team": "La nostra squadra",
   "Venue": "Sede",
   "No opponent squad recorded": "Nessuna rosa dell'avversario registrata",
-  "A league opponent is a club the platform knows; its shape appears here.": "Un avversario di campionato è un club che la piattaforma conosce; il suo modulo compare qui."
+  "A league opponent is a club the platform knows; its shape appears here.": "Un avversario di campionato è un club che la piattaforma conosce; il suo modulo compare qui.",
+  "Change match": "Cambia partita",
+  "Choose a match": "Scegli una partita",
+  "Pick the fixture the workspace should be about.": "Scegli la partita di cui deve occuparsi questo spazio di lavoro.",
+  "See the fixtures": "Vedi il calendario",
+  "No match chosen yet": "Nessuna partita ancora scelta",
+  "Choose a fixture and it opens here, inside the league workspace.": "Scegli una partita e si apre qui, dentro lo spazio del campionato.",
+  "No match in this round is set up yet": "Nessuna partita di questa giornata è ancora pronta",
+  "A fixture opens in the Match Center once the match behind it exists.": "Una partita si apre nel Match Center non appena esiste l'incontro che la sostiene.",
+  "Round \u0000": "Giornata \u0000"
 }

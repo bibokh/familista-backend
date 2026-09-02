@@ -28,7 +28,7 @@ const MC = APP.slice(APP.indexOf('var _MC_TABS = ['), APP.indexOf('// ─── 
 
 describe('one Match Center, not two', () => {
   it('there is a single renderer and a single page', () => {
-    expect(APP.match(/^function renderMatchCenter\(\)/gm) || []).toHaveLength(1);
+    expect(APP.match(/^function renderMatchCenter\(host, opts\)/gm) || []).toHaveLength(1);
     expect(APP.match(/id="pg-match-center"/g) || []).toHaveLength(1);
     expect(APP.match(/id="match-center-content"/g) || []).toHaveLength(1);
   });
@@ -49,8 +49,10 @@ describe('the page announces itself and its place in the competition', () => {
     expect(MC).toContain('<h1 class="mcx-h1">Match Center</h1>');
   });
 
-  it('and a breadcrumb back through the League, only when opened from one', () => {
-    const crumb = MC.slice(MC.indexOf('var crumb = ctx'), MC.indexOf('var crumb = ctx') + 1400);
+  it('and a breadcrumb back through the League, only when opened from one and only standalone', () => {
+    const crumb = MC.slice(MC.indexOf('var crumb = (ctx'), MC.indexOf('var crumb = (ctx') + 1400);
+    // Embedded in the League, the shell above has already said all of this.
+    expect(MC).toContain('var crumb = (ctx && !embedded)');
     expect(crumb).toContain('Back to League');
     expect(crumb).toContain('data-page="familista-league"');
     expect(crumb).toContain('Season');
@@ -72,8 +74,11 @@ describe('the page announces itself and its place in the competition', () => {
     // to open. The old repeated "Open Match Center" button is gone.
     // It survives in exactly one place — the foot of the quick-preview panel,
     // where it is the panel's one primary action rather than a column of them.
-    expect(APP.match(/Open Match Center</g) || []).toHaveLength(1);
+    // Two places, both of them deliberate: the quick-preview panel's one
+    // primary action, and the workspace's own top-level control.
+    expect(APP.match(/Open Match Center</g) || []).toHaveLength(2);
     expect(APP).toMatch(/foot:\s*'<button class="lg-act lg-act--primary"[^']*data-action="flPreviewOpen">Open Match Center</);
+    expect(APP).toMatch(/class="fl-mc-btn" data-action="flOpenMC"/);
     expect(APP).not.toContain('class="fl-open"');
     expect(CSS).not.toContain('.fl-open{');
     expect(APP).toContain('<span class="fl-go" aria-hidden="true">');
@@ -109,14 +114,20 @@ describe('four tabs, and each one is drawn', () => {
     // Training-style: the header, the fixture band and the rail stay where they
     // are and only the desk's contents are replaced.
     const handler = codeOnly(MC).slice(codeOnly(MC).indexOf("act === 'mcTab'"));
-    expect(handler).toContain("document.getElementById('mcx-desk')");
+    // Scoped to the host the workspace was drawn into: the League's embedded
+    // instance and the standalone page can both be in the document.
+    expect(handler).toContain("deskRoot.querySelector('.mcx-desk')");
     expect(handler).toContain('desk.innerHTML =');
     expect(handler).toContain('_mcPaintComputed(desk)');
     // A full re-render is the fallback, not the path: every mention of it in
     // the handler is guarded by a missing desk or reached from the catch.
+    // The fallback goes through _mcRedraw, which redraws the workspace where it
+    // stands rather than assuming the standalone page.
     const before = handler.slice(0, handler.indexOf('desk.innerHTML'));
-    expect(before).toMatch(/if \(!desk\)[^\n]*renderMatchCenter\(\)/);
-    expect((before.match(/renderMatchCenter\(\)/g) || []).length).toBe(1);
+    expect(before).toMatch(/if \(!desk\)[^\n]*_mcRedraw\(\)/);
+    expect((before.match(/_mcRedraw\(\)/g) || []).length).toBe(1);
+    expect(handler).not.toContain('renderMatchCenter()');
+    expect(APP).toContain('function _mcRedraw()');
   });
 
   it('and opening a fixture starts on the overview again', () => {
@@ -318,9 +329,12 @@ describe('one workspace, not a document', () => {
   });
 
   it('the header, the rail and the desk are the three bands of it', () => {
-    expect(MC).toContain('<header class="mcx-head">');
+    expect(MC).toContain("'<header class=\"mcx-head' + (embedded ? ' mcx-head--embed' : '') + '\">'");
     expect(MC).toContain('<nav class="mcx-rail"');
-    expect(MC).toContain('<div class="mcx-desk" id="mcx-desk">');
+    expect(MC).toContain("'<div class=\"mcx-desk\"' + deskId + '>'");
+    // Only one instance in a document may own an id.
+    expect(MC).toContain("var deskId = embedded ? '' : ' id=\"mcx-desk\"';");
+    expect(MC).toContain("var ovId = embedded ? '' : ' id=\"mcx-overlay\"';");
     // The desk takes what is left; the other two do not grow.
     expect(CSS).toMatch(/\.mcx-desk\{[^}]*flex:1 1 auto[^}]*min-height:0/);
     expect(CSS).toMatch(/\.mcx-head\{[^}]*flex:0 0 auto/);
@@ -366,8 +380,13 @@ describe('one workspace, not a document', () => {
   });
 
   it('the match header carries the fixture on one band', () => {
-    const head = MC.slice(MC.indexOf("var head = '<header"), MC.indexOf("var head = '<header") + 1600);
+    const head = MC.slice(MC.indexOf('var ident = embedded'), MC.indexOf('var ident = embedded') + 2400);
     expect(head).toContain('mcx-h1');
+    // Embedded the League names the page, so the identity band names the match
+    // and offers the one control that follows from looking at it.
+    expect(head).toContain('mcx-head-id--embed');
+    expect(head).toContain('data-action="flPick"');
+    expect(head).toContain('Change match');
     expect(head).toContain('mcx-fixture');
     expect(head).toContain('mcx-vs-score');
     expect(head).toContain('lg-chip lg-chip--');

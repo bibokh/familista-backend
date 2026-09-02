@@ -1249,5 +1249,14 @@
   "Our team": "Oma joukkueemme",
   "Venue": "Paikka",
   "No opponent squad recorded": "Vastustajan kokoonpanoa ei ole tallennettu",
-  "A league opponent is a club the platform knows; its shape appears here.": "Sarjavastustaja on seura, jonka alusta tuntee; sen kokoonpano näkyy tässä."
+  "A league opponent is a club the platform knows; its shape appears here.": "Sarjavastustaja on seura, jonka alusta tuntee; sen kokoonpano näkyy tässä.",
+  "Change match": "Vaihda ottelua",
+  "Choose a match": "Valitse ottelu",
+  "Pick the fixture the workspace should be about.": "Valitse ottelu, jota tämä työtila koskee.",
+  "See the fixtures": "Katso otteluohjelma",
+  "No match chosen yet": "Ottelua ei ole vielä valittu",
+  "Choose a fixture and it opens here, inside the league workspace.": "Valitse ottelu, niin se avautuu tähän, sarjan työtilaan.",
+  "No match in this round is set up yet": "Tämän kierroksen otteluita ei ole vielä luotu",
+  "A fixture opens in the Match Center once the match behind it exists.": "Ottelu avautuu Match Centeriin heti kun sen taustalla oleva ottelu on olemassa.",
+  "Round \u0000": "Kierros \u0000"
 }
