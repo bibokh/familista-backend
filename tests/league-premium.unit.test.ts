@@ -224,3 +224,96 @@ describe('Player Stats', () => {
     expect(APP).not.toContain('function _flPlayerProfile');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The premium redesign that followed: the rule that made it permanent, the
+// quieter current-club treatment, two pitches in Preparation, and the panel
+// sizing that stopped a scrolling column from stacking panels on top of one
+// another.
+
+describe('the rule is written down, not just followed once', () => {
+  const CLAUDE = read('CLAUDE.md');
+
+  it('CLAUDE.md carries the design rule alongside the localization one', () => {
+    expect(CLAUDE).toContain('## Design is part of the feature, not a follow-up');
+    // The wording is the rule, so it is asserted with the line wrapping removed
+    // rather than as the paragraph happens to be laid out today.
+    const flat = CLAUDE.replace(/\n>\s*/g, ' ');
+    expect(flat).toContain(
+      'Every Familista feature must be implemented with production-quality professional UI/UX as part of the same task.');
+    expect(flat).toContain('Functional correctness alone is not sufficient.');
+    expect(flat).toContain(
+      "New UI must follow Familista's existing design system, interaction patterns, accessibility, responsiveness, i18n, visual hierarchy, stable layout, and premium product quality.");
+    expect(flat).toContain('Do not wait for a separate redesign request.');
+    // Ahead of the localization rule, because it is the more general one.
+    expect(CLAUDE.indexOf('## Design is part of the feature'))
+      .toBeLessThan(CLAUDE.indexOf('## Localization is part of the feature'));
+  });
+});
+
+describe('the current club is marked, not shouted at', () => {
+  it('an accent edge and a fading wash, no flat block of colour', () => {
+    const rule = CSS.slice(CSS.indexOf('.fl-row.is-mine td{'),
+                           CSS.indexOf('.fl-row.is-mine td{') + 400);
+    expect(rule).toContain('linear-gradient(90deg');
+    expect(rule).toContain('rgba(251,191,36,0) 78%');
+    expect(CSS).toContain('.fl-row.is-mine td:first-child{ box-shadow:inset 3px 0 0 var(--lg-accent); }');
+    // One definition, so a superseded flat fill cannot sit above it and win
+    // wherever the newer block does not reach.
+    expect(CSS.match(/\.fl-row\.is-mine td\{/g) || []).toHaveLength(1);
+    expect(CSS).not.toContain('.fl-row.is-mine td{ background:rgba(251,191,36,');
+  });
+});
+
+describe('Preparation shows both sides', () => {
+  const PREP = APP.slice(APP.indexOf('function _mcPreparationHtml('),
+                         APP.indexOf('function _mcOpponentHtml('));
+
+  it('draws two pitches through the same renderer, ours and theirs', () => {
+    // One board() helper, called twice: the two pitches cannot drift apart
+    // because there is only one place that draws either of them.
+    expect(PREP).toContain('var board = function (title, sub, xi, shape, avail, cls)');
+    expect((PREP.match(/\bboard\('/g) || []).length).toBe(2);
+    expect(PREP).toContain("board('Our shape'");
+    expect(PREP).toContain("board('Opponent shape'");
+    expect(PREP).toContain('lg-panel--pitch ');
+    // And when the opponent has no squad on record it says so, rather than
+    // drawing an empty pitch or eleven invented names.
+    expect(PREP).toContain("_lgEmpty('No opponent squad recorded'");
+  });
+
+  it('with the matchup between them rather than under them', () => {
+    expect(PREP).toContain('mcx-cols--prep');
+    const grid = CSS.slice(CSS.indexOf('.mcx-cols--prep{'), CSS.indexOf('.mcx-cols--prep{') + 300);
+    expect(grid).toContain('grid-template-columns:minmax(0,1fr) minmax(280px,.72fr) minmax(0,1fr)');
+    expect(PREP).toContain('Where the two shapes differ');
+  });
+});
+
+describe('a panel keeps its own height', () => {
+  it('so a scrolling column cannot squeeze panels into each other', () => {
+    // .lg-panel carries min-height:0 so a pitch can letterbox inside it; in a
+    // column that would let every panel collapse under its own content.
+    expect(CSS).toContain('.mcx-col > .lg-panel{ min-height:auto; flex:0 0 auto; }');
+    expect(CSS).toContain('.mcx-col > .lg-panel--fill, .mcx-col > .lg-panel--pitch{ flex:1 1 auto; min-height:0; }');
+  });
+});
+
+describe('the phrases the catalogue is keyed by are phrases', () => {
+  it('a label and the position beside it are separate nodes', () => {
+    // "Highest rated · ST" in one text run would key as "Highest rated ·".
+    for (const fn of ['function _mcOverviewHtml(', 'function _mcOpponentHtml(']) {
+      const src = APP.slice(APP.indexOf(fn), APP.indexOf(fn) + 12000);
+      expect(src).toContain("+ '<i><span>' + label + '</span>'");
+      expect(src).toContain('<span class="mcx-key-sep">·</span>');
+    }
+    expect(APP).not.toContain("'Highest rated ·'");
+  });
+
+  it('and a crest keeps the club name it carries out of the catalogue', () => {
+    const DOMJS = read('public/i18n/dom.js');
+    for (const sel of ['.lg-crest', '.mcx-side-crest', '.mcx-opp-crest', '.fl-mg-crest']) {
+      expect(DOMJS).toContain("'" + sel + "'");
+    }
+  });
+});

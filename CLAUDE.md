@@ -6,6 +6,56 @@ the expensive way.
 
 ---
 
+## Design is part of the feature, not a follow-up
+
+> **Every Familista feature must be implemented with production-quality
+> professional UI/UX as part of the same task. Functional correctness alone is
+> not sufficient. New UI must follow Familista's existing design system,
+> interaction patterns, accessibility, responsiveness, i18n, visual hierarchy,
+> stable layout, and premium product quality. Do not wait for a separate
+> redesign request.**
+
+A feature that works and looks unfinished is unfinished, in the same sense as
+one that returns the wrong number. "Make it professional" is not a follow-up
+ticket; it is the same ticket. Nobody should have to ask twice.
+
+### What that means in practice
+
+**Use the system, do not invent beside it.** The competition screens are built
+from `_lgPanel`, `_lgIdent`, `_lgCrest`, `_lgChip`, `_lgStatusChip`, `_lgForm`,
+`_lgMetric`, `_lgEmpty`, `_lgFloat` and `_lgVersus`, and the surfaces they draw
+are Training's: a dark gradient, a blurred backdrop, a hairline border, a 16px
+radius. A new screen that needs a panel uses that panel. A new screen that needs
+a different panel is a change to the shared one, not a second one beside it.
+
+**Colour means something.** Amber is the competition's own accent — identity, a
+leader, the current club. Green and red mean a result or an availability state
+and nothing else. A highlight is an edge, a hairline or a whisper of tint; a
+filled block of colour across a row is not a highlight, it is a mistake.
+
+**Nothing may move that the reader did not move.** Opening a panel, switching a
+tab or loading a section must not shift one pixel of what is underneath. That
+means: floating panels are `position: fixed` and animate on `opacity` and
+`transform` only; a workspace is a fixed-height flex column whose body scrolls
+inside itself with `scrollbar-gutter: stable`; a skeleton is the size of the
+content it stands in for; and a repaint touches the one region that changed.
+`tests/league-premium.unit.test.ts` pins each of those.
+
+**Show what is recorded, and say so when nothing is.** A measured zero renders
+as `0`; a figure the platform does not keep renders as `—`. They are different
+answers. Every panel has an empty state that names what is missing and what
+would fill it. No placeholder numbers, ever.
+
+**Stay on one screen.** Prefer an internal tab, a floating panel or a
+contextual overlay to a page that has to be navigated away from and back to.
+
+**Responsive and translated, in the same commit.** Every workspace carries an
+escape hatch (`max-width:980px`, `max-height:620px`) that returns the page to
+normal scrolling rather than crushing panels, and every new string goes through
+the catalogue below before the feature is called done.
+
+---
+
 ## Localization is part of the feature, not a follow-up
 
 > **Any feature containing user-facing text is incomplete until all text uses the

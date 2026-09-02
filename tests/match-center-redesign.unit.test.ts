@@ -66,9 +66,21 @@ describe('the page announces itself and its place in the competition', () => {
     expect(codeOnly(MC)).toMatch(/act === 'mcStandings'[\s\S]{0,120}navTo\('familista-league'\)/);
   });
 
-  it('the League fixture row advertises the way in', () => {
-    expect(APP).toContain('<span class="fl-open">Open Match Center</span>');
-    expect(CSS).toContain('.fl-open{');
+  it('the League fixture row is itself the way in, without a button repeated down the column', () => {
+    // A row that opens the Match Center says so by being a row you can click:
+    // a chevron that fills in on hover, dimmed to a dot when there is no match
+    // to open. The old repeated "Open Match Center" button is gone.
+    // It survives in exactly one place — the foot of the quick-preview panel,
+    // where it is the panel's one primary action rather than a column of them.
+    expect(APP.match(/Open Match Center</g) || []).toHaveLength(1);
+    expect(APP).toMatch(/foot:\s*'<button class="lg-act lg-act--primary"[^']*data-action="flPreviewOpen">Open Match Center</);
+    expect(APP).not.toContain('class="fl-open"');
+    expect(CSS).not.toContain('.fl-open{');
+    expect(APP).toContain('<span class="fl-go" aria-hidden="true">');
+    expect(APP).toContain('<span class="fl-go is-off" aria-hidden="true">');
+    expect(CSS).toContain('.fl-go{');
+    // The row carries the action, so the whole row is the target.
+    expect(APP).toMatch(/lg-row fl-match[\s\S]{0,200}data-action="flMatch"[\s\S]{0,120}tabindex="0"/);
   });
 });
 

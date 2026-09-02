@@ -15272,89 +15272,130 @@ function _mcOverviewHtml(focus, home, away, homeName, awayName, next) {
   var hs = home.standing, as = away.standing;
   var per = function (v, p) { return p ? Math.round((v / p) * 100) / 100 : 0; };
 
-  // Team against team, from the table the engine wrote.
+  // ── league context, one side above the other ─────────────────────────────
+  var context = function (side, name, data) {
+    var st = data.standing;
+    if (!st) {
+      return '<div class="mcx-ctx"><div class="mcx-ctx-team">'
+        + '<span class="mcx-ctx-side">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
+        + '<b data-user-content>' + _esc(name) + '</b></div>'
+        + _lgEmpty('No league record yet', '') + '</div>';
+    }
+    return '<div class="mcx-ctx">'
+      + '<div class="mcx-ctx-team">'
+      + '<span class="mcx-ctx-side">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
+      + '<b data-user-content>' + _esc(name) + '</b>'
+      + '<span class="mcx-ctx-pos">' + st.position + '</span>'
+      + '</div>'
+      + '<div class="mcx-ctx-line">'
+      + '<span class="mcx-ctx-pts">' + st.points + '<i>pts</i></span>'
+      + '<span class="mcx-ctx-wdl">' + st.won + '<i>W</i>' + st.drawn + '<i>D</i>' + st.lost + '<i>L</i></span>'
+      + '<span class="mcx-ctx-gd">' + st.goalsFor + ':' + st.goalsAgainst + '</span>'
+      + _lgForm(st.form)
+      + '</div>'
+      + '</div>';
+  };
+
+  // ── team against team, from the table the engine wrote ───────────────────
   var cmp = (hs && as)
     ? '<div class="lg-vs-head">'
       + '  <span data-user-content>' + _esc(homeName) + '</span>'
       + '  <span class="lg-vs-vs">v</span>'
       + '  <span data-user-content>' + _esc(awayName) + '</span>'
       + '</div>'
-      + _mcCompare('Points', hs.points, as.points)
-      + _mcCompare('League position', hs.position, as.position)
-      + _mcCompare('Matches played', hs.played, as.played)
-      + _mcCompare('Wins', hs.won, as.won)
-      + _mcCompare('Draws', hs.drawn, as.drawn)
-      + _mcCompare('Losses', hs.lost, as.lost)
-      + _mcCompare('Goals scored', hs.goalsFor, as.goalsFor)
-      + _mcCompare('Goals conceded', hs.goalsAgainst, as.goalsAgainst)
-      + _mcCompare('Goals per match', per(hs.goalsFor, hs.played), per(as.goalsFor, as.played))
-      + _mcCompare('Conceded per match', per(hs.goalsAgainst, hs.played), per(as.goalsAgainst, as.played))
-    : _mcEmptyPanel('No league record for these teams yet',
+      + _lgVersus('Points', hs.points, as.points)
+      + _lgVersus('League position', hs.position, as.position, { lowerIsBetter: true })
+      + _lgVersus('Matches played', hs.played, as.played)
+      + _lgVersus('Wins', hs.won, as.won)
+      + _lgVersus('Draws', hs.drawn, as.drawn)
+      + _lgVersus('Losses', hs.lost, as.lost, { lowerIsBetter: true })
+      + _lgVersus('Goals scored', hs.goalsFor, as.goalsFor)
+      + _lgVersus('Goals conceded', hs.goalsAgainst, as.goalsAgainst, { lowerIsBetter: true })
+      + _lgVersus('Goals per match', per(hs.goalsFor, hs.played), per(as.goalsFor, as.played))
+      + _lgVersus('Conceded per match', per(hs.goalsAgainst, hs.played), per(as.goalsAgainst, as.played), { lowerIsBetter: true })
+    : _lgEmpty('No league record for these teams yet',
         'The comparison fills in once both sides have a place in the table.');
 
-  // Squad strength by line — the ratings the clubs record, averaged.
+  // ── squad strength by line, from the ratings the clubs record ────────────
   var lineAvg = function (squad, line) {
     var vals = squad.filter(function (p) { return _mcLine(p.position) === line && typeof p.overallRating === 'number'; })
       .map(function (p) { return p.overallRating; });
     if (!vals.length) return null;
     return Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length);
   };
-  var attack = _mcCompare('Attack', lineAvg(home.squad, 'ATT'), lineAvg(away.squad, 'ATT'));
-  var mid = _mcCompare('Midfield', lineAvg(home.squad, 'MID'), lineAvg(away.squad, 'MID'));
-  var def = _mcCompare('Defence', lineAvg(home.squad, 'DEF'), lineAvg(away.squad, 'DEF'));
-  var gk = _mcCompare('Goalkeeping', lineAvg(home.squad, 'GK'), lineAvg(away.squad, 'GK'));
+  var attack = _lgVersus('Attack', lineAvg(home.squad, 'ATT'), lineAvg(away.squad, 'ATT'));
+  var mid = _lgVersus('Midfield', lineAvg(home.squad, 'MID'), lineAvg(away.squad, 'MID'));
+  var def = _lgVersus('Defence', lineAvg(home.squad, 'DEF'), lineAvg(away.squad, 'DEF'));
+  var gk = _lgVersus('Goalkeeping', lineAvg(home.squad, 'GK'), lineAvg(away.squad, 'GK'));
   var strength = (attack || mid || def || gk)
     ? attack + mid + def + gk
-    : _mcEmptyPanel('No squad ratings recorded', 'The clubs have not rated these players.');
+    : _lgEmpty('No squad ratings recorded', 'The clubs have not rated these players.');
 
-  // Form, availability and the shape each side is likely to take.
-  var stateRow = function (side, name, data) {
+  // ── the tactical snapshot each side brings ───────────────────────────────
+  var shape = function (side, name, data) {
     var av = _mcAvailability(data.squad);
     var likely = _mcLikelyXI(data.squad);
     var recorded = next && (side === 'home' ? next.formationHome : next.formationAway);
-    return '<div class="mcx-state">'
-      + '<div class="mcx-state-team"><span class="mcx-state-side">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
+    return '<div class="mcx-shape">'
+      + '<div class="mcx-shape-team"><span class="mcx-ctx-side">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
       + '<b data-user-content>' + _esc(name) + '</b></div>'
-      + '<div class="mcx-state-grid">'
-      + _mcStat('Recent form', data.standing ? _mcFormPills(data.standing.form) : null)
-      + _mcStat('Squad available', av.total ? av.available : null, av.total ? 'of ' + av.total : '')
-      + _mcStat('Likely formation', likely.xi.length ? likely.shape : null)
-      + (recorded ? _mcStat('Recorded formation', _esc(String(recorded))) : '')
+      + '<div class="mcx-shape-grid">'
+      + '<span class="mcx-shape-form">' + (likely.xi.length ? likely.shape : '<span class="lg-na">—</span>') + '</span>'
+      + '<span class="mcx-shape-av">' + (av.total ? av.available + ' <i>of</i> ' + av.total + ' <i>available</i>' : '<span class="lg-na">—</span>') + '</span>'
+      + (recorded ? '<span class="mcx-shape-rec">Recorded formation <b data-no-i18n>' + _esc(String(recorded)) + '</b></span>' : '')
       + '</div>'
       + '</div>';
   };
 
-  // Key players, by the figures the clubs keep.
+  // ── key players, by the figures the clubs actually keep ──────────────────
   var keyCard = function (side, name) {
     var best = _mcTopBy(side.squad, 'overallRating');
     var inForm = _mcTopBy(side.squad, 'form');
-    if (!best && !inForm) return '';
+    var scorer = _mcTopBy(side.squad, 'goals');
+    if (scorer && !(scorer.goals > 0)) scorer = null;
+    var creator = _mcTopBy(side.squad, 'assists');
+    if (creator && !(creator.assists > 0)) creator = null;
+    if (!best && !inForm && !scorer && !creator) return '';
+    var row = function (label, p, key, cls) {
+      if (!p) return '';
+      return '<div class="mcx-key-row' + (cls ? ' ' + cls : '') + '" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+        + '<span class="mcx-key-av" data-user-content>' + _esc(_lgInitials(p.name)) + '</span>'
+        + '<span class="mcx-key-txt">'
+        + '<b class="mcx-key-name" data-user-content>' + _esc(p.name) + '</b>'
+        // The label is its own node: with the position beside it in the same
+        // text run the catalogue key would be "Highest rated ·", which is not
+        // a phrase anybody can translate.
+        + '<i><span>' + label + '</span>'
+        + (p.position ? '<span class="mcx-key-sep">·</span><span data-no-i18n>' + _esc(p.position) + '</span>' : '')
+        + '</i>'
+        + '</span>'
+        + '<span class="mcx-key-v">' + p[key] + '</span></div>';
+    };
     return '<div class="mcx-key">'
       + '<div class="mcx-key-team" data-user-content>' + _esc(name) + '</div>'
-      + (best ? '<div class="mcx-key-row" data-action="openPlayerModal" data-player-id="' + _esc(best.playerId) + '">'
-          + '<span class="mcx-key-lbl">Highest rated</span>'
-          + '<span class="mcx-key-name" data-user-content>' + _esc(best.name) + '</span>'
-          + '<span class="mcx-key-v">' + best.overallRating + '</span></div>' : '')
-      + (inForm ? '<div class="mcx-key-row" data-action="openPlayerModal" data-player-id="' + _esc(inForm.playerId) + '">'
-          + '<span class="mcx-key-lbl">Best form</span>'
-          + '<span class="mcx-key-name" data-user-content>' + _esc(inForm.name) + '</span>'
-          + '<span class="mcx-key-v">' + inForm.form + '</span></div>' : '')
+      + row('Highest rated', best, 'overallRating')
+      + row('Best form', inForm, 'form')
+      + row('Best scorer', scorer, 'goals')
+      + row('Best creator', creator, 'assists')
       + '</div>';
   };
   var keys = keyCard(home, homeName) + keyCard(away, awayName);
 
   return '<div class="mcx-cols mcx-cols--3">'
     + '<div class="mcx-col">'
-    + _mcPanel('Team comparison', 'This season in the league', cmp)
+    + _mcPanel('League context', 'Where each side stands', context('home', homeName, home) + context('away', awayName, away))
+    + _mcPanel('Team comparison', 'This season in the league', cmp, 'lg-panel--fill')
     + '</div>'
     + '<div class="mcx-col">'
     + _mcPanel('Squad strength', 'Average rating by line', strength)
-    + _mcPanel('Form and shape', 'What each side brings', stateRow('home', homeName, home) + stateRow('away', awayName, away))
+    + _mcPanel('Tactical snapshot', 'What each side brings',
+        shape('home', homeName, home) + shape('away', awayName, away), 'lg-panel--fill')
     + '</div>'
     + '<div class="mcx-col">'
     + _mcPanel('Key players', 'From each club\'s own record',
         keys ? '<div class="mcx-key-grid">' + keys + '</div>'
-             : _mcEmptyPanel('No player ratings recorded', 'Key players appear once the clubs rate their squads.'))
+             : _lgEmpty('No player ratings recorded', 'Key players appear once the clubs rate their squads.'),
+        'lg-panel--fill')
     + '</div>'
     + '</div>';
 }
@@ -15365,11 +15406,12 @@ function _mcPreparationHtml(focus, home, away, next) {
   // Our own side. In a league match that is whichever team belongs to the club
   // the reader is in; otherwise it is the club's own squad.
   var ours = home.isOurs ? home : away.isOurs ? away : (focus ? home : (home.squad.length ? home : away));
+  var them = ours === home ? away : home;
   var side = ours === away ? 'away' : 'home';
   if (!ours.squad.length) {
     return '<div class="mcx-cols mcx-cols--1"><div class="mcx-col">'
       + _mcPanel('Preparation', '',
-          _mcEmptyPanel('No squad recorded for this team', 'Preparation reads the club\'s own player records.'))
+          _lgEmpty('No squad recorded for this team', 'Preparation reads the club\'s own player records.'))
       + '</div></div>';
   }
 
@@ -15381,6 +15423,18 @@ function _mcPreparationHtml(focus, home, away, next) {
   var xiReady = likely.xi.length >= 11;
   var recorded = next && (side === 'home' ? next.formationHome : next.formationAway);
 
+  var oav = _mcAvailability(them.squad);
+  var olikely = _mcLikelyXI(them.squad);
+  var orating = _mcAverage(them.squad, 'overallRating');
+  var oRecorded = next && (side === 'home' ? next.formationAway : next.formationHome);
+
+  var nameOf = function (d, fallback) {
+    return (d.identity && (d.identity.clubName || d.identity.teamName)) || fallback;
+  };
+  var ourName = nameOf(ours, 'Our team');
+  var theirName = nameOf(them, '');
+
+  // ── the readiness board ──────────────────────────────────────────────────
   var readyRow = function (label, ok, detail) {
     return '<div class="mcx-ready ' + (ok === null ? 'is-none' : ok ? 'is-ok' : 'is-no') + '">'
       + '<span class="mcx-ready-ic">' + (ok === null ? '·' : ok ? '✓' : '!') + '</span>'
@@ -15388,7 +15442,6 @@ function _mcPreparationHtml(focus, home, away, next) {
       + '<span class="mcx-ready-d">' + detail + '</span>'
       + '</div>';
   };
-
   var readiness = '<div class="mcx-ready-grid">'
     + readyRow('Starting XI complete', xiReady, likely.xi.length + ' of 11 available')
     + readyRow('Formation', likely.xi.length ? true : null, likely.shape)
@@ -15399,26 +15452,87 @@ function _mcPreparationHtml(focus, home, away, next) {
     + readyRow('Match sharpness', fitness == null ? null : fitness >= 6, fitness == null ? 'Not recorded' : fitness + ' average form')
     + readyRow('Morale', morale == null ? null : morale !== 'Poor', morale || 'Not recorded')
     + readyRow('Tactical readiness', recorded ? true : null, recorded ? String(recorded) : 'Not recorded')
+    // The platform keeps no set-piece plan for a match, so this says so rather
+    // than inventing a tick. Open Set Pieces below is where one is made.
+    + readyRow('Set pieces', null, 'Not recorded')
+    + '</div>';
+
+  // ── the matchup strip, between the two boards ────────────────────────────
+  var lineAvg = function (squad, line) {
+    var vals = squad.filter(function (p) { return _mcLine(p.position) === line && typeof p.overallRating === 'number'; })
+      .map(function (p) { return p.overallRating; });
+    if (!vals.length) return null;
+    return Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length);
+  };
+  var xiAvg = function (xi) {
+    var vals = xi.map(function (p) { return p.overallRating; }).filter(function (v) { return typeof v === 'number'; });
+    if (!vals.length) return null;
+    return Math.round((vals.reduce(function (a, b) { return a + b; }, 0) / vals.length) * 10) / 10;
+  };
+  var strip = '<div class="mcx-mu">'
+    + '<div class="mcx-mu-head">'
+    + '<span class="mcx-mu-t" data-user-content>' + _esc(ourName) + '</span>'
+    + '<span class="mcx-mu-vs">v</span>'
+    + '<span class="mcx-mu-t" data-user-content>' + _esc(theirName) + '</span>'
+    + '</div>'
+    + '<div class="mcx-mu-shape">'
+    + '<b>' + (likely.xi.length ? likely.shape : '—') + '</b>'
+    + '<span>Formation</span>'
+    + '<b>' + (olikely.xi.length ? olikely.shape : '—') + '</b>'
+    + '</div>'
+    + _lgVersus('Available', av.total ? av.available : null, oav.total ? oav.available : null)
+    + _lgVersus('Average XI rating', xiAvg(likely.xi), xiAvg(olikely.xi), { fmt: function (v) { return Number(v).toFixed(1); } })
+    + _lgVersus('Attack', lineAvg(ours.squad, 'ATT'), lineAvg(them.squad, 'ATT'))
+    + _lgVersus('Midfield', lineAvg(ours.squad, 'MID'), lineAvg(them.squad, 'MID'))
+    + _lgVersus('Defence', lineAvg(ours.squad, 'DEF'), lineAvg(them.squad, 'DEF'))
+    + _lgVersus('Goalkeeping', lineAvg(ours.squad, 'GK'), lineAvg(them.squad, 'GK'))
+    + (ours.standing && them.standing
+        ? _lgVersus('League position', ours.standing.position, them.standing.position, { lowerIsBetter: true })
+        : '')
+    + (ours.standing && them.standing
+        ? '<div class="mcx-mu-form">' + _lgForm(ours.standing.form)
+          + '<span>Recent form</span>' + _lgForm(them.standing.form) + '</div>'
+        : '')
     + '</div>';
 
   var numbers = '<div class="lg-metrics">'
-    + _mcStat('Available', av.available, 'of ' + av.total)
-    + _mcStat('Injured', av.injured)
-    + _mcStat('Suspended', av.suspended)
-    + _mcStat('Recovering', av.recovering)
-    + _mcStat('Average rating', rating)
-    + _mcStat('Average form', fitness)
+    + _lgMetric('Available', av.available, 'of ' + av.total)
+    + _lgMetric('Injured', av.injured)
+    + _lgMetric('Suspended', av.suspended)
+    + _lgMetric('Recovering', av.recovering)
+    + _lgMetric('Average rating', rating)
+    + _lgMetric('Average form', fitness)
     + '</div>';
 
-  return '<div class="mcx-cols mcx-cols--split">'
-    + '<div class="mcx-col">'
+  // A pitch for each side, drawn the same way, so the two shapes read against
+  // each other without the coach having to change tab to see the other one.
+  var board = function (title, sub, xi, shape, avail, cls) {
+    return _mcPanel(title, sub,
+      _mcPitchPro(xi, { shape: shape, recorded: false, compare: _mcCanCompare(),
+                        benchCount: Math.max(avail.available - xi.length, 0) }),
+      'lg-panel--pitch ' + cls);
+  };
+
+  // Our board, the matchup, their board — the two shapes at full height with
+  // the differences between them, so a coach reads left to right once rather
+  // than changing tab to see the other side.
+  return '<div class="mcx-cols mcx-cols--prep">'
+    + '<div class="mcx-col mcx-col--pitch">'
+    + board('Our shape', '<span data-user-content>' + _esc(ourName) + '</span>',
+        likely.xi, likely.shape, av, 'mcx-panel--ours')
+    + '</div>'
+    + '<div class="mcx-col mcx-col--mu">'
+    + _mcPanel('Matchup', 'Where the two shapes differ', strip)
     + _mcPanel('Readiness', 'From the club\'s own squad record', readiness)
     + _mcPanel('Squad numbers', '', numbers)
     + '</div>'
     + '<div class="mcx-col mcx-col--pitch">'
-    + _mcPanel('Expected lineup', 'Strongest available by rating',
-        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, compare: _mcCanCompare(), benchCount: Math.max(av.available - likely.xi.length, 0) }),
-        'lg-panel--pitch')
+    + (them.squad.length
+        ? board('Opponent shape', '<span data-user-content>' + _esc(theirName) + '</span>',
+            olikely.xi, olikely.shape, oav, 'mcx-panel--theirs')
+        : _mcPanel('Opponent shape', '',
+            _lgEmpty('No opponent squad recorded',
+              'A league opponent is a club the platform knows; its shape appears here.'), 'lg-panel--fill'))
     + '</div>'
     + '<div class="mcx-dock">'
     + '<span class="mcx-dock-l">Prepare</span>'
@@ -15438,7 +15552,7 @@ function _mcOpponentHtml(focus, home, away) {
   if (!opp || (!opp.identity && !opp.squad.length)) {
     return '<div class="mcx-cols mcx-cols--1"><div class="mcx-col">'
       + _mcPanel('Opponent', '',
-          _mcEmptyPanel('No opponent record',
+          _lgEmpty('No opponent record',
             'This fixture names its opponent as text. A league opponent is a club the platform knows, and its record appears here.'))
       + '</div></div>';
   }
@@ -15448,22 +15562,17 @@ function _mcOpponentHtml(focus, home, away) {
   var likely = _mcLikelyXI(opp.squad);
   var best = _mcTopBy(opp.squad, 'overallRating');
   var form = _mcTopBy(opp.squad, 'form');
-  // A top scorer with no goals is not a top scorer — the row stays off
-  // rather than naming somebody for a zero.
+  // A top scorer with no goals is not a top scorer — the row stays off rather
+  // than naming somebody for a zero.
   var scorer = _mcTopBy(opp.squad, 'goals');
   if (scorer && !(scorer.goals > 0)) scorer = null;
+  var creator = _mcTopBy(opp.squad, 'assists');
+  if (creator && !(creator.assists > 0)) creator = null;
   var per = function (v, p) { return p ? Math.round((v / p) * 100) / 100 : null; };
   var oppName = (opp.identity && (opp.identity.clubName || opp.identity.teamName)) || '';
 
-  var crestHtml = opp.identity
-    ? (function () { try { return _clubCrestUrl(opp.identity.clubId) ? clubLogoHtml(opp.identity.clubId, { size: 44, cls: 'club-logo--plain', title: false }) : ''; } catch (_) { return ''; } })()
-    : '';
-  if (!crestHtml) {
-    // No crest on file: the club's initials, the same mark the header uses.
-    var oi = String(oppName).split(/\s+/).filter(Boolean).slice(0, 2)
-      .map(function (w) { return w.charAt(0); }).join('').toUpperCase() || '—';
-    crestHtml = '<span class="mcx-side-noc" data-user-content>' + _esc(oi) + '</span>';
-  }
+  var crestHtml = opp.identity ? _lgCrest(opp.identity.clubId, oppName, 46)
+                               : _lgCrest(null, oppName, 46);
 
   var identity = '<div class="mcx-opp-head">'
     + '  <div class="mcx-opp-crest">' + crestHtml + '</div>'
@@ -15475,51 +15584,82 @@ function _mcOpponentHtml(focus, home, away) {
     + '    </div>'
     + '  </div>'
     + (st ? '<div class="mcx-opp-pos">' + st.position + '<span>in the table</span></div>' : '')
-    + '</div>'
-    + '<div class="lg-metrics">'
-    + _mcStat('Squad available', av.total ? av.available : null, av.total ? 'of ' + av.total : '')
-    + _mcStat('Likely formation', likely.xi.length ? likely.shape : null)
-    + _mcStat('Average rating', _mcAverage(opp.squad, 'overallRating'))
     + '</div>';
 
   var record = st
     ? '<div class="lg-metrics">'
-      + _mcStat('Played', st.played)
-      + _mcStat('Won', st.won)
-      + _mcStat('Drawn', st.drawn)
-      + _mcStat('Lost', st.lost)
-      + _mcStat('Goals scored', st.goalsFor, per(st.goalsFor, st.played) == null ? '' : per(st.goalsFor, st.played) + ' per match')
-      + _mcStat('Goals conceded', st.goalsAgainst, per(st.goalsAgainst, st.played) == null ? '' : per(st.goalsAgainst, st.played) + ' per match')
-      + _mcStat('Points', st.points)
-      + _mcStat('Recent form', _mcFormPills(st.form))
+      + _lgMetric('Points', st.points, '', 'lg-metric--hero')
+      + _lgMetric('Played', st.played)
+      + _lgMetric('Won', st.won)
+      + _lgMetric('Drawn', st.drawn)
+      + _lgMetric('Lost', st.lost)
+      + _lgMetric('Goals scored', st.goalsFor, per(st.goalsFor, st.played) == null ? '' : per(st.goalsFor, st.played) + ' per match')
+      + _lgMetric('Goals conceded', st.goalsAgainst, per(st.goalsAgainst, st.played) == null ? '' : per(st.goalsAgainst, st.played) + ' per match')
+      + _lgMetric('Recent form', _lgForm(st.form))
       + '</div>'
-    : _mcEmptyPanel('No league record yet', 'This team has not played a league match this season.');
+    : _lgEmpty('No league record yet', 'This team has not played a league match this season.');
 
-  var dangerRow = function (label, p, key, suffix) {
-    if (!p) return '';
-    return '<div class="mcx-danger-row" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
-      + '<span class="mcx-danger-l">' + label + '</span>'
-      + '<span class="mcx-danger-n" data-user-content>' + _esc(p.name) + '</span>'
-      + '<span class="mcx-danger-m">' + _esc(p.position || '') + '</span>'
-      + '<span class="mcx-danger-v">' + p[key] + (suffix || '') + '</span></div>';
+  // Their shape, line by line, from the ratings their own club records.
+  var lineAvg = function (line) {
+    var vals = opp.squad.filter(function (p) { return _mcLine(p.position) === line && typeof p.overallRating === 'number'; })
+      .map(function (p) { return p.overallRating; });
+    if (!vals.length) return null;
+    return Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length);
   };
-  var danger = (best || form || scorer)
+  var lineCount = function (line) {
+    return opp.squad.filter(function (p) { return _mcLine(p.position) === line; }).length;
+  };
+  var profileRow = function (label, line) {
+    var v = lineAvg(line);
+    return '<div class="mcx-prof">'
+      + '<span class="mcx-prof-l">' + label + '</span>'
+      + '<span class="mcx-prof-bar"><i data-mc-width="' + (v == null ? 0 : Math.max(0, Math.min(100, v))) + '%"></i></span>'
+      + '<span class="mcx-prof-v">' + (v == null ? '<span class="lg-na">—</span>' : v) + '</span>'
+      + '<span class="mcx-prof-n">' + lineCount(line) + '</span>'
+      + '</div>';
+  };
+  var profile = '<div class="mcx-profs">'
+    + '<div class="mcx-prof mcx-prof--h"><span></span><span></span><span>Rating</span><span>Players</span></div>'
+    + profileRow('Attack', 'ATT')
+    + profileRow('Midfield', 'MID')
+    + profileRow('Defence', 'DEF')
+    + profileRow('Goalkeeping', 'GK')
+    + '</div>';
+
+  var dangerRow = function (label, p, key, cls) {
+    if (!p) return '';
+    return '<div class="mcx-danger-row' + (cls ? ' ' + cls : '') + '" data-action="openPlayerModal" data-player-id="' + _esc(p.playerId) + '">'
+      + '<span class="mcx-key-av" data-user-content>' + _esc(_lgInitials(p.name)) + '</span>'
+      + '<span class="mcx-danger-txt">'
+      + '<b class="mcx-danger-n" data-user-content>' + _esc(p.name) + '</b>'
+      // As in the Overview: the label is its own node, so the catalogue key is
+      // the phrase and not "Highest rated ·".
+      + '<i><span>' + label + '</span>'
+      + (p.position ? '<span class="mcx-key-sep">·</span><span data-no-i18n>' + _esc(p.position) + '</span>' : '')
+      + '</i>'
+      + '</span>'
+      + '<span class="mcx-danger-v">' + p[key] + '</span></div>';
+  };
+  var danger = (best || form || scorer || creator)
     ? '<div class="mcx-danger">'
       + dangerRow('Highest rated', best, 'overallRating')
       + dangerRow('Best form', form, 'form')
       + dangerRow('Best scorer', scorer, 'goals')
+      + dangerRow('Best creator', creator, 'assists')
       + '</div>'
-    : _mcEmptyPanel('No player ratings recorded', 'This club has not rated its squad.');
+    : _lgEmpty('No player ratings recorded', 'This club has not rated its squad.');
 
   return '<div class="mcx-cols mcx-cols--split">'
     + '<div class="mcx-col">'
     + _mcPanel('Opponent', 'From the club\'s own record', identity)
     + _mcPanel('League record', '', record)
-    + _mcPanel('Dangerous players', 'From the club\'s own record', danger)
+    + _mcPanel('Tactical profile', 'Average rating by line', profile)
+    + _mcPanel('Key threats', 'From the club\'s own record', danger, 'lg-panel--fill')
     + '</div>'
     + '<div class="mcx-col mcx-col--pitch">'
     + _mcPanel('Likely XI', av.available + ' available of ' + av.total,
-        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, compare: _mcCanCompare(), benchCount: Math.max(av.available - likely.xi.length, 0) }),
+        _mcPitchPro(likely.xi, { shape: likely.shape, recorded: false, compare: _mcCanCompare(),
+                                 benchCount: Math.max(av.available - likely.xi.length, 0) }),
         'lg-panel--pitch')
     + '</div>'
     + '</div>';
@@ -15537,58 +15677,98 @@ function _mcFeedHtml(focus, next, played, home, away) {
   var events = (focus && focus.events) || [];
   var players = (focus && focus.players) || [];
   var live = next && (next.status === 'LIVE' || next.status === 'HALFTIME');
+  var ctx = focus && focus.context ? focus.context : null;
 
   if (!played && !live && !events.length) {
-    // Nothing has happened yet. One clean state, and beside it the only thing
-    // that is known about a match not yet played: when and where.
-    var ctx = focus && focus.context ? focus.context : null;
+    // Nothing has happened yet. One considered pre-match state — the fixture
+    // as it stands, and both sides as they will line up — rather than an
+    // empty box beside a lot of dark.
     var kick = next && next.scheduledAt
       ? new Date(next.scheduledAt).toLocaleString(_mcLocale(),
           { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
       : null;
-    var fixture = '<div class="lg-metrics lg-metrics--wide">'
-      + (ctx ? _mcStat('Competition', '<span data-user-content>' + _esc(ctx.name) + '</span>') : '')
-      + (ctx ? _mcStat('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
-      + (ctx && ctx.round != null ? _mcStat('Round', ctx.round) : '')
-      + _mcStat('Kick-off', kick ? _esc(kick) : null)
-      + (next && next.venue ? _mcStat('Venue', '<span data-user-content>' + _esc(next.venue) + '</span>') : '')
-      + _mcStat('Status', 'Not played')
-      + '</div>';
-    return '<div class="mcx-cols mcx-cols--split">'
-      + '<div class="mcx-col mcx-col--centre">'
-      + _mcPanel('Match feed', 'Goals, cards and substitutions, as they are recorded',
-          _mcEmptyPanel('No match events yet', 'The feed fills in as the match is played.'), 'lg-panel--fill')
+    var pre = function (data, name, label) {
+      var av = _mcAvailability(data.squad);
+      var likely = _mcLikelyXI(data.squad);
+      return '<div class="mcx-pre-side">'
+        + '<div class="mcx-pre-lbl">' + label + '</div>'
+        + '<div class="mcx-pre-name" data-user-content>' + _esc(name) + '</div>'
+        + (data.standing ? '<div class="mcx-pre-pos">' + data.standing.position + '<i>in the table</i></div>' : '')
+        + (data.standing ? _lgForm(data.standing.form) : '')
+        + '<div class="mcx-pre-row">'
+        + (likely.xi.length ? '<span class="mcx-pre-shape">' + likely.shape + '</span>' : '')
+        + (av.total ? '<span class="mcx-pre-av">' + av.available + ' <i>of</i> ' + av.total + '</span>' : '')
+        + '</div>'
+        + '</div>';
+    };
+    var hName = (home.identity && (home.identity.clubName || home.identity.teamName))
+      || (next && next.homeTeam) || '';
+    var aName = (away.identity && (away.identity.clubName || away.identity.teamName))
+      || (next && next.awayTeam) || '';
+    var card = '<div class="mcx-pre">'
+      + pre(home, hName, 'Home')
+      + '<div class="mcx-pre-mid"><span class="mcx-pre-vs">VS</span>'
+      + (kick ? '<span class="mcx-pre-when">' + _esc(kick) + '</span>' : '')
       + '</div>'
-      + '<div class="mcx-col">'
-      + _mcPanel('Fixture', 'From the league schedule', fixture)
-      + '</div>'
+      + pre(away, aName, 'Away')
       + '</div>';
+    var meta = '<div class="lg-metrics lg-metrics--wide">'
+      + (ctx ? _lgMetric('Competition', '<span data-user-content>' + _esc(ctx.name) + '</span>') : '')
+      + (ctx ? _lgMetric('Season', '<span data-user-content>' + _esc(ctx.season) + '</span>') : '')
+      + (ctx && ctx.round != null ? _lgMetric('Round', ctx.round) : '')
+      + (next && next.venue ? _lgMetric('Venue', '<span data-user-content>' + _esc(next.venue) + '</span>') : '')
+      + _lgMetric('Status', 'Not played')
+      + '</div>';
+    return '<div class="mcx-cols mcx-cols--1"><div class="mcx-col">'
+      + _mcPanel('Before the match', 'The feed fills in as the match is played',
+          card + meta
+          + _lgEmpty('No match events yet',
+              'Goals, cards and substitutions appear here in order, with the minute each happened.'),
+          'lg-panel--fill')
+      + '</div></div>';
   }
+
+  // ── the running score, as the events describe it ─────────────────────────
+  var homeName = (home.identity && (home.identity.clubName || home.identity.teamName))
+    || (next && next.homeTeam) || '';
+  var awayName = (away.identity && (away.identity.clubName || away.identity.teamName))
+    || (next && next.awayTeam) || '';
+  var score = '<div class="mcx-fs">'
+    + '<span class="mcx-fs-t" data-user-content>' + _esc(homeName) + '</span>'
+    + '<span class="mcx-fs-v">' + (played ? (next.homeScore + ' – ' + next.awayScore) : '–') + '</span>'
+    + '<span class="mcx-fs-t" data-user-content>' + _esc(awayName) + '</span>'
+    + '</div>';
 
   // Statistics the Match Centre recorded for the match itself.
   var stats = '';
   if (next) {
     stats = ''
-      + (next.possession != null ? _mcStat('Possession', next.possession + '%') : '')
-      + (next.shots != null ? _mcStat('Shots', next.shots) : '')
-      + (next.shotsOnTarget != null ? _mcStat('On target', next.shotsOnTarget) : '')
-      + (next.corners != null ? _mcStat('Corners', next.corners) : '')
-      + (next.fouls != null ? _mcStat('Fouls', next.fouls) : '')
-      + (next.yellowCards != null ? _mcStat('Yellow cards', next.yellowCards) : '')
-      + (next.redCards != null ? _mcStat('Red cards', next.redCards) : '');
+      + (next.possession != null ? _lgMetric('Possession', next.possession + '%') : '')
+      + (next.shots != null ? _lgMetric('Shots', next.shots) : '')
+      + (next.shotsOnTarget != null ? _lgMetric('On target', next.shotsOnTarget) : '')
+      + (next.corners != null ? _lgMetric('Corners', next.corners) : '')
+      + (next.fouls != null ? _lgMetric('Fouls', next.fouls) : '')
+      + (next.yellowCards != null ? _lgMetric('Yellow cards', next.yellowCards) : '')
+      + (next.redCards != null ? _lgMetric('Red cards', next.redCards) : '');
   }
 
+  // A chronological read: the minute on a spine and the event beside it. The
+  // event record does not say which side an incident belongs to, so no running
+  // score is drawn — inventing one would put goals on the wrong team.
   var timeline = events.length
     ? '<ol class="mcx-tl">' + events.slice().sort(function (a, b) { return (a.minute || 0) - (b.minute || 0); }).map(function (e) {
         var kind = String(e.kind || '').toUpperCase();
         return '<li class="mcx-tl-i mcx-tl-i--' + kind.toLowerCase() + '">'
           + '<span class="mcx-tl-min">' + (e.minute || 0) + '\'</span>'
+          + '<span class="mcx-tl-spine"><i></i></span>'
           + '<span class="mcx-tl-ic">' + _mcEventIcon(kind) + '</span>'
-          + '<span class="mcx-tl-k">' + (_MC_EVENT_LABEL[kind] || _esc(kind.replace(/_/g, ' '))) + '</span>'
-          + (e.player ? '<span class="mcx-tl-p" data-user-content>' + _esc(e.player) + '</span>' : '')
+          + '<span class="mcx-tl-txt">'
+          + '<b>' + (_MC_EVENT_LABEL[kind] || _esc(kind.replace(/_/g, ' '))) + '</b>'
+          + (e.player ? '<i class="mcx-tl-p" data-user-content>' + _esc(e.player) + '</i>' : '')
+          + '</span>'
           + '</li>';
       }).join('') + '</ol>'
-    : _mcEmptyPanel('No events recorded', 'Goals, cards and substitutions appear here as they are entered.');
+    : _lgEmpty('No events recorded', 'Goals, cards and substitutions appear here as they are entered.');
 
   var table = players.length
     ? '<div class="mcx-ptable"><div class="mcx-pt-head"><span>Player</span><span>Min</span><span>G</span><span>A</span><span>Shots</span><span>Rating</span></div>'
@@ -15602,17 +15782,17 @@ function _mcFeedHtml(focus, next, played, home, away) {
             + '<span class="mcx-pt-r">' + (p.rating == null ? '—' : p.rating.toFixed(1)) + '</span>'
             + '</div>';
         }).join('') + '</div>'
-    : _mcEmptyPanel('No player statistics yet', 'These are computed from the events recorded for this match.');
+    : _lgEmpty('No player statistics yet', 'These are computed from the events recorded for this match.');
 
   return '<div class="mcx-cols mcx-cols--split">'
     + '<div class="mcx-col">'
-    + _mcPanel('Timeline', events.length + ' <span>events</span>', timeline, 'lg-panel--fill')
+    + _mcPanel('Timeline', events.length + ' <span>events</span>', score + timeline, 'lg-panel--fill')
     + '</div>'
     + '<div class="mcx-col">'
     + _mcPanel('Match statistics', '',
         stats ? '<div class="lg-metrics">' + stats + '</div>'
-              : _mcEmptyPanel('No match statistics recorded', 'These appear when the match is recorded in the Match Center.'))
-    + _mcPanel('Player statistics', 'Goals, assists and ratings', table)
+              : _lgEmpty('No match statistics recorded', 'These appear when the match is recorded in the Match Center.'))
+    + _mcPanel('Player ratings', 'Goals, assists and ratings', table, 'lg-panel--fill')
     + '</div>'
     + '</div>';
 }
@@ -15741,16 +15921,31 @@ function _mcCmpChoices(player, oppSquad) {
   });
 }
 
+var _MC_FOOT = { RIGHT: 'Right footed', LEFT: 'Left footed', BOTH: 'Two footed' };
+
 function _mcCmpHead(p, side, exactLabel) {
   var age = _mcAge(p.dateOfBirth);
+  var st = String(p.medicalStatus || 'HEALTHY').toUpperCase();
+  var fit = !p.isInjured && st === 'HEALTHY';
+  var av = fit ? ['Available', 'is-ok'] : [st.charAt(0) + st.slice(1).toLowerCase(), 'is-no'];
   return '<div class="mcc-side ' + side + '">'
     + '<div class="mcc-av" data-user-content>' + _esc(_lgInitials(p.name)) + '</div>'
     + '<div class="mcc-id">'
-    + '  <div class="mcc-name" data-user-content>' + _esc(p.name) + '</div>'
+    // The name is the way to the canonical player record — the same one Squad,
+    // the Match Centre and Transfers open. Only the name, so the rest of the
+    // header stays a place to read rather than a place to misclick.
+    + '  <button class="mcc-name" type="button" data-action="openPlayerModal"'
+    + '          data-player-id="' + _esc(p.playerId) + '" data-user-content>' + _esc(p.name) + '</button>'
     + '  <div class="mcc-meta">'
     + (p.position ? '<span class="mcc-pos" data-no-i18n>' + _esc(p.position) + '</span>' : '')
     + (p.number != null ? '<span class="mcc-num">#' + p.number + '</span>' : '')
     + (age != null ? '<span>' + age + ' <i>years</i></span>' : '')
+    + (p.preferredFoot && _MC_FOOT[p.preferredFoot] ? '<span>' + _MC_FOOT[p.preferredFoot] + '</span>' : '')
+    + '  </div>'
+    + '  <div class="mcc-tags">'
+    + '<span class="mcc-tag ' + av[1] + '">' + av[0] + '</span>'
+    + (p.form != null ? '<span class="mcc-tag">Form <b>' + p.form + '</b></span>' : '')
+    + (p.condition != null ? '<span class="mcc-tag">Fitness <b>' + p.condition + '%</b></span>' : '')
     + '  </div>'
     + (exactLabel ? '<div class="mcc-approx">' + exactLabel + '</div>' : '')
     + '</div>'
@@ -15800,6 +15995,8 @@ function _mcComparisonHtml() {
     groups.push(_mcCmpGroup('General', [
       _mcCmpRow('Overall rating', a, chosen, function (p) { return p.overallRating; }),
       _mcCmpRow('Form', a, chosen, function (p) { return p.form; }),
+      _mcCmpRow('Fitness', a, chosen, function (p) { return p.condition; },
+        { fmt: function (v) { return v + '%'; } }),
       _mcCmpRow('Available', a, chosen, function (p) {
         var s = String(p.medicalStatus || 'HEALTHY').toUpperCase();
         return (!p.isInjured && s === 'HEALTHY') ? 1 : 0;
@@ -15857,8 +16054,9 @@ function _mcComparisonHtml() {
           + _lgVersus('Saves', null, null, { showUnavailable: true })
           + _lgVersus('Clean sheets', null, null, { showUnavailable: true })
           + _lgVersus('Goals conceded', null, null, { showUnavailable: true })
-          + '<p class="mcc-note">Saves, clean sheets and goals conceded are not among the figures'
-          + ' this platform records for a match, so there is nothing to compare.</p>'
+          + _lgVersus('Save percentage', null, null, { showUnavailable: true })
+          + '<p class="mcc-note">Saves, clean sheets, goals conceded and save percentage are not'
+          + ' among the figures this platform records for a match, so there is nothing to compare.</p>'
           + '</section>',
         lead: 0,
       });
@@ -64116,12 +64314,13 @@ function _flMatchRow(x, compact) {
     + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
     + _lgStatusChip(x.status)
     + side(x.home, 'home') + mid + side(x.away, 'away')
-    + (compact ? '' : '<span class="fl-when">'
-        + (x.round != null ? '<b>Round ' + x.round + '</b>' : '')
-        + '<i>' + _esc(_flMatchDay(x.scheduledAt)) + '</i></span>')
-    // The whole row still opens the match; this says so out loud, because a
-    // row that is silently clickable is a row most people never click.
-    + (x.matchId ? '<span class="fl-open">Open Match Center</span>' : '')
+    + '<span class="fl-when">'
+    + (x.round != null && !compact ? '<b>Round ' + x.round + '</b>' : '')
+    + '<i>' + _esc(_flMatchDay(x.scheduledAt)) + '</i></span>'
+    // The row itself is the control. A repeated button inside every row reads
+    // as something inserted into the design rather than part of it, so the
+    // affordance is a chevron that fills in under the pointer instead.
+    + (x.matchId ? '<span class="fl-go" aria-hidden="true">›</span>' : '<span class="fl-go is-off" aria-hidden="true">·</span>')
     + '</div>';
 }
 
@@ -64300,7 +64499,7 @@ function _flRulesHtml() {
 function _flTeamHtml() {
   var t = _FL.team;
   if (t === 'loading') {
-    return _lgFloat({ close: 'flCloseTeam', cls: 'lg-float--md',
+    return _lgFloat({ close: 'flCloseTeam', cls: 'lg-float--md fl-club',
       head: '<span class="lg-float-t">Club record</span>',
       body: _flSkeleton('cards') });
   }
@@ -64308,8 +64507,22 @@ function _flTeamHtml() {
   var s = t.standing;
   var mine = _flMine(id.teamId);
 
+  // The header carries the identity and the three things a reader wants before
+  // any table: where they sit, how they have been going, and who is fit.
+  var av = t.availability || null;
+  var head = _lgIdent({ clubId: id.clubId, name: id.clubName || '',
+                        sub: (id.teamName && id.teamName !== id.clubName) ? id.teamName : 'First Team', size: 44 })
+    + '<div class="fl-club-head-r">'
+    + (s ? '<span class="fl-club-pos">' + s.position + '<i>in the table</i></span>' : '')
+    + (s ? '<span class="fl-club-form">' + _lgForm(s.form) + '</span>' : '')
+    + (av && av.total ? '<span class="fl-club-av">' + av.available + ' <i>of</i> ' + av.total + ' <i>available</i></span>' : '')
+    + '</div>';
+
+  // Points leads, because it is what the table is sorted by; the rest reads as
+  // one grid rather than ten separate lines.
   var record = s
-    ? '<div class="lg-metrics">'
+    ? '<div class="lg-metrics fl-club-grid">'
+      + _lgMetric('Points', s.points, '', 'lg-metric--hero')
       + _lgMetric('Position', s.position)
       + _lgMetric('Played', s.played)
       + _lgMetric('Won', s.won)
@@ -64318,7 +64531,6 @@ function _flTeamHtml() {
       + _lgMetric('Goals scored', s.goalsFor)
       + _lgMetric('Goals conceded', s.goalsAgainst)
       + _lgMetric('Goal difference', (s.goalDiff > 0 ? '+' : '') + s.goalDiff)
-      + _lgMetric('Points', s.points, '', 'lg-metric--hero')
       + _lgMetric('Recent form', _lgForm(s.form))
       + '</div>'
     : _flEmpty('No league record yet', 'This club has not played a league match this season.');
@@ -64327,16 +64539,14 @@ function _flTeamHtml() {
     if (!list || !list.length) return '';
     return '<h4 class="lg-sub-h">' + title + '</h4>'
       + '<div class="fl-matches fl-matches--sm">'
-      + list.map(function (x) { return _flMatchRow(x, true); }).join('')
+      + list.slice(0, 4).map(function (x) { return _flMatchRow(x, true); }).join('')
       + '</div>';
   };
 
   return _lgFloat({
     close: 'flCloseTeam',
-    cls: 'lg-float--md',
-    head: _lgIdent({ clubId: id.clubId, name: id.clubName || '',
-                     sub: (id.teamName && id.teamName !== id.clubName) ? id.teamName : 'First Team', size: 40 })
-          + (s ? '<span class="fl-panel-pos">' + s.position + '<i>in the table</i></span>' : ''),
+    cls: 'lg-float--md fl-club',
+    head: head,
     body: record + fixtures(t.upcoming, 'Next fixtures') + fixtures(t.recent, 'Recent results'),
     // Only routes that already exist. A club that is not ours has no squad we
     // are allowed to open, so the control is not offered.

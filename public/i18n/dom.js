@@ -106,6 +106,9 @@
     '.cx-strip-name', '.st-card-name', '.co-staff-name', '.trn-av',
     '.st-name', '.tf-pp-name', '.mcx-key-name', '.mcx-danger-n', '.mcx-pt-n',
     '.at-ident-crest', '.ac-tcard-badge', '.at-head-crest', '.ac-tcard-crest',
+    // A crest carries the club's own name in its alt text, and a club's name is
+    // the club's. Skipped whole, so the attribute pass leaves it alone too.
+    '.lg-crest', '.mcx-side-crest', '.mcx-opp-crest', '.fl-mg-crest',
     '.team-club-badge', '.hf-name', '.mcx-side-name', '.mcx-opp-name', '.sqcc-tm-id b',
     // The signed-in person, and the product's own name and version.
     '.user-name', '.user-email', '#user-name', '#user-email', '.user-av',

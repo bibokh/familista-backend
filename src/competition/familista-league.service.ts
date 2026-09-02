@@ -437,6 +437,10 @@ export interface LeagueSquadPlayer {
   /** Date of birth, so a reader can be shown an age rather than a guess. */
   dateOfBirth: string | null;
   avatar: string | null;
+  /** RIGHT | LEFT | BOTH, as the club recorded it. */
+  preferredFoot: string | null;
+  /** The 0–100 condition the club keeps; null when it keeps none. */
+  condition: number | null;
   /**
    * What this player has done in THIS competition, summed from the same
    * PlayerMatchStats rows the leaderboards read. Zero means the aggregation
@@ -528,6 +532,7 @@ async function matchSides(
         id: true, firstName: true, lastName: true, number: true, position: true,
         overallRating: true, form: true, morale: true, isInjured: true,
         medicalStatus: true, teamId: true, dateOfBirth: true, avatar: true,
+        preferredFoot: true, condition: true,
       },
       orderBy: [{ number: 'asc' }],
     }),
@@ -635,6 +640,8 @@ async function matchSides(
       medicalStatus: p.medicalStatus,
       dateOfBirth: p.dateOfBirth ? p.dateOfBirth.toISOString() : null,
       avatar: p.avatar ?? null,
+      preferredFoot: p.preferredFoot ?? null,
+      condition: p.condition ?? null,
       goals: scored.get(p.id)?.goals ?? 0,
       assists: scored.get(p.id)?.assists ?? 0,
       record: recordOf(p.id),
@@ -1141,6 +1148,12 @@ export interface LeagueClubRecord {
   standing: LeagueStandingRow | null;
   recent: LeagueMatchRow[];
   upcoming: LeagueMatchRow[];
+  /**
+   * Who this club can field, counted from each player's own medical status.
+   * Never estimated: a club that records nothing has a squad of zero and the
+   * panel says so rather than showing a number nobody wrote down.
+   */
+  availability: { total: number; available: number; injured: number; suspended: number; recovering: number };
 }
 
 /**
@@ -1154,7 +1167,7 @@ export async function getTeamRecord(competitionId: string, teamId: string): Prom
   const identities = await teamIdentities(competitionId);
   const identity = identities.get(teamId) ?? null;
 
-  const [entry, played, next] = await Promise.all([
+  const [entry, played, next, squad] = await Promise.all([
     prisma.standingsEntry.findFirst({ where: { competitionId, teamId } }),
     prisma.fixture.findMany({
       where: { competitionId, status: 'PLAYED', OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] },
@@ -1166,7 +1179,21 @@ export async function getTeamRecord(competitionId: string, teamId: string): Prom
       orderBy: { scheduledAt: 'asc' },
       take: 3,
     }),
+    prisma.player.findMany({
+      where: { teamId, isActive: true },
+      select: { isInjured: true, medicalStatus: true },
+    }),
   ]);
+
+  const availability = { total: squad.length, available: 0, injured: 0, suspended: 0, recovering: 0 };
+  for (const p of squad) {
+    const st = String(p.medicalStatus ?? 'HEALTHY').toUpperCase();
+    if (p.isInjured || st === 'INJURED') availability.injured += 1;
+    else if (st === 'SUSPENDED') availability.suspended += 1;
+    else if (st === 'RECOVERING') availability.recovering += 1;
+    else if (st === 'UNAVAILABLE') { /* counted out, but not as any of the above */ }
+    else availability.available += 1;
+  }
 
   const toRow = (f: (typeof played)[number]): LeagueMatchRow => ({
     fixtureId: f.id,
@@ -1207,7 +1234,7 @@ export async function getTeamRecord(competitionId: string, teamId: string): Prom
     };
   }
 
-  return { identity, standing, recent: played.map(toRow), upcoming: next.map(toRow) };
+  return { identity, standing, recent: played.map(toRow), upcoming: next.map(toRow), availability };
 }
 
 /**
