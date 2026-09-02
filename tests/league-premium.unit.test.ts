@@ -495,3 +495,114 @@ describe('the fixture reads as a fixture and the boards as one row', () => {
     expect(CSS).toMatch(/\.lg-metrics\{[^}]*grid-auto-rows:1fr/);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The final polish: a simpler palette, one button, one icon set, and a panel
+// that is a card without holding more cards inside it. Premium here means
+// fewer things on screen, not more — each of these is something a later change
+// could undo by adding one more colour, one more box or one more glow.
+
+describe('the palette is small enough to mean something', () => {
+  const BLOCK = CSS.slice(CSS.indexOf(':root{\n  /* A quieter surface'));
+
+  it('two colours carry meaning and both come from a token', () => {
+    expect(CSS).toContain('--lg-accent:#fbbf24;');
+    expect(CSS).toContain('--lg-them:#8fa6c4;');
+    // Nothing in the competition names the accent by value any more, so it
+    // cannot drift apart between one screen and the next.
+    expect(BLOCK.match(/#fbbf24/g) || []).toHaveLength(1);
+    // And the bright cyan that used to compete with the accent is gone.
+    expect(BLOCK).not.toContain('#7dd3fc');
+    expect(BLOCK).not.toContain('125,211,252');
+  });
+
+  it('a fixture that has not been played is not a colour', () => {
+    expect(CSS).toContain('.lg-chip--up{ color:var(--tx-3,#8b93a7); }');
+    // Green and red still mean a result or an availability state, and only that.
+    expect(CSS).toMatch(/\.lg-chip--live\{[^}]*#4ade80/);
+    expect(CSS).toMatch(/\.lg-chip--post, \.lg-chip--cancel\{[^}]*#f87171/);
+  });
+
+  it('and the accent is flat wherever it is filled', () => {
+    // A gradient plus a glow on a tab, a badge or a button is decoration; the
+    // amber already carries the meaning by being amber.
+    for (const rule of ['.fl-tab.is-on{', '.mcx-tab.is-on{', '.lg-act--primary{',
+                        '.fl-row.is-mine .fl-pts{', '.fl-board-row.is-top1 .fl-board-av{']) {
+      const at = CSS.indexOf(rule);
+      expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
+      const body = CSS.slice(at, CSS.indexOf('}', at));
+      expect(body).toContain('var(--lg-accent)');
+      expect(body).not.toContain('linear-gradient');
+      expect(body).not.toContain('box-shadow');
+    }
+  });
+});
+
+describe('one control, one icon set', () => {
+  it('every button in the module is the same button at a different size', () => {
+    for (const rule of ['.lg-act{', '.mcx-act{', '.fl-more{', '.fl-rnav-btn{',
+                        '.fl-manage-btn, .fl-rules-btn{', '.mcx-swap{', '.mcx-back, .mcx-crumb-btn{']) {
+      const at = CSS.indexOf(rule);
+      expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
+      const body = CSS.slice(at, CSS.indexOf('}', at));
+      expect(body).toContain('var(--lg-tile-2)');
+      expect(body).toContain('var(--lg-bd)');
+      expect(body).toContain('font-weight:800');
+      // `transition:all` animates geometry too, which is how a control ends up
+      // moving when only its colour was meant to change.
+      expect(body).not.toContain('transition:all');
+    }
+  });
+
+  it('and every icon is one size, one stroke, drawn from one table', () => {
+    expect(APP).toContain('var _LG_ICON = {');
+    expect(APP).toContain('function _lgIcon(name)');
+    expect(APP).toMatch(/_lgIcon[\s\S]{0,400}width="14" height="14"/);
+    expect(APP).toMatch(/_lgIcon[\s\S]{0,400}stroke-width="1\.75"/);
+    expect(APP).toMatch(/_lgIcon[\s\S]{0,400}stroke="currentColor"/);
+    expect(CSS).toContain('.lg-ic{ flex:0 0 auto; width:14px; height:14px; opacity:.75; }');
+    // The three icon languages this replaced: a filled 16px glyph on one
+    // button and text arrows on the others.
+    expect(APP).not.toContain('fill-rule="evenodd" d="M18 10A8 8 0');
+    expect(APP).not.toContain('<span aria-hidden="true">⇄</span>');
+    for (const name of ['back', 'swap', 'info', 'teams']) {
+      expect(APP).toContain("_lgIcon('" + name + "')");
+    }
+  });
+});
+
+describe('a panel is a card, and does not hold more cards', () => {
+  it('the sections inside one are separated by a hairline, not a frame', () => {
+    for (const rule of ['.mcx-ctx{', '.mcx-shape{', '.mcx-key{']) {
+      const at = CSS.indexOf(rule);
+      expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
+      const body = CSS.slice(at, CSS.indexOf('}', at));
+      expect(body).not.toContain('border:1px solid');
+      expect(body).not.toContain('background:');
+    }
+    for (const sep of ['.mcx-ctx + .mcx-ctx{ border-top:1px solid var(--lg-bd-soft); }',
+                       '.mcx-shape + .mcx-shape{ border-top:1px solid var(--lg-bd-soft); }',
+                       '.mcx-danger-row + .mcx-danger-row{ border-top:1px solid var(--lg-bd-soft); }']) {
+      expect(CSS).toContain(sep);
+    }
+  });
+
+  it('and each of those is defined once, so a flattened card cannot keep its box', () => {
+    for (const sel of ['.mcx-key', '.mcx-key-row', '.mcx-key-team', '.mcx-key-v',
+                       '.mcx-danger-row', '.mcx-ctx', '.mcx-shape']) {
+      const n = (CSS.match(new RegExp('^\\' + sel + '\\{', 'gm')) || []).length;
+      expect(`${sel}@${n}`).toBe(`${sel}@1`);
+    }
+  });
+
+  it('the panel surface itself is lighter than it was', () => {
+    const panel = codeOnly(CSS.slice(CSS.indexOf('.lg-panel{'), CSS.indexOf('.lg-panel-h{')));
+    expect(panel).toContain('box-shadow:var(--lg-shadow)');
+    // No saturate: it tinted every crest and chip standing on the surface.
+    expect(panel).toContain('backdrop-filter:blur(14px);');
+    expect(panel).not.toContain('saturate(');
+    expect(CSS).toContain('--lg-shadow:0 8px 24px rgba(0,0,0,.22);');
+    // And an empty state states itself rather than drawing a dashed placeholder.
+    expect(CSS).not.toMatch(/\.lg-empty\{[^}]*border:1px dashed/);
+  });
+});

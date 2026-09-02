@@ -15187,7 +15187,8 @@ function renderMatchCenter(host, opts) {
     // back to because nothing was left.
     var crumb = (ctx && !embedded)
       ? '<nav class="mcx-topbar">'
-        + '<button class="mcx-back" type="button" data-action="navTo" data-page="familista-league">← <span>Back to League</span></button>'
+        + '<button class="mcx-back" type="button" data-action="navTo" data-page="familista-league">'
+        + _lgIcon('back') + '<span>Back to League</span></button>'
         + '<span class="mcx-crumb">'
         + '<span class="mcx-crumb-i" data-user-content>' + _esc(ctx.name) + '</span>'
         + '<span class="mcx-crumb-arrow">›</span>'
@@ -15231,7 +15232,7 @@ function renderMatchCenter(host, opts) {
     var ident = embedded
       ? '<div class="mcx-head-id mcx-head-id--embed">'
         + '  <button class="mcx-back mcx-back--embed" type="button" data-action="flBack">'
-        + '<span aria-hidden="true">←</span> <span>Back to Familista League</span></button>'
+        + _lgIcon('back') + '<span>Back to Familista League</span></button>'
         + '  <div class="mcx-eyebrow">Match Center</div>'
         + '  <div class="mcx-head-chips">'
         + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
@@ -15239,7 +15240,7 @@ function renderMatchCenter(host, opts) {
         + (when ? _lgChip('', _esc(when), 'when') : '')
         + '  </div>'
         + '  <button class="mcx-swap" type="button" data-action="flPick">'
-        + '<span aria-hidden="true">⇄</span> <span>Change match</span></button>'
+        + _lgIcon('swap') + '<span>Change match</span></button>'
         + '</div>'
       : '<div class="mcx-head-id">'
         + '  <div class="mcx-eyebrow">' + (ctx ? '<span data-user-content>' + _esc(ctx.name) + '</span>' : 'Familista') + '</div>'
@@ -63832,6 +63833,27 @@ function _lgCrest(clubId, name, size) {
     + _esc(_lgInitials(name)) + '</span>';
 }
 
+// ── icons ──────────────────────────────────────────────────────────────────
+//
+// One set, one size, one stroke. Before this the module drew a filled 16px
+// glyph on one button, a text arrow on another and a text ⇄ on a third, which
+// is three icon languages in one header. Every icon here is 14px on a 20-box,
+// 1.75 stroke, round caps, and inherits the colour of the control it sits in.
+var _LG_ICON = {
+  back:  '<path d="M12.5 15.5 7 10l5.5-5.5"/>',
+  swap:  '<path d="M4 7.5h12M13 4.5l3 3M16 12.5H4M7 15.5l-3-3"/>',
+  info:  '<circle cx="10" cy="10" r="7"/><path d="M10 9.2v4.3M10 6.6h.01"/>',
+  teams: '<path d="M7.6 9.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8ZM3 15.4c0-2.1 2-3.5 4.6-3.5s4.6 1.4 4.6 3.5"/><path d="M13.4 9.2a2 2 0 1 0 0-4M14.2 11.9c1.7.3 2.8 1.4 2.8 3"/>',
+};
+
+function _lgIcon(name) {
+  var d = _LG_ICON[name];
+  if (!d) return '';
+  return '<svg class="lg-ic" viewBox="0 0 20 20" width="14" height="14" fill="none"'
+    + ' stroke="currentColor" stroke-width="1.75" stroke-linecap="round"'
+    + ' stroke-linejoin="round" aria-hidden="true">' + d + '</svg>';
+}
+
 // Crest, club name and the line under it. One block, so a team reads the same
 // in the table, in a fixture row, in a panel header and on a match hero.
 function _lgIdent(opts) {
@@ -64141,12 +64163,12 @@ function _flHeaderHtml() {
       // there and then refuses is worse than one that was never offered.
       ? '  <button class="fl-manage-btn" data-action="flManage" type="button"'
         + '          title="Manage league participants" data-i18n-title="league.manage.tooltip">'
-        + '    <span>Manage Teams</span>'
+        + _lgIcon('teams') + '<span>Manage Teams</span>'
         + '  </button>'
       : '')
     + '  <button class="fl-rules-btn" data-action="flRules" type="button"'
     + '          title="League rules" data-i18n-title="league.rulesTooltip">'
-    + '    <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>'
+    + '    ' + _lgIcon('info')
     + '    <span>Rules</span>'
     + '  </button>'
     + '  </div>'
