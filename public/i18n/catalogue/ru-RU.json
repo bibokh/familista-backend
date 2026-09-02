@@ -1259,5 +1259,6 @@
   "No match in this round is set up yet": "Ни один матч этого тура пока не подготовлен",
   "A fixture opens in the Match Center once the match behind it exists.": "Матч открывается в Match Center, как только появляется стоящая за ним игра.",
   "Round \u0000": "Тур \u0000",
-  "Back to Familista League": "Назад к Familista League"
+  "Back to Familista League": "Назад к Familista League",
+  "of \u0000 available": "из \u0000 доступны"
 }

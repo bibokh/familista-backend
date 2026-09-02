@@ -1259,5 +1259,6 @@
   "No match in this round is set up yet": "Żaden mecz tej kolejki nie jest jeszcze przygotowany",
   "A fixture opens in the Match Center once the match behind it exists.": "Mecz otwiera się w Match Center, gdy tylko istnieje spotkanie, które za nim stoi.",
   "Round \u0000": "Kolejka \u0000",
-  "Back to Familista League": "Powrót do Familista League"
+  "Back to Familista League": "Powrót do Familista League",
+  "of \u0000 available": "z \u0000 dostępnych"
 }

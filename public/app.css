@@ -14839,7 +14839,8 @@ button:hover > .lg-ic, button:hover .lg-ic{ opacity:1; }
 .fl-head-chips{ display:flex; gap:6px; flex-wrap:wrap; }
 .fl-head-actions{ margin-left:auto; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
 /* The control bar: sections on the left, actions on the right, one row. */
-.fl-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.fl-bar{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+.fl-bar > .fl-head-actions{ padding-bottom:7px; }
 .fl-bar > .fl-tabs{ flex:0 1 auto; }
 .fl-bar > .fl-head-actions{ flex:0 0 auto; }
 .fl-manage-btn, .fl-rules-btn{
@@ -14853,23 +14854,30 @@ button:hover > .lg-ic, button:hover .lg-ic{ opacity:1; }
 .fl-manage-btn:hover, .fl-rules-btn:hover{
   color:var(--lg-accent); border-color:rgba(251,191,36,.32); background:rgba(251,191,36,.07);
 }
+/* Four filled pills made four equal buttons of which one happened to be lit.
+   A nav with a rule under the live section states where the reader is and
+   leaves the other three to be read as words. */
 .fl-tabs{
-  display:flex; gap:6px; flex-wrap:wrap; padding:6px; border-radius:12px;
-  background:var(--lg-glass);
-  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.07);
+  display:flex; gap:2px; flex-wrap:wrap; align-items:stretch;
+  border-bottom:1px solid var(--lg-bd-soft);
 }
 .fl-tab{
-  appearance:none; cursor:pointer; white-space:nowrap; transition:all .15s;
-  font-size:11.5px; font-weight:800; padding:7px 16px; border-radius:9px;
-  color:var(--tx-3,#8b93a7); background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.07);
+  appearance:none; cursor:pointer; white-space:nowrap; position:relative;
+  background:none; border:0; padding:0 16px 11px; margin-bottom:-1px;
+  display:flex; flex-direction:column; align-items:center;
+  font-size:12px; font-weight:800; letter-spacing:.01em;
+  color:var(--tx-3,#8b93a7);
+  transition:color .15s;
 }
-.fl-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
-.fl-tab.is-on{
-  color:#0b1020; background:var(--lg-accent);
-  border-color:transparent;
+.fl-tab:first-child{ padding-left:2px; }
+.fl-tab-rule{
+  position:absolute; left:0; right:0; bottom:0; height:2px; border-radius:2px 2px 0 0;
+  background:transparent; transition:background .15s;
 }
+.fl-tab:hover{ color:var(--tx-2,#b9c0cf); }
+.fl-tab:hover .fl-tab-rule{ background:var(--lg-bd); }
+.fl-tab.is-on{ color:var(--tx-1,#f1f5f9); }
+.fl-tab.is-on .fl-tab-rule{ background:var(--lg-accent); }
 
 /* ── the table ── */
 .fl-table th.fl-th-pos{ width:52px; text-align:center; }
@@ -15397,22 +15405,25 @@ button:hover > .lg-ic, button:hover .lg-ic{ opacity:1; }
 
 /* ── the section rail ── */
 .mcx-rail{
-  flex:0 0 auto; display:flex; gap:6px; flex-wrap:wrap; align-items:center;
-  padding:6px; border-radius:12px;
-  background:var(--mcx-glass);
-  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.07);
+  flex:0 0 auto; display:inline-flex; gap:2px; flex-wrap:wrap; align-items:center;
+  align-self:flex-start; padding:4px; border-radius:11px;
+  background:rgba(255,255,255,.022);
+  border:1px solid var(--lg-bd-soft);
 }
+/* The League's sections are a nav; the match's four views are a segmented
+   control — one object with a part of it live, which is what says these are
+   four ways of looking at the same match rather than four places to go. */
 .mcx-tab{
-  appearance:none; cursor:pointer; white-space:nowrap; transition:all .15s;
-  font-size:11.5px; font-weight:800; padding:7px 15px; border-radius:9px;
-  color:var(--tx-3,#8b93a7); background:rgba(255,255,255,.03);
-  border:1px solid rgba(255,255,255,.07);
+  appearance:none; cursor:pointer; white-space:nowrap;
+  transition:color .15s, background .15s;
+  font-size:11.5px; font-weight:800; letter-spacing:.01em;
+  padding:7px 16px; border-radius:8px;
+  color:var(--tx-3,#8b93a7); background:none; border:0;
 }
 .mcx-tab:hover{ color:var(--tx-1,#f1f5f9); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.14); }
 .mcx-tab.is-on{
-  color:#0b1020; background:var(--lg-accent);
-  border-color:transparent;
+  color:var(--tx-1,#f1f5f9); background:var(--lg-tile-2);
+  box-shadow:inset 0 0 0 1px var(--lg-bd), 0 0 0 1px rgba(251,191,36,.22);
 }
 
 /* ── the desk: everything that is left, and it never grows the page ── */
@@ -15914,20 +15925,9 @@ button:hover > .lg-ic, button:hover .lg-ic{ opacity:1; }
 .mcc-tag.is-no{ color:#f87171; border-color:rgba(248,113,113,.28); background:rgba(248,113,113,.08); }
 .mcc-ovr{ font-size:26px; }
 
-/* ── the leaderboard podium, said quietly ── */
+/* The three-place podium is gone: the leader is lifted out of the list
+   entirely, so the rest of the board is one quiet run of rows. */
 .fl-board-row{ padding:9px 11px; }
-.fl-board-row.is-top1{
-  background:linear-gradient(90deg, rgba(251,191,36,.13), rgba(251,191,36,.04) 60%, rgba(251,191,36,0));
-  border-color:rgba(251,191,36,.3);
-}
-.fl-board-row.is-top1 .fl-board-av{
-  color:#0b1020; background:var(--lg-accent); border-color:transparent;
-}
-.fl-board-row.is-top2{ background:rgba(255,255,255,.05); border-color:rgba(255,255,255,.11); }
-.fl-board-row.is-top3{ background:rgba(255,255,255,.035); border-color:rgba(255,255,255,.09); }
-.fl-board-row.is-top .fl-rank{ color:var(--tx-1,#f1f5f9); }
-.fl-board-row.is-mine{ box-shadow:inset 3px 0 0 var(--lg-accent); }
-.fl-board-row:hover{ border-color:rgba(255,255,255,.16); }
 
 @media (max-width:1280px){
   .mcx-cols--prep{
@@ -16845,10 +16845,14 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 
 /* The rail is the card's own footer: it belongs to the match above it, so it
    shares its border rather than floating below on a second surface. */
+/* Embedded, the segmented control sits on the card's own footer rail rather
+   than floating below it on a second surface. */
 .mcx--embed .mcx-rail{
-  border-radius:0 0 16px 16px; border-top:1px solid rgba(255,255,255,.06);
-  padding:8px 14px; margin-bottom:10px;
-  box-shadow:0 12px 34px rgba(0,0,0,.26);
+  display:flex; align-self:auto;
+  border-radius:0 0 16px 16px; border:0; border-top:1px solid var(--lg-bd-soft);
+  background:rgba(255,255,255,.014);
+  padding:8px 14px; margin-bottom:11px;
+  box-shadow:var(--lg-shadow);
 }
 
 /* ── choosing a match ── */
@@ -16861,4 +16865,206 @@ body.club-theme .set-panel .settings-wrap{ padding:0; max-width:none; }
 @media (max-width:980px), (max-height:620px){
   .fl-mc{ display:block; }
   .fl-mc > .mcx--embed{ display:block; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FAMILISTA LEAGUE — THE PREMIUM PASS
+   ═══════════════════════════════════════════════════════════════════════════
+   Structure, not colour. Every rule below changes the shape of something: a
+   masthead that opens with the competition's mark instead of a line of text, a
+   nav that underlines rather than fills, a table read in three groups instead
+   of eleven equal columns, a fixture that is a card with a status rail, and a
+   leaderboard whose leader is not its tenth row at the same size. */
+
+/* ── masthead ── */
+.fl-head{ gap:12px; }
+.fl-head-top{ gap:14px; align-items:center; }
+.fl-title-wrap{ flex:1 1 auto; }
+.fl-mark{
+  flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+  width:38px; height:38px; border-radius:11px;
+  color:var(--lg-accent);
+  background:linear-gradient(160deg, rgba(251,191,36,.15), rgba(251,191,36,.03));
+  border:1px solid rgba(251,191,36,.2);
+}
+.fl-mark .lg-ic{ width:18px; height:18px; opacity:1; }
+/* The season as a spine of facts down the right, not two pills floating beside
+   a title with nothing holding them to it. */
+.fl-facts{ display:flex; align-items:stretch; margin:0; flex:0 0 auto; }
+.fl-fact{ padding:1px 18px; border-left:1px solid var(--lg-bd-soft); }
+.fl-fact:first-child{ border-left:0; }
+.fl-fact:last-child{ padding-right:2px; }
+.fl-fact dt{
+  margin:0; font-size:9px; font-weight:800; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--tx-3,#8b93a7);
+}
+.fl-fact dd{
+  margin:4px 0 0; font-size:13.5px; font-weight:800; color:var(--tx-1,#f1f5f9);
+  font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate;
+  white-space:nowrap;
+}
+
+/* ── a panel names itself ── */
+.lg-panel-h h2{ display:flex; align-items:center; gap:9px; }
+.lg-rule{
+  flex:0 0 auto; width:3px; height:12px; border-radius:2px;
+  background:var(--lg-accent); opacity:.75;
+}
+.lg-panel--pitch .lg-rule, .mcx-panel--theirs .lg-rule{ background:var(--lg-them); }
+
+/* ── the table, read in three groups ── */
+/* Eleven columns marching across at the same weight is what made this read as
+   an export rather than a table. Identity, then what was played, then what it
+   came to — each group opening on a hairline. */
+/* Barely there: enough to group, not enough to draw a grid. A divider you
+   notice is a spreadsheet; one you only feel is a table. */
+.fl-table td.is-edge{ border-left:1px solid rgba(255,255,255,.028); }
+.fl-table th.is-edge{ border-left:1px solid var(--lg-bd-soft); }
+.fl-table th{ background:linear-gradient(180deg,rgba(16,22,38,.99),rgba(16,22,38,.92)); }
+.fl-table td.fl-td-pts{ padding-right:14px; }
+.fl-table td.fl-td-pts .fl-pts{ min-width:34px; }
+.fl-table tbody tr td:first-child{ border-radius:0; }
+/* The rank is a figure in its own column, not a chip competing with the crest
+   beside it. */
+.fl-pos{
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:24px; font-size:13px; font-weight:800; color:var(--tx-3,#8b93a7);
+  background:none; border:0; padding:0;
+}
+.fl-row.is-mine .fl-pos{ color:var(--lg-accent); background:none; }
+.fl-row:hover .fl-pos{ color:var(--tx-1,#f1f5f9); }
+
+/* ── a fixture is a card ── */
+.fl-match{ position:relative; padding-left:18px; }
+/* The status is a rail down the left edge and a word above the clubs, so the
+   two teams are the first thing the eye lands on rather than a chip. */
+.fl-rail{
+  position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0;
+  background:var(--lg-bd); 
+}
+.fl-match--live .fl-rail{ background:#4ade80; }
+.fl-match--done .fl-rail{ background:var(--lg-accent); }
+.fl-match--post .fl-rail, .fl-match--cancel .fl-rail{ background:#f87171; }
+.fl-match.is-mine .fl-rail{ background:var(--lg-accent); }
+.fl-status{
+  font-size:9px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--tx-3,#8b93a7); white-space:nowrap;
+}
+.fl-match--live .fl-status{ color:#4ade80; }
+.fl-match--done .fl-status{ color:var(--lg-accent); }
+.fl-match--post .fl-status, .fl-match--cancel .fl-status{ color:#f87171; }
+/* The score sits in a capsule between the clubs: the one figure the row is
+   about, given a shape of its own. */
+.fl-cap{
+  display:flex; align-items:center; justify-content:center; min-height:34px;
+  padding:0 10px; border-radius:9px;
+  background:var(--lg-tile); border:1px solid var(--lg-bd-soft);
+}
+.fl-match--done .fl-cap{ background:rgba(251,191,36,.06); border-color:rgba(251,191,36,.2); }
+.fl-match--sm .fl-cap{ min-height:28px; padding:0 8px; }
+.fl-when{ padding-left:6px; border-left:1px solid var(--lg-bd-soft); }
+.fl-match--sm .fl-when{ border-left:0; }
+
+/* ── the leaderboard's leader ── */
+/* A board whose first row is its tenth row at the same size buries the one
+   figure it exists to report. */
+.fl-lead{
+  display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:13px;
+  padding:14px 14px; margin-bottom:10px; border-radius:13px; cursor:pointer;
+  background:
+    linear-gradient(120deg, rgba(251,191,36,.09), rgba(251,191,36,.02) 58%, transparent);
+  border:1px solid rgba(251,191,36,.2);
+  transition:border-color .15s, background .15s;
+}
+.fl-lead:hover{ border-color:rgba(251,191,36,.34); }
+.fl-lead.is-mine{ box-shadow:inset 3px 0 0 var(--lg-accent); }
+.fl-lead-av{
+  display:flex; align-items:center; justify-content:center; width:42px; height:42px;
+  border-radius:12px; font-size:13.5px; font-weight:900; letter-spacing:.02em;
+  color:#0b1020; background:var(--lg-accent);
+}
+.fl-lead-txt{ display:flex; flex-direction:column; min-width:0; gap:3px; }
+.fl-lead-rk{
+  font-size:8.5px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+  color:var(--lg-accent);
+}
+.fl-lead-txt b{
+  font-size:15px; font-weight:800; color:var(--tx-1,#f1f5f9);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.fl-lead-txt i{
+  font-style:normal; display:inline-flex; align-items:center; gap:6px;
+  font-size:10.5px; color:var(--tx-3,#8b93a7); min-width:0;
+}
+.fl-lead-txt i span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fl-lead-txt em{
+  font-style:normal; font-size:8.5px; font-weight:800; letter-spacing:.08em;
+  padding:1px 6px; border-radius:5px;
+  color:var(--tx-2,#b9c0cf); background:var(--lg-tile-2);
+}
+.fl-lead-val{
+  font-size:28px; font-weight:900; line-height:1; color:var(--lg-accent);
+  font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate;
+}
+/* With the leader lifted out, the field below it is a quiet list. */
+.fl-board-row{ background:none; border:0; border-radius:8px; }
+.fl-board-row + .fl-board-row{ border-top:1px solid var(--lg-bd-soft); }
+.fl-board-row:hover{ background:var(--lg-tile-2); border-color:transparent; }
+.fl-board-row.is-mine{ box-shadow:inset 3px 0 0 var(--lg-accent); }
+
+/* ── the empty state, drawn ── */
+.lg-empty-ic{
+  display:flex; align-items:center; justify-content:center;
+  width:46px; height:46px; margin:0 auto 12px; border-radius:14px;
+  color:var(--tx-3,#8b93a7); opacity:.55;
+  background:var(--lg-tile); border:1px solid var(--lg-bd-soft);
+  font-size:0;
+}
+
+/* ── the match hero, rebuilt ── */
+/* The side is a stacked identity: HOME above the club, and the three facts a
+   coach checks first laid out under it as labelled figures. Strung along one
+   line those three competed with the club's own name for the first glance. */
+.mcx-side{ align-items:center; gap:14px; }
+.mcx-side-crest{ width:50px; height:50px; }
+.mcx-side-noc{ width:50px; height:50px; font-size:15px; }
+.mcx-side-name{ font-size:16.5px; font-weight:800; letter-spacing:-.2px; margin-top:2px; }
+.mcx-side-lbl{ font-size:9px; font-weight:800; letter-spacing:.16em; }
+.mcx-side-meta{ gap:16px; margin-top:8px; }
+.mcx-side-fact{ display:inline-flex; align-items:baseline; gap:5px; }
+.mcx-side-fact b{
+  font-size:14px; font-weight:800; color:var(--tx-1,#f1f5f9);
+  font-variant-numeric:tabular-nums; direction:ltr; unicode-bidi:isolate;
+}
+.mcx-side-fact i{ font-style:normal; font-size:9.5px; color:var(--tx-3,#8b93a7); white-space:nowrap; }
+.mcx-side.away .mcx-side-meta{ justify-content:flex-end; }
+/* The score sits in the same capsule a fixture card uses, so the two screens
+   say the same thing the same way. */
+.mcx-vs{
+  min-width:118px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  padding:10px 16px; border-radius:12px;
+  background:var(--lg-tile); border:1px solid var(--lg-bd-soft);
+}
+.mcx-vs.is-played{ background:rgba(251,191,36,.06); border-color:rgba(251,191,36,.2); }
+.mcx-vs-sub{ font-size:9.5px; }
+
+/* ── metric tiles ── */
+/* A label above a figure with a rule beside it, rather than two lines of text
+   in a box. The rule is what tells the eye where one tile ends and the next
+   begins without another border doing it. */
+.lg-metric{ position:relative; padding-left:13px; }
+.lg-metric::before{
+  content:''; position:absolute; left:0; top:10px; bottom:10px; width:2px;
+  border-radius:2px; background:var(--lg-bd);
+}
+.lg-metric--hero::before{ background:var(--lg-accent); }
+.lg-metric-l{ font-size:9px; letter-spacing:.13em; }
+.lg-metric-v{ margin-top:5px; font-size:17px; letter-spacing:-.2px; }
+
+/* The matchup column scrolls under two pinned boards, so its panels name
+   themselves wherever the reader has got to. */
+.mcx-cols--prep .mcx-col--mu .lg-panel-h{
+  position:sticky; top:0; z-index:1; margin-bottom:10px;
+  background:linear-gradient(180deg, rgba(15,20,33,.97), rgba(15,20,33,.92));
+  padding-top:2px;
 }

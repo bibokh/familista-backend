@@ -422,8 +422,10 @@ describe('Familista League — localization', () => {
   it('leaves the league name and its season to the record', () => {
     // The name and the season value are data; only the word between them is ours.
     expect(APP).toMatch(/<span data-user-content>' \+ _esc\(lg\.name\)/);
-    expect(APP).toContain("<span>Season</span>");
-    expect(APP).toMatch(/<span data-user-content>' \+ _esc\(lg\.season\)/);
+    // The season is a labelled fact in the masthead's spine: the word is ours
+    // and translated, the value is the record's and is left alone.
+    expect(APP).toContain('<dt>Season</dt>');
+    expect(APP).toMatch(/<dd data-user-content>' \+ _esc\(lg\.season\)/);
   });
 
   it('does not shout the league name in the markup', () => {

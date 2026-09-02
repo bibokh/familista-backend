@@ -15210,17 +15210,25 @@ function renderMatchCenter(host, opts) {
     };
     var sideBlock = function (name, crestHtml, side, data) {
       var av = _mcAvailability(data.squad);
+      // The side reads top to bottom: who they are, then the three facts a
+      // coach checks before anything else — where they sit, how they have been
+      // going, how many of them are fit. Strung along one line those three
+      // competed with the club's own name for the first glance.
       return '<div class="mcx-side ' + side + '">'
         + '<div class="mcx-side-crest">'
         + (crestHtml || '<span class="mcx-side-noc" data-user-content>' + _esc(initials(name)) + '</span>')
         + '</div>'
         + '<div class="mcx-side-txt">'
+        + '  <div class="mcx-side-lbl">' + (side === 'home' ? 'Home' : 'Away') + '</div>'
         + '  <div class="mcx-side-name" data-user-content>' + _esc(name || '') + '</div>'
         + '  <div class="mcx-side-meta">'
-        + '    <span class="mcx-side-lbl">' + (side === 'home' ? 'Home' : 'Away') + '</span>'
-        + (data.standing ? '<span class="mcx-side-pos">' + _esc(String(data.standing.position)) + '<i>in the table</i></span>' : '')
-        + (data.standing ? _mcFormPills(data.standing.form) : '')
-        + (av.total ? '<span class="mcx-side-av">' + av.available + ' <i>of</i> ' + av.total + ' <i>available</i></span>' : '')
+        + (data.standing
+            ? '<span class="mcx-side-fact"><b>' + _esc(String(data.standing.position)) + '</b>'
+              + '<i>in the table</i></span>' : '')
+        + (data.standing ? '<span class="mcx-side-fact">' + _mcFormPills(data.standing.form) + '</span>' : '')
+        + (av.total
+            ? '<span class="mcx-side-fact"><b>' + av.available + '</b>'
+              + '<i>of ' + av.total + ' available</i></span>' : '')
         + '  </div>'
         + '</div>'
         + '</div>';
@@ -15257,7 +15265,7 @@ function renderMatchCenter(host, opts) {
       + ident
       + '<div class="mcx-fixture">'
       + sideBlock(homeName, homeCrest, 'home', home)
-      + '<div class="mcx-vs">'
+      + '<div class="mcx-vs' + (played ? ' is-played' : '') + '">'
       + '  <div class="mcx-vs-score">' + (played ? (next.homeScore + ' – ' + next.awayScore) : 'VS') + '</div>'
       + (next && next.venue ? '<div class="mcx-vs-sub" data-user-content>' + _esc(next.venue) + '</div>' : '')
       + (next && (next.formationHome || next.formationAway)
@@ -16194,6 +16202,10 @@ document.addEventListener('click', function (ev) {
         : tab === 'opponent' ? _mcOpponentHtml(focus, home, away)
         : tab === 'feed' ? _mcFeedHtml(focus, next, played, home, away)
         : _mcOverviewHtml(focus, home, away, hn, an, next);
+      // A new section starts at its own beginning. Keeping the last section's
+      // scroll offset drops the reader into the middle of a panel whose
+      // heading is already above the fold.
+      desk.scrollTop = 0;
       _mcPaintComputed(desk);
       if (typeof _pcWirePhotoErrors === 'function') { try { _pcWirePhotoErrors(desk); } catch (_) {} }
       try { if (window.I18N_APPLY) I18N_APPLY.translateDOM(desk); } catch (_) {}
@@ -63844,6 +63856,7 @@ var _LG_ICON = {
   swap:  '<path d="M4 7.5h12M13 4.5l3 3M16 12.5H4M7 15.5l-3-3"/>',
   info:  '<circle cx="10" cy="10" r="7"/><path d="M10 9.2v4.3M10 6.6h.01"/>',
   teams: '<path d="M7.6 9.4a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8ZM3 15.4c0-2.1 2-3.5 4.6-3.5s4.6 1.4 4.6 3.5"/><path d="M13.4 9.2a2 2 0 1 0 0-4M14.2 11.9c1.7.3 2.8 1.4 2.8 3"/>',
+  trophy: '<path d="M6.5 3.2h7v3.9a3.5 3.5 0 0 1-7 0V3.2Z"/><path d="M6.5 4.6H4.3v1.1a2.4 2.4 0 0 0 2.2 2.4M13.5 4.6h2.2v1.1a2.4 2.4 0 0 1-2.2 2.4"/><path d="M10 10.6v3.1M7.4 16.8h5.2l-.5-3.1H7.9l-.5 3.1Z"/>',
 };
 
 function _lgIcon(name) {
@@ -63911,16 +63924,27 @@ function _lgMetric(label, value, sub, cls) {
 
 // A panel: header, optional note, body. The one surface all four screens use.
 function _lgPanel(title, sub, inner, cls) {
+  // The heading carries a short accent rule before it. A row of panels whose
+  // titles are only small uppercase text reads as a stack of boxes; the rule
+  // is what makes each one announce itself as a section of a product.
   return '<section class="lg-panel' + (cls ? ' ' + cls : '') + '">'
-    + '<div class="lg-panel-h"><h2>' + title + '</h2>'
+    + '<div class="lg-panel-h"><h2><i class="lg-rule" aria-hidden="true"></i><span>' + title + '</span></h2>'
     + (sub ? '<span class="lg-panel-s">' + sub + '</span>' : '') + '</div>'
     + '<div class="lg-panel-b">' + inner + '</div>'
     + '</section>';
 }
 
 function _lgEmpty(title, sub, icon) {
+  // An empty state is a finished part of the product, not a gap in it: a drawn
+  // mark rather than a text glyph, and a line that says what would fill it.
+  // The emoji this replaced rendered differently on every platform and at a
+  // size nothing else on the screen used.
   return '<div class="lg-empty">'
-    + '<div class="lg-empty-ic">' + (icon || '◎') + '</div>'
+    + '<div class="lg-empty-ic" aria-hidden="true">'
+    + '<svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+    + '<circle cx="16" cy="16" r="11"/><path d="M16 10.5v7M16 21.2h.01"/></svg>'
+    + '</div>'
     + '<div class="lg-empty-t">' + title + '</div>'
     + (sub ? '<div class="lg-empty-s">' + sub + '</div>' : '')
     + '</div>';
@@ -64133,26 +64157,39 @@ function _flHeaderHtml() {
   // clicking again from inside it.
   var tabs = [['standings', 'Standings'], ['matches', 'Matches'], ['players', 'Player Stats'],
               ['match', 'Match Center']];
+  // ── the masthead ──
+  // A trophy mark, the competition's name, and the season read as a spine of
+  // facts down the right. The chips this replaced said the same thing in two
+  // pills that floated beside a title with nothing holding them to it.
+  var facts = lg
+    ? '<dl class="fl-facts">'
+      + '<div class="fl-fact"><dt>Season</dt><dd data-user-content>' + _esc(lg.season) + '</dd></div>'
+      + (lg.teamCount ? '<div class="fl-fact"><dt>Teams</dt><dd>' + lg.teamCount + '</dd></div>' : '')
+      + (_FL.matches && _FL.matches.currentRound != null
+          ? '<div class="fl-fact"><dt>Round</dt><dd>' + _FL.matches.currentRound + '</dd></div>' : '')
+      + '</dl>'
+    : '';
+
   return '<header class="fl-head">'
     + '<div class="fl-head-top">'
+    + '  <div class="fl-mark" aria-hidden="true">' + _lgIcon('trophy') + '</div>'
     + '  <div class="fl-title-wrap">'
     + '    <div class="fl-eyebrow">Familista League</div>'
     + '    <h1 class="fl-title">' + titleHtml + '</h1>'
     + '  </div>'
-    + '  <div class="fl-head-chips">'
-    + (lg ? _lgChip('Season', '<span data-user-content>' + _esc(lg.season) + '</span>') : '')
-    + (lg && lg.teamCount ? _lgChip('Teams', lg.teamCount) : '')
-    + '  </div>'
+    + facts
     + '</div>'
-    // One control bar: what the workspace is showing on the left, what it can
-    // do on the right. The tab strip used to run out into empty space while
-    // the actions sat up beside the title, which read as two half-rows.
+    // One control bar: the sections on the left as an underlined nav, what the
+    // workspace can do on the right. Filled pills made four equal buttons of
+    // which one happened to be lit; a rule under the live one states where the
+    // reader is without shouting it.
     + '<div class="fl-bar">'
     + '<nav class="fl-tabs" role="tablist">'
     + tabs.map(function (t) {
         return '<button class="fl-tab' + (_FL.tab === t[0] ? ' is-on' : '') + '" role="tab"'
           + ' aria-selected="' + (_FL.tab === t[0] ? 'true' : 'false') + '"'
-          + ' data-action="flTab" data-tab="' + t[0] + '" type="button">' + t[1] + '</button>';
+          + ' data-action="flTab" data-tab="' + t[0] + '" type="button">'
+          + '<span>' + t[1] + '</span><i class="fl-tab-rule" aria-hidden="true"></i></button>';
       }).join('')
     + '</nav>'
     + '  <div class="fl-head-actions">'
@@ -64338,7 +64375,10 @@ function _flStandingsHtml() {
   var table = '<div class="lg-table-wrap">'
     + '<table class="lg-table fl-table"><thead><tr>'
     + head.map(function (h, i) {
-        return '<th class="' + (i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'))) + '"'
+        var cls = i === 1 ? 'fl-th-team' : (i === 0 ? 'fl-th-pos' : (i === 10 ? 'fl-th-form' : 'fl-th-n'));
+        // The same three groups the body draws, so the head reads with it.
+        if (i === 2 || i === 6 || i === 9) cls += ' is-edge';
+        return '<th class="' + cls + '"'
           // data-no-i18n keeps the automatic pass off a cell the key-based
           // pass owns. Without it the two collide: Portuguese renders TEAM as
           // "TIME", which the automatic pass then reads as the English word
@@ -64353,6 +64393,10 @@ function _flStandingsHtml() {
         // through the CSSOM. A style="" attribute would be silently refused:
         // the Content-Security-Policy here has no 'unsafe-inline' for styles.
         var zoneAttr = r.zone ? ' data-fl-zone="' + _esc(r.zone.color || '#64748b') + '"' : '';
+        // The row is read in three groups and the markup says so: who they are,
+        // what they have played, and what it came to. `is-edge` opens each
+        // group with a hairline, which is what replaces eleven equal columns
+        // marching across the table.
         return '<tr class="lg-row fl-row' + (mine ? ' is-mine' : '') + (r.zone ? ' has-zone' : '') + '"'
           + zoneAttr
           + ' data-action="flTeam" data-team-id="' + _esc(r.teamId) + '" tabindex="0"'
@@ -64360,12 +64404,12 @@ function _flStandingsHtml() {
           + '<td class="fl-td-pos"><span class="fl-pos">' + r.position + '</span></td>'
           + '<td class="fl-td-team">'
           + _lgIdent({ clubId: r.clubId, name: r.clubName,
-                       sub: (r.teamName && r.teamName !== r.clubName) ? r.teamName : '', size: 28 })
+                       sub: (r.teamName && r.teamName !== r.clubName) ? r.teamName : '', size: 30 })
           + '</td>'
-          + '<td>' + r.played + '</td><td>' + r.won + '</td><td>' + r.drawn + '</td><td>' + r.lost + '</td>'
-          + '<td>' + r.goalsFor + '</td><td>' + r.goalsAgainst + '</td>'
+          + '<td class="is-edge">' + r.played + '</td><td>' + r.won + '</td><td>' + r.drawn + '</td><td>' + r.lost + '</td>'
+          + '<td class="is-edge">' + r.goalsFor + '</td><td>' + r.goalsAgainst + '</td>'
           + '<td class="fl-td-gd">' + (r.goalDiff > 0 ? '+' : '') + r.goalDiff + '</td>'
-          + '<td class="fl-td-pts"><span class="fl-pts">' + r.points + '</span></td>'
+          + '<td class="fl-td-pts is-edge"><span class="fl-pts">' + r.points + '</span></td>'
           + '<td class="fl-td-form">' + _lgForm(r.form) + '</td>'
           + '</tr>';
       }).join('')
@@ -64436,13 +64480,17 @@ function _flMatchRow(x, compact) {
       + (align === 'home' ? '<span class="fl-side-txt" data-user-content>' + _esc(name) + '</span>' : '')
       + '</span>';
   };
-  return '<div class="lg-row fl-match' + (mine ? ' is-mine' : '') + (compact ? ' fl-match--sm' : '') + '"'
+  var st = _lgStatus(x.status);
+  // A fixture is a card, not a table row: a status rail down its left edge, the
+  // two clubs balanced around a score capsule, and the date as a quiet spine on
+  // the right. The status chip that used to sit inside the row competed with
+  // the clubs for the first thing the eye landed on.
+  return '<div class="lg-row fl-match fl-match--' + st[1] + (mine ? ' is-mine' : '')
+    + (compact ? ' fl-match--sm' : '') + '"'
     + ' data-action="flMatch" data-match-id="' + _esc(x.matchId || '') + '" data-fixture-id="' + _esc(x.fixtureId) + '" tabindex="0">'
-    + _lgStatusChip(x.status)
-    // The fixture is a fixture, not a table row stretched to the width of the
-    // workspace: the two clubs and the score between them keep a readable band
-    // in the middle, with the status on one edge and the date on the other.
-    + '<div class="fl-fx">' + side(x.home, 'home') + mid + side(x.away, 'away') + '</div>'
+    + '<i class="fl-rail" aria-hidden="true"></i>'
+    + '<span class="fl-status">' + st[0] + '</span>'
+    + '<div class="fl-fx">' + side(x.home, 'home') + '<span class="fl-cap">' + mid + '</span>' + side(x.away, 'away') + '</div>'
     + '<span class="fl-when">'
     + (x.round != null && !compact ? '<b>Round ' + x.round + '</b>' : '')
     + '<i>' + _esc(_flMatchDay(x.scheduledAt)) + '</i></span>'
@@ -64496,9 +64544,9 @@ function _flBoardHtml(title, list, fmt) {
     return _lgPanel(_esc(title), '', _flEmpty('Player statistics not available yet', ''), 'lg-panel--board');
   }
   var myClub = _famActiveClubId();
-  var rows = list.map(function (e, i) {
+  var row = function (e, i) {
     var mine = myClub && e.clubId === myClub;
-    return '<li class="lg-row fl-board-row' + (mine ? ' is-mine' : '') + (i < 3 ? ' is-top is-top' + (i + 1) : '') + '"'
+    return '<li class="lg-row fl-board-row' + (mine ? ' is-mine' : '') + '"'
       + ' data-action="flPlayer" data-player-id="' + _esc(e.playerId) + '" tabindex="0">'
       + '<span class="fl-rank">' + (i + 1) + '</span>'
       + '<span class="fl-board-av" data-user-content>' + _esc(_lgInitials(e.playerName)) + '</span>'
@@ -64510,9 +64558,30 @@ function _flBoardHtml(title, list, fmt) {
       + '</span>'
       + '<span class="fl-board-val">' + _esc(fmt(e.value)) + '</span>'
       + '</li>';
-  }).join('');
+  };
+
+  // ── the leader, then the field ──
+  // A leaderboard whose first row is the same row as its tenth buries the one
+  // figure it exists to report. The leader gets the crest, the name and the
+  // number at a size you read from across a desk; everybody else is a list.
+  var top = list[0];
+  var mineTop = myClub && top.clubId === myClub;
+  var lead = '<div class="fl-lead' + (mineTop ? ' is-mine' : '') + '"'
+    + ' data-action="flPlayer" data-player-id="' + _esc(top.playerId) + '" tabindex="0">'
+    + '<span class="fl-lead-av" data-user-content>' + _esc(_lgInitials(top.playerName)) + '</span>'
+    + '<span class="fl-lead-txt">'
+    +   '<span class="fl-lead-rk">1</span>'
+    +   '<b data-user-content>' + _esc(top.playerName) + '</b>'
+    +   '<i>' + _lgCrest(top.clubId, top.clubName, 16)
+    +   '<span data-user-content>' + _esc(top.clubName) + '</span>'
+    +   (top.position ? '<em data-no-i18n>' + _esc(top.position) + '</em>' : '') + '</i>'
+    + '</span>'
+    + '<span class="fl-lead-val">' + _esc(fmt(top.value)) + '</span>'
+    + '</div>';
+
+  var rest = list.slice(1).map(function (e, i) { return row(e, i + 1); }).join('');
   return _lgPanel(_esc(title), list.length + ' <span>ranked</span>',
-    '<ol class="fl-board-list">' + rows + '</ol>', 'lg-panel--board');
+    lead + (rest ? '<ol class="fl-board-list">' + rest + '</ol>' : ''), 'lg-panel--board');
 }
 
 function _flPlayersHtml() {

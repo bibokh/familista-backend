@@ -1256,5 +1256,6 @@
   "No match in this round is set up yet": "本轮尚无已就绪的比赛",
   "A fixture opens in the Match Center once the match behind it exists.": "只要背后的比赛存在，就可以在 Match Center 中打开。",
   "Round \u0000": "第\u0000轮",
-  "Back to Familista League": "返回 Familista League"
+  "Back to Familista League": "返回 Familista League",
+  "of \u0000 available": "共 \u0000 人可用"
 }

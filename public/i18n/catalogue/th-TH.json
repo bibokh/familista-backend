@@ -1256,5 +1256,6 @@
   "No match in this round is set up yet": "ยังไม่มีนัดใดในรอบนี้ที่ถูกตั้งค่าไว้",
   "A fixture opens in the Match Center once the match behind it exists.": "นัดหนึ่งจะเปิดใน Match Center ทันทีที่การแข่งขันเบื้องหลังมีอยู่",
   "Round \u0000": "รอบที่ \u0000",
-  "Back to Familista League": "กลับไปที่ Familista League"
+  "Back to Familista League": "กลับไปที่ Familista League",
+  "of \u0000 available": "จาก \u0000 คนที่พร้อม"
 }

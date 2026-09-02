@@ -52,7 +52,7 @@ describe('one visual system, not four', () => {
       expect(body).toContain('_lgPanel(');
     }
     expect(APP).toContain("'<tr class=\"lg-row fl-row'");
-    expect(APP).toContain("'<div class=\"lg-row fl-match'");
+    expect(APP).toContain("'<div class=\"lg-row fl-match fl-match--'");
     expect(APP).toContain("'<li class=\"lg-row fl-board-row'");
   });
 
@@ -220,11 +220,19 @@ describe('Player Stats', () => {
     expect(fn).toContain('val(p) > 0');
   });
 
-  it('sets the podium apart and marks our own club', () => {
-    expect(APP).toContain("(i < 3 ? ' is-top is-top' + (i + 1) : '')");
-    for (const c of ['.fl-board-row.is-top1{', '.fl-board-row.is-top2{', '.fl-board-row.is-top3{', '.fl-board-row.is-mine{']) {
+  it('lifts the leader out of the list and marks our own club', () => {
+    // A board whose first row is its tenth row at the same size buries the one
+    // figure it exists to report.
+    const fn = APP.slice(APP.indexOf('function _flBoardHtml('), APP.indexOf('function _flPlayersHtml('));
+    expect(fn).toContain('var top = list[0];');
+    expect(fn).toContain('<div class="fl-lead\' + (mineTop ? \' is-mine\' : \'\') + \'"');
+    expect(fn).toContain('list.slice(1)');
+    for (const c of ['.fl-lead{', '.fl-lead-av{', '.fl-lead-val{', '.fl-board-row.is-mine{']) {
       expect(CSS).toContain(c);
     }
+    // And the three-place podium it replaced is gone rather than left beside it.
+    expect(APP).not.toContain("' is-top is-top' + (i + 1)");
+    expect(CSS).not.toContain('.fl-board-row.is-top2{');
   });
 
   it('opens the canonical player record rather than a second one', () => {
@@ -481,7 +489,7 @@ describe('nothing in the competition moves under a stationary pointer', () => {
 
 describe('the fixture reads as a fixture and the boards as one row', () => {
   it('club against club keeps a measure instead of spanning the workspace', () => {
-    expect(APP).toContain("'<div class=\"fl-fx\">' + side(x.home, 'home') + mid + side(x.away, 'away') + '</div>'");
+    expect(APP).toContain("'<div class=\"fl-fx\">' + side(x.home, 'home') + '<span class=\"fl-cap\">' + mid + '</span>' + side(x.away, 'away') + '</div>'");
     expect(CSS).toMatch(/\.fl-fx\{[\s\S]{0,200}max-width:760px/);
     expect(CSS).toMatch(/\.fl-matches\{[^}]*max-width:1180px/);
   });
@@ -526,8 +534,7 @@ describe('the palette is small enough to mean something', () => {
   it('and the accent is flat wherever it is filled', () => {
     // A gradient plus a glow on a tab, a badge or a button is decoration; the
     // amber already carries the meaning by being amber.
-    for (const rule of ['.fl-tab.is-on{', '.mcx-tab.is-on{', '.lg-act--primary{',
-                        '.fl-row.is-mine .fl-pts{', '.fl-board-row.is-top1 .fl-board-av{']) {
+    for (const rule of ['.lg-act--primary{', '.fl-row.is-mine .fl-pts{', '.fl-lead-av{']) {
       const at = CSS.indexOf(rule);
       expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
       const body = CSS.slice(at, CSS.indexOf('}', at));
@@ -535,6 +542,11 @@ describe('the palette is small enough to mean something', () => {
       expect(body).not.toContain('linear-gradient');
       expect(body).not.toContain('box-shadow');
     }
+    // The two navs no longer fill at all: the League's sections underline and
+    // the match's four views are one segmented control with a part of it live.
+    expect(CSS).toContain('.fl-tab.is-on .fl-tab-rule{ background:var(--lg-accent); }');
+    expect(CSS).toMatch(/\.fl-tab\.is-on\{ color:var\(--tx-1[^}]*\}/);
+    expect(CSS).toMatch(/\.mcx-tab\.is-on\{[^}]*background:var\(--lg-tile-2\)/);
   });
 });
 
@@ -604,5 +616,111 @@ describe('a panel is a card, and does not hold more cards', () => {
     expect(CSS).toContain('--lg-shadow:0 8px 24px rgba(0,0,0,.22);');
     // And an empty state states itself rather than drawing a dashed placeholder.
     expect(CSS).not.toMatch(/\.lg-empty\{[^}]*border:1px dashed/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The premium redesign: structure, not colour. Each of these changed the SHAPE
+// of something, and each could be undone by putting the old shape back.
+
+describe('the League opens with a masthead, not a line of text', () => {
+  const HEAD = APP.slice(APP.indexOf('function _flHeaderHtml('), APP.indexOf('function _flSkeleton('));
+
+  it('the competition\'s own mark leads it, and the season reads as facts', () => {
+    expect(HEAD).toContain('<div class="fl-mark" aria-hidden="true">');
+    expect(HEAD).toContain("_lgIcon('trophy')");
+    // A definition list of labelled figures, not two pills floating beside a
+    // title with nothing holding them to it.
+    expect(HEAD).toContain('<dl class="fl-facts">');
+    expect(HEAD).toContain('<dt>Season</dt>');
+    expect(HEAD).toContain('<dt>Teams</dt>');
+    expect(HEAD).toContain('<dt>Round</dt>');
+    expect(CSS).toMatch(/\.fl-fact\{[^}]*border-left/);
+    expect(CSS).toMatch(/\.fl-mark\{[\s\S]{0,300}border-radius:11px/);
+  });
+
+  it('and the sections are an underlined nav rather than four filled pills', () => {
+    expect(HEAD).toContain('<i class="fl-tab-rule" aria-hidden="true"></i>');
+    const tabs = CSS.slice(CSS.indexOf('.fl-tabs{'), CSS.indexOf('.fl-tab-rule{'));
+    expect(tabs).toContain('border-bottom:1px solid var(--lg-bd-soft)');
+    expect(tabs).not.toContain('backdrop-filter');
+    const tab = CSS.slice(CSS.indexOf('.fl-tab{'), CSS.indexOf('.fl-tab:first-child'));
+    expect(tab).toContain('background:none');
+    expect(tab).toContain('border:0');
+  });
+});
+
+describe('a panel names itself, and a table is read in groups', () => {
+  it('every panel heading carries a rule before it', () => {
+    const fn = APP.slice(APP.indexOf('function _lgPanel('), APP.indexOf('function _lgEmpty('));
+    expect(fn).toContain('<i class="lg-rule" aria-hidden="true"></i>');
+    expect(CSS).toMatch(/\.lg-rule\{[\s\S]{0,200}background:var\(--lg-accent\)/);
+    // The opponent's panels take the other side's colour, as everywhere else.
+    expect(CSS).toContain('.lg-panel--pitch .lg-rule, .mcx-panel--theirs .lg-rule{ background:var(--lg-them); }');
+  });
+
+  it('the standings row is grouped: identity, what was played, what it came to', () => {
+    const fn = APP.slice(APP.indexOf('function _flStandingsHtml('), APP.indexOf('// ── tab 2'));
+    expect((fn.match(/is-edge/g) || []).length).toBeGreaterThanOrEqual(4);
+    expect(fn).toContain("if (i === 2 || i === 6 || i === 9) cls += ' is-edge';");
+    // Barely there in the body: a divider you notice is a spreadsheet.
+    expect(CSS).toContain('.fl-table td.is-edge{ border-left:1px solid rgba(255,255,255,.028); }');
+    // And the rank is a figure in its column, not a chip beside the crest.
+    expect(CSS).toMatch(/\.fl-pos\{[\s\S]{0,240}background:none/);
+  });
+});
+
+describe('a fixture is a card and a leaderboard has a leader', () => {
+  it('the fixture carries a status rail and a score capsule', () => {
+    const at = APP.indexOf('function _flMatchRow(');
+    const fn = APP.slice(at, APP.indexOf('\nfunction ', at + 10));
+    expect(fn).toContain('var st = _lgStatus(x.status);');
+    expect(fn).toContain('<i class="fl-rail" aria-hidden="true"></i>');
+    expect(fn).toContain('<span class="fl-status">');
+    expect(fn).toContain('<span class="fl-cap">');
+    // The chip that used to sit in the row is gone from it.
+    expect(fn).not.toContain('_lgStatusChip(x.status)');
+    expect(CSS).toMatch(/\.fl-rail\{[\s\S]{0,240}position:absolute/);
+    expect(CSS).toContain('.fl-match--done .fl-rail{ background:var(--lg-accent); }');
+  });
+
+  it('and the match hero reads top to bottom on each side', () => {
+    const MCX = APP.slice(APP.indexOf('var sideBlock = function'), APP.indexOf('var ident = embedded'));
+    expect(MCX).toContain('<div class="mcx-side-lbl">');
+    expect(MCX).toContain('<span class="mcx-side-fact">');
+    // The three facts are labelled figures now, not a string of text.
+    expect(CSS).toMatch(/\.mcx-side-fact b\{[\s\S]{0,200}font-variant-numeric:tabular-nums/);
+    // And the centre is the same capsule a fixture card uses.
+    expect(CSS).toMatch(/\.mcx-vs\{[\s\S]{0,300}border:1px solid var\(--lg-bd-soft\)/);
+  });
+
+  it('the match views are a segmented control, not a second nav', () => {
+    const rail = CSS.slice(CSS.indexOf('.mcx-rail{'), CSS.indexOf('.mcx-tab{'));
+    expect(rail).toContain('padding:4px');
+    expect(rail).toContain('border:1px solid var(--lg-bd-soft)');
+    const tab = CSS.slice(CSS.indexOf('.mcx-tab{'), CSS.indexOf('.mcx-tab:hover'));
+    expect(tab).toContain('background:none');
+    expect(tab).toContain('border:0');
+  });
+});
+
+describe('a metric is a labelled figure and an empty state is drawn', () => {
+  it('the tile has a rule instead of another border', () => {
+    expect(CSS).toMatch(/\.lg-metric\{[^}]*position:relative/);
+    expect(CSS).toMatch(/\.lg-metric::before\{[\s\S]{0,240}background:var\(--lg-bd\)/);
+    expect(CSS).toContain('.lg-metric--hero::before{ background:var(--lg-accent); }');
+  });
+
+  it('and the empty state draws its mark rather than printing an emoji', () => {
+    const fn = APP.slice(APP.indexOf('function _lgEmpty('), APP.indexOf('function _lgFloat('));
+    expect(fn).toContain('<svg viewBox="0 0 32 32"');
+    expect(fn).toContain('stroke="currentColor"');
+    expect(fn).not.toContain("icon || '◎'");
+    expect(CSS).toMatch(/\.lg-empty-ic\{[\s\S]{0,300}border-radius:14px/);
+  });
+
+  it('and switching a match view starts that view at its own beginning', () => {
+    const handler = codeOnly(APP).slice(codeOnly(APP).indexOf("act === 'mcTab'"));
+    expect(handler.slice(0, 1800)).toContain('desk.scrollTop = 0;');
   });
 });
