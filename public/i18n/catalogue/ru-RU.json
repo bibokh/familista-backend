@@ -1258,5 +1258,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "Выберите матч — он откроется здесь, в рабочем пространстве лиги.",
   "No match in this round is set up yet": "Ни один матч этого тура пока не подготовлен",
   "A fixture opens in the Match Center once the match behind it exists.": "Матч открывается в Match Center, как только появляется стоящая за ним игра.",
-  "Round \u0000": "Тур \u0000"
+  "Round \u0000": "Тур \u0000",
+  "Back to Familista League": "Назад к Familista League"
 }

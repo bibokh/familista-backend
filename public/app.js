@@ -15230,6 +15230,8 @@ function renderMatchCenter(host, opts) {
     // one control the reader now wants — a different match.
     var ident = embedded
       ? '<div class="mcx-head-id mcx-head-id--embed">'
+        + '  <button class="mcx-back mcx-back--embed" type="button" data-action="flBack">'
+        + '<span aria-hidden="true">←</span> <span>Back to Familista League</span></button>'
         + '  <div class="mcx-eyebrow">Match Center</div>'
         + '  <div class="mcx-head-chips">'
         + (ctx && ctx.round != null ? _lgChip('Round', ctx.round) : '')
@@ -63960,6 +63962,9 @@ var _FL = {
   match: null,             // { fixtureId, data }
   pick: null,              // the lightweight match selector, when one is needed
   opening: false,          // a match is being loaded into the workspace
+  // The section the reader was on before opening the Match Center, so going
+  // back goes back to where they were rather than to a default.
+  back: 'standings',
   myTeamIds: [],
   standings: null,
   zones: [],
@@ -64063,9 +64068,9 @@ function _flPaintBody() {
   // The Match Center section is drawn by the Match Center, into the host the
   // body just made for it. It paints and translates itself.
   var mc = b.querySelector('#fl-mc');
-  // The body stops scrolling while the workspace is in it: the Match Center is
-  // a fixed-height frame of its own and everything inside it that has to give
-  // way gives way in a panel.
+  // The body keeps scrolling whatever is in it. It is the workspace's one
+  // scroll region, and a section taller than the window scrolls inside it
+  // rather than being clipped by it.
   b.classList.toggle('is-mc', !!mc);
   if (mc) { try { renderMatchCenter(mc, { embedded: true }); } catch (_) {} }
   else if (_MC.embed) { _MC.host = null; _MC.embed = false; }
@@ -64129,14 +64134,8 @@ function _flHeaderHtml() {
       }).join('')
     + '</nav>'
     + '  <div class="fl-head-actions">'
-    // The primary action of the whole workspace, at the top level where it can
-    // be found, not buried inside the fixtures list.
-    + (lg
-      ? '  <button class="fl-mc-btn" data-action="flOpenMC" type="button">'
-        + '    <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15" aria-hidden="true"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 2.2 2.1 1.5-.8 2.5H8.7l-.8-2.5L10 4.2zM4.9 7.6l2 .7.8 2.5-2.1 1.6-1.7-1.3a6 6 0 011-3.5zm10.2 0a6 6 0 011 3.5l-1.7 1.3-2.1-1.6.8-2.5 2-.7zM7.6 15.4l-.7-2.1 2.1-1.6 2.1 1.6-.7 2.1a6 6 0 01-2.8 0z"/></svg>'
-        + '    <span>Open Match Center</span>'
-        + '  </button>'
-      : '')
+    // One Match Center entry, and it is the tab. A second call to action beside
+    // the tab that already does it is one control too many.
     + (_FL.canManage
       // Shown only to somebody the server says may use it. A control that is
       // there and then refuses is worse than one that was never offered.
@@ -64793,6 +64792,8 @@ function _flHandOver(d, fixtureId) {
 // the body swapped, and nothing else on the page moves.
 function _flTabTo(tab) {
   if (!tab) return;
+  // Remember where we were, so the Match Center's back control returns there.
+  if (tab === 'match' && _FL.tab !== 'match') _FL.back = _FL.tab;
   _FL.tab = tab;
   _flPaintHead();
   _flPaintBody();
@@ -65102,8 +65103,11 @@ document.addEventListener('click', function (ev) {
     // an empty screen and leaving the reader to work it out.
     if (tab === 'match' && !(_FL.match && _FL.match.data)) { _flEnterMatchCenter(); return; }
     _FL.tab = tab; _flPaintHead(); _flPaintBody(); _flLoadTab();
-  } else if (act === 'flOpenMC') {
-    _flEnterMatchCenter();
+  } else if (act === 'flBack') {
+    // Back to the League section the reader came from. Nothing reloads and
+    // nothing is thrown away: the season, the round and the chosen match are
+    // all still here when they return.
+    _flTabTo(_FL.back === 'match' ? 'standings' : _FL.back);
   } else if (act === 'flPick') {
     _flOpenPick();
   } else if (act === 'flClosePick') {

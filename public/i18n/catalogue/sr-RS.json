@@ -1258,5 +1258,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "Izaberite meč i otvoriće se ovde, u radnom prostoru lige.",
   "No match in this round is set up yet": "Nijedan meč ovog kola još nije pripremljen",
   "A fixture opens in the Match Center once the match behind it exists.": "Meč se otvara u Match Centru čim postoji utakmica iza njega.",
-  "Round \u0000": "Kolo \u0000"
+  "Round \u0000": "Kolo \u0000",
+  "Back to Familista League": "Nazad na Familista League"
 }

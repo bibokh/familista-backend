@@ -338,13 +338,14 @@ describe('the Match Center is a section, not a destination', () => {
     for (const t of ["['standings', 'Standings']", "['matches', 'Matches']", "['players', 'Player Stats']"]) {
       expect(head).toContain(t);
     }
-    // And the way in is a control in the header, not something to be found
-    // inside the fixtures list.
-    expect(head).toContain('class="fl-mc-btn" data-action="flOpenMC"');
-    expect(head).toContain('<span>Open Match Center</span>');
+    // And the tab is the ONLY way in: no second call to action beside it.
+    expect(head).not.toContain('fl-mc-btn');
+    expect(head).not.toContain('Open Match Center');
     // Sections on the left of the control bar, actions on the right, one row.
     expect(head).toContain('<div class="fl-bar">');
     expect(CSS).toContain('.fl-bar{ display:flex;');
+    // The tab itself does the choosing rather than showing an empty screen.
+    expect(codeOnly(FL_ACTIONS)).toMatch(/tab === 'match'[\s\S]{0,140}_flEnterMatchCenter\(\)/);
   });
 
   it('and it draws into the League body rather than another page', () => {
@@ -426,12 +427,39 @@ describe('embedded, the workspace does not repeat what the shell already says', 
     expect(handler.slice(0, 260)).toContain("navTo('familista-league')");
   });
 
-  it('the host takes its own height so the body behind it does not scroll', () => {
-    expect(CSS).toContain('.fl-body.is-mc{ overflow:hidden; }');
-    expect(CSS).toMatch(/\.fl-mc\{[^}]*display:flex[^}]*flex:1 1 auto[^}]*min-height:0/);
+  it('the host is bounded by the body, and the desk inside it scrolls', () => {
+    // Bounded, so the League header above never moves; scrolling on the desk,
+    // so no section can be cut off. A parent with overflow:hidden around
+    // content taller than itself is exactly the thing not to do.
+    expect(CSS).toContain('.fl-mc{ display:flex; flex-direction:column; height:100%; min-height:0; min-width:0; }');
+    expect(CSS).not.toContain('.fl-body.is-mc{ overflow:hidden; }');
+    expect(CSS).toMatch(/\.fl-body\{[^}]*overflow-y:auto/);
     expect(APP).toContain("b.classList.toggle('is-mc', !!mc);");
     // And the escape hatch is the same one every workspace carries.
     expect(CSS).toMatch(/@media \(max-width:980px\), \(max-height:620px\)\{[\s\S]{0,400}\.fl-mc\{ display:block; \}/);
+  });
+
+  it('and the way back into the League is where the reader can see it', () => {
+    const MCX = APP.slice(APP.indexOf('function renderMatchCenter(host, opts)'),
+                          APP.indexOf('function _mcPanel('));
+    expect(MCX).toContain('class="mcx-back mcx-back--embed" type="button" data-action="flBack"');
+    expect(MCX).toContain('Back to Familista League');
+    // It returns to the section the reader came from, in place.
+    expect(APP).toMatch(/var _FL = \{[\s\S]{0,1200}back: 'standings',/);
+    expect(APP).toContain("if (tab === 'match' && _FL.tab !== 'match') _FL.back = _FL.tab;");
+    const branch = codeOnly(FL_ACTIONS).slice(codeOnly(FL_ACTIONS).indexOf("act === 'flBack'"));
+    expect(branch.slice(0, 200)).toContain("_flTabTo(_FL.back === 'match' ? 'standings' : _FL.back)");
+    // Nothing reloads and nothing is discarded on the way back.
+    expect(branch.slice(0, 200)).not.toContain('navTo(');
+    expect(branch.slice(0, 200)).not.toContain('_FL.match = null');
+  });
+
+  it('both Preparation boards stay in view while the matchup beside them is read', () => {
+    expect(CSS).toMatch(/\.mcx-cols--prep \.mcx-col--pitch > \.lg-panel\{[\s\S]{0,240}position:sticky/);
+    // At its own height: stretched to the tallest column it would grow past
+    // anything a screen can show at once.
+    expect(CSS).toMatch(/\.mcx-cols--prep \.mcx-col--pitch > \.lg-panel\{[\s\S]{0,240}flex:0 0 auto/);
+    expect(CSS).toMatch(/\.mcx-cols--prep\{[\s\S]{0,240}align-items:stretch/);
   });
 });
 
@@ -439,15 +467,15 @@ describe('nothing in the competition moves under a stationary pointer', () => {
   it('no control in either module lifts on hover', () => {
     // A control that moves on hover moves again the moment its region is
     // repainted with the pointer standing still, which reads as a shake.
-    for (const rule of ['.fl-tab:hover', '.fl-mc-btn:hover', '.mcx-tab:hover', '.mcx-act:hover',
+    for (const rule of ['.fl-tab:hover', '.mcx-tab:hover', '.mcx-act:hover', '.mcx-swap:hover',
                         '.lg-act:hover', '.fl-manage-btn:hover, .fl-rules-btn:hover']) {
       const at = CSS.indexOf(rule);
       expect(`${rule}@${at > -1}`).toBe(`${rule}@true`);
       expect(CSS.slice(at, CSS.indexOf('}', at))).not.toContain('translateY');
     }
     // And the transitions those controls declare cannot animate geometry.
-    const btn = CSS.slice(CSS.indexOf('.fl-mc-btn{'), CSS.indexOf('.fl-mc-btn:hover'));
-    expect(btn).toContain('transition:filter .15s, box-shadow .15s;');
+    const swap = CSS.slice(CSS.indexOf('.mcx-swap{'), CSS.indexOf('.mcx-swap:hover'));
+    expect(swap).toContain('transition:color .15s, background .15s, border-color .15s;');
   });
 });
 

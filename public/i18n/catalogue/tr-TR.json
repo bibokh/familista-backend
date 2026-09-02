@@ -1258,5 +1258,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "Bir maç seçin, bu alanda, ligin içinde açılsın.",
   "No match in this round is set up yet": "Bu haftanın hiçbir maçı henüz hazırlanmadı",
   "A fixture opens in the Match Center once the match behind it exists.": "Arkasındaki karşılaşma var olduğu anda maç Match Center'da açılır.",
-  "Round \u0000": "\u0000. hafta"
+  "Round \u0000": "\u0000. hafta",
+  "Back to Familista League": "Familista League'e dön"
 }

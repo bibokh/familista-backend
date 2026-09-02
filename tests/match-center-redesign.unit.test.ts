@@ -74,11 +74,14 @@ describe('the page announces itself and its place in the competition', () => {
     // to open. The old repeated "Open Match Center" button is gone.
     // It survives in exactly one place — the foot of the quick-preview panel,
     // where it is the panel's one primary action rather than a column of them.
-    // Two places, both of them deliberate: the quick-preview panel's one
-    // primary action, and the workspace's own top-level control.
-    expect(APP.match(/Open Match Center</g) || []).toHaveLength(2);
+    // One place only: the quick-preview panel's single primary action. The
+    // top-level entry is the Match Center tab itself — a second call to action
+    // beside a tab that already does the same thing is one control too many.
+    expect(APP.match(/Open Match Center</g) || []).toHaveLength(1);
     expect(APP).toMatch(/foot:\s*'<button class="lg-act lg-act--primary"[^']*data-action="flPreviewOpen">Open Match Center</);
-    expect(APP).toMatch(/class="fl-mc-btn" data-action="flOpenMC"/);
+    expect(APP).not.toContain('fl-mc-btn');
+    expect(APP).not.toContain('flOpenMC');
+    expect(CSS).not.toContain('.fl-mc-btn{');
     expect(APP).not.toContain('class="fl-open"');
     expect(CSS).not.toContain('.fl-open{');
     expect(APP).toContain('<span class="fl-go" aria-hidden="true">');
@@ -341,8 +344,18 @@ describe('one workspace, not a document', () => {
     expect(CSS).toMatch(/\.mcx-rail\{[^}]*flex:0 0 auto/);
   });
 
-  it('what scrolls is a column inside the desk, never the page', () => {
-    expect(CSS).toMatch(/\.mcx-col\{[^}]*min-height:0[^}]*overflow-y:auto/);
+  it('what scrolls is the desk, never the page and never a column', () => {
+    // The desk is the workspace's one scroll region, in both hosts. A column
+    // that scrolled itself swallowed its own content: whatever did not fit was
+    // simply unreachable, and `overflow-x:hidden` alone was enough to make one,
+    // because it computes the other axis to `auto`.
+    expect(CSS).toMatch(/\.mcx--embed \.mcx-desk\{[^}]*overflow-y:auto/);
+    expect(CSS).toMatch(/#pg-match-center \.mcx > \.mcx-desk\{[^}]*overflow-y:auto/);
+    expect(CSS).toMatch(/\.mcx-col\{[^}]*overflow:visible/);
+    expect(CSS).not.toMatch(/\.mcx-col\{[^}]*overflow-y:auto/);
+    expect(CSS).not.toMatch(/\.mcx-col\{[^}]*overflow-x:hidden/);
+    // The header and the rail hold their place while it scrolls.
+    expect(CSS).toContain('.mcx--embed .mcx-head, .mcx--embed .mcx-rail{ flex:0 0 auto; }');
     // And a short column reaches the bottom rather than ending above a void.
     expect(CSS).toContain('.mcx-col > .mcx-panel:last-child{ flex:1 1 auto; }');
   });

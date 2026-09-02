@@ -1258,5 +1258,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "Wybierz mecz, a otworzy się tutaj, w obszarze ligi.",
   "No match in this round is set up yet": "Żaden mecz tej kolejki nie jest jeszcze przygotowany",
   "A fixture opens in the Match Center once the match behind it exists.": "Mecz otwiera się w Match Center, gdy tylko istnieje spotkanie, które za nim stoi.",
-  "Round \u0000": "Kolejka \u0000"
+  "Round \u0000": "Kolejka \u0000",
+  "Back to Familista League": "Powrót do Familista League"
 }

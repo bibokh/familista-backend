@@ -1255,5 +1255,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "試合を選ぶと、リーグのワークスペース内のここに開きます。",
   "No match in this round is set up yet": "この節にはまだ準備された試合がありません",
   "A fixture opens in the Match Center once the match behind it exists.": "裏側の試合が作成されると、Match Center で開けるようになります。",
-  "Round \u0000": "第\u0000節"
+  "Round \u0000": "第\u0000節",
+  "Back to Familista League": "Familista League に戻る"
 }

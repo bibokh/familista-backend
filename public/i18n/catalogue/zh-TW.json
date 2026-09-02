@@ -1255,5 +1255,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "選擇一場比賽，它就會在聯賽工作區內的這裡開啟。",
   "No match in this round is set up yet": "本輪尚無已就緒的比賽",
   "A fixture opens in the Match Center once the match behind it exists.": "只要背後的比賽存在，就可以在 Match Center 中開啟。",
-  "Round \u0000": "第\u0000輪"
+  "Round \u0000": "第\u0000輪",
+  "Back to Familista League": "返回 Familista League"
 }

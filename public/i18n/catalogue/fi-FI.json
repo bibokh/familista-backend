@@ -1258,5 +1258,6 @@
   "Choose a fixture and it opens here, inside the league workspace.": "Valitse ottelu, niin se avautuu tähän, sarjan työtilaan.",
   "No match in this round is set up yet": "Tämän kierroksen otteluita ei ole vielä luotu",
   "A fixture opens in the Match Center once the match behind it exists.": "Ottelu avautuu Match Centeriin heti kun sen taustalla oleva ottelu on olemassa.",
-  "Round \u0000": "Kierros \u0000"
+  "Round \u0000": "Kierros \u0000",
+  "Back to Familista League": "Takaisin Familista Leagueen"
 }
